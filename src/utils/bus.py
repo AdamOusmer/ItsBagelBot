@@ -31,9 +31,12 @@ class Bus:
 
         print(f"📣 Publishing {event_type.__name__} to {len(subscribers)} subscriber(s)...")
 
+        tasks = []
+
         for callback in subscribers:
             if asyncio.iscoroutinefunction(callback):
-                await callback(event)
+                tasks.append(asyncio.create_task(callback(event)))
             else:
-                loop = asyncio.get_running_loop()
-                await loop.run_in_executor(None, callback, event)
+                tasks.append(asyncio.to_thread(callback, event))
+
+        await asyncio.gather(*tasks)
