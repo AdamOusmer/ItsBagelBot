@@ -18,23 +18,17 @@ class Settings:
 
     def __init__(self):
         self._load_secrets()
+        self._load_constants()
+
         SystemBUS.subscribe(EventSecretRefresh, self.reload)
 
-    def _load_secrets(self):
-        """Reload all environment-dependent configurations."""
+
+    def _load_constants(self):
         self.WAKE_UP_TIME = datetime.now(UTC)
 
         self.BOT_NAME = 'ItsBagelBot'
         self.BOT_LOGIN = self.BOT_NAME.lower()
-        self.MAIN_BROADCASTER = os.getenv('MAIN_BROADCASTER', 'itsmavey').lower()
-        self.SPECIAL_ID = os.getenv('SPECIAL_ID')
 
-        self.CONTACT = {
-            'EMAIL': os.getenv('CONTACT_EMAIL', "contact@itsmavey.com"),
-            'DISCORD': os.getenv('CONTACT_DISCORD', "https://discord.gg/SZ2remwSDv"),
-        }
-
-        self.SERVERS = [("twitch", "irc.chat.twitch.tv")]
 
         self.SCOPES = {
             'bot': [
@@ -51,6 +45,17 @@ class Settings:
                 AuthScope.USER_READ_CHAT,
                 AuthScope.USER_WRITE_CHAT,
             ],
+        }
+
+
+    def _load_secrets(self):
+        """Reload all environment-dependent configurations."""
+        self.MAIN_BROADCASTER = os.getenv('MAIN_BROADCASTER', 'itsmavey').lower()
+        self.SPECIAL_ID = os.getenv('SPECIAL_ID')
+
+        self.CONTACT = {
+            'EMAIL': os.getenv('CONTACT_EMAIL', "contact@itsmavey.com"),
+            'DISCORD': os.getenv('CONTACT_DISCORD', "https://discord.gg/SZ2remwSDv"),
         }
 
         self.DATABASE_ENGINE = os.getenv("DATABASE_ENGINE", "sqlite")
@@ -86,4 +91,4 @@ class Settings:
     async def reload(self, event: EventSecretRefresh):
         """Reload settings on secret refresh event."""
         self._load_secrets()
-        print("🌷 Settings reloaded.")
+        print("🌷 Secrets reloaded.")
