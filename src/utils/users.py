@@ -5,14 +5,14 @@ Use the databse to recover all users of the bot.
 
 from database.models.BotUsers import BotUsers
 
-from utils.settings import BOT_LOGIN
+from utils import settings
 
 class Users:
 
     @staticmethod
     def get_all_users():
         """Retrieve all bot users' usernames from the database, skipping the bot account."""
-        return [row[0] for row in BotUsers.select(BotUsers.username).tuples() if row[0] != BOT_LOGIN]
+        return [row[0] for row in BotUsers.select(BotUsers.username).tuples() if row[0] != settings.BOT_LOGIN]
 
     @staticmethod
     def get_user_by_username(username: str):
