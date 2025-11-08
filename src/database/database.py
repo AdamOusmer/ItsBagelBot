@@ -14,7 +14,7 @@ DATABASES = {
     "postgres": lambda: PostgresqlDatabase(
         settings.DATABASE["postgres"]["NAME"],
         user=settings.DATABASE["postgres"]["USER"],
-        password=settings.DTABASE["postgres"]["PASSWORD"],
+        password=settings.DATABASE["postgres"]["PASSWORD"],
         host=settings.DATABASE["postgres"]["HOST"],
         port=int(settings.DATABASE["postgres"]["PORT"]),
     ),
