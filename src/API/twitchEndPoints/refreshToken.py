@@ -1,5 +1,5 @@
 import requests
-from utils.settings import TWITCH
+from utils import settings
 
 
 def refresh_user_token(refresh_token: str):
@@ -9,8 +9,8 @@ def refresh_user_token(refresh_token: str):
     url = "https://id.twitch.tv/oauth2/token"
 
     params = {
-        "client_id": TWITCH["CLIENT_ID"],
-        "client_secret": TWITCH["CLIENT_SECRET"],
+        "client_id": settings.TWITCH["CLIENT_ID"],
+        "client_secret": settings.TWITCH["CLIENT_SECRET"],
         "grant_type": "refresh_token",
         "refresh_token": refresh_token,
     }

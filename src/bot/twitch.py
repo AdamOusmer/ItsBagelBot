@@ -4,7 +4,7 @@ from events.tasks.payloads import ChatRequestPayload
 
 from utils import EventBUS
 
-from utils.settings import SPECIAL_ID
+from utils import settings
 
 from commands import COMMAND_MANAGER, Context
 
@@ -42,7 +42,7 @@ class TwitchBot:
         message = event.payload["message"]
         user_id = event.payload["user_id"]
 
-        if user_id == SPECIAL_ID:
+        if user_id == settings.SPECIAL_ID:
             if self.special_id_first:
                 print("🚨 Special ID message detected! Responding with bagels...")
                 self.special_id_first = False

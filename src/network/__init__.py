@@ -1,1 +1,1 @@
-from network import irc, eventSub
+from network import eventSub

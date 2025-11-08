@@ -1,10 +1,10 @@
 from API.spotify import SpotifyAPI
 from API.twitch import TwitchAPI
 
-from utils.settings import MAIN_BROADCASTER
+from utils import settings
 
 
-TWITCHAPI = TwitchAPI(MAIN_BROADCASTER)
+TWITCHAPI = TwitchAPI(settings.MAIN_BROADCASTER)
 
 SPOTIFYAPI = SpotifyAPI()
 

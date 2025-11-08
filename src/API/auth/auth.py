@@ -3,17 +3,14 @@ Bridge module between the application and Twitch's authentication system.
 """
 
 from datetime import datetime, UTC
-from utils.settings import TWITCH, BOT_LOGIN
+from utils import settings
 from API.auth import TwitchAuthHelper
 
 
 class TwitchAuthHandler:
-    client_id = TWITCH["CLIENT_ID"]
-    client_secret = TWITCH["CLIENT_SECRET"]
-    redirect_uri = TWITCH["REDIRECT_URI"]
 
     def __init__(self):
-        self.helper = TwitchAuthHelper(self.client_id, self.client_secret)
+        self.helper = TwitchAuthHelper()
         self.access_token = self.app_token().access_token
 
 #%% OAUTH TOKEN HANDLING
@@ -26,7 +23,7 @@ class TwitchAuthHandler:
         username = username.lower()
 
         if isBot:
-            username = BOT_LOGIN.lower()
+            username = settings.BOT_LOGIN.lower()
 
         oauth_token = self.helper.retrive_token("twitch_user_oauth", username)
 
@@ -49,7 +46,7 @@ class TwitchAuthHandler:
 
     def app_token(self):
         """Retrieve or request a valid app token."""
-        token = self.helper.retrive_token("twitch", BOT_LOGIN.lower())
+        token = self.helper.retrive_token("twitch", settings.BOT_LOGIN.lower())
 
         if token is None or self._to_datetime(token.expires_at) <= datetime.now(UTC):
             print("⚙️ No valid app token found, requesting new one...")

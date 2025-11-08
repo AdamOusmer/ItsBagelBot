@@ -5,7 +5,7 @@ from twitchAPI.eventsub.websocket import EventSubWebsocket
 
 from network.listeners import LISTENERS
 
-from utils.settings import TWITCH, SCOPES
+from utils import settings
 
 from API import TWITCHAPI
 
@@ -21,12 +21,12 @@ class EventSub:
     @classmethod
     async def create(cls):
         """Initialize both Twitch clients — broadcaster & bot."""
-        bot_client = await Twitch(TWITCH['CLIENT_ID'], authenticate_app=False)
+        bot_client = await Twitch(settings.TWITCH['CLIENT_ID'], authenticate_app=False)
 
 
         await bot_client.set_user_authentication(
             TWITCHAPI.BOT['oauth_token'],  # bot token
-            SCOPES['bot'],
+            settings.SCOPES['bot'],
             TWITCHAPI.BOT['refresh_token']
         )
 

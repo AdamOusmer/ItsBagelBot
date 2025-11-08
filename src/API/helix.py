@@ -1,6 +1,6 @@
 import aiohttp
 
-from utils.settings import TWITCH
+from utils import settings
 from API import TWITCHAPI
 
 from utils import EventBUS
@@ -22,7 +22,7 @@ class Helix:
 
         headers = {
             "Authorization": f"Bearer {TWITCHAPI.access_token}",  # App token
-            "Client-Id": TWITCH["CLIENT_ID"],
+            "Client-Id": settings.TWITCH["CLIENT_ID"],
             "Content-Type": "application/json"
         }
         payload = {

@@ -1,5 +1,5 @@
 import requests
-from utils.settings import TWITCH
+from utils import settings
 
 
 def get_app_token():
@@ -10,8 +10,8 @@ def get_app_token():
     url = "https://id.twitch.tv/oauth2/token"
 
     params = {
-        "client_id": TWITCH["CLIENT_ID"],
-        "client_secret": TWITCH["CLIENT_SECRET"],
+        "client_id": settings.TWITCH["CLIENT_ID"],
+        "client_secret": settings.TWITCH["CLIENT_SECRET"],
         "grant_type": "client_credentials",
     }
 

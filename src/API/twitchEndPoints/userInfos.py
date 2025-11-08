@@ -1,5 +1,5 @@
 import requests
-from utils.settings import TWITCH
+from utils import settings
 
 
 def get_user_infos(username: str, access_token: str):
@@ -12,7 +12,7 @@ def get_user_infos(username: str, access_token: str):
 
     url = "https://api.twitch.tv/helix/users"
     headers = {
-        "Client-ID": TWITCH["CLIENT_ID"],
+        "Client-ID": settings.TWITCH["CLIENT_ID"],
         "Authorization": f"Bearer {access_token}",
     }
     params = {"login": username}
@@ -37,7 +37,7 @@ def get_user_by_id(user_id: str, access_token: str):
 
     url = "https://api.twitch.tv/helix/users"
     headers = {
-        "Client-ID": TWITCH["CLIENT_ID"],
+        "Client-ID": settings.TWITCH["CLIENT_ID"],
         "Authorization": f"Bearer {access_token}",
     }
     params = {"id": user_id}

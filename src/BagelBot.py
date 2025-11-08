@@ -6,18 +6,21 @@ setup.initialize_database()
 setup.auto_migrate()
 
 from network import eventSub
-from API import TWITCHAPI
 from bot.twitch import TwitchBot
 
-from tasks import TokenRefreshTask
+from tasks import TokenRefreshTask, SecretRefreshTask
 
 
 async def main():
     TwitchBot()
 
     token_refresh_task = TokenRefreshTask()
+    secret_refresh_task = SecretRefreshTask()
+
     # Start token refresher as a background task
     asyncio.create_task(token_refresh_task.start())
+    asyncio.create_task(secret_refresh_task.start())
+
 
     # Start EventSub
     await eventSub.main()

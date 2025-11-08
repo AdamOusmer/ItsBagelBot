@@ -11,7 +11,7 @@ from urllib.parse import urlparse, parse_qs
 import time
 from datetime import datetime, UTC, timedelta
 
-from utils.settings import TWITCH, BOT_LOGIN
+from utils import settings
 
 # Twitch endpoint imports
 from API.twitchEndPoints.userInfos import get_user_infos
@@ -29,10 +29,6 @@ class TwitchAuthHelper:
     Handles Twitch authentication and user info management.
     All user lookups now rely on the username (not user_id).
     """
-
-    def __init__(self, client_id: str = None, client_secret: str = None):
-        self.client_id = client_id or TWITCH["CLIENT_ID"]
-        self.client_secret = client_secret or TWITCH["CLIENT_SECRET"]
 
     # -------------------------------
     # User and Token Retrieval Helpers
@@ -107,7 +103,7 @@ class TwitchAuthHelper:
         data = get_app_token()
         token = Tokens.create(
             name="twitch",
-            streamer_name=BOT_LOGIN.lower(),
+            streamer_name=settings.BOT_LOGIN.lower(),
             access_token=data["access_token"],
             refresh_token=None,
             expires_at=datetime.now(UTC) + timedelta(seconds=data["expires_in"]),
@@ -130,8 +126,8 @@ class TwitchAuthHelper:
 
         auth_url = (
             f"https://id.twitch.tv/oauth2/authorize"
-            f"?client_id={self.client_id}"
-            f"&redirect_uri={TWITCH['REDIRECT_URI']}"
+            f"?client_id={settings.TWITCH['CLIENT_ID']}"
+            f"&redirect_uri={settings.TWITCH['REDIRECT_URI']}"
             f"&response_type=code"
             f"&scope={scopes}"
         )
@@ -160,7 +156,7 @@ class TwitchAuthHelper:
                     self.wfile.write(message.encode("utf-8"))
                     threading.Thread(target=self.server.shutdown).start()
 
-        parsed = urlparse(TWITCH["REDIRECT_URI"])
+        parsed = urlparse(settings.TWITCH["REDIRECT_URI"])
         host = parsed.hostname or "localhost"
         port = parsed.port or 80
 

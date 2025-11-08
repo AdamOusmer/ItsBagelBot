@@ -1,5 +1,5 @@
 import requests
-from utils.settings import TWITCH
+from utils import settings
 
 
 def get_user_token(code: str):
@@ -10,11 +10,11 @@ def get_user_token(code: str):
     url = "https://id.twitch.tv/oauth2/token"
 
     params = {
-        "client_id": TWITCH["CLIENT_ID"],
-        "client_secret": TWITCH["CLIENT_SECRET"],
+        "client_id": settings.TWITCH["CLIENT_ID"],
+        "client_secret": settings.TWITCH["CLIENT_SECRET"],
         "code": code,
         "grant_type": "authorization_code",
-        "redirect_uri": TWITCH["REDIRECT_URI"],
+        "redirect_uri": settings.TWITCH["REDIRECT_URI"],
     }
 
     response = requests.post(url, data=params)

@@ -1,5 +1,5 @@
 from API.auth import TwitchAuthHandler
-from utils.settings import BOT_LOGIN
+from utils import settings
 
 from utils import SystemBUS
 from events.tasks import EventAuthRefresh
@@ -18,11 +18,11 @@ class TwitchAPI:
 
         # User tokens
         self._broadcaster_token = self.auth.oauth_token(self.channel, isBot=False)
-        self._bot_token = self.auth.oauth_token(BOT_LOGIN, isBot=True)
+        self._bot_token = self.auth.oauth_token(settings.BOT_LOGIN, isBot=True)
 
         # Retrieve or create user info (returns BotUsers object)
         broadcaster_info = self.auth.get_user_infos(self.channel)
-        bot_info = self.auth.get_user_infos(BOT_LOGIN)
+        bot_info = self.auth.get_user_infos(settings.BOT_LOGIN)
 
         # Store broadcaster data
         self.BROADCASTER = {

@@ -10,16 +10,16 @@ with a custom ranking algorithm for fuzzy matching.
 from spotipy import Spotify, SpotifyException
 from spotipy.oauth2 import SpotifyOAuth
 
-from utils.settings import SPOTIFY
+from utils import settings
 
 
 class SpotifyAPI:
 
     def __init__(self):
         self.auth = SpotifyOAuth(
-            client_id=SPOTIFY['CLIENT_ID'],
-            client_secret=SPOTIFY['CLIENT_SECRET'],
-            redirect_uri=SPOTIFY['REDIRECT_URI'],
+            client_id=settings.SPOTIFY['CLIENT_ID'],
+            client_secret=settings.SPOTIFY['CLIENT_SECRET'],
+            redirect_uri=settings.SPOTIFY['REDIRECT_URI'],
             scope="user-modify-playback-state user-read-playback-state playlist-modify-private"
         )
 
