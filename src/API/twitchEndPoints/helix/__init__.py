@@ -1,1 +1,1 @@
-from API.twitchEndPoints.helix.chatMessages import send
+from API.twitchEndPoints.helix.chatMessages import sendMessage

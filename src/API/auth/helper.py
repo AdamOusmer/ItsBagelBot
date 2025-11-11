@@ -11,7 +11,7 @@ from urllib.parse import urlparse, parse_qs
 import time
 from datetime import datetime, UTC, timedelta
 
-from utils import settings
+from utils import settings, Logger
 
 # Twitch endpoint imports
 from API.twitchEndPoints.userInfos import get_user_infos
@@ -34,6 +34,8 @@ class TwitchAuthHelper:
     # User and Token Retrieval Helpers
     # -------------------------------
 
+    _logger = Logger("API.Twitch.Auth.Helper")
+
     def get_or_create_user_info(self, username: str, access_token: str = None):
         """Retrieve or create user info from Twitch and store in DB."""
         if not username or username.strip() == "":
@@ -51,7 +53,7 @@ class TwitchAuthHelper:
                 display_name=user_data["display_name"],
                 user_id=user_data["id"],
             )
-            print(f"🆕 Created new user record for {username}")
+            self._logger.info(f"🆕 Created new user record for {username}")
         else:
             # Update if incomplete or outdated
             if not user.user_id or not user.display_name:
@@ -59,7 +61,7 @@ class TwitchAuthHelper:
                 user.display_name = user_data["display_name"]
                 user.user_id = user_data["id"]
                 user.save()
-                print(f"🔁 Updated user info for {username}")
+                self._logger.debug(f"🔁 Updated user infos for {username}")
 
         return user
 
@@ -87,7 +89,7 @@ class TwitchAuthHelper:
             expires_at=datetime.now(UTC) + timedelta(seconds=token_data["expires_in"]),
         )
 
-        print(f"✅ Stored new OAuth token for {username}")
+        self._logger.info(f"✅ Stored new OAuth token for {username}")
         return token
 
     def refresh_oauth_token(self, oauth_token: Tokens) -> Tokens:
@@ -108,7 +110,7 @@ class TwitchAuthHelper:
             refresh_token=None,
             expires_at=datetime.now(UTC) + timedelta(seconds=data["expires_in"]),
         )
-        print("✅ Created new app token.")
+        self._logger.info("✅ Created new app token.")
         return token
 
     # -------------------------------

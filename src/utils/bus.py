@@ -6,30 +6,36 @@ import asyncio
 from typing import Type, Callable, Dict, List, Any
 from events import BaseEvent
 
+from utils import Logger
+
 
 class Bus:
     """A lightweight async/sync event bus for inter-module communication."""
 
-    def __init__(self):
+    def __init__(self, logger_name: str = 'Bus'):
         # Dict mapping event classes to list of callbacks
+        if not logger_name or not logger_name.strip():
+            raise ValueError("Logger name cannot be None or empty")
+
         self._subscribers: Dict[Type[BaseEvent], List[Callable[[BaseEvent], Any]]] = {}
+        self._logger = Logger(name=logger_name)
 
     def subscribe(self, event_type: Type[BaseEvent], callback: Callable[[BaseEvent], Any]):
         """Register a callback for a specific event type (class-based)."""
         if event_type not in self._subscribers:
             self._subscribers[event_type] = []
         self._subscribers[event_type].append(callback)
-        print(f"✅ Subscribed to {event_type.__name__}: {callback.__name__}")
+        self._logger.debug(f"🔔 Subscribed to {event_type.__name__}: {callback.__name__}")
 
     async def publish(self, event: BaseEvent):
         """Publish an event to all registered subscribers."""
         event_type = type(event)
         subscribers = self._subscribers.get(event_type, [])
         if not subscribers:
-            print(f"⚠️ No subscribers for {event_type.__name__}")
+            self._logger.debug(f"No subscribers for {event_type.__name__}")
             return
 
-        print(f"📣 Publishing {event_type.__name__} to {len(subscribers)} subscriber(s)...")
+        self._logger.debug(f"📣 Publishing {event_type.__name__} to {len(subscribers)} subscriber(s)...")
 
         tasks = []
 

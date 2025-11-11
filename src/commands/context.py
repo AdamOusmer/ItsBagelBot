@@ -1,11 +1,12 @@
 from events.tasks import EventChatRequest
 from events.tasks.payloads import ChatRequestPayload
-from utils import EventBUS
+from utils import EventBUS, Logger
 
 from payload import Permission
 
-
 class Context:
+
+    _logger = Logger('System.Commands.Context')
     """Lightweight context object passed to commands."""
     def __init__(self, user, id, message, permission: Permission , send_func=None):
         self.user = user
@@ -42,14 +43,13 @@ class Context:
             # Use the provided send function (e.g., test or IRC-level sender)
             try:
                 if callable(self.send_func):
-                    # Handle both sync and async send functions
                     result = self.send_func(text)
                     if hasattr(result, "__await__"):
                         await result
                 else:
-                    print(f"[WARN] send_func is not callable: {self.send_func}")
+                    self._logger.warning(f"send_func is not callable: {self.send_func}")
             except Exception as e:
-                print(f"[ERROR] send_func failed: {e}")
+                self._logger.error(f"send_func failed: {e}")
 
             return
 

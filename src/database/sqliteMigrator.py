@@ -7,6 +7,10 @@ from peewee import Model, Field
 from playhouse.migrate import SqliteMigrator, migrate
 from database import db
 
+from utils import Logger
+
+
+_logger = Logger('System.Database.Migrator')
 
 def makemigrations(models: list[Model]):
     """
@@ -16,7 +20,7 @@ def makemigrations(models: list[Model]):
     migrator = SqliteMigrator(db)
     cursor = db.cursor()
 
-    print("🔍 Checking for schema differences...")
+    _logger.info("🔍 Checking for schema differences...")
     for model in models:
         table_name = model._meta.table_name
         existing_cols = {
@@ -25,8 +29,8 @@ def makemigrations(models: list[Model]):
 
         for field_name, field_obj in model._meta.fields.items():
             if field_name not in existing_cols:
-                print(f"🆕 Will add column '{field_name}' to table '{table_name}' ({type(field_obj).__name__})")
-    print("✅ Done checking schema.")
+                _logger.debug(f"🆕 Will add column '{field_name}' to table '{table_name}' ({type(field_obj).__name__})")
+    _logger.info("✅ Done checking schema.")
 
 
 def migrate_models(models: list[Model]):
@@ -43,7 +47,7 @@ def migrate_models(models: list[Model]):
 
         # 👇 CHECK HERE for new models (missing tables)
         if not db.table_exists(table_name):
-            print(f"🚀 Creating new table '{table_name}' for model {model.__name__}")
+            _logger.debug(f"🆕 Creating new table '{table_name}' for model {model.__name__}")
             model.create_table()
             continue  # skip column check since table is brand new
 
@@ -54,14 +58,14 @@ def migrate_models(models: list[Model]):
 
         for field_name, field_obj in model._meta.fields.items():
             if field_name not in existing_cols:
-                print(f"➕ Adding column '{field_name}' to '{table_name}'")
+                _logger.debug(f"🆕 Adding column '{field_name}' to '{table_name}'")
                 operations.append(migrator.add_column(table_name, field_name, field_obj))
 
     # --- Apply column migrations ---
     if operations:
-        print(f"🚀 Applying {len(operations)} migration(s)...")
+        _logger.info(f"✍️ Applying {len(operations)} migration(s)...")
         with db.atomic():
             migrate(*operations)
-        print("✅ Migration complete.")
+        _logger.info("✅ Migration complete.")
     else:
-        print("✅ No migrations needed.")
+        _logger.info("✅ No migrations needed.")
