@@ -5,6 +5,14 @@
 
 > ⚠️ **Notice**: This project is private and **not for free use, redistribution, or modification** without explicit permission from the author.
 
+[![CodeScene general](https://codescene.io/images/analyzed-by-codescene-badge.svg)](https://codescene.io/projects/73601)
+
+
+[![CodeScene Hotspot Code Health](https://codescene.io/projects/73601/status-badges/hotspot-code-health)](https://codescene.io/projects/73601)
+[![CodeScene Average Code Health](https://codescene.io/projects/73601/status-badges/average-code-health)](https://codescene.io/projects/73601)
+[![CodeScene System Mastery](https://codescene.io/projects/73601/status-badges/system-mastery)](https://codescene.io/projects/73601)
+
+
 ItsBagelBot is a lightweight, extensible chat bot created by **ItsMavey**.  
 It provides fun, helpful, and customizable commands for communities — from playful responses and moderation utilities to integrations you can extend.
 
