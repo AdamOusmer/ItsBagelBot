@@ -17,6 +17,6 @@ def get_user_token(code: str):
         "redirect_uri": settings.TWITCH["REDIRECT_URI"],
     }
 
-    response = requests.post(url, data=params)
+    response = requests.post(url, data=params, timeout=10)
     response.raise_for_status()
     return response.json()

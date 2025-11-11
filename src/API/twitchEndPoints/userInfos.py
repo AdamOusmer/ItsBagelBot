@@ -17,7 +17,7 @@ def get_user_infos(username: str, access_token: str):
     }
     params = {"login": username}
 
-    response = requests.get(url, headers=headers, params=params)
+    response = requests.get(url, headers=headers, params=params, timeout=10)
     response.raise_for_status()
 
     data = response.json()
@@ -42,7 +42,7 @@ def get_user_by_id(user_id: str, access_token: str):
     }
     params = {"id": user_id}
 
-    response = requests.get(url, headers=headers, params=params)
+    response = requests.get(url, headers=headers, params=params, timeout=10)
     response.raise_for_status()
 
     data = response.json()
