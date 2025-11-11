@@ -15,6 +15,6 @@ def refresh_user_token(refresh_token: str):
         "refresh_token": refresh_token,
     }
 
-    response = requests.post(url, params=params)
+    response = requests.post(url, params=params, timeout=10)
     response.raise_for_status()
     return response.json()
