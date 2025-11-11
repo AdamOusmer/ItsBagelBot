@@ -4,11 +4,13 @@ from events.tasks.payloads import ChatRequestPayload
 
 from utils import EventBUS
 
-from utils import settings
+from utils import settings, Logger
 
 from commands import COMMAND_MANAGER, Context
 
 class TwitchBot:
+
+    _logger = Logger('TwitchBot')
     def __init__(self):
         # Subscribe using class references, not strings
         EventBUS.subscribe(EventChatCommand, self.on_command)
@@ -24,7 +26,7 @@ class TwitchBot:
         message = payload["command"]
         user_id = payload["user_id"]
 
-        print(f"🔥 Command received from {username}: {message}")
+        self._logger.info(f"Command received from {username}: {message}")
 
         # Create context for this command
         ctx = Context(
@@ -44,7 +46,7 @@ class TwitchBot:
 
         if user_id == settings.SPECIAL_ID:
             if self.special_id_first:
-                print("🚨 Special ID message detected! Responding with bagels...")
+                self._logger.info("🚨 Special ID message detected! Responding with bagels...")
                 self.special_id_first = False
 
                 request_event = EventChatRequest(
@@ -55,4 +57,4 @@ class TwitchBot:
 
                 await EventBUS.publish(request_event)
 
-        print(f"💬 Message from {username}: {message}")
+        self._logger.info(f"💬 Message from {username}: {message}")

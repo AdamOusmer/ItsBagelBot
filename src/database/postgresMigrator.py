@@ -7,6 +7,10 @@ from peewee import Model
 from playhouse.migrate import PostgresqlMigrator, migrate
 from database import db
 
+from utils import Logger
+
+
+_logger = Logger('System.Database.Migrator')
 
 def _get_existing_columns(table_name: str) -> set[str]:
     """Fetch all existing columns for a table from Postgres system tables."""
@@ -28,7 +32,7 @@ def makemigrations(models: list[Model]):
     Compare Peewee models with the database schema and print missing columns.
     Like Django's 'makemigrations' but for Postgres only.
     """
-    print("🔍 Checking PostgreSQL schema differences...")
+    _logger.info("🔍 Checking PostgreSQL schema differences...")
 
     cursor = db.cursor()
     for model in models:
@@ -43,11 +47,11 @@ def makemigrations(models: list[Model]):
         existing_cols = _get_existing_columns(table_name)
         for field_name, field_obj in model._meta.fields.items():
             if field_name not in existing_cols:
-                print(
+                _logger.debug(
                     f"🆕 Will add column '{field_name}' to table '{table_name}' ({type(field_obj).__name__})"
                 )
 
-    print("✅ Schema check complete.")
+    _logger.info("✅ Schema check complete.")
 
 
 def migrate_models(models: list[Model]):
@@ -55,7 +59,7 @@ def migrate_models(models: list[Model]):
     Apply schema migrations for PostgreSQL.
     Automatically creates missing tables and columns.
     """
-    print("⚙️ Running PostgreSQL migrations...")
+    _logger.info("⚙️ Running PostgreSQL migrations...")
     migrator = PostgresqlMigrator(db)
     operations = []
 
@@ -64,7 +68,7 @@ def migrate_models(models: list[Model]):
 
         # --- Table creation ---
         if not db.table_exists(table_name):
-            print(f"🚀 Creating table '{table_name}' for model {model.__name__}")
+            _logger.debug(f"🆕 Creating table '{table_name}' for model {model.__name__}")
             model.create_table()
             continue
 
@@ -72,13 +76,13 @@ def migrate_models(models: list[Model]):
         existing_cols = _get_existing_columns(table_name)
         for field_name, field_obj in model._meta.fields.items():
             if field_name not in existing_cols:
-                print(f"➕ Adding column '{field_name}' to '{table_name}'")
+                _logger.debug(f"🆕 Adding column '{field_name}' to '{table_name}'")
                 operations.append(migrator.add_column(table_name, field_name, field_obj))
 
     # --- Apply migrations if any ---
     if operations:
         with db.atomic():
             migrate(*operations)
-        print(f"✅ Applied {len(operations)} PostgreSQL migration(s).")
+        _logger.info(f"✅ Applied {len(operations)} PostgreSQL migration(s).")
     else:
-        print("✅ No migrations needed.")
+        _logger.info("✅ No migrations needed.")

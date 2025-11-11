@@ -10,10 +10,12 @@ with a custom ranking algorithm for fuzzy matching.
 from spotipy import Spotify, SpotifyException
 from spotipy.oauth2 import SpotifyOAuth
 
-from utils import settings
+from utils import settings, Logger
 
 
 class SpotifyAPI:
+
+    _logger = Logger('API.Spotify')
 
     def __init__(self):
         self.auth = SpotifyOAuth(
@@ -31,25 +33,25 @@ class SpotifyAPI:
         try:
             self.spotify.start_playback()
         except SpotifyException as e:
-            print(f"[Spotify] Failed to start playback: {e}")
+            self._logger.error(f"[Spotify] Failed to start playback: {e}")
 
     def pause(self):
         try:
             self.spotify.pause_playback()
         except SpotifyException as e:
-            print(f"[Spotify] Failed to pause playback: {e}")
+            self._logger.error(f"[Spotify] Failed to pause playback: {e}")
 
     def next_track(self):
         try:
             self.spotify.next_track()
         except SpotifyException as e:
-            print(f"[Spotify] Failed to skip to next track: {e}")
+            self._logger.error(f"[Spotify] Failed to skip to next track: {e}")
 
     def previous_track(self):
         try:
             self.spotify.previous_track()
         except SpotifyException as e:
-            print(f"[Spotify] Failed to go to previous track: {e}")
+            self._logger.error(f"[Spotify] Failed to go to previous track: {e}")
 
     # %% --- Queue Management ---
 
@@ -61,7 +63,7 @@ class SpotifyAPI:
             else:
                 self.spotify.add_to_queue(track_uri)
         except SpotifyException as e:
-            print(f"[Spotify] Failed to add track to queue: {e}")
+            self._logger.error(f"[Spotify] Failed to add track to queue: {e}")
 
     def search_to_queue(self, query):
         try:
@@ -70,8 +72,6 @@ class SpotifyAPI:
             if not active_device:
                 return "No active device found. Please start playback on a Spotify device."
             device_id = active_device['id']
-
-            print(active_device)
 
             results = self.spotify.search(q=query, type='track', limit=5)
             tracks = results['tracks']['items']

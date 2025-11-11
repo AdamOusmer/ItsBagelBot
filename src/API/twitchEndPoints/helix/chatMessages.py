@@ -5,7 +5,7 @@ from API import TWITCHAPI
 from utils import settings
 
 
-def send(message, broadcaster_id=None):
+def sendMessage(message, broadcaster_id=None):
 
     url = "https://api.twitch.tv/helix/chat/messages"
 

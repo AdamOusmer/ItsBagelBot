@@ -1,12 +1,14 @@
 from API import TWITCHAPI
 
-from utils import EventBUS
+from utils import EventBUS, Logger
 from events.tasks import EventChatRequest
 
-from API.twitchEndPoints.helix.chatMessages import send
+from API.twitchEndPoints.helix.chatMessages import sendMessage
 
 
 class Helix:
+
+    _logger = Logger('API.Twitch.Helix')
 
     def __init__(self):
         self.broadcaster_id = TWITCHAPI.BROADCASTER['id']
@@ -21,8 +23,8 @@ class Helix:
         parts = message.split("\n")
 
         if not parts:
-            print("No message parts to send.")
+            self._logger.debug("No message parts to send.")
             return
 
         for part in parts:
-            send(part)
+            sendMessage(part)

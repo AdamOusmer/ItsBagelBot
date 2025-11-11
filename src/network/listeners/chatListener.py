@@ -1,6 +1,10 @@
 from network.handlers import ChatHandler
 
+from utils import Logger
+
 class ChatListener:
+
+    _logger = Logger('System.Network.Listener')
 
     def __init__(self):
         self.handler = ChatHandler()
@@ -13,4 +17,4 @@ class ChatListener:
             user_id=bot_id,
             callback=self.handler.dispatch,
         )
-        print("💬 Registered: channel.chat_message")
+        self._logger.info("📝 Registered: channel.chat_message")

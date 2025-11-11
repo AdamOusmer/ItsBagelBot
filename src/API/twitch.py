@@ -1,11 +1,14 @@
 from API.auth import TwitchAuthHandler
 from utils import settings
 
-from utils import SystemBUS
+from utils import SystemBUS, Logger
 from events.tasks import EventAuthRefresh
 
 
 class TwitchAPI:
+
+    _logger = Logger('API.Twitch')
+
     def __init__(self, channel: str):
         if not channel or channel.strip() == "":
             raise ValueError("Channel must be provided.")
@@ -47,7 +50,7 @@ class TwitchAPI:
     def refresh_tokens(self, event: EventAuthRefresh):
         """Refresh both bot and broadcaster OAuth tokens if needed."""
 
-        print("Refreshing bot tokens...")
+        self._logger.info("🔁 Refreshing tokens...")
 
         oauth_token = self.auth.refresh_auth_token(self._broadcaster_token)
         bot_oauth_token = self.auth.refresh_auth_token(self._bot_token)

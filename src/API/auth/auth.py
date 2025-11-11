@@ -3,11 +3,13 @@ Bridge module between the application and Twitch's authentication system.
 """
 
 from datetime import datetime, UTC
-from utils import settings
+from utils import settings, Logger
 from API.auth import TwitchAuthHelper
 
 
 class TwitchAuthHandler:
+
+    _logger = Logger("API.Twitch.Auth")
 
     def __init__(self):
         self.helper = TwitchAuthHelper()
@@ -31,7 +33,7 @@ class TwitchAuthHandler:
                 oauth_token is None
                 or self._to_datetime(oauth_token.expires_at) <= datetime.now(UTC)
         ):
-            print(f"🔄 Refreshing or requesting new OAuth token for {username}...")
+            self._logger.info(f"🔄 Refreshing or requesting new OAuth token for {username}...")
 
             if oauth_token is None:
                 # No token at all — run browser authorization
@@ -49,7 +51,7 @@ class TwitchAuthHandler:
         token = self.helper.retrive_token("twitch", settings.BOT_LOGIN.lower())
 
         if token is None or self._to_datetime(token.expires_at) <= datetime.now(UTC):
-            print("⚙️ No valid app token found, requesting new one...")
+            self._logger.info("⚙️ No valid app token found, requesting new one...")
             token = self.helper.request_app_token()
 
         return token
@@ -63,7 +65,7 @@ class TwitchAuthHandler:
         if oauth_token is None:
             raise ValueError("Cannot refresh a null token object.")
 
-        print(f"🔁 Refreshing auth token for {oauth_token.streamer_name}...")
+        self._logger.info(f"🔁 Refreshing auth token for {oauth_token.streamer_name}...")
         return self.helper.refresh_oauth_token(oauth_token)
 
 #%% USER INFO HANDLING

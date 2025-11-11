@@ -5,6 +5,10 @@ from datetime import datetime, timedelta, UTC
 from peewee import CharField, DateTimeField
 from database.model import BaseModel
 
+from utils import Logger
+
+_logger = Logger('Database.Models.APITokens')
+
 class APITokens(BaseModel):
 
     name = CharField()
@@ -29,7 +33,7 @@ class APITokens(BaseModel):
     def update_from_response(self, data):
 
         if not data:
-            print('No data provided to update token.')
+            _logger.warning('No data provided to update token.')
             return None
 
         self.access_token = data["access_token"]

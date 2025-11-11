@@ -12,6 +12,8 @@ from twitchAPI.type import AuthScope
 from utils import SystemBUS
 from events.tasks import EventSecretRefresh
 
+from utils import Logger
+
 
 class Settings:
     """Application settings and configurations."""
@@ -19,6 +21,8 @@ class Settings:
     def __init__(self):
         self._load_secrets()
         self._load_constants()
+
+        self.logger = Logger(name='System.Settings')
 
         SystemBUS.subscribe(EventSecretRefresh, self.reload)
 
@@ -91,4 +95,4 @@ class Settings:
     async def reload(self, event: EventSecretRefresh):
         """Reload settings on secret refresh event."""
         self._load_secrets()
-        print("🌷 Secrets reloaded.")
+        self.logger.debug("🌷 Secrets reloaded.")

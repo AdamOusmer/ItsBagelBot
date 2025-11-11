@@ -1,9 +1,13 @@
 # commands/base.py
 from commands import COMMAND_REGISTRY
 
+from utils import Logger
+
 
 class Component:
     """Base class for all grouped commands (auto-binds registered methods)."""
+
+    _logger = Logger("System.Commands.Component")
 
     def __init_subclass__(cls, **kwargs):
         """Instantiate and bind class-based commands."""
@@ -24,6 +28,6 @@ class Component:
                 COMMAND_REGISTRY[cmd_name]["func"] = method
                 COMMAND_REGISTRY[cmd_name]["component"] = instance
 
-                print(f"🔗 Bound command '{cmd_name}' to {cls.__name__}")
+                cls._logger.debug(f"🔗 Bound command '{cmd_name}' to {cls.__name__}")
 
-        print(f"✅ Loaded command module: {cls.__name__}")
+        cls._logger.info(f"✅ Loaded command module: {cls.__name__}")

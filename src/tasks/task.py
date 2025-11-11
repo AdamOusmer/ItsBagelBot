@@ -1,8 +1,13 @@
 import asyncio
 
+from utils import Logger
 
 class Task:
+    _logger = Logger(name='System.Task')
+
     def __init__(self, name, description, interval=50 * 60):
+
+
         self.name = name
         self.description = description
         self.amount_executions = 0
@@ -22,9 +27,9 @@ class Task:
         while self.running:
             try:
                 await self.execute()
-                print(f"✅ Task '{self.name}' executed successfully.")
+                self._logger.debug(f"✅ '{self.name}' executed successfully.")
             except Exception as e:
-                print(f"❌ Error executing task '{self.name}': {e}")
+                self._logger.debug(f"❌ Error executing task '{self.name}': {e}")
             await asyncio.sleep(self.interval)
 
     async def stop(self):

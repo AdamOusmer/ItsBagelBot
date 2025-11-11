@@ -3,7 +3,7 @@ from twitchAPI.twitch import Twitch
 from twitchAPI.eventsub.websocket import EventSubWebsocket
 
 from network.listeners import LISTENERS
-from utils import settings
+from utils import settings, Logger
 from API import TWITCHAPI
 
 import time
@@ -12,6 +12,7 @@ import time
 class EventSub:
 
     RECONNECT_TIMEOUT = 60  # seconds
+    _logger = Logger(name='System.Network.EventSub')
 
     def __init__(self, bot_client: Twitch):
         self.bot_client = bot_client
@@ -32,8 +33,8 @@ class EventSub:
             TWITCHAPI.BOT['refresh_token'],
         )
 
-        print(f"✅ Broadcaster authenticated as {TWITCHAPI.BROADCASTER['display_name']}")
-        print(f"🤖 Bot authenticated as {TWITCHAPI.BOT['display_name']}")
+        cls._logger.info(f"🎥 Broadcaster authenticated as {TWITCHAPI.BROADCASTER['display_name']}")
+        cls._logger.info(f"🤖 Bot authenticated as {TWITCHAPI.BOT['display_name']}")
 
         return cls(twitch)
 
@@ -45,21 +46,17 @@ class EventSub:
                     broadcaster_id=self.broadcaster_id,
                     bot_id=self.bot_id,
                 )
-                print(f"✅ Registered listener: {listener.__class__.__name__}")
+                self._logger.debug(f"✅ Registered listener: {listener.__class__.__name__}")
             except Exception as e:
-                print(f"⚠️ Failed to register {listener.__class__.__name__}: {e}")
+                self._logger.debug(f"⚠️ Failed to register {listener.__class__.__name__}: {e}")
 
     async def start_eventsub(self):
         """Start EventSubWebsocket once."""
-        print("🔌 Starting EventSub WebSocket...")
+        self._logger.debug("🔌 Starting EventSub WebSocket")
         self.eventsub = EventSubWebsocket(self.bot_client)
 
-        # optional: tweak reconnect delays (seconds)
-        # self.eventsub.reconnect_delay_steps = [2, 5, 10, 30]
+        self.eventsub.start()
 
-        self.eventsub.start()  # runs in its own thread
-
-        # MUST subscribe within 10s or Twitch will drop you
         await self.register_listeners()
 
     async def _monitor(self):
@@ -72,7 +69,7 @@ class EventSub:
 
             session = self.eventsub.active_session
             if session is None:
-                print("⚠️ EventSub session missing — restarting...")
+                self._logger.debug("⚠️ EventSub session missing — restarting...")
                 await self._restart()
                 continue
 
@@ -83,11 +80,10 @@ class EventSub:
             elif session.status == "reconnecting":
                 elapsed = time.time() - self._last_connected
                 if elapsed > self.RECONNECT_TIMEOUT:
-                    print(f"⏰ Reconnect taking too long ({elapsed:.1f}s) — forcing restart")
+                    self._logger.debug(f"⏰ Reconnect taking too long ({elapsed:.1f}s) — forcing restart")
                     await self._restart()
             else:
-                # 'disconnected' or any other
-                print(f"⚠️ EventSub status = {session.status}, restarting...")
+                self._logger.debug(f"⚠️ EventSub status = {session.status}, restarting...")
                 await self._restart()
 
     async def _restart(self):
@@ -96,7 +92,7 @@ class EventSub:
             try:
                 await self.eventsub.stop()
             except Exception as e:
-                print(f"⚠️ Error while stopping EventSub: {e}")
+                self._logger.debug(f"⚠️ Error while stopping EventSub: {e}")
 
         await asyncio.sleep(2)
 
@@ -108,8 +104,7 @@ class EventSub:
         # background monitor to kick it if it silently dies
         asyncio.create_task(self._monitor())
 
-        # keep your app alive; your real app loop/logic can go here
-        await asyncio.Future()  # or your own run loop
+        await asyncio.Future()
 
 
 async def main():
