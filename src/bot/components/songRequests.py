@@ -32,11 +32,16 @@ class Spotify(Component):
     @cmd.mod
     @cmd.command(name='play', aliases=[], description='Resume playback on Spotify')
     async def play(self, ctx):
+
+        if SPOTIFYAPI.is_playing():
+            return f"@{ctx.user} Spotify is already playing."
         return SPOTIFYAPI.play()
 
     @cmd.mod
     @cmd.command(name='pause', aliases=[], description='Pause playback on Spotify')
     async def pause(self, ctx):
+        if not SPOTIFYAPI.is_playing():
+            return f"@{ctx.user} Spotify is already paused."
         return SPOTIFYAPI.pause()
 
 
