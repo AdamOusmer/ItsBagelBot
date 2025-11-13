@@ -7,6 +7,7 @@ It includes all authentication and request handling functionalities towards the 
 It also includes methods for playback, queue management, and searching tracks
 with a custom ranking algorithm for fuzzy matching.
 """
+from jaraco.functools import retry
 from spotipy import Spotify, SpotifyException
 from spotipy.oauth2 import SpotifyOAuth
 
@@ -32,26 +33,42 @@ class SpotifyAPI:
     def play(self):
         try:
             self.spotify.start_playback()
+
+            return "Playback started."
         except SpotifyException as e:
             self._logger.error(f"[Spotify] Failed to start playback: {e}")
 
     def pause(self):
         try:
             self.spotify.pause_playback()
+
+            return "Playback paused."
         except SpotifyException as e:
             self._logger.error(f"[Spotify] Failed to pause playback: {e}")
 
     def next_track(self):
         try:
             self.spotify.next_track()
+
+            return "Skipped to next track."
         except SpotifyException as e:
             self._logger.error(f"[Spotify] Failed to skip to next track: {e}")
 
     def previous_track(self):
         try:
             self.spotify.previous_track()
+
+            return "Went back to previous track."
         except SpotifyException as e:
             self._logger.error(f"[Spotify] Failed to go to previous track: {e}")
+
+    def volume(self, volume_percent):
+        try:
+            self.spotify.volume(volume_percent)
+
+            return "Volume set to {}%.".format(volume_percent)
+        except SpotifyException as e:
+            self._logger.error(f"[Spotify] Failed to set volume: {e}")
 
     # %% --- Queue Management ---
 
