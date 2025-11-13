@@ -70,6 +70,16 @@ class SpotifyAPI:
         except SpotifyException as e:
             self._logger.error(f"[Spotify] Failed to set volume: {e}")
 
+
+    def is_playing(self):
+        try:
+            state = self.spotify.current_playback()
+            if not state:
+                return None  # No active device
+            return state.get("is_playing", False)
+        except:
+            return None
+
     # %% --- Queue Management ---
 
     def add_to_queue(self, track_uri, device_id=None):
