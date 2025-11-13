@@ -10,6 +10,7 @@ with a custom ranking algorithm for fuzzy matching.
 from jaraco.functools import retry
 from spotipy import Spotify, SpotifyException
 from spotipy.oauth2 import SpotifyOAuth
+from twitchAPI.oauth import refresh_access_token
 
 from utils import settings, Logger
 
@@ -25,6 +26,9 @@ class SpotifyAPI:
             redirect_uri=settings.SPOTIFY['REDIRECT_URI'],
             scope="user-modify-playback-state user-read-playback-state playlist-modify-private"
         )
+
+        if settings.SPOTIFY['REFRESH_TOKEN']:
+            self.auth.refresh_access_token(settings.SPOTIFY['REFRESH_TOKEN'])
 
         self.spotify = Spotify(auth_manager=self.auth)
 

@@ -82,6 +82,7 @@ class Settings:
             'CLIENT_ID': os.getenv('SPOTIFY_CLIENT_ID'),
             'CLIENT_SECRET': os.getenv('SPOTIFY_CLIENT_SECRET'),
             'REDIRECT_URI': os.getenv('SPOTIFY_REDIRECT_URI', 'http://127.0.0.1:8080'),
+            'REFRESH_TOKEN': os.getenv('SPOTIFY_REFRESH_TOKEN', None),
         }
 
         self.TWITCH = {
