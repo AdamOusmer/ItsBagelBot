@@ -1,1 +1,0 @@
-from events.twitch.payloads.chatMessagePayload import ChatMessagePayload, ChatCommandPayload

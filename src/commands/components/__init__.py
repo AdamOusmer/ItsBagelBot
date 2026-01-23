@@ -1,1 +1,0 @@
-from commands.components.component import Component
