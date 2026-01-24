@@ -24,7 +24,7 @@
 [![Personal][license-shield]][license-url]
 
   <a href="https://github.com/ItsMavey/ItsBagelBot">
-    <img src=".github/assets/logo.png" alt="Logo" width="120" height="120">
+    <img src=".github/assets/logo.png" alt="Logo" width="200" height="200">
   </a>
 
 <h3 align="center">ItsBagelBot</h3>
