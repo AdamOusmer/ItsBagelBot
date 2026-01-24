@@ -74,6 +74,7 @@
     <li><a href="#contributing">Contributing</a></li>
     <li><a href="#license">License</a></li>
     <li><a href="#contact">Contact</a></li>
+    <li><a href="#acknowledgements">Acknowledgements</a></li>
   </ol>
 </details>
 
@@ -190,3 +191,8 @@ This project is licensed under the Proprietary License Agreement - see the [LICE
 ## Contact
 
 ItsMavey - [GitHub](https://github.com/ItsMavey) - [Email](mailto:contact@itsmavey.com)
+
+## Acknowledgements
+
+README template inspired by [othneildrew/Best-README-Template](https://github.com/othneildrew/Best-README-Template)
+
