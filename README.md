@@ -189,4 +189,4 @@ This project is licensed under the Proprietary License Agreement - see the [LICE
 
 ## Contact
 
-ItsMavey - [GitHub](https://github.com/itsmavey) - [Email](mailto:contact@itsmavey.com)
+ItsMavey - [GitHub](https://github.com/ItsMavey) - [Email](mailto:contact@itsmavey.com)
