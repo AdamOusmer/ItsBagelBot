@@ -1,6 +1,7 @@
 package crypto
 
 import (
+	domain "ItsBagelBot/internal/domain/crypto"
 	"bytes"
 
 	"github.com/tink-crypto/tink-go/v2/aead"
@@ -29,4 +30,20 @@ func NewCrypto(keysetJSON []byte) (*Crypto, error) {
 	}
 
 	return &Crypto{primitive: primitive}, nil
+}
+
+func (c *Crypto) Pack(plaintext []byte, associatedData []byte) (domain.SecureEnvelope, error) {
+	ciphertext, err := c.primitive.Encrypt(plaintext, associatedData)
+	if err != nil {
+		return domain.SecureEnvelope{}, err
+	}
+
+	return domain.SecureEnvelope{
+		Ciphertext:   ciphertext,
+		AttachedData: associatedData,
+	}, nil
+}
+
+func (c *Crypto) Unpack(envelope domain.SecureEnvelope) ([]byte, error) {
+	return c.primitive.Decrypt(envelope.Ciphertext, envelope.AttachedData)
 }
