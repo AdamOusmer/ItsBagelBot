@@ -96,9 +96,9 @@ The reason? Because I can.
 And because I want to learn more and apply modern software engineering practices to a fun project while showcasing my
 capabilities.
 
-The entirety of the bot is hosted on Oracle Cloud Infrastructure's in Canadian's region. The location was chosen for higher
-availability of the resources I need, as well of the advantages of data sovereignty and Canadian privacy laws. Moreover, the 
-data centers are located in a region where Hydro power is abundant, making it an environmentally conscious choice.
+The entirety of the bot is hosted on Oracle Cloud Infrastructure's in Canadian region. The location was chosen for higher
+availability of the resources I need, as well as the advantages of data sovereignty and Canadian privacy laws. Moreover, the 
+data centers are located in a region where hydroelectric power is abundant, making it an environmentally conscious choice.
 
 ## Architecture Overview
 
@@ -107,7 +107,7 @@ zero-downtime updates, as services can be updated independently without affectin
 
 The main flow of the bot is as follows:
 - **Ingress Service**: Handles incoming Twitch chat messages and routes them to the appropriate service. 
-it is based on Twitch's conduit model with websockets for low-latency message delivery. The asynchronous Twitch's Events are handled via webhooks.
+It is based on Twitch's conduit architecture for scalability and reliability. Twitch's EventSub WebSockets connections are managed here for chat data while other events are handled via Twitch's EventSub webhooks.
 - **Message Broker**: RabbitMQ is used as the message broker to facilitate communication between services.
 - **Services**: Each feature of the bot is implemented as a separate service, which subscribes to relevant messages from the message broker and processes them accordingly.
 - **Egress Service**: Sends messages back to Twitch chat based on the processed data from the services.
@@ -157,13 +157,13 @@ Currently in development, but will be built with the following technologies:
 
 ### Security
 
-I take security seriously. ItsBagelBot uses Tink for encryption of sensitive data both at rest and in transit.
+I take security seriously. ItsBagelBot uses Tink for encryption of sensitive data at rest and in transit.
 
-The internal services communicate using a service mesh (Linkerd) to ensure secure communication between services and message broker.
+The internal services communicate using a service mesh (Linkerd) to ensure secure communication between services and the message broker.
 
 The Oracle VPS hosting the bot is secured using Tailscale VPN, ensuring that only authorized devices can access the services.
 The VPS is completely locked down with a strict firewall allowing only necessary ports. A VCN will eventually be used for
-further isolation and avoiding kubernetes public exposure.
+further isolation and avoiding Kubernetes public exposure.
 
 Cloudflare is used for DNS management and DDoS protection.
 
