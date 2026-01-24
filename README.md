@@ -37,9 +37,9 @@
     <br />
     <a href="https://github.com/ItsMavey/ItsBagelBot"><strong>Explore the docs »</strong></a>
     <br />
-    <a href="https://github.com/itsmavey/itsbagelbot/issues/new?labels=bug&template=bug-report---.md">Report Bug</a>
+    <a href="https://github.com/ItsMavey/ItsBagelBot/issues/new?labels=bug&template=bug-report---.md">Report Bug</a>
     &middot;
-    <a href="https://github.com/itsmavey/itsbagelbot/issues/new?labels=enhancement&template=feature-request---.md">Request Feature</a>
+    <a href="https://github.com/ItsMavey/ItsBagelBot/issues/new?labels=enhancement&template=feature-request---.md">Request Feature</a>
     <br />
     <br />
     </p>
