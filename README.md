@@ -56,6 +56,7 @@
 
 </div>
 
+***
 
 <!-- TABLE OF CONTENTS -->
 <details>
@@ -77,6 +78,8 @@
     <li><a href="#acknowledgements">Acknowledgements</a></li>
   </ol>
 </details>
+
+***
 
 ## About The Project
 
@@ -100,6 +103,8 @@ capabilities.
 The entirety of the bot is hosted on Oracle Cloud Infrastructure's in Canadian region. The location was chosen for higher
 availability of the resources I need, as well as the advantages of data sovereignty and Canadian privacy laws. Moreover, the 
 data centers are located in a region where hydroelectric power is abundant, making it an environmentally conscious choice.
+
+***
 
 ## Architecture Overview
 
@@ -168,6 +173,8 @@ further isolation and avoiding Kubernetes public exposure.
 
 Cloudflare is used for DNS management and DDoS protection.
 
+***
+
 ## Contributors
 
 This project exists thanks to the people who contribute.
@@ -175,6 +182,8 @@ This project exists thanks to the people who contribute.
 <a href="https://github.com/ItsMavey/ItsBagelBot/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=ItsMavey/ItsBagelBot" />
 </a>
+
+***
 
 ## Contributing
 
@@ -184,13 +193,19 @@ to hear your ideas and help you fix any problems.
 For contributing code, please contact me directly at [contact@itsmavey.com](mailto:contact@itsmavey.com) before making
 any changes or submitting a pull request.
 
+***
+
 ## License
 
 This project is licensed under the Proprietary License Agreement - see the [LICENSE](LICENSE.md) file for details.
 
+***
+
 ## Contact
 
 ItsMavey - [GitHub](https://github.com/ItsMavey) - [Email](mailto:contact@itsmavey.com)
+
+***
 
 ## Acknowledgements
 
