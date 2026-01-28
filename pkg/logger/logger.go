@@ -27,9 +27,11 @@ func New(env string) *zap.Logger {
 			Initial:    100,
 			Thereafter: 100,
 		}
-	} else {
+	} else if env == "development" || env == "debug" {
 		config = zap.NewDevelopmentConfig()
 		config.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	} else {
+		panic("Unknown environment for logger: " + env)
 	}
 
 	logger, err := config.Build()
