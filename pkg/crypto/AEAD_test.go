@@ -39,6 +39,7 @@ func TestNewCrypto_InvalidJSON(t *testing.T) {
 }
 
 // TEST 2: The "Wrong Key Type" Path (Fails at Step 2: aead.New) <--- THIS IS THE FIX
+// TEST 2: The "Wrong Key Type" Path (Fails at Step 2: aead.New)
 func TestNewCrypto_WrongKeyType(t *testing.T) {
 	// 1. Generate a valid key, but for MAC (Signature), not AEAD (Encryption)
 	handle, err := keyset.NewHandle(mac.HMACSHA256Tag128KeyTemplate())
@@ -56,7 +57,9 @@ func TestNewCrypto_WrongKeyType(t *testing.T) {
 
 	// 4. Assert: Read() succeeded, but aead.New() should fail
 	assert.Error(t, err, "Should fail when passing a MAC key to AEAD constructor")
-	assert.Contains(t, err.Error(), "primitive not supported", "Error should be about primitive type mismatch")
+
+	// FIX: Updated the expected error string to match the actual output
+	assert.Contains(t, err.Error(), "want *tink.AEAD", "Error should be about primitive type mismatch")
 	assert.Nil(t, c)
 }
 
