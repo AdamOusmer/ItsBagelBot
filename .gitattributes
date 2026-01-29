@@ -1,0 +1,7 @@
+# Ignore all generated ent code except for the hand-written schemas
+internal/db/ent/* linguist-generated=true
+internal/db/ent/* linguist-vendored=true
+
+# Explicitly re-enable analysis for your schema definitions
+internal/db/ent/schema/* linguist-generated=false
+internal/db/ent/schema/* linguist-vendored=false
