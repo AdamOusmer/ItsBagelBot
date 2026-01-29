@@ -336,15 +336,15 @@ func (c *ConfigsClient) GetX(ctx context.Context, id int) *Configs {
 	return obj
 }
 
-// QueryUsers queries the users edge of a Configs.
-func (c *ConfigsClient) QueryUsers(_m *Configs) *UserQuery {
+// QueryUser queries the user edge of a Configs.
+func (c *ConfigsClient) QueryUser(_m *Configs) *UserQuery {
 	query := (&UserClient{config: c.config}).Query()
 	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
 		id := _m.ID
 		step := sqlgraph.NewStep(
 			sqlgraph.From(configs.Table, configs.FieldID, id),
 			sqlgraph.To(user.Table, user.FieldID),
-			sqlgraph.Edge(sqlgraph.O2O, true, configs.UsersTable, configs.UsersColumn),
+			sqlgraph.Edge(sqlgraph.O2O, true, configs.UserTable, configs.UserColumn),
 		)
 		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
 		return fromV, nil
@@ -485,15 +485,15 @@ func (c *TimersClient) GetX(ctx context.Context, id int) *Timers {
 	return obj
 }
 
-// QueryUsers queries the users edge of a Timers.
-func (c *TimersClient) QueryUsers(_m *Timers) *UserQuery {
+// QueryUser queries the user edge of a Timers.
+func (c *TimersClient) QueryUser(_m *Timers) *UserQuery {
 	query := (&UserClient{config: c.config}).Query()
 	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
 		id := _m.ID
 		step := sqlgraph.NewStep(
 			sqlgraph.From(timers.Table, timers.FieldID, id),
 			sqlgraph.To(user.Table, user.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, true, timers.UsersTable, timers.UsersColumn),
+			sqlgraph.Edge(sqlgraph.M2O, true, timers.UserTable, timers.UserColumn),
 		)
 		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
 		return fromV, nil
@@ -634,15 +634,15 @@ func (c *TokensClient) GetX(ctx context.Context, id int) *Tokens {
 	return obj
 }
 
-// QueryUsers queries the users edge of a Tokens.
-func (c *TokensClient) QueryUsers(_m *Tokens) *UserQuery {
+// QueryUser queries the user edge of a Tokens.
+func (c *TokensClient) QueryUser(_m *Tokens) *UserQuery {
 	query := (&UserClient{config: c.config}).Query()
 	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
 		id := _m.ID
 		step := sqlgraph.NewStep(
 			sqlgraph.From(tokens.Table, tokens.FieldID, id),
 			sqlgraph.To(user.Table, user.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, true, tokens.UsersTable, tokens.UsersColumn),
+			sqlgraph.Edge(sqlgraph.M2O, true, tokens.UserTable, tokens.UserColumn),
 		)
 		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
 		return fromV, nil

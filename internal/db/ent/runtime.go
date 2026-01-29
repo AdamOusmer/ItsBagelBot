@@ -28,10 +28,10 @@ func init() {
 	timersDescName := timersFields[0].Descriptor()
 	// timers.NameValidator is a validator for the "name" field. It is called by the builders before save.
 	timers.NameValidator = timersDescName.Validators[0].(func(string) error)
-	// timersDescIntervalSeconds is the schema descriptor for interval_seconds field.
-	timersDescIntervalSeconds := timersFields[1].Descriptor()
-	// timers.DefaultIntervalSeconds holds the default value on creation for the interval_seconds field.
-	timers.DefaultIntervalSeconds = timersDescIntervalSeconds.Default.(int)
+	// timersDescCron is the schema descriptor for cron field.
+	timersDescCron := timersFields[1].Descriptor()
+	// timers.CronValidator is a validator for the "cron" field. It is called by the builders before save.
+	timers.CronValidator = timersDescCron.Validators[0].(func(string) error)
 	// timersDescMessageThreshold is the schema descriptor for message_threshold field.
 	timersDescMessageThreshold := timersFields[2].Descriptor()
 	// timers.DefaultMessageThreshold holds the default value on creation for the message_threshold field.

@@ -34,22 +34,22 @@ type Tokens struct {
 
 // TokensEdges holds the relations/edges for other nodes in the graph.
 type TokensEdges struct {
-	// Users holds the value of the users edge.
-	Users *User `json:"users,omitempty"`
+	// User holds the value of the user edge.
+	User *User `json:"user,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
 	loadedTypes [1]bool
 }
 
-// UsersOrErr returns the Users value or an error if the edge
+// UserOrErr returns the User value or an error if the edge
 // was not loaded in eager-loading, or loaded but was not found.
-func (e TokensEdges) UsersOrErr() (*User, error) {
-	if e.Users != nil {
-		return e.Users, nil
+func (e TokensEdges) UserOrErr() (*User, error) {
+	if e.User != nil {
+		return e.User, nil
 	} else if e.loadedTypes[0] {
 		return nil, &NotFoundError{label: user.Label}
 	}
-	return nil, &NotLoadedError{edge: "users"}
+	return nil, &NotLoadedError{edge: "user"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -128,9 +128,9 @@ func (_m *Tokens) Value(name string) (ent.Value, error) {
 	return _m.selectValues.Get(name)
 }
 
-// QueryUsers queries the "users" edge of the Tokens entity.
-func (_m *Tokens) QueryUsers() *UserQuery {
-	return NewTokensClient(_m.config).QueryUsers(_m)
+// QueryUser queries the "user" edge of the Tokens entity.
+func (_m *Tokens) QueryUser() *UserQuery {
+	return NewTokensClient(_m.config).QueryUser(_m)
 }
 
 // Update returns a builder for updating this Tokens.

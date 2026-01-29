@@ -68,15 +68,15 @@ func (_c *TokensCreate) SetNillablePlatform(v *tokens.Platform) *TokensCreate {
 	return _c
 }
 
-// SetUsersID sets the "users" edge to the User entity by ID.
-func (_c *TokensCreate) SetUsersID(id uint64) *TokensCreate {
-	_c.mutation.SetUsersID(id)
+// SetUserID sets the "user" edge to the User entity by ID.
+func (_c *TokensCreate) SetUserID(id uint64) *TokensCreate {
+	_c.mutation.SetUserID(id)
 	return _c
 }
 
-// SetUsers sets the "users" edge to the User entity.
-func (_c *TokensCreate) SetUsers(v *User) *TokensCreate {
-	return _c.SetUsersID(v.ID)
+// SetUser sets the "user" edge to the User entity.
+func (_c *TokensCreate) SetUser(v *User) *TokensCreate {
+	return _c.SetUserID(v.ID)
 }
 
 // Mutation returns the TokensMutation object of the builder.
@@ -145,8 +145,8 @@ func (_c *TokensCreate) check() error {
 			return &ValidationError{Name: "platform", err: fmt.Errorf(`ent: validator failed for field "Tokens.platform": %w`, err)}
 		}
 	}
-	if len(_c.mutation.UsersIDs()) == 0 {
-		return &ValidationError{Name: "users", err: errors.New(`ent: missing required edge "Tokens.users"`)}
+	if len(_c.mutation.UserIDs()) == 0 {
+		return &ValidationError{Name: "user", err: errors.New(`ent: missing required edge "Tokens.user"`)}
 	}
 	return nil
 }
@@ -190,12 +190,12 @@ func (_c *TokensCreate) createSpec() (*Tokens, *sqlgraph.CreateSpec) {
 		_spec.SetField(tokens.FieldPlatform, field.TypeEnum, value)
 		_node.Platform = value
 	}
-	if nodes := _c.mutation.UsersIDs(); len(nodes) > 0 {
+	if nodes := _c.mutation.UserIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.M2O,
 			Inverse: true,
-			Table:   tokens.UsersTable,
-			Columns: []string{tokens.UsersColumn},
+			Table:   tokens.UserTable,
+			Columns: []string{tokens.UserColumn},
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeUint64),

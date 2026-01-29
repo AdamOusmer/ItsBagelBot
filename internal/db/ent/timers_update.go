@@ -43,24 +43,17 @@ func (_u *TimersUpdate) SetNillableName(v *string) *TimersUpdate {
 	return _u
 }
 
-// SetIntervalSeconds sets the "interval_seconds" field.
-func (_u *TimersUpdate) SetIntervalSeconds(v int) *TimersUpdate {
-	_u.mutation.ResetIntervalSeconds()
-	_u.mutation.SetIntervalSeconds(v)
+// SetCron sets the "cron" field.
+func (_u *TimersUpdate) SetCron(v string) *TimersUpdate {
+	_u.mutation.SetCron(v)
 	return _u
 }
 
-// SetNillableIntervalSeconds sets the "interval_seconds" field if the given value is not nil.
-func (_u *TimersUpdate) SetNillableIntervalSeconds(v *int) *TimersUpdate {
+// SetNillableCron sets the "cron" field if the given value is not nil.
+func (_u *TimersUpdate) SetNillableCron(v *string) *TimersUpdate {
 	if v != nil {
-		_u.SetIntervalSeconds(*v)
+		_u.SetCron(*v)
 	}
-	return _u
-}
-
-// AddIntervalSeconds adds value to the "interval_seconds" field.
-func (_u *TimersUpdate) AddIntervalSeconds(v int) *TimersUpdate {
-	_u.mutation.AddIntervalSeconds(v)
 	return _u
 }
 
@@ -153,15 +146,15 @@ func (_u *TimersUpdate) SetUpdatedAt(v time.Time) *TimersUpdate {
 	return _u
 }
 
-// SetUsersID sets the "users" edge to the User entity by ID.
-func (_u *TimersUpdate) SetUsersID(id uint64) *TimersUpdate {
-	_u.mutation.SetUsersID(id)
+// SetUserID sets the "user" edge to the User entity by ID.
+func (_u *TimersUpdate) SetUserID(id uint64) *TimersUpdate {
+	_u.mutation.SetUserID(id)
 	return _u
 }
 
-// SetUsers sets the "users" edge to the User entity.
-func (_u *TimersUpdate) SetUsers(v *User) *TimersUpdate {
-	return _u.SetUsersID(v.ID)
+// SetUser sets the "user" edge to the User entity.
+func (_u *TimersUpdate) SetUser(v *User) *TimersUpdate {
+	return _u.SetUserID(v.ID)
 }
 
 // Mutation returns the TimersMutation object of the builder.
@@ -169,9 +162,9 @@ func (_u *TimersUpdate) Mutation() *TimersMutation {
 	return _u.mutation
 }
 
-// ClearUsers clears the "users" edge to the User entity.
-func (_u *TimersUpdate) ClearUsers() *TimersUpdate {
-	_u.mutation.ClearUsers()
+// ClearUser clears the "user" edge to the User entity.
+func (_u *TimersUpdate) ClearUser() *TimersUpdate {
+	_u.mutation.ClearUser()
 	return _u
 }
 
@@ -218,13 +211,18 @@ func (_u *TimersUpdate) check() error {
 			return &ValidationError{Name: "name", err: fmt.Errorf(`ent: validator failed for field "Timers.name": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.Cron(); ok {
+		if err := timers.CronValidator(v); err != nil {
+			return &ValidationError{Name: "cron", err: fmt.Errorf(`ent: validator failed for field "Timers.cron": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.Message(); ok {
 		if err := timers.MessageValidator(v); err != nil {
 			return &ValidationError{Name: "message", err: fmt.Errorf(`ent: validator failed for field "Timers.message": %w`, err)}
 		}
 	}
-	if _u.mutation.UsersCleared() && len(_u.mutation.UsersIDs()) > 0 {
-		return errors.New(`ent: clearing a required unique edge "Timers.users"`)
+	if _u.mutation.UserCleared() && len(_u.mutation.UserIDs()) > 0 {
+		return errors.New(`ent: clearing a required unique edge "Timers.user"`)
 	}
 	return nil
 }
@@ -244,11 +242,8 @@ func (_u *TimersUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.Name(); ok {
 		_spec.SetField(timers.FieldName, field.TypeString, value)
 	}
-	if value, ok := _u.mutation.IntervalSeconds(); ok {
-		_spec.SetField(timers.FieldIntervalSeconds, field.TypeInt, value)
-	}
-	if value, ok := _u.mutation.AddedIntervalSeconds(); ok {
-		_spec.AddField(timers.FieldIntervalSeconds, field.TypeInt, value)
+	if value, ok := _u.mutation.Cron(); ok {
+		_spec.SetField(timers.FieldCron, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.MessageThreshold(); ok {
 		_spec.SetField(timers.FieldMessageThreshold, field.TypeInt, value)
@@ -274,12 +269,12 @@ func (_u *TimersUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(timers.FieldUpdatedAt, field.TypeTime, value)
 	}
-	if _u.mutation.UsersCleared() {
+	if _u.mutation.UserCleared() {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.M2O,
 			Inverse: true,
-			Table:   timers.UsersTable,
-			Columns: []string{timers.UsersColumn},
+			Table:   timers.UserTable,
+			Columns: []string{timers.UserColumn},
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeUint64),
@@ -287,12 +282,12 @@ func (_u *TimersUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 		}
 		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
 	}
-	if nodes := _u.mutation.UsersIDs(); len(nodes) > 0 {
+	if nodes := _u.mutation.UserIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.M2O,
 			Inverse: true,
-			Table:   timers.UsersTable,
-			Columns: []string{timers.UsersColumn},
+			Table:   timers.UserTable,
+			Columns: []string{timers.UserColumn},
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeUint64),
@@ -337,24 +332,17 @@ func (_u *TimersUpdateOne) SetNillableName(v *string) *TimersUpdateOne {
 	return _u
 }
 
-// SetIntervalSeconds sets the "interval_seconds" field.
-func (_u *TimersUpdateOne) SetIntervalSeconds(v int) *TimersUpdateOne {
-	_u.mutation.ResetIntervalSeconds()
-	_u.mutation.SetIntervalSeconds(v)
+// SetCron sets the "cron" field.
+func (_u *TimersUpdateOne) SetCron(v string) *TimersUpdateOne {
+	_u.mutation.SetCron(v)
 	return _u
 }
 
-// SetNillableIntervalSeconds sets the "interval_seconds" field if the given value is not nil.
-func (_u *TimersUpdateOne) SetNillableIntervalSeconds(v *int) *TimersUpdateOne {
+// SetNillableCron sets the "cron" field if the given value is not nil.
+func (_u *TimersUpdateOne) SetNillableCron(v *string) *TimersUpdateOne {
 	if v != nil {
-		_u.SetIntervalSeconds(*v)
+		_u.SetCron(*v)
 	}
-	return _u
-}
-
-// AddIntervalSeconds adds value to the "interval_seconds" field.
-func (_u *TimersUpdateOne) AddIntervalSeconds(v int) *TimersUpdateOne {
-	_u.mutation.AddIntervalSeconds(v)
 	return _u
 }
 
@@ -447,15 +435,15 @@ func (_u *TimersUpdateOne) SetUpdatedAt(v time.Time) *TimersUpdateOne {
 	return _u
 }
 
-// SetUsersID sets the "users" edge to the User entity by ID.
-func (_u *TimersUpdateOne) SetUsersID(id uint64) *TimersUpdateOne {
-	_u.mutation.SetUsersID(id)
+// SetUserID sets the "user" edge to the User entity by ID.
+func (_u *TimersUpdateOne) SetUserID(id uint64) *TimersUpdateOne {
+	_u.mutation.SetUserID(id)
 	return _u
 }
 
-// SetUsers sets the "users" edge to the User entity.
-func (_u *TimersUpdateOne) SetUsers(v *User) *TimersUpdateOne {
-	return _u.SetUsersID(v.ID)
+// SetUser sets the "user" edge to the User entity.
+func (_u *TimersUpdateOne) SetUser(v *User) *TimersUpdateOne {
+	return _u.SetUserID(v.ID)
 }
 
 // Mutation returns the TimersMutation object of the builder.
@@ -463,9 +451,9 @@ func (_u *TimersUpdateOne) Mutation() *TimersMutation {
 	return _u.mutation
 }
 
-// ClearUsers clears the "users" edge to the User entity.
-func (_u *TimersUpdateOne) ClearUsers() *TimersUpdateOne {
-	_u.mutation.ClearUsers()
+// ClearUser clears the "user" edge to the User entity.
+func (_u *TimersUpdateOne) ClearUser() *TimersUpdateOne {
+	_u.mutation.ClearUser()
 	return _u
 }
 
@@ -525,13 +513,18 @@ func (_u *TimersUpdateOne) check() error {
 			return &ValidationError{Name: "name", err: fmt.Errorf(`ent: validator failed for field "Timers.name": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.Cron(); ok {
+		if err := timers.CronValidator(v); err != nil {
+			return &ValidationError{Name: "cron", err: fmt.Errorf(`ent: validator failed for field "Timers.cron": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.Message(); ok {
 		if err := timers.MessageValidator(v); err != nil {
 			return &ValidationError{Name: "message", err: fmt.Errorf(`ent: validator failed for field "Timers.message": %w`, err)}
 		}
 	}
-	if _u.mutation.UsersCleared() && len(_u.mutation.UsersIDs()) > 0 {
-		return errors.New(`ent: clearing a required unique edge "Timers.users"`)
+	if _u.mutation.UserCleared() && len(_u.mutation.UserIDs()) > 0 {
+		return errors.New(`ent: clearing a required unique edge "Timers.user"`)
 	}
 	return nil
 }
@@ -568,11 +561,8 @@ func (_u *TimersUpdateOne) sqlSave(ctx context.Context) (_node *Timers, err erro
 	if value, ok := _u.mutation.Name(); ok {
 		_spec.SetField(timers.FieldName, field.TypeString, value)
 	}
-	if value, ok := _u.mutation.IntervalSeconds(); ok {
-		_spec.SetField(timers.FieldIntervalSeconds, field.TypeInt, value)
-	}
-	if value, ok := _u.mutation.AddedIntervalSeconds(); ok {
-		_spec.AddField(timers.FieldIntervalSeconds, field.TypeInt, value)
+	if value, ok := _u.mutation.Cron(); ok {
+		_spec.SetField(timers.FieldCron, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.MessageThreshold(); ok {
 		_spec.SetField(timers.FieldMessageThreshold, field.TypeInt, value)
@@ -598,12 +588,12 @@ func (_u *TimersUpdateOne) sqlSave(ctx context.Context) (_node *Timers, err erro
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(timers.FieldUpdatedAt, field.TypeTime, value)
 	}
-	if _u.mutation.UsersCleared() {
+	if _u.mutation.UserCleared() {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.M2O,
 			Inverse: true,
-			Table:   timers.UsersTable,
-			Columns: []string{timers.UsersColumn},
+			Table:   timers.UserTable,
+			Columns: []string{timers.UserColumn},
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeUint64),
@@ -611,12 +601,12 @@ func (_u *TimersUpdateOne) sqlSave(ctx context.Context) (_node *Timers, err erro
 		}
 		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
 	}
-	if nodes := _u.mutation.UsersIDs(); len(nodes) > 0 {
+	if nodes := _u.mutation.UserIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.M2O,
 			Inverse: true,
-			Table:   timers.UsersTable,
-			Columns: []string{timers.UsersColumn},
+			Table:   timers.UserTable,
+			Columns: []string{timers.UserColumn},
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeUint64),

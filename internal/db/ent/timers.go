@@ -20,8 +20,8 @@ type Timers struct {
 	ID int `json:"id,omitempty"`
 	// Name holds the value of the "name" field.
 	Name string `json:"name,omitempty"`
-	// IntervalSeconds holds the value of the "interval_seconds" field.
-	IntervalSeconds int `json:"interval_seconds,omitempty"`
+	// Cron holds the value of the "cron" field.
+	Cron string `json:"cron,omitempty"`
 	// MessageThreshold holds the value of the "message_threshold" field.
 	MessageThreshold int `json:"message_threshold,omitempty"`
 	// Message holds the value of the "message" field.
@@ -43,22 +43,22 @@ type Timers struct {
 
 // TimersEdges holds the relations/edges for other nodes in the graph.
 type TimersEdges struct {
-	// Users holds the value of the users edge.
-	Users *User `json:"users,omitempty"`
+	// User holds the value of the user edge.
+	User *User `json:"user,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
 	loadedTypes [1]bool
 }
 
-// UsersOrErr returns the Users value or an error if the edge
+// UserOrErr returns the User value or an error if the edge
 // was not loaded in eager-loading, or loaded but was not found.
-func (e TimersEdges) UsersOrErr() (*User, error) {
-	if e.Users != nil {
-		return e.Users, nil
+func (e TimersEdges) UserOrErr() (*User, error) {
+	if e.User != nil {
+		return e.User, nil
 	} else if e.loadedTypes[0] {
 		return nil, &NotFoundError{label: user.Label}
 	}
-	return nil, &NotLoadedError{edge: "users"}
+	return nil, &NotLoadedError{edge: "user"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -68,9 +68,9 @@ func (*Timers) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case timers.FieldIsActive:
 			values[i] = new(sql.NullBool)
-		case timers.FieldID, timers.FieldIntervalSeconds, timers.FieldMessageThreshold:
+		case timers.FieldID, timers.FieldMessageThreshold:
 			values[i] = new(sql.NullInt64)
-		case timers.FieldName, timers.FieldMessage:
+		case timers.FieldName, timers.FieldCron, timers.FieldMessage:
 			values[i] = new(sql.NullString)
 		case timers.FieldLastRunAt, timers.FieldCreatedAt, timers.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -103,11 +103,11 @@ func (_m *Timers) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.Name = value.String
 			}
-		case timers.FieldIntervalSeconds:
-			if value, ok := values[i].(*sql.NullInt64); !ok {
-				return fmt.Errorf("unexpected type %T for field interval_seconds", values[i])
+		case timers.FieldCron:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field cron", values[i])
 			} else if value.Valid {
-				_m.IntervalSeconds = int(value.Int64)
+				_m.Cron = value.String
 			}
 		case timers.FieldMessageThreshold:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
@@ -165,9 +165,9 @@ func (_m *Timers) Value(name string) (ent.Value, error) {
 	return _m.selectValues.Get(name)
 }
 
-// QueryUsers queries the "users" edge of the Timers entity.
-func (_m *Timers) QueryUsers() *UserQuery {
-	return NewTimersClient(_m.config).QueryUsers(_m)
+// QueryUser queries the "user" edge of the Timers entity.
+func (_m *Timers) QueryUser() *UserQuery {
+	return NewTimersClient(_m.config).QueryUser(_m)
 }
 
 // Update returns a builder for updating this Timers.
@@ -196,8 +196,8 @@ func (_m *Timers) String() string {
 	builder.WriteString("name=")
 	builder.WriteString(_m.Name)
 	builder.WriteString(", ")
-	builder.WriteString("interval_seconds=")
-	builder.WriteString(fmt.Sprintf("%v", _m.IntervalSeconds))
+	builder.WriteString("cron=")
+	builder.WriteString(_m.Cron)
 	builder.WriteString(", ")
 	builder.WriteString("message_threshold=")
 	builder.WriteString(fmt.Sprintf("%v", _m.MessageThreshold))

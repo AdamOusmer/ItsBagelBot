@@ -16,8 +16,8 @@ const (
 	FieldID = "id"
 	// FieldName holds the string denoting the name field in the database.
 	FieldName = "name"
-	// FieldIntervalSeconds holds the string denoting the interval_seconds field in the database.
-	FieldIntervalSeconds = "interval_seconds"
+	// FieldCron holds the string denoting the cron field in the database.
+	FieldCron = "cron"
 	// FieldMessageThreshold holds the string denoting the message_threshold field in the database.
 	FieldMessageThreshold = "message_threshold"
 	// FieldMessage holds the string denoting the message field in the database.
@@ -30,24 +30,24 @@ const (
 	FieldCreatedAt = "created_at"
 	// FieldUpdatedAt holds the string denoting the updated_at field in the database.
 	FieldUpdatedAt = "updated_at"
-	// EdgeUsers holds the string denoting the users edge name in mutations.
-	EdgeUsers = "users"
+	// EdgeUser holds the string denoting the user edge name in mutations.
+	EdgeUser = "user"
 	// Table holds the table name of the timers in the database.
 	Table = "timers"
-	// UsersTable is the table that holds the users relation/edge.
-	UsersTable = "timers"
-	// UsersInverseTable is the table name for the User entity.
+	// UserTable is the table that holds the user relation/edge.
+	UserTable = "timers"
+	// UserInverseTable is the table name for the User entity.
 	// It exists in this package in order to avoid circular dependency with the "user" package.
-	UsersInverseTable = "users"
-	// UsersColumn is the table column denoting the users relation/edge.
-	UsersColumn = "user_timers"
+	UserInverseTable = "users"
+	// UserColumn is the table column denoting the user relation/edge.
+	UserColumn = "user_timers"
 )
 
 // Columns holds all SQL columns for timers fields.
 var Columns = []string{
 	FieldID,
 	FieldName,
-	FieldIntervalSeconds,
+	FieldCron,
 	FieldMessageThreshold,
 	FieldMessage,
 	FieldIsActive,
@@ -80,8 +80,8 @@ func ValidColumn(column string) bool {
 var (
 	// NameValidator is a validator for the "name" field. It is called by the builders before save.
 	NameValidator func(string) error
-	// DefaultIntervalSeconds holds the default value on creation for the "interval_seconds" field.
-	DefaultIntervalSeconds int
+	// CronValidator is a validator for the "cron" field. It is called by the builders before save.
+	CronValidator func(string) error
 	// DefaultMessageThreshold holds the default value on creation for the "message_threshold" field.
 	DefaultMessageThreshold int
 	// MessageValidator is a validator for the "message" field. It is called by the builders before save.
@@ -111,9 +111,9 @@ func ByName(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldName, opts...).ToFunc()
 }
 
-// ByIntervalSeconds orders the results by the interval_seconds field.
-func ByIntervalSeconds(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldIntervalSeconds, opts...).ToFunc()
+// ByCron orders the results by the cron field.
+func ByCron(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldCron, opts...).ToFunc()
 }
 
 // ByMessageThreshold orders the results by the message_threshold field.
@@ -146,16 +146,16 @@ func ByUpdatedAt(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldUpdatedAt, opts...).ToFunc()
 }
 
-// ByUsersField orders the results by users field.
-func ByUsersField(field string, opts ...sql.OrderTermOption) OrderOption {
+// ByUserField orders the results by user field.
+func ByUserField(field string, opts ...sql.OrderTermOption) OrderOption {
 	return func(s *sql.Selector) {
-		sqlgraph.OrderByNeighborTerms(s, newUsersStep(), sql.OrderByField(field, opts...))
+		sqlgraph.OrderByNeighborTerms(s, newUserStep(), sql.OrderByField(field, opts...))
 	}
 }
-func newUsersStep() *sqlgraph.Step {
+func newUserStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
-		sqlgraph.To(UsersInverseTable, FieldID),
-		sqlgraph.Edge(sqlgraph.M2O, true, UsersTable, UsersColumn),
+		sqlgraph.To(UserInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.M2O, true, UserTable, UserColumn),
 	)
 }

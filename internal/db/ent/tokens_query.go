@@ -23,7 +23,7 @@ type TokensQuery struct {
 	order      []tokens.OrderOption
 	inters     []Interceptor
 	predicates []predicate.Tokens
-	withUsers  *UserQuery
+	withUser   *UserQuery
 	withFKs    bool
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
@@ -61,8 +61,8 @@ func (_q *TokensQuery) Order(o ...tokens.OrderOption) *TokensQuery {
 	return _q
 }
 
-// QueryUsers chains the current query on the "users" edge.
-func (_q *TokensQuery) QueryUsers() *UserQuery {
+// QueryUser chains the current query on the "user" edge.
+func (_q *TokensQuery) QueryUser() *UserQuery {
 	query := (&UserClient{config: _q.config}).Query()
 	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
 		if err := _q.prepareQuery(ctx); err != nil {
@@ -75,7 +75,7 @@ func (_q *TokensQuery) QueryUsers() *UserQuery {
 		step := sqlgraph.NewStep(
 			sqlgraph.From(tokens.Table, tokens.FieldID, selector),
 			sqlgraph.To(user.Table, user.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, true, tokens.UsersTable, tokens.UsersColumn),
+			sqlgraph.Edge(sqlgraph.M2O, true, tokens.UserTable, tokens.UserColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
 		return fromU, nil
@@ -275,21 +275,21 @@ func (_q *TokensQuery) Clone() *TokensQuery {
 		order:      append([]tokens.OrderOption{}, _q.order...),
 		inters:     append([]Interceptor{}, _q.inters...),
 		predicates: append([]predicate.Tokens{}, _q.predicates...),
-		withUsers:  _q.withUsers.Clone(),
+		withUser:   _q.withUser.Clone(),
 		// clone intermediate query.
 		sql:  _q.sql.Clone(),
 		path: _q.path,
 	}
 }
 
-// WithUsers tells the query-builder to eager-load the nodes that are connected to
-// the "users" edge. The optional arguments are used to configure the query builder of the edge.
-func (_q *TokensQuery) WithUsers(opts ...func(*UserQuery)) *TokensQuery {
+// WithUser tells the query-builder to eager-load the nodes that are connected to
+// the "user" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *TokensQuery) WithUser(opts ...func(*UserQuery)) *TokensQuery {
 	query := (&UserClient{config: _q.config}).Query()
 	for _, opt := range opts {
 		opt(query)
 	}
-	_q.withUsers = query
+	_q.withUser = query
 	return _q
 }
 
@@ -373,10 +373,10 @@ func (_q *TokensQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Token
 		withFKs     = _q.withFKs
 		_spec       = _q.querySpec()
 		loadedTypes = [1]bool{
-			_q.withUsers != nil,
+			_q.withUser != nil,
 		}
 	)
-	if _q.withUsers != nil {
+	if _q.withUser != nil {
 		withFKs = true
 	}
 	if withFKs {
@@ -400,16 +400,16 @@ func (_q *TokensQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Token
 	if len(nodes) == 0 {
 		return nodes, nil
 	}
-	if query := _q.withUsers; query != nil {
-		if err := _q.loadUsers(ctx, query, nodes, nil,
-			func(n *Tokens, e *User) { n.Edges.Users = e }); err != nil {
+	if query := _q.withUser; query != nil {
+		if err := _q.loadUser(ctx, query, nodes, nil,
+			func(n *Tokens, e *User) { n.Edges.User = e }); err != nil {
 			return nil, err
 		}
 	}
 	return nodes, nil
 }
 
-func (_q *TokensQuery) loadUsers(ctx context.Context, query *UserQuery, nodes []*Tokens, init func(*Tokens), assign func(*Tokens, *User)) error {
+func (_q *TokensQuery) loadUser(ctx context.Context, query *UserQuery, nodes []*Tokens, init func(*Tokens), assign func(*Tokens, *User)) error {
 	ids := make([]uint64, 0, len(nodes))
 	nodeids := make(map[uint64][]*Tokens)
 	for i := range nodes {

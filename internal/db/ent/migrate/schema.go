@@ -33,7 +33,7 @@ var (
 	TimersColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
 		{Name: "name", Type: field.TypeString},
-		{Name: "interval_seconds", Type: field.TypeInt, Default: 300},
+		{Name: "cron", Type: field.TypeString},
 		{Name: "message_threshold", Type: field.TypeInt, Default: 1},
 		{Name: "message", Type: field.TypeString},
 		{Name: "is_active", Type: field.TypeBool, Default: true},

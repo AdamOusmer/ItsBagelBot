@@ -18,7 +18,7 @@ func (Timers) Fields() []ent.Field {
 	return []ent.Field{
 		field.String("name").NotEmpty(),
 
-		field.Int("interval_seconds").Default(300),
+		field.String("cron").NotEmpty(),
 
 		field.Int("message_threshold").Default(1),
 
@@ -38,7 +38,7 @@ func (Timers) Fields() []ent.Field {
 
 func (Timers) Edges() []ent.Edge {
 	return []ent.Edge{
-		edge.From("users", User.Type).
+		edge.From("user", User.Type).
 			Ref("timers").
 			Unique().
 			Required(),

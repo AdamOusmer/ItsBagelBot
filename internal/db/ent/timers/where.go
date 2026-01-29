@@ -60,9 +60,9 @@ func Name(v string) predicate.Timers {
 	return predicate.Timers(sql.FieldEQ(FieldName, v))
 }
 
-// IntervalSeconds applies equality check predicate on the "interval_seconds" field. It's identical to IntervalSecondsEQ.
-func IntervalSeconds(v int) predicate.Timers {
-	return predicate.Timers(sql.FieldEQ(FieldIntervalSeconds, v))
+// Cron applies equality check predicate on the "cron" field. It's identical to CronEQ.
+func Cron(v string) predicate.Timers {
+	return predicate.Timers(sql.FieldEQ(FieldCron, v))
 }
 
 // MessageThreshold applies equality check predicate on the "message_threshold" field. It's identical to MessageThresholdEQ.
@@ -160,44 +160,69 @@ func NameContainsFold(v string) predicate.Timers {
 	return predicate.Timers(sql.FieldContainsFold(FieldName, v))
 }
 
-// IntervalSecondsEQ applies the EQ predicate on the "interval_seconds" field.
-func IntervalSecondsEQ(v int) predicate.Timers {
-	return predicate.Timers(sql.FieldEQ(FieldIntervalSeconds, v))
+// CronEQ applies the EQ predicate on the "cron" field.
+func CronEQ(v string) predicate.Timers {
+	return predicate.Timers(sql.FieldEQ(FieldCron, v))
 }
 
-// IntervalSecondsNEQ applies the NEQ predicate on the "interval_seconds" field.
-func IntervalSecondsNEQ(v int) predicate.Timers {
-	return predicate.Timers(sql.FieldNEQ(FieldIntervalSeconds, v))
+// CronNEQ applies the NEQ predicate on the "cron" field.
+func CronNEQ(v string) predicate.Timers {
+	return predicate.Timers(sql.FieldNEQ(FieldCron, v))
 }
 
-// IntervalSecondsIn applies the In predicate on the "interval_seconds" field.
-func IntervalSecondsIn(vs ...int) predicate.Timers {
-	return predicate.Timers(sql.FieldIn(FieldIntervalSeconds, vs...))
+// CronIn applies the In predicate on the "cron" field.
+func CronIn(vs ...string) predicate.Timers {
+	return predicate.Timers(sql.FieldIn(FieldCron, vs...))
 }
 
-// IntervalSecondsNotIn applies the NotIn predicate on the "interval_seconds" field.
-func IntervalSecondsNotIn(vs ...int) predicate.Timers {
-	return predicate.Timers(sql.FieldNotIn(FieldIntervalSeconds, vs...))
+// CronNotIn applies the NotIn predicate on the "cron" field.
+func CronNotIn(vs ...string) predicate.Timers {
+	return predicate.Timers(sql.FieldNotIn(FieldCron, vs...))
 }
 
-// IntervalSecondsGT applies the GT predicate on the "interval_seconds" field.
-func IntervalSecondsGT(v int) predicate.Timers {
-	return predicate.Timers(sql.FieldGT(FieldIntervalSeconds, v))
+// CronGT applies the GT predicate on the "cron" field.
+func CronGT(v string) predicate.Timers {
+	return predicate.Timers(sql.FieldGT(FieldCron, v))
 }
 
-// IntervalSecondsGTE applies the GTE predicate on the "interval_seconds" field.
-func IntervalSecondsGTE(v int) predicate.Timers {
-	return predicate.Timers(sql.FieldGTE(FieldIntervalSeconds, v))
+// CronGTE applies the GTE predicate on the "cron" field.
+func CronGTE(v string) predicate.Timers {
+	return predicate.Timers(sql.FieldGTE(FieldCron, v))
 }
 
-// IntervalSecondsLT applies the LT predicate on the "interval_seconds" field.
-func IntervalSecondsLT(v int) predicate.Timers {
-	return predicate.Timers(sql.FieldLT(FieldIntervalSeconds, v))
+// CronLT applies the LT predicate on the "cron" field.
+func CronLT(v string) predicate.Timers {
+	return predicate.Timers(sql.FieldLT(FieldCron, v))
 }
 
-// IntervalSecondsLTE applies the LTE predicate on the "interval_seconds" field.
-func IntervalSecondsLTE(v int) predicate.Timers {
-	return predicate.Timers(sql.FieldLTE(FieldIntervalSeconds, v))
+// CronLTE applies the LTE predicate on the "cron" field.
+func CronLTE(v string) predicate.Timers {
+	return predicate.Timers(sql.FieldLTE(FieldCron, v))
+}
+
+// CronContains applies the Contains predicate on the "cron" field.
+func CronContains(v string) predicate.Timers {
+	return predicate.Timers(sql.FieldContains(FieldCron, v))
+}
+
+// CronHasPrefix applies the HasPrefix predicate on the "cron" field.
+func CronHasPrefix(v string) predicate.Timers {
+	return predicate.Timers(sql.FieldHasPrefix(FieldCron, v))
+}
+
+// CronHasSuffix applies the HasSuffix predicate on the "cron" field.
+func CronHasSuffix(v string) predicate.Timers {
+	return predicate.Timers(sql.FieldHasSuffix(FieldCron, v))
+}
+
+// CronEqualFold applies the EqualFold predicate on the "cron" field.
+func CronEqualFold(v string) predicate.Timers {
+	return predicate.Timers(sql.FieldEqualFold(FieldCron, v))
+}
+
+// CronContainsFold applies the ContainsFold predicate on the "cron" field.
+func CronContainsFold(v string) predicate.Timers {
+	return predicate.Timers(sql.FieldContainsFold(FieldCron, v))
 }
 
 // MessageThresholdEQ applies the EQ predicate on the "message_threshold" field.
@@ -445,21 +470,21 @@ func UpdatedAtLTE(v time.Time) predicate.Timers {
 	return predicate.Timers(sql.FieldLTE(FieldUpdatedAt, v))
 }
 
-// HasUsers applies the HasEdge predicate on the "users" edge.
-func HasUsers() predicate.Timers {
+// HasUser applies the HasEdge predicate on the "user" edge.
+func HasUser() predicate.Timers {
 	return predicate.Timers(func(s *sql.Selector) {
 		step := sqlgraph.NewStep(
 			sqlgraph.From(Table, FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, true, UsersTable, UsersColumn),
+			sqlgraph.Edge(sqlgraph.M2O, true, UserTable, UserColumn),
 		)
 		sqlgraph.HasNeighbors(s, step)
 	})
 }
 
-// HasUsersWith applies the HasEdge predicate on the "users" edge with a given conditions (other predicates).
-func HasUsersWith(preds ...predicate.User) predicate.Timers {
+// HasUserWith applies the HasEdge predicate on the "user" edge with a given conditions (other predicates).
+func HasUserWith(preds ...predicate.User) predicate.Timers {
 	return predicate.Timers(func(s *sql.Selector) {
-		step := newUsersStep()
+		step := newUserStep()
 		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
 			for _, p := range preds {
 				p(s)

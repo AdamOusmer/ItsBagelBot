@@ -23,7 +23,7 @@ type TimersQuery struct {
 	order      []timers.OrderOption
 	inters     []Interceptor
 	predicates []predicate.Timers
-	withUsers  *UserQuery
+	withUser   *UserQuery
 	withFKs    bool
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
@@ -61,8 +61,8 @@ func (_q *TimersQuery) Order(o ...timers.OrderOption) *TimersQuery {
 	return _q
 }
 
-// QueryUsers chains the current query on the "users" edge.
-func (_q *TimersQuery) QueryUsers() *UserQuery {
+// QueryUser chains the current query on the "user" edge.
+func (_q *TimersQuery) QueryUser() *UserQuery {
 	query := (&UserClient{config: _q.config}).Query()
 	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
 		if err := _q.prepareQuery(ctx); err != nil {
@@ -75,7 +75,7 @@ func (_q *TimersQuery) QueryUsers() *UserQuery {
 		step := sqlgraph.NewStep(
 			sqlgraph.From(timers.Table, timers.FieldID, selector),
 			sqlgraph.To(user.Table, user.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, true, timers.UsersTable, timers.UsersColumn),
+			sqlgraph.Edge(sqlgraph.M2O, true, timers.UserTable, timers.UserColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
 		return fromU, nil
@@ -275,21 +275,21 @@ func (_q *TimersQuery) Clone() *TimersQuery {
 		order:      append([]timers.OrderOption{}, _q.order...),
 		inters:     append([]Interceptor{}, _q.inters...),
 		predicates: append([]predicate.Timers{}, _q.predicates...),
-		withUsers:  _q.withUsers.Clone(),
+		withUser:   _q.withUser.Clone(),
 		// clone intermediate query.
 		sql:  _q.sql.Clone(),
 		path: _q.path,
 	}
 }
 
-// WithUsers tells the query-builder to eager-load the nodes that are connected to
-// the "users" edge. The optional arguments are used to configure the query builder of the edge.
-func (_q *TimersQuery) WithUsers(opts ...func(*UserQuery)) *TimersQuery {
+// WithUser tells the query-builder to eager-load the nodes that are connected to
+// the "user" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *TimersQuery) WithUser(opts ...func(*UserQuery)) *TimersQuery {
 	query := (&UserClient{config: _q.config}).Query()
 	for _, opt := range opts {
 		opt(query)
 	}
-	_q.withUsers = query
+	_q.withUser = query
 	return _q
 }
 
@@ -373,10 +373,10 @@ func (_q *TimersQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Timer
 		withFKs     = _q.withFKs
 		_spec       = _q.querySpec()
 		loadedTypes = [1]bool{
-			_q.withUsers != nil,
+			_q.withUser != nil,
 		}
 	)
-	if _q.withUsers != nil {
+	if _q.withUser != nil {
 		withFKs = true
 	}
 	if withFKs {
@@ -400,16 +400,16 @@ func (_q *TimersQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Timer
 	if len(nodes) == 0 {
 		return nodes, nil
 	}
-	if query := _q.withUsers; query != nil {
-		if err := _q.loadUsers(ctx, query, nodes, nil,
-			func(n *Timers, e *User) { n.Edges.Users = e }); err != nil {
+	if query := _q.withUser; query != nil {
+		if err := _q.loadUser(ctx, query, nodes, nil,
+			func(n *Timers, e *User) { n.Edges.User = e }); err != nil {
 			return nil, err
 		}
 	}
 	return nodes, nil
 }
 
-func (_q *TimersQuery) loadUsers(ctx context.Context, query *UserQuery, nodes []*Timers, init func(*Timers), assign func(*Timers, *User)) error {
+func (_q *TimersQuery) loadUser(ctx context.Context, query *UserQuery, nodes []*Timers, init func(*Timers), assign func(*Timers, *User)) error {
 	ids := make([]uint64, 0, len(nodes))
 	nodeids := make(map[uint64][]*Timers)
 	for i := range nodes {

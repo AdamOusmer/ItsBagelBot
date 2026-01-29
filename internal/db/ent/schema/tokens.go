@@ -30,7 +30,7 @@ func (Tokens) Fields() []ent.Field {
 
 func (Tokens) Edges() []ent.Edge {
 	return []ent.Edge{
-		edge.From("users", User.Type).
+		edge.From("user", User.Type).
 			Ref("tokens").
 			Unique().
 			Required(),
@@ -40,7 +40,7 @@ func (Tokens) Edges() []ent.Edge {
 func (Tokens) Indexes() []ent.Index {
 	return []ent.Index{
 		index.Fields("type", "platform").
-			Edges("users").
+			Edges("user").
 			Unique(),
 	}
 }

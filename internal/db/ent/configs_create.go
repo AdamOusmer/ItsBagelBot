@@ -41,15 +41,15 @@ func (_c *ConfigsCreate) SetNillableUpdatedAt(v *time.Time) *ConfigsCreate {
 	return _c
 }
 
-// SetUsersID sets the "users" edge to the User entity by ID.
-func (_c *ConfigsCreate) SetUsersID(id uint64) *ConfigsCreate {
-	_c.mutation.SetUsersID(id)
+// SetUserID sets the "user" edge to the User entity by ID.
+func (_c *ConfigsCreate) SetUserID(id uint64) *ConfigsCreate {
+	_c.mutation.SetUserID(id)
 	return _c
 }
 
-// SetUsers sets the "users" edge to the User entity.
-func (_c *ConfigsCreate) SetUsers(v *User) *ConfigsCreate {
-	return _c.SetUsersID(v.ID)
+// SetUser sets the "user" edge to the User entity.
+func (_c *ConfigsCreate) SetUser(v *User) *ConfigsCreate {
+	return _c.SetUserID(v.ID)
 }
 
 // Mutation returns the ConfigsMutation object of the builder.
@@ -101,8 +101,8 @@ func (_c *ConfigsCreate) check() error {
 	if _, ok := _c.mutation.UpdatedAt(); !ok {
 		return &ValidationError{Name: "updated_at", err: errors.New(`ent: missing required field "Configs.updated_at"`)}
 	}
-	if len(_c.mutation.UsersIDs()) == 0 {
-		return &ValidationError{Name: "users", err: errors.New(`ent: missing required edge "Configs.users"`)}
+	if len(_c.mutation.UserIDs()) == 0 {
+		return &ValidationError{Name: "user", err: errors.New(`ent: missing required edge "Configs.user"`)}
 	}
 	return nil
 }
@@ -138,12 +138,12 @@ func (_c *ConfigsCreate) createSpec() (*Configs, *sqlgraph.CreateSpec) {
 		_spec.SetField(configs.FieldUpdatedAt, field.TypeTime, value)
 		_node.UpdatedAt = value
 	}
-	if nodes := _c.mutation.UsersIDs(); len(nodes) > 0 {
+	if nodes := _c.mutation.UserIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.O2O,
 			Inverse: true,
-			Table:   configs.UsersTable,
-			Columns: []string{configs.UsersColumn},
+			Table:   configs.UserTable,
+			Columns: []string{configs.UserColumn},
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeUint64),

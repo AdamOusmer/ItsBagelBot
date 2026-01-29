@@ -90,15 +90,15 @@ func (_u *TokensUpdate) SetNillablePlatform(v *tokens.Platform) *TokensUpdate {
 	return _u
 }
 
-// SetUsersID sets the "users" edge to the User entity by ID.
-func (_u *TokensUpdate) SetUsersID(id uint64) *TokensUpdate {
-	_u.mutation.SetUsersID(id)
+// SetUserID sets the "user" edge to the User entity by ID.
+func (_u *TokensUpdate) SetUserID(id uint64) *TokensUpdate {
+	_u.mutation.SetUserID(id)
 	return _u
 }
 
-// SetUsers sets the "users" edge to the User entity.
-func (_u *TokensUpdate) SetUsers(v *User) *TokensUpdate {
-	return _u.SetUsersID(v.ID)
+// SetUser sets the "user" edge to the User entity.
+func (_u *TokensUpdate) SetUser(v *User) *TokensUpdate {
+	return _u.SetUserID(v.ID)
 }
 
 // Mutation returns the TokensMutation object of the builder.
@@ -106,9 +106,9 @@ func (_u *TokensUpdate) Mutation() *TokensMutation {
 	return _u.mutation
 }
 
-// ClearUsers clears the "users" edge to the User entity.
-func (_u *TokensUpdate) ClearUsers() *TokensUpdate {
-	_u.mutation.ClearUsers()
+// ClearUser clears the "user" edge to the User entity.
+func (_u *TokensUpdate) ClearUser() *TokensUpdate {
+	_u.mutation.ClearUser()
 	return _u
 }
 
@@ -151,8 +151,8 @@ func (_u *TokensUpdate) check() error {
 			return &ValidationError{Name: "platform", err: fmt.Errorf(`ent: validator failed for field "Tokens.platform": %w`, err)}
 		}
 	}
-	if _u.mutation.UsersCleared() && len(_u.mutation.UsersIDs()) > 0 {
-		return errors.New(`ent: clearing a required unique edge "Tokens.users"`)
+	if _u.mutation.UserCleared() && len(_u.mutation.UserIDs()) > 0 {
+		return errors.New(`ent: clearing a required unique edge "Tokens.user"`)
 	}
 	return nil
 }
@@ -184,12 +184,12 @@ func (_u *TokensUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.Platform(); ok {
 		_spec.SetField(tokens.FieldPlatform, field.TypeEnum, value)
 	}
-	if _u.mutation.UsersCleared() {
+	if _u.mutation.UserCleared() {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.M2O,
 			Inverse: true,
-			Table:   tokens.UsersTable,
-			Columns: []string{tokens.UsersColumn},
+			Table:   tokens.UserTable,
+			Columns: []string{tokens.UserColumn},
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeUint64),
@@ -197,12 +197,12 @@ func (_u *TokensUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 		}
 		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
 	}
-	if nodes := _u.mutation.UsersIDs(); len(nodes) > 0 {
+	if nodes := _u.mutation.UserIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.M2O,
 			Inverse: true,
-			Table:   tokens.UsersTable,
-			Columns: []string{tokens.UsersColumn},
+			Table:   tokens.UserTable,
+			Columns: []string{tokens.UserColumn},
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeUint64),
@@ -295,15 +295,15 @@ func (_u *TokensUpdateOne) SetNillablePlatform(v *tokens.Platform) *TokensUpdate
 	return _u
 }
 
-// SetUsersID sets the "users" edge to the User entity by ID.
-func (_u *TokensUpdateOne) SetUsersID(id uint64) *TokensUpdateOne {
-	_u.mutation.SetUsersID(id)
+// SetUserID sets the "user" edge to the User entity by ID.
+func (_u *TokensUpdateOne) SetUserID(id uint64) *TokensUpdateOne {
+	_u.mutation.SetUserID(id)
 	return _u
 }
 
-// SetUsers sets the "users" edge to the User entity.
-func (_u *TokensUpdateOne) SetUsers(v *User) *TokensUpdateOne {
-	return _u.SetUsersID(v.ID)
+// SetUser sets the "user" edge to the User entity.
+func (_u *TokensUpdateOne) SetUser(v *User) *TokensUpdateOne {
+	return _u.SetUserID(v.ID)
 }
 
 // Mutation returns the TokensMutation object of the builder.
@@ -311,9 +311,9 @@ func (_u *TokensUpdateOne) Mutation() *TokensMutation {
 	return _u.mutation
 }
 
-// ClearUsers clears the "users" edge to the User entity.
-func (_u *TokensUpdateOne) ClearUsers() *TokensUpdateOne {
-	_u.mutation.ClearUsers()
+// ClearUser clears the "user" edge to the User entity.
+func (_u *TokensUpdateOne) ClearUser() *TokensUpdateOne {
+	_u.mutation.ClearUser()
 	return _u
 }
 
@@ -369,8 +369,8 @@ func (_u *TokensUpdateOne) check() error {
 			return &ValidationError{Name: "platform", err: fmt.Errorf(`ent: validator failed for field "Tokens.platform": %w`, err)}
 		}
 	}
-	if _u.mutation.UsersCleared() && len(_u.mutation.UsersIDs()) > 0 {
-		return errors.New(`ent: clearing a required unique edge "Tokens.users"`)
+	if _u.mutation.UserCleared() && len(_u.mutation.UserIDs()) > 0 {
+		return errors.New(`ent: clearing a required unique edge "Tokens.user"`)
 	}
 	return nil
 }
@@ -419,12 +419,12 @@ func (_u *TokensUpdateOne) sqlSave(ctx context.Context) (_node *Tokens, err erro
 	if value, ok := _u.mutation.Platform(); ok {
 		_spec.SetField(tokens.FieldPlatform, field.TypeEnum, value)
 	}
-	if _u.mutation.UsersCleared() {
+	if _u.mutation.UserCleared() {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.M2O,
 			Inverse: true,
-			Table:   tokens.UsersTable,
-			Columns: []string{tokens.UsersColumn},
+			Table:   tokens.UserTable,
+			Columns: []string{tokens.UserColumn},
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeUint64),
@@ -432,12 +432,12 @@ func (_u *TokensUpdateOne) sqlSave(ctx context.Context) (_node *Tokens, err erro
 		}
 		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
 	}
-	if nodes := _u.mutation.UsersIDs(); len(nodes) > 0 {
+	if nodes := _u.mutation.UserIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.M2O,
 			Inverse: true,
-			Table:   tokens.UsersTable,
-			Columns: []string{tokens.UsersColumn},
+			Table:   tokens.UserTable,
+			Columns: []string{tokens.UserColumn},
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeUint64),

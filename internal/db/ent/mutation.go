@@ -43,8 +43,8 @@ type ConfigsMutation struct {
 	appendconfigs []uint8
 	updated_at    *time.Time
 	clearedFields map[string]struct{}
-	users         *uint64
-	clearedusers  bool
+	user          *uint64
+	cleareduser   bool
 	done          bool
 	oldValue      func(context.Context) (*Configs, error)
 	predicates    []predicate.Configs
@@ -235,43 +235,43 @@ func (m *ConfigsMutation) ResetUpdatedAt() {
 	m.updated_at = nil
 }
 
-// SetUsersID sets the "users" edge to the User entity by id.
-func (m *ConfigsMutation) SetUsersID(id uint64) {
-	m.users = &id
+// SetUserID sets the "user" edge to the User entity by id.
+func (m *ConfigsMutation) SetUserID(id uint64) {
+	m.user = &id
 }
 
-// ClearUsers clears the "users" edge to the User entity.
-func (m *ConfigsMutation) ClearUsers() {
-	m.clearedusers = true
+// ClearUser clears the "user" edge to the User entity.
+func (m *ConfigsMutation) ClearUser() {
+	m.cleareduser = true
 }
 
-// UsersCleared reports if the "users" edge to the User entity was cleared.
-func (m *ConfigsMutation) UsersCleared() bool {
-	return m.clearedusers
+// UserCleared reports if the "user" edge to the User entity was cleared.
+func (m *ConfigsMutation) UserCleared() bool {
+	return m.cleareduser
 }
 
-// UsersID returns the "users" edge ID in the mutation.
-func (m *ConfigsMutation) UsersID() (id uint64, exists bool) {
-	if m.users != nil {
-		return *m.users, true
+// UserID returns the "user" edge ID in the mutation.
+func (m *ConfigsMutation) UserID() (id uint64, exists bool) {
+	if m.user != nil {
+		return *m.user, true
 	}
 	return
 }
 
-// UsersIDs returns the "users" edge IDs in the mutation.
+// UserIDs returns the "user" edge IDs in the mutation.
 // Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
-// UsersID instead. It exists only for internal usage by the builders.
-func (m *ConfigsMutation) UsersIDs() (ids []uint64) {
-	if id := m.users; id != nil {
+// UserID instead. It exists only for internal usage by the builders.
+func (m *ConfigsMutation) UserIDs() (ids []uint64) {
+	if id := m.user; id != nil {
 		ids = append(ids, *id)
 	}
 	return
 }
 
-// ResetUsers resets all changes to the "users" edge.
-func (m *ConfigsMutation) ResetUsers() {
-	m.users = nil
-	m.clearedusers = false
+// ResetUser resets all changes to the "user" edge.
+func (m *ConfigsMutation) ResetUser() {
+	m.user = nil
+	m.cleareduser = false
 }
 
 // Where appends a list predicates to the ConfigsMutation builder.
@@ -425,8 +425,8 @@ func (m *ConfigsMutation) ResetField(name string) error {
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *ConfigsMutation) AddedEdges() []string {
 	edges := make([]string, 0, 1)
-	if m.users != nil {
-		edges = append(edges, configs.EdgeUsers)
+	if m.user != nil {
+		edges = append(edges, configs.EdgeUser)
 	}
 	return edges
 }
@@ -435,8 +435,8 @@ func (m *ConfigsMutation) AddedEdges() []string {
 // name in this mutation.
 func (m *ConfigsMutation) AddedIDs(name string) []ent.Value {
 	switch name {
-	case configs.EdgeUsers:
-		if id := m.users; id != nil {
+	case configs.EdgeUser:
+		if id := m.user; id != nil {
 			return []ent.Value{*id}
 		}
 	}
@@ -458,8 +458,8 @@ func (m *ConfigsMutation) RemovedIDs(name string) []ent.Value {
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *ConfigsMutation) ClearedEdges() []string {
 	edges := make([]string, 0, 1)
-	if m.clearedusers {
-		edges = append(edges, configs.EdgeUsers)
+	if m.cleareduser {
+		edges = append(edges, configs.EdgeUser)
 	}
 	return edges
 }
@@ -468,8 +468,8 @@ func (m *ConfigsMutation) ClearedEdges() []string {
 // was cleared in this mutation.
 func (m *ConfigsMutation) EdgeCleared(name string) bool {
 	switch name {
-	case configs.EdgeUsers:
-		return m.clearedusers
+	case configs.EdgeUser:
+		return m.cleareduser
 	}
 	return false
 }
@@ -478,8 +478,8 @@ func (m *ConfigsMutation) EdgeCleared(name string) bool {
 // if that edge is not defined in the schema.
 func (m *ConfigsMutation) ClearEdge(name string) error {
 	switch name {
-	case configs.EdgeUsers:
-		m.ClearUsers()
+	case configs.EdgeUser:
+		m.ClearUser()
 		return nil
 	}
 	return fmt.Errorf("unknown Configs unique edge %s", name)
@@ -489,8 +489,8 @@ func (m *ConfigsMutation) ClearEdge(name string) error {
 // It returns an error if the edge is not defined in the schema.
 func (m *ConfigsMutation) ResetEdge(name string) error {
 	switch name {
-	case configs.EdgeUsers:
-		m.ResetUsers()
+	case configs.EdgeUser:
+		m.ResetUser()
 		return nil
 	}
 	return fmt.Errorf("unknown Configs edge %s", name)
@@ -503,8 +503,7 @@ type TimersMutation struct {
 	typ                  string
 	id                   *int
 	name                 *string
-	interval_seconds     *int
-	addinterval_seconds  *int
+	cron                 *string
 	message_threshold    *int
 	addmessage_threshold *int
 	message              *string
@@ -513,8 +512,8 @@ type TimersMutation struct {
 	created_at           *time.Time
 	updated_at           *time.Time
 	clearedFields        map[string]struct{}
-	users                *uint64
-	clearedusers         bool
+	user                 *uint64
+	cleareduser          bool
 	done                 bool
 	oldValue             func(context.Context) (*Timers, error)
 	predicates           []predicate.Timers
@@ -654,60 +653,40 @@ func (m *TimersMutation) ResetName() {
 	m.name = nil
 }
 
-// SetIntervalSeconds sets the "interval_seconds" field.
-func (m *TimersMutation) SetIntervalSeconds(i int) {
-	m.interval_seconds = &i
-	m.addinterval_seconds = nil
+// SetCron sets the "cron" field.
+func (m *TimersMutation) SetCron(s string) {
+	m.cron = &s
 }
 
-// IntervalSeconds returns the value of the "interval_seconds" field in the mutation.
-func (m *TimersMutation) IntervalSeconds() (r int, exists bool) {
-	v := m.interval_seconds
+// Cron returns the value of the "cron" field in the mutation.
+func (m *TimersMutation) Cron() (r string, exists bool) {
+	v := m.cron
 	if v == nil {
 		return
 	}
 	return *v, true
 }
 
-// OldIntervalSeconds returns the old "interval_seconds" field's value of the Timers entity.
+// OldCron returns the old "cron" field's value of the Timers entity.
 // If the Timers object wasn't provided to the builder, the object is fetched from the database.
 // An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *TimersMutation) OldIntervalSeconds(ctx context.Context) (v int, err error) {
+func (m *TimersMutation) OldCron(ctx context.Context) (v string, err error) {
 	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldIntervalSeconds is only allowed on UpdateOne operations")
+		return v, errors.New("OldCron is only allowed on UpdateOne operations")
 	}
 	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldIntervalSeconds requires an ID field in the mutation")
+		return v, errors.New("OldCron requires an ID field in the mutation")
 	}
 	oldValue, err := m.oldValue(ctx)
 	if err != nil {
-		return v, fmt.Errorf("querying old value for OldIntervalSeconds: %w", err)
+		return v, fmt.Errorf("querying old value for OldCron: %w", err)
 	}
-	return oldValue.IntervalSeconds, nil
+	return oldValue.Cron, nil
 }
 
-// AddIntervalSeconds adds i to the "interval_seconds" field.
-func (m *TimersMutation) AddIntervalSeconds(i int) {
-	if m.addinterval_seconds != nil {
-		*m.addinterval_seconds += i
-	} else {
-		m.addinterval_seconds = &i
-	}
-}
-
-// AddedIntervalSeconds returns the value that was added to the "interval_seconds" field in this mutation.
-func (m *TimersMutation) AddedIntervalSeconds() (r int, exists bool) {
-	v := m.addinterval_seconds
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// ResetIntervalSeconds resets all changes to the "interval_seconds" field.
-func (m *TimersMutation) ResetIntervalSeconds() {
-	m.interval_seconds = nil
-	m.addinterval_seconds = nil
+// ResetCron resets all changes to the "cron" field.
+func (m *TimersMutation) ResetCron() {
+	m.cron = nil
 }
 
 // SetMessageThreshold sets the "message_threshold" field.
@@ -959,43 +938,43 @@ func (m *TimersMutation) ResetUpdatedAt() {
 	m.updated_at = nil
 }
 
-// SetUsersID sets the "users" edge to the User entity by id.
-func (m *TimersMutation) SetUsersID(id uint64) {
-	m.users = &id
+// SetUserID sets the "user" edge to the User entity by id.
+func (m *TimersMutation) SetUserID(id uint64) {
+	m.user = &id
 }
 
-// ClearUsers clears the "users" edge to the User entity.
-func (m *TimersMutation) ClearUsers() {
-	m.clearedusers = true
+// ClearUser clears the "user" edge to the User entity.
+func (m *TimersMutation) ClearUser() {
+	m.cleareduser = true
 }
 
-// UsersCleared reports if the "users" edge to the User entity was cleared.
-func (m *TimersMutation) UsersCleared() bool {
-	return m.clearedusers
+// UserCleared reports if the "user" edge to the User entity was cleared.
+func (m *TimersMutation) UserCleared() bool {
+	return m.cleareduser
 }
 
-// UsersID returns the "users" edge ID in the mutation.
-func (m *TimersMutation) UsersID() (id uint64, exists bool) {
-	if m.users != nil {
-		return *m.users, true
+// UserID returns the "user" edge ID in the mutation.
+func (m *TimersMutation) UserID() (id uint64, exists bool) {
+	if m.user != nil {
+		return *m.user, true
 	}
 	return
 }
 
-// UsersIDs returns the "users" edge IDs in the mutation.
+// UserIDs returns the "user" edge IDs in the mutation.
 // Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
-// UsersID instead. It exists only for internal usage by the builders.
-func (m *TimersMutation) UsersIDs() (ids []uint64) {
-	if id := m.users; id != nil {
+// UserID instead. It exists only for internal usage by the builders.
+func (m *TimersMutation) UserIDs() (ids []uint64) {
+	if id := m.user; id != nil {
 		ids = append(ids, *id)
 	}
 	return
 }
 
-// ResetUsers resets all changes to the "users" edge.
-func (m *TimersMutation) ResetUsers() {
-	m.users = nil
-	m.clearedusers = false
+// ResetUser resets all changes to the "user" edge.
+func (m *TimersMutation) ResetUser() {
+	m.user = nil
+	m.cleareduser = false
 }
 
 // Where appends a list predicates to the TimersMutation builder.
@@ -1036,8 +1015,8 @@ func (m *TimersMutation) Fields() []string {
 	if m.name != nil {
 		fields = append(fields, timers.FieldName)
 	}
-	if m.interval_seconds != nil {
-		fields = append(fields, timers.FieldIntervalSeconds)
+	if m.cron != nil {
+		fields = append(fields, timers.FieldCron)
 	}
 	if m.message_threshold != nil {
 		fields = append(fields, timers.FieldMessageThreshold)
@@ -1067,8 +1046,8 @@ func (m *TimersMutation) Field(name string) (ent.Value, bool) {
 	switch name {
 	case timers.FieldName:
 		return m.Name()
-	case timers.FieldIntervalSeconds:
-		return m.IntervalSeconds()
+	case timers.FieldCron:
+		return m.Cron()
 	case timers.FieldMessageThreshold:
 		return m.MessageThreshold()
 	case timers.FieldMessage:
@@ -1092,8 +1071,8 @@ func (m *TimersMutation) OldField(ctx context.Context, name string) (ent.Value, 
 	switch name {
 	case timers.FieldName:
 		return m.OldName(ctx)
-	case timers.FieldIntervalSeconds:
-		return m.OldIntervalSeconds(ctx)
+	case timers.FieldCron:
+		return m.OldCron(ctx)
 	case timers.FieldMessageThreshold:
 		return m.OldMessageThreshold(ctx)
 	case timers.FieldMessage:
@@ -1122,12 +1101,12 @@ func (m *TimersMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetName(v)
 		return nil
-	case timers.FieldIntervalSeconds:
-		v, ok := value.(int)
+	case timers.FieldCron:
+		v, ok := value.(string)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
-		m.SetIntervalSeconds(v)
+		m.SetCron(v)
 		return nil
 	case timers.FieldMessageThreshold:
 		v, ok := value.(int)
@@ -1179,9 +1158,6 @@ func (m *TimersMutation) SetField(name string, value ent.Value) error {
 // this mutation.
 func (m *TimersMutation) AddedFields() []string {
 	var fields []string
-	if m.addinterval_seconds != nil {
-		fields = append(fields, timers.FieldIntervalSeconds)
-	}
 	if m.addmessage_threshold != nil {
 		fields = append(fields, timers.FieldMessageThreshold)
 	}
@@ -1193,8 +1169,6 @@ func (m *TimersMutation) AddedFields() []string {
 // was not set, or was not defined in the schema.
 func (m *TimersMutation) AddedField(name string) (ent.Value, bool) {
 	switch name {
-	case timers.FieldIntervalSeconds:
-		return m.AddedIntervalSeconds()
 	case timers.FieldMessageThreshold:
 		return m.AddedMessageThreshold()
 	}
@@ -1206,13 +1180,6 @@ func (m *TimersMutation) AddedField(name string) (ent.Value, bool) {
 // type.
 func (m *TimersMutation) AddField(name string, value ent.Value) error {
 	switch name {
-	case timers.FieldIntervalSeconds:
-		v, ok := value.(int)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.AddIntervalSeconds(v)
-		return nil
 	case timers.FieldMessageThreshold:
 		v, ok := value.(int)
 		if !ok {
@@ -1259,8 +1226,8 @@ func (m *TimersMutation) ResetField(name string) error {
 	case timers.FieldName:
 		m.ResetName()
 		return nil
-	case timers.FieldIntervalSeconds:
-		m.ResetIntervalSeconds()
+	case timers.FieldCron:
+		m.ResetCron()
 		return nil
 	case timers.FieldMessageThreshold:
 		m.ResetMessageThreshold()
@@ -1287,8 +1254,8 @@ func (m *TimersMutation) ResetField(name string) error {
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *TimersMutation) AddedEdges() []string {
 	edges := make([]string, 0, 1)
-	if m.users != nil {
-		edges = append(edges, timers.EdgeUsers)
+	if m.user != nil {
+		edges = append(edges, timers.EdgeUser)
 	}
 	return edges
 }
@@ -1297,8 +1264,8 @@ func (m *TimersMutation) AddedEdges() []string {
 // name in this mutation.
 func (m *TimersMutation) AddedIDs(name string) []ent.Value {
 	switch name {
-	case timers.EdgeUsers:
-		if id := m.users; id != nil {
+	case timers.EdgeUser:
+		if id := m.user; id != nil {
 			return []ent.Value{*id}
 		}
 	}
@@ -1320,8 +1287,8 @@ func (m *TimersMutation) RemovedIDs(name string) []ent.Value {
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *TimersMutation) ClearedEdges() []string {
 	edges := make([]string, 0, 1)
-	if m.clearedusers {
-		edges = append(edges, timers.EdgeUsers)
+	if m.cleareduser {
+		edges = append(edges, timers.EdgeUser)
 	}
 	return edges
 }
@@ -1330,8 +1297,8 @@ func (m *TimersMutation) ClearedEdges() []string {
 // was cleared in this mutation.
 func (m *TimersMutation) EdgeCleared(name string) bool {
 	switch name {
-	case timers.EdgeUsers:
-		return m.clearedusers
+	case timers.EdgeUser:
+		return m.cleareduser
 	}
 	return false
 }
@@ -1340,8 +1307,8 @@ func (m *TimersMutation) EdgeCleared(name string) bool {
 // if that edge is not defined in the schema.
 func (m *TimersMutation) ClearEdge(name string) error {
 	switch name {
-	case timers.EdgeUsers:
-		m.ClearUsers()
+	case timers.EdgeUser:
+		m.ClearUser()
 		return nil
 	}
 	return fmt.Errorf("unknown Timers unique edge %s", name)
@@ -1351,8 +1318,8 @@ func (m *TimersMutation) ClearEdge(name string) error {
 // It returns an error if the edge is not defined in the schema.
 func (m *TimersMutation) ResetEdge(name string) error {
 	switch name {
-	case timers.EdgeUsers:
-		m.ResetUsers()
+	case timers.EdgeUser:
+		m.ResetUser()
 		return nil
 	}
 	return fmt.Errorf("unknown Timers edge %s", name)
@@ -1369,8 +1336,8 @@ type TokensMutation struct {
 	refresh_token *string
 	platform      *tokens.Platform
 	clearedFields map[string]struct{}
-	users         *uint64
-	clearedusers  bool
+	user          *uint64
+	cleareduser   bool
 	done          bool
 	oldValue      func(context.Context) (*Tokens, error)
 	predicates    []predicate.Tokens
@@ -1631,43 +1598,43 @@ func (m *TokensMutation) ResetPlatform() {
 	m.platform = nil
 }
 
-// SetUsersID sets the "users" edge to the User entity by id.
-func (m *TokensMutation) SetUsersID(id uint64) {
-	m.users = &id
+// SetUserID sets the "user" edge to the User entity by id.
+func (m *TokensMutation) SetUserID(id uint64) {
+	m.user = &id
 }
 
-// ClearUsers clears the "users" edge to the User entity.
-func (m *TokensMutation) ClearUsers() {
-	m.clearedusers = true
+// ClearUser clears the "user" edge to the User entity.
+func (m *TokensMutation) ClearUser() {
+	m.cleareduser = true
 }
 
-// UsersCleared reports if the "users" edge to the User entity was cleared.
-func (m *TokensMutation) UsersCleared() bool {
-	return m.clearedusers
+// UserCleared reports if the "user" edge to the User entity was cleared.
+func (m *TokensMutation) UserCleared() bool {
+	return m.cleareduser
 }
 
-// UsersID returns the "users" edge ID in the mutation.
-func (m *TokensMutation) UsersID() (id uint64, exists bool) {
-	if m.users != nil {
-		return *m.users, true
+// UserID returns the "user" edge ID in the mutation.
+func (m *TokensMutation) UserID() (id uint64, exists bool) {
+	if m.user != nil {
+		return *m.user, true
 	}
 	return
 }
 
-// UsersIDs returns the "users" edge IDs in the mutation.
+// UserIDs returns the "user" edge IDs in the mutation.
 // Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
-// UsersID instead. It exists only for internal usage by the builders.
-func (m *TokensMutation) UsersIDs() (ids []uint64) {
-	if id := m.users; id != nil {
+// UserID instead. It exists only for internal usage by the builders.
+func (m *TokensMutation) UserIDs() (ids []uint64) {
+	if id := m.user; id != nil {
 		ids = append(ids, *id)
 	}
 	return
 }
 
-// ResetUsers resets all changes to the "users" edge.
-func (m *TokensMutation) ResetUsers() {
-	m.users = nil
-	m.clearedusers = false
+// ResetUser resets all changes to the "user" edge.
+func (m *TokensMutation) ResetUser() {
+	m.user = nil
+	m.cleareduser = false
 }
 
 // Where appends a list predicates to the TokensMutation builder.
@@ -1864,8 +1831,8 @@ func (m *TokensMutation) ResetField(name string) error {
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *TokensMutation) AddedEdges() []string {
 	edges := make([]string, 0, 1)
-	if m.users != nil {
-		edges = append(edges, tokens.EdgeUsers)
+	if m.user != nil {
+		edges = append(edges, tokens.EdgeUser)
 	}
 	return edges
 }
@@ -1874,8 +1841,8 @@ func (m *TokensMutation) AddedEdges() []string {
 // name in this mutation.
 func (m *TokensMutation) AddedIDs(name string) []ent.Value {
 	switch name {
-	case tokens.EdgeUsers:
-		if id := m.users; id != nil {
+	case tokens.EdgeUser:
+		if id := m.user; id != nil {
 			return []ent.Value{*id}
 		}
 	}
@@ -1897,8 +1864,8 @@ func (m *TokensMutation) RemovedIDs(name string) []ent.Value {
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *TokensMutation) ClearedEdges() []string {
 	edges := make([]string, 0, 1)
-	if m.clearedusers {
-		edges = append(edges, tokens.EdgeUsers)
+	if m.cleareduser {
+		edges = append(edges, tokens.EdgeUser)
 	}
 	return edges
 }
@@ -1907,8 +1874,8 @@ func (m *TokensMutation) ClearedEdges() []string {
 // was cleared in this mutation.
 func (m *TokensMutation) EdgeCleared(name string) bool {
 	switch name {
-	case tokens.EdgeUsers:
-		return m.clearedusers
+	case tokens.EdgeUser:
+		return m.cleareduser
 	}
 	return false
 }
@@ -1917,8 +1884,8 @@ func (m *TokensMutation) EdgeCleared(name string) bool {
 // if that edge is not defined in the schema.
 func (m *TokensMutation) ClearEdge(name string) error {
 	switch name {
-	case tokens.EdgeUsers:
-		m.ClearUsers()
+	case tokens.EdgeUser:
+		m.ClearUser()
 		return nil
 	}
 	return fmt.Errorf("unknown Tokens unique edge %s", name)
@@ -1928,8 +1895,8 @@ func (m *TokensMutation) ClearEdge(name string) error {
 // It returns an error if the edge is not defined in the schema.
 func (m *TokensMutation) ResetEdge(name string) error {
 	switch name {
-	case tokens.EdgeUsers:
-		m.ResetUsers()
+	case tokens.EdgeUser:
+		m.ResetUser()
 		return nil
 	}
 	return fmt.Errorf("unknown Tokens edge %s", name)

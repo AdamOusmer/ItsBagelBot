@@ -26,7 +26,7 @@ func (Configs) Fields() []ent.Field {
 // Edges of the Configs.
 func (Configs) Edges() []ent.Edge {
 	return []ent.Edge{
-		edge.From("users", User.Type).
+		edge.From("user", User.Type).
 			Ref("configs").
 			Unique().
 			Required(),

@@ -48,15 +48,15 @@ func (_u *ConfigsUpdate) SetUpdatedAt(v time.Time) *ConfigsUpdate {
 	return _u
 }
 
-// SetUsersID sets the "users" edge to the User entity by ID.
-func (_u *ConfigsUpdate) SetUsersID(id uint64) *ConfigsUpdate {
-	_u.mutation.SetUsersID(id)
+// SetUserID sets the "user" edge to the User entity by ID.
+func (_u *ConfigsUpdate) SetUserID(id uint64) *ConfigsUpdate {
+	_u.mutation.SetUserID(id)
 	return _u
 }
 
-// SetUsers sets the "users" edge to the User entity.
-func (_u *ConfigsUpdate) SetUsers(v *User) *ConfigsUpdate {
-	return _u.SetUsersID(v.ID)
+// SetUser sets the "user" edge to the User entity.
+func (_u *ConfigsUpdate) SetUser(v *User) *ConfigsUpdate {
+	return _u.SetUserID(v.ID)
 }
 
 // Mutation returns the ConfigsMutation object of the builder.
@@ -64,9 +64,9 @@ func (_u *ConfigsUpdate) Mutation() *ConfigsMutation {
 	return _u.mutation
 }
 
-// ClearUsers clears the "users" edge to the User entity.
-func (_u *ConfigsUpdate) ClearUsers() *ConfigsUpdate {
-	_u.mutation.ClearUsers()
+// ClearUser clears the "user" edge to the User entity.
+func (_u *ConfigsUpdate) ClearUser() *ConfigsUpdate {
+	_u.mutation.ClearUser()
 	return _u
 }
 
@@ -108,8 +108,8 @@ func (_u *ConfigsUpdate) defaults() {
 
 // check runs all checks and user-defined validators on the builder.
 func (_u *ConfigsUpdate) check() error {
-	if _u.mutation.UsersCleared() && len(_u.mutation.UsersIDs()) > 0 {
-		return errors.New(`ent: clearing a required unique edge "Configs.users"`)
+	if _u.mutation.UserCleared() && len(_u.mutation.UserIDs()) > 0 {
+		return errors.New(`ent: clearing a required unique edge "Configs.user"`)
 	}
 	return nil
 }
@@ -137,12 +137,12 @@ func (_u *ConfigsUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(configs.FieldUpdatedAt, field.TypeTime, value)
 	}
-	if _u.mutation.UsersCleared() {
+	if _u.mutation.UserCleared() {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.O2O,
 			Inverse: true,
-			Table:   configs.UsersTable,
-			Columns: []string{configs.UsersColumn},
+			Table:   configs.UserTable,
+			Columns: []string{configs.UserColumn},
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeUint64),
@@ -150,12 +150,12 @@ func (_u *ConfigsUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 		}
 		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
 	}
-	if nodes := _u.mutation.UsersIDs(); len(nodes) > 0 {
+	if nodes := _u.mutation.UserIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.O2O,
 			Inverse: true,
-			Table:   configs.UsersTable,
-			Columns: []string{configs.UsersColumn},
+			Table:   configs.UserTable,
+			Columns: []string{configs.UserColumn},
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeUint64),
@@ -204,15 +204,15 @@ func (_u *ConfigsUpdateOne) SetUpdatedAt(v time.Time) *ConfigsUpdateOne {
 	return _u
 }
 
-// SetUsersID sets the "users" edge to the User entity by ID.
-func (_u *ConfigsUpdateOne) SetUsersID(id uint64) *ConfigsUpdateOne {
-	_u.mutation.SetUsersID(id)
+// SetUserID sets the "user" edge to the User entity by ID.
+func (_u *ConfigsUpdateOne) SetUserID(id uint64) *ConfigsUpdateOne {
+	_u.mutation.SetUserID(id)
 	return _u
 }
 
-// SetUsers sets the "users" edge to the User entity.
-func (_u *ConfigsUpdateOne) SetUsers(v *User) *ConfigsUpdateOne {
-	return _u.SetUsersID(v.ID)
+// SetUser sets the "user" edge to the User entity.
+func (_u *ConfigsUpdateOne) SetUser(v *User) *ConfigsUpdateOne {
+	return _u.SetUserID(v.ID)
 }
 
 // Mutation returns the ConfigsMutation object of the builder.
@@ -220,9 +220,9 @@ func (_u *ConfigsUpdateOne) Mutation() *ConfigsMutation {
 	return _u.mutation
 }
 
-// ClearUsers clears the "users" edge to the User entity.
-func (_u *ConfigsUpdateOne) ClearUsers() *ConfigsUpdateOne {
-	_u.mutation.ClearUsers()
+// ClearUser clears the "user" edge to the User entity.
+func (_u *ConfigsUpdateOne) ClearUser() *ConfigsUpdateOne {
+	_u.mutation.ClearUser()
 	return _u
 }
 
@@ -277,8 +277,8 @@ func (_u *ConfigsUpdateOne) defaults() {
 
 // check runs all checks and user-defined validators on the builder.
 func (_u *ConfigsUpdateOne) check() error {
-	if _u.mutation.UsersCleared() && len(_u.mutation.UsersIDs()) > 0 {
-		return errors.New(`ent: clearing a required unique edge "Configs.users"`)
+	if _u.mutation.UserCleared() && len(_u.mutation.UserIDs()) > 0 {
+		return errors.New(`ent: clearing a required unique edge "Configs.user"`)
 	}
 	return nil
 }
@@ -323,12 +323,12 @@ func (_u *ConfigsUpdateOne) sqlSave(ctx context.Context) (_node *Configs, err er
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(configs.FieldUpdatedAt, field.TypeTime, value)
 	}
-	if _u.mutation.UsersCleared() {
+	if _u.mutation.UserCleared() {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.O2O,
 			Inverse: true,
-			Table:   configs.UsersTable,
-			Columns: []string{configs.UsersColumn},
+			Table:   configs.UserTable,
+			Columns: []string{configs.UserColumn},
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeUint64),
@@ -336,12 +336,12 @@ func (_u *ConfigsUpdateOne) sqlSave(ctx context.Context) (_node *Configs, err er
 		}
 		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
 	}
-	if nodes := _u.mutation.UsersIDs(); len(nodes) > 0 {
+	if nodes := _u.mutation.UserIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.O2O,
 			Inverse: true,
-			Table:   configs.UsersTable,
-			Columns: []string{configs.UsersColumn},
+			Table:   configs.UserTable,
+			Columns: []string{configs.UserColumn},
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeUint64),

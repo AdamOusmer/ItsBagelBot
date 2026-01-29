@@ -23,7 +23,7 @@ type ConfigsQuery struct {
 	order      []configs.OrderOption
 	inters     []Interceptor
 	predicates []predicate.Configs
-	withUsers  *UserQuery
+	withUser   *UserQuery
 	withFKs    bool
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
@@ -61,8 +61,8 @@ func (_q *ConfigsQuery) Order(o ...configs.OrderOption) *ConfigsQuery {
 	return _q
 }
 
-// QueryUsers chains the current query on the "users" edge.
-func (_q *ConfigsQuery) QueryUsers() *UserQuery {
+// QueryUser chains the current query on the "user" edge.
+func (_q *ConfigsQuery) QueryUser() *UserQuery {
 	query := (&UserClient{config: _q.config}).Query()
 	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
 		if err := _q.prepareQuery(ctx); err != nil {
@@ -75,7 +75,7 @@ func (_q *ConfigsQuery) QueryUsers() *UserQuery {
 		step := sqlgraph.NewStep(
 			sqlgraph.From(configs.Table, configs.FieldID, selector),
 			sqlgraph.To(user.Table, user.FieldID),
-			sqlgraph.Edge(sqlgraph.O2O, true, configs.UsersTable, configs.UsersColumn),
+			sqlgraph.Edge(sqlgraph.O2O, true, configs.UserTable, configs.UserColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
 		return fromU, nil
@@ -275,21 +275,21 @@ func (_q *ConfigsQuery) Clone() *ConfigsQuery {
 		order:      append([]configs.OrderOption{}, _q.order...),
 		inters:     append([]Interceptor{}, _q.inters...),
 		predicates: append([]predicate.Configs{}, _q.predicates...),
-		withUsers:  _q.withUsers.Clone(),
+		withUser:   _q.withUser.Clone(),
 		// clone intermediate query.
 		sql:  _q.sql.Clone(),
 		path: _q.path,
 	}
 }
 
-// WithUsers tells the query-builder to eager-load the nodes that are connected to
-// the "users" edge. The optional arguments are used to configure the query builder of the edge.
-func (_q *ConfigsQuery) WithUsers(opts ...func(*UserQuery)) *ConfigsQuery {
+// WithUser tells the query-builder to eager-load the nodes that are connected to
+// the "user" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *ConfigsQuery) WithUser(opts ...func(*UserQuery)) *ConfigsQuery {
 	query := (&UserClient{config: _q.config}).Query()
 	for _, opt := range opts {
 		opt(query)
 	}
-	_q.withUsers = query
+	_q.withUser = query
 	return _q
 }
 
@@ -373,10 +373,10 @@ func (_q *ConfigsQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Conf
 		withFKs     = _q.withFKs
 		_spec       = _q.querySpec()
 		loadedTypes = [1]bool{
-			_q.withUsers != nil,
+			_q.withUser != nil,
 		}
 	)
-	if _q.withUsers != nil {
+	if _q.withUser != nil {
 		withFKs = true
 	}
 	if withFKs {
@@ -400,16 +400,16 @@ func (_q *ConfigsQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Conf
 	if len(nodes) == 0 {
 		return nodes, nil
 	}
-	if query := _q.withUsers; query != nil {
-		if err := _q.loadUsers(ctx, query, nodes, nil,
-			func(n *Configs, e *User) { n.Edges.Users = e }); err != nil {
+	if query := _q.withUser; query != nil {
+		if err := _q.loadUser(ctx, query, nodes, nil,
+			func(n *Configs, e *User) { n.Edges.User = e }); err != nil {
 			return nil, err
 		}
 	}
 	return nodes, nil
 }
 
-func (_q *ConfigsQuery) loadUsers(ctx context.Context, query *UserQuery, nodes []*Configs, init func(*Configs), assign func(*Configs, *User)) error {
+func (_q *ConfigsQuery) loadUser(ctx context.Context, query *UserQuery, nodes []*Configs, init func(*Configs), assign func(*Configs, *User)) error {
 	ids := make([]uint64, 0, len(nodes))
 	nodeids := make(map[uint64][]*Configs)
 	for i := range nodes {

@@ -27,17 +27,9 @@ func (_c *TimersCreate) SetName(v string) *TimersCreate {
 	return _c
 }
 
-// SetIntervalSeconds sets the "interval_seconds" field.
-func (_c *TimersCreate) SetIntervalSeconds(v int) *TimersCreate {
-	_c.mutation.SetIntervalSeconds(v)
-	return _c
-}
-
-// SetNillableIntervalSeconds sets the "interval_seconds" field if the given value is not nil.
-func (_c *TimersCreate) SetNillableIntervalSeconds(v *int) *TimersCreate {
-	if v != nil {
-		_c.SetIntervalSeconds(*v)
-	}
+// SetCron sets the "cron" field.
+func (_c *TimersCreate) SetCron(v string) *TimersCreate {
+	_c.mutation.SetCron(v)
 	return _c
 }
 
@@ -117,15 +109,15 @@ func (_c *TimersCreate) SetNillableUpdatedAt(v *time.Time) *TimersCreate {
 	return _c
 }
 
-// SetUsersID sets the "users" edge to the User entity by ID.
-func (_c *TimersCreate) SetUsersID(id uint64) *TimersCreate {
-	_c.mutation.SetUsersID(id)
+// SetUserID sets the "user" edge to the User entity by ID.
+func (_c *TimersCreate) SetUserID(id uint64) *TimersCreate {
+	_c.mutation.SetUserID(id)
 	return _c
 }
 
-// SetUsers sets the "users" edge to the User entity.
-func (_c *TimersCreate) SetUsers(v *User) *TimersCreate {
-	return _c.SetUsersID(v.ID)
+// SetUser sets the "user" edge to the User entity.
+func (_c *TimersCreate) SetUser(v *User) *TimersCreate {
+	return _c.SetUserID(v.ID)
 }
 
 // Mutation returns the TimersMutation object of the builder.
@@ -163,10 +155,6 @@ func (_c *TimersCreate) ExecX(ctx context.Context) {
 
 // defaults sets the default values of the builder before save.
 func (_c *TimersCreate) defaults() {
-	if _, ok := _c.mutation.IntervalSeconds(); !ok {
-		v := timers.DefaultIntervalSeconds
-		_c.mutation.SetIntervalSeconds(v)
-	}
 	if _, ok := _c.mutation.MessageThreshold(); !ok {
 		v := timers.DefaultMessageThreshold
 		_c.mutation.SetMessageThreshold(v)
@@ -199,8 +187,13 @@ func (_c *TimersCreate) check() error {
 			return &ValidationError{Name: "name", err: fmt.Errorf(`ent: validator failed for field "Timers.name": %w`, err)}
 		}
 	}
-	if _, ok := _c.mutation.IntervalSeconds(); !ok {
-		return &ValidationError{Name: "interval_seconds", err: errors.New(`ent: missing required field "Timers.interval_seconds"`)}
+	if _, ok := _c.mutation.Cron(); !ok {
+		return &ValidationError{Name: "cron", err: errors.New(`ent: missing required field "Timers.cron"`)}
+	}
+	if v, ok := _c.mutation.Cron(); ok {
+		if err := timers.CronValidator(v); err != nil {
+			return &ValidationError{Name: "cron", err: fmt.Errorf(`ent: validator failed for field "Timers.cron": %w`, err)}
+		}
 	}
 	if _, ok := _c.mutation.MessageThreshold(); !ok {
 		return &ValidationError{Name: "message_threshold", err: errors.New(`ent: missing required field "Timers.message_threshold"`)}
@@ -222,8 +215,8 @@ func (_c *TimersCreate) check() error {
 	if _, ok := _c.mutation.UpdatedAt(); !ok {
 		return &ValidationError{Name: "updated_at", err: errors.New(`ent: missing required field "Timers.updated_at"`)}
 	}
-	if len(_c.mutation.UsersIDs()) == 0 {
-		return &ValidationError{Name: "users", err: errors.New(`ent: missing required edge "Timers.users"`)}
+	if len(_c.mutation.UserIDs()) == 0 {
+		return &ValidationError{Name: "user", err: errors.New(`ent: missing required edge "Timers.user"`)}
 	}
 	return nil
 }
@@ -255,9 +248,9 @@ func (_c *TimersCreate) createSpec() (*Timers, *sqlgraph.CreateSpec) {
 		_spec.SetField(timers.FieldName, field.TypeString, value)
 		_node.Name = value
 	}
-	if value, ok := _c.mutation.IntervalSeconds(); ok {
-		_spec.SetField(timers.FieldIntervalSeconds, field.TypeInt, value)
-		_node.IntervalSeconds = value
+	if value, ok := _c.mutation.Cron(); ok {
+		_spec.SetField(timers.FieldCron, field.TypeString, value)
+		_node.Cron = value
 	}
 	if value, ok := _c.mutation.MessageThreshold(); ok {
 		_spec.SetField(timers.FieldMessageThreshold, field.TypeInt, value)
@@ -283,12 +276,12 @@ func (_c *TimersCreate) createSpec() (*Timers, *sqlgraph.CreateSpec) {
 		_spec.SetField(timers.FieldUpdatedAt, field.TypeTime, value)
 		_node.UpdatedAt = value
 	}
-	if nodes := _c.mutation.UsersIDs(); len(nodes) > 0 {
+	if nodes := _c.mutation.UserIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.M2O,
 			Inverse: true,
-			Table:   timers.UsersTable,
-			Columns: []string{timers.UsersColumn},
+			Table:   timers.UserTable,
+			Columns: []string{timers.UserColumn},
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeUint64),
