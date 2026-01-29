@@ -3,7 +3,7 @@ package event
 import (
 	"time"
 
-	"github.com/google/uuid"
+	"ItsBagelBot/internal/utils"
 )
 
 type Event interface {
@@ -25,17 +25,8 @@ func (e BaseEvent) EventType() string    { return e.eventType }
 func (e BaseEvent) Priority() bool       { return e.priority }
 func (e BaseEvent) TimeStamp() time.Time { return e.timeStamp }
 
-func newID() (string, error) {
-	id, err := uuid.NewV7()
-
-	if err != nil {
-		return "", err
-	}
-	return id.String(), nil
-}
-
 func NewBaseEvent(eventType string, priority bool) (BaseEvent, error) {
-	id, err := newID()
+	id, err := utils.NewID()
 	if err != nil {
 		return BaseEvent{}, err
 	}
