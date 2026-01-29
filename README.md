@@ -134,7 +134,7 @@ Currently in development, but will be built with the following technologies:
 ![Ent](https://img.shields.io/badge/ent-%235164E3.svg?style=for-the-badge&logo=go&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/postgresql-%23336791.svg?style=for-the-badge&logo=postgresql&logoColor=white)
 ![Redis](https://img.shields.io/badge/redis-%23DC382D.svg?style=for-the-badge&logo=redis&logoColor=white)
-![Chi](https://img.shields.io/badge/chi-%23000000.svg?style=for-the-badge&logo=go&logoColor=white)
+![Gin](https://img.shields.io/badge/gin-%23000000.svg?style=for-the-badge&logo=go&logoColor=white)
 
 #### Security & Encryption
 

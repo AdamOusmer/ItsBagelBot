@@ -3,8 +3,9 @@ module ItsBagelBot
 go 1.25
 
 require (
+	entgo.io/ent v0.14.5
 	github.com/google/uuid v1.6.0
-	github.com/stretchr/testify v1.8.1
+	github.com/stretchr/testify v1.8.4
 	github.com/tink-crypto/tink-go/v2 v2.6.0
 	go.uber.org/zap v1.27.1
 )
