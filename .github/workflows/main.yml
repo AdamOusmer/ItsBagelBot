@@ -1,0 +1,43 @@
+name: Go Test Pipeline
+
+# Trigger the workflow on Pull Requests to main and Pushes to main
+on:
+  pull_request:
+    branches: [ "main" ]
+  push:
+    branches: [ "main" ]
+
+jobs:
+  test:
+    name: Run Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Check out the code
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Install Go (Matches your local version, likely 1.22 or 1.23)
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.23' 
+
+      # 3. Cache dependencies (Makes subsequent runs faster)
+      - name: Cache Go modules
+        uses: actions/cache@v3
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      # 4. Install dependencies
+      - name: Install dependencies
+        run: go mod download
+
+      # 5. Run the Tests
+      # -race detects race conditions (very good for concurrent bots)
+      # -v gives verbose output so you can see which test failed
+      - name: Run Tests
+        run: go test -v -race ./...
