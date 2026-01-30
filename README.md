@@ -163,7 +163,7 @@ Currently in development, but will be built with the following technologies:
 
 ### Security
 
-I take security seriously. ItsBagelBot uses Tink for encryption of sensitive data at rest and in transit.
+I take security seriously. ItsBagelBot uses Tink for encryption of sensitive data at rest and in transit. To ensure that I are not using the insecurecleartextkeyset function of Tink, I have acquired a Vault (KMS) from Oracle to secure my keysets. 
 
 The internal services communicate using a service mesh (Linkerd) to ensure secure communication between services and the message broker.
 
