@@ -11,10 +11,9 @@ const { href, label } = Astro.props;
 
 <style>
     a {
-        font-family: "DM Mono", monospace;
+        font-family: var(--font-mono);
         font-size: 0.82rem;
-        color: var(--muted, #888077);
-        text-decoration: none;
+        color: var(--muted);
         letter-spacing: 0.04em;
         display: inline-flex;
         align-items: center;
@@ -28,7 +27,7 @@ const { href, label } = Astro.props;
     }
 
     a:hover {
-        color: var(--white, #f0ece4);
+        color: var(--white);
     }
 
     a:hover::after {

@@ -1,45 +1,45 @@
 ---
 import { Image } from 'astro:assets';
-
 import logoImage from '../../assets/LogoBOT.png';
 ---
 
-
 <footer>
-    <div class="footer-top">
-        <div class="footer-brand">
-            <Image src={logoImage} alt="ItsBagelBot Logo" width={60}  height={60} fetchpriority="high" />
+    <div class="top">
+        <div class="brand">
+            <Image src={logoImage} alt="ItsBagelBot Logo" width={55} height={55} fetchpriority="high" />
             <div>
-                <div class="footer-brand-name">ItsBagelBot</div>
-                <div class="footer-brand-tagline">Your stream. Your rules.</div>
+                <span class="name">ItsBagelBot</span>
+                <span class="tagline">Your stream. Your rules.</span>
             </div>
         </div>
-        <div class="footer-cols">
-            <div class="footer-col">
-                <div class="footer-col-title">Product</div>
+
+        <div class="cols">
+            <div class="col">
+                <p>Product</p>
                 <a href="#">Features</a>
                 <a href="#">Commands</a>
                 <a href="#">Pricing</a>
                 <a href="#">Changelog</a>
             </div>
-            <div class="footer-col">
-                <div class="footer-col-title">Developers</div>
+            <div class="col">
+                <p>Developers</p>
                 <a href="#">Documentation</a>
                 <a href="#">GitHub</a>
             </div>
-            <div class="footer-col">
-                <div class="footer-col-title">Community</div>
+            <div class="col">
+                <p>Community</p>
                 <a href="https://discord.gg/SZ2remwSDv">Discord</a>
                 <a href="https://twitch.tv/itsbagelbot">Twitch</a>
             </div>
         </div>
     </div>
-    <div class="footer-bottom">
-        <span class="footer-copy">© 2026 ItsBagelBot</span>
-        <span class="footer-note">No data sold · No trackers · No surprises</span>
-        <div class="footer-legal">
+
+    <div class="bottom">
+        <span class="copy">© 2026 ItsBagelBot</span>
+        <span class="note">No data sold · No trackers · No surprises</span>
+        <div class="legal">
             <a href="#">Privacy Policy</a>
-            <a href="#">Terms of Services</a>
+            <a href="#">Terms of Service</a>
         </div>
     </div>
 </footer>
@@ -47,128 +47,139 @@ import logoImage from '../../assets/LogoBOT.png';
 <style>
     footer {
         border-top: 1px solid var(--border);
-        padding: 64px 48px 40px;
+        padding: 64px 4% 40px;
     }
 
-    .footer-top {
+    .top {
         display: flex;
         justify-content: space-between;
+        align-items: center;
         gap: 60px;
         margin-bottom: 60px;
     }
 
-    .footer-brand {
+    .brand {
         display: flex;
-        align-items: flex-start;
-        gap: 14px;
+        align-items: center;
+        gap: 15px;
     }
 
-    .footer-brand-name {
-        font-family: "Syne", sans-serif;
-        font-size: 1rem;
+    .brand div {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .name {
+        font-family: var(--font-display);
         font-weight: 700;
-        color: var(--tan-pale);
+        font-size: 1.1rem;
+        color: var(--white);
         margin-bottom: 10px;
     }
 
-    .footer-brand-tagline {
-        font-family: "DM Mono", monospace;
-        font-size: 0.68rem;
+    .tagline {
+        font-family: var(--font-mono);
+        font-size: 0.9rem;
         color: var(--muted);
-        letter-spacing: 0.06em;
+        letter-spacing: 0.05em;
     }
 
-    .footer-cols {
+    .cols {
         display: flex;
         gap: 60px;
     }
 
-    .footer-col {
+    .col {
         display: flex;
         flex-direction: column;
-        gap: 12px;
+        gap: 15px;
     }
 
-    .footer-col-title {
-        font-family: "DM Mono", monospace;
-        font-size: 0.68rem;
-        letter-spacing: 0.12em;
+    .col p {
+        font-family: var(--font-mono);
+        font-size: 0.9rem;
+        letter-spacing: 0.10em;
         text-transform: uppercase;
-        color: var(--tan-pale);
-        margin-bottom: 4px;
+        color: var(--white);
+        margin: 0 0 4px 0;
     }
 
-    .footer-col a {
+    .col a {
         font-size: 0.85rem;
         color: var(--muted);
         text-decoration: none;
         transition: color 0.2s;
     }
 
-    .footer-col a:hover {
-        color: var(--tan-pale);
+    .col a:hover {
+        color: var(--tan-light);
     }
 
-    .footer-bottom {
-        display: flex;
+    .bottom {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
         align-items: center;
-        justify-content: space-between;
-        padding-top: 32px;
-        border-top: 1px solid rgba(255, 255, 255, 0.04);
+        padding-top: 30px;
+        border-top: 1px solid rgba(255, 255, 255, 0.05);
     }
 
-    .footer-copy {
-        font-family: "DM Mono", monospace;
+    .copy {
+        font-family: var(--font-mono);
         font-size: 0.7rem;
         color: var(--muted);
         letter-spacing: 0.06em;
     }
 
-    .footer-note {
-        font-family: "DM Mono", monospace;
+    .note {
+        font-family: var(--font-mono);
         font-size: 0.7rem;
         color: var(--muted);
         letter-spacing: 0.08em;
     }
 
-    .footer-legal {
+    .legal {
         display: flex;
+        justify-content: flex-end;
         gap: 20px;
     }
 
-    .footer-legal a {
-        font-family: "DM Mono", monospace;
-        font-size: 0.68rem;
+    .legal a {
+        font-family: var(--font-mono);
+        font-size: 0.7rem;
         color: var(--muted);
         text-decoration: none;
-        letter-spacing: 0.06em;
+        letter-spacing: 0.05em;
         text-transform: uppercase;
         transition: color 0.2s;
     }
 
-    .footer-legal a:hover {
-        color: var(--tan-pale);
+    .legal a:hover {
+        color: var(--tan-light);
     }
 
     @media (max-width: 900px) {
         footer {
-            padding: 48px 24px 32px;
+            padding: 50px 25px 30px;
         }
 
-        .footer-top {
+        .top {
             flex-direction: column;
             gap: 40px;
         }
 
-        .footer-cols {
+        .cols {
             flex-wrap: wrap;
-            gap: 32px;
+            gap: 30px;
         }
 
-        .footer-bottom {
-            flex-direction: column;
-            gap: 12px;
+        .bottom {
+            grid-template-columns: 1fr;
+            gap: 10px;
             text-align: center;
+        }
+
+        .legal {
+            justify-content: center;
         }
     }
 </style>

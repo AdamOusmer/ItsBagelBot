@@ -11,22 +11,20 @@ const { href, label } = Astro.props;
 
 <style>
     a {
-        font-family: "Syne", sans-serif;
+        font-family: var(---font-display);
         font-weight: 700;
         font-size: 0.95rem;
         padding: 16px 36px;
-        background: var(--tan, #c9a87c);
-        color: var(--black, #0a0a0a);
-        border: none;
+        background: var(--tan);
+        color: var(--black);
         border-radius: 4px;
         letter-spacing: -0.01em;
-        text-decoration: none;
         display: inline-block;
         transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
     }
 
     a:hover {
-        background: var(--tan-light, #e0c49a);
+        background: var(--tan-light);
         transform: translateY(-2px);
         box-shadow: 0 8px 32px rgba(201, 168, 124, 0.25);
     }

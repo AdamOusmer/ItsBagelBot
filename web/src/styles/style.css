@@ -10,10 +10,23 @@
     --muted: #888077;
     --card-bg: #111110;
     --border: rgba(201, 168, 124, 0.15);
+
+    --font-display: "Syne", sans-serif;
+    --font-mono: "DM Mono", monospace;
+    --font-body: "DM Sans", sans-serif;
+
+    --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+
 }
 
 
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
 html {
     scroll-behavior: smooth;
     cursor: none;
@@ -74,4 +87,8 @@ button {
 
 /* Global Styles */
 
-section { padding: 100px 48px; max-width: 1200px; margin: 0 auto; }
+section {
+    padding: 100px 48px;
+    max-width: 1200px;
+    margin: 0 auto;
+}
