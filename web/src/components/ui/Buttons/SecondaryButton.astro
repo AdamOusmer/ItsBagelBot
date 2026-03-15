@@ -1,0 +1,32 @@
+---
+interface Props {
+    href?: string;
+    label?: string;
+}
+
+const { href, label } = Astro.props;
+---
+
+<a href={href}>{label}</a>
+
+<style>
+    a {
+        font-family: "DM Mono", monospace;
+        font-size: 0.78rem;
+        padding: 10px 22px;
+        background: transparent;
+        border: 1px solid var(--tan, #c9a87c);
+        color: var(--tan-light, #e0c49a);
+        border-radius: 4px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        text-decoration: none;
+        transition: background 0.2s, color 0.2s;
+        display: inline-block;
+    }
+
+    a:hover {
+        background: var(--tan, #c9a87c);
+        color: var(--black, #0a0a0a);
+    }
+</style>

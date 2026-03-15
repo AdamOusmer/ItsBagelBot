@@ -1,0 +1,67 @@
+---
+---
+
+<div class="cursor" id="cursor"></div>
+<div class="cursor-ring" id="cursorRing"></div>
+
+<style>
+    .cursor {
+        position: fixed;
+        width: 12px;
+        height: 12px;
+        background: var(--tan, #c9a87c);
+        border-radius: 50%;
+        pointer-events: none;
+        z-index: 9999;
+        left: -6px;
+        top: -6px;
+        will-change: transform;
+        mix-blend-mode: difference;
+    }
+
+    .cursor-ring {
+        position: fixed;
+        width: 36px;
+        height: 36px;
+        border: 2px solid var(--tan, #c9a87c);
+        border-radius: 50%;
+        pointer-events: none;
+        z-index: 9998;
+        left: -18px;
+        top: -18px;
+        will-change: transform, opacity;
+        transition: opacity 300ms;
+        opacity: 0.5;
+    }
+
+    @media (max-width: 900px) {
+        .cursor,
+        .cursor-ring {
+            display: none;
+        }
+    }
+</style>
+
+<script>
+    const cursor = document.getElementById("cursor")!;
+    const ring   = document.getElementById("cursorRing")!;
+    let mx = 0, my = 0, rx = 0, ry = 0;
+    let isHovering = false;
+
+    document.addEventListener("mousemove", (e) => { mx = e.clientX; my = e.clientY; });
+
+    document.querySelectorAll("a, button").forEach((el) => {
+        el.addEventListener("mouseenter", () => { isHovering = true; });
+        el.addEventListener("mouseleave", () => { isHovering = false; });
+    });
+
+    (function animCursor() {
+        const scale = isHovering ? 2.2 : 1;
+        cursor.style.transform = `translate(${mx}px, ${my}px) scale(${scale})`;
+        rx += (mx - rx) * 0.12;
+        ry += (my - ry) * 0.12;
+        ring.style.transform = `translate(${rx}px, ${ry}px)`;
+        ring.style.opacity = isHovering ? "0.08" : "0.5";
+        requestAnimationFrame(animCursor);
+    })();
+</script>
