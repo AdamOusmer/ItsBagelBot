@@ -1,0 +1,94 @@
+:root {
+    --black: #0a0a0a;
+    --green: #2d6a4f;
+    --green-light: #40916c;
+    --green-glow: #52b788;
+    --tan: #c9a87c;
+    --tan-light: #e0c49a;
+    --tan-pale: #f5e6cf;
+    --white: #f0ece4;
+    --muted: #888077;
+    --card-bg: #111110;
+    --border: rgba(201, 168, 124, 0.15);
+
+    --font-display: "Syne", sans-serif;
+    --font-mono: "DM Mono", monospace;
+    --font-body: "DM Sans", sans-serif;
+
+    --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+}
+
+
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html {
+    scroll-behavior: smooth;
+    cursor: none;
+}
+
+@media (max-width: 900px) {
+    html {
+        scroll-behavior: smooth;
+        cursor: auto;
+    }
+}
+
+body {
+    background: var(--black);
+    color: var(--white);
+    font-family: "DM Sans", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+}
+
+body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E");
+    opacity: 0.03;
+    pointer-events: none;
+    z-index: 100;
+}
+
+img, picture, video, canvas, svg {
+    display: block;
+    max-width: 100%;
+}
+
+input, button, textarea, select {
+    font: inherit;
+}
+
+p, h1, h2, h3, h4, h5, h6 {
+    overflow-wrap: break-word;
+}
+
+ul, ol {
+    list-style: none;
+}
+
+a {
+    text-decoration: none;
+    color: inherit;
+}
+
+button {
+    background: none;
+    border: none;
+    cursor: pointer;
+}
+
+/* Global Styles */
+
+section {
+    padding: 100px 48px;
+    max-width: 1200px;
+    margin: 0 auto;
+}

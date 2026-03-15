@@ -1,0 +1,20 @@
+---
+---
+
+<div class="corner corner-bl" aria-hidden="true"></div>
+<div class="corner corner-br" aria-hidden="true"></div>
+
+<style>
+    .corner {
+        position: fixed;
+        width: 40px;
+        height: 40px;
+        border-color: var(--border);
+        border-style: solid;
+        pointer-events: none;
+        z-index: 50;
+    }
+
+    .corner-bl { bottom: 24px; left: 24px;  border-width: 0 0 1px 1px; }
+    .corner-br { bottom: 24px; right: 24px; border-width: 0 1px 1px 0; }
+</style>
