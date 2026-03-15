@@ -2,22 +2,23 @@
 import { defineConfig } from 'astro/config';
 import sitemap from '@astrojs/sitemap';
 
+import cloudflare from '@astrojs/cloudflare';
+
 // https://astro.build/config
 export default defineConfig({
-    site: 'https://adam-ousmer.dev',
-    prefetch:  true,
+  site: 'https://adam-ousmer.dev',
+  prefetch:  true,
+  compressHTML: true,
+  integrations: [sitemap()],
 
-    compressHTML: true,
+  server: {
+      port: 4321,
+      host: true
+  },
 
-    integrations: [sitemap()],
+  build: {
+      inlineStylesheets: 'auto',
+  },
 
-    server: {
-        port: 4321,
-        host: true
-    },
-
-
-    build: {
-        inlineStylesheets: 'auto',
-    }
+  adapter: cloudflare()
 });
