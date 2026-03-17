@@ -1,0 +1,352 @@
+---
+import MainButton from '../ui/Buttons/MainButton.astro'
+import SecondaryButton from '../ui/Buttons/Link.astro'
+---
+
+
+<header>
+
+    <div class="bg" aria-hidden="true">
+        <svg viewBox="0 0 800 800" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M400 400 Q 550 200 650 400 Q 750 600 550 700 Q 350 800 200 650 Q 50 500 150 300 Q 250 100 450 150 Q 650 200 700 400 Q 750 600 600 720 Q 450 840 280 760 Q 110 680 80 500 Q 50 320 180 200 Q 310 80 480 120"
+                  stroke="url(#g1)" stroke-width="2.5" fill="none"/>
+            <path d="M400 400 Q 240 220 150 400 Q 60 580 240 680 Q 420 780 560 660 Q 700 540 680 360 Q 660 180 480 140 Q 300 100 180 240 Q 60 380 120 560 Q 180 740 360 780"
+                  stroke="url(#g2)" stroke-width="1.5" fill="none"/>
+            <defs>
+                <linearGradient id="g1" x1="0" y1="0" x2="800" y2="800" gradientUnits="userSpaceOnUse">
+                    <stop stop-color="#c9a87c" offset=""/>
+                    <stop offset="1" stop-color="#2d6a4f"/>
+                </linearGradient>
+                <linearGradient id="g2" x1="800" y1="0" x2="0" y2="800" gradientUnits="userSpaceOnUse">
+                    <stop stop-color="#40916c" offset=""/>
+                    <stop offset="1" stop-color="#c9a87c"/>
+                </linearGradient>
+            </defs>
+        </svg>
+
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+    </div>
+
+
+    <p class="top-text">Freshly baked for Twitch chat</p>
+
+    <h1>
+        <span class="tan">Your Stream.</span>
+        <span>Your Tools.</span>
+        <span class="green">Your Rules.</span>
+    </h1>
+
+
+    <p>
+        ItsBagelBot is the all-in-one Twitch companion baked for independence. One setup,
+        every tool - no corporate tracking, no recurring fees, no compromises.
+    </p>
+
+    <a href="https://discord.gg/SZ2remwSDv" target="_blank" rel="noopener noreferrer">
+    <div class="dev-banner">
+        <div class="dev-banner__dot"></div>
+        <div class="dev-banner__text">
+            <strong>ItsBagelBot is in active development</strong>
+            <p>The early-access is on the way. Join the discord for more updates.</p>
+        </div>
+        <span class="dev-banner__badge">Alpha</span>
+    </div>
+    </a>
+
+    <!--
+    <div class="actions">
+        <MainButton href="#get-started" label="Get Started for Free"/>
+        <SecondaryButton href="#how" label="See how it works"/>
+    </div>
+
+    -->
+
+    <div class="badges">
+
+        <span>Privacy-First</span>
+        <span>One-Time Setup</span>
+        <span>Eco-Friendly</span>
+        <span>Source Available</span>
+        <span>All Tools Included</span>
+
+    </div>
+
+</header>
+
+
+<style>
+
+    header {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 120px 50px 80px;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .bg {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        overflow: hidden;
+    }
+
+    svg {
+        position: absolute;
+
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+
+        width: 900px;
+        height: 900px;
+
+        opacity: 0.1;
+
+        animation: slowspin 40s linear infinite;
+    }
+
+    .orb {
+        position: absolute;
+        border-radius: 50%;
+        filter: blur(80px);
+        opacity: 0.1;
+        animation: pulse 5s ease-in-out infinite;
+    }
+
+    .orb-1 {
+        width: 500px;
+        height: 500px;
+        background: var(--green);
+        top: -100px;
+        left: -100px;
+        animation-delay: 0s;
+    }
+
+    .orb-2 {
+        width: 400px;
+        height: 400px;
+        background: var(--tan);
+        bottom: -80px;
+        right: -80px;
+        animation-delay: 400ms;
+    }
+
+
+    @keyframes slowspin {
+        from {
+            transform: translate(-50%, -50%) rotate(0deg);
+        }
+        to {
+            transform: translate(-50%, -50%) rotate(360deg);
+        }
+    }
+
+    @keyframes pulse {
+        0%, 100% {
+            opacity: 0.08;
+            transform: scale(1);
+        }
+        50% {
+            opacity: 0.15;
+            transform: scale(1.1);
+        }
+    }
+
+
+    .top-text {
+        font-family: var(--font-mono);
+        font-size: 0.9rem;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: var(--green-glow);
+        margin-bottom: 30px;
+        opacity: 0;
+        animation: fadeUp 800ms 200ms var(--ease-out-expo) forwards;
+    }
+
+    h1 {
+        font-family: var(--font-display);
+        font-size: clamp(3.5rem, 9vw, 8rem);
+        font-weight: 800;
+        line-height: 0.9;
+        letter-spacing: -0.05em;
+        margin-bottom: 30px;
+        opacity: 0;
+        animation: fadeUp 900ms 350ms var(--ease-out-expo) forwards;
+        position: relative;
+    }
+
+    h1 span {
+        display: block;
+    }
+
+    h1 span.tan {
+        color: var(--tan);
+    }
+
+    h1 span.green {
+        color: var(--green-glow);
+    }
+
+    .actions {
+        display: flex;
+        gap: 40px;
+    }
+
+    p {
+        max-width: 550px;
+        font-size: 1.05rem;
+        line-height: 2;
+        color: #b0a898;
+        margin-bottom: 30px;
+        opacity: 0;
+        animation: fadeUp 0.9s 0.5s var(--ease-out-expo) forwards;
+        position: relative;
+    }
+
+    .dev-banner {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        padding: 15px 20px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: rgba(45, 106, 79, 0.07);
+        transition: border-color 0.2s, color 0.2s;
+    }
+
+    .dev-banner:hover {
+        border-color: rgba(201, 168, 124, 0.4);
+        color: var(--white);
+    }
+
+    .dev-banner__dot {
+        width: 10px;
+        height: 10px;
+        flex-shrink: 0;
+        border-radius: 50%;
+        background: var(--green-glow);
+        animation: pulse-dot 1.8s ease-in-out infinite;
+    }
+
+    .dev-banner__text {
+        flex: 1;
+    }
+
+    .dev-banner__text strong {
+        display: block;
+        font-family: var(--font-body);
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--green-glow);
+        margin-bottom: 5px;
+    }
+
+    .dev-banner__text p {
+        font-family: var(--font-body);
+        font-size: 0.80rem;
+        color: var(--muted);
+        line-height: 1.5;
+        margin: 0;
+    }
+
+    .dev-banner__badge {
+        flex-shrink: 0;
+        padding: 5px 10px;
+        border-radius: 20px;
+        background: rgba(45, 106, 79, 0.15);
+        border: 1px solid rgba(64, 145, 108, 0.30);
+        font-family: var(--font-mono);
+        font-size: 0.70rem;
+        letter-spacing: 0.10em;
+        text-transform: uppercase;
+        color: var(--green-light);
+    }
+
+    .badges {
+        display: flex;
+        gap: 12px;
+        margin-top: 40px;
+        flex-wrap: wrap;
+        justify-content: center;
+        opacity: 0;
+        animation: fadeUp 0.9s 0.8s var(--ease-out-expo) forwards;
+        position: relative;
+    }
+
+    .badges span {
+        font-family: "DM Mono", monospace;
+        font-size: 0.7rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        padding: 7px 16px;
+        border: 1px solid rgba(201, 168, 124, 0.4);
+        color: var(--tan-light);
+        border-radius: 100px;
+        background: rgba(255, 255, 255, 0.05);
+        transition: border-color 0.2s, color 0.2s;
+    }
+
+    .badges span:hover {
+        border-color: rgba(201, 168, 124, 1);
+        color: var(--white);
+    }
+
+    @keyframes pulse-dot {
+        0%, 100% {
+            opacity: 1;
+            transform: scale(1);
+        }
+        50% {
+            opacity: 0.30;
+            transform: scale(0.75);
+        }
+    }
+
+    @keyframes scrollPulse {
+        0%, 100% {
+            opacity: 0.4;
+            transform: scaleY(1);
+        }
+        50% {
+            opacity: 1;
+            transform: scaleY(1.2);
+        }
+    }
+
+    @keyframes fadeUp {
+        from {
+            opacity: 0;
+            transform: translateY(24px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    @media (max-width: 900px) {
+        .hero {
+            padding: 100px 24px 80px;
+        }
+
+        .hero-actions {
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .hero-scroll-hint {
+            display: none;
+        }
+    }
+
+
+
+
+</style>
