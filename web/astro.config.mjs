@@ -9,10 +9,6 @@ export default defineConfig({
   compressHTML: true,
   integrations: [sitemap()],
 
-  server: {
-      port: 4321,
-      host: true
-  },
 
   build: {
       inlineStylesheets: 'auto',
