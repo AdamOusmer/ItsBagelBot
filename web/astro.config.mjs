@@ -9,6 +9,15 @@ export default defineConfig({
   compressHTML: true,
   integrations: [sitemap()],
 
+  server: {
+    host: true, // Listen on all local IP addresses
+  },
+
+  vite: {
+    server: {
+      allowedHosts: true, // Bypass Vite 6's network host blocking for external devices
+    },
+  },
 
   build: {
       inlineStylesheets: 'auto',
