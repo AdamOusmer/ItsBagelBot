@@ -2,16 +2,12 @@
   "name": "web",
   "type": "module",
   "version": "0.0.1",
-  "engines": {
-    "node": ">=22.12.0"
-  },
+  "packageManager": "bun@1.3.10",
   "scripts": {
-    "dev": "astro dev",
-    "build": "astro build",
-    "preview": "bun run build && wrangler dev",
-    "astro": "astro",
-    "generate-types": "wrangler types",
-    "deploy": "bun run build && wrangler deploy"
+    "dev": "bun ./node_modules/astro/bin/astro.mjs dev",
+    "build": "bun ./node_modules/astro/bin/astro.mjs build",
+    "preview": "bun run build && bun ./node_modules/astro/bin/astro.mjs preview",
+    "astro": "bun ./node_modules/astro/bin/astro.mjs"
   },
   "dependencies": {
     "@astrojs/check": "^0.9.9",
