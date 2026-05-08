@@ -2,543 +2,867 @@
 ---
 
 <section class="enc" id="enc-section">
-  <div class="enc-pin">
+    <div class="enc-pin">
 
-    <canvas class="enc-canvas" id="enc-canvas"></canvas>
+        <canvas class="enc-canvas" id="enc-canvas"></canvas>
 
-    <div class="enc-overlay" id="enc-ov-0">
-      <span class="enc-eyebrow">End-to-End Encryption</span>
-      <h2 class="enc-h2">Encrypted by design.</h2>
-      <p class="enc-p">Your data stays private from origin to destination. No middlemen, no tracking, no compromise.</p>
+        <div class="enc-node-lines" aria-hidden="true">
+            <span class="enc-node-line" id="enc-line-0">
+                <span class="enc-node-line__node"></span>
+                <span class="enc-node-line__segment enc-node-line__segment--diag"></span>
+                <span class="enc-node-line__segment enc-node-line__segment--flat"></span>
+            </span>
+            <span class="enc-node-line" id="enc-line-1">
+                <span class="enc-node-line__node"></span>
+                <span class="enc-node-line__segment enc-node-line__segment--diag"></span>
+                <span class="enc-node-line__segment enc-node-line__segment--flat"></span>
+            </span>
+            <span class="enc-node-line" id="enc-line-2">
+                <span class="enc-node-line__node"></span>
+                <span class="enc-node-line__segment enc-node-line__segment--diag"></span>
+                <span class="enc-node-line__segment enc-node-line__segment--flat"></span>
+            </span>
+            <span class="enc-node-line" id="enc-line-3">
+                <span class="enc-node-line__node"></span>
+                <span class="enc-node-line__segment enc-node-line__segment--diag"></span>
+                <span class="enc-node-line__segment enc-node-line__segment--flat"></span>
+            </span>
+        </div>
+
+        <div class="enc-overlay" id="enc-ov-0">
+            <span class="enc-eyebrow">End-to-End Encryption</span>
+            <h2 class="enc-h2">Encrypted by design.</h2>
+            <p class="enc-p">Your data stays private from origin to destination. No middlemen, no tracking, no
+                compromise.</p>
+        </div>
+
+        <div class="enc-overlay enc-overlay--right" id="enc-ov-1">
+            <span class="enc-eyebrow">Distributed Network</span>
+            <h2 class="enc-h2">Every node, every link, secured.</h2>
+            <p class="enc-p">A web of independent services, each verifying the other. No single weak link.</p>
+        </div>
+
+        <div class="enc-overlay" id="enc-ov-2">
+            <span class="enc-eyebrow">Powerful Architecture</span>
+            <h2 class="enc-h2">Built to withstand.</h2>
+            <p class="enc-p">Built for optimization and throughput. Every systems are engineered to maximize
+                performance, efficiency and security with latest enterprise standards.</p>
+        </div>
+
+        <div class="enc-overlay enc-overlay--right" id="enc-ov-3">
+            <span class="enc-eyebrow">Yours · Always</span>
+            <h2 class="enc-h2">Yours, forever.</h2>
+            <p class="enc-p">Source available, privacy-first. The way streaming infrastructure should be.</p>
+        </div>
+
     </div>
-
-    <div class="enc-overlay enc-overlay--right" id="enc-ov-1">
-      <span class="enc-eyebrow">Distributed Network</span>
-      <h2 class="enc-h2">Every node, every link, secured.</h2>
-      <p class="enc-p">A web of independent services, each verifying the other. No single weak link.</p>
-    </div>
-
-    <div class="enc-overlay" id="enc-ov-2">
-      <span class="enc-eyebrow">Strong Architecture</span>
-      <h2 class="enc-h2">Built to withstand.</h2>
-      <p class="enc-p">Built for optimization and throughput. Every systems are engineered to maximize performance, efficiency and security.</p>
-    </div>
-
-    <div class="enc-overlay enc-overlay--right" id="enc-ov-3">
-      <span class="enc-eyebrow">Yours · Always</span>
-      <h2 class="enc-h2">Yours, forever.</h2>
-      <p class="enc-p">Source available, privacy-first. The way streaming infrastructure should be.</p>
-    </div>
-
-  </div>
 </section>
 
 <style>
-  /* Override the global `section` constraints (max-width 1200px, padding) */
-  .enc {
-    height: 400vh;
-    width: 100vw;
-    max-width: 100vw;
-    padding: 0;
-    margin: 0;
-    position: relative;
-    left: 50%;
-    transform: translateX(-50%);
-  }
-
-  .enc-pin {
-    position: sticky;
-    top: 0;
-    height: 100vh;
-    width: 100vw;
-    overflow: hidden;
-  }
-
-  .enc-canvas {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    display: block;
-    pointer-events: none;
-  }
-
-  /* Text overlays */
-  .enc-overlay {
-    position: absolute;
-    top: 50%;
-    left: 6vw;
-    transform: translateY(-50%);
-    /* Container scales with viewport but caps at 480px */
-    width: min(480px, calc(100vw - 12vw));
-    opacity: 0;
-    pointer-events: none;
-    z-index: 10;
-    will-change: opacity, transform;
-    /* Subtle backdrop so text stays legible over the 3D scene */
-    padding: 28px 32px;
-    background: rgba(10, 10, 10, 0.55);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
-    border: 1px solid rgba(201, 168, 124, 0.12);
-    border-radius: 14px;
-  }
-
-  .enc-overlay--right {
-    left: auto;
-    right: 6vw;
-    text-align: right;
-  }
-
-  /* Override global `overflow-wrap: break-word` so words never split mid-letter */
-  .enc-overlay :where(h2, p, span) {
-    overflow-wrap: normal;
-    word-break: normal;
-    hyphens: none;
-  }
-
-  .enc-eyebrow {
-    display: block;
-    font-family: var(--font-mono, "DM Mono", monospace);
-    font-size: clamp(0.62rem, 1.4vw, 0.72rem);
-    letter-spacing: 0.22em;
-    text-transform: uppercase;
-    color: var(--green-glow, #52b788);
-    margin-bottom: 16px;
-  }
-
-  .enc-h2 {
-    font-family: var(--font-display, "Syne", sans-serif);
-    /* Smaller upper bound + smaller min so words always fit, even on narrow screens */
-    font-size: clamp(1.7rem, 3.6vw, 3rem);
-    font-weight: 800;
-    line-height: 1.1;
-    letter-spacing: -0.03em;
-    color: var(--white, #f0ece4);
-    margin-bottom: 16px;
-  }
-
-  .enc-p {
-    font-family: var(--font-body, "DM Sans", sans-serif);
-    font-size: clamp(0.9rem, 1.4vw, 1rem);
-    line-height: 1.6;
-    color: var(--white, #f0ece4);
-    opacity: 0.82;
-  }
-
-  @media (max-width: 900px) {
-    .enc-overlay,
-    .enc-overlay--right {
-      left: 5vw;
-      right: 5vw;
-      width: calc(100vw - 10vw);
-      text-align: left;
-      padding: 20px 22px;
+    /* Override the global `section` constraints (max-width 1200px, padding) */
+    .enc {
+        height: 400vh;
+        width: 100vw;
+        max-width: 100vw;
+        padding: 0;
+        margin: 0;
+        position: relative;
+        background: var(--black);
+        box-shadow: inset 0 0 15px 5px rgba(0, 0, 0, 0.5);
+        left: 50%;
+        transform: translateX(-50%);
     }
-    .enc-eyebrow { margin-bottom: 12px; }
-    .enc-h2      { margin-bottom: 12px; }
-  }
+
+    .enc-pin {
+        position: sticky;
+        top: 0;
+        height: 100vh;
+        width: 100vw;
+        overflow: hidden;
+    }
+
+    .enc-canvas {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        display: block;
+        pointer-events: none;
+    }
+
+    .enc-node-lines {
+        position: absolute;
+        inset: 0;
+        z-index: 9;
+        pointer-events: none;
+        overflow: hidden;
+    }
+
+    .enc-node-line {
+        position: absolute;
+        inset: 0;
+        opacity: var(--line-alpha, 0);
+        transition: opacity 120ms linear;
+        --node-x: 0px;
+        --node-y: 0px;
+        --elbow-x: 0px;
+        --elbow-y: 0px;
+        --diag-len: 0px;
+        --diag-angle: 0rad;
+        --diag-progress: 0;
+        --flat-len: 0px;
+        --flat-angle: 0rad;
+        --flat-progress: 0;
+        --node-scale: 0;
+    }
+
+    .enc-node-line__segment {
+        position: absolute;
+        left: 0;
+        top: 0;
+        height: 1px;
+        transform-origin: left center;
+        background: linear-gradient(90deg, rgba(167, 243, 208, 0), rgba(240, 236, 228, 0.92));
+        box-shadow:
+            0 0 8px rgba(167, 243, 208, 0.42),
+            0 0 18px rgba(0, 0, 0, 0.65);
+        will-change: transform, width;
+    }
+
+    .enc-node-line__segment--diag {
+        width: var(--diag-len);
+        transform: translate3d(var(--node-x), var(--node-y), 0) rotate(var(--diag-angle)) scaleX(var(--diag-progress));
+    }
+
+    .enc-node-line__segment--flat {
+        width: var(--flat-len);
+        background: linear-gradient(90deg, rgba(240, 236, 228, 0.92), rgba(240, 236, 228, 0.68));
+        transform: translate3d(var(--elbow-x), var(--elbow-y), 0) rotate(var(--flat-angle)) scaleX(var(--flat-progress));
+    }
+
+    .enc-node-line__node {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 9px;
+        height: 9px;
+        border: 1px solid rgba(240, 236, 228, 0.82);
+        border-radius: 999px;
+        background: rgba(167, 243, 208, 0.42);
+        box-shadow:
+            0 0 10px rgba(167, 243, 208, 0.85),
+            0 0 22px rgba(82, 183, 136, 0.55);
+        transform: translate3d(calc(var(--node-x) - 4.5px), calc(var(--node-y) - 4.5px), 0) scale(var(--node-scale));
+    }
+
+    /* Text overlays */
+    .enc-overlay {
+        position: absolute;
+        top: 50%;
+        left: 6vw;
+        transform: translateY(-50%);
+        /* Container scales with viewport but caps at 480px */
+        width: min(480px, calc(100vw - 12vw));
+        opacity: 0;
+        pointer-events: none;
+        z-index: 10;
+        will-change: opacity, transform;
+        padding: 28px 32px;
+    }
+
+    .enc-overlay--right {
+        left: auto;
+        right: 6vw;
+        text-align: right;
+    }
+
+    /* Override global `overflow-wrap: break-word` so words never split mid-letter */
+    .enc-overlay :where(h2, p, span) {
+        overflow-wrap: normal;
+        word-break: normal;
+        hyphens: none;
+    }
+
+    .enc-eyebrow {
+        display: block;
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: clamp(0.62rem, 1.4vw, 0.72rem);
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: var(--green-glow, #52b788);
+        margin-bottom: 16px;
+        text-shadow:
+            0 0 16px rgba(82, 183, 136, 0.55),
+            0 2px 12px rgba(0, 0, 0, 0.95);
+    }
+
+    .enc-h2 {
+        font-family: var(--font-display, "Syne", sans-serif);
+        /* Smaller upper bound + smaller min so words always fit, even on narrow screens */
+        font-size: clamp(1.7rem, 3.6vw, 3rem);
+        font-weight: 800;
+        line-height: 1.1;
+        letter-spacing: -0.03em;
+        color: var(--white, #f0ece4);
+        margin-bottom: 46px;
+        text-shadow:
+            0 0 22px rgba(240, 236, 228, 0.24),
+            0 3px 18px rgba(0, 0, 0, 0.95),
+            0 0 34px rgba(82, 183, 136, 0.28);
+    }
+
+    .enc-p {
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: clamp(0.9rem, 1.4vw, 1rem);
+        line-height: 1.6;
+        color: var(--white, #f0ece4);
+        opacity: 0.9;
+        text-shadow:
+            0 2px 10px rgba(0, 0, 0, 0.95),
+            0 0 18px rgba(82, 183, 136, 0.18);
+    }
+
+    @media (max-width: 900px) {
+        .enc-overlay,
+        .enc-overlay--right {
+            left: 5vw;
+            right: 5vw;
+            width: calc(100vw - 10vw);
+            text-align: left;
+            padding: 20px 22px;
+        }
+
+        .enc-eyebrow {
+            margin-bottom: 12px;
+        }
+
+        .enc-h2 {
+            margin-bottom: 42px;
+        }
+    }
 </style>
 
 <script>
-import * as THREE from 'three';
-import { EffectComposer }  from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass }      from 'three/addons/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-import { OutputPass }      from 'three/addons/postprocessing/OutputPass.js';
+    type Group = import('three').Group;
+    type Vector3 = import('three').Vector3;
+    type CatmullRomCurve3 = import('three').CatmullRomCurve3;
+    type Mesh = import('three').Mesh;
+    type LineSegments = import('three').LineSegments;
+    type Points = import('three').Points;
 
-/* ─── helpers ────────────────────────────────────────────────── */
-const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
-function ss(e0: number, e1: number, x: number) {
-  const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0)));
-  return t * t * (3 - 2 * t);
-}
+    /* ─── helpers ────────────────────────────────────────────────── */
+    const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
-/* ─── palette ────────────────────────────────────────────────── */
-const GREEN = 0x52b788;
-const LIGHT = 0xa7f3d0;
-const TAN   = 0xc9a87c;
-const WHITE = 0xf0ece4;
-
-/* ─── dom ────────────────────────────────────────────────────── */
-const canvas   = document.getElementById('enc-canvas')  as HTMLCanvasElement;
-const section  = document.getElementById('enc-section') as HTMLElement;
-const overlays = [0,1,2,3].map(i => document.getElementById(`enc-ov-${i}`) as HTMLElement);
-
-/* ─── renderer (transparent) ─────────────────────────────────── */
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
-renderer.setClearColor(0x000000, 0);
-renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.0;
-renderer.outputColorSpace = THREE.SRGBColorSpace;
-
-/* ─── scene / camera ─────────────────────────────────────────── */
-const scene  = new THREE.Scene();
-const world  = new THREE.Group();
-scene.add(world);
-
-const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
-
-/* ─── shared materials (cuts draw-call cost) ─────────────────── */
-const matNodeGreen   = new THREE.LineBasicMaterial({ color: GREEN, transparent: true, opacity: 0.9 });
-const matNodeTan     = new THREE.LineBasicMaterial({ color: TAN,   transparent: true, opacity: 0.9 });
-const matCoreOuter   = new THREE.LineBasicMaterial({ color: GREEN, transparent: true, opacity: 0.55 });
-const matCoreInner   = new THREE.LineBasicMaterial({ color: TAN,   transparent: true, opacity: 0.85 });
-const matTubeNode    = new THREE.MeshBasicMaterial({ color: GREEN, transparent: true, opacity: 0.22 });
-const matTubeInter   = new THREE.MeshBasicMaterial({ color: TAN,   transparent: true, opacity: 0.14 });
-const matNodeCenter  = new THREE.MeshBasicMaterial({ color: LIGHT });
-
-/* ─── core ──────────────────────────────────────────────────── */
-const coreGroup = new THREE.Group();
-world.add(coreGroup);
-
-const coreOuter = new THREE.LineSegments(
-  new THREE.WireframeGeometry(new THREE.IcosahedronGeometry(1.6, 1)),
-  matCoreOuter,
-);
-coreGroup.add(coreOuter);
-
-const coreInner = new THREE.LineSegments(
-  new THREE.EdgesGeometry(new THREE.IcosahedronGeometry(0.8, 0)),
-  matCoreInner,
-);
-coreGroup.add(coreInner);
-
-coreGroup.add(new THREE.Mesh(
-  new THREE.SphereGeometry(0.13, 12, 12),
-  new THREE.MeshBasicMaterial({ color: LIGHT }),
-));
-
-/* ─── satellite nodes (fibonacci sphere) ─────────────────────── */
-const N_NODES = 14;
-const NODE_R  = 4.2;
-const nodes: { group: THREE.Group; pos: THREE.Vector3 }[] = [];
-
-const NODE_GEOS = [
-  new THREE.OctahedronGeometry(0.30, 0),
-  new THREE.TetrahedronGeometry(0.32, 0),
-  new THREE.IcosahedronGeometry(0.28, 0),
-  new THREE.DodecahedronGeometry(0.28, 0),
-];
-const NODE_WIRES = NODE_GEOS.map(g => new THREE.WireframeGeometry(g));
-const NODE_DOT_GEO = new THREE.SphereGeometry(0.05, 6, 6);
-
-for (let i = 0; i < N_NODES; i++) {
-  const phi   = Math.acos(1 - 2 * (i + 0.5) / N_NODES);
-  const theta = Math.PI * (1 + Math.sqrt(5)) * i;
-  const pos = new THREE.Vector3(
-    NODE_R * Math.cos(theta) * Math.sin(phi),
-    NODE_R * Math.sin(theta) * Math.sin(phi),
-    NODE_R * Math.cos(phi),
-  );
-
-  const g = new THREE.Group();
-  g.position.copy(pos);
-
-  g.add(new THREE.LineSegments(
-    NODE_WIRES[i % NODE_WIRES.length],
-    i % 4 === 0 ? matNodeTan : matNodeGreen,
-  ));
-  g.add(new THREE.Mesh(NODE_DOT_GEO, matNodeCenter));
-
-  world.add(g);
-  nodes.push({ group: g, pos });
-}
-
-/* ─── connections ────────────────────────────────────────────── */
-type Conn = { curve: THREE.CatmullRomCurve3 };
-const conns: Conn[] = [];
-
-// Node → core (14 tubes)
-nodes.forEach(({ pos }, i) => {
-  const mid = pos.clone().multiplyScalar(0.5);
-  const a   = (i / N_NODES) * Math.PI * 2;
-  mid.x += Math.cos(a) * 0.6;
-  mid.y += Math.sin(a) * 0.6;
-  mid.z += Math.cos(a + 1.3) * 0.6;
-  const curve = new THREE.CatmullRomCurve3([pos.clone(), mid, new THREE.Vector3()], false, 'catmullrom', 0.5);
-  const tube  = new THREE.Mesh(new THREE.TubeGeometry(curve, 32, 0.0065, 5, false), matTubeNode);
-  world.add(tube);
-  conns.push({ curve });
-});
-
-// Sparse node ↔ node interconnects (~10 tubes)
-[3, 7].forEach((step) => {
-  for (let i = 0; i < N_NODES; i += 3) {
-    const a = nodes[i].pos;
-    const b = nodes[(i + step) % N_NODES].pos;
-    const mid = new THREE.Vector3().addVectors(a, b).multiplyScalar(0.35);
-    const curve = new THREE.CatmullRomCurve3([a.clone(), mid, b.clone()]);
-    const tube  = new THREE.Mesh(new THREE.TubeGeometry(curve, 24, 0.005, 4, false), matTubeInter);
-    world.add(tube);
-    conns.push({ curve });
-  }
-});
-
-/* ─── flowing particles on connections ──────────────────────── */
-const PER_CONN = 4;
-const partData: { curve: THREE.CatmullRomCurve3; t: number; spd: number }[] = [];
-conns.forEach(({ curve }, ci) => {
-  for (let i = 0; i < PER_CONN; i++) {
-    partData.push({ curve, t: i / PER_CONN, spd: 0.06 + ((ci + i) % 4) * 0.022 });
-  }
-});
-
-const partGeo = new THREE.BufferGeometry();
-const partPos = new Float32Array(partData.length * 3);
-partGeo.setAttribute('position', new THREE.BufferAttribute(partPos, 3));
-world.add(new THREE.Points(partGeo, new THREE.PointsMaterial({
-  color: LIGHT, size: 0.05, transparent: true, opacity: 0.95,
-  sizeAttenuation: true, depthWrite: false, blending: THREE.AdditiveBlending,
-})));
-
-/* ─── ambient particle field ─────────────────────────────────── */
-const N_BG = 600;
-const bgPos = new Float32Array(N_BG * 3);
-const bgVel = new Float32Array(N_BG * 3);
-for (let i = 0; i < N_BG; i++) {
-  bgPos[i*3]   = (Math.random() - 0.5) * 28;
-  bgPos[i*3+1] = (Math.random() - 0.5) * 28;
-  bgPos[i*3+2] = (Math.random() - 0.5) * 28;
-  bgVel[i*3]   = (Math.random() - 0.5) * 0.004;
-  bgVel[i*3+1] = (Math.random() - 0.5) * 0.004;
-  bgVel[i*3+2] = (Math.random() - 0.5) * 0.004;
-}
-const bgGeo = new THREE.BufferGeometry();
-bgGeo.setAttribute('position', new THREE.BufferAttribute(bgPos, 3));
-scene.add(new THREE.Points(bgGeo, new THREE.PointsMaterial({
-  color: WHITE, size: 0.022, transparent: true, opacity: 0.35,
-  sizeAttenuation: true, depthWrite: false,
-})));
-
-/* ─── orbital rings ──────────────────────────────────────────── */
-const rings: THREE.LineSegments[] = [];
-[2.5, 3.0, 3.5].forEach((r, i) => {
-  const pts: THREE.Vector3[] = [];
-  const seg = 72;
-  for (let j = 0; j < seg; j++) {
-    const a1 = (j / seg) * Math.PI * 2;
-    const a2 = ((j + 1) / seg) * Math.PI * 2;
-    pts.push(new THREE.Vector3(Math.cos(a1) * r, 0, Math.sin(a1) * r));
-    pts.push(new THREE.Vector3(Math.cos(a2) * r, 0, Math.sin(a2) * r));
-  }
-  const ring = new THREE.LineSegments(
-    new THREE.BufferGeometry().setFromPoints(pts),
-    new THREE.LineBasicMaterial({ color: i === 1 ? TAN : GREEN, transparent: true, opacity: 0.28 }),
-  );
-  ring.rotation.x = i * 0.55;
-  ring.rotation.z = i * 0.7;
-  world.add(ring);
-  rings.push(ring);
-});
-
-/* ─── post-processing ────────────────────────────────────────── */
-const composer = new EffectComposer(renderer);
-composer.addPass(new RenderPass(scene, camera));
-composer.addPass(new UnrealBloomPass(new THREE.Vector2(256, 256), 0.7, 0.5, 0.15));
-composer.addPass(new OutputPass());
-
-/* ─── camera keyframes — 4 nodes featured as "sections" ─────── */
-/* Each phase (0–25%, 25–50%, 50–75%, 75–100%) zooms onto a node. */
-type KF = {
-  p:    number;
-  pos:  THREE.Vector3;   // either world-absolute, OR offset from a node
-  fov:  number;
-  node?: number;         // if set, `pos` is offset from this node's world pos
-};
-
-const FEATURE_NODES = [1, 5, 9, 12];
-
-const CAM: KF[] = [
-  { p: 0.00, pos: new THREE.Vector3( 0,    0,    8.5), fov: 50 },                       // hero open
-  { p: 0.06, pos: new THREE.Vector3( 2.5,  1.5,  6.0), fov: 52 },                       // approaching
-  { p: 0.13, pos: new THREE.Vector3( 0.4,  0.5,  1.7), fov: 60, node: FEATURE_NODES[0] }, // ZOOM node 1
-  { p: 0.20, pos: new THREE.Vector3(-0.5,  0.7,  1.5), fov: 62, node: FEATURE_NODES[0] }, // orbit node 1
-
-  { p: 0.27, pos: new THREE.Vector3(-3,    2.5,  6.5), fov: 50 },                       // pull back / transition
-
-  { p: 0.36, pos: new THREE.Vector3( 0.5, -0.4,  1.6), fov: 60, node: FEATURE_NODES[1] }, // ZOOM node 2
-  { p: 0.45, pos: new THREE.Vector3( 0.7,  0.6,  1.7), fov: 62, node: FEATURE_NODES[1] }, // orbit node 2
-
-  { p: 0.52, pos: new THREE.Vector3( 0,    5,    8.5), fov: 44 },                       // top-down wide
-
-  { p: 0.60, pos: new THREE.Vector3(-0.4,  0.6,  1.6), fov: 60, node: FEATURE_NODES[2] }, // ZOOM node 3
-  { p: 0.68, pos: new THREE.Vector3( 0.6, -0.4,  1.5), fov: 62, node: FEATURE_NODES[2] }, // orbit node 3
-
-  { p: 0.74, pos: new THREE.Vector3( 5,    0,    8),   fov: 48 },                       // side wide
-
-  { p: 0.83, pos: new THREE.Vector3( 0.5,  0.4,  1.6), fov: 60, node: FEATURE_NODES[3] }, // ZOOM node 4
-  { p: 0.90, pos: new THREE.Vector3(-0.4,  0.5,  1.7), fov: 62, node: FEATURE_NODES[3] }, // orbit node 4
-
-  { p: 1.00, pos: new THREE.Vector3( 0,    0.5,  9),   fov: 50 },                       // hero pull-back
-];
-
-/* Resolve a keyframe into absolute world pos + lookAt + fov each frame. */
-function resolveKF(kf: KF, outPos: THREE.Vector3, outLook: THREE.Vector3): number {
-  if (kf.node !== undefined) {
-    nodes[kf.node].group.getWorldPosition(outLook);
-    outPos.copy(outLook).add(kf.pos);
-  } else {
-    outPos.copy(kf.pos);
-    outLook.set(0, 0, 0);
-  }
-  return kf.fov;
-}
-
-/* Camera state */
-const camPos      = new THREE.Vector3().copy(CAM[0].pos);
-const camLook     = new THREE.Vector3();
-let   camFov      = CAM[0].fov;
-const _aPos       = new THREE.Vector3();
-const _aLook      = new THREE.Vector3();
-const _bPos       = new THREE.Vector3();
-const _bLook      = new THREE.Vector3();
-const _tgtPos     = new THREE.Vector3();
-const _tgtLook    = new THREE.Vector3();
-
-function camTarget(p: number) {
-  for (let i = 0; i < CAM.length - 1; i++) {
-    const a = CAM[i], b = CAM[i + 1];
-    if (p >= a.p && p <= b.p) {
-      const t   = ss(0, 1, (p - a.p) / (b.p - a.p));
-      const fa  = resolveKF(a, _aPos, _aLook);
-      const fb  = resolveKF(b, _bPos, _bLook);
-      _tgtPos.lerpVectors(_aPos, _bPos, t);
-      _tgtLook.lerpVectors(_aLook, _bLook, t);
-      return { fov: lerp(fa, fb, t) };
+    function ss(e0: number, e1: number, x: number) {
+        const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0)));
+        return t * t * (3 - 2 * t);
     }
-  }
-  const last = CAM[CAM.length - 1];
-  const fov  = resolveKF(last, _tgtPos, _tgtLook);
-  return { fov };
-}
 
-/* ─── scroll ─────────────────────────────────────────────────── */
-let rawP = 0;
-let curP = 0;
+    /* ─── palette ────────────────────────────────────────────────── */
+    const GREEN = 0x52b788;
+    const LIGHT = 0xa7f3d0;
+    const TAN = 0xc9a87c;
+    const WHITE = 0xf0ece4;
 
-function onScroll() {
-  const top   = section.offsetTop;
-  const total = section.offsetHeight - window.innerHeight;
-  rawP = Math.max(0, Math.min(1, (window.scrollY - top) / total));
-}
-window.addEventListener('scroll', onScroll, { passive: true });
-onScroll();
+    /* ─── dom ────────────────────────────────────────────────────── */
+    const canvas = document.getElementById('enc-canvas') as HTMLCanvasElement;
+    const section = document.getElementById('enc-section') as HTMLElement;
+    const pin = section.querySelector('.enc-pin') as HTMLElement;
+    const overlays = [0, 1, 2, 3].map(i => document.getElementById(`enc-ov-${i}`) as HTMLElement);
+    const headings = overlays.map(el => el?.querySelector('.enc-h2') as HTMLElement | null);
+    const paragraphs = overlays.map(el => el?.querySelector('.enc-p') as HTMLElement | null);
+    const connectors = [0, 1, 2, 3].map(i => document.getElementById(`enc-line-${i}`) as HTMLElement);
+    const headingText = headings.map(el => el?.textContent ?? '');
+    const SCRAMBLE_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#$%&*+-/<>[]{}';
+    let destroyed = false;
+    let loadObserver: IntersectionObserver | null = null;
+    let initPromise: Promise<void> | null = null;
+    let cleanupScene: (() => void) | null = null;
 
-/* ─── visibility (skip render when off-screen) ───────────────── */
-let isVisible = true;
-const obs = new IntersectionObserver(
-  (entries) => { isVisible = entries[0].isIntersecting; },
-  { rootMargin: '120px' },
-);
-obs.observe(section);
+    function scrambleTitle(text: string, progress: number, seed: number) {
+        const chars = Array.from(text);
+        const revealCount = Math.floor(chars.length * progress);
+        const tick = Math.floor(progress * 22);
 
-/* ─── update ─────────────────────────────────────────────────── */
-function update(p: number, t: number) {
-  /* camera */
-  const { fov } = camTarget(p);
-  camPos.lerp(_tgtPos, 0.06);
-  camLook.lerp(_tgtLook, 0.06);
-  camFov = lerp(camFov, fov, 0.06);
-  camera.position.copy(camPos);
-  // continuous breath so the camera is never static
-  camera.position.x += Math.sin(t * 0.27) * 0.18;
-  camera.position.y += Math.cos(t * 0.31) * 0.13;
-  camera.lookAt(camLook);
-  if (Math.abs(camera.fov - camFov) > 0.02) {
-    camera.fov = camFov;
-    camera.updateProjectionMatrix();
-  }
+        return chars.map((char, i) => {
+            if (char === ' ' || /[^\w]/.test(char)) return char;
+            if (i < revealCount) return char;
 
-  /* world drift — slow so node-zoom stays stable */
-  world.rotation.y = t * 0.04 + p * 0.35;
-  world.rotation.x = Math.sin(t * 0.09) * 0.08;
-
-  /* core */
-  coreOuter.rotation.x = t * 0.18;
-  coreOuter.rotation.y = t * 0.22;
-  coreInner.rotation.x = -t * 0.28;
-  coreInner.rotation.z = t * 0.20;
-  coreGroup.scale.setScalar(1 + Math.sin(t * 1.4) * 0.05);
-
-  /* nodes spin in place */
-  for (let i = 0; i < nodes.length; i++) {
-    const g = nodes[i].group;
-    g.rotation.x = t * (0.25 + (i % 4) * 0.08);
-    g.rotation.y = t * (0.18 + (i % 3) * 0.10);
-  }
-
-  /* rings */
-  for (let i = 0; i < rings.length; i++) {
-    const r = rings[i];
-    r.rotation.y = t * 0.10 * (i + 1);
-    r.rotation.x = i * 0.55 + t * 0.06;
-    r.rotation.z = i * 0.70 + t * 0.04;
-  }
-
-  /* particles flowing along connections */
-  let pi = 0;
-  const _v = _aPos; // reuse scratch
-  for (let i = 0; i < partData.length; i++) {
-    const pd = partData[i];
-    pd.t = (pd.t + pd.spd * 0.016) % 1;
-    pd.curve.getPoint(pd.t, _v);
-    partPos[pi++] = _v.x;
-    partPos[pi++] = _v.y;
-    partPos[pi++] = _v.z;
-  }
-  partGeo.attributes.position.needsUpdate = true;
-
-  /* ambient drift — every other frame is enough */
-  if ((t * 60 | 0) % 2 === 0) {
-    for (let i = 0; i < N_BG; i++) {
-      const i3 = i * 3;
-      bgPos[i3]   += bgVel[i3];
-      bgPos[i3+1] += bgVel[i3+1];
-      bgPos[i3+2] += bgVel[i3+2];
-      if (bgPos[i3]   >  14 || bgPos[i3]   < -14) bgVel[i3]   *= -1;
-      if (bgPos[i3+1] >  14 || bgPos[i3+1] < -14) bgVel[i3+1] *= -1;
-      if (bgPos[i3+2] >  14 || bgPos[i3+2] < -14) bgVel[i3+2] *= -1;
+            const n = (i * 19 + tick * 7 + seed * 13) % SCRAMBLE_CHARS.length;
+            return SCRAMBLE_CHARS[n];
+        }).join('');
     }
-    bgGeo.attributes.position.needsUpdate = true;
-  }
 
-  /* text overlays */
-  for (let i = 0; i < overlays.length; i++) {
-    const el = overlays[i];
-    if (!el) continue;
-    const start   = i * 0.25;
-    const end     = start + 0.25;
-    const fadeIn  = ss(start, start + 0.05, p);
-    const fadeOut = i < 3 ? 1 - ss(end - 0.04, end + 0.01, p) : 1;
-    const alpha   = Math.min(fadeIn, fadeOut);
-    const dy      = (1 - Math.min(fadeIn, 1)) * 18;
-    el.style.opacity   = String(alpha);
-    el.style.transform = `translateY(calc(-50% + ${dy}px))`;
-  }
-}
+    async function initEncryption() {
+        const [
+            three,
+            {RenderPass},
+            {UnrealBloomPass},
+        ] = await Promise.all([
+            import('three'),
+            import('three/addons/postprocessing/RenderPass.js'),
+            import('three/addons/postprocessing/UnrealBloomPass.js'),
+        ]);
 
-/* ─── resize ─────────────────────────────────────────────────── */
-function resize() {
-  const w = canvas.clientWidth;
-  const h = canvas.clientHeight;
-  if (!w || !h) return;
-  camera.aspect = w / h;
-  camera.updateProjectionMatrix();
-  renderer.setSize(w, h, false);
-  composer.setSize(w, h);
-}
-window.addEventListener('resize', resize);
-resize();
+        if (destroyed) return;
 
-/* ─── loop (skip when off-screen) ────────────────────────────── */
-const clock = new THREE.Clock();
-(function loop() {
-  requestAnimationFrame(loop);
-  if (!isVisible) return;
-  curP += (rawP - curP) * 0.06;
-  update(curP, clock.getElapsedTime());
-  composer.render();
-})();
+        const {
+            WebGLRenderer, Scene, Group, PerspectiveCamera,
+            LineBasicMaterial, MeshBasicMaterial, PointsMaterial,
+            LineSegments, Line, Mesh, Points,
+            IcosahedronGeometry, SphereGeometry, OctahedronGeometry,
+            TetrahedronGeometry, DodecahedronGeometry, BufferGeometry,
+            WireframeGeometry, EdgesGeometry,
+            Vector3, Vector2, CatmullRomCurve3, BufferAttribute, Timer,
+            ACESFilmicToneMapping, SRGBColorSpace, AdditiveBlending, HalfFloatType
+        } = three;
+
+        const mediaQuery = window.matchMedia('(max-width: 900px)');
+        const isCompact = mediaQuery.matches;
+
+        /* ─── renderer (transparent) ─────────────────────────────── */
+        const renderer = new WebGLRenderer({
+            canvas,
+            antialias: true,
+            alpha: true,
+            powerPreference: 'high-performance',
+            outputBufferType: HalfFloatType
+        });
+        renderer.setClearColor(0x000000, 0);
+        renderer.setPixelRatio(Math.min(devicePixelRatio, isCompact ? 1.25 : 1.5));
+        renderer.toneMapping = ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.0;
+        renderer.outputColorSpace = SRGBColorSpace;
+
+        /* ─── scene / camera ─────────────────────────────────────── */
+        const scene = new Scene();
+        const world = new Group();
+        scene.add(world);
+
+        const camera = new PerspectiveCamera(50, 1, 0.1, 100);
+
+        /* ─── shared materials (cuts draw-call cost) ─────────────── */
+        const matNodeGreen = new LineBasicMaterial({color: GREEN, transparent: true, opacity: 0.9});
+        const matNodeTan = new LineBasicMaterial({color: TAN, transparent: true, opacity: 0.9});
+        const matCoreOuter = new LineBasicMaterial({color: GREEN, transparent: true, opacity: 0.55});
+        const matCoreInner = new LineBasicMaterial({color: TAN, transparent: true, opacity: 0.85});
+        const matConnNode = new LineBasicMaterial({color: GREEN, transparent: true, opacity: 0.32});
+        const matConnInter = new LineBasicMaterial({color: TAN, transparent: true, opacity: 0.22});
+        const matNodeCenter = new MeshBasicMaterial({color: LIGHT});
+
+        /* ─── core ──────────────────────────────────────────────── */
+        const coreGroup = new Group();
+        world.add(coreGroup);
+
+        const coreOuter = new LineSegments(
+            new WireframeGeometry(new IcosahedronGeometry(1.6, 1)),
+            matCoreOuter,
+        );
+        coreGroup.add(coreOuter);
+
+        const coreInner = new LineSegments(
+            new EdgesGeometry(new IcosahedronGeometry(0.8, 0)),
+            matCoreInner,
+        );
+        coreGroup.add(coreInner);
+
+        coreGroup.add(new Mesh(
+            new SphereGeometry(0.13, 12, 12),
+            new MeshBasicMaterial({color: LIGHT}),
+        ));
+
+        /* ─── satellite nodes (fibonacci sphere) ─────────────────── */
+        const N_NODES = 14;
+        const NODE_R = 4.2;
+        const nodes: { group: Group; pos: Vector3 }[] = [];
+
+        const NODE_GEOS = [
+            new OctahedronGeometry(0.30, 0),
+            new TetrahedronGeometry(0.32, 0),
+            new IcosahedronGeometry(0.28, 0),
+            new DodecahedronGeometry(0.28, 0),
+        ];
+        const NODE_WIRES = NODE_GEOS.map(g => new WireframeGeometry(g));
+        const NODE_DOT_GEO = new SphereGeometry(0.05, 6, 6);
+
+        for (let i = 0; i < N_NODES; i++) {
+            const phi = Math.acos(1 - 2 * (i + 0.5) / N_NODES);
+            const theta = Math.PI * (1 + Math.sqrt(5)) * i;
+            const pos = new Vector3(
+                NODE_R * Math.cos(theta) * Math.sin(phi),
+                NODE_R * Math.sin(theta) * Math.sin(phi),
+                NODE_R * Math.cos(phi),
+            );
+
+            const g = new Group();
+            g.position.copy(pos);
+
+            g.add(new LineSegments(
+                NODE_WIRES[i % NODE_WIRES.length],
+                i % 4 === 0 ? matNodeTan : matNodeGreen,
+            ));
+            g.add(new Mesh(NODE_DOT_GEO, matNodeCenter));
+
+            world.add(g);
+            nodes.push({group: g, pos});
+        }
+
+        /* ─── connections ────────────────────────────────────────── */
+        type Conn = { curve: CatmullRomCurve3 };
+        const conns: Conn[] = [];
+
+        nodes.forEach(({pos}, i) => {
+            const mid = pos.clone().multiplyScalar(0.5);
+            const a = (i / N_NODES) * Math.PI * 2;
+            mid.x += Math.cos(a) * 0.6;
+            mid.y += Math.sin(a) * 0.6;
+            mid.z += Math.cos(a + 1.3) * 0.6;
+            const curve = new CatmullRomCurve3([pos.clone(), mid, new Vector3()], false, 'catmullrom', 0.5);
+            const line = new Line(
+                new BufferGeometry().setFromPoints(curve.getPoints(32)),
+                matConnNode,
+            );
+            world.add(line);
+            conns.push({curve});
+        });
+
+        [3, 7].forEach((step) => {
+            for (let i = 0; i < N_NODES; i += 3) {
+                const a = nodes[i].pos;
+                const b = nodes[(i + step) % N_NODES].pos;
+                const mid = new Vector3().addVectors(a, b).multiplyScalar(0.35);
+                const curve = new CatmullRomCurve3([a.clone(), mid, b.clone()]);
+                const line = new Line(
+                    new BufferGeometry().setFromPoints(curve.getPoints(24)),
+                    matConnInter,
+                );
+                world.add(line);
+                conns.push({curve});
+            }
+        });
+
+        /* ─── flowing particles on connections ──────────────────── */
+        const PER_CONN = isCompact ? 3 : 4;
+        const partData: { curve: CatmullRomCurve3; t: number; spd: number }[] = [];
+        conns.forEach(({curve}, ci) => {
+            for (let i = 0; i < PER_CONN; i++) {
+                partData.push({curve, t: i / PER_CONN, spd: 0.06 + ((ci + i) % 4) * 0.022});
+            }
+        });
+
+        const partGeo = new BufferGeometry();
+        const partPos = new Float32Array(partData.length * 3);
+        partGeo.setAttribute('position', new BufferAttribute(partPos, 3));
+        world.add(new Points(partGeo, new PointsMaterial({
+            color: LIGHT, size: 0.05, transparent: true, opacity: 0.95,
+            sizeAttenuation: true, depthWrite: false, blending: AdditiveBlending,
+        })));
+
+        /* ─── ambient particle field ─────────────────────────────── */
+        const N_BG = isCompact ? 320 : 600;
+        const bgPos = new Float32Array(N_BG * 3);
+        const bgVel = new Float32Array(N_BG * 3);
+        for (let i = 0; i < N_BG; i++) {
+            bgPos[i * 3] = (Math.random() - 0.5) * 28;
+            bgPos[i * 3 + 1] = (Math.random() - 0.5) * 28;
+            bgPos[i * 3 + 2] = (Math.random() - 0.5) * 28;
+            bgVel[i * 3] = (Math.random() - 0.5) * 0.004;
+            bgVel[i * 3 + 1] = (Math.random() - 0.5) * 0.004;
+            bgVel[i * 3 + 2] = (Math.random() - 0.5) * 0.004;
+        }
+        const bgGeo = new BufferGeometry();
+        bgGeo.setAttribute('position', new BufferAttribute(bgPos, 3));
+        scene.add(new Points(bgGeo, new PointsMaterial({
+            color: WHITE, size: 0.022, transparent: true, opacity: 0.35,
+            sizeAttenuation: true, depthWrite: false,
+        })));
+
+        /* ─── orbital rings ──────────────────────────────────────── */
+        const rings: LineSegments[] = [];
+        [2.5, 3.0, 3.5].forEach((r, i) => {
+            const pts: Vector3[] = [];
+            const seg = 72;
+            for (let j = 0; j < seg; j++) {
+                const a1 = (j / seg) * Math.PI * 2;
+                const a2 = ((j + 1) / seg) * Math.PI * 2;
+                pts.push(new Vector3(Math.cos(a1) * r, 0, Math.sin(a1) * r));
+                pts.push(new Vector3(Math.cos(a2) * r, 0, Math.sin(a2) * r));
+            }
+            const ring = new LineSegments(
+                new BufferGeometry().setFromPoints(pts),
+                new LineBasicMaterial({color: i === 1 ? TAN : GREEN, transparent: true, opacity: 0.28}),
+            );
+            ring.rotation.x = i * 0.55;
+            ring.rotation.z = i * 0.7;
+            world.add(ring);
+            rings.push(ring);
+        });
+
+        /* ─── post-processing ────────────────────────────────────── */
+        const renderPass = new RenderPass(scene, camera);
+        const bloomPass = new UnrealBloomPass(new Vector2(256, 256), 0.7, 0.5, 0.15);
+        renderer.setEffects([renderPass, bloomPass]);
+
+        type KF = {
+            p: number;
+            pos: Vector3;
+            fov: number;
+            node?: number;
+        };
+
+        const FEATURE_NODES = [1, 5, 9, 12];
+
+        const CAM: KF[] = [
+            {p: 0.00, pos: new Vector3(0, 0, 8.5), fov: 50},
+            {p: 0.06, pos: new Vector3(2.5, 1.5, 6.0), fov: 52},
+            {p: 0.13, pos: new Vector3(0.4, 0.5, 1.7), fov: 60, node: FEATURE_NODES[0]},
+            {p: 0.20, pos: new Vector3(-0.5, 0.7, 1.5), fov: 62, node: FEATURE_NODES[0]},
+            {p: 0.27, pos: new Vector3(-3, 2.5, 6.5), fov: 50},
+            {p: 0.36, pos: new Vector3(0.5, -0.4, 1.6), fov: 60, node: FEATURE_NODES[1]},
+            {p: 0.45, pos: new Vector3(0.7, 0.6, 1.7), fov: 62, node: FEATURE_NODES[1]},
+            {p: 0.52, pos: new Vector3(0, 5, 8.5), fov: 44},
+            {p: 0.60, pos: new Vector3(-0.4, 0.6, 1.6), fov: 60, node: FEATURE_NODES[2]},
+            {p: 0.68, pos: new Vector3(0.6, -0.4, 1.5), fov: 62, node: FEATURE_NODES[2]},
+            {p: 0.74, pos: new Vector3(5, 0, 8), fov: 48},
+            {p: 0.83, pos: new Vector3(0.5, 0.4, 1.6), fov: 60, node: FEATURE_NODES[3]},
+            {p: 0.90, pos: new Vector3(-0.4, 0.5, 1.7), fov: 62, node: FEATURE_NODES[3]},
+            {p: 1.00, pos: new Vector3(0, 0.5, 9), fov: 50},
+        ];
+
+        function resolveKF(kf: KF, outPos: Vector3, outLook: Vector3): number {
+            if (kf.node !== undefined) {
+                nodes[kf.node].group.getWorldPosition(outLook);
+                outPos.copy(outLook).add(kf.pos);
+            } else {
+                outPos.copy(kf.pos);
+                outLook.set(0, 0, 0);
+            }
+            return kf.fov;
+        }
+
+        const camPos = new Vector3().copy(CAM[0].pos);
+        const camLook = new Vector3();
+        let camFov = CAM[0].fov;
+        const _aPos = new Vector3();
+        const _aLook = new Vector3();
+        const _bPos = new Vector3();
+        const _bLook = new Vector3();
+        const _tgtPos = new Vector3();
+        const _tgtLook = new Vector3();
+        const _nodeWorld = new Vector3();
+        const _nodeNdc = new Vector3();
+
+        type ConnectorLayout = {
+            textLeft: number;
+            textRight: number;
+            flatLen: number;
+            lineY: number;
+        };
+        let connectorLayouts: ConnectorLayout[] = [];
+
+        function refreshConnectorLayout() {
+            const pinRect = pin.getBoundingClientRect();
+            const pad = mediaQuery.matches ? 22 : 32;
+
+            connectorLayouts = overlays.map((overlay, i) => {
+                const heading = headings[i];
+                const paragraph = paragraphs[i];
+                if (!overlay || !heading || !paragraph || !pinRect.width) {
+                    return {textLeft: 0, textRight: 0, flatLen: 0, lineY: 0};
+                }
+
+                const previousTransform = overlay.style.transform;
+                overlay.style.transform = 'translateY(-50%)';
+                const overlayRect = overlay.getBoundingClientRect();
+                const headingRect = heading.getBoundingClientRect();
+                const paragraphRect = paragraph.getBoundingClientRect();
+                overlay.style.transform = previousTransform;
+
+                const textLeft = overlayRect.left - pinRect.left + pad;
+                const textRight = overlayRect.right - pinRect.left - pad;
+                return {
+                    textLeft,
+                    textRight,
+                    flatLen: Math.min(360, Math.max(140, textRight - textLeft)),
+                    lineY: (headingRect.bottom + paragraphRect.top) * 0.5 - pinRect.top,
+                };
+            });
+        }
+
+        function camTarget(p: number) {
+            for (let i = 0; i < CAM.length - 1; i++) {
+                const a = CAM[i], b = CAM[i + 1];
+                if (p >= a.p && p <= b.p) {
+                    const t = ss(0, 1, (p - a.p) / (b.p - a.p));
+                    const fa = resolveKF(a, _aPos, _aLook);
+                    const fb = resolveKF(b, _bPos, _bLook);
+                    _tgtPos.lerpVectors(_aPos, _bPos, t);
+                    _tgtLook.lerpVectors(_aLook, _bLook, t);
+                    return {fov: lerp(fa, fb, t)};
+                }
+            }
+            const last = CAM[CAM.length - 1];
+            const fov = resolveKF(last, _tgtPos, _tgtLook);
+            return {fov};
+        }
+
+        function projectedNode(group: Group, width: number, height: number) {
+            group.getWorldPosition(_nodeWorld);
+            _nodeNdc.copy(_nodeWorld).project(camera);
+
+            return {
+                x: (_nodeNdc.x * 0.5 + 0.5) * width,
+                y: (-_nodeNdc.y * 0.5 + 0.5) * height,
+                z: _nodeNdc.z,
+            };
+        }
+
+        function updateNodeConnector(i: number, alpha: number, progress: number, dy: number) {
+            const connector = connectors[i];
+            const layout = connectorLayouts[i];
+            if (!connector || !layout || alpha <= 0.01 || progress <= 0.001) {
+                connector?.style.setProperty('--line-alpha', '0');
+                return;
+            }
+
+            const node = projectedNode(nodes[FEATURE_NODES[i]].group, canvas.clientWidth, canvas.clientHeight);
+            const lineY = layout.lineY + dy;
+            const textMid = (layout.textLeft + layout.textRight) * 0.5;
+            const fromRight = node.x > textMid;
+            const elbowX = fromRight ? layout.textRight : layout.textLeft;
+            const flatAngle = fromRight ? Math.PI : 0;
+            const dx = elbowX - node.x;
+            const dyLine = lineY - node.y;
+            const diagLen = Math.hypot(dx, dyLine);
+            const diagProgress = Math.min(1, progress * 1.65);
+            const flatProgress = Math.max(0, Math.min(1, (progress - 0.35) / 0.65));
+            const depthAlpha = node.z < -1 || node.z > 1 ? 0.25 : 1;
+
+            connector.style.setProperty('--line-alpha', String(alpha * depthAlpha));
+            connector.style.setProperty('--node-x', `${node.x}px`);
+            connector.style.setProperty('--node-y', `${node.y}px`);
+            connector.style.setProperty('--elbow-x', `${elbowX}px`);
+            connector.style.setProperty('--elbow-y', `${lineY}px`);
+            connector.style.setProperty('--diag-len', `${diagLen}px`);
+            connector.style.setProperty('--diag-angle', `${Math.atan2(dyLine, dx)}rad`);
+            connector.style.setProperty('--diag-progress', String(diagProgress));
+            connector.style.setProperty('--flat-len', `${layout.flatLen}px`);
+            connector.style.setProperty('--flat-angle', `${flatAngle}rad`);
+            connector.style.setProperty('--flat-progress', String(flatProgress));
+            connector.style.setProperty('--node-scale', String(Math.min(1, progress * 2)));
+        }
+
+        let rawP = 0;
+        let curP = 0;
+
+        function onScroll() {
+            const top = section.offsetTop;
+            const total = section.offsetHeight - window.innerHeight;
+            rawP = Math.max(0, Math.min(1, (window.scrollY - top) / total));
+        }
+
+        window.addEventListener('scroll', onScroll, {passive: true});
+        onScroll();
+
+        let isVisible = true;
+        const obs = new IntersectionObserver(
+            (entries) => {
+                isVisible = entries[0].isIntersecting;
+            },
+            {rootMargin: '120px'},
+        );
+        obs.observe(section);
+
+        function update(p: number, t: number) {
+            const {fov} = camTarget(p);
+            camPos.lerp(_tgtPos, 0.06);
+            camLook.lerp(_tgtLook, 0.06);
+            camFov = lerp(camFov, fov, 0.06);
+            camera.position.copy(camPos);
+            camera.position.x += Math.sin(t * 0.27) * 0.18;
+            camera.position.y += Math.cos(t * 0.31) * 0.13;
+            camera.lookAt(camLook);
+            if (Math.abs(camera.fov - camFov) > 0.02) {
+                camera.fov = camFov;
+                camera.updateProjectionMatrix();
+            }
+            camera.updateMatrixWorld();
+
+            world.rotation.y = t * 0.04 + p * 0.35;
+            world.rotation.x = Math.sin(t * 0.09) * 0.08;
+
+            coreOuter.rotation.x = t * 0.18;
+            coreOuter.rotation.y = t * 0.22;
+            coreInner.rotation.x = -t * 0.28;
+            coreInner.rotation.z = t * 0.20;
+            coreGroup.scale.setScalar(1 + Math.sin(t * 1.4) * 0.05);
+
+            for (let i = 0; i < nodes.length; i++) {
+                const g = nodes[i].group;
+                g.rotation.x = t * (0.25 + (i % 4) * 0.08);
+                g.rotation.y = t * (0.18 + (i % 3) * 0.10);
+            }
+
+            for (let i = 0; i < rings.length; i++) {
+                const r = rings[i];
+                r.rotation.y = t * 0.10 * (i + 1);
+                r.rotation.x = i * 0.55 + t * 0.06;
+                r.rotation.z = i * 0.70 + t * 0.04;
+            }
+
+            let pi = 0;
+            const _v = _aPos;
+            for (let i = 0; i < partData.length; i++) {
+                const pd = partData[i];
+                pd.t = (pd.t + pd.spd * 0.016) % 1;
+                pd.curve.getPoint(pd.t, _v);
+                partPos[pi++] = _v.x;
+                partPos[pi++] = _v.y;
+                partPos[pi++] = _v.z;
+            }
+            partGeo.attributes.position.needsUpdate = true;
+
+            if ((t * 60 | 0) % 2 === 0) {
+                for (let i = 0; i < N_BG; i++) {
+                    const i3 = i * 3;
+                    bgPos[i3] += bgVel[i3];
+                    bgPos[i3 + 1] += bgVel[i3 + 1];
+                    bgPos[i3 + 2] += bgVel[i3 + 2];
+                    if (bgPos[i3] > 14 || bgPos[i3] < -14) bgVel[i3] *= -1;
+                    if (bgPos[i3 + 1] > 14 || bgPos[i3 + 1] < -14) bgVel[i3 + 1] *= -1;
+                    if (bgPos[i3 + 2] > 14 || bgPos[i3 + 2] < -14) bgVel[i3 + 2] *= -1;
+                }
+                bgGeo.attributes.position.needsUpdate = true;
+            }
+
+            for (let i = 0; i < overlays.length; i++) {
+                const el = overlays[i];
+                if (!el) continue;
+                const start = i * 0.25;
+                const end = start + 0.25;
+                const fadeIn = ss(start, start + 0.05, p);
+                const fadeOut = i < 3 ? 1 - ss(end - 0.04, end + 0.01, p) : 1;
+                const alpha = Math.min(fadeIn, fadeOut);
+                const dy = (1 - Math.min(fadeIn, 1)) * 18;
+                const lineProgress = Math.min(fadeIn, ss(start + 0.015, start + 0.11, p));
+                const titleProgress = ss(start, start + 0.075, p);
+                el.style.opacity = String(alpha);
+                el.style.transform = `translateY(calc(-50% + ${dy}px))`;
+                updateNodeConnector(i, alpha, lineProgress, dy);
+
+                const heading = headings[i];
+                const original = headingText[i];
+                if (!heading) continue;
+
+                if (alpha > 0.01 && titleProgress < 1) {
+                    heading.textContent = scrambleTitle(original, titleProgress, i);
+                } else if (heading.textContent !== original) {
+                    heading.textContent = original;
+                }
+            }
+        }
+
+        function resize() {
+            const w = canvas.clientWidth;
+            const h = canvas.clientHeight;
+            if (!w || !h) return;
+            camera.aspect = w / h;
+            camera.updateProjectionMatrix();
+            renderer.setPixelRatio(Math.min(devicePixelRatio, mediaQuery.matches ? 1.25 : 1.5));
+            renderer.setSize(w, h, false);
+            refreshConnectorLayout();
+        }
+
+        window.addEventListener('resize', resize);
+        mediaQuery.addEventListener('change', resize);
+        resize();
+        document.fonts?.ready.then(refreshConnectorLayout).catch(() => {});
+
+        const timer = new Timer();
+        timer.reset();
+        let disposed = false;
+
+        cleanupScene = () => {
+            if (disposed) return;
+            disposed = true;
+
+            renderer.setAnimationLoop(null);
+            window.removeEventListener('scroll', onScroll);
+            window.removeEventListener('resize', resize);
+            mediaQuery.removeEventListener('change', resize);
+            obs.disconnect();
+            timer.dispose();
+
+            renderer.setEffects([]);
+            renderPass.dispose();
+            bloomPass.dispose();
+
+            const disposedGeometries = new Set<unknown>();
+            const disposedMaterials = new Set<unknown>();
+
+            scene.traverse((object) => {
+                const item = object as Mesh | LineSegments | Points;
+                const geometry = item.geometry as { dispose?: () => void } | undefined;
+                if (geometry && !disposedGeometries.has(geometry)) {
+                    geometry.dispose?.();
+                    disposedGeometries.add(geometry);
+                }
+
+                const material = item.material;
+                const materials = Array.isArray(material) ? material : [material];
+                materials.forEach((mat) => {
+                    const disposable = mat as { dispose?: () => void } | undefined;
+                    if (disposable && !disposedMaterials.has(disposable)) {
+                        disposable.dispose?.();
+                        disposedMaterials.add(disposable);
+                    }
+                });
+            });
+
+            NODE_GEOS.forEach((geometry) => geometry.dispose());
+            renderer.dispose();
+            renderer.forceContextLoss();
+        };
+
+        renderer.setAnimationLoop((time) => {
+            if (disposed) return;
+            timer.update(time);
+            if (!isVisible) return;
+            curP += (rawP - curP) * 0.06;
+            update(curP, timer.getElapsed());
+            renderer.render(scene, camera);
+        });
+    }
+
+    function startEncryption() {
+        if (initPromise) return;
+        initPromise = initEncryption().catch((error: unknown) => {
+            console.error('Encryption scene failed to load', error);
+        });
+    }
+
+    function cleanup() {
+        if (destroyed) return;
+        destroyed = true;
+        loadObserver?.disconnect();
+        loadObserver = null;
+        cleanupScene?.();
+        cleanupScene = null;
+        document.removeEventListener('astro:before-swap', cleanup);
+        window.removeEventListener('pagehide', cleanup);
+    }
+
+    loadObserver = new IntersectionObserver(
+        ([entry]) => {
+            if (!entry.isIntersecting) return;
+            loadObserver?.disconnect();
+            loadObserver = null;
+            startEncryption();
+        },
+        {rootMargin: '900px 0px'},
+    );
+    loadObserver.observe(section);
+
+    document.addEventListener('astro:before-swap', cleanup, {once: true});
+    window.addEventListener('pagehide', cleanup, {once: true});
 </script>
