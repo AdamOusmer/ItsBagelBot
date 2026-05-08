@@ -92,3 +92,39 @@ section {
     max-width: 1200px;
     margin: 0 auto;
 }
+/* ── Bagel Easter Egg ── */
+
+.bagel-cursor, .bagel-cursor * {
+    cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Ctext y='24' font-size='24'%3E🥯%3C/text%3E%3C/svg%3E") 16 16, auto !important;
+}
+
+.bagel-drop {
+    position: fixed;
+    top: -100px;
+    z-index: 9999;
+    user-select: none;
+    pointer-events: none;
+    animation: drop linear forwards;
+}
+
+@keyframes drop {
+    0% { transform: translateY(0) rotate(0deg); }
+    100% { transform: translateY(110vh) rotate(360deg); }
+}
+
+.sesame-seed {
+    position: fixed;
+    width: 4px;
+    height: 6px;
+    background-color: #f5deb3;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 9998;
+    animation: fade-out 1s forwards;
+    transform: translate(-50%, -50%) rotate(var(--rot));
+}
+
+@keyframes fade-out {
+    0% { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(var(--rot)); }
+    100% { opacity: 0; transform: translate(-50%, calc(-50% + 20px)) scale(0.5) rotate(var(--rot)); }
+}
