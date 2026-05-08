@@ -6,6 +6,29 @@
 
         <canvas class="enc-canvas" id="enc-canvas"></canvas>
 
+        <div class="enc-node-lines" aria-hidden="true">
+            <span class="enc-node-line" id="enc-line-0">
+                <span class="enc-node-line__node"></span>
+                <span class="enc-node-line__segment enc-node-line__segment--diag"></span>
+                <span class="enc-node-line__segment enc-node-line__segment--flat"></span>
+            </span>
+            <span class="enc-node-line" id="enc-line-1">
+                <span class="enc-node-line__node"></span>
+                <span class="enc-node-line__segment enc-node-line__segment--diag"></span>
+                <span class="enc-node-line__segment enc-node-line__segment--flat"></span>
+            </span>
+            <span class="enc-node-line" id="enc-line-2">
+                <span class="enc-node-line__node"></span>
+                <span class="enc-node-line__segment enc-node-line__segment--diag"></span>
+                <span class="enc-node-line__segment enc-node-line__segment--flat"></span>
+            </span>
+            <span class="enc-node-line" id="enc-line-3">
+                <span class="enc-node-line__node"></span>
+                <span class="enc-node-line__segment enc-node-line__segment--diag"></span>
+                <span class="enc-node-line__segment enc-node-line__segment--flat"></span>
+            </span>
+        </div>
+
         <div class="enc-overlay" id="enc-ov-0">
             <span class="enc-eyebrow">End-to-End Encryption</span>
             <h2 class="enc-h2">Encrypted by design.</h2>
@@ -67,6 +90,71 @@
         pointer-events: none;
     }
 
+    .enc-node-lines {
+        position: absolute;
+        inset: 0;
+        z-index: 9;
+        pointer-events: none;
+        overflow: hidden;
+    }
+
+    .enc-node-line {
+        position: absolute;
+        inset: 0;
+        opacity: var(--line-alpha, 0);
+        transition: opacity 120ms linear;
+        --node-x: 0px;
+        --node-y: 0px;
+        --elbow-x: 0px;
+        --elbow-y: 0px;
+        --diag-len: 0px;
+        --diag-angle: 0rad;
+        --diag-progress: 0;
+        --flat-len: 0px;
+        --flat-angle: 0rad;
+        --flat-progress: 0;
+        --node-scale: 0;
+    }
+
+    .enc-node-line__segment {
+        position: absolute;
+        left: 0;
+        top: 0;
+        height: 1px;
+        transform-origin: left center;
+        background: linear-gradient(90deg, rgba(167, 243, 208, 0), rgba(240, 236, 228, 0.92));
+        box-shadow:
+            0 0 8px rgba(167, 243, 208, 0.42),
+            0 0 18px rgba(0, 0, 0, 0.65);
+        will-change: transform, width;
+    }
+
+    .enc-node-line__segment--diag {
+        width: var(--diag-len);
+        transform: translate3d(var(--node-x), var(--node-y), 0) rotate(var(--diag-angle)) scaleX(var(--diag-progress));
+    }
+
+    .enc-node-line__segment--flat {
+        width: var(--flat-len);
+        background: linear-gradient(90deg, rgba(240, 236, 228, 0.92), rgba(240, 236, 228, 0.68));
+        transform: translate3d(var(--elbow-x), var(--elbow-y), 0) rotate(var(--flat-angle)) scaleX(var(--flat-progress));
+    }
+
+    .enc-node-line__node {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 9px;
+        height: 9px;
+        border: 1px solid rgba(240, 236, 228, 0.82);
+        border-radius: 999px;
+        background: rgba(167, 243, 208, 0.42);
+        box-shadow:
+            0 0 10px rgba(167, 243, 208, 0.85),
+            0 0 22px rgba(82, 183, 136, 0.55);
+        transform: translate3d(calc(var(--node-x) - 4.5px), calc(var(--node-y) - 4.5px), 0) scale(var(--node-scale));
+    }
+
     /* Text overlays */
     .enc-overlay {
         position: absolute;
@@ -79,13 +167,7 @@
         pointer-events: none;
         z-index: 10;
         will-change: opacity, transform;
-        /* Subtle backdrop so text stays legible over the 3D scene */
         padding: 28px 32px;
-        background: rgba(10, 10, 10, 0.55);
-        backdrop-filter: blur(14px);
-        -webkit-backdrop-filter: blur(14px);
-        border: 1px solid rgba(201, 168, 124, 0.12);
-        border-radius: 14px;
     }
 
     .enc-overlay--right {
@@ -109,6 +191,9 @@
         text-transform: uppercase;
         color: var(--green-glow, #52b788);
         margin-bottom: 16px;
+        text-shadow:
+            0 0 16px rgba(82, 183, 136, 0.55),
+            0 2px 12px rgba(0, 0, 0, 0.95);
     }
 
     .enc-h2 {
@@ -119,7 +204,11 @@
         line-height: 1.1;
         letter-spacing: -0.03em;
         color: var(--white, #f0ece4);
-        margin-bottom: 16px;
+        margin-bottom: 46px;
+        text-shadow:
+            0 0 22px rgba(240, 236, 228, 0.24),
+            0 3px 18px rgba(0, 0, 0, 0.95),
+            0 0 34px rgba(82, 183, 136, 0.28);
     }
 
     .enc-p {
@@ -127,7 +216,10 @@
         font-size: clamp(0.9rem, 1.4vw, 1rem);
         line-height: 1.6;
         color: var(--white, #f0ece4);
-        opacity: 0.82;
+        opacity: 0.9;
+        text-shadow:
+            0 2px 10px rgba(0, 0, 0, 0.95),
+            0 0 18px rgba(82, 183, 136, 0.18);
     }
 
     @media (max-width: 900px) {
@@ -145,7 +237,7 @@
         }
 
         .enc-h2 {
-            margin-bottom: 12px;
+            margin-bottom: 42px;
         }
     }
 </style>
@@ -158,14 +250,12 @@
         IcosahedronGeometry, SphereGeometry, OctahedronGeometry,
         TetrahedronGeometry, DodecahedronGeometry, TubeGeometry, BufferGeometry,
         WireframeGeometry, EdgesGeometry,
-        Vector3, Vector2, CatmullRomCurve3, BufferAttribute, Clock,
-        ACESFilmicToneMapping, SRGBColorSpace, AdditiveBlending
+        Vector3, Vector2, CatmullRomCurve3, BufferAttribute, Timer,
+        ACESFilmicToneMapping, SRGBColorSpace, AdditiveBlending, HalfFloatType
     } from 'three';
 
-    import { EffectComposer }  from 'three/addons/postprocessing/EffectComposer.js';
     import { RenderPass }      from 'three/addons/postprocessing/RenderPass.js';
     import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-    import { OutputPass }      from 'three/addons/postprocessing/OutputPass.js';
     /* ─── helpers ────────────────────────────────────────────────── */
     const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
@@ -183,14 +273,35 @@
     /* ─── dom ────────────────────────────────────────────────────── */
     const canvas = document.getElementById('enc-canvas') as HTMLCanvasElement;
     const section = document.getElementById('enc-section') as HTMLElement;
+    const pin = section.querySelector('.enc-pin') as HTMLElement;
     const overlays = [0, 1, 2, 3].map(i => document.getElementById(`enc-ov-${i}`) as HTMLElement);
+    const headings = overlays.map(el => el?.querySelector('.enc-h2') as HTMLElement | null);
+    const paragraphs = overlays.map(el => el?.querySelector('.enc-p') as HTMLElement | null);
+    const connectors = [0, 1, 2, 3].map(i => document.getElementById(`enc-line-${i}`) as HTMLElement);
+    const headingText = headings.map(el => el?.textContent ?? '');
+    const SCRAMBLE_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#$%&*+-/<>[]{}';
+
+    function scrambleTitle(text: string, progress: number, seed: number) {
+        const chars = Array.from(text);
+        const revealCount = Math.floor(chars.length * progress);
+        const tick = Math.floor(progress * 22);
+
+        return chars.map((char, i) => {
+            if (char === ' ' || /[^\w]/.test(char)) return char;
+            if (i < revealCount) return char;
+
+            const n = (i * 19 + tick * 7 + seed * 13) % SCRAMBLE_CHARS.length;
+            return SCRAMBLE_CHARS[n];
+        }).join('');
+    }
 
     /* ─── renderer (transparent) ─────────────────────────────────── */
     const renderer = new WebGLRenderer({
         canvas,
         antialias: true,
         alpha: true,
-        powerPreference: 'high-performance'
+        powerPreference: 'high-performance',
+        outputBufferType: HalfFloatType
     });
     renderer.setClearColor(0x000000, 0);
     renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
@@ -359,10 +470,9 @@
     });
 
     /* ─── post-processing ────────────────────────────────────────── */
-    const composer = new EffectComposer(renderer);
-    composer.addPass(new RenderPass(scene, camera));
-    composer.addPass(new UnrealBloomPass(new Vector2(256, 256), 0.7, 0.5, 0.15));
-    composer.addPass(new OutputPass());
+    const renderPass = new RenderPass(scene, camera);
+    const bloomPass = new UnrealBloomPass(new Vector2(256, 256), 0.7, 0.5, 0.15);
+    renderer.setEffects([renderPass, bloomPass]);
 
     /* ─── camera keyframes — 4 nodes featured as "sections" ─────── */
     /* Each phase (0–25%, 25–50%, 50–75%, 75–100%) zooms onto a node. */
@@ -421,6 +531,8 @@
     const _bLook = new Vector3();
     const _tgtPos = new Vector3();
     const _tgtLook = new Vector3();
+    const _nodeWorld = new Vector3();
+    const _nodeNdc = new Vector3();
 
     function camTarget(p: number) {
         for (let i = 0; i < CAM.length - 1; i++) {
@@ -437,6 +549,69 @@
         const last = CAM[CAM.length - 1];
         const fov = resolveKF(last, _tgtPos, _tgtLook);
         return {fov};
+    }
+
+    function projectedNode(group: Group, pinRect: DOMRect) {
+        group.getWorldPosition(_nodeWorld);
+        _nodeNdc.copy(_nodeWorld).project(camera);
+
+        return {
+            x: (_nodeNdc.x * 0.5 + 0.5) * pinRect.width,
+            y: (-_nodeNdc.y * 0.5 + 0.5) * pinRect.height,
+            z: _nodeNdc.z,
+        };
+    }
+
+    function updateNodeConnector(i: number, alpha: number, progress: number) {
+        const connector = connectors[i];
+        const overlay = overlays[i];
+        const heading = headings[i];
+        const paragraph = paragraphs[i];
+        if (!connector || !overlay || !heading || !paragraph || alpha <= 0.01 || progress <= 0.001) {
+            connector?.style.setProperty('--line-alpha', '0');
+            return;
+        }
+
+        const pinRect = pin.getBoundingClientRect();
+        const overlayRect = overlay.getBoundingClientRect();
+        const headingRect = heading.getBoundingClientRect();
+        const paragraphRect = paragraph.getBoundingClientRect();
+        if (!pinRect.width || !pinRect.height) {
+            connector.style.setProperty('--line-alpha', '0');
+            return;
+        }
+
+        const pad = window.matchMedia('(max-width: 900px)').matches ? 22 : 32;
+        const textLeft = overlayRect.left - pinRect.left + pad;
+        const textRight = overlayRect.right - pinRect.left - pad;
+        const flatLen = Math.min(360, Math.max(140, textRight - textLeft));
+        const lineY = (headingRect.bottom + paragraphRect.top) * 0.5 - pinRect.top;
+        const node = projectedNode(nodes[FEATURE_NODES[i]].group, pinRect);
+        const textMid = (textLeft + textRight) * 0.5;
+        const fromRight = node.x > textMid;
+        const nodeX = node.x;
+        const nodeY = node.y;
+        const elbowX = fromRight ? textRight : textLeft;
+        const flatAngle = fromRight ? Math.PI : 0;
+        const dx = elbowX - nodeX;
+        const dy = lineY - nodeY;
+        const diagLen = Math.hypot(dx, dy);
+        const diagProgress = Math.min(1, progress * 1.65);
+        const flatProgress = Math.max(0, Math.min(1, (progress - 0.35) / 0.65));
+        const depthAlpha = node.z < -1 || node.z > 1 ? 0.25 : 1;
+
+        connector.style.setProperty('--line-alpha', String(alpha * depthAlpha));
+        connector.style.setProperty('--node-x', `${nodeX}px`);
+        connector.style.setProperty('--node-y', `${nodeY}px`);
+        connector.style.setProperty('--elbow-x', `${elbowX}px`);
+        connector.style.setProperty('--elbow-y', `${lineY}px`);
+        connector.style.setProperty('--diag-len', `${diagLen}px`);
+        connector.style.setProperty('--diag-angle', `${Math.atan2(dy, dx)}rad`);
+        connector.style.setProperty('--diag-progress', String(diagProgress));
+        connector.style.setProperty('--flat-len', `${flatLen}px`);
+        connector.style.setProperty('--flat-angle', `${flatAngle}rad`);
+        connector.style.setProperty('--flat-progress', String(flatProgress));
+        connector.style.setProperty('--node-scale', String(Math.min(1, progress * 2)));
     }
 
     /* ─── scroll ─────────────────────────────────────────────────── */
@@ -478,6 +653,7 @@
             camera.fov = camFov;
             camera.updateProjectionMatrix();
         }
+        camera.updateMatrixWorld();
 
         /* world drift — slow so node-zoom stays stable */
         world.rotation.y = t * 0.04 + p * 0.35;
@@ -542,8 +718,21 @@
             const fadeOut = i < 3 ? 1 - ss(end - 0.04, end + 0.01, p) : 1;
             const alpha = Math.min(fadeIn, fadeOut);
             const dy = (1 - Math.min(fadeIn, 1)) * 18;
+            const lineProgress = Math.min(fadeIn, ss(start + 0.015, start + 0.11, p));
+            const titleProgress = ss(start, start + 0.075, p);
             el.style.opacity = String(alpha);
             el.style.transform = `translateY(calc(-50% + ${dy}px))`;
+            updateNodeConnector(i, alpha, lineProgress);
+
+            const heading = headings[i];
+            const original = headingText[i];
+            if (!heading) continue;
+
+            if (alpha > 0.01 && titleProgress < 1) {
+                heading.textContent = scrambleTitle(original, titleProgress, i);
+            } else if (heading.textContent !== original) {
+                heading.textContent = original;
+            }
         }
     }
 
@@ -555,19 +744,68 @@
         camera.aspect = w / h;
         camera.updateProjectionMatrix();
         renderer.setSize(w, h, false);
-        composer.setSize(w, h);
     }
 
     window.addEventListener('resize', resize);
     resize();
 
     /* ─── loop (skip when off-screen) ────────────────────────────── */
-    const clock = new Clock();
-    (function loop() {
-        requestAnimationFrame(loop);
+    const timer = new Timer();
+    timer.reset();
+    let disposed = false;
+
+    function cleanup() {
+        if (disposed) return;
+        disposed = true;
+
+        renderer.setAnimationLoop(null);
+        window.removeEventListener('scroll', onScroll);
+        window.removeEventListener('resize', resize);
+        document.removeEventListener('astro:before-swap', cleanup);
+        window.removeEventListener('pagehide', cleanup);
+        obs.disconnect();
+        timer.dispose();
+
+        renderer.setEffects([]);
+        renderPass.dispose();
+        bloomPass.dispose();
+
+        const disposedGeometries = new Set<unknown>();
+        const disposedMaterials = new Set<unknown>();
+
+        scene.traverse((object) => {
+            const item = object as Mesh | LineSegments | Points;
+            const geometry = item.geometry as { dispose?: () => void } | undefined;
+            if (geometry && !disposedGeometries.has(geometry)) {
+                geometry.dispose?.();
+                disposedGeometries.add(geometry);
+            }
+
+            const material = item.material;
+            const materials = Array.isArray(material) ? material : [material];
+            materials.forEach((mat) => {
+                const disposable = mat as { dispose?: () => void } | undefined;
+                if (disposable && !disposedMaterials.has(disposable)) {
+                    disposable.dispose?.();
+                    disposedMaterials.add(disposable);
+                }
+            });
+        });
+
+        NODE_GEOS.forEach((geometry) => geometry.dispose());
+        renderer.dispose();
+        renderer.forceContextLoss();
+    }
+
+    renderer.setAnimationLoop((time) => {
+        if (disposed) return;
+        timer.update(time);
         if (!isVisible) return;
         curP += (rawP - curP) * 0.06;
-        update(curP, clock.getElapsedTime());
-        composer.render();
-    })();
+        update(curP, timer.getElapsed());
+        renderer.render(scene, camera);
+    });
+
+    document.addEventListener('astro:before-swap', cleanup, {once: true});
+    window.addEventListener('pagehide', cleanup, {once: true});
 </script>
