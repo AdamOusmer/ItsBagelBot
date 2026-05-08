@@ -285,7 +285,7 @@
         const tick = Math.floor(progress * 22);
 
         return chars.map((char, i) => {
-            if (char === ' ' || /[^\w]/.test(char)) return char;
+            if (char === ' ' || /\W/.test(char)) return char;
             if (i < revealCount) return char;
 
             const n = (i * 19 + tick * 7 + seed * 13) % SCRAMBLE_CHARS.length;
