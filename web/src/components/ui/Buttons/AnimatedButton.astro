@@ -38,22 +38,6 @@ const classes = ["animated-button", className];
             </span>
             <span class="animated-button__label">{label}</span>
         </span>
-
-        <svg
-            class="animated-button__arrow"
-            stroke-width="2"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-            aria-hidden="true"
-        >
-            <path
-                d="M14 5l7 7m0 0l-7 7m7-7H3"
-                stroke-linejoin="round"
-                stroke-linecap="round"
-            ></path>
-        </svg>
     </a>
 ) : (
     <button
@@ -72,22 +56,6 @@ const classes = ["animated-button", className];
             </span>
             <span class="animated-button__label">{label}</span>
         </span>
-
-        <svg
-            class="animated-button__arrow"
-            stroke-width="2"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-            aria-hidden="true"
-        >
-            <path
-                d="M14 5l7 7m0 0l-7 7m7-7H3"
-                stroke-linejoin="round"
-                stroke-linecap="round"
-            ></path>
-        </svg>
     </button>
 )}
 
@@ -95,7 +63,6 @@ const classes = ["animated-button", className];
     .animated-button {
         --animated-button-text: var(--tan-light, #e0c49a);
         --animated-button-text-hover: var(--white, #f0ece4);
-        --animated-button-arrow-size: 1.48em;
         --animated-button-font-size: 0.96rem;
         --animated-button-line-height: 1.15;
         --animated-button-mask-pad: 0.16em;
@@ -107,27 +74,16 @@ const classes = ["animated-button", className];
         width: fit-content;
         max-width: 100%;
         min-height: 48px;
-        padding: 0.26em 2.08em 0.72em 0;
+        padding: 0.24em 0;
         overflow: visible;
         border: 0;
         background: transparent;
         color: var(--animated-button-text);
         cursor: pointer;
+        font-family: var(--font-display, "Syne", sans-serif);
         text-align: left;
         text-decoration: none;
         transition: color 0.22s ease;
-    }
-
-    .animated-button::before {
-        content: "";
-        position: absolute;
-        left: 0;
-        bottom: 0;
-        width: 100%;
-        height: 1px;
-        background: currentColor;
-        transform: scaleX(var(--button-line-scale, 0));
-        transform-origin: var(--button-line-origin, bottom right);
     }
 
     .animated-button__content {
@@ -151,13 +107,16 @@ const classes = ["animated-button", className];
         width: max-content;
         max-width: none;
         color: inherit;
-        font-family: var(--font-display, "Syne", sans-serif);
+        font-family: inherit;
         font-size: var(--animated-button-font-size);
         font-weight: 700;
         line-height: var(--animated-button-line-height);
         letter-spacing: 0;
         white-space: nowrap;
-        text-shadow: 0 0 14px rgba(224, 196, 154, 0.16);
+        text-shadow:
+            0 3px 14px rgba(0, 0, 0, 0.92),
+            0 0 18px rgba(224, 196, 154, 0.34),
+            0 0 30px rgba(82, 183, 136, 0.16);
     }
 
     .animated-button__text span,
@@ -186,17 +145,6 @@ const classes = ["animated-button", className];
         white-space: nowrap;
     }
 
-    .animated-button__arrow {
-        position: absolute;
-        right: 0;
-        top: 50%;
-        width: var(--animated-button-arrow-size);
-        height: var(--animated-button-arrow-size);
-        transform: translateY(calc(-50% - 0.16em)) rotate(var(--button-arrow-rotation, -50deg));
-        transform-origin: 50% 50%;
-        will-change: transform;
-    }
-
     .animated-button:hover,
     .animated-button:focus-visible {
         color: var(--animated-button-text-hover);
@@ -204,12 +152,11 @@ const classes = ["animated-button", className];
     }
 
     .animated-button[data-size="hero"] {
-        --animated-button-arrow-size: 1.62em;
-        --animated-button-font-size: clamp(0.92rem, 1.05vw, 1.06rem);
-        --animated-button-line-height: 1.16;
-        min-height: 50px;
-        padding-right: 2.42em;
-        padding-bottom: 0.74em;
+        --animated-button-font-size: clamp(1.18rem, 2.2vw, 1.72rem);
+        --animated-button-line-height: 1.05;
+        --animated-button-mask-pad: 0.18em;
+        min-height: 64px;
+        padding-block: 0.32em;
     }
 
     .animated-button[data-size="hero"] .animated-button__text,
@@ -220,9 +167,8 @@ const classes = ["animated-button", className];
 
     @media (max-width: 480px) {
         .animated-button[data-size="hero"] {
-            --animated-button-font-size: clamp(0.82rem, 4vw, 0.98rem);
-            --animated-button-arrow-size: 1.58em;
-            padding-right: 2.18em;
+            --animated-button-font-size: clamp(1.05rem, 5vw, 1.26rem);
+            min-height: 58px;
         }
     }
 </style>
@@ -241,7 +187,6 @@ const classes = ["animated-button", className];
 
         const textWords = Array.from(button.querySelectorAll<HTMLElement>('.animated-button__text span'));
         const cloneWords = Array.from(button.querySelectorAll<HTMLElement>('.animated-button__clone span'));
-        const arrow = button.querySelector<SVGElement>('.animated-button__arrow');
         const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         let activeAnimations: AnimationControls[] = [];
 
@@ -270,8 +215,6 @@ const classes = ["animated-button", className];
             const shift = measureShift();
 
             if (reduceMotion) {
-                button.style.setProperty('--button-line-scale', active ? '1' : '0');
-                button.style.setProperty('--button-line-origin', active ? 'bottom left' : 'bottom right');
                 textWords.forEach((word) => {
                     word.style.transform = active ? `translateY(-${shift}px)` : 'translateY(0)';
                 });
@@ -280,17 +223,6 @@ const classes = ["animated-button", className];
                 });
                 return;
             }
-
-            activeAnimations.push(
-                animate(Number(button.style.getPropertyValue('--button-line-scale')) || 0, active ? 1 : 0, {
-                    duration: active ? 0.28 : 0.22,
-                    ease: active ? EASE_OUT : EASE_IN,
-                    onUpdate: (latest) => {
-                        button.style.setProperty('--button-line-scale', String(latest));
-                        button.style.setProperty('--button-line-origin', active ? 'bottom left' : 'bottom right');
-                    },
-                })
-            );
 
             activeAnimations.push(
                 animate(textWords, {
@@ -311,22 +243,6 @@ const classes = ["animated-button", className];
                     ease: active ? EASE_OUT : EASE_IN,
                 })
             );
-
-            if (arrow) {
-                activeAnimations.push(
-                    animate(
-                        Number(button.style.getPropertyValue('--button-arrow-angle')) || -50,
-                        active ? -90 : -50,
-                        {
-                            duration: 0.3,
-                            ease: active ? EASE_OUT : EASE_IN,
-                            onUpdate: (latest) => {
-                                button.style.setProperty('--button-arrow-angle', String(latest));
-                                button.style.setProperty('--button-arrow-rotation', `${latest}deg`);
-                            },
-                        })
-                );
-            }
         };
 
         syncIdlePosition();

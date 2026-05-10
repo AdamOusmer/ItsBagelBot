@@ -1,20 +1,97 @@
 ---
+interface Props {
+    variant?: "page" | "loader";
+    label?: string;
+}
+
+const { variant = "page", label = variant === "loader" ? "ItsBagelBot" : "" } = Astro.props;
+const classes = ["ornaments", `ornaments--${variant}`];
 ---
 
-<div class="corner corner-bl" aria-hidden="true"></div>
-<div class="corner corner-br" aria-hidden="true"></div>
+<div class:list={classes} aria-hidden="true">
+    <div class="corner corner-bl"></div>
+    <div class="corner corner-br"></div>
+    <div class="ornament-label">{label}</div>
+</div>
 
 <style>
-    .corner {
+    .ornaments {
+        --ornament-bottom: 24px;
+        --ornament-inline: 24px;
+        --ornament-label-bottom: var(--ornament-bottom);
+        --ornament-size: 40px;
+        --ornament-z: 50;
+
         position: fixed;
-        width: 40px;
-        height: 40px;
-        border-color: var(--border);
-        border-style: solid;
+        inset: 0;
+        z-index: var(--ornament-z);
         pointer-events: none;
-        z-index: 50;
     }
 
-    .corner-bl { bottom: 24px; left: 24px;  border-width: 0 0 1px 1px; }
-    .corner-br { bottom: 24px; right: 24px; border-width: 0 1px 1px 0; }
+    .ornaments--loader {
+        --ornament-z: 5;
+    }
+
+    .corner {
+        position: absolute;
+        width: var(--ornament-size);
+        height: var(--ornament-size);
+        border-color: var(--border);
+        border-style: solid;
+    }
+
+    .ornament-label {
+        position: absolute;
+        left: 50%;
+        bottom: var(--ornament-label-bottom);
+        height: var(--ornament-size);
+        display: flex;
+        align-items: flex-end;
+        transform: translateX(-50%);
+        color: var(--tan-light, #e0c49a);
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-size: 0.95rem;
+        font-weight: 700;
+        letter-spacing: 0;
+        line-height: 1;
+        white-space: nowrap;
+    }
+
+    .ornament-label:empty {
+        display: none;
+    }
+
+    .corner-bl {
+        bottom: var(--ornament-bottom);
+        left: var(--ornament-inline);
+        border-width: 0 0 1px 1px;
+    }
+
+    .corner-br {
+        right: var(--ornament-inline);
+        bottom: var(--ornament-bottom);
+        border-width: 0 1px 1px 0;
+    }
+
+    @media (max-width: 1023px) {
+        .ornaments {
+            --ornament-inline: 24px;
+        }
+
+        .ornaments--loader {
+            --ornament-bottom: 64px;
+            --ornament-label-bottom: 80px;
+        }
+    }
+
+    @media (max-width: 420px) {
+        .ornaments {
+            --ornament-inline: 18px;
+        }
+
+        .ornaments--loader {
+            --ornament-bottom: 58px;
+            --ornament-label-bottom: 72px;
+        }
+    }
 </style>
