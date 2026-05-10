@@ -1,0 +1,352 @@
+---
+interface Props {
+    label?: string;
+    href?: string;
+    type?: "button" | "submit" | "reset";
+    size?: "inline" | "hero";
+    class?: string;
+    [key: string]: unknown;
+}
+
+const {
+    label = "Next",
+    href,
+    type = "button",
+    size = "inline",
+    class: className = "",
+    ...attrs
+} = Astro.props;
+
+const words = label.trim().split(/\s+/).filter(Boolean);
+const classes = ["animated-button", className];
+---
+
+{href ? (
+    <a
+        href={href}
+        class:list={classes}
+        data-animated-button
+        data-size={size}
+        {...attrs}
+    >
+        <span class="animated-button__content">
+            <span class="animated-button__text" aria-hidden="true">
+                {words.map((word) => <span>{word}</span>)}
+            </span>
+            <span class="animated-button__clone" aria-hidden="true">
+                {words.map((word) => <span>{word}</span>)}
+            </span>
+            <span class="animated-button__label">{label}</span>
+        </span>
+
+        <svg
+            class="animated-button__arrow"
+            stroke-width="2"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            aria-hidden="true"
+        >
+            <path
+                d="M14 5l7 7m0 0l-7 7m7-7H3"
+                stroke-linejoin="round"
+                stroke-linecap="round"
+            ></path>
+        </svg>
+    </a>
+) : (
+    <button
+        type={type}
+        class:list={classes}
+        data-animated-button
+        data-size={size}
+        {...attrs}
+    >
+        <span class="animated-button__content">
+            <span class="animated-button__text" aria-hidden="true">
+                {words.map((word) => <span>{word}</span>)}
+            </span>
+            <span class="animated-button__clone" aria-hidden="true">
+                {words.map((word) => <span>{word}</span>)}
+            </span>
+            <span class="animated-button__label">{label}</span>
+        </span>
+
+        <svg
+            class="animated-button__arrow"
+            stroke-width="2"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            aria-hidden="true"
+        >
+            <path
+                d="M14 5l7 7m0 0l-7 7m7-7H3"
+                stroke-linejoin="round"
+                stroke-linecap="round"
+            ></path>
+        </svg>
+    </button>
+)}
+
+<style>
+    .animated-button {
+        --animated-button-text: var(--tan-light, #e0c49a);
+        --animated-button-text-hover: var(--white, #f0ece4);
+        --animated-button-arrow-size: 1.48em;
+        --animated-button-font-size: 0.96rem;
+        --animated-button-line-height: 1.15;
+        --animated-button-mask-pad: 0.16em;
+
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: flex-start;
+        width: fit-content;
+        max-width: 100%;
+        min-height: 48px;
+        padding: 0.26em 2.08em 0.72em 0;
+        overflow: visible;
+        border: 0;
+        background: transparent;
+        color: var(--animated-button-text);
+        cursor: pointer;
+        text-align: left;
+        text-decoration: none;
+        transition: color 0.22s ease;
+    }
+
+    .animated-button::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        bottom: 0;
+        width: 100%;
+        height: 1px;
+        background: currentColor;
+        transform: scaleX(var(--button-line-scale, 0));
+        transform-origin: var(--button-line-origin, bottom right);
+    }
+
+    .animated-button__content {
+        position: relative;
+        display: block;
+        width: max-content;
+        max-width: none;
+        height: calc(var(--animated-button-font-size) * var(--animated-button-line-height) + (var(--animated-button-mask-pad) * 2));
+        min-width: 0;
+        padding-block: var(--animated-button-mask-pad);
+        overflow: hidden;
+    }
+
+    .animated-button__text,
+    .animated-button__clone {
+        display: inline-flex;
+        align-items: baseline;
+        flex-wrap: nowrap;
+        column-gap: 0.22em;
+        row-gap: 0;
+        width: max-content;
+        max-width: none;
+        color: inherit;
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-size: var(--animated-button-font-size);
+        font-weight: 700;
+        line-height: var(--animated-button-line-height);
+        letter-spacing: 0;
+        white-space: nowrap;
+        text-shadow: 0 0 14px rgba(224, 196, 154, 0.16);
+    }
+
+    .animated-button__text span,
+    .animated-button__clone span {
+        display: inline-block;
+        will-change: transform, opacity;
+    }
+
+    .animated-button__clone {
+        position: absolute;
+        left: 0;
+        top: var(--animated-button-mask-pad);
+    }
+
+    .animated-button__clone span {
+        transform: translateY(140%);
+    }
+
+    .animated-button__label {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+    }
+
+    .animated-button__arrow {
+        position: absolute;
+        right: 0;
+        top: 50%;
+        width: var(--animated-button-arrow-size);
+        height: var(--animated-button-arrow-size);
+        transform: translateY(calc(-50% - 0.16em)) rotate(var(--button-arrow-rotation, -50deg));
+        transform-origin: 50% 50%;
+        will-change: transform;
+    }
+
+    .animated-button:hover,
+    .animated-button:focus-visible {
+        color: var(--animated-button-text-hover);
+        outline: none;
+    }
+
+    .animated-button[data-size="hero"] {
+        --animated-button-arrow-size: 1.62em;
+        --animated-button-font-size: clamp(0.92rem, 1.05vw, 1.06rem);
+        --animated-button-line-height: 1.16;
+        min-height: 50px;
+        padding-right: 2.42em;
+        padding-bottom: 0.74em;
+    }
+
+    .animated-button[data-size="hero"] .animated-button__text,
+    .animated-button[data-size="hero"] .animated-button__clone {
+        font-size: var(--animated-button-font-size);
+        line-height: var(--animated-button-line-height);
+    }
+
+    @media (max-width: 480px) {
+        .animated-button[data-size="hero"] {
+            --animated-button-font-size: clamp(0.82rem, 4vw, 0.98rem);
+            --animated-button-arrow-size: 1.58em;
+            padding-right: 2.18em;
+        }
+    }
+</style>
+
+<script>
+    import {animate, stagger} from 'motion';
+
+    type AnimationControls = { stop: () => void };
+
+    const EASE_OUT = [0.215, 0.61, 0.355, 1] as const;
+    const EASE_IN = [0.55, 0, 1, 0.45] as const;
+
+    function setupAnimatedButton(button: HTMLElement) {
+        if (button.dataset.animatedButtonReady === 'true') return;
+        button.dataset.animatedButtonReady = 'true';
+
+        const textWords = Array.from(button.querySelectorAll<HTMLElement>('.animated-button__text span'));
+        const cloneWords = Array.from(button.querySelectorAll<HTMLElement>('.animated-button__clone span'));
+        const arrow = button.querySelector<SVGElement>('.animated-button__arrow');
+        const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        let activeAnimations: AnimationControls[] = [];
+
+        const measureShift = () => {
+            const content = button.querySelector<HTMLElement>('.animated-button__content');
+            const firstWord = textWords[0];
+            const contentHeight = content?.getBoundingClientRect().height ?? 0;
+            const wordHeight = firstWord?.getBoundingClientRect().height ?? 0;
+            return Math.max(18, Math.ceil(Math.max(contentHeight, wordHeight) + 2));
+        };
+
+        const syncIdlePosition = () => {
+            const shift = measureShift();
+            cloneWords.forEach((word) => {
+                word.style.transform = `translateY(${shift}px)`;
+            });
+        };
+
+        const stopAnimations = () => {
+            activeAnimations.forEach((animation) => animation.stop());
+            activeAnimations = [];
+        };
+
+        const setActive = (active: boolean) => {
+            stopAnimations();
+            const shift = measureShift();
+
+            if (reduceMotion) {
+                button.style.setProperty('--button-line-scale', active ? '1' : '0');
+                button.style.setProperty('--button-line-origin', active ? 'bottom left' : 'bottom right');
+                textWords.forEach((word) => {
+                    word.style.transform = active ? `translateY(-${shift}px)` : 'translateY(0)';
+                });
+                cloneWords.forEach((word) => {
+                    word.style.transform = active ? 'translateY(0)' : `translateY(${shift}px)`;
+                });
+                return;
+            }
+
+            activeAnimations.push(
+                animate(Number(button.style.getPropertyValue('--button-line-scale')) || 0, active ? 1 : 0, {
+                    duration: active ? 0.28 : 0.22,
+                    ease: active ? EASE_OUT : EASE_IN,
+                    onUpdate: (latest) => {
+                        button.style.setProperty('--button-line-scale', String(latest));
+                        button.style.setProperty('--button-line-origin', active ? 'bottom left' : 'bottom right');
+                    },
+                })
+            );
+
+            activeAnimations.push(
+                animate(textWords, {
+                    y: active ? -shift : 0,
+                }, {
+                    duration: active ? 0.4 : 0.28,
+                    delay: active ? stagger(0.026) : 0,
+                    ease: active ? EASE_OUT : EASE_IN,
+                })
+            );
+
+            activeAnimations.push(
+                animate(cloneWords, {
+                    y: active ? 0 : shift,
+                }, {
+                    duration: active ? 0.44 : 0.28,
+                    delay: active ? stagger(0.026, {startDelay: 0.08}) : 0,
+                    ease: active ? EASE_OUT : EASE_IN,
+                })
+            );
+
+            if (arrow) {
+                activeAnimations.push(
+                    animate(
+                        Number(button.style.getPropertyValue('--button-arrow-angle')) || -50,
+                        active ? -90 : -50,
+                        {
+                            duration: 0.3,
+                            ease: active ? EASE_OUT : EASE_IN,
+                            onUpdate: (latest) => {
+                                button.style.setProperty('--button-arrow-angle', String(latest));
+                                button.style.setProperty('--button-arrow-rotation', `${latest}deg`);
+                            },
+                        })
+                );
+            }
+        };
+
+        syncIdlePosition();
+        button.addEventListener('animated-button:refresh', syncIdlePosition);
+        window.addEventListener('resize', syncIdlePosition, {passive: true});
+        if ('ResizeObserver' in window) {
+            const resizeObserver = new ResizeObserver(syncIdlePosition);
+            resizeObserver.observe(button);
+        }
+
+        button.addEventListener('pointerenter', () => setActive(true));
+        button.addEventListener('pointerleave', () => setActive(false));
+        button.addEventListener('focus', () => setActive(true));
+        button.addEventListener('blur', () => setActive(false));
+    }
+
+    function setupAnimatedButtons() {
+        document.querySelectorAll<HTMLElement>('[data-animated-button]').forEach(setupAnimatedButton);
+    }
+
+    setupAnimatedButtons();
+    document.addEventListener('astro:page-load', setupAnimatedButtons);
+</script>

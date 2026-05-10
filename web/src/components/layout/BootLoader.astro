@@ -1,0 +1,787 @@
+---
+import AnimatedButton from '../ui/Buttons/AnimatedButton.astro';
+---
+
+<!-- HTML structure -->
+<div id="loader-wrapper" role="dialog" aria-modal="true" aria-label="ItsBagelBot system boot" aria-busy="true">
+    <div id="webgl-loader-canvas" aria-hidden="true"></div>
+    <div class="loader-noise" aria-hidden="true"></div>
+
+    <div id="boot-text-container">
+        <div class="boot-material" aria-live="polite">
+            <p class="boot-eyebrow">Distributed boot sequence</p>
+
+            <div class="boot-lines" data-boot-lines></div>
+
+            <div class="boot-progress" data-node-count>nodes 0000/0000</div>
+
+            <AnimatedButton
+                class="boot-enter"
+                label="ENTER THE NETWORK"
+                size="hero"
+                type="button"
+                data-enter-network
+                hidden
+            />
+        </div>
+    </div>
+
+    <div class="loader-brand" aria-hidden="true">ItsBagelBot</div>
+</div>
+
+<style>
+    /* CSS structure */
+    #loader-wrapper {
+        position: fixed;
+        inset: 0;
+        z-index: 10000;
+        overflow: hidden;
+        min-height: 100vh;
+        color: var(--white, #f0ece4);
+        background: var(--black, #0a0a0a);
+        clip-path: circle(100% at 50% 50%);
+        contain: layout style paint;
+        isolation: isolate;
+        touch-action: none;
+    }
+
+    #loader-wrapper::before,
+    #loader-wrapper::after {
+        content: "";
+        position: absolute;
+        z-index: 3;
+        width: 40px;
+        height: 40px;
+        border-color: var(--border, rgba(201, 168, 124, 0.15));
+        border-style: solid;
+        pointer-events: none;
+    }
+
+    #loader-wrapper::before {
+        left: 24px;
+        bottom: 24px;
+        border-width: 0 0 1px 1px;
+    }
+
+    #loader-wrapper::after {
+        right: 24px;
+        bottom: 24px;
+        border-width: 0 1px 1px 0;
+    }
+
+    #webgl-loader-canvas,
+    #boot-text-container {
+        position: absolute;
+        inset: 0;
+    }
+
+    #webgl-loader-canvas {
+        z-index: 1;
+    }
+
+    #webgl-loader-canvas canvas {
+        width: 100%;
+        height: 100%;
+    }
+
+    .loader-noise {
+        position: absolute;
+        inset: 0;
+        z-index: 4;
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E");
+        opacity: 0.055;
+        pointer-events: none;
+    }
+
+    #boot-text-container {
+        z-index: 2;
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        padding: max(28px, 6vw);
+        pointer-events: none;
+    }
+
+    .boot-material {
+        width: min(470px, 36vw);
+        min-width: 360px;
+        pointer-events: none;
+    }
+
+    .boot-eyebrow {
+        max-width: none;
+        margin: 0 0 22px;
+        color: var(--green-glow, #52b788);
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.78rem;
+        line-height: 1.3;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        opacity: 1;
+        text-shadow:
+            0 0 16px rgba(82, 183, 136, 0.42),
+            0 2px 12px rgba(0, 0, 0, 0.9);
+        animation: none;
+    }
+
+    .boot-lines {
+        min-height: 132px;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        gap: 9px;
+    }
+
+    .boot-line {
+        overflow: hidden;
+        line-height: 1.5;
+    }
+
+    .boot-line__text {
+        display: block;
+        transform: translateY(100%);
+        opacity: 0;
+        color: var(--white, #f0ece4);
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: clamp(0.78rem, 1.05vw, 0.92rem);
+        letter-spacing: 0;
+        overflow-wrap: normal;
+        word-break: normal;
+        text-shadow:
+            0 2px 10px rgba(0, 0, 0, 0.95),
+            0 0 14px rgba(82, 183, 136, 0.18);
+    }
+
+    .boot-line__text::first-letter {
+        color: var(--green-glow, #52b788);
+    }
+
+    .boot-progress {
+        margin-top: 18px;
+        color: var(--muted, #888077);
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.75rem;
+        line-height: 1.4;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        text-shadow: 0 2px 10px rgba(0, 0, 0, 0.95);
+    }
+
+    :global(.boot-enter) {
+        width: fit-content;
+        max-width: calc(100vw - 12vw);
+        margin-top: 24px;
+        pointer-events: auto;
+        opacity: 0;
+    }
+
+    :global(.boot-enter[hidden]) {
+        display: none;
+    }
+
+    .loader-brand {
+        position: absolute;
+        left: 50%;
+        bottom: 24px;
+        z-index: 5;
+        height: 40px;
+        display: flex;
+        align-items: flex-end;
+        transform: translateX(-50%);
+        color: var(--tan-light, #e0c49a);
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-size: 0.95rem;
+        font-weight: 700;
+        letter-spacing: 0;
+        line-height: 1;
+        pointer-events: none;
+    }
+
+    :global(body.loader-active) {
+        overflow: hidden;
+    }
+
+    :global(body.loader-active .cursor) {
+        z-index: 10002;
+    }
+
+    :global(body.loader-active .cursor-ring) {
+        z-index: 10001;
+    }
+
+    @media (max-width: 900px) {
+        #boot-text-container {
+            align-items: flex-end;
+            padding: 24px 20px 58px;
+        }
+
+        .boot-material {
+            width: min(100%, 560px);
+            min-width: 0;
+        }
+
+        .boot-eyebrow {
+            margin-bottom: 16px;
+            font-size: 0.7rem;
+            letter-spacing: 0.16em;
+        }
+
+        .boot-lines {
+            min-height: 132px;
+        }
+
+        .boot-line__text {
+            font-size: 0.78rem;
+            line-height: 1.45;
+        }
+
+        .boot-progress {
+            margin-top: 14px;
+            font-size: 0.68rem;
+        }
+    }
+
+    @media (max-width: 480px) {
+        #loader-wrapper::before {
+            left: 18px;
+            bottom: 18px;
+        }
+
+        #loader-wrapper::after {
+            right: 18px;
+            bottom: 18px;
+        }
+
+        .loader-brand {
+            bottom: 18px;
+        }
+
+        :global(.boot-enter) {
+            width: fit-content;
+            max-width: calc(100vw - 40px);
+        }
+    }
+</style>
+
+<script>
+    import * as THREE from 'three';
+    import {animate, cubicBezier, stagger} from 'motion';
+
+    type LoaderScene = {
+        destroy: () => void;
+        setIgnitionProgress: (progress: number) => void;
+        pushCamera: () => Promise<void>;
+    };
+
+    type NodeNetwork = {
+        nodeGeometry: THREE.BufferGeometry;
+        lineGeometry: THREE.BufferGeometry;
+        nodePositions: Float32Array;
+        nodeTotal: number;
+        lineVertexTotal: number;
+    };
+
+    type LoaderWindow = Window & {
+        lenis?: {
+            scrollTo?: (target: number, options?: { immediate?: boolean; duration?: number }) => void;
+        };
+    };
+
+    const BOOT_SEQUENCES = [
+        '> Booting k3s cluster...',
+        '> Connecting NATS broker...',
+        '> Encrypting tunnels...',
+        '> Baking Twitch connections... [100%]',
+    ];
+
+    const EXPO_OUT = cubicBezier(0.16, 1, 0.3, 1);
+    const POWER4_IN_OUT = cubicBezier(0.76, 0, 0.24, 1);
+    const POWER4_IN = cubicBezier(0.895, 0.03, 0.685, 0.22);
+    const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
+
+    function wait(ms: number) {
+        return new Promise<void>((resolve) => window.setTimeout(resolve, ms));
+    }
+
+    function clamp01(value: number) {
+        return Math.max(0, Math.min(1, value));
+    }
+
+    function padded(value: number) {
+        return String(value).padStart(4, '0');
+    }
+
+    function resetScrollToTop() {
+        if ('scrollRestoration' in history) {
+            history.scrollRestoration = 'manual';
+        }
+
+        window.scrollTo(0, 0);
+        document.documentElement.scrollTop = 0;
+        document.body.scrollTop = 0;
+        (window as LoaderWindow).lenis?.scrollTo?.(0, {immediate: true, duration: 0});
+    }
+
+    /* WebGL Setup */
+    function createNodeGlowTexture() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 64;
+        canvas.height = 64;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return null;
+
+        const glow = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+        glow.addColorStop(0, 'rgba(240, 236, 228, 1)');
+        glow.addColorStop(0.24, 'rgba(82, 183, 136, 0.9)');
+        glow.addColorStop(0.7, 'rgba(82, 183, 136, 0.16)');
+        glow.addColorStop(1, 'rgba(82, 183, 136, 0)');
+
+        ctx.fillStyle = glow;
+        ctx.fillRect(0, 0, 64, 64);
+
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.colorSpace = THREE.SRGBColorSpace;
+        return texture;
+    }
+
+    function buildTorusNodeNetwork(): NodeNetwork {
+        const majorSegments = 120;
+        const minorSegments = 18;
+        const majorRadius = 1.34;
+        const tubeRadius = 0.42;
+
+        const pointAt = (major: number, minor: number) => {
+            const u = (major / majorSegments) * Math.PI * 2;
+            const v = (minor / minorSegments) * Math.PI * 2;
+            const radius = majorRadius + tubeRadius * Math.cos(v);
+
+            return new THREE.Vector3(
+                radius * Math.cos(u),
+                radius * Math.sin(u),
+                tubeRadius * Math.sin(v),
+            );
+        };
+
+        const nodes: number[] = [];
+        const lines: number[] = [];
+        const previousRing: THREE.Vector3[] = [];
+
+        const pushNode = (point: THREE.Vector3) => {
+            nodes.push(point.x, point.y, point.z);
+        };
+
+        const pushLine = (a: THREE.Vector3, b: THREE.Vector3) => {
+            lines.push(a.x, a.y, a.z, b.x, b.y, b.z);
+        };
+
+        for (let major = 0; major < majorSegments; major++) {
+            const currentRing: THREE.Vector3[] = [];
+
+            for (let minor = 0; minor < minorSegments; minor++) {
+                const point = pointAt(major, minor);
+                currentRing.push(point);
+                pushNode(point);
+
+                if (minor > 0) pushLine(currentRing[minor - 1], point);
+                if (major > 0) pushLine(previousRing[minor], point);
+            }
+
+            pushLine(currentRing[currentRing.length - 1], currentRing[0]);
+            previousRing.splice(0, previousRing.length, ...currentRing);
+        }
+
+        const nodePositions = new Float32Array(nodes);
+        const linePositions = new Float32Array(lines);
+        const nodeGeometry = new THREE.BufferGeometry();
+        const lineGeometry = new THREE.BufferGeometry();
+
+        nodeGeometry.setAttribute('position', new THREE.BufferAttribute(nodePositions, 3));
+        lineGeometry.setAttribute('position', new THREE.BufferAttribute(linePositions, 3));
+        nodeGeometry.setDrawRange(0, 0);
+        lineGeometry.setDrawRange(0, 0);
+
+        return {
+            nodeGeometry,
+            lineGeometry,
+            nodePositions,
+            nodeTotal: nodePositions.length / 3,
+            lineVertexTotal: linePositions.length / 3,
+        };
+    }
+
+    function setupWebGLLoader(canvasHost: HTMLElement, nodeCounter: HTMLElement | null): LoaderScene {
+        const renderer = new THREE.WebGLRenderer({
+            antialias: true,
+            alpha: true,
+            powerPreference: 'high-performance',
+        });
+
+        renderer.setClearColor(0x000000, 0);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.6));
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        canvasHost.appendChild(renderer.domElement);
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(43, 1, 0.1, 100);
+        camera.position.set(0, 0, 5.8);
+
+        const torusGroup = new THREE.Group();
+        scene.add(torusGroup);
+
+        const network = buildTorusNodeNetwork();
+        const glowTexture = createNodeGlowTexture();
+
+        const nodeMaterial = new THREE.PointsMaterial({
+            color: 0x52b788,
+            size: 0.052,
+            map: glowTexture ?? undefined,
+            transparent: true,
+            opacity: 0.88,
+            alphaTest: 0.02,
+            depthWrite: false,
+            sizeAttenuation: true,
+            blending: THREE.AdditiveBlending,
+        });
+
+        const nodeGlowMaterial = new THREE.PointsMaterial({
+            color: 0x52b788,
+            size: 0.14,
+            map: glowTexture ?? undefined,
+            transparent: true,
+            opacity: 0.22,
+            alphaTest: 0.02,
+            depthWrite: false,
+            sizeAttenuation: true,
+            blending: THREE.AdditiveBlending,
+        });
+
+        const activeNodeMaterial = new THREE.PointsMaterial({
+            color: 0xe0c49a,
+            size: 0.12,
+            map: glowTexture ?? undefined,
+            transparent: true,
+            opacity: 0,
+            alphaTest: 0.02,
+            depthWrite: false,
+            sizeAttenuation: true,
+            blending: THREE.AdditiveBlending,
+        });
+
+        const lineMaterial = new THREE.LineBasicMaterial({
+            color: 0x52b788,
+            transparent: true,
+            opacity: 0.07,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending,
+        });
+
+        const nodeCloud = new THREE.Points(network.nodeGeometry, nodeMaterial);
+        const nodeGlow = new THREE.Points(network.nodeGeometry, nodeGlowMaterial);
+        const nodeLinks = new THREE.LineSegments(network.lineGeometry, lineMaterial);
+        const activeNodeGeometry = new THREE.BufferGeometry();
+        const activeNodePosition = new Float32Array(3);
+        activeNodeGeometry.setAttribute('position', new THREE.BufferAttribute(activeNodePosition, 3));
+        const activeNode = new THREE.Points(activeNodeGeometry, activeNodeMaterial);
+
+        torusGroup.add(nodeLinks, nodeGlow, nodeCloud, activeNode);
+        torusGroup.rotation.set(-0.42, 0.22, 0);
+
+        let frameId = 0;
+        let disposed = false;
+        let ignitionProgress = 0;
+        let lookX = 0;
+        let lookY = 0;
+
+        const updateNodeCounter = (visibleNodes: number) => {
+            if (!nodeCounter) return;
+            nodeCounter.textContent = `nodes ${padded(visibleNodes)}/${padded(network.nodeTotal)}`;
+        };
+
+        const setNodeWindow = (progress: number) => {
+            ignitionProgress = clamp01(progress);
+            const ramp = ignitionProgress < 0.2
+                ? ignitionProgress * 0.55
+                : 0.11 + ((ignitionProgress - 0.2) / 0.8) * 0.89;
+            const visibleNodes = Math.min(network.nodeTotal, Math.floor(ramp * network.nodeTotal));
+            const lineRamp = clamp01((ramp - 0.04) / 0.96);
+            const lineVertexTarget = Math.floor(lineRamp * network.lineVertexTotal);
+            const visibleLineVertices = Math.min(network.lineVertexTotal, lineVertexTarget - (lineVertexTarget % 2));
+
+            network.nodeGeometry.setDrawRange(0, visibleNodes);
+            network.lineGeometry.setDrawRange(0, visibleLineVertices);
+            nodeGlowMaterial.opacity = 0.12 + ramp * 0.16;
+            activeNodeMaterial.opacity = visibleNodes > 0 && ignitionProgress < 0.98 ? 0.95 : 0;
+
+            if (visibleNodes > 0) {
+                const sourceIndex = (visibleNodes - 1) * 3;
+                activeNodePosition[0] = network.nodePositions[sourceIndex];
+                activeNodePosition[1] = network.nodePositions[sourceIndex + 1];
+                activeNodePosition[2] = network.nodePositions[sourceIndex + 2];
+                activeNodeGeometry.attributes.position.needsUpdate = true;
+            }
+
+            updateNodeCounter(visibleNodes);
+        };
+
+        const resize = () => {
+            const width = Math.max(1, canvasHost.clientWidth || window.innerWidth);
+            const height = Math.max(1, canvasHost.clientHeight || window.innerHeight);
+            const compact = width < 900;
+
+            camera.aspect = width / height;
+            camera.fov = compact ? 48 : 43;
+            camera.updateProjectionMatrix();
+
+            torusGroup.position.set(compact ? 0 : 0.82, compact ? 0.58 : 0, 0);
+            torusGroup.scale.setScalar(compact ? 0.8 : 1.06);
+            lookX = torusGroup.position.x;
+            lookY = torusGroup.position.y;
+
+            renderer.setSize(width, height, false);
+        };
+
+        const render = (time: number) => {
+            if (disposed) return;
+
+            const seconds = time * 0.001;
+            torusGroup.rotation.x = -0.42 + Math.sin(seconds * 0.26) * 0.08;
+            torusGroup.rotation.y = 0.22 + seconds * 0.19;
+            torusGroup.rotation.z = Math.sin(seconds * 0.18) * 0.03;
+            activeNodeMaterial.size = 0.1 + Math.sin(seconds * 9) * 0.018;
+            camera.lookAt(lookX, lookY, 0);
+
+            renderer.render(scene, camera);
+            frameId = window.requestAnimationFrame(render);
+        };
+
+        resize();
+        setNodeWindow(0);
+        window.addEventListener('resize', resize, {passive: true});
+        frameId = window.requestAnimationFrame(render);
+
+        return {
+            setIgnitionProgress: setNodeWindow,
+            async pushCamera() {
+                const startZ = camera.position.z;
+                const startFov = camera.fov;
+
+                await Promise.all([
+                    animate(startZ, -1.95, {
+                        duration: 1.05,
+                        ease: POWER4_IN,
+                        onUpdate: (latest) => {
+                            camera.position.z = latest;
+                        },
+                    }),
+                    animate(startFov, startFov + 26, {
+                        duration: 1.05,
+                        ease: POWER4_IN,
+                        onUpdate: (latest) => {
+                            camera.fov = latest;
+                            camera.updateProjectionMatrix();
+                        },
+                    }),
+                    animate(ignitionProgress, 1, {
+                        duration: 0.42,
+                        ease: EXPO_OUT,
+                        onUpdate: setNodeWindow,
+                    }),
+                ]);
+            },
+            destroy() {
+                disposed = true;
+                window.cancelAnimationFrame(frameId);
+                window.removeEventListener('resize', resize);
+
+                network.nodeGeometry.dispose();
+                network.lineGeometry.dispose();
+                activeNodeGeometry.dispose();
+                nodeMaterial.dispose();
+                nodeGlowMaterial.dispose();
+                activeNodeMaterial.dispose();
+                lineMaterial.dispose();
+                glowTexture?.dispose();
+                renderer.dispose();
+                renderer.domElement.remove();
+            },
+        };
+    }
+
+    /* Text Animation Logic */
+    function createBootLine(text: string) {
+        const line = document.createElement('div');
+        line.className = 'boot-line';
+
+        const textNode = document.createElement('span');
+        textNode.className = 'boot-line__text';
+        textNode.textContent = text;
+
+        line.appendChild(textNode);
+        return {line, textNode};
+    }
+
+    async function revealBootSequence(linesHost: HTMLElement, reducedMotion: boolean) {
+        for (const [index, text] of BOOT_SEQUENCES.entries()) {
+            const {line, textNode} = createBootLine(text);
+            linesHost.appendChild(line);
+
+            await animate(textNode, {
+                opacity: [0, 1],
+                y: ['100%', '0%'],
+            }, {
+                duration: reducedMotion ? 0.01 : 0.76,
+                delay: reducedMotion ? 0 : index === 0 ? 0.1 : 0,
+                ease: EXPO_OUT,
+            });
+
+            await wait(reducedMotion ? 20 : 280);
+        }
+    }
+
+    async function hideBootLines(linesHost: HTMLElement, nodeCounter: HTMLElement | null, reducedMotion: boolean) {
+        const lines = Array.from(linesHost.children) as HTMLElement[];
+        const targets = nodeCounter ? [...lines, nodeCounter] : lines;
+        if (!targets.length) return;
+
+        await animate(targets, {
+            opacity: [1, 0],
+            y: [0, -10],
+        }, {
+            duration: reducedMotion ? 0.01 : 0.32,
+            delay: stagger(reducedMotion ? 0 : 0.025),
+            ease: cubicBezier(0.55, 0, 1, 0.45),
+        });
+
+        linesHost.textContent = '';
+        linesHost.style.minHeight = '0';
+        if (nodeCounter) nodeCounter.style.display = 'none';
+    }
+
+    async function revealEnterAction(button: HTMLButtonElement, reducedMotion: boolean) {
+        const text = button.querySelector<HTMLElement>('.animated-button__content');
+        if (!text) return;
+
+        button.hidden = false;
+        button.style.pointerEvents = 'auto';
+        window.requestAnimationFrame(() => {
+            button.dispatchEvent(new CustomEvent('animated-button:refresh'));
+        });
+
+        await Promise.all([
+            animate(button, {
+                opacity: [0, 1],
+            }, {
+                duration: reducedMotion ? 0.01 : 0.16,
+                ease: 'linear',
+            }),
+            animate(text, {
+                opacity: [0, 1],
+                y: ['100%', '0%'],
+            }, {
+                duration: reducedMotion ? 0.01 : 0.62,
+                ease: EXPO_OUT,
+            }),
+        ]);
+    }
+
+    async function exitEnterAction(button: HTMLButtonElement, reducedMotion: boolean) {
+        const text = button.querySelector<HTMLElement>('.animated-button__content');
+        button.style.pointerEvents = 'none';
+
+        if (!text) return;
+
+        await animate(text, {
+            opacity: [1, 0],
+            y: ['0%', '100%'],
+        }, {
+            duration: reducedMotion ? 0.01 : 0.32,
+            ease: cubicBezier(0.55, 0, 1, 0.45),
+        });
+    }
+
+    /* Master Timeline */
+    async function setupBootLoader() {
+        const wrapper = document.getElementById('loader-wrapper') as HTMLElement | null;
+        if (!wrapper || wrapper.dataset.bootLoaderReady === 'true') return;
+
+        const canvasHost = document.getElementById('webgl-loader-canvas') as HTMLElement | null;
+        const linesHost = wrapper.querySelector<HTMLElement>('[data-boot-lines]');
+        const enterButton = wrapper.querySelector<HTMLButtonElement>('[data-enter-network]');
+        const nodeCounter = wrapper.querySelector<HTMLElement>('[data-node-count]');
+        if (!canvasHost || !linesHost || !enterButton) return;
+
+        wrapper.dataset.bootLoaderReady = 'true';
+        resetScrollToTop();
+        window.requestAnimationFrame(resetScrollToTop);
+
+        const reducedMotion = window.matchMedia(REDUCED_MOTION_QUERY).matches;
+        const loaderScene = setupWebGLLoader(canvasHost, nodeCounter);
+        let readyForEntry = false;
+        let transitionStarted = false;
+
+        const preventScroll = (event: Event) => event.preventDefault();
+        document.body.classList.add('loader-active');
+        wrapper.addEventListener('wheel', preventScroll, {passive: false});
+        wrapper.addEventListener('touchmove', preventScroll, {passive: false});
+
+        const cleanup = () => {
+            wrapper.removeEventListener('wheel', preventScroll);
+            wrapper.removeEventListener('touchmove', preventScroll);
+            document.body.classList.remove('loader-active');
+            loaderScene.destroy();
+        };
+
+        const runMasterTransition = async () => {
+            if (!readyForEntry || transitionStarted) return;
+            transitionStarted = true;
+            wrapper.setAttribute('aria-busy', 'false');
+
+            const centerX = Math.round(window.innerWidth / 2);
+            const centerY = Math.round(window.innerHeight / 2);
+            const closedClip = `circle(0% at ${centerX}px ${centerY}px)`;
+
+            await Promise.all([
+                exitEnterAction(enterButton, reducedMotion),
+                loaderScene.pushCamera(),
+                animate(wrapper, {
+                    clipPath: ['circle(100% at 50% 50%)', closedClip],
+                    WebkitClipPath: ['circle(100% at 50% 50%)', closedClip],
+                }, {
+                    duration: reducedMotion ? 0.2 : 1.05,
+                    ease: POWER4_IN_OUT,
+                }),
+            ]);
+
+            wrapper.style.display = 'none';
+            wrapper.setAttribute('aria-hidden', 'true');
+            cleanup();
+            document.dispatchEvent(new CustomEvent('itsbagelbot:loader-complete'));
+        };
+
+        enterButton.addEventListener('click', runMasterTransition);
+        wrapper.addEventListener('pointerdown', () => {
+            if (readyForEntry) void runMasterTransition();
+        });
+
+        await Promise.all([
+            revealBootSequence(linesHost, reducedMotion),
+            animate(0, 1, {
+                duration: reducedMotion ? 0.2 : 5.8,
+                ease: 'linear',
+                onUpdate: (latest) => loaderScene.setIgnitionProgress(latest),
+            }),
+        ]);
+
+        await hideBootLines(linesHost, nodeCounter, reducedMotion);
+        await revealEnterAction(enterButton, reducedMotion);
+
+        resetScrollToTop();
+        readyForEntry = true;
+    }
+
+    void setupBootLoader();
+    document.addEventListener('astro:page-load', () => {
+        void setupBootLoader();
+    });
+</script>
