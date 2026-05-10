@@ -8,16 +8,26 @@ interface Props {
 const { links, ctaHref = "#", ctaLabel = "Add to Twitch" } = Astro.props;
 ---
 
-<div class="mobile-menu" id="mobile-menu" aria-hidden="true">
-    <ul class="mobile-menu__links">
-        {links.map((link) => (
-            <li><a class="mobile-menu__link" href={link.href}>{link.label}</a></li>
-        ))}
-    </ul>
+<div class="mobile-menu" id="mobile-menu" data-mobile-menu aria-hidden="true" inert>
+    <svg class="mobile-menu__curve" aria-hidden="true" focusable="false">
+        <defs>
+            <clipPath id="mobile-menu-clip" clipPathUnits="userSpaceOnUse">
+                <path class="mobile-menu__curve-path" data-menu-curve-path d=""></path>
+            </clipPath>
+        </defs>
+    </svg>
 
-    <div class="mobile-menu__footer">
-        <a class="mobile-menu__cta" href={ctaHref}>{ctaLabel}</a>
-        <span class="mobile-menu__meta">Freshly baked for Twitch chat</span>
+    <div class="mobile-menu__panel" role="dialog" aria-label="Primary menu" aria-modal="true">
+        <ul class="mobile-menu__links">
+            {links.map((link) => (
+                <li data-menu-item><a class="mobile-menu__link" href={link.href}>{link.label}</a></li>
+            ))}
+        </ul>
+
+        <div class="mobile-menu__footer" data-menu-footer>
+            <a class="mobile-menu__cta" href={ctaHref}>{ctaLabel}</a>
+            <span class="mobile-menu__meta">Freshly baked for Twitch chat</span>
+        </div>
     </div>
 </div>
 
@@ -25,25 +35,55 @@ const { links, ctaHref = "#", ctaLabel = "Add to Twitch" } = Astro.props;
     .mobile-menu {
         display: none;
         position: fixed;
-        inset: 0;
-        padding: calc(10vh + 32px) 8vw 8vh;
-        background: rgba(10, 10, 10, 0.96);
+        inset: var(--nav-height, 76px) 0 0;
+        padding: 16px;
+        background: rgba(10, 10, 10, 0.72);
         backdrop-filter: blur(22px);
         -webkit-backdrop-filter: blur(22px);
         z-index: 49;
+        isolation: isolate;
+        overflow: hidden;
+        transform: translateY(-100%);
+        clip-path: url(#mobile-menu-clip);
+        -webkit-clip-path: url(#mobile-menu-clip);
+        will-change: transform;
+
+        visibility: hidden;
+        pointer-events: none;
+    }
+
+    .mobile-menu.is-visible {
+        visibility: visible;
+    }
+
+    .mobile-menu.is-open {
+        pointer-events: auto;
+    }
+
+    .mobile-menu__curve {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+    }
+
+    .mobile-menu__curve-path {
+        fill: #fff;
+    }
+
+    .mobile-menu__panel {
+        position: relative;
+        z-index: 1;
+        width: min(720px, 100%);
+        height: 100%;
+        margin: 0 auto;
+        padding: clamp(34px, 6vw, 56px);
+        display: flex;
         flex-direction: column;
         justify-content: space-between;
         gap: 40px;
         overflow-y: auto;
-
-        opacity: 0;
-        pointer-events: none;
-        transition: opacity 320ms ease;
-    }
-
-    .mobile-menu.is-open {
-        opacity: 1;
-        pointer-events: auto;
     }
 
     /* ─── Links ─── */
@@ -53,55 +93,38 @@ const { links, ctaHref = "#", ctaLabel = "Add to Twitch" } = Astro.props;
         padding: 0;
         display: flex;
         flex-direction: column;
-        gap: 4px;
+        gap: 8px;
     }
 
     .mobile-menu__link {
         display: block;
         font-family: var(--font-display, "Syne", sans-serif);
         font-weight: 700;
-        font-size: clamp(2rem, 9vw, 3.2rem);
+        font-size: 2.45rem;
         line-height: 1.2;
-        letter-spacing: -0.025em;
+        letter-spacing: 0;
         color: var(--white, #f0ece4);
         text-decoration: none;
         padding: 6px 0;
-
-        opacity: 0;
-        transform: translateY(18px);
-        transition: opacity 380ms ease, transform 380ms cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     .mobile-menu__link:active { color: var(--green-glow, #52b788); }
 
-    .mobile-menu.is-open .mobile-menu__link {
-        opacity: 1;
-        transform: translateY(0);
+    .mobile-menu__links li,
+    .mobile-menu__footer {
+        opacity: 0;
+        transform: translateY(-28px);
+        will-change: opacity, transform;
     }
-
-    /* Stagger reveal */
-    .mobile-menu.is-open li:nth-child(1) .mobile-menu__link { transition-delay: 100ms; }
-    .mobile-menu.is-open li:nth-child(2) .mobile-menu__link { transition-delay: 160ms; }
-    .mobile-menu.is-open li:nth-child(3) .mobile-menu__link { transition-delay: 220ms; }
-    .mobile-menu.is-open li:nth-child(4) .mobile-menu__link { transition-delay: 280ms; }
-    .mobile-menu.is-open li:nth-child(5) .mobile-menu__link { transition-delay: 340ms; }
 
     /* ─── Footer ─── */
     .mobile-menu__footer {
         display: flex;
         flex-direction: column;
         gap: 16px;
+        margin-bottom: clamp(56px, 8vh, 86px);
         padding-top: 24px;
         border-top: 1px solid rgba(201, 168, 124, 0.15);
-
-        opacity: 0;
-        transform: translateY(12px);
-        transition: opacity 380ms ease 360ms, transform 380ms cubic-bezier(0.16, 1, 0.3, 1) 360ms;
-    }
-
-    .mobile-menu.is-open .mobile-menu__footer {
-        opacity: 1;
-        transform: translateY(0);
     }
 
     .mobile-menu__cta {
@@ -114,7 +137,7 @@ const { links, ctaHref = "#", ctaLabel = "Add to Twitch" } = Astro.props;
         border: 1px solid var(--tan, #c9a87c);
         color: var(--tan-light, #e0c49a);
         border-radius: 6px;
-        letter-spacing: 0.08em;
+        letter-spacing: 0;
         text-transform: uppercase;
         text-decoration: none;
         transition: background 200ms ease, color 200ms ease;
@@ -128,13 +151,43 @@ const { links, ctaHref = "#", ctaLabel = "Add to Twitch" } = Astro.props;
     .mobile-menu__meta {
         font-family: var(--font-mono, "DM Mono", monospace);
         font-size: 0.7rem;
-        letter-spacing: 0.18em;
+        letter-spacing: 0;
         text-transform: uppercase;
         color: var(--muted, #888077);
         text-align: center;
     }
 
-    @media (max-width: 900px) {
+    @media (max-width: 1023px) {
         .mobile-menu { display: flex; }
+    }
+
+    @media (max-width: 639px) {
+        .mobile-menu {
+            padding: 0;
+            background: rgba(10, 10, 10, 0.96);
+        }
+
+        .mobile-menu__panel {
+            width: 100%;
+            padding: 32px 24px 28px;
+        }
+
+        .mobile-menu__link {
+            font-size: 2.2rem;
+        }
+
+        .mobile-menu__footer {
+            margin-bottom: clamp(64px, 9vh, 92px);
+        }
+    }
+
+    @media (max-width: 380px) {
+        .mobile-menu__panel {
+            padding: 28px 20px 24px;
+        }
+
+        .mobile-menu__link {
+            font-size: 2rem;
+        }
     }
 </style>

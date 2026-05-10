@@ -62,23 +62,20 @@
     /* Override the global `section` constraints (max-width 1200px, padding) */
     .enc {
         height: 400vh;
-        width: 100vw;
-        max-width: 100vw;
+        width: 100%;
+        max-width: none;
         padding: 0;
-        margin: 0;
+        margin: -100vh 0 0;
         position: relative;
-        background: var(--black);
-        box-shadow: inset 0 0 15px 5px rgba(0, 0, 0, 0.5);
-        left: 50%;
-        transform: translateX(-50%);
     }
 
     .enc-pin {
         position: sticky;
         top: 0;
         height: 100vh;
-        width: 100vw;
+        width: 100%;
         overflow: hidden;
+        z-index: 4;
     }
 
     .enc-canvas {
@@ -87,7 +84,9 @@
         width: 100%;
         height: 100%;
         display: block;
+        opacity: var(--hero-p, 0);
         pointer-events: none;
+        will-change: opacity;
     }
 
     .enc-node-lines {
@@ -166,7 +165,8 @@
         opacity: 0;
         pointer-events: none;
         z-index: 10;
-        will-change: opacity, transform;
+        transform-origin: left center;
+        will-change: opacity, transform, filter;
         padding: 28px 32px;
     }
 
@@ -174,6 +174,7 @@
         left: auto;
         right: 6vw;
         text-align: right;
+        transform-origin: right center;
     }
 
     /* Override global `overflow-wrap: break-word` so words never split mid-letter */
@@ -274,6 +275,9 @@
     const connectors = [0, 1, 2, 3].map(i => document.getElementById(`enc-line-${i}`) as HTMLElement);
     const headingText = headings.map(el => el?.textContent ?? '');
     const SCRAMBLE_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#$%&*+-/<>[]{}';
+    const TITLE_SCRAMBLE_SPAN = 0.115;
+    const TEXT_ENTER_SPAN = 0.06;
+    const TEXT_EXIT_SPAN = 0.075;
     let destroyed = false;
     let loadObserver: IntersectionObserver | null = null;
     let initPromise: Promise<void> | null = null;
@@ -282,7 +286,7 @@
     function scrambleTitle(text: string, progress: number, seed: number) {
         const chars = Array.from(text);
         const revealCount = Math.floor(chars.length * progress);
-        const tick = Math.floor(progress * 22);
+        const tick = Math.floor(progress * 16);
 
         return chars.map((char, i) => {
             if (char === ' ' || /\W/.test(char)) return char;
@@ -309,7 +313,7 @@
         const {
             WebGLRenderer, Scene, Group, PerspectiveCamera,
             LineBasicMaterial, MeshBasicMaterial, PointsMaterial,
-            LineSegments, Line, Mesh, Points,
+            LineSegments, Mesh, Points,
             IcosahedronGeometry, SphereGeometry, OctahedronGeometry,
             TetrahedronGeometry, DodecahedronGeometry, BufferGeometry,
             WireframeGeometry, EdgesGeometry,
@@ -319,6 +323,11 @@
 
         const mediaQuery = window.matchMedia('(max-width: 900px)');
         const isCompact = mediaQuery.matches;
+        const maxPixelRatio = isCompact ? 1.25 : 1.5;
+        const nodeCurveSegments = 32;
+        const interCurveSegments = 24;
+        const flowCurveSamples = 32;
+        const ringSegments = 72;
 
         /* ─── renderer (transparent) ─────────────────────────────── */
         const renderer = new WebGLRenderer({
@@ -326,10 +335,10 @@
             antialias: true,
             alpha: true,
             powerPreference: 'high-performance',
-            outputBufferType: HalfFloatType
+            outputBufferType: HalfFloatType,
         });
         renderer.setClearColor(0x000000, 0);
-        renderer.setPixelRatio(Math.min(devicePixelRatio, isCompact ? 1.25 : 1.5));
+        renderer.setPixelRatio(Math.min(devicePixelRatio, maxPixelRatio));
         renderer.toneMapping = ACESFilmicToneMapping;
         renderer.toneMappingExposure = 1.0;
         renderer.outputColorSpace = SRGBColorSpace;
@@ -410,6 +419,15 @@
         /* ─── connections ────────────────────────────────────────── */
         type Conn = { curve: CatmullRomCurve3 };
         const conns: Conn[] = [];
+        const nodeConnectionPoints: Vector3[] = [];
+        const interConnectionPoints: Vector3[] = [];
+
+        function appendCurveSegments(curve: CatmullRomCurve3, target: Vector3[], segments: number) {
+            const points = curve.getPoints(segments);
+            for (let i = 0; i < points.length - 1; i++) {
+                target.push(points[i], points[i + 1]);
+            }
+        }
 
         nodes.forEach(({pos}, i) => {
             const mid = pos.clone().multiplyScalar(0.5);
@@ -418,11 +436,7 @@
             mid.y += Math.sin(a) * 0.6;
             mid.z += Math.cos(a + 1.3) * 0.6;
             const curve = new CatmullRomCurve3([pos.clone(), mid, new Vector3()], false, 'catmullrom', 0.5);
-            const line = new Line(
-                new BufferGeometry().setFromPoints(curve.getPoints(32)),
-                matConnNode,
-            );
-            world.add(line);
+            appendCurveSegments(curve, nodeConnectionPoints, nodeCurveSegments);
             conns.push({curve});
         });
 
@@ -432,27 +446,51 @@
                 const b = nodes[(i + step) % N_NODES].pos;
                 const mid = new Vector3().addVectors(a, b).multiplyScalar(0.35);
                 const curve = new CatmullRomCurve3([a.clone(), mid, b.clone()]);
-                const line = new Line(
-                    new BufferGeometry().setFromPoints(curve.getPoints(24)),
-                    matConnInter,
-                );
-                world.add(line);
+                appendCurveSegments(curve, interConnectionPoints, interCurveSegments);
                 conns.push({curve});
             }
         });
 
+        world.add(new LineSegments(
+            new BufferGeometry().setFromPoints(nodeConnectionPoints),
+            matConnNode,
+        ));
+        world.add(new LineSegments(
+            new BufferGeometry().setFromPoints(interConnectionPoints),
+            matConnInter,
+        ));
+
         /* ─── flowing particles on connections ──────────────────── */
         const PER_CONN = isCompact ? 3 : 4;
-        const partData: { curve: CatmullRomCurve3; t: number; spd: number }[] = [];
-        conns.forEach(({curve}, ci) => {
+        const curveSampleSets = conns.map(({curve}) => {
+            const samples = new Float32Array((flowCurveSamples + 1) * 3);
+            const point = new Vector3();
+            for (let i = 0; i <= flowCurveSamples; i++) {
+                curve.getPoint(i / flowCurveSamples, point);
+                const offset = i * 3;
+                samples[offset] = point.x;
+                samples[offset + 1] = point.y;
+                samples[offset + 2] = point.z;
+            }
+            return samples;
+        });
+        const partSamples: Float32Array[] = [];
+        const partT = new Float32Array(conns.length * PER_CONN);
+        const partSpeed = new Float32Array(conns.length * PER_CONN);
+        let partCount = 0;
+        curveSampleSets.forEach((samples, ci) => {
             for (let i = 0; i < PER_CONN; i++) {
-                partData.push({curve, t: i / PER_CONN, spd: 0.06 + ((ci + i) % 4) * 0.022});
+                partSamples[partCount] = samples;
+                partT[partCount] = i / PER_CONN;
+                partSpeed[partCount] = 0.06 + ((ci + i) % 4) * 0.022;
+                partCount++;
             }
         });
 
         const partGeo = new BufferGeometry();
-        const partPos = new Float32Array(partData.length * 3);
-        partGeo.setAttribute('position', new BufferAttribute(partPos, 3));
+        const partPos = new Float32Array(partCount * 3);
+        const partPositionAttr = new BufferAttribute(partPos, 3);
+        partGeo.setAttribute('position', partPositionAttr);
         world.add(new Points(partGeo, new PointsMaterial({
             color: LIGHT, size: 0.05, transparent: true, opacity: 0.95,
             sizeAttenuation: true, depthWrite: false, blending: AdditiveBlending,
@@ -471,7 +509,8 @@
             bgVel[i * 3 + 2] = (Math.random() - 0.5) * 0.004;
         }
         const bgGeo = new BufferGeometry();
-        bgGeo.setAttribute('position', new BufferAttribute(bgPos, 3));
+        const bgPositionAttr = new BufferAttribute(bgPos, 3);
+        bgGeo.setAttribute('position', bgPositionAttr);
         scene.add(new Points(bgGeo, new PointsMaterial({
             color: WHITE, size: 0.022, transparent: true, opacity: 0.35,
             sizeAttenuation: true, depthWrite: false,
@@ -481,7 +520,7 @@
         const rings: LineSegments[] = [];
         [2.5, 3.0, 3.5].forEach((r, i) => {
             const pts: Vector3[] = [];
-            const seg = 72;
+            const seg = ringSegments;
             for (let j = 0; j < seg; j++) {
                 const a1 = (j / seg) * Math.PI * 2;
                 const a2 = ((j + 1) / seg) * Math.PI * 2;
@@ -551,6 +590,12 @@
         const _tgtLook = new Vector3();
         const _nodeWorld = new Vector3();
         const _nodeNdc = new Vector3();
+        const nodeRotationXSpeed = nodes.map((_, i) => 0.25 + (i % 4) * 0.08);
+        const nodeRotationYSpeed = nodes.map((_, i) => 0.18 + (i % 3) * 0.10);
+        const ringBaseX = rings.map((_, i) => i * 0.55);
+        const ringBaseZ = rings.map((_, i) => i * 0.70);
+        const ringYSpeed = rings.map((_, i) => 0.10 * (i + 1));
+        let camIndex = 0;
 
         type ConnectorLayout = {
             textLeft: number;
@@ -559,6 +604,27 @@
             lineY: number;
         };
         let connectorLayouts: ConnectorLayout[] = [];
+        let canvasWidth = 0;
+        let canvasHeight = 0;
+        const connectorVisible = connectors.map(() => false);
+        const overlayStyleCache: { opacity: string; transform: string; filter: string }[] =
+            overlays.map(() => ({opacity: '', transform: '', filter: ''}));
+
+        function setOverlayStyle(i: number, el: HTMLElement, opacity: string, transform: string, filter: string) {
+            const previous = overlayStyleCache[i];
+            if (previous.opacity !== opacity) {
+                el.style.opacity = opacity;
+                previous.opacity = opacity;
+            }
+            if (previous.transform !== transform) {
+                el.style.transform = transform;
+                previous.transform = transform;
+            }
+            if (previous.filter !== filter) {
+                el.style.filter = filter;
+                previous.filter = filter;
+            }
+        }
 
         function refreshConnectorLayout() {
             const pinRect = pin.getBoundingClientRect();
@@ -590,18 +656,24 @@
         }
 
         function camTarget(p: number) {
-            for (let i = 0; i < CAM.length - 1; i++) {
-                const a = CAM[i], b = CAM[i + 1];
-                if (p >= a.p && p <= b.p) {
-                    const t = ss(0, 1, (p - a.p) / (b.p - a.p));
-                    const fa = resolveKF(a, _aPos, _aLook);
-                    const fb = resolveKF(b, _bPos, _bLook);
-                    _tgtPos.lerpVectors(_aPos, _bPos, t);
-                    _tgtLook.lerpVectors(_aLook, _bLook, t);
-                    return {fov: lerp(fa, fb, t)};
-                }
+            const lastIndex = CAM.length - 1;
+            while (camIndex < lastIndex - 1 && p > CAM[camIndex + 1].p) {
+                camIndex++;
             }
-            const last = CAM[CAM.length - 1];
+            while (camIndex > 0 && p < CAM[camIndex].p) {
+                camIndex--;
+            }
+
+            if (p <= CAM[lastIndex].p && camIndex < lastIndex) {
+                const a = CAM[camIndex], b = CAM[camIndex + 1];
+                const t = ss(0, 1, (p - a.p) / (b.p - a.p));
+                const fa = resolveKF(a, _aPos, _aLook);
+                const fb = resolveKF(b, _bPos, _bLook);
+                _tgtPos.lerpVectors(_aPos, _bPos, t);
+                _tgtLook.lerpVectors(_aLook, _bLook, t);
+                return {fov: lerp(fa, fb, t)};
+            }
+            const last = CAM[lastIndex];
             const fov = resolveKF(last, _tgtPos, _tgtLook);
             return {fov};
         }
@@ -621,11 +693,15 @@
             const connector = connectors[i];
             const layout = connectorLayouts[i];
             if (!connector || !layout || alpha <= 0.01 || progress <= 0.001) {
-                connector?.style.setProperty('--line-alpha', '0');
+                if (connector && connectorVisible[i]) {
+                    connector.style.setProperty('--line-alpha', '0');
+                    connectorVisible[i] = false;
+                }
                 return;
             }
 
-            const node = projectedNode(nodes[FEATURE_NODES[i]].group, canvas.clientWidth, canvas.clientHeight);
+            connectorVisible[i] = true;
+            const node = projectedNode(nodes[FEATURE_NODES[i]].group, canvasWidth, canvasHeight);
             const lineY = layout.lineY + dy;
             const textMid = (layout.textLeft + layout.textRight) * 0.5;
             const fromRight = node.x > textMid;
@@ -656,8 +732,9 @@
         let curP = 0;
 
         function onScroll() {
-            const top = section.offsetTop;
-            const total = section.offsetHeight - window.innerHeight;
+            const heroOffset = window.innerHeight;
+            const top = section.offsetTop + heroOffset;
+            const total = Math.max(1, section.offsetHeight - window.innerHeight - heroOffset);
             rawP = Math.max(0, Math.min(1, (window.scrollY - top) / total));
         }
 
@@ -672,6 +749,12 @@
             {rootMargin: '120px'},
         );
         obs.observe(section);
+
+        let pageVisible = !document.hidden;
+        function onVisibilityChange() {
+            pageVisible = !document.hidden;
+        }
+        document.addEventListener('visibilitychange', onVisibilityChange);
 
         function update(p: number, t: number) {
             const {fov} = camTarget(p);
@@ -699,40 +782,48 @@
 
             for (let i = 0; i < nodes.length; i++) {
                 const g = nodes[i].group;
-                g.rotation.x = t * (0.25 + (i % 4) * 0.08);
-                g.rotation.y = t * (0.18 + (i % 3) * 0.10);
+                g.rotation.x = t * nodeRotationXSpeed[i];
+                g.rotation.y = t * nodeRotationYSpeed[i];
             }
 
             for (let i = 0; i < rings.length; i++) {
                 const r = rings[i];
-                r.rotation.y = t * 0.10 * (i + 1);
-                r.rotation.x = i * 0.55 + t * 0.06;
-                r.rotation.z = i * 0.70 + t * 0.04;
+                r.rotation.y = t * ringYSpeed[i];
+                r.rotation.x = ringBaseX[i] + t * 0.06;
+                r.rotation.z = ringBaseZ[i] + t * 0.04;
             }
 
             let pi = 0;
-            const _v = _aPos;
-            for (let i = 0; i < partData.length; i++) {
-                const pd = partData[i];
-                pd.t = (pd.t + pd.spd * 0.016) % 1;
-                pd.curve.getPoint(pd.t, _v);
-                partPos[pi++] = _v.x;
-                partPos[pi++] = _v.y;
-                partPos[pi++] = _v.z;
+            for (let i = 0; i < partCount; i++) {
+                let u = partT[i] + partSpeed[i] * 0.016;
+                if (u >= 1) u -= 1;
+                partT[i] = u;
+                const samples = partSamples[i];
+                const samplePosition = u * flowCurveSamples;
+                const sampleIndex = samplePosition | 0;
+                const mix = samplePosition - sampleIndex;
+                const base = sampleIndex * 3;
+                const next = base + 3;
+                partPos[pi++] = samples[base] + (samples[next] - samples[base]) * mix;
+                partPos[pi++] = samples[base + 1] + (samples[next + 1] - samples[base + 1]) * mix;
+                partPos[pi++] = samples[base + 2] + (samples[next + 2] - samples[base + 2]) * mix;
             }
-            partGeo.attributes.position.needsUpdate = true;
+            partPositionAttr.needsUpdate = true;
 
-            if ((t * 60 | 0) % 2 === 0) {
-                for (let i = 0; i < N_BG; i++) {
-                    const i3 = i * 3;
-                    bgPos[i3] += bgVel[i3];
-                    bgPos[i3 + 1] += bgVel[i3 + 1];
-                    bgPos[i3 + 2] += bgVel[i3 + 2];
-                    if (bgPos[i3] > 14 || bgPos[i3] < -14) bgVel[i3] *= -1;
-                    if (bgPos[i3 + 1] > 14 || bgPos[i3 + 1] < -14) bgVel[i3 + 1] *= -1;
-                    if (bgPos[i3 + 2] > 14 || bgPos[i3 + 2] < -14) bgVel[i3 + 2] *= -1;
+            bgFrame ^= 1;
+            if (bgFrame === 0) {
+                for (let i3 = 0; i3 < bgPos.length; i3 += 3) {
+                    const x = bgPos[i3] + bgVel[i3];
+                    const y = bgPos[i3 + 1] + bgVel[i3 + 1];
+                    const z = bgPos[i3 + 2] + bgVel[i3 + 2];
+                    bgPos[i3] = x;
+                    bgPos[i3 + 1] = y;
+                    bgPos[i3 + 2] = z;
+                    if (x > 14 || x < -14) bgVel[i3] *= -1;
+                    if (y > 14 || y < -14) bgVel[i3 + 1] *= -1;
+                    if (z > 14 || z < -14) bgVel[i3 + 2] *= -1;
                 }
-                bgGeo.attributes.position.needsUpdate = true;
+                bgPositionAttr.needsUpdate = true;
             }
 
             for (let i = 0; i < overlays.length; i++) {
@@ -740,14 +831,22 @@
                 if (!el) continue;
                 const start = i * 0.25;
                 const end = start + 0.25;
-                const fadeIn = ss(start, start + 0.05, p);
-                const fadeOut = i < 3 ? 1 - ss(end - 0.04, end + 0.01, p) : 1;
-                const alpha = Math.min(fadeIn, fadeOut);
-                const dy = (1 - Math.min(fadeIn, 1)) * 18;
+                const fadeIn = ss(start, start + TEXT_ENTER_SPAN, p);
+                const exitProgress = i < 3 ? ss(end - TEXT_EXIT_SPAN, end + 0.012, p) : 0;
+                const fadeOut = 1 - exitProgress;
+                const alpha = fadeIn * fadeOut;
+                const dy = (1 - fadeIn) * 18 - exitProgress * 26;
+                const scale = 1 - exitProgress * 0.025;
+                const blur = exitProgress * 5;
                 const lineProgress = Math.min(fadeIn, ss(start + 0.015, start + 0.11, p));
-                const titleProgress = ss(start, start + 0.075, p);
-                el.style.opacity = String(alpha);
-                el.style.transform = `translateY(calc(-50% + ${dy}px))`;
+                const titleProgress = ss(start, start + TITLE_SCRAMBLE_SPAN, p);
+                setOverlayStyle(
+                    i,
+                    el,
+                    String(alpha),
+                    `translateY(calc(-50% + ${dy}px)) scale(${scale})`,
+                    blur > 0.01 ? `blur(${blur}px)` : '',
+                );
                 updateNodeConnector(i, alpha, lineProgress, dy);
 
                 const heading = headings[i];
@@ -766,9 +865,11 @@
             const w = canvas.clientWidth;
             const h = canvas.clientHeight;
             if (!w || !h) return;
+            canvasWidth = w;
+            canvasHeight = h;
             camera.aspect = w / h;
             camera.updateProjectionMatrix();
-            renderer.setPixelRatio(Math.min(devicePixelRatio, mediaQuery.matches ? 1.25 : 1.5));
+            renderer.setPixelRatio(Math.min(devicePixelRatio, maxPixelRatio));
             renderer.setSize(w, h, false);
             refreshConnectorLayout();
         }
@@ -781,6 +882,7 @@
         const timer = new Timer();
         timer.reset();
         let disposed = false;
+        let bgFrame = 0;
 
         cleanupScene = () => {
             if (disposed) return;
@@ -789,6 +891,7 @@
             renderer.setAnimationLoop(null);
             window.removeEventListener('scroll', onScroll);
             window.removeEventListener('resize', resize);
+            document.removeEventListener('visibilitychange', onVisibilityChange);
             mediaQuery.removeEventListener('change', resize);
             obs.disconnect();
             timer.dispose();
@@ -827,7 +930,7 @@
         renderer.setAnimationLoop((time) => {
             if (disposed) return;
             timer.update(time);
-            if (!isVisible) return;
+            if (!isVisible || !pageVisible) return;
             curP += (rawP - curP) * 0.06;
             update(curP, timer.getElapsed());
             renderer.render(scene, camera);
