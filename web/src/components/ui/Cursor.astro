@@ -45,23 +45,65 @@
 <script>
     const cursor = document.getElementById("cursor")!;
     const ring   = document.getElementById("cursorRing")!;
+    const finePointer = window.matchMedia("(min-width: 901px) and (pointer: fine)");
     let mx = 0, my = 0, rx = 0, ry = 0;
     let isHovering = false;
+    let rafId = 0;
+    let lastMoveAt = 0;
 
-    document.addEventListener("mousemove", (e) => { mx = e.clientX; my = e.clientY; });
+    function canAnimateCursor() {
+        return finePointer.matches && !document.hidden;
+    }
+
+    function startCursor() {
+        if (rafId || !canAnimateCursor()) return;
+        rafId = requestAnimationFrame(animCursor);
+    }
+
+    function stopCursor() {
+        if (!rafId) return;
+        cancelAnimationFrame(rafId);
+        rafId = 0;
+    }
+
+    document.addEventListener("mousemove", (e) => {
+        mx = e.clientX;
+        my = e.clientY;
+        lastMoveAt = performance.now();
+        startCursor();
+    }, {passive: true});
 
     document.querySelectorAll("a, button").forEach((el) => {
-        el.addEventListener("mouseenter", () => { isHovering = true; });
-        el.addEventListener("mouseleave", () => { isHovering = false; });
+        el.addEventListener("mouseenter", () => {
+            isHovering = true;
+            startCursor();
+        });
+        el.addEventListener("mouseleave", () => {
+            isHovering = false;
+            startCursor();
+        });
     });
 
-    (function animCursor() {
+    document.addEventListener("visibilitychange", () => {
+        if (document.hidden) stopCursor();
+    });
+
+    finePointer.addEventListener("change", () => {
+        if (!canAnimateCursor()) stopCursor();
+    });
+
+    function animCursor(now) {
         const scale = isHovering ? 2.2 : 1;
         cursor.style.transform = `translate(${mx}px, ${my}px) scale(${scale})`;
         rx += (mx - rx) * 0.12;
         ry += (my - ry) * 0.12;
         ring.style.transform = `translate(${rx}px, ${ry}px)`;
         ring.style.opacity = isHovering ? "0.08" : "0.5";
-        requestAnimationFrame(animCursor);
-    })();
+        const settled = Math.abs(mx - rx) < 0.2 && Math.abs(my - ry) < 0.2;
+        if (!canAnimateCursor() || (!isHovering && settled && now - lastMoveAt > 500)) {
+            rafId = 0;
+            return;
+        }
+        rafId = requestAnimationFrame(animCursor);
+    }
 </script>

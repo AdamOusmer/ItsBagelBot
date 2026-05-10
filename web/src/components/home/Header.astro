@@ -1,58 +1,59 @@
 ---
-import MainButton from '../ui/Buttons/MainButton.astro'
-import SecondaryButton from '../ui/Buttons/Link.astro'
 ---
 
 
-<header class="parallax" style="--parallax-speed: 0.3">
+<header>
 
     <div class="bg" aria-hidden="true">
-        <svg viewBox="0 0 800 800" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M400 400 Q 550 200 650 400 Q 750 600 550 700 Q 350 800 200 650 Q 50 500 150 300 Q 250 100 450 150 Q 650 200 700 400 Q 750 600 600 720 Q 450 840 280 760 Q 110 680 80 500 Q 50 320 180 200 Q 310 80 480 120"
-                  stroke="url(#g1)" stroke-width="2.5" fill="none"/>
-            <path d="M400 400 Q 240 220 150 400 Q 60 580 240 680 Q 420 780 560 660 Q 700 540 680 360 Q 660 180 480 140 Q 300 100 180 240 Q 60 380 120 560 Q 180 740 360 780"
-                  stroke="url(#g2)" stroke-width="1.5" fill="none"/>
-            <defs>
-                <linearGradient id="g1" x1="0" y1="0" x2="800" y2="800" gradientUnits="userSpaceOnUse">
-                    <stop stop-color="#c9a87c" offset=""/>
-                    <stop offset="1" stop-color="#2d6a4f"/>
-                </linearGradient>
-                <linearGradient id="g2" x1="800" y1="0" x2="0" y2="800" gradientUnits="userSpaceOnUse">
-                    <stop stop-color="#40916c" offset=""/>
-                    <stop offset="1" stop-color="#c9a87c"/>
-                </linearGradient>
-            </defs>
-        </svg>
+        <div class="bg-ring">
+            <svg viewBox="0 0 800 800" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M400 400 Q 550 200 650 400 Q 750 600 550 700 Q 350 800 200 650 Q 50 500 150 300 Q 250 100 450 150 Q 650 200 700 400 Q 750 600 600 720 Q 450 840 280 760 Q 110 680 80 500 Q 50 320 180 200 Q 310 80 480 120"
+                      stroke="url(#g1)" stroke-width="2.5" fill="none"/>
+                <path d="M400 400 Q 240 220 150 400 Q 60 580 240 680 Q 420 780 560 660 Q 700 540 680 360 Q 660 180 480 140 Q 300 100 180 240 Q 60 380 120 560 Q 180 740 360 780"
+                      stroke="url(#g2)" stroke-width="1.5" fill="none"/>
+                <defs>
+                    <linearGradient id="g1" x1="0" y1="0" x2="800" y2="800" gradientUnits="userSpaceOnUse">
+                        <stop stop-color="#c9a87c" offset=""/>
+                        <stop offset="1" stop-color="#2d6a4f"/>
+                    </linearGradient>
+                    <linearGradient id="g2" x1="800" y1="0" x2="0" y2="800" gradientUnits="userSpaceOnUse">
+                        <stop stop-color="#40916c" offset=""/>
+                        <stop offset="1" stop-color="#c9a87c"/>
+                    </linearGradient>
+                </defs>
+            </svg>
+        </div>
 
         <div class="orb orb-1"></div>
         <div class="orb orb-2"></div>
     </div>
 
 
-    <p class="top-text">Freshly baked for Twitch chat</p>
+    <div class="header-material">
+        <p class="top-text">Freshly baked for Twitch chat</p>
 
-    <h1>
-        <span class="tan">Your Stream.</span>
-        <span>Your Tools.</span>
-        <span class="green">Your Rules.</span>
-    </h1>
+        <h1>
+            <span class="tan">Your Stream.</span>
+            <span>Your Tools.</span>
+            <span class="green">Your Rules.</span>
+        </h1>
 
 
-    <p>
-        ItsBagelBot is the all-in-one Twitch companion baked for independence. One setup,
-        every tool - no corporate tracking, no recurring fees, no compromises.
-    </p>
+        <p>
+            ItsBagelBot is the all-in-one Twitch companion baked for independence. One setup,
+            every tool - no corporate tracking, no recurring fees, no compromises.
+        </p>
 
-    <a href="https://discord.gg/SZ2remwSDv" target="_blank" rel="noopener noreferrer">
-    <div class="dev-banner">
-        <div class="dev-banner__dot"></div>
-        <div class="dev-banner__text">
-            <strong>ItsBagelBot is in active development</strong>
-            <p>The early-access is on the way. Join the discord for more updates.</p>
-        </div>
-        <span class="dev-banner__badge">Alpha</span>
-    </div>
-    </a>
+        <a class="dev-banner-link" href="https://discord.gg/SZ2remwSDv" target="_blank" rel="noopener noreferrer">
+            <div class="dev-banner">
+                <div class="dev-banner__dot"></div>
+                <div class="dev-banner__text">
+                    <strong>ItsBagelBot is in active development</strong>
+                    <p>The early-access is on the way. Join the discord for more updates.</p>
+                </div>
+                <span class="dev-banner__badge">Alpha</span>
+            </div>
+        </a>
 
     <!--
     <div class="actions">
@@ -62,14 +63,15 @@ import SecondaryButton from '../ui/Buttons/Link.astro'
 
     -->
 
-    <div class="badges">
+        <div class="badges">
 
-        <span>Privacy-First</span>
-        <span>One-Time Setup</span>
-        <span>Eco-Friendly</span>
-        <span>Source Available</span>
-        <span>All Tools Included</span>
+            <span>Privacy-First</span>
+            <span>One-Time Setup</span>
+            <span>Eco-Friendly</span>
+            <span>Source Available</span>
+            <span>All Tools Included</span>
 
+        </div>
     </div>
 
 </header>
@@ -78,15 +80,40 @@ import SecondaryButton from '../ui/Buttons/Link.astro'
 <style>
 
     header {
-        min-height: 100vh;
+        height: 100vh;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
         text-align: center;
-        padding: 120px 50px 80px;
-        position: relative;
+        padding: max(96px, 12vh) 50px 48px;
+        position: sticky;
+        top: 0;
+        z-index: 5;
         overflow: hidden;
+        pointer-events: none;
+    }
+
+    .header-material {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: min(100%, 1200px);
+        opacity: max(0, calc(1 - var(--hero-p, 0) * 1.5));
+        transform: scale(calc(1 - var(--hero-p, 0) * 0.15));
+        filter: blur(calc(var(--hero-p, 0) * 12px));
+        transform-origin: center;
+        will-change: var(--hero-content-will-change, opacity, transform, filter);
+    }
+
+    .dev-banner-link,
+    .actions a,
+    header button {
+        pointer-events: var(--hero-ui-pointer-events, auto);
+    }
+
+    .dev-banner-link {
+        display: block;
     }
 
     .bg {
@@ -96,27 +123,57 @@ import SecondaryButton from '../ui/Buttons/Link.astro'
         overflow: hidden;
     }
 
-    svg {
+    .bg-ring {
         position: absolute;
-
-        top: 50%;
+        top: 56%;
         left: 50%;
-        transform: translate(-50%, -50%);
-
         width: 900px;
         height: 900px;
+        opacity: max(0, calc(0.1 - var(--hero-p, 0) * 0.15));
+        transform: translate(-50%, -50%) scale(calc(1 - var(--hero-p, 0) * 0.15));
+        filter: blur(calc(var(--hero-p, 0) * 12px));
+        transform-origin: center;
+        will-change: var(--hero-content-will-change, opacity, transform, filter);
+    }
 
-        opacity: 0.1;
-
+    svg {
+        width: 100%;
+        height: 100%;
         animation: slowspin 40s linear infinite;
+        animation-play-state: var(--hero-animation-state, running);
     }
 
     .orb {
         position: absolute;
         border-radius: 50%;
         filter: blur(80px);
-        opacity: 0.1;
+        --orb-scroll-glow: min(calc(var(--hero-p, 0) * 0.24), calc((1 - var(--hero-p, 0)) * 0.28));
+        opacity: max(0, calc(0.16 - var(--hero-p, 0) * 0.16), var(--orb-scroll-glow));
+        transform: translate3d(var(--orb-shift-x), var(--orb-shift-y), 0) scale(calc(1 - var(--hero-p, 0) * 0.82));
+        transform-origin: center;
+        will-change: var(--hero-orb-will-change, opacity, transform);
+    }
+
+    .orb::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        background: inherit;
         animation: pulse 5s ease-in-out infinite;
+        animation-play-state: var(--hero-animation-state, running);
+    }
+
+    .orb::after {
+        content: "";
+        position: absolute;
+        inset: 8%;
+        border-radius: inherit;
+        background: radial-gradient(circle, var(--orb-glow-core) 0 24%, var(--orb-glow-soft) 48%, transparent 72%);
+        opacity: min(calc(var(--hero-p, 0) * 1.2), calc((1 - var(--hero-p, 0)) * 1.1));
+        transform: scale(calc(0.42 + var(--hero-p, 0) * 1.35));
+        transform-origin: center;
+        will-change: opacity, transform;
     }
 
     .orb-1 {
@@ -125,6 +182,13 @@ import SecondaryButton from '../ui/Buttons/Link.astro'
         background: var(--green);
         top: -100px;
         left: -100px;
+        --orb-glow-core: rgba(167, 243, 208, 0.85);
+        --orb-glow-soft: rgba(82, 183, 136, 0.34);
+        --orb-shift-x: calc(var(--hero-p, 0) * (50vw - 150px));
+        --orb-shift-y: calc(var(--hero-p, 0) * (50vh - 150px));
+    }
+
+    .orb-1::before {
         animation-delay: 0s;
     }
 
@@ -134,26 +198,33 @@ import SecondaryButton from '../ui/Buttons/Link.astro'
         background: var(--tan);
         bottom: -80px;
         right: -80px;
+        --orb-glow-core: rgba(245, 230, 207, 0.78);
+        --orb-glow-soft: rgba(201, 168, 124, 0.32);
+        --orb-shift-x: calc(var(--hero-p, 0) * (-50vw + 120px));
+        --orb-shift-y: calc(var(--hero-p, 0) * (-50vh + 120px));
+    }
+
+    .orb-2::before {
         animation-delay: 400ms;
     }
 
 
     @keyframes slowspin {
         from {
-            transform: translate(-50%, -50%) rotate(0deg);
+            transform: rotate(0deg);
         }
         to {
-            transform: translate(-50%, -50%) rotate(360deg);
+            transform: rotate(360deg);
         }
     }
 
     @keyframes pulse {
         0%, 100% {
-            opacity: 0.08;
+            opacity: 0.55;
             transform: scale(1);
         }
         50% {
-            opacity: 0.15;
+            opacity: 1;
             transform: scale(1.1);
         }
     }
@@ -165,18 +236,18 @@ import SecondaryButton from '../ui/Buttons/Link.astro'
         letter-spacing: 0.2em;
         text-transform: uppercase;
         color: var(--green-glow);
-        margin-bottom: 30px;
+        margin-bottom: 24px;
         opacity: 0;
         animation: fadeUp 800ms 200ms var(--ease-out-expo) forwards;
     }
 
     h1 {
         font-family: var(--font-display);
-        font-size: clamp(3.5rem, 9vw, 8rem);
+        font-size: clamp(3rem, min(9vw, 15vh), 8rem);
         font-weight: 800;
         line-height: 0.9;
-        letter-spacing: -0.05em;
-        margin-bottom: 30px;
+        letter-spacing: 0;
+        margin-bottom: 24px;
         opacity: 0;
         animation: fadeUp 900ms 350ms var(--ease-out-expo) forwards;
         position: relative;
@@ -184,6 +255,7 @@ import SecondaryButton from '../ui/Buttons/Link.astro'
 
     h1 span {
         display: block;
+        white-space: nowrap;
     }
 
     h1 span.tan {
@@ -202,9 +274,9 @@ import SecondaryButton from '../ui/Buttons/Link.astro'
     p {
         max-width: 550px;
         font-size: 1.05rem;
-        line-height: 2;
+        line-height: 1.75;
         color: #b0a898;
-        margin-bottom: 30px;
+        margin-bottom: 24px;
         opacity: 0;
         animation: fadeUp 0.9s 0.5s var(--ease-out-expo) forwards;
         position: relative;
@@ -233,6 +305,7 @@ import SecondaryButton from '../ui/Buttons/Link.astro'
         border-radius: 50%;
         background: var(--green-glow);
         animation: pulse-dot 1.8s ease-in-out infinite;
+        animation-play-state: var(--hero-animation-state, running);
     }
 
     .dev-banner__text {
@@ -272,7 +345,7 @@ import SecondaryButton from '../ui/Buttons/Link.astro'
     .badges {
         display: flex;
         gap: 12px;
-        margin-top: 40px;
+        margin-top: 32px;
         flex-wrap: wrap;
         justify-content: center;
         opacity: 0;
@@ -332,17 +405,156 @@ import SecondaryButton from '../ui/Buttons/Link.astro'
     }
 
     @media (max-width: 900px) {
-        .hero {
-            padding: 100px 24px 80px;
+        header {
+            padding: clamp(72px, 10vh, 92px) 24px 28px;
         }
 
-        .hero-actions {
+        .header-material {
+            width: min(100%, 680px);
+        }
+
+        .bg-ring {
+            top: 53%;
+            width: clamp(440px, 128vw, 620px);
+            height: clamp(440px, 128vw, 620px);
+            opacity: max(0, calc(0.08 - var(--hero-p, 0) * 0.13));
+        }
+
+        h1 {
+            font-size: clamp(1.9rem, min(9vw, 8.4vh), 4.2rem);
+            line-height: 0.96;
+            margin-bottom: 18px;
+        }
+
+        .top-text {
+            font-size: 0.78rem;
+            letter-spacing: 0.16em;
+            margin-bottom: 14px;
+        }
+
+        .header-material > p:not(.top-text) {
+            max-width: min(520px, 100%);
+            font-size: 0.98rem;
+            line-height: 1.58;
+            margin-bottom: 18px;
+        }
+
+        .dev-banner-link {
+            width: min(100%, 520px);
+        }
+
+        .dev-banner {
+            gap: 12px;
+            padding: 12px 14px;
+            border-radius: 8px;
+        }
+
+        .dev-banner__text strong {
+            font-size: 0.8rem;
+            margin-bottom: 4px;
+        }
+
+        .dev-banner__text p {
+            font-size: 0.74rem;
+            line-height: 1.35;
+        }
+
+        .dev-banner__badge {
+            padding: 4px 8px;
+            font-size: 0.62rem;
+        }
+
+        .badges {
+            gap: 8px;
+            margin-top: 18px;
+        }
+
+        .badges span {
+            font-size: 0.62rem;
+            letter-spacing: 0.08em;
+            padding: 6px 11px;
+        }
+
+        .actions {
             flex-direction: column;
             gap: 20px;
         }
+    }
 
-        .hero-scroll-hint {
-            display: none;
+    @media (max-width: 480px) {
+        header {
+            padding: clamp(68px, 10vh, 84px) 18px 20px;
+        }
+
+        .bg-ring {
+            top: 50%;
+            width: clamp(380px, 118vw, 500px);
+            height: clamp(380px, 118vw, 500px);
+        }
+
+        .top-text {
+            font-size: 0.68rem;
+            letter-spacing: 0.14em;
+            margin-bottom: 12px;
+        }
+
+        h1 {
+            font-size: clamp(1.75rem, min(8.4vw, 7.6vh), 2.25rem);
+            margin-bottom: 16px;
+        }
+
+        .header-material > p:not(.top-text) {
+            font-size: 0.92rem;
+            line-height: 1.52;
+            margin-bottom: 16px;
+        }
+
+        .dev-banner {
+            gap: 10px;
+            padding: 11px 12px;
+        }
+
+        .dev-banner__dot {
+            width: 8px;
+            height: 8px;
+        }
+
+        .dev-banner__text strong {
+            font-size: 0.76rem;
+        }
+
+        .dev-banner__text p {
+            font-size: 0.7rem;
+        }
+
+        .badges {
+            margin-top: 16px;
+        }
+
+        .badges span {
+            font-size: 0.58rem;
+            padding: 5px 9px;
+        }
+    }
+
+    @media (max-width: 380px) and (max-height: 700px) {
+        header {
+            padding-top: 66px;
+            padding-bottom: 16px;
+        }
+
+        .dev-banner {
+            padding: 10px 11px;
+        }
+
+        .badges {
+            gap: 7px;
+            margin-top: 14px;
+        }
+
+        .badges span {
+            font-size: 0.55rem;
+            padding: 5px 8px;
         }
     }
 

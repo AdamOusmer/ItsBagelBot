@@ -1,7 +1,7 @@
 ---
 ---
 
-<button class="hamburger" aria-label="Toggle menu" aria-expanded="false" aria-controls="mobile-menu">
+<button class="hamburger" type="button" data-menu-toggle aria-label="Open menu" aria-expanded="false" aria-controls="mobile-menu">
     <span></span>
     <span></span>
     <span></span>
@@ -10,22 +10,34 @@
 <style>
     .hamburger {
         display: none;
-        width: 28px;
-        height: 22px;
+        width: 42px;
+        height: 42px;
         background: transparent;
-        border: none;
+        border: 1px solid rgba(240, 236, 228, 0.14);
+        border-radius: 8px;
         padding: 0;
         cursor: pointer;
         flex-direction: column;
-        justify-content: space-between;
+        justify-content: center;
+        align-items: center;
+        gap: 5px;
         align-self: center;
         position: relative;
         z-index: 51;
+        touch-action: manipulation;
+        transition: border-color 180ms ease, background 180ms ease;
+    }
+
+    .hamburger:hover,
+    .hamburger:focus-visible {
+        border-color: rgba(224, 196, 154, 0.5);
+        background: rgba(201, 168, 124, 0.08);
+        outline: none;
     }
 
     .hamburger span {
         display: block;
-        width: 100%;
+        width: 22px;
         height: 2px;
         background: var(--white, #f0ece4);
         border-radius: 2px;
@@ -35,17 +47,17 @@
     }
 
     .hamburger.is-open span:nth-child(1) {
-        transform: translateY(10px) rotate(45deg);
+        transform: translateY(7px) rotate(45deg);
     }
     .hamburger.is-open span:nth-child(2) {
         opacity: 0;
         transform: scaleX(0);
     }
     .hamburger.is-open span:nth-child(3) {
-        transform: translateY(-10px) rotate(-45deg);
+        transform: translateY(-7px) rotate(-45deg);
     }
 
-    @media (max-width: 900px) {
+    @media (max-width: 1023px) {
         .hamburger { display: flex; }
     }
 </style>
