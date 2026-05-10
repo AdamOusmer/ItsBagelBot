@@ -23,6 +23,13 @@ let lastHeroUiHidden = null;
 let lastHeroComplete = null;
 let rafId = 0;
 
+function loaderOwnsViewport() {
+    const loader = document.getElementById('loader-wrapper');
+    if (!loader) return false;
+    if (loader.getAttribute('aria-hidden') === 'true') return false;
+    return loader.style.display !== 'none';
+}
+
 function updateViewportHeight() {
     viewportHeight = Math.max(1, window.innerHeight);
 }
@@ -73,13 +80,23 @@ function onVisibilityChange() {
     } else {
         updateViewportHeight();
         updateHeroProgress();
-        startRaf();
+        if (!loaderOwnsViewport()) {
+            startRaf();
+        }
     }
 }
 
 window.addEventListener('resize', updateViewportHeight, {passive: true});
 document.addEventListener('visibilitychange', onVisibilityChange);
+document.addEventListener('itsbagelbot:loader-complete', () => {
+    updateViewportHeight();
+    updateHeroProgress();
+    startRaf();
+}, {once: true});
 updateHeroProgress();
-startRaf();
+
+if (!loaderOwnsViewport()) {
+    startRaf();
+}
 
 export default lenis;

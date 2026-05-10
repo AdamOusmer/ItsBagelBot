@@ -18,8 +18,8 @@ const cta = { href: "#", label: "Add to Twitch" };
 
 <nav class="site-nav" aria-label="Primary">
     <div class="site-nav__inner">
-        <a class="logo" href="/" aria-label="ItsBagelBot home">
-            <Image src={logoImage} alt="" width={35} height={35} fetchpriority="high"/>
+        <a class="logo" href="/" aria-label="ItsBagelBot home" data-home-logo>
+            <Image src={logoImage} alt="" width={35} height={35} loading="eager" fetchpriority="high"/>
             <span>ItsBagelBot</span>
         </a>
 
@@ -43,6 +43,12 @@ const cta = { href: "#", label: "Add to Twitch" };
     import {animate, cubicBezier} from "motion";
 
     const MENU_VIEWPORT_QUERY = '(max-width: 1023px)';
+
+    type NavWindow = Window & {
+        lenis?: {
+            scrollTo?: (target: number, options?: { duration?: number; immediate?: boolean }) => void;
+        };
+    };
 
     class TopDownMenuAnimator {
         private readonly ham: HTMLButtonElement;
@@ -237,8 +243,35 @@ const cta = { href: "#", label: "Add to Twitch" };
         new TopDownMenuAnimator(ham, menu, curvePath);
     }
 
+    function setupLogoHomeLink(): void {
+        const logo = document.querySelector<HTMLAnchorElement>('[data-home-logo]');
+        if (!logo || logo.dataset.homeLogoReady === 'true') return;
+
+        logo.dataset.homeLogoReady = 'true';
+        logo.addEventListener('click', (event) => {
+            const target = new URL(logo.href, window.location.href);
+            const isSameHomePath =
+                target.origin === window.location.origin &&
+                target.pathname === window.location.pathname;
+
+            if (!isSameHomePath) return;
+
+            event.preventDefault();
+            window.history.replaceState(window.history.state, '', target.pathname || '/');
+            (window as NavWindow).lenis?.scrollTo?.(0, {duration: 0.9});
+
+            if (!(window as NavWindow).lenis?.scrollTo) {
+                window.scrollTo({top: 0, behavior: 'smooth'});
+            }
+        });
+    }
+
     setupNav();
-    document.addEventListener('astro:page-load', setupNav);
+    setupLogoHomeLink();
+    document.addEventListener('astro:page-load', () => {
+        setupNav();
+        setupLogoHomeLink();
+    });
 </script>
 
 <style>
