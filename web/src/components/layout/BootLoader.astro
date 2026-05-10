@@ -1,5 +1,6 @@
 ---
 import AnimatedButton from '../ui/Buttons/AnimatedButton.astro';
+import Brackets from '../ui/Brackets.astro';
 ---
 
 <!-- HTML structure -->
@@ -26,12 +27,18 @@ import AnimatedButton from '../ui/Buttons/AnimatedButton.astro';
         </div>
     </div>
 
-    <div class="loader-brand" aria-hidden="true">ItsBagelBot</div>
+    <Brackets variant="loader" />
 </div>
 
 <style>
     /* CSS structure */
     #loader-wrapper {
+        --loader-text-shadow:
+            0 1px 1px rgba(0, 0, 0, 0.96),
+            0 2px 3px rgba(0, 0, 0, 0.82),
+            0 0 6px rgba(0, 0, 0, 0.68),
+            0 0 8px rgba(82, 183, 136, 0.22);
+
         position: fixed;
         inset: 0;
         z-index: 10000;
@@ -43,30 +50,6 @@ import AnimatedButton from '../ui/Buttons/AnimatedButton.astro';
         contain: layout style paint;
         isolation: isolate;
         touch-action: none;
-    }
-
-    #loader-wrapper::before,
-    #loader-wrapper::after {
-        content: "";
-        position: absolute;
-        z-index: 3;
-        width: 40px;
-        height: 40px;
-        border-color: var(--border, rgba(201, 168, 124, 0.15));
-        border-style: solid;
-        pointer-events: none;
-    }
-
-    #loader-wrapper::before {
-        left: 24px;
-        bottom: 24px;
-        border-width: 0 0 1px 1px;
-    }
-
-    #loader-wrapper::after {
-        right: 24px;
-        bottom: 24px;
-        border-width: 0 1px 1px 0;
     }
 
     #webgl-loader-canvas,
@@ -118,9 +101,7 @@ import AnimatedButton from '../ui/Buttons/AnimatedButton.astro';
         letter-spacing: 0.2em;
         text-transform: uppercase;
         opacity: 1;
-        text-shadow:
-            0 0 16px rgba(82, 183, 136, 0.42),
-            0 2px 12px rgba(0, 0, 0, 0.9);
+        text-shadow: var(--loader-text-shadow);
         animation: none;
     }
 
@@ -147,9 +128,7 @@ import AnimatedButton from '../ui/Buttons/AnimatedButton.astro';
         letter-spacing: 0;
         overflow-wrap: normal;
         word-break: normal;
-        text-shadow:
-            0 2px 10px rgba(0, 0, 0, 0.95),
-            0 0 14px rgba(82, 183, 136, 0.18);
+        text-shadow: var(--loader-text-shadow);
     }
 
     .boot-line__text::first-letter {
@@ -164,7 +143,7 @@ import AnimatedButton from '../ui/Buttons/AnimatedButton.astro';
         line-height: 1.4;
         letter-spacing: 0.08em;
         text-transform: uppercase;
-        text-shadow: 0 2px 10px rgba(0, 0, 0, 0.95);
+        text-shadow: var(--loader-text-shadow);
     }
 
     :global(.boot-enter) {
@@ -179,22 +158,9 @@ import AnimatedButton from '../ui/Buttons/AnimatedButton.astro';
         display: none;
     }
 
-    .loader-brand {
-        position: absolute;
-        left: 50%;
-        bottom: 24px;
-        z-index: 5;
-        height: 40px;
-        display: flex;
-        align-items: flex-end;
-        transform: translateX(-50%);
-        color: var(--tan-light, #e0c49a);
-        font-family: var(--font-display, "Syne", sans-serif);
-        font-size: 0.95rem;
-        font-weight: 700;
-        letter-spacing: 0;
-        line-height: 1;
-        pointer-events: none;
+    :global(.boot-enter .animated-button__text),
+    :global(.boot-enter .animated-button__clone) {
+        text-shadow: var(--loader-text-shadow);
     }
 
     :global(body.loader-active) {
@@ -212,7 +178,7 @@ import AnimatedButton from '../ui/Buttons/AnimatedButton.astro';
     @media (max-width: 900px) {
         #boot-text-container {
             align-items: flex-end;
-            padding: 24px 20px 58px;
+            padding: 24px 20px clamp(132px, 18vh, 168px);
         }
 
         .boot-material {
@@ -242,18 +208,8 @@ import AnimatedButton from '../ui/Buttons/AnimatedButton.astro';
     }
 
     @media (max-width: 480px) {
-        #loader-wrapper::before {
-            left: 18px;
-            bottom: 18px;
-        }
-
-        #loader-wrapper::after {
-            right: 18px;
-            bottom: 18px;
-        }
-
-        .loader-brand {
-            bottom: 18px;
+        #boot-text-container {
+            padding-bottom: 148px;
         }
 
         :global(.boot-enter) {
@@ -261,6 +217,7 @@ import AnimatedButton from '../ui/Buttons/AnimatedButton.astro';
             max-width: calc(100vw - 40px);
         }
     }
+
 </style>
 
 <script>
@@ -284,6 +241,10 @@ import AnimatedButton from '../ui/Buttons/AnimatedButton.astro';
     type LoaderWindow = Window & {
         lenis?: {
             scrollTo?: (target: number, options?: { immediate?: boolean; duration?: number }) => void;
+        };
+        __itsbagelbotPreload?: {
+            bootComplete?: boolean;
+            preloadEncryption?: () => Promise<void>;
         };
     };
 
@@ -309,6 +270,60 @@ import AnimatedButton from '../ui/Buttons/AnimatedButton.astro';
 
     function padded(value: number) {
         return String(value).padStart(4, '0');
+    }
+
+    function scheduleWarmupTask(task: () => void, delay = 0) {
+        const runTask = () => {
+            if ('requestIdleCallback' in window) {
+                window.requestIdleCallback(task, {timeout: 900});
+                return;
+            }
+
+            window.setTimeout(task, 16);
+        };
+
+        if (delay > 0) {
+            window.setTimeout(runTask, delay);
+            return;
+        }
+
+        runTask();
+    }
+
+    function shouldUseConservativeWarmup() {
+        const nav = navigator as Navigator & {
+            connection?: {
+                saveData?: boolean;
+                effectiveType?: string;
+            };
+            deviceMemory?: number;
+        };
+
+        if (nav.connection?.saveData) return true;
+        if (/2g/.test(nav.connection?.effectiveType ?? '')) return true;
+        if (typeof nav.deviceMemory === 'number' && nav.deviceMemory <= 2) return true;
+        return false;
+    }
+
+    function warmFonts() {
+        if (!('fonts' in document)) return;
+
+        void Promise.allSettled([
+            document.fonts.load('700 1rem Syne'),
+            document.fonts.load('500 0.875rem "DM Mono"'),
+            document.fonts.load('400 1rem "DM Sans"'),
+        ]);
+    }
+
+    function warmEncryptionScene(attempt = 0) {
+        const preload = (window as LoaderWindow).__itsbagelbotPreload?.preloadEncryption;
+        if (typeof preload === 'function') {
+            void preload();
+            return;
+        }
+
+        if (attempt >= 10) return;
+        window.setTimeout(() => warmEncryptionScene(attempt + 1), 160);
     }
 
     function resetScrollToTop() {
@@ -608,6 +623,27 @@ import AnimatedButton from '../ui/Buttons/AnimatedButton.astro';
         };
     }
 
+    function setupFallbackLoader(nodeCounter: HTMLElement | null): LoaderScene {
+        const fallbackNodeTotal = 2160;
+
+        const updateNodeCounter = (progress: number) => {
+            if (!nodeCounter) return;
+            const visibleNodes = Math.floor(clamp01(progress) * fallbackNodeTotal);
+            nodeCounter.textContent = `nodes ${padded(visibleNodes)}/${padded(fallbackNodeTotal)}`;
+        };
+
+        updateNodeCounter(0);
+
+        return {
+            destroy() {},
+            setIgnitionProgress: updateNodeCounter,
+            async pushCamera() {
+                await wait(160);
+                updateNodeCounter(1);
+            },
+        };
+    }
+
     /* Text Animation Logic */
     function createBootLine(text: string) {
         const line = document.createElement('div');
@@ -712,13 +748,30 @@ import AnimatedButton from '../ui/Buttons/AnimatedButton.astro';
         if (!canvasHost || !linesHost || !enterButton) return;
 
         wrapper.dataset.bootLoaderReady = 'true';
+        const preloadRegistry = ((window as LoaderWindow).__itsbagelbotPreload ??= {});
+        preloadRegistry.bootComplete = false;
         resetScrollToTop();
         window.requestAnimationFrame(resetScrollToTop);
 
         const reducedMotion = window.matchMedia(REDUCED_MOTION_QUERY).matches;
-        const loaderScene = setupWebGLLoader(canvasHost, nodeCounter);
+        let loaderScene: LoaderScene;
+
+        try {
+            loaderScene = setupWebGLLoader(canvasHost, nodeCounter);
+        } catch (error) {
+            console.warn('WebGL loader unavailable, using text boot fallback.', error);
+            loaderScene = setupFallbackLoader(nodeCounter);
+        }
+
         let readyForEntry = false;
         let transitionStarted = false;
+        const conservativeWarmup = shouldUseConservativeWarmup();
+
+        scheduleWarmupTask(warmFonts, 80);
+        scheduleWarmupTask(() => {
+            if (transitionStarted || conservativeWarmup) return;
+            warmEncryptionScene();
+        }, reducedMotion ? 480 : 820);
 
         const preventScroll = (event: Event) => event.preventDefault();
         document.body.classList.add('loader-active');
@@ -755,6 +808,7 @@ import AnimatedButton from '../ui/Buttons/AnimatedButton.astro';
 
             wrapper.style.display = 'none';
             wrapper.setAttribute('aria-hidden', 'true');
+            preloadRegistry.bootComplete = true;
             cleanup();
             document.dispatchEvent(new CustomEvent('itsbagelbot:loader-complete'));
         };

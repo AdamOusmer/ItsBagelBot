@@ -254,7 +254,13 @@
     type Points = import('three').Points;
     type VirtualScrollData = { deltaX: number; deltaY: number; event: WheelEvent | TouchEvent };
     type EncryptionScrollAssist = (data: VirtualScrollData) => boolean | void;
-    type WindowWithEncryptionAssist = Window & { __encryptionScrollAssist?: EncryptionScrollAssist };
+    type WindowWithEncryptionAssist = Window & {
+        __encryptionScrollAssist?: EncryptionScrollAssist;
+        __itsbagelbotPreload?: {
+            bootComplete?: boolean;
+            preloadEncryption?: () => Promise<void>;
+        };
+    };
     type LenisController = {
         scroll?: number;
         targetScroll?: number;
@@ -320,6 +326,39 @@
     const scrollController = lenis as LenisController;
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
     const assistedWindow = window as WindowWithEncryptionAssist;
+    const preloadRegistry = (assistedWindow.__itsbagelbotPreload ??= {});
+    const POST_BOOT_INIT_DELAY_MS = 960;
+    const POST_BOOT_SCROLL_THRESHOLD = 36;
+    let preloadModulesPromise: Promise<[
+        typeof import('three'),
+        typeof import('three/addons/postprocessing/RenderPass.js'),
+        typeof import('three/addons/postprocessing/UnrealBloomPass.js'),
+    ]> | null = null;
+    let pendingStart = false;
+    let bootCompleted =
+        preloadRegistry.bootComplete === true ||
+        document.getElementById('loader-wrapper')?.getAttribute('aria-hidden') === 'true' ||
+        !document.getElementById('loader-wrapper');
+    let postBootStartTimer = 0;
+
+    function preloadEncryptionModules() {
+        if (!preloadModulesPromise) {
+            preloadModulesPromise = Promise.all([
+                import('three'),
+                import('three/addons/postprocessing/RenderPass.js'),
+                import('three/addons/postprocessing/UnrealBloomPass.js'),
+            ]);
+        }
+
+        return preloadModulesPromise;
+    }
+
+    function preloadEncryptionScene() {
+        const fontReady = 'fonts' in document ? document.fonts.ready : Promise.resolve();
+        return Promise.allSettled([preloadEncryptionModules(), fontReady]).then(() => undefined);
+    }
+
+    preloadRegistry.preloadEncryption = preloadEncryptionScene;
 
     function encryptionScrollMetrics() {
         const heroOffset = window.innerHeight;
@@ -430,11 +469,7 @@
             three,
             {RenderPass},
             {UnrealBloomPass},
-        ] = await Promise.all([
-            import('three'),
-            import('three/addons/postprocessing/RenderPass.js'),
-            import('three/addons/postprocessing/UnrealBloomPass.js'),
-        ]);
+        ] = await preloadEncryptionModules();
 
         if (destroyed) return;
 
@@ -1185,16 +1220,62 @@
         });
     }
 
+    function clearPostBootTimer() {
+        if (!postBootStartTimer) return;
+        window.clearTimeout(postBootStartTimer);
+        postBootStartTimer = 0;
+    }
+
+    function maybeStartAfterBoot() {
+        if (destroyed || !pendingStart || !bootCompleted) return;
+
+        if (window.scrollY >= POST_BOOT_SCROLL_THRESHOLD) {
+            clearPostBootTimer();
+            startEncryption();
+            return;
+        }
+
+        if (postBootStartTimer) return;
+        postBootStartTimer = window.setTimeout(() => {
+            postBootStartTimer = 0;
+            startEncryption();
+        }, POST_BOOT_INIT_DELAY_MS);
+    }
+
+    function requestEncryptionStart() {
+        if (destroyed) return;
+        pendingStart = true;
+        void preloadEncryptionScene();
+        maybeStartAfterBoot();
+    }
+
+    function onBootLoaderComplete() {
+        bootCompleted = true;
+        preloadRegistry.bootComplete = true;
+        maybeStartAfterBoot();
+    }
+
+    function onBootScroll() {
+        if (window.scrollY < POST_BOOT_SCROLL_THRESHOLD) return;
+        maybeStartAfterBoot();
+    }
+
     function cleanup() {
         if (destroyed) return;
         destroyed = true;
+        clearPostBootTimer();
         loadObserver?.disconnect();
         loadObserver = null;
         if (assistedWindow.__encryptionScrollAssist === dampEncryptionScroll) {
             delete assistedWindow.__encryptionScrollAssist;
         }
+        if (preloadRegistry.preloadEncryption === preloadEncryptionScene) {
+            delete preloadRegistry.preloadEncryption;
+        }
         cleanupScene?.();
         cleanupScene = null;
+        document.removeEventListener('itsbagelbot:loader-complete', onBootLoaderComplete);
+        window.removeEventListener('scroll', onBootScroll);
         document.removeEventListener('astro:before-swap', cleanup);
         window.removeEventListener('pagehide', cleanup);
     }
@@ -1204,11 +1285,17 @@
             if (!entry.isIntersecting) return;
             loadObserver?.disconnect();
             loadObserver = null;
-            startEncryption();
+            requestEncryptionStart();
         },
         {rootMargin: '900px 0px'},
     );
     loadObserver.observe(section);
+    document.addEventListener('itsbagelbot:loader-complete', onBootLoaderComplete);
+    window.addEventListener('scroll', onBootScroll, {passive: true});
+
+    if (bootCompleted) {
+        maybeStartAfterBoot();
+    }
 
     document.addEventListener('astro:before-swap', cleanup, {once: true});
     window.addEventListener('pagehide', cleanup, {once: true});
