@@ -12,108 +12,286 @@ const links = [
     { href: "#privacy",  label: "Privacy"  },
     { href: "#docs",     label: "Docs"     },
 ];
+
+const cta = { href: "#", label: "Add to Twitch" };
 ---
 
-<nav>
-    <div class="logo">
-        <Image src={logoImage} alt="ItsBagelBot Logo" width={35} height={35} fetchpriority="high"/>
-        <span>ItsBagelBot</span>
+<nav class="site-nav" aria-label="Primary">
+    <div class="site-nav__inner">
+        <a class="logo" href="/" aria-label="ItsBagelBot home">
+            <Image src={logoImage} alt="" width={35} height={35} fetchpriority="high"/>
+            <span>ItsBagelBot</span>
+        </a>
+
+        <ul class="links" aria-label="Primary navigation">
+            {links.map((link) => (
+                <li><a href={link.href}>{link.label}</a></li>
+            ))}
+        </ul>
+
+        <div class="button">
+            <Button href={cta.href} label={cta.label}/>
+        </div>
+
+        <Hamburger />
     </div>
-
-    <ul class="links">
-        {links.map((link) => (
-            <li><a href={link.href}>{link.label}</a></li>
-        ))}
-    </ul>
-
-    <div class="button">
-        <Button href="#" label="Add to Twitch"/>
-    </div>
-
-    <Hamburger />
 </nav>
 
-<MobileMenu links={links} />
+<MobileMenu links={links} ctaHref={cta.href} ctaLabel={cta.label} />
 
 <script>
-    const ham  = document.querySelector<HTMLButtonElement>('.hamburger');
-    const menu = document.querySelector<HTMLDivElement>('.mobile-menu');
+    import {animate, cubicBezier} from "motion";
 
-    if (ham && menu) {
-        const setOpen = (open: boolean) => {
-            ham.classList.toggle('is-open', open);
-            menu.classList.toggle('is-open', open);
-            ham.setAttribute('aria-expanded', String(open));
-            menu.setAttribute('aria-hidden', String(!open));
-            document.body.style.overflow = open ? 'hidden' : '';
-        };
+    const MENU_VIEWPORT_QUERY = '(max-width: 1023px)';
 
-        ham.addEventListener('click', () => {
-            setOpen(!ham.classList.contains('is-open'));
-        });
+    class TopDownMenuAnimator {
+        private readonly ham: HTMLButtonElement;
+        private readonly menu: HTMLDivElement;
+        private readonly curvePath: SVGPathElement;
+        private readonly compactViewport: MediaQueryList;
+        private readonly menuItems: HTMLElement[];
 
-        // Close when tapping a menu link
-        menu.querySelectorAll('a').forEach((a) =>
-            a.addEventListener('click', () => setOpen(false))
-        );
+        private readonly curveDepth = 220;
+        private readonly initialHeight = 96;
+        private readonly initialOffset = -34;
+        private readonly offsetStep = -8;
 
-        // Close on Escape
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && ham.classList.contains('is-open')) setOpen(false);
-        });
+        private activeAnimations: { stop: () => void }[] = [];
+        private isOpen = false;
 
-        // Close if window grows past the breakpoint
-        window.matchMedia('(min-width: 901px)').addEventListener('change', (e) => {
-            if (e.matches) setOpen(false);
-        });
+        constructor(ham: HTMLButtonElement, menu: HTMLDivElement, curvePath: SVGPathElement) {
+            this.ham = ham;
+            this.menu = menu;
+            this.curvePath = curvePath;
+            this.compactViewport = window.matchMedia(MENU_VIEWPORT_QUERY);
+            this.menuItems = [
+                ...Array.from(menu.querySelectorAll<HTMLElement>('[data-menu-item]')),
+                ...Array.from(menu.querySelectorAll<HTMLElement>('[data-menu-footer]')),
+            ];
+
+            this.init();
+        }
+
+        private init(): void {
+            this.renderMenu(0);
+            this.renderPath(0);
+            this.renderMenuItems(0);
+            this.setA11y(false);
+
+            this.ham.addEventListener('click', () => {
+                this.setOpen(!this.isOpen);
+            });
+
+            this.menu.querySelectorAll('a').forEach((a) =>
+                a.addEventListener('click', () => this.setOpen(false))
+            );
+
+            this.menu.addEventListener('click', (event) => {
+                if (event.target === this.menu) this.setOpen(false);
+            });
+
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && this.isOpen) this.setOpen(false);
+            });
+
+            this.compactViewport.addEventListener('change', (event) => {
+                if (!event.matches) this.setOpen(false, false);
+            });
+
+            window.addEventListener('resize', () => {
+                this.renderPath(this.isOpen ? 1 : 0);
+            }, {passive: true});
+
+            window.addEventListener('pagehide', () => this.setOpen(false, false));
+        }
+
+        private setOpen(open: boolean, shouldAnimate = true): void {
+            const nextOpen = open && this.compactViewport.matches;
+            if (nextOpen === this.isOpen && shouldAnimate) return;
+
+            this.stopAnimations();
+            this.isOpen = nextOpen;
+            this.setA11y(nextOpen);
+
+            if (nextOpen) {
+                this.menu.classList.add('is-visible', 'is-open');
+            } else {
+                this.menu.classList.remove('is-open');
+            }
+
+            if (!shouldAnimate) {
+                this.renderMenu(nextOpen ? 1 : 0);
+                this.renderPath(nextOpen ? 1 : 0);
+                this.renderMenuItems(nextOpen ? 1 : 0);
+                if (!nextOpen) this.menu.classList.remove('is-visible');
+                return;
+            }
+
+            const from = nextOpen ? 0 : 1;
+            const to = nextOpen ? 1 : 0;
+
+            this.activeAnimations.push(
+                animate(from, to, {
+                    duration: 0.7,
+                    ease: cubicBezier(0.33, 1, 0.68, 1),
+                    onUpdate: (latest) => this.renderMenu(latest),
+                    onComplete: () => {
+                        this.renderMenu(to);
+                        if (!nextOpen) this.menu.classList.remove('is-visible');
+                    },
+                })
+            );
+
+            this.activeAnimations.push(
+                animate(from, to, {
+                    duration: 0.95,
+                    ease: cubicBezier(0.25, 0.1, 0.25, 1),
+                    onUpdate: (latest) => this.renderPath(latest),
+                    onComplete: () => this.renderPath(to),
+                })
+            );
+
+            this.animateMenuItems(nextOpen);
+        }
+
+        private setA11y(open: boolean): void {
+            this.ham.classList.toggle('is-open', open);
+            this.ham.setAttribute('aria-expanded', String(open));
+            this.ham.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+            this.menu.setAttribute('aria-hidden', String(!open));
+            this.menu.toggleAttribute('inert', !open);
+            document.body.classList.toggle('nav-menu-open', open);
+        }
+
+        private animateMenuItems(isOpening: boolean): void {
+            const from = isOpening ? 0 : 1;
+            const to = isOpening ? 1 : 0;
+
+            this.menuItems.forEach((item, index) => {
+                const delay = isOpening
+                    ? 0.1 + index * 0.07
+                    : (this.menuItems.length - 1 - index) * 0.035;
+
+                this.activeAnimations.push(
+                    animate(from, to, {
+                        duration: 0.72,
+                        delay,
+                        ease: cubicBezier(0.34, 1.56, 0.64, 1),
+                        onUpdate: (latest) => this.renderMenuItem(item, index, latest),
+                        onComplete: () => this.renderMenuItem(item, index, to),
+                    })
+                );
+            });
+        }
+
+        private renderMenuItems(progress: number): void {
+            this.menuItems.forEach((item, index) => this.renderMenuItem(item, index, progress));
+        }
+
+        private renderMenuItem(item: HTMLElement, index: number, progress: number): void {
+            const offset = this.initialOffset + (this.offsetStep * index);
+            const currentOffset = offset * (1 - progress);
+
+            item.style.opacity = String(progress);
+            item.style.transform = `translateY(${currentOffset}px)`;
+        }
+
+        private renderMenu(progress: number): void {
+            const translateY = (1 - progress) * -100;
+            this.menu.style.transform = `translateY(${translateY}%)`;
+        }
+
+        private renderPath(progress: number): void {
+            const {width, height} = this.menu.getBoundingClientRect();
+            const targetWidth = Math.max(1, width || window.innerWidth);
+            const targetHeight = Math.max(1, height || window.innerHeight);
+            const currentHeight = this.initialHeight + (targetHeight - this.initialHeight) * progress;
+            const curve = this.curveDepth * (1 - progress);
+
+            const path = `
+                M 0 0
+                L ${targetWidth} 0
+                L ${targetWidth} ${currentHeight}
+                Q ${targetWidth / 2} ${currentHeight + curve}, 0 ${currentHeight}
+                L 0 0
+                Z
+            `.trim();
+
+            this.curvePath.setAttribute('d', path);
+        }
+
+        private stopAnimations(): void {
+            this.activeAnimations.forEach((animation) => animation.stop());
+            this.activeAnimations = [];
+        }
     }
+
+    function setupNav(): void {
+        const ham = document.querySelector<HTMLButtonElement>('[data-menu-toggle]');
+        const menu = document.querySelector<HTMLDivElement>('[data-mobile-menu]');
+        const curvePath = document.querySelector<SVGPathElement>('[data-menu-curve-path]');
+
+        if (!ham || !menu || !curvePath || ham.dataset.navReady === 'true') return;
+
+        ham.dataset.navReady = 'true';
+        new TopDownMenuAnimator(ham, menu, curvePath);
+    }
+
+    setupNav();
+    document.addEventListener('astro:page-load', setupNav);
 </script>
 
 <style>
-    nav {
-        display: grid;
-        grid-template-columns: 1fr auto 1fr;
-        align-items: center;
+    .site-nav {
         font-family: "Syne", sans-serif;
-
         position: fixed;
         top: 0;
-
-        padding: 0 4%;
+        left: 0;
         width: 100%;
-        height: 10vh;
-        min-height: 64px;
-
+        height: var(--nav-height, 76px);
+        padding: 0 max(24px, 4vw);
         border-bottom: var(--border) 1px solid;
-
         z-index: 50;
-
         backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
         background: rgba(10, 10, 10, 0.7);
+    }
+
+    .site-nav__inner {
+        display: grid;
+        grid-template-columns: minmax(170px, 1fr) minmax(0, auto) minmax(170px, 1fr);
+        align-items: center;
+        gap: 24px;
+        width: min(100%, 1180px);
+        height: 100%;
+        margin: 0 auto;
     }
 
     .logo {
         display: flex;
-        flex-direction: row;
         align-items: center;
         gap: 10px;
+        min-width: 0;
+        color: var(--white);
+        text-decoration: none;
     }
 
     .logo span {
         font-family: "Syne", sans-serif;
         font-weight: 700;
         font-size: 1.2rem;
-        letter-spacing: -0.02em;
+        letter-spacing: 0;
         color: var(--white);
+        white-space: nowrap;
     }
 
     ul.links {
         display: flex;
-        flex-direction: row;
         align-items: center;
         justify-content: center;
-        gap: 35px;
-        padding: 0 2rem;
+        gap: 30px;
+        min-width: 0;
+        padding: 0 1.5rem;
         list-style: none;
         margin: 0;
     }
@@ -123,13 +301,16 @@ const links = [
         font-size: 0.78rem;
         color: var(--muted);
         text-decoration: none;
-        letter-spacing: 0.05em;
+        letter-spacing: 0;
         text-transform: uppercase;
         transition: color 0.2s;
+        white-space: nowrap;
     }
 
-    ul.links a:hover {
+    ul.links a:hover,
+    ul.links a:focus-visible {
         color: var(--tan-light);
+        outline: none;
     }
 
     .button {
@@ -138,15 +319,58 @@ const links = [
         align-items: center;
     }
 
-    /* ── Mobile ── */
-    @media (max-width: 900px) {
-        nav {
-            grid-template-columns: 1fr auto;
-            padding: 0 5%;
+    .button :global(a) {
+        letter-spacing: 0;
+        white-space: nowrap;
+    }
+
+    @media (max-width: 1120px) {
+        .site-nav {
+            padding-inline: 28px;
         }
-        .links,
+
+        .site-nav__inner {
+            grid-template-columns: minmax(155px, 1fr) minmax(0, auto) minmax(150px, 1fr);
+            gap: 18px;
+        }
+
+        ul.links {
+            gap: 20px;
+            padding-inline: 1rem;
+        }
+
+        .logo span {
+            font-size: 1.08rem;
+        }
+
+        .button :global(a) {
+            padding-inline: 16px;
+        }
+    }
+
+    @media (max-width: 1023px) {
+        .site-nav {
+            padding-inline: 24px;
+        }
+
+        .site-nav__inner {
+            grid-template-columns: 1fr auto;
+            gap: 16px;
+        }
+
+        ul.links,
         .button {
             display: none;
+        }
+    }
+
+    @media (max-width: 420px) {
+        .site-nav {
+            padding-inline: 18px;
+        }
+
+        .logo span {
+            font-size: 1rem;
         }
     }
 </style>

@@ -6,18 +6,68 @@ const lenis = new Lenis({
     syncTouch: false,    // replaces smoothTouch
 });
 
-function applyParallax() {
-    const scrollY = window.scrollY;
-    document.querySelectorAll('.parallax').forEach((el) => {
-        const speed = parseFloat(getComputedStyle(el).getPropertyValue('--parallax-speed'));
-        el.style.transform = `translateY(${scrollY * speed}px)`;
-    });
+const root = document.documentElement;
+let viewportHeight = Math.max(1, window.innerHeight);
+let lastHeroProgress = -1;
+let lastHeroUiHidden = null;
+let lastHeroComplete = null;
+let rafId = 0;
+
+function updateViewportHeight() {
+    viewportHeight = Math.max(1, window.innerHeight);
+}
+
+function updateHeroProgress() {
+    const heroProgress = Math.min(1, Math.max(0, window.scrollY / viewportHeight));
+    const heroUiHidden = heroProgress >= 2 / 3;
+    const heroComplete = heroProgress >= 1;
+
+    if (Math.abs(heroProgress - lastHeroProgress) > 0.0005) {
+        root.style.setProperty('--hero-p', heroProgress.toFixed(4));
+        lastHeroProgress = heroProgress;
+    }
+
+    if (heroUiHidden !== lastHeroUiHidden) {
+        root.style.setProperty('--hero-ui-pointer-events', heroUiHidden ? 'none' : 'auto');
+        lastHeroUiHidden = heroUiHidden;
+    }
+
+    if (heroComplete !== lastHeroComplete) {
+        root.style.setProperty('--hero-animation-state', heroComplete ? 'paused' : 'running');
+        root.style.setProperty('--hero-content-will-change', heroComplete ? 'auto' : 'opacity, transform, filter');
+        root.style.setProperty('--hero-orb-will-change', heroComplete ? 'auto' : 'opacity, transform');
+        lastHeroComplete = heroComplete;
+    }
 }
 
 function raf(time) {
     lenis.raf(time);
-    applyParallax();
-    requestAnimationFrame(raf);
+    updateHeroProgress();
+    rafId = requestAnimationFrame(raf);
 }
 
-requestAnimationFrame(raf);
+function startRaf() {
+    if (rafId) return;
+    rafId = requestAnimationFrame(raf);
+}
+
+function stopRaf() {
+    if (!rafId) return;
+    cancelAnimationFrame(rafId);
+    rafId = 0;
+}
+
+function onVisibilityChange() {
+    if (document.hidden) {
+        stopRaf();
+    } else {
+        updateViewportHeight();
+        updateHeroProgress();
+        startRaf();
+    }
+}
+
+window.addEventListener('resize', updateViewportHeight, {passive: true});
+document.addEventListener('visibilitychange', onVisibilityChange);
+updateHeroProgress();
+startRaf();
