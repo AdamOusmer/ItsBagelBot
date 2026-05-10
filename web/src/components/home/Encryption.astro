@@ -166,7 +166,8 @@
         opacity: 0;
         pointer-events: none;
         z-index: 10;
-        will-change: opacity, transform;
+        transform-origin: left center;
+        will-change: opacity, transform, filter;
         padding: 28px 32px;
     }
 
@@ -174,6 +175,7 @@
         left: auto;
         right: 6vw;
         text-align: right;
+        transform-origin: right center;
     }
 
     /* Override global `overflow-wrap: break-word` so words never split mid-letter */
@@ -274,6 +276,9 @@
     const connectors = [0, 1, 2, 3].map(i => document.getElementById(`enc-line-${i}`) as HTMLElement);
     const headingText = headings.map(el => el?.textContent ?? '');
     const SCRAMBLE_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#$%&*+-/<>[]{}';
+    const TITLE_SCRAMBLE_SPAN = 0.115;
+    const TEXT_ENTER_SPAN = 0.06;
+    const TEXT_EXIT_SPAN = 0.075;
     let destroyed = false;
     let loadObserver: IntersectionObserver | null = null;
     let initPromise: Promise<void> | null = null;
@@ -282,7 +287,7 @@
     function scrambleTitle(text: string, progress: number, seed: number) {
         const chars = Array.from(text);
         const revealCount = Math.floor(chars.length * progress);
-        const tick = Math.floor(progress * 22);
+        const tick = Math.floor(progress * 16);
 
         return chars.map((char, i) => {
             if (char === ' ' || /\W/.test(char)) return char;
@@ -740,14 +745,18 @@
                 if (!el) continue;
                 const start = i * 0.25;
                 const end = start + 0.25;
-                const fadeIn = ss(start, start + 0.05, p);
-                const fadeOut = i < 3 ? 1 - ss(end - 0.04, end + 0.01, p) : 1;
-                const alpha = Math.min(fadeIn, fadeOut);
-                const dy = (1 - Math.min(fadeIn, 1)) * 18;
+                const fadeIn = ss(start, start + TEXT_ENTER_SPAN, p);
+                const exitProgress = i < 3 ? ss(end - TEXT_EXIT_SPAN, end + 0.012, p) : 0;
+                const fadeOut = 1 - exitProgress;
+                const alpha = fadeIn * fadeOut;
+                const dy = (1 - fadeIn) * 18 - exitProgress * 26;
+                const scale = 1 - exitProgress * 0.025;
+                const blur = exitProgress * 5;
                 const lineProgress = Math.min(fadeIn, ss(start + 0.015, start + 0.11, p));
-                const titleProgress = ss(start, start + 0.075, p);
+                const titleProgress = ss(start, start + TITLE_SCRAMBLE_SPAN, p);
                 el.style.opacity = String(alpha);
-                el.style.transform = `translateY(calc(-50% + ${dy}px))`;
+                el.style.transform = `translateY(calc(-50% + ${dy}px)) scale(${scale})`;
+                el.style.filter = blur > 0.01 ? `blur(${blur}px)` : '';
                 updateNodeConnector(i, alpha, lineProgress, dy);
 
                 const heading = headings[i];
