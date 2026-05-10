@@ -1,10 +1,20 @@
 import Lenis from 'lenis';
 
+function applyVirtualScrollAssist(data) {
+    const assist = window.__encryptionScrollAssist;
+    if (typeof assist !== 'function') return true;
+
+    return assist(data) !== false;
+}
+
 const lenis = new Lenis({
     lerp: 0.1,           // replaces duration + easing (0–1, lower = smoother)
     smoothWheel: true,   // replaces smooth
     syncTouch: false,    // replaces smoothTouch
+    virtualScroll: applyVirtualScrollAssist,
 });
+
+window.lenis = lenis;
 
 const root = document.documentElement;
 let viewportHeight = Math.max(1, window.innerHeight);
@@ -71,3 +81,5 @@ window.addEventListener('resize', updateViewportHeight, {passive: true});
 document.addEventListener('visibilitychange', onVisibilityChange);
 updateHeroProgress();
 startRaf();
+
+export default lenis;

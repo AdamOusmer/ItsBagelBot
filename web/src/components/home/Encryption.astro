@@ -61,7 +61,7 @@
 <style>
     /* Override the global `section` constraints (max-width 1200px, padding) */
     .enc {
-        height: 400vh;
+        height: 850vh;
         width: 100%;
         max-width: none;
         padding: 0;
@@ -244,18 +244,40 @@
 </style>
 
 <script>
+    import lenis from '../../script/scroll.js';
+
     type Group = import('three').Group;
     type Vector3 = import('three').Vector3;
     type CatmullRomCurve3 = import('three').CatmullRomCurve3;
     type Mesh = import('three').Mesh;
     type LineSegments = import('three').LineSegments;
     type Points = import('three').Points;
+    type VirtualScrollData = { deltaX: number; deltaY: number; event: WheelEvent | TouchEvent };
+    type EncryptionScrollAssist = (data: VirtualScrollData) => boolean | void;
+    type WindowWithEncryptionAssist = Window & { __encryptionScrollAssist?: EncryptionScrollAssist };
+    type LenisController = {
+        scroll?: number;
+        targetScroll?: number;
+        velocity?: number;
+        isScrolling?: boolean | string;
+        on?: (event: 'virtual-scroll', callback: (data: VirtualScrollData) => void) => void;
+        off?: (event: 'virtual-scroll', callback: (data: VirtualScrollData) => void) => void;
+        scrollTo?: (target: number, options?: {
+            duration?: number;
+            easing?: (time: number) => number;
+            immediate?: boolean;
+            lock?: boolean;
+            userData?: Record<string, unknown>;
+            onComplete?: () => void;
+        }) => void;
+    };
 
     /* ─── helpers ────────────────────────────────────────────────── */
     const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+    const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
 
     function ss(e0: number, e1: number, x: number) {
-        const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0)));
+        const t = clamp01((x - e0) / (e1 - e0));
         return t * t * (3 - 2 * t);
     }
 
@@ -277,11 +299,117 @@
     const SCRAMBLE_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#$%&*+-/<>[]{}';
     const TITLE_SCRAMBLE_SPAN = 0.115;
     const TEXT_ENTER_SPAN = 0.06;
-    const TEXT_EXIT_SPAN = 0.075;
+    const TEXT_EXIT_SPAN = 0.045;
+    const SNAP_POINTS = [0.125, 0.375, 0.625, 0.875];
+    const SNAP_PROXIMITY = 0.09;
+    const SNAP_ACTIVE_MIN = 0.045;
+    const SNAP_ACTIVE_MAX = 0.94;
+    const SNAP_DEBOUNCE_MS = 150;
+    const SNAP_SETTLE_DELAY_MS = 70;
+    const SNAP_SETTLE_ATTEMPTS = 10;
+    const SNAP_MIN_DISTANCE_PX = 3;
+    const NODE_SLOW_RADIUS = 0.09;
+    const NODE_SLOW_MIN_MULTIPLIER = 0.78;
+    const NODE_SLOW_MAX_DELTA_PROGRESS = 0.22;
+    const NODE_SLOW_SNAP_OVERSHOOT = SNAP_PROXIMITY * 0.75;
+    const NODE_SLOW_MIN_DELTA_PX = 24;
     let destroyed = false;
     let loadObserver: IntersectionObserver | null = null;
     let initPromise: Promise<void> | null = null;
     let cleanupScene: (() => void) | null = null;
+    const scrollController = lenis as LenisController;
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const assistedWindow = window as WindowWithEncryptionAssist;
+
+    function encryptionScrollMetrics() {
+        const heroOffset = window.innerHeight;
+        const top = section.offsetTop + heroOffset;
+        const total = Math.max(1, section.offsetHeight - window.innerHeight - heroOffset);
+        return {top, total};
+    }
+
+    function encryptionTargetScrollY() {
+        const targetScroll = scrollController.targetScroll;
+        if (typeof targetScroll === 'number' && Number.isFinite(targetScroll)) return targetScroll;
+
+        const scroll = scrollController.scroll;
+        return typeof scroll === 'number' && Number.isFinite(scroll) ? scroll : window.scrollY;
+    }
+
+    function encryptionProgressFromScroll(scrollY: number) {
+        return clamp01(encryptionRawProgressFromScroll(scrollY));
+    }
+
+    function encryptionRawProgressFromScroll(scrollY: number) {
+        const {top, total} = encryptionScrollMetrics();
+        return (scrollY - top) / total;
+    }
+
+    function nearestTravelDistanceToNode(from: number, to: number) {
+        const low = Math.min(from, to);
+        const high = Math.max(from, to);
+        let distance = Number.POSITIVE_INFINITY;
+        let crossesNode = false;
+
+        for (const point of SNAP_POINTS) {
+            if (point >= low && point <= high) {
+                crossesNode = true;
+                distance = 0;
+                break;
+            }
+
+            distance = Math.min(distance, Math.abs(point - from), Math.abs(point - to));
+        }
+
+        return {crossesNode, distance};
+    }
+
+    function nextNodeInDirection(progress: number, direction: number) {
+        const currentNodeBuffer = SNAP_PROXIMITY * 0.35;
+
+        if (direction > 0) {
+            return SNAP_POINTS.find(point => point > progress + currentNodeBuffer) ?? null;
+        }
+
+        for (let i = SNAP_POINTS.length - 1; i >= 0; i--) {
+            const point = SNAP_POINTS[i];
+            if (point < progress - currentNodeBuffer) return point;
+        }
+
+        return null;
+    }
+
+    function dampEncryptionScroll(data: VirtualScrollData) {
+        const {deltaX, deltaY, event} = data;
+        if (event instanceof WheelEvent && event.ctrlKey) return true;
+        if (Math.abs(deltaY) < NODE_SLOW_MIN_DELTA_PX || Math.abs(deltaY) <= Math.abs(deltaX)) return true;
+
+        const {total} = encryptionScrollMetrics();
+        const targetScroll = encryptionTargetScrollY();
+        const from = encryptionRawProgressFromScroll(targetScroll);
+        const to = encryptionRawProgressFromScroll(targetScroll + deltaY);
+        if (Math.max(from, to) < SNAP_ACTIVE_MIN || Math.min(from, to) > SNAP_ACTIVE_MAX) return true;
+
+        const {crossesNode, distance} = nearestTravelDistanceToNode(from, to);
+        if (!crossesNode && distance > NODE_SLOW_RADIUS) return true;
+
+        const influence = crossesNode ? 1 : 1 - ss(0, NODE_SLOW_RADIUS, distance);
+        let adjustedDeltaY = deltaY * lerp(1, NODE_SLOW_MIN_MULTIPLIER, influence);
+
+        if (crossesNode) {
+            const nextNode = nextNodeInDirection(from, Math.sign(deltaY));
+            const maxProgressDelta = nextNode === null
+                ? NODE_SLOW_MAX_DELTA_PROGRESS
+                : Math.abs(nextNode - from) + NODE_SLOW_SNAP_OVERSHOOT;
+            const maxDelta = total * maxProgressDelta;
+            adjustedDeltaY = Math.sign(adjustedDeltaY) * Math.min(Math.abs(adjustedDeltaY), maxDelta);
+        }
+
+        data.deltaY = adjustedDeltaY;
+        return true;
+    }
+
+    assistedWindow.__encryptionScrollAssist = dampEncryptionScroll;
 
     function scrambleTitle(text: string, progress: number, seed: number) {
         const chars = Array.from(text);
@@ -730,14 +858,123 @@
 
         let rawP = 0;
         let curP = 0;
+        let snapTimer = 0;
+        let isSnapping = false;
 
-        function onScroll() {
+        function scrollMetrics() {
             const heroOffset = window.innerHeight;
             const top = section.offsetTop + heroOffset;
             const total = Math.max(1, section.offsetHeight - window.innerHeight - heroOffset);
-            rawP = Math.max(0, Math.min(1, (window.scrollY - top) / total));
+            return {top, total};
         }
 
+        function currentScrollY() {
+            const scroll = scrollController.scroll;
+            return typeof scroll === 'number' && Number.isFinite(scroll) ? scroll : window.scrollY;
+        }
+
+        function progressFromScroll(scrollY: number) {
+            const {top, total} = scrollMetrics();
+            return clamp01((scrollY - top) / total);
+        }
+
+        function scrollFromProgress(progress: number) {
+            const {top, total} = scrollMetrics();
+            return top + total * clamp01(progress);
+        }
+
+        function nearestSnapPoint(progress: number) {
+            if (progress < SNAP_ACTIVE_MIN || progress > SNAP_ACTIVE_MAX) return null;
+
+            let target = SNAP_POINTS[0];
+            let distance = Math.abs(progress - target);
+            for (let i = 1; i < SNAP_POINTS.length; i++) {
+                const nextDistance = Math.abs(progress - SNAP_POINTS[i]);
+                if (nextDistance < distance) {
+                    target = SNAP_POINTS[i];
+                    distance = nextDistance;
+                }
+            }
+
+            return distance <= SNAP_PROXIMITY ? target : null;
+        }
+
+        function isScrollSettled() {
+            const scroll = currentScrollY();
+            const targetScroll = scrollController.targetScroll;
+            const target = typeof targetScroll === 'number' && Number.isFinite(targetScroll) ? targetScroll : scroll;
+            const velocity = Math.abs(scrollController.velocity ?? 0);
+
+            return Math.abs(target - scroll) < 1.5 || (scrollController.isScrolling === false && velocity < 0.35);
+        }
+
+        function finishSnap() {
+            isSnapping = false;
+            rawP = progressFromScroll(currentScrollY());
+        }
+
+        function runSnap(attempt = 0) {
+            if (destroyed || isSnapping) return;
+
+            const scroll = currentScrollY();
+            const progress = progressFromScroll(scroll);
+            const snapProgress = nearestSnapPoint(progress);
+            if (snapProgress === null) return;
+
+            if (!isScrollSettled() && attempt < SNAP_SETTLE_ATTEMPTS) {
+                snapTimer = window.setTimeout(() => runSnap(attempt + 1), SNAP_SETTLE_DELAY_MS);
+                return;
+            }
+
+            const snapScroll = scrollFromProgress(snapProgress);
+            if (Math.abs(snapScroll - scroll) < SNAP_MIN_DISTANCE_PX) return;
+
+            isSnapping = true;
+            if (typeof scrollController.scrollTo === 'function') {
+                scrollController.scrollTo(snapScroll, {
+                    duration: reducedMotion.matches ? 0.01 : 0.68,
+                    easing: (t) => t * t * (3 - 2 * t),
+                    lock: false,
+                    userData: {initiator: 'encryption-aim-assist'},
+                    onComplete: finishSnap,
+                });
+            } else {
+                window.scrollTo({
+                    top: snapScroll,
+                    behavior: reducedMotion.matches ? 'auto' : 'smooth',
+                });
+                snapTimer = window.setTimeout(finishSnap, reducedMotion.matches ? 0 : 720);
+            }
+        }
+
+        function queueSnap(delay = SNAP_DEBOUNCE_MS) {
+            if (destroyed) return;
+            isSnapping = false;
+            window.clearTimeout(snapTimer);
+            snapTimer = window.setTimeout(() => runSnap(), delay);
+        }
+
+        function onVirtualScroll({event}: VirtualScrollData) {
+            if (event instanceof WheelEvent && event.ctrlKey) return;
+            queueSnap(event.type.includes('touch') ? SNAP_DEBOUNCE_MS + 90 : SNAP_DEBOUNCE_MS);
+        }
+
+        function onWheel(event: WheelEvent) {
+            if (event.ctrlKey) return;
+            queueSnap();
+        }
+
+        function onTouchEnd() {
+            queueSnap(SNAP_DEBOUNCE_MS + 90);
+        }
+
+        function onScroll() {
+            rawP = progressFromScroll(window.scrollY);
+        }
+
+        scrollController.on?.('virtual-scroll', onVirtualScroll);
+        window.addEventListener('wheel', onWheel, {passive: true});
+        window.addEventListener('touchend', onTouchEnd, {passive: true});
         window.addEventListener('scroll', onScroll, {passive: true});
         onScroll();
 
@@ -888,6 +1125,10 @@
             if (disposed) return;
             disposed = true;
 
+            window.clearTimeout(snapTimer);
+            scrollController.off?.('virtual-scroll', onVirtualScroll);
+            window.removeEventListener('wheel', onWheel);
+            window.removeEventListener('touchend', onTouchEnd);
             renderer.setAnimationLoop(null);
             window.removeEventListener('scroll', onScroll);
             window.removeEventListener('resize', resize);
@@ -949,6 +1190,9 @@
         destroyed = true;
         loadObserver?.disconnect();
         loadObserver = null;
+        if (assistedWindow.__encryptionScrollAssist === dampEncryptionScroll) {
+            delete assistedWindow.__encryptionScrollAssist;
+        }
         cleanupScene?.();
         cleanupScene = null;
         document.removeEventListener('astro:before-swap', cleanup);
