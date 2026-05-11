@@ -181,6 +181,8 @@ const classes = ["animated-button", className];
     const EASE_OUT = [0.215, 0.61, 0.355, 1] as const;
     const EASE_IN = [0.55, 0, 1, 0.45] as const;
 
+    const cleanups: Array<() => void> = [];
+
     function setupAnimatedButton(button: HTMLElement) {
         if (button.dataset.animatedButtonReady === 'true') return;
         button.dataset.animatedButtonReady = 'true';
@@ -247,10 +249,14 @@ const classes = ["animated-button", className];
 
         syncIdlePosition();
         button.addEventListener('animated-button:refresh', syncIdlePosition);
+
         window.addEventListener('resize', syncIdlePosition, {passive: true});
+        cleanups.push(() => window.removeEventListener('resize', syncIdlePosition));
+
         if ('ResizeObserver' in window) {
             const resizeObserver = new ResizeObserver(syncIdlePosition);
             resizeObserver.observe(button);
+            cleanups.push(() => resizeObserver.disconnect());
         }
 
         button.addEventListener('pointerenter', () => setActive(true));
@@ -262,6 +268,11 @@ const classes = ["animated-button", className];
     function setupAnimatedButtons() {
         document.querySelectorAll<HTMLElement>('[data-animated-button]').forEach(setupAnimatedButton);
     }
+
+    document.addEventListener('astro:before-preparation', () => {
+        cleanups.forEach(fn => fn());
+        cleanups.length = 0;
+    });
 
     setupAnimatedButtons();
     document.addEventListener('astro:page-load', setupAnimatedButtons);

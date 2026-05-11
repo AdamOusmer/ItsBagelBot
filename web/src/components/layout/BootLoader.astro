@@ -223,6 +223,7 @@ import Brackets from '../ui/Brackets.astro';
 <script>
     import * as THREE from 'three';
     import {animate, cubicBezier, stagger} from 'motion';
+    import {buildEncryptionGeometryData} from '../../script/encryption-geometry.js';
 
     type LoaderScene = {
         destroy: () => void;
@@ -238,6 +239,8 @@ import Brackets from '../ui/Brackets.astro';
         lineVertexTotal: number;
     };
 
+    type EncryptionGeometryData = ReturnType<typeof buildEncryptionGeometryData>;
+
     type LoaderWindow = Window & {
         lenis?: {
             scrollTo?: (target: number, options?: { immediate?: boolean; duration?: number }) => void;
@@ -245,6 +248,7 @@ import Brackets from '../ui/Brackets.astro';
         __itsbagelbotPreload?: {
             bootComplete?: boolean;
             preloadEncryption?: () => Promise<void>;
+            encryptionData?: EncryptionGeometryData;
         };
     };
 
@@ -324,6 +328,18 @@ import Brackets from '../ui/Brackets.astro';
 
         if (attempt >= 10) return;
         window.setTimeout(() => warmEncryptionScene(attempt + 1), 160);
+    }
+
+    function prebuildEncryptionScene() {
+        const preload = ((window as LoaderWindow).__itsbagelbotPreload ??= {});
+        if (preload.encryptionData) return;
+
+        try {
+            const isCompact = window.matchMedia('(max-width: 900px)').matches;
+            preload.encryptionData = buildEncryptionGeometryData(THREE, {isCompact});
+        } catch (error) {
+            console.warn('Encryption geometry prebuild failed.', error);
+        }
     }
 
     function resetScrollToTop() {
@@ -771,7 +787,11 @@ import Brackets from '../ui/Brackets.astro';
         scheduleWarmupTask(() => {
             if (transitionStarted || conservativeWarmup) return;
             warmEncryptionScene();
-        }, reducedMotion ? 480 : 820);
+        }, 80);
+        scheduleWarmupTask(() => {
+            if (transitionStarted || conservativeWarmup) return;
+            prebuildEncryptionScene();
+        }, reducedMotion ? 240 : 480);
 
         const preventScroll = (event: Event) => event.preventDefault();
         document.body.classList.add('loader-active');

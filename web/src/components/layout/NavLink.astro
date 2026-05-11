@@ -1,0 +1,212 @@
+---
+interface Props {
+    href: string;
+    label: string;
+}
+
+const { href, label } = Astro.props;
+const glyphs = Array.from(label);
+---
+
+<a class="nav-link-motion" href={href} aria-label={label}>
+    <span class="nav-link-motion__mask" aria-hidden="true">
+        <span class="nav-link-motion__line nav-link-motion__line--rest">
+            {glyphs.map((glyph, index) => (
+                <span class="nav-link-motion__glyph" style={`--glyph-index: ${index};`}>{glyph}</span>
+            ))}
+        </span>
+        <span class="nav-link-motion__line nav-link-motion__line--active">
+            {glyphs.map((glyph, index) => (
+                <span class="nav-link-motion__glyph" style={`--glyph-index: ${index};`}>{glyph}</span>
+            ))}
+        </span>
+    </span>
+</a>
+
+<style>
+    .nav-link-motion {
+        --nav-link-text: var(--muted, #888077);
+        --nav-link-text-active: var(--white, #f0ece4);
+        --nav-link-green: var(--green-glow, #52b788);
+        --nav-link-shift: 1.22em;
+
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 32px;
+        padding: 0.42rem 0.08rem;
+        color: var(--nav-link-text);
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.78rem;
+        font-weight: 500;
+        line-height: 1;
+        letter-spacing: 0;
+        text-decoration: none;
+        text-transform: uppercase;
+        white-space: nowrap;
+        outline: none;
+        isolation: isolate;
+    }
+
+    .nav-link-motion::before,
+    .nav-link-motion::after {
+        content: "";
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0.28rem;
+        height: 1px;
+        pointer-events: none;
+    }
+
+    .nav-link-motion::before {
+        background: linear-gradient(
+            90deg,
+            transparent,
+            rgba(224, 196, 154, 0.15),
+            rgba(224, 196, 154, 0.78),
+            rgba(82, 183, 136, 0.54),
+            transparent
+        );
+        opacity: 0;
+        transform: scaleX(0.18);
+        transform-origin: center;
+    }
+
+    .nav-link-motion::after {
+        background: linear-gradient(90deg, transparent, rgba(240, 236, 228, 0.86), transparent);
+        opacity: 0;
+        transform: translateX(-95%) scaleX(0.22);
+    }
+
+    .nav-link-motion__mask {
+        position: relative;
+        display: block;
+        height: 1.12em;
+        overflow: hidden;
+        text-shadow:
+            0 3px 12px rgba(0, 0, 0, 0.9),
+            0 0 18px rgba(224, 196, 154, 0.18);
+    }
+
+    .nav-link-motion__line {
+        display: inline-flex;
+        align-items: baseline;
+        color: inherit;
+    }
+
+    .nav-link-motion__line--active {
+        position: absolute;
+        inset: 0 auto auto 0;
+        color: var(--nav-link-text-active);
+        text-shadow:
+            0 3px 12px rgba(0, 0, 0, 0.9),
+            0 0 18px rgba(224, 196, 154, 0.34),
+            0 0 26px rgba(82, 183, 136, 0.18);
+    }
+
+    .nav-link-motion__glyph {
+        display: inline-block;
+        transform: translateY(0);
+    }
+
+    .nav-link-motion__line--active .nav-link-motion__glyph {
+        opacity: 0.4;
+        transform: translateY(var(--nav-link-shift)) rotate(3deg);
+    }
+
+    .nav-link-motion:focus-visible {
+        outline: 1px solid rgba(224, 196, 154, 0.58);
+        outline-offset: 6px;
+    }
+
+    @media (min-width: 1024px) and (hover: hover) and (pointer: fine) {
+        .nav-link-motion {
+            transition: color 180ms ease;
+        }
+
+        .nav-link-motion::before {
+            transition:
+                opacity 260ms ease,
+                transform 620ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+        }
+
+        .nav-link-motion__glyph {
+            transition:
+                opacity 280ms ease,
+                transform 420ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+            transition-delay: calc(var(--glyph-index) * 16ms);
+            will-change: transform, opacity;
+        }
+
+        .nav-link-motion:is(:hover, :focus-visible) {
+            color: var(--nav-link-text-active);
+        }
+
+        .nav-link-motion:is(:hover, :focus-visible)::before {
+            opacity: 1;
+            transform: scaleX(1);
+        }
+
+        .nav-link-motion:is(:hover, :focus-visible)::after {
+            animation: nav-link-trace 720ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)) both;
+        }
+
+        .nav-link-motion:is(:hover, :focus-visible) .nav-link-motion__line--rest .nav-link-motion__glyph {
+            opacity: 0.32;
+            transform: translateY(calc(var(--nav-link-shift) * -1)) rotate(-3deg);
+        }
+
+        .nav-link-motion:is(:hover, :focus-visible) .nav-link-motion__line--active .nav-link-motion__glyph {
+            opacity: 1;
+            transform: translateY(0) rotate(0deg);
+            transition-delay: calc(72ms + (var(--glyph-index) * 18ms));
+        }
+    }
+
+    @media (min-width: 1024px) and (prefers-reduced-motion: reduce) {
+        .nav-link-motion,
+        .nav-link-motion::before,
+        .nav-link-motion::after,
+        .nav-link-motion__glyph {
+            animation: none;
+            transition: none;
+        }
+
+        .nav-link-motion::after,
+        .nav-link-motion__line--active {
+            display: none;
+        }
+
+        .nav-link-motion:is(:hover, :focus-visible) {
+            color: var(--nav-link-text-active);
+        }
+
+        .nav-link-motion:is(:hover, :focus-visible)::before {
+            opacity: 1;
+            transform: scaleX(1);
+        }
+
+        .nav-link-motion:is(:hover, :focus-visible) .nav-link-motion__line--rest .nav-link-motion__glyph {
+            opacity: 1;
+            transform: none;
+        }
+    }
+
+    @keyframes nav-link-trace {
+        0% {
+            opacity: 0;
+            transform: translateX(-95%) scaleX(0.18);
+        }
+
+        34% {
+            opacity: 0.8;
+        }
+
+        100% {
+            opacity: 0;
+            transform: translateX(95%) scaleX(0.34);
+        }
+    }
+</style>
