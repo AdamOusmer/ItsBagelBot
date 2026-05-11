@@ -11,7 +11,7 @@ const { href, label } = Astro.props;
 
 <style>
     a {
-        font-family: "DM Mono", monospace;
+        font-family: var(--font-mono, "DM Mono", monospace);
         font-size: 0.78rem;
         padding: 10px 22px;
         background: transparent;

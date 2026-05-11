@@ -5,6 +5,7 @@ import {Image} from "astro:assets";
 import Button     from '../ui/Buttons/SecondaryButton.astro';
 import Hamburger  from '../ui/Hamburger.astro';
 import MobileMenu from './MobileMenu.astro';
+import NavLink    from './NavLink.astro';
 
 const links = [
     { href: "#features", label: "Features" },
@@ -25,7 +26,7 @@ const cta = { href: "#", label: "Add to Twitch" };
 
         <ul class="links" aria-label="Primary navigation">
             {links.map((link) => (
-                <li><a href={link.href}>{link.label}</a></li>
+                <li><NavLink href={link.href} label={link.label}/></li>
             ))}
         </ul>
 
@@ -276,7 +277,7 @@ const cta = { href: "#", label: "Add to Twitch" };
 
 <style>
     .site-nav {
-        font-family: "Syne", sans-serif;
+        font-family: var(--font-display, "Syne", sans-serif);
         position: fixed;
         top: 0;
         left: 0;
@@ -310,7 +311,7 @@ const cta = { href: "#", label: "Add to Twitch" };
     }
 
     .logo span {
-        font-family: "Syne", sans-serif;
+        font-family: var(--font-display, "Syne", sans-serif);
         font-weight: 700;
         font-size: 1.2rem;
         letter-spacing: 0;
@@ -329,21 +330,9 @@ const cta = { href: "#", label: "Add to Twitch" };
         margin: 0;
     }
 
-    ul.links a {
-        font-family: "DM Mono", monospace;
-        font-size: 0.78rem;
-        color: var(--muted);
-        text-decoration: none;
-        letter-spacing: 0;
-        text-transform: uppercase;
-        transition: color 0.2s;
-        white-space: nowrap;
-    }
-
-    ul.links a:hover,
-    ul.links a:focus-visible {
-        color: var(--tan-light);
-        outline: none;
+    ul.links li {
+        display: flex;
+        align-items: center;
     }
 
     .button {
