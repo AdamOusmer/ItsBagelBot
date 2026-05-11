@@ -55,14 +55,6 @@
             </div>
         </a>
 
-    <!--
-    <div class="actions">
-        <MainButton href="#get-started" label="Get Started for Free"/>
-        <SecondaryButton href="#how" label="See how it works"/>
-    </div>
-
-    -->
-
         <div class="badges">
 
             <span>Privacy-First</span>
@@ -354,7 +346,7 @@
     }
 
     .badges span {
-        font-family: "DM Mono", monospace;
+        font-family: var(--font-mono, "DM Mono", monospace);
         font-size: 0.7rem;
         letter-spacing: 0.1em;
         text-transform: uppercase;
@@ -379,17 +371,6 @@
         50% {
             opacity: 0.30;
             transform: scale(0.75);
-        }
-    }
-
-    @keyframes scrollPulse {
-        0%, 100% {
-            opacity: 0.4;
-            transform: scaleY(1);
-        }
-        50% {
-            opacity: 1;
-            transform: scaleY(1.2);
         }
     }
 

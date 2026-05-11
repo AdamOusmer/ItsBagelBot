@@ -245,13 +245,18 @@
 
 <script>
     import lenis from '../../script/scroll.js';
+    import {
+        buildEncryptionGeometryData,
+        FLOW_CURVE_SAMPLES,
+        N_NODES,
+    } from '../../script/encryption-geometry.js';
 
     type Group = import('three').Group;
     type Vector3 = import('three').Vector3;
-    type CatmullRomCurve3 = import('three').CatmullRomCurve3;
     type Mesh = import('three').Mesh;
     type LineSegments = import('three').LineSegments;
     type Points = import('three').Points;
+    type EncryptionGeometryData = ReturnType<typeof buildEncryptionGeometryData>;
     type VirtualScrollData = { deltaX: number; deltaY: number; event: WheelEvent | TouchEvent };
     type EncryptionScrollAssist = (data: VirtualScrollData) => boolean | void;
     type WindowWithEncryptionAssist = Window & {
@@ -259,6 +264,7 @@
         __itsbagelbotPreload?: {
             bootComplete?: boolean;
             preloadEncryption?: () => Promise<void>;
+            encryptionData?: EncryptionGeometryData;
         };
     };
     type LenisController = {
@@ -480,22 +486,25 @@
             IcosahedronGeometry, SphereGeometry, OctahedronGeometry,
             TetrahedronGeometry, DodecahedronGeometry, BufferGeometry,
             WireframeGeometry, EdgesGeometry,
-            Vector3, Vector2, CatmullRomCurve3, BufferAttribute, Timer,
+            Vector3, Vector2, BufferAttribute, Timer,
             ACESFilmicToneMapping, SRGBColorSpace, AdditiveBlending, HalfFloatType
         } = three;
 
         const mediaQuery = window.matchMedia('(max-width: 900px)');
         const isCompact = mediaQuery.matches;
         const maxPixelRatio = isCompact ? 1.25 : 1.5;
-        const nodeCurveSegments = 32;
-        const interCurveSegments = 24;
-        const flowCurveSamples = 32;
         const ringSegments = 72;
+
+        let geometryData = preloadRegistry.encryptionData;
+        if (!geometryData || geometryData.isCompact !== isCompact) {
+            geometryData = buildEncryptionGeometryData(three, {isCompact});
+            preloadRegistry.encryptionData = geometryData;
+        }
 
         /* ─── renderer (transparent) ─────────────────────────────── */
         const renderer = new WebGLRenderer({
             canvas,
-            antialias: true,
+            antialias: false,
             alpha: true,
             powerPreference: 'high-performance',
             outputBufferType: HalfFloatType,
@@ -543,11 +552,7 @@
             new MeshBasicMaterial({color: LIGHT}),
         ));
 
-        /* ─── satellite nodes (fibonacci sphere) ─────────────────── */
-        const N_NODES = 14;
-        const NODE_R = 4.2;
-        const nodes: { group: Group; pos: Vector3 }[] = [];
-
+        /* ─── satellite nodes (fibonacci sphere — positions prebuilt) */
         const NODE_GEOS = [
             new OctahedronGeometry(0.30, 0),
             new TetrahedronGeometry(0.32, 0),
@@ -557,13 +562,12 @@
         const NODE_WIRES = NODE_GEOS.map(g => new WireframeGeometry(g));
         const NODE_DOT_GEO = new SphereGeometry(0.05, 6, 6);
 
+        const nodes: { group: Group; pos: Vector3 }[] = [];
         for (let i = 0; i < N_NODES; i++) {
-            const phi = Math.acos(1 - 2 * (i + 0.5) / N_NODES);
-            const theta = Math.PI * (1 + Math.sqrt(5)) * i;
             const pos = new Vector3(
-                NODE_R * Math.cos(theta) * Math.sin(phi),
-                NODE_R * Math.sin(theta) * Math.sin(phi),
-                NODE_R * Math.cos(phi),
+                geometryData.nodePositions[i * 3],
+                geometryData.nodePositions[i * 3 + 1],
+                geometryData.nodePositions[i * 3 + 2],
             );
 
             const g = new Group();
@@ -579,76 +583,20 @@
             nodes.push({group: g, pos});
         }
 
-        /* ─── connections ────────────────────────────────────────── */
-        type Conn = { curve: CatmullRomCurve3 };
-        const conns: Conn[] = [];
-        const nodeConnectionPoints: Vector3[] = [];
-        const interConnectionPoints: Vector3[] = [];
+        /* ─── connections (prebuilt segment buffers) ─────────────── */
+        const nodeConnGeo = new BufferGeometry();
+        nodeConnGeo.setAttribute('position', new BufferAttribute(geometryData.nodeConnectionPoints, 3));
+        world.add(new LineSegments(nodeConnGeo, matConnNode));
 
-        function appendCurveSegments(curve: CatmullRomCurve3, target: Vector3[], segments: number) {
-            const points = curve.getPoints(segments);
-            for (let i = 0; i < points.length - 1; i++) {
-                target.push(points[i], points[i + 1]);
-            }
-        }
+        const interConnGeo = new BufferGeometry();
+        interConnGeo.setAttribute('position', new BufferAttribute(geometryData.interConnectionPoints, 3));
+        world.add(new LineSegments(interConnGeo, matConnInter));
 
-        nodes.forEach(({pos}, i) => {
-            const mid = pos.clone().multiplyScalar(0.5);
-            const a = (i / N_NODES) * Math.PI * 2;
-            mid.x += Math.cos(a) * 0.6;
-            mid.y += Math.sin(a) * 0.6;
-            mid.z += Math.cos(a + 1.3) * 0.6;
-            const curve = new CatmullRomCurve3([pos.clone(), mid, new Vector3()], false, 'catmullrom', 0.5);
-            appendCurveSegments(curve, nodeConnectionPoints, nodeCurveSegments);
-            conns.push({curve});
-        });
-
-        [3, 7].forEach((step) => {
-            for (let i = 0; i < N_NODES; i += 3) {
-                const a = nodes[i].pos;
-                const b = nodes[(i + step) % N_NODES].pos;
-                const mid = new Vector3().addVectors(a, b).multiplyScalar(0.35);
-                const curve = new CatmullRomCurve3([a.clone(), mid, b.clone()]);
-                appendCurveSegments(curve, interConnectionPoints, interCurveSegments);
-                conns.push({curve});
-            }
-        });
-
-        world.add(new LineSegments(
-            new BufferGeometry().setFromPoints(nodeConnectionPoints),
-            matConnNode,
-        ));
-        world.add(new LineSegments(
-            new BufferGeometry().setFromPoints(interConnectionPoints),
-            matConnInter,
-        ));
-
-        /* ─── flowing particles on connections ──────────────────── */
-        const PER_CONN = isCompact ? 3 : 4;
-        const curveSampleSets = conns.map(({curve}) => {
-            const samples = new Float32Array((flowCurveSamples + 1) * 3);
-            const point = new Vector3();
-            for (let i = 0; i <= flowCurveSamples; i++) {
-                curve.getPoint(i / flowCurveSamples, point);
-                const offset = i * 3;
-                samples[offset] = point.x;
-                samples[offset + 1] = point.y;
-                samples[offset + 2] = point.z;
-            }
-            return samples;
-        });
-        const partSamples: Float32Array[] = [];
-        const partT = new Float32Array(conns.length * PER_CONN);
-        const partSpeed = new Float32Array(conns.length * PER_CONN);
-        let partCount = 0;
-        curveSampleSets.forEach((samples, ci) => {
-            for (let i = 0; i < PER_CONN; i++) {
-                partSamples[partCount] = samples;
-                partT[partCount] = i / PER_CONN;
-                partSpeed[partCount] = 0.06 + ((ci + i) % 4) * 0.022;
-                partCount++;
-            }
-        });
+        /* ─── flowing particles on connections (sample sets prebuilt) */
+        const partCount = geometryData.flowCount;
+        const partSamples = geometryData.flowSamples;
+        const partSpeed = geometryData.flowSpeed;
+        const partT = new Float32Array(geometryData.flowT); // copy: mutated each frame
 
         const partGeo = new BufferGeometry();
         const partPos = new Float32Array(partCount * 3);
@@ -659,18 +607,9 @@
             sizeAttenuation: true, depthWrite: false, blending: AdditiveBlending,
         })));
 
-        /* ─── ambient particle field ─────────────────────────────── */
-        const N_BG = isCompact ? 320 : 600;
-        const bgPos = new Float32Array(N_BG * 3);
-        const bgVel = new Float32Array(N_BG * 3);
-        for (let i = 0; i < N_BG; i++) {
-            bgPos[i * 3] = (Math.random() - 0.5) * 28;
-            bgPos[i * 3 + 1] = (Math.random() - 0.5) * 28;
-            bgPos[i * 3 + 2] = (Math.random() - 0.5) * 28;
-            bgVel[i * 3] = (Math.random() - 0.5) * 0.004;
-            bgVel[i * 3 + 1] = (Math.random() - 0.5) * 0.004;
-            bgVel[i * 3 + 2] = (Math.random() - 0.5) * 0.004;
-        }
+        /* ─── ambient particle field (initial state prebuilt) ────── */
+        const bgPos = new Float32Array(geometryData.bgPositions); // copy: positions integrate each frame
+        const bgVel = new Float32Array(geometryData.bgVelocities); // copy: velocities flip on bounce
         const bgGeo = new BufferGeometry();
         const bgPositionAttr = new BufferAttribute(bgPos, 3);
         bgGeo.setAttribute('position', bgPositionAttr);
@@ -852,12 +791,24 @@
             };
         }
 
+        const connectorVarCache: Array<Record<string, string>> = connectors.map(() => ({}));
+        const headingCharLengths = headingText.map((text) => Array.from(text).length);
+        const SCRAMBLE_ORIGINAL = -1;
+        const headingScrambleState: number[] = headings.map(() => SCRAMBLE_ORIGINAL - 1);
+
+        function setConnectorVar(index: number, name: string, value: string) {
+            const cache = connectorVarCache[index];
+            if (cache[name] === value) return;
+            connectors[index].style.setProperty(name, value);
+            cache[name] = value;
+        }
+
         function updateNodeConnector(i: number, alpha: number, progress: number, dy: number) {
             const connector = connectors[i];
             const layout = connectorLayouts[i];
             if (!connector || !layout || alpha <= 0.01 || progress <= 0.001) {
                 if (connector && connectorVisible[i]) {
-                    connector.style.setProperty('--line-alpha', '0');
+                    setConnectorVar(i, '--line-alpha', '0');
                     connectorVisible[i] = false;
                 }
                 return;
@@ -877,18 +828,18 @@
             const flatProgress = Math.max(0, Math.min(1, (progress - 0.35) / 0.65));
             const depthAlpha = node.z < -1 || node.z > 1 ? 0.25 : 1;
 
-            connector.style.setProperty('--line-alpha', String(alpha * depthAlpha));
-            connector.style.setProperty('--node-x', `${node.x}px`);
-            connector.style.setProperty('--node-y', `${node.y}px`);
-            connector.style.setProperty('--elbow-x', `${elbowX}px`);
-            connector.style.setProperty('--elbow-y', `${lineY}px`);
-            connector.style.setProperty('--diag-len', `${diagLen}px`);
-            connector.style.setProperty('--diag-angle', `${Math.atan2(dyLine, dx)}rad`);
-            connector.style.setProperty('--diag-progress', String(diagProgress));
-            connector.style.setProperty('--flat-len', `${layout.flatLen}px`);
-            connector.style.setProperty('--flat-angle', `${flatAngle}rad`);
-            connector.style.setProperty('--flat-progress', String(flatProgress));
-            connector.style.setProperty('--node-scale', String(Math.min(1, progress * 2)));
+            setConnectorVar(i, '--line-alpha', String(alpha * depthAlpha));
+            setConnectorVar(i, '--node-x', `${node.x}px`);
+            setConnectorVar(i, '--node-y', `${node.y}px`);
+            setConnectorVar(i, '--elbow-x', `${elbowX}px`);
+            setConnectorVar(i, '--elbow-y', `${lineY}px`);
+            setConnectorVar(i, '--diag-len', `${diagLen}px`);
+            setConnectorVar(i, '--diag-angle', `${Math.atan2(dyLine, dx)}rad`);
+            setConnectorVar(i, '--diag-progress', String(diagProgress));
+            setConnectorVar(i, '--flat-len', `${layout.flatLen}px`);
+            setConnectorVar(i, '--flat-angle', `${flatAngle}rad`);
+            setConnectorVar(i, '--flat-progress', String(flatProgress));
+            setConnectorVar(i, '--node-scale', String(Math.min(1, progress * 2)));
         }
 
         let rawP = 0;
@@ -1071,7 +1022,7 @@
                 if (u >= 1) u -= 1;
                 partT[i] = u;
                 const samples = partSamples[i];
-                const samplePosition = u * flowCurveSamples;
+                const samplePosition = u * FLOW_CURVE_SAMPLES;
                 const sampleIndex = samplePosition | 0;
                 const mix = samplePosition - sampleIndex;
                 const base = sampleIndex * 3;
@@ -1126,9 +1077,16 @@
                 if (!heading) continue;
 
                 if (alpha > 0.01 && titleProgress < 1) {
-                    heading.textContent = scrambleTitle(original, titleProgress, i);
-                } else if (heading.textContent !== original) {
+                    const revealCount = Math.floor(headingCharLengths[i] * titleProgress);
+                    const tick = Math.floor(titleProgress * 16);
+                    const state = revealCount * 32 + tick;
+                    if (state !== headingScrambleState[i]) {
+                        heading.textContent = scrambleTitle(original, titleProgress, i);
+                        headingScrambleState[i] = state;
+                    }
+                } else if (headingScrambleState[i] !== SCRAMBLE_ORIGINAL) {
                     heading.textContent = original;
+                    headingScrambleState[i] = SCRAMBLE_ORIGINAL;
                 }
             }
         }
