@@ -1,6 +1,6 @@
 # PROPRIETARY LICENSE AGREEMENT
 
-**Copyright (c) 2026 ItsMavey** **All Rights Reserved.**
+**Copyright (c) 2026 Adam Ousmer** **All Rights Reserved.**
 
 ### 1. NO LICENSE GRANTED
 The software in this repository is **proprietary and confidential**.  
@@ -21,12 +21,12 @@ For the avoidance of doubt, you are **strictly prohibited** from taking any of t
 
 ### 4. DISCLAIMER
 This software is provided "as is", without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, and non-infringement.
-In no event shall the author (ItsMavey) be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the software or the use or other dealings in the software.
+In no event shall the author (Adam Ousmer) be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the software or the use or other dealings in the software.
 
 ### 5. THIRD PARTY RIGHTS & ACKNOWLEDGEMENTS
 
-**A. Third Party Software** This software includes or utilizes code from third parties (e.g., Go standard library, Google UUID, Tink Crypto). The ownership and license terms of those third-party components are governed by their respective authors and licenses (e.g., Apache 2.0, BSD, MIT). The restrictive terms of this LICENSE AGREEMENT apply only to the original code written by the author (ItsMavey) and do not impose restrictions on the original third-party components when used independently.
+**A. Third Party Software** This software includes or utilizes code from third parties (e.g., Go standard library, Google UUID, Tink Crypto). The ownership and license terms of those third-party components are governed by their respective authors and licenses (e.g., Apache 2.0, BSD, MIT). The restrictive terms of this LICENSE AGREEMENT apply only to the original code written by the author (Adam Ousmer) and do not impose restrictions on the original third-party components when used independently.
 
 **B. External Services (Twitch)** This software is designed to interface with the Twitch Application Programming Interfaces (APIs).
 * **Twitch:** Use of Twitch data and APIs is subject to the [Twitch Developer Services Agreement](https://www.twitch.tv/p/en/legal/developer-agreement/).
-The author (ItsMavey) claims no ownership over the data, trademarks, or intellectual property associated with Twitch Interactive, Inc.
+The author (Adam Ousmer) claims no ownership over the data, trademarks, or intellectual property associated with Twitch Interactive, Inc.

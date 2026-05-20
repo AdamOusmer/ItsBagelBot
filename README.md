@@ -1,14 +1,14 @@
-[forks-shield]: https://img.shields.io/github/forks/ItsMavey/ItsBagelBot.svg?style=for-the-badge
+[forks-shield]: https://img.shields.io/github/forks/AdamOusmer/ItsBagelBot.svg?style=for-the-badge
 
-[forks-url]: https://github.com/ItsMavey/ItsBagelBot/network/members
+[forks-url]: https://github.com/AdamOusmer/ItsBagelBot/network/members
 
-[stars-shield]: https://img.shields.io/github/stars/ItsMavey/ItsBagelBot.svg?style=for-the-badge
+[stars-shield]: https://img.shields.io/github/stars/AdamOusmer/ItsBagelBot.svg?style=for-the-badge
 
-[stars-url]: https://github.com/ItsMavey/ItsBagelBot/stargazers
+[stars-url]: https://github.com/AdamOusmer/ItsBagelBot/stargazers
 
-[issues-shield]: https://img.shields.io/github/issues/ItsMavey/ItsBagelBot.svg?style=for-the-badge
+[issues-shield]: https://img.shields.io/github/issues/AdamOusmer/ItsBagelBot.svg?style=for-the-badge
 
-[issues-url]: https://github.com/ItsMavey/ItsBagelBot/issues
+[issues-url]: https://github.com/AdamOusmer/ItsBagelBot/issues
 
 [license-shield]: https://img.shields.io/badge/License-Proprietary-red.svg?style=for-the-badge
 
@@ -23,7 +23,7 @@
 [![Issues][issues-shield]][issues-url]
 [![Personal][license-shield]][license-url]
 
-  <a href="https://github.com/ItsMavey/ItsBagelBot">
+  <a href="https://github.com/AdamOusmer/ItsBagelBot">
     <img src=".github/assets/logo.png" alt="Logo" width="200" height="200">
   </a>
 
@@ -35,11 +35,11 @@
     Because a monolith wasn't complicated enough.
     <br />
     <br />
-    <a href="https://github.com/ItsMavey/ItsBagelBot"><strong>Explore the docs »</strong></a>
+    <a href="https://github.com/AdamOusmer/ItsBagelBot"><strong>Explore the docs »</strong></a>
     <br />
-    <a href="https://github.com/ItsMavey/ItsBagelBot/issues/new?labels=bug&template=bug-report---.md">Report Bug</a>
+    <a href="https://github.com/AdamOusmer/ItsBagelBot/issues/new?labels=bug&template=bug-report---.md">Report Bug</a>
     &middot;
-    <a href="https://github.com/ItsMavey/ItsBagelBot/issues/new?labels=enhancement&template=feature-request---.md">Request Feature</a>
+    <a href="https://github.com/AdamOusmer/ItsBagelBot/issues/new?labels=enhancement&template=feature-request---.md">Request Feature</a>
     <br />
     <br />
     </p>
@@ -50,8 +50,8 @@
 
 <br />
 
-[![Email](https://img.shields.io/badge/contact%40itsmavey.com-D14836?style=for-the-badge&logo=gmail&logoColor=white)](mailto:contact@itsmavey.com)
-[![GitHub](https://img.shields.io/badge/ItsMavey-%23121011.svg?style=for-the-badge&logo=github&logoColor=white)](https://github.com/ItsMavey)
+[![Email](https://img.shields.io/badge/contact%40adam--ousmer.dev-D14836?style=for-the-badge&logo=gmail&logoColor=white)](mailto:contact@adam-ousmer.dev)
+[![GitHub](https://img.shields.io/badge/AdamOusmer-%23121011.svg?style=for-the-badge&logo=github&logoColor=white)](https://github.com/AdamOusmer)
 
 
 </div>
@@ -179,8 +179,8 @@ Cloudflare is used for DNS management and DDoS protection.
 
 This project exists thanks to the people who contribute.
 
-<a href="https://github.com/ItsMavey/ItsBagelBot/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=ItsMavey/ItsBagelBot" />
+<a href="https://github.com/AdamOusmer/ItsBagelBot/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=AdamOusmer/ItsBagelBot" />
 </a>
 
 ***
@@ -190,7 +190,7 @@ This project exists thanks to the people who contribute.
 If you have suggestions for how ItsBagelBot could be improved, or want to report a bug, please open an issue! I'd love
 to hear your ideas and help you fix any problems.
 
-For contributing code, please contact me directly at [contact@itsmavey.com](mailto:contact@itsmavey.com) before making
+For contributing code, please contact me directly at [contact@adam-ousmer.dev](mailto:contact@adam-ousmer.dev) before making
 any changes or submitting a pull request.
 
 ***
@@ -203,7 +203,7 @@ This project is licensed under the Proprietary License Agreement - see the [LICE
 
 ## Contact
 
-ItsMavey - [GitHub](https://github.com/ItsMavey) - [Email](mailto:contact@itsmavey.com)
+Adam Ousmer - [GitHub](https://github.com/adam-ousmer.dev) - [Email](mailto:contact@adam-ousmer.dev)
 
 ***
 
