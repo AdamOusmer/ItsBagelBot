@@ -1,0 +1,23 @@
+---
+import Default from '@astrojs/starlight/components/SkipLink.astro';
+
+const { entry } = Astro.locals.starlightRoute;
+const isSplash = entry.data.template === 'splash';
+---
+
+<Default><slot /></Default>
+
+{
+    /*
+      Decoration (orbs + noise overlay) is restricted to splash pages.
+      Doc pages stay clean — no fixed-position visuals competing with
+      the content.
+    */
+    isSplash && (
+        <div class="bb-decoration" aria-hidden="true" data-astro-transition-persist="bb-decoration">
+            <div class="bb-orb bb-orb-1" />
+            <div class="bb-orb bb-orb-2" />
+            <div class="bb-noise" />
+        </div>
+    )
+}
