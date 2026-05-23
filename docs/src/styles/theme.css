@@ -1,0 +1,1485 @@
+/* ──────────────────────────────────────────────────────────────────
+   ItsBagelBot — Starlight Theme
+   Mirrors the web/ marketing site palette:
+   warm dark background, tan/gold primary accent, green secondary,
+   off-white text, Syne display + DM Sans body + DM Mono code.
+   ────────────────────────────────────────────────────────────────── */
+
+@import url("https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Syne:wght@500;600;700;800&display=swap");
+
+/* ════════════════════════════════════════════════════════════════════
+   Design tokens — every color the theme uses lives here.
+   ════════════════════════════════════════════════════════════════════
+
+   Naming convention:
+     --bb-<role>            solid hex
+     --bb-<role>-rgb        comma-separated RGB triplet for alpha math
+                            via `rgb(var(--bb-<role>-rgb) / 0.15)`
+
+   Rule of thumb: any color literal anywhere else in this file should
+   resolve to one of these tokens. If you need a one-off alpha,
+   compose it from a *-rgb token. Pure black (shadow) is its own
+   token below.
+   ──────────────────────────────────────────────────────────────────── */
+:root {
+    /* ── Surfaces (warm darks) ──────────────────────────────────── */
+    --bb-black: #0a0a0a;          /* page bg */
+    --bb-mermaid-panel: #0d0c0a;  /* dark mermaid panel + sidebar bg */
+    --bb-card-bg: #111110;        /* cards / panels */
+    --bb-mermaid-cluster: #15201b; /* mermaid subgraph fill */
+    --bb-elev-1: #16140f;
+    --bb-elev-2: #1d1a14;          /* edge-label pill bg */
+
+    /* ── Brand greens ───────────────────────────────────────────── */
+    --bb-green: #2d6a4f;
+    --bb-green-light: #40916c;
+    --bb-green-glow: #52b788;
+
+    /* ── Brand tans ─────────────────────────────────────────────── */
+    --bb-tan: #c9a87c;
+    --bb-tan-light: #e0c49a;
+    --bb-tan-pale: #f5e6cf;
+
+    /* ── Darker tans (used heavily in light-mode hovers/accents) ── */
+    --bb-tan-deep: #8a6a3e;
+    --bb-tan-mid: #6e5026;
+    --bb-tan-darkest: #4a3416;
+    --bb-tan-low: #2a2316;        /* sl-color-accent-low dark */
+
+    /* ── Text / ink ─────────────────────────────────────────────── */
+    --bb-white: #f0ece4;          /* warm off-white body text */
+    --bb-ink: #14110c;            /* deep ink for light surfaces */
+    --bb-ink-soft: #2a251e;
+    --bb-ink-mid: #46403a;
+    --bb-muted: #888077;
+    --bb-muted-soft: #b0a898;
+
+    /* ── Dark-theme gray ramp (Starlight --sl-color-gray-*) ─────── */
+    --bb-gray-1-dark: #e3ddd0;
+    --bb-gray-4-dark: #5a5650;
+    --bb-gray-5-dark: #2e2b26;
+    --bb-gray-6-dark: #1a1814;
+
+    /* ── Light-theme paper surfaces ─────────────────────────────── */
+    --bb-paper: #fffbf0;           /* lightest paper (panels) */
+    --bb-paper-warm: #faf5e9;      /* page background */
+    --bb-paper-sidebar: #f3ecdb;
+    --bb-paper-cluster: #f3e7d2;
+    --bb-paper-card: #f7f1e4;
+    --bb-paper-invert: #fbf6ec;
+
+    /* ── Light-theme gray ramp ──────────────────────────────────── */
+    --bb-gray-3-light: #6b6359;
+    --bb-gray-4-light: #968d80;
+    --bb-gray-5-light: #d8d0c1;
+    --bb-gray-6-light: #ede6d7;
+
+    /* ── Semantic ───────────────────────────────────────────────── */
+    --bb-danger: #e07a7a;
+
+    /* ── RGB-component tokens for alpha math ────────────────────── */
+    --bb-tan-rgb: 201, 168, 124;
+    --bb-tan-light-rgb: 224, 196, 154;
+    --bb-tan-pale-rgb: 245, 230, 207;
+    --bb-tan-deep-rgb: 138, 106, 62;
+    --bb-green-rgb: 45, 106, 79;
+    --bb-green-light-rgb: 64, 145, 108;
+    --bb-green-glow-rgb: 82, 183, 136;
+    --bb-mint-glow-rgb: 167, 243, 208; /* hero orb-1 core glow */
+    --bb-ink-rgb: 20, 17, 12;
+    --bb-bg-rgb: 10, 10, 10;
+    --bb-white-pure-rgb: 255, 255, 255;
+    --bb-shadow-rgb: 0, 0, 0;
+    --bb-danger-rgb: 220, 90, 90;
+    --bb-paper-warm-rgb: 250, 245, 233;
+    --bb-paper-sidebar-rgb: 243, 236, 219;
+    --bb-mermaid-panel-rgb: 13, 12, 10;
+    --bb-elev-2-rgb: 29, 26, 20;
+
+    /* ── Derived (single source of truth for thin borders) ──────── */
+    --bb-border: rgb(var(--bb-tan-rgb) / 0.15);
+    --bb-border-strong: rgb(var(--bb-tan-rgb) / 0.32);
+
+    /* ── Typography ─────────────────────────────────────────────── */
+    --bb-font-display: "Syne", system-ui, sans-serif;
+    --bb-font-body: "DM Sans", system-ui, sans-serif;
+    --bb-font-mono: "DM Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+    /* ── Easing ─────────────────────────────────────────────────── */
+    --bb-ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ── Starlight DARK theme overrides ───────────────────────────────── */
+:root,
+:root[data-theme="dark"] {
+    /* Accent — tan/gold */
+    --sl-color-accent-low: var(--bb-tan-low);
+    --sl-color-accent: var(--bb-tan);
+    --sl-color-accent-high: var(--bb-tan-pale);
+
+    /* Grayscale ramp anchored on warm off-white */
+    --sl-color-white: var(--bb-white);
+    --sl-color-gray-1: var(--bb-gray-1-dark);
+    --sl-color-gray-2: var(--bb-muted-soft);
+    --sl-color-gray-3: var(--bb-muted);
+    --sl-color-gray-4: var(--bb-gray-4-dark);
+    --sl-color-gray-5: var(--bb-gray-5-dark);
+    --sl-color-gray-6: var(--bb-gray-6-dark);
+    --sl-color-black: var(--bb-black);
+
+    /* Surfaces */
+    --sl-color-bg: var(--bb-black);
+    /* Sidebar + nav share the same warm dark so the header reads as
+       a continuous frame around the gold-glowed content area. */
+    --sl-color-bg-nav: #151209;
+    --sl-color-bg-sidebar: #151209;
+    --sl-color-bg-inline-code: rgb(var(--bb-tan-rgb) / 0.10);
+    --sl-color-bg-accent: var(--bb-tan);
+
+    /* Text */
+    --sl-color-text: var(--bb-white);
+    --sl-color-text-accent: var(--bb-tan-light);
+    --sl-color-text-invert: var(--bb-black);
+
+    /* Hairlines / borders */
+    --sl-color-hairline-light: rgb(var(--bb-tan-rgb) / 0.18);
+    --sl-color-hairline: rgb(var(--bb-tan-rgb) / 0.12);
+    --sl-color-hairline-shade: rgb(var(--bb-tan-rgb) / 0.08);
+
+    /* Backdrops */
+    --sl-color-backdrop-overlay: rgb(var(--bb-bg-rgb) / 0.78);
+
+    /* Fonts */
+    --sl-font: var(--bb-font-body);
+    --sl-font-system: var(--bb-font-body);
+    --sl-font-system-mono: var(--bb-font-mono);
+
+    /* Misc */
+    --sl-shadow-md:
+        0 1px 1px rgb(var(--bb-shadow-rgb) / 0.35),
+        0 6px 14px rgb(var(--bb-shadow-rgb) / 0.45);
+    --sl-shadow-lg:
+        0 1px 1px rgb(var(--bb-shadow-rgb) / 0.4),
+        0 12px 32px rgb(var(--bb-shadow-rgb) / 0.55),
+        0 0 0 1px var(--bb-border);
+}
+
+/* ── Starlight LIGHT theme overrides ──────────────────────────────── */
+:root[data-theme="light"] {
+    --sl-color-accent-low: var(--bb-paper-cluster);
+    --sl-color-accent: var(--bb-tan-deep);          /* darker tan for AA contrast */
+    --sl-color-accent-high: var(--bb-tan-darkest);
+
+    --sl-color-white: var(--bb-ink);
+    --sl-color-gray-1: var(--bb-ink-soft);
+    --sl-color-gray-2: var(--bb-ink-mid);
+    --sl-color-gray-3: var(--bb-gray-3-light);
+    --sl-color-gray-4: var(--bb-gray-4-light);
+    --sl-color-gray-5: var(--bb-gray-5-light);
+    --sl-color-gray-6: var(--bb-gray-6-light);
+    --sl-color-gray-7: var(--bb-paper-card);
+    --sl-color-black: var(--bb-paper-invert);
+
+    --sl-color-bg: var(--bb-paper-warm);
+    --sl-color-bg-nav: rgb(var(--bb-paper-warm-rgb) / 0.82);
+    --sl-color-bg-sidebar: var(--bb-paper-sidebar);
+    --sl-color-bg-inline-code: rgb(var(--bb-tan-deep-rgb) / 0.10);
+    --sl-color-bg-accent: var(--bb-tan-deep);
+
+    --sl-color-text: var(--bb-ink-soft);
+    --sl-color-text-accent: var(--bb-tan-mid);
+    --sl-color-text-invert: var(--bb-paper-invert);
+
+    --sl-color-hairline-light: rgb(var(--bb-tan-deep-rgb) / 0.22);
+    --sl-color-hairline: rgb(var(--bb-tan-deep-rgb) / 0.16);
+    --sl-color-hairline-shade: rgb(var(--bb-tan-deep-rgb) / 0.10);
+
+    --sl-color-backdrop-overlay: rgb(var(--bb-ink-rgb) / 0.55);
+}
+
+/* ────────────────────────────────────────────────────────────────────
+   Typography — Syne for display, DM Sans body, DM Mono code
+   ──────────────────────────────────────────────────────────────────── */
+
+body {
+    font-family: var(--bb-font-body);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    letter-spacing: -0.005em;
+}
+
+.sl-markdown-content h1,
+.sl-markdown-content h2,
+.sl-markdown-content h3,
+.sl-markdown-content h4,
+.sl-markdown-content h5,
+.sl-markdown-content h6,
+h1[id],
+h2[id],
+h3[id],
+h4[id],
+.hero h1,
+.hero .tagline {
+    font-family: var(--bb-font-display);
+    font-weight: 700;
+    letter-spacing: -0.015em;
+}
+
+.sl-markdown-content h1,
+h1[id] {
+    font-weight: 800;
+    letter-spacing: -0.025em;
+    line-height: 1.05;
+}
+
+.sl-markdown-content code,
+pre,
+code,
+kbd,
+samp {
+    font-family: var(--bb-font-mono);
+    font-feature-settings: "ss01", "ss02";
+}
+
+/* Inline code — neutral so dense prose stays readable. The text uses
+   the body color (off-white), and only the chip itself carries a hint
+   of warmth via a very subtle border. */
+.sl-markdown-content :not(pre) > code {
+    border: 1px solid rgb(var(--bb-tan-rgb) / 0.10);
+    border-radius: 6px;
+    padding: 0.12em 0.42em;
+    font-size: 0.88em;
+    color: var(--bb-white);
+    background: rgb(var(--bb-white-pure-rgb) / 0.04);
+}
+
+:root[data-theme="light"] .sl-markdown-content :not(pre) > code {
+    color: var(--bb-ink-soft);
+    background: rgb(var(--bb-ink-rgb) / 0.05);
+    border-color: rgb(var(--bb-ink-rgb) / 0.08);
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Global decoration layer (rendered by SkipLink.astro override)
+   .bb-decoration is a top-level child of <body>, so its fixed-
+   positioned children anchor to the viewport — meaning the orbs land
+   in the actual screen corners on every page, not the corners of
+   whatever flex/grid ancestor we'd otherwise inherit.
+   ════════════════════════════════════════════════════════════════════ */
+
+.bb-decoration {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 0;
+}
+
+/* All real content sits in a stacking context above the decoration.
+   Starlight's `.page` is the outer flex wrapper for everything. */
+.page {
+    position: relative;
+    z-index: 1;
+}
+
+/* ── Orbs — mirrors web/src/components/home/Header.astro exactly ──── */
+.bb-decoration .bb-orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(80px);
+    will-change: transform, opacity;
+}
+
+.bb-decoration .bb-orb::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: inherit;
+    animation: bb-orb-pulse 5s ease-in-out infinite;
+}
+
+.bb-decoration .bb-orb::after {
+    content: "";
+    position: absolute;
+    inset: 8%;
+    border-radius: inherit;
+    background: radial-gradient(
+        circle,
+        var(--orb-glow-core) 0 24%,
+        var(--orb-glow-soft) 48%,
+        transparent 72%
+    );
+    opacity: 0.45;
+    transform: scale(0.42);
+    transform-origin: center;
+}
+
+.bb-decoration .bb-orb-1 {
+    width: 500px;
+    height: 500px;
+    top: -100px;
+    inset-inline-start: -100px;
+    background: var(--bb-green);
+    --orb-glow-core: rgb(var(--bb-mint-glow-rgb) / 0.85);
+    --orb-glow-soft: rgb(var(--bb-green-glow-rgb) / 0.34);
+    opacity: 0.16;
+}
+
+.bb-decoration .bb-orb-2 {
+    width: 400px;
+    height: 400px;
+    bottom: -80px;
+    inset-inline-end: -80px;
+    background: var(--bb-tan);
+    --orb-glow-core: rgb(var(--bb-tan-pale-rgb) / 0.78);
+    --orb-glow-soft: rgb(var(--bb-tan-rgb) / 0.32);
+    opacity: 0.14;
+}
+
+.bb-decoration .bb-orb-2::before {
+    animation-delay: 400ms;
+}
+
+@keyframes bb-orb-pulse {
+    0%, 100% {
+        opacity: 0.55;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 1;
+        transform: scale(1.1);
+    }
+}
+
+/* Light theme — softer & a touch warmer */
+:root[data-theme="light"] .bb-decoration .bb-orb-1 {
+    background: var(--bb-green-light);
+    opacity: 0.10;
+}
+
+:root[data-theme="light"] .bb-decoration .bb-orb-2 {
+    background: var(--bb-tan);
+    opacity: 0.12;
+}
+
+/* ── Noise texture — every page, both themes ──────────────────────── */
+.bb-decoration .bb-noise {
+    position: absolute;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E");
+    pointer-events: none;
+    /* Pin the noise above content via its own z-index — the parent
+       .bb-decoration sits at z-index:0 with .page at z-index:1 above
+       it, so we lift just the noise back over the page. */
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    mix-blend-mode: overlay;
+    opacity: 0.05;
+}
+
+:root[data-theme="light"] .bb-decoration .bb-noise {
+    opacity: 0.085;
+    mix-blend-mode: multiply;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .bb-decoration .bb-orb::before {
+        animation: none;
+    }
+}
+
+/* ────────────────────────────────────────────────────────────────────
+   Header / Nav — rely on Starlight's --sl-color-bg-nav variable
+   so we don't stack a second background on top of the default.
+   ──────────────────────────────────────────────────────────────────── */
+
+header.header {
+    backdrop-filter: saturate(180%) blur(14px);
+    -webkit-backdrop-filter: saturate(180%) blur(14px);
+    border-bottom: 1px solid var(--sl-color-hairline-shade);
+}
+
+/* Header matches the sidebar's vertical gradient so the two surfaces
+   read as a continuous frame around the content area. */
+:root[data-theme="dark"] header.header {
+    background: linear-gradient(180deg, var(--bb-mermaid-panel) 0%, var(--bb-black) 100%);
+}
+
+.site-title {
+    font-family: var(--bb-font-display);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    font-size: 1.05rem;
+}
+
+/* Search button */
+site-search button[data-open-modal] {
+    border: 1px solid var(--bb-border);
+    background: rgb(var(--bb-tan-rgb) / 0.04);
+    transition: border-color 200ms var(--bb-ease-out-expo),
+                background 200ms var(--bb-ease-out-expo);
+}
+
+site-search button[data-open-modal]:hover {
+    border-color: var(--bb-border-strong);
+    background: rgb(var(--bb-tan-rgb) / 0.08);
+}
+
+/* ────────────────────────────────────────────────────────────────────
+   Sidebar — clean, tan accent on active
+   ──────────────────────────────────────────────────────────────────── */
+
+.sidebar-pane {
+    border-inline-end: 1px solid var(--bb-border);
+}
+
+:root[data-theme="dark"] .sidebar-pane {
+    background: linear-gradient(180deg, var(--bb-mermaid-panel) 0%, var(--bb-black) 100%);
+}
+
+.sidebar-content ul.top-level > li > details > summary,
+.sidebar-content ul.top-level > li > .large {
+    font-family: var(--bb-font-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--sl-color-gray-2);
+    font-weight: 500;
+}
+
+.sidebar-content a {
+    border-radius: 6px;
+    transition: background 180ms var(--bb-ease-out-expo),
+                color 180ms var(--bb-ease-out-expo),
+                border-color 180ms var(--bb-ease-out-expo);
+}
+
+.sidebar-content a:hover {
+    background: rgb(var(--bb-tan-rgb) / 0.06);
+    color: var(--bb-tan-light);
+}
+
+/* Active page in the sidebar — green accent bar + tinted background.
+   Hover stays tan (see rule above) so hover & active are visually
+   distinct: hover = tan tease, current = green commitment. */
+.sidebar-content a[aria-current="page"],
+.sidebar-content a[aria-current="page"]:hover {
+    background: rgb(var(--bb-green-rgb) / 0.12);
+    color: var(--bb-green-glow);
+    border-inline-start-color: var(--bb-green-glow);
+    font-weight: 600;
+}
+
+:root[data-theme="light"] .sidebar-content a[aria-current="page"] {
+    background: rgb(var(--bb-green-rgb) / 0.10);
+    color: var(--bb-green);
+    border-inline-start-color: var(--bb-green);
+}
+
+/* ────────────────────────────────────────────────────────────────────
+   Main content — anchors, links
+   ──────────────────────────────────────────────────────────────────── */
+
+/* Prose links — body color with a thin tan underline. Stays readable
+   in dense docs (no glowing tan word every other line); the underline
+   carries the accent and the link saturates only on hover. */
+.sl-markdown-content a:not(:where(.not-content *)) {
+    color: var(--bb-white);
+    text-decoration-color: rgb(var(--bb-tan-rgb) / 0.55);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+    transition: color 160ms var(--bb-ease-out-expo),
+                text-decoration-color 160ms var(--bb-ease-out-expo);
+}
+
+.sl-markdown-content a:not(:where(.not-content *)):hover {
+    color: var(--bb-tan-light);
+    text-decoration-color: var(--bb-tan);
+}
+
+:root[data-theme="light"] .sl-markdown-content a:not(:where(.not-content *)) {
+    color: var(--bb-ink);
+    text-decoration-color: rgb(var(--bb-tan-deep-rgb) / 0.55);
+}
+
+:root[data-theme="light"] .sl-markdown-content a:not(:where(.not-content *)):hover {
+    color: var(--bb-tan-mid);
+    text-decoration-color: var(--bb-tan-deep);
+}
+
+/* Headings underline — green→tan gradient hairline. Adds the brand's
+   secondary accent to docs pages so they don't feel mono-tan. */
+.sl-markdown-content h1:not(:where(.not-content *)),
+.sl-markdown-content h2:not(:where(.not-content *)),
+.sl-markdown-content h3:not(:where(.not-content *)),
+.sl-markdown-content h4:not(:where(.not-content *)),
+.sl-markdown-content h5:not(:where(.not-content *)),
+.sl-markdown-content h6:not(:where(.not-content *)) {
+    position: relative;
+    padding-bottom: 0.4em;
+    border-bottom: none;
+    margin-bottom: 1.6em;
+}
+
+/* Starlight wraps headings in `.sl-heading-wrapper`, which can absorb the
+   heading's margin-bottom. Add the breathing room on the wrapper itself
+   so the gap actually lands between the heading and the next block. */
+.sl-markdown-content .sl-heading-wrapper:not(:where(.not-content *)) {
+    margin-bottom: 1.6em;
+}
+
+.sl-markdown-content h1:not(:where(.not-content *))::after,
+.sl-markdown-content h2:not(:where(.not-content *))::after,
+.sl-markdown-content h3:not(:where(.not-content *))::after,
+.sl-markdown-content h4:not(:where(.not-content *))::after,
+.sl-markdown-content h5:not(:where(.not-content *))::after,
+.sl-markdown-content h6:not(:where(.not-content *))::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(
+        90deg,
+        rgba(var(--bb-green-glow-rgb), 0.60) 0%,
+        rgba(var(--bb-green-glow-rgb), 0.30) 30%,
+        rgba(var(--bb-tan-rgb), 0.30) 70%,
+        transparent 100%
+    );
+}
+
+.sl-markdown-content h2:not(:where(.not-content *)) {
+    margin-top: 2.4em;
+}
+
+:root[data-theme="light"] .sl-markdown-content h1:not(:where(.not-content *))::after,
+:root[data-theme="light"] .sl-markdown-content h2:not(:where(.not-content *))::after,
+:root[data-theme="light"] .sl-markdown-content h3:not(:where(.not-content *))::after,
+:root[data-theme="light"] .sl-markdown-content h4:not(:where(.not-content *))::after,
+:root[data-theme="light"] .sl-markdown-content h5:not(:where(.not-content *))::after,
+:root[data-theme="light"] .sl-markdown-content h6:not(:where(.not-content *))::after {
+    background: linear-gradient(
+        90deg,
+        rgba(var(--bb-green-rgb), 0.60) 0%,
+        rgba(var(--bb-green-rgb), 0.30) 30%,
+        rgba(var(--bb-tan-deep-rgb), 0.30) 70%,
+        transparent 100%
+    );
+}
+
+/* Horizontal rules */
+.sl-markdown-content hr:not(:where(.not-content *)) {
+    border: 0;
+    height: 1px;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        var(--bb-border-strong) 30%,
+        var(--bb-border-strong) 70%,
+        transparent
+    );
+}
+
+/* Blockquotes — green border so the brand's secondary accent does the
+   heavy lifting here instead of more tan. */
+.sl-markdown-content blockquote:not(:where(.not-content *)) {
+    border-inline-start: 2px solid var(--bb-green-light);
+    background: rgb(var(--bb-green-light-rgb) / 0.04);
+    padding: 0.6em 1em;
+    border-radius: 0 8px 8px 0;
+    color: var(--bb-muted-soft);
+}
+
+:root[data-theme="light"] .sl-markdown-content blockquote:not(:where(.not-content *)) {
+    border-inline-start-color: var(--bb-green);
+    background: rgb(var(--bb-green-rgb) / 0.05);
+    color: var(--bb-ink-mid);
+}
+
+/* Tables — neutral chrome. The table is structure, not accent. */
+.sl-markdown-content table:not(:where(.not-content *)) {
+    border: 1px solid rgb(var(--bb-tan-rgb) / 0.08);
+    border-radius: 10px;
+    overflow: hidden;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.sl-markdown-content th:not(:where(.not-content *)) {
+    background: rgb(var(--bb-white-pure-rgb) / 0.025);
+    font-family: var(--bb-font-mono);
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--sl-color-gray-2);
+}
+
+:root[data-theme="light"] .sl-markdown-content th:not(:where(.not-content *)) {
+    color: var(--bb-ink-mid);
+    background: rgb(var(--bb-ink-rgb) / 0.04);
+}
+
+/* Code blocks — quiet hairline, no warm tint. */
+.expressive-code,
+.sl-markdown-content pre:not(:where(.not-content *)) {
+    border-radius: 10px;
+    border: 1px solid rgb(var(--bb-tan-rgb) / 0.10);
+    box-shadow: 0 1px 0 rgb(var(--bb-white-pure-rgb) / 0.02) inset;
+}
+
+/* ────────────────────────────────────────────────────────────────────
+   Starlight Components — Card, Aside, Badge
+   ──────────────────────────────────────────────────────────────────── */
+
+/* Cards
+   Note: Starlight's `.stagger > :nth-child(2n)` applies
+   `transform: translateY(--stagger-height)` to offset every second card.
+   We must not override that transform on hover or staggered cards snap
+   back into alignment. We use a per-card --bb-card-y variable that
+   defaults to the stagger offset for even children and 0 otherwise. */
+.card {
+    --bb-card-y: 0px;
+    --bb-card-lift: 0px;
+    border: 1px solid var(--bb-border);
+    background:
+        linear-gradient(180deg, rgb(var(--bb-tan-rgb) / 0.04), rgb(var(--bb-tan-rgb) / 0)),
+        var(--bb-card-bg);
+    border-radius: 12px;
+    padding: clamp(1rem, calc(0.125rem + 3vw), 2.5rem);
+    transition: border-color 220ms var(--bb-ease-out-expo),
+                transform 320ms var(--bb-ease-out-expo),
+                box-shadow 320ms var(--bb-ease-out-expo),
+                background 320ms var(--bb-ease-out-expo);
+    position: relative;
+    overflow: hidden;
+    transform: translateY(calc(var(--bb-card-y) + var(--bb-card-lift)));
+}
+
+@media (min-width: 50rem) {
+    .stagger > .card:nth-child(2n) {
+        --bb-card-y: var(--stagger-height, 5rem);
+    }
+}
+
+.card::before {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    background: radial-gradient(
+        80% 60% at 50% 0%,
+        rgb(var(--bb-tan-rgb) / 0.12),
+        transparent 70%
+    );
+    opacity: 0;
+    transition: opacity 320ms var(--bb-ease-out-expo);
+    pointer-events: none;
+    z-index: 0;
+}
+
+.card > * {
+    position: relative;
+    z-index: 1;
+}
+
+.card:hover {
+    --bb-card-lift: -4px;
+    border-color: var(--bb-border-strong);
+    box-shadow:
+        0 14px 40px rgb(var(--bb-shadow-rgb) / 0.5),
+        0 0 0 1px var(--bb-border-strong);
+}
+
+.card:hover::before {
+    opacity: 1;
+}
+
+.card .title,
+.card .sl-flex {
+    font-family: var(--bb-font-display);
+    font-weight: 700;
+}
+
+/* Green for the icon so docs pages get the brand's secondary accent. */
+.card .icon {
+    color: var(--bb-green-glow);
+    border-color: rgb(var(--bb-green-glow-rgb) / 0.30);
+    background-color: rgb(var(--bb-green-rgb) / 0.10);
+}
+
+:root[data-theme="light"] .card {
+    background: linear-gradient(180deg, var(--bb-paper), var(--bb-paper-card));
+}
+
+:root[data-theme="light"] .card .icon {
+    color: var(--bb-green);
+    border-color: rgb(var(--bb-green-rgb) / 0.32);
+    background-color: rgb(var(--bb-green-rgb) / 0.08);
+}
+
+/* Asides (notes, tips, cautions, dangers) */
+.starlight-aside {
+    border-radius: 10px;
+    border-inline-start-width: 3px;
+}
+
+.starlight-aside--note {
+    background: rgb(var(--bb-green-light-rgb) / 0.06);
+    border-color: var(--bb-green-light);
+}
+
+.starlight-aside--note .starlight-aside__title {
+    color: var(--bb-green-glow);
+}
+
+.starlight-aside--tip {
+    background: rgb(var(--bb-tan-rgb) / 0.06);
+    border-color: var(--bb-tan);
+}
+
+.starlight-aside--tip .starlight-aside__title {
+    color: var(--bb-tan-light);
+}
+
+.starlight-aside--caution {
+    background: rgb(var(--bb-tan-pale-rgb) / 0.04);
+    border-color: var(--bb-tan-light);
+}
+
+.starlight-aside--caution .starlight-aside__title {
+    color: var(--bb-tan-pale);
+}
+
+.starlight-aside--danger {
+    background: rgb(var(--bb-danger-rgb) / 0.06);
+    border-color: var(--bb-danger);
+}
+
+/* Badge */
+.sl-badge {
+    font-family: var(--bb-font-mono);
+    font-size: 0.66rem;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    padding: 0.32em 0.7em;
+    border-radius: 999px;
+    border: 1px solid currentColor;
+}
+
+.sl-badge.default {
+    color: var(--bb-tan-light);
+    background: rgb(var(--bb-tan-rgb) / 0.08);
+    border-color: var(--bb-border-strong);
+}
+
+.sl-badge.tip {
+    color: var(--bb-green-glow);
+    background: rgb(var(--bb-green-rgb) / 0.10);
+    border-color: rgb(var(--bb-green-light-rgb) / 0.30);
+}
+
+.sl-badge.success {
+    color: var(--bb-green-glow);
+    background: rgb(var(--bb-green-glow-rgb) / 0.12);
+    border-color: rgb(var(--bb-green-glow-rgb) / 0.35);
+}
+
+/* ────────────────────────────────────────────────────────────────────
+   Hero (used by splash template)
+   ──────────────────────────────────────────────────────────────────── */
+
+.hero {
+    align-items: center;
+    text-align: start;
+    gap: clamp(2rem, 5vw, 4rem);
+}
+
+.hero > img,
+.hero > .hero-html {
+    filter: drop-shadow(0 30px 60px rgb(var(--bb-shadow-rgb) / 0.5));
+}
+
+.hero h1 {
+    font-family: var(--bb-font-display);
+    font-size: clamp(2.5rem, 6vw, 4.5rem);
+    font-weight: 800;
+    line-height: 0.95;
+    letter-spacing: -0.03em;
+    color: var(--bb-white);
+}
+
+/* Accent the trailing word(s) in the title using the green glow.
+   Authors can wrap a span with `class="accent"` in their hero title
+   to highlight specific words; otherwise the full h1 stays white. */
+.hero h1 .accent,
+.hero h1 em,
+.hero h1 mark {
+    color: var(--bb-green-glow);
+    font-style: normal;
+    background: transparent;
+}
+
+:root[data-theme="light"] .hero h1 {
+    color: var(--bb-ink);
+}
+
+:root[data-theme="light"] .hero h1 .accent,
+:root[data-theme="light"] .hero h1 em,
+:root[data-theme="light"] .hero h1 mark {
+    color: var(--bb-green);
+    background: transparent;
+}
+
+.hero .tagline {
+    font-family: var(--bb-font-body);
+    font-weight: 400;
+    font-size: clamp(1rem, 2vw, 1.2rem);
+    color: var(--bb-muted-soft);
+    max-width: 56ch;
+    line-height: 1.65;
+    letter-spacing: 0;
+}
+
+:root[data-theme="light"] .hero .tagline {
+    color: var(--bb-ink-mid);
+}
+
+/* Hero action buttons */
+.hero .action {
+    font-family: var(--bb-font-mono);
+    font-size: 0.78rem;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 0.85em 1.5em;
+    border-radius: 999px;
+    border: 1px solid var(--bb-border-strong);
+    transition: all 220ms var(--bb-ease-out-expo);
+    position: relative;
+    overflow: hidden;
+}
+
+.hero .action.primary {
+    background: var(--bb-tan);
+    color: var(--bb-black);
+    border-color: var(--bb-tan);
+}
+
+.hero .action.primary:hover {
+    background: var(--bb-tan-pale);
+    border-color: var(--bb-tan-pale);
+    transform: translateY(-1px);
+    box-shadow: 0 8px 24px rgb(var(--bb-tan-rgb) / 0.25);
+}
+
+.hero .action.minimal {
+    color: var(--bb-tan-light);
+    background: rgb(var(--bb-tan-rgb) / 0.04);
+}
+
+.hero .action.minimal:hover {
+    color: var(--bb-tan-pale);
+    background: rgb(var(--bb-tan-rgb) / 0.10);
+    border-color: var(--bb-tan-light);
+}
+
+:root[data-theme="light"] .hero .action.primary {
+    background: var(--bb-tan-deep);
+    color: var(--bb-paper-invert);
+    border-color: var(--bb-tan-deep);
+}
+
+:root[data-theme="light"] .hero .action.primary:hover {
+    background: var(--bb-tan-mid);
+    border-color: var(--bb-tan-mid);
+}
+
+:root[data-theme="light"] .hero .action.minimal {
+    color: var(--bb-tan-mid);
+    background: rgb(var(--bb-tan-deep-rgb) / 0.06);
+}
+
+/* ────────────────────────────────────────────────────────────────────
+   Pagination footer, TOC, misc
+   ──────────────────────────────────────────────────────────────────── */
+
+.pagination-links a {
+    border: 1px solid var(--bb-border);
+    border-radius: 10px;
+    background: var(--bb-card-bg);
+    transition: border-color 200ms var(--bb-ease-out-expo),
+                transform 200ms var(--bb-ease-out-expo);
+}
+
+.pagination-links a:hover {
+    border-color: var(--bb-border-strong);
+    transform: translateY(-1px);
+}
+
+:root[data-theme="light"] .pagination-links a {
+    background: var(--bb-paper);
+}
+
+/* TOC current item */
+starlight-toc nav a[aria-current="true"] {
+    color: var(--bb-tan);
+    font-weight: 600;
+}
+
+:root[data-theme="light"] starlight-toc nav a[aria-current="true"] {
+    color: var(--bb-tan-mid);
+}
+
+/* Selection */
+::selection {
+    background: rgb(var(--bb-tan-rgb) / 0.35);
+    color: var(--bb-white);
+}
+
+:root[data-theme="light"] ::selection {
+    background: rgb(var(--bb-tan-deep-rgb) / 0.3);
+    color: var(--bb-ink);
+}
+
+/* Focus rings — accessible & on-brand */
+:focus-visible {
+    outline: 2px solid var(--bb-tan);
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
+:root[data-theme="light"] :focus-visible {
+    outline-color: var(--bb-tan-deep);
+}
+
+/* Scrollbar — subtle */
+@supports (scrollbar-width: thin) {
+    * {
+        scrollbar-width: thin;
+        scrollbar-color: var(--bb-border-strong) transparent;
+    }
+}
+
+*::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+*::-webkit-scrollbar-thumb {
+    background: var(--bb-border-strong);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+    background: var(--bb-tan);
+    background-clip: padding-box;
+    border: 2px solid transparent;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Light-mode hover inversion
+   On a cream/light surface, "brighter on hover" reads as washed out —
+   the eye loses the element instead of locking onto it. Flip every
+   brightness-up + lighten-color hover so light-mode hovers go DARKER
+   (and slightly more saturated) instead. Same affordance, correct
+   direction for the surface.
+   ════════════════════════════════════════════════════════════════════ */
+:root[data-theme="light"] {
+    /* Logo / site title */
+    & header.header .site-title:hover img,
+    & header.header .site-title:hover svg {
+        opacity: 1;
+        filter: brightness(0.78) saturate(1.15) contrast(1.05);
+    }
+    & header.header .site-title:hover {
+        color: var(--bb-ink-soft);
+    }
+
+    /* Social icons */
+    & .social-icons a {
+        opacity: 0.7;
+    }
+    & .social-icons a:hover {
+        color: var(--bb-ink-soft);
+        filter: brightness(0.85);
+        opacity: 1;
+    }
+
+    /* Theme toggle */
+    & starlight-theme-select label:hover,
+    & starlight-theme-select select:hover {
+        color: var(--bb-ink-soft);
+        filter: brightness(0.85);
+    }
+
+    /* Sidebar items — darker text, faint dark wash on hover */
+    & .sidebar-content ul li a:hover {
+        color: var(--bb-ink);
+        background: rgb(var(--bb-ink-rgb) / 0.06);
+    }
+
+    /* TOC items */
+    & starlight-toc nav a:hover {
+        color: var(--bb-ink-soft);
+    }
+
+    /* Cards — title goes darker, not lighter */
+    & .card:hover .title {
+        color: var(--bb-ink-soft);
+    }
+
+    /* Hero minimal action button */
+    & .hero .action.minimal:hover {
+        color: var(--bb-ink-soft);
+        background: rgb(var(--bb-ink-rgb) / 0.05);
+        border-color: rgb(var(--bb-ink-rgb) / 0.45);
+    }
+
+    /* Search button magnifier icon */
+    & site-search button[data-open-modal]:hover svg {
+        color: var(--bb-ink-soft);
+    }
+
+    /* Heading anchor link — already darkens in light via existing
+       override; just adds the brightness dimming for consistency */
+    & .sl-heading-wrapper .sl-anchor-link:hover {
+        filter: brightness(0.85);
+    }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Micro-interactions — fun, smooth, on-brand
+   Uses two easings:
+     --bb-ease-out-expo  → calm, ProMotion-feeling deceleration
+     --bb-ease-out-back  → playful overshoot for "fun" moments
+   ════════════════════════════════════════════════════════════════════ */
+:root {
+    --bb-ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --bb-ease-spring: cubic-bezier(0.22, 1.4, 0.36, 1);
+    --bb-dur-fast: 180ms;
+    --bb-dur-med: 320ms;
+    --bb-dur-slow: 520ms;
+}
+
+/* ── Hero action buttons — arrow nudge + soft press ───────────────── */
+.hero .action {
+    transition:
+        background var(--bb-dur-med) var(--bb-ease-out-expo),
+        border-color var(--bb-dur-med) var(--bb-ease-out-expo),
+        color var(--bb-dur-med) var(--bb-ease-out-expo),
+        transform var(--bb-dur-med) var(--bb-ease-spring),
+        box-shadow var(--bb-dur-med) var(--bb-ease-out-expo);
+}
+
+.hero .action:active {
+    transform: translateY(0) scale(0.97);
+    transition-duration: 90ms;
+}
+
+.hero .action svg {
+    transition: transform var(--bb-dur-med) var(--bb-ease-out-back);
+}
+
+.hero .action:hover svg {
+    transform: translateX(4px) rotate(-2deg);
+}
+
+.hero .action.minimal:hover svg {
+    transform: translateX(3px) translateY(-3px);
+}
+
+/* ── Header logo + site title — brighten on hover, no rotation ────── */
+header.header .site-title {
+    transition: color var(--bb-dur-med) var(--bb-ease-out-expo),
+                filter var(--bb-dur-med) var(--bb-ease-out-expo);
+}
+
+header.header .site-title img,
+header.header .site-title svg {
+    transition: filter var(--bb-dur-med) var(--bb-ease-out-expo),
+                opacity var(--bb-dur-med) var(--bb-ease-out-expo);
+    opacity: 0.92;
+}
+
+header.header .site-title:hover img,
+header.header .site-title:hover svg {
+    opacity: 1;
+    filter: brightness(1.18) saturate(1.1);
+}
+
+header.header .site-title:hover {
+    color: var(--bb-tan-pale);
+}
+
+/* ── Header social icons — quiet brighten ─────────────────────────── */
+.social-icons a {
+    transition: color var(--bb-dur-med) var(--bb-ease-out-expo),
+                filter var(--bb-dur-med) var(--bb-ease-out-expo);
+    opacity: 0.85;
+}
+
+.social-icons a:hover {
+    color: var(--bb-tan-light);
+    filter: brightness(1.15);
+    opacity: 1;
+}
+
+/* ── Theme toggle — brighten on hover, no rotation ────────────────── */
+starlight-theme-select select,
+starlight-theme-select label {
+    transition: color var(--bb-dur-fast) var(--bb-ease-out-expo),
+                filter var(--bb-dur-fast) var(--bb-ease-out-expo);
+}
+
+starlight-theme-select label:hover,
+starlight-theme-select select:hover {
+    color: var(--bb-tan-pale);
+    filter: brightness(1.2);
+}
+
+/* ── Sidebar — sliding accent bar + glide ─────────────────────────── */
+.sidebar-content ul li a {
+    position: relative;
+    overflow: hidden;
+    transition:
+        color var(--bb-dur-fast) var(--bb-ease-out-expo),
+        background var(--bb-dur-fast) var(--bb-ease-out-expo),
+        padding-inline-start var(--bb-dur-med) var(--bb-ease-out-back);
+}
+
+.sidebar-content ul li a::before {
+    content: "";
+    position: absolute;
+    inset-inline-start: 0;
+    top: 25%;
+    bottom: 25%;
+    width: 2px;
+    background: var(--bb-tan);
+    border-radius: 2px;
+    transform: scaleY(0);
+    transform-origin: center;
+    transition: transform var(--bb-dur-med) var(--bb-ease-out-back),
+                background var(--bb-dur-fast) var(--bb-ease-out-expo);
+}
+
+.sidebar-content ul li a:hover {
+    padding-inline-start: calc(1rem + 4px);
+}
+
+.sidebar-content ul li a:hover::before {
+    transform: scaleY(1);
+}
+
+/* Active page bar in green — matches the brand's secondary accent. */
+.sidebar-content ul li a[aria-current="page"]::before {
+    transform: scaleY(1);
+    background: var(--bb-green-glow);
+    box-shadow: 0 0 12px rgb(var(--bb-green-glow-rgb) / 0.5);
+}
+
+/* ── Collapsible sidebar groups — smooth chevron + open glide ─────── */
+.sidebar-content details > summary {
+    cursor: pointer;
+    transition: color var(--bb-dur-fast) var(--bb-ease-out-expo);
+}
+
+.sidebar-content details > summary:hover {
+    color: var(--bb-tan-light);
+}
+
+.sidebar-content details > summary .caret,
+.sidebar-content details > summary svg.caret,
+.sidebar-content details > summary > svg {
+    transition: transform var(--bb-dur-med) var(--bb-ease-out-back);
+}
+
+.sidebar-content details[open] > summary .caret,
+.sidebar-content details[open] > summary svg.caret,
+.sidebar-content details[open] > summary > svg {
+    transform: rotate(90deg);
+}
+
+/* Slide-down content reveal for sidebar groups (Chrome/Edge w/ interpolate-size) */
+@supports (interpolate-size: allow-keywords) {
+    :root {
+        interpolate-size: allow-keywords;
+    }
+
+    .sidebar-content details > ul,
+    .sidebar-content details > div {
+        overflow: hidden;
+        height: 0;
+        opacity: 0;
+        transition:
+            height var(--bb-dur-med) var(--bb-ease-out-expo),
+            opacity var(--bb-dur-med) var(--bb-ease-out-expo);
+    }
+
+    .sidebar-content details[open] > ul,
+    .sidebar-content details[open] > div {
+        height: auto;
+        opacity: 1;
+    }
+}
+
+/* Fallback fade-in for open state */
+.sidebar-content details[open] > ul > li,
+.sidebar-content details[open] > div > * {
+    animation: bb-fade-up var(--bb-dur-med) var(--bb-ease-out-expo) backwards;
+}
+
+.sidebar-content details[open] > ul > li:nth-child(1) { animation-delay: 20ms; }
+.sidebar-content details[open] > ul > li:nth-child(2) { animation-delay: 40ms; }
+.sidebar-content details[open] > ul > li:nth-child(3) { animation-delay: 60ms; }
+.sidebar-content details[open] > ul > li:nth-child(4) { animation-delay: 80ms; }
+.sidebar-content details[open] > ul > li:nth-child(5) { animation-delay: 100ms; }
+.sidebar-content details[open] > ul > li:nth-child(6) { animation-delay: 120ms; }
+.sidebar-content details[open] > ul > li:nth-child(n+7) { animation-delay: 140ms; }
+
+@keyframes bb-fade-up {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Mobile menu — smooth slide-from-top ──────────────────────────── */
+mobile-starlight-toc nav,
+[id="starlight__sidebar"] {
+    transition: transform var(--bb-dur-slow) var(--bb-ease-out-expo),
+                opacity var(--bb-dur-med) var(--bb-ease-out-expo);
+}
+
+@media (max-width: 50rem) {
+    /* The Starlight mobile menu open/close button */
+    starlight-menu-button button {
+        transition: transform var(--bb-dur-med) var(--bb-ease-out-back),
+                    background var(--bb-dur-fast) var(--bb-ease-out-expo);
+    }
+
+    starlight-menu-button[aria-expanded="true"] button,
+    starlight-menu-button button[aria-expanded="true"] {
+        transform: rotate(90deg);
+    }
+
+    starlight-menu-button button:active {
+        transform: scale(0.92);
+    }
+}
+
+/* ── Search button & dialog ───────────────────────────────────────── */
+site-search button[data-open-modal] kbd {
+    transition: transform var(--bb-dur-med) var(--bb-ease-out-back),
+                background var(--bb-dur-fast) var(--bb-ease-out-expo);
+}
+
+site-search button[data-open-modal]:hover kbd {
+    transform: translateY(-1px) scale(1.04);
+}
+
+site-search button[data-open-modal] svg {
+    transition: transform var(--bb-dur-med) var(--bb-ease-out-back);
+}
+
+site-search button[data-open-modal]:hover svg {
+    transform: rotate(-12deg) scale(1.1);
+    color: var(--bb-tan);
+}
+
+/* ── Card icon — playful pop ──────────────────────────────────────── */
+.card .icon {
+    transition: transform var(--bb-dur-med) var(--bb-ease-out-back),
+                border-color var(--bb-dur-med) var(--bb-ease-out-expo),
+                background var(--bb-dur-med) var(--bb-ease-out-expo);
+}
+
+.card:hover .icon {
+    transform: rotate(-6deg) scale(1.1);
+    border-color: var(--bb-tan);
+}
+
+.card .title {
+    transition: color var(--bb-dur-med) var(--bb-ease-out-expo);
+}
+
+.card:hover .title {
+    color: var(--bb-tan-light);
+}
+
+/* ── Pagination — slide-out arrow ─────────────────────────────────── */
+.pagination-links a {
+    overflow: hidden;
+    position: relative;
+}
+
+.pagination-links a svg {
+    transition: transform var(--bb-dur-med) var(--bb-ease-out-back);
+}
+
+.pagination-links a[rel~="prev"]:hover svg {
+    transform: translateX(-4px);
+}
+
+.pagination-links a[rel~="next"]:hover svg {
+    transform: translateX(4px);
+}
+
+/* ── TOC active indicator slide ───────────────────────────────────── */
+starlight-toc nav a {
+    position: relative;
+    transition:
+        color var(--bb-dur-fast) var(--bb-ease-out-expo),
+        padding-inline-start var(--bb-dur-med) var(--bb-ease-out-back);
+}
+
+starlight-toc nav a::before {
+    content: "";
+    position: absolute;
+    inset-inline-start: -0.5rem;
+    top: 50%;
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: var(--bb-tan);
+    transform: translateY(-50%) scale(0);
+    transition: transform var(--bb-dur-med) var(--bb-ease-out-back),
+                background var(--bb-dur-fast) var(--bb-ease-out-expo),
+                box-shadow var(--bb-dur-med) var(--bb-ease-out-expo);
+}
+
+starlight-toc nav a:hover {
+    padding-inline-start: calc(0.5rem + 4px);
+    color: var(--bb-tan-light);
+}
+
+starlight-toc nav a:hover::before {
+    transform: translateY(-50%) scale(1);
+}
+
+/* Current TOC item — green dot with a faint glow, matching the
+   sidebar's active accent so the two reading axes feel consistent. */
+starlight-toc nav a[aria-current="true"]::before {
+    transform: translateY(-50%) scale(1.6);
+    background: var(--bb-green-glow);
+    box-shadow: 0 0 10px rgb(var(--bb-green-glow-rgb) / 0.6);
+}
+
+starlight-toc nav a[aria-current="true"] {
+    color: var(--bb-green-glow);
+}
+
+:root[data-theme="light"] starlight-toc nav a[aria-current="true"]::before {
+    background: var(--bb-green);
+    box-shadow: 0 0 10px rgb(var(--bb-green-rgb) / 0.4);
+}
+
+:root[data-theme="light"] starlight-toc nav a[aria-current="true"] {
+    color: var(--bb-green);
+}
+
+/* ── Markdown anchor links — fade on heading hover ────────────────── */
+.sl-heading-wrapper .sl-anchor-link {
+    opacity: 0;
+    transform: translateX(-4px);
+    transition: opacity var(--bb-dur-med) var(--bb-ease-out-expo),
+                transform var(--bb-dur-med) var(--bb-ease-out-back),
+                color var(--bb-dur-fast) var(--bb-ease-out-expo);
+}
+
+.sl-heading-wrapper:hover .sl-anchor-link,
+.sl-heading-wrapper .sl-anchor-link:focus-visible {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.sl-heading-wrapper .sl-anchor-link:hover {
+    color: var(--bb-green-glow);
+    transform: translateX(0) rotate(-12deg);
+}
+
+:root[data-theme="light"] .sl-heading-wrapper .sl-anchor-link:hover {
+    color: var(--bb-green);
+}
+
+/* ── Markdown links — animated underline grow ─────────────────────── */
+.sl-markdown-content a:not(:where(.not-content *)) {
+    background-image: linear-gradient(
+        90deg,
+        currentColor,
+        currentColor
+    );
+    background-repeat: no-repeat;
+    background-position: 0 100%;
+    background-size: 0 1.5px;
+    text-decoration: none;
+    transition:
+        color var(--bb-dur-fast) var(--bb-ease-out-expo),
+        background-size var(--bb-dur-med) var(--bb-ease-out-expo);
+}
+
+.sl-markdown-content a:not(:where(.not-content *)):hover {
+    background-size: 100% 1.5px;
+}
+
+/* ── Code copy button — pop ───────────────────────────────────────── */
+.expressive-code .copy button {
+    transition: transform var(--bb-dur-med) var(--bb-ease-out-back),
+                background var(--bb-dur-fast) var(--bb-ease-out-expo) !important;
+}
+
+.expressive-code .copy button:hover {
+    transform: scale(1.1);
+}
+
+.expressive-code .copy button:active {
+    transform: scale(0.94);
+}
+
+/* ── Astro View Transitions — opacity-only, GPU-cheap ──────────────
+   Notes on perf:
+   1. NO `filter: blur(...)` in keyframes — blur forces a full-page
+      shader pass every frame, which is the #1 cause of laggy view
+      transitions on doc-sized layouts.
+   2. NO transform/translate either — translating the entire page
+      snapshot triggers layer re-rasterization on some GPUs.
+   3. NO per-element `view-transition-name` for the header/sidebar.
+      Naming them creates extra snapshot/animation passes that all run
+      concurrently with the root pass; cheaper to let the root fade
+      cover them.
+   4. Short durations (180ms / 160ms) so the user reaches the new page
+      before they notice any animation cost. */
+@view-transition {
+    navigation: auto;
+}
+
+::view-transition-old(root) {
+    animation: bb-vt-out 160ms ease-out forwards;
+}
+
+::view-transition-new(root) {
+    animation: bb-vt-in 180ms ease-out backwards;
+}
+
+@keyframes bb-vt-out {
+    to { opacity: 0; }
+}
+
+@keyframes bb-vt-in {
+    from { opacity: 0; }
+}
+
+/* ────────────────────────────────────────────────────────────────────
+   Reduced motion
+   ──────────────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
