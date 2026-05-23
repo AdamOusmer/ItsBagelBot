@@ -1,0 +1,93 @@
+---
+/**
+ * Lenis smooth scroll — ported from web/src/script/scroll.js so the
+ * docs feel exactly like the marketing site.
+ *
+ * Key config (same as web):
+ *   lerp:        0.1     (smoother than the older duration+easing pair)
+ *   smoothWheel: true
+ *   syncTouch:   false
+ *
+ * Extras vs. web (because docs is an SPA via Astro ClientRouter):
+ *   - visibilitychange gating so RAF stops in background tabs
+ *   - astro:after-swap hard-resets scroll so Lenis doesn't smooth
+ *     between two unrelated pages
+ *   - reduced-motion users get the browser's native scroll
+ */
+---
+
+<script>
+    import Lenis from "lenis";
+
+    type LenisInstance = InstanceType<typeof Lenis>;
+
+    declare global {
+        interface Window {
+            lenis?: LenisInstance;
+            __bbLenisRaf?: number;
+        }
+    }
+
+    function loaderOwnsViewport() {
+        // Docs has no boot loader — kept as a hook in case one is added later.
+        return false;
+    }
+
+    function startRaf(lenis: LenisInstance) {
+        if (window.__bbLenisRaf) return;
+        const raf = (time: number) => {
+            lenis.raf(time);
+            window.__bbLenisRaf = requestAnimationFrame(raf);
+        };
+        window.__bbLenisRaf = requestAnimationFrame(raf);
+    }
+
+    function stopRaf() {
+        if (!window.__bbLenisRaf) return;
+        cancelAnimationFrame(window.__bbLenisRaf);
+        window.__bbLenisRaf = 0;
+    }
+
+    function init() {
+        if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+        if (window.lenis) return;
+
+        const lenis = new Lenis({
+            lerp: 0.1,
+            smoothWheel: true,
+            syncTouch: false,
+        });
+
+        window.lenis = lenis;
+
+        document.addEventListener("visibilitychange", () => {
+            if (document.hidden) {
+                stopRaf();
+            } else if (!loaderOwnsViewport()) {
+                startRaf(lenis);
+            }
+        });
+
+        if (!loaderOwnsViewport()) startRaf(lenis);
+    }
+
+    init();
+
+    // ClientRouter persists `<body>` across navigations. Two perf
+    // considerations:
+    //   1. Lenis's RAF keeps applying scroll transforms during the
+    //      view transition snapshot — that fights the compositor and
+    //      causes the lag the user reported. Pause it for the swap.
+    //   2. Snap scroll to 0 so the new page doesn't smooth-animate
+    //      from the previous page's offset.
+    document.addEventListener("astro:before-preparation", () => {
+        window.lenis?.stop();
+    });
+
+    document.addEventListener("astro:after-swap", () => {
+        const lenis = window.lenis;
+        if (!lenis) return;
+        lenis.scrollTo(0, { immediate: true, force: true });
+        lenis.start();
+    });
+</script>

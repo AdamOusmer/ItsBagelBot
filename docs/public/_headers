@@ -1,0 +1,101 @@
+# Cloudflare Pages headers — strict security baseline + smart caching.
+#
+# Reference: https://developers.cloudflare.com/pages/configuration/headers/
+# Last reviewed: 2026-05-22
+
+# ─────────────────────────────────────────────────────────────────────
+# Site-wide defaults: applied to every response.
+# ─────────────────────────────────────────────────────────────────────
+/*
+  # ── Transport ────────────────────────────────────────────────────
+  # Force HTTPS for the next ~2 years; mark eligible for the HSTS
+  # preload list. Submit at https://hstspreload.org once stable.
+  Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+
+  # ── Framing / clickjacking ───────────────────────────────────────
+  # Modern browsers honour `frame-ancestors` in CSP; X-Frame-Options
+  # is the legacy fallback for older clients.
+  X-Frame-Options: DENY
+
+  # ── MIME sniffing ────────────────────────────────────────────────
+  X-Content-Type-Options: nosniff
+
+  # ── Referrer leakage ─────────────────────────────────────────────
+  # Send origin to cross-origin requests; full URL same-origin.
+  Referrer-Policy: strict-origin-when-cross-origin
+
+  # ── Browser feature lockdown ─────────────────────────────────────
+  # Docs site doesn't need camera, mic, geo, USB, MIDI, payment, etc.
+  Permissions-Policy: accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=(), interest-cohort=(), browsing-topics=()
+
+  # ── Cross-origin isolation (best-effort) ─────────────────────────
+  # COOP cuts the page off from window.opener / cross-origin popups
+  # for Spectre-class isolation. CORP/COEP would unlock things like
+  # SharedArrayBuffer but require every embedded resource to opt in —
+  # left off because Google Fonts doesn't send CORP headers and that
+  # would break the @import in theme.css.
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Resource-Policy: same-origin
+
+  # ── DNS prefetch ─────────────────────────────────────────────────
+  X-DNS-Prefetch-Control: on
+
+  # ── Content Security Policy ──────────────────────────────────────
+  # 'unsafe-inline' for style-src and script-src is necessary today:
+  #   - Mermaid injects <style> tags inside its rendered <svg> and
+  #     uses inline style attributes on shape elements.
+  #   - Starlight ships small inline scripts (theme detection, search
+  #     bootstrap) without per-build hashes.
+  # To tighten further, enable Astro 6's experimental CSP support
+  # (`experimental.csp: true` in astro.config.mjs) which auto-hashes
+  # known inline blocks — then drop 'unsafe-inline' here and from
+  # script-src.
+  #
+  # Origins explained:
+  #   fonts.googleapis.com  → CSS @import in src/styles/theme.css
+  #   fonts.gstatic.com     → woff2 font payloads requested by that CSS
+  #   data: / blob:         → favicons-as-data-URIs and any client-side
+  #                           image generation; safe with object-src 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob:; connect-src 'self'; media-src 'self'; worker-src 'self' blob:; manifest-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'self'; object-src 'none'; upgrade-insecure-requests
+
+# ─────────────────────────────────────────────────────────────────────
+# Astro's hashed asset bundle (JS/CSS) — immutable, cache for a year.
+# Filenames carry content hashes, so cache invalidation is automatic.
+# ─────────────────────────────────────────────────────────────────────
+/_astro/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# ─────────────────────────────────────────────────────────────────────
+# Pagefind search index — small files, content-addressed, refreshed
+# every build. Cache aggressively too.
+# ─────────────────────────────────────────────────────────────────────
+/pagefind/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# ─────────────────────────────────────────────────────────────────────
+# Favicons / brand images — change rarely; cache for a week with SWR.
+# ─────────────────────────────────────────────────────────────────────
+/favicon.ico
+  Cache-Control: public, max-age=604800
+
+/*.png
+  Cache-Control: public, max-age=604800
+
+/*.svg
+  Cache-Control: public, max-age=604800
+
+# ─────────────────────────────────────────────────────────────────────
+# Site manifest + robots/sitemap — short cache so updates land fast.
+# ─────────────────────────────────────────────────────────────────────
+/site.webmanifest
+  Content-Type: application/manifest+json
+  Cache-Control: public, max-age=3600
+
+/robots.txt
+  Cache-Control: public, max-age=3600
+
+/sitemap-index.xml
+  Cache-Control: public, max-age=3600
+
+/sitemap-*.xml
+  Cache-Control: public, max-age=3600
