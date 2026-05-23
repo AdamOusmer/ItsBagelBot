@@ -1,0 +1,245 @@
+---
+/*
+ * MermaidInteractive
+ * ────────────────────────────────────────────────────────────────
+ * Adds a fullscreen button + click-to-expand modal with pan/zoom
+ * (anvaka/panzoom) on top of every rendered mermaid panel. The
+ * inline diagrams keep their existing styles; the modal clones the
+ * SVG so theme classes still apply.
+ *
+ * Modal architecture (kept intentionally flat):
+ *
+ *   .mermaid-modal__stage   (fixed, fills viewport, overflow:hidden,
+ *                            display:grid → centers the child)
+ *     └ pre.mermaid.mermaid-modal-host  ← PANZOOM TARGET
+ *         (passive CSS wrapper so every `pre.mermaid svg X` rule in
+ *          MermaidStyles applies. Sized to the SVG it contains.)
+ *         └ svg (the clone, capped via CSS to 90vw × 88vh so the
+ *                initial fit is just layout — no JS measurement.)
+ *
+ * Panzoom on the pre means its `owner` = stage (the parent), so wheel
+ * and drag events register anywhere in the modal — not just over the
+ * pre's bounding box.
+ *
+ * Lenis (smooth scroll) intercepts wheel at the document level. We
+ * `lenis.stop()` while the modal is open so wheel-to-zoom doesn't
+ * also scroll the page underneath.
+ */
+---
+
+<script>
+  import panzoom, { type PanZoom } from 'panzoom';
+
+  // Lenis exposes itself on `window.lenis` from SmoothScroll.astro. Mirror
+  // the (minimal) shape we use here so TS is happy without re-importing.
+  declare global {
+    interface Window {
+      lenis?: { stop: () => void; start: () => void };
+    }
+  }
+
+  const READY = 'mermaid-interactive-ready';
+  const MODAL_OPEN = 'mermaid-modal--open';
+
+  let modal: HTMLDivElement | null = null;
+  let stage: HTMLDivElement | null = null;
+  let target: HTMLElement | null = null; // the pre.mermaid wrapper, panzoom target
+  let instance: PanZoom | null = null;
+  let observer: MutationObserver | null = null;
+
+  function buildModal(): HTMLDivElement {
+    const root = document.createElement('div');
+    root.className = 'mermaid-modal';
+    root.setAttribute('role', 'dialog');
+    root.setAttribute('aria-modal', 'true');
+    root.setAttribute('aria-label', 'Diagram viewer');
+    root.innerHTML = `
+      <div class="mermaid-modal__backdrop" data-action="close"></div>
+      <div class="mermaid-modal__stage" aria-live="polite"></div>
+      <div class="mermaid-modal__toolbar" role="toolbar" aria-label="Diagram controls">
+        <button type="button" data-action="zoom-out" aria-label="Zoom out" title="Zoom out">−</button>
+        <button type="button" data-action="reset"    aria-label="Reset view" title="Reset view">⤢</button>
+        <button type="button" data-action="zoom-in"  aria-label="Zoom in" title="Zoom in">+</button>
+        <button type="button" data-action="close"    aria-label="Close (Esc)" title="Close (Esc)">✕</button>
+      </div>
+      <div class="mermaid-modal__hint" aria-hidden="true">
+        drag to pan · scroll to zoom · esc to close
+      </div>
+    `;
+    document.body.appendChild(root);
+
+    stage = root.querySelector<HTMLDivElement>('.mermaid-modal__stage');
+
+    root.addEventListener('click', (ev) => {
+      const action = (ev.target as HTMLElement)
+        .closest('[data-action]')
+        ?.getAttribute('data-action');
+      if (!action) return;
+      if (action === 'close') closeModal();
+      else if (action === 'zoom-in') zoomBy(1.4);
+      else if (action === 'zoom-out') zoomBy(1 / 1.4);
+      else if (action === 'reset') resetView();
+    });
+
+    return root;
+  }
+
+  function ensureModal(): HTMLDivElement {
+    if (modal && document.body.contains(modal)) return modal;
+    modal = buildModal();
+    return modal;
+  }
+
+  function zoomBy(factor: number) {
+    if (!instance || !stage) return;
+    const r = stage.getBoundingClientRect();
+    instance.smoothZoom(r.left + r.width / 2, r.top + r.height / 2, factor);
+  }
+
+  function resetView() {
+    if (!instance) return;
+    // Snap back to the CSS-defined initial position (identity transform).
+    instance.moveTo(0, 0);
+    instance.zoomAbs(0, 0, 1);
+  }
+
+  function openModal(panel: HTMLElement) {
+    // Re-entry guard. Without this, a click that bubbles or a fast
+    // double-click can stack a second panzoom instance on the same
+    // host or — worse — leave a dangling instance attached when we
+    // create a new one.
+    if (modal?.classList.contains(MODAL_OPEN)) return;
+
+    const sourceSvg = panel.querySelector('svg');
+    if (!sourceSvg) return;
+    const m = ensureModal();
+    if (!stage) return;
+
+    stage.innerHTML = '';
+
+    const host = document.createElement('pre');
+    host.className = 'mermaid mermaid-modal-host';
+    host.setAttribute('data-processed', 'true');
+
+    const clone = sourceSvg.cloneNode(true) as SVGElement;
+
+    // Compute the initial fit size. The grid-centered host has no
+    // intrinsic width, so the SVG MUST carry explicit dimensions —
+    // otherwise the SVG (with `width:auto`) collapses to 0 and the
+    // diagram appears invisible. We scale once so the SVG starts at
+    // ~92vw × 88vh max, preserving aspect ratio. Panzoom drives the
+    // transform on top of this from here on.
+    const srcRect = sourceSvg.getBoundingClientRect();
+    const maxW = window.innerWidth  * 0.92;
+    const maxH = window.innerHeight * 0.88;
+    const fit = Math.min(maxW / srcRect.width, maxH / srcRect.height, 1);
+    const w = Math.round(srcRect.width  * fit);
+    const h = Math.round(srcRect.height * fit);
+
+    clone.setAttribute('width',  String(w));
+    clone.setAttribute('height', String(h));
+    clone.style.width  = `${w}px`;
+    clone.style.height = `${h}px`;
+    clone.style.maxWidth  = 'none';
+    clone.style.maxHeight = 'none';
+    clone.style.display = 'block';
+
+    host.appendChild(clone);
+    stage.appendChild(host);
+    target = host;
+
+    m.classList.add(MODAL_OPEN);
+    document.documentElement.style.overflow = 'hidden';
+    // Stop Lenis so wheel-to-zoom doesn't also smooth-scroll the page.
+    window.lenis?.stop();
+
+    instance?.dispose();
+    instance = panzoom(host, {
+      maxZoom: 12,
+      minZoom: 0.1,
+      bounds: false,
+      smoothScroll: false,
+      zoomDoubleClickSpeed: 1,
+      // Block wheel-zoom from also scrolling the document. Panzoom
+      // listens with passive:false internally, so preventDefault works.
+      beforeWheel: () => false,
+    });
+  }
+
+  function closeModal() {
+    if (!modal) return;
+    modal.classList.remove(MODAL_OPEN);
+    document.documentElement.style.overflow = '';
+    window.lenis?.start();
+    instance?.dispose();
+    instance = null;
+    target = null;
+    if (stage) stage.innerHTML = '';
+  }
+
+  function enhance(panel: HTMLElement) {
+    if (panel.classList.contains(READY)) return;
+    if (!panel.querySelector('svg')) return;
+    panel.classList.add(READY);
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'mermaid-fullscreen-btn';
+    btn.setAttribute('aria-label', 'Open diagram in fullscreen viewer');
+    btn.title = 'Open fullscreen';
+    btn.innerHTML = `
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"
+              fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span>Expand</span>
+    `;
+    panel.appendChild(btn);
+
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openModal(panel);
+    });
+
+    // Click anywhere on the panel (but not while selecting text) opens it too.
+    panel.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).closest('.mermaid-fullscreen-btn')) return;
+      if (window.getSelection()?.toString()) return;
+      openModal(panel);
+    });
+  }
+
+  function scan() {
+    document
+      .querySelectorAll<HTMLElement>('pre.mermaid[data-processed]')
+      .forEach(enhance);
+  }
+
+  function init() {
+    scan();
+
+    observer?.disconnect();
+    observer = new MutationObserver(scan);
+    observer.observe(document.body, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ['data-processed'],
+    });
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modal?.classList.contains(MODAL_OPEN)) closeModal();
+  });
+
+  document.addEventListener('astro:before-swap', () => {
+    closeModal();
+    observer?.disconnect();
+    observer = null;
+  });
+  document.addEventListener('astro:page-load', init);
+
+  if (document.readyState !== 'loading') init();
+  else document.addEventListener('DOMContentLoaded', init);
+</script>
