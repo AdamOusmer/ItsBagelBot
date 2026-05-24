@@ -36,7 +36,7 @@ Laying down our requirements:
 
 ## Decision
 
-Based on the requirements above, Go is the language of choice — it satisfies every requirement we laid down.
+Based on the requirements above, Go is the language of choice. It satisfies every requirement we laid down.
 
 - High throughput in low-compute environments: Go compiles to a single static binary that runs without a VM, and its
   runtime stays small under load.
@@ -54,12 +54,11 @@ Based on the requirements above, Go is the language of choice — it satisfies e
   with strict conventions to respect during development.
 - Error handling is verbose: every fallible call returns an explicit error, which adds boilerplate but forces failure
   paths to be considered up front.
-- Generics are still relatively recent (Go 1.18+), so some libraries we depend on may not yet take advantage of them.
 - The talent pool familiar with Go is smaller than Python's, which makes onboarding future contributors more effortful.
 - Some Twitch and Discord SDKs are Python-first, so we may end up wrapping third-party APIs ourselves where the Go
-  community has not caught up yet.
+  community has not caught up yet. 
 
-## Alternatives considered
+## Alternatives considered  
 
 - Free-threaded Python ([PEP 703](https://peps.python.org/pep-0703/), the no-GIL build) was a good candidate, but the
   runtime's current maturity means we would spend more time fighting it than using it.
