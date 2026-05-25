@@ -7,7 +7,7 @@ description: "Architecture decision record: Rewriting to Microservices"
 
 ## Status
 
-Accepted
+Superseded by [ADR 0006](/adr/0006-adoption-of-elixir-for-twitch-ingress/)
 
 ## Context
 
