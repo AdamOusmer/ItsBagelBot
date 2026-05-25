@@ -486,8 +486,8 @@ site-search button[data-open-modal]:hover {
    in dense docs (no glowing tan word every other line); the underline
    carries the accent and the link saturates only on hover. */
 .sl-markdown-content a:not(:where(.not-content *)) {
-    color: var(--bb-white);
-    text-decoration-color: rgb(var(--bb-tan-rgb) / 0.55);
+    color: var(--bb-green-glow);
+    text-decoration-color: rgb(var(--bb-green-glow-rgb) / 0.55);
     text-decoration-thickness: 1px;
     text-underline-offset: 3px;
     transition: color 160ms var(--bb-ease-out-expo),
@@ -500,8 +500,8 @@ site-search button[data-open-modal]:hover {
 }
 
 :root[data-theme="light"] .sl-markdown-content a:not(:where(.not-content *)) {
-    color: var(--bb-ink);
-    text-decoration-color: rgb(var(--bb-tan-deep-rgb) / 0.55);
+    color: var(--bb-green);
+    text-decoration-color: rgb(var(--bb-green-rgb) / 0.55);
 }
 
 :root[data-theme="light"] .sl-markdown-content a:not(:where(.not-content *)):hover {
