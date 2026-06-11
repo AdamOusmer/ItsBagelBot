@@ -1,0 +1,79 @@
+# broadcaster-data (Go). Owns the broadcaster_data schema; serves the
+# broadcaster status RPC on a NATS queue group, so replicas load-balance and
+# fail over without coordination.
+apiVersion: secrets.doppler.com/v1alpha1
+kind: DopplerSecret
+metadata:
+  name: broadcaster-data-env
+  namespace: bagelbot
+spec:
+  host: https://api.doppler.com
+  tokenSecret:
+    name: broadcaster-data-doppler-token
+  managedSecret:
+    name: broadcaster-data-env
+    namespace: bagelbot
+    type: Opaque
+  resyncSeconds: 60
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: broadcaster-data
+  namespace: bagelbot
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: broadcaster-data
+  template:
+    metadata:
+      labels:
+        app: broadcaster-data
+      annotations:
+        linkerd.io/inject: disabled
+    spec:
+      # node2 (amd64) is reserved for the sentinel; app workloads pin to arm64.
+      nodeSelector:
+        kubernetes.io/arch: arm64
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: broadcaster-data
+          image: docker.io/itsbagelbot/broadcaster-data:0.1.0
+          imagePullPolicy: Never # imported per-node, per-arch
+          envFrom:
+            - secretRef:
+                name: broadcaster-data-env
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: "1"
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+            periodSeconds: 30
+          readinessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+            periodSeconds: 10
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: broadcaster-data
+  namespace: bagelbot
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: broadcaster-data
