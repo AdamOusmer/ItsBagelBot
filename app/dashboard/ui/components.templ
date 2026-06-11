@@ -1,0 +1,74 @@
+package ui
+
+// Reusable building blocks. Pages compose these; nothing here fetches data.
+
+templ Card(title string) {
+	<section class="glass-card">
+		<div class="glass-card-header">
+			<h2>{ title }</h2>
+		</div>
+		<div style="position:relative; z-index:1;">
+			{ children... }
+		</div>
+	</section>
+}
+
+templ TierBadge(tier string) {
+	if tier == "premium" {
+		<span style="display:inline-flex; align-items:center; gap:5px; background:rgba(45,106,79,0.15); color:var(--green-glow); border:1px solid rgba(82,183,136,0.25); border-radius:20px; padding:0.2rem 0.7rem; font-family:var(--font-mono); font-size:0.78rem; font-weight:500; letter-spacing:0.05em; text-transform:uppercase;">
+			<span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--green-glow); box-shadow:0 0 8px var(--green-glow);"></span>
+			premium
+		</span>
+	} else {
+		<span style="display:inline-flex; align-items:center; gap:5px; background:rgba(201,168,124,0.08); color:var(--muted); border:1px solid rgba(201,168,124,0.15); border-radius:20px; padding:0.2rem 0.7rem; font-family:var(--font-mono); font-size:0.78rem; font-weight:500; letter-spacing:0.05em; text-transform:uppercase;">
+			standard
+		</span>
+	}
+}
+
+templ BotStatus(enabled bool) {
+	if enabled {
+		<span style="display:inline-flex; align-items:center; gap:6px; color:var(--green-glow); font-weight:600; font-size:0.9rem;">
+			<span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--green-glow); box-shadow:0 0 10px rgba(82,183,136,0.5); animation:pulse-status 2s ease-in-out infinite;"></span>
+			enabled
+		</span>
+	} else {
+		<span style="display:inline-flex; align-items:center; gap:6px; color:var(--tan); font-weight:600; font-size:0.9rem;">
+			<span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--tan); opacity:0.6;"></span>
+			not enabled
+		</span>
+	}
+}
+
+// ShardFeed renders a live list fed by the /app/events SSE stream.
+templ ShardFeed() {
+	<ul id="shard-feed" style="list-style:none; padding:0; margin:0; color:var(--muted); font-family:var(--font-mono); font-size:0.82rem; line-height:1.8; max-height:320px; overflow-y:auto; scrollbar-width:thin; scrollbar-color:rgba(201,168,124,0.2) transparent;"></ul>
+	<style>
+		#shard-feed::-webkit-scrollbar { width: 4px; }
+		#shard-feed::-webkit-scrollbar-track { background: transparent; }
+		#shard-feed::-webkit-scrollbar-thumb { background: rgba(201,168,124,0.2); border-radius: 4px; }
+		#shard-feed li {
+			padding: 0.35rem 0;
+			border-bottom: 1px solid rgba(255,255,255,0.03);
+			animation: feedIn 0.3s var(--ease-out-expo) both;
+		}
+		@keyframes feedIn {
+			from { opacity: 0; transform: translateY(-6px); }
+			to { opacity: 1; transform: translateY(0); }
+		}
+		@keyframes pulse-status {
+			0%, 100% { opacity: 1; transform: scale(1); }
+			50% { opacity: 0.5; transform: scale(0.85); }
+		}
+	</style>
+	<script>
+		const feed = document.getElementById("shard-feed");
+		const es = new EventSource("/app/events");
+		es.onmessage = (e) => {
+			const li = document.createElement("li");
+			li.textContent = e.data;
+			feed.prepend(li);
+			while (feed.children.length > 20) feed.removeChild(feed.lastChild);
+		};
+	</script>
+}
