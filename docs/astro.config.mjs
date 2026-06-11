@@ -143,6 +143,7 @@ export default defineConfig({
 				{ label: 'Infrastructure', items: [{ autogenerate: { directory: 'infrastructure' } }] },
 				{ label: 'Data & State', items: [{ autogenerate: { directory: 'data-and-state' } }] },
 				{ label: 'Microservices', items: [{ autogenerate: { directory: 'microservices' } }] },
+				{ label: 'QA Reports', items: [{ autogenerate: { directory: 'qa' } }] },
 				{ label: 'ADRs', items: [{ autogenerate: { directory: 'adr' } }] },
 				{ label: 'Reference', items: [{ autogenerate: { directory: 'reference' } }] },
 			],
