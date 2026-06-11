@@ -1,0 +1,54 @@
+package data
+
+import "encoding/json"
+
+// Subjects form the public contract between the data services, their caches
+// and the projector (see ADR 0003). Renaming one is a breaking change.
+const (
+	SubjectUserChanged         = "data.users.changed"
+	SubjectUserDeleted         = "data.users.deleted"
+	SubjectModuleChanged       = "data.modules.changed"
+	SubjectCommandChanged      = "data.commands.changed"
+	SubjectTransactionRecorded = "data.transactions.recorded"
+
+	// SubjectReprojectRequest asks every data service to republish its
+	// current state as ordinary change events. The projector sends it on a
+	// cold start so it can rebuild the Valkey projection without ever
+	// reading another service's schema.
+	SubjectReprojectRequest = "data.reproject.request"
+)
+
+// The DTOs carry the full new state (event-carried state transfer): consumers
+// such as the Valkey projector and the in-process caches update themselves
+// from the event alone and never read another service's schema.
+
+type UserChangedDTO struct {
+	UserID   uint64 `json:"user_id"`
+	Username string `json:"username"`
+	IsActive bool   `json:"is_active"`
+	Status   string `json:"status"`
+}
+
+type UserDeletedDTO struct {
+	UserID uint64 `json:"user_id"`
+}
+
+type ModuleChangedDTO struct {
+	UserID    uint64          `json:"user_id"`
+	Name      string          `json:"name"`
+	IsEnabled bool            `json:"is_enabled"`
+	Configs   json.RawMessage `json:"configs,omitempty"`
+}
+
+type CommandChangedDTO struct {
+	UserID   uint64 `json:"user_id"`
+	Name     string `json:"name"`
+	Response string `json:"response,omitempty"`
+	IsActive bool   `json:"is_active"`
+	Deleted  bool   `json:"deleted"`
+}
+
+type TransactionRecordedDTO struct {
+	ID     string `json:"id"`
+	UserID uint64 `json:"user_id"`
+}

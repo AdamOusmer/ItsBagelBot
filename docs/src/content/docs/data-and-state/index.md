@@ -1,74 +1,112 @@
 ---
-title: Data & state
-description: Where data lives, who owns it, and how state crosses service boundaries in ItsBagelBot.
+title: Data plane overview
+description: "The data services, what they own, and how state moves between MySQL,
+the caches, NATS, and the Valkey projection."
+sidebar:
+  order: 1
 ---
 
-This section documents the stores ItsBagelBot relies on for persistent data, the state each service is allowed to
-keep, and the rules that govern data crossing service boundaries.
+The data plane is four bounded-context services plus a projector, all under `app/`. Each service owns its own MySQL
+schema on HeatWave ([ADR 0005](/adr/0005-adoption-of-mysql-heatwave/)), announces every committed change as an event
+on NATS ([ADR 0003](/adr/0003-adoption-of-nats-as-communication-bridge/)), and the projector folds those events into
+the Valkey settings projection that the hot path reads.
 
-Three categories of state live in the system, kept deliberately separate so each can fail, restart, and be reasoned
-about independently:
+This page is the component view. The rest of the section goes deeper:
 
-- **Persistent state.** Long-lived data behind the product: tenant records, broadcaster configuration, OAuth grants,
-  command definitions, audit history. Lives in MySQL HeatWave under per-service schemas.
-  See [ADR 0005](/adr/0005-adoption-of-mysql-heatwave/).
-- **Ephemeral state.** Per-shard, per-connection state held in service memory. Lost on restart by design. The
-  supervisor's job is to make that restart safe and bounded, not to persist the state behind it. Twitch Ingress shard
-  state is the canonical example.
-- **In-flight state.** Events traversing the NATS56 bus between producers and consumers. Not a store, but a transport
-  whose delivery semantics the ownership rules below depend on.
-  See [ADR 0003](/adr/0003-adoption-of-nats-as-communication-bridge/).
+- [Database design](/data-and-state/database/): the conceptual model, the physical schemas, and the integrity rules.
+- [Caching and write-behind](/data-and-state/caching/): the read and write paths, with their UML sequence and state
+  diagrams.
+- [Class design](/data-and-state/design/): the UML class diagrams and the design patterns in play.
+- [Settings projection](/data-and-state/projection/): the Valkey layout and the rebuild protocol.
 
-## Store registry
+## Component diagram
 
-| Store                          | Class                 | Owner          | Holds                                       | Replication                  | Backup                                  |
-|--------------------------------|-----------------------|----------------|---------------------------------------------|------------------------------|-----------------------------------------|
-| MySQL HeatWave (Always Free)   | Relational, managed   | OCI, Montreal  | All persistent state, per-service schema    | Storage-layer HA (provider)  | Off-provider logical dump (cadence TBD) |
+```mermaid
+flowchart LR
+    subgraph services["Data services (app/)"]
+        users["users"]
+        commands["commands"]
+        modules["modules"]
+        transactions["transactions"]
+    end
 
-> In Progress: any additional store (cache, object storage, JetStream-backed stream) as it is adopted. Each new
-> store gets a row here and a section below describing its ownership, lifecycle, and recovery posture.
+    subgraph record["State of record"]
+        mysql[("MySQL HeatWave<br/>one schema per service")]
+    end
 
-## Ownership rules
+    nats(["NATS JetStream"])
+    projector["projector"]
+    valkey[("Valkey<br/>settings projection")]
+    hot["Hot path readers<br/>(ingress workers)"]
 
-Per-service schema isolation is the load-bearing rule and follows directly from
-[ADR 0001](/adr/0001-rewriting-to-microservices/) and [ADR 0005](/adr/0005-adoption-of-mysql-heatwave/).
+    users --> mysql
+    commands --> mysql
+    modules --> mysql
+    transactions --> mysql
 
-- A service owns exactly one MySQL schema. Other services do not read or write to it directly.
-- Cross-service data flows through the documented API or event surface, never through cross-schema joins.
-- Foreign keys do not cross schema boundaries. A reference to another service's entity is an opaque ID resolved at
-  the API layer.
+    users -- "change events" --> nats
+    commands -- "change events" --> nats
+    modules -- "change events" --> nats
+    transactions -- "change events" --> nats
 
-> In Progress: write paths versus read paths, who is allowed to issue migrations, how to handle data that two
-> services both legitimately need.
+    nats -- "invalidation (broadcast)" --> services
+    nats -- "durable group" --> projector
+    projector --> valkey
+    hot --> valkey
+```
 
-## Multi-tenancy
+## Ownership
 
-> In Progress: tenant scoping at the row level, the column convention every persistent table is expected to carry,
-> and how a tenant deletion cascades across services that hold a copy of its ID.
+| Service | Schema | Owns | Write path |
+|---------|--------|------|------------|
+| `app/users` | `bagel_users` | User records (Twitch ID, username, email, active flag, tier status) and OAuth tokens as Tink AEAD ciphertext | Direct, always |
+| `app/commands` | `bagel_commands` | Custom chat commands | Write-behind (deletes direct) |
+| `app/modules` | `bagel_modules` | Module toggles and JSON configurations | Write-behind |
+| `app/transactions` | `bagel_transactions` | Tebex transaction ID and owning user, nothing else | Direct, always, idempotent on retry |
+| `app/projector` | none | The Valkey projection (disposable, rebuildable) | Event-driven overwrites |
 
-## Backup and restore
+Cross-service references are a plain indexed Twitch user ID column. There are no foreign keys across schemas, by
+construction.
 
-HeatWave provides storage-layer HA, which protects against hardware loss but **not** against operator error or
-account loss. Logical backups are taken off-provider so that a worst-case account incident is recoverable.
+## Event contracts
 
-> In Progress: backup cadence, retention window, off-provider destination, and the restore drill schedule that
-> proves the backups are actually restorable.
+The subjects and payload DTOs live in `internal/domain/event/data` and are a public contract: renaming a subject or
+narrowing a payload is a breaking change. Every payload carries the full new state (event-carried state transfer),
+so consumers never read another service's schema and redelivery is harmless.
 
-## Schema conventions
+| Subject | Payload | Published when |
+|---------|---------|----------------|
+| `data.users.changed` | full user view (ID, username, active, status) | Registration, rename, tier change |
+| `data.users.deleted` | user ID | User deletion |
+| `data.modules.changed` | user ID, module name, enabled, config JSON | Each module row landed by a flush |
+| `data.commands.changed` | user ID, name, response, active, deleted flag | Each command row landed by a flush, and deletions |
+| `data.transactions.recorded` | transaction ID, user ID | First successful record of a transaction |
+| `data.reproject.request` | empty | Projector cold start; owners replay their state as ordinary change events |
 
-To keep a future move to managed Postgres a migration rather than a rewrite, schemas stay inside the common SQL
-subset. See the consequences section of [ADR 0005](/adr/0005-adoption-of-mysql-heatwave/) for the constraints this
-implies.
+Two subscription shapes, on purpose:
 
-> In Progress: charset and collation, isolation level, SQL mode, timestamp handling, identifier naming, and the
-> short list of MySQL-only syntax we deliberately avoid.
+- **Broadcast (no queue group):** cache invalidation. Every instance of a service drops its cached keys when any
+  instance writes.
+- **Durable queue group:** the projector, and the reproject responders. Exactly one consumer per group handles each
+  event, and the group keeps its position across restarts.
 
-## What does *not* live in a shared store
+Consumers validate every payload and **drop** (log and ack) what fails to decode or validate. Nacking a poison
+message would redeliver it forever.
 
-- **Per-shard runtime state.** Held in service memory, rebuilt on restart. A service that needs cross-process
-  visibility of its own runtime state should make that visibility explicit (an API, an event), not coerce a shared
-  store into the role.
-- **Cross-service joinable data.** If two services find themselves wanting a SQL join, the answer is an API or an
-  event, not a third schema that bridges them.
-- **Secrets.** OAuth grants stored in MySQL are encrypted at rest at the application layer before they reach the
-  schema. Provider-level encryption is treated as defense in depth, not as the primary control.
+## Configuration
+
+Every service reads its configuration from the environment. Common variables:
+
+| Variable | Default | Used by |
+|----------|---------|---------|
+| `APP_ENV` | `development` | all (logger profile) |
+| `NATS_URL` | `nats://127.0.0.1:4222` | all |
+| `DB_ADDR` | `127.0.0.1:3306` | data services |
+| `DB_USER`, `DB_PASS` | required | data services |
+| `DB_SCHEMA` | `bagel_<service>` | data services |
+| `TINK_KEYSET_PATH` | required | users |
+| `VALKEY_ADDR` | `127.0.0.1:6379` | projector |
+| `VALKEY_PASSWORD` | empty | projector |
+| `NEW_RELIC_LICENSE_KEY` | empty (monitoring disabled) | all |
+
+Monitoring is a no-op without a license key, so local development needs none of the `NEW_RELIC_*` variables.
