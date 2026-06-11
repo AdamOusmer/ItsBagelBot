@@ -28,3 +28,20 @@ go.work.sum
 
 .idea/
 
+# macOS
+.DS_Store
+
+# Certificates and keys
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+
+# Compiled binaries (root level)
+/broadcaster-data
+
+# Elixir build artifacts
+_build/
+deps/
+*.ez

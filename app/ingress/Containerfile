@@ -1,0 +1,38 @@
+# Twitch Ingress (Elixir) - build with podman or docker:
+#   podman build -t itsbagelbot/twitch-ingress -f Containerfile .
+FROM elixir:1.19-otp-28 AS build
+
+ENV MIX_ENV=prod
+WORKDIR /src
+
+RUN mix local.hex --force && mix local.rebar --force
+
+COPY mix.exs mix.lock* ./
+RUN mix deps.get --only prod
+
+COPY config config
+RUN mix deps.compile
+
+COPY lib lib
+RUN mix compile && mix release
+
+# ---------------------------------------------------------------------------
+# Must match the builder's base distro: the release links against its glibc.
+FROM debian:trixie-slim
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends libssl3 libncurses6 ca-certificates \
+ && rm -rf /var/lib/apt/lists/* \
+ && useradd --system --home /app --shell /usr/sbin/nologin ingress
+
+COPY --from=build --chown=ingress:ingress /src/_build/prod/rel/ingress /app
+
+USER ingress
+WORKDIR /app
+
+# BEAM core capping happens at runtime: the deployment sets ERL_FLAGS
+# (e.g. "+S 2:2 +sbwt none") to match its k8s CPU limit, because the VM
+# sizes its schedulers from the host's logical CPUs, not the cgroup quota.
+ENV LANG=C.UTF-8
+ENTRYPOINT ["/app/bin/ingress"]
+CMD ["start"]

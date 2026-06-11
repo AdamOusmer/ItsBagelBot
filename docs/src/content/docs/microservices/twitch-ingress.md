@@ -19,8 +19,12 @@ substrate (NATS) it sits behind is justified in
 - Keep each shard's WebSocket alive: handle the `session_welcome` / `reconnect` dance, reconnect with backoff on
   close or reset, restart a single shard in isolation when it fails.
 - Refresh per-tenant OAuth tokens before expiry and re-authenticate when tokens roll over.
-- **Filter** incoming Twitch payloads (drop ignored event types, self-echoes, anything we have explicitly opted out
-  of) and publish the survivors to NATS as normalized events.
+- **Filter** incoming Twitch payloads and publish the survivors to NATS as normalized events. Chat messages have
+  exactly three outcomes: messages from the special user IDs (secret-store list) always go to the **premium lane**;
+  messages starting with `!` go to the lane matching the **broadcaster's** status (premium or standard); everything
+  else is dropped.
+- Resolve broadcaster status over **NATS request-reply** from the service that owns broadcaster data (the ingress
+  never reads MySQL directly), behind an in-process read-through cache evicted by invalidation keys on NATS.
 - Distribute shard ownership across ingress replicas in the BEAM cluster so that exactly one node owns each shard's
   WSS at any time, with re-assignment in seconds when a node leaves.
 
@@ -125,24 +129,28 @@ reasoning.
 
 ## NATS contracts
 
-The ingress is publish-only. It does not subscribe to any subject.
+The ingress publishes events and status, issues request-reply calls for broadcaster status, and subscribes to one
+subject: cache invalidation keys.
 
 Subject prefixes:
 
-- **`twitch.ingress.event.*`**: outbound, normalized events the ingress publishes after filtering.
+- **`twitch.ingress.event.<lane>`**: outbound, normalized events the ingress publishes after filtering. Exactly
+  three subjects: `premium` / `standard` (laned by broadcaster status) and `stream` (only stream online/offline
+  events); the EventSub `type` travels in the payload, not the subject.
 - **`twitch.ingress.status.*`**: outbound, lifecycle and health signals.
+- **`bagel.rpc.broadcaster.status.get`**: request-reply, broadcaster status lookups against the owning Go service.
+- **`bagel.cache.invalidate.broadcaster`**: inbound, evicts entries from the in-process broadcaster status cache.
 
 ### Outbound: events
 
 | Subject                                      | Payload (JSON)                                                                                | Notes                                |
 |----------------------------------------------|-----------------------------------------------------------------------------------------------|--------------------------------------|
-| `twitch.ingress.event.chat.message`          | `{tenant, channel_id, user_id, user_login, text, badges, emotes, ts, msg_id}`                 | From `channel.chat.message`.         |
-| `twitch.ingress.event.chat.notice`           | `{tenant, channel_id, msg_id, system_msg, params, ts}`                                        | Sub, resub, raid, etc.               |
-| `twitch.ingress.event.eventsub.<type>`       | EventSub payload as delivered by Twitch, plus `{tenant, received_at, shard_id}`               | One subject per EventSub type.       |
-| `twitch.ingress.event.stream.online`         | `{tenant, broadcaster_user_id, started_at, type}`                                             | Convenience derived event.           |
-| `twitch.ingress.event.stream.offline`        | `{tenant, broadcaster_user_id, ended_at}`                                                     | Convenience derived event.           |
+| `twitch.ingress.event.premium`               | chat: `{type, lane, broadcaster_user_id, chatter_user_id, chatter_user_login, text, ts, msg_id}`; non-chat: EventSub payload as delivered by Twitch, plus `{type, lane, received_at, shard_id, msg_id}` | Premium broadcasters + special IDs.  |
+| `twitch.ingress.event.standard`              | same shapes as premium                                                                        | Standard broadcasters, and events with no extractable broadcaster. |
+| `twitch.ingress.event.stream`                | EventSub payload plus `{type, lane, received_at, shard_id, msg_id}`                           | **Only** `stream.online` / `stream.offline`, regardless of broadcaster status. |
 
-All event payloads carry `tenant` and a monotonic `seq` per shard so consumers can detect gaps.
+Chat notices and every other subscribed EventSub type travel on the premium/standard subjects; consumers dispatch
+on the payload's `type` field. Payloads carry `msg_id` so consumers can de-duplicate Twitch redeliveries.
 
 ### Outbound: status
 
@@ -171,6 +179,15 @@ Environment-driven. All values arrive as env vars and are read once at boot.
 | `TWITCH_CONDUIT_ID`            | The Conduit this ingress owns.                                           | `conduit_abc123`                            |
 | `TWITCH_CONDUIT_SHARD_COUNT`   | Desired number of shards in the Conduit.                                 | `4`                                         |
 | `TWITCH_EVENTSUB_WSS_URL`      | Twitch EventSub WebSocket endpoint. Pinned via config.                   | `wss://eventsub.wss.twitch.tv/ws`           |
+| `TWITCH_SPECIAL_USER_IDS`      | Chatter IDs that always route to the premium lane. From the secret store. | `1001,1002`                                |
+| `NATS_SUBJECT_LANE_PREMIUM`    | Premium lane subject (all event types).                                  | `twitch.ingress.event.premium`              |
+| `NATS_SUBJECT_LANE_STANDARD`   | Standard lane subject (all event types).                                 | `twitch.ingress.event.standard`             |
+| `NATS_SUBJECT_LANE_STREAM`     | Dedicated lane for stream.online / stream.offline events only.           | `twitch.ingress.event.stream`               |
+| `NEW_RELIC_LICENSE_KEY`        | Enables New Relic monitoring; absent, the agent is a no-op.              | (opaque)                                    |
+| `NEW_RELIC_APP_NAME`           | New Relic application name.                                              | `itsbagelbot-twitch-ingress`                |
+| `NATS_BROADCASTER_STATUS_SUBJECT` | Request-reply subject for broadcaster status lookups.                 | `bagel.rpc.broadcaster.status.get`          |
+| `NATS_CACHE_INVALIDATION_SUBJECT` | Subject carrying broadcaster cache invalidation keys.                 | `bagel.cache.invalidate.broadcaster`        |
+| `BROADCASTER_CACHE_TTL_SECONDS`| TTL of the in-process broadcaster status cache.                          | `300`                                       |
 | `LOG_LEVEL`                    | `debug` / `info` / `warn` / `error`.                                     | `info`                                      |
 | `OTEL_EXPORTER_OTLP_ENDPOINT`  | Optional OTLP target for traces and metrics.                             | `http://otel-collector:4318`                |
 
