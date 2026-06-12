@@ -440,4 +440,3 @@ jobs:
         with:
           subject-name: ${{ steps.meta.outputs.subject }}
           subject-digest: ${{ steps.publish.outputs.digest }}
-          push-to-registry: true
