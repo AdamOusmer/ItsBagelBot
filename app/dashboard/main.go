@@ -92,7 +92,7 @@ func main() {
 	log.Info("shutting down dashboard...")
 	// Fiber Shutdown is graceful by default
 	_ = app.Shutdown()
-	
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	_ = srv.Shutdown(ctx)
