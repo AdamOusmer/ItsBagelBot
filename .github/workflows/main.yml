@@ -1,6 +1,5 @@
 name: Go Test Pipeline
 
-# Trigger the workflow on Pull Requests to main and Pushes to main
 on:
   pull_request:
     branches: [ "main" ]
@@ -19,11 +18,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2. Install Go (Matches your local version, likely 1.22 or 1.23)
+      # 2. Install Go
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
-          go-version: '1.23' 
+          go-version: '1.26'
 
       # 3. Cache dependencies (Makes subsequent runs faster)
       - name: Cache Go modules
@@ -37,6 +36,13 @@ jobs:
       # 4. Install dependencies
       - name: Install dependencies
         run: go mod download
+
+      - name: Generate Ent clients
+        run: |
+          go run -mod=mod entgo.io/ent/cmd/ent generate ./app/commands/ent/schema
+          go run -mod=mod entgo.io/ent/cmd/ent generate ./app/modules/ent/schema
+          go run -mod=mod entgo.io/ent/cmd/ent generate ./app/transactions/ent/schema
+          go run -mod=mod entgo.io/ent/cmd/ent generate ./app/users/ent/schema
 
       # 5. Run the Tests
       # -race detects race conditions (very good for concurrent bots)

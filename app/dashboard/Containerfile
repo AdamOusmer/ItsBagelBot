@@ -1,6 +1,6 @@
 # Dashboard (Go) - build with podman or docker:
 #   podman build -t itsbagelbot/dashboard -f Containerfile .
-FROM golang:1.26-bookworm AS build
+FROM docker.io/library/golang:1.26-bookworm AS build
 
 WORKDIR /src
 COPY go.mod go.sum ./

@@ -3,8 +3,11 @@
 package ent
 
 import (
+	"ItsBagelBot/internal/db/ent/commands"
 	"ItsBagelBot/internal/db/ent/configs"
+	"ItsBagelBot/internal/db/ent/modules"
 	"ItsBagelBot/internal/db/ent/predicate"
+	"ItsBagelBot/internal/db/ent/tebextransactions"
 	"ItsBagelBot/internal/db/ent/timers"
 	"ItsBagelBot/internal/db/ent/tokens"
 	"ItsBagelBot/internal/db/ent/user"
@@ -42,6 +45,26 @@ func (_u *UserUpdate) SetNillableUsername(v *string) *UserUpdate {
 	if v != nil {
 		_u.SetUsername(*v)
 	}
+	return _u
+}
+
+// SetDisplayName sets the "display_name" field.
+func (_u *UserUpdate) SetDisplayName(v string) *UserUpdate {
+	_u.mutation.SetDisplayName(v)
+	return _u
+}
+
+// SetNillableDisplayName sets the "display_name" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableDisplayName(v *string) *UserUpdate {
+	if v != nil {
+		_u.SetDisplayName(*v)
+	}
+	return _u
+}
+
+// ClearDisplayName clears the value of the "display_name" field.
+func (_u *UserUpdate) ClearDisplayName() *UserUpdate {
+	_u.mutation.ClearDisplayName()
 	return _u
 }
 
@@ -142,6 +165,51 @@ func (_u *UserUpdate) AddTimers(v ...*Timers) *UserUpdate {
 	return _u.AddTimerIDs(ids...)
 }
 
+// AddCommandIDs adds the "commands" edge to the Commands entity by IDs.
+func (_u *UserUpdate) AddCommandIDs(ids ...int) *UserUpdate {
+	_u.mutation.AddCommandIDs(ids...)
+	return _u
+}
+
+// AddCommands adds the "commands" edges to the Commands entity.
+func (_u *UserUpdate) AddCommands(v ...*Commands) *UserUpdate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddCommandIDs(ids...)
+}
+
+// AddModuleIDs adds the "modules" edge to the Modules entity by IDs.
+func (_u *UserUpdate) AddModuleIDs(ids ...int) *UserUpdate {
+	_u.mutation.AddModuleIDs(ids...)
+	return _u
+}
+
+// AddModules adds the "modules" edges to the Modules entity.
+func (_u *UserUpdate) AddModules(v ...*Modules) *UserUpdate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddModuleIDs(ids...)
+}
+
+// AddTransactionIDs adds the "transactions" edge to the TebexTransactions entity by IDs.
+func (_u *UserUpdate) AddTransactionIDs(ids ...string) *UserUpdate {
+	_u.mutation.AddTransactionIDs(ids...)
+	return _u
+}
+
+// AddTransactions adds the "transactions" edges to the TebexTransactions entity.
+func (_u *UserUpdate) AddTransactions(v ...*TebexTransactions) *UserUpdate {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddTransactionIDs(ids...)
+}
+
 // Mutation returns the UserMutation object of the builder.
 func (_u *UserUpdate) Mutation() *UserMutation {
 	return _u.mutation
@@ -193,6 +261,69 @@ func (_u *UserUpdate) RemoveTimers(v ...*Timers) *UserUpdate {
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveTimerIDs(ids...)
+}
+
+// ClearCommands clears all "commands" edges to the Commands entity.
+func (_u *UserUpdate) ClearCommands() *UserUpdate {
+	_u.mutation.ClearCommands()
+	return _u
+}
+
+// RemoveCommandIDs removes the "commands" edge to Commands entities by IDs.
+func (_u *UserUpdate) RemoveCommandIDs(ids ...int) *UserUpdate {
+	_u.mutation.RemoveCommandIDs(ids...)
+	return _u
+}
+
+// RemoveCommands removes "commands" edges to Commands entities.
+func (_u *UserUpdate) RemoveCommands(v ...*Commands) *UserUpdate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveCommandIDs(ids...)
+}
+
+// ClearModules clears all "modules" edges to the Modules entity.
+func (_u *UserUpdate) ClearModules() *UserUpdate {
+	_u.mutation.ClearModules()
+	return _u
+}
+
+// RemoveModuleIDs removes the "modules" edge to Modules entities by IDs.
+func (_u *UserUpdate) RemoveModuleIDs(ids ...int) *UserUpdate {
+	_u.mutation.RemoveModuleIDs(ids...)
+	return _u
+}
+
+// RemoveModules removes "modules" edges to Modules entities.
+func (_u *UserUpdate) RemoveModules(v ...*Modules) *UserUpdate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveModuleIDs(ids...)
+}
+
+// ClearTransactions clears all "transactions" edges to the TebexTransactions entity.
+func (_u *UserUpdate) ClearTransactions() *UserUpdate {
+	_u.mutation.ClearTransactions()
+	return _u
+}
+
+// RemoveTransactionIDs removes the "transactions" edge to TebexTransactions entities by IDs.
+func (_u *UserUpdate) RemoveTransactionIDs(ids ...string) *UserUpdate {
+	_u.mutation.RemoveTransactionIDs(ids...)
+	return _u
+}
+
+// RemoveTransactions removes "transactions" edges to TebexTransactions entities.
+func (_u *UserUpdate) RemoveTransactions(v ...*TebexTransactions) *UserUpdate {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveTransactionIDs(ids...)
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -260,6 +391,12 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.Username(); ok {
 		_spec.SetField(user.FieldUsername, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.DisplayName(); ok {
+		_spec.SetField(user.FieldDisplayName, field.TypeString, value)
+	}
+	if _u.mutation.DisplayNameCleared() {
+		_spec.ClearField(user.FieldDisplayName, field.TypeString)
 	}
 	if value, ok := _u.mutation.Email(); ok {
 		_spec.SetField(user.FieldEmail, field.TypeString, value)
@@ -392,6 +529,141 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 		}
 		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
+	if _u.mutation.CommandsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.CommandsTable,
+			Columns: []string{user.CommandsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(commands.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedCommandsIDs(); len(nodes) > 0 && !_u.mutation.CommandsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.CommandsTable,
+			Columns: []string{user.CommandsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(commands.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.CommandsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.CommandsTable,
+			Columns: []string{user.CommandsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(commands.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.ModulesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ModulesTable,
+			Columns: []string{user.ModulesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(modules.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedModulesIDs(); len(nodes) > 0 && !_u.mutation.ModulesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ModulesTable,
+			Columns: []string{user.ModulesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(modules.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.ModulesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ModulesTable,
+			Columns: []string{user.ModulesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(modules.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.TransactionsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.TransactionsTable,
+			Columns: []string{user.TransactionsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(tebextransactions.FieldID, field.TypeString),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedTransactionsIDs(); len(nodes) > 0 && !_u.mutation.TransactionsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.TransactionsTable,
+			Columns: []string{user.TransactionsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(tebextransactions.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.TransactionsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.TransactionsTable,
+			Columns: []string{user.TransactionsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(tebextransactions.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{user.Label}
@@ -423,6 +695,26 @@ func (_u *UserUpdateOne) SetNillableUsername(v *string) *UserUpdateOne {
 	if v != nil {
 		_u.SetUsername(*v)
 	}
+	return _u
+}
+
+// SetDisplayName sets the "display_name" field.
+func (_u *UserUpdateOne) SetDisplayName(v string) *UserUpdateOne {
+	_u.mutation.SetDisplayName(v)
+	return _u
+}
+
+// SetNillableDisplayName sets the "display_name" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableDisplayName(v *string) *UserUpdateOne {
+	if v != nil {
+		_u.SetDisplayName(*v)
+	}
+	return _u
+}
+
+// ClearDisplayName clears the value of the "display_name" field.
+func (_u *UserUpdateOne) ClearDisplayName() *UserUpdateOne {
+	_u.mutation.ClearDisplayName()
 	return _u
 }
 
@@ -523,6 +815,51 @@ func (_u *UserUpdateOne) AddTimers(v ...*Timers) *UserUpdateOne {
 	return _u.AddTimerIDs(ids...)
 }
 
+// AddCommandIDs adds the "commands" edge to the Commands entity by IDs.
+func (_u *UserUpdateOne) AddCommandIDs(ids ...int) *UserUpdateOne {
+	_u.mutation.AddCommandIDs(ids...)
+	return _u
+}
+
+// AddCommands adds the "commands" edges to the Commands entity.
+func (_u *UserUpdateOne) AddCommands(v ...*Commands) *UserUpdateOne {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddCommandIDs(ids...)
+}
+
+// AddModuleIDs adds the "modules" edge to the Modules entity by IDs.
+func (_u *UserUpdateOne) AddModuleIDs(ids ...int) *UserUpdateOne {
+	_u.mutation.AddModuleIDs(ids...)
+	return _u
+}
+
+// AddModules adds the "modules" edges to the Modules entity.
+func (_u *UserUpdateOne) AddModules(v ...*Modules) *UserUpdateOne {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddModuleIDs(ids...)
+}
+
+// AddTransactionIDs adds the "transactions" edge to the TebexTransactions entity by IDs.
+func (_u *UserUpdateOne) AddTransactionIDs(ids ...string) *UserUpdateOne {
+	_u.mutation.AddTransactionIDs(ids...)
+	return _u
+}
+
+// AddTransactions adds the "transactions" edges to the TebexTransactions entity.
+func (_u *UserUpdateOne) AddTransactions(v ...*TebexTransactions) *UserUpdateOne {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddTransactionIDs(ids...)
+}
+
 // Mutation returns the UserMutation object of the builder.
 func (_u *UserUpdateOne) Mutation() *UserMutation {
 	return _u.mutation
@@ -574,6 +911,69 @@ func (_u *UserUpdateOne) RemoveTimers(v ...*Timers) *UserUpdateOne {
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveTimerIDs(ids...)
+}
+
+// ClearCommands clears all "commands" edges to the Commands entity.
+func (_u *UserUpdateOne) ClearCommands() *UserUpdateOne {
+	_u.mutation.ClearCommands()
+	return _u
+}
+
+// RemoveCommandIDs removes the "commands" edge to Commands entities by IDs.
+func (_u *UserUpdateOne) RemoveCommandIDs(ids ...int) *UserUpdateOne {
+	_u.mutation.RemoveCommandIDs(ids...)
+	return _u
+}
+
+// RemoveCommands removes "commands" edges to Commands entities.
+func (_u *UserUpdateOne) RemoveCommands(v ...*Commands) *UserUpdateOne {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveCommandIDs(ids...)
+}
+
+// ClearModules clears all "modules" edges to the Modules entity.
+func (_u *UserUpdateOne) ClearModules() *UserUpdateOne {
+	_u.mutation.ClearModules()
+	return _u
+}
+
+// RemoveModuleIDs removes the "modules" edge to Modules entities by IDs.
+func (_u *UserUpdateOne) RemoveModuleIDs(ids ...int) *UserUpdateOne {
+	_u.mutation.RemoveModuleIDs(ids...)
+	return _u
+}
+
+// RemoveModules removes "modules" edges to Modules entities.
+func (_u *UserUpdateOne) RemoveModules(v ...*Modules) *UserUpdateOne {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveModuleIDs(ids...)
+}
+
+// ClearTransactions clears all "transactions" edges to the TebexTransactions entity.
+func (_u *UserUpdateOne) ClearTransactions() *UserUpdateOne {
+	_u.mutation.ClearTransactions()
+	return _u
+}
+
+// RemoveTransactionIDs removes the "transactions" edge to TebexTransactions entities by IDs.
+func (_u *UserUpdateOne) RemoveTransactionIDs(ids ...string) *UserUpdateOne {
+	_u.mutation.RemoveTransactionIDs(ids...)
+	return _u
+}
+
+// RemoveTransactions removes "transactions" edges to TebexTransactions entities.
+func (_u *UserUpdateOne) RemoveTransactions(v ...*TebexTransactions) *UserUpdateOne {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveTransactionIDs(ids...)
 }
 
 // Where appends a list predicates to the UserUpdate builder.
@@ -671,6 +1071,12 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	}
 	if value, ok := _u.mutation.Username(); ok {
 		_spec.SetField(user.FieldUsername, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.DisplayName(); ok {
+		_spec.SetField(user.FieldDisplayName, field.TypeString, value)
+	}
+	if _u.mutation.DisplayNameCleared() {
+		_spec.ClearField(user.FieldDisplayName, field.TypeString)
 	}
 	if value, ok := _u.mutation.Email(); ok {
 		_spec.SetField(user.FieldEmail, field.TypeString, value)
@@ -796,6 +1202,141 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(timers.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.CommandsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.CommandsTable,
+			Columns: []string{user.CommandsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(commands.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedCommandsIDs(); len(nodes) > 0 && !_u.mutation.CommandsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.CommandsTable,
+			Columns: []string{user.CommandsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(commands.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.CommandsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.CommandsTable,
+			Columns: []string{user.CommandsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(commands.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.ModulesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ModulesTable,
+			Columns: []string{user.ModulesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(modules.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedModulesIDs(); len(nodes) > 0 && !_u.mutation.ModulesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ModulesTable,
+			Columns: []string{user.ModulesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(modules.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.ModulesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ModulesTable,
+			Columns: []string{user.ModulesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(modules.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.TransactionsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.TransactionsTable,
+			Columns: []string{user.TransactionsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(tebextransactions.FieldID, field.TypeString),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedTransactionsIDs(); len(nodes) > 0 && !_u.mutation.TransactionsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.TransactionsTable,
+			Columns: []string{user.TransactionsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(tebextransactions.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.TransactionsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.TransactionsTable,
+			Columns: []string{user.TransactionsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(tebextransactions.FieldID, field.TypeString),
 			},
 		}
 		for _, k := range nodes {

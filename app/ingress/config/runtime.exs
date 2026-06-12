@@ -69,6 +69,9 @@ config :ingress,
     System.get_env("NATS_SUBJECT_LANE_STREAM", "twitch.ingress.event.stream"),
   invalidation_subject:
     System.get_env("NATS_CACHE_INVALIDATION_SUBJECT", "bagel.cache.invalidate.broadcaster"),
+  # Request-reply subject answered by Ingress.AdminRpc with a cluster-wide
+  # shard state snapshot. Consumed by the admin tool, never by user traffic.
+  admin_subject: System.get_env("NATS_ADMIN_SUBJECT", "twitch.ingress.admin.shards.get"),
   # NATS RPC endpoint exposed by the Go service that owns broadcaster data.
   # The ingress never queries the database directly (data-and-state rules).
   broadcaster_status_subject:

@@ -1,0 +1,67 @@
+package ui
+
+import (
+	"time"
+)
+
+templ Admin(now time.Time) {
+	@Shell("Overview - ItsBagelBot Admin", "home") {
+		<div class="page-heading">
+			<div>
+				<p class="page-kicker">Operator overview</p>
+				<h1><span>Live</span> control plane</h1>
+			</div>
+			<p class="page-meta">{ now.Format("2006-01-02 15:04 MST") }</p>
+		</div>
+		<div class="island-grid" style="margin-bottom:1.25rem;">
+			<div id="user-stats-cards" style="display:contents;">
+				@LoadingStatCard("Registered users")
+				@LoadingStatCard("Active users")
+				@LoadingStatCard("Premium users")
+			</div>
+			<div id="shard-stat-card" style="display:contents;">
+				@LoadingStatCard("Shard health")
+			</div>
+		</div>
+		<div class="dashboard-grid">
+			@Card("Live events") {
+				@EventFeed()
+			}
+			<div id="shard-summary">
+				@Card("Shard health") {
+					<p class="text-muted" style="font-size:0.85rem;">loading shard summary…</p>
+				}
+			</div>
+		</div>
+	}
+}
+
+templ ShardsPage() {
+	@Shell("Shard Health - ItsBagelBot Admin", "shards") {
+		<div class="page-heading">
+			<div>
+				<p class="page-kicker">Twitch ingress</p>
+				<h1><span>Shard</span> health</h1>
+			</div>
+			<p class="page-meta">refreshes every 5s</p>
+		</div>
+		<div id="live">
+			@Card("Cluster") {
+				<p class="text-muted" style="font-size:0.85rem;">loading shard health…</p>
+			}
+		</div>
+	}
+}
+
+templ UsersPage() {
+	@Shell("Users - ItsBagelBot Admin", "users") {
+		<div class="page-heading">
+			<div>
+				<p class="page-kicker">Broadcaster accounts</p>
+				<h1><span>User</span> management</h1>
+			</div>
+			<p class="page-meta">grants, resets, and recent users</p>
+		</div>
+		@UsersSection()
+	}
+}

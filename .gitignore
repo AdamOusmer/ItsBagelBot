@@ -49,3 +49,8 @@ deps/
 # Kubernetes deployments
 deploy/
 deploy_backup/
+
+# Exclude scratch, claude, and tar files
+.claude/
+scratch/
+*.tar

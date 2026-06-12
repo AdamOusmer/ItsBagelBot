@@ -17,13 +17,15 @@ type Config struct {
 	TwitchConduitID    string // EventSub subscriptions are bound to this conduit
 	BotScopes          string // space-separated scopes for the bot-enable consent
 
-	DBDSN string
+	DashboardRPCPrefix       string
+	CacheInvalidationSubject string
 
 	NATSURL                  string
 	BroadcasterStatusSubject string
 	StatusSubjectPrefix      string
 
-	AEADKey []byte // 32 bytes, base64 in env
+	AEADKey    []byte // 32 bytes, base64 in env for DB encryption
+	SessionKey []byte // 32 bytes, base64 in env for Session encryption
 }
 
 func get(key, def string) string {
@@ -50,6 +52,8 @@ func Load() (*Config, error) {
 		BotScopes:                get("DASHBOARD_BOT_SCOPES", "channel:bot user:read:chat user:bot"),
 		BroadcasterStatusSubject: get("NATS_BROADCASTER_STATUS_SUBJECT", "bagel.rpc.broadcaster.status.get"),
 		StatusSubjectPrefix:      get("NATS_STATUS_SUBJECT_PREFIX", "twitch.ingress.status"),
+		DashboardRPCPrefix:       get("NATS_DASHBOARD_SUBJECT_PREFIX", "bagel.rpc.dashboard"),
+		CacheInvalidationSubject: get("NATS_CACHE_INVALIDATION_SUBJECT", "bagel.cache.invalidate.broadcaster"),
 	}
 
 	var err error
@@ -65,14 +69,7 @@ func Load() (*Config, error) {
 
 	c.NATSURL = fmt.Sprintf("nats://%s:%s", get("NATS_HOST", "127.0.0.1"), get("NATS_PORT", "4222"))
 
-	c.DBDSN = fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true&tls=%s",
-		get("DB_USER", "dashboard_svc"), os.Getenv("DB_PASSWORD"),
-		get("DB_HOST", "127.0.0.1"), get("DB_PORT", "3306"),
-		get("DB_NAME", "dashboard"),
-		// HeatWave presents an OCI-internal CA; skip-verify still encrypts and
-		// the user is REQUIRE SSL server-side. Pin a CA via custom config if
-		// the fleet ever distributes one.
-		get("DB_TLS_MODE", "skip-verify"))
+
 
 	rawKey, err := need("DASHBOARD_AEAD_KEY")
 	if err != nil {
@@ -81,6 +78,15 @@ func Load() (*Config, error) {
 	c.AEADKey, err = base64.StdEncoding.DecodeString(rawKey)
 	if err != nil || len(c.AEADKey) != 32 {
 		return nil, fmt.Errorf("DASHBOARD_AEAD_KEY must be base64 of exactly 32 bytes")
+	}
+
+	rawSession, err := need("DASHBOARD_SESSION_KEY")
+	if err != nil {
+		return nil, err
+	}
+	c.SessionKey, err = base64.StdEncoding.DecodeString(rawSession)
+	if err != nil || len(c.SessionKey) != 32 {
+		return nil, fmt.Errorf("DASHBOARD_SESSION_KEY must be base64 of exactly 32 bytes")
 	}
 
 	return c, nil

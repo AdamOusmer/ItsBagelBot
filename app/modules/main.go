@@ -55,7 +55,7 @@ func main() {
 	}
 	defer func() { _ = pub.Close() }()
 
-	repo := repository.NewModules(client, pub, log)
+	repo := repository.NewModules(client, pub, nil, log)
 	defer repo.Close(context.Background()) // flushes pending writes on shutdown
 
 	// Broadcast subscription: every instance must drop its cached view when
@@ -66,7 +66,7 @@ func main() {
 	}
 	defer func() { _ = broadcast.Close() }()
 
-	if err := bus.Consume(ctx, broadcast, data.SubjectModuleChanged, func(msg *message.Message) error {
+	if err := bus.Consume(ctx, nil, broadcast, data.SubjectModuleChanged, func(msg *message.Message) error {
 
 		var dto data.ModuleChangedDTO
 		if err := json.Unmarshal(msg.Payload, &dto); err != nil {
@@ -87,7 +87,7 @@ func main() {
 	}
 	defer func() { _ = grouped.Close() }()
 
-	if err := bus.Consume(ctx, grouped, data.SubjectReprojectRequest, func(*message.Message) error {
+	if err := bus.Consume(ctx, nil, grouped, data.SubjectReprojectRequest, func(*message.Message) error {
 		return repo.Reproject(ctx)
 	}, log); err != nil {
 		log.Fatal("failed to subscribe to reproject requests", zap.Error(err))

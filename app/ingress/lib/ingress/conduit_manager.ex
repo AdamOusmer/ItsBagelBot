@@ -37,6 +37,11 @@ defmodule Ingress.ConduitManager do
   def handle_continue(:reconcile, state), do: {:noreply, reconcile(state)}
 
   @impl true
+  def handle_call(:status, _from, state) do
+    {:reply, %{node: node(), conduit_id: state.conduit_id}, state}
+  end
+
+  @impl true
   def handle_info(:reconcile, state), do: {:noreply, reconcile(state)}
 
   defp reconcile(state) do

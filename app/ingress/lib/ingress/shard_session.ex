@@ -41,6 +41,9 @@ defmodule Ingress.ShardSession do
   # How long the reconnect handshake may take before we give up on the new
   # socket and do a full fresh reconnect.
   @handshake_deadline_ms 30_000
+  # How long a duplicate-shard takeover may wait for the registry's pick to
+  # exit before we yield to it anyway.
+  @takeover_deadline_ms 5_000
   @base_backoff_ms 1_000
   @max_backoff_ms 60_000
 
@@ -56,7 +59,11 @@ defmodule Ingress.ShardSession do
             watchdog: nil,
             welcome_timer: nil,
             handshake_timer: nil,
-            attempts: 0
+            attempts: 0,
+            bound_at: nil,
+            last_frame_at: nil,
+            # duplicate-shard takeover in flight: %{winner:, monitor:, timer:}
+            takeover: nil
 
   def start_link(opts) do
     shard_id = Keyword.fetch!(opts, :shard_id)
@@ -64,6 +71,12 @@ defmodule Ingress.ShardSession do
   end
 
   def via(shard_id), do: {:via, Horde.Registry, {Ingress.Registry, {:shard, shard_id}}}
+
+  @doc """
+  Snapshot of the shard's live state, served from wherever in the cluster the
+  shard currently runs. Used by `Ingress.AdminRpc`.
+  """
+  def status(pid, timeout \\ 2_000), do: GenServer.call(pid, :status, timeout)
 
   def child_spec(opts) do
     %{
@@ -91,6 +104,40 @@ defmodule Ingress.ShardSession do
   def handle_continue(:connect, state), do: {:noreply, connect(state)}
 
   @impl true
+  def handle_call(:status, _from, state) do
+    {:reply, status_map(state), state}
+  end
+
+  # The other copy of this shard is bound but lost the registry merge; it is
+  # taking the registration over and asks us to stand down. If we bound
+  # concurrently (race between the merge and this message), keep serving:
+  # the requester's takeover deadline makes it yield instead.
+  @impl true
+  def handle_cast(:stand_down_duplicate, %{bound?: true} = state), do: {:noreply, state}
+  def handle_cast(:stand_down_duplicate, state), do: {:stop, :normal, stand_down(state)}
+
+  defp status_map(state) do
+    %{
+      shard_id: state.shard_id,
+      state: derive_state(state),
+      node: node(),
+      session_id: state.session_id,
+      bound: state.bound?,
+      handshake_in_flight: state.pending != nil,
+      keepalive_ms: state.keepalive_ms,
+      attempts: state.attempts,
+      bound_at: state.bound_at,
+      last_frame_at: state.last_frame_at
+    }
+  end
+
+  defp derive_state(%{bound?: true, pending: pending}) when pending != nil, do: "migrating"
+  defp derive_state(%{bound?: true}), do: "connected"
+  defp derive_state(%{session_id: id}) when id != nil, do: "binding"
+  defp derive_state(%{primary: primary}) when primary != nil, do: "connecting"
+  defp derive_state(_state), do: "backoff"
+
+  @impl true
   def handle_info(:retry_connect, state), do: {:noreply, connect(state)}
 
   def handle_info(:welcome_deadline, %{session_id: nil} = state) do
@@ -112,6 +159,66 @@ defmodule Ingress.ShardSession do
   end
 
   def handle_info(:handshake_deadline, state), do: {:noreply, state}
+
+  # --- duplicate-shard resolution (netsplit heal) ----------------------------
+  #
+  # When a netsplit heals, both halves may be running this shard. The Horde
+  # registry keeps exactly one registration and sends the other process this
+  # exit signal (we trap exits, so it arrives as a message). The registry's
+  # pick is arbitrary; ours is not: the copy that is actually serving (bound
+  # to the Conduit) survives, the other stands down. Twitch routes a shard's
+  # events to whichever socket bound the shard last, so the bound copy is the
+  # one receiving traffic.
+
+  def handle_info(
+        {:EXIT, _from, {:name_conflict, {{:shard, _id}, _value}, _registry, winner}},
+        state
+      ) do
+    winner_status =
+      try do
+        GenServer.call(winner, :status, 2_000)
+      catch
+        :exit, _ -> :unreachable
+      end
+
+    cond do
+      winner_status == :unreachable ->
+        Logger.warning("duplicate shard: registry pick unreachable; reclaiming registration")
+        {:noreply, begin_takeover(state, winner)}
+
+      winner_status.bound ->
+        Logger.info(
+          "duplicate shard resolved: copy on #{winner_status.node} is bound; standing down"
+        )
+
+        {:stop, :normal, stand_down(state)}
+
+      state.bound? ->
+        Logger.warning(
+          "duplicate shard: we are bound, registry pick on #{winner_status.node} is not; taking over"
+        )
+
+        GenServer.cast(winner, :stand_down_duplicate)
+        {:noreply, begin_takeover(state, winner)}
+
+      true ->
+        Logger.info("duplicate shard resolved: neither copy bound; standing down")
+        {:stop, :normal, stand_down(state)}
+    end
+  end
+
+  def handle_info({:DOWN, ref, :process, _winner, _reason}, %{takeover: %{monitor: ref}} = state) do
+    finish_takeover(state)
+  end
+
+  def handle_info(:takeover_deadline, %{takeover: takeover} = state) when takeover != nil do
+    # The registry's pick did not exit in time (it may have bound in the
+    # meantime). Yield to it rather than fight.
+    Logger.warning("duplicate shard: takeover timed out; standing down")
+    {:stop, :normal, stand_down(state)}
+  end
+
+  def handle_info(:takeover_deadline, state), do: {:noreply, state}
 
   def handle_info(message, state) do
     case route(message, state) do
@@ -235,6 +342,8 @@ defmodule Ingress.ShardSession do
         attempts: 0
     }
 
+    publish_bound(state, "moved")
+
     {:noreply, pet_watchdog(state)}
   end
 
@@ -264,7 +373,10 @@ defmodule Ingress.ShardSession do
           since: DateTime.utc_now()
         })
 
-        {:noreply, pet_watchdog(%{state | bound?: true, attempts: 0})}
+        state = %{state | bound?: true, attempts: 0, bound_at: DateTime.utc_now()}
+        publish_bound(state, "fresh")
+
+        {:noreply, pet_watchdog(state)}
 
       {:error, reason} ->
         Logger.error("shard bind failed: #{inspect(reason)}; reconnecting")
@@ -317,6 +429,19 @@ defmodule Ingress.ShardSession do
   defp handle_twitch(_which, type, _payload, _meta, state) do
     Logger.debug("unhandled eventsub message_type #{type}")
     {:noreply, pet_watchdog(state)}
+  end
+
+  # Announce that this shard (re)established its binding: "fresh" after a
+  # full connect + Helix bind, "moved" after a session_reconnect handshake
+  # carried the session to a new socket. The admin live feed shows these.
+  defp publish_bound(state, kind) do
+    Nats.publish("twitch.ingress.status.shard.bound", %{
+      shard_id: state.shard_id,
+      node: node(),
+      session_id: state.session_id,
+      kind: kind,
+      at: DateTime.utc_now()
+    })
   end
 
   defp keepalive_ms(session, state) do
@@ -376,6 +501,54 @@ defmodule Ingress.ShardSession do
     state |> teardown() |> schedule_retry()
   end
 
+  # --- duplicate-shard takeover helpers --------------------------------------
+
+  # We are keeping the shard: watch the registry's pick until it exits, then
+  # reclaim the registration. The deadline bounds the unregistered window.
+  defp begin_takeover(state, winner) do
+    monitor = Process.monitor(winner)
+    timer = Process.send_after(self(), :takeover_deadline, @takeover_deadline_ms)
+    %{state | takeover: %{winner: winner, monitor: monitor, timer: timer}}
+  end
+
+  defp finish_takeover(%{takeover: %{monitor: monitor, timer: timer}} = state) do
+    Process.demonitor(monitor, [:flush])
+    cancel(timer)
+    state = %{state | takeover: nil}
+
+    case Horde.Registry.register(Ingress.Registry, {:shard, state.shard_id}, nil) do
+      {:ok, _} ->
+        Logger.info("duplicate shard resolved: registration reclaimed, we keep serving")
+        {:noreply, state}
+
+      {:error, {:already_registered, _pid}} ->
+        # A third copy raced us to the name (fresh start by the reconciler).
+        Logger.warning("duplicate shard: registration reclaimed by another copy; standing down")
+        {:stop, :normal, stand_down(state)}
+    end
+  end
+
+  # Graceful exit of a redundant duplicate: announce if we were serving, then
+  # tear everything down so terminate/1 stays quiet.
+  defp stand_down(state) do
+    if state.bound? do
+      Metrics.event("ShardDown", %{shard_id: state.shard_id, reason: "duplicate_resolved"})
+
+      Nats.publish("twitch.ingress.status.shard.down", %{
+        shard_id: state.shard_id,
+        node: node(),
+        reason: "duplicate_resolved"
+      })
+    end
+
+    if state.takeover do
+      Process.demonitor(state.takeover.monitor, [:flush])
+      cancel(state.takeover.timer)
+    end
+
+    teardown(%{state | takeover: nil})
+  end
+
   defp teardown(state) do
     WS.close(state.primary)
     WS.close(state.pending)
@@ -389,7 +562,8 @@ defmodule Ingress.ShardSession do
         bound?: false,
         watchdog: nil,
         welcome_timer: nil,
-        handshake_timer: nil
+        handshake_timer: nil,
+        bound_at: nil
     }
   end
 
@@ -407,7 +581,12 @@ defmodule Ingress.ShardSession do
   defp pet_watchdog(state) do
     cancel(state.watchdog)
     window = (state.keepalive_ms || 10_000) + @keepalive_grace_ms
-    %{state | watchdog: Process.send_after(self(), :keepalive_timeout, window)}
+
+    %{
+      state
+      | watchdog: Process.send_after(self(), :keepalive_timeout, window),
+        last_frame_at: DateTime.utc_now()
+    }
   end
 
   defp cancel(nil), do: :ok

@@ -1,0 +1,21 @@
+# transactions (Go, root module) - build from the REPO ROOT:
+#   podman build -t itsbagelbot/transactions -f app/transactions/Containerfile .
+FROM docker.io/library/golang:1.26-bookworm AS build
+
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY internal/utils internal/utils
+COPY pkg pkg
+COPY app/transactions app/transactions
+RUN go run -mod=mod entgo.io/ent/cmd/ent generate ./app/transactions/ent/schema \
+ && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /transactions ./app/transactions
+
+# ---------------------------------------------------------------------------
+FROM gcr.io/distroless/static-debian12:nonroot
+
+COPY --from=build /transactions /transactions
+
+USER nonroot
+ENTRYPOINT ["/transactions"]

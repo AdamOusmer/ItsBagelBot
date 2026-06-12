@@ -3,8 +3,12 @@
 package ent
 
 import (
+	"ItsBagelBot/internal/db/ent/botgrants"
+	"ItsBagelBot/internal/db/ent/commands"
 	"ItsBagelBot/internal/db/ent/configs"
+	"ItsBagelBot/internal/db/ent/modules"
 	"ItsBagelBot/internal/db/ent/schema"
+	"ItsBagelBot/internal/db/ent/tebextransactions"
 	"ItsBagelBot/internal/db/ent/timers"
 	"ItsBagelBot/internal/db/ent/user"
 	"time"
@@ -14,6 +18,54 @@ import (
 // (default values, validators, hooks and policies) and stitches it
 // to their package variables.
 func init() {
+	botgrantsFields := schema.BotGrants{}.Fields()
+	_ = botgrantsFields
+	// botgrantsDescBroadcasterUserID is the schema descriptor for broadcaster_user_id field.
+	botgrantsDescBroadcasterUserID := botgrantsFields[0].Descriptor()
+	// botgrants.BroadcasterUserIDValidator is a validator for the "broadcaster_user_id" field. It is called by the builders before save.
+	botgrants.BroadcasterUserIDValidator = botgrantsDescBroadcasterUserID.Validators[0].(func(string) error)
+	// botgrantsDescScopes is the schema descriptor for scopes field.
+	botgrantsDescScopes := botgrantsFields[1].Descriptor()
+	// botgrants.ScopesValidator is a validator for the "scopes" field. It is called by the builders before save.
+	botgrants.ScopesValidator = botgrantsDescScopes.Validators[0].(func(string) error)
+	// botgrantsDescRefreshTokenEnc is the schema descriptor for refresh_token_enc field.
+	botgrantsDescRefreshTokenEnc := botgrantsFields[2].Descriptor()
+	// botgrants.RefreshTokenEncValidator is a validator for the "refresh_token_enc" field. It is called by the builders before save.
+	botgrants.RefreshTokenEncValidator = botgrantsDescRefreshTokenEnc.Validators[0].(func([]byte) error)
+	// botgrantsDescCreatedAt is the schema descriptor for created_at field.
+	botgrantsDescCreatedAt := botgrantsFields[3].Descriptor()
+	// botgrants.DefaultCreatedAt holds the default value on creation for the created_at field.
+	botgrants.DefaultCreatedAt = botgrantsDescCreatedAt.Default.(func() time.Time)
+	// botgrantsDescUpdatedAt is the schema descriptor for updated_at field.
+	botgrantsDescUpdatedAt := botgrantsFields[4].Descriptor()
+	// botgrants.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	botgrants.DefaultUpdatedAt = botgrantsDescUpdatedAt.Default.(func() time.Time)
+	// botgrants.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	botgrants.UpdateDefaultUpdatedAt = botgrantsDescUpdatedAt.UpdateDefault.(func() time.Time)
+	commandsFields := schema.Commands{}.Fields()
+	_ = commandsFields
+	// commandsDescName is the schema descriptor for name field.
+	commandsDescName := commandsFields[0].Descriptor()
+	// commands.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	commands.NameValidator = commandsDescName.Validators[0].(func(string) error)
+	// commandsDescResponse is the schema descriptor for response field.
+	commandsDescResponse := commandsFields[1].Descriptor()
+	// commands.ResponseValidator is a validator for the "response" field. It is called by the builders before save.
+	commands.ResponseValidator = commandsDescResponse.Validators[0].(func(string) error)
+	// commandsDescIsActive is the schema descriptor for is_active field.
+	commandsDescIsActive := commandsFields[2].Descriptor()
+	// commands.DefaultIsActive holds the default value on creation for the is_active field.
+	commands.DefaultIsActive = commandsDescIsActive.Default.(bool)
+	// commandsDescCreatedAt is the schema descriptor for created_at field.
+	commandsDescCreatedAt := commandsFields[3].Descriptor()
+	// commands.DefaultCreatedAt holds the default value on creation for the created_at field.
+	commands.DefaultCreatedAt = commandsDescCreatedAt.Default.(func() time.Time)
+	// commandsDescUpdatedAt is the schema descriptor for updated_at field.
+	commandsDescUpdatedAt := commandsFields[4].Descriptor()
+	// commands.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	commands.DefaultUpdatedAt = commandsDescUpdatedAt.Default.(func() time.Time)
+	// commands.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	commands.UpdateDefaultUpdatedAt = commandsDescUpdatedAt.UpdateDefault.(func() time.Time)
 	configsFields := schema.Configs{}.Fields()
 	_ = configsFields
 	// configsDescUpdatedAt is the schema descriptor for updated_at field.
@@ -22,6 +74,32 @@ func init() {
 	configs.DefaultUpdatedAt = configsDescUpdatedAt.Default.(func() time.Time)
 	// configs.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
 	configs.UpdateDefaultUpdatedAt = configsDescUpdatedAt.UpdateDefault.(func() time.Time)
+	modulesFields := schema.Modules{}.Fields()
+	_ = modulesFields
+	// modulesDescName is the schema descriptor for name field.
+	modulesDescName := modulesFields[0].Descriptor()
+	// modules.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	modules.NameValidator = modulesDescName.Validators[0].(func(string) error)
+	// modulesDescIsEnabled is the schema descriptor for is_enabled field.
+	modulesDescIsEnabled := modulesFields[1].Descriptor()
+	// modules.DefaultIsEnabled holds the default value on creation for the is_enabled field.
+	modules.DefaultIsEnabled = modulesDescIsEnabled.Default.(bool)
+	// modulesDescUpdatedAt is the schema descriptor for updated_at field.
+	modulesDescUpdatedAt := modulesFields[3].Descriptor()
+	// modules.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	modules.DefaultUpdatedAt = modulesDescUpdatedAt.Default.(func() time.Time)
+	// modules.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	modules.UpdateDefaultUpdatedAt = modulesDescUpdatedAt.UpdateDefault.(func() time.Time)
+	tebextransactionsFields := schema.TebexTransactions{}.Fields()
+	_ = tebextransactionsFields
+	// tebextransactionsDescCreatedAt is the schema descriptor for created_at field.
+	tebextransactionsDescCreatedAt := tebextransactionsFields[1].Descriptor()
+	// tebextransactions.DefaultCreatedAt holds the default value on creation for the created_at field.
+	tebextransactions.DefaultCreatedAt = tebextransactionsDescCreatedAt.Default.(func() time.Time)
+	// tebextransactionsDescID is the schema descriptor for id field.
+	tebextransactionsDescID := tebextransactionsFields[0].Descriptor()
+	// tebextransactions.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	tebextransactions.IDValidator = tebextransactionsDescID.Validators[0].(func(string) error)
 	timersFields := schema.Timers{}.Fields()
 	_ = timersFields
 	// timersDescName is the schema descriptor for name field.
@@ -66,20 +144,24 @@ func init() {
 	userDescUsername := userFields[1].Descriptor()
 	// user.UsernameValidator is a validator for the "username" field. It is called by the builders before save.
 	user.UsernameValidator = userDescUsername.Validators[0].(func(string) error)
+	// userDescDisplayName is the schema descriptor for display_name field.
+	userDescDisplayName := userFields[2].Descriptor()
+	// user.DefaultDisplayName holds the default value on creation for the display_name field.
+	user.DefaultDisplayName = userDescDisplayName.Default.(string)
 	// userDescEmail is the schema descriptor for email field.
-	userDescEmail := userFields[2].Descriptor()
+	userDescEmail := userFields[3].Descriptor()
 	// user.EmailValidator is a validator for the "email" field. It is called by the builders before save.
 	user.EmailValidator = userDescEmail.Validators[0].(func(string) error)
 	// userDescIsActive is the schema descriptor for is_active field.
-	userDescIsActive := userFields[3].Descriptor()
+	userDescIsActive := userFields[4].Descriptor()
 	// user.DefaultIsActive holds the default value on creation for the is_active field.
 	user.DefaultIsActive = userDescIsActive.Default.(bool)
 	// userDescCreatedAt is the schema descriptor for created_at field.
-	userDescCreatedAt := userFields[4].Descriptor()
+	userDescCreatedAt := userFields[5].Descriptor()
 	// user.DefaultCreatedAt holds the default value on creation for the created_at field.
 	user.DefaultCreatedAt = userDescCreatedAt.Default.(func() time.Time)
 	// userDescUpdatedAt is the schema descriptor for updated_at field.
-	userDescUpdatedAt := userFields[5].Descriptor()
+	userDescUpdatedAt := userFields[6].Descriptor()
 	// user.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	user.DefaultUpdatedAt = userDescUpdatedAt.Default.(func() time.Time)
 	// user.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
