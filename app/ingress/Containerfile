@@ -1,6 +1,6 @@
 # Twitch Ingress (Elixir) - build with podman or docker:
 #   podman build -t itsbagelbot/twitch-ingress -f Containerfile .
-FROM elixir:1.19-otp-28 AS build
+FROM docker.io/library/elixir:1.19-otp-28 AS build
 
 ENV MIX_ENV=prod
 WORKDIR /src
@@ -18,7 +18,7 @@ RUN mix compile && mix release
 
 # ---------------------------------------------------------------------------
 # Must match the builder's base distro: the release links against its glibc.
-FROM debian:trixie-slim
+FROM docker.io/library/debian:trixie-slim
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends libssl3 libncurses6 ca-certificates \

@@ -1,28 +1,20 @@
-// The dashboard is the user-facing microservice: streamers sign in with
-// Twitch, enable the bot on their channel, and manage it. It owns the
-// `dashboard` MySQL schema (HeatWave) and reaches every other service over
-// NATS, per the data-and-state ownership rules.
 package main
 
 import (
 	"context"
-	"errors"
 	"log/slog"
-	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
-	"github.com/alexedwards/scs/mysqlstore"
-	"github.com/alexedwards/scs/v2"
 	"github.com/nats-io/nats.go"
 
 	"itsbagelbot/dashboard/internal/config"
 	"itsbagelbot/dashboard/internal/crypto"
+	"itsbagelbot/dashboard/internal/monitor"
 	"itsbagelbot/dashboard/internal/rpc"
-	"itsbagelbot/dashboard/internal/store"
+
 	"itsbagelbot/dashboard/internal/twitch"
 	"itsbagelbot/dashboard/internal/web"
 )
@@ -36,15 +28,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	st, err := store.Open(cfg.DBDSN)
+	nrApp, err := monitor.New("dashboard", log)
 	if err != nil {
-		log.Error("db connect", "err", err)
+		log.Error("new relic init", "err", err)
 		os.Exit(1)
 	}
-	if err := st.Migrate(context.Background()); err != nil {
-		log.Error("db migrate", "err", err)
-		os.Exit(1)
-	}
+	defer monitor.Shutdown(nrApp)
 
 	nc, err := nats.Connect(cfg.NATSURL,
 		nats.MaxReconnects(-1),
@@ -60,35 +49,38 @@ func main() {
 		os.Exit(1)
 	}
 
-	sessions := scs.New()
-	sessions.Store = mysqlstore.New(st.DB)
-	sessions.Lifetime = 7 * 24 * time.Hour
-	sessions.Cookie.Secure = strings.HasPrefix(cfg.BaseURL, "https://")
-	sessions.Cookie.HttpOnly = true
-	sessions.Cookie.SameSite = http.SameSiteLaxMode
+	sessionAead, err := crypto.New(cfg.SessionKey)
+	if err != nil {
+		log.Error("session aead init", "err", err)
+		os.Exit(1)
+	}
+
+	dash, err := rpc.NewDashboard(nc, cfg.DashboardRPCPrefix, cfg.CacheInvalidationSubject)
+	if err != nil {
+		log.Error("dashboard rpc", "err", err)
+		os.Exit(1)
+	}
 
 	srv := &web.Server{
-		Sessions:    sessions,
-		Store:       st,
+		Dashboard:   dash,
 		Twitch:      twitch.New(cfg.TwitchClientID, cfg.TwitchClientSecret, cfg.BaseURL, cfg.BotScopes),
 		Broadcaster: rpc.NewBroadcaster(nc, cfg.BroadcasterStatusSubject),
 		AEAD:        aead,
+		SessionAEAD: sessionAead,
 		NATS:        nc,
 		StatusSubj:  cfg.StatusSubjectPrefix,
 		ConduitID:   cfg.TwitchConduitID,
+		BaseURL:     cfg.BaseURL,
 		Log:         log,
+		NewRelic:    nrApp,
 	}
 
-	httpSrv := &http.Server{
-		Addr:              cfg.ListenAddr,
-		Handler:           srv.Routes(),
-		ReadHeaderTimeout: 5 * time.Second,
-	}
+	app := srv.Routes()
 
 	go func() {
 		log.Info("dashboard listening", "addr", cfg.ListenAddr)
-		if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Error("http server", "err", err)
+		if err := app.Listen(cfg.ListenAddr); err != nil {
+			log.Error("fiber server", "err", err)
 			os.Exit(1)
 		}
 	}()
@@ -97,8 +89,11 @@ func main() {
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
 
+	log.Info("shutting down dashboard...")
+	// Fiber Shutdown is graceful by default
+	_ = app.Shutdown()
+	
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	_ = httpSrv.Shutdown(ctx)
 	_ = srv.Shutdown(ctx)
 }

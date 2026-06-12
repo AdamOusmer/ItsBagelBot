@@ -121,7 +121,9 @@ The flow is:
    `{:shard, shard_id}`.
 2. When a node leaves the cluster, `Horde` re-assigns its shards to surviving nodes. The new owner re-opens the
    WebSocket and re-registers it with Twitch via the EventSub API.
-3. When a node joins, `Horde` may migrate some shards to it to rebalance.
+3. When a node joins, `Horde` migrates shards to it per `Ingress.ShardDistribution`: round-robin by shard id
+   across the alive nodes (sorted by name), so five shards on two nodes always split 3/2. Placement is
+   deterministic, so active redistribution moves only the shards whose target actually changed.
 
 We deliberately do **not** use NATS KV for this. The BEAM cluster's registry is authoritative, in-memory, and
 updates synchronously across nodes. See [ADR 0006](/adr/0006-adoption-of-elixir-for-twitch-ingress/) for the
@@ -140,6 +142,9 @@ Subject prefixes:
 - **`twitch.ingress.status.*`**: outbound, lifecycle and health signals.
 - **`bagel.rpc.broadcaster.status.get`**: request-reply, broadcaster status lookups against the owning Go service.
 - **`bagel.cache.invalidate.broadcaster`**: inbound, evicts entries from the in-process broadcaster status cache.
+- **`twitch.ingress.admin.shards.get`**: inbound request-reply, answered by `Ingress.AdminRpc` with a
+  cluster-wide shard state snapshot for the [Admin](/microservices/admin/) tool. A queue group ensures exactly
+  one replica answers; the reply covers every shard via the Horde registry.
 
 ### Outbound: events
 
@@ -157,7 +162,8 @@ on the payload's `type` field. Payloads carry `msg_id` so consumers can de-dupli
 | Subject                                      | Payload                                                                                       |
 |----------------------------------------------|-----------------------------------------------------------------------------------------------|
 | `twitch.ingress.status.shard.up`             | `{tenant, shard_id, node, since}`                                                             |
-| `twitch.ingress.status.shard.down`           | `{tenant, shard_id, node, reason}`                                                            |
+| `twitch.ingress.status.shard.bound`          | `{shard_id, node, session_id, kind, at}` — `kind` is `fresh` (full connect + Helix bind) or `moved` (session_reconnect handshake completed) |
+| `twitch.ingress.status.shard.down`           | `{tenant, shard_id, node, reason}` — `reason` includes `duplicate_resolved` when a netsplit-heal duplicate stands down |
 | `twitch.ingress.status.node.joined`          | `{node, version, ts}`                                                                         |
 | `twitch.ingress.status.node.left`            | `{node, reason, ts}`                                                                          |
 
@@ -187,6 +193,7 @@ Environment-driven. All values arrive as env vars and are read once at boot.
 | `NEW_RELIC_APP_NAME`           | New Relic application name.                                              | `itsbagelbot-twitch-ingress`                |
 | `NATS_BROADCASTER_STATUS_SUBJECT` | Request-reply subject for broadcaster status lookups.                 | `bagel.rpc.broadcaster.status.get`          |
 | `NATS_CACHE_INVALIDATION_SUBJECT` | Subject carrying broadcaster cache invalidation keys.                 | `bagel.cache.invalidate.broadcaster`        |
+| `NATS_ADMIN_SUBJECT`           | Request-reply subject answered with the shard state snapshot.            | `twitch.ingress.admin.shards.get`           |
 | `BROADCASTER_CACHE_TTL_SECONDS`| TTL of the in-process broadcaster status cache.                          | `300`                                       |
 | `LOG_LEVEL`                    | `debug` / `info` / `warn` / `error`.                                     | `info`                                      |
 | `OTEL_EXPORTER_OTLP_ENDPOINT`  | Optional OTLP target for traces and metrics.                             | `http://otel-collector:4318`                |
@@ -196,7 +203,7 @@ described in [ADR 0005](/adr/0005-adoption-of-mysql-heatwave/).
 
 ## Deployment
 
-- **Architecture:** Multi-architecture (`linux/arm64` and `linux/amd64`). Scheduled across both `node1` (ARM64) and `node2` (Intel AMD64) for High Availability (HA). Container images are multi-arch.
+- **Architecture:** ARM and Intel. Scheduled across both `node1` (ARM) and `node2` (Intel/x86_64) for High Availability (HA). Images are built per node: ARM natively on the operator Mac, Intel natively on `node2` — no cross-arch emulation in the pipeline.
 - **Runtime:** OTP 27+, Elixir 1.17+. Released as a Mix release (`mix release`), running on a `distroless` Erlang
   base image.
 - **Process model:** one container per node. The BEAM is the concurrency runtime; we do not run multiple BEAM VMs
@@ -232,7 +239,7 @@ described in [ADR 0005](/adr/0005-adoption-of-mysql-heatwave/).
 | Twitch returns 401 on a shard                      | Shard asks `TokenRefresher` for a fresh token; on success it re-authenticates, on failure it crashes and is restarted by the supervisor. |
 | One ingress node dies                              | `Horde` re-assigns its shards to surviving nodes. New owners re-open WebSockets and re-register them with Twitch. Status events emitted. |
 | NATS unreachable                                   | `Gnat.ConnectionSupervisor` reconnects. Outbound events are buffered (bounded) and dropped on overflow with a warn-level log; we prefer drop over unbounded memory growth. |
-| Erlang distribution partitions                     | Each side becomes its own quorum-less cluster. Horde may end up with split ownership; on heal, CRDT merge resolves to one owner and the loser shuts down its shards cleanly. |
+| Erlang distribution partitions                     | Each side becomes its own quorum-less cluster and may run duplicate shards. On heal, the registry merge flags the duplicate, and resolution is health-based, not arbitrary: the copy that is **bound** to the Conduit keeps the shard (reclaiming the registration if the registry picked the unbound one), the redundant copy stands down gracefully and publishes `shard.down` with reason `duplicate_resolved`. |
 | Single bad message format from Twitch              | Shard crashes, supervisor restarts, Twitch will resend through the Conduit. No retry storm on bad payloads.   |
 
 ## References

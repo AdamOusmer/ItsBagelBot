@@ -55,7 +55,7 @@ func main() {
 	}
 	defer func() { _ = pub.Close() }()
 
-	repo := repository.NewCommands(client, pub, log)
+	repo := repository.NewCommands(client, pub, nil, log)
 	defer repo.Close(context.Background()) // flushes pending writes on shutdown
 
 	// Broadcast subscription: every instance must drop its cached view when
@@ -66,7 +66,7 @@ func main() {
 	}
 	defer func() { _ = broadcast.Close() }()
 
-	if err := bus.Consume(ctx, broadcast, data.SubjectCommandChanged, func(msg *message.Message) error {
+	if err := bus.Consume(ctx, nil, broadcast, data.SubjectCommandChanged, func(msg *message.Message) error {
 
 		var dto data.CommandChangedDTO
 		if err := json.Unmarshal(msg.Payload, &dto); err != nil {

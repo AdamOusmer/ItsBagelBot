@@ -20,6 +20,8 @@ defmodule Ingress.Config do
 
   def invalidation_subject, do: Application.fetch_env!(:ingress, :invalidation_subject)
 
+  def admin_subject, do: Application.fetch_env!(:ingress, :admin_subject)
+
   def broadcaster_status_subject,
     do: Application.fetch_env!(:ingress, :broadcaster_status_subject)
 

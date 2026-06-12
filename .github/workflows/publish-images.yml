@@ -1,0 +1,321 @@
+name: Publish Container Images
+
+on:
+  pull_request:
+    branches: [ "main" ]
+  push:
+    branches: [ "main" ]
+    tags: [ "v*" ]
+  workflow_dispatch:
+    inputs:
+      service:
+        description: Service image to rebuild
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - admin
+          - broadcaster-data
+          - commands
+          - dashboard
+          - modules
+          - projector
+          - transactions
+          - users
+          - twitch-ingress
+
+concurrency:
+  group: publish-images-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_REPOSITORY: itsbagelbot
+  PLATFORMS: linux/amd64,linux/arm64
+
+jobs:
+  changes:
+    name: Select images
+    runs-on: ubuntu-22.04
+    outputs:
+      has-changes: ${{ steps.plan.outputs.has-changes }}
+      matrix: ${{ steps.plan.outputs.matrix }}
+      services: ${{ steps.plan.outputs.services }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Build image matrix from changed paths
+        id: plan
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          all_services='[
+            {
+              "image": "admin",
+              "context": "app/admin",
+              "containerfile": "app/admin/Containerfile",
+              "description": "ItsBagelBot operator admin service"
+            },
+            {
+              "image": "broadcaster-data",
+              "context": ".",
+              "containerfile": "app/broadcaster-data/Containerfile",
+              "description": "ItsBagelBot broadcaster data service"
+            },
+            {
+              "image": "commands",
+              "context": ".",
+              "containerfile": "app/commands/Containerfile",
+              "description": "ItsBagelBot commands data service"
+            },
+            {
+              "image": "dashboard",
+              "context": "app/dashboard",
+              "containerfile": "app/dashboard/Containerfile",
+              "description": "ItsBagelBot streamer dashboard service"
+            },
+            {
+              "image": "modules",
+              "context": ".",
+              "containerfile": "app/modules/Containerfile",
+              "description": "ItsBagelBot modules data service"
+            },
+            {
+              "image": "projector",
+              "context": ".",
+              "containerfile": "app/projector/Containerfile",
+              "description": "ItsBagelBot settings projection service"
+            },
+            {
+              "image": "transactions",
+              "context": ".",
+              "containerfile": "app/transactions/Containerfile",
+              "description": "ItsBagelBot transactions data service"
+            },
+            {
+              "image": "users",
+              "context": ".",
+              "containerfile": "app/users/Containerfile",
+              "description": "ItsBagelBot users data service"
+            },
+            {
+              "image": "twitch-ingress",
+              "context": "app/ingress",
+              "containerfile": "app/ingress/Containerfile",
+              "description": "ItsBagelBot Twitch ingress service"
+            }
+          ]'
+
+          declare -A selected=()
+
+          add() {
+            selected["$1"]=1
+          }
+
+          add_root_go_services() {
+            add "broadcaster-data"
+            add "commands"
+            add "modules"
+            add "projector"
+            add "transactions"
+            add "users"
+          }
+
+          add_all_services() {
+            add "admin"
+            add "broadcaster-data"
+            add "commands"
+            add "dashboard"
+            add "modules"
+            add "projector"
+            add "transactions"
+            add "users"
+            add "twitch-ingress"
+          }
+
+          select_for_path() {
+            local path="$1"
+
+            case "$path" in
+              .github/workflows/publish-images.yml)
+                add_all_services
+                ;;
+              .containerignore|go.mod|go.sum|pkg/*)
+                add_root_go_services
+                ;;
+              internal/db/*)
+                add "broadcaster-data"
+                ;;
+              internal/domain/*|internal/utils/*)
+                add_root_go_services
+                ;;
+              app/admin/*)
+                add "admin"
+                ;;
+              app/broadcaster-data/*)
+                add "broadcaster-data"
+                ;;
+              app/commands/*)
+                add "commands"
+                ;;
+              app/dashboard/*)
+                add "dashboard"
+                ;;
+              app/ingress/*)
+                add "twitch-ingress"
+                ;;
+              app/modules/*)
+                add "modules"
+                ;;
+              app/projector/*)
+                add "projector"
+                ;;
+              app/transactions/*)
+                add "transactions"
+                ;;
+              app/users/*)
+                add "users"
+                ;;
+            esac
+          }
+
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            requested="${{ inputs.service }}"
+            if [[ "$requested" == "all" ]]; then
+              add_all_services
+            else
+              add "$requested"
+            fi
+          elif [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            add_all_services
+          else
+            if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+              base="${{ github.event.pull_request.base.sha }}"
+              head="${{ github.event.pull_request.head.sha }}"
+            else
+              base="${{ github.event.before }}"
+              head="${{ github.sha }}"
+            fi
+
+            if [[ "$base" =~ ^0+$ ]] || ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+              add_all_services
+            else
+              mapfile -t changed_files < <(git diff --name-only "$base" "$head")
+              for path in "${changed_files[@]}"; do
+                select_for_path "$path"
+              done
+            fi
+          fi
+
+          selected_json=$(
+            for service in "${!selected[@]}"; do
+              printf '%s\n' "$service"
+            done | jq -R . | jq -cs .
+          )
+          matrix=$(jq -c --argjson selected "$selected_json" '[.[] | select(.image as $image | $selected | index($image))]' <<< "$all_services")
+          services=$(jq -r '.[].image' <<< "$matrix" | paste -sd ',' -)
+
+          if [[ "$matrix" == "[]" ]]; then
+            echo "No service image changes detected."
+            echo "has-changes=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Selected service images: $services"
+            echo "has-changes=true" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          echo "services=$services" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build ${{ matrix.image }}
+    needs: changes
+    if: needs.changes.outputs.has-changes == 'true'
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.changes.outputs.matrix) }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Prepare image metadata
+        id: meta
+        shell: bash
+        run: |
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          image="${IMAGE_REPOSITORY}/${{ matrix.image }}"
+          registry="${REGISTRY}/${owner}"
+          tags="sha-${GITHUB_SHA::12}"
+
+          if [[ "${GITHUB_EVENT_NAME}" == "push" && "${GITHUB_REF}" == "refs/heads/main" ]]; then
+            tags="${tags} main latest"
+          fi
+
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            version="${GITHUB_REF_NAME#v}"
+            tags="${tags} ${GITHUB_REF_NAME} ${version}"
+          fi
+
+          echo "image=${image}" >> "${GITHUB_OUTPUT}"
+          echo "registry=${registry}" >> "${GITHUB_OUTPUT}"
+          echo "subject=${registry}/${image}" >> "${GITHUB_OUTPUT}"
+          echo "tags=${tags}" >> "${GITHUB_OUTPUT}"
+
+      - name: Install QEMU for cross-architecture RUN steps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-user-static
+
+      - name: Build multi-architecture image
+        id: build
+        uses: redhat-actions/buildah-build@v2
+        with:
+          context: ${{ matrix.context }}
+          containerfiles: ${{ matrix.containerfile }}
+          image: ${{ steps.meta.outputs.image }}
+          tags: ${{ steps.meta.outputs.tags }}
+          platforms: ${{ env.PLATFORMS }}
+          oci: true
+          labels: |
+            org.opencontainers.image.title=ItsBagelBot ${{ matrix.image }}
+            org.opencontainers.image.description=${{ matrix.description }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.licenses=LicenseRef-Proprietary
+
+      - name: Push to private GHCR
+        id: push
+        if: github.event_name != 'pull_request'
+        uses: redhat-actions/push-to-registry@v2
+        with:
+          image: ${{ steps.build.outputs.image }}
+          tags: ${{ steps.build.outputs.tags }}
+          registry: ${{ steps.meta.outputs.registry }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Attest image provenance
+        if: github.event_name != 'pull_request'
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-name: ${{ steps.meta.outputs.subject }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true

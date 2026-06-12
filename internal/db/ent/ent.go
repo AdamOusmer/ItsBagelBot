@@ -3,7 +3,11 @@
 package ent
 
 import (
+	"ItsBagelBot/internal/db/ent/botgrants"
+	"ItsBagelBot/internal/db/ent/commands"
 	"ItsBagelBot/internal/db/ent/configs"
+	"ItsBagelBot/internal/db/ent/modules"
+	"ItsBagelBot/internal/db/ent/tebextransactions"
 	"ItsBagelBot/internal/db/ent/timers"
 	"ItsBagelBot/internal/db/ent/tokens"
 	"ItsBagelBot/internal/db/ent/user"
@@ -76,10 +80,14 @@ var (
 func checkColumn(t, c string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
-			configs.Table: configs.ValidColumn,
-			timers.Table:  timers.ValidColumn,
-			tokens.Table:  tokens.ValidColumn,
-			user.Table:    user.ValidColumn,
+			botgrants.Table:         botgrants.ValidColumn,
+			commands.Table:          commands.ValidColumn,
+			configs.Table:           configs.ValidColumn,
+			modules.Table:           modules.ValidColumn,
+			tebextransactions.Table: tebextransactions.ValidColumn,
+			timers.Table:            timers.ValidColumn,
+			tokens.Table:            tokens.ValidColumn,
+			user.Table:              user.ValidColumn,
 		})
 	})
 	return columnCheck(t, c)

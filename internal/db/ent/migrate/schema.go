@@ -8,6 +8,59 @@ import (
 )
 
 var (
+	// BotGrantsColumns holds the columns for the "bot_grants" table.
+	BotGrantsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "broadcaster_user_id", Type: field.TypeString, Unique: true},
+		{Name: "scopes", Type: field.TypeString},
+		{Name: "refresh_token_enc", Type: field.TypeBytes},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+	}
+	// BotGrantsTable holds the schema information for the "bot_grants" table.
+	BotGrantsTable = &schema.Table{
+		Name:       "bot_grants",
+		Columns:    BotGrantsColumns,
+		PrimaryKey: []*schema.Column{BotGrantsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "botgrants_broadcaster_user_id",
+				Unique:  false,
+				Columns: []*schema.Column{BotGrantsColumns[1]},
+			},
+		},
+	}
+	// CommandsColumns holds the columns for the "commands" table.
+	CommandsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "name", Type: field.TypeString},
+		{Name: "response", Type: field.TypeString},
+		{Name: "is_active", Type: field.TypeBool, Default: true},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "user_commands", Type: field.TypeUint64},
+	}
+	// CommandsTable holds the schema information for the "commands" table.
+	CommandsTable = &schema.Table{
+		Name:       "commands",
+		Columns:    CommandsColumns,
+		PrimaryKey: []*schema.Column{CommandsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "commands_users_commands",
+				Columns:    []*schema.Column{CommandsColumns[6]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "commands_name_user_commands",
+				Unique:  true,
+				Columns: []*schema.Column{CommandsColumns[1], CommandsColumns[6]},
+			},
+		},
+	}
 	// ConfigsColumns holds the columns for the "configs" table.
 	ConfigsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -24,6 +77,56 @@ var (
 			{
 				Symbol:     "configs_users_configs",
 				Columns:    []*schema.Column{ConfigsColumns[3]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+	}
+	// ModulesColumns holds the columns for the "modules" table.
+	ModulesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "name", Type: field.TypeString},
+		{Name: "is_enabled", Type: field.TypeBool, Default: false},
+		{Name: "configs", Type: field.TypeJSON, Nullable: true},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "user_modules", Type: field.TypeUint64},
+	}
+	// ModulesTable holds the schema information for the "modules" table.
+	ModulesTable = &schema.Table{
+		Name:       "modules",
+		Columns:    ModulesColumns,
+		PrimaryKey: []*schema.Column{ModulesColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "modules_users_modules",
+				Columns:    []*schema.Column{ModulesColumns[5]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "modules_name_user_modules",
+				Unique:  true,
+				Columns: []*schema.Column{ModulesColumns[1], ModulesColumns[5]},
+			},
+		},
+	}
+	// TebexTransactionsColumns holds the columns for the "tebex_transactions" table.
+	TebexTransactionsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString, Unique: true},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "user_transactions", Type: field.TypeUint64},
+	}
+	// TebexTransactionsTable holds the schema information for the "tebex_transactions" table.
+	TebexTransactionsTable = &schema.Table{
+		Name:       "tebex_transactions",
+		Columns:    TebexTransactionsColumns,
+		PrimaryKey: []*schema.Column{TebexTransactionsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "tebex_transactions_users_transactions",
+				Columns:    []*schema.Column{TebexTransactionsColumns[2]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.Cascade,
 			},
@@ -90,6 +193,7 @@ var (
 	UsersColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeUint64, Increment: true},
 		{Name: "username", Type: field.TypeString},
+		{Name: "display_name", Type: field.TypeString, Nullable: true, Default: ""},
 		{Name: "email", Type: field.TypeString, Unique: true},
 		{Name: "is_active", Type: field.TypeBool, Default: true},
 		{Name: "created_at", Type: field.TypeTime},
@@ -104,13 +208,17 @@ var (
 			{
 				Name:    "user_id_is_active",
 				Unique:  false,
-				Columns: []*schema.Column{UsersColumns[0], UsersColumns[3]},
+				Columns: []*schema.Column{UsersColumns[0], UsersColumns[4]},
 			},
 		},
 	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
+		BotGrantsTable,
+		CommandsTable,
 		ConfigsTable,
+		ModulesTable,
+		TebexTransactionsTable,
 		TimersTable,
 		TokensTable,
 		UsersTable,
@@ -118,7 +226,10 @@ var (
 )
 
 func init() {
+	CommandsTable.ForeignKeys[0].RefTable = UsersTable
 	ConfigsTable.ForeignKeys[0].RefTable = UsersTable
+	ModulesTable.ForeignKeys[0].RefTable = UsersTable
+	TebexTransactionsTable.ForeignKeys[0].RefTable = UsersTable
 	TimersTable.ForeignKeys[0].RefTable = UsersTable
 	TokensTable.ForeignKeys[0].RefTable = UsersTable
 }

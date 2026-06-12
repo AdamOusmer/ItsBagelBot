@@ -118,7 +118,37 @@ func main() {
 	if err != nil {
 		log.Fatal("nats subscribe", zap.Error(err))
 	}
-	log.Info("broadcaster-data serving", zap.String("subject", subject), zap.String("queue", rpcQueueGroup))
+
+	// Operator verbs (admin tool only; reachable solely over the tailnet).
+	invalidationSubject := env("NATS_CACHE_INVALIDATION_SUBJECT", "bagel.cache.invalidate.broadcaster")
+	admin := &adminRPC{
+		db:                  db,
+		nc:                  nc,
+		invalidationSubject: invalidationSubject,
+		log:                 log,
+	}
+	adminPrefix := env("NATS_ADMIN_USER_SUBJECT_PREFIX", "bagel.rpc.admin.user")
+	if err := admin.subscribe(adminPrefix); err != nil {
+		log.Fatal("admin subscribe", zap.Error(err))
+	}
+
+	// Dashboard data verbs (user upsert, grant save/check).
+	dash := &dashboardRPC{
+		db:                  db,
+		nc:                  nc,
+		invalidationSubject: invalidationSubject,
+		log:                 log,
+	}
+	dashPrefix := env("NATS_DASHBOARD_SUBJECT_PREFIX", "bagel.rpc.dashboard")
+	if err := dash.subscribe(dashPrefix); err != nil {
+		log.Fatal("dashboard subscribe", zap.Error(err))
+	}
+
+	log.Info("broadcaster-data serving",
+		zap.String("subject", subject),
+		zap.String("admin_prefix", adminPrefix),
+		zap.String("dashboard_prefix", dashPrefix),
+		zap.String("queue", rpcQueueGroup))
 
 	httpSrv := &http.Server{Addr: env("LISTEN_ADDR", ":8080"), ReadHeaderTimeout: 5 * time.Second}
 	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {

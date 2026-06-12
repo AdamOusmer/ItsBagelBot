@@ -1,0 +1,22 @@
+# commands (Go, root module) - build from the REPO ROOT:
+#   podman build -t itsbagelbot/commands -f app/commands/Containerfile .
+FROM docker.io/library/golang:1.26-bookworm AS build
+
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY internal/domain internal/domain
+COPY internal/utils internal/utils
+COPY pkg pkg
+COPY app/commands app/commands
+RUN go run -mod=mod entgo.io/ent/cmd/ent generate ./app/commands/ent/schema \
+ && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /commands ./app/commands
+
+# ---------------------------------------------------------------------------
+FROM gcr.io/distroless/static-debian12:nonroot
+
+COPY --from=build /commands /commands
+
+USER nonroot
+ENTRYPOINT ["/commands"]

@@ -24,6 +24,8 @@ func (User) Fields() []ent.Field {
 
 		field.String("username").NotEmpty(),
 
+		field.String("display_name").Optional().Default(""),
+
 		field.String("email").NotEmpty().Unique().Sensitive(),
 
 		field.Bool("is_active").Default(true),
@@ -54,6 +56,21 @@ func (User) Edges() []ent.Edge {
 			}),
 
 		edge.To("timers", Timers.Type).
+			Annotations(entsql.Annotation{
+				OnDelete: entsql.Cascade,
+			}),
+
+		edge.To("commands", Commands.Type).
+			Annotations(entsql.Annotation{
+				OnDelete: entsql.Cascade,
+			}),
+
+		edge.To("modules", Modules.Type).
+			Annotations(entsql.Annotation{
+				OnDelete: entsql.Cascade,
+			}),
+
+		edge.To("transactions", TebexTransactions.Type).
 			Annotations(entsql.Annotation{
 				OnDelete: entsql.Cascade,
 			}),

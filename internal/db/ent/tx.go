@@ -12,8 +12,16 @@ import (
 // Tx is a transactional client that is created by calling Client.Tx().
 type Tx struct {
 	config
+	// BotGrants is the client for interacting with the BotGrants builders.
+	BotGrants *BotGrantsClient
+	// Commands is the client for interacting with the Commands builders.
+	Commands *CommandsClient
 	// Configs is the client for interacting with the Configs builders.
 	Configs *ConfigsClient
+	// Modules is the client for interacting with the Modules builders.
+	Modules *ModulesClient
+	// TebexTransactions is the client for interacting with the TebexTransactions builders.
+	TebexTransactions *TebexTransactionsClient
 	// Timers is the client for interacting with the Timers builders.
 	Timers *TimersClient
 	// Tokens is the client for interacting with the Tokens builders.
@@ -151,7 +159,11 @@ func (tx *Tx) Client() *Client {
 }
 
 func (tx *Tx) init() {
+	tx.BotGrants = NewBotGrantsClient(tx.config)
+	tx.Commands = NewCommandsClient(tx.config)
 	tx.Configs = NewConfigsClient(tx.config)
+	tx.Modules = NewModulesClient(tx.config)
+	tx.TebexTransactions = NewTebexTransactionsClient(tx.config)
 	tx.Timers = NewTimersClient(tx.config)
 	tx.Tokens = NewTokensClient(tx.config)
 	tx.User = NewUserClient(tx.config)
@@ -164,7 +176,7 @@ func (tx *Tx) init() {
 // of them in order to commit or rollback the transaction.
 //
 // If a closed transaction is embedded in one of the generated entities, and the entity
-// applies a query, for example: Configs.QueryXXX(), the query will be executed
+// applies a query, for example: BotGrants.QueryXXX(), the query will be executed
 // through the driver which created this transaction.
 //
 // Note that txDriver is not goroutine safe.
