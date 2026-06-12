@@ -48,40 +48,27 @@ flowchart LR
 
 | Member | Purpose | ACL tag |
 | --- | --- | --- |
-| Each cluster node | Node-to-node, operator-to-node | `tag:cluster-node` |
-| Operator devices (laptop, phone) | `kubectl`, SSH, dashboards | `tag:operator` |
-| GitHub Actions runner | Image pulls from in-cluster registry mirror, optional `kubectl apply` | `tag:ci` |
-| Backup target (off-cluster SBC) | Receives restic snapshots | `tag:backup` |
+| `node1`, `node2` (k3s nodes) | Node-to-node (k3s control plane, CNI), SSH target | `tag:itsbagelbot` |
+| `witness1` (OCI micro VM) | Valkey Sentinel quorum witness; OCI VCN subnet router | `tag:witness` |
+| Operator devices | SSH, admin UI, `kubectl` via the operator proxy | `tag:Macbook` |
+| `k8s-operator` (in-cluster) | Tailscale Kubernetes operator; Kubernetes API server proxy | `tag:k8s-operator` |
+| `ts-ingress-*` proxies (in-cluster) | Advertise Tailscale Services (`svc:admin`) | `tag:k8s` |
 
 ### ACL shape
 
-ACLs are configured as policy-as-code in a single JSON document, committed to the ops repo and applied via the Tailscale API. The policy is **default-deny**: a new member with no tag matches no rule.
+The policy is committed as code at `deploy/tailscale/policy.hujson` and pasted/applied to the admin
+console; it is **default-deny** (grants only). The posture in one sentence: **bare metal accepts only
+SSH from operator devices; everything Kubernetes-hosted is reached through Tailscale operator proxies.**
 
-Representative rules (illustrative):
+- Operator devices → cluster nodes and witness: `tcp:22` only.
+- Operator devices → `svc:admin:443` (the admin UI) and → `tag:k8s-operator:443` with the
+  `tailscale.com/cap/kubernetes` capability (`kubectl` impersonating `system:masters`).
+- Nodes ↔ nodes: unrestricted (k3s control plane and CNI ride the tailnet).
+- Witness ↔ nodes: exactly the Sentinel quorum ports (`6379`, `26379` toward the nodes;
+  `26379` plus the exporter ports `9100`/`9121` toward the witness).
+- Tailscale SSH gates on operator identity with an explicit user list.
 
-```jsonc
-{
-  "acls": [
-    // Operators can reach anything on the cluster.
-    { "action": "accept", "src": ["tag:operator"], "dst": ["tag:cluster-node:*"] },
-
-    // Cluster nodes can reach each other on Kubernetes/etcd/Tailscale ports.
-    { "action": "accept", "src": ["tag:cluster-node"], "dst": ["tag:cluster-node:*"] },
-
-    // CI can reach the K8s API and the registry mirror; not the database, not SSH.
-    { "action": "accept", "src": ["tag:ci"],
-      "dst": ["tag:cluster-node:6443,5000"] },
-
-    // The backup target receives traffic from cluster nodes on the restic REST port.
-    { "action": "accept", "src": ["tag:cluster-node"], "dst": ["tag:backup:8000"] }
-  ],
-  "ssh": [
-    // SSH gated on operator identity, not just network reachability.
-    { "action": "accept", "src": ["tag:operator"], "dst": ["tag:cluster-node"],
-      "users": ["root", "ops"] }
-  ]
-}
-```
+Break-glass with the operator down: SSH to `node1`, `sudo k3s kubectl`.
 
 ### Node bindings
 
@@ -91,7 +78,15 @@ The Kubernetes API server is started with `--bind-address` set to the node's tai
 
 ### MagicDNS
 
-`*.bagelbot.ts.net` is used internally for cluster nodes and a handful of operator targets. We do **not** rely on it for service-to-service routing inside the cluster — that's Kubernetes Services / CoreDNS. MagicDNS is operator-ergonomics only.
+`*.tail451e6d.ts.net` names resolve for tailnet members only. The ones that matter:
+
+- `admin.tail451e6d.ts.net` — the operator-only admin UI (Tailscale Service `svc:admin`, HA across both
+  nodes, Let's Encrypt TLS).
+- `k8s-operator.tail451e6d.ts.net` — the Kubernetes API server proxy
+  (`tailscale configure kubeconfig k8s-operator`).
+
+We do **not** rely on MagicDNS for service-to-service routing inside the cluster — that's Kubernetes
+Services / CoreDNS. MagicDNS is operator-ergonomics only.
 
 ## Cloudflare Tunnel: the public ingress
 

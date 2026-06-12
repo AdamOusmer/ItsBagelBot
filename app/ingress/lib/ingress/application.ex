@@ -41,12 +41,16 @@ defmodule Ingress.Application do
          name: Ingress.ShardSupervisor,
          strategy: :one_for_one,
          members: :auto,
-         process_redistribution: :active
+         process_redistribution: :active,
+         # Round-robin shards across nodes (3/2 on a two-node fleet) instead
+         # of the default hash ring, which clusters them (4/1 observed).
+         distribution_strategy: Ingress.ShardDistribution
        ]},
       nats_connection(),
       Ingress.BroadcasterCache,
       Ingress.Twitch.AppToken,
       invalidation_consumer(),
+      admin_consumer(),
       Ingress.Bootstrapper
     ]
   end
@@ -76,6 +80,21 @@ defmodule Ingress.Application do
     Supervisor.child_spec(
       {Gnat.ConsumerSupervisor, settings},
       id: :invalidation_consumer
+    )
+  end
+
+  # Request-reply endpoint for the admin tool. Queue group so exactly one
+  # replica answers each request; any replica can, via the Horde registry.
+  defp admin_consumer do
+    settings = %{
+      connection_name: :gnat,
+      module: Ingress.AdminRpc,
+      subscription_topics: [%{topic: Config.admin_subject(), queue_group: "twitch-ingress-admin"}]
+    }
+
+    Supervisor.child_spec(
+      {Gnat.ConsumerSupervisor, settings},
+      id: :admin_consumer
     )
   end
 end

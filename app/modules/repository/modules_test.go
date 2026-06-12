@@ -26,7 +26,7 @@ func setup(t *testing.T) (*ent.Client, *bustest.Publisher, *repository.Modules) 
 
 	pub := bustest.NewPublisher()
 
-	return client, pub, repository.NewModules(client, pub, zap.NewNop())
+	return client, pub, repository.NewModules(client, pub, nil, zap.NewNop())
 }
 
 // Five clicks on the same toggle inside one window must cost one row write
@@ -63,7 +63,7 @@ func TestFlushUpdatesExistingRow(t *testing.T) {
 	repo.Set(1001, "welcome", true, json.RawMessage(`{}`))
 	repo.Close(ctx)
 
-	repo2 := repository.NewModules(client, bustest.NewPublisher(), zap.NewNop())
+	repo2 := repository.NewModules(client, bustest.NewPublisher(), nil, zap.NewNop())
 	repo2.Set(1001, "welcome", false, json.RawMessage(`{"changed":true}`))
 	repo2.Close(ctx)
 

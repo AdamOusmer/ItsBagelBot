@@ -3,8 +3,11 @@
 package ent
 
 import (
+	"ItsBagelBot/internal/db/ent/commands"
 	"ItsBagelBot/internal/db/ent/configs"
+	"ItsBagelBot/internal/db/ent/modules"
 	"ItsBagelBot/internal/db/ent/predicate"
+	"ItsBagelBot/internal/db/ent/tebextransactions"
 	"ItsBagelBot/internal/db/ent/timers"
 	"ItsBagelBot/internal/db/ent/tokens"
 	"ItsBagelBot/internal/db/ent/user"
@@ -22,13 +25,16 @@ import (
 // UserQuery is the builder for querying User entities.
 type UserQuery struct {
 	config
-	ctx         *QueryContext
-	order       []user.OrderOption
-	inters      []Interceptor
-	predicates  []predicate.User
-	withConfigs *ConfigsQuery
-	withTokens  *TokensQuery
-	withTimers  *TimersQuery
+	ctx              *QueryContext
+	order            []user.OrderOption
+	inters           []Interceptor
+	predicates       []predicate.User
+	withConfigs      *ConfigsQuery
+	withTokens       *TokensQuery
+	withTimers       *TimersQuery
+	withCommands     *CommandsQuery
+	withModules      *ModulesQuery
+	withTransactions *TebexTransactionsQuery
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
 	path func(context.Context) (*sql.Selector, error)
@@ -124,6 +130,72 @@ func (_q *UserQuery) QueryTimers() *TimersQuery {
 			sqlgraph.From(user.Table, user.FieldID, selector),
 			sqlgraph.To(timers.Table, timers.FieldID),
 			sqlgraph.Edge(sqlgraph.O2M, false, user.TimersTable, user.TimersColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryCommands chains the current query on the "commands" edge.
+func (_q *UserQuery) QueryCommands() *CommandsQuery {
+	query := (&CommandsClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, selector),
+			sqlgraph.To(commands.Table, commands.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.CommandsTable, user.CommandsColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryModules chains the current query on the "modules" edge.
+func (_q *UserQuery) QueryModules() *ModulesQuery {
+	query := (&ModulesClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, selector),
+			sqlgraph.To(modules.Table, modules.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.ModulesTable, user.ModulesColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryTransactions chains the current query on the "transactions" edge.
+func (_q *UserQuery) QueryTransactions() *TebexTransactionsQuery {
+	query := (&TebexTransactionsClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, selector),
+			sqlgraph.To(tebextransactions.Table, tebextransactions.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.TransactionsTable, user.TransactionsColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
 		return fromU, nil
@@ -318,14 +390,17 @@ func (_q *UserQuery) Clone() *UserQuery {
 		return nil
 	}
 	return &UserQuery{
-		config:      _q.config,
-		ctx:         _q.ctx.Clone(),
-		order:       append([]user.OrderOption{}, _q.order...),
-		inters:      append([]Interceptor{}, _q.inters...),
-		predicates:  append([]predicate.User{}, _q.predicates...),
-		withConfigs: _q.withConfigs.Clone(),
-		withTokens:  _q.withTokens.Clone(),
-		withTimers:  _q.withTimers.Clone(),
+		config:           _q.config,
+		ctx:              _q.ctx.Clone(),
+		order:            append([]user.OrderOption{}, _q.order...),
+		inters:           append([]Interceptor{}, _q.inters...),
+		predicates:       append([]predicate.User{}, _q.predicates...),
+		withConfigs:      _q.withConfigs.Clone(),
+		withTokens:       _q.withTokens.Clone(),
+		withTimers:       _q.withTimers.Clone(),
+		withCommands:     _q.withCommands.Clone(),
+		withModules:      _q.withModules.Clone(),
+		withTransactions: _q.withTransactions.Clone(),
 		// clone intermediate query.
 		sql:  _q.sql.Clone(),
 		path: _q.path,
@@ -362,6 +437,39 @@ func (_q *UserQuery) WithTimers(opts ...func(*TimersQuery)) *UserQuery {
 		opt(query)
 	}
 	_q.withTimers = query
+	return _q
+}
+
+// WithCommands tells the query-builder to eager-load the nodes that are connected to
+// the "commands" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *UserQuery) WithCommands(opts ...func(*CommandsQuery)) *UserQuery {
+	query := (&CommandsClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withCommands = query
+	return _q
+}
+
+// WithModules tells the query-builder to eager-load the nodes that are connected to
+// the "modules" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *UserQuery) WithModules(opts ...func(*ModulesQuery)) *UserQuery {
+	query := (&ModulesClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withModules = query
+	return _q
+}
+
+// WithTransactions tells the query-builder to eager-load the nodes that are connected to
+// the "transactions" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *UserQuery) WithTransactions(opts ...func(*TebexTransactionsQuery)) *UserQuery {
+	query := (&TebexTransactionsClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withTransactions = query
 	return _q
 }
 
@@ -443,10 +551,13 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 	var (
 		nodes       = []*User{}
 		_spec       = _q.querySpec()
-		loadedTypes = [3]bool{
+		loadedTypes = [6]bool{
 			_q.withConfigs != nil,
 			_q.withTokens != nil,
 			_q.withTimers != nil,
+			_q.withCommands != nil,
+			_q.withModules != nil,
+			_q.withTransactions != nil,
 		}
 	)
 	_spec.ScanValues = func(columns []string) ([]any, error) {
@@ -484,6 +595,27 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 		if err := _q.loadTimers(ctx, query, nodes,
 			func(n *User) { n.Edges.Timers = []*Timers{} },
 			func(n *User, e *Timers) { n.Edges.Timers = append(n.Edges.Timers, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withCommands; query != nil {
+		if err := _q.loadCommands(ctx, query, nodes,
+			func(n *User) { n.Edges.Commands = []*Commands{} },
+			func(n *User, e *Commands) { n.Edges.Commands = append(n.Edges.Commands, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withModules; query != nil {
+		if err := _q.loadModules(ctx, query, nodes,
+			func(n *User) { n.Edges.Modules = []*Modules{} },
+			func(n *User, e *Modules) { n.Edges.Modules = append(n.Edges.Modules, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withTransactions; query != nil {
+		if err := _q.loadTransactions(ctx, query, nodes,
+			func(n *User) { n.Edges.Transactions = []*TebexTransactions{} },
+			func(n *User, e *TebexTransactions) { n.Edges.Transactions = append(n.Edges.Transactions, e) }); err != nil {
 			return nil, err
 		}
 	}
@@ -575,6 +707,99 @@ func (_q *UserQuery) loadTimers(ctx context.Context, query *TimersQuery, nodes [
 		node, ok := nodeids[*fk]
 		if !ok {
 			return fmt.Errorf(`unexpected referenced foreign-key "user_timers" returned %v for node %v`, *fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *UserQuery) loadCommands(ctx context.Context, query *CommandsQuery, nodes []*User, init func(*User), assign func(*User, *Commands)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[uint64]*User)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	query.withFKs = true
+	query.Where(predicate.Commands(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(user.CommandsColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.user_commands
+		if fk == nil {
+			return fmt.Errorf(`foreign-key "user_commands" is nil for node %v`, n.ID)
+		}
+		node, ok := nodeids[*fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "user_commands" returned %v for node %v`, *fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *UserQuery) loadModules(ctx context.Context, query *ModulesQuery, nodes []*User, init func(*User), assign func(*User, *Modules)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[uint64]*User)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	query.withFKs = true
+	query.Where(predicate.Modules(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(user.ModulesColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.user_modules
+		if fk == nil {
+			return fmt.Errorf(`foreign-key "user_modules" is nil for node %v`, n.ID)
+		}
+		node, ok := nodeids[*fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "user_modules" returned %v for node %v`, *fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *UserQuery) loadTransactions(ctx context.Context, query *TebexTransactionsQuery, nodes []*User, init func(*User), assign func(*User, *TebexTransactions)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[uint64]*User)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	query.withFKs = true
+	query.Where(predicate.TebexTransactions(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(user.TransactionsColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.user_transactions
+		if fk == nil {
+			return fmt.Errorf(`foreign-key "user_transactions" is nil for node %v`, n.ID)
+		}
+		node, ok := nodeids[*fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "user_transactions" returned %v for node %v`, *fk, n.ID)
 		}
 		assign(node, n)
 	}

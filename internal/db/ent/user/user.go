@@ -16,6 +16,8 @@ const (
 	FieldID = "id"
 	// FieldUsername holds the string denoting the username field in the database.
 	FieldUsername = "username"
+	// FieldDisplayName holds the string denoting the display_name field in the database.
+	FieldDisplayName = "display_name"
 	// FieldEmail holds the string denoting the email field in the database.
 	FieldEmail = "email"
 	// FieldIsActive holds the string denoting the is_active field in the database.
@@ -30,6 +32,12 @@ const (
 	EdgeTokens = "tokens"
 	// EdgeTimers holds the string denoting the timers edge name in mutations.
 	EdgeTimers = "timers"
+	// EdgeCommands holds the string denoting the commands edge name in mutations.
+	EdgeCommands = "commands"
+	// EdgeModules holds the string denoting the modules edge name in mutations.
+	EdgeModules = "modules"
+	// EdgeTransactions holds the string denoting the transactions edge name in mutations.
+	EdgeTransactions = "transactions"
 	// Table holds the table name of the user in the database.
 	Table = "users"
 	// ConfigsTable is the table that holds the configs relation/edge.
@@ -53,12 +61,34 @@ const (
 	TimersInverseTable = "timers"
 	// TimersColumn is the table column denoting the timers relation/edge.
 	TimersColumn = "user_timers"
+	// CommandsTable is the table that holds the commands relation/edge.
+	CommandsTable = "commands"
+	// CommandsInverseTable is the table name for the Commands entity.
+	// It exists in this package in order to avoid circular dependency with the "commands" package.
+	CommandsInverseTable = "commands"
+	// CommandsColumn is the table column denoting the commands relation/edge.
+	CommandsColumn = "user_commands"
+	// ModulesTable is the table that holds the modules relation/edge.
+	ModulesTable = "modules"
+	// ModulesInverseTable is the table name for the Modules entity.
+	// It exists in this package in order to avoid circular dependency with the "modules" package.
+	ModulesInverseTable = "modules"
+	// ModulesColumn is the table column denoting the modules relation/edge.
+	ModulesColumn = "user_modules"
+	// TransactionsTable is the table that holds the transactions relation/edge.
+	TransactionsTable = "tebex_transactions"
+	// TransactionsInverseTable is the table name for the TebexTransactions entity.
+	// It exists in this package in order to avoid circular dependency with the "tebextransactions" package.
+	TransactionsInverseTable = "tebex_transactions"
+	// TransactionsColumn is the table column denoting the transactions relation/edge.
+	TransactionsColumn = "user_transactions"
 )
 
 // Columns holds all SQL columns for user fields.
 var Columns = []string{
 	FieldID,
 	FieldUsername,
+	FieldDisplayName,
 	FieldEmail,
 	FieldIsActive,
 	FieldCreatedAt,
@@ -78,6 +108,8 @@ func ValidColumn(column string) bool {
 var (
 	// UsernameValidator is a validator for the "username" field. It is called by the builders before save.
 	UsernameValidator func(string) error
+	// DefaultDisplayName holds the default value on creation for the "display_name" field.
+	DefaultDisplayName string
 	// EmailValidator is a validator for the "email" field. It is called by the builders before save.
 	EmailValidator func(string) error
 	// DefaultIsActive holds the default value on creation for the "is_active" field.
@@ -101,6 +133,11 @@ func ByID(opts ...sql.OrderTermOption) OrderOption {
 // ByUsername orders the results by the username field.
 func ByUsername(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldUsername, opts...).ToFunc()
+}
+
+// ByDisplayName orders the results by the display_name field.
+func ByDisplayName(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldDisplayName, opts...).ToFunc()
 }
 
 // ByEmail orders the results by the email field.
@@ -157,6 +194,48 @@ func ByTimers(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 		sqlgraph.OrderByNeighborTerms(s, newTimersStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
+
+// ByCommandsCount orders the results by commands count.
+func ByCommandsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newCommandsStep(), opts...)
+	}
+}
+
+// ByCommands orders the results by commands terms.
+func ByCommands(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newCommandsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
+// ByModulesCount orders the results by modules count.
+func ByModulesCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newModulesStep(), opts...)
+	}
+}
+
+// ByModules orders the results by modules terms.
+func ByModules(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newModulesStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
+// ByTransactionsCount orders the results by transactions count.
+func ByTransactionsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newTransactionsStep(), opts...)
+	}
+}
+
+// ByTransactions orders the results by transactions terms.
+func ByTransactions(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newTransactionsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
 func newConfigsStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
@@ -176,5 +255,26 @@ func newTimersStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(TimersInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, TimersTable, TimersColumn),
+	)
+}
+func newCommandsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(CommandsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, CommandsTable, CommandsColumn),
+	)
+}
+func newModulesStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(ModulesInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, ModulesTable, ModulesColumn),
+	)
+}
+func newTransactionsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(TransactionsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, TransactionsTable, TransactionsColumn),
 	)
 }

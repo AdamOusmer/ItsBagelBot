@@ -20,6 +20,8 @@ type User struct {
 	ID uint64 `json:"id,omitempty"`
 	// Username holds the value of the "username" field.
 	Username string `json:"username,omitempty"`
+	// DisplayName holds the value of the "display_name" field.
+	DisplayName string `json:"display_name,omitempty"`
 	// Email holds the value of the "email" field.
 	Email string `json:"-"`
 	// IsActive holds the value of the "is_active" field.
@@ -42,9 +44,15 @@ type UserEdges struct {
 	Tokens []*Tokens `json:"tokens,omitempty"`
 	// Timers holds the value of the timers edge.
 	Timers []*Timers `json:"timers,omitempty"`
+	// Commands holds the value of the commands edge.
+	Commands []*Commands `json:"commands,omitempty"`
+	// Modules holds the value of the modules edge.
+	Modules []*Modules `json:"modules,omitempty"`
+	// Transactions holds the value of the transactions edge.
+	Transactions []*TebexTransactions `json:"transactions,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [3]bool
+	loadedTypes [6]bool
 }
 
 // ConfigsOrErr returns the Configs value or an error if the edge
@@ -76,6 +84,33 @@ func (e UserEdges) TimersOrErr() ([]*Timers, error) {
 	return nil, &NotLoadedError{edge: "timers"}
 }
 
+// CommandsOrErr returns the Commands value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) CommandsOrErr() ([]*Commands, error) {
+	if e.loadedTypes[3] {
+		return e.Commands, nil
+	}
+	return nil, &NotLoadedError{edge: "commands"}
+}
+
+// ModulesOrErr returns the Modules value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) ModulesOrErr() ([]*Modules, error) {
+	if e.loadedTypes[4] {
+		return e.Modules, nil
+	}
+	return nil, &NotLoadedError{edge: "modules"}
+}
+
+// TransactionsOrErr returns the Transactions value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) TransactionsOrErr() ([]*TebexTransactions, error) {
+	if e.loadedTypes[5] {
+		return e.Transactions, nil
+	}
+	return nil, &NotLoadedError{edge: "transactions"}
+}
+
 // scanValues returns the types for scanning values from sql.Rows.
 func (*User) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
@@ -85,7 +120,7 @@ func (*User) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullBool)
 		case user.FieldID:
 			values[i] = new(sql.NullInt64)
-		case user.FieldUsername, user.FieldEmail:
+		case user.FieldUsername, user.FieldDisplayName, user.FieldEmail:
 			values[i] = new(sql.NullString)
 		case user.FieldCreatedAt, user.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -115,6 +150,12 @@ func (_m *User) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field username", values[i])
 			} else if value.Valid {
 				_m.Username = value.String
+			}
+		case user.FieldDisplayName:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field display_name", values[i])
+			} else if value.Valid {
+				_m.DisplayName = value.String
 			}
 		case user.FieldEmail:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -168,6 +209,21 @@ func (_m *User) QueryTimers() *TimersQuery {
 	return NewUserClient(_m.config).QueryTimers(_m)
 }
 
+// QueryCommands queries the "commands" edge of the User entity.
+func (_m *User) QueryCommands() *CommandsQuery {
+	return NewUserClient(_m.config).QueryCommands(_m)
+}
+
+// QueryModules queries the "modules" edge of the User entity.
+func (_m *User) QueryModules() *ModulesQuery {
+	return NewUserClient(_m.config).QueryModules(_m)
+}
+
+// QueryTransactions queries the "transactions" edge of the User entity.
+func (_m *User) QueryTransactions() *TebexTransactionsQuery {
+	return NewUserClient(_m.config).QueryTransactions(_m)
+}
+
 // Update returns a builder for updating this User.
 // Note that you need to call User.Unwrap() before calling this method if this User
 // was returned from a transaction, and the transaction was committed or rolled back.
@@ -193,6 +249,9 @@ func (_m *User) String() string {
 	builder.WriteString(fmt.Sprintf("id=%v, ", _m.ID))
 	builder.WriteString("username=")
 	builder.WriteString(_m.Username)
+	builder.WriteString(", ")
+	builder.WriteString("display_name=")
+	builder.WriteString(_m.DisplayName)
 	builder.WriteString(", ")
 	builder.WriteString("email=<sensitive>")
 	builder.WriteString(", ")

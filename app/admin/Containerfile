@@ -1,0 +1,20 @@
+# Admin (Go) - build with podman or docker:
+#   podman build -t itsbagelbot/admin -f Containerfile .
+FROM docker.io/library/golang:1.26-bookworm AS build
+
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+RUN go run github.com/a-h/templ/cmd/templ@v0.3.857 generate \
+ && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /admin .
+
+# ---------------------------------------------------------------------------
+FROM gcr.io/distroless/static-debian12:nonroot
+
+COPY --from=build /admin /admin
+
+USER nonroot
+EXPOSE 8080
+ENTRYPOINT ["/admin"]

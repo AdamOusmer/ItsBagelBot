@@ -8,6 +8,30 @@ import (
 	"fmt"
 )
 
+// The BotGrantsFunc type is an adapter to allow the use of ordinary
+// function as BotGrants mutator.
+type BotGrantsFunc func(context.Context, *ent.BotGrantsMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f BotGrantsFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.BotGrantsMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.BotGrantsMutation", m)
+}
+
+// The CommandsFunc type is an adapter to allow the use of ordinary
+// function as Commands mutator.
+type CommandsFunc func(context.Context, *ent.CommandsMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f CommandsFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.CommandsMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.CommandsMutation", m)
+}
+
 // The ConfigsFunc type is an adapter to allow the use of ordinary
 // function as Configs mutator.
 type ConfigsFunc func(context.Context, *ent.ConfigsMutation) (ent.Value, error)
@@ -18,6 +42,30 @@ func (f ConfigsFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, err
 		return f(ctx, mv)
 	}
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ConfigsMutation", m)
+}
+
+// The ModulesFunc type is an adapter to allow the use of ordinary
+// function as Modules mutator.
+type ModulesFunc func(context.Context, *ent.ModulesMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f ModulesFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.ModulesMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ModulesMutation", m)
+}
+
+// The TebexTransactionsFunc type is an adapter to allow the use of ordinary
+// function as TebexTransactions mutator.
+type TebexTransactionsFunc func(context.Context, *ent.TebexTransactionsMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f TebexTransactionsFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.TebexTransactionsMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.TebexTransactionsMutation", m)
 }
 
 // The TimersFunc type is an adapter to allow the use of ordinary

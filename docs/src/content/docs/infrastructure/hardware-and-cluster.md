@@ -8,7 +8,7 @@ layout, the Kubernetes distribution choice, and the resource model every workloa
 
 ## Physical layout
 
-All nodes are mixed-architecture: **`node1`** is **`linux/arm64`** (aarch64) and **`node2`** is **`linux/amd64`** (Intel). All workloads are scheduled across both nodes for high availability (HA), using multi-architecture Docker images.
+All nodes are mixed-architecture: **`node1`** is **ARM** (aarch64) and **`node2`** is **Intel** (x86_64). All workloads are scheduled across both nodes for high availability (HA); each node runs the image built natively for its architecture.
 
 Networking between nodes is over **Tailscale only**. There is no second LAN-only path.
 See [Networking →](/infrastructure/networking/).

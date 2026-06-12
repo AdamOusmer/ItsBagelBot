@@ -6,8 +6,20 @@ import (
 	"entgo.io/ent/dialect/sql"
 )
 
+// BotGrants is the predicate function for botgrants builders.
+type BotGrants func(*sql.Selector)
+
+// Commands is the predicate function for commands builders.
+type Commands func(*sql.Selector)
+
 // Configs is the predicate function for configs builders.
 type Configs func(*sql.Selector)
+
+// Modules is the predicate function for modules builders.
+type Modules func(*sql.Selector)
+
+// TebexTransactions is the predicate function for tebextransactions builders.
+type TebexTransactions func(*sql.Selector)
 
 // Timers is the predicate function for timers builders.
 type Timers func(*sql.Selector)

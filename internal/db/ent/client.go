@@ -11,7 +11,11 @@ import (
 
 	"ItsBagelBot/internal/db/ent/migrate"
 
+	"ItsBagelBot/internal/db/ent/botgrants"
+	"ItsBagelBot/internal/db/ent/commands"
 	"ItsBagelBot/internal/db/ent/configs"
+	"ItsBagelBot/internal/db/ent/modules"
+	"ItsBagelBot/internal/db/ent/tebextransactions"
 	"ItsBagelBot/internal/db/ent/timers"
 	"ItsBagelBot/internal/db/ent/tokens"
 	"ItsBagelBot/internal/db/ent/user"
@@ -27,8 +31,16 @@ type Client struct {
 	config
 	// Schema is the client for creating, migrating and dropping schema.
 	Schema *migrate.Schema
+	// BotGrants is the client for interacting with the BotGrants builders.
+	BotGrants *BotGrantsClient
+	// Commands is the client for interacting with the Commands builders.
+	Commands *CommandsClient
 	// Configs is the client for interacting with the Configs builders.
 	Configs *ConfigsClient
+	// Modules is the client for interacting with the Modules builders.
+	Modules *ModulesClient
+	// TebexTransactions is the client for interacting with the TebexTransactions builders.
+	TebexTransactions *TebexTransactionsClient
 	// Timers is the client for interacting with the Timers builders.
 	Timers *TimersClient
 	// Tokens is the client for interacting with the Tokens builders.
@@ -46,7 +58,11 @@ func NewClient(opts ...Option) *Client {
 
 func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
+	c.BotGrants = NewBotGrantsClient(c.config)
+	c.Commands = NewCommandsClient(c.config)
 	c.Configs = NewConfigsClient(c.config)
+	c.Modules = NewModulesClient(c.config)
+	c.TebexTransactions = NewTebexTransactionsClient(c.config)
 	c.Timers = NewTimersClient(c.config)
 	c.Tokens = NewTokensClient(c.config)
 	c.User = NewUserClient(c.config)
@@ -140,12 +156,16 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	cfg := c.config
 	cfg.driver = tx
 	return &Tx{
-		ctx:     ctx,
-		config:  cfg,
-		Configs: NewConfigsClient(cfg),
-		Timers:  NewTimersClient(cfg),
-		Tokens:  NewTokensClient(cfg),
-		User:    NewUserClient(cfg),
+		ctx:               ctx,
+		config:            cfg,
+		BotGrants:         NewBotGrantsClient(cfg),
+		Commands:          NewCommandsClient(cfg),
+		Configs:           NewConfigsClient(cfg),
+		Modules:           NewModulesClient(cfg),
+		TebexTransactions: NewTebexTransactionsClient(cfg),
+		Timers:            NewTimersClient(cfg),
+		Tokens:            NewTokensClient(cfg),
+		User:              NewUserClient(cfg),
 	}, nil
 }
 
@@ -163,19 +183,23 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 	cfg := c.config
 	cfg.driver = &txDriver{tx: tx, drv: c.driver}
 	return &Tx{
-		ctx:     ctx,
-		config:  cfg,
-		Configs: NewConfigsClient(cfg),
-		Timers:  NewTimersClient(cfg),
-		Tokens:  NewTokensClient(cfg),
-		User:    NewUserClient(cfg),
+		ctx:               ctx,
+		config:            cfg,
+		BotGrants:         NewBotGrantsClient(cfg),
+		Commands:          NewCommandsClient(cfg),
+		Configs:           NewConfigsClient(cfg),
+		Modules:           NewModulesClient(cfg),
+		TebexTransactions: NewTebexTransactionsClient(cfg),
+		Timers:            NewTimersClient(cfg),
+		Tokens:            NewTokensClient(cfg),
+		User:              NewUserClient(cfg),
 	}, nil
 }
 
 // Debug returns a new debug-client. It's used to get verbose logging on specific operations.
 //
 //	client.Debug().
-//		Configs.
+//		BotGrants.
 //		Query().
 //		Count(ctx)
 func (c *Client) Debug() *Client {
@@ -197,26 +221,38 @@ func (c *Client) Close() error {
 // Use adds the mutation hooks to all the entity clients.
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
-	c.Configs.Use(hooks...)
-	c.Timers.Use(hooks...)
-	c.Tokens.Use(hooks...)
-	c.User.Use(hooks...)
+	for _, n := range []interface{ Use(...Hook) }{
+		c.BotGrants, c.Commands, c.Configs, c.Modules, c.TebexTransactions, c.Timers,
+		c.Tokens, c.User,
+	} {
+		n.Use(hooks...)
+	}
 }
 
 // Intercept adds the query interceptors to all the entity clients.
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
-	c.Configs.Intercept(interceptors...)
-	c.Timers.Intercept(interceptors...)
-	c.Tokens.Intercept(interceptors...)
-	c.User.Intercept(interceptors...)
+	for _, n := range []interface{ Intercept(...Interceptor) }{
+		c.BotGrants, c.Commands, c.Configs, c.Modules, c.TebexTransactions, c.Timers,
+		c.Tokens, c.User,
+	} {
+		n.Intercept(interceptors...)
+	}
 }
 
 // Mutate implements the ent.Mutator interface.
 func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 	switch m := m.(type) {
+	case *BotGrantsMutation:
+		return c.BotGrants.mutate(ctx, m)
+	case *CommandsMutation:
+		return c.Commands.mutate(ctx, m)
 	case *ConfigsMutation:
 		return c.Configs.mutate(ctx, m)
+	case *ModulesMutation:
+		return c.Modules.mutate(ctx, m)
+	case *TebexTransactionsMutation:
+		return c.TebexTransactions.mutate(ctx, m)
 	case *TimersMutation:
 		return c.Timers.mutate(ctx, m)
 	case *TokensMutation:
@@ -225,6 +261,288 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.User.mutate(ctx, m)
 	default:
 		return nil, fmt.Errorf("ent: unknown mutation type %T", m)
+	}
+}
+
+// BotGrantsClient is a client for the BotGrants schema.
+type BotGrantsClient struct {
+	config
+}
+
+// NewBotGrantsClient returns a client for the BotGrants from the given config.
+func NewBotGrantsClient(c config) *BotGrantsClient {
+	return &BotGrantsClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `botgrants.Hooks(f(g(h())))`.
+func (c *BotGrantsClient) Use(hooks ...Hook) {
+	c.hooks.BotGrants = append(c.hooks.BotGrants, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `botgrants.Intercept(f(g(h())))`.
+func (c *BotGrantsClient) Intercept(interceptors ...Interceptor) {
+	c.inters.BotGrants = append(c.inters.BotGrants, interceptors...)
+}
+
+// Create returns a builder for creating a BotGrants entity.
+func (c *BotGrantsClient) Create() *BotGrantsCreate {
+	mutation := newBotGrantsMutation(c.config, OpCreate)
+	return &BotGrantsCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of BotGrants entities.
+func (c *BotGrantsClient) CreateBulk(builders ...*BotGrantsCreate) *BotGrantsCreateBulk {
+	return &BotGrantsCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *BotGrantsClient) MapCreateBulk(slice any, setFunc func(*BotGrantsCreate, int)) *BotGrantsCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &BotGrantsCreateBulk{err: fmt.Errorf("calling to BotGrantsClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*BotGrantsCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &BotGrantsCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for BotGrants.
+func (c *BotGrantsClient) Update() *BotGrantsUpdate {
+	mutation := newBotGrantsMutation(c.config, OpUpdate)
+	return &BotGrantsUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *BotGrantsClient) UpdateOne(_m *BotGrants) *BotGrantsUpdateOne {
+	mutation := newBotGrantsMutation(c.config, OpUpdateOne, withBotGrants(_m))
+	return &BotGrantsUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *BotGrantsClient) UpdateOneID(id int) *BotGrantsUpdateOne {
+	mutation := newBotGrantsMutation(c.config, OpUpdateOne, withBotGrantsID(id))
+	return &BotGrantsUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for BotGrants.
+func (c *BotGrantsClient) Delete() *BotGrantsDelete {
+	mutation := newBotGrantsMutation(c.config, OpDelete)
+	return &BotGrantsDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *BotGrantsClient) DeleteOne(_m *BotGrants) *BotGrantsDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *BotGrantsClient) DeleteOneID(id int) *BotGrantsDeleteOne {
+	builder := c.Delete().Where(botgrants.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &BotGrantsDeleteOne{builder}
+}
+
+// Query returns a query builder for BotGrants.
+func (c *BotGrantsClient) Query() *BotGrantsQuery {
+	return &BotGrantsQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeBotGrants},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a BotGrants entity by its id.
+func (c *BotGrantsClient) Get(ctx context.Context, id int) (*BotGrants, error) {
+	return c.Query().Where(botgrants.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *BotGrantsClient) GetX(ctx context.Context, id int) *BotGrants {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *BotGrantsClient) Hooks() []Hook {
+	return c.hooks.BotGrants
+}
+
+// Interceptors returns the client interceptors.
+func (c *BotGrantsClient) Interceptors() []Interceptor {
+	return c.inters.BotGrants
+}
+
+func (c *BotGrantsClient) mutate(ctx context.Context, m *BotGrantsMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&BotGrantsCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&BotGrantsUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&BotGrantsUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&BotGrantsDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown BotGrants mutation op: %q", m.Op())
+	}
+}
+
+// CommandsClient is a client for the Commands schema.
+type CommandsClient struct {
+	config
+}
+
+// NewCommandsClient returns a client for the Commands from the given config.
+func NewCommandsClient(c config) *CommandsClient {
+	return &CommandsClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `commands.Hooks(f(g(h())))`.
+func (c *CommandsClient) Use(hooks ...Hook) {
+	c.hooks.Commands = append(c.hooks.Commands, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `commands.Intercept(f(g(h())))`.
+func (c *CommandsClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Commands = append(c.inters.Commands, interceptors...)
+}
+
+// Create returns a builder for creating a Commands entity.
+func (c *CommandsClient) Create() *CommandsCreate {
+	mutation := newCommandsMutation(c.config, OpCreate)
+	return &CommandsCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Commands entities.
+func (c *CommandsClient) CreateBulk(builders ...*CommandsCreate) *CommandsCreateBulk {
+	return &CommandsCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *CommandsClient) MapCreateBulk(slice any, setFunc func(*CommandsCreate, int)) *CommandsCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &CommandsCreateBulk{err: fmt.Errorf("calling to CommandsClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*CommandsCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &CommandsCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Commands.
+func (c *CommandsClient) Update() *CommandsUpdate {
+	mutation := newCommandsMutation(c.config, OpUpdate)
+	return &CommandsUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *CommandsClient) UpdateOne(_m *Commands) *CommandsUpdateOne {
+	mutation := newCommandsMutation(c.config, OpUpdateOne, withCommands(_m))
+	return &CommandsUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *CommandsClient) UpdateOneID(id int) *CommandsUpdateOne {
+	mutation := newCommandsMutation(c.config, OpUpdateOne, withCommandsID(id))
+	return &CommandsUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Commands.
+func (c *CommandsClient) Delete() *CommandsDelete {
+	mutation := newCommandsMutation(c.config, OpDelete)
+	return &CommandsDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *CommandsClient) DeleteOne(_m *Commands) *CommandsDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *CommandsClient) DeleteOneID(id int) *CommandsDeleteOne {
+	builder := c.Delete().Where(commands.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &CommandsDeleteOne{builder}
+}
+
+// Query returns a query builder for Commands.
+func (c *CommandsClient) Query() *CommandsQuery {
+	return &CommandsQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeCommands},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Commands entity by its id.
+func (c *CommandsClient) Get(ctx context.Context, id int) (*Commands, error) {
+	return c.Query().Where(commands.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *CommandsClient) GetX(ctx context.Context, id int) *Commands {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryUser queries the user edge of a Commands.
+func (c *CommandsClient) QueryUser(_m *Commands) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(commands.Table, commands.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, commands.UserTable, commands.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *CommandsClient) Hooks() []Hook {
+	return c.hooks.Commands
+}
+
+// Interceptors returns the client interceptors.
+func (c *CommandsClient) Interceptors() []Interceptor {
+	return c.inters.Commands
+}
+
+func (c *CommandsClient) mutate(ctx context.Context, m *CommandsMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&CommandsCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&CommandsUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&CommandsUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&CommandsDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Commands mutation op: %q", m.Op())
 	}
 }
 
@@ -374,6 +692,304 @@ func (c *ConfigsClient) mutate(ctx context.Context, m *ConfigsMutation) (Value, 
 		return (&ConfigsDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown Configs mutation op: %q", m.Op())
+	}
+}
+
+// ModulesClient is a client for the Modules schema.
+type ModulesClient struct {
+	config
+}
+
+// NewModulesClient returns a client for the Modules from the given config.
+func NewModulesClient(c config) *ModulesClient {
+	return &ModulesClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `modules.Hooks(f(g(h())))`.
+func (c *ModulesClient) Use(hooks ...Hook) {
+	c.hooks.Modules = append(c.hooks.Modules, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `modules.Intercept(f(g(h())))`.
+func (c *ModulesClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Modules = append(c.inters.Modules, interceptors...)
+}
+
+// Create returns a builder for creating a Modules entity.
+func (c *ModulesClient) Create() *ModulesCreate {
+	mutation := newModulesMutation(c.config, OpCreate)
+	return &ModulesCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Modules entities.
+func (c *ModulesClient) CreateBulk(builders ...*ModulesCreate) *ModulesCreateBulk {
+	return &ModulesCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *ModulesClient) MapCreateBulk(slice any, setFunc func(*ModulesCreate, int)) *ModulesCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &ModulesCreateBulk{err: fmt.Errorf("calling to ModulesClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*ModulesCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &ModulesCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Modules.
+func (c *ModulesClient) Update() *ModulesUpdate {
+	mutation := newModulesMutation(c.config, OpUpdate)
+	return &ModulesUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *ModulesClient) UpdateOne(_m *Modules) *ModulesUpdateOne {
+	mutation := newModulesMutation(c.config, OpUpdateOne, withModules(_m))
+	return &ModulesUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *ModulesClient) UpdateOneID(id int) *ModulesUpdateOne {
+	mutation := newModulesMutation(c.config, OpUpdateOne, withModulesID(id))
+	return &ModulesUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Modules.
+func (c *ModulesClient) Delete() *ModulesDelete {
+	mutation := newModulesMutation(c.config, OpDelete)
+	return &ModulesDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *ModulesClient) DeleteOne(_m *Modules) *ModulesDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *ModulesClient) DeleteOneID(id int) *ModulesDeleteOne {
+	builder := c.Delete().Where(modules.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &ModulesDeleteOne{builder}
+}
+
+// Query returns a query builder for Modules.
+func (c *ModulesClient) Query() *ModulesQuery {
+	return &ModulesQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeModules},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Modules entity by its id.
+func (c *ModulesClient) Get(ctx context.Context, id int) (*Modules, error) {
+	return c.Query().Where(modules.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *ModulesClient) GetX(ctx context.Context, id int) *Modules {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryUser queries the user edge of a Modules.
+func (c *ModulesClient) QueryUser(_m *Modules) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(modules.Table, modules.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, modules.UserTable, modules.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *ModulesClient) Hooks() []Hook {
+	return c.hooks.Modules
+}
+
+// Interceptors returns the client interceptors.
+func (c *ModulesClient) Interceptors() []Interceptor {
+	return c.inters.Modules
+}
+
+func (c *ModulesClient) mutate(ctx context.Context, m *ModulesMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&ModulesCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&ModulesUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&ModulesUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&ModulesDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Modules mutation op: %q", m.Op())
+	}
+}
+
+// TebexTransactionsClient is a client for the TebexTransactions schema.
+type TebexTransactionsClient struct {
+	config
+}
+
+// NewTebexTransactionsClient returns a client for the TebexTransactions from the given config.
+func NewTebexTransactionsClient(c config) *TebexTransactionsClient {
+	return &TebexTransactionsClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `tebextransactions.Hooks(f(g(h())))`.
+func (c *TebexTransactionsClient) Use(hooks ...Hook) {
+	c.hooks.TebexTransactions = append(c.hooks.TebexTransactions, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `tebextransactions.Intercept(f(g(h())))`.
+func (c *TebexTransactionsClient) Intercept(interceptors ...Interceptor) {
+	c.inters.TebexTransactions = append(c.inters.TebexTransactions, interceptors...)
+}
+
+// Create returns a builder for creating a TebexTransactions entity.
+func (c *TebexTransactionsClient) Create() *TebexTransactionsCreate {
+	mutation := newTebexTransactionsMutation(c.config, OpCreate)
+	return &TebexTransactionsCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of TebexTransactions entities.
+func (c *TebexTransactionsClient) CreateBulk(builders ...*TebexTransactionsCreate) *TebexTransactionsCreateBulk {
+	return &TebexTransactionsCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *TebexTransactionsClient) MapCreateBulk(slice any, setFunc func(*TebexTransactionsCreate, int)) *TebexTransactionsCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &TebexTransactionsCreateBulk{err: fmt.Errorf("calling to TebexTransactionsClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*TebexTransactionsCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &TebexTransactionsCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for TebexTransactions.
+func (c *TebexTransactionsClient) Update() *TebexTransactionsUpdate {
+	mutation := newTebexTransactionsMutation(c.config, OpUpdate)
+	return &TebexTransactionsUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *TebexTransactionsClient) UpdateOne(_m *TebexTransactions) *TebexTransactionsUpdateOne {
+	mutation := newTebexTransactionsMutation(c.config, OpUpdateOne, withTebexTransactions(_m))
+	return &TebexTransactionsUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *TebexTransactionsClient) UpdateOneID(id string) *TebexTransactionsUpdateOne {
+	mutation := newTebexTransactionsMutation(c.config, OpUpdateOne, withTebexTransactionsID(id))
+	return &TebexTransactionsUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for TebexTransactions.
+func (c *TebexTransactionsClient) Delete() *TebexTransactionsDelete {
+	mutation := newTebexTransactionsMutation(c.config, OpDelete)
+	return &TebexTransactionsDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *TebexTransactionsClient) DeleteOne(_m *TebexTransactions) *TebexTransactionsDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *TebexTransactionsClient) DeleteOneID(id string) *TebexTransactionsDeleteOne {
+	builder := c.Delete().Where(tebextransactions.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &TebexTransactionsDeleteOne{builder}
+}
+
+// Query returns a query builder for TebexTransactions.
+func (c *TebexTransactionsClient) Query() *TebexTransactionsQuery {
+	return &TebexTransactionsQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeTebexTransactions},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a TebexTransactions entity by its id.
+func (c *TebexTransactionsClient) Get(ctx context.Context, id string) (*TebexTransactions, error) {
+	return c.Query().Where(tebextransactions.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *TebexTransactionsClient) GetX(ctx context.Context, id string) *TebexTransactions {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryUser queries the user edge of a TebexTransactions.
+func (c *TebexTransactionsClient) QueryUser(_m *TebexTransactions) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(tebextransactions.Table, tebextransactions.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, tebextransactions.UserTable, tebextransactions.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *TebexTransactionsClient) Hooks() []Hook {
+	return c.hooks.TebexTransactions
+}
+
+// Interceptors returns the client interceptors.
+func (c *TebexTransactionsClient) Interceptors() []Interceptor {
+	return c.inters.TebexTransactions
+}
+
+func (c *TebexTransactionsClient) mutate(ctx context.Context, m *TebexTransactionsMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&TebexTransactionsCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&TebexTransactionsUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&TebexTransactionsUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&TebexTransactionsDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown TebexTransactions mutation op: %q", m.Op())
 	}
 }
 
@@ -831,6 +1447,54 @@ func (c *UserClient) QueryTimers(_m *User) *TimersQuery {
 	return query
 }
 
+// QueryCommands queries the commands edge of a User.
+func (c *UserClient) QueryCommands(_m *User) *CommandsQuery {
+	query := (&CommandsClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(commands.Table, commands.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.CommandsTable, user.CommandsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryModules queries the modules edge of a User.
+func (c *UserClient) QueryModules(_m *User) *ModulesQuery {
+	query := (&ModulesClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(modules.Table, modules.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.ModulesTable, user.ModulesColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryTransactions queries the transactions edge of a User.
+func (c *UserClient) QueryTransactions(_m *User) *TebexTransactionsQuery {
+	query := (&TebexTransactionsClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(tebextransactions.Table, tebextransactions.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.TransactionsTable, user.TransactionsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // Hooks returns the client hooks.
 func (c *UserClient) Hooks() []Hook {
 	return c.hooks.User
@@ -859,9 +1523,11 @@ func (c *UserClient) mutate(ctx context.Context, m *UserMutation) (Value, error)
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		Configs, Timers, Tokens, User []ent.Hook
+		BotGrants, Commands, Configs, Modules, TebexTransactions, Timers, Tokens,
+		User []ent.Hook
 	}
 	inters struct {
-		Configs, Timers, Tokens, User []ent.Interceptor
+		BotGrants, Commands, Configs, Modules, TebexTransactions, Timers, Tokens,
+		User []ent.Interceptor
 	}
 )

@@ -26,7 +26,7 @@ func setup(t *testing.T) (*ent.Client, *bustest.Publisher, *repository.Commands)
 
 	pub := bustest.NewPublisher()
 
-	return client, pub, repository.NewCommands(client, pub, zap.NewNop())
+	return client, pub, repository.NewCommands(client, pub, nil, zap.NewNop())
 }
 
 func TestUpsertCoalescesEdits(t *testing.T) {
@@ -53,7 +53,7 @@ func TestDeleteIsImmediateAndAnnounced(t *testing.T) {
 	repo.Upsert(1001, "!hello", "hi chat", true)
 	repo.Close(ctx)
 
-	repo2 := repository.NewCommands(client, pub, zap.NewNop())
+	repo2 := repository.NewCommands(client, pub, nil, zap.NewNop())
 	defer repo2.Close(ctx)
 
 	require.NoError(t, repo2.Delete(ctx, 1001, "!hello"))

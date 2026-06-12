@@ -45,17 +45,17 @@ func main() {
 	}
 	defer func() { _ = sub.Close() }()
 
-	projector := NewProjector(valkeyStore)
+	projector := NewProjector(valkeyStore, log)
 
-	if err := bus.Consume(ctx, sub, data.SubjectUserChanged, projector.HandleUserChanged, log); err != nil {
+	if err := bus.Consume(ctx, nil, sub, data.SubjectUserChanged, projector.HandleUserChanged, log); err != nil {
 		log.Fatal("failed to subscribe to user changes", zap.Error(err))
 	}
 
-	if err := bus.Consume(ctx, sub, data.SubjectUserDeleted, projector.HandleUserDeleted, log); err != nil {
+	if err := bus.Consume(ctx, nil, sub, data.SubjectUserDeleted, projector.HandleUserDeleted, log); err != nil {
 		log.Fatal("failed to subscribe to user deletions", zap.Error(err))
 	}
 
-	if err := bus.Consume(ctx, sub, data.SubjectModuleChanged, projector.HandleModuleChanged, log); err != nil {
+	if err := bus.Consume(ctx, nil, sub, data.SubjectModuleChanged, projector.HandleModuleChanged, log); err != nil {
 		log.Fatal("failed to subscribe to module changes", zap.Error(err))
 	}
 
