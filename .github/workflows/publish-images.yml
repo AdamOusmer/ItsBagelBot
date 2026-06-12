@@ -35,7 +35,6 @@ permissions:
 env:
   REGISTRY: ghcr.io
   IMAGE_REPOSITORY: itsbagelbot
-  PLATFORMS: linux/amd64,linux/arm64
 
 jobs:
   changes:
@@ -44,6 +43,7 @@ jobs:
     outputs:
       has-changes: ${{ steps.plan.outputs.has-changes }}
       matrix: ${{ steps.plan.outputs.matrix }}
+      build_matrix: ${{ steps.plan.outputs.build_matrix }}
       services: ${{ steps.plan.outputs.services }}
     steps:
       - name: Checkout
@@ -222,6 +222,23 @@ jobs:
             done | jq -R . | jq -cs .
           )
           matrix=$(jq -c --argjson selected "$selected_json" '[.[] | select(.image as $image | $selected | index($image))]' <<< "$all_services")
+          build_matrix=$(jq -c '
+            [
+              .[] as $service
+              | ($service + {
+                  platform: "linux/amd64",
+                  arch_label: "Intel x86_64",
+                  runner: "ubuntu-24.04",
+                  tag_suffix: "linuxx86_64"
+                }),
+                ($service + {
+                  platform: "linux/arm64",
+                  arch_label: "ARM64",
+                  runner: "ubuntu-24.04-arm",
+                  tag_suffix: "linuxarm64"
+                })
+            ]
+          ' <<< "$matrix")
           services=$(jq -r '.[].image' <<< "$matrix" | paste -sd ',' -)
 
           if [[ "$matrix" == "[]" ]]; then
@@ -233,13 +250,118 @@ jobs:
           fi
 
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          echo "build_matrix=$build_matrix" >> "$GITHUB_OUTPUT"
           echo "services=$services" >> "$GITHUB_OUTPUT"
 
   build:
-    name: Build ${{ matrix.image }}
+    name: Build ${{ matrix.image }} ${{ matrix.arch_label }}
     needs: changes
     if: needs.changes.outputs.has-changes == 'true'
-    runs-on: ubuntu-22.04
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.changes.outputs.build_matrix) }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Prepare image metadata
+        id: meta
+        shell: bash
+        run: |
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          image="${IMAGE_REPOSITORY}/${{ matrix.image }}"
+          registry="${REGISTRY}/${owner}"
+          base_tags="sha-${GITHUB_SHA::12}"
+
+          if [[ "${GITHUB_EVENT_NAME}" == "push" && "${GITHUB_REF}" == "refs/heads/main" ]]; then
+            base_tags="${base_tags} main latest"
+          fi
+
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            version="${GITHUB_REF_NAME#v}"
+            base_tags="${base_tags} ${GITHUB_REF_NAME} ${version}"
+          fi
+
+          tags=""
+          for tag in $base_tags; do
+            tags="${tags} ${tag}-${{ matrix.tag_suffix }}"
+          done
+          tags="${tags# }"
+
+          echo "image=${image}" >> "${GITHUB_OUTPUT}"
+          echo "registry=${registry}" >> "${GITHUB_OUTPUT}"
+          echo "subject=${registry}/${image}" >> "${GITHUB_OUTPUT}"
+          echo "tags=${tags}" >> "${GITHUB_OUTPUT}"
+
+      - name: Install Podman toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y buildah podman
+          buildah version
+          podman version
+
+      - name: Build native image
+        id: build
+        shell: bash
+        env:
+          IMAGE: ${{ steps.meta.outputs.image }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+          CONTEXT: ${{ matrix.context }}
+          CONTAINERFILE: ${{ matrix.containerfile }}
+          PLATFORM: ${{ matrix.platform }}
+          DESCRIPTION: ${{ matrix.description }}
+        run: |
+          set -euo pipefail
+
+          tag_args=()
+          for tag in $TAGS; do
+            tag_args+=(-t "${IMAGE}:${tag}")
+          done
+
+          buildah bud \
+            --platform "$PLATFORM" \
+            --format oci \
+            --label "org.opencontainers.image.title=ItsBagelBot ${{ matrix.image }}" \
+            --label "org.opencontainers.image.description=${DESCRIPTION}" \
+            --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
+            --label "org.opencontainers.image.revision=${{ github.sha }}" \
+            --label "org.opencontainers.image.licenses=LicenseRef-Proprietary" \
+            -f "$CONTAINERFILE" \
+            "${tag_args[@]}" \
+            "$CONTEXT"
+
+      - name: Login to GHCR
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | buildah login "${REGISTRY}" -u "${{ github.actor }}" --password-stdin
+
+      - name: Push native image to GHCR
+        if: github.event_name != 'pull_request'
+        shell: bash
+        env:
+          IMAGE: ${{ steps.meta.outputs.image }}
+          REGISTRY_PATH: ${{ steps.meta.outputs.registry }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          set -euo pipefail
+          for tag in $TAGS; do
+            buildah push "${IMAGE}:${tag}" "docker://${REGISTRY_PATH}/${IMAGE}:${tag}"
+          done
+
+  manifest:
+    name: Publish manifest ${{ matrix.image }}
+    needs: [ changes, build ]
+    if: needs.changes.outputs.has-changes == 'true' && github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       packages: write
@@ -251,11 +373,6 @@ jobs:
         include: ${{ fromJson(needs.changes.outputs.matrix) }}
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-
       - name: Prepare image metadata
         id: meta
         shell: bash
@@ -279,43 +396,48 @@ jobs:
           echo "subject=${registry}/${image}" >> "${GITHUB_OUTPUT}"
           echo "tags=${tags}" >> "${GITHUB_OUTPUT}"
 
-      - name: Install QEMU for cross-architecture RUN steps
+      - name: Install Podman toolchain
         run: |
           sudo apt-get update
-          sudo apt-get install -y qemu-user-static
+          sudo apt-get install -y podman
+          podman version
 
-      - name: Build multi-architecture image
-        id: build
-        uses: redhat-actions/buildah-build@v2
-        with:
-          context: ${{ matrix.context }}
-          containerfiles: ${{ matrix.containerfile }}
-          image: ${{ steps.meta.outputs.image }}
-          tags: ${{ steps.meta.outputs.tags }}
-          platforms: ${{ env.PLATFORMS }}
-          oci: true
-          labels: |
-            org.opencontainers.image.title=ItsBagelBot ${{ matrix.image }}
-            org.opencontainers.image.description=${{ matrix.description }}
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.licenses=LicenseRef-Proprietary
+      - name: Login to GHCR
+        shell: bash
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | podman login "${REGISTRY}" -u "${{ github.actor }}" --password-stdin
 
-      - name: Push to private GHCR
-        id: push
-        if: github.event_name != 'pull_request'
-        uses: redhat-actions/push-to-registry@v2
-        with:
-          image: ${{ steps.build.outputs.image }}
-          tags: ${{ steps.build.outputs.tags }}
-          registry: ${{ steps.meta.outputs.registry }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish multi-architecture manifests
+        id: publish
+        shell: bash
+        env:
+          SUBJECT: ${{ steps.meta.outputs.subject }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          set -euo pipefail
+          first_digest=""
+
+          for tag in $TAGS; do
+            manifest="${SUBJECT}:${tag}"
+            digest_file="$(mktemp)"
+            podman manifest create "$manifest"
+            podman manifest add "$manifest" "docker://${SUBJECT}:${tag}-linuxx86_64"
+            podman manifest add "$manifest" "docker://${SUBJECT}:${tag}-linuxarm64"
+            podman manifest push --all --digestfile "$digest_file" "$manifest" "docker://${manifest}"
+            digest="$(<"$digest_file")"
+            rm -f "$digest_file"
+            echo "${tag} ${digest}"
+
+            if [[ -z "$first_digest" ]]; then
+              first_digest="${digest##*@}"
+            fi
+          done
+
+          echo "digest=${first_digest}" >> "$GITHUB_OUTPUT"
 
       - name: Attest image provenance
-        if: github.event_name != 'pull_request'
         uses: actions/attest-build-provenance@v3
         with:
           subject-name: ${{ steps.meta.outputs.subject }}
-          subject-digest: ${{ steps.push.outputs.digest }}
+          subject-digest: ${{ steps.publish.outputs.digest }}
           push-to-registry: true
