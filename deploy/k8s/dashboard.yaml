@@ -1,0 +1,126 @@
+# Dashboard (Go). Public at https://dashboard.itsbagelbot.com through the
+# existing cloudflared tunnel -> traefik (wildcard *.itsbagelbot.com is
+# already routed and the default TLSStore carries the origin cert).
+apiVersion: secrets.doppler.com/v1alpha1
+kind: DopplerSecret
+metadata:
+  name: dashboard-env
+  namespace: production
+spec:
+  host: https://api.doppler.com
+  tokenSecret:
+    name: dashboard-doppler-token
+  managedSecret:
+    name: dashboard-env
+    namespace: production
+    type: Opaque
+  resyncSeconds: 60
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dashboard
+  namespace: production
+spec:
+  replicas: 2
+  # Hard host anti-affinity + 2 nodes means the default surge strategy deadlocks
+  # (it tries to place a 3rd replica with nowhere to go). Recreate-one-at-a-time.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: dashboard
+  template:
+    metadata:
+      labels:
+        app: dashboard
+      annotations:
+        linkerd.io/inject: enabled
+    spec:
+      imagePullSecrets:
+        - name: ghcr-pull
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app
+                    operator: In
+                    values:
+                      - dashboard
+              topologyKey: kubernetes.io/hostname
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532 # distroless `nonroot`; numeric so kubelet can verify
+        runAsGroup: 65532
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: dashboard
+          image: ghcr.io/adamousmer/itsbagelbot/dashboard:main # {"$imagepolicy": "flux-system:dashboard"}
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: NATS_HOST
+              value: nats
+          envFrom:
+            - secretRef:
+                name: dashboard-env
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: "1"
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+            periodSeconds: 30
+          readinessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dashboard
+  namespace: production
+spec:
+  selector:
+    app: dashboard
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: dashboard
+  namespace: production
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: Host(`dashboard.itsbagelbot.com`)
+      kind: Rule
+      services:
+        - name: dashboard
+          port: 8080
+  tls: {} # default TLSStore already serves the itsbagelbot.com origin cert
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: dashboard
+  namespace: production
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: dashboard

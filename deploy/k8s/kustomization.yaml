@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: production
+resources:
+  - admin.yaml
+  - commands.yaml
+  - dashboard.yaml
+  - modules.yaml
+  - outgress.yaml
+  - projector.yaml
+  - transactions.yaml
+  - users.yaml
+  - twitch-ingress.yaml
+  - network-policies.yaml
+  - linkerd-auth.yaml

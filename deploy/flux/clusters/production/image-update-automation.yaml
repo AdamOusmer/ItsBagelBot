@@ -1,0 +1,36 @@
+# Flux ImageUpdateAutomation: scans all ImagePolicy objects, updates image tags/digests
+# in deploy/k8s manifests, and commits the result back to main.
+#
+# No build loop: deploy/k8s/* changes do NOT match the publish-images.yml path filter
+# (which only matches app/<svc>/*, pkg/*, .containerignore, go.mod, go.sum, and the
+# workflow file itself), so Flux commits here never trigger a new CI image build.
+---
+apiVersion: image.toolkit.fluxcd.io/v1beta2
+kind: ImageUpdateAutomation
+metadata:
+  name: bagelbot-apps
+  namespace: flux-system
+spec:
+  interval: 5m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  git:
+    checkout:
+      ref:
+        branch: main
+    commit:
+      author:
+        name: flux-image-automation
+        email: flux@itsbagelbot.local
+      messageTemplate: |
+        chore(deploy): pin image digests
+
+        Automated digest update by Flux image-automation.
+        {{ range .Changed.Changes }}- {{ .OldValue }} -> {{ .NewValue }}
+        {{ end }}
+    push:
+      branch: main
+  update:
+    path: ./deploy/k8s
+    strategy: Setters
