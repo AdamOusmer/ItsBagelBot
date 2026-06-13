@@ -62,8 +62,6 @@ spec:
         # debug the fleet, so it must not share failure modes with it.
         linkerd.io/inject: disabled
     spec:
-      imagePullSecrets:
-        - name: ghcr-pull
       # HA is node-level: pod anti-affinity spreads the replicas across
       # node1 (ARM) and node2 (Intel).
       affinity:
