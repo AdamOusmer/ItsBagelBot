@@ -1,0 +1,48 @@
+package pages
+
+import (
+	"time"
+
+	"itsbagelbot/admin/ui/layouts"
+	"itsbagelbot/admin/ui/components"
+)
+
+templ Home(now time.Time) {
+	@layouts.Shell("Overview - ItsBagelBot Admin", "home") {
+		@HomePartial(now)
+	}
+}
+
+templ HomePartial(now time.Time) {
+	<div class="page-heading">
+		<div>
+			<p class="page-kicker">Operator overview</p>
+			<h1><span>Live</span> control plane</h1>
+		</div>
+		<p class="page-meta">{ now.Format("2006-01-02 15:04 MST") }</p>
+	</div>
+	<div class="island-grid" style="margin-bottom:1.25rem;">
+		<div id="user-stats-cards" style="display:contents;" hx-get="/overview/user-stats" hx-trigger="load, every 30s">
+			@components.LoadingStatCard("Registered users")
+			@components.LoadingStatCard("Active users")
+			@components.LoadingStatCard("Premium users")
+		</div>
+		<div id="shard-stat-card" style="display:contents;" hx-get="/overview/shard-stat" hx-trigger="load, every 5s">
+			@components.LoadingStatCard("Shard health")
+		</div>
+	</div>
+	<div class="dashboard-grid">
+		@components.Card("Live events") {
+			<div hx-ext="sse" sse-connect="/events" sse-swap="message">
+				<ul id="event-feed" style="list-style:none; padding:0; margin:0; color:var(--muted); font-family:var(--font-mono); font-size:0.82rem; line-height:1.8; max-height:320px; overflow-y:auto; scrollbar-width:thin; scrollbar-color:rgba(201,168,124,0.2) transparent;">
+					<li style="opacity:0.6;">waiting for shard events…</li>
+				</ul>
+			</div>
+		}
+		<div id="shard-summary" hx-get="/shards/summary" hx-trigger="load, every 5s">
+			@components.Card("Shard health") {
+				<p class="text-muted" style="font-size:0.85rem;">loading shard summary…</p>
+			}
+		</div>
+	</div>
+}

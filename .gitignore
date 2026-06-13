@@ -46,11 +46,45 @@ _build/
 deps/
 *.ez
 
-# Kubernetes deployments
-deploy/
+# Kubernetes deployments (operational/secret files stay local;
+# deploy/flux and the tracked deploy/k8s manifests are managed by Flux GitOps)
+deploy/*
+!deploy/flux
 deploy_backup/
 
 # Exclude scratch, claude, and tar files
 .claude/
 scratch/
 *.tar
+*.tar.gz
+
+# Local build artifacts and dev tooling (never committed)
+bustest
+*_bin
+**/tmp/
+.air.toml
+
+# Root scratch / experiments (not part of any service build)
+/check.go
+/scratch.go
+/scratch2.go
+/test_csrf.go
+/test_csrf2.go
+/test_csrf3.go
+/test_js.go
+/test_templ.templ
+/test_templ2.go
+/test_templ_templ.go
+/test_htmx.html
+/test-env.yaml
+/start_server.sh
+
+# Legacy build/deploy scripts (superseded by Flux GitOps; see deploy/flux/README.md)
+/build_all.sh
+/build_and_deploy_fixed.sh
+/build_dashboard_only.sh
+/build_local.sh
+/build_outgress.sh
+/build_users.sh
+/deploy_only.sh
+/update_manifests.sh

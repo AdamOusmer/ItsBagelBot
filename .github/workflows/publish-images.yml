@@ -16,7 +16,6 @@ on:
         options:
           - all
           - admin
-          - broadcaster-data
           - commands
           - dashboard
           - modules
@@ -66,12 +65,6 @@ jobs:
               "context": ".",
               "containerfile": "app/admin/Containerfile",
               "description": "ItsBagelBot operator admin service"
-            },
-            {
-              "image": "broadcaster-data",
-              "context": ".",
-              "containerfile": "app/broadcaster-data/Containerfile",
-              "description": "ItsBagelBot broadcaster data service"
             },
             {
               "image": "commands",
@@ -131,7 +124,6 @@ jobs:
 
           add_root_go_services() {
             add "admin"
-            add "broadcaster-data"
             add "commands"
             add "dashboard"
             add "modules"
@@ -143,7 +135,6 @@ jobs:
 
           add_all_services() {
             add "admin"
-            add "broadcaster-data"
             add "commands"
             add "dashboard"
             add "modules"
@@ -164,17 +155,11 @@ jobs:
               .containerignore|go.mod|go.sum|pkg/*)
                 add_root_go_services
                 ;;
-              internal/db/*)
-                add "broadcaster-data"
-                ;;
               internal/domain/*|internal/utils/*)
                 add_root_go_services
                 ;;
               app/admin/*)
                 add "admin"
-                ;;
-              app/broadcaster-data/*)
-                add "broadcaster-data"
                 ;;
               app/commands/*)
                 add "commands"

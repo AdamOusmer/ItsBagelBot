@@ -1,12 +1,16 @@
-# Dashboard (Go) - build with podman or docker:
-#   podman build -t itsbagelbot/dashboard -f Containerfile .
+# Dashboard (Go) - build from the REPO ROOT (pkg/bus lives in the root module):
+#   podman build -t itsbagelbot/dashboard -f app/dashboard/Containerfile .
 FROM docker.io/library/golang:1.26-bookworm AS build
 
 WORKDIR /src
 COPY go.mod go.sum ./
-RUN go mod download
+COPY app/dashboard/go.mod app/dashboard/go.sum app/dashboard/
+RUN cd app/dashboard && go mod download
 
-COPY . .
+COPY internal/utils internal/utils
+COPY pkg pkg
+COPY app/dashboard app/dashboard
+WORKDIR /src/app/dashboard
 RUN go run github.com/a-h/templ/cmd/templ@v0.3.857 generate \
  && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /dashboard .
 
@@ -14,6 +18,7 @@ RUN go run github.com/a-h/templ/cmd/templ@v0.3.857 generate \
 FROM gcr.io/distroless/static-debian12:nonroot
 
 COPY --from=build /dashboard /dashboard
+# Static assets are embedded into the binary via //go:embed (see ui/assets.go).
 
 USER nonroot
 EXPOSE 8080

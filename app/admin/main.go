@@ -11,9 +11,8 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
-	"github.com/nats-io/nats.go"
+	"ItsBagelBot/pkg/bus"
 
 	"itsbagelbot/admin/internal/config"
 	"itsbagelbot/admin/internal/monitor"
@@ -33,9 +32,7 @@ func main() {
 	}
 	defer monitor.Shutdown(nrApp)
 
-	nc, err := nats.Connect(cfg.NATSURL,
-		nats.MaxReconnects(-1),
-		nats.ReconnectWait(2*time.Second))
+	nc, err := bus.Connect(cfg.NATSURL, "admin")
 	if err != nil {
 		log.Error("nats connect", "err", err)
 		os.Exit(1)

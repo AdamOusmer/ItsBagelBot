@@ -56,12 +56,22 @@ defmodule Ingress.Application do
   end
 
   defp nats_connection do
-    %{host: host, port: port} = Config.nats()
+    %{host: host, port: port} = nats = Config.nats()
+
+    connection =
+      case nats do
+        %{username: username, password: password}
+        when is_binary(username) and is_binary(password) ->
+          %{host: host, port: port, username: username, password: password}
+
+        _ ->
+          %{host: host, port: port}
+      end
 
     settings = %{
       name: :gnat,
       backoff_period: 4_000,
-      connection_settings: [%{host: host, port: port}]
+      connection_settings: [connection]
     }
 
     Supervisor.child_spec(

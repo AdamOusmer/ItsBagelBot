@@ -19,4 +19,8 @@ web
 **/_build
 **/deps
 
+*.tar
+*.tar.gz
+scratch
+
 app/broadcaster-data/broadcaster-data

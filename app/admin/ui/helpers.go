@@ -7,74 +7,74 @@ import (
 	"itsbagelbot/admin/internal/rpc"
 )
 
-func joinNodes(nodes []string) string {
+func JoinNodes(nodes []string) string {
 	if len(nodes) == 0 {
 		return "none"
 	}
 	return strings.Join(nodes, ", ")
 }
 
-func orDash(s string) string {
+func OrDash(s string) string {
 	if s == "" {
 		return "—"
 	}
 	return s
 }
 
-func keepalive(ms int) string {
+func Keepalive(ms int) string {
 	if ms <= 0 {
 		return "—"
 	}
 	return fmt.Sprintf("%ds window", ms/1000)
 }
 
-func navClass(active, key string) string {
+func NavClass(active, key string) string {
 	if active == key {
 		return "sidebar-link active"
 	}
 	return "sidebar-link"
 }
 
-func intText(n int) string {
+func IntText(n int) string {
 	return fmt.Sprint(n)
 }
 
-func totalUsers(stats *rpc.UserStats) string {
+func TotalUsers(stats *rpc.UserStats) string {
 	if stats == nil {
 		return "—"
 	}
 	return fmt.Sprint(stats.TotalUsers)
 }
 
-func activeUsers(stats *rpc.UserStats) string {
+func ActiveUsers(stats *rpc.UserStats) string {
 	if stats == nil {
 		return "—"
 	}
 	return fmt.Sprint(stats.ActiveUsers)
 }
 
-func premiumUsers(stats *rpc.UserStats) string {
+func PremiumUsers(stats *rpc.UserStats) string {
 	if stats == nil {
 		return "—"
 	}
 	return fmt.Sprint(stats.PremiumUsers)
 }
 
-func vipUsers(stats *rpc.UserStats) string {
+func VIPUsers(stats *rpc.UserStats) string {
 	if stats == nil {
 		return "—"
 	}
 	return fmt.Sprint(stats.VIPUsers)
 }
 
-func paidUsers(stats *rpc.UserStats) string {
+func PaidUsers(stats *rpc.UserStats) string {
 	if stats == nil {
 		return "—"
 	}
 	return fmt.Sprint(stats.PaidUsers)
 }
 
-func shardTotal(snap *rpc.Snapshot) int {
+func ShardTotal(snap *rpc.Snapshot) int {
 	if snap == nil {
 		return 0
 	}
@@ -84,7 +84,7 @@ func shardTotal(snap *rpc.Snapshot) int {
 	return len(snap.Shards)
 }
 
-func connectedShards(snap *rpc.Snapshot) int {
+func ConnectedShards(snap *rpc.Snapshot) int {
 	if snap == nil {
 		return 0
 	}
@@ -97,27 +97,27 @@ func connectedShards(snap *rpc.Snapshot) int {
 	return total
 }
 
-func degradedShards(snap *rpc.Snapshot) int {
-	total := shardTotal(snap)
-	connected := connectedShards(snap)
+func DegradedShards(snap *rpc.Snapshot) int {
+	total := ShardTotal(snap)
+	connected := ConnectedShards(snap)
 	if total < connected {
 		return 0
 	}
 	return total - connected
 }
 
-func nodeCount(snap *rpc.Snapshot) int {
+func NodeCount(snap *rpc.Snapshot) int {
 	if snap == nil {
 		return 0
 	}
 	return len(snap.Nodes)
 }
 
-func healthLabel(snap *rpc.Snapshot, errMsg string) string {
+func HealthLabel(snap *rpc.Snapshot, errMsg string) string {
 	if errMsg != "" || snap == nil {
 		return "unreachable"
 	}
-	if degradedShards(snap) == 0 {
+	if DegradedShards(snap) == 0 {
 		return "healthy"
 	}
 	return "degraded"

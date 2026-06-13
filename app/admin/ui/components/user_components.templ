@@ -1,0 +1,140 @@
+package components
+
+import (
+	"fmt"
+	"time"
+
+	"itsbagelbot/admin/internal/rpc"
+	"itsbagelbot/admin/ui"
+)
+
+templ UserStatsCards(stats *rpc.UserStats, errMsg string) {
+	if errMsg != "" || stats == nil {
+		@StatCard("Registered users", "—", "stats unavailable")
+		@StatCard("Active users", "—", "stats unavailable")
+		@StatCard("Premium users", "—", "stats unavailable")
+	} else {
+		@StatCard("Registered users", ui.TotalUsers(stats), "broadcaster-data")
+		@StatCard("Active users", ui.ActiveUsers(stats), "currently enabled")
+		@StatCard("Premium users", ui.PremiumUsers(stats), "vip " + ui.VIPUsers(stats) + " / paid " + ui.PaidUsers(stats))
+	}
+}
+
+templ ShardStatCard(snap *rpc.Snapshot, errMsg string) {
+	if errMsg != "" || snap == nil {
+		@StatCard("Shard health", "—", "ingress unreachable")
+	} else {
+		@StatCard("Shard health", ui.IntText(ui.ConnectedShards(snap)) + "/" + ui.IntText(ui.ShardTotal(snap)), ui.HealthLabel(snap, errMsg))
+	}
+}
+
+templ UserError(msg string) {
+	<p style="color:var(--down); font-family:var(--font-mono); font-size:0.85rem; padding:0.5rem 0;">{ msg }</p>
+}
+
+templ UserNotRegistered(id string) {
+	<div style="display:flex; align-items:center; gap:0.6rem; padding-bottom:0.6rem;">
+		<span class="mono text-muted" style="font-size:0.85rem;">#{ id }</span>
+		<span class="badge warn"><span class="dot"></span> not registered</span>
+	</div>
+	<p class="text-muted" style="font-size:0.85rem; margin-bottom:0.9rem;">This Twitch id has no record yet. Granting a status or storing a token creates it (placeholder name until they onboard).</p>
+	<div style="display:flex; flex-wrap:wrap; gap:0.6rem;">
+		<button class="btn" hx-post="/users/action" hx-disabled-elt="this" hx-vals={ `{"action":"vip", "user_id":"` + id + `"}` } hx-target="#user-detail" hx-swap="innerHTML" title={ "Provision #" + id + " and grant VIP (permanent premium)?" }>Grant VIP</button>
+		<button class="btn secondary" hx-post="/users/action" hx-disabled-elt="this" hx-vals={ `{"action":"paid", "user_id":"` + id + `"}` } hx-target="#user-detail" hx-swap="innerHTML" title={ "Provision #" + id + " and mark as paid premium?" }>Mark paid</button>
+	</div>
+	@TokenManager(id, "#"+id, false)
+}
+
+templ UserStatusBadge(u rpc.AdminUser) {
+	if u.Tier == "premium" && u.PremiumKind == "vip" {
+		<span class="badge ok"><span class="dot"></span> vip · permanent premium</span>
+	} else if u.Tier == "premium" && u.PremiumKind == "paid" {
+		<span class="badge ok"><span class="dot"></span> paid premium</span>
+	} else if u.Tier == "premium" {
+		<span class="badge ok"><span class="dot"></span> premium</span>
+	} else {
+		<span class="badge warn"><span class="dot"></span> standard</span>
+	}
+}
+
+templ UserDetail(u rpc.AdminUser, hasToken bool, now time.Time) {
+	<div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.6rem; padding-bottom:0.6rem;">
+		<div style="display:flex; align-items:baseline; gap:0.6rem;">
+			<strong style="font-family:var(--font-display); font-size:1.05rem;">{ u.Username }</strong>
+			<span class="mono text-muted" style="font-size:0.78rem;">#{ fmt.Sprint(u.ID) }</span>
+			if !u.IsActive {
+				<span class="badge down"><span class="dot"></span> inactive</span>
+			}
+		</div>
+		@UserStatusBadge(u)
+	</div>
+	<div class="kv">
+		<span class="k">Last change</span>
+		<span class="v">{ ui.RelTime(&u.UpdatedAt, now) }</span>
+	</div>
+	<div class="kv">
+		<span class="k">Twitch token</span>
+		<span class="v">
+			if hasToken {
+				<span class="badge ok"><span class="dot"></span> stored</span>
+			} else {
+				<span class="badge warn"><span class="dot"></span> none</span>
+			}
+		</span>
+	</div>
+	<div style="display:flex; flex-wrap:wrap; gap:0.6rem; padding-top:0.9rem;">
+		if !(u.Tier == "premium" && u.PremiumKind == "vip") {
+			<button class="btn" hx-post="/users/action" hx-disabled-elt="this" hx-vals={ `{"action":"vip", "user_id":"` + fmt.Sprint(u.ID) + `"}` } hx-target="#user-detail" hx-swap="innerHTML" title={ "Grant VIP (permanent premium) to " + u.Username + "?" }>Grant VIP</button>
+		}
+		if !(u.Tier == "premium" && u.PremiumKind == "paid") {
+			<button class="btn secondary" hx-post="/users/action" hx-disabled-elt="this" hx-vals={ `{"action":"paid", "user_id":"` + fmt.Sprint(u.ID) + `"}` } hx-target="#user-detail" hx-swap="innerHTML" title={ "Mark " + u.Username + " as paid premium?" }>Mark paid</button>
+		}
+		if u.Tier == "premium" {
+			<button class="btn secondary" hx-post="/users/action" hx-disabled-elt="this" hx-vals={ `{"action":"standard", "user_id":"` + fmt.Sprint(u.ID) + `"}` } hx-target="#user-detail" hx-swap="innerHTML" title={ "Remove premium from " + u.Username + " (back to standard)?" }>Remove premium</button>
+		}
+		<button class="btn secondary" hx-post="/users/action" hx-disabled-elt="this" hx-vals={ `{"action":"reset", "user_id":"` + fmt.Sprint(u.ID) + `"}` } hx-target="#user-detail" hx-swap="innerHTML" title={ "Reset state for " + u.Username + "? Their settings and timers are cleared; account, tier and history stay." }>Reset state</button>
+	</div>
+	@TokenManager(fmt.Sprint(u.ID), u.Username, hasToken)
+}
+
+templ TokenManager(id string, name string, hasToken bool) {
+	<details style="margin-top:1rem; border-top:1px solid rgba(255,255,255,0.05); padding-top:0.75rem;">
+		<summary style="cursor:pointer; font-family:var(--font-mono); font-size:0.78rem; letter-spacing:0.08em; text-transform:uppercase; color:var(--muted);">Manage Twitch token</summary>
+		<p class="text-muted" style="font-size:0.82rem; margin:0.7rem 0;">
+			Stores the account's user access + refresh token (encrypted at rest). For the bot
+			account, mint the pair with the fleet's client id and the bot scopes, then paste
+			both here; services refresh it automatically afterwards.
+		</p>
+		<form style="display:grid; gap:0.6rem;" hx-post="/users/action" hx-disabled-elt="find button" hx-target="#user-detail" hx-swap="innerHTML">
+			<input type="hidden" name="action" value="set_token" />
+			<input type="hidden" name="user_id" value={ id } />
+			<input id="token-access" name="access_token" type="password" placeholder="access token" autocomplete="off"
+				style="background:rgba(255,255,255,0.04); border:1px solid var(--glass-border); border-radius:10px; padding:0.55rem 0.9rem; color:var(--text); font-family:var(--font-mono); font-size:0.85rem; outline:none;"/>
+			<input id="token-refresh" name="refresh_token" type="password" placeholder="refresh token" autocomplete="off"
+				style="background:rgba(255,255,255,0.04); border:1px solid var(--glass-border); border-radius:10px; padding:0.55rem 0.9rem; color:var(--text); font-family:var(--font-mono); font-size:0.85rem; outline:none;"/>
+			<div style="display:flex; flex-wrap:wrap; gap:0.6rem;">
+				<button class="btn" type="submit" title={ "Store this token for " + name + "? Any previous token is replaced." }>Save token</button>
+				if hasToken {
+					<button class="btn secondary" type="button" hx-post="/users/action" hx-disabled-elt="this" hx-vals={ `{"action":"clear_token", "user_id":"` + id + `"}` } hx-target="#user-detail" hx-swap="innerHTML" title={ "Clear the stored token for " + name + "? Services lose this account's Twitch access on their next renewal." }>Clear token</button>
+				}
+			</div>
+		</form>
+	</details>
+}
+
+templ UserRecent(users []rpc.AdminUser) {
+	if len(users) == 0 {
+		<p class="text-muted" style="font-size:0.85rem;">No users yet.</p>
+	} else {
+		<div style="display:flex; flex-wrap:wrap; gap:0.5rem;">
+			for _, u := range users {
+				<button class="user-chip" hx-get={ "/users/lookup?q=" + fmt.Sprint(u.ID) } hx-target="#user-detail" hx-swap="innerHTML">
+					{ u.Username }
+					if u.Tier == "premium" {
+						<span style="color:var(--green-glow);">●</span>
+					}
+				</button>
+			}
+		</div>
+	}
+}
