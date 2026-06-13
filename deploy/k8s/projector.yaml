@@ -46,10 +46,10 @@ spec:
         runAsNonRoot: true
         runAsUser: 65532
         runAsGroup: 65532
-        seccompProfile: { type: RuntimeDefault }
+        seccompProfile: {type: RuntimeDefault}
       containers:
         - name: projector
-          image: ghcr.io/adamousmer/itsbagelbot/projector:main # {"$imagepolicy": "flux-system:projector"}
+          image: ghcr.io/adamousmer/itsbagelbot/projector:main-1781353795-3dcd12de4548@sha256:36bf6602ae025adfa3ac7578ec920ee6336471d54b54906a41e0b53b92e52386 # {"$imagepolicy": "flux-system:projector"}
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST
@@ -68,12 +68,12 @@ spec:
               memory: 256Mi
           securityContext:
             allowPrivilegeEscalation: false
-            capabilities: { drop: ["ALL"] }
+            capabilities: {drop: ["ALL"]}
           livenessProbe:
-            httpGet: { path: /healthz, port: 8080 }
+            httpGet: {path: /healthz, port: 8080}
             periodSeconds: 30
           readinessProbe:
-            httpGet: { path: /healthz, port: 8080 }
+            httpGet: {path: /healthz, port: 8080}
             periodSeconds: 10
 ---
 apiVersion: policy/v1

@@ -46,10 +46,10 @@ spec:
         runAsNonRoot: true
         runAsUser: 65532
         runAsGroup: 65532
-        seccompProfile: { type: RuntimeDefault }
+        seccompProfile: {type: RuntimeDefault}
       containers:
         - name: outgress
-          image: ghcr.io/adamousmer/itsbagelbot/outgress:main # {"$imagepolicy": "flux-system:outgress"}
+          image: ghcr.io/adamousmer/itsbagelbot/outgress:main-1781353795-3dcd12de4548@sha256:da3322415d00c7716902ebeabcd285460845da566be58514b81c149128eadba9 # {"$imagepolicy": "flux-system:outgress"}
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST
@@ -68,12 +68,12 @@ spec:
               memory: 256Mi
           securityContext:
             allowPrivilegeEscalation: false
-            capabilities: { drop: ["ALL"] }
+            capabilities: {drop: ["ALL"]}
           livenessProbe:
-            httpGet: { path: /healthz, port: 8080 }
+            httpGet: {path: /healthz, port: 8080}
             periodSeconds: 30
           readinessProbe:
-            httpGet: { path: /healthz, port: 8080 }
+            httpGet: {path: /healthz, port: 8080}
             periodSeconds: 10
 ---
 apiVersion: policy/v1

@@ -54,10 +54,10 @@ spec:
         runAsNonRoot: true
         runAsUser: 65532 # distroless `nonroot`; numeric so kubelet can verify
         runAsGroup: 65532
-        seccompProfile: { type: RuntimeDefault }
+        seccompProfile: {type: RuntimeDefault}
       containers:
         - name: dashboard
-          image: ghcr.io/adamousmer/itsbagelbot/dashboard:main # {"$imagepolicy": "flux-system:dashboard"}
+          image: ghcr.io/adamousmer/itsbagelbot/dashboard:main-1781353795-3dcd12de4548@sha256:e7a50de43eb2b261ca2bc96accc33001861cd6a43f7abfa1647336beb0085c60 # {"$imagepolicy": "flux-system:dashboard"}
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST
@@ -76,12 +76,12 @@ spec:
               memory: 256Mi
           securityContext:
             allowPrivilegeEscalation: false
-            capabilities: { drop: ["ALL"] }
+            capabilities: {drop: ["ALL"]}
           livenessProbe:
-            httpGet: { path: /healthz, port: 8080 }
+            httpGet: {path: /healthz, port: 8080}
             periodSeconds: 30
           readinessProbe:
-            httpGet: { path: /healthz, port: 8080 }
+            httpGet: {path: /healthz, port: 8080}
             periodSeconds: 10
 ---
 apiVersion: v1
