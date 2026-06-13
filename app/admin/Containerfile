@@ -1,12 +1,16 @@
-# Admin (Go) - build with podman or docker:
-#   podman build -t itsbagelbot/admin -f Containerfile .
+# Admin (Go) - build from the REPO ROOT (pkg/bus lives in the root module):
+#   podman build -t itsbagelbot/admin -f app/admin/Containerfile .
 FROM docker.io/library/golang:1.26-bookworm AS build
 
 WORKDIR /src
 COPY go.mod go.sum ./
-RUN go mod download
+COPY app/admin/go.mod app/admin/go.sum app/admin/
+RUN cd app/admin && go mod download
 
-COPY . .
+COPY internal/utils internal/utils
+COPY pkg pkg
+COPY app/admin app/admin
+WORKDIR /src/app/admin
 RUN go run github.com/a-h/templ/cmd/templ@v0.3.857 generate \
  && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /admin .
 
@@ -14,6 +18,7 @@ RUN go run github.com/a-h/templ/cmd/templ@v0.3.857 generate \
 FROM gcr.io/distroless/static-debian12:nonroot
 
 COPY --from=build /admin /admin
+# Static assets are embedded into the binary via //go:embed (see ui/assets.go).
 
 USER nonroot
 EXPOSE 8080

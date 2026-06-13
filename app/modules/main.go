@@ -9,10 +9,12 @@ import (
 
 	"ItsBagelBot/app/modules/ent"
 	"ItsBagelBot/app/modules/repository"
+	"ItsBagelBot/app/modules/rpc"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/db"
 	"ItsBagelBot/pkg/env"
+	"ItsBagelBot/pkg/health"
 	"ItsBagelBot/pkg/logger"
 
 	"github.com/ThreeDotsLabs/watermill/message"
@@ -49,6 +51,10 @@ func main() {
 
 	natsURL := env.Get("NATS_URL", "nats://127.0.0.1:4222")
 
+	if err := bus.EnsureStreams(ctx, natsURL, bus.DataStreams, log); err != nil {
+		log.Fatal("failed to provision jetstream streams", zap.Error(err))
+	}
+
 	pub, err := bus.NewPublisher(natsURL, log)
 	if err != nil {
 		log.Fatal("failed to connect publisher", zap.Error(err))
@@ -57,6 +63,12 @@ func main() {
 
 	repo := repository.NewModules(client, pub, nil, log)
 	defer repo.Close(context.Background()) // flushes pending writes on shutdown
+
+	nc, err := bus.Connect(natsURL, serviceName)
+	if err != nil {
+		log.Fatal("failed to connect to nats", zap.Error(err))
+	}
+	defer nc.Close()
 
 	// Broadcast subscription: every instance must drop its cached view when
 	// any instance changes a module, so no queue group here.
@@ -93,7 +105,14 @@ func main() {
 		log.Fatal("failed to subscribe to reproject requests", zap.Error(err))
 	}
 
-	log.Info("modules service ready")
+	projectionSubject := env.Get("NATS_INTERNAL_PROJECTION_MODULES_SUBJECT", "bagel.rpc.internal.projection.modules.get")
+	if err := rpc.SubscribeProjection(nc, repo, projectionSubject, "modules-rpc", log); err != nil {
+		log.Fatal("failed to subscribe projection rpc", zap.Error(err))
+	}
+
+	health.Serve(env.Get("LISTEN_ADDR", ":8080"), nc.IsConnected)
+
+	log.Info("modules service ready", zap.String("projection_subject", projectionSubject))
 
 	<-ctx.Done()
 

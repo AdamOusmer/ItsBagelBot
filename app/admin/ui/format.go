@@ -7,7 +7,7 @@ import (
 
 // relTime renders "12s ago" style ages for the snapshot tables. The fragment
 // is re-rendered on every poll, so server-side text stays fresh enough.
-func relTime(t *time.Time, now time.Time) string {
+func RelTime(t *time.Time, now time.Time) string {
 	if t == nil || t.IsZero() {
 		return "—"
 	}
@@ -29,7 +29,7 @@ func relTime(t *time.Time, now time.Time) string {
 }
 
 // shortID keeps mono values readable inside the cards.
-func shortID(s string) string {
+func ShortID(s string) string {
 	if s == "" {
 		return "—"
 	}

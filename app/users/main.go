@@ -9,11 +9,13 @@ import (
 
 	"ItsBagelBot/app/users/ent"
 	"ItsBagelBot/app/users/repository"
+	"ItsBagelBot/app/users/rpc"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/crypto"
 	"ItsBagelBot/pkg/db"
 	"ItsBagelBot/pkg/env"
+	"ItsBagelBot/pkg/health"
 	"ItsBagelBot/pkg/logger"
 
 	"github.com/ThreeDotsLabs/watermill/message"
@@ -60,6 +62,16 @@ func main() {
 
 	natsURL := env.Get("NATS_URL", "nats://127.0.0.1:4222")
 
+	if err := bus.EnsureStreams(ctx, natsURL, bus.DataStreams, log); err != nil {
+		log.Fatal("failed to provision jetstream streams", zap.Error(err))
+	}
+
+	nc, err := bus.Connect(natsURL, serviceName)
+	if err != nil {
+		log.Fatal("failed to connect to nats", zap.Error(err))
+	}
+	defer nc.Close()
+
 	pub, err := bus.NewPublisher(natsURL, log)
 	if err != nil {
 		log.Fatal("failed to connect publisher", zap.Error(err))
@@ -104,7 +116,35 @@ func main() {
 		log.Fatal("failed to subscribe to reproject requests", zap.Error(err))
 	}
 
-	log.Info("users service ready")
+	invalidationSubject := env.Get("NATS_CACHE_INVALIDATION_SUBJECT", "bagel.cache.invalidate.broadcaster")
+	queueGroup := "users-rpc"
+
+	dashPrefix := env.Get("NATS_DASHBOARD_SUBJECT_PREFIX", "bagel.rpc.dashboard")
+	if err := rpc.SubscribeDashboard(nc, repo, dashPrefix, invalidationSubject, queueGroup, log); err != nil {
+		log.Fatal("failed to subscribe dashboard rpc", zap.Error(err))
+	}
+
+	adminPrefix := env.Get("NATS_ADMIN_USER_SUBJECT_PREFIX", "bagel.rpc.admin.user")
+	if err := rpc.SubscribeAdmin(nc, client, repo, adminPrefix, invalidationSubject, queueGroup, log); err != nil {
+		log.Fatal("failed to subscribe admin rpc", zap.Error(err))
+	}
+
+	projectionSubject := env.Get("NATS_INTERNAL_PROJECTION_USERS_SUBJECT", "bagel.rpc.internal.projection.users.get")
+	if err := rpc.SubscribeProjection(nc, repo, projectionSubject, queueGroup, log); err != nil {
+		log.Fatal("failed to subscribe projection rpc", zap.Error(err))
+	}
+
+	tokensPrefix := env.Get("NATS_INTERNAL_TOKENS_SUBJECT_PREFIX", "bagel.rpc.internal.tokens")
+	if err := rpc.SubscribeTokens(nc, repo, tokensPrefix, queueGroup, log); err != nil {
+		log.Fatal("failed to subscribe tokens rpc", zap.Error(err))
+	}
+
+	health.Serve(env.Get("LISTEN_ADDR", ":8080"), nc.IsConnected)
+
+	log.Info("users service ready",
+		zap.String("dashboard_prefix", dashPrefix),
+		zap.String("admin_prefix", adminPrefix),
+		zap.String("projection_subject", projectionSubject))
 
 	<-ctx.Done()
 

@@ -2,7 +2,6 @@ package rpc
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"math/rand/v2"
@@ -157,11 +156,11 @@ func (d *Dashboard) UpsertUser(ctx context.Context, userID, login, displayName s
 
 // SaveBotGrant persists a broadcaster's bot grant via the data service and
 // invalidates the local cache so the next HasBotGrant sees the new state.
-func (d *Dashboard) SaveBotGrant(ctx context.Context, broadcasterID, scopes string, refreshTokenEnc []byte) error {
+func (d *Dashboard) SaveBotGrant(ctx context.Context, broadcasterID string, accessToken string, refreshToken string) error {
 	req, _ := json.Marshal(map[string]string{
 		"broadcaster_user_id": broadcasterID,
-		"scopes":              scopes,
-		"refresh_token_enc":   base64.StdEncoding.EncodeToString(refreshTokenEnc),
+		"access_token":        accessToken,
+		"refresh_token":       refreshToken,
 	})
 
 	msg, err := d.nc.RequestWithContext(ctx, d.prefix+".grant_save", req)
@@ -173,6 +172,50 @@ func (d *Dashboard) SaveBotGrant(ctx context.Context, broadcasterID, scopes stri
 	}
 	d.cache.invalidate(broadcasterID)
 	return nil
+}
+
+// SetActive flips whether the bot serves this broadcaster (the receive
+// toggle). The users service publishes the change event, so the projector
+// and ingress converge on their own.
+func (d *Dashboard) SetActive(ctx context.Context, broadcasterID string, active bool) error {
+	req, _ := json.Marshal(map[string]any{
+		"broadcaster_user_id": broadcasterID,
+		"active":              active,
+	})
+
+	msg, err := d.nc.RequestWithContext(ctx, d.prefix+".active_set", req)
+	if err != nil {
+		return fmt.Errorf("active_set rpc: %w", err)
+	}
+	if err := checkReplyError(msg.Data); err != nil {
+		return err
+	}
+	d.cache.invalidate(broadcasterID)
+	return nil
+}
+
+// IsActive reports the broadcaster's receive toggle state.
+func (d *Dashboard) IsActive(ctx context.Context, broadcasterID string) (bool, error) {
+	req, _ := json.Marshal(map[string]string{
+		"broadcaster_user_id": broadcasterID,
+	})
+
+	msg, err := d.nc.RequestWithContext(ctx, d.prefix+".active_get", req)
+	if err != nil {
+		return false, fmt.Errorf("active_get rpc: %w", err)
+	}
+
+	var reply struct {
+		Active bool   `json:"active"`
+		Error  string `json:"error"`
+	}
+	if err := json.Unmarshal(msg.Data, &reply); err != nil {
+		return false, fmt.Errorf("active_get unmarshal: %w", err)
+	}
+	if reply.Error != "" {
+		return false, fmt.Errorf("active_get: %s", reply.Error)
+	}
+	return reply.Active, nil
 }
 
 // HasBotGrant checks whether a broadcaster has granted bot access. Results are

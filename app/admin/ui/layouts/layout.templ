@@ -1,0 +1,53 @@
+package layouts
+
+import (
+	"context"
+	"fmt"
+	"itsbagelbot/admin/ui/components"
+)
+
+func getNonce(ctx context.Context) string {
+	if n, ok := ctx.Value("nonce").(string); ok {
+		return n
+	}
+	return ""
+}
+
+func getCsrf(ctx context.Context) string {
+	if c, ok := ctx.Value("csrf").(string); ok {
+		return c
+	}
+	return ""
+}
+
+templ Layout(title string) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>{ title }</title>
+			<meta name="htmx-config" content='{"selfRequestsOnly":true}'/>
+			<script src="https://unpkg.com/htmx.org@2.0.4" crossorigin="anonymous" nonce={ getNonce(ctx) }></script>
+			<script src="https://unpkg.com/htmx.org@1.9.10/dist/ext/sse.js" crossorigin="anonymous" nonce={ getNonce(ctx) }></script>
+			<link rel="preconnect" href="https://fonts.googleapis.com"/>
+			<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+			<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" nonce={ getNonce(ctx) }/>
+			<link rel="stylesheet" href="/assets/style.css" nonce={ getNonce(ctx) }/>
+		</head>
+		<body hx-headers={ fmt.Sprintf(`{"X-CSRF-Token": "%s", "X-Admin-Request": "1"}`, getCsrf(ctx)) }>
+			{ children... }
+		</body>
+	</html>
+}
+
+templ Shell(title string, active string) {
+	@Layout(title) {
+		<div class="app-shell">
+			@components.Sidebar(active)
+			<main id="page">
+				{ children... }
+			</main>
+		</div>
+	}
+}

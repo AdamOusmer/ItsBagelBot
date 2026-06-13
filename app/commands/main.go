@@ -9,10 +9,12 @@ import (
 
 	"ItsBagelBot/app/commands/ent"
 	"ItsBagelBot/app/commands/repository"
+	"ItsBagelBot/app/commands/rpc"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/db"
 	"ItsBagelBot/pkg/env"
+	"ItsBagelBot/pkg/health"
 	"ItsBagelBot/pkg/logger"
 
 	"github.com/ThreeDotsLabs/watermill/message"
@@ -49,6 +51,10 @@ func main() {
 
 	natsURL := env.Get("NATS_URL", "nats://127.0.0.1:4222")
 
+	if err := bus.EnsureStreams(ctx, natsURL, bus.DataStreams, log); err != nil {
+		log.Fatal("failed to provision jetstream streams", zap.Error(err))
+	}
+
 	pub, err := bus.NewPublisher(natsURL, log)
 	if err != nil {
 		log.Fatal("failed to connect publisher", zap.Error(err))
@@ -57,6 +63,12 @@ func main() {
 
 	repo := repository.NewCommands(client, pub, nil, log)
 	defer repo.Close(context.Background()) // flushes pending writes on shutdown
+
+	nc, err := bus.Connect(natsURL, serviceName)
+	if err != nil {
+		log.Fatal("failed to connect to nats", zap.Error(err))
+	}
+	defer nc.Close()
 
 	// Broadcast subscription: every instance must drop its cached view when
 	// any instance changes a command, so no queue group here.
@@ -79,7 +91,22 @@ func main() {
 		log.Fatal("failed to subscribe to command changes", zap.Error(err))
 	}
 
-	log.Info("commands service ready")
+	projectionSubject := env.Get("NATS_INTERNAL_PROJECTION_COMMANDS_SUBJECT", "bagel.rpc.internal.projection.commands.get")
+	if err := rpc.SubscribeProjection(nc, repo, projectionSubject, "commands-rpc", log); err != nil {
+		log.Fatal("failed to subscribe projection rpc", zap.Error(err))
+	}
+
+	commandsPrefix := env.Get("NATS_COMMANDS_SUBJECT_PREFIX", "bagel.rpc.commands")
+	if err := rpc.SubscribeDashboard(nc, repo, commandsPrefix, "commands-rpc", log); err != nil {
+		log.Fatal("failed to subscribe dashboard rpc", zap.Error(err))
+	}
+
+	health.Serve(env.Get("LISTEN_ADDR", ":8080"), nc.IsConnected)
+
+	log.Info("commands service ready",
+		zap.String("projection_subject", projectionSubject),
+		zap.String("commands_prefix", commandsPrefix),
+	)
 
 	<-ctx.Done()
 

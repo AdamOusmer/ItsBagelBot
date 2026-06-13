@@ -1,0 +1,27 @@
+package pages
+
+import (
+	"itsbagelbot/admin/ui/layouts"
+	"itsbagelbot/admin/ui/components"
+)
+
+templ Shards(title string) {
+	@layouts.Shell(title, "shards") {
+		@ShardsPartial()
+	}
+}
+
+templ ShardsPartial() {
+	<div class="page-heading">
+		<div>
+			<p class="page-kicker">Twitch ingress</p>
+			<h1><span>Shard</span> health</h1>
+		</div>
+		<p class="page-meta">refreshes every 5s</p>
+	</div>
+	<div id="live" hx-get="/shards/live" hx-trigger="load, every 5s">
+		@components.Card("Cluster") {
+			<p class="text-muted" style="font-size:0.85rem;">loading shard health…</p>
+		}
+	</div>
+}

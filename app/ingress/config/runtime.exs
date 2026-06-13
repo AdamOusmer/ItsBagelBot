@@ -81,10 +81,15 @@ config :ingress,
   broadcaster_cache_ttl_ms:
     String.to_integer(System.get_env("BROADCASTER_CACHE_TTL_SECONDS", "300")) * 1000
 
+# Credentials are optional so local development can run against an open
+# server; the production broker requires them and Gnat only sends them when
+# the server asks (auth_required in the INFO handshake).
 config :ingress,
   nats: %{
     host: System.get_env("NATS_HOST", "127.0.0.1"),
-    port: String.to_integer(System.get_env("NATS_PORT", "4222"))
+    port: String.to_integer(System.get_env("NATS_PORT", "4222")),
+    username: System.get_env("NATS_USER"),
+    password: System.get_env("NATS_PASSWORD")
   }
 
 if level = System.get_env("LOG_LEVEL") do

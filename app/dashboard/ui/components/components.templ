@@ -1,0 +1,96 @@
+package components
+
+templ Sidebar(login string, active string) {
+	<aside class="sidebar">
+		<div class="sidebar-brand">
+			<img src="/assets/LogoBOT.png" alt="ItsBagelBot"/>
+			<div class="sidebar-title">
+				<h2>ItsBagelBot</h2>
+				if login != "" {
+					<span>{ login }</span>
+				}
+			</div>
+		</div>
+
+		<nav class="sidebar-nav">
+			if active == "overview" {
+				<a href="/app" class="sidebar-link active" aria-current="page">
+					Overview
+				</a>
+			} else {
+				<a href="/app" class="sidebar-link">
+					Overview
+				</a>
+			}
+			if active == "modules" {
+				<a href="/app/modules" class="sidebar-link active" aria-current="page">
+					Modules
+				</a>
+			} else {
+				<a href="/app/modules" class="sidebar-link">
+					Modules
+				</a>
+			}
+			if active == "commands" {
+				<a href="/app/commands" class="sidebar-link active" aria-current="page">
+					Commands
+				</a>
+			} else {
+				<a href="/app/commands" class="sidebar-link">
+					Commands
+				</a>
+			}
+		</nav>
+
+		<div class="sidebar-footer">
+			if login != "" {
+				<form hx-post="/auth/logout">
+					<button class="btn secondary w-full" type="submit" hx-disabled-elt="this" data-magnetic>Log out</button>
+				</form>
+			}
+		</div>
+	</aside>
+}
+
+templ BotStatus(enabled bool) {
+	if enabled {
+		<div class="badge ok">Online</div>
+	} else {
+		<div class="badge warn">Offline</div>
+	}
+}
+
+templ ReceiveStatus(receiving bool) {
+	if receiving {
+		<div class="badge ok">Receiving Events</div>
+	} else {
+		<div class="badge warn">Events Paused</div>
+	}
+}
+
+templ TierBadge(tier string) {
+	if tier == "premium" {
+		<div class="badge ok">Pro Tier</div>
+	} else {
+		<div class="badge warn">Free Tier</div>
+	}
+}
+
+templ ModuleToggle(id string, title string, desc string, checked bool) {
+	<div class="glass-card module-card drop-in" data-tilt>
+		<div class="module-flex">
+			<div class="module-info">
+				<h3>{ title } <span class="badge warn soon-badge">Soon</span></h3>
+				<p>{ desc }</p>
+			</div>
+			<label class="switch">
+				if checked {
+					<input type="checkbox" id={ id } checked disabled/>
+				} else {
+					<input type="checkbox" id={ id } disabled/>
+				}
+				<span class="slider"></span>
+			</label>
+		</div>
+	</div>
+}

@@ -7,8 +7,13 @@ import (
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/domain/validate"
 
-	"github.com/ThreeDotsLabs/watermill/message"
+	"context"
+	"fmt"
+	"strconv"
+	"time"
 
+	"github.com/ThreeDotsLabs/watermill/message"
+	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 )
 
@@ -98,4 +103,72 @@ func (p *Projector) drop(msg *message.Message, subject string, err error) {
 		zap.String("message_id", msg.UUID),
 		zap.Error(err),
 	)
+}
+
+type eventSubMessage struct {
+	Subscription struct {
+		Type string `json:"type"`
+	} `json:"subscription"`
+	Event struct {
+		BroadcasterUserID string `json:"broadcaster_user_id"`
+	} `json:"event"`
+}
+
+func (p *Projector) HandleStreamOnline(msg *nats.Msg, nc *nats.Conn, usersTopic, modulesTopic, commandsTopic string) {
+	var payload eventSubMessage
+	if err := json.Unmarshal(msg.Data, &payload); err != nil {
+		return
+	}
+
+	if payload.Subscription.Type != "stream.online" {
+		return
+	}
+
+	id, err := strconv.ParseUint(payload.Event.BroadcasterUserID, 10, 64)
+	if err != nil {
+		return
+	}
+
+	p.log.Info("pre-warming cache for stream online", zap.Uint64("user_id", id))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	reqPayload, _ := json.Marshal(map[string]string{"user_id": fmt.Sprint(id)})
+
+	// 1. Fetch & Cache Users
+	go func() {
+		if resp, err := nc.RequestWithContext(ctx, usersTopic, reqPayload); err == nil {
+			var reply struct {
+				Status   string `json:"status"`
+				IsActive bool   `json:"is_active"`
+			}
+			if json.Unmarshal(resp.Data, &reply) == nil {
+				_ = p.store.SetUser(ctx, id, reply.Status, reply.IsActive)
+			}
+		}
+	}()
+
+	// 2. Fetch & Cache Modules
+	go func() {
+		if resp, err := nc.RequestWithContext(ctx, modulesTopic, reqPayload); err == nil {
+			var reply struct {
+				Modules []struct {
+					Name      string          `json:"name"`
+					IsEnabled bool            `json:"is_enabled"`
+					Configs   json.RawMessage `json:"configs,omitempty"`
+				} `json:"modules"`
+			}
+			if json.Unmarshal(resp.Data, &reply) == nil {
+				for _, mod := range reply.Modules {
+					_ = p.store.SetModule(ctx, id, mod.Name, mod.IsEnabled, mod.Configs)
+				}
+			}
+		}
+	}()
+
+	// 3. Pre-warm Commands (RPC triggers local cache load in commands service)
+	go func() {
+		_, _ = nc.RequestWithContext(ctx, commandsTopic, reqPayload)
+	}()
 }

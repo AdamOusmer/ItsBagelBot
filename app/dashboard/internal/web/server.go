@@ -1,7 +1,6 @@
 package web
 
 import (
-	"bufio"
 	"context"
 	"crypto/rand"
 	"crypto/subtle"
@@ -9,19 +8,28 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/ThreeDotsLabs/watermill/message"
+	"github.com/a-h/templ"
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/csrf"
+	"github.com/gofiber/fiber/v2/middleware/filesystem"
 	"github.com/nats-io/nats.go"
 	"github.com/newrelic/go-agent/v3/integrations/nrfiber"
 	"github.com/newrelic/go-agent/v3/newrelic"
+
+	"ItsBagelBot/pkg/bus"
 
 	"itsbagelbot/dashboard/internal/crypto"
 	"itsbagelbot/dashboard/internal/rpc"
 
 	"itsbagelbot/dashboard/internal/twitch"
 	"itsbagelbot/dashboard/ui"
+	"itsbagelbot/dashboard/ui/pages"
 )
 
 type SessionData struct {
@@ -31,18 +39,49 @@ type SessionData struct {
 	ExpiresAt   int64  `json:"expires_at"`
 }
 
+// toggleCooldown is the minimum gap between receive-toggle flips per
+// broadcaster: every flip creates or deletes EventSub subscriptions, which
+// spends Twitch API budget the whole fleet shares.
+const toggleCooldown = time.Minute
+
 type Server struct {
 	Dashboard   *rpc.Dashboard
+	Commands    *rpc.Commands
 	Twitch      *twitch.Client
 	Broadcaster *rpc.Broadcaster
 	AEAD        *crypto.AEAD
 	SessionAEAD *crypto.AEAD
 	NATS        *nats.Conn
-	StatusSubj  string
-	ConduitID   string
+	Outgress    message.Publisher // JetStream publisher for the system lane
+	SystemSubj  string            // outgress system lane subject
 	BaseURL     string
 	Log         *slog.Logger
 	NewRelic    *newrelic.Application
+
+	toggleMu sync.Mutex
+	toggleAt map[string]time.Time
+}
+
+// outgressMessage mirrors the outgress wire contract for the system lane;
+// only the fields an eventsub job carries.
+type outgressMessage struct {
+	Type          string          `json:"type"`
+	BroadcasterID string          `json:"broadcaster_id"`
+	Payload       json.RawMessage `json:"payload"`
+}
+
+// publishEventSub enqueues the receive toggle's intent on the outgress
+// system lane. Outgress executes it under the shared Helix rate-limit
+// bucket, retrying with paced redelivery, so a momentary Twitch hiccup or an
+// exhausted budget delays the flip instead of failing it.
+func (s *Server) publishEventSub(ctx context.Context, broadcasterID string, enabled bool) error {
+	payload, _ := json.Marshal(map[string]bool{"enabled": enabled})
+
+	return bus.PublishJSON(ctx, s.Outgress, s.SystemSubj, outgressMessage{
+		Type:          "eventsub",
+		BroadcasterID: broadcasterID,
+		Payload:       payload,
+	})
 }
 
 func (s *Server) Routes() *fiber.App {
@@ -51,6 +90,27 @@ func (s *Server) Routes() *fiber.App {
 	})
 
 	app.Use(nrfiber.Middleware(s.NewRelic))
+	app.Use(securityHeaders)
+	app.Use(csrf.New(csrf.Config{
+		KeyLookup:      "header:X-CSRF-Token",
+		CookieName:     "csrf_",
+		ContextKey:     "csrf",
+		CookieSameSite: "Lax",
+		CookieSecure:   true,
+		CookieHTTPOnly: true,
+		// Logout is a plain HTML form POST (not htmx) so it never carries the
+		// X-CSRF-Token header. Forced logout is idempotent and harmless, so we
+		// exempt it here. All other POSTs (/app/bot) go through htmx and send
+		// the header via hx-headers on <body>.
+		Next: func(c *fiber.Ctx) bool {
+			return c.Method() == fiber.MethodPost && c.Path() == "/auth/logout"
+		},
+	}))
+
+	app.Use("/assets", filesystem.New(filesystem.Config{
+		Root:   http.FS(ui.AssetsFS),
+		MaxAge: 3600,
+	}))
 
 	app.Get("/", s.landing)
 	app.Get("/auth/login", s.authStart(false))
@@ -59,12 +119,62 @@ func (s *Server) Routes() *fiber.App {
 	app.Get("/auth/enable-bot/callback", s.requireUser(s.botCallback))
 	app.Post("/auth/logout", s.logout)
 	app.Get("/app", s.requireUser(s.dashboard))
-	app.Get("/app/events", s.requireUser(s.events))
+	app.Get("/app/modules", s.requireUser(s.dashboardModules))
+	app.Get("/app/commands", s.requireUser(s.dashboardCommands))
+	app.Post("/app/commands/save", s.requireUser(s.commandSave))
+	app.Post("/app/commands/delete", s.requireUser(s.commandDelete))
+	app.Post("/app/bot", s.requireUser(s.botToggle))
 	app.Get("/healthz", func(c *fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 
 	return app
+}
+
+func securityHeaders(c *fiber.Ctx) error {
+	nonceBytes := make([]byte, 16)
+	rand.Read(nonceBytes)
+	nonce := base64.RawURLEncoding.EncodeToString(nonceBytes)
+	c.Locals("nonce", nonce)
+
+	c.Set("Content-Security-Policy", strings.Join([]string{
+		"default-src 'self'",
+		"base-uri 'self'",
+		"object-src 'none'",
+		"frame-ancestors 'none'",
+		fmt.Sprintf("script-src 'self' 'nonce-%s' https://unpkg.com", nonce),
+		// No nonce in style-src: templ components use inline style="" attributes,
+		// and a nonce in style-src makes browsers ignore 'unsafe-inline', which
+		// would block those attributes. 'self' covers the embedded style.css.
+		"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+		"font-src 'self' https://fonts.gstatic.com",
+		"connect-src 'self'",
+		"img-src 'self' data:",
+	}, "; "))
+
+	c.Set("X-Content-Type-Options", "nosniff")
+	c.Set("X-Frame-Options", "DENY")
+	c.Set("Referrer-Policy", "same-origin")
+	c.Set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()")
+	c.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+	c.Set("Cache-Control", "no-store")
+	return c.Next()
+}
+
+func render(c *fiber.Ctx, component templ.Component) error {
+	c.Set("Content-Type", "text/html; charset=utf-8")
+
+	ctx := c.Context()
+	var stdCtx context.Context = ctx
+
+	if nonce, ok := c.Locals("nonce").(string); ok {
+		stdCtx = context.WithValue(stdCtx, "nonce", nonce)
+	}
+	if token, ok := c.Locals("csrf").(string); ok {
+		stdCtx = context.WithValue(stdCtx, "csrf", token)
+	}
+
+	return component.Render(stdCtx, c.Response().BodyWriter())
 }
 
 func (s *Server) setSecureCookie(c *fiber.Ctx, name, value string, d time.Duration) {
@@ -133,8 +243,7 @@ func (s *Server) landing(c *fiber.Ctx) error {
 	if s.currentUserID(c) != "" {
 		return c.Redirect("/app")
 	}
-	c.Set("Content-Type", "text/html; charset=utf-8")
-	return ui.Landing().Render(c.Context(), c.Response().BodyWriter())
+	return render(c, pages.Landing())
 }
 
 func (s *Server) authStart(bot bool) fiber.Handler {
@@ -166,8 +275,7 @@ func (s *Server) checkState(c *fiber.Ctx) bool {
 
 func (s *Server) errorPage(c *fiber.Ctx, status int, title, msg, retryHref, retryLabel string) error {
 	c.Status(status)
-	c.Set("Content-Type", "text/html; charset=utf-8")
-	return ui.ErrorPage(title, msg, retryHref, retryLabel).Render(c.Context(), c.Response().BodyWriter())
+	return render(c, pages.ErrorPage(title, msg, retryHref, retryLabel))
 }
 
 func (s *Server) authCallback(c *fiber.Ctx) error {
@@ -246,27 +354,107 @@ func (s *Server) botCallback(c *fiber.Ctx) error {
 			"/auth/enable-bot", "Try again")
 	}
 
-	enc, err := s.AEAD.Seal([]byte(tok.RefreshToken), []byte(userID))
-	if err != nil {
-		return s.errorPage(c, fiber.StatusInternalServerError, "Something broke",
-			"Could not secure the grant. Please try again.", "/auth/enable-bot", "Try again")
-	}
-	scopes := strings.Join(scopesOf(tok), " ")
-	if err := s.Dashboard.SaveBotGrant(c.Context(), userID, scopes, enc); err != nil {
+	if err := s.Dashboard.SaveBotGrant(c.Context(), userID, tok.AccessToken, tok.RefreshToken); err != nil {
 		s.Log.Error("grant save failed", "err", err)
 		return s.errorPage(c, fiber.StatusInternalServerError, "Something broke",
 			"Could not save the grant. Please try again.", "/auth/enable-bot", "Try again")
 	}
 
-	if err := s.Twitch.EnsureChatSubscription(c.Context(), userID, s.ConduitID); err != nil {
-		s.Log.Error("chat subscription failed", "broadcaster", userID, "err", err)
+	if err := s.publishEventSub(c.Context(), userID, true); err != nil {
+		s.Log.Error("eventsub job publish failed", "broadcaster", userID, "err", err)
 		return s.errorPage(c, fiber.StatusInternalServerError, "Almost there",
-			"Your authorization was saved, but subscribing to your chat failed. Please try again.",
+			"Your authorization was saved, but enabling your channel events failed. Please try again.",
 			"/auth/enable-bot", "Try again")
+	}
+
+	if err := s.Dashboard.SetActive(c.Context(), userID, true); err != nil {
+		s.Log.Error("activate failed", "broadcaster", userID, "err", err)
 	}
 
 	s.Log.Info("bot enabled", "broadcaster", userID)
 	return c.Redirect("/app")
+}
+
+// botToggle flips whether the bot receives this channel's events. It enqueues
+// the intent on the outgress system lane (on creates the EventSub
+// subscriptions on the Conduit, off deletes them) so the Helix calls share
+// the fleet rate-limit bucket, then records the new active state. The grant
+// itself stays stored either way, so resuming never needs a new consent.
+func (s *Server) botToggle(c *fiber.Ctx) error {
+	userID := s.currentUserID(c)
+	on := c.FormValue("state") == "on"
+
+	if wait := s.toggleWait(userID); wait > 0 {
+		return s.errorPage(c, fiber.StatusTooManyRequests, "Not so fast",
+			fmt.Sprintf("Event delivery was changed recently. You can change it again in %d seconds.", int(wait.Seconds())+1),
+			"/app", "Back to dashboard")
+	}
+
+	hasGrant, err := s.Dashboard.HasBotGrant(c.Context(), userID)
+	if err != nil {
+		s.Log.Error("grant lookup failed", "broadcaster", userID, "err", err)
+		return s.errorPage(c, fiber.StatusInternalServerError, "Something broke",
+			"Could not check your authorization. Please try again.", "/app", "Back to dashboard")
+	}
+	if !hasGrant {
+		return c.Redirect("/auth/enable-bot")
+	}
+
+	if err := s.publishEventSub(c.Context(), userID, on); err != nil {
+		s.Log.Error("eventsub job publish failed", "broadcaster", userID, "on", on, "err", err)
+		return s.errorPage(c, fiber.StatusInternalServerError, "Something broke",
+			"Changing your channel events failed. Please try again in a minute.",
+			"/app", "Back to dashboard")
+	}
+
+	if err := s.Dashboard.SetActive(c.Context(), userID, on); err != nil {
+		s.Log.Error("active_set failed", "broadcaster", userID, "err", err)
+		return s.errorPage(c, fiber.StatusInternalServerError, "Something broke",
+			"Could not save the new state. Please try again.", "/app", "Back to dashboard")
+	}
+
+	s.Log.Info("receive toggle", "broadcaster", userID, "on", on)
+
+	if c.Get("HX-Request") == "true" {
+		tier := s.Broadcaster.Tier(userID)
+		enabled, _ := s.Dashboard.HasBotGrant(c.Context(), userID)
+		receiving, _ := s.Dashboard.IsActive(c.Context(), userID)
+		sess, _ := s.currentSession(c)
+		return render(c, pages.OverviewContent(sess.DisplayName, tier, enabled, receiving))
+	}
+
+	return c.Redirect("/app")
+}
+
+// toggleWait enforces the per-broadcaster cooldown. A non-zero return is how
+// long the caller still has to wait; zero starts a new cooldown window
+// immediately, so even failed flips count against the budget.
+func (s *Server) toggleWait(userID string) time.Duration {
+	s.toggleMu.Lock()
+	defer s.toggleMu.Unlock()
+
+	now := time.Now()
+	if at, ok := s.toggleAt[userID]; ok {
+		if rem := toggleCooldown - now.Sub(at); rem > 0 {
+			return rem
+		}
+	}
+
+	if s.toggleAt == nil {
+		s.toggleAt = make(map[string]time.Time)
+	}
+	// Opportunistic sweep keeps the map from growing with one entry per
+	// broadcaster forever.
+	if len(s.toggleAt) > 1024 {
+		for id, at := range s.toggleAt {
+			if now.Sub(at) > toggleCooldown {
+				delete(s.toggleAt, id)
+			}
+		}
+	}
+
+	s.toggleAt[userID] = now
+	return 0
 }
 
 func scopesOf(tok interface{ Extra(string) any }) []string {
@@ -284,6 +472,10 @@ func scopesOf(tok interface{ Extra(string) any }) []string {
 
 func (s *Server) logout(c *fiber.Ctx) error {
 	s.clearCookie(c, "bagel_session")
+	if c.Get("HX-Request") == "true" {
+		c.Set("HX-Redirect", "/")
+		return c.SendStatus(fiber.StatusOK)
+	}
 	return c.Redirect("/")
 }
 
@@ -296,37 +488,72 @@ func (s *Server) dashboard(c *fiber.Ctx) error {
 		s.Log.Error("grant lookup failed", "err", err)
 	}
 
-	c.Set("Content-Type", "text/html; charset=utf-8")
-	return ui.Dashboard(sess.Login, sess.DisplayName, tier, enabled).Render(c.Context(), c.Response().BodyWriter())
-}
-
-func (s *Server) events(c *fiber.Ctx) error {
-	c.Set("Content-Type", "text/event-stream")
-	c.Set("Cache-Control", "no-cache")
-	c.Set("Connection", "keep-alive")
-
-	msgs := make(chan *nats.Msg, 16)
-	sub, err := s.NATS.ChanSubscribe(s.StatusSubj+".>", msgs)
-	if err != nil {
-		return c.Status(fiber.StatusBadGateway).SendString("status feed unavailable")
+	receiving := false
+	if enabled {
+		if receiving, err = s.Dashboard.IsActive(c.Context(), userID); err != nil {
+			s.Log.Error("active lookup failed", "err", err)
+		}
 	}
 
-	done := c.Context().Done()
+	if c.Get("HX-Request") == "true" {
+		return render(c, pages.OverviewContent(sess.DisplayName, tier, enabled, receiving))
+	}
 
-	c.Context().SetBodyStreamWriter(func(w *bufio.Writer) {
-		defer sub.Unsubscribe()
-		for {
-			select {
-			case <-done:
-				return
-			case m := <-msgs:
-				fmt.Fprintf(w, "data: %s %s\n\n", m.Subject, m.Data)
-				w.Flush()
-			}
+	return render(c, pages.Overview(sess.Login, sess.DisplayName, tier, enabled, receiving))
+}
+
+func (s *Server) dashboardModules(c *fiber.Ctx) error {
+	sess, _ := s.currentSession(c)
+	return render(c, pages.Modules(sess.Login))
+}
+
+func (s *Server) dashboardCommands(c *fiber.Ctx) error {
+	sess, _ := s.currentSession(c)
+	cmds, err := s.Commands.List(c.Context(), sess.UserID)
+	if err != nil {
+		s.Log.Warn("commands list failed", "user", sess.UserID, "err", err)
+		cmds = nil
+	}
+	sel := c.Query("select")
+	var selected *rpc.CommandView
+	for i := range cmds {
+		if cmds[i].Name == sel {
+			selected = &cmds[i]
+			break
 		}
-	})
+	}
+	if c.Get("HX-Request") == "true" {
+		return render(c, pages.CommandsPanel(cmds, selected))
+	}
+	return render(c, pages.Commands(sess.Login, cmds, selected))
+}
 
-	return nil
+func (s *Server) commandSave(c *fiber.Ctx) error {
+	sess, _ := s.currentSession(c)
+	name := c.FormValue("name")
+	response := c.FormValue("response")
+	isActive := c.FormValue("is_active") == "on"
+	cmds, err := s.Commands.Upsert(c.Context(), sess.UserID, name, response, isActive)
+	if err != nil {
+		s.Log.Warn("commands upsert failed", "user", sess.UserID, "name", name, "err", err)
+		// degrade: re-list so the panel still shows current state
+		cmds, _ = s.Commands.List(c.Context(), sess.UserID)
+	}
+	var selected *rpc.CommandView
+	for i := range cmds {
+		if cmds[i].Name == name {
+			selected = &cmds[i]
+			break
+		}
+	}
+	return render(c, pages.CommandsPanel(cmds, selected))
+}
+
+func (s *Server) commandDelete(c *fiber.Ctx) error {
+	sess, _ := s.currentSession(c)
+	name := c.FormValue("name")
+	cmds, _ := s.Commands.Delete(c.Context(), sess.UserID, name)
+	return render(c, pages.CommandsPanel(cmds, nil))
 }
 
 func (s *Server) Shutdown(ctx context.Context) error {
