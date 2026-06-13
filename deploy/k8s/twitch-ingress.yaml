@@ -60,8 +60,6 @@ spec:
         # server-speaks-first Twitch EventSub wss:// sockets.
         config.linkerd.io/skip-outbound-ports: "443"
     spec:
-      imagePullSecrets:
-        - name: ghcr-pull
       # HA is node-level: pod anti-affinity spreads the replicas across
       # node1 (ARM) and node2 (Intel).
       affinity:

@@ -24,8 +24,13 @@ immutable. The tag alone cannot be mutated without also changing the digest refe
 already committed to git. CI also attests build provenance via
 `actions/attest-build-provenance`.
 
-GHCR packages are private; both the kubelet and the image-reflector-controller authenticate
-using the `ghcr-pull` dockerconfigjson secret (see setup below).
+GHCR packages are **public** (the repo is public), so neither the kubelet nor the
+image-reflector-controller needs any registry credential: pulls and scans are anonymous.
+This deliberately means there is **no GHCR token anywhere in the cluster**, so nothing can
+reach the package registries of other organizations the account belongs to. If the packages
+are ever made private, add a `ghcr-pull` dockerconfigjson secret in both the `production` and
+`flux-system` namespaces (scoped to this personal account only, e.g. a fine-grained PAT) and
+reference it from each `Deployment` (`imagePullSecrets`) and `ImageRepository` (`secretRef`).
 
 ## Anti-affinity and Rolling Update Notes
 
@@ -44,10 +49,11 @@ automation.
    brew install fluxcd/tap/flux
    ```
 
-2. Export a GitHub PAT with `repo` and `read:packages` scopes:
-   ```
-   export GITHUB_TOKEN=<your-PAT>
-   ```
+2. Export a GitHub token with `repo` scope for this personal repo only (the gh CLI token
+   works: `export GITHUB_TOKEN=$(gh auth token)`). Bootstrap uses it once to create a
+   repo-scoped **deploy key**; the persistent in-cluster credential is that deploy key (SSH,
+   limited to this repo), never an account- or org-wide token. No `packages` scope is needed
+   because the images are public.
 
 3. Bootstrap Flux into the cluster (the `--components-extra` flag is REQUIRED to install
    the image automation controllers, which are not included by default):
@@ -66,11 +72,7 @@ automation.
    > kustomization.yaml that omits `flux-system` would make the self-managing
    > Kustomization (prune enabled) delete its own controllers.
 
-4. Create the GHCR pull secrets in both namespaces:
-   ```
-   GHCR_USER=<your-github-username> GHCR_PAT=<pat-with-read:packages> \
-     ./deploy/flux/setup-secrets.sh
-   ```
+   No pull-secret step is required while the packages are public.
 
 ## Verifying the Setup
 
