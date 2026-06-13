@@ -1,0 +1,61 @@
+---
+# Server: broadcaster-data
+apiVersion: policy.linkerd.io/v1beta1
+kind: Server
+metadata:
+  name: broadcaster-data-http
+  namespace: production
+spec:
+  podSelector:
+    matchLabels:
+      app: broadcaster-data
+  port: 8080
+  proxyProtocol: HTTP/1
+---
+# Server: dashboard
+apiVersion: policy.linkerd.io/v1beta1
+kind: Server
+metadata:
+  name: dashboard-http
+  namespace: production
+spec:
+  podSelector:
+    matchLabels:
+      app: dashboard
+  port: 8080
+  proxyProtocol: HTTP/1
+---
+# Allow Kubelet probes to bypass auth (for Liveness/Readiness probes)
+# Linkerd automatically allows kubelet probes by default when using proxy injection, 
+# but making it explicit prevents breaking changes if policies are strict.
+apiVersion: policy.linkerd.io/v1alpha1
+kind: ServerAuthorization
+metadata:
+  name: allow-kubelet
+  namespace: production
+spec:
+  server:
+    selector:
+      matchExpressions:
+        - key: app
+          operator: In
+          values: [broadcaster-data, dashboard]
+  client:
+    networks:
+      - cidr: 0.0.0.0/0
+    unauthenticated: true
+---
+# Allow Traefik (in kube-system) to route traffic to the Dashboard
+apiVersion: policy.linkerd.io/v1alpha1
+kind: ServerAuthorization
+metadata:
+  name: dashboard-allow-ingress
+  namespace: production
+spec:
+  server:
+    name: dashboard-http
+  client:
+    # Since Traefik is unmeshed (or in kube-system without mTLS to bagelbot),
+    # we allow unauthenticated traffic to reach the dashboard. The dashboard
+    # has no internal data that isn't public, or it manages its own session auth.
+    unauthenticated: true

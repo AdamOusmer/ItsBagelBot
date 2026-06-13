@@ -1,0 +1,104 @@
+apiVersion: secrets.doppler.com/v1alpha1
+kind: DopplerSecret
+metadata:
+  name: users-env
+  namespace: production
+spec:
+  host: https://api.doppler.com
+  tokenSecret:
+    name: users-doppler-token
+  managedSecret:
+    name: users-env
+    namespace: production
+    type: Opaque
+  resyncSeconds: 60
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: users
+  namespace: production
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: users
+  template:
+    metadata:
+      labels:
+        app: users
+      annotations:
+        linkerd.io/inject: enabled
+    spec:
+      imagePullSecrets:
+        - name: ghcr-pull
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - users
+                topologyKey: kubernetes.io/hostname
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: users
+          image: ghcr.io/adamousmer/itsbagelbot/users:main # {"$imagepolicy": "flux-system:users"}
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: NATS_HOST
+              value: nats
+          envFrom:
+            - secretRef:
+                name: users-env
+          volumeMounts:
+            # Tink keyset for at-rest token encryption, synced from Doppler
+            # (TINK_KEYSET key of users-env) and consumed as a file via
+            # TINK_KEYSET_PATH=/etc/tink/keyset.json.
+            - name: tink-keyset
+              mountPath: /etc/tink
+              readOnly: true
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: 5m
+              memory: 64Mi
+            limits:
+              cpu: "1"
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+            periodSeconds: 30
+          readinessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+            periodSeconds: 10
+      volumes:
+        - name: tink-keyset
+          secret:
+            secretName: users-env
+            items:
+              - key: TINK_KEYSET
+                path: keyset.json
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: users
+  namespace: production
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: users

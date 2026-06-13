@@ -1,0 +1,156 @@
+# Twitch Ingress (Elixir/BEAM). Secrets sync from Doppler project
+# `twitch-ingress` (config prd) via the operator; the token secret
+# `twitch-ingress-doppler-token` is created out-of-band, never committed.
+apiVersion: secrets.doppler.com/v1alpha1
+kind: DopplerSecret
+metadata:
+  name: twitch-ingress-env
+  namespace: production
+spec:
+  host: https://api.doppler.com
+  tokenSecret:
+    name: twitch-ingress-doppler-token
+  managedSecret:
+    name: twitch-ingress-env
+    namespace: production
+    type: Opaque
+  resyncSeconds: 60
+---
+# Headless service: libcluster (Kubernetes.DNS strategy) resolves it to pod
+# IPs to form the BEAM cluster. publishNotReadyAddresses lets nodes find each
+# other before readiness, which is required for initial cluster formation.
+apiVersion: v1
+kind: Service
+metadata:
+  name: twitch-ingress-headless
+  namespace: production
+  annotations:
+    config.linkerd.io/opaque-ports: "4369,9100-9110"
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app: twitch-ingress
+  ports:
+    - name: epmd
+      port: 4369
+    - name: erlang-dist
+      port: 9100
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: twitch-ingress
+  namespace: production
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: twitch-ingress
+  template:
+    metadata:
+      labels:
+        app: twitch-ingress
+      annotations:
+        linkerd.io/inject: enabled
+        # Opaque ports for EPMD (4369) and Erlang distribution (9100-9110)
+        # to prevent Linkerd protocol detection timeouts on server-speaks-first.
+        config.linkerd.io/opaque-ports: "4369,9100-9110"
+        # Skip outbound port 443 to prevent mesh interference with the
+        # server-speaks-first Twitch EventSub wss:// sockets.
+        config.linkerd.io/skip-outbound-ports: "443"
+    spec:
+      imagePullSecrets:
+        - name: ghcr-pull
+      # HA is node-level: pod anti-affinity spreads the replicas across
+      # node1 (ARM) and node2 (Intel).
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - twitch-ingress
+                topologyKey: kubernetes.io/hostname
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999 # the image's `ingress` user; numeric so kubelet can verify
+        runAsGroup: 999
+        seccompProfile: { type: RuntimeDefault }
+
+      containers:
+        - name: ingress
+          image: ghcr.io/adamousmer/itsbagelbot/twitch-ingress:main # {"$imagepolicy": "flux-system:twitch-ingress"}
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - secretRef:
+                name: twitch-ingress-env
+          env:
+            - name: NATS_HOST
+              value: nats
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: RELEASE_DISTRIBUTION
+              value: name
+            - name: RELEASE_NODE
+              value: ingress@$(POD_IP)
+            - name: RELEASE_COOKIE
+              valueFrom:
+                secretKeyRef:
+                  name: twitch-ingress-env
+                  key: BAGELBOT_ERLANG_COOKIE
+            - name: NEW_RELIC_APP_NAME
+              value: "ItsBagelBot-Ingress"
+            - name: NEW_RELIC_LOGS_IN_CONTEXT
+              value: "direct"
+            # The BEAM sizes schedulers from the host's logical CPUs, not the
+            # cgroup quota. Cap schedulers to the CPU limit below and disable
+            # scheduler busy-waiting so idle spinning never eats host cores.
+            - name: ERL_FLAGS
+              # Range, not a single port: probe/remote-shell hidden nodes
+              # need their own listen port besides the main VM's.
+              value: >-
+                +S 2:2 +SDio 4
+                +sbwt none +sbwtdcpu none +sbwtdio none
+                -kernel inet_dist_listen_min 9100
+                -kernel inet_dist_listen_max 9110
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              cpu: "2"
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          livenessProbe:
+            exec:
+              command: ["/app/bin/ingress", "pid"]
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            exec:
+              command: ["/app/bin/ingress", "pid"]
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            timeoutSeconds: 5
+      terminationGracePeriodSeconds: 30
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: twitch-ingress
+  namespace: production
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: twitch-ingress
