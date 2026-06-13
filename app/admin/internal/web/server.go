@@ -6,20 +6,28 @@ package web
 
 import (
 	"bufio"
+	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/a-h/templ"
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/csrf"
+	"github.com/gofiber/fiber/v2/middleware/filesystem"
 	"github.com/nats-io/nats.go"
 	"github.com/newrelic/go-agent/v3/integrations/nrfiber"
 	"github.com/newrelic/go-agent/v3/newrelic"
 
 	"itsbagelbot/admin/internal/rpc"
 	"itsbagelbot/admin/ui"
+	"itsbagelbot/admin/ui/components"
+	"itsbagelbot/admin/ui/pages"
 )
 
 type Server struct {
@@ -48,6 +56,18 @@ func (s *Server) Routes() *fiber.App {
 
 	app.Use(nrfiber.Middleware(s.NewRelic))
 	app.Use(securityHeaders)
+	app.Use(csrf.New(csrf.Config{
+		KeyLookup:      "header:X-CSRF-Token",
+		CookieName:     "csrf_",
+		ContextKey:     "csrf",
+		CookieSameSite: "Lax",
+		CookieSecure:   true,
+		CookieHTTPOnly: true,
+	}))
+	app.Use("/assets", filesystem.New(filesystem.Config{
+		Root:   http.FS(ui.AssetsFS),
+		MaxAge: 3600,
+	}))
 
 	app.Get("/", s.home)
 	app.Get("/shards", s.shardsPage)
@@ -68,12 +88,20 @@ func (s *Server) Routes() *fiber.App {
 }
 
 func securityHeaders(c *fiber.Ctx) error {
+	nonceBytes := make([]byte, 16)
+	rand.Read(nonceBytes)
+	nonce := base64.RawURLEncoding.EncodeToString(nonceBytes)
+	c.Locals("nonce", nonce)
+
 	c.Set("Content-Security-Policy", strings.Join([]string{
 		"default-src 'self'",
 		"base-uri 'self'",
 		"object-src 'none'",
 		"frame-ancestors 'none'",
-		"script-src 'self' 'unsafe-inline'",
+		fmt.Sprintf("script-src 'self' 'nonce-%s' https://unpkg.com", nonce),
+		// No nonce in style-src: templ components use inline style="" attributes,
+		// and a nonce in style-src makes browsers ignore 'unsafe-inline', which
+		// would block those attributes. 'self' covers the embedded style.css.
 		"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
 		"font-src 'self' https://fonts.gstatic.com",
 		"connect-src 'self'",
@@ -81,7 +109,7 @@ func securityHeaders(c *fiber.Ctx) error {
 	}, "; "))
 	c.Set("X-Content-Type-Options", "nosniff")
 	c.Set("X-Frame-Options", "DENY")
-	c.Set("Referrer-Policy", "no-referrer")
+	c.Set("Referrer-Policy", "same-origin")
 	c.Set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()")
 	c.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 	c.Set("Cache-Control", "no-store")
@@ -136,64 +164,95 @@ func (s *Server) userStats() (*rpc.UserStats, string) {
 
 func render(c *fiber.Ctx, component templ.Component) error {
 	c.Set("Content-Type", "text/html; charset=utf-8")
-	return component.Render(c.Context(), c.Response().BodyWriter())
+
+	ctx := c.Context()
+	var stdCtx context.Context = ctx
+
+	if nonce, ok := c.Locals("nonce").(string); ok {
+		stdCtx = context.WithValue(stdCtx, "nonce", nonce)
+	}
+	if token, ok := c.Locals("csrf").(string); ok {
+		stdCtx = context.WithValue(stdCtx, "csrf", token)
+	}
+
+	return component.Render(stdCtx, c.Response().BodyWriter())
 }
 
 func (s *Server) home(c *fiber.Ctx) error {
-	return render(c, ui.Admin(time.Now()))
+	if c.Get("HX-Request") == "true" {
+		return render(c, pages.HomePartial(time.Now()))
+	}
+	return render(c, pages.Home(time.Now()))
 }
 
 func (s *Server) shardsPage(c *fiber.Ctx) error {
-	return render(c, ui.ShardsPage())
+	if c.Get("HX-Request") == "true" {
+		return render(c, pages.ShardsPartial())
+	}
+	return render(c, pages.Shards("Shard Health - ItsBagelBot Admin"))
 }
 
 func (s *Server) usersPage(c *fiber.Ctx) error {
-	return render(c, ui.UsersPage())
+	if c.Get("HX-Request") == "true" {
+		return render(c, pages.UsersPartial())
+	}
+	return render(c, pages.Users("Users - ItsBagelBot Admin"))
 }
 
 func (s *Server) userStatsFragment(c *fiber.Ctx) error {
 	stats, errMsg := s.userStats()
-	return render(c, ui.UserStatsCards(stats, errMsg))
+	return render(c, components.UserStatsCards(stats, errMsg))
 }
 
 func (s *Server) shardStat(c *fiber.Ctx) error {
 	snap, errMsg := s.snapshot()
-	return render(c, ui.ShardStatCard(snap, errMsg))
+	return render(c, components.ShardStatCard(snap, errMsg))
 }
 
 // fragment serves the #live region the page swaps in on every refresh.
 func (s *Server) fragment(c *fiber.Ctx) error {
 	snap, errMsg := s.snapshot()
-	return render(c, ui.Live(snap, errMsg, time.Now()))
+	return render(c, components.Live(snap, errMsg, time.Now()))
 }
 
 func (s *Server) shardSummary(c *fiber.Ctx) error {
 	snap, errMsg := s.snapshot()
-	return render(c, ui.ShardSummary(snap, errMsg, time.Now()))
+	return render(c, components.ShardSummary(snap, errMsg, time.Now()))
 }
 
 func (s *Server) userLookup(c *fiber.Ctx) error {
 	q := strings.TrimSpace(c.Query("q"))
 	if len(q) > 128 {
-		return render(c, ui.UserError("query too long"))
+		return render(c, components.UserError("query too long"))
 	}
 	u, err := s.Users.Lookup(q)
 	if err != nil {
 		// An unknown numeric id is grantable: the grant provisions the row.
 		if err.Error() == "user not found" && rpc.IsDigits(q) {
-			return render(c, ui.UserNotRegistered(q))
+			return render(c, components.UserNotRegistered(q))
 		}
-		return render(c, ui.UserError(err.Error()))
+		return render(c, components.UserError(err.Error()))
 	}
-	return render(c, ui.UserDetail(*u, time.Now()))
+	return render(c, components.UserDetail(*u, s.tokenPresent(u.ID), time.Now()))
+}
+
+// tokenPresent reports whether the user has a stored Twitch token; lookup
+// failures degrade to "absent" rather than blocking the whole detail view.
+func (s *Server) tokenPresent(id uint64) bool {
+	ts, err := s.Users.TokenGet(fmt.Sprint(id))
+	if err != nil {
+		s.Log.Warn("token status failed", "user", id, "err", err)
+		return false
+	}
+	return ts.Present
 }
 
 func (s *Server) userRecent(c *fiber.Ctx) error {
 	users, err := s.Users.Recent(20)
 	if err != nil {
-		return render(c, ui.UserError(err.Error()))
+		return render(c, components.UserError(err.Error()))
 	}
-	return render(c, ui.UserRecent(users))
+	return render(c, components.UserRecent(users))
 }
 
 // userAction is the only mutating endpoint. Tailnet reachability is the
@@ -217,15 +276,25 @@ func (s *Server) userAction(c *fiber.Ctx) error {
 		u, err = s.Users.SetStatus(userID, action)
 	case "reset":
 		u, err = s.Users.Reset(userID)
+	case "set_token":
+		// The token values pass through to the users service, which encrypts
+		// them at rest; nothing here logs or stores them.
+		if _, err = s.Users.TokenSet(userID, c.FormValue("access_token"), c.FormValue("refresh_token")); err == nil {
+			u, err = s.Users.Lookup(userID)
+		}
+	case "clear_token":
+		if _, err = s.Users.TokenClear(userID); err == nil {
+			u, err = s.Users.Lookup(userID)
+		}
 	default:
 		err = fmt.Errorf("unknown action")
 	}
 	if err != nil {
 		s.Log.Warn("user action failed", "user", userID, "action", action, "err", err)
-		return render(c, ui.UserError(err.Error()))
+		return render(c, components.UserError(err.Error()))
 	}
 	s.Log.Info("user action", "user", userID, "action", action)
-	return render(c, ui.UserDetail(*u, time.Now()))
+	return render(c, components.UserDetail(*u, s.tokenPresent(u.ID), time.Now()))
 }
 
 // events streams ingress shard up/down messages to the browser as SSE.
@@ -245,16 +314,29 @@ func (s *Server) events(c *fiber.Ctx) error {
 		// Push a comment now: shard events can be hours apart, and the
 		// browser's EventSource should not sit on an unanswered request.
 		fmt.Fprint(w, ": connected\n\n")
-		_ = w.Flush()
+		if err := w.Flush(); err != nil {
+			return
+		}
 
-		ctx := c.Context()
+		ticker := time.NewTicker(15 * time.Second)
+		defer ticker.Stop()
+
 		for {
 			select {
-			case <-ctx.Done():
-				return
+			case <-ticker.C:
+				if _, err := fmt.Fprint(w, ": keepalive\n\n"); err != nil {
+					return
+				}
+				if err := w.Flush(); err != nil {
+					return
+				}
 			case m := <-msgs:
-				fmt.Fprintf(w, "data: %s %s\n\n", m.Subject, m.Data)
-				_ = w.Flush()
+				if _, err := fmt.Fprintf(w, "data: %s %s\n\n", m.Subject, m.Data); err != nil {
+					return
+				}
+				if err := w.Flush(); err != nil {
+					return
+				}
 			}
 		}
 	})

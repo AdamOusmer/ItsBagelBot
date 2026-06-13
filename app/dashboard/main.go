@@ -8,7 +8,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/nats-io/nats.go"
+	"ItsBagelBot/pkg/bus"
 
 	"itsbagelbot/dashboard/internal/config"
 	"itsbagelbot/dashboard/internal/crypto"
@@ -17,6 +17,8 @@ import (
 
 	"itsbagelbot/dashboard/internal/twitch"
 	"itsbagelbot/dashboard/internal/web"
+
+	"go.uber.org/zap"
 )
 
 func main() {
@@ -35,9 +37,7 @@ func main() {
 	}
 	defer monitor.Shutdown(nrApp)
 
-	nc, err := nats.Connect(cfg.NATSURL,
-		nats.MaxReconnects(-1),
-		nats.ReconnectWait(2*time.Second))
+	nc, err := bus.Connect(cfg.NATSURL, "dashboard")
 	if err != nil {
 		log.Error("nats connect", "err", err)
 		os.Exit(1)
@@ -61,15 +61,23 @@ func main() {
 		os.Exit(1)
 	}
 
+	zlog, _ := zap.NewProduction()
+	outgressPub, err := bus.NewPublisher(cfg.NATSURL, zlog)
+	if err != nil {
+		log.Error("outgress publisher", "err", err)
+		os.Exit(1)
+	}
+
 	srv := &web.Server{
 		Dashboard:   dash,
+		Commands:    rpc.NewCommands(nc, cfg.CommandsRPCPrefix),
 		Twitch:      twitch.New(cfg.TwitchClientID, cfg.TwitchClientSecret, cfg.BaseURL, cfg.BotScopes),
 		Broadcaster: rpc.NewBroadcaster(nc, cfg.BroadcasterStatusSubject),
 		AEAD:        aead,
 		SessionAEAD: sessionAead,
 		NATS:        nc,
-		StatusSubj:  cfg.StatusSubjectPrefix,
-		ConduitID:   cfg.TwitchConduitID,
+		Outgress:    outgressPub,
+		SystemSubj:  cfg.OutgressSystemSubject,
 		BaseURL:     cfg.BaseURL,
 		Log:         log,
 		NewRelic:    nrApp,

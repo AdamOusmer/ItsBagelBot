@@ -1,0 +1,429 @@
+// Package worker drains one outgress lane: it enforces the channel registry,
+// the Twitch rate limits, and the premium reservation, then executes the
+// Helix request. Handlers nack on anything retryable and rely on the lane
+// subscriber's paced redelivery, so a rate-limited or failing message waits
+// out its budget instead of spinning.
+package worker
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"strings"
+	"time"
+
+	"ItsBagelBot/app/outgress/internal/channels"
+	"ItsBagelBot/app/outgress/internal/ratelimit"
+	"ItsBagelBot/app/outgress/internal/twitch"
+
+	"github.com/ThreeDotsLabs/watermill/message"
+
+	"go.uber.org/zap"
+)
+
+// Twitch enforces the chat limits per channel (20 messages per 30s, 100 when
+// the bot moderates the channel) and one Helix budget per app token (800 per
+// minute, shared by every endpoint the app calls).
+//
+// That 800/min budget is partitioned so the lanes cannot starve each other:
+//
+//	helixSystemReserve   tokens/min are reserved for the system lane (the
+//	                     dashboard's EventSub create/delete jobs), drawn from
+//	                     ratelimit:helix:system and nothing else. Reserving
+//	                     them means an onboarding burst always has capacity,
+//	                     and capping the lane to them means a flood of toggles
+//	                     can never drain the budget chat/api traffic needs.
+//	helixGeneralCapacity tokens/min (the remainder) back ordinary api traffic
+//	                     on ratelimit:helix:app. The standard lane is held to
+//	                     half of that by its own bucket, so premium api always
+//	                     finds at least half of the general budget free.
+//
+// The two partitions are disjoint and sum to the real limit, so the fleet
+// never exceeds 800/min no matter how the lanes mix.
+const (
+	chatCapacity    = 20.0
+	chatModCapacity = 100.0
+	chatWindow      = 30.0
+
+	helixCapacity        = 800.0
+	helixWindow          = 60.0
+	helixSystemReserve   = 100.0
+	helixGeneralCapacity = helixCapacity - helixSystemReserve
+
+	// modStatusTTL is how long a verified mod status is trusted before the
+	// worker re-checks it against Twitch.
+	modStatusTTL = time.Hour
+)
+
+// Lane identifies which queue a worker drains; it selects the rate-limit
+// buckets the worker pays into.
+type Lane int
+
+const (
+	LanePremium Lane = iota
+	LaneStandard
+	LaneSystem
+)
+
+// ErrPaused nacks every message while the kill switch is on; redelivery
+// pacing holds them until resume or until their retry budget runs out.
+var ErrPaused = errors.New("outgress is paused")
+
+// OutgressMessage is the wire contract every producer publishes on the
+// outgress subjects.
+type OutgressMessage struct {
+	Type          string          `json:"type"`           // "chat", "api" or "eventsub"
+	BroadcasterID string          `json:"broadcaster_id"` // target channel
+	SenderID      string          `json:"sender_id"`      // the bot's user ID
+	Endpoint      string          `json:"endpoint"`       // Helix path, e.g. "/helix/chat/messages"
+	Method        string          `json:"method"`         // HTTP method
+	Payload       json.RawMessage `json:"payload"`        // raw JSON body
+}
+
+// EventSubJob is the payload of an "eventsub" message: the receive toggle's
+// intent for one channel. Enabled creates the channel's subscriptions on the
+// Conduit, disabled deletes them.
+type EventSubJob struct {
+	Enabled bool `json:"enabled"`
+}
+
+type Worker struct {
+	log       *zap.Logger
+	limiter   *ratelimit.Limiter
+	registry  *channels.Registry
+	twitch    *twitch.Client
+	botID     string
+	conduitID string
+	lane      Lane
+}
+
+func New(log *zap.Logger, limiter *ratelimit.Limiter, registry *channels.Registry, tw *twitch.Client, botID, conduitID string, lane Lane) *Worker {
+	return &Worker{
+		log:       log,
+		limiter:   limiter,
+		registry:  registry,
+		twitch:    tw,
+		botID:     botID,
+		conduitID: conduitID,
+		lane:      lane,
+	}
+}
+
+func (w *Worker) Process(msg *message.Message) error {
+
+	var payload OutgressMessage
+	if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+		w.log.Error("dropping malformed outgress message", zap.Error(err))
+		return nil
+	}
+
+	ctx := msg.Context()
+
+	paused, err := w.registry.Paused(ctx)
+	if err != nil {
+		return err
+	}
+	if paused {
+		return ErrPaused
+	}
+
+	switch payload.Type {
+	case "chat", "api":
+		if !strings.HasPrefix(payload.Endpoint, "/helix/") || payload.Method == "" {
+			w.log.Error("dropping message with invalid request",
+				zap.String("endpoint", payload.Endpoint),
+				zap.String("method", payload.Method))
+			return nil
+		}
+		if payload.Type == "chat" {
+			return w.processChat(ctx, payload)
+		}
+		return w.processAPI(ctx, payload)
+	case "eventsub":
+		return w.processEventSub(ctx, payload)
+	default:
+		w.log.Error("dropping message with unknown type", zap.String("type", payload.Type))
+		return nil
+	}
+}
+
+func (w *Worker) processChat(ctx context.Context, payload OutgressMessage) error {
+
+	ch, found, err := w.registry.Get(ctx, payload.BroadcasterID)
+	if err != nil {
+		return err
+	}
+	if found && !ch.Enabled {
+		w.log.Info("dropping message for disabled channel", zap.String("broadcaster_id", payload.BroadcasterID))
+		return nil
+	}
+
+	capacity := chatCapacity
+	if w.modStatus(ctx, payload, ch, found) {
+		capacity = chatModCapacity
+	}
+	refill := capacity / chatWindow
+
+	// The standard lane pays its restricted bucket first: if the shared
+	// bucket then rejects, the wasted token only makes standard traffic more
+	// conservative, while the reverse order would let it drain tokens the
+	// premium lane is entitled to.
+	if w.lane == LaneStandard {
+		if err := w.take(ctx, ratelimit.Bucket{
+			Key:             "ratelimit:chat:standard:" + payload.BroadcasterID,
+			Capacity:        capacity / 2,
+			RefillPerSecond: refill / 2,
+		}); err != nil {
+			return err
+		}
+	}
+
+	if err := w.take(ctx, ratelimit.Bucket{
+		Key:             "ratelimit:chat:" + payload.BroadcasterID,
+		Capacity:        capacity,
+		RefillPerSecond: refill,
+	}); err != nil {
+		return err
+	}
+
+	return w.execute(ctx, payload)
+}
+
+func (w *Worker) processAPI(ctx context.Context, payload OutgressMessage) error {
+
+	if w.lane == LaneStandard {
+		if err := w.take(ctx, ratelimit.Bucket{
+			Key:             "ratelimit:helix:app:standard",
+			Capacity:        helixGeneralCapacity / 2,
+			RefillPerSecond: helixGeneralCapacity / helixWindow / 2,
+		}); err != nil {
+			return err
+		}
+	}
+
+	if err := w.takeGeneralHelix(ctx); err != nil {
+		return err
+	}
+
+	return w.execute(ctx, payload)
+}
+
+// processEventSub applies the receive toggle for one channel, paying the
+// reserved system Helix bucket once per HTTP call. Conduit EventSub
+// management runs under the app token, and the broadcaster's onboarding
+// consent (channel:bot, user:read:chat, user:bot, channel:read:subscriptions,
+// bits:read, moderator:read:followers) is what authorizes the subscriptions;
+// no bot user token is involved here. Creates are 409-idempotent and deletes
+// 404-idempotent, so a job nacked halfway (rate limit, transient Twitch
+// error) converges when redelivery re-runs it.
+func (w *Worker) processEventSub(ctx context.Context, payload OutgressMessage) error {
+
+	if w.conduitID == "" {
+		w.log.Error("dropping eventsub job, no conduit id configured",
+			zap.String("broadcaster_id", payload.BroadcasterID))
+		return nil
+	}
+	if payload.BroadcasterID == "" {
+		w.log.Error("dropping eventsub job without broadcaster id")
+		return nil
+	}
+
+	var job EventSubJob
+	if err := json.Unmarshal(payload.Payload, &job); err != nil {
+		w.log.Error("dropping malformed eventsub job", zap.Error(err))
+		return nil
+	}
+
+	if job.Enabled {
+		return w.enableEventSubs(ctx, payload.BroadcasterID)
+	}
+	return w.disableEventSubs(ctx, payload.BroadcasterID)
+}
+
+func (w *Worker) enableEventSubs(ctx context.Context, broadcasterID string) error {
+
+	for _, spec := range twitch.ChannelSubscriptions(broadcasterID) {
+		if err := w.takeSystemHelix(ctx); err != nil {
+			return err
+		}
+		if err := w.twitch.CreateEventSub(ctx, spec, w.conduitID); err != nil {
+			return w.eventSubFailure(err, "eventsub create", broadcasterID, spec.Type)
+		}
+	}
+
+	w.log.Info("eventsub subscriptions created", zap.String("broadcaster_id", broadcasterID))
+	return nil
+}
+
+func (w *Worker) disableEventSubs(ctx context.Context, broadcasterID string) error {
+
+	deleted := 0
+	cursor := ""
+	for {
+		if err := w.takeSystemHelix(ctx); err != nil {
+			return err
+		}
+		subs, next, err := w.twitch.ListEventSubs(ctx, broadcasterID, cursor)
+		if err != nil {
+			return w.eventSubFailure(err, "eventsub list", broadcasterID, "")
+		}
+
+		for _, sub := range subs {
+			if sub.Transport.ConduitID != w.conduitID {
+				continue
+			}
+			if err := w.takeSystemHelix(ctx); err != nil {
+				return err
+			}
+			if err := w.twitch.DeleteEventSub(ctx, sub.ID); err != nil {
+				return w.eventSubFailure(err, "eventsub delete", broadcasterID, "")
+			}
+			deleted++
+		}
+
+		if next == "" {
+			break
+		}
+		cursor = next
+	}
+
+	w.log.Info("eventsub subscriptions removed",
+		zap.String("broadcaster_id", broadcasterID), zap.Int("deleted", deleted))
+	return nil
+}
+
+// eventSubFailure splits permanent rejections (bad request, missing consent
+// scopes) from everything retryable. Permanent ones are dropped with a log
+// line; retrying them would burn the whole redelivery budget for nothing.
+func (w *Worker) eventSubFailure(err error, op, broadcasterID, subType string) error {
+
+	var status *twitch.StatusError
+	if errors.As(err, &status) &&
+		status.Status >= 400 && status.Status < 500 &&
+		status.Status != http.StatusTooManyRequests &&
+		status.Status != http.StatusUnauthorized {
+		w.log.Error("dropping eventsub job twitch rejected",
+			zap.String("op", op),
+			zap.String("broadcaster_id", broadcasterID),
+			zap.String("subscription", subType),
+			zap.Error(err))
+		return nil
+	}
+
+	w.log.Warn("eventsub job failed, will retry",
+		zap.String("op", op),
+		zap.String("broadcaster_id", broadcasterID),
+		zap.Error(err))
+	return err
+}
+
+// takeGeneralHelix consumes one token from the general Helix budget, the
+// partition that backs ordinary api traffic.
+func (w *Worker) takeGeneralHelix(ctx context.Context) error {
+	return w.take(ctx, ratelimit.Bucket{
+		Key:             "ratelimit:helix:app",
+		Capacity:        helixGeneralCapacity,
+		RefillPerSecond: helixGeneralCapacity / helixWindow,
+	})
+}
+
+// takeSystemHelix consumes one token from the reserved system partition.
+// Only the system lane pays here, so dashboard EventSub jobs always have
+// their reserved capacity and can never spend the general api budget.
+func (w *Worker) takeSystemHelix(ctx context.Context) error {
+	return w.take(ctx, ratelimit.Bucket{
+		Key:             "ratelimit:helix:system",
+		Capacity:        helixSystemReserve,
+		RefillPerSecond: helixSystemReserve / helixWindow,
+	})
+}
+
+// take consumes one token or returns an error that nacks the message, so the
+// paced redelivery retries it once the bucket has refilled.
+func (w *Worker) take(ctx context.Context, bucket ratelimit.Bucket) error {
+
+	allowed, err := w.limiter.Allow(ctx, bucket)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		return fmt.Errorf("rate limit exceeded on %s", bucket.Key)
+	}
+
+	return nil
+}
+
+// modStatus resolves whether the bot moderates the channel: a fresh verified
+// answer from the registry wins, then live verification when the bot has a
+// user token, then whatever the registry holds, then the safe default of
+// non-mod, which never over-sends.
+func (w *Worker) modStatus(ctx context.Context, payload OutgressMessage, ch channels.Channel, found bool) bool {
+
+	if found && !ch.ModCheckedAt.IsZero() && time.Since(ch.ModCheckedAt) < modStatusTTL {
+		return ch.IsMod
+	}
+
+	botID := w.botID
+	if botID == "" {
+		botID = payload.SenderID
+	}
+
+	isMod, err := w.twitch.IsModerator(ctx, botID, payload.BroadcasterID)
+	if err != nil {
+		if !errors.Is(err, twitch.ErrNoUserToken) {
+			w.log.Warn("mod status verification failed",
+				zap.String("broadcaster_id", payload.BroadcasterID),
+				zap.Error(err))
+		}
+		return found && ch.IsMod
+	}
+
+	if err := w.registry.SetMod(ctx, payload.BroadcasterID, isMod); err != nil {
+		w.log.Warn("failed to cache mod status", zap.Error(err))
+	}
+
+	return isMod
+}
+
+func (w *Worker) execute(ctx context.Context, payload OutgressMessage) error {
+
+	res, err := w.twitch.Do(ctx, payload.Method, payload.Endpoint, payload.Payload)
+	if err != nil {
+		w.log.Error("twitch request failed", zap.Error(err))
+		return err
+	}
+	defer res.Body.Close()
+
+	switch {
+	case res.StatusCode == http.StatusTooManyRequests:
+		w.log.Warn("twitch rate limited the app",
+			zap.String("endpoint", payload.Endpoint),
+			zap.Duration("retry_after", twitch.RetryAfter(res)))
+		return fmt.Errorf("twitch 429 on %s", payload.Endpoint)
+
+	case res.StatusCode == http.StatusUnauthorized || res.StatusCode == http.StatusForbidden:
+		// The client already retried once with a fresh token, so this is a
+		// real credentials problem; nack so messages survive until it
+		// recovers instead of being silently dropped.
+		w.log.Error("twitch rejected our credentials",
+			zap.Int("status", res.StatusCode),
+			zap.String("endpoint", payload.Endpoint))
+		return fmt.Errorf("twitch auth failure: %d", res.StatusCode)
+
+	case res.StatusCode >= 500:
+		return fmt.Errorf("twitch server error: %d", res.StatusCode)
+
+	case res.StatusCode >= 400:
+		body, _ := io.ReadAll(io.LimitReader(res.Body, 2048))
+		w.log.Error("dropping request twitch rejected",
+			zap.Int("status", res.StatusCode),
+			zap.String("endpoint", payload.Endpoint),
+			zap.String("body", string(body)))
+		return nil
+	}
+
+	return nil
+}

@@ -14,11 +14,12 @@ type Config struct {
 
 	TwitchClientID     string
 	TwitchClientSecret string
-	TwitchConduitID    string // EventSub subscriptions are bound to this conduit
 	BotScopes          string // space-separated scopes for the bot-enable consent
 
 	DashboardRPCPrefix       string
+	CommandsRPCPrefix        string
 	CacheInvalidationSubject string
+	OutgressSystemSubject    string // lane carrying EventSub on/off jobs to outgress
 
 	NATSURL                  string
 	BroadcasterStatusSubject string
@@ -44,16 +45,20 @@ func need(key string) (string, error) {
 
 func Load() (*Config, error) {
 	c := &Config{
-		ListenAddr:               get("DASHBOARD_LISTEN_ADDR", ":8080"),
-		BaseURL:                  get("DASHBOARD_BASE_URL", "http://localhost:8080"),
-		// channel:bot authorizes the bot on the channel; user:read:chat plus
-		// user:bot are required on the chatting user for app-token
-		// channel.chat.message subscriptions.
-		BotScopes:                get("DASHBOARD_BOT_SCOPES", "channel:bot user:read:chat user:bot"),
+		ListenAddr: get("DASHBOARD_LISTEN_ADDR", ":8080"),
+		BaseURL:    get("DASHBOARD_BASE_URL", "http://localhost:8080"),
+		// One consent carries everything: channel:bot authorizes the bot on
+		// the channel; user:read:chat plus user:bot are required on the
+		// chatting user for app-token channel.chat.message subscriptions;
+		// the read scopes unlock the broadcaster events (subs, cheers,
+		// follows) the bot receives.
+		BotScopes:                get("DASHBOARD_BOT_SCOPES", "channel:bot user:read:chat user:bot channel:read:subscriptions bits:read moderator:read:followers"),
 		BroadcasterStatusSubject: get("NATS_BROADCASTER_STATUS_SUBJECT", "bagel.rpc.broadcaster.status.get"),
 		StatusSubjectPrefix:      get("NATS_STATUS_SUBJECT_PREFIX", "twitch.ingress.status"),
 		DashboardRPCPrefix:       get("NATS_DASHBOARD_SUBJECT_PREFIX", "bagel.rpc.dashboard"),
+		CommandsRPCPrefix:        get("NATS_COMMANDS_SUBJECT_PREFIX", "bagel.rpc.commands"),
 		CacheInvalidationSubject: get("NATS_CACHE_INVALIDATION_SUBJECT", "bagel.cache.invalidate.broadcaster"),
+		OutgressSystemSubject:    get("NATS_OUTGRESS_SYSTEM_SUBJECT", "twitch.outgress.system"),
 	}
 
 	var err error
@@ -63,13 +68,8 @@ func Load() (*Config, error) {
 	if c.TwitchClientSecret, err = need("TWITCH_CLIENT_SECRET"); err != nil {
 		return nil, err
 	}
-	if c.TwitchConduitID, err = need("TWITCH_CONDUIT_ID"); err != nil {
-		return nil, err
-	}
 
 	c.NATSURL = fmt.Sprintf("nats://%s:%s", get("NATS_HOST", "127.0.0.1"), get("NATS_PORT", "4222"))
-
-
 
 	rawKey, err := need("DASHBOARD_AEAD_KEY")
 	if err != nil {

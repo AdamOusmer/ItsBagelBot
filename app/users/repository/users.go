@@ -133,6 +133,25 @@ func (r *Users) SetStatus(ctx context.Context, id uint64, status user.Status) er
 	return r.publishChanged(ctx, id)
 }
 
+// SetActive flips whether the bot serves this broadcaster. The dashboard
+// toggle drives it: inactive users project to standard tier and the ingress
+// drops their traffic, so flipping it off silences the channel even before
+// the EventSub subscriptions are gone.
+func (r *Users) SetActive(ctx context.Context, id uint64, active bool) error {
+
+	if err := validate.UserID(id); err != nil {
+		return err
+	}
+
+	if err := r.client.User.UpdateOneID(id).
+		SetIsActive(active).
+		Exec(ctx); err != nil {
+		return err
+	}
+
+	return r.publishChanged(ctx, id)
+}
+
 // Delete removes the user; tokens cascade away with the row.
 func (r *Users) Delete(ctx context.Context, id uint64) error {
 

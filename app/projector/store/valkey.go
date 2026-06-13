@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"strings"
 
 	"ItsBagelBot/pkg/cache"
 
@@ -29,13 +30,16 @@ type Valkey struct {
 
 func NewValkey(address string, password string) (*Valkey, error) {
 
-	client, err := valkey.NewClient(valkey.ClientOption{
+	valkeyOpts := valkey.ClientOption{
 		InitAddress: []string{address},
 		Password:    password,
-		// The projector only writes; client-side caching would only add
-		// memory for invalidation tracking we never benefit from.
 		DisableCache: true,
-	})
+	}
+	if strings.HasSuffix(address, ":26379") {
+		valkeyOpts.Sentinel = valkey.SentinelOption{MasterSet: "myprimary"}
+	}
+
+	client, err := valkey.NewClient(valkeyOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -50,13 +54,39 @@ func (v *Valkey) SetUser(ctx context.Context, userID uint64, status string, isAc
 
 	key := cache.UserKey(settingsKeyPrefix, userID)
 
-	return v.client.Do(ctx, v.client.B().Hset().
+	err := v.client.Do(ctx, v.client.B().Hset().
 		Key(key).
 		FieldValue().
 		FieldValue("status", status).
 		FieldValue("active", boolField(isActive)).
 		Build(),
 	).Error()
+	if err != nil {
+		return err
+	}
+	
+	return v.client.Do(ctx, v.client.B().Expire().Key(key).Seconds(24*60*60).Build()).Error()
+}
+
+// GetUser retrieves the tier status and active flag of one user.
+func (v *Valkey) GetUser(ctx context.Context, userID uint64) (string, bool, error) {
+	defer segment(ctx, "HGETALL")()
+
+	key := cache.UserKey(settingsKeyPrefix, userID)
+
+	res, err := v.client.Do(ctx, v.client.B().Hmget().Key(key).Field("status").Field("active").Build()).AsStrSlice()
+	if err != nil {
+		return "", false, err
+	}
+	
+	if len(res) < 2 {
+		return "", false, nil
+	}
+
+	status := res[0]
+	active := res[1] == "1"
+
+	return status, active, nil
 }
 
 // SetModule projects one module row of one user.
@@ -75,7 +105,11 @@ func (v *Valkey) SetModule(ctx context.Context, userID uint64, name string, isEn
 		fields = fields.FieldValue("module:"+name+":config", string(configs))
 	}
 
-	return v.client.Do(ctx, fields.Build()).Error()
+	if err := v.client.Do(ctx, fields.Build()).Error(); err != nil {
+		return err
+	}
+	
+	return v.client.Do(ctx, v.client.B().Expire().Key(key).Seconds(24*60*60).Build()).Error()
 }
 
 // DeleteUser drops the whole projection of one user.

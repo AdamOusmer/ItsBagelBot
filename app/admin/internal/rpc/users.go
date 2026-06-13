@@ -28,11 +28,19 @@ type UserStats struct {
 	PaidUsers    int `json:"paid_users"`
 }
 
+// TokenStatus reports whether a user has a stored Twitch token. The admin
+// panel uses it to manage the bot account's own token without ever reading
+// the token back.
+type TokenStatus struct {
+	Present bool `json:"present"`
+}
+
 type usersReply struct {
-	User  *AdminUser  `json:"user"`
-	Users []AdminUser `json:"users"`
-	Stats *UserStats  `json:"stats"`
-	Error string      `json:"error"`
+	User  *AdminUser   `json:"user"`
+	Users []AdminUser  `json:"users"`
+	Stats *UserStats   `json:"stats"`
+	Token *TokenStatus `json:"token"`
+	Error string       `json:"error"`
 }
 
 // Users speaks the bagel.rpc.admin.user.* request-reply verbs owned by
@@ -113,6 +121,37 @@ func (u *Users) SetStatus(userID, status string) (*AdminUser, error) {
 // Reset clears the user's settings and timers, keeping account and tier.
 func (u *Users) Reset(userID string) (*AdminUser, error) {
 	return one(u.call("reset", map[string]any{"user_id": userID}))
+}
+
+func token(reply usersReply, err error) (*TokenStatus, error) {
+	if err != nil {
+		return nil, err
+	}
+	if reply.Token == nil {
+		return nil, fmt.Errorf("empty token reply")
+	}
+	return reply.Token, nil
+}
+
+// TokenGet reports whether the user has a stored Twitch token.
+func (u *Users) TokenGet(userID string) (*TokenStatus, error) {
+	return token(u.call("token_status", map[string]any{"user_id": userID}))
+}
+
+// TokenSet stores (or replaces) the user's Twitch token; provisioning the
+// row if the id has never been seen, so the bot account can be set up before
+// it ever onboards.
+func (u *Users) TokenSet(userID, accessToken, refreshToken string) (*TokenStatus, error) {
+	return token(u.call("token_set", map[string]any{
+		"user_id":       userID,
+		"access_token":  accessToken,
+		"refresh_token": refreshToken,
+	}))
+}
+
+// TokenClear deletes the user's stored Twitch token.
+func (u *Users) TokenClear(userID string) (*TokenStatus, error) {
+	return token(u.call("token_clear", map[string]any{"user_id": userID}))
 }
 
 // IsDigits reports whether s is a plain numeric id (Twitch user id shape).
