@@ -1,0 +1,62 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-apps
+  namespace: production
+spec:
+  # Apply only to our specific apps to avoid breaking NATS or other infrastructure in the namespace
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [users, commands, modules, transactions, projector, dashboard, admin, twitch-ingress, outgress]
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow all pods in bagelbot namespace to reach each other for now
+  # (Linkerd will handle the finer-grained L7 auth for HTTP/gRPC).
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: production
+  # Allow Traefik ingress controller to reach dashboard
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+  # Allow Tailscale ingress controller to reach admin
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: tailscale
+  egress:
+  # Allow DNS resolution
+  - ports:
+    - port: 53
+      protocol: UDP
+    - port: 53
+      protocol: TCP
+  # Allow communication to any pod in bagelbot (e.g. NATS)
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: production
+  # Allow communication to Linkerd control plane
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: linkerd
+  # Allow communication to Valkey namespace
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: valkey
+  # Allow outbound HTTPS for Twitch OAuth
+  - ports:
+    - port: 443
+      protocol: TCP
+  # Allow communication to external HeatWave MySQL database
+  - ports:
+    - port: 3306
+      protocol: TCP

@@ -20,6 +20,7 @@ on:
           - commands
           - dashboard
           - modules
+          - outgress
           - projector
           - transactions
           - users
@@ -45,6 +46,7 @@ jobs:
       matrix: ${{ steps.plan.outputs.matrix }}
       build_matrix: ${{ steps.plan.outputs.build_matrix }}
       services: ${{ steps.plan.outputs.services }}
+      build_ts: ${{ steps.plan.outputs.build_ts }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -61,7 +63,7 @@ jobs:
           all_services='[
             {
               "image": "admin",
-              "context": "app/admin",
+              "context": ".",
               "containerfile": "app/admin/Containerfile",
               "description": "ItsBagelBot operator admin service"
             },
@@ -79,7 +81,7 @@ jobs:
             },
             {
               "image": "dashboard",
-              "context": "app/dashboard",
+              "context": ".",
               "containerfile": "app/dashboard/Containerfile",
               "description": "ItsBagelBot streamer dashboard service"
             },
@@ -88,6 +90,12 @@ jobs:
               "context": ".",
               "containerfile": "app/modules/Containerfile",
               "description": "ItsBagelBot modules data service"
+            },
+            {
+              "image": "outgress",
+              "context": ".",
+              "containerfile": "app/outgress/Containerfile",
+              "description": "ItsBagelBot Twitch egress service"
             },
             {
               "image": "projector",
@@ -122,9 +130,12 @@ jobs:
           }
 
           add_root_go_services() {
+            add "admin"
             add "broadcaster-data"
             add "commands"
+            add "dashboard"
             add "modules"
+            add "outgress"
             add "projector"
             add "transactions"
             add "users"
@@ -136,6 +147,7 @@ jobs:
             add "commands"
             add "dashboard"
             add "modules"
+            add "outgress"
             add "projector"
             add "transactions"
             add "users"
@@ -175,6 +187,9 @@ jobs:
                 ;;
               app/modules/*)
                 add "modules"
+                ;;
+              app/outgress/*)
+                add "outgress"
                 ;;
               app/projector/*)
                 add "projector"
@@ -252,6 +267,7 @@ jobs:
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
           echo "build_matrix=$build_matrix" >> "$GITHUB_OUTPUT"
           echo "services=$services" >> "$GITHUB_OUTPUT"
+          echo "build_ts=$(git show -s --format=%ct "${GITHUB_SHA}")" >> "$GITHUB_OUTPUT"
 
   build:
     name: Build ${{ matrix.image }} ${{ matrix.arch_label }}
@@ -275,6 +291,8 @@ jobs:
       - name: Prepare image metadata
         id: meta
         shell: bash
+        env:
+          BUILD_TS: ${{ needs.changes.outputs.build_ts }}
         run: |
           owner="${GITHUB_REPOSITORY_OWNER,,}"
           image="${IMAGE_REPOSITORY}/${{ matrix.image }}"
@@ -282,7 +300,7 @@ jobs:
           base_tags="sha-${GITHUB_SHA::12}"
 
           if [[ "${GITHUB_EVENT_NAME}" == "push" && "${GITHUB_REF}" == "refs/heads/main" ]]; then
-            base_tags="${base_tags} main latest"
+            base_tags="${base_tags} main latest main-${BUILD_TS}-${GITHUB_SHA::12}"
           fi
 
           if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
@@ -376,6 +394,8 @@ jobs:
       - name: Prepare image metadata
         id: meta
         shell: bash
+        env:
+          BUILD_TS: ${{ needs.changes.outputs.build_ts }}
         run: |
           owner="${GITHUB_REPOSITORY_OWNER,,}"
           image="${IMAGE_REPOSITORY}/${{ matrix.image }}"
@@ -383,7 +403,7 @@ jobs:
           tags="sha-${GITHUB_SHA::12}"
 
           if [[ "${GITHUB_EVENT_NAME}" == "push" && "${GITHUB_REF}" == "refs/heads/main" ]]; then
-            tags="${tags} main latest"
+            tags="${tags} main latest main-${BUILD_TS}-${GITHUB_SHA::12}"
           fi
 
           if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
