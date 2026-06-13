@@ -78,10 +78,10 @@ spec:
         runAsNonRoot: true
         runAsUser: 65532 # distroless `nonroot`; numeric so kubelet can verify
         runAsGroup: 65532
-        seccompProfile: { type: RuntimeDefault }
+        seccompProfile: {type: RuntimeDefault}
       containers:
         - name: admin
-          image: ghcr.io/adamousmer/itsbagelbot/admin:main # {"$imagepolicy": "flux-system:admin"}
+          image: ghcr.io/adamousmer/itsbagelbot/admin:main-1781353795-3dcd12de4548@sha256:9e895383ec8426349ed2f772789d0b7872b5e67fe785dc180eb15664f26eb8bb # {"$imagepolicy": "flux-system:admin"}
           imagePullPolicy: IfNotPresent
           envFrom:
             - secretRef:
@@ -106,12 +106,12 @@ spec:
               memory: 128Mi
           securityContext:
             allowPrivilegeEscalation: false
-            capabilities: { drop: ["ALL"] }
+            capabilities: {drop: ["ALL"]}
           livenessProbe:
-            httpGet: { path: /healthz, port: 8080 }
+            httpGet: {path: /healthz, port: 8080}
             periodSeconds: 30
           readinessProbe:
-            httpGet: { path: /healthz, port: 8080 }
+            httpGet: {path: /healthz, port: 8080}
             periodSeconds: 10
 ---
 apiVersion: v1

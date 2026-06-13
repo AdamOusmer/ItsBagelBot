@@ -78,11 +78,10 @@ spec:
         runAsNonRoot: true
         runAsUser: 999 # the image's `ingress` user; numeric so kubelet can verify
         runAsGroup: 999
-        seccompProfile: { type: RuntimeDefault }
-
+        seccompProfile: {type: RuntimeDefault}
       containers:
         - name: ingress
-          image: ghcr.io/adamousmer/itsbagelbot/twitch-ingress:main # {"$imagepolicy": "flux-system:twitch-ingress"}
+          image: ghcr.io/adamousmer/itsbagelbot/twitch-ingress:main-1781353795-3dcd12de4548@sha256:b2de9dd663c5a976732cd88d76a9ed6cc427074909477033c9ad9adf7ccacb42 # {"$imagepolicy": "flux-system:twitch-ingress"}
           imagePullPolicy: IfNotPresent
           envFrom:
             - secretRef:
@@ -114,10 +113,7 @@ spec:
               # Range, not a single port: probe/remote-shell hidden nodes
               # need their own listen port besides the main VM's.
               value: >-
-                +S 2:2 +SDio 4
-                +sbwt none +sbwtdcpu none +sbwtdio none
-                -kernel inet_dist_listen_min 9100
-                -kernel inet_dist_listen_max 9110
+                +S 2:2 +SDio 4 +sbwt none +sbwtdcpu none +sbwtdio none -kernel inet_dist_listen_min 9100 -kernel inet_dist_listen_max 9110
           resources:
             requests:
               cpu: 50m
@@ -127,7 +123,7 @@ spec:
               memory: 512Mi
           securityContext:
             allowPrivilegeEscalation: false
-            capabilities: { drop: ["ALL"] }
+            capabilities: {drop: ["ALL"]}
           livenessProbe:
             exec:
               command: ["/app/bin/ingress", "pid"]
