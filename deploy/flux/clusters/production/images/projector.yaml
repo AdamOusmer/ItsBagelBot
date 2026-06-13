@@ -15,6 +15,7 @@ metadata:
   namespace: flux-system
 spec:
   digestReflectionPolicy: Always
+  interval: 5m
   imageRepositoryRef:
     name: projector
   filterTags:
