@@ -30,8 +30,6 @@ spec:
       annotations:
         linkerd.io/inject: enabled
     spec:
-      imagePullSecrets:
-        - name: ghcr-pull
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:

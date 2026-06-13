@@ -7,8 +7,6 @@ metadata:
 spec:
   image: ghcr.io/adamousmer/itsbagelbot/users
   interval: 5m
-  secretRef:
-    name: ghcr-pull
 ---
 apiVersion: image.toolkit.fluxcd.io/v1beta2
 kind: ImagePolicy
