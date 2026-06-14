@@ -8,6 +8,7 @@ import (
 	"bufio"
 	"context"
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/base64"
 	"fmt"
 	"log/slog"
@@ -25,6 +26,7 @@ import (
 	"github.com/newrelic/go-agent/v3/newrelic"
 
 	"itsbagelbot/admin/internal/rpc"
+	"itsbagelbot/admin/internal/twitch"
 	"itsbagelbot/admin/ui"
 	"itsbagelbot/admin/ui/components"
 	"itsbagelbot/admin/ui/pages"
@@ -33,10 +35,17 @@ import (
 type Server struct {
 	Ingress    *rpc.Ingress
 	Users      *rpc.Users
+	Twitch     *twitch.Client
 	NATS       *nats.Conn
 	StatusSubj string
-	Log        *slog.Logger
-	NewRelic   *newrelic.Application
+	// BaseURL is the admin's tailnet origin; it decides whether the
+	// short-lived oauth_state cookie is marked Secure.
+	BaseURL string
+	// BotUserID, when non-empty, is the Twitch user id the bot consent must
+	// resolve to before its token is stored.
+	BotUserID string
+	Log       *slog.Logger
+	NewRelic  *newrelic.Application
 
 	snapshotMu    sync.Mutex
 	snapshotUntil time.Time
@@ -47,6 +56,9 @@ type Server struct {
 	statsUntil time.Time
 	statsValue *rpc.UserStats
 	statsErr   string
+
+	lanesMu      sync.Mutex
+	lanesSampler *laneSampler
 }
 
 func (s *Server) Routes() *fiber.App {
@@ -71,15 +83,24 @@ func (s *Server) Routes() *fiber.App {
 
 	app.Get("/", s.home)
 	app.Get("/shards", s.shardsPage)
+	app.Get("/lanes", s.lanesPage)
 	app.Get("/users", s.usersPage)
 	app.Get("/overview/user-stats", s.userStatsFragment)
 	app.Get("/overview/shard-stat", s.shardStat)
 	app.Get("/shards/live", s.fragment)
 	app.Get("/shards/summary", s.shardSummary)
+	app.Get("/lanes/live", s.lanesFragment)
 	app.Get("/events", s.events)
 	app.Get("/users/lookup", s.userLookup)
 	app.Get("/users/recent", s.userRecent)
 	app.Post("/users/action", s.userAction)
+	// Bot-account OAuth. Both are GET top-level navigations: /auth/bot leaves
+	// the origin to id.twitch.tv, /auth/bot/callback is where Twitch returns.
+	// They must be plain <a> links, never htmx, so the browser performs the
+	// cross-origin navigation.
+	app.Get("/auth/bot", s.botAuthStart)
+	app.Get("/auth/bot/callback", s.botAuthCallback)
+	app.Get("/overview/bot-account", s.botAccountFragment)
 	app.Get("/healthz", func(c *fiber.Ctx) error {
 		return c.SendString("ok")
 	})
@@ -162,6 +183,49 @@ func (s *Server) userStats() (*rpc.UserStats, string) {
 	return stats, ""
 }
 
+// lanes returns the live JetStream consumer telemetry, sampled at most once per
+// second so repeated htmx polls within a tick reuse the same broker read. The
+// sampler is stateful across calls (it diffs delivery counters to derive a real
+// throughput), so it lives on the Server behind its own mutex. The ~1s TTL is
+// shorter than the 2s fragment poll, so each poll observes a fresh tick while
+// concurrent polls share one read.
+func (s *Server) lanes() ([]ui.Lane, string) {
+	s.lanesMu.Lock()
+	defer s.lanesMu.Unlock()
+
+	if s.lanesSampler == nil {
+		s.lanesSampler = newLaneSampler()
+	}
+	sampler := s.lanesSampler
+
+	now := time.Now()
+	if now.Before(sampler.until) {
+		return sampler.value, sampler.err
+	}
+
+	js, err := s.NATS.JetStream()
+	if err != nil {
+		s.Log.Warn("jetstream context failed", "err", err)
+		sampler.value = nil
+		sampler.err = err.Error()
+		sampler.until = now.Add(2 * time.Second)
+		return nil, sampler.err
+	}
+
+	lanes, errMsg := sampler.collect(js, now)
+	if errMsg != "" {
+		s.Log.Warn("lane telemetry failed", "err", errMsg)
+		sampler.value = nil
+		sampler.err = errMsg
+		sampler.until = now.Add(2 * time.Second)
+		return nil, errMsg
+	}
+	sampler.value = lanes
+	sampler.err = ""
+	sampler.until = now.Add(time.Second)
+	return lanes, ""
+}
+
 func render(c *fiber.Ctx, component templ.Component) error {
 	c.Set("Content-Type", "text/html; charset=utf-8")
 
@@ -190,6 +254,19 @@ func (s *Server) shardsPage(c *fiber.Ctx) error {
 		return render(c, pages.ShardsPartial())
 	}
 	return render(c, pages.Shards("Shard Health - ItsBagelBot Admin"))
+}
+
+func (s *Server) lanesPage(c *fiber.Ctx) error {
+	if c.Get("HX-Request") == "true" {
+		return render(c, pages.LanesPartial())
+	}
+	return render(c, pages.Lanes("Lane Telemetry - ItsBagelBot Admin"))
+}
+
+// lanesFragment serves the #lanes-live region the page swaps in every 2s.
+func (s *Server) lanesFragment(c *fiber.Ctx) error {
+	lanes, errMsg := s.lanes()
+	return render(c, components.Lanes(lanes, errMsg))
 }
 
 func (s *Server) usersPage(c *fiber.Ctx) error {
@@ -245,6 +322,126 @@ func (s *Server) tokenPresent(id uint64) bool {
 		return false
 	}
 	return ts.Present
+}
+
+// setStateCookie writes the short-lived, HttpOnly, SameSite=Lax oauth_state
+// cookie. Secure is set when the admin origin is https (its tailnet origin
+// always is in production); leaving it off for a localhost http origin keeps
+// local testing workable.
+func (s *Server) setStateCookie(c *fiber.Ctx, value string) {
+	c.Cookie(&fiber.Cookie{
+		Name:     "oauth_state",
+		Value:    value,
+		MaxAge:   int((10 * time.Minute).Seconds()),
+		HTTPOnly: true,
+		Secure:   strings.HasPrefix(s.BaseURL, "https://"),
+		SameSite: "Lax",
+	})
+}
+
+func (s *Server) clearStateCookie(c *fiber.Ctx) {
+	c.Cookie(&fiber.Cookie{
+		Name:     "oauth_state",
+		Value:    "",
+		MaxAge:   -1,
+		HTTPOnly: true,
+		Secure:   strings.HasPrefix(s.BaseURL, "https://"),
+		SameSite: "Lax",
+	})
+}
+
+// checkState constant-time compares the state cookie against the callback's
+// state query param, defeating login-CSRF on the callback.
+func (s *Server) checkState(c *fiber.Ctx) bool {
+	val := c.Cookies("oauth_state")
+	queryState := c.Query("state")
+	if val == "" || len(val) != len(queryState) {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(val), []byte(queryState)) == 1
+}
+
+// botAuthStart begins the bot-account consent: it mints a random state, parks
+// it in a short-lived cookie, and 302-redirects the browser to id.twitch.tv.
+func (s *Server) botAuthStart(c *fiber.Ctx) error {
+	buf := make([]byte, 24)
+	if _, err := rand.Read(buf); err != nil {
+		return c.Status(fiber.StatusInternalServerError).SendString("state generation failed")
+	}
+	state := base64.RawURLEncoding.EncodeToString(buf)
+	s.setStateCookie(c, state)
+	return c.Redirect(s.Twitch.BotConsentURL(state))
+}
+
+// botAuthCallback completes the consent: validate state, exchange the code,
+// resolve the token's owner, optionally enforce the configured bot id, then
+// persist the user token via the users-service token_set RPC under the
+// resolved id. No token value is ever logged; the users service encrypts at
+// rest.
+func (s *Server) botAuthCallback(c *fiber.Ctx) error {
+	if !s.checkState(c) {
+		s.Log.Warn("oauth state mismatch on bot callback")
+		return s.botResult(c, fiber.StatusBadRequest, false,
+			"That authorization is no longer valid (the page may have been reloaded mid-flow). Start again.")
+	}
+	s.clearStateCookie(c)
+
+	if errParam := c.Query("error"); errParam != "" {
+		s.Log.Warn("bot consent denied", "error", errParam)
+		return s.botResult(c, fiber.StatusBadRequest, false,
+			"Twitch did not grant the authorization. Start again to retry.")
+	}
+
+	tok, err := s.Twitch.ExchangeBot(c.Context(), c.Query("code"))
+	if err != nil {
+		s.Log.Error("bot consent exchange failed", "err", err)
+		return s.botResult(c, fiber.StatusInternalServerError, false,
+			"Twitch did not accept the authorization. Start again to retry.")
+	}
+
+	owner, err := s.Twitch.FetchUser(c.Context(), tok)
+	if err != nil {
+		s.Log.Error("bot user fetch failed", "err", err)
+		return s.botResult(c, fiber.StatusInternalServerError, false,
+			"Could not read the authorized Twitch profile. Start again to retry.")
+	}
+
+	if s.BotUserID != "" && owner.ID != s.BotUserID {
+		s.Log.Warn("bot consent owner mismatch", "expected", s.BotUserID, "got_login", owner.Login)
+		return s.botResult(c, fiber.StatusForbidden, false,
+			"Wrong Twitch account. The authorization must be granted by the configured bot account.")
+	}
+
+	if _, err := s.Users.TokenSet(owner.ID, tok.AccessToken, tok.RefreshToken); err != nil {
+		s.Log.Error("bot token_set failed", "user", owner.ID, "err", err)
+		return s.botResult(c, fiber.StatusInternalServerError, false,
+			"The authorization succeeded but storing the token failed. Start again to retry.")
+	}
+
+	s.Log.Info("bot account token stored", "user", owner.ID, "login", owner.Login)
+	return s.botResult(c, fiber.StatusOK, true,
+		fmt.Sprintf("Bot account @%s is authorized and its token is stored.", owner.Login))
+}
+
+// botResult renders the post-callback page; the status drives the badge.
+func (s *Server) botResult(c *fiber.Ctx, status int, ok bool, msg string) error {
+	c.Status(status)
+	return render(c, pages.BotCallbackResult(ok, msg))
+}
+
+// botAccountFragment renders the bot-account card on the overview, reflecting
+// the stored-token status pulled from the users-service token RPC.
+func (s *Server) botAccountFragment(c *fiber.Ctx) error {
+	present := false
+	if s.BotUserID != "" {
+		ts, err := s.Users.TokenGet(s.BotUserID)
+		if err != nil {
+			s.Log.Warn("bot token status failed", "err", err)
+		} else {
+			present = ts.Present
+		}
+	}
+	return render(c, components.BotAccount(s.BotUserID, present))
 }
 
 func (s *Server) userRecent(c *fiber.Ctx) error {

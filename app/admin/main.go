@@ -17,13 +17,18 @@ import (
 	"itsbagelbot/admin/internal/config"
 	"itsbagelbot/admin/internal/monitor"
 	"itsbagelbot/admin/internal/rpc"
+	"itsbagelbot/admin/internal/twitch"
 	"itsbagelbot/admin/internal/web"
 )
 
 func main() {
 	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
-	cfg := config.Load()
+	cfg, err := config.Load()
+	if err != nil {
+		log.Error("config load", "err", err)
+		os.Exit(1)
+	}
 
 	nrApp, err := monitor.New("admin", log)
 	if err != nil {
@@ -41,8 +46,11 @@ func main() {
 	srv := &web.Server{
 		Ingress:    rpc.NewIngress(nc, cfg.AdminSubject),
 		Users:      rpc.NewUsers(nc, cfg.UserSubjectPrefix),
+		Twitch:     twitch.New(cfg.TwitchClientID, cfg.TwitchClientSecret, cfg.BaseURL, cfg.BotScopes),
 		NATS:       nc,
 		StatusSubj: cfg.StatusSubjectPrefix,
+		BaseURL:    cfg.BaseURL,
+		BotUserID:  cfg.BotUserID,
 		Log:        log,
 		NewRelic:   nrApp,
 	}
