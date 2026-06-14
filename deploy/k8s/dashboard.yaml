@@ -97,6 +97,10 @@ metadata:
   name: dashboard
   namespace: production
 spec:
+  # Prefer the same-zone (=same-node) dashboard pod so the traefik -> backend
+  # hop stays local; Linkerd reads the EndpointSlice hints this generates and
+  # spills over to other zones only when no local endpoint is ready.
+  trafficDistribution: PreferClose
   selector:
     app: dashboard
   ports:
