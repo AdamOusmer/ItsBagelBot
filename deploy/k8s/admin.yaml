@@ -91,7 +91,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: admin
-          image: ghcr.io/adamousmer/itsbagelbot/admin:main-1781471388-1c1313c2373a@sha256:37d9b507989e6d2c9a0199d67ff18df7c90d9dc54621dfe1d312cbaf1b604735 # {"$imagepolicy": "flux-system:admin"}
+          image: ghcr.io/adamousmer/itsbagelbot/admin:main-1781472286-58326f31d8d0@sha256:5802157d5e5baa4e534a703f70e30296206cd80ab4a23cfcbf25a9dc5e1d23cd # {"$imagepolicy": "flux-system:admin"}
           imagePullPolicy: IfNotPresent
           envFrom:
             - secretRef:
