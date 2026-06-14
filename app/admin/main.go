@@ -44,15 +44,16 @@ func main() {
 	}
 
 	srv := &web.Server{
-		Ingress:    rpc.NewIngress(nc, cfg.AdminSubject),
-		Users:      rpc.NewUsers(nc, cfg.UserSubjectPrefix),
-		Twitch:     twitch.New(cfg.TwitchClientID, cfg.TwitchClientSecret, cfg.BaseURL, cfg.BotScopes),
-		NATS:       nc,
-		StatusSubj: cfg.StatusSubjectPrefix,
-		BaseURL:    cfg.BaseURL,
-		BotUserID:  cfg.BotUserID,
-		Log:        log,
-		NewRelic:   nrApp,
+		Ingress:       rpc.NewIngress(nc, cfg.AdminSubject),
+		Users:         rpc.NewUsers(nc, cfg.UserSubjectPrefix),
+		Twitch:        twitch.New(cfg.TwitchClientID, cfg.TwitchClientSecret, cfg.BaseURL, cfg.BotScopes),
+		NATS:          nc,
+		StatusSubj:    cfg.StatusSubjectPrefix,
+		BaseURL:       cfg.BaseURL,
+		BotUserID:     cfg.BotUserID,
+		RPCMonitorURL: cfg.NATSMonitorURL,
+		Log:           log,
+		NewRelic:      nrApp,
 	}
 
 	app := srv.Routes()

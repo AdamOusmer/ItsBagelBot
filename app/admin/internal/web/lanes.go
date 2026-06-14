@@ -2,6 +2,7 @@ package web
 
 import (
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -76,9 +77,15 @@ func (l *laneSampler) collect(js nats.JetStreamContext, now time.Time) ([]ui.Lan
 			key := laneKey(streamName, ci.Name)
 			seen[key] = struct{}{}
 
+			filter := ci.Config.FilterSubject
+			ephemeral := ci.Config.Durable == ""
 			lane := ui.Lane{
 				Stream:      streamName,
 				Consumer:    ci.Name,
+				Filter:      filter,
+				Ephemeral:   ephemeral,
+				Group:       laneGroup(ci.Name, filter, ephemeral),
+				Category:    laneCategory(streamName, ephemeral),
 				Pending:     ci.NumPending,
 				AckPending:  ci.NumAckPending,
 				MaxAckPend:  ci.Config.MaxAckPending,
@@ -163,12 +170,70 @@ func clampPct(p float64) float64 {
 	return p
 }
 
-// sortLanes gives a stable, readable order: grouped by stream, then consumer.
+// laneGroup derives the service/queue group from a durable consumer name. The
+// fleet names durables <group>_<subjectToken(filter)> (see pkg/bus durableName),
+// so stripping the tokenised filter suffix recovers the group. Ephemeral
+// consumers have random names and no meaningful group.
+func laneGroup(name, filter string, ephemeral bool) string {
+	if ephemeral {
+		return ""
+	}
+	if filter != "" {
+		if g := strings.TrimSuffix(name, "_"+subjectToken(filter)); g != name {
+			return g
+		}
+	}
+	return name
+}
+
+// subjectToken mirrors pkg/bus.subjectToken: dots and wildcards become
+// underscores so the value is usable inside a JetStream consumer name.
+func subjectToken(subject string) string {
+	return strings.NewReplacer(".", "_", "*", "_", ">", "_").Replace(subject)
+}
+
+// laneCategory buckets a lane for sectioning in the UI. The outgress stream
+// carries the chat egress "system" lanes (premium/standard/system); other
+// durable consumers fold data-plane events (projections); ephemeral consumers
+// are the per-pod cache-invalidation broadcast subscribers.
+func laneCategory(stream string, ephemeral bool) string {
+	switch {
+	case ephemeral:
+		return "ephemeral"
+	case stream == "TWITCH_OUTGRESS":
+		return "system"
+	default:
+		return "projection"
+	}
+}
+
+// categoryRank orders the sections: system lanes first (the ones operators
+// watch), then projections, then the ephemeral noise.
+func categoryRank(category string) int {
+	switch category {
+	case "system":
+		return 0
+	case "projection":
+		return 1
+	default:
+		return 2
+	}
+}
+
+// sortLanes orders by section, then stream, then a stable name so ephemerals
+// (random names) at least stay grouped by subject via Group/Filter fallbacks.
 func sortLanes(lanes []ui.Lane) {
 	sort.Slice(lanes, func(i, j int) bool {
-		if lanes[i].Stream != lanes[j].Stream {
-			return lanes[i].Stream < lanes[j].Stream
+		a, b := lanes[i], lanes[j]
+		if ra, rb := categoryRank(a.Category), categoryRank(b.Category); ra != rb {
+			return ra < rb
 		}
-		return lanes[i].Consumer < lanes[j].Consumer
+		if a.Stream != b.Stream {
+			return a.Stream < b.Stream
+		}
+		if a.Filter != b.Filter {
+			return a.Filter < b.Filter
+		}
+		return a.Consumer < b.Consumer
 	})
 }

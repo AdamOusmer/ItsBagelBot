@@ -81,6 +81,10 @@ func ShardsPartial() templ.Component {
 			templ_7745c5c3_Var3 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+		templ_7745c5c3_Err = components.SidebarOOB("shards").Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"page-heading\"><div><p class=\"page-kicker\">Twitch ingress</p><h1><span>Shard</span> health</h1></div><p class=\"page-meta\">refreshes every 5s</p></div><div id=\"live\" hx-get=\"/shards/live\" hx-trigger=\"load, every 5s\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
