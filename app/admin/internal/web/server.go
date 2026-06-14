@@ -47,10 +47,12 @@ type Server struct {
 	Log       *slog.Logger
 	NewRelic  *newrelic.Application
 
-	snapshotMu    sync.Mutex
-	snapshotUntil time.Time
-	snapshotValue *rpc.Snapshot
-	snapshotErr   string
+	snapshotMu       sync.Mutex
+	snapshotUntil    time.Time
+	snapshotValue    *rpc.Snapshot
+	snapshotErr      string
+	snapshotInflight bool
+	snapshotReady    chan struct{} // closed when an in-flight refresh completes
 
 	statsMu    sync.Mutex
 	statsUntil time.Time
@@ -139,25 +141,55 @@ func securityHeaders(c *fiber.Ctx) error {
 
 func (s *Server) snapshot() (*rpc.Snapshot, string) {
 	s.snapshotMu.Lock()
-	defer s.snapshotMu.Unlock()
 
-	now := time.Now()
-	if now.Before(s.snapshotUntil) {
-		return s.snapshotValue, s.snapshotErr
+	// Cache hit: serve stale value immediately.
+	if time.Now().Before(s.snapshotUntil) {
+		v, e := s.snapshotValue, s.snapshotErr
+		s.snapshotMu.Unlock()
+		return v, e
 	}
 
+	// Another goroutine is already refreshing. Join it: wait on its channel
+	// then return whatever it stored. This avoids concurrent RPCs while not
+	// holding the mutex across the network call.
+	if s.snapshotInflight {
+		ch := s.snapshotReady
+		s.snapshotMu.Unlock()
+		<-ch
+		s.snapshotMu.Lock()
+		v, e := s.snapshotValue, s.snapshotErr
+		s.snapshotMu.Unlock()
+		return v, e
+	}
+
+	// We are the refresher. Claim the in-flight slot and release the lock
+	// before touching the network.
+	s.snapshotInflight = true
+	s.snapshotReady = make(chan struct{})
+	s.snapshotMu.Unlock()
+
+	now := time.Now()
 	snap, err := s.Ingress.Shards()
+
+	s.snapshotMu.Lock()
+	ch := s.snapshotReady
+	s.snapshotInflight = false
+	s.snapshotReady = nil
 	if err != nil {
 		s.Log.Warn("shard snapshot failed", "err", err)
 		s.snapshotValue = nil
 		s.snapshotErr = err.Error()
 		s.snapshotUntil = now.Add(2 * time.Second)
-		return nil, s.snapshotErr
+	} else {
+		s.snapshotValue = snap
+		s.snapshotErr = ""
+		s.snapshotUntil = now.Add(2 * time.Second)
 	}
-	s.snapshotValue = snap
-	s.snapshotErr = ""
-	s.snapshotUntil = now.Add(2 * time.Second)
-	return snap, ""
+	v, e := s.snapshotValue, s.snapshotErr
+	s.snapshotMu.Unlock()
+
+	close(ch) // wake any waiters
+	return v, e
 }
 
 func (s *Server) userStats() (*rpc.UserStats, string) {
@@ -469,7 +501,7 @@ func (s *Server) userAction(c *fiber.Ctx) error {
 		err error
 	)
 	switch action {
-	case "vip", "paid", "standard":
+	case "vip", "paid", "free":
 		u, err = s.Users.SetStatus(userID, action)
 	case "reset":
 		u, err = s.Users.Reset(userID)
@@ -478,10 +510,20 @@ func (s *Server) userAction(c *fiber.Ctx) error {
 		// them at rest; nothing here logs or stores them.
 		if _, err = s.Users.TokenSet(userID, c.FormValue("access_token"), c.FormValue("refresh_token")); err == nil {
 			u, err = s.Users.Lookup(userID)
+			if err != nil {
+				// Token was committed; the refetch failed. Surface a partial-success
+				// message rather than implying the write never happened.
+				s.Log.Warn("token set succeeded but user refetch failed", "user", userID, "err", err)
+				return render(c, components.UserError("token saved; reload the page to refresh the user view"))
+			}
 		}
 	case "clear_token":
 		if _, err = s.Users.TokenClear(userID); err == nil {
 			u, err = s.Users.Lookup(userID)
+			if err != nil {
+				s.Log.Warn("token clear succeeded but user refetch failed", "user", userID, "err", err)
+				return render(c, components.UserError("token cleared; reload the page to refresh the user view"))
+			}
 		}
 	default:
 		err = fmt.Errorf("unknown action")
@@ -506,8 +548,16 @@ func (s *Server) events(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadGateway).SendString("status feed unavailable")
 	}
 
+	// Guard against double-unsubscribe: the stream-writer closure and the
+	// handler-scope defer both call unsub(); sync.Once ensures exactly one fires.
+	var unsubOnce sync.Once
+	unsub := func() { unsubOnce.Do(func() { _ = sub.Unsubscribe() }) }
+	// Handler-scope defer: fires if SetBodyStreamWriter's callback never runs
+	// (e.g. client dropped between subscribe and writer setup).
+	defer unsub()
+
 	c.Context().SetBodyStreamWriter(func(w *bufio.Writer) {
-		defer sub.Unsubscribe()
+		defer unsub()
 		// Push a comment now: shard events can be hours apart, and the
 		// browser's EventSource should not sit on an unanswered request.
 		fmt.Fprint(w, ": connected\n\n")

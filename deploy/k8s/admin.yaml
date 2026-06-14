@@ -42,9 +42,10 @@ metadata:
   name: admin
   namespace: production
 spec:
-  replicas: 3
-  # Hard host anti-affinity + 2 nodes means the default surge strategy deadlocks
-  # (it tries to place a 3rd replica with nowhere to go). Recreate-one-at-a-time.
+  replicas: 2
+  # Hard host anti-affinity on a 2-node cluster: one replica per node. The
+  # default surge strategy would deadlock (no room for a surge pod), so we
+  # roll one at a time by taking a replica down first.
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -129,6 +130,15 @@ metadata:
   name: admin
   namespace: production
 spec:
+  # Session affinity: the Tailscale ProxyGroup forwards requests from a stable
+  # tailnet client IP. Pinning by ClientIP ensures every request in a session
+  # hits the same admin pod, so the in-memory CSRF token set on the GET is
+  # still present when the HTMX POST arrives. 1 h matches a typical operator
+  # session; shorter than Kubernetes' default 3 h to recycle stale pins sooner.
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 3600
   selector:
     app: admin
   ports:

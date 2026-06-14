@@ -148,7 +148,7 @@ func UserError(msg string) templ.Component {
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(msg)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/user_components.templ`, Line: 32, Col: 103}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/components/user_components.templ`, Line: 32, Col: 103}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 		if templ_7745c5c3_Err != nil {
@@ -190,7 +190,7 @@ func UserNotRegistered(id string) templ.Component {
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(id)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/user_components.templ`, Line: 37, Col: 64}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/components/user_components.templ`, Line: 37, Col: 64}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -203,7 +203,7 @@ func UserNotRegistered(id string) templ.Component {
 		var templ_7745c5c3_Var7 string
 		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.ResolveAttributeValue(`{"action":"vip", "user_id":"` + id + `"}`)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/user_components.templ`, Line: 42, Col: 121}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/components/user_components.templ`, Line: 42, Col: 121}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var7)
 		if templ_7745c5c3_Err != nil {
@@ -216,7 +216,7 @@ func UserNotRegistered(id string) templ.Component {
 		var templ_7745c5c3_Var8 string
 		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.ResolveAttributeValue("Provision #" + id + " and grant VIP (permanent premium)?")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/user_components.templ`, Line: 42, Col: 235}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/components/user_components.templ`, Line: 42, Col: 235}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var8)
 		if templ_7745c5c3_Err != nil {
@@ -229,7 +229,7 @@ func UserNotRegistered(id string) templ.Component {
 		var templ_7745c5c3_Var9 string
 		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.ResolveAttributeValue(`{"action":"paid", "user_id":"` + id + `"}`)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/user_components.templ`, Line: 43, Col: 132}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/components/user_components.templ`, Line: 43, Col: 132}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var9)
 		if templ_7745c5c3_Err != nil {
@@ -242,7 +242,7 @@ func UserNotRegistered(id string) templ.Component {
 		var templ_7745c5c3_Var10 string
 		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.ResolveAttributeValue("Provision #" + id + " and mark as paid premium?")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/user_components.templ`, Line: 43, Col: 237}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/components/user_components.templ`, Line: 43, Col: 237}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var10)
 		if templ_7745c5c3_Err != nil {
@@ -281,17 +281,17 @@ func UserStatusBadge(u rpc.AdminUser) templ.Component {
 			templ_7745c5c3_Var11 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		if u.Tier == "premium" && u.PremiumKind == "vip" {
+		if u.Tier() == "premium" && u.PremiumKind() == "vip" {
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "<span class=\"badge ok\"><span class=\"dot\"></span> vip · permanent premium</span>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-		} else if u.Tier == "premium" && u.PremiumKind == "paid" {
+		} else if u.Tier() == "premium" && u.PremiumKind() == "paid" {
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "<span class=\"badge ok\"><span class=\"dot\"></span> paid premium</span>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-		} else if u.Tier == "premium" {
+		} else if u.Tier() == "premium" {
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "<span class=\"badge ok\"><span class=\"dot\"></span> premium</span>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -334,7 +334,7 @@ func UserDetail(u rpc.AdminUser, hasToken bool, now time.Time) templ.Component {
 		var templ_7745c5c3_Var13 string
 		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(u.Username)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/user_components.templ`, Line: 63, Col: 83}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/components/user_components.templ`, Line: 63, Col: 83}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 		if templ_7745c5c3_Err != nil {
@@ -347,7 +347,7 @@ func UserDetail(u rpc.AdminUser, hasToken bool, now time.Time) templ.Component {
 		var templ_7745c5c3_Var14 string
 		templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprint(u.ID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/user_components.templ`, Line: 64, Col: 79}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/components/user_components.templ`, Line: 64, Col: 79}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 		if templ_7745c5c3_Err != nil {
@@ -378,7 +378,7 @@ func UserDetail(u rpc.AdminUser, hasToken bool, now time.Time) templ.Component {
 		var templ_7745c5c3_Var15 string
 		templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(ui.RelTime(&u.UpdatedAt, now))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/user_components.templ`, Line: 73, Col: 49}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/components/user_components.templ`, Line: 73, Col: 49}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 		if templ_7745c5c3_Err != nil {
@@ -403,7 +403,7 @@ func UserDetail(u rpc.AdminUser, hasToken bool, now time.Time) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		if !(u.Tier == "premium" && u.PremiumKind == "vip") {
+		if !(u.Tier() == "premium" && u.PremiumKind() == "vip") {
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "<button class=\"btn\" hx-post=\"/users/action\" hx-disabled-elt=\"this\" hx-vals=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -411,7 +411,7 @@ func UserDetail(u rpc.AdminUser, hasToken bool, now time.Time) templ.Component {
 			var templ_7745c5c3_Var16 string
 			templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.ResolveAttributeValue(`{"action":"vip", "user_id":"` + fmt.Sprint(u.ID) + `"}`)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/user_components.templ`, Line: 87, Col: 136}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/components/user_components.templ`, Line: 87, Col: 136}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var16)
 			if templ_7745c5c3_Err != nil {
@@ -424,7 +424,7 @@ func UserDetail(u rpc.AdminUser, hasToken bool, now time.Time) templ.Component {
 			var templ_7745c5c3_Var17 string
 			templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.ResolveAttributeValue("Grant VIP (permanent premium) to " + u.Username + "?")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/user_components.templ`, Line: 87, Col: 246}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/components/user_components.templ`, Line: 87, Col: 246}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var17)
 			if templ_7745c5c3_Err != nil {
@@ -435,7 +435,7 @@ func UserDetail(u rpc.AdminUser, hasToken bool, now time.Time) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		if !(u.Tier == "premium" && u.PremiumKind == "paid") {
+		if !(u.Tier() == "premium" && u.PremiumKind() == "paid") {
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "<button class=\"btn secondary\" hx-post=\"/users/action\" hx-disabled-elt=\"this\" hx-vals=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -443,7 +443,7 @@ func UserDetail(u rpc.AdminUser, hasToken bool, now time.Time) templ.Component {
 			var templ_7745c5c3_Var18 string
 			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.ResolveAttributeValue(`{"action":"paid", "user_id":"` + fmt.Sprint(u.ID) + `"}`)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/user_components.templ`, Line: 90, Col: 147}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/components/user_components.templ`, Line: 90, Col: 147}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var18)
 			if templ_7745c5c3_Err != nil {
@@ -456,7 +456,7 @@ func UserDetail(u rpc.AdminUser, hasToken bool, now time.Time) templ.Component {
 			var templ_7745c5c3_Var19 string
 			templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.ResolveAttributeValue("Mark " + u.Username + " as paid premium?")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/user_components.templ`, Line: 90, Col: 245}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/components/user_components.templ`, Line: 90, Col: 245}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var19)
 			if templ_7745c5c3_Err != nil {
@@ -467,15 +467,15 @@ func UserDetail(u rpc.AdminUser, hasToken bool, now time.Time) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		if u.Tier == "premium" {
+		if u.Tier() == "premium" {
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "<button class=\"btn secondary\" hx-post=\"/users/action\" hx-disabled-elt=\"this\" hx-vals=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var20 string
-			templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.ResolveAttributeValue(`{"action":"standard", "user_id":"` + fmt.Sprint(u.ID) + `"}`)
+			templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.ResolveAttributeValue(`{"action":"free", "user_id":"` + fmt.Sprint(u.ID) + `"}`)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/user_components.templ`, Line: 93, Col: 151}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/components/user_components.templ`, Line: 93, Col: 147}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var20)
 			if templ_7745c5c3_Err != nil {
@@ -486,9 +486,9 @@ func UserDetail(u rpc.AdminUser, hasToken bool, now time.Time) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var21 string
-			templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.ResolveAttributeValue("Remove premium from " + u.Username + " (back to standard)?")
+			templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.ResolveAttributeValue("Remove premium from " + u.Username + " (back to free)?")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/user_components.templ`, Line: 93, Col: 267}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/components/user_components.templ`, Line: 93, Col: 259}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var21)
 			if templ_7745c5c3_Err != nil {
@@ -506,7 +506,7 @@ func UserDetail(u rpc.AdminUser, hasToken bool, now time.Time) templ.Component {
 		var templ_7745c5c3_Var22 string
 		templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.ResolveAttributeValue(`{"action":"reset", "user_id":"` + fmt.Sprint(u.ID) + `"}`)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/user_components.templ`, Line: 95, Col: 147}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/components/user_components.templ`, Line: 95, Col: 147}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var22)
 		if templ_7745c5c3_Err != nil {
@@ -519,7 +519,7 @@ func UserDetail(u rpc.AdminUser, hasToken bool, now time.Time) templ.Component {
 		var templ_7745c5c3_Var23 string
 		templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.ResolveAttributeValue("Reset state for " + u.Username + "? Their settings and timers are cleared; account, tier and history stay.")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/user_components.templ`, Line: 95, Col: 311}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/components/user_components.templ`, Line: 95, Col: 311}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var23)
 		if templ_7745c5c3_Err != nil {
@@ -565,7 +565,7 @@ func TokenManager(id string, name string, hasToken bool) templ.Component {
 		var templ_7745c5c3_Var25 string
 		templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.ResolveAttributeValue(id)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/user_components.templ`, Line: 110, Col: 49}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/components/user_components.templ`, Line: 110, Col: 49}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var25)
 		if templ_7745c5c3_Err != nil {
@@ -578,7 +578,7 @@ func TokenManager(id string, name string, hasToken bool) templ.Component {
 		var templ_7745c5c3_Var26 string
 		templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.ResolveAttributeValue("Store this token for " + name + "? Any previous token is replaced.")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/user_components.templ`, Line: 116, Col: 114}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/components/user_components.templ`, Line: 116, Col: 114}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var26)
 		if templ_7745c5c3_Err != nil {
@@ -596,7 +596,7 @@ func TokenManager(id string, name string, hasToken bool) templ.Component {
 			var templ_7745c5c3_Var27 string
 			templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.ResolveAttributeValue(`{"action":"clear_token", "user_id":"` + id + `"}`)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/user_components.templ`, Line: 118, Col: 156}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/components/user_components.templ`, Line: 118, Col: 156}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var27)
 			if templ_7745c5c3_Err != nil {
@@ -609,7 +609,7 @@ func TokenManager(id string, name string, hasToken bool) templ.Component {
 			var templ_7745c5c3_Var28 string
 			templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.ResolveAttributeValue("Clear the stored token for " + name + "? Services lose this account's Twitch access on their next renewal.")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/user_components.templ`, Line: 118, Col: 320}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/components/user_components.templ`, Line: 118, Col: 320}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var28)
 			if templ_7745c5c3_Err != nil {
@@ -667,7 +667,7 @@ func UserRecent(users []rpc.AdminUser) templ.Component {
 				var templ_7745c5c3_Var30 string
 				templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.ResolveAttributeValue("/users/lookup?q=" + fmt.Sprint(u.ID))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/user_components.templ`, Line: 131, Col: 76}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/components/user_components.templ`, Line: 131, Col: 76}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var30)
 				if templ_7745c5c3_Err != nil {
@@ -680,7 +680,7 @@ func UserRecent(users []rpc.AdminUser) templ.Component {
 				var templ_7745c5c3_Var31 string
 				templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs(u.Username)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/user_components.templ`, Line: 132, Col: 17}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/components/user_components.templ`, Line: 132, Col: 17}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var31))
 				if templ_7745c5c3_Err != nil {
@@ -690,7 +690,7 @@ func UserRecent(users []rpc.AdminUser) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				if u.Tier == "premium" {
+				if u.Tier() == "premium" {
 					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 51, "<span style=\"color:var(--green-glow);\">●</span>")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
