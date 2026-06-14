@@ -57,7 +57,7 @@ func NewCommands(client *ent.Client, pub message.Publisher, app *newrelic.Applic
 
 	r := &Commands{
 		client: client,
-		views:  cache.New[[]CommandView](commandsCacheTTL),
+		views:  cache.New[[]CommandView](cache.DefaultCapacity, commandsCacheTTL),
 		pub:    pub,
 		app:    app,
 		log:    log,

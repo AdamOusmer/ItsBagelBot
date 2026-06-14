@@ -35,7 +35,7 @@ type statusRPC struct {
 func SubscribeStatus(nc *nats.Conn, valkey *store.Valkey, subject, usersTopic, queueGroup string, log *zap.Logger) error {
 	s := &statusRPC{
 		valkey:     valkey,
-		views:      cache.New[string](30 * time.Second), // short lived in-process cache
+		views:      cache.New[string](cache.DefaultCapacity, 30*time.Second), // short lived in-process cache
 		nc:         nc,
 		usersTopic: usersTopic,
 		log:        log,
