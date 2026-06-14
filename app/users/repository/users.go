@@ -46,7 +46,7 @@ type Users struct {
 func NewUsers(client *ent.Client, packer domaincrypto.Packer, pub message.Publisher) *Users {
 	return &Users{
 		client: client,
-		views:  cache.New[UserView](userCacheTTL),
+		views:  cache.New[UserView](cache.DefaultCapacity, userCacheTTL),
 		packer: packer,
 		pub:    pub,
 	}

@@ -15,7 +15,7 @@ import (
 // The whole point of GetOrLoad is stampede protection: any number of
 // concurrent misses on one key must produce exactly one loader call.
 func TestGetOrLoadCollapsesConcurrentMisses(t *testing.T) {
-	c := New[string](time.Minute)
+	c := New[string](1000, time.Minute)
 	defer c.Close()
 
 	var calls atomic.Int32
@@ -47,7 +47,7 @@ func TestGetOrLoadCollapsesConcurrentMisses(t *testing.T) {
 }
 
 func TestGetOrLoadCachesValue(t *testing.T) {
-	c := New[int](time.Minute)
+	c := New[int](1000, time.Minute)
 	defer c.Close()
 
 	var calls atomic.Int32
@@ -67,7 +67,7 @@ func TestGetOrLoadCachesValue(t *testing.T) {
 }
 
 func TestGetOrLoadDoesNotCacheErrors(t *testing.T) {
-	c := New[int](time.Minute)
+	c := New[int](1000, time.Minute)
 	defer c.Close()
 
 	boom := errors.New("boom")
@@ -88,22 +88,22 @@ func TestGetOrLoadDoesNotCacheErrors(t *testing.T) {
 }
 
 func TestEntriesExpire(t *testing.T) {
-	c := New[string](20 * time.Millisecond)
+	c := New[string](1000, 20*time.Millisecond)
 	defer c.Close()
 
 	c.Set("key", "value")
 
-	_, ok := c.get("key")
+	_, ok := c.client.Get("key")
 	require.True(t, ok)
 
 	time.Sleep(30 * time.Millisecond) // past TTL plus the maximum jitter
 
-	_, ok = c.get("key")
+	_, ok = c.client.Get("key")
 	assert.False(t, ok, "entry should have expired")
 }
 
 func TestInvalidate(t *testing.T) {
-	c := New[string](time.Minute)
+	c := New[string](1000, time.Minute)
 	defer c.Close()
 
 	c.Set("key", "stale")
