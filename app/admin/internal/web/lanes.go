@@ -84,6 +84,7 @@ func (l *laneSampler) collect(js nats.JetStreamContext, now time.Time) ([]ui.Lan
 				Consumer:    ci.Name,
 				Filter:      filter,
 				Ephemeral:   ephemeral,
+				Orphan:      !ci.PushBound,
 				Group:       laneGroup(ci.Name, filter, ephemeral),
 				Category:    laneCategory(streamName, ephemeral),
 				Pending:     ci.NumPending,

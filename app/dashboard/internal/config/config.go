@@ -14,7 +14,7 @@ type Config struct {
 
 	TwitchClientID     string
 	TwitchClientSecret string
-	BotScopes          string // space-separated scopes for the bot-enable consent
+	BotScopes          string // broadcaster-side scopes for the bot-enable consent (channel:bot lets the bot act in the channel; the read scopes unlock subs/cheers/follows events)
 
 	DashboardRPCPrefix       string
 	CommandsRPCPrefix        string
@@ -47,12 +47,13 @@ func Load() (*Config, error) {
 	c := &Config{
 		ListenAddr: get("DASHBOARD_LISTEN_ADDR", ":8080"),
 		BaseURL:    get("DASHBOARD_BASE_URL", "http://localhost:8080"),
-		// One consent carries everything: channel:bot authorizes the bot on
-		// the channel; user:read:chat plus user:bot are required on the
-		// chatting user for app-token channel.chat.message subscriptions;
-		// the read scopes unlock the broadcaster events (subs, cheers,
-		// follows) the bot receives.
-		BotScopes:                get("DASHBOARD_BOT_SCOPES", "channel:bot user:read:chat user:bot channel:read:subscriptions bits:read moderator:read:followers"),
+		// Broadcaster-side consent only: channel:bot authorizes the bot to act
+		// on the channel (so the app-token channel.chat.message subscription,
+		// read in the bot's user context, is valid here), and the read scopes
+		// unlock the broadcaster events (subs, cheers, follows) the bot
+		// receives. The bot's own identity scopes (user:read:chat, user:bot,
+		// user:write:chat) live in the bot-account consent, not here.
+		BotScopes:                get("DASHBOARD_BOT_SCOPES", "channel:bot channel:read:subscriptions bits:read moderator:read:followers"),
 		BroadcasterStatusSubject: get("NATS_BROADCASTER_STATUS_SUBJECT", "bagel.rpc.broadcaster.status.get"),
 		StatusSubjectPrefix:      get("NATS_STATUS_SUBJECT_PREFIX", "twitch.ingress.status"),
 		DashboardRPCPrefix:       get("NATS_DASHBOARD_SUBJECT_PREFIX", "bagel.rpc.dashboard"),
