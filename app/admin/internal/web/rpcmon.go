@@ -55,12 +55,15 @@ func newRPCMonitor(monitorURL string) *rpcMonitor {
 	}
 }
 
+// subszResp mirrors the NATS /subsz response. The subscription array is keyed
+// "subscriptions_list" (not "subscriptions"), and the queue group field is
+// "qgroup"; getting either wrong yields an empty list and a false NO RESPONDER.
 type subszResp struct {
 	Subscriptions []struct {
 		Subject    string `json:"subject"`
 		Msgs       uint64 `json:"msgs"`
-		QueueGroup string `json:"queue_group"`
-	} `json:"subscriptions"`
+		QueueGroup string `json:"qgroup"`
+	} `json:"subscriptions_list"`
 }
 
 // snapshot returns the cached RPC health, refreshing it at most once per ~3s.
