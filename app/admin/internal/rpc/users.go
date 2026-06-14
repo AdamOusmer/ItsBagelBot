@@ -8,16 +8,34 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-// AdminUser mirrors broadcaster-data's admin view of a user. Tier is the
-// lane tier (premium|standard); PremiumKind records how premium was obtained
-// (vip = operator grant, permanent; paid = Tebex).
+// AdminUser mirrors the users service's admin wire format. Status is the raw
+// DB enum: "free", "paid", or "vip". Tier and PremiumKind are derived by the
+// UI layer from Status so the templ conditionals stay readable.
 type AdminUser struct {
-	ID          uint64    `json:"id"`
-	Username    string    `json:"username"`
-	IsActive    bool      `json:"is_active"`
-	Tier        string    `json:"tier"`
-	PremiumKind string    `json:"premium_kind"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID        uint64    `json:"id"`
+	Username  string    `json:"username"`
+	IsActive  bool      `json:"is_active"`
+	Status    string    `json:"status"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// Tier returns "premium" when the user is paid or vip, else "standard".
+func (u AdminUser) Tier() string {
+	if u.Status == "paid" || u.Status == "vip" {
+		return "premium"
+	}
+	return "standard"
+}
+
+// PremiumKind returns "vip", "paid", or "" to mirror the former field shape.
+func (u AdminUser) PremiumKind() string {
+	switch u.Status {
+	case "vip":
+		return "vip"
+	case "paid":
+		return "paid"
+	}
+	return ""
 }
 
 type UserStats struct {

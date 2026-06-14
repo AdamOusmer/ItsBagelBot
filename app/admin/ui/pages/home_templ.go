@@ -96,7 +96,7 @@ func HomePartial(now time.Time) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</p></div><div class=\"island-grid\" style=\"margin-bottom:1.25rem;\"><div id=\"user-stats-cards\" style=\"display:contents;\" hx-get=\"/overview/user-stats\" hx-trigger=\"load, every 30s\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</p></div><div class=\"island-grid\" style=\"margin-bottom:1.25rem;\"><div id=\"user-stats-cards\" style=\"display:grid; grid-column:span 3; grid-template-columns:subgrid; gap:1rem;\" hx-get=\"/overview/user-stats\" hx-trigger=\"load, every 30s\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -112,7 +112,7 @@ func HomePartial(now time.Time) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</div><div id=\"shard-stat-card\" style=\"display:contents;\" hx-get=\"/overview/shard-stat\" hx-trigger=\"load, every 5s\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</div><div id=\"shard-stat-card\" style=\"display:grid; grid-column:span 1;\" hx-get=\"/overview/shard-stat\" hx-trigger=\"load, every 5s\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
