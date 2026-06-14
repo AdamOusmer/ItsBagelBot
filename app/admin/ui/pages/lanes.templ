@@ -1,0 +1,27 @@
+package pages
+
+import (
+	"itsbagelbot/admin/ui/layouts"
+	"itsbagelbot/admin/ui/components"
+)
+
+templ Lanes(title string) {
+	@layouts.Shell(title, "lanes") {
+		@LanesPartial()
+	}
+}
+
+templ LanesPartial() {
+	<div class="page-heading">
+		<div>
+			<p class="page-kicker">NATS JetStream</p>
+			<h1><span>Lane</span> telemetry</h1>
+		</div>
+		<p class="page-meta">refreshes every 2s</p>
+	</div>
+	<div id="lanes-live" hx-get="/lanes/live" hx-trigger="load, every 2s">
+		@components.Card("Consumers") {
+			<p class="text-muted" style="font-size:0.85rem;">loading lane telemetry…</p>
+		}
+	</div>
+}

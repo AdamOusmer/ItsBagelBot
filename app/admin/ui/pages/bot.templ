@@ -1,0 +1,36 @@
+package pages
+
+import "itsbagelbot/admin/ui/layouts"
+
+// BotCallbackResult is the full page the operator lands on after Twitch
+// redirects back from the bot-account consent. ok drives the badge; msg is the
+// human explanation. It is a full page (not a fragment) because the callback
+// is a top-level browser navigation, not an htmx swap.
+templ BotCallbackResult(ok bool, msg string) {
+	@layouts.Shell("Bot account - ItsBagelBot Admin", "home") {
+		<div class="page-heading">
+			<div>
+				<p class="page-kicker">Bot account</p>
+				<h1><span>OAuth</span> result</h1>
+			</div>
+		</div>
+		<section class="glass-card">
+			<div style="position:relative; z-index:1;">
+				<div style="padding-bottom:0.8rem;">
+					if ok {
+						<span class="badge ok"><span class="dot"></span> authorized</span>
+					} else {
+						<span class="badge down"><span class="dot"></span> failed</span>
+					}
+				</div>
+				<p style="font-size:0.95rem; margin:0 0 1rem;">{ msg }</p>
+				<div style="display:flex; flex-wrap:wrap; gap:0.6rem;">
+					<a class="btn" href="/">Back to overview</a>
+					if !ok {
+						<a class="btn secondary" href="/auth/bot">Try again</a>
+					}
+				</div>
+			</div>
+		</section>
+	}
+}
