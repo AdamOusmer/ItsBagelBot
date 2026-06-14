@@ -12,6 +12,7 @@ templ Sidebar(active string) {
 		<nav class="sidebar-nav" aria-label="Admin navigation">
 			<a class={ navClass(active, "home") } href="/" hx-get="/" hx-target="#page" hx-push-url="true">Overview</a>
 			<a class={ navClass(active, "shards") } href="/shards" hx-get="/shards" hx-target="#page" hx-push-url="true">Shard health</a>
+			<a class={ navClass(active, "lanes") } href="/lanes" hx-get="/lanes" hx-target="#page" hx-push-url="true">Lane telemetry</a>
 			<a class={ navClass(active, "users") } href="/users" hx-get="/users" hx-target="#page" hx-push-url="true">Users</a>
 		</nav>
 		<div class="sidebar-status">

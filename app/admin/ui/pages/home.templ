@@ -44,5 +44,10 @@ templ HomePartial(now time.Time) {
 				<p class="text-muted" style="font-size:0.85rem;">loading shard summary…</p>
 			}
 		</div>
+		<div id="bot-account" hx-get="/overview/bot-account" hx-trigger="load">
+			@components.Card("Bot account") {
+				<p class="text-muted" style="font-size:0.85rem;">loading bot account…</p>
+			}
+		</div>
 	</div>
 }
