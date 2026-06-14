@@ -19,7 +19,7 @@ metadata:
   name: commands
   namespace: production
 spec:
-  replicas: 2
+  replicas: 3
   selector:
     matchLabels:
       app: commands

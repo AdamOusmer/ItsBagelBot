@@ -22,7 +22,7 @@ metadata:
   name: dashboard
   namespace: production
 spec:
-  replicas: 2
+  replicas: 3
   # Hard host anti-affinity + 2 nodes means the default surge strategy deadlocks
   # (it tries to place a 3rd replica with nowhere to go). Recreate-one-at-a-time.
   strategy:
