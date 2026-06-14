@@ -50,22 +50,24 @@ func laneKey(stream, consumer string) string { return stream + "\x00" + consumer
 // plus a non-empty error string when the JetStream API is unreachable or the
 // admin account lacks $JS.API permission. now is passed in for testability.
 func (l *laneSampler) collect(js nats.JetStreamContext, now time.Time) ([]ui.Lane, string) {
-	// Probe the JetStream API first so a permissions/connectivity failure
-	// surfaces as a clean error state rather than an empty list. AccountInfo
-	// requires $JS.API.INFO, which any account with JetStream access has.
-	if _, err := js.AccountInfo(nats.MaxWait(2 * time.Second)); err != nil {
-		return nil, err.Error()
-	}
-
 	var lanes []ui.Lane
 	seen := make(map[string]struct{})
+	streamsSeen := 0
 
 	// First pass: gather raw consumer info and compute throughput. StreamsInfo
 	// and ConsumersInfo return channels; ranging drains them.
+	//
+	// We deliberately do NOT probe with AccountInfo first: the hub runs
+	// JetStream with a domain (domain: hub in nats-server.conf), so a bare
+	// $JS.API.INFO request has no responder and AccountInfo times out, even
+	// though the stream/consumer list calls below ARE served on the bare API
+	// (pkg/bus provision.go provisions streams over the same bare context).
+	// Reachability is inferred from whether any stream comes back instead.
 	for stream := range js.StreamsInfo() {
 		if stream == nil {
 			continue
 		}
+		streamsSeen++
 		streamName := stream.Config.Name
 		for ci := range js.ConsumersInfo(streamName) {
 			if ci == nil {
@@ -102,6 +104,15 @@ func (l *laneSampler) collect(js nats.JetStreamContext, now time.Time) ([]ui.Lan
 
 			lanes = append(lanes, lane)
 		}
+	}
+
+	// StreamsInfo's channel closes empty both when the JetStream API is
+	// unreachable (no responder / no permission) and when the broker genuinely
+	// has no streams. The fleet always provisions BAGEL_DATA, TWITCH_INGRESS and
+	// TWITCH_OUTGRESS (see pkg/bus DataStreams), so zero streams here means the
+	// admin account could not read the JetStream API, not an empty broker.
+	if streamsSeen == 0 {
+		return nil, "JetStream API unreachable: no streams returned (broker unreachable or account lacks $JS.API access)"
 	}
 
 	// Drop stale samples for consumers that no longer exist so the map does not
