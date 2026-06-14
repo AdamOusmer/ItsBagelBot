@@ -65,7 +65,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: dashboard
-          image: ghcr.io/adamousmer/itsbagelbot/dashboard:main-1781472286-58326f31d8d0@sha256:c75594170ad882f201ee18eafc03a57a3a93cfcf516080b17a271bf7c32980b8 # {"$imagepolicy": "flux-system:dashboard"}
+          image: ghcr.io/adamousmer/itsbagelbot/dashboard:main-1781479678-09b9ce6b15e7@sha256:e8560fd581caa0058482d5eba781de3d547fd0684c155d386f09f82445495bad # {"$imagepolicy": "flux-system:dashboard"}
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST
