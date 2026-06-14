@@ -81,6 +81,10 @@ func UsersPartial() templ.Component {
 			templ_7745c5c3_Var3 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+		templ_7745c5c3_Err = components.SidebarOOB("users").Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"page-heading\"><div><p class=\"page-kicker\">Broadcaster accounts</p><h1><span>User</span> management</h1></div><p class=\"page-meta\">grants, resets, and recent users</p></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
