@@ -27,9 +27,9 @@ templ Base(title string) {
 			<meta name="viewport" content="width=device-width, initial-scale=1"/>
 			<title>{ title }</title>
 			<meta name="htmx-config" content='{"selfRequestsOnly":true}'/>
-			<script src="https://unpkg.com/htmx.org@2.0.4" crossorigin="anonymous" nonce={ getNonce(ctx) }></script>
+			<script src="/assets/htmx.min.js" defer nonce={ getNonce(ctx) }></script>
 			<link rel="stylesheet" href="/assets/style.css" nonce={ getNonce(ctx) }/>
-			<script src="/assets/main.js" nonce={ getNonce(ctx) }></script>
+			<script src="/assets/main.js" defer nonce={ getNonce(ctx) }></script>
 		</head>
 		<body hx-headers={ fmt.Sprintf(`{"X-CSRF-Token": "%s"}`, getCsrf(ctx)) }>
 			<div id="page">

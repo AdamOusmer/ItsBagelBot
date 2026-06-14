@@ -213,10 +213,12 @@ func (w *Worker) processAPI(ctx context.Context, payload OutgressMessage) error 
 
 // processEventSub applies the receive toggle for one channel, paying the
 // reserved system Helix bucket once per HTTP call. Conduit EventSub
-// management runs under the app token, and the broadcaster's onboarding
-// consent (channel:bot, user:read:chat, user:bot, channel:read:subscriptions,
-// bits:read, moderator:read:followers) is what authorizes the subscriptions;
-// no bot user token is involved here. Creates are 409-idempotent and deletes
+// management runs under the app token. Chat (channel.chat.message) is read in
+// the bot account's user context (the bot's user:read:chat / user:bot grant
+// plus the broadcaster's channel:bot grant); the broadcaster events (subs,
+// cheers, follows, channel.update title changes) are authorized by the
+// broadcaster's own consent (channel:read:subscriptions, bits:read,
+// moderator:read:followers). No bot user token is involved here. Creates are 409-idempotent and deletes
 // 404-idempotent, so a job nacked halfway (rate limit, transient Twitch
 // error) converges when redelivery re-runs it.
 func (w *Worker) processEventSub(ctx context.Context, payload OutgressMessage) error {
@@ -245,7 +247,12 @@ func (w *Worker) processEventSub(ctx context.Context, payload OutgressMessage) e
 
 func (w *Worker) enableEventSubs(ctx context.Context, broadcasterID string) error {
 
-	for _, spec := range twitch.ChannelSubscriptions(broadcasterID) {
+	if w.botID == "" {
+		w.log.Warn("bot user id not configured, channel chat subscription will be skipped",
+			zap.String("broadcaster_id", broadcasterID))
+	}
+
+	for _, spec := range twitch.ChannelSubscriptions(broadcasterID, w.botID) {
 		if err := w.takeSystemHelix(ctx); err != nil {
 			return err
 		}

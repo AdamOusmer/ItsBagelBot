@@ -17,6 +17,8 @@ type Lane struct {
 	Filter    string // subject this consumer filters on, e.g. twitch.outgress.system
 	Ephemeral bool   // true when the consumer has no durable name (per-pod broadcast subscriber)
 	Category  string // grouping bucket: "system", "projection" or "ephemeral"
+	Alias     string // operator-set display label (admin-side, from the KV store)
+	Orphan    bool   // true when a push consumer has no bound subscriber ("no system attached")
 
 	Pending     uint64 // backlog not yet delivered to this consumer
 	AckPending  int    // delivered but not yet acked (in-flight)
@@ -93,6 +95,9 @@ func (l Lane) RedeliveredText() string { return fmt.Sprint(l.Redelivered) }
 // consumer, or just "ephemeral" for the per-pod broadcast subscribers whose
 // real names are random gibberish. The raw name stays available as a tooltip.
 func (l Lane) DisplayName() string {
+	if l.Alias != "" {
+		return l.Alias
+	}
 	if l.Ephemeral {
 		return "ephemeral"
 	}
@@ -101,6 +106,9 @@ func (l Lane) DisplayName() string {
 	}
 	return l.Consumer
 }
+
+// Aliased reports whether an operator alias is overriding the derived name.
+func (l Lane) Aliased() bool { return l.Alias != "" }
 
 // SubjectText is the subject the lane consumes, the part operators actually
 // care about. Falls back to a dash when the broker did not report a filter.

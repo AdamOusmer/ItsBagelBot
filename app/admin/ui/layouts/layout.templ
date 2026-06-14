@@ -28,11 +28,8 @@ templ Layout(title string) {
 			<meta name="viewport" content="width=device-width, initial-scale=1"/>
 			<title>{ title }</title>
 			<meta name="htmx-config" content='{"selfRequestsOnly":true}'/>
-			<script src="https://unpkg.com/htmx.org@2.0.4" crossorigin="anonymous" nonce={ getNonce(ctx) }></script>
-			<script src="https://unpkg.com/htmx-ext-sse@2.2.4/dist/sse.js" crossorigin="anonymous" nonce={ getNonce(ctx) }></script>
-			<link rel="preconnect" href="https://fonts.googleapis.com"/>
-			<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-			<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" nonce={ getNonce(ctx) }/>
+			<script src="/assets/htmx.min.js" defer nonce={ getNonce(ctx) }></script>
+			<script src="/assets/htmx-ext-sse.js" defer nonce={ getNonce(ctx) }></script>
 			<link rel="stylesheet" href="/assets/style.css" nonce={ getNonce(ctx) }/>
 		</head>
 		<body hx-headers={ fmt.Sprintf(`{"X-CSRF-Token": "%s", "X-Admin-Request": "1"}`, getCsrf(ctx)) }>
