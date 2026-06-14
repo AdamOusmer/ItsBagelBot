@@ -108,8 +108,11 @@ func (s *Server) Routes() *fiber.App {
 	}))
 
 	app.Use("/assets", filesystem.New(filesystem.Config{
-		Root:   http.FS(ui.AssetsFS),
-		MaxAge: 3600,
+		Root: http.FS(ui.AssetsFS),
+		// 1 day; Cloudflare honors this Cache-Control for the static assets it
+		// fronts, so fonts/logo/js/css are served from edge cache instead of
+		// re-fetched from origin on every navigation.
+		MaxAge: 86400,
 	}))
 
 	app.Get("/", s.landing)
@@ -142,12 +145,12 @@ func securityHeaders(c *fiber.Ctx) error {
 		"base-uri 'self'",
 		"object-src 'none'",
 		"frame-ancestors 'none'",
-		fmt.Sprintf("script-src 'self' 'nonce-%s' https://unpkg.com", nonce),
+		fmt.Sprintf("script-src 'self' 'nonce-%s'", nonce),
 		// No nonce in style-src: templ components use inline style="" attributes,
 		// and a nonce in style-src makes browsers ignore 'unsafe-inline', which
 		// would block those attributes. 'self' covers the embedded style.css.
-		"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-		"font-src 'self' https://fonts.gstatic.com",
+		"style-src 'self' 'unsafe-inline'",
+		"font-src 'self'",
 		"connect-src 'self'",
 		"img-src 'self' data:",
 	}, "; "))
@@ -157,7 +160,14 @@ func securityHeaders(c *fiber.Ctx) error {
 	c.Set("Referrer-Policy", "same-origin")
 	c.Set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()")
 	c.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
-	c.Set("Cache-Control", "no-store")
+	// Static assets under /assets are immutable-ish and get their own
+	// Cache-Control from the filesystem middleware (MaxAge below). Setting
+	// no-store here would leak onto those responses and force Cloudflare and
+	// browsers to re-download fonts/logo/js/css on every navigation. HTML
+	// responses still get no-store so session-bound pages are never cached.
+	if !strings.HasPrefix(c.Path(), "/assets") {
+		c.Set("Cache-Control", "no-store")
+	}
 	return c.Next()
 }
 

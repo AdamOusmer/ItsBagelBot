@@ -16,18 +16,34 @@ type SubSpec struct {
 	Condition map[string]string `json:"condition"`
 }
 
-// ChannelSubscriptions lists everything the receive toggle turns on: chat,
-// plus the broadcaster events (subs, gift subs, resub messages, cheers,
-// follows) the onboarding consent's read scopes unlock.
-func ChannelSubscriptions(broadcasterID string) []SubSpec {
-	return []SubSpec{
-		{"channel.chat.message", "1", map[string]string{"broadcaster_user_id": broadcasterID, "user_id": broadcasterID}},
-		{"channel.subscribe", "1", map[string]string{"broadcaster_user_id": broadcasterID}},
-		{"channel.subscription.gift", "1", map[string]string{"broadcaster_user_id": broadcasterID}},
-		{"channel.subscription.message", "1", map[string]string{"broadcaster_user_id": broadcasterID}},
-		{"channel.cheer", "1", map[string]string{"broadcaster_user_id": broadcasterID}},
-		{"channel.follow", "2", map[string]string{"broadcaster_user_id": broadcasterID, "moderator_user_id": broadcasterID}},
+// ChannelSubscriptions lists everything the receive toggle turns on for one
+// channel, split by the identity that authorizes each subscription:
+//
+//   - the bot account receives chat. channel.chat.message is read in the bot's
+//     user context (user_id = botID), authorized by the bot account's
+//     user:read:chat / user:bot grant plus the broadcaster's channel:bot grant.
+//     It is omitted when botID is empty, since the subscription cannot be built
+//     without the bot's user id.
+//   - broadcaster rights cover the channel events the broadcaster's onboarding
+//     consent unlocks: subs, gift subs, resub messages, cheers, follows, and
+//     title/category changes (channel.update).
+func ChannelSubscriptions(broadcasterID, botID string) []SubSpec {
+	specs := make([]SubSpec, 0, 7)
+
+	if botID != "" {
+		specs = append(specs,
+			SubSpec{"channel.chat.message", "1", map[string]string{"broadcaster_user_id": broadcasterID, "user_id": botID}},
+		)
 	}
+
+	return append(specs,
+		SubSpec{"channel.subscribe", "1", map[string]string{"broadcaster_user_id": broadcasterID}},
+		SubSpec{"channel.subscription.gift", "1", map[string]string{"broadcaster_user_id": broadcasterID}},
+		SubSpec{"channel.subscription.message", "1", map[string]string{"broadcaster_user_id": broadcasterID}},
+		SubSpec{"channel.cheer", "1", map[string]string{"broadcaster_user_id": broadcasterID}},
+		SubSpec{"channel.follow", "2", map[string]string{"broadcaster_user_id": broadcasterID, "moderator_user_id": broadcasterID}},
+		SubSpec{"channel.update", "2", map[string]string{"broadcaster_user_id": broadcasterID}},
+	)
 }
 
 // CreateEventSub creates one subscription on the Conduit under the app

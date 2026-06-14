@@ -28,6 +28,20 @@ templ Lanes(lanes []ui.Lane, errMsg string) {
 	}
 }
 
+// LanesResult is what the mutation endpoints return: a one-shot notice banner
+// above the freshly re-rendered lanes. The 2s poll then re-renders via Lanes,
+// dropping the notice.
+templ LanesResult(notice string, ok bool, lanes []ui.Lane, errMsg string) {
+	if notice != "" {
+		if ok {
+			<div class="lane-notice ok">{ notice }</div>
+		} else {
+			<div class="lane-notice down">{ notice }</div>
+		}
+	}
+	@Lanes(lanes, errMsg)
+}
+
 // LaneLegend is the bar-colour key above the sections.
 templ LaneLegend(count int) {
 	<div class="lane-legend-card">
@@ -91,6 +105,26 @@ templ LaneRow(lane ui.Lane) {
 		<div class="lane-bar-foot">
 			<span>{ lane.FillLabel() }</span>
 			<span>{ lane.FillWidth() }</span>
+		</div>
+		<div class="lane-actions">
+			<form class="lane-rename" hx-post="/lanes/alias" hx-target="#lanes-live" hx-swap="innerHTML" hx-confirm="Set this lane's display name? (admin label only, the broker is not touched)">
+				<input type="hidden" name="stream" value={ lane.Stream }/>
+				<input type="hidden" name="consumer" value={ lane.Consumer }/>
+				<input class="lane-rename-input" name="alias" type="text" maxlength="48" placeholder="display name" value={ lane.Alias } autocomplete="off"/>
+				<button class="btn xs" type="submit">Rename</button>
+			</form>
+			if lane.Ephemeral {
+				<button class="btn xs secondary" type="button"
+					hx-post="/lanes/durable" hx-target="#lanes-live" hx-swap="innerHTML"
+					hx-vals={ fmt.Sprintf(`{"stream":%q,"consumer":%q}`, lane.Stream, lane.Consumer) }
+					hx-confirm="Make this a PERMANENT durable consumer for the same subject? Nothing drains it, so it retains new messages until the stream's own retention reclaims them. Proceed?">Make permanent</button>
+			}
+			if lane.Orphan {
+				<button class="btn xs danger" type="button"
+					hx-post="/lanes/delete" hx-target="#lanes-live" hx-swap="innerHTML"
+					hx-vals={ fmt.Sprintf(`{"stream":%q,"consumer":%q}`, lane.Stream, lane.Consumer) }
+					hx-confirm={ fmt.Sprintf("Delete orphan lane %q (no subscriber attached)? This is irreversible. A service that owns it will recreate it on reconnect.", lane.DisplayName()) }>Delete</button>
+			}
 		</div>
 	</section>
 }
