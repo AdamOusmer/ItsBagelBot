@@ -40,6 +40,13 @@ spec:
       annotations:
         linkerd.io/inject: enabled
     spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: dashboard
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:

@@ -62,6 +62,13 @@ spec:
     spec:
       # HA is node-level: pod anti-affinity spreads the replicas across
       # node1 (ARM) and node2 (Intel).
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: twitch-ingress
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
