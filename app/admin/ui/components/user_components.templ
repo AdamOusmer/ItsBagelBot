@@ -46,11 +46,11 @@ templ UserNotRegistered(id string) {
 }
 
 templ UserStatusBadge(u rpc.AdminUser) {
-	if u.Tier == "premium" && u.PremiumKind == "vip" {
+	if u.Tier() == "premium" && u.PremiumKind() == "vip" {
 		<span class="badge ok"><span class="dot"></span> vip · permanent premium</span>
-	} else if u.Tier == "premium" && u.PremiumKind == "paid" {
+	} else if u.Tier() == "premium" && u.PremiumKind() == "paid" {
 		<span class="badge ok"><span class="dot"></span> paid premium</span>
-	} else if u.Tier == "premium" {
+	} else if u.Tier() == "premium" {
 		<span class="badge ok"><span class="dot"></span> premium</span>
 	} else {
 		<span class="badge warn"><span class="dot"></span> standard</span>
@@ -83,14 +83,14 @@ templ UserDetail(u rpc.AdminUser, hasToken bool, now time.Time) {
 		</span>
 	</div>
 	<div style="display:flex; flex-wrap:wrap; gap:0.6rem; padding-top:0.9rem;">
-		if !(u.Tier == "premium" && u.PremiumKind == "vip") {
+		if !(u.Tier() == "premium" && u.PremiumKind() == "vip") {
 			<button class="btn" hx-post="/users/action" hx-disabled-elt="this" hx-vals={ `{"action":"vip", "user_id":"` + fmt.Sprint(u.ID) + `"}` } hx-target="#user-detail" hx-swap="innerHTML" title={ "Grant VIP (permanent premium) to " + u.Username + "?" }>Grant VIP</button>
 		}
-		if !(u.Tier == "premium" && u.PremiumKind == "paid") {
+		if !(u.Tier() == "premium" && u.PremiumKind() == "paid") {
 			<button class="btn secondary" hx-post="/users/action" hx-disabled-elt="this" hx-vals={ `{"action":"paid", "user_id":"` + fmt.Sprint(u.ID) + `"}` } hx-target="#user-detail" hx-swap="innerHTML" title={ "Mark " + u.Username + " as paid premium?" }>Mark paid</button>
 		}
-		if u.Tier == "premium" {
-			<button class="btn secondary" hx-post="/users/action" hx-disabled-elt="this" hx-vals={ `{"action":"standard", "user_id":"` + fmt.Sprint(u.ID) + `"}` } hx-target="#user-detail" hx-swap="innerHTML" title={ "Remove premium from " + u.Username + " (back to standard)?" }>Remove premium</button>
+		if u.Tier() == "premium" {
+			<button class="btn secondary" hx-post="/users/action" hx-disabled-elt="this" hx-vals={ `{"action":"free", "user_id":"` + fmt.Sprint(u.ID) + `"}` } hx-target="#user-detail" hx-swap="innerHTML" title={ "Remove premium from " + u.Username + " (back to free)?" }>Remove premium</button>
 		}
 		<button class="btn secondary" hx-post="/users/action" hx-disabled-elt="this" hx-vals={ `{"action":"reset", "user_id":"` + fmt.Sprint(u.ID) + `"}` } hx-target="#user-detail" hx-swap="innerHTML" title={ "Reset state for " + u.Username + "? Their settings and timers are cleared; account, tier and history stay." }>Reset state</button>
 	</div>
@@ -130,7 +130,7 @@ templ UserRecent(users []rpc.AdminUser) {
 			for _, u := range users {
 				<button class="user-chip" hx-get={ "/users/lookup?q=" + fmt.Sprint(u.ID) } hx-target="#user-detail" hx-swap="innerHTML">
 					{ u.Username }
-					if u.Tier == "premium" {
+					if u.Tier() == "premium" {
 						<span style="color:var(--green-glow);">●</span>
 					}
 				</button>

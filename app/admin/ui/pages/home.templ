@@ -22,12 +22,12 @@ templ HomePartial(now time.Time) {
 		<p class="page-meta">{ now.Format("2006-01-02 15:04 MST") }</p>
 	</div>
 	<div class="island-grid" style="margin-bottom:1.25rem;">
-		<div id="user-stats-cards" style="display:contents;" hx-get="/overview/user-stats" hx-trigger="load, every 30s">
+		<div id="user-stats-cards" style="display:grid; grid-column:span 3; grid-template-columns:subgrid; gap:1rem;" hx-get="/overview/user-stats" hx-trigger="load, every 30s">
 			@components.LoadingStatCard("Registered users")
 			@components.LoadingStatCard("Active users")
 			@components.LoadingStatCard("Premium users")
 		</div>
-		<div id="shard-stat-card" style="display:contents;" hx-get="/overview/shard-stat" hx-trigger="load, every 5s">
+		<div id="shard-stat-card" style="display:grid; grid-column:span 1;" hx-get="/overview/shard-stat" hx-trigger="load, every 5s">
 			@components.LoadingStatCard("Shard health")
 		</div>
 	</div>
