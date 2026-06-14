@@ -97,9 +97,12 @@ metadata:
   name: dashboard
   namespace: production
 spec:
-  # Prefer the same-zone (=same-node) dashboard pod so the traefik -> backend
-  # hop stays local; Linkerd reads the EndpointSlice hints this generates and
-  # spills over to other zones only when no local endpoint is ready.
+  # Prefer the same-zone (=same-node) endpoint for any client that dials this
+  # Service's ClusterIP (kube-proxy / Linkerd read the EndpointSlice hints this
+  # generates, spilling cross-zone only when no local endpoint is ready).
+  # NOTE: the public path does not benefit here - the dashboard IngressRoute
+  # load-balances across pod endpoints directly with a sticky cookie, so it
+  # bypasses this ClusterIP. Kept for correctness of in-cluster ClusterIP use.
   trafficDistribution: PreferClose
   selector:
     app: dashboard
@@ -121,6 +124,15 @@ spec:
       services:
         - name: dashboard
           port: 8080
+          # Session affinity: Traefik load-balances across the dashboard pod
+          # endpoints directly, so it can pin each client to one pod via a
+          # cookie (keeps dashboard sessions / websockets on a single backend).
+          sticky:
+            cookie:
+              name: dashboard_affinity
+              secure: true
+              httpOnly: true
+              sameSite: lax
   tls: {} # default TLSStore already serves the itsbagelbot.com origin cert
 ---
 apiVersion: policy/v1
