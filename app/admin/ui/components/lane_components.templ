@@ -6,10 +6,10 @@ import (
 	"itsbagelbot/admin/ui"
 )
 
-// Lanes is the polled #lanes-live fragment: one row per live JetStream durable
-// consumer. Every number is a real broker measurement (see internal/web/lanes
-// .go); throughput is "—" until a second sample exists, and the bar maps to a
-// real bounded load/backlog metric labelled per lane.
+// Lanes is the polled #lanes-live fragment: live JetStream durable consumers,
+// grouped into sections (system lanes first, then projections, then the noisy
+// per-pod ephemerals). Every number is a real broker measurement (see
+// internal/web/lanes.go); throughput is "—" until a second sample exists.
 templ Lanes(lanes []ui.Lane, errMsg string) {
 	if errMsg != "" {
 		@Card("JetStream unreachable") {
@@ -21,46 +21,59 @@ templ Lanes(lanes []ui.Lane, errMsg string) {
 			<p class="text-muted" style="font-size:0.85rem;">No JetStream consumers are attached. Streams exist, but no service has bound a durable consumer yet.</p>
 		}
 	} else {
-		@LanesHeader(len(lanes))
-		<div class="lane-list">
-			for _, lane := range lanes {
-				@LaneRow(lane)
-			}
-		</div>
+		@LaneLegend(len(lanes))
+		for _, section := range ui.LaneSections(lanes) {
+			@LaneSection(section)
+		}
 	}
 }
 
-// LanesHeader is the summary card above the lane list. Splitting it out keeps
-// the control flow in Lanes flat (one element node per branch).
-templ LanesHeader(count int) {
-	@Card("Consumers") {
-		<p class="text-muted" style="font-size:0.85rem; margin-bottom:0.25rem;">
-			{ fmt.Sprint(count) } live lanes. Each bar shows a real bounded load metric per lane; throughput is sampled across ticks (a fresh lane shows a dash until its second sample).
-		</p>
+// LaneLegend is the bar-colour key above the sections.
+templ LaneLegend(count int) {
+	<div class="lane-legend-card">
+		<span class="text-muted" style="font-size:0.8rem;">{ fmt.Sprint(count) } live lanes</span>
 		<div class="lane-legend">
 			<span><span class="lane-dot ok"></span> &lt; 60%</span>
 			<span><span class="lane-dot warn"></span> 60-90%</span>
 			<span><span class="lane-dot down"></span> &gt;= 90%</span>
 		</div>
-	}
+	</div>
 }
 
-// LaneRow renders one consumer as a horizontal lane: name, queue depth,
-// throughput, and a load bar whose meaning is labelled honestly.
+// LaneSection renders one titled group of lanes.
+templ LaneSection(section ui.LaneSection) {
+	<div class="lane-section">
+		<p class="lane-section-title">{ section.Title } <span class="lane-section-count">{ fmt.Sprint(len(section.Lanes)) }</span></p>
+		<div class="lane-list">
+			for _, lane := range section.Lanes {
+				@LaneRow(lane)
+			}
+		</div>
+	</div>
+}
+
+// LaneRow renders one consumer as a horizontal lane: friendly name + subject,
+// queue depth, in-flight, retries, throughput, and a labelled load bar. The raw
+// (often gibberish) consumer name stays as a tooltip on the name.
 templ LaneRow(lane ui.Lane) {
 	<section class="glass-card lane-row">
 		<div class="lane-head">
 			<div class="lane-id">
-				<span class="lane-stream">{ lane.Stream }</span>
-				<span class="lane-name" title={ lane.Consumer }>{ lane.Consumer }</span>
+				<span class="lane-name" title={ lane.Consumer }>{ lane.DisplayName() }</span>
+				<span class="lane-subject">{ lane.SubjectText() }</span>
 			</div>
-			<div class="lane-rate" title="messages delivered per second, sampled across refreshes">
-				{ lane.RateText() }
+			<div class="lane-flags">
+				if lane.Stuck() {
+					<span class="badge down" title="delivered-but-unacked messages with zero throughput: consumer may be wedged"><span class="dot"></span> stuck</span>
+				}
+				<div class="lane-rate" title="messages delivered per second, sampled across refreshes">
+					{ lane.RateText() }
+				</div>
 			</div>
 		</div>
 		<div class="lane-metrics">
 			<div class="lane-metric">
-				<span class="lane-metric-k">queue</span>
+				<span class="lane-metric-k">pending</span>
 				<span class="lane-metric-v">{ lane.PendingText() }</span>
 			</div>
 			<div class="lane-metric">
@@ -68,7 +81,7 @@ templ LaneRow(lane ui.Lane) {
 				<span class="lane-metric-v">{ lane.InFlightText() }</span>
 			</div>
 			<div class="lane-metric">
-				<span class="lane-metric-k">redelivered</span>
+				<span class="lane-metric-k">retries</span>
 				<span class="lane-metric-v">{ lane.RedeliveredText() }</span>
 			</div>
 		</div>

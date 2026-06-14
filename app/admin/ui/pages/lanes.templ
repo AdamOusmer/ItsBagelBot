@@ -12,6 +12,7 @@ templ Lanes(title string) {
 }
 
 templ LanesPartial() {
+	@components.SidebarOOB("lanes")
 	<div class="page-heading">
 		<div>
 			<p class="page-kicker">NATS JetStream</p>
@@ -23,5 +24,19 @@ templ LanesPartial() {
 		@components.Card("Consumers") {
 			<p class="text-muted" style="font-size:0.85rem;">loading lane telemetry…</p>
 		}
+	</div>
+	<div style="margin-top:1.75rem;">
+		<div class="page-heading" style="margin-bottom:0.75rem;">
+			<div>
+				<p class="page-kicker">Core NATS request-reply</p>
+				<h2 class="subhead"><span>RPC</span> responders</h2>
+			</div>
+			<p class="page-meta">refreshes every 5s</p>
+		</div>
+		<div id="rpc-live" hx-get="/lanes/rpc" hx-trigger="load, every 5s">
+			@components.Card("RPC responders") {
+				<p class="text-muted" style="font-size:0.85rem;">loading RPC responder health…</p>
+			}
+		</div>
 	</div>
 }

@@ -11,8 +11,12 @@ import (
 // It lives in ui so both the web handlers and the templ components can share it
 // without an import cycle (components imports ui; ui must not import web).
 type Lane struct {
-	Stream   string // owning stream, e.g. TWITCH_OUTGRESS
-	Consumer string // durable consumer name, e.g. outgress_premium_..._
+	Stream    string // owning stream, e.g. TWITCH_OUTGRESS
+	Consumer  string // raw durable/ephemeral consumer name (often gibberish for ephemerals)
+	Group     string // service/queue group derived from the durable name (empty for ephemeral)
+	Filter    string // subject this consumer filters on, e.g. twitch.outgress.system
+	Ephemeral bool   // true when the consumer has no durable name (per-pod broadcast subscriber)
+	Category  string // grouping bucket: "system", "projection" or "ephemeral"
 
 	Pending     uint64 // backlog not yet delivered to this consumer
 	AckPending  int    // delivered but not yet acked (in-flight)
@@ -82,8 +86,65 @@ func (l Lane) FillTone() string {
 	}
 }
 
-// RedeliveredText renders the redelivery count.
+// RedeliveredText renders the redelivery (retry) count.
 func (l Lane) RedeliveredText() string { return fmt.Sprint(l.Redelivered) }
+
+// DisplayName is the human label for the lane: the service/group for a durable
+// consumer, or just "ephemeral" for the per-pod broadcast subscribers whose
+// real names are random gibberish. The raw name stays available as a tooltip.
+func (l Lane) DisplayName() string {
+	if l.Ephemeral {
+		return "ephemeral"
+	}
+	if l.Group != "" {
+		return l.Group
+	}
+	return l.Consumer
+}
+
+// SubjectText is the subject the lane consumes, the part operators actually
+// care about. Falls back to a dash when the broker did not report a filter.
+func (l Lane) SubjectText() string {
+	if l.Filter == "" {
+		return "—"
+	}
+	return l.Filter
+}
+
+// Stuck reports a lane that is holding delivered-but-unacked messages while not
+// moving them: a likely wedged consumer worth surfacing.
+func (l Lane) Stuck() bool { return l.AckPending > 0 && l.HasRate && l.Rate == 0 }
+
+// LaneSection is a titled group of lanes for the UI (system / projections /
+// ephemeral). Sectioning keeps the system lanes operators watch at the top and
+// quarantines the noisy per-pod ephemerals at the bottom.
+type LaneSection struct {
+	Title string
+	Lanes []Lane
+}
+
+// LaneSections splits already-sorted lanes into titled sections, preserving the
+// category order set by the sampler (system, projection, ephemeral).
+func LaneSections(lanes []Lane) []LaneSection {
+	titles := map[string]string{
+		"system":     "System lanes (chat egress)",
+		"projection": "Projections & event consumers",
+		"ephemeral":  "Cache invalidation (ephemeral)",
+	}
+	var out []LaneSection
+	for _, l := range lanes {
+		title := titles[l.Category]
+		if title == "" {
+			title = "Other"
+		}
+		if n := len(out); n > 0 && out[n-1].Title == title {
+			out[n-1].Lanes = append(out[n-1].Lanes, l)
+			continue
+		}
+		out = append(out, LaneSection{Title: title, Lanes: []Lane{l}})
+	}
+	return out
+}
 
 func clampPctUI(p float64) float64 {
 	if p < 0 {

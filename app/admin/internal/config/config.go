@@ -14,6 +14,7 @@ type Config struct {
 	ListenAddr string
 
 	NATSURL             string
+	NATSMonitorURL      string // nats HTTP monitor (/subsz,/varz) for RPC responder telemetry
 	AdminSubject        string // request-reply subject answered by Ingress.AdminRpc
 	StatusSubjectPrefix string // shard up/down events for the live feed
 	UserSubjectPrefix   string // admin user verbs owned by broadcaster-data
@@ -26,7 +27,7 @@ type Config struct {
 
 	TwitchClientID     string // Doppler, required: the fleet's Twitch app client id
 	TwitchClientSecret string // Doppler, required: the fleet's Twitch app secret
-	BotScopes          string // space-separated scopes carried by the bot consent
+	BotScopes          string // bot-account identity scopes: read/write chat as the bot and read its moderated channels for mod actions
 
 	// BotUserID, when set, is the Twitch user id the bot account MUST resolve
 	// to. The callback refuses to store a token whose owner differs, guarding
@@ -52,13 +53,14 @@ func Load() (*Config, error) {
 	c := &Config{
 		ListenAddr:          get("ADMIN_LISTEN_ADDR", ":8080"),
 		NATSURL:             fmt.Sprintf("nats://%s:%s", get("NATS_HOST", "127.0.0.1"), get("NATS_PORT", "4222")),
+		NATSMonitorURL:      fmt.Sprintf("http://%s:%s", get("NATS_HOST", "127.0.0.1"), get("NATS_MONITOR_PORT", "8222")),
 		AdminSubject:        get("NATS_ADMIN_SUBJECT", "twitch.ingress.admin.shards.get"),
 		StatusSubjectPrefix: get("NATS_STATUS_SUBJECT_PREFIX", "twitch.ingress.status"),
 		UserSubjectPrefix:   get("NATS_ADMIN_USER_SUBJECT_PREFIX", "bagel.rpc.admin.user"),
 		BaseURL:             get("ADMIN_BASE_URL", "http://localhost:8080"),
 		// Same scopes string the dashboard's bot consent carries, so the bot
 		// account is minted with everything the fleet's services expect.
-		BotScopes: get("ADMIN_BOT_SCOPES", "channel:bot user:read:chat user:bot channel:read:subscriptions bits:read moderator:read:followers"),
+		BotScopes: get("ADMIN_BOT_SCOPES", "user:read:chat user:bot user:write:chat user:read:moderated_channels"),
 		BotUserID: get("ADMIN_BOT_USER_ID", ""),
 	}
 

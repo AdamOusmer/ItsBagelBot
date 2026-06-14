@@ -61,6 +61,22 @@ type Server struct {
 
 	lanesMu      sync.Mutex
 	lanesSampler *laneSampler
+
+	// RPCMonitorURL is the NATS HTTP monitor base (e.g. http://nats:8222) the
+	// RPC responder telemetry scrapes. Empty disables the RPC section.
+	RPCMonitorURL string
+	rpcMonOnce    sync.Once
+	rpcMon        *rpcMonitor
+}
+
+// rpcStatus returns the cached RPC responder telemetry, lazily building the
+// monitor client on first use.
+func (s *Server) rpcStatus() ([]ui.RPCEndpoint, string) {
+	if s.RPCMonitorURL == "" {
+		return nil, "RPC monitor not configured"
+	}
+	s.rpcMonOnce.Do(func() { s.rpcMon = newRPCMonitor(s.RPCMonitorURL) })
+	return s.rpcMon.snapshot()
 }
 
 func (s *Server) Routes() *fiber.App {
@@ -92,6 +108,7 @@ func (s *Server) Routes() *fiber.App {
 	app.Get("/shards/live", s.fragment)
 	app.Get("/shards/summary", s.shardSummary)
 	app.Get("/lanes/live", s.lanesFragment)
+	app.Get("/lanes/rpc", s.rpcFragment)
 	app.Get("/events", s.events)
 	app.Get("/users/lookup", s.userLookup)
 	app.Get("/users/recent", s.userRecent)
@@ -299,6 +316,13 @@ func (s *Server) lanesPage(c *fiber.Ctx) error {
 func (s *Server) lanesFragment(c *fiber.Ctx) error {
 	lanes, errMsg := s.lanes()
 	return render(c, components.Lanes(lanes, errMsg))
+}
+
+// rpcFragment serves the #rpc-live region: core-NATS request-reply responder
+// health, scraped from the NATS monitor and refreshed on its own poll.
+func (s *Server) rpcFragment(c *fiber.Ctx) error {
+	eps, errMsg := s.rpcStatus()
+	return render(c, components.RPCStatus(eps, errMsg))
 }
 
 func (s *Server) usersPage(c *fiber.Ctx) error {
