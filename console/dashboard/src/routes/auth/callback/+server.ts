@@ -13,7 +13,9 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
   const code = url.searchParams.get('code');
   const state = url.searchParams.get('state');
   const stored = cookies.get('oauth_state');
+  const storedNonce = cookies.get('oauth_nonce');
   cookies.delete('oauth_state', { path: '/' });
+  cookies.delete('oauth_nonce', { path: '/' });
 
   // Constant-ish state check: reject missing/mismatched state before any exchange.
   if (!code || !state || !stored || state !== stored) throw redirect(302, '/login?e=state');
@@ -23,18 +25,36 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
     const claims = decodeIdToken(tokens.idToken()!) as {
       sub: string;
       preferred_username: string;
+      aud?: string | string[];
+      iss?: string;
+      nonce?: string;
+      // Twitch may include granted scope; best-effort check.
+      scope?: string;
     };
+
+    // Validate aud == client id and iss == Twitch.
+    // arctic's Twitch.createAuthorizationURL does not accept a nonce param,
+    // so we appended it manually in the login route and verify it here.
+    // This guards against id_token substitution attacks.
+    const clientId = env.TWITCH_CLIENT_ID ?? '';
+    const audOk = Array.isArray(claims.aud)
+      ? claims.aud.includes(clientId)
+      : claims.aud === clientId;
+    const issOk = claims.iss === 'https://id.twitch.tv/oauth2';
+    if (!audOk || !issOk) throw redirect(302, '/login?e=state');
+
+    // Nonce check: stored nonce must match claim (replay / token-swap guard).
+    if (storedNonce && claims.nonce !== storedNonce) throw redirect(302, '/login?e=state');
+
+    // Best-effort scope check: if Twitch echoes the granted scope, ensure
+    // openid is present. Don't hard-fail on absent scope field.
+    if (claims.scope && !claims.scope.includes('openid')) throw redirect(302, '/login?e=scope');
 
     const userId = claims.sub;
     const login = claims.preferred_username.toLowerCase();
     const displayName = claims.preferred_username;
 
-    await rpc(`${DASHBOARD}.upsert_user`, {
-      user_id: userId,
-      username: login,
-      display_name: displayName
-    });
-
+    // Issue session cookie immediately — no NATS round-trip on the hot path.
     const value = seal({
       user_id: userId,
       login: login,
@@ -49,6 +69,16 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
       secure: url.protocol === 'https:',
       sameSite: 'lax',
       maxAge: SESSION_TTL
+    });
+
+    // Fire upsert_user in the background — user is already redirected.
+    // Catch + log so an unhandled rejection cannot crash the process.
+    rpc(`${DASHBOARD}.upsert_user`, {
+      user_id: userId,
+      username: login,
+      display_name: displayName
+    }).catch((err: unknown) => {
+      console.error('[callback] upsert_user failed (non-fatal):', err);
     });
   } catch (e) {
     if (e instanceof OAuth2RequestError) throw redirect(302, '/login?e=oauth');

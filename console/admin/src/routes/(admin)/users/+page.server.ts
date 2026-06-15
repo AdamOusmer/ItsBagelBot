@@ -6,6 +6,7 @@ import {
   userLookup,
   userSetStatus,
   userReset,
+  userDelete,
   tokenClear,
   tokenStatus,
   type AdminUserWire
@@ -97,6 +98,19 @@ export const actions: Actions = {
     try {
       await tokenClear(userId);
       return { action: { ok: true, notice: 'token cleared' } };
+    } catch (e) {
+      return { action: { ok: false, notice: (e as Error).message } };
+    }
+  },
+
+  delete: async ({ request, locals }) => {
+    if (!allowed(locals.session)) return fail(403, { error: 'forbidden' });
+    const userId = String((await request.formData()).get('user_id') ?? '').trim();
+    if (!userId) return fail(400, { error: 'user_id required' });
+    if (isDemo()) return { action: { ok: true, notice: 'user deleted (demo only, no real data removed)' } };
+    try {
+      await userDelete(userId);
+      return { action: { ok: true, notice: 'user deleted' } };
     } catch (e) {
       return { action: { ok: false, notice: (e as Error).message } };
     }
