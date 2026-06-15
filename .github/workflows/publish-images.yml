@@ -189,7 +189,7 @@ jobs:
               app/users/*)
                 add "users"
                 ;;
-              console/shared/*)
+              console/shared/*|console/bunfig.toml|console/bun.lock|console/package.json)
                 add "console-dashboard"
                 add "console-admin"
                 ;;
