@@ -64,4 +64,12 @@
       {@render children()}
     </div>
   </main>
+
+  <!-- mobile bottom nav (sidebar is hidden ≤760px) -->
+  <nav class="mobile-nav">
+    <a href="/" class={crumb === 'Overview' ? 'active' : ''}><Icon name="overview" size={20} />Overview</a>
+    <a href="/commands" class={crumb === 'Commands' ? 'active' : ''}><Icon name="commands" size={20} />Commands</a>
+    <a href="/modules" class={crumb === 'Modules' ? 'active' : ''}><Icon name="moderation" size={20} />Modules</a>
+    <form method="POST" action="/auth/logout"><button type="submit"><Icon name="power" size={20} />Log out</button></form>
+  </nav>
 </div>
