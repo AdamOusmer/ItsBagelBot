@@ -1,20 +1,19 @@
 import type { Actions, PageServerLoad } from './$types';
-import { hasGrant, isActive, setActive, tier, publishEventSub } from '$lib/server/rpc';
+import { hasGrant, isActive, setActive, accountStatus, publishEventSub, type AccountStatus } from '$lib/server/rpc';
 import { env } from '$env/dynamic/private';
 import { fail } from '@sveltejs/kit';
-import type { Tier } from '@bagel/shared';
 
 export const load: PageServerLoad = async ({ locals }) => {
   const uid = locals.session?.user_id ?? 'demo';
 
   let enabled = false;
   let receiving = false;
-  let accountTier: Tier = 'standard';
+  let status: AccountStatus = 'free';
 
   if (env.DEMO === '1') {
     enabled = true;
     receiving = true;
-    accountTier = 'premium';
+    status = 'vip';
   } else {
     try {
       enabled = await hasGrant(uid);
@@ -23,13 +22,13 @@ export const load: PageServerLoad = async ({ locals }) => {
       /* degrade */
     }
     try {
-      accountTier = await tier(uid);
+      status = await accountStatus(uid);
     } catch {
-      /* keep standard */
+      /* keep free */
     }
   }
 
-  return { enabled, receiving, tier: accountTier };
+  return { enabled, receiving, status };
 };
 
 export const actions: Actions = {
