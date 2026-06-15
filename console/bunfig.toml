@@ -1,0 +1,7 @@
+# Hoisted (flat) node_modules so a production image can ship a self-contained
+# node_modules by copying the workspace root. Bun's default isolated linker puts
+# deps in node_modules/.bun and symlinks them per-workspace, which does not
+# survive a cross-stage container COPY (adapter-node leaves nats/arctic external
+# and resolves them from node_modules at runtime).
+[install]
+linker = "hoisted"
