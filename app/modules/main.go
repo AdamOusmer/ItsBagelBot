@@ -11,6 +11,7 @@ import (
 	"ItsBagelBot/app/modules/repository"
 	"ItsBagelBot/app/modules/rpc"
 	"ItsBagelBot/internal/domain/event/data"
+	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/db"
 	"ItsBagelBot/pkg/env"
@@ -103,6 +104,29 @@ func main() {
 		return repo.Reproject(ctx)
 	}, log); err != nil {
 		log.Fatal("failed to subscribe to reproject requests", zap.Error(err))
+	}
+
+	if err := bus.Consume(ctx, nil, grouped, data.SubjectUserDeleted, func(msg *message.Message) error {
+
+		var dto data.UserDeletedDTO
+		if err := json.Unmarshal(msg.Payload, &dto); err != nil {
+			log.Warn("modules: bad user_deleted payload", zap.Error(err))
+			return nil
+		}
+
+		if err := validate.UserID(dto.UserID); err != nil {
+			log.Warn("modules: invalid user_id in user_deleted", zap.Error(err))
+			return nil
+		}
+
+		if err := repo.DeleteAllForUser(msg.Context(), dto.UserID); err != nil {
+			return err
+		}
+
+		log.Info("modules: deleted all for user", zap.Uint64("user_id", dto.UserID))
+		return nil
+	}, log); err != nil {
+		log.Fatal("failed to subscribe to user deleted events", zap.Error(err))
 	}
 
 	projectionSubject := env.Get("NATS_INTERNAL_PROJECTION_MODULES_SUBJECT", "bagel.rpc.internal.projection.modules.get")

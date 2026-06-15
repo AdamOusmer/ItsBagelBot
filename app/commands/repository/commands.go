@@ -145,6 +145,21 @@ func (r *Commands) Delete(ctx context.Context, userID uint64, name string) error
 	})
 }
 
+// DeleteAllForUser removes every command belonging to the user and drops the
+// cached view. Called when the user-deleted event arrives; idempotent — deleting
+// absent rows succeeds silently.
+func (r *Commands) DeleteAllForUser(ctx context.Context, userID uint64) error {
+
+	if _, err := r.client.Commands.Delete().
+		Where(commands.UserIDEQ(userID)).
+		Exec(ctx); err != nil {
+		return err
+	}
+
+	r.Invalidate(userID)
+	return nil
+}
+
 // Invalidate drops the cached view of one user; called when a change event
 // arrives from another instance of this service.
 func (r *Commands) Invalidate(userID uint64) {

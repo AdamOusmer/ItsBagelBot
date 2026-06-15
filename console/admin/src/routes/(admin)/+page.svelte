@@ -55,10 +55,32 @@
             <span>{data.botPresent ? 'Authorized · OAuth token present' : 'Awaiting authorization'}</span>
           </div>
           <div class="actions" style="margin-top:12px">
-            <Button variant="ghost" icon="link">Re-authorize</Button>
+            <!--
+              Re-authorize: no bot-OAuth RPC exists in the admin service.
+              Disabled until a re-auth subject is wired server-side.
+            -->
+            <button
+              class="btn ghost"
+              type="button"
+              disabled
+              title="Re-authorization is not yet available. A bot-OAuth RPC subject must be added to enable this action."
+              aria-disabled="true"
+            >
+              <Icon name="link" size={14} /> Re-authorize
+            </button>
           </div>
         </div>
       </div>
     </div>
   </div>
 </section>
+
+<style>
+  @media (max-width: 760px) {
+    :global(.stat-grid) { grid-template-columns: 1fr 1fr; }
+    /* status-hero in a card: stack vertically, let actions fill width */
+    :global(.status-hero) { grid-template-columns: 1fr !important; gap: 14px !important; }
+    :global(.status-hero .actions) { width: 100%; }
+    :global(.status-hero .actions .btn) { width: 100%; justify-content: center; }
+  }
+</style>

@@ -158,6 +158,21 @@ func (r *Modules) Reproject(ctx context.Context) error {
 	}
 }
 
+// DeleteAllForUser removes every module row belonging to the user and drops the
+// cached view. Called when the user-deleted event arrives; idempotent — deleting
+// absent rows succeeds silently.
+func (r *Modules) DeleteAllForUser(ctx context.Context, userID uint64) error {
+
+	if _, err := r.client.Modules.Delete().
+		Where(modules.UserIDEQ(userID)).
+		Exec(ctx); err != nil {
+		return err
+	}
+
+	r.Invalidate(userID)
+	return nil
+}
+
 // Invalidate drops the cached view of one user; called when a change event
 // arrives from another instance of this service.
 func (r *Modules) Invalidate(userID uint64) {
