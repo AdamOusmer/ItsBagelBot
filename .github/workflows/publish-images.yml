@@ -17,13 +17,14 @@ on:
           - all
           - admin
           - commands
-          - dashboard
           - modules
           - outgress
           - projector
           - transactions
           - users
           - twitch-ingress
+          - console-dashboard
+          - console-admin
 
 concurrency:
   group: publish-images-${{ github.ref }}
@@ -73,12 +74,6 @@ jobs:
               "description": "ItsBagelBot commands data service"
             },
             {
-              "image": "dashboard",
-              "context": ".",
-              "containerfile": "app/dashboard/Containerfile",
-              "description": "ItsBagelBot streamer dashboard service"
-            },
-            {
               "image": "modules",
               "context": ".",
               "containerfile": "app/modules/Containerfile",
@@ -113,6 +108,18 @@ jobs:
               "context": "app/ingress",
               "containerfile": "app/ingress/Containerfile",
               "description": "ItsBagelBot Twitch ingress service"
+            },
+            {
+              "image": "console-dashboard",
+              "context": "console",
+              "containerfile": "console/dashboard/Containerfile",
+              "description": "ItsBagelBot console dashboard (SvelteKit SSR)"
+            },
+            {
+              "image": "console-admin",
+              "context": "console",
+              "containerfile": "console/admin/Containerfile",
+              "description": "ItsBagelBot console admin (SvelteKit SSR)"
             }
           ]'
 
@@ -125,7 +132,6 @@ jobs:
           add_root_go_services() {
             add "admin"
             add "commands"
-            add "dashboard"
             add "modules"
             add "outgress"
             add "projector"
@@ -136,13 +142,14 @@ jobs:
           add_all_services() {
             add "admin"
             add "commands"
-            add "dashboard"
             add "modules"
             add "outgress"
             add "projector"
             add "transactions"
             add "users"
             add "twitch-ingress"
+            add "console-dashboard"
+            add "console-admin"
           }
 
           select_for_path() {
@@ -164,9 +171,6 @@ jobs:
               app/commands/*)
                 add "commands"
                 ;;
-              app/dashboard/*)
-                add "dashboard"
-                ;;
               app/ingress/*)
                 add "twitch-ingress"
                 ;;
@@ -184,6 +188,16 @@ jobs:
                 ;;
               app/users/*)
                 add "users"
+                ;;
+              console/shared/*)
+                add "console-dashboard"
+                add "console-admin"
+                ;;
+              console/dashboard/*)
+                add "console-dashboard"
+                ;;
+              console/admin/*)
+                add "console-admin"
                 ;;
             esac
           }

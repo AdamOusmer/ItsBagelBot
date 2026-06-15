@@ -12,17 +12,17 @@ spec:
   port: 8080
   proxyProtocol: HTTP/1
 ---
-# Server: dashboard
+# Server: console-dashboard (SvelteKit SSR on :3000, HTTP/1.1 via adapter-node)
 apiVersion: policy.linkerd.io/v1beta1
 kind: Server
 metadata:
-  name: dashboard-http
+  name: console-dashboard-http
   namespace: production
 spec:
   podSelector:
     matchLabels:
-      app: dashboard
-  port: 8080
+      app: console-dashboard
+  port: 3000
   proxyProtocol: HTTP/1
 ---
 # Allow Kubelet probes to bypass auth (for Liveness/Readiness probes)
@@ -39,23 +39,22 @@ spec:
       matchExpressions:
         - key: app
           operator: In
-          values: [broadcaster-data, dashboard]
+          values: [broadcaster-data, console-dashboard]
   client:
     networks:
       - cidr: 0.0.0.0/0
     unauthenticated: true
 ---
-# Allow Traefik (in kube-system) to route traffic to the Dashboard
+# Allow Traefik (in kube-system) to route traffic to the console dashboard.
 apiVersion: policy.linkerd.io/v1alpha1
 kind: ServerAuthorization
 metadata:
-  name: dashboard-allow-ingress
+  name: console-dashboard-allow-ingress
   namespace: production
 spec:
   server:
-    name: dashboard-http
+    name: console-dashboard-http
   client:
-    # Since Traefik is unmeshed (or in kube-system without mTLS to bagelbot),
-    # we allow unauthenticated traffic to reach the dashboard. The dashboard
-    # has no internal data that isn't public, or it manages its own session auth.
+    # Traefik reaches the pod unmeshed from kube-system; the app manages its own
+    # session auth (encrypted cookie) and serves only public/session-gated data.
     unauthenticated: true

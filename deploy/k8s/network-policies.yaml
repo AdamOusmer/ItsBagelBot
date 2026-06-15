@@ -9,7 +9,7 @@ spec:
     matchExpressions:
       - key: app
         operator: In
-        values: [users, commands, modules, transactions, projector, dashboard, admin, twitch-ingress, outgress]
+        values: [users, commands, modules, transactions, projector, admin, twitch-ingress, outgress, console-dashboard, console-admin]
   policyTypes:
   - Ingress
   - Egress
