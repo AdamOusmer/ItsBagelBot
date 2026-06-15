@@ -13,7 +13,7 @@ export function scopes(): string[] {
   const bot = (env.DASHBOARD_BOT_SCOPES ?? 'channel:bot user:read:chat user:bot')
     .split(/\s+/)
     .filter(Boolean);
-  return ['user:read:email', ...bot];
+  return ['openid', 'user:read:email', ...bot];
 }
 
 export function twitch(): Twitch {
@@ -24,22 +24,3 @@ export function twitch(): Twitch {
   return new Twitch(id, secret, redirect);
 }
 
-export interface TwitchUser {
-  id: string;
-  login: string;
-  display_name: string;
-}
-
-export async function fetchUser(accessToken: string): Promise<TwitchUser> {
-  const res = await fetch('https://api.twitch.tv/helix/users', {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Client-Id': env.TWITCH_CLIENT_ID ?? ''
-    }
-  });
-  if (!res.ok) throw new Error(`helix users ${res.status}`);
-  const body = (await res.json()) as { data: TwitchUser[] };
-  const u = body.data?.[0];
-  if (!u) throw new Error('no user in helix response');
-  return u;
-}
