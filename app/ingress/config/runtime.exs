@@ -72,6 +72,14 @@ config :ingress,
   # Request-reply subject answered by Ingress.AdminRpc with a cluster-wide
   # shard state snapshot. Consumed by the admin tool, never by user traffic.
   admin_subject: System.get_env("NATS_ADMIN_SUBJECT", "twitch.ingress.admin.shards.get"),
+  # Manual shard-count control: body {"count": N}, replies with full snapshot.
+  scale_subject:
+    System.get_env("NATS_SCALE_SUBJECT", "twitch.ingress.admin.shards.scale"),
+  # Autoscaler toggle: body {"enabled": true|false}, replies with full snapshot.
+  autoscale_subject:
+    System.get_env("NATS_AUTOSCALE_SUBJECT", "twitch.ingress.admin.shards.autoscale"),
+  # Hard ceiling applied to both manual targets and the autoscaler estimate.
+  max_shards: String.to_integer(System.get_env("TWITCH_CONDUIT_MAX_SHARDS", "20")),
   # NATS RPC endpoint exposed by the Go service that owns broadcaster data.
   # The ingress never queries the database directly (data-and-state rules).
   broadcaster_status_subject:

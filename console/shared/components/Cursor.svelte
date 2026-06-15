@@ -81,7 +81,7 @@
       lastMove = performance.now();
       start();
     };
-    const sel = 'a, button, [data-cursor]';
+    const sel = 'a, button, .search, [data-cursor]';
     const over = (e: PointerEvent) => {
       const el = (e.target as Element | null)?.closest<HTMLElement>(sel);
       if (el) {
@@ -144,11 +144,12 @@
     transition: opacity 250ms, background 250ms, border-color 250ms;
     will-change: transform, width, height, border-radius;
   }
-  /* morphed onto a button: soft accent fill highlight */
+  /* morphed onto a button: the cursor stamps its own tan color onto the
+     element, filling it with a tan wash and a tan border. */
   :global(.cursor-ring.morph) {
     opacity: 1;
-    background: var(--ui-accent-soft, rgba(82, 183, 136, 0.14));
-    border-color: var(--ui-accent-light, #40916c);
+    background: rgba(201, 168, 124, 0.22);
+    border-color: var(--bb-tan, #c9a87c);
   }
   :global(html.bb-cursor-on),
   :global(html.bb-cursor-on *) {

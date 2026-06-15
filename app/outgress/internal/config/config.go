@@ -11,6 +11,14 @@ type Config struct {
 	SystemSubject   string
 	RPCPrefix       string
 
+	// Worker pool sizes per lane. Premium gets the most goroutines so
+	// broadcasters with large audiences drain ahead of standard and system
+	// traffic (premium-first ordering). Standard and system carry lower
+	// volumes and default to smaller pools.
+	PremiumWorkers  int
+	StandardWorkers int
+	SystemWorkers   int
+
 	ValkeyAddr     string
 	ValkeyPassword string
 
@@ -53,5 +61,8 @@ func Load() *Config {
 		TwitchBotUserID:       env.Get("TWITCH_BOT_USER_ID", ""),
 		TwitchBotRefreshToken: env.Get("TWITCH_BOT_REFRESH_TOKEN", ""),
 		TokensSubjectPrefix:   env.Get("NATS_INTERNAL_TOKENS_SUBJECT_PREFIX", "bagel.rpc.internal.tokens"),
+		PremiumWorkers:        env.GetInt("OUTGRESS_PREMIUM_WORKERS", 8),
+		StandardWorkers:       env.GetInt("OUTGRESS_STANDARD_WORKERS", 3),
+		SystemWorkers:         env.GetInt("OUTGRESS_SYSTEM_WORKERS", 2),
 	}
 }

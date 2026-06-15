@@ -1,10 +1,16 @@
 defmodule Ingress.Bootstrapper do
   @moduledoc """
-  Runs on every node and periodically makes sure the cluster-singleton
-  `Ingress.ConduitManager` is alive somewhere in the cluster. Horde's
-  registry guarantees at most one; this loop guarantees at least one, even
-  right after boot when cluster membership is still syncing, or after the
-  node that hosted it disappears.
+  Runs on every node and periodically makes sure both cluster-singleton
+  processes are alive somewhere in the cluster:
+
+    * `Ingress.ShardScaler`   — owns the desired shard count and autoscaler.
+    * `Ingress.ConduitManager` — reconciles the Conduit and ShardSessions.
+
+  Horde's registry guarantees at most one instance of each; this loop
+  guarantees at least one, even right after boot when cluster membership is
+  still syncing, or after the node that hosted them disappears. ShardScaler
+  is ensured first so ConduitManager finds it ready when its first reconcile
+  runs.
   """
 
   use GenServer
@@ -22,14 +28,19 @@ defmodule Ingress.Bootstrapper do
 
   @impl true
   def handle_info(:ensure, state) do
-    case Horde.DynamicSupervisor.start_child(Ingress.ShardSupervisor, Ingress.ConduitManager) do
-      {:ok, _pid} -> Logger.info("conduit manager started on #{node()}")
-      {:error, {:already_started, _pid}} -> :ok
-      :ignore -> :ok
-      {:error, reason} -> Logger.debug("conduit manager not started: #{inspect(reason)}")
-    end
+    ensure_singleton(Ingress.ShardScaler, "shard scaler")
+    ensure_singleton(Ingress.ConduitManager, "conduit manager")
 
     Process.send_after(self(), :ensure, @interval_ms)
     {:noreply, state}
+  end
+
+  defp ensure_singleton(module, label) do
+    case Horde.DynamicSupervisor.start_child(Ingress.ShardSupervisor, module) do
+      {:ok, _pid} -> Logger.info("#{label} started on #{node()}")
+      {:error, {:already_started, _pid}} -> :ok
+      :ignore -> :ok
+      {:error, reason} -> Logger.debug("#{label} not started: #{inspect(reason)}")
+    end
   end
 end

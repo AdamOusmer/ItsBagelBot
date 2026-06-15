@@ -22,10 +22,10 @@ access control. See [Networking](/infrastructure/networking/) for the posture th
 - Stream **live shard events** (`twitch.ingress.status.>`) to the browser over SSE; an event triggers an
   immediate snapshot refresh, with a steady 5s poll as fallback.
 - **User management**: look up a user by Twitch id or username (plus a recent-users list), grant **VIP**
-  (permanent premium), mark **paid premium**, drop back to **standard**, and **reset state** (clears the
-  user's configs and timers; account, tier and transaction history stay). All actions go over NATS to
-  broadcaster-data — the owner of the schema — which publishes the broadcaster cache invalidation key so the
-  ingress lanes react immediately.
+  (permanent premium), mark **paid premium**, drop back to **free**, and **reset state** (clears the
+  user's stored Twitch tokens; account, tier and transaction history stay). All actions go over NATS to
+  the users service — the owner of the schema — which publishes the broadcaster cache invalidation key so
+  the ingress lanes react immediately.
 
 What this service does **not** do: touch infrastructure. No shard restarts, no conduit reconfiguration —
 operations on the fleet stay in `kubectl` where they are audited and reviewable. It also never opens MySQL;
@@ -65,8 +65,11 @@ which replica responds.
 | `twitch.ingress.status.>`          | subscribe     | shard up/down events, bridged verbatim to the browser as SSE             |
 | `bagel.rpc.admin.user.get`         | request-reply | `{user_id}` or `{username}` → `{user}`                                  |
 | `bagel.rpc.admin.user.list`        | request-reply | `{limit}` → `{users[]}` (most recently updated first)                   |
-| `bagel.rpc.admin.user.set_status`  | request-reply | `{user_id, status: vip\|paid\|standard}` → `{user}`                     |
-| `bagel.rpc.admin.user.reset`       | request-reply | `{user_id}` → `{user}`                                                  |
+| `bagel.rpc.admin.user.set_status`  | request-reply | `{user_id, status: free\|paid\|vip}` → `{user}` (provisions the row if unseen) |
+| `bagel.rpc.admin.user.reset`       | request-reply | `{user_id}` → `{user}` (clears stored tokens)                          |
+| `bagel.rpc.admin.user.stats`       | request-reply | `{}` → `{stats}`                                                        |
+| `bagel.rpc.admin.user.token_set` / `token_status` / `token_clear` | request-reply | bot-account token management; `{token: {present}}` |
+| `bagel.rpc.admin.user.delete`      | request-reply | `{user_id}` or `{username}` → `{}` (cascade-deletes the user)          |
 
 Each entry in `shards[]` carries `{shard_id, state, node, session_id, bound, handshake_in_flight, keepalive_ms,
 attempts, bound_at, last_frame_at}`. The user verbs are owned and answered by broadcaster-data; a user is
@@ -118,4 +121,5 @@ fleet, so it must not share failure modes with the mesh.
 
 - [Twitch Ingress](/microservices/twitch-ingress/): the service this tool observes, including `Ingress.AdminRpc`.
 - [Networking](/infrastructure/networking/): the two-plane model that makes "tailnet only" meaningful.
-- [ADR 0001](/adr/0001-zero-trust-network/): the Zero-Trust posture.
+- [RPC contracts](/reference/rpc-contracts/): the full `bagel.rpc.admin.user.*` and shard-snapshot surface.
+- [ADR 0004](/adr/0004-adoption-of-oracle-cloud/): the tailnet fleet the "tailnet only" posture rides on.

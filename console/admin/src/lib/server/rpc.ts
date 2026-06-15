@@ -1,14 +1,17 @@
 // Admin-facing RPC wrappers over the shared NATS client. Subjects come from env
 // with the same defaults as the retired Go admin tier. Every wrapper degrades
 // gracefully: callers catch and fall back to sample data so SSR always renders.
-import { rpc } from '@bagel/shared/server/nats';
+import { rpc, publish } from '@bagel/shared/server/nats';
 import type { ShardSnapshot, UserStats } from '@bagel/shared';
 import { env } from '$env/dynamic/private';
 
 const SUB = {
   shards: env.NATS_ADMIN_SUBJECT ?? 'twitch.ingress.admin.shards.get',
+  scale: env.NATS_SHARD_SCALE_SUBJECT ?? 'twitch.ingress.admin.shards.scale',
+  autoscale: env.NATS_SHARD_AUTOSCALE_SUBJECT ?? 'twitch.ingress.admin.shards.autoscale',
   status: env.NATS_STATUS_SUBJECT_PREFIX ?? 'twitch.ingress.status',
-  user: env.NATS_ADMIN_USER_SUBJECT_PREFIX ?? 'bagel.rpc.admin.user'
+  user: env.NATS_ADMIN_USER_SUBJECT_PREFIX ?? 'bagel.rpc.admin.user',
+  outgress: env.NATS_OUTGRESS_SYSTEM_SUBJECT ?? 'twitch.outgress.system'
 };
 
 export const STATUS_PREFIX = SUB.status;
@@ -31,6 +34,14 @@ export interface TokenStatus {
 
 export async function shardSnapshot(): Promise<ShardSnapshot> {
   return rpc<ShardSnapshot>(SUB.shards, {}, 5000);
+}
+
+export async function shardScale(count: number): Promise<ShardSnapshot> {
+  return rpc<ShardSnapshot>(SUB.scale, { count }, 5000);
+}
+
+export async function shardAutoscale(enabled: boolean): Promise<ShardSnapshot> {
+  return rpc<ShardSnapshot>(SUB.autoscale, { enabled }, 5000);
 }
 
 // ── Users ───────────────────────────────────────────────────────────────────
@@ -94,6 +105,19 @@ export async function tokenClear(userId: string): Promise<TokenStatus> {
 export async function userDelete(userId: string): Promise<void> {
   const r = await rpc<{ error?: string }>(`${SUB.user}.delete`, { user_id: userId });
   if (r.error) throw new Error(r.error);
+}
+
+export async function userSetActive(userId: string, active: boolean): Promise<AdminUserWire> {
+  const r = await rpc<{ user: AdminUserWire }>(`${SUB.user}.set_active`, {
+    user_id: userId,
+    active
+  });
+  return r.user;
+}
+
+export async function restartUserEventSub(userId: string): Promise<void> {
+  await publish(SUB.outgress, { type: 'eventsub', broadcaster_id: userId, payload: { enabled: false } });
+  await publish(SUB.outgress, { type: 'eventsub', broadcaster_id: userId, payload: { enabled: true } });
 }
 
 // ── Derived helpers ───────────────────────────────────────────────────────────

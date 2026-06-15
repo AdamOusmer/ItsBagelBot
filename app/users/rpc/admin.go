@@ -48,6 +48,7 @@ type adminRequest struct {
 	UserID       string `json:"user_id"`
 	Username     string `json:"username"`
 	Status       string `json:"status"`
+	Active       bool   `json:"active"`
 	Limit        int    `json:"limit"`
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
@@ -75,6 +76,7 @@ func SubscribeAdmin(nc *nats.Conn, db *ent.Client, repo *repository.Users, prefi
 		"list":         a.list,
 		"stats":        a.stats,
 		"set_status":   a.setStatus,
+		"set_active":   a.setActive,
 		"reset":        a.reset,
 		"token_set":    a.tokenSet,
 		"token_status": a.tokenStatus,
@@ -178,6 +180,23 @@ func (a *adminRPC) setStatus(ctx context.Context, req adminRequest) adminReply {
 	a.invalidate(u.ID)
 	a.log.Info("admin status change",
 		zap.Uint64("user", u.ID), zap.String("status", req.Status))
+	return a.get(ctx, adminRequest{UserID: fmt.Sprint(u.ID)})
+}
+
+// setActive flips whether the bot serves this broadcaster. Inactive users
+// project to standard tier and the ingress drops their traffic.
+func (a *adminRPC) setActive(ctx context.Context, req adminRequest) adminReply {
+	u, err := a.findUser(ctx, req)
+	if err != nil {
+		return adminReply{Error: err.Error()}
+	}
+
+	if err := a.repo.SetActive(ctx, u.ID, req.Active); err != nil {
+		return adminReply{Error: err.Error()}
+	}
+
+	a.invalidate(u.ID)
+	a.log.Info("admin set active", zap.Uint64("user", u.ID), zap.Bool("active", req.Active))
 	return a.get(ctx, adminRequest{UserID: fmt.Sprint(u.ID)})
 }
 

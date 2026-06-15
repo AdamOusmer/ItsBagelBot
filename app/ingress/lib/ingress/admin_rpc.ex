@@ -6,15 +6,21 @@ defmodule Ingress.AdminRpc do
   regardless of which replica picked up the request.
 
   The reply is a JSON document with the cluster membership, the
-  conduit-manager singleton, and one entry per configured shard. Shards that
-  are registered but mid-connect can be slow to answer; they are reported as
-  `unresponsive` rather than holding up the reply.
+  conduit-manager singleton, scaler state, and one entry per live shard.
+  Shards that are registered but mid-connect can be slow to answer; they are
+  reported as `unresponsive` rather than holding up the reply.
+
+  The `shard_count` field reflects the effective desired count from
+  `Ingress.ShardScaler`, not the static config value. Additional top-level
+  fields (`desired_count`, `target`, `min_shards`, `autoscale`) expose the
+  scaler's view so the admin console can show the full picture without a
+  separate RPC call.
   """
 
   use Gnat.Server
   require Logger
 
-  alias Ingress.Config
+  alias Ingress.ShardScaler
 
   @call_timeout_ms 2_000
 
@@ -30,15 +36,29 @@ defmodule Ingress.AdminRpc do
   end
 
   def snapshot do
-    shard_count = Config.conduit_shard_count()
+    scaler = ShardScaler.status()
+    desired = scaler.desired
+
+    # Enumerate all currently-registered shards (not just 0..desired-1); during
+    # a shrink a shard may still be stopping, and the snapshot should include it
+    # so the console shows an accurate in-flight view.
+    registered_ids =
+      Horde.Registry.select(Ingress.Registry, [
+        {{{:shard, :"$1"}, :_, :_}, [], [:"$1"]}
+      ])
+
+    all_ids =
+      (registered_ids ++ Enum.to_list(0..(max(desired, 1) - 1)))
+      |> Enum.uniq()
+      |> Enum.sort()
 
     shards =
-      0..(shard_count - 1)
+      all_ids
       |> Task.async_stream(&shard_status/1,
         timeout: @call_timeout_ms + 500,
         on_timeout: :kill_task
       )
-      |> Enum.zip(0..(shard_count - 1))
+      |> Enum.zip(all_ids)
       |> Enum.map(fn
         {{:ok, status}, _shard_id} -> status
         {{:exit, _reason}, shard_id} -> %{shard_id: shard_id, state: "unresponsive"}
@@ -48,7 +68,13 @@ defmodule Ingress.AdminRpc do
       generated_at: DateTime.utc_now(),
       reporter: node(),
       nodes: [node() | Node.list()],
-      shard_count: shard_count,
+      # shard_count mirrors desired_count for backwards compatibility with
+      # any console code that reads the old field name.
+      shard_count: desired,
+      desired_count: desired,
+      target: scaler.target,
+      min_shards: scaler.min_shards,
+      autoscale: scaler.autoscale,
       conduit_manager: manager_status(),
       shards: shards
     }

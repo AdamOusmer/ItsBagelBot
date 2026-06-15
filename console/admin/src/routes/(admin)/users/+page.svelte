@@ -1,5 +1,6 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
+  import { invalidateAll } from '$app/navigation';
   import { Icon, StatTile, Button } from '@bagel/shared';
   import type { AdminUserWire } from '$lib/server/rpc';
   let { data, form } = $props();
@@ -12,6 +13,14 @@
 
   function tier(status: string): 'premium' | 'standard' {
     return status === 'paid' || status === 'vip' ? 'premium' : 'standard';
+  }
+
+  // Re-fetch load data after every mutation so badges/list update immediately.
+  function refresh() {
+    return async ({ update }: { update: () => Promise<void> }) => {
+      await update();
+      await invalidateAll();
+    };
   }
 
   // Confirm-delete modal state
@@ -34,6 +43,29 @@
   function handleModalKey(e: KeyboardEvent) {
     if (e.key === 'Escape') closeDelete();
   }
+
+  // Recent table filter
+  let filter = $state('');
+  const rows = $derived(
+    data.recent.filter((u: AdminUserWire) => {
+      const q = filter.trim().toLowerCase();
+      return !q || u.username.toLowerCase().includes(q) || String(u.id).includes(q);
+    })
+  );
+
+  // Expand-on-click row state
+  let expanded = $state<number | string | null>(null);
+
+  function toggleExpand(id: number | string) {
+    expanded = expanded === id ? null : id;
+  }
+
+  function handleRowKey(e: KeyboardEvent, id: number | string) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      toggleExpand(id);
+    }
+  }
 </script>
 
 <svelte:window onkeydown={handleModalKey} />
@@ -51,13 +83,13 @@
   <div class="stat-grid">
     <StatTile icon="users" label="Registered" value={data.stats.total_users.toLocaleString()} unit="total" delta={`${data.stats.active_users} active`} flat />
     <StatTile icon="pulse" tan label="Premium" value={data.stats.premium_users.toLocaleString()} unit="" delta="paid + vip" flat />
-    <StatTile icon="check" label="VIP" value={data.stats.vip_users.toLocaleString()} unit="" delta="comped" flat />
+    <StatTile icon="heart" label="VIP" value={data.stats.vip_users.toLocaleString()} unit="" delta="comped" flat />
     <StatTile icon="commands" tan label="Paid" value={data.stats.paid_users.toLocaleString()} unit="" delta="subscribers" flat />
   </div>
 
   <div class="card">
     <div class="card-head"><h3>Lookup</h3></div>
-    <form method="POST" action="?/lookup" use:enhance style="display:flex;gap:.6rem;flex-wrap:wrap">
+    <form method="POST" action="?/lookup" use:enhance={refresh} style="display:flex;gap:.6rem;flex-wrap:wrap">
       <label class="search" style="flex:1;min-width:0">
         <Icon name="search" size={15} />
         <input name="q" type="text" placeholder="Twitch user id or username" autocomplete="off" />
@@ -89,17 +121,26 @@
 
         <div class="actions-wrap">
           {#each ['free', 'paid', 'vip'] as s}
-            <form method="POST" action="?/setStatus" use:enhance>
+            <form method="POST" action="?/setStatus" use:enhance={refresh}>
               <input type="hidden" name="user_id" value={found.id} />
               <input type="hidden" name="status" value={s} />
               <button class="btn ghost" type="submit" disabled={found.status === s}>Set {s}</button>
             </form>
           {/each}
-          <form method="POST" action="?/reset" use:enhance>
+          <form method="POST" action="?/setActive" use:enhance={refresh}>
+            <input type="hidden" name="user_id" value={found.id} />
+            <input type="hidden" name="active" value={String(!found.is_active)} />
+            <button class="btn ghost" type="submit">{found.is_active ? 'Deactivate' : 'Activate'}</button>
+          </form>
+          <form method="POST" action="?/restart" use:enhance={refresh}>
+            <input type="hidden" name="user_id" value={found.id} />
+            <button class="btn ghost" type="submit">Restart bot</button>
+          </form>
+          <form method="POST" action="?/reset" use:enhance={refresh}>
             <input type="hidden" name="user_id" value={found.id} />
             <button class="btn ghost" type="submit">Reset</button>
           </form>
-          <form method="POST" action="?/clearToken" use:enhance>
+          <form method="POST" action="?/clearToken" use:enhance={refresh}>
             <input type="hidden" name="user_id" value={found.id} />
             <button class="btn ghost" type="submit">Clear token</button>
           </form>
@@ -112,34 +153,79 @@
   </div>
 
   <div class="card" style="padding:18px 6px">
-    <div class="card-head" style="padding:0 12px"><h3>Recent</h3></div>
+    <div class="card-head" style="padding:0 12px;gap:.6rem">
+      <h3>Recent</h3>
+      <label class="search search-filter">
+        <Icon name="search" size={14} />
+        <input type="text" placeholder="Filter by name or id" autocomplete="off" bind:value={filter} />
+      </label>
+    </div>
     <div class="table">
       <div class="thead">
         <span>User</span><span>Id</span><span class="perm-cell">Tier</span><span>Status</span><span>Active</span><span></span>
       </div>
       <div class="trows">
-        {#if data.recent.length === 0}
-          <div class="trow"><span class="resp" style="grid-column:1/-1;opacity:.6">No recent users.</span></div>
+        {#if rows.length === 0}
+          <div class="trow"><span class="resp" style="grid-column:1/-1;opacity:.6">No matching users.</span></div>
         {/if}
-        {#each data.recent as u (u.id)}
-          <div class="trow">
+        {#each rows as u (u.id)}
+          <!-- Clickable summary row -->
+          <div
+            class="trow trow-clickable"
+            role="button"
+            tabindex="0"
+            onclick={() => toggleExpand(u.id)}
+            onkeydown={(e) => handleRowKey(e, u.id)}
+            aria-expanded={expanded === u.id}
+          >
             <span class="cmd">@{u.username}</span>
             <span class="resp">{u.id}</span>
             <span class="perm-cell"><span class="badge {tier(u.status) === 'premium' ? 'sub' : 'everyone'}">{tier(u.status)}</span></span>
             <span class="cd">{u.status}</span>
             <span class="uses">{u.is_active ? 'yes' : 'no'}</span>
             <span class="row-act">
-              <button
-                class="mini danger-mini"
-                type="button"
-                aria-label="Delete {u.username}"
-                title="Delete user"
-                onclick={() => openDelete({ id: u.id, username: u.username })}
-              >
-                <Icon name="trash" size={14} />
-              </button>
+              <span class="caret" class:open={expanded === u.id} aria-hidden="true"></span>
             </span>
           </div>
+
+          <!-- Expandable action panel -->
+          {#if expanded === u.id}
+            <div class="row-panel">
+              <div class="row-panel-actions">
+                {#each ['free', 'paid', 'vip'] as s}
+                  <form method="POST" action="?/setStatus" use:enhance={refresh}>
+                    <input type="hidden" name="user_id" value={u.id} />
+                    <input type="hidden" name="status" value={s} />
+                    <button class="btn ghost" type="submit" disabled={u.status === s}>Set {s}</button>
+                  </form>
+                {/each}
+                <form method="POST" action="?/setActive" use:enhance={refresh}>
+                  <input type="hidden" name="user_id" value={u.id} />
+                  <input type="hidden" name="active" value={String(!u.is_active)} />
+                  <button class="btn ghost" type="submit">{u.is_active ? 'Deactivate' : 'Activate'}</button>
+                </form>
+                <form method="POST" action="?/restart" use:enhance={refresh}>
+                  <input type="hidden" name="user_id" value={u.id} />
+                  <button class="btn ghost" type="submit">Restart bot</button>
+                </form>
+                <form method="POST" action="?/reset" use:enhance={refresh}>
+                  <input type="hidden" name="user_id" value={u.id} />
+                  <button class="btn ghost" type="submit">Reset</button>
+                </form>
+                <form method="POST" action="?/clearToken" use:enhance={refresh}>
+                  <input type="hidden" name="user_id" value={u.id} />
+                  <button class="btn ghost" type="submit">Clear token</button>
+                </form>
+                <button
+                  class="btn danger"
+                  type="button"
+                  onclick={(e) => { e.stopPropagation(); openDelete({ id: u.id, username: u.username }); }}
+                >
+                  <Icon name="trash" size={13} /> Delete
+                </button>
+              </div>
+            </div>
+          {/if}
         {/each}
       </div>
     </div>
@@ -159,7 +245,7 @@
       <form
         method="POST"
         action="?/delete"
-        use:enhance
+        use:enhance={refresh}
         bind:this={deleteFormEl}
         style="display:none"
       >
@@ -216,9 +302,56 @@
   }
   .btn.danger:disabled { opacity: .45; cursor: not-allowed; }
 
-  /* danger mini button (table row) */
-  .danger-mini { color: rgba(176, 90, 70, 0.7); }
-  .danger-mini:hover { color: #cf8a78 !important; background: rgba(176, 90, 70, 0.10) !important; }
+  /* card-head with filter input */
+  .card-head { align-items: center; }
+  .search-filter {
+    margin-left: auto;
+    max-width: 220px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  /* clickable table row */
+  .trow-clickable {
+    cursor: pointer;
+    user-select: none;
+  }
+  .trow-clickable:hover {
+    background: rgba(201, 168, 124, 0.06);
+  }
+  .trow-clickable:focus-visible {
+    outline: 2px solid var(--bb-tan, #c9a87c);
+    outline-offset: -2px;
+  }
+
+  /* caret indicator (CSS triangle, no icon dependency) */
+  .caret {
+    display: inline-block;
+    width: 0;
+    height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 5px solid var(--bb-muted, rgba(255,255,255,0.4));
+    transition: transform 200ms ease;
+    vertical-align: middle;
+  }
+  .caret.open {
+    transform: rotate(180deg);
+  }
+
+  /* expandable action panel */
+  .row-panel {
+    border-top: 1px solid var(--bb-border, rgba(255,255,255,0.08));
+    background: rgba(201, 168, 124, 0.04);
+    padding: 10px 12px 12px;
+  }
+  .row-panel-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .45rem;
+    align-items: center;
+  }
+  .row-panel-actions form { display: contents; }
 
   /* confirm modal */
   .modal-backdrop {
@@ -274,6 +407,7 @@
     .user-card .actions-wrap {
       gap: .4rem;
     }
+    .search-filter { max-width: 160px; }
     /* stat-grid already goes 2-col via shared app.css; ensure it for this page too */
     :global(.stat-grid) {
       grid-template-columns: 1fr 1fr;
