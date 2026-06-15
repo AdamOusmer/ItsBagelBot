@@ -2,11 +2,10 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: production
 resources:
-  - admin.yaml
+  - console-admin.yaml
   - commands.yaml
   - console-dashboard.yaml
-  # console-admin.yaml held out until its cross-domain auth is finished; it
-  # shares the admin.tail451e6d.ts.net host with the still-running Go admin.
+  # console-admin.yaml now replaces the Go admin tier, sharing the admin.tail451e6d.ts.net host.
   - modules.yaml
   - outgress.yaml
   - projector.yaml
