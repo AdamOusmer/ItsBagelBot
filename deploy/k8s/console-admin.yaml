@@ -21,7 +21,7 @@ metadata:
 spec:
   host: https://api.doppler.com
   tokenSecret:
-    name: console-admin-doppler-token
+    name: admin-doppler-token
   managedSecret:
     name: console-admin-env
     namespace: production
