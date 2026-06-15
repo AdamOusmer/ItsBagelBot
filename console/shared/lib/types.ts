@@ -36,6 +36,7 @@ export interface Shard {
   handshake_in_flight?: boolean;
   keepalive_ms?: number;
   attempts?: number;
+  load?: number;
 }
 
 export interface ShardSnapshot {
@@ -45,4 +46,8 @@ export interface ShardSnapshot {
   shard_count: number;
   conduit_manager?: { state: string; node: string; conduit_id?: string };
   shards: Shard[];
+  desired_count: number;
+  target: number;
+  min_shards: number;
+  autoscale: boolean;
 }

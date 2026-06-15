@@ -22,6 +22,16 @@ defmodule Ingress.Config do
 
   def admin_subject, do: Application.fetch_env!(:ingress, :admin_subject)
 
+  # Subject for manual shard-count scaling: body {"count": N}.
+  def scale_subject, do: Application.fetch_env!(:ingress, :scale_subject)
+
+  # Subject for toggling the load-based autoscaler: body {"enabled": true|false}.
+  def autoscale_subject, do: Application.fetch_env!(:ingress, :autoscale_subject)
+
+  # Hard ceiling on shard count; the autoscaler and manual target are both
+  # clamped to this value so a runaway load spike cannot blow the conduit cap.
+  def max_shards, do: Application.get_env(:ingress, :max_shards, 20)
+
   def broadcaster_status_subject,
     do: Application.fetch_env!(:ingress, :broadcaster_status_subject)
 

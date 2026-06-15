@@ -136,15 +136,15 @@ func main() {
 	}
 	defer func() { _ = systemSub.Close() }()
 
-	if err := bus.Consume(ctx, nrApp, premiumSub, cfg.PremiumSubject, premium.Process, log); err != nil {
+	if err := bus.ConsumeWeighted(ctx, nrApp, premiumSub, cfg.PremiumSubject, premium.Process, cfg.PremiumWorkers, log); err != nil {
 		log.Fatal("failed to consume premium lane", zap.Error(err))
 	}
 
-	if err := bus.Consume(ctx, nrApp, standardSub, cfg.StandardSubject, standard.Process, log); err != nil {
+	if err := bus.ConsumeWeighted(ctx, nrApp, standardSub, cfg.StandardSubject, standard.Process, cfg.StandardWorkers, log); err != nil {
 		log.Fatal("failed to consume standard lane", zap.Error(err))
 	}
 
-	if err := bus.Consume(ctx, nrApp, systemSub, cfg.SystemSubject, system.Process, log); err != nil {
+	if err := bus.ConsumeWeighted(ctx, nrApp, systemSub, cfg.SystemSubject, system.Process, cfg.SystemWorkers, log); err != nil {
 		log.Fatal("failed to consume system lane", zap.Error(err))
 	}
 
@@ -158,7 +158,10 @@ func main() {
 		zap.String("premium_subject", cfg.PremiumSubject),
 		zap.String("standard_subject", cfg.StandardSubject),
 		zap.String("rpc_prefix", cfg.RPCPrefix),
-		zap.Bool("mod_verification", tw.HasUserToken()))
+		zap.Bool("mod_verification", tw.HasUserToken()),
+		zap.Int("premium_workers", cfg.PremiumWorkers),
+		zap.Int("standard_workers", cfg.StandardWorkers),
+		zap.Int("system_workers", cfg.SystemWorkers))
 
 	<-ctx.Done()
 

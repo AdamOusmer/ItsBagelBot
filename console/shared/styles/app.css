@@ -2,11 +2,13 @@
  * Layered on top of styles/tokens.css (the design-system tokens). */
 
 :root {
-  /* glass system — driven by the Tweaks panel */
-  --glass-fill: rgba(255, 255, 255, 0.04);
-  --glass-fill-2: rgba(255, 255, 255, 0.02);
+  /* glass system — driven by the Tweaks panel. Apple-style frosted glass: a
+     touch more blur, a saturation boost (applied where backdrop-filter is used),
+     and a warm tan tint in the fill so surfaces keep the brand taint. */
+  --glass-fill: rgba(201, 168, 124, 0.05);
+  --glass-fill-2: rgba(201, 168, 124, 0.03);
   --glass-border: var(--bb-border);
-  --glass-blur: 16px;
+  --glass-blur: 22px;
 
   /* which accent "leads" the UI (active nav, primary CTA) */
   --ui-accent: var(--bb-green);
@@ -69,8 +71,8 @@ body::after {
 .glass {
   background: var(--glass-fill);
   border: 1px solid var(--glass-border);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
 }
 
 /* ───────────────────────── sidebar ───────────────────────── */
@@ -80,8 +82,8 @@ body::after {
   padding: 22px 16px;
   background: var(--glass-fill);
   border-right: 1px solid var(--glass-border);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
 }
 .brand { display: flex; align-items: center; gap: 11px; padding: 6px 10px 22px; }
 .brand img { width: 30px; height: 30px; border-radius: 8px; }
@@ -143,8 +145,8 @@ body::after {
   padding: 16px var(--gutter);
   background: rgba(10,10,10,0.5);
   border-bottom: 1px solid var(--glass-border);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
 }
 .crumb { font-family: var(--bb-font-mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--bb-muted); display: flex; align-items: center; gap: 8px; }
 .crumb .sep { opacity: 0.5; }
@@ -176,7 +178,8 @@ body::after {
 
 /* generic card */
 .card { background: var(--glass-fill); border: 1px solid var(--glass-border); border-radius: var(--bb-radius-lg);
-  backdrop-filter: blur(var(--glass-blur)); -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur)) saturate(150%); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 10px 30px rgba(0, 0, 0, 0.28);
   padding: var(--card-pad); position: relative; overflow: hidden;
   transition: border-color var(--bb-dur-base) var(--bb-ease-out-expo), transform var(--bb-dur-base) var(--bb-ease-out-expo); }
 .card.sheen::before { content: ""; position: absolute; inset: 0; pointer-events: none;
@@ -210,7 +213,9 @@ body::after {
 .btn.ghost { background: rgba(255,255,255,0.03); color: var(--bb-tan-light); }
 .btn.ghost:hover { background: rgba(201,168,124,0.08); color: var(--bb-tan-pale); border-color: var(--bb-border-strong); }
 .btn.tan { background: var(--bb-tan); color: #0a0a0a; border-color: var(--bb-tan-light); }
-.btn.tan:hover { background: var(--bb-tan-light); box-shadow: 0 0 24px rgba(201,168,124,0.3); }
+/* On hover the tan cursor stamps tan onto the button, so flip its own colors to
+   green to stay legible against the tan fill. */
+.btn.tan:hover { background: var(--bb-tan); color: var(--bb-green); border-color: var(--bb-green-light); box-shadow: 0 0 24px rgba(82,183,136,0.3); }
 
 /* stat tiles */
 .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: calc(16px * var(--d)); }
@@ -370,8 +375,8 @@ body[data-role="mod"] .only-streamer-lock { display: flex; }
     gap: 4px;
     background: rgba(10, 10, 10, 0.7);
     border-top: 1px solid var(--glass-border);
-    backdrop-filter: blur(var(--glass-blur));
-    -webkit-backdrop-filter: blur(var(--glass-blur));
+    backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
   }
   .mobile-nav form { flex: 1; display: flex; }
   .mobile-nav a, .mobile-nav button {

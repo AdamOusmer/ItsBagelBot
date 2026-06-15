@@ -65,7 +65,6 @@
         <Icon name="search" size={15} />
         <input type="text" placeholder="Search users, shards…" />
       </label>
-      <div class="status-pill"><span class="dot"></span> Connected</div>
       <button class="icon-btn" aria-label="Notifications"><Icon name="bell" size={17} /></button>
     </header>
 
