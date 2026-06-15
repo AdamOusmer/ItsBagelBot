@@ -1,7 +1,7 @@
 import type { Actions, PageServerLoad } from './$types';
 import { fail } from '@sveltejs/kit';
 import { shardSnapshot, shardScale, shardAutoscale } from '$lib/server/rpc';
-import { allowed, isDemo } from '$lib/server/access';
+import { requireAdmin, isDemo } from '$lib/server/access';
 import { sampleSnapshot } from '$lib/server/sample';
 
 export const load: PageServerLoad = async () => {
@@ -15,7 +15,7 @@ export const load: PageServerLoad = async () => {
 
 export const actions: Actions = {
   scale: async ({ request, locals }) => {
-    if (!allowed(locals.session)) return fail(403, { error: 'forbidden' });
+    if (!(await requireAdmin(locals.session))) return fail(403, { error: 'forbidden' });
     const f = await request.formData();
     const raw = String(f.get('count') ?? '').trim();
     const count = parseInt(raw, 10);
@@ -30,7 +30,7 @@ export const actions: Actions = {
   },
 
   autoscale: async ({ request, locals }) => {
-    if (!allowed(locals.session)) return fail(403, { error: 'forbidden' });
+    if (!(await requireAdmin(locals.session))) return fail(403, { error: 'forbidden' });
     const f = await request.formData();
     const enabled = f.get('enabled') === 'true';
     if (isDemo()) return { action: { ok: true, notice: `autoscale ${enabled ? 'on' : 'off'} (demo)`, snapshot: sampleSnapshot } };

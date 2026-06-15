@@ -1,7 +1,7 @@
 import type { Actions, PageServerLoad } from './$types';
 import { fail } from '@sveltejs/kit';
 import { loadLanes, laneMutationUnavailable } from '$lib/server/lanes';
-import { allowed } from '$lib/server/access';
+import { requireAdmin } from '$lib/server/access';
 
 export const load: PageServerLoad = async () => {
   return loadLanes();
@@ -12,15 +12,15 @@ export const load: PageServerLoad = async () => {
 // each returns an honest "unavailable" notice instead of guessing wire formats.
 export const actions: Actions = {
   alias: async ({ locals }) => {
-    if (!allowed(locals.session)) return fail(403, { notice: 'forbidden' });
+    if (!(await requireAdmin(locals.session))) return fail(403, { notice: 'forbidden' });
     return { ok: false, notice: laneMutationUnavailable('Rename') };
   },
   durable: async ({ locals }) => {
-    if (!allowed(locals.session)) return fail(403, { notice: 'forbidden' });
+    if (!(await requireAdmin(locals.session))) return fail(403, { notice: 'forbidden' });
     return { ok: false, notice: laneMutationUnavailable('Make-permanent') };
   },
   delete: async ({ locals }) => {
-    if (!allowed(locals.session)) return fail(403, { notice: 'forbidden' });
+    if (!(await requireAdmin(locals.session))) return fail(403, { notice: 'forbidden' });
     return { ok: false, notice: laneMutationUnavailable('Delete') };
   }
 };

@@ -13,10 +13,21 @@
           ? 'Users'
           : path.startsWith('/events')
             ? 'Events'
-            : 'Overview'
+            : path.startsWith('/staff')
+              ? 'Staff'
+              : path.startsWith('/audit')
+                ? 'Audit'
+                : 'Overview'
   );
 
   const initial = $derived((data.displayName ?? 'A').charAt(0).toUpperCase());
+
+  // Staff roster + audit log are manager-only (admin/owner). Moderators never
+  // see the nav entries; the routes also redirect them server-side.
+  const isManager = $derived(data.role === 'admin' || data.role === 'owner');
+  const roleLabel = $derived(
+    data.role === 'owner' ? 'Owner' : data.role === 'admin' ? 'Admin' : 'Moderator'
+  );
 </script>
 
 <div class="app">
@@ -42,6 +53,14 @@
       <NavItem href="/events" icon="bell" label="Events" active={crumb === 'Events'} />
     </nav>
 
+    {#if isManager}
+      <div class="nav-group-label">Access</div>
+      <nav class="nav">
+        <NavItem href="/staff" icon="moderation" label="Staff" active={crumb === 'Staff'} />
+        <NavItem href="/audit" icon="check" label="Audit" active={crumb === 'Audit'} />
+      </nav>
+    {/if}
+
     <div class="side-spacer"></div>
 
     <div class="side-foot">
@@ -49,7 +68,7 @@
         <div class="avatar">{initial}</div>
         <div class="who">
           <b>{data.displayName}</b>
-          <span>Operator</span>
+          <span>{roleLabel}</span>
         </div>
       </div>
     </div>
@@ -79,7 +98,12 @@
     <a href="/shards" class={crumb === 'Shards' ? 'active' : ''}><Icon name="pulse" size={20} /><span>Shards</span></a>
     <a href="/lanes" class={crumb === 'Lanes' ? 'active' : ''}><Icon name="activity" size={20} /><span>Lanes</span></a>
     <a href="/users" class={crumb === 'Users' ? 'active' : ''}><Icon name="users" size={20} /><span>Users</span></a>
-    <a href="/events" class={crumb === 'Events' ? 'active' : ''}><Icon name="bell" size={20} /><span>Events</span></a>
+    {#if isManager}
+      <a href="/staff" class={crumb === 'Staff' ? 'active' : ''}><Icon name="moderation" size={20} /><span>Staff</span></a>
+      <a href="/audit" class={crumb === 'Audit' ? 'active' : ''}><Icon name="check" size={20} /><span>Audit</span></a>
+    {:else}
+      <a href="/events" class={crumb === 'Events' ? 'active' : ''}><Icon name="bell" size={20} /><span>Events</span></a>
+    {/if}
   </nav>
 </div>
 

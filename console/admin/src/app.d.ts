@@ -8,6 +8,7 @@ declare global {
     interface PageData {
       displayName?: string;
       login?: string;
+      role?: 'moderator' | 'admin' | 'owner';
     }
   }
 }
