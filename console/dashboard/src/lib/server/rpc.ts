@@ -1,14 +1,26 @@
 // Dashboard-facing RPC wrappers over the shared NATS client. Subjects come from
 // env with the same defaults as the retired Go dashboard tier.
-import { rpc } from '@bagel/shared/server/nats';
+import { rpc, publish } from '@bagel/shared/server/nats';
 import type { CommandView, Tier } from '@bagel/shared';
 import { env } from '$env/dynamic/private';
 
 const SUB = {
   broadcaster: env.NATS_BROADCASTER_STATUS_SUBJECT ?? 'bagel.rpc.broadcaster.status.get',
   dashboard: env.NATS_DASHBOARD_SUBJECT_PREFIX ?? 'bagel.rpc.dashboard',
-  commands: env.NATS_COMMANDS_SUBJECT_PREFIX ?? 'bagel.rpc.commands'
+  commands: env.NATS_COMMANDS_SUBJECT_PREFIX ?? 'bagel.rpc.commands',
+  outgress: env.NATS_OUTGRESS_SYSTEM_SUBJECT ?? 'twitch.outgress.system'
 };
+
+// Enqueue an EventSub on/off job on the outgress system lane. Outgress runs the
+// Helix calls under the shared rate-limit bucket: enabled=true (re)creates the
+// channel's EventSub subscriptions, false deletes them.
+export async function publishEventSub(broadcasterId: string, enabled: boolean): Promise<void> {
+  await publish(SUB.outgress, {
+    type: 'eventsub',
+    broadcaster_id: broadcasterId,
+    payload: { enabled }
+  });
+}
 
 export async function tier(broadcasterId: string): Promise<Tier> {
   const r = await rpc<{ tier: Tier }>(SUB.broadcaster, { broadcaster_id: broadcasterId }, 2000);

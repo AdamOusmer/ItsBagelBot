@@ -21,7 +21,8 @@ export const load: PageServerLoad = async ({ locals }) => {
   try {
     return { commands: await listCommands(uid) };
   } catch {
-    return { commands: sample, degraded: true };
+    // Don't show fabricated rows in production; surface a degraded state.
+    return { commands: [] as CommandView[], degraded: true };
   }
 };
 
