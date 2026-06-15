@@ -1,9 +1,9 @@
 <script lang="ts">
-  // Custom cursor, matching the marketing site (web/): a solid tan dot tracking
-  // the pointer 1:1 that scales up on interactive hover, plus a lagging ring
-  // that lerps toward the pointer and dims on hover. The native pointer is
-  // hidden (cursor:none) on fine pointers so only this shows. Touch/coarse
-  // pointers and reduced-motion keep the native cursor.
+  // Custom cursor: a tan dot tracking the pointer 1:1, plus a ring that lerps
+  // behind it. On hover over an interactive element the ring MORPHS into that
+  // element's box (rounded rect matching its bounds) — the cursor becomes the
+  // button highlight — while the dot fades. Native pointer hidden (cursor:none)
+  // on fine pointers. Coarse/touch keep the native cursor.
   import { onMount } from 'svelte';
 
   let dot: HTMLDivElement;
@@ -13,29 +13,61 @@
     const fine = window.matchMedia('(min-width: 901px) and (pointer: fine)');
     if (!fine.matches) return;
 
-    let mx = 0,
-      my = 0,
-      rx = 0,
-      ry = 0,
-      hovering = false,
+    let mx = innerWidth / 2,
+      my = innerHeight / 2,
+      // ring geometry (top-left x/y, w, h, radius)
+      x = mx,
+      y = my,
+      w = 36,
+      h = 36,
+      r = 18,
+      target: HTMLElement | null = null,
       raf = 0,
       lastMove = 0;
 
     document.documentElement.classList.add('bb-cursor-on');
-
+    const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
     const can = () => fine.matches && !document.hidden;
     const start = () => {
       if (!raf && can()) raf = requestAnimationFrame(tick);
     };
 
     function tick(now: number) {
-      dot.style.transform = `translate(${mx}px, ${my}px) scale(${hovering ? 2.2 : 1})`;
-      rx += (mx - rx) * 0.12;
-      ry += (my - ry) * 0.12;
-      ring.style.transform = `translate(${rx}px, ${ry}px)`;
-      ring.style.opacity = hovering ? '0.08' : '0.5';
-      const settled = Math.abs(mx - rx) < 0.2 && Math.abs(my - ry) < 0.2;
-      if (!can() || (!hovering && settled && now - lastMove > 500)) {
+      const hovering = !!target && target.isConnected;
+      // dot: follows 1:1, fades out while morphed onto a target
+      dot.style.transform = `translate(${mx}px, ${my}px)`;
+      dot.style.opacity = hovering ? '0' : '1';
+
+      let tx: number, ty: number, tw: number, th: number, tr: number;
+      if (hovering) {
+        const b = target!.getBoundingClientRect();
+        const pad = 6;
+        tw = b.width + pad * 2;
+        th = b.height + pad * 2;
+        tx = b.left - pad;
+        ty = b.top - pad;
+        tr = Math.min((parseFloat(getComputedStyle(target!).borderRadius) || 8) + pad, th / 2);
+      } else {
+        tw = 36;
+        th = 36;
+        tx = mx - 18;
+        ty = my - 18;
+        tr = 18;
+      }
+      const e = hovering ? 0.25 : 0.16;
+      x = lerp(x, tx, e);
+      y = lerp(y, ty, e);
+      w = lerp(w, tw, e);
+      h = lerp(h, th, e);
+      r = lerp(r, tr, e);
+      ring.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
+      ring.style.width = `${w.toFixed(1)}px`;
+      ring.style.height = `${h.toFixed(1)}px`;
+      ring.style.borderRadius = `${r.toFixed(1)}px`;
+      ring.classList.toggle('morph', hovering);
+
+      const settled = !hovering && Math.abs(x - tx) < 0.3 && Math.abs(y - ty) < 0.3;
+      if (!can() || (settled && now - lastMove > 500)) {
         raf = 0;
         return;
       }
@@ -49,15 +81,18 @@
       lastMove = performance.now();
       start();
     };
+    const sel = 'a, button, [data-cursor]';
     const over = (e: PointerEvent) => {
-      if ((e.target as Element | null)?.closest('a, button, [data-cursor], input, label')) {
-        hovering = true;
+      const el = (e.target as Element | null)?.closest<HTMLElement>(sel);
+      if (el) {
+        target = el;
         start();
       }
     };
     const out = (e: PointerEvent) => {
-      if ((e.target as Element | null)?.closest('a, button, [data-cursor], input, label')) {
-        hovering = false;
+      const el = (e.target as Element | null)?.closest<HTMLElement>(sel);
+      if (el && el === target) {
+        target = null;
         start();
       }
     };
@@ -91,24 +126,30 @@
     background: var(--bb-tan, #c9a87c);
     pointer-events: none;
     z-index: 9999;
-    will-change: transform;
+    will-change: transform, opacity;
     mix-blend-mode: difference;
+    transition: opacity 200ms;
   }
   .cursor-ring {
     position: fixed;
+    left: 0;
+    top: 0;
     width: 36px;
     height: 36px;
-    left: -18px;
-    top: -18px;
     border: 2px solid var(--bb-tan, #c9a87c);
-    border-radius: 50%;
+    border-radius: 18px;
     pointer-events: none;
     z-index: 9998;
     opacity: 0.5;
-    transition: opacity 300ms;
-    will-change: transform, opacity;
+    transition: opacity 250ms, background 250ms, border-color 250ms;
+    will-change: transform, width, height, border-radius;
   }
-  /* hide the native pointer only when the custom cursor is active */
+  /* morphed onto a button: soft accent fill highlight */
+  :global(.cursor-ring.morph) {
+    opacity: 1;
+    background: var(--ui-accent-soft, rgba(82, 183, 136, 0.14));
+    border-color: var(--ui-accent-light, #40916c);
+  }
   :global(html.bb-cursor-on),
   :global(html.bb-cursor-on *) {
     cursor: none !important;

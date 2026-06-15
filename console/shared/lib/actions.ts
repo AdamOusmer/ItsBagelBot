@@ -73,6 +73,9 @@ export async function initLenis(): Promise<() => void> {
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return () => {};
   const { default: Lenis } = await import('lenis');
   const lenis = new Lenis({ lerp: 0.1, smoothWheel: true, syncTouch: false });
+  // Exposed so navigation can keep lenis and the native scroll in sync (avoids a
+  // janky jump on page change).
+  (window as unknown as { __lenis?: unknown }).__lenis = lenis;
   let raf = 0;
   const tick = (t: number) => {
     lenis.raf(t);
@@ -81,6 +84,7 @@ export async function initLenis(): Promise<() => void> {
   raf = requestAnimationFrame(tick);
   return () => {
     cancelAnimationFrame(raf);
+    delete (window as unknown as { __lenis?: unknown }).__lenis;
     lenis.destroy();
   };
 }
