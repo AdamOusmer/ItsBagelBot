@@ -23,17 +23,12 @@
 
 <section class="screen active">
   <div class="page-head">
-    <span class="eyebrow">Safety</span>
-    <h1>Moderation &amp; <em>automod</em></h1>
-    <p>Rules run before a message hits chat. Tuned for #itsmavey.</p>
+    <span class="eyebrow">Configure</span>
+    <h1>Bot <em>modules</em></h1>
+    <p>Toggle features on or off for #itsmavey. Each module runs independently.</p>
   </div>
 
-  <div class="perm-note only-mod">
-    <Icon name="lock" size={15} />
-    <span>You're viewing as a <b>moderator</b>. You can act on chat and toggle rules, but thresholds and blocked-term lists are <b>broadcaster-only</b>.</span>
-  </div>
-
-  <div class="section-title-sm">Automod rules</div>
+  <div class="section-title-sm">Available modules</div>
   <div class="mod-grid">
     {#each rules as r}
       <div class="card rule">
