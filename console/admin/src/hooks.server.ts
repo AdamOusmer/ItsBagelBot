@@ -1,5 +1,9 @@
 import type { Handle } from '@sveltejs/kit';
 import { COOKIE, open } from '$lib/server/session';
+import dns from 'node:dns';
+
+// Force node:dns to resolve IPv4 first to bypass k3s IPv6 timeout issues
+dns.setDefaultResultOrder('ipv4first');
 
 // Session + the security headers SvelteKit's CSP config does not own.
 export const handle: Handle = async ({ event, resolve }) => {
