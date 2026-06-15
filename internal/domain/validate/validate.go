@@ -16,7 +16,7 @@ const (
 	maxUsernameLength      = 25  // Twitch login limit
 	maxEmailLength         = 254 // RFC 5321
 	maxCommandNameLength   = 64
-	maxResponseLength      = 500 // Twitch chat message limit
+	maxResponseLength      = 500   // Twitch chat message limit
 	maxCooldownSeconds     = 86400 // one day; guards against absurd values
 	maxModuleNameLength    = 64
 	maxConfigsBytes        = 16 << 10
@@ -25,18 +25,18 @@ const (
 )
 
 var (
-	ErrUserIDZero       = errors.New("user id must not be zero")
-	ErrUsernameInvalid  = errors.New("username must be 1-25 characters of [a-zA-Z0-9_]")
-	ErrEmailInvalid     = errors.New("email address is not valid")
-	ErrCommandName      = errors.New("command name must be 1-64 printable ASCII characters without spaces")
-	ErrResponseInvalid  = errors.New("command response must be 1-500 characters without control characters")
-	ErrPermInvalid      = errors.New("perm must be one of everyone, sub, vip, mod, lead_mod, broadcaster")
-	ErrCooldownInvalid  = errors.New("cooldown must be between 0 and 86400 seconds")
-	ErrModuleName       = errors.New("module name must be 1-64 characters of [a-z0-9_-]")
-	ErrConfigsInvalid   = errors.New("module configs must be valid JSON of at most 16KiB")
-	ErrTransactionID    = errors.New("transaction id must be 1-64 characters of [a-zA-Z0-9_-]")
-	ErrTokenInvalid     = errors.New("token must be 1 byte to 8KiB")
-	ErrStatusInvalid    = errors.New("status must be free, paid or vip")
+	ErrUserIDZero      = errors.New("user id must not be zero")
+	ErrUsernameInvalid = errors.New("username must be 1-25 characters of [a-zA-Z0-9_]")
+	ErrEmailInvalid    = errors.New("email address is not valid")
+	ErrCommandName     = errors.New("command name must be 1-64 printable ASCII characters without spaces")
+	ErrResponseInvalid = errors.New("command response must be 1-500 characters without control characters")
+	ErrPermInvalid     = errors.New("perm must be one of everyone, sub, vip, mod, lead_mod, broadcaster")
+	ErrCooldownInvalid = errors.New("cooldown must be between 0 and 86400 seconds")
+	ErrModuleName      = errors.New("module name must be 1-64 characters of [a-z0-9_-]")
+	ErrConfigsInvalid  = errors.New("module configs must be valid JSON of at most 16KiB")
+	ErrTransactionID   = errors.New("transaction id must be 1-64 characters of [a-zA-Z0-9_-]")
+	ErrTokenInvalid    = errors.New("token must be 1 byte to 8KiB")
+	ErrStatusInvalid   = errors.New("status must be free, paid or vip")
 )
 
 func UserID(id uint64) error {

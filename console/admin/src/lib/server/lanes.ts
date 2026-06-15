@@ -1,12 +1,17 @@
 // Lane (JetStream consumer) telemetry. The retired Go admin read this directly
-// from the broker's JetStream management API (StreamsInfo -> ConsumersInfo) and
-// kept aliases in a KV bucket — there is NO request/reply subject for it. The
-// console's shared NATS client is a core request/reply helper and intentionally
-// does not speak the JetStream management API, so we cannot port the live read
-// here without a new RPC contract. Until one exists, the screen renders a
-// graceful degraded state (sample rows under DEMO, an empty/degraded notice
-// otherwise) rather than guessing wire formats.
+// from the broker's JetStream management API; the console's shared NATS client
+// is a core request/reply helper and cannot speak that API. The `users` service
+// (which holds $JS.> permission) now answers a lane snapshot + mutation RPC
+// under the admin-user prefix on the console's behalf, so this module is a thin
+// request/reply wrapper. Under DEMO it serves sample rows; on any RPC failure it
+// degrades to an honest empty/notice state rather than fabricating data.
+import { rpc } from '@bagel/shared/server/nats';
+import { env } from '$env/dynamic/private';
 import { isDemo } from './access';
+
+// Same prefix the user-admin RPCs ride; the console's `admin` NATS user already
+// publishes this wildcard and the `users` service subscribes it.
+const PREFIX = env.NATS_ADMIN_USER_SUBJECT_PREFIX ?? 'bagel.rpc.admin.user';
 
 export interface LaneView {
   stream: string;
@@ -34,22 +39,48 @@ export interface LanesResult {
   notice: string;
 }
 
-export function loadLanes(): LanesResult {
+interface LanesReply {
+  lanes: LaneView[];
+  error?: string;
+}
+
+export interface LaneMutationResult {
+  ok: boolean;
+  notice?: string;
+  error?: string;
+}
+
+export async function loadLanes(): Promise<LanesResult> {
   if (isDemo()) {
     return { lanes: sampleLanes, degraded: false, notice: '' };
   }
-  // No request/reply subject exists for JetStream consumer telemetry; the
-  // console client cannot read it. Degrade rather than fabricate.
-  return {
-    lanes: [],
-    degraded: true,
-    notice:
-      'Lane telemetry is read directly from the JetStream management API, which the console RPC client does not speak. Add an admin RPC contract for lane snapshots to enable this view.'
-  };
+  try {
+    const reply = await rpc<LanesReply>(`${PREFIX}.lanes.get`, {}, 5000);
+    if (reply.error) {
+      return { lanes: [], degraded: true, notice: reply.error };
+    }
+    return { lanes: reply.lanes ?? [], degraded: false, notice: '' };
+  } catch {
+    return {
+      lanes: [],
+      degraded: true,
+      notice: 'Lane telemetry is currently unreachable (the broker or the users service did not answer).'
+    };
+  }
 }
 
-// Lane mutations (alias/durable/delete) hit the JetStream management API too,
-// so there is nothing to call. Surface an honest message.
-export function laneMutationUnavailable(action: string): string {
-  return `${action} is unavailable: no admin RPC subject exists for JetStream lane management. It must be added before the console can mutate lanes.`;
+export async function laneAlias(
+  stream: string,
+  consumer: string,
+  alias: string
+): Promise<LaneMutationResult> {
+  return rpc<LaneMutationResult>(`${PREFIX}.lanes.alias`, { stream, consumer, alias }, 5000);
+}
+
+export async function laneDurable(stream: string, consumer: string): Promise<LaneMutationResult> {
+  return rpc<LaneMutationResult>(`${PREFIX}.lanes.durable`, { stream, consumer }, 5000);
+}
+
+export async function laneDelete(stream: string, consumer: string): Promise<LaneMutationResult> {
+  return rpc<LaneMutationResult>(`${PREFIX}.lanes.delete`, { stream, consumer }, 5000);
 }

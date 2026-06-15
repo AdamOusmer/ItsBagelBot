@@ -40,6 +40,7 @@ func SubscribeDashboard(nc *nats.Conn, repo *repository.Users, prefix, invalidat
 		{"active_set", d.handleActiveSet},
 		{"active_get", d.handleActiveGet},
 		{"status_get", d.handleStatusGet},
+		{"state_get", d.handleStateGet},
 	}
 	for _, h := range verbs {
 		subject := prefix + "." + h.verb
@@ -236,6 +237,35 @@ func (d *dashboardRPC) handleStatusGet(msg *nats.Msg) {
 	}
 
 	respondDash(msg, map[string]any{"status": view.Status})
+}
+
+// handleStateGet returns both the receive toggle and billing tier in one reply.
+// active_get and status_get each load the same user view, so the dashboard's
+// page render coalesces them here to spend one round trip and one repo.Get
+// instead of two.
+func (d *dashboardRPC) handleStateGet(msg *nats.Msg) {
+	var req grantHasRequest
+	if err := json.Unmarshal(msg.Data, &req); err != nil {
+		respondDash(msg, map[string]any{"error": "bad request"})
+		return
+	}
+
+	id, err := strconv.ParseUint(req.BroadcasterUserID, 10, 64)
+	if err != nil {
+		respondDash(msg, map[string]any{"error": "broadcaster_user_id must be numeric"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	view, err := d.repo.Get(ctx, id)
+	if err != nil {
+		respondDash(msg, map[string]any{"error": err.Error()})
+		return
+	}
+
+	respondDash(msg, map[string]any{"active": view.IsActive, "status": view.Status})
 }
 
 func respondDash(msg *nats.Msg, v any) {

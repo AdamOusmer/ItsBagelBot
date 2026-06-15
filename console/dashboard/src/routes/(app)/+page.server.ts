@@ -1,5 +1,5 @@
 import type { Actions, PageServerLoad } from './$types';
-import { hasGrant, isActive, setActive, accountStatus, publishEventSub, type AccountStatus } from '$lib/server/rpc';
+import { hasGrant, accountState, setActive, publishEventSub, type AccountStatus } from '$lib/server/rpc';
 import { env } from '$env/dynamic/private';
 import { fail } from '@sveltejs/kit';
 
@@ -15,17 +15,14 @@ export const load: PageServerLoad = async ({ locals }) => {
     receiving = true;
     status = 'vip';
   } else {
-    try {
-      enabled = await hasGrant(uid);
-      receiving = enabled && (await isActive(uid));
-    } catch {
-      /* degrade */
-    }
-    try {
-      status = await accountStatus(uid);
-    } catch {
-      /* keep free */
-    }
+    // Two independent reads (grant presence, plus active+tier coalesced into one
+    // state_get): fire them together so SSR waits one round trip, not three.
+    // allSettled keeps the page rendering even if one responder is slow or down.
+    // receiving stays gated on the grant being present.
+    const [grant, state] = await Promise.allSettled([hasGrant(uid), accountState(uid)]);
+    enabled = grant.status === 'fulfilled' && grant.value;
+    receiving = enabled && state.status === 'fulfilled' && state.value.active;
+    status = state.status === 'fulfilled' ? state.value.status : 'free';
   }
 
   return { enabled, receiving, status };

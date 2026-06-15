@@ -1,26 +1,51 @@
 import type { Actions, PageServerLoad } from './$types';
 import { fail } from '@sveltejs/kit';
-import { loadLanes, laneMutationUnavailable } from '$lib/server/lanes';
-import { requireAdmin } from '$lib/server/access';
+import { loadLanes, laneAlias, laneDurable, laneDelete } from '$lib/server/lanes';
+import { allowed, isDemo } from '$lib/server/access';
 
 export const load: PageServerLoad = async () => {
   return loadLanes();
 };
 
-// The three lane mutations are wired as form actions to mirror the old admin,
-// but there is no JetStream-management RPC subject to call from the console, so
-// each returns an honest "unavailable" notice instead of guessing wire formats.
+// The three lane mutations are wired as form actions. Each is gated on an admin
+// session, is a no-op under DEMO (no live broker), and surfaces the RPC reply's
+// notice/error back to the page.
 export const actions: Actions = {
-  alias: async ({ locals }) => {
-    if (!(await requireAdmin(locals.session))) return fail(403, { notice: 'forbidden' });
-    return { ok: false, notice: laneMutationUnavailable('Rename') };
+  alias: async ({ request, locals }) => {
+    if (!allowed(locals.session)) return fail(403, { notice: 'forbidden' });
+    if (isDemo()) return { ok: false, notice: 'demo mode: lane mutations are disabled' };
+    const form = await request.formData();
+    const stream = String(form.get('stream') ?? '');
+    const consumer = String(form.get('consumer') ?? '');
+    const alias = String(form.get('alias') ?? '');
+    try {
+      return await laneAlias(stream, consumer, alias);
+    } catch (e) {
+      return fail(502, { notice: `rename failed: ${(e as Error).message}` });
+    }
   },
-  durable: async ({ locals }) => {
-    if (!(await requireAdmin(locals.session))) return fail(403, { notice: 'forbidden' });
-    return { ok: false, notice: laneMutationUnavailable('Make-permanent') };
+  durable: async ({ request, locals }) => {
+    if (!allowed(locals.session)) return fail(403, { notice: 'forbidden' });
+    if (isDemo()) return { ok: false, notice: 'demo mode: lane mutations are disabled' };
+    const form = await request.formData();
+    const stream = String(form.get('stream') ?? '');
+    const consumer = String(form.get('consumer') ?? '');
+    try {
+      return await laneDurable(stream, consumer);
+    } catch (e) {
+      return fail(502, { notice: `make-permanent failed: ${(e as Error).message}` });
+    }
   },
-  delete: async ({ locals }) => {
-    if (!(await requireAdmin(locals.session))) return fail(403, { notice: 'forbidden' });
-    return { ok: false, notice: laneMutationUnavailable('Delete') };
+  delete: async ({ request, locals }) => {
+    if (!allowed(locals.session)) return fail(403, { notice: 'forbidden' });
+    if (isDemo()) return { ok: false, notice: 'demo mode: lane mutations are disabled' };
+    const form = await request.formData();
+    const stream = String(form.get('stream') ?? '');
+    const consumer = String(form.get('consumer') ?? '');
+    try {
+      return await laneDelete(stream, consumer);
+    } catch (e) {
+      return fail(502, { notice: `delete failed: ${(e as Error).message}` });
+    }
   }
 };
