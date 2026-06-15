@@ -34,6 +34,18 @@ export async function hasGrant(userId: string): Promise<boolean> {
   return !!r.has_grant;
 }
 
+export type AccountStatus = 'free' | 'paid' | 'vip';
+
+// The broadcaster's billing tier (free/paid/vip) from the users service via the
+// dashboard-scoped status_get RPC.
+export async function accountStatus(userId: string): Promise<AccountStatus> {
+  const r = await rpc<{ status: string }>(`${SUB.dashboard}.status_get`, {
+    broadcaster_user_id: userId
+  });
+  const s = (r.status ?? 'free').toLowerCase();
+  return s === 'paid' || s === 'vip' ? (s as AccountStatus) : 'free';
+}
+
 export async function isActive(userId: string): Promise<boolean> {
   const r = await rpc<{ active: boolean }>(`${SUB.dashboard}.active_get`, {
     broadcaster_user_id: userId

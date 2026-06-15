@@ -3,7 +3,8 @@
   import { Button } from '@bagel/shared';
   let { data } = $props();
 
-  const tierLabel = $derived(data.tier === 'premium' ? 'Premium' : 'Free');
+  const statusLabel = $derived({ free: 'Free', paid: 'Paid', vip: 'VIP' }[data.status] ?? 'Free');
+  const paid = $derived(data.status !== 'free');
 </script>
 
 <section class="screen active">
@@ -21,7 +22,7 @@
       </div>
       <h2>#{data.login ?? 'itsmavey'}</h2>
       <div class="meta">
-        <span class="status-tag {data.tier === 'premium' ? 'premium' : ''}">{tierLabel}</span>
+        <span class="status-tag {paid ? 'premium' : ''}">{statusLabel}</span>
       </div>
     </div>
     <div class="actions">

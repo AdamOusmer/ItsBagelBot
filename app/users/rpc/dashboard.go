@@ -39,6 +39,7 @@ func SubscribeDashboard(nc *nats.Conn, repo *repository.Users, prefix, invalidat
 		{"grant_has", d.handleGrantHas},
 		{"active_set", d.handleActiveSet},
 		{"active_get", d.handleActiveGet},
+		{"status_get", d.handleStatusGet},
 	}
 	for _, h := range verbs {
 		subject := prefix + "." + h.verb
@@ -208,6 +209,33 @@ func (d *dashboardRPC) handleActiveGet(msg *nats.Msg) {
 	}
 
 	respondDash(msg, map[string]any{"active": view.IsActive})
+}
+
+// handleStatusGet returns the broadcaster's billing tier (free/paid/vip) so the
+// dashboard can show the account status to the user themselves.
+func (d *dashboardRPC) handleStatusGet(msg *nats.Msg) {
+	var req grantHasRequest
+	if err := json.Unmarshal(msg.Data, &req); err != nil {
+		respondDash(msg, map[string]any{"error": "bad request"})
+		return
+	}
+
+	id, err := strconv.ParseUint(req.BroadcasterUserID, 10, 64)
+	if err != nil {
+		respondDash(msg, map[string]any{"error": "broadcaster_user_id must be numeric"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	view, err := d.repo.Get(ctx, id)
+	if err != nil {
+		respondDash(msg, map[string]any{"error": err.Error()})
+		return
+	}
+
+	respondDash(msg, map[string]any{"status": view.Status})
 }
 
 func respondDash(msg *nats.Msg, v any) {
