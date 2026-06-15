@@ -50,6 +50,8 @@ deps/
 # deploy/flux and the tracked deploy/k8s manifests are managed by Flux GitOps)
 deploy/*
 !deploy/flux
+!deploy/k8s/console-dashboard.yaml
+!deploy/k8s/console-admin.yaml
 deploy_backup/
 
 # Exclude scratch, claude, and tar files

@@ -1,0 +1,165 @@
+# Console admin (SvelteKit SSR). Operator-only, reachable ONLY over Tailscale at
+# https://admin.tail451e6d.ts.net via the Tailscale operator (class `tailscale`,
+# ProxyGroup ts-ingress) - NOT traefik, no cloudflared route. Replaces the Go
+# `admin` tier.
+#
+# HA + cross-pod sessions
+#   Unlike the old Go admin (which pinned ClientIP because its CSRF token lived
+#   in pod memory), this app is stateless: encrypted-cookie session + SvelteKit
+#   origin-checked CSRF. So sessionAffinity is dropped and any pod serves any
+#   request. Access is gated by the tailnet policy AND an in-app allowlist
+#   (ADMIN_USER_IDS) on top of the shared encrypted session.
+#
+# Region spread: replicas spread across the 3 cities (see console-dashboard.yaml
+# for the required node region/zone labels); the operator proxy prefers the
+# in-region admin pod via the Service's PreferClose.
+apiVersion: secrets.doppler.com/v1alpha1
+kind: DopplerSecret
+metadata:
+  name: console-admin-env
+  namespace: production
+spec:
+  host: https://api.doppler.com
+  tokenSecret:
+    name: console-admin-doppler-token
+  managedSecret:
+    name: console-admin-env
+    namespace: production
+    type: Opaque
+  resyncSeconds: 60
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: console-admin
+  namespace: production
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: console-admin
+  template:
+    metadata:
+      labels:
+        app: console-admin
+      annotations:
+        linkerd.io/inject: enabled
+        secrets.doppler.com/reload: "true"
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/region
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: console-admin
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: console-admin
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - {key: app, operator: In, values: [console-admin]}
+                topologyKey: kubernetes.io/hostname
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: console-admin
+          image: ghcr.io/adamousmer/itsbagelbot/console-admin:latest # {"$imagepolicy": "flux-system:console-admin"}
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: PORT
+              value: "3000"
+            - name: NODE_ENV
+              value: production
+            - name: NATS_URL
+              value: nats://nats:4222
+            - name: NATS_ADMIN_SUBJECT
+              value: twitch.ingress.admin.shards.get
+            - name: NATS_STATUS_SUBJECT_PREFIX
+              value: twitch.ingress.status
+            - name: NATS_ADMIN_USER_SUBJECT_PREFIX
+              value: bagel.rpc.admin.user
+          # SESSION_KEY + ADMIN_USER_IDS (allowlist) from Doppler.
+          envFrom:
+            - secretRef:
+                name: console-admin-env
+          ports:
+            - containerPort: 3000
+          resources:
+            requests:
+              cpu: 25m
+              memory: 96Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          livenessProbe:
+            httpGet: {path: /healthz, port: 3000}
+            periodSeconds: 30
+          readinessProbe:
+            httpGet: {path: /healthz, port: 3000}
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: console-admin
+  namespace: production
+spec:
+  # No sessionAffinity: stateless sessions make every pod interchangeable.
+  # PreferClose keeps the operator proxy on the in-region admin pod.
+  trafficDistribution: PreferClose
+  selector:
+    app: console-admin
+  ports:
+    - name: http
+      port: 80
+      targetPort: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: console-admin
+  namespace: production
+  annotations:
+    tailscale.com/proxy-group: ts-ingress
+spec:
+  ingressClassName: tailscale
+  defaultBackend:
+    service:
+      name: console-admin
+      port:
+        number: 80
+  tls:
+    - hosts:
+        - admin
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: console-admin
+  namespace: production
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: console-admin

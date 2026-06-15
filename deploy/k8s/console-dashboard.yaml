@@ -1,0 +1,169 @@
+# Console dashboard (SvelteKit SSR). Public at https://dashboard.itsbagelbot.com
+# via cloudflared -> traefik. Replaces the Go `dashboard` tier.
+#
+# HA + cross-pod sessions
+#   Sessions are stateless: an AES-256-GCM encrypted cookie (SESSION_KEY, shared
+#   to every replica via the Doppler secret) and SvelteKit's origin-checked CSRF.
+#   No per-pod state, so ANY pod can serve ANY request. That is why this deploy
+#   drops the old sticky-cookie affinity entirely -> true HA (lose a pod or a
+#   whole city, every other pod still serves the same sessions).
+#
+# Region (edge) routing across the 3 cities
+#   Nodes must be labelled per city, with zone == city so "same zone" means
+#   "same city":
+#     kubectl label node <n> topology.kubernetes.io/region=<city> \
+#                            topology.kubernetes.io/zone=<city> --overwrite
+#   Path: Cloudflare edge -> closest cloudflared connector (per-node DaemonSet)
+#   -> node-local traefik (per-node DaemonSet, Service PreferClose). traefik then
+#   routes to THIS Service's ClusterIP (nativeLB: true below) instead of load-
+#   balancing pod endpoints directly, so it inherits trafficDistribution:
+#   PreferClose and keeps the request inside the entry city, spilling to another
+#   city only when the local pods are gone.
+#
+# Secrets: reuses the existing Doppler-synced `dashboard-env` secret (project
+# dashboard / config prd) that the old Go tier used - same TWITCH_CLIENT_ID/
+# SECRET, authenticated NATS creds (NATS_HOST/PORT/USER/PASSWORD), and the 32-byte
+# DASHBOARD_SESSION_KEY (mapped to SESSION_KEY below). Only TWITCH_REDIRECT_URI
+# was added to that config for the new OAuth callback.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: console-dashboard
+  namespace: production
+spec:
+  replicas: 3 # one per city; scale up freely (stateless)
+  # Soft anti-affinity + region spread leave headroom for a surge pod, so we get
+  # zero-downtime rolls (no maxSurge=0 deadlock since pods are not hard-pinned).
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: console-dashboard
+  template:
+    metadata:
+      labels:
+        app: console-dashboard
+      annotations:
+        linkerd.io/inject: enabled
+        secrets.doppler.com/reload: "true"
+    spec:
+      # Spread one replica per city first, then per node within a city.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/region
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: console-dashboard
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: console-dashboard
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - {key: app, operator: In, values: [console-dashboard]}
+                topologyKey: kubernetes.io/hostname
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: console-dashboard
+          image: ghcr.io/adamousmer/itsbagelbot/console-dashboard:latest # {"$imagepolicy": "flux-system:console-dashboard"}
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: PORT
+              value: "3000"
+            - name: NODE_ENV
+              value: production
+            # adapter-node sits behind cloudflared+traefik; ORIGIN lets SvelteKit
+            # validate form POSTs (origin-checked CSRF) against the public URL.
+            - name: ORIGIN
+              value: https://dashboard.itsbagelbot.com
+            # Reuse the old tier's 32-byte AES key as the session key.
+            - name: SESSION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: dashboard-env
+                  key: DASHBOARD_SESSION_KEY
+          # TWITCH_CLIENT_ID/SECRET/REDIRECT_URI + NATS_HOST/PORT/USER/PASSWORD
+          # from the existing Doppler-synced secret.
+          envFrom:
+            - secretRef:
+                name: dashboard-env
+          ports:
+            - containerPort: 3000
+          resources:
+            requests:
+              cpu: 25m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 320Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          livenessProbe:
+            httpGet: {path: /healthz, port: 3000}
+            periodSeconds: 30
+          readinessProbe:
+            httpGet: {path: /healthz, port: 3000}
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: console-dashboard
+  namespace: production
+spec:
+  # Region-aware: prefer same-city (zone==city) endpoints; spill cross-city only
+  # when no local pod is ready. traefik uses this ClusterIP via nativeLB.
+  trafficDistribution: PreferClose
+  selector:
+    app: console-dashboard
+  ports:
+    - name: http
+      port: 80
+      targetPort: 3000
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: console-dashboard
+  namespace: production
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: Host(`dashboard.itsbagelbot.com`)
+      kind: Rule
+      services:
+        - name: console-dashboard
+          port: 80
+          # Route to the Service ClusterIP (not pod endpoints) so traefik
+          # inherits the Service's PreferClose region routing. No sticky cookie:
+          # sessions are stateless, so any in-region pod is interchangeable.
+          nativeLB: true
+  tls: {}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: console-dashboard
+  namespace: production
+spec:
+  minAvailable: 2 # keep at least two cities serving during disruptions
+  selector:
+    matchLabels:
+      app: console-dashboard
