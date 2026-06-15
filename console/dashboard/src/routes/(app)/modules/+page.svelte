@@ -56,3 +56,40 @@
     </div>
   </div>
 </section>
+
+<style>
+  /* Toggle hit area: wrap in a label-like region so touch target >= 44px */
+  :global(.rule .rt) {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  @media (max-width: 760px) {
+    /* mod-grid already drops to 1-col via shared CSS at 1100px; ensure no overflow */
+    :global(.mod-grid) {
+      gap: 10px;
+    }
+
+    /* rule card: tighten layout, tags wrap cleanly */
+    :global(.rule) {
+      gap: 12px;
+    }
+
+    :global(.rule .rb .conf) {
+      gap: 6px;
+    }
+
+    /* log-row: hide the right-column timestamp on very narrow screens */
+    .lw {
+      display: none;
+    }
+
+    /* modlog rows: two-column (icon + text) at 380px */
+    :global(.modlog .log-row) {
+      grid-template-columns: 30px 1fr;
+    }
+  }
+</style>

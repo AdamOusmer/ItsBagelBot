@@ -11,6 +11,7 @@ import (
 	"ItsBagelBot/app/commands/repository"
 	"ItsBagelBot/app/commands/rpc"
 	"ItsBagelBot/internal/domain/event/data"
+	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/db"
 	"ItsBagelBot/pkg/env"
@@ -89,6 +90,37 @@ func main() {
 		return nil
 	}, log); err != nil {
 		log.Fatal("failed to subscribe to command changes", zap.Error(err))
+	}
+
+	// Durable group subscription: exactly one instance handles the delete so
+	// rows are not redundantly removed, and any instance failure is retried.
+	grouped, err := bus.NewSubscriber(natsURL, serviceName, log)
+	if err != nil {
+		log.Fatal("failed to connect group subscriber", zap.Error(err))
+	}
+	defer func() { _ = grouped.Close() }()
+
+	if err := bus.Consume(ctx, nil, grouped, data.SubjectUserDeleted, func(msg *message.Message) error {
+
+		var dto data.UserDeletedDTO
+		if err := json.Unmarshal(msg.Payload, &dto); err != nil {
+			log.Warn("commands: bad user_deleted payload", zap.Error(err))
+			return nil
+		}
+
+		if err := validate.UserID(dto.UserID); err != nil {
+			log.Warn("commands: invalid user_id in user_deleted", zap.Error(err))
+			return nil
+		}
+
+		if err := repo.DeleteAllForUser(msg.Context(), dto.UserID); err != nil {
+			return err
+		}
+
+		log.Info("commands: deleted all for user", zap.Uint64("user_id", dto.UserID))
+		return nil
+	}, log); err != nil {
+		log.Fatal("failed to subscribe to user deleted events", zap.Error(err))
 	}
 
 	projectionSubject := env.Get("NATS_INTERNAL_PROJECTION_COMMANDS_SUBJECT", "bagel.rpc.internal.projection.commands.get")

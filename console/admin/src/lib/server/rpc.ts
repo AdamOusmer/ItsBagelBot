@@ -91,6 +91,11 @@ export async function tokenClear(userId: string): Promise<TokenStatus> {
   return r.token ?? { present: false };
 }
 
+export async function userDelete(userId: string): Promise<void> {
+  const r = await rpc<{ error?: string }>(`${SUB.user}.delete`, { user_id: userId });
+  if (r.error) throw new Error(r.error);
+}
+
 // ── Derived helpers ───────────────────────────────────────────────────────────
 
 export function tierOf(status: string): 'premium' | 'standard' {

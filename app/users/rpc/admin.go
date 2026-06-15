@@ -79,6 +79,7 @@ func SubscribeAdmin(nc *nats.Conn, db *ent.Client, repo *repository.Users, prefi
 		"token_set":    a.tokenSet,
 		"token_status": a.tokenStatus,
 		"token_clear":  a.tokenClear,
+		"delete":       a.delete,
 	}
 	for verb, handle := range verbs {
 		handle := handle
@@ -260,6 +261,20 @@ func (a *adminRPC) tokenClear(ctx context.Context, req adminRequest) adminReply 
 	a.invalidate(u.ID)
 	a.log.Info("admin token cleared", zap.Uint64("user", u.ID))
 	return a.tokenStatus(ctx, adminRequest{UserID: fmt.Sprint(u.ID)})
+}
+
+func (a *adminRPC) delete(ctx context.Context, req adminRequest) adminReply {
+	u, err := a.findUser(ctx, req)
+	if err != nil {
+		return adminReply{Error: err.Error()}
+	}
+
+	if err := a.repo.Delete(ctx, u.ID); err != nil {
+		return adminReply{Error: err.Error()}
+	}
+
+	a.log.Info("admin user delete", zap.Uint64("user", u.ID))
+	return adminReply{}
 }
 
 func (a *adminRPC) provision(ctx context.Context, userID string) (*ent.User, error) {
