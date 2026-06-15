@@ -21,6 +21,12 @@ const (
 	FieldResponse = "response"
 	// FieldIsActive holds the string denoting the is_active field in the database.
 	FieldIsActive = "is_active"
+	// FieldPerm holds the string denoting the perm field in the database.
+	FieldPerm = "perm"
+	// FieldCooldown holds the string denoting the cooldown field in the database.
+	FieldCooldown = "cooldown"
+	// FieldAllowedUserID holds the string denoting the allowed_user_id field in the database.
+	FieldAllowedUserID = "allowed_user_id"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// FieldUpdatedAt holds the string denoting the updated_at field in the database.
@@ -36,6 +42,9 @@ var Columns = []string{
 	FieldName,
 	FieldResponse,
 	FieldIsActive,
+	FieldPerm,
+	FieldCooldown,
+	FieldAllowedUserID,
 	FieldCreatedAt,
 	FieldUpdatedAt,
 }
@@ -57,6 +66,12 @@ var (
 	ResponseValidator func(string) error
 	// DefaultIsActive holds the default value on creation for the "is_active" field.
 	DefaultIsActive bool
+	// DefaultPerm holds the default value on creation for the "perm" field.
+	DefaultPerm string
+	// DefaultCooldown holds the default value on creation for the "cooldown" field.
+	DefaultCooldown uint
+	// DefaultAllowedUserID holds the default value on creation for the "allowed_user_id" field.
+	DefaultAllowedUserID uint64
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 	// DefaultUpdatedAt holds the default value on creation for the "updated_at" field.
@@ -91,6 +106,21 @@ func ByResponse(opts ...sql.OrderTermOption) OrderOption {
 // ByIsActive orders the results by the is_active field.
 func ByIsActive(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldIsActive, opts...).ToFunc()
+}
+
+// ByPerm orders the results by the perm field.
+func ByPerm(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldPerm, opts...).ToFunc()
+}
+
+// ByCooldown orders the results by the cooldown field.
+func ByCooldown(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldCooldown, opts...).ToFunc()
+}
+
+// ByAllowedUserID orders the results by the allowed_user_id field.
+func ByAllowedUserID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldAllowedUserID, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.

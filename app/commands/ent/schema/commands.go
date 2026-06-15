@@ -26,6 +26,18 @@ func (Commands) Fields() []ent.Field {
 
 		field.Bool("is_active").Default(true),
 
+		// Minimum role allowed to run the command. One of: everyone, sub, vip,
+		// mod, lead_mod, broadcaster. Validated at the trust boundary, stored as
+		// a plain string so adding a tier never needs a column migration.
+		field.String("perm").Default("everyone"),
+
+		// Per-command cooldown in seconds; 0 means no cooldown.
+		field.Uint("cooldown").Default(0),
+
+		// When non-zero, only this Twitch user id may run the command (overrides
+		// perm). 0 means the perm tier applies normally.
+		field.Uint64("allowed_user_id").Default(0),
+
 		field.Time("created_at").Default(time.Now),
 
 		field.Time("updated_at").Default(time.Now).UpdateDefault(time.Now),

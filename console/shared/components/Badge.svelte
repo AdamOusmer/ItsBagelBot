@@ -1,6 +1,14 @@
 <script lang="ts">
-  let { perm }: { perm: 'everyone' | 'sub' | 'mod' | 'broadcaster' } = $props();
-  const label = { everyone: 'Everyone', sub: 'Subs', mod: 'Mods', broadcaster: 'Broadcaster' };
+  import type { Perm } from '../lib/types';
+  let { perm }: { perm: Perm } = $props();
+  const label: Record<Perm, string> = {
+    everyone: 'Everyone',
+    sub: 'Subs',
+    vip: 'VIPs',
+    mod: 'Mods',
+    lead_mod: 'Lead Mods',
+    broadcaster: 'Broadcaster'
+  };
 </script>
 
-<span class="badge {perm}">{label[perm]}</span>
+<span class="badge {perm}">{label[perm] ?? perm}</span>

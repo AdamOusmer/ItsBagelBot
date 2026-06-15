@@ -52,6 +52,48 @@ func (_c *CommandsCreate) SetNillableIsActive(v *bool) *CommandsCreate {
 	return _c
 }
 
+// SetPerm sets the "perm" field.
+func (_c *CommandsCreate) SetPerm(v string) *CommandsCreate {
+	_c.mutation.SetPerm(v)
+	return _c
+}
+
+// SetNillablePerm sets the "perm" field if the given value is not nil.
+func (_c *CommandsCreate) SetNillablePerm(v *string) *CommandsCreate {
+	if v != nil {
+		_c.SetPerm(*v)
+	}
+	return _c
+}
+
+// SetCooldown sets the "cooldown" field.
+func (_c *CommandsCreate) SetCooldown(v uint) *CommandsCreate {
+	_c.mutation.SetCooldown(v)
+	return _c
+}
+
+// SetNillableCooldown sets the "cooldown" field if the given value is not nil.
+func (_c *CommandsCreate) SetNillableCooldown(v *uint) *CommandsCreate {
+	if v != nil {
+		_c.SetCooldown(*v)
+	}
+	return _c
+}
+
+// SetAllowedUserID sets the "allowed_user_id" field.
+func (_c *CommandsCreate) SetAllowedUserID(v uint64) *CommandsCreate {
+	_c.mutation.SetAllowedUserID(v)
+	return _c
+}
+
+// SetNillableAllowedUserID sets the "allowed_user_id" field if the given value is not nil.
+func (_c *CommandsCreate) SetNillableAllowedUserID(v *uint64) *CommandsCreate {
+	if v != nil {
+		_c.SetAllowedUserID(*v)
+	}
+	return _c
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_c *CommandsCreate) SetCreatedAt(v time.Time) *CommandsCreate {
 	_c.mutation.SetCreatedAt(v)
@@ -119,6 +161,18 @@ func (_c *CommandsCreate) defaults() {
 		v := commands.DefaultIsActive
 		_c.mutation.SetIsActive(v)
 	}
+	if _, ok := _c.mutation.Perm(); !ok {
+		v := commands.DefaultPerm
+		_c.mutation.SetPerm(v)
+	}
+	if _, ok := _c.mutation.Cooldown(); !ok {
+		v := commands.DefaultCooldown
+		_c.mutation.SetCooldown(v)
+	}
+	if _, ok := _c.mutation.AllowedUserID(); !ok {
+		v := commands.DefaultAllowedUserID
+		_c.mutation.SetAllowedUserID(v)
+	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := commands.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
@@ -152,6 +206,15 @@ func (_c *CommandsCreate) check() error {
 	}
 	if _, ok := _c.mutation.IsActive(); !ok {
 		return &ValidationError{Name: "is_active", err: errors.New(`ent: missing required field "Commands.is_active"`)}
+	}
+	if _, ok := _c.mutation.Perm(); !ok {
+		return &ValidationError{Name: "perm", err: errors.New(`ent: missing required field "Commands.perm"`)}
+	}
+	if _, ok := _c.mutation.Cooldown(); !ok {
+		return &ValidationError{Name: "cooldown", err: errors.New(`ent: missing required field "Commands.cooldown"`)}
+	}
+	if _, ok := _c.mutation.AllowedUserID(); !ok {
+		return &ValidationError{Name: "allowed_user_id", err: errors.New(`ent: missing required field "Commands.allowed_user_id"`)}
 	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		return &ValidationError{Name: "created_at", err: errors.New(`ent: missing required field "Commands.created_at"`)}
@@ -200,6 +263,18 @@ func (_c *CommandsCreate) createSpec() (*Commands, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.IsActive(); ok {
 		_spec.SetField(commands.FieldIsActive, field.TypeBool, value)
 		_node.IsActive = value
+	}
+	if value, ok := _c.mutation.Perm(); ok {
+		_spec.SetField(commands.FieldPerm, field.TypeString, value)
+		_node.Perm = value
+	}
+	if value, ok := _c.mutation.Cooldown(); ok {
+		_spec.SetField(commands.FieldCooldown, field.TypeUint, value)
+		_node.Cooldown = value
+	}
+	if value, ok := _c.mutation.AllowedUserID(); ok {
+		_spec.SetField(commands.FieldAllowedUserID, field.TypeUint64, value)
+		_node.AllowedUserID = value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(commands.FieldCreatedAt, field.TypeTime, value)
