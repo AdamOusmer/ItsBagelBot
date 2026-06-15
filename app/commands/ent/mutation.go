@@ -30,20 +30,25 @@ const (
 // CommandsMutation represents an operation that mutates the Commands nodes in the graph.
 type CommandsMutation struct {
 	config
-	op            Op
-	typ           string
-	id            *int
-	user_id       *uint64
-	adduser_id    *int64
-	name          *string
-	response      *string
-	is_active     *bool
-	created_at    *time.Time
-	updated_at    *time.Time
-	clearedFields map[string]struct{}
-	done          bool
-	oldValue      func(context.Context) (*Commands, error)
-	predicates    []predicate.Commands
+	op                 Op
+	typ                string
+	id                 *int
+	user_id            *uint64
+	adduser_id         *int64
+	name               *string
+	response           *string
+	is_active          *bool
+	perm               *string
+	cooldown           *uint
+	addcooldown        *int
+	allowed_user_id    *uint64
+	addallowed_user_id *int64
+	created_at         *time.Time
+	updated_at         *time.Time
+	clearedFields      map[string]struct{}
+	done               bool
+	oldValue           func(context.Context) (*Commands, error)
+	predicates         []predicate.Commands
 }
 
 var _ ent.Mutation = (*CommandsMutation)(nil)
@@ -308,6 +313,154 @@ func (m *CommandsMutation) ResetIsActive() {
 	m.is_active = nil
 }
 
+// SetPerm sets the "perm" field.
+func (m *CommandsMutation) SetPerm(s string) {
+	m.perm = &s
+}
+
+// Perm returns the value of the "perm" field in the mutation.
+func (m *CommandsMutation) Perm() (r string, exists bool) {
+	v := m.perm
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPerm returns the old "perm" field's value of the Commands entity.
+// If the Commands object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CommandsMutation) OldPerm(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPerm is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPerm requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPerm: %w", err)
+	}
+	return oldValue.Perm, nil
+}
+
+// ResetPerm resets all changes to the "perm" field.
+func (m *CommandsMutation) ResetPerm() {
+	m.perm = nil
+}
+
+// SetCooldown sets the "cooldown" field.
+func (m *CommandsMutation) SetCooldown(u uint) {
+	m.cooldown = &u
+	m.addcooldown = nil
+}
+
+// Cooldown returns the value of the "cooldown" field in the mutation.
+func (m *CommandsMutation) Cooldown() (r uint, exists bool) {
+	v := m.cooldown
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCooldown returns the old "cooldown" field's value of the Commands entity.
+// If the Commands object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CommandsMutation) OldCooldown(ctx context.Context) (v uint, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCooldown is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCooldown requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCooldown: %w", err)
+	}
+	return oldValue.Cooldown, nil
+}
+
+// AddCooldown adds u to the "cooldown" field.
+func (m *CommandsMutation) AddCooldown(u int) {
+	if m.addcooldown != nil {
+		*m.addcooldown += u
+	} else {
+		m.addcooldown = &u
+	}
+}
+
+// AddedCooldown returns the value that was added to the "cooldown" field in this mutation.
+func (m *CommandsMutation) AddedCooldown() (r int, exists bool) {
+	v := m.addcooldown
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetCooldown resets all changes to the "cooldown" field.
+func (m *CommandsMutation) ResetCooldown() {
+	m.cooldown = nil
+	m.addcooldown = nil
+}
+
+// SetAllowedUserID sets the "allowed_user_id" field.
+func (m *CommandsMutation) SetAllowedUserID(u uint64) {
+	m.allowed_user_id = &u
+	m.addallowed_user_id = nil
+}
+
+// AllowedUserID returns the value of the "allowed_user_id" field in the mutation.
+func (m *CommandsMutation) AllowedUserID() (r uint64, exists bool) {
+	v := m.allowed_user_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAllowedUserID returns the old "allowed_user_id" field's value of the Commands entity.
+// If the Commands object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CommandsMutation) OldAllowedUserID(ctx context.Context) (v uint64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAllowedUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAllowedUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAllowedUserID: %w", err)
+	}
+	return oldValue.AllowedUserID, nil
+}
+
+// AddAllowedUserID adds u to the "allowed_user_id" field.
+func (m *CommandsMutation) AddAllowedUserID(u int64) {
+	if m.addallowed_user_id != nil {
+		*m.addallowed_user_id += u
+	} else {
+		m.addallowed_user_id = &u
+	}
+}
+
+// AddedAllowedUserID returns the value that was added to the "allowed_user_id" field in this mutation.
+func (m *CommandsMutation) AddedAllowedUserID() (r int64, exists bool) {
+	v := m.addallowed_user_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetAllowedUserID resets all changes to the "allowed_user_id" field.
+func (m *CommandsMutation) ResetAllowedUserID() {
+	m.allowed_user_id = nil
+	m.addallowed_user_id = nil
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (m *CommandsMutation) SetCreatedAt(t time.Time) {
 	m.created_at = &t
@@ -414,7 +567,7 @@ func (m *CommandsMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *CommandsMutation) Fields() []string {
-	fields := make([]string, 0, 6)
+	fields := make([]string, 0, 9)
 	if m.user_id != nil {
 		fields = append(fields, commands.FieldUserID)
 	}
@@ -426,6 +579,15 @@ func (m *CommandsMutation) Fields() []string {
 	}
 	if m.is_active != nil {
 		fields = append(fields, commands.FieldIsActive)
+	}
+	if m.perm != nil {
+		fields = append(fields, commands.FieldPerm)
+	}
+	if m.cooldown != nil {
+		fields = append(fields, commands.FieldCooldown)
+	}
+	if m.allowed_user_id != nil {
+		fields = append(fields, commands.FieldAllowedUserID)
 	}
 	if m.created_at != nil {
 		fields = append(fields, commands.FieldCreatedAt)
@@ -449,6 +611,12 @@ func (m *CommandsMutation) Field(name string) (ent.Value, bool) {
 		return m.Response()
 	case commands.FieldIsActive:
 		return m.IsActive()
+	case commands.FieldPerm:
+		return m.Perm()
+	case commands.FieldCooldown:
+		return m.Cooldown()
+	case commands.FieldAllowedUserID:
+		return m.AllowedUserID()
 	case commands.FieldCreatedAt:
 		return m.CreatedAt()
 	case commands.FieldUpdatedAt:
@@ -470,6 +638,12 @@ func (m *CommandsMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldResponse(ctx)
 	case commands.FieldIsActive:
 		return m.OldIsActive(ctx)
+	case commands.FieldPerm:
+		return m.OldPerm(ctx)
+	case commands.FieldCooldown:
+		return m.OldCooldown(ctx)
+	case commands.FieldAllowedUserID:
+		return m.OldAllowedUserID(ctx)
 	case commands.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
 	case commands.FieldUpdatedAt:
@@ -511,6 +685,27 @@ func (m *CommandsMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetIsActive(v)
 		return nil
+	case commands.FieldPerm:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPerm(v)
+		return nil
+	case commands.FieldCooldown:
+		v, ok := value.(uint)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCooldown(v)
+		return nil
+	case commands.FieldAllowedUserID:
+		v, ok := value.(uint64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAllowedUserID(v)
+		return nil
 	case commands.FieldCreatedAt:
 		v, ok := value.(time.Time)
 		if !ok {
@@ -536,6 +731,12 @@ func (m *CommandsMutation) AddedFields() []string {
 	if m.adduser_id != nil {
 		fields = append(fields, commands.FieldUserID)
 	}
+	if m.addcooldown != nil {
+		fields = append(fields, commands.FieldCooldown)
+	}
+	if m.addallowed_user_id != nil {
+		fields = append(fields, commands.FieldAllowedUserID)
+	}
 	return fields
 }
 
@@ -546,6 +747,10 @@ func (m *CommandsMutation) AddedField(name string) (ent.Value, bool) {
 	switch name {
 	case commands.FieldUserID:
 		return m.AddedUserID()
+	case commands.FieldCooldown:
+		return m.AddedCooldown()
+	case commands.FieldAllowedUserID:
+		return m.AddedAllowedUserID()
 	}
 	return nil, false
 }
@@ -561,6 +766,20 @@ func (m *CommandsMutation) AddField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddUserID(v)
+		return nil
+	case commands.FieldCooldown:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddCooldown(v)
+		return nil
+	case commands.FieldAllowedUserID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddAllowedUserID(v)
 		return nil
 	}
 	return fmt.Errorf("unknown Commands numeric field %s", name)
@@ -600,6 +819,15 @@ func (m *CommandsMutation) ResetField(name string) error {
 		return nil
 	case commands.FieldIsActive:
 		m.ResetIsActive()
+		return nil
+	case commands.FieldPerm:
+		m.ResetPerm()
+		return nil
+	case commands.FieldCooldown:
+		m.ResetCooldown()
+		return nil
+	case commands.FieldAllowedUserID:
+		m.ResetAllowedUserID()
 		return nil
 	case commands.FieldCreatedAt:
 		m.ResetCreatedAt()

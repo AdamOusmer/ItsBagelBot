@@ -33,9 +33,9 @@ func TestUpsertCoalescesEdits(t *testing.T) {
 	client, pub, repo := setup(t)
 	ctx := context.Background()
 
-	repo.Upsert(1001, "!hello", "draft one", true)
-	repo.Upsert(1001, "!hello", "draft two", true)
-	repo.Upsert(1001, "!hello", "final wording", true)
+	repo.Upsert(1001, "!hello", "draft one", true, "everyone", 0, 0)
+	repo.Upsert(1001, "!hello", "draft two", true, "everyone", 0, 0)
+	repo.Upsert(1001, "!hello", "final wording", true, "everyone", 0, 0)
 
 	repo.Close(ctx) // deterministic flush
 
@@ -50,7 +50,7 @@ func TestDeleteIsImmediateAndAnnounced(t *testing.T) {
 	client, pub, repo := setup(t)
 	ctx := context.Background()
 
-	repo.Upsert(1001, "!hello", "hi chat", true)
+	repo.Upsert(1001, "!hello", "hi chat", true, "everyone", 0, 0)
 	repo.Close(ctx)
 
 	repo2 := repository.NewCommands(client, pub, nil, zap.NewNop())

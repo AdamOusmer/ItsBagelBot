@@ -70,6 +70,62 @@ func (_u *CommandsUpdate) SetNillableIsActive(v *bool) *CommandsUpdate {
 	return _u
 }
 
+// SetPerm sets the "perm" field.
+func (_u *CommandsUpdate) SetPerm(v string) *CommandsUpdate {
+	_u.mutation.SetPerm(v)
+	return _u
+}
+
+// SetNillablePerm sets the "perm" field if the given value is not nil.
+func (_u *CommandsUpdate) SetNillablePerm(v *string) *CommandsUpdate {
+	if v != nil {
+		_u.SetPerm(*v)
+	}
+	return _u
+}
+
+// SetCooldown sets the "cooldown" field.
+func (_u *CommandsUpdate) SetCooldown(v uint) *CommandsUpdate {
+	_u.mutation.ResetCooldown()
+	_u.mutation.SetCooldown(v)
+	return _u
+}
+
+// SetNillableCooldown sets the "cooldown" field if the given value is not nil.
+func (_u *CommandsUpdate) SetNillableCooldown(v *uint) *CommandsUpdate {
+	if v != nil {
+		_u.SetCooldown(*v)
+	}
+	return _u
+}
+
+// AddCooldown adds value to the "cooldown" field.
+func (_u *CommandsUpdate) AddCooldown(v int) *CommandsUpdate {
+	_u.mutation.AddCooldown(v)
+	return _u
+}
+
+// SetAllowedUserID sets the "allowed_user_id" field.
+func (_u *CommandsUpdate) SetAllowedUserID(v uint64) *CommandsUpdate {
+	_u.mutation.ResetAllowedUserID()
+	_u.mutation.SetAllowedUserID(v)
+	return _u
+}
+
+// SetNillableAllowedUserID sets the "allowed_user_id" field if the given value is not nil.
+func (_u *CommandsUpdate) SetNillableAllowedUserID(v *uint64) *CommandsUpdate {
+	if v != nil {
+		_u.SetAllowedUserID(*v)
+	}
+	return _u
+}
+
+// AddAllowedUserID adds value to the "allowed_user_id" field.
+func (_u *CommandsUpdate) AddAllowedUserID(v int64) *CommandsUpdate {
+	_u.mutation.AddAllowedUserID(v)
+	return _u
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_u *CommandsUpdate) SetCreatedAt(v time.Time) *CommandsUpdate {
 	_u.mutation.SetCreatedAt(v)
@@ -167,6 +223,21 @@ func (_u *CommandsUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.IsActive(); ok {
 		_spec.SetField(commands.FieldIsActive, field.TypeBool, value)
 	}
+	if value, ok := _u.mutation.Perm(); ok {
+		_spec.SetField(commands.FieldPerm, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.Cooldown(); ok {
+		_spec.SetField(commands.FieldCooldown, field.TypeUint, value)
+	}
+	if value, ok := _u.mutation.AddedCooldown(); ok {
+		_spec.AddField(commands.FieldCooldown, field.TypeUint, value)
+	}
+	if value, ok := _u.mutation.AllowedUserID(); ok {
+		_spec.SetField(commands.FieldAllowedUserID, field.TypeUint64, value)
+	}
+	if value, ok := _u.mutation.AddedAllowedUserID(); ok {
+		_spec.AddField(commands.FieldAllowedUserID, field.TypeUint64, value)
+	}
 	if value, ok := _u.mutation.CreatedAt(); ok {
 		_spec.SetField(commands.FieldCreatedAt, field.TypeTime, value)
 	}
@@ -232,6 +303,62 @@ func (_u *CommandsUpdateOne) SetNillableIsActive(v *bool) *CommandsUpdateOne {
 	if v != nil {
 		_u.SetIsActive(*v)
 	}
+	return _u
+}
+
+// SetPerm sets the "perm" field.
+func (_u *CommandsUpdateOne) SetPerm(v string) *CommandsUpdateOne {
+	_u.mutation.SetPerm(v)
+	return _u
+}
+
+// SetNillablePerm sets the "perm" field if the given value is not nil.
+func (_u *CommandsUpdateOne) SetNillablePerm(v *string) *CommandsUpdateOne {
+	if v != nil {
+		_u.SetPerm(*v)
+	}
+	return _u
+}
+
+// SetCooldown sets the "cooldown" field.
+func (_u *CommandsUpdateOne) SetCooldown(v uint) *CommandsUpdateOne {
+	_u.mutation.ResetCooldown()
+	_u.mutation.SetCooldown(v)
+	return _u
+}
+
+// SetNillableCooldown sets the "cooldown" field if the given value is not nil.
+func (_u *CommandsUpdateOne) SetNillableCooldown(v *uint) *CommandsUpdateOne {
+	if v != nil {
+		_u.SetCooldown(*v)
+	}
+	return _u
+}
+
+// AddCooldown adds value to the "cooldown" field.
+func (_u *CommandsUpdateOne) AddCooldown(v int) *CommandsUpdateOne {
+	_u.mutation.AddCooldown(v)
+	return _u
+}
+
+// SetAllowedUserID sets the "allowed_user_id" field.
+func (_u *CommandsUpdateOne) SetAllowedUserID(v uint64) *CommandsUpdateOne {
+	_u.mutation.ResetAllowedUserID()
+	_u.mutation.SetAllowedUserID(v)
+	return _u
+}
+
+// SetNillableAllowedUserID sets the "allowed_user_id" field if the given value is not nil.
+func (_u *CommandsUpdateOne) SetNillableAllowedUserID(v *uint64) *CommandsUpdateOne {
+	if v != nil {
+		_u.SetAllowedUserID(*v)
+	}
+	return _u
+}
+
+// AddAllowedUserID adds value to the "allowed_user_id" field.
+func (_u *CommandsUpdateOne) AddAllowedUserID(v int64) *CommandsUpdateOne {
+	_u.mutation.AddAllowedUserID(v)
 	return _u
 }
 
@@ -361,6 +488,21 @@ func (_u *CommandsUpdateOne) sqlSave(ctx context.Context) (_node *Commands, err 
 	}
 	if value, ok := _u.mutation.IsActive(); ok {
 		_spec.SetField(commands.FieldIsActive, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.Perm(); ok {
+		_spec.SetField(commands.FieldPerm, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.Cooldown(); ok {
+		_spec.SetField(commands.FieldCooldown, field.TypeUint, value)
+	}
+	if value, ok := _u.mutation.AddedCooldown(); ok {
+		_spec.AddField(commands.FieldCooldown, field.TypeUint, value)
+	}
+	if value, ok := _u.mutation.AllowedUserID(); ok {
+		_spec.SetField(commands.FieldAllowedUserID, field.TypeUint64, value)
+	}
+	if value, ok := _u.mutation.AddedAllowedUserID(); ok {
+		_spec.AddField(commands.FieldAllowedUserID, field.TypeUint64, value)
 	}
 	if value, ok := _u.mutation.CreatedAt(); ok {
 		_spec.SetField(commands.FieldCreatedAt, field.TypeTime, value)
