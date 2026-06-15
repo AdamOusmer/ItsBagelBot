@@ -80,7 +80,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: console-dashboard
-          image: ghcr.io/adamousmer/itsbagelbot/console-dashboard:main-1781510337-00e0c671990a@sha256:cba6068f6b5736eb1c7059e1f099da8f7b2d507f04ed96144ba1045a1e8dff7f # {"$imagepolicy": "flux-system:console-dashboard"}
+          image: ghcr.io/adamousmer/itsbagelbot/console-dashboard:latest # {"$imagepolicy": "flux-system:console-dashboard"}
           imagePullPolicy: IfNotPresent
           env:
             - name: PORT
@@ -91,6 +91,12 @@ spec:
             # validate form POSTs (origin-checked CSRF) against the public URL.
             - name: ORIGIN
               value: https://dashboard.itsbagelbot.com
+            # Pin the in-cluster NATS endpoint. The Doppler secret's NATS_HOST is
+            # a stale cross-namespace FQDN (nats.bagelbot...) that does not
+            # resolve here; NATS_URL overrides it. Auth (NATS_USER/PASSWORD) still
+            # comes from the secret.
+            - name: NATS_URL
+              value: nats://nats:4222
             # Reuse the old tier's 32-byte AES key as the session key.
             - name: SESSION_KEY
               valueFrom:

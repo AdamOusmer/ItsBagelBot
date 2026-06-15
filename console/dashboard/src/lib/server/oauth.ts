@@ -4,7 +4,17 @@
 import { Twitch } from 'arctic';
 import { env } from '$env/dynamic/private';
 
-export const SCOPES: string[] = ['user:read:email'];
+// Identity + the elevated bot scopes the old dashboard requested. Driven by
+// DASHBOARD_BOT_SCOPES (Doppler) so the consent matches what it always asked
+// for; DASHBOARD_LOGIN_SCOPES can override the whole set.
+export function scopes(): string[] {
+  const override = (env.DASHBOARD_LOGIN_SCOPES ?? '').split(/\s+/).filter(Boolean);
+  if (override.length) return override;
+  const bot = (env.DASHBOARD_BOT_SCOPES ?? 'channel:bot user:read:chat user:bot')
+    .split(/\s+/)
+    .filter(Boolean);
+  return ['user:read:email', ...bot];
+}
 
 export function twitch(): Twitch {
   const id = env.TWITCH_CLIENT_ID;
