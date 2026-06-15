@@ -31,11 +31,18 @@ function options(): ConnectionOptions {
 async function get(): Promise<NatsConnection> {
   if (conn && !conn.isClosed()) return conn;
   if (dialing) return dialing;
-  dialing = connect(options()).then((c) => {
-    conn = c;
-    dialing = null;
-    return c;
-  });
+  // Clear `dialing` in finally, not in the success handler: if connect() rejects
+  // (NATS down at dial time) the success handler never runs, so leaving it set
+  // would pin a rejected promise here and fail every later request until the
+  // process restarts. finally lets the next get() re-dial.
+  dialing = connect(options())
+    .then((c) => {
+      conn = c;
+      return c;
+    })
+    .finally(() => {
+      dialing = null;
+    });
   return dialing;
 }
 

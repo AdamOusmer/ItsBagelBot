@@ -64,20 +64,20 @@
                 <form method="POST" action="?/alias" use:enhance>
                   <input type="hidden" name="stream" value={l.stream} />
                   <input type="hidden" name="consumer" value={l.consumer} />
-                  <button class="mini" aria-label="Rename (unavailable)" title="Rename — no RPC subject yet"><Icon name="edit" size={15} /></button>
+                  <button class="mini" aria-label="Clear alias" title="Clear display alias"><Icon name="edit" size={15} /></button>
                 </form>
                 {#if l.ephemeral}
                   <form method="POST" action="?/durable" use:enhance>
                     <input type="hidden" name="stream" value={l.stream} />
                     <input type="hidden" name="consumer" value={l.consumer} />
-                    <button class="mini" aria-label="Make permanent (unavailable)" title="Make permanent — no RPC subject yet"><Icon name="lock" size={15} /></button>
+                    <button class="mini" aria-label="Make permanent" title="Make permanent (pin as durable)"><Icon name="lock" size={15} /></button>
                   </form>
                 {/if}
                 {#if l.orphan}
                   <form method="POST" action="?/delete" use:enhance>
                     <input type="hidden" name="stream" value={l.stream} />
                     <input type="hidden" name="consumer" value={l.consumer} />
-                    <button class="mini" aria-label="Delete (unavailable)" title="Delete — no RPC subject yet"><Icon name="trash" size={15} /></button>
+                    <button class="mini" aria-label="Delete orphan lane" title="Delete orphan lane"><Icon name="trash" size={15} /></button>
                   </form>
                 {/if}
               </span>
