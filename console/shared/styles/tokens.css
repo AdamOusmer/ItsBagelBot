@@ -1,0 +1,163 @@
+/* ItsBagelBot — Colors & Type
+ * Source of truth: web/src/styles/style.css in itsmavey/itsbagelbot
+ * Brand palette is a dark canvas with deep evergreen + warm tan accents,
+ * tied together with a film-grain texture overlay.
+ */
+
+/* Self-hosted fonts — no third-party origin, satisfies CSP font-src 'self'. */
+@font-face { font-family: "Syne"; font-weight: 500 800; font-display: swap; src: url("./fonts/syne-latin.woff2") format("woff2"); }
+@font-face { font-family: "DM Sans"; font-weight: 400 700; font-display: swap; src: url("./fonts/dm-sans-latin.woff2") format("woff2"); }
+@font-face { font-family: "DM Mono"; font-weight: 400; font-display: swap; src: url("./fonts/dm-mono-400.woff2") format("woff2"); }
+@font-face { font-family: "DM Mono"; font-weight: 500; font-display: swap; src: url("./fonts/dm-mono-500.woff2") format("woff2"); }
+
+:root {
+  /* ────────────────────────── core palette ─────────────────────── */
+  --bb-black: #0a0a0a;          /* page canvas */
+  --bb-card-bg: #111110;        /* surfaces, cards */
+  --bb-white: #f0ece4;          /* primary text — warm off-white, never pure */
+  --bb-muted: #888077;          /* secondary text, captions */
+
+  /* greens — the "always-on" brand accent */
+  --bb-green: #2d6a4f;          /* primary green */
+  --bb-green-light: #40916c;    /* hover / active */
+  --bb-green-glow: #52b788;     /* glows, focus, success */
+
+  /* tans — warmth, bagel, sesame */
+  --bb-tan: #c9a87c;            /* secondary accent */
+  --bb-tan-light: #e0c49a;      /* highlights */
+  --bb-tan-pale: #f5e6cf;       /* cream / wash */
+
+  /* borders & strokes — tan at 15% on dark */
+  --bb-border: rgba(201, 168, 124, 0.15);
+  --bb-border-strong: rgba(201, 168, 124, 0.35);
+
+  /* semantic aliases */
+  --bb-fg-1: var(--bb-white);
+  --bb-fg-2: var(--bb-muted);
+  --bb-bg-0: var(--bb-black);
+  --bb-bg-1: var(--bb-card-bg);
+  --bb-accent: var(--bb-green);
+  --bb-accent-glow: var(--bb-green-glow);
+  --bb-warm: var(--bb-tan);
+
+  /* ────────────────────────── typography ───────────────────────── */
+  --bb-font-display: "Syne", "Inter Tight", sans-serif;
+  --bb-font-body:    "DM Sans", "Inter", system-ui, sans-serif;
+  --bb-font-mono:    "DM Mono", "JetBrains Mono", ui-monospace, monospace;
+
+  --bb-tracking-tight: -0.03em;
+  --bb-tracking-display: -0.02em;
+  --bb-tracking-body: 0em;
+  --bb-tracking-eyebrow: 0.18em; /* uppercase mono labels */
+
+  /* ────────────────────────── spacing / radii ──────────────────── */
+  --bb-radius-sm: 6px;
+  --bb-radius-md: 12px;
+  --bb-radius-lg: 20px;
+  --bb-radius-pill: 999px;
+
+  --bb-space-1: 4px;
+  --bb-space-2: 8px;
+  --bb-space-3: 12px;
+  --bb-space-4: 16px;
+  --bb-space-5: 24px;
+  --bb-space-6: 32px;
+  --bb-space-7: 48px;
+  --bb-space-8: 64px;
+  --bb-space-9: 96px;
+
+  /* ────────────────────────── motion ───────────────────────────── */
+  --bb-ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --bb-ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --bb-dur-fast: 180ms;
+  --bb-dur-base: 320ms;
+  --bb-dur-slow: 600ms;
+
+  /* ────────────────────────── elevation ────────────────────────── */
+  --bb-shadow-soft: 0 1px 0 rgba(255,255,255,0.02) inset, 0 8px 30px rgba(0,0,0,0.35);
+  --bb-shadow-glow: 0 0 0 1px rgba(82,183,136,0.35), 0 0 24px rgba(82,183,136,0.25);
+  --bb-shadow-tan-glow: 0 0 0 1px rgba(201,168,124,0.35), 0 0 24px rgba(201,168,124,0.18);
+
+  /* ────────────────────────── layout ───────────────────────────── */
+  --bb-nav-height: 76px;
+  --bb-content-max: 1200px;
+}
+
+/* ────────────────────────── base / reset ──────────────────────── */
+* , *::before, *::after { box-sizing: border-box; }
+
+/* ────────────────────────── semantic type ─────────────────────── */
+.bb-display, h1.bb {
+  font-family: var(--bb-font-display);
+  font-weight: 700;
+  font-size: clamp(56px, 8vw, 120px);
+  line-height: 0.95;
+  letter-spacing: var(--bb-tracking-tight);
+  color: var(--bb-fg-1);
+}
+.bb-h1, h1 {
+  font-family: var(--bb-font-display);
+  font-weight: 700;
+  font-size: clamp(40px, 5.5vw, 72px);
+  line-height: 1.02;
+  letter-spacing: var(--bb-tracking-display);
+  color: var(--bb-fg-1);
+}
+.bb-h2, h2 {
+  font-family: var(--bb-font-display);
+  font-weight: 600;
+  font-size: clamp(28px, 3.5vw, 44px);
+  line-height: 1.1;
+  letter-spacing: var(--bb-tracking-display);
+  color: var(--bb-fg-1);
+}
+.bb-h3, h3 {
+  font-family: var(--bb-font-display);
+  font-weight: 600;
+  font-size: 24px;
+  line-height: 1.2;
+  color: var(--bb-fg-1);
+}
+.bb-body, p {
+  font-family: var(--bb-font-body);
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--bb-fg-1);
+}
+.bb-body-lg {
+  font-family: var(--bb-font-body);
+  font-weight: 400;
+  font-size: 18px;
+  line-height: 1.55;
+  color: var(--bb-fg-1);
+}
+.bb-small, small {
+  font-family: var(--bb-font-body);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--bb-fg-2);
+}
+.bb-eyebrow {
+  font-family: var(--bb-font-mono);
+  font-weight: 400;
+  font-size: 12px;
+  letter-spacing: var(--bb-tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--bb-tan);
+}
+.bb-mono, code, pre, kbd {
+  font-family: var(--bb-font-mono);
+  font-size: 14px;
+  color: var(--bb-fg-1);
+}
+
+/* ────────────────────────── grain overlay ─────────────────────── */
+.bb-grain::before {
+  content: "";
+  position: fixed; inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+  opacity: 0.055;
+  pointer-events: none;
+  z-index: 100;
+}

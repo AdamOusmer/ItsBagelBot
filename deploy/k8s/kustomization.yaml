@@ -4,7 +4,9 @@ namespace: production
 resources:
   - admin.yaml
   - commands.yaml
-  - dashboard.yaml
+  - console-dashboard.yaml
+  # console-admin.yaml held out until its cross-domain auth is finished; it
+  # shares the admin.tail451e6d.ts.net host with the still-running Go admin.
   - modules.yaml
   - outgress.yaml
   - projector.yaml

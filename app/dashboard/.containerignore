@@ -1,8 +1,0 @@
-.DS_Store
-.env
-*.log
-*.test
-coverage.out
-tmp
-dist
-dashboard
