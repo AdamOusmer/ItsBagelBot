@@ -14,14 +14,13 @@ COPY shared shared
 COPY dashboard dashboard
 RUN cd dashboard && bun run build && bun install --production --frozen-lockfile
 
-FROM gcr.io/distroless/nodejs22-debian12 AS run
+FROM docker.io/oven/bun:1.3.10 AS run
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
-# adapter-node bundle + the production deps it leaves external (nats, arctic).
+# adapter-bun bundle + external production deps
 COPY --from=build /src/dashboard/build ./build
 COPY --from=build /src/node_modules ./node_modules
 EXPOSE 3000
-# Preload the New Relic APM agent (ESM --import) before the SvelteKit server so
-# all inbound transactions, errors, and external calls are instrumented.
-CMD ["--import", "newrelic", "build/index.js"]
+# Run via bun
+CMD ["bun", "run", "build/index.js"]
