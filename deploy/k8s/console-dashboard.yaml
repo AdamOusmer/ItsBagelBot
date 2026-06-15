@@ -80,7 +80,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: console-dashboard
-          image: ghcr.io/adamousmer/itsbagelbot/console-dashboard:main-1781509841-0e04a4b25246@sha256:8a6a0524f8ee2a3894c0d4fef0aa82c5da50645470508f27670be9a32e9cb0ac # {"$imagepolicy": "flux-system:console-dashboard"}
+          image: ghcr.io/adamousmer/itsbagelbot/console-dashboard:latest # {"$imagepolicy": "flux-system:console-dashboard"}
           imagePullPolicy: IfNotPresent
           env:
             - name: PORT
@@ -97,6 +97,17 @@ spec:
                 secretKeyRef:
                   name: dashboard-env
                   key: DASHBOARD_SESSION_KEY
+            # New Relic APM (agent preloaded in the Containerfile). License key
+            # comes from the Doppler secret via envFrom; app name is explicit so
+            # it reports as its own entity.
+            - name: NEW_RELIC_APP_NAME
+              value: console-dashboard
+            - name: NEW_RELIC_NO_CONFIG_FILE
+              value: "true"
+            - name: NEW_RELIC_DISTRIBUTED_TRACING_ENABLED
+              value: "true"
+            - name: NEW_RELIC_LOG
+              value: stdout
           # TWITCH_CLIENT_ID/SECRET/REDIRECT_URI + NATS_HOST/PORT/USER/PASSWORD
           # from the existing Doppler-synced secret.
           envFrom:

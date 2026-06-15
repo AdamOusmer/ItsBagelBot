@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@bagel/shared": "workspace:*",
-    "nats": "^2.29.2"
+    "nats": "^2.29.2",
+    "newrelic": "^12.11.0"
   }
 }
