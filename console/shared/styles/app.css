@@ -171,7 +171,7 @@ body::after {
 .page-head { margin-bottom: calc(28px * var(--d)); }
 .page-head .eyebrow { font-family: var(--bb-font-mono); font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--bb-green-glow); display: block; margin-bottom: 12px; }
 .page-head h1 { font-family: var(--bb-font-display); font-weight: 700; font-size: clamp(30px, 3.4vw, 42px); line-height: 1.04; letter-spacing: -0.025em; color: var(--bb-white); margin: 0; }
-.page-head h1 em { font-style: italic; font-weight: 600; color: var(--bb-tan-light); }
+.page-head h1 em { font-style: normal; font-weight: 700; color: var(--bb-tan-light); }
 .page-head p { font-family: var(--bb-font-body); font-size: 15px; line-height: 1.55; color: var(--bb-muted); margin: 12px 0 0; max-width: 560px; }
 
 /* generic card */
@@ -209,6 +209,8 @@ body::after {
 .btn.primary:hover { background: var(--ui-accent-light); box-shadow: 0 0 24px rgba(82,183,136,0.32); }
 .btn.ghost { background: rgba(255,255,255,0.03); color: var(--bb-tan-light); }
 .btn.ghost:hover { background: rgba(201,168,124,0.08); color: var(--bb-tan-pale); border-color: var(--bb-border-strong); }
+.btn.tan { background: var(--bb-tan); color: #0a0a0a; border-color: var(--bb-tan-light); }
+.btn.tan:hover { background: var(--bb-tan-light); box-shadow: 0 0 24px rgba(201,168,124,0.3); }
 
 /* stat tiles */
 .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: calc(16px * var(--d)); }

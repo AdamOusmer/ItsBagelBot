@@ -72,7 +72,7 @@
   .eyebrow { font-family: var(--bb-font-mono); font-size: 12px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--bb-green-glow); }
   .hero { font-family: var(--bb-font-display); font-weight: 700; font-size: clamp(40px, 8vw, 92px); line-height: 0.98; letter-spacing: -0.03em; color: var(--bb-white); margin: 4px 0; max-width: 12ch; }
   .hero .word { display: inline-block; }
-  .hero .accent { color: var(--bb-tan-light); font-style: italic; font-weight: 600; }
+  .hero .accent { color: var(--bb-tan-light); font-style: normal; font-weight: 700; }
 
   .lede { font-family: var(--bb-font-body); font-size: clamp(15px, 1.6vw, 18px); color: var(--bb-muted); max-width: 52ch; line-height: 1.6; margin: 4px 0 6px; }
 
