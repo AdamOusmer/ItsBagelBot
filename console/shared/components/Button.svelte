@@ -10,7 +10,7 @@
     children,
     ...rest
   }: {
-    variant?: 'primary' | 'ghost';
+    variant?: 'primary' | 'ghost' | 'tan';
     icon?: IconName;
     type?: 'button' | 'submit';
     onclick?: () => void;

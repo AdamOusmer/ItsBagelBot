@@ -1,31 +1,52 @@
 import type { Actions, PageServerLoad } from './$types';
-import { hasGrant, isActive, setActive, publishEventSub } from '$lib/server/rpc';
+import { hasGrant, isActive, setActive, tier, publishEventSub } from '$lib/server/rpc';
 import { env } from '$env/dynamic/private';
 import { fail } from '@sveltejs/kit';
+import type { Tier } from '@bagel/shared';
 
 export const load: PageServerLoad = async ({ locals }) => {
   const uid = locals.session?.user_id ?? 'demo';
 
   let enabled = false;
   let receiving = false;
+  let accountTier: Tier = 'standard';
+
   if (env.DEMO === '1') {
     enabled = true;
     receiving = true;
+    accountTier = 'premium';
   } else {
     try {
       enabled = await hasGrant(uid);
       receiving = enabled && (await isActive(uid));
     } catch {
-      /* degrade: render with defaults */
+      /* degrade */
+    }
+    try {
+      accountTier = await tier(uid);
+    } catch {
+      /* keep standard */
     }
   }
 
-  return { enabled, receiving };
+  return { enabled, receiving, tier: accountTier };
 };
 
 export const actions: Actions = {
-  // Restart: tear down the channel's EventSub subscriptions and recreate them,
-  // both routed through outgress (shared Helix rate-limit bucket). Stays active.
+  // Enable: a single request to start event delivery. Marks the channel active
+  // and (re)creates its EventSub subscriptions via the outgress lane.
+  enable: async ({ locals }) => {
+    const uid = locals.session?.user_id;
+    if (!uid) return fail(401);
+    try {
+      await setActive(uid, true);
+      await publishEventSub(uid, true);
+      return { ok: true, action: 'enable' };
+    } catch {
+      return fail(502, { error: 'enable failed' });
+    }
+  },
+  // Restart: delete + recreate the EventSub subscriptions (stays active).
   restart: async ({ locals }) => {
     const uid = locals.session?.user_id;
     if (!uid) return fail(401);
@@ -37,8 +58,7 @@ export const actions: Actions = {
       return fail(502, { error: 'restart failed' });
     }
   },
-  // Disconnect: delete the EventSub subscriptions and mark the channel inactive.
-  // The stored grant is kept, so reconnecting needs no new consent.
+  // Disconnect: delete the subscriptions and mark inactive (grant kept).
   disconnect: async ({ locals }) => {
     const uid = locals.session?.user_id;
     if (!uid) return fail(401);
