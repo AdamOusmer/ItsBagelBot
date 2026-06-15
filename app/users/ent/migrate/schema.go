@@ -8,6 +8,60 @@ import (
 )
 
 var (
+	// AdminAuditsColumns holds the columns for the "admin_audits" table.
+	AdminAuditsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "actor_id", Type: field.TypeUint64},
+		{Name: "actor_login", Type: field.TypeString},
+		{Name: "action", Type: field.TypeString},
+		{Name: "target", Type: field.TypeString, Nullable: true},
+		{Name: "detail", Type: field.TypeString, Nullable: true},
+		{Name: "ok", Type: field.TypeBool, Default: true},
+		{Name: "error", Type: field.TypeString, Nullable: true},
+		{Name: "created_at", Type: field.TypeTime},
+	}
+	// AdminAuditsTable holds the schema information for the "admin_audits" table.
+	AdminAuditsTable = &schema.Table{
+		Name:       "admin_audits",
+		Columns:    AdminAuditsColumns,
+		PrimaryKey: []*schema.Column{AdminAuditsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "adminaudit_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{AdminAuditsColumns[8]},
+			},
+			{
+				Name:    "adminaudit_actor_id",
+				Unique:  false,
+				Columns: []*schema.Column{AdminAuditsColumns[1]},
+			},
+		},
+	}
+	// AdminUsersColumns holds the columns for the "admin_users" table.
+	AdminUsersColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUint64, Increment: true},
+		{Name: "login", Type: field.TypeString},
+		{Name: "display_name", Type: field.TypeString},
+		{Name: "role", Type: field.TypeEnum, Enums: []string{"moderator", "admin", "owner"}, Default: "moderator"},
+		{Name: "active", Type: field.TypeBool, Default: true},
+		{Name: "added_by", Type: field.TypeUint64, Default: 0},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+	}
+	// AdminUsersTable holds the schema information for the "admin_users" table.
+	AdminUsersTable = &schema.Table{
+		Name:       "admin_users",
+		Columns:    AdminUsersColumns,
+		PrimaryKey: []*schema.Column{AdminUsersColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "adminuser_active",
+				Unique:  false,
+				Columns: []*schema.Column{AdminUsersColumns[4]},
+			},
+		},
+	}
 	// TokensColumns holds the columns for the "tokens" table.
 	TokensColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -63,6 +117,8 @@ var (
 	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
+		AdminAuditsTable,
+		AdminUsersTable,
 		TokensTable,
 		UsersTable,
 	}

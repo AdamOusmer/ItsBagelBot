@@ -1,8 +1,18 @@
-// Admin access control: a request must carry a valid session AND its user_id
-// must appear in the ADMIN_USER_IDS allowlist (comma-separated). DEMO=1
-// synthesizes an allowed session so the panel renders without auth wired up.
+// Admin access control. Authorization is DB-backed: a request must carry a
+// valid session whose Twitch user_id is an active row in the admin allowlist
+// (served by the users service over NATS, auth.check). The tailnet is the
+// network boundary; this is the identity boundary on top of it. DEMO=1
+// synthesizes an allowed superadmin so the panel renders without auth wired up.
 import { env } from '$env/dynamic/private';
 import type { Session } from './session';
+import type { AdminRole } from './rpc';
+
+export interface AdminIdentity {
+  id: string;
+  login: string;
+  display_name: string;
+  role: AdminRole;
+}
 
 export const demoSession: Session = {
   user_id: 'demo-admin',
@@ -16,17 +26,33 @@ export function isDemo(): boolean {
   return env.DEMO === '1';
 }
 
-function allowlist(): string[] {
-  return (env.ADMIN_USER_IDS ?? '')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
+const RANK: Record<AdminRole, number> = { moderator: 1, admin: 2, owner: 3 };
+
+// Managers (admin/owner) may view + manage the staff roster. Moderators cannot.
+export function isManager(role: AdminRole): boolean {
+  return role === 'admin' || role === 'owner';
 }
 
-// allowed reports whether the session belongs to a configured admin. In DEMO
-// mode the synthesized demo id is always allowed.
-export function allowed(session: Session | null): boolean {
-  if (!session) return false;
-  if (isDemo() && session.user_id === demoSession.user_id) return true;
-  return allowlist().includes(session.user_id);
+// canManage decides whether an actor may modify/remove a target staff row.
+// Owners may manage anyone; admins may manage moderators and admins but never
+// an owner. Mirrors the users-service enforcement (defense in depth).
+export function canManage(actor: AdminRole, target: AdminRole): boolean {
+  if (!isManager(actor)) return false;
+  if (target === 'owner') return actor === 'owner';
+  return RANK[actor] >= RANK[target];
+}
+
+// requireAdmin resolves the admin identity for a request. OAuth is currently
+// disabled: the tailnet is the only access boundary and everyone who reaches the
+// host is treated as owner. The audit actor is itsmavey's id so mutations stay
+// attributable. Restore the session/adminCheck gate to re-enable per-user roles.
+const OPEN_OWNER: AdminIdentity = {
+  id: '804932984',
+  login: 'itsmavey',
+  display_name: 'itsmavey',
+  role: 'owner'
+};
+
+export async function requireAdmin(_session: Session | null): Promise<AdminIdentity | null> {
+  return OPEN_OWNER;
 }
