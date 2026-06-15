@@ -74,6 +74,21 @@ func IsActive(v bool) predicate.Commands {
 	return predicate.Commands(sql.FieldEQ(FieldIsActive, v))
 }
 
+// Perm applies equality check predicate on the "perm" field. It's identical to PermEQ.
+func Perm(v string) predicate.Commands {
+	return predicate.Commands(sql.FieldEQ(FieldPerm, v))
+}
+
+// Cooldown applies equality check predicate on the "cooldown" field. It's identical to CooldownEQ.
+func Cooldown(v uint) predicate.Commands {
+	return predicate.Commands(sql.FieldEQ(FieldCooldown, v))
+}
+
+// AllowedUserID applies equality check predicate on the "allowed_user_id" field. It's identical to AllowedUserIDEQ.
+func AllowedUserID(v uint64) predicate.Commands {
+	return predicate.Commands(sql.FieldEQ(FieldAllowedUserID, v))
+}
+
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.Commands {
 	return predicate.Commands(sql.FieldEQ(FieldCreatedAt, v))
@@ -262,6 +277,151 @@ func IsActiveEQ(v bool) predicate.Commands {
 // IsActiveNEQ applies the NEQ predicate on the "is_active" field.
 func IsActiveNEQ(v bool) predicate.Commands {
 	return predicate.Commands(sql.FieldNEQ(FieldIsActive, v))
+}
+
+// PermEQ applies the EQ predicate on the "perm" field.
+func PermEQ(v string) predicate.Commands {
+	return predicate.Commands(sql.FieldEQ(FieldPerm, v))
+}
+
+// PermNEQ applies the NEQ predicate on the "perm" field.
+func PermNEQ(v string) predicate.Commands {
+	return predicate.Commands(sql.FieldNEQ(FieldPerm, v))
+}
+
+// PermIn applies the In predicate on the "perm" field.
+func PermIn(vs ...string) predicate.Commands {
+	return predicate.Commands(sql.FieldIn(FieldPerm, vs...))
+}
+
+// PermNotIn applies the NotIn predicate on the "perm" field.
+func PermNotIn(vs ...string) predicate.Commands {
+	return predicate.Commands(sql.FieldNotIn(FieldPerm, vs...))
+}
+
+// PermGT applies the GT predicate on the "perm" field.
+func PermGT(v string) predicate.Commands {
+	return predicate.Commands(sql.FieldGT(FieldPerm, v))
+}
+
+// PermGTE applies the GTE predicate on the "perm" field.
+func PermGTE(v string) predicate.Commands {
+	return predicate.Commands(sql.FieldGTE(FieldPerm, v))
+}
+
+// PermLT applies the LT predicate on the "perm" field.
+func PermLT(v string) predicate.Commands {
+	return predicate.Commands(sql.FieldLT(FieldPerm, v))
+}
+
+// PermLTE applies the LTE predicate on the "perm" field.
+func PermLTE(v string) predicate.Commands {
+	return predicate.Commands(sql.FieldLTE(FieldPerm, v))
+}
+
+// PermContains applies the Contains predicate on the "perm" field.
+func PermContains(v string) predicate.Commands {
+	return predicate.Commands(sql.FieldContains(FieldPerm, v))
+}
+
+// PermHasPrefix applies the HasPrefix predicate on the "perm" field.
+func PermHasPrefix(v string) predicate.Commands {
+	return predicate.Commands(sql.FieldHasPrefix(FieldPerm, v))
+}
+
+// PermHasSuffix applies the HasSuffix predicate on the "perm" field.
+func PermHasSuffix(v string) predicate.Commands {
+	return predicate.Commands(sql.FieldHasSuffix(FieldPerm, v))
+}
+
+// PermEqualFold applies the EqualFold predicate on the "perm" field.
+func PermEqualFold(v string) predicate.Commands {
+	return predicate.Commands(sql.FieldEqualFold(FieldPerm, v))
+}
+
+// PermContainsFold applies the ContainsFold predicate on the "perm" field.
+func PermContainsFold(v string) predicate.Commands {
+	return predicate.Commands(sql.FieldContainsFold(FieldPerm, v))
+}
+
+// CooldownEQ applies the EQ predicate on the "cooldown" field.
+func CooldownEQ(v uint) predicate.Commands {
+	return predicate.Commands(sql.FieldEQ(FieldCooldown, v))
+}
+
+// CooldownNEQ applies the NEQ predicate on the "cooldown" field.
+func CooldownNEQ(v uint) predicate.Commands {
+	return predicate.Commands(sql.FieldNEQ(FieldCooldown, v))
+}
+
+// CooldownIn applies the In predicate on the "cooldown" field.
+func CooldownIn(vs ...uint) predicate.Commands {
+	return predicate.Commands(sql.FieldIn(FieldCooldown, vs...))
+}
+
+// CooldownNotIn applies the NotIn predicate on the "cooldown" field.
+func CooldownNotIn(vs ...uint) predicate.Commands {
+	return predicate.Commands(sql.FieldNotIn(FieldCooldown, vs...))
+}
+
+// CooldownGT applies the GT predicate on the "cooldown" field.
+func CooldownGT(v uint) predicate.Commands {
+	return predicate.Commands(sql.FieldGT(FieldCooldown, v))
+}
+
+// CooldownGTE applies the GTE predicate on the "cooldown" field.
+func CooldownGTE(v uint) predicate.Commands {
+	return predicate.Commands(sql.FieldGTE(FieldCooldown, v))
+}
+
+// CooldownLT applies the LT predicate on the "cooldown" field.
+func CooldownLT(v uint) predicate.Commands {
+	return predicate.Commands(sql.FieldLT(FieldCooldown, v))
+}
+
+// CooldownLTE applies the LTE predicate on the "cooldown" field.
+func CooldownLTE(v uint) predicate.Commands {
+	return predicate.Commands(sql.FieldLTE(FieldCooldown, v))
+}
+
+// AllowedUserIDEQ applies the EQ predicate on the "allowed_user_id" field.
+func AllowedUserIDEQ(v uint64) predicate.Commands {
+	return predicate.Commands(sql.FieldEQ(FieldAllowedUserID, v))
+}
+
+// AllowedUserIDNEQ applies the NEQ predicate on the "allowed_user_id" field.
+func AllowedUserIDNEQ(v uint64) predicate.Commands {
+	return predicate.Commands(sql.FieldNEQ(FieldAllowedUserID, v))
+}
+
+// AllowedUserIDIn applies the In predicate on the "allowed_user_id" field.
+func AllowedUserIDIn(vs ...uint64) predicate.Commands {
+	return predicate.Commands(sql.FieldIn(FieldAllowedUserID, vs...))
+}
+
+// AllowedUserIDNotIn applies the NotIn predicate on the "allowed_user_id" field.
+func AllowedUserIDNotIn(vs ...uint64) predicate.Commands {
+	return predicate.Commands(sql.FieldNotIn(FieldAllowedUserID, vs...))
+}
+
+// AllowedUserIDGT applies the GT predicate on the "allowed_user_id" field.
+func AllowedUserIDGT(v uint64) predicate.Commands {
+	return predicate.Commands(sql.FieldGT(FieldAllowedUserID, v))
+}
+
+// AllowedUserIDGTE applies the GTE predicate on the "allowed_user_id" field.
+func AllowedUserIDGTE(v uint64) predicate.Commands {
+	return predicate.Commands(sql.FieldGTE(FieldAllowedUserID, v))
+}
+
+// AllowedUserIDLT applies the LT predicate on the "allowed_user_id" field.
+func AllowedUserIDLT(v uint64) predicate.Commands {
+	return predicate.Commands(sql.FieldLT(FieldAllowedUserID, v))
+}
+
+// AllowedUserIDLTE applies the LTE predicate on the "allowed_user_id" field.
+func AllowedUserIDLTE(v uint64) predicate.Commands {
+	return predicate.Commands(sql.FieldLTE(FieldAllowedUserID, v))
 }
 
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.

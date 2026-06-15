@@ -17,6 +17,7 @@ const (
 	maxEmailLength         = 254 // RFC 5321
 	maxCommandNameLength   = 64
 	maxResponseLength      = 500 // Twitch chat message limit
+	maxCooldownSeconds     = 86400 // one day; guards against absurd values
 	maxModuleNameLength    = 64
 	maxConfigsBytes        = 16 << 10
 	maxTransactionIDLength = 64
@@ -29,6 +30,8 @@ var (
 	ErrEmailInvalid     = errors.New("email address is not valid")
 	ErrCommandName      = errors.New("command name must be 1-64 printable ASCII characters without spaces")
 	ErrResponseInvalid  = errors.New("command response must be 1-500 characters without control characters")
+	ErrPermInvalid      = errors.New("perm must be one of everyone, sub, vip, mod, lead_mod, broadcaster")
+	ErrCooldownInvalid  = errors.New("cooldown must be between 0 and 86400 seconds")
 	ErrModuleName       = errors.New("module name must be 1-64 characters of [a-z0-9_-]")
 	ErrConfigsInvalid   = errors.New("module configs must be valid JSON of at most 16KiB")
 	ErrTransactionID    = errors.New("transaction id must be 1-64 characters of [a-zA-Z0-9_-]")
@@ -104,6 +107,29 @@ func CommandResponse(response string) error {
 		if r < ' ' { // control characters, including CR/LF
 			return ErrResponseInvalid
 		}
+	}
+
+	return nil
+}
+
+// Perm is the minimum role tier allowed to run a command. The set mirrors the
+// dashboard <select>; an unknown value is rejected rather than silently coerced
+// so a typo never widens or narrows access by accident.
+func Perm(perm string) error {
+
+	switch perm {
+	case "everyone", "sub", "vip", "mod", "lead_mod", "broadcaster":
+		return nil
+	}
+
+	return ErrPermInvalid
+}
+
+// Cooldown caps the per-command cooldown in seconds.
+func Cooldown(seconds uint) error {
+
+	if seconds > maxCooldownSeconds {
+		return ErrCooldownInvalid
 	}
 
 	return nil

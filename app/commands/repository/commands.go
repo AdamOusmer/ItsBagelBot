@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"strconv"
 	"time"
 
 	"ItsBagelBot/app/commands/ent"
@@ -33,6 +34,12 @@ type CommandView struct {
 	Name     string `json:"name"`
 	Response string `json:"response"`
 	IsActive bool   `json:"is_active"`
+	Perm     string `json:"perm"`
+	Cooldown uint   `json:"cooldown"`
+	// Twitch id of the sole user allowed to run the command; "" when unset.
+	// Carried as a string so ids beyond JS's safe integer range survive the
+	// JSON round trip to the SvelteKit dashboard.
+	AllowedUserID string `json:"allowed_user_id,omitempty"`
 }
 
 type commandKey struct {
@@ -83,9 +90,12 @@ func (r *Commands) List(ctx context.Context, userID uint64) ([]CommandView, erro
 		views := make([]CommandView, len(rows))
 		for i, row := range rows {
 			views[i] = CommandView{
-				Name:     row.Name,
-				Response: row.Response,
-				IsActive: row.IsActive,
+				Name:          row.Name,
+				Response:      row.Response,
+				IsActive:      row.IsActive,
+				Perm:          row.Perm,
+				Cooldown:      row.Cooldown,
+				AllowedUserID: formatAllowed(row.AllowedUserID),
 			}
 		}
 
@@ -95,7 +105,7 @@ func (r *Commands) List(ctx context.Context, userID uint64) ([]CommandView, erro
 
 // Upsert validates and queues a command create or edit. Consecutive edits of
 // the same command coalesce into the latest state before the next flush.
-func (r *Commands) Upsert(userID uint64, name string, response string, isActive bool) error {
+func (r *Commands) Upsert(userID uint64, name string, response string, isActive bool, perm string, cooldown uint, allowedUserID uint64) error {
 
 	if err := validate.UserID(userID); err != nil {
 		return err
@@ -106,12 +116,21 @@ func (r *Commands) Upsert(userID uint64, name string, response string, isActive 
 	if err := validate.CommandResponse(response); err != nil {
 		return err
 	}
+	if err := validate.Perm(perm); err != nil {
+		return err
+	}
+	if err := validate.Cooldown(cooldown); err != nil {
+		return err
+	}
 
 	r.batcher.Add(commandKey{userID: userID, name: name}, data.CommandChangedDTO{
-		UserID:   userID,
-		Name:     name,
-		Response: response,
-		IsActive: isActive,
+		UserID:        userID,
+		Name:          name,
+		Response:      response,
+		IsActive:      isActive,
+		Perm:          perm,
+		Cooldown:      cooldown,
+		AllowedUserID: allowedUserID,
 	})
 
 	return nil
@@ -224,6 +243,9 @@ func upsertCommand(ctx context.Context, tx *ent.Tx, item data.CommandChangedDTO)
 		).
 		SetResponse(item.Response).
 		SetIsActive(item.IsActive).
+		SetPerm(item.Perm).
+		SetCooldown(item.Cooldown).
+		SetAllowedUserID(item.AllowedUserID).
 		Save(ctx)
 	if err != nil {
 		return err
@@ -238,5 +260,17 @@ func upsertCommand(ctx context.Context, tx *ent.Tx, item data.CommandChangedDTO)
 		SetName(item.Name).
 		SetResponse(item.Response).
 		SetIsActive(item.IsActive).
+		SetPerm(item.Perm).
+		SetCooldown(item.Cooldown).
+		SetAllowedUserID(item.AllowedUserID).
 		Exec(ctx)
+}
+
+// formatAllowed renders the allowed user id for the read model: empty for 0
+// (no restriction) so the dashboard can treat absence uniformly.
+func formatAllowed(id uint64) string {
+	if id == 0 {
+		return ""
+	}
+	return strconv.FormatUint(id, 10)
 }
