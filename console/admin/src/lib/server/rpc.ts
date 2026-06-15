@@ -11,6 +11,8 @@ const SUB = {
   autoscale: env.NATS_SHARD_AUTOSCALE_SUBJECT ?? 'twitch.ingress.admin.shards.autoscale',
   status: env.NATS_STATUS_SUBJECT_PREFIX ?? 'twitch.ingress.status',
   user: env.NATS_ADMIN_USER_SUBJECT_PREFIX ?? 'bagel.rpc.admin.user',
+  auth: env.NATS_ADMIN_AUTH_SUBJECT_PREFIX ?? 'bagel.rpc.admin.auth',
+  audit: env.NATS_ADMIN_AUDIT_SUBJECT_PREFIX ?? 'bagel.rpc.admin.audit',
   outgress: env.NATS_OUTGRESS_SYSTEM_SUBJECT ?? 'twitch.outgress.system'
 };
 
@@ -124,4 +126,116 @@ export async function restartUserEventSub(userId: string): Promise<void> {
 
 export function tierOf(status: string): 'premium' | 'standard' {
   return status === 'paid' || status === 'vip' ? 'premium' : 'standard';
+}
+
+// ── Admin auth + audit ────────────────────────────────────────────────────────
+// DB-backed (users service) replacement for the old static ADMIN_USER_IDS env
+// allowlist. auth.check decides who may operate; audit.* records what they did.
+
+export type AdminRole = 'moderator' | 'admin' | 'owner';
+
+export interface AdminCheck {
+  admin: boolean;
+  role?: AdminRole;
+  login?: string;
+  display_name?: string;
+}
+
+export interface AdminAcct {
+  id: number;
+  login: string;
+  display_name: string;
+  role: AdminRole;
+  active: boolean;
+  added_by: number;
+  created_at: string;
+}
+
+export interface AuditEntry {
+  id: number;
+  actor_id: number;
+  actor_login: string;
+  action: string;
+  target?: string;
+  detail?: string;
+  ok: boolean;
+  error?: string;
+  created_at: string;
+}
+
+// adminCheck resolves whether a Twitch subject is an active admin. Login/display
+// are passed through so the allowlist self-heals after a Twitch rename.
+export async function adminCheck(
+  userId: string,
+  login?: string,
+  displayName?: string
+): Promise<AdminCheck> {
+  return rpc<AdminCheck>(`${SUB.auth}.check`, {
+    user_id: userId,
+    login: login ?? '',
+    display_name: displayName ?? ''
+  });
+}
+
+export async function adminListAccts(): Promise<AdminAcct[]> {
+  const r = await rpc<{ admins?: AdminAcct[] }>(`${SUB.auth}.list`, {});
+  return r.admins ?? [];
+}
+
+// staffUpsert creates or modifies a staff member. The actor (id + role) is
+// carried so the users service can enforce the role ladder server-side.
+export async function staffUpsert(
+  actor: { id: string; role: AdminRole },
+  target: { userId: string; login: string; displayName: string; role: AdminRole }
+): Promise<AdminAcct[]> {
+  const r = await rpc<{ admins?: AdminAcct[]; error?: string }>(`${SUB.auth}.upsert`, {
+    actor_id: actor.id,
+    actor_role: actor.role,
+    user_id: target.userId,
+    login: target.login,
+    display_name: target.displayName,
+    role: target.role
+  });
+  if (r.error) throw new Error(r.error);
+  return r.admins ?? [];
+}
+
+export async function staffRemove(
+  actor: { id: string; role: AdminRole },
+  userId: string
+): Promise<AdminAcct[]> {
+  const r = await rpc<{ admins?: AdminAcct[]; error?: string }>(`${SUB.auth}.remove`, {
+    actor_id: actor.id,
+    actor_role: actor.role,
+    user_id: userId
+  });
+  if (r.error) throw new Error(r.error);
+  return r.admins ?? [];
+}
+
+// auditAppend is best-effort: a logging failure must never block the operator
+// action it records, so callers fire-and-forget and swallow errors.
+export async function auditAppend(entry: {
+  actor_id: string;
+  actor_login: string;
+  action: string;
+  target?: string;
+  detail?: string;
+  ok: boolean;
+  error?: string;
+}): Promise<void> {
+  await rpc(`${SUB.audit}.append`, {
+    actor_id: entry.actor_id,
+    actor_login: entry.actor_login,
+    action: entry.action,
+    target: entry.target ?? '',
+    detail: entry.detail ?? '',
+    ok: entry.ok,
+    error: entry.error ?? ''
+  });
+}
+
+export async function auditList(limit = 50): Promise<AuditEntry[]> {
+  const r = await rpc<{ entries?: AuditEntry[] }>(`${SUB.audit}.list`, { limit });
+  return r.entries ?? [];
 }

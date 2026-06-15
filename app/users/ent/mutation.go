@@ -3,6 +3,8 @@
 package ent
 
 import (
+	"ItsBagelBot/app/users/ent/adminaudit"
+	"ItsBagelBot/app/users/ent/adminuser"
 	"ItsBagelBot/app/users/ent/predicate"
 	"ItsBagelBot/app/users/ent/tokens"
 	"ItsBagelBot/app/users/ent/user"
@@ -25,9 +27,1503 @@ const (
 	OpUpdateOne = ent.OpUpdateOne
 
 	// Node types.
-	TypeTokens = "Tokens"
-	TypeUser   = "User"
+	TypeAdminAudit = "AdminAudit"
+	TypeAdminUser  = "AdminUser"
+	TypeTokens     = "Tokens"
+	TypeUser       = "User"
 )
+
+// AdminAuditMutation represents an operation that mutates the AdminAudit nodes in the graph.
+type AdminAuditMutation struct {
+	config
+	op            Op
+	typ           string
+	id            *int
+	actor_id      *uint64
+	addactor_id   *int64
+	actor_login   *string
+	action        *string
+	target        *string
+	detail        *string
+	ok            *bool
+	error         *string
+	created_at    *time.Time
+	clearedFields map[string]struct{}
+	done          bool
+	oldValue      func(context.Context) (*AdminAudit, error)
+	predicates    []predicate.AdminAudit
+}
+
+var _ ent.Mutation = (*AdminAuditMutation)(nil)
+
+// adminauditOption allows management of the mutation configuration using functional options.
+type adminauditOption func(*AdminAuditMutation)
+
+// newAdminAuditMutation creates new mutation for the AdminAudit entity.
+func newAdminAuditMutation(c config, op Op, opts ...adminauditOption) *AdminAuditMutation {
+	m := &AdminAuditMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeAdminAudit,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withAdminAuditID sets the ID field of the mutation.
+func withAdminAuditID(id int) adminauditOption {
+	return func(m *AdminAuditMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *AdminAudit
+		)
+		m.oldValue = func(ctx context.Context) (*AdminAudit, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().AdminAudit.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withAdminAudit sets the old AdminAudit of the mutation.
+func withAdminAudit(node *AdminAudit) adminauditOption {
+	return func(m *AdminAuditMutation) {
+		m.oldValue = func(context.Context) (*AdminAudit, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m AdminAuditMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m AdminAuditMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *AdminAuditMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *AdminAuditMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().AdminAudit.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetActorID sets the "actor_id" field.
+func (m *AdminAuditMutation) SetActorID(u uint64) {
+	m.actor_id = &u
+	m.addactor_id = nil
+}
+
+// ActorID returns the value of the "actor_id" field in the mutation.
+func (m *AdminAuditMutation) ActorID() (r uint64, exists bool) {
+	v := m.actor_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldActorID returns the old "actor_id" field's value of the AdminAudit entity.
+// If the AdminAudit object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AdminAuditMutation) OldActorID(ctx context.Context) (v uint64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldActorID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldActorID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldActorID: %w", err)
+	}
+	return oldValue.ActorID, nil
+}
+
+// AddActorID adds u to the "actor_id" field.
+func (m *AdminAuditMutation) AddActorID(u int64) {
+	if m.addactor_id != nil {
+		*m.addactor_id += u
+	} else {
+		m.addactor_id = &u
+	}
+}
+
+// AddedActorID returns the value that was added to the "actor_id" field in this mutation.
+func (m *AdminAuditMutation) AddedActorID() (r int64, exists bool) {
+	v := m.addactor_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetActorID resets all changes to the "actor_id" field.
+func (m *AdminAuditMutation) ResetActorID() {
+	m.actor_id = nil
+	m.addactor_id = nil
+}
+
+// SetActorLogin sets the "actor_login" field.
+func (m *AdminAuditMutation) SetActorLogin(s string) {
+	m.actor_login = &s
+}
+
+// ActorLogin returns the value of the "actor_login" field in the mutation.
+func (m *AdminAuditMutation) ActorLogin() (r string, exists bool) {
+	v := m.actor_login
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldActorLogin returns the old "actor_login" field's value of the AdminAudit entity.
+// If the AdminAudit object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AdminAuditMutation) OldActorLogin(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldActorLogin is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldActorLogin requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldActorLogin: %w", err)
+	}
+	return oldValue.ActorLogin, nil
+}
+
+// ResetActorLogin resets all changes to the "actor_login" field.
+func (m *AdminAuditMutation) ResetActorLogin() {
+	m.actor_login = nil
+}
+
+// SetAction sets the "action" field.
+func (m *AdminAuditMutation) SetAction(s string) {
+	m.action = &s
+}
+
+// Action returns the value of the "action" field in the mutation.
+func (m *AdminAuditMutation) Action() (r string, exists bool) {
+	v := m.action
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAction returns the old "action" field's value of the AdminAudit entity.
+// If the AdminAudit object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AdminAuditMutation) OldAction(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAction is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAction requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAction: %w", err)
+	}
+	return oldValue.Action, nil
+}
+
+// ResetAction resets all changes to the "action" field.
+func (m *AdminAuditMutation) ResetAction() {
+	m.action = nil
+}
+
+// SetTarget sets the "target" field.
+func (m *AdminAuditMutation) SetTarget(s string) {
+	m.target = &s
+}
+
+// Target returns the value of the "target" field in the mutation.
+func (m *AdminAuditMutation) Target() (r string, exists bool) {
+	v := m.target
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTarget returns the old "target" field's value of the AdminAudit entity.
+// If the AdminAudit object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AdminAuditMutation) OldTarget(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTarget is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTarget requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTarget: %w", err)
+	}
+	return oldValue.Target, nil
+}
+
+// ClearTarget clears the value of the "target" field.
+func (m *AdminAuditMutation) ClearTarget() {
+	m.target = nil
+	m.clearedFields[adminaudit.FieldTarget] = struct{}{}
+}
+
+// TargetCleared returns if the "target" field was cleared in this mutation.
+func (m *AdminAuditMutation) TargetCleared() bool {
+	_, ok := m.clearedFields[adminaudit.FieldTarget]
+	return ok
+}
+
+// ResetTarget resets all changes to the "target" field.
+func (m *AdminAuditMutation) ResetTarget() {
+	m.target = nil
+	delete(m.clearedFields, adminaudit.FieldTarget)
+}
+
+// SetDetail sets the "detail" field.
+func (m *AdminAuditMutation) SetDetail(s string) {
+	m.detail = &s
+}
+
+// Detail returns the value of the "detail" field in the mutation.
+func (m *AdminAuditMutation) Detail() (r string, exists bool) {
+	v := m.detail
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDetail returns the old "detail" field's value of the AdminAudit entity.
+// If the AdminAudit object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AdminAuditMutation) OldDetail(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDetail is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDetail requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDetail: %w", err)
+	}
+	return oldValue.Detail, nil
+}
+
+// ClearDetail clears the value of the "detail" field.
+func (m *AdminAuditMutation) ClearDetail() {
+	m.detail = nil
+	m.clearedFields[adminaudit.FieldDetail] = struct{}{}
+}
+
+// DetailCleared returns if the "detail" field was cleared in this mutation.
+func (m *AdminAuditMutation) DetailCleared() bool {
+	_, ok := m.clearedFields[adminaudit.FieldDetail]
+	return ok
+}
+
+// ResetDetail resets all changes to the "detail" field.
+func (m *AdminAuditMutation) ResetDetail() {
+	m.detail = nil
+	delete(m.clearedFields, adminaudit.FieldDetail)
+}
+
+// SetOk sets the "ok" field.
+func (m *AdminAuditMutation) SetOk(b bool) {
+	m.ok = &b
+}
+
+// Ok returns the value of the "ok" field in the mutation.
+func (m *AdminAuditMutation) Ok() (r bool, exists bool) {
+	v := m.ok
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldOk returns the old "ok" field's value of the AdminAudit entity.
+// If the AdminAudit object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AdminAuditMutation) OldOk(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldOk is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldOk requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldOk: %w", err)
+	}
+	return oldValue.Ok, nil
+}
+
+// ResetOk resets all changes to the "ok" field.
+func (m *AdminAuditMutation) ResetOk() {
+	m.ok = nil
+}
+
+// SetError sets the "error" field.
+func (m *AdminAuditMutation) SetError(s string) {
+	m.error = &s
+}
+
+// Error returns the value of the "error" field in the mutation.
+func (m *AdminAuditMutation) Error() (r string, exists bool) {
+	v := m.error
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldError returns the old "error" field's value of the AdminAudit entity.
+// If the AdminAudit object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AdminAuditMutation) OldError(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldError is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldError requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldError: %w", err)
+	}
+	return oldValue.Error, nil
+}
+
+// ClearError clears the value of the "error" field.
+func (m *AdminAuditMutation) ClearError() {
+	m.error = nil
+	m.clearedFields[adminaudit.FieldError] = struct{}{}
+}
+
+// ErrorCleared returns if the "error" field was cleared in this mutation.
+func (m *AdminAuditMutation) ErrorCleared() bool {
+	_, ok := m.clearedFields[adminaudit.FieldError]
+	return ok
+}
+
+// ResetError resets all changes to the "error" field.
+func (m *AdminAuditMutation) ResetError() {
+	m.error = nil
+	delete(m.clearedFields, adminaudit.FieldError)
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *AdminAuditMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *AdminAuditMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the AdminAudit entity.
+// If the AdminAudit object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AdminAuditMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *AdminAuditMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// Where appends a list predicates to the AdminAuditMutation builder.
+func (m *AdminAuditMutation) Where(ps ...predicate.AdminAudit) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the AdminAuditMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *AdminAuditMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.AdminAudit, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *AdminAuditMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *AdminAuditMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (AdminAudit).
+func (m *AdminAuditMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *AdminAuditMutation) Fields() []string {
+	fields := make([]string, 0, 8)
+	if m.actor_id != nil {
+		fields = append(fields, adminaudit.FieldActorID)
+	}
+	if m.actor_login != nil {
+		fields = append(fields, adminaudit.FieldActorLogin)
+	}
+	if m.action != nil {
+		fields = append(fields, adminaudit.FieldAction)
+	}
+	if m.target != nil {
+		fields = append(fields, adminaudit.FieldTarget)
+	}
+	if m.detail != nil {
+		fields = append(fields, adminaudit.FieldDetail)
+	}
+	if m.ok != nil {
+		fields = append(fields, adminaudit.FieldOk)
+	}
+	if m.error != nil {
+		fields = append(fields, adminaudit.FieldError)
+	}
+	if m.created_at != nil {
+		fields = append(fields, adminaudit.FieldCreatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *AdminAuditMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case adminaudit.FieldActorID:
+		return m.ActorID()
+	case adminaudit.FieldActorLogin:
+		return m.ActorLogin()
+	case adminaudit.FieldAction:
+		return m.Action()
+	case adminaudit.FieldTarget:
+		return m.Target()
+	case adminaudit.FieldDetail:
+		return m.Detail()
+	case adminaudit.FieldOk:
+		return m.Ok()
+	case adminaudit.FieldError:
+		return m.Error()
+	case adminaudit.FieldCreatedAt:
+		return m.CreatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *AdminAuditMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case adminaudit.FieldActorID:
+		return m.OldActorID(ctx)
+	case adminaudit.FieldActorLogin:
+		return m.OldActorLogin(ctx)
+	case adminaudit.FieldAction:
+		return m.OldAction(ctx)
+	case adminaudit.FieldTarget:
+		return m.OldTarget(ctx)
+	case adminaudit.FieldDetail:
+		return m.OldDetail(ctx)
+	case adminaudit.FieldOk:
+		return m.OldOk(ctx)
+	case adminaudit.FieldError:
+		return m.OldError(ctx)
+	case adminaudit.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown AdminAudit field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *AdminAuditMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case adminaudit.FieldActorID:
+		v, ok := value.(uint64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetActorID(v)
+		return nil
+	case adminaudit.FieldActorLogin:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetActorLogin(v)
+		return nil
+	case adminaudit.FieldAction:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAction(v)
+		return nil
+	case adminaudit.FieldTarget:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTarget(v)
+		return nil
+	case adminaudit.FieldDetail:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDetail(v)
+		return nil
+	case adminaudit.FieldOk:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetOk(v)
+		return nil
+	case adminaudit.FieldError:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetError(v)
+		return nil
+	case adminaudit.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown AdminAudit field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *AdminAuditMutation) AddedFields() []string {
+	var fields []string
+	if m.addactor_id != nil {
+		fields = append(fields, adminaudit.FieldActorID)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *AdminAuditMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case adminaudit.FieldActorID:
+		return m.AddedActorID()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *AdminAuditMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case adminaudit.FieldActorID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddActorID(v)
+		return nil
+	}
+	return fmt.Errorf("unknown AdminAudit numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *AdminAuditMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(adminaudit.FieldTarget) {
+		fields = append(fields, adminaudit.FieldTarget)
+	}
+	if m.FieldCleared(adminaudit.FieldDetail) {
+		fields = append(fields, adminaudit.FieldDetail)
+	}
+	if m.FieldCleared(adminaudit.FieldError) {
+		fields = append(fields, adminaudit.FieldError)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *AdminAuditMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *AdminAuditMutation) ClearField(name string) error {
+	switch name {
+	case adminaudit.FieldTarget:
+		m.ClearTarget()
+		return nil
+	case adminaudit.FieldDetail:
+		m.ClearDetail()
+		return nil
+	case adminaudit.FieldError:
+		m.ClearError()
+		return nil
+	}
+	return fmt.Errorf("unknown AdminAudit nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *AdminAuditMutation) ResetField(name string) error {
+	switch name {
+	case adminaudit.FieldActorID:
+		m.ResetActorID()
+		return nil
+	case adminaudit.FieldActorLogin:
+		m.ResetActorLogin()
+		return nil
+	case adminaudit.FieldAction:
+		m.ResetAction()
+		return nil
+	case adminaudit.FieldTarget:
+		m.ResetTarget()
+		return nil
+	case adminaudit.FieldDetail:
+		m.ResetDetail()
+		return nil
+	case adminaudit.FieldOk:
+		m.ResetOk()
+		return nil
+	case adminaudit.FieldError:
+		m.ResetError()
+		return nil
+	case adminaudit.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown AdminAudit field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *AdminAuditMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *AdminAuditMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *AdminAuditMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *AdminAuditMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *AdminAuditMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *AdminAuditMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *AdminAuditMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown AdminAudit unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *AdminAuditMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown AdminAudit edge %s", name)
+}
+
+// AdminUserMutation represents an operation that mutates the AdminUser nodes in the graph.
+type AdminUserMutation struct {
+	config
+	op            Op
+	typ           string
+	id            *uint64
+	login         *string
+	display_name  *string
+	role          *adminuser.Role
+	active        *bool
+	added_by      *uint64
+	addadded_by   *int64
+	created_at    *time.Time
+	updated_at    *time.Time
+	clearedFields map[string]struct{}
+	done          bool
+	oldValue      func(context.Context) (*AdminUser, error)
+	predicates    []predicate.AdminUser
+}
+
+var _ ent.Mutation = (*AdminUserMutation)(nil)
+
+// adminuserOption allows management of the mutation configuration using functional options.
+type adminuserOption func(*AdminUserMutation)
+
+// newAdminUserMutation creates new mutation for the AdminUser entity.
+func newAdminUserMutation(c config, op Op, opts ...adminuserOption) *AdminUserMutation {
+	m := &AdminUserMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeAdminUser,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withAdminUserID sets the ID field of the mutation.
+func withAdminUserID(id uint64) adminuserOption {
+	return func(m *AdminUserMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *AdminUser
+		)
+		m.oldValue = func(ctx context.Context) (*AdminUser, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().AdminUser.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withAdminUser sets the old AdminUser of the mutation.
+func withAdminUser(node *AdminUser) adminuserOption {
+	return func(m *AdminUserMutation) {
+		m.oldValue = func(context.Context) (*AdminUser, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m AdminUserMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m AdminUserMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of AdminUser entities.
+func (m *AdminUserMutation) SetID(id uint64) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *AdminUserMutation) ID() (id uint64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *AdminUserMutation) IDs(ctx context.Context) ([]uint64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []uint64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().AdminUser.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetLogin sets the "login" field.
+func (m *AdminUserMutation) SetLogin(s string) {
+	m.login = &s
+}
+
+// Login returns the value of the "login" field in the mutation.
+func (m *AdminUserMutation) Login() (r string, exists bool) {
+	v := m.login
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLogin returns the old "login" field's value of the AdminUser entity.
+// If the AdminUser object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AdminUserMutation) OldLogin(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLogin is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLogin requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLogin: %w", err)
+	}
+	return oldValue.Login, nil
+}
+
+// ResetLogin resets all changes to the "login" field.
+func (m *AdminUserMutation) ResetLogin() {
+	m.login = nil
+}
+
+// SetDisplayName sets the "display_name" field.
+func (m *AdminUserMutation) SetDisplayName(s string) {
+	m.display_name = &s
+}
+
+// DisplayName returns the value of the "display_name" field in the mutation.
+func (m *AdminUserMutation) DisplayName() (r string, exists bool) {
+	v := m.display_name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDisplayName returns the old "display_name" field's value of the AdminUser entity.
+// If the AdminUser object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AdminUserMutation) OldDisplayName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDisplayName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDisplayName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDisplayName: %w", err)
+	}
+	return oldValue.DisplayName, nil
+}
+
+// ResetDisplayName resets all changes to the "display_name" field.
+func (m *AdminUserMutation) ResetDisplayName() {
+	m.display_name = nil
+}
+
+// SetRole sets the "role" field.
+func (m *AdminUserMutation) SetRole(a adminuser.Role) {
+	m.role = &a
+}
+
+// Role returns the value of the "role" field in the mutation.
+func (m *AdminUserMutation) Role() (r adminuser.Role, exists bool) {
+	v := m.role
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRole returns the old "role" field's value of the AdminUser entity.
+// If the AdminUser object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AdminUserMutation) OldRole(ctx context.Context) (v adminuser.Role, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRole is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRole requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRole: %w", err)
+	}
+	return oldValue.Role, nil
+}
+
+// ResetRole resets all changes to the "role" field.
+func (m *AdminUserMutation) ResetRole() {
+	m.role = nil
+}
+
+// SetActive sets the "active" field.
+func (m *AdminUserMutation) SetActive(b bool) {
+	m.active = &b
+}
+
+// Active returns the value of the "active" field in the mutation.
+func (m *AdminUserMutation) Active() (r bool, exists bool) {
+	v := m.active
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldActive returns the old "active" field's value of the AdminUser entity.
+// If the AdminUser object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AdminUserMutation) OldActive(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldActive is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldActive requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldActive: %w", err)
+	}
+	return oldValue.Active, nil
+}
+
+// ResetActive resets all changes to the "active" field.
+func (m *AdminUserMutation) ResetActive() {
+	m.active = nil
+}
+
+// SetAddedBy sets the "added_by" field.
+func (m *AdminUserMutation) SetAddedBy(u uint64) {
+	m.added_by = &u
+	m.addadded_by = nil
+}
+
+// AddedBy returns the value of the "added_by" field in the mutation.
+func (m *AdminUserMutation) AddedBy() (r uint64, exists bool) {
+	v := m.added_by
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAddedBy returns the old "added_by" field's value of the AdminUser entity.
+// If the AdminUser object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AdminUserMutation) OldAddedBy(ctx context.Context) (v uint64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAddedBy is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAddedBy requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAddedBy: %w", err)
+	}
+	return oldValue.AddedBy, nil
+}
+
+// AddAddedBy adds u to the "added_by" field.
+func (m *AdminUserMutation) AddAddedBy(u int64) {
+	if m.addadded_by != nil {
+		*m.addadded_by += u
+	} else {
+		m.addadded_by = &u
+	}
+}
+
+// AddedAddedBy returns the value that was added to the "added_by" field in this mutation.
+func (m *AdminUserMutation) AddedAddedBy() (r int64, exists bool) {
+	v := m.addadded_by
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetAddedBy resets all changes to the "added_by" field.
+func (m *AdminUserMutation) ResetAddedBy() {
+	m.added_by = nil
+	m.addadded_by = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *AdminUserMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *AdminUserMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the AdminUser entity.
+// If the AdminUser object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AdminUserMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *AdminUserMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *AdminUserMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *AdminUserMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the AdminUser entity.
+// If the AdminUser object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AdminUserMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *AdminUserMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// Where appends a list predicates to the AdminUserMutation builder.
+func (m *AdminUserMutation) Where(ps ...predicate.AdminUser) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the AdminUserMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *AdminUserMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.AdminUser, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *AdminUserMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *AdminUserMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (AdminUser).
+func (m *AdminUserMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *AdminUserMutation) Fields() []string {
+	fields := make([]string, 0, 7)
+	if m.login != nil {
+		fields = append(fields, adminuser.FieldLogin)
+	}
+	if m.display_name != nil {
+		fields = append(fields, adminuser.FieldDisplayName)
+	}
+	if m.role != nil {
+		fields = append(fields, adminuser.FieldRole)
+	}
+	if m.active != nil {
+		fields = append(fields, adminuser.FieldActive)
+	}
+	if m.added_by != nil {
+		fields = append(fields, adminuser.FieldAddedBy)
+	}
+	if m.created_at != nil {
+		fields = append(fields, adminuser.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, adminuser.FieldUpdatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *AdminUserMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case adminuser.FieldLogin:
+		return m.Login()
+	case adminuser.FieldDisplayName:
+		return m.DisplayName()
+	case adminuser.FieldRole:
+		return m.Role()
+	case adminuser.FieldActive:
+		return m.Active()
+	case adminuser.FieldAddedBy:
+		return m.AddedBy()
+	case adminuser.FieldCreatedAt:
+		return m.CreatedAt()
+	case adminuser.FieldUpdatedAt:
+		return m.UpdatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *AdminUserMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case adminuser.FieldLogin:
+		return m.OldLogin(ctx)
+	case adminuser.FieldDisplayName:
+		return m.OldDisplayName(ctx)
+	case adminuser.FieldRole:
+		return m.OldRole(ctx)
+	case adminuser.FieldActive:
+		return m.OldActive(ctx)
+	case adminuser.FieldAddedBy:
+		return m.OldAddedBy(ctx)
+	case adminuser.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case adminuser.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown AdminUser field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *AdminUserMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case adminuser.FieldLogin:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLogin(v)
+		return nil
+	case adminuser.FieldDisplayName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDisplayName(v)
+		return nil
+	case adminuser.FieldRole:
+		v, ok := value.(adminuser.Role)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRole(v)
+		return nil
+	case adminuser.FieldActive:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetActive(v)
+		return nil
+	case adminuser.FieldAddedBy:
+		v, ok := value.(uint64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAddedBy(v)
+		return nil
+	case adminuser.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case adminuser.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown AdminUser field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *AdminUserMutation) AddedFields() []string {
+	var fields []string
+	if m.addadded_by != nil {
+		fields = append(fields, adminuser.FieldAddedBy)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *AdminUserMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case adminuser.FieldAddedBy:
+		return m.AddedAddedBy()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *AdminUserMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case adminuser.FieldAddedBy:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddAddedBy(v)
+		return nil
+	}
+	return fmt.Errorf("unknown AdminUser numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *AdminUserMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *AdminUserMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *AdminUserMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown AdminUser nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *AdminUserMutation) ResetField(name string) error {
+	switch name {
+	case adminuser.FieldLogin:
+		m.ResetLogin()
+		return nil
+	case adminuser.FieldDisplayName:
+		m.ResetDisplayName()
+		return nil
+	case adminuser.FieldRole:
+		m.ResetRole()
+		return nil
+	case adminuser.FieldActive:
+		m.ResetActive()
+		return nil
+	case adminuser.FieldAddedBy:
+		m.ResetAddedBy()
+		return nil
+	case adminuser.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case adminuser.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown AdminUser field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *AdminUserMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *AdminUserMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *AdminUserMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *AdminUserMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *AdminUserMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *AdminUserMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *AdminUserMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown AdminUser unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *AdminUserMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown AdminUser edge %s", name)
+}
 
 // TokensMutation represents an operation that mutates the Tokens nodes in the graph.
 type TokensMutation struct {

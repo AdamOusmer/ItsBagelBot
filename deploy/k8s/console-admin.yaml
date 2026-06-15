@@ -87,6 +87,11 @@ spec:
               value: "3000"
             - name: NODE_ENV
               value: production
+            # adapter-bun sits behind cloudflared+traefik+tailscale; ORIGIN lets
+            # SvelteKit validate form POSTs (origin-checked CSRF) against the
+            # public URL instead of the internal http://:3000 origin (was 403).
+            - name: ORIGIN
+              value: https://admin.tail451e6d.ts.net
             - name: NATS_URL
               value: nats://nats:4222
             - name: NATS_ADMIN_SUBJECT
@@ -95,7 +100,23 @@ spec:
               value: twitch.ingress.status
             - name: NATS_ADMIN_USER_SUBJECT_PREFIX
               value: bagel.rpc.admin.user
-          # SESSION_KEY + ADMIN_USER_IDS (allowlist) from Doppler.
+            # DB-backed staff auth + audit (users service). Defaults match the
+            # service; pinned here for clarity.
+            - name: NATS_ADMIN_AUTH_SUBJECT_PREFIX
+              value: bagel.rpc.admin.auth
+            - name: NATS_ADMIN_AUDIT_SUBJECT_PREFIX
+              value: bagel.rpc.admin.audit
+            # Twitch OAuth callback for operator sign-in (admin host).
+            - name: TWITCH_REDIRECT_URI
+              value: https://admin.tail451e6d.ts.net/auth/callback
+          # Secrets from Doppler (console-admin-env):
+          #   SESSION_KEY            — 32-byte base64, shared with the dashboard
+          #                            tier so one sign-in seals a valid session.
+          #   TWITCH_CLIENT_ID       — Twitch app client id.
+          #   TWITCH_CLIENT_SECRET   — Twitch app client secret.
+          # The Twitch app MUST register the redirect URI above. Staff identity
+          # is the DB allowlist (seeded via OWNER_BOOTSTRAP_IDS on the users
+          # service); the legacy ADMIN_USER_IDS env is no longer consulted.
           envFrom:
             - secretRef:
                 name: console-admin-env
