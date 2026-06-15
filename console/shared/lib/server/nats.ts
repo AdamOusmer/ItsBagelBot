@@ -54,6 +54,17 @@ export async function rpc<T>(subject: string, payload: unknown = {}, timeoutMs =
   return reply as T;
 }
 
+/**
+ * Fire-and-forget JSON publish (e.g. the outgress system lane). JetStream
+ * streams capture core publishes to their subjects, so this enqueues the job
+ * without needing a JetStream client.
+ */
+export async function publish(subject: string, payload: unknown = {}): Promise<void> {
+  const nc = await get();
+  nc.publish(subject, jc.encode(payload));
+  await nc.flush();
+}
+
 export async function closeNats(): Promise<void> {
   if (conn && !conn.isClosed()) await conn.drain();
   conn = null;

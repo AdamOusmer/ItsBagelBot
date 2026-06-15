@@ -1,14 +1,7 @@
 <script lang="ts">
+  import { enhance } from '$app/forms';
   import { Icon, StatTile, Button } from '@bagel/shared';
-  let { data } = $props();
-
-  const nodes = [
-    { warn: false, nm: 'chat-gateway', sv: 'streaming IRC · 3 replicas', pg: '38ms' },
-    { warn: false, nm: 'command-engine', sv: 'healthy · 0 errors', pg: '11ms' },
-    { warn: false, nm: 'moderation-svc', sv: 'automod active', pg: '9ms' },
-    { warn: true, nm: 'analytics-worker', sv: 'backfilling queue', pg: 'qd 142' },
-    { warn: false, nm: 'event-bus', sv: 'nominal', pg: '4ms' }
-  ];
+  let { data, form } = $props();
 
   const feed = [
     { icon: 'check', green: true, title: '<code>!uptime</code> triggered', sub: 'by viewer · ferret_king', w: '2m' },
@@ -26,6 +19,13 @@
     <p>Your bot is healthy and connected. Zero downtime, infinite bagels.</p>
   </div>
 
+  {#if form?.ok}
+    <div class="perm-note" style="margin-bottom:18px">
+      <Icon name="check" size={15} />
+      <span>{form.action === 'restart' ? 'Restarting event delivery…' : 'Disconnected. Event delivery stopped.'}</span>
+    </div>
+  {/if}
+
   <div class="card sheen status-hero">
     <div class="botmark"><img src="/logo.png" alt="" /></div>
     <div>
@@ -39,8 +39,12 @@
       </div>
     </div>
     <div class="actions">
-      <Button variant="ghost" icon="activity">Restart</Button>
-      <Button variant="primary" icon="power" data-only="streamer">Disconnect</Button>
+      <form method="POST" action="?/restart" use:enhance>
+        <Button variant="ghost" icon="activity" type="submit">Restart</Button>
+      </form>
+      <form method="POST" action="?/disconnect" use:enhance>
+        <Button variant="primary" icon="power" type="submit">Disconnect</Button>
+      </form>
     </div>
   </div>
 
@@ -51,31 +55,16 @@
     <StatTile icon="pulse" tan label="Messages seen" value="48.2" unit="k" delta="▲ 6% vs yesterday" />
   </div>
 
-  <div class="grid-2">
-    <div class="card">
-      <div class="card-head"><h3>Service health</h3><span class="more">All systems →</span></div>
-      <div class="node-list">
-        {#each nodes as n}
-          <div class="node-row">
-            <span class="nd {n.warn ? 'warn' : ''}"></span>
-            <span class="nm">{n.nm}</span>
-            <span class="sv">{n.sv}</span>
-            <span class="pg">{n.pg}</span>
-          </div>
-        {/each}
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-head"><h3>Recent activity</h3><span class="more">View all →</span></div>
-      <div class="feed">
-        {#each feed as f}
-          <div class="feed-row">
-            <div class="fi {f.green ? 'green' : ''}"><Icon name={f.icon} size={15} /></div>
-            <div class="ft"><b>{@html f.title}</b><span>{f.sub}</span></div>
-            <span class="fw">{f.w}</span>
-          </div>
-        {/each}
-      </div>
+  <div class="card" style="margin-top:var(--row-gap)">
+    <div class="card-head"><h3>Recent activity</h3><span class="more">View all →</span></div>
+    <div class="feed">
+      {#each feed as f}
+        <div class="feed-row">
+          <div class="fi {f.green ? 'green' : ''}"><Icon name={f.icon} size={15} /></div>
+          <div class="ft"><b>{@html f.title}</b><span>{f.sub}</span></div>
+          <span class="fw">{f.w}</span>
+        </div>
+      {/each}
     </div>
   </div>
 </section>
