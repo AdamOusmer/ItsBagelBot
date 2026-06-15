@@ -1,7 +1,7 @@
 import type { RequestHandler } from './$types';
 import { redirect } from '@sveltejs/kit';
-import { OAuth2RequestError } from 'arctic';
-import { twitch, fetchUser } from '$lib/server/oauth';
+import { decodeIdToken, OAuth2RequestError } from 'arctic';
+import { twitch } from '$lib/server/oauth';
 import { rpc } from '@bagel/shared/server/nats';
 import { COOKIE, seal } from '$lib/server/session';
 import { env } from '$env/dynamic/private';
@@ -20,18 +20,25 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 
   try {
     const tokens = await twitch().validateAuthorizationCode(code);
-    const user = await fetchUser(tokens.accessToken());
+    const claims = decodeIdToken(tokens.idToken()!) as {
+      sub: string;
+      preferred_username: string;
+    };
+
+    const userId = claims.sub;
+    const login = claims.preferred_username.toLowerCase();
+    const displayName = claims.preferred_username;
 
     await rpc(`${DASHBOARD}.upsert_user`, {
-      user_id: user.id,
-      username: user.login,
-      display_name: user.display_name
+      user_id: userId,
+      username: login,
+      display_name: displayName
     });
 
     const value = seal({
-      user_id: user.id,
-      login: user.login,
-      display_name: user.display_name,
+      user_id: userId,
+      login: login,
+      display_name: displayName,
       role: 'streamer',
       expires_at: Math.floor(Date.now() / 1000) + SESSION_TTL
     });
