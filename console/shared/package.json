@@ -1,0 +1,19 @@
+{
+  "name": "@bagel/shared",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "svelte": "./lib/index.ts",
+  "exports": {
+    ".": { "svelte": "./lib/index.ts", "default": "./lib/index.ts" },
+    "./server/nats": "./lib/server/nats.ts",
+    "./styles/tokens.css": "./styles/tokens.css",
+    "./styles/app.css": "./styles/app.css",
+    "./components/*": "./components/*"
+  },
+  "dependencies": {
+    "lenis": "^1.3.18",
+    "motion": "^12.0.0",
+    "nats": "^2.29.2"
+  }
+}

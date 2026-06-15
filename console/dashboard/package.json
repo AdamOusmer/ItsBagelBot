@@ -1,0 +1,17 @@
+{
+  "name": "dashboard",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "node build",
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json"
+  },
+  "dependencies": {
+    "@bagel/shared": "workspace:*",
+    "arctic": "^3.6.0",
+    "motion": "^12.0.0",
+    "nats": "^2.29.2"
+  }
+}

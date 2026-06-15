@@ -1,0 +1,21 @@
+# Admin SSR — separate deploy from dashboard. Build with bun, run on distroless
+# Node (adapter-node output). Native per-node build (ARM/Intel); no emulation.
+FROM docker.io/oven/bun:1.3.10 AS build
+WORKDIR /src
+COPY package.json bun.lock ./
+COPY shared/package.json shared/package.json
+COPY dashboard/package.json dashboard/package.json
+COPY admin/package.json admin/package.json
+RUN bun install --frozen-lockfile
+COPY shared shared
+COPY admin admin
+RUN cd admin && bun run build && bun install --production --frozen-lockfile
+
+FROM gcr.io/distroless/nodejs22-debian12 AS run
+WORKDIR /app
+ENV NODE_ENV=production
+ENV PORT=3000
+COPY --from=build /src/admin/build ./build
+COPY --from=build /src/node_modules ./node_modules
+EXPOSE 3000
+CMD ["build/index.js"]
