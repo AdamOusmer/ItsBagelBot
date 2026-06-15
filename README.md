@@ -112,11 +112,11 @@ ItsBagelBot is built using a microservices architecture, with each feature being
 zero-downtime updates, as services can be updated independently without affecting the entire system.
 
 The main flow of the bot is as follows:
-- **Ingress Service**: Handles incoming Twitch chat messages and routes them to the appropriate service. 
-It is based on Twitch's conduit architecture for scalability and reliability. Twitch's EventSub WebSockets connections are managed here for chat data while other events are handled via Twitch's EventSub webhooks.
-- **Message Broker**: RabbitMQ is used as the message broker to facilitate communication between services.
-- **Services**: Each feature of the bot is implemented as a separate service, which subscribes to relevant messages from the message broker and processes them accordingly.
-- **Egress Service**: Sends messages back to Twitch chat based on the processed data from the services.
+- **Ingress Service** (Elixir/OTP): Handles incoming Twitch events and routes them to the appropriate service.
+It is based on Twitch's Conduit architecture for scalability and reliability. Twitch's EventSub WebSocket connections are managed here, normalized, filtered, and published to the message bus.
+- **Message Bus**: NATS is the only inter-service transport, carrying both subject-based events (pub/sub) and request-reply RPC. No service reads another service's database directly.
+- **Services** (Go): Each feature of the bot is implemented as a separate service that owns its own MySQL schema, subscribes to relevant subjects, and answers RPC for cross-service reads.
+- **Outgress Service** (Go): Sends messages back to Twitch based on the processed data from the services, applying per-broadcaster rate limiting and the bot account token lifecycle.
 
 
 ### Tech Stack
@@ -129,12 +129,13 @@ Currently in development, but will be built with the following technologies:
 
 #### Technologies & Tools
 
+![Elixir](https://img.shields.io/badge/elixir-%234B275F.svg?style=for-the-badge&logo=elixir&logoColor=white)
+![Svelte](https://img.shields.io/badge/svelte-%23f1413d.svg?style=for-the-badge&logo=svelte&logoColor=white)
 ![Watermill](https://img.shields.io/badge/Watermill-%2307C0E1.svg?style=for-the-badge&logo=go&logoColor=white)
-![RabbitMQ](https://img.shields.io/badge/rabbitmq-%23FF6600.svg?style=for-the-badge&logo=rabbitmq&logoColor=white)
+![NATS](https://img.shields.io/badge/NATS-%2327AAE1.svg?style=for-the-badge&logo=natsdotio&logoColor=white)
 ![Ent](https://img.shields.io/badge/ent-%235164E3.svg?style=for-the-badge&logo=go&logoColor=white)
-![PostgreSQL](https://img.shields.io/badge/postgresql-%23336791.svg?style=for-the-badge&logo=postgresql&logoColor=white)
-![Redis](https://img.shields.io/badge/redis-%23DC382D.svg?style=for-the-badge&logo=redis&logoColor=white)
-![Gin](https://img.shields.io/badge/gin-%23000000.svg?style=for-the-badge&logo=go&logoColor=white)
+![MySQL](https://img.shields.io/badge/mysql-%234479A1.svg?style=for-the-badge&logo=mysql&logoColor=white)
+![Valkey](https://img.shields.io/badge/valkey-%23DC382D.svg?style=for-the-badge&logo=valkey&logoColor=white)
 
 #### Security & Encryption
 
@@ -144,10 +145,10 @@ Currently in development, but will be built with the following technologies:
 
 #### DevOps
 
-![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white)
-![Kubernetes](https://img.shields.io/badge/kubernetes-%23326ce5.svg?style=for-the-badge&logo=kubernetes&logoColor=white)
+![Podman](https://img.shields.io/badge/podman-%23892CA0.svg?style=for-the-badge&logo=podman&logoColor=white)
+![k3s](https://img.shields.io/badge/k3s-%23FFC61C.svg?style=for-the-badge&logo=k3s&logoColor=black)
+![Flux](https://img.shields.io/badge/flux-%235468FF.svg?style=for-the-badge&logo=flux&logoColor=white)
 ![GitHub Actions](https://img.shields.io/badge/github%20actions-%232671E5.svg?style=for-the-badge&logo=githubactions&logoColor=white)
-![KEDA](https://img.shields.io/badge/keda-%232f3b55.svg?style=for-the-badge&logo=keda&logoColor=white)
 
 #### Infrastructure
 
@@ -165,7 +166,7 @@ Currently in development, but will be built with the following technologies:
 
 I take security seriously. ItsBagelBot uses Tink for encryption of sensitive data at rest and in transit. To ensure that I are not using the insecurecleartextkeyset function of Tink, I have acquired a Vault (KMS) from Oracle to secure my keysets. 
 
-The internal services communicate using a service mesh (Linkerd) to ensure secure communication between services and the message broker.
+The internal services communicate using a service mesh (Linkerd) to ensure secure communication between services and the NATS message bus.
 
 The Oracle VPS hosting the bot is secured using Tailscale VPN, ensuring that only authorized devices can access the services.
 The VPS is completely locked down with a strict firewall allowing only necessary ports. A VCN will eventually be used for

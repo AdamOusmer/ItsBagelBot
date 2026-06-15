@@ -5,10 +5,12 @@ import {
   userStats,
   userLookup,
   userSetStatus,
+  userSetActive,
   userReset,
   userDelete,
   tokenClear,
   tokenStatus,
+  restartUserEventSub,
   type AdminUserWire
 } from '$lib/server/rpc';
 import { allowed, isDemo } from '$lib/server/access';
@@ -98,6 +100,34 @@ export const actions: Actions = {
     try {
       await tokenClear(userId);
       return { action: { ok: true, notice: 'token cleared' } };
+    } catch (e) {
+      return { action: { ok: false, notice: (e as Error).message } };
+    }
+  },
+
+  setActive: async ({ request, locals }) => {
+    if (!allowed(locals.session)) return fail(403, { error: 'forbidden' });
+    const f = await request.formData();
+    const userId = String(f.get('user_id') ?? '').trim();
+    const active = String(f.get('active') ?? '').trim() === 'true';
+    if (!userId) return fail(400, { error: 'user_id required' });
+    if (isDemo()) return { action: { ok: true, notice: 'active set (demo)' } };
+    try {
+      const user: AdminUserWire = await userSetActive(userId, active);
+      return { action: { ok: true, notice: `active=${user.is_active}` }, lookup: { user } };
+    } catch (e) {
+      return { action: { ok: false, notice: (e as Error).message } };
+    }
+  },
+
+  restart: async ({ request, locals }) => {
+    if (!allowed(locals.session)) return fail(403, { error: 'forbidden' });
+    const userId = String((await request.formData()).get('user_id') ?? '').trim();
+    if (!userId) return fail(400, { error: 'user_id required' });
+    if (isDemo()) return { action: { ok: true, notice: 'bot restarted (demo only, no real subs dropped)' } };
+    try {
+      await restartUserEventSub(userId);
+      return { action: { ok: true, notice: 'bot restarted (subs dropped + recreated)' } };
     } catch (e) {
       return { action: { ok: false, notice: (e as Error).message } };
     }

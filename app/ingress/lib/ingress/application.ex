@@ -12,8 +12,16 @@ defmodule Ingress.Application do
       status NATS RPC (the ingress never reads the database directly).
     * `Ingress.Twitch.AppToken` - cached app access token for Helix calls.
     * `Gnat.ConnectionSupervisor` - NATS connection, registered as `:gnat`.
-    * `Gnat.ConsumerSupervisor` - subscription to the cache-invalidation subject.
-    * `Ingress.Bootstrapper` - ensures the cluster-singleton ConduitManager runs.
+    * `Gnat.ConsumerSupervisor` (invalidation) - subscription to cache
+      invalidation subject.
+    * `Gnat.ConsumerSupervisor` (admin) - request-reply read endpoint for
+      `Ingress.AdminRpc`.
+    * `Gnat.ConsumerSupervisor` (scale) - request-reply control endpoint for
+      `Ingress.ScaleRpc` (manual shard count).
+    * `Gnat.ConsumerSupervisor` (autoscale) - request-reply control endpoint
+      for `Ingress.AutoscaleRpc` (load-based autoscaler toggle).
+    * `Ingress.Bootstrapper` - ensures the cluster-singleton ShardScaler and
+      ConduitManager run.
   """
 
   use Application
@@ -51,6 +59,8 @@ defmodule Ingress.Application do
       Ingress.Twitch.AppToken,
       invalidation_consumer(),
       admin_consumer(),
+      scale_consumer(),
+      autoscale_consumer(),
       Ingress.Bootstrapper
     ]
   end
@@ -105,6 +115,36 @@ defmodule Ingress.Application do
     Supervisor.child_spec(
       {Gnat.ConsumerSupervisor, settings},
       id: :admin_consumer
+    )
+  end
+
+  # Request-reply endpoint for manual shard scaling: {"count": N}.
+  defp scale_consumer do
+    settings = %{
+      connection_name: :gnat,
+      module: Ingress.ScaleRpc,
+      subscription_topics: [%{topic: Config.scale_subject(), queue_group: "twitch-ingress-admin"}]
+    }
+
+    Supervisor.child_spec(
+      {Gnat.ConsumerSupervisor, settings},
+      id: :scale_consumer
+    )
+  end
+
+  # Request-reply endpoint for toggling the load-based autoscaler: {"enabled": bool}.
+  defp autoscale_consumer do
+    settings = %{
+      connection_name: :gnat,
+      module: Ingress.AutoscaleRpc,
+      subscription_topics: [
+        %{topic: Config.autoscale_subject(), queue_group: "twitch-ingress-admin"}
+      ]
+    }
+
+    Supervisor.child_spec(
+      {Gnat.ConsumerSupervisor, settings},
+      id: :autoscale_consumer
     )
   end
 end

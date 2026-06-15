@@ -47,6 +47,11 @@ defmodule Ingress.ShardSession do
   @base_backoff_ms 1_000
   @max_backoff_ms 60_000
 
+  # Window over which notification events are counted for the load metric.
+  # A short window (60 s) reflects current activity; the autoscaler samples
+  # this at its own interval, so the two do not need to be aligned.
+  @load_window_ms 60_000
+
   defstruct shard_id: nil,
             conduit_id: nil,
             # active socket (may still be pre-welcome on fresh connect)
@@ -63,7 +68,11 @@ defmodule Ingress.ShardSession do
             bound_at: nil,
             last_frame_at: nil,
             # duplicate-shard takeover in flight: %{winner:, monitor:, timer:}
-            takeover: nil
+            takeover: nil,
+            # Ring of {monotonic_time_ms} timestamps for recent notification
+            # events, used to compute the per-shard load rate. Older than
+            # @load_window_ms entries are pruned on each notification.
+            event_times: []
 
   def start_link(opts) do
     shard_id = Keyword.fetch!(opts, :shard_id)
@@ -127,7 +136,12 @@ defmodule Ingress.ShardSession do
       keepalive_ms: state.keepalive_ms,
       attempts: state.attempts,
       bound_at: state.bound_at,
-      last_frame_at: state.last_frame_at
+      last_frame_at: state.last_frame_at,
+      # Notifications received in the last @load_window_ms milliseconds.
+      # This is a raw count, not a rate; callers divide by the window if they
+      # want events/second. Using the current wall of pruned timestamps avoids
+      # a separate timer and stays consistent with the window definition.
+      load: length(state.event_times)
     }
   end
 
@@ -418,7 +432,7 @@ defmodule Ingress.ShardSession do
       ts: meta["message_timestamp"]
     })
 
-    {:noreply, pet_watchdog(state)}
+    {:noreply, state |> record_event() |> pet_watchdog()}
   end
 
   defp handle_twitch(_which, "revocation", payload, _meta, state) do
@@ -575,6 +589,15 @@ defmodule Ingress.ShardSession do
     Metrics.count("Shard/Reconnects")
     Process.send_after(self(), :retry_connect, delay)
     %{state | attempts: attempts}
+  end
+
+  # Record a notification event timestamp and prune entries older than the
+  # load window. The resulting list length is the load value in status/0.
+  defp record_event(state) do
+    now = System.monotonic_time(:millisecond)
+    cutoff = now - @load_window_ms
+    times = [now | Enum.take_while(state.event_times, &(&1 >= cutoff))]
+    %{state | event_times: times}
   end
 
   # Every inbound message proves the socket is alive; re-arm the watchdog.
