@@ -1,14 +1,28 @@
 // Wire types mirroring the Go NATS RPC contracts (JSON over core NATS).
-export type Perm = 'everyone' | 'sub' | 'mod' | 'broadcaster';
+export type Perm = 'everyone' | 'sub' | 'vip' | 'mod' | 'lead_mod' | 'broadcaster';
 export type Tier = 'premium' | 'standard';
 export type Role = 'streamer' | 'mod';
+
+// Ordered low -> high privilege; drives the access <select> in the dashboard.
+export const PERMS: readonly Perm[] = ['everyone', 'sub', 'vip', 'mod', 'lead_mod', 'broadcaster'];
+export const PERM_LABELS: Record<Perm, string> = {
+  everyone: 'Everyone',
+  sub: 'Subscribers',
+  vip: 'VIPs',
+  mod: 'Moderators',
+  lead_mod: 'Lead moderators',
+  broadcaster: 'Broadcaster'
+};
 
 export interface CommandView {
   name: string;
   response: string;
   is_active: boolean;
   perm?: Perm;
-  cooldown?: string;
+  // Cooldown in seconds; 0 or undefined means no cooldown.
+  cooldown?: number;
+  // Twitch id of the only user allowed to run the command; '' or undefined = unrestricted.
+  allowed_user_id?: string;
   uses?: string;
 }
 

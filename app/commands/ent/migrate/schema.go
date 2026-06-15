@@ -15,6 +15,9 @@ var (
 		{Name: "name", Type: field.TypeString},
 		{Name: "response", Type: field.TypeString},
 		{Name: "is_active", Type: field.TypeBool, Default: true},
+		{Name: "perm", Type: field.TypeString, Default: "everyone"},
+		{Name: "cooldown", Type: field.TypeUint, Default: 0},
+		{Name: "allowed_user_id", Type: field.TypeUint64, Default: 0},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
 	}

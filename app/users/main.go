@@ -129,6 +129,14 @@ func main() {
 		log.Fatal("failed to subscribe admin rpc", zap.Error(err))
 	}
 
+	// Lane (JetStream consumer) telemetry for the admin console. Served under
+	// the same admin-user prefix so it rides the existing broker permissions
+	// (this service's user holds $JS.>; the console's admin user publishes the
+	// prefix wildcard), no auth change required.
+	if err := rpc.SubscribeLanes(ctx, nc, adminPrefix, queueGroup, log); err != nil {
+		log.Fatal("failed to subscribe lanes rpc", zap.Error(err))
+	}
+
 	projectionSubject := env.Get("NATS_INTERNAL_PROJECTION_USERS_SUBJECT", "bagel.rpc.internal.projection.users.get")
 	if err := rpc.SubscribeProjection(nc, repo, projectionSubject, queueGroup, log); err != nil {
 		log.Fatal("failed to subscribe projection rpc", zap.Error(err))
