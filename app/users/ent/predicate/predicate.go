@@ -6,6 +6,12 @@ import (
 	"entgo.io/ent/dialect/sql"
 )
 
+// AdminAudit is the predicate function for adminaudit builders.
+type AdminAudit func(*sql.Selector)
+
+// AdminUser is the predicate function for adminuser builders.
+type AdminUser func(*sql.Selector)
+
 // Tokens is the predicate function for tokens builders.
 type Tokens func(*sql.Selector)
 

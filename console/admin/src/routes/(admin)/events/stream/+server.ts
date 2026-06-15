@@ -1,6 +1,6 @@
 import type { RequestHandler } from './$types';
 import { error } from '@sveltejs/kit';
-import { allowed, isDemo, demoSession } from '$lib/server/access';
+import { requireAdmin, isDemo } from '$lib/server/access';
 import { subscribeStatus, decode, type FeedEvent } from '$lib/server/feed';
 import { STATUS_PREFIX } from '$lib/server/rpc';
 
@@ -15,9 +15,7 @@ function sse(event: string, data: unknown): Uint8Array {
 // heartbeat so proxies do not idle the connection out. Under DEMO=1 the broker
 // may be absent, so it emits a synthetic feed instead of failing.
 export const GET: RequestHandler = async ({ locals }) => {
-  let s = locals.session;
-  if (!s && isDemo()) s = demoSession;
-  if (!allowed(s)) throw error(403, 'forbidden');
+  if (!(await requireAdmin(locals.session))) throw error(403, 'forbidden');
 
   if (isDemo()) {
     const stream = new ReadableStream({

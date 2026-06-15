@@ -5,10 +5,17 @@
   /* glass system — driven by the Tweaks panel. Apple-style frosted glass: a
      touch more blur, a saturation boost (applied where backdrop-filter is used),
      and a warm tan tint in the fill so surfaces keep the brand taint. */
-  --glass-fill: rgba(201, 168, 124, 0.05);
-  --glass-fill-2: rgba(201, 168, 124, 0.03);
-  --glass-border: var(--bb-border);
-  --glass-blur: 22px;
+  --glass-fill: rgba(255, 255, 255, 0.055);
+  --glass-fill-2: rgba(255, 255, 255, 0.03);
+  --glass-border: rgba(255, 255, 255, 0.14);
+  --glass-blur: 26px;
+  --glass-sat: 180%;
+  --glass-bright: 1.06;
+  /* specular top highlight + soft ambient drop, the "thickness" of glass */
+  --glass-rim: inset 0 1px 0 rgba(255,255,255,0.45), inset 0 0 0 1px rgba(255,255,255,0.05);
+  --glass-shadow: 0 10px 34px rgba(0,0,0,0.34), 0 2px 6px rgba(0,0,0,0.22);
+  /* low-alpha chromatic edge — the Apple diffraction shimmer */
+  --glass-diffraction: linear-gradient(135deg, rgba(160,210,255,0.10), rgba(255,180,220,0.06) 35%, rgba(180,255,210,0.07) 65%, rgba(255,255,255,0) 85%);
 
   /* which accent "leads" the UI (active nav, primary CTA) */
   --ui-accent: var(--bb-green);
@@ -71,8 +78,9 @@ body::after {
 .glass {
   background: var(--glass-fill);
   border: 1px solid var(--glass-border);
-  backdrop-filter: blur(var(--glass-blur)) saturate(150%);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)) brightness(var(--glass-bright));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)) brightness(var(--glass-bright));
+  box-shadow: var(--glass-rim), var(--glass-shadow);
 }
 
 /* ───────────────────────── sidebar ───────────────────────── */
@@ -82,8 +90,9 @@ body::after {
   padding: 22px 16px;
   background: var(--glass-fill);
   border-right: 1px solid var(--glass-border);
-  backdrop-filter: blur(var(--glass-blur)) saturate(150%);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)) brightness(var(--glass-bright));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)) brightness(var(--glass-bright));
+  box-shadow: var(--glass-rim);
 }
 .brand { display: flex; align-items: center; gap: 11px; padding: 6px 10px 22px; }
 .brand img { width: 30px; height: 30px; border-radius: 8px; }
@@ -145,8 +154,8 @@ body::after {
   padding: 16px var(--gutter);
   background: rgba(10,10,10,0.5);
   border-bottom: 1px solid var(--glass-border);
-  backdrop-filter: blur(var(--glass-blur)) saturate(150%);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)) brightness(var(--glass-bright));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)) brightness(var(--glass-bright));
 }
 .crumb { font-family: var(--bb-font-mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--bb-muted); display: flex; align-items: center; gap: 8px; }
 .crumb .sep { opacity: 0.5; }
@@ -178,10 +187,19 @@ body::after {
 
 /* generic card */
 .card { background: var(--glass-fill); border: 1px solid var(--glass-border); border-radius: var(--bb-radius-lg);
-  backdrop-filter: blur(var(--glass-blur)) saturate(150%); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 10px 30px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)) brightness(var(--glass-bright)); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)) brightness(var(--glass-bright));
+  box-shadow: var(--glass-rim), var(--glass-shadow);
   padding: var(--card-pad); position: relative; overflow: hidden;
   transition: border-color var(--bb-dur-base) var(--bb-ease-out-expo), transform var(--bb-dur-base) var(--bb-ease-out-expo); }
+.card::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: var(--glass-diffraction);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+  opacity: 0.9;
+}
 .card.sheen::before { content: ""; position: absolute; inset: 0; pointer-events: none;
   background: radial-gradient(circle at 92% 6%, rgba(82,183,136,0.10), transparent 46%); }
 

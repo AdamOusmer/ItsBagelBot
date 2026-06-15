@@ -1,8 +1,12 @@
 import type { LayoutServerLoad } from './$types';
-import { demoSession } from '$lib/server/access';
+import { redirect } from '@sveltejs/kit';
+import { requireAdmin } from '$lib/server/access';
 
-// Admin gate removed: the admin panel is only accessible on the authorized tailnet.
-export const load: LayoutServerLoad = () => {
-  const s = demoSession;
-  return { displayName: s.display_name, login: s.login };
+// Authorization gate for the whole admin group. The tailnet limits who can
+// reach this host; the allowlist (auth.check) limits who can act. A request
+// without an admin session is bounced to the Twitch sign-in.
+export const load: LayoutServerLoad = async ({ locals }) => {
+  const admin = await requireAdmin(locals.session);
+  if (!admin) throw redirect(302, '/login');
+  return { displayName: admin.display_name, login: admin.login, role: admin.role };
 };

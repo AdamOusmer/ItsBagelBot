@@ -11,9 +11,10 @@ import {
   tokenClear,
   tokenStatus,
   restartUserEventSub,
+  auditAppend,
   type AdminUserWire
 } from '$lib/server/rpc';
-import { allowed, isDemo } from '$lib/server/access';
+import { requireAdmin, isDemo, type AdminIdentity } from '$lib/server/access';
 import { sampleStats, sampleUsers } from '$lib/server/sample';
 
 export const load: PageServerLoad = async () => {
@@ -39,9 +40,26 @@ export const load: PageServerLoad = async () => {
 // Status values the users service accepts (raw DB enum).
 const STATUSES = new Set(['free', 'paid', 'vip']);
 
+// audit records a mutating action best-effort: a logging failure must never
+// block or fail the operator action it describes. Skipped in demo (synthetic
+// non-numeric actor id).
+function audit(
+  admin: AdminIdentity,
+  action: string,
+  target: string,
+  detail: string,
+  ok: boolean,
+  error?: string
+): void {
+  if (isDemo()) return;
+  auditAppend({ actor_id: admin.id, actor_login: admin.login, action, target, detail, ok, error }).catch(
+    () => {}
+  );
+}
+
 export const actions: Actions = {
   lookup: async ({ request, locals }) => {
-    if (!allowed(locals.session)) return fail(403, { error: 'forbidden' });
+    if (!(await requireAdmin(locals.session))) return fail(403, { error: 'forbidden' });
     const q = String((await request.formData()).get('q') ?? '').trim();
     if (!q) return fail(400, { error: 'query required' });
     if (q.length > 128) return fail(400, { error: 'query too long' });
@@ -65,7 +83,8 @@ export const actions: Actions = {
   },
 
   setStatus: async ({ request, locals }) => {
-    if (!allowed(locals.session)) return fail(403, { error: 'forbidden' });
+    const admin = await requireAdmin(locals.session);
+    if (!admin) return fail(403, { error: 'forbidden' });
     const f = await request.formData();
     const userId = String(f.get('user_id') ?? '').trim();
     const status = String(f.get('status') ?? '').trim();
@@ -73,40 +92,49 @@ export const actions: Actions = {
     if (isDemo()) return { action: { ok: true, notice: `status set to ${status} (demo)` } };
     try {
       const user: AdminUserWire = await userSetStatus(userId, status);
+      audit(admin, 'set_status', userId, status, true);
       return { action: { ok: true, notice: `status set to ${user.status}` }, lookup: { user } };
     } catch (e) {
+      audit(admin, 'set_status', userId, status, false, (e as Error).message);
       return { action: { ok: false, notice: (e as Error).message } };
     }
   },
 
   reset: async ({ request, locals }) => {
-    if (!allowed(locals.session)) return fail(403, { error: 'forbidden' });
+    const admin = await requireAdmin(locals.session);
+    if (!admin) return fail(403, { error: 'forbidden' });
     const userId = String((await request.formData()).get('user_id') ?? '').trim();
     if (!userId) return fail(400, { error: 'user_id required' });
     if (isDemo()) return { action: { ok: true, notice: 'user reset (demo)' } };
     try {
       const user = await userReset(userId);
+      audit(admin, 'reset', userId, '', true);
       return { action: { ok: true, notice: 'user reset' }, lookup: { user } };
     } catch (e) {
+      audit(admin, 'reset', userId, '', false, (e as Error).message);
       return { action: { ok: false, notice: (e as Error).message } };
     }
   },
 
   clearToken: async ({ request, locals }) => {
-    if (!allowed(locals.session)) return fail(403, { error: 'forbidden' });
+    const admin = await requireAdmin(locals.session);
+    if (!admin) return fail(403, { error: 'forbidden' });
     const userId = String((await request.formData()).get('user_id') ?? '').trim();
     if (!userId) return fail(400, { error: 'user_id required' });
     if (isDemo()) return { action: { ok: true, notice: 'token cleared (demo)' } };
     try {
       await tokenClear(userId);
+      audit(admin, 'clear_token', userId, '', true);
       return { action: { ok: true, notice: 'token cleared' } };
     } catch (e) {
+      audit(admin, 'clear_token', userId, '', false, (e as Error).message);
       return { action: { ok: false, notice: (e as Error).message } };
     }
   },
 
   setActive: async ({ request, locals }) => {
-    if (!allowed(locals.session)) return fail(403, { error: 'forbidden' });
+    const admin = await requireAdmin(locals.session);
+    if (!admin) return fail(403, { error: 'forbidden' });
     const f = await request.formData();
     const userId = String(f.get('user_id') ?? '').trim();
     const active = String(f.get('active') ?? '').trim() === 'true';
@@ -114,34 +142,42 @@ export const actions: Actions = {
     if (isDemo()) return { action: { ok: true, notice: 'active set (demo)' } };
     try {
       const user: AdminUserWire = await userSetActive(userId, active);
+      audit(admin, 'set_active', userId, String(active), true);
       return { action: { ok: true, notice: `active=${user.is_active}` }, lookup: { user } };
     } catch (e) {
+      audit(admin, 'set_active', userId, String(active), false, (e as Error).message);
       return { action: { ok: false, notice: (e as Error).message } };
     }
   },
 
   restart: async ({ request, locals }) => {
-    if (!allowed(locals.session)) return fail(403, { error: 'forbidden' });
+    const admin = await requireAdmin(locals.session);
+    if (!admin) return fail(403, { error: 'forbidden' });
     const userId = String((await request.formData()).get('user_id') ?? '').trim();
     if (!userId) return fail(400, { error: 'user_id required' });
     if (isDemo()) return { action: { ok: true, notice: 'bot restarted (demo only, no real subs dropped)' } };
     try {
       await restartUserEventSub(userId);
+      audit(admin, 'restart', userId, '', true);
       return { action: { ok: true, notice: 'bot restarted (subs dropped + recreated)' } };
     } catch (e) {
+      audit(admin, 'restart', userId, '', false, (e as Error).message);
       return { action: { ok: false, notice: (e as Error).message } };
     }
   },
 
   delete: async ({ request, locals }) => {
-    if (!allowed(locals.session)) return fail(403, { error: 'forbidden' });
+    const admin = await requireAdmin(locals.session);
+    if (!admin) return fail(403, { error: 'forbidden' });
     const userId = String((await request.formData()).get('user_id') ?? '').trim();
     if (!userId) return fail(400, { error: 'user_id required' });
     if (isDemo()) return { action: { ok: true, notice: 'user deleted (demo only, no real data removed)' } };
     try {
       await userDelete(userId);
+      audit(admin, 'delete', userId, '', true);
       return { action: { ok: true, notice: 'user deleted' } };
     } catch (e) {
+      audit(admin, 'delete', userId, '', false, (e as Error).message);
       return { action: { ok: false, notice: (e as Error).message } };
     }
   }

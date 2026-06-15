@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"syscall"
 
 	"ItsBagelBot/app/users/ent"
@@ -129,6 +131,23 @@ func main() {
 		log.Fatal("failed to subscribe admin rpc", zap.Error(err))
 	}
 
+	// Admin authorization + audit. Seed the bootstrap owners/admins so a fresh
+	// DB is never locked out, then serve the auth.check / auth.* / audit.*
+	// surface the console uses in place of the old static env allowlist. The
+	// owner default is itsmavey's Twitch id; override via OWNER_BOOTSTRAP_IDS.
+	owners := parseIDs(env.Get("OWNER_BOOTSTRAP_IDS", "804932984"))
+	admins := parseIDs(env.Get("ADMIN_BOOTSTRAP_IDS", ""))
+	if len(owners) > 0 || len(admins) > 0 {
+		if err := rpc.SeedStaff(ctx, client, owners, admins, log); err != nil {
+			log.Fatal("failed to seed bootstrap staff", zap.Error(err))
+		}
+	}
+	authPrefix := env.Get("NATS_ADMIN_AUTH_SUBJECT_PREFIX", "bagel.rpc.admin.auth")
+	auditPrefix := env.Get("NATS_ADMIN_AUDIT_SUBJECT_PREFIX", "bagel.rpc.admin.audit")
+	if err := rpc.SubscribeAdminAuth(nc, client, authPrefix, auditPrefix, queueGroup, log); err != nil {
+		log.Fatal("failed to subscribe admin auth rpc", zap.Error(err))
+	}
+
 	projectionSubject := env.Get("NATS_INTERNAL_PROJECTION_USERS_SUBJECT", "bagel.rpc.internal.projection.users.get")
 	if err := rpc.SubscribeProjection(nc, repo, projectionSubject, queueGroup, log); err != nil {
 		log.Fatal("failed to subscribe projection rpc", zap.Error(err))
@@ -149,4 +168,20 @@ func main() {
 	<-ctx.Done()
 
 	log.Info("users service shutting down")
+}
+
+// parseIDs splits a comma-separated list of Twitch ids, dropping blanks and
+// non-numeric entries (defensive against a malformed ADMIN_BOOTSTRAP_IDS).
+func parseIDs(csv string) []uint64 {
+	var out []uint64
+	for _, part := range strings.Split(csv, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		if id, err := strconv.ParseUint(part, 10, 64); err == nil {
+			out = append(out, id)
+		}
+	}
+	return out
 }
