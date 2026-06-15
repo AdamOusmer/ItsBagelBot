@@ -2,7 +2,8 @@
 # Node (adapter-node output). Native per-node build (ARM/Intel); no emulation.
 FROM docker.io/oven/bun:1.3.10 AS build
 WORKDIR /src
-COPY package.json bun.lock ./
+# bunfig.toml MUST be present so the hoisted linker applies (flat node_modules).
+COPY package.json bun.lock bunfig.toml ./
 COPY shared/package.json shared/package.json
 COPY dashboard/package.json dashboard/package.json
 COPY admin/package.json admin/package.json
@@ -18,4 +19,5 @@ ENV PORT=3000
 COPY --from=build /src/admin/build ./build
 COPY --from=build /src/node_modules ./node_modules
 EXPOSE 3000
-CMD ["build/index.js"]
+# Preload the New Relic APM agent (ESM --import) before the SvelteKit server.
+CMD ["--import", "newrelic", "build/index.js"]
