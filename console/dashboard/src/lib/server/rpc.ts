@@ -1,7 +1,7 @@
 // Dashboard-facing RPC wrappers over the shared NATS client. Subjects come from
 // env with the same defaults as the retired Go dashboard tier.
 import { rpc, publish } from '@bagel/shared/server/nats';
-import type { CommandView, Tier } from '@bagel/shared';
+import type { CommandView, Perm, Tier } from '@bagel/shared';
 import { env } from '$env/dynamic/private';
 
 const SUB = {
@@ -27,30 +27,38 @@ export async function tier(broadcasterId: string): Promise<Tier> {
   return r.tier ?? 'standard';
 }
 
+// Dashboard reads are cached primary-key lookups, so they return in low ms when
+// healthy. Cap them at 2s (like tier()) so a slow or missing responder degrades
+// the page fast instead of hanging SSR to the 5s default and tripping a gateway 500.
+const READ_TIMEOUT_MS = 2000;
+
 export async function hasGrant(userId: string): Promise<boolean> {
-  const r = await rpc<{ has_grant: boolean }>(`${SUB.dashboard}.grant_has`, {
-    broadcaster_user_id: userId
-  });
+  const r = await rpc<{ has_grant: boolean }>(
+    `${SUB.dashboard}.grant_has`,
+    { broadcaster_user_id: userId },
+    READ_TIMEOUT_MS
+  );
   return !!r.has_grant;
 }
 
 export type AccountStatus = 'free' | 'paid' | 'vip';
+export type AccountState = { active: boolean; status: AccountStatus };
 
-// The broadcaster's billing tier (free/paid/vip) from the users service via the
-// dashboard-scoped status_get RPC.
-export async function accountStatus(userId: string): Promise<AccountStatus> {
-  const r = await rpc<{ status: string }>(`${SUB.dashboard}.status_get`, {
-    broadcaster_user_id: userId
-  });
-  const s = (r.status ?? 'free').toLowerCase();
+function normalizeStatus(raw: string | undefined): AccountStatus {
+  const s = (raw ?? 'free').toLowerCase();
   return s === 'paid' || s === 'vip' ? (s as AccountStatus) : 'free';
 }
 
-export async function isActive(userId: string): Promise<boolean> {
-  const r = await rpc<{ active: boolean }>(`${SUB.dashboard}.active_get`, {
-    broadcaster_user_id: userId
-  });
-  return !!r.active;
+// Receive toggle and billing tier (free/paid/vip) in one round trip. The users
+// service loads a single cached user view to answer both, so the page render
+// asks once via state_get instead of separate active_get + status_get calls.
+export async function accountState(userId: string): Promise<AccountState> {
+  const r = await rpc<{ active: boolean; status: string }>(
+    `${SUB.dashboard}.state_get`,
+    { broadcaster_user_id: userId },
+    READ_TIMEOUT_MS
+  );
+  return { active: !!r.active, status: normalizeStatus(r.status) };
 }
 
 export async function setActive(userId: string, active: boolean): Promise<void> {
@@ -62,25 +70,38 @@ export async function listCommands(userId: string): Promise<CommandView[]> {
   return r.commands ?? [];
 }
 
-export async function upsertCommand(
-  userId: string,
-  name: string,
-  response: string,
-  isActive: boolean
-): Promise<CommandView[]> {
-  const r = await rpc<{ commands: CommandView[] }>(`${SUB.commands}.upsert`, {
-    user_id: userId,
-    name,
-    response,
-    is_active: isActive
-  });
-  return r.commands ?? [];
+export interface CommandInput {
+  name: string;
+  response: string;
+  isActive: boolean;
+  perm: Perm;
+  cooldown: number;
+  allowedUserId: string;
 }
 
-export async function deleteCommand(userId: string, name: string): Promise<CommandView[]> {
-  const r = await rpc<{ commands: CommandView[] }>(`${SUB.commands}.delete`, {
+export async function upsertCommand(
+  userId: string,
+  cmd: CommandInput
+): Promise<{ commands: CommandView[]; error?: string }> {
+  const r = await rpc<{ commands: CommandView[]; error?: string }>(`${SUB.commands}.upsert`, {
+    user_id: userId,
+    name: cmd.name,
+    response: cmd.response,
+    is_active: cmd.isActive,
+    perm: cmd.perm,
+    cooldown: cmd.cooldown,
+    allowed_user_id: cmd.allowedUserId
+  });
+  return { commands: r.commands ?? [], error: r.error };
+}
+
+export async function deleteCommand(
+  userId: string,
+  name: string
+): Promise<{ commands: CommandView[]; error?: string }> {
+  const r = await rpc<{ commands: CommandView[]; error?: string }>(`${SUB.commands}.delete`, {
     user_id: userId,
     name
   });
-  return r.commands ?? [];
+  return { commands: r.commands ?? [], error: r.error };
 }

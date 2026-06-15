@@ -41,10 +41,13 @@ func SubscribeDashboard(nc *nats.Conn, repo *repository.Commands, prefix, queueG
 
 // dashboardRequest covers all three verbs; unused fields are zero-valued.
 type dashboardRequest struct {
-	UserID   string `json:"user_id"`
-	Name     string `json:"name"`
-	Response string `json:"response"`
-	IsActive bool   `json:"is_active"`
+	UserID        string `json:"user_id"`
+	Name          string `json:"name"`
+	Response      string `json:"response"`
+	IsActive      bool   `json:"is_active"`
+	Perm          string `json:"perm"`
+	Cooldown      uint   `json:"cooldown"`
+	AllowedUserID string `json:"allowed_user_id"`
 }
 
 type dashboardReply struct {
@@ -94,7 +97,18 @@ func (d *dashboardRPC) handleUpsert(msg *nats.Msg) {
 		return
 	}
 
-	if err := d.repo.Upsert(id, req.Name, req.Response, req.IsActive); err != nil {
+	// allowed_user_id is optional; empty/"0" means no per-user restriction.
+	var allowedUserID uint64
+	if req.AllowedUserID != "" {
+		parsed, err := strconv.ParseUint(req.AllowedUserID, 10, 64)
+		if err != nil {
+			respondDash(msg, dashboardReply{Error: "invalid allowed_user_id"})
+			return
+		}
+		allowedUserID = parsed
+	}
+
+	if err := d.repo.Upsert(id, req.Name, req.Response, req.IsActive, req.Perm, req.Cooldown, allowedUserID); err != nil {
 		// Validation error: return it alongside the current (unmodified) list.
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
@@ -114,7 +128,14 @@ func (d *dashboardRPC) handleUpsert(msg *nats.Msg) {
 	}
 
 	// Merge the just-upserted command: replace existing entry or append.
-	upserted := repository.CommandView{Name: req.Name, Response: req.Response, IsActive: req.IsActive}
+	upserted := repository.CommandView{
+		Name:          req.Name,
+		Response:      req.Response,
+		IsActive:      req.IsActive,
+		Perm:          req.Perm,
+		Cooldown:      req.Cooldown,
+		AllowedUserID: req.AllowedUserID,
+	}
 	merged := false
 	for i, v := range views {
 		if v.Name == req.Name {
