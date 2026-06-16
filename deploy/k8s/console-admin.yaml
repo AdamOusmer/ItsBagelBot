@@ -103,9 +103,9 @@ spec:
             # DB-backed staff auth + audit (users service). Defaults match the
             # service; pinned here for clarity.
             - name: NATS_ADMIN_AUTH_SUBJECT_PREFIX
-              value: bagel.rpc.admin.auth
+              value: bagel.rpc.admin.user.auth
             - name: NATS_ADMIN_AUDIT_SUBJECT_PREFIX
-              value: bagel.rpc.admin.audit
+              value: bagel.rpc.admin.user.audit
             # Twitch OAuth callback for operator sign-in (admin host).
             - name: TWITCH_REDIRECT_URI
               value: https://admin.tail451e6d.ts.net/auth/callback
