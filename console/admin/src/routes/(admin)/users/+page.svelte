@@ -1,6 +1,5 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
-  import { invalidateAll } from '$app/navigation';
   import { Icon, StatTile, Button } from '@bagel/shared';
   import type { AdminUserWire } from '$lib/server/rpc';
   let { data, form } = $props();
@@ -15,21 +14,49 @@
     return status === 'paid' || status === 'vip' ? 'premium' : 'standard';
   }
 
-  // Re-fetch load data after every mutation so badges/list update immediately.
+  // Apply the result without invalidateAll: mutations reply with the updated
+  // user (authoritative), so we reconcile that one row locally instead of
+  // re-running load. The old update()+invalidateAll both stalled the response
+  // and, under concurrent submits, raced a full refetch against the writes.
   function refresh() {
-    return async ({ update }: { update: () => Promise<void> }) => {
-      await update();
-      await invalidateAll();
+    return async ({ update }: { update: (opts?: { invalidateAll?: boolean }) => Promise<void> }) => {
+      await update({ invalidateAll: false });
     };
+  }
+
+  // Local copy of the recent list, seeded from SSR. Reconciled per row from the
+  // freshest user the server returns, so badges/state update without a refetch.
+  // svelte-ignore state_referenced_locally
+  let recent = $state<AdminUserWire[]>(data.recent);
+  // svelte-ignore state_referenced_locally
+  let seed = data.recent;
+  $effect(() => {
+    if (data.recent !== seed) {
+      seed = data.recent;
+      recent = data.recent;
+    }
+  });
+
+  function upsertRecent(u: AdminUserWire) {
+    const i = recent.findIndex((r) => String(r.id) === String(u.id));
+    if (i >= 0) recent[i] = u;
+    // Not in the recent window: leave the list as-is (lookup may hit any user).
+  }
+
+  function removeRecent(id: number | string) {
+    recent = recent.filter((r) => String(r.id) !== String(id));
   }
 
   // --- Selected user (drawer) state -----------------------------------
   let selected = $state<AdminUserWire | null>(null);
 
-  // When a lookup or a mutation returns a user, sync it into the drawer so
-  // the displayed state always reflects the freshest server truth.
+  // When a lookup or a mutation returns a user, sync it into the drawer and the
+  // recent row so the displayed state always reflects the freshest server truth.
   $effect(() => {
-    if (found) selected = found;
+    if (found) {
+      selected = found;
+      upsertRecent(found);
+    }
   });
 
   // The user shown in the drawer. Prefer the form-returned user when its id
@@ -82,7 +109,7 @@
   // --- Recent table filter --------------------------------------------
   let filter = $state('');
   const rows = $derived(
-    data.recent.filter((u: AdminUserWire) => {
+    recent.filter((u: AdminUserWire) => {
       const q = filter.trim().toLowerCase();
       return !q || u.username.toLowerCase().includes(q) || String(u.id).includes(q);
     })
@@ -280,7 +307,16 @@
       <form
         method="POST"
         action="?/delete"
-        use:enhance={refresh}
+        use:enhance={() => async ({ formData, result, update }) => {
+          await update({ invalidateAll: false });
+          const ok = (result.type === 'success' &&
+            (result.data as { action?: { ok?: boolean } } | undefined)?.action?.ok) === true;
+          if (ok) {
+            const id = String(formData.get('user_id') ?? '');
+            removeRecent(id);
+            if (selected && String(selected.id) === id) closeDrawer();
+          }
+        }}
         bind:this={deleteFormEl}
         style="display:none"
       >
