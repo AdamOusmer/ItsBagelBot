@@ -66,7 +66,7 @@ Shared reply shape:
 | Verb | Request | Notes |
 |---|---|---|
 | `list` | `{user_id}` | returns the current command set |
-| `upsert` | `{user_id, name, response, is_active}` | write-behind (~2s); reply is an **optimistic** merged list. A validation error returns the error alongside the unmodified list |
+| `upsert` | `{user_id, name, response, is_active, original_name?}` | write-behind (~2s); reply is an **optimistic** merged list. A validation error returns the error alongside the unmodified list. When `original_name` is set and differs from `name`, the row is **renamed in place** (name field updated, row identity kept) — immediate, not write-behind — instead of delete+recreate |
 | `delete` | `{user_id, name}` | immediate; invalidates cache, so the returned list is fresh |
 
 ## Admin users — `bagel.rpc.admin.user.*`

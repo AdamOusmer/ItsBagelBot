@@ -3,29 +3,31 @@ import { hasGrant, accountState, setActive, publishEventSub, type AccountStatus 
 import { env } from '$env/dynamic/private';
 import { fail } from '@sveltejs/kit';
 
-export const load: PageServerLoad = async ({ locals }) => {
+export type ConnState = { enabled: boolean; receiving: boolean; status: AccountStatus };
+
+// Resolve the bot connection state in one round trip (grant presence + the
+// coalesced active/tier state_get). allSettled keeps a slow or down responder
+// from failing the whole render; receiving stays gated on the grant.
+async function connState(uid: string): Promise<ConnState> {
+  const [grant, state] = await Promise.allSettled([hasGrant(uid), accountState(uid)]);
+  const enabled = grant.status === 'fulfilled' && grant.value;
+  const receiving = enabled && state.status === 'fulfilled' && state.value.active;
+  const status: AccountStatus = state.status === 'fulfilled' ? state.value.status : 'free';
+  return { enabled, receiving, status };
+}
+
+export const load: PageServerLoad = ({ locals }) => {
   const uid = locals.session?.user_id ?? 'demo';
 
-  let enabled = false;
-  let receiving = false;
-  let status: AccountStatus = 'free';
+  // Return the RPC as an unawaited promise so SvelteKit streams it: the page
+  // shell flushes immediately and the connection state hydrates when the round
+  // trip lands, instead of blocking SSR (and the post-login redirect) on NATS.
+  const conn: Promise<ConnState> =
+    env.DEMO === '1'
+      ? Promise.resolve({ enabled: true, receiving: true, status: 'vip' })
+      : connState(uid);
 
-  if (env.DEMO === '1') {
-    enabled = true;
-    receiving = true;
-    status = 'vip';
-  } else {
-    // Two independent reads (grant presence, plus active+tier coalesced into one
-    // state_get): fire them together so SSR waits one round trip, not three.
-    // allSettled keeps the page rendering even if one responder is slow or down.
-    // receiving stays gated on the grant being present.
-    const [grant, state] = await Promise.allSettled([hasGrant(uid), accountState(uid)]);
-    enabled = grant.status === 'fulfilled' && grant.value;
-    receiving = enabled && state.status === 'fulfilled' && state.value.active;
-    status = state.status === 'fulfilled' ? state.value.status : 'free';
-  }
-
-  return { enabled, receiving, status };
+  return { conn };
 };
 
 export const actions: Actions = {
