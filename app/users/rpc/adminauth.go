@@ -87,7 +87,9 @@ type adminAuthRPC struct {
 }
 
 // SubscribeAdminAuth wires the auth.* and audit.* verbs. authPrefix defaults to
-// "bagel.rpc.admin.auth", auditPrefix to "bagel.rpc.admin.audit".
+// "bagel.rpc.admin.user.auth", auditPrefix to "bagel.rpc.admin.user.audit" so
+// they ride the console admin user's existing "bagel.rpc.admin.user.>" NATS
+// publish permission (no broker ACL change needed).
 func SubscribeAdminAuth(nc *nats.Conn, db *ent.Client, authPrefix, auditPrefix, queueGroup string, log *zap.Logger) error {
 	a := &adminAuthRPC{db: db, log: log}
 

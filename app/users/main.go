@@ -150,8 +150,8 @@ func main() {
 			log.Fatal("failed to seed bootstrap staff", zap.Error(err))
 		}
 	}
-	authPrefix := env.Get("NATS_ADMIN_AUTH_SUBJECT_PREFIX", "bagel.rpc.admin.auth")
-	auditPrefix := env.Get("NATS_ADMIN_AUDIT_SUBJECT_PREFIX", "bagel.rpc.admin.audit")
+	authPrefix := env.Get("NATS_ADMIN_AUTH_SUBJECT_PREFIX", "bagel.rpc.admin.user.auth")
+	auditPrefix := env.Get("NATS_ADMIN_AUDIT_SUBJECT_PREFIX", "bagel.rpc.admin.user.audit")
 	if err := rpc.SubscribeAdminAuth(nc, client, authPrefix, auditPrefix, queueGroup, log); err != nil {
 		log.Fatal("failed to subscribe admin auth rpc", zap.Error(err))
 	}
