@@ -1,6 +1,5 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
-  import { invalidateAll } from '$app/navigation';
   import { Icon, Button } from '@bagel/shared';
 
   type AdminRole = 'moderator' | 'admin' | 'owner';
@@ -18,11 +17,17 @@
 
   const action = $derived(form?.action as { ok: boolean; notice: string } | undefined);
 
-  // Re-fetch load data after every mutation so the roster updates immediately.
+  // staffUpsert/staffRemove reply with the authoritative roster, so the action
+  // result carries the fresh list. Prefer it over the loaded data and skip the
+  // post-mutation invalidateAll refetch — that refetch both stalled the
+  // response and, under concurrent submits, raced the load against the write.
+  const roster = $derived((form?.staff as AdminAcct[] | undefined) ?? (data.staff as AdminAcct[]));
+
+  // Apply the result without invalidateAll: update() refreshes `form` (notice +
+  // roster) but does not re-run load.
   function refresh() {
-    return async ({ update }: { update: () => Promise<void> }) => {
-      await update();
-      await invalidateAll();
+    return async ({ update }: { update: (opts?: { invalidateAll?: boolean }) => Promise<void> }) => {
+      await update({ invalidateAll: false });
     };
   }
 
@@ -49,7 +54,7 @@
   // --- Roster filter --------------------------------------------------
   let filter = $state('');
   const rows = $derived(
-    (data.staff as AdminAcct[]).filter((s) => {
+    roster.filter((s) => {
       const q = filter.trim().toLowerCase();
       return !q || s.login.toLowerCase().includes(q) || String(s.id).includes(q);
     })
