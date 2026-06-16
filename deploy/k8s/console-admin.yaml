@@ -7,8 +7,8 @@
 #   Unlike the old Go admin (which pinned ClientIP because its CSRF token lived
 #   in pod memory), this app is stateless: encrypted-cookie session + SvelteKit
 #   origin-checked CSRF. So sessionAffinity is dropped and any pod serves any
-#   request. Access is gated by the tailnet policy AND an in-app allowlist
-#   (ADMIN_USER_IDS) on top of the shared encrypted session.
+#   request. Access is gated by the tailnet policy AND the DB-backed staff
+#   allowlist (auth.check) on top of the admin's own isolated encrypted session.
 #
 # Region spread: replicas spread across the 3 cities (see console-dashboard.yaml
 # for the required node region/zone labels); the operator proxy prefers the
@@ -109,9 +109,10 @@ spec:
             # Twitch OAuth callback for operator sign-in (admin host).
             - name: TWITCH_REDIRECT_URI
               value: https://admin.tail451e6d.ts.net/auth/callback
-          # Secrets from Doppler (console-admin-env):
-          #   SESSION_KEY            — 32-byte base64, shared with the dashboard
-          #                            tier so one sign-in seals a valid session.
+          # Secrets from Doppler (admin/prd -> console-admin-env). Isolated from
+          # other tiers; nothing is shared:
+          #   SESSION_KEY            — 32-byte base64, admin-only (own Doppler
+          #                            config). Seals/opens the admin session.
           #   TWITCH_CLIENT_ID       — Twitch app client id.
           #   TWITCH_CLIENT_SECRET   — Twitch app client secret.
           # The Twitch app MUST register the redirect URI above. Staff identity
