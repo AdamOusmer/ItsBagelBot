@@ -846,6 +846,12 @@
         let curP = 0;
         let snapTimer = 0;
         let isSnapping = false;
+        // Trackpad escape guard: accumulate sustained one-direction wheel input
+        // so a deliberate scroll away from a node can suppress the snap-back
+        // (otherwise a trackpad's gentle deltas get damped below escape velocity
+        // and the magnet re-snaps, locking the user at the node).
+        let escapeDir = 0;
+        let escapeAccum = 0;
 
         function scrollMetrics() {
             const heroOffset = window.innerHeight;
@@ -896,6 +902,8 @@
 
         function finishSnap() {
             isSnapping = false;
+            escapeDir = 0;
+            escapeAccum = 0;
             rawP = progressFromScroll(currentScrollY());
         }
 
@@ -906,6 +914,15 @@
             const progress = progressFromScroll(scroll);
             const snapProgress = nearestSnapPoint(progress);
             if (snapProgress === null) return;
+
+            // If the user is deliberately scrolling away from this node (same
+            // direction, past the magnet zone's worth of input), don't yank them
+            // back. Lets a trackpad pass through instead of getting trapped.
+            const {total: escTotal} = scrollMetrics();
+            const movedPast = Math.sign(progress - snapProgress);
+            if (escapeDir !== 0 && movedPast === escapeDir && escapeAccum > escTotal * SNAP_PROXIMITY) {
+                return;
+            }
 
             if (!isScrollSettled() && attempt < SNAP_SETTLE_ATTEMPTS) {
                 snapTimer = window.setTimeout(() => runSnap(attempt + 1), SNAP_SETTLE_DELAY_MS);
@@ -947,6 +964,11 @@
 
         function onWheel(event: WheelEvent) {
             if (event.ctrlKey) return;
+            const dir = Math.sign(event.deltaY);
+            if (dir !== 0) {
+                if (dir === escapeDir) escapeAccum += Math.abs(event.deltaY);
+                else { escapeDir = dir; escapeAccum = Math.abs(event.deltaY); }
+            }
             queueSnap();
         }
 
