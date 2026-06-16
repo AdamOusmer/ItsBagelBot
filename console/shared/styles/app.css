@@ -33,6 +33,20 @@
 }
 
 html, body { margin: 0; padding: 0; height: 100%; }
+/* Clip horizontal overflow on the root, NOT body: `overflow-x: hidden` on body
+ * computes to `overflow: hidden auto`, which turns body into its own scroll
+ * container and steals scrolling from the window that lenis drives. */
+html { overflow-x: hidden; }
+
+/* ── lenis smooth-scroll (see initLenis) ──
+ * Lenis drives window scroll, so the body must grow with content. The
+ * `height: 100%` above clamps it to the viewport and clips anything below
+ * the fold; release it once lenis attaches its classes to <html>. */
+html.lenis, html.lenis body { height: auto; }
+.lenis.lenis-smooth { scroll-behavior: auto !important; }
+.lenis.lenis-smooth [data-lenis-prevent] { overscroll-behavior: contain; }
+.lenis.lenis-stopped { overflow: hidden; }
+.lenis.lenis-smooth iframe { pointer-events: none; }
 button { appearance: none; -webkit-appearance: none; background: none; border: none; font: inherit; color: inherit; }
 body {
   background: var(--bb-bg-0);
@@ -41,7 +55,6 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   min-height: 100vh;
-  overflow-x: hidden;
 }
 
 /* ── ambient background: blurred brand orb + grain ── */
