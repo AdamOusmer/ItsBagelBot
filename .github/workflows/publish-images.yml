@@ -334,6 +334,7 @@ jobs:
           buildah bud \
             --platform "$PLATFORM" \
             --format oci \
+            --build-arg "BUILD_VERSION=${GITHUB_SHA::12}" \
             --label "org.opencontainers.image.title=ItsBagelBot ${{ matrix.image }}" \
             --label "org.opencontainers.image.description=${DESCRIPTION}" \
             --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
