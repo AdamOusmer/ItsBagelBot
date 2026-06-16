@@ -69,9 +69,11 @@ export const actions: Actions = {
 
     if (isDemo()) return { action: { ok: true, notice: `${login} → ${role} (demo)` } };
     try {
-      await staffUpsert({ id: admin.id, role: admin.role }, { userId, login, displayName, role });
+      const staff = await staffUpsert({ id: admin.id, role: admin.role }, { userId, login, displayName, role });
       audit(admin, 'staff_upsert', userId, `${login}:${role}`, true);
-      return { action: { ok: true, notice: `${login} set to ${role}` } };
+      // Return the authoritative roster so the client reconciles in place
+      // without a follow-up invalidateAll refetch.
+      return { action: { ok: true, notice: `${login} set to ${role}` }, staff };
     } catch (e) {
       audit(admin, 'staff_upsert', userId, `${login}:${role}`, false, (e as Error).message);
       return { action: { ok: false, notice: (e as Error).message } };
@@ -91,9 +93,9 @@ export const actions: Actions = {
 
     if (isDemo()) return { action: { ok: true, notice: 'staff removed (demo)' } };
     try {
-      await staffRemove({ id: admin.id, role: admin.role }, userId);
+      const staff = await staffRemove({ id: admin.id, role: admin.role }, userId);
       audit(admin, 'staff_remove', userId, targetRole, true);
-      return { action: { ok: true, notice: 'staff member removed' } };
+      return { action: { ok: true, notice: 'staff member removed' }, staff };
     } catch (e) {
       audit(admin, 'staff_remove', userId, targetRole, false, (e as Error).message);
       return { action: { ok: false, notice: (e as Error).message } };

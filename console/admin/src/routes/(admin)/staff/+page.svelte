@@ -1,6 +1,5 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
-  import { invalidateAll } from '$app/navigation';
   import { Icon, Button } from '@bagel/shared';
 
   type AdminRole = 'moderator' | 'admin' | 'owner';
@@ -30,9 +29,8 @@
   const action = $derived(form?.action as { ok: boolean; notice: string } | undefined);
 
   function refresh() {
-    return async ({ update }: { update: () => Promise<void> }) => {
-      await update();
-      await invalidateAll();
+    return async ({ update }: { update: (opts?: { invalidateAll?: boolean }) => Promise<void> }) => {
+      await update({ invalidateAll: false });
     };
   }
 
@@ -71,7 +69,7 @@
   // --- Roster filter --------------------------------------------------
   let filter = $state('');
   const rows = $derived(
-    (data.staff as AdminAcct[]).filter((s) => {
+    roster.filter((s) => {
       const q = filter.trim().toLowerCase();
       return !q || s.login.toLowerCase().includes(q) || String(s.id).includes(q);
     })

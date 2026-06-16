@@ -21,20 +21,14 @@ export const load: PageServerLoad = async () => {
   if (isDemo()) {
     return { recent: sampleUsers, stats: sampleStats, degraded: false };
   }
-  let recent = sampleUsers;
-  let stats = sampleStats;
-  let degraded = false;
-  try {
-    recent = await userList(20);
-  } catch {
-    degraded = true;
-  }
-  try {
-    stats = await userStats();
-  } catch {
-    degraded = true;
-  }
-  return { recent, stats, degraded };
+  // Two independent reads: fire together so the page waits one round trip, not
+  // two serial ones. allSettled keeps the page rendering if either is down.
+  const [list, stats] = await Promise.allSettled([userList(20), userStats()]);
+  return {
+    recent: list.status === 'fulfilled' ? list.value : sampleUsers,
+    stats: stats.status === 'fulfilled' ? stats.value : sampleStats,
+    degraded: list.status === 'rejected' || stats.status === 'rejected'
+  };
 };
 
 // Status values the users service accepts (raw DB enum).
