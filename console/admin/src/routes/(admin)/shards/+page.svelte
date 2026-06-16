@@ -1,22 +1,60 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
+  import { onMount } from 'svelte';
   import { Icon } from '@bagel/shared';
   import type { ActionData } from './$types';
 
   let { data, form }: { data: any; form: ActionData } = $props();
 
   // Live snapshot override: null means "use data.snapshot from load()".
-  // applyActionSnapshot sets this so we reflect the action result without a
-  // full reload; when the user navigates away and back, data.snapshot wins again.
+  // The page polls /shards/snapshot so shard state (connecting -> connected) and
+  // scale/delete results show in near-real-time without a manual refresh.
   let snapOverride = $state<typeof data.snapshot | null>(null);
   const snap = $derived(snapOverride ?? data.snapshot);
+  let live = $state(false);
 
-  // Reflect the snapshot returned by a successful action.
+  // Reflect the snapshot returned by a successful action, then poll faster for a
+  // short window so spin-up / teardown transitions land quickly.
+  let fastUntil = 0;
   function applyActionSnapshot(result: ActionData) {
     if (result && 'snapshot' in result && result.snapshot) {
       snapOverride = result.snapshot;
     }
+    fastUntil = Date.now() + 30_000;
   }
+
+  async function pollSnapshot() {
+    if (typeof document !== 'undefined' && document.hidden) return;
+    try {
+      const res = await fetch('/shards/snapshot');
+      if (!res.ok) return;
+      const body = (await res.json()) as { snapshot?: typeof data.snapshot };
+      if (body.snapshot) {
+        snapOverride = body.snapshot;
+        live = true;
+      }
+    } catch {
+      /* transient; keep last good snapshot */
+    }
+  }
+
+  onMount(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    // Self-scheduling loop: 2s while a recent action is settling, else 4s.
+    const tick = async () => {
+      await pollSnapshot();
+      timer = setTimeout(tick, Date.now() < fastUntil ? 2000 : 4000);
+    };
+    timer = setTimeout(tick, 2000);
+    const onVis = () => {
+      if (!document.hidden) pollSnapshot();
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  });
 
   const cm = $derived(snap.conduit_manager);
 
@@ -60,7 +98,7 @@
 
 <section class="screen active">
   <div class="page-head">
-    <span class="eyebrow">Twitch ingress</span>
+    <span class="eyebrow">Twitch ingress {#if live}<span class="live-chip"><span class="live-dot"></span> live</span>{/if}</span>
     <h1>Shard <em>health</em></h1>
     <p>
       {snap.shards.filter((s: any) => s.state === 'connected').length}/{snap.shard_count || snap.shards.length}
@@ -231,6 +269,18 @@
 </section>
 
 <style>
+  /* live auto-refresh chip in the eyebrow */
+  .live-chip {
+    display: inline-flex; align-items: center; gap: 5px; margin-left: 8px;
+    color: var(--bb-green-glow); letter-spacing: 0.08em;
+  }
+  .live-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--bb-green-glow); box-shadow: 0 0 8px var(--bb-green-glow);
+    animation: live-pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes live-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
   /* conduit row: side by side icon + detail */
   .conduit-row {
     display: flex;
