@@ -1,0 +1,84 @@
+// Tailnet policy for the ItsBagelBot fleet (final / lockdown form).
+//
+// This is the policy-as-code source of truth: paste into the Tailscale
+// admin console (Access controls) or apply via the API. HuJSON: comments
+// and trailing commas are allowed.
+//
+// Topology this encodes:
+//   tag:Macbook       operator devices (the Mac)
+//   tag:itsbagelbot   k3s nodes: node1 (ARM/OCI), node2 (Intel/DO)
+//   tag:witness       witness1, the Valkey Sentinel quorum witness
+//   tag:k8s-operator  the Tailscale Kubernetes operator (in-cluster)
+//   tag:k8s           operator-managed proxies (ingress ProxyGroup pods)
+//
+// Posture: bare metal accepts ONLY SSH from operator devices. Everything
+// k3s-hosted is reached through the Tailscale operator instead:
+//   - admin UI:    https://admin.tail451e6d.ts.net   (svc:admin, HA ProxyGroup)
+//   - kubectl:     tailscale configure kubeconfig k8s-operator (API server proxy)
+// Break-glass if the operator is down: SSH to node1, `sudo k3s kubectl`.
+{
+	"tagOwners": {
+		"tag:Macbook":      ["autogroup:admin"],
+		"tag:itsbagelbot":  ["autogroup:admin"],
+		"tag:witness":      ["autogroup:admin"],
+		"tag:k8s-operator": ["autogroup:admin"],
+		"tag:k8s":          ["tag:k8s-operator"],
+	},
+
+	"grants": [
+		// k3s node-to-node: API server, kubelet, CNI overlay all ride the
+		// tailnet (flannel over tailscale0). Nodes trust each other fully.
+		{"src": ["tag:itsbagelbot"], "dst": ["tag:itsbagelbot"], "ip": ["*"]},
+
+		// Valkey Sentinel quorum. The witness monitors the master and
+		// gossips with the in-cluster sentinels (hostPorts on the nodes);
+		// the cluster scrapes the witness's node/sentinel exporters.
+		{"src": ["tag:witness"], "dst": ["tag:itsbagelbot"], "ip": ["tcp:6379", "tcp:26379"]},
+		{"src": ["tag:itsbagelbot"], "dst": ["tag:witness"], "ip": ["tcp:26379", "tcp:9100", "tcp:9121"]},
+
+		// Operator -> bare metal: SSH and nothing else.
+		{"src": ["tag:Macbook"], "dst": ["tag:itsbagelbot", "tag:witness"], "ip": ["tcp:22"]},
+
+		// Operator -> OCI VCN subnet, via the subnet router (relay) on node1.
+		{"src": ["tag:Macbook"], "dst": ["10.0.0.0/16"], "ip": ["*"]},
+
+		// Operator -> admin UI, as a Tailscale Service advertised by the
+		// ingress ProxyGroup (HA across both nodes).
+		{"src": ["tag:Macbook"], "dst": ["svc:admin"], "ip": ["tcp:443"]},
+		// Fallback: direct to the proxy devices (covers non-ProxyGroup
+		// tailscale Ingresses too).
+		{"src": ["tag:Macbook"], "dst": ["tag:k8s"], "ip": ["tcp:443"]},
+
+		// Operator -> Kubernetes API, through the operator's API server
+		// proxy: network reach plus the impersonation capability.
+		{"src": ["tag:Macbook"], "dst": ["tag:k8s-operator"], "ip": ["tcp:443"]},
+		{
+			"src": ["tag:Macbook"],
+			"dst": ["tag:k8s-operator"],
+			"app": {
+				"tailscale.com/cap/kubernetes": [
+					{"impersonate": {"groups": ["system:masters"]}},
+				],
+			},
+		},
+	],
+
+	// Tailscale SSH: operator identity, not just network position. Plain
+	// sshd over the tailnet keeps working via the tcp:22 grant above.
+	"ssh": [
+		{
+			"action": "accept",
+			"src":    ["tag:Macbook"],
+			"dst":    ["tag:itsbagelbot", "tag:witness"],
+			"users":  ["opc", "ubt", "ubuntu"],
+		},
+	],
+
+	// Let the ingress ProxyGroup pods advertise svc:admin without manual
+	// per-replica approval in the console.
+	"autoApprovers": {
+		"services": {
+			"svc:admin": ["tag:k8s"],
+		},
+	},
+}

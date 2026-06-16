@@ -1,0 +1,45 @@
+# k3s-managed traefik (HelmChartConfig overlays the bundled chart values).
+# Lives in /var/lib/rancher/k3s/server/manifests conceptually; we apply it
+# with kubectl and k3s reconciles the helm release.
+#
+# Deliberate choices:
+#   - kind DaemonSet: exactly one traefik per node. This is what makes public
+#     ingress HA (lose any node, the others still serve) AND is the precondition
+#     for closest-node routing: with a traefik endpoint in every zone, the
+#     service's trafficDistribution: PreferClose keeps cloudflared -> traefik on
+#     the same node instead of round-robining across the trans-Atlantic fleet.
+#     (A soft-anti-affinity Deployment did not hold: the scheduler drifted both
+#     replicas onto one node, so a single node loss took down all ingress.)
+#   - podAnnotations linkerd.io/inject: ingress: mesh traefik chart-natively so
+#     it survives helm-controller reconcile (no more manual `linkerd inject`).
+#     Requires the injector webhook to NOT exclude kube-system (patched
+#     separately); injection still gates on this per-pod annotation.
+#   - service type ClusterIP: traefik is reachable ONLY from inside the cluster.
+#     Public traffic arrives via the outbound cloudflared tunnel (itself a
+#     per-node DaemonSet), and the tailnet-facing admin path is the Tailscale
+#     operator, so nothing legitimate connects to traefik on a node address.
+#   - trafficDistribution PreferClose: prefer the same-zone (each node is its
+#     own zone, so effectively same-node) endpoint, falling back across zones
+#     only when the local one is gone (HA preserved).
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    deployment:
+      kind: DaemonSet
+      podAnnotations:
+        linkerd.io/inject: ingress
+    service:
+      type: ClusterIP
+      spec:
+        trafficDistribution: PreferClose
+    resources:
+      requests:
+        cpu: 100m
+        memory: 64Mi
+      limits:
+        cpu: 1000m
+        memory: 256Mi

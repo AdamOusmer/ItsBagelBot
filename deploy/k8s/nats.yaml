@@ -1,7 +1,8 @@
 # Hub NATS server. The nats-config configmap is generated from
-# nats-server.conf + nats-auth.conf by apply-nats.sh; bcrypt hashes come from
-# the nats-auth-env secret. The nats-jetstream-data PVC pre-exists on the
-# cluster (local-path, 4Gi) and is referenced, not managed, here.
+# nats-server.conf + nats-auth.conf by the Flux kustomize configMapGenerator
+# (deploy/k8s/kustomization.yaml); bcrypt hashes come from the nats-auth-env
+# secret. The nats-jetstream-data PVC pre-exists on the cluster (local-path,
+# 4Gi) and is referenced, not managed, here.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
