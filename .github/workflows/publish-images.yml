@@ -15,7 +15,6 @@ on:
         type: choice
         options:
           - all
-          - admin
           - commands
           - modules
           - outgress
@@ -61,12 +60,6 @@ jobs:
           set -euo pipefail
 
           all_services='[
-            {
-              "image": "admin",
-              "context": ".",
-              "containerfile": "app/admin/Containerfile",
-              "description": "ItsBagelBot operator admin service"
-            },
             {
               "image": "commands",
               "context": ".",
@@ -130,7 +123,6 @@ jobs:
           }
 
           add_root_go_services() {
-            add "admin"
             add "commands"
             add "modules"
             add "outgress"
@@ -140,7 +132,6 @@ jobs:
           }
 
           add_all_services() {
-            add "admin"
             add "commands"
             add "modules"
             add "outgress"
@@ -164,9 +155,6 @@ jobs:
                 ;;
               internal/domain/*|internal/utils/*)
                 add_root_go_services
-                ;;
-              app/admin/*)
-                add "admin"
                 ;;
               app/commands/*)
                 add "commands"

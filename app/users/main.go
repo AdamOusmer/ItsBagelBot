@@ -137,6 +137,8 @@ func main() {
 	// prefix wildcard), no auth change required.
 	if err := rpc.SubscribeLanes(ctx, nc, adminPrefix, queueGroup, log); err != nil {
 		log.Fatal("failed to subscribe lanes rpc", zap.Error(err))
+	}
+
 	// Admin authorization + audit. Seed the bootstrap owners/admins so a fresh
 	// DB is never locked out, then serve the auth.check / auth.* / audit.*
 	// surface the console uses in place of the old static env allowlist. The
