@@ -114,6 +114,13 @@
     };
   }
 
+  function handleRowKey(e: KeyboardEvent, c: CommandView) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      openEdit(c);
+    }
+  }
+
   function closeEditor() {
     editor = null;
   }
@@ -166,7 +173,15 @@
       </div>
       <div class="trows">
         {#each rows as c (c.name)}
-          <div class="trow {c.is_active ? '' : 'off'}" style={c.is_active ? '' : 'opacity:.55'}>
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div
+            class="trow trow-clickable {c.is_active ? '' : 'off'}"
+            style={c.is_active ? '' : 'opacity:.55'}
+            role="button"
+            tabindex="0"
+            onclick={() => openEdit(c)}
+            onkeydown={(e) => handleRowKey(e, c)}
+          >
             <span class="cmd">
               {c.name}
               {#if c.allowed_user_id}
@@ -177,7 +192,8 @@
             <span class="perm-cell"><Badge perm={(c.perm ?? 'everyone') as Perm} /></span>
             <span class="cd">{cd(c.cooldown)}</span>
             <span class="uses">{c.uses ?? '0'}</span>
-            <span class="row-act">
+            <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+            <span class="row-act" onclick={(e) => e.stopPropagation()}>
               <!-- Toggle: silent upsert that flips is_active, preserving config -->
               <form method="POST" action="?/toggle" use:enhance={reconcile}>
                 <input type="hidden" name="name" value={c.name} />
@@ -205,12 +221,28 @@
   </div>
 </section>
 
-<!-- Create / edit editor -->
+<!-- Create / edit editor (drawer) -->
 {#if editor}
-  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div class="modal-backdrop" role="button" tabindex="-1" aria-label="Close editor" onclick={closeEditor}></div>
-  <dialog class="editor-dialog" open aria-modal="true" aria-labelledby="editor-title">
-    <h3 id="editor-title">{editor.edit ? 'Edit' : 'New'} command</h3>
+  <div
+    class="drawer-backdrop"
+    role="button"
+    tabindex="-1"
+    aria-label="Close editor"
+    onclick={closeEditor}
+    onkeydown={(e) => { if (e.key === 'Enter') closeEditor(); }}
+  ></div>
+  <div class="drawer open" role="dialog" aria-modal="true" aria-labelledby="editor-title">
+    <header class="drawer-head">
+      <div class="drawer-id">
+        <h2 id="editor-title">{editor.edit ? 'Edit' : 'New'} command</h2>
+        <span class="drawer-sub">{editor.edit ? editor.name : 'create a custom response'}</span>
+      </div>
+      <button class="drawer-close" type="button" onclick={closeEditor} aria-label="Close">
+        <Icon name="x" size={16} />
+      </button>
+    </header>
+
+    <div class="drawer-body">
     <form
       method="POST"
       action="?/save"
@@ -290,7 +322,8 @@
         <button type="submit" class="btn primary"><Icon name="check" size={14} /> {editor.edit ? 'Save changes' : 'Create'}</button>
       </div>
     </form>
-  </dialog>
+    </div>
+  </div>
 {/if}
 
 <!-- Delete confirm modal -->
@@ -354,6 +387,14 @@
     .chip-row::-webkit-scrollbar { display: none; }
     :global(.trow .toggle) { min-width: 38px; min-height: 44px; display: flex; align-items: center; }
     :global(.mini) { min-width: 44px; min-height: 44px; }
+    .drawer {
+      width: 100vw; height: 92vh; top: auto; bottom: 0; right: 0;
+      border-left: none; border-top: 1px solid var(--glass-border);
+      border-radius: var(--bb-radius-lg, 16px) var(--bb-radius-lg, 16px) 0 0;
+      transform: translateY(100%);
+      animation: sheet-in var(--bb-dur-med, 320ms) var(--bb-ease-out-expo, cubic-bezier(.16,1,.3,1)) forwards;
+    }
+    @keyframes sheet-in { to { transform: translateY(0); } }
   }
 
   /* Shared modal chrome */
@@ -366,7 +407,6 @@
     -webkit-backdrop-filter: blur(4px);
   }
 
-  .editor-dialog,
   .confirm-dialog {
     position: fixed;
     inset: 0;
@@ -379,19 +419,60 @@
     box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
     display: block;
     color: var(--bb-white);
-  }
-
-  .editor-dialog {
-    width: min(520px, calc(100vw - 32px));
-    padding: 26px 24px 20px;
-  }
-
-  .confirm-dialog {
     width: min(400px, calc(100vw - 32px));
     padding: 28px 24px 20px;
   }
 
-  .editor-dialog h3,
+  /* clickable command row */
+  .trow-clickable { cursor: pointer; user-select: none; transition: background var(--bb-dur-fast, 140ms) var(--bb-ease-out-expo, ease); }
+  .trow-clickable:hover { background: rgba(201, 168, 124, 0.06); }
+  .trow-clickable:focus-visible { outline: 2px solid var(--bb-tan, #c9a87c); outline-offset: -2px; }
+
+  /* ---- Detail drawer (matches admin user drawer) ---- */
+  .drawer-backdrop {
+    position: fixed; inset: 0; z-index: 200;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
+    animation: fade var(--bb-dur-fast, 160ms) var(--bb-ease-out-expo, ease) both;
+  }
+  @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+
+  .drawer {
+    position: fixed; top: 0; right: 0; z-index: 201;
+    height: 100vh; width: min(460px, 92vw);
+    display: flex; flex-direction: column;
+    background:
+      linear-gradient(var(--glass-fill), var(--glass-fill)),
+      var(--bb-bg-1, #111);
+    border-left: 1px solid var(--glass-border);
+    backdrop-filter: blur(var(--glass-blur)); -webkit-backdrop-filter: blur(var(--glass-blur));
+    box-shadow: -16px 0 48px rgba(0, 0, 0, 0.45);
+    transform: translateX(100%);
+    animation: slide-in var(--bb-dur-med, 320ms) var(--bb-ease-out-expo, cubic-bezier(.16,1,.3,1)) forwards;
+  }
+  @keyframes slide-in { to { transform: translateX(0); } }
+
+  .drawer-head {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 1rem; padding: 22px 22px 16px;
+    border-bottom: 1px solid var(--glass-border);
+  }
+  .drawer-id h2 {
+    font-family: var(--bb-font-display); font-weight: 700; font-size: 20px;
+    color: var(--bb-white); margin: 0 0 4px; letter-spacing: -0.01em;
+  }
+  .drawer-sub { font-family: var(--bb-font-mono); font-size: 12px; color: var(--bb-muted); }
+  .drawer-close {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 32px; height: 32px; flex: none;
+    border: 1px solid var(--glass-border); border-radius: var(--bb-radius-sm, 8px);
+    background: transparent; color: var(--bb-muted); cursor: pointer;
+    transition: all var(--bb-dur-fast, 140ms) var(--bb-ease-out-expo, ease);
+  }
+  .drawer-close:hover { color: var(--bb-white); border-color: var(--bb-border-strong); background: rgba(255,255,255,0.04); }
+
+  .drawer-body { flex: 1; overflow-y: auto; padding: 20px 22px 32px; }
+
   .confirm-dialog h3 {
     font-family: var(--bb-font-display);
     font-weight: 600;
