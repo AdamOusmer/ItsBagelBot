@@ -70,12 +70,12 @@
           <b>{data.displayName}</b>
           <span>{roleLabel}</span>
         </div>
-        <form method="POST" action="/auth/logout" class="logout-form">
-          <button class="logout-btn" type="submit" aria-label="Sign out" title="Sign out">
-            <Icon name="power" size={16} />
-          </button>
-        </form>
       </div>
+      <form method="POST" action="/auth/logout">
+        <button class="btn ghost" type="submit" style="width:100%;justify-content:center;margin-top:10px">
+          <Icon name="power" size={14} /> Log out
+        </button>
+      </form>
     </div>
   </aside>
 
@@ -113,21 +113,6 @@
 </div>
 
 <style>
-  /* account footer: push the logout button to the trailing edge */
-  .account .who { flex: 1; min-width: 0; }
-  .logout-form { margin: 0; display: flex; }
-  .logout-btn {
-    width: 34px; height: 34px; flex-shrink: 0;
-    display: flex; align-items: center; justify-content: center;
-    border-radius: var(--bb-radius-md);
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid var(--glass-border);
-    color: var(--bb-muted); cursor: pointer;
-    transition: all var(--bb-dur-base) var(--bb-ease-out-back);
-  }
-  .logout-btn:hover { color: #cf8a78; border-color: rgba(176, 90, 70, 0.4); background: rgba(176, 90, 70, 0.1); }
-  .logout-btn :global(svg) { stroke: currentColor; fill: none; stroke-width: 1.8; }
-
   /* mobile-nav: hidden above 760px; shown below (mirrors shared app.css pattern) */
   .mobile-nav {
     display: none;
