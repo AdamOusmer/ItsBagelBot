@@ -14,3 +14,23 @@ resources:
   - twitch-ingress.yaml
   - network-policies.yaml
   - linkerd-auth.yaml
+  - nats.yaml
+  - nats-leaf.yaml
+
+# NATS broker config, formerly created by apply-nats.sh. The configmaps hold
+# only the server conf + the auth conf ($ENV placeholders expanded at runtime
+# from the nats-auth-env secret). disableNameSuffixHash keeps the names stable
+# (nats-config / nats-leaf-config) so the volume mounts resolve and the
+# config-reloader sidecar hot-reloads on content change instead of forcing a
+# pod roll on every edit.
+configMapGenerator:
+  - name: nats-config
+    files:
+      - nats.conf=nats-server.conf
+      - auth.conf=nats-auth.conf
+  - name: nats-leaf-config
+    files:
+      - nats.conf=nats-leaf-server.conf
+      - auth.conf=nats-auth.conf
+generatorOptions:
+  disableNameSuffixHash: true
