@@ -1,18 +1,78 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
+  import type { SubmitFunction } from '@sveltejs/kit';
   import { Icon, Badge, PERMS, PERM_LABELS } from '@bagel/shared';
   import type { Perm, CommandView } from '@bagel/shared';
-  let { data, form } = $props();
+  let { data } = $props();
 
-  // Action results return the fresh list; fall back to the loaded data.
-  const commands = $derived(form?.commands ?? data.commands);
+  // Local source of truth, seeded from the SSR load. Each action result is
+  // reconciled row-by-row into this list (see applyResult) rather than wholesale
+  // replacing it with the server's snapshot. Concurrent submits (e.g. toggling
+  // two rows fast) then only touch their own row, so a slower reply built from a
+  // pre-flush DB snapshot can no longer clobber another in-flight change.
+  // svelte-ignore state_referenced_locally
+  let items = $state<CommandView[]>(data.commands ?? []);
+
+  // Resync when a fresh SSR load delivers a different list (full reload), but
+  // not on optimistic edits — those mutate items without touching data.commands.
+  // svelte-ignore state_referenced_locally
+  let seed = data.commands;
+  $effect(() => {
+    if (data.commands !== seed) {
+      seed = data.commands;
+      items = data.commands ?? [];
+    }
+  });
+
+  // Reconcile one action result into the local list. Uses only the affected
+  // command (looked up by name) plus the original name on rename, never the
+  // whole returned list, so it is order-independent across concurrent results.
+  type ActionResult = {
+    ok: boolean;
+    action?: 'created' | 'updated' | 'deleted';
+    name?: string;
+    original?: string;
+    silent?: boolean;
+    error?: string;
+    commands?: CommandView[];
+  };
+
+  function applyResult(d: ActionResult) {
+    if (!d.ok) {
+      if (d.error) flash('err', d.error);
+      return;
+    }
+
+    if (d.action === 'deleted') {
+      items = items.filter((c) => c.name !== d.name);
+    } else {
+      const next = d.commands?.find((c) => c.name === d.name);
+      if (next) {
+        // Drop the pre-rename key, then replace-or-append the affected row.
+        const without = items.filter((c) => c.name !== d.name && c.name !== d.original);
+        items = [...without, next];
+      }
+    }
+
+    if (!d.silent) {
+      const verb = d.action === 'deleted' ? 'deleted' : (d.action ?? 'updated');
+      flash('ok', `Command ${d.name} ${verb}.`);
+    }
+  }
+
+  // Custom enhance: apply the result locally and skip the default invalidateAll,
+  // so navigation does not refetch a write-behind (stale) list mid-edit.
+  const reconcile: SubmitFunction = () => async ({ result }) => {
+    if (result.type === 'success' && result.data) applyResult(result.data as ActionResult);
+    else if (result.type === 'failure' && result.data) applyResult(result.data as ActionResult);
+  };
 
   const filters = ['All', 'Custom', 'Built-in', 'Disabled'] as const;
   let active = $state<(typeof filters)[number]>('All');
   let search = $state('');
 
   const rows = $derived(
-    commands
+    items
       .filter((c) => (active === 'Disabled' ? !c.is_active : true))
       .filter((c) => c.name.toLowerCase().includes(search.toLowerCase()))
   );
@@ -73,17 +133,6 @@
     toastTimer = setTimeout(() => (toast = null), 3200);
   }
 
-  // React to the latest form action result.
-  $effect(() => {
-    if (!form) return;
-    if (form.ok && !form.silent) {
-      const verb = form.action === 'deleted' ? 'deleted' : form.action;
-      flash('ok', `Command ${form.name} ${verb}.`);
-    } else if (form.ok === false && form.error) {
-      flash('err', form.error);
-    }
-  });
-
   const cd = (n?: number) => (n && n > 0 ? `${n}s` : '0s');
 </script>
 
@@ -91,7 +140,7 @@
   <div class="page-head">
     <span class="eyebrow">Manage</span>
     <h1>Chat <em>commands</em></h1>
-    <p>Custom responses your viewers can trigger in chat. {commands.filter((c) => c.is_active).length} active, {commands.filter((c) => !c.is_active).length} disabled.</p>
+    <p>Custom responses your viewers can trigger in chat. {items.filter((c) => c.is_active).length} active, {items.filter((c) => !c.is_active).length} disabled.</p>
   </div>
 
   <div class="toolbar">
@@ -130,7 +179,7 @@
             <span class="uses">{c.uses ?? '0'}</span>
             <span class="row-act">
               <!-- Toggle: silent upsert that flips is_active, preserving config -->
-              <form method="POST" action="?/toggle" use:enhance>
+              <form method="POST" action="?/toggle" use:enhance={reconcile}>
                 <input type="hidden" name="name" value={c.name} />
                 <input type="hidden" name="response" value={c.response} />
                 <input type="hidden" name="perm" value={c.perm ?? 'everyone'} />
@@ -165,8 +214,9 @@
     <form
       method="POST"
       action="?/save"
-      use:enhance={() => async ({ update, result }) => {
-        await update({ reset: false });
+      use:enhance={() => async ({ result }) => {
+        if (result.type === 'success' && result.data) applyResult(result.data as ActionResult);
+        else if (result.type === 'failure' && result.data) applyResult(result.data as ActionResult);
         if (result.type === 'success' && result.data?.ok) closeEditor();
       }}
     >
@@ -253,7 +303,11 @@
     <form
       method="POST"
       action="?/delete"
-      use:enhance={() => async ({ update }) => { deleteTarget = null; await update(); }}
+      use:enhance={() => async ({ result }) => {
+        deleteTarget = null;
+        if (result.type === 'success' && result.data) applyResult(result.data as ActionResult);
+        else if (result.type === 'failure' && result.data) applyResult(result.data as ActionResult);
+      }}
       class="modal-actions"
     >
       <input type="hidden" name="name" value={deleteTarget} />

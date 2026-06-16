@@ -3,8 +3,8 @@
   import { Button } from '@bagel/shared';
   let { data } = $props();
 
-  const statusLabel = $derived({ free: 'Free', paid: 'Paid', vip: 'VIP' }[data.status] ?? 'Free');
-  const paid = $derived(data.status !== 'free');
+  const statusLabel = (s: string) =>
+    ({ free: 'Free', paid: 'Paid', vip: 'VIP' })[s] ?? 'Free';
 
   // Confirm modal state
   type PendingAction = 'restart' | 'disconnect' | null;
@@ -44,28 +44,39 @@
 
   <div class="card sheen status-hero">
     <div class="botmark"><img src="/logo.png" alt="" /></div>
-    <div>
-      <div class="live {data.receiving ? '' : 'off'}">
-        <span class="dot"></span> {data.receiving ? 'Online · in chat' : data.enabled ? 'Connected · idle' : 'Not connected'}
+    <!-- Connection state streams in after the shell renders; show a neutral
+         placeholder until the RPC lands so navigation stays instant. -->
+    {#await data.conn}
+      <div>
+        <div class="live off"><span class="dot"></span> Checking connection…</div>
+        <h2>#{data.login ?? 'itsmavey'}</h2>
+        <div class="meta"><span class="status-tag">—</span></div>
       </div>
-      <h2>#{data.login ?? 'itsmavey'}</h2>
-      <div class="meta">
-        <span class="status-tag {paid ? 'premium' : ''}">{statusLabel}</span>
+      <div class="actions"></div>
+    {:then c}
+      <div>
+        <div class="live {c.receiving ? '' : 'off'}">
+          <span class="dot"></span> {c.receiving ? 'Online · in chat' : c.enabled ? 'Connected · idle' : 'Not connected'}
+        </div>
+        <h2>#{data.login ?? 'itsmavey'}</h2>
+        <div class="meta">
+          <span class="status-tag {c.status !== 'free' ? 'premium' : ''}">{statusLabel(c.status)}</span>
+        </div>
       </div>
-    </div>
-    <div class="actions">
-      {#if data.receiving}
-        <!-- Hidden real forms — only submitted after modal confirm -->
-        <form id="form-restart" method="POST" action="?/restart" use:enhance style="display:none"></form>
-        <form id="form-disconnect" method="POST" action="?/disconnect" use:enhance style="display:none"></form>
-        <Button variant="ghost" icon="activity" type="button" onclick={() => openModal('restart')}>Restart</Button>
-        <Button variant="tan" icon="power" type="button" onclick={() => openModal('disconnect')}>Disconnect</Button>
-      {:else}
-        <form method="POST" action="?/enable" use:enhance>
-          <Button variant="primary" icon="power" type="submit">Enable</Button>
-        </form>
-      {/if}
-    </div>
+      <div class="actions">
+        {#if c.receiving}
+          <!-- Hidden real forms — only submitted after modal confirm -->
+          <form id="form-restart" method="POST" action="?/restart" use:enhance style="display:none"></form>
+          <form id="form-disconnect" method="POST" action="?/disconnect" use:enhance style="display:none"></form>
+          <Button variant="ghost" icon="activity" type="button" onclick={() => openModal('restart')}>Restart</Button>
+          <Button variant="tan" icon="power" type="button" onclick={() => openModal('disconnect')}>Disconnect</Button>
+        {:else}
+          <form method="POST" action="?/enable" use:enhance>
+            <Button variant="primary" icon="power" type="submit">Enable</Button>
+          </form>
+        {/if}
+      </div>
+    {/await}
   </div>
 </section>
 
