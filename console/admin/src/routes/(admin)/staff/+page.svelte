@@ -37,16 +37,29 @@
   }
 
   // Role ladder — mirror of the server. Server re-enforces; this is UX only.
+  //   owner: manages everyone (an owner's ROLE is still immutable, see optionsFor)
+  //   admin: manages moderators only (cannot touch other admins or owners)
+  //   moderator: manages no one
   function canManage(actor: AdminRole, target: AdminRole): boolean {
-    if (actor !== 'admin' && actor !== 'owner') return false;
-    if (target === 'owner') return actor === 'owner';
-    const rank = { moderator: 1, admin: 2, owner: 3 };
-    return rank[actor] >= rank[target];
+    if (actor === 'owner') return true;
+    if (actor === 'admin') return target === 'moderator';
+    return false;
   }
 
+  // Roles the add/promote form may assign to a NEW member.
   const roleOptions = $derived<AdminRole[]>(
     data.me.role === 'owner' ? ['moderator', 'admin', 'owner'] : ['moderator', 'admin']
   );
+
+  // Roles an EXISTING member may be changed to. Empty = no role control.
+  //   - an owner's role is immutable
+  //   - an admin actor cannot change another admin
+  function optionsFor(target: AdminAcct): AdminRole[] {
+    if (target.role === 'owner') return [];
+    if (data.me.role === 'owner') return ['moderator', 'admin', 'owner'];
+    if (target.role === 'admin') return [];
+    return ['moderator', 'admin'];
+  }
 
   function isSelf(row: AdminAcct): boolean {
     return String(row.id) === data.me.id;
@@ -260,22 +273,22 @@
 
       {#if manageable && !isSelf(drawer)}
         {@const target = drawer}
-        <div class="field">
-          <span class="field-label">Role</span>
-          <form method="POST" action="?/upsert" use:enhance={refresh} bind:this={roleFormEl}>
-            <input type="hidden" name="user_id" value={target.id} />
-            <input type="hidden" name="login" value={target.login} />
-            <input type="hidden" name="display_name" value={target.display_name} />
-            <select class="role-select block" name="role" value={target.role} onchange={submitRoleChange} aria-label="Change role">
-              {#each roleOptions as r}
-                <option value={r}>{r}</option>
-              {/each}
-              {#if !roleOptions.includes(target.role)}
-                <option value={target.role}>{target.role}</option>
-              {/if}
-            </select>
-          </form>
-        </div>
+        {@const opts = optionsFor(target)}
+        {#if opts.length > 1}
+          <div class="field">
+            <span class="field-label">Role</span>
+            <form method="POST" action="?/upsert" use:enhance={refresh} bind:this={roleFormEl}>
+              <input type="hidden" name="user_id" value={target.id} />
+              <input type="hidden" name="login" value={target.login} />
+              <input type="hidden" name="display_name" value={target.display_name} />
+              <select class="role-select block" name="role" value={target.role} onchange={submitRoleChange} aria-label="Change role">
+                {#each opts as r}
+                  <option value={r}>{r}</option>
+                {/each}
+              </select>
+            </form>
+          </div>
+        {/if}
 
         <div class="field danger-zone">
           <span class="field-label">Danger zone</span>
