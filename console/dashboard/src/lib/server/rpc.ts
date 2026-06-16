@@ -79,9 +79,13 @@ export interface CommandInput {
   allowedUserId: string;
 }
 
+// originalName, when set and different from cmd.name, renames the command: the
+// commands service updates the existing row's name field in place instead of
+// deleting the old command and recreating it under the new name.
 export async function upsertCommand(
   userId: string,
-  cmd: CommandInput
+  cmd: CommandInput,
+  originalName?: string
 ): Promise<{ commands: CommandView[]; error?: string }> {
   const r = await rpc<{ commands: CommandView[]; error?: string }>(`${SUB.commands}.upsert`, {
     user_id: userId,
@@ -90,7 +94,8 @@ export async function upsertCommand(
     is_active: cmd.isActive,
     perm: cmd.perm,
     cooldown: cmd.cooldown,
-    allowed_user_id: cmd.allowedUserId
+    allowed_user_id: cmd.allowedUserId,
+    original_name: originalName ?? ''
   });
   return { commands: r.commands ?? [], error: r.error };
 }
