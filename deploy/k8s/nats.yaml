@@ -1,0 +1,152 @@
+# Hub NATS server. The nats-config configmap is generated from
+# nats-server.conf + nats-auth.conf by apply-nats.sh; bcrypt hashes come from
+# the nats-auth-env secret. The nats-jetstream-data PVC pre-exists on the
+# cluster (local-path, 4Gi) and is referenced, not managed, here.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: nats
+  name: nats
+  namespace: production
+spec:
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: nats
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      annotations:
+        linkerd.io/inject: enabled
+        # NATS speaks first on the wire, so protocol detection would stall;
+        # opaque keeps Linkerd mTLS without the detection timeout.
+        config.linkerd.io/opaque-ports: "4222,7422"
+        config.linkerd.io/proxy-memory-limit: 128Mi
+        config.linkerd.io/proxy-memory-request: 16Mi
+        prometheus.io/path: /metrics
+        prometheus.io/port: "7777"
+        prometheus.io/scrape: "true"
+      labels:
+        app: nats
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: node1
+      # nats runs as uid/gid 1000; fsGroup makes the JetStream PVC writable.
+      # Shared PID namespace lets the config-reloader sidecar SIGHUP the
+      # nats-server process (same uid 1000) when the mounted config changes.
+      shareProcessNamespace: true
+      # nats runs as uid/gid 1000; fsGroup makes the JetStream PVC writable.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: nats
+          image: nats:2.11-alpine
+          imagePullPolicy: IfNotPresent
+          # --pid writes a pidfile the reloader reads to signal this process.
+          args: ["--config", "/etc/nats/nats.conf", "--pid", "/var/run/nats/nats.pid"]
+          envFrom:
+            - secretRef:
+                name: nats-auth-env
+          ports:
+            - { containerPort: 4222, name: client }
+            - { containerPort: 8222, name: monitor }
+            - { containerPort: 7422, name: leafnodes }
+          volumeMounts:
+            - { name: config, mountPath: /etc/nats, readOnly: true }
+            - { name: jetstream-data, mountPath: /data/jetstream }
+            - { name: pid, mountPath: /var/run/nats }
+          resources:
+            # Headroom for JetStream: the container limit must exceed the
+            # jetstream max_mem (256MB) in nats-server.conf, otherwise the
+            # broker is OOMKilled the moment a stream uses its memory budget.
+            # CPU is bumped because this one broker carries the whole fleet bus.
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 512Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+            readOnlyRootFilesystem: true
+          startupProbe:
+            httpGet: { path: /healthz, port: monitor }
+            periodSeconds: 5
+            failureThreshold: 10
+            timeoutSeconds: 1
+          livenessProbe:
+            httpGet: { path: /healthz, port: monitor }
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            timeoutSeconds: 3
+          readinessProbe:
+            httpGet: { path: "/healthz?js-enabled-only=true", port: monitor }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+        # Watches the mounted config (nats.conf + auth.conf, sourced from the
+        # nats-config configmap) and SIGHUPs nats-server on change, so an
+        # apply-nats.sh configmap update hot-reloads without a manual signal or
+        # a pod restart. TODO(deploy): pin to a digest like the other images.
+        - name: reloader
+          image: natsio/nats-server-config-reloader:0.23.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - "-pid"
+            - "/var/run/nats/nats.pid"
+            - "-config"
+            - "/etc/nats/nats.conf"
+            - "-config"
+            - "/etc/nats/auth.conf"
+          volumeMounts:
+            - { name: config, mountPath: /etc/nats, readOnly: true }
+            - { name: pid, mountPath: /var/run/nats }
+          resources:
+            requests: { cpu: 5m, memory: 16Mi }
+            limits: { cpu: 50m, memory: 64Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+            readOnlyRootFilesystem: true
+        - name: prometheus-nats-exporter
+          image: natsio/prometheus-nats-exporter:0.15.0
+          imagePullPolicy: IfNotPresent
+          args: ["-varz", "-connz", "-subz", "-routez", "-jsz=all", "http://localhost:8222"]
+          ports:
+            - { containerPort: 7777, name: metrics }
+          resources:
+            requests: { cpu: 5m, memory: 32Mi }
+            limits: { cpu: 100m, memory: 128Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+      volumes:
+        - name: config
+          configMap:
+            name: nats-config
+        - name: jetstream-data
+          persistentVolumeClaim:
+            claimName: nats-jetstream-data
+        - name: pid
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: nats
+  name: nats
+  namespace: production
+  annotations:
+    config.linkerd.io/opaque-ports: "4222,7422"
+spec:
+  selector:
+    app: nats
+  ports:
+    - { name: client, port: 4222, targetPort: client }
+    - { name: monitor, port: 8222, targetPort: monitor }
+    - { name: leafnodes, port: 7422, targetPort: leafnodes }
