@@ -46,13 +46,14 @@ _build/
 deps/
 *.ez
 
-# Kubernetes deployments (operational/secret files stay local;
-# deploy/flux and the tracked deploy/k8s manifests are managed by Flux GitOps)
-deploy/*
-!deploy/flux
-!deploy/k8s/console-dashboard.yaml
-!deploy/k8s/console-admin.yaml
+# Kubernetes deployments are fully tracked and Flux-managed. No plaintext
+# secrets live here: every credential comes from a Doppler-managed Secret
+# referenced by name, and the nats *.conf files carry only $ENV placeholders
+# that nats-server expands from the nats-auth-env secret at runtime.
 deploy_backup/
+
+# macOS Finder cruft
+.DS_Store
 
 # Exclude scratch, claude, and tar files
 .claude/

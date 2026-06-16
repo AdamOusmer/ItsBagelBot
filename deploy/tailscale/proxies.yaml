@@ -1,0 +1,41 @@
+# Tailscale operator proxy fleet. Apply AFTER the operator helm install
+# (the CRDs ship with the chart).
+#
+# The ingress ProxyGroup runs 2 replicas spread across node1/node2 and
+# advertises Tailscale Services (svc:admin et al.) so a tailnet hostname
+# keeps answering through the loss of either node. Ingresses opt in via
+# the tailscale.com/proxy-group annotation.
+apiVersion: tailscale.com/v1alpha1
+kind: ProxyClass
+metadata:
+  name: ha-spread
+spec:
+  statefulSet:
+    pod:
+      # Same node-level HA shape as the rest of the fleet.
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    tailscale.com/parent-resource: ts-ingress
+                topologyKey: kubernetes.io/hostname
+      tailscaleContainer:
+        resources:
+          requests:
+            cpu: 25m
+            memory: 64Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+---
+apiVersion: tailscale.com/v1alpha1
+kind: ProxyGroup
+metadata:
+  name: ts-ingress
+spec:
+  type: ingress
+  replicas: 2
+  proxyClass: ha-spread

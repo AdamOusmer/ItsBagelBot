@@ -1,0 +1,98 @@
+# Cloudflare Tunnel connector. Public ingress enters here: Cloudflare's edge
+# dials these outbound connectors and forwards to traefik.kube-system:443.
+#
+# DaemonSet, not Deployment: one connector per node. A single tunnel ID
+# supports many connector replicas (Cloudflare's native HA model), so running
+# one per node means the edge can hand each request to the geographically
+# closest connector - including node3 in the EU, which a 2-replica Toronto-only
+# Deployment never covered. Combined with the traefik DaemonSet and
+# PreferClose, an EU request enters via node3 and stays node-local.
+#
+# Meshed (linkerd.io/inject: enabled) so the connector -> traefik hop rides the
+# mesh. traefik:443 is already TLS, so Linkerd does L4 + zone-aware routing
+# (no double-wrap). The connector also dials Cloudflare's edge outbound, which
+# Linkerd passes through as external egress.
+#
+# NOT managed by Flux (its own namespace, outside the production kustomization);
+# apply with kubectl. config = cloudflared-config ConfigMap, creds =
+# cloudflared-tunnel Secret (Doppler-managed; the reload annotation rolls pods
+# on rotation).
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: cloudflared
+  namespace: cloudflared
+  labels:
+    app.kubernetes.io/name: cloudflared
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cloudflared
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cloudflared
+      annotations:
+        linkerd.io/inject: enabled
+        # Skip the proxy for the connector's already-encrypted outbound:
+        #  - 443: traefik origin (end-to-end TLS, origin cert via
+        #    origin_ca_root.pem); proxying it double-wraps TLS -> traefik RST.
+        #    Same-node routing still holds via the traefik Service PreferClose
+        #    (kube-proxy).
+        #  - 7844: the Cloudflare edge tunnel port (QUIC/h2mux). It is external
+        #    egress; routing it through the proxy stalls the edge TLS handshake
+        #    (i/o timeout -> 503 -> liveness restart loop).
+        # No plaintext is exposed (both are TLS); the pod stays meshed otherwise.
+        config.linkerd.io/skip-outbound-ports: "443,7844"
+        secrets.doppler.com/reload: "true"
+    spec:
+      # Run on every node, control-plane included.
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+      securityContext:
+        fsGroup: 65532
+        runAsGroup: 65532
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: cloudflared
+          image: cloudflare/cloudflared:2026.5.0
+          imagePullPolicy: IfNotPresent
+          args: ["tunnel", "--config", "/etc/cloudflared/config/config.yaml", "run"]
+          ports:
+            - name: metrics
+              containerPort: 2000
+              protocol: TCP
+          livenessProbe:
+            httpGet: {path: /ready, port: 2000}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: {path: /ready, port: 2000}
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {cpu: 500m, memory: 256Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - {name: config, mountPath: /etc/cloudflared/config, readOnly: true}
+            - {name: creds, mountPath: /etc/cloudflared/creds, readOnly: true}
+      volumes:
+        - name: config
+          configMap:
+            name: cloudflared-config
+        - name: creds
+          secret:
+            secretName: cloudflared-tunnel
+            items:
+              - {key: credentials.json, path: credentials.json}
+              - {key: origin_ca_root.pem, path: origin_ca_root.pem}
