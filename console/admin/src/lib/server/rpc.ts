@@ -235,7 +235,12 @@ export async function auditAppend(entry: {
   });
 }
 
-export async function auditList(limit = 50): Promise<AuditEntry[]> {
-  const r = await rpc<{ entries?: AuditEntry[] }>(`${SUB.audit}.list`, { limit });
+// auditList returns the newest entries, optionally scoped to one actor's id so
+// a member's history can be lazy-loaded without shipping the whole log.
+export async function auditList(limit = 50, actorId?: string): Promise<AuditEntry[]> {
+  const r = await rpc<{ entries?: AuditEntry[] }>(`${SUB.audit}.list`, {
+    limit,
+    actor_filter: actorId ?? ''
+  });
   return r.entries ?? [];
 }

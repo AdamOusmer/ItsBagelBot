@@ -46,7 +46,8 @@ type authRequest struct {
 	Err        string `json:"error"`
 
 	// audit.list / auth.list
-	Limit int `json:"limit"`
+	Limit       int    `json:"limit"`
+	ActorFilter string `json:"actor_filter"`
 }
 
 type adminAcctView struct {
@@ -331,10 +332,17 @@ func (a *adminAuthRPC) auditList(ctx context.Context, req authRequest) authReply
 	if limit <= 0 || limit > 200 {
 		limit = 50
 	}
-	rows, err := a.db.AdminAudit.Query().
-		Order(ent.Desc(adminaudit.FieldCreatedAt)).
-		Limit(limit).
-		All(ctx)
+	q := a.db.AdminAudit.Query().Order(ent.Desc(adminaudit.FieldCreatedAt))
+	// Optional actor filter: lazy-load a single operator's own history without
+	// shipping the whole log (actor_filter = their Twitch id).
+	if req.ActorFilter != "" {
+		aid, err := parseID(req.ActorFilter)
+		if err != nil {
+			return authReply{Error: "actor_filter: " + err.Error()}
+		}
+		q = q.Where(adminaudit.ActorIDEQ(aid))
+	}
+	rows, err := q.Limit(limit).All(ctx)
 	if err != nil {
 		return authReply{Error: err.Error()}
 	}
