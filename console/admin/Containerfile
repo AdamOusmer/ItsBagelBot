@@ -2,6 +2,11 @@
 # Node (adapter-node output). Native per-node build (ARM/Intel); no emulation.
 FROM docker.io/oven/bun:1.3.10 AS build
 WORKDIR /src
+# Pin SvelteKit's build version to the commit SHA so the ARM and Intel native
+# builds emit IDENTICAL hashed asset names (else per-build timestamps diverge
+# and a stateless LB serves HTML from one arch with chunk 404s from the other).
+ARG BUILD_VERSION=dev
+ENV BUILD_VERSION=$BUILD_VERSION
 # bunfig.toml MUST be present so the hoisted linker applies (flat node_modules).
 COPY package.json bun.lock bunfig.toml ./
 COPY shared/package.json shared/package.json
