@@ -1,8 +1,8 @@
 import type { Actions, PageServerLoad } from './$types';
 import { fail, redirect } from '@sveltejs/kit';
 import { requireAdmin, isManager, canManage, isDemo, type AdminIdentity } from '$lib/server/access';
-import { staffUpsert, staffRemove, adminListAccts, auditList, auditAppend, type AdminRole } from '$lib/server/rpc';
-import type { AdminAcct, AuditEntry } from '$lib/server/rpc';
+import { staffUpsert, staffRemove, adminListAccts, auditAppend, type AdminRole } from '$lib/server/rpc';
+import type { AdminAcct } from '$lib/server/rpc';
 
 const ROLES = new Set<AdminRole>(['moderator', 'admin', 'owner']);
 
@@ -13,11 +13,6 @@ const sampleStaff: AdminAcct[] = [
   { id: 222222222, login: 'a_mod', display_name: 'A Mod', role: 'moderator', active: true, added_by: 804932984, created_at: new Date(Date.now() - 86400_000 * 2).toISOString() }
 ];
 
-const sampleAudit: AuditEntry[] = [
-  { id: 2, actor_id: 804932984, actor_login: 'itsmavey', action: 'set_status', target: '111111111', detail: 'paid', ok: true, created_at: new Date(Date.now() - 3_600_000).toISOString() },
-  { id: 1, actor_id: 804932984, actor_login: 'itsmavey', action: 'staff_upsert', target: '222222222', detail: 'a_mod:moderator', ok: true, created_at: new Date(Date.now() - 7_200_000).toISOString() }
-];
-
 export const load: PageServerLoad = async ({ locals }) => {
   const admin = await requireAdmin(locals.session);
   if (!admin) throw redirect(302, '/login');
@@ -25,23 +20,18 @@ export const load: PageServerLoad = async ({ locals }) => {
   if (!isManager(admin.role)) throw redirect(302, '/');
 
   if (isDemo()) {
-    return { staff: sampleStaff, me: admin, audit: sampleAudit, degraded: false };
+    return { staff: sampleStaff, me: admin, degraded: false };
   }
+  // Roster only — a member's action history is lazy-loaded from /staff/history
+  // when their drawer opens, so this page never ships the whole audit log.
   let staff: AdminAcct[] = [];
-  let audit: AuditEntry[] = [];
   let degraded = false;
   try {
     staff = await adminListAccts();
   } catch {
     degraded = true;
   }
-  try {
-    // Pulled once; the drawer filters by actor to show a member's own history.
-    audit = await auditList(200);
-  } catch {
-    /* audit is best-effort context, not required to render the roster */
-  }
-  return { staff, me: admin, audit, degraded };
+  return { staff, me: admin, degraded };
 };
 
 function audit(admin: AdminIdentity, action: string, target: string, detail: string, ok: boolean, error?: string): void {
