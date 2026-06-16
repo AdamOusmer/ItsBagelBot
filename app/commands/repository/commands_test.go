@@ -68,6 +68,54 @@ func TestDeleteIsImmediateAndAnnounced(t *testing.T) {
 	assert.True(t, dto.Deleted)
 }
 
+func TestRenameUpdatesRowInPlace(t *testing.T) {
+	client, pub, repo := setup(t)
+	ctx := context.Background()
+
+	repo.Upsert(1001, "!old", "the response", true, "everyone", 7, 0)
+	repo.Close(ctx)
+	originalID := client.Commands.Query().FirstX(ctx).ID
+
+	repo2 := repository.NewCommands(client, pub, nil, zap.NewNop())
+	defer repo2.Close(ctx)
+
+	baseline := len(pub.On(data.SubjectCommandChanged)) // the create flush above
+
+	require.NoError(t, repo2.Rename(ctx, 1001, "!old", "!new", "the response", true, "everyone", 7, 0))
+
+	// Exactly one row, same primary key (updated in place, not deleted+recreated).
+	rows := client.Commands.Query().AllX(ctx)
+	require.Len(t, rows, 1)
+	assert.Equal(t, "!new", rows[0].Name)
+	assert.Equal(t, originalID, rows[0].ID, "rename must preserve the row identity")
+
+	// A delete for the old name and a change for the new name are announced so
+	// name-keyed consumers drop the stale key.
+	events := pub.On(data.SubjectCommandChanged)
+	require.Len(t, events, baseline+2)
+	renameEvents := events[baseline:]
+
+	var del, changed data.CommandChangedDTO
+	require.NoError(t, json.Unmarshal(renameEvents[0].Payload, &del))
+	require.NoError(t, json.Unmarshal(renameEvents[1].Payload, &changed))
+	assert.True(t, del.Deleted)
+	assert.Equal(t, "!old", del.Name)
+	assert.False(t, changed.Deleted)
+	assert.Equal(t, "!new", changed.Name)
+}
+
+func TestRenameMissingRowFallsBackToCreate(t *testing.T) {
+	client, _, repo := setup(t)
+	ctx := context.Background()
+
+	require.NoError(t, repo.Rename(ctx, 1001, "!ghost", "!new", "resp", true, "everyone", 0, 0))
+	repo.Close(ctx) // flush the fallback upsert
+
+	rows := client.Commands.Query().AllX(ctx)
+	require.Len(t, rows, 1)
+	assert.Equal(t, "!new", rows[0].Name)
+}
+
 func TestListServedFromCache(t *testing.T) {
 	client, _, repo := setup(t)
 	ctx := context.Background()

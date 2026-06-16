@@ -58,26 +58,24 @@ export const actions: Actions = {
     if (!cmd.name) return fail(400, { ok: false, error: 'Command name is required.' });
     if (!cmd.response) return fail(400, { ok: false, error: 'Response is required.' });
 
-    // Name is the row key (user_id, name), so a rename is delete-old + create-new.
-    // Write the new row first; its optimistic reply already lists the renamed
-    // command (the old delete is immediate but the new write is behind a ~2s
-    // batch, so deleteCommand's fresh DB list wouldn't include it yet).
-    const { commands, error } = await upsertCommand(uid, { ...cmd, isActive });
+    // A rename passes original_name so the commands service updates the row's
+    // name field in place (single write) instead of delete-old + create-new.
+    // The optimistic reply already drops the old key and lists the renamed
+    // command, so one round trip covers it.
+    const { commands, error } = await upsertCommand(
+      uid,
+      { ...cmd, isActive },
+      renamed ? originalName : undefined
+    );
     if (error) return fail(400, { ok: false, error, commands });
 
-    if (renamed) {
-      const del = await deleteCommand(uid, originalName);
-      if (del.error) return fail(400, { ok: false, error: del.error, commands });
-      // Drop the old key from the optimistic list returned by the upsert.
-      return {
-        ok: true,
-        action: 'updated',
-        name: cmd.name,
-        commands: commands.filter((c) => c.name !== originalName)
-      };
-    }
-
-    return { ok: true, action: isEdit ? 'updated' : 'created', name: cmd.name, commands };
+    return {
+      ok: true,
+      action: isEdit ? 'updated' : 'created',
+      name: cmd.name,
+      original: renamed ? originalName : undefined,
+      commands
+    };
   },
 
   // Lightweight toggle: flips is_active without going through the full editor.

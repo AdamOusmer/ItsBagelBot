@@ -136,6 +136,75 @@ func (r *Commands) Upsert(userID uint64, name string, response string, isActive 
 	return nil
 }
 
+// Rename changes a command's key (name) in place, preserving the row, and
+// updates its other fields in the same write. Done immediately (not
+// write-behind) because the batcher coalesces by (user, name); a name change
+// can't be represented as a queued edit of the old key. Emits a delete for the
+// old name and a change for the new so name-keyed consumers (projector, bot)
+// drop the stale entry and pick up the renamed command.
+func (r *Commands) Rename(ctx context.Context, userID uint64, oldName, newName, response string, isActive bool, perm string, cooldown uint, allowedUserID uint64) error {
+
+	if err := validate.UserID(userID); err != nil {
+		return err
+	}
+	if err := validate.CommandName(oldName); err != nil {
+		return err
+	}
+	if err := validate.CommandName(newName); err != nil {
+		return err
+	}
+	if err := validate.CommandResponse(response); err != nil {
+		return err
+	}
+	if err := validate.Perm(perm); err != nil {
+		return err
+	}
+	if err := validate.Cooldown(cooldown); err != nil {
+		return err
+	}
+
+	updated, err := r.client.Commands.Update().
+		Where(
+			commands.UserIDEQ(userID),
+			commands.NameEQ(oldName),
+		).
+		SetName(newName).
+		SetResponse(response).
+		SetIsActive(isActive).
+		SetPerm(perm).
+		SetCooldown(cooldown).
+		SetAllowedUserID(allowedUserID).
+		Save(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Old row absent (already renamed/deleted elsewhere): fall back to a plain
+	// write of the new command so the edit is not lost.
+	if updated == 0 {
+		return r.Upsert(userID, newName, response, isActive, perm, cooldown, allowedUserID)
+	}
+
+	r.Invalidate(userID)
+
+	if err := bus.PublishJSON(ctx, r.pub, data.SubjectCommandChanged, data.CommandChangedDTO{
+		UserID:  userID,
+		Name:    oldName,
+		Deleted: true,
+	}); err != nil {
+		return err
+	}
+	return bus.PublishJSON(ctx, r.pub, data.SubjectCommandChanged, data.CommandChangedDTO{
+		UserID:        userID,
+		Name:          newName,
+		Response:      response,
+		IsActive:      isActive,
+		Perm:          perm,
+		Cooldown:      cooldown,
+		AllowedUserID: allowedUserID,
+	})
+}
+
 // Delete removes a command immediately and announces it.
 func (r *Commands) Delete(ctx context.Context, userID uint64, name string) error {
 
