@@ -220,10 +220,20 @@ func (a *adminAuthRPC) upsertStaff(ctx context.Context, req authRequest) authRep
 		return authReply{Error: "forbidden: only an owner can grant owner"}
 	}
 
-	// If the target already exists as an owner, only an owner may modify it.
+	// No self-modification: staff cannot change their own role.
+	if actorID, _ := parseID(req.ActorID); actorID == id {
+		return authReply{Error: "forbidden: cannot change your own role"}
+	}
+
+	// Existing-target guards.
 	if existing, err := a.db.AdminUser.Query().Where(adminuser.IDEQ(id)).Only(ctx); err == nil {
-		if existing.Role == adminuser.RoleOwner && actorRole != adminuser.RoleOwner {
-			return authReply{Error: "forbidden: cannot modify an owner"}
+		// An owner's role is immutable (cannot be changed by anyone).
+		if existing.Role == adminuser.RoleOwner {
+			return authReply{Error: "forbidden: an owner's role cannot be changed"}
+		}
+		// An admin cannot modify another admin; only an owner manages admins.
+		if actorRole == adminuser.RoleAdmin && existing.Role == adminuser.RoleAdmin {
+			return authReply{Error: "forbidden: admins cannot change another admin"}
 		}
 	} else if !ent.IsNotFound(err) {
 		return authReply{Error: err.Error()}
@@ -253,12 +263,22 @@ func (a *adminAuthRPC) removeStaff(ctx context.Context, req authRequest) authRep
 	if err != nil {
 		return authReply{Error: err.Error()}
 	}
+	// No self-removal.
+	if actorID, _ := parseID(req.ActorID); actorID == id {
+		return authReply{Error: "forbidden: cannot remove yourself"}
+	}
+
 	target, err := a.db.AdminUser.Query().Where(adminuser.IDEQ(id)).Only(ctx)
 	if ent.IsNotFound(err) {
 		return authReply{Error: "staff not found"}
 	}
 	if err != nil {
 		return authReply{Error: err.Error()}
+	}
+
+	// An admin manages only moderators; only an owner may remove an admin.
+	if actorRole == adminuser.RoleAdmin && target.Role == adminuser.RoleAdmin {
+		return authReply{Error: "forbidden: admins cannot remove another admin"}
 	}
 
 	if target.Role == adminuser.RoleOwner {
