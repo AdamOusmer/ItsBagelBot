@@ -5,7 +5,7 @@
 // synthesizes an allowed superadmin so the panel renders without auth wired up.
 import { env } from '$env/dynamic/private';
 import type { Session } from './session';
-import type { AdminRole } from './rpc';
+import { adminCheck, type AdminRole } from './rpc';
 
 export interface AdminIdentity {
   id: string;
@@ -42,17 +42,32 @@ export function canManage(actor: AdminRole, target: AdminRole): boolean {
   return RANK[actor] >= RANK[target];
 }
 
-// requireAdmin resolves the admin identity for a request. OAuth is currently
-// disabled: the tailnet is the only access boundary and everyone who reaches the
-// host is treated as owner. The audit actor is itsmavey's id so mutations stay
-// attributable. Restore the session/adminCheck gate to re-enable per-user roles.
-const OPEN_OWNER: AdminIdentity = {
-  id: '804932984',
-  login: 'itsmavey',
-  display_name: 'itsmavey',
-  role: 'owner'
-};
-
-export async function requireAdmin(_session: Session | null): Promise<AdminIdentity | null> {
-  return OPEN_OWNER;
+// requireAdmin resolves the admin identity for a session, or null if the session
+// is absent / not active staff. The session is sealed by the Twitch OAuth
+// callback (tailnet-driven); auth.check confirms allowlist membership + role.
+// DEMO mode returns a synthetic owner so the console runs without OAuth + NATS.
+export async function requireAdmin(session: Session | null): Promise<AdminIdentity | null> {
+  if (isDemo()) {
+    return {
+      id: demoSession.user_id,
+      login: demoSession.login,
+      display_name: demoSession.display_name,
+      role: 'owner'
+    };
+  }
+  if (!session) return null;
+  try {
+    const r = await adminCheck(session.user_id, session.login, session.display_name);
+    if (!r.admin) return null;
+    return {
+      id: session.user_id,
+      login: r.login ?? session.login,
+      display_name: r.display_name ?? session.display_name,
+      role: r.role ?? 'admin'
+    };
+  } catch {
+    // Fail closed: if the auth service is unreachable, deny rather than admit an
+    // unverified session.
+    return null;
+  }
 }
