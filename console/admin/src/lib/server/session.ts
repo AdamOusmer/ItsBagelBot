@@ -1,6 +1,8 @@
 // Encrypted session cookie: AES-256-GCM, layout base64url(nonce[12] || ct||tag),
-// AAD "session". Key from SESSION_KEY (base64, 32 bytes). Shared wire format with
-// the dashboard tier so a single sign-in can be reused across the console.
+// AAD "session". Key from SESSION_KEY (base64, 32 bytes). The wire format matches
+// the dashboard tier, but the admin uses its OWN isolated SESSION_KEY (separate
+// Doppler config); secrets are never shared, so an admin session can only be
+// minted by the admin's own OAuth callback.
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 import { env } from '$env/dynamic/private';
 
