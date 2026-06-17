@@ -20,7 +20,11 @@ function options(): ConnectionOptions {
     name: process.env.NATS_CLIENT_NAME ?? 'console',
     maxReconnectAttempts: -1,
     reconnectTimeWait: 500,
-    pingInterval: 20_000
+    pingInterval: 20_000,
+    // Bound the initial dial so a cold/unreachable NATS fails fast (and re-dials
+    // on the next request) instead of hanging SSR to the 20s default and surfacing
+    // a gateway "server connection error" the user has to refresh past.
+    timeout: 3_000
   };
   if (process.env.NATS_USER) opts.user = process.env.NATS_USER;
   if (process.env.NATS_PASSWORD) opts.pass = process.env.NATS_PASSWORD;
@@ -44,6 +48,16 @@ async function get(): Promise<NatsConnection> {
       dialing = null;
     });
   return dialing;
+}
+
+/**
+ * Pre-dial the connection at server boot so the first user request hits a warm
+ * conn instead of paying the cold dial on the hot path (the cause of the
+ * intermittent "server connection error, refresh fixes it"). Best-effort: a
+ * failed warm-up just leaves the next get() to re-dial.
+ */
+export function warm(): void {
+  get().catch(() => {});
 }
 
 export class RpcError extends Error {}

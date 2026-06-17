@@ -3,6 +3,26 @@
   import type { ShardSnapshot } from '@bagel/shared';
   let { data } = $props();
 
+  // Absolute URL of the bot-authorization route. The operator opens it in the
+  // browser signed into the bot account; that browser gets the state cookie and
+  // the callback validates it there, so the link works across the browser switch.
+  let botLink = $state('');
+  let copied = $state(false);
+  $effect(() => {
+    botLink = `${location.origin}/auth/bot/login`;
+  });
+
+  async function copyLink() {
+    if (!botLink) return;
+    try {
+      await navigator.clipboard.writeText(botLink);
+      copied = true;
+      setTimeout(() => (copied = false), 1500);
+    } catch {
+      copied = false;
+    }
+  }
+
   // Shard rollup derived from a resolved snapshot (the overview bundle streams
   // in, so this is computed inside the {#await ... then} block per render).
   function shardSummary(snap: ShardSnapshot) {
@@ -73,19 +93,29 @@
             </div>
             <div class="actions" style="margin-top:12px">
               <!--
-                Re-authorize: no bot-OAuth RPC exists in the admin service.
-                Disabled until a re-auth subject is wired server-side.
+                Bot authorization. The link below routes to /auth/bot/login,
+                which sets the state cookie in whichever browser opens it and
+                redirects to Twitch (dashboard app + chat scopes); the callback
+                stores the token. The operator opens it in the browser signed
+                into the bot account, hence the copyable URL.
               -->
-              <button
-                class="btn ghost"
-                type="button"
-                disabled
-                title="Re-authorization is not yet available. A bot-OAuth RPC subject must be added to enable this action."
-                aria-disabled="true"
-              >
-                <Icon name="link" size={14} /> Re-authorize
-              </button>
+              <a class="btn ghost" href="/auth/bot/login">
+                <Icon name="link" size={14} />
+                {o.botPresent ? 'Re-authorize' : 'Authorize'}
+              </a>
             </div>
+
+            {#if botLink}
+              <div class="botlink">
+                <p class="hint">Open this in the browser signed into the bot account:</p>
+                <div class="botlink-row">
+                  <input class="botlink-url" type="text" readonly value={botLink} />
+                  <button class="btn ghost" type="button" onclick={copyLink}>
+                    <Icon name="link" size={14} /> {copied ? 'Copied' : 'Copy'}
+                  </button>
+                </div>
+              </div>
+            {/if}
           </div>
         </div>
       </div>
@@ -95,6 +125,20 @@
 
 <style>
   .degraded-note { margin: 0 0 14px; font-size: 0.85rem; color: var(--bb-muted); }
+  .botlink { margin-top: 12px; }
+  .botlink .hint { margin: 0 0 6px; font-size: 0.8rem; color: var(--bb-muted); }
+  .botlink-row { display: flex; gap: 8px; align-items: center; }
+  .botlink-url {
+    flex: 1;
+    min-width: 0;
+    padding: 7px 10px;
+    font-family: var(--bb-font-mono, monospace);
+    font-size: 12px;
+    border: 1px solid var(--bb-border, #333);
+    border-radius: 6px;
+    background: var(--bb-surface, #1a1a1a);
+    color: var(--bb-text, #eee);
+  }
   .muted-load {
     padding: 18px 14px;
     font-family: var(--bb-font-body);

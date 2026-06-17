@@ -65,6 +65,21 @@ export async function setActive(userId: string, active: boolean): Promise<void> 
   await rpc(`${SUB.dashboard}.active_set`, { broadcaster_user_id: userId, active });
 }
 
+// Persist the broadcaster's Twitch OAuth grant (the per-channel bot token the
+// dashboard consent mints). Called once on login: without it the user row exists
+// but the bot has no token to act in the channel.
+export async function saveGrant(
+  userId: string,
+  accessToken: string,
+  refreshToken: string
+): Promise<void> {
+  await rpc(`${SUB.dashboard}.grant_save`, {
+    broadcaster_user_id: userId,
+    access_token: accessToken,
+    refresh_token: refreshToken
+  });
+}
+
 export async function listCommands(userId: string): Promise<CommandView[]> {
   const r = await rpc<{ commands: CommandView[] }>(`${SUB.commands}.list`, { user_id: userId });
   return r.commands ?? [];

@@ -3,6 +3,7 @@ import { redirect } from '@sveltejs/kit';
 import { decodeIdToken, OAuth2RequestError } from 'arctic';
 import { twitch } from '$lib/server/oauth';
 import { rpc } from '@bagel/shared/server/nats';
+import { saveGrant } from '$lib/server/rpc';
 import { COOKIE, seal } from '$lib/server/session';
 import { env } from '$env/dynamic/private';
 
@@ -71,15 +72,21 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
       maxAge: SESSION_TTL
     });
 
-    // Fire upsert_user in the background — user is already redirected.
-    // Catch + log so an unhandled rejection cannot crash the process.
-    rpc(`${DASHBOARD}.upsert_user`, {
-      user_id: userId,
-      username: login,
-      display_name: displayName
-    }).catch((err: unknown) => {
-      console.error('[callback] upsert_user failed (non-fatal):', err);
-    });
+    // Register the user, then persist the OAuth grant (access + refresh). The
+    // token row references the user, so upsert must land first. Both are awaited:
+    // skipping grant_save is exactly the bug where login succeeds but the bot
+    // never gets a token to act in the channel. A failure here is logged but does
+    // not block sign-in — the user can re-auth to retry.
+    try {
+      await rpc(`${DASHBOARD}.upsert_user`, {
+        user_id: userId,
+        username: login,
+        display_name: displayName
+      });
+      await saveGrant(userId, tokens.accessToken(), tokens.refreshToken());
+    } catch (err: unknown) {
+      console.error('[callback] upsert_user/grant_save failed (non-fatal):', err);
+    }
   } catch (e) {
     if (e instanceof OAuth2RequestError) throw redirect(302, '/login?e=oauth');
     throw e;
