@@ -20,11 +20,26 @@
 #   PreferClose and keeps the request inside the entry city, spilling to another
 #   city only when the local pods are gone.
 #
-# Secrets: reuses the existing Doppler-synced `dashboard-env` secret (project
-# dashboard / config prd) that the old Go tier used - same TWITCH_CLIENT_ID/
+# Secrets: uses the Doppler-synced `dashboard-env` secret (project dashboard /
+# config prd) that the old Go tier used - same TWITCH_CLIENT_ID/
 # SECRET, authenticated NATS creds (NATS_HOST/PORT/USER/PASSWORD), and the 32-byte
 # DASHBOARD_SESSION_KEY (mapped to SESSION_KEY below). Only TWITCH_REDIRECT_URI
 # was added to that config for the new OAuth callback.
+apiVersion: secrets.doppler.com/v1alpha1
+kind: DopplerSecret
+metadata:
+  name: dashboard-env
+  namespace: production
+spec:
+  host: https://api.doppler.com
+  tokenSecret:
+    name: dashboard-doppler-token
+  managedSecret:
+    name: dashboard-env
+    namespace: production
+    type: Opaque
+  resyncSeconds: 60
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
