@@ -5,6 +5,7 @@ package ent
 import (
 	"ItsBagelBot/app/users/ent/adminaudit"
 	"ItsBagelBot/app/users/ent/adminuser"
+	"ItsBagelBot/app/users/ent/delegation"
 	"ItsBagelBot/app/users/ent/tokens"
 	"ItsBagelBot/app/users/ent/user"
 	"context"
@@ -78,6 +79,7 @@ func checkColumn(t, c string) error {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
 			adminaudit.Table: adminaudit.ValidColumn,
 			adminuser.Table:  adminuser.ValidColumn,
+			delegation.Table: delegation.ValidColumn,
 			tokens.Table:     tokens.ValidColumn,
 			user.Table:       user.ValidColumn,
 		})

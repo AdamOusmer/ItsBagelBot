@@ -166,6 +166,11 @@ func main() {
 		log.Fatal("failed to subscribe tokens rpc", zap.Error(err))
 	}
 
+	delegationPrefix := env.Get("NATS_DELEGATION_SUBJECT_PREFIX", "bagel.rpc.delegation")
+	if err := rpc.SubscribeDelegation(nc, repo, delegationPrefix, queueGroup, log); err != nil {
+		log.Fatal("failed to subscribe delegation rpc", zap.Error(err))
+	}
+
 	health.Serve(env.Get("LISTEN_ADDR", ":8080"), nc.IsConnected)
 
 	log.Info("users service ready",
