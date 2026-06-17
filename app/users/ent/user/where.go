@@ -70,6 +70,11 @@ func IsActive(v bool) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldIsActive, v))
 }
 
+// Banned applies equality check predicate on the "banned" field. It's identical to BannedEQ.
+func Banned(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldBanned, v))
+}
+
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldCreatedAt, v))
@@ -218,6 +223,26 @@ func IsActiveEQ(v bool) predicate.User {
 // IsActiveNEQ applies the NEQ predicate on the "is_active" field.
 func IsActiveNEQ(v bool) predicate.User {
 	return predicate.User(sql.FieldNEQ(FieldIsActive, v))
+}
+
+// BannedEQ applies the EQ predicate on the "banned" field.
+func BannedEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldBanned, v))
+}
+
+// BannedNEQ applies the NEQ predicate on the "banned" field.
+func BannedNEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldBanned, v))
+}
+
+// BannedIsNil applies the IsNil predicate on the "banned" field.
+func BannedIsNil() predicate.User {
+	return predicate.User(sql.FieldIsNull(FieldBanned))
+}
+
+// BannedNotNil applies the NotNil predicate on the "banned" field.
+func BannedNotNil() predicate.User {
+	return predicate.User(sql.FieldNotNull(FieldBanned))
 }
 
 // StatusEQ applies the EQ predicate on the "status" field.

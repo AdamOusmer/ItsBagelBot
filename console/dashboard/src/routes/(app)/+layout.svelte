@@ -11,7 +11,16 @@
   const initial = $derived((data.displayName ?? 'M').charAt(0).toUpperCase());
 </script>
 
-<div class="app">
+{#if data.impersonatorLogin}
+  <div class="imp-banner" role="status">
+    <span>Viewing as <b>{data.login}</b> (admin {data.impersonatorLogin})</span>
+    <form method="POST" action="/auth/logout">
+      <button type="submit" class="imp-exit">Exit</button>
+    </form>
+  </div>
+{/if}
+
+<div class="app" class:impersonating={data.impersonatorLogin}>
   <aside class="sidebar">
     <div class="brand">
       <img src="/logo.png" alt="ItsBagelBot" />
@@ -72,3 +81,26 @@
     <form method="POST" action="/auth/logout"><button type="submit"><Icon name="power" size={20} />Log out</button></form>
   </nav>
 </div>
+
+<style>
+  .imp-banner {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 300;
+    display: flex; align-items: center; justify-content: center; gap: 1rem;
+    padding: 8px 14px;
+    font-family: var(--bb-font-body); font-size: 13px;
+    color: var(--bb-bg-1, #111);
+    background: var(--bb-tan, #c9a87c);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.2);
+  }
+  .imp-banner b { font-weight: 700; }
+  .imp-banner form { display: inline; }
+  .imp-exit {
+    cursor: pointer; font: inherit; font-weight: 700;
+    padding: 3px 12px; border-radius: var(--bb-radius-sm, 8px);
+    color: var(--bb-bg-1, #111);
+    background: transparent; border: 1px solid rgba(0, 0, 0, 0.35);
+  }
+  .imp-exit:hover { background: rgba(0, 0, 0, 0.12); }
+  /* Push the app down so the fixed banner does not cover the topbar. */
+  .app.impersonating { padding-top: 38px; }
+</style>

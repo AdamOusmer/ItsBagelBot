@@ -9,6 +9,21 @@
   const lookupError = $derived(lookup?.error as string | undefined);
   const tokenPresent = $derived(lookup?.tokenPresent === undefined ? undefined : Boolean(lookup?.tokenPresent));
   const action = $derived(form?.action as { ok: boolean; notice: string } | undefined);
+  const viewAsUrl = $derived(form?.viewAsUrl as string | undefined);
+
+  // Copy the freshly-minted view-as link to the clipboard (mirrors the bot-link
+  // copy on the overview page).
+  let copied = $state(false);
+  async function copyViewAs() {
+    if (!viewAsUrl) return;
+    try {
+      await navigator.clipboard.writeText(viewAsUrl);
+      copied = true;
+      setTimeout(() => (copied = false), 1500);
+    } catch {
+      copied = false;
+    }
+  }
 
   function tier(status: string): 'premium' | 'standard' {
     return status === 'paid' || status === 'vip' ? 'premium' : 'standard';
@@ -181,7 +196,7 @@
             onclick={() => openUser(u)}
             onkeydown={(e) => handleRowKey(e, u)}
           >
-            <span class="cmd">@{u.username}</span>
+            <span class="cmd">@{u.username}{#if u.banned}<span class="badge banned">banned</span>{/if}</span>
             <span class="resp">{u.id}</span>
             <span class="perm-cell"><span class="badge {tier(u.status) === 'premium' ? 'sub' : 'everyone'}">{tier(u.status)}</span></span>
             <span class="cd">{u.status}</span>
@@ -214,6 +229,7 @@
       <div class="meta-block">
         <div class="meta-line"><span class="meta-k">Status</span><span class="meta-v">{drawerUser.status}</span></div>
         <div class="meta-line"><span class="meta-k">State</span><span class="meta-v">{drawerUser.is_active ? 'active' : 'inactive'}</span></div>
+        <div class="meta-line"><span class="meta-k">Ban</span><span class="meta-v">{drawerUser.banned ? 'banned' : 'allowed'}</span></div>
         <div class="meta-line">
           <span class="meta-k">Token</span>
           <span class="meta-v">{drawerToken === undefined ? 'unknown' : drawerToken ? 'present' : 'absent'}</span>
@@ -258,6 +274,35 @@
             {drawerUser.is_active ? 'Deactivate' : 'Activate'}
           </button>
         </form>
+      </div>
+
+      <!-- Service ban toggle -->
+      <div class="field">
+        <span class="field-label">Service access</span>
+        <form method="POST" action={drawerUser.banned ? '?/unban' : '?/ban'} use:enhance={refresh}>
+          <input type="hidden" name="user_id" value={drawerUser.id} />
+          <button class="btn ghost block" class:warn={!drawerUser.banned} type="submit">
+            {drawerUser.banned ? 'Unban from service' : 'Ban from service'}
+          </button>
+        </form>
+      </div>
+
+      <!-- View as (impersonate) -->
+      <div class="field">
+        <span class="field-label">View as</span>
+        <form method="POST" action="?/impersonate" use:enhance={refresh}>
+          <input type="hidden" name="user_id" value={drawerUser.id} />
+          <button class="btn ghost block" type="submit"><Icon name="users" size={13} /> View as this user</button>
+        </form>
+        {#if viewAsUrl}
+          <div class="viewas-row">
+            <input class="viewas-url" type="text" readonly value={viewAsUrl} />
+            <button class="btn ghost" type="button" onclick={copyViewAs}>
+              <Icon name="link" size={13} /> {copied ? 'Copied' : 'Copy'}
+            </button>
+          </div>
+          <p class="notice-muted">Open this link to load the broadcaster's dashboard. Expires in 5 minutes; every change is audited.</p>
+        {/if}
       </div>
 
       <!-- Maintenance actions -->
@@ -337,6 +382,23 @@
   .notice-muted { font-size: .85rem; color: var(--bb-muted); margin: .8rem 0 0; }
   .notice-ok  { font-size: .82rem; color: var(--bb-green-glow); margin: 0 0 .2rem; }
   .notice-err { font-size: .82rem; color: #cf8a78; margin: 0 0 .2rem; }
+
+  /* banned badge */
+  .badge.banned {
+    margin-left: .4rem;
+    background: rgba(176, 90, 70, 0.18); color: #cf8a78;
+    border: 1px solid rgba(176, 90, 70, 0.4);
+  }
+
+  /* view-as link row */
+  .viewas-row { display: flex; gap: .5rem; margin-top: .55rem; }
+  .viewas-url {
+    flex: 1; min-width: 0;
+    font-family: var(--bb-font-mono); font-size: 12px; color: var(--bb-tan-light);
+    background: rgba(255,255,255,0.025);
+    border: 1px solid var(--glass-border); border-radius: var(--bb-radius-sm, 8px);
+    padding: 8px 10px;
+  }
 
   /* lookup bar */
   .lookup-card { padding: 16px 18px; }

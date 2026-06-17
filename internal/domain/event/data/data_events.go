@@ -27,6 +27,7 @@ type UserChangedDTO struct {
 	Username string `json:"username"`
 	IsActive bool   `json:"is_active"`
 	Status   string `json:"status"`
+	Banned   bool   `json:"banned"`
 }
 
 type UserDeletedDTO struct {

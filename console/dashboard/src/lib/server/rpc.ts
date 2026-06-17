@@ -8,7 +8,8 @@ const SUB = {
   broadcaster: env.NATS_BROADCASTER_STATUS_SUBJECT ?? 'bagel.rpc.broadcaster.status.get',
   dashboard: env.NATS_DASHBOARD_SUBJECT_PREFIX ?? 'bagel.rpc.dashboard',
   commands: env.NATS_COMMANDS_SUBJECT_PREFIX ?? 'bagel.rpc.commands',
-  outgress: env.NATS_OUTGRESS_SYSTEM_SUBJECT ?? 'twitch.outgress.system'
+  outgress: env.NATS_OUTGRESS_SYSTEM_SUBJECT ?? 'twitch.outgress.system',
+  audit: env.NATS_ADMIN_AUDIT_SUBJECT_PREFIX ?? 'bagel.rpc.admin.user.audit'
 };
 
 // Enqueue an EventSub on/off job on the outgress system lane. Outgress runs the
@@ -25,6 +26,44 @@ export async function publishEventSub(broadcasterId: string, enabled: boolean): 
 export async function tier(broadcasterId: string): Promise<Tier> {
   const r = await rpc<{ tier: Tier }>(SUB.broadcaster, { broadcaster_id: broadcasterId }, 2000);
   return r.tier ?? 'standard';
+}
+
+// isBanned reports whether the platform has banned the user (completes the
+// admin "ban from service" action by blocking dashboard login). Fails OPEN:
+// an RPC blip returns false so a transient outage never locks everyone out —
+// the admin panel remains the source of truth for re-banning.
+export async function isBanned(userId: string): Promise<boolean> {
+  try {
+    const r = await rpc<{ banned?: boolean }>(SUB.broadcaster, { broadcaster_id: userId }, 2000);
+    return r.banned === true;
+  } catch {
+    return false;
+  }
+}
+
+// auditImpersonation records a dashboard write performed while an admin is
+// viewing as the user. Best-effort: a logging failure must never block the
+// action it describes, so callers fire-and-forget and we swallow errors here.
+export async function auditImpersonation(
+  actorId: string,
+  actorLogin: string,
+  action: string,
+  target: string,
+  detail: string
+): Promise<void> {
+  try {
+    await rpc(`${SUB.audit}.append`, {
+      actor_id: actorId,
+      actor_login: actorLogin,
+      action,
+      target,
+      detail,
+      ok: true,
+      error: ''
+    });
+  } catch {
+    /* best-effort */
+  }
 }
 
 // Dashboard reads are cached primary-key lookups, so they return in low ms when

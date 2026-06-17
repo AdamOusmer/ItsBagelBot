@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -28,22 +29,57 @@ var ErrNoUserToken = errors.New("no bot user token configured")
 //     app token because Twitch honors the bot's user:bot / user:write:chat
 //     grant and the broadcaster's channel:bot grant when the bot is the
 //     sender. Every general Helix read uses it too.
-//   - bot user token (c.user): only /helix/moderation/channels, which needs
-//     the bot account's user:read:moderated_channels scope. nil when the bot
-//     runs without user credentials, which downgrades mod checks to non-mod.
+//   - bot user token (c.user): endpoints that read or act in the bot's
+//     moderator/user context, which the app token cannot satisfy:
+//     /helix/moderation/* (e.g. moderated channels, bans), /helix/chat/chatters
+//     (moderator:read:chatters) and /helix/channels/followers
+//     (moderator:read:followers). nil when the bot runs without user
+//     credentials, which downgrades these to "cannot verify".
+//
+// Execute routes a generic enqueued job to whichever of these its endpoint
+// needs; Do is the explicit app-token path the EventSub calls use directly.
 type Client struct {
-	http     *http.Client
-	clientID string
-	app      *Source
-	user     *Source // nil when the bot runs without user credentials
+	http         *http.Client
+	clientID     string
+	app          *Source
+	user         *Source            // nil when the bot runs without user credentials
+	broadcasters *BroadcasterTokens // per-channel user tokens, nil if unconfigured
 }
 
-func NewClient(clientID string, app *Source, user *Source) *Client {
+func NewClient(clientID string, app, user *Source, broadcasters *BroadcasterTokens) *Client {
 	return &Client{
-		http:     &http.Client{Timeout: 10 * time.Second},
-		clientID: clientID,
-		app:      app,
-		user:     user,
+		http:         &http.Client{Timeout: 10 * time.Second},
+		clientID:     clientID,
+		app:          app,
+		user:         user,
+		broadcasters: broadcasters,
+	}
+}
+
+// Identity names whose token a job runs under. IdentityAuto keeps the
+// endpoint-based routing (sourceFor); the rest are explicit producer choices
+// carried on the wire as the message "as" field.
+type Identity int
+
+const (
+	IdentityAuto        Identity = iota // route by endpoint (default)
+	IdentityApp                         // app token
+	IdentityBot                         // the bot account's user token
+	IdentityBroadcaster                 // the target channel's own user token
+)
+
+// ParseIdentity maps the wire "as" field to an Identity. "user" is an alias for
+// "broadcaster"; anything unknown (including "") falls back to auto routing.
+func ParseIdentity(s string) Identity {
+	switch s {
+	case "app":
+		return IdentityApp
+	case "bot":
+		return IdentityBot
+	case "broadcaster", "user":
+		return IdentityBroadcaster
+	default:
+		return IdentityAuto
 	}
 }
 
@@ -51,6 +87,65 @@ func NewClient(clientID string, app *Source, user *Source) *Client {
 // EventSub management, general reads). The caller owns the response body.
 func (c *Client) Do(ctx context.Context, method, endpoint string, body []byte) (*http.Response, error) {
 	return c.request(ctx, c.app, method, endpoint, body)
+}
+
+// userScopedPrefixes are Helix path prefixes that must run under the bot's USER
+// token rather than the app token, because they read or act in a moderator/user
+// context the app token cannot satisfy. Chat sends (/helix/chat/messages) are
+// deliberately absent: Twitch honors the bot's user:bot grant plus the
+// broadcaster's channel:bot grant for the sender, so they ride the app token.
+var userScopedPrefixes = []string{
+	"/helix/moderation/",        // moderated channels, bans, etc.
+	"/helix/chat/chatters",      // moderator:read:chatters
+	"/helix/channels/followers", // moderator:read:followers
+}
+
+// sourceFor picks the token an endpoint needs: the bot user token for the
+// moderator/user-scoped reads above, the app token for everything else.
+func (c *Client) sourceFor(endpoint string) *Source {
+	path := endpoint
+	if i := strings.IndexByte(path, '?'); i >= 0 {
+		path = path[:i]
+	}
+	for _, p := range userScopedPrefixes {
+		if strings.HasPrefix(path, p) {
+			return c.user
+		}
+	}
+	return c.app
+}
+
+// sourceForIdentity resolves the token a job runs under. An explicit identity
+// wins; IdentityAuto falls back to endpoint-based routing.
+func (c *Client) sourceForIdentity(id Identity, broadcasterID, endpoint string) *Source {
+	switch id {
+	case IdentityApp:
+		return c.app
+	case IdentityBot:
+		return c.user
+	case IdentityBroadcaster:
+		return c.broadcasters.Get(broadcasterID)
+	default:
+		return c.sourceFor(endpoint)
+	}
+}
+
+// Execute runs a generic enqueued Helix job under the token its endpoint
+// requires (endpoint-based routing). Equivalent to ExecuteAs with IdentityAuto.
+func (c *Client) Execute(ctx context.Context, method, endpoint string, body []byte) (*http.Response, error) {
+	return c.ExecuteAs(ctx, IdentityAuto, "", method, endpoint, body)
+}
+
+// ExecuteAs runs a generic enqueued Helix job under the requested identity (or
+// endpoint-based routing for IdentityAuto), with the same retry-once-on-401
+// dance as Do. A user/broadcaster identity with no token available returns
+// ErrNoUserToken so the caller surfaces it instead of 401-looping.
+func (c *Client) ExecuteAs(ctx context.Context, id Identity, broadcasterID, method, endpoint string, body []byte) (*http.Response, error) {
+	src := c.sourceForIdentity(id, broadcasterID, endpoint)
+	if src == nil {
+		return nil, ErrNoUserToken
+	}
+	return c.request(ctx, src, method, endpoint, body)
 }
 
 // IsModerator reports whether the bot account moderates broadcasterID,

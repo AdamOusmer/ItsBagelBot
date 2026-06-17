@@ -11,6 +11,10 @@ export interface Session {
   display_name: string;
   role: 'streamer' | 'mod';
   expires_at: number;
+  // Set only when an admin is viewing this dashboard "as" the user. Carries the
+  // acting admin so every write during the session is audited back to them.
+  impersonator_id?: string;
+  impersonator_login?: string;
 }
 
 const AAD = Buffer.from('session');

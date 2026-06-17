@@ -2111,6 +2111,7 @@ type UserMutation struct {
 	username      *string
 	email         *string
 	is_active     *bool
+	banned        *bool
 	status        *user.Status
 	created_at    *time.Time
 	updated_at    *time.Time
@@ -2335,6 +2336,55 @@ func (m *UserMutation) ResetIsActive() {
 	m.is_active = nil
 }
 
+// SetBanned sets the "banned" field.
+func (m *UserMutation) SetBanned(b bool) {
+	m.banned = &b
+}
+
+// Banned returns the value of the "banned" field in the mutation.
+func (m *UserMutation) Banned() (r bool, exists bool) {
+	v := m.banned
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBanned returns the old "banned" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldBanned(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBanned is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBanned requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBanned: %w", err)
+	}
+	return oldValue.Banned, nil
+}
+
+// ClearBanned clears the value of the "banned" field.
+func (m *UserMutation) ClearBanned() {
+	m.banned = nil
+	m.clearedFields[user.FieldBanned] = struct{}{}
+}
+
+// BannedCleared returns if the "banned" field was cleared in this mutation.
+func (m *UserMutation) BannedCleared() bool {
+	_, ok := m.clearedFields[user.FieldBanned]
+	return ok
+}
+
+// ResetBanned resets all changes to the "banned" field.
+func (m *UserMutation) ResetBanned() {
+	m.banned = nil
+	delete(m.clearedFields, user.FieldBanned)
+}
+
 // SetStatus sets the "status" field.
 func (m *UserMutation) SetStatus(u user.Status) {
 	m.status = &u
@@ -2531,7 +2581,7 @@ func (m *UserMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UserMutation) Fields() []string {
-	fields := make([]string, 0, 6)
+	fields := make([]string, 0, 7)
 	if m.username != nil {
 		fields = append(fields, user.FieldUsername)
 	}
@@ -2540,6 +2590,9 @@ func (m *UserMutation) Fields() []string {
 	}
 	if m.is_active != nil {
 		fields = append(fields, user.FieldIsActive)
+	}
+	if m.banned != nil {
+		fields = append(fields, user.FieldBanned)
 	}
 	if m.status != nil {
 		fields = append(fields, user.FieldStatus)
@@ -2564,6 +2617,8 @@ func (m *UserMutation) Field(name string) (ent.Value, bool) {
 		return m.Email()
 	case user.FieldIsActive:
 		return m.IsActive()
+	case user.FieldBanned:
+		return m.Banned()
 	case user.FieldStatus:
 		return m.Status()
 	case user.FieldCreatedAt:
@@ -2585,6 +2640,8 @@ func (m *UserMutation) OldField(ctx context.Context, name string) (ent.Value, er
 		return m.OldEmail(ctx)
 	case user.FieldIsActive:
 		return m.OldIsActive(ctx)
+	case user.FieldBanned:
+		return m.OldBanned(ctx)
 	case user.FieldStatus:
 		return m.OldStatus(ctx)
 	case user.FieldCreatedAt:
@@ -2620,6 +2677,13 @@ func (m *UserMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetIsActive(v)
+		return nil
+	case user.FieldBanned:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBanned(v)
 		return nil
 	case user.FieldStatus:
 		v, ok := value.(user.Status)
@@ -2671,7 +2735,11 @@ func (m *UserMutation) AddField(name string, value ent.Value) error {
 // ClearedFields returns all nullable fields that were cleared during this
 // mutation.
 func (m *UserMutation) ClearedFields() []string {
-	return nil
+	var fields []string
+	if m.FieldCleared(user.FieldBanned) {
+		fields = append(fields, user.FieldBanned)
+	}
+	return fields
 }
 
 // FieldCleared returns a boolean indicating if a field with the given name was
@@ -2684,6 +2752,11 @@ func (m *UserMutation) FieldCleared(name string) bool {
 // ClearField clears the value of the field with the given name. It returns an
 // error if the field is not defined in the schema.
 func (m *UserMutation) ClearField(name string) error {
+	switch name {
+	case user.FieldBanned:
+		m.ClearBanned()
+		return nil
+	}
 	return fmt.Errorf("unknown User nullable field %s", name)
 }
 
@@ -2699,6 +2772,9 @@ func (m *UserMutation) ResetField(name string) error {
 		return nil
 	case user.FieldIsActive:
 		m.ResetIsActive()
+		return nil
+	case user.FieldBanned:
+		m.ResetBanned()
 		return nil
 	case user.FieldStatus:
 		m.ResetStatus()

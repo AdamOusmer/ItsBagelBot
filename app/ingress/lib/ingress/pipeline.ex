@@ -6,8 +6,13 @@ defmodule Ingress.Pipeline do
 
     * `twitch.ingress.event.premium` / `twitch.ingress.event.standard`: all
       events, laned by broadcaster status.
-    * `twitch.ingress.event.stream`: **only** `stream.online` and
-      `stream.offline`, regardless of broadcaster status.
+    * `twitch.ingress.event.stream`: the live lane, carrying `stream.online`
+      and `stream.offline` regardless of broadcaster status.
+
+  Live events are **dual-published**: every `stream.online`/`stream.offline`
+  goes to the live lane *and* to the broadcaster's own event lane
+  (premium/standard), so a consumer draining chat/follows/subs/cheers also sees
+  the channel go live without subscribing to the live lane.
 
   Every published event carries its `type` in the payload so consumers filter
   there, not on the subject.
@@ -33,13 +38,17 @@ defmodule Ingress.Pipeline do
 
   @type decision :: :special | :command | :drop
 
+  @type lane :: :premium | :standard | :stream | :drop
+
   @stream_types ["stream.online", "stream.offline"]
 
   def handle_event(payload, meta) do
     case route(payload, meta) do
       {:publish, subject, message} ->
-        Metrics.count("Published/#{message.lane}")
-        Nats.publish(subject, message)
+        publish_one(subject, message)
+
+      {:publish_many, publishes} ->
+        Enum.each(publishes, fn {subject, message} -> publish_one(subject, message) end)
 
       :drop ->
         Metrics.count("Dropped")
@@ -47,22 +56,41 @@ defmodule Ingress.Pipeline do
     end
   end
 
+  defp publish_one(subject, message) do
+    Metrics.count("Published/#{message.lane}")
+    Nats.publish(subject, message)
+  end
+
   @doc """
   Pure-ish routing (the only side effect is the broadcaster cache read).
-  Returns the subject and payload to publish, or `:drop`.
+  Returns the subject and payload to publish, a list of them, or `:drop`.
   """
-  @spec route(map(), map()) :: {:publish, String.t(), map()} | :drop
+  @spec route(map(), map()) ::
+          {:publish, String.t(), map()} | {:publish_many, [{String.t(), map()}]} | :drop
   def route(%{"subscription" => %{"type" => type}, "event" => event}, meta)
       when type in @stream_types do
-    {:publish, Config.lane_subject(:stream),
-     %{
-       type: type,
-       lane: :stream,
-       event: event,
-       shard_id: meta.shard_id,
-       msg_id: meta.msg_id,
-       received_at: meta.ts
-     }}
+    # A live event rides two lanes at once: the dedicated stream (live) lane,
+    # and the broadcaster's own event lane (premium/standard) so consumers
+    # watching chat/follows/subs/cheers also see the channel go live without
+    # subscribing to the live lane. The stream lane is unconditional; the event
+    # lane is whatever the broadcaster's status resolves to.
+    event_lane =
+      case broadcaster_id(event) do
+        nil -> :standard
+        id -> BroadcasterCache.lane(id)
+      end
+
+    # The stream lane is unconditional. The broadcaster's own event lane is
+    # added only when they are not dropped (banned): a banned broadcaster's
+    # live event still rides the stream lane but never their event lane.
+    publishes =
+      [{Config.lane_subject(:stream), stream_message(:stream, type, event, meta)}] ++
+        case event_lane do
+          :drop -> []
+          lane -> [{Config.lane_subject(lane), stream_message(lane, type, event, meta)}]
+        end
+
+    {:publish_many, publishes}
   end
 
   def route(%{"subscription" => %{"type" => "channel.chat.message"}, "event" => event}, meta) do
@@ -76,7 +104,10 @@ defmodule Ingress.Pipeline do
         chat_message(:premium, event, text, meta)
 
       :command ->
-        chat_message(BroadcasterCache.lane(event["broadcaster_user_id"]), event, text, meta)
+        case BroadcasterCache.lane(event["broadcaster_user_id"]) do
+          :drop -> :drop
+          lane -> chat_message(lane, event, text, meta)
+        end
     end
   end
 
@@ -87,15 +118,21 @@ defmodule Ingress.Pipeline do
         id -> BroadcasterCache.lane(id)
       end
 
-    {:publish, Config.lane_subject(lane),
-     %{
-       type: type,
-       lane: lane,
-       event: event,
-       shard_id: meta.shard_id,
-       msg_id: meta.msg_id,
-       received_at: meta.ts
-     }}
+    case lane do
+      :drop ->
+        :drop
+
+      lane ->
+        {:publish, Config.lane_subject(lane),
+         %{
+           type: type,
+           lane: lane,
+           event: event,
+           shard_id: meta.shard_id,
+           msg_id: meta.msg_id,
+           received_at: meta.ts
+         }}
+    end
   end
 
   def route(payload, _meta) do
@@ -124,6 +161,17 @@ defmodule Ingress.Pipeline do
   @spec broadcaster_id(map()) :: String.t() | nil
   def broadcaster_id(event) do
     event["broadcaster_user_id"] || event["to_broadcaster_user_id"]
+  end
+
+  defp stream_message(lane, type, event, meta) do
+    %{
+      type: type,
+      lane: lane,
+      event: event,
+      shard_id: meta.shard_id,
+      msg_id: meta.msg_id,
+      received_at: meta.ts
+    }
   end
 
   defp chat_message(lane, event, text, meta) do
