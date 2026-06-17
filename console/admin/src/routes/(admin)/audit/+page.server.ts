@@ -1,6 +1,6 @@
 import type { PageServerLoad } from './$types';
 import { redirect } from '@sveltejs/kit';
-import { requireAdmin, isManager, isDemo } from '$lib/server/access';
+import { isManager, isDemo } from '$lib/server/access';
 import { auditList, type AuditEntry } from '$lib/server/rpc';
 
 const now = Date.now();
@@ -10,9 +10,8 @@ const sampleAudit: AuditEntry[] = [
   { id: 1, actor_id: 804932984, actor_login: 'itsmavey', action: 'delete', target: '333333333', detail: '', ok: false, error: 'user not found', created_at: new Date(now - 7_200_000).toISOString() }
 ];
 
-export const load: PageServerLoad = async ({ locals }) => {
-  const admin = await requireAdmin(locals.session);
-  if (!admin) throw redirect(302, '/login');
+export const load: PageServerLoad = async ({ parent }) => {
+  const admin = await parent();
   // The audit trail is sensitive (who did what); managers only.
   if (!isManager(admin.role)) throw redirect(302, '/');
 

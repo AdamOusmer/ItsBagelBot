@@ -22,16 +22,15 @@ export const load: PageServerLoad = async ({ locals }) => {
   let received: Awaited<ReturnType<typeof delegationAccess>> = [];
   let degraded = false;
 
-  try {
-    given = await delegationList(self);
-  } catch {
-    degraded = true;
-  }
-  try {
-    received = await delegationAccess(self);
-  } catch {
-    degraded = true;
-  }
+  const [givenResult, receivedResult] = await Promise.allSettled([
+    delegationList(self),
+    delegationAccess(self)
+  ]);
+
+  if (givenResult.status === 'fulfilled') given = givenResult.value;
+  else degraded = true;
+  if (receivedResult.status === 'fulfilled') received = receivedResult.value;
+  else degraded = true;
 
   return { given, received, degraded };
 };

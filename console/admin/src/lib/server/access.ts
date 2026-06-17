@@ -42,6 +42,10 @@ export function canManage(actor: AdminRole, target: AdminRole): boolean {
   return RANK[actor] >= RANK[target];
 }
 
+const AUTH_CACHE_TTL_MS = 30_000;
+
+const authCache = new Map<string, { admin: AdminIdentity; expires: number }>();
+
 // requireAdmin resolves the admin identity for a session, or null if the session
 // is absent / not active staff. The session is sealed by the Twitch OAuth
 // callback (tailnet-driven); auth.check confirms allowlist membership + role.
@@ -56,15 +60,20 @@ export async function requireAdmin(session: Session | null): Promise<AdminIdenti
     };
   }
   if (!session) return null;
+  const cached = authCache.get(session.user_id);
+  if (cached && cached.expires > Date.now()) return cached.admin;
+
   try {
     const r = await adminCheck(session.user_id, session.login, session.display_name);
     if (!r.admin) return null;
-    return {
+    const admin = {
       id: session.user_id,
       login: r.login ?? session.login,
       display_name: r.display_name ?? session.display_name,
       role: r.role ?? 'admin'
     };
+    authCache.set(session.user_id, { admin, expires: Date.now() + AUTH_CACHE_TTL_MS });
+    return admin;
   } catch {
     // Fail closed: if the auth service is unreachable, deny rather than admit an
     // unverified session.

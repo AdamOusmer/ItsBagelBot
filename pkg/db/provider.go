@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	entsql "entgo.io/ent/dialect/sql"
@@ -65,7 +66,7 @@ func NewDriver(cfg Config) (*entsql.Driver, error) {
 		"time_zone":             "'+00:00'",
 	}
 
-	tlsName, err := registerTLS([]byte(os.Getenv("DB_CA_CERT")))
+	tlsName, err := registerTLS(os.Getenv("DB_TLS_SERVER_NAME"), []byte(os.Getenv("DB_CA_CERT")))
 	if err != nil {
 		return nil, err
 	}
@@ -86,45 +87,25 @@ func NewDriver(cfg Config) (*entsql.Driver, error) {
 const tlsConfigName = "bagel-mysql"
 
 // registerTLS builds and registers the TLS config used for every MySQL
-// connection so traffic to the managed HeatWave endpoint is always encrypted.
+// connection so traffic to the managed HeatWave endpoint is encrypted and the
+// server certificate is authenticated.
 //
 // When DB_CA_CERT holds the endpoint CA (PEM), the server certificate is
-// verified against it. The HeatWave endpoint certificate carries no SAN and we
-// dial it by private IP, so Go's default identity check cannot apply; instead
-// we pin the CA and verify the presented chain back to it ourselves, which
-// authenticates the server (MITM-resistant) without a hostname match. Without a
-// CA we still negotiate TLS so the wire stays encrypted, just unauthenticated.
-func registerTLS(caPEM []byte) (string, error) {
-	cfg := &tls.Config{MinVersion: tls.VersionTLS12}
+// verified against it. DB_TLS_SERVER_NAME may be set when DB_ADDR is a private
+// IP but the certificate is issued to a DNS name; otherwise the MySQL driver
+// derives the identity from DB_ADDR.
+func registerTLS(serverName string, caPEM []byte) (string, error) {
+	cfg := &tls.Config{
+		MinVersion: tls.VersionTLS12,
+		ServerName: strings.TrimSpace(serverName),
+	}
 
-	if len(caPEM) > 0 {
+	if len(strings.TrimSpace(string(caPEM))) > 0 {
 		roots := x509.NewCertPool()
 		if !roots.AppendCertsFromPEM(caPEM) {
 			return "", fmt.Errorf("db: DB_CA_CERT did not contain a valid PEM certificate")
 		}
 		cfg.RootCAs = roots
-		cfg.InsecureSkipVerify = true // we verify the chain ourselves below, minus the (absent) hostname identity
-		cfg.VerifyPeerCertificate = func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
-			certs := make([]*x509.Certificate, 0, len(rawCerts))
-			for _, raw := range rawCerts {
-				c, err := x509.ParseCertificate(raw)
-				if err != nil {
-					return fmt.Errorf("db: parse server certificate: %w", err)
-				}
-				certs = append(certs, c)
-			}
-			if len(certs) == 0 {
-				return fmt.Errorf("db: server presented no certificate")
-			}
-			intermediates := x509.NewCertPool()
-			for _, c := range certs[1:] {
-				intermediates.AddCert(c)
-			}
-			_, err := certs[0].Verify(x509.VerifyOptions{Roots: roots, Intermediates: intermediates})
-			return err
-		}
-	} else {
-		cfg.InsecureSkipVerify = true // encrypt even without a pinned CA
 	}
 
 	if err := mysql.RegisterTLSConfig(tlsConfigName, cfg); err != nil {

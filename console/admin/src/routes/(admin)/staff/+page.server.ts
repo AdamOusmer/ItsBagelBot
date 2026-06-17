@@ -13,9 +13,14 @@ const sampleStaff: AdminAcct[] = [
   { id: 222222222, login: 'a_mod', display_name: 'A Mod', role: 'moderator', active: true, added_by: 804932984, created_at: new Date(Date.now() - 86400_000 * 2).toISOString() }
 ];
 
-export const load: PageServerLoad = async ({ locals }) => {
-  const admin = await requireAdmin(locals.session);
-  if (!admin) throw redirect(302, '/login');
+export const load: PageServerLoad = async ({ parent }) => {
+  const layout = await parent();
+  const admin: AdminIdentity = {
+    id: layout.id,
+    login: layout.login,
+    display_name: layout.displayName,
+    role: layout.role
+  };
   // Staff roster is managers-only; moderators get bounced to the overview.
   if (!isManager(admin.role)) throw redirect(302, '/');
 

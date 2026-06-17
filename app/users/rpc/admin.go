@@ -76,6 +76,7 @@ func SubscribeAdmin(nc *nats.Conn, db *ent.Client, repo *repository.Users, prefi
 		"get":          a.get,
 		"list":         a.list,
 		"stats":        a.stats,
+		"overview":     a.overview,
 		"set_status":   a.setStatus,
 		"set_active":   a.setActive,
 		"ban":          a.ban,
@@ -138,26 +139,42 @@ func (a *adminRPC) list(ctx context.Context, req adminRequest) adminReply {
 	return adminReply{Users: views}
 }
 
+func (a *adminRPC) overview(ctx context.Context, req adminRequest) adminReply {
+	list := a.list(ctx, req)
+	if list.Error != "" {
+		return list
+	}
+	stats := a.stats(ctx, req)
+	if stats.Error != "" {
+		return stats
+	}
+	list.Stats = stats.Stats
+	return list
+}
+
 func (a *adminRPC) stats(ctx context.Context, _ adminRequest) adminReply {
-	rows, err := a.db.User.Query().All(ctx)
+	total, err := a.db.User.Query().Count(ctx)
 	if err != nil {
 		return adminReply{Error: err.Error()}
 	}
-
-	stats := adminStats{TotalUsers: len(rows)}
-	for _, u := range rows {
-		if u.IsActive {
-			stats.ActiveUsers++
-		}
-		if u.Status == user.StatusPaid || u.Status == user.StatusVip {
-			stats.PremiumUsers++
-		}
-		if u.Status == user.StatusVip {
-			stats.VIPUsers++
-		}
-		if u.Status == user.StatusPaid {
-			stats.PaidUsers++
-		}
+	active, err := a.db.User.Query().Where(user.IsActiveEQ(true)).Count(ctx)
+	if err != nil {
+		return adminReply{Error: err.Error()}
+	}
+	paid, err := a.db.User.Query().Where(user.StatusEQ(user.StatusPaid)).Count(ctx)
+	if err != nil {
+		return adminReply{Error: err.Error()}
+	}
+	vip, err := a.db.User.Query().Where(user.StatusEQ(user.StatusVip)).Count(ctx)
+	if err != nil {
+		return adminReply{Error: err.Error()}
+	}
+	stats := adminStats{
+		TotalUsers:   total,
+		ActiveUsers:  active,
+		PremiumUsers: paid + vip,
+		VIPUsers:     vip,
+		PaidUsers:    paid,
 	}
 	return adminReply{Stats: &stats}
 }
