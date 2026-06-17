@@ -22,7 +22,7 @@ export default {
         'style-src-attr': ['unsafe-inline'],
         'font-src': ['self'],
         'img-src': ['self', 'data:'],
-        'connect-src': ['self'],
+        'connect-src': ['self', 'https://dashboard.itsbagelbot.com'],
         'object-src': ['none'],
         'base-uri': ['self'],
         'frame-ancestors': ['none']

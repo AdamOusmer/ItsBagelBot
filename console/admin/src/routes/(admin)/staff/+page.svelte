@@ -132,16 +132,11 @@
 
   // --- Confirm-remove modal -------------------------------------------
   let removeTarget = $state<AdminAcct | null>(null);
-  let removeFormEl = $state<HTMLFormElement | null>(null);
   function openRemove(row: AdminAcct) {
     removeTarget = row;
   }
   function closeRemove() {
     removeTarget = null;
-  }
-  function confirmRemove() {
-    if (removeFormEl) removeFormEl.requestSubmit();
-    closeRemove();
   }
 
   function handleKey(e: KeyboardEvent) {
@@ -269,8 +264,7 @@
 
 <!-- Member drawer -->
 {#if drawer}
-  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div class="drawer-backdrop" onclick={closeDrawer}></div>
+  <button class="drawer-backdrop" type="button" onclick={closeDrawer} aria-label="Close drawer"></button>
   <div class="drawer open" role="dialog" aria-modal="true" aria-labelledby="staff-drawer-title">
     <header class="drawer-head">
       <div class="drawer-id">
@@ -359,16 +353,22 @@
       <p class="modal-body">
         This deactivates their console access. They will no longer be able to sign in or manage the bot.
       </p>
-      <form method="POST" action="?/remove" use:enhance={refresh} bind:this={removeFormEl} style="display:none">
+      <form
+        method="POST"
+        action="?/remove"
+        use:enhance={() => async ({ update }) => {
+          await update({ invalidateAll: false });
+          closeRemove();
+        }}
+        class="modal-actions"
+      >
         <input type="hidden" name="user_id" value={removeTarget.id} />
         <input type="hidden" name="target_role" value={removeTarget.role} />
-      </form>
-      <div class="modal-actions">
         <button class="btn ghost" type="button" onclick={closeRemove}>Cancel</button>
-        <button class="btn danger" type="button" onclick={confirmRemove}>
+        <button class="btn danger" type="submit">
           <Icon name="trash" size={13} /> Remove
         </button>
-      </div>
+      </form>
     </div>
   </div>
 {/if}
@@ -436,6 +436,7 @@
   /* ---- drawer (mirrors users page) ---- */
   .drawer-backdrop {
     position: fixed; inset: 0; z-index: 190; background: rgba(0, 0, 0, 0.5);
+    padding: 0; border: 0; cursor: pointer;
     backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
     animation: fade var(--bb-dur-fast, 160ms) var(--bb-ease-out-expo, ease) both;
   }
