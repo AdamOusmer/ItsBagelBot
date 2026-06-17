@@ -6,6 +6,8 @@ import {
   userLookup,
   userSetStatus,
   userSetActive,
+  userBan,
+  userUnban,
   userReset,
   userDelete,
   tokenClear,
@@ -15,6 +17,8 @@ import {
   type AdminUserWire
 } from '$lib/server/rpc';
 import { requireAdmin, isDemo, type AdminIdentity } from '$lib/server/access';
+import { signViewAs } from '$lib/server/impersonation';
+import { env } from '$env/dynamic/private';
 import { sampleStats, sampleUsers } from '$lib/server/sample';
 
 export const load: PageServerLoad = async () => {
@@ -144,6 +148,38 @@ export const actions: Actions = {
     }
   },
 
+  ban: async ({ request, locals }) => {
+    const admin = await requireAdmin(locals.session);
+    if (!admin) return fail(403, { error: 'forbidden' });
+    const userId = String((await request.formData()).get('user_id') ?? '').trim();
+    if (!userId) return fail(400, { error: 'user_id required' });
+    if (isDemo()) return { action: { ok: true, notice: 'user banned (demo)' } };
+    try {
+      const user: AdminUserWire = await userBan(userId);
+      audit(admin, 'ban', userId, '', true);
+      return { action: { ok: true, notice: 'user banned' }, lookup: { user } };
+    } catch (e) {
+      audit(admin, 'ban', userId, '', false, (e as Error).message);
+      return { action: { ok: false, notice: (e as Error).message } };
+    }
+  },
+
+  unban: async ({ request, locals }) => {
+    const admin = await requireAdmin(locals.session);
+    if (!admin) return fail(403, { error: 'forbidden' });
+    const userId = String((await request.formData()).get('user_id') ?? '').trim();
+    if (!userId) return fail(400, { error: 'user_id required' });
+    if (isDemo()) return { action: { ok: true, notice: 'user unbanned (demo)' } };
+    try {
+      const user: AdminUserWire = await userUnban(userId);
+      audit(admin, 'unban', userId, '', true);
+      return { action: { ok: true, notice: 'user unbanned' }, lookup: { user } };
+    } catch (e) {
+      audit(admin, 'unban', userId, '', false, (e as Error).message);
+      return { action: { ok: false, notice: (e as Error).message } };
+    }
+  },
+
   restart: async ({ request, locals }) => {
     const admin = await requireAdmin(locals.session);
     if (!admin) return fail(403, { error: 'forbidden' });
@@ -156,6 +192,45 @@ export const actions: Actions = {
       return { action: { ok: true, notice: 'bot restarted (subs dropped + recreated)' } };
     } catch (e) {
       audit(admin, 'restart', userId, '', false, (e as Error).message);
+      return { action: { ok: false, notice: (e as Error).message } };
+    }
+  },
+
+  // Mint a one-shot "view as" link the admin can open to load the target's
+  // dashboard. The signed token (5 min TTL) carries the actor so every write
+  // during the impersonated session is attributed back to this admin.
+  impersonate: async ({ request, locals }) => {
+    const admin = await requireAdmin(locals.session);
+    if (!admin) return fail(403, { error: 'forbidden' });
+    const userId = String((await request.formData()).get('user_id') ?? '').trim();
+    if (!userId) return fail(400, { error: 'user_id required' });
+    const origin = env.DASHBOARD_PUBLIC_ORIGIN ?? '';
+    if (isDemo()) {
+      const token = signViewAs({
+        sub: userId,
+        login: 'demo',
+        display_name: 'Demo',
+        by_id: admin.id,
+        by_login: admin.login
+      });
+      return { action: { ok: true, notice: 'view-as link minted (demo)' }, viewAsUrl: `${origin}/auth/impersonate?t=${token}` };
+    }
+    try {
+      const user = await userLookup(userId);
+      const token = signViewAs({
+        sub: String(user.id),
+        login: user.username,
+        display_name: user.username,
+        by_id: admin.id,
+        by_login: admin.login
+      });
+      audit(admin, 'impersonate', userId, '', true);
+      return {
+        action: { ok: true, notice: 'view-as link minted (valid 5 min)' },
+        viewAsUrl: `${origin}/auth/impersonate?t=${token}`
+      };
+    } catch (e) {
+      audit(admin, 'impersonate', userId, '', false, (e as Error).message);
       return { action: { ok: false, notice: (e as Error).message } };
     }
   },

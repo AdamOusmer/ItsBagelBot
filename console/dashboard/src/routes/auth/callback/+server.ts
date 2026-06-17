@@ -3,7 +3,7 @@ import { redirect } from '@sveltejs/kit';
 import { decodeIdToken, OAuth2RequestError } from 'arctic';
 import { twitch } from '$lib/server/oauth';
 import { rpc } from '@bagel/shared/server/nats';
-import { saveGrant } from '$lib/server/rpc';
+import { saveGrant, isBanned } from '$lib/server/rpc';
 import { COOKIE, seal } from '$lib/server/session';
 import { env } from '$env/dynamic/private';
 
@@ -54,6 +54,11 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
     const userId = claims.sub;
     const login = claims.preferred_username.toLowerCase();
     const displayName = claims.preferred_username;
+
+    // Platform ban gate: a banned user must not get a session. isBanned fails
+    // open (treats an RPC blip as not-banned) so an outage never locks out
+    // every login; the admin panel re-bans authoritatively.
+    if (await isBanned(userId)) throw redirect(302, '/login?e=banned');
 
     // Issue session cookie immediately — no NATS round-trip on the hot path.
     const value = seal({

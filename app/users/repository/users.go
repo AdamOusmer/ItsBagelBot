@@ -30,6 +30,7 @@ type UserView struct {
 	Username string `json:"username"`
 	IsActive bool   `json:"is_active"`
 	Status   string `json:"status"`
+	Banned   bool   `json:"banned"`
 }
 
 // Users persists the user records and their OAuth tokens. Status reads are
@@ -109,6 +110,7 @@ func (r *Users) Get(ctx context.Context, id uint64) (UserView, error) {
 			Username: u.Username,
 			IsActive: u.IsActive,
 			Status:   string(u.Status),
+			Banned:   u.Banned,
 		}, nil
 	})
 }
@@ -145,6 +147,24 @@ func (r *Users) SetActive(ctx context.Context, id uint64, active bool) error {
 
 	if err := r.client.User.UpdateOneID(id).
 		SetIsActive(active).
+		Exec(ctx); err != nil {
+		return err
+	}
+
+	return r.publishChanged(ctx, id)
+}
+
+// SetBanned blocks or unblocks the user from the service. A banned user is
+// dropped at the ingress, so their traffic never reaches a worker even if the
+// channel is otherwise active.
+func (r *Users) SetBanned(ctx context.Context, id uint64, banned bool) error {
+
+	if err := validate.UserID(id); err != nil {
+		return err
+	}
+
+	if err := r.client.User.UpdateOneID(id).
+		SetBanned(banned).
 		Exec(ctx); err != nil {
 		return err
 	}
@@ -191,6 +211,7 @@ func (r *Users) publishChanged(ctx context.Context, id uint64) error {
 		Username: view.Username,
 		IsActive: view.IsActive,
 		Status:   view.Status,
+		Banned:   view.Banned,
 	})
 }
 
@@ -219,6 +240,7 @@ func (r *Users) Reproject(ctx context.Context) error {
 				Username: row.Username,
 				IsActive: row.IsActive,
 				Status:   string(row.Status),
+				Banned:   row.Banned,
 			}); err != nil {
 				return err
 			}

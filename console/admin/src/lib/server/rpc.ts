@@ -25,6 +25,7 @@ export interface AdminUserWire {
   username: string;
   is_active: boolean;
   status: string; // "free" | "paid" | "vip"
+  banned: boolean;
   updated_at?: string;
 }
 
@@ -114,6 +115,16 @@ export async function userSetActive(userId: string, active: boolean): Promise<Ad
     user_id: userId,
     active
   });
+  return r.user;
+}
+
+export async function userBan(userId: string): Promise<AdminUserWire> {
+  const r = await rpc<{ user: AdminUserWire }>(`${SUB.user}.ban`, { user_id: userId });
+  return r.user;
+}
+
+export async function userUnban(userId: string): Promise<AdminUserWire> {
+  const r = await rpc<{ user: AdminUserWire }>(`${SUB.user}.unban`, { user_id: userId });
   return r.user;
 }
 

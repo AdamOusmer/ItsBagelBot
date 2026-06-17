@@ -28,6 +28,8 @@ func (User) Fields() []ent.Field {
 
 		field.Bool("is_active").Default(true),
 
+		field.Bool("banned").Optional().Default(false),
+
 		field.Enum("status").
 			Values("free", "paid", "vip"). // vip is a permanent paid tier
 			Default("free"),

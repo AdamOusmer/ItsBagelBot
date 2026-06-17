@@ -40,6 +40,7 @@ type projectionReply struct {
 	UserID   string `json:"user_id"`
 	Status   string `json:"status"`
 	IsActive bool   `json:"is_active"`
+	Banned   bool   `json:"banned"`
 	Error    string `json:"error,omitempty"`
 }
 
@@ -69,6 +70,7 @@ func (p *projectionRPC) handleGet(msg *nats.Msg) {
 		UserID:   req.UserID,
 		Status:   view.Status,
 		IsActive: view.IsActive,
+		Banned:   view.Banned,
 	})
 }
 

@@ -10,7 +10,14 @@ import { env } from '$env/dynamic/private';
 export function scopes(): string[] {
   const override = (env.DASHBOARD_LOGIN_SCOPES ?? '').split(/\s+/).filter(Boolean);
   if (override.length) return override;
-  const bot = (env.DASHBOARD_BOT_SCOPES ?? 'channel:bot user:read:chat user:bot')
+  // Broadcaster grant. Mirrors the v1 broadcaster scope set (settings.py:
+  // moderator:read:followers + user:read:chat + user:write:chat) plus channel:bot
+  // so the bot may act in the channel. Override the whole bot part via
+  // DASHBOARD_BOT_SCOPES.
+  const bot = (
+    env.DASHBOARD_BOT_SCOPES ??
+    'channel:bot moderator:read:followers user:read:chat user:write:chat'
+  )
     .split(/\s+/)
     .filter(Boolean);
   return ['openid', 'user:read:email', ...bot];

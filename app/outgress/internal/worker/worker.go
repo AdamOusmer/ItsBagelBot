@@ -81,6 +81,39 @@ type OutgressMessage struct {
 	Endpoint      string          `json:"endpoint"`       // Helix path, e.g. "/helix/chat/messages"
 	Method        string          `json:"method"`         // HTTP method
 	Payload       json.RawMessage `json:"payload"`        // raw JSON body
+	// As selects whose token the call runs under: "bot", "broadcaster" (alias
+	// "user"), or "app". Empty routes by endpoint (the default). Use it to send
+	// chat as the streamer ("broadcaster") instead of the bot.
+	As string `json:"as,omitempty"`
+}
+
+// helixRoute is the Helix call a message type maps to when the producer leaves
+// endpoint/method empty. as is the default token identity for the type ("" =
+// route by endpoint), applied only when the message does not set its own.
+type helixRoute struct {
+	method   string
+	endpoint string
+	as       string
+}
+
+// typeRoutes lets outgress own the Helix endpoint per type, so producers send
+// intent ("chat", "ban", "ad", "clip") plus the body instead of hardcoding
+// paths. Types absent here (e.g. "api") are generic passthroughs and must carry
+// their own endpoint.
+//
+//   - chat:        bot send (app token honors user:bot + channel:bot).
+//   - ban/unban:   bot acts as moderator (/helix/moderation/* → bot user token).
+//   - timeout:     same endpoint as ban; the body's duration makes it a timeout.
+//   - ad/commercial: the broadcaster starts the ad (channel:edit:commercial).
+//   - clip:        the broadcaster's grant creates the clip (clips:edit).
+var typeRoutes = map[string]helixRoute{
+	"chat":       {http.MethodPost, "/helix/chat/messages", ""},
+	"ban":        {http.MethodPost, "/helix/moderation/bans", "bot"},
+	"timeout":    {http.MethodPost, "/helix/moderation/bans", "bot"},
+	"unban":      {http.MethodDelete, "/helix/moderation/bans", "bot"},
+	"ad":         {http.MethodPost, "/helix/channels/commercial", "broadcaster"},
+	"commercial": {http.MethodPost, "/helix/channels/commercial", "broadcaster"},
+	"clip":       {http.MethodPost, "/helix/clips", "broadcaster"},
 }
 
 // EventSubJob is the payload of an "eventsub" message: the receive toggle's
@@ -130,24 +163,45 @@ func (w *Worker) Process(msg *message.Message) error {
 		return ErrPaused
 	}
 
-	switch payload.Type {
-	case "chat", "api":
-		if !strings.HasPrefix(payload.Endpoint, "/helix/") || payload.Method == "" {
-			w.log.Error("dropping message with invalid request",
-				zap.String("endpoint", payload.Endpoint),
-				zap.String("method", payload.Method))
-			return nil
-		}
-		if payload.Type == "chat" {
-			return w.processChat(ctx, payload)
-		}
-		return w.processAPI(ctx, payload)
-	case "eventsub":
+	if payload.Type == "eventsub" {
 		return w.processEventSub(ctx, payload)
-	default:
+	}
+
+	// Helix path: "chat", "api", and the mapped intents (ban, unban, ad, clip…).
+	// Fill endpoint/method/as from the type when the producer left them empty, so
+	// a job only needs its intent + body. "api" has no mapping (generic
+	// passthrough) and must carry its own endpoint. An explicit field always
+	// wins, so any default can be overridden.
+	_, mapped := typeRoutes[payload.Type]
+	if payload.Type != "chat" && payload.Type != "api" && !mapped {
 		w.log.Error("dropping message with unknown type", zap.String("type", payload.Type))
 		return nil
 	}
+	if r, ok := typeRoutes[payload.Type]; ok {
+		if payload.Endpoint == "" {
+			payload.Endpoint = r.endpoint
+		}
+		if payload.Method == "" {
+			payload.Method = r.method
+		}
+		if payload.As == "" {
+			payload.As = r.as
+		}
+	}
+	if !strings.HasPrefix(payload.Endpoint, "/helix/") || payload.Method == "" {
+		w.log.Error("dropping message with invalid request",
+			zap.String("type", payload.Type),
+			zap.String("endpoint", payload.Endpoint),
+			zap.String("method", payload.Method))
+		return nil
+	}
+
+	// Only "chat" pays the chat rate buckets; every other Helix call pays the
+	// general bucket.
+	if payload.Type == "chat" {
+		return w.processChat(ctx, payload)
+	}
+	return w.processAPI(ctx, payload)
 }
 
 func (w *Worker) processChat(ctx context.Context, payload OutgressMessage) error {
@@ -397,7 +451,8 @@ func (w *Worker) modStatus(ctx context.Context, payload OutgressMessage, ch chan
 
 func (w *Worker) execute(ctx context.Context, payload OutgressMessage) error {
 
-	res, err := w.twitch.Do(ctx, payload.Method, payload.Endpoint, payload.Payload)
+	res, err := w.twitch.ExecuteAs(ctx, twitch.ParseIdentity(payload.As),
+		payload.BroadcasterID, payload.Method, payload.Endpoint, payload.Payload)
 	if err != nil {
 		w.log.Error("twitch request failed", zap.Error(err))
 		return err

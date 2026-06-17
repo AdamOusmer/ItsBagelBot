@@ -53,7 +53,7 @@ func (p *Projector) HandleUserChanged(msg *message.Message) error {
 		return nil
 	}
 
-	return p.store.SetUser(msg.Context(), dto.UserID, dto.Status, dto.IsActive)
+	return p.store.SetUser(msg.Context(), dto.UserID, dto.Status, dto.IsActive, dto.Banned)
 }
 
 func (p *Projector) HandleUserDeleted(msg *message.Message) error {
@@ -142,9 +142,10 @@ func (p *Projector) HandleStreamOnline(msg *nats.Msg, nc *nats.Conn, usersTopic,
 			var reply struct {
 				Status   string `json:"status"`
 				IsActive bool   `json:"is_active"`
+				Banned   bool   `json:"banned"`
 			}
 			if json.Unmarshal(resp.Data, &reply) == nil {
-				_ = p.store.SetUser(ctx, id, reply.Status, reply.IsActive)
+				_ = p.store.SetUser(ctx, id, reply.Status, reply.IsActive, reply.Banned)
 			}
 		}
 	}()

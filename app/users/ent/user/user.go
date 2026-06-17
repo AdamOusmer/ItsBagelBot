@@ -21,6 +21,8 @@ const (
 	FieldEmail = "email"
 	// FieldIsActive holds the string denoting the is_active field in the database.
 	FieldIsActive = "is_active"
+	// FieldBanned holds the string denoting the banned field in the database.
+	FieldBanned = "banned"
 	// FieldStatus holds the string denoting the status field in the database.
 	FieldStatus = "status"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
@@ -46,6 +48,7 @@ var Columns = []string{
 	FieldUsername,
 	FieldEmail,
 	FieldIsActive,
+	FieldBanned,
 	FieldStatus,
 	FieldCreatedAt,
 	FieldUpdatedAt,
@@ -68,6 +71,8 @@ var (
 	EmailValidator func(string) error
 	// DefaultIsActive holds the default value on creation for the "is_active" field.
 	DefaultIsActive bool
+	// DefaultBanned holds the default value on creation for the "banned" field.
+	DefaultBanned bool
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 	// DefaultUpdatedAt holds the default value on creation for the "updated_at" field.
@@ -124,6 +129,11 @@ func ByEmail(opts ...sql.OrderTermOption) OrderOption {
 // ByIsActive orders the results by the is_active field.
 func ByIsActive(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldIsActive, opts...).ToFunc()
+}
+
+// ByBanned orders the results by the banned field.
+func ByBanned(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldBanned, opts...).ToFunc()
 }
 
 // ByStatus orders the results by the status field.

@@ -47,6 +47,20 @@ func (_c *UserCreate) SetNillableIsActive(v *bool) *UserCreate {
 	return _c
 }
 
+// SetBanned sets the "banned" field.
+func (_c *UserCreate) SetBanned(v bool) *UserCreate {
+	_c.mutation.SetBanned(v)
+	return _c
+}
+
+// SetNillableBanned sets the "banned" field if the given value is not nil.
+func (_c *UserCreate) SetNillableBanned(v *bool) *UserCreate {
+	if v != nil {
+		_c.SetBanned(*v)
+	}
+	return _c
+}
+
 // SetStatus sets the "status" field.
 func (_c *UserCreate) SetStatus(v user.Status) *UserCreate {
 	_c.mutation.SetStatus(v)
@@ -149,6 +163,10 @@ func (_c *UserCreate) defaults() {
 		v := user.DefaultIsActive
 		_c.mutation.SetIsActive(v)
 	}
+	if _, ok := _c.mutation.Banned(); !ok {
+		v := user.DefaultBanned
+		_c.mutation.SetBanned(v)
+	}
 	if _, ok := _c.mutation.Status(); !ok {
 		v := user.DefaultStatus
 		_c.mutation.SetStatus(v)
@@ -241,6 +259,10 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.IsActive(); ok {
 		_spec.SetField(user.FieldIsActive, field.TypeBool, value)
 		_node.IsActive = value
+	}
+	if value, ok := _c.mutation.Banned(); ok {
+		_spec.SetField(user.FieldBanned, field.TypeBool, value)
+		_node.Banned = value
 	}
 	if value, ok := _c.mutation.Status(); ok {
 		_spec.SetField(user.FieldStatus, field.TypeEnum, value)

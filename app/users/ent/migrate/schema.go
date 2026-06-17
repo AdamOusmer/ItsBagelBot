@@ -98,6 +98,7 @@ var (
 		{Name: "username", Type: field.TypeString},
 		{Name: "email", Type: field.TypeString, Unique: true},
 		{Name: "is_active", Type: field.TypeBool, Default: true},
+		{Name: "banned", Type: field.TypeBool, Nullable: true, Default: false},
 		{Name: "status", Type: field.TypeEnum, Enums: []string{"free", "paid", "vip"}, Default: "free"},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
