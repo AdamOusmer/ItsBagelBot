@@ -62,6 +62,42 @@ var (
 			},
 		},
 	}
+	// DelegationsColumns holds the columns for the "delegations" table.
+	DelegationsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "token", Type: field.TypeString, Unique: true},
+		{Name: "owner_id", Type: field.TypeUint64},
+		{Name: "owner_login", Type: field.TypeString},
+		{Name: "sections", Type: field.TypeJSON},
+		{Name: "delegate_id", Type: field.TypeUint64, Nullable: true, Default: 0},
+		{Name: "delegate_login", Type: field.TypeString, Nullable: true},
+		{Name: "consumed_at", Type: field.TypeTime, Nullable: true},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "expires_at", Type: field.TypeTime, Nullable: true},
+	}
+	// DelegationsTable holds the schema information for the "delegations" table.
+	DelegationsTable = &schema.Table{
+		Name:       "delegations",
+		Columns:    DelegationsColumns,
+		PrimaryKey: []*schema.Column{DelegationsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "delegation_token",
+				Unique:  true,
+				Columns: []*schema.Column{DelegationsColumns[1]},
+			},
+			{
+				Name:    "delegation_owner_id",
+				Unique:  false,
+				Columns: []*schema.Column{DelegationsColumns[2]},
+			},
+			{
+				Name:    "delegation_delegate_id",
+				Unique:  false,
+				Columns: []*schema.Column{DelegationsColumns[5]},
+			},
+		},
+	}
 	// TokensColumns holds the columns for the "tokens" table.
 	TokensColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -120,6 +156,7 @@ var (
 	Tables = []*schema.Table{
 		AdminAuditsTable,
 		AdminUsersTable,
+		DelegationsTable,
 		TokensTable,
 		UsersTable,
 	}

@@ -5,6 +5,7 @@ package ent
 import (
 	"ItsBagelBot/app/users/ent/adminaudit"
 	"ItsBagelBot/app/users/ent/adminuser"
+	"ItsBagelBot/app/users/ent/delegation"
 	"ItsBagelBot/app/users/ent/schema"
 	"ItsBagelBot/app/users/ent/user"
 	"time"
@@ -60,6 +61,20 @@ func init() {
 	adminuser.DefaultUpdatedAt = adminuserDescUpdatedAt.Default.(func() time.Time)
 	// adminuser.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
 	adminuser.UpdateDefaultUpdatedAt = adminuserDescUpdatedAt.UpdateDefault.(func() time.Time)
+	delegationFields := schema.Delegation{}.Fields()
+	_ = delegationFields
+	// delegationDescToken is the schema descriptor for token field.
+	delegationDescToken := delegationFields[0].Descriptor()
+	// delegation.TokenValidator is a validator for the "token" field. It is called by the builders before save.
+	delegation.TokenValidator = delegationDescToken.Validators[0].(func(string) error)
+	// delegationDescDelegateID is the schema descriptor for delegate_id field.
+	delegationDescDelegateID := delegationFields[4].Descriptor()
+	// delegation.DefaultDelegateID holds the default value on creation for the delegate_id field.
+	delegation.DefaultDelegateID = delegationDescDelegateID.Default.(uint64)
+	// delegationDescCreatedAt is the schema descriptor for created_at field.
+	delegationDescCreatedAt := delegationFields[7].Descriptor()
+	// delegation.DefaultCreatedAt holds the default value on creation for the created_at field.
+	delegation.DefaultCreatedAt = delegationDescCreatedAt.Default.(func() time.Time)
 	tokensFields := schema.Tokens{}.Fields()
 	_ = tokensFields
 	userFields := schema.User{}.Fields()

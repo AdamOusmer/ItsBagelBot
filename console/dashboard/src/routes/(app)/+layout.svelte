@@ -5,11 +5,33 @@
 
   const path = $derived(page.url.pathname);
   const crumb = $derived(
-    path.startsWith('/commands') ? 'Commands' : path.startsWith('/modules') ? 'Modules' : 'Overview'
+    path.startsWith('/commands')
+      ? 'Commands'
+      : path.startsWith('/modules')
+        ? 'Modules'
+        : path.startsWith('/access')
+          ? 'Access'
+          : 'Overview'
   );
 
   const initial = $derived((data.displayName ?? 'M').charAt(0).toUpperCase());
+
+  // Delegate view: nav and routes are limited to the granted sections, and the
+  // owner-only Overview/Access entries are hidden.
+  const isDelegate = $derived(!!data.delegateOf);
+  const sections = $derived((data.sections ?? []) as string[]);
+  const canCommands = $derived(!isDelegate || sections.includes('commands'));
+  const canModules = $derived(!isDelegate || sections.includes('modules'));
 </script>
+
+{#if isDelegate}
+  <div class="imp-banner" role="status">
+    <span>Shared access to <b>{data.delegateLogin}</b>'s dashboard ({sections.join(', ')})</span>
+    <form method="POST" action="/auth/logout">
+      <button type="submit" class="imp-exit">Exit</button>
+    </form>
+  </div>
+{/if}
 
 {#if data.impersonatorLogin}
   <div class="imp-banner" role="status">
@@ -20,7 +42,7 @@
   </div>
 {/if}
 
-<div class="app" class:impersonating={data.impersonatorLogin}>
+<div class="app" class:impersonating={data.impersonatorLogin || isDelegate}>
   <aside class="sidebar">
     <div class="brand">
       <img src="/logo.png" alt="ItsBagelBot" />
@@ -32,9 +54,18 @@
 
     <div class="nav-group-label">Manage</div>
     <nav class="nav">
-      <NavItem href="/" icon="overview" label="Overview" active={crumb === 'Overview'} />
-      <NavItem href="/commands" icon="commands" label="Commands" active={crumb === 'Commands'} />
-      <NavItem href="/modules" icon="moderation" label="Modules" active={crumb === 'Modules'} />
+      {#if !isDelegate}
+        <NavItem href="/" icon="overview" label="Overview" active={crumb === 'Overview'} />
+      {/if}
+      {#if canCommands}
+        <NavItem href="/commands" icon="commands" label="Commands" active={crumb === 'Commands'} />
+      {/if}
+      {#if canModules}
+        <NavItem href="/modules" icon="moderation" label="Modules" active={crumb === 'Modules'} />
+      {/if}
+      {#if !isDelegate}
+        <NavItem href="/access" icon="link" label="Shared access" active={crumb === 'Access'} />
+      {/if}
     </nav>
 
     <div class="side-spacer"></div>
@@ -75,9 +106,18 @@
 
   <!-- mobile bottom nav (sidebar is hidden ≤760px) -->
   <nav class="mobile-nav">
-    <a href="/" class={crumb === 'Overview' ? 'active' : ''}><Icon name="overview" size={20} />Overview</a>
-    <a href="/commands" class={crumb === 'Commands' ? 'active' : ''}><Icon name="commands" size={20} />Commands</a>
-    <a href="/modules" class={crumb === 'Modules' ? 'active' : ''}><Icon name="moderation" size={20} />Modules</a>
+    {#if !isDelegate}
+      <a href="/" class={crumb === 'Overview' ? 'active' : ''}><Icon name="overview" size={20} />Overview</a>
+    {/if}
+    {#if canCommands}
+      <a href="/commands" class={crumb === 'Commands' ? 'active' : ''}><Icon name="commands" size={20} />Commands</a>
+    {/if}
+    {#if canModules}
+      <a href="/modules" class={crumb === 'Modules' ? 'active' : ''}><Icon name="moderation" size={20} />Modules</a>
+    {/if}
+    {#if !isDelegate}
+      <a href="/access" class={crumb === 'Access' ? 'active' : ''}><Icon name="link" size={20} />Access</a>
+    {/if}
     <form method="POST" action="/auth/logout"><button type="submit"><Icon name="power" size={20} />Log out</button></form>
   </nav>
 </div>

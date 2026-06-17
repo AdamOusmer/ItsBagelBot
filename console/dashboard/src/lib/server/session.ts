@@ -15,6 +15,12 @@ export interface Session {
   // acting admin so every write during the session is audited back to them.
   impersonator_id?: string;
   impersonator_login?: string;
+  // Set only when this is a delegated session: the invitee logs in with their
+  // own Twitch account but operates the owner's dashboard, limited to the
+  // granted sections. delegate_of carries the owner's user_id.
+  delegate_of?: string;
+  delegate_login?: string;
+  sections?: string[];
 }
 
 const AAD = Buffer.from('session');

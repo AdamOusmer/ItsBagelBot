@@ -4,7 +4,20 @@ import { PERMS } from '@bagel/shared';
 import { listCommands, upsertCommand, deleteCommand, auditImpersonation } from '$lib/server/rpc';
 import type { Session } from '$lib/server/session';
 import { env } from '$env/dynamic/private';
-import { fail } from '@sveltejs/kit';
+import { fail, redirect } from '@sveltejs/kit';
+
+// The dashboard a write targets: for a delegate it is the owner's board, for a
+// normal login it is the user's own. A delegate must also hold the 'commands'
+// section, else they have no business here.
+function effectiveId(session: Session | null | undefined): string {
+  return session?.delegate_of ?? session?.user_id ?? 'demo';
+}
+
+function gateCommands(session: Session | null | undefined): void {
+  if (session?.delegate_of && !(session.sections ?? []).includes('commands')) {
+    throw redirect(302, '/');
+  }
+}
 
 const sample: CommandView[] = [
   { name: '!uptime', response: '@{user} the stream has been live for {uptime} 🥯', perm: 'everyone', cooldown: 5, uses: '412', is_active: true },
@@ -18,7 +31,8 @@ const sample: CommandView[] = [
 ];
 
 export const load: PageServerLoad = async ({ locals }) => {
-  const uid = locals.session?.user_id ?? 'demo';
+  gateCommands(locals.session);
+  const uid = effectiveId(locals.session);
   if (env.DEMO === '1') return { commands: sample };
   try {
     return { commands: await listCommands(uid) };
@@ -59,8 +73,9 @@ function auditIfImpersonating(session: Session | null, action: string, detail: s
 
 export const actions: Actions = {
   save: async ({ request, locals }) => {
-    const uid = locals.session?.user_id;
-    if (!uid) return fail(401, { ok: false, error: 'Not signed in.' });
+    gateCommands(locals.session);
+    const uid = effectiveId(locals.session);
+    if (!locals.session) return fail(401, { ok: false, error: 'Not signed in.' });
 
     const f = await request.formData();
     const cmd = parseCommand(f);
@@ -96,8 +111,9 @@ export const actions: Actions = {
 
   // Lightweight toggle: flips is_active without going through the full editor.
   toggle: async ({ request, locals }) => {
-    const uid = locals.session?.user_id;
-    if (!uid) return fail(401, { ok: false, error: 'Not signed in.' });
+    gateCommands(locals.session);
+    const uid = effectiveId(locals.session);
+    if (!locals.session) return fail(401, { ok: false, error: 'Not signed in.' });
 
     const f = await request.formData();
     const cmd = parseCommand(f);
@@ -112,8 +128,9 @@ export const actions: Actions = {
   },
 
   delete: async ({ request, locals }) => {
-    const uid = locals.session?.user_id;
-    if (!uid) return fail(401, { ok: false, error: 'Not signed in.' });
+    gateCommands(locals.session);
+    const uid = effectiveId(locals.session);
+    if (!locals.session) return fail(401, { ok: false, error: 'Not signed in.' });
 
     const f = await request.formData();
     const name = String(f.get('name') ?? '');
