@@ -405,7 +405,8 @@
   }
   .drawer-close:hover { color: var(--bb-white); border-color: var(--bb-border-strong); background: rgba(255,255,255,0.04); }
 
-  .drawer-body { flex: 1; overflow-y: auto; padding: 20px 22px 32px; }
+  /* min-height:0 lets this flex child actually scroll instead of overflowing. */
+  .drawer-body { flex: 1; min-height: 0; overflow-y: auto; padding: 20px 22px 32px; }
 
   .meta-block {
     display: grid; gap: .5rem;

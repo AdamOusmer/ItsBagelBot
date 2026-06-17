@@ -84,14 +84,35 @@
   });
   const manageable = $derived(drawer ? canManage(data.me.role, drawer.role) : false);
 
-  // That member's own action history, newest first (server sends newest-first).
-  const history = $derived.by<AuditEntry[]>(() => {
-    if (!drawer) return [];
-    return ((data.audit as AuditEntry[]) ?? []).filter((e) => String(e.actor_id) === String(drawer.id));
-  });
+  // That member's own action history — lazy-loaded from the DB on drawer open
+  // (GET /staff/history?actor_id=...), so the roster never ships the whole log.
+  let history = $state<AuditEntry[]>([]);
+  let historyLoading = $state(false);
+  let historyError = $state<string | null>(null);
+  let historyReqId = 0;
+
+  async function loadHistory(id: number | string) {
+    const req = ++historyReqId;
+    historyLoading = true;
+    historyError = null;
+    history = [];
+    try {
+      const res = await fetch(`/staff/history?actor_id=${encodeURIComponent(String(id))}`);
+      if (!res.ok) throw new Error(`request failed (${res.status})`);
+      const body = (await res.json()) as { entries?: AuditEntry[]; error?: string };
+      if (req !== historyReqId) return; // a newer open superseded this fetch
+      history = body.entries ?? [];
+      if (body.error) historyError = body.error;
+    } catch (e) {
+      if (req === historyReqId) historyError = (e as Error).message;
+    } finally {
+      if (req === historyReqId) historyLoading = false;
+    }
+  }
 
   function openMember(row: AdminAcct) {
     selected = row;
+    loadHistory(row.id);
   }
   function closeDrawer() {
     selected = null;
@@ -300,10 +321,14 @@
         </p>
       {/if}
 
-      <!-- Action history made by this member -->
+      <!-- Action history made by this member (lazy-loaded) -->
       <div class="field">
         <span class="field-label">History</span>
-        {#if history.length === 0}
+        {#if historyLoading}
+          <p class="hist-empty">Loading…</p>
+        {:else if historyError}
+          <p class="notice-err">{historyError}</p>
+        {:else if history.length === 0}
           <p class="hist-empty">No recorded actions.</p>
         {:else}
           <div class="hist">
@@ -437,7 +462,8 @@
   }
   .drawer-close :global(svg) { stroke: currentColor; }
   .drawer-close:hover { color: var(--bb-white); border-color: var(--bb-border-strong); background: rgba(255,255,255,0.04); }
-  .drawer-body { flex: 1; overflow-y: auto; padding: 20px 22px 32px; }
+  /* min-height:0 lets this flex child actually scroll instead of overflowing. */
+  .drawer-body { flex: 1; min-height: 0; overflow-y: auto; padding: 20px 22px 32px; }
 
   .meta-block {
     display: grid; gap: .5rem; padding: 14px 16px; margin-bottom: 18px;
