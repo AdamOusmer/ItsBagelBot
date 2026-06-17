@@ -9,8 +9,92 @@ const SUB = {
   dashboard: env.NATS_DASHBOARD_SUBJECT_PREFIX ?? 'bagel.rpc.dashboard',
   commands: env.NATS_COMMANDS_SUBJECT_PREFIX ?? 'bagel.rpc.commands',
   outgress: env.NATS_OUTGRESS_SYSTEM_SUBJECT ?? 'twitch.outgress.system',
-  audit: env.NATS_ADMIN_AUDIT_SUBJECT_PREFIX ?? 'bagel.rpc.admin.user.audit'
+  audit: env.NATS_ADMIN_AUDIT_SUBJECT_PREFIX ?? 'bagel.rpc.admin.user.audit',
+  delegation: env.NATS_DELEGATION_SUBJECT_PREFIX ?? 'bagel.rpc.delegation'
 };
+
+// Single-use dashboard delegation. Owners mint scoped links; invitees consume
+// them once on login to gain a section-limited session over the owner's board.
+export type DelegationGrant = {
+  token: string;
+  sections: string[];
+  delegate_login: string;
+  consumed: boolean;
+};
+
+export async function delegationCreate(
+  ownerId: string,
+  ownerLogin: string,
+  sections: string[]
+): Promise<string> {
+  const r = await rpc<{ token?: string; error?: string }>(`${SUB.delegation}.create`, {
+    owner_user_id: ownerId,
+    owner_login: ownerLogin,
+    sections
+  });
+  if (!r.token) throw new Error(r.error ?? 'create failed');
+  return r.token;
+}
+
+export async function delegationGet(token: string): Promise<{
+  owner_user_id: string;
+  owner_login: string;
+  sections: string[];
+  consumed: boolean;
+} | null> {
+  const r = await rpc<{
+    owner_user_id?: string;
+    owner_login?: string;
+    sections?: string[];
+    consumed?: boolean;
+    error?: string;
+  }>(`${SUB.delegation}.get`, { token }, READ_TIMEOUT_MS);
+  if (r.error || !r.owner_user_id) return null;
+  return {
+    owner_user_id: r.owner_user_id,
+    owner_login: r.owner_login ?? '',
+    sections: r.sections ?? [],
+    consumed: r.consumed === true
+  };
+}
+
+export async function delegationConsume(
+  token: string,
+  delegateId: string,
+  delegateLogin: string
+): Promise<{ ok: boolean; owner_user_id?: string; owner_login?: string; sections?: string[]; error?: string }> {
+  return rpc(`${SUB.delegation}.consume`, {
+    token,
+    delegate_user_id: delegateId,
+    delegate_login: delegateLogin
+  });
+}
+
+export async function delegationList(ownerId: string): Promise<DelegationGrant[]> {
+  const r = await rpc<{ grants?: DelegationGrant[] }>(
+    `${SUB.delegation}.list`,
+    { owner_user_id: ownerId },
+    READ_TIMEOUT_MS
+  );
+  return r.grants ?? [];
+}
+
+export async function delegationRevoke(ownerId: string, token: string): Promise<void> {
+  const r = await rpc<{ ok?: boolean; error?: string }>(`${SUB.delegation}.revoke`, {
+    owner_user_id: ownerId,
+    token
+  });
+  if (!r.ok) throw new Error(r.error ?? 'revoke failed');
+}
+
+export async function delegationAccess(
+  delegateId: string
+): Promise<{ owner_user_id: string; owner_login: string; sections: string[] }[]> {
+  const r = await rpc<{
+    grants?: { owner_user_id: string; owner_login: string; sections: string[] }[];
+  }>(`${SUB.delegation}.access`, { delegate_user_id: delegateId }, READ_TIMEOUT_MS);
+  return r.grants ?? [];
+}
 
 // Enqueue an EventSub on/off job on the outgress system lane. Outgress runs the
 // Helix calls under the shared rate-limit bucket: enabled=true (re)creates the

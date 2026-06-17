@@ -48,6 +48,7 @@ export const actions: Actions = {
   // Enable: a single request to start event delivery. Marks the channel active
   // and (re)creates its EventSub subscriptions via the outgress lane.
   enable: async ({ locals }) => {
+    if (locals.session?.delegate_of) return fail(403);
     const uid = locals.session?.user_id;
     if (!uid) return fail(401);
     try {
@@ -61,6 +62,7 @@ export const actions: Actions = {
   },
   // Restart: delete + recreate the EventSub subscriptions (stays active).
   restart: async ({ locals }) => {
+    if (locals.session?.delegate_of) return fail(403);
     const uid = locals.session?.user_id;
     if (!uid) return fail(401);
     try {
@@ -74,6 +76,7 @@ export const actions: Actions = {
   },
   // Disconnect: delete the subscriptions and mark inactive (grant kept).
   disconnect: async ({ locals }) => {
+    if (locals.session?.delegate_of) return fail(403);
     const uid = locals.session?.user_id;
     if (!uid) return fail(401);
     try {

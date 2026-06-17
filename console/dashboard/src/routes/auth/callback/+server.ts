@@ -3,7 +3,7 @@ import { redirect } from '@sveltejs/kit';
 import { decodeIdToken, OAuth2RequestError } from 'arctic';
 import { twitch } from '$lib/server/oauth';
 import { rpc } from '@bagel/shared/server/nats';
-import { saveGrant, isBanned } from '$lib/server/rpc';
+import { saveGrant, isBanned, delegationConsume } from '$lib/server/rpc';
 import { COOKIE, seal } from '$lib/server/session';
 import { env } from '$env/dynamic/private';
 
@@ -59,6 +59,36 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
     // open (treats an RPC blip as not-banned) so an outage never locks out
     // every login; the admin panel re-bans authoritatively.
     if (await isBanned(userId)) throw redirect(302, '/login?e=banned');
+
+    // Delegated accept flow: if a pending share token rode in on a cookie, bind
+    // it to this user now. Single-use — consume always deletes the cookie, and a
+    // delegate session is sealed only on success. On any failure we fall through
+    // to /login?e=link instead of issuing a normal owner session.
+    const pending = cookies.get('pending_delegation');
+    if (pending) {
+      cookies.delete('pending_delegation', { path: '/' });
+      const result = await delegationConsume(pending, userId, login);
+      if (!result.ok) throw redirect(302, '/login?e=link');
+
+      const value = seal({
+        user_id: userId,
+        login,
+        display_name: displayName,
+        role: 'streamer',
+        expires_at: Math.floor(Date.now() / 1000) + SESSION_TTL,
+        delegate_of: result.owner_user_id,
+        delegate_login: result.owner_login,
+        sections: result.sections ?? []
+      });
+      cookies.set(COOKIE, value, {
+        path: '/',
+        httpOnly: true,
+        secure: url.protocol === 'https:',
+        sameSite: 'lax',
+        maxAge: SESSION_TTL
+      });
+      throw redirect(302, '/');
+    }
 
     // Issue session cookie immediately — no NATS round-trip on the hot path.
     const value = seal({

@@ -16,6 +16,8 @@ type Tx struct {
 	AdminAudit *AdminAuditClient
 	// AdminUser is the client for interacting with the AdminUser builders.
 	AdminUser *AdminUserClient
+	// Delegation is the client for interacting with the Delegation builders.
+	Delegation *DelegationClient
 	// Tokens is the client for interacting with the Tokens builders.
 	Tokens *TokensClient
 	// User is the client for interacting with the User builders.
@@ -153,6 +155,7 @@ func (tx *Tx) Client() *Client {
 func (tx *Tx) init() {
 	tx.AdminAudit = NewAdminAuditClient(tx.config)
 	tx.AdminUser = NewAdminUserClient(tx.config)
+	tx.Delegation = NewDelegationClient(tx.config)
 	tx.Tokens = NewTokensClient(tx.config)
 	tx.User = NewUserClient(tx.config)
 }

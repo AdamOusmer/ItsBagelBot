@@ -14,7 +14,7 @@ const demo: Session = {
   expires_at: Math.floor(Date.now() / 1000) + 3600
 };
 
-export const load: LayoutServerLoad = async ({ locals }) => {
+export const load: LayoutServerLoad = async ({ locals, url }) => {
   let s = locals.session;
   if (!s && env.DEMO === '1') s = demo;
   if (!s) throw redirect(302, '/login');
@@ -23,10 +23,25 @@ export const load: LayoutServerLoad = async ({ locals }) => {
   // isBanned fails open so an RPC blip never locks out the whole app.
   if (env.DEMO !== '1' && (await isBanned(s.user_id))) throw redirect(302, '/login?e=banned');
 
+  // A delegate may only roam the sections they were granted. Home, account
+  // (overview actions) and the share-management page are owner-only. If the
+  // requested path is not under an allowed section, send them to the first one.
+  if (s.delegate_of) {
+    const sections = s.sections ?? [];
+    const allowed = sections.map((sec) => `/${sec}`);
+    const onAllowed = allowed.some((p) => url.pathname === p || url.pathname.startsWith(p + '/'));
+    if (!onAllowed) {
+      throw redirect(302, allowed[0] ?? '/login?e=link');
+    }
+  }
+
   return {
     role: s.role,
     displayName: s.display_name,
     login: s.login,
-    impersonatorLogin: s.impersonator_id ? s.impersonator_login : undefined
+    impersonatorLogin: s.impersonator_id ? s.impersonator_login : undefined,
+    delegateOf: s.delegate_of,
+    delegateLogin: s.delegate_of ? s.delegate_login : undefined,
+    sections: s.delegate_of ? (s.sections ?? []) : undefined
   };
 };
