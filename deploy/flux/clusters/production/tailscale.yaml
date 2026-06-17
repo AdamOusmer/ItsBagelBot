@@ -1,0 +1,19 @@
+# Tailscale operator resources (ProxyClass / ProxyGroup). Separate Kustomization
+# with targetNamespace unset so the cluster-scoped ProxyClass and the
+# ProxyGroup's own namespace apply unchanged. wait is off: these are tailscale
+# CRDs without a Flux-recognised health status.
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: tailscale
+  namespace: flux-system
+spec:
+  interval: 10m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  path: ./deploy/tailscale
+  prune: true
+  wait: false
+  timeout: 5m
