@@ -136,6 +136,15 @@ func (r *Users) ListAccessByDelegate(ctx context.Context, delegateID uint64) ([]
 	return out, nil
 }
 
+// DeleteDelegationsByOwner removes every grant an owner created. Used when the
+// owner deletes their account so no dangling links survive the user row.
+func (r *Users) DeleteDelegationsByOwner(ctx context.Context, ownerID uint64) error {
+	_, err := r.client.Delegation.Delete().
+		Where(delegation.OwnerIDEQ(ownerID)).
+		Exec(ctx)
+	return err
+}
+
 // RevokeDelegation deletes a grant, scoped to its owner so a token alone (held
 // by an invitee) can never revoke someone else's grant.
 func (r *Users) RevokeDelegation(ctx context.Context, token string, ownerID uint64) error {
