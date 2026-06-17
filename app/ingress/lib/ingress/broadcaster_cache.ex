@@ -28,8 +28,8 @@ defmodule Ingress.BroadcasterCache do
     GenServer.start_link(__MODULE__, opts, name: Keyword.get(opts, :name, __MODULE__))
   end
 
-  @doc "Returns `:premium` or `:standard` for the broadcaster."
-  @spec lane(String.t(), GenServer.server()) :: :premium | :standard
+  @doc "Returns `:premium`, `:standard` or `:drop` for the broadcaster."
+  @spec lane(String.t(), GenServer.server()) :: :premium | :standard | :drop
   def lane(broadcaster_id, server \\ __MODULE__) do
     table = table_name(server)
 
@@ -110,7 +110,7 @@ defmodule Ingress.BroadcasterCache do
 
   defp load(id, state) do
     case state.loader.(id) do
-      {:ok, lane} when lane in [:premium, :standard] ->
+      {:ok, lane} when lane in [:premium, :standard, :drop] ->
         Ingress.Metrics.count("Cache/Loads")
         :ets.insert(state.table, {id, lane, now_ms() + state.ttl_ms})
         lane

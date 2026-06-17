@@ -21,6 +21,7 @@ type adminUserView struct {
 	Username  string    `json:"username"`
 	IsActive  bool      `json:"is_active"`
 	Status    string    `json:"status"`
+	Banned    bool      `json:"banned"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
@@ -77,6 +78,8 @@ func SubscribeAdmin(nc *nats.Conn, db *ent.Client, repo *repository.Users, prefi
 		"stats":        a.stats,
 		"set_status":   a.setStatus,
 		"set_active":   a.setActive,
+		"ban":          a.ban,
+		"unban":        a.unban,
 		"reset":        a.reset,
 		"token_set":    a.tokenSet,
 		"token_status": a.tokenStatus,
@@ -197,6 +200,39 @@ func (a *adminRPC) setActive(ctx context.Context, req adminRequest) adminReply {
 
 	a.invalidate(u.ID)
 	a.log.Info("admin set active", zap.Uint64("user", u.ID), zap.Bool("active", req.Active))
+	return a.get(ctx, adminRequest{UserID: fmt.Sprint(u.ID)})
+}
+
+// ban blocks the user from the service entirely. The ingress drops banned
+// users, so their traffic never reaches a worker.
+func (a *adminRPC) ban(ctx context.Context, req adminRequest) adminReply {
+	u, err := a.findUser(ctx, req)
+	if err != nil {
+		return adminReply{Error: err.Error()}
+	}
+
+	if err := a.repo.SetBanned(ctx, u.ID, true); err != nil {
+		return adminReply{Error: err.Error()}
+	}
+
+	a.invalidate(u.ID)
+	a.log.Info("admin ban", zap.Uint64("user", u.ID))
+	return a.get(ctx, adminRequest{UserID: fmt.Sprint(u.ID)})
+}
+
+// unban lifts a previous ban, allowing the user's traffic through again.
+func (a *adminRPC) unban(ctx context.Context, req adminRequest) adminReply {
+	u, err := a.findUser(ctx, req)
+	if err != nil {
+		return adminReply{Error: err.Error()}
+	}
+
+	if err := a.repo.SetBanned(ctx, u.ID, false); err != nil {
+		return adminReply{Error: err.Error()}
+	}
+
+	a.invalidate(u.ID)
+	a.log.Info("admin unban", zap.Uint64("user", u.ID))
 	return a.get(ctx, adminRequest{UserID: fmt.Sprint(u.ID)})
 }
 
@@ -346,6 +382,7 @@ func viewOf(u *ent.User) adminUserView {
 		Username:  u.Username,
 		IsActive:  u.IsActive,
 		Status:    string(u.Status),
+		Banned:    u.Banned,
 		UpdatedAt: u.UpdatedAt,
 	}
 }

@@ -47,8 +47,8 @@ func NewValkey(address string, password string) (*Valkey, error) {
 	return &Valkey{client: client}, nil
 }
 
-// SetUser projects the tier status and active flag of one user.
-func (v *Valkey) SetUser(ctx context.Context, userID uint64, status string, isActive bool) error {
+// SetUser projects the tier status, active flag and ban flag of one user.
+func (v *Valkey) SetUser(ctx context.Context, userID uint64, status string, isActive bool, banned bool) error {
 
 	defer segment(ctx, "HSET")()
 
@@ -59,6 +59,7 @@ func (v *Valkey) SetUser(ctx context.Context, userID uint64, status string, isAc
 		FieldValue().
 		FieldValue("status", status).
 		FieldValue("active", boolField(isActive)).
+		FieldValue("banned", boolField(banned)).
 		Build(),
 	).Error()
 	if err != nil {
@@ -68,25 +69,26 @@ func (v *Valkey) SetUser(ctx context.Context, userID uint64, status string, isAc
 	return v.client.Do(ctx, v.client.B().Expire().Key(key).Seconds(24*60*60).Build()).Error()
 }
 
-// GetUser retrieves the tier status and active flag of one user.
-func (v *Valkey) GetUser(ctx context.Context, userID uint64) (string, bool, error) {
+// GetUser retrieves the tier status, active flag and ban flag of one user.
+func (v *Valkey) GetUser(ctx context.Context, userID uint64) (string, bool, bool, error) {
 	defer segment(ctx, "HGETALL")()
 
 	key := cache.UserKey(settingsKeyPrefix, userID)
 
-	res, err := v.client.Do(ctx, v.client.B().Hmget().Key(key).Field("status").Field("active").Build()).AsStrSlice()
+	res, err := v.client.Do(ctx, v.client.B().Hmget().Key(key).Field("status").Field("active").Field("banned").Build()).AsStrSlice()
 	if err != nil {
-		return "", false, err
+		return "", false, false, err
 	}
-	
-	if len(res) < 2 {
-		return "", false, nil
+
+	if len(res) < 3 {
+		return "", false, false, nil
 	}
 
 	status := res[0]
 	active := res[1] == "1"
+	banned := res[2] == "1"
 
-	return status, active, nil
+	return status, active, banned, nil
 }
 
 // SetModule projects one module row of one user.

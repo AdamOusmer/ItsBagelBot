@@ -1,5 +1,6 @@
 import type { Actions, PageServerLoad } from './$types';
-import { hasGrant, accountState, setActive, publishEventSub, type AccountStatus } from '$lib/server/rpc';
+import { hasGrant, accountState, setActive, publishEventSub, auditImpersonation, type AccountStatus } from '$lib/server/rpc';
+import type { Session } from '$lib/server/session';
 import { env } from '$env/dynamic/private';
 import { fail } from '@sveltejs/kit';
 
@@ -30,6 +31,19 @@ export const load: PageServerLoad = ({ locals }) => {
   return { conn };
 };
 
+// When the session is an admin impersonation, record the write back to the
+// acting admin (best-effort, fire-and-forget). No-op for a normal login.
+function auditIfImpersonating(session: Session | null, action: string, detail: string): void {
+  if (!session?.impersonator_id) return;
+  auditImpersonation(
+    session.impersonator_id,
+    session.impersonator_login ?? '',
+    `dashboard:${action}`,
+    `${session.user_id}:${detail}`,
+    ''
+  );
+}
+
 export const actions: Actions = {
   // Enable: a single request to start event delivery. Marks the channel active
   // and (re)creates its EventSub subscriptions via the outgress lane.
@@ -39,6 +53,7 @@ export const actions: Actions = {
     try {
       await setActive(uid, true);
       await publishEventSub(uid, true);
+      auditIfImpersonating(locals.session, 'enable', '');
       return { ok: true, action: 'enable' };
     } catch {
       return fail(502, { error: 'enable failed' });
@@ -51,6 +66,7 @@ export const actions: Actions = {
     try {
       await publishEventSub(uid, false);
       await publishEventSub(uid, true);
+      auditIfImpersonating(locals.session, 'restart', '');
       return { ok: true, action: 'restart' };
     } catch {
       return fail(502, { error: 'restart failed' });
@@ -63,6 +79,7 @@ export const actions: Actions = {
     try {
       await publishEventSub(uid, false);
       await setActive(uid, false);
+      auditIfImpersonating(locals.session, 'disconnect', '');
       return { ok: true, action: 'disconnect' };
     } catch {
       return fail(502, { error: 'disconnect failed' });

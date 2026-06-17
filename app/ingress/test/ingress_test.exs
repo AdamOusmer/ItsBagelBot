@@ -38,29 +38,46 @@ defmodule Ingress.PipelineTest do
   describe "route/2 stream lane" do
     @meta %{shard_id: 0, msg_id: "m1", ts: "2026-06-10T00:00:00Z"}
 
+    setup do
+      # The live event is now dual-published, so routing reads the broadcaster
+      # status for the event-lane copy. Stand up a cache that always returns
+      # premium for these tests.
+      start_supervised!({Ingress.BroadcasterCache, [loader: fn _id -> {:ok, :premium} end]})
+      :ok
+    end
+
     defp notification(type, event) do
       %{"subscription" => %{"type" => type}, "event" => event}
     end
 
-    test "stream.online goes to the dedicated stream lane" do
+    test "stream.online rides both the live lane and the broadcaster's event lane" do
       event = %{"broadcaster_user_id" => "77", "type" => "live"}
 
-      assert {:publish, "twitch.ingress.event.stream", %{lane: :stream, type: "stream.online"}} =
-               Pipeline.route(notification("stream.online", event), @meta)
+      assert {:publish_many,
+              [
+                {"twitch.ingress.event.stream", %{lane: :stream, type: "stream.online"}},
+                {"twitch.ingress.event.premium", %{lane: :premium, type: "stream.online"}}
+              ]} = Pipeline.route(notification("stream.online", event), @meta)
     end
 
-    test "stream.offline goes to the dedicated stream lane" do
+    test "stream.offline rides both the live lane and the broadcaster's event lane" do
       event = %{"broadcaster_user_id" => "77"}
 
-      assert {:publish, "twitch.ingress.event.stream", %{lane: :stream, type: "stream.offline"}} =
-               Pipeline.route(notification("stream.offline", event), @meta)
+      assert {:publish_many,
+              [
+                {"twitch.ingress.event.stream", %{lane: :stream, type: "stream.offline"}},
+                {"twitch.ingress.event.premium", %{lane: :premium, type: "stream.offline"}}
+              ]} = Pipeline.route(notification("stream.offline", event), @meta)
     end
 
-    test "stream events never touch the broadcaster cache" do
-      # No BroadcasterCache is running in this test; a status lookup would
-      # crash the call. Routing must not need one.
-      event = %{"broadcaster_user_id" => "77"}
-      assert {:publish, _, _} = Pipeline.route(notification("stream.online", event), @meta)
+    test "a live event without a broadcaster still hits the live lane on the standard event lane" do
+      event = %{"type" => "live"}
+
+      assert {:publish_many,
+              [
+                {"twitch.ingress.event.stream", %{lane: :stream}},
+                {"twitch.ingress.event.standard", %{lane: :standard}}
+              ]} = Pipeline.route(notification("stream.online", event), @meta)
     end
 
     test "special-user chat routes premium without the cache" do

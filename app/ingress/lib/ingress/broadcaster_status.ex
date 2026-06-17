@@ -13,14 +13,15 @@ defmodule Ingress.BroadcasterStatus do
       reply:    {"broadcaster_id": "141981764", "tier": "premium"}
 
   Any `tier` other than `"premium"` maps to the standard lane, as does an
-  unknown broadcaster.
+  unknown broadcaster. A `"banned"` flag wins over everything: a banned
+  broadcaster resolves to `:drop` so the ingress discards their traffic.
   """
 
   require Logger
 
   @connection :gnat
 
-  @spec lane_for(String.t()) :: {:ok, :premium | :standard} | {:error, term()}
+  @spec lane_for(String.t()) :: {:ok, :premium | :standard | :drop} | {:error, term()}
   def lane_for(broadcaster_id) do
     request = Jason.encode!(%{broadcaster_id: broadcaster_id})
 
@@ -30,6 +31,7 @@ defmodule Ingress.BroadcasterStatus do
            ),
          {:ok, reply} <- Jason.decode(body) do
       case reply do
+        %{"banned" => true} -> {:ok, :drop}
         %{"tier" => "premium"} -> {:ok, :premium}
         %{"error" => error} -> {:error, {:rpc, error}}
         _ -> {:ok, :standard}

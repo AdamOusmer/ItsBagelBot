@@ -107,7 +107,31 @@ func main() {
 		log.Warn("no bot user id or refresh token configured, mod status verification disabled")
 	}
 
-	tw := twitch.NewClient(cfg.TwitchClientID, appTokens, userTokens)
+	// Per-broadcaster user tokens: a job with as="broadcaster" sends under the
+	// channel's own stored grant (saved by the dashboard at login) rather than
+	// the bot. Each Source loads/persists that channel's refresh token through
+	// the same users-service token RPC, keyed by broadcaster id.
+	broadcasterTokens := twitch.NewBroadcasterTokens(func(broadcasterID string) *twitch.Source {
+		store := tokenstore.New(nc, cfg.TokensSubjectPrefix, broadcasterID)
+		return twitch.NewStoredUserTokenSource(
+			cfg.TwitchClientID, cfg.TwitchClientSecret, "",
+			func(ctx context.Context) string {
+				refresh, err := store.Load(ctx)
+				if err != nil {
+					log.Debug("broadcaster token unavailable", zap.String("broadcaster_id", broadcasterID), zap.Error(err))
+					return ""
+				}
+				return refresh
+			},
+			func(ctx context.Context, access, refresh string) {
+				if err := store.Save(ctx, access, refresh); err != nil {
+					log.Warn("broadcaster token persist failed", zap.String("broadcaster_id", broadcasterID), zap.Error(err))
+				}
+			},
+		)
+	})
+
+	tw := twitch.NewClient(cfg.TwitchClientID, appTokens, userTokens, broadcasterTokens)
 
 	premium := worker.New(log.Named("premium"), limiter, registry, tw, cfg.TwitchBotUserID, cfg.TwitchConduitID, worker.LanePremium)
 	standard := worker.New(log.Named("standard"), limiter, registry, tw, cfg.TwitchBotUserID, cfg.TwitchConduitID, worker.LaneStandard)
@@ -136,15 +160,32 @@ func main() {
 	}
 	defer func() { _ = systemSub.Close() }()
 
-	if err := bus.ConsumeWeighted(ctx, nrApp, premiumSub, cfg.PremiumSubject, premium.Process, cfg.PremiumWorkers, log); err != nil {
-		log.Fatal("failed to consume premium lane", zap.Error(err))
+	// Premium and standard share one central weighted consumer: a single
+	// routine budget partitioned by weight so premium drains ahead without
+	// starving standard.
+	if err := bus.ConsumeWeighted(ctx, nrApp, []bus.WeightedLane{
+		{Sub: premiumSub, Subject: cfg.PremiumSubject, Handle: premium.Process, Reserve: cfg.PremiumReserve},
+		{Sub: standardSub, Subject: cfg.StandardSubject, Handle: standard.Process},
+	}, bus.ScalePolicy{
+		MinRoutines:    cfg.MinRoutines,
+		MaxRoutines:    cfg.MaxRoutines,
+		MaxConsumers:   cfg.MaxConsumers,
+		ScaleUpAfter:   cfg.ScaleUpAfter,
+		ScaleDownAfter: cfg.ScaleDownAfter,
+	}, log); err != nil {
+		log.Fatal("failed to consume premium/standard lanes", zap.Error(err))
 	}
 
-	if err := bus.ConsumeWeighted(ctx, nrApp, standardSub, cfg.StandardSubject, standard.Process, cfg.StandardWorkers, log); err != nil {
-		log.Fatal("failed to consume standard lane", zap.Error(err))
-	}
-
-	if err := bus.ConsumeWeighted(ctx, nrApp, systemSub, cfg.SystemSubject, system.Process, cfg.SystemWorkers, log); err != nil {
+	// The system lane keeps its own independent consumer, off the weighted
+	// budget, so onboarding bursts never compete for the chat/api routines. It
+	// runs a fixed pool (min == max, single consumer), no autoscaling.
+	if err := bus.ConsumeWeighted(ctx, nrApp, []bus.WeightedLane{
+		{Sub: systemSub, Subject: cfg.SystemSubject, Handle: system.Process},
+	}, bus.ScalePolicy{
+		MinRoutines:  cfg.SystemWorkers,
+		MaxRoutines:  cfg.SystemWorkers,
+		MaxConsumers: 1,
+	}, log); err != nil {
 		log.Fatal("failed to consume system lane", zap.Error(err))
 	}
 
@@ -159,8 +200,10 @@ func main() {
 		zap.String("standard_subject", cfg.StandardSubject),
 		zap.String("rpc_prefix", cfg.RPCPrefix),
 		zap.Bool("mod_verification", tw.HasUserToken()),
-		zap.Int("premium_workers", cfg.PremiumWorkers),
-		zap.Int("standard_workers", cfg.StandardWorkers),
+		zap.Int("min_routines", cfg.MinRoutines),
+		zap.Int("max_routines", cfg.MaxRoutines),
+		zap.Int("max_consumers", cfg.MaxConsumers),
+		zap.Int("premium_reserve_percent", cfg.PremiumReserve),
 		zap.Int("system_workers", cfg.SystemWorkers))
 
 	<-ctx.Done()
