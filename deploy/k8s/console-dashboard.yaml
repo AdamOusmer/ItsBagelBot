@@ -103,6 +103,13 @@ spec:
                 secretKeyRef:
                   name: dashboard-env
                   key: DASHBOARD_SESSION_KEY
+            # Shared with console-admin only for short-lived signed view-as
+            # handoff tokens.
+            - name: IMPERSONATION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: dashboard-env
+                  key: IMPERSONATION_KEY
             # New Relic APM (agent preloaded in the Containerfile). License key
             # comes from the Doppler secret via envFrom; app name is explicit so
             # it reports as its own entity.

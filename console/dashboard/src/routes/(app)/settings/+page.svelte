@@ -7,7 +7,12 @@
 
   let { data, form } = $props();
 
-  const given = $derived((data.given ?? []) as DelegationGrant[]);
+  const createdGrant = $derived(form?.createdGrant as DelegationGrant | undefined);
+  const given = $derived.by<DelegationGrant[]>(() => {
+    const grants = (data.given ?? []) as DelegationGrant[];
+    if (!createdGrant || grants.some((g) => g.token === createdGrant.token)) return grants;
+    return [createdGrant, ...grants];
+  });
   const received = $derived(
     (data.received ?? []) as { owner_user_id: string; owner_login: string; sections: string[] }[]
   );

@@ -101,17 +101,12 @@
 
   // --- Confirm-delete modal state -------------------------------------
   let deleteTarget = $state<{ id: number | string; username: string } | null>(null);
-  let deleteFormEl = $state<HTMLFormElement | null>(null);
 
   function openDelete(u: { id: number | string; username: string }) {
     deleteTarget = u;
   }
   function closeDelete() {
     deleteTarget = null;
-  }
-  function confirmDelete() {
-    if (deleteFormEl) deleteFormEl.requestSubmit();
-    closeDelete();
   }
 
   // Esc closes modal first, then drawer.
@@ -211,8 +206,7 @@
 
 <!-- DETAIL DRAWER -->
 {#if drawerUser}
-  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div class="drawer-backdrop" onclick={closeDrawer}></div>
+  <button class="drawer-backdrop" type="button" onclick={closeDrawer} aria-label="Close drawer"></button>
   <div class="drawer open" role="dialog" aria-modal="true" aria-labelledby="drawer-title">
     <header class="drawer-head">
       <div class="drawer-id">
@@ -361,18 +355,16 @@
             removeRecent(id);
             if (selected && String(selected.id) === id) closeDrawer();
           }
+          closeDelete();
         }}
-        bind:this={deleteFormEl}
-        style="display:none"
+        class="modal-actions"
       >
         <input type="hidden" name="user_id" value={deleteTarget.id} />
-      </form>
-      <div class="modal-actions">
         <button class="btn ghost" type="button" onclick={closeDelete}>Cancel</button>
-        <button class="btn danger" type="button" onclick={confirmDelete}>
+        <button class="btn danger" type="submit">
           <Icon name="trash" size={13} /> Delete permanently
         </button>
-      </div>
+      </form>
     </div>
   </div>
 {/if}
@@ -427,6 +419,7 @@
   /* ---- Detail drawer ---- */
   .drawer-backdrop {
     position: fixed; inset: 0; z-index: 190;
+    padding: 0; border: 0; cursor: pointer;
     background: rgba(0, 0, 0, 0.5);
     backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
     animation: fade var(--bb-dur-fast, 160ms) var(--bb-ease-out-expo, ease) both;
