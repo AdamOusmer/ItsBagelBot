@@ -114,8 +114,7 @@
     <form method="POST" action="?/create" class="create" use:enhance>
       <h3>New share link</h3>
       <p class="hint">Pick which sections the invitee can manage.</p>
-      <label class="chk"><input type="checkbox" name="commands" /> Commands</label>
-      <label class="chk"><input type="checkbox" name="modules" /> Modules</label>
+      <label class="chk"><input type="checkbox" name="commands" checked /> Commands</label>
       <button class="btn primary" type="submit"><Icon name="link" size={14} /> Generate link</button>
     </form>
   </div>
@@ -149,7 +148,7 @@
   <div class="modal-backdrop" role="button" tabindex="-1" aria-label="Close dialog" onclick={closeDelete}></div>
   <dialog class="confirm-dialog" open aria-modal="true" aria-labelledby="del-modal-title">
     <h3 id="del-modal-title">Delete your account?</h3>
-    <p>This removes your account, commands, modules, and any links you created. It cannot be undone.</p>
+    <p>This removes your account, commands, and any links you created. It cannot be undone.</p>
     <div class="ack">
       <CheckButton bind:checked={ack} label="I recognize that this action is irreversible and will lose all my configurations" />
     </div>

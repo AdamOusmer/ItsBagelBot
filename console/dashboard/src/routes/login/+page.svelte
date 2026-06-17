@@ -20,7 +20,7 @@
   </h1>
 
   <p class="lede reveal" style="--d:.85s">
-    Private, distributed, encrypted. Manage commands, modules, and your bot from one glassy console.
+    Private, distributed, encrypted. Manage commands and your bot from one glassy console.
   </p>
 
   <a class="cta reveal" style="--d:1s" href="/auth/login">
