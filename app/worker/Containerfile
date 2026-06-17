@@ -1,0 +1,19 @@
+from docker.io/library/golang:1.26-bookworm AS build
+
+WORKDIR /src
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY internal/utils internal/utils
+COPY pkg pkg
+COPY app/worker app/worker
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w"
+
+# ---------------------------------------------------------------------------
+FROM gcr.io/distroless/static-debian12:nonroot
+
+COPY --from=build /src/app/worker/worker /worker
+
+USER nonroot
+ENTRYPOINT ["/worker"]

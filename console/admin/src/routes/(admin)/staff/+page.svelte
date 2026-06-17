@@ -69,7 +69,7 @@
   // --- Roster filter --------------------------------------------------
   let filter = $state('');
   const rows = $derived(
-    roster.filter((s) => {
+    (data.staff as AdminAcct[]).filter((s) => {
       const q = filter.trim().toLowerCase();
       return !q || s.login.toLowerCase().includes(q) || String(s.id).includes(q);
     })

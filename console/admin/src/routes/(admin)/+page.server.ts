@@ -18,7 +18,7 @@ export type Overview = {
 // is slow or down; each failure flips the degraded flag and falls back to the
 // last-known/sample value.
 async function loadOverview(): Promise<Overview> {
-  const botId = env.BOT_USER_ID ?? '';
+  const botId = env.ADMIN_BOT_USER_ID ?? '';
   const [stats, snapshot, token] = await Promise.allSettled([
     userStats(),
     shardSnapshot(),
