@@ -9,7 +9,7 @@ import {
 } from '$lib/server/rpc';
 import { COOKIE } from '$lib/server/session';
 
-const SECTIONS = ['commands', 'modules'] as const;
+const SECTIONS = ['commands'] as const;
 
 export const load: PageServerLoad = async ({ locals }) => {
   const s = locals.session;
@@ -48,7 +48,7 @@ export const actions: Actions = {
       return fail(502, { error: 'Could not delete account.' });
     }
     cookies.delete(COOKIE, { path: '/' });
-    throw redirect(302, '/login');
+    throw redirect(302, '/goodbye');
   },
 
   create: async ({ request, locals }) => {
