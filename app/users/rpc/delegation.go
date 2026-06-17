@@ -86,7 +86,9 @@ func (d *delegationRPC) handleCreate(msg *nats.Msg) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	if err := d.repo.CreateDelegation(ctx, token, ownerID, req.OwnerLogin, req.Sections, nil); err != nil {
+	// Single-use links die after 24h even if never consumed.
+	exp := time.Now().Add(24 * time.Hour)
+	if err := d.repo.CreateDelegation(ctx, token, ownerID, req.OwnerLogin, req.Sections, &exp); err != nil {
 		d.log.Error("delegation create", zap.Error(err))
 		respondDeleg(msg, map[string]any{"error": err.Error()})
 		return

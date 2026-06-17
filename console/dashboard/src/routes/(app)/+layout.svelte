@@ -9,8 +9,8 @@
       ? 'Commands'
       : path.startsWith('/modules')
         ? 'Modules'
-        : path.startsWith('/access')
-          ? 'Access'
+        : path.startsWith('/settings') || path.startsWith('/access')
+          ? 'Settings'
           : 'Overview'
   );
 
@@ -27,9 +27,7 @@
 {#if isDelegate}
   <div class="imp-banner" role="status">
     <span>Shared access to <b>{data.delegateLogin}</b>'s dashboard ({sections.join(', ')})</span>
-    <form method="POST" action="/auth/logout">
-      <button type="submit" class="imp-exit">Exit</button>
-    </form>
+    <a href="/delegate/exit" class="imp-exit">Exit</a>
   </div>
 {/if}
 
@@ -64,7 +62,7 @@
         <NavItem href="/modules" icon="moderation" label="Modules" active={crumb === 'Modules'} />
       {/if}
       {#if !isDelegate}
-        <NavItem href="/access" icon="link" label="Shared access" active={crumb === 'Access'} />
+        <NavItem href="/settings" icon="settings" label="Settings" active={crumb === 'Settings'} />
       {/if}
     </nav>
 
@@ -116,7 +114,7 @@
       <a href="/modules" class={crumb === 'Modules' ? 'active' : ''}><Icon name="moderation" size={20} />Modules</a>
     {/if}
     {#if !isDelegate}
-      <a href="/access" class={crumb === 'Access' ? 'active' : ''}><Icon name="link" size={20} />Access</a>
+      <a href="/settings" class={crumb === 'Settings' ? 'active' : ''}><Icon name="settings" size={20} />Settings</a>
     {/if}
     <form method="POST" action="/auth/logout"><button type="submit"><Icon name="power" size={20} />Log out</button></form>
   </nav>
@@ -136,6 +134,7 @@
   .imp-banner form { display: inline; }
   .imp-exit {
     cursor: pointer; font: inherit; font-weight: 700;
+    display: inline-block; text-decoration: none; line-height: 1.4;
     padding: 3px 12px; border-radius: var(--bb-radius-sm, 8px);
     color: var(--bb-bg-1, #111);
     background: transparent; border: 1px solid rgba(0, 0, 0, 0.35);
