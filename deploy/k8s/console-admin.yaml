@@ -115,7 +115,8 @@ spec:
             - name: DASHBOARD_PUBLIC_ORIGIN
               value: https://dashboard.itsbagelbot.com
             # Shared with console-dashboard only for signed view-as handoff
-            # tokens. The admin session key remains isolated.
+            # tokens. Must be base64-encoded 32 bytes. The admin session key
+            # remains isolated.
             - name: IMPERSONATION_KEY
               valueFrom:
                 secretKeyRef:
@@ -128,7 +129,8 @@ spec:
           #   TWITCH_CLIENT_ID       — Twitch app client id.
           #   TWITCH_CLIENT_SECRET   — Twitch app client secret.
           # IMPERSONATION_KEY is the one intentional cross-app secret above:
-          # it signs short-lived view-as handoff tokens only.
+          # it signs short-lived view-as handoff tokens only and must decode to
+          # exactly 32 bytes.
           # The Twitch app MUST register the redirect URI above. Staff identity
           # is the DB allowlist (seeded via OWNER_BOOTSTRAP_IDS on the users
           # service); the legacy ADMIN_USER_IDS env is no longer consulted.
