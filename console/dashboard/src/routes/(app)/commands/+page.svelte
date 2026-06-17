@@ -3,6 +3,7 @@
   import type { SubmitFunction } from '@sveltejs/kit';
   import { Icon, Badge, PERMS, PERM_LABELS } from '@bagel/shared';
   import type { Perm, CommandView } from '@bagel/shared';
+  import CheckButton from '$lib/components/CheckButton.svelte';
   let { data } = $props();
 
   // Local source of truth, seeded from the SSR load. Each action result is
@@ -312,10 +313,9 @@
         />
       </label>
 
-      <label class="check">
-        <input type="checkbox" name="is_active" checked={editor.is_active} />
-        <span>Active</span>
-      </label>
+      <div class="check">
+        <CheckButton name="is_active" bind:checked={editor.is_active} label="Active" />
+      </div>
 
       <div class="modal-actions">
         <button type="button" class="btn ghost" onclick={closeEditor}>Cancel</button>
@@ -541,16 +541,7 @@
   .field-row { display: flex; gap: 12px; }
   .field-row .field { flex: 1; }
 
-  .check {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-family: var(--bb-font-body);
-    font-size: 13px;
-    color: var(--bb-white);
-    margin: 4px 0 18px;
-    cursor: pointer;
-  }
+  .check { margin: 4px 0 18px; }
 
   .modal-actions {
     display: flex;

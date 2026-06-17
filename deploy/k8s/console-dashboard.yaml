@@ -104,7 +104,7 @@ spec:
                   name: dashboard-env
                   key: DASHBOARD_SESSION_KEY
             # Shared with console-admin only for short-lived signed view-as
-            # handoff tokens.
+            # handoff tokens. Must be base64-encoded 32 bytes.
             - name: IMPERSONATION_KEY
               valueFrom:
                 secretKeyRef:

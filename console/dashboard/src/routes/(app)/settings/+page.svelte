@@ -119,7 +119,7 @@
     <form method="POST" action="?/create" class="create" use:enhance>
       <h3>New share link</h3>
       <p class="hint">Pick which sections the invitee can manage.</p>
-      <label class="chk"><input type="checkbox" name="commands" checked /> Commands</label>
+      <CheckButton name="commands" checked={true} label="Commands" />
       <button class="btn primary" type="submit"><Icon name="link" size={14} /> Generate link</button>
     </form>
   </div>
@@ -188,8 +188,6 @@
   .row:first-of-type { border-top: none; }
   .row b { font-size: 14px; }
   .row .hint { margin: 4px 0 0; }
-  .chk { display: block; margin: 6px 0; font-size: 14px; cursor: pointer; }
-  .chk input { margin-right: 8px; }
   .create { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--bb-line, rgba(255, 255, 255, 0.06)); }
   .create .btn { margin-top: 14px; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
