@@ -109,12 +109,26 @@ spec:
             # Twitch OAuth callback for operator sign-in (admin host).
             - name: TWITCH_REDIRECT_URI
               value: https://admin.tail451e6d.ts.net/auth/callback
-          # Secrets from Doppler (admin/prd -> console-admin-env). Isolated from
-          # other tiers; nothing is shared:
+            # Absolute dashboard origin used when the admin console mints
+            # cross-app "view as" links. Without this, links resolve on the
+            # admin host and bounce through its login gate.
+            - name: DASHBOARD_PUBLIC_ORIGIN
+              value: https://dashboard.itsbagelbot.com
+            # Shared with console-dashboard only for signed view-as handoff
+            # tokens. The admin session key remains isolated.
+            - name: IMPERSONATION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: dashboard-env
+                  key: IMPERSONATION_KEY
+          # Secrets from Doppler (admin/prd -> console-admin-env). Admin
+          # sessions are isolated from other tiers:
           #   SESSION_KEY            — 32-byte base64, admin-only (own Doppler
           #                            config). Seals/opens the admin session.
           #   TWITCH_CLIENT_ID       — Twitch app client id.
           #   TWITCH_CLIENT_SECRET   — Twitch app client secret.
+          # IMPERSONATION_KEY is the one intentional cross-app secret above:
+          # it signs short-lived view-as handoff tokens only.
           # The Twitch app MUST register the redirect URI above. Staff identity
           # is the DB allowlist (seeded via OWNER_BOOTSTRAP_IDS on the users
           # service); the legacy ADMIN_USER_IDS env is no longer consulted.

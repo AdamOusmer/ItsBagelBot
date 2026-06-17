@@ -18,6 +18,7 @@
       ? 'This drops all your EventSub subscriptions and immediately reconnects them.'
       : 'This disconnects your bot from chat and drops all active EventSub subscriptions.'
   );
+  const modalAction = $derived(pending === 'restart' ? '?/restart' : '?/disconnect');
 
   function openModal(action: PendingAction) {
     pending = action;
@@ -27,11 +28,11 @@
     pending = null;
   }
 
-  // Submit the hidden form when user confirms
-  function confirm() {
-    const id = pending === 'restart' ? 'form-restart' : 'form-disconnect';
-    pending = null;
-    (document.getElementById(id) as HTMLFormElement | null)?.requestSubmit();
+  function closeAfterSubmit() {
+    return async ({ update }: { update: (opts?: { invalidateAll?: boolean }) => Promise<void> }) => {
+      await update();
+      closeModal();
+    };
   }
 </script>
 
@@ -65,9 +66,6 @@
       </div>
       <div class="actions">
         {#if c.receiving}
-          <!-- Hidden real forms — only submitted after modal confirm -->
-          <form id="form-restart" method="POST" action="?/restart" use:enhance style="display:none"></form>
-          <form id="form-disconnect" method="POST" action="?/disconnect" use:enhance style="display:none"></form>
           <Button variant="ghost" icon="activity" type="button" onclick={() => openModal('restart')}>Restart</Button>
           <Button variant="tan" icon="power" type="button" onclick={() => openModal('disconnect')}>Disconnect</Button>
         {:else}
@@ -93,15 +91,15 @@
   <dialog class="confirm-dialog" open aria-modal="true" aria-labelledby="modal-title">
     <h3 id="modal-title">{modalTitle}</h3>
     <p>{modalBody}</p>
-    <div class="modal-actions">
-      <button class="btn ghost" onclick={closeModal}>Cancel</button>
+    <form method="POST" action={modalAction} use:enhance={closeAfterSubmit} class="modal-actions">
+      <button class="btn ghost" type="button" onclick={closeModal}>Cancel</button>
       <button
         class="btn {pending === 'disconnect' ? 'tan' : 'primary'}"
-        onclick={confirm}
+        type="submit"
       >
         {pending === 'restart' ? 'Restart' : 'Disconnect'}
       </button>
-    </div>
+    </form>
   </dialog>
 {/if}
 

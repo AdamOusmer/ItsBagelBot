@@ -38,6 +38,13 @@ export const load: PageServerLoad = async () => {
 // Status values the users service accepts (raw DB enum).
 const STATUSES = new Set(['free', 'paid', 'vip']);
 
+function dashboardOrigin(url: URL): string {
+  const configured = (env.DASHBOARD_PUBLIC_ORIGIN ?? '').trim().replace(/\/+$/, '');
+  if (configured) return configured;
+  if (env.DEMO === '1' || env.NODE_ENV !== 'production') return url.origin;
+  throw new Error('DASHBOARD_PUBLIC_ORIGIN not set');
+}
+
 // audit records a mutating action best-effort: a logging failure must never
 // block or fail the operator action it describes. Skipped in demo (synthetic
 // non-numeric actor id).
@@ -199,12 +206,17 @@ export const actions: Actions = {
   // Mint a one-shot "view as" link the admin can open to load the target's
   // dashboard. The signed token (5 min TTL) carries the actor so every write
   // during the impersonated session is attributed back to this admin.
-  impersonate: async ({ request, locals }) => {
+  impersonate: async ({ request, locals, url }) => {
     const admin = await requireAdmin(locals.session);
     if (!admin) return fail(403, { error: 'forbidden' });
     const userId = String((await request.formData()).get('user_id') ?? '').trim();
     if (!userId) return fail(400, { error: 'user_id required' });
-    const origin = env.DASHBOARD_PUBLIC_ORIGIN ?? '';
+    let origin: string;
+    try {
+      origin = dashboardOrigin(url);
+    } catch (e) {
+      return { action: { ok: false, notice: (e as Error).message } };
+    }
     if (isDemo()) {
       const token = signViewAs({
         sub: userId,

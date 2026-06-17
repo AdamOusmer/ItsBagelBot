@@ -60,8 +60,17 @@ export const actions: Actions = {
     if (sections.length === 0) return fail(400, { error: 'Pick at least one section.' });
 
     try {
-      await delegationCreate(s.user_id, s.login, sections);
-      return { ok: true, action: 'created' };
+      const token = await delegationCreate(s.user_id, s.login, sections);
+      return {
+        ok: true,
+        action: 'created',
+        createdGrant: {
+          token,
+          sections,
+          delegate_login: '',
+          consumed: false
+        }
+      };
     } catch {
       return fail(502, { error: 'Could not create link.' });
     }
