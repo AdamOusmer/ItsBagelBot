@@ -203,6 +203,15 @@ export async function saveGrant(
   });
 }
 
+// Irreversibly delete the user's own account (and their owned delegations,
+// cleared server-side). The caller drops the session cookie after this resolves.
+export async function deleteSelf(userId: string): Promise<void> {
+  const r = await rpc<{ ok?: boolean; error?: string }>(`${SUB.dashboard}.delete_self`, {
+    user_id: userId
+  });
+  if (!r.ok) throw new Error(r.error ?? 'delete failed');
+}
+
 export async function listCommands(userId: string): Promise<CommandView[]> {
   const r = await rpc<{ commands: CommandView[] }>(`${SUB.commands}.list`, { user_id: userId });
   return r.commands ?? [];

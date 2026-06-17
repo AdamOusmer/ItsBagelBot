@@ -41,6 +41,7 @@ func SubscribeDashboard(nc *nats.Conn, repo *repository.Users, prefix, invalidat
 		{"active_get", d.handleActiveGet},
 		{"status_get", d.handleStatusGet},
 		{"state_get", d.handleStateGet},
+		{"delete_self", d.handleDeleteSelf},
 	}
 	for _, h := range verbs {
 		subject := prefix + "." + h.verb
@@ -266,6 +267,42 @@ func (d *dashboardRPC) handleStateGet(msg *nats.Msg) {
 	}
 
 	respondDash(msg, map[string]any{"active": view.IsActive, "status": view.Status})
+}
+
+type deleteSelfRequest struct {
+	UserID string `json:"user_id"`
+}
+
+// handleDeleteSelf removes the user and every delegation they own. Delegations
+// are cleared first so no dangling links survive the deleted user row.
+func (d *dashboardRPC) handleDeleteSelf(msg *nats.Msg) {
+	var req deleteSelfRequest
+	if err := json.Unmarshal(msg.Data, &req); err != nil {
+		respondDash(msg, map[string]any{"error": "bad request"})
+		return
+	}
+
+	id, err := strconv.ParseUint(req.UserID, 10, 64)
+	if err != nil {
+		respondDash(msg, map[string]any{"error": "user_id must be numeric"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	if err := d.repo.DeleteDelegationsByOwner(ctx, id); err != nil {
+		d.log.Error("delete_self delegations", zap.Error(err))
+		respondDash(msg, map[string]any{"error": err.Error()})
+		return
+	}
+	if err := d.repo.Delete(ctx, id); err != nil {
+		d.log.Error("delete_self user", zap.Error(err))
+		respondDash(msg, map[string]any{"error": err.Error()})
+		return
+	}
+
+	respondDash(msg, map[string]any{"ok": true})
 }
 
 func respondDash(msg *nats.Msg, v any) {
