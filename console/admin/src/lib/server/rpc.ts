@@ -69,6 +69,11 @@ export async function userStats(): Promise<UserStats> {
   return r.stats;
 }
 
+export async function userOverview(limit = 20): Promise<{ users: AdminUserWire[]; stats: UserStats }> {
+  const r = await rpc<{ users?: AdminUserWire[]; stats: UserStats }>(`${SUB.user}.overview`, { limit });
+  return { users: r.users ?? [], stats: r.stats };
+}
+
 export async function userSetStatus(userId: string, status: string): Promise<AdminUserWire> {
   const r = await rpc<{ user: AdminUserWire }>(`${SUB.user}.set_status`, {
     user_id: userId,

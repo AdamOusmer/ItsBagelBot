@@ -194,7 +194,9 @@ body::after {
 /* page header */
 .page-head { margin-bottom: calc(28px * var(--d)); }
 .page-head .eyebrow { font-family: var(--bb-font-mono); font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--bb-green-glow); display: block; margin-bottom: 12px; }
-.page-head h1 { font-family: var(--bb-font-display); font-weight: 700; font-size: clamp(30px, 3.4vw, 42px); line-height: 1.04; letter-spacing: -0.025em; color: var(--bb-white); margin: 0; }
+.page-head h1,
+.page-head h1 * { font-family: var(--bb-font-display); }
+.page-head h1 { font-weight: 700; font-size: clamp(30px, 3.4vw, 42px); line-height: 1.04; letter-spacing: -0.025em; color: var(--bb-white); margin: 0; }
 .page-head h1 em { font-style: normal; font-weight: 700; color: var(--bb-tan-light); }
 .page-head p { font-family: var(--bb-font-body); font-size: 15px; line-height: 1.55; color: var(--bb-muted); margin: 12px 0 0; max-width: 560px; }
 

@@ -8,5 +8,5 @@ import { requireAdmin } from '$lib/server/access';
 export const load: LayoutServerLoad = async ({ locals }) => {
   const admin = await requireAdmin(locals.session);
   if (!admin) throw redirect(302, '/login');
-  return { displayName: admin.display_name, login: admin.login, role: admin.role };
+  return { id: admin.id, displayName: admin.display_name, login: admin.login, role: admin.role };
 };

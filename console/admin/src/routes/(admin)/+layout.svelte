@@ -85,10 +85,6 @@
         <span>Admin</span><span class="sep">/</span><span class="here">{crumb}</span>
       </div>
       <div class="grow"></div>
-      <label class="search">
-        <Icon name="search" size={15} />
-        <input type="text" placeholder="Search users, shards…" />
-      </label>
       <button class="icon-btn" aria-label="Notifications"><Icon name="bell" size={17} /></button>
     </header>
 
