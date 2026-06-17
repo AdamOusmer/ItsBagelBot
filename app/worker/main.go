@@ -1,80 +1,125 @@
 package main
 
 import (
-	"ItsBagelBot/pkg/bus"
-	"ItsBagelBot/pkg/env"
-	"ItsBagelBot/pkg/health"
-	"ItsBagelBot/pkg/logger"
 	"context"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
-	"github.com/newrelic/go-agent/v3/newrelic"
+	"ItsBagelBot/app/worker/internal/config"
+	"ItsBagelBot/app/worker/internal/consumer"
+	"ItsBagelBot/app/worker/internal/projection"
+	"ItsBagelBot/app/worker/pipeline"
+	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/env"
+	"ItsBagelBot/pkg/health"
+	"ItsBagelBot/pkg/logger"
+	"ItsBagelBot/pkg/monitor"
+
 	"go.uber.org/zap"
 )
 
 const serviceName = "worker"
+
+// projectionCacheTTL bounds how long a stale module/command/user view can
+// linger in the worker before the next read re-checks Valkey and the projector.
+const projectionCacheTTL = 30 * time.Second
 
 func main() {
 
 	log := logger.New(env.Get("APP_ENV", "development")).Named(serviceName)
 	defer func() { _ = log.Sync() }()
 
+	nrApp, err := monitor.New(serviceName, log)
+	if err != nil {
+		log.Fatal("failed to start new relic", zap.Error(err))
+	}
+	log = monitor.WrapLogger(log, nrApp)
+	defer monitor.Shutdown(nrApp)
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	natsURL := env.Get("NATS_URL", "nats://127.0.0.1:4222")
+	cfg := config.Load()
 
-	if err := bus.EnsureStreams(ctx, natsURL, bus.DataStreams, log); err != nil {
+	if err := bus.EnsureStreams(ctx, cfg.NATSURL, bus.DataStreams, log); err != nil {
 		log.Fatal("failed to provision jetstream streams", zap.Error(err))
 	}
 
-	nc, err := bus.Connect(natsURL, serviceName)
+	// Core connection drives the projector RPC fallback; JetStream pub/sub
+	// drives the lanes.
+	nc, err := bus.Connect(cfg.NATSURL, serviceName)
 	if err != nil {
 		log.Fatal("failed to connect to nats", zap.Error(err))
 	}
 	defer nc.Close()
 
-	pub, err := bus.NewPublisher(natsURL, log)
+	pub, err := bus.NewPublisher(cfg.NATSURL, log)
 	if err != nil {
 		log.Fatal("failed to connect publisher", zap.Error(err))
 	}
 	defer func() { _ = pub.Close() }()
 
-	sub, err := bus.NewSubscriber(natsURL, serviceName, log)
+	sub, err := bus.NewSubscriber(cfg.NATSURL, serviceName, log)
 	if err != nil {
 		log.Fatal("failed to connect subscriber", zap.Error(err))
 	}
 	defer func() { _ = sub.Close() }()
 
-	// Optional: Initialize New Relic for distributed tracing inside ConsumeWeighted
-	var nrApp *newrelic.Application
-	if nrKey := env.Get("NEW_RELIC_LICENSE_KEY", ""); nrKey != "" {
-		nrApp, err = newrelic.NewApplication(
-			newrelic.ConfigAppName(serviceName),
-			newrelic.ConfigLicense(nrKey),
-		)
-		if err != nil {
-			log.Warn("failed to initialize new relic", zap.Error(err))
-		}
+	valkeyStore, err := projection.NewValkey(cfg.ValkeyAddr, cfg.ValkeyPassword)
+	if err != nil {
+		log.Fatal("failed to connect to valkey", zap.Error(err))
 	}
+	defer valkeyStore.Close()
 
-	err = bus.ConsumeWeighted(
-		ctx,
-		nrApp,
-		sub,
-		ingressSubject,
-		handleIngress(log, pub),
-		concurrencyLimit,
+	proj := projection.NewClient(valkeyStore, nc, projection.Subjects{
+		Users:    cfg.ProjectionUsersSubject,
+		Modules:  cfg.ProjectionModulesSubject,
+		Commands: cfg.ProjectionCommandsSubject,
+	}, projectionCacheTTL, log)
+	defer proj.Close()
+
+	pipe := pipeline.NewPipeline(
+		log,
+		pub,
+		proj,
+		cfg.OutgressPremiumSubject,
+		cfg.OutgressStandardSubject,
+	)
+
+	// One autoscaling consumer drains the premium and standard lanes into a
+	// shared pool of pipeline routines, with premium reserving a slice so it is
+	// never starved. Live events ride these same lanes (ingress dual-publishes
+	// them), so there is no separate stream consumer here.
+	cons := consumer.New(sub, nrApp,
+		consumer.Lanes{PremiumSubject: cfg.PremiumSubject, StandardSubject: cfg.StandardSubject},
+		bus.ScalePolicy{
+			MinRoutines:    cfg.MinRoutines,
+			MaxRoutines:    cfg.MaxRoutines,
+			MaxConsumers:   cfg.MaxConsumers,
+			ScaleUpAfter:   cfg.ScaleUpAfter,
+			ScaleDownAfter: cfg.ScaleDownAfter,
+		},
+		cfg.PremiumReserve,
 		log,
 	)
-	if err != nil {
-		log.Fatal("failed to start jetstream consumption", zap.Error(err))
+	if err := cons.Start(ctx, pipe.Process); err != nil {
+		log.Fatal("failed to start consumer", zap.Error(err))
 	}
 
-	log.Info("worker is now listening for ingress events", zap.String("subject", ingressSubject))
+	health.Serve(cfg.ListenAddr, nc.IsConnected)
 
-	// Health server blocks the main thread while goroutines process in the background
-	health.Serve(env.Get("LISTEN_ADDR", ":8080"), nc.IsConnected)
+	log.Info("worker ready",
+		zap.String("premium_subject", cfg.PremiumSubject),
+		zap.String("standard_subject", cfg.StandardSubject),
+		zap.Int("min_routines", cfg.MinRoutines),
+		zap.Int("max_routines", cfg.MaxRoutines),
+		zap.Int("max_consumers", cfg.MaxConsumers),
+		zap.Int("premium_reserve_percent", cfg.PremiumReserve),
+	)
+
+	<-ctx.Done()
+
+	log.Info("worker shutting down")
 }

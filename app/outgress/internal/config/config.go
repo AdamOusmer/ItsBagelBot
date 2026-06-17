@@ -1,6 +1,8 @@
 package config
 
 import (
+	"time"
+
 	"ItsBagelBot/pkg/env"
 )
 
@@ -11,13 +13,21 @@ type Config struct {
 	SystemSubject   string
 	RPCPrefix       string
 
-	// Worker pool sizes per lane. Premium gets the most goroutines so
-	// broadcasters with large audiences drain ahead of standard and system
-	// traffic (premium-first ordering). Standard and system carry lower
-	// volumes and default to smaller pools.
-	PremiumWorkers  int
-	StandardWorkers int
-	SystemWorkers   int
+	// The central premium + standard consumer autoscales its routine pool.
+	// MinRoutines/MaxRoutines bound the routines per consumer; MaxConsumers
+	// caps how many consumers spin up once routines are maxed; the ScaleAfter
+	// windows pace growth and shrink. PremiumReserve is the percentage of the
+	// pool kept for premium so a standard flood never starves it.
+	MinRoutines    int
+	MaxRoutines    int
+	MaxConsumers   int
+	ScaleUpAfter   time.Duration
+	ScaleDownAfter time.Duration
+	PremiumReserve int
+
+	// SystemWorkers sizes the system lane's own, independent consumer (the
+	// dashboard's EventSub create/delete jobs), kept off the weighted budget.
+	SystemWorkers int
 
 	ValkeyAddr     string
 	ValkeyPassword string
@@ -61,8 +71,12 @@ func Load() *Config {
 		TwitchBotUserID:       env.Get("TWITCH_BOT_USER_ID", ""),
 		TwitchBotRefreshToken: env.Get("TWITCH_BOT_REFRESH_TOKEN", ""),
 		TokensSubjectPrefix:   env.Get("NATS_INTERNAL_TOKENS_SUBJECT_PREFIX", "bagel.rpc.internal.tokens"),
-		PremiumWorkers:        env.GetInt("OUTGRESS_PREMIUM_WORKERS", 8),
-		StandardWorkers:       env.GetInt("OUTGRESS_STANDARD_WORKERS", 3),
+		MinRoutines:           env.GetInt("OUTGRESS_MIN_ROUTINES", 2),
+		MaxRoutines:           env.GetInt("OUTGRESS_MAX_ROUTINES", 8),
+		MaxConsumers:          env.GetInt("OUTGRESS_MAX_CONSUMERS", 3),
+		ScaleUpAfter:          env.GetDuration("OUTGRESS_SCALE_UP_AFTER", 5*time.Second),
+		ScaleDownAfter:        env.GetDuration("OUTGRESS_SCALE_DOWN_AFTER", 30*time.Second),
+		PremiumReserve:        env.GetInt("OUTGRESS_PREMIUM_RESERVE_PERCENT", 25),
 		SystemWorkers:         env.GetInt("OUTGRESS_SYSTEM_WORKERS", 2),
 	}
 }
