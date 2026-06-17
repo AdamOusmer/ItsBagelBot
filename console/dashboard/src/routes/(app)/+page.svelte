@@ -39,7 +39,7 @@
   <div class="page-head">
     <span class="eyebrow">Status</span>
     <h1>Good evening, <em>{data?.displayName ?? 'there'}</em></h1>
-    <p>Manage your bot connection, commands, and modules from here.</p>
+    <p>Manage your bot connection and commands from here.</p>
   </div>
 
   <div class="card sheen status-hero">

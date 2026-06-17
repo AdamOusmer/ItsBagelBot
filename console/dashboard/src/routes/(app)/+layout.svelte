@@ -7,11 +7,9 @@
   const crumb = $derived(
     path.startsWith('/commands')
       ? 'Commands'
-      : path.startsWith('/modules')
-        ? 'Modules'
-        : path.startsWith('/settings') || path.startsWith('/access')
-          ? 'Settings'
-          : 'Overview'
+      : path.startsWith('/settings') || path.startsWith('/access')
+        ? 'Settings'
+        : 'Overview'
   );
 
   const initial = $derived((data.displayName ?? 'M').charAt(0).toUpperCase());
@@ -21,7 +19,6 @@
   const isDelegate = $derived(!!data.delegateOf);
   const sections = $derived((data.sections ?? []) as string[]);
   const canCommands = $derived(!isDelegate || sections.includes('commands'));
-  const canModules = $derived(!isDelegate || sections.includes('modules'));
 </script>
 
 {#if isDelegate}
@@ -57,9 +54,6 @@
       {/if}
       {#if canCommands}
         <NavItem href="/commands" icon="commands" label="Commands" active={crumb === 'Commands'} />
-      {/if}
-      {#if canModules}
-        <NavItem href="/modules" icon="moderation" label="Modules" active={crumb === 'Modules'} />
       {/if}
       {#if !isDelegate}
         <NavItem href="/settings" icon="settings" label="Settings" active={crumb === 'Settings'} />
@@ -109,9 +103,6 @@
     {/if}
     {#if canCommands}
       <a href="/commands" class={crumb === 'Commands' ? 'active' : ''}><Icon name="commands" size={20} />Commands</a>
-    {/if}
-    {#if canModules}
-      <a href="/modules" class={crumb === 'Modules' ? 'active' : ''}><Icon name="moderation" size={20} />Modules</a>
     {/if}
     {#if !isDelegate}
       <a href="/settings" class={crumb === 'Settings' ? 'active' : ''}><Icon name="settings" size={20} />Settings</a>
