@@ -3,6 +3,7 @@ package env
 import (
 	"os"
 	"strconv"
+	"time"
 )
 
 // Get returns the value of key or fallback when unset or empty.
@@ -22,6 +23,19 @@ func GetInt(key string, fallback int) int {
 	if value := os.Getenv(key); value != "" {
 		if n, err := strconv.Atoi(value); err == nil {
 			return n
+		}
+	}
+
+	return fallback
+}
+
+// GetDuration returns the duration value of key, or fallback when unset,
+// empty, or not parseable as a Go duration string (e.g. "5s", "30s", "2m").
+func GetDuration(key string, fallback time.Duration) time.Duration {
+
+	if value := os.Getenv(key); value != "" {
+		if d, err := time.ParseDuration(value); err == nil {
+			return d
 		}
 	}
 
