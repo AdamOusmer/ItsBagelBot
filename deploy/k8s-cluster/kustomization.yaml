@@ -1,0 +1,11 @@
+# Cluster-scoped / cross-namespace infrastructure, reconciled by the Flux
+# "cluster" Kustomization (deploy/flux/clusters/production/cluster.yaml).
+# Deliberately NOT namespaced here: each manifest carries its own namespace
+# (cloudflared -> cloudflared, traefik HelmChartConfig -> kube-system), so the
+# Flux Kustomization must leave targetNamespace unset and this file must not set
+# a `namespace:` field.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - cloudflared.yaml
+  - traefik-config.yaml

@@ -1,0 +1,9 @@
+# Tailscale operator resources (ProxyClass ha-spread is cluster-scoped;
+# ProxyGroup ts-ingress carries its own namespace), reconciled by the Flux
+# "tailscale" Kustomization (deploy/flux/clusters/production/tailscale.yaml).
+# No `namespace:` field: targetNamespace stays unset so the manifests' own
+# scoping applies. README.md is documentation and intentionally excluded.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - proxies.yaml
