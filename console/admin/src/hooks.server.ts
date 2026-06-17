@@ -1,9 +1,14 @@
 import type { Handle } from '@sveltejs/kit';
 import { COOKIE, open } from '$lib/server/session';
+import { warm } from '@bagel/shared/server/nats';
 import dns from 'node:dns';
 
 // Force node:dns to resolve IPv4 first to bypass k3s IPv6 timeout issues
 dns.setDefaultResultOrder('ipv4first');
+
+// Pre-dial NATS at server start so the first request hits a warm connection
+// instead of paying the cold dial on the hot path.
+warm();
 
 // Session + the security headers SvelteKit's CSP config does not own.
 export const handle: Handle = async ({ event, resolve }) => {
