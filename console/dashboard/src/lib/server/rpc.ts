@@ -112,14 +112,22 @@ export async function tier(broadcasterId: string): Promise<Tier> {
   return r.tier ?? 'standard';
 }
 
+const BAN_CACHE_TTL_MS = 15_000;
+const banCache = new Map<string, { banned: boolean; expires: number }>();
+
 // isBanned reports whether the platform has banned the user (completes the
 // admin "ban from service" action by blocking dashboard login). Fails OPEN:
 // an RPC blip returns false so a transient outage never locks everyone out —
 // the admin panel remains the source of truth for re-banning.
 export async function isBanned(userId: string): Promise<boolean> {
+  const cached = banCache.get(userId);
+  if (cached && cached.expires > Date.now()) return cached.banned;
+
   try {
     const r = await rpc<{ banned?: boolean }>(SUB.broadcaster, { broadcaster_id: userId }, 2000);
-    return r.banned === true;
+    const banned = r.banned === true;
+    banCache.set(userId, { banned, expires: Date.now() + BAN_CACHE_TTL_MS });
+    return banned;
   } catch {
     return false;
   }

@@ -1,8 +1,7 @@
 import type { Actions, PageServerLoad } from './$types';
 import { fail } from '@sveltejs/kit';
 import {
-  userList,
-  userStats,
+  userOverview,
   userLookup,
   userSetStatus,
   userSetActive,
@@ -25,14 +24,12 @@ export const load: PageServerLoad = async () => {
   if (isDemo()) {
     return { recent: sampleUsers, stats: sampleStats, degraded: false };
   }
-  // Two independent reads: fire together so the page waits one round trip, not
-  // two serial ones. allSettled keeps the page rendering if either is down.
-  const [list, stats] = await Promise.allSettled([userList(20), userStats()]);
-  return {
-    recent: list.status === 'fulfilled' ? list.value : sampleUsers,
-    stats: stats.status === 'fulfilled' ? stats.value : sampleStats,
-    degraded: list.status === 'rejected' || stats.status === 'rejected'
-  };
+  try {
+    const overview = await userOverview(20);
+    return { recent: overview.users, stats: overview.stats, degraded: false };
+  } catch {
+    return { recent: sampleUsers, stats: sampleStats, degraded: true };
+  }
 };
 
 // Status values the users service accepts (raw DB enum).

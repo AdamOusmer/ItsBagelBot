@@ -104,6 +104,8 @@ Every service reads its configuration from the environment. Common variables:
 | `DB_ADDR` | `127.0.0.1:3306` | data services |
 | `DB_USER`, `DB_PASS` | required | data services |
 | `DB_SCHEMA` | `bagel_<service>` | data services |
+| `DB_CA_CERT` | system roots | data services |
+| `DB_TLS_SERVER_NAME` | host from `DB_ADDR` | data services |
 | `TINK_KEYSET_PATH` | required | users |
 | `VALKEY_ADDR` | `127.0.0.1:6379` | projector |
 | `VALKEY_PASSWORD` | empty | projector |

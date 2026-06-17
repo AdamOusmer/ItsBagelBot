@@ -1,10 +1,25 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
-  import { Button } from '@bagel/shared';
+  import { onMount } from 'svelte';
+  import { Button, Icon, StatTile } from '@bagel/shared';
   let { data } = $props();
 
   const statusLabel = (s: string) =>
     ({ free: 'Free', paid: 'Paid', vip: 'VIP' })[s] ?? 'Free';
+
+  type Greeting = 'Good morning' | 'Good afternoon' | 'Good evening';
+
+  let greeting = $state<Greeting>('Good evening');
+
+  function greetingForHour(hour: number): Greeting {
+    if (hour >= 5 && hour < 12) return 'Good morning';
+    if (hour >= 12 && hour < 17) return 'Good afternoon';
+    return 'Good evening';
+  }
+
+  onMount(() => {
+    greeting = greetingForHour(new Date().getHours());
+  });
 
   // Confirm modal state
   type PendingAction = 'restart' | 'disconnect' | null;
@@ -39,7 +54,7 @@
 <section class="screen active">
   <div class="page-head">
     <span class="eyebrow">Status</span>
-    <h1>Good evening, <em>{data?.displayName ?? 'there'}</em></h1>
+    <h1>{greeting}, <em>{data?.displayName ?? 'there'}</em></h1>
     <p>Manage your bot connection and commands from here.</p>
   </div>
 
@@ -75,6 +90,108 @@
         {/if}
       </div>
     {/await}
+  </div>
+
+  {#await data.conn}
+    <div class="stat-grid overview-stats">
+      <StatTile icon="power" label="Bot status" value="—" delta="checking connection…" flat />
+      <StatTile icon="activity" tan label="Chat delivery" value="—" delta="checking EventSub…" flat />
+      <StatTile icon="pulse" label="Plan" value="—" delta="loading account…" flat />
+      <StatTile icon="commands" tan label="Commands" value="Open" delta="manage responses" flat />
+    </div>
+  {:then c}
+    <div class="stat-grid overview-stats">
+      <StatTile
+        icon="power"
+        label="Bot status"
+        value={c.receiving ? 'Live' : c.enabled ? 'Idle' : 'Off'}
+        delta={c.receiving ? 'serving your channel' : c.enabled ? 'connected, not receiving' : 'enable when ready'}
+        flat
+      />
+      <StatTile
+        icon="activity"
+        tan
+        label="Chat delivery"
+        value={c.receiving ? 'On' : 'Paused'}
+        delta={c.enabled ? 'authorization stored' : 'authorization needed'}
+        flat
+      />
+      <StatTile
+        icon="pulse"
+        label="Plan"
+        value={statusLabel(c.status)}
+        delta={c.status === 'free' ? 'standard access' : 'premium access'}
+        flat
+      />
+      <StatTile icon="commands" tan label="Commands" value="Open" delta="review chat responses" flat />
+    </div>
+  {/await}
+
+  <div class="grid-2 overview-grid">
+    <div class="card">
+      <div class="card-head">
+        <h3>Next up</h3>
+        <a class="more" href="/commands">Commands</a>
+      </div>
+      <div class="feed">
+        <div class="feed-row">
+          <div class="fi green"><Icon name="commands" size={15} /></div>
+          <div class="ft">
+            <b>Review chat commands</b>
+            <span>Create, edit, disable, and tune cooldowns for your channel responses.</span>
+          </div>
+          <a class="fw overview-link" href="/commands">Open</a>
+        </div>
+        <div class="feed-row">
+          <div class="fi"><Icon name="settings" size={15} /></div>
+          <div class="ft">
+            <b>Check account access</b>
+            <span>Reconnect Twitch or manage shared dashboard links.</span>
+          </div>
+          <a class="fw overview-link" href="/settings">Open</a>
+        </div>
+        <div class="feed-row">
+          <div class="fi green"><Icon name="activity" size={15} /></div>
+          <div class="ft">
+            <b>Keep the bot fresh</b>
+            <span>Restart the connection if chat delivery ever feels stale.</span>
+          </div>
+          <span class="fw">Overview</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h3>Connection checklist</h3></div>
+      {#await data.conn}
+        <div class="node-list">
+          <div class="node-row"><span class="nd warn"></span><span class="nm">Twitch grant</span><span class="sv">Checking</span><span class="pg">—</span></div>
+          <div class="node-row"><span class="nd warn"></span><span class="nm">Bot active</span><span class="sv">Checking</span><span class="pg">—</span></div>
+          <div class="node-row"><span class="nd warn"></span><span class="nm">Account tier</span><span class="sv">Checking</span><span class="pg">—</span></div>
+        </div>
+      {:then c}
+        <div class="node-list">
+          <div class="node-row">
+            <span class="nd {c.enabled ? '' : 'warn'}"></span>
+            <span class="nm">Twitch grant</span>
+            <span class="sv">{c.enabled ? 'Authorized' : 'Needs reconnect'}</span>
+            <span class="pg">{c.enabled ? 'OK' : 'Set up'}</span>
+          </div>
+          <div class="node-row">
+            <span class="nd {c.receiving ? '' : 'warn'}"></span>
+            <span class="nm">Bot active</span>
+            <span class="sv">{c.receiving ? 'Receiving events' : c.enabled ? 'Ready to enable' : 'Waiting'}</span>
+            <span class="pg">{c.receiving ? 'Live' : 'Paused'}</span>
+          </div>
+          <div class="node-row">
+            <span class="nd"></span>
+            <span class="nm">Account tier</span>
+            <span class="sv">{statusLabel(c.status)}</span>
+            <span class="pg">{c.status === 'free' ? 'Base' : 'Plus'}</span>
+          </div>
+        </div>
+      {/await}
+    </div>
   </div>
 </section>
 
@@ -123,6 +240,19 @@
     background: rgba(82, 183, 136, 0.12);
     border-color: rgba(82, 183, 136, 0.35);
     color: var(--bb-green-glow);
+  }
+  .overview-stats {
+    margin-bottom: var(--row-gap);
+  }
+  .overview-grid {
+    align-items: stretch;
+  }
+  .overview-link {
+    color: var(--bb-tan);
+    text-decoration: none;
+  }
+  .overview-link:hover {
+    color: var(--bb-tan-pale);
   }
 
   /* Mobile: stack botmark above text, actions full-width buttons */
