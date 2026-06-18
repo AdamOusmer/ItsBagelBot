@@ -308,6 +308,14 @@ jobs:
 
       - name: Install Podman toolchain
         run: |
+          # GitHub-hosted Ubuntu runners may ship optional Microsoft apt feeds.
+          # If those feeds 403, apt-get update fails before reaching Ubuntu's
+          # buildah/podman packages, so remove only the optional feeds here.
+          sudo rm -f \
+            /etc/apt/sources.list.d/azure-cli.list \
+            /etc/apt/sources.list.d/azure-cli.sources \
+            /etc/apt/sources.list.d/microsoft-prod.list \
+            /etc/apt/sources.list.d/microsoft-prod.sources
           sudo apt-get update
           sudo apt-get install -y buildah podman
           buildah version
@@ -406,6 +414,14 @@ jobs:
 
       - name: Install Podman toolchain
         run: |
+          # GitHub-hosted Ubuntu runners may ship optional Microsoft apt feeds.
+          # If those feeds 403, apt-get update fails before reaching Ubuntu's
+          # podman package, so remove only the optional feeds here.
+          sudo rm -f \
+            /etc/apt/sources.list.d/azure-cli.list \
+            /etc/apt/sources.list.d/azure-cli.sources \
+            /etc/apt/sources.list.d/microsoft-prod.list \
+            /etc/apt/sources.list.d/microsoft-prod.sources
           sudo apt-get update
           sudo apt-get install -y podman
           podman version
@@ -448,4 +464,3 @@ jobs:
         with:
           subject-name: ${{ steps.meta.outputs.subject }}
           subject-digest: ${{ steps.publish.outputs.digest }}
-
