@@ -74,6 +74,11 @@ func IsActive(v bool) predicate.Commands {
 	return predicate.Commands(sql.FieldEQ(FieldIsActive, v))
 }
 
+// StreamOnlineOnly applies equality check predicate on the "stream_online_only" field. It's identical to StreamOnlineOnlyEQ.
+func StreamOnlineOnly(v bool) predicate.Commands {
+	return predicate.Commands(sql.FieldEQ(FieldStreamOnlineOnly, v))
+}
+
 // Perm applies equality check predicate on the "perm" field. It's identical to PermEQ.
 func Perm(v string) predicate.Commands {
 	return predicate.Commands(sql.FieldEQ(FieldPerm, v))
@@ -277,6 +282,16 @@ func IsActiveEQ(v bool) predicate.Commands {
 // IsActiveNEQ applies the NEQ predicate on the "is_active" field.
 func IsActiveNEQ(v bool) predicate.Commands {
 	return predicate.Commands(sql.FieldNEQ(FieldIsActive, v))
+}
+
+// StreamOnlineOnlyEQ applies the EQ predicate on the "stream_online_only" field.
+func StreamOnlineOnlyEQ(v bool) predicate.Commands {
+	return predicate.Commands(sql.FieldEQ(FieldStreamOnlineOnly, v))
+}
+
+// StreamOnlineOnlyNEQ applies the NEQ predicate on the "stream_online_only" field.
+func StreamOnlineOnlyNEQ(v bool) predicate.Commands {
+	return predicate.Commands(sql.FieldNEQ(FieldStreamOnlineOnly, v))
 }
 
 // PermEQ applies the EQ predicate on the "perm" field.

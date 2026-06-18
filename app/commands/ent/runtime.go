@@ -26,24 +26,28 @@ func init() {
 	commandsDescIsActive := commandsFields[3].Descriptor()
 	// commands.DefaultIsActive holds the default value on creation for the is_active field.
 	commands.DefaultIsActive = commandsDescIsActive.Default.(bool)
+	// commandsDescStreamOnlineOnly is the schema descriptor for stream_online_only field.
+	commandsDescStreamOnlineOnly := commandsFields[4].Descriptor()
+	// commands.DefaultStreamOnlineOnly holds the default value on creation for the stream_online_only field.
+	commands.DefaultStreamOnlineOnly = commandsDescStreamOnlineOnly.Default.(bool)
 	// commandsDescPerm is the schema descriptor for perm field.
-	commandsDescPerm := commandsFields[4].Descriptor()
+	commandsDescPerm := commandsFields[5].Descriptor()
 	// commands.DefaultPerm holds the default value on creation for the perm field.
 	commands.DefaultPerm = commandsDescPerm.Default.(string)
 	// commandsDescCooldown is the schema descriptor for cooldown field.
-	commandsDescCooldown := commandsFields[5].Descriptor()
+	commandsDescCooldown := commandsFields[6].Descriptor()
 	// commands.DefaultCooldown holds the default value on creation for the cooldown field.
 	commands.DefaultCooldown = commandsDescCooldown.Default.(uint)
 	// commandsDescAllowedUserID is the schema descriptor for allowed_user_id field.
-	commandsDescAllowedUserID := commandsFields[6].Descriptor()
+	commandsDescAllowedUserID := commandsFields[7].Descriptor()
 	// commands.DefaultAllowedUserID holds the default value on creation for the allowed_user_id field.
 	commands.DefaultAllowedUserID = commandsDescAllowedUserID.Default.(uint64)
 	// commandsDescCreatedAt is the schema descriptor for created_at field.
-	commandsDescCreatedAt := commandsFields[7].Descriptor()
+	commandsDescCreatedAt := commandsFields[8].Descriptor()
 	// commands.DefaultCreatedAt holds the default value on creation for the created_at field.
 	commands.DefaultCreatedAt = commandsDescCreatedAt.Default.(func() time.Time)
 	// commandsDescUpdatedAt is the schema descriptor for updated_at field.
-	commandsDescUpdatedAt := commandsFields[8].Descriptor()
+	commandsDescUpdatedAt := commandsFields[9].Descriptor()
 	// commands.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	commands.DefaultUpdatedAt = commandsDescUpdatedAt.Default.(func() time.Time)
 	// commands.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.

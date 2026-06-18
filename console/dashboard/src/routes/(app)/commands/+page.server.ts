@@ -20,7 +20,7 @@ function gateCommands(session: Session | null | undefined): void {
 }
 
 const sample: CommandView[] = [
-  { name: '!uptime', response: '@{user} the stream has been live for {uptime} 🥯', perm: 'everyone', cooldown: 5, uses: '412', is_active: true },
+  { name: '!uptime', response: '@{user} the stream has been live for {uptime} 🥯', perm: 'everyone', cooldown: 5, uses: '412', is_active: true, stream_online_only: true },
   { name: '!socials', response: 'Follow along → twitch.tv/itsmavey · @itsmavey everywhere', perm: 'everyone', cooldown: 30, uses: '288', is_active: true },
   { name: '!bagel', response: '{user} tosses a warm bagel to {target}. Toasty.', perm: 'everyone', cooldown: 10, uses: '1.2k', is_active: true },
   { name: '!so', response: 'Go show some love to twitch.tv/{target} — absolute legend', perm: 'mod', cooldown: 0, uses: '96', is_active: true },
@@ -55,7 +55,9 @@ function parseCommand(f: FormData) {
   // Optional single-user lock; keep digits only so a stray "@name" can't slip through.
   const allowedUserId = String(f.get('allowed_user_id') ?? '').replace(/\D/g, '');
 
-  return { name, response, perm, cooldown, allowedUserId };
+  const streamOnlineOnly = f.get('stream_online_only') === 'on';
+
+  return { name, response, perm, cooldown, allowedUserId, streamOnlineOnly };
 }
 
 // When the session is an admin impersonation, record the write back to the

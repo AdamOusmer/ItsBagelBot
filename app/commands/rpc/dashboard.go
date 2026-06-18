@@ -41,13 +41,14 @@ func SubscribeDashboard(nc *nats.Conn, repo *repository.Commands, prefix, queueG
 
 // dashboardRequest covers all three verbs; unused fields are zero-valued.
 type dashboardRequest struct {
-	UserID        string `json:"user_id"`
-	Name          string `json:"name"`
-	Response      string `json:"response"`
-	IsActive      bool   `json:"is_active"`
-	Perm          string `json:"perm"`
-	Cooldown      uint   `json:"cooldown"`
-	AllowedUserID string `json:"allowed_user_id"`
+	UserID           string `json:"user_id"`
+	Name             string `json:"name"`
+	Response         string `json:"response"`
+	IsActive         bool   `json:"is_active"`
+	StreamOnlineOnly bool   `json:"stream_online_only"`
+	Perm             string `json:"perm"`
+	Cooldown         uint   `json:"cooldown"`
+	AllowedUserID    string `json:"allowed_user_id"`
 	// OriginalName, when set and different from Name, makes upsert a rename:
 	// the existing row keeps its identity and its name field is updated in
 	// place instead of being deleted and recreated under the new name.
@@ -120,9 +121,9 @@ func (d *dashboardRPC) handleUpsert(msg *nats.Msg) {
 	rename := req.OriginalName != "" && req.OriginalName != req.Name
 	var opErr error
 	if rename {
-		opErr = d.repo.Rename(ctx, id, req.OriginalName, req.Name, req.Response, req.IsActive, req.Perm, req.Cooldown, allowedUserID)
+		opErr = d.repo.Rename(ctx, id, req.OriginalName, req.Name, req.Response, req.IsActive, req.StreamOnlineOnly, req.Perm, req.Cooldown, allowedUserID)
 	} else {
-		opErr = d.repo.Upsert(id, req.Name, req.Response, req.IsActive, req.Perm, req.Cooldown, allowedUserID)
+		opErr = d.repo.Upsert(id, req.Name, req.Response, req.IsActive, req.StreamOnlineOnly, req.Perm, req.Cooldown, allowedUserID)
 	}
 	if opErr != nil {
 		// Validation/conflict error: return it alongside the current list.
@@ -152,12 +153,13 @@ func (d *dashboardRPC) handleUpsert(msg *nats.Msg) {
 
 	// Merge the just-written command: replace existing entry or append.
 	upserted := repository.CommandView{
-		Name:          req.Name,
-		Response:      req.Response,
-		IsActive:      req.IsActive,
-		Perm:          req.Perm,
-		Cooldown:      req.Cooldown,
-		AllowedUserID: req.AllowedUserID,
+		Name:             req.Name,
+		Response:         req.Response,
+		IsActive:         req.IsActive,
+		StreamOnlineOnly: req.StreamOnlineOnly,
+		Perm:             req.Perm,
+		Cooldown:         req.Cooldown,
+		AllowedUserID:    req.AllowedUserID,
 	}
 	merged := false
 	for i, v := range views {

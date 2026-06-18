@@ -229,6 +229,7 @@ export interface CommandInput {
   name: string;
   response: string;
   isActive: boolean;
+  streamOnlineOnly: boolean;
   perm: Perm;
   cooldown: number;
   allowedUserId: string;
@@ -247,6 +248,7 @@ export async function upsertCommand(
     name: cmd.name,
     response: cmd.response,
     is_active: cmd.isActive,
+    stream_online_only: cmd.streamOnlineOnly,
     perm: cmd.perm,
     cooldown: cmd.cooldown,
     allowed_user_id: cmd.allowedUserId,

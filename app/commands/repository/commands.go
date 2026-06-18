@@ -31,11 +31,12 @@ const (
 
 // CommandView is the read model for one custom command of one user.
 type CommandView struct {
-	Name     string `json:"name"`
-	Response string `json:"response"`
-	IsActive bool   `json:"is_active"`
-	Perm     string `json:"perm"`
-	Cooldown uint   `json:"cooldown"`
+	Name             string `json:"name"`
+	Response         string `json:"response"`
+	IsActive         bool   `json:"is_active"`
+	StreamOnlineOnly bool   `json:"stream_online_only"`
+	Perm             string `json:"perm"`
+	Cooldown         uint   `json:"cooldown"`
 	// Twitch id of the sole user allowed to run the command; "" when unset.
 	// Carried as a string so ids beyond JS's safe integer range survive the
 	// JSON round trip to the SvelteKit dashboard.
@@ -90,12 +91,13 @@ func (r *Commands) List(ctx context.Context, userID uint64) ([]CommandView, erro
 		views := make([]CommandView, len(rows))
 		for i, row := range rows {
 			views[i] = CommandView{
-				Name:          row.Name,
-				Response:      row.Response,
-				IsActive:      row.IsActive,
-				Perm:          row.Perm,
-				Cooldown:      row.Cooldown,
-				AllowedUserID: formatAllowed(row.AllowedUserID),
+				Name:             row.Name,
+				Response:         row.Response,
+				IsActive:         row.IsActive,
+				StreamOnlineOnly: row.StreamOnlineOnly,
+				Perm:             row.Perm,
+				Cooldown:         row.Cooldown,
+				AllowedUserID:    formatAllowed(row.AllowedUserID),
 			}
 		}
 
@@ -105,7 +107,7 @@ func (r *Commands) List(ctx context.Context, userID uint64) ([]CommandView, erro
 
 // Upsert validates and queues a command create or edit. Consecutive edits of
 // the same command coalesce into the latest state before the next flush.
-func (r *Commands) Upsert(userID uint64, name string, response string, isActive bool, perm string, cooldown uint, allowedUserID uint64) error {
+func (r *Commands) Upsert(userID uint64, name string, response string, isActive bool, streamOnlineOnly bool, perm string, cooldown uint, allowedUserID uint64) error {
 
 	if err := validate.UserID(userID); err != nil {
 		return err
@@ -124,13 +126,14 @@ func (r *Commands) Upsert(userID uint64, name string, response string, isActive 
 	}
 
 	r.batcher.Add(commandKey{userID: userID, name: name}, data.CommandChangedDTO{
-		UserID:        userID,
-		Name:          name,
-		Response:      response,
-		IsActive:      isActive,
-		Perm:          perm,
-		Cooldown:      cooldown,
-		AllowedUserID: allowedUserID,
+		UserID:           userID,
+		Name:             name,
+		Response:         response,
+		IsActive:         isActive,
+		StreamOnlineOnly: streamOnlineOnly,
+		Perm:             perm,
+		Cooldown:         cooldown,
+		AllowedUserID:    allowedUserID,
 	})
 
 	return nil
@@ -142,7 +145,7 @@ func (r *Commands) Upsert(userID uint64, name string, response string, isActive 
 // can't be represented as a queued edit of the old key. Emits a delete for the
 // old name and a change for the new so name-keyed consumers (projector, bot)
 // drop the stale entry and pick up the renamed command.
-func (r *Commands) Rename(ctx context.Context, userID uint64, oldName, newName, response string, isActive bool, perm string, cooldown uint, allowedUserID uint64) error {
+func (r *Commands) Rename(ctx context.Context, userID uint64, oldName, newName, response string, isActive bool, streamOnlineOnly bool, perm string, cooldown uint, allowedUserID uint64) error {
 
 	if err := validate.UserID(userID); err != nil {
 		return err
@@ -171,6 +174,7 @@ func (r *Commands) Rename(ctx context.Context, userID uint64, oldName, newName, 
 		SetName(newName).
 		SetResponse(response).
 		SetIsActive(isActive).
+		SetStreamOnlineOnly(streamOnlineOnly).
 		SetPerm(perm).
 		SetCooldown(cooldown).
 		SetAllowedUserID(allowedUserID).
@@ -182,7 +186,7 @@ func (r *Commands) Rename(ctx context.Context, userID uint64, oldName, newName, 
 	// Old row absent (already renamed/deleted elsewhere): fall back to a plain
 	// write of the new command so the edit is not lost.
 	if updated == 0 {
-		return r.Upsert(userID, newName, response, isActive, perm, cooldown, allowedUserID)
+		return r.Upsert(userID, newName, response, isActive, streamOnlineOnly, perm, cooldown, allowedUserID)
 	}
 
 	r.Invalidate(userID)
@@ -195,13 +199,14 @@ func (r *Commands) Rename(ctx context.Context, userID uint64, oldName, newName, 
 		return err
 	}
 	return bus.PublishJSON(ctx, r.pub, data.SubjectCommandChanged, data.CommandChangedDTO{
-		UserID:        userID,
-		Name:          newName,
-		Response:      response,
-		IsActive:      isActive,
-		Perm:          perm,
-		Cooldown:      cooldown,
-		AllowedUserID: allowedUserID,
+		UserID:           userID,
+		Name:             newName,
+		Response:         response,
+		IsActive:         isActive,
+		StreamOnlineOnly: streamOnlineOnly,
+		Perm:             perm,
+		Cooldown:         cooldown,
+		AllowedUserID:    allowedUserID,
 	})
 }
 
@@ -312,6 +317,7 @@ func upsertCommand(ctx context.Context, tx *ent.Tx, item data.CommandChangedDTO)
 		).
 		SetResponse(item.Response).
 		SetIsActive(item.IsActive).
+		SetStreamOnlineOnly(item.StreamOnlineOnly).
 		SetPerm(item.Perm).
 		SetCooldown(item.Cooldown).
 		SetAllowedUserID(item.AllowedUserID).
@@ -329,6 +335,7 @@ func upsertCommand(ctx context.Context, tx *ent.Tx, item data.CommandChangedDTO)
 		SetName(item.Name).
 		SetResponse(item.Response).
 		SetIsActive(item.IsActive).
+		SetStreamOnlineOnly(item.StreamOnlineOnly).
 		SetPerm(item.Perm).
 		SetCooldown(item.Cooldown).
 		SetAllowedUserID(item.AllowedUserID).

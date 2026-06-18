@@ -26,6 +26,10 @@ func (Commands) Fields() []ent.Field {
 
 		field.Bool("is_active").Default(true),
 
+		// When true, the command can only run while Twitch reports the
+		// broadcaster's stream as online.
+		field.Bool("stream_online_only").Default(false),
+
 		// Minimum role allowed to run the command. One of: everyone, sub, vip,
 		// mod, lead_mod, broadcaster. Validated at the trust boundary, stored as
 		// a plain string so adding a tier never needs a column migration.

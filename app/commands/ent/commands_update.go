@@ -70,6 +70,20 @@ func (_u *CommandsUpdate) SetNillableIsActive(v *bool) *CommandsUpdate {
 	return _u
 }
 
+// SetStreamOnlineOnly sets the "stream_online_only" field.
+func (_u *CommandsUpdate) SetStreamOnlineOnly(v bool) *CommandsUpdate {
+	_u.mutation.SetStreamOnlineOnly(v)
+	return _u
+}
+
+// SetNillableStreamOnlineOnly sets the "stream_online_only" field if the given value is not nil.
+func (_u *CommandsUpdate) SetNillableStreamOnlineOnly(v *bool) *CommandsUpdate {
+	if v != nil {
+		_u.SetStreamOnlineOnly(*v)
+	}
+	return _u
+}
+
 // SetPerm sets the "perm" field.
 func (_u *CommandsUpdate) SetPerm(v string) *CommandsUpdate {
 	_u.mutation.SetPerm(v)
@@ -223,6 +237,9 @@ func (_u *CommandsUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.IsActive(); ok {
 		_spec.SetField(commands.FieldIsActive, field.TypeBool, value)
 	}
+	if value, ok := _u.mutation.StreamOnlineOnly(); ok {
+		_spec.SetField(commands.FieldStreamOnlineOnly, field.TypeBool, value)
+	}
 	if value, ok := _u.mutation.Perm(); ok {
 		_spec.SetField(commands.FieldPerm, field.TypeString, value)
 	}
@@ -302,6 +319,20 @@ func (_u *CommandsUpdateOne) SetIsActive(v bool) *CommandsUpdateOne {
 func (_u *CommandsUpdateOne) SetNillableIsActive(v *bool) *CommandsUpdateOne {
 	if v != nil {
 		_u.SetIsActive(*v)
+	}
+	return _u
+}
+
+// SetStreamOnlineOnly sets the "stream_online_only" field.
+func (_u *CommandsUpdateOne) SetStreamOnlineOnly(v bool) *CommandsUpdateOne {
+	_u.mutation.SetStreamOnlineOnly(v)
+	return _u
+}
+
+// SetNillableStreamOnlineOnly sets the "stream_online_only" field if the given value is not nil.
+func (_u *CommandsUpdateOne) SetNillableStreamOnlineOnly(v *bool) *CommandsUpdateOne {
+	if v != nil {
+		_u.SetStreamOnlineOnly(*v)
 	}
 	return _u
 }
@@ -488,6 +519,9 @@ func (_u *CommandsUpdateOne) sqlSave(ctx context.Context) (_node *Commands, err 
 	}
 	if value, ok := _u.mutation.IsActive(); ok {
 		_spec.SetField(commands.FieldIsActive, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.StreamOnlineOnly(); ok {
+		_spec.SetField(commands.FieldStreamOnlineOnly, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.Perm(); ok {
 		_spec.SetField(commands.FieldPerm, field.TypeString, value)
