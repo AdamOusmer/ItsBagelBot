@@ -1,5 +1,5 @@
-# Leaf NATS servers (node2 side). The nats-leaf-config configmap is generated
-# from nats-leaf-server.conf + nats-auth.conf by the Flux kustomize
+# Leaf NATS servers, one per Kubernetes node. The nats-leaf-config configmap is
+# generated from nats-leaf-server.conf + nats-auth.conf by the Flux kustomize
 # configMapGenerator (deploy/k8s/kustomization.yaml); credentials (bcrypt
 # hashes and the leaf remote URL) come from the nats-auth-env secret.
 apiVersion: apps/v1
@@ -12,7 +12,7 @@ metadata:
   annotations:
     config.linkerd.io/opaque-ports: "4222"
 spec:
-  replicas: 2
+  replicas: 3
   revisionHistoryLimit: 5
   podManagementPolicy: Parallel
   serviceName: nats-leaf-peers
