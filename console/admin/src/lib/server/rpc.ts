@@ -179,6 +179,17 @@ export interface AuditEntry {
   created_at: string;
 }
 
+export interface AuditPage {
+  entries: AuditEntry[];
+  page: number;
+  page_size: number;
+  max_pages: number;
+  has_more: boolean;
+}
+
+export const AUDIT_PAGE_SIZE = 25;
+export const AUDIT_MAX_PAGES = 25;
+
 // adminCheck resolves whether a Twitch subject is an active admin. Login/display
 // are passed through so the allowlist self-heals after a Twitch rename.
 export async function adminCheck(
@@ -259,4 +270,26 @@ export async function auditList(limit = 50, actorId?: string): Promise<AuditEntr
     actor_filter: actorId ?? ''
   });
   return r.entries ?? [];
+}
+
+export async function auditPage(page = 1, search = ''): Promise<AuditPage> {
+  const r = await rpc<{
+    entries?: AuditEntry[];
+    page?: number;
+    page_size?: number;
+    max_pages?: number;
+    has_more?: boolean;
+  }>(`${SUB.audit}.list`, {
+    page,
+    limit: AUDIT_PAGE_SIZE,
+    search
+  });
+
+  return {
+    entries: r.entries ?? [],
+    page: r.page ?? page,
+    page_size: r.page_size ?? AUDIT_PAGE_SIZE,
+    max_pages: r.max_pages ?? AUDIT_MAX_PAGES,
+    has_more: Boolean(r.has_more)
+  };
 }

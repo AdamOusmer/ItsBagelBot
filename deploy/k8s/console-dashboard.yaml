@@ -118,13 +118,14 @@ spec:
                 secretKeyRef:
                   name: dashboard-env
                   key: DASHBOARD_SESSION_KEY
-            # Shared with console-admin only for short-lived signed view-as
-            # handoff tokens. Must be base64-encoded 32 bytes.
-            - name: IMPERSONATION_KEY
+            # Ed25519 PUBLIC key (base64 SPKI DER) for verifying view-as handoff
+            # tokens minted by console-admin. The dashboard never holds the
+            # private half, so a dashboard compromise cannot forge view-as links.
+            - name: IMPERSONATION_PUBLIC_KEY
               valueFrom:
                 secretKeyRef:
                   name: dashboard-env
-                  key: IMPERSONATION_KEY
+                  key: IMPERSONATION_PUBLIC_KEY
             # New Relic APM (agent preloaded in the Containerfile). License key
             # comes from the Doppler secret via envFrom; app name is explicit so
             # it reports as its own entity.

@@ -77,7 +77,7 @@
   <!-- CONTROL -->
   <div class="card">
     <h2>Access you granted</h2>
-    <p class="hint">Single-use links that grant scoped access to your dashboard. Each link works once and expires after 24 hours.</p>
+    <p class="hint">Generate a link to give someone scoped access to your dashboard. The first person to accept it is bound to that access permanently — revoke it here any time.</p>
     {#if given.length === 0}
       <p class="hint">No links yet.</p>
     {:else}
@@ -91,9 +91,9 @@
               <td>{g.sections.join(', ')}</td>
               <td>
                 {#if g.consumed}
-                  <span class="tag used">Used by {g.delegate_login || 'unknown'}</span>
+                  <span class="tag used">Active · {g.delegate_login || 'unknown'}</span>
                 {:else}
-                  <span class="tag open">Unused · 24h</span>
+                  <span class="tag open">Pending · not yet accepted</span>
                 {/if}
               </td>
               <td class="linkcell">

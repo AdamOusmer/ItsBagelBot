@@ -174,7 +174,7 @@
         <input type="text" placeholder="Filter by name or id" autocomplete="off" bind:value={filter} />
       </label>
     </div>
-    <div class="table">
+    <div class="table users-table">
       <div class="thead">
         <span>User</span><span>Id</span><span class="perm-cell">Tier</span><span>Status</span><span>Active</span><span></span>
       </div>
@@ -206,7 +206,10 @@
 
 <!-- DETAIL DRAWER -->
 {#if drawerUser}
-  <button class="drawer-backdrop" type="button" onclick={closeDrawer} aria-label="Close drawer"></button>
+  <!-- A full-screen <button> would be matched by the custom cursor's interactive
+       selector and morph the tan ring over the entire page; use a div instead. -->
+  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+  <div class="drawer-backdrop" role="button" tabindex="-1" aria-label="Close drawer" onclick={closeDrawer}></div>
   <div class="drawer open" role="dialog" aria-modal="true" aria-labelledby="drawer-title">
     <header class="drawer-head">
       <div class="drawer-id">
@@ -552,6 +555,23 @@
   @media (max-width: 760px) {
     .search-filter { max-width: 160px; }
     :global(.stat-grid) { grid-template-columns: 1fr 1fr; }
+
+    /* The shared .trow mobile collapse is tuned for the commands table (hides
+       resp/cd/perm-cell, 1fr auto). For users those classes carry id/status/tier,
+       so the row squashes to 2 cols with no room. Give the users table its own
+       readable mobile row: @username · tier · status, with id/active/chevron
+       dropped. */
+    .users-table .thead { display: none; }
+    .users-table .trow {
+      grid-template-columns: 1fr auto auto;
+      gap: 12px;
+      align-items: center;
+    }
+    .users-table .trow .resp,
+    .users-table .trow .uses,
+    .users-table .trow .row-act { display: none; }
+    .users-table .trow .perm-cell,
+    .users-table .trow .cd { display: revert; }
     .drawer {
       width: 100vw; height: 92vh; top: auto; bottom: 0; right: 0;
       border-left: none; border-top: 1px solid var(--glass-border);

@@ -3,6 +3,24 @@
   import type { AuditEntry } from '$lib/server/rpc';
   let { data } = $props();
 
+  const entries = $derived(data.entries as AuditEntry[]);
+  const search = $derived(String(data.search ?? ''));
+  const page = $derived(Number(data.page ?? 1));
+  const pageSize = $derived(Number(data.pageSize ?? 25));
+  const maxPages = $derived(Number(data.maxPages ?? 25));
+  const hasMore = $derived(Boolean(data.hasMore));
+  const showingStart = $derived(entries.length === 0 ? 0 : (page - 1) * pageSize + 1);
+  const showingEnd = $derived(showingStart === 0 ? 0 : showingStart + entries.length - 1);
+
+  function auditHref(pageNo: number, q: string): string {
+    const params = new URLSearchParams();
+    const clean = q.trim();
+    if (clean) params.set('q', clean);
+    if (pageNo > 1) params.set('page', String(pageNo));
+    const query = params.toString();
+    return query ? `/audit?${query}` : '/audit';
+  }
+
   // --- Relative-time helper (seconds/minutes/hours/days ago) ----------
   function relative(iso: string): string {
     const then = new Date(iso).getTime();
@@ -23,19 +41,6 @@
     return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
   }
 
-  // --- Client-side filter (actor_login / action / target) -------------
-  let filter = $state('');
-  const rows = $derived(
-    (data.entries as AuditEntry[]).filter((e) => {
-      const q = filter.trim().toLowerCase();
-      if (!q) return true;
-      return (
-        e.actor_login.toLowerCase().includes(q) ||
-        e.action.toLowerCase().includes(q) ||
-        (e.target ?? '').toLowerCase().includes(q)
-      );
-    })
-  );
 </script>
 
 <section class="screen active">
@@ -51,10 +56,19 @@
   <div class="card" style="padding:18px 6px">
     <div class="card-head" style="padding:0 12px;gap:.6rem">
       <h3>Trail</h3>
-      <label class="search search-filter">
-        <Icon name="search" size={14} />
-        <input type="text" placeholder="Filter by actor, action, or target" autocomplete="off" bind:value={filter} />
-      </label>
+      <form method="GET" action="/audit" class="audit-controls">
+        <label class="search search-filter">
+          <Icon name="search" size={14} />
+          <input name="q" type="text" placeholder="Search actor, action, target, or detail" autocomplete="off" value={search} />
+        </label>
+        <button class="btn primary search-submit" type="submit">
+          <Icon name="search" size={14} />
+          <span>Search</span>
+        </button>
+        {#if search}
+          <a class="btn ghost clear-search" href="/audit">Clear</a>
+        {/if}
+      </form>
     </div>
 
     <div class="table audit-table">
@@ -62,10 +76,10 @@
         <span>When</span><span>Actor</span><span>Action</span><span class="col-target">Target</span><span class="col-detail">Detail</span><span>Result</span>
       </div>
       <div class="trows">
-        {#if rows.length === 0}
+        {#if entries.length === 0}
           <div class="trow"><span class="resp" style="grid-column:1/-1;opacity:.6">No matching entries.</span></div>
         {/if}
-        {#each rows as e (e.id)}
+        {#each entries as e (e.id)}
           <div class="trow">
             <span class="when" title={absolute(e.created_at)}>
               <span class="when-abs">{absolute(e.created_at)}</span>
@@ -87,13 +101,46 @@
         {/each}
       </div>
     </div>
+
+    <div class="audit-foot">
+      <span class="page-state">
+        {#if showingStart === 0}
+          Page {page}
+        {:else}
+          {showingStart}-{showingEnd} · page {page}
+        {/if}
+        <span class="muted">of {maxPages} max</span>
+      </span>
+      <div class="pager">
+        {#if page > 1}
+          <a class="pager-link" href={auditHref(page - 1, search)}>Previous</a>
+        {:else}
+          <span class="pager-link disabled" aria-disabled="true">Previous</span>
+        {/if}
+        {#if hasMore && page < maxPages}
+          <a class="pager-link" href={auditHref(page + 1, search)}>Next</a>
+        {:else}
+          <span class="pager-link disabled" aria-disabled="true">Next</span>
+        {/if}
+      </div>
+    </div>
   </div>
 </section>
 
 <style>
   /* card-head with filter input */
   .card-head { align-items: center; }
-  .search-filter { margin-left: auto; max-width: 260px; flex: 1; min-width: 0; }
+  .audit-controls {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+    margin-left: auto;
+  }
+  .search-filter { max-width: 340px; flex: 1; min-width: 220px; width: auto; }
+  .search-submit, .clear-search { padding: 10px 14px; text-decoration: none; }
 
   /* 6-column audit grid: When | Actor | Action | Target | Detail | Result */
   .audit-table .thead,
@@ -118,6 +165,51 @@
   .result-cell { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
   .err-note { font-family: var(--bb-font-body); font-size: 11px; color: var(--bb-muted); }
 
+  .audit-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 20px 2px;
+    margin-top: 12px;
+    border-top: 1px solid var(--glass-border);
+  }
+  .page-state {
+    font-family: var(--bb-font-mono);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--bb-tan-light);
+  }
+  .page-state .muted { color: var(--bb-muted); }
+  .pager { display: flex; align-items: center; gap: 8px; }
+  .pager-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 86px;
+    padding: 9px 13px;
+    border-radius: var(--bb-radius-pill);
+    border: 1px solid var(--glass-border);
+    background: rgba(255,255,255,0.03);
+    color: var(--bb-tan-light);
+    font-family: var(--bb-font-mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    text-decoration: none;
+    transition: all var(--bb-dur-base) var(--bb-ease-out-expo);
+  }
+  .pager-link:hover {
+    background: rgba(201,168,124,0.08);
+    border-color: var(--bb-border-strong);
+    color: var(--bb-tan-pale);
+  }
+  .pager-link.disabled {
+    opacity: 0.42;
+    pointer-events: none;
+  }
+
   /* failure badge: red tint mirroring users-page danger styles */
   .badge.fail {
     background: rgba(176, 90, 70, 0.12);
@@ -127,7 +219,10 @@
 
   /* mobile: hide Detail + Target, keep When/Actor/Action/Result */
   @media (max-width: 760px) {
-    .search-filter { max-width: 180px; }
+    .card-head { align-items: stretch; flex-direction: column; }
+    .audit-controls { width: 100%; margin-left: 0; justify-content: flex-start; flex-wrap: wrap; }
+    .search-filter { max-width: none; min-width: 100%; }
+    .search-submit, .clear-search { flex: 1; justify-content: center; }
     .audit-table .thead,
     .audit-table .trow {
       grid-template-columns: 1.3fr 1fr 1fr 0.7fr;
@@ -135,5 +230,8 @@
     }
     .audit-table .col-target,
     .audit-table .col-detail { display: none; }
+    .audit-foot { align-items: stretch; flex-direction: column; padding-inline: 14px; }
+    .pager { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
+    .pager-link { min-width: 0; }
   }
 </style>

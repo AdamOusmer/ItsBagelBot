@@ -114,23 +114,24 @@ spec:
             # admin host and bounce through its login gate.
             - name: DASHBOARD_PUBLIC_ORIGIN
               value: https://dashboard.itsbagelbot.com
-            # Shared with console-dashboard only for signed view-as handoff
-            # tokens. Must be base64-encoded 32 bytes. The admin session key
-            # remains isolated.
-            - name: IMPERSONATION_KEY
+            # Ed25519 PRIVATE key (base64 PKCS8 DER) for signing view-as handoff
+            # tokens. The admin is the only holder of the private half; the
+            # dashboard verifies with the matching public key and can never forge.
+            # The admin session key remains isolated.
+            - name: IMPERSONATION_PRIVATE_KEY
               valueFrom:
                 secretKeyRef:
                   name: dashboard-env
-                  key: IMPERSONATION_KEY
+                  key: IMPERSONATION_PRIVATE_KEY
           # Secrets from Doppler (admin/prd -> console-admin-env). Admin
           # sessions are isolated from other tiers:
           #   SESSION_KEY            — 32-byte base64, admin-only (own Doppler
           #                            config). Seals/opens the admin session.
           #   TWITCH_CLIENT_ID       — Twitch app client id.
           #   TWITCH_CLIENT_SECRET   — Twitch app client secret.
-          # IMPERSONATION_KEY is the one intentional cross-app secret above:
-          # it signs short-lived view-as handoff tokens only and must decode to
-          # exactly 32 bytes.
+          # IMPERSONATION_PRIVATE_KEY is the one intentional cross-app secret
+          # above: the Ed25519 private half that signs short-lived view-as
+          # handoff tokens. The dashboard holds only the matching public key.
           # The Twitch app MUST register the redirect URI above. Staff identity
           # is the DB allowlist (seeded via OWNER_BOOTSTRAP_IDS on the users
           # service); the legacy ADMIN_USER_IDS env is no longer consulted.
