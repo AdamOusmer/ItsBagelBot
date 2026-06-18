@@ -52,6 +52,20 @@ func (_c *CommandsCreate) SetNillableIsActive(v *bool) *CommandsCreate {
 	return _c
 }
 
+// SetStreamOnlineOnly sets the "stream_online_only" field.
+func (_c *CommandsCreate) SetStreamOnlineOnly(v bool) *CommandsCreate {
+	_c.mutation.SetStreamOnlineOnly(v)
+	return _c
+}
+
+// SetNillableStreamOnlineOnly sets the "stream_online_only" field if the given value is not nil.
+func (_c *CommandsCreate) SetNillableStreamOnlineOnly(v *bool) *CommandsCreate {
+	if v != nil {
+		_c.SetStreamOnlineOnly(*v)
+	}
+	return _c
+}
+
 // SetPerm sets the "perm" field.
 func (_c *CommandsCreate) SetPerm(v string) *CommandsCreate {
 	_c.mutation.SetPerm(v)
@@ -161,6 +175,10 @@ func (_c *CommandsCreate) defaults() {
 		v := commands.DefaultIsActive
 		_c.mutation.SetIsActive(v)
 	}
+	if _, ok := _c.mutation.StreamOnlineOnly(); !ok {
+		v := commands.DefaultStreamOnlineOnly
+		_c.mutation.SetStreamOnlineOnly(v)
+	}
 	if _, ok := _c.mutation.Perm(); !ok {
 		v := commands.DefaultPerm
 		_c.mutation.SetPerm(v)
@@ -206,6 +224,9 @@ func (_c *CommandsCreate) check() error {
 	}
 	if _, ok := _c.mutation.IsActive(); !ok {
 		return &ValidationError{Name: "is_active", err: errors.New(`ent: missing required field "Commands.is_active"`)}
+	}
+	if _, ok := _c.mutation.StreamOnlineOnly(); !ok {
+		return &ValidationError{Name: "stream_online_only", err: errors.New(`ent: missing required field "Commands.stream_online_only"`)}
 	}
 	if _, ok := _c.mutation.Perm(); !ok {
 		return &ValidationError{Name: "perm", err: errors.New(`ent: missing required field "Commands.perm"`)}
@@ -263,6 +284,10 @@ func (_c *CommandsCreate) createSpec() (*Commands, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.IsActive(); ok {
 		_spec.SetField(commands.FieldIsActive, field.TypeBool, value)
 		_node.IsActive = value
+	}
+	if value, ok := _c.mutation.StreamOnlineOnly(); ok {
+		_spec.SetField(commands.FieldStreamOnlineOnly, field.TypeBool, value)
+		_node.StreamOnlineOnly = value
 	}
 	if value, ok := _c.mutation.Perm(); ok {
 		_spec.SetField(commands.FieldPerm, field.TypeString, value)

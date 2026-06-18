@@ -20,6 +20,7 @@ const settingsKeyPrefix = "settings:"
 //	settings:<user_id>
 //	  status                  free | paid | vip | premium
 //	  active                  0 | 1
+//	  live                    0 | 1
 //	  module:<name>:enabled   0 | 1
 //	  module:<name>:config    raw JSON
 //
@@ -48,19 +49,19 @@ func NewValkey(address, password string) (*Valkey, error) {
 
 func (v *Valkey) Close() { v.client.Close() }
 
-// GetUser reads the tier status and active flag. An empty status means the
+// GetUser reads the tier status, active flag and live flag. An empty status means the
 // user is not projected yet (cold cache), which the caller treats as a miss.
-func (v *Valkey) GetUser(ctx context.Context, userID uint64) (string, bool, error) {
+func (v *Valkey) GetUser(ctx context.Context, userID uint64) (string, bool, bool, error) {
 	key := cache.UserKey(settingsKeyPrefix, userID)
 
-	res, err := v.client.Do(ctx, v.client.B().Hmget().Key(key).Field("status").Field("active").Build()).AsStrSlice()
+	res, err := v.client.Do(ctx, v.client.B().Hmget().Key(key).Field("status").Field("active").Field("live").Build()).AsStrSlice()
 	if err != nil {
-		return "", false, err
+		return "", false, false, err
 	}
-	if len(res) < 2 {
-		return "", false, nil
+	if len(res) < 3 {
+		return "", false, false, nil
 	}
-	return res[0], res[1] == "1", nil
+	return res[0], res[1] == "1", res[2] == "1", nil
 }
 
 // GetModules reads every module row of one user out of the settings hash. An

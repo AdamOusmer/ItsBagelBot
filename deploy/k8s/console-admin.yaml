@@ -121,7 +121,7 @@ spec:
             - name: IMPERSONATION_PRIVATE_KEY
               valueFrom:
                 secretKeyRef:
-                  name: dashboard-env
+                  name: console-admin-env
                   key: IMPERSONATION_PRIVATE_KEY
           # Secrets from Doppler (admin/prd -> console-admin-env). Admin
           # sessions are isolated from other tiers:
@@ -129,9 +129,10 @@ spec:
           #                            config). Seals/opens the admin session.
           #   TWITCH_CLIENT_ID       — Twitch app client id.
           #   TWITCH_CLIENT_SECRET   — Twitch app client secret.
-          # IMPERSONATION_PRIVATE_KEY is the one intentional cross-app secret
-          # above: the Ed25519 private half that signs short-lived view-as
-          # handoff tokens. The dashboard holds only the matching public key.
+          #   IMPERSONATION_PRIVATE_KEY — Ed25519 private half that signs
+          #                            short-lived view-as handoff tokens.
+          # The dashboard holds only the matching public key in its own Doppler
+          # project/config.
           # The Twitch app MUST register the redirect URI above. Staff identity
           # is the DB allowlist (seeded via OWNER_BOOTSTRAP_IDS on the users
           # service); the legacy ADMIN_USER_IDS env is no longer consulted.

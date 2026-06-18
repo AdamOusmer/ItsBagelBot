@@ -18,6 +18,7 @@ export interface CommandView {
   name: string;
   response: string;
   is_active: boolean;
+  stream_online_only?: boolean;
   perm?: Perm;
   // Cooldown in seconds; 0 or undefined means no cooldown.
   cooldown?: number;

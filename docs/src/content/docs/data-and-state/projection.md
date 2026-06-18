@@ -19,6 +19,7 @@ One hash per user, readable with a single `HGETALL`:
 settings:<user_id>
   status                  free | paid | vip
   active                  0 | 1
+  live                    0 | 1
   module:<name>:enabled   0 | 1
   module:<name>:config    raw JSON
 ```
@@ -27,8 +28,9 @@ Readers parse nothing except the config blob of the module they actually use. Mo
 write boundary (lowercase alphanumerics, underscore, hyphen) precisely because the name is embedded in the field: a
 colon in a name could otherwise forge another field.
 
-Commands are deliberately not projected. They are served by the commands service from its own in-process cache, on
-a slower path; projecting them would grow every hash for data the hot path does not need on every message.
+Commands are deliberately not projected into Valkey. They are served by the commands service from its own
+in-process cache, on a slower path; projecting them would grow every hash for data the hot path does not need on
+every message. The worker still reads the `live` bit when a command is marked `stream_online_only`.
 
 ## Live flow
 

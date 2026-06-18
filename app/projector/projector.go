@@ -106,6 +106,7 @@ func (p *Projector) drop(msg *message.Message, subject string, err error) {
 }
 
 type eventSubMessage struct {
+	Type         string `json:"type"`
 	Subscription struct {
 		Type string `json:"type"`
 	} `json:"subscription"`
@@ -114,13 +115,21 @@ type eventSubMessage struct {
 	} `json:"event"`
 }
 
-func (p *Projector) HandleStreamOnline(msg *nats.Msg, nc *nats.Conn, usersTopic, modulesTopic, commandsTopic string) {
+func (e eventSubMessage) eventType() string {
+	if e.Type != "" {
+		return e.Type
+	}
+	return e.Subscription.Type
+}
+
+func (p *Projector) HandleStreamEvent(msg *nats.Msg, nc *nats.Conn, usersTopic, modulesTopic, commandsTopic string) {
 	var payload eventSubMessage
 	if err := json.Unmarshal(msg.Data, &payload); err != nil {
 		return
 	}
 
-	if payload.Subscription.Type != "stream.online" {
+	eventType := payload.eventType()
+	if eventType != "stream.online" && eventType != "stream.offline" {
 		return
 	}
 
@@ -129,10 +138,18 @@ func (p *Projector) HandleStreamOnline(msg *nats.Msg, nc *nats.Conn, usersTopic,
 		return
 	}
 
-	p.log.Info("pre-warming cache for stream online", zap.Uint64("user_id", id))
-
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+
+	if err := p.store.SetStreamLive(ctx, id, eventType == "stream.online"); err != nil {
+		p.log.Warn("failed to project stream live state", zap.Uint64("user_id", id), zap.Error(err))
+	}
+
+	if eventType != "stream.online" {
+		return
+	}
+
+	p.log.Info("pre-warming cache for stream online", zap.Uint64("user_id", id))
 
 	reqPayload, _ := json.Marshal(map[string]string{"user_id": fmt.Sprint(id)})
 

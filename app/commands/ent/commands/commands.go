@@ -21,6 +21,8 @@ const (
 	FieldResponse = "response"
 	// FieldIsActive holds the string denoting the is_active field in the database.
 	FieldIsActive = "is_active"
+	// FieldStreamOnlineOnly holds the string denoting the stream_online_only field in the database.
+	FieldStreamOnlineOnly = "stream_online_only"
 	// FieldPerm holds the string denoting the perm field in the database.
 	FieldPerm = "perm"
 	// FieldCooldown holds the string denoting the cooldown field in the database.
@@ -42,6 +44,7 @@ var Columns = []string{
 	FieldName,
 	FieldResponse,
 	FieldIsActive,
+	FieldStreamOnlineOnly,
 	FieldPerm,
 	FieldCooldown,
 	FieldAllowedUserID,
@@ -66,6 +69,8 @@ var (
 	ResponseValidator func(string) error
 	// DefaultIsActive holds the default value on creation for the "is_active" field.
 	DefaultIsActive bool
+	// DefaultStreamOnlineOnly holds the default value on creation for the "stream_online_only" field.
+	DefaultStreamOnlineOnly bool
 	// DefaultPerm holds the default value on creation for the "perm" field.
 	DefaultPerm string
 	// DefaultCooldown holds the default value on creation for the "cooldown" field.
@@ -106,6 +111,11 @@ func ByResponse(opts ...sql.OrderTermOption) OrderOption {
 // ByIsActive orders the results by the is_active field.
 func ByIsActive(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldIsActive, opts...).ToFunc()
+}
+
+// ByStreamOnlineOnly orders the results by the stream_online_only field.
+func ByStreamOnlineOnly(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldStreamOnlineOnly, opts...).ToFunc()
 }
 
 // ByPerm orders the results by the perm field.

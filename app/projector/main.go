@@ -79,7 +79,7 @@ func main() {
 	commandsTopic := env.Get("NATS_INTERNAL_PROJECTION_COMMANDS_SUBJECT", "bagel.rpc.internal.projection.commands.get")
 
 	if _, err := nc.Subscribe(streamTopic, func(msg *nats.Msg) {
-		projector.HandleStreamOnline(msg, nc, usersTopic, modulesTopic, commandsTopic)
+		projector.HandleStreamEvent(msg, nc, usersTopic, modulesTopic, commandsTopic)
 	}); err != nil {
 		log.Fatal("failed to subscribe to stream online events", zap.Error(err))
 	}
