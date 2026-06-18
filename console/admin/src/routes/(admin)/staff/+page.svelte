@@ -264,7 +264,10 @@
 
 <!-- Member drawer -->
 {#if drawer}
-  <button class="drawer-backdrop" type="button" onclick={closeDrawer} aria-label="Close drawer"></button>
+  <!-- A full-screen <button> would be matched by the custom cursor's interactive
+       selector and morph the tan ring over the entire page; use a div instead. -->
+  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+  <div class="drawer-backdrop" role="button" tabindex="-1" aria-label="Close drawer" onclick={closeDrawer}></div>
   <div class="drawer open" role="dialog" aria-modal="true" aria-labelledby="staff-drawer-title">
     <header class="drawer-head">
       <div class="drawer-id">

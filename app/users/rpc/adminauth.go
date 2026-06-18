@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -13,6 +14,7 @@ import (
 	"ItsBagelBot/app/users/ent"
 	"ItsBagelBot/app/users/ent/adminaudit"
 	"ItsBagelBot/app/users/ent/adminuser"
+	"ItsBagelBot/app/users/ent/predicate"
 )
 
 // adminauth serves the admin console's authorization + audit surface. It is the
@@ -48,6 +50,8 @@ type authRequest struct {
 	// audit.list / auth.list
 	Limit       int    `json:"limit"`
 	ActorFilter string `json:"actor_filter"`
+	Page        int    `json:"page"`
+	Search      string `json:"search"`
 }
 
 type adminAcctView struct {
@@ -79,6 +83,10 @@ type authReply struct {
 	DisplayName string          `json:"display_name,omitempty"`
 	Admins      []adminAcctView `json:"admins,omitempty"`
 	Entries     []auditView     `json:"entries,omitempty"`
+	Page        int             `json:"page,omitempty"`
+	PageSize    int             `json:"page_size,omitempty"`
+	MaxPages    int             `json:"max_pages,omitempty"`
+	HasMore     bool            `json:"has_more,omitempty"`
 	Error       string          `json:"error,omitempty"`
 }
 
@@ -86,6 +94,12 @@ type adminAuthRPC struct {
 	db  *ent.Client
 	log *zap.Logger
 }
+
+const (
+	auditPageSize     = 25
+	auditMaxPages     = 25
+	auditMaxSearchLen = 200
+)
 
 // SubscribeAdminAuth wires the auth.* and audit.* verbs. authPrefix defaults to
 // "bagel.rpc.admin.user.auth", auditPrefix to "bagel.rpc.admin.user.audit" so
@@ -332,7 +346,7 @@ func (a *adminAuthRPC) auditList(ctx context.Context, req authRequest) authReply
 	if limit <= 0 || limit > 200 {
 		limit = 50
 	}
-	q := a.db.AdminAudit.Query().Order(ent.Desc(adminaudit.FieldCreatedAt))
+	q := a.db.AdminAudit.Query().Order(ent.Desc(adminaudit.FieldCreatedAt), ent.Desc(adminaudit.FieldID))
 	// Optional actor filter: lazy-load a single operator's own history without
 	// shipping the whole log (actor_filter = their Twitch id).
 	if req.ActorFilter != "" {
@@ -342,10 +356,75 @@ func (a *adminAuthRPC) auditList(ctx context.Context, req authRequest) authReply
 		}
 		q = q.Where(adminaudit.ActorIDEQ(aid))
 	}
+
+	if search := normalizeAuditSearch(req.Search); search != "" {
+		q = q.Where(auditSearchPredicate(search))
+	}
+
+	if req.Page > 0 {
+		page := req.Page
+		if page < 1 {
+			page = 1
+		}
+		if page > auditMaxPages {
+			page = auditMaxPages
+		}
+		pageSize := limit
+		if pageSize <= 0 || pageSize > auditPageSize {
+			pageSize = auditPageSize
+		}
+		fetchLimit := pageSize
+		if page < auditMaxPages {
+			fetchLimit++
+		}
+		rows, err := q.Offset((page - 1) * pageSize).Limit(fetchLimit).All(ctx)
+		if err != nil {
+			return authReply{Error: err.Error()}
+		}
+		hasMore := page < auditMaxPages && len(rows) > pageSize
+		if hasMore {
+			rows = rows[:pageSize]
+		}
+		return authReply{
+			Entries:  auditViewsOf(rows),
+			Page:     page,
+			PageSize: pageSize,
+			MaxPages: auditMaxPages,
+			HasMore:  hasMore,
+		}
+	}
+
 	rows, err := q.Limit(limit).All(ctx)
 	if err != nil {
 		return authReply{Error: err.Error()}
 	}
+	return authReply{Entries: auditViewsOf(rows)}
+}
+
+func normalizeAuditSearch(s string) string {
+	s = strings.TrimSpace(s)
+	runes := []rune(s)
+	if len(runes) > auditMaxSearchLen {
+		return string(runes[:auditMaxSearchLen])
+	}
+	return s
+}
+
+func auditSearchPredicate(search string) predicate.AdminAudit {
+	predicates := []predicate.AdminAudit{
+		adminaudit.ActorLoginContainsFold(search),
+		adminaudit.ActionContainsFold(search),
+		adminaudit.TargetContainsFold(search),
+		adminaudit.DetailContainsFold(search),
+		adminaudit.ErrorContainsFold(search),
+	}
+	if actorID, err := strconv.ParseUint(search, 10, 64); err == nil {
+		predicates = append(predicates, adminaudit.ActorIDEQ(actorID))
+	}
+	return adminaudit.Or(predicates...)
+}
+
+func auditViewsOf(rows []*ent.AdminAudit) []auditView {
 	out := make([]auditView, 0, len(rows))
 	for _, r := range rows {
 		out = append(out, auditView{
@@ -360,7 +439,7 @@ func (a *adminAuthRPC) auditList(ctx context.Context, req authRequest) authReply
 			CreatedAt:  r.CreatedAt,
 		})
 	}
-	return authReply{Entries: out}
+	return out
 }
 
 // SeedStaff bootstraps owners and admins from id lists (OWNER_BOOTSTRAP_IDS /
