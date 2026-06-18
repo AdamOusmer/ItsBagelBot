@@ -86,9 +86,10 @@ func (d *delegationRPC) handleCreate(msg *nats.Msg) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	// Single-use links die after 24h even if never consumed.
-	exp := time.Now().Add(24 * time.Hour)
-	if err := d.repo.CreateDelegation(ctx, token, ownerID, req.OwnerLogin, req.Sections, &exp); err != nil {
+	// No expiry: the link stays valid until the invitee accepts it (binding them
+	// permanently) or the owner revokes it. Access is permanent + revocable, not
+	// time-boxed.
+	if err := d.repo.CreateDelegation(ctx, token, ownerID, req.OwnerLogin, req.Sections, nil); err != nil {
 		d.log.Error("delegation create", zap.Error(err))
 		respondDeleg(msg, map[string]any{"error": err.Error()})
 		return

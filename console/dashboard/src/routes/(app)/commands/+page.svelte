@@ -539,9 +539,16 @@
   }
 
   .field-row { display: flex; gap: 12px; }
-  .field-row .field { flex: 1; }
+  .field-row .field { flex: 1; min-width: 0; }
 
+  /* The global .search sets a fixed 240px width; in the modal's flex columns
+     that overflows (e.g. Cooldown spilling past the drawer). Let each control
+     fill its field instead. */
+  .field .search { width: 100%; box-sizing: border-box; }
+
+  /* Center the box against its single-line label ("Active"). */
   .check { margin: 4px 0 18px; }
+  .check :global(.cb) { align-items: center; }
 
   .modal-actions {
     display: flex;

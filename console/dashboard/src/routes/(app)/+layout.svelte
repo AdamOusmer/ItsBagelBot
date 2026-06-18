@@ -127,6 +127,19 @@
     background: transparent; border: 1px solid rgba(0, 0, 0, 0.35);
   }
   .imp-exit:hover { background: rgba(0, 0, 0, 0.12); }
-  /* Push the app down so the fixed banner does not cover the topbar. */
-  .app.impersonating { padding-top: 38px; }
+  /* The banner is a fixed ~44px strip. Offset the grid below it with padding and
+     keep the shell exactly 100vh via border-box, so the content area shrinks to
+     100vh - 44px instead of the page growing past the viewport. A margin-top or a
+     content-box padding-top here adds 44px on top of min-height:100vh and scrolls
+     the whole page (nav included). The sidebar (otherwise height:100vh, sticky
+     top:0) is matched to the reduced area so it does not overhang either. */
+  .app.impersonating {
+    box-sizing: border-box;
+    padding-top: 44px;
+    min-height: 100vh;
+  }
+  .app.impersonating :global(.sidebar) {
+    height: calc(100vh - 44px);
+    top: 44px;
+  }
 </style>

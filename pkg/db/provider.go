@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	entsql "entgo.io/ent/dialect/sql"
@@ -96,6 +97,7 @@ const tlsConfigName = "bagel-mysql"
 // CA we still negotiate TLS so the wire stays encrypted, just unauthenticated.
 func registerTLS(caPEM []byte) (string, error) {
 	cfg := &tls.Config{MinVersion: tls.VersionTLS12}
+	caPEM = []byte(strings.TrimSpace(string(caPEM)))
 
 	if len(caPEM) > 0 {
 		roots := x509.NewCertPool()
