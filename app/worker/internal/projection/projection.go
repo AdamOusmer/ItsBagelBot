@@ -30,6 +30,7 @@ import (
 type User struct {
 	Status   string `json:"status"`
 	IsActive bool   `json:"is_active"`
+	IsLive   bool   `json:"is_live"`
 }
 
 // Premium reports whether the user should be served on the premium lane. It
@@ -56,12 +57,13 @@ type Module struct {
 
 // Command is one custom chat command of a user.
 type Command struct {
-	Name          string `json:"name"`
-	Response      string `json:"response,omitempty"`
-	IsActive      bool   `json:"is_active"`
-	Perm          string `json:"perm,omitempty"`
-	Cooldown      uint   `json:"cooldown,omitempty"`
-	AllowedUserID uint64 `json:"allowed_user_id,omitempty"`
+	Name             string `json:"name"`
+	Response         string `json:"response,omitempty"`
+	IsActive         bool   `json:"is_active"`
+	StreamOnlineOnly bool   `json:"stream_online_only"`
+	Perm             string `json:"perm,omitempty"`
+	Cooldown         uint   `json:"cooldown,omitempty"`
+	AllowedUserID    uint64 `json:"allowed_user_id,omitempty"`
 }
 
 // Reader is the contract the pipeline depends on. Keeping it an interface lets
@@ -119,16 +121,18 @@ func (c *Client) Close() {
 
 func (c *Client) User(ctx context.Context, userID uint64) (User, error) {
 	return c.users.GetOrLoad(ctx, key("user", userID), func(ctx context.Context) (User, error) {
-		if status, active, err := c.store.GetUser(ctx, userID); err == nil && status != "" {
-			return User{Status: status, IsActive: active}, nil
+		status, active, live, err := c.store.GetUser(ctx, userID)
+		if err == nil && status != "" {
+			return User{Status: status, IsActive: active, IsLive: live}, nil
 		}
 
 		var reply User
 		if err := c.request(ctx, c.subjects.Users, userID, &reply); err != nil {
 			// Unknown users fall back to standard, never premium, so a
 			// projector outage cannot promote traffic.
-			return User{Status: "standard"}, nil
+			return User{Status: "standard", IsLive: live}, nil
 		}
+		reply.IsLive = live
 		return reply, nil
 	})
 }

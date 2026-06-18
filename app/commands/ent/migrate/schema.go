@@ -15,6 +15,7 @@ var (
 		{Name: "name", Type: field.TypeString},
 		{Name: "response", Type: field.TypeString},
 		{Name: "is_active", Type: field.TypeBool, Default: true},
+		{Name: "stream_online_only", Type: field.TypeBool, Default: false},
 		{Name: "perm", Type: field.TypeString, Default: "everyone"},
 		{Name: "cooldown", Type: field.TypeUint, Default: 0},
 		{Name: "allowed_user_id", Type: field.TypeUint64, Default: 0},

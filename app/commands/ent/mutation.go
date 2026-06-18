@@ -38,6 +38,7 @@ type CommandsMutation struct {
 	name               *string
 	response           *string
 	is_active          *bool
+	stream_online_only *bool
 	perm               *string
 	cooldown           *uint
 	addcooldown        *int
@@ -313,6 +314,42 @@ func (m *CommandsMutation) ResetIsActive() {
 	m.is_active = nil
 }
 
+// SetStreamOnlineOnly sets the "stream_online_only" field.
+func (m *CommandsMutation) SetStreamOnlineOnly(b bool) {
+	m.stream_online_only = &b
+}
+
+// StreamOnlineOnly returns the value of the "stream_online_only" field in the mutation.
+func (m *CommandsMutation) StreamOnlineOnly() (r bool, exists bool) {
+	v := m.stream_online_only
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStreamOnlineOnly returns the old "stream_online_only" field's value of the Commands entity.
+// If the Commands object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CommandsMutation) OldStreamOnlineOnly(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStreamOnlineOnly is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStreamOnlineOnly requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStreamOnlineOnly: %w", err)
+	}
+	return oldValue.StreamOnlineOnly, nil
+}
+
+// ResetStreamOnlineOnly resets all changes to the "stream_online_only" field.
+func (m *CommandsMutation) ResetStreamOnlineOnly() {
+	m.stream_online_only = nil
+}
+
 // SetPerm sets the "perm" field.
 func (m *CommandsMutation) SetPerm(s string) {
 	m.perm = &s
@@ -567,7 +604,7 @@ func (m *CommandsMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *CommandsMutation) Fields() []string {
-	fields := make([]string, 0, 9)
+	fields := make([]string, 0, 10)
 	if m.user_id != nil {
 		fields = append(fields, commands.FieldUserID)
 	}
@@ -579,6 +616,9 @@ func (m *CommandsMutation) Fields() []string {
 	}
 	if m.is_active != nil {
 		fields = append(fields, commands.FieldIsActive)
+	}
+	if m.stream_online_only != nil {
+		fields = append(fields, commands.FieldStreamOnlineOnly)
 	}
 	if m.perm != nil {
 		fields = append(fields, commands.FieldPerm)
@@ -611,6 +651,8 @@ func (m *CommandsMutation) Field(name string) (ent.Value, bool) {
 		return m.Response()
 	case commands.FieldIsActive:
 		return m.IsActive()
+	case commands.FieldStreamOnlineOnly:
+		return m.StreamOnlineOnly()
 	case commands.FieldPerm:
 		return m.Perm()
 	case commands.FieldCooldown:
@@ -638,6 +680,8 @@ func (m *CommandsMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldResponse(ctx)
 	case commands.FieldIsActive:
 		return m.OldIsActive(ctx)
+	case commands.FieldStreamOnlineOnly:
+		return m.OldStreamOnlineOnly(ctx)
 	case commands.FieldPerm:
 		return m.OldPerm(ctx)
 	case commands.FieldCooldown:
@@ -684,6 +728,13 @@ func (m *CommandsMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetIsActive(v)
+		return nil
+	case commands.FieldStreamOnlineOnly:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStreamOnlineOnly(v)
 		return nil
 	case commands.FieldPerm:
 		v, ok := value.(string)
@@ -819,6 +870,9 @@ func (m *CommandsMutation) ResetField(name string) error {
 		return nil
 	case commands.FieldIsActive:
 		m.ResetIsActive()
+		return nil
+	case commands.FieldStreamOnlineOnly:
+		m.ResetStreamOnlineOnly()
 		return nil
 	case commands.FieldPerm:
 		m.ResetPerm()

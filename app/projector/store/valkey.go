@@ -18,6 +18,7 @@ const settingsKeyPrefix = "settings:"
 //	settings:<user_id>
 //	  status                  free | paid | vip
 //	  active                  0 | 1
+//	  live                    0 | 1
 //	  module:<name>:enabled   0 | 1
 //	  module:<name>:config    raw JSON
 //
@@ -31,8 +32,8 @@ type Valkey struct {
 func NewValkey(address string, password string) (*Valkey, error) {
 
 	valkeyOpts := valkey.ClientOption{
-		InitAddress: []string{address},
-		Password:    password,
+		InitAddress:  []string{address},
+		Password:     password,
 		DisableCache: true,
 	}
 	if strings.HasSuffix(address, ":26379") {
@@ -65,7 +66,7 @@ func (v *Valkey) SetUser(ctx context.Context, userID uint64, status string, isAc
 	if err != nil {
 		return err
 	}
-	
+
 	return v.client.Do(ctx, v.client.B().Expire().Key(key).Seconds(24*60*60).Build()).Error()
 }
 
@@ -91,6 +92,25 @@ func (v *Valkey) GetUser(ctx context.Context, userID uint64) (string, bool, bool
 	return status, active, banned, nil
 }
 
+// SetStreamLive projects Twitch's current live/offline signal for one user.
+func (v *Valkey) SetStreamLive(ctx context.Context, userID uint64, live bool) error {
+
+	defer segment(ctx, "HSET")()
+
+	key := cache.UserKey(settingsKeyPrefix, userID)
+
+	if err := v.client.Do(ctx, v.client.B().Hset().
+		Key(key).
+		FieldValue().
+		FieldValue("live", boolField(live)).
+		Build(),
+	).Error(); err != nil {
+		return err
+	}
+
+	return v.client.Do(ctx, v.client.B().Expire().Key(key).Seconds(24*60*60).Build()).Error()
+}
+
 // SetModule projects one module row of one user.
 func (v *Valkey) SetModule(ctx context.Context, userID uint64, name string, isEnabled bool, configs []byte) error {
 
@@ -110,7 +130,7 @@ func (v *Valkey) SetModule(ctx context.Context, userID uint64, name string, isEn
 	if err := v.client.Do(ctx, fields.Build()).Error(); err != nil {
 		return err
 	}
-	
+
 	return v.client.Do(ctx, v.client.B().Expire().Key(key).Seconds(24*60*60).Build()).Error()
 }
 

@@ -25,6 +25,8 @@ type Commands struct {
 	Response string `json:"response,omitempty"`
 	// IsActive holds the value of the "is_active" field.
 	IsActive bool `json:"is_active,omitempty"`
+	// StreamOnlineOnly holds the value of the "stream_online_only" field.
+	StreamOnlineOnly bool `json:"stream_online_only,omitempty"`
 	// Perm holds the value of the "perm" field.
 	Perm string `json:"perm,omitempty"`
 	// Cooldown holds the value of the "cooldown" field.
@@ -43,7 +45,7 @@ func (*Commands) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case commands.FieldIsActive:
+		case commands.FieldIsActive, commands.FieldStreamOnlineOnly:
 			values[i] = new(sql.NullBool)
 		case commands.FieldID, commands.FieldUserID, commands.FieldCooldown, commands.FieldAllowedUserID:
 			values[i] = new(sql.NullInt64)
@@ -95,6 +97,12 @@ func (_m *Commands) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field is_active", values[i])
 			} else if value.Valid {
 				_m.IsActive = value.Bool
+			}
+		case commands.FieldStreamOnlineOnly:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field stream_online_only", values[i])
+			} else if value.Valid {
+				_m.StreamOnlineOnly = value.Bool
 			}
 		case commands.FieldPerm:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -173,6 +181,9 @@ func (_m *Commands) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("is_active=")
 	builder.WriteString(fmt.Sprintf("%v", _m.IsActive))
+	builder.WriteString(", ")
+	builder.WriteString("stream_online_only=")
+	builder.WriteString(fmt.Sprintf("%v", _m.StreamOnlineOnly))
 	builder.WriteString(", ")
 	builder.WriteString("perm=")
 	builder.WriteString(_m.Perm)

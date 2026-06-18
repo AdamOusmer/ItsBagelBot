@@ -86,6 +86,7 @@
     perm: Perm;
     cooldown: number;
     allowed_user_id: string;
+    stream_online_only: boolean;
     is_active: boolean;
   };
 
@@ -99,6 +100,7 @@
       perm: 'everyone',
       cooldown: 0,
       allowed_user_id: '',
+      stream_online_only: false,
       is_active: true
     };
   }
@@ -111,6 +113,7 @@
       perm: (c.perm ?? 'everyone') as Perm,
       cooldown: c.cooldown ?? 0,
       allowed_user_id: c.allowed_user_id ?? '',
+      stream_online_only: c.stream_online_only === true,
       is_active: c.is_active
     };
   }
@@ -188,6 +191,9 @@
               {#if c.allowed_user_id}
                 <span class="lock" title="Locked to user {c.allowed_user_id}"><Icon name="lock" size={11} /></span>
               {/if}
+              {#if c.stream_online_only}
+                <span class="lock" title="Only runs while live"><Icon name="pulse" size={11} /></span>
+              {/if}
             </span>
             <span class="resp">{c.response}</span>
             <span class="perm-cell"><Badge perm={(c.perm ?? 'everyone') as Perm} /></span>
@@ -202,6 +208,7 @@
                 <input type="hidden" name="perm" value={c.perm ?? 'everyone'} />
                 <input type="hidden" name="cooldown" value={c.cooldown ?? 0} />
                 <input type="hidden" name="allowed_user_id" value={c.allowed_user_id ?? ''} />
+                <input type="hidden" name="stream_online_only" value={c.stream_online_only ? 'on' : ''} />
                 <input type="hidden" name="is_active" value={c.is_active ? '' : 'on'} />
                 <button class="toggle {c.is_active ? 'on' : ''}" type="submit" aria-label="Toggle"></button>
               </form>
@@ -315,6 +322,10 @@
 
       <div class="check">
         <CheckButton name="is_active" bind:checked={editor.is_active} label="Active" />
+      </div>
+
+      <div class="check">
+        <CheckButton name="stream_online_only" bind:checked={editor.stream_online_only} label="Only while live" />
       </div>
 
       <div class="modal-actions">

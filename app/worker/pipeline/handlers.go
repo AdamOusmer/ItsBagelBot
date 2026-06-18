@@ -38,6 +38,15 @@ func (p *Pipeline) handleChatMessage(ctx context.Context, env Envelope, regress 
 	if !found || !cmd.IsActive || cmd.Response == "" {
 		return nil, nil
 	}
+	if cmd.StreamOnlineOnly {
+		user, err := p.proj.User(ctx, broadcasterID)
+		if err != nil {
+			return nil, err
+		}
+		if !user.IsLive {
+			return nil, nil
+		}
+	}
 
 	p.log.Debug("chat command matched",
 		zap.String("command", name),

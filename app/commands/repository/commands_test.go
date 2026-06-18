@@ -33,15 +33,16 @@ func TestUpsertCoalescesEdits(t *testing.T) {
 	client, pub, repo := setup(t)
 	ctx := context.Background()
 
-	repo.Upsert(1001, "!hello", "draft one", true, "everyone", 0, 0)
-	repo.Upsert(1001, "!hello", "draft two", true, "everyone", 0, 0)
-	repo.Upsert(1001, "!hello", "final wording", true, "everyone", 0, 0)
+	repo.Upsert(1001, "!hello", "draft one", true, false, "everyone", 0, 0)
+	repo.Upsert(1001, "!hello", "draft two", true, false, "everyone", 0, 0)
+	repo.Upsert(1001, "!hello", "final wording", true, true, "everyone", 0, 0)
 
 	repo.Close(ctx) // deterministic flush
 
 	rows := client.Commands.Query().AllX(ctx)
 	require.Len(t, rows, 1)
 	assert.Equal(t, "final wording", rows[0].Response)
+	assert.True(t, rows[0].StreamOnlineOnly)
 
 	require.Len(t, pub.On(data.SubjectCommandChanged), 1)
 }
@@ -50,7 +51,7 @@ func TestDeleteIsImmediateAndAnnounced(t *testing.T) {
 	client, pub, repo := setup(t)
 	ctx := context.Background()
 
-	repo.Upsert(1001, "!hello", "hi chat", true, "everyone", 0, 0)
+	repo.Upsert(1001, "!hello", "hi chat", true, false, "everyone", 0, 0)
 	repo.Close(ctx)
 
 	repo2 := repository.NewCommands(client, pub, nil, zap.NewNop())
@@ -72,7 +73,7 @@ func TestRenameUpdatesRowInPlace(t *testing.T) {
 	client, pub, repo := setup(t)
 	ctx := context.Background()
 
-	repo.Upsert(1001, "!old", "the response", true, "everyone", 7, 0)
+	repo.Upsert(1001, "!old", "the response", true, false, "everyone", 7, 0)
 	repo.Close(ctx)
 	originalID := client.Commands.Query().FirstX(ctx).ID
 
@@ -81,13 +82,14 @@ func TestRenameUpdatesRowInPlace(t *testing.T) {
 
 	baseline := len(pub.On(data.SubjectCommandChanged)) // the create flush above
 
-	require.NoError(t, repo2.Rename(ctx, 1001, "!old", "!new", "the response", true, "everyone", 7, 0))
+	require.NoError(t, repo2.Rename(ctx, 1001, "!old", "!new", "the response", true, true, "everyone", 7, 0))
 
 	// Exactly one row, same primary key (updated in place, not deleted+recreated).
 	rows := client.Commands.Query().AllX(ctx)
 	require.Len(t, rows, 1)
 	assert.Equal(t, "!new", rows[0].Name)
 	assert.Equal(t, originalID, rows[0].ID, "rename must preserve the row identity")
+	assert.True(t, rows[0].StreamOnlineOnly)
 
 	// A delete for the old name and a change for the new name are announced so
 	// name-keyed consumers drop the stale key.
@@ -102,18 +104,20 @@ func TestRenameUpdatesRowInPlace(t *testing.T) {
 	assert.Equal(t, "!old", del.Name)
 	assert.False(t, changed.Deleted)
 	assert.Equal(t, "!new", changed.Name)
+	assert.True(t, changed.StreamOnlineOnly)
 }
 
 func TestRenameMissingRowFallsBackToCreate(t *testing.T) {
 	client, _, repo := setup(t)
 	ctx := context.Background()
 
-	require.NoError(t, repo.Rename(ctx, 1001, "!ghost", "!new", "resp", true, "everyone", 0, 0))
+	require.NoError(t, repo.Rename(ctx, 1001, "!ghost", "!new", "resp", true, true, "everyone", 0, 0))
 	repo.Close(ctx) // flush the fallback upsert
 
 	rows := client.Commands.Query().AllX(ctx)
 	require.Len(t, rows, 1)
 	assert.Equal(t, "!new", rows[0].Name)
+	assert.True(t, rows[0].StreamOnlineOnly)
 }
 
 func TestListServedFromCache(t *testing.T) {

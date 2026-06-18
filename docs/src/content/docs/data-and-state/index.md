@@ -79,7 +79,7 @@ so consumers never read another service's schema and redelivery is harmless.
 | `data.users.changed` | full user view (ID, username, active, status) | Registration, rename, tier change |
 | `data.users.deleted` | user ID | User deletion |
 | `data.modules.changed` | user ID, module name, enabled, config JSON | Each module row landed by a flush |
-| `data.commands.changed` | user ID, name, response, active, deleted flag | Each command row landed by a flush, and deletions |
+| `data.commands.changed` | user ID, name, response, active, stream-online-only, permissions, cooldown, allowed user, deleted flag | Each command row landed by a flush, and deletions |
 | `data.transactions.recorded` | transaction ID, user ID | First successful record of a transaction |
 | `data.reproject.request` | empty | Projector cold start; owners replay their state as ordinary change events |
 
