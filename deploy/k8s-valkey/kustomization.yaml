@@ -1,0 +1,25 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: valkey
+
+resources:
+  - serviceaccount.yaml
+  - services.yaml
+  - pdb.yaml
+  - dopplersecrets.yaml
+  - statefulset.yaml
+
+# Scripts and base configs are generated with a content hash so any edit rolls
+# the StatefulSet (kustomize rewrites the volume references to the hashed name).
+# The base names match the volumes in statefulset.yaml.
+configMapGenerator:
+  - name: valkey-scripts
+    files:
+      - scripts/start-valkey.sh
+      - scripts/start-sentinel.sh
+      - scripts/ping-valkey.sh
+      - scripts/ping-sentinel.sh
+  - name: valkey-config
+    files:
+      - config/sentinel.conf
+      - config/valkey.conf
