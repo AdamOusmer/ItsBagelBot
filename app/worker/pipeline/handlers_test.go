@@ -4,11 +4,14 @@ import (
 	"context"
 	"testing"
 
-	"ItsBagelBot/app/worker/internal/projection"
+	"ItsBagelBot/internal/projection"
+	"ItsBagelBot/pkg/bus"
 
+	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 type fakeProjection struct {
@@ -21,8 +24,8 @@ func (f fakeProjection) User(context.Context, uint64) (projection.User, error) {
 	return f.user, nil
 }
 
-func (f fakeProjection) Modules(context.Context, uint64) (map[string]projection.Module, error) {
-	return map[string]projection.Module{}, nil
+func (f fakeProjection) Modules(context.Context, uint64) ([]projection.ModuleView, error) {
+	return []projection.ModuleView{}, nil
 }
 
 func (f fakeProjection) Command(context.Context, uint64, string) (projection.Command, bool, error) {

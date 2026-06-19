@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"ItsBagelBot/app/projector/store"
+	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/env"
 
@@ -17,7 +17,7 @@ import (
 
 type Dashboard struct {
 	nc            *nats.Conn
-	store         *store.Valkey
+	store         *projection.Store
 	commandsTopic string
 	modulesTopic  string
 	log           *zap.Logger
@@ -29,29 +29,29 @@ type Dashboard struct {
 
 type dashboardRequest struct {
 	UserID   string              `json:"user_id"`
-	Commands []store.CommandView `json:"commands,omitempty"`
-	Modules  []store.ModuleView  `json:"modules,omitempty"`
+	Commands []projection.CommandView `json:"commands,omitempty"`
+	Modules  []projection.ModuleView  `json:"modules,omitempty"`
 }
 
 type commandsReply struct {
 	UserID   string              `json:"user_id"`
-	Commands []store.CommandView `json:"commands"`
+	Commands []projection.CommandView `json:"commands"`
 	Error    string              `json:"error,omitempty"`
 }
 
 type modulesReply struct {
 	UserID  string             `json:"user_id"`
-	Modules []store.ModuleView `json:"modules"`
+	Modules []projection.ModuleView `json:"modules"`
 	Error   string             `json:"error,omitempty"`
 }
 
 type commandFill struct {
-	commands []store.CommandView
+	commands []projection.CommandView
 	err      string
 }
 
 type moduleFill struct {
-	modules []store.ModuleView
+	modules []projection.ModuleView
 	err     string
 }
 
@@ -67,7 +67,7 @@ type moduleInFlight struct {
 
 func SubscribeDashboard(
 	nc *nats.Conn,
-	store *store.Valkey,
+	store *projection.Store,
 	prefix string,
 	commandsTopic string,
 	modulesTopic string,
@@ -165,8 +165,8 @@ func (d *Dashboard) handleModulesReplace(ctx context.Context, req dashboardReque
 	return modulesReply{UserID: req.UserID, Modules: req.Modules}
 }
 
-func (d *Dashboard) writeCommandsAsync(userID uint64, commands []store.CommandView) {
-	commands = append([]store.CommandView(nil), commands...)
+func (d *Dashboard) writeCommandsAsync(userID uint64, commands []projection.CommandView) {
+	commands = append([]projection.CommandView(nil), commands...)
 	go func() {
 		d.writeGate <- struct{}{}
 		defer func() { <-d.writeGate }()
@@ -180,8 +180,8 @@ func (d *Dashboard) writeCommandsAsync(userID uint64, commands []store.CommandVi
 	}()
 }
 
-func (d *Dashboard) writeModulesAsync(userID uint64, modules []store.ModuleView) {
-	modules = append([]store.ModuleView(nil), modules...)
+func (d *Dashboard) writeModulesAsync(userID uint64, modules []projection.ModuleView) {
+	modules = append([]projection.ModuleView(nil), modules...)
 	go func() {
 		d.writeGate <- struct{}{}
 		defer func() { <-d.writeGate }()

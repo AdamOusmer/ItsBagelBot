@@ -9,13 +9,14 @@ import (
 
 	"ItsBagelBot/app/worker/internal/config"
 	"ItsBagelBot/app/worker/internal/consumer"
-	"ItsBagelBot/app/worker/internal/projection"
 	"ItsBagelBot/app/worker/pipeline"
+	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/health"
 	"ItsBagelBot/pkg/logger"
 	"ItsBagelBot/pkg/monitor"
+	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"go.uber.org/zap"
 )
@@ -67,11 +68,12 @@ func main() {
 	}
 	defer func() { _ = sub.Close() }()
 
-	valkeyStore, err := projection.NewValkey(cfg.ValkeyAddr, cfg.ValkeyPassword)
+	valkeyClient, err := pkg_valkey.NewClient(cfg.ValkeyAddr, cfg.ValkeyPassword)
 	if err != nil {
 		log.Fatal("failed to connect to valkey", zap.Error(err))
 	}
-	defer valkeyStore.Close()
+	defer valkeyClient.Close()
+	valkeyStore := projection.NewStore(valkeyClient)
 
 	proj := projection.NewClient(valkeyStore, nc, projection.Subjects{
 		Users:    cfg.ProjectionUsersSubject,
