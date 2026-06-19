@@ -8,6 +8,7 @@ import (
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/db"
 
 	"github.com/ThreeDotsLabs/watermill/message"
 )
@@ -39,10 +40,12 @@ func (r *Transactions) Record(ctx context.Context, id string, userID uint64) err
 		return err
 	}
 
-	err := r.client.TebexTransactions.Create().
-		SetID(id).
-		SetUserID(userID).
-		Exec(ctx)
+	err := db.WithExec(ctx, func(ctx context.Context) error {
+		return r.client.TebexTransactions.Create().
+			SetID(id).
+			SetUserID(userID).
+			Exec(ctx)
+	})
 
 	if err != nil {
 		if ent.IsConstraintError(err) {
@@ -60,9 +63,11 @@ func (r *Transactions) Record(ctx context.Context, id string, userID uint64) err
 // UserOf returns the owner of a transaction.
 func (r *Transactions) UserOf(ctx context.Context, id string) (uint64, error) {
 
-	row, err := r.client.TebexTransactions.Query().
-		Where(tebextransactions.IDEQ(id)).
-		Only(ctx)
+	row, err := db.WithQuery(ctx, func(ctx context.Context) (*ent.TebexTransactions, error) {
+		return r.client.TebexTransactions.Query().
+			Where(tebextransactions.IDEQ(id)).
+			Only(ctx)
+	})
 	if err != nil {
 		return 0, err
 	}

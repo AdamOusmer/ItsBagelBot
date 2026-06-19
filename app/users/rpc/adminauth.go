@@ -16,6 +16,7 @@ import (
 	"ItsBagelBot/app/users/ent/adminuser"
 	"ItsBagelBot/app/users/ent/predicate"
 	"ItsBagelBot/pkg/bus"
+	dbgate "ItsBagelBot/pkg/db"
 )
 
 // adminauth serves the admin console's authorization + audit surface. It is the
@@ -149,7 +150,9 @@ func (a *adminAuthRPC) check(ctx context.Context, req authRequest) authReply {
 	if err != nil {
 		return authReply{Error: err.Error()}
 	}
-	row, err := a.db.AdminUser.Query().Where(adminuser.IDEQ(id)).Only(ctx)
+	row, err := dbgate.WithQuery(ctx, func(ctx context.Context) (*ent.AdminUser, error) {
+		return a.db.AdminUser.Query().Where(adminuser.IDEQ(id)).Only(ctx)
+	})
 	if ent.IsNotFound(err) {
 		return authReply{Admin: false}
 	}
@@ -165,7 +168,9 @@ func (a *adminAuthRPC) check(ctx context.Context, req authRequest) authReply {
 		if req.DisplayName != "" {
 			upd = upd.SetDisplayName(req.DisplayName)
 		}
-		if saved, err := upd.Save(ctx); err == nil {
+		if saved, err := dbgate.WithQuery(ctx, func(ctx context.Context) (*ent.AdminUser, error) {
+			return upd.Save(ctx)
+		}); err == nil {
 			row = saved
 		}
 	}
@@ -179,9 +184,11 @@ func (a *adminAuthRPC) check(ctx context.Context, req authRequest) authReply {
 }
 
 func (a *adminAuthRPC) listStaff(ctx context.Context, _ authRequest) authReply {
-	rows, err := a.db.AdminUser.Query().
-		Order(ent.Asc(adminuser.FieldCreatedAt)).
-		All(ctx)
+	rows, err := dbgate.WithQuery(ctx, func(ctx context.Context) ([]*ent.AdminUser, error) {
+		return a.db.AdminUser.Query().
+			Order(ent.Asc(adminuser.FieldCreatedAt)).
+			All(ctx)
+	})
 	if err != nil {
 		return authReply{Error: err.Error()}
 	}
@@ -227,7 +234,10 @@ func (a *adminAuthRPC) upsertStaff(ctx context.Context, req authRequest) authRep
 	}
 
 	// Existing-target guards.
-	if existing, err := a.db.AdminUser.Query().Where(adminuser.IDEQ(id)).Only(ctx); err == nil {
+	existing, err := dbgate.WithQuery(ctx, func(ctx context.Context) (*ent.AdminUser, error) {
+		return a.db.AdminUser.Query().Where(adminuser.IDEQ(id)).Only(ctx)
+	})
+	if err == nil {
 		// An owner's role is immutable (cannot be changed by anyone).
 		if existing.Role == adminuser.RoleOwner {
 			return authReply{Error: "forbidden: an owner's role cannot be changed"}
@@ -269,7 +279,9 @@ func (a *adminAuthRPC) removeStaff(ctx context.Context, req authRequest) authRep
 		return authReply{Error: "forbidden: cannot remove yourself"}
 	}
 
-	target, err := a.db.AdminUser.Query().Where(adminuser.IDEQ(id)).Only(ctx)
+	target, err := dbgate.WithQuery(ctx, func(ctx context.Context) (*ent.AdminUser, error) {
+		return a.db.AdminUser.Query().Where(adminuser.IDEQ(id)).Only(ctx)
+	})
 	if ent.IsNotFound(err) {
 		return authReply{Error: "staff not found"}
 	}
@@ -286,9 +298,11 @@ func (a *adminAuthRPC) removeStaff(ctx context.Context, req authRequest) authRep
 		if actorRole != adminuser.RoleOwner {
 			return authReply{Error: "forbidden: cannot remove an owner"}
 		}
-		owners, err := a.db.AdminUser.Query().
-			Where(adminuser.RoleEQ(adminuser.RoleOwner), adminuser.ActiveEQ(true)).
-			Count(ctx)
+		owners, err := dbgate.WithQuery(ctx, func(ctx context.Context) (int, error) {
+			return a.db.AdminUser.Query().
+				Where(adminuser.RoleEQ(adminuser.RoleOwner), adminuser.ActiveEQ(true)).
+				Count(ctx)
+		})
 		if err != nil {
 			return authReply{Error: err.Error()}
 		}
@@ -297,7 +311,9 @@ func (a *adminAuthRPC) removeStaff(ctx context.Context, req authRequest) authRep
 		}
 	}
 
-	if err := a.db.AdminUser.UpdateOneID(id).SetActive(false).Exec(ctx); err != nil {
+	if err := dbgate.WithExec(ctx, func(ctx context.Context) error {
+		return a.db.AdminUser.UpdateOneID(id).SetActive(false).Exec(ctx)
+	}); err != nil {
 		return authReply{Error: err.Error()}
 	}
 	a.log.Info("staff removed", zap.Uint64("id", id), zap.String("by_role", req.ActorRole))
@@ -312,15 +328,17 @@ func (a *adminAuthRPC) auditAppend(ctx context.Context, req authRequest) authRep
 	if req.ActorLogin == "" || req.Action == "" {
 		return authReply{Error: "actor_login and action required"}
 	}
-	_, err = a.db.AdminAudit.Create().
-		SetActorID(actorID).
-		SetActorLogin(req.ActorLogin).
-		SetAction(req.Action).
-		SetTarget(req.Target).
-		SetDetail(req.Detail).
-		SetOk(req.OK).
-		SetError(req.Err).
-		Save(ctx)
+	_, err = dbgate.WithQuery(ctx, func(ctx context.Context) (*ent.AdminAudit, error) {
+		return a.db.AdminAudit.Create().
+			SetActorID(actorID).
+			SetActorLogin(req.ActorLogin).
+			SetAction(req.Action).
+			SetTarget(req.Target).
+			SetDetail(req.Detail).
+			SetOk(req.OK).
+			SetError(req.Err).
+			Save(ctx)
+	})
 	if err != nil {
 		return authReply{Error: err.Error()}
 	}
@@ -363,7 +381,9 @@ func (a *adminAuthRPC) auditList(ctx context.Context, req authRequest) authReply
 		if page < auditMaxPages {
 			fetchLimit++
 		}
-		rows, err := q.Offset((page - 1) * pageSize).Limit(fetchLimit).All(ctx)
+		rows, err := dbgate.WithQuery(ctx, func(ctx context.Context) ([]*ent.AdminAudit, error) {
+			return q.Offset((page - 1) * pageSize).Limit(fetchLimit).All(ctx)
+		})
 		if err != nil {
 			return authReply{Error: err.Error()}
 		}
@@ -380,7 +400,9 @@ func (a *adminAuthRPC) auditList(ctx context.Context, req authRequest) authReply
 		}
 	}
 
-	rows, err := q.Limit(limit).All(ctx)
+	rows, err := dbgate.WithQuery(ctx, func(ctx context.Context) ([]*ent.AdminAudit, error) {
+		return q.Limit(limit).All(ctx)
+	})
 	if err != nil {
 		return authReply{Error: err.Error()}
 	}
@@ -441,14 +463,18 @@ func SeedStaff(ctx context.Context, db *ent.Client, owners, admins []uint64, log
 
 func seedRole(ctx context.Context, db *ent.Client, ids []uint64, role adminuser.Role, log *zap.Logger) error {
 	for _, id := range ids {
-		existing, err := db.AdminUser.Query().Where(adminuser.IDEQ(id)).Only(ctx)
+		existing, err := dbgate.WithQuery(ctx, func(ctx context.Context) (*ent.AdminUser, error) {
+			return db.AdminUser.Query().Where(adminuser.IDEQ(id)).Only(ctx)
+		})
 		if err == nil {
 			upd := db.AdminUser.UpdateOneID(id).SetActive(true)
 			// Only ever promote via seed; never demote a manually-elevated row.
 			if rank(role) > rank(existing.Role) {
 				upd = upd.SetRole(role)
 			}
-			if err := upd.Exec(ctx); err != nil {
+			if err := dbgate.WithExec(ctx, func(ctx context.Context) error {
+				return upd.Exec(ctx)
+			}); err != nil {
 				return err
 			}
 			continue
@@ -466,26 +492,43 @@ func seedRole(ctx context.Context, db *ent.Client, ids []uint64, role adminuser.
 }
 
 func upsertStaffRow(ctx context.Context, db *ent.Client, id uint64, login, display string, role adminuser.Role, addedBy uint64) error {
-	_, err := db.AdminUser.Query().Where(adminuser.IDEQ(id)).Only(ctx)
+	_, err := dbgate.WithQuery(ctx, func(ctx context.Context) (*ent.AdminUser, error) {
+		return db.AdminUser.Query().Where(adminuser.IDEQ(id)).Only(ctx)
+	})
 	if err == nil {
-		return db.AdminUser.UpdateOneID(id).
-			SetLogin(login).
-			SetDisplayName(display).
-			SetRole(role).
-			SetActive(true).
-			Exec(ctx)
+		return dbgate.WithExec(ctx, func(ctx context.Context) error {
+			return db.AdminUser.UpdateOneID(id).
+				SetLogin(login).
+				SetDisplayName(display).
+				SetRole(role).
+				SetActive(true).
+				Exec(ctx)
+		})
 	}
 	if !ent.IsNotFound(err) {
 		return err
 	}
-	return db.AdminUser.Create().
-		SetID(id).
-		SetLogin(login).
-		SetDisplayName(display).
-		SetRole(role).
-		SetAddedBy(addedBy).
-		SetActive(true).
-		Exec(ctx)
+	return dbgate.WithExec(ctx, func(ctx context.Context) error {
+		if err := db.AdminUser.Create().
+			SetID(id).
+			SetLogin(login).
+			SetDisplayName(display).
+			SetRole(role).
+			SetAddedBy(addedBy).
+			SetActive(true).
+			Exec(ctx); err != nil {
+			if ent.IsConstraintError(err) {
+				return db.AdminUser.UpdateOneID(id).
+					SetLogin(login).
+					SetDisplayName(display).
+					SetRole(role).
+					SetActive(true).
+					Exec(ctx)
+			}
+			return err
+		}
+		return nil
+	})
 }
 
 func adminViewOf(r *ent.AdminUser) adminAcctView {

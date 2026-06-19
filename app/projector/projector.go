@@ -97,6 +97,45 @@ func (p *Projector) HandleModuleChanged(msg *message.Message) error {
 	return p.store.SetModule(msg.Context(), dto.UserID, dto.Name, dto.IsEnabled, dto.Configs)
 }
 
+func (p *Projector) HandleCommandChanged(msg *message.Message) error {
+	var dto data.CommandChangedDTO
+	if err := json.Unmarshal(msg.Payload, &dto); err != nil {
+		p.drop(msg, data.SubjectCommandChanged, err)
+		return nil
+	}
+
+	if err := validate.UserID(dto.UserID); err != nil {
+		p.drop(msg, data.SubjectCommandChanged, err)
+		return nil
+	}
+	if err := validate.CommandName(dto.Name); err != nil {
+		p.drop(msg, data.SubjectCommandChanged, err)
+		return nil
+	}
+	if !dto.Deleted {
+		if err := validate.CommandResponse(dto.Response); err != nil {
+			p.drop(msg, data.SubjectCommandChanged, err)
+			return nil
+		}
+		if err := validate.Perm(dto.Perm); err != nil {
+			p.drop(msg, data.SubjectCommandChanged, err)
+			return nil
+		}
+		if err := validate.Cooldown(dto.Cooldown); err != nil {
+			p.drop(msg, data.SubjectCommandChanged, err)
+			return nil
+		}
+		if dto.AllowedUserID != 0 {
+			if err := validate.UserID(dto.AllowedUserID); err != nil {
+				p.drop(msg, data.SubjectCommandChanged, err)
+				return nil
+			}
+		}
+	}
+
+	return p.store.SetCommand(msg.Context(), dto)
+}
+
 func (p *Projector) drop(msg *message.Message, subject string, err error) {
 
 	p.log.Warn("dropping invalid event",
@@ -173,23 +212,22 @@ func (p *Projector) HandleStreamEvent(msg *nats.Msg, nc *nats.Conn, usersTopic, 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		reply, err := bus.RequestJSON[struct {
-			Modules []struct {
-				Name      string          `json:"name"`
-				IsEnabled bool            `json:"is_enabled"`
-				Configs   json.RawMessage `json:"configs,omitempty"`
-			} `json:"modules"`
+			Modules []store.ModuleView `json:"modules"`
 		}](ctx, nc, modulesTopic, req)
 		if err == nil {
-			for _, mod := range reply.Modules {
-				_ = p.store.SetModule(ctx, id, mod.Name, mod.IsEnabled, mod.Configs)
-			}
+			_ = p.store.SetModules(ctx, id, reply.Modules)
 		}
 	}()
 
-	// 3. Pre-warm Commands (RPC triggers local cache load in commands service)
+	// 3. Fetch & Cache Commands
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		_, _ = bus.RequestJSON[json.RawMessage](ctx, nc, commandsTopic, req)
+		reply, err := bus.RequestJSON[struct {
+			Commands []store.CommandView `json:"commands"`
+		}](ctx, nc, commandsTopic, req)
+		if err == nil {
+			_ = p.store.SetCommands(ctx, id, reply.Commands)
+		}
 	}()
 }

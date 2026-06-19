@@ -57,6 +57,12 @@ spec:
               value: nats://nats:4222
             - name: NATS_RPC_URL
               value: nats://nats-leaf:4222
+            - name: DB_MAX_OPEN_CONNS
+              value: "4"
+            - name: DB_QUERY_CONCURRENCY
+              value: "4"
+            - name: DB_AUTO_MIGRATE
+              value: "false"
             - name: GOMEMLIMIT
               value: 160MiB
           envFrom:

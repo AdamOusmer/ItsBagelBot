@@ -52,5 +52,6 @@ func (AdminUser) Fields() []ent.Field {
 func (AdminUser) Indexes() []ent.Index {
 	return []ent.Index{
 		index.Fields("active"),
+		index.Fields("role", "active"),
 	}
 }

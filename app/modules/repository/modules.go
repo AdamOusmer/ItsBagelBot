@@ -12,6 +12,7 @@ import (
 	"ItsBagelBot/pkg/batch"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/cache"
+	"ItsBagelBot/pkg/db"
 
 	"github.com/ThreeDotsLabs/watermill/message"
 
@@ -75,24 +76,26 @@ func NewModules(client *ent.Client, pub message.Publisher, app *newrelic.Applica
 func (r *Modules) List(ctx context.Context, userID uint64) ([]ModuleView, error) {
 
 	return r.views.GetOrLoad(ctx, cache.UserKey(modulesKeyPrefix, userID), func(ctx context.Context) ([]ModuleView, error) {
+		return db.WithQuery(ctx, func(ctx context.Context) ([]ModuleView, error) {
 
-		rows, err := r.client.Modules.Query().
-			Where(modules.UserIDEQ(userID)).
-			All(ctx)
-		if err != nil {
-			return nil, err
-		}
-
-		views := make([]ModuleView, len(rows))
-		for i, row := range rows {
-			views[i] = ModuleView{
-				Name:      row.Name,
-				IsEnabled: row.IsEnabled,
-				Configs:   row.Configs,
+			rows, err := r.client.Modules.Query().
+				Where(modules.UserIDEQ(userID)).
+				All(ctx)
+			if err != nil {
+				return nil, err
 			}
-		}
 
-		return views, nil
+			views := make([]ModuleView, len(rows))
+			for i, row := range rows {
+				views[i] = ModuleView{
+					Name:      row.Name,
+					IsEnabled: row.IsEnabled,
+					Configs:   row.Configs,
+				}
+			}
+
+			return views, nil
+		})
 	})
 }
 
@@ -130,11 +133,13 @@ func (r *Modules) Reproject(ctx context.Context) error {
 	afterID := 0
 
 	for {
-		rows, err := r.client.Modules.Query().
-			Where(modules.IDGT(afterID)).
-			Order(ent.Asc(modules.FieldID)).
-			Limit(pageSize).
-			All(ctx)
+		rows, err := db.WithQuery(ctx, func(ctx context.Context) ([]*ent.Modules, error) {
+			return r.client.Modules.Query().
+				Where(modules.IDGT(afterID)).
+				Order(ent.Asc(modules.FieldID)).
+				Limit(pageSize).
+				All(ctx)
+		})
 		if err != nil {
 			return err
 		}
@@ -163,9 +168,12 @@ func (r *Modules) Reproject(ctx context.Context) error {
 // absent rows succeeds silently.
 func (r *Modules) DeleteAllForUser(ctx context.Context, userID uint64) error {
 
-	if _, err := r.client.Modules.Delete().
-		Where(modules.UserIDEQ(userID)).
-		Exec(ctx); err != nil {
+	if err := db.WithExec(ctx, func(ctx context.Context) error {
+		_, err := r.client.Modules.Delete().
+			Where(modules.UserIDEQ(userID)).
+			Exec(ctx)
+		return err
+	}); err != nil {
 		return err
 	}
 
@@ -195,21 +203,26 @@ func (r *Modules) flush(ctx context.Context, items []data.ModuleChangedDTO) erro
 
 	ctx = newrelic.NewContext(ctx, txn)
 
-	tx, err := r.client.Tx(ctx)
-	if err != nil {
-		return err
-	}
+	if err := db.WithExec(ctx, func(ctx context.Context) error {
+		tx, err := r.client.Tx(ctx)
+		if err != nil {
+			return err
+		}
 
-	for _, item := range items {
-		if err := upsertModule(ctx, tx, item); err != nil {
-			_ = tx.Rollback()
+		for _, item := range items {
+			if err := upsertModule(ctx, tx, item); err != nil {
+				_ = tx.Rollback()
+				txn.NoticeError(err)
+				return err
+			}
+		}
+
+		if err := tx.Commit(); err != nil {
 			txn.NoticeError(err)
 			return err
 		}
-	}
-
-	if err := tx.Commit(); err != nil {
-		txn.NoticeError(err)
+		return nil
+	}); err != nil {
 		return err
 	}
 
@@ -249,10 +262,23 @@ func upsertModule(ctx context.Context, tx *ent.Tx, item data.ModuleChangedDTO) e
 		return nil
 	}
 
-	return tx.Modules.Create().
+	if err := tx.Modules.Create().
 		SetUserID(item.UserID).
 		SetName(item.Name).
 		SetIsEnabled(item.IsEnabled).
 		SetConfigs(item.Configs).
-		Exec(ctx)
+		Exec(ctx); err != nil {
+		if ent.IsConstraintError(err) {
+			_, err = tx.Modules.Update().
+				Where(
+					modules.UserIDEQ(item.UserID),
+					modules.NameEQ(item.Name),
+				).
+				SetIsEnabled(item.IsEnabled).
+				SetConfigs(item.Configs).
+				Save(ctx)
+		}
+		return err
+	}
+	return nil
 }

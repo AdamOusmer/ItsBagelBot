@@ -29,6 +29,19 @@ func GetInt(key string, fallback int) int {
 	return fallback
 }
 
+// GetBool returns the boolean value of key, or fallback when unset, empty, or
+// not parseable by strconv.ParseBool.
+func GetBool(key string, fallback bool) bool {
+
+	if value := os.Getenv(key); value != "" {
+		if b, err := strconv.ParseBool(value); err == nil {
+			return b
+		}
+	}
+
+	return fallback
+}
+
 // GetDuration returns the duration value of key, or fallback when unset,
 // empty, or not parseable as a Go duration string (e.g. "5s", "30s", "2m").
 func GetDuration(key string, fallback time.Duration) time.Duration {
