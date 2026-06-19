@@ -7,13 +7,14 @@ import (
 	"syscall"
 
 	"ItsBagelBot/app/projector/rpc"
-	"ItsBagelBot/app/projector/store"
 	"ItsBagelBot/internal/domain/event/data"
+	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/health"
 	"ItsBagelBot/pkg/logger"
 	"ItsBagelBot/pkg/monitor"
+	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
@@ -36,14 +37,15 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	valkeyStore, err := store.NewValkey(
+	valkeyClient, err := pkg_valkey.NewClient(
 		env.Get("VALKEY_ADDR", "127.0.0.1:6379"),
 		env.Get("VALKEY_PASSWORD", ""),
 	)
 	if err != nil {
 		log.Fatal("failed to connect to valkey", zap.Error(err))
 	}
-	defer valkeyStore.Close()
+	defer valkeyClient.Close()
+	valkeyStore := projection.NewStore(valkeyClient)
 
 	natsURL := env.Get("NATS_URL", "nats://127.0.0.1:4222")
 	rpcURL := bus.RPCURL(natsURL)

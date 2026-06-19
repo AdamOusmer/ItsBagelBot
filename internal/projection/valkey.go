@@ -1,4 +1,4 @@
-package store
+package projection
 
 import (
 	"context"
@@ -17,7 +17,7 @@ import (
 
 const settingsKeyPrefix = "settings:"
 
-// Valkey is the write side of the settings projection. One hash per user:
+// Store is the unified data access object for the settings projection. One hash per user:
 //
 //	settings:<user_id>
 //	  status                  free | paid | vip
@@ -29,37 +29,17 @@ const settingsKeyPrefix = "settings:"
 // Readers get everything they need for a chat message in a single HGETALL,
 // without parsing anything but the module config they actually use. Every
 // write is an overwrite, so replays and redeliveries are harmless.
-type Valkey struct {
+type Store struct {
 	client valkey.Client
 }
 
-func NewValkey(address string, password string) (*Valkey, error) {
-
-	valkeyOpts := valkey.ClientOption{
-		InitAddress:  []string{address},
-		Password:     password,
-		DisableCache: true,
-	}
-	if strings.HasSuffix(address, ":26379") {
-		valkeyOpts.Sentinel = valkey.SentinelOption{
-			MasterSet:        "myprimary",
-			SentinelPassword: password,
-		}
-		valkeyOpts.SendToReplicas = func(cmd valkey.Completed) bool {
-			return cmd.IsReadOnly()
-		}
-	}
-
-	client, err := valkey.NewClient(valkeyOpts)
-	if err != nil {
-		return nil, err
-	}
-
-	return &Valkey{client: client}, nil
+// NewStore creates a new Store instance using the provided Valkey client.
+func NewStore(client valkey.Client) *Store {
+	return &Store{client: client}
 }
 
 // SetUser projects the tier status, active flag and ban flag of one user.
-func (v *Valkey) SetUser(ctx context.Context, userID uint64, status string, isActive bool, banned bool) error {
+func (v *Store) SetUser(ctx context.Context, userID uint64, status string, isActive bool, banned bool) error {
 
 	defer segment(ctx, "HSET")()
 
@@ -81,7 +61,7 @@ func (v *Valkey) SetUser(ctx context.Context, userID uint64, status string, isAc
 }
 
 // GetUser retrieves the tier status, active flag and ban flag of one user.
-func (v *Valkey) GetUser(ctx context.Context, userID uint64) (string, bool, bool, error) {
+func (v *Store) GetUser(ctx context.Context, userID uint64) (string, bool, bool, error) {
 	defer segment(ctx, "HGETALL")()
 
 	key := cache.UserKey(settingsKeyPrefix, userID)
@@ -103,7 +83,7 @@ func (v *Valkey) GetUser(ctx context.Context, userID uint64) (string, bool, bool
 }
 
 // SetStreamLive projects Twitch's current live/offline signal for one user.
-func (v *Valkey) SetStreamLive(ctx context.Context, userID uint64, live bool) error {
+func (v *Store) SetStreamLive(ctx context.Context, userID uint64, live bool) error {
 
 	defer segment(ctx, "HSET")()
 
@@ -122,7 +102,7 @@ func (v *Valkey) SetStreamLive(ctx context.Context, userID uint64, live bool) er
 }
 
 // SetModule projects one module row of one user.
-func (v *Valkey) SetModule(ctx context.Context, userID uint64, name string, isEnabled bool, configs []byte) error {
+func (v *Store) SetModule(ctx context.Context, userID uint64, name string, isEnabled bool, configs []byte) error {
 
 	defer segment(ctx, "HSET")()
 
@@ -179,7 +159,7 @@ func commandViewFromEvent(dto data.CommandChangedDTO) CommandView {
 
 // SetModules projects a complete module list and records that an empty list is
 // known data, not a cold Valkey miss.
-func (v *Valkey) SetModules(ctx context.Context, userID uint64, modules []ModuleView) error {
+func (v *Store) SetModules(ctx context.Context, userID uint64, modules []ModuleView) error {
 	defer segment(ctx, "HSET")()
 
 	key := cache.UserKey(settingsKeyPrefix, userID)
@@ -206,7 +186,7 @@ func (v *Valkey) SetModules(ctx context.Context, userID uint64, modules []Module
 }
 
 // SetCommand projects one command row of one user.
-func (v *Valkey) SetCommand(ctx context.Context, dto data.CommandChangedDTO) error {
+func (v *Store) SetCommand(ctx context.Context, dto data.CommandChangedDTO) error {
 	defer segment(ctx, "HSET")()
 
 	key := cache.UserKey(settingsKeyPrefix, dto.UserID)
@@ -246,7 +226,7 @@ func (v *Valkey) SetCommand(ctx context.Context, dto data.CommandChangedDTO) err
 
 // SetCommands projects a complete command list and records that an empty list is
 // known data, not a cold Valkey miss.
-func (v *Valkey) SetCommands(ctx context.Context, userID uint64, commands []CommandView) error {
+func (v *Store) SetCommands(ctx context.Context, userID uint64, commands []CommandView) error {
 	defer segment(ctx, "HSET")()
 
 	key := cache.UserKey(settingsKeyPrefix, userID)
@@ -273,7 +253,7 @@ func (v *Valkey) SetCommands(ctx context.Context, userID uint64, commands []Comm
 	return v.client.Do(ctx, v.client.B().Expire().Key(key).Seconds(24*60*60).Build()).Error()
 }
 
-func (v *Valkey) GetModules(ctx context.Context, userID uint64) ([]ModuleView, bool, error) {
+func (v *Store) GetModules(ctx context.Context, userID uint64) ([]ModuleView, bool, error) {
 	defer segment(ctx, "HGETALL")()
 
 	key := cache.UserKey(settingsKeyPrefix, userID)
@@ -309,7 +289,7 @@ func (v *Valkey) GetModules(ctx context.Context, userID uint64) ([]ModuleView, b
 	return out, projected, nil
 }
 
-func (v *Valkey) GetCommands(ctx context.Context, userID uint64) ([]CommandView, bool, error) {
+func (v *Store) GetCommands(ctx context.Context, userID uint64) ([]CommandView, bool, error) {
 	defer segment(ctx, "HGETALL")()
 
 	key := cache.UserKey(settingsKeyPrefix, userID)
@@ -347,7 +327,7 @@ func parseModuleField(field string) (name, suffix string, ok bool) {
 	return rest[:idx], rest[idx+1:], true
 }
 
-func (v *Valkey) clearProjectionFields(ctx context.Context, key string, prefix string) error {
+func (v *Store) clearProjectionFields(ctx context.Context, key string, prefix string) error {
 	fields, err := v.client.Do(ctx, v.client.B().Hgetall().Key(key).Build()).AsStrMap()
 	if err != nil {
 		return err
@@ -365,7 +345,7 @@ func (v *Valkey) clearProjectionFields(ctx context.Context, key string, prefix s
 }
 
 // DeleteUser drops the whole projection of one user.
-func (v *Valkey) DeleteUser(ctx context.Context, userID uint64) error {
+func (v *Store) DeleteUser(ctx context.Context, userID uint64) error {
 
 	defer segment(ctx, "DEL")()
 
@@ -375,7 +355,7 @@ func (v *Valkey) DeleteUser(ctx context.Context, userID uint64) error {
 }
 
 // Close releases the connection pool.
-func (v *Valkey) Close() {
+func (v *Store) Close() {
 	v.client.Close()
 }
 

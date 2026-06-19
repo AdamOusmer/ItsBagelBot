@@ -10,7 +10,7 @@ import (
 	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
 
-	"ItsBagelBot/app/projector/store"
+	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/cache"
 )
@@ -34,14 +34,14 @@ type statusEntry struct {
 }
 
 type statusRPC struct {
-	valkey     *store.Valkey
+	valkey     *projection.Store
 	views      *cache.Cache[statusEntry] // caching the resolved tier + ban flag
 	nc         *nats.Conn
 	usersTopic string
 	log        *zap.Logger
 }
 
-func SubscribeStatus(nc *nats.Conn, valkey *store.Valkey, subject, usersTopic, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
+func SubscribeStatus(nc *nats.Conn, valkey *projection.Store, subject, usersTopic, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
 	s := &statusRPC{
 		valkey:     valkey,
 		views:      cache.New[statusEntry](cache.DefaultCapacity, 30*time.Second), // short lived in-process cache

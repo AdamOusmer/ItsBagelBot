@@ -16,7 +16,7 @@ import (
 	"context"
 	"encoding/json"
 
-	"ItsBagelBot/app/worker/internal/projection"
+	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 
 	"github.com/ThreeDotsLabs/watermill/message"

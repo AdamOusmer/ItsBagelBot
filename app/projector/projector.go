@@ -3,7 +3,7 @@ package main
 import (
 	"encoding/json"
 
-	"ItsBagelBot/app/projector/store"
+	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/pkg/bus"
@@ -29,11 +29,11 @@ import (
 // Malformed or invalid events are dropped (logged and acked, never nacked),
 // because redelivering a poison message forever helps no one.
 type Projector struct {
-	store *store.Valkey
+	store *projection.Store
 	log   *zap.Logger
 }
 
-func NewProjector(store *store.Valkey, log *zap.Logger) *Projector {
+func NewProjector(store *projection.Store, log *zap.Logger) *Projector {
 	return &Projector{store: store, log: log}
 }
 
@@ -212,7 +212,7 @@ func (p *Projector) HandleStreamEvent(msg *nats.Msg, nc *nats.Conn, usersTopic, 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		reply, err := bus.RequestJSON[struct {
-			Modules []store.ModuleView `json:"modules"`
+			Modules []projection.ModuleView `json:"modules"`
 		}](ctx, nc, modulesTopic, req)
 		if err == nil {
 			_ = p.store.SetModules(ctx, id, reply.Modules)
@@ -224,7 +224,7 @@ func (p *Projector) HandleStreamEvent(msg *nats.Msg, nc *nats.Conn, usersTopic, 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		reply, err := bus.RequestJSON[struct {
-			Commands []store.CommandView `json:"commands"`
+			Commands []projection.CommandView `json:"commands"`
 		}](ctx, nc, commandsTopic, req)
 		if err == nil {
 			_ = p.store.SetCommands(ctx, id, reply.Commands)

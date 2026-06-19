@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
@@ -20,8 +19,7 @@ import (
 	"ItsBagelBot/pkg/health"
 	"ItsBagelBot/pkg/logger"
 	"ItsBagelBot/pkg/monitor"
-
-	"github.com/valkey-io/valkey-go"
+	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"go.uber.org/zap"
 )
@@ -53,21 +51,7 @@ func main() {
 
 	cfg := config.Load()
 
-	valkeyOpts := valkey.ClientOption{
-		InitAddress:  []string{cfg.ValkeyAddr},
-		Password:     cfg.ValkeyPassword,
-		DisableCache: true,
-	}
-	if strings.HasSuffix(cfg.ValkeyAddr, ":26379") {
-		valkeyOpts.Sentinel = valkey.SentinelOption{
-			MasterSet:        "myprimary",
-			SentinelPassword: cfg.ValkeyPassword,
-		}
-		valkeyOpts.SendToReplicas = func(cmd valkey.Completed) bool {
-			return cmd.IsReadOnly()
-		}
-	}
-	valkeyClient, err := valkey.NewClient(valkeyOpts)
+	valkeyClient, err := pkg_valkey.NewClient(cfg.ValkeyAddr, cfg.ValkeyPassword)
 	if err != nil {
 		log.Fatal("failed to connect to valkey", zap.Error(err))
 	}
