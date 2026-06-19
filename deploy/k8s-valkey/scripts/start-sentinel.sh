@@ -13,6 +13,8 @@ if [ "$ORDINAL" = "0" ]; then
   ANNOUNCE_IP="100.98.67.104"    # node1 tailscale
 elif [ "$ORDINAL" = "1" ]; then
   ANNOUNCE_IP="100.83.72.45"     # node2 tailscale
+elif [ "$ORDINAL" = "2" ]; then
+  ANNOUNCE_IP="100.81.255.104"   # node3 tailscale
 else
   ANNOUNCE_IP="$MY_FQDN"
 fi
