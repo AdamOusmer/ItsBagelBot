@@ -12,7 +12,6 @@ ENV BUILD_VERSION=$BUILD_VERSION
 # Workspace manifests first for cached installs. bunfig.toml MUST be present for
 # the install so the hoisted linker applies (flat node_modules the image can ship).
 COPY package.json bun.lock bunfig.toml ./
-COPY adapter-node-fixed.js adapter-node-fixed.js
 COPY shared/package.json shared/package.json
 COPY dashboard/package.json dashboard/package.json
 COPY admin/package.json admin/package.json
@@ -28,6 +27,7 @@ ENV PORT=3000
 # adapter-node bundle + external production deps
 COPY --from=build /src/dashboard/build ./build
 COPY --from=build /src/node_modules ./node_modules
+COPY serve-node.js ./serve-node.js
 EXPOSE 3000
 # Preload the New Relic APM agent (ESM --import) before the SvelteKit server.
-CMD ["--import", "newrelic", "build/index.js"]
+CMD ["--import", "newrelic", "serve-node.js"]
