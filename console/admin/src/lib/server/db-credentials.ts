@@ -97,7 +97,7 @@ export async function setCredential(
     DB_USER: dbUser,
     DB_PASS: dbPass,
     DB_SCHEMA: svc.schema,
-    DB_AUTO_MIGRATE: 'false',
+    DB_AUTO_MIGRATE: 'true',
     DB_MAX_OPEN_CONNS: '4',
     DB_QUERY_CONCURRENCY: '4'
   });
