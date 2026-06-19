@@ -41,7 +41,7 @@ type statusRPC struct {
 	log        *zap.Logger
 }
 
-func SubscribeStatus(nc *nats.Conn, valkey *projection.Store, subject, usersTopic, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
+func SubscribeStatus(nc *nats.Conn, valkey *projection.Store, subject, usersTopic, invalidateSubject, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
 	s := &statusRPC{
 		valkey:     valkey,
 		views:      cache.New[statusEntry](cache.DefaultCapacity, 30*time.Second), // short lived in-process cache
@@ -50,7 +50,33 @@ func SubscribeStatus(nc *nats.Conn, valkey *projection.Store, subject, usersTopi
 		log:        log,
 	}
 
+	// Core-NATS fan-out (no queue group): every projector pod drops its cached
+	// tier/ban decision the moment a user changes, instead of waiting out the
+	// 30s TTL. Without this a ban or tier change is stale per pod for up to 30s.
+	if invalidateSubject != "" {
+		if _, err := nc.Subscribe(invalidateSubject, func(msg *nats.Msg) {
+			id, err := strconv.ParseUint(string(msg.Data), 10, 64)
+			if err != nil {
+				return
+			}
+			s.Invalidate(id)
+		}); err != nil {
+			return err
+		}
+	}
+
 	return bus.QueueSubscribeJSON[statusRequest, statusReply](nc, subject, queueGroup, 1500*time.Millisecond, app, log, s.handleGet)
+}
+
+// tierKey is the in-process cache key for a user's resolved tier+ban entry.
+func tierKey(id uint64) string {
+	return "tier:" + strconv.FormatUint(id, 10)
+}
+
+// Invalidate drops the cached tier+ban decision for one user so the next status
+// query re-resolves it from the freshly projected Valkey state.
+func (s *statusRPC) Invalidate(id uint64) {
+	s.views.Invalidate(tierKey(id))
 }
 
 func (s *statusRPC) handleGet(ctx context.Context, req statusRequest) statusReply {
@@ -81,7 +107,7 @@ func tierFromStatus(status string) string {
 
 func (s *statusRPC) tierOf(ctx context.Context, id uint64) statusEntry {
 	// 1. In-process cache check
-	entry, err := s.views.GetOrLoad(ctx, fmt.Sprintf("tier:%d", id), func(ctx context.Context) (statusEntry, error) {
+	entry, err := s.views.GetOrLoad(ctx, tierKey(id), func(ctx context.Context) (statusEntry, error) {
 		// 2. Valkey check
 		statusStr, active, banned, err := s.valkey.GetUser(ctx, id)
 		if err == nil && statusStr != "" {
