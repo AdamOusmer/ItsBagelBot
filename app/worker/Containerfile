@@ -5,6 +5,7 @@ WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 
+COPY internal/projection internal/projection
 COPY internal/utils internal/utils
 COPY pkg pkg
 COPY app/worker app/worker
