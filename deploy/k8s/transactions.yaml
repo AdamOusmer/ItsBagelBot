@@ -74,10 +74,9 @@ spec:
             capabilities: {drop: ["ALL"]}
           lifecycle:
             preStop:
-              exec:
-                # Give kube-proxy / Linkerd / traefik time to drain this endpoint
-                # before SIGTERM fires. Prevents connection-refused 500s during rolls.
-                command: ["/bin/sh", "-c", "sleep 10"]
+              httpGet:
+                path: /drain
+                port: 8080
           livenessProbe:
             httpGet: {path: /healthz, port: 8080}
             periodSeconds: 30

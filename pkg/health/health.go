@@ -30,6 +30,12 @@ func Serve(addr string, ready func() bool) <-chan error {
 		}
 		fmt.Fprintln(w, "ok")
 	})
+	mux.HandleFunc("/drain", func(w http.ResponseWriter, _ *http.Request) {
+		// Used by Kubernetes preStop hook to delay SIGTERM while endpoints drain.
+		// Avoids 500 errors during rolling restarts in scratch containers without sleep.
+		time.Sleep(10 * time.Second)
+		fmt.Fprintln(w, "ok")
+	})
 
 	srv := &http.Server{Addr: addr, Handler: mux, ReadHeaderTimeout: 5 * time.Second}
 
