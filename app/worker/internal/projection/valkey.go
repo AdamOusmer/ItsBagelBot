@@ -41,6 +41,9 @@ func NewValkey(address, password string) (*Valkey, error) {
 			MasterSet:        "myprimary",
 			SentinelPassword: password,
 		}
+		opts.SendToReplicas = func(cmd valkey.Completed) bool {
+			return cmd.IsReadOnly()
+		}
 	}
 
 	client, err := valkey.NewClient(opts)
