@@ -70,7 +70,7 @@ func main() {
 	limiter := ratelimit.New(valkeyClient)
 	registry := channels.New(valkeyClient)
 
-	nc, err := bus.Connect(cfg.NATSURL, serviceName)
+	nc, err := bus.Connect(cfg.NATSRPCURL, serviceName)
 	if err != nil {
 		log.Fatal("failed to connect to nats", zap.Error(err))
 	}

@@ -21,6 +21,7 @@ on:
           - projector
           - transactions
           - users
+          - worker
           - twitch-ingress
           - console-dashboard
           - console-admin
@@ -97,6 +98,12 @@ jobs:
               "description": "ItsBagelBot users data service"
             },
             {
+              "image": "worker",
+              "context": ".",
+              "containerfile": "app/worker/Containerfile",
+              "description": "ItsBagelBot Twitch event worker"
+            },
+            {
               "image": "twitch-ingress",
               "context": "app/ingress",
               "containerfile": "app/ingress/Containerfile",
@@ -129,6 +136,7 @@ jobs:
             add "projector"
             add "transactions"
             add "users"
+            add "worker"
           }
 
           add_all_services() {
@@ -138,6 +146,7 @@ jobs:
             add "projector"
             add "transactions"
             add "users"
+            add "worker"
             add "twitch-ingress"
             add "console-dashboard"
             add "console-admin"
@@ -176,6 +185,9 @@ jobs:
                 ;;
               app/users/*)
                 add "users"
+                ;;
+              app/worker/*)
+                add "worker"
                 ;;
               console/shared/*|console/bunfig.toml|console/bun.lock|console/package.json)
                 add "console-dashboard"

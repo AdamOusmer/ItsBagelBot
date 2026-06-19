@@ -2,8 +2,6 @@ package rpc
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"strconv"
 	"time"
 
@@ -11,25 +9,21 @@ import (
 	"go.uber.org/zap"
 
 	"ItsBagelBot/app/commands/repository"
+	"ItsBagelBot/pkg/bus"
 )
 
 type projectionRPC struct {
 	repo *repository.Commands
-	nc   *nats.Conn
 	log  *zap.Logger
 }
 
 func SubscribeProjection(nc *nats.Conn, repo *repository.Commands, subject, queueGroup string, log *zap.Logger) error {
 	p := &projectionRPC{
 		repo: repo,
-		nc:   nc,
 		log:  log,
 	}
 
-	if _, err := nc.QueueSubscribe(subject, queueGroup, p.handleGet); err != nil {
-		return fmt.Errorf("subscribe %s: %w", subject, err)
-	}
-	return nil
+	return bus.QueueSubscribeJSON[projectionRequest, projectionReply](nc, subject, queueGroup, 2*time.Second, log, p.handleGet)
 }
 
 type projectionRequest struct {
@@ -42,35 +36,23 @@ type projectionReply struct {
 	Error    string                   `json:"error,omitempty"`
 }
 
-func (p *projectionRPC) handleGet(msg *nats.Msg) {
-	var req projectionRequest
-	if err := json.Unmarshal(msg.Data, &req); err != nil || req.UserID == "" {
-		respondProj(msg, projectionReply{Error: "bad request"})
-		return
+func (p *projectionRPC) handleGet(ctx context.Context, req projectionRequest) projectionReply {
+	if req.UserID == "" {
+		return projectionReply{Error: "bad request"}
 	}
 
 	id, err := strconv.ParseUint(req.UserID, 10, 64)
 	if err != nil {
-		respondProj(msg, projectionReply{Error: "invalid user_id"})
-		return
+		return projectionReply{Error: "invalid user_id"}
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
 
 	views, err := p.repo.List(ctx, id)
 	if err != nil {
-		respondProj(msg, projectionReply{Error: err.Error()})
-		return
+		return projectionReply{Error: err.Error()}
 	}
 
-	respondProj(msg, projectionReply{
+	return projectionReply{
 		UserID:   req.UserID,
 		Commands: views,
-	})
-}
-
-func respondProj(msg *nats.Msg, reply projectionReply) {
-	body, _ := json.Marshal(reply)
-	_ = msg.Respond(body)
+	}
 }

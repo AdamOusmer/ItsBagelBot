@@ -15,5 +15,5 @@ spec:
   path: ./deploy/k8s
   prune: true
   wait: true
-  timeout: 5m
+  timeout: 10m
   targetNamespace: production

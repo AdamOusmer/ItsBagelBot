@@ -38,12 +38,17 @@ spec:
       port: 9100
 ---
 apiVersion: apps/v1
-kind: Deployment
+kind: DaemonSet
 metadata:
   name: twitch-ingress
   namespace: production
 spec:
-  replicas: 3
+  revisionHistoryLimit: 3
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   selector:
     matchLabels:
       app: twitch-ingress
@@ -53,6 +58,10 @@ spec:
         app: twitch-ingress
       annotations:
         linkerd.io/inject: enabled
+        config.linkerd.io/proxy-cpu-request: 5m
+        config.linkerd.io/proxy-cpu-limit: 750m
+        config.linkerd.io/proxy-memory-request: 16Mi
+        config.linkerd.io/proxy-memory-limit: 96Mi
         # Opaque ports for EPMD (4369) and Erlang distribution (9100-9110)
         # to prevent Linkerd protocol detection timeouts on server-speaks-first.
         config.linkerd.io/opaque-ports: "4369,9100-9110"
@@ -60,27 +69,8 @@ spec:
         # server-speaks-first Twitch EventSub wss:// sockets.
         config.linkerd.io/skip-outbound-ports: "443"
     spec:
-      # HA is node-level: pod anti-affinity spreads the replicas across
-      # node1 (ARM) and node2 (Intel).
-      topologySpreadConstraints:
-        - maxSkew: 1
-          topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: ScheduleAnyway
-          labelSelector:
-            matchLabels:
-              app: twitch-ingress
-      affinity:
-        podAntiAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
-            - weight: 100
-              podAffinityTerm:
-                labelSelector:
-                  matchExpressions:
-                    - key: app
-                      operator: In
-                      values:
-                        - twitch-ingress
-                topologyKey: kubernetes.io/hostname
+      # DaemonSet placement keeps exactly one ingress pod on each schedulable
+      # node, so the fleet follows node count without a fixed replicas value.
       securityContext:
         runAsNonRoot: true
         runAsUser: 999 # the image's `ingress` user; numeric so kubelet can verify
@@ -113,6 +103,10 @@ spec:
               value: "ItsBagelBot-Ingress"
             - name: NEW_RELIC_LOGS_IN_CONTEXT
               value: "direct"
+            - name: INGRESS_DISPATCHER_MAX_RUNNING
+              value: "64"
+            - name: INGRESS_DISPATCHER_MAX_QUEUE
+              value: "2000"
             # The BEAM sizes schedulers from the host's logical CPUs, not the
             # cgroup quota. Cap schedulers to the CPU limit below and disable
             # scheduler busy-waiting so idle spinning never eats host cores.
@@ -124,13 +118,19 @@ spec:
           resources:
             requests:
               cpu: 50m
-              memory: 256Mi
+              memory: 192Mi
             limits:
               cpu: "2"
               memory: 512Mi
           securityContext:
             allowPrivilegeEscalation: false
             capabilities: {drop: ["ALL"]}
+          lifecycle:
+            preStop:
+              exec:
+                # Grace period for Linkerd and kube-proxy to drain this endpoint
+                # before SIGTERM fires. Horde redistributes shards during this window.
+                command: ["/bin/sh", "-c", "sleep 10"]
           livenessProbe:
             exec:
               command: ["/app/bin/ingress", "pid"]
@@ -143,7 +143,7 @@ spec:
             initialDelaySeconds: 5
             periodSeconds: 15
             timeoutSeconds: 5
-      terminationGracePeriodSeconds: 30
+      terminationGracePeriodSeconds: 45
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
@@ -151,7 +151,7 @@ metadata:
   name: twitch-ingress
   namespace: production
 spec:
-  minAvailable: 1
+  maxUnavailable: 1
   selector:
     matchLabels:
       app: twitch-ingress

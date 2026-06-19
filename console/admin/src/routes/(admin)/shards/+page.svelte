@@ -1,6 +1,6 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { Icon } from '@bagel/shared';
   import type { ActionData } from './$types';
 
@@ -66,7 +66,16 @@
   function stepDown() { if (scaleCount > (snap.min_shards ?? 1)) scaleOffset--; }
   function stepUp()   { scaleOffset++; }
   // Reset offset when the base changes (action result or navigation).
-  $effect(() => { void scaleBase; scaleOffset = 0; });
+  let lastScaleBase = $state<number | null>(null);
+  $effect(() => {
+    const nextBase = scaleBase;
+    untrack(() => {
+      if (lastScaleBase !== nextBase) {
+        lastScaleBase = nextBase;
+        if (scaleOffset !== 0) scaleOffset = 0;
+      }
+    });
+  });
 
   const minShards = $derived(snap.min_shards ?? 1);
   const autoscaleOn = $derived(snap.autoscale ?? false);
@@ -93,6 +102,18 @@
     if (load >= 0.75) return 'err';
     if (load >= 0.5) return 'warn';
     return 'green';
+  }
+
+  function nodeHost(raw?: string): string {
+    if (!raw) return 'node?';
+
+    const normalized = String(raw);
+    const index = snap.nodes.findIndex((node: string) => node === normalized);
+    if (index >= 0) return `node${index + 1}`;
+
+    const host = normalized.includes('@') ? normalized.split('@')[0] : normalized;
+    if (/^node\d+$/i.test(host)) return host.toLowerCase();
+    return host || 'node?';
   }
 </script>
 
@@ -246,7 +267,7 @@
         <div class="shard-head">
           <span class="shard-id">shard {s.shard_id}</span>
           <span class="state-badge {sb.tone}">{sb.label}</span>
-          <span class="shard-node">{s.node}</span>
+          <span class="shard-node">{nodeHost(s.node)}</span>
         </div>
         <div class="shard-meta">
           <span>{s.bound ? 'bound' : 'unbound'}</span>
@@ -512,34 +533,46 @@
   /* ── shard card grid ─────────────────────────────────────────────────────── */
   .shard-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: 14px;
-    margin-top: 18px;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 18px;
+    margin-top: 22px;
   }
 
   .shard-card {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    padding: 18px;
+    gap: 13px;
+    min-height: 154px;
+    padding: 22px;
   }
 
   .shard-head {
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
   }
   .shard-id {
     font-family: var(--bb-font-mono);
-    font-size: 13px;
+    font-size: 15px;
     font-weight: 600;
     color: var(--bb-white);
+    min-width: 0;
   }
   .shard-node {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     font-family: var(--bb-font-mono);
     font-size: 11px;
-    color: var(--bb-muted);
-    margin-left: auto;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--bb-tan-light);
+    background: rgba(201,168,124,.10);
+    border: 1px solid rgba(201,168,124,.28);
+    border-radius: var(--bb-radius-pill);
+    padding: 3px 8px;
+    white-space: nowrap;
   }
 
   .state-badge {
@@ -558,9 +591,9 @@
   .shard-meta {
     display: flex;
     flex-wrap: wrap;
-    gap: 4px 10px;
+    gap: 6px 12px;
     font-family: var(--bb-font-mono);
-    font-size: 11px;
+    font-size: 12px;
     color: var(--bb-muted);
   }
 
@@ -577,18 +610,18 @@
   .load-row {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
   }
   .load-bar-track {
     flex: 1;
-    height: 4px;
-    border-radius: 2px;
+    height: 7px;
+    border-radius: 4px;
     background: rgba(255,255,255,.08);
     overflow: hidden;
   }
   .load-bar-fill {
     height: 100%;
-    border-radius: 2px;
+    border-radius: 4px;
     transition: width .3s ease;
   }
   .load-bar-fill.green { background: var(--bb-green-glow); }
@@ -609,9 +642,9 @@
 
   .shard-session {
     font-family: var(--bb-font-mono);
-    font-size: 11px;
+    font-size: 12px;
     color: var(--bb-muted);
-    opacity: .55;
+    opacity: .7;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;

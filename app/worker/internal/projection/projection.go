@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"time"
 
+	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/cache"
 
 	"github.com/nats-io/nats.go"
@@ -126,8 +127,8 @@ func (c *Client) User(ctx context.Context, userID uint64) (User, error) {
 			return User{Status: status, IsActive: active, IsLive: live}, nil
 		}
 
-		var reply User
-		if err := c.request(ctx, c.subjects.Users, userID, &reply); err != nil {
+		reply, err := bus.RequestJSONTimeout[User](ctx, c.nc, c.subjects.Users, projectionRequest(userID), c.rpcTimeout)
+		if err != nil {
 			// Unknown users fall back to standard, never premium, so a
 			// projector outage cannot promote traffic.
 			return User{Status: "standard", IsLive: live}, nil
@@ -143,10 +144,10 @@ func (c *Client) Modules(ctx context.Context, userID uint64) (map[string]Module,
 			return mods, nil
 		}
 
-		var reply struct {
+		reply, err := bus.RequestJSONTimeout[struct {
 			Modules []Module `json:"modules"`
-		}
-		if err := c.request(ctx, c.subjects.Modules, userID, &reply); err != nil {
+		}](ctx, c.nc, c.subjects.Modules, projectionRequest(userID), c.rpcTimeout)
+		if err != nil {
 			return map[string]Module{}, nil
 		}
 		out := make(map[string]Module, len(reply.Modules))
@@ -161,10 +162,10 @@ func (c *Client) Command(ctx context.Context, userID uint64, name string) (Comma
 	cmds, err := c.commands.GetOrLoad(ctx, key("commands", userID), func(ctx context.Context) (map[string]Command, error) {
 		// Commands are not projected into Valkey; the projector answers from
 		// the commands service over RPC.
-		var reply struct {
+		reply, err := bus.RequestJSONTimeout[struct {
 			Commands []Command `json:"commands"`
-		}
-		if err := c.request(ctx, c.subjects.Commands, userID, &reply); err != nil {
+		}](ctx, c.nc, c.subjects.Commands, projectionRequest(userID), c.rpcTimeout)
+		if err != nil {
 			return map[string]Command{}, nil
 		}
 		out := make(map[string]Command, len(reply.Commands))
@@ -180,19 +181,8 @@ func (c *Client) Command(ctx context.Context, userID uint64, name string) (Comma
 	return cmd, ok, nil
 }
 
-// request marshals a {"user_id": "<id>"} body, fires the RPC, and unmarshals
-// the reply. The payload shape matches the projector's existing RPCs.
-func (c *Client) request(ctx context.Context, subject string, userID uint64, out any) error {
-	ctx, cancel := context.WithTimeout(ctx, c.rpcTimeout)
-	defer cancel()
-
-	body, _ := json.Marshal(map[string]string{"user_id": fmt.Sprint(userID)})
-
-	msg, err := c.nc.RequestWithContext(ctx, subject, body)
-	if err != nil {
-		return err
-	}
-	return json.Unmarshal(msg.Data, out)
+func projectionRequest(userID uint64) map[string]string {
+	return map[string]string{"user_id": fmt.Sprint(userID)}
 }
 
 func key(kind string, userID uint64) string {

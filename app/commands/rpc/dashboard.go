@@ -2,8 +2,6 @@ package rpc
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"strconv"
 	"time"
 
@@ -11,6 +9,7 @@ import (
 	"go.uber.org/zap"
 
 	"ItsBagelBot/app/commands/repository"
+	"ItsBagelBot/pkg/bus"
 )
 
 type dashboardRPC struct {
@@ -23,7 +22,7 @@ func SubscribeDashboard(nc *nats.Conn, repo *repository.Commands, prefix, queueG
 
 	verbs := []struct {
 		verb    string
-		handler nats.MsgHandler
+		handler func(context.Context, dashboardRequest) dashboardReply
 	}{
 		{"list", d.handleList},
 		{"upsert", d.handleUpsert},
@@ -32,8 +31,8 @@ func SubscribeDashboard(nc *nats.Conn, repo *repository.Commands, prefix, queueG
 
 	for _, v := range verbs {
 		subject := prefix + "." + v.verb
-		if _, err := nc.QueueSubscribe(subject, queueGroup, v.handler); err != nil {
-			return fmt.Errorf("subscribe %s: %w", subject, err)
+		if err := bus.QueueSubscribeJSON[dashboardRequest, dashboardReply](nc, subject, queueGroup, 2*time.Second, log, v.handler); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -60,46 +59,31 @@ type dashboardReply struct {
 	Error    string                   `json:"error,omitempty"`
 }
 
-func respondDash(msg *nats.Msg, reply dashboardReply) {
-	body, _ := json.Marshal(reply)
-	_ = msg.Respond(body)
-}
-
-func (d *dashboardRPC) parseUserID(msg *nats.Msg) (uint64, *dashboardRequest, bool) {
-	var req dashboardRequest
-	if err := json.Unmarshal(msg.Data, &req); err != nil {
-		respondDash(msg, dashboardReply{Error: "bad request"})
-		return 0, nil, false
-	}
+func (d *dashboardRPC) parseUserID(req dashboardRequest) (uint64, bool, dashboardReply) {
 	id, err := strconv.ParseUint(req.UserID, 10, 64)
 	if err != nil {
-		respondDash(msg, dashboardReply{Error: "invalid user_id"})
-		return 0, nil, false
+		return 0, false, dashboardReply{Error: "invalid user_id"}
 	}
-	return id, &req, true
+	return id, true, dashboardReply{}
 }
 
-func (d *dashboardRPC) handleList(msg *nats.Msg) {
-	id, _, ok := d.parseUserID(msg)
+func (d *dashboardRPC) handleList(ctx context.Context, req dashboardRequest) dashboardReply {
+	id, ok, reply := d.parseUserID(req)
 	if !ok {
-		return
+		return reply
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
 
 	views, err := d.repo.List(ctx, id)
 	if err != nil {
-		respondDash(msg, dashboardReply{Error: err.Error()})
-		return
+		return dashboardReply{Error: err.Error()}
 	}
-	respondDash(msg, dashboardReply{Commands: views})
+	return dashboardReply{Commands: views}
 }
 
-func (d *dashboardRPC) handleUpsert(msg *nats.Msg) {
-	id, req, ok := d.parseUserID(msg)
+func (d *dashboardRPC) handleUpsert(ctx context.Context, req dashboardRequest) dashboardReply {
+	id, ok, reply := d.parseUserID(req)
 	if !ok {
-		return
+		return reply
 	}
 
 	// allowed_user_id is optional; empty/"0" means no per-user restriction.
@@ -107,14 +91,10 @@ func (d *dashboardRPC) handleUpsert(msg *nats.Msg) {
 	if req.AllowedUserID != "" {
 		parsed, err := strconv.ParseUint(req.AllowedUserID, 10, 64)
 		if err != nil {
-			respondDash(msg, dashboardReply{Error: "invalid allowed_user_id"})
-			return
+			return dashboardReply{Error: "invalid allowed_user_id"}
 		}
 		allowedUserID = parsed
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
 
 	// A rename updates the existing row's name field in place; a plain edit or
 	// create goes through the write-behind upsert.
@@ -128,15 +108,13 @@ func (d *dashboardRPC) handleUpsert(msg *nats.Msg) {
 	if opErr != nil {
 		// Validation/conflict error: return it alongside the current list.
 		views, _ := d.repo.List(ctx, id)
-		respondDash(msg, dashboardReply{Commands: views, Error: opErr.Error()})
-		return
+		return dashboardReply{Commands: views, Error: opErr.Error()}
 	}
 
 	// Upsert is write-behind (~2 s), so build an optimistic reply.
 	views, err := d.repo.List(ctx, id)
 	if err != nil {
-		respondDash(msg, dashboardReply{Error: err.Error()})
-		return
+		return dashboardReply{Error: err.Error()}
 	}
 
 	// Drop the pre-rename key from the optimistic view (rename is immediate, so
@@ -173,28 +151,23 @@ func (d *dashboardRPC) handleUpsert(msg *nats.Msg) {
 		views = append(views, upserted)
 	}
 
-	respondDash(msg, dashboardReply{Commands: views})
+	return dashboardReply{Commands: views}
 }
 
-func (d *dashboardRPC) handleDelete(msg *nats.Msg) {
-	id, req, ok := d.parseUserID(msg)
+func (d *dashboardRPC) handleDelete(ctx context.Context, req dashboardRequest) dashboardReply {
+	id, ok, reply := d.parseUserID(req)
 	if !ok {
-		return
+		return reply
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
 	if err := d.repo.Delete(ctx, id, req.Name); err != nil {
-		respondDash(msg, dashboardReply{Error: err.Error()})
-		return
+		return dashboardReply{Error: err.Error()}
 	}
 
 	// Delete is immediate and invalidates the cache, so List is fresh.
 	views, err := d.repo.List(ctx, id)
 	if err != nil {
-		respondDash(msg, dashboardReply{Error: err.Error()})
-		return
+		return dashboardReply{Error: err.Error()}
 	}
-	respondDash(msg, dashboardReply{Commands: views})
+	return dashboardReply{Commands: views}
 }

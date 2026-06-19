@@ -42,3 +42,11 @@ func options(name string) []nats.Option {
 func Connect(url string, name string) (*nats.Conn, error) {
 	return nats.Connect(url, options(name)...)
 }
+
+// RPCURL returns the core NATS endpoint used for request/reply traffic. It
+// intentionally falls back to the durable bus URL so local development and old
+// deployments keep working, while production can point RPC at a node-local leaf
+// without moving JetStream publisher/subscriber traffic.
+func RPCURL(busURL string) string {
+	return env.Get("NATS_RPC_URL", busURL)
+}

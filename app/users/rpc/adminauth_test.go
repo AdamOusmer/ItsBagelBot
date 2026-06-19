@@ -54,13 +54,13 @@ func TestAuditListPagesResults(t *testing.T) {
 	assert.Equal(t, auditMaxPages, first.MaxPages)
 	assert.True(t, first.HasMore)
 	assert.Equal(t, "user-29", first.Entries[0].Target)
-	assert.Equal(t, "user-05", first.Entries[24].Target)
+	assert.Equal(t, fmt.Sprintf("user-%02d", 30-auditPageSize), first.Entries[auditPageSize-1].Target)
 
 	second := a.auditList(ctx, authRequest{Page: 2, Limit: auditPageSize})
 	require.Empty(t, second.Error)
-	require.Len(t, second.Entries, 5)
+	require.Len(t, second.Entries, auditPageSize)
 	assert.False(t, second.HasMore)
-	assert.Equal(t, "user-04", second.Entries[0].Target)
+	assert.Equal(t, fmt.Sprintf("user-%02d", 30-auditPageSize-1), second.Entries[0].Target)
 }
 
 func TestAuditListSearchesBeforePaging(t *testing.T) {

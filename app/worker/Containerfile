@@ -8,12 +8,12 @@ RUN go mod download
 COPY internal/utils internal/utils
 COPY pkg pkg
 COPY app/worker app/worker
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w"
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /worker ./app/worker
 
 # ---------------------------------------------------------------------------
 FROM gcr.io/distroless/static-debian12:nonroot
 
-COPY --from=build /src/app/worker/worker /worker
+COPY --from=build /worker /worker
 
 USER nonroot
 ENTRYPOINT ["/worker"]

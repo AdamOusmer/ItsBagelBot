@@ -2,7 +2,6 @@ package rpc
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"time"
@@ -11,6 +10,7 @@ import (
 	"go.uber.org/zap"
 
 	"ItsBagelBot/app/users/repository"
+	"ItsBagelBot/pkg/bus"
 
 	"ItsBagelBot/app/users/ent/tokens"
 )
@@ -28,14 +28,14 @@ type tokensRPC struct {
 func SubscribeTokens(nc *nats.Conn, repo *repository.Users, prefix, queueGroup string, log *zap.Logger) error {
 	t := &tokensRPC{repo: repo, log: log}
 
-	verbs := map[string]func(*nats.Msg){
+	verbs := map[string]func(context.Context, tokensRequest) tokensReply{
 		"get":  t.handleGet,
 		"save": t.handleSave,
 	}
 	for verb, handle := range verbs {
 		subject := prefix + "." + verb
-		if _, err := nc.QueueSubscribe(subject, queueGroup, handle); err != nil {
-			return fmt.Errorf("subscribe %s: %w", subject, err)
+		if err := bus.QueueSubscribeJSON[tokensRequest, tokensReply](nc, subject, queueGroup, 3*time.Second, log, handle); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -53,64 +53,45 @@ type tokensReply struct {
 	Error        string `json:"error,omitempty"`
 }
 
-func (t *tokensRPC) handleGet(msg *nats.Msg) {
-	id, ok := parseTokensUser(msg)
-	if !ok {
-		return
+func (t *tokensRPC) handleGet(ctx context.Context, req tokensRequest) tokensReply {
+	id, err := parseTokensUser(req)
+	if err != nil {
+		return tokensReply{Error: err.Error()}
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
 
 	access, refresh, err := t.repo.Token(ctx, id, tokens.TypeUserToken, tokens.PlatformTwitch)
 	if err != nil {
-		respondTokens(msg, tokensReply{Error: err.Error()})
-		return
+		return tokensReply{Error: err.Error()}
 	}
 
-	respondTokens(msg, tokensReply{
+	return tokensReply{
 		AccessToken:  string(access),
 		RefreshToken: string(refresh),
-	})
+	}
 }
 
-func (t *tokensRPC) handleSave(msg *nats.Msg) {
-	id, ok := parseTokensUser(msg)
-	if !ok {
-		return
+func (t *tokensRPC) handleSave(ctx context.Context, req tokensRequest) tokensReply {
+	id, err := parseTokensUser(req)
+	if err != nil {
+		return tokensReply{Error: err.Error()}
 	}
-
-	var req tokensRequest
-	_ = json.Unmarshal(msg.Data, &req)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
 
 	if err := t.repo.UpsertToken(ctx, id, tokens.TypeUserToken, tokens.PlatformTwitch,
 		[]byte(req.AccessToken), []byte(req.RefreshToken)); err != nil {
 		t.log.Error("tokens save", zap.Error(err))
-		respondTokens(msg, tokensReply{Error: err.Error()})
-		return
+		return tokensReply{Error: err.Error()}
 	}
 
-	respondTokens(msg, tokensReply{})
+	return tokensReply{}
 }
 
-func parseTokensUser(msg *nats.Msg) (uint64, bool) {
-	var req tokensRequest
-	if err := json.Unmarshal(msg.Data, &req); err != nil || req.UserID == "" {
-		respondTokens(msg, tokensReply{Error: "bad request"})
-		return 0, false
+func parseTokensUser(req tokensRequest) (uint64, error) {
+	if req.UserID == "" {
+		return 0, fmt.Errorf("bad request")
 	}
 	id, err := strconv.ParseUint(req.UserID, 10, 64)
 	if err != nil {
-		respondTokens(msg, tokensReply{Error: "user_id must be numeric"})
-		return 0, false
+		return 0, fmt.Errorf("user_id must be numeric")
 	}
-	return id, true
-}
-
-func respondTokens(msg *nats.Msg, reply tokensReply) {
-	body, _ := json.Marshal(reply)
-	_ = msg.Respond(body)
+	return id, nil
 }

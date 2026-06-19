@@ -1,10 +1,12 @@
 import type { Handle } from '@sveltejs/kit';
 import { COOKIE, open } from '$lib/server/session';
 import { warm } from '@bagel/shared/server/nats';
+import { assertConfigSane } from '$lib/server/config-sanity';
 import dns from 'node:dns';
 
 // Force node:dns to resolve IPv4 first to bypass k3s IPv6 timeout issues
 dns.setDefaultResultOrder('ipv4first');
+assertConfigSane();
 
 // Pre-dial NATS at server start so the first request hits a warm connection
 // instead of paying the cold dial on the hot path.
