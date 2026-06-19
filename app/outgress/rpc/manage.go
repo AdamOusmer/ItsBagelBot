@@ -12,6 +12,8 @@ import (
 	"ItsBagelBot/app/outgress/internal/twitch"
 	"ItsBagelBot/pkg/bus"
 
+	"github.com/newrelic/go-agent/v3/newrelic"
+
 	"github.com/nats-io/nats.go"
 
 	"go.uber.org/zap"
@@ -32,23 +34,23 @@ type Manage struct {
 //	<prefix>.channel.list    {}                                -> {channels}
 //	<prefix>.system.status   {}                                -> {paused, token health}
 //	<prefix>.system.pause    {paused}                          -> {paused}
-func SubscribeManage(nc *nats.Conn, registry *channels.Registry, tw *twitch.Client, prefix, queueGroup string, log *zap.Logger) error {
+func SubscribeManage(nc *nats.Conn, registry *channels.Registry, tw *twitch.Client, prefix, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
 
 	m := &Manage{registry: registry, twitch: tw, log: log}
 
-	if err := bus.QueueSubscribeJSON[channelRequest, channelReply](nc, prefix+".channel.get", queueGroup, handleTimeout, log, m.handleChannelGet); err != nil {
+	if err := bus.QueueSubscribeJSON[channelRequest, channelReply](nc, prefix+".channel.get", queueGroup, handleTimeout, app, log, m.handleChannelGet); err != nil {
 		return err
 	}
-	if err := bus.QueueSubscribeJSON[channelRequest, channelReply](nc, prefix+".channel.set", queueGroup, handleTimeout, log, m.handleChannelSet); err != nil {
+	if err := bus.QueueSubscribeJSON[channelRequest, channelReply](nc, prefix+".channel.set", queueGroup, handleTimeout, app, log, m.handleChannelSet); err != nil {
 		return err
 	}
-	if err := bus.QueueSubscribeJSON[struct{}, channelListReply](nc, prefix+".channel.list", queueGroup, handleTimeout, log, m.handleChannelList); err != nil {
+	if err := bus.QueueSubscribeJSON[struct{}, channelListReply](nc, prefix+".channel.list", queueGroup, handleTimeout, app, log, m.handleChannelList); err != nil {
 		return err
 	}
-	if err := bus.QueueSubscribeJSON[struct{}, systemStatusReply](nc, prefix+".system.status", queueGroup, handleTimeout, log, m.handleSystemStatus); err != nil {
+	if err := bus.QueueSubscribeJSON[struct{}, systemStatusReply](nc, prefix+".system.status", queueGroup, handleTimeout, app, log, m.handleSystemStatus); err != nil {
 		return err
 	}
-	if err := bus.QueueSubscribeJSON[systemPauseRequest, systemPauseReply](nc, prefix+".system.pause", queueGroup, handleTimeout, log, m.handleSystemPause); err != nil {
+	if err := bus.QueueSubscribeJSON[systemPauseRequest, systemPauseReply](nc, prefix+".system.pause", queueGroup, handleTimeout, app, log, m.handleSystemPause); err != nil {
 		return err
 	}
 

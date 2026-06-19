@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
+	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
 
 	"ItsBagelBot/app/projector/store"
@@ -40,7 +41,7 @@ type statusRPC struct {
 	log        *zap.Logger
 }
 
-func SubscribeStatus(nc *nats.Conn, valkey *store.Valkey, subject, usersTopic, queueGroup string, log *zap.Logger) error {
+func SubscribeStatus(nc *nats.Conn, valkey *store.Valkey, subject, usersTopic, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
 	s := &statusRPC{
 		valkey:     valkey,
 		views:      cache.New[statusEntry](cache.DefaultCapacity, 30*time.Second), // short lived in-process cache
@@ -49,7 +50,7 @@ func SubscribeStatus(nc *nats.Conn, valkey *store.Valkey, subject, usersTopic, q
 		log:        log,
 	}
 
-	return bus.QueueSubscribeJSON[statusRequest, statusReply](nc, subject, queueGroup, 1500*time.Millisecond, log, s.handleGet)
+	return bus.QueueSubscribeJSON[statusRequest, statusReply](nc, subject, queueGroup, 1500*time.Millisecond, app, log, s.handleGet)
 }
 
 func (s *statusRPC) handleGet(ctx context.Context, req statusRequest) statusReply {

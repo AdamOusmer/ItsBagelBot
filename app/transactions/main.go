@@ -13,6 +13,7 @@ import (
 	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/health"
 	"ItsBagelBot/pkg/logger"
+	"ItsBagelBot/pkg/monitor"
 
 	"go.uber.org/zap"
 )
@@ -23,6 +24,13 @@ func main() {
 
 	log := logger.New(env.Get("APP_ENV", "development")).Named(serviceName)
 	defer func() { _ = log.Sync() }()
+
+	nrApp, err := monitor.New(serviceName, log)
+	if err != nil {
+		log.Fatal("failed to start new relic", zap.Error(err))
+	}
+	log = monitor.WrapLogger(log, nrApp)
+	defer monitor.Shutdown(nrApp)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

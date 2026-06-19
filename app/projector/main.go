@@ -13,6 +13,7 @@ import (
 	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/health"
 	"ItsBagelBot/pkg/logger"
+	"ItsBagelBot/pkg/monitor"
 
 	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
@@ -24,6 +25,13 @@ func main() {
 
 	log := logger.New(env.Get("APP_ENV", "development")).Named(serviceName)
 	defer func() { _ = log.Sync() }()
+
+	nrApp, err := monitor.New(serviceName, log)
+	if err != nil {
+		log.Fatal("failed to start new relic", zap.Error(err))
+	}
+	log = monitor.WrapLogger(log, nrApp)
+	defer monitor.Shutdown(nrApp)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -61,15 +69,15 @@ func main() {
 
 	projector := NewProjector(valkeyStore, log)
 
-	if err := bus.Consume(ctx, nil, sub, data.SubjectUserChanged, projector.HandleUserChanged, log); err != nil {
+	if err := bus.Consume(ctx, nrApp, sub, data.SubjectUserChanged, projector.HandleUserChanged, log); err != nil {
 		log.Fatal("failed to subscribe to user changes", zap.Error(err))
 	}
 
-	if err := bus.Consume(ctx, nil, sub, data.SubjectUserDeleted, projector.HandleUserDeleted, log); err != nil {
+	if err := bus.Consume(ctx, nrApp, sub, data.SubjectUserDeleted, projector.HandleUserDeleted, log); err != nil {
 		log.Fatal("failed to subscribe to user deletions", zap.Error(err))
 	}
 
-	if err := bus.Consume(ctx, nil, sub, data.SubjectModuleChanged, projector.HandleModuleChanged, log); err != nil {
+	if err := bus.Consume(ctx, nrApp, sub, data.SubjectModuleChanged, projector.HandleModuleChanged, log); err != nil {
 		log.Fatal("failed to subscribe to module changes", zap.Error(err))
 	}
 
@@ -86,7 +94,7 @@ func main() {
 	}
 
 	subject := env.Get("NATS_BROADCASTER_STATUS_SUBJECT", "bagel.rpc.broadcaster.status.get")
-	if err := rpc.SubscribeStatus(nc, valkeyStore, subject, usersTopic, "projector-rpc", log); err != nil {
+	if err := rpc.SubscribeStatus(nc, valkeyStore, subject, usersTopic, "projector-rpc", nrApp, log); err != nil {
 		log.Fatal("failed to subscribe status rpc", zap.Error(err))
 	}
 

@@ -11,4 +11,5 @@ resources:
   - linkerd-ha.yaml
   - linkerd-self-healing.yaml
   - newrelic-logging.yaml
+  - synthetics.yaml
   - traefik-config.yaml

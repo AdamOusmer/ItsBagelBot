@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
+	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
 
 	"ItsBagelBot/app/users/ent/tokens"
@@ -22,7 +23,7 @@ type dashboardRPC struct {
 	log                 *zap.Logger
 }
 
-func SubscribeDashboard(nc *nats.Conn, repo *repository.Users, prefix, invalidationSubject, queueGroup string, log *zap.Logger) error {
+func SubscribeDashboard(nc *nats.Conn, repo *repository.Users, prefix, invalidationSubject, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
 	d := &dashboardRPC{
 		repo:                repo,
 		nc:                  nc,
@@ -32,7 +33,7 @@ func SubscribeDashboard(nc *nats.Conn, repo *repository.Users, prefix, invalidat
 
 	type handler struct {
 		verb string
-		fn   func(*nats.Msg)
+		fn   func(context.Context, *nats.Msg)
 	}
 	verbs := []handler{
 		{"upsert_user", d.handleUpsertUser},
@@ -46,7 +47,13 @@ func SubscribeDashboard(nc *nats.Conn, repo *repository.Users, prefix, invalidat
 	}
 	for _, h := range verbs {
 		subject := prefix + "." + h.verb
-		if _, err := nc.QueueSubscribe(subject, queueGroup, h.fn); err != nil {
+		fn := h.fn
+		if _, err := nc.QueueSubscribe(subject, queueGroup, func(msg *nats.Msg) {
+			txn := app.StartTransaction("rpc " + subject)
+			defer txn.End()
+			ctx := newrelic.NewContext(context.Background(), txn)
+			fn(ctx, msg)
+		}); err != nil {
 			return fmt.Errorf("subscribe %s: %w", subject, err)
 		}
 	}
@@ -59,7 +66,7 @@ type upsertUserRequest struct {
 	DisplayName string `json:"display_name"`
 }
 
-func (d *dashboardRPC) handleUpsertUser(msg *nats.Msg) {
+func (d *dashboardRPC) handleUpsertUser(ctx context.Context, msg *nats.Msg) {
 	var req upsertUserRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
 		bus.Respond(msg, map[string]any{"error": "bad request"})
@@ -72,7 +79,7 @@ func (d *dashboardRPC) handleUpsertUser(msg *nats.Msg) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
 	// Ensure email is generated uniquely since we don't fetch it from Twitch by default
@@ -93,7 +100,7 @@ type grantSaveRequest struct {
 	RefreshToken      string `json:"refresh_token"`
 }
 
-func (d *dashboardRPC) handleGrantSave(msg *nats.Msg) {
+func (d *dashboardRPC) handleGrantSave(ctx context.Context, msg *nats.Msg) {
 	var req grantSaveRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
 		bus.Respond(msg, map[string]any{"error": "bad request"})
@@ -106,7 +113,7 @@ func (d *dashboardRPC) handleGrantSave(msg *nats.Msg) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
 	if err := d.repo.UpsertToken(ctx, id, tokens.TypeUserToken, tokens.PlatformTwitch, []byte(req.AccessToken), []byte(req.RefreshToken)); err != nil {
@@ -128,7 +135,7 @@ type grantHasRequest struct {
 	BroadcasterUserID string `json:"broadcaster_user_id"`
 }
 
-func (d *dashboardRPC) handleGrantHas(msg *nats.Msg) {
+func (d *dashboardRPC) handleGrantHas(ctx context.Context, msg *nats.Msg) {
 	var req grantHasRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
 		bus.Respond(msg, map[string]any{"error": "bad request"})
@@ -141,7 +148,7 @@ func (d *dashboardRPC) handleGrantHas(msg *nats.Msg) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
 	accessToken, _, err := d.repo.Token(ctx, id, tokens.TypeUserToken, tokens.PlatformTwitch)
@@ -159,7 +166,7 @@ type activeSetRequest struct {
 // handleActiveSet flips the receive toggle. The repository publishes the
 // change event, so the projector and ingress converge without extra work;
 // the explicit invalidation below covers the dashboard's own grant cache.
-func (d *dashboardRPC) handleActiveSet(msg *nats.Msg) {
+func (d *dashboardRPC) handleActiveSet(ctx context.Context, msg *nats.Msg) {
 	var req activeSetRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
 		bus.Respond(msg, map[string]any{"error": "bad request"})
@@ -172,7 +179,7 @@ func (d *dashboardRPC) handleActiveSet(msg *nats.Msg) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
 	if err := d.repo.SetActive(ctx, id, req.Active); err != nil {
@@ -189,7 +196,7 @@ func (d *dashboardRPC) handleActiveSet(msg *nats.Msg) {
 	bus.Respond(msg, map[string]any{"ok": true})
 }
 
-func (d *dashboardRPC) handleActiveGet(msg *nats.Msg) {
+func (d *dashboardRPC) handleActiveGet(ctx context.Context, msg *nats.Msg) {
 	var req grantHasRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
 		bus.Respond(msg, map[string]any{"error": "bad request"})
@@ -202,7 +209,7 @@ func (d *dashboardRPC) handleActiveGet(msg *nats.Msg) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
 	view, err := d.repo.Get(ctx, id)
@@ -216,7 +223,7 @@ func (d *dashboardRPC) handleActiveGet(msg *nats.Msg) {
 
 // handleStatusGet returns the broadcaster's billing tier (free/paid/vip) so the
 // dashboard can show the account status to the user themselves.
-func (d *dashboardRPC) handleStatusGet(msg *nats.Msg) {
+func (d *dashboardRPC) handleStatusGet(ctx context.Context, msg *nats.Msg) {
 	var req grantHasRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
 		bus.Respond(msg, map[string]any{"error": "bad request"})
@@ -229,7 +236,7 @@ func (d *dashboardRPC) handleStatusGet(msg *nats.Msg) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
 	view, err := d.repo.Get(ctx, id)
@@ -245,7 +252,7 @@ func (d *dashboardRPC) handleStatusGet(msg *nats.Msg) {
 // active_get and status_get each load the same user view, so the dashboard's
 // page render coalesces them here to spend one round trip and one repo.Get
 // instead of two.
-func (d *dashboardRPC) handleStateGet(msg *nats.Msg) {
+func (d *dashboardRPC) handleStateGet(ctx context.Context, msg *nats.Msg) {
 	var req grantHasRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
 		bus.Respond(msg, map[string]any{"error": "bad request"})
@@ -258,7 +265,7 @@ func (d *dashboardRPC) handleStateGet(msg *nats.Msg) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
 	view, err := d.repo.Get(ctx, id)
@@ -276,7 +283,7 @@ type deleteSelfRequest struct {
 
 // handleDeleteSelf removes the user and every delegation they own. Delegations
 // are cleared first so no dangling links survive the deleted user row.
-func (d *dashboardRPC) handleDeleteSelf(msg *nats.Msg) {
+func (d *dashboardRPC) handleDeleteSelf(ctx context.Context, msg *nats.Msg) {
 	var req deleteSelfRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
 		bus.Respond(msg, map[string]any{"error": "bad request"})
@@ -289,7 +296,7 @@ func (d *dashboardRPC) handleDeleteSelf(msg *nats.Msg) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
 	if err := d.repo.DeleteDelegationsByOwner(ctx, id); err != nil {

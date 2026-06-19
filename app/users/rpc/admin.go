@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
+	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
 
 	"ItsBagelBot/app/users/ent"
@@ -78,7 +79,7 @@ const (
 	adminUserMaxSearchLen = 200
 )
 
-func SubscribeAdmin(nc *nats.Conn, db *ent.Client, repo *repository.Users, prefix, invalidationSubject, queueGroup string, log *zap.Logger) error {
+func SubscribeAdmin(nc *nats.Conn, db *ent.Client, repo *repository.Users, prefix, invalidationSubject, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
 	a := &adminRPC{
 		db:                  db,
 		repo:                repo,
@@ -104,7 +105,7 @@ func SubscribeAdmin(nc *nats.Conn, db *ent.Client, repo *repository.Users, prefi
 	}
 	for verb, handle := range verbs {
 		subject := prefix + "." + verb
-		if err := bus.QueueSubscribeJSON[adminRequest, adminReply](a.nc, subject, queueGroup, 3*time.Second, log, handle); err != nil {
+		if err := bus.QueueSubscribeJSON[adminRequest, adminReply](a.nc, subject, queueGroup, 3*time.Second, app, log, handle); err != nil {
 			return err
 		}
 	}

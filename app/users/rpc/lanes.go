@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
+	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
 
 	"ItsBagelBot/pkg/bus"
@@ -68,7 +69,7 @@ type laneMutationRequest struct {
 
 // SubscribeLanes wires the lane telemetry + mutation RPC on the admin prefix and
 // starts the background sampler. The sampler runs until ctx is cancelled.
-func SubscribeLanes(ctx context.Context, nc *nats.Conn, prefix, queueGroup string, log *zap.Logger) error {
+func SubscribeLanes(ctx context.Context, nc *nats.Conn, prefix, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
 	js, err := nc.JetStream()
 	if err != nil {
 		return fmt.Errorf("lanes: jetstream context: %w", err)
@@ -78,8 +79,8 @@ func SubscribeLanes(ctx context.Context, nc *nats.Conn, prefix, queueGroup strin
 	s.sample() // prime one observation so a rate appears on the next tick
 	go s.run(ctx)
 
-	handlers := map[string]nats.MsgHandler{
-		"lanes.get": func(msg *nats.Msg) {
+	handlers := map[string]func(context.Context, *nats.Msg){
+		"lanes.get": func(ctx context.Context, msg *nats.Msg) {
 			lanes, errMsg := s.snapshot()
 			bus.Respond(msg, lanesReply{Lanes: lanes, Error: errMsg})
 		},
@@ -90,7 +91,12 @@ func SubscribeLanes(ctx context.Context, nc *nats.Conn, prefix, queueGroup strin
 
 	for verb, handle := range handlers {
 		subject := prefix + "." + verb
-		if _, err := nc.QueueSubscribe(subject, queueGroup, handle); err != nil {
+		if _, err := nc.QueueSubscribe(subject, queueGroup, func(msg *nats.Msg) {
+			txn := app.StartTransaction("rpc " + subject)
+			defer txn.End()
+			ctx := newrelic.NewContext(context.Background(), txn)
+			handle(ctx, msg)
+		}); err != nil {
 			return fmt.Errorf("lanes: subscribe %s: %w", subject, err)
 		}
 	}
@@ -284,7 +290,7 @@ func (s *laneSampler) collect(now time.Time) ([]laneWire, string) {
 	return lanes, ""
 }
 
-func (s *laneSampler) handleAlias(msg *nats.Msg) {
+func (s *laneSampler) handleAlias(ctx context.Context, msg *nats.Msg) {
 	var req laneMutationRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
 		bus.Respond(msg, laneMutationReply{Error: "bad request"})
@@ -315,7 +321,7 @@ func (s *laneSampler) handleAlias(msg *nats.Msg) {
 // with the same subject filter. Nothing drains it, so it retains new messages
 // until the stream's own retention reclaims them. Refused on already-durable
 // lanes.
-func (s *laneSampler) handleDurable(msg *nats.Msg) {
+func (s *laneSampler) handleDurable(ctx context.Context, msg *nats.Msg) {
 	var req laneMutationRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
 		bus.Respond(msg, laneMutationReply{Error: "bad request"})
@@ -353,7 +359,7 @@ func (s *laneSampler) handleDurable(msg *nats.Msg) {
 // attached"). It refuses any lane whose deliver subject still has a live
 // subscriber, so a briefly-restarting service is never deleted out from under
 // itself.
-func (s *laneSampler) handleDelete(msg *nats.Msg) {
+func (s *laneSampler) handleDelete(ctx context.Context, msg *nats.Msg) {
 	var req laneMutationRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
 		bus.Respond(msg, laneMutationReply{Error: "bad request"})
