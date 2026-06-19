@@ -63,6 +63,9 @@ func main() {
 			MasterSet:        "myprimary",
 			SentinelPassword: cfg.ValkeyPassword,
 		}
+		valkeyOpts.SendToReplicas = func(cmd valkey.Completed) bool {
+			return cmd.IsReadOnly()
+		}
 	}
 	valkeyClient, err := valkey.NewClient(valkeyOpts)
 	if err != nil {
