@@ -6,5 +6,8 @@ export default defineConfig({
   // The shared package ships .svelte/.ts source; Vite must bundle (not externalize)
   // it for SSR so components compile. `nats` stays external (native-ish, server).
   ssr: { noExternal: ['@bagel/shared'] },
-  server: { port: 5173 }
+  server: { port: 5173 },
+  build: {
+    minify: 'terser'
+  }
 });
