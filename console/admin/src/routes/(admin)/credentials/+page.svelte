@@ -83,17 +83,7 @@
     </div>
 
     <div class="actions-grid">
-      <form method="POST" action="?/rotate" use:enhance={refresh} autocomplete="off" class="action-box">
-        <input type="hidden" name="service" value={selected.id} />
-        <div class="box-title">
-          <Icon name="activity" size={17} />
-          <h3>Rotate</h3>
-        </div>
-        <input name="confirm" placeholder={`rotate ${selected.id}`} autocomplete="off" />
-        <button class="btn primary" type="submit">
-          <Icon name="lock" size={14} /> Rotate credential
-        </button>
-      </form>
+
 
       <form method="POST" action="?/set" use:enhance={refresh} autocomplete="off" class="action-box">
         <input type="hidden" name="service" value={selected.id} />
@@ -284,7 +274,7 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
     .actions-grid {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
 </style>
