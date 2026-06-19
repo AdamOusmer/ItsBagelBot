@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
+	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
 
 	"ItsBagelBot/app/commands/repository"
@@ -17,7 +18,7 @@ type dashboardRPC struct {
 	log  *zap.Logger
 }
 
-func SubscribeDashboard(nc *nats.Conn, repo *repository.Commands, prefix, queueGroup string, log *zap.Logger) error {
+func SubscribeDashboard(nc *nats.Conn, repo *repository.Commands, prefix, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
 	d := &dashboardRPC{repo: repo, log: log}
 
 	verbs := []struct {
@@ -31,7 +32,7 @@ func SubscribeDashboard(nc *nats.Conn, repo *repository.Commands, prefix, queueG
 
 	for _, v := range verbs {
 		subject := prefix + "." + v.verb
-		if err := bus.QueueSubscribeJSON[dashboardRequest, dashboardReply](nc, subject, queueGroup, 2*time.Second, log, v.handler); err != nil {
+		if err := bus.QueueSubscribeJSON[dashboardRequest, dashboardReply](nc, subject, queueGroup, 2*time.Second, app, log, v.handler); err != nil {
 			return err
 		}
 	}

@@ -17,6 +17,7 @@ import (
 	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/health"
 	"ItsBagelBot/pkg/logger"
+	"ItsBagelBot/pkg/monitor"
 
 	"github.com/ThreeDotsLabs/watermill/message"
 
@@ -29,6 +30,13 @@ func main() {
 
 	log := logger.New(env.Get("APP_ENV", "development")).Named(serviceName)
 	defer func() { _ = log.Sync() }()
+
+	nrApp, err := monitor.New(serviceName, log)
+	if err != nil {
+		log.Fatal("failed to start new relic", zap.Error(err))
+	}
+	log = monitor.WrapLogger(log, nrApp)
+	defer monitor.Shutdown(nrApp)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -80,7 +88,7 @@ func main() {
 	}
 	defer func() { _ = broadcast.Close() }()
 
-	if err := bus.Consume(ctx, nil, broadcast, data.SubjectModuleChanged, func(msg *message.Message) error {
+	if err := bus.Consume(ctx, nrApp, broadcast, data.SubjectModuleChanged, func(msg *message.Message) error {
 
 		var dto data.ModuleChangedDTO
 		if err := json.Unmarshal(msg.Payload, &dto); err != nil {
@@ -101,13 +109,13 @@ func main() {
 	}
 	defer func() { _ = grouped.Close() }()
 
-	if err := bus.Consume(ctx, nil, grouped, data.SubjectReprojectRequest, func(*message.Message) error {
+	if err := bus.Consume(ctx, nrApp, grouped, data.SubjectReprojectRequest, func(*message.Message) error {
 		return repo.Reproject(ctx)
 	}, log); err != nil {
 		log.Fatal("failed to subscribe to reproject requests", zap.Error(err))
 	}
 
-	if err := bus.Consume(ctx, nil, grouped, data.SubjectUserDeleted, func(msg *message.Message) error {
+	if err := bus.Consume(ctx, nrApp, grouped, data.SubjectUserDeleted, func(msg *message.Message) error {
 
 		var dto data.UserDeletedDTO
 		if err := json.Unmarshal(msg.Payload, &dto); err != nil {
@@ -131,7 +139,7 @@ func main() {
 	}
 
 	projectionSubject := env.Get("NATS_INTERNAL_PROJECTION_MODULES_SUBJECT", "bagel.rpc.internal.projection.modules.get")
-	if err := rpc.SubscribeProjection(nc, repo, projectionSubject, "modules-rpc", log); err != nil {
+	if err := rpc.SubscribeProjection(nc, repo, projectionSubject, "modules-rpc", nrApp, log); err != nil {
 		log.Fatal("failed to subscribe projection rpc", zap.Error(err))
 	}
 

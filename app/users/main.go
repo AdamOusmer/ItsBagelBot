@@ -19,6 +19,7 @@ import (
 	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/health"
 	"ItsBagelBot/pkg/logger"
+	"ItsBagelBot/pkg/monitor"
 
 	"github.com/ThreeDotsLabs/watermill/message"
 
@@ -31,6 +32,13 @@ func main() {
 
 	log := logger.New(env.Get("APP_ENV", "development")).Named(serviceName)
 	defer func() { _ = log.Sync() }()
+
+	nrApp, err := monitor.New(serviceName, log)
+	if err != nil {
+		log.Fatal("failed to start new relic", zap.Error(err))
+	}
+	log = monitor.WrapLogger(log, nrApp)
+	defer monitor.Shutdown(nrApp)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -123,12 +131,12 @@ func main() {
 	queueGroup := "users-rpc"
 
 	dashPrefix := env.Get("NATS_DASHBOARD_SUBJECT_PREFIX", "bagel.rpc.dashboard")
-	if err := rpc.SubscribeDashboard(nc, repo, dashPrefix, invalidationSubject, queueGroup, log); err != nil {
+	if err := rpc.SubscribeDashboard(nc, repo, dashPrefix, invalidationSubject, queueGroup, nrApp, log); err != nil {
 		log.Fatal("failed to subscribe dashboard rpc", zap.Error(err))
 	}
 
 	adminPrefix := env.Get("NATS_ADMIN_USER_SUBJECT_PREFIX", "bagel.rpc.admin.user")
-	if err := rpc.SubscribeAdmin(nc, client, repo, adminPrefix, invalidationSubject, queueGroup, log); err != nil {
+	if err := rpc.SubscribeAdmin(nc, client, repo, adminPrefix, invalidationSubject, queueGroup, nrApp, log); err != nil {
 		log.Fatal("failed to subscribe admin rpc", zap.Error(err))
 	}
 
@@ -136,7 +144,7 @@ func main() {
 	// the same admin-user prefix so it rides the existing broker permissions
 	// (this service's user holds $JS.>; the console's admin user publishes the
 	// prefix wildcard), no auth change required.
-	if err := rpc.SubscribeLanes(ctx, nc, adminPrefix, queueGroup, log); err != nil {
+	if err := rpc.SubscribeLanes(ctx, nc, adminPrefix, queueGroup, nrApp, log); err != nil {
 		log.Fatal("failed to subscribe lanes rpc", zap.Error(err))
 	}
 
@@ -153,22 +161,22 @@ func main() {
 	}
 	authPrefix := env.Get("NATS_ADMIN_AUTH_SUBJECT_PREFIX", "bagel.rpc.admin.user.auth")
 	auditPrefix := env.Get("NATS_ADMIN_AUDIT_SUBJECT_PREFIX", "bagel.rpc.admin.user.audit")
-	if err := rpc.SubscribeAdminAuth(nc, client, authPrefix, auditPrefix, queueGroup, log); err != nil {
+	if err := rpc.SubscribeAdminAuth(nc, client, authPrefix, auditPrefix, queueGroup, nrApp, log); err != nil {
 		log.Fatal("failed to subscribe admin auth rpc", zap.Error(err))
 	}
 
 	projectionSubject := env.Get("NATS_INTERNAL_PROJECTION_USERS_SUBJECT", "bagel.rpc.internal.projection.users.get")
-	if err := rpc.SubscribeProjection(nc, repo, projectionSubject, queueGroup, log); err != nil {
+	if err := rpc.SubscribeProjection(nc, repo, projectionSubject, queueGroup, nrApp, log); err != nil {
 		log.Fatal("failed to subscribe projection rpc", zap.Error(err))
 	}
 
 	tokensPrefix := env.Get("NATS_INTERNAL_TOKENS_SUBJECT_PREFIX", "bagel.rpc.internal.tokens")
-	if err := rpc.SubscribeTokens(nc, repo, tokensPrefix, queueGroup, log); err != nil {
+	if err := rpc.SubscribeTokens(nc, repo, tokensPrefix, queueGroup, nrApp, log); err != nil {
 		log.Fatal("failed to subscribe tokens rpc", zap.Error(err))
 	}
 
 	delegationPrefix := env.Get("NATS_DELEGATION_SUBJECT_PREFIX", "bagel.rpc.delegation")
-	if err := rpc.SubscribeDelegation(nc, repo, delegationPrefix, queueGroup, log); err != nil {
+	if err := rpc.SubscribeDelegation(nc, repo, delegationPrefix, queueGroup, nrApp, log); err != nil {
 		log.Fatal("failed to subscribe delegation rpc", zap.Error(err))
 	}
 

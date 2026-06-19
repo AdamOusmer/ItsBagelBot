@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
+	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
 
 	"ItsBagelBot/app/users/ent"
@@ -105,7 +106,7 @@ const (
 // "bagel.rpc.admin.user.auth", auditPrefix to "bagel.rpc.admin.user.audit" so
 // they ride the console admin user's existing "bagel.rpc.admin.user.>" NATS
 // publish permission (no broker ACL change needed).
-func SubscribeAdminAuth(nc *nats.Conn, db *ent.Client, authPrefix, auditPrefix, queueGroup string, log *zap.Logger) error {
+func SubscribeAdminAuth(nc *nats.Conn, db *ent.Client, authPrefix, auditPrefix, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
 	a := &adminAuthRPC{db: db, log: log}
 
 	routes := map[string]func(context.Context, authRequest) authReply{
@@ -117,7 +118,7 @@ func SubscribeAdminAuth(nc *nats.Conn, db *ent.Client, authPrefix, auditPrefix, 
 		auditPrefix + ".list":   a.auditList,
 	}
 	for subject, handle := range routes {
-		if err := bus.QueueSubscribeJSON[authRequest, authReply](nc, subject, queueGroup, 3*time.Second, log, handle); err != nil {
+		if err := bus.QueueSubscribeJSON[authRequest, authReply](nc, subject, queueGroup, 3*time.Second, app, log, handle); err != nil {
 			return err
 		}
 	}
