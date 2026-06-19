@@ -8,11 +8,11 @@ const jc = JSONCodec();
 let conn: NatsConnection | null = null;
 let dialing: Promise<NatsConnection> | null = null;
 
-// Server list: explicit NATS_URL wins, else built from NATS_HOST/NATS_PORT
-// (cluster default nats:4222). The cluster NATS is authenticated, so credentials
-// (NATS_USER/NATS_PASSWORD or NATS_TOKEN) are passed through when present.
+// Server list: NATS_RPC_URL is preferred for request/reply so production can
+// use the node-local leaf; NATS_URL remains the durable bus fallback.
 function options(): ConnectionOptions {
   const server =
+    process.env.NATS_RPC_URL ??
     process.env.NATS_URL ??
     `nats://${process.env.NATS_HOST ?? '127.0.0.1'}:${process.env.NATS_PORT ?? '4222'}`;
   const opts: ConnectionOptions = {
@@ -58,6 +58,28 @@ async function get(): Promise<NatsConnection> {
  */
 export function warm(): void {
   get().catch(() => {});
+}
+
+async function within<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error('timeout')), timeoutMs);
+  });
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+export async function ready(timeoutMs = 750): Promise<boolean> {
+  try {
+    const nc = await within(get(), timeoutMs);
+    await within(nc.flush(), timeoutMs);
+    return !nc.isClosed();
+  } catch {
+    return false;
+  }
 }
 
 export class RpcError extends Error {}

@@ -3,12 +3,17 @@
   import type { AuditEntry } from '$lib/server/rpc';
   let { data } = $props();
 
-  const entries = $derived(data.entries as AuditEntry[]);
   const search = $derived(String(data.search ?? ''));
   const page = $derived(Number(data.page ?? 1));
-  const pageSize = $derived(Number(data.pageSize ?? 25));
-  const maxPages = $derived(Number(data.maxPages ?? 25));
-  const hasMore = $derived(Boolean(data.hasMore));
+  let entries = $state<AuditEntry[]>([]);
+  // svelte-ignore state_referenced_locally
+  let pageSize = $state(Number(data.pageSize ?? 15));
+  // svelte-ignore state_referenced_locally
+  let maxPages = $state(Number(data.maxPages ?? 25));
+  let hasMore = $state(false);
+  let degraded = $state(false);
+  let loading = $state(false);
+  let reqId = 0;
   const showingStart = $derived(entries.length === 0 ? 0 : (page - 1) * pageSize + 1);
   const showingEnd = $derived(showingStart === 0 ? 0 : showingStart + entries.length - 1);
 
@@ -20,6 +25,45 @@
     const query = params.toString();
     return query ? `/audit?${query}` : '/audit';
   }
+
+  async function loadAudit(pageNo: number, q: string) {
+    const req = ++reqId;
+    loading = true;
+    degraded = false;
+    entries = [];
+    const params = new URLSearchParams();
+    if (q.trim()) params.set('q', q.trim());
+    if (pageNo > 1) params.set('page', String(pageNo));
+    const query = params.toString();
+    try {
+      const res = await fetch(query ? `/audit/data?${query}` : '/audit/data');
+      if (!res.ok) throw new Error(`request failed (${res.status})`);
+      const body = (await res.json()) as {
+        entries?: AuditEntry[];
+        page_size?: number;
+        max_pages?: number;
+        has_more?: boolean;
+        error?: string;
+      };
+      if (req !== reqId) return;
+      entries = body.entries ?? [];
+      pageSize = Number(body.page_size ?? pageSize);
+      maxPages = Number(body.max_pages ?? maxPages);
+      hasMore = Boolean(body.has_more);
+      degraded = Boolean(body.error);
+    } catch {
+      if (req !== reqId) return;
+      entries = [];
+      hasMore = false;
+      degraded = true;
+    } finally {
+      if (req === reqId) loading = false;
+    }
+  }
+
+  $effect(() => {
+    loadAudit(page, search);
+  });
 
   // --- Relative-time helper (seconds/minutes/hours/days ago) ----------
   function relative(iso: string): string {
@@ -48,7 +92,7 @@
     <span class="eyebrow">Accountability</span>
     <h1>Audit <em>log</em></h1>
     <p>
-      Every operator action, attributed. Newest first.{#if data.degraded}
+      Every operator action, attributed. Newest first.{#if degraded}
         <em> Live audit data unavailable.</em>{/if}
     </p>
   </div>
@@ -76,7 +120,9 @@
         <span>When</span><span>Actor</span><span>Action</span><span class="col-target">Target</span><span class="col-detail">Detail</span><span>Result</span>
       </div>
       <div class="trows">
-        {#if entries.length === 0}
+        {#if loading}
+          <div class="trow"><span class="resp" style="grid-column:1/-1;opacity:.6">Loading audit entries...</span></div>
+        {:else if entries.length === 0}
           <div class="trow"><span class="resp" style="grid-column:1/-1;opacity:.6">No matching entries.</span></div>
         {/if}
         {#each entries as e (e.id)}

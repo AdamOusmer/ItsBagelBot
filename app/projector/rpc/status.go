@@ -2,7 +2,6 @@ package rpc
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"time"
@@ -11,6 +10,7 @@ import (
 	"go.uber.org/zap"
 
 	"ItsBagelBot/app/projector/store"
+	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/cache"
 )
 
@@ -49,35 +49,26 @@ func SubscribeStatus(nc *nats.Conn, valkey *store.Valkey, subject, usersTopic, q
 		log:        log,
 	}
 
-	if _, err := nc.QueueSubscribe(subject, queueGroup, s.handleGet); err != nil {
-		return fmt.Errorf("subscribe %s: %w", subject, err)
-	}
-	return nil
+	return bus.QueueSubscribeJSON[statusRequest, statusReply](nc, subject, queueGroup, 1500*time.Millisecond, log, s.handleGet)
 }
 
-func (s *statusRPC) handleGet(msg *nats.Msg) {
-	var req statusRequest
-	if err := json.Unmarshal(msg.Data, &req); err != nil || req.BroadcasterID == "" {
-		respondStatus(msg, statusReply{Error: "bad request"})
-		return
+func (s *statusRPC) handleGet(ctx context.Context, req statusRequest) statusReply {
+	if req.BroadcasterID == "" {
+		return statusReply{Error: "bad request"}
 	}
 
 	id, err := strconv.ParseUint(req.BroadcasterID, 10, 64)
 	if err != nil {
-		respondStatus(msg, statusReply{BroadcasterID: req.BroadcasterID, Tier: "standard"})
-		return
+		return statusReply{BroadcasterID: req.BroadcasterID, Tier: "standard"}
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)
-	defer cancel()
 
 	entry := s.tierOf(ctx, id)
 
-	respondStatus(msg, statusReply{
+	return statusReply{
 		BroadcasterID: req.BroadcasterID,
 		Tier:          entry.Tier,
 		Banned:        entry.Banned,
-	})
+	}
 }
 
 func tierFromStatus(status string) string {
@@ -100,18 +91,12 @@ func (s *statusRPC) tierOf(ctx context.Context, id uint64) statusEntry {
 		}
 
 		// 3. NATS RPC Lazy Load Fallback
-		reqPayload, _ := json.Marshal(map[string]string{"user_id": fmt.Sprint(id)})
-		msg, err := s.nc.RequestWithContext(ctx, s.usersTopic, reqPayload)
-		if err != nil {
-			return statusEntry{Tier: "standard"}, nil
-		}
-
-		var reply struct {
+		reply, err := bus.RequestJSON[struct {
 			Status   string `json:"status"`
 			IsActive bool   `json:"is_active"`
 			Banned   bool   `json:"banned"`
-		}
-		if err := json.Unmarshal(msg.Data, &reply); err != nil {
+		}](ctx, s.nc, s.usersTopic, map[string]string{"user_id": fmt.Sprint(id)})
+		if err != nil {
 			return statusEntry{Tier: "standard"}, nil
 		}
 
@@ -128,9 +113,4 @@ func (s *statusRPC) tierOf(ctx context.Context, id uint64) statusEntry {
 		return statusEntry{Tier: "standard"}
 	}
 	return entry
-}
-
-func respondStatus(msg *nats.Msg, reply statusReply) {
-	body, _ := json.Marshal(reply)
-	_ = msg.Respond(body)
 }

@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"time"
 
+	"ItsBagelBot/internal/utils"
+
 	"github.com/valkey-io/valkey-go"
 )
 
@@ -65,8 +67,8 @@ func (r *Registry) Save(ctx context.Context, ch Channel) error {
 
 	for _, res := range r.client.DoMulti(ctx,
 		r.client.B().Hset().Key(key).FieldValue().
-			FieldValue("enabled", boolField(ch.Enabled)).
-			FieldValue("is_mod", boolField(ch.IsMod)).
+			FieldValue("enabled", utils.BoolField(ch.Enabled)).
+			FieldValue("is_mod", utils.BoolField(ch.IsMod)).
 			FieldValue("mod_checked_at", strconv.FormatInt(ch.ModCheckedAt.Unix(), 10)).
 			FieldValue("updated_at", strconv.FormatInt(time.Now().Unix(), 10)).
 			Build(),
@@ -90,7 +92,7 @@ func (r *Registry) SetMod(ctx context.Context, broadcasterID string, isMod bool)
 	for _, res := range r.client.DoMulti(ctx,
 		r.client.B().Hsetnx().Key(key).Field("enabled").Value("1").Build(),
 		r.client.B().Hset().Key(key).FieldValue().
-			FieldValue("is_mod", boolField(isMod)).
+			FieldValue("is_mod", utils.BoolField(isMod)).
 			FieldValue("mod_checked_at", now).
 			FieldValue("updated_at", now).
 			Build(),
@@ -150,13 +152,6 @@ func (r *Registry) Paused(ctx context.Context) (bool, error) {
 	}
 
 	return res == "1", nil
-}
-
-func boolField(v bool) string {
-	if v {
-		return "1"
-	}
-	return "0"
 }
 
 func unixField(v string) time.Time {

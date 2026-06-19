@@ -1,7 +1,7 @@
 import type { Actions, PageServerLoad } from './$types';
 import type { CommandView, Perm } from '@bagel/shared';
 import { PERMS } from '@bagel/shared';
-import { listCommands, upsertCommand, deleteCommand, auditImpersonation } from '$lib/server/rpc';
+import { listCommands, upsertCommand, deleteCommand, auditDashboardImpersonation } from '$lib/server/rpc';
 import type { Session } from '$lib/server/session';
 import { env } from '$env/dynamic/private';
 import { fail, redirect } from '@sveltejs/kit';
@@ -60,19 +60,6 @@ function parseCommand(f: FormData) {
   return { name, response, perm, cooldown, allowedUserId, streamOnlineOnly };
 }
 
-// When the session is an admin impersonation, record the write back to the
-// acting admin (best-effort). No-op for a normal login.
-function auditIfImpersonating(session: Session | null, action: string, detail: string): void {
-  if (!session?.impersonator_id) return;
-  auditImpersonation(
-    session.impersonator_id,
-    session.impersonator_login ?? '',
-    `dashboard:${action}`,
-    `${session.user_id}:${detail}`,
-    ''
-  );
-}
-
 export const actions: Actions = {
   save: async ({ request, locals }) => {
     gateCommands(locals.session);
@@ -100,7 +87,7 @@ export const actions: Actions = {
     );
     if (error) return fail(400, { ok: false, error, commands });
 
-    auditIfImpersonating(locals.session, isEdit ? 'command:update' : 'command:create', cmd.name);
+    auditDashboardImpersonation(locals.session, isEdit ? 'command:update' : 'command:create', cmd.name);
 
     return {
       ok: true,
@@ -124,7 +111,7 @@ export const actions: Actions = {
     const { commands, error } = await upsertCommand(uid, { ...cmd, isActive });
     if (error) return fail(400, { ok: false, error, commands });
 
-    auditIfImpersonating(locals.session, 'command:toggle', `${cmd.name}=${isActive}`);
+    auditDashboardImpersonation(locals.session, 'command:toggle', `${cmd.name}=${isActive}`);
 
     return { ok: true, action: 'updated', name: cmd.name, commands, silent: true };
   },
@@ -139,7 +126,7 @@ export const actions: Actions = {
     const { commands, error } = await deleteCommand(uid, name);
     if (error) return fail(400, { ok: false, error, commands });
 
-    auditIfImpersonating(locals.session, 'command:delete', name);
+    auditDashboardImpersonation(locals.session, 'command:delete', name);
 
     return { ok: true, action: 'deleted', name, commands };
   }

@@ -162,3 +162,23 @@ func (r *Users) RevokeDelegation(ctx context.Context, token string, ownerID uint
 	}
 	return nil
 }
+
+// OptOutDelegation removes a consumed grant from the delegate side. It is
+// scoped to both the owner and delegate, so a delegate can only drop dashboard
+// access they currently hold.
+func (r *Users) OptOutDelegation(ctx context.Context, ownerID uint64, delegateID uint64) error {
+	n, err := r.client.Delegation.Delete().
+		Where(
+			delegation.OwnerIDEQ(ownerID),
+			delegation.DelegateIDEQ(delegateID),
+			delegation.ConsumedAtNotNil(),
+		).
+		Exec(ctx)
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return errors.New("not found")
+	}
+	return nil
+}

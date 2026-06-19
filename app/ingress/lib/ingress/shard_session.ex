@@ -31,7 +31,7 @@ defmodule Ingress.ShardSession do
   use GenServer, restart: :transient
   require Logger
 
-  alias Ingress.{Config, Metrics, Nats, Pipeline, WS}
+  alias Ingress.{Config, Metrics, Nats, WS}
   alias Ingress.Twitch.Api
 
   # How long a fresh socket may take to deliver session_welcome.
@@ -426,7 +426,7 @@ defmodule Ingress.ShardSession do
   end
 
   defp handle_twitch(_which, "notification", payload, meta, state) do
-    Pipeline.handle_event(payload, %{
+    Ingress.Dispatcher.dispatch(payload, %{
       shard_id: state.shard_id,
       msg_id: meta["message_id"],
       ts: meta["message_timestamp"]

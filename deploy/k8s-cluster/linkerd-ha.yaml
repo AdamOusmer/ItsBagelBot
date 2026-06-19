@@ -1,0 +1,100 @@
+# Linkerd control-plane HA without taking ownership of the upstream Deployment
+# specs. HPAs pin each control-plane Deployment at three replicas; PDBs keep at
+# least two available during voluntary disruptions.
+#
+# This avoids copying Linkerd's generated manifests into this repo while still
+# making the installed control plane resilient to a node loss or rolling restart.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: linkerd-destination-ha
+  namespace: linkerd
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: linkerd-destination
+  minReplicas: 3
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 80
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: linkerd-identity-ha
+  namespace: linkerd
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: linkerd-identity
+  minReplicas: 3
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 80
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: linkerd-proxy-injector-ha
+  namespace: linkerd
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: linkerd-proxy-injector
+  minReplicas: 3
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 80
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: linkerd-destination-ha
+  namespace: linkerd
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      linkerd.io/control-plane-component: destination
+      linkerd.io/control-plane-ns: linkerd
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: linkerd-identity-ha
+  namespace: linkerd
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      linkerd.io/control-plane-component: identity
+      linkerd.io/control-plane-ns: linkerd
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: linkerd-proxy-injector-ha
+  namespace: linkerd
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      linkerd.io/control-plane-component: proxy-injector

@@ -1,17 +1,20 @@
 package rpc
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
 	"math"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
+
+	"ItsBagelBot/pkg/bus"
 )
 
 // Lane telemetry RPC. A "lane" is one JetStream durable (or ephemeral)
@@ -78,7 +81,7 @@ func SubscribeLanes(ctx context.Context, nc *nats.Conn, prefix, queueGroup strin
 	handlers := map[string]nats.MsgHandler{
 		"lanes.get": func(msg *nats.Msg) {
 			lanes, errMsg := s.snapshot()
-			respondJSON(msg, lanesReply{Lanes: lanes, Error: errMsg})
+			bus.Respond(msg, lanesReply{Lanes: lanes, Error: errMsg})
 		},
 		"lanes.alias":   s.handleAlias,
 		"lanes.durable": s.handleDurable,
@@ -92,11 +95,6 @@ func SubscribeLanes(ctx context.Context, nc *nats.Conn, prefix, queueGroup strin
 		}
 	}
 	return nil
-}
-
-func respondJSON(msg *nats.Msg, v any) {
-	body, _ := json.Marshal(v)
-	_ = msg.Respond(body)
 }
 
 // laneSample is one prior observation of a consumer's delivery counter.
@@ -253,20 +251,18 @@ func (s *laneSampler) collect(now time.Time) ([]laneWire, string) {
 		}
 	}
 
-	sortRows := func(i, j int) bool {
-		a, b := rows[i], rows[j]
-		if ra, rb := categoryRank(a.category), categoryRank(b.category); ra != rb {
-			return ra < rb
+	slices.SortStableFunc(rows, func(a, b raw) int {
+		if c := cmp.Compare(categoryRank(a.category), categoryRank(b.category)); c != 0 {
+			return c
 		}
-		if a.stream != b.stream {
-			return a.stream < b.stream
+		if c := cmp.Compare(a.stream, b.stream); c != 0 {
+			return c
 		}
-		if a.filter != b.filter {
-			return a.filter < b.filter
+		if c := cmp.Compare(a.filter, b.filter); c != 0 {
+			return c
 		}
-		return a.consumer < b.consumer
-	}
-	sort.SliceStable(rows, sortRows)
+		return cmp.Compare(a.consumer, b.consumer)
+	})
 
 	lanes := make([]laneWire, 0, len(rows))
 	for _, r := range rows {
@@ -291,11 +287,11 @@ func (s *laneSampler) collect(now time.Time) ([]laneWire, string) {
 func (s *laneSampler) handleAlias(msg *nats.Msg) {
 	var req laneMutationRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
-		respondJSON(msg, laneMutationReply{Error: "bad request"})
+		bus.Respond(msg, laneMutationReply{Error: "bad request"})
 		return
 	}
 	if req.Stream == "" || req.Consumer == "" {
-		respondJSON(msg, laneMutationReply{Error: "rename failed: missing lane"})
+		bus.Respond(msg, laneMutationReply{Error: "rename failed: missing lane"})
 		return
 	}
 	alias := strings.TrimSpace(req.Alias)
@@ -304,15 +300,15 @@ func (s *laneSampler) handleAlias(msg *nats.Msg) {
 	}
 	if err := s.store.setAlias(req.Stream, req.Consumer, alias); err != nil {
 		s.log.Warn("lane alias failed", zap.String("consumer", req.Consumer), zap.Error(err))
-		respondJSON(msg, laneMutationReply{Error: "rename failed: " + err.Error()})
+		bus.Respond(msg, laneMutationReply{Error: "rename failed: " + err.Error()})
 		return
 	}
 	s.sample() // reflect the new label on the next read immediately
 	if alias == "" {
-		respondJSON(msg, laneMutationReply{OK: true, Notice: "alias cleared"})
+		bus.Respond(msg, laneMutationReply{OK: true, Notice: "alias cleared"})
 		return
 	}
-	respondJSON(msg, laneMutationReply{OK: true, Notice: "renamed to " + alias})
+	bus.Respond(msg, laneMutationReply{OK: true, Notice: "renamed to " + alias})
 }
 
 // handleDurable converts an ephemeral lane into a permanent durable consumer
@@ -322,16 +318,16 @@ func (s *laneSampler) handleAlias(msg *nats.Msg) {
 func (s *laneSampler) handleDurable(msg *nats.Msg) {
 	var req laneMutationRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
-		respondJSON(msg, laneMutationReply{Error: "bad request"})
+		bus.Respond(msg, laneMutationReply{Error: "bad request"})
 		return
 	}
 	info, err := s.js.ConsumerInfo(req.Stream, req.Consumer)
 	if err != nil {
-		respondJSON(msg, laneMutationReply{Error: "make-permanent failed: " + err.Error()})
+		bus.Respond(msg, laneMutationReply{Error: "make-permanent failed: " + err.Error()})
 		return
 	}
 	if info.Config.Durable != "" {
-		respondJSON(msg, laneMutationReply{Error: "lane is already durable"})
+		bus.Respond(msg, laneMutationReply{Error: "lane is already durable"})
 		return
 	}
 	name := "adminperm_" + subjectToken(info.Config.FilterSubject)
@@ -343,13 +339,13 @@ func (s *laneSampler) handleDurable(msg *nats.Msg) {
 		DeliverPolicy: nats.DeliverNewPolicy,
 	}); err != nil {
 		s.log.Warn("lane make-durable failed", zap.String("consumer", req.Consumer), zap.Error(err))
-		respondJSON(msg, laneMutationReply{Error: "make-permanent failed: " + err.Error()})
+		bus.Respond(msg, laneMutationReply{Error: "make-permanent failed: " + err.Error()})
 		return
 	}
 	s.log.Info("lane made permanent", zap.String("stream", req.Stream),
 		zap.String("source", req.Consumer), zap.String("durable", name))
 	s.sample()
-	respondJSON(msg, laneMutationReply{OK: true,
+	bus.Respond(msg, laneMutationReply{OK: true,
 		Notice: "created permanent lane " + name + " (nothing drains it; it retains until stream retention)"})
 }
 
@@ -360,27 +356,27 @@ func (s *laneSampler) handleDurable(msg *nats.Msg) {
 func (s *laneSampler) handleDelete(msg *nats.Msg) {
 	var req laneMutationRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
-		respondJSON(msg, laneMutationReply{Error: "bad request"})
+		bus.Respond(msg, laneMutationReply{Error: "bad request"})
 		return
 	}
 	info, err := s.js.ConsumerInfo(req.Stream, req.Consumer)
 	if err != nil {
-		respondJSON(msg, laneMutationReply{Error: "delete failed: " + err.Error()})
+		bus.Respond(msg, laneMutationReply{Error: "delete failed: " + err.Error()})
 		return
 	}
 	if info.PushBound {
-		respondJSON(msg, laneMutationReply{Error: "refused: lane is bound to a running consumer, not an orphan"})
+		bus.Respond(msg, laneMutationReply{Error: "refused: lane is bound to a running consumer, not an orphan"})
 		return
 	}
 	if err := s.js.DeleteConsumer(req.Stream, req.Consumer); err != nil {
 		s.log.Warn("lane delete failed", zap.String("consumer", req.Consumer), zap.Error(err))
-		respondJSON(msg, laneMutationReply{Error: "delete failed: " + err.Error()})
+		bus.Respond(msg, laneMutationReply{Error: "delete failed: " + err.Error()})
 		return
 	}
 	_ = s.store.setAlias(req.Stream, req.Consumer, "") // drop any stale alias
 	s.log.Info("lane deleted", zap.String("stream", req.Stream), zap.String("consumer", req.Consumer))
 	s.sample()
-	respondJSON(msg, laneMutationReply{OK: true, Notice: "deleted orphan lane " + req.Consumer})
+	bus.Respond(msg, laneMutationReply{OK: true, Notice: "deleted orphan lane " + req.Consumer})
 }
 
 // displayName is the human label: the operator alias wins, then "ephemeral" for

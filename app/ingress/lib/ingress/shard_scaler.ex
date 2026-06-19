@@ -129,7 +129,7 @@ defmodule Ingress.ShardScaler do
     target = seed_target()
     Logger.info("shard_scaler started: target=#{target} on #{node()}")
     schedule_autoscale()
-    {:ok, %{target: target, autoscale: false, low_ticks: 0}}
+    {:ok, %{target: target, autoscale: true, low_ticks: 0}}
   end
 
   @impl true

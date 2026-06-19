@@ -1,0 +1,206 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nri-bundle-newrelic-logging-fluent-bit-config
+  namespace: newrelic
+  labels:
+    app: newrelic-logging
+    app.kubernetes.io/name: newrelic-logging
+    chart: newrelic-logging-1.33.1
+    release: nri-bundle
+data:
+  fluent-bit.conf: |
+    [SERVICE]
+        Flush         1
+        Log_Level     ${LOG_LEVEL}
+        Daemon        off
+        Parsers_File  parsers.conf
+        HTTP_Server   On
+        HTTP_Listen   0.0.0.0
+        HTTP_Port     2020
+
+    [INPUT]
+        Name              tail
+        Alias             pod-logs-tailer
+        Tag               kube.*
+        Path              ${PATH}
+        Exclude_Path      /var/log/containers/coredns*_kube-system_*.log,/var/log/containers/host-research*_kube-system_*.log,/var/log/containers/hey_kube-system_*.log,/var/log/containers/my-shell_kube-system_*.log,/var/log/containers/helm-install-*_kube-system_*.log,/var/log/containers/nri-bundle-newrelic-logging*_newrelic_*.log
+        multiline.parser  ${LOG_PARSER}
+        DB                ${FB_DB}
+        Mem_Buf_Limit     7MB
+        Skip_Long_Lines   On
+        Refresh_Interval  10
+
+    [FILTER]
+        Name           kubernetes
+        Match          kube.*
+        Alias          kubernetes-enricher
+        # We need the full DNS suffix as Windows only supports resolving names with this suffix.
+        # See: https://kubernetes.io/docs/setup/production-environment/windows/intro-windows-in-kubernetes/#dns-limitations
+        Kube_URL       https://kubernetes.default.svc.cluster.local:443
+        Buffer_Size    ${K8S_BUFFER_SIZE}
+        K8S-Logging.Exclude ${K8S_LOGGING_EXCLUDE}
+        Labels         Off
+        Annotations    Off
+
+    [FILTER]
+        Name           nest
+        Match          *
+        Alias          kubernetes-attribute-lifter
+        Operation      lift
+        Nested_under   kubernetes
+
+    [FILTER]
+        Name           record_modifier
+        Match          *
+        Alias          node-attributes-enricher-filter
+        Record         cluster_name "${CLUSTER_NAME}"
+        Allowlist_key  container_name
+        Allowlist_key  namespace_name
+        Allowlist_key  pod_name
+        Allowlist_key  stream
+        Allowlist_key  message
+        Allowlist_key  log
+
+    [FILTER]
+        Name    lua
+        Match   kube.*
+        Script  /fluent-bit/scripts/level_extract.lua
+        call    extract_level
+
+    [OUTPUT]
+        Name           newrelic
+        Match          *
+        Alias          newrelic-logs-forwarder
+        licenseKey     ${LICENSE_KEY}
+        endpoint       ${ENDPOINT}
+        lowDataMode    ${LOW_DATA_MODE}
+        sendMetrics    ${SEND_OUTPUT_PLUGIN_METRICS}
+        Retry_Limit    ${RETRY_LIMIT}
+
+    [INPUT]
+        Name   dummy
+        Tag    buildInfo
+        Dummy  {"message":"trigger for basic metric at every 10 minutes scrape_interval"}
+        Interval_Sec 600
+    [FILTER]
+        Name    modify
+        Match   buildInfo
+        Add     fluentBitVersion  ${FBVERSION}
+    [FILTER]
+        Name    lua
+        Match   buildInfo
+        script  /fluent-bit/scripts/payload.lua
+        call    build_payload
+    [OUTPUT]
+        Name    http
+        Match   buildInfo
+        Host    ${METRICS_HOST}
+        Port    443
+        URI     /metric/v1
+        Format  json
+        tls     On
+        Header  Api-Key ${LICENSE_KEY}
+        Header  Content-Type application/json
+        json_date_key false
+  parsers.conf: |
+    [PARSER]
+        Name    tyk-logfmt
+        Format  logfmt
+
+    [PARSER]
+        Name    valkey-log
+        Format  regex
+        Regex   ^[0-9]+:[A-Z] [0-9]+ \w+ [0-9]+ [0-9:]+\.[0-9]+ (?<log_level>[*#\-\.]) (?<message>.+)$
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nri-bundle-newrelic-logging-lua
+  namespace: newrelic
+data:
+  level_extract.lua: |-
+    -- Normalise log severity into a level field that New Relic maps to
+    -- its severity column (fatal/error/warning/info/debug), and drop
+    -- high-volume cluster sources before they reach New Relic.
+    function extract_level(tag, timestamp, record)
+        local namespace = record["namespace_name"] or ""
+        local pod = record["pod_name"] or ""
+        local container = record["container_name"] or ""
+
+        if namespace == "kube-system" then
+            if container == "coredns" or pod:match("^coredns%-") then
+                return -1, timestamp, record
+            end
+            if pod == "hey" or pod == "my-shell" or pod:match("^host%-research%-") or pod:match("^helm%-install%-") then
+                return -1, timestamp, record
+            end
+        end
+
+        if namespace == "newrelic" and pod:match("^nri%-bundle%-newrelic%-logging%-") then
+            return -1, timestamp, record
+        end
+
+        local msg = record["message"] or record["log"] or ""
+        local level = "info"
+
+        -- Go / logfmt:  level=info  level=warn  level=error  level=fatal
+        local lf = msg:match("level=(%a+)")
+        if lf then
+            level = lf:lower()
+        else
+            -- Valkey: PID:ROLE DD Mon YYYY HH:MM:SS.mmm * message
+            local vk = msg:match("%d+:[A-Z] %d+ %a+ %d+ [%d:%.]+%.[%d]+ ([%*%#%-%.]) ")
+            if vk then
+                local m = {["*"]  = "info", ["#"] = "warning", ["-"] = "debug", ["."] = "debug"}
+                level = m[vk] or "info"
+            else
+                local u = msg:upper()
+                if u:find("%[FATAL%]") or u:find("FATAL:") then
+                    level = "fatal"
+                elseif u:find("%[CRIT%]") or u:find("CRITICAL:") then
+                    level = "critical"
+                elseif u:find("%[ERROR%]") or u:find("ERROR:") or u:find("WRONGPASS") then
+                    level = "error"
+                elseif u:find("%[WARN%]") or u:find("WARN:") or u:find("WARNING") then
+                    level = "warning"
+                elseif u:find("%[DEBUG%]") or u:find("DEBUG:") then
+                    level = "debug"
+                else
+                    level = "info"
+                end
+            end
+        end
+
+        if level == "warn" then level = "warning" end
+
+        local dominated = {info = true, debug = true, trace = true, notice = true}
+        if dominated[level] then
+            return -1, timestamp, record
+        end
+
+        record["level"] = level
+        return 1, timestamp, record
+    end
+  payload.lua: |-
+    function build_payload(tag, timestamp, record)
+        local payload = {{
+            metrics = {{
+                name = "fluentbit_build_info",
+                type = "count",
+                value = 0,
+                timestamp = os.time(),
+                attributes = {
+                    app = "fluent-bit",
+                    source = "kubernetes",
+                    version = record["fluentBitVersion"],
+                    namespace = os.getenv("NAMESPACE"),
+                    cluster_name = os.getenv("CLUSTER_NAME"),
+                    daemonset_name = os.getenv("DAEMONSET_NAME"),
+                    tier= os.getenv("FLUENTBIT_METRICS_TIER")            },
+                ["interval.ms"] = 10000
+            }}
+        }}
+        return 2, timestamp, payload
+    end

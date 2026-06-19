@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	"ItsBagelBot/internal/utils"
 	"ItsBagelBot/pkg/cache"
 
 	"github.com/newrelic/go-agent/v3/newrelic"
@@ -59,8 +60,8 @@ func (v *Valkey) SetUser(ctx context.Context, userID uint64, status string, isAc
 		Key(key).
 		FieldValue().
 		FieldValue("status", status).
-		FieldValue("active", boolField(isActive)).
-		FieldValue("banned", boolField(banned)).
+		FieldValue("active", utils.BoolField(isActive)).
+		FieldValue("banned", utils.BoolField(banned)).
 		Build(),
 	).Error()
 	if err != nil {
@@ -102,7 +103,7 @@ func (v *Valkey) SetStreamLive(ctx context.Context, userID uint64, live bool) er
 	if err := v.client.Do(ctx, v.client.B().Hset().
 		Key(key).
 		FieldValue().
-		FieldValue("live", boolField(live)).
+		FieldValue("live", utils.BoolField(live)).
 		Build(),
 	).Error(); err != nil {
 		return err
@@ -121,7 +122,7 @@ func (v *Valkey) SetModule(ctx context.Context, userID uint64, name string, isEn
 	fields := v.client.B().Hset().
 		Key(key).
 		FieldValue().
-		FieldValue("module:"+name+":enabled", boolField(isEnabled))
+		FieldValue("module:"+name+":enabled", utils.BoolField(isEnabled))
 
 	if len(configs) > 0 {
 		fields = fields.FieldValue("module:"+name+":config", string(configs))
@@ -147,13 +148,6 @@ func (v *Valkey) DeleteUser(ctx context.Context, userID uint64) error {
 // Close releases the connection pool.
 func (v *Valkey) Close() {
 	v.client.Close()
-}
-
-func boolField(b bool) string {
-	if b {
-		return "1"
-	}
-	return "0"
 }
 
 // segment reports the operation as a datastore segment of the transaction in

@@ -51,6 +51,7 @@ func main() {
 	}
 
 	natsURL := env.Get("NATS_URL", "nats://127.0.0.1:4222")
+	rpcURL := bus.RPCURL(natsURL)
 
 	if err := bus.EnsureStreams(ctx, natsURL, bus.DataStreams, log); err != nil {
 		log.Fatal("failed to provision jetstream streams", zap.Error(err))
@@ -65,7 +66,7 @@ func main() {
 	repo := repository.NewModules(client, pub, nil, log)
 	defer repo.Close(context.Background()) // flushes pending writes on shutdown
 
-	nc, err := bus.Connect(natsURL, serviceName)
+	nc, err := bus.Connect(rpcURL, serviceName)
 	if err != nil {
 		log.Fatal("failed to connect to nats", zap.Error(err))
 	}

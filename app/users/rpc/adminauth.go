@@ -2,7 +2,6 @@ package rpc
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -15,6 +14,7 @@ import (
 	"ItsBagelBot/app/users/ent/adminaudit"
 	"ItsBagelBot/app/users/ent/adminuser"
 	"ItsBagelBot/app/users/ent/predicate"
+	"ItsBagelBot/pkg/bus"
 )
 
 // adminauth serves the admin console's authorization + audit surface. It is the
@@ -96,7 +96,7 @@ type adminAuthRPC struct {
 }
 
 const (
-	auditPageSize     = 25
+	auditPageSize     = 15
 	auditMaxPages     = 25
 	auditMaxSearchLen = 200
 )
@@ -117,26 +117,11 @@ func SubscribeAdminAuth(nc *nats.Conn, db *ent.Client, authPrefix, auditPrefix, 
 		auditPrefix + ".list":   a.auditList,
 	}
 	for subject, handle := range routes {
-		handle := handle
-		if _, err := nc.QueueSubscribe(subject, queueGroup, func(msg *nats.Msg) {
-			var req authRequest
-			if err := json.Unmarshal(msg.Data, &req); err != nil {
-				respondAuth(msg, authReply{Error: "bad request"})
-				return
-			}
-			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-			defer cancel()
-			respondAuth(msg, handle(ctx, req))
-		}); err != nil {
-			return fmt.Errorf("subscribe %s: %w", subject, err)
+		if err := bus.QueueSubscribeJSON[authRequest, authReply](nc, subject, queueGroup, 3*time.Second, log, handle); err != nil {
+			return err
 		}
 	}
 	return nil
-}
-
-func respondAuth(msg *nats.Msg, reply authReply) {
-	body, _ := json.Marshal(reply)
-	_ = msg.Respond(body)
 }
 
 // rank orders the role ladder for comparisons. Unknown roles rank lowest.

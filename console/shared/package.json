@@ -6,6 +6,7 @@
   "svelte": "./lib/index.ts",
   "exports": {
     ".": { "svelte": "./lib/index.ts", "default": "./lib/index.ts" },
+    "./server/config-sanity": "./lib/server/config-sanity.ts",
     "./server/nats": "./lib/server/nats.ts",
     "./styles/tokens.css": "./styles/tokens.css",
     "./styles/app.css": "./styles/app.css",

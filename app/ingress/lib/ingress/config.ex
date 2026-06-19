@@ -41,5 +41,11 @@ defmodule Ingress.Config do
   def broadcaster_cache_ttl_ms,
     do: Application.get_env(:ingress, :broadcaster_cache_ttl_ms, 300_000)
 
+  def dispatcher_max_running,
+    do: Application.get_env(:ingress, :dispatcher_max_running, 64)
+
+  def dispatcher_max_queue,
+    do: Application.get_env(:ingress, :dispatcher_max_queue, 2_000)
+
   def nats, do: Application.fetch_env!(:ingress, :nats)
 end

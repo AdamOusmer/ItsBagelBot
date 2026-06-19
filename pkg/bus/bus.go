@@ -115,7 +115,7 @@ func PublishJSON(ctx context.Context, pub message.Publisher, subject string, pay
 		return err
 	}
 
-	msg := message.NewMessage(id, body)
+	msg := message.NewMessage(id.String(), body)
 
 	if txn := newrelic.FromContext(ctx); txn != nil {
 

@@ -6,12 +6,11 @@ package rpc
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"time"
 
 	"ItsBagelBot/app/outgress/internal/channels"
 	"ItsBagelBot/app/outgress/internal/twitch"
+	"ItsBagelBot/pkg/bus"
 
 	"github.com/nats-io/nats.go"
 
@@ -37,18 +36,20 @@ func SubscribeManage(nc *nats.Conn, registry *channels.Registry, tw *twitch.Clie
 
 	m := &Manage{registry: registry, twitch: tw, log: log}
 
-	handlers := map[string]nats.MsgHandler{
-		prefix + ".channel.get":   m.handleChannelGet,
-		prefix + ".channel.set":   m.handleChannelSet,
-		prefix + ".channel.list":  m.handleChannelList,
-		prefix + ".system.status": m.handleSystemStatus,
-		prefix + ".system.pause":  m.handleSystemPause,
+	if err := bus.QueueSubscribeJSON[channelRequest, channelReply](nc, prefix+".channel.get", queueGroup, handleTimeout, log, m.handleChannelGet); err != nil {
+		return err
 	}
-
-	for subject, handler := range handlers {
-		if _, err := nc.QueueSubscribe(subject, queueGroup, handler); err != nil {
-			return fmt.Errorf("subscribe %s: %w", subject, err)
-		}
+	if err := bus.QueueSubscribeJSON[channelRequest, channelReply](nc, prefix+".channel.set", queueGroup, handleTimeout, log, m.handleChannelSet); err != nil {
+		return err
+	}
+	if err := bus.QueueSubscribeJSON[struct{}, channelListReply](nc, prefix+".channel.list", queueGroup, handleTimeout, log, m.handleChannelList); err != nil {
+		return err
+	}
+	if err := bus.QueueSubscribeJSON[struct{}, systemStatusReply](nc, prefix+".system.status", queueGroup, handleTimeout, log, m.handleSystemStatus); err != nil {
+		return err
+	}
+	if err := bus.QueueSubscribeJSON[systemPauseRequest, systemPauseReply](nc, prefix+".system.pause", queueGroup, handleTimeout, log, m.handleSystemPause); err != nil {
+		return err
 	}
 
 	return nil
@@ -66,47 +67,33 @@ type channelReply struct {
 	Error   string            `json:"error,omitempty"`
 }
 
-func (m *Manage) handleChannelGet(msg *nats.Msg) {
-
-	var req channelRequest
-	if err := json.Unmarshal(msg.Data, &req); err != nil || req.BroadcasterID == "" {
-		respond(msg, channelReply{Error: "bad request"})
-		return
+func (m *Manage) handleChannelGet(ctx context.Context, req channelRequest) channelReply {
+	if req.BroadcasterID == "" {
+		return channelReply{Error: "bad request"}
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), handleTimeout)
-	defer cancel()
 
 	ch, found, err := m.registry.Get(ctx, req.BroadcasterID)
 	if err != nil {
 		m.log.Error("channel get failed", zap.Error(err))
-		respond(msg, channelReply{Error: "lookup failed"})
-		return
+		return channelReply{Error: "lookup failed"}
 	}
 
 	reply := channelReply{Found: found}
 	if found {
 		reply.Channel = &ch
 	}
-	respond(msg, reply)
+	return reply
 }
 
-func (m *Manage) handleChannelSet(msg *nats.Msg) {
-
-	var req channelRequest
-	if err := json.Unmarshal(msg.Data, &req); err != nil || req.BroadcasterID == "" {
-		respond(msg, channelReply{Error: "bad request"})
-		return
+func (m *Manage) handleChannelSet(ctx context.Context, req channelRequest) channelReply {
+	if req.BroadcasterID == "" {
+		return channelReply{Error: "bad request"}
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), handleTimeout)
-	defer cancel()
 
 	ch, found, err := m.registry.Get(ctx, req.BroadcasterID)
 	if err != nil {
 		m.log.Error("channel set lookup failed", zap.Error(err))
-		respond(msg, channelReply{Error: "lookup failed"})
-		return
+		return channelReply{Error: "lookup failed"}
 	}
 
 	if !found {
@@ -124,11 +111,10 @@ func (m *Manage) handleChannelSet(msg *nats.Msg) {
 
 	if err := m.registry.Save(ctx, ch); err != nil {
 		m.log.Error("channel set failed", zap.Error(err))
-		respond(msg, channelReply{Error: "save failed"})
-		return
+		return channelReply{Error: "save failed"}
 	}
 
-	respond(msg, channelReply{Channel: &ch, Found: true})
+	return channelReply{Channel: &ch, Found: true}
 }
 
 type channelListReply struct {
@@ -136,19 +122,14 @@ type channelListReply struct {
 	Error    string             `json:"error,omitempty"`
 }
 
-func (m *Manage) handleChannelList(msg *nats.Msg) {
-
-	ctx, cancel := context.WithTimeout(context.Background(), handleTimeout)
-	defer cancel()
-
+func (m *Manage) handleChannelList(ctx context.Context, _ struct{}) channelListReply {
 	list, err := m.registry.List(ctx)
 	if err != nil {
 		m.log.Error("channel list failed", zap.Error(err))
-		respond(msg, channelListReply{Error: "list failed"})
-		return
+		return channelListReply{Error: "list failed"}
 	}
 
-	respond(msg, channelListReply{Channels: list})
+	return channelListReply{Channels: list}
 }
 
 type systemStatusReply struct {
@@ -158,23 +139,18 @@ type systemStatusReply struct {
 	Error                    string `json:"error,omitempty"`
 }
 
-func (m *Manage) handleSystemStatus(msg *nats.Msg) {
-
-	ctx, cancel := context.WithTimeout(context.Background(), handleTimeout)
-	defer cancel()
-
+func (m *Manage) handleSystemStatus(ctx context.Context, _ struct{}) systemStatusReply {
 	paused, err := m.registry.Paused(ctx)
 	if err != nil {
 		m.log.Error("system status failed", zap.Error(err))
-		respond(msg, systemStatusReply{Error: "status failed"})
-		return
+		return systemStatusReply{Error: "status failed"}
 	}
 
-	respond(msg, systemStatusReply{
+	return systemStatusReply{
 		Paused:                   paused,
 		AppTokenExpiresInSeconds: int64(m.twitch.AppTokenExpiresIn().Seconds()),
 		HasUserToken:             m.twitch.HasUserToken(),
-	})
+	}
 }
 
 type systemPauseRequest struct {
@@ -186,28 +162,12 @@ type systemPauseReply struct {
 	Error  string `json:"error,omitempty"`
 }
 
-func (m *Manage) handleSystemPause(msg *nats.Msg) {
-
-	var req systemPauseRequest
-	if err := json.Unmarshal(msg.Data, &req); err != nil {
-		respond(msg, systemPauseReply{Error: "bad request"})
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), handleTimeout)
-	defer cancel()
-
+func (m *Manage) handleSystemPause(ctx context.Context, req systemPauseRequest) systemPauseReply {
 	if err := m.registry.SetPaused(ctx, req.Paused); err != nil {
 		m.log.Error("system pause failed", zap.Error(err))
-		respond(msg, systemPauseReply{Error: "pause failed"})
-		return
+		return systemPauseReply{Error: "pause failed"}
 	}
 
 	m.log.Info("outgress pause state changed", zap.Bool("paused", req.Paused))
-	respond(msg, systemPauseReply{Paused: req.Paused})
-}
-
-func respond(msg *nats.Msg, reply any) {
-	body, _ := json.Marshal(reply)
-	_ = msg.Respond(body)
+	return systemPauseReply{Paused: req.Paused}
 }

@@ -2,6 +2,8 @@ import type { Actions, PageServerLoad } from './$types';
 import { fail } from '@sveltejs/kit';
 import {
   userOverview,
+  USER_MAX_PAGES,
+  USER_PAGE_SIZE,
   userLookup,
   userSetStatus,
   userSetActive,
@@ -20,15 +22,71 @@ import { signViewAs } from '$lib/server/impersonation';
 import { env } from '$env/dynamic/private';
 import { sampleStats, sampleUsers } from '$lib/server/sample';
 
-export const load: PageServerLoad = async () => {
+const MAX_SEARCH_LENGTH = 200;
+
+function parsePage(raw: string | null): number {
+  const page = Number(raw ?? '1');
+  if (!Number.isFinite(page)) return 1;
+  return Math.min(Math.max(Math.trunc(page), 1), USER_MAX_PAGES);
+}
+
+function normalizeSearch(raw: string | null): string {
+  return (raw ?? '').trim().slice(0, MAX_SEARCH_LENGTH);
+}
+
+function matchesSearch(user: AdminUserWire, search: string): boolean {
+  if (!search) return true;
+  const q = search.toLowerCase();
+  return user.username.toLowerCase().includes(q) || String(user.id).includes(q);
+}
+
+function demoPage(page: number, search: string) {
+  const filtered = sampleUsers.filter((user) => matchesSearch(user, search));
+  const start = (page - 1) * USER_PAGE_SIZE;
+  const users = filtered.slice(start, start + USER_PAGE_SIZE);
+  const cappedTotal = Math.min(filtered.length, USER_PAGE_SIZE * USER_MAX_PAGES);
+  return {
+    recent: users,
+    stats: sampleStats,
+    page,
+    pageSize: USER_PAGE_SIZE,
+    maxPages: USER_MAX_PAGES,
+    hasMore: start + USER_PAGE_SIZE < cappedTotal,
+    search,
+    degraded: false
+  };
+}
+
+export const load: PageServerLoad = async ({ url }) => {
+  const page = parsePage(url.searchParams.get('page'));
+  const search = normalizeSearch(url.searchParams.get('q'));
+
   if (isDemo()) {
-    return { recent: sampleUsers, stats: sampleStats, degraded: false };
+    return demoPage(page, search);
   }
   try {
-    const overview = await userOverview(20);
-    return { recent: overview.users, stats: overview.stats, degraded: false };
+    const overview = await userOverview(page, search);
+    return {
+      recent: overview.users,
+      stats: overview.stats,
+      page: overview.page,
+      pageSize: overview.page_size,
+      maxPages: overview.max_pages,
+      hasMore: overview.has_more,
+      search,
+      degraded: false
+    };
   } catch {
-    return { recent: sampleUsers, stats: sampleStats, degraded: true };
+    return {
+      recent: [],
+      stats: sampleStats,
+      page,
+      pageSize: USER_PAGE_SIZE,
+      maxPages: USER_MAX_PAGES,
+      hasMore: false,
+      search,
+      degraded: true
+    };
   }
 };
 

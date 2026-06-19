@@ -14,7 +14,8 @@ import (
 )
 
 type Config struct {
-	NATSURL string
+	NATSURL    string
+	NATSRPCURL string
 
 	// Ingress lanes the worker consumes: premium and standard. Both carry every
 	// actionable event laned by broadcaster status, including the live
@@ -60,8 +61,10 @@ type Config struct {
 }
 
 func Load() *Config {
+	natsURL := env.Get("NATS_URL", "nats://127.0.0.1:4222")
 	return &Config{
-		NATSURL: env.Get("NATS_URL", "nats://127.0.0.1:4222"),
+		NATSURL:    natsURL,
+		NATSRPCURL: env.Get("NATS_RPC_URL", natsURL),
 
 		PremiumSubject:  env.Get("NATS_INGRESS_PREMIUM_SUBJECT", "twitch.ingress.event.premium"),
 		StandardSubject: env.Get("NATS_INGRESS_STANDARD_SUBJECT", "twitch.ingress.event.standard"),

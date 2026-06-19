@@ -3,6 +3,7 @@
 import { rpc, publish } from '@bagel/shared/server/nats';
 import type { CommandView, Perm, Tier } from '@bagel/shared';
 import { env } from '$env/dynamic/private';
+import type { Session } from './session';
 
 const SUB = {
   broadcaster: env.NATS_BROADCASTER_STATUS_SUBJECT ?? 'bagel.rpc.broadcaster.status.get',
@@ -87,6 +88,14 @@ export async function delegationRevoke(ownerId: string, token: string): Promise<
   if (!r.ok) throw new Error(r.error ?? 'revoke failed');
 }
 
+export async function delegationOptOut(delegateId: string, ownerId: string): Promise<void> {
+  const r = await rpc<{ ok?: boolean; error?: string }>(`${SUB.delegation}.opt_out`, {
+    delegate_user_id: delegateId,
+    owner_user_id: ownerId
+  });
+  if (!r.ok) throw new Error(r.error ?? 'opt out failed');
+}
+
 export async function delegationAccess(
   delegateId: string
 ): Promise<{ owner_user_id: string; owner_login: string; sections: string[] }[]> {
@@ -156,6 +165,23 @@ export async function auditImpersonation(
   } catch {
     /* best-effort */
   }
+}
+
+// Helper for dashboard actions taken during an admin "view as" session. Keeps
+// target as the user dashboard and puts the exact action context in detail.
+export function auditDashboardImpersonation(
+  session: Session | null | undefined,
+  action: string,
+  detail = ''
+): void {
+  if (!session?.impersonator_id) return;
+  auditImpersonation(
+    session.impersonator_id,
+    session.impersonator_login ?? '',
+    `dashboard:${action}`,
+    session.user_id,
+    detail
+  );
 }
 
 // Dashboard reads are cached primary-key lookups, so they return in low ms when

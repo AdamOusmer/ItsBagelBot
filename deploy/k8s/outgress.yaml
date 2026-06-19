@@ -14,17 +14,18 @@ spec:
   resyncSeconds: 60
 ---
 apiVersion: apps/v1
-kind: Deployment
+kind: DaemonSet
 metadata:
   name: outgress
   namespace: production
 spec:
-  replicas: 3
-  strategy:
+  revisionHistoryLimit: 3
+  minReadySeconds: 10
+  updateStrategy:
     type: RollingUpdate
     rollingUpdate:
-      maxSurge: 0
-      maxUnavailable: 1
+      maxSurge: 1
+      maxUnavailable: 0
   selector:
     matchLabels:
       app: outgress
@@ -34,21 +35,12 @@ spec:
         app: outgress
       annotations:
         linkerd.io/inject: enabled
+        config.linkerd.io/proxy-cpu-request: 5m
+        config.linkerd.io/proxy-cpu-limit: 1000m
+        config.linkerd.io/proxy-memory-request: 16Mi
+        config.linkerd.io/proxy-memory-limit: 128Mi
     spec:
-      topologySpreadConstraints:
-        - maxSkew: 1
-          topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: DoNotSchedule
-          labelSelector:
-            matchLabels:
-              app: outgress
-      affinity:
-        podAntiAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            - labelSelector:
-                matchLabels:
-                  app: outgress
-              topologyKey: kubernetes.io/hostname
+      # DaemonSet placement keeps one outgress pod per schedulable node.
       securityContext:
         runAsNonRoot: true
         runAsUser: 65532
@@ -61,6 +53,26 @@ spec:
           env:
             - name: NATS_HOST
               value: nats
+            - name: NATS_URL
+              value: nats://nats:4222
+            - name: NATS_RPC_URL
+              value: nats://nats-leaf:4222
+            - name: GOMEMLIMIT
+              value: 512MiB
+            - name: OUTGRESS_MIN_ROUTINES
+              value: "8"
+            - name: OUTGRESS_MAX_ROUTINES
+              value: "48"
+            - name: OUTGRESS_MAX_CONSUMERS
+              value: "3"
+            - name: OUTGRESS_SCALE_UP_AFTER
+              value: 1s
+            - name: OUTGRESS_SCALE_DOWN_AFTER
+              value: 60s
+            - name: OUTGRESS_PREMIUM_RESERVE_PERCENT
+              value: "25"
+            - name: OUTGRESS_SYSTEM_WORKERS
+              value: "4"
           envFrom:
             - secretRef:
                 name: outgress-env
@@ -68,20 +80,29 @@ spec:
             - containerPort: 8080
           resources:
             requests:
-              cpu: 5m
-              memory: 64Mi
+              cpu: 100m
+              memory: 128Mi
             limits:
-              cpu: "1"
-              memory: 256Mi
+              cpu: 1000m
+              memory: 768Mi
           securityContext:
             allowPrivilegeEscalation: false
             capabilities: {drop: ["ALL"]}
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "sleep 10"]
           livenessProbe:
             httpGet: {path: /healthz, port: 8080}
             periodSeconds: 30
           readinessProbe:
-            httpGet: {path: /healthz, port: 8080}
+            httpGet: {path: /readyz, port: 8080}
             periodSeconds: 10
+          startupProbe:
+            httpGet: {path: /healthz, port: 8080}
+            failureThreshold: 18
+            periodSeconds: 5
+      terminationGracePeriodSeconds: 45
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
@@ -89,7 +110,7 @@ metadata:
   name: outgress
   namespace: production
 spec:
-  minAvailable: 1
+  maxUnavailable: 1
   selector:
     matchLabels:
       app: outgress

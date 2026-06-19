@@ -53,6 +53,8 @@
     <p class="banner ok">Link created. Copy it from the list below.</p>
   {:else if form?.ok && form.action === 'revoked'}
     <p class="banner ok">Link revoked.</p>
+  {:else if form?.ok && form.action === 'opted_out'}
+    <p class="banner ok">Dashboard removed.</p>
   {/if}
 
   <!-- ACCOUNT -->
@@ -138,7 +140,13 @@
             <tr>
               <td>{r.owner_login}</td>
               <td>{r.sections.join(', ')}</td>
-              <td><a class="btn ghost sm" href={`/delegate/enter?owner=${r.owner_user_id}`}>Open</a></td>
+              <td class="actions">
+                <a class="btn ghost sm" href={`/delegate/enter?owner=${r.owner_user_id}`}>Open</a>
+                <form method="POST" action="?/optOut" use:enhance>
+                  <input type="hidden" name="owner_user_id" value={r.owner_user_id} />
+                  <button type="submit" class="btn ghost sm danger">Leave</button>
+                </form>
+              </td>
             </tr>
           {/each}
         </tbody>
@@ -195,6 +203,12 @@
   th { color: var(--bb-muted, #998f82); font-weight: 600; }
   .linkcell code { font-size: 12px; word-break: break-all; }
   .muted { color: var(--bb-muted, #998f82); }
+  .actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+  .actions form { margin: 0; }
   .tag { padding: 2px 8px; border-radius: 999px; font-size: 12px; }
   .tag.open { background: rgba(120, 200, 120, 0.18); color: #8fd08f; }
   .tag.used { background: rgba(200, 160, 120, 0.18); color: #c9a87c; }
@@ -237,6 +251,7 @@
 
   @media (max-width: 760px) {
     .row { flex-direction: column; align-items: stretch; }
+    .actions { justify-content: flex-start; }
     .modal-actions { flex-direction: column-reverse; }
   }
 </style>

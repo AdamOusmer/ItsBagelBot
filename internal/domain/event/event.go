@@ -31,13 +31,16 @@ func NewBaseEvent(eventType string, priority bool) (BaseEvent, error) {
 		return BaseEvent{}, err
 	}
 
+	// UUIDv7 encodes a 48-bit Unix millisecond timestamp in its first 6 bytes
+	// (big-endian). Index into the raw [16]byte UUID value, not its hex-string
+	// representation — so the arithmetic operates on the actual encoded bytes.
 	ms := uint64(id[5]) | uint64(id[4])<<8 | uint64(id[3])<<16 |
 		uint64(id[2])<<24 | uint64(id[1])<<32 | uint64(id[0])<<40
 
 	return BaseEvent{
 		eventType: eventType,
 		priority:  priority,
-		id:        id,
+		id:        id.String(),
 		timeStamp: time.UnixMilli(int64(ms)).UTC(),
 	}, nil
 }

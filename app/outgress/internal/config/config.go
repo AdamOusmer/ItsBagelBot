@@ -8,6 +8,7 @@ import (
 
 type Config struct {
 	NATSURL         string
+	NATSRPCURL      string
 	PremiumSubject  string
 	StandardSubject string
 	SystemSubject   string
@@ -57,8 +58,10 @@ type Config struct {
 }
 
 func Load() *Config {
+	natsURL := env.Get("NATS_URL", "nats://127.0.0.1:4222")
 	return &Config{
-		NATSURL:               env.Get("NATS_URL", "nats://127.0.0.1:4222"),
+		NATSURL:               natsURL,
+		NATSRPCURL:            env.Get("NATS_RPC_URL", natsURL),
 		PremiumSubject:        env.Get("NATS_OUTGRESS_PREMIUM_SUBJECT", "twitch.outgress.premium"),
 		StandardSubject:       env.Get("NATS_OUTGRESS_STANDARD_SUBJECT", "twitch.outgress.standard"),
 		SystemSubject:         env.Get("NATS_OUTGRESS_SYSTEM_SUBJECT", "twitch.outgress.system"),
