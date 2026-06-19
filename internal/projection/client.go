@@ -16,7 +16,6 @@ package projection
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -49,12 +48,7 @@ func (u User) Premium() bool {
 	}
 }
 
-// Module is one enabled/disabled feature toggle of a user, with its raw config.
-type Module struct {
-	Name      string          `json:"name"`
-	IsEnabled bool            `json:"is_enabled"`
-	Configs   json.RawMessage `json:"configs,omitempty"`
-}
+
 
 // Command is one custom chat command of a user.
 type Command struct {
@@ -71,7 +65,7 @@ type Command struct {
 // the pipeline be tested against a fake without Valkey or NATS.
 type Reader interface {
 	User(ctx context.Context, userID uint64) (User, error)
-	Modules(ctx context.Context, userID uint64) (map[string]Module, error)
+	Modules(ctx context.Context, userID uint64) ([]ModuleView, error)
 	Command(ctx context.Context, userID uint64, name string) (Command, bool, error)
 }
 
@@ -85,13 +79,13 @@ type Subjects struct {
 // Client is the default Reader: in-process cache fronting a read-only Valkey
 // view, with a projector RPC fallback on a cold key.
 type Client struct {
-	store    *Valkey
+	store    *Store
 	nc       *nats.Conn
 	subjects Subjects
 	log      *zap.Logger
 
 	users    *cache.Cache[User]
-	modules  *cache.Cache[map[string]Module]
+	modules  *cache.Cache[[]ModuleView]
 	commands *cache.Cache[map[string]Command]
 
 	rpcTimeout time.Duration
@@ -100,14 +94,14 @@ type Client struct {
 // NewClient wires a Client. ttl is the in-process cache lifetime; keep it
 // short (tens of seconds) so module/command edits propagate quickly while
 // still absorbing per-message bursts.
-func NewClient(store *Valkey, nc *nats.Conn, subjects Subjects, ttl time.Duration, log *zap.Logger) *Client {
+func NewClient(store *Store, nc *nats.Conn, subjects Subjects, ttl time.Duration, log *zap.Logger) *Client {
 	return &Client{
 		store:      store,
 		nc:         nc,
 		subjects:   subjects,
 		log:        log,
 		users:      cache.New[User](cache.DefaultCapacity, ttl),
-		modules:    cache.New[map[string]Module](cache.DefaultCapacity, ttl),
+		modules:    cache.New[[]ModuleView](cache.DefaultCapacity, ttl),
 		commands:   cache.New[map[string]Command](cache.DefaultCapacity, ttl),
 		rpcTimeout: 1500 * time.Millisecond,
 	}
@@ -138,23 +132,19 @@ func (c *Client) User(ctx context.Context, userID uint64) (User, error) {
 	})
 }
 
-func (c *Client) Modules(ctx context.Context, userID uint64) (map[string]Module, error) {
-	return c.modules.GetOrLoad(ctx, key("modules", userID), func(ctx context.Context) (map[string]Module, error) {
-		if mods, err := c.store.GetModules(ctx, userID); err == nil && len(mods) > 0 {
+func (c *Client) Modules(ctx context.Context, userID uint64) ([]ModuleView, error) {
+	return c.modules.GetOrLoad(ctx, key("modules", userID), func(ctx context.Context) ([]ModuleView, error) {
+		if mods, projected, err := c.store.GetModules(ctx, userID); err == nil && projected {
 			return mods, nil
 		}
 
 		reply, err := bus.RequestJSONTimeout[struct {
-			Modules []Module `json:"modules"`
+			Modules []ModuleView `json:"modules"`
 		}](ctx, c.nc, c.subjects.Modules, projectionRequest(userID), c.rpcTimeout)
 		if err != nil {
-			return map[string]Module{}, nil
+			return []ModuleView{}, nil
 		}
-		out := make(map[string]Module, len(reply.Modules))
-		for _, m := range reply.Modules {
-			out[m.Name] = m
-		}
-		return out, nil
+		return reply.Modules, nil
 	})
 }
 
