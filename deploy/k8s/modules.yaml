@@ -48,7 +48,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: modules
-          image: ghcr.io/adamousmer/itsbagelbot/modules:main-1781747331-2606f94ad617@sha256:b72efc65788ec4ba57f84a25f22dae62886f0db8f47a18a4364193bae0a313ed # {"$imagepolicy": "flux-system:modules"}
+          image: ghcr.io/adamousmer/itsbagelbot/modules:main-1781833573-49d77a2c757b@sha256:8a3c103b8c684c55dbbcf06d433b391b6fbf6465677a44fc9a5228af5f5e14bb # {"$imagepolicy": "flux-system:modules"}
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST
@@ -88,7 +88,7 @@ spec:
             periodSeconds: 10
           startupProbe:
             httpGet: {path: /healthz, port: 8080}
-            failureThreshold: 18   # 18 × 5s = 90s max startup window
+            failureThreshold: 18 # 18 × 5s = 90s max startup window
             periodSeconds: 5
       terminationGracePeriodSeconds: 45
 ---

@@ -48,7 +48,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: transactions
-          image: ghcr.io/adamousmer/itsbagelbot/transactions:main-1781747331-2606f94ad617@sha256:a79cc83ce95838eb45c209a7cbdf4c13f2f052000e2b2a2070143482268ba885 # {"$imagepolicy": "flux-system:transactions"}
+          image: ghcr.io/adamousmer/itsbagelbot/transactions:main-1781833573-49d77a2c757b@sha256:1b2aa10a61b732cba15bd8a37c79c960438488c54a97dded5edcd8e5c5e36e5f # {"$imagepolicy": "flux-system:transactions"}
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST
@@ -86,7 +86,7 @@ spec:
             periodSeconds: 10
           startupProbe:
             httpGet: {path: /healthz, port: 8080}
-            failureThreshold: 18   # 18 × 5s = 90s max startup window
+            failureThreshold: 18 # 18 × 5s = 90s max startup window
             periodSeconds: 5
       terminationGracePeriodSeconds: 45
 ---
