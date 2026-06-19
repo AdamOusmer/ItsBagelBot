@@ -45,19 +45,16 @@ func (v *Store) SetUser(ctx context.Context, userID uint64, status string, isAct
 
 	key := cache.UserKey(settingsKeyPrefix, userID)
 
-	err := v.client.Do(ctx, v.client.B().Hset().
-		Key(key).
-		FieldValue().
-		FieldValue("status", status).
-		FieldValue("active", utils.BoolField(isActive)).
-		FieldValue("banned", utils.BoolField(banned)).
-		Build(),
-	).Error()
-	if err != nil {
-		return err
-	}
-
-	return v.client.Do(ctx, v.client.B().Expire().Key(key).Seconds(24*60*60).Build()).Error()
+	return v.pipeline(ctx,
+		v.client.B().Hset().
+			Key(key).
+			FieldValue().
+			FieldValue("status", status).
+			FieldValue("active", utils.BoolField(isActive)).
+			FieldValue("banned", utils.BoolField(banned)).
+			Build(),
+		v.client.B().Expire().Key(key).Seconds(24*60*60).Build(),
+	)
 }
 
 // GetUser retrieves the tier status, active flag and ban flag of one user.
@@ -89,16 +86,14 @@ func (v *Store) SetStreamLive(ctx context.Context, userID uint64, live bool) err
 
 	key := cache.UserKey(settingsKeyPrefix, userID)
 
-	if err := v.client.Do(ctx, v.client.B().Hset().
-		Key(key).
-		FieldValue().
-		FieldValue("live", utils.BoolField(live)).
-		Build(),
-	).Error(); err != nil {
-		return err
-	}
-
-	return v.client.Do(ctx, v.client.B().Expire().Key(key).Seconds(24*60*60).Build()).Error()
+	return v.pipeline(ctx,
+		v.client.B().Hset().
+			Key(key).
+			FieldValue().
+			FieldValue("live", utils.BoolField(live)).
+			Build(),
+		v.client.B().Expire().Key(key).Seconds(24*60*60).Build(),
+	)
 }
 
 // SetModule projects one module row of one user.
@@ -118,11 +113,10 @@ func (v *Store) SetModule(ctx context.Context, userID uint64, name string, isEna
 		fields = fields.FieldValue("module:"+name+":config", string(configs))
 	}
 
-	if err := v.client.Do(ctx, fields.Build()).Error(); err != nil {
-		return err
-	}
-
-	return v.client.Do(ctx, v.client.B().Expire().Key(key).Seconds(24*60*60).Build()).Error()
+	return v.pipeline(ctx,
+		fields.Build(),
+		v.client.B().Expire().Key(key).Seconds(24*60*60).Build(),
+	)
 }
 
 type ModuleView struct {
@@ -179,10 +173,10 @@ func (v *Store) SetModules(ctx context.Context, userID uint64, modules []ModuleV
 		}
 	}
 
-	if err := v.client.Do(ctx, fields.Build()).Error(); err != nil {
-		return err
-	}
-	return v.client.Do(ctx, v.client.B().Expire().Key(key).Seconds(24*60*60).Build()).Error()
+	return v.pipeline(ctx,
+		fields.Build(),
+		v.client.B().Expire().Key(key).Seconds(24*60*60).Build(),
+	)
 }
 
 // SetCommand projects one command row of one user.
@@ -193,18 +187,15 @@ func (v *Store) SetCommand(ctx context.Context, dto data.CommandChangedDTO) erro
 	field := "command:" + dto.Name
 
 	if dto.Deleted {
-		if err := v.client.Do(ctx, v.client.B().Hdel().Key(key).Field(field).Build()).Error(); err != nil {
-			return err
-		}
-		if err := v.client.Do(ctx, v.client.B().Hset().
-			Key(key).
-			FieldValue().
-			FieldValue("commands:projected", "1").
-			Build(),
-		).Error(); err != nil {
-			return err
-		}
-		return v.client.Do(ctx, v.client.B().Expire().Key(key).Seconds(24*60*60).Build()).Error()
+		return v.pipeline(ctx,
+			v.client.B().Hdel().Key(key).Field(field).Build(),
+			v.client.B().Hset().
+				Key(key).
+				FieldValue().
+				FieldValue("commands:projected", "1").
+				Build(),
+			v.client.B().Expire().Key(key).Seconds(24*60*60).Build(),
+		)
 	}
 
 	body, err := json.Marshal(commandViewFromEvent(dto))
@@ -212,16 +203,15 @@ func (v *Store) SetCommand(ctx context.Context, dto data.CommandChangedDTO) erro
 		return err
 	}
 
-	if err := v.client.Do(ctx, v.client.B().Hset().
-		Key(key).
-		FieldValue().
-		FieldValue("commands:projected", "1").
-		FieldValue(field, string(body)).
-		Build(),
-	).Error(); err != nil {
-		return err
-	}
-	return v.client.Do(ctx, v.client.B().Expire().Key(key).Seconds(24*60*60).Build()).Error()
+	return v.pipeline(ctx,
+		v.client.B().Hset().
+			Key(key).
+			FieldValue().
+			FieldValue("commands:projected", "1").
+			FieldValue(field, string(body)).
+			Build(),
+		v.client.B().Expire().Key(key).Seconds(24*60*60).Build(),
+	)
 }
 
 // SetCommands projects a complete command list and records that an empty list is
@@ -247,10 +237,10 @@ func (v *Store) SetCommands(ctx context.Context, userID uint64, commands []Comma
 		fields = fields.FieldValue("command:"+cmd.Name, string(body))
 	}
 
-	if err := v.client.Do(ctx, fields.Build()).Error(); err != nil {
-		return err
-	}
-	return v.client.Do(ctx, v.client.B().Expire().Key(key).Seconds(24*60*60).Build()).Error()
+	return v.pipeline(ctx,
+		fields.Build(),
+		v.client.B().Expire().Key(key).Seconds(24*60*60).Build(),
+	)
 }
 
 func (v *Store) GetModules(ctx context.Context, userID uint64) ([]ModuleView, bool, error) {
@@ -333,15 +323,18 @@ func (v *Store) clearProjectionFields(ctx context.Context, key string, prefix st
 		return err
 	}
 
+	stale := make([]string, 0, len(fields))
 	for field := range fields {
-		if !strings.HasPrefix(field, prefix) {
-			continue
-		}
-		if err := v.client.Do(ctx, v.client.B().Hdel().Key(key).Field(field).Build()).Error(); err != nil {
-			return err
+		if strings.HasPrefix(field, prefix) {
+			stale = append(stale, field)
 		}
 	}
-	return nil
+	if len(stale) == 0 {
+		return nil
+	}
+
+	// One HDEL with every stale field instead of a round trip per field.
+	return v.client.Do(ctx, v.client.B().Hdel().Key(key).Field(stale...).Build()).Error()
 }
 
 // DeleteUser drops the whole projection of one user.
@@ -357,6 +350,18 @@ func (v *Store) DeleteUser(ctx context.Context, userID uint64) error {
 // Close releases the connection pool.
 func (v *Store) Close() {
 	v.client.Close()
+}
+
+// pipeline sends every command in a single round trip and returns the first
+// command error. Folds an HSET and its EXPIRE (and, on a command delete, the
+// HDEL) into one network round trip instead of two or three sequential Do calls.
+func (v *Store) pipeline(ctx context.Context, cmds ...valkey.Completed) error {
+	for _, res := range v.client.DoMulti(ctx, cmds...) {
+		if err := res.Error(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // segment reports the operation as a datastore segment of the transaction in
