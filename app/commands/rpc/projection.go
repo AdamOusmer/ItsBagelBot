@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
+	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
 
 	"ItsBagelBot/app/commands/repository"
@@ -17,13 +18,13 @@ type projectionRPC struct {
 	log  *zap.Logger
 }
 
-func SubscribeProjection(nc *nats.Conn, repo *repository.Commands, subject, queueGroup string, log *zap.Logger) error {
+func SubscribeProjection(nc *nats.Conn, repo *repository.Commands, subject, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
 	p := &projectionRPC{
 		repo: repo,
 		log:  log,
 	}
 
-	return bus.QueueSubscribeJSON[projectionRequest, projectionReply](nc, subject, queueGroup, 2*time.Second, log, p.handleGet)
+	return bus.QueueSubscribeJSON[projectionRequest, projectionReply](nc, subject, queueGroup, 2*time.Second, app, log, p.handleGet)
 }
 
 type projectionRequest struct {

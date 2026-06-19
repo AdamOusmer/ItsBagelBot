@@ -189,7 +189,7 @@ func main() {
 		log.Fatal("failed to consume system lane", zap.Error(err))
 	}
 
-	if err := rpc.SubscribeManage(nc, registry, tw, cfg.RPCPrefix, "outgress-rpc", log.Named("rpc")); err != nil {
+	if err := rpc.SubscribeManage(nc, registry, tw, cfg.RPCPrefix, "outgress-rpc", nrApp, log.Named("rpc")); err != nil {
 		log.Fatal("failed to subscribe management rpc", zap.Error(err))
 	}
 

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
+	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
 
 	"ItsBagelBot/app/users/repository"
@@ -23,12 +24,12 @@ type delegationRPC struct {
 
 // SubscribeDelegation serves the single-use dashboard-delegation surface under
 // the configured prefix. Mirrors SubscribeDashboard's queue-group wiring.
-func SubscribeDelegation(nc *nats.Conn, repo *repository.Users, prefix, queueGroup string, log *zap.Logger) error {
+func SubscribeDelegation(nc *nats.Conn, repo *repository.Users, prefix, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
 	d := &delegationRPC{repo: repo, log: log}
 
 	type handler struct {
 		verb string
-		fn   func(*nats.Msg)
+		fn   func(context.Context, *nats.Msg)
 	}
 	verbs := []handler{
 		{"create", d.handleCreate},
@@ -41,7 +42,13 @@ func SubscribeDelegation(nc *nats.Conn, repo *repository.Users, prefix, queueGro
 	}
 	for _, h := range verbs {
 		subject := prefix + "." + h.verb
-		if _, err := nc.QueueSubscribe(subject, queueGroup, h.fn); err != nil {
+		fn := h.fn
+		if _, err := nc.QueueSubscribe(subject, queueGroup, func(msg *nats.Msg) {
+			txn := app.StartTransaction("rpc " + subject)
+			defer txn.End()
+			ctx := newrelic.NewContext(context.Background(), txn)
+			fn(ctx, msg)
+		}); err != nil {
 			return fmt.Errorf("subscribe %s: %w", subject, err)
 		}
 	}
@@ -62,7 +69,7 @@ type createDelegationRequest struct {
 	Sections    []string `json:"sections"`
 }
 
-func (d *delegationRPC) handleCreate(msg *nats.Msg) {
+func (d *delegationRPC) handleCreate(ctx context.Context, msg *nats.Msg) {
 	var req createDelegationRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
 		bus.Respond(msg, map[string]any{"error": "bad request"})
@@ -85,7 +92,7 @@ func (d *delegationRPC) handleCreate(msg *nats.Msg) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
 	// No expiry: the link stays valid until the invitee accepts it (binding them
@@ -104,14 +111,14 @@ type tokenRequest struct {
 	Token string `json:"token"`
 }
 
-func (d *delegationRPC) handleGet(msg *nats.Msg) {
+func (d *delegationRPC) handleGet(ctx context.Context, msg *nats.Msg) {
 	var req tokenRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
 		bus.Respond(msg, map[string]any{"error": "bad request"})
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
 	view, err := d.repo.GetDelegation(ctx, req.Token)
@@ -134,7 +141,7 @@ type consumeDelegationRequest struct {
 	DelegateLogin  string `json:"delegate_login"`
 }
 
-func (d *delegationRPC) handleConsume(msg *nats.Msg) {
+func (d *delegationRPC) handleConsume(ctx context.Context, msg *nats.Msg) {
 	var req consumeDelegationRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
 		bus.Respond(msg, map[string]any{"ok": false, "error": "bad request"})
@@ -147,7 +154,7 @@ func (d *delegationRPC) handleConsume(msg *nats.Msg) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
 	view, err := d.repo.ConsumeDelegation(ctx, req.Token, delegateID, req.DelegateLogin)
@@ -168,7 +175,7 @@ type ownerRequest struct {
 	OwnerUserID string `json:"owner_user_id"`
 }
 
-func (d *delegationRPC) handleList(msg *nats.Msg) {
+func (d *delegationRPC) handleList(ctx context.Context, msg *nats.Msg) {
 	var req ownerRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
 		bus.Respond(msg, map[string]any{"error": "bad request"})
@@ -181,7 +188,7 @@ func (d *delegationRPC) handleList(msg *nats.Msg) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
 	views, err := d.repo.ListDelegationsByOwner(ctx, ownerID)
@@ -207,7 +214,7 @@ type revokeDelegationRequest struct {
 	Token       string `json:"token"`
 }
 
-func (d *delegationRPC) handleRevoke(msg *nats.Msg) {
+func (d *delegationRPC) handleRevoke(ctx context.Context, msg *nats.Msg) {
 	var req revokeDelegationRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
 		bus.Respond(msg, map[string]any{"ok": false, "error": "bad request"})
@@ -220,7 +227,7 @@ func (d *delegationRPC) handleRevoke(msg *nats.Msg) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
 	if err := d.repo.RevokeDelegation(ctx, req.Token, ownerID); err != nil {
@@ -235,7 +242,7 @@ type accessRequest struct {
 	DelegateUserID string `json:"delegate_user_id"`
 }
 
-func (d *delegationRPC) handleAccess(msg *nats.Msg) {
+func (d *delegationRPC) handleAccess(ctx context.Context, msg *nats.Msg) {
 	var req accessRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
 		bus.Respond(msg, map[string]any{"error": "bad request"})
@@ -248,7 +255,7 @@ func (d *delegationRPC) handleAccess(msg *nats.Msg) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
 	views, err := d.repo.ListAccessByDelegate(ctx, delegateID)
@@ -273,7 +280,7 @@ type optOutDelegationRequest struct {
 	DelegateUserID string `json:"delegate_user_id"`
 }
 
-func (d *delegationRPC) handleOptOut(msg *nats.Msg) {
+func (d *delegationRPC) handleOptOut(ctx context.Context, msg *nats.Msg) {
 	var req optOutDelegationRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
 		bus.Respond(msg, map[string]any{"ok": false, "error": "bad request"})
@@ -291,7 +298,7 @@ func (d *delegationRPC) handleOptOut(msg *nats.Msg) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
 	if err := d.repo.OptOutDelegation(ctx, ownerID, delegateID); err != nil {

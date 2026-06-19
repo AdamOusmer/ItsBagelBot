@@ -130,15 +130,10 @@ data:
         local container = record["container_name"] or ""
 
         if namespace == "kube-system" then
-            if container == "coredns" or pod:match("^coredns%-") then
-                return -1, timestamp, record
-            end
-            if pod == "hey" or pod == "my-shell" or pod:match("^host%-research%-") or pod:match("^helm%-install%-") then
-                return -1, timestamp, record
-            end
+            return -1, timestamp, record
         end
 
-        if namespace == "newrelic" and pod:match("^nri%-bundle%-newrelic%-logging%-") then
+        if namespace == "newrelic" then
             return -1, timestamp, record
         end
 
@@ -175,7 +170,7 @@ data:
 
         if level == "warn" then level = "warning" end
 
-        local dominated = {info = true, debug = true, trace = true, notice = true}
+        local dominated = {debug = true, trace = true, notice = true}
         if dominated[level] then
             return -1, timestamp, record
         end

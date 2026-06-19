@@ -17,6 +17,7 @@ import (
 	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/health"
 	"ItsBagelBot/pkg/logger"
+	"ItsBagelBot/pkg/monitor"
 
 	"github.com/ThreeDotsLabs/watermill/message"
 
@@ -29,6 +30,13 @@ func main() {
 
 	log := logger.New(env.Get("APP_ENV", "development")).Named(serviceName)
 	defer func() { _ = log.Sync() }()
+
+	nrApp, err := monitor.New(serviceName, log)
+	if err != nil {
+		log.Fatal("failed to start new relic", zap.Error(err))
+	}
+	log = monitor.WrapLogger(log, nrApp)
+	defer monitor.Shutdown(nrApp)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -80,7 +88,7 @@ func main() {
 	}
 	defer func() { _ = broadcast.Close() }()
 
-	if err := bus.Consume(ctx, nil, broadcast, data.SubjectCommandChanged, func(msg *message.Message) error {
+	if err := bus.Consume(ctx, nrApp, broadcast, data.SubjectCommandChanged, func(msg *message.Message) error {
 
 		var dto data.CommandChangedDTO
 		if err := json.Unmarshal(msg.Payload, &dto); err != nil {
@@ -101,7 +109,7 @@ func main() {
 	}
 	defer func() { _ = grouped.Close() }()
 
-	if err := bus.Consume(ctx, nil, grouped, data.SubjectUserDeleted, func(msg *message.Message) error {
+	if err := bus.Consume(ctx, nrApp, grouped, data.SubjectUserDeleted, func(msg *message.Message) error {
 
 		var dto data.UserDeletedDTO
 		if err := json.Unmarshal(msg.Payload, &dto); err != nil {
@@ -125,12 +133,12 @@ func main() {
 	}
 
 	projectionSubject := env.Get("NATS_INTERNAL_PROJECTION_COMMANDS_SUBJECT", "bagel.rpc.internal.projection.commands.get")
-	if err := rpc.SubscribeProjection(nc, repo, projectionSubject, "commands-rpc", log); err != nil {
+	if err := rpc.SubscribeProjection(nc, repo, projectionSubject, "commands-rpc", nrApp, log); err != nil {
 		log.Fatal("failed to subscribe projection rpc", zap.Error(err))
 	}
 
 	commandsPrefix := env.Get("NATS_COMMANDS_SUBJECT_PREFIX", "bagel.rpc.commands")
-	if err := rpc.SubscribeDashboard(nc, repo, commandsPrefix, "commands-rpc", log); err != nil {
+	if err := rpc.SubscribeDashboard(nc, repo, commandsPrefix, "commands-rpc", nrApp, log); err != nil {
 		log.Fatal("failed to subscribe dashboard rpc", zap.Error(err))
 	}
 

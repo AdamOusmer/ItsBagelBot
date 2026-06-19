@@ -1,0 +1,34 @@
+apiVersion: synthetics.newrelic.com/v1alpha1
+kind: Monitor
+metadata:
+  name: dashboard-healthz
+  namespace: newrelic
+spec:
+  name: "ItsBagelBot dashboard healthz"
+  type: SIMPLE
+  status: ENABLED
+  period: EVERY_MINUTE
+  uri: "https://dashboard.itsbagelbot.com/healthz"
+  locations:
+    - AWS_US_EAST_1
+    - AWS_US_WEST_1
+    - AWS_EU_WEST_1
+  validationString: "ok"
+  verifySSL: true
+---
+apiVersion: synthetics.newrelic.com/v1alpha1
+kind: Monitor
+metadata:
+  name: dashboard-login
+  namespace: newrelic
+spec:
+  name: "ItsBagelBot dashboard login route"
+  type: SIMPLE
+  status: ENABLED
+  period: EVERY_5_MINUTES
+  uri: "https://dashboard.itsbagelbot.com/login"
+  locations:
+    - AWS_US_EAST_1
+    - AWS_US_WEST_1
+    - AWS_EU_WEST_1
+  verifySSL: true

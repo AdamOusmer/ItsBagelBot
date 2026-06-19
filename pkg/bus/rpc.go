@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
+	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
 )
 
@@ -71,6 +72,7 @@ func QueueSubscribeJSON[Req any, Resp any](
 	subject string,
 	queueGroup string,
 	timeout time.Duration,
+	app *newrelic.Application,
 	log *zap.Logger,
 	handle func(context.Context, Req) Resp,
 ) error {
@@ -81,17 +83,21 @@ func QueueSubscribeJSON[Req any, Resp any](
 	_, err := nc.QueueSubscribe(subject, queueGroup, func(msg *nats.Msg) {
 		start := time.Now()
 
+		txn := app.StartTransaction("rpc " + subject)
+		defer txn.End()
+
 		var req Req
 		// Empty bodies are allowed for no-argument RPCs; handlers validate any
 		// required fields on the zero-value request.
 		if len(msg.Data) > 0 {
 			if err := json.Unmarshal(msg.Data, &req); err != nil {
+				txn.NoticeError(err)
 				respondAndLog(msg, subject, start, log, map[string]string{"error": "bad request"})
 				return
 			}
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		ctx, cancel := context.WithTimeout(newrelic.NewContext(context.Background(), txn), timeout)
 		defer cancel()
 
 		respondAndLog(msg, subject, start, log, handle(ctx, req))
