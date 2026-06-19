@@ -39,6 +39,7 @@ spec:
         config.linkerd.io/proxy-cpu-limit: 1000m
         config.linkerd.io/proxy-memory-request: 16Mi
         config.linkerd.io/proxy-memory-limit: 128Mi
+        config.linkerd.io/skip-outbound-ports: 6379,26379
     spec:
       # Baseline worker capacity follows node count: one worker pod on each
       # schedulable node, with bounded in-process scaling inside each pod.
@@ -58,6 +59,10 @@ spec:
               value: nats://nats:4222
             - name: NATS_RPC_URL
               value: nats://nats-leaf:4222
+            - name: NODE_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
             - name: GOMEMLIMIT
               value: 512MiB
             - name: WORKER_MIN_ROUTINES
