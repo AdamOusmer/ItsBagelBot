@@ -1,6 +1,7 @@
 package valkey
 
 import (
+	"log"
 	"os"
 	"strings"
 
@@ -28,14 +29,21 @@ func BuildClientOption(address, password string) valkey_go.ClientOption {
 
 		// Prioritize local replica by matching the node IP
 		if nodeIP := os.Getenv("NODE_IP"); nodeIP != "" {
-			opts.ReplicaSelector = func(slot uint16, replicas []valkey_go.NodeInfo) int {
-				for i, r := range replicas {
+			fallback := valkey_go.PreferReplicaNodeSelector()
+			opts.ReadNodeSelector = func(slot uint16, nodes []valkey_go.NodeInfo) int {
+				for i, r := range nodes {
 					if strings.HasPrefix(r.Addr, nodeIP+":") {
+						log.Printf("PreferLocal: selected local node %s for NODE_IP %s", r.Addr, nodeIP)
 						return i
 					}
 				}
-				// fallback: pick the first one if no local replica matches
-				if len(replicas) > 0 {
+				// fallback: use built-in replica load balancer
+				idx := fallback(slot, nodes)
+				if idx != -1 {
+					log.Printf("PreferLocal: fallback to node %s (NODE_IP %s)", nodes[idx].Addr, nodeIP)
+					return idx
+				} else if len(nodes) > 0 {
+					log.Printf("PreferLocal: fallback to primary node %s (NODE_IP %s)", nodes[0].Addr, nodeIP)
 					return 0
 				}
 				return -1 // should not happen
