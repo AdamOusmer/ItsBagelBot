@@ -41,7 +41,10 @@ func NewValkey(address string, password string) (*Valkey, error) {
 		DisableCache: true,
 	}
 	if strings.HasSuffix(address, ":26379") {
-		valkeyOpts.Sentinel = valkey.SentinelOption{MasterSet: "myprimary"}
+		valkeyOpts.Sentinel = valkey.SentinelOption{
+			MasterSet:        "myprimary",
+			SentinelPassword: password,
+		}
 	}
 
 	client, err := valkey.NewClient(valkeyOpts)

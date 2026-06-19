@@ -59,7 +59,10 @@ func main() {
 		DisableCache: true,
 	}
 	if strings.HasSuffix(cfg.ValkeyAddr, ":26379") {
-		valkeyOpts.Sentinel = valkey.SentinelOption{MasterSet: "myprimary"}
+		valkeyOpts.Sentinel = valkey.SentinelOption{
+			MasterSet:        "myprimary",
+			SentinelPassword: cfg.ValkeyPassword,
+		}
 	}
 	valkeyClient, err := valkey.NewClient(valkeyOpts)
 	if err != nil {
