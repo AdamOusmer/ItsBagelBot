@@ -1,7 +1,14 @@
 // Server-only NATS RPC client. One lazily-dialed, process-wide connection
 // reused across requests (connection setup is the expensive part; a warm conn
 // keeps request/reply in the low-ms range, which is what the p99 budget needs).
-import { connect, JSONCodec, type ConnectionOptions, type NatsConnection } from 'nats';
+import {
+  connect,
+  JSONCodec,
+  type ConnectionOptions,
+  type NatsConnection,
+  type JetStreamClient,
+  type JetStreamManager
+} from 'nats';
 
 const jc = JSONCodec();
 
@@ -48,6 +55,21 @@ async function get(): Promise<NatsConnection> {
       dialing = null;
     });
   return dialing;
+}
+
+let jsClient: JetStreamClient | null = null;
+let jsManager: JetStreamManager | null = null;
+
+export async function js(): Promise<JetStreamClient> {
+  const nc = await get();
+  if (!jsClient) jsClient = nc.jetstream({ domain: 'hub' });
+  return jsClient;
+}
+
+export async function jsm(): Promise<JetStreamManager> {
+  const nc = await get();
+  if (!jsManager) jsManager = await nc.jetstreamManager({ domain: 'hub' });
+  return jsManager;
 }
 
 /**

@@ -81,6 +81,10 @@ func main() {
 		log.Fatal("failed to subscribe to module changes", zap.Error(err))
 	}
 
+	if err := bus.Consume(ctx, nrApp, sub, data.SubjectCommandChanged, projector.HandleCommandChanged, log); err != nil {
+		log.Fatal("failed to subscribe to command changes", zap.Error(err))
+	}
+
 	// Stream Online Pre-Warming
 	streamTopic := env.Get("NATS_SUBJECT_LANE_STREAM", "twitch.ingress.event.stream")
 	usersTopic := env.Get("NATS_INTERNAL_PROJECTION_USERS_SUBJECT", "bagel.rpc.internal.projection.users.get")
@@ -98,10 +102,16 @@ func main() {
 		log.Fatal("failed to subscribe status rpc", zap.Error(err))
 	}
 
+	dashboardSubject := env.Get("NATS_PROJECTOR_DASHBOARD_SUBJECT_PREFIX", "bagel.rpc.projector.dashboard")
+	if err := rpc.SubscribeDashboard(nc, valkeyStore, dashboardSubject, commandsTopic, modulesTopic, "projector-rpc", nrApp, log); err != nil {
+		log.Fatal("failed to subscribe dashboard projector rpc", zap.Error(err))
+	}
+
 	health.Serve(env.Get("LISTEN_ADDR", ":8080"), nc.IsConnected)
 
 	log.Info("projector ready",
 		zap.String("status_subject", subject),
+		zap.String("dashboard_subject", dashboardSubject),
 		zap.String("stream_subject", streamTopic))
 
 	<-ctx.Done()

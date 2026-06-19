@@ -13,6 +13,7 @@ import (
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/cache"
+	"ItsBagelBot/pkg/db"
 
 	"github.com/ThreeDotsLabs/watermill/message"
 )
@@ -67,25 +68,32 @@ func (r *Users) Register(ctx context.Context, id uint64, username string, email 
 		return err
 	}
 
-	existing, err := r.client.User.Query().
-		Where(user.IDEQ(id)).
-		Only(ctx)
+	if err := db.WithExec(ctx, func(ctx context.Context) error {
+		existing, err := r.client.User.Query().
+			Where(user.IDEQ(id)).
+			Only(ctx)
 
-	switch {
-	case ent.IsNotFound(err):
-		_, err = r.client.User.Create().
-			SetID(id).
-			SetUsername(username).
-			SetEmail(email).
-			Save(ctx)
+		switch {
+		case ent.IsNotFound(err):
+			_, err = r.client.User.Create().
+				SetID(id).
+				SetUsername(username).
+				SetEmail(email).
+				Save(ctx)
+			if ent.IsConstraintError(err) {
+				_, err = r.client.User.UpdateOneID(id).
+					SetUsername(username).
+					Save(ctx)
+			}
 
-	case err == nil && existing.Username != username:
-		_, err = existing.Update().
-			SetUsername(username).
-			Save(ctx)
-	}
+		case err == nil && existing.Username != username:
+			_, err = existing.Update().
+				SetUsername(username).
+				Save(ctx)
+		}
 
-	if err != nil {
+		return err
+	}); err != nil {
 		return err
 	}
 
@@ -97,21 +105,23 @@ func (r *Users) Register(ctx context.Context, id uint64, username string, email 
 func (r *Users) Get(ctx context.Context, id uint64) (UserView, error) {
 
 	return r.views.GetOrLoad(ctx, cache.UserKey(userKeyPrefix, id), func(ctx context.Context) (UserView, error) {
+		return db.WithQuery(ctx, func(ctx context.Context) (UserView, error) {
 
-		u, err := r.client.User.Query().
-			Where(user.IDEQ(id)).
-			Only(ctx)
-		if err != nil {
-			return UserView{}, err
-		}
+			u, err := r.client.User.Query().
+				Where(user.IDEQ(id)).
+				Only(ctx)
+			if err != nil {
+				return UserView{}, err
+			}
 
-		return UserView{
-			ID:       u.ID,
-			Username: u.Username,
-			IsActive: u.IsActive,
-			Status:   string(u.Status),
-			Banned:   u.Banned,
-		}, nil
+			return UserView{
+				ID:       u.ID,
+				Username: u.Username,
+				IsActive: u.IsActive,
+				Status:   string(u.Status),
+				Banned:   u.Banned,
+			}, nil
+		})
 	})
 }
 
@@ -126,9 +136,11 @@ func (r *Users) SetStatus(ctx context.Context, id uint64, status user.Status) er
 		return err
 	}
 
-	if err := r.client.User.UpdateOneID(id).
-		SetStatus(status).
-		Exec(ctx); err != nil {
+	if err := db.WithExec(ctx, func(ctx context.Context) error {
+		return r.client.User.UpdateOneID(id).
+			SetStatus(status).
+			Exec(ctx)
+	}); err != nil {
 		return err
 	}
 
@@ -145,9 +157,11 @@ func (r *Users) SetActive(ctx context.Context, id uint64, active bool) error {
 		return err
 	}
 
-	if err := r.client.User.UpdateOneID(id).
-		SetIsActive(active).
-		Exec(ctx); err != nil {
+	if err := db.WithExec(ctx, func(ctx context.Context) error {
+		return r.client.User.UpdateOneID(id).
+			SetIsActive(active).
+			Exec(ctx)
+	}); err != nil {
 		return err
 	}
 
@@ -163,9 +177,11 @@ func (r *Users) SetBanned(ctx context.Context, id uint64, banned bool) error {
 		return err
 	}
 
-	if err := r.client.User.UpdateOneID(id).
-		SetBanned(banned).
-		Exec(ctx); err != nil {
+	if err := db.WithExec(ctx, func(ctx context.Context) error {
+		return r.client.User.UpdateOneID(id).
+			SetBanned(banned).
+			Exec(ctx)
+	}); err != nil {
 		return err
 	}
 
@@ -175,7 +191,9 @@ func (r *Users) SetBanned(ctx context.Context, id uint64, banned bool) error {
 // Delete removes the user; tokens cascade away with the row.
 func (r *Users) Delete(ctx context.Context, id uint64) error {
 
-	if err := r.client.User.DeleteOneID(id).Exec(ctx); err != nil {
+	if err := db.WithExec(ctx, func(ctx context.Context) error {
+		return r.client.User.DeleteOneID(id).Exec(ctx)
+	}); err != nil {
 		return err
 	}
 
@@ -225,11 +243,13 @@ func (r *Users) Reproject(ctx context.Context) error {
 	var afterID uint64
 
 	for {
-		rows, err := r.client.User.Query().
-			Where(user.IDGT(afterID)).
-			Order(ent.Asc(user.FieldID)).
-			Limit(pageSize).
-			All(ctx)
+		rows, err := db.WithQuery(ctx, func(ctx context.Context) ([]*ent.User, error) {
+			return r.client.User.Query().
+				Where(user.IDGT(afterID)).
+				Order(ent.Asc(user.FieldID)).
+				Limit(pageSize).
+				All(ctx)
+		})
 		if err != nil {
 			return err
 		}
@@ -285,41 +305,63 @@ func (r *Users) UpsertToken(ctx context.Context, userID uint64, tokenType tokens
 		}
 	}
 
-	return withTx(ctx, r.client, func(tx *ent.Tx) error {
+	return db.WithExec(ctx, func(ctx context.Context) error {
+		return withTx(ctx, r.client, func(tx *ent.Tx) error {
 
-		existing, err := tx.Tokens.Query().
-			Where(
-				tokens.TypeEQ(tokenType),
-				tokens.PlatformEQ(platform),
-				tokens.HasUserWith(user.IDEQ(userID)),
-			).
-			Only(ctx)
+			existing, err := tx.Tokens.Query().
+				Where(
+					tokens.TypeEQ(tokenType),
+					tokens.PlatformEQ(platform),
+					tokens.HasUserWith(user.IDEQ(userID)),
+				).
+				Only(ctx)
 
-		switch {
-		case ent.IsNotFound(err):
-			create := tx.Tokens.Create().
-				SetUserID(userID).
-				SetType(tokenType).
-				SetPlatform(platform).
-				SetToken(sealed.Ciphertext)
+			switch {
+			case ent.IsNotFound(err):
+				create := tx.Tokens.Create().
+					SetUserID(userID).
+					SetType(tokenType).
+					SetPlatform(platform).
+					SetToken(sealed.Ciphertext)
 
-			if len(sealedRefresh.Ciphertext) > 0 {
-				create.SetRefreshToken(sealedRefresh.Ciphertext)
+				if len(sealedRefresh.Ciphertext) > 0 {
+					create.SetRefreshToken(sealedRefresh.Ciphertext)
+				}
+
+				if err := create.Exec(ctx); err != nil {
+					if ent.IsConstraintError(err) {
+						existing, err = tx.Tokens.Query().
+							Where(
+								tokens.TypeEQ(tokenType),
+								tokens.PlatformEQ(platform),
+								tokens.HasUserWith(user.IDEQ(userID)),
+							).
+							Only(ctx)
+						if err != nil {
+							return err
+						}
+						update := existing.Update().SetToken(sealed.Ciphertext)
+						if len(sealedRefresh.Ciphertext) > 0 {
+							update.SetRefreshToken(sealedRefresh.Ciphertext)
+						}
+						return update.Exec(ctx)
+					}
+					return err
+				}
+				return nil
+
+			case err != nil:
+				return err
 			}
 
-			return create.Exec(ctx)
+			update := existing.Update().SetToken(sealed.Ciphertext)
 
-		case err != nil:
-			return err
-		}
+			if len(sealedRefresh.Ciphertext) > 0 {
+				update.SetRefreshToken(sealedRefresh.Ciphertext)
+			}
 
-		update := existing.Update().SetToken(sealed.Ciphertext)
-
-		if len(sealedRefresh.Ciphertext) > 0 {
-			update.SetRefreshToken(sealedRefresh.Ciphertext)
-		}
-
-		return update.Exec(ctx)
+			return update.Exec(ctx)
+		})
 	})
 }
 
@@ -327,13 +369,15 @@ func (r *Users) UpsertToken(ctx context.Context, userID uint64, tokenType tokens
 // Plaintext is returned to the caller and deliberately never cached.
 func (r *Users) Token(ctx context.Context, userID uint64, tokenType tokens.Type, platform tokens.Platform) (accessToken []byte, refreshToken []byte, err error) {
 
-	row, err := r.client.Tokens.Query().
-		Where(
-			tokens.TypeEQ(tokenType),
-			tokens.PlatformEQ(platform),
-			tokens.HasUserWith(user.IDEQ(userID)),
-		).
-		Only(ctx)
+	row, err := db.WithQuery(ctx, func(ctx context.Context) (*ent.Tokens, error) {
+		return r.client.Tokens.Query().
+			Where(
+				tokens.TypeEQ(tokenType),
+				tokens.PlatformEQ(platform),
+				tokens.HasUserWith(user.IDEQ(userID)),
+			).
+			Only(ctx)
+	})
 	if err != nil {
 		return nil, nil, err
 	}

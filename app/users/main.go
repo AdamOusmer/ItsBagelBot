@@ -66,8 +66,10 @@ func main() {
 	client := ent.NewClient(ent.Driver(driver))
 	defer func() { _ = client.Close() }()
 
-	if err := client.Schema.Create(ctx); err != nil {
-		log.Fatal("failed to run migrations", zap.Error(err))
+	if env.GetBool("DB_AUTO_MIGRATE", true) {
+		if err := client.Schema.Create(ctx); err != nil {
+			log.Fatal("failed to run migrations", zap.Error(err))
+		}
 	}
 
 	natsURL := env.Get("NATS_URL", "nats://127.0.0.1:4222")
@@ -141,12 +143,6 @@ func main() {
 	}
 
 	// Lane (JetStream consumer) telemetry for the admin console. Served under
-	// the same admin-user prefix so it rides the existing broker permissions
-	// (this service's user holds $JS.>; the console's admin user publishes the
-	// prefix wildcard), no auth change required.
-	if err := rpc.SubscribeLanes(ctx, nc, adminPrefix, queueGroup, nrApp, log); err != nil {
-		log.Fatal("failed to subscribe lanes rpc", zap.Error(err))
-	}
 
 	// Admin authorization + audit. Seed the bootstrap owners/admins so a fresh
 	// DB is never locked out, then serve the auth.check / auth.* / audit.*

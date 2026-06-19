@@ -45,7 +45,7 @@ func (AdminAudit) Fields() []ent.Field {
 
 func (AdminAudit) Indexes() []ent.Index {
 	return []ent.Index{
-		index.Fields("created_at"),
-		index.Fields("actor_id"),
+		index.Fields("created_at", "id"),
+		index.Fields("actor_id", "created_at", "id"),
 	}
 }

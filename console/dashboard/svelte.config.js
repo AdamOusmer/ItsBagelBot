@@ -11,6 +11,9 @@ export default {
     // timestamp, which diverges across the two builds and 404s chunks under the
     // stateless LB.
     version: { name: process.env.BUILD_VERSION || 'dev' },
+    paths: {
+      relative: false
+    },
     // SvelteKit owns script/style nonces (mode 'auto'); the remaining headers
     // (HSTS, frame/sniff/referrer) are set in hooks.server.ts.
     csp: {

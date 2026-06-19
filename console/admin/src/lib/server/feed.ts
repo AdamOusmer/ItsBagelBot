@@ -2,7 +2,7 @@
 // subscription that drives the SSE endpoint. Kept separate from the shared
 // request/reply client so a long-lived subscription never interferes with the
 // short-lived RPC requests (and vice versa).
-import { connect, type NatsConnection, type Subscription } from 'nats';
+import { connect, type ConnectionOptions, type NatsConnection, type Subscription } from 'nats';
 
 let conn: NatsConnection | null = null;
 let dialing: Promise<NatsConnection> | null = null;
@@ -14,17 +14,25 @@ function url(): string {
 async function get(): Promise<NatsConnection> {
   if (conn && !conn.isClosed()) return conn;
   if (dialing) return dialing;
-  dialing = connect({
+  const opts: ConnectionOptions = {
     servers: url(),
     name: (process.env.NATS_CLIENT_NAME ?? 'console') + '-feed',
     maxReconnectAttempts: -1,
     reconnectTimeWait: 500,
     pingInterval: 20_000
-  }).then((c) => {
-    conn = c;
-    dialing = null;
-    return c;
-  });
+  };
+  if (process.env.NATS_USER) opts.user = process.env.NATS_USER;
+  if (process.env.NATS_PASSWORD) opts.pass = process.env.NATS_PASSWORD;
+  if (process.env.NATS_TOKEN) opts.token = process.env.NATS_TOKEN;
+
+  dialing = connect(opts)
+    .then((c) => {
+      conn = c;
+      return c;
+    })
+    .finally(() => {
+      dialing = null;
+    });
   return dialing;
 }
 

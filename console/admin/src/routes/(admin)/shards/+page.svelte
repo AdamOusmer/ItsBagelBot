@@ -40,10 +40,10 @@
 
   onMount(() => {
     let timer: ReturnType<typeof setTimeout>;
-    // Self-scheduling loop: 2s while a recent action is settling, else 4s.
+    // Self-scheduling loop: 2s while a recent action is settling, else 8s.
     const tick = async () => {
       await pollSnapshot();
-      timer = setTimeout(tick, Date.now() < fastUntil ? 2000 : 4000);
+      timer = setTimeout(tick, Date.now() < fastUntil ? 2000 : 8000);
     };
     timer = setTimeout(tick, 2000);
     const onVis = () => {

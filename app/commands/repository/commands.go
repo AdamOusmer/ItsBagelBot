@@ -12,6 +12,7 @@ import (
 	"ItsBagelBot/pkg/batch"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/cache"
+	"ItsBagelBot/pkg/db"
 
 	"github.com/ThreeDotsLabs/watermill/message"
 
@@ -80,28 +81,30 @@ func NewCommands(client *ent.Client, pub message.Publisher, app *newrelic.Applic
 func (r *Commands) List(ctx context.Context, userID uint64) ([]CommandView, error) {
 
 	return r.views.GetOrLoad(ctx, cache.UserKey(commandsKeyPrefix, userID), func(ctx context.Context) ([]CommandView, error) {
+		return db.WithQuery(ctx, func(ctx context.Context) ([]CommandView, error) {
 
-		rows, err := r.client.Commands.Query().
-			Where(commands.UserIDEQ(userID)).
-			All(ctx)
-		if err != nil {
-			return nil, err
-		}
-
-		views := make([]CommandView, len(rows))
-		for i, row := range rows {
-			views[i] = CommandView{
-				Name:             row.Name,
-				Response:         row.Response,
-				IsActive:         row.IsActive,
-				StreamOnlineOnly: row.StreamOnlineOnly,
-				Perm:             row.Perm,
-				Cooldown:         row.Cooldown,
-				AllowedUserID:    formatAllowed(row.AllowedUserID),
+			rows, err := r.client.Commands.Query().
+				Where(commands.UserIDEQ(userID)).
+				All(ctx)
+			if err != nil {
+				return nil, err
 			}
-		}
 
-		return views, nil
+			views := make([]CommandView, len(rows))
+			for i, row := range rows {
+				views[i] = CommandView{
+					Name:             row.Name,
+					Response:         row.Response,
+					IsActive:         row.IsActive,
+					StreamOnlineOnly: row.StreamOnlineOnly,
+					Perm:             row.Perm,
+					Cooldown:         row.Cooldown,
+					AllowedUserID:    formatAllowed(row.AllowedUserID),
+				}
+			}
+
+			return views, nil
+		})
 	})
 }
 
@@ -166,19 +169,21 @@ func (r *Commands) Rename(ctx context.Context, userID uint64, oldName, newName, 
 		return err
 	}
 
-	updated, err := r.client.Commands.Update().
-		Where(
-			commands.UserIDEQ(userID),
-			commands.NameEQ(oldName),
-		).
-		SetName(newName).
-		SetResponse(response).
-		SetIsActive(isActive).
-		SetStreamOnlineOnly(streamOnlineOnly).
-		SetPerm(perm).
-		SetCooldown(cooldown).
-		SetAllowedUserID(allowedUserID).
-		Save(ctx)
+	updated, err := db.WithQuery(ctx, func(ctx context.Context) (int, error) {
+		return r.client.Commands.Update().
+			Where(
+				commands.UserIDEQ(userID),
+				commands.NameEQ(oldName),
+			).
+			SetName(newName).
+			SetResponse(response).
+			SetIsActive(isActive).
+			SetStreamOnlineOnly(streamOnlineOnly).
+			SetPerm(perm).
+			SetCooldown(cooldown).
+			SetAllowedUserID(allowedUserID).
+			Save(ctx)
+	})
 	if err != nil {
 		return err
 	}
@@ -220,12 +225,15 @@ func (r *Commands) Delete(ctx context.Context, userID uint64, name string) error
 		return err
 	}
 
-	if _, err := r.client.Commands.Delete().
-		Where(
-			commands.UserIDEQ(userID),
-			commands.NameEQ(name),
-		).
-		Exec(ctx); err != nil {
+	if err := db.WithExec(ctx, func(ctx context.Context) error {
+		_, err := r.client.Commands.Delete().
+			Where(
+				commands.UserIDEQ(userID),
+				commands.NameEQ(name),
+			).
+			Exec(ctx)
+		return err
+	}); err != nil {
 		return err
 	}
 
@@ -243,9 +251,12 @@ func (r *Commands) Delete(ctx context.Context, userID uint64, name string) error
 // absent rows succeeds silently.
 func (r *Commands) DeleteAllForUser(ctx context.Context, userID uint64) error {
 
-	if _, err := r.client.Commands.Delete().
-		Where(commands.UserIDEQ(userID)).
-		Exec(ctx); err != nil {
+	if err := db.WithExec(ctx, func(ctx context.Context) error {
+		_, err := r.client.Commands.Delete().
+			Where(commands.UserIDEQ(userID)).
+			Exec(ctx)
+		return err
+	}); err != nil {
 		return err
 	}
 
@@ -274,21 +285,26 @@ func (r *Commands) flush(ctx context.Context, items []data.CommandChangedDTO) er
 
 	ctx = newrelic.NewContext(ctx, txn)
 
-	tx, err := r.client.Tx(ctx)
-	if err != nil {
-		return err
-	}
+	if err := db.WithExec(ctx, func(ctx context.Context) error {
+		tx, err := r.client.Tx(ctx)
+		if err != nil {
+			return err
+		}
 
-	for _, item := range items {
-		if err := upsertCommand(ctx, tx, item); err != nil {
-			_ = tx.Rollback()
+		for _, item := range items {
+			if err := upsertCommand(ctx, tx, item); err != nil {
+				_ = tx.Rollback()
+				txn.NoticeError(err)
+				return err
+			}
+		}
+
+		if err := tx.Commit(); err != nil {
 			txn.NoticeError(err)
 			return err
 		}
-	}
-
-	if err := tx.Commit(); err != nil {
-		txn.NoticeError(err)
+		return nil
+	}); err != nil {
 		return err
 	}
 
@@ -330,7 +346,7 @@ func upsertCommand(ctx context.Context, tx *ent.Tx, item data.CommandChangedDTO)
 		return nil
 	}
 
-	return tx.Commands.Create().
+	if err := tx.Commands.Create().
 		SetUserID(item.UserID).
 		SetName(item.Name).
 		SetResponse(item.Response).
@@ -339,7 +355,24 @@ func upsertCommand(ctx context.Context, tx *ent.Tx, item data.CommandChangedDTO)
 		SetPerm(item.Perm).
 		SetCooldown(item.Cooldown).
 		SetAllowedUserID(item.AllowedUserID).
-		Exec(ctx)
+		Exec(ctx); err != nil {
+		if ent.IsConstraintError(err) {
+			_, err = tx.Commands.Update().
+				Where(
+					commands.UserIDEQ(item.UserID),
+					commands.NameEQ(item.Name),
+				).
+				SetResponse(item.Response).
+				SetIsActive(item.IsActive).
+				SetStreamOnlineOnly(item.StreamOnlineOnly).
+				SetPerm(item.Perm).
+				SetCooldown(item.Cooldown).
+				SetAllowedUserID(item.AllowedUserID).
+				Save(ctx)
+		}
+		return err
+	}
+	return nil
 }
 
 // formatAllowed renders the allowed user id for the read model: empty for 0
