@@ -25,6 +25,8 @@ spec:
         # NATS speaks first on the wire, so protocol detection would stall;
         # opaque keeps Linkerd mTLS without the detection timeout.
         config.linkerd.io/opaque-ports: "4222,7422"
+        config.linkerd.io/proxy-cpu-request: 5m
+        config.linkerd.io/proxy-cpu-limit: 1000m
         config.linkerd.io/proxy-memory-limit: 128Mi
         config.linkerd.io/proxy-memory-request: 16Mi
         prometheus.io/path: /metrics
@@ -67,13 +69,21 @@ spec:
             # Headroom for JetStream: the container limit must exceed the
             # jetstream max_mem (256MB) in nats-server.conf, otherwise the
             # broker is OOMKilled the moment a stream uses its memory budget.
-            # CPU is bumped because this one broker carries the whole fleet bus.
-            requests: { cpu: 50m, memory: 128Mi }
-            limits: { cpu: 500m, memory: 512Mi }
+            # CPU limit preserves burst headroom for low-p99 local RPC paths
+            # on JetStream flushes or GC bursts; this node carries the whole bus.
+            requests: { cpu: 250m, memory: 256Mi }
+            limits: { cpu: 2000m, memory: 768Mi }
           securityContext:
             allowPrivilegeEscalation: false
             capabilities: { drop: ["ALL"] }
             readOnlyRootFilesystem: true
+          lifecycle:
+            preStop:
+              exec:
+                # Allow in-flight JetStream operations and client reconnects to
+                # drain before the socket closes. Shortens the 500 blast radius
+                # during NATS restarts (hub is still single-replica).
+                command: ["/bin/sh", "-c", "sleep 10"]
           startupProbe:
             httpGet: { path: /healthz, port: monitor }
             periodSeconds: 5

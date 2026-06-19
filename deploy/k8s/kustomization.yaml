@@ -11,6 +11,7 @@ resources:
   - projector.yaml
   - transactions.yaml
   - users.yaml
+  - worker.yaml
   - twitch-ingress.yaml
   - network-policies.yaml
   - linkerd-auth.yaml

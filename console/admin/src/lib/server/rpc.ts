@@ -33,6 +33,15 @@ export interface TokenStatus {
   present: boolean;
 }
 
+export interface UserPage {
+  users: AdminUserWire[];
+  stats: UserStats;
+  page: number;
+  page_size: number;
+  max_pages: number;
+  has_more: boolean;
+}
+
 // ── Shards ──────────────────────────────────────────────────────────────────
 
 export async function shardSnapshot(): Promise<ShardSnapshot> {
@@ -69,9 +78,30 @@ export async function userStats(): Promise<UserStats> {
   return r.stats;
 }
 
-export async function userOverview(limit = 20): Promise<{ users: AdminUserWire[]; stats: UserStats }> {
-  const r = await rpc<{ users?: AdminUserWire[]; stats: UserStats }>(`${SUB.user}.overview`, { limit });
-  return { users: r.users ?? [], stats: r.stats };
+export const USER_PAGE_SIZE = 15;
+export const USER_MAX_PAGES = 25;
+
+export async function userOverview(page = 1, search = ''): Promise<UserPage> {
+  const r = await rpc<{
+    users?: AdminUserWire[];
+    stats: UserStats;
+    page?: number;
+    page_size?: number;
+    max_pages?: number;
+    has_more?: boolean;
+  }>(`${SUB.user}.overview`, {
+    page,
+    limit: USER_PAGE_SIZE,
+    search
+  });
+  return {
+    users: r.users ?? [],
+    stats: r.stats,
+    page: r.page ?? page,
+    page_size: r.page_size ?? USER_PAGE_SIZE,
+    max_pages: r.max_pages ?? USER_MAX_PAGES,
+    has_more: Boolean(r.has_more)
+  };
 }
 
 export async function userSetStatus(userId: string, status: string): Promise<AdminUserWire> {
@@ -187,7 +217,7 @@ export interface AuditPage {
   has_more: boolean;
 }
 
-export const AUDIT_PAGE_SIZE = 25;
+export const AUDIT_PAGE_SIZE = 15;
 export const AUDIT_MAX_PAGES = 25;
 
 // adminCheck resolves whether a Twitch subject is an active admin. Login/display

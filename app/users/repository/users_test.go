@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"testing"
+	"time"
 
 	"ItsBagelBot/app/users/ent"
 	"ItsBagelBot/app/users/ent/enttest"
@@ -144,4 +145,35 @@ func TestDeleteCascadesAndPublishes(t *testing.T) {
 	assert.Equal(t, 0, client.Tokens.Query().CountX(ctx), "tokens must cascade with the user")
 
 	assert.Len(t, pub.On(data.SubjectUserDeleted), 1)
+}
+
+func TestDelegateCanOptOutOfConsumedDelegation(t *testing.T) {
+	_, _, repo := setup(t)
+	ctx := context.Background()
+
+	require.NoError(t, repo.CreateDelegation(ctx, "share-token", 1001, "owner", []string{"commands"}, nil))
+
+	_, err := repo.ConsumeDelegation(ctx, "share-token", 2002, "delegate")
+	require.NoError(t, err)
+
+	access, err := repo.ListAccessByDelegate(ctx, 2002)
+	require.NoError(t, err)
+	require.Len(t, access, 1)
+
+	require.Error(t, repo.OptOutDelegation(ctx, 9999, 2002), "delegate cannot drop a grant for another owner")
+	require.NoError(t, repo.OptOutDelegation(ctx, 1001, 2002))
+
+	access, err = repo.ListAccessByDelegate(ctx, 2002)
+	require.NoError(t, err)
+	assert.Empty(t, access)
+}
+
+func TestDelegateOptOutIgnoresPendingLinks(t *testing.T) {
+	_, _, repo := setup(t)
+	ctx := context.Background()
+	expires := time.Now().Add(time.Hour)
+
+	require.NoError(t, repo.CreateDelegation(ctx, "pending-token", 1001, "owner", []string{"commands"}, &expires))
+
+	require.Error(t, repo.OptOutDelegation(ctx, 1001, 2002), "pending invite should remain owner-managed")
 }

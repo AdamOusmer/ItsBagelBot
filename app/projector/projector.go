@@ -6,6 +6,7 @@ import (
 	"ItsBagelBot/app/projector/store"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/domain/validate"
+	"ItsBagelBot/pkg/bus"
 
 	"context"
 	"fmt"
@@ -138,10 +139,10 @@ func (p *Projector) HandleStreamEvent(msg *nats.Msg, nc *nats.Conn, usersTopic, 
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	liveCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	if err := p.store.SetStreamLive(ctx, id, eventType == "stream.online"); err != nil {
+	if err := p.store.SetStreamLive(liveCtx, id, eventType == "stream.online"); err != nil {
 		p.log.Warn("failed to project stream live state", zap.Uint64("user_id", id), zap.Error(err))
 	}
 
@@ -151,42 +152,44 @@ func (p *Projector) HandleStreamEvent(msg *nats.Msg, nc *nats.Conn, usersTopic, 
 
 	p.log.Info("pre-warming cache for stream online", zap.Uint64("user_id", id))
 
-	reqPayload, _ := json.Marshal(map[string]string{"user_id": fmt.Sprint(id)})
+	req := map[string]string{"user_id": fmt.Sprint(id)}
 
 	// 1. Fetch & Cache Users
 	go func() {
-		if resp, err := nc.RequestWithContext(ctx, usersTopic, reqPayload); err == nil {
-			var reply struct {
-				Status   string `json:"status"`
-				IsActive bool   `json:"is_active"`
-				Banned   bool   `json:"banned"`
-			}
-			if json.Unmarshal(resp.Data, &reply) == nil {
-				_ = p.store.SetUser(ctx, id, reply.Status, reply.IsActive, reply.Banned)
-			}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		reply, err := bus.RequestJSON[struct {
+			Status   string `json:"status"`
+			IsActive bool   `json:"is_active"`
+			Banned   bool   `json:"banned"`
+		}](ctx, nc, usersTopic, req)
+		if err == nil {
+			_ = p.store.SetUser(ctx, id, reply.Status, reply.IsActive, reply.Banned)
 		}
 	}()
 
 	// 2. Fetch & Cache Modules
 	go func() {
-		if resp, err := nc.RequestWithContext(ctx, modulesTopic, reqPayload); err == nil {
-			var reply struct {
-				Modules []struct {
-					Name      string          `json:"name"`
-					IsEnabled bool            `json:"is_enabled"`
-					Configs   json.RawMessage `json:"configs,omitempty"`
-				} `json:"modules"`
-			}
-			if json.Unmarshal(resp.Data, &reply) == nil {
-				for _, mod := range reply.Modules {
-					_ = p.store.SetModule(ctx, id, mod.Name, mod.IsEnabled, mod.Configs)
-				}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		reply, err := bus.RequestJSON[struct {
+			Modules []struct {
+				Name      string          `json:"name"`
+				IsEnabled bool            `json:"is_enabled"`
+				Configs   json.RawMessage `json:"configs,omitempty"`
+			} `json:"modules"`
+		}](ctx, nc, modulesTopic, req)
+		if err == nil {
+			for _, mod := range reply.Modules {
+				_ = p.store.SetModule(ctx, id, mod.Name, mod.IsEnabled, mod.Configs)
 			}
 		}
 	}()
 
 	// 3. Pre-warm Commands (RPC triggers local cache load in commands service)
 	go func() {
-		_, _ = nc.RequestWithContext(ctx, commandsTopic, reqPayload)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_, _ = bus.RequestJSON[json.RawMessage](ctx, nc, commandsTopic, req)
 	}()
 }

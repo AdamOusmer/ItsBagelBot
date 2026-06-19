@@ -10,6 +10,8 @@ defmodule Ingress.Application do
       them to surviving nodes when a node leaves.
     * `Ingress.BroadcasterCache` - in-process ETS cache over the broadcaster
       status NATS RPC (the ingress never reads the database directly).
+    * `Ingress.Dispatcher` - bounded async notification filtering and NATS
+      publish workers so shard socket processes never do that work inline.
     * `Ingress.Twitch.AppToken` - cached app access token for Helix calls.
     * `Gnat.ConnectionSupervisor` - NATS connection, registered as `:gnat`.
     * `Gnat.ConsumerSupervisor` (invalidation) - subscription to cache
@@ -56,6 +58,8 @@ defmodule Ingress.Application do
        ]},
       nats_connection(),
       Ingress.BroadcasterCache,
+      {Task.Supervisor, name: Ingress.Dispatcher.TaskSupervisor},
+      Ingress.Dispatcher,
       Ingress.Twitch.AppToken,
       invalidation_consumer(),
       admin_consumer(),

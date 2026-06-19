@@ -12,6 +12,7 @@ import (
 
 	"ItsBagelBot/app/users/ent/tokens"
 	"ItsBagelBot/app/users/repository"
+	"ItsBagelBot/pkg/bus"
 )
 
 type dashboardRPC struct {
@@ -61,13 +62,13 @@ type upsertUserRequest struct {
 func (d *dashboardRPC) handleUpsertUser(msg *nats.Msg) {
 	var req upsertUserRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
-		respondDash(msg, map[string]any{"error": "bad request"})
+		bus.Respond(msg, map[string]any{"error": "bad request"})
 		return
 	}
 
 	id, err := strconv.ParseUint(req.UserID, 10, 64)
 	if err != nil {
-		respondDash(msg, map[string]any{"error": "user_id must be numeric"})
+		bus.Respond(msg, map[string]any{"error": "user_id must be numeric"})
 		return
 	}
 
@@ -79,11 +80,11 @@ func (d *dashboardRPC) handleUpsertUser(msg *nats.Msg) {
 
 	if err := d.repo.Register(ctx, id, req.Username, email); err != nil {
 		d.log.Error("upsert_user register", zap.Error(err))
-		respondDash(msg, map[string]any{"error": err.Error()})
+		bus.Respond(msg, map[string]any{"error": err.Error()})
 		return
 	}
 
-	respondDash(msg, map[string]any{"ok": true})
+	bus.Respond(msg, map[string]any{"ok": true})
 }
 
 type grantSaveRequest struct {
@@ -95,13 +96,13 @@ type grantSaveRequest struct {
 func (d *dashboardRPC) handleGrantSave(msg *nats.Msg) {
 	var req grantSaveRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
-		respondDash(msg, map[string]any{"error": "bad request"})
+		bus.Respond(msg, map[string]any{"error": "bad request"})
 		return
 	}
 
 	id, err := strconv.ParseUint(req.BroadcasterUserID, 10, 64)
 	if err != nil {
-		respondDash(msg, map[string]any{"error": "broadcaster_user_id must be numeric"})
+		bus.Respond(msg, map[string]any{"error": "broadcaster_user_id must be numeric"})
 		return
 	}
 
@@ -110,7 +111,7 @@ func (d *dashboardRPC) handleGrantSave(msg *nats.Msg) {
 
 	if err := d.repo.UpsertToken(ctx, id, tokens.TypeUserToken, tokens.PlatformTwitch, []byte(req.AccessToken), []byte(req.RefreshToken)); err != nil {
 		d.log.Error("grant_save upsert token", zap.Error(err))
-		respondDash(msg, map[string]any{"error": err.Error()})
+		bus.Respond(msg, map[string]any{"error": err.Error()})
 		return
 	}
 
@@ -120,7 +121,7 @@ func (d *dashboardRPC) handleGrantSave(msg *nats.Msg) {
 		d.log.Warn("grant_save invalidation publish failed", zap.Error(err))
 	}
 
-	respondDash(msg, map[string]any{"ok": true})
+	bus.Respond(msg, map[string]any{"ok": true})
 }
 
 type grantHasRequest struct {
@@ -130,13 +131,13 @@ type grantHasRequest struct {
 func (d *dashboardRPC) handleGrantHas(msg *nats.Msg) {
 	var req grantHasRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
-		respondDash(msg, map[string]any{"error": "bad request"})
+		bus.Respond(msg, map[string]any{"error": "bad request"})
 		return
 	}
 
 	id, err := strconv.ParseUint(req.BroadcasterUserID, 10, 64)
 	if err != nil {
-		respondDash(msg, map[string]any{"error": "broadcaster_user_id must be numeric"})
+		bus.Respond(msg, map[string]any{"error": "broadcaster_user_id must be numeric"})
 		return
 	}
 
@@ -147,7 +148,7 @@ func (d *dashboardRPC) handleGrantHas(msg *nats.Msg) {
 
 	hasGrant := err == nil && len(accessToken) > 0
 
-	respondDash(msg, map[string]any{"has_grant": hasGrant})
+	bus.Respond(msg, map[string]any{"has_grant": hasGrant})
 }
 
 type activeSetRequest struct {
@@ -161,13 +162,13 @@ type activeSetRequest struct {
 func (d *dashboardRPC) handleActiveSet(msg *nats.Msg) {
 	var req activeSetRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
-		respondDash(msg, map[string]any{"error": "bad request"})
+		bus.Respond(msg, map[string]any{"error": "bad request"})
 		return
 	}
 
 	id, err := strconv.ParseUint(req.BroadcasterUserID, 10, 64)
 	if err != nil {
-		respondDash(msg, map[string]any{"error": "broadcaster_user_id must be numeric"})
+		bus.Respond(msg, map[string]any{"error": "broadcaster_user_id must be numeric"})
 		return
 	}
 
@@ -176,7 +177,7 @@ func (d *dashboardRPC) handleActiveSet(msg *nats.Msg) {
 
 	if err := d.repo.SetActive(ctx, id, req.Active); err != nil {
 		d.log.Error("active_set", zap.Error(err))
-		respondDash(msg, map[string]any{"error": err.Error()})
+		bus.Respond(msg, map[string]any{"error": err.Error()})
 		return
 	}
 
@@ -185,19 +186,19 @@ func (d *dashboardRPC) handleActiveSet(msg *nats.Msg) {
 		d.log.Warn("active_set invalidation publish failed", zap.Error(err))
 	}
 
-	respondDash(msg, map[string]any{"ok": true})
+	bus.Respond(msg, map[string]any{"ok": true})
 }
 
 func (d *dashboardRPC) handleActiveGet(msg *nats.Msg) {
 	var req grantHasRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
-		respondDash(msg, map[string]any{"error": "bad request"})
+		bus.Respond(msg, map[string]any{"error": "bad request"})
 		return
 	}
 
 	id, err := strconv.ParseUint(req.BroadcasterUserID, 10, 64)
 	if err != nil {
-		respondDash(msg, map[string]any{"error": "broadcaster_user_id must be numeric"})
+		bus.Respond(msg, map[string]any{"error": "broadcaster_user_id must be numeric"})
 		return
 	}
 
@@ -206,11 +207,11 @@ func (d *dashboardRPC) handleActiveGet(msg *nats.Msg) {
 
 	view, err := d.repo.Get(ctx, id)
 	if err != nil {
-		respondDash(msg, map[string]any{"error": err.Error()})
+		bus.Respond(msg, map[string]any{"error": err.Error()})
 		return
 	}
 
-	respondDash(msg, map[string]any{"active": view.IsActive})
+	bus.Respond(msg, map[string]any{"active": view.IsActive})
 }
 
 // handleStatusGet returns the broadcaster's billing tier (free/paid/vip) so the
@@ -218,13 +219,13 @@ func (d *dashboardRPC) handleActiveGet(msg *nats.Msg) {
 func (d *dashboardRPC) handleStatusGet(msg *nats.Msg) {
 	var req grantHasRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
-		respondDash(msg, map[string]any{"error": "bad request"})
+		bus.Respond(msg, map[string]any{"error": "bad request"})
 		return
 	}
 
 	id, err := strconv.ParseUint(req.BroadcasterUserID, 10, 64)
 	if err != nil {
-		respondDash(msg, map[string]any{"error": "broadcaster_user_id must be numeric"})
+		bus.Respond(msg, map[string]any{"error": "broadcaster_user_id must be numeric"})
 		return
 	}
 
@@ -233,11 +234,11 @@ func (d *dashboardRPC) handleStatusGet(msg *nats.Msg) {
 
 	view, err := d.repo.Get(ctx, id)
 	if err != nil {
-		respondDash(msg, map[string]any{"error": err.Error()})
+		bus.Respond(msg, map[string]any{"error": err.Error()})
 		return
 	}
 
-	respondDash(msg, map[string]any{"status": view.Status})
+	bus.Respond(msg, map[string]any{"status": view.Status})
 }
 
 // handleStateGet returns both the receive toggle and billing tier in one reply.
@@ -247,13 +248,13 @@ func (d *dashboardRPC) handleStatusGet(msg *nats.Msg) {
 func (d *dashboardRPC) handleStateGet(msg *nats.Msg) {
 	var req grantHasRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
-		respondDash(msg, map[string]any{"error": "bad request"})
+		bus.Respond(msg, map[string]any{"error": "bad request"})
 		return
 	}
 
 	id, err := strconv.ParseUint(req.BroadcasterUserID, 10, 64)
 	if err != nil {
-		respondDash(msg, map[string]any{"error": "broadcaster_user_id must be numeric"})
+		bus.Respond(msg, map[string]any{"error": "broadcaster_user_id must be numeric"})
 		return
 	}
 
@@ -262,11 +263,11 @@ func (d *dashboardRPC) handleStateGet(msg *nats.Msg) {
 
 	view, err := d.repo.Get(ctx, id)
 	if err != nil {
-		respondDash(msg, map[string]any{"error": err.Error()})
+		bus.Respond(msg, map[string]any{"error": err.Error()})
 		return
 	}
 
-	respondDash(msg, map[string]any{"active": view.IsActive, "status": view.Status})
+	bus.Respond(msg, map[string]any{"active": view.IsActive, "status": view.Status})
 }
 
 type deleteSelfRequest struct {
@@ -278,13 +279,13 @@ type deleteSelfRequest struct {
 func (d *dashboardRPC) handleDeleteSelf(msg *nats.Msg) {
 	var req deleteSelfRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
-		respondDash(msg, map[string]any{"error": "bad request"})
+		bus.Respond(msg, map[string]any{"error": "bad request"})
 		return
 	}
 
 	id, err := strconv.ParseUint(req.UserID, 10, 64)
 	if err != nil {
-		respondDash(msg, map[string]any{"error": "user_id must be numeric"})
+		bus.Respond(msg, map[string]any{"error": "user_id must be numeric"})
 		return
 	}
 
@@ -293,19 +294,14 @@ func (d *dashboardRPC) handleDeleteSelf(msg *nats.Msg) {
 
 	if err := d.repo.DeleteDelegationsByOwner(ctx, id); err != nil {
 		d.log.Error("delete_self delegations", zap.Error(err))
-		respondDash(msg, map[string]any{"error": err.Error()})
+		bus.Respond(msg, map[string]any{"error": err.Error()})
 		return
 	}
 	if err := d.repo.Delete(ctx, id); err != nil {
 		d.log.Error("delete_self user", zap.Error(err))
-		respondDash(msg, map[string]any{"error": err.Error()})
+		bus.Respond(msg, map[string]any{"error": err.Error()})
 		return
 	}
 
-	respondDash(msg, map[string]any{"ok": true})
-}
-
-func respondDash(msg *nats.Msg, v any) {
-	body, _ := json.Marshal(v)
-	_ = msg.Respond(body)
+	bus.Respond(msg, map[string]any{"ok": true})
 }

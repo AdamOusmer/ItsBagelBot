@@ -279,7 +279,7 @@
       </button>
     </header>
 
-    <div class="drawer-body">
+    <div class="drawer-body" data-lenis-prevent>
       <div class="meta-block">
         <div class="meta-line"><span class="meta-k">Display</span><span class="meta-v">{drawer.display_name}</span></div>
         <div class="meta-line"><span class="meta-k">Role</span><span class="badge {roleBadge(drawer.role)}">{drawer.role}</span></div>
@@ -351,7 +351,7 @@
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
   <div class="modal-backdrop" onclick={closeRemove} role="dialog" aria-modal="true" aria-labelledby="rm-title" tabindex="-1">
     <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <div class="modal-card" role="presentation" onclick={(e) => e.stopPropagation()}>
+    <div class="modal-card" role="presentation" data-lenis-prevent onclick={(e) => e.stopPropagation()}>
       <h3 id="rm-title">Remove @{removeTarget.login} from staff?</h3>
       <p class="modal-body">
         This deactivates their console access. They will no longer be able to sign in or manage the bot.
@@ -467,7 +467,11 @@
   .drawer-close :global(svg) { stroke: currentColor; }
   .drawer-close:hover { color: var(--bb-white); border-color: var(--bb-border-strong); background: rgba(255,255,255,0.04); }
   /* min-height:0 lets this flex child actually scroll instead of overflowing. */
-  .drawer-body { flex: 1; min-height: 0; overflow-y: auto; padding: 20px 22px 32px; }
+  .drawer-body {
+    flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding: 20px 22px 32px;
+  }
 
   .meta-block {
     display: grid; gap: .5rem; padding: 14px 16px; margin-bottom: 18px;
@@ -509,6 +513,8 @@
     background: var(--bb-bg-1, #111); border: 1px solid var(--glass-border); border-radius: var(--bb-radius-lg);
     backdrop-filter: blur(var(--glass-blur)); -webkit-backdrop-filter: blur(var(--glass-blur));
     padding: 28px 28px 24px; max-width: 420px; width: 100%;
+    max-height: calc(100vh - 32px); overflow-y: auto; overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
   }
   .modal-card h3 { font-family: var(--bb-font-display); font-weight: 700; font-size: 19px; color: var(--bb-white); margin: 0 0 12px; letter-spacing: -0.01em; }
   .modal-body { font-family: var(--bb-font-body); font-size: 14px; color: var(--bb-muted); line-height: 1.55; margin: 0 0 22px; }

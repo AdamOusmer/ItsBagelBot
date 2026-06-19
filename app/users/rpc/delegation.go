@@ -13,6 +13,7 @@ import (
 	"go.uber.org/zap"
 
 	"ItsBagelBot/app/users/repository"
+	"ItsBagelBot/pkg/bus"
 )
 
 type delegationRPC struct {
@@ -36,6 +37,7 @@ func SubscribeDelegation(nc *nats.Conn, repo *repository.Users, prefix, queueGro
 		{"list", d.handleList},
 		{"revoke", d.handleRevoke},
 		{"access", d.handleAccess},
+		{"opt_out", d.handleOptOut},
 	}
 	for _, h := range verbs {
 		subject := prefix + "." + h.verb
@@ -63,23 +65,23 @@ type createDelegationRequest struct {
 func (d *delegationRPC) handleCreate(msg *nats.Msg) {
 	var req createDelegationRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
-		respondDeleg(msg, map[string]any{"error": "bad request"})
+		bus.Respond(msg, map[string]any{"error": "bad request"})
 		return
 	}
 
 	ownerID, err := strconv.ParseUint(req.OwnerUserID, 10, 64)
 	if err != nil {
-		respondDeleg(msg, map[string]any{"error": "owner_user_id must be numeric"})
+		bus.Respond(msg, map[string]any{"error": "owner_user_id must be numeric"})
 		return
 	}
 	if len(req.Sections) == 0 {
-		respondDeleg(msg, map[string]any{"error": "at least one section required"})
+		bus.Respond(msg, map[string]any{"error": "at least one section required"})
 		return
 	}
 
 	token, err := newToken()
 	if err != nil {
-		respondDeleg(msg, map[string]any{"error": "token generation failed"})
+		bus.Respond(msg, map[string]any{"error": "token generation failed"})
 		return
 	}
 
@@ -91,11 +93,11 @@ func (d *delegationRPC) handleCreate(msg *nats.Msg) {
 	// time-boxed.
 	if err := d.repo.CreateDelegation(ctx, token, ownerID, req.OwnerLogin, req.Sections, nil); err != nil {
 		d.log.Error("delegation create", zap.Error(err))
-		respondDeleg(msg, map[string]any{"error": err.Error()})
+		bus.Respond(msg, map[string]any{"error": err.Error()})
 		return
 	}
 
-	respondDeleg(msg, map[string]any{"token": token})
+	bus.Respond(msg, map[string]any{"token": token})
 }
 
 type tokenRequest struct {
@@ -105,7 +107,7 @@ type tokenRequest struct {
 func (d *delegationRPC) handleGet(msg *nats.Msg) {
 	var req tokenRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
-		respondDeleg(msg, map[string]any{"error": "bad request"})
+		bus.Respond(msg, map[string]any{"error": "bad request"})
 		return
 	}
 
@@ -114,11 +116,11 @@ func (d *delegationRPC) handleGet(msg *nats.Msg) {
 
 	view, err := d.repo.GetDelegation(ctx, req.Token)
 	if err != nil {
-		respondDeleg(msg, map[string]any{"error": "not found"})
+		bus.Respond(msg, map[string]any{"error": "not found"})
 		return
 	}
 
-	respondDeleg(msg, map[string]any{
+	bus.Respond(msg, map[string]any{
 		"owner_user_id": strconv.FormatUint(view.OwnerID, 10),
 		"owner_login":   view.OwnerLogin,
 		"sections":      view.Sections,
@@ -135,13 +137,13 @@ type consumeDelegationRequest struct {
 func (d *delegationRPC) handleConsume(msg *nats.Msg) {
 	var req consumeDelegationRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
-		respondDeleg(msg, map[string]any{"ok": false, "error": "bad request"})
+		bus.Respond(msg, map[string]any{"ok": false, "error": "bad request"})
 		return
 	}
 
 	delegateID, err := strconv.ParseUint(req.DelegateUserID, 10, 64)
 	if err != nil {
-		respondDeleg(msg, map[string]any{"ok": false, "error": "delegate_user_id must be numeric"})
+		bus.Respond(msg, map[string]any{"ok": false, "error": "delegate_user_id must be numeric"})
 		return
 	}
 
@@ -150,11 +152,11 @@ func (d *delegationRPC) handleConsume(msg *nats.Msg) {
 
 	view, err := d.repo.ConsumeDelegation(ctx, req.Token, delegateID, req.DelegateLogin)
 	if err != nil {
-		respondDeleg(msg, map[string]any{"ok": false, "error": err.Error()})
+		bus.Respond(msg, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
 
-	respondDeleg(msg, map[string]any{
+	bus.Respond(msg, map[string]any{
 		"ok":            true,
 		"owner_user_id": strconv.FormatUint(view.OwnerID, 10),
 		"owner_login":   view.OwnerLogin,
@@ -169,13 +171,13 @@ type ownerRequest struct {
 func (d *delegationRPC) handleList(msg *nats.Msg) {
 	var req ownerRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
-		respondDeleg(msg, map[string]any{"error": "bad request"})
+		bus.Respond(msg, map[string]any{"error": "bad request"})
 		return
 	}
 
 	ownerID, err := strconv.ParseUint(req.OwnerUserID, 10, 64)
 	if err != nil {
-		respondDeleg(msg, map[string]any{"error": "owner_user_id must be numeric"})
+		bus.Respond(msg, map[string]any{"error": "owner_user_id must be numeric"})
 		return
 	}
 
@@ -184,7 +186,7 @@ func (d *delegationRPC) handleList(msg *nats.Msg) {
 
 	views, err := d.repo.ListDelegationsByOwner(ctx, ownerID)
 	if err != nil {
-		respondDeleg(msg, map[string]any{"error": err.Error()})
+		bus.Respond(msg, map[string]any{"error": err.Error()})
 		return
 	}
 
@@ -197,7 +199,7 @@ func (d *delegationRPC) handleList(msg *nats.Msg) {
 			"consumed":       v.Consumed,
 		})
 	}
-	respondDeleg(msg, map[string]any{"grants": grants})
+	bus.Respond(msg, map[string]any{"grants": grants})
 }
 
 type revokeDelegationRequest struct {
@@ -208,13 +210,13 @@ type revokeDelegationRequest struct {
 func (d *delegationRPC) handleRevoke(msg *nats.Msg) {
 	var req revokeDelegationRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
-		respondDeleg(msg, map[string]any{"ok": false, "error": "bad request"})
+		bus.Respond(msg, map[string]any{"ok": false, "error": "bad request"})
 		return
 	}
 
 	ownerID, err := strconv.ParseUint(req.OwnerUserID, 10, 64)
 	if err != nil {
-		respondDeleg(msg, map[string]any{"ok": false, "error": "owner_user_id must be numeric"})
+		bus.Respond(msg, map[string]any{"ok": false, "error": "owner_user_id must be numeric"})
 		return
 	}
 
@@ -222,11 +224,11 @@ func (d *delegationRPC) handleRevoke(msg *nats.Msg) {
 	defer cancel()
 
 	if err := d.repo.RevokeDelegation(ctx, req.Token, ownerID); err != nil {
-		respondDeleg(msg, map[string]any{"ok": false, "error": err.Error()})
+		bus.Respond(msg, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
 
-	respondDeleg(msg, map[string]any{"ok": true})
+	bus.Respond(msg, map[string]any{"ok": true})
 }
 
 type accessRequest struct {
@@ -236,13 +238,13 @@ type accessRequest struct {
 func (d *delegationRPC) handleAccess(msg *nats.Msg) {
 	var req accessRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
-		respondDeleg(msg, map[string]any{"error": "bad request"})
+		bus.Respond(msg, map[string]any{"error": "bad request"})
 		return
 	}
 
 	delegateID, err := strconv.ParseUint(req.DelegateUserID, 10, 64)
 	if err != nil {
-		respondDeleg(msg, map[string]any{"error": "delegate_user_id must be numeric"})
+		bus.Respond(msg, map[string]any{"error": "delegate_user_id must be numeric"})
 		return
 	}
 
@@ -251,7 +253,7 @@ func (d *delegationRPC) handleAccess(msg *nats.Msg) {
 
 	views, err := d.repo.ListAccessByDelegate(ctx, delegateID)
 	if err != nil {
-		respondDeleg(msg, map[string]any{"error": err.Error()})
+		bus.Respond(msg, map[string]any{"error": err.Error()})
 		return
 	}
 
@@ -263,10 +265,39 @@ func (d *delegationRPC) handleAccess(msg *nats.Msg) {
 			"sections":      v.Sections,
 		})
 	}
-	respondDeleg(msg, map[string]any{"grants": grants})
+	bus.Respond(msg, map[string]any{"grants": grants})
 }
 
-func respondDeleg(msg *nats.Msg, v any) {
-	body, _ := json.Marshal(v)
-	_ = msg.Respond(body)
+type optOutDelegationRequest struct {
+	OwnerUserID    string `json:"owner_user_id"`
+	DelegateUserID string `json:"delegate_user_id"`
+}
+
+func (d *delegationRPC) handleOptOut(msg *nats.Msg) {
+	var req optOutDelegationRequest
+	if err := json.Unmarshal(msg.Data, &req); err != nil {
+		bus.Respond(msg, map[string]any{"ok": false, "error": "bad request"})
+		return
+	}
+
+	ownerID, err := strconv.ParseUint(req.OwnerUserID, 10, 64)
+	if err != nil {
+		bus.Respond(msg, map[string]any{"ok": false, "error": "owner_user_id must be numeric"})
+		return
+	}
+	delegateID, err := strconv.ParseUint(req.DelegateUserID, 10, 64)
+	if err != nil {
+		bus.Respond(msg, map[string]any{"ok": false, "error": "delegate_user_id must be numeric"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	if err := d.repo.OptOutDelegation(ctx, ownerID, delegateID); err != nil {
+		bus.Respond(msg, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+
+	bus.Respond(msg, map[string]any{"ok": true})
 }

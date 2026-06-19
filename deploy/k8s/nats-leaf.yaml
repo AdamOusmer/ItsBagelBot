@@ -1,9 +1,9 @@
-# Leaf NATS servers, one per Kubernetes node. The nats-leaf-config configmap is
+# Leaf NATS servers, one per schedulable Kubernetes node. The nats-leaf-config configmap is
 # generated from nats-leaf-server.conf + nats-auth.conf by the Flux kustomize
 # configMapGenerator (deploy/k8s/kustomization.yaml); credentials (bcrypt
 # hashes and the leaf remote URL) come from the nats-auth-env secret.
 apiVersion: apps/v1
-kind: StatefulSet
+kind: DaemonSet
 metadata:
   labels:
     app: nats-leaf
@@ -12,13 +12,12 @@ metadata:
   annotations:
     config.linkerd.io/opaque-ports: "4222"
 spec:
-  replicas: 3
   revisionHistoryLimit: 5
-  podManagementPolicy: Parallel
-  serviceName: nats-leaf-peers
-  persistentVolumeClaimRetentionPolicy:
-    whenDeleted: Retain
-    whenScaled: Retain
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   selector:
     matchLabels:
       app: nats-leaf
@@ -29,6 +28,8 @@ spec:
         # NATS speaks first on the wire, so protocol detection would stall;
         # opaque keeps Linkerd mTLS without the detection timeout.
         config.linkerd.io/opaque-ports: "4222"
+        config.linkerd.io/proxy-cpu-request: 5m
+        config.linkerd.io/proxy-cpu-limit: 1000m
         config.linkerd.io/proxy-memory-limit: 128Mi
         config.linkerd.io/proxy-memory-request: 16Mi
         prometheus.io/path: /metrics
@@ -37,17 +38,11 @@ spec:
       labels:
         app: nats-leaf
     spec:
-      affinity:
-        podAntiAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            - labelSelector:
-                matchLabels:
-                  app: nats-leaf
-              topologyKey: kubernetes.io/hostname
       # Shared PID namespace lets the config-reloader sidecar SIGHUP the
       # nats-server process (same uid 1000) when the mounted config changes.
       shareProcessNamespace: true
-      # nats runs as uid/gid 1000; fsGroup makes the JetStream PVC writable.
+      # nats runs as uid/gid 1000; fsGroup makes the leaf-local JetStream
+      # emptyDir writable. Durable streams live on the hub, not these leaves.
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
@@ -76,8 +71,10 @@ spec:
             - { name: jetstream, mountPath: /data/jetstream }
             - { name: pid, mountPath: /var/run/nats }
           resources:
-            requests: { cpu: 50m, memory: 128Mi }
-            limits: { cpu: 500m, memory: 512Mi }
+            # Leaves are encrypted local relays, not durable stores; keep burst
+            # headroom but avoid reserving hub-sized memory on every node.
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: 1500m, memory: 512Mi }
           securityContext:
             allowPrivilegeEscalation: false
             capabilities: { drop: ["ALL"] }
@@ -139,15 +136,8 @@ spec:
             name: nats-leaf-config
         - name: pid
           emptyDir: {}
-  volumeClaimTemplates:
-    - metadata:
-        name: jetstream
-      spec:
-        accessModes: ["ReadWriteOnce"]
-        storageClassName: local-path
-        resources:
-          requests:
-            storage: 2Gi
+        - name: jetstream
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
@@ -159,7 +149,11 @@ metadata:
   annotations:
     config.linkerd.io/opaque-ports: "4222"
 spec:
-  internalTrafficPolicy: Local
+  # Prefer the node-local leaf for the normal fast path, but allow kube-proxy to
+  # spill to another node while the local leaf or its Linkerd sidecar is rolling.
+  # internalTrafficPolicy: Local made every app on that node lose NATS RPC during
+  # leaf updates, which surfaced as dashboard/admin 500s.
+  trafficDistribution: PreferClose
   selector:
     app: nats-leaf
   ports:

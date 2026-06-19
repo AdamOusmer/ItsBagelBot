@@ -1,5 +1,6 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
+  import { untrack } from 'svelte';
   import { Icon, StatTile, Button } from '@bagel/shared';
   import type { AdminUserWire } from '$lib/server/rpc';
   let { data, form } = $props();
@@ -10,6 +11,11 @@
   const tokenPresent = $derived(lookup?.tokenPresent === undefined ? undefined : Boolean(lookup?.tokenPresent));
   const action = $derived(form?.action as { ok: boolean; notice: string } | undefined);
   const viewAsUrl = $derived(form?.viewAsUrl as string | undefined);
+  const search = $derived(String(data.search ?? ''));
+  const page = $derived(Number(data.page ?? 1));
+  const pageSize = $derived(Number(data.pageSize ?? 15));
+  const maxPages = $derived(Number(data.maxPages ?? 25));
+  const hasMore = $derived(Boolean(data.hasMore));
 
   // Copy the freshly-minted view-as link to the clipboard (mirrors the bot-link
   // copy on the overview page).
@@ -29,6 +35,15 @@
     return status === 'paid' || status === 'vip' ? 'premium' : 'standard';
   }
 
+  function usersHref(pageNo: number, q: string): string {
+    const params = new URLSearchParams();
+    const clean = q.trim();
+    if (clean) params.set('q', clean);
+    if (pageNo > 1) params.set('page', String(pageNo));
+    const query = params.toString();
+    return query ? `/users?${query}` : '/users';
+  }
+
   // Apply the result without invalidateAll: mutations reply with the updated
   // user (authoritative), so we reconcile that one row locally instead of
   // re-running load. The old update()+invalidateAll both stalled the response
@@ -43,13 +58,18 @@
   // freshest user the server returns, so badges/state update without a refetch.
   // svelte-ignore state_referenced_locally
   let recent = $state<AdminUserWire[]>(data.recent);
+  const showingStart = $derived(recent.length === 0 ? 0 : (page - 1) * pageSize + 1);
+  const showingEnd = $derived(showingStart === 0 ? 0 : showingStart + recent.length - 1);
   // svelte-ignore state_referenced_locally
   let seed = data.recent;
   $effect(() => {
-    if (data.recent !== seed) {
-      seed = data.recent;
-      recent = data.recent;
-    }
+    const nextSeed = data.recent;
+    untrack(() => {
+      if (nextSeed !== seed) {
+        seed = nextSeed;
+        recent = nextSeed;
+      }
+    });
   });
 
   function upsertRecent(u: AdminUserWire) {
@@ -69,8 +89,12 @@
   // recent row so the displayed state always reflects the freshest server truth.
   $effect(() => {
     if (found) {
-      selected = found;
-      upsertRecent(found);
+      untrack(() => {
+        if (!selected || String(selected.id) !== String(found.id)) {
+          selected = found;
+        }
+        upsertRecent(found);
+      });
     }
   });
 
@@ -116,14 +140,7 @@
     else if (selected) closeDrawer();
   }
 
-  // --- Recent table filter --------------------------------------------
-  let filter = $state('');
-  const rows = $derived(
-    recent.filter((u: AdminUserWire) => {
-      const q = filter.trim().toLowerCase();
-      return !q || u.username.toLowerCase().includes(q) || String(u.id).includes(q);
-    })
-  );
+  const rows = $derived(recent);
 
   const tiers: Array<{ key: string; label: string }> = [
     { key: 'free', label: 'Free' },
@@ -134,12 +151,12 @@
 
 <svelte:window onkeydown={handleKey} />
 
-<section class="screen active">
+<section class="screen active users-screen">
   <div class="page-head">
     <span class="eyebrow">Broadcaster accounts</span>
     <h1>User <em>management</em></h1>
     <p>
-      Grants, resets, and recent users.{#if data.degraded}
+      Grants, resets, and paged user search.{#if data.degraded}
         <em> Live user data unavailable; showing sample.</em>{/if}
     </p>
   </div>
@@ -166,13 +183,22 @@
   </div>
 
   <!-- MASTER: calm recent list -->
-  <div class="card" style="padding:18px 6px">
-    <div class="card-head" style="padding:0 12px;gap:.6rem">
-      <h3>Recent</h3>
-      <label class="search search-filter">
-        <Icon name="search" size={14} />
-        <input type="text" placeholder="Filter by name or id" autocomplete="off" bind:value={filter} />
-      </label>
+  <div class="card recent-card">
+    <div class="card-head recent-head">
+      <h3>Users</h3>
+      <form method="GET" action="/users" class="users-controls">
+        <label class="search search-filter">
+          <Icon name="search" size={14} />
+          <input name="q" type="text" placeholder="Search by name or id" autocomplete="off" value={search} />
+        </label>
+        <button class="btn primary search-submit" type="submit">
+          <Icon name="search" size={14} />
+          <span>Search</span>
+        </button>
+        {#if search}
+          <a class="btn ghost clear-search" href="/users">Clear</a>
+        {/if}
+      </form>
     </div>
     <div class="table users-table">
       <div class="thead">
@@ -201,6 +227,29 @@
         {/each}
       </div>
     </div>
+
+    <div class="users-foot">
+      <span class="page-state">
+        {#if showingStart === 0}
+          Page {page}
+        {:else}
+          {showingStart}-{showingEnd} · page {page}
+        {/if}
+        <span class="muted">of {maxPages} max</span>
+      </span>
+      <div class="pager">
+        {#if page > 1}
+          <a class="pager-link" href={usersHref(page - 1, search)}>Previous</a>
+        {:else}
+          <span class="pager-link disabled" aria-disabled="true">Previous</span>
+        {/if}
+        {#if hasMore && page < maxPages}
+          <a class="pager-link" href={usersHref(page + 1, search)}>Next</a>
+        {:else}
+          <span class="pager-link disabled" aria-disabled="true">Next</span>
+        {/if}
+      </div>
+    </div>
   </div>
 </section>
 
@@ -221,7 +270,7 @@
       </button>
     </header>
 
-    <div class="drawer-body">
+    <div class="drawer-body" data-lenis-prevent>
       <!-- Profile meta -->
       <div class="meta-block">
         <div class="meta-line"><span class="meta-k">Status</span><span class="meta-v">{drawerUser.status}</span></div>
@@ -341,7 +390,7 @@
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
   <div class="modal-backdrop" onclick={closeDelete} role="dialog" aria-modal="true" aria-labelledby="del-title" tabindex="-1">
     <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <div class="modal-card" role="presentation" onclick={(e) => e.stopPropagation()}>
+    <div class="modal-card" role="presentation" data-lenis-prevent onclick={(e) => e.stopPropagation()}>
       <h3 id="del-title">Delete @{deleteTarget.username}?</h3>
       <p class="modal-body">
         This permanently removes the user and cascades to their commands and modules. This cannot be undone.
@@ -396,13 +445,68 @@
   }
 
   /* lookup bar */
-  .lookup-card { padding: 16px 18px; }
+  :global(.canvas:has(.users-screen)) {
+    max-width: 1480px;
+  }
+
+  .users-screen {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: var(--row-gap, 20px);
+  }
+
+  /* In flex layout margins don't collapse — cancel the global page-head
+     bottom margin so the flex gap alone drives the spacing. */
+  .users-screen .page-head {
+    margin-bottom: 0;
+  }
+
+  .lookup-card {
+    padding: 18px 20px;
+  }
   .lookup-form { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; }
-  .lookup-input { flex: 1; min-width: 0; }
+  .lookup-input { flex: 1 1 420px; min-width: min(100%, 280px); }
+
+  .recent-card {
+    padding: 20px 10px;
+  }
 
   /* card-head with filter input */
   .card-head { align-items: center; }
-  .search-filter { margin-left: auto; max-width: 220px; flex: 1; min-width: 0; }
+  .recent-head {
+    padding: 0 14px;
+    gap: .8rem;
+  }
+  .users-controls {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+    margin-left: auto;
+  }
+  .search-filter {
+    margin-left: auto;
+    max-width: 320px;
+    flex: 1 1 240px;
+    min-width: 180px;
+  }
+  .search-submit,
+  .clear-search {
+    padding: 10px 14px;
+    text-decoration: none;
+  }
+
+  .users-table .thead,
+  .users-table .trow {
+    grid-template-columns: minmax(180px, 1.6fr) minmax(150px, 1.1fr) minmax(110px, .7fr) minmax(110px, .7fr) minmax(90px, .55fr) 44px;
+  }
+
+  .users-table .trow {
+    min-height: 58px;
+  }
 
   /* clickable table row */
   .trow-clickable { cursor: pointer; user-select: none; transition: background var(--bb-dur-fast, 140ms) var(--bb-ease-out-expo, ease); }
@@ -419,6 +523,51 @@
     vertical-align: middle;
   }
 
+  .users-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 18px 0;
+    margin-top: 12px;
+    border-top: 1px solid var(--glass-border);
+  }
+  .page-state {
+    font-family: var(--bb-font-mono);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--bb-tan-light);
+  }
+  .page-state .muted { color: var(--bb-muted); }
+  .pager { display: flex; align-items: center; gap: 8px; }
+  .pager-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 86px;
+    padding: 9px 13px;
+    border-radius: var(--bb-radius-pill);
+    border: 1px solid var(--glass-border);
+    background: rgba(255,255,255,0.03);
+    color: var(--bb-tan-light);
+    font-family: var(--bb-font-mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    text-decoration: none;
+    transition: all var(--bb-dur-base) var(--bb-ease-out-expo);
+  }
+  .pager-link:hover {
+    background: rgba(201,168,124,0.08);
+    border-color: var(--bb-border-strong);
+    color: var(--bb-tan-pale);
+  }
+  .pager-link.disabled {
+    opacity: 0.42;
+    pointer-events: none;
+  }
+
   /* ---- Detail drawer ---- */
   .drawer-backdrop {
     position: fixed; inset: 0; z-index: 190;
@@ -431,7 +580,7 @@
 
   .drawer {
     position: fixed; top: 0; right: 0; z-index: 191;
-    height: 100vh; width: min(420px, 92vw);
+    height: 100vh; width: min(620px, 92vw);
     display: flex; flex-direction: column;
     background:
       linear-gradient(var(--glass-fill), var(--glass-fill)),
@@ -464,10 +613,16 @@
   .drawer-close:hover { color: var(--bb-white); border-color: var(--bb-border-strong); background: rgba(255,255,255,0.04); }
 
   /* min-height:0 lets this flex child actually scroll instead of overflowing. */
-  .drawer-body { flex: 1; min-height: 0; overflow-y: auto; padding: 20px 22px 32px; }
+  .drawer-body {
+    flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding: 20px 22px 32px;
+  }
 
   .meta-block {
-    display: grid; gap: .5rem;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .65rem 1rem;
     padding: 14px 16px; margin-bottom: 18px;
     background: rgba(255,255,255,0.025);
     border: 1px solid var(--glass-border);
@@ -483,7 +638,7 @@
     color: var(--bb-muted); margin-bottom: .55rem;
   }
   .field form { display: block; }
-  .action-stack { display: grid; gap: .5rem; }
+  .action-stack { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; }
 
   /* tier segment */
   .segment {
@@ -540,6 +695,8 @@
     border-radius: var(--bb-radius-lg);
     backdrop-filter: blur(var(--glass-blur)); -webkit-backdrop-filter: blur(var(--glass-blur));
     padding: 28px 28px 24px; max-width: 420px; width: 100%;
+    max-height: calc(100vh - 32px); overflow-y: auto; overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
   }
   .modal-card h3 {
     font-family: var(--bb-font-display); font-weight: 700; font-size: 19px;
@@ -553,7 +710,22 @@
 
   /* mobile responsive */
   @media (max-width: 760px) {
-    .search-filter { max-width: 160px; }
+    :global(.canvas:has(.users-screen)) {
+      max-width: 1180px;
+    }
+
+    .lookup-card {
+      margin-bottom: 14px;
+    }
+
+    .recent-card {
+      padding: 18px 6px;
+    }
+
+    .recent-head { align-items: stretch; flex-direction: column; }
+    .users-controls { width: 100%; margin-left: 0; justify-content: flex-start; flex-wrap: wrap; }
+    .search-filter { max-width: none; min-width: 100%; margin-left: 0; }
+    .search-submit, .clear-search { flex: 1; justify-content: center; }
     :global(.stat-grid) { grid-template-columns: 1fr 1fr; }
 
     /* The shared .trow mobile collapse is tuned for the commands table (hides
@@ -572,12 +744,21 @@
     .users-table .trow .row-act { display: none; }
     .users-table .trow .perm-cell,
     .users-table .trow .cd { display: revert; }
+    .users-foot { align-items: stretch; flex-direction: column; padding-inline: 14px; }
+    .pager { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
+    .pager-link { min-width: 0; }
     .drawer {
       width: 100vw; height: 92vh; top: auto; bottom: 0; right: 0;
       border-left: none; border-top: 1px solid var(--glass-border);
       border-radius: var(--bb-radius-lg, 16px) var(--bb-radius-lg, 16px) 0 0;
       transform: translateY(100%);
       animation: sheet-in var(--bb-dur-med, 320ms) var(--bb-ease-out-expo, cubic-bezier(.16,1,.3,1)) forwards;
+    }
+    .meta-block {
+      grid-template-columns: 1fr;
+    }
+    .action-stack {
+      grid-template-columns: 1fr;
     }
     @keyframes sheet-in { to { transform: translateY(0); } }
   }

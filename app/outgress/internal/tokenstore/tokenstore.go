@@ -5,8 +5,9 @@ package tokenstore
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
+
+	"ItsBagelBot/pkg/bus"
 
 	"github.com/nats-io/nats.go"
 )
@@ -29,16 +30,9 @@ type reply struct {
 // Load returns the bot account's stored refresh token. A missing token row
 // surfaces as an error; callers decide whether that is fatal.
 func (s *Store) Load(ctx context.Context) (string, error) {
-	req, _ := json.Marshal(map[string]string{"user_id": s.userID})
-
-	msg, err := s.nc.RequestWithContext(ctx, s.prefix+".get", req)
+	r, err := bus.RequestJSON[reply](ctx, s.nc, s.prefix+".get", map[string]string{"user_id": s.userID})
 	if err != nil {
 		return "", fmt.Errorf("tokens get rpc: %w", err)
-	}
-
-	var r reply
-	if err := json.Unmarshal(msg.Data, &r); err != nil {
-		return "", fmt.Errorf("tokens get unmarshal: %w", err)
 	}
 	if r.Error != "" {
 		return "", fmt.Errorf("tokens get: %s", r.Error)
@@ -48,20 +42,15 @@ func (s *Store) Load(ctx context.Context) (string, error) {
 
 // Save persists the freshly rotated token pair.
 func (s *Store) Save(ctx context.Context, accessToken, refreshToken string) error {
-	req, _ := json.Marshal(map[string]string{
+	req := map[string]string{
 		"user_id":       s.userID,
 		"access_token":  accessToken,
 		"refresh_token": refreshToken,
-	})
-
-	msg, err := s.nc.RequestWithContext(ctx, s.prefix+".save", req)
-	if err != nil {
-		return fmt.Errorf("tokens save rpc: %w", err)
 	}
 
-	var r reply
-	if err := json.Unmarshal(msg.Data, &r); err != nil {
-		return fmt.Errorf("tokens save unmarshal: %w", err)
+	r, err := bus.RequestJSON[reply](ctx, s.nc, s.prefix+".save", req)
+	if err != nil {
+		return fmt.Errorf("tokens save rpc: %w", err)
 	}
 	if r.Error != "" {
 		return fmt.Errorf("tokens save: %s", r.Error)

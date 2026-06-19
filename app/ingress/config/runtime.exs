@@ -87,7 +87,14 @@ config :ingress,
   broadcaster_status_timeout_ms:
     String.to_integer(System.get_env("BROADCASTER_STATUS_TIMEOUT_MS", "2000")),
   broadcaster_cache_ttl_ms:
-    String.to_integer(System.get_env("BROADCASTER_CACHE_TTL_SECONDS", "300")) * 1000
+    String.to_integer(System.get_env("BROADCASTER_CACHE_TTL_SECONDS", "300")) * 1000,
+  # Notification work is offloaded from shard websocket processes into this
+  # bounded task dispatcher. Dropping here is better than letting socket
+  # mailboxes grow until Twitch keepalives/reconnects are delayed.
+  dispatcher_max_running:
+    String.to_integer(System.get_env("INGRESS_DISPATCHER_MAX_RUNNING", "64")),
+  dispatcher_max_queue:
+    String.to_integer(System.get_env("INGRESS_DISPATCHER_MAX_QUEUE", "2000"))
 
 # Credentials are optional so local development can run against an open
 # server; the production broker requires them and Gnat only sends them when

@@ -5,15 +5,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 
 	"ItsBagelBot/app/users/ent"
+	"ItsBagelBot/app/users/ent/predicate"
 	"ItsBagelBot/app/users/ent/tokens"
 	"ItsBagelBot/app/users/ent/user"
 	"ItsBagelBot/app/users/repository"
+	"ItsBagelBot/pkg/bus"
 )
 
 type adminUserView struct {
@@ -38,11 +41,15 @@ type adminTokenView struct {
 }
 
 type adminReply struct {
-	User  *adminUserView  `json:"user,omitempty"`
-	Users []adminUserView `json:"users,omitempty"`
-	Stats *adminStats     `json:"stats,omitempty"`
-	Token *adminTokenView `json:"token,omitempty"`
-	Error string          `json:"error,omitempty"`
+	User     *adminUserView  `json:"user,omitempty"`
+	Users    []adminUserView `json:"users,omitempty"`
+	Stats    *adminStats     `json:"stats,omitempty"`
+	Token    *adminTokenView `json:"token,omitempty"`
+	Page     int             `json:"page,omitempty"`
+	PageSize int             `json:"page_size,omitempty"`
+	MaxPages int             `json:"max_pages,omitempty"`
+	HasMore  bool            `json:"has_more,omitempty"`
+	Error    string          `json:"error,omitempty"`
 }
 
 type adminRequest struct {
@@ -51,6 +58,8 @@ type adminRequest struct {
 	Status       string `json:"status"`
 	Active       bool   `json:"active"`
 	Limit        int    `json:"limit"`
+	Page         int    `json:"page"`
+	Search       string `json:"search"`
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
 }
@@ -62,6 +71,12 @@ type adminRPC struct {
 	invalidationSubject string
 	log                 *zap.Logger
 }
+
+const (
+	adminUserPageSize     = 15
+	adminUserMaxPages     = 25
+	adminUserMaxSearchLen = 200
+)
 
 func SubscribeAdmin(nc *nats.Conn, db *ent.Client, repo *repository.Users, prefix, invalidationSubject, queueGroup string, log *zap.Logger) error {
 	a := &adminRPC{
@@ -88,27 +103,12 @@ func SubscribeAdmin(nc *nats.Conn, db *ent.Client, repo *repository.Users, prefi
 		"delete":       a.delete,
 	}
 	for verb, handle := range verbs {
-		handle := handle
 		subject := prefix + "." + verb
-		if _, err := a.nc.QueueSubscribe(subject, queueGroup, func(msg *nats.Msg) {
-			var req adminRequest
-			if err := json.Unmarshal(msg.Data, &req); err != nil {
-				respond(msg, adminReply{Error: "bad request"})
-				return
-			}
-			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-			defer cancel()
-			respond(msg, handle(ctx, req))
-		}); err != nil {
-			return fmt.Errorf("subscribe %s: %w", subject, err)
+		if err := bus.QueueSubscribeJSON[adminRequest, adminReply](a.nc, subject, queueGroup, 3*time.Second, log, handle); err != nil {
+			return err
 		}
 	}
 	return nil
-}
-
-func respond(msg *nats.Msg, reply adminReply) {
-	body, _ := json.Marshal(reply)
-	_ = msg.Respond(body)
 }
 
 func (a *adminRPC) get(ctx context.Context, req adminRequest) adminReply {
@@ -125,18 +125,47 @@ func (a *adminRPC) list(ctx context.Context, req adminRequest) adminReply {
 	if limit <= 0 || limit > 100 {
 		limit = 20
 	}
-	rows, err := a.db.User.Query().
-		Order(ent.Desc(user.FieldUpdatedAt)).
-		Limit(limit).
-		All(ctx)
+	q := a.db.User.Query().Order(ent.Desc(user.FieldUpdatedAt), ent.Desc(user.FieldID))
+	if search := normalizeAdminUserSearch(req.Search); search != "" {
+		q = q.Where(adminUserSearchPredicate(search))
+	}
+	if req.Page > 0 {
+		page := req.Page
+		if page < 1 {
+			page = 1
+		}
+		if page > adminUserMaxPages {
+			page = adminUserMaxPages
+		}
+		pageSize := limit
+		if pageSize <= 0 || pageSize > adminUserPageSize {
+			pageSize = adminUserPageSize
+		}
+		fetchLimit := pageSize
+		if page < adminUserMaxPages {
+			fetchLimit++
+		}
+		rows, err := q.Offset((page - 1) * pageSize).Limit(fetchLimit).All(ctx)
+		if err != nil {
+			return adminReply{Error: err.Error()}
+		}
+		hasMore := page < adminUserMaxPages && len(rows) > pageSize
+		if hasMore {
+			rows = rows[:pageSize]
+		}
+		return adminReply{
+			Users:    userViewsOf(rows),
+			Page:     page,
+			PageSize: pageSize,
+			MaxPages: adminUserMaxPages,
+			HasMore:  hasMore,
+		}
+	}
+	rows, err := q.Limit(limit).All(ctx)
 	if err != nil {
 		return adminReply{Error: err.Error()}
 	}
-	views := make([]adminUserView, 0, len(rows))
-	for _, u := range rows {
-		views = append(views, viewOf(u))
-	}
-	return adminReply{Users: views}
+	return adminReply{Users: userViewsOf(rows)}
 }
 
 func (a *adminRPC) overview(ctx context.Context, req adminRequest) adminReply {
@@ -402,4 +431,31 @@ func viewOf(u *ent.User) adminUserView {
 		Banned:    u.Banned,
 		UpdatedAt: u.UpdatedAt,
 	}
+}
+
+func userViewsOf(rows []*ent.User) []adminUserView {
+	views := make([]adminUserView, 0, len(rows))
+	for _, u := range rows {
+		views = append(views, viewOf(u))
+	}
+	return views
+}
+
+func normalizeAdminUserSearch(s string) string {
+	s = strings.TrimSpace(s)
+	runes := []rune(s)
+	if len(runes) > adminUserMaxSearchLen {
+		return string(runes[:adminUserMaxSearchLen])
+	}
+	return s
+}
+
+func adminUserSearchPredicate(search string) predicate.User {
+	predicates := []predicate.User{
+		user.UsernameContainsFold(search),
+	}
+	if id, err := strconv.ParseUint(search, 10, 64); err == nil {
+		predicates = append(predicates, user.IDEQ(id))
+	}
+	return user.Or(predicates...)
 }

@@ -49,7 +49,7 @@ func main() {
 
 	// Core connection drives the projector RPC fallback; JetStream pub/sub
 	// drives the lanes.
-	nc, err := bus.Connect(cfg.NATSURL, serviceName)
+	nc, err := bus.Connect(cfg.NATSRPCURL, serviceName)
 	if err != nil {
 		log.Fatal("failed to connect to nats", zap.Error(err))
 	}

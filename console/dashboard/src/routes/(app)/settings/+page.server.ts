@@ -4,12 +4,18 @@ import {
   delegationList,
   delegationAccess,
   delegationCreate,
+  delegationOptOut,
   delegationRevoke,
-  deleteSelf
+  deleteSelf,
+  auditDashboardImpersonation
 } from '$lib/server/rpc';
 import { COOKIE } from '$lib/server/session';
 
 const SECTIONS = ['commands'] as const;
+
+function tokenLabel(token: string): string {
+  return token.length <= 8 ? 'token=redacted' : `token=${token.slice(0, 8)}...`;
+}
 
 export const load: PageServerLoad = async ({ locals }) => {
   const s = locals.session;
@@ -43,6 +49,7 @@ export const actions: Actions = {
 
     try {
       await deleteSelf(s.user_id);
+      auditDashboardImpersonation(s, 'account:delete');
     } catch {
       return fail(502, { error: 'Could not delete account.' });
     }
@@ -60,6 +67,7 @@ export const actions: Actions = {
 
     try {
       const token = await delegationCreate(s.user_id, s.login, sections);
+      auditDashboardImpersonation(s, 'delegation:create', `sections=${sections.join(',')}`);
       return {
         ok: true,
         action: 'created',
@@ -85,9 +93,27 @@ export const actions: Actions = {
 
     try {
       await delegationRevoke(s.user_id, token);
+      auditDashboardImpersonation(s, 'delegation:revoke', tokenLabel(token));
       return { ok: true, action: 'revoked' };
     } catch {
       return fail(502, { error: 'Could not revoke link.' });
+    }
+  },
+
+  optOut: async ({ request, locals }) => {
+    const s = locals.session;
+    if (!s || s.delegate_of) return fail(403, { error: 'Not allowed.' });
+
+    const f = await request.formData();
+    const ownerId = String(f.get('owner_user_id') ?? '');
+    if (!ownerId) return fail(400, { error: 'Missing dashboard.' });
+
+    try {
+      await delegationOptOut(s.user_id, ownerId);
+      auditDashboardImpersonation(s, 'delegation:opt_out', `owner=${ownerId}`);
+      return { ok: true, action: 'opted_out' };
+    } catch {
+      return fail(502, { error: 'Could not leave dashboard.' });
     }
   }
 };

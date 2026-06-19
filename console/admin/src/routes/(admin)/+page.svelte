@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { Icon, StatTile } from '@bagel/shared';
   import type { ShardSnapshot } from '@bagel/shared';
   let { data } = $props();
@@ -8,7 +9,7 @@
   // the callback validates it there, so the link works across the browser switch.
   let botLink = $state('');
   let copied = $state(false);
-  $effect(() => {
+  onMount(() => {
     botLink = `${location.origin}/auth/bot/login`;
   });
 

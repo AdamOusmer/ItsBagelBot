@@ -4,13 +4,14 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
 	entsql "entgo.io/ent/dialect/sql"
 
 	"entgo.io/ent/dialect"
+
+	"ItsBagelBot/pkg/env"
 
 	"github.com/go-sql-driver/mysql"
 
@@ -66,7 +67,7 @@ func NewDriver(cfg Config) (*entsql.Driver, error) {
 		"time_zone":             "'+00:00'",
 	}
 
-	tlsName, err := registerTLS([]byte(os.Getenv("DB_CA_CERT")))
+	tlsName, err := registerTLS([]byte(env.Get("DB_CA_CERT", "")))
 	if err != nil {
 		return nil, err
 	}
