@@ -39,6 +39,7 @@ spec:
         config.linkerd.io/proxy-cpu-limit: 750m
         config.linkerd.io/proxy-memory-request: 16Mi
         config.linkerd.io/proxy-memory-limit: 96Mi
+        config.linkerd.io/skip-outbound-ports: 6379,26379
     spec:
       # DaemonSet placement keeps one projector pod per schedulable node.
       securityContext:
@@ -57,6 +58,10 @@ spec:
               value: nats://nats:4222
             - name: NATS_RPC_URL
               value: nats://nats-leaf:4222
+            - name: NODE_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
             - name: NATS_PROJECTOR_DASHBOARD_SUBJECT_PREFIX
               value: bagel.rpc.projector.dashboard
             - name: PROJECTOR_WRITE_CONCURRENCY
