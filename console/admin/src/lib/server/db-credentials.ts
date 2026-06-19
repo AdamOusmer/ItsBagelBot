@@ -1,5 +1,5 @@
 import { env } from '$env/dynamic/private';
-import crypto from 'node:crypto';
+import { nanoid } from 'nanoid';
 import mysql from 'mysql2/promise';
 
 export type DbServiceId = 'users' | 'commands' | 'modules' | 'transactions';
@@ -225,11 +225,7 @@ async function dopplerFetch(path: string, init: RequestInit = {}): Promise<Respo
 }
 
 function generatePassword(): string {
-  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!#$%*-_=+?';
-  const bytes = crypto.randomBytes(40);
-  let out = '';
-  for (const b of bytes) out += alphabet[b % alphabet.length];
-  return out;
+  return nanoid(40);
 }
 
 function assertDbUser(dbUser: string): void {
