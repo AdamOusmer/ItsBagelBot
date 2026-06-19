@@ -7,5 +7,8 @@ export default defineConfig({
   // it for SSR so components compile. Native-ish server libraries stay external
   // and are resolved by Bun at runtime.
   ssr: { noExternal: ['@bagel/shared'], external: ['mysql2'] },
-  server: { port: 5174 }
+  server: { port: 5174 },
+  build: {
+    minify: 'terser'
+  }
 });
