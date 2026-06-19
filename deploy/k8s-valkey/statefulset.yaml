@@ -1,0 +1,277 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  labels:
+    app.kubernetes.io/component: node
+    app.kubernetes.io/instance: valkey
+    app.kubernetes.io/name: valkey
+  name: valkey-node
+  namespace: valkey
+spec:
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain
+  podManagementPolicy: OrderedReady
+  replicas: 2
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: node
+      app.kubernetes.io/instance: valkey
+      app.kubernetes.io/name: valkey
+  serviceName: valkey-headless
+  template:
+    metadata:
+      annotations:
+        config.linkerd.io/skip-inbound-ports: 6379,26379,9121
+        config.linkerd.io/skip-outbound-ports: 6379,26379
+        linkerd.io/inject: enabled
+        prometheus.io/port: '9121'
+        prometheus.io/scrape: 'true'
+        secrets.doppler.com/reload: 'true'
+      labels:
+        app.kubernetes.io/component: node
+        app.kubernetes.io/instance: valkey
+        app.kubernetes.io/name: valkey
+    spec:
+      containers:
+      - command:
+        - /bin/sh
+        - /scripts/start-valkey.sh
+        image: valkey/valkey:9.0
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - /scripts/ping-valkey.sh
+          failureThreshold: 3
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 5
+        name: valkey
+        ports:
+        - containerPort: 6379
+          hostPort: 6379
+          name: redis
+          protocol: TCP
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - /scripts/ping-valkey.sh
+          failureThreshold: 3
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 3
+        resources:
+          limits:
+            cpu: '1'
+            memory: 256Mi
+          requests:
+            cpu: 100m
+            memory: 64Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          runAsNonRoot: true
+          runAsUser: 999
+          seccompProfile:
+            type: RuntimeDefault
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /data
+          name: valkey-data
+        - mountPath: /scripts
+          name: scripts
+        - mountPath: /secrets/core
+          name: core-secret
+          readOnly: true
+        - mountPath: /secrets/users
+          name: users-secret
+          readOnly: true
+        - mountPath: /config
+          name: valkey-config
+          readOnly: true
+        env:
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+      - command:
+        - /bin/sh
+        - /scripts/start-sentinel.sh
+        image: valkey/valkey:9.0
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - /scripts/ping-sentinel.sh
+          failureThreshold: 3
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 5
+        name: sentinel
+        ports:
+        - containerPort: 26379
+          hostPort: 26379
+          name: valkey-sentinel
+          protocol: TCP
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - /scripts/ping-sentinel.sh
+          failureThreshold: 3
+          initialDelaySeconds: 15
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 3
+        resources:
+          limits:
+            cpu: 30m
+            memory: 32Mi
+          requests:
+            cpu: 5m
+            memory: 16Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          runAsNonRoot: true
+          runAsUser: 999
+          seccompProfile:
+            type: RuntimeDefault
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /scripts
+          name: scripts
+        - mountPath: /secrets/core
+          name: core-secret
+          readOnly: true
+        - mountPath: /config
+          name: valkey-config
+          readOnly: true
+      - env:
+        - name: REDIS_ADDR
+          value: redis://127.0.0.1:6379
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: valkey-password
+              name: valkey-core-secret
+        image: oliver006/redis_exporter:v1.83.0
+        imagePullPolicy: IfNotPresent
+        name: metrics
+        ports:
+        - containerPort: 9121
+          name: metrics
+          protocol: TCP
+        resources:
+          limits:
+            cpu: 30m
+            memory: 32Mi
+          requests:
+            cpu: 5m
+            memory: 16Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          runAsNonRoot: true
+          runAsUser: 59000
+          seccompProfile:
+            type: RuntimeDefault
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+      dnsPolicy: ClusterFirst
+      initContainers:
+      - command:
+        - /bin/sh
+        - -c
+        - "ORDINAL=\"${HOSTNAME##*-}\"\nif [ \"$ORDINAL\" = \"0\" ]; then exit 0;\
+          \ fi\necho \"Waiting for valkey-node-0 to be ready...\"\nuntil REDISCLI_AUTH=\"\
+          $(cat /secrets/core/valkey-password)\" \\\n      valkey-cli -h valkey-node-0.valkey-headless.valkey.svc.cluster.local\
+          \ \\\n      -p 6379 ping 2>/dev/null | grep -q PONG; do\n  sleep 2\ndone\n\
+          echo \"Primary ready.\"\n"
+        image: valkey/valkey:9.0
+        imagePullPolicy: IfNotPresent
+        name: wait-for-primary
+        resources: {}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          runAsNonRoot: true
+          runAsUser: 999
+          seccompProfile:
+            type: RuntimeDefault
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /secrets/core
+          name: core-secret
+          readOnly: true
+      priorityClassName: infra-low
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext:
+        fsGroup: 999
+        runAsNonRoot: true
+        runAsUser: 999
+      serviceAccount: valkey
+      serviceAccountName: valkey
+      terminationGracePeriodSeconds: 30
+      topologySpreadConstraints:
+      - labelSelector:
+          matchLabels:
+            app.kubernetes.io/component: node
+            app.kubernetes.io/instance: valkey
+            app.kubernetes.io/name: valkey
+        maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: DoNotSchedule
+      volumes:
+      - configMap:
+          defaultMode: 365
+          name: valkey-scripts
+        name: scripts
+      - name: core-secret
+        secret:
+          defaultMode: 256
+          secretName: valkey-core-secret
+      - name: users-secret
+        secret:
+          defaultMode: 256
+          secretName: valkey-users-secret
+      - configMap:
+          defaultMode: 420
+          name: valkey-config
+        name: valkey-config
+  updateStrategy:
+    type: RollingUpdate
+  volumeClaimTemplates:
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: valkey-data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 8Gi
+      volumeMode: Filesystem
+    status:
+      phase: Pending

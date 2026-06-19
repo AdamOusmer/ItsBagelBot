@@ -35,6 +35,7 @@ spec:
         app: worker
       annotations:
         linkerd.io/inject: enabled
+        secrets.doppler.com/reload: "true"
         config.linkerd.io/proxy-cpu-request: 5m
         config.linkerd.io/proxy-cpu-limit: 1000m
         config.linkerd.io/proxy-memory-request: 16Mi
