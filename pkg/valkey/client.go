@@ -1,15 +1,26 @@
 package valkey
 
 import (
+	"context"
 	"log"
+	"net"
 	"os"
 	"strings"
 
 	valkey_go "github.com/valkey-io/valkey-go"
 )
 
-// BuildClientOption constructs the Valkey client option based on the address.
-// This is exported for testing purposes.
+// localReadPort is the port every Valkey instance binds on its node's host
+// (hostPort 6379). Combined with NODE_IP it addresses the node-local instance.
+const localReadPort = "6379"
+
+// BuildClientOption constructs the Valkey client option for the master/write
+// path. For a Sentinel deployment (detected via the :26379 port) it configures
+// Sentinel auth and offloads read-only commands to a replica. This is the
+// fallback read path used when no node-local instance is available; the local
+// read path is wired separately in NewClient.
+//
+// Exported for testing.
 func BuildClientOption(address, password string) valkey_go.ClientOption {
 	opts := valkey_go.ClientOption{
 		InitAddress:  []string{address},
@@ -22,41 +33,104 @@ func BuildClientOption(address, password string) valkey_go.ClientOption {
 			MasterSet: "myprimary",
 			Password:  password,
 		}
-		// Route all read-only commands (GET, HGETALL) to replicas!
+		// Without a node-local read client, fall back to sending read-only
+		// commands to a Sentinel replica. Writes still go to the master.
 		opts.SendToReplicas = func(cmd valkey_go.Completed) bool {
 			return cmd.IsReadOnly()
-		}
-
-		// Prioritize local replica by matching the node IP
-		if nodeIP := os.Getenv("NODE_IP"); nodeIP != "" {
-			fallback := valkey_go.PreferReplicaNodeSelector()
-			opts.ReadNodeSelector = func(slot uint16, nodes []valkey_go.NodeInfo) int {
-				for i, r := range nodes {
-					if strings.HasPrefix(r.Addr, nodeIP+":") {
-						log.Printf("PreferLocal: selected local node %s for NODE_IP %s", r.Addr, nodeIP)
-						return i
-					}
-				}
-				// fallback: use built-in replica load balancer
-				idx := fallback(slot, nodes)
-				if idx != -1 {
-					log.Printf("PreferLocal: fallback to node %s (NODE_IP %s)", nodes[idx].Addr, nodeIP)
-					return idx
-				} else if len(nodes) > 0 {
-					log.Printf("PreferLocal: fallback to primary node %s (NODE_IP %s)", nodes[0].Addr, nodeIP)
-					return 0
-				}
-				return -1 // should not happen
-			}
 		}
 	}
 	return opts
 }
 
-// NewClient initializes a Valkey client using standard configuration.
-// If connecting to a Sentinel cluster (detected via :26379 port),
-// it configures Sentinel auth and automatically routes reads to replicas.
+// Client routes writes to the Sentinel-elected master and read-only commands
+// to the node-local Valkey instance.
+//
+// Topology: each Kubernetes node runs one Valkey pod that binds 6379 on the
+// host (hostPort). Whatever role that local instance holds (master on the
+// primary node, a replica everywhere else) it is always the lowest-latency
+// instance for pods on that node. So:
+//
+//   - writes, topology and pub/sub  -> the embedded Sentinel client, which
+//     always tracks the current master and fails over automatically;
+//   - read-only commands            -> a direct connection to NODE_IP:6379,
+//     the local instance, with no cross-node hop.
+//
+// valkey-go's Sentinel client cannot prefer a local replica on its own:
+// ReadNodeSelector is cluster-mode only, and the Sentinel path picks a replica
+// at random. Splitting the read path out is what makes node-local reads work.
+type Client struct {
+	valkey_go.Client                  // master/write path plus everything not overridden
+	local            valkey_go.Client // node-local read path; nil when unavailable
+}
+
+// Do sends read-only commands to the local instance and everything else to the
+// master via Sentinel.
+func (c *Client) Do(ctx context.Context, cmd valkey_go.Completed) valkey_go.ValkeyResult {
+	if c.local != nil && cmd.IsReadOnly() {
+		return c.local.Do(ctx, cmd)
+	}
+	return c.Client.Do(ctx, cmd)
+}
+
+// DoMulti sends a batch to the local instance only when every command is
+// read-only; any write in the batch routes the whole batch to the master.
+func (c *Client) DoMulti(ctx context.Context, multi ...valkey_go.Completed) []valkey_go.ValkeyResult {
+	if c.local != nil && allReadOnly(multi) {
+		return c.local.DoMulti(ctx, multi...)
+	}
+	return c.Client.DoMulti(ctx, multi...)
+}
+
+// Close releases both the master/write client and the local read client.
+func (c *Client) Close() {
+	if c.local != nil {
+		c.local.Close()
+	}
+	c.Client.Close()
+}
+
+func allReadOnly(multi []valkey_go.Completed) bool {
+	for i := range multi {
+		if !multi[i].IsReadOnly() {
+			return false
+		}
+	}
+	return true
+}
+
+// NewClient initializes a Valkey client.
+//
+// Writes always go to the Sentinel-elected master. For a Sentinel deployment
+// with NODE_IP set, read-only commands go to the node-local instance
+// (NODE_IP:6379) so each node reads from its own Valkey without a cross-node
+// hop. Otherwise reads fall back to a Sentinel replica (or the single
+// instance, for a standalone address).
 func NewClient(address, password string) (valkey_go.Client, error) {
-	opts := BuildClientOption(address, password)
-	return valkey_go.NewClient(opts)
+	master, err := valkey_go.NewClient(BuildClientOption(address, password))
+	if err != nil {
+		return nil, err
+	}
+
+	// The node-local read path only applies to a Sentinel deployment where
+	// every node hosts a Valkey instance on NODE_IP:6379.
+	nodeIP := os.Getenv("NODE_IP")
+	if nodeIP == "" || !strings.HasSuffix(address, ":26379") {
+		return master, nil
+	}
+
+	local, err := valkey_go.NewClient(valkey_go.ClientOption{
+		InitAddress:  []string{net.JoinHostPort(nodeIP, localReadPort)},
+		Password:     password,
+		DisableCache: true,
+	})
+	if err != nil {
+		// Local instance unreachable at startup: degrade to Sentinel-only
+		// rather than fail the service. Reads go to a Sentinel replica;
+		// correctness is unaffected, only locality is lost.
+		log.Printf("valkey: node-local read client unavailable (%v); reading via Sentinel", err)
+		return master, nil
+	}
+
+	log.Printf("valkey: reading from node-local instance %s:%s", nodeIP, localReadPort)
+	return &Client{Client: master, local: local}, nil
 }

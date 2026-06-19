@@ -39,6 +39,7 @@ spec:
         config.linkerd.io/proxy-cpu-limit: 1000m
         config.linkerd.io/proxy-memory-request: 16Mi
         config.linkerd.io/proxy-memory-limit: 128Mi
+        config.linkerd.io/skip-outbound-ports: 6379,26379
     spec:
       # DaemonSet placement keeps one outgress pod per schedulable node.
       securityContext:
@@ -57,6 +58,10 @@ spec:
               value: nats://nats:4222
             - name: NATS_RPC_URL
               value: nats://nats-leaf:4222
+            - name: NODE_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
             - name: GOMEMLIMIT
               value: 512MiB
             - name: OUTGRESS_MIN_ROUTINES
