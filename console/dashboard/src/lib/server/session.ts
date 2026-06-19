@@ -3,7 +3,6 @@
 // posture of the old Go AEAD session without reusing its exact wire format —
 // this backend issues its own sessions.
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
-import { env } from '$env/dynamic/private';
 
 export interface Session {
   user_id: string;
@@ -26,7 +25,7 @@ export interface Session {
 const AAD = Buffer.from('session');
 
 function key(): Buffer {
-  const b64 = env.SESSION_KEY;
+  const b64 = process.env.SESSION_KEY;
   if (!b64) throw new Error('SESSION_KEY not set');
   const k = Buffer.from(b64, 'base64');
   if (k.length !== 32) throw new Error('SESSION_KEY must decode to 32 bytes');

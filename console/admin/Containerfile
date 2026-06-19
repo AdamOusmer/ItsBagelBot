@@ -17,12 +17,12 @@ COPY shared shared
 COPY admin admin
 RUN cd admin && bun run build && bun install --production --frozen-lockfile
 
-FROM docker.io/oven/bun:1.3.10 AS run
+FROM gcr.io/distroless/nodejs22-debian12 AS run
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
 COPY --from=build /src/admin/build ./build
 COPY --from=build /src/node_modules ./node_modules
 EXPOSE 3000
-# Run via bun
-CMD ["bun", "run", "build/index.js"]
+# Preload the New Relic APM agent (ESM --import) before the SvelteKit server.
+CMD ["--import", "newrelic", "build/index.js"]

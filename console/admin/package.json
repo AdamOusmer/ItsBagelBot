@@ -15,7 +15,7 @@
     "newrelic": "^12.11.0"
   },
   "devDependencies": {
-    "svelte-adapter-bun": "^1.0.1",
+    "@sveltejs/adapter-node": "^5.5.5",
     "terser": "^5.48.0"
   }
 }
