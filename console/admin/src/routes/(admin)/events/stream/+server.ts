@@ -49,7 +49,28 @@ export const GET: RequestHandler = async ({ locals }) => {
     return streamResponse(stream);
   }
 
-  const sub = await subscribeStatus(STATUS_PREFIX);
+  let sub: Awaited<ReturnType<typeof subscribeStatus>>;
+  try {
+    sub = await subscribeStatus(STATUS_PREFIX);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(enc.encode(': connected\n\n'));
+        controller.enqueue(
+          sse('feed', {
+            subject: `${STATUS_PREFIX}.stream.error`,
+            label: 'stream.error',
+            tone: 'down',
+            payload: `status stream unavailable: ${message}`,
+            time: new Date().toLocaleTimeString('en-GB', { hour12: false })
+          } satisfies FeedEvent)
+        );
+      }
+    });
+    return streamResponse(stream);
+  }
+
   const stream = new ReadableStream({
     async start(controller) {
       controller.enqueue(enc.encode(': connected\n\n'));

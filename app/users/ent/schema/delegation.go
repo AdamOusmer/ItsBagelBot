@@ -39,8 +39,7 @@ func (Delegation) Fields() []ent.Field {
 
 func (Delegation) Indexes() []ent.Index {
 	return []ent.Index{
-		index.Fields("token").Unique(),
-		index.Fields("owner_id"),
-		index.Fields("delegate_id"),
+		index.Fields("owner_id", "created_at", "id"),
+		index.Fields("delegate_id", "consumed_at", "created_at", "id"),
 	}
 }

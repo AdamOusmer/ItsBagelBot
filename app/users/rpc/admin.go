@@ -18,6 +18,7 @@ import (
 	"ItsBagelBot/app/users/ent/user"
 	"ItsBagelBot/app/users/repository"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/db"
 )
 
 type adminUserView struct {
@@ -146,7 +147,9 @@ func (a *adminRPC) list(ctx context.Context, req adminRequest) adminReply {
 		if page < adminUserMaxPages {
 			fetchLimit++
 		}
-		rows, err := q.Offset((page - 1) * pageSize).Limit(fetchLimit).All(ctx)
+		rows, err := db.WithQuery(ctx, func(ctx context.Context) ([]*ent.User, error) {
+			return q.Offset((page - 1) * pageSize).Limit(fetchLimit).All(ctx)
+		})
 		if err != nil {
 			return adminReply{Error: err.Error()}
 		}
@@ -162,7 +165,9 @@ func (a *adminRPC) list(ctx context.Context, req adminRequest) adminReply {
 			HasMore:  hasMore,
 		}
 	}
-	rows, err := q.Limit(limit).All(ctx)
+	rows, err := db.WithQuery(ctx, func(ctx context.Context) ([]*ent.User, error) {
+		return q.Limit(limit).All(ctx)
+	})
 	if err != nil {
 		return adminReply{Error: err.Error()}
 	}
@@ -183,19 +188,27 @@ func (a *adminRPC) overview(ctx context.Context, req adminRequest) adminReply {
 }
 
 func (a *adminRPC) stats(ctx context.Context, _ adminRequest) adminReply {
-	total, err := a.db.User.Query().Count(ctx)
+	total, err := db.WithQuery(ctx, func(ctx context.Context) (int, error) {
+		return a.db.User.Query().Count(ctx)
+	})
 	if err != nil {
 		return adminReply{Error: err.Error()}
 	}
-	active, err := a.db.User.Query().Where(user.IsActiveEQ(true)).Count(ctx)
+	active, err := db.WithQuery(ctx, func(ctx context.Context) (int, error) {
+		return a.db.User.Query().Where(user.IsActiveEQ(true)).Count(ctx)
+	})
 	if err != nil {
 		return adminReply{Error: err.Error()}
 	}
-	paid, err := a.db.User.Query().Where(user.StatusEQ(user.StatusPaid)).Count(ctx)
+	paid, err := db.WithQuery(ctx, func(ctx context.Context) (int, error) {
+		return a.db.User.Query().Where(user.StatusEQ(user.StatusPaid)).Count(ctx)
+	})
 	if err != nil {
 		return adminReply{Error: err.Error()}
 	}
-	vip, err := a.db.User.Query().Where(user.StatusEQ(user.StatusVip)).Count(ctx)
+	vip, err := db.WithQuery(ctx, func(ctx context.Context) (int, error) {
+		return a.db.User.Query().Where(user.StatusEQ(user.StatusVip)).Count(ctx)
+	})
 	if err != nil {
 		return adminReply{Error: err.Error()}
 	}
@@ -290,9 +303,12 @@ func (a *adminRPC) reset(ctx context.Context, req adminRequest) adminReply {
 		return adminReply{Error: err.Error()}
 	}
 
-	if _, err := a.db.Tokens.Delete().
-		Where(tokens.HasUserWith(user.IDEQ(u.ID))).
-		Exec(ctx); err != nil {
+	if err := db.WithExec(ctx, func(ctx context.Context) error {
+		_, err := a.db.Tokens.Delete().
+			Where(tokens.HasUserWith(user.IDEQ(u.ID))).
+			Exec(ctx)
+		return err
+	}); err != nil {
 		return adminReply{Error: err.Error()}
 	}
 
@@ -330,13 +346,15 @@ func (a *adminRPC) tokenStatus(ctx context.Context, req adminRequest) adminReply
 		return adminReply{Error: err.Error()}
 	}
 
-	present, err := a.db.Tokens.Query().
-		Where(
-			tokens.TypeEQ(tokens.TypeUserToken),
-			tokens.PlatformEQ(tokens.PlatformTwitch),
-			tokens.HasUserWith(user.IDEQ(u.ID)),
-		).
-		Exist(ctx)
+	present, err := db.WithQuery(ctx, func(ctx context.Context) (bool, error) {
+		return a.db.Tokens.Query().
+			Where(
+				tokens.TypeEQ(tokens.TypeUserToken),
+				tokens.PlatformEQ(tokens.PlatformTwitch),
+				tokens.HasUserWith(user.IDEQ(u.ID)),
+			).
+			Exist(ctx)
+	})
 	if err != nil {
 		return adminReply{Error: err.Error()}
 	}
@@ -350,13 +368,16 @@ func (a *adminRPC) tokenClear(ctx context.Context, req adminRequest) adminReply 
 		return adminReply{Error: err.Error()}
 	}
 
-	if _, err := a.db.Tokens.Delete().
-		Where(
-			tokens.TypeEQ(tokens.TypeUserToken),
-			tokens.PlatformEQ(tokens.PlatformTwitch),
-			tokens.HasUserWith(user.IDEQ(u.ID)),
-		).
-		Exec(ctx); err != nil {
+	if err := db.WithExec(ctx, func(ctx context.Context) error {
+		_, err := a.db.Tokens.Delete().
+			Where(
+				tokens.TypeEQ(tokens.TypeUserToken),
+				tokens.PlatformEQ(tokens.PlatformTwitch),
+				tokens.HasUserWith(user.IDEQ(u.ID)),
+			).
+			Exec(ctx)
+		return err
+	}); err != nil {
 		return adminReply{Error: err.Error()}
 	}
 
@@ -409,7 +430,9 @@ func (a *adminRPC) findUser(ctx context.Context, req adminRequest) (*ent.User, e
 	default:
 		return nil, fmt.Errorf("user_id or username required")
 	}
-	u, err := q.Only(ctx)
+	u, err := db.WithQuery(ctx, func(ctx context.Context) (*ent.User, error) {
+		return q.Only(ctx)
+	})
 	if ent.IsNotFound(err) {
 		return nil, fmt.Errorf("user not found")
 	}

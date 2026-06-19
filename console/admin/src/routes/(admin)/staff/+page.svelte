@@ -90,23 +90,42 @@
   let historyLoading = $state(false);
   let historyError = $state<string | null>(null);
   let historyReqId = 0;
+  let historyPage = $state(1);
+  let historyHasMore = $state(false);
 
-  async function loadHistory(id: number | string) {
+  async function loadHistory(id: number | string, page = 1) {
     const req = ++historyReqId;
     historyLoading = true;
     historyError = null;
-    history = [];
+    if (page === 1) {
+      history = [];
+      historyPage = 1;
+      historyHasMore = false;
+    }
+    
     try {
-      const res = await fetch(`/staff/history?actor_id=${encodeURIComponent(String(id))}`);
+      const res = await fetch(`/staff/history?actor_id=${encodeURIComponent(String(id))}&page=${page}`);
       if (!res.ok) throw new Error(`request failed (${res.status})`);
-      const body = (await res.json()) as { entries?: AuditEntry[]; error?: string };
+      const body = (await res.json()) as { entries?: AuditEntry[]; error?: string; has_more?: boolean };
       if (req !== historyReqId) return; // a newer open superseded this fetch
-      history = body.entries ?? [];
+      if (page === 1) {
+        history = body.entries ?? [];
+      } else {
+        history.push(...(body.entries ?? []));
+      }
+      historyHasMore = Boolean(body.has_more);
+      historyPage = page;
       if (body.error) historyError = body.error;
     } catch (e) {
       if (req === historyReqId) historyError = (e as Error).message;
     } finally {
       if (req === historyReqId) historyLoading = false;
+    }
+  }
+
+  function loadMoreHistory() {
+    if (selected && !historyLoading && historyHasMore) {
+      loadHistory(selected.id, historyPage + 1);
     }
   }
 
@@ -321,9 +340,9 @@
       <!-- Action history made by this member (lazy-loaded) -->
       <div class="field">
         <span class="field-label">History</span>
-        {#if historyLoading}
+        {#if historyLoading && historyPage === 1}
           <p class="hist-empty">Loading…</p>
-        {:else if historyError}
+        {:else if historyError && historyPage === 1}
           <p class="notice-err">{historyError}</p>
         {:else if history.length === 0}
           <p class="hist-empty">No recorded actions.</p>
@@ -340,6 +359,14 @@
               </div>
             {/each}
           </div>
+          {#if historyHasMore}
+            <button class="btn ghost block" style="margin-top: 10px;" onclick={loadMoreHistory} disabled={historyLoading}>
+              {historyLoading ? 'Loading...' : 'Load more'}
+            </button>
+          {/if}
+          {#if historyError && historyPage > 1}
+            <p class="notice-err" style="margin-top: 8px;">{historyError}</p>
+          {/if}
         {/if}
       </div>
     </div>

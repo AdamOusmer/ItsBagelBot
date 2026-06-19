@@ -1,9 +1,16 @@
 package db
 
-import "database/sql"
+import (
+	"database/sql"
+
+	"ItsBagelBot/pkg/env"
+)
 
 func openPool(dsn string, maxConns int) (*sql.DB, error) {
 
+	if maxConns <= 0 {
+		maxConns = env.GetInt("DB_MAX_OPEN_CONNS", defaultMaxConns)
+	}
 	if maxConns <= 0 {
 		maxConns = defaultMaxConns
 	}

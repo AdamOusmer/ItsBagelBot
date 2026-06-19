@@ -7,6 +7,7 @@ import (
 
 	"ItsBagelBot/app/users/ent"
 	"ItsBagelBot/app/users/ent/delegation"
+	"ItsBagelBot/pkg/db"
 )
 
 // DelegationView is the read model for a single-use access grant. It carries no
@@ -35,23 +36,27 @@ func toDelegationView(d *ent.Delegation) DelegationView {
 
 // CreateDelegation persists a fresh, unconsumed single-use grant.
 func (r *Users) CreateDelegation(ctx context.Context, token string, ownerID uint64, ownerLogin string, sections []string, expires *time.Time) error {
-	c := r.client.Delegation.Create().
-		SetToken(token).
-		SetOwnerID(ownerID).
-		SetOwnerLogin(ownerLogin).
-		SetSections(sections)
-	if expires != nil {
-		c = c.SetExpiresAt(*expires)
-	}
-	_, err := c.Save(ctx)
-	return err
+	return db.WithExec(ctx, func(ctx context.Context) error {
+		c := r.client.Delegation.Create().
+			SetToken(token).
+			SetOwnerID(ownerID).
+			SetOwnerLogin(ownerLogin).
+			SetSections(sections)
+		if expires != nil {
+			c = c.SetExpiresAt(*expires)
+		}
+		_, err := c.Save(ctx)
+		return err
+	})
 }
 
 // GetDelegation returns the grant by token (consumed or not).
 func (r *Users) GetDelegation(ctx context.Context, token string) (DelegationView, error) {
-	d, err := r.client.Delegation.Query().
-		Where(delegation.TokenEQ(token)).
-		Only(ctx)
+	d, err := db.WithQuery(ctx, func(ctx context.Context) (*ent.Delegation, error) {
+		return r.client.Delegation.Query().
+			Where(delegation.TokenEQ(token)).
+			Only(ctx)
+	})
 	if err != nil {
 		return DelegationView{}, err
 	}
@@ -65,9 +70,11 @@ func (r *Users) GetDelegation(ctx context.Context, token string) (DelegationView
 func (r *Users) ConsumeDelegation(ctx context.Context, token string, delegateID uint64, delegateLogin string) (DelegationView, error) {
 	now := time.Now()
 
-	d, err := r.client.Delegation.Query().
-		Where(delegation.TokenEQ(token)).
-		Only(ctx)
+	d, err := db.WithQuery(ctx, func(ctx context.Context) (*ent.Delegation, error) {
+		return r.client.Delegation.Query().
+			Where(delegation.TokenEQ(token)).
+			Only(ctx)
+	})
 	if err != nil {
 		return DelegationView{}, err
 	}
@@ -79,15 +86,17 @@ func (r *Users) ConsumeDelegation(ctx context.Context, token string, delegateID 
 	}
 
 	// Atomic single-use: only succeeds while consumed_at is still NULL.
-	n, err := r.client.Delegation.Update().
-		Where(
-			delegation.TokenEQ(token),
-			delegation.ConsumedAtIsNil(),
-		).
-		SetDelegateID(delegateID).
-		SetDelegateLogin(delegateLogin).
-		SetConsumedAt(now).
-		Save(ctx)
+	n, err := db.WithQuery(ctx, func(ctx context.Context) (int, error) {
+		return r.client.Delegation.Update().
+			Where(
+				delegation.TokenEQ(token),
+				delegation.ConsumedAtIsNil(),
+			).
+			SetDelegateID(delegateID).
+			SetDelegateLogin(delegateLogin).
+			SetConsumedAt(now).
+			Save(ctx)
+	})
 	if err != nil {
 		return DelegationView{}, err
 	}
@@ -103,10 +112,12 @@ func (r *Users) ConsumeDelegation(ctx context.Context, token string, delegateID 
 
 // ListDelegationsByOwner returns every grant the owner created.
 func (r *Users) ListDelegationsByOwner(ctx context.Context, ownerID uint64) ([]DelegationView, error) {
-	rows, err := r.client.Delegation.Query().
-		Where(delegation.OwnerIDEQ(ownerID)).
-		Order(ent.Desc(delegation.FieldCreatedAt)).
-		All(ctx)
+	rows, err := db.WithQuery(ctx, func(ctx context.Context) ([]*ent.Delegation, error) {
+		return r.client.Delegation.Query().
+			Where(delegation.OwnerIDEQ(ownerID)).
+			Order(ent.Desc(delegation.FieldCreatedAt)).
+			All(ctx)
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -119,13 +130,15 @@ func (r *Users) ListDelegationsByOwner(ctx context.Context, ownerID uint64) ([]D
 
 // ListAccessByDelegate returns the consumed grants a delegate currently holds.
 func (r *Users) ListAccessByDelegate(ctx context.Context, delegateID uint64) ([]DelegationView, error) {
-	rows, err := r.client.Delegation.Query().
-		Where(
-			delegation.DelegateIDEQ(delegateID),
-			delegation.ConsumedAtNotNil(),
-		).
-		Order(ent.Desc(delegation.FieldCreatedAt)).
-		All(ctx)
+	rows, err := db.WithQuery(ctx, func(ctx context.Context) ([]*ent.Delegation, error) {
+		return r.client.Delegation.Query().
+			Where(
+				delegation.DelegateIDEQ(delegateID),
+				delegation.ConsumedAtNotNil(),
+			).
+			Order(ent.Desc(delegation.FieldCreatedAt)).
+			All(ctx)
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -139,21 +152,25 @@ func (r *Users) ListAccessByDelegate(ctx context.Context, delegateID uint64) ([]
 // DeleteDelegationsByOwner removes every grant an owner created. Used when the
 // owner deletes their account so no dangling links survive the user row.
 func (r *Users) DeleteDelegationsByOwner(ctx context.Context, ownerID uint64) error {
-	_, err := r.client.Delegation.Delete().
-		Where(delegation.OwnerIDEQ(ownerID)).
-		Exec(ctx)
-	return err
+	return db.WithExec(ctx, func(ctx context.Context) error {
+		_, err := r.client.Delegation.Delete().
+			Where(delegation.OwnerIDEQ(ownerID)).
+			Exec(ctx)
+		return err
+	})
 }
 
 // RevokeDelegation deletes a grant, scoped to its owner so a token alone (held
 // by an invitee) can never revoke someone else's grant.
 func (r *Users) RevokeDelegation(ctx context.Context, token string, ownerID uint64) error {
-	n, err := r.client.Delegation.Delete().
-		Where(
-			delegation.TokenEQ(token),
-			delegation.OwnerIDEQ(ownerID),
-		).
-		Exec(ctx)
+	n, err := db.WithQuery(ctx, func(ctx context.Context) (int, error) {
+		return r.client.Delegation.Delete().
+			Where(
+				delegation.TokenEQ(token),
+				delegation.OwnerIDEQ(ownerID),
+			).
+			Exec(ctx)
+	})
 	if err != nil {
 		return err
 	}
@@ -167,13 +184,15 @@ func (r *Users) RevokeDelegation(ctx context.Context, token string, ownerID uint
 // scoped to both the owner and delegate, so a delegate can only drop dashboard
 // access they currently hold.
 func (r *Users) OptOutDelegation(ctx context.Context, ownerID uint64, delegateID uint64) error {
-	n, err := r.client.Delegation.Delete().
-		Where(
-			delegation.OwnerIDEQ(ownerID),
-			delegation.DelegateIDEQ(delegateID),
-			delegation.ConsumedAtNotNil(),
-		).
-		Exec(ctx)
+	n, err := db.WithQuery(ctx, func(ctx context.Context) (int, error) {
+		return r.client.Delegation.Delete().
+			Where(
+				delegation.OwnerIDEQ(ownerID),
+				delegation.DelegateIDEQ(delegateID),
+				delegation.ConsumedAtNotNil(),
+			).
+			Exec(ctx)
+	})
 	if err != nil {
 		return err
 	}

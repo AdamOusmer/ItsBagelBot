@@ -48,8 +48,10 @@ func main() {
 	client := ent.NewClient(ent.Driver(driver))
 	defer func() { _ = client.Close() }()
 
-	if err := client.Schema.Create(ctx); err != nil {
-		log.Fatal("failed to run migrations", zap.Error(err))
+	if env.GetBool("DB_AUTO_MIGRATE", true) {
+		if err := client.Schema.Create(ctx); err != nil {
+			log.Fatal("failed to run migrations", zap.Error(err))
+		}
 	}
 
 	natsURL := env.Get("NATS_URL", "nats://127.0.0.1:4222")

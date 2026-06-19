@@ -2,8 +2,11 @@ package store
 
 import (
 	"context"
+	"encoding/json"
+	"strconv"
 	"strings"
 
+	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/utils"
 	"ItsBagelBot/pkg/cache"
 
@@ -122,6 +125,7 @@ func (v *Valkey) SetModule(ctx context.Context, userID uint64, name string, isEn
 	fields := v.client.B().Hset().
 		Key(key).
 		FieldValue().
+		FieldValue("modules:projected", "1").
 		FieldValue("module:"+name+":enabled", utils.BoolField(isEnabled))
 
 	if len(configs) > 0 {
@@ -133,6 +137,225 @@ func (v *Valkey) SetModule(ctx context.Context, userID uint64, name string, isEn
 	}
 
 	return v.client.Do(ctx, v.client.B().Expire().Key(key).Seconds(24*60*60).Build()).Error()
+}
+
+type ModuleView struct {
+	Name      string          `json:"name"`
+	IsEnabled bool            `json:"is_enabled"`
+	Configs   json.RawMessage `json:"configs,omitempty"`
+}
+
+type CommandView struct {
+	Name             string `json:"name"`
+	Response         string `json:"response"`
+	IsActive         bool   `json:"is_active"`
+	StreamOnlineOnly bool   `json:"stream_online_only"`
+	Perm             string `json:"perm"`
+	Cooldown         uint   `json:"cooldown"`
+	AllowedUserID    string `json:"allowed_user_id,omitempty"`
+}
+
+func commandViewFromEvent(dto data.CommandChangedDTO) CommandView {
+	allowed := ""
+	if dto.AllowedUserID != 0 {
+		allowed = strconv.FormatUint(dto.AllowedUserID, 10)
+	}
+	return CommandView{
+		Name:             dto.Name,
+		Response:         dto.Response,
+		IsActive:         dto.IsActive,
+		StreamOnlineOnly: dto.StreamOnlineOnly,
+		Perm:             dto.Perm,
+		Cooldown:         dto.Cooldown,
+		AllowedUserID:    allowed,
+	}
+}
+
+// SetModules projects a complete module list and records that an empty list is
+// known data, not a cold Valkey miss.
+func (v *Valkey) SetModules(ctx context.Context, userID uint64, modules []ModuleView) error {
+	defer segment(ctx, "HSET")()
+
+	key := cache.UserKey(settingsKeyPrefix, userID)
+	if err := v.clearProjectionFields(ctx, key, "module:"); err != nil {
+		return err
+	}
+
+	fields := v.client.B().Hset().
+		Key(key).
+		FieldValue().
+		FieldValue("modules:projected", "1")
+
+	for _, mod := range modules {
+		fields = fields.FieldValue("module:"+mod.Name+":enabled", utils.BoolField(mod.IsEnabled))
+		if len(mod.Configs) > 0 {
+			fields = fields.FieldValue("module:"+mod.Name+":config", string(mod.Configs))
+		}
+	}
+
+	if err := v.client.Do(ctx, fields.Build()).Error(); err != nil {
+		return err
+	}
+	return v.client.Do(ctx, v.client.B().Expire().Key(key).Seconds(24*60*60).Build()).Error()
+}
+
+// SetCommand projects one command row of one user.
+func (v *Valkey) SetCommand(ctx context.Context, dto data.CommandChangedDTO) error {
+	defer segment(ctx, "HSET")()
+
+	key := cache.UserKey(settingsKeyPrefix, dto.UserID)
+	field := "command:" + dto.Name
+
+	if dto.Deleted {
+		if err := v.client.Do(ctx, v.client.B().Hdel().Key(key).Field(field).Build()).Error(); err != nil {
+			return err
+		}
+		if err := v.client.Do(ctx, v.client.B().Hset().
+			Key(key).
+			FieldValue().
+			FieldValue("commands:projected", "1").
+			Build(),
+		).Error(); err != nil {
+			return err
+		}
+		return v.client.Do(ctx, v.client.B().Expire().Key(key).Seconds(24*60*60).Build()).Error()
+	}
+
+	body, err := json.Marshal(commandViewFromEvent(dto))
+	if err != nil {
+		return err
+	}
+
+	if err := v.client.Do(ctx, v.client.B().Hset().
+		Key(key).
+		FieldValue().
+		FieldValue("commands:projected", "1").
+		FieldValue(field, string(body)).
+		Build(),
+	).Error(); err != nil {
+		return err
+	}
+	return v.client.Do(ctx, v.client.B().Expire().Key(key).Seconds(24*60*60).Build()).Error()
+}
+
+// SetCommands projects a complete command list and records that an empty list is
+// known data, not a cold Valkey miss.
+func (v *Valkey) SetCommands(ctx context.Context, userID uint64, commands []CommandView) error {
+	defer segment(ctx, "HSET")()
+
+	key := cache.UserKey(settingsKeyPrefix, userID)
+	if err := v.clearProjectionFields(ctx, key, "command:"); err != nil {
+		return err
+	}
+
+	fields := v.client.B().Hset().
+		Key(key).
+		FieldValue().
+		FieldValue("commands:projected", "1")
+
+	for _, cmd := range commands {
+		body, err := json.Marshal(cmd)
+		if err != nil {
+			return err
+		}
+		fields = fields.FieldValue("command:"+cmd.Name, string(body))
+	}
+
+	if err := v.client.Do(ctx, fields.Build()).Error(); err != nil {
+		return err
+	}
+	return v.client.Do(ctx, v.client.B().Expire().Key(key).Seconds(24*60*60).Build()).Error()
+}
+
+func (v *Valkey) GetModules(ctx context.Context, userID uint64) ([]ModuleView, bool, error) {
+	defer segment(ctx, "HGETALL")()
+
+	key := cache.UserKey(settingsKeyPrefix, userID)
+	fields, err := v.client.Do(ctx, v.client.B().Hgetall().Key(key).Build()).AsStrMap()
+	if err != nil {
+		return nil, false, err
+	}
+
+	projected := fields["modules:projected"] == "1"
+	byName := map[string]ModuleView{}
+	for field, value := range fields {
+		name, suffix, ok := parseModuleField(field)
+		if !ok {
+			continue
+		}
+		mod := byName[name]
+		mod.Name = name
+		switch suffix {
+		case "enabled":
+			mod.IsEnabled = value == "1"
+			projected = true
+		case "config":
+			mod.Configs = json.RawMessage(value)
+			projected = true
+		}
+		byName[name] = mod
+	}
+
+	out := make([]ModuleView, 0, len(byName))
+	for _, mod := range byName {
+		out = append(out, mod)
+	}
+	return out, projected, nil
+}
+
+func (v *Valkey) GetCommands(ctx context.Context, userID uint64) ([]CommandView, bool, error) {
+	defer segment(ctx, "HGETALL")()
+
+	key := cache.UserKey(settingsKeyPrefix, userID)
+	fields, err := v.client.Do(ctx, v.client.B().Hgetall().Key(key).Build()).AsStrMap()
+	if err != nil {
+		return nil, false, err
+	}
+
+	projected := fields["commands:projected"] == "1"
+	out := make([]CommandView, 0)
+	for field, value := range fields {
+		name, ok := strings.CutPrefix(field, "command:")
+		if !ok || name == "" {
+			continue
+		}
+		var cmd CommandView
+		if err := json.Unmarshal([]byte(value), &cmd); err != nil {
+			continue
+		}
+		out = append(out, cmd)
+		projected = true
+	}
+	return out, projected, nil
+}
+
+func parseModuleField(field string) (name, suffix string, ok bool) {
+	rest, found := strings.CutPrefix(field, "module:")
+	if !found {
+		return "", "", false
+	}
+	idx := strings.LastIndex(rest, ":")
+	if idx < 0 {
+		return "", "", false
+	}
+	return rest[:idx], rest[idx+1:], true
+}
+
+func (v *Valkey) clearProjectionFields(ctx context.Context, key string, prefix string) error {
+	fields, err := v.client.Do(ctx, v.client.B().Hgetall().Key(key).Build()).AsStrMap()
+	if err != nil {
+		return err
+	}
+
+	for field := range fields {
+		if !strings.HasPrefix(field, prefix) {
+			continue
+		}
+		if err := v.client.Do(ctx, v.client.B().Hdel().Key(key).Field(field).Build()).Error(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // DeleteUser drops the whole projection of one user.
