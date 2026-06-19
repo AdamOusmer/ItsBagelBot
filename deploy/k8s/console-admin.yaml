@@ -86,7 +86,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: console-admin
-          image: ghcr.io/adamousmer/itsbagelbot/console-admin:main-1781747331-2606f94ad617@sha256:d1440ed4f372f35638d7fc1aa6d45d74a044fc6c9836879aa85dc47f34aff3df # {"$imagepolicy": "flux-system:console-admin"}
+          image: ghcr.io/adamousmer/itsbagelbot/console-admin:main-1781833573-49d77a2c757b@sha256:99f4b4258bfa59fe54a28ac34dbd980fb2d7c28e179880779344f919ae4c40ab # {"$imagepolicy": "flux-system:console-admin"}
           imagePullPolicy: IfNotPresent
           env:
             - name: PORT
@@ -213,7 +213,7 @@ metadata:
   namespace: production
 spec:
   minAvailable: 2 # was 1 — raised to match console-dashboard; 3 replicas, so only 1
-                  # pod can be disrupted at a time (node drain, rolling update, etc.)
+  # pod can be disrupted at a time (node drain, rolling update, etc.)
   selector:
     matchLabels:
       app: console-admin
