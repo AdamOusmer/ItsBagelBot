@@ -89,8 +89,9 @@ spec:
             capabilities: {drop: ["ALL"]}
           lifecycle:
             preStop:
-              exec:
-                command: ["/bin/sh", "-c", "sleep 10"]
+              httpGet:
+                path: /drain
+                port: 8080
           livenessProbe:
             httpGet: {path: /healthz, port: 8080}
             periodSeconds: 30
