@@ -6,8 +6,9 @@ import (
 	valkey_go "github.com/valkey-io/valkey-go"
 )
 
-// NewClient creates a new Valkey client, handling Sentinel routing and read/write splitting automatically.
-func NewClient(address string, password string) (valkey_go.Client, error) {
+// BuildClientOption constructs the Valkey client option based on the address.
+// This is exported for testing purposes.
+func BuildClientOption(address, password string) valkey_go.ClientOption {
 	opts := valkey_go.ClientOption{
 		InitAddress:  []string{address},
 		Password:     password,
@@ -24,6 +25,13 @@ func NewClient(address string, password string) (valkey_go.Client, error) {
 			return cmd.IsReadOnly()
 		}
 	}
+	return opts
+}
 
+// NewClient initializes a Valkey client using standard configuration.
+// If connecting to a Sentinel cluster (detected via :26379 port),
+// it configures Sentinel auth and automatically routes reads to replicas.
+func NewClient(address, password string) (valkey_go.Client, error) {
+	opts := BuildClientOption(address, password)
 	return valkey_go.NewClient(opts)
 }

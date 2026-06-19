@@ -5,13 +5,10 @@ import (
 	"testing"
 
 	"ItsBagelBot/internal/projection"
-	"ItsBagelBot/pkg/bus"
 
-	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zaptest/observer"
 )
 
 type fakeProjection struct {
