@@ -14,18 +14,21 @@ spec:
   resyncSeconds: 60
 ---
 apiVersion: apps/v1
-kind: DaemonSet
+kind: Deployment
 metadata:
   name: users
   namespace: production
+  annotations:
+    secrets.doppler.com/reload: "true"
 spec:
+  replicas: 3 # one per node; bump to match schedulable node count
   revisionHistoryLimit: 3
   minReadySeconds: 10
-  updateStrategy:
+  strategy:
     type: RollingUpdate
     rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 0
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: users
@@ -40,7 +43,14 @@ spec:
         config.linkerd.io/proxy-memory-request: 16Mi
         config.linkerd.io/proxy-memory-limit: 96Mi
     spec:
-      # DaemonSet placement keeps one users pod per schedulable node.
+      # Deployment pins one users pod per node via topology spread.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: users
       securityContext:
         runAsNonRoot: true
         runAsUser: 65532
@@ -62,7 +72,7 @@ spec:
             - name: DB_QUERY_CONCURRENCY
               value: "4"
             - name: DB_AUTO_MIGRATE
-              value: "false"
+              value: "true"
             - name: GOMEMLIMIT
               value: 160MiB
           envFrom:

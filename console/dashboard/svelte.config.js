@@ -10,7 +10,11 @@ export default {
     // native builds (ARM/Intel) emit identical hashed asset names. Default is a
     // timestamp, which diverges across the two builds and 404s chunks under the
     // stateless LB.
-    version: { name: process.env.BUILD_VERSION || 'dev' },
+    // pollInterval lets the client poll _app/version.json and flip the `updated`
+    // store when a new deploy ships, so the root layout can force a full reload
+    // instead of fetching now-deleted chunk hashes (404 -> "Importing a module
+    // script failed" -> dead SPA until a manual hard refresh).
+    version: { name: process.env.BUILD_VERSION || 'dev', pollInterval: 60000 },
     paths: {
       relative: false
     },
