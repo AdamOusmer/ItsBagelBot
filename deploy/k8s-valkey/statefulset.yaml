@@ -12,7 +12,7 @@ spec:
     whenDeleted: Retain
     whenScaled: Retain
   podManagementPolicy: OrderedReady
-  replicas: 2
+  replicas: 3
   revisionHistoryLimit: 10
   selector:
     matchLabels:
@@ -98,11 +98,6 @@ spec:
         - mountPath: /config
           name: valkey-config
           readOnly: true
-        env:
-        - name: POD_IP
-          valueFrom:
-            fieldRef:
-              fieldPath: status.podIP
       - command:
         - /bin/sh
         - /scripts/start-sentinel.sh
