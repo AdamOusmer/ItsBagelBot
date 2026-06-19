@@ -69,7 +69,11 @@ func main() {
 	}
 	defer nc.Close()
 
-	projector := NewProjector(valkeyStore, log)
+	// Core-NATS subject for fanning tier-cache invalidations to every projector
+	// pod (see Projector.broadcastInvalidate / rpc.SubscribeStatus).
+	invalidateSubject := env.Get("NATS_PROJECTOR_TIER_INVALIDATE_SUBJECT", "bagel.internal.projector.tier.invalidate")
+
+	projector := NewProjector(valkeyStore, nc, invalidateSubject, log)
 
 	if err := bus.Consume(ctx, nrApp, sub, data.SubjectUserChanged, projector.HandleUserChanged, log); err != nil {
 		log.Fatal("failed to subscribe to user changes", zap.Error(err))
@@ -100,7 +104,7 @@ func main() {
 	}
 
 	subject := env.Get("NATS_BROADCASTER_STATUS_SUBJECT", "bagel.rpc.broadcaster.status.get")
-	if err := rpc.SubscribeStatus(nc, valkeyStore, subject, usersTopic, "projector-rpc", nrApp, log); err != nil {
+	if err := rpc.SubscribeStatus(nc, valkeyStore, subject, usersTopic, invalidateSubject, "projector-rpc", nrApp, log); err != nil {
 		log.Fatal("failed to subscribe status rpc", zap.Error(err))
 	}
 

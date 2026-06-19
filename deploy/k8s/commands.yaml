@@ -14,18 +14,21 @@ spec:
   resyncSeconds: 60
 ---
 apiVersion: apps/v1
-kind: DaemonSet
+kind: Deployment
 metadata:
   name: commands
   namespace: production
+  annotations:
+    secrets.doppler.com/reload: "true"
 spec:
+  replicas: 3 # one per node; bump to match schedulable node count
   revisionHistoryLimit: 3
   minReadySeconds: 10
-  updateStrategy:
+  strategy:
     type: RollingUpdate
     rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 0
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: commands
@@ -35,12 +38,18 @@ spec:
         app: commands
       annotations:
         linkerd.io/inject: enabled
-        secrets.doppler.com/reload: "true"
         config.linkerd.io/proxy-cpu-request: 5m
         config.linkerd.io/proxy-cpu-limit: 750m
         config.linkerd.io/proxy-memory-request: 16Mi
         config.linkerd.io/proxy-memory-limit: 96Mi
     spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: commands
       # DaemonSet placement keeps one commands pod per schedulable node.
       securityContext:
         runAsNonRoot: true
@@ -63,7 +72,7 @@ spec:
             - name: DB_QUERY_CONCURRENCY
               value: "4"
             - name: DB_AUTO_MIGRATE
-              value: "false"
+              value: "true"
             - name: GOMEMLIMIT
               value: 160MiB
           envFrom:
