@@ -18,6 +18,48 @@ const SUB = {
 
 export const STATUS_PREFIX = SUB.status;
 
+type CacheEntry<T> = { value?: T; promise?: Promise<T>; expires: number };
+
+const cache = new Map<string, CacheEntry<unknown>>();
+
+async function cached<T>(key: string, ttlMs: number, load: () => Promise<T>): Promise<T> {
+  const now = Date.now();
+  const hit = cache.get(key) as CacheEntry<T> | undefined;
+  if (hit && hit.expires > now) {
+    if (hit.value !== undefined) return hit.value;
+    if (hit.promise) return hit.promise;
+  }
+
+  const promise = load();
+  cache.set(key, { promise, expires: now + ttlMs });
+  try {
+    const value = await promise;
+    cache.set(key, { value, expires: Date.now() + ttlMs });
+    return value;
+  } catch (err) {
+    cache.delete(key);
+    throw err;
+  }
+}
+
+function setCached<T>(key: string, value: T, ttlMs: number) {
+  cache.set(key, { value, expires: Date.now() + ttlMs });
+}
+
+function invalidate(...prefixes: string[]) {
+  for (const key of cache.keys()) {
+    if (prefixes.some((prefix) => key.startsWith(prefix))) cache.delete(key);
+  }
+}
+
+function invalidateUser(userId: string) {
+  invalidate('users:', `user:${userId}`, `token:${userId}`);
+}
+
+const LIVE_TTL_MS = 1_000;
+const ADMIN_READ_TTL_MS = 5_000;
+const ADMIN_PAGE_TTL_MS = 3_000;
+
 // AdminUserWire mirrors the users service's admin wire format (broadcaster-data):
 // numeric id, raw status enum, activity flag, last-update timestamp.
 export interface AdminUserWire {
@@ -45,15 +87,19 @@ export interface UserPage {
 // ── Shards ──────────────────────────────────────────────────────────────────
 
 export async function shardSnapshot(): Promise<ShardSnapshot> {
-  return rpc<ShardSnapshot>(SUB.shards, {}, 5000);
+  return cached('shards:snapshot', LIVE_TTL_MS, () => rpc<ShardSnapshot>(SUB.shards, {}, 5000));
 }
 
 export async function shardScale(count: number): Promise<ShardSnapshot> {
-  return rpc<ShardSnapshot>(SUB.scale, { count }, 5000);
+  const snapshot = await rpc<ShardSnapshot>(SUB.scale, { count }, 5000);
+  setCached('shards:snapshot', snapshot, LIVE_TTL_MS);
+  return snapshot;
 }
 
 export async function shardAutoscale(enabled: boolean): Promise<ShardSnapshot> {
-  return rpc<ShardSnapshot>(SUB.autoscale, { enabled }, 5000);
+  const snapshot = await rpc<ShardSnapshot>(SUB.autoscale, { enabled }, 5000);
+  setCached('shards:snapshot', snapshot, LIVE_TTL_MS);
+  return snapshot;
 }
 
 // ── Users ───────────────────────────────────────────────────────────────────
@@ -64,44 +110,54 @@ function isDigits(s: string): boolean {
 
 export async function userLookup(q: string): Promise<AdminUserWire> {
   const req = isDigits(q) ? { user_id: q } : { username: q };
-  const r = await rpc<{ user: AdminUserWire }>(`${SUB.user}.get`, req);
-  return r.user;
+  const key = isDigits(q) ? `user:${q}` : `user-login:${q.toLowerCase()}`;
+  return cached(key, ADMIN_READ_TTL_MS, async () => {
+    const r = await rpc<{ user: AdminUserWire }>(`${SUB.user}.get`, req);
+    if (r.user) setCached(`user:${r.user.id}`, r.user, ADMIN_READ_TTL_MS);
+    return r.user;
+  });
 }
 
 export async function userList(limit = 20): Promise<AdminUserWire[]> {
-  const r = await rpc<{ users: AdminUserWire[] }>(`${SUB.user}.list`, { limit });
-  return r.users ?? [];
+  return cached(`users:list:${limit}`, ADMIN_PAGE_TTL_MS, async () => {
+    const r = await rpc<{ users: AdminUserWire[] }>(`${SUB.user}.list`, { limit });
+    return r.users ?? [];
+  });
 }
 
 export async function userStats(): Promise<UserStats> {
-  const r = await rpc<{ stats: UserStats }>(`${SUB.user}.stats`, {});
-  return r.stats;
+  return cached('users:stats', ADMIN_PAGE_TTL_MS, async () => {
+    const r = await rpc<{ stats: UserStats }>(`${SUB.user}.stats`, {});
+    return r.stats;
+  });
 }
 
 export const USER_PAGE_SIZE = 15;
 export const USER_MAX_PAGES = 25;
 
 export async function userOverview(page = 1, search = ''): Promise<UserPage> {
-  const r = await rpc<{
-    users?: AdminUserWire[];
-    stats: UserStats;
-    page?: number;
-    page_size?: number;
-    max_pages?: number;
-    has_more?: boolean;
-  }>(`${SUB.user}.overview`, {
-    page,
-    limit: USER_PAGE_SIZE,
-    search
+  return cached(`users:overview:${page}:${search}`, ADMIN_PAGE_TTL_MS, async () => {
+    const r = await rpc<{
+      users?: AdminUserWire[];
+      stats: UserStats;
+      page?: number;
+      page_size?: number;
+      max_pages?: number;
+      has_more?: boolean;
+    }>(`${SUB.user}.overview`, {
+      page,
+      limit: USER_PAGE_SIZE,
+      search
+    });
+    return {
+      users: r.users ?? [],
+      stats: r.stats,
+      page: r.page ?? page,
+      page_size: r.page_size ?? USER_PAGE_SIZE,
+      max_pages: r.max_pages ?? USER_MAX_PAGES,
+      has_more: Boolean(r.has_more)
+    };
   });
-  return {
-    users: r.users ?? [],
-    stats: r.stats,
-    page: r.page ?? page,
-    page_size: r.page_size ?? USER_PAGE_SIZE,
-    max_pages: r.max_pages ?? USER_MAX_PAGES,
-    has_more: Boolean(r.has_more)
-  };
 }
 
 export async function userSetStatus(userId: string, status: string): Promise<AdminUserWire> {
@@ -109,17 +165,23 @@ export async function userSetStatus(userId: string, status: string): Promise<Adm
     user_id: userId,
     status
   });
+  invalidateUser(userId);
+  setCached(`user:${r.user.id}`, r.user, ADMIN_READ_TTL_MS);
   return r.user;
 }
 
 export async function userReset(userId: string): Promise<AdminUserWire> {
   const r = await rpc<{ user: AdminUserWire }>(`${SUB.user}.reset`, { user_id: userId });
+  invalidateUser(userId);
+  setCached(`user:${r.user.id}`, r.user, ADMIN_READ_TTL_MS);
   return r.user;
 }
 
 export async function tokenStatus(userId: string): Promise<TokenStatus> {
-  const r = await rpc<{ token: TokenStatus }>(`${SUB.user}.token_status`, { user_id: userId });
-  return r.token ?? { present: false };
+  return cached(`token:${userId}`, ADMIN_READ_TTL_MS, async () => {
+    const r = await rpc<{ token: TokenStatus }>(`${SUB.user}.token_status`, { user_id: userId });
+    return r.token ?? { present: false };
+  });
 }
 
 export async function tokenSet(
@@ -132,17 +194,22 @@ export async function tokenSet(
     access_token: accessToken,
     refresh_token: refreshToken
   });
-  return r.token ?? { present: false };
+  const token = r.token ?? { present: false };
+  setCached(`token:${userId}`, token, ADMIN_READ_TTL_MS);
+  return token;
 }
 
 export async function tokenClear(userId: string): Promise<TokenStatus> {
   const r = await rpc<{ token: TokenStatus }>(`${SUB.user}.token_clear`, { user_id: userId });
-  return r.token ?? { present: false };
+  const token = r.token ?? { present: false };
+  setCached(`token:${userId}`, token, ADMIN_READ_TTL_MS);
+  return token;
 }
 
 export async function userDelete(userId: string): Promise<void> {
   const r = await rpc<{ error?: string }>(`${SUB.user}.delete`, { user_id: userId });
   if (r.error) throw new Error(r.error);
+  invalidateUser(userId);
 }
 
 export async function userSetActive(userId: string, active: boolean): Promise<AdminUserWire> {
@@ -150,22 +217,29 @@ export async function userSetActive(userId: string, active: boolean): Promise<Ad
     user_id: userId,
     active
   });
+  invalidateUser(userId);
+  setCached(`user:${r.user.id}`, r.user, ADMIN_READ_TTL_MS);
   return r.user;
 }
 
 export async function userBan(userId: string): Promise<AdminUserWire> {
   const r = await rpc<{ user: AdminUserWire }>(`${SUB.user}.ban`, { user_id: userId });
+  invalidateUser(userId);
+  setCached(`user:${r.user.id}`, r.user, ADMIN_READ_TTL_MS);
   return r.user;
 }
 
 export async function userUnban(userId: string): Promise<AdminUserWire> {
   const r = await rpc<{ user: AdminUserWire }>(`${SUB.user}.unban`, { user_id: userId });
+  invalidateUser(userId);
+  setCached(`user:${r.user.id}`, r.user, ADMIN_READ_TTL_MS);
   return r.user;
 }
 
 export async function restartUserEventSub(userId: string): Promise<void> {
   await publish(SUB.outgress, { type: 'eventsub', broadcaster_id: userId, payload: { enabled: false } });
   await publish(SUB.outgress, { type: 'eventsub', broadcaster_id: userId, payload: { enabled: true } });
+  invalidateUser(userId);
 }
 
 // ── Derived helpers ───────────────────────────────────────────────────────────
@@ -227,16 +301,20 @@ export async function adminCheck(
   login?: string,
   displayName?: string
 ): Promise<AdminCheck> {
-  return rpc<AdminCheck>(`${SUB.auth}.check`, {
-    user_id: userId,
-    login: login ?? '',
-    display_name: displayName ?? ''
-  });
+  return cached(`auth:${userId}`, ADMIN_READ_TTL_MS, () =>
+    rpc<AdminCheck>(`${SUB.auth}.check`, {
+      user_id: userId,
+      login: login ?? '',
+      display_name: displayName ?? ''
+    })
+  );
 }
 
 export async function adminListAccts(): Promise<AdminAcct[]> {
-  const r = await rpc<{ admins?: AdminAcct[] }>(`${SUB.auth}.list`, {});
-  return r.admins ?? [];
+  return cached('staff:list', ADMIN_PAGE_TTL_MS, async () => {
+    const r = await rpc<{ admins?: AdminAcct[] }>(`${SUB.auth}.list`, {});
+    return r.admins ?? [];
+  });
 }
 
 // staffUpsert creates or modifies a staff member. The actor (id + role) is
@@ -254,6 +332,7 @@ export async function staffUpsert(
     role: target.role
   });
   if (r.error) throw new Error(r.error);
+  invalidate('staff:', 'auth:');
   return r.admins ?? [];
 }
 
@@ -267,6 +346,7 @@ export async function staffRemove(
     user_id: userId
   });
   if (r.error) throw new Error(r.error);
+  invalidate('staff:', 'auth:');
   return r.admins ?? [];
 }
 
@@ -290,36 +370,42 @@ export async function auditAppend(entry: {
     ok: entry.ok,
     error: entry.error ?? ''
   });
+  invalidate('audit:');
 }
 
 // auditList returns the newest entries, optionally scoped to one actor's id so
 // a member's history can be lazy-loaded without shipping the whole log.
 export async function auditList(limit = 50, actorId?: string): Promise<AuditEntry[]> {
-  const r = await rpc<{ entries?: AuditEntry[] }>(`${SUB.audit}.list`, {
-    limit,
-    actor_filter: actorId ?? ''
+  return cached(`audit:list:${limit}:${actorId ?? ''}`, ADMIN_PAGE_TTL_MS, async () => {
+    const r = await rpc<{ entries?: AuditEntry[] }>(`${SUB.audit}.list`, {
+      limit,
+      actor_filter: actorId ?? ''
+    });
+    return r.entries ?? [];
   });
-  return r.entries ?? [];
 }
 
-export async function auditPage(page = 1, search = ''): Promise<AuditPage> {
-  const r = await rpc<{
-    entries?: AuditEntry[];
-    page?: number;
-    page_size?: number;
-    max_pages?: number;
-    has_more?: boolean;
-  }>(`${SUB.audit}.list`, {
-    page,
-    limit: AUDIT_PAGE_SIZE,
-    search
-  });
+export async function auditPage(page = 1, search = '', actorFilter = ''): Promise<AuditPage> {
+  return cached(`audit:page:${page}:${search}:${actorFilter}`, ADMIN_PAGE_TTL_MS, async () => {
+    const r = await rpc<{
+      entries?: AuditEntry[];
+      page?: number;
+      page_size?: number;
+      max_pages?: number;
+      has_more?: boolean;
+    }>(`${SUB.audit}.list`, {
+      page,
+      limit: AUDIT_PAGE_SIZE,
+      search,
+      actor_filter: actorFilter
+    });
 
-  return {
-    entries: r.entries ?? [],
-    page: r.page ?? page,
-    page_size: r.page_size ?? AUDIT_PAGE_SIZE,
-    max_pages: r.max_pages ?? AUDIT_MAX_PAGES,
-    has_more: Boolean(r.has_more)
-  };
+    return {
+      entries: r.entries ?? [],
+      page: r.page ?? page,
+      page_size: r.page_size ?? AUDIT_PAGE_SIZE,
+      max_pages: r.max_pages ?? AUDIT_MAX_PAGES,
+      has_more: Boolean(r.has_more)
+    };
+  });
 }

@@ -57,6 +57,10 @@ spec:
               value: nats://nats:4222
             - name: NATS_RPC_URL
               value: nats://nats-leaf:4222
+            - name: NATS_PROJECTOR_DASHBOARD_SUBJECT_PREFIX
+              value: bagel.rpc.projector.dashboard
+            - name: PROJECTOR_WRITE_CONCURRENCY
+              value: "8"
             - name: GOMEMLIMIT
               value: 256MiB
           envFrom:

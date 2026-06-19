@@ -9,10 +9,49 @@ const SUB = {
   broadcaster: env.NATS_BROADCASTER_STATUS_SUBJECT ?? 'bagel.rpc.broadcaster.status.get',
   dashboard: env.NATS_DASHBOARD_SUBJECT_PREFIX ?? 'bagel.rpc.dashboard',
   commands: env.NATS_COMMANDS_SUBJECT_PREFIX ?? 'bagel.rpc.commands',
+  projector: env.NATS_PROJECTOR_DASHBOARD_SUBJECT_PREFIX ?? 'bagel.rpc.projector.dashboard',
   outgress: env.NATS_OUTGRESS_SYSTEM_SUBJECT ?? 'twitch.outgress.system',
   audit: env.NATS_ADMIN_AUDIT_SUBJECT_PREFIX ?? 'bagel.rpc.admin.user.audit',
   delegation: env.NATS_DELEGATION_SUBJECT_PREFIX ?? 'bagel.rpc.delegation'
 };
+
+type CacheEntry<T> = { value?: T; promise?: Promise<T>; expires: number };
+
+const cache = new Map<string, CacheEntry<unknown>>();
+
+async function cached<T>(key: string, ttlMs: number, load: () => Promise<T>): Promise<T> {
+  const now = Date.now();
+  const hit = cache.get(key) as CacheEntry<T> | undefined;
+  if (hit && hit.expires > now) {
+    if (hit.value !== undefined) return hit.value;
+    if (hit.promise) return hit.promise;
+  }
+
+  const promise = load();
+  cache.set(key, { promise, expires: now + ttlMs });
+  try {
+    const value = await promise;
+    cache.set(key, { value, expires: Date.now() + ttlMs });
+    return value;
+  } catch (err) {
+    cache.delete(key);
+    throw err;
+  }
+}
+
+function invalidate(...prefixes: string[]) {
+  for (const key of cache.keys()) {
+    if (prefixes.some((prefix) => key.startsWith(prefix))) cache.delete(key);
+  }
+}
+
+function invalidateUser(userId: string) {
+  invalidate(`grant:${userId}`, `account:${userId}`, `commands:${userId}`, `modules:${userId}`, `delegations:${userId}`);
+}
+
+const FAST_TTL_MS = 15_000;
+const COMMAND_TTL_MS = 30_000;
+const DELEGATION_TTL_MS = 30_000;
 
 // Single-use dashboard delegation. Owners mint scoped links; invitees consume
 // them once on login to gain a section-limited session over the owner's board.
@@ -34,6 +73,7 @@ export async function delegationCreate(
     sections
   });
   if (!r.token) throw new Error(r.error ?? 'create failed');
+  invalidate(`delegations:${ownerId}`);
   return r.token;
 }
 
@@ -43,20 +83,22 @@ export async function delegationGet(token: string): Promise<{
   sections: string[];
   consumed: boolean;
 } | null> {
-  const r = await rpc<{
-    owner_user_id?: string;
-    owner_login?: string;
-    sections?: string[];
-    consumed?: boolean;
-    error?: string;
-  }>(`${SUB.delegation}.get`, { token }, READ_TIMEOUT_MS);
-  if (r.error || !r.owner_user_id) return null;
-  return {
-    owner_user_id: r.owner_user_id,
-    owner_login: r.owner_login ?? '',
-    sections: r.sections ?? [],
-    consumed: r.consumed === true
-  };
+  return cached(`delegation-token:${token}`, FAST_TTL_MS, async () => {
+    const r = await rpc<{
+      owner_user_id?: string;
+      owner_login?: string;
+      sections?: string[];
+      consumed?: boolean;
+      error?: string;
+    }>(`${SUB.delegation}.get`, { token }, READ_TIMEOUT_MS);
+    if (r.error || !r.owner_user_id) return null;
+    return {
+      owner_user_id: r.owner_user_id,
+      owner_login: r.owner_login ?? '',
+      sections: r.sections ?? [],
+      consumed: r.consumed === true
+    };
+  });
 }
 
 export async function delegationConsume(
@@ -64,20 +106,25 @@ export async function delegationConsume(
   delegateId: string,
   delegateLogin: string
 ): Promise<{ ok: boolean; owner_user_id?: string; owner_login?: string; sections?: string[]; error?: string }> {
-  return rpc(`${SUB.delegation}.consume`, {
+  const r = await rpc<{ ok: boolean; owner_user_id?: string; owner_login?: string; sections?: string[]; error?: string }>(`${SUB.delegation}.consume`, {
     token,
     delegate_user_id: delegateId,
     delegate_login: delegateLogin
   });
+  invalidate(`delegation-token:${token}`, `delegations:${delegateId}`);
+  if (r.owner_user_id) invalidate(`delegations:${r.owner_user_id}`);
+  return r;
 }
 
 export async function delegationList(ownerId: string): Promise<DelegationGrant[]> {
-  const r = await rpc<{ grants?: DelegationGrant[] }>(
-    `${SUB.delegation}.list`,
-    { owner_user_id: ownerId },
-    READ_TIMEOUT_MS
-  );
-  return r.grants ?? [];
+  return cached(`delegations:${ownerId}:given`, DELEGATION_TTL_MS, async () => {
+    const r = await rpc<{ grants?: DelegationGrant[] }>(
+      `${SUB.delegation}.list`,
+      { owner_user_id: ownerId },
+      READ_TIMEOUT_MS
+    );
+    return r.grants ?? [];
+  });
 }
 
 export async function delegationRevoke(ownerId: string, token: string): Promise<void> {
@@ -86,6 +133,7 @@ export async function delegationRevoke(ownerId: string, token: string): Promise<
     token
   });
   if (!r.ok) throw new Error(r.error ?? 'revoke failed');
+  invalidate(`delegation-token:${token}`, `delegations:${ownerId}`);
 }
 
 export async function delegationOptOut(delegateId: string, ownerId: string): Promise<void> {
@@ -94,15 +142,18 @@ export async function delegationOptOut(delegateId: string, ownerId: string): Pro
     owner_user_id: ownerId
   });
   if (!r.ok) throw new Error(r.error ?? 'opt out failed');
+  invalidate(`delegations:${delegateId}`, `delegations:${ownerId}`);
 }
 
 export async function delegationAccess(
   delegateId: string
 ): Promise<{ owner_user_id: string; owner_login: string; sections: string[] }[]> {
-  const r = await rpc<{
-    grants?: { owner_user_id: string; owner_login: string; sections: string[] }[];
-  }>(`${SUB.delegation}.access`, { delegate_user_id: delegateId }, READ_TIMEOUT_MS);
-  return r.grants ?? [];
+  return cached(`delegations:${delegateId}:access`, DELEGATION_TTL_MS, async () => {
+    const r = await rpc<{
+      grants?: { owner_user_id: string; owner_login: string; sections: string[] }[];
+    }>(`${SUB.delegation}.access`, { delegate_user_id: delegateId }, READ_TIMEOUT_MS);
+    return r.grants ?? [];
+  });
 }
 
 // Enqueue an EventSub on/off job on the outgress system lane. Outgress runs the
@@ -117,8 +168,10 @@ export async function publishEventSub(broadcasterId: string, enabled: boolean): 
 }
 
 export async function tier(broadcasterId: string): Promise<Tier> {
-  const r = await rpc<{ tier: Tier }>(SUB.broadcaster, { broadcaster_id: broadcasterId }, 2000);
-  return r.tier ?? 'standard';
+  return cached(`tier:${broadcasterId}`, FAST_TTL_MS, async () => {
+    const r = await rpc<{ tier: Tier }>(SUB.broadcaster, { broadcaster_id: broadcasterId }, 2000);
+    return r.tier ?? 'standard';
+  });
 }
 
 const BAN_CACHE_TTL_MS = 15_000;
@@ -190,12 +243,14 @@ export function auditDashboardImpersonation(
 const READ_TIMEOUT_MS = 2000;
 
 export async function hasGrant(userId: string): Promise<boolean> {
-  const r = await rpc<{ has_grant: boolean }>(
-    `${SUB.dashboard}.grant_has`,
-    { broadcaster_user_id: userId },
-    READ_TIMEOUT_MS
-  );
-  return !!r.has_grant;
+  return cached(`grant:${userId}`, FAST_TTL_MS, async () => {
+    const r = await rpc<{ has_grant: boolean }>(
+      `${SUB.dashboard}.grant_has`,
+      { broadcaster_user_id: userId },
+      READ_TIMEOUT_MS
+    );
+    return !!r.has_grant;
+  });
 }
 
 export type AccountStatus = 'free' | 'paid' | 'vip';
@@ -210,16 +265,19 @@ function normalizeStatus(raw: string | undefined): AccountStatus {
 // service loads a single cached user view to answer both, so the page render
 // asks once via state_get instead of separate active_get + status_get calls.
 export async function accountState(userId: string): Promise<AccountState> {
-  const r = await rpc<{ active: boolean; status: string }>(
-    `${SUB.dashboard}.state_get`,
-    { broadcaster_user_id: userId },
-    READ_TIMEOUT_MS
-  );
-  return { active: !!r.active, status: normalizeStatus(r.status) };
+  return cached(`account:${userId}`, FAST_TTL_MS, async () => {
+    const r = await rpc<{ active: boolean; status: string }>(
+      `${SUB.dashboard}.state_get`,
+      { broadcaster_user_id: userId },
+      READ_TIMEOUT_MS
+    );
+    return { active: !!r.active, status: normalizeStatus(r.status) };
+  });
 }
 
 export async function setActive(userId: string, active: boolean): Promise<void> {
   await rpc(`${SUB.dashboard}.active_set`, { broadcaster_user_id: userId, active });
+  invalidate(`account:${userId}`);
 }
 
 // Persist the broadcaster's Twitch OAuth grant (the per-channel bot token the
@@ -235,6 +293,7 @@ export async function saveGrant(
     access_token: accessToken,
     refresh_token: refreshToken
   });
+  invalidate(`grant:${userId}`, `account:${userId}`);
 }
 
 // Irreversibly delete the user's own account (and their owned delegations,
@@ -244,11 +303,59 @@ export async function deleteSelf(userId: string): Promise<void> {
     user_id: userId
   });
   if (!r.ok) throw new Error(r.error ?? 'delete failed');
+  invalidateUser(userId);
 }
 
 export async function listCommands(userId: string): Promise<CommandView[]> {
-  const r = await rpc<{ commands: CommandView[] }>(`${SUB.commands}.list`, { user_id: userId });
-  return r.commands ?? [];
+  return cached(`commands:${userId}`, COMMAND_TTL_MS, async () => {
+    const r = await rpc<{ commands: CommandView[] }>(
+      `${SUB.projector}.commands.get`,
+      { user_id: userId },
+      READ_TIMEOUT_MS
+    );
+    return r.commands ?? [];
+  });
+}
+
+export interface ModuleView {
+  name: string;
+  is_enabled: boolean;
+  configs?: unknown;
+}
+
+export async function listModules(userId: string): Promise<ModuleView[]> {
+  return cached(`modules:${userId}`, COMMAND_TTL_MS, async () => {
+    const r = await rpc<{ modules: ModuleView[] }>(
+      `${SUB.projector}.modules.get`,
+      { user_id: userId },
+      READ_TIMEOUT_MS
+    );
+    return r.modules ?? [];
+  });
+}
+
+async function replaceProjectedCommands(userId: string, commands: CommandView[]): Promise<void> {
+  try {
+    await rpc(
+      `${SUB.projector}.commands.replace`,
+      { user_id: userId, commands },
+      750
+    );
+  } catch {
+    /* best-effort: command change events reconcile Valkey shortly after */
+  }
+}
+
+export async function replaceProjectedModules(userId: string, modules: ModuleView[]): Promise<void> {
+  try {
+    await rpc(
+      `${SUB.projector}.modules.replace`,
+      { user_id: userId, modules },
+      750
+    );
+  } catch {
+    /* best-effort: module change events reconcile Valkey shortly after */
+  }
 }
 
 export interface CommandInput {
@@ -280,6 +387,11 @@ export async function upsertCommand(
     allowed_user_id: cmd.allowedUserId,
     original_name: originalName ?? ''
   });
+  if (!r.error) {
+    const commands = r.commands ?? [];
+    await replaceProjectedCommands(userId, commands);
+    cache.set(`commands:${userId}`, { value: commands, expires: Date.now() + COMMAND_TTL_MS });
+  } else invalidate(`commands:${userId}`);
   return { commands: r.commands ?? [], error: r.error };
 }
 
@@ -291,5 +403,10 @@ export async function deleteCommand(
     user_id: userId,
     name
   });
+  if (!r.error) {
+    const commands = r.commands ?? [];
+    await replaceProjectedCommands(userId, commands);
+    cache.set(`commands:${userId}`, { value: commands, expires: Date.now() + COMMAND_TTL_MS });
+  } else invalidate(`commands:${userId}`);
   return { commands: r.commands ?? [], error: r.error };
 }

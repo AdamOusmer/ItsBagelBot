@@ -139,6 +139,12 @@ spec:
           #   TWITCH_CLIENT_SECRET   — Twitch app client secret.
           #   IMPERSONATION_PRIVATE_KEY — Ed25519 private half that signs
           #                            short-lived view-as handoff tokens.
+          #   DOPPLER_MANAGEMENT_TOKEN — admin-scoped Doppler token used only by
+          #                            the credentials page to update service
+          #                            DB_USER/DB_PASS secrets.
+          #   DB_ADMIN_ADDR/DB_ADMIN_USER/DB_ADMIN_PASS — privileged MySQL
+          #                            credential used only by the credentials
+          #                            page to create schema-local runtime users.
           # The dashboard holds only the matching public key in its own Doppler
           # project/config.
           # The Twitch app MUST register the redirect URI above. Staff identity

@@ -17,7 +17,9 @@
               ? 'Staff'
               : path.startsWith('/audit')
                 ? 'Audit'
-                : 'Overview'
+                : path.startsWith('/credentials')
+                  ? 'Credentials'
+                  : 'Overview'
   );
 
   const initial = $derived((data.displayName ?? 'A').charAt(0).toUpperCase());
@@ -58,6 +60,7 @@
       <nav class="nav">
         <NavItem href="/staff" icon="moderation" label="Staff" active={crumb === 'Staff'} />
         <NavItem href="/audit" icon="check" label="Audit" active={crumb === 'Audit'} />
+        <NavItem href="/credentials" icon="lock" label="Credentials" active={crumb === 'Credentials'} />
       </nav>
     {/if}
 
@@ -102,6 +105,7 @@
     {#if isManager}
       <a href="/staff" class={crumb === 'Staff' ? 'active' : ''}><Icon name="moderation" size={20} /><span>Staff</span></a>
       <a href="/audit" class={crumb === 'Audit' ? 'active' : ''}><Icon name="check" size={20} /><span>Audit</span></a>
+      <a href="/credentials" class={crumb === 'Credentials' ? 'active' : ''}><Icon name="lock" size={20} /><span>Creds</span></a>
     {:else}
       <a href="/events" class={crumb === 'Events' ? 'active' : ''}><Icon name="bell" size={20} /><span>Events</span></a>
     {/if}

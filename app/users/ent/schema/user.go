@@ -7,7 +7,6 @@ import (
 	"entgo.io/ent/dialect/entsql"
 	"entgo.io/ent/schema/edge"
 	"entgo.io/ent/schema/field"
-	"entgo.io/ent/schema/index"
 )
 
 // User holds the schema definition for the User entity.
@@ -28,7 +27,7 @@ func (User) Fields() []ent.Field {
 
 		field.Bool("is_active").Default(true),
 
-		field.Bool("banned").Optional().Default(false),
+		field.Bool("banned").Default(false),
 
 		field.Enum("status").
 			Values("free", "paid", "vip"). // vip is a permanent paid tier
@@ -56,7 +55,5 @@ func (User) Edges() []ent.Edge {
 }
 
 func (User) Indexes() []ent.Index {
-	return []ent.Index{
-		index.Fields("id", "is_active"),
-	}
+	return nil
 }
