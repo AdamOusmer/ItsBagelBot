@@ -41,18 +41,21 @@ spec:
   resyncSeconds: 60
 ---
 apiVersion: apps/v1
-kind: DaemonSet
+kind: Deployment
 metadata:
   name: console-dashboard
   namespace: production
+  annotations:
+    secrets.doppler.com/reload: "true"
 spec:
+  replicas: 3 # one per node; bump to match schedulable node count
   revisionHistoryLimit: 3
   minReadySeconds: 10
-  updateStrategy:
+  strategy:
     type: RollingUpdate
     rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 0
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: console-dashboard
@@ -66,8 +69,14 @@ spec:
         config.linkerd.io/proxy-cpu-limit: 750m
         config.linkerd.io/proxy-memory-request: 16Mi
         config.linkerd.io/proxy-memory-limit: 96Mi
-        secrets.doppler.com/reload: "true"
     spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: console-dashboard
       # DaemonSet placement keeps one dashboard pod per schedulable node, so
       # cloudflared -> traefik can prefer a local backend on every node.
       securityContext:

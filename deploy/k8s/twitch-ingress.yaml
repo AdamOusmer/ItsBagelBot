@@ -38,17 +38,20 @@ spec:
       port: 9100
 ---
 apiVersion: apps/v1
-kind: DaemonSet
+kind: Deployment
 metadata:
   name: twitch-ingress
   namespace: production
+  annotations:
+    secrets.doppler.com/reload: "true"
 spec:
+  replicas: 3 # one per node; bump to match schedulable node count
   revisionHistoryLimit: 3
-  updateStrategy:
+  strategy:
     type: RollingUpdate
     rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 0
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: twitch-ingress
@@ -58,7 +61,6 @@ spec:
         app: twitch-ingress
       annotations:
         linkerd.io/inject: enabled
-        secrets.doppler.com/reload: "true"
         config.linkerd.io/proxy-cpu-request: 5m
         config.linkerd.io/proxy-cpu-limit: 750m
         config.linkerd.io/proxy-memory-request: 16Mi
@@ -70,6 +72,13 @@ spec:
         # server-speaks-first Twitch EventSub wss:// sockets.
         config.linkerd.io/skip-outbound-ports: "443"
     spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: twitch-ingress
       # DaemonSet placement keeps exactly one ingress pod on each schedulable
       # node, so the fleet follows node count without a fixed replicas value.
       securityContext:

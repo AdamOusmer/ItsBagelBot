@@ -30,11 +30,16 @@ import (
 // because redelivering a poison message forever helps no one.
 type Projector struct {
 	store *projection.Store
-	log   *zap.Logger
+	nc    *nats.Conn
+	// invalidateSubject is a core-NATS (non-queue) subject every projector pod
+	// listens on so a user change fans out to all of their in-process tier
+	// caches, not just the one durable consumer that folded the event.
+	invalidateSubject string
+	log               *zap.Logger
 }
 
-func NewProjector(store *projection.Store, log *zap.Logger) *Projector {
-	return &Projector{store: store, log: log}
+func NewProjector(store *projection.Store, nc *nats.Conn, invalidateSubject string, log *zap.Logger) *Projector {
+	return &Projector{store: store, nc: nc, invalidateSubject: invalidateSubject, log: log}
 }
 
 func (p *Projector) HandleUserChanged(msg *message.Message) error {
@@ -54,7 +59,11 @@ func (p *Projector) HandleUserChanged(msg *message.Message) error {
 		return nil
 	}
 
-	return p.store.SetUser(msg.Context(), dto.UserID, dto.Status, dto.IsActive, dto.Banned)
+	if err := p.store.SetUser(msg.Context(), dto.UserID, dto.Status, dto.IsActive, dto.Banned); err != nil {
+		return err
+	}
+	p.broadcastInvalidate(dto.UserID)
+	return nil
 }
 
 func (p *Projector) HandleUserDeleted(msg *message.Message) error {
@@ -70,7 +79,27 @@ func (p *Projector) HandleUserDeleted(msg *message.Message) error {
 		return nil
 	}
 
-	return p.store.DeleteUser(msg.Context(), dto.UserID)
+	if err := p.store.DeleteUser(msg.Context(), dto.UserID); err != nil {
+		return err
+	}
+	p.broadcastInvalidate(dto.UserID)
+	return nil
+}
+
+// broadcastInvalidate tells every projector pod to drop its in-process tier+ban
+// cache for the user. The JetStream user events are folded into Valkey by a
+// single pod in the durable group, but the resolved tier/ban decision is cached
+// per pod, so the freshly projected state is fanned out over core NATS (no
+// queue group) to invalidate all of them. Best effort: Valkey is already
+// written, so a missed ping only means a pod serves the prior decision until
+// its short TTL lapses.
+func (p *Projector) broadcastInvalidate(userID uint64) {
+	if p.nc == nil || p.invalidateSubject == "" {
+		return
+	}
+	if err := p.nc.Publish(p.invalidateSubject, []byte(strconv.FormatUint(userID, 10))); err != nil {
+		p.log.Warn("failed to broadcast tier cache invalidation", zap.Uint64("user_id", userID), zap.Error(err))
+	}
 }
 
 func (p *Projector) HandleModuleChanged(msg *message.Message) error {
