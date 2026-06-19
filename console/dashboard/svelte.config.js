@@ -1,4 +1,4 @@
-import adapter from '../adapter-node-fixed.js';
+import adapter from '@sveltejs/adapter-node';
 import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 
 /** @type {import('@sveltejs/kit').Config} */
@@ -6,6 +6,9 @@ export default {
   preprocess: vitePreprocess(),
   kit: {
     adapter: adapter({ precompress: true }),
+    output: {
+      bundleStrategy: 'single'
+    },
     // Deterministic build id (commit SHA via BUILD_VERSION) so the per-arch
     // native builds (ARM/Intel) emit identical hashed asset names. Default is a
     // timestamp, which diverges across the two builds and 404s chunks under the
