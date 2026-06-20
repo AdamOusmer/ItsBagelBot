@@ -1,17 +1,13 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
-  import { Icon } from '@bagel/shared';
+  import { Icon, Card, PageHead, MiniButton } from '@bagel/shared';
   let { data, form } = $props();
 
   const notice = $derived(form?.notice ?? data.notice);
 </script>
 
 <section class="screen active">
-  <div class="page-head">
-    <span class="eyebrow">NATS JetStream</span>
-    <h1>Lane <em>telemetry</em></h1>
-    <p>Durable and ephemeral consumers across the fleet streams.</p>
-  </div>
+  <PageHead eyebrow="NATS JetStream" description="Durable and ephemeral consumers across the fleet streams.">Lane <em>telemetry</em></PageHead>
 
   {#if data.degraded}
     <div class="card degraded-notice">
@@ -34,7 +30,7 @@
   {/if}
 
   {#if !data.degraded}
-    <div class="card" style="padding:18px 6px">
+    <Card style="padding:18px 6px">
       <div class="card-head" style="padding:0 12px">
         <h3>Consumers</h3>
         <span class="more">{data.lanes.length} lane{data.lanes.length !== 1 ? 's' : ''}</span>
@@ -64,20 +60,20 @@
                 <form method="POST" action="?/alias" use:enhance>
                   <input type="hidden" name="stream" value={l.stream} />
                   <input type="hidden" name="consumer" value={l.consumer} />
-                  <button class="mini" aria-label="Clear alias" title="Clear display alias"><Icon name="edit" size={15} /></button>
+                  <MiniButton icon="edit" aria-label="Clear alias" title="Clear display alias" />
                 </form>
                 {#if l.ephemeral}
                   <form method="POST" action="?/durable" use:enhance>
                     <input type="hidden" name="stream" value={l.stream} />
                     <input type="hidden" name="consumer" value={l.consumer} />
-                    <button class="mini" aria-label="Make permanent" title="Make permanent (pin as durable)"><Icon name="lock" size={15} /></button>
+                    <MiniButton icon="lock" aria-label="Make permanent" title="Make permanent (pin as durable)" />
                   </form>
                 {/if}
                 {#if l.orphan}
                   <form method="POST" action="?/delete" use:enhance>
                     <input type="hidden" name="stream" value={l.stream} />
                     <input type="hidden" name="consumer" value={l.consumer} />
-                    <button class="mini" aria-label="Delete orphan lane" title="Delete orphan lane"><Icon name="trash" size={15} /></button>
+                    <MiniButton icon="trash" aria-label="Delete orphan lane" title="Delete orphan lane" />
                   </form>
                 {/if}
               </span>
@@ -85,7 +81,7 @@
           {/each}
         </div>
       </div>
-    </div>
+    </Card>
   {/if}
 </section>
 

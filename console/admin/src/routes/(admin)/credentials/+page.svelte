@@ -1,6 +1,6 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
-  import { Icon } from '@bagel/shared';
+  import { Icon, Button } from '@bagel/shared';
 
   type Service = {
     id: string;
@@ -91,9 +91,7 @@
           <h3>Rotate</h3>
         </div>
         <input name="confirm" placeholder={`rotate ${selected.id}`} autocomplete="off" required />
-        <button class="btn primary" type="submit">
-          <Icon name="lock" size={14} /> Rotate credential
-        </button>
+        <Button variant="primary" type="submit" icon="lock">Rotate credential</Button>
       </form>
 
       <form method="POST" action="?/set" use:enhance={refresh} autocomplete="off" class="action-box">
@@ -103,11 +101,9 @@
           <h3>Set</h3>
         </div>
         <input name="db_user" bind:value={setUser} placeholder={`${selected.expectedUserPrefix}_next`} autocomplete="off" required />
-        <input name="db_pass" type="password" placeholder="new password" autocomplete="new-password" passwordrules="minlength: 32; maxlength: 128;" required />
+        <input name="db_pass" type="password" placeholder="new password" autocomplete="new-password" {...{ passwordrules: 'minlength: 32; maxlength: 128;' }} required />
         <input name="confirm" placeholder={`set ${selected.id}`} autocomplete="off" required />
-        <button class="btn ghost" type="submit">
-          <Icon name="check" size={14} /> Set credential
-        </button>
+        <Button variant="ghost" type="submit" icon="check">Set credential</Button>
       </form>
 
       <form method="POST" action="?/revoke" use:enhance={refresh} autocomplete="off" class="action-box danger">
@@ -118,9 +114,7 @@
         </div>
         <input name="db_user" bind:value={revokeUser} placeholder="old runtime user" autocomplete="off" required />
         <input name="confirm" placeholder="revoke username" autocomplete="off" required />
-        <button class="btn ghost danger-btn" type="submit">
-          <Icon name="ban" size={14} /> Revoke user
-        </button>
+        <button class="btn ghost danger-btn" type="submit"><Icon name="ban" size={14} /> Revoke user</button>
       </form>
     </div>
   </div>

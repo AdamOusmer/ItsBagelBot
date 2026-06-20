@@ -1,7 +1,7 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import { onMount } from 'svelte';
-  import { Button, Icon, StatTile, Modal } from '@bagel/shared';
+  import { Button, Card, CardHead, Icon, PageHead, StatTile, Modal } from '@bagel/shared';
   let { data } = $props();
 
   const statusLabel = (s: string) =>
@@ -52,12 +52,10 @@
 </script>
 
 <section class="screen active">
-  <div class="page-head">
-    <span class="eyebrow">Status</span>
-    <h1>{greeting}, <em>{data?.displayName ?? 'there'}</em></h1>
-    <p>Manage your bot connection and commands from here.</p>
-  </div>
+  <PageHead eyebrow="Status" description="Manage your bot connection and commands from here.">{greeting}, <em>{data?.displayName ?? 'there'}</em></PageHead>
 
+  <!-- status-hero keeps page-scoped descendant styles (.live.off/.meta/.botmark),
+       so it stays a raw glass card rather than the <Card> component. -->
   <div class="card sheen status-hero">
     <div class="botmark"><img src="/logo.png" alt="" /></div>
     <!-- Connection state streams in after the shell renders; show a neutral
@@ -128,11 +126,8 @@
   {/await}
 
   <div class="grid-2 overview-grid">
-    <div class="card">
-      <div class="card-head">
-        <h3>Next up</h3>
-        <a class="more" href="/commands">Commands</a>
-      </div>
+    <Card>
+      <CardHead title="Next up">{#snippet action()}<a class="more" href="/commands">Commands</a>{/snippet}</CardHead>
       <div class="feed">
         <div class="feed-row">
           <div class="fi green"><Icon name="commands" size={15} /></div>
@@ -159,10 +154,10 @@
           <span class="fw">Overview</span>
         </div>
       </div>
-    </div>
+    </Card>
 
-    <div class="card">
-      <div class="card-head"><h3>Connection checklist</h3></div>
+    <Card>
+      <CardHead title="Connection checklist"/>
       {#await data.conn}
         <div class="node-list">
           <div class="node-row"><span class="nd warn"></span><span class="nm">Twitch grant</span><span class="sv">Checking</span><span class="pg">—</span></div>
@@ -191,7 +186,7 @@
           </div>
         </div>
       {/await}
-    </div>
+    </Card>
   </div>
 </section>
 
@@ -200,13 +195,13 @@
   {#if pending !== null}
     <p class="modal-body">{modalBody}</p>
     <form method="POST" action={modalAction} use:enhance={closeAfterSubmit} class="modal-actions">
-      <button class="btn ghost" type="button" onclick={closeModal}>Cancel</button>
-      <button
-        class="btn {pending === 'disconnect' ? 'tan' : 'primary'}"
+      <Button variant="ghost" type="button" onclick={closeModal}>Cancel</Button>
+      <Button
+        variant={pending === 'disconnect' ? 'tan' : 'primary'}
         type="submit"
       >
         {pending === 'restart' ? 'Restart' : 'Disconnect'}
-      </button>
+      </Button>
     </form>
   {/if}
 </Modal>

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { Icon, Badge, PERMS, PERM_LABELS, Modal, Drawer } from '@bagel/shared';
+  import { Icon, Badge, PERMS, PERM_LABELS, Modal, Drawer, Card, PageHead } from '@bagel/shared';
   import type { Perm, CommandView } from '@bagel/shared';
   import CheckButton from '$lib/components/CheckButton.svelte';
   let { data } = $props();
@@ -183,11 +183,7 @@
 </script>
 
 <section class="screen active">
-  <div class="page-head">
-    <span class="eyebrow">Manage</span>
-    <h1>Chat <em>commands</em></h1>
-    <p>Custom responses your viewers can trigger in chat. {items.filter((c) => c.is_active).length} active, {items.filter((c) => !c.is_active).length} disabled.</p>
-  </div>
+  <PageHead eyebrow="Manage" description="Custom responses your viewers can trigger in chat. {items.filter((c) => c.is_active).length} active, {items.filter((c) => !c.is_active).length} disabled.">Chat <em>commands</em></PageHead>
 
   <div class="toolbar">
     <div class="chip-row">
@@ -205,7 +201,7 @@
     </button>
   </div>
 
-  <div class="card" style="padding:18px 6px">
+  <Card style="padding:18px 6px">
     <div class="table">
       <div class="thead">
         <span>Command</span><span>Response</span><span class="perm-cell">Access</span><span>Cooldown</span><span>Uses</span><span></span>
@@ -269,7 +265,7 @@
         {/if}
       </div>
     </div>
-  </div>
+  </Card>
 </section>
 
 <!-- Create / edit editor (drawer) -->
