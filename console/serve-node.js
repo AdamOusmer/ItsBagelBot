@@ -39,6 +39,10 @@ const server = createServer((req, res) => {
     const next = () => {
       handler(req, res, () => {
         res.statusCode = 404;
+        const url = req.url || '';
+        if (url.endsWith('.css')) res.setHeader('Content-Type', 'text/css');
+        else if (url.endsWith('.js')) res.setHeader('Content-Type', 'application/javascript');
+        else res.setHeader('Content-Type', 'text/plain; charset=utf-8');
         res.end('Not found');
       });
     };
