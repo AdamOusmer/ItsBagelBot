@@ -1,0 +1,75 @@
+---
+# firewalld policy for a no-public-IP fleet node.
+#
+# Model: all cluster + app traffic rides tailscale0, so that interface is fully
+# trusted. The public-facing interface only needs SSH (bootstrap) and the
+# Tailscale UDP port for NAT traversal. Public ingress is the OUTBOUND cloudflared
+# tunnel, so no inbound app ports are ever opened to the internet.
+
+- name: Install firewalld
+  ansible.builtin.dnf:
+    name: firewalld
+    state: present
+
+- name: Enable + start firewalld
+  ansible.builtin.service:
+    name: firewalld
+    state: started
+    enabled: true
+
+# --- Trust the tailnet interface --------------------------------------------
+# k3s API (6443), kubelet (10250), flannel VXLAN (8472/udp), pod traffic all
+# traverse tailscale0. Trusting the interface covers every cluster port at once.
+- name: Bind tailscale0 to the trusted zone
+  ansible.posix.firewalld:
+    zone: trusted
+    interface: tailscale0
+    permanent: true
+    immediate: true
+    state: enabled
+
+# Pod & service CIDRs are sourced via flannel on tailscale0, but add them to
+# trusted explicitly so return traffic is never dropped if the iface flaps.
+- name: Trust k3s pod/service CIDRs
+  ansible.posix.firewalld:
+    zone: trusted
+    source: "{{ item }}"
+    permanent: true
+    immediate: true
+    state: enabled
+  loop:
+    - "10.42.0.0/16"   # pods (flannel)
+    - "10.43.0.0/16"   # services (cluster IPs)
+
+# --- Lock down the public zone ----------------------------------------------
+- name: Make public the default zone
+  ansible.builtin.command: firewall-cmd --set-default-zone=public
+  register: setzone
+  changed_when: "'success' in setzone.stdout"
+
+- name: Allow SSH on public (bootstrap / break-glass)
+  ansible.posix.firewalld:
+    zone: public
+    service: ssh
+    permanent: true
+    immediate: true
+    state: enabled
+
+- name: Allow Tailscale UDP for NAT traversal
+  ansible.posix.firewalld:
+    zone: public
+    port: "{{ tailscale_port }}/udp"
+    permanent: true
+    immediate: true
+    state: enabled
+
+- name: Strip default public services we do not want exposed
+  ansible.posix.firewalld:
+    zone: public
+    service: "{{ item }}"
+    permanent: true
+    immediate: true
+    state: disabled
+  loop:
+    - cockpit
+    - dhcpv6-client
