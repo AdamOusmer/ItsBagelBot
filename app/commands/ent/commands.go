@@ -4,6 +4,7 @@ package ent
 
 import (
 	"ItsBagelBot/app/commands/ent/commands"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -21,6 +22,8 @@ type Commands struct {
 	UserID uint64 `json:"user_id,omitempty"`
 	// Name holds the value of the "name" field.
 	Name string `json:"name,omitempty"`
+	// Aliases holds the value of the "aliases" field.
+	Aliases []string `json:"aliases,omitempty"`
 	// Response holds the value of the "response" field.
 	Response string `json:"response,omitempty"`
 	// IsActive holds the value of the "is_active" field.
@@ -45,6 +48,8 @@ func (*Commands) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
+		case commands.FieldAliases:
+			values[i] = new([]byte)
 		case commands.FieldIsActive, commands.FieldStreamOnlineOnly:
 			values[i] = new(sql.NullBool)
 		case commands.FieldID, commands.FieldUserID, commands.FieldCooldown, commands.FieldAllowedUserID:
@@ -85,6 +90,14 @@ func (_m *Commands) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field name", values[i])
 			} else if value.Valid {
 				_m.Name = value.String
+			}
+		case commands.FieldAliases:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field aliases", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &_m.Aliases); err != nil {
+					return fmt.Errorf("unmarshal field aliases: %w", err)
+				}
 			}
 		case commands.FieldResponse:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -175,6 +188,9 @@ func (_m *Commands) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("name=")
 	builder.WriteString(_m.Name)
+	builder.WriteString(", ")
+	builder.WriteString("aliases=")
+	builder.WriteString(fmt.Sprintf("%v", _m.Aliases))
 	builder.WriteString(", ")
 	builder.WriteString("response=")
 	builder.WriteString(_m.Response)

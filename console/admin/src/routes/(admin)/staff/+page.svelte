@@ -1,6 +1,6 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
-  import { Icon, Button } from '@bagel/shared';
+  import { Icon, Button, Modal } from '@bagel/shared';
 
   type AdminRole = 'moderator' | 'admin' | 'owner';
   type AdminAcct = {
@@ -374,34 +374,29 @@
 {/if}
 
 <!-- Remove confirm modal -->
-{#if removeTarget}
-  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div class="modal-backdrop" onclick={closeRemove} role="dialog" aria-modal="true" aria-labelledby="rm-title" tabindex="-1">
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <div class="modal-card" role="presentation" data-lenis-prevent onclick={(e) => e.stopPropagation()}>
-      <h3 id="rm-title">Remove @{removeTarget.login} from staff?</h3>
-      <p class="modal-body">
-        This deactivates their console access. They will no longer be able to sign in or manage the bot.
-      </p>
-      <form
-        method="POST"
-        action="?/remove"
-        use:enhance={() => async ({ update }) => {
-          await update({ invalidateAll: false });
-          closeRemove();
-        }}
-        class="modal-actions"
-      >
-        <input type="hidden" name="user_id" value={removeTarget.id} />
-        <input type="hidden" name="target_role" value={removeTarget.role} />
-        <button class="btn ghost" type="button" onclick={closeRemove}>Cancel</button>
-        <button class="btn danger" type="submit">
-          <Icon name="trash" size={13} /> Remove
-        </button>
-      </form>
-    </div>
-  </div>
-{/if}
+<Modal open={removeTarget !== null} title={`Remove @${removeTarget?.login} from staff?`} closeModal={closeRemove}>
+  {#if removeTarget}
+    <p class="modal-body">
+      This deactivates their console access. They will no longer be able to sign in or manage the bot.
+    </p>
+    <form
+      method="POST"
+      action="?/remove"
+      use:enhance={() => async ({ update }) => {
+        await update({ invalidateAll: false });
+        closeRemove();
+      }}
+      class="modal-actions"
+    >
+      <input type="hidden" name="user_id" value={removeTarget.id} />
+      <input type="hidden" name="target_role" value={removeTarget.role} />
+      <button class="btn ghost" type="button" onclick={closeRemove}>Cancel</button>
+      <button class="btn danger" type="submit">
+        <Icon name="trash" size={13} /> Remove
+      </button>
+    </form>
+  {/if}
+</Modal>
 
 <style>
   .notice-ok { font-size: 0.82rem; color: var(--bb-green-glow); margin: 0 0 0.4rem; }
@@ -529,24 +524,6 @@
   .hist-when.err { color: #cf8a78; }
   .hist-empty { font-family: var(--bb-font-body); font-size: 13px; color: var(--bb-muted); margin: 0; }
 
-  /* confirm modal */
-  .modal-backdrop {
-    position: fixed; inset: 0; z-index: 200; background: rgba(0, 0, 0, 0.55);
-    backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
-    display: flex; align-items: center; justify-content: center; padding: 16px;
-    animation: fade var(--bb-dur-fast, 160ms) var(--bb-ease-out-expo, ease) both;
-  }
-  .modal-card {
-    background: var(--bb-bg-1, #111); border: 1px solid var(--glass-border); border-radius: var(--bb-radius-lg);
-    backdrop-filter: blur(var(--glass-blur)); -webkit-backdrop-filter: blur(var(--glass-blur));
-    padding: 28px 28px 24px; max-width: 420px; width: 100%;
-    max-height: calc(100vh - 32px); overflow-y: auto; overscroll-behavior: contain;
-    -webkit-overflow-scrolling: touch;
-  }
-  .modal-card h3 { font-family: var(--bb-font-display); font-weight: 700; font-size: 19px; color: var(--bb-white); margin: 0 0 12px; letter-spacing: -0.01em; }
-  .modal-body { font-family: var(--bb-font-body); font-size: 14px; color: var(--bb-muted); line-height: 1.55; margin: 0 0 22px; }
-  .modal-actions { display: flex; gap: 0.6rem; justify-content: flex-end; flex-wrap: wrap; }
-
   /* mobile */
   @media (max-width: 760px) {
     .add-form { flex-direction: column; align-items: stretch; }
@@ -565,5 +542,6 @@
     }
     @keyframes sheet-in { to { transform: translateY(0); } }
   }
-  @media (max-width: 380px) { .modal-card { padding: 20px 16px 18px; } }
+  @media (max-width: 380px) {
+  }
 </style>

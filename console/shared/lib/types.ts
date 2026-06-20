@@ -16,6 +16,8 @@ export const PERM_LABELS: Record<Perm, string> = {
 
 export interface CommandView {
   name: string;
+  // Alternate names the command also answers to in chat.
+  aliases?: string[];
   response: string;
   is_active: boolean;
   stream_online_only?: boolean;

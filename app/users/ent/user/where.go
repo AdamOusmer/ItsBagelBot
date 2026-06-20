@@ -235,16 +235,6 @@ func BannedNEQ(v bool) predicate.User {
 	return predicate.User(sql.FieldNEQ(FieldBanned, v))
 }
 
-// BannedIsNil applies the IsNil predicate on the "banned" field.
-func BannedIsNil() predicate.User {
-	return predicate.User(sql.FieldIsNull(FieldBanned))
-}
-
-// BannedNotNil applies the NotNil predicate on the "banned" field.
-func BannedNotNil() predicate.User {
-	return predicate.User(sql.FieldNotNull(FieldBanned))
-}
-
 // StatusEQ applies the EQ predicate on the "status" field.
 func StatusEQ(v Status) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldStatus, v))

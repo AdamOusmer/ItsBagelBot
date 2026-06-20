@@ -27,14 +27,14 @@ var (
 		PrimaryKey: []*schema.Column{AdminAuditsColumns[0]},
 		Indexes: []*schema.Index{
 			{
-				Name:    "adminaudit_created_at",
+				Name:    "adminaudit_created_at_id",
 				Unique:  false,
-				Columns: []*schema.Column{AdminAuditsColumns[8]},
+				Columns: []*schema.Column{AdminAuditsColumns[8], AdminAuditsColumns[0]},
 			},
 			{
-				Name:    "adminaudit_actor_id",
+				Name:    "adminaudit_actor_id_created_at_id",
 				Unique:  false,
-				Columns: []*schema.Column{AdminAuditsColumns[1]},
+				Columns: []*schema.Column{AdminAuditsColumns[1], AdminAuditsColumns[8], AdminAuditsColumns[0]},
 			},
 		},
 	}
@@ -60,6 +60,11 @@ var (
 				Unique:  false,
 				Columns: []*schema.Column{AdminUsersColumns[4]},
 			},
+			{
+				Name:    "adminuser_role_active",
+				Unique:  false,
+				Columns: []*schema.Column{AdminUsersColumns[3], AdminUsersColumns[4]},
+			},
 		},
 	}
 	// DelegationsColumns holds the columns for the "delegations" table.
@@ -82,19 +87,14 @@ var (
 		PrimaryKey: []*schema.Column{DelegationsColumns[0]},
 		Indexes: []*schema.Index{
 			{
-				Name:    "delegation_token",
-				Unique:  true,
-				Columns: []*schema.Column{DelegationsColumns[1]},
+				Name:    "delegation_owner_id_created_at_id",
+				Unique:  false,
+				Columns: []*schema.Column{DelegationsColumns[2], DelegationsColumns[8], DelegationsColumns[0]},
 			},
 			{
-				Name:    "delegation_owner_id",
+				Name:    "delegation_delegate_id_consumed_at_created_at_id",
 				Unique:  false,
-				Columns: []*schema.Column{DelegationsColumns[2]},
-			},
-			{
-				Name:    "delegation_delegate_id",
-				Unique:  false,
-				Columns: []*schema.Column{DelegationsColumns[5]},
+				Columns: []*schema.Column{DelegationsColumns[5], DelegationsColumns[7], DelegationsColumns[8], DelegationsColumns[0]},
 			},
 		},
 	}
@@ -134,7 +134,7 @@ var (
 		{Name: "username", Type: field.TypeString},
 		{Name: "email", Type: field.TypeString, Unique: true},
 		{Name: "is_active", Type: field.TypeBool, Default: true},
-		{Name: "banned", Type: field.TypeBool, Nullable: true, Default: false},
+		{Name: "banned", Type: field.TypeBool, Default: false},
 		{Name: "status", Type: field.TypeEnum, Enums: []string{"free", "paid", "vip"}, Default: "free"},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
@@ -144,13 +144,6 @@ var (
 		Name:       "users",
 		Columns:    UsersColumns,
 		PrimaryKey: []*schema.Column{UsersColumns[0]},
-		Indexes: []*schema.Index{
-			{
-				Name:    "user_id_is_active",
-				Unique:  false,
-				Columns: []*schema.Column{UsersColumns[0], UsersColumns[3]},
-			},
-		},
 	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{

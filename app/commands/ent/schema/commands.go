@@ -1,6 +1,8 @@
 package schema
 
 import (
+	"context"
+	"strings"
 	"time"
 
 	"entgo.io/ent"
@@ -21,6 +23,12 @@ func (Commands) Fields() []ent.Field {
 		field.Uint64("user_id").Immutable(),
 
 		field.String("name").NotEmpty(),
+
+		// Alternate names the command also answers to. Stored as a JSON array so
+		// adding or removing an alias never needs a column migration. The bot
+		// resolves each alias to this command; the primary name always wins on a
+		// collision.
+		field.Strings("aliases").Optional(),
 
 		field.String("response").NotEmpty(),
 
@@ -52,5 +60,24 @@ func (Commands) Indexes() []ent.Index {
 	return []ent.Index{
 		index.Fields("user_id", "name").
 			Unique(),
+	}
+}
+
+func (Commands) Hooks() []ent.Hook {
+	return []ent.Hook{
+		func(next ent.Mutator) ent.Mutator {
+			return ent.MutateFunc(func(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+				if m.Op().Is(ent.OpCreate | ent.OpUpdateOne | ent.OpUpdate) {
+					if name, exists := m.Field("name"); exists {
+						if nameStr, ok := name.(string); ok {
+							if err := m.SetField("name", strings.ToLower(nameStr)); err != nil {
+								return nil, err
+							}
+						}
+					}
+				}
+				return next.Mutate(ctx, m)
+			})
+		},
 	}
 }

@@ -20,8 +20,8 @@ function gateCommands(session: Session | null | undefined): void {
 }
 
 const sample: CommandView[] = [
-  { name: '!uptime', response: '@{user} the stream has been live for {uptime} 🥯', perm: 'everyone', cooldown: 5, uses: '412', is_active: true, stream_online_only: true },
-  { name: '!socials', response: 'Follow along → twitch.tv/itsmavey · @itsmavey everywhere', perm: 'everyone', cooldown: 30, uses: '288', is_active: true },
+  { name: '!uptime', aliases: ['!live', '!up'], response: '@{user} the stream has been live for {uptime} 🥯', perm: 'everyone', cooldown: 5, uses: '412', is_active: true, stream_online_only: true },
+  { name: '!socials', aliases: ['!social', '!links'], response: 'Follow along → twitch.tv/itsmavey · @itsmavey everywhere', perm: 'everyone', cooldown: 30, uses: '288', is_active: true },
   { name: '!bagel', response: '{user} tosses a warm bagel to {target}. Toasty.', perm: 'everyone', cooldown: 10, uses: '1.2k', is_active: true },
   { name: '!so', response: 'Go show some love to twitch.tv/{target} — absolute legend', perm: 'mod', cooldown: 0, uses: '96', is_active: true },
   { name: '!discord', response: 'Join the bakery → discord.gg/itsbagelbot', perm: 'everyone', cooldown: 60, uses: '203', is_active: true },
@@ -45,6 +45,21 @@ export const load: PageServerLoad = async ({ locals }) => {
 // Parses and normalizes the shared command fields out of a submitted form.
 function parseCommand(f: FormData) {
   const name = String(f.get('name') ?? '').trim();
+
+  // Alternate names arrive as repeated `aliases` fields. Trim, drop blanks, and
+  // de-duplicate case-insensitively so the wire payload matches what the
+  // commands service will accept.
+  const seen = new Set<string>();
+  const aliases: string[] = [];
+  for (const raw of f.getAll('aliases')) {
+    const a = String(raw).trim();
+    if (!a) continue;
+    const key = a.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    aliases.push(a);
+  }
+
   const response = String(f.get('response') ?? '');
   const permRaw = String(f.get('perm') ?? 'everyone');
   const perm: Perm = (PERMS as readonly string[]).includes(permRaw) ? (permRaw as Perm) : 'everyone';
@@ -57,7 +72,7 @@ function parseCommand(f: FormData) {
 
   const streamOnlineOnly = f.get('stream_online_only') === 'on';
 
-  return { name, response, perm, cooldown, allowedUserId, streamOnlineOnly };
+  return { name, aliases, response, perm, cooldown, allowedUserId, streamOnlineOnly };
 }
 
 export const actions: Actions = {
