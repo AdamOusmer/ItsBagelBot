@@ -1,7 +1,7 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { Icon, Badge, PERMS, PERM_LABELS } from '@bagel/shared';
+  import { Icon, Badge, PERMS, PERM_LABELS, Modal, Drawer } from '@bagel/shared';
   import type { Perm, CommandView } from '@bagel/shared';
   import CheckButton from '$lib/components/CheckButton.svelte';
   let { data } = $props();
@@ -82,6 +82,7 @@
   type Draft = {
     edit: boolean;
     name: string;
+    aliases: string[];
     response: string;
     perm: Perm;
     cooldown: number;
@@ -91,11 +92,15 @@
   };
 
   let editor = $state<Draft | null>(null);
+  // Draft of the alias being typed in the editor's alias input.
+  let aliasDraft = $state('');
 
   function openNew() {
+    aliasDraft = '';
     editor = {
       edit: false,
       name: '',
+      aliases: [],
       response: '',
       perm: 'everyone',
       cooldown: 0,
@@ -106,9 +111,11 @@
   }
 
   function openEdit(c: CommandView) {
+    aliasDraft = '';
     editor = {
       edit: true,
       name: c.name,
+      aliases: [...(c.aliases ?? [])],
       response: c.response,
       perm: (c.perm ?? 'everyone') as Perm,
       cooldown: c.cooldown ?? 0,
@@ -127,6 +134,34 @@
 
   function closeEditor() {
     editor = null;
+  }
+
+  // Commit the typed alias as a pill. De-duplicates case-insensitively against
+  // both existing aliases and the command's own name; blanks are ignored.
+  function addAlias() {
+    if (!editor) return;
+    const a = aliasDraft.trim();
+    aliasDraft = '';
+    if (!a) return;
+    const key = a.toLowerCase();
+    if (key === editor.name.trim().toLowerCase()) return;
+    if (editor.aliases.some((x) => x.toLowerCase() === key)) return;
+    editor.aliases = [...editor.aliases, a];
+  }
+
+  function removeAlias(alias: string) {
+    if (!editor) return;
+    editor.aliases = editor.aliases.filter((a) => a !== alias);
+  }
+
+  // Enter or comma commits the alias; Backspace on an empty input pops the last.
+  function aliasKey(e: KeyboardEvent) {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      addAlias();
+    } else if (e.key === 'Backspace' && aliasDraft === '' && editor && editor.aliases.length) {
+      editor.aliases = editor.aliases.slice(0, -1);
+    }
   }
 
   // --- Delete confirm modal -----------------------------------------------
@@ -187,12 +222,19 @@
             onkeydown={(e) => handleRowKey(e, c)}
           >
             <span class="cmd">
-              {c.name}
-              {#if c.allowed_user_id}
-                <span class="lock" title="Locked to user {c.allowed_user_id}"><Icon name="lock" size={11} /></span>
-              {/if}
-              {#if c.stream_online_only}
-                <span class="lock" title="Only runs while live"><Icon name="pulse" size={11} /></span>
+              <span class="cmd-name">
+                {c.name}
+                {#if c.allowed_user_id}
+                  <span class="lock" title="Locked to user {c.allowed_user_id}"><Icon name="lock" size={11} /></span>
+                {/if}
+                {#if c.stream_online_only}
+                  <span class="lock" title="Only runs while live"><Icon name="pulse" size={11} /></span>
+                {/if}
+              </span>
+              {#if c.aliases?.length}
+                <span class="aliases" title="Also: {c.aliases.join(', ')}">
+                  {#each c.aliases as a}<span class="alias-tag">{a}</span>{/each}
+                </span>
               {/if}
             </span>
             <span class="resp">{c.response}</span>
@@ -204,6 +246,7 @@
               <!-- Toggle: silent upsert that flips is_active, preserving config -->
               <form method="POST" action="?/toggle" use:enhance={reconcile}>
                 <input type="hidden" name="name" value={c.name} />
+                {#each c.aliases ?? [] as a}<input type="hidden" name="aliases" value={a} />{/each}
                 <input type="hidden" name="response" value={c.response} />
                 <input type="hidden" name="perm" value={c.perm ?? 'everyone'} />
                 <input type="hidden" name="cooldown" value={c.cooldown ?? 0} />
@@ -254,10 +297,15 @@
     <form
       method="POST"
       action="?/save"
-      use:enhance={() => async ({ result }) => {
-        if (result.type === 'success' && result.data) applyResult(result.data as ActionResult);
-        else if (result.type === 'failure' && result.data) applyResult(result.data as ActionResult);
-        if (result.type === 'success' && result.data?.ok) closeEditor();
+      use:enhance={({ formData }) => {
+        // Fold a typed-but-uncommitted alias into the submission.
+        const pending = aliasDraft.trim();
+        if (pending) formData.append('aliases', pending);
+        return async ({ result }) => {
+          if (result.type === 'success' && result.data) applyResult(result.data as ActionResult);
+          else if (result.type === 'failure' && result.data) applyResult(result.data as ActionResult);
+          if (result.type === 'success' && result.data?.ok) closeEditor();
+        };
       }}
     >
       {#if editor.edit}
@@ -276,6 +324,31 @@
         />
         {#if editor.edit}<small>The trigger viewers type in chat. Renaming keeps the response and settings.</small>{/if}
       </label>
+
+      <div class="field">
+        <span>Alternate names <small>(optional)</small></span>
+        <input
+          class="search"
+          placeholder="Type a name, press Enter"
+          bind:value={aliasDraft}
+          onkeydown={aliasKey}
+          onblur={addAlias}
+        />
+        <!-- Committed aliases submit as repeated `aliases` fields. -->
+        {#each editor.aliases as a}
+          <input type="hidden" name="aliases" value={a} />
+        {/each}
+        {#if editor.aliases.length}
+          <div class="pills">
+            {#each editor.aliases as a (a)}
+              <button type="button" class="pill" onclick={() => removeAlias(a)} aria-label="Remove {a}">
+                <span>{a}</span>
+                <Icon name="x" size={11} />
+              </button>
+            {/each}
+          </div>
+        {/if}
+      </div>
 
       <label class="field">
         <span>Response</span>
@@ -338,12 +411,10 @@
 {/if}
 
 <!-- Delete confirm modal -->
-{#if deleteTarget !== null}
-  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div class="modal-backdrop" role="button" tabindex="-1" aria-label="Close dialog" onclick={cancelDelete}></div>
-  <dialog class="confirm-dialog" open aria-modal="true" aria-labelledby="del-modal-title">
+<Modal open={deleteTarget !== null} closeModal={cancelDelete}>
+  {#if deleteTarget !== null}
     <h3 id="del-modal-title">Delete <code>{deleteTarget}</code>?</h3>
-    <p>This command will be permanently removed and cannot be recovered.</p>
+    <p class="modal-body">This command will be permanently removed and cannot be recovered.</p>
     <form
       method="POST"
       action="?/delete"
@@ -358,8 +429,8 @@
       <button type="button" class="btn ghost" onclick={cancelDelete}>Cancel</button>
       <button type="submit" class="btn delete-btn">Delete</button>
     </form>
-  </dialog>
-{/if}
+  {/if}
+</Modal>
 
 <!-- Confirmation toast -->
 {#if toast}
@@ -387,6 +458,54 @@
     vertical-align: middle;
   }
 
+  /* Row: command name stacks above its alternate-name tags. */
+  .cmd { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .cmd-name { display: inline-flex; align-items: center; }
+  .aliases { display: flex; flex-wrap: wrap; gap: 4px; }
+  .alias-tag {
+    font-family: var(--bb-font-mono);
+    font-size: 10.5px;
+    color: var(--bb-muted);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--glass-border);
+    border-radius: 999px;
+    padding: 1px 7px;
+    white-space: nowrap;
+  }
+
+  /* Editor: alias pills sit right under the alternate-names input. */
+  .pills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-family: var(--bb-font-mono);
+    font-size: 12px;
+    color: var(--bb-tan-light);
+    background: rgba(201, 168, 124, 0.1);
+    border: 1px solid rgba(201, 168, 124, 0.28);
+    border-radius: 999px;
+    padding: 3px 10px;
+    cursor: pointer;
+    transition: all var(--bb-dur-fast, 140ms) var(--bb-ease-out-expo, ease);
+  }
+  /* The X stays hidden until the pill is hovered or focused. */
+  .pill :global(svg) {
+    width: 0;
+    opacity: 0;
+    transition: width var(--bb-dur-fast, 140ms) ease, opacity var(--bb-dur-fast, 140ms) ease;
+  }
+  .pill:hover, .pill:focus-visible {
+    color: #cf8a78;
+    background: rgba(176, 90, 70, 0.16);
+    border-color: rgba(176, 90, 70, 0.45);
+    outline: none;
+  }
+  .pill:hover :global(svg), .pill:focus-visible :global(svg) {
+    width: 11px;
+    opacity: 1;
+  }
+
   @media (max-width: 760px) {
     .toolbar { gap: 8px; }
     .chip-row {
@@ -408,31 +527,7 @@
     @keyframes sheet-in { to { transform: translateY(0); } }
   }
 
-  /* Shared modal chrome */
-  .modal-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 200;
-    background: rgba(0, 0, 0, 0.55);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
-  }
 
-  .confirm-dialog {
-    position: fixed;
-    inset: 0;
-    margin: auto;
-    z-index: 201;
-    height: fit-content;
-    background: var(--bb-card-bg);
-    border: 1px solid var(--bb-border-strong);
-    border-radius: var(--bb-radius-lg);
-    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
-    display: block;
-    color: var(--bb-white);
-    width: min(400px, calc(100vw - 32px));
-    padding: 28px 24px 20px;
-  }
 
   /* clickable command row */
   .trow-clickable { cursor: pointer; user-select: none; transition: background var(--bb-dur-fast, 140ms) var(--bb-ease-out-expo, ease); }
@@ -484,25 +579,7 @@
 
   .drawer-body { flex: 1; overflow-y: auto; padding: 20px 22px 32px; }
 
-  .confirm-dialog h3 {
-    font-family: var(--bb-font-display);
-    font-weight: 600;
-    font-size: 18px;
-    letter-spacing: -0.01em;
-    color: var(--bb-white);
-    margin: 0 0 18px;
-  }
 
-  .confirm-dialog h3 { margin-bottom: 10px; }
-  .confirm-dialog h3 code { font-family: var(--bb-font-mono); color: var(--bb-tan-light); font-size: 16px; }
-
-  .confirm-dialog p {
-    font-family: var(--bb-font-body);
-    font-size: 14px;
-    line-height: 1.55;
-    color: var(--bb-muted);
-    margin: 0 0 22px;
-  }
 
   .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
   .field > span {

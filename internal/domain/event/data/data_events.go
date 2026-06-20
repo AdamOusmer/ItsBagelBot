@@ -42,15 +42,16 @@ type ModuleChangedDTO struct {
 }
 
 type CommandChangedDTO struct {
-	UserID           uint64 `json:"user_id"`
-	Name             string `json:"name"`
-	Response         string `json:"response,omitempty"`
-	IsActive         bool   `json:"is_active"`
-	StreamOnlineOnly bool   `json:"stream_online_only"`
-	Perm             string `json:"perm,omitempty"`
-	Cooldown         uint   `json:"cooldown,omitempty"`
-	AllowedUserID    uint64 `json:"allowed_user_id,omitempty"`
-	Deleted          bool   `json:"deleted"`
+	UserID           uint64   `json:"user_id"`
+	Name             string   `json:"name"`
+	Aliases          []string `json:"aliases,omitempty"`
+	Response         string   `json:"response,omitempty"`
+	IsActive         bool     `json:"is_active"`
+	StreamOnlineOnly bool     `json:"stream_online_only"`
+	Perm             string   `json:"perm,omitempty"`
+	Cooldown         uint     `json:"cooldown,omitempty"`
+	AllowedUserID    uint64   `json:"allowed_user_id,omitempty"`
+	Deleted          bool     `json:"deleted"`
 }
 
 type TransactionRecordedDTO struct {

@@ -3292,22 +3292,9 @@ func (m *UserMutation) OldBanned(ctx context.Context) (v bool, err error) {
 	return oldValue.Banned, nil
 }
 
-// ClearBanned clears the value of the "banned" field.
-func (m *UserMutation) ClearBanned() {
-	m.banned = nil
-	m.clearedFields[user.FieldBanned] = struct{}{}
-}
-
-// BannedCleared returns if the "banned" field was cleared in this mutation.
-func (m *UserMutation) BannedCleared() bool {
-	_, ok := m.clearedFields[user.FieldBanned]
-	return ok
-}
-
 // ResetBanned resets all changes to the "banned" field.
 func (m *UserMutation) ResetBanned() {
 	m.banned = nil
-	delete(m.clearedFields, user.FieldBanned)
 }
 
 // SetStatus sets the "status" field.
@@ -3660,11 +3647,7 @@ func (m *UserMutation) AddField(name string, value ent.Value) error {
 // ClearedFields returns all nullable fields that were cleared during this
 // mutation.
 func (m *UserMutation) ClearedFields() []string {
-	var fields []string
-	if m.FieldCleared(user.FieldBanned) {
-		fields = append(fields, user.FieldBanned)
-	}
-	return fields
+	return nil
 }
 
 // FieldCleared returns a boolean indicating if a field with the given name was
@@ -3677,11 +3660,6 @@ func (m *UserMutation) FieldCleared(name string) bool {
 // ClearField clears the value of the field with the given name. It returns an
 // error if the field is not defined in the schema.
 func (m *UserMutation) ClearField(name string) error {
-	switch name {
-	case user.FieldBanned:
-		m.ClearBanned()
-		return nil
-	}
 	return fmt.Errorf("unknown User nullable field %s", name)
 }
 

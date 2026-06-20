@@ -32,6 +32,12 @@ func (_c *CommandsCreate) SetName(v string) *CommandsCreate {
 	return _c
 }
 
+// SetAliases sets the "aliases" field.
+func (_c *CommandsCreate) SetAliases(v []string) *CommandsCreate {
+	_c.mutation.SetAliases(v)
+	return _c
+}
+
 // SetResponse sets the "response" field.
 func (_c *CommandsCreate) SetResponse(v string) *CommandsCreate {
 	_c.mutation.SetResponse(v)
@@ -276,6 +282,10 @@ func (_c *CommandsCreate) createSpec() (*Commands, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Name(); ok {
 		_spec.SetField(commands.FieldName, field.TypeString, value)
 		_node.Name = value
+	}
+	if value, ok := _c.mutation.Aliases(); ok {
+		_spec.SetField(commands.FieldAliases, field.TypeJSON, value)
+		_node.Aliases = value
 	}
 	if value, ok := _c.mutation.Response(); ok {
 		_spec.SetField(commands.FieldResponse, field.TypeString, value)

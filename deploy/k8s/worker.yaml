@@ -21,7 +21,7 @@ metadata:
   annotations:
     secrets.doppler.com/reload: "true"
 spec:
-  replicas: 3 # one per node; bump to match schedulable node count
+  replicas: 4 # one per node; 4 schedulable nodes incl worker1 (tolerates worker-pool)
   revisionHistoryLimit: 3
   minReadySeconds: 10
   strategy:

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Icon } from '@bagel/shared';
+  import { Icon, Modal } from '@bagel/shared';
   import { page } from '$app/state';
   import { enhance } from '$app/forms';
   import CheckButton from '$lib/components/CheckButton.svelte';
@@ -156,21 +156,16 @@
 </section>
 
 <!-- Delete confirm modal -->
-{#if deleteOpen}
-  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div class="modal-backdrop" role="button" tabindex="-1" aria-label="Close dialog" onclick={closeDelete}></div>
-  <dialog class="confirm-dialog" open aria-modal="true" aria-labelledby="del-modal-title">
-    <h3 id="del-modal-title">Delete your account?</h3>
-    <p>This removes your account, commands, and any links you created. It cannot be undone.</p>
-    <div class="ack">
-      <CheckButton bind:checked={ack} label="I recognize that this action is irreversible and will lose all my configurations" />
-    </div>
-    <form method="POST" action="?/delete" use:enhance class="modal-actions">
-      <button type="button" class="btn ghost" onclick={closeDelete}>Cancel</button>
-      <button type="submit" class="btn delete-btn" disabled={!ack}>Delete account</button>
-    </form>
-  </dialog>
-{/if}
+<Modal open={deleteOpen} title="Delete your account?" closeModal={closeDelete}>
+  <p class="modal-body">This removes your account, commands, and any links you created. It cannot be undone.</p>
+  <div class="ack">
+    <CheckButton bind:checked={ack} label="I recognize that this action is irreversible and will lose all my configurations" />
+  </div>
+  <form method="POST" action="?/delete" use:enhance class="modal-actions">
+    <button type="button" class="btn ghost" onclick={closeDelete}>Cancel</button>
+    <button type="submit" class="btn delete-btn" disabled={!ack}>Delete account</button>
+  </form>
+</Modal>
 
 <svelte:window onkeydown={(e) => { if (e.key === 'Escape') closeDelete(); }} />
 
@@ -218,30 +213,7 @@
   .banner.err { background: rgba(220, 120, 120, 0.16); color: #e08f8f; }
   .banner.ok { background: rgba(120, 200, 120, 0.16); color: #8fd08f; }
 
-  /* Modal chrome (mirrors commands page) */
-  .modal-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 400;
-    background: rgba(0, 0, 0, 0.55);
-  }
-  .confirm-dialog {
-    position: fixed;
-    z-index: 401;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: min(460px, calc(100vw - 32px));
-    background: var(--bb-bg-2, #1a1714);
-    border: 1px solid var(--bb-line, rgba(255, 255, 255, 0.1));
-    border-radius: var(--bb-radius, 14px);
-    padding: 22px;
-    color: var(--bb-text, #e8e0d6);
-  }
-  .confirm-dialog h3 { margin: 0 0 10px; font-size: 17px; }
-  .confirm-dialog p { color: var(--bb-muted, #998f82); font-size: 13px; margin: 0 0 16px; }
-  .ack { margin-bottom: 18px; }
-  .modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
+
   .delete-btn {
     background: rgba(220, 120, 120, 0.16);
     color: #e08f8f;

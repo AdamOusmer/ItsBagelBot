@@ -13,6 +13,7 @@ var (
 		{Name: "id", Type: field.TypeInt, Increment: true},
 		{Name: "user_id", Type: field.TypeUint64},
 		{Name: "name", Type: field.TypeString},
+		{Name: "aliases", Type: field.TypeJSON, Nullable: true},
 		{Name: "response", Type: field.TypeString},
 		{Name: "is_active", Type: field.TypeBool, Default: true},
 		{Name: "stream_online_only", Type: field.TypeBool, Default: false},

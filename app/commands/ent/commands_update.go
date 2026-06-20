@@ -12,6 +12,7 @@ import (
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/dialect/sql/sqljson"
 	"entgo.io/ent/schema/field"
 )
 
@@ -39,6 +40,24 @@ func (_u *CommandsUpdate) SetNillableName(v *string) *CommandsUpdate {
 	if v != nil {
 		_u.SetName(*v)
 	}
+	return _u
+}
+
+// SetAliases sets the "aliases" field.
+func (_u *CommandsUpdate) SetAliases(v []string) *CommandsUpdate {
+	_u.mutation.SetAliases(v)
+	return _u
+}
+
+// AppendAliases appends value to the "aliases" field.
+func (_u *CommandsUpdate) AppendAliases(v []string) *CommandsUpdate {
+	_u.mutation.AppendAliases(v)
+	return _u
+}
+
+// ClearAliases clears the value of the "aliases" field.
+func (_u *CommandsUpdate) ClearAliases() *CommandsUpdate {
+	_u.mutation.ClearAliases()
 	return _u
 }
 
@@ -231,6 +250,17 @@ func (_u *CommandsUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.Name(); ok {
 		_spec.SetField(commands.FieldName, field.TypeString, value)
 	}
+	if value, ok := _u.mutation.Aliases(); ok {
+		_spec.SetField(commands.FieldAliases, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedAliases(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, commands.FieldAliases, value)
+		})
+	}
+	if _u.mutation.AliasesCleared() {
+		_spec.ClearField(commands.FieldAliases, field.TypeJSON)
+	}
 	if value, ok := _u.mutation.Response(); ok {
 		_spec.SetField(commands.FieldResponse, field.TypeString, value)
 	}
@@ -292,6 +322,24 @@ func (_u *CommandsUpdateOne) SetNillableName(v *string) *CommandsUpdateOne {
 	if v != nil {
 		_u.SetName(*v)
 	}
+	return _u
+}
+
+// SetAliases sets the "aliases" field.
+func (_u *CommandsUpdateOne) SetAliases(v []string) *CommandsUpdateOne {
+	_u.mutation.SetAliases(v)
+	return _u
+}
+
+// AppendAliases appends value to the "aliases" field.
+func (_u *CommandsUpdateOne) AppendAliases(v []string) *CommandsUpdateOne {
+	_u.mutation.AppendAliases(v)
+	return _u
+}
+
+// ClearAliases clears the value of the "aliases" field.
+func (_u *CommandsUpdateOne) ClearAliases() *CommandsUpdateOne {
+	_u.mutation.ClearAliases()
 	return _u
 }
 
@@ -513,6 +561,17 @@ func (_u *CommandsUpdateOne) sqlSave(ctx context.Context) (_node *Commands, err 
 	}
 	if value, ok := _u.mutation.Name(); ok {
 		_spec.SetField(commands.FieldName, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.Aliases(); ok {
+		_spec.SetField(commands.FieldAliases, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedAliases(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, commands.FieldAliases, value)
+		})
+	}
+	if _u.mutation.AliasesCleared() {
+		_spec.ClearField(commands.FieldAliases, field.TypeJSON)
 	}
 	if value, ok := _u.mutation.Response(); ok {
 		_spec.SetField(commands.FieldResponse, field.TypeString, value)

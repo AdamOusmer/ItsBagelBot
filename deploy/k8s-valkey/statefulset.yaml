@@ -12,7 +12,7 @@ spec:
     whenDeleted: Retain
     whenScaled: Retain
   podManagementPolicy: OrderedReady
-  replicas: 3
+  replicas: 4 # one valkey+sentinel pod per node incl worker1 (hostPort + one-per-node spread)
   revisionHistoryLimit: 10
   selector:
     matchLabels:
@@ -220,6 +220,13 @@ spec:
           readOnly: true
       priorityClassName: infra-low
       restartPolicy: Always
+      # Tolerate the worker-pool taint so a valkey-node lands on worker1 too.
+      # one-per-node spread (below) + hostPort keep it exactly one per node.
+      tolerations:
+      - key: itsbagelbot.dev/pool
+        operator: Equal
+        value: worker-pool
+        effect: NoSchedule
       schedulerName: default-scheduler
       securityContext:
         fsGroup: 999

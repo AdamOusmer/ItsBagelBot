@@ -17,6 +17,8 @@ const (
 	FieldUserID = "user_id"
 	// FieldName holds the string denoting the name field in the database.
 	FieldName = "name"
+	// FieldAliases holds the string denoting the aliases field in the database.
+	FieldAliases = "aliases"
 	// FieldResponse holds the string denoting the response field in the database.
 	FieldResponse = "response"
 	// FieldIsActive holds the string denoting the is_active field in the database.
@@ -42,6 +44,7 @@ var Columns = []string{
 	FieldID,
 	FieldUserID,
 	FieldName,
+	FieldAliases,
 	FieldResponse,
 	FieldIsActive,
 	FieldStreamOnlineOnly,
