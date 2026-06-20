@@ -1,0 +1,36 @@
+---
+# SELinux hardening — matches node1 (enforcing, targeted policy + k3s-selinux).
+# k3s MUST have container-selinux + k3s-selinux before it can run under enforcing.
+
+- name: Install SELinux tooling
+  ansible.builtin.dnf:
+    name:
+      - libselinux-utils
+      - selinux-policy-targeted
+      - container-selinux
+    state: present
+
+- name: Add Rancher k3s-common repo (for k3s-selinux)
+  ansible.builtin.yum_repository:
+    name: rancher-k3s-common-stable
+    description: Rancher K3s Common (stable)
+    baseurl: "{{ rancher_repo_baseurl }}"
+    enabled: true
+    gpgcheck: true
+    gpgkey: https://rpm.rancher.io/public.key
+
+- name: Install k3s-selinux policy module
+  ansible.builtin.dnf:
+    name: k3s-selinux
+    state: present
+
+- name: Set SELinux mode + policy ({{ selinux_state }}/{{ selinux_policy }})
+  ansible.posix.selinux:
+    state: "{{ selinux_state }}"
+    policy: "{{ selinux_policy }}"
+  register: selinux_cfg
+
+- name: Note if a reboot is needed to fully apply SELinux state
+  ansible.builtin.debug:
+    msg: "SELinux change requires a reboot to take full effect."
+  when: selinux_cfg.reboot_required | default(false)

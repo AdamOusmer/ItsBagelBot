@@ -1,0 +1,40 @@
+---
+# Provision ONE fresh RHEL-family box into the fleet as a new node.
+#
+# Run wrapped with Doppler so secrets never touch the repo or process args:
+#   doppler run -- ansible-playbook site.yml -e target_host=<ip> -e target_user=opc
+#
+# Order is load-bearing:
+#   base → selinux → firewall → tailscale → k3s_agent → ssh_removal (LAST).
+# ssh_removal asserts firewall + tailscale are up before it kills system SSH.
+- name: Provision fleet node
+  hosts: new_node
+  become: true
+  gather_facts: true
+
+  pre_tasks:
+    - name: Require a RHEL-family host (any distro is fine)
+      ansible.builtin.assert:
+        that:
+          - ansible_os_family == "RedHat"
+        fail_msg: >-
+          {{ inventory_hostname }} is {{ ansible_distribution }} ({{ ansible_os_family }}).
+          This playbook needs any RHEL-family distro (Rocky / Alma / Oracle / RHEL / CentOS Stream).
+        success_msg: "{{ ansible_distribution }} {{ ansible_distribution_version }} (RHEL-family) — OK"
+
+    - name: Require secrets from the environment (Doppler)
+      ansible.builtin.assert:
+        that:
+          - k3s_token | length > 0
+          - tailscale_authkey | length > 0
+        fail_msg: >-
+          K3S_TOKEN and TS_AUTHKEY must be set in the environment.
+          Run via:  doppler run -- ansible-playbook site.yml ...
+
+  roles:
+    - role: base
+    - role: selinux
+    - role: firewall
+    - role: tailscale
+    - role: k3s_agent
+    - role: ssh_removal
