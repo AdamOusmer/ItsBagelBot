@@ -1,6 +1,7 @@
 import type { Handle } from '@sveltejs/kit';
 import { COOKIE, open } from '$lib/server/session';
 import { warm } from '@bagel/shared/server/nats';
+import { startInvalidationListener } from '$lib/server/rpc';
 import { assertConfigSane } from '$lib/server/config-sanity';
 import dns from 'node:dns';
 
@@ -11,6 +12,7 @@ assertConfigSane();
 // Pre-dial NATS at server start so the first request hits a warm connection
 // instead of paying the cold dial on the hot path.
 warm();
+startInvalidationListener();
 
 // Session + the security headers SvelteKit's CSP config does not own.
 export const handle: Handle = async ({ event, resolve }) => {

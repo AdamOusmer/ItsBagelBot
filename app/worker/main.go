@@ -81,6 +81,7 @@ func main() {
 		Commands: cfg.ProjectionCommandsSubject,
 	}, projectionCacheTTL, log)
 	defer proj.Close()
+	proj.StartInvalidationListener(cfg.CacheInvalidationPrefix)
 
 	pipe := pipeline.NewPipeline(
 		log,

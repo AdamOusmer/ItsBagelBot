@@ -35,11 +35,15 @@ type Projector struct {
 	// listens on so a user change fans out to all of their in-process tier
 	// caches, not just the one durable consumer that folded the event.
 	invalidateSubject string
-	log               *zap.Logger
+	// cacheInvalidatePrefix is the core-NATS subject prefix used to fan out
+	// section-scoped cache invalidations (commands, modules) to the console
+	// cache bus after Valkey is updated. Subject = prefix + "." + scope.
+	cacheInvalidatePrefix string
+	log                   *zap.Logger
 }
 
-func NewProjector(store *projection.Store, nc *nats.Conn, invalidateSubject string, log *zap.Logger) *Projector {
-	return &Projector{store: store, nc: nc, invalidateSubject: invalidateSubject, log: log}
+func NewProjector(store *projection.Store, nc *nats.Conn, invalidateSubject string, cacheInvalidatePrefix string, log *zap.Logger) *Projector {
+	return &Projector{store: store, nc: nc, invalidateSubject: invalidateSubject, cacheInvalidatePrefix: cacheInvalidatePrefix, log: log}
 }
 
 func (p *Projector) HandleUserChanged(msg *message.Message) error {
@@ -86,6 +90,25 @@ func (p *Projector) HandleUserDeleted(msg *message.Message) error {
 	return nil
 }
 
+// broadcastCacheInvalidate publishes a section-scoped cache invalidation to the
+// console cache bus (same subject the users service uses). Best effort: Valkey
+// is already written, so a missed ping only delays cache staleness until TTL.
+func (p *Projector) broadcastCacheInvalidate(userID uint64, scope string) {
+	if p.nc == nil || p.cacheInvalidatePrefix == "" {
+		return
+	}
+	payload, err := json.Marshal(map[string]string{
+		"broadcaster_id": fmt.Sprint(userID),
+	})
+	if err != nil {
+		p.log.Warn("failed to marshal cache invalidation payload", zap.Uint64("user_id", userID), zap.String("scope", scope), zap.Error(err))
+		return
+	}
+	if err := p.nc.Publish(p.cacheInvalidatePrefix+"."+scope, payload); err != nil {
+		p.log.Warn("failed to broadcast cache invalidation", zap.Uint64("user_id", userID), zap.String("scope", scope), zap.Error(err))
+	}
+}
+
 // broadcastInvalidate tells every projector pod to drop its in-process tier+ban
 // cache for the user. The JetStream user events are folded into Valkey by a
 // single pod in the durable group, but the resolved tier/ban decision is cached
@@ -123,7 +146,11 @@ func (p *Projector) HandleModuleChanged(msg *message.Message) error {
 		return nil
 	}
 
-	return p.store.SetModule(msg.Context(), dto.UserID, dto.Name, dto.IsEnabled, dto.Configs)
+	if err := p.store.SetModule(msg.Context(), dto.UserID, dto.Name, dto.IsEnabled, dto.Configs); err != nil {
+		return err
+	}
+	p.broadcastCacheInvalidate(dto.UserID, "modules")
+	return nil
 }
 
 func (p *Projector) HandleCommandChanged(msg *message.Message) error {
@@ -162,7 +189,11 @@ func (p *Projector) HandleCommandChanged(msg *message.Message) error {
 		}
 	}
 
-	return p.store.SetCommand(msg.Context(), dto)
+	if err := p.store.SetCommand(msg.Context(), dto); err != nil {
+		return err
+	}
+	p.broadcastCacheInvalidate(dto.UserID, "commands")
+	return nil
 }
 
 func (p *Projector) drop(msg *message.Message, subject string, err error) {

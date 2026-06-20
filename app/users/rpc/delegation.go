@@ -18,14 +18,16 @@ import (
 )
 
 type delegationRPC struct {
-	repo *repository.Users
-	log  *zap.Logger
+	repo               *repository.Users
+	nc                 *nats.Conn
+	invalidationPrefix string
+	log                *zap.Logger
 }
 
 // SubscribeDelegation serves the single-use dashboard-delegation surface under
 // the configured prefix. Mirrors SubscribeDashboard's queue-group wiring.
-func SubscribeDelegation(nc *nats.Conn, repo *repository.Users, prefix, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
-	d := &delegationRPC{repo: repo, log: log}
+func SubscribeDelegation(nc *nats.Conn, repo *repository.Users, prefix, invalidationPrefix, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
+	d := &delegationRPC{repo: repo, nc: nc, invalidationPrefix: invalidationPrefix, log: log}
 
 	type handler struct {
 		verb string
@@ -104,6 +106,7 @@ func (d *delegationRPC) handleCreate(ctx context.Context, msg *nats.Msg) {
 		return
 	}
 
+	d.publishInvalidation(ownerID)
 	bus.Respond(msg, map[string]any{"token": token})
 }
 
@@ -163,6 +166,8 @@ func (d *delegationRPC) handleConsume(ctx context.Context, msg *nats.Msg) {
 		return
 	}
 
+	d.publishInvalidation(view.OwnerID)
+	d.publishInvalidation(delegateID)
 	bus.Respond(msg, map[string]any{
 		"ok":            true,
 		"owner_user_id": strconv.FormatUint(view.OwnerID, 10),
@@ -235,6 +240,7 @@ func (d *delegationRPC) handleRevoke(ctx context.Context, msg *nats.Msg) {
 		return
 	}
 
+	d.publishInvalidation(ownerID)
 	bus.Respond(msg, map[string]any{"ok": true})
 }
 
@@ -306,5 +312,14 @@ func (d *delegationRPC) handleOptOut(ctx context.Context, msg *nats.Msg) {
 		return
 	}
 
+	d.publishInvalidation(ownerID)
+	d.publishInvalidation(delegateID)
 	bus.Respond(msg, map[string]any{"ok": true})
+}
+
+func (d *delegationRPC) publishInvalidation(id uint64) {
+	body, _ := json.Marshal(map[string]string{"broadcaster_id": fmt.Sprint(id)})
+	if err := d.nc.Publish(d.invalidationPrefix+".delegation", body); err != nil {
+		d.log.Warn("delegation cache invalidation publish failed", zap.Uint64("broadcaster_id", id), zap.Error(err))
+	}
 }
