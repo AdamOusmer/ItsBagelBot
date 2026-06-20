@@ -22,6 +22,7 @@
 [![Stargazers][stars-shield]][stars-url]
 [![Issues][issues-shield]][issues-url]
 [![Personal][license-shield]][license-url]
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/Q8P121QNHK)
 
   <a href="https://github.com/AdamOusmer/ItsBagelBot">
     <img src=".github/assets/logo.png" alt="Logo" width="200" height="200">
