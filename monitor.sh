@@ -1,14 +1,15 @@
 #!/bin/bash
 echo "Monitoring pipeline..."
+MSG=$(git log -1 --pretty=%s)
 while true; do
-  pending=$(gh run list --limit 10 | grep "fix(console): svelte compiler errors" | grep -E "in_progress|queued")
+  pending=$(gh run list --limit 10 | grep "$MSG" | grep -E "in_progress|queued")
   if [ -z "$pending" ]; then
      break
   fi
   sleep 10
 done
 
-status=$(gh run list --limit 10 | grep "fix(console): svelte compiler errors" | head -n 1)
+status=$(gh run list --limit 10 | grep "$MSG" | head -n 1)
 echo "Pipeline finished with status: $status"
 
 echo "Reconciling flux (if applicable)..."
