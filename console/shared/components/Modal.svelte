@@ -14,8 +14,9 @@
   } = $props();
 </script>
 
+<svelte:window onkeydown={(e) => { if (open && e.key === 'Escape') closeModal(); }} />
+
 {#if open}
-  <svelte:window onkeydown={(e) => { if (e.key === 'Escape') closeModal(); }} />
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions a11y_no_static_element_interactions -->
   <div class="modal-backdrop" onclick={closeModal} role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1">
     <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions a11y_no_static_element_interactions -->
