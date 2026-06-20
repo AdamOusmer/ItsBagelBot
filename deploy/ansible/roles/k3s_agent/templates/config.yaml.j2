@@ -1,0 +1,20 @@
+# Managed by Ansible
+server: {{ k3s_url }}
+token: {{ k3s_token }}
+node-name: {{ fleet_node_name }}
+node-ip: {{ ansible_tailscale0.ipv4.address }}
+flannel-iface: {{ flannel_iface }}
+node-label:
+  - "topology.kubernetes.io/zone={{ node_zone }}"
+{% if node_pool | length > 0 %}
+  - "itsbagelbot.dev/pool={{ node_pool }}"
+node-taint:
+  - "itsbagelbot.dev/pool={{ node_pool }}:NoSchedule"
+{% endif %}
+kubelet-arg:
+  - "protect-kernel-defaults=true"
+  - "make-iptables-util-chains=true"
+  - "image-gc-high-threshold=55"
+  - "image-gc-low-threshold=45"
+  - "eviction-hard=memory.available<5%,nodefs.available<1%,imagefs.available<10%"
+  - "serialize-image-pulls=true"

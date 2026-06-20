@@ -27,6 +27,11 @@ tailscale_port: 41641                   # UDP listen port
 node_name_requested: "{{ lookup('env', 'NODE_NAME') | default('', true) }}"
 node_zone: "{{ lookup('env', 'NODE_ZONE') | default('ovh-bhs1', true) }}"
 
+# Scheduling pool. Set NODE_POOL (e.g. worker-pool) to taint + label the node so
+# only pods that tolerate itsbagelbot.dev/pool=<pool> land on it (default-deny).
+# Leave empty for normal cloud nodes (no taint, schedules everything).
+node_pool: "{{ lookup('env', 'NODE_POOL') | default('', true) }}"
+
 # --- SELinux (matches node1) -------------------------------------------------
 selinux_state: "enforcing"
 selinux_policy: "targeted"
