@@ -72,7 +72,7 @@ func (Commands) Hooks() []ent.Hook {
 						if nameStr, ok := name.(string); ok {
 							if err := m.SetField("name", strings.ToLower(nameStr)); err != nil {
 								return nil, err
-							}
+							}delegations
 						}
 					}
 				}

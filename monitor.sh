@@ -1,14 +1,14 @@
 #!/bin/bash
 echo "Monitoring pipeline..."
 while true; do
-  pending=$(gh run list --limit 10 | grep "feat: apply console updates and commands schema hook fix" | grep -E "in_progress|queued")
+  pending=$(gh run list --limit 10 | grep "fix(console): svelte compiler errors" | grep -E "in_progress|queued")
   if [ -z "$pending" ]; then
      break
   fi
   sleep 10
 done
 
-status=$(gh run list --limit 10 | grep "feat: apply console updates and commands schema hook fix" | head -n 1)
+status=$(gh run list --limit 10 | grep "fix(console): svelte compiler errors" | head -n 1)
 echo "Pipeline finished with status: $status"
 
 echo "Reconciling flux (if applicable)..."
