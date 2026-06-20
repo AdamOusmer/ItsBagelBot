@@ -134,3 +134,34 @@ export async function closeNats(): Promise<void> {
   if (conn && !conn.isClosed()) await conn.drain();
   conn = null;
 }
+
+/**
+ * Subscribe to a core NATS subject and call onMsg for every message. No queue
+ * group — every replica receives every message, which is what the cache
+ * invalidation bus needs (each process owns its own in-process cache).
+ *
+ * The callback receives both the message subject and raw data. For wildcard
+ * subscriptions (e.g. `prefix.>`) the subject carries the full matched subject
+ * of each individual message, letting callers derive scope from the last token.
+ *
+ * Fire-and-forget: resilient to dial failure (next get() re-dials), and
+ * iterator errors just terminate the async loop silently rather than crashing
+ * the server. Callers should call this once at boot (e.g. from hooks.server.ts)
+ * and never await it.
+ */
+export function subscribe(subject: string, onMsg: (subject: string, data: Uint8Array) => void): void {
+  get()
+    .then((nc) => {
+      const sub = nc.subscribe(subject);
+      (async () => {
+        try {
+          for await (const m of sub) onMsg(m.subject, m.data);
+        } catch {
+          // Iterator closed (connection dropped / process shutting down) — ignore.
+        }
+      })();
+    })
+    .catch(() => {
+      // Dial failed at subscribe time; the next request will re-dial via get().
+    });
+}

@@ -129,16 +129,16 @@ func main() {
 		log.Fatal("failed to subscribe to reproject requests", zap.Error(err))
 	}
 
-	invalidationSubject := env.Get("NATS_CACHE_INVALIDATION_SUBJECT", "bagel.cache.invalidate.broadcaster")
+	invalidationPrefix := env.Get("NATS_CACHE_INVALIDATION_PREFIX", "bagel.cache.invalidate")
 	queueGroup := "users-rpc"
 
 	dashPrefix := env.Get("NATS_DASHBOARD_SUBJECT_PREFIX", "bagel.rpc.dashboard")
-	if err := rpc.SubscribeDashboard(nc, repo, dashPrefix, invalidationSubject, queueGroup, nrApp, log); err != nil {
+	if err := rpc.SubscribeDashboard(nc, repo, dashPrefix, invalidationPrefix, queueGroup, nrApp, log); err != nil {
 		log.Fatal("failed to subscribe dashboard rpc", zap.Error(err))
 	}
 
 	adminPrefix := env.Get("NATS_ADMIN_USER_SUBJECT_PREFIX", "bagel.rpc.admin.user")
-	if err := rpc.SubscribeAdmin(nc, client, repo, adminPrefix, invalidationSubject, queueGroup, nrApp, log); err != nil {
+	if err := rpc.SubscribeAdmin(nc, client, repo, adminPrefix, invalidationPrefix, queueGroup, nrApp, log); err != nil {
 		log.Fatal("failed to subscribe admin rpc", zap.Error(err))
 	}
 
@@ -172,7 +172,7 @@ func main() {
 	}
 
 	delegationPrefix := env.Get("NATS_DELEGATION_SUBJECT_PREFIX", "bagel.rpc.delegation")
-	if err := rpc.SubscribeDelegation(nc, repo, delegationPrefix, queueGroup, nrApp, log); err != nil {
+	if err := rpc.SubscribeDelegation(nc, repo, delegationPrefix, invalidationPrefix, queueGroup, nrApp, log); err != nil {
 		log.Fatal("failed to subscribe delegation rpc", zap.Error(err))
 	}
 
