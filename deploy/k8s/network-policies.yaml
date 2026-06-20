@@ -11,64 +11,64 @@ spec:
         operator: In
         values: [users, commands, modules, transactions, projector, worker, admin, twitch-ingress, outgress, console-dashboard, console-admin]
   policyTypes:
-  - Ingress
-  - Egress
+    - Ingress
+    - Egress
   ingress:
-  # Allow all pods in bagelbot namespace to reach each other for now
-  # (Linkerd will handle the finer-grained L7 auth for HTTP/gRPC).
-  - from:
-    - namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: production
-  # Allow Traefik ingress controller to reach dashboard
-  - from:
-    - namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: kube-system
-  # Allow Tailscale ingress controller to reach admin
-  - from:
-    - namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: tailscale
+    # Allow all pods in bagelbot namespace to reach each other for now
+    # (Linkerd will handle the finer-grained L7 auth for HTTP/gRPC).
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: production
+    # Allow Traefik ingress controller to reach dashboard
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+    # Allow Tailscale ingress controller to reach admin
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: tailscale
   egress:
-  # Allow DNS resolution
-  - ports:
-    - port: 53
-      protocol: UDP
-    - port: 53
-      protocol: TCP
-  # Allow communication to any pod in bagelbot (e.g. NATS)
-  - to:
-    - namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: production
-  # Allow communication to Linkerd control plane
-  - to:
-    - namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: linkerd
-  # Allow communication to Valkey namespace
-  - to:
-    - namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: valkey
-  # Valkey sentinel and replicas announce their node's Tailscale IP (so the
-  # external witness can reach them), so the valkey-go client must dial those
-  # tailnet addresses (CGNAT 100.64.0.0/10) for replica reads and sentinel
-  # monitoring. The namespaceSelector above only covers valkey pod IPs.
-  - to:
-    - ipBlock:
-        cidr: 100.64.0.0/10
-    ports:
-    - port: 6379
-      protocol: TCP
-    - port: 26379
-      protocol: TCP
-  # Allow outbound HTTPS for Twitch OAuth
-  - ports:
-    - port: 443
-      protocol: TCP
-  # Allow communication to external HeatWave MySQL database
-  - ports:
-    - port: 3306
-      protocol: TCP
+    # Allow DNS resolution
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # Allow communication to any pod in bagelbot (e.g. NATS)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: production
+    # Allow communication to Linkerd control plane
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: linkerd
+    # Allow communication to Valkey namespace
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: valkey
+    # Valkey sentinel and replicas announce their node's Tailscale IP (so the
+    # external witness can reach them), so the valkey-go client must dial those
+    # tailnet addresses (CGNAT 100.64.0.0/10) for replica reads and sentinel
+    # monitoring. The namespaceSelector above only covers valkey pod IPs.
+    - to:
+        - ipBlock:
+            cidr: 100.64.0.0/10
+      ports:
+        - port: 6379
+          protocol: TCP
+        - port: 26379
+          protocol: TCP
+    # Allow outbound HTTPS for Twitch OAuth
+    - ports:
+        - port: 443
+          protocol: TCP
+    # Allow communication to external HeatWave MySQL database
+    - ports:
+        - port: 3306
+          protocol: TCP

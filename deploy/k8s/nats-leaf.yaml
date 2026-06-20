@@ -43,6 +43,14 @@ spec:
           operator: Equal
           value: worker-pool
           effect: NoSchedule
+        - key: node.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+        - key: node.kubernetes.io/not-ready
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
       # Shared PID namespace lets the config-reloader sidecar SIGHUP the
       # nats-server process (same uid 1000) when the mounted config changes.
       shareProcessNamespace: true
@@ -53,7 +61,7 @@ spec:
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
-        seccompProfile: { type: RuntimeDefault }
+        seccompProfile: {type: RuntimeDefault}
       containers:
         - name: nats
           image: nats:2.11-alpine
@@ -69,33 +77,33 @@ spec:
             - secretRef:
                 name: nats-auth-env
           ports:
-            - { containerPort: 4222, name: client }
-            - { containerPort: 8222, name: monitor }
+            - {containerPort: 4222, name: client}
+            - {containerPort: 8222, name: monitor}
           volumeMounts:
-            - { name: config, mountPath: /etc/nats, readOnly: true }
-            - { name: jetstream, mountPath: /data/jetstream }
-            - { name: pid, mountPath: /var/run/nats }
+            - {name: config, mountPath: /etc/nats, readOnly: true}
+            - {name: jetstream, mountPath: /data/jetstream}
+            - {name: pid, mountPath: /var/run/nats}
           resources:
             # Leaves are encrypted local relays, not durable stores; keep burst
             # headroom but avoid reserving hub-sized memory on every node.
-            requests: { cpu: 100m, memory: 128Mi }
-            limits: { cpu: 1500m, memory: 512Mi }
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {cpu: 1500m, memory: 512Mi}
           securityContext:
             allowPrivilegeEscalation: false
-            capabilities: { drop: ["ALL"] }
+            capabilities: {drop: ["ALL"]}
             readOnlyRootFilesystem: true
           startupProbe:
-            httpGet: { path: /healthz, port: monitor }
+            httpGet: {path: /healthz, port: monitor}
             periodSeconds: 5
             failureThreshold: 10
             timeoutSeconds: 1
           livenessProbe:
-            httpGet: { path: /healthz, port: monitor }
+            httpGet: {path: /healthz, port: monitor}
             initialDelaySeconds: 5
             periodSeconds: 15
             timeoutSeconds: 3
           readinessProbe:
-            httpGet: { path: "/healthz?js-enabled-only=true", port: monitor }
+            httpGet: {path: "/healthz?js-enabled-only=true", port: monitor}
             initialDelaySeconds: 5
             periodSeconds: 10
             timeoutSeconds: 3
@@ -114,27 +122,27 @@ spec:
             - "-config"
             - "/etc/nats/auth.conf"
           volumeMounts:
-            - { name: config, mountPath: /etc/nats, readOnly: true }
-            - { name: pid, mountPath: /var/run/nats }
+            - {name: config, mountPath: /etc/nats, readOnly: true}
+            - {name: pid, mountPath: /var/run/nats}
           resources:
-            requests: { cpu: 5m, memory: 16Mi }
-            limits: { cpu: 50m, memory: 64Mi }
+            requests: {cpu: 5m, memory: 16Mi}
+            limits: {cpu: 50m, memory: 64Mi}
           securityContext:
             allowPrivilegeEscalation: false
-            capabilities: { drop: ["ALL"] }
+            capabilities: {drop: ["ALL"]}
             readOnlyRootFilesystem: true
         - name: prometheus-nats-exporter
           image: natsio/prometheus-nats-exporter:0.15.0
           imagePullPolicy: IfNotPresent
           args: ["-varz", "-connz", "-subz", "-routez", "-jsz=all", "http://localhost:8222"]
           ports:
-            - { containerPort: 7777, name: metrics }
+            - {containerPort: 7777, name: metrics}
           resources:
-            requests: { cpu: 5m, memory: 32Mi }
-            limits: { cpu: 100m, memory: 128Mi }
+            requests: {cpu: 5m, memory: 32Mi}
+            limits: {cpu: 100m, memory: 128Mi}
           securityContext:
             allowPrivilegeEscalation: false
-            capabilities: { drop: ["ALL"] }
+            capabilities: {drop: ["ALL"]}
       volumes:
         - name: config
           configMap:
@@ -162,8 +170,8 @@ spec:
   selector:
     app: nats-leaf
   ports:
-    - { name: client, port: 4222, targetPort: client }
-    - { name: monitor, port: 8222, targetPort: monitor }
+    - {name: client, port: 4222, targetPort: client}
+    - {name: monitor, port: 8222, targetPort: monitor}
 ---
 apiVersion: v1
 kind: Service
@@ -179,5 +187,5 @@ spec:
   selector:
     app: nats-leaf
   ports:
-    - { name: client, port: 4222, targetPort: client }
-    - { name: monitor, port: 8222, targetPort: monitor }
+    - {name: client, port: 4222, targetPort: client}
+    - {name: monitor, port: 8222, targetPort: monitor}
