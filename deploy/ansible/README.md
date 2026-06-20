@@ -69,6 +69,26 @@ NODE_NAME=node4 doppler run -- ansible-playbook site.yml \
 
 `provision.sh` is just a thin `doppler run -- ansible-playbook …` wrapper.
 
+### Compute-only nodes (taint + label)
+
+Set `NODE_POOL` to fence a node so **only pods that tolerate it** schedule there
+(default-deny). Used for the residential/compute box — user-facing apps + ingress
+stay on the cloud nodes automatically; only tolerating workloads land here.
+
+```bash
+NODE_POOL=worker-pool ./provision.sh 51.x.x.x opc node4
+```
+
+This adds at k3s registration:
+```
+node-label: itsbagelbot.dev/pool=worker-pool
+node-taint: itsbagelbot.dev/pool=worker-pool:NoSchedule
+```
+Pods opt in with a matching toleration (already added to the production compute
+Deployments + `nats-leaf`). `linkerd-cni` / `host-research` tolerate all taints, so
+mesh + CNI work; `falco` / `crowdsec-agent` were patched to tolerate the pool too.
+Leave `NODE_POOL` unset for normal cloud nodes (no taint).
+
 ## ⚠️ SSH is removed — read before running
 
 The final role (`ssh_removal`) **stops, masks, and uninstalls OpenSSH**, and drops

@@ -10,6 +10,7 @@
 #
 # Doppler must hold:  K3S_TOKEN, TS_AUTHKEY   (TS_AUTHKEY = preauth key, tag:itsbagelbot)
 # Optional in Doppler/env:  NODE_ZONE
+#   NODE_POOL=worker-pool  -> taint+label the node so only tolerating pods land on it
 set -euo pipefail
 
 HOST="${1:?usage: ./provision.sh <target_host> [target_user] [node_name]}"
@@ -22,7 +23,7 @@ command -v doppler >/dev/null || { echo "doppler CLI not found"; exit 1; }
 
 EXTRA=(-e "target_host=${HOST}" -e "target_user=${USER_}")
 
-# NODE_NAME flows through the environment (read via lookup('env',...) in group_vars)
-export NODE_NAME
+# NODE_NAME / NODE_POOL flow through the environment (lookup('env',...) in group_vars)
+export NODE_NAME NODE_POOL="${NODE_POOL:-}"
 
 exec doppler run -- ansible-playbook site.yml "${EXTRA[@]}" "${@:4}"
