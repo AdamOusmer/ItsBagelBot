@@ -17,7 +17,6 @@ resources:
   - linkerd-auth.yaml
   - nats.yaml
   - nats-leaf.yaml
-
 # NATS broker config, formerly created by apply-nats.sh. The configmaps hold
 # only the server conf + the auth conf ($ENV placeholders expanded at runtime
 # from the nats-auth-env secret). disableNameSuffixHash keeps the names stable
