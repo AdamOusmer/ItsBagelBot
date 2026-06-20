@@ -5,6 +5,7 @@ import { isManager, requireAdmin, type AdminIdentity } from '$lib/server/access'
 import {
   credentialStatuses,
   revokeCredential,
+  rotateCredential,
   serviceOf,
   setCredential
 } from '$lib/server/db-credentials';
@@ -44,6 +45,27 @@ function serviceFromForm(f: FormData) {
 }
 
 export const actions: Actions = {
+  rotate: async ({ request, locals }) => {
+    const admin = await requireAdmin(locals.session);
+    if (!admin || !isManager(admin.role)) return fail(403, { error: 'forbidden' });
+
+    const f = await request.formData();
+    let service;
+    try {
+      service = serviceFromForm(f);
+      const confirm = String(f.get('confirm') ?? '').trim();
+      if (confirm !== `rotate ${service}`) return fail(400, { error: `type "rotate ${service}" to confirm` });
+
+      const result = await rotateCredential(service);
+      audit(admin, 'db_credential_rotate', service, result.dbUser, true);
+      return { ok: true, notice: `${service} credential rotated to ${result.dbUser}` };
+    } catch (e) {
+      const message = (e as Error).message;
+      audit(admin, 'db_credential_rotate', String(service ?? ''), '', false, message);
+      return fail(400, { error: message });
+    }
+  },
+
   set: async ({ request, locals }) => {
     const admin = await requireAdmin(locals.session);
     if (!admin || !isManager(admin.role)) return fail(403, { error: 'forbidden' });

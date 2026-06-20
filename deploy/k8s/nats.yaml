@@ -35,6 +35,11 @@ spec:
       labels:
         app: nats
     spec:
+      tolerations:
+        - key: itsbagelbot.dev/pool
+          operator: Equal
+          value: worker-pool
+          effect: NoSchedule
       nodeSelector:
         kubernetes.io/hostname: node1
       # nats runs as uid/gid 1000; fsGroup makes the JetStream PVC writable.

@@ -84,6 +84,17 @@
 
     <div class="actions-grid">
 
+      <form method="POST" action="?/rotate" use:enhance={refresh} autocomplete="off" class="action-box">
+        <input type="hidden" name="service" value={selected.id} />
+        <div class="box-title">
+          <Icon name="activity" size={17} />
+          <h3>Rotate</h3>
+        </div>
+        <input name="confirm" placeholder={`rotate ${selected.id}`} autocomplete="off" required />
+        <button class="btn primary" type="submit">
+          <Icon name="lock" size={14} /> Rotate credential
+        </button>
+      </form>
 
       <form method="POST" action="?/set" use:enhance={refresh} autocomplete="off" class="action-box">
         <input type="hidden" name="service" value={selected.id} />
@@ -91,9 +102,9 @@
           <Icon name="edit" size={17} />
           <h3>Set</h3>
         </div>
-        <input name="db_user" bind:value={setUser} placeholder={`${selected.expectedUserPrefix}_next`} autocomplete="off" />
-        <input name="db_pass" type="password" placeholder="new password" autocomplete="new-password" />
-        <input name="confirm" placeholder={`set ${selected.id}`} autocomplete="off" />
+        <input name="db_user" bind:value={setUser} placeholder={`${selected.expectedUserPrefix}_next`} autocomplete="off" required />
+        <input name="db_pass" type="password" placeholder="new password" autocomplete="new-password" passwordrules="minlength: 32; maxlength: 128;" required />
+        <input name="confirm" placeholder={`set ${selected.id}`} autocomplete="off" required />
         <button class="btn ghost" type="submit">
           <Icon name="check" size={14} /> Set credential
         </button>
@@ -105,8 +116,8 @@
           <Icon name="trash" size={17} />
           <h3>Revoke</h3>
         </div>
-        <input name="db_user" bind:value={revokeUser} placeholder="old runtime user" autocomplete="off" />
-        <input name="confirm" placeholder="revoke username" autocomplete="off" />
+        <input name="db_user" bind:value={revokeUser} placeholder="old runtime user" autocomplete="off" required />
+        <input name="confirm" placeholder="revoke username" autocomplete="off" required />
         <button class="btn ghost danger-btn" type="submit">
           <Icon name="ban" size={14} /> Revoke user
         </button>
@@ -274,7 +285,7 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
     .actions-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-columns: repeat(3, minmax(0, 1fr));
     }
   }
 </style>
