@@ -15,6 +15,21 @@
     closeDrawer: () => void;
     children: Snippet;
   } = $props();
+
+  $effect(() => {
+    const lenis = (window as any).__lenis;
+    if (open) {
+      document.body.style.overflow = 'hidden';
+      if (lenis) lenis.stop();
+    } else {
+      document.body.style.overflow = '';
+      if (lenis) lenis.start();
+    }
+    return () => {
+      document.body.style.overflow = '';
+      if (lenis) lenis.start();
+    };
+  });
 </script>
 
 {#if open}
