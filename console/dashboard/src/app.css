@@ -1,19 +1,15 @@
 @import '@bagel/shared/styles/tokens.css';
 @import '@bagel/shared/styles/app.css';
 
-/* Mobile First Overrides for Dashboard */
-/* We reset the desktop-first defaults from shared/app.css to be mobile-first, 
-   then re-apply desktop styles at min-width breakpoints. */
+/* Mobile-first page-content overrides for the dashboard.
+   The app shell (.app grid, sidebar, topbar, canvas, mobile nav) is now owned by
+   the shared AppShell components and styled there; only page-content responsive
+   rules remain below. */
 
-.app { grid-template-columns: 1fr; }
-.sidebar { display: none; }
 .stat-grid { grid-template-columns: 1fr 1fr; }
 .thead { display: none; }
 .trow { grid-template-columns: 1fr auto; gap: 8px; }
 .trow .resp, .trow .cd, .trow .perm-cell { display: none; }
-
-.topbar { gap: 10px; padding: 14px 16px; }
-.topbar .search { display: none; }
 
 .status-hero { grid-template-columns: 1fr; gap: 16px; }
 .status-hero .actions { width: 100%; }
@@ -21,52 +17,30 @@
 .status-hero .actions .btn { width: 100%; justify-content: center; }
 
 .toolbar { flex-wrap: wrap; }
-.canvas { padding-bottom: calc(72px + var(--gutter)); }
-
-.mobile-nav {
-  display: flex;
-  position: fixed;
-  left: 0; right: 0; bottom: 0;
-  z-index: 50;
-  padding: 8px max(12px, env(safe-area-inset-left)) calc(8px + env(safe-area-inset-bottom));
-  gap: 4px;
-  background: rgba(10, 10, 10, 0.7);
-  border-top: 1px solid var(--glass-border);
-  backdrop-filter: blur(var(--glass-blur)) saturate(150%);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
-}
 
 .grid-2 { grid-template-columns: 1fr; }
 .mod-grid { grid-template-columns: 1fr; }
 
-/* Desktop Breakpoint (≥761px) */
+/* Desktop breakpoint (≥761px) */
 @media (min-width: 761px) {
-  .app { grid-template-columns: var(--sidebar-w) 1fr; }
-  .sidebar { display: flex; }
   .stat-grid { grid-template-columns: repeat(4, 1fr); }
   .thead { display: grid; }
   .trow { grid-template-columns: 1.4fr 2fr 0.9fr 0.7fr 0.7fr 64px; gap: 16px; }
   .trow .resp, .trow .cd, .trow .perm-cell { display: block; }
-  
-  .topbar { gap: 18px; padding: 16px var(--gutter); }
-  .topbar .search { display: flex; }
-  
+
   .status-hero { grid-template-columns: auto 1fr auto; gap: 26px; }
   .status-hero .actions { width: auto; }
   .status-hero .actions form { flex: initial; }
   .status-hero .actions .btn { width: auto; justify-content: flex-start; }
-  
+
   .toolbar { flex-wrap: nowrap; }
-  .canvas { padding-bottom: 0; }
-  
-  .mobile-nav { display: none; }
 }
 
 @media (min-width: 761px) and (max-width: 1100px) {
   .stat-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
-/* Wide Breakpoint (≥1101px) */
+/* Wide breakpoint (≥1101px) */
 @media (min-width: 1101px) {
   .grid-2 { grid-template-columns: 1.5fr 1fr; }
   .mod-grid { grid-template-columns: repeat(2, 1fr); }

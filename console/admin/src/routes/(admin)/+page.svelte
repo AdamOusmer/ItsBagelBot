@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Icon, StatTile } from '@bagel/shared';
+  import { Icon, StatTile, PageHead, CardHead, Card, Button } from '@bagel/shared';
   import type { ShardSnapshot } from '@bagel/shared';
   let { data } = $props();
 
@@ -34,11 +34,7 @@
 </script>
 
 <section class="screen active">
-  <div class="page-head">
-    <span class="eyebrow">Operator overview</span>
-    <h1>Live <em>control plane</em></h1>
-    <p>Fleet, accounts, and bot status at a glance.</p>
-  </div>
+  <PageHead eyebrow="Operator overview" description="Fleet, accounts, and bot status at a glance.">Live <em>control plane</em></PageHead>
 
   {#await data.overview}
     <div class="stat-grid">
@@ -48,8 +44,8 @@
       <StatTile icon="overview" tan label="Conduit" value="…" unit="" delta="loading…" flat />
     </div>
     <div class="grid-2">
-      <div class="card"><div class="card-head"><h3>Shard summary</h3></div><div class="node-list muted-load">Loading live data…</div></div>
-      <div class="card"><div class="card-head"><h3>Bot account</h3></div><div class="node-list muted-load">Loading live data…</div></div>
+      <Card><CardHead title="Shard summary"/><div class="node-list muted-load">Loading live data…</div></Card>
+      <Card><CardHead title="Bot account"/><div class="node-list muted-load">Loading live data…</div></Card>
     </div>
   {:then o}
     {@const sum = shardSummary(o.snapshot)}
@@ -65,8 +61,8 @@
     </div>
 
     <div class="grid-2">
-      <div class="card">
-        <div class="card-head"><h3>Shard summary</h3><a class="more" href="/shards">All shards →</a></div>
+      <Card>
+        <CardHead title="Shard summary">{#snippet action()}<a class="more" href="/shards">All shards →</a>{/snippet}</CardHead>
         <div class="node-list">
           {#each o.snapshot.shards as s (s.shard_id)}
             <div class="node-row">
@@ -77,10 +73,10 @@
             </div>
           {/each}
         </div>
-      </div>
+      </Card>
 
-      <div class="card">
-        <div class="card-head"><h3>Bot account</h3></div>
+      <Card>
+        <CardHead title="Bot account"/>
         <div class="status-hero" style="grid-template-columns:auto 1fr;gap:14px">
           <div class="botmark"><img src="/logo.png" alt="" /></div>
           <div>
@@ -111,15 +107,15 @@
                 <p class="hint">Open this in the browser signed into the bot account:</p>
                 <div class="botlink-row">
                   <input class="botlink-url" type="text" readonly value={botLink} />
-                  <button class="btn ghost" type="button" onclick={copyLink}>
+                  <Button variant="ghost" type="button" onclick={copyLink}>
                     <Icon name="link" size={14} /> {copied ? 'Copied' : 'Copy'}
-                  </button>
+                  </Button>
                 </div>
               </div>
             {/if}
           </div>
         </div>
-      </div>
+      </Card>
     </div>
   {/await}
 </section>
