@@ -3,17 +3,21 @@
 // gracefully: callers catch and fall back to sample data so SSR always renders.
 import { rpc, publish, subscribe } from '@bagel/shared/server/nats';
 import type { ShardSnapshot, UserStats } from '@bagel/shared';
-import { env } from '$env/dynamic/private';
 
+// Subjects come from process.env, NOT $env/dynamic/private. This module is
+// imported at boot (hooks.server.ts -> startInvalidationListener), and reading
+// SvelteKit's dynamic-env proxy at module-eval time during server.init()
+// deadlocks the handler import (unsettled top-level await -> exit 13). In
+// adapter-node process.env carries the same values.
 const SUB = {
-  shards: env.NATS_ADMIN_SUBJECT ?? 'twitch.ingress.admin.shards.get',
-  scale: env.NATS_SHARD_SCALE_SUBJECT ?? 'twitch.ingress.admin.shards.scale',
-  autoscale: env.NATS_SHARD_AUTOSCALE_SUBJECT ?? 'twitch.ingress.admin.shards.autoscale',
-  status: env.NATS_STATUS_SUBJECT_PREFIX ?? 'twitch.ingress.status',
-  user: env.NATS_ADMIN_USER_SUBJECT_PREFIX ?? 'bagel.rpc.admin.user',
-  auth: env.NATS_ADMIN_AUTH_SUBJECT_PREFIX ?? 'bagel.rpc.admin.user.auth',
-  audit: env.NATS_ADMIN_AUDIT_SUBJECT_PREFIX ?? 'bagel.rpc.admin.user.audit',
-  outgress: env.NATS_OUTGRESS_SYSTEM_SUBJECT ?? 'twitch.outgress.system'
+  shards: process.env.NATS_ADMIN_SUBJECT ?? 'twitch.ingress.admin.shards.get',
+  scale: process.env.NATS_SHARD_SCALE_SUBJECT ?? 'twitch.ingress.admin.shards.scale',
+  autoscale: process.env.NATS_SHARD_AUTOSCALE_SUBJECT ?? 'twitch.ingress.admin.shards.autoscale',
+  status: process.env.NATS_STATUS_SUBJECT_PREFIX ?? 'twitch.ingress.status',
+  user: process.env.NATS_ADMIN_USER_SUBJECT_PREFIX ?? 'bagel.rpc.admin.user',
+  auth: process.env.NATS_ADMIN_AUTH_SUBJECT_PREFIX ?? 'bagel.rpc.admin.user.auth',
+  audit: process.env.NATS_ADMIN_AUDIT_SUBJECT_PREFIX ?? 'bagel.rpc.admin.user.audit',
+  outgress: process.env.NATS_OUTGRESS_SYSTEM_SUBJECT ?? 'twitch.outgress.system'
 };
 
 export const STATUS_PREFIX = SUB.status;
@@ -255,9 +259,7 @@ export async function restartUserEventSub(userId: string): Promise<void> {
  *   other          -> ignored
  */
 export function startInvalidationListener(): void {
-  const prefix =
-    (env as Record<string, string | undefined>).NATS_CACHE_INVALIDATION_PREFIX ??
-    'bagel.cache.invalidate';
+  const prefix = process.env.NATS_CACHE_INVALIDATION_PREFIX ?? 'bagel.cache.invalidate';
 
   subscribe(prefix + '.>', (subject, data) => {
     try {
