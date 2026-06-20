@@ -735,7 +735,6 @@
   }
 
   @media (max-width: 380px) {
-    .modal-card { padding: 20px 16px 18px; }
     .btn { font-size: 10px; padding: 10px 14px; }
   }
 </style>
