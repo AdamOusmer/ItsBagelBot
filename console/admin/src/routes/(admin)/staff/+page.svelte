@@ -1,6 +1,6 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
-  import { Icon, Button, Modal } from '@bagel/shared';
+  import { Icon, Button, Modal, PageHead, Card } from '@bagel/shared';
 
   type AdminRole = 'moderator' | 'admin' | 'owner';
   type AdminAcct = {
@@ -190,14 +190,11 @@
 <svelte:window onkeydown={handleKey} />
 
 <section class="screen active">
-  <div class="page-head">
-    <span class="eyebrow">Access control</span>
-    <h1>Staff <em>management</em></h1>
-    <p>
-      Operators with console access. Roles: moderator, admin, owner.{#if data.degraded}
-        <em> Live staff data unavailable; showing sample.</em>{/if}
-    </p>
-  </div>
+  <PageHead eyebrow="Access control">Staff <em>management</em></PageHead>
+  <p>
+    Operators with console access. Roles: moderator, admin, owner.{#if data.degraded}
+      <em> Live staff data unavailable; showing sample.</em>{/if}
+  </p>
 
   <!-- Add / promote staff -->
   <div class="card add-card">
@@ -235,7 +232,7 @@
   </div>
 
   <!-- Roster -->
-  <div class="card" style="padding:18px 6px">
+  <Card style="padding:18px 6px">
     {#if action}
       <p class="notice-{action.ok ? 'ok' : 'err'}" style="padding:0 14px">{action.notice}</p>
     {/if}
@@ -278,7 +275,7 @@
         {/each}
       </div>
     </div>
-  </div>
+  </Card>
 </section>
 
 <!-- Member drawer -->

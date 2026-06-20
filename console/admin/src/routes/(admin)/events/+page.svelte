@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Icon } from '@bagel/shared';
+  import { Icon, Card, CardHead, PageHead } from '@bagel/shared';
 
   interface FeedEvent {
     subject: string;
@@ -34,20 +34,17 @@
 </script>
 
 <section class="screen active">
-  <div class="page-head">
-    <span class="eyebrow">Ingress status</span>
-    <h1>Live <em>events</em></h1>
-    <p>Streaming shard up/down and status messages from the ingress fleet.</p>
-  </div>
+  <PageHead eyebrow="Ingress status" description="Streaming shard up/down and status messages from the ingress fleet.">Live <em>events</em></PageHead>
 
-  <div class="card">
-    <div class="card-head">
-      <h3>Feed</h3>
+  <Card>
+    <CardHead title="Feed">
+      {#snippet action()}
       <span class="status-pill {connected ? '' : 'dim'}">
         <span class="dot"></span>
         {connected ? 'Streaming' : 'Connecting…'}
       </span>
-    </div>
+      {/snippet}
+    </CardHead>
 
     <div class="feed">
       {#if events.length === 0}
@@ -69,7 +66,7 @@
         </div>
       {/each}
     </div>
-  </div>
+  </Card>
 </section>
 
 <style>

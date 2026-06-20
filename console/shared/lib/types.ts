@@ -1,3 +1,4 @@
+import type { IconName } from './icons';
 // Wire types mirroring the Go NATS RPC contracts (JSON over core NATS).
 export type Perm = 'everyone' | 'sub' | 'vip' | 'mod' | 'lead_mod' | 'broadcaster';
 export type Tier = 'premium' | 'standard';
@@ -48,6 +49,9 @@ export interface Shard {
   shard_id: number;
   state: string;
   node: string;
+  // Worker node (machine) name the shard runs on. Falls back to the host part
+  // of `node` when unset (e.g. local dev without the downward-API env).
+  host?: string;
   session_id?: string;
   bound: boolean;
   handshake_in_flight?: boolean;
@@ -67,4 +71,18 @@ export interface ShardSnapshot {
   target: number;
   min_shards: number;
   autoscale: boolean;
+}
+
+export interface NavLink {
+  href: string;
+  icon: IconName;
+  label: string;
+  active?: boolean;
+  locked?: boolean;
+  count?: string | number;
+}
+
+export interface NavGroupDef {
+  label?: string;
+  items: NavLink[];
 }
