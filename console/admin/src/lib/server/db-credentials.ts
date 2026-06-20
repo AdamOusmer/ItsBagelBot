@@ -1,4 +1,5 @@
 import { env } from '$env/dynamic/private';
+import { nanoid } from 'nanoid';
 
 import mysql from 'mysql2/promise';
 
@@ -81,6 +82,27 @@ export async function credentialStatuses(): Promise<DbCredentialStatus[]> {
       }
     })
   );
+}
+
+export async function rotateCredential(id: DbServiceId): Promise<{ dbUser: string }> {
+  const svc = services[id];
+  const dbUser = `${svc.expectedUserPrefix}_r${Date.now().toString(36).slice(-8)}`;
+  const dbPass = generatePassword();
+  await provisionDbUser(dbUser, dbPass, svc.schema);
+  try {
+    await updateDoppler(svc.project, svc.config, {
+      DB_USER: dbUser,
+      DB_PASS: dbPass,
+      DB_SCHEMA: svc.schema,
+      DB_AUTO_MIGRATE: 'false',
+      DB_MAX_OPEN_CONNS: '4',
+      DB_QUERY_CONCURRENCY: '4'
+    });
+  } catch (e) {
+    await dropDbUser(dbUser).catch(() => {});
+    throw e;
+  }
+  return { dbUser };
 }
 
 export async function setCredential(
@@ -201,6 +223,19 @@ async function dopplerFetch(path: string, init: RequestInit = {}): Promise<Respo
   });
   if (!res.ok) throw new Error(`Doppler request failed (${res.status})`);
   return res;
+}
+
+function generatePassword(): string {
+  let pass = '';
+  do {
+    pass = nanoid(40);
+  } while (
+    !/[A-Z]/.test(pass) ||
+    !/[a-z]/.test(pass) ||
+    !/[0-9]/.test(pass) ||
+    !/[^A-Za-z0-9]/.test(pass)
+  );
+  return pass;
 }
 
 function assertDbUser(dbUser: string): void {
