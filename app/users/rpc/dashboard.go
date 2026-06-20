@@ -19,15 +19,15 @@ import (
 type dashboardRPC struct {
 	repo                *repository.Users
 	nc                  *nats.Conn
-	invalidationSubject string
+	invalidationPrefix  string
 	log                 *zap.Logger
 }
 
-func SubscribeDashboard(nc *nats.Conn, repo *repository.Users, prefix, invalidationSubject, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
+func SubscribeDashboard(nc *nats.Conn, repo *repository.Users, prefix, invalidationPrefix, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
 	d := &dashboardRPC{
 		repo:                repo,
 		nc:                  nc,
-		invalidationSubject: invalidationSubject,
+		invalidationPrefix:  invalidationPrefix,
 		log:                 log,
 	}
 
@@ -124,7 +124,7 @@ func (d *dashboardRPC) handleGrantSave(ctx context.Context, msg *nats.Msg) {
 
 	// Invalidate cached state for this broadcaster.
 	body, _ := json.Marshal(map[string]string{"broadcaster_id": req.BroadcasterUserID})
-	if err := d.nc.Publish(d.invalidationSubject, body); err != nil {
+	if err := d.nc.Publish(d.invalidationPrefix+".grant", body); err != nil {
 		d.log.Warn("grant_save invalidation publish failed", zap.Error(err))
 	}
 
@@ -189,7 +189,7 @@ func (d *dashboardRPC) handleActiveSet(ctx context.Context, msg *nats.Msg) {
 	}
 
 	body, _ := json.Marshal(map[string]string{"broadcaster_id": req.BroadcasterUserID})
-	if err := d.nc.Publish(d.invalidationSubject, body); err != nil {
+	if err := d.nc.Publish(d.invalidationPrefix+".status", body); err != nil {
 		d.log.Warn("active_set invalidation publish failed", zap.Error(err))
 	}
 
