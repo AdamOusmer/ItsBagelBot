@@ -14,15 +14,15 @@ export const sampleStats: UserStats = {
 
 export const sampleSnapshot: ShardSnapshot = {
   generated_at: new Date().toISOString(),
-  reporter: 'ingress@node1',
-  nodes: ['node1', 'node2'],
+  reporter: 'ingress@10.42.0.11',
+  nodes: ['ingress@10.42.0.11', 'ingress@10.42.0.12'],
   shard_count: 4,
-  conduit_manager: { state: 'leader', node: 'node1', conduit_id: 'cd_3f9a' },
+  conduit_manager: { state: 'leader', node: 'ingress@10.42.0.11', conduit_id: 'cd_3f9a' },
   shards: [
-    { shard_id: 0, state: 'connected', node: 'node1', session_id: 'sess_a1', bound: true, keepalive_ms: 30000, attempts: 0, load: 0.42 },
-    { shard_id: 1, state: 'connected', node: 'node1', session_id: 'sess_b2', bound: true, keepalive_ms: 30000, attempts: 0, load: 0.61 },
-    { shard_id: 2, state: 'connected', node: 'node2', session_id: 'sess_c3', bound: true, keepalive_ms: 30000, attempts: 1, load: 0.29 },
-    { shard_id: 3, state: 'reconnecting', node: 'node2', bound: false, handshake_in_flight: true, keepalive_ms: 0, attempts: 3, load: 0.0 }
+    { shard_id: 0, state: 'connected', node: 'ingress@10.42.0.11', host: 'node1', session_id: 'sess_a1', bound: true, keepalive_ms: 30000, attempts: 0, load: 0.42 },
+    { shard_id: 1, state: 'connected', node: 'ingress@10.42.0.11', host: 'node1', session_id: 'sess_b2', bound: true, keepalive_ms: 30000, attempts: 0, load: 0.61 },
+    { shard_id: 2, state: 'connected', node: 'ingress@10.42.0.12', host: 'node2', session_id: 'sess_c3', bound: true, keepalive_ms: 30000, attempts: 1, load: 0.29 },
+    { shard_id: 3, state: 'reconnecting', node: 'ingress@10.42.0.12', host: 'node2', bound: false, handshake_in_flight: true, keepalive_ms: 0, attempts: 3, load: 0.0 }
   ],
   desired_count: 4,
   target: 4,

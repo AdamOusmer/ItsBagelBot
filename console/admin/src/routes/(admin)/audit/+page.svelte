@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Icon } from '@bagel/shared';
+  import { Icon, Card, PageHead, Button } from '@bagel/shared';
   import type { AuditEntry } from '$lib/server/rpc';
   let { data } = $props();
 
@@ -88,16 +88,10 @@
 </script>
 
 <section class="screen active">
-  <div class="page-head">
-    <span class="eyebrow">Accountability</span>
-    <h1>Audit <em>log</em></h1>
-    <p>
-      Every operator action, attributed. Newest first.{#if degraded}
-        <em> Live audit data unavailable.</em>{/if}
-    </p>
-  </div>
+  <PageHead eyebrow="Accountability" description="Every operator action, attributed. Newest first.">Audit <em>log</em></PageHead>
+  {#if degraded}<p class="degraded-note"><em>Live audit data unavailable.</em></p>{/if}
 
-  <div class="card" style="padding:18px 6px">
+  <Card style="padding:18px 6px">
     <div class="card-head" style="padding:0 12px;gap:.6rem">
       <h3>Trail</h3>
       <form method="GET" action="/audit" class="audit-controls">
@@ -105,10 +99,9 @@
           <Icon name="search" size={14} />
           <input name="q" type="text" placeholder="Search actor, action, target, or detail" autocomplete="off" value={search} />
         </label>
-        <button class="btn primary search-submit" type="submit">
-          <Icon name="search" size={14} />
+        <Button variant="primary" class="search-submit" type="submit" icon="search">
           <span>Search</span>
-        </button>
+        </Button>
         {#if search}
           <a class="btn ghost clear-search" href="/audit">Clear</a>
         {/if}
@@ -170,10 +163,13 @@
         {/if}
       </div>
     </div>
-  </div>
+  </Card>
 </section>
 
 <style>
+  .degraded-note { font-family: var(--bb-font-body); font-size: 15px; line-height: 1.55; color: var(--bb-muted); margin: -16px 0 20px; max-width: 560px; }
+  .degraded-note em { font-style: italic; }
+
   /* card-head with filter input */
   .card-head { align-items: center; }
   .audit-controls {
@@ -186,7 +182,8 @@
     margin-left: auto;
   }
   .search-filter { max-width: 340px; flex: 1; min-width: 220px; width: auto; }
-  .search-submit, .clear-search { padding: 10px 14px; text-decoration: none; }
+  :global(.search-submit) { padding: 10px 14px; }
+  .clear-search { padding: 10px 14px; text-decoration: none; }
 
   /* 6-column audit grid: When | Actor | Action | Target | Detail | Result */
   .audit-table .thead,
@@ -268,7 +265,8 @@
     .card-head { align-items: stretch; flex-direction: column; }
     .audit-controls { width: 100%; margin-left: 0; justify-content: flex-start; flex-wrap: wrap; }
     .search-filter { max-width: none; min-width: 100%; }
-    .search-submit, .clear-search { flex: 1; justify-content: center; }
+    :global(.search-submit) { flex: 1; justify-content: center; }
+    .clear-search { flex: 1; justify-content: center; }
     .audit-table .thead,
     .audit-table .trow {
       grid-template-columns: 1.3fr 1fr 1fr 0.7fr;

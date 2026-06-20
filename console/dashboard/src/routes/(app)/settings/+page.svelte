@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Icon, Modal } from '@bagel/shared';
+  import { Icon, Modal, PageHead } from '@bagel/shared';
   import { page } from '$app/state';
   import { enhance } from '$app/forms';
   import CheckButton from '$lib/components/CheckButton.svelte';
@@ -41,11 +41,7 @@
 </script>
 
 <section class="screen active">
-  <div class="page-head">
-    <span class="eyebrow">Account</span>
-    <h1>Your <em>settings</em></h1>
-    <p>Manage your connection, account, and who can reach parts of your dashboard.</p>
-  </div>
+  <PageHead eyebrow="Account" description="Manage your connection, account, and who can reach parts of your dashboard.">Your <em>settings</em></PageHead>
 
   {#if form?.error}
     <p class="banner err">{form.error}</p>
