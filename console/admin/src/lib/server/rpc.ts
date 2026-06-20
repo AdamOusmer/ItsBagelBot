@@ -1,7 +1,7 @@
 // Admin-facing RPC wrappers over the shared NATS client. Subjects come from env
 // with the same defaults as the retired Go admin tier. Every wrapper degrades
 // gracefully: callers catch and fall back to sample data so SSR always renders.
-import { rpc, publish } from '@bagel/shared/server/nats';
+import { rpc, publish, subscribe } from '@bagel/shared/server/nats';
 import type { ShardSnapshot, UserStats } from '@bagel/shared';
 import { env } from '$env/dynamic/private';
 
@@ -240,6 +240,41 @@ export async function restartUserEventSub(userId: string): Promise<void> {
   await publish(SUB.outgress, { type: 'eventsub', broadcaster_id: userId, payload: { enabled: false } });
   await publish(SUB.outgress, { type: 'eventsub', broadcaster_id: userId, payload: { enabled: true } });
   invalidateUser(userId);
+}
+
+// ── Cache invalidation listener ───────────────────────────────────────────────
+
+/**
+ * Subscribe to the cache-invalidation bus so writes in other services push-drop
+ * affected keys without waiting on TTL expiry. Call once at server boot
+ * (hooks.server.ts). Fire-and-forget; resilient to NATS restarts via the shared
+ * subscribe() primitive.
+ *
+ * Scopes handled:
+ *   status | grant -> invalidateUser(broadcasterId) (drops users:, user:<id>, token:<id>)
+ *   other          -> ignored
+ */
+export function startInvalidationListener(): void {
+  const prefix =
+    (env as Record<string, string | undefined>).NATS_CACHE_INVALIDATION_PREFIX ??
+    'bagel.cache.invalidate';
+
+  subscribe(prefix + '.>', (subject, data) => {
+    try {
+      const msg = JSON.parse(new TextDecoder().decode(data)) as {
+        broadcaster_id?: unknown;
+      };
+      const id = typeof msg.broadcaster_id === 'string' ? msg.broadcaster_id : undefined;
+      if (!id) return;
+      const scope = subject.slice(subject.lastIndexOf('.') + 1) || undefined;
+      if (scope === 'status' || scope === 'grant') {
+        invalidateUser(id);
+      }
+      // Other scopes (commands, modules, delegation) are not cached by admin — ignore.
+    } catch {
+      // Malformed message — ignore.
+    }
+  });
 }
 
 // ── Derived helpers ───────────────────────────────────────────────────────────

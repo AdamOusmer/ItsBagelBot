@@ -16,7 +16,10 @@ package projection
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"ItsBagelBot/pkg/bus"
@@ -88,7 +91,8 @@ type Client struct {
 	modules  *cache.Cache[[]ModuleView]
 	commands *cache.Cache[map[string]Command]
 
-	rpcTimeout time.Duration
+	rpcTimeout      time.Duration
+	invalidationSub *nats.Subscription
 }
 
 // NewClient wires a Client. ttl is the in-process cache lifetime; keep it
@@ -107,11 +111,66 @@ func NewClient(store *Store, nc *nats.Conn, subjects Subjects, ttl time.Duration
 	}
 }
 
-// Close releases the in-process caches.
+// Close releases the in-process caches and any active invalidation subscription.
 func (c *Client) Close() {
+	if c.invalidationSub != nil {
+		_ = c.invalidationSub.Unsubscribe()
+	}
 	c.users.Close()
 	c.modules.Close()
 	c.commands.Close()
+}
+
+// StartInvalidationListener subscribes to push invalidation messages on
+// prefix+".>" (e.g. "bagel.cache.invalidate.>"). When a message arrives the
+// scope (last subject token) determines which cache entry to drop immediately,
+// backing the short in-process TTL with near-real-time eviction on writes.
+//
+// Scope -> cache mapping:
+//   - "commands"          -> commands cache
+//   - "modules"           -> modules cache
+//   - "status" or "grant" -> users cache
+//   - "delegation"        -> ignored (worker does not cache delegations)
+func (c *Client) StartInvalidationListener(prefix string) {
+	subject := prefix + ".>"
+	sub, err := c.nc.Subscribe(subject, func(msg *nats.Msg) {
+		// Parse broadcaster_id from payload.
+		var payload struct {
+			BroadcasterID string `json:"broadcaster_id"`
+		}
+		if err := json.Unmarshal(msg.Data, &payload); err != nil {
+			c.log.Debug("projection: cache invalidation: bad payload", zap.Error(err), zap.String("subject", msg.Subject))
+			return
+		}
+		id, err := strconv.ParseUint(payload.BroadcasterID, 10, 64)
+		if err != nil || id == 0 {
+			c.log.Warn("projection: cache invalidation: bad broadcaster_id", zap.String("raw", payload.BroadcasterID))
+			return
+		}
+
+		// Scope = last token of the subject.
+		parts := strings.Split(msg.Subject, ".")
+		scope := parts[len(parts)-1]
+
+		switch scope {
+		case "commands":
+			c.commands.Invalidate(key("commands", id))
+		case "modules":
+			c.modules.Invalidate(key("modules", id))
+		case "status", "grant":
+			c.users.Invalidate(key("user", id))
+		case "delegation":
+			// Worker does not cache delegations; nothing to evict.
+		default:
+			c.log.Debug("projection: cache invalidation: unknown scope", zap.String("scope", scope))
+		}
+	})
+	if err != nil {
+		c.log.Error("projection: failed to subscribe to cache invalidation", zap.String("subject", subject), zap.Error(err))
+		return
+	}
+	c.invalidationSub = sub
+	c.log.Info("projection: cache invalidation listener started", zap.String("subject", subject))
 }
 
 func (c *Client) User(ctx context.Context, userID uint64) (User, error) {

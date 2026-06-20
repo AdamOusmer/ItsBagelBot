@@ -1,6 +1,6 @@
 // Dashboard-facing RPC wrappers over the shared NATS client. Subjects come from
 // env with the same defaults as the retired Go dashboard tier.
-import { rpc, publish } from '@bagel/shared/server/nats';
+import { rpc, publish, subscribe } from '@bagel/shared/server/nats';
 import type { CommandView, Perm, Tier } from '@bagel/shared';
 import { env } from '$env/dynamic/private';
 import type { Session } from './session';
@@ -49,9 +49,13 @@ function invalidateUser(userId: string) {
   invalidate(`grant:${userId}`, `account:${userId}`, `commands:${userId}`, `modules:${userId}`, `delegations:${userId}`);
 }
 
-const FAST_TTL_MS = 15_000;
-const COMMAND_TTL_MS = 30_000;
-const DELEGATION_TTL_MS = 30_000;
+// TTLs are now a safety net backed by push-invalidation on the cache bus
+// (bagel.cache.invalidate.<scope>). Raise them so a missed message still
+// decays within a reasonable window rather than spamming RPC on every request.
+const FAST_TTL_MS = 120_000;
+const COMMAND_TTL_MS = 300_000;
+const DELEGATION_TTL_MS = 300_000;
+const BAN_TTL_MS = 120_000;
 
 // Single-use dashboard delegation. Owners mint scoped links; invitees consume
 // them once on login to gain a section-limited session over the owner's board.
@@ -174,22 +178,18 @@ export async function tier(broadcasterId: string): Promise<Tier> {
   });
 }
 
-const BAN_CACHE_TTL_MS = 15_000;
-const banCache = new Map<string, { banned: boolean; expires: number }>();
-
 // isBanned reports whether the platform has banned the user (completes the
-// admin "ban from service" action by blocking dashboard login). Fails OPEN:
-// an RPC blip returns false so a transient outage never locks everyone out —
-// the admin panel remains the source of truth for re-banning.
+// admin "ban from service" action by blocking dashboard login). Routed through
+// the shared cached() infra so concurrent cold reads coalesce on one promise
+// instead of thundering-herding the RPC on a busy login burst.
+// Fails OPEN: an RPC error deletes the key (cached() does this on throw) and
+// returns false so a transient outage never locks everyone out.
 export async function isBanned(userId: string): Promise<boolean> {
-  const cached = banCache.get(userId);
-  if (cached && cached.expires > Date.now()) return cached.banned;
-
   try {
-    const r = await rpc<{ banned?: boolean }>(SUB.broadcaster, { broadcaster_id: userId }, 2000);
-    const banned = r.banned === true;
-    banCache.set(userId, { banned, expires: Date.now() + BAN_CACHE_TTL_MS });
-    return banned;
+    return await cached(`ban:${userId}`, BAN_TTL_MS, async () => {
+      const r = await rpc<{ banned?: boolean }>(SUB.broadcaster, { broadcaster_id: userId }, 2000);
+      return r.banned === true;
+    });
   } catch {
     return false;
   }
@@ -409,4 +409,63 @@ export async function deleteCommand(
     cache.set(`commands:${userId}`, { value: commands, expires: Date.now() + COMMAND_TTL_MS });
   } else invalidate(`commands:${userId}`);
   return { commands: r.commands ?? [], error: r.error };
+}
+
+// Scope -> cache key routing for the invalidation bus.
+// grant   -> grant:<id>, account:<id>
+// status  -> account:<id>, ban:<id>
+// commands -> commands:<id>
+// modules  -> modules:<id>
+// delegation -> delegations:<id> (prefix covers :given and :access)
+// <missing/empty> -> full invalidateUser(id) + ban:<id>
+function applyInvalidation(broadcasterId: string, scope: string | undefined): void {
+  switch (scope) {
+    case 'grant':
+      invalidate(`grant:${broadcasterId}`, `account:${broadcasterId}`);
+      break;
+    case 'status':
+      invalidate(`account:${broadcasterId}`, `ban:${broadcasterId}`);
+      break;
+    case 'commands':
+      invalidate(`commands:${broadcasterId}`);
+      break;
+    case 'modules':
+      invalidate(`modules:${broadcasterId}`);
+      break;
+    case 'delegation':
+      invalidate(`delegations:${broadcasterId}`);
+      break;
+    default:
+      // No scope or unknown scope: drop everything for this user (back-compat).
+      invalidateUser(broadcasterId);
+      invalidate(`ban:${broadcasterId}`);
+  }
+}
+
+/**
+ * Subscribe to the cache-invalidation bus so writes in other services (Go)
+ * push-drop the affected keys without waiting on TTL expiry. Call once at
+ * server boot (hooks.server.ts). Fire-and-forget; resilient to NATS restarts
+ * via the shared subscribe() primitive.
+ */
+export function startInvalidationListener(): void {
+  const prefix =
+    (env as Record<string, string | undefined>).NATS_CACHE_INVALIDATION_PREFIX ??
+    'bagel.cache.invalidate';
+
+  subscribe(prefix + '.>', (subject, data) => {
+    try {
+      const msg = JSON.parse(new TextDecoder().decode(data)) as {
+        broadcaster_id?: unknown;
+      };
+      const id = typeof msg.broadcaster_id === 'string' ? msg.broadcaster_id : undefined;
+      if (!id) return;
+      // Scope is the last dot-segment of the message subject
+      // e.g. "bagel.cache.invalidate.status" -> "status"
+      const scope = subject.slice(subject.lastIndexOf('.') + 1) || undefined;
+      applyInvalidation(id, scope);
+    } catch {
+      // Malformed message — ignore.
+    }
+  });
 }

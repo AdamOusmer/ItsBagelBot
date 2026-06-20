@@ -73,7 +73,11 @@ func main() {
 	// pod (see Projector.broadcastInvalidate / rpc.SubscribeStatus).
 	invalidateSubject := env.Get("NATS_PROJECTOR_TIER_INVALIDATE_SUBJECT", "bagel.internal.projector.tier.invalidate")
 
-	projector := NewProjector(valkeyStore, nc, invalidateSubject, log)
+	// Core-NATS prefix for fanning section-scoped cache invalidations
+	// (commands, modules) to the console cache bus after Valkey is updated.
+	cacheInvalidatePrefix := env.Get("NATS_CACHE_INVALIDATION_PREFIX", "bagel.cache.invalidate")
+
+	projector := NewProjector(valkeyStore, nc, invalidateSubject, cacheInvalidatePrefix, log)
 
 	if err := bus.Consume(ctx, nrApp, sub, data.SubjectUserChanged, projector.HandleUserChanged, log); err != nil {
 		log.Fatal("failed to subscribe to user changes", zap.Error(err))

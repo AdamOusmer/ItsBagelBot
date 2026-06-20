@@ -67,11 +67,11 @@ type adminRequest struct {
 }
 
 type adminRPC struct {
-	db                  *ent.Client
-	repo                *repository.Users
-	nc                  *nats.Conn
-	invalidationSubject string
-	log                 *zap.Logger
+	db                 *ent.Client
+	repo               *repository.Users
+	nc                 *nats.Conn
+	invalidationPrefix string
+	log                *zap.Logger
 }
 
 const (
@@ -80,13 +80,13 @@ const (
 	adminUserMaxSearchLen = 200
 )
 
-func SubscribeAdmin(nc *nats.Conn, db *ent.Client, repo *repository.Users, prefix, invalidationSubject, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
+func SubscribeAdmin(nc *nats.Conn, db *ent.Client, repo *repository.Users, prefix, invalidationPrefix, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
 	a := &adminRPC{
-		db:                  db,
-		repo:                repo,
-		nc:                  nc,
-		invalidationSubject: invalidationSubject,
-		log:                 log,
+		db:                 db,
+		repo:               repo,
+		nc:                 nc,
+		invalidationPrefix: invalidationPrefix,
+		log:                log,
 	}
 
 	verbs := map[string]func(context.Context, adminRequest) adminReply{
@@ -441,7 +441,7 @@ func (a *adminRPC) findUser(ctx context.Context, req adminRequest) (*ent.User, e
 
 func (a *adminRPC) invalidate(id uint64) {
 	body, _ := json.Marshal(map[string]string{"broadcaster_id": fmt.Sprint(id)})
-	if err := a.nc.Publish(a.invalidationSubject, body); err != nil {
+	if err := a.nc.Publish(a.invalidationPrefix+".status", body); err != nil {
 		a.log.Warn("cache invalidation publish failed", zap.Error(err))
 	}
 }

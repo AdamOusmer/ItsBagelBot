@@ -52,6 +52,11 @@ type Config struct {
 	ProjectionModulesSubject  string
 	ProjectionCommandsSubject string
 
+	// CacheInvalidationPrefix is the NATS subject prefix the worker subscribes
+	// to for push invalidation of its in-process projection cache. Messages
+	// arrive as "<prefix>.<scope>" with payload {"broadcaster_id":"<id>"}.
+	CacheInvalidationPrefix string
+
 	// Valkey holds the settings projection (user tier + modules) the worker
 	// reads on the hot path.
 	ValkeyAddr     string
@@ -82,6 +87,8 @@ func Load() *Config {
 		ProjectionUsersSubject:    env.Get("NATS_INTERNAL_PROJECTION_USERS_SUBJECT", "bagel.rpc.internal.projection.users.get"),
 		ProjectionModulesSubject:  env.Get("NATS_INTERNAL_PROJECTION_MODULES_SUBJECT", "bagel.rpc.internal.projection.modules.get"),
 		ProjectionCommandsSubject: env.Get("NATS_INTERNAL_PROJECTION_COMMANDS_SUBJECT", "bagel.rpc.internal.projection.commands.get"),
+
+		CacheInvalidationPrefix: env.Get("NATS_CACHE_INVALIDATION_PREFIX", "bagel.cache.invalidate"),
 
 		ValkeyAddr:     env.Get("VALKEY_ADDR", "127.0.0.1:6379"),
 		ValkeyPassword: env.Get("VALKEY_PASSWORD", ""),
