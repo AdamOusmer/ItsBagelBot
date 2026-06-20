@@ -7,6 +7,8 @@ export { default as StatTile } from '../components/StatTile.svelte';
 export { default as NavItem } from '../components/NavItem.svelte';
 export { default as Cursor } from '../components/Cursor.svelte';
 export { default as AuroraBg } from '../components/AuroraBg.svelte';
+export { default as Modal } from '../components/Modal.svelte';
+export { default as Drawer } from '../components/Drawer.svelte';
 
 export { initLenis } from './actions';
 export { icons, type IconName } from './icons';

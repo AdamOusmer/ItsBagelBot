@@ -19,35 +19,35 @@ func init() {
 	// commands.NameValidator is a validator for the "name" field. It is called by the builders before save.
 	commands.NameValidator = commandsDescName.Validators[0].(func(string) error)
 	// commandsDescResponse is the schema descriptor for response field.
-	commandsDescResponse := commandsFields[2].Descriptor()
+	commandsDescResponse := commandsFields[3].Descriptor()
 	// commands.ResponseValidator is a validator for the "response" field. It is called by the builders before save.
 	commands.ResponseValidator = commandsDescResponse.Validators[0].(func(string) error)
 	// commandsDescIsActive is the schema descriptor for is_active field.
-	commandsDescIsActive := commandsFields[3].Descriptor()
+	commandsDescIsActive := commandsFields[4].Descriptor()
 	// commands.DefaultIsActive holds the default value on creation for the is_active field.
 	commands.DefaultIsActive = commandsDescIsActive.Default.(bool)
 	// commandsDescStreamOnlineOnly is the schema descriptor for stream_online_only field.
-	commandsDescStreamOnlineOnly := commandsFields[4].Descriptor()
+	commandsDescStreamOnlineOnly := commandsFields[5].Descriptor()
 	// commands.DefaultStreamOnlineOnly holds the default value on creation for the stream_online_only field.
 	commands.DefaultStreamOnlineOnly = commandsDescStreamOnlineOnly.Default.(bool)
 	// commandsDescPerm is the schema descriptor for perm field.
-	commandsDescPerm := commandsFields[5].Descriptor()
+	commandsDescPerm := commandsFields[6].Descriptor()
 	// commands.DefaultPerm holds the default value on creation for the perm field.
 	commands.DefaultPerm = commandsDescPerm.Default.(string)
 	// commandsDescCooldown is the schema descriptor for cooldown field.
-	commandsDescCooldown := commandsFields[6].Descriptor()
+	commandsDescCooldown := commandsFields[7].Descriptor()
 	// commands.DefaultCooldown holds the default value on creation for the cooldown field.
 	commands.DefaultCooldown = commandsDescCooldown.Default.(uint)
 	// commandsDescAllowedUserID is the schema descriptor for allowed_user_id field.
-	commandsDescAllowedUserID := commandsFields[7].Descriptor()
+	commandsDescAllowedUserID := commandsFields[8].Descriptor()
 	// commands.DefaultAllowedUserID holds the default value on creation for the allowed_user_id field.
 	commands.DefaultAllowedUserID = commandsDescAllowedUserID.Default.(uint64)
 	// commandsDescCreatedAt is the schema descriptor for created_at field.
-	commandsDescCreatedAt := commandsFields[8].Descriptor()
+	commandsDescCreatedAt := commandsFields[9].Descriptor()
 	// commands.DefaultCreatedAt holds the default value on creation for the created_at field.
 	commands.DefaultCreatedAt = commandsDescCreatedAt.Default.(func() time.Time)
 	// commandsDescUpdatedAt is the schema descriptor for updated_at field.
-	commandsDescUpdatedAt := commandsFields[9].Descriptor()
+	commandsDescUpdatedAt := commandsFields[10].Descriptor()
 	// commands.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	commands.DefaultUpdatedAt = commandsDescUpdatedAt.Default.(func() time.Time)
 	// commands.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.

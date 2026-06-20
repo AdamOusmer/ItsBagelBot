@@ -202,6 +202,9 @@ func (_c *UserCreate) check() error {
 	if _, ok := _c.mutation.IsActive(); !ok {
 		return &ValidationError{Name: "is_active", err: errors.New(`ent: missing required field "User.is_active"`)}
 	}
+	if _, ok := _c.mutation.Banned(); !ok {
+		return &ValidationError{Name: "banned", err: errors.New(`ent: missing required field "User.banned"`)}
+	}
 	if _, ok := _c.mutation.Status(); !ok {
 		return &ValidationError{Name: "status", err: errors.New(`ent: missing required field "User.status"`)}
 	}

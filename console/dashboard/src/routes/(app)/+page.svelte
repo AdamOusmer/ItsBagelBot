@@ -1,7 +1,7 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import { onMount } from 'svelte';
-  import { Button, Icon, StatTile } from '@bagel/shared';
+  import { Button, Icon, StatTile, Modal } from '@bagel/shared';
   let { data } = $props();
 
   const statusLabel = (s: string) =>
@@ -196,18 +196,9 @@
 </section>
 
 <!-- Confirm modal -->
-{#if pending !== null}
-  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div
-    class="modal-backdrop"
-    role="button"
-    tabindex="-1"
-    aria-label="Close dialog"
-    onclick={closeModal}
-  ></div>
-  <dialog class="confirm-dialog" open aria-modal="true" aria-labelledby="modal-title">
-    <h3 id="modal-title">{modalTitle}</h3>
-    <p>{modalBody}</p>
+<Modal open={pending !== null} title={modalTitle} closeModal={closeModal}>
+  {#if pending !== null}
+    <p class="modal-body">{modalBody}</p>
     <form method="POST" action={modalAction} use:enhance={closeAfterSubmit} class="modal-actions">
       <button class="btn ghost" type="button" onclick={closeModal}>Cancel</button>
       <button
@@ -217,8 +208,8 @@
         {pending === 'restart' ? 'Restart' : 'Disconnect'}
       </button>
     </form>
-  </dialog>
-{/if}
+  {/if}
+</Modal>
 
 <svelte:window onkeydown={(e) => { if (e.key === 'Escape') closeModal(); }} />
 
@@ -269,65 +260,7 @@
     }
   }
 
-  /* Confirm modal */
-  .modal-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 200;
-    background: rgba(0, 0, 0, 0.55);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
-  }
 
-  .confirm-dialog {
-    position: fixed;
-    inset: 0;
-    margin: auto;
-    z-index: 201;
-    width: min(400px, calc(100vw - 32px));
-    height: fit-content;
-    background: var(--bb-card-bg);
-    border: 1px solid var(--bb-border-strong);
-    border-radius: var(--bb-radius-lg);
-    padding: 28px 24px 20px;
-    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
-    /* reset browser <dialog> defaults */
-    display: block;
-    color: var(--bb-white);
-  }
 
-  .confirm-dialog h3 {
-    font-family: var(--bb-font-display);
-    font-weight: 600;
-    font-size: 18px;
-    letter-spacing: -0.01em;
-    color: var(--bb-white);
-    margin: 0 0 10px;
-  }
 
-  .confirm-dialog p {
-    font-family: var(--bb-font-body);
-    font-size: 14px;
-    line-height: 1.55;
-    color: var(--bb-muted);
-    margin: 0 0 22px;
-  }
-
-  .modal-actions {
-    display: flex;
-    gap: 10px;
-    justify-content: flex-end;
-  }
-
-  @media (max-width: 480px) {
-    .modal-actions {
-      flex-direction: column-reverse;
-    }
-    .modal-actions :global(.btn),
-    .modal-actions button {
-      width: 100%;
-      justify-content: center;
-      min-height: 44px;
-    }
-  }
 </style>

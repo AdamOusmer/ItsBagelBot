@@ -51,17 +51,16 @@ func (u User) Premium() bool {
 	}
 }
 
-
-
 // Command is one custom chat command of a user.
 type Command struct {
-	Name             string `json:"name"`
-	Response         string `json:"response,omitempty"`
-	IsActive         bool   `json:"is_active"`
-	StreamOnlineOnly bool   `json:"stream_online_only"`
-	Perm             string `json:"perm,omitempty"`
-	Cooldown         uint   `json:"cooldown,omitempty"`
-	AllowedUserID    uint64 `json:"allowed_user_id,omitempty"`
+	Name             string   `json:"name"`
+	Aliases          []string `json:"aliases,omitempty"`
+	Response         string   `json:"response,omitempty"`
+	IsActive         bool     `json:"is_active"`
+	StreamOnlineOnly bool     `json:"stream_online_only"`
+	Perm             string   `json:"perm,omitempty"`
+	Cooldown         uint     `json:"cooldown,omitempty"`
+	AllowedUserID    uint64   `json:"allowed_user_id,omitempty"`
 }
 
 // Reader is the contract the pipeline depends on. Keeping it an interface lets
@@ -217,9 +216,22 @@ func (c *Client) Command(ctx context.Context, userID uint64, name string) (Comma
 		if err != nil {
 			return map[string]Command{}, nil
 		}
+		// Index by primary name and every alias so a viewer typing either
+		// resolves to the same command. Lookups arrive lower-cased (see
+		// parseCommand), so key everything lower-cased too. The primary name
+		// wins on a collision: insert names first, then only add an alias key
+		// that is not already a command name.
 		out := make(map[string]Command, len(reply.Commands))
 		for _, cmd := range reply.Commands {
-			out[cmd.Name] = cmd
+			out[strings.ToLower(cmd.Name)] = cmd
+		}
+		for _, cmd := range reply.Commands {
+			for _, alias := range cmd.Aliases {
+				key := strings.ToLower(alias)
+				if _, taken := out[key]; !taken {
+					out[key] = cmd
+				}
+			}
 		}
 		return out, nil
 	})

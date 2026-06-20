@@ -36,6 +36,8 @@ type CommandsMutation struct {
 	user_id            *uint64
 	adduser_id         *int64
 	name               *string
+	aliases            *[]string
+	appendaliases      []string
 	response           *string
 	is_active          *bool
 	stream_online_only *bool
@@ -240,6 +242,71 @@ func (m *CommandsMutation) OldName(ctx context.Context) (v string, err error) {
 // ResetName resets all changes to the "name" field.
 func (m *CommandsMutation) ResetName() {
 	m.name = nil
+}
+
+// SetAliases sets the "aliases" field.
+func (m *CommandsMutation) SetAliases(s []string) {
+	m.aliases = &s
+	m.appendaliases = nil
+}
+
+// Aliases returns the value of the "aliases" field in the mutation.
+func (m *CommandsMutation) Aliases() (r []string, exists bool) {
+	v := m.aliases
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAliases returns the old "aliases" field's value of the Commands entity.
+// If the Commands object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CommandsMutation) OldAliases(ctx context.Context) (v []string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAliases is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAliases requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAliases: %w", err)
+	}
+	return oldValue.Aliases, nil
+}
+
+// AppendAliases adds s to the "aliases" field.
+func (m *CommandsMutation) AppendAliases(s []string) {
+	m.appendaliases = append(m.appendaliases, s...)
+}
+
+// AppendedAliases returns the list of values that were appended to the "aliases" field in this mutation.
+func (m *CommandsMutation) AppendedAliases() ([]string, bool) {
+	if len(m.appendaliases) == 0 {
+		return nil, false
+	}
+	return m.appendaliases, true
+}
+
+// ClearAliases clears the value of the "aliases" field.
+func (m *CommandsMutation) ClearAliases() {
+	m.aliases = nil
+	m.appendaliases = nil
+	m.clearedFields[commands.FieldAliases] = struct{}{}
+}
+
+// AliasesCleared returns if the "aliases" field was cleared in this mutation.
+func (m *CommandsMutation) AliasesCleared() bool {
+	_, ok := m.clearedFields[commands.FieldAliases]
+	return ok
+}
+
+// ResetAliases resets all changes to the "aliases" field.
+func (m *CommandsMutation) ResetAliases() {
+	m.aliases = nil
+	m.appendaliases = nil
+	delete(m.clearedFields, commands.FieldAliases)
 }
 
 // SetResponse sets the "response" field.
@@ -604,12 +671,15 @@ func (m *CommandsMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *CommandsMutation) Fields() []string {
-	fields := make([]string, 0, 10)
+	fields := make([]string, 0, 11)
 	if m.user_id != nil {
 		fields = append(fields, commands.FieldUserID)
 	}
 	if m.name != nil {
 		fields = append(fields, commands.FieldName)
+	}
+	if m.aliases != nil {
+		fields = append(fields, commands.FieldAliases)
 	}
 	if m.response != nil {
 		fields = append(fields, commands.FieldResponse)
@@ -647,6 +717,8 @@ func (m *CommandsMutation) Field(name string) (ent.Value, bool) {
 		return m.UserID()
 	case commands.FieldName:
 		return m.Name()
+	case commands.FieldAliases:
+		return m.Aliases()
 	case commands.FieldResponse:
 		return m.Response()
 	case commands.FieldIsActive:
@@ -676,6 +748,8 @@ func (m *CommandsMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldUserID(ctx)
 	case commands.FieldName:
 		return m.OldName(ctx)
+	case commands.FieldAliases:
+		return m.OldAliases(ctx)
 	case commands.FieldResponse:
 		return m.OldResponse(ctx)
 	case commands.FieldIsActive:
@@ -714,6 +788,13 @@ func (m *CommandsMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetName(v)
+		return nil
+	case commands.FieldAliases:
+		v, ok := value.([]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAliases(v)
 		return nil
 	case commands.FieldResponse:
 		v, ok := value.(string)
@@ -839,7 +920,11 @@ func (m *CommandsMutation) AddField(name string, value ent.Value) error {
 // ClearedFields returns all nullable fields that were cleared during this
 // mutation.
 func (m *CommandsMutation) ClearedFields() []string {
-	return nil
+	var fields []string
+	if m.FieldCleared(commands.FieldAliases) {
+		fields = append(fields, commands.FieldAliases)
+	}
+	return fields
 }
 
 // FieldCleared returns a boolean indicating if a field with the given name was
@@ -852,6 +937,11 @@ func (m *CommandsMutation) FieldCleared(name string) bool {
 // ClearField clears the value of the field with the given name. It returns an
 // error if the field is not defined in the schema.
 func (m *CommandsMutation) ClearField(name string) error {
+	switch name {
+	case commands.FieldAliases:
+		m.ClearAliases()
+		return nil
+	}
 	return fmt.Errorf("unknown Commands nullable field %s", name)
 }
 
@@ -864,6 +954,9 @@ func (m *CommandsMutation) ResetField(name string) error {
 		return nil
 	case commands.FieldName:
 		m.ResetName()
+		return nil
+	case commands.FieldAliases:
+		m.ResetAliases()
 		return nil
 	case commands.FieldResponse:
 		m.ResetResponse()

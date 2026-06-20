@@ -33,9 +33,9 @@ func TestUpsertCoalescesEdits(t *testing.T) {
 	client, pub, repo := setup(t)
 	ctx := context.Background()
 
-	repo.Upsert(1001, "!hello", "draft one", true, false, "everyone", 0, 0)
-	repo.Upsert(1001, "!hello", "draft two", true, false, "everyone", 0, 0)
-	repo.Upsert(1001, "!hello", "final wording", true, true, "everyone", 0, 0)
+	repo.Upsert(1001, "!hello", nil, "draft one", true, false, "everyone", 0, 0)
+	repo.Upsert(1001, "!hello", nil, "draft two", true, false, "everyone", 0, 0)
+	repo.Upsert(1001, "!hello", nil, "final wording", true, true, "everyone", 0, 0)
 
 	repo.Close(ctx) // deterministic flush
 
@@ -51,7 +51,7 @@ func TestDeleteIsImmediateAndAnnounced(t *testing.T) {
 	client, pub, repo := setup(t)
 	ctx := context.Background()
 
-	repo.Upsert(1001, "!hello", "hi chat", true, false, "everyone", 0, 0)
+	repo.Upsert(1001, "!hello", nil, "hi chat", true, false, "everyone", 0, 0)
 	repo.Close(ctx)
 
 	repo2 := repository.NewCommands(client, pub, nil, zap.NewNop())
@@ -73,7 +73,7 @@ func TestRenameUpdatesRowInPlace(t *testing.T) {
 	client, pub, repo := setup(t)
 	ctx := context.Background()
 
-	repo.Upsert(1001, "!old", "the response", true, false, "everyone", 7, 0)
+	repo.Upsert(1001, "!old", nil, "the response", true, false, "everyone", 7, 0)
 	repo.Close(ctx)
 	originalID := client.Commands.Query().FirstX(ctx).ID
 
@@ -82,7 +82,7 @@ func TestRenameUpdatesRowInPlace(t *testing.T) {
 
 	baseline := len(pub.On(data.SubjectCommandChanged)) // the create flush above
 
-	require.NoError(t, repo2.Rename(ctx, 1001, "!old", "!new", "the response", true, true, "everyone", 7, 0))
+	require.NoError(t, repo2.Rename(ctx, 1001, "!old", "!new", nil, "the response", true, true, "everyone", 7, 0))
 
 	// Exactly one row, same primary key (updated in place, not deleted+recreated).
 	rows := client.Commands.Query().AllX(ctx)
@@ -111,7 +111,7 @@ func TestRenameMissingRowFallsBackToCreate(t *testing.T) {
 	client, _, repo := setup(t)
 	ctx := context.Background()
 
-	require.NoError(t, repo.Rename(ctx, 1001, "!ghost", "!new", "resp", true, true, "everyone", 0, 0))
+	require.NoError(t, repo.Rename(ctx, 1001, "!ghost", "!new", nil, "resp", true, true, "everyone", 0, 0))
 	repo.Close(ctx) // flush the fallback upsert
 
 	rows := client.Commands.Query().AllX(ctx)
