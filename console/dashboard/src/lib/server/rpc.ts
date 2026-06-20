@@ -2,17 +2,21 @@
 // env with the same defaults as the retired Go dashboard tier.
 import { rpc, publish, subscribe } from '@bagel/shared/server/nats';
 import type { CommandView, Perm, Tier } from '@bagel/shared';
-import { env } from '$env/dynamic/private';
 import type { Session } from './session';
 
+// Subjects come from process.env, NOT $env/dynamic/private. This module is
+// imported at boot (hooks.server.ts -> startInvalidationListener), and reading
+// SvelteKit's dynamic-env proxy at module-eval time during server.init()
+// deadlocks the handler import (unsettled top-level await -> exit 13). In
+// adapter-node process.env carries the same values.
 const SUB = {
-  broadcaster: env.NATS_BROADCASTER_STATUS_SUBJECT ?? 'bagel.rpc.broadcaster.status.get',
-  dashboard: env.NATS_DASHBOARD_SUBJECT_PREFIX ?? 'bagel.rpc.dashboard',
-  commands: env.NATS_COMMANDS_SUBJECT_PREFIX ?? 'bagel.rpc.commands',
-  projector: env.NATS_PROJECTOR_DASHBOARD_SUBJECT_PREFIX ?? 'bagel.rpc.projector.dashboard',
-  outgress: env.NATS_OUTGRESS_SYSTEM_SUBJECT ?? 'twitch.outgress.system',
-  audit: env.NATS_ADMIN_AUDIT_SUBJECT_PREFIX ?? 'bagel.rpc.admin.user.audit',
-  delegation: env.NATS_DELEGATION_SUBJECT_PREFIX ?? 'bagel.rpc.delegation'
+  broadcaster: process.env.NATS_BROADCASTER_STATUS_SUBJECT ?? 'bagel.rpc.broadcaster.status.get',
+  dashboard: process.env.NATS_DASHBOARD_SUBJECT_PREFIX ?? 'bagel.rpc.dashboard',
+  commands: process.env.NATS_COMMANDS_SUBJECT_PREFIX ?? 'bagel.rpc.commands',
+  projector: process.env.NATS_PROJECTOR_DASHBOARD_SUBJECT_PREFIX ?? 'bagel.rpc.projector.dashboard',
+  outgress: process.env.NATS_OUTGRESS_SYSTEM_SUBJECT ?? 'twitch.outgress.system',
+  audit: process.env.NATS_ADMIN_AUDIT_SUBJECT_PREFIX ?? 'bagel.rpc.admin.user.audit',
+  delegation: process.env.NATS_DELEGATION_SUBJECT_PREFIX ?? 'bagel.rpc.delegation'
 };
 
 type CacheEntry<T> = { value?: T; promise?: Promise<T>; expires: number };
@@ -449,9 +453,7 @@ function applyInvalidation(broadcasterId: string, scope: string | undefined): vo
  * via the shared subscribe() primitive.
  */
 export function startInvalidationListener(): void {
-  const prefix =
-    (env as Record<string, string | undefined>).NATS_CACHE_INVALIDATION_PREFIX ??
-    'bagel.cache.invalidate';
+  const prefix = process.env.NATS_CACHE_INVALIDATION_PREFIX ?? 'bagel.cache.invalidate';
 
   subscribe(prefix + '.>', (subject, data) => {
     try {
