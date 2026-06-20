@@ -1,0 +1,104 @@
+---
+# Base system: node identity, hostname, packages, kernel modules, sysctl, ulimits.
+# Hardening/optimizations mirror node1 (Oracle); sysctl copied from the running fleet.
+
+# --- Node identity (stable across re-runs) -----------------------------------
+- name: Ensure fleet state dir
+  ansible.builtin.file:
+    path: /etc/fleet
+    state: directory
+    mode: "0755"
+
+- name: Read persisted node name (if the box was already provisioned)
+  ansible.builtin.slurp:
+    src: /etc/fleet/node-name
+  register: persisted_name
+  failed_when: false
+
+- name: Resolve node name
+  ansible.builtin.set_fact:
+    fleet_node_name: >-
+      {{ (persisted_name.content | b64decode | trim)
+         if (persisted_name.content is defined)
+         else (node_name_requested
+               if node_name_requested | length > 0
+               else 'bot-' ~ ansible_date_time.epoch[-5:]) }}
+
+- name: Persist node name (first run only)
+  ansible.builtin.copy:
+    dest: /etc/fleet/node-name
+    content: "{{ fleet_node_name }}\n"
+    mode: "0644"
+  when: persisted_name.content is not defined
+
+- name: Set system hostname
+  ansible.builtin.hostname:
+    name: "{{ fleet_node_name }}"
+
+# --- Packages ----------------------------------------------------------------
+- name: Install base packages
+  ansible.builtin.dnf:
+    name:
+      - curl
+      - tar
+      - iptables
+      - conntrack-tools
+      - policycoreutils
+      - policycoreutils-python-utils
+      - chrony
+    state: present
+
+- name: Enable + start chrony (clock sync)
+  ansible.builtin.service:
+    name: chronyd
+    state: started
+    enabled: true
+
+# --- Kernel modules ----------------------------------------------------------
+- name: Persist required kernel modules
+  ansible.builtin.copy:
+    dest: /etc/modules-load.d/k3s.conf
+    mode: "0644"
+    content: |
+      # Loaded for k3s/flannel (managed by Ansible)
+      br_netfilter
+      overlay
+
+- name: Load kernel modules now
+  community.general.modprobe:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - br_netfilter
+    - overlay
+
+# --- sysctl tuning (copied verbatim from running fleet) ----------------------
+- name: Kubernetes / Tailscale / TCP sysctl tuning
+  ansible.builtin.copy:
+    src: 99-kubernetes-tuning.conf
+    dest: /etc/sysctl.d/99-kubernetes-tuning.conf
+    mode: "0644"
+  notify: reload sysctl
+
+- name: NATS RPC latency sysctl tuning
+  ansible.builtin.copy:
+    src: 99-nats-rpc.conf
+    dest: /etc/sysctl.d/99-nats-rpc.conf
+    mode: "0644"
+  notify: reload sysctl
+
+# --- ulimits -----------------------------------------------------------------
+- name: Raise nofile / disable core dumps (matches fleet)
+  ansible.builtin.copy:
+    dest: /etc/security/limits.d/99-fleet.conf
+    mode: "0644"
+    content: |
+      # Managed by Ansible — matches running fleet
+      *               soft    core            0
+      root            soft    core            0
+      *               hard    core            infinity
+      root            hard    core            infinity
+      *               soft    nofile          1048576
+      *               hard    nofile          1048576
+      root            soft    nofile          1048576
+      root            hard    nofile          1048576

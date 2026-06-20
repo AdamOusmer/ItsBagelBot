@@ -1,0 +1,39 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Fleet-wide config. NO secrets committed.
+# Secrets come from the environment, injected by `doppler run`:
+#   K3S_TOKEN   — node1 join token
+#   TS_AUTHKEY  — Tailscale PRE-AUTHORIZED key, ephemeral=false, tagged tag:itsbagelbot
+# Optional:
+#   NODE_NAME   — explicit node/hostname (e.g. node4). If unset, a unique name is
+#                 generated on first run and persisted to /etc/fleet/node-name.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# --- k3s control plane (node1) -----------------------------------------------
+k3s_server_ip: "100.98.67.104"          # node1 Tailscale IPv4
+k3s_url: "https://{{ k3s_server_ip }}:6443"
+k3s_version: "v1.35.5+k3s1"             # pinned to running fleet; bump deliberately
+flannel_iface: "tailscale0"            # all cluster traffic stays on the tailnet
+k3s_token: "{{ lookup('env', 'K3S_TOKEN') }}"
+
+# --- Tailscale ---------------------------------------------------------------
+tailscale_authkey: "{{ lookup('env', 'TS_AUTHKEY') }}"
+tailscale_tag: "tag:itsbagelbot"       # node joins pre-authorized under this ACL tag
+tailscale_port: 41641                   # UDP listen port
+
+# --- Node identity -----------------------------------------------------------
+# Resolved/persisted in the base role. Pass NODE_NAME for explicit incremental
+# names (node4, node5…); otherwise a unique bot-XXXXX name is generated so the
+# box always joins as a BRAND NEW node and never clobbers an existing identity.
+node_name_requested: "{{ lookup('env', 'NODE_NAME') | default('', true) }}"
+node_zone: "{{ lookup('env', 'NODE_ZONE') | default('ovh-bhs1', true) }}"
+
+# --- SELinux (matches node1) -------------------------------------------------
+selinux_state: "enforcing"
+selinux_policy: "targeted"
+
+# --- Rancher repo (k3s-selinux RPM) ------------------------------------------
+rancher_repo_baseurl: "https://rpm.rancher.io/k3s/stable/common/centos/9/noarch"
+
+# --- Teardown ----------------------------------------------------------------
+# After firewall + tailscale verify up, remove OpenSSH entirely (tailnet-only box).
+remove_system_ssh: true
