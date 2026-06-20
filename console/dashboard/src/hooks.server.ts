@@ -27,7 +27,7 @@ export const handle: Handle = async ({ event, resolve }) => {
   res.headers.set('X-Content-Type-Options', 'nosniff');
   res.headers.set('X-Frame-Options', 'DENY');
   res.headers.set('Referrer-Policy', 'same-origin');
-  res.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
+  res.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), join-ad-interest-group=(), run-ad-auction=(), shared-storage=(), browsing-topics=()');
   res.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
 
   // HTML is session-bound; never cache. Hashed assets under /_app keep their own
