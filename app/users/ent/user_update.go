@@ -85,12 +85,6 @@ func (_u *UserUpdate) SetNillableBanned(v *bool) *UserUpdate {
 	return _u
 }
 
-// ClearBanned clears the value of the "banned" field.
-func (_u *UserUpdate) ClearBanned() *UserUpdate {
-	_u.mutation.ClearBanned()
-	return _u
-}
-
 // SetStatus sets the "status" field.
 func (_u *UserUpdate) SetStatus(v user.Status) *UserUpdate {
 	_u.mutation.SetStatus(v)
@@ -246,9 +240,6 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.Banned(); ok {
 		_spec.SetField(user.FieldBanned, field.TypeBool, value)
 	}
-	if _u.mutation.BannedCleared() {
-		_spec.ClearField(user.FieldBanned, field.TypeBool)
-	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(user.FieldStatus, field.TypeEnum, value)
 	}
@@ -376,12 +367,6 @@ func (_u *UserUpdateOne) SetNillableBanned(v *bool) *UserUpdateOne {
 	if v != nil {
 		_u.SetBanned(*v)
 	}
-	return _u
-}
-
-// ClearBanned clears the value of the "banned" field.
-func (_u *UserUpdateOne) ClearBanned() *UserUpdateOne {
-	_u.mutation.ClearBanned()
 	return _u
 }
 
@@ -569,9 +554,6 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	}
 	if value, ok := _u.mutation.Banned(); ok {
 		_spec.SetField(user.FieldBanned, field.TypeBool, value)
-	}
-	if _u.mutation.BannedCleared() {
-		_spec.ClearField(user.FieldBanned, field.TypeBool)
 	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(user.FieldStatus, field.TypeEnum, value)

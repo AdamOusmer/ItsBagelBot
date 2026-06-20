@@ -209,6 +209,16 @@ func NameContainsFold(v string) predicate.Commands {
 	return predicate.Commands(sql.FieldContainsFold(FieldName, v))
 }
 
+// AliasesIsNil applies the IsNil predicate on the "aliases" field.
+func AliasesIsNil() predicate.Commands {
+	return predicate.Commands(sql.FieldIsNull(FieldAliases))
+}
+
+// AliasesNotNil applies the NotNil predicate on the "aliases" field.
+func AliasesNotNil() predicate.Commands {
+	return predicate.Commands(sql.FieldNotNull(FieldAliases))
+}
+
 // ResponseEQ applies the EQ predicate on the "response" field.
 func ResponseEQ(v string) predicate.Commands {
 	return predicate.Commands(sql.FieldEQ(FieldResponse, v))

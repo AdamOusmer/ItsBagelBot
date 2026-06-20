@@ -126,13 +126,14 @@ type ModuleView struct {
 }
 
 type CommandView struct {
-	Name             string `json:"name"`
-	Response         string `json:"response"`
-	IsActive         bool   `json:"is_active"`
-	StreamOnlineOnly bool   `json:"stream_online_only"`
-	Perm             string `json:"perm"`
-	Cooldown         uint   `json:"cooldown"`
-	AllowedUserID    string `json:"allowed_user_id,omitempty"`
+	Name             string   `json:"name"`
+	Aliases          []string `json:"aliases,omitempty"`
+	Response         string   `json:"response"`
+	IsActive         bool     `json:"is_active"`
+	StreamOnlineOnly bool     `json:"stream_online_only"`
+	Perm             string   `json:"perm"`
+	Cooldown         uint     `json:"cooldown"`
+	AllowedUserID    string   `json:"allowed_user_id,omitempty"`
 }
 
 func commandViewFromEvent(dto data.CommandChangedDTO) CommandView {
@@ -142,6 +143,7 @@ func commandViewFromEvent(dto data.CommandChangedDTO) CommandView {
 	}
 	return CommandView{
 		Name:             dto.Name,
+		Aliases:          dto.Aliases,
 		Response:         dto.Response,
 		IsActive:         dto.IsActive,
 		StreamOnlineOnly: dto.StreamOnlineOnly,

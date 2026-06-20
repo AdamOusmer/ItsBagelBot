@@ -364,6 +364,7 @@ export async function replaceProjectedModules(userId: string, modules: ModuleVie
 
 export interface CommandInput {
   name: string;
+  aliases: string[];
   response: string;
   isActive: boolean;
   streamOnlineOnly: boolean;
@@ -383,6 +384,7 @@ export async function upsertCommand(
   const r = await rpc<{ commands: CommandView[]; error?: string }>(`${SUB.commands}.upsert`, {
     user_id: userId,
     name: cmd.name,
+    aliases: cmd.aliases,
     response: cmd.response,
     is_active: cmd.isActive,
     stream_online_only: cmd.streamOnlineOnly,

@@ -45,7 +45,7 @@ metadata:
   annotations:
     secrets.doppler.com/reload: "true"
 spec:
-  replicas: 3 # one per node; bump to match schedulable node count
+  replicas: 5 # +2: node1/2/3 one each, worker1 carries 2 (soft spread + worker-preferred affinity below)
   revisionHistoryLimit: 3
   strategy:
     type: RollingUpdate
@@ -77,15 +77,28 @@ spec:
           operator: Equal
           value: worker-pool
           effect: NoSchedule
+      # Soft one-per-node spread: place one ingress on each of node1/2/3/worker1,
+      # then let the 5th replica double up. ScheduleAnyway (not DoNotSchedule) is
+      # what allows 5 pods across 4 nodes instead of capping at one-per-node.
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: DoNotSchedule
+          whenUnsatisfiable: ScheduleAnyway
           labelSelector:
             matchLabels:
               app: twitch-ingress
-      # DaemonSet placement keeps exactly one ingress pod on each schedulable
-      # node, so the fleet follows node count without a fixed replicas value.
+      affinity:
+        nodeAffinity:
+          # Bias the surplus (5th) ingress onto worker1 so it carries 2 and the
+          # cloud nodes keep 1 each. Best-effort: the spread above balances the
+          # first four, this preference breaks the tie for the extra toward worker.
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: itsbagelbot.dev/pool
+                    operator: In
+                    values: ["worker-pool"]
       securityContext:
         runAsNonRoot: true
         runAsUser: 999 # the image's `ingress` user; numeric so kubelet can verify

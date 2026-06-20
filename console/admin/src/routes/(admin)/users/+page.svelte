@@ -1,7 +1,7 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import { untrack } from 'svelte';
-  import { Icon, StatTile, Button } from '@bagel/shared';
+  import { Icon, StatTile, Button, Modal, Drawer } from '@bagel/shared';
   import type { AdminUserWire } from '$lib/server/rpc';
   let { data, form } = $props();
 
@@ -386,40 +386,35 @@
 {/if}
 
 <!-- Delete confirm modal -->
-{#if deleteTarget}
-  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div class="modal-backdrop" onclick={closeDelete} role="dialog" aria-modal="true" aria-labelledby="del-title" tabindex="-1">
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <div class="modal-card" role="presentation" data-lenis-prevent onclick={(e) => e.stopPropagation()}>
-      <h3 id="del-title">Delete @{deleteTarget.username}?</h3>
-      <p class="modal-body">
-        This permanently removes the user and cascades to their commands and modules. This cannot be undone.
-      </p>
-      <form
-        method="POST"
-        action="?/delete"
-        use:enhance={() => async ({ formData, result, update }) => {
-          await update({ invalidateAll: false });
-          const ok = (result.type === 'success' &&
-            (result.data as { action?: { ok?: boolean } } | undefined)?.action?.ok) === true;
-          if (ok) {
-            const id = String(formData.get('user_id') ?? '');
-            removeRecent(id);
-            if (selected && String(selected.id) === id) closeDrawer();
-          }
-          closeDelete();
-        }}
-        class="modal-actions"
-      >
-        <input type="hidden" name="user_id" value={deleteTarget.id} />
-        <button class="btn ghost" type="button" onclick={closeDelete}>Cancel</button>
-        <button class="btn danger" type="submit">
-          <Icon name="trash" size={13} /> Delete permanently
-        </button>
-      </form>
-    </div>
-  </div>
-{/if}
+<Modal open={deleteTarget !== null} title={`Delete @${deleteTarget?.username}?`} closeModal={closeDelete}>
+  {#if deleteTarget}
+    <p class="modal-body">
+      This permanently removes the user and cascades to their commands and modules. This cannot be undone.
+    </p>
+    <form
+      method="POST"
+      action="?/delete"
+      use:enhance={() => async ({ formData, result, update }) => {
+        await update({ invalidateAll: false });
+        const ok = (result.type === 'success' &&
+          (result.data as { action?: { ok?: boolean } } | undefined)?.action?.ok) === true;
+        if (ok) {
+          const id = String(formData.get('user_id') ?? '');
+          removeRecent(id);
+          if (selected && String(selected.id) === id) closeDrawer();
+        }
+        closeDelete();
+      }}
+      class="modal-actions"
+    >
+      <input type="hidden" name="user_id" value={deleteTarget.id} />
+      <button class="btn ghost" type="button" onclick={closeDelete}>Cancel</button>
+      <button class="btn danger" type="submit">
+        <Icon name="trash" size={13} /> Delete permanently
+      </button>
+    </form>
+  {/if}
+</Modal>
 
 <style>
   /* notice text variants */
@@ -682,31 +677,7 @@
   }
   .btn.danger:disabled { opacity: .45; cursor: not-allowed; }
 
-  /* confirm modal */
-  .modal-backdrop {
-    position: fixed; inset: 0; z-index: 200;
-    background: rgba(0, 0, 0, 0.55);
-    backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
-    display: flex; align-items: center; justify-content: center; padding: 16px;
-  }
-  .modal-card {
-    background: var(--bb-bg-1, #111);
-    border: 1px solid var(--glass-border);
-    border-radius: var(--bb-radius-lg);
-    backdrop-filter: blur(var(--glass-blur)); -webkit-backdrop-filter: blur(var(--glass-blur));
-    padding: 28px 28px 24px; max-width: 420px; width: 100%;
-    max-height: calc(100vh - 32px); overflow-y: auto; overscroll-behavior: contain;
-    -webkit-overflow-scrolling: touch;
-  }
-  .modal-card h3 {
-    font-family: var(--bb-font-display); font-weight: 700; font-size: 19px;
-    color: var(--bb-white); margin: 0 0 12px; letter-spacing: -0.01em;
-  }
-  .modal-body {
-    font-family: var(--bb-font-body); font-size: 14px; color: var(--bb-muted);
-    line-height: 1.55; margin: 0 0 22px;
-  }
-  .modal-actions { display: flex; gap: .6rem; justify-content: flex-end; flex-wrap: wrap; }
+
 
   /* mobile responsive */
   @media (max-width: 760px) {

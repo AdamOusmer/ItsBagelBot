@@ -10,12 +10,14 @@ import (
 	"encoding/json"
 	"errors"
 	"net/mail"
+	"strings"
 )
 
 const (
 	maxUsernameLength      = 25  // Twitch login limit
 	maxEmailLength         = 254 // RFC 5321
 	maxCommandNameLength   = 64
+	maxCommandAliases      = 25
 	maxResponseLength      = 500   // Twitch chat message limit
 	maxCooldownSeconds     = 86400 // one day; guards against absurd values
 	maxModuleNameLength    = 64
@@ -29,6 +31,7 @@ var (
 	ErrUsernameInvalid = errors.New("username must be 1-25 characters of [a-zA-Z0-9_]")
 	ErrEmailInvalid    = errors.New("email address is not valid")
 	ErrCommandName     = errors.New("command name must be 1-64 printable ASCII characters without spaces")
+	ErrCommandAliases  = errors.New("aliases must each be a valid command name, unique, and at most 25 in total")
 	ErrResponseInvalid = errors.New("command response must be 1-500 characters without control characters")
 	ErrPermInvalid     = errors.New("perm must be one of everyone, sub, vip, mod, lead_mod, broadcaster")
 	ErrCooldownInvalid = errors.New("cooldown must be between 0 and 86400 seconds")
@@ -92,6 +95,30 @@ func CommandName(name string) error {
 		if name[i] <= ' ' || name[i] > '~' {
 			return ErrCommandName
 		}
+	}
+
+	return nil
+}
+
+// CommandAliases validates the alternate names a command answers to: each must
+// be a valid command name, the set must be free of duplicates (case-insensitive,
+// matching the lower-cased lookup the bot does), and the count is capped.
+func CommandAliases(aliases []string) error {
+
+	if len(aliases) > maxCommandAliases {
+		return ErrCommandAliases
+	}
+
+	seen := make(map[string]struct{}, len(aliases))
+	for _, alias := range aliases {
+		if err := CommandName(alias); err != nil {
+			return ErrCommandAliases
+		}
+		key := strings.ToLower(alias)
+		if _, dup := seen[key]; dup {
+			return ErrCommandAliases
+		}
+		seen[key] = struct{}{}
 	}
 
 	return nil

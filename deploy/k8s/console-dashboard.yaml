@@ -70,6 +70,17 @@ spec:
         config.linkerd.io/proxy-memory-request: 16Mi
         config.linkerd.io/proxy-memory-limit: 96Mi
     spec:
+      # Hard guard: the dashboard must NEVER run on the worker pool. The taint
+      # already repels it (no toleration here), this required nodeAffinity makes
+      # it impossible even if a toleration is ever added by mistake.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: itsbagelbot.dev/pool
+                    operator: NotIn
+                    values: ["worker-pool"]
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
