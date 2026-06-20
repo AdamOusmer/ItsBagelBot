@@ -67,8 +67,11 @@ config :ingress,
   # Dedicated lane carrying only stream.online / stream.offline events.
   lane_subject_stream:
     System.get_env("NATS_SUBJECT_LANE_STREAM", "twitch.ingress.event.stream"),
+  # Lane routing is a function of broadcaster status, so the ingress lane cache
+  # only needs the "status" section of the scope-per-subject invalidation bus
+  # (bagel.cache.invalidate.<scope>). Payload shape is unchanged ({broadcaster_id}).
   invalidation_subject:
-    System.get_env("NATS_CACHE_INVALIDATION_SUBJECT", "bagel.cache.invalidate.broadcaster"),
+    System.get_env("NATS_CACHE_INVALIDATION_SUBJECT", "bagel.cache.invalidate.status"),
   # Request-reply subject answered by Ingress.AdminRpc with a cluster-wide
   # shard state snapshot. Consumed by the admin tool, never by user traffic.
   admin_subject: System.get_env("NATS_ADMIN_SUBJECT", "twitch.ingress.admin.shards.get"),
