@@ -1,0 +1,112 @@
+# Fleet node provisioning (Ansible)
+
+Turns ONE fresh **RHEL-family** box into a hardened, tailnet-only fleet node:
+SELinux + fleet optimizations, firewalld, Tailscale mesh, k3s agent joined to
+node1 — then **removes system SSH entirely**.
+
+Any RHEL-family distro works — **Rocky, Alma, Oracle, RHEL, CentOS Stream**. Pick
+whatever you run your own stack on; the playbook checks `os_family == RedHat` and
+uses the family's generic repos (`dnf`, `rhel/$releasever` Tailscale repo, etc).
+
+Secrets never touch the repo. The run is wrapped with **Doppler**; the k3s token and
+the Tailscale pre-auth key come from the environment.
+
+## Debian → Red Hat is a reinstall, not an in-place convert
+
+You cannot convert Debian to RHEL in place. For node2 (and any old node):
+
+1. From node1, drain + delete the old node:
+   ```
+   kubectl drain node2 --ignore-daemonsets --delete-emptydir-data --force
+   kubectl delete node node2
+   ```
+2. Reinstall it with any RHEL-family image (Rocky/Alma/Oracle/RHEL). Note the
+   login user (Oracle on OVH = `opc`; Rocky = `rocky`; Alma = `almalinux`).
+3. Provision it (below). It joins as a **brand-new node** with a fresh identity —
+   rename/remove the leftover old nodes manually afterward.
+
+The playbook refuses to run on non-RHEL hosts (pre-task assert).
+
+## Identity: always joins as a NEW node
+
+- Tailscale joins **pre-authorized** with a key tagged `tag:itsbagelbot`.
+- Node name: pass `NODE_NAME` for an explicit incremental name (`node4`, `node5`…),
+  or leave it unset and a unique `bot-XXXXX` name is generated and **persisted** to
+  `/etc/fleet/node-name`. Either way the box never clobbers an existing identity.
+- No IPs are copied or committed. `node-ip` is read from the live `tailscale0`
+  interface at apply time.
+
+## Secrets (Doppler)
+
+Put these in the Doppler config you run with:
+
+| Key | What |
+|-----|------|
+| `K3S_TOKEN`  | node1 join token — `sudo cat /var/lib/rancher/k3s/server/node-token` |
+| `TS_AUTHKEY` | Tailscale **pre-authorized** key, `ephemeral=false`, tagged `tag:itsbagelbot` |
+| `NODE_ZONE`  | (optional) `topology.kubernetes.io/zone`, e.g. `ovh-bhs1` |
+
+Generate the auth key at <https://login.tailscale.com/admin/settings/keys> with the
+`tag:itsbagelbot` tag and pre-approval. Your tailnet ACL **must grant SSH into `tag:itsbagelbot`**
+(see the SSH warning below).
+
+## Run
+
+```bash
+cd deploy/ansible
+ansible-galaxy collection install -r requirements.yml
+
+# auto-generated new-node name, default user opc:
+./provision.sh 51.x.x.x
+
+# explicit incremental name + user:
+./provision.sh 51.x.x.x opc node4
+
+# dry run first:
+NODE_NAME=node4 doppler run -- ansible-playbook site.yml \
+  -e target_host=51.x.x.x -e target_user=opc --check --diff
+```
+
+`provision.sh` is just a thin `doppler run -- ansible-playbook …` wrapper.
+
+## ⚠️ SSH is removed — read before running
+
+The final role (`ssh_removal`) **stops, masks, and uninstalls OpenSSH**, and drops
+the firewall SSH rule. It runs only after gating on:
+
+- firewalld is `running`
+- Tailscale `BackendState == Running`
+- node is tagged `tag:itsbagelbot`
+
+After it completes the box is reachable **only** via:
+
+- **Tailscale SSH** (`tailscale up --ssh` is enabled during provisioning) — this
+  works **only if your tailnet ACL allows SSH into `tag:itsbagelbot`**. Verify that ACL
+  BEFORE running or you lock yourself out.
+- **OVH KVM / rescue console** (break-glass).
+
+To keep system SSH (e.g. first test run), set `remove_system_ssh=false`:
+```bash
+./provision.sh 51.x.x.x opc node4 -e remove_system_ssh=false
+```
+
+## Layout
+
+```
+ansible.cfg
+inventory.ini          # single target via -e target_host / target_user
+group_vars/all.yml     # versions, IPs, env-sourced secrets, toggles
+provision.sh           # doppler run wrapper
+site.yml               # base → selinux → firewall → tailscale → k3s_agent → ssh_removal
+roles/
+  base/        identity (persisted), hostname, packages, modules, fleet sysctl, ulimits
+  selinux/     enforcing + targeted + container-selinux + k3s-selinux (node1 parity)
+  firewall/    firewalld: tailscale0 trusted; public = ssh (bootstrap) + tailscale udp
+  tailscale/   install, pre-auth join tag:itsbagelbot, Tailscale SSH on
+  k3s_agent/   pinned agent, hardened kubelet args, node-ip from live tailscale0
+  ssh_removal/ verify firewall+tailscale up, then rip out OpenSSH
+```
+
+node1 (the k3s server) is the control plane, not an agent — it is **not** a target
+here. This playbook only provisions agents.
+```

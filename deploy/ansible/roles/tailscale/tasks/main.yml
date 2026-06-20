@@ -1,0 +1,49 @@
+---
+# Install Tailscale and join the tailnet as a NEW node, pre-authorized via a
+# tagged auth key (tag:itsbagelbot). Tailscale SSH is enabled so the box stays reachable
+# after the ssh_removal role tears out OpenSSH.
+
+- name: Add Tailscale RPM repo
+  ansible.builtin.get_url:
+    url: "https://pkgs.tailscale.com/stable/{{ tailscale_repo_distro }}/tailscale.repo"
+    dest: /etc/yum.repos.d/tailscale.repo
+    mode: "0644"
+
+- name: Install tailscale
+  ansible.builtin.dnf:
+    name: tailscale
+    state: present
+
+- name: Enable + start tailscaled
+  ansible.builtin.service:
+    name: tailscaled
+    state: started
+    enabled: true
+
+- name: Current tailscale backend state
+  ansible.builtin.command: tailscale status --json
+  register: ts_status
+  changed_when: false
+  failed_when: false
+
+- name: Join the tailnet (pre-authorized, tagged, Tailscale SSH on)
+  ansible.builtin.command: >-
+    tailscale up
+    --authkey={{ tailscale_authkey }}
+    --advertise-tags={{ tailscale_tag }}
+    --hostname={{ fleet_node_name }}
+    --ssh
+    --accept-routes
+    --accept-dns=false
+  when: >-
+    ts_status.rc != 0 or
+    (ts_status.stdout | from_json).BackendState | default('') != 'Running'
+  no_log: true   # keep the auth key out of logs
+
+- name: Wait until Tailscale is Running
+  ansible.builtin.command: tailscale status --json
+  register: ts_ready
+  changed_when: false
+  retries: 12
+  delay: 5
+  until: (ts_ready.stdout | from_json).BackendState | default('') == 'Running'

@@ -1,0 +1,77 @@
+---
+# Install the pinned k3s agent and join node1 over the tailnet, as a new node.
+
+- name: Re-gather facts (pick up tailscale0 now that it exists)
+  ansible.builtin.setup:
+    gather_subset:
+      - "!all"
+      - network
+
+- name: Fail if tailscale0 has no address
+  ansible.builtin.assert:
+    that:
+      - ansible_tailscale0.ipv4.address is defined
+    fail_msg: "tailscale0 has no IPv4 — Tailscale must be up before k3s."
+
+- name: Check installed k3s version (if any)
+  ansible.builtin.command: k3s --version
+  register: k3s_installed
+  changed_when: false
+  failed_when: false
+
+- name: Ensure k3s config dir
+  ansible.builtin.file:
+    path: /etc/rancher/k3s
+    state: directory
+    mode: "0755"
+
+# node-ip is read from the LIVE interface fact (not committed/copied). Kubelet
+# binds its InternalIP to the tailnet so apiserver→kubelet (logs/exec) works.
+# kubelet-arg block mirrors node1's hardened control-plane kubelet.
+- name: Write k3s config.yaml (agent)
+  ansible.builtin.copy:
+    dest: /etc/rancher/k3s/config.yaml
+    mode: "0600"
+    content: |
+      # Managed by Ansible
+      server: {{ k3s_url }}
+      token: {{ k3s_token }}
+      node-name: {{ fleet_node_name }}
+      node-ip: {{ ansible_tailscale0.ipv4.address }}
+      flannel-iface: {{ flannel_iface }}
+      node-label:
+        - "topology.kubernetes.io/zone={{ node_zone }}"
+      kubelet-arg:
+        - "protect-kernel-defaults=true"
+        - "make-iptables-util-chains=true"
+        - "image-gc-high-threshold=55"
+        - "image-gc-low-threshold=45"
+        - "eviction-hard=memory.available<5%,nodefs.available<1%,imagefs.available<10%"
+        - "serialize-image-pulls=true"
+  no_log: true   # token
+  notify: restart k3s-agent
+
+- name: Download k3s install script
+  ansible.builtin.get_url:
+    url: https://get.k3s.io
+    dest: /usr/local/bin/k3s-install.sh
+    mode: "0755"
+
+- name: Install / upgrade k3s agent (pinned {{ k3s_version }})
+  ansible.builtin.command: /usr/local/bin/k3s-install.sh
+  environment:
+    INSTALL_K3S_VERSION: "{{ k3s_version }}"
+    INSTALL_K3S_EXEC: "agent"
+    K3S_URL: "{{ k3s_url }}"
+    K3S_TOKEN: "{{ k3s_token }}"
+  no_log: true
+  when: >-
+    k3s_installed.rc != 0 or
+    k3s_version not in (k3s_installed.stdout | default(''))
+  notify: restart k3s-agent
+
+- name: Enable + start k3s-agent
+  ansible.builtin.service:
+    name: k3s-agent
+    state: started
+    enabled: true

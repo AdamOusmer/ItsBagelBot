@@ -1,0 +1,59 @@
+---
+# Final, one-way step: remove system OpenSSH so the box is tailnet-only.
+# Guarded — runs only when remove_system_ssh is true AND firewall + Tailscale
+# (with Tailscale SSH) are confirmed up, so access is never lost.
+#
+# Break-glass AFTER this runs:
+#   - Tailscale SSH  (requires tailnet ACL to allow ssh into tag:itsbagelbot — verify FIRST)
+#   - OVH KVM/rescue console
+- name: Skip SSH removal unless explicitly enabled
+  ansible.builtin.meta: end_host
+  when: not remove_system_ssh | bool
+
+# --- Safety gates ------------------------------------------------------------
+- name: Confirm firewalld is running
+  ansible.builtin.command: firewall-cmd --state
+  register: fw_state
+  changed_when: false
+  failed_when: "'running' not in fw_state.stdout"
+
+- name: Confirm Tailscale is Running
+  ansible.builtin.command: tailscale status --json
+  register: ts_check
+  changed_when: false
+  failed_when: (ts_check.stdout | from_json).BackendState | default('') != 'Running'
+
+- name: Confirm node is tagged tag:itsbagelbot (Tailscale SSH ACL target)
+  ansible.builtin.command: tailscale status --json
+  register: ts_ssh
+  changed_when: false
+  failed_when: >-
+    tailscale_tag not in ((ts_ssh.stdout | from_json).Self.Tags | default([]))
+
+# --- Tear out OpenSSH --------------------------------------------------------
+- name: Stop + disable + mask sshd
+  ansible.builtin.systemd:
+    name: sshd
+    state: stopped
+    enabled: false
+    masked: true
+  failed_when: false
+
+- name: Remove the SSH service from the public firewall zone
+  ansible.posix.firewalld:
+    zone: public
+    service: ssh
+    permanent: true
+    immediate: true
+    state: disabled
+
+- name: Remove OpenSSH server package
+  ansible.builtin.dnf:
+    name: openssh-server
+    state: absent
+
+- name: Final reminder
+  ansible.builtin.debug:
+    msg: >-
+      System SSH removed. This host is now reachable ONLY via Tailscale SSH
+      (tag:itsbagelbot) or the OVH console. Re-provisioning runs over Tailscale SSH.
