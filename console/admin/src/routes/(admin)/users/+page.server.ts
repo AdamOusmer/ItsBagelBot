@@ -14,8 +14,10 @@ import {
   tokenClear,
   tokenStatus,
   restartUserEventSub,
+  channelSubState,
   auditAppend,
-  type AdminUserWire
+  type AdminUserWire,
+  type ChannelSubState
 } from '$lib/server/rpc';
 import { requireAdmin, isDemo, type AdminIdentity } from '$lib/server/access';
 import { signViewAs } from '$lib/server/impersonation';
@@ -126,17 +128,15 @@ export const actions: Actions = {
     if (isDemo()) {
       const u = sampleUsers.find((s) => s.username === q || String(s.id) === q);
       if (!u) return { lookup: { error: 'user not found', q } };
-      return { lookup: { user: u, tokenPresent: u.status !== 'free' } };
+      return { lookup: { user: u, tokenPresent: u.status !== 'free', subState: { state: 'ok', error: '', checkedAt: null } as ChannelSubState } };
     }
     try {
       const user = await userLookup(q);
-      let present = false;
-      try {
-        present = (await tokenStatus(String(user.id))).present;
-      } catch {
-        /* token status optional */
-      }
-      return { lookup: { user, tokenPresent: present } };
+      const uid = String(user.id);
+      const [tokenRes, subRes] = await Promise.allSettled([tokenStatus(uid), channelSubState(uid)]);
+      const present = tokenRes.status === 'fulfilled' ? tokenRes.value.present : false;
+      const subState: ChannelSubState = subRes.status === 'fulfilled' ? subRes.value : { state: 'unknown', error: '', checkedAt: null };
+      return { lookup: { user, tokenPresent: present, subState } };
     } catch (e) {
       return { lookup: { error: (e as Error).message, q } };
     }
@@ -247,11 +247,12 @@ export const actions: Actions = {
     if (!admin) return fail(403, { error: 'forbidden' });
     const userId = String((await request.formData()).get('user_id') ?? '').trim();
     if (!userId) return fail(400, { error: 'user_id required' });
-    if (isDemo()) return { action: { ok: true, notice: 'bot restarted (demo only, no real subs dropped)' } };
+    if (isDemo()) return { action: { ok: true, notice: 'bot restarted (demo only, no real subs dropped)' }, subState: { state: 'ok', error: '', checkedAt: null } as ChannelSubState };
     try {
       await restartUserEventSub(userId);
       audit(admin, 'restart', userId, '', true);
-      return { action: { ok: true, notice: 'bot restarted (subs dropped + recreated)' } };
+      const subState: ChannelSubState = await channelSubState(userId).catch(() => ({ state: 'unknown' as const, error: '', checkedAt: null }));
+      return { action: { ok: true, notice: 'bot restarted (atomic reconnect queued)' }, subState };
     } catch (e) {
       audit(admin, 'restart', userId, '', false, (e as Error).message);
       return { action: { ok: false, notice: (e as Error).message } };

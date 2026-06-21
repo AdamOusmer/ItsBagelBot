@@ -120,8 +120,15 @@ var typeRoutes = map[string]helixRoute{
 // EventSubJob is the payload of an "eventsub" message: the receive toggle's
 // intent for one channel. Enabled creates the channel's subscriptions on the
 // Conduit, disabled deletes them.
+//
+// Mode, when set, overrides the legacy Enabled field:
+//
+//	"enable"    - create all eventsub subscriptions (same as Enabled:true)
+//	"disable"   - delete all eventsub subscriptions (same as Enabled:false)
+//	"reconnect" - atomic drop-then-recreate with single-flight and persisted state
 type EventSubJob struct {
-	Enabled bool `json:"enabled"`
+	Enabled bool   `json:"enabled"`
+	Mode    string `json:"mode,omitempty"` // "enable" | "disable" | "reconnect"; empty => legacy Enabled
 }
 
 type Worker struct {
@@ -130,17 +137,19 @@ type Worker struct {
 	registry *channels.Registry
 	twitch   *twitch.Client
 	botID    string
+	owner    string // pod identity for the enroll lock (os.Hostname)
 	conduit  *conduit.Resolver
 	lane     Lane
 }
 
-func New(log *zap.Logger, limiter *ratelimit.Limiter, registry *channels.Registry, tw *twitch.Client, botID string, conduitResolver *conduit.Resolver, lane Lane) *Worker {
+func New(log *zap.Logger, limiter *ratelimit.Limiter, registry *channels.Registry, tw *twitch.Client, botID, owner string, conduitResolver *conduit.Resolver, lane Lane) *Worker {
 	return &Worker{
 		log:      log,
 		limiter:  limiter,
 		registry: registry,
 		twitch:   tw,
 		botID:    botID,
+		owner:    owner,
 		conduit:  conduitResolver,
 		lane:     lane,
 	}
@@ -297,10 +306,29 @@ func (w *Worker) processEventSub(ctx context.Context, payload OutgressMessage) e
 		return nil
 	}
 
-	if job.Enabled {
-		return w.enableEventSubs(ctx, payload.BroadcasterID, conduitID)
+	// Resolve effective mode: explicit Mode wins; empty falls back to legacy Enabled field.
+	mode := job.Mode
+	if mode == "" {
+		if job.Enabled {
+			mode = "enable"
+		} else {
+			mode = "disable"
+		}
 	}
-	return w.disableEventSubs(ctx, payload.BroadcasterID, conduitID)
+
+	switch mode {
+	case "enable":
+		return w.enableEventSubs(ctx, payload.BroadcasterID, conduitID)
+	case "disable":
+		return w.disableEventSubs(ctx, payload.BroadcasterID, conduitID)
+	case "reconnect":
+		return w.reconnectEventSubs(ctx, payload.BroadcasterID, conduitID)
+	default:
+		w.log.Error("dropping eventsub job with unknown mode",
+			zap.String("mode", mode),
+			zap.String("broadcaster_id", payload.BroadcasterID))
+		return nil
+	}
 }
 
 func (w *Worker) enableEventSubs(ctx context.Context, broadcasterID, conduitID string) error {
@@ -384,6 +412,98 @@ func (w *Worker) eventSubFailure(err error, op, broadcasterID, subType string) e
 		zap.String("broadcaster_id", broadcasterID),
 		zap.Error(err))
 	return err
+}
+
+// reconnectEventSubs performs an atomic drop-then-recreate of all eventsub
+// subscriptions for one broadcaster. It acquires a Valkey single-flight lock
+// so only one replica works the reconnect; others ack and return immediately.
+// The recreate phase is retried up to 3 times for transient errors. Outcome is
+// persisted to the registry (pending -> ok | failing) so the dashboard can
+// surface it without polling Twitch.
+func (w *Worker) reconnectEventSubs(ctx context.Context, broadcasterID, conduitID string) error {
+
+	got, err := w.registry.AcquireEnrollLock(ctx, broadcasterID, w.owner, 60*time.Second)
+	if err != nil {
+		return err // transient valkey error: nak, let paced redelivery retry
+	}
+	if !got {
+		w.log.Info("reconnect already in progress on another replica",
+			zap.String("broadcaster_id", broadcasterID))
+		return nil // ack: another replica owns it
+	}
+	defer func() { _ = w.registry.ReleaseEnrollLock(ctx, broadcasterID, w.owner) }()
+
+	_ = w.registry.SetSubState(ctx, broadcasterID, "pending", "")
+
+	// Best-effort drop: if listing/deleting fails we still try to recreate;
+	// 409 idempotency on create means the end state converges either way.
+	if derr := w.disableEventSubs(ctx, broadcasterID, conduitID); derr != nil {
+		w.log.Warn("reconnect: drop phase failed, proceeding to recreate",
+			zap.String("broadcaster_id", broadcasterID),
+			zap.Error(derr))
+	}
+
+	var lastErr error
+	for attempt := 1; attempt <= 3; attempt++ {
+		lastErr = w.createAllEventSubs(ctx, broadcasterID, conduitID)
+		if lastErr == nil {
+			_ = w.registry.SetSubState(ctx, broadcasterID, "ok", "")
+			w.log.Info("reconnect: all eventsubs accepted",
+				zap.String("broadcaster_id", broadcasterID))
+			return nil
+		}
+		if isPermanent(lastErr) {
+			break // 403 etc: retrying will not help
+		}
+		// transient: small back-off before next attempt
+		select {
+		case <-ctx.Done():
+			break
+		case <-time.After(time.Duration(attempt) * 500 * time.Millisecond):
+		}
+	}
+
+	_ = w.registry.SetSubState(ctx, broadcasterID, "failing", lastErr.Error())
+	w.log.Error("reconnect: eventsubs not fully accepted, marked failing",
+		zap.String("broadcaster_id", broadcasterID),
+		zap.Error(lastErr))
+	return nil // ack: failing state is surfaced for the operator
+}
+
+// createAllEventSubs creates every SubSpec for the channel; returns the first
+// error (with the failing subscription type) or nil when all are accepted
+// (202 or 409-idempotent).
+func (w *Worker) createAllEventSubs(ctx context.Context, broadcasterID, conduitID string) error {
+
+	if w.botID == "" {
+		// chat sub cannot be built without a bot id; treat as a hard failure
+		// because an all-or-nothing reconnect must not silently skip it.
+		return fmt.Errorf("bot user id not configured: channel.chat.message cannot be created")
+	}
+
+	for _, spec := range twitch.ChannelSubscriptions(broadcasterID, w.botID) {
+		if err := w.takeSystemHelix(ctx); err != nil {
+			return err
+		}
+		if err := w.twitch.CreateEventSub(ctx, spec, conduitID); err != nil {
+			w.conduit.Invalidate()
+			return fmt.Errorf("create %s: %w", spec.Type, err)
+		}
+	}
+
+	return nil
+}
+
+// isPermanent reports whether err is a non-retryable Twitch rejection:
+// any 4xx except 429 (rate limit) and 401 (auth may recover).
+func isPermanent(err error) bool {
+	var se *twitch.StatusError
+	if errors.As(err, &se) {
+		return se.Status >= 400 && se.Status < 500 &&
+			se.Status != http.StatusTooManyRequests &&
+			se.Status != http.StatusUnauthorized
+	}
+	return false
 }
 
 // takeGeneralHelix consumes one token from the general Helix budget, the

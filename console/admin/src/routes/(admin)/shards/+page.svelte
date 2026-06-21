@@ -92,15 +92,42 @@
     return { label: 'degraded', tone: 'err' };
   }
 
-  function loadBar(load?: number): number {
+  // `s.load` from ingress is a RAW count of notifications in the last 60s
+  // window per shard (ShardSession event_times length), not a 0..1 fraction.
+  // Treating it as a fraction made any real traffic read as 100%/red. We
+  // normalise against a generous nominal shard capacity for the bar, and show
+  // the honest absolute throughput (events/sec) alongside it.
+  //
+  // LOAD_WINDOW_S mirrors ingress @load_window_ms (60s). SHARD_CAPACITY_EPS is
+  // a display-only ceiling: a single shard handles far more than the
+  // autoscaler's scale-up trigger (~0.83 ev/s), so we size the "full" bar at
+  // 100 ev/s. This is for human gauge only; it does not drive autoscaling.
+  const LOAD_WINDOW_S = 60;
+  const SHARD_CAPACITY_EPS = 100; // events/sec considered a full bar
+
+  function evRate(load?: number): number {
     if (load == null || load <= 0) return 0;
-    return Math.min(100, Math.round(load * 100));
+    return load / LOAD_WINDOW_S;
+  }
+
+  function loadBar(load?: number): number {
+    const rate = evRate(load);
+    if (rate <= 0) return 0;
+    return Math.min(100, Math.round((rate / SHARD_CAPACITY_EPS) * 100));
+  }
+
+  function loadLabel(load?: number): string {
+    const rate = evRate(load);
+    if (rate <= 0) return '0 ev/s';
+    if (rate < 1) return `${rate.toFixed(2)} ev/s`;
+    return `${rate.toFixed(rate < 10 ? 1 : 0)} ev/s`;
   }
 
   function loadTone(load?: number): string {
     if (load == null) return 'muted';
-    if (load >= 0.75) return 'err';
-    if (load >= 0.5) return 'warn';
+    const frac = evRate(load) / SHARD_CAPACITY_EPS;
+    if (frac >= 0.75) return 'err';
+    if (frac >= 0.5) return 'warn';
     return 'green';
   }
 
@@ -280,7 +307,7 @@
             <div class="load-bar-track">
               <div class="load-bar-fill {ltone}" style="width:{pct}%"></div>
             </div>
-            <span class="load-pct {ltone}">{pct}%</span>
+            <span class="load-pct {ltone}">{loadLabel(s.load)} · {pct}%</span>
           </div>
         {/if}
         <div class="shard-session">session {s.session_id ?? '—'}</div>

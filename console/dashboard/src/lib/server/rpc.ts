@@ -15,6 +15,7 @@ const SUB = {
   commands: process.env.NATS_COMMANDS_SUBJECT_PREFIX ?? 'bagel.rpc.commands',
   projector: process.env.NATS_PROJECTOR_DASHBOARD_SUBJECT_PREFIX ?? 'bagel.rpc.projector.dashboard',
   outgress: process.env.NATS_OUTGRESS_SYSTEM_SUBJECT ?? 'twitch.outgress.system',
+  outgressRpc: process.env.NATS_OUTGRESS_RPC_PREFIX ?? 'bagel.rpc.outgress',
   audit: process.env.NATS_ADMIN_AUDIT_SUBJECT_PREFIX ?? 'bagel.rpc.admin.user.audit',
   delegation: process.env.NATS_DELEGATION_SUBJECT_PREFIX ?? 'bagel.rpc.delegation'
 };
@@ -173,6 +174,40 @@ export async function publishEventSub(broadcasterId: string, enabled: boolean): 
     broadcaster_id: broadcasterId,
     payload: { enabled }
   });
+}
+
+// Enqueue an atomic reconnect job: outgress drops all existing subs and
+// recreates them in a single-flight, all-or-nothing operation.
+export async function publishEventSubReconnect(broadcasterId: string): Promise<void> {
+  await publish(SUB.outgress, {
+    type: 'eventsub',
+    broadcaster_id: broadcasterId,
+    payload: { mode: 'reconnect' }
+  });
+}
+
+export type ChannelSubState = {
+  state: 'ok' | 'pending' | 'failing' | 'unknown';
+  error: string;
+  checkedAt: string | null;
+};
+
+// Read the persisted EventSub enroll state for a channel. Fails safe: returns
+// 'unknown' on RPC error so a transient outage never blocks page render.
+export async function channelSubState(broadcasterId: string): Promise<ChannelSubState> {
+  try {
+    const r = await rpc<{
+      found: boolean;
+      channel?: { sub_state: string; sub_error: string; sub_checked_at: string };
+    }>(`${SUB.outgressRpc}.channel.get`, { broadcaster_id: broadcasterId }, 2000);
+    const c = r.channel;
+    if (!r.found || !c) return { state: 'unknown', error: '', checkedAt: null };
+    const s = (c.sub_state || '') as string;
+    const state = (s === 'ok' || s === 'pending' || s === 'failing') ? s : 'unknown';
+    return { state, error: c.sub_error || '', checkedAt: c.sub_checked_at || null };
+  } catch {
+    return { state: 'unknown', error: '', checkedAt: null };
+  }
 }
 
 export async function tier(broadcasterId: string): Promise<Tier> {

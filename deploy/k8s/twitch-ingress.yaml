@@ -45,7 +45,7 @@ metadata:
   annotations:
     secrets.doppler.com/reload: "true"
 spec:
-  replicas: 5 # +2: node1/2/3 one each, worker1 carries 2 (soft spread + worker-preferred affinity below)
+  replicas: 5 # enforced even spread across node1/2/3/worker1 (2,1,1,1) via hard topology spread below
   revisionHistoryLimit: 3
   strategy:
     type: RollingUpdate
@@ -85,28 +85,21 @@ spec:
           operator: Exists
           effect: NoExecute
           tolerationSeconds: 60
-      # Soft one-per-node spread: place one ingress on each of node1/2/3/worker1,
-      # then let the 5th replica double up. ScheduleAnyway (not DoNotSchedule) is
-      # what allows 5 pods across 4 nodes instead of capping at one-per-node.
+      # Enforced even spread (maxSkew 1, DoNotSchedule): 5 pods across 4 nodes
+      # lands 2,1,1,1 and never piles onto one node. The previous soft spread
+      # plus a worker-pool nodeAffinity preference let the scheduler's
+      # least-allocated scoring put ALL pods on worker1 (the bandwidth-capped,
+      # LAN-isolated home node), defeating HA and closest-node routing. The
+      # worker-pool preference is removed; the toleration stays so worker1 still
+      # carries its share. maxSkew 1 stays satisfiable even if one node is
+      # transiently unschedulable (5 pods on 3 nodes = 2,2,1, skew 1).
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: ScheduleAnyway
+          whenUnsatisfiable: DoNotSchedule
           labelSelector:
             matchLabels:
               app: twitch-ingress
-      affinity:
-        nodeAffinity:
-          # Bias the surplus (5th) ingress onto worker1 so it carries 2 and the
-          # cloud nodes keep 1 each. Best-effort: the spread above balances the
-          # first four, this preference breaks the tie for the extra toward worker.
-          preferredDuringSchedulingIgnoredDuringExecution:
-            - weight: 1
-              preference:
-                matchExpressions:
-                  - key: itsbagelbot.dev/pool
-                    operator: In
-                    values: ["worker-pool"]
       securityContext:
         runAsNonRoot: true
         runAsUser: 999 # the image's `ingress` user; numeric so kubelet can verify
