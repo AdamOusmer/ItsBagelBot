@@ -19,16 +19,18 @@ else
   ANNOUNCE_IP="$MY_FQDN"
 fi
 
-cp /config/sentinel.conf /tmp/sentinel.conf
-chmod 600 /tmp/sentinel.conf
+if [ ! -f /data/sentinel.conf ]; then
+  cp /config/sentinel.conf /data/sentinel.conf
+  chmod 600 /data/sentinel.conf
 
-cat >> /tmp/sentinel.conf << EOF
+  cat >> /data/sentinel.conf << EOF
 sentinel auth-pass myprimary ${CORE}
 requirepass ${CORE}
 sentinel announce-ip ${ANNOUNCE_IP}
 sentinel announce-port 26379
 sentinel myid ${MY_ID}
 EOF
+fi
 
 # Note: the monitor address stays the stable headless FQDN
 # (valkey-node-0.valkey-headless...) from /config/sentinel.conf with
@@ -37,4 +39,4 @@ EOF
 # discovery. Seeding with node-0's FQDN is fine even when node-0 is currently a
 # replica; Sentinel follows the real master from there and tracks failovers.
 
-exec valkey-server /tmp/sentinel.conf --sentinel
+exec valkey-server /data/sentinel.conf --sentinel
