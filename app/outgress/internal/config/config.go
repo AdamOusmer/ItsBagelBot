@@ -36,10 +36,17 @@ type Config struct {
 	TwitchClientID     string
 	TwitchClientSecret string
 
-	// TwitchConduitID is the Conduit the eventsub jobs manage subscriptions
-	// on. Without it eventsub jobs are dropped; chat and api traffic is
-	// unaffected.
+	// TwitchConduitID is a fallback seed used only when the ingress RPC
+	// (bagel.rpc.ingress.conduit.get) is unreachable. The authoritative conduit
+	// id is resolved at runtime via NATS RPC so it tracks the conduit ingress
+	// actually owns. Without both this fallback and a reachable ingress,
+	// eventsub jobs are dropped; chat and api traffic is unaffected.
 	TwitchConduitID string
+
+	// ConduitSubject is the NATS request-reply subject outgress uses to resolve
+	// the active conduit id from ingress. Defaults to
+	// bagel.rpc.ingress.conduit.get. Override with NATS_CONDUIT_SUBJECT.
+	ConduitSubject string
 
 	// TwitchBotUserID identifies the bot account for moderation lookups.
 	// When empty, the sender_id carried by each message is used instead.
@@ -71,6 +78,7 @@ func Load() *Config {
 		TwitchClientID:        env.MustGet("TWITCH_CLIENT_ID"),
 		TwitchClientSecret:    env.MustGet("TWITCH_CLIENT_SECRET"),
 		TwitchConduitID:       env.Get("TWITCH_CONDUIT_ID", ""),
+		ConduitSubject:        env.Get("NATS_CONDUIT_SUBJECT", "bagel.rpc.ingress.conduit.get"),
 		TwitchBotUserID:       env.Get("TWITCH_BOT_USER_ID", ""),
 		TwitchBotRefreshToken: env.Get("TWITCH_BOT_REFRESH_TOKEN", ""),
 		TokensSubjectPrefix:   env.Get("NATS_INTERNAL_TOKENS_SUBJECT_PREFIX", "bagel.rpc.internal.tokens"),
