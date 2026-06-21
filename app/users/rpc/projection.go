@@ -10,6 +10,7 @@ import (
 	"go.uber.org/zap"
 
 	"ItsBagelBot/app/users/repository"
+	"ItsBagelBot/internal/domain/rpc/projection"
 	"ItsBagelBot/pkg/bus"
 )
 
@@ -24,37 +25,25 @@ func SubscribeProjection(nc *nats.Conn, repo *repository.Users, subject, queueGr
 		log:  log,
 	}
 
-	return bus.QueueSubscribeJSON[projectionRequest, projectionReply](nc, subject, queueGroup, 2*time.Second, app, log, p.handleGet)
+	return bus.QueueSubscribeJSON[projection.Request, projection.UserReply](nc, subject, queueGroup, 2*time.Second, app, log, p.handleGet)
 }
 
-type projectionRequest struct {
-	UserID string `json:"user_id"`
-}
-
-type projectionReply struct {
-	UserID   string `json:"user_id"`
-	Status   string `json:"status"`
-	IsActive bool   `json:"is_active"`
-	Banned   bool   `json:"banned"`
-	Error    string `json:"error,omitempty"`
-}
-
-func (p *projectionRPC) handleGet(ctx context.Context, req projectionRequest) projectionReply {
+func (p *projectionRPC) handleGet(ctx context.Context, req projection.Request) projection.UserReply {
 	if req.UserID == "" {
-		return projectionReply{Error: "bad request"}
+		return projection.UserReply{Error: "bad request"}
 	}
 
 	id, err := strconv.ParseUint(req.UserID, 10, 64)
 	if err != nil {
-		return projectionReply{Error: "invalid user_id"}
+		return projection.UserReply{Error: "invalid user_id"}
 	}
 
 	view, err := p.repo.Get(ctx, id)
 	if err != nil {
-		return projectionReply{Error: err.Error()}
+		return projection.UserReply{Error: err.Error()}
 	}
 
-	return projectionReply{
+	return projection.UserReply{
 		UserID:   req.UserID,
 		Status:   view.Status,
 		IsActive: view.IsActive,

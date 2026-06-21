@@ -14,6 +14,8 @@ import (
 	"go.uber.org/zap"
 
 	"ItsBagelBot/app/users/repository"
+	"ItsBagelBot/internal/domain/invalidate"
+	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/pkg/bus"
 )
 
@@ -65,14 +67,8 @@ func newToken() (string, error) {
 	return hex.EncodeToString(b), nil
 }
 
-type createDelegationRequest struct {
-	OwnerUserID string   `json:"owner_user_id"`
-	OwnerLogin  string   `json:"owner_login"`
-	Sections    []string `json:"sections"`
-}
-
 func (d *delegationRPC) handleCreate(ctx context.Context, msg *nats.Msg) {
-	var req createDelegationRequest
+	var req usersrpc.CreateDelegationRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
 		bus.Respond(msg, map[string]any{"error": "bad request"})
 		return
@@ -110,12 +106,8 @@ func (d *delegationRPC) handleCreate(ctx context.Context, msg *nats.Msg) {
 	bus.Respond(msg, map[string]any{"token": token})
 }
 
-type tokenRequest struct {
-	Token string `json:"token"`
-}
-
 func (d *delegationRPC) handleGet(ctx context.Context, msg *nats.Msg) {
-	var req tokenRequest
+	var req usersrpc.TokenRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
 		bus.Respond(msg, map[string]any{"error": "bad request"})
 		return
@@ -138,14 +130,8 @@ func (d *delegationRPC) handleGet(ctx context.Context, msg *nats.Msg) {
 	})
 }
 
-type consumeDelegationRequest struct {
-	Token          string `json:"token"`
-	DelegateUserID string `json:"delegate_user_id"`
-	DelegateLogin  string `json:"delegate_login"`
-}
-
 func (d *delegationRPC) handleConsume(ctx context.Context, msg *nats.Msg) {
-	var req consumeDelegationRequest
+	var req usersrpc.ConsumeDelegationRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
 		bus.Respond(msg, map[string]any{"ok": false, "error": "bad request"})
 		return
@@ -176,12 +162,8 @@ func (d *delegationRPC) handleConsume(ctx context.Context, msg *nats.Msg) {
 	})
 }
 
-type ownerRequest struct {
-	OwnerUserID string `json:"owner_user_id"`
-}
-
 func (d *delegationRPC) handleList(ctx context.Context, msg *nats.Msg) {
-	var req ownerRequest
+	var req usersrpc.OwnerRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
 		bus.Respond(msg, map[string]any{"error": "bad request"})
 		return
@@ -214,13 +196,8 @@ func (d *delegationRPC) handleList(ctx context.Context, msg *nats.Msg) {
 	bus.Respond(msg, map[string]any{"grants": grants})
 }
 
-type revokeDelegationRequest struct {
-	OwnerUserID string `json:"owner_user_id"`
-	Token       string `json:"token"`
-}
-
 func (d *delegationRPC) handleRevoke(ctx context.Context, msg *nats.Msg) {
-	var req revokeDelegationRequest
+	var req usersrpc.RevokeDelegationRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
 		bus.Respond(msg, map[string]any{"ok": false, "error": "bad request"})
 		return
@@ -244,12 +221,8 @@ func (d *delegationRPC) handleRevoke(ctx context.Context, msg *nats.Msg) {
 	bus.Respond(msg, map[string]any{"ok": true})
 }
 
-type accessRequest struct {
-	DelegateUserID string `json:"delegate_user_id"`
-}
-
 func (d *delegationRPC) handleAccess(ctx context.Context, msg *nats.Msg) {
-	var req accessRequest
+	var req usersrpc.AccessRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
 		bus.Respond(msg, map[string]any{"error": "bad request"})
 		return
@@ -281,13 +254,8 @@ func (d *delegationRPC) handleAccess(ctx context.Context, msg *nats.Msg) {
 	bus.Respond(msg, map[string]any{"grants": grants})
 }
 
-type optOutDelegationRequest struct {
-	OwnerUserID    string `json:"owner_user_id"`
-	DelegateUserID string `json:"delegate_user_id"`
-}
-
 func (d *delegationRPC) handleOptOut(ctx context.Context, msg *nats.Msg) {
-	var req optOutDelegationRequest
+	var req usersrpc.OptOutDelegationRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
 		bus.Respond(msg, map[string]any{"ok": false, "error": "bad request"})
 		return
@@ -318,8 +286,7 @@ func (d *delegationRPC) handleOptOut(ctx context.Context, msg *nats.Msg) {
 }
 
 func (d *delegationRPC) publishInvalidation(id uint64) {
-	body, _ := json.Marshal(map[string]string{"broadcaster_id": fmt.Sprint(id)})
-	if err := d.nc.Publish(d.invalidationPrefix+".delegation", body); err != nil {
+	if err := invalidate.Publish(d.nc, d.invalidationPrefix, "delegation", fmt.Sprint(id)); err != nil {
 		d.log.Warn("delegation cache invalidation publish failed", zap.Uint64("broadcaster_id", id), zap.Error(err))
 	}
 }

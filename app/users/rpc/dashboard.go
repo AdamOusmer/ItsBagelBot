@@ -13,22 +13,24 @@ import (
 
 	"ItsBagelBot/app/users/ent/tokens"
 	"ItsBagelBot/app/users/repository"
+	"ItsBagelBot/internal/domain/invalidate"
+	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/pkg/bus"
 )
 
 type dashboardRPC struct {
-	repo                *repository.Users
-	nc                  *nats.Conn
-	invalidationPrefix  string
-	log                 *zap.Logger
+	repo               *repository.Users
+	nc                 *nats.Conn
+	invalidationPrefix string
+	log                *zap.Logger
 }
 
 func SubscribeDashboard(nc *nats.Conn, repo *repository.Users, prefix, invalidationPrefix, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
 	d := &dashboardRPC{
-		repo:                repo,
-		nc:                  nc,
-		invalidationPrefix:  invalidationPrefix,
-		log:                 log,
+		repo:               repo,
+		nc:                 nc,
+		invalidationPrefix: invalidationPrefix,
+		log:                log,
 	}
 
 	type handler struct {
@@ -60,14 +62,8 @@ func SubscribeDashboard(nc *nats.Conn, repo *repository.Users, prefix, invalidat
 	return nil
 }
 
-type upsertUserRequest struct {
-	UserID      string `json:"user_id"`
-	Username    string `json:"username"`
-	DisplayName string `json:"display_name"`
-}
-
 func (d *dashboardRPC) handleUpsertUser(ctx context.Context, msg *nats.Msg) {
-	var req upsertUserRequest
+	var req usersrpc.UpsertUserRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
 		bus.Respond(msg, map[string]any{"error": "bad request"})
 		return
@@ -94,14 +90,8 @@ func (d *dashboardRPC) handleUpsertUser(ctx context.Context, msg *nats.Msg) {
 	bus.Respond(msg, map[string]any{"ok": true})
 }
 
-type grantSaveRequest struct {
-	BroadcasterUserID string `json:"broadcaster_user_id"`
-	AccessToken       string `json:"access_token"`
-	RefreshToken      string `json:"refresh_token"`
-}
-
 func (d *dashboardRPC) handleGrantSave(ctx context.Context, msg *nats.Msg) {
-	var req grantSaveRequest
+	var req usersrpc.GrantSaveRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
 		bus.Respond(msg, map[string]any{"error": "bad request"})
 		return
@@ -123,20 +113,15 @@ func (d *dashboardRPC) handleGrantSave(ctx context.Context, msg *nats.Msg) {
 	}
 
 	// Invalidate cached state for this broadcaster.
-	body, _ := json.Marshal(map[string]string{"broadcaster_id": req.BroadcasterUserID})
-	if err := d.nc.Publish(d.invalidationPrefix+".grant", body); err != nil {
+	if err := invalidate.Publish(d.nc, d.invalidationPrefix, "grant", req.BroadcasterUserID); err != nil {
 		d.log.Warn("grant_save invalidation publish failed", zap.Error(err))
 	}
 
 	bus.Respond(msg, map[string]any{"ok": true})
 }
 
-type grantHasRequest struct {
-	BroadcasterUserID string `json:"broadcaster_user_id"`
-}
-
 func (d *dashboardRPC) handleGrantHas(ctx context.Context, msg *nats.Msg) {
-	var req grantHasRequest
+	var req usersrpc.GrantHasRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
 		bus.Respond(msg, map[string]any{"error": "bad request"})
 		return
@@ -158,16 +143,11 @@ func (d *dashboardRPC) handleGrantHas(ctx context.Context, msg *nats.Msg) {
 	bus.Respond(msg, map[string]any{"has_grant": hasGrant})
 }
 
-type activeSetRequest struct {
-	BroadcasterUserID string `json:"broadcaster_user_id"`
-	Active            bool   `json:"active"`
-}
-
 // handleActiveSet flips the receive toggle. The repository publishes the
 // change event, so the projector and ingress converge without extra work;
 // the explicit invalidation below covers the dashboard's own grant cache.
 func (d *dashboardRPC) handleActiveSet(ctx context.Context, msg *nats.Msg) {
-	var req activeSetRequest
+	var req usersrpc.ActiveSetRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
 		bus.Respond(msg, map[string]any{"error": "bad request"})
 		return
@@ -188,8 +168,7 @@ func (d *dashboardRPC) handleActiveSet(ctx context.Context, msg *nats.Msg) {
 		return
 	}
 
-	body, _ := json.Marshal(map[string]string{"broadcaster_id": req.BroadcasterUserID})
-	if err := d.nc.Publish(d.invalidationPrefix+".status", body); err != nil {
+	if err := invalidate.Publish(d.nc, d.invalidationPrefix, "status", req.BroadcasterUserID); err != nil {
 		d.log.Warn("active_set invalidation publish failed", zap.Error(err))
 	}
 
@@ -197,7 +176,7 @@ func (d *dashboardRPC) handleActiveSet(ctx context.Context, msg *nats.Msg) {
 }
 
 func (d *dashboardRPC) handleActiveGet(ctx context.Context, msg *nats.Msg) {
-	var req grantHasRequest
+	var req usersrpc.GrantHasRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
 		bus.Respond(msg, map[string]any{"error": "bad request"})
 		return
@@ -224,7 +203,7 @@ func (d *dashboardRPC) handleActiveGet(ctx context.Context, msg *nats.Msg) {
 // handleStatusGet returns the broadcaster's billing tier (free/paid/vip) so the
 // dashboard can show the account status to the user themselves.
 func (d *dashboardRPC) handleStatusGet(ctx context.Context, msg *nats.Msg) {
-	var req grantHasRequest
+	var req usersrpc.GrantHasRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
 		bus.Respond(msg, map[string]any{"error": "bad request"})
 		return
@@ -253,7 +232,7 @@ func (d *dashboardRPC) handleStatusGet(ctx context.Context, msg *nats.Msg) {
 // page render coalesces them here to spend one round trip and one repo.Get
 // instead of two.
 func (d *dashboardRPC) handleStateGet(ctx context.Context, msg *nats.Msg) {
-	var req grantHasRequest
+	var req usersrpc.GrantHasRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
 		bus.Respond(msg, map[string]any{"error": "bad request"})
 		return
@@ -277,14 +256,10 @@ func (d *dashboardRPC) handleStateGet(ctx context.Context, msg *nats.Msg) {
 	bus.Respond(msg, map[string]any{"active": view.IsActive, "status": view.Status})
 }
 
-type deleteSelfRequest struct {
-	UserID string `json:"user_id"`
-}
-
 // handleDeleteSelf removes the user and every delegation they own. Delegations
 // are cleared first so no dangling links survive the deleted user row.
 func (d *dashboardRPC) handleDeleteSelf(ctx context.Context, msg *nats.Msg) {
-	var req deleteSelfRequest
+	var req usersrpc.DeleteSelfRequest
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
 		bus.Respond(msg, map[string]any{"error": "bad request"})
 		return
