@@ -16,7 +16,6 @@ import (
 	"ItsBagelBot/pkg/monitor"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
-	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 )
 
@@ -77,7 +76,14 @@ func main() {
 	// (commands, modules) to the console cache bus after Valkey is updated.
 	cacheInvalidatePrefix := env.Get("NATS_CACHE_INVALIDATION_PREFIX", "bagel.cache.invalidate")
 
-	projector := NewProjector(valkeyStore, nc, invalidateSubject, cacheInvalidatePrefix, log)
+	// Stream Online Pre-Warming subjects: resolved here so Prewarmer owns them.
+	streamTopic := env.Get("NATS_SUBJECT_LANE_STREAM", "twitch.ingress.event.stream")
+	usersTopic := env.Get("NATS_INTERNAL_PROJECTION_USERS_SUBJECT", "bagel.rpc.internal.projection.users.get")
+	modulesTopic := env.Get("NATS_INTERNAL_PROJECTION_MODULES_SUBJECT", "bagel.rpc.internal.projection.modules.get")
+	commandsTopic := env.Get("NATS_INTERNAL_PROJECTION_COMMANDS_SUBJECT", "bagel.rpc.internal.projection.commands.get")
+
+	prewarmer := NewPrewarmer(valkeyStore, nc, usersTopic, modulesTopic, commandsTopic, log)
+	projector := NewProjector(valkeyStore, nc, invalidateSubject, cacheInvalidatePrefix, prewarmer, log)
 
 	if err := bus.Consume(ctx, nrApp, sub, data.SubjectUserChanged, projector.HandleUserChanged, log); err != nil {
 		log.Fatal("failed to subscribe to user changes", zap.Error(err))
@@ -95,15 +101,7 @@ func main() {
 		log.Fatal("failed to subscribe to command changes", zap.Error(err))
 	}
 
-	// Stream Online Pre-Warming
-	streamTopic := env.Get("NATS_SUBJECT_LANE_STREAM", "twitch.ingress.event.stream")
-	usersTopic := env.Get("NATS_INTERNAL_PROJECTION_USERS_SUBJECT", "bagel.rpc.internal.projection.users.get")
-	modulesTopic := env.Get("NATS_INTERNAL_PROJECTION_MODULES_SUBJECT", "bagel.rpc.internal.projection.modules.get")
-	commandsTopic := env.Get("NATS_INTERNAL_PROJECTION_COMMANDS_SUBJECT", "bagel.rpc.internal.projection.commands.get")
-
-	if _, err := nc.Subscribe(streamTopic, func(msg *nats.Msg) {
-		projector.HandleStreamEvent(msg, nc, usersTopic, modulesTopic, commandsTopic)
-	}); err != nil {
+	if _, err := nc.Subscribe(streamTopic, projector.HandleStreamEvent); err != nil {
 		log.Fatal("failed to subscribe to stream online events", zap.Error(err))
 	}
 

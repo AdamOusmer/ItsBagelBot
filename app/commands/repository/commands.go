@@ -8,6 +8,7 @@ import (
 	"ItsBagelBot/app/commands/ent"
 	"ItsBagelBot/app/commands/ent/commands"
 	"ItsBagelBot/internal/domain/event/data"
+	"ItsBagelBot/internal/domain/rpc/projection"
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/pkg/batch"
 	"ItsBagelBot/pkg/bus"
@@ -31,19 +32,7 @@ const (
 )
 
 // CommandView is the read model for one custom command of one user.
-type CommandView struct {
-	Name             string   `json:"name"`
-	Aliases          []string `json:"aliases,omitempty"`
-	Response         string   `json:"response"`
-	IsActive         bool     `json:"is_active"`
-	StreamOnlineOnly bool     `json:"stream_online_only"`
-	Perm             string   `json:"perm"`
-	Cooldown         uint     `json:"cooldown"`
-	// Twitch id of the sole user allowed to run the command; "" when unset.
-	// Carried as a string so ids beyond JS's safe integer range survive the
-	// JSON round trip to the SvelteKit dashboard.
-	AllowedUserID string `json:"allowed_user_id,omitempty"`
-}
+type CommandView = projection.CommandView
 
 type commandKey struct {
 	userID uint64

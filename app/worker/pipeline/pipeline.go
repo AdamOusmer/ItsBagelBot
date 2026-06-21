@@ -16,6 +16,7 @@ import (
 	"context"
 	"encoding/json"
 
+	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 
@@ -25,7 +26,7 @@ import (
 
 // handler runs one event type. It returns the outgress message to publish, or
 // nil when the event produces no outbound action.
-type handler func(ctx context.Context, env Envelope, regress Regress) (*OutgressMessage, error)
+type handler func(ctx context.Context, env Envelope, regress Regress) (*outgress.Message, error)
 
 // Pipeline holds the dependencies shared by every stage.
 type Pipeline struct {
@@ -121,7 +122,7 @@ func (p *Pipeline) Process(msg *message.Message) error {
 // status, so a premium broadcaster's reply rides the premium lane end to end.
 // Stream-lane traffic that produces an action is treated as standard. The
 // JetStream publish is synchronous, so a nil return means outgress has it.
-func (p *Pipeline) emit(ctx context.Context, regress Regress, out *OutgressMessage) error {
+func (p *Pipeline) emit(ctx context.Context, regress Regress, out *outgress.Message) error {
 	subject := p.outgressStandard
 	if regress == RegressPremium {
 		subject = p.outgressPremium
