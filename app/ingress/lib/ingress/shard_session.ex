@@ -130,6 +130,10 @@ defmodule Ingress.ShardSession do
       shard_id: state.shard_id,
       state: derive_state(state),
       node: node(),
+      # Worker node (machine) name from the downward-API env, so the admin
+      # console can show the host instead of the pod IP carried in `node`.
+      # Resolved locally here, where the shard actually runs.
+      host: System.get_env("NODE_NAME"),
       session_id: state.session_id,
       bound: state.bound?,
       handshake_in_flight: state.pending != nil,
