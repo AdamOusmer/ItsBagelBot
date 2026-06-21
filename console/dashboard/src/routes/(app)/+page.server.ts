@@ -1,19 +1,41 @@
 import type { Actions, PageServerLoad } from './$types';
-import { hasGrant, accountState, setActive, publishEventSub, auditDashboardImpersonation, type AccountStatus } from '$lib/server/rpc';
+import {
+  hasGrant,
+  accountState,
+  setActive,
+  publishEventSub,
+  publishEventSubReconnect,
+  channelSubState,
+  auditDashboardImpersonation,
+  type AccountStatus,
+  type ChannelSubState
+} from '$lib/server/rpc';
 import { env } from '$env/dynamic/private';
 import { fail } from '@sveltejs/kit';
 
-export type ConnState = { enabled: boolean; receiving: boolean; status: AccountStatus };
+export type ConnState = {
+  enabled: boolean;
+  receiving: boolean;
+  status: AccountStatus;
+  subState: ChannelSubState['state'];
+  subError: string;
+};
 
 // Resolve the bot connection state in one round trip (grant presence + the
-// coalesced active/tier state_get). allSettled keeps a slow or down responder
-// from failing the whole render; receiving stays gated on the grant.
+// coalesced active/tier state_get + channel enroll state). allSettled keeps a
+// slow or down responder from failing the whole render.
 async function connState(uid: string): Promise<ConnState> {
-  const [grant, state] = await Promise.allSettled([hasGrant(uid), accountState(uid)]);
+  const [grant, state, sub] = await Promise.allSettled([
+    hasGrant(uid),
+    accountState(uid),
+    channelSubState(uid)
+  ]);
   const enabled = grant.status === 'fulfilled' && grant.value;
   const receiving = enabled && state.status === 'fulfilled' && state.value.active;
   const status: AccountStatus = state.status === 'fulfilled' ? state.value.status : 'free';
-  return { enabled, receiving, status };
+  const subState: ChannelSubState['state'] = sub.status === 'fulfilled' ? sub.value.state : 'unknown';
+  const subError: string = sub.status === 'fulfilled' ? sub.value.error : '';
+  return { enabled, receiving, status, subState, subError };
 }
 
 export const load: PageServerLoad = ({ locals }) => {
@@ -24,36 +46,34 @@ export const load: PageServerLoad = ({ locals }) => {
   // trip lands, instead of blocking SSR (and the post-login redirect) on NATS.
   const conn: Promise<ConnState> =
     env.DEMO === '1'
-      ? Promise.resolve({ enabled: true, receiving: true, status: 'vip' })
+      ? Promise.resolve({ enabled: true, receiving: true, status: 'vip', subState: 'ok', subError: '' })
       : connState(uid);
 
   return { conn };
 };
 
 export const actions: Actions = {
-  // Enable: a single request to start event delivery. Marks the channel active
-  // and (re)creates its EventSub subscriptions via the outgress lane.
+  // Enable: mark the channel active and atomically (re)create EventSub subs.
   enable: async ({ locals }) => {
     if (locals.session?.delegate_of) return fail(403);
     const uid = locals.session?.user_id;
     if (!uid) return fail(401);
     try {
       await setActive(uid, true);
-      await publishEventSub(uid, true);
+      await publishEventSubReconnect(uid);
       auditDashboardImpersonation(locals.session, 'enable');
       return { ok: true, action: 'enable' };
     } catch {
       return fail(502, { error: 'enable failed' });
     }
   },
-  // Restart: delete + recreate the EventSub subscriptions (stays active).
+  // Restart: atomic drop + recreate of EventSub subscriptions (stays active).
   restart: async ({ locals }) => {
     if (locals.session?.delegate_of) return fail(403);
     const uid = locals.session?.user_id;
     if (!uid) return fail(401);
     try {
-      await publishEventSub(uid, false);
-      await publishEventSub(uid, true);
+      await publishEventSubReconnect(uid);
       auditDashboardImpersonation(locals.session, 'restart');
       return { ok: true, action: 'restart' };
     } catch {
