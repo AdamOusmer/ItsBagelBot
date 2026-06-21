@@ -34,17 +34,113 @@ spec:
         app.kubernetes.io/instance: valkey
         app.kubernetes.io/name: valkey
     spec:
-      containers:
-      - command:
+      # Seed the writable /data copies of valkey.conf and sentinel.conf ONCE.
+      # After first boot valkey and sentinel own these files: valkey rewrites
+      # replicaof on every Sentinel-driven failover and sentinel persists its
+      # known peers/epoch, so a restarted pod reads its real current role from
+      # /data instead of re-deriving it. The only dynamic input is the node's
+      # Tailscale announce IP, taken from the downward API (status.hostIP is the
+      # node's tailnet address on this cluster) rather than a hardcoded table,
+      # so it is correct on all four nodes including worker1.
+      initContainers:
+      - name: config-init
+        image: valkey/valkey:9.0
+        imagePullPolicy: IfNotPresent
+        command:
         - /bin/sh
-        - /scripts/start-valkey.sh
+        - -ec
+        - |
+          if [ ! -f /data/valkey.conf ]; then
+            cp /config/valkey.conf /data/valkey.conf
+            {
+              echo "masterauth ${CORE}"
+              echo "replica-announce-ip ${HOST_IP}"
+              echo "replica-announce-port 6379"
+            } >> /data/valkey.conf
+            # Cold-start seed only: every node but pod-0 begins as its replica;
+            # Sentinel owns all failovers afterwards. Skipped once valkey has
+            # rewritten its own replication state.
+            if [ "${POD_INDEX}" != "0" ]; then
+              echo "replicaof valkey-node-0.valkey-headless.valkey.svc.cluster.local 6379" >> /data/valkey.conf
+            fi
+            chmod 600 /data/valkey.conf
+          fi
+          if [ ! -f /data/sentinel.conf ]; then
+            cp /config/sentinel.conf /data/sentinel.conf
+            {
+              echo "requirepass ${CORE}"
+              echo "sentinel auth-pass myprimary ${CORE}"
+              echo "sentinel announce-ip ${HOST_IP}"
+              echo "sentinel announce-port 26379"
+            } >> /data/sentinel.conf
+            chmod 600 /data/sentinel.conf
+          fi
+        env:
+        - name: HOST_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        - name: POD_INDEX
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['apps.kubernetes.io/pod-index']
+        - name: CORE
+          valueFrom:
+            secretKeyRef:
+              key: valkey-password
+              name: valkey-core-secret
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          runAsNonRoot: true
+          runAsUser: 999
+          seccompProfile:
+            type: RuntimeDefault
+        volumeMounts:
+        - mountPath: /data
+          name: valkey-data
+        - mountPath: /config
+          name: valkey-config
+          readOnly: true
+      containers:
+      # valkey-server runs the seeded /data/valkey.conf directly. masterauth and
+      # the Tailscale announce address come in as flags from the downward API /
+      # secret so they track the live node IP and never need a start script.
+      - command:
+        - valkey-server
+        - /data/valkey.conf
+        - --replica-announce-ip
+        - $(HOST_IP)
+        - --replica-announce-port
+        - "6379"
+        - --masterauth
+        - $(CORE)
+        env:
+        - name: HOST_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        - name: CORE
+          valueFrom:
+            secretKeyRef:
+              key: valkey-password
+              name: valkey-core-secret
+        - name: REDISCLI_AUTH
+          valueFrom:
+            secretKeyRef:
+              key: valkey-password
+              name: valkey-core-secret
         image: valkey/valkey:9.0
         imagePullPolicy: IfNotPresent
         livenessProbe:
           exec:
             command:
-            - /bin/sh
-            - /scripts/ping-valkey.sh
+            - valkey-cli
+            - -p
+            - "6379"
+            - ping
           failureThreshold: 3
           initialDelaySeconds: 20
           periodSeconds: 10
@@ -59,8 +155,10 @@ spec:
         readinessProbe:
           exec:
             command:
-            - /bin/sh
-            - /scripts/ping-valkey.sh
+            - valkey-cli
+            - -p
+            - "6379"
+            - ping
           failureThreshold: 3
           initialDelaySeconds: 10
           periodSeconds: 5
@@ -87,11 +185,6 @@ spec:
         volumeMounts:
         - mountPath: /data
           name: valkey-data
-        - mountPath: /scripts
-          name: scripts
-        - mountPath: /secrets/core
-          name: core-secret
-          readOnly: true
         - mountPath: /secrets/users
           name: users-secret
           readOnly: true
@@ -99,15 +192,24 @@ spec:
           name: valkey-config
           readOnly: true
       - command:
-        - /bin/sh
-        - /scripts/start-sentinel.sh
+        - valkey-server
+        - /data/sentinel.conf
+        - --sentinel
+        env:
+        - name: REDISCLI_AUTH
+          valueFrom:
+            secretKeyRef:
+              key: valkey-password
+              name: valkey-core-secret
         image: valkey/valkey:9.0
         imagePullPolicy: IfNotPresent
         livenessProbe:
           exec:
             command:
-            - /bin/sh
-            - /scripts/ping-sentinel.sh
+            - valkey-cli
+            - -p
+            - "26379"
+            - ping
           failureThreshold: 3
           initialDelaySeconds: 20
           periodSeconds: 10
@@ -122,8 +224,10 @@ spec:
         readinessProbe:
           exec:
             command:
-            - /bin/sh
-            - /scripts/ping-sentinel.sh
+            - valkey-cli
+            - -p
+            - "26379"
+            - ping
           failureThreshold: 3
           initialDelaySeconds: 15
           periodSeconds: 5
@@ -150,14 +254,6 @@ spec:
         volumeMounts:
         - mountPath: /data
           name: valkey-data
-        - mountPath: /scripts
-          name: scripts
-        - mountPath: /secrets/core
-          name: core-secret
-          readOnly: true
-        - mountPath: /config
-          name: valkey-config
-          readOnly: true
       - env:
         - name: REDIS_ADDR
           value: redis://127.0.0.1:6379
@@ -219,14 +315,6 @@ spec:
         topologyKey: kubernetes.io/hostname
         whenUnsatisfiable: DoNotSchedule
       volumes:
-      - configMap:
-          defaultMode: 365
-          name: valkey-scripts
-        name: scripts
-      - name: core-secret
-        secret:
-          defaultMode: 256
-          secretName: valkey-core-secret
       - name: users-secret
         secret:
           defaultMode: 256
