@@ -298,7 +298,7 @@ jobs:
           registry="${REGISTRY}/${owner}"
           base_tags="sha-${GITHUB_SHA::12}"
 
-          if [[ "${GITHUB_EVENT_NAME}" == "push" && "${GITHUB_REF}" == "refs/heads/main" ]]; then
+          if [[ "${GITHUB_EVENT_NAME}" == "push" || "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]] && [[ "${GITHUB_REF}" == "refs/heads/main" ]]; then
             base_tags="${base_tags} main latest main-${BUILD_TS}-${GITHUB_SHA::12}"
           fi
 
@@ -410,7 +410,7 @@ jobs:
           registry="${REGISTRY}/${owner}"
           tags="sha-${GITHUB_SHA::12}"
 
-          if [[ "${GITHUB_EVENT_NAME}" == "push" && "${GITHUB_REF}" == "refs/heads/main" ]]; then
+          if [[ "${GITHUB_EVENT_NAME}" == "push" || "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]] && [[ "${GITHUB_REF}" == "refs/heads/main" ]]; then
             tags="${tags} main latest main-${BUILD_TS}-${GITHUB_SHA::12}"
           fi
 
