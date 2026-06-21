@@ -14,11 +14,7 @@ export function scopes(): string[] {
   // moderator:read:followers + user:read:chat + user:write:chat) plus channel:bot
   // so the bot may act in the channel. Adds channel:read:subscriptions and bits:read
   // for EventSub access, and moderator scopes for dashboard moderation actions. 
-  // Override the whole bot part via DASHBOARD_BOT_SCOPES.
-  const bot = (
-    env.DASHBOARD_BOT_SCOPES ??
-    'channel:bot moderator:read:followers user:read:chat user:write:chat channel:read:subscriptions bits:read moderator:read:chatters moderator:manage:banned_users moderator:manage:chat_messages'
-  )
+  const bot = 'channel:bot moderator:read:followers user:read:chat user:write:chat channel:read:subscriptions bits:read moderator:read:chatters moderator:manage:banned_users moderator:manage:chat_messages'
     .split(/\s+/)
     .filter(Boolean);
   return ['openid', 'user:read:email', ...bot];
