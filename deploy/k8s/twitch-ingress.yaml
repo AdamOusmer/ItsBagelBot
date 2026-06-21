@@ -126,6 +126,12 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: status.podIP
+            # Worker node (machine) the pod is scheduled on, surfaced to the
+            # admin console so shard cards show the host name, not the pod IP.
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
             - name: RELEASE_DISTRIBUTION
               value: name
             - name: RELEASE_NODE
