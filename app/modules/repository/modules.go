@@ -8,6 +8,7 @@ import (
 	"ItsBagelBot/app/modules/ent"
 	"ItsBagelBot/app/modules/ent/modules"
 	"ItsBagelBot/internal/domain/event/data"
+	"ItsBagelBot/internal/domain/rpc/projection"
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/pkg/batch"
 	"ItsBagelBot/pkg/bus"
@@ -31,11 +32,7 @@ const (
 )
 
 // ModuleView is the read model for one module of one user.
-type ModuleView struct {
-	Name      string          `json:"name"`
-	IsEnabled bool            `json:"is_enabled"`
-	Configs   json.RawMessage `json:"configs,omitempty"`
-}
+type ModuleView = projection.ModuleView
 
 type moduleKey struct {
 	userID uint64

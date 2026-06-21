@@ -1,17 +1,17 @@
 package main
 
 import (
-	"encoding/json"
-
-	"ItsBagelBot/internal/projection"
-	"ItsBagelBot/internal/domain/event/data"
-	"ItsBagelBot/internal/domain/validate"
-	"ItsBagelBot/pkg/bus"
-
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"time"
+
+	"ItsBagelBot/internal/domain/event/data"
+	"ItsBagelBot/internal/domain/event/twitch"
+	"ItsBagelBot/internal/domain/invalidate"
+	"ItsBagelBot/internal/domain/validate"
+	"ItsBagelBot/internal/projection"
 
 	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/nats-io/nats.go"
@@ -39,11 +39,19 @@ type Projector struct {
 	// section-scoped cache invalidations (commands, modules) to the console
 	// cache bus after Valkey is updated. Subject = prefix + "." + scope.
 	cacheInvalidatePrefix string
+	prewarmer             *Prewarmer
 	log                   *zap.Logger
 }
 
-func NewProjector(store *projection.Store, nc *nats.Conn, invalidateSubject string, cacheInvalidatePrefix string, log *zap.Logger) *Projector {
-	return &Projector{store: store, nc: nc, invalidateSubject: invalidateSubject, cacheInvalidatePrefix: cacheInvalidatePrefix, log: log}
+func NewProjector(store *projection.Store, nc *nats.Conn, invalidateSubject string, cacheInvalidatePrefix string, prewarmer *Prewarmer, log *zap.Logger) *Projector {
+	return &Projector{
+		store:                 store,
+		nc:                    nc,
+		invalidateSubject:     invalidateSubject,
+		cacheInvalidatePrefix: cacheInvalidatePrefix,
+		prewarmer:             prewarmer,
+		log:                   log,
+	}
 }
 
 func (p *Projector) HandleUserChanged(msg *message.Message) error {
@@ -97,14 +105,7 @@ func (p *Projector) broadcastCacheInvalidate(userID uint64, scope string) {
 	if p.nc == nil || p.cacheInvalidatePrefix == "" {
 		return
 	}
-	payload, err := json.Marshal(map[string]string{
-		"broadcaster_id": fmt.Sprint(userID),
-	})
-	if err != nil {
-		p.log.Warn("failed to marshal cache invalidation payload", zap.Uint64("user_id", userID), zap.String("scope", scope), zap.Error(err))
-		return
-	}
-	if err := p.nc.Publish(p.cacheInvalidatePrefix+"."+scope, payload); err != nil {
+	if err := invalidate.Publish(p.nc, p.cacheInvalidatePrefix, scope, fmt.Sprint(userID)); err != nil {
 		p.log.Warn("failed to broadcast cache invalidation", zap.Uint64("user_id", userID), zap.String("scope", scope), zap.Error(err))
 	}
 }
@@ -205,89 +206,29 @@ func (p *Projector) drop(msg *message.Message, subject string, err error) {
 	)
 }
 
-type eventSubMessage struct {
-	Type         string `json:"type"`
-	Subscription struct {
-		Type string `json:"type"`
-	} `json:"subscription"`
-	Event struct {
-		BroadcasterUserID string `json:"broadcaster_user_id"`
-	} `json:"event"`
-}
-
-func (e eventSubMessage) eventType() string {
-	if e.Type != "" {
-		return e.Type
-	}
-	return e.Subscription.Type
-}
-
-func (p *Projector) HandleStreamEvent(msg *nats.Msg, nc *nats.Conn, usersTopic, modulesTopic, commandsTopic string) {
-	var payload eventSubMessage
-	if err := json.Unmarshal(msg.Data, &payload); err != nil {
-		return
-	}
-
-	eventType := payload.eventType()
-	if eventType != "stream.online" && eventType != "stream.offline" {
-		return
-	}
-
-	id, err := strconv.ParseUint(payload.Event.BroadcasterUserID, 10, 64)
-	if err != nil {
+// HandleStreamEvent handles a raw Twitch EventSub stream-status message from
+// core NATS. It decodes the payload via the twitch package (which owns the
+// wire shape), persists the live state to Valkey, and triggers a cache
+// pre-warm when the broadcaster goes live.
+func (p *Projector) HandleStreamEvent(msg *nats.Msg) {
+	st, ok := twitch.DecodeStreamStatus(msg.Data)
+	if !ok {
 		return
 	}
 
 	liveCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	if err := p.store.SetStreamLive(liveCtx, id, eventType == "stream.online"); err != nil {
-		p.log.Warn("failed to project stream live state", zap.Uint64("user_id", id), zap.Error(err))
+	if err := p.store.SetStreamLive(liveCtx, st.BroadcasterID, st.Live); err != nil {
+		p.log.Warn("failed to project stream live state", zap.Uint64("user_id", st.BroadcasterID), zap.Error(err))
 	}
 
-	if eventType != "stream.online" {
+	if !st.Live {
 		return
 	}
 
-	p.log.Info("pre-warming cache for stream online", zap.Uint64("user_id", id))
+	p.log.Info("pre-warming cache for stream online", zap.Uint64("user_id", st.BroadcasterID))
 
-	req := map[string]string{"user_id": fmt.Sprint(id)}
-
-	// 1. Fetch & Cache Users
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		reply, err := bus.RequestJSON[struct {
-			Status   string `json:"status"`
-			IsActive bool   `json:"is_active"`
-			Banned   bool   `json:"banned"`
-		}](ctx, nc, usersTopic, req)
-		if err == nil {
-			_ = p.store.SetUser(ctx, id, reply.Status, reply.IsActive, reply.Banned)
-		}
-	}()
-
-	// 2. Fetch & Cache Modules
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		reply, err := bus.RequestJSON[struct {
-			Modules []projection.ModuleView `json:"modules"`
-		}](ctx, nc, modulesTopic, req)
-		if err == nil {
-			_ = p.store.SetModules(ctx, id, reply.Modules)
-		}
-	}()
-
-	// 3. Fetch & Cache Commands
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		reply, err := bus.RequestJSON[struct {
-			Commands []projection.CommandView `json:"commands"`
-		}](ctx, nc, commandsTopic, req)
-		if err == nil {
-			_ = p.store.SetCommands(ctx, id, reply.Commands)
-		}
-	}()
+	prewarmCtx := context.Background()
+	p.prewarmer.Prewarm(prewarmCtx, st.BroadcasterID)
 }

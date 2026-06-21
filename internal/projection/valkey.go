@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"ItsBagelBot/internal/domain/event/data"
+	contract "ItsBagelBot/internal/domain/rpc/projection"
 	"ItsBagelBot/internal/utils"
 	"ItsBagelBot/pkg/cache"
 
@@ -119,22 +120,9 @@ func (v *Store) SetModule(ctx context.Context, userID uint64, name string, isEna
 	)
 }
 
-type ModuleView struct {
-	Name      string          `json:"name"`
-	IsEnabled bool            `json:"is_enabled"`
-	Configs   json.RawMessage `json:"configs,omitempty"`
-}
+type ModuleView = contract.ModuleView
 
-type CommandView struct {
-	Name             string   `json:"name"`
-	Aliases          []string `json:"aliases,omitempty"`
-	Response         string   `json:"response"`
-	IsActive         bool     `json:"is_active"`
-	StreamOnlineOnly bool     `json:"stream_online_only"`
-	Perm             string   `json:"perm"`
-	Cooldown         uint     `json:"cooldown"`
-	AllowedUserID    string   `json:"allowed_user_id,omitempty"`
-}
+type CommandView = contract.CommandView
 
 func commandViewFromEvent(dto data.CommandChangedDTO) CommandView {
 	allowed := ""
