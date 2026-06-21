@@ -68,7 +68,9 @@
             <div class="node-row">
               <span class="nd {s.state === 'connected' ? '' : 'warn'}"></span>
               <span class="nm">shard {s.shard_id}</span>
-              <span class="sv">{s.state} · {s.host || s.node}</span>
+              <span class="sv">
+                {s.state} · {s.host || s.node}{#if s.pod_id} <span style="opacity:0.6">({s.pod_id})</span>{/if}
+              </span>
               <span class="pg">{s.attempts ?? 0} att</span>
             </div>
           {/each}

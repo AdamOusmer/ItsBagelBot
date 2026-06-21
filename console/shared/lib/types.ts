@@ -52,6 +52,7 @@ export interface Shard {
   // Worker node (machine) name the shard runs on. Falls back to the host part
   // of `node` when unset (e.g. local dev without the downward-API env).
   host?: string;
+  pod_id?: string;
   session_id?: string;
   bound: boolean;
   handshake_in_flight?: boolean;
