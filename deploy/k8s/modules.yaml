@@ -85,7 +85,7 @@ spec:
             - name: DB_QUERY_CONCURRENCY
               value: "4"
             - name: DB_AUTO_MIGRATE
-              value: "false"
+              value: "true"
             - name: GOMEMLIMIT
               value: 160MiB
           envFrom:
