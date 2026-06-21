@@ -369,6 +369,14 @@ func (w *Worker) disableEventSubs(ctx context.Context, broadcasterID, conduitID 
 			if sub.Transport.ConduitID != conduitID {
 				continue
 			}
+			// The list query (?user_id) also returns subs where this id is the
+			// condition's user_id/moderator, not the broadcaster: notably every
+			// channel's channel.chat.message carries the bot as user_id. Only
+			// delete subs this broadcaster actually owns, or reconnecting the bot
+			// account would wipe every channel's chat subscription.
+			if sub.Condition.BroadcasterUserID != "" && sub.Condition.BroadcasterUserID != broadcasterID {
+				continue
+			}
 			if err := w.takeSystemHelix(ctx); err != nil {
 				return err
 			}
