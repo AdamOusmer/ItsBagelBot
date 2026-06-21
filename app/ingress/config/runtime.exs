@@ -81,6 +81,9 @@ config :ingress,
   # Autoscaler toggle: body {"enabled": true|false}, replies with full snapshot.
   autoscale_subject:
     System.get_env("NATS_AUTOSCALE_SUBJECT", "twitch.ingress.admin.shards.autoscale"),
+  # Live conduit id query: body {}, replies {"conduit_id": "<uuid>"} or {"error": "..."}.
+  conduit_subject:
+    System.get_env("NATS_CONDUIT_SUBJECT", "bagel.rpc.ingress.conduit.get"),
   # Hard ceiling applied to both manual targets and the autoscaler estimate.
   max_shards: String.to_integer(System.get_env("TWITCH_CONDUIT_MAX_SHARDS", "20")),
   # NATS RPC endpoint exposed by the Go service that owns broadcaster data.

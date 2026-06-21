@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"ItsBagelBot/app/outgress/internal/channels"
+	"ItsBagelBot/app/outgress/internal/conduit"
 	"ItsBagelBot/app/outgress/internal/config"
 	"ItsBagelBot/app/outgress/internal/ratelimit"
 	"ItsBagelBot/app/outgress/internal/tokenstore"
@@ -123,12 +124,14 @@ func main() {
 
 	tw := twitch.NewClient(cfg.TwitchClientID, appTokens, userTokens, broadcasterTokens)
 
-	premium := worker.New(log.Named("premium"), limiter, registry, tw, cfg.TwitchBotUserID, cfg.TwitchConduitID, worker.LanePremium)
-	standard := worker.New(log.Named("standard"), limiter, registry, tw, cfg.TwitchBotUserID, cfg.TwitchConduitID, worker.LaneStandard)
+	conduitResolver := conduit.New(nc, cfg.ConduitSubject, cfg.TwitchConduitID, 60*time.Second, log.Named("conduit"))
+
+	premium := worker.New(log.Named("premium"), limiter, registry, tw, cfg.TwitchBotUserID, conduitResolver, worker.LanePremium)
+	standard := worker.New(log.Named("standard"), limiter, registry, tw, cfg.TwitchBotUserID, conduitResolver, worker.LaneStandard)
 	// The system lane carries the dashboard's EventSub create/delete jobs; it
 	// pays only the reserved system Helix partition, so onboarding bursts
 	// never compete with chat/api traffic for the general budget.
-	system := worker.New(log.Named("system"), limiter, registry, tw, cfg.TwitchBotUserID, cfg.TwitchConduitID, worker.LaneSystem)
+	system := worker.New(log.Named("system"), limiter, registry, tw, cfg.TwitchBotUserID, conduitResolver, worker.LaneSystem)
 
 	// One durable group per lane so each lane drains independently; the
 	// paced redelivery keeps rate-limit nacks from spinning.
