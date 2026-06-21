@@ -2,14 +2,35 @@
   import { enhance } from '$app/forms';
   import { untrack } from 'svelte';
   import { Icon, StatTile, Button, Modal, Drawer } from '@bagel/shared';
-  import type { AdminUserWire } from '$lib/server/rpc';
+  import type { AdminUserWire, ChannelSubState } from '$lib/server/rpc';
   let { data, form } = $props();
 
   const lookup = $derived(form?.lookup as Record<string, unknown> | undefined);
   const found = $derived(lookup?.user as AdminUserWire | undefined);
   const lookupError = $derived(lookup?.error as string | undefined);
   const tokenPresent = $derived(lookup?.tokenPresent === undefined ? undefined : Boolean(lookup?.tokenPresent));
-  const action = $derived(form?.action as { ok: boolean; notice: string } | undefined);
+  const formAction = $derived(form?.action as { ok: boolean; notice: string } | undefined);
+  // Sub state: populated by lookup and restart actions; snapshot alongside action/found.
+  const formSubState = $derived((form as Record<string, unknown> | undefined)?.subState as ChannelSubState | undefined ?? (lookup?.subState as ChannelSubState | undefined));
+
+  // Local, drawer-scoped copy of the action notice. The SvelteKit `form` prop
+  // survives drawer open/close and user switches, so reading it directly leaves
+  // a stale confirmation pinned across users. Instead we snapshot each fresh
+  // result into local state and clear it whenever the drawer closes or a
+  // different user is opened.
+  let action = $state<{ ok: boolean; notice: string } | undefined>(undefined);
+  let drawerSubState = $state<ChannelSubState | undefined>(undefined);
+  let lastForm: unknown = undefined;
+  $effect(() => {
+    const f = form;
+    untrack(() => {
+      if (f !== lastForm) {
+        lastForm = f;
+        action = formAction;
+        drawerSubState = formSubState;
+      }
+    });
+  });
   const viewAsUrl = $derived(form?.viewAsUrl as string | undefined);
   const search = $derived(String(data.search ?? ''));
   const page = $derived(Number(data.page ?? 1));
@@ -111,10 +132,14 @@
   );
 
   function openUser(u: AdminUserWire) {
+    // Switching users: drop any confirmation left from the previous user.
+    if (!selected || String(selected.id) !== String(u.id)) { action = undefined; drawerSubState = undefined; }
     selected = u;
   }
   function closeDrawer() {
     selected = null;
+    action = undefined;
+    drawerSubState = undefined;
   }
   function handleRowKey(e: KeyboardEvent, u: AdminUserWire) {
     if (e.key === 'Enter' || e.key === ' ') {
@@ -354,6 +379,20 @@
       <!-- Maintenance actions -->
       <div class="field">
         <span class="field-label">Maintenance</span>
+        {#if drawerSubState}
+          <div class="sub-state-row">
+            {#if drawerSubState.state === 'failing'}
+              <span class="badge sub-badge err">EventSub failing</span>
+              {#if drawerSubState.error}<span class="sub-err">{drawerSubState.error.slice(0, 80)}</span>{/if}
+            {:else if drawerSubState.state === 'pending'}
+              <span class="badge sub-badge warn">reconnecting…</span>
+            {:else if drawerSubState.state === 'ok'}
+              <span class="badge sub-badge ok">subscriptions ok</span>
+            {:else}
+              <span class="badge sub-badge muted">enroll unknown</span>
+            {/if}
+          </div>
+        {/if}
         <div class="action-stack">
           <form method="POST" action="?/restart" use:enhance={refresh}>
             <input type="hidden" name="user_id" value={drawerUser.id} />
@@ -428,6 +467,20 @@
     background: rgba(176, 90, 70, 0.18); color: #cf8a78;
     border: 1px solid rgba(176, 90, 70, 0.4);
   }
+
+  /* sub-state row + badges */
+  .sub-state-row {
+    display: flex; align-items: center; gap: .5rem; margin-bottom: .5rem; flex-wrap: wrap;
+  }
+  .badge.sub-badge {
+    font-family: var(--bb-font-mono); font-size: 11px; letter-spacing: .06em;
+    padding: 3px 8px; border-radius: var(--bb-radius-pill, 999px);
+  }
+  .badge.sub-badge.ok   { background: rgba(82,183,136,.12); border: 1px solid rgba(82,183,136,.35); color: var(--bb-green-glow); }
+  .badge.sub-badge.warn { background: rgba(200,160,80,.12); border: 1px solid rgba(200,160,80,.35); color: var(--bb-tan-light, #c8a050); }
+  .badge.sub-badge.err  { background: rgba(176,90,70,.15);  border: 1px solid rgba(176,90,70,.4);  color: #cf8a78; }
+  .badge.sub-badge.muted { background: rgba(255,255,255,.04); border: 1px solid var(--bb-border); color: var(--bb-muted); }
+  .sub-err { font-size: .8rem; color: #cf8a78; opacity: .85; }
 
   /* view-as link row */
   .viewas-row { display: flex; gap: .5rem; margin-top: .55rem; }

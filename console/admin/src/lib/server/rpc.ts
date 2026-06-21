@@ -17,7 +17,8 @@ const SUB = {
   user: process.env.NATS_ADMIN_USER_SUBJECT_PREFIX ?? 'bagel.rpc.admin.user',
   auth: process.env.NATS_ADMIN_AUTH_SUBJECT_PREFIX ?? 'bagel.rpc.admin.user.auth',
   audit: process.env.NATS_ADMIN_AUDIT_SUBJECT_PREFIX ?? 'bagel.rpc.admin.user.audit',
-  outgress: process.env.NATS_OUTGRESS_SYSTEM_SUBJECT ?? 'twitch.outgress.system'
+  outgress: process.env.NATS_OUTGRESS_SYSTEM_SUBJECT ?? 'twitch.outgress.system',
+  outgressRpc: process.env.NATS_OUTGRESS_RPC_PREFIX ?? 'bagel.rpc.outgress'
 };
 
 export const STATUS_PREFIX = SUB.status;
@@ -241,9 +242,32 @@ export async function userUnban(userId: string): Promise<AdminUserWire> {
 }
 
 export async function restartUserEventSub(userId: string): Promise<void> {
-  await publish(SUB.outgress, { type: 'eventsub', broadcaster_id: userId, payload: { enabled: false } });
-  await publish(SUB.outgress, { type: 'eventsub', broadcaster_id: userId, payload: { enabled: true } });
+  await publish(SUB.outgress, { type: 'eventsub', broadcaster_id: userId, payload: { mode: 'reconnect' } });
   invalidateUser(userId);
+}
+
+export type ChannelSubState = {
+  state: 'ok' | 'pending' | 'failing' | 'unknown';
+  error: string;
+  checkedAt: string | null;
+};
+
+// Read the persisted EventSub enroll state for a channel. Fails safe: returns
+// 'unknown' on RPC error so a transient outage never blocks page render.
+export async function channelSubState(broadcasterId: string): Promise<ChannelSubState> {
+  try {
+    const r = await rpc<{
+      found: boolean;
+      channel?: { sub_state: string; sub_error: string; sub_checked_at: string };
+    }>(`${SUB.outgressRpc}.channel.get`, { broadcaster_id: broadcasterId }, 2000);
+    const c = r.channel;
+    if (!r.found || !c) return { state: 'unknown', error: '', checkedAt: null };
+    const s = (c.sub_state || '') as string;
+    const state = (s === 'ok' || s === 'pending' || s === 'failing') ? s : 'unknown';
+    return { state, error: c.sub_error || '', checkedAt: c.sub_checked_at || null };
+  } catch {
+    return { state: 'unknown', error: '', checkedAt: null };
+  }
 }
 
 // ── Cache invalidation listener ───────────────────────────────────────────────
