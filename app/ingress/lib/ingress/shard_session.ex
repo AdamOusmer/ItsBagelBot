@@ -134,6 +134,7 @@ defmodule Ingress.ShardSession do
       # console can show the host instead of the pod IP carried in `node`.
       # Resolved locally here, where the shard actually runs.
       host: System.get_env("NODE_NAME"),
+      pod_id: System.get_env("POD_NAME"),
       session_id: state.session_id,
       bound: state.bound?,
       handshake_in_flight: state.pending != nil,
