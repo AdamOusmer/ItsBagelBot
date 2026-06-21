@@ -148,6 +148,8 @@ spec:
         terminationMessagePath: /dev/termination-log
         terminationMessagePolicy: File
         volumeMounts:
+        - mountPath: /data
+          name: valkey-data
         - mountPath: /scripts
           name: scripts
         - mountPath: /secrets/core
@@ -190,34 +192,6 @@ spec:
         terminationMessagePath: /dev/termination-log
         terminationMessagePolicy: File
       dnsPolicy: ClusterFirst
-      initContainers:
-      - command:
-        - /bin/sh
-        - -c
-        - "ORDINAL=\"${HOSTNAME##*-}\"\nif [ \"$ORDINAL\" = \"0\" ]; then exit 0;\
-          \ fi\necho \"Waiting for valkey-node-0 to be ready...\"\nuntil REDISCLI_AUTH=\"\
-          $(cat /secrets/core/valkey-password)\" \\\n      valkey-cli -h valkey-node-0.valkey-headless.valkey.svc.cluster.local\
-          \ \\\n      -p 6379 ping 2>/dev/null | grep -q PONG; do\n  sleep 2\ndone\n\
-          echo \"Primary ready.\"\n"
-        image: valkey/valkey:9.0
-        imagePullPolicy: IfNotPresent
-        name: wait-for-primary
-        resources: {}
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - ALL
-          runAsNonRoot: true
-          runAsUser: 999
-          seccompProfile:
-            type: RuntimeDefault
-        terminationMessagePath: /dev/termination-log
-        terminationMessagePolicy: File
-        volumeMounts:
-        - mountPath: /secrets/core
-          name: core-secret
-          readOnly: true
       priorityClassName: infra-low
       restartPolicy: Always
       # Tolerate the worker-pool taint so a valkey-node lands on worker1 too.

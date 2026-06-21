@@ -1,5 +1,5 @@
 import { createServer } from 'node:http';
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import sirv from 'sirv';
@@ -13,6 +13,30 @@ const socketPath = process.env.SOCKET_PATH;
 const shutdownTimeout = Number(process.env.SHUTDOWN_TIMEOUT || 30);
 
 const immutable = '/_app/immutable/';
+
+// SvelteKit's single-bundle output hashes can diverge between the ARM and Intel
+// builds despite BUILD_VERSION pinning, causing 404s when Traefik routes a request
+// to a different arch than the one that served the HTML. We dynamically find the
+// local bundle names and rewrite mismatched requests to them.
+let localBundleJs;
+let localBundleCss;
+try {
+  const immutableDir = path.join(build, 'client', '_app', 'immutable');
+  if (existsSync(immutableDir)) {
+    const files = readdirSync(immutableDir);
+    const jsFile = files.find(f => f.startsWith('bundle.') && f.endsWith('.js'));
+    if (jsFile) localBundleJs = `/_app/immutable/${jsFile}`;
+    
+    const assetsDir = path.join(immutableDir, 'assets');
+    if (existsSync(assetsDir)) {
+      const assetFiles = readdirSync(assetsDir);
+      const cssFile = assetFiles.find(f => f.startsWith('bundle.') && f.endsWith('.css'));
+      if (cssFile) localBundleCss = `/_app/immutable/assets/${cssFile}`;
+    }
+  }
+} catch (e) {
+  console.warn('Failed to resolve local bundle hashes:', e);
+}
 
 const client = sirv(path.join(build, 'client'), {
   etag: true,
@@ -35,6 +59,15 @@ const prerendered = existsSync(prerenderedDir)
   : undefined;
 
 const server = createServer((req, res) => {
+  if (req.url) {
+    const urlPath = req.url.split('?')[0];
+    if (localBundleJs && urlPath.startsWith('/_app/immutable/bundle.') && urlPath.endsWith('.js')) {
+      req.url = localBundleJs;
+    } else if (localBundleCss && urlPath.startsWith('/_app/immutable/assets/bundle.') && urlPath.endsWith('.css')) {
+      req.url = localBundleCss;
+    }
+  }
+
   client(req, res, () => {
     const next = () => {
       if (req.url && req.url.startsWith('/_app/')) {

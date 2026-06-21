@@ -19,39 +19,41 @@ else
   ANNOUNCE_IP="$MY_FQDN"
 fi
 
-CURRENT_PRIMARY=$(
-  REDISCLI_AUTH="$CORE" valkey-cli -h "$SENTINEL_SVC" -p 26379 \
-    SENTINEL get-primary-addr-by-name myprimary 2>/dev/null | head -1 || true
-)
+if [ ! -f /data/valkey.conf ]; then
+  CURRENT_PRIMARY=$(
+    REDISCLI_AUTH="$CORE" valkey-cli -h "$SENTINEL_SVC" -p 26379 \
+      SENTINEL get-primary-addr-by-name myprimary 2>/dev/null | head -1 || true
+  )
 
-if [ -z "$CURRENT_PRIMARY" ]; then
-  # No master known yet (cold cluster): ordinal 0 is the default master.
-  if [ "$ORDINAL" = "0" ]; then
+  if [ -z "$CURRENT_PRIMARY" ]; then
+    # No master known yet (cold cluster): ordinal 0 is the default master.
+    if [ "$ORDINAL" = "0" ]; then
+      ROLE=primary
+    else
+      ROLE=replica
+      PRIMARY_HOST="valkey-node-0.${HEADLESS}"
+    fi
+  elif [ "$CURRENT_PRIMARY" = "$ANNOUNCE_IP" ]; then
+    # Sentinel tracks the master by its Tailscale announce IP, so compare against
+    # ours. (Pod IPs change on restart and must not be used here.)
     ROLE=primary
   else
     ROLE=replica
-    PRIMARY_HOST="valkey-node-0.${HEADLESS}"
+    PRIMARY_HOST="$CURRENT_PRIMARY"
   fi
-elif [ "$CURRENT_PRIMARY" = "$ANNOUNCE_IP" ]; then
-  # Sentinel tracks the master by its Tailscale announce IP, so compare against
-  # ours. (Pod IPs change on restart and must not be used here.)
-  ROLE=primary
-else
-  ROLE=replica
-  PRIMARY_HOST="$CURRENT_PRIMARY"
-fi
 
-cp /config/valkey.conf /data/valkey.conf
-chmod 600 /data/valkey.conf
+  cp /config/valkey.conf /data/valkey.conf
+  chmod 600 /data/valkey.conf
 
-cat >> /data/valkey.conf << EOF
+  cat >> /data/valkey.conf << EOF
 masterauth ${CORE}
 replica-announce-ip ${ANNOUNCE_IP}
 replica-announce-port 6379
 EOF
 
-if [ "$ROLE" = "replica" ]; then
-  echo "replicaof ${PRIMARY_HOST} 6379" >> /data/valkey.conf
+  if [ "$ROLE" = "replica" ]; then
+    echo "replicaof ${PRIMARY_HOST} 6379" >> /data/valkey.conf
+  fi
 fi
 
 exec valkey-server /data/valkey.conf
