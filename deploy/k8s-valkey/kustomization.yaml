@@ -9,16 +9,14 @@ resources:
   - dopplersecrets.yaml
   - statefulset.yaml
 
-# Scripts and base configs are generated with a content hash so any edit rolls
-# the StatefulSet (kustomize rewrites the volume references to the hashed name).
-# The base names match the volumes in statefulset.yaml.
+# Base config is generated with a content hash so any edit rolls the
+# StatefulSet (kustomize rewrites the volume reference to the hashed name).
+# Start/ping logic no longer lives in mounted scripts: valkey-server runs the
+# seeded conf directly, the Tailscale announce IP comes from the downward API
+# (status.hostIP is the node's tailnet address here), failover persistence is
+# valkey's built-in CONFIG REWRITE, and probes are inline valkey-cli. A small
+# initContainer seeds the writable /data conf once.
 configMapGenerator:
-  - name: valkey-scripts
-    files:
-      - scripts/start-valkey.sh
-      - scripts/start-sentinel.sh
-      - scripts/ping-valkey.sh
-      - scripts/ping-sentinel.sh
   - name: valkey-config
     files:
       - config/sentinel.conf
