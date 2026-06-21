@@ -69,7 +69,10 @@
               <span class="nd {s.state === 'connected' ? '' : 'warn'}"></span>
               <span class="nm">shard {s.shard_id}</span>
               <span class="sv">
-                {s.state} · {s.host || s.node}{#if s.pod_id} <span style="opacity:0.6">({s.pod_id})</span>{/if}
+                {s.state} · {s.host || 'unknown-host'}
+                {#if o.snapshot.nodes.indexOf(s.node) >= 0}
+                  <span style="opacity:0.6">(pod{o.snapshot.nodes.indexOf(s.node) + 1})</span>
+                {/if}
               </span>
               <span class="pg">{s.attempts ?? 0} att</span>
             </div>

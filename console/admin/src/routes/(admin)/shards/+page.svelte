@@ -104,16 +104,11 @@
     return 'green';
   }
 
-  function nodeHost(raw?: string): string {
-    if (!raw) return 'node?';
-
-    const normalized = String(raw);
-    const index = snap.nodes.findIndex((node: string) => node === normalized);
-    if (index >= 0) return `node${index + 1}`;
-
-    const host = normalized.includes('@') ? normalized.split('@')[0] : normalized;
-    if (/^node\d+$/i.test(host)) return host.toLowerCase();
-    return host || 'node?';
+  function podIndex(raw?: string): string {
+    if (!raw) return '';
+    const index = snap.nodes.findIndex((node: string) => node === String(raw));
+    if (index >= 0) return `pod${index + 1}`;
+    return '';
   }
 </script>
 
@@ -268,9 +263,9 @@
           <span class="shard-id">shard {s.shard_id}</span>
           <span class="state-badge {sb.tone}">{sb.label}</span>
           <span class="shard-node">
-            {s.host || nodeHost(s.node)}
-            {#if s.pod_id}
-              <span style="opacity:0.6; margin-left:4px">{s.pod_id}</span>
+            {s.host || 'unknown-host'}
+            {#if podIndex(s.node)}
+              <span style="opacity:0.6; margin-left:4px">({podIndex(s.node)})</span>
             {/if}
           </span>
         </div>
