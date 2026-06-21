@@ -13,8 +13,8 @@ export function scopes(): string[] {
   // Broadcaster grant. Mirrors the v1 broadcaster scope set (settings.py:
   // moderator:read:followers + user:read:chat + user:write:chat) plus channel:bot
   // so the bot may act in the channel. Adds channel:read:subscriptions and bits:read
-  // for EventSub access, and moderator scopes for dashboard moderation actions. 
-  const bot = 'channel:bot moderator:read:followers user:read:chat user:write:chat channel:read:subscriptions bits:read moderator:read:chatters moderator:manage:banned_users moderator:manage:chat_messages'
+  // for EventSub access.
+  const bot = 'channel:bot moderator:read:followers user:read:chat user:write:chat channel:read:subscriptions bits:read'
     .split(/\s+/)
     .filter(Boolean);
   return ['openid', 'user:read:email', ...bot];
