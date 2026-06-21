@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"strings"
 
+	"ItsBagelBot/internal/domain/outgress"
+
 	"go.uber.org/zap"
 )
 
@@ -20,7 +22,7 @@ import (
 
 // handleChatMessage resolves a "!command" against the broadcaster's custom
 // commands and, when it matches an active command, emits a chat reply.
-func (p *Pipeline) handleChatMessage(ctx context.Context, env Envelope, regress Regress) (*OutgressMessage, error) {
+func (p *Pipeline) handleChatMessage(ctx context.Context, env Envelope, regress Regress) (*outgress.Message, error) {
 	broadcasterID, ok := env.broadcasterID()
 	if !ok {
 		return nil, nil
@@ -60,7 +62,7 @@ func (p *Pipeline) handleChatMessage(ctx context.Context, env Envelope, regress 
 // handleStream reacts to the live lane (stream.online / stream.offline). It is
 // also delivered on the premium/standard event lanes (ingress dual-publishes
 // it), so modules keyed off going live can act without watching the live lane.
-func (p *Pipeline) handleStream(ctx context.Context, env Envelope, regress Regress) (*OutgressMessage, error) {
+func (p *Pipeline) handleStream(ctx context.Context, env Envelope, regress Regress) (*outgress.Message, error) {
 	broadcasterID, ok := env.broadcasterID()
 	if !ok {
 		return nil, nil
@@ -74,26 +76,26 @@ func (p *Pipeline) handleStream(ctx context.Context, env Envelope, regress Regre
 	return nil, nil
 }
 
-func (p *Pipeline) handleFollow(ctx context.Context, env Envelope, regress Regress) (*OutgressMessage, error) {
+func (p *Pipeline) handleFollow(ctx context.Context, env Envelope, regress Regress) (*outgress.Message, error) {
 	return p.eventStub(ctx, env, regress, "follow")
 }
 
-func (p *Pipeline) handleSubscribe(ctx context.Context, env Envelope, regress Regress) (*OutgressMessage, error) {
+func (p *Pipeline) handleSubscribe(ctx context.Context, env Envelope, regress Regress) (*outgress.Message, error) {
 	return p.eventStub(ctx, env, regress, "subscribe")
 }
 
-func (p *Pipeline) handleCheer(ctx context.Context, env Envelope, regress Regress) (*OutgressMessage, error) {
+func (p *Pipeline) handleCheer(ctx context.Context, env Envelope, regress Regress) (*outgress.Message, error) {
 	return p.eventStub(ctx, env, regress, "cheer")
 }
 
-func (p *Pipeline) handleRaid(ctx context.Context, env Envelope, regress Regress) (*OutgressMessage, error) {
+func (p *Pipeline) handleRaid(ctx context.Context, env Envelope, regress Regress) (*outgress.Message, error) {
 	return p.eventStub(ctx, env, regress, "raid")
 }
 
 // eventStub is the shared skeleton for the alert-style events. It loads the
 // broadcaster's modules so the real handler can branch on which alert modules
 // are enabled, then returns nothing until those modules are built.
-func (p *Pipeline) eventStub(ctx context.Context, env Envelope, regress Regress, kind string) (*OutgressMessage, error) {
+func (p *Pipeline) eventStub(ctx context.Context, env Envelope, regress Regress, kind string) (*outgress.Message, error) {
 	broadcasterID, ok := env.broadcasterID()
 	if !ok {
 		return nil, nil
@@ -131,13 +133,13 @@ func parseCommand(text string) (name, args string, ok bool) {
 
 // chatReply builds the outgress message that sends one chat line. sender_id is
 // left for outgress to fill from the bot account it authenticates as.
-func chatReply(broadcasterID, message string) *OutgressMessage {
+func chatReply(broadcasterID, message string) *outgress.Message {
 	body, _ := json.Marshal(map[string]string{
 		"broadcaster_id": broadcasterID,
 		"message":        message,
 	})
-	return &OutgressMessage{
-		Type:          "chat",
+	return &outgress.Message{
+		Type:          outgress.TypeChat,
 		BroadcasterID: broadcasterID,
 		Endpoint:      "/helix/chat/messages",
 		Method:        "POST",

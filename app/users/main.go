@@ -138,7 +138,7 @@ func main() {
 	}
 
 	adminPrefix := env.Get("NATS_ADMIN_USER_SUBJECT_PREFIX", "bagel.rpc.admin.user")
-	if err := rpc.SubscribeAdmin(nc, client, repo, adminPrefix, invalidationPrefix, queueGroup, nrApp, log); err != nil {
+	if err := rpc.SubscribeAdmin(nc, repo, adminPrefix, invalidationPrefix, queueGroup, nrApp, log); err != nil {
 		log.Fatal("failed to subscribe admin rpc", zap.Error(err))
 	}
 

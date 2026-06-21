@@ -4,6 +4,7 @@ namespace: valkey
 
 resources:
   - serviceaccount.yaml
+  - rbac.yaml
   - services.yaml
   - pdb.yaml
   - dopplersecrets.yaml

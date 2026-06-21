@@ -10,6 +10,7 @@ import (
 	"go.uber.org/zap"
 
 	"ItsBagelBot/app/commands/repository"
+	commandsrpc "ItsBagelBot/internal/domain/rpc/commands"
 	"ItsBagelBot/pkg/bus"
 )
 
@@ -23,7 +24,7 @@ func SubscribeDashboard(nc *nats.Conn, repo *repository.Commands, prefix, queueG
 
 	verbs := []struct {
 		verb    string
-		handler func(context.Context, dashboardRequest) dashboardReply
+		handler func(context.Context, commandsrpc.DashboardRequest) commandsrpc.DashboardReply
 	}{
 		{"list", d.handleList},
 		{"upsert", d.handleUpsert},
@@ -32,44 +33,22 @@ func SubscribeDashboard(nc *nats.Conn, repo *repository.Commands, prefix, queueG
 
 	for _, v := range verbs {
 		subject := prefix + "." + v.verb
-		if err := bus.QueueSubscribeJSON[dashboardRequest, dashboardReply](nc, subject, queueGroup, 2*time.Second, app, log, v.handler); err != nil {
+		if err := bus.QueueSubscribeJSON[commandsrpc.DashboardRequest, commandsrpc.DashboardReply](nc, subject, queueGroup, 2*time.Second, app, log, v.handler); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// dashboardRequest covers all three verbs; unused fields are zero-valued.
-type dashboardRequest struct {
-	UserID           string   `json:"user_id"`
-	Name             string   `json:"name"`
-	Aliases          []string `json:"aliases"`
-	Response         string   `json:"response"`
-	IsActive         bool     `json:"is_active"`
-	StreamOnlineOnly bool     `json:"stream_online_only"`
-	Perm             string   `json:"perm"`
-	Cooldown         uint     `json:"cooldown"`
-	AllowedUserID    string   `json:"allowed_user_id"`
-	// OriginalName, when set and different from Name, makes upsert a rename:
-	// the existing row keeps its identity and its name field is updated in
-	// place instead of being deleted and recreated under the new name.
-	OriginalName string `json:"original_name"`
-}
-
-type dashboardReply struct {
-	Commands []repository.CommandView `json:"commands"`
-	Error    string                   `json:"error,omitempty"`
-}
-
-func (d *dashboardRPC) parseUserID(req dashboardRequest) (uint64, bool, dashboardReply) {
+func (d *dashboardRPC) parseUserID(req commandsrpc.DashboardRequest) (uint64, bool, commandsrpc.DashboardReply) {
 	id, err := strconv.ParseUint(req.UserID, 10, 64)
 	if err != nil {
-		return 0, false, dashboardReply{Error: "invalid user_id"}
+		return 0, false, commandsrpc.DashboardReply{Error: "invalid user_id"}
 	}
-	return id, true, dashboardReply{}
+	return id, true, commandsrpc.DashboardReply{}
 }
 
-func (d *dashboardRPC) handleList(ctx context.Context, req dashboardRequest) dashboardReply {
+func (d *dashboardRPC) handleList(ctx context.Context, req commandsrpc.DashboardRequest) commandsrpc.DashboardReply {
 	id, ok, reply := d.parseUserID(req)
 	if !ok {
 		return reply
@@ -77,12 +56,12 @@ func (d *dashboardRPC) handleList(ctx context.Context, req dashboardRequest) das
 
 	views, err := d.repo.List(ctx, id)
 	if err != nil {
-		return dashboardReply{Error: err.Error()}
+		return commandsrpc.DashboardReply{Error: err.Error()}
 	}
-	return dashboardReply{Commands: views}
+	return commandsrpc.DashboardReply{Commands: views}
 }
 
-func (d *dashboardRPC) handleUpsert(ctx context.Context, req dashboardRequest) dashboardReply {
+func (d *dashboardRPC) handleUpsert(ctx context.Context, req commandsrpc.DashboardRequest) commandsrpc.DashboardReply {
 	id, ok, reply := d.parseUserID(req)
 	if !ok {
 		return reply
@@ -93,7 +72,7 @@ func (d *dashboardRPC) handleUpsert(ctx context.Context, req dashboardRequest) d
 	if req.AllowedUserID != "" {
 		parsed, err := strconv.ParseUint(req.AllowedUserID, 10, 64)
 		if err != nil {
-			return dashboardReply{Error: "invalid allowed_user_id"}
+			return commandsrpc.DashboardReply{Error: "invalid allowed_user_id"}
 		}
 		allowedUserID = parsed
 	}
@@ -110,13 +89,13 @@ func (d *dashboardRPC) handleUpsert(ctx context.Context, req dashboardRequest) d
 	if opErr != nil {
 		// Validation/conflict error: return it alongside the current list.
 		views, _ := d.repo.List(ctx, id)
-		return dashboardReply{Commands: views, Error: opErr.Error()}
+		return commandsrpc.DashboardReply{Commands: views, Error: opErr.Error()}
 	}
 
 	// Upsert is write-behind (~2 s), so build an optimistic reply.
 	views, err := d.repo.List(ctx, id)
 	if err != nil {
-		return dashboardReply{Error: err.Error()}
+		return commandsrpc.DashboardReply{Error: err.Error()}
 	}
 
 	// Drop the pre-rename key from the optimistic view (rename is immediate, so
@@ -154,23 +133,23 @@ func (d *dashboardRPC) handleUpsert(ctx context.Context, req dashboardRequest) d
 		views = append(views, upserted)
 	}
 
-	return dashboardReply{Commands: views}
+	return commandsrpc.DashboardReply{Commands: views}
 }
 
-func (d *dashboardRPC) handleDelete(ctx context.Context, req dashboardRequest) dashboardReply {
+func (d *dashboardRPC) handleDelete(ctx context.Context, req commandsrpc.DashboardRequest) commandsrpc.DashboardReply {
 	id, ok, reply := d.parseUserID(req)
 	if !ok {
 		return reply
 	}
 
 	if err := d.repo.Delete(ctx, id, req.Name); err != nil {
-		return dashboardReply{Error: err.Error()}
+		return commandsrpc.DashboardReply{Error: err.Error()}
 	}
 
 	// Delete is immediate and invalidates the cache, so List is fresh.
 	views, err := d.repo.List(ctx, id)
 	if err != nil {
-		return dashboardReply{Error: err.Error()}
+		return commandsrpc.DashboardReply{Error: err.Error()}
 	}
-	return dashboardReply{Commands: views}
+	return commandsrpc.DashboardReply{Commands: views}
 }

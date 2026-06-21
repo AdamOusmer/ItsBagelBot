@@ -8,6 +8,7 @@ import (
 
 	"ItsBagelBot/app/users/ent"
 	"ItsBagelBot/app/users/ent/enttest"
+	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
@@ -46,7 +47,7 @@ func TestAuditListPagesResults(t *testing.T) {
 		createAuditEntry(t, client, i, base.Add(time.Duration(i)*time.Minute))
 	}
 
-	first := a.auditList(ctx, authRequest{Page: 1, Limit: auditPageSize})
+	first := a.auditList(ctx, usersrpc.AuthRequest{Page: 1, Limit: auditPageSize})
 	require.Empty(t, first.Error)
 	require.Len(t, first.Entries, auditPageSize)
 	assert.Equal(t, 1, first.Page)
@@ -56,7 +57,7 @@ func TestAuditListPagesResults(t *testing.T) {
 	assert.Equal(t, "user-29", first.Entries[0].Target)
 	assert.Equal(t, fmt.Sprintf("user-%02d", 30-auditPageSize), first.Entries[auditPageSize-1].Target)
 
-	second := a.auditList(ctx, authRequest{Page: 2, Limit: auditPageSize})
+	second := a.auditList(ctx, usersrpc.AuthRequest{Page: 2, Limit: auditPageSize})
 	require.Empty(t, second.Error)
 	require.Len(t, second.Entries, auditPageSize)
 	assert.False(t, second.HasMore)
@@ -80,7 +81,7 @@ func TestAuditListSearchesBeforePaging(t *testing.T) {
 		SetCreatedAt(base.Add(2 * time.Hour)).
 		ExecX(ctx)
 
-	reply := a.auditList(ctx, authRequest{Page: 1, Limit: auditPageSize, Search: "NEEDLE"})
+	reply := a.auditList(ctx, usersrpc.AuthRequest{Page: 1, Limit: auditPageSize, Search: "NEEDLE"})
 	require.Empty(t, reply.Error)
 	require.Len(t, reply.Entries, 1)
 	assert.Equal(t, "itsmavey", reply.Entries[0].ActorLogin)
