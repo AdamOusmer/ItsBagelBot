@@ -186,7 +186,9 @@ func (_u *CommandsUpdate) Mutation() *CommandsMutation {
 
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (_u *CommandsUpdate) Save(ctx context.Context) (int, error) {
-	_u.defaults()
+	if err := _u.defaults(); err != nil {
+		return 0, err
+	}
 	return withHooks(ctx, _u.sqlSave, _u.mutation, _u.hooks)
 }
 
@@ -213,11 +215,15 @@ func (_u *CommandsUpdate) ExecX(ctx context.Context) {
 }
 
 // defaults sets the default values of the builder before save.
-func (_u *CommandsUpdate) defaults() {
+func (_u *CommandsUpdate) defaults() error {
 	if _, ok := _u.mutation.UpdatedAt(); !ok {
+		if commands.UpdateDefaultUpdatedAt == nil {
+			return fmt.Errorf("ent: uninitialized commands.UpdateDefaultUpdatedAt (forgotten import ent/runtime?)")
+		}
 		v := commands.UpdateDefaultUpdatedAt()
 		_u.mutation.SetUpdatedAt(v)
 	}
+	return nil
 }
 
 // check runs all checks and user-defined validators on the builder.
@@ -481,7 +487,9 @@ func (_u *CommandsUpdateOne) Select(field string, fields ...string) *CommandsUpd
 
 // Save executes the query and returns the updated Commands entity.
 func (_u *CommandsUpdateOne) Save(ctx context.Context) (*Commands, error) {
-	_u.defaults()
+	if err := _u.defaults(); err != nil {
+		return nil, err
+	}
 	return withHooks(ctx, _u.sqlSave, _u.mutation, _u.hooks)
 }
 
@@ -508,11 +516,15 @@ func (_u *CommandsUpdateOne) ExecX(ctx context.Context) {
 }
 
 // defaults sets the default values of the builder before save.
-func (_u *CommandsUpdateOne) defaults() {
+func (_u *CommandsUpdateOne) defaults() error {
 	if _, ok := _u.mutation.UpdatedAt(); !ok {
+		if commands.UpdateDefaultUpdatedAt == nil {
+			return fmt.Errorf("ent: uninitialized commands.UpdateDefaultUpdatedAt (forgotten import ent/runtime?)")
+		}
 		v := commands.UpdateDefaultUpdatedAt()
 		_u.mutation.SetUpdatedAt(v)
 	}
+	return nil
 }
 
 // check runs all checks and user-defined validators on the builder.

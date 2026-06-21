@@ -307,7 +307,8 @@ func (c *CommandsClient) GetX(ctx context.Context, id int) *Commands {
 
 // Hooks returns the client hooks.
 func (c *CommandsClient) Hooks() []Hook {
-	return c.hooks.Commands
+	hooks := c.hooks.Commands
+	return append(hooks[:len(hooks):len(hooks)], commands.Hooks[:]...)
 }
 
 // Interceptors returns the client interceptors.
