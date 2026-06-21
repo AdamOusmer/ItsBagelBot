@@ -43,10 +43,71 @@
     pending = null;
   }
 
+  // Live enroll state. The SSR `conn` carries a one-shot snapshot; a reconnect
+  // resolves asynchronously in outgress, so we poll /substate to flip the pill
+  // from "reconnecting" to ok/failing without a manual refresh. `sub` (when set)
+  // overrides the server snapshot.
+  let sub = $state<{ state: string; error: string } | null>(null);
+  let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+  function stopPolling() {
+    if (pollTimer) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
+  }
+
+  async function refreshSub(): Promise<string> {
+    try {
+      const r = await fetch('/substate');
+      if (r.ok) {
+        sub = await r.json();
+        return sub?.state ?? 'unknown';
+      }
+    } catch {
+      /* transient; the next tick retries */
+    }
+    return 'unknown';
+  }
+
+  // Poll while pending, backstopped at ~30s so a stuck job stops spinning.
+  function startPolling() {
+    stopPolling();
+    let ticks = 0;
+    pollTimer = setInterval(async () => {
+      ticks += 1;
+      const state = await refreshSub();
+      if (state !== 'pending' || ticks >= 12) stopPolling();
+    }, 2500);
+  }
+
+  // Mark reconnecting immediately on user action, then poll to the outcome.
+  function trackReconnect() {
+    sub = { state: 'pending', error: '' };
+    startPolling();
+  }
+
+  onMount(() => {
+    refreshSub().then((state) => {
+      if (state === 'pending') startPolling();
+    });
+    return stopPolling;
+  });
+
   function closeAfterSubmit() {
+    const wasRestart = pending === 'restart';
     return async ({ update }: { update: (opts?: { invalidateAll?: boolean }) => Promise<void> }) => {
       await update();
       closeModal();
+      // Only a restart re-enrolls; disconnect just tears down.
+      if (wasRestart) trackReconnect();
+    };
+  }
+
+  function enableSubmit() {
+    return async ({ update }: { update: (opts?: { invalidateAll?: boolean }) => Promise<void> }) => {
+      await update();
+      trackReconnect();
     };
   }
 </script>
@@ -68,6 +129,7 @@
       </div>
       <div class="actions"></div>
     {:then c}
+      {@const ss = sub?.state ?? c.subState}
       <div>
         <div class="live {c.receiving ? '' : 'off'}">
           <span class="dot"></span> {c.receiving ? 'Online · in chat' : c.enabled ? 'Connected · idle' : 'Not connected'}
@@ -75,19 +137,22 @@
         <h2>#{data.login ?? 'itsmavey'}</h2>
         <div class="meta">
           <span class="status-tag {c.status !== 'free' ? 'premium' : ''}">{statusLabel(c.status)}</span>
-          {#if c.subState === 'failing'}
-            <span class="status-tag sub-state err" title={c.subError || 'EventSub enroll failed'}>EventSub failing{c.subError ? ': ' + c.subError.slice(0, 60) : ''}</span>
-          {:else if c.subState === 'pending'}
-            <span class="status-tag sub-state warn">reconnecting…</span>
+          {#if ss === 'failing'}
+            <span class="status-tag sub-state err">Reconnect needed</span>
+          {:else if ss === 'pending'}
+            <span class="status-tag sub-state warn">Reconnecting…</span>
           {/if}
         </div>
+        {#if ss === 'failing'}
+          <p class="sub-fix">Chat subscriptions dropped. Fix in <strong>Settings → Reconnect</strong>.</p>
+        {/if}
       </div>
       <div class="actions">
         {#if c.receiving}
           <Button variant="ghost" icon="activity" type="button" onclick={() => openModal('restart')}>Restart</Button>
           <Button variant="tan" icon="power" type="button" onclick={() => openModal('disconnect')}>Disconnect</Button>
         {:else}
-          <form method="POST" action="?/enable" use:enhance>
+          <form method="POST" action="?/enable" use:enhance={enableSubmit}>
             <Button variant="primary" icon="power" type="submit">Enable</Button>
           </form>
         {/if}
@@ -241,6 +306,18 @@
     background: rgba(200, 160, 80, 0.12);
     border-color: rgba(200, 160, 80, 0.35);
     color: var(--bb-tan-light, #c8a050);
+  }
+  .sub-fix {
+    margin: 8px 0 0;
+    max-width: 36ch;
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--bb-muted);
+  }
+  .sub-fix strong {
+    color: #cf8a78;
+    font-weight: 600;
+    white-space: nowrap;
   }
   .overview-stats {
     margin-bottom: var(--row-gap);
