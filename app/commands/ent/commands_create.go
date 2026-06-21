@@ -149,7 +149,9 @@ func (_c *CommandsCreate) Mutation() *CommandsMutation {
 
 // Save creates the Commands in the database.
 func (_c *CommandsCreate) Save(ctx context.Context) (*Commands, error) {
-	_c.defaults()
+	if err := _c.defaults(); err != nil {
+		return nil, err
+	}
 	return withHooks(ctx, _c.sqlSave, _c.mutation, _c.hooks)
 }
 
@@ -176,7 +178,7 @@ func (_c *CommandsCreate) ExecX(ctx context.Context) {
 }
 
 // defaults sets the default values of the builder before save.
-func (_c *CommandsCreate) defaults() {
+func (_c *CommandsCreate) defaults() error {
 	if _, ok := _c.mutation.IsActive(); !ok {
 		v := commands.DefaultIsActive
 		_c.mutation.SetIsActive(v)
@@ -198,13 +200,20 @@ func (_c *CommandsCreate) defaults() {
 		_c.mutation.SetAllowedUserID(v)
 	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
+		if commands.DefaultCreatedAt == nil {
+			return fmt.Errorf("ent: uninitialized commands.DefaultCreatedAt (forgotten import ent/runtime?)")
+		}
 		v := commands.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
 	}
 	if _, ok := _c.mutation.UpdatedAt(); !ok {
+		if commands.DefaultUpdatedAt == nil {
+			return fmt.Errorf("ent: uninitialized commands.DefaultUpdatedAt (forgotten import ent/runtime?)")
+		}
 		v := commands.DefaultUpdatedAt()
 		_c.mutation.SetUpdatedAt(v)
 	}
+	return nil
 }
 
 // check runs all checks and user-defined validators on the builder.
