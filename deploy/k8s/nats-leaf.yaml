@@ -43,14 +43,6 @@ spec:
           operator: Equal
           value: worker-pool
           effect: NoSchedule
-        - key: node.kubernetes.io/unreachable
-          operator: Exists
-          effect: NoExecute
-          tolerationSeconds: 60
-        - key: node.kubernetes.io/not-ready
-          operator: Exists
-          effect: NoExecute
-          tolerationSeconds: 60
       # Shared PID namespace lets the config-reloader sidecar SIGHUP the
       # nats-server process (same uid 1000) when the mounted config changes.
       shareProcessNamespace: true
