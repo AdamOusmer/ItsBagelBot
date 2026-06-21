@@ -267,7 +267,7 @@
         <div class="shard-head">
           <span class="shard-id">shard {s.shard_id}</span>
           <span class="state-badge {sb.tone}">{sb.label}</span>
-          <span class="shard-node">{nodeHost(s.node)}</span>
+          <span class="shard-node">{s.host || nodeHost(s.node)}</span>
         </div>
         <div class="shard-meta">
           <span>{s.bound ? 'bound' : 'unbound'}</span>
