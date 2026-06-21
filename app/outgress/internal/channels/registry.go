@@ -28,6 +28,9 @@ type Channel struct {
 	IsMod         bool      `json:"is_mod"`
 	ModCheckedAt  time.Time `json:"mod_checked_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
+	SubState      string    `json:"sub_state"`      // "ok" | "pending" | "failing" | "" (unknown)
+	SubError      string    `json:"sub_error"`      // last failure detail; empty when ok
+	SubCheckedAt  time.Time `json:"sub_checked_at"`
 }
 
 type Registry struct {
@@ -57,6 +60,9 @@ func (r *Registry) Get(ctx context.Context, broadcasterID string) (Channel, bool
 		IsMod:         fields["is_mod"] == "1",
 		ModCheckedAt:  unixField(fields["mod_checked_at"]),
 		UpdatedAt:     unixField(fields["updated_at"]),
+		SubState:      fields["sub_state"],
+		SubError:      fields["sub_error"],
+		SubCheckedAt:  unixField(fields["sub_checked_at"]),
 	}, true, nil
 }
 
@@ -71,6 +77,9 @@ func (r *Registry) Save(ctx context.Context, ch Channel) error {
 			FieldValue("is_mod", utils.BoolField(ch.IsMod)).
 			FieldValue("mod_checked_at", strconv.FormatInt(ch.ModCheckedAt.Unix(), 10)).
 			FieldValue("updated_at", strconv.FormatInt(time.Now().Unix(), 10)).
+			FieldValue("sub_state", ch.SubState).
+			FieldValue("sub_error", ch.SubError).
+			FieldValue("sub_checked_at", strconv.FormatInt(ch.SubCheckedAt.Unix(), 10)).
 			Build(),
 		r.client.B().Sadd().Key(indexKey).Member(ch.BroadcasterID).Build(),
 	) {
@@ -104,6 +113,64 @@ func (r *Registry) SetMod(ctx context.Context, broadcasterID string, isMod bool)
 	}
 
 	return nil
+}
+
+// SetSubState records the current eventsub enrollment state for a broadcaster
+// without touching enabled/is_mod. It also updates updated_at so listeners
+// polling the registry see a freshness bump.
+func (r *Registry) SetSubState(ctx context.Context, broadcasterID, state, errMsg string) error {
+
+	key := keyPrefix + broadcasterID
+	now := strconv.FormatInt(time.Now().Unix(), 10)
+
+	for _, res := range r.client.DoMulti(ctx,
+		r.client.B().Hset().Key(key).FieldValue().
+			FieldValue("sub_state", state).
+			FieldValue("sub_error", errMsg).
+			FieldValue("sub_checked_at", now).
+			FieldValue("updated_at", now).
+			Build(),
+		r.client.B().Sadd().Key(indexKey).Member(broadcasterID).Build(),
+	) {
+		if err := res.Error(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+const enrollLockPrefix = "outgress:enroll:lock:"
+
+// AcquireEnrollLock tries to set a Valkey NX key as a distributed lock.
+// Returns true if this caller owns the lock, false if another replica holds it.
+func (r *Registry) AcquireEnrollLock(ctx context.Context, broadcasterID, owner string, ttl time.Duration) (bool, error) {
+
+	key := enrollLockPrefix + broadcasterID
+	res := r.client.Do(ctx,
+		r.client.B().Set().Key(key).Value(owner).Nx().PxMilliseconds(ttl.Milliseconds()).Build(),
+	)
+	// SET NX returns a bulk-string "OK" on success or a nil bulk-string on failure.
+	// rueidis/valkey-go represents the nil bulk as a Nil error on ToString.
+	str, err := res.ToString()
+	if err != nil {
+		if valkey.IsValkeyNil(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return str == "OK", nil
+}
+
+// ReleaseEnrollLock deletes the lock key only when its value matches owner,
+// preventing a replica from releasing a lock it no longer holds.
+func (r *Registry) ReleaseEnrollLock(ctx context.Context, broadcasterID, owner string) error {
+
+	key := enrollLockPrefix + broadcasterID
+	const luaDel = `if redis.call('get',KEYS[1])==ARGV[1] then return redis.call('del',KEYS[1]) else return 0 end`
+	return r.client.Do(ctx,
+		r.client.B().Eval().Script(luaDel).Numkeys(1).Key(key).Arg(owner).Build(),
+	).Error()
 }
 
 // List returns every registered channel.

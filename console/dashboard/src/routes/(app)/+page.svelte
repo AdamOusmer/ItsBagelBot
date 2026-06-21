@@ -75,6 +75,11 @@
         <h2>#{data.login ?? 'itsmavey'}</h2>
         <div class="meta">
           <span class="status-tag {c.status !== 'free' ? 'premium' : ''}">{statusLabel(c.status)}</span>
+          {#if c.subState === 'failing'}
+            <span class="status-tag sub-state err" title={c.subError || 'EventSub enroll failed'}>EventSub failing{c.subError ? ': ' + c.subError.slice(0, 60) : ''}</span>
+          {:else if c.subState === 'pending'}
+            <span class="status-tag sub-state warn">reconnecting…</span>
+          {/if}
         </div>
       </div>
       <div class="actions">
@@ -226,6 +231,16 @@
     background: rgba(82, 183, 136, 0.12);
     border-color: rgba(82, 183, 136, 0.35);
     color: var(--bb-green-glow);
+  }
+  .status-tag.sub-state.err {
+    background: rgba(176, 90, 70, 0.15);
+    border-color: rgba(176, 90, 70, 0.4);
+    color: #cf8a78;
+  }
+  .status-tag.sub-state.warn {
+    background: rgba(200, 160, 80, 0.12);
+    border-color: rgba(200, 160, 80, 0.35);
+    color: var(--bb-tan-light, #c8a050);
   }
   .overview-stats {
     margin-bottom: var(--row-gap);
