@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Icon, Modal, PageHead } from '@bagel/shared';
+  import { Icon, Modal, PageHead, Card } from '@bagel/shared';
   import { page } from '$app/state';
   import { enhance } from '$app/forms';
   import CheckButton from '$lib/components/CheckButton.svelte';
@@ -54,7 +54,7 @@
   {/if}
 
   <!-- ACCOUNT -->
-  <div class="card">
+  <Card class="settings-card">
     <h2>Account</h2>
     <div class="row">
       <div>
@@ -70,10 +70,10 @@
       </div>
       <button type="button" class="btn ghost danger" onclick={openDelete}>Delete account</button>
     </div>
-  </div>
+  </Card>
 
   <!-- CONTROL -->
-  <div class="card">
+  <Card class="settings-card">
     <h2>Access you granted</h2>
     <p class="hint">Generate a link to give someone scoped access to your dashboard. The first person to accept it is bound to that access permanently — revoke it here any time.</p>
     {#if given.length === 0}
@@ -120,9 +120,9 @@
       <CheckButton name="commands" checked={true} label="Commands" />
       <button class="btn primary" type="submit"><Icon name="link" size={14} /> Generate link</button>
     </form>
-  </div>
+  </Card>
 
-  <div class="card">
+  <Card class="settings-card">
     <h2>Dashboards shared with you</h2>
     {#if received.length === 0}
       <p class="hint">No one has shared a dashboard with you.</p>
@@ -148,7 +148,7 @@
         </tbody>
       </table>
     {/if}
-  </div>
+  </Card>
 </section>
 
 <!-- Delete confirm modal -->
@@ -166,15 +166,11 @@
 <svelte:window onkeydown={(e) => { if (e.key === 'Escape') closeDelete(); }} />
 
 <style>
-  .card {
-    background: var(--bb-bg-2, #1a1714);
-    border: 1px solid var(--bb-line, rgba(255, 255, 255, 0.08));
-    border-radius: var(--bb-radius, 14px);
-    padding: 20px;
+  :global(.settings-card) {
     margin-top: 18px;
   }
-  .card h2 { margin: 0 0 6px; font-size: 16px; }
-  .card h3 { margin: 0 0 6px; font-size: 14px; }
+  h2 { margin: 0 0 6px; font-size: 16px; }
+  h3 { margin: 0 0 6px; font-size: 14px; }
   .hint { color: var(--bb-muted, #998f82); font-size: 13px; margin: 0 0 12px; }
   .row {
     display: flex;

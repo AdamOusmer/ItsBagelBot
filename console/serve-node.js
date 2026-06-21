@@ -19,7 +19,7 @@ const client = sirv(path.join(build, 'client'), {
   gzip: true,
   brotli: true,
   setHeaders: (res, pathname) => {
-    if (pathname.startsWith(immutable)) {
+    if (pathname.includes(immutable)) {
       res.setHeader('cache-control', 'public,max-age=31536000,immutable');
     }
   }
@@ -37,6 +37,16 @@ const prerendered = existsSync(prerenderedDir)
 const server = createServer((req, res) => {
   client(req, res, () => {
     const next = () => {
+      if (req.url && req.url.startsWith('/_app/')) {
+        res.statusCode = 404;
+        const url = req.url || '';
+        if (url.endsWith('.css')) res.setHeader('Content-Type', 'text/css');
+        else if (url.endsWith('.js')) res.setHeader('Content-Type', 'application/javascript');
+        else res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+        res.end('Not found');
+        return;
+      }
+
       handler(req, res, () => {
         res.statusCode = 404;
         const url = req.url || '';
