@@ -4,17 +4,6 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="icon" href="%sveltekit.assets%/logo.png" />
-  <script>
-    window.addEventListener('unhandledrejection', (e) => {
-      if (e.reason?.name === 'TypeError' && e.reason?.message?.includes('dynamically imported module')) {
-        if (!sessionStorage.getItem('deploy_reload')) {
-          sessionStorage.setItem('deploy_reload', '1');
-          location.reload();
-        }
-      }
-    });
-    window.addEventListener('load', () => sessionStorage.removeItem('deploy_reload'));
-  </script>
   %sveltekit.head%
 </head>
 <body data-role="streamer" data-sveltekit-preload-data="hover">
