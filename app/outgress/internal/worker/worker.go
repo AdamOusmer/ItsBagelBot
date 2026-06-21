@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"ItsBagelBot/app/outgress/internal/channels"
+	"ItsBagelBot/app/outgress/internal/conduit"
 	"ItsBagelBot/app/outgress/internal/ratelimit"
 	"ItsBagelBot/app/outgress/internal/twitch"
 
@@ -124,24 +125,24 @@ type EventSubJob struct {
 }
 
 type Worker struct {
-	log       *zap.Logger
-	limiter   *ratelimit.Limiter
-	registry  *channels.Registry
-	twitch    *twitch.Client
-	botID     string
-	conduitID string
-	lane      Lane
+	log      *zap.Logger
+	limiter  *ratelimit.Limiter
+	registry *channels.Registry
+	twitch   *twitch.Client
+	botID    string
+	conduit  *conduit.Resolver
+	lane     Lane
 }
 
-func New(log *zap.Logger, limiter *ratelimit.Limiter, registry *channels.Registry, tw *twitch.Client, botID, conduitID string, lane Lane) *Worker {
+func New(log *zap.Logger, limiter *ratelimit.Limiter, registry *channels.Registry, tw *twitch.Client, botID string, conduitResolver *conduit.Resolver, lane Lane) *Worker {
 	return &Worker{
-		log:       log,
-		limiter:   limiter,
-		registry:  registry,
-		twitch:    tw,
-		botID:     botID,
-		conduitID: conduitID,
-		lane:      lane,
+		log:      log,
+		limiter:  limiter,
+		registry: registry,
+		twitch:   tw,
+		botID:    botID,
+		conduit:  conduitResolver,
+		lane:     lane,
 	}
 }
 
@@ -277,14 +278,17 @@ func (w *Worker) processAPI(ctx context.Context, payload OutgressMessage) error 
 // error) converges when redelivery re-runs it.
 func (w *Worker) processEventSub(ctx context.Context, payload OutgressMessage) error {
 
-	if w.conduitID == "" {
-		w.log.Error("dropping eventsub job, no conduit id configured",
-			zap.String("broadcaster_id", payload.BroadcasterID))
-		return nil
-	}
 	if payload.BroadcasterID == "" {
 		w.log.Error("dropping eventsub job without broadcaster id")
 		return nil
+	}
+
+	conduitID, err := w.conduit.Get(ctx)
+	if err != nil {
+		w.log.Warn("eventsub job cannot resolve conduit id, will retry",
+			zap.String("broadcaster_id", payload.BroadcasterID),
+			zap.Error(err))
+		return err
 	}
 
 	var job EventSubJob
@@ -294,12 +298,12 @@ func (w *Worker) processEventSub(ctx context.Context, payload OutgressMessage) e
 	}
 
 	if job.Enabled {
-		return w.enableEventSubs(ctx, payload.BroadcasterID)
+		return w.enableEventSubs(ctx, payload.BroadcasterID, conduitID)
 	}
-	return w.disableEventSubs(ctx, payload.BroadcasterID)
+	return w.disableEventSubs(ctx, payload.BroadcasterID, conduitID)
 }
 
-func (w *Worker) enableEventSubs(ctx context.Context, broadcasterID string) error {
+func (w *Worker) enableEventSubs(ctx context.Context, broadcasterID, conduitID string) error {
 
 	if w.botID == "" {
 		w.log.Warn("bot user id not configured, channel chat subscription will be skipped",
@@ -310,7 +314,8 @@ func (w *Worker) enableEventSubs(ctx context.Context, broadcasterID string) erro
 		if err := w.takeSystemHelix(ctx); err != nil {
 			return err
 		}
-		if err := w.twitch.CreateEventSub(ctx, spec, w.conduitID); err != nil {
+		if err := w.twitch.CreateEventSub(ctx, spec, conduitID); err != nil {
+			w.conduit.Invalidate()
 			return w.eventSubFailure(err, "eventsub create", broadcasterID, spec.Type)
 		}
 	}
@@ -319,7 +324,7 @@ func (w *Worker) enableEventSubs(ctx context.Context, broadcasterID string) erro
 	return nil
 }
 
-func (w *Worker) disableEventSubs(ctx context.Context, broadcasterID string) error {
+func (w *Worker) disableEventSubs(ctx context.Context, broadcasterID, conduitID string) error {
 
 	deleted := 0
 	cursor := ""
@@ -333,7 +338,7 @@ func (w *Worker) disableEventSubs(ctx context.Context, broadcasterID string) err
 		}
 
 		for _, sub := range subs {
-			if sub.Transport.ConduitID != w.conduitID {
+			if sub.Transport.ConduitID != conduitID {
 				continue
 			}
 			if err := w.takeSystemHelix(ctx); err != nil {

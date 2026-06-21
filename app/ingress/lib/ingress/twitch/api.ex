@@ -43,13 +43,15 @@ defmodule Ingress.Twitch.Api do
     end
   end
 
-  # A pinned conduit that is not in the list is an error, never a create:
-  # silently creating would strand EventSub subscriptions on the pinned ID
-  # while shards bind elsewhere (and Twitch caps conduits per client).
+  # An unset conduit pin is a hard error: the conduit id is a shared contract
+  # with outgress, so silently adopting the first conduit Twitch lists could
+  # drift from the conduit outgress is enrolled into. A nil/empty pin means
+  # the operator hasn't set TWITCH_CONDUIT_ID yet; fail loudly rather than
+  # binding shards to an arbitrary conduit.
   defp pick_conduit(conduits) do
     case Config.twitch_conduit_id() do
-      nil -> {:ok, List.first(conduits)}
-      "" -> {:ok, List.first(conduits)}
+      nil -> {:error, :conduit_id_unset}
+      "" -> {:error, :conduit_id_unset}
       id ->
         case Enum.find(conduits, &(&1["id"] == id)) do
           nil -> {:error, {:pinned_conduit_missing, id}}

@@ -65,6 +65,7 @@ defmodule Ingress.Application do
       admin_consumer(),
       scale_consumer(),
       autoscale_consumer(),
+      conduit_consumer(),
       Ingress.Bootstrapper
     ]
   end
@@ -133,6 +134,20 @@ defmodule Ingress.Application do
     Supervisor.child_spec(
       {Gnat.ConsumerSupervisor, settings},
       id: :scale_consumer
+    )
+  end
+
+  # Request-reply endpoint for live conduit id: body {}, replies {"conduit_id": "<uuid>"}.
+  defp conduit_consumer do
+    settings = %{
+      connection_name: :gnat,
+      module: Ingress.ConduitRpc,
+      subscription_topics: [%{topic: Config.conduit_subject(), queue_group: "twitch-ingress-admin"}]
+    }
+
+    Supervisor.child_spec(
+      {Gnat.ConsumerSupervisor, settings},
+      id: :conduit_consumer
     )
   end
 
