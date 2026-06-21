@@ -34,7 +34,7 @@ export function botScopes(): string[] {
   const override = (env.BOT_OAUTH_SCOPES ?? '').split(/\s+/).filter(Boolean);
   if (override.length) return override;
   // Bot account grant. Mirrors the v1 bot scope set (settings.py): chat read/edit
-  // + chat read/write + user/channel bot + moderator:read:followers. Override the
+  // + chat read/write + user/channel bot + moderator scopes. Override the
   // whole set via BOT_OAUTH_SCOPES.
   return [
     'openid',
@@ -44,7 +44,10 @@ export function botScopes(): string[] {
     'user:write:chat',
     'user:bot',
     'channel:bot',
-    'moderator:read:followers'
+    'moderator:read:followers',
+    'moderator:read:chatters',
+    'moderator:manage:banned_users',
+    'moderator:manage:chat_messages'
   ];
 }
 
