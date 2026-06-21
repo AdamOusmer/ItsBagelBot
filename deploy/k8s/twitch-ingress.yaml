@@ -89,9 +89,9 @@ spec:
       # then let the 5th replica double up. ScheduleAnyway (not DoNotSchedule) is
       # what allows 5 pods across 4 nodes instead of capping at one-per-node.
       topologySpreadConstraints:
-        - maxSkew: 1
+        - maxSkew: 2
           topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: ScheduleAnyway
+          whenUnsatisfiable: DoNotSchedule
           labelSelector:
             matchLabels:
               app: twitch-ingress
@@ -101,7 +101,7 @@ spec:
           # cloud nodes keep 1 each. Best-effort: the spread above balances the
           # first four, this preference breaks the tie for the extra toward worker.
           preferredDuringSchedulingIgnoredDuringExecution:
-            - weight: 100
+            - weight: 1
               preference:
                 matchExpressions:
                   - key: itsbagelbot.dev/pool
