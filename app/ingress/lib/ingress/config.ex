@@ -28,6 +28,9 @@ defmodule Ingress.Config do
   # Subject for toggling the load-based autoscaler: body {"enabled": true|false}.
   def autoscale_subject, do: Application.fetch_env!(:ingress, :autoscale_subject)
 
+  # Subject for live conduit id query: body {}, replies {"conduit_id": "<uuid>"}.
+  def conduit_subject, do: Application.fetch_env!(:ingress, :conduit_subject)
+
   # Hard ceiling on shard count; the autoscaler and manual target are both
   # clamped to this value so a runaway load spike cannot blow the conduit cap.
   def max_shards, do: Application.get_env(:ingress, :max_shards, 20)
