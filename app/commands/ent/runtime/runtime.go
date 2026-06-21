@@ -2,7 +2,59 @@
 
 package runtime
 
-// The schema-stitching logic is generated in ItsBagelBot/app/commands/ent/runtime.go
+import (
+	"ItsBagelBot/app/commands/ent/commands"
+	"ItsBagelBot/app/commands/ent/schema"
+	"time"
+)
+
+// The init function reads all schema descriptors with runtime code
+// (default values, validators, hooks and policies) and stitches it
+// to their package variables.
+func init() {
+	commandsHooks := schema.Commands{}.Hooks()
+	commands.Hooks[0] = commandsHooks[0]
+	commandsFields := schema.Commands{}.Fields()
+	_ = commandsFields
+	// commandsDescName is the schema descriptor for name field.
+	commandsDescName := commandsFields[1].Descriptor()
+	// commands.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	commands.NameValidator = commandsDescName.Validators[0].(func(string) error)
+	// commandsDescResponse is the schema descriptor for response field.
+	commandsDescResponse := commandsFields[3].Descriptor()
+	// commands.ResponseValidator is a validator for the "response" field. It is called by the builders before save.
+	commands.ResponseValidator = commandsDescResponse.Validators[0].(func(string) error)
+	// commandsDescIsActive is the schema descriptor for is_active field.
+	commandsDescIsActive := commandsFields[4].Descriptor()
+	// commands.DefaultIsActive holds the default value on creation for the is_active field.
+	commands.DefaultIsActive = commandsDescIsActive.Default.(bool)
+	// commandsDescStreamOnlineOnly is the schema descriptor for stream_online_only field.
+	commandsDescStreamOnlineOnly := commandsFields[5].Descriptor()
+	// commands.DefaultStreamOnlineOnly holds the default value on creation for the stream_online_only field.
+	commands.DefaultStreamOnlineOnly = commandsDescStreamOnlineOnly.Default.(bool)
+	// commandsDescPerm is the schema descriptor for perm field.
+	commandsDescPerm := commandsFields[6].Descriptor()
+	// commands.DefaultPerm holds the default value on creation for the perm field.
+	commands.DefaultPerm = commandsDescPerm.Default.(string)
+	// commandsDescCooldown is the schema descriptor for cooldown field.
+	commandsDescCooldown := commandsFields[7].Descriptor()
+	// commands.DefaultCooldown holds the default value on creation for the cooldown field.
+	commands.DefaultCooldown = commandsDescCooldown.Default.(uint)
+	// commandsDescAllowedUserID is the schema descriptor for allowed_user_id field.
+	commandsDescAllowedUserID := commandsFields[8].Descriptor()
+	// commands.DefaultAllowedUserID holds the default value on creation for the allowed_user_id field.
+	commands.DefaultAllowedUserID = commandsDescAllowedUserID.Default.(uint64)
+	// commandsDescCreatedAt is the schema descriptor for created_at field.
+	commandsDescCreatedAt := commandsFields[9].Descriptor()
+	// commands.DefaultCreatedAt holds the default value on creation for the created_at field.
+	commands.DefaultCreatedAt = commandsDescCreatedAt.Default.(func() time.Time)
+	// commandsDescUpdatedAt is the schema descriptor for updated_at field.
+	commandsDescUpdatedAt := commandsFields[10].Descriptor()
+	// commands.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	commands.DefaultUpdatedAt = commandsDescUpdatedAt.Default.(func() time.Time)
+	// commands.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	commands.UpdateDefaultUpdatedAt = commandsDescUpdatedAt.UpdateDefault.(func() time.Time)
+}
 
 const (
 	Version = "v0.14.5"                                         // Version of ent codegen.
