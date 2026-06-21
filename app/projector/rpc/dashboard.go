@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	rpcprojection "ItsBagelBot/internal/domain/rpc/projection"
+	projectorrpc "ItsBagelBot/internal/domain/rpc/projector"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/env"
@@ -25,24 +27,6 @@ type Dashboard struct {
 	mu            sync.Mutex
 	commandMisses map[uint64]*commandInFlight
 	moduleMisses  map[uint64]*moduleInFlight
-}
-
-type dashboardRequest struct {
-	UserID   string              `json:"user_id"`
-	Commands []projection.CommandView `json:"commands,omitempty"`
-	Modules  []projection.ModuleView  `json:"modules,omitempty"`
-}
-
-type commandsReply struct {
-	UserID   string              `json:"user_id"`
-	Commands []projection.CommandView `json:"commands"`
-	Error    string              `json:"error,omitempty"`
-}
-
-type modulesReply struct {
-	UserID  string             `json:"user_id"`
-	Modules []projection.ModuleView `json:"modules"`
-	Error   string             `json:"error,omitempty"`
 }
 
 type commandFill struct {
@@ -91,27 +75,27 @@ func SubscribeDashboard(
 		moduleMisses:  map[uint64]*moduleInFlight{},
 	}
 
-	if err := bus.QueueSubscribeJSON[dashboardRequest, commandsReply](nc, prefix+".commands.get", queueGroup, 2*time.Second, app, log, d.handleCommandsGet); err != nil {
+	if err := bus.QueueSubscribeJSON[projectorrpc.DashboardRequest, rpcprojection.CommandsReply](nc, prefix+".commands.get", queueGroup, 2*time.Second, app, log, d.handleCommandsGet); err != nil {
 		return err
 	}
-	if err := bus.QueueSubscribeJSON[dashboardRequest, commandsReply](nc, prefix+".commands.replace", queueGroup, 2*time.Second, app, log, d.handleCommandsReplace); err != nil {
+	if err := bus.QueueSubscribeJSON[projectorrpc.DashboardRequest, rpcprojection.CommandsReply](nc, prefix+".commands.replace", queueGroup, 2*time.Second, app, log, d.handleCommandsReplace); err != nil {
 		return err
 	}
-	if err := bus.QueueSubscribeJSON[dashboardRequest, modulesReply](nc, prefix+".modules.get", queueGroup, 2*time.Second, app, log, d.handleModulesGet); err != nil {
+	if err := bus.QueueSubscribeJSON[projectorrpc.DashboardRequest, rpcprojection.ModulesReply](nc, prefix+".modules.get", queueGroup, 2*time.Second, app, log, d.handleModulesGet); err != nil {
 		return err
 	}
-	return bus.QueueSubscribeJSON[dashboardRequest, modulesReply](nc, prefix+".modules.replace", queueGroup, 2*time.Second, app, log, d.handleModulesReplace)
+	return bus.QueueSubscribeJSON[projectorrpc.DashboardRequest, rpcprojection.ModulesReply](nc, prefix+".modules.replace", queueGroup, 2*time.Second, app, log, d.handleModulesReplace)
 }
 
-func (d *Dashboard) handleCommandsGet(ctx context.Context, req dashboardRequest) commandsReply {
+func (d *Dashboard) handleCommandsGet(ctx context.Context, req projectorrpc.DashboardRequest) rpcprojection.CommandsReply {
 	userID, err := parseUserID(req.UserID)
 	if err != nil {
-		return commandsReply{Error: err.Error()}
+		return rpcprojection.CommandsReply{Error: err.Error()}
 	}
 
 	commands, projected, err := d.store.GetCommands(ctx, userID)
 	if err == nil && projected {
-		return commandsReply{UserID: req.UserID, Commands: commands}
+		return rpcprojection.CommandsReply{UserID: req.UserID, Commands: commands}
 	}
 	if err != nil && d.log != nil {
 		d.log.Warn("projector command valkey read failed", zap.String("user_id", req.UserID), zap.Error(err))
@@ -119,30 +103,30 @@ func (d *Dashboard) handleCommandsGet(ctx context.Context, req dashboardRequest)
 
 	fill := d.loadCommands(ctx, userID, req)
 	if fill.err != "" {
-		return commandsReply{UserID: req.UserID, Error: fill.err}
+		return rpcprojection.CommandsReply{UserID: req.UserID, Error: fill.err}
 	}
 	d.writeCommandsAsync(userID, fill.commands)
-	return commandsReply{UserID: req.UserID, Commands: fill.commands}
+	return rpcprojection.CommandsReply{UserID: req.UserID, Commands: fill.commands}
 }
 
-func (d *Dashboard) handleCommandsReplace(ctx context.Context, req dashboardRequest) commandsReply {
+func (d *Dashboard) handleCommandsReplace(ctx context.Context, req projectorrpc.DashboardRequest) rpcprojection.CommandsReply {
 	userID, err := parseUserID(req.UserID)
 	if err != nil {
-		return commandsReply{Error: err.Error()}
+		return rpcprojection.CommandsReply{Error: err.Error()}
 	}
 	d.writeCommandsAsync(userID, req.Commands)
-	return commandsReply{UserID: req.UserID, Commands: req.Commands}
+	return rpcprojection.CommandsReply{UserID: req.UserID, Commands: req.Commands}
 }
 
-func (d *Dashboard) handleModulesGet(ctx context.Context, req dashboardRequest) modulesReply {
+func (d *Dashboard) handleModulesGet(ctx context.Context, req projectorrpc.DashboardRequest) rpcprojection.ModulesReply {
 	userID, err := parseUserID(req.UserID)
 	if err != nil {
-		return modulesReply{Error: err.Error()}
+		return rpcprojection.ModulesReply{Error: err.Error()}
 	}
 
 	modules, projected, err := d.store.GetModules(ctx, userID)
 	if err == nil && projected {
-		return modulesReply{UserID: req.UserID, Modules: modules}
+		return rpcprojection.ModulesReply{UserID: req.UserID, Modules: modules}
 	}
 	if err != nil && d.log != nil {
 		d.log.Warn("projector module valkey read failed", zap.String("user_id", req.UserID), zap.Error(err))
@@ -150,19 +134,19 @@ func (d *Dashboard) handleModulesGet(ctx context.Context, req dashboardRequest) 
 
 	fill := d.loadModules(ctx, userID, req)
 	if fill.err != "" {
-		return modulesReply{UserID: req.UserID, Error: fill.err}
+		return rpcprojection.ModulesReply{UserID: req.UserID, Error: fill.err}
 	}
 	d.writeModulesAsync(userID, fill.modules)
-	return modulesReply{UserID: req.UserID, Modules: fill.modules}
+	return rpcprojection.ModulesReply{UserID: req.UserID, Modules: fill.modules}
 }
 
-func (d *Dashboard) handleModulesReplace(ctx context.Context, req dashboardRequest) modulesReply {
+func (d *Dashboard) handleModulesReplace(ctx context.Context, req projectorrpc.DashboardRequest) rpcprojection.ModulesReply {
 	userID, err := parseUserID(req.UserID)
 	if err != nil {
-		return modulesReply{Error: err.Error()}
+		return rpcprojection.ModulesReply{Error: err.Error()}
 	}
 	d.writeModulesAsync(userID, req.Modules)
-	return modulesReply{UserID: req.UserID, Modules: req.Modules}
+	return rpcprojection.ModulesReply{UserID: req.UserID, Modules: req.Modules}
 }
 
 func (d *Dashboard) writeCommandsAsync(userID uint64, commands []projection.CommandView) {
@@ -195,7 +179,7 @@ func (d *Dashboard) writeModulesAsync(userID uint64, modules []projection.Module
 	}()
 }
 
-func (d *Dashboard) loadCommands(ctx context.Context, userID uint64, req dashboardRequest) commandFill {
+func (d *Dashboard) loadCommands(ctx context.Context, userID uint64, req projectorrpc.DashboardRequest) commandFill {
 	inFlight, owner := d.commandFillSlot(userID)
 	if !owner {
 		select {
@@ -207,7 +191,7 @@ func (d *Dashboard) loadCommands(ctx context.Context, userID uint64, req dashboa
 	}
 
 	fill := commandFill{}
-	source, err := bus.RequestJSONTimeout[commandsReply](ctx, d.nc, d.commandsTopic, req, 1500*time.Millisecond)
+	source, err := bus.RequestJSONTimeout[rpcprojection.CommandsReply](ctx, d.nc, d.commandsTopic, req, 1500*time.Millisecond)
 	switch {
 	case err != nil:
 		fill.err = err.Error()
@@ -242,7 +226,7 @@ func (d *Dashboard) finishCommandFill(userID uint64, inFlight *commandInFlight, 
 	close(inFlight.done)
 }
 
-func (d *Dashboard) loadModules(ctx context.Context, userID uint64, req dashboardRequest) moduleFill {
+func (d *Dashboard) loadModules(ctx context.Context, userID uint64, req projectorrpc.DashboardRequest) moduleFill {
 	inFlight, owner := d.moduleFillSlot(userID)
 	if !owner {
 		select {
@@ -254,7 +238,7 @@ func (d *Dashboard) loadModules(ctx context.Context, userID uint64, req dashboar
 	}
 
 	fill := moduleFill{}
-	source, err := bus.RequestJSONTimeout[modulesReply](ctx, d.nc, d.modulesTopic, req, 1500*time.Millisecond)
+	source, err := bus.RequestJSONTimeout[rpcprojection.ModulesReply](ctx, d.nc, d.modulesTopic, req, 1500*time.Millisecond)
 	switch {
 	case err != nil:
 		fill.err = err.Error()

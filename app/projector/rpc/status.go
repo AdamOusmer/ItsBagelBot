@@ -10,21 +10,11 @@ import (
 	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
 
+	projectorrpc "ItsBagelBot/internal/domain/rpc/projector"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/cache"
 )
-
-type statusRequest struct {
-	BroadcasterID string `json:"broadcaster_id"`
-}
-
-type statusReply struct {
-	BroadcasterID string `json:"broadcaster_id"`
-	Tier          string `json:"tier"`
-	Banned        bool   `json:"banned"`
-	Error         string `json:"error,omitempty"`
-}
 
 // statusEntry is the cached per-broadcaster decision: the resolved tier plus
 // whether the broadcaster is banned from the service.
@@ -65,7 +55,7 @@ func SubscribeStatus(nc *nats.Conn, valkey *projection.Store, subject, usersTopi
 		}
 	}
 
-	return bus.QueueSubscribeJSON[statusRequest, statusReply](nc, subject, queueGroup, 1500*time.Millisecond, app, log, s.handleGet)
+	return bus.QueueSubscribeJSON[projectorrpc.StatusRequest, projectorrpc.StatusReply](nc, subject, queueGroup, 1500*time.Millisecond, app, log, s.handleGet)
 }
 
 // tierKey is the in-process cache key for a user's resolved tier+ban entry.
@@ -79,19 +69,19 @@ func (s *statusRPC) Invalidate(id uint64) {
 	s.views.Invalidate(tierKey(id))
 }
 
-func (s *statusRPC) handleGet(ctx context.Context, req statusRequest) statusReply {
+func (s *statusRPC) handleGet(ctx context.Context, req projectorrpc.StatusRequest) projectorrpc.StatusReply {
 	if req.BroadcasterID == "" {
-		return statusReply{Error: "bad request"}
+		return projectorrpc.StatusReply{Error: "bad request"}
 	}
 
 	id, err := strconv.ParseUint(req.BroadcasterID, 10, 64)
 	if err != nil {
-		return statusReply{BroadcasterID: req.BroadcasterID, Tier: "standard"}
+		return projectorrpc.StatusReply{BroadcasterID: req.BroadcasterID, Tier: "standard"}
 	}
 
 	entry := s.tierOf(ctx, id)
 
-	return statusReply{
+	return projectorrpc.StatusReply{
 		BroadcasterID: req.BroadcasterID,
 		Tier:          entry.Tier,
 		Banned:        entry.Banned,

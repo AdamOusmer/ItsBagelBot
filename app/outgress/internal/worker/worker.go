@@ -19,6 +19,8 @@ import (
 	"ItsBagelBot/app/outgress/internal/conduit"
 	"ItsBagelBot/app/outgress/internal/ratelimit"
 	"ItsBagelBot/app/outgress/internal/twitch"
+	"ItsBagelBot/internal/domain/outgress"
+	"ItsBagelBot/internal/domain/rpc/manage"
 
 	"github.com/ThreeDotsLabs/watermill/message"
 
@@ -73,21 +75,6 @@ const (
 // pacing holds them until resume or until their retry budget runs out.
 var ErrPaused = errors.New("outgress is paused")
 
-// OutgressMessage is the wire contract every producer publishes on the
-// outgress subjects.
-type OutgressMessage struct {
-	Type          string          `json:"type"`           // "chat", "api" or "eventsub"
-	BroadcasterID string          `json:"broadcaster_id"` // target channel
-	SenderID      string          `json:"sender_id"`      // the bot's user ID
-	Endpoint      string          `json:"endpoint"`       // Helix path, e.g. "/helix/chat/messages"
-	Method        string          `json:"method"`         // HTTP method
-	Payload       json.RawMessage `json:"payload"`        // raw JSON body
-	// As selects whose token the call runs under: "bot", "broadcaster" (alias
-	// "user"), or "app". Empty routes by endpoint (the default). Use it to send
-	// chat as the streamer ("broadcaster") instead of the bot.
-	As string `json:"as,omitempty"`
-}
-
 // helixRoute is the Helix call a message type maps to when the producer leaves
 // endpoint/method empty. as is the default token identity for the type ("" =
 // route by endpoint), applied only when the message does not set its own.
@@ -108,27 +95,13 @@ type helixRoute struct {
 //   - ad/commercial: the broadcaster starts the ad (channel:edit:commercial).
 //   - clip:        the broadcaster's grant creates the clip (clips:edit).
 var typeRoutes = map[string]helixRoute{
-	"chat":       {http.MethodPost, "/helix/chat/messages", ""},
-	"ban":        {http.MethodPost, "/helix/moderation/bans", "bot"},
-	"timeout":    {http.MethodPost, "/helix/moderation/bans", "bot"},
-	"unban":      {http.MethodDelete, "/helix/moderation/bans", "bot"},
-	"ad":         {http.MethodPost, "/helix/channels/commercial", "broadcaster"},
-	"commercial": {http.MethodPost, "/helix/channels/commercial", "broadcaster"},
-	"clip":       {http.MethodPost, "/helix/clips", "broadcaster"},
-}
-
-// EventSubJob is the payload of an "eventsub" message: the receive toggle's
-// intent for one channel. Enabled creates the channel's subscriptions on the
-// Conduit, disabled deletes them.
-//
-// Mode, when set, overrides the legacy Enabled field:
-//
-//	"enable"    - create all eventsub subscriptions (same as Enabled:true)
-//	"disable"   - delete all eventsub subscriptions (same as Enabled:false)
-//	"reconnect" - atomic drop-then-recreate with single-flight and persisted state
-type EventSubJob struct {
-	Enabled bool   `json:"enabled"`
-	Mode    string `json:"mode,omitempty"` // "enable" | "disable" | "reconnect"; empty => legacy Enabled
+	outgress.TypeChat:       {http.MethodPost, "/helix/chat/messages", ""},
+	outgress.TypeBan:        {http.MethodPost, "/helix/moderation/bans", outgress.AsBot},
+	outgress.TypeTimeout:    {http.MethodPost, "/helix/moderation/bans", outgress.AsBot},
+	outgress.TypeUnban:      {http.MethodDelete, "/helix/moderation/bans", outgress.AsBot},
+	outgress.TypeAd:         {http.MethodPost, "/helix/channels/commercial", outgress.AsBroadcaster},
+	outgress.TypeCommercial: {http.MethodPost, "/helix/channels/commercial", outgress.AsBroadcaster},
+	outgress.TypeClip:       {http.MethodPost, "/helix/clips", outgress.AsBroadcaster},
 }
 
 type Worker struct {
@@ -157,7 +130,7 @@ func New(log *zap.Logger, limiter *ratelimit.Limiter, registry *channels.Registr
 
 func (w *Worker) Process(msg *message.Message) error {
 
-	var payload OutgressMessage
+	var payload outgress.Message
 	if err := json.Unmarshal(msg.Payload, &payload); err != nil {
 		w.log.Error("dropping malformed outgress message", zap.Error(err))
 		return nil
@@ -173,7 +146,7 @@ func (w *Worker) Process(msg *message.Message) error {
 		return ErrPaused
 	}
 
-	if payload.Type == "eventsub" {
+	if payload.Type == outgress.TypeEventSub {
 		return w.processEventSub(ctx, payload)
 	}
 
@@ -183,7 +156,7 @@ func (w *Worker) Process(msg *message.Message) error {
 	// passthrough) and must carry its own endpoint. An explicit field always
 	// wins, so any default can be overridden.
 	_, mapped := typeRoutes[payload.Type]
-	if payload.Type != "chat" && payload.Type != "api" && !mapped {
+	if payload.Type != outgress.TypeChat && payload.Type != outgress.TypeAPI && !mapped {
 		w.log.Error("dropping message with unknown type", zap.String("type", payload.Type))
 		return nil
 	}
@@ -208,13 +181,13 @@ func (w *Worker) Process(msg *message.Message) error {
 
 	// Only "chat" pays the chat rate buckets; every other Helix call pays the
 	// general bucket.
-	if payload.Type == "chat" {
+	if payload.Type == outgress.TypeChat {
 		return w.processChat(ctx, payload)
 	}
 	return w.processAPI(ctx, payload)
 }
 
-func (w *Worker) processChat(ctx context.Context, payload OutgressMessage) error {
+func (w *Worker) processChat(ctx context.Context, payload outgress.Message) error {
 
 	ch, found, err := w.registry.Get(ctx, payload.BroadcasterID)
 	if err != nil {
@@ -256,7 +229,7 @@ func (w *Worker) processChat(ctx context.Context, payload OutgressMessage) error
 	return w.execute(ctx, payload)
 }
 
-func (w *Worker) processAPI(ctx context.Context, payload OutgressMessage) error {
+func (w *Worker) processAPI(ctx context.Context, payload outgress.Message) error {
 
 	if w.lane == LaneStandard {
 		if err := w.take(ctx, ratelimit.Bucket{
@@ -285,7 +258,7 @@ func (w *Worker) processAPI(ctx context.Context, payload OutgressMessage) error 
 // moderator:read:followers). No bot user token is involved here. Creates are 409-idempotent and deletes
 // 404-idempotent, so a job nacked halfway (rate limit, transient Twitch
 // error) converges when redelivery re-runs it.
-func (w *Worker) processEventSub(ctx context.Context, payload OutgressMessage) error {
+func (w *Worker) processEventSub(ctx context.Context, payload outgress.Message) error {
 
 	if payload.BroadcasterID == "" {
 		w.log.Error("dropping eventsub job without broadcaster id")
@@ -300,7 +273,7 @@ func (w *Worker) processEventSub(ctx context.Context, payload OutgressMessage) e
 		return err
 	}
 
-	var job EventSubJob
+	var job outgress.EventSubJob
 	if err := json.Unmarshal(payload.Payload, &job); err != nil {
 		w.log.Error("dropping malformed eventsub job", zap.Error(err))
 		return nil
@@ -310,18 +283,18 @@ func (w *Worker) processEventSub(ctx context.Context, payload OutgressMessage) e
 	mode := job.Mode
 	if mode == "" {
 		if job.Enabled {
-			mode = "enable"
+			mode = outgress.ModeEnable
 		} else {
-			mode = "disable"
+			mode = outgress.ModeDisable
 		}
 	}
 
 	switch mode {
-	case "enable":
+	case outgress.ModeEnable:
 		return w.enableEventSubs(ctx, payload.BroadcasterID, conduitID)
-	case "disable":
+	case outgress.ModeDisable:
 		return w.disableEventSubs(ctx, payload.BroadcasterID, conduitID)
-	case "reconnect":
+	case outgress.ModeReconnect:
 		return w.reconnectEventSubs(ctx, payload.BroadcasterID, conduitID)
 	default:
 		w.log.Error("dropping eventsub job with unknown mode",
@@ -554,7 +527,7 @@ func (w *Worker) take(ctx context.Context, bucket ratelimit.Bucket) error {
 // answer from the registry wins, then live verification when the bot has a
 // user token, then whatever the registry holds, then the safe default of
 // non-mod, which never over-sends.
-func (w *Worker) modStatus(ctx context.Context, payload OutgressMessage, ch channels.Channel, found bool) bool {
+func (w *Worker) modStatus(ctx context.Context, payload outgress.Message, ch manage.Channel, found bool) bool {
 
 	if found && !ch.ModCheckedAt.IsZero() && time.Since(ch.ModCheckedAt) < modStatusTTL {
 		return ch.IsMod
@@ -582,7 +555,7 @@ func (w *Worker) modStatus(ctx context.Context, payload OutgressMessage, ch chan
 	return isMod
 }
 
-func (w *Worker) execute(ctx context.Context, payload OutgressMessage) error {
+func (w *Worker) execute(ctx context.Context, payload outgress.Message) error {
 
 	res, err := w.twitch.ExecuteAs(ctx, twitch.ParseIdentity(payload.As),
 		payload.BroadcasterID, payload.Method, payload.Endpoint, payload.Payload)

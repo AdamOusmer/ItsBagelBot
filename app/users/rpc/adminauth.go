@@ -15,6 +15,7 @@ import (
 	"ItsBagelBot/app/users/ent/adminaudit"
 	"ItsBagelBot/app/users/ent/adminuser"
 	"ItsBagelBot/app/users/ent/predicate"
+	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/pkg/bus"
 	dbgate "ItsBagelBot/pkg/db"
 )
@@ -29,68 +30,6 @@ import (
 // Role ladder (moderator < admin < owner) is enforced here as defense in depth,
 // not only in the console: only managers (admin/owner) may change the roster,
 // and only an owner may create, modify, or remove an owner.
-
-type authRequest struct {
-	// actor: who is performing a roster change (set by the console from session).
-	ActorID   string `json:"actor_id"`
-	ActorRole string `json:"actor_role"`
-
-	// target / identity
-	UserID      string `json:"user_id"`
-	Login       string `json:"login"`
-	DisplayName string `json:"display_name"`
-	Role        string `json:"role"`
-
-	// audit.append
-	ActorLogin string `json:"actor_login"`
-	Action     string `json:"action"`
-	Target     string `json:"target"`
-	Detail     string `json:"detail"`
-	OK         bool   `json:"ok"`
-	Err        string `json:"error"`
-
-	// audit.list / auth.list
-	Limit       int    `json:"limit"`
-	ActorFilter string `json:"actor_filter"`
-	Page        int    `json:"page"`
-	Search      string `json:"search"`
-}
-
-type adminAcctView struct {
-	ID          uint64    `json:"id"`
-	Login       string    `json:"login"`
-	DisplayName string    `json:"display_name"`
-	Role        string    `json:"role"`
-	Active      bool      `json:"active"`
-	AddedBy     uint64    `json:"added_by"`
-	CreatedAt   time.Time `json:"created_at"`
-}
-
-type auditView struct {
-	ID         int       `json:"id"`
-	ActorID    uint64    `json:"actor_id"`
-	ActorLogin string    `json:"actor_login"`
-	Action     string    `json:"action"`
-	Target     string    `json:"target,omitempty"`
-	Detail     string    `json:"detail,omitempty"`
-	OK         bool      `json:"ok"`
-	Err        string    `json:"error,omitempty"`
-	CreatedAt  time.Time `json:"created_at"`
-}
-
-type authReply struct {
-	Admin       bool            `json:"admin"`
-	Role        string          `json:"role,omitempty"`
-	Login       string          `json:"login,omitempty"`
-	DisplayName string          `json:"display_name,omitempty"`
-	Admins      []adminAcctView `json:"admins,omitempty"`
-	Entries     []auditView     `json:"entries,omitempty"`
-	Page        int             `json:"page,omitempty"`
-	PageSize    int             `json:"page_size,omitempty"`
-	MaxPages    int             `json:"max_pages,omitempty"`
-	HasMore     bool            `json:"has_more,omitempty"`
-	Error       string          `json:"error,omitempty"`
-}
 
 type adminAuthRPC struct {
 	db  *ent.Client
@@ -110,7 +49,7 @@ const (
 func SubscribeAdminAuth(nc *nats.Conn, db *ent.Client, authPrefix, auditPrefix, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
 	a := &adminAuthRPC{db: db, log: log}
 
-	routes := map[string]func(context.Context, authRequest) authReply{
+	routes := map[string]func(context.Context, usersrpc.AuthRequest) usersrpc.AuthReply{
 		authPrefix + ".check":   a.check,
 		authPrefix + ".list":    a.listStaff,
 		authPrefix + ".upsert":  a.upsertStaff,
@@ -119,7 +58,7 @@ func SubscribeAdminAuth(nc *nats.Conn, db *ent.Client, authPrefix, auditPrefix, 
 		auditPrefix + ".list":   a.auditList,
 	}
 	for subject, handle := range routes {
-		if err := bus.QueueSubscribeJSON[authRequest, authReply](nc, subject, queueGroup, 3*time.Second, app, log, handle); err != nil {
+		if err := bus.QueueSubscribeJSON[usersrpc.AuthRequest, usersrpc.AuthReply](nc, subject, queueGroup, 3*time.Second, app, log, handle); err != nil {
 			return err
 		}
 	}
@@ -145,22 +84,22 @@ func isManager(r adminuser.Role) bool { return r == adminuser.RoleAdmin || r == 
 // check resolves whether the Twitch subject is active staff. When login/
 // display_name are supplied (sign-in path), it refreshes them so the allowlist
 // stays current after a Twitch rename.
-func (a *adminAuthRPC) check(ctx context.Context, req authRequest) authReply {
+func (a *adminAuthRPC) check(ctx context.Context, req usersrpc.AuthRequest) usersrpc.AuthReply {
 	id, err := parseID(req.UserID)
 	if err != nil {
-		return authReply{Error: err.Error()}
+		return usersrpc.AuthReply{Error: err.Error()}
 	}
 	row, err := dbgate.WithQuery(ctx, func(ctx context.Context) (*ent.AdminUser, error) {
 		return a.db.AdminUser.Query().Where(adminuser.IDEQ(id)).Only(ctx)
 	})
 	if ent.IsNotFound(err) {
-		return authReply{Admin: false}
+		return usersrpc.AuthReply{Admin: false}
 	}
 	if err != nil {
-		return authReply{Error: err.Error()}
+		return usersrpc.AuthReply{Error: err.Error()}
 	}
 	if !row.Active {
-		return authReply{Admin: false}
+		return usersrpc.AuthReply{Admin: false}
 	}
 
 	if req.Login != "" && (req.Login != row.Login || (req.DisplayName != "" && req.DisplayName != row.DisplayName)) {
@@ -175,7 +114,7 @@ func (a *adminAuthRPC) check(ctx context.Context, req authRequest) authReply {
 		}
 	}
 
-	return authReply{
+	return usersrpc.AuthReply{
 		Admin:       true,
 		Role:        string(row.Role),
 		Login:       row.Login,
@@ -183,54 +122,54 @@ func (a *adminAuthRPC) check(ctx context.Context, req authRequest) authReply {
 	}
 }
 
-func (a *adminAuthRPC) listStaff(ctx context.Context, _ authRequest) authReply {
+func (a *adminAuthRPC) listStaff(ctx context.Context, _ usersrpc.AuthRequest) usersrpc.AuthReply {
 	rows, err := dbgate.WithQuery(ctx, func(ctx context.Context) ([]*ent.AdminUser, error) {
 		return a.db.AdminUser.Query().
 			Order(ent.Asc(adminuser.FieldCreatedAt)).
 			All(ctx)
 	})
 	if err != nil {
-		return authReply{Error: err.Error()}
+		return usersrpc.AuthReply{Error: err.Error()}
 	}
-	out := make([]adminAcctView, 0, len(rows))
+	out := make([]usersrpc.AdminAcctView, 0, len(rows))
 	for _, r := range rows {
 		out = append(out, adminViewOf(r))
 	}
-	return authReply{Admins: out}
+	return usersrpc.AuthReply{Admins: out}
 }
 
 // upsertStaff creates or modifies a staff member. Enforces the role ladder:
 //   - actor must be a manager (admin/owner);
 //   - only an owner may set a target's role to owner;
 //   - only an owner may modify an existing owner.
-func (a *adminAuthRPC) upsertStaff(ctx context.Context, req authRequest) authReply {
+func (a *adminAuthRPC) upsertStaff(ctx context.Context, req usersrpc.AuthRequest) usersrpc.AuthReply {
 	actorRole := adminuser.Role(req.ActorRole)
 	if !isManager(actorRole) {
-		return authReply{Error: "forbidden: managers only"}
+		return usersrpc.AuthReply{Error: "forbidden: managers only"}
 	}
 	id, err := parseID(req.UserID)
 	if err != nil {
-		return authReply{Error: err.Error()}
+		return usersrpc.AuthReply{Error: err.Error()}
 	}
 	if req.Login == "" {
-		return authReply{Error: "login required"}
+		return usersrpc.AuthReply{Error: "login required"}
 	}
 	newRole := adminuser.Role(req.Role)
 	if req.Role == "" {
 		newRole = adminuser.RoleModerator
 	}
 	if err := adminuser.RoleValidator(newRole); err != nil {
-		return authReply{Error: "role must be moderator, admin or owner"}
+		return usersrpc.AuthReply{Error: "role must be moderator, admin or owner"}
 	}
 
 	// Only an owner may grant the owner role.
 	if newRole == adminuser.RoleOwner && actorRole != adminuser.RoleOwner {
-		return authReply{Error: "forbidden: only an owner can grant owner"}
+		return usersrpc.AuthReply{Error: "forbidden: only an owner can grant owner"}
 	}
 
 	// No self-modification: staff cannot change their own role.
 	if actorID, _ := parseID(req.ActorID); actorID == id {
-		return authReply{Error: "forbidden: cannot change your own role"}
+		return usersrpc.AuthReply{Error: "forbidden: cannot change your own role"}
 	}
 
 	// Existing-target guards.
@@ -240,14 +179,14 @@ func (a *adminAuthRPC) upsertStaff(ctx context.Context, req authRequest) authRep
 	if err == nil {
 		// An owner's role is immutable (cannot be changed by anyone).
 		if existing.Role == adminuser.RoleOwner {
-			return authReply{Error: "forbidden: an owner's role cannot be changed"}
+			return usersrpc.AuthReply{Error: "forbidden: an owner's role cannot be changed"}
 		}
 		// An admin cannot modify another admin; only an owner manages admins.
 		if actorRole == adminuser.RoleAdmin && existing.Role == adminuser.RoleAdmin {
-			return authReply{Error: "forbidden: admins cannot change another admin"}
+			return usersrpc.AuthReply{Error: "forbidden: admins cannot change another admin"}
 		}
 	} else if !ent.IsNotFound(err) {
-		return authReply{Error: err.Error()}
+		return usersrpc.AuthReply{Error: err.Error()}
 	}
 
 	addedBy, _ := parseID(req.ActorID)
@@ -256,47 +195,47 @@ func (a *adminAuthRPC) upsertStaff(ctx context.Context, req authRequest) authRep
 		display = req.Login
 	}
 	if err := upsertStaffRow(ctx, a.db, id, req.Login, display, newRole, addedBy); err != nil {
-		return authReply{Error: err.Error()}
+		return usersrpc.AuthReply{Error: err.Error()}
 	}
 	a.log.Info("staff upsert", zap.Uint64("id", id), zap.String("role", string(newRole)), zap.Uint64("by", addedBy))
-	return a.listStaff(ctx, authRequest{})
+	return a.listStaff(ctx, usersrpc.AuthRequest{})
 }
 
 // removeStaff soft-disables a staff member (active=false) so historical audit
 // rows keep resolving the actor. Owners may only be removed by owners, and the
 // last active owner can never be removed (lockout guard).
-func (a *adminAuthRPC) removeStaff(ctx context.Context, req authRequest) authReply {
+func (a *adminAuthRPC) removeStaff(ctx context.Context, req usersrpc.AuthRequest) usersrpc.AuthReply {
 	actorRole := adminuser.Role(req.ActorRole)
 	if !isManager(actorRole) {
-		return authReply{Error: "forbidden: managers only"}
+		return usersrpc.AuthReply{Error: "forbidden: managers only"}
 	}
 	id, err := parseID(req.UserID)
 	if err != nil {
-		return authReply{Error: err.Error()}
+		return usersrpc.AuthReply{Error: err.Error()}
 	}
 	// No self-removal.
 	if actorID, _ := parseID(req.ActorID); actorID == id {
-		return authReply{Error: "forbidden: cannot remove yourself"}
+		return usersrpc.AuthReply{Error: "forbidden: cannot remove yourself"}
 	}
 
 	target, err := dbgate.WithQuery(ctx, func(ctx context.Context) (*ent.AdminUser, error) {
 		return a.db.AdminUser.Query().Where(adminuser.IDEQ(id)).Only(ctx)
 	})
 	if ent.IsNotFound(err) {
-		return authReply{Error: "staff not found"}
+		return usersrpc.AuthReply{Error: "staff not found"}
 	}
 	if err != nil {
-		return authReply{Error: err.Error()}
+		return usersrpc.AuthReply{Error: err.Error()}
 	}
 
 	// An admin manages only moderators; only an owner may remove an admin.
 	if actorRole == adminuser.RoleAdmin && target.Role == adminuser.RoleAdmin {
-		return authReply{Error: "forbidden: admins cannot remove another admin"}
+		return usersrpc.AuthReply{Error: "forbidden: admins cannot remove another admin"}
 	}
 
 	if target.Role == adminuser.RoleOwner {
 		if actorRole != adminuser.RoleOwner {
-			return authReply{Error: "forbidden: cannot remove an owner"}
+			return usersrpc.AuthReply{Error: "forbidden: cannot remove an owner"}
 		}
 		owners, err := dbgate.WithQuery(ctx, func(ctx context.Context) (int, error) {
 			return a.db.AdminUser.Query().
@@ -304,29 +243,29 @@ func (a *adminAuthRPC) removeStaff(ctx context.Context, req authRequest) authRep
 				Count(ctx)
 		})
 		if err != nil {
-			return authReply{Error: err.Error()}
+			return usersrpc.AuthReply{Error: err.Error()}
 		}
 		if owners <= 1 {
-			return authReply{Error: "cannot remove the last owner"}
+			return usersrpc.AuthReply{Error: "cannot remove the last owner"}
 		}
 	}
 
 	if err := dbgate.WithExec(ctx, func(ctx context.Context) error {
 		return a.db.AdminUser.UpdateOneID(id).SetActive(false).Exec(ctx)
 	}); err != nil {
-		return authReply{Error: err.Error()}
+		return usersrpc.AuthReply{Error: err.Error()}
 	}
 	a.log.Info("staff removed", zap.Uint64("id", id), zap.String("by_role", req.ActorRole))
-	return a.listStaff(ctx, authRequest{})
+	return a.listStaff(ctx, usersrpc.AuthRequest{})
 }
 
-func (a *adminAuthRPC) auditAppend(ctx context.Context, req authRequest) authReply {
+func (a *adminAuthRPC) auditAppend(ctx context.Context, req usersrpc.AuthRequest) usersrpc.AuthReply {
 	actorID, err := parseID(req.ActorID)
 	if err != nil {
-		return authReply{Error: "actor_id: " + err.Error()}
+		return usersrpc.AuthReply{Error: "actor_id: " + err.Error()}
 	}
 	if req.ActorLogin == "" || req.Action == "" {
-		return authReply{Error: "actor_login and action required"}
+		return usersrpc.AuthReply{Error: "actor_login and action required"}
 	}
 	_, err = dbgate.WithQuery(ctx, func(ctx context.Context) (*ent.AdminAudit, error) {
 		return a.db.AdminAudit.Create().
@@ -340,12 +279,12 @@ func (a *adminAuthRPC) auditAppend(ctx context.Context, req authRequest) authRep
 			Save(ctx)
 	})
 	if err != nil {
-		return authReply{Error: err.Error()}
+		return usersrpc.AuthReply{Error: err.Error()}
 	}
-	return authReply{}
+	return usersrpc.AuthReply{}
 }
 
-func (a *adminAuthRPC) auditList(ctx context.Context, req authRequest) authReply {
+func (a *adminAuthRPC) auditList(ctx context.Context, req usersrpc.AuthRequest) usersrpc.AuthReply {
 	limit := req.Limit
 	if limit <= 0 || limit > 200 {
 		limit = 50
@@ -356,7 +295,7 @@ func (a *adminAuthRPC) auditList(ctx context.Context, req authRequest) authReply
 	if req.ActorFilter != "" {
 		aid, err := parseID(req.ActorFilter)
 		if err != nil {
-			return authReply{Error: "actor_filter: " + err.Error()}
+			return usersrpc.AuthReply{Error: "actor_filter: " + err.Error()}
 		}
 		q = q.Where(adminaudit.ActorIDEQ(aid))
 	}
@@ -385,13 +324,13 @@ func (a *adminAuthRPC) auditList(ctx context.Context, req authRequest) authReply
 			return q.Offset((page - 1) * pageSize).Limit(fetchLimit).All(ctx)
 		})
 		if err != nil {
-			return authReply{Error: err.Error()}
+			return usersrpc.AuthReply{Error: err.Error()}
 		}
 		hasMore := page < auditMaxPages && len(rows) > pageSize
 		if hasMore {
 			rows = rows[:pageSize]
 		}
-		return authReply{
+		return usersrpc.AuthReply{
 			Entries:  auditViewsOf(rows),
 			Page:     page,
 			PageSize: pageSize,
@@ -404,9 +343,9 @@ func (a *adminAuthRPC) auditList(ctx context.Context, req authRequest) authReply
 		return q.Limit(limit).All(ctx)
 	})
 	if err != nil {
-		return authReply{Error: err.Error()}
+		return usersrpc.AuthReply{Error: err.Error()}
 	}
-	return authReply{Entries: auditViewsOf(rows)}
+	return usersrpc.AuthReply{Entries: auditViewsOf(rows)}
 }
 
 func normalizeAuditSearch(s string) string {
@@ -432,10 +371,10 @@ func auditSearchPredicate(search string) predicate.AdminAudit {
 	return adminaudit.Or(predicates...)
 }
 
-func auditViewsOf(rows []*ent.AdminAudit) []auditView {
-	out := make([]auditView, 0, len(rows))
+func auditViewsOf(rows []*ent.AdminAudit) []usersrpc.AuditView {
+	out := make([]usersrpc.AuditView, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, auditView{
+		out = append(out, usersrpc.AuditView{
 			ID:         r.ID,
 			ActorID:    r.ActorID,
 			ActorLogin: r.ActorLogin,
@@ -531,8 +470,8 @@ func upsertStaffRow(ctx context.Context, db *ent.Client, id uint64, login, displ
 	})
 }
 
-func adminViewOf(r *ent.AdminUser) adminAcctView {
-	return adminAcctView{
+func adminViewOf(r *ent.AdminUser) usersrpc.AdminAcctView {
+	return usersrpc.AdminAcctView{
 		ID:          r.ID,
 		Login:       r.Login,
 		DisplayName: r.DisplayName,

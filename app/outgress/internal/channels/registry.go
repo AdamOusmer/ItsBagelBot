@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"time"
 
+	"ItsBagelBot/internal/domain/rpc/manage"
 	"ItsBagelBot/internal/utils"
 
 	"github.com/valkey-io/valkey-go"
@@ -21,17 +22,6 @@ const (
 	indexKey  = "outgress:channels"
 	pausedKey = "outgress:paused"
 )
-
-type Channel struct {
-	BroadcasterID string    `json:"broadcaster_id"`
-	Enabled       bool      `json:"enabled"`
-	IsMod         bool      `json:"is_mod"`
-	ModCheckedAt  time.Time `json:"mod_checked_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
-	SubState      string    `json:"sub_state"`      // "ok" | "pending" | "failing" | "" (unknown)
-	SubError      string    `json:"sub_error"`      // last failure detail; empty when ok
-	SubCheckedAt  time.Time `json:"sub_checked_at"`
-}
 
 type Registry struct {
 	client valkey.Client
@@ -44,17 +34,17 @@ func New(client valkey.Client) *Registry {
 // Get returns the stored state for one broadcaster. found is false when the
 // channel was never registered, in which case the caller should assume the
 // defaults (enabled, non-mod).
-func (r *Registry) Get(ctx context.Context, broadcasterID string) (Channel, bool, error) {
+func (r *Registry) Get(ctx context.Context, broadcasterID string) (manage.Channel, bool, error) {
 
 	fields, err := r.client.Do(ctx, r.client.B().Hgetall().Key(keyPrefix+broadcasterID).Build()).AsStrMap()
 	if err != nil {
-		return Channel{}, false, err
+		return manage.Channel{}, false, err
 	}
 	if len(fields) == 0 {
-		return Channel{}, false, nil
+		return manage.Channel{}, false, nil
 	}
 
-	return Channel{
+	return manage.Channel{
 		BroadcasterID: broadcasterID,
 		Enabled:       fields["enabled"] == "1",
 		IsMod:         fields["is_mod"] == "1",
@@ -67,7 +57,7 @@ func (r *Registry) Get(ctx context.Context, broadcasterID string) (Channel, bool
 }
 
 // Save overwrites the full state of one channel and indexes it for List.
-func (r *Registry) Save(ctx context.Context, ch Channel) error {
+func (r *Registry) Save(ctx context.Context, ch manage.Channel) error {
 
 	key := keyPrefix + ch.BroadcasterID
 
@@ -174,14 +164,14 @@ func (r *Registry) ReleaseEnrollLock(ctx context.Context, broadcasterID, owner s
 }
 
 // List returns every registered channel.
-func (r *Registry) List(ctx context.Context) ([]Channel, error) {
+func (r *Registry) List(ctx context.Context) ([]manage.Channel, error) {
 
 	ids, err := r.client.Do(ctx, r.client.B().Smembers().Key(indexKey).Build()).AsStrSlice()
 	if err != nil {
 		return nil, err
 	}
 
-	out := make([]Channel, 0, len(ids))
+	out := make([]manage.Channel, 0, len(ids))
 	for _, id := range ids {
 		ch, found, err := r.Get(ctx, id)
 		if err != nil {
