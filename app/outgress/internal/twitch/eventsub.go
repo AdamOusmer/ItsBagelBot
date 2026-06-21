@@ -74,12 +74,22 @@ func (c *Client) CreateEventSub(ctx context.Context, spec SubSpec, conduitID str
 }
 
 // EventSubEntry is one row of an EventSub listing; only what deletion needs.
+//
+// Condition.BroadcasterUserID matters because the list query (?user_id=<id>)
+// matches that id in ANY condition field, not just broadcaster_user_id. A
+// channel.chat.message sub carries the bot as condition.user_id, so listing by
+// the bot's id returns EVERY channel's chat sub. Deletion must therefore filter
+// on broadcaster_user_id, or reconnecting the bot account would wipe every
+// channel's chat subscription.
 type EventSubEntry struct {
 	ID        string `json:"id"`
 	Transport struct {
 		Method    string `json:"method"`
 		ConduitID string `json:"conduit_id"`
 	} `json:"transport"`
+	Condition struct {
+		BroadcasterUserID string `json:"broadcaster_user_id"`
+	} `json:"condition"`
 }
 
 // ListEventSubs returns the subscriptions whose condition references userID,
