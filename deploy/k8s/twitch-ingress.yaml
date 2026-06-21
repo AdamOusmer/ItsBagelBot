@@ -89,9 +89,9 @@ spec:
       # then let the 5th replica double up. ScheduleAnyway (not DoNotSchedule) is
       # what allows 5 pods across 4 nodes instead of capping at one-per-node.
       topologySpreadConstraints:
-        - maxSkew: 2
+        - maxSkew: 1
           topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: DoNotSchedule
+          whenUnsatisfiable: ScheduleAnyway
           labelSelector:
             matchLabels:
               app: twitch-ingress
