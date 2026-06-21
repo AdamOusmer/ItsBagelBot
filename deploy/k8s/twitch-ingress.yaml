@@ -132,6 +132,10 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
             - name: RELEASE_DISTRIBUTION
               value: name
             - name: RELEASE_NODE

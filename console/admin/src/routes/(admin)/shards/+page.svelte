@@ -267,7 +267,12 @@
         <div class="shard-head">
           <span class="shard-id">shard {s.shard_id}</span>
           <span class="state-badge {sb.tone}">{sb.label}</span>
-          <span class="shard-node">{s.host || nodeHost(s.node)}</span>
+          <span class="shard-node">
+            {s.host || nodeHost(s.node)}
+            {#if s.pod_id}
+              <span style="opacity:0.6; margin-left:4px">{s.pod_id}</span>
+            {/if}
+          </span>
         </div>
         <div class="shard-meta">
           <span>{s.bound ? 'bound' : 'unbound'}</span>
