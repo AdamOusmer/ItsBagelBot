@@ -184,6 +184,7 @@ defmodule Ingress.Pipeline do
        chatter_user_id: event["chatter_user_id"],
        chatter_user_login: event["chatter_user_login"],
        text: text,
+       badges: event["badges"],
        msg_id: meta.msg_id,
        shard_id: meta.shard_id,
        ts: meta.ts

@@ -93,6 +93,23 @@ defmodule Ingress.PipelineTest do
       assert {:publish, "twitch.ingress.event.premium", %{lane: :premium}} =
                Pipeline.route(notification("channel.chat.message", event), @meta)
     end
+
+    test "chat routing forwards the chatter badges for downstream permission checks" do
+      badges = [%{"set_id" => "lead_moderator", "id" => "1"}]
+
+      event = %{
+        "broadcaster_user_id" => "77",
+        "chatter_user_id" => "1001",
+        "message" => %{"text" => "!ban someone"},
+        "badges" => badges
+      }
+
+      Application.put_env(:ingress, :special_user_ids, @special)
+      on_exit(fn -> Application.put_env(:ingress, :special_user_ids, MapSet.new()) end)
+
+      assert {:publish, _subject, %{badges: ^badges}} =
+               Pipeline.route(notification("channel.chat.message", event), @meta)
+    end
   end
 
   describe "broadcaster_id/1" do

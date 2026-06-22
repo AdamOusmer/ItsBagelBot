@@ -71,6 +71,9 @@ metadata:
   namespace: linkerd
 spec:
   minAvailable: 2
+  # Already-unhealthy control-plane pods stay evictable so a node drain can't
+  # deadlock on the budget; healthy replicas still honor minAvailable.
+  unhealthyPodEvictionPolicy: AlwaysAllow
   selector:
     matchLabels:
       linkerd.io/control-plane-component: destination
@@ -83,6 +86,9 @@ metadata:
   namespace: linkerd
 spec:
   minAvailable: 2
+  # Already-unhealthy control-plane pods stay evictable so a node drain can't
+  # deadlock on the budget; healthy replicas still honor minAvailable.
+  unhealthyPodEvictionPolicy: AlwaysAllow
   selector:
     matchLabels:
       linkerd.io/control-plane-component: identity
@@ -95,6 +101,9 @@ metadata:
   namespace: linkerd
 spec:
   minAvailable: 2
+  # Already-unhealthy control-plane pods stay evictable so a node drain can't
+  # deadlock on the budget; healthy replicas still honor minAvailable.
+  unhealthyPodEvictionPolicy: AlwaysAllow
   selector:
     matchLabels:
       linkerd.io/control-plane-component: proxy-injector

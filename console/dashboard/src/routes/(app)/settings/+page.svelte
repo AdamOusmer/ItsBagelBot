@@ -163,8 +163,6 @@
   </form>
 </Modal>
 
-<svelte:window onkeydown={(e) => { if (e.key === 'Escape') closeDelete(); }} />
-
 <style>
   :global(.settings-card) {
     margin-top: 18px;

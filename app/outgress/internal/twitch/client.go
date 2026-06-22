@@ -148,6 +148,38 @@ func (c *Client) ExecuteAs(ctx context.Context, id Identity, broadcasterID, meth
 	return c.request(ctx, src, method, endpoint, body)
 }
 
+// IsStreamLive reports whether broadcasterID is currently live, via Helix Get
+// Streams under the app token. Get Streams only returns a stream object for live
+// channels, so a non-empty data array means live. The caller does not own a
+// response body (it is consumed here).
+func (c *Client) IsStreamLive(ctx context.Context, broadcasterID string) (bool, error) {
+	res, err := c.request(ctx, c.app, http.MethodGet, "/helix/streams?user_id="+url.QueryEscape(broadcasterID), nil)
+	if err != nil {
+		return false, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(res.Body, 2048))
+		return false, &StatusError{Status: res.StatusCode, Body: string(body)}
+	}
+
+	var payload struct {
+		Data []struct {
+			Type string `json:"type"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&payload); err != nil {
+		return false, err
+	}
+	for _, s := range payload.Data {
+		if s.Type == "live" {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // IsModerator reports whether the bot account moderates broadcasterID,
 // paging through the channels the bot's user token can see. Requires the
 // user:read:moderated_channels scope.

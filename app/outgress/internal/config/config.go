@@ -62,6 +62,16 @@ type Config struct {
 	// TokensSubjectPrefix is the users service token RPC outgress loads the
 	// bot account's token from and persists rotations back to.
 	TokensSubjectPrefix string
+
+	// CacheInvalidatePrefix is the core-NATS prefix outgress publishes a live
+	// cache invalidation on after a stream_status re-check (subject = prefix +
+	// ".live"), so worker replicas drop their cached live bool.
+	CacheInvalidatePrefix string
+
+	// LiveTTL is the TTL stamped on a live key written by a stream_status
+	// re-check; it must match the worker so re-confirmed streams keep their
+	// expiry-driven re-check cadence.
+	LiveTTL time.Duration
 }
 
 func Load() *Config {
@@ -82,6 +92,8 @@ func Load() *Config {
 		TwitchBotUserID:       env.Get("TWITCH_BOT_USER_ID", ""),
 		TwitchBotRefreshToken: env.Get("TWITCH_BOT_REFRESH_TOKEN", ""),
 		TokensSubjectPrefix:   env.Get("NATS_INTERNAL_TOKENS_SUBJECT_PREFIX", "bagel.rpc.internal.tokens"),
+		CacheInvalidatePrefix: env.Get("NATS_CACHE_INVALIDATION_PREFIX", "bagel.cache.invalidate"),
+		LiveTTL:               env.GetDuration("WORKER_LIVE_TTL", 12*time.Hour),
 		MinRoutines:           env.GetInt("OUTGRESS_MIN_ROUTINES", 2),
 		MaxRoutines:           env.GetInt("OUTGRESS_MAX_ROUTINES", 8),
 		MaxConsumers:          env.GetInt("OUTGRESS_MAX_CONSUMERS", 3),

@@ -145,6 +145,13 @@ func main() {
 		log.Fatal("failed to subscribe projection rpc", zap.Error(err))
 	}
 
+	// Dashboard verbs (list, upsert): the console toggles/configures modules the
+	// same way it manages commands.
+	dashboardSubject := env.Get("NATS_MODULES_SUBJECT_PREFIX", "bagel.rpc.modules")
+	if err := rpc.SubscribeDashboard(nc, repo, dashboardSubject, "modules-rpc", nrApp, log); err != nil {
+		log.Fatal("failed to subscribe dashboard rpc", zap.Error(err))
+	}
+
 	health.Serve(env.Get("LISTEN_ADDR", ":8080"), nc.IsConnected)
 
 	log.Info("modules service ready", zap.String("projection_subject", projectionSubject))

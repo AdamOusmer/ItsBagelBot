@@ -9,6 +9,8 @@ import (
 
 	"ItsBagelBot/app/worker/internal/config"
 	"ItsBagelBot/app/worker/internal/consumer"
+	"ItsBagelBot/app/worker/module"
+	"ItsBagelBot/app/worker/module/builtin"
 	"ItsBagelBot/app/worker/pipeline"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
@@ -83,10 +85,44 @@ func main() {
 	defer proj.Close()
 	proj.StartInvalidationListener(cfg.CacheInvalidationPrefix)
 
+	// Live status: a dedicated Valkey key (live:<id>) read through an in-process
+	// cache, written from the stream events the worker already consumes, with a
+	// projector RPC fallback on a cold key and a key-expiry re-check against
+	// Twitch (via the outgress system lane) so a long stream is re-confirmed
+	// rather than silently dropped.
+	live := module.NewValkeyLiveStore(valkeyClient, nc, pub, module.LiveConfig{
+		TTL:                   cfg.LiveTTL,
+		CacheTTL:              projectionCacheTTL,
+		ProjectorLiveSubject:  cfg.ProjectionLiveSubject,
+		OutgressSystemSubject: cfg.OutgressSystemSubject,
+		CacheInvalidatePrefix: cfg.CacheInvalidationPrefix,
+		KeyspaceDB:            0,
+	}, log)
+	defer live.Close()
+	live.StartInvalidationListener()
+	go live.StartExpiryWatcher(ctx)
+
+	greet := module.NewValkeyGreetStore(valkeyClient, cfg.LiveTTL)
+	cooldown := module.NewValkeyCooldown(valkeyClient)
+	special := module.NewSpecialSet(cfg.SpecialUserIDs)
+
+	// The module registry is the pluggable behavior set. Core modules
+	// (command, live, system) are always on and never shown on the dashboard;
+	// the system module also owns the bagel greeting. Named modules (shoutout)
+	// are toggled + configured per broadcaster. Adding a feature is registering a
+	// module here.
+	registry := module.NewRegistry(
+		builtin.NewCommandModule(proj, live, cooldown, log),
+		builtin.NewLiveModule(live, greet, log),
+		builtin.NewSystemModule(special, live, greet, log),
+		builtin.NewShoutoutModule(log),
+	)
+
 	pipe := pipeline.NewPipeline(
 		log,
 		pub,
 		proj,
+		registry,
 		cfg.OutgressPremiumSubject,
 		cfg.OutgressStandardSubject,
 	)
@@ -120,6 +156,8 @@ func main() {
 		zap.Int("max_routines", cfg.MaxRoutines),
 		zap.Int("max_consumers", cfg.MaxConsumers),
 		zap.Int("premium_reserve_percent", cfg.PremiumReserve),
+		zap.Int("special_users", special.Len()),
+		zap.Duration("live_ttl", cfg.LiveTTL),
 	)
 
 	<-ctx.Done()

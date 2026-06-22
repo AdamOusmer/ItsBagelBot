@@ -13,6 +13,7 @@ const SUB = {
   broadcaster: process.env.NATS_BROADCASTER_STATUS_SUBJECT ?? 'bagel.rpc.broadcaster.status.get',
   dashboard: process.env.NATS_DASHBOARD_SUBJECT_PREFIX ?? 'bagel.rpc.dashboard',
   commands: process.env.NATS_COMMANDS_SUBJECT_PREFIX ?? 'bagel.rpc.commands',
+  modules: process.env.NATS_MODULES_SUBJECT_PREFIX ?? 'bagel.rpc.modules',
   projector: process.env.NATS_PROJECTOR_DASHBOARD_SUBJECT_PREFIX ?? 'bagel.rpc.projector.dashboard',
   outgress: process.env.NATS_OUTGRESS_SYSTEM_SUBJECT ?? 'twitch.outgress.system',
   outgressRpc: process.env.NATS_OUTGRESS_RPC_PREFIX ?? 'bagel.rpc.outgress',
@@ -395,6 +396,30 @@ export async function replaceProjectedModules(userId: string, modules: ModuleVie
   } catch {
     /* best-effort: module change events reconcile Valkey shortly after */
   }
+}
+
+// upsertModule writes one module's enabled flag + config to the modules service
+// (source of truth, write-behind), then optimistically refreshes the projection
+// and the local cache, mirroring upsertCommand.
+export async function upsertModule(
+  userId: string,
+  name: string,
+  isEnabled: boolean,
+  configs?: unknown
+): Promise<{ modules: ModuleView[]; error?: string }> {
+  const r = await rpc<{ modules: ModuleView[]; error?: string }>(`${SUB.modules}.upsert`, {
+    user_id: userId,
+    name,
+    is_enabled: isEnabled,
+    // Omit empty configs so the service stores nothing rather than "{}".
+    configs: configs && Object.keys(configs as object).length ? configs : undefined
+  });
+  if (!r.error) {
+    const modules = r.modules ?? [];
+    await replaceProjectedModules(userId, modules);
+    cache.set(`modules:${userId}`, { value: modules, expires: Date.now() + COMMAND_TTL_MS });
+  } else invalidate(`modules:${userId}`);
+  return { modules: r.modules ?? [], error: r.error };
 }
 
 export interface CommandInput {

@@ -436,7 +436,9 @@
   </div>
 {/if}
 
-<svelte:window onkeydown={(e) => { if (e.key === 'Escape') { cancelDelete(); closeEditor(); } }} />
+<!-- Editor is a hand-rolled drawer (no self-managed Escape); the delete modal is
+     the shared <Modal>, which already closes itself on Escape. -->
+<svelte:window onkeydown={(e) => { if (e.key === 'Escape') closeEditor(); }} />
 
 <style>
   .empty {
