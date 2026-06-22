@@ -23,6 +23,7 @@ import (
 	"ItsBagelBot/internal/domain/rpc/manage"
 
 	"github.com/ThreeDotsLabs/watermill/message"
+	"github.com/newrelic/go-agent/v3/newrelic"
 
 	"go.uber.org/zap"
 )
@@ -140,10 +141,21 @@ func (w *Worker) Process(msg *message.Message) error {
 	var payload outgress.Message
 	if err := json.Unmarshal(msg.Payload, &payload); err != nil {
 		w.log.Error("dropping malformed outgress message", zap.Error(err))
+		if txn := newrelic.FromContext(msg.Context()); txn != nil {
+			txn.NoticeError(err)
+		}
 		return nil
 	}
 
 	ctx := msg.Context()
+
+	if txn := newrelic.FromContext(ctx); txn != nil {
+		txn.AddAttribute("event.type", payload.Type)
+		txn.AddAttribute("event.broadcaster_id", payload.BroadcasterID)
+		if payload.Endpoint != "" {
+			txn.AddAttribute("event.endpoint", payload.Endpoint)
+		}
+	}
 
 	paused, err := w.registry.Paused(ctx)
 	if err != nil {
@@ -322,6 +334,9 @@ func (w *Worker) processEventSub(ctx context.Context, payload outgress.Message) 
 	var job outgress.EventSubJob
 	if err := json.Unmarshal(payload.Payload, &job); err != nil {
 		w.log.Error("dropping malformed eventsub job", zap.Error(err))
+		if txn := newrelic.FromContext(ctx); txn != nil {
+			txn.NoticeError(err)
+		}
 		return nil
 	}
 
@@ -375,6 +390,9 @@ func (w *Worker) processStreamStatus(ctx context.Context, payload outgress.Messa
 		if isPermanent(err) {
 			w.log.Error("dropping stream_status twitch rejected",
 				zap.String("broadcaster_id", payload.BroadcasterID), zap.Error(err))
+			if txn := newrelic.FromContext(ctx); txn != nil {
+				txn.NoticeError(err)
+			}
 			return nil
 		}
 		w.log.Warn("stream_status check failed, will retry",
@@ -409,7 +427,7 @@ func (w *Worker) enableEventSubs(ctx context.Context, broadcasterID, conduitID s
 		}
 		if err := w.twitch.CreateEventSub(ctx, spec, conduitID); err != nil {
 			w.conduit.Invalidate()
-			return w.eventSubFailure(err, "eventsub create", broadcasterID, spec.Type)
+			return w.eventSubFailure(ctx, err, "eventsub create", broadcasterID, spec.Type)
 		}
 	}
 
@@ -427,7 +445,7 @@ func (w *Worker) disableEventSubs(ctx context.Context, broadcasterID, conduitID 
 		}
 		subs, next, err := w.twitch.ListEventSubs(ctx, broadcasterID, cursor)
 		if err != nil {
-			return w.eventSubFailure(err, "eventsub list", broadcasterID, "")
+			return w.eventSubFailure(ctx, err, "eventsub list", broadcasterID, "")
 		}
 
 		for _, sub := range subs {
@@ -446,7 +464,7 @@ func (w *Worker) disableEventSubs(ctx context.Context, broadcasterID, conduitID 
 				return err
 			}
 			if err := w.twitch.DeleteEventSub(ctx, sub.ID); err != nil {
-				return w.eventSubFailure(err, "eventsub delete", broadcasterID, "")
+				return w.eventSubFailure(ctx, err, "eventsub delete", broadcasterID, "")
 			}
 			deleted++
 		}
@@ -465,7 +483,7 @@ func (w *Worker) disableEventSubs(ctx context.Context, broadcasterID, conduitID 
 // eventSubFailure splits permanent rejections (bad request, missing consent
 // scopes) from everything retryable. Permanent ones are dropped with a log
 // line; retrying them would burn the whole redelivery budget for nothing.
-func (w *Worker) eventSubFailure(err error, op, broadcasterID, subType string) error {
+func (w *Worker) eventSubFailure(ctx context.Context, err error, op, broadcasterID, subType string) error {
 
 	var status *twitch.StatusError
 	if errors.As(err, &status) &&
@@ -477,6 +495,9 @@ func (w *Worker) eventSubFailure(err error, op, broadcasterID, subType string) e
 			zap.String("broadcaster_id", broadcasterID),
 			zap.String("subscription", subType),
 			zap.Error(err))
+		if txn := newrelic.FromContext(ctx); txn != nil {
+			txn.NoticeError(err)
+		}
 		return nil
 	}
 
@@ -684,6 +705,9 @@ func (w *Worker) execute(ctx context.Context, payload outgress.Message) error {
 			zap.Int("status", res.StatusCode),
 			zap.String("endpoint", payload.Endpoint),
 			zap.String("body", string(body)))
+		if txn := newrelic.FromContext(ctx); txn != nil {
+			txn.NoticeError(fmt.Errorf("twitch rejected request: %d %s", res.StatusCode, string(body)))
+		}
 		return nil
 	}
 

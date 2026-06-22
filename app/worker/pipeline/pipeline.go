@@ -28,6 +28,7 @@ import (
 	"ItsBagelBot/pkg/bus"
 
 	"github.com/ThreeDotsLabs/watermill/message"
+	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
 )
 
@@ -80,6 +81,9 @@ func (p *Pipeline) Process(msg *message.Message) error {
 		// A malformed envelope is poison: redelivering it forever helps no one,
 		// so drop it (ack) and move on.
 		p.log.Warn("dropping malformed envelope", zap.String("message_id", msg.UUID), zap.Error(err))
+		if txn := newrelic.FromContext(ctx); txn != nil {
+			txn.NoticeError(err)
+		}
 		return nil
 	}
 
@@ -97,6 +101,11 @@ func (p *Pipeline) Process(msg *message.Message) error {
 	broadcasterID, ok := env.BroadcasterID()
 	if !ok {
 		return nil
+	}
+
+	if txn := newrelic.FromContext(ctx); txn != nil {
+		txn.AddAttribute("event.type", env.Type)
+		txn.AddAttribute("event.broadcaster_id", broadcasterID)
 	}
 
 	regress := module.RegressFromLane(env.Lane)
@@ -137,6 +146,10 @@ func (p *Pipeline) Process(msg *message.Message) error {
 				zap.String("type", env.Type),
 				zap.Uint64("broadcaster_id", broadcasterID),
 				zap.Error(err))
+			if txn := newrelic.FromContext(ctx); txn != nil {
+				txn.AddAttribute("module.failed", moduleName(m))
+				txn.NoticeError(err)
+			}
 			continue
 		}
 		out = append(out, res...)
