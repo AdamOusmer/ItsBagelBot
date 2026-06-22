@@ -1,23 +1,21 @@
 # Hub NATS server. The nats-config configmap is generated from
 # nats-server.conf + nats-auth.conf by the Flux kustomize configMapGenerator
 # (deploy/k8s/kustomization.yaml); bcrypt hashes come from the nats-auth-env
-# secret. The nats-jetstream-data PVC pre-exists on the cluster (local-path,
-# 4Gi) and is referenced, not managed, here.
+# secret.
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   labels:
     app: nats
   name: nats
   namespace: production
 spec:
-  replicas: 1
+  serviceName: nats-headless
+  replicas: 3
   revisionHistoryLimit: 10
   selector:
     matchLabels:
       app: nats
-  strategy:
-    type: Recreate
   template:
     metadata:
       annotations:
@@ -48,8 +46,13 @@ spec:
           operator: Exists
           effect: NoExecute
           tolerationSeconds: 60
-      nodeSelector:
-        kubernetes.io/hostname: node1
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: nats
       # nats runs as uid/gid 1000; fsGroup makes the JetStream PVC writable.
       # Shared PID namespace lets the config-reloader sidecar SIGHUP the
       # nats-server process (same uid 1000) when the mounted config changes.
@@ -74,6 +77,7 @@ spec:
             - {containerPort: 4222, name: client}
             - {containerPort: 8222, name: monitor}
             - {containerPort: 7422, name: leafnodes}
+            - {containerPort: 6222, name: cluster}
           volumeMounts:
             - {name: config, mountPath: /etc/nats, readOnly: true}
             - {name: jetstream-data, mountPath: /data/jetstream}
@@ -152,11 +156,19 @@ spec:
         - name: config
           configMap:
             name: nats-config
-        - name: jetstream-data
-          persistentVolumeClaim:
-            claimName: nats-jetstream-data
         - name: pid
           emptyDir: {}
+  volumeClaimTemplates:
+    - apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: jetstream-data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 4Gi
 ---
 apiVersion: v1
 kind: Service
@@ -166,7 +178,7 @@ metadata:
   name: nats
   namespace: production
   annotations:
-    config.linkerd.io/opaque-ports: "4222,7422"
+    config.linkerd.io/opaque-ports: "4222,7422,6222"
 spec:
   selector:
     app: nats
@@ -174,3 +186,19 @@ spec:
     - {name: client, port: 4222, targetPort: client}
     - {name: monitor, port: 8222, targetPort: monitor}
     - {name: leafnodes, port: 7422, targetPort: leafnodes}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: nats
+  name: nats-headless
+  namespace: production
+  annotations:
+    config.linkerd.io/opaque-ports: "4222,7422,6222"
+spec:
+  clusterIP: None
+  selector:
+    app: nats
+  ports:
+    - {name: cluster, port: 6222, targetPort: cluster}
