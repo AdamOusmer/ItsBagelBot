@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"strconv"
+	"strings"
 	"time"
 
 	"ItsBagelBot/app/commands/ent"
@@ -21,6 +22,34 @@ import (
 
 	"go.uber.org/zap"
 )
+
+// normalizeName is the canonical command key: the bare trigger, lower-cased,
+// with any leading "!" dropped. Applied at every write/lookup so the DB, the
+// change events, the projection and the worker's lookup all agree (chat carries
+// the "!" to invoke; the stored key never does).
+func normalizeName(name string) string {
+	return strings.ToLower(strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(name), "!")))
+}
+
+func normalizeAliases(aliases []string) []string {
+	if len(aliases) == 0 {
+		return aliases
+	}
+	out := make([]string, 0, len(aliases))
+	seen := map[string]struct{}{}
+	for _, a := range aliases {
+		n := normalizeName(a)
+		if n == "" {
+			continue
+		}
+		if _, dup := seen[n]; dup {
+			continue
+		}
+		seen[n] = struct{}{}
+		out = append(out, n)
+	}
+	return out
+}
 
 const (
 	commandsKeyPrefix = "commands:"
@@ -103,6 +132,9 @@ func (r *Commands) List(ctx context.Context, userID uint64) ([]CommandView, erro
 // the same command coalesce into the latest state before the next flush.
 func (r *Commands) Upsert(userID uint64, name string, aliases []string, response string, isActive bool, streamOnlineOnly bool, perm string, cooldown uint, allowedUserID uint64) error {
 
+	name = normalizeName(name)
+	aliases = normalizeAliases(aliases)
+
 	if err := validate.UserID(userID); err != nil {
 		return err
 	}
@@ -144,6 +176,10 @@ func (r *Commands) Upsert(userID uint64, name string, aliases []string, response
 // old name and a change for the new so name-keyed consumers (projector, bot)
 // drop the stale entry and pick up the renamed command.
 func (r *Commands) Rename(ctx context.Context, userID uint64, oldName, newName string, aliases []string, response string, isActive bool, streamOnlineOnly bool, perm string, cooldown uint, allowedUserID uint64) error {
+
+	oldName = normalizeName(oldName)
+	newName = normalizeName(newName)
+	aliases = normalizeAliases(aliases)
 
 	if err := validate.UserID(userID); err != nil {
 		return err
@@ -217,6 +253,8 @@ func (r *Commands) Rename(ctx context.Context, userID uint64, oldName, newName s
 
 // Delete removes a command immediately and announces it.
 func (r *Commands) Delete(ctx context.Context, userID uint64, name string) error {
+
+	name = normalizeName(name)
 
 	if err := validate.UserID(userID); err != nil {
 		return err
