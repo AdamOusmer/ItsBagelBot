@@ -11,7 +11,7 @@ import (
 
 	"ItsBagelBot/app/modules/repository"
 	modulesrpc "ItsBagelBot/internal/domain/rpc/modules"
-	"ItsBagelBot/internal/domain/rpc/projection"
+
 	"ItsBagelBot/pkg/bus"
 )
 
