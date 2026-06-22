@@ -10,6 +10,9 @@ import (
 	"syscall"
 
 	"ItsBagelBot/app/users/ent"
+	// Wire the ent schema runtime (field defaults/hooks); without this blank
+	// import every write fails: "forgotten import ent/runtime?".
+	_ "ItsBagelBot/app/users/ent/runtime"
 	"ItsBagelBot/app/users/repository"
 	"ItsBagelBot/app/users/rpc"
 	"ItsBagelBot/internal/domain/event/data"
