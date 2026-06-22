@@ -28,3 +28,20 @@ type StatusReply struct {
 	Banned        bool   `json:"banned"`
 	Error         string `json:"error,omitempty"`
 }
+
+// LiveRequest is the input shape for the projector live verb: the worker asks
+// for a broadcaster's current live state when its own live key is cold.
+type LiveRequest struct {
+	BroadcasterID string `json:"broadcaster_id"`
+}
+
+// LiveReply is the reply shape for the projector live verb. Known is false when
+// the projector could not confirm the state from its own projection and has
+// escalated to Twitch (via outgress); the worker treats unknown as offline and
+// the escalation refreshes the live key for the next read.
+type LiveReply struct {
+	BroadcasterID string `json:"broadcaster_id"`
+	Live          bool   `json:"live"`
+	Known         bool   `json:"known"`
+	Error         string `json:"error,omitempty"`
+}

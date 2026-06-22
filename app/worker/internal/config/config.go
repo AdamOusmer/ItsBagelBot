@@ -43,6 +43,22 @@ type Config struct {
 	// broadcaster's reply rides the premium outgress lane end to end.
 	OutgressPremiumSubject  string
 	OutgressStandardSubject string
+	// OutgressSystemSubject is the outgress system lane (off the chat budget).
+	// The live key-expiry re-check publishes its Twitch Get Streams job here.
+	OutgressSystemSubject string
+
+	// ProjectionLiveSubject is the projector RPC the live store asks when its
+	// shared live key is cold; the projector answers from its projection or
+	// escalates to Twitch via outgress.
+	ProjectionLiveSubject string
+
+	// SpecialUserIDs is the comma-separated list of special (bagel-crew) Twitch
+	// user ids, the same Doppler secret ingress uses to lane them premium.
+	SpecialUserIDs string
+
+	// LiveTTL bounds how long a live key survives without a refresh; on expiry
+	// the worker re-checks the stream against Twitch instead of dropping it.
+	LiveTTL time.Duration
 
 	// Projection RPC subjects: the contracts the worker uses to resolve the
 	// user, modules and commands for the broadcaster an event belongs to.
@@ -83,6 +99,13 @@ func Load() *Config {
 
 		OutgressPremiumSubject:  env.Get("NATS_OUTGRESS_PREMIUM_SUBJECT", "twitch.outgress.premium"),
 		OutgressStandardSubject: env.Get("NATS_OUTGRESS_STANDARD_SUBJECT", "twitch.outgress.standard"),
+		OutgressSystemSubject:   env.Get("NATS_OUTGRESS_SYSTEM_SUBJECT", "twitch.outgress.system"),
+
+		ProjectionLiveSubject: env.Get("NATS_BROADCASTER_LIVE_SUBJECT", "bagel.rpc.broadcaster.live.get"),
+
+		SpecialUserIDs: env.Get("TWITCH_SPECIAL_USER_IDS", ""),
+
+		LiveTTL: env.GetDuration("WORKER_LIVE_TTL", 12*time.Hour),
 
 		ProjectionUsersSubject:    env.Get("NATS_INTERNAL_PROJECTION_USERS_SUBJECT", "bagel.rpc.internal.projection.users.get"),
 		ProjectionModulesSubject:  env.Get("NATS_INTERNAL_PROJECTION_MODULES_SUBJECT", "bagel.rpc.internal.projection.modules.get"),

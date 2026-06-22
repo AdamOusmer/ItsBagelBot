@@ -113,7 +113,14 @@ type Worker struct {
 	owner    string // pod identity for the enroll lock (os.Hostname)
 	conduit  *conduit.Resolver
 	lane     Lane
+	// live writes the result of a Twitch live re-check back into the projection.
+	// Only the system lane sets it (via SetLiveWriter); nil elsewhere.
+	live *LiveWriter
 }
+
+// SetLiveWriter attaches the live re-check write-back, used by the system lane
+// worker that handles stream_status jobs.
+func (w *Worker) SetLiveWriter(lw *LiveWriter) { w.live = lw }
 
 func New(log *zap.Logger, limiter *ratelimit.Limiter, registry *channels.Registry, tw *twitch.Client, botID, owner string, conduitResolver *conduit.Resolver, lane Lane) *Worker {
 	return &Worker{
@@ -148,6 +155,10 @@ func (w *Worker) Process(msg *message.Message) error {
 
 	if payload.Type == outgress.TypeEventSub {
 		return w.processEventSub(ctx, payload)
+	}
+
+	if payload.Type == outgress.TypeStreamStatus {
+		return w.processStreamStatus(ctx, payload)
 	}
 
 	// Helix path: "chat", "api", and the mapped intents (ban, unban, ad, clip…).
@@ -302,6 +313,47 @@ func (w *Worker) processEventSub(ctx context.Context, payload outgress.Message) 
 			zap.String("broadcaster_id", payload.BroadcasterID))
 		return nil
 	}
+}
+
+// processStreamStatus resolves one broadcaster's live state from Twitch (Helix
+// Get Streams) and writes it back into the live projection. It pays the reserved
+// system Helix bucket and runs only on the system lane (where SetLiveWriter has
+// attached the write-back). A permanent Twitch rejection is dropped; transient
+// errors nack so the paced redelivery retries.
+func (w *Worker) processStreamStatus(ctx context.Context, payload outgress.Message) error {
+
+	if w.live == nil {
+		w.log.Error("dropping stream_status job off the system lane")
+		return nil
+	}
+	if payload.BroadcasterID == "" {
+		w.log.Error("dropping stream_status job without broadcaster id")
+		return nil
+	}
+
+	if err := w.takeSystemHelix(ctx); err != nil {
+		return err
+	}
+
+	isLive, err := w.twitch.IsStreamLive(ctx, payload.BroadcasterID)
+	if err != nil {
+		if isPermanent(err) {
+			w.log.Error("dropping stream_status twitch rejected",
+				zap.String("broadcaster_id", payload.BroadcasterID), zap.Error(err))
+			return nil
+		}
+		w.log.Warn("stream_status check failed, will retry",
+			zap.String("broadcaster_id", payload.BroadcasterID), zap.Error(err))
+		return err
+	}
+
+	if err := w.live.Write(ctx, payload.BroadcasterID, isLive); err != nil {
+		return err
+	}
+
+	w.log.Debug("stream_status resolved",
+		zap.String("broadcaster_id", payload.BroadcasterID), zap.Bool("live", isLive))
+	return nil
 }
 
 func (w *Worker) enableEventSubs(ctx context.Context, broadcasterID, conduitID string) error {

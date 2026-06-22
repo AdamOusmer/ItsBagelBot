@@ -143,6 +143,32 @@ spec:
               value: "true"
             - name: NEW_RELIC_LOG
               value: stdout
+            - name: NEW_RELIC_LOG_LEVEL
+              value: info
+            # Span events + code-level metrics (span -> source line).
+            - name: NEW_RELIC_SPAN_EVENTS_ENABLED
+              value: "true"
+            - name: NEW_RELIC_CODE_LEVEL_METRICS_ENABLED
+              value: "true"
+            # Logs-in-context: the cluster Fluent Bit DaemonSet already forwards
+            # stdout to New Relic, so the agent must NOT forward too (double-send).
+            # It decorates stdout with trace/entity linking metadata and emits
+            # log-level metrics, so forwarded logs correlate back to APM traces.
+            - name: NEW_RELIC_APPLICATION_LOGGING_ENABLED
+              value: "true"
+            - name: NEW_RELIC_APPLICATION_LOGGING_FORWARDING_ENABLED
+              value: "false"
+            - name: NEW_RELIC_APPLICATION_LOGGING_LOCAL_DECORATING_ENABLED
+              value: "true"
+            - name: NEW_RELIC_APPLICATION_LOGGING_METRICS_ENABLED
+              value: "true"
+            # Entity labels for filtering; pod name as the process display name.
+            - name: NEW_RELIC_LABELS
+              value: "service:console-dashboard;tier:web;component:ssr"
+            - name: NEW_RELIC_PROCESS_HOST_DISPLAY_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
           # TWITCH_CLIENT_ID/SECRET/REDIRECT_URI + NATS_HOST/PORT/USER/PASSWORD
           # from the existing Doppler-synced secret.
           envFrom:

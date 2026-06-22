@@ -68,6 +68,14 @@ func main() {
 	}
 	defer nc.Close()
 
+	// JetStream publisher for escalating a cold live query onto the outgress
+	// system lane (the live RPC's Twitch re-check).
+	pub, err := bus.NewPublisher(natsURL, log)
+	if err != nil {
+		log.Fatal("failed to connect publisher", zap.Error(err))
+	}
+	defer func() { _ = pub.Close() }()
+
 	// Core-NATS subject for fanning tier-cache invalidations to every projector
 	// pod (see Projector.broadcastInvalidate / rpc.SubscribeStatus).
 	invalidateSubject := env.Get("NATS_PROJECTOR_TIER_INVALIDATE_SUBJECT", "bagel.internal.projector.tier.invalidate")
@@ -113,6 +121,15 @@ func main() {
 	dashboardSubject := env.Get("NATS_PROJECTOR_DASHBOARD_SUBJECT_PREFIX", "bagel.rpc.projector.dashboard")
 	if err := rpc.SubscribeDashboard(nc, valkeyStore, dashboardSubject, commandsTopic, modulesTopic, "projector-rpc", nrApp, log); err != nil {
 		log.Fatal("failed to subscribe dashboard projector rpc", zap.Error(err))
+	}
+
+	// Live verb: the worker asks here when its live key is cold; the projector
+	// answers from its projection or escalates to Twitch via the outgress system
+	// lane.
+	liveSubject := env.Get("NATS_BROADCASTER_LIVE_SUBJECT", "bagel.rpc.broadcaster.live.get")
+	outgressSystemSubject := env.Get("NATS_OUTGRESS_SYSTEM_SUBJECT", "twitch.outgress.system")
+	if err := rpc.SubscribeLive(nc, valkeyStore, pub, liveSubject, outgressSystemSubject, "projector-rpc", nrApp, log); err != nil {
+		log.Fatal("failed to subscribe live rpc", zap.Error(err))
 	}
 
 	health.Serve(env.Get("LISTEN_ADDR", ":8080"), nc.IsConnected)

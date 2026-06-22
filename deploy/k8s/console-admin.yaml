@@ -132,6 +132,43 @@ spec:
                 secretKeyRef:
                   name: console-admin-env
                   key: IMPERSONATION_PRIVATE_KEY
+            # ── New Relic APM. Agent preloaded via --import in the Containerfile;
+            # the license key arrives through the Doppler secret in envFrom. No
+            # config file — everything is declared here so it is auditable in git.
+            - name: NEW_RELIC_APP_NAME
+              value: console-admin
+            - name: NEW_RELIC_NO_CONFIG_FILE
+              value: "true"
+            - name: NEW_RELIC_LOG
+              value: stdout
+            - name: NEW_RELIC_LOG_LEVEL
+              value: info
+            # Distributed tracing + span events + code-level metrics (span->source).
+            - name: NEW_RELIC_DISTRIBUTED_TRACING_ENABLED
+              value: "true"
+            - name: NEW_RELIC_SPAN_EVENTS_ENABLED
+              value: "true"
+            - name: NEW_RELIC_CODE_LEVEL_METRICS_ENABLED
+              value: "true"
+            # Logs-in-context: the cluster Fluent Bit DaemonSet already forwards
+            # stdout to New Relic, so the agent must NOT forward too (double-send).
+            # It decorates stdout with trace/entity linking metadata and emits
+            # log-level metrics, so forwarded logs correlate back to APM traces.
+            - name: NEW_RELIC_APPLICATION_LOGGING_ENABLED
+              value: "true"
+            - name: NEW_RELIC_APPLICATION_LOGGING_FORWARDING_ENABLED
+              value: "false"
+            - name: NEW_RELIC_APPLICATION_LOGGING_LOCAL_DECORATING_ENABLED
+              value: "true"
+            - name: NEW_RELIC_APPLICATION_LOGGING_METRICS_ENABLED
+              value: "true"
+            # Entity labels for filtering; pod name as the process display name.
+            - name: NEW_RELIC_LABELS
+              value: "service:console-admin;tier:web;component:ssr"
+            - name: NEW_RELIC_PROCESS_HOST_DISPLAY_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
           # Secrets from Doppler (admin/prd -> console-admin-env). Admin
           # sessions are isolated from other tiers:
           #   SESSION_KEY            — 32-byte base64, admin-only (own Doppler

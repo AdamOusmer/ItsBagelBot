@@ -135,6 +135,9 @@ func main() {
 	// pays only the reserved system Helix partition, so onboarding bursts
 	// never compete with chat/api traffic for the general budget.
 	system := worker.New(log.Named("system"), limiter, registry, tw, cfg.TwitchBotUserID, host, conduitResolver, worker.LaneSystem)
+	// The system lane also resolves live re-checks (stream_status jobs) and writes
+	// the result back into the live projection for the worker fleet.
+	system.SetLiveWriter(worker.NewLiveWriter(valkeyClient, nc, cfg.CacheInvalidatePrefix, cfg.LiveTTL, log.Named("live")))
 
 	// One durable group per lane so each lane drains independently; the
 	// paced redelivery keeps rate-limit nacks from spinning.

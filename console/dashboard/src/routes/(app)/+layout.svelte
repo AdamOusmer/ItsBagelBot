@@ -8,9 +8,11 @@
   const crumb = $derived(
     path.startsWith('/commands')
       ? 'Commands'
-      : path.startsWith('/settings') || path.startsWith('/access')
-        ? 'Settings'
-        : 'Overview'
+      : path.startsWith('/modules')
+        ? 'Modules'
+        : path.startsWith('/settings') || path.startsWith('/access')
+          ? 'Settings'
+          : 'Overview'
   );
 
   // Delegate view: nav and routes are limited to the granted sections, and the
@@ -18,6 +20,7 @@
   const isDelegate = $derived(!!data.delegateOf);
   const sections = $derived((data.sections ?? []) as string[]);
   const canCommands = $derived(!isDelegate || sections.includes('commands'));
+  const canModules = $derived(!isDelegate || sections.includes('modules'));
 
   const items = $derived([
     ...(!isDelegate
@@ -25,6 +28,9 @@
       : []),
     ...(canCommands
       ? [{ href: '/commands', icon: 'commands', label: 'Commands', active: crumb === 'Commands' }]
+      : []),
+    ...(canModules
+      ? [{ href: '/modules', icon: 'power', label: 'Modules', active: crumb === 'Modules' }]
       : []),
     ...(!isDelegate
       ? [{ href: '/settings', icon: 'settings', label: 'Settings', active: crumb === 'Settings' }]

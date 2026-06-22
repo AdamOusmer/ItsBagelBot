@@ -1,6 +1,7 @@
 // Server-only NATS RPC client. One lazily-dialed, process-wide connection
 // reused across requests (connection setup is the expensive part; a warm conn
 // keeps request/reply in the low-ms range, which is what the p99 budget needs).
+import newrelic from 'newrelic';
 import {
   connect,
   JSONCodec,
@@ -11,6 +12,15 @@ import {
 } from 'nats';
 
 const jc = JSONCodec();
+
+// Collapse numeric/id path tokens so per-subject RPC segments stay low-cardinality
+// in New Relic (e.g. `...status.12345` -> `...status.*`).
+function rpcSegment(subject: string): string {
+  return subject
+    .split('.')
+    .map((t) => (/^\d+$/.test(t) ? '*' : t))
+    .join('.');
+}
 
 let conn: NatsConnection | null = null;
 let dialing: Promise<NatsConnection> | null = null;
@@ -112,11 +122,16 @@ export class RpcError extends Error {}
  * defaults to 5s to match the Go callers.
  */
 export async function rpc<T>(subject: string, payload: unknown = {}, timeoutMs = 5000): Promise<T> {
-  const nc = await get();
-  const msg = await nc.request(subject, jc.encode(payload), { timeout: timeoutMs });
-  const reply = jc.decode(msg.data) as T & { error?: string };
-  if (reply && typeof reply === 'object' && reply.error) throw new RpcError(reply.error);
-  return reply as T;
+  // Time each request/reply as its own New Relic segment so the SSR transaction
+  // breakdown shows which RPC subject dominates a slow page. Safe no-op (runs the
+  // handler directly) when no agent/transaction is active.
+  return newrelic.startSegment(`NATS/request/${rpcSegment(subject)}`, true, async () => {
+    const nc = await get();
+    const msg = await nc.request(subject, jc.encode(payload), { timeout: timeoutMs });
+    const reply = jc.decode(msg.data) as T & { error?: string };
+    if (reply && typeof reply === 'object' && reply.error) throw new RpcError(reply.error);
+    return reply as T;
+  });
 }
 
 /**
@@ -125,9 +140,11 @@ export async function rpc<T>(subject: string, payload: unknown = {}, timeoutMs =
  * without needing a JetStream client.
  */
 export async function publish(subject: string, payload: unknown = {}): Promise<void> {
-  const nc = await get();
-  nc.publish(subject, jc.encode(payload));
-  await nc.flush();
+  return newrelic.startSegment(`NATS/publish/${rpcSegment(subject)}`, true, async () => {
+    const nc = await get();
+    nc.publish(subject, jc.encode(payload));
+    await nc.flush();
+  });
 }
 
 export async function closeNats(): Promise<void> {

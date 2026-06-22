@@ -20,6 +20,16 @@ type Message struct {
 	As string `json:"as,omitempty"`
 }
 
+// StreamStatusJob is the payload of a "stream_status" message: a request for
+// outgress to resolve one broadcaster's current live state from Twitch (Helix
+// Get Streams) and write it back into the shared live projection. It carries no
+// reply subject; the result is published as a Valkey write + a cache
+// invalidation, so producers (the worker's key-expiry watcher, the projector's
+// cold-miss escalation) fire and forget.
+type StreamStatusJob struct {
+	BroadcasterID string `json:"broadcaster_id"`
+}
+
 // EventSubJob is the payload of an "eventsub" message: the receive toggle's
 // intent for one channel. Enabled creates the channel's subscriptions on the
 // Conduit, disabled deletes them.
@@ -36,15 +46,16 @@ type EventSubJob struct {
 
 // Message type values. Producers set Message.Type to one of these.
 const (
-	TypeChat       = "chat"
-	TypeAPI        = "api"
-	TypeEventSub   = "eventsub"
-	TypeBan        = "ban"
-	TypeTimeout    = "timeout"
-	TypeUnban      = "unban"
-	TypeAd         = "ad"
-	TypeCommercial = "commercial"
-	TypeClip       = "clip"
+	TypeChat         = "chat"
+	TypeAPI          = "api"
+	TypeEventSub     = "eventsub"
+	TypeStreamStatus = "stream_status"
+	TypeBan          = "ban"
+	TypeTimeout      = "timeout"
+	TypeUnban        = "unban"
+	TypeAd           = "ad"
+	TypeCommercial   = "commercial"
+	TypeClip         = "clip"
 )
 
 // EventSubJob mode values for the Mode field.

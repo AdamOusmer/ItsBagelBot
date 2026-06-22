@@ -80,6 +80,25 @@ func (v *Store) GetUser(ctx context.Context, userID uint64) (string, bool, bool,
 	return status, active, banned, nil
 }
 
+// GetStreamLive reads the projected live/offline signal for one user. known is
+// false when the field is absent (the projector has not seen a stream event and
+// the hash has no live entry), letting the caller escalate instead of assuming
+// offline.
+func (v *Store) GetStreamLive(ctx context.Context, userID uint64) (live bool, known bool, err error) {
+	defer segment(ctx, "HGET")()
+
+	key := cache.UserKey(settingsKeyPrefix, userID)
+
+	res, err := v.client.Do(ctx, v.client.B().Hget().Key(key).Field("live").Build()).ToString()
+	if err != nil {
+		if valkey.IsValkeyNil(err) {
+			return false, false, nil
+		}
+		return false, false, err
+	}
+	return res == "1", true, nil
+}
+
 // SetStreamLive projects Twitch's current live/offline signal for one user.
 func (v *Store) SetStreamLive(ctx context.Context, userID uint64, live bool) error {
 
