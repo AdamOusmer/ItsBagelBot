@@ -200,13 +200,12 @@ func (w *Worker) Process(msg *message.Message) error {
 
 func (w *Worker) processChat(ctx context.Context, payload outgress.Message) error {
 
+	// The enabled/disabled decision belongs to the worker, not outgress: by the
+	// time a chat send reaches here it is already authorized. Outgress only reads
+	// the registry for the bot's mod status (which sets the chat rate capacity).
 	ch, found, err := w.registry.Get(ctx, payload.BroadcasterID)
 	if err != nil {
 		return err
-	}
-	if found && !ch.Enabled {
-		w.log.Info("dropping message for disabled channel", zap.String("broadcaster_id", payload.BroadcasterID))
-		return nil
 	}
 
 	capacity := chatCapacity
