@@ -8,6 +8,10 @@ import (
 	"syscall"
 
 	"ItsBagelBot/app/commands/ent"
+	// Wire the ent schema runtime (field defaults like updated_at, and the name
+	// normalization hook). Without this blank import the generated descriptors
+	// stay uninitialized and every write fails: "forgotten import ent/runtime?".
+	_ "ItsBagelBot/app/commands/ent/runtime"
 	"ItsBagelBot/app/commands/repository"
 	"ItsBagelBot/app/commands/rpc"
 	"ItsBagelBot/internal/domain/event/data"
