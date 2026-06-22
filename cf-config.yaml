@@ -1,0 +1,50 @@
+apiVersion: v1
+data:
+  config.yaml: |
+    tunnel: 9c03c6e3-8a04-4f6c-bd48-7403a80da483
+    credentials-file: /etc/cloudflared/creds/credentials.json
+    metrics: 0.0.0.0:2000
+    no-autoupdate: true
+    protocol: http2
+
+    originRequest:
+      connectTimeout: 10s
+      tlsTimeout: 10s
+      keepAliveTimeout: 90s
+      keepAliveConnections: 100
+      caPool: /etc/cloudflared/creds/origin_ca_root.pem
+
+    ingress:
+      - hostname: flux.itsbagelbot.com
+        service: https://traefik.kube-system.svc.cluster.local:443
+        originRequest:
+          originServerName: itsbagelbot.com
+      - hostname: "*.itsmavey.com"
+        service: https://traefik.kube-system.svc.cluster.local:443
+        originRequest:
+          originServerName: itsmavey.com
+      - hostname: itsmavey.com
+        service: https://traefik.kube-system.svc.cluster.local:443
+        originRequest:
+          originServerName: itsmavey.com
+      - hostname: "*.itsbagelbot.com"
+        service: https://traefik.kube-system.svc.cluster.local:443
+        originRequest:
+          originServerName: itsbagelbot.com
+      - hostname: itsbagelbot.com
+        service: https://traefik.kube-system.svc.cluster.local:443
+        originRequest:
+          originServerName: itsbagelbot.com
+      - service: http_status:404
+kind: ConfigMap
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"v1","data":{"config.yaml":"tunnel: 9c03c6e3-8a04-4f6c-bd48-7403a80da483\ncredentials-file: /etc/cloudflared/creds/credentials.json\nmetrics: 0.0.0.0:2000\nno-autoupdate: true\nprotocol: http2\n\noriginRequest:\n  connectTimeout: 10s\n  tlsTimeout: 10s\n  keepAliveTimeout: 90s\n  keepAliveConnections: 100\n  caPool: /etc/cloudflared/creds/origin_ca_root.pem\n\ningress:\n  - hostname: flux.itsbagelbot.com\n    service: https://traefik.kube-system.svc.cluster.local:443
+        originRequest:
+          originServerName: itsbagelbot.com\n  - hostname: \"*.itsmavey.com\"\n    service: https://traefik.kube-system.svc.cluster.local:443\n    originRequest:\n      originServerName: itsmavey.com\n  - hostname: itsmavey.com\n    service: https://traefik.kube-system.svc.cluster.local:443\n    originRequest:\n      originServerName: itsmavey.com\n  - hostname: \"*.itsbagelbot.com\"\n    service: https://traefik.kube-system.svc.cluster.local:443\n    originRequest:\n      originServerName: itsbagelbot.com\n  - hostname: itsbagelbot.com\n    service: https://traefik.kube-system.svc.cluster.local:443\n    originRequest:\n      originServerName: itsbagelbot.com\n  - service: http_status:404\n"},"kind":"ConfigMap","metadata":{"annotations":{},"creationTimestamp":"2026-05-18T17:50:16Z","name":"cloudflared-config","namespace":"cloudflared","resourceVersion":"7461429","uid":"43d3eef8-1f96-4e2f-ad33-a10a409c7416"}}
+  creationTimestamp: "2026-05-18T17:50:16Z"
+  name: cloudflared-config
+  namespace: cloudflared
+  resourceVersion: "13252018"
+  uid: 43d3eef8-1f96-4e2f-ad33-a10a409c7416
