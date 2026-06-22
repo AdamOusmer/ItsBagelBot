@@ -61,15 +61,24 @@ func (r *Registry) Save(ctx context.Context, ch manage.Channel) error {
 
 	key := keyPrefix + ch.BroadcasterID
 
+	modCheckedAt := "0"
+	if !ch.ModCheckedAt.IsZero() {
+		modCheckedAt = strconv.FormatInt(ch.ModCheckedAt.Unix(), 10)
+	}
+	subCheckedAt := "0"
+	if !ch.SubCheckedAt.IsZero() {
+		subCheckedAt = strconv.FormatInt(ch.SubCheckedAt.Unix(), 10)
+	}
+
 	for _, res := range r.client.DoMulti(ctx,
 		r.client.B().Hset().Key(key).FieldValue().
 			FieldValue("enabled", utils.BoolField(ch.Enabled)).
 			FieldValue("is_mod", utils.BoolField(ch.IsMod)).
-			FieldValue("mod_checked_at", strconv.FormatInt(ch.ModCheckedAt.Unix(), 10)).
+			FieldValue("mod_checked_at", modCheckedAt).
 			FieldValue("updated_at", strconv.FormatInt(time.Now().Unix(), 10)).
 			FieldValue("sub_state", ch.SubState).
 			FieldValue("sub_error", ch.SubError).
-			FieldValue("sub_checked_at", strconv.FormatInt(ch.SubCheckedAt.Unix(), 10)).
+			FieldValue("sub_checked_at", subCheckedAt).
 			Build(),
 		r.client.B().Sadd().Key(indexKey).Member(ch.BroadcasterID).Build(),
 	) {
