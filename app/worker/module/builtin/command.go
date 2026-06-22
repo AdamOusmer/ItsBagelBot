@@ -37,7 +37,7 @@ func (m *CommandModule) Name() string     { return "" } // core: always on
 func (m *CommandModule) Events() []string { return []string{"channel.chat.message"} }
 
 func (m *CommandModule) Handle(ctx context.Context, c *module.Context) ([]*outgress.Message, error) {
-	name, _, isCommand := parseCommand(c.Env.Text)
+	name, args, isCommand := parseCommand(c.Env.Text)
 	if !isCommand {
 		return nil, nil
 	}
@@ -51,8 +51,8 @@ func (m *CommandModule) Handle(ctx context.Context, c *module.Context) ([]*outgr
 	}
 
 	// Permission: an explicit allowed user overrides the role tier entirely.
-	if cmd.AllowedUserID != 0 {
-		if c.Env.ChatterUserID != strconv.FormatUint(cmd.AllowedUserID, 10) {
+	if cmd.AllowedUserID != "" {
+		if c.Env.ChatterUserID != cmd.AllowedUserID {
 			return nil, nil
 		}
 	} else if !c.Chatter().Allows(module.ParsePerm(cmd.Perm)) {
@@ -85,7 +85,23 @@ func (m *CommandModule) Handle(ctx context.Context, c *module.Context) ([]*outgr
 		zap.String("regress", c.Regress.String()),
 		zap.Uint64("broadcaster_id", c.BroadcasterID),
 	)
-	return []*outgress.Message{chatReply(c.Env.BroadcasterUserID, cmd.Response)}, nil
+
+	sender := c.Env.ChatterUserLogin
+
+	touser := sender
+	if args != "" {
+		firstWord, _, _ := strings.Cut(args, " ")
+		touser = strings.TrimPrefix(firstWord, "@")
+	}
+
+	msg := strings.NewReplacer(
+		"{user}", sender,
+		"{sender}", sender,
+		"{args}", args,
+		"{touser}", touser,
+	).Replace(cmd.Response)
+
+	return []*outgress.Message{chatReply(c.Env.BroadcasterUserID, msg)}, nil
 }
 
 // resolve finds the effective command: a user's custom command wins; otherwise a

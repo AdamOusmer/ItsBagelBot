@@ -60,7 +60,7 @@ type Command struct {
 	StreamOnlineOnly bool     `json:"stream_online_only"`
 	Perm             string   `json:"perm,omitempty"`
 	Cooldown         uint     `json:"cooldown,omitempty"`
-	AllowedUserID    uint64   `json:"allowed_user_id,omitempty"`
+	AllowedUserID    string   `json:"allowed_user_id,omitempty"`
 }
 
 // Reader is the contract the pipeline depends on. Keeping it an interface lets
@@ -154,6 +154,12 @@ func (c *Client) StartInvalidationListener(prefix string) {
 		switch scope {
 		case "commands":
 			c.commands.Invalidate(key("commands", id))
+			// Proactively prewarm the cache in the background
+			go func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				_, _, _ = c.Command(ctx, id, "")
+			}()
 		case "modules":
 			c.modules.Invalidate(key("modules", id))
 		case "status", "grant", "live":
@@ -211,24 +217,45 @@ func (c *Client) Modules(ctx context.Context, userID uint64) ([]ModuleView, erro
 
 func (c *Client) Command(ctx context.Context, userID uint64, name string) (Command, bool, error) {
 	cmds, err := c.commands.GetOrLoad(ctx, key("commands", userID), func(ctx context.Context) (map[string]Command, error) {
-		// Commands are not projected into Valkey; the projector answers from
-		// the commands service over RPC.
-		reply, err := bus.RequestJSONTimeout[struct {
-			Commands []Command `json:"commands"`
-		}](ctx, c.nc, c.subjects.Commands, projectionRequest(userID), c.rpcTimeout)
-		if err != nil {
-			return map[string]Command{}, nil
+		
+		var commands []Command
+
+		// Tier 2: Check Valkey projection first
+		if views, projected, err := c.store.GetCommands(ctx, userID); err == nil && projected {
+			commands = make([]Command, len(views))
+			for i, v := range views {
+				commands[i] = Command{
+					Name:             v.Name,
+					Aliases:          v.Aliases,
+					Response:         v.Response,
+					IsActive:         v.IsActive,
+					StreamOnlineOnly: v.StreamOnlineOnly,
+					Perm:             v.Perm,
+					Cooldown:         v.Cooldown,
+					AllowedUserID:    v.AllowedUserID,
+				}
+			}
+		} else {
+			// Tier 3: RPC fallback
+			reply, err := bus.RequestJSONTimeout[struct {
+				Commands []Command `json:"commands"`
+			}](ctx, c.nc, c.subjects.Commands, projectionRequest(userID), c.rpcTimeout)
+			if err != nil {
+				return map[string]Command{}, nil
+			}
+			commands = reply.Commands
 		}
+
 		// Index by primary name and every alias so a viewer typing either
 		// resolves to the same command. Lookups arrive lower-cased (see
 		// parseCommand), so key everything lower-cased too. The primary name
 		// wins on a collision: insert names first, then only add an alias key
 		// that is not already a command name.
-		out := make(map[string]Command, len(reply.Commands))
-		for _, cmd := range reply.Commands {
+		out := make(map[string]Command, len(commands))
+		for _, cmd := range commands {
 			out[strings.ToLower(cmd.Name)] = cmd
 		}
-		for _, cmd := range reply.Commands {
+		for _, cmd := range commands {
 			for _, alias := range cmd.Aliases {
 				key := strings.ToLower(alias)
 				if _, taken := out[key]; !taken {
@@ -240,6 +267,9 @@ func (c *Client) Command(ctx context.Context, userID uint64, name string) (Comma
 	})
 	if err != nil {
 		return Command{}, false, err
+	}
+	if name == "" {
+		return Command{}, false, nil
 	}
 	cmd, ok := cmds[name]
 	return cmd, ok, nil

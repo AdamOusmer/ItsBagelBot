@@ -632,6 +632,8 @@ func (w *Worker) modStatus(ctx context.Context, payload outgress.Message, ch man
 				zap.String("broadcaster_id", payload.BroadcasterID),
 				zap.Error(err))
 		}
+		// Cache the failure so we don't hammer Twitch or spin on every message
+		_ = w.registry.SetMod(ctx, payload.BroadcasterID, false)
 		return found && ch.IsMod
 	}
 

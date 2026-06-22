@@ -60,3 +60,4 @@ export function open(value: string): Session | null {
 }
 
 export const COOKIE = 'bagel_session';
+export const ACCOUNT_DELETED_COOKIE = 'bagel_account_deleted';

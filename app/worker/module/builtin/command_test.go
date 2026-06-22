@@ -76,7 +76,7 @@ func TestPermDeniesBelowTier(t *testing.T) {
 }
 
 func TestAllowedUserIDOverride(t *testing.T) {
-	r := fakeReader{found: true, command: projection.Command{Name: "secret", Response: "hi", IsActive: true, Perm: "broadcaster", AllowedUserID: 1}}
+	r := fakeReader{found: true, command: projection.Command{Name: "secret", Response: "hi", IsActive: true, Perm: "broadcaster", AllowedUserID: "1"}}
 	// chatter id "1" matches AllowedUserID, overrides the broadcaster perm tier.
 	replies := run(t, r, &fakeLive{}, &fakeCooldown{allow: true}, cmdCtx("!secret"))
 	require.Len(t, replies, 1)
@@ -118,4 +118,15 @@ func TestDefaultCommandResponseOverride(t *testing.T) {
 func TestUnknownCommandIgnored(t *testing.T) {
 	r := fakeReader{found: false}
 	assert.Empty(t, run(t, r, &fakeLive{}, &fakeCooldown{allow: true}, cmdCtx("!doesnotexist")))
+}
+
+func TestCommandVariables(t *testing.T) {
+	r := fakeReader{found: true, command: projection.Command{Name: "hug", Response: "{user} hugged {touser}! {args}", IsActive: true}}
+	
+	c := cmdCtx("!hug @bob tightly")
+	c.Env.ChatterUserLogin = "alice"
+	
+	replies := run(t, r, &fakeLive{}, &fakeCooldown{allow: true}, c)
+	require.Len(t, replies, 1)
+	assert.Equal(t, "alice hugged bob! @bob tightly", replies[0].Message)
 }
