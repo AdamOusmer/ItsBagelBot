@@ -150,31 +150,13 @@ func (m *CommandModule) resolve(ctx context.Context, broadcasterID uint64, name 
 	return cmd, true, nil
 }
 
-// override reads the reserved command.<name> ModuleView. A missing row means the
-// shipped default applies, enabled; a present row's IsEnabled toggles the command
-// and its Configs.response rewords it.
+// override reads the reserved command.<name> override through the projection
+// reader, which resolves it with two targeted HGETs and its own per-name cache
+// instead of pulling and parsing the broadcaster's whole module list on the
+// default-command hot path. A missing row means the shipped default applies,
+// enabled; a present row toggles the command and rewords its response.
 func (m *CommandModule) override(ctx context.Context, broadcasterID uint64, name string) (enabled bool, response string, err error) {
-	mods, err := m.proj.Modules(ctx, broadcasterID)
-	if err != nil {
-		return false, "", err
-	}
-	want := defaultCommandPrefix + name
-	for _, mv := range mods {
-		if mv.Name != want {
-			continue
-		}
-		if !mv.IsEnabled {
-			return false, "", nil
-		}
-		var cfg struct {
-			Response string `json:"response"`
-		}
-		if len(mv.Configs) > 0 {
-			_ = json.Unmarshal(mv.Configs, &cfg)
-		}
-		return true, cfg.Response, nil
-	}
-	return true, "", nil // no row: default, enabled
+	return m.proj.CommandOverride(ctx, broadcasterID, name)
 }
 
 // parseCommand extracts the command name and argument string from chat text.

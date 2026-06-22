@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"ItsBagelBot/internal/domain/event/data"
@@ -99,13 +100,16 @@ func (p *Projector) HandleUserDeleted(msg *message.Message) error {
 }
 
 // broadcastCacheInvalidate publishes a section-scoped cache invalidation to the
-// console cache bus (same subject the users service uses). Best effort: Valkey
-// is already written, so a missed ping only delays cache staleness until TTL.
-func (p *Projector) broadcastCacheInvalidate(userID uint64, scope string) {
+// console cache bus (same subject the users service uses). The optional keys are
+// granular identifiers (e.g. a command name and its aliases) so subscribers can
+// evict exactly the affected per-command entries instead of a whole section.
+// Best effort: Valkey is already written, so a missed ping only delays cache
+// staleness until TTL.
+func (p *Projector) broadcastCacheInvalidate(userID uint64, scope string, keys ...string) {
 	if p.nc == nil || p.cacheInvalidatePrefix == "" {
 		return
 	}
-	if err := invalidate.Publish(p.nc, p.cacheInvalidatePrefix, scope, fmt.Sprint(userID)); err != nil {
+	if err := invalidate.PublishKeys(p.nc, p.cacheInvalidatePrefix, scope, fmt.Sprint(userID), keys...); err != nil {
 		p.log.Warn("failed to broadcast cache invalidation", zap.Uint64("user_id", userID), zap.String("scope", scope), zap.Error(err))
 	}
 }
@@ -150,7 +154,14 @@ func (p *Projector) HandleModuleChanged(msg *message.Message) error {
 	if err := p.store.SetModule(msg.Context(), dto.UserID, dto.Name, dto.IsEnabled, dto.Configs); err != nil {
 		return err
 	}
-	p.broadcastCacheInvalidate(dto.UserID, "modules")
+	// Reserved default-command overrides live in the module namespace
+	// (command.<name>) but the worker caches them per command, so route their
+	// invalidation to the command scope keyed by the command name.
+	if cmd, ok := strings.CutPrefix(dto.Name, "command."); ok {
+		p.broadcastCacheInvalidate(dto.UserID, "commands", cmd)
+	} else {
+		p.broadcastCacheInvalidate(dto.UserID, "modules")
+	}
 	return nil
 }
 
@@ -193,7 +204,10 @@ func (p *Projector) HandleCommandChanged(msg *message.Message) error {
 	if err := p.store.SetCommand(msg.Context(), dto); err != nil {
 		return err
 	}
-	p.broadcastCacheInvalidate(dto.UserID, "commands")
+	// Carry the command name and every alias so each worker evicts exactly the
+	// per-command entries that changed, never a whole dictionary.
+	keys := append([]string{dto.Name}, dto.Aliases...)
+	p.broadcastCacheInvalidate(dto.UserID, "commands", keys...)
 	return nil
 }
 
