@@ -100,7 +100,18 @@ spec:
               value: 45s
             - name: WORKER_PREMIUM_RESERVE_PERCENT
               value: "25"
+            # Live status: dedicated Valkey key with a TTL backstop; on expiry the
+            # worker re-checks the stream against Twitch via the outgress system
+            # lane, falling back to the projector live RPC on a cold key.
+            - name: WORKER_LIVE_TTL
+              value: 12h
+            - name: NATS_OUTGRESS_SYSTEM_SUBJECT
+              value: twitch.outgress.system
+            - name: NATS_BROADCASTER_LIVE_SUBJECT
+              value: bagel.rpc.broadcaster.live.get
           envFrom:
+            # worker-env (Doppler) carries VALKEY_*, NATS_CACHE_INVALIDATION_PREFIX,
+            # and TWITCH_SPECIAL_USER_IDS (the bagel crew, seeded from twitch-ingress).
             - secretRef:
                 name: worker-env
           ports:

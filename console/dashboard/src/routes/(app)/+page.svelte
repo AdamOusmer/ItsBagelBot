@@ -276,8 +276,6 @@
   {/if}
 </Modal>
 
-<svelte:window onkeydown={(e) => { if (e.key === 'Escape') closeModal(); }} />
-
 <style>
   .status-hero .live.off { color: var(--bb-muted); }
   .status-hero .live.off .dot { background: var(--bb-muted); box-shadow: none; animation: none; }

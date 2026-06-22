@@ -156,7 +156,10 @@ func (c *Client) StartInvalidationListener(prefix string) {
 			c.commands.Invalidate(key("commands", id))
 		case "modules":
 			c.modules.Invalidate(key("modules", id))
-		case "status", "grant":
+		case "status", "grant", "live":
+			// Tier/ban (status/grant) and the legacy live field both live on the
+			// projected User, so drop it. The dedicated live store keeps its own
+			// listener for the live key; this only keeps User coherent.
 			c.users.Invalidate(key("user", id))
 		case "delegation":
 			// Worker does not cache delegations; nothing to evict.

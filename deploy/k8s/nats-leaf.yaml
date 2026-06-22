@@ -46,6 +46,10 @@ spec:
       # Shared PID namespace lets the config-reloader sidecar SIGHUP the
       # nats-server process (same uid 1000) when the mounted config changes.
       shareProcessNamespace: true
+      # Covers the lame-duck drain (grace 5s + duration 30s) the preStop runs
+      # before the leaf exits; keep above that sum so the kubelet does not SIGKILL
+      # a leaf mid-migration.
+      terminationGracePeriodSeconds: 45
       # nats runs as uid/gid 1000; fsGroup makes the leaf-local JetStream
       # emptyDir writable. Durable streams live on the hub, not these leaves.
       securityContext:
@@ -99,6 +103,15 @@ spec:
             initialDelaySeconds: 5
             periodSeconds: 10
             timeoutSeconds: 3
+          lifecycle:
+            preStop:
+              exec:
+                # Enter lame-duck (SIGUSR2 via the pidfile) so this leaf migrates
+                # its clients to a healthy leaf before the socket closes, then
+                # hold the container until the drain finishes. The sleep must
+                # outlast lame_duck_grace_period + lame_duck_duration (35s); a
+                # bare SIGTERM would otherwise abort the graceful drain.
+                command: ["/bin/sh", "-c", "nats-server --signal ldm=/var/run/nats/nats.pid; sleep 36"]
         # Watches the mounted config (nats.conf + auth.conf, sourced from the
         # nats-leaf-config configmap) and SIGHUPs nats-server on change, so an
         # apply-nats.sh configmap update hot-reloads without a manual signal or

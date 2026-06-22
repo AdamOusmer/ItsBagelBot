@@ -44,10 +44,30 @@ const client = sirv(path.join(build, 'client'), {
   brotli: true,
   setHeaders: (res, pathname) => {
     if (pathname.includes(immutable)) {
+      // Content-hashed names; safe to cache hard at the browser and CF edge.
       res.setHeader('cache-control', 'public,max-age=31536000,immutable');
+    } else if (pathname === '/_app/version.json') {
+      // Deploy-detection poll target. If CF or the browser ever cached it, the
+      // client's `updated` store would never flip on a new deploy and stale tabs
+      // would keep fetching deleted chunks. Must never be cached.
+      res.setHeader('cache-control', 'no-store');
     }
   }
 });
+
+// A miss must never be cached. A transient 404 (a chunk requested mid-deploy,
+// before this pod rolled, or routed to a peer that hasn't) would otherwise be
+// memoized by the CF edge and replayed to every client = a 404 storm. no-store
+// keeps the miss to the one request so the client's version-poll reload recovers.
+function send404(req, res) {
+  res.statusCode = 404;
+  res.setHeader('Cache-Control', 'no-store');
+  const url = req.url || '';
+  if (url.endsWith('.css')) res.setHeader('Content-Type', 'text/css');
+  else if (url.endsWith('.js')) res.setHeader('Content-Type', 'application/javascript');
+  else res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  res.end('Not found');
+}
 
 const prerenderedDir = path.join(build, 'prerendered');
 const prerendered = existsSync(prerenderedDir)
@@ -70,24 +90,15 @@ const server = createServer((req, res) => {
 
   client(req, res, () => {
     const next = () => {
+      // A static asset under /_app that sirv could not find: it does not exist on
+      // this pod. Don't fall through to the SSR handler (which would 200 an HTML
+      // shell for a .js URL and break the SPA); return a non-cacheable 404.
       if (req.url && req.url.startsWith('/_app/')) {
-        res.statusCode = 404;
-        const url = req.url || '';
-        if (url.endsWith('.css')) res.setHeader('Content-Type', 'text/css');
-        else if (url.endsWith('.js')) res.setHeader('Content-Type', 'application/javascript');
-        else res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-        res.end('Not found');
+        send404(req, res);
         return;
       }
 
-      handler(req, res, () => {
-        res.statusCode = 404;
-        const url = req.url || '';
-        if (url.endsWith('.css')) res.setHeader('Content-Type', 'text/css');
-        else if (url.endsWith('.js')) res.setHeader('Content-Type', 'application/javascript');
-        else res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-        res.end('Not found');
-      });
+      handler(req, res, () => send404(req, res));
     };
 
     if (prerendered) {
