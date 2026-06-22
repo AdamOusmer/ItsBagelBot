@@ -38,6 +38,10 @@ type Pipeline struct {
 	proj     projection.Reader
 	registry *module.Registry
 
+	// botID is the bot's own Twitch user id; its own chat messages are skipped so
+	// the bot never reacts to itself (reply loops, self-bagel, etc.).
+	botID string
+
 	outgressPremium  string
 	outgressStandard string
 }
@@ -50,6 +54,7 @@ func NewPipeline(
 	pub message.Publisher,
 	proj projection.Reader,
 	registry *module.Registry,
+	botID string,
 	outgressPremium, outgressStandard string,
 ) *Pipeline {
 	return &Pipeline{
@@ -57,6 +62,7 @@ func NewPipeline(
 		pub:              pub,
 		proj:             proj,
 		registry:         registry,
+		botID:            botID,
 		outgressPremium:  outgressPremium,
 		outgressStandard: outgressStandard,
 	}
@@ -74,6 +80,11 @@ func (p *Pipeline) Process(msg *message.Message) error {
 		// A malformed envelope is poison: redelivering it forever helps no one,
 		// so drop it (ack) and move on.
 		p.log.Warn("dropping malformed envelope", zap.String("message_id", msg.UUID), zap.Error(err))
+		return nil
+	}
+
+	// The bot sees its own chat sends via EventSub; never react to them.
+	if p.botID != "" && env.Type == "channel.chat.message" && env.ChatterUserID == p.botID {
 		return nil
 	}
 

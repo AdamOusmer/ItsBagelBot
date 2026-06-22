@@ -123,6 +123,7 @@ func main() {
 		pub,
 		proj,
 		registry,
+		cfg.BotUserID,
 		cfg.OutgressPremiumSubject,
 		cfg.OutgressStandardSubject,
 	)

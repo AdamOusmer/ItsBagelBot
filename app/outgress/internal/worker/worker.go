@@ -237,7 +237,43 @@ func (w *Worker) processChat(ctx context.Context, payload outgress.Message) erro
 		return err
 	}
 
+	// Helix Send Chat Message requires sender_id (the bot) in the body. Producers
+	// only carry the target broadcaster_id + message; the bot identity is owned
+	// here, so inject it. An explicit message sender_id wins; otherwise the
+	// configured bot id, falling back to the message's SenderID.
+	sender := payload.SenderID
+	if sender == "" {
+		sender = w.botID
+	}
+	if sender == "" {
+		w.log.Error("dropping chat message: no bot sender id configured",
+			zap.String("broadcaster_id", payload.BroadcasterID))
+		return nil
+	}
+	payload.Payload = withSenderID(payload.Payload, sender)
+
 	return w.execute(ctx, payload)
+}
+
+// withSenderID ensures the chat body carries sender_id without disturbing the
+// other fields the producer set. A sender_id already present is left untouched.
+func withSenderID(body []byte, senderID string) []byte {
+	m := map[string]json.RawMessage{}
+	if len(body) > 0 {
+		if err := json.Unmarshal(body, &m); err != nil {
+			return body // not an object we can augment; send as-is
+		}
+	}
+	if _, ok := m["sender_id"]; !ok {
+		if b, err := json.Marshal(senderID); err == nil {
+			m["sender_id"] = b
+		}
+	}
+	out, err := json.Marshal(m)
+	if err != nil {
+		return body
+	}
+	return out
 }
 
 func (w *Worker) processAPI(ctx context.Context, payload outgress.Message) error {

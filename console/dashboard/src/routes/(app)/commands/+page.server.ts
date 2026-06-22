@@ -42,9 +42,17 @@ export const load: PageServerLoad = async ({ locals }) => {
   }
 };
 
+// The bare command trigger: drop a leading "!" and lower-case, matching the
+// commands service. Chat keeps the "!" to invoke; the stored key never has it,
+// so the optimistic UI key agrees with what the service returns (no phantom
+// duplicate row on rename).
+function normName(s: string): string {
+  return s.trim().replace(/^!+/, '').trim().toLowerCase();
+}
+
 // Parses and normalizes the shared command fields out of a submitted form.
 function parseCommand(f: FormData) {
-  const name = String(f.get('name') ?? '').trim();
+  const name = normName(String(f.get('name') ?? ''));
 
   // Alternate names arrive as repeated `aliases` fields. Trim, drop blanks, and
   // de-duplicate case-insensitively so the wire payload matches what the
@@ -52,11 +60,10 @@ function parseCommand(f: FormData) {
   const seen = new Set<string>();
   const aliases: string[] = [];
   for (const raw of f.getAll('aliases')) {
-    const a = String(raw).trim();
+    const a = normName(String(raw));
     if (!a) continue;
-    const key = a.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
+    if (seen.has(a)) continue;
+    seen.add(a);
     aliases.push(a);
   }
 
@@ -85,7 +92,7 @@ export const actions: Actions = {
     const cmd = parseCommand(f);
     const isActive = f.get('is_active') === 'on';
     const isEdit = f.get('edit') === '1';
-    const originalName = String(f.get('original_name') ?? '').trim();
+    const originalName = normName(String(f.get('original_name') ?? ''));
     const renamed = isEdit && originalName !== '' && originalName !== cmd.name;
 
     if (!cmd.name) return fail(400, { ok: false, error: 'Command name is required.' });

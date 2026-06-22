@@ -70,7 +70,12 @@ func (Commands) Hooks() []ent.Hook {
 				if m.Op().Is(ent.OpCreate | ent.OpUpdateOne | ent.OpUpdate) {
 					if name, exists := m.Field("name"); exists {
 						if nameStr, ok := name.(string); ok {
-							if err := m.SetField("name", strings.ToLower(nameStr)); err != nil {
+							// Store the bare trigger: strip the leading "!" and
+							// lower-case it. Chat carries the "!" to invoke; the
+							// stored/looked-up key never does, so "!test" and
+							// "test" are the same command.
+							norm := strings.ToLower(strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(nameStr), "!")))
+							if err := m.SetField("name", norm); err != nil {
 								return nil, err
 							}
 						}
