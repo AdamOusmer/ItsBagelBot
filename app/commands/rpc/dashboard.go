@@ -87,53 +87,11 @@ func (d *dashboardRPC) handleUpsert(ctx context.Context, req commandsrpc.Dashboa
 		opErr = d.repo.Upsert(id, req.Name, req.Aliases, req.Response, req.IsActive, req.StreamOnlineOnly, req.Perm, req.Cooldown, allowedUserID)
 	}
 	if opErr != nil {
-		// Validation/conflict error: return it alongside the current list.
-		views, _ := d.repo.List(ctx, id)
-		return commandsrpc.DashboardReply{Commands: views, Error: opErr.Error()}
+		// Validation/conflict error: return it.
+		return commandsrpc.DashboardReply{Error: opErr.Error()}
 	}
 
-	// Upsert is write-behind (~2 s), so build an optimistic reply.
-	views, err := d.repo.List(ctx, id)
-	if err != nil {
-		return commandsrpc.DashboardReply{Error: err.Error()}
-	}
-
-	// Drop the pre-rename key from the optimistic view (rename is immediate, so
-	// a fresh list won't carry it, but a cached one might).
-	if rename {
-		filtered := views[:0]
-		for _, v := range views {
-			if v.Name != req.OriginalName {
-				filtered = append(filtered, v)
-			}
-		}
-		views = filtered
-	}
-
-	// Merge the just-written command: replace existing entry or append.
-	upserted := repository.CommandView{
-		Name:             req.Name,
-		Aliases:          req.Aliases,
-		Response:         req.Response,
-		IsActive:         req.IsActive,
-		StreamOnlineOnly: req.StreamOnlineOnly,
-		Perm:             req.Perm,
-		Cooldown:         req.Cooldown,
-		AllowedUserID:    req.AllowedUserID,
-	}
-	merged := false
-	for i, v := range views {
-		if v.Name == req.Name {
-			views[i] = upserted
-			merged = true
-			break
-		}
-	}
-	if !merged {
-		views = append(views, upserted)
-	}
-
-	return commandsrpc.DashboardReply{Commands: views}
+	return commandsrpc.DashboardReply{}
 }
 
 func (d *dashboardRPC) handleDelete(ctx context.Context, req commandsrpc.DashboardRequest) commandsrpc.DashboardReply {
@@ -146,10 +104,5 @@ func (d *dashboardRPC) handleDelete(ctx context.Context, req commandsrpc.Dashboa
 		return commandsrpc.DashboardReply{Error: err.Error()}
 	}
 
-	// Delete is immediate and invalidates the cache, so List is fresh.
-	views, err := d.repo.List(ctx, id)
-	if err != nil {
-		return commandsrpc.DashboardReply{Error: err.Error()}
-	}
-	return commandsrpc.DashboardReply{Commands: views}
+	return commandsrpc.DashboardReply{}
 }

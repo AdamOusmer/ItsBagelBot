@@ -407,7 +407,7 @@ export async function upsertModule(
   isEnabled: boolean,
   configs?: unknown
 ): Promise<{ modules: ModuleView[]; error?: string }> {
-  const r = await rpc<{ modules: ModuleView[]; error?: string }>(`${SUB.modules}.upsert`, {
+  const r = await rpc<{ error?: string }>(`${SUB.modules}.upsert`, {
     user_id: userId,
     name,
     is_enabled: isEnabled,
@@ -415,11 +415,25 @@ export async function upsertModule(
     configs: configs && Object.keys(configs as object).length ? configs : undefined
   });
   if (!r.error) {
-    const modules = r.modules ?? [];
+    const current = await listModules(userId);
+    const upserted: ModuleView = { name, is_enabled: isEnabled, configs: configs ?? {} };
+    let merged = false;
+    const modules = current.map((v) => {
+      if (v.name === name) {
+        merged = true;
+        return upserted;
+      }
+      return v;
+    });
+    if (!merged) modules.push(upserted);
+
     await replaceProjectedModules(userId, modules);
     cache.set(`modules:${userId}`, { value: modules, expires: Date.now() + COMMAND_TTL_MS });
-  } else invalidate(`modules:${userId}`);
-  return { modules: r.modules ?? [], error: r.error };
+    return { modules, error: r.error };
+  } else {
+    invalidate(`modules:${userId}`);
+    return { modules: await listModules(userId), error: r.error };
+  }
 }
 
 export interface CommandInput {
@@ -441,7 +455,7 @@ export async function upsertCommand(
   cmd: CommandInput,
   originalName?: string
 ): Promise<{ commands: CommandView[]; error?: string }> {
-  const r = await rpc<{ commands: CommandView[]; error?: string }>(`${SUB.commands}.upsert`, {
+  const r = await rpc<{ error?: string }>(`${SUB.commands}.upsert`, {
     user_id: userId,
     name: cmd.name,
     aliases: cmd.aliases,
@@ -454,27 +468,58 @@ export async function upsertCommand(
     original_name: originalName ?? ''
   });
   if (!r.error) {
-    const commands = r.commands ?? [];
+    const current = await listCommands(userId);
+    let commands = current;
+    if (originalName && originalName !== cmd.name) {
+      commands = commands.filter((c) => c.name !== originalName);
+    }
+    const upserted: CommandView = {
+      name: cmd.name,
+      aliases: cmd.aliases,
+      response: cmd.response,
+      is_active: cmd.isActive,
+      stream_online_only: cmd.streamOnlineOnly,
+      perm: cmd.perm,
+      cooldown: cmd.cooldown,
+      allowed_user_id: cmd.allowedUserId
+    };
+    let merged = false;
+    commands = commands.map((v) => {
+      if (v.name === cmd.name) {
+        merged = true;
+        return upserted;
+      }
+      return v;
+    });
+    if (!merged) commands.push(upserted);
+
     await replaceProjectedCommands(userId, commands);
     cache.set(`commands:${userId}`, { value: commands, expires: Date.now() + COMMAND_TTL_MS });
-  } else invalidate(`commands:${userId}`);
-  return { commands: r.commands ?? [], error: r.error };
+    return { commands, error: r.error };
+  } else {
+    invalidate(`commands:${userId}`);
+    return { commands: await listCommands(userId), error: r.error };
+  }
 }
 
 export async function deleteCommand(
   userId: string,
   name: string
 ): Promise<{ commands: CommandView[]; error?: string }> {
-  const r = await rpc<{ commands: CommandView[]; error?: string }>(`${SUB.commands}.delete`, {
+  const r = await rpc<{ error?: string }>(`${SUB.commands}.delete`, {
     user_id: userId,
     name
   });
   if (!r.error) {
-    const commands = r.commands ?? [];
+    const current = await listCommands(userId);
+    const commands = current.filter((c) => c.name !== name);
     await replaceProjectedCommands(userId, commands);
     cache.set(`commands:${userId}`, { value: commands, expires: Date.now() + COMMAND_TTL_MS });
-  } else invalidate(`commands:${userId}`);
-  return { commands: r.commands ?? [], error: r.error };
+    return { commands, error: r.error };
+  } else {
+    invalidate(`commands:${userId}`);
+    return { commands: await listCommands(userId), error: r.error };
+  }
 }
 
 // Scope -> cache key routing for the invalidation bus.

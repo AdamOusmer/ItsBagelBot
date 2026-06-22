@@ -70,29 +70,8 @@ func (d *dashboardRPC) handleUpsert(ctx context.Context, req modulesrpc.Dashboar
 	}
 
 	if err := d.repo.Set(id, req.Name, req.IsEnabled, req.Configs); err != nil {
-		views, _ := d.repo.List(ctx, id)
-		return modulesrpc.DashboardReply{Modules: views, Error: err.Error()}
-	}
-
-	// Set is write-behind (~2 s), so build an optimistic reply by merging the
-	// just-written row into the current list.
-	views, err := d.repo.List(ctx, id)
-	if err != nil {
 		return modulesrpc.DashboardReply{Error: err.Error()}
 	}
 
-	upserted := projection.ModuleView{Name: req.Name, IsEnabled: req.IsEnabled, Configs: req.Configs}
-	merged := false
-	for i, v := range views {
-		if v.Name == req.Name {
-			views[i] = upserted
-			merged = true
-			break
-		}
-	}
-	if !merged {
-		views = append(views, upserted)
-	}
-
-	return modulesrpc.DashboardReply{Modules: views}
+	return modulesrpc.DashboardReply{}
 }
