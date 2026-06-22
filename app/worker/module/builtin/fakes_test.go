@@ -15,6 +15,11 @@ type fakeReader struct {
 	modules []projection.ModuleView
 	cmdErr  error
 	modErr  error
+	// override controls CommandOverride. ovDisabled disables the default
+	// command; ovResponse rewords it. Zero value means "no row: enabled".
+	ovDisabled bool
+	ovResponse string
+	ovErr      error
 }
 
 func (f fakeReader) User(context.Context, uint64) (projection.User, error) { return f.user, nil }
@@ -23,6 +28,9 @@ func (f fakeReader) Modules(context.Context, uint64) ([]projection.ModuleView, e
 }
 func (f fakeReader) Command(context.Context, uint64, string) (projection.Command, bool, error) {
 	return f.command, f.found, f.cmdErr
+}
+func (f fakeReader) CommandOverride(context.Context, uint64, string) (bool, string, error) {
+	return !f.ovDisabled, f.ovResponse, f.ovErr
 }
 
 // fakeLive is a configurable module.LiveStore.

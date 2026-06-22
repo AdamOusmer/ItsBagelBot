@@ -18,6 +18,15 @@ import (
 
 const settingsKeyPrefix = "settings:"
 
+// Command rows are addressable individually so a single lookup is one HGET, not
+// a whole-hash HGETALL. commandFieldPrefix holds the command JSON keyed by its
+// lower-cased primary name; aliasFieldPrefix holds alias -> primary-name
+// pointers so an alias resolves in one extra HGET without scanning every row.
+const (
+	commandFieldPrefix = "command:"
+	aliasFieldPrefix   = "cmdalias:"
+)
+
 // Store is the unified data access object for the settings projection. One hash per user:
 //
 //	settings:<user_id>
@@ -188,39 +197,153 @@ func (v *Store) SetModules(ctx context.Context, userID uint64, modules []ModuleV
 	)
 }
 
-// SetCommand projects one command row of one user.
+// SetCommand projects one command row of one user. The command JSON lands under
+// command:<name> and one alias:<alias> pointer is written per alias. The event
+// carries only the new aliases, so the previous row is read first to retire any
+// alias pointers that no longer apply (rename, reword, delete). That extra HGET
+// is on the rare write path; the hot read path stays a single HGET.
 func (v *Store) SetCommand(ctx context.Context, dto data.CommandChangedDTO) error {
 	defer segment(ctx, "HSET")()
 
 	key := cache.UserKey(settingsKeyPrefix, dto.UserID)
-	field := "command:" + dto.Name
+	name := strings.ToLower(dto.Name)
+	field := commandFieldPrefix + name
 
-	if dto.Deleted {
-		return v.pipeline(ctx,
-			v.client.B().Hdel().Key(key).Field(field).Build(),
-			v.client.B().Hset().
-				Key(key).
-				FieldValue().
-				FieldValue("commands:projected", "1").
-				Build(),
-			v.client.B().Expire().Key(key).Seconds(24*60*60).Build(),
-		)
+	old, _ := v.client.Do(ctx, v.client.B().Hget().Key(key).Field(field).Build()).ToString()
+	var oldAliases []string
+	if old != "" {
+		var prev CommandView
+		if json.Unmarshal([]byte(old), &prev) == nil {
+			oldAliases = prev.Aliases
+		}
 	}
 
-	body, err := json.Marshal(commandViewFromEvent(dto))
+	cmds := make([]valkey.Completed, 0, 4)
+	if len(oldAliases) > 0 {
+		stale := make([]string, 0, len(oldAliases))
+		for _, a := range oldAliases {
+			stale = append(stale, aliasFieldPrefix+strings.ToLower(a))
+		}
+		cmds = append(cmds, v.client.B().Hdel().Key(key).Field(stale...).Build())
+	}
+
+	if dto.Deleted {
+		cmds = append(cmds,
+			v.client.B().Hdel().Key(key).Field(field).Build(),
+			v.client.B().Hset().Key(key).FieldValue().FieldValue("commands:projected", "1").Build(),
+			v.client.B().Expire().Key(key).Seconds(24*60*60).Build(),
+		)
+		return v.pipeline(ctx, cmds...)
+	}
+
+	view := commandViewFromEvent(dto)
+	body, err := json.Marshal(view)
 	if err != nil {
 		return err
 	}
 
-	return v.pipeline(ctx,
-		v.client.B().Hset().
-			Key(key).
-			FieldValue().
-			FieldValue("commands:projected", "1").
-			FieldValue(field, string(body)).
-			Build(),
-		v.client.B().Expire().Key(key).Seconds(24*60*60).Build(),
+	set := v.client.B().Hset().Key(key).FieldValue().
+		FieldValue("commands:projected", "1").
+		FieldValue(field, string(body))
+	for _, a := range view.Aliases {
+		set = set.FieldValue(aliasFieldPrefix+strings.ToLower(a), name)
+	}
+	cmds = append(cmds, set.Build(), v.client.B().Expire().Key(key).Seconds(24*60*60).Build())
+	return v.pipeline(ctx, cmds...)
+}
+
+// GetCommand reads one command by the name (or alias) a viewer typed, in a
+// single round trip. found reports whether the command exists; projected
+// reports whether the command section has been populated at all, so a caller
+// can tell a real "no such command" from a cold Valkey miss that should fall
+// through to the projector RPC.
+func (v *Store) GetCommand(ctx context.Context, userID uint64, name string) (view CommandView, found bool, projected bool, err error) {
+	defer segment(ctx, "HGET")()
+
+	key := cache.UserKey(settingsKeyPrefix, userID)
+	lname := strings.ToLower(name)
+
+	res := v.client.DoMulti(ctx,
+		v.client.B().Hget().Key(key).Field(commandFieldPrefix+lname).Build(),
+		v.client.B().Hget().Key(key).Field(aliasFieldPrefix+lname).Build(),
+		v.client.B().Hget().Key(key).Field("commands:projected").Build(),
 	)
+
+	pj, perr := res[2].ToString()
+	if perr != nil && !valkey.IsValkeyNil(perr) {
+		return CommandView{}, false, false, perr
+	}
+	projected = pj == "1"
+
+	body, berr := res[0].ToString()
+	if berr != nil && !valkey.IsValkeyNil(berr) {
+		return CommandView{}, false, projected, berr
+	}
+	if berr == nil {
+		if json.Unmarshal([]byte(body), &view) == nil {
+			return view, true, true, nil
+		}
+	}
+
+	primary, aerr := res[1].ToString()
+	if aerr != nil && !valkey.IsValkeyNil(aerr) {
+		return CommandView{}, false, projected, aerr
+	}
+	if aerr == nil && primary != "" {
+		aliasBody, err := v.client.Do(ctx, v.client.B().Hget().Key(key).Field(commandFieldPrefix+primary).Build()).ToString()
+		if err == nil && json.Unmarshal([]byte(aliasBody), &view) == nil {
+			return view, true, true, nil
+		}
+	}
+
+	return CommandView{}, false, projected, nil
+}
+
+// GetCommandOverride reads the broadcaster's reserved override for a shipped
+// default command, stored as the module row command.<name>. A missing row means
+// the shipped default applies, enabled. projected reports whether the module
+// section has been populated, letting a caller tell a real "no override" from a
+// cold miss. Reads only the two override fields, never the whole module list.
+func (v *Store) GetCommandOverride(ctx context.Context, userID uint64, name string) (enabled bool, response string, projected bool, err error) {
+	defer segment(ctx, "HGET")()
+
+	key := cache.UserKey(settingsKeyPrefix, userID)
+	mod := "module:command." + strings.ToLower(name)
+
+	res := v.client.DoMulti(ctx,
+		v.client.B().Hget().Key(key).Field(mod+":enabled").Build(),
+		v.client.B().Hget().Key(key).Field(mod+":config").Build(),
+		v.client.B().Hget().Key(key).Field("modules:projected").Build(),
+	)
+
+	en, eerr := res[0].ToString()
+	if eerr != nil && !valkey.IsValkeyNil(eerr) {
+		return false, "", false, eerr
+	}
+	cfg, cerr := res[1].ToString()
+	if cerr != nil && !valkey.IsValkeyNil(cerr) {
+		return false, "", false, cerr
+	}
+	pj, perr := res[2].ToString()
+	if perr != nil && !valkey.IsValkeyNil(perr) {
+		return false, "", false, perr
+	}
+	projected = pj == "1"
+
+	if valkey.IsValkeyNil(eerr) {
+		return true, "", projected, nil // no row: default, enabled
+	}
+	if en != "1" {
+		return false, "", projected, nil
+	}
+	if cfg != "" {
+		var c struct {
+			Response string `json:"response"`
+		}
+		_ = json.Unmarshal([]byte(cfg), &c)
+		response = c.Response
+	}
+	return true, response, projected, nil
 }
 
 // SetCommands projects a complete command list and records that an empty list is
@@ -229,7 +352,7 @@ func (v *Store) SetCommands(ctx context.Context, userID uint64, commands []Comma
 	defer segment(ctx, "HSET")()
 
 	key := cache.UserKey(settingsKeyPrefix, userID)
-	if err := v.clearProjectionFields(ctx, key, "command:"); err != nil {
+	if err := v.clearProjectionFields(ctx, key, commandFieldPrefix, aliasFieldPrefix); err != nil {
 		return err
 	}
 
@@ -243,7 +366,11 @@ func (v *Store) SetCommands(ctx context.Context, userID uint64, commands []Comma
 		if err != nil {
 			return err
 		}
-		fields = fields.FieldValue("command:"+cmd.Name, string(body))
+		name := strings.ToLower(cmd.Name)
+		fields = fields.FieldValue(commandFieldPrefix+name, string(body))
+		for _, a := range cmd.Aliases {
+			fields = fields.FieldValue(aliasFieldPrefix+strings.ToLower(a), name)
+		}
 	}
 
 	return v.pipeline(ctx,
@@ -326,7 +453,7 @@ func parseModuleField(field string) (name, suffix string, ok bool) {
 	return rest[:idx], rest[idx+1:], true
 }
 
-func (v *Store) clearProjectionFields(ctx context.Context, key string, prefix string) error {
+func (v *Store) clearProjectionFields(ctx context.Context, key string, prefixes ...string) error {
 	fields, err := v.client.Do(ctx, v.client.B().Hgetall().Key(key).Build()).AsStrMap()
 	if err != nil {
 		return err
@@ -334,8 +461,11 @@ func (v *Store) clearProjectionFields(ctx context.Context, key string, prefix st
 
 	stale := make([]string, 0, len(fields))
 	for field := range fields {
-		if strings.HasPrefix(field, prefix) {
-			stale = append(stale, field)
+		for _, prefix := range prefixes {
+			if strings.HasPrefix(field, prefix) {
+				stale = append(stale, field)
+				break
+			}
 		}
 	}
 	if len(stale) == 0 {

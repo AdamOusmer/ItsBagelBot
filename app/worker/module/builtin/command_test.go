@@ -2,7 +2,6 @@ package builtin
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 
 	"ItsBagelBot/app/worker/module"
@@ -103,13 +102,12 @@ func TestDefaultCommandRuns(t *testing.T) {
 }
 
 func TestDefaultCommandDisabledByOverride(t *testing.T) {
-	r := fakeReader{found: false, modules: []projection.ModuleView{{Name: "command.bot", IsEnabled: false}}}
+	r := fakeReader{found: false, ovDisabled: true}
 	assert.Empty(t, run(t, r, &fakeLive{}, &fakeCooldown{allow: true}, cmdCtx("!bot")))
 }
 
 func TestDefaultCommandResponseOverride(t *testing.T) {
-	cfg, _ := json.Marshal(map[string]string{"response": "custom bagel reply"})
-	r := fakeReader{found: false, modules: []projection.ModuleView{{Name: "command.bot", IsEnabled: true, Configs: cfg}}}
+	r := fakeReader{found: false, ovResponse: "custom bagel reply"}
 	replies := run(t, r, &fakeLive{}, &fakeCooldown{allow: true}, cmdCtx("!bot"))
 	require.Len(t, replies, 1)
 	assert.Equal(t, "custom bagel reply", replies[0].Message)
