@@ -12,6 +12,7 @@ metadata:
 spec:
   serviceName: nats-headless
   replicas: 3
+  podManagementPolicy: Parallel
   revisionHistoryLimit: 10
   selector:
     matchLabels:
