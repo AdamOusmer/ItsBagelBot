@@ -73,6 +73,11 @@ spec:
           envFrom:
             - secretRef:
                 name: nats-auth-env
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
           ports:
             - {containerPort: 4222, name: client}
             - {containerPort: 8222, name: monitor}
