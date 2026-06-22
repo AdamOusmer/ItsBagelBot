@@ -56,6 +56,10 @@ type Config struct {
 	// user ids, the same Doppler secret ingress uses to lane them premium.
 	SpecialUserIDs string
 
+	// BotUserID is the bot's own Twitch user id; the engine skips the bot's own
+	// chat messages so it never reacts to itself.
+	BotUserID string
+
 	// LiveTTL bounds how long a live key survives without a refresh; on expiry
 	// the worker re-checks the stream against Twitch instead of dropping it.
 	LiveTTL time.Duration
@@ -104,6 +108,8 @@ func Load() *Config {
 		ProjectionLiveSubject: env.Get("NATS_BROADCASTER_LIVE_SUBJECT", "bagel.rpc.broadcaster.live.get"),
 
 		SpecialUserIDs: env.Get("TWITCH_SPECIAL_USER_IDS", ""),
+
+		BotUserID: env.Get("TWITCH_BOT_USER_ID", ""),
 
 		LiveTTL: env.GetDuration("WORKER_LIVE_TTL", 12*time.Hour),
 

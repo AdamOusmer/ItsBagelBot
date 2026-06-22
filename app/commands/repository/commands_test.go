@@ -87,7 +87,7 @@ func TestRenameUpdatesRowInPlace(t *testing.T) {
 	// Exactly one row, same primary key (updated in place, not deleted+recreated).
 	rows := client.Commands.Query().AllX(ctx)
 	require.Len(t, rows, 1)
-	assert.Equal(t, "!new", rows[0].Name)
+	assert.Equal(t, "new", rows[0].Name)
 	assert.Equal(t, originalID, rows[0].ID, "rename must preserve the row identity")
 	assert.True(t, rows[0].StreamOnlineOnly)
 
@@ -101,9 +101,9 @@ func TestRenameUpdatesRowInPlace(t *testing.T) {
 	require.NoError(t, json.Unmarshal(renameEvents[0].Payload, &del))
 	require.NoError(t, json.Unmarshal(renameEvents[1].Payload, &changed))
 	assert.True(t, del.Deleted)
-	assert.Equal(t, "!old", del.Name)
+	assert.Equal(t, "old", del.Name)
 	assert.False(t, changed.Deleted)
-	assert.Equal(t, "!new", changed.Name)
+	assert.Equal(t, "new", changed.Name)
 	assert.True(t, changed.StreamOnlineOnly)
 }
 
@@ -116,7 +116,7 @@ func TestRenameMissingRowFallsBackToCreate(t *testing.T) {
 
 	rows := client.Commands.Query().AllX(ctx)
 	require.Len(t, rows, 1)
-	assert.Equal(t, "!new", rows[0].Name)
+	assert.Equal(t, "new", rows[0].Name)
 	assert.True(t, rows[0].StreamOnlineOnly)
 }
 
