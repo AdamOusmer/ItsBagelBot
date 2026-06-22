@@ -204,6 +204,7 @@ metadata:
     config.linkerd.io/opaque-ports: "4222,7422,6222"
 spec:
   clusterIP: None
+  publishNotReadyAddresses: true
   selector:
     app: nats
   ports:
