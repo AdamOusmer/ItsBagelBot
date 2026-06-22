@@ -9,7 +9,7 @@ import {
   deleteSelf,
   auditDashboardImpersonation
 } from '$lib/server/rpc';
-import { COOKIE } from '$lib/server/session';
+import { ACCOUNT_DELETED_COOKIE, COOKIE } from '$lib/server/session';
 
 const SECTIONS = ['commands'] as const;
 
@@ -42,7 +42,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 };
 
 export const actions: Actions = {
-  delete: async ({ locals, cookies }) => {
+  delete: async ({ locals, cookies, url }) => {
     const s = locals.session;
     if (!s) return fail(401, { error: 'Not signed in.' });
     if (s.delegate_of) return fail(403, { error: 'Not allowed.' });
@@ -54,6 +54,13 @@ export const actions: Actions = {
       return fail(502, { error: 'Could not delete account.' });
     }
     cookies.delete(COOKIE, { path: '/' });
+    cookies.set(ACCOUNT_DELETED_COOKIE, '1', {
+      path: '/',
+      httpOnly: true,
+      secure: url.protocol === 'https:',
+      sameSite: 'lax',
+      maxAge: 60
+    });
     throw redirect(302, '/goodbye');
   },
 
