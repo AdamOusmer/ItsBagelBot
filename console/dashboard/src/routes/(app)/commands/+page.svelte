@@ -82,6 +82,7 @@
   type Draft = {
     edit: boolean;
     name: string;
+    originalName: string;
     aliases: string[];
     response: string;
     perm: Perm;
@@ -100,6 +101,7 @@
     editor = {
       edit: false,
       name: '',
+      originalName: '',
       aliases: [],
       response: '',
       perm: 'everyone',
@@ -115,6 +117,7 @@
     editor = {
       edit: true,
       name: c.name,
+      originalName: c.name,
       aliases: [...(c.aliases ?? [])],
       response: c.response,
       perm: (c.perm ?? 'everyone') as Perm,
@@ -306,7 +309,7 @@
     >
       {#if editor.edit}
         <input type="hidden" name="edit" value="1" />
-        <input type="hidden" name="original_name" value={editor.name} />
+        <input type="hidden" name="original_name" value={editor.originalName} />
       {/if}
 
       <label class="field">

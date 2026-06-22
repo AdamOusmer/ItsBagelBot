@@ -13,6 +13,7 @@ import (
 
 	"ItsBagelBot/internal/domain/rpc/manage"
 	"ItsBagelBot/internal/utils"
+	"ItsBagelBot/pkg/cache"
 
 	"github.com/valkey-io/valkey-go"
 )
@@ -25,10 +26,14 @@ const (
 
 type Registry struct {
 	client valkey.Client
+	cache  *cache.Cache[manage.Channel]
 }
 
 func New(client valkey.Client) *Registry {
-	return &Registry{client: client}
+	return &Registry{
+		client: client,
+		cache:  cache.New[manage.Channel](10000, 24*time.Hour),
+	}
 }
 
 // Get returns the stored state for one broadcaster. found is false when the
@@ -36,24 +41,37 @@ func New(client valkey.Client) *Registry {
 // defaults (enabled, non-mod).
 func (r *Registry) Get(ctx context.Context, broadcasterID string) (manage.Channel, bool, error) {
 
-	fields, err := r.client.Do(ctx, r.client.B().Hgetall().Key(keyPrefix+broadcasterID).Build()).AsStrMap()
+	ch, err := r.cache.GetOrLoad(ctx, broadcasterID, func(ctx context.Context) (manage.Channel, error) {
+		fields, err := r.client.Do(ctx, r.client.B().Hgetall().Key(keyPrefix+broadcasterID).Build()).AsStrMap()
+		if err != nil {
+			return manage.Channel{}, err
+		}
+		if len(fields) == 0 {
+			return manage.Channel{}, nil
+		}
+
+		return manage.Channel{
+			BroadcasterID: broadcasterID,
+			Enabled:       fields["enabled"] == "1",
+			IsMod:         fields["is_mod"] == "1",
+			ModCheckedAt:  unixField(fields["mod_checked_at"]),
+			UpdatedAt:     unixField(fields["updated_at"]),
+			SubState:      fields["sub_state"],
+			SubError:      fields["sub_error"],
+			SubCheckedAt:  unixField(fields["sub_checked_at"]),
+		}, nil
+	})
+
 	if err != nil {
 		return manage.Channel{}, false, err
 	}
-	if len(fields) == 0 {
+
+	// If the loader returned a zero struct (not found in Valkey), we don't treat it as found.
+	if ch.BroadcasterID == "" {
 		return manage.Channel{}, false, nil
 	}
 
-	return manage.Channel{
-		BroadcasterID: broadcasterID,
-		Enabled:       fields["enabled"] == "1",
-		IsMod:         fields["is_mod"] == "1",
-		ModCheckedAt:  unixField(fields["mod_checked_at"]),
-		UpdatedAt:     unixField(fields["updated_at"]),
-		SubState:      fields["sub_state"],
-		SubError:      fields["sub_error"],
-		SubCheckedAt:  unixField(fields["sub_checked_at"]),
-	}, true, nil
+	return ch, true, nil
 }
 
 // Save overwrites the full state of one channel and indexes it for List.
@@ -87,6 +105,8 @@ func (r *Registry) Save(ctx context.Context, ch manage.Channel) error {
 		}
 	}
 
+	r.cache.Set(ch.BroadcasterID, ch)
+
 	return nil
 }
 
@@ -110,6 +130,8 @@ func (r *Registry) SetMod(ctx context.Context, broadcasterID string, isMod bool)
 			return err
 		}
 	}
+
+	r.cache.Invalidate(broadcasterID)
 
 	return nil
 }
@@ -135,6 +157,8 @@ func (r *Registry) SetSubState(ctx context.Context, broadcasterID, state, errMsg
 			return err
 		}
 	}
+
+	r.cache.Invalidate(broadcasterID)
 
 	return nil
 }

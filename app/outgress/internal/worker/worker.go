@@ -58,7 +58,7 @@ const (
 
 	// modStatusTTL is how long a verified mod status is trusted before the
 	// worker re-checks it against Twitch.
-	modStatusTTL = time.Hour
+	modStatusTTL = 24 * time.Hour
 )
 
 // Lane identifies which queue a worker drains; it selects the rate-limit
@@ -384,6 +384,11 @@ func (w *Worker) processStreamStatus(ctx context.Context, payload outgress.Messa
 
 	if err := w.live.Write(ctx, payload.BroadcasterID, isLive); err != nil {
 		return err
+	}
+
+	if isLive {
+		// proactively re-verify mod status when a channel goes live
+		_ = w.modStatus(ctx, payload, manage.Channel{}, false)
 	}
 
 	w.log.Debug("stream_status resolved",
