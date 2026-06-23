@@ -25,9 +25,10 @@ type ShoutoutModule struct {
 
 func NewShoutoutModule(log *zap.Logger) *ShoutoutModule { return &ShoutoutModule{log: log} }
 
-func (m *ShoutoutModule) Name() string         { return "shoutout" }
-func (m *ShoutoutModule) Events() []string     { return []string{"channel.raid"} }
-func (m *ShoutoutModule) DefaultEnabled() bool { return false } // opt-in
+func (m *ShoutoutModule) Name() string               { return "shoutout" }
+func (m *ShoutoutModule) Events() []string           { return []string{"channel.raid"} }
+func (m *ShoutoutModule) DefaultEnabled() bool       { return false } // opt-in
+func (m *ShoutoutModule) Commands() []module.Command { return nil }
 
 type shoutoutConfig struct {
 	Message string `json:"message"`
@@ -41,16 +42,19 @@ type raidEvent struct {
 	Viewers                  int    `json:"viewers"`
 }
 
-func (m *ShoutoutModule) Handle(_ context.Context, c *module.Context) ([]*outgress.Message, error) {
+// Handle decodes the raid event, builds the shoutout line, and emits one chat
+// message to the receiving channel. Raids are rare, so the per-call Replacer
+// allocation is fine.
+func (m *ShoutoutModule) Handle(_ context.Context, c *module.Context, emit module.Emit) error {
 	if len(c.Env.Event) == 0 {
-		return nil, nil
+		return nil
 	}
 	var ev raidEvent
 	if err := json.Unmarshal(c.Env.Event, &ev); err != nil {
-		return nil, err
+		return err
 	}
 	if ev.FromBroadcasterUserLogin == "" {
-		return nil, nil
+		return nil
 	}
 
 	tmpl := defaultShoutoutTemplate
@@ -70,5 +74,10 @@ func (m *ShoutoutModule) Handle(_ context.Context, c *module.Context) ([]*outgre
 	).Replace(tmpl)
 
 	// The raid event names the receiving channel as to_broadcaster_user_id.
-	return []*outgress.Message{chatReply(ev.ToBroadcasterUserID, msg)}, nil
+	emit(&module.Output{
+		Type:          outgress.TypeChat,
+		BroadcasterID: ev.ToBroadcasterUserID,
+		Text:          msg,
+	})
+	return nil
 }

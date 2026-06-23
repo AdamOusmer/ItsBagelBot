@@ -18,6 +18,11 @@ type Message struct {
 	// "user"), or "app". Empty routes by endpoint (the default). Use it to send
 	// chat as the streamer ("broadcaster") instead of the bot.
 	As string `json:"as,omitempty"`
+	// Color is the announce color (primary, blue, green, orange, purple);
+	// empty for non-announce.
+	Color string `json:"color,omitempty"`
+	// To is the shoutout target (login or id); outgress resolves login to id.
+	To string `json:"to,omitempty"`
 }
 
 // StreamStatusJob is the payload of a "stream_status" message: a request for
@@ -56,6 +61,8 @@ const (
 	TypeAd           = "ad"
 	TypeCommercial   = "commercial"
 	TypeClip         = "clip"
+	TypeAnnounce     = "announce"
+	TypeShoutout     = "shoutout"
 )
 
 // EventSubJob mode values for the Mode field.

@@ -106,17 +106,23 @@ func main() {
 	cooldown := module.NewValkeyCooldown(valkeyClient)
 	special := module.NewSpecialSet(cfg.SpecialUserIDs)
 
-	// The module registry is the pluggable behavior set. Core modules
-	// (command, live, system) are always on and never shown on the dashboard;
-	// the system module also owns the bagel greeting. Named modules (shoutout)
-	// are toggled + configured per broadcaster. Adding a feature is registering a
+	// The module registry is the pluggable behavior set. Core modules (the baked
+	// primitives, the command router, the live tracker) are always on and never
+	// shown on the dashboard; the baked module owns the immutable commands plus
+	// the bagel greeting, and the command router does all command dispatch
+	// (baked + custom) behind one set of gates. Named modules (shoutout) are
+	// toggled + configured per broadcaster. Adding a feature is registering a
 	// module here.
-	registry := module.NewRegistry(
-		builtin.NewCommandModule(proj, live, cooldown, log),
+	router := module.NewCommandRouter(proj, live, cooldown, log)
+	registry := module.NewRegistry(log,
+		builtin.NewBakedModule(special, live, greet, log),
+		router,
 		builtin.NewLiveModule(live, greet, log),
-		builtin.NewSystemModule(special, live, greet, log),
 		builtin.NewShoutoutModule(log),
 	)
+	// The router resolves baked commands through the registry's baked index, so
+	// it must be bound after the registry is built (before the first message).
+	router.Bind(registry)
 
 	pipe := pipeline.NewPipeline(
 		log,

@@ -1,29 +1,13 @@
 package builtin
 
 import (
-	"encoding/json"
-	"testing"
-
-	"ItsBagelBot/internal/domain/outgress"
-
-	"github.com/stretchr/testify/require"
+	"ItsBagelBot/app/worker/module"
 )
 
-// replyView is the decoded body of a chat outgress.Message, for assertions.
-type replyView struct {
-	BroadcasterID string `json:"broadcaster_id"`
-	Message       string `json:"message"`
+// collector accumulates the Outputs a module emits. Since modules must not
+// retain the *Output past the Emit call, each is copied into the slice.
+type collector struct {
+	out []module.Output
 }
 
-func decodeReplies(t *testing.T, msgs []*outgress.Message) []*replyView {
-	t.Helper()
-	out := make([]*replyView, 0, len(msgs))
-	for _, m := range msgs {
-		require.NotNil(t, m)
-		require.Equal(t, outgress.TypeChat, m.Type)
-		var rv replyView
-		require.NoError(t, json.Unmarshal(m.Payload, &rv))
-		out = append(out, &rv)
-	}
-	return out
-}
+func (c *collector) emit(o *module.Output) { c.out = append(c.out, *o) }
