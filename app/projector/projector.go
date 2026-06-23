@@ -1,12 +1,10 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
-	"time"
 
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/domain/event/twitch"
@@ -220,29 +218,33 @@ func (p *Projector) drop(msg *message.Message, subject string, err error) {
 	)
 }
 
-// HandleStreamEvent handles a raw Twitch EventSub stream-status message from
-// core NATS. It decodes the payload via the twitch package (which owns the
-// wire shape), persists the live state to Valkey, and triggers a cache
-// pre-warm when the broadcaster goes live.
-func (p *Projector) HandleStreamEvent(msg *nats.Msg) {
-	st, ok := twitch.DecodeStreamStatus(msg.Data)
+// HandleStreamEvent handles a Twitch EventSub stream-status message off the
+// JetStream durable consumer. It decodes the payload via the twitch package
+// (which owns the wire shape), persists the live state to Valkey, and triggers
+// a cache pre-warm when the broadcaster goes live.
+//
+// It rides a per-service durable consumer (see main), so each subsystem on this
+// subject gets its own copy and exactly one pod per group handles each event:
+// the prewarm fires once, not once per projector pod. Returning an error nacks
+// for redelivery; an unparseable payload is dropped (acked) since redelivery
+// cannot fix it. A SetStreamLive failure nacks because the live state matters;
+// prewarm is best-effort and only logs.
+func (p *Projector) HandleStreamEvent(msg *message.Message) error {
+	st, ok := twitch.DecodeStreamStatus(msg.Payload)
 	if !ok {
-		return
+		p.log.Warn("dropping unparseable stream status", zap.String("message_id", msg.UUID))
+		return nil
 	}
 
-	liveCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	if err := p.store.SetStreamLive(liveCtx, st.BroadcasterID, st.Live); err != nil {
-		p.log.Warn("failed to project stream live state", zap.Uint64("user_id", st.BroadcasterID), zap.Error(err))
+	if err := p.store.SetStreamLive(msg.Context(), st.BroadcasterID, st.Live); err != nil {
+		return err
 	}
 
 	if !st.Live {
-		return
+		return nil
 	}
 
 	p.log.Info("pre-warming cache for stream online", zap.Uint64("user_id", st.BroadcasterID))
-
-	prewarmCtx := context.Background()
-	p.prewarmer.Prewarm(prewarmCtx, st.BroadcasterID)
+	p.prewarmer.Prewarm(msg.Context(), st.BroadcasterID)
+	return nil
 }

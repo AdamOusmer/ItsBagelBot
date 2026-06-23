@@ -109,7 +109,14 @@ func main() {
 		log.Fatal("failed to subscribe to command changes", zap.Error(err))
 	}
 
-	if _, err := nc.Subscribe(streamTopic, projector.HandleStreamEvent); err != nil {
+	// Durable JetStream consumer, not a plain core Subscribe: a stream-online
+	// only writes shared Valkey state and pre-warms the shared projection, so
+	// exactly one projector pod must handle each event. The durable is keyed by
+	// the projector's service group (sub), so projector pods share one consumer
+	// (one prewarm per event, not pods x 3 prewarm RPCs) and the consumer
+	// survives restarts. Other subsystems on this subject bind their own durable
+	// under their own group and still get every event once.
+	if err := bus.Consume(ctx, nrApp, sub, streamTopic, projector.HandleStreamEvent, log); err != nil {
 		log.Fatal("failed to subscribe to stream online events", zap.Error(err))
 	}
 

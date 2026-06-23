@@ -78,6 +78,12 @@ spec:
               value: nats
             - name: NATS_URL
               value: nats://nats:4222
+            # BUS-only service (JetStream, no RPC account), but still leaf-first:
+            # its JetStream connection prefers the node-local leaf.
+            - name: NATS_LEAF_URL
+              value: nats://nats-leaf:4222
+            - name: NATS_HUB_URL
+              value: nats://nats:4222
             - name: DB_MAX_OPEN_CONNS
               value: "4"
             - name: DB_QUERY_CONCURRENCY
