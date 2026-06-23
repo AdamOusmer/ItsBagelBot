@@ -99,14 +99,15 @@ spec:
             # public URL instead of the internal http://:3000 origin (was 403).
             - name: ORIGIN
               value: https://admin.tail451e6d.ts.net
+            # Apps connect only to the node-local leaf cluster (4-node HA); the
+            # hub is reached over the leafnode link for JetStream. No hub in the
+            # server list, so a leaf roll can never pin a client to the hub.
             - name: NATS_URL
-              value: nats://nats:4222
+              value: nats://nats-leaf:4222
             - name: NATS_RPC_URL
               value: nats://nats-leaf:4222
             - name: NATS_LEAF_URL
               value: nats://nats-leaf:4222
-            - name: NATS_HUB_URL
-              value: nats://nats:4222
             - name: NATS_ADMIN_SUBJECT
               value: twitch.ingress.admin.shards.get
             - name: NATS_STATUS_SUBJECT_PREFIX

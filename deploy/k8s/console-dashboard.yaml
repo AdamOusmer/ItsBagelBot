@@ -112,14 +112,15 @@ spec:
             # a stale cross-namespace FQDN (nats.bagelbot...) that does not
             # resolve here; NATS_URL overrides it. Auth (NATS_USER/PASSWORD) still
             # comes from the secret.
+            # Apps connect only to the node-local leaf cluster (4-node HA); the
+            # hub is reached over the leafnode link for JetStream. No hub in the
+            # server list, so a leaf roll can never pin a client to the hub.
             - name: NATS_URL
-              value: nats://nats:4222
+              value: nats://nats-leaf:4222
             - name: NATS_RPC_URL
               value: nats://nats-leaf:4222
             - name: NATS_LEAF_URL
               value: nats://nats-leaf:4222
-            - name: NATS_HUB_URL
-              value: nats://nats:4222
             - name: NATS_PROJECTOR_DASHBOARD_SUBJECT_PREFIX
               value: bagel.rpc.projector.dashboard
             # Reuse the old tier's 32-byte AES key as the session key.
