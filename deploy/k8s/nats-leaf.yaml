@@ -192,11 +192,11 @@ metadata:
   annotations:
     config.linkerd.io/opaque-ports: "4222,6222"
 spec:
-  # Route-discovery seed for the leaf cluster. NATS bootstraps the full 4-node
-  # mesh by gossiping from a single seed route, so a plain ClusterIP is enough;
+  # Headless route-discovery for the leaf cluster: the route URL resolves to every
+  # leaf pod IP, so each node dials every peer and forms a clean full mesh (a
+  # ClusterIP would load-balance the route dial and leave the mesh incomplete).
   # publishNotReadyAddresses lets a still-forming leaf seed the cluster on rollout.
-  # (Left ClusterIP rather than headless because clusterIP is immutable on the
-  # existing service.)
+  clusterIP: None
   publishNotReadyAddresses: true
   selector:
     app: nats-leaf
