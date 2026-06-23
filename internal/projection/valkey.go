@@ -299,53 +299,6 @@ func (v *Store) GetCommand(ctx context.Context, userID uint64, name string) (vie
 	return CommandView{}, false, projected, nil
 }
 
-// GetCommandOverride reads the broadcaster's reserved override for a shipped
-// default command, stored as the module row command.<name>. A missing row means
-// the shipped default applies, enabled. projected reports whether the module
-// section has been populated, letting a caller tell a real "no override" from a
-// cold miss. Reads only the two override fields, never the whole module list.
-func (v *Store) GetCommandOverride(ctx context.Context, userID uint64, name string) (enabled bool, response string, projected bool, err error) {
-	defer segment(ctx, "HGET")()
-
-	key := cache.UserKey(settingsKeyPrefix, userID)
-	mod := "module:command." + strings.ToLower(name)
-
-	res := v.client.DoMulti(ctx,
-		v.client.B().Hget().Key(key).Field(mod+":enabled").Build(),
-		v.client.B().Hget().Key(key).Field(mod+":config").Build(),
-		v.client.B().Hget().Key(key).Field("modules:projected").Build(),
-	)
-
-	en, eerr := res[0].ToString()
-	if eerr != nil && !valkey.IsValkeyNil(eerr) {
-		return false, "", false, eerr
-	}
-	cfg, cerr := res[1].ToString()
-	if cerr != nil && !valkey.IsValkeyNil(cerr) {
-		return false, "", false, cerr
-	}
-	pj, perr := res[2].ToString()
-	if perr != nil && !valkey.IsValkeyNil(perr) {
-		return false, "", false, perr
-	}
-	projected = pj == "1"
-
-	if valkey.IsValkeyNil(eerr) {
-		return true, "", projected, nil // no row: default, enabled
-	}
-	if en != "1" {
-		return false, "", projected, nil
-	}
-	if cfg != "" {
-		var c struct {
-			Response string `json:"response"`
-		}
-		_ = json.Unmarshal([]byte(cfg), &c)
-		response = c.Response
-	}
-	return true, response, projected, nil
-}
-
 // SetCommands projects a complete command list and records that an empty list is
 // known data, not a cold Valkey miss.
 func (v *Store) SetCommands(ctx context.Context, userID uint64, commands []CommandView) error {

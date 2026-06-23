@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"ItsBagelBot/app/worker/module"
-	"ItsBagelBot/internal/domain/outgress"
 
 	"go.uber.org/zap"
 )
@@ -23,14 +22,16 @@ func NewLiveModule(live module.LiveStore, greet module.GreetStore, log *zap.Logg
 	return &LiveModule{live: live, greet: greet, log: log}
 }
 
-func (m *LiveModule) Name() string     { return "" } // core: always on
-func (m *LiveModule) Events() []string { return []string{"stream.online", "stream.offline"} }
+func (m *LiveModule) Name() string               { return "" } // core: always on
+func (m *LiveModule) Events() []string           { return []string{"stream.online", "stream.offline"} }
+func (m *LiveModule) Commands() []module.Command { return nil }
 
-func (m *LiveModule) Handle(ctx context.Context, c *module.Context) ([]*outgress.Message, error) {
+// Handle updates live state. It emits nothing, so emit is ignored.
+func (m *LiveModule) Handle(ctx context.Context, c *module.Context, _ module.Emit) error {
 	switch c.Env.Type {
 	case "stream.online":
 		if err := m.live.SetLive(ctx, c.BroadcasterID); err != nil {
-			return nil, err
+			return err
 		}
 		// New session: forget who has been greeted so the bagel reply fires again.
 		if err := m.greet.ResetGreets(ctx, c.BroadcasterID); err != nil {
@@ -39,9 +40,9 @@ func (m *LiveModule) Handle(ctx context.Context, c *module.Context) ([]*outgress
 		m.log.Debug("stream online", zap.Uint64("broadcaster_id", c.BroadcasterID))
 	case "stream.offline":
 		if err := m.live.ClearLive(ctx, c.BroadcasterID); err != nil {
-			return nil, err
+			return err
 		}
 		m.log.Debug("stream offline", zap.Uint64("broadcaster_id", c.BroadcasterID))
 	}
-	return nil, nil
+	return nil
 }
