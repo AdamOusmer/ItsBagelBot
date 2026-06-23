@@ -1,9 +1,13 @@
-// Encrypted session cookie: AES-256-GCM, layout base64url(nonce[12] || ct||tag),
-// AAD "session". Key from SESSION_KEY (base64, 32 bytes). The wire format matches
-// the dashboard tier, but the admin uses its OWN isolated SESSION_KEY (separate
-// Doppler config); secrets are never shared, so an admin session can only be
+// Admin session: the shared AES-256-GCM codec instantiated over the admin's own
+// Session shape and its OWN isolated SESSION_KEY (separate Doppler config).
+// Secrets are never shared with the dashboard, so an admin session can only be
 // minted by the admin's own OAuth callback.
-import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
+//
+// SESSION_KEY is read from process.env, NOT $env/dynamic/private: this module is
+// in the boot import graph (hooks.server.ts -> session), and even importing the
+// dynamic-env proxy there deadlocks server.init (exit 13). process.env carries
+// the same runtime value; the key getter runs per seal/open (request time).
+import { createSessionCodec, decodeKey } from '@bagel/shared/server/session';
 
 export interface Session {
   user_id: string;
@@ -13,41 +17,9 @@ export interface Session {
   expires_at: number;
 }
 
-const AAD = Buffer.from('session');
+const codec = createSessionCodec<Session>(() => decodeKey(process.env.SESSION_KEY));
 
-function key(): Buffer {
-  const b64 = process.env.SESSION_KEY;
-  if (!b64) throw new Error('SESSION_KEY not set');
-  const k = Buffer.from(b64, 'base64');
-  if (k.length !== 32) throw new Error('SESSION_KEY must decode to 32 bytes');
-  return k;
-}
-
-export function seal(s: Session): string {
-  const iv = randomBytes(12);
-  const c = createCipheriv('aes-256-gcm', key(), iv);
-  c.setAAD(AAD);
-  const ct = Buffer.concat([c.update(JSON.stringify(s), 'utf8'), c.final()]);
-  return Buffer.concat([iv, ct, c.getAuthTag()]).toString('base64url');
-}
-
-export function open(value: string): Session | null {
-  try {
-    const raw = Buffer.from(value, 'base64url');
-    if (raw.length < 12 + 16) return null;
-    const iv = raw.subarray(0, 12);
-    const tag = raw.subarray(raw.length - 16);
-    const ct = raw.subarray(12, raw.length - 16);
-    const d = createDecipheriv('aes-256-gcm', key(), iv);
-    d.setAAD(AAD);
-    d.setAuthTag(tag);
-    const pt = Buffer.concat([d.update(ct), d.final()]).toString('utf8');
-    const s = JSON.parse(pt) as Session;
-    if (Date.now() / 1000 > s.expires_at) return null;
-    return s;
-  } catch {
-    return null;
-  }
-}
+export const seal = (s: Session): string => codec.seal(s);
+export const open = (value: string): Session | null => codec.open(value);
 
 export const COOKIE = 'bagel_session';

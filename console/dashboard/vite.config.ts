@@ -7,7 +7,9 @@ export default defineConfig({
   // it for SSR so components compile. `newrelic` must stay external so it resolves
   // to the singleton preloaded via --import at runtime (bundling its native modules
   // + dynamic requires would break it and create a second, uninstrumented instance).
-  ssr: { noExternal: ['@bagel/shared'], external: ['newrelic'] },
+  // `iovalkey` (the Valkey read client) also stays external: ioredis-family clients
+  // use dynamic requires that do not bundle cleanly for SSR.
+  ssr: { noExternal: ['@bagel/shared'], external: ['newrelic', 'iovalkey'] },
   server: { port: 5173 },
   build: {
     minify: 'terser'

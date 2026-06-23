@@ -1,6 +1,9 @@
 // Dashboard-facing RPC wrappers over the shared NATS client. Subjects come from
 // env with the same defaults as the retired Go dashboard tier.
-import { rpc, publish, subscribe } from '@bagel/shared/server/nats';
+import { rpc, publish } from '@bagel/shared/server/nats';
+import { MemoryCache } from '@bagel/shared/server/cache';
+import { startInvalidationBus } from '@bagel/shared/server/invalidation';
+import * as valkey from '@bagel/shared/server/valkey-store';
 import type { CommandView, Perm, Tier } from '@bagel/shared';
 import type { Session } from './session';
 
@@ -21,34 +24,16 @@ const SUB = {
   delegation: process.env.NATS_DELEGATION_SUBJECT_PREFIX ?? 'bagel.rpc.delegation'
 };
 
-type CacheEntry<T> = { value?: T; promise?: Promise<T>; expires: number };
+// Tier-1 read cache: bounded LRU + TTL + single-flight (shared primitive). The
+// thin cached()/invalidate() wrappers keep every call site below unchanged.
+const cache = new MemoryCache();
 
-const cache = new Map<string, CacheEntry<unknown>>();
-
-async function cached<T>(key: string, ttlMs: number, load: () => Promise<T>): Promise<T> {
-  const now = Date.now();
-  const hit = cache.get(key) as CacheEntry<T> | undefined;
-  if (hit && hit.expires > now) {
-    if (hit.value !== undefined) return hit.value;
-    if (hit.promise) return hit.promise;
-  }
-
-  const promise = load();
-  cache.set(key, { promise, expires: now + ttlMs });
-  try {
-    const value = await promise;
-    cache.set(key, { value, expires: Date.now() + ttlMs });
-    return value;
-  } catch (err) {
-    cache.delete(key);
-    throw err;
-  }
+function cached<T>(key: string, ttlMs: number, load: () => Promise<T>): Promise<T> {
+  return cache.getOrLoad(key, ttlMs, load);
 }
 
 function invalidate(...prefixes: string[]) {
-  for (const key of cache.keys()) {
-    if (prefixes.some((prefix) => key.startsWith(prefix))) cache.delete(key);
-  }
+  cache.invalidate(...prefixes);
 }
 
 function invalidateUser(userId: string) {
@@ -211,8 +196,21 @@ export async function channelSubState(broadcasterId: string): Promise<ChannelSub
   }
 }
 
+// Resolve a Tier from the raw billing status, mirroring the projector's
+// tierFromStatus rule so the Valkey-served tier agrees with the RPC one.
+function tierFromStatus(status: string): Tier {
+  const s = status.toLowerCase();
+  return s === 'premium' || s === 'vip' || s === 'paid' ? 'premium' : 'standard';
+}
+
+// 3-tier read: tier-1 LRU (cached) -> tier-2 Valkey settings hash -> tier-3
+// projector/broadcaster RPC on a cold key. The Valkey miss path is transparent
+// (getUser returns known:false on any failure) so a Valkey outage just falls to
+// RPC, never breaking SSR.
 export async function tier(broadcasterId: string): Promise<Tier> {
   return cached(`tier:${broadcasterId}`, FAST_TTL_MS, async () => {
+    const u = await valkey.getUser(broadcasterId);
+    if (u.known) return u.active ? tierFromStatus(u.status) : 'standard';
     const r = await rpc<{ tier: Tier }>(SUB.broadcaster, { broadcaster_id: broadcasterId }, 2000);
     return r.tier ?? 'standard';
   });
@@ -227,6 +225,8 @@ export async function tier(broadcasterId: string): Promise<Tier> {
 export async function isBanned(userId: string): Promise<boolean> {
   try {
     return await cached(`ban:${userId}`, BAN_TTL_MS, async () => {
+      const u = await valkey.getUser(userId);
+      if (u.known) return u.banned;
       const r = await rpc<{ banned?: boolean }>(SUB.broadcaster, { broadcaster_id: userId }, 2000);
       return r.banned === true;
     });
@@ -306,6 +306,8 @@ function normalizeStatus(raw: string | undefined): AccountStatus {
 // asks once via state_get instead of separate active_get + status_get calls.
 export async function accountState(userId: string): Promise<AccountState> {
   return cached(`account:${userId}`, FAST_TTL_MS, async () => {
+    const u = await valkey.getUser(userId);
+    if (u.known) return { active: u.active, status: normalizeStatus(u.status) };
     const r = await rpc<{ active: boolean; status: string }>(
       `${SUB.dashboard}.state_get`,
       { broadcaster_user_id: userId },
@@ -348,6 +350,8 @@ export async function deleteSelf(userId: string): Promise<void> {
 
 export async function listCommands(userId: string): Promise<CommandView[]> {
   return cached(`commands:${userId}`, COMMAND_TTL_MS, async () => {
+    const v = await valkey.getCommands(userId);
+    if (v.projected) return v.commands;
     const r = await rpc<{ commands: CommandView[] }>(
       `${SUB.projector}.commands.get`,
       { user_id: userId },
@@ -365,6 +369,8 @@ export interface ModuleView {
 
 export async function listModules(userId: string): Promise<ModuleView[]> {
   return cached(`modules:${userId}`, COMMAND_TTL_MS, async () => {
+    const v = await valkey.getModules(userId);
+    if (v.projected) return v.modules;
     const r = await rpc<{ modules: ModuleView[] }>(
       `${SUB.projector}.modules.get`,
       { user_id: userId },
@@ -428,7 +434,7 @@ export async function upsertModule(
     if (!merged) modules.push(upserted);
 
     await replaceProjectedModules(userId, modules);
-    cache.set(`modules:${userId}`, { value: modules, expires: Date.now() + COMMAND_TTL_MS });
+    cache.set(`modules:${userId}`, modules, COMMAND_TTL_MS);
     return { modules, error: r.error };
   } else {
     invalidate(`modules:${userId}`);
@@ -494,7 +500,7 @@ export async function upsertCommand(
     if (!merged) commands.push(upserted);
 
     await replaceProjectedCommands(userId, commands);
-    cache.set(`commands:${userId}`, { value: commands, expires: Date.now() + COMMAND_TTL_MS });
+    cache.set(`commands:${userId}`, commands, COMMAND_TTL_MS);
     return { commands, error: r.error };
   } else {
     invalidate(`commands:${userId}`);
@@ -514,7 +520,7 @@ export async function deleteCommand(
     const current = await listCommands(userId);
     const commands = current.filter((c) => c.name !== name);
     await replaceProjectedCommands(userId, commands);
-    cache.set(`commands:${userId}`, { value: commands, expires: Date.now() + COMMAND_TTL_MS });
+    cache.set(`commands:${userId}`, commands, COMMAND_TTL_MS);
     return { commands, error: r.error };
   } else {
     invalidate(`commands:${userId}`);
@@ -556,25 +562,9 @@ function applyInvalidation(broadcasterId: string, scope: string | undefined): vo
 /**
  * Subscribe to the cache-invalidation bus so writes in other services (Go)
  * push-drop the affected keys without waiting on TTL expiry. Call once at
- * server boot (hooks.server.ts). Fire-and-forget; resilient to NATS restarts
- * via the shared subscribe() primitive.
+ * server boot (hooks.server.ts init). The shared bus owns the transport +
+ * parsing; this maps each scope to the dashboard's cache keys.
  */
 export function startInvalidationListener(): void {
-  const prefix = process.env.NATS_CACHE_INVALIDATION_PREFIX ?? 'bagel.cache.invalidate';
-
-  subscribe(prefix + '.>', (subject, data) => {
-    try {
-      const msg = JSON.parse(new TextDecoder().decode(data)) as {
-        broadcaster_id?: unknown;
-      };
-      const id = typeof msg.broadcaster_id === 'string' ? msg.broadcaster_id : undefined;
-      if (!id) return;
-      // Scope is the last dot-segment of the message subject
-      // e.g. "bagel.cache.invalidate.status" -> "status"
-      const scope = subject.slice(subject.lastIndexOf('.') + 1) || undefined;
-      applyInvalidation(id, scope);
-    } catch {
-      // Malformed message — ignore.
-    }
-  });
+  startInvalidationBus(applyInvalidation);
 }
