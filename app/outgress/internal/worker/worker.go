@@ -6,12 +6,14 @@
 package worker
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -21,6 +23,7 @@ import (
 	"ItsBagelBot/app/outgress/internal/twitch"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/domain/rpc/manage"
+	"ItsBagelBot/pkg/cache"
 
 	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/newrelic/go-agent/v3/newrelic"
@@ -103,6 +106,8 @@ var typeRoutes = map[string]helixRoute{
 	outgress.TypeAd:         {http.MethodPost, "/helix/channels/commercial", outgress.AsBroadcaster},
 	outgress.TypeCommercial: {http.MethodPost, "/helix/channels/commercial", outgress.AsBroadcaster},
 	outgress.TypeClip:       {http.MethodPost, "/helix/clips", outgress.AsBroadcaster},
+	outgress.TypeAnnounce:   {http.MethodPost, "/helix/chat/announcements", outgress.AsBot},
+	outgress.TypeShoutout:   {http.MethodPost, "/helix/chat/shoutouts", outgress.AsBot},
 }
 
 type Worker struct {
@@ -114,6 +119,9 @@ type Worker struct {
 	owner    string // pod identity for the enroll lock (os.Hostname)
 	conduit  *conduit.Resolver
 	lane     Lane
+	// userIDs caches login->id resolutions (shoutout targets) so a repeated
+	// /shoutout to the same channel does not re-hit Helix Get Users each time.
+	userIDs *cache.Cache[string]
 	// live writes the result of a Twitch live re-check back into the projection.
 	// Only the system lane sets it (via SetLiveWriter); nil elsewhere.
 	live *LiveWriter
@@ -133,6 +141,7 @@ func New(log *zap.Logger, limiter *ratelimit.Limiter, registry *channels.Registr
 		owner:    owner,
 		conduit:  conduitResolver,
 		lane:     lane,
+		userIDs:  cache.New[string](cache.DefaultCapacity, 10*time.Minute),
 	}
 }
 
@@ -178,12 +187,12 @@ func (w *Worker) Process(msg *message.Message) error {
 	// a job only needs its intent + body. "api" has no mapping (generic
 	// passthrough) and must carry its own endpoint. An explicit field always
 	// wins, so any default can be overridden.
-	_, mapped := typeRoutes[payload.Type]
-	if payload.Type != outgress.TypeChat && payload.Type != outgress.TypeAPI && !mapped {
+	r, ok := typeRoutes[payload.Type]
+	if payload.Type != outgress.TypeChat && payload.Type != outgress.TypeAPI && !ok {
 		w.log.Error("dropping message with unknown type", zap.String("type", payload.Type))
 		return nil
 	}
-	if r, ok := typeRoutes[payload.Type]; ok {
+	if ok {
 		if payload.Endpoint == "" {
 			payload.Endpoint = r.endpoint
 		}
@@ -200,6 +209,19 @@ func (w *Worker) Process(msg *message.Message) error {
 			zap.String("endpoint", payload.Endpoint),
 			zap.String("method", payload.Method))
 		return nil
+	}
+
+	// Announce needs moderator_id + broadcaster_id in the query string (not the
+	// body) and a default color merged in, so it gets its own handler before the
+	// generic helix path.
+	if payload.Type == outgress.TypeAnnounce {
+		return w.processAnnounce(ctx, payload)
+	}
+
+	// Shoutout resolves the target login to an id, then puts from/to/moderator
+	// ids in the query string (no body), so it gets its own handler too.
+	if payload.Type == outgress.TypeShoutout {
+		return w.processShoutout(ctx, payload)
 	}
 
 	// Only "chat" pays the chat rate buckets; every other Helix call pays the
@@ -269,21 +291,57 @@ func (w *Worker) processChat(ctx context.Context, payload outgress.Message) erro
 // withSenderID ensures the chat body carries sender_id without disturbing the
 // other fields the producer set. A sender_id already present is left untouched.
 func withSenderID(body []byte, senderID string) []byte {
-	m := map[string]json.RawMessage{}
-	if len(body) > 0 {
-		if err := json.Unmarshal(body, &m); err != nil {
-			return body // not an object we can augment; send as-is
-		}
+	return withField(body, "sender_id", senderID)
+}
+
+// withField inserts "field":"value" into a JSON object body without decoding it.
+// If the field already appears, body is returned unchanged. Used to inject the
+// bot identity (sender_id / moderator_id) Twitch requires but producers omit, or
+// a default announce color, without paying a full marshal/unmarshal round-trip.
+//
+// Twitch ids/logins and the fixed color/identity values are alphanumeric plus
+// underscore, so value needs no JSON escaping; callers pass only such safe
+// strings.
+func withField(body []byte, field, value string) []byte {
+
+	if bytes.Contains(body, []byte("\""+field+"\"")) {
+		return body // already present; leave the producer's value alone
 	}
-	if _, ok := m["sender_id"]; !ok {
-		if b, err := json.Marshal(senderID); err == nil {
-			m["sender_id"] = b
+
+	insert := "\"" + field + "\":\"" + value + "\""
+
+	end := bytes.LastIndexByte(body, '}')
+	if end < 0 {
+		// No closing '}' to splice into. Only synthesize a fresh object when the
+		// body is empty or all whitespace; a non-empty, non-object body (e.g. a
+		// top-level JSON array) is not ours to rewrite, so return it unchanged
+		// rather than discarding it.
+		if len(bytes.TrimSpace(body)) == 0 {
+			return []byte("{" + insert + "}")
 		}
-	}
-	out, err := json.Marshal(m)
-	if err != nil {
 		return body
 	}
+
+	// Find the previous non-space byte before the closing '}': if it is the
+	// opening '{', the object is empty and the field goes in bare; otherwise it
+	// follows the last field, so prefix a comma.
+	i := end - 1
+	for i >= 0 {
+		switch body[i] {
+		case ' ', '\t', '\n', '\r':
+			i--
+			continue
+		}
+		break
+	}
+	if i >= 0 && body[i] != '{' {
+		insert = "," + insert
+	}
+
+	out := make([]byte, 0, len(body)+len(insert))
+	out = append(out, body[:end]...)
+	out = append(out, insert...)
+	out = append(out, body[end:]...)
 	return out
 }
 
@@ -302,6 +360,133 @@ func (w *Worker) processAPI(ctx context.Context, payload outgress.Message) error
 	if err := w.takeGeneralHelix(ctx); err != nil {
 		return err
 	}
+
+	return w.execute(ctx, payload)
+}
+
+// processAnnounce sends a Helix chat announcement as the bot. The endpoint
+// carries broadcaster_id + moderator_id as query params (Twitch reads them from
+// the query, not the body), while the body carries the message plus a color
+// (defaulting to "primary"). It pays the general Helix budget like processAPI,
+// then hands the assembled request to execute() for the shared status handling.
+func (w *Worker) processAnnounce(ctx context.Context, payload outgress.Message) error {
+
+	// The announcing moderator is the bot: prefer an explicit sender, else the
+	// configured bot id. Without one there is nobody to announce as, so drop the
+	// job (mirroring processChat's no-sender guard).
+	mod := payload.SenderID
+	if mod == "" {
+		mod = w.botID
+	}
+	if mod == "" {
+		w.log.Error("dropping announce: no bot moderator id configured",
+			zap.String("broadcaster_id", payload.BroadcasterID))
+		return nil
+	}
+
+	if w.lane == LaneStandard {
+		if err := w.take(ctx, ratelimit.Bucket{
+			Key:             "ratelimit:helix:app:standard",
+			Capacity:        helixGeneralCapacity / 2,
+			RefillPerSecond: helixGeneralCapacity / helixWindow / 2,
+		}); err != nil {
+			return err
+		}
+	}
+
+	if err := w.takeGeneralHelix(ctx); err != nil {
+		return err
+	}
+
+	color := payload.Color
+	if color == "" {
+		color = "primary"
+	}
+
+	payload.As = outgress.AsBot
+	payload.Method = http.MethodPost
+	payload.Endpoint = "/helix/chat/announcements?broadcaster_id=" +
+		url.QueryEscape(payload.BroadcasterID) + "&moderator_id=" + url.QueryEscape(mod)
+	payload.Payload = withField(payload.Payload, "color", color)
+
+	return w.execute(ctx, payload)
+}
+
+// shoutoutEndpoint assembles the Helix Send a Shoutout path. All three ids ride
+// the query string (Twitch reads them from the query, not a body) and are
+// URL-escaped. Factored out so the construction can be pinned without a network
+// round-trip.
+func shoutoutEndpoint(fromBroadcasterID, toID, moderatorID string) string {
+	return "/helix/chat/shoutouts?from_broadcaster_id=" + url.QueryEscape(fromBroadcasterID) +
+		"&to_broadcaster_id=" + url.QueryEscape(toID) +
+		"&moderator_id=" + url.QueryEscape(moderatorID)
+}
+
+// processShoutout sends a Helix Send a Shoutout as the bot. The producer carries
+// the source channel (BroadcasterID) plus the target login (To); outgress
+// resolves the login to a numeric id (cached, single-flight) and owns the
+// moderator identity. from/to/moderator ids ride the query string, never a body.
+// It pays the general Helix budget like processAPI/processAnnounce, then hands
+// the assembled request to execute() for the shared status handling.
+func (w *Worker) processShoutout(ctx context.Context, payload outgress.Message) error {
+
+	if payload.To == "" {
+		w.log.Error("dropping shoutout: no target login",
+			zap.String("broadcaster_id", payload.BroadcasterID))
+		return nil
+	}
+
+	// The moderator issuing the shoutout is the bot: prefer an explicit sender,
+	// else the configured bot id. Without one there is nobody to act as, so drop
+	// (mirroring processAnnounce's no-moderator guard).
+	mod := payload.SenderID
+	if mod == "" {
+		mod = w.botID
+	}
+	if mod == "" {
+		w.log.Error("dropping shoutout: no bot moderator id configured",
+			zap.String("broadcaster_id", payload.BroadcasterID))
+		return nil
+	}
+
+	// Resolve the target login to its numeric id (cached, single-flight). A
+	// loader error is transient (nack so paced redelivery retries); a "" id means
+	// no such user, which retrying can never fix, so drop instead of nacking.
+	toID, err := w.userIDs.GetOrLoad(ctx, "login:"+strings.ToLower(payload.To),
+		func(ctx context.Context) (string, error) {
+			return w.twitch.UserIDByLogin(ctx, payload.To)
+		})
+	if err != nil {
+		w.log.Warn("shoutout target resolve failed, will retry",
+			zap.String("broadcaster_id", payload.BroadcasterID),
+			zap.String("to", payload.To), zap.Error(err))
+		return err
+	}
+	if toID == "" {
+		w.log.Warn("dropping shoutout: no such target user",
+			zap.String("broadcaster_id", payload.BroadcasterID),
+			zap.String("to", payload.To))
+		return nil
+	}
+
+	if w.lane == LaneStandard {
+		if err := w.take(ctx, ratelimit.Bucket{
+			Key:             "ratelimit:helix:app:standard",
+			Capacity:        helixGeneralCapacity / 2,
+			RefillPerSecond: helixGeneralCapacity / helixWindow / 2,
+		}); err != nil {
+			return err
+		}
+	}
+
+	if err := w.takeGeneralHelix(ctx); err != nil {
+		return err
+	}
+
+	payload.As = outgress.AsBot
+	payload.Method = http.MethodPost
+	payload.Endpoint = shoutoutEndpoint(payload.BroadcasterID, toID, mod)
+	payload.Payload = nil
 
 	return w.execute(ctx, payload)
 }

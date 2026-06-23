@@ -14,18 +14,21 @@
 // (projection/Valkey/RPC) return an error, which the consumer turns into a nack
 // so the event is redelivered. A single module's logic error is logged and that
 // module is skipped, never nacked, so one misbehaving module cannot make its
-// siblings re-fire on redelivery.
+// siblings re-fire on redelivery. A publish/marshal failure on the emit path is
+// an infrastructure error and does nack.
+//
+// The hot path is allocation-free for plain chat that produces no output: the
+// envelope and the module Context are pooled, and the emit sink only allocates
+// when a module actually emits an Output.
 package pipeline
 
 import (
-	"context"
-	"encoding/json"
-
 	"ItsBagelBot/app/worker/module"
-	"ItsBagelBot/internal/domain/event/lane"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
+
+	"github.com/bytedance/sonic"
 
 	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/newrelic/go-agent/v3/newrelic"
@@ -71,13 +74,16 @@ func NewPipeline(
 
 // Process is the handler the weighted consumer hands each message to. It decodes
 // the envelope, runs the modules registered for the event type, and publishes
-// whatever they produced. It returns nil (ack) once those publishes have gone
+// whatever they emit. It returns nil (ack) once those publishes have gone
 // through, and an error (nack) only on an infrastructure failure.
 func (p *Pipeline) Process(msg *message.Message) error {
 	ctx := msg.Context()
 
-	var env lane.Envelope
-	if err := json.Unmarshal(msg.Payload, &env); err != nil {
+	// Decode the envelope into a pooled *lane.Envelope so the plain-chat path
+	// allocates nothing here.
+	env := module.GetEnvelope()
+	defer module.PutEnvelope(env)
+	if err := sonic.Unmarshal(msg.Payload, env); err != nil {
 		// A malformed envelope is poison: redelivering it forever helps no one,
 		// so drop it (ack) and move on.
 		p.log.Warn("dropping malformed envelope", zap.String("message_id", msg.UUID), zap.Error(err))
@@ -125,20 +131,43 @@ func (p *Pipeline) Process(msg *message.Message) error {
 		}
 	}
 
-	mctx := &module.Context{
-		Env:           env,
-		Regress:       regress,
-		BroadcasterID: broadcasterID,
-		Log:           p.log,
+	mctx := module.GetContext()
+	defer module.PutContext(mctx)
+	mctx.Env = *env
+	mctx.Regress = regress
+	mctx.BroadcasterID = broadcasterID
+	mctx.Log = p.log
+
+	// emit is the sink each module hands its Outputs to. It marshals and
+	// publishes inline onto the lane matching the regress status, so a premium
+	// broadcaster's reply rides the premium lane end to end. The first publish or
+	// marshal failure is captured and short-circuits the rest: an infrastructure
+	// error must nack so the event is redelivered, and once one publish has
+	// failed there is no point attempting the siblings.
+	var emitErr error
+	emit := func(o *module.Output) {
+		if emitErr != nil || o == nil || o.Type == "" {
+			return
+		}
+		subject := p.outgressStandard
+		if regress.IsPremium() {
+			subject = p.outgressPremium
+		}
+		body, err := buildOutgress(o)
+		if err != nil {
+			emitErr = err
+			return
+		}
+		if err := bus.PublishRaw(ctx, p.pub, subject, body); err != nil {
+			emitErr = err
+		}
 	}
 
-	var out []*outgress.Message
 	for _, m := range mods {
 		if !p.enabled(m, views, mctx) {
 			continue
 		}
-		res, err := m.Handle(ctx, mctx)
-		if err != nil {
+		if err := m.Handle(ctx, mctx, emit); err != nil {
 			// Logic error: log and skip this module, do not nack (would re-fire
 			// the siblings that already succeeded on redelivery).
 			p.log.Error("module failed",
@@ -152,18 +181,62 @@ func (p *Pipeline) Process(msg *message.Message) error {
 			}
 			continue
 		}
-		out = append(out, res...)
 	}
 
-	for _, m := range out {
-		if m == nil {
-			continue
+	// nil = ack; a publish/marshal failure on the emit path = nack.
+	return emitErr
+}
+
+// buildOutgress translates a module Output into the marshaled bytes of the full
+// outgress.Message wire contract. The inner Payload is built from a small typed
+// struct rather than a map so sonic escapes emoji and quotes in the body
+// correctly. This runs only when a module actually emits, so the allocation it
+// costs never touches the no-output plain-chat path.
+func buildOutgress(o *module.Output) ([]byte, error) {
+	var msg outgress.Message
+
+	switch o.Type {
+	case outgress.TypeChat:
+		payload, err := sonic.Marshal(struct {
+			BroadcasterID string `json:"broadcaster_id"`
+			Message       string `json:"message"`
+		}{o.BroadcasterID, o.Text})
+		if err != nil {
+			return nil, err
 		}
-		if err := p.emit(ctx, regress, m); err != nil {
-			return err // publish failure: nack so the event is redelivered
+		msg = outgress.Message{
+			Type:          outgress.TypeChat,
+			BroadcasterID: o.BroadcasterID,
+			Payload:       payload,
+		}
+	case outgress.TypeAnnounce:
+		payload, err := sonic.Marshal(struct {
+			Message string `json:"message"`
+		}{o.Text})
+		if err != nil {
+			return nil, err
+		}
+		msg = outgress.Message{
+			Type:          outgress.TypeAnnounce,
+			BroadcasterID: o.BroadcasterID,
+			Color:         o.Color,
+			Payload:       payload,
+		}
+	case outgress.TypeShoutout:
+		msg = outgress.Message{
+			Type:          outgress.TypeShoutout,
+			BroadcasterID: o.BroadcasterID,
+			To:            o.To,
+			Payload:       []byte("{}"),
+		}
+	default:
+		msg = outgress.Message{
+			Type:          o.Type,
+			BroadcasterID: o.BroadcasterID,
 		}
 	}
-	return nil
+
+	return sonic.Marshal(msg)
 }
 
 // enabled applies the generic per-module gates and wires the module's config into
@@ -199,16 +272,4 @@ func moduleName(m module.Module) string {
 		return n
 	}
 	return "core"
-}
-
-// emit publishes an outgress message onto the lane matching the regress status,
-// so a premium broadcaster's reply rides the premium lane end to end.
-// Stream-lane traffic that produces an action is treated as standard. The
-// JetStream publish is synchronous, so a nil return means outgress has it.
-func (p *Pipeline) emit(ctx context.Context, regress module.Regress, out *outgress.Message) error {
-	subject := p.outgressStandard
-	if regress.IsPremium() {
-		subject = p.outgressPremium
-	}
-	return bus.PublishJSON(ctx, p.pub, subject, out)
 }

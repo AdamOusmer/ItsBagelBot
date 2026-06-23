@@ -135,3 +135,31 @@ func PublishJSON(ctx context.Context, pub message.Publisher, subject string, pay
 
 	return pub.Publish(subject, msg)
 }
+
+// PublishRaw is like PublishJSON but takes already-marshaled bytes and skips
+// json.Marshal, for hot-path callers that marshal once into a pooled buffer.
+// It publishes body on subject with a fresh UUIDv7 message ID, which JetStream
+// also uses for deduplication. When ctx carries a New Relic transaction, its
+// distributed trace headers ride along in the message metadata so the consumer
+// side links to the same trace.
+func PublishRaw(ctx context.Context, pub message.Publisher, subject string, body []byte) error {
+
+	id, err := utils.NewID()
+	if err != nil {
+		return err
+	}
+
+	msg := message.NewMessage(id.String(), body)
+
+	if txn := newrelic.FromContext(ctx); txn != nil {
+
+		headers := http.Header{}
+		txn.InsertDistributedTraceHeaders(headers)
+
+		for key := range headers {
+			msg.Metadata.Set(key, headers.Get(key))
+		}
+	}
+
+	return pub.Publish(subject, msg)
+}
