@@ -25,12 +25,21 @@ import (
 // It deliberately sorts under the shared live: prefix; onExpired skips it.
 const recheckKeyPrefix = "live:recheck:"
 
+// IsLiveChecker is the read-only slice of the live store: just the question "is
+// this broadcaster live?". Consumers that only read live state (the command
+// router's live-only gate, the bagel greeter) depend on this narrow interface
+// rather than the full LiveStore, so they cannot reach the write path and a fake
+// in their tests needs only this one method (ISP).
+type IsLiveChecker interface {
+	IsLive(ctx context.Context, broadcasterID uint64) (bool, error)
+}
+
 // LiveStore answers and maintains a broadcaster's live state. Reads are
 // served from an in-process cache fronting the shared Valkey key, with a
 // projector RPC fallback on a cold key; writes flow from the stream events the
 // worker already consumes.
 type LiveStore interface {
-	IsLive(ctx context.Context, broadcasterID uint64) (bool, error)
+	IsLiveChecker
 	SetLive(ctx context.Context, broadcasterID uint64) error
 	ClearLive(ctx context.Context, broadcasterID uint64) error
 }
@@ -64,7 +73,11 @@ type ValkeyLiveStore struct {
 	cfg    LiveConfig
 	log    *zap.Logger
 
-	cache      *cache.Cache[bool]
+	// cache is keyed by the broadcaster id itself, not the live: string key, so a
+	// cache hit (the hot path: every live-only command gate and bagel check)
+	// allocates nothing. The string key is built only for Valkey ops and for the
+	// singleflight collapse on a miss.
+	cache      *cache.Keyed[uint64, bool]
 	rpcTimeout time.Duration
 
 	invalidationSub *nats.Subscription
@@ -82,7 +95,7 @@ func NewValkeyLiveStore(client valkey.Client, nc *nats.Conn, pub message.Publish
 		pub:        pub,
 		cfg:        cfg,
 		log:        log,
-		cache:      cache.New[bool](cache.DefaultCapacity, cfg.CacheTTL),
+		cache:      cache.NewKeyed[uint64, bool](cache.DefaultCapacity, cfg.CacheTTL, livekey.Key),
 		rpcTimeout: 1500 * time.Millisecond,
 	}
 }
@@ -93,7 +106,7 @@ func liveKey(id uint64) string { return livekey.Key(id) }
 // shared Valkey key, then the projector on a cold key. A live answer learned
 // from the projector is written back so the key-expiry re-check applies to it.
 func (s *ValkeyLiveStore) IsLive(ctx context.Context, broadcasterID uint64) (bool, error) {
-	return s.cache.GetOrLoad(ctx, liveKey(broadcasterID), func(ctx context.Context) (bool, error) {
+	return s.cache.GetOrLoad(ctx, broadcasterID, func(ctx context.Context) (bool, error) {
 		val, err := s.client.Do(ctx, s.client.B().Get().Key(liveKey(broadcasterID)).Build()).ToString()
 		if err == nil {
 			return val == "1", nil
@@ -128,7 +141,7 @@ func (s *ValkeyLiveStore) SetLive(ctx context.Context, broadcasterID uint64) err
 	if err := s.setLiveKey(ctx, broadcasterID); err != nil {
 		return err
 	}
-	s.cache.Set(liveKey(broadcasterID), true)
+	s.cache.Set(broadcasterID, true)
 	s.broadcast(broadcasterID)
 	return nil
 }
@@ -138,7 +151,7 @@ func (s *ValkeyLiveStore) ClearLive(ctx context.Context, broadcasterID uint64) e
 	if err := s.client.Do(ctx, s.client.B().Del().Key(liveKey(broadcasterID)).Build()).Error(); err != nil {
 		return err
 	}
-	s.cache.Invalidate(liveKey(broadcasterID))
+	s.cache.Invalidate(broadcasterID)
 	s.broadcast(broadcasterID)
 	return nil
 }
@@ -178,7 +191,7 @@ func (s *ValkeyLiveStore) StartInvalidationListener() {
 		if err != nil || id == 0 {
 			return
 		}
-		s.cache.Invalidate(liveKey(id))
+		s.cache.Invalidate(id)
 	})
 	if err != nil {
 		s.log.Error("live: failed to subscribe to invalidation", zap.String("subject", subject), zap.Error(err))

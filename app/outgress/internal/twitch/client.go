@@ -180,6 +180,34 @@ func (c *Client) IsStreamLive(ctx context.Context, broadcasterID string) (bool, 
 	return false, nil
 }
 
+// UserIDByLogin resolves a Twitch login to its numeric user id via Helix Get
+// Users under the app token. Returns ("", nil) when no such user exists.
+func (c *Client) UserIDByLogin(ctx context.Context, login string) (string, error) {
+	res, err := c.request(ctx, c.app, http.MethodGet, "/helix/users?login="+url.QueryEscape(login), nil)
+	if err != nil {
+		return "", err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(res.Body, 2048))
+		return "", &StatusError{Status: res.StatusCode, Body: string(body)}
+	}
+
+	var payload struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&payload); err != nil {
+		return "", err
+	}
+	if len(payload.Data) == 0 {
+		return "", nil
+	}
+	return payload.Data[0].ID, nil
+}
+
 // IsModerator reports whether the bot account moderates broadcasterID,
 // paging through the channels the bot's user token can see. Requires the
 // user:read:moderated_channels scope.

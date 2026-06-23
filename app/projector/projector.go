@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
-	"strings"
 
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/domain/event/twitch"
@@ -152,14 +151,7 @@ func (p *Projector) HandleModuleChanged(msg *message.Message) error {
 	if err := p.store.SetModule(msg.Context(), dto.UserID, dto.Name, dto.IsEnabled, dto.Configs); err != nil {
 		return err
 	}
-	// Reserved default-command overrides live in the module namespace
-	// (command.<name>) but the worker caches them per command, so route their
-	// invalidation to the command scope keyed by the command name.
-	if cmd, ok := strings.CutPrefix(dto.Name, "command."); ok {
-		p.broadcastCacheInvalidate(dto.UserID, "commands", cmd)
-	} else {
-		p.broadcastCacheInvalidate(dto.UserID, "modules")
-	}
+	p.broadcastCacheInvalidate(dto.UserID, "modules")
 	return nil
 }
 

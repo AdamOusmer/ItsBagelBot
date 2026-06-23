@@ -1,10 +1,9 @@
 // Package projection is the worker's read side of the settings projection.
 //
-// The pipeline needs four things about the broadcaster an event belongs to:
-// the user's tier (the regress status), the enabled modules, the user's custom
-// commands, and the per-command overrides of shipped defaults. This package is
-// the single contract for all of them. Each lookup follows the same tiers,
-// read-only the whole way down:
+// The pipeline needs three things about the broadcaster an event belongs to:
+// the user's tier (the regress status), the enabled modules, and the user's
+// custom commands. This package is the single contract for all of them. Each
+// lookup follows the same tiers, read-only the whole way down:
 //
 //  1. in-process cache (theine, short TTL) - the hot path, no I/O;
 //  2. Valkey settings:<user_id> hash - the shared projection (read only);
@@ -20,7 +19,6 @@ package projection
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -63,12 +61,6 @@ type commandEntry struct {
 	found bool
 }
 
-// overrideEntry is one cached default-command override decision.
-type overrideEntry struct {
-	enabled  bool
-	response string
-}
-
 // Command is one custom chat command of a user.
 type Command struct {
 	Name             string   `json:"name"`
@@ -87,7 +79,6 @@ type Reader interface {
 	User(ctx context.Context, userID uint64) (User, error)
 	Modules(ctx context.Context, userID uint64) ([]ModuleView, error)
 	Command(ctx context.Context, userID uint64, name string) (Command, bool, error)
-	CommandOverride(ctx context.Context, userID uint64, name string) (enabled bool, response string, err error)
 }
 
 // Subjects names the projector RPC each read falls through to on a Valkey miss.
@@ -105,10 +96,9 @@ type Client struct {
 	subjects Subjects
 	log      *zap.Logger
 
-	users     *cache.Cache[User]
-	modules   *cache.Cache[[]ModuleView]
-	commands  *cache.Cache[commandEntry]
-	overrides *cache.Cache[overrideEntry]
+	users    *cache.Cache[User]
+	modules  *cache.Cache[[]ModuleView]
+	commands *cache.Cache[commandEntry]
 
 	rpcTimeout      time.Duration
 	invalidationSub *nats.Subscription
@@ -126,7 +116,6 @@ func NewClient(store *Store, nc *nats.Conn, subjects Subjects, ttl time.Duration
 		users:      cache.New[User](cache.DefaultCapacity, ttl),
 		modules:    cache.New[[]ModuleView](cache.DefaultCapacity, ttl),
 		commands:   cache.New[commandEntry](cache.DefaultCapacity, ttl),
-		overrides:  cache.New[overrideEntry](cache.DefaultCapacity, ttl),
 		rpcTimeout: 1500 * time.Millisecond,
 	}
 }
@@ -139,7 +128,6 @@ func (c *Client) Close() {
 	c.users.Close()
 	c.modules.Close()
 	c.commands.Close()
-	c.overrides.Close()
 }
 
 // StartInvalidationListener subscribes to push invalidation messages on
@@ -155,7 +143,7 @@ func (c *Client) Close() {
 // so editing one command on a 50-pod fleet no longer triggers 50 HGETALLs.
 //
 // Scope -> cache mapping:
-//   - "commands"          -> per-command + per-override entries named in Keys
+//   - "commands"          -> per-command entries named in Keys
 //   - "modules"           -> modules cache (whole)
 //   - "status" or "grant" -> users cache
 //   - "delegation"        -> ignored (worker does not cache delegations)
@@ -179,13 +167,9 @@ func (c *Client) StartInvalidationListener(prefix string) {
 
 		switch scope {
 		case "commands":
-			// A command change touches both the custom command and the
-			// reserved default-command override under the same name, so drop
-			// both for every key carried by the event.
+			// Drop the custom command entry for every key carried by the event.
 			for _, name := range payload.Keys {
-				lname := strings.ToLower(name)
-				c.commands.Invalidate(cmdKey(id, lname))
-				c.overrides.Invalidate(overrideKey(id, lname))
+				c.commands.Invalidate(cmdKey(id, strings.ToLower(name)))
 			}
 		case "modules":
 			c.modules.Invalidate(key("modules", id))
@@ -288,51 +272,6 @@ func (c *Client) Command(ctx context.Context, userID uint64, name string) (Comma
 	return entry.cmd, entry.found, nil
 }
 
-// CommandOverride resolves the broadcaster's reserved override for a shipped
-// default command. enabled is true (and response empty) when no override row
-// exists. The hot path is a single per-name cache entry backed by two targeted
-// HGETs, never the whole module list; only a cold user falls through to the
-// projector module RPC.
-func (c *Client) CommandOverride(ctx context.Context, userID uint64, name string) (bool, string, error) {
-	lname := strings.ToLower(name)
-
-	entry, err := c.overrides.GetOrLoad(ctx, overrideKey(userID, lname), func(ctx context.Context) (overrideEntry, error) {
-		if enabled, response, projected, err := c.store.GetCommandOverride(ctx, userID, lname); err == nil && projected {
-			return overrideEntry{enabled: enabled, response: response}, nil
-		}
-
-		// Cold modules section: fall back to the projector module RPC and scan
-		// for the reserved command.<name> row.
-		reply, err := bus.RequestJSONTimeout[struct {
-			Modules []ModuleView `json:"modules"`
-		}](ctx, c.nc, c.subjects.Modules, projectionRequest(userID), c.rpcTimeout)
-		if err != nil {
-			return overrideEntry{enabled: true}, nil // default enabled on outage
-		}
-		want := "command." + lname
-		for _, m := range reply.Modules {
-			if m.Name != want {
-				continue
-			}
-			if !m.IsEnabled {
-				return overrideEntry{enabled: false}, nil
-			}
-			var cfg struct {
-				Response string `json:"response"`
-			}
-			if len(m.Configs) > 0 {
-				_ = json.Unmarshal(m.Configs, &cfg)
-			}
-			return overrideEntry{enabled: true, response: cfg.Response}, nil
-		}
-		return overrideEntry{enabled: true}, nil // no row: default, enabled
-	})
-	if err != nil {
-		return false, "", err
-	}
-	return entry.enabled, entry.response, nil
-}
-
 func commandFromView(v CommandView) Command {
 	return Command{
 		Name:             v.Name,
@@ -347,17 +286,13 @@ func commandFromView(v CommandView) Command {
 }
 
 func projectionRequest(userID uint64) map[string]string {
-	return map[string]string{"user_id": fmt.Sprint(userID)}
+	return map[string]string{"user_id": strconv.FormatUint(userID, 10)}
 }
 
 func key(kind string, userID uint64) string {
-	return kind + ":" + fmt.Sprint(userID)
+	return cache.UserKey(kind+":", userID)
 }
 
 func cmdKey(userID uint64, name string) string {
-	return "command:" + fmt.Sprint(userID) + ":" + name
-}
-
-func overrideKey(userID uint64, name string) string {
-	return "override:" + fmt.Sprint(userID) + ":" + name
+	return cache.PairKey("command:", userID, name)
 }
