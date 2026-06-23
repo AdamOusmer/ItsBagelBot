@@ -10,7 +10,7 @@ metadata:
   name: nats-leaf
   namespace: production
   annotations:
-    config.linkerd.io/opaque-ports: "4222"
+    config.linkerd.io/opaque-ports: "4222,6222"
 spec:
   revisionHistoryLimit: 5
   updateStrategy:
@@ -26,8 +26,9 @@ spec:
       annotations:
         linkerd.io/inject: enabled
         # NATS speaks first on the wire, so protocol detection would stall;
-        # opaque keeps Linkerd mTLS without the detection timeout.
-        config.linkerd.io/opaque-ports: "4222"
+        # opaque keeps Linkerd mTLS without the detection timeout. 6222 is the
+        # leaf-to-leaf cluster route port.
+        config.linkerd.io/opaque-ports: "4222,6222"
         config.linkerd.io/proxy-cpu-request: 5m
         config.linkerd.io/proxy-cpu-limit: 1000m
         config.linkerd.io/proxy-memory-limit: 128Mi
@@ -75,6 +76,7 @@ spec:
           ports:
             - {containerPort: 4222, name: client}
             - {containerPort: 8222, name: monitor}
+            - {containerPort: 6222, name: cluster}
           volumeMounts:
             - {name: config, mountPath: /etc/nats, readOnly: true}
             - {name: jetstream, mountPath: /data/jetstream}
@@ -99,7 +101,9 @@ spec:
             periodSeconds: 15
             timeoutSeconds: 3
           readinessProbe:
-            httpGet: {path: "/healthz?js-enabled-only=true", port: monitor}
+            # Plain /healthz: the leaves run core NATS only (JetStream disabled),
+            # so a JS-scoped probe would never report ready.
+            httpGet: {path: /healthz, port: monitor}
             initialDelaySeconds: 5
             periodSeconds: 10
             timeoutSeconds: 3
@@ -186,11 +190,17 @@ metadata:
   name: nats-leaf-peers
   namespace: production
   annotations:
-    config.linkerd.io/opaque-ports: "4222"
+    config.linkerd.io/opaque-ports: "4222,6222"
 spec:
+  # Route-discovery seed for the leaf cluster. NATS bootstraps the full 4-node
+  # mesh by gossiping from a single seed route, so a plain ClusterIP is enough;
+  # publishNotReadyAddresses lets a still-forming leaf seed the cluster on rollout.
+  # (Left ClusterIP rather than headless because clusterIP is immutable on the
+  # existing service.)
   publishNotReadyAddresses: true
   selector:
     app: nats-leaf
   ports:
     - {name: client, port: 4222, targetPort: client}
     - {name: monitor, port: 8222, targetPort: monitor}
+    - {name: cluster, port: 6222, targetPort: cluster}
