@@ -115,12 +115,10 @@ spec:
           env:
             - name: NATS_HOST
               value: nats
-            # Leaf-first: the RPC (:gnat) and BUS (:gnat_bus) connections try the
-            # node-local leaf first, then the hub.
+            # Apps connect only to the node-local leaf cluster; the hub is reached
+            # over the leafnode link. No hub host, so a leaf roll can't pin to hub.
             - name: NATS_LEAF_HOST
               value: nats-leaf
-            - name: NATS_HUB_HOST
-              value: nats
             - name: POD_IP
               valueFrom:
                 fieldRef:
