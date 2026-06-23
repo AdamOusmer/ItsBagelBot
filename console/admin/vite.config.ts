@@ -9,7 +9,7 @@ export default defineConfig({
   // newrelic is a CJS agent with native modules + dynamic requires; it must stay
   // external so it resolves to the singleton preloaded via --import at runtime
   // (bundling it would break it and create a second, uninstrumented instance).
-  ssr: { noExternal: ['@bagel/shared'], external: ['mysql2', 'newrelic'] },
+  ssr: { noExternal: ['@bagel/shared'], external: ['mysql2', 'newrelic', 'iovalkey'] },
   server: { port: 5174 },
   build: {
     minify: 'terser'

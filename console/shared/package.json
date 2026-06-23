@@ -10,12 +10,19 @@
       "default": "./lib/index.ts"
     },
     "./server/config-sanity": "./lib/server/config-sanity.ts",
+    "./server/config": "./lib/server/config.ts",
+    "./server/session": "./lib/server/session.ts",
     "./server/nats": "./lib/server/nats.ts",
+    "./server/resilience": "./lib/server/resilience.ts",
+    "./server/cache": "./lib/server/cache.ts",
+    "./server/invalidation": "./lib/server/invalidation.ts",
+    "./server/valkey-store": "./lib/server/valkey-store.ts",
     "./styles/tokens.css": "./styles/tokens.css",
     "./styles/app.css": "./styles/app.css",
     "./components/*": "./components/*"
   },
   "dependencies": {
+    "iovalkey": "^0.3.1",
     "lenis": "^1.3.18",
     "motion": "^12.0.0",
     "nats": "^2.29.2",

@@ -1,7 +1,9 @@
 // Admin-facing RPC wrappers over the shared NATS client. Subjects come from env
 // with the same defaults as the retired Go admin tier. Every wrapper degrades
 // gracefully: callers catch and fall back to sample data so SSR always renders.
-import { rpc, publish, subscribe } from '@bagel/shared/server/nats';
+import { rpc, publish } from '@bagel/shared/server/nats';
+import { MemoryCache } from '@bagel/shared/server/cache';
+import { startInvalidationBus } from '@bagel/shared/server/invalidation';
 import type { ShardSnapshot, UserStats } from '@bagel/shared';
 
 // Subjects come from process.env, NOT $env/dynamic/private. This module is
@@ -23,38 +25,20 @@ const SUB = {
 
 export const STATUS_PREFIX = SUB.status;
 
-type CacheEntry<T> = { value?: T; promise?: Promise<T>; expires: number };
+// Tier-1 read cache: bounded LRU + TTL + single-flight (shared primitive). The
+// thin cached()/setCached()/invalidate() wrappers keep every call site unchanged.
+const cache = new MemoryCache();
 
-const cache = new Map<string, CacheEntry<unknown>>();
-
-async function cached<T>(key: string, ttlMs: number, load: () => Promise<T>): Promise<T> {
-  const now = Date.now();
-  const hit = cache.get(key) as CacheEntry<T> | undefined;
-  if (hit && hit.expires > now) {
-    if (hit.value !== undefined) return hit.value;
-    if (hit.promise) return hit.promise;
-  }
-
-  const promise = load();
-  cache.set(key, { promise, expires: now + ttlMs });
-  try {
-    const value = await promise;
-    cache.set(key, { value, expires: Date.now() + ttlMs });
-    return value;
-  } catch (err) {
-    cache.delete(key);
-    throw err;
-  }
+function cached<T>(key: string, ttlMs: number, load: () => Promise<T>): Promise<T> {
+  return cache.getOrLoad(key, ttlMs, load);
 }
 
 function setCached<T>(key: string, value: T, ttlMs: number) {
-  cache.set(key, { value, expires: Date.now() + ttlMs });
+  cache.set(key, value, ttlMs);
 }
 
 function invalidate(...prefixes: string[]) {
-  for (const key of cache.keys()) {
-    if (prefixes.some((prefix) => key.startsWith(prefix))) cache.delete(key);
-  }
+  cache.invalidate(...prefixes);
 }
 
 function invalidateUser(userId: string) {
@@ -275,31 +259,16 @@ export async function channelSubState(broadcasterId: string): Promise<ChannelSub
 /**
  * Subscribe to the cache-invalidation bus so writes in other services push-drop
  * affected keys without waiting on TTL expiry. Call once at server boot
- * (hooks.server.ts). Fire-and-forget; resilient to NATS restarts via the shared
- * subscribe() primitive.
+ * (hooks.server.ts init). The shared bus owns transport + parsing; this maps
+ * each scope to the admin's cache keys.
  *
  * Scopes handled:
  *   status | grant -> invalidateUser(broadcasterId) (drops users:, user:<id>, token:<id>)
- *   other          -> ignored
+ *   other          -> ignored (commands/modules/delegation are not cached by admin)
  */
 export function startInvalidationListener(): void {
-  const prefix = process.env.NATS_CACHE_INVALIDATION_PREFIX ?? 'bagel.cache.invalidate';
-
-  subscribe(prefix + '.>', (subject, data) => {
-    try {
-      const msg = JSON.parse(new TextDecoder().decode(data)) as {
-        broadcaster_id?: unknown;
-      };
-      const id = typeof msg.broadcaster_id === 'string' ? msg.broadcaster_id : undefined;
-      if (!id) return;
-      const scope = subject.slice(subject.lastIndexOf('.') + 1) || undefined;
-      if (scope === 'status' || scope === 'grant') {
-        invalidateUser(id);
-      }
-      // Other scopes (commands, modules, delegation) are not cached by admin — ignore.
-    } catch {
-      // Malformed message — ignore.
-    }
+  startInvalidationBus((id, scope) => {
+    if (scope === 'status' || scope === 'grant') invalidateUser(id);
   });
 }
 
