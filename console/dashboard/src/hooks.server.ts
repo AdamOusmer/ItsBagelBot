@@ -1,22 +1,44 @@
-import type { Handle, HandleServerError } from '@sveltejs/kit';
+import type { Handle, HandleServerError, ServerInit } from '@sveltejs/kit';
 import newrelic from 'newrelic';
 import { COOKIE, open } from '$lib/server/session';
 import { warm } from '@bagel/shared/server/nats';
+import { warm as warmValkey } from '@bagel/shared/server/valkey-store';
+import { registerServerConfig } from '@bagel/shared/server/config';
 import { startInvalidationListener } from '$lib/server/rpc';
 import { assertConfigSane } from '$lib/server/config-sanity';
 import dns from 'node:dns';
 
-// Force node:dns to resolve IPv4 first to bypass k3s IPv6 timeout issues
-dns.setDefaultResultOrder('ipv4first');
-assertConfigSane();
+// Framework-native one-time boot. SvelteKit calls init() once before the first
+// request; all boot side effects live here instead of at module-eval.
+//
+// Boot config reads process.env, NOT $env/dynamic/private: init() runs under the
+// server entry's top-level `await server.init()`, so reading the dynamic-env
+// proxy here deadlocks that await (unsettled top-level await -> exit 13). In
+// adapter-node process.env carries the same Doppler-injected runtime values, and
+// request-time code (session, oauth, rpc) keeps using $env/dynamic/private.
+export const init: ServerInit = async () => {
+  // Force node:dns to resolve IPv4 first to bypass k3s IPv6 timeout issues.
+  dns.setDefaultResultOrder('ipv4first');
 
-// Pre-dial NATS at server start so the first request hits a warm connection
-// instead of paying the cold dial on the hot path.
-warm();
+  const env = process.env;
+  assertConfigSane(env);
 
-// Subscribe to the cache-invalidation bus so writes in Go services push-drop
-// the right keys without waiting on TTL expiry.
-startInvalidationListener();
+  // Register the caching-layer config (Valkey read tier + invalidation bus) so
+  // shared infra resolves it without touching $env itself.
+  registerServerConfig({
+    valkey: env.VALKEY_ADDR ? { addr: env.VALKEY_ADDR, password: env.VALKEY_PASSWORD } : undefined,
+    cacheInvalidationPrefix: env.NATS_CACHE_INVALIDATION_PREFIX ?? 'bagel.cache.invalidate'
+  });
+
+  // Pre-dial NATS and pre-connect the Valkey read pool so the first request hits
+  // warm connections instead of paying the cold dial/connect on the hot path.
+  warm();
+  warmValkey();
+
+  // Subscribe to the cache-invalidation bus so writes in Go services push-drop
+  // the right keys without waiting on TTL expiry.
+  startInvalidationListener();
+};
 
 // Session + the security headers SvelteKit's CSP config does not own.
 export const handle: Handle = async ({ event, resolve }) => {

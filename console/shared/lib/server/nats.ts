@@ -22,19 +22,50 @@ function rpcSegment(subject: string): string {
     .join('.');
 }
 
-let conn: NatsConnection | null = null;
-let dialing: Promise<NatsConnection> | null = null;
+// The console holds two connections on two accounts (per-account isolation):
+//
+//   * 'rpc'  — the per-service RPC account (NATS_RPC_USER/PASSWORD): request/reply
+//     (bagel.rpc.*) and the cache-invalidation subscription (bagel.cache.*).
+//   * 'bus'  — the shared BUS account (NATS_USER/PASSWORD): the JetStream lane
+//     view (admin) and the outgress-system stream-feed publish (twitch.*).
+//
+// Both prefer the node-local leaf and fall back to the hub, ordered and never
+// shuffled (noRandomize) so a reconnect always retries the leaf first.
+type Role = 'rpc' | 'bus';
 
-// Server list: NATS_RPC_URL is preferred for request/reply so production can
-// use the node-local leaf; NATS_URL remains the durable bus fallback.
-function options(): ConnectionOptions {
-  const server =
-    process.env.NATS_RPC_URL ??
-    process.env.NATS_URL ??
-    `nats://${process.env.NATS_HOST ?? '127.0.0.1'}:${process.env.NATS_PORT ?? '4222'}`;
+interface Pool {
+  conn: NatsConnection | null;
+  dialing: Promise<NatsConnection> | null;
+}
+
+const pools: Record<Role, Pool> = {
+  rpc: { conn: null, dialing: null },
+  bus: { conn: null, dialing: null }
+};
+
+// serverList returns the ordered endpoint list, leaf first then hub. `override`
+// (NATS_RPC_URL for rpc, NATS_URL for bus) is used as the leaf endpoint when the
+// explicit NATS_LEAF_URL/NATS_HUB_URL split is absent, so local dev and
+// pre-migration deploys keep working against a single server.
+function serverList(override: string | undefined): string[] {
+  const leaf = process.env.NATS_LEAF_URL;
+  const hub = process.env.NATS_HUB_URL;
+  const fallback =
+    override ?? `nats://${process.env.NATS_HOST ?? '127.0.0.1'}:${process.env.NATS_PORT ?? '4222'}`;
+  if (!leaf && !hub) return [fallback];
+  const list: string[] = [];
+  list.push(leaf ?? fallback);
+  if (hub && hub !== list[0]) list.push(hub);
+  return list;
+}
+
+function options(role: Role): ConnectionOptions {
+  const isRpc = role === 'rpc';
   const opts: ConnectionOptions = {
-    servers: server,
-    name: process.env.NATS_CLIENT_NAME ?? 'console',
+    servers: serverList(isRpc ? process.env.NATS_RPC_URL : process.env.NATS_URL),
+    // Honor leaf-first order on the initial dial and every reconnect.
+    noRandomize: true,
+    name: `${process.env.NATS_CLIENT_NAME ?? 'console'}-${role}`,
     maxReconnectAttempts: -1,
     reconnectTimeWait: 500,
     pingInterval: 20_000,
@@ -43,41 +74,46 @@ function options(): ConnectionOptions {
     // a gateway "server connection error" the user has to refresh past.
     timeout: 3_000
   };
-  if (process.env.NATS_USER) opts.user = process.env.NATS_USER;
-  if (process.env.NATS_PASSWORD) opts.pass = process.env.NATS_PASSWORD;
+  const user = isRpc ? (process.env.NATS_RPC_USER ?? process.env.NATS_USER) : process.env.NATS_USER;
+  const pass = isRpc
+    ? (process.env.NATS_RPC_PASSWORD ?? process.env.NATS_PASSWORD)
+    : process.env.NATS_PASSWORD;
+  if (user) opts.user = user;
+  if (pass) opts.pass = pass;
   if (process.env.NATS_TOKEN) opts.token = process.env.NATS_TOKEN;
   return opts;
 }
 
-async function get(): Promise<NatsConnection> {
-  if (conn && !conn.isClosed()) return conn;
-  if (dialing) return dialing;
+async function get(role: Role): Promise<NatsConnection> {
+  const pool = pools[role];
+  if (pool.conn && !pool.conn.isClosed()) return pool.conn;
+  if (pool.dialing) return pool.dialing;
   // Clear `dialing` in finally, not in the success handler: if connect() rejects
   // (NATS down at dial time) the success handler never runs, so leaving it set
   // would pin a rejected promise here and fail every later request until the
   // process restarts. finally lets the next get() re-dial.
-  dialing = connect(options())
+  pool.dialing = connect(options(role))
     .then((c) => {
-      conn = c;
+      pool.conn = c;
       return c;
     })
     .finally(() => {
-      dialing = null;
+      pool.dialing = null;
     });
-  return dialing;
+  return pool.dialing;
 }
 
 let jsClient: JetStreamClient | null = null;
 let jsManager: JetStreamManager | null = null;
 
 export async function js(): Promise<JetStreamClient> {
-  const nc = await get();
+  const nc = await get('bus');
   if (!jsClient) jsClient = nc.jetstream({ domain: 'hub' });
   return jsClient;
 }
 
 export async function jsm(): Promise<JetStreamManager> {
-  const nc = await get();
+  const nc = await get('bus');
   if (!jsManager) jsManager = await nc.jetstreamManager({ domain: 'hub' });
   return jsManager;
 }
@@ -89,7 +125,8 @@ export async function jsm(): Promise<JetStreamManager> {
  * failed warm-up just leaves the next get() to re-dial.
  */
 export function warm(): void {
-  get().catch(() => {});
+  get('rpc').catch(() => {});
+  get('bus').catch(() => {});
 }
 
 async function within<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
@@ -106,7 +143,8 @@ async function within<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
 
 export async function ready(timeoutMs = 750): Promise<boolean> {
   try {
-    const nc = await within(get(), timeoutMs);
+    // The RPC connection is the SSR hot path; readiness tracks it.
+    const nc = await within(get('rpc'), timeoutMs);
     await within(nc.flush(), timeoutMs);
     return !nc.isClosed();
   } catch {
@@ -126,7 +164,7 @@ export async function rpc<T>(subject: string, payload: unknown = {}, timeoutMs =
   // breakdown shows which RPC subject dominates a slow page. Safe no-op (runs the
   // handler directly) when no agent/transaction is active.
   return newrelic.startSegment(`NATS/request/${rpcSegment(subject)}`, true, async () => {
-    const nc = await get();
+    const nc = await get('rpc');
     const msg = await nc.request(subject, jc.encode(payload), { timeout: timeoutMs });
     const reply = jc.decode(msg.data) as T & { error?: string };
     if (reply && typeof reply === 'object' && reply.error) throw new RpcError(reply.error);
@@ -138,18 +176,27 @@ export async function rpc<T>(subject: string, payload: unknown = {}, timeoutMs =
  * Fire-and-forget JSON publish (e.g. the outgress system lane). JetStream
  * streams capture core publishes to their subjects, so this enqueues the job
  * without needing a JetStream client.
+ *
+ * Routed by subject: stream-feed subjects (twitch.*) are captured by BUS-account
+ * JetStream streams and must go on the bus connection; everything else stays on
+ * the per-service RPC account.
  */
 export async function publish(subject: string, payload: unknown = {}): Promise<void> {
   return newrelic.startSegment(`NATS/publish/${rpcSegment(subject)}`, true, async () => {
-    const nc = await get();
+    // Stream-feed subjects (twitch.* / data.*) are captured by BUS-account
+    // JetStream streams and must use the bus connection; RPC + cache stay on rpc.
+    const role: Role = subject.startsWith('twitch.') || subject.startsWith('data.') ? 'bus' : 'rpc';
+    const nc = await get(role);
     nc.publish(subject, jc.encode(payload));
     await nc.flush();
   });
 }
 
 export async function closeNats(): Promise<void> {
-  if (conn && !conn.isClosed()) await conn.drain();
-  conn = null;
+  for (const pool of Object.values(pools)) {
+    if (pool.conn && !pool.conn.isClosed()) await pool.conn.drain();
+    pool.conn = null;
+  }
 }
 
 /**
@@ -167,7 +214,8 @@ export async function closeNats(): Promise<void> {
  * and never await it.
  */
 export function subscribe(subject: string, onMsg: (subject: string, data: Uint8Array) => void): void {
-  get()
+  // Cache-invalidation (bagel.cache.*) rides the per-service RPC account.
+  get('rpc')
     .then((nc) => {
       const sub = nc.subscribe(subject);
       (async () => {
