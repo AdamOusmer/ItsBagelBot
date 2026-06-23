@@ -81,19 +81,20 @@ func EnsureStreams(ctx context.Context, url string, specs []StreamSpec, log *zap
 		}
 	}
 
-	opts := append(options("stream-guardian"),
+	opts := append(busOptions("stream-guardian"),
 		nats.ReconnectHandler(func(*nats.Conn) {
 			log.Info("nats reconnected; re-provisioning jetstream streams")
 			reconcileAll()
 		}),
 	)
 
-	nc, err := nats.Connect(url, opts...)
+	nc, err := nats.Connect(busURL(url), opts...)
 	if err != nil {
 		return fmt.Errorf("bus: connect for provisioning: %w", err)
 	}
 
-	js, err = nc.JetStream()
+	// Dialed at the leaf, so the stream API must target the hub domain.
+	js, err = nc.JetStream(jsDomainOption()...)
 	if err != nil {
 		nc.Close()
 		return fmt.Errorf("bus: jetstream context: %w", err)
