@@ -65,8 +65,7 @@ config :ingress,
   lane_subject_standard:
     System.get_env("NATS_SUBJECT_LANE_STANDARD", "twitch.ingress.event.standard"),
   # Dedicated lane carrying only stream.online / stream.offline events.
-  lane_subject_stream:
-    System.get_env("NATS_SUBJECT_LANE_STREAM", "twitch.ingress.event.stream"),
+  lane_subject_stream: System.get_env("NATS_SUBJECT_LANE_STREAM", "twitch.ingress.event.stream"),
   # Lane routing is a function of broadcaster status, so the ingress lane cache
   # only needs the "status" section of the scope-per-subject invalidation bus
   # (bagel.cache.invalidate.<scope>). Payload shape is unchanged ({broadcaster_id}).
@@ -76,14 +75,12 @@ config :ingress,
   # shard state snapshot. Consumed by the admin tool, never by user traffic.
   admin_subject: System.get_env("NATS_ADMIN_SUBJECT", "twitch.ingress.admin.shards.get"),
   # Manual shard-count control: body {"count": N}, replies with full snapshot.
-  scale_subject:
-    System.get_env("NATS_SCALE_SUBJECT", "twitch.ingress.admin.shards.scale"),
+  scale_subject: System.get_env("NATS_SCALE_SUBJECT", "twitch.ingress.admin.shards.scale"),
   # Autoscaler toggle: body {"enabled": true|false}, replies with full snapshot.
   autoscale_subject:
     System.get_env("NATS_AUTOSCALE_SUBJECT", "twitch.ingress.admin.shards.autoscale"),
   # Live conduit id query: body {}, replies {"conduit_id": "<uuid>"} or {"error": "..."}.
-  conduit_subject:
-    System.get_env("NATS_CONDUIT_SUBJECT", "bagel.rpc.ingress.conduit.get"),
+  conduit_subject: System.get_env("NATS_CONDUIT_SUBJECT", "bagel.rpc.ingress.conduit.get"),
   # Hard ceiling applied to both manual targets and the autoscaler estimate.
   max_shards: String.to_integer(System.get_env("TWITCH_CONDUIT_MAX_SHARDS", "20")),
   # NATS RPC endpoint exposed by the Go service that owns broadcaster data.
@@ -99,19 +96,47 @@ config :ingress,
   # mailboxes grow until Twitch keepalives/reconnects are delayed.
   dispatcher_max_running:
     String.to_integer(System.get_env("INGRESS_DISPATCHER_MAX_RUNNING", "64")),
-  dispatcher_max_queue:
-    String.to_integer(System.get_env("INGRESS_DISPATCHER_MAX_QUEUE", "2000"))
+  dispatcher_max_queue: String.to_integer(System.get_env("INGRESS_DISPATCHER_MAX_QUEUE", "2000"))
 
 # Credentials are optional so local development can run against an open
 # server; the production broker requires them and Gnat only sends them when
 # the server asks (auth_required in the INFO handshake).
+#
+# Two planes on two accounts (per-account isolation):
+#   * :nats     — the twitch_ingress RPC account (NATS_RPC_USER/PASSWORD): admin
+#     shard control, conduit RPC, broadcaster-status request, cache invalidation.
+#   * :nats_bus — the shared BUS account (NATS_USER/PASSWORD): the twitch.ingress.*
+#     firehose publishes captured by the JetStream streams.
+#
+# Both are leaf-first: each is a list of servers (leaf, then hub) that Gnat tries
+# in order, so the node-local leaf is the priority path with the hub as fallback.
+nats_leaf_host = System.get_env("NATS_LEAF_HOST") || System.get_env("NATS_HOST", "127.0.0.1")
+nats_hub_host = System.get_env("NATS_HUB_HOST", nats_leaf_host)
+nats_port = String.to_integer(System.get_env("NATS_PORT", "4222"))
+
+nats_servers = fn user, pass ->
+  for host <- Enum.uniq([nats_leaf_host, nats_hub_host]) do
+    base = %{host: host, port: nats_port}
+
+    if is_binary(user) and is_binary(pass) do
+      Map.merge(base, %{username: user, password: pass})
+    else
+      base
+    end
+  end
+end
+
 config :ingress,
-  nats: %{
-    host: System.get_env("NATS_HOST", "127.0.0.1"),
-    port: String.to_integer(System.get_env("NATS_PORT", "4222")),
-    username: System.get_env("NATS_USER"),
-    password: System.get_env("NATS_PASSWORD")
-  }
+  nats:
+    nats_servers.(
+      System.get_env("NATS_RPC_USER") || System.get_env("NATS_USER"),
+      System.get_env("NATS_RPC_PASSWORD") || System.get_env("NATS_PASSWORD")
+    ),
+  nats_bus:
+    nats_servers.(
+      System.get_env("NATS_USER"),
+      System.get_env("NATS_PASSWORD")
+    )
 
 if level = System.get_env("LOG_LEVEL") do
   config :logger, level: String.to_existing_atom(level)

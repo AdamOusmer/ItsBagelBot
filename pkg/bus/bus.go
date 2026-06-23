@@ -34,11 +34,14 @@ import (
 func NewPublisher(url string, log *zap.Logger) (message.Publisher, error) {
 
 	return wmnats.NewPublisher(wmnats.PublisherConfig{
-		URL:         url,
-		NatsOptions: options(""),
+		URL:         busURL(url),
+		NatsOptions: busOptions(""),
 		Marshaler:   &wmnats.NATSMarshaler{},
 		JetStream: wmnats.JetStreamConfig{
 			AutoProvision: false,
+			// Dialed at the leaf, so target the authoritative hub JetStream
+			// domain rather than the leaf's own.
+			ConnectOptions: jsDomainOption(),
 		},
 	}, newZapAdapter(log))
 }
@@ -62,8 +65,8 @@ func NewLaneSubscriber(url string, group string, delay time.Duration, maxRetries
 func newSubscriber(url string, group string, nakDelay wmnats.Delay, log *zap.Logger) (message.Subscriber, error) {
 
 	return wmnats.NewSubscriber(wmnats.SubscriberConfig{
-		URL:              url,
-		NatsOptions:      options(group),
+		URL:              busURL(url),
+		NatsOptions:      busOptions(group),
 		QueueGroupPrefix: group,
 		SubscribersCount: 1,
 		AckWaitTimeout:   30 * time.Second,
@@ -73,6 +76,9 @@ func newSubscriber(url string, group string, nakDelay wmnats.Delay, log *zap.Log
 			AutoProvision:     false,
 			DurablePrefix:     group,
 			DurableCalculator: durableName,
+			// Dialed at the leaf, so target the authoritative hub JetStream
+			// domain rather than the leaf's own.
+			ConnectOptions: jsDomainOption(),
 		},
 	}, newZapAdapter(log))
 }

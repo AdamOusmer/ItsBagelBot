@@ -82,6 +82,10 @@ spec:
               value: nats://nats:4222
             - name: NATS_RPC_URL
               value: nats://nats-leaf:4222
+            - name: NATS_LEAF_URL
+              value: nats://nats-leaf:4222
+            - name: NATS_HUB_URL
+              value: nats://nats:4222
             - name: NODE_IP
               valueFrom:
                 fieldRef:

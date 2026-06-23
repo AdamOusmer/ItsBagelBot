@@ -13,7 +13,10 @@ defmodule Ingress.Application do
     * `Ingress.Dispatcher` - bounded async notification filtering and NATS
       publish workers so shard socket processes never do that work inline.
     * `Ingress.Twitch.AppToken` - cached app access token for Helix calls.
-    * `Gnat.ConnectionSupervisor` - NATS connection, registered as `:gnat`.
+    * `Gnat.ConnectionSupervisor` - RPC-plane NATS connection (twitch_ingress
+      account), registered as `:gnat`.
+    * `Gnat.ConnectionSupervisor` - BUS-plane NATS connection (shared BUS
+      account), registered as `:gnat_bus`; carries the twitch.ingress.* firehose.
     * `Gnat.ConsumerSupervisor` (invalidation) - subscription to cache
       invalidation subject.
     * `Gnat.ConsumerSupervisor` (admin) - request-reply read endpoint for
@@ -57,6 +60,7 @@ defmodule Ingress.Application do
          distribution_strategy: Ingress.ShardDistribution
        ]},
       nats_connection(),
+      nats_bus_connection(),
       Ingress.BroadcasterCache,
       {Task.Supervisor, name: Ingress.Dispatcher.TaskSupervisor},
       Ingress.Dispatcher,
@@ -70,28 +74,36 @@ defmodule Ingress.Application do
     ]
   end
 
+  # RPC plane: the twitch_ingress account connection (:gnat). Carries the admin/
+  # scale/autoscale/conduit RPC endpoints, the cache-invalidation consumer and
+  # the broadcaster-status request. Leaf-first server list comes from config.
   defp nats_connection do
-    %{host: host, port: port} = nats = Config.nats()
-
-    connection =
-      case nats do
-        %{username: username, password: password}
-        when is_binary(username) and is_binary(password) ->
-          %{host: host, port: port, username: username, password: password}
-
-        _ ->
-          %{host: host, port: port}
-      end
-
     settings = %{
       name: :gnat,
       backoff_period: 4_000,
-      connection_settings: [connection]
+      connection_settings: Config.nats()
     }
 
     Supervisor.child_spec(
       {Gnat.ConnectionSupervisor, settings},
       id: :nats_connection
+    )
+  end
+
+  # BUS plane: the shared BUS account connection (:gnat_bus). Carries only the
+  # twitch.ingress.* firehose publishes (Ingress.Nats), which the JetStream
+  # streams capture. Kept separate so ingress holds no JetStream/event-plane
+  # rights on its RPC account.
+  defp nats_bus_connection do
+    settings = %{
+      name: :gnat_bus,
+      backoff_period: 4_000,
+      connection_settings: Config.nats_bus()
+    }
+
+    Supervisor.child_spec(
+      {Gnat.ConnectionSupervisor, settings},
+      id: :nats_bus_connection
     )
   end
 
@@ -142,7 +154,9 @@ defmodule Ingress.Application do
     settings = %{
       connection_name: :gnat,
       module: Ingress.ConduitRpc,
-      subscription_topics: [%{topic: Config.conduit_subject(), queue_group: "twitch-ingress-admin"}]
+      subscription_topics: [
+        %{topic: Config.conduit_subject(), queue_group: "twitch-ingress-admin"}
+      ]
     }
 
     Supervisor.child_spec(

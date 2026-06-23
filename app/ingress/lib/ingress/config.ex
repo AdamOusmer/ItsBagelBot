@@ -50,5 +50,9 @@ defmodule Ingress.Config do
   def dispatcher_max_queue,
     do: Application.get_env(:ingress, :dispatcher_max_queue, 2_000)
 
+  # Gnat connection_settings (a leaf-first list of server maps) for the two
+  # planes: :nats is the twitch_ingress RPC account, :nats_bus the shared BUS
+  # account that carries the twitch.ingress.* firehose.
   def nats, do: Application.fetch_env!(:ingress, :nats)
+  def nats_bus, do: Application.fetch_env!(:ingress, :nats_bus)
 end
