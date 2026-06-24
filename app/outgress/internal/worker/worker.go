@@ -875,11 +875,16 @@ func (w *Worker) execute(ctx context.Context, payload outgress.Message) error {
 	case res.StatusCode == http.StatusUnauthorized || res.StatusCode == http.StatusForbidden:
 		// The client already retried once with a fresh token, so this is a
 		// real credentials problem; nack so messages survive until it
-		// recovers instead of being silently dropped.
+		// recovers instead of being silently dropped. Twitch's body states the
+		// exact reason (missing scope vs the moderator/user not being authorized
+		// vs a moderator_id/token mismatch), so surface it instead of guessing.
+		body, _ := io.ReadAll(io.LimitReader(res.Body, 2048))
 		w.log.Error("twitch rejected our credentials",
 			zap.Int("status", res.StatusCode),
-			zap.String("endpoint", payload.Endpoint))
-		return fmt.Errorf("twitch auth failure: %d", res.StatusCode)
+			zap.String("endpoint", payload.Endpoint),
+			zap.String("as", payload.As),
+			zap.String("body", string(body)))
+		return fmt.Errorf("twitch auth failure: %d %s", res.StatusCode, string(body))
 
 	case res.StatusCode >= 500:
 		return fmt.Errorf("twitch server error: %d", res.StatusCode)
