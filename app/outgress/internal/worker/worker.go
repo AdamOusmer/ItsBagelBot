@@ -873,18 +873,23 @@ func (w *Worker) execute(ctx context.Context, payload outgress.Message) error {
 		return fmt.Errorf("twitch 429 on %s", payload.Endpoint)
 
 	case res.StatusCode == http.StatusUnauthorized || res.StatusCode == http.StatusForbidden:
-		// The client already retried once with a fresh token, so this is a
-		// real credentials problem; nack so messages survive until it
-		// recovers instead of being silently dropped. Twitch's body states the
-		// exact reason (missing scope vs the moderator/user not being authorized
-		// vs a moderator_id/token mismatch), so surface it instead of guessing.
+		// The client already retried once with a freshly minted token and Twitch
+		// still rejected it. A fresh token being refused is a PERMANENT
+		// authorization problem (a missing scope, the bot not being a moderator
+		// of the channel, or a moderator_id/token mismatch), not a recoverable
+		// token expiry, so redelivering it just loops forever and poisons the
+		// lane. Drop it (ack) and surface it loudly + to New Relic for a human to
+		// fix (re-auth / mod the bot). Twitch's body states which of the three.
 		body, _ := io.ReadAll(io.LimitReader(res.Body, 2048))
-		w.log.Error("twitch rejected our credentials",
+		w.log.Error("dropping request: twitch rejected our credentials (permanent authz problem, not retryable)",
 			zap.Int("status", res.StatusCode),
 			zap.String("endpoint", payload.Endpoint),
 			zap.String("as", payload.As),
 			zap.String("body", string(body)))
-		return fmt.Errorf("twitch auth failure: %d %s", res.StatusCode, string(body))
+		if txn := newrelic.FromContext(ctx); txn != nil {
+			txn.NoticeError(fmt.Errorf("twitch auth failure: %d %s", res.StatusCode, string(body)))
+		}
+		return nil
 
 	case res.StatusCode >= 500:
 		return fmt.Errorf("twitch server error: %d", res.StatusCode)
