@@ -44,7 +44,13 @@ export function botScopes(): string[] {
     'moderator:read:followers',
     'moderator:read:chatters',
     'moderator:manage:banned_users',
-    'moderator:manage:chat_messages'
+    'moderator:manage:chat_messages',
+    // Required by the worker's slash-command outgress paths: announcements back
+    // /announce[color] (POST /helix/chat/announcements) and shoutouts back
+    // /shoutout (POST /helix/chat/shoutouts). Without these the bot token 401s on
+    // those endpoints. The bot must also be a moderator of the target channel.
+    'moderator:manage:announcements',
+    'moderator:manage:shoutouts'
   ];
 }
 
