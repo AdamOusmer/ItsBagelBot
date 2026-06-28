@@ -1,9 +1,78 @@
 package worker
 
 import (
+	"io"
+	"net"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
+	"strings"
+	"sync/atomic"
 	"testing"
+
+	"ItsBagelBot/internal/domain/outgress"
 )
+
+func TestDrainResponseEnablesHTTP11ConnectionReuse(t *testing.T) {
+	var connections atomic.Int64
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, strings.Repeat("x", 1024))
+	}))
+	server.EnableHTTP2 = false
+	server.Config.ConnState = func(_ net.Conn, state http.ConnState) {
+		if state == http.StateNew {
+			connections.Add(1)
+		}
+	}
+	server.Start()
+	defer server.Close()
+
+	client := server.Client()
+	for range 2 {
+		res, err := client.Get(server.URL)
+		if err != nil {
+			t.Fatal(err)
+		}
+		drainResponse(res)
+	}
+	if got := connections.Load(); got != 1 {
+		t.Fatalf("connections = %d, want 1", got)
+	}
+}
+
+type countingReadCloser struct {
+	remaining int
+	read      int
+}
+
+func (r *countingReadCloser) Read(p []byte) (int, error) {
+	if r.remaining == 0 {
+		return 0, io.EOF
+	}
+	n := min(len(p), r.remaining)
+	r.remaining -= n
+	r.read += n
+	return n, nil
+}
+
+func (*countingReadCloser) Close() error { return nil }
+
+func TestDrainResponseIsBounded(t *testing.T) {
+	body := &countingReadCloser{remaining: maxResponseDrain * 2}
+	drainResponse(&http.Response{Body: body})
+	if body.read != maxResponseDrain+1 {
+		t.Fatalf("drained %d bytes, want %d", body.read, maxResponseDrain+1)
+	}
+}
+
+func TestSlashActionRoutesUseWarmAppToken(t *testing.T) {
+	for _, typ := range []string{outgress.TypeAnnounce, outgress.TypeShoutout} {
+		route := typeRoutes[typ]
+		if route.as != outgress.AsApp {
+			t.Fatalf("%s route identity = %q, want %q", typ, route.as, outgress.AsApp)
+		}
+	}
+}
 
 func TestWithField(t *testing.T) {
 	tests := []struct {
