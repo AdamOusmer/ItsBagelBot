@@ -52,13 +52,13 @@ var DataStreams = []StreamSpec{
 	{
 		Name:     "BAGEL_DATA",
 		Subjects: []string{"data.>"},
-		MaxAge:   7 * 24 * time.Hour,
+		MaxAge:   5 * time.Minute,
 		MaxBytes: 512 << 20, // 512 MiB
 	},
 	{
 		Name:     "TWITCH_INGRESS",
 		Subjects: []string{"twitch.ingress.event.>", "twitch.ingress.status.>"},
-		MaxAge:   24 * time.Hour,
+		MaxAge:   5 * time.Minute,
 		MaxBytes: 256 << 20, // 256 MiB
 	},
 }

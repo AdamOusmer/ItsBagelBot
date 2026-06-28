@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"ItsBagelBot/internal/utils"
@@ -151,25 +152,152 @@ func laneConsumerConfig(subject, group, name string, maxDeliveries int) *nats.Co
 	}
 }
 
-func newSubscriber(url string, group string, nakDelay wmnats.Delay, log *zap.Logger) (message.Subscriber, error) {
+func streamForTopic(topic string) (string, error) {
+	match := func(subject, filter string) bool {
+		if strings.HasSuffix(filter, ">") {
+			prefix := strings.TrimSuffix(filter, ">")
+			return strings.HasPrefix(subject, prefix)
+		}
+		return subject == filter
+	}
 
-	return wmnats.NewSubscriber(wmnats.SubscriberConfig{
-		URL:              busURL(url),
-		NatsOptions:      busOptions(group),
-		QueueGroupPrefix: group,
-		SubscribersCount: 1,
-		AckWaitTimeout:   30 * time.Second,
-		NakDelay:         nakDelay,
-		Unmarshaler:      &wmnats.NATSMarshaler{},
-		JetStream: wmnats.JetStreamConfig{
-			AutoProvision:     false,
-			DurablePrefix:     group,
-			DurableCalculator: durableName,
-			// Dialed at the leaf, so target the authoritative hub JetStream
-			// domain rather than the leaf's own.
-			ConnectOptions: jsDomainOption(),
-		},
-	}, newZapAdapter(log))
+	for _, spec := range DataStreams {
+		for _, subj := range spec.Subjects {
+			if match(topic, subj) {
+				return spec.Name, nil
+			}
+		}
+	}
+	
+	for _, subj := range OutgressStream.Subjects {
+		if match(topic, subj) {
+			return OutgressStream.Name, nil
+		}
+	}
+
+	return "", fmt.Errorf("bus: no stream matches subject %q", topic)
+}
+
+type fleetSubscriber struct {
+	url      string
+	group    string
+	nakDelay wmnats.Delay
+	log      *zap.Logger
+
+	mu    sync.Mutex
+	subs  []message.Subscriber
+	conns []*nats.Conn
+}
+
+func (s *fleetSubscriber) Subscribe(ctx context.Context, topic string) (<-chan *message.Message, error) {
+	stream, err := streamForTopic(topic)
+	if err != nil {
+		return nil, err
+	}
+
+	var sub message.Subscriber
+	var conn *nats.Conn
+
+	if s.group == "" {
+		// Broadcast ephemeral consumer: we must use DeliverNew to avoid replay storms.
+		// wmnats creates ephemeral when group is empty if we don't provide DurablePrefix.
+		sub, err = wmnats.NewSubscriber(wmnats.SubscriberConfig{
+			URL:              busURL(s.url),
+			NatsOptions:      busOptions(s.group),
+			SubscribersCount: 1,
+			AckWaitTimeout:   30 * time.Second,
+			Unmarshaler:      &wmnats.NATSMarshaler{},
+			JetStream: wmnats.JetStreamConfig{
+				AutoProvision:  false,
+				ConnectOptions: jsDomainOption(),
+				SubscribeOptions: []nats.SubOpt{
+					nats.DeliverNew(),
+				},
+			},
+		}, newZapAdapter(s.log))
+	} else {
+		// Durable queue group consumer: provision explicitly to avoid deletion on disconnect.
+		consumer := durableName(s.group, topic)
+		nc, err := nats.Connect(busURL(s.url), busOptions(s.group)...)
+		if err != nil {
+			return nil, err
+		}
+		
+		js, err := nc.JetStream(jsDomainOption()...)
+		if err != nil {
+			nc.Close()
+			return nil, err
+		}
+		
+		if err := ensureLaneConsumer(js, stream, topic, s.group, consumer, 1000); err != nil {
+			nc.Close()
+			return nil, err
+		}
+		
+		sub, err = wmnats.NewSubscriberWithNatsConn(nc, wmnats.SubscriberSubscriptionConfig{
+			QueueGroupPrefix: s.group,
+			SubscribersCount: 1,
+			AckWaitTimeout:   30 * time.Second,
+			NakDelay:         s.nakDelay,
+			Unmarshaler:      &wmnats.NATSMarshaler{},
+			JetStream: wmnats.JetStreamConfig{
+				AutoProvision:     false,
+				DurablePrefix:     s.group,
+				DurableCalculator: durableName,
+				ConnectOptions:    jsDomainOption(),
+				SubscribeOptions: []nats.SubOpt{
+					nats.Bind(stream, consumer),
+				},
+			},
+		}, newZapAdapter(s.log))
+		
+		if err != nil {
+			nc.Close()
+			return nil, err
+		}
+		conn = nc
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	s.mu.Lock()
+	s.subs = append(s.subs, sub)
+	if conn != nil {
+		s.conns = append(s.conns, conn)
+	}
+	s.mu.Unlock()
+
+	return sub.Subscribe(ctx, topic)
+}
+
+func (s *fleetSubscriber) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var errs []error
+	for _, sub := range s.subs {
+		if err := sub.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	for _, conn := range s.conns {
+		conn.Close()
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("fleetSubscriber closed with %d errors, first: %w", len(errs), errs[0])
+	}
+	return nil
+}
+
+func newSubscriber(url string, group string, nakDelay wmnats.Delay, log *zap.Logger) (message.Subscriber, error) {
+	return &fleetSubscriber{
+		url:      url,
+		group:    group,
+		nakDelay: nakDelay,
+		log:      log,
+	}, nil
 }
 
 // durableName derives the JetStream durable consumer name for a (group, topic)
