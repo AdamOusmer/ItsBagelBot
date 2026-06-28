@@ -27,12 +27,12 @@ import (
 
 const serviceName = "outgress"
 
-// Nacked messages (rate limited, Twitch down, paused) come back after
-// nakDelay and die after maxRedeliveries, so a chat message lives at most
-// ~90 seconds; later than that it is worthless anyway.
+// A failed command is retried three times at one-second intervals. The
+// work-queue stream also has a five-second MaxAge, so it cannot survive a
+// restart and reappear later as stale chat output.
 const (
-	nakDelay        = 2 * time.Second
-	maxRedeliveries = 45
+	nakDelay        = time.Second
+	maxRedeliveries = 3
 )
 
 func main() {
@@ -51,6 +51,14 @@ func main() {
 	defer stop()
 
 	cfg := config.Load()
+
+	// Outgress commands are perishable work rather than replayable events.
+	// Reconcile this stream here (not only from producer services) so its
+	// work-queue retention and five-second lifetime are guaranteed before any
+	// lane consumer attaches.
+	if err := bus.EnsureStreams(ctx, cfg.NATSURL, []bus.StreamSpec{bus.OutgressStream}, log); err != nil {
+		log.Fatal("failed to provision outgress stream", zap.Error(err))
+	}
 
 	valkeyClient, err := pkg_valkey.NewClient(cfg.ValkeyAddr, cfg.ValkeyPassword)
 	if err != nil {
@@ -141,19 +149,19 @@ func main() {
 
 	// One durable group per lane so each lane drains independently; the
 	// paced redelivery keeps rate-limit nacks from spinning.
-	premiumSub, err := bus.NewLaneSubscriber(cfg.NATSURL, "outgress-premium", nakDelay, maxRedeliveries, log)
+	premiumSub, err := bus.NewLaneSubscriber(cfg.NATSURL, bus.OutgressStream.Name, cfg.PremiumSubject, "outgress-premium", nakDelay, maxRedeliveries, log)
 	if err != nil {
 		log.Fatal("failed to connect premium subscriber", zap.Error(err))
 	}
 	defer func() { _ = premiumSub.Close() }()
 
-	standardSub, err := bus.NewLaneSubscriber(cfg.NATSURL, "outgress-standard", nakDelay, maxRedeliveries, log)
+	standardSub, err := bus.NewLaneSubscriber(cfg.NATSURL, bus.OutgressStream.Name, cfg.StandardSubject, "outgress-standard", nakDelay, maxRedeliveries, log)
 	if err != nil {
 		log.Fatal("failed to connect standard subscriber", zap.Error(err))
 	}
 	defer func() { _ = standardSub.Close() }()
 
-	systemSub, err := bus.NewLaneSubscriber(cfg.NATSURL, "outgress-system", nakDelay, maxRedeliveries, log)
+	systemSub, err := bus.NewLaneSubscriber(cfg.NATSURL, bus.OutgressStream.Name, cfg.SystemSubject, "outgress-system", nakDelay, maxRedeliveries, log)
 	if err != nil {
 		log.Fatal("failed to connect system subscriber", zap.Error(err))
 	}
@@ -188,6 +196,26 @@ func main() {
 		log.Fatal("failed to consume system lane", zap.Error(err))
 	}
 
+	// Real Twitch stream.online / stream.offline events flow on the ingress
+	// stream lane (TWITCH_INGRESS, provisioned by ingress/projector). Bind a
+	// durable consumer under outgress's OWN service group so the system worker
+	// re-verifies the bot's mod status on every go-live. This restores the
+	// re-verify that used to ride the cold-live escalation: once the projector
+	// writes the live key directly from these events, the worker's live query is
+	// no longer cold, so stream_status (and its mod-status re-check) no longer
+	// fires. The projector binds its own group on the same subject and still
+	// gets every event once. Best-effort and idempotent: HandleStreamEvent only
+	// re-verifies, never writes live state (that is the projector's job).
+	streamSub, err := bus.NewSubscriber(cfg.NATSURL, serviceName, log)
+	if err != nil {
+		log.Fatal("failed to connect stream-lane subscriber", zap.Error(err))
+	}
+	defer func() { _ = streamSub.Close() }()
+
+	if err := bus.Consume(ctx, nrApp, streamSub, cfg.StreamLaneSubject, system.HandleStreamEvent, log); err != nil {
+		log.Fatal("failed to consume stream lane", zap.Error(err))
+	}
+
 	if err := rpc.SubscribeManage(nc, registry, tw, cfg.RPCPrefix, "outgress-rpc", nrApp, log.Named("rpc")); err != nil {
 		log.Fatal("failed to subscribe management rpc", zap.Error(err))
 	}
@@ -198,6 +226,7 @@ func main() {
 		zap.String("premium_subject", cfg.PremiumSubject),
 		zap.String("standard_subject", cfg.StandardSubject),
 		zap.String("rpc_prefix", cfg.RPCPrefix),
+		zap.String("stream_lane_subject", cfg.StreamLaneSubject),
 		zap.Bool("mod_verification", tw.HasUserToken()),
 		zap.Int("min_routines", cfg.MinRoutines),
 		zap.Int("max_routines", cfg.MaxRoutines),

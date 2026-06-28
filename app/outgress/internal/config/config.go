@@ -72,6 +72,14 @@ type Config struct {
 	// re-check; it must match the worker so re-confirmed streams keep their
 	// expiry-driven re-check cadence.
 	LiveTTL time.Duration
+
+	// StreamLaneSubject is the ingress event lane carrying real Twitch
+	// stream.online / stream.offline EventSub messages. Outgress binds its OWN
+	// durable consumer here to re-verify the bot's mod status on go-live (the
+	// projector binds its own group on the same subject and still gets every
+	// event once). Defaults to twitch.ingress.event.stream, matching the
+	// projector's NATS_SUBJECT_LANE_STREAM.
+	StreamLaneSubject string
 }
 
 func Load() *Config {
@@ -94,6 +102,7 @@ func Load() *Config {
 		TokensSubjectPrefix:   env.Get("NATS_INTERNAL_TOKENS_SUBJECT_PREFIX", "bagel.rpc.internal.tokens"),
 		CacheInvalidatePrefix: env.Get("NATS_CACHE_INVALIDATION_PREFIX", "bagel.cache.invalidate"),
 		LiveTTL:               env.GetDuration("WORKER_LIVE_TTL", 12*time.Hour),
+		StreamLaneSubject:     env.Get("NATS_SUBJECT_LANE_STREAM", "twitch.ingress.event.stream"),
 		MinRoutines:           env.GetInt("OUTGRESS_MIN_ROUTINES", 2),
 		MaxRoutines:           env.GetInt("OUTGRESS_MAX_ROUTINES", 8),
 		MaxConsumers:          env.GetInt("OUTGRESS_MAX_CONSUMERS", 3),

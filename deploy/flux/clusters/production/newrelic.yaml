@@ -1,0 +1,288 @@
+# New Relic nri-bundle, brought under Flux (HelmRelease) from an out-of-band
+# `helm template | kubectl apply` install. This is the FIRST HelmRelease in the
+# repo, so it also introduces the New Relic HelmRepository source.
+#
+# Layout mirrors the other Flux resources in this directory (valkey.yaml,
+# cluster.yaml, tailscale.yaml): each is a self-contained Flux object in
+# flux-system. Unlike those, New Relic is NOT a Kustomization over a deploy/
+# path; it is a helm-controller HelmRelease + source-controller HelmRepository,
+# which is the repo-sanctioned way to run upstream Helm charts. The chart is
+# pinned to an exact version (no range) for the same digest-immutability reason
+# the app images are digest-pinned (see deploy/flux/README.md "Security").
+#
+# CHART VERSION
+# -------------
+# nri-bundle 6.0.36. Verified against EVERY live chart label in ns newrelic:
+#   newrelic-infrastructure 3.58.1, newrelic-logging 1.33.1,
+#   newrelic-prometheus-agent 2.6.1, nri-kube-events 3.18.1,
+#   kube-state-metrics 6.1.5, k8s-agents-operator 0.37.1.
+# All six match nri-bundle-6.0.36/Chart.lock exactly (6.0.37 already bumped
+# infra->3.58.2 and logging->1.34.0, so it is NOT the installed version).
+#
+# WHAT IS ENABLED (reconstructed from LIVE workloads, not the chart defaults)
+# --------------------------------------------------------------------------
+# Live workloads in ns newrelic are ONLY:
+#   - newrelic-infrastructure  (nrk8s-kubelet DS 4/4, nrk8s-controlplane DS,
+#                               nrk8s-ksm Deploy)
+#   - kube-state-metrics       (Deploy)
+#   - newrelic-logging         (DS 4/4)
+#   - newrelic-prometheus-agent(StatefulSet)
+# DISABLED (leftover ConfigMaps/Secrets/certs linger but NO workload runs, and
+# there is NO nri-metadata mutating webhook live):
+#   - nri-kube-events, nri-metadata-injection, k8s-agents-operator.
+# The values below mirror that exactly: do not re-enable the three dead ones.
+#
+# SECRETS  (all sourced from Doppler; see newrelic-dopplersecrets.yaml)
+# ---------------------------------------------------------------------
+# No plaintext license key or valkey password is stored here. Each subchart is
+# pointed at a pre-existing, Doppler-synced k8s Secret via customSecretName /
+# customSecretLicenseKey (the same secrets the live install already consumes):
+#   newrelic-infrastructure -> nri-bundle-newrelic-infrastructure-license[licenseKey]
+#   newrelic-logging        -> nri-bundle-newrelic-logging-config[license]
+#   newrelic-prometheus-agent -> nri-bundle-newrelic-prometheus-agent-license[licenseKey]
+# Valkey password reaches nri-redis as a file: the kubelet agent mounts Secret
+# valkey-core-secret (Doppler-managed) at /secrets/valkey and the integration
+# reads /secrets/valkey/VALKEY_CORE_PASSWORD (proven live path, key NOT renamed).
+#
+# MIGRATION / CUTOVER RUNBOOK lives in deploy/flux/clusters/production/newrelic-RUNBOOK.md.
+# Read it before letting Flux reconcile this for the first time: helm-controller
+# WILL fail with "exists and cannot be imported into the current release" unless
+# the orphaned kubectl-applied resources are handled first.
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: newrelic
+  namespace: flux-system
+spec:
+  interval: 1h
+  url: https://helm-charts.newrelic.com
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: nri-bundle
+  namespace: newrelic
+spec:
+  interval: 1h
+  timeout: 10m
+  releaseName: nri-bundle # MUST equal the orphaned release name so resource
+                          # names (nri-bundle-*) and existing Doppler-synced
+                          # secret refs stay identical across the cutover.
+  chart:
+    spec:
+      chart: nri-bundle
+      version: 6.0.36 # exact pin; matches every live subchart label
+      sourceRef:
+        kind: HelmRepository
+        name: newrelic
+        namespace: flux-system
+      interval: 1h
+  install:
+    # The namespace already exists (created out-of-band); do not let helm try to
+    # create/own it. crds Skip: nri-bundle ships no CRDs we depend on here.
+    createNamespace: false
+    crds: Skip
+    remediation:
+      retries: 3
+  upgrade:
+    crds: Skip
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+    # cleanupOnFail keeps a botched upgrade from stranding half-rendered objects.
+    cleanupOnFail: true
+  values:
+    # -----------------------------------------------------------------------
+    # nri-bundle top-level enable flags. Only the four live components are on.
+    # global.cluster propagates clusterName=bagelbot to every subchart.
+    # global.licenseKey is intentionally OMITTED: each subchart points at its
+    # own Doppler-synced secret via customSecretName below, so no plaintext key
+    # exists in git.
+    # -----------------------------------------------------------------------
+    global:
+      cluster: bagelbot
+      lowDataMode: true # live logging + prometheus both run low-data mode
+
+    infrastructure:
+      enabled: true
+    prometheus:
+      enabled: true
+    webhook:
+      enabled: false # nri-metadata-injection: NO live webhook, keep off
+    ksm:
+      enabled: true # kube-state-metrics: live Deploy present
+    kubeEvents:
+      enabled: false # nri-kube-events: NO live workload
+    logging:
+      enabled: true
+    newrelic-pixie:
+      enabled: false
+    pixie-chart:
+      enabled: false
+    newrelic-infra-operator:
+      enabled: false
+    k8s-agents-operator:
+      enabled: false # NO live workload (only a leftover cert secret)
+    nri-metadata-injection:
+      enabled: false
+
+    # =======================================================================
+    # newrelic-infrastructure (nrk8s kubelet/controlplane/ksm)
+    # =======================================================================
+    newrelic-infrastructure:
+      enabled: true
+      cluster: bagelbot
+      # License from the pre-existing Doppler-synced secret (no plaintext here).
+      customSecretName: nri-bundle-newrelic-infrastructure-license
+      customSecretLicenseKey: licenseKey
+
+      # ---- VALKEY on-host monitoring (nri-redis) --------------------------
+      # Replaces the live HARDCODED 2-target list (valkey-node-0/-1 only) with
+      # Kubernetes LABEL autodiscovery so EVERY current and future valkey pod is
+      # covered with zero edits. The chart renders this map into the
+      # nri-bundle-nrk8s-integrations-cfg ConfigMap that the kubelet `agent`
+      # container loads from /etc/newrelic-infra/integrations.d/.
+      integrations:
+        # Same filename the live static config used, so it OVERWRITES rather
+        # than adding a second (double-counting) integration file.
+        redis-config.yml:
+          discovery:
+            ttl: 15m
+            command:
+              # Ships in the agent image; lists pods on the LOCAL node and
+              # exposes their fields as ${discovery.ip}, ${discovery.namespace}.
+              exec: /var/db/newrelic-infra/nri-discovery-kubernetes --tls --port 10250
+            # `match` is a SIBLING of `command` under `discovery` (per the chart's
+            # nri-redis-sampleapp example), NOT nested inside command. valkey pods
+            # carry app.kubernetes.io/instance: valkey on every replica (no plain
+            # `app:` label). One match -> one nri-redis runner per discovered
+            # valkey pod on that node.
+            match:
+              label.app.kubernetes.io/instance: valkey
+          integrations:
+            - name: nri-redis
+              # Mirrors the proven live exec, but with a per-pod discovered IP
+              # instead of a hardcoded FQDN, and password read from the mounted
+              # secret file that already works today.
+              exec:
+                - /bin/sh
+                - -c
+                - |
+                  export PASSWORD="$(cat /secrets/valkey/VALKEY_CORE_PASSWORD)"
+                  export HOSTNAME="${discovery.ip}"
+                  export PORT="6379"
+                  export METRICS="true"
+                  exec /var/db/newrelic-infra/newrelic-integrations/bin/nri-redis
+
+      # The kubelet `agent` container needs the valkey password file mounted at
+      # /secrets/valkey (this is the live, working mount; previously injected
+      # out-of-band). valkey-core-secret is Doppler-managed and carries the key
+      # VALKEY_CORE_PASSWORD verbatim (NOT renamed to valkey-password).
+      kubelet:
+        extraVolumes:
+          - name: valkey-core-secret
+            secret:
+              secretName: valkey-core-secret
+              defaultMode: 0400
+        extraVolumeMounts:
+          - name: valkey-core-secret
+            mountPath: /secrets/valkey
+            readOnly: true
+
+      # controlPlane autodiscovery is the chart default and matches the live
+      # render (etcd/scheduler selectors in kube-system); left at defaults.
+
+    # =======================================================================
+    # kube-state-metrics (bundled subchart, image pinned by the chart)
+    # =======================================================================
+    kube-state-metrics:
+      enabled: true
+
+    # =======================================================================
+    # newrelic-prometheus-agent
+    # Custom scrape config reconstructed from the LIVE config.yaml:
+    #  - witness1 static targets (node-exporter :9100, sentinel-exporter :9121)
+    #  - drop noisy kube_/container_/machine_/cadvisor_ series before remote-write
+    #  - metric-type relabels for timeseries_write_* and sql_byte*
+    # The rest (kubernetes jobs, integrations_filter, self-metrics) is chart
+    # default and is left to the chart to render.
+    # =======================================================================
+    newrelic-prometheus-agent:
+      enabled: true
+      cluster: bagelbot
+      lowDataMode: true
+      customSecretName: nri-bundle-newrelic-prometheus-agent-license
+      customSecretLicenseKey: licenseKey
+      config:
+        newrelic_remote_write:
+          extra_write_relabel_configs:
+            - action: drop
+              regex: kube_.+|container_.+|machine_.+|cadvisor_.+
+              source_labels:
+                - __name__
+            - action: replace
+              regex: timeseries_write_(.*)
+              replacement: counter
+              separator: ;
+              source_labels:
+                - __name__
+              target_label: newrelic_metric_type
+            - action: replace
+              regex: sql_byte(.*)
+              replacement: counter
+              separator: ;
+              source_labels:
+                - __name__
+              target_label: newrelic_metric_type
+        static_targets:
+          jobs:
+            - job_name: witness-node-exporter
+              targets:
+                - 100.123.173.52:9100
+              labels:
+                host: witness1
+                role: sentinel-witness
+            - job_name: witness-sentinel-exporter
+              targets:
+                - 100.123.173.52:9121
+              labels:
+                host: witness1
+                role: sentinel-witness
+
+    # =======================================================================
+    # newrelic-logging (fluent-bit DaemonSet)
+    #
+    # IMPORTANT LOGGING SPLIT (read before touching this):
+    # The custom logging pipeline lives in TWO live ConfigMaps that are ALREADY
+    # Flux-managed standalone via deploy/k8s-cluster/newrelic-logging.yaml (label
+    # kustomize.toolkit.fluxcd.io/name=cluster):
+    #   1. nri-bundle-newrelic-logging-fluent-bit-config  (fluent-bit.conf + parsers.conf)
+    #   2. nri-bundle-newrelic-logging-lua                (level_extract.lua + payload.lua)
+    # newrelic-logging 1.33.1 has NO `luaScripts` and NO `existingConfigMap`
+    # value, so (2) cannot be expressed in chart values, and folding only (1)
+    # into helm would make the chart render CM #1 itself, colliding with the
+    # Flux-owned standalone CM #1 of the same name (two managers, one object).
+    #
+    # DECISION: keep BOTH logging ConfigMaps as the standalone Flux manifest they
+    # already are (single source of truth, already working), and STOP the chart
+    # from rendering its own fluent-bit-config CM by pointing fluentBit.config at
+    # the same content via the only override the chart exposes. Since 1.33.1
+    # offers no clean opt-out, the standalone CMs are applied by the `cluster`
+    # Kustomization which reconciles AFTER helm and re-asserts the proven content
+    # (server-side apply, field-manager last-writer = Flux cluster). The chart
+    # CM and the standalone CM share a name, so there is exactly ONE object;
+    # whichever reconciles last wins, and both render byte-identical fluent-bit
+    # config, so the DaemonSet mount is stable either way.
+    # If this dual-owner overlap is ever a problem, upgrade newrelic-logging to a
+    # version with `fluentBit.config.existingConfigMap` and drop the standalone
+    # CM. Tracked in the RUNBOOK "logging split" section.
+    # =======================================================================
+    newrelic-logging:
+      enabled: true
+      cluster: bagelbot
+      lowDataMode: true
+      customSecretName: nri-bundle-newrelic-logging-config
+      customSecretLicenseKey: license
+      fluentBit:
+        criEnabled: true

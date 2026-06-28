@@ -67,10 +67,16 @@ export const handle: Handle = async ({ event, resolve }) => {
   res.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
   res.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
 
-  // HTML is session-bound; never cache. Hashed assets under /_app keep their own
-  // immutable Cache-Control from the adapter.
+  // HTML pages AND navigation redirects are session-bound; never let the browser
+  // or the CF edge cache them. A SvelteKit redirect carries no content-type and
+  // no Cache-Control, so the text/html check alone leaves 30x responses
+  // cacheable: the edge can then pin a stale "go here" and replay it to the wrong
+  // user/session after a deploy. SvelteKit already marks __data.json `private,
+  // no-store`; hashed /_app assets are served by sirv with their own immutable
+  // caching, so this never touches them.
   const ct = res.headers.get('content-type') ?? '';
-  if (ct.includes('text/html')) res.headers.set('Cache-Control', 'no-store');
+  const isRedirect = res.status >= 300 && res.status < 400;
+  if (isRedirect || ct.includes('text/html')) res.headers.set('Cache-Control', 'no-store');
 
   return res;
 };

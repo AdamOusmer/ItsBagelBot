@@ -23,11 +23,9 @@ spec:
   template:
     metadata:
       annotations:
-        config.linkerd.io/skip-inbound-ports: 6379,26379,9121
+        config.linkerd.io/skip-inbound-ports: 6379,26379
         config.linkerd.io/skip-outbound-ports: 6379,26379
         linkerd.io/inject: enabled
-        prometheus.io/port: '9121'
-        prometheus.io/scrape: 'true'
         secrets.doppler.com/reload: 'true'
       labels:
         app.kubernetes.io/component: node
@@ -275,39 +273,6 @@ spec:
         volumeMounts:
         - mountPath: /data
           name: valkey-data
-      - env:
-        - name: REDIS_ADDR
-          value: redis://127.0.0.1:6379
-        - name: REDIS_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              key: valkey-password
-              name: valkey-core-secret
-        image: oliver006/redis_exporter:v1.83.0
-        imagePullPolicy: IfNotPresent
-        name: metrics
-        ports:
-        - containerPort: 9121
-          name: metrics
-          protocol: TCP
-        resources:
-          limits:
-            cpu: 30m
-            memory: 32Mi
-          requests:
-            cpu: 5m
-            memory: 16Mi
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - ALL
-          runAsNonRoot: true
-          runAsUser: 59000
-          seccompProfile:
-            type: RuntimeDefault
-        terminationMessagePath: /dev/termination-log
-        terminationMessagePolicy: File
       dnsPolicy: ClusterFirst
       priorityClassName: infra-low
       restartPolicy: Always

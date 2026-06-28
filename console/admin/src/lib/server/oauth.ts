@@ -50,7 +50,12 @@ export function botScopes(): string[] {
     // /shoutout (POST /helix/chat/shoutouts). Without these the bot token 401s on
     // those endpoints. The bot must also be a moderator of the target channel.
     'moderator:manage:announcements',
-    'moderator:manage:shoutouts'
+    'moderator:manage:shoutouts',
+    // Required by outgress mod-status verification (GET /helix/moderation/channels):
+    // lists the channels where the bot is a moderator. Without this scope the
+    // bot token 401s ("Missing scope: user:read:moderated_channels"). The bot
+    // must RE-AUTH through the admin bot flow to receive this newly-added scope.
+    'user:read:moderated_channels'
   ];
 }
 
