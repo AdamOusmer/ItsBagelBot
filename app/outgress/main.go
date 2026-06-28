@@ -22,6 +22,7 @@ import (
 	"ItsBagelBot/pkg/monitor"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
+	"github.com/Yiling-J/theine-go"
 	"go.uber.org/zap"
 )
 
@@ -66,7 +67,7 @@ func main() {
 	}
 	defer valkeyClient.Close()
 
-	limiter := ratelimit.New(valkeyClient)
+	centralLimiter := ratelimit.New(valkeyClient)
 	registry := channels.New(valkeyClient)
 
 	nc, err := bus.Connect(cfg.NATSRPCURL, serviceName)
@@ -135,11 +136,23 @@ func main() {
 	})
 
 	tw := twitch.NewClient(cfg.TwitchClientID, appTokens, userTokens, broadcasterTokens)
+	defer tw.CloseIdleConnections()
 
 	conduitResolver := conduit.New(nc, cfg.ConduitSubject, cfg.TwitchConduitID, 60*time.Second, log.Named("conduit"))
 
 	// pod identity for single-flight reconnect locks; best-effort, empty string is safe.
 	host, _ := os.Hostname()
+
+	buckets, _ := theine.NewBuilder[string, *ratelimit.LocalBucket](10000).Build()
+	defer buckets.Close()
+
+	permitSvc, err := ratelimit.NewPermitService(nc, "us-east-1", host, buckets)
+	if err != nil {
+		log.Fatal("failed to initialize permit service", zap.Error(err))
+	}
+	defer permitSvc.Close()
+
+	limiter := ratelimit.NewLeaseManager(centralLimiter, buckets, permitSvc, cfg.RateMode)
 
 	premium := worker.New(log.Named("premium"), limiter, registry, tw, cfg.TwitchBotUserID, host, conduitResolver, worker.LanePremium)
 	standard := worker.New(log.Named("standard"), limiter, registry, tw, cfg.TwitchBotUserID, host, conduitResolver, worker.LaneStandard)
