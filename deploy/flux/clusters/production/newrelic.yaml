@@ -151,13 +151,12 @@ spec:
               # Ships in the agent image; lists pods on the LOCAL node and
               # exposes their fields as ${discovery.ip}, ${discovery.namespace}.
               exec: /var/db/newrelic-infra/nri-discovery-kubernetes --tls --port 10250
-            # `match` is a SIBLING of `command` under `discovery` (per the chart's
-            # nri-redis-sampleapp example), NOT nested inside command. valkey pods
-            # carry app.kubernetes.io/instance: valkey on every replica (no plain
-            # `app:` label). One match -> one nri-redis runner per discovered
-            # valkey pod on that node.
-            match:
-              label.app.kubernetes.io/instance: valkey
+              # Command discovery requires its match criteria inside `command`.
+              # Valkey pods carry app.kubernetes.io/instance: valkey on every
+              # replica (no plain `app:` label). One match -> one nri-redis
+              # runner per discovered valkey pod on that node.
+              match:
+                label.app.kubernetes.io/instance: valkey
           integrations:
             - name: nri-redis
               # Mirrors the proven live exec, but with a per-pod discovered IP
