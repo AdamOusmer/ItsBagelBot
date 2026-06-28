@@ -63,6 +63,18 @@ const (
 	helixGeneralCapacity = helixCapacity - helixSystemReserve
 )
 
+// Stable bucket parameters are formatted once at process initialization. Chat
+// keys remain per-broadcaster, but their numeric Lua arguments do not.
+var (
+	chatSpec            = ratelimit.NewSpec(chatCapacity, chatCapacity/chatWindow)
+	chatStandardSpec    = ratelimit.NewSpec(chatCapacity/2, chatCapacity/chatWindow/2)
+	chatModSpec         = ratelimit.NewSpec(chatModCapacity, chatModCapacity/chatWindow)
+	chatModStandardSpec = ratelimit.NewSpec(chatModCapacity/2, chatModCapacity/chatWindow/2)
+	helixGeneralSpec    = ratelimit.NewSpec(helixGeneralCapacity, helixGeneralCapacity/helixWindow)
+	helixStandardSpec   = ratelimit.NewSpec(helixGeneralCapacity/2, helixGeneralCapacity/helixWindow/2)
+	helixSystemSpec     = ratelimit.NewSpec(helixSystemReserve, helixSystemReserve/helixWindow)
+)
+
 // Lane identifies which queue a worker drains; it selects the rate-limit
 // buckets the worker pays into.
 type Lane int
@@ -73,9 +85,18 @@ const (
 	LaneSystem
 )
 
-// ErrPaused nacks every message while the kill switch is on; redelivery
-// pacing holds them until resume or until their retry budget runs out.
-var ErrPaused = errors.New("outgress is paused")
+type expectedNackError string
+
+func (e expectedNackError) Error() string      { return string(e) }
+func (e expectedNackError) ExpectedNack() bool { return true }
+
+// Expected backpressure must nack without becoming one warning and one noticed
+// error per attempt. pkg/bus recognizes ExpectedNack structurally.
+const (
+	ErrPaused          expectedNackError = "outgress is paused"
+	errRateLimitFirst  expectedNackError = "rate limit exceeded on reserved bucket"
+	errRateLimitShared expectedNackError = "rate limit exceeded on shared bucket"
+)
 
 // helixRoute is the Helix call a message type maps to when the producer leaves
 // endpoint/method empty. as is the default token identity for the type ("" =
@@ -104,13 +125,17 @@ var typeRoutes = map[string]helixRoute{
 	outgress.TypeAd:         {http.MethodPost, "/helix/channels/commercial", outgress.AsBroadcaster},
 	outgress.TypeCommercial: {http.MethodPost, "/helix/channels/commercial", outgress.AsBroadcaster},
 	outgress.TypeClip:       {http.MethodPost, "/helix/clips", outgress.AsBroadcaster},
-	outgress.TypeAnnounce:   {http.MethodPost, "/helix/chat/announcements", outgress.AsBot},
-	outgress.TypeShoutout:   {http.MethodPost, "/helix/chat/shoutouts", outgress.AsBot},
+	// Chat actions use the same already-warm app-token path as Send Chat
+	// Message. Twitch accepts app tokens for both when the bot and broadcaster
+	// grants are present, avoiding a cold bot-token RPC + OAuth refresh on the
+	// first slash action handled by a pod.
+	outgress.TypeAnnounce: {http.MethodPost, "/helix/chat/announcements", outgress.AsApp},
+	outgress.TypeShoutout: {http.MethodPost, "/helix/chat/shoutouts", outgress.AsApp},
 }
 
 type Worker struct {
 	log      *zap.Logger
-	limiter  *ratelimit.Limiter
+	limiter  ratelimit.Manager
 	registry *channels.Registry
 	twitch   *twitch.Client
 	botID    string
@@ -134,7 +159,7 @@ func (w *Worker) SetLiveWriter(lw *LiveWriter) { w.live = lw }
 
 func (w *Worker) SetModVerifier(v *ModVerifier) { w.modVerifier = v }
 
-func New(log *zap.Logger, limiter *ratelimit.Limiter, registry *channels.Registry, tw *twitch.Client, botID, owner string, conduitResolver *conduit.Resolver, lane Lane) *Worker {
+func New(log *zap.Logger, limiter ratelimit.Manager, registry *channels.Registry, tw *twitch.Client, botID, owner string, conduitResolver *conduit.Resolver, lane Lane) *Worker {
 	return &Worker{
 		log:      log,
 		limiter:  limiter,
@@ -245,31 +270,24 @@ func (w *Worker) processChat(ctx context.Context, payload outgress.Message) erro
 		return err
 	}
 
-	capacity := chatCapacity
+	sharedSpec := chatSpec
+	standardSpec := chatStandardSpec
 	if w.modStatus(ctx, payload, ch, found) {
-		capacity = chatModCapacity
+		sharedSpec = chatModSpec
+		standardSpec = chatModStandardSpec
 	}
-	refill := capacity / chatWindow
 
 	// The standard lane pays its restricted bucket first: if the shared
 	// bucket then rejects, the wasted token only makes standard traffic more
 	// conservative, while the reverse order would let it drain tokens the
 	// premium lane is entitled to.
+	shared := sharedSpec.ForKey("ratelimit:chat:" + payload.BroadcasterID)
 	if w.lane == LaneStandard {
-		if err := w.take(ctx, ratelimit.Bucket{
-			Key:             "ratelimit:chat:standard:" + payload.BroadcasterID,
-			Capacity:        capacity / 2,
-			RefillPerSecond: refill / 2,
-		}); err != nil {
+		standard := standardSpec.ForKey("ratelimit:chat:standard:" + payload.BroadcasterID)
+		if err := w.takeOrdered(ctx, standard, shared); err != nil {
 			return err
 		}
-	}
-
-	if err := w.take(ctx, ratelimit.Bucket{
-		Key:             "ratelimit:chat:" + payload.BroadcasterID,
-		Capacity:        capacity,
-		RefillPerSecond: refill,
-	}); err != nil {
+	} else if err := w.take(ctx, shared); err != nil {
 		return err
 	}
 
@@ -349,17 +367,6 @@ func withField(body []byte, field, value string) []byte {
 }
 
 func (w *Worker) processAPI(ctx context.Context, payload outgress.Message) error {
-
-	if w.lane == LaneStandard {
-		if err := w.take(ctx, ratelimit.Bucket{
-			Key:             "ratelimit:helix:app:standard",
-			Capacity:        helixGeneralCapacity / 2,
-			RefillPerSecond: helixGeneralCapacity / helixWindow / 2,
-		}); err != nil {
-			return err
-		}
-	}
-
 	if err := w.takeGeneralHelix(ctx); err != nil {
 		return err
 	}
@@ -387,16 +394,6 @@ func (w *Worker) processAnnounce(ctx context.Context, payload outgress.Message) 
 		return nil
 	}
 
-	if w.lane == LaneStandard {
-		if err := w.take(ctx, ratelimit.Bucket{
-			Key:             "ratelimit:helix:app:standard",
-			Capacity:        helixGeneralCapacity / 2,
-			RefillPerSecond: helixGeneralCapacity / helixWindow / 2,
-		}); err != nil {
-			return err
-		}
-	}
-
 	if err := w.takeGeneralHelix(ctx); err != nil {
 		return err
 	}
@@ -406,7 +403,7 @@ func (w *Worker) processAnnounce(ctx context.Context, payload outgress.Message) 
 		color = "primary"
 	}
 
-	payload.As = outgress.AsBot
+	payload.As = outgress.AsApp
 	payload.Method = http.MethodPost
 	payload.Endpoint = "/helix/chat/announcements?broadcaster_id=" +
 		url.QueryEscape(payload.BroadcasterID) + "&moderator_id=" + url.QueryEscape(mod)
@@ -472,21 +469,11 @@ func (w *Worker) processShoutout(ctx context.Context, payload outgress.Message) 
 		return nil
 	}
 
-	if w.lane == LaneStandard {
-		if err := w.take(ctx, ratelimit.Bucket{
-			Key:             "ratelimit:helix:app:standard",
-			Capacity:        helixGeneralCapacity / 2,
-			RefillPerSecond: helixGeneralCapacity / helixWindow / 2,
-		}); err != nil {
-			return err
-		}
-	}
-
 	if err := w.takeGeneralHelix(ctx); err != nil {
 		return err
 	}
 
-	payload.As = outgress.AsBot
+	payload.As = outgress.AsApp
 	payload.Method = http.MethodPost
 	payload.Endpoint = shoutoutEndpoint(payload.BroadcasterID, toID, mod)
 	payload.Payload = nil
@@ -830,37 +817,47 @@ func isPermanent(err error) bool {
 // takeGeneralHelix consumes one token from the general Helix budget, the
 // partition that backs ordinary api traffic.
 func (w *Worker) takeGeneralHelix(ctx context.Context) error {
-	return w.take(ctx, ratelimit.Bucket{
-		Key:             "ratelimit:helix:app",
-		Capacity:        helixGeneralCapacity,
-		RefillPerSecond: helixGeneralCapacity / helixWindow,
-	})
+	shared := helixGeneralSpec.ForKey("ratelimit:helix:app")
+	if w.lane == LaneStandard {
+		standard := helixStandardSpec.ForKey("ratelimit:helix:app:standard")
+		return w.takeOrdered(ctx, standard, shared)
+	}
+	return w.take(ctx, shared)
 }
 
 // takeSystemHelix consumes one token from the reserved system partition.
 // Only the system lane pays here, so dashboard EventSub jobs always have
 // their reserved capacity and can never spend the general api budget.
 func (w *Worker) takeSystemHelix(ctx context.Context) error {
-	return w.take(ctx, ratelimit.Bucket{
-		Key:             "ratelimit:helix:system",
-		Capacity:        helixSystemReserve,
-		RefillPerSecond: helixSystemReserve / helixWindow,
-	})
+	return w.take(ctx, helixSystemSpec.ForKey("ratelimit:helix:system"))
 }
 
 // take consumes one token or returns an error that nacks the message, so the
 // paced redelivery retries it once the bucket has refilled.
-func (w *Worker) take(ctx context.Context, bucket ratelimit.Bucket) error {
-
-	allowed, err := w.limiter.Allow(ctx, bucket)
+func (w *Worker) take(ctx context.Context, req ratelimit.Request) error {
+	allowed, err := w.limiter.Allow(ctx, req)
 	if err != nil {
 		return err
 	}
 	if !allowed {
-		return fmt.Errorf("rate limit exceeded on %s", bucket.Key)
+		return errRateLimitShared
 	}
-
 	return nil
+}
+
+func (w *Worker) takeOrdered(ctx context.Context, first, shared ratelimit.Request) error {
+	denied, err := w.limiter.AllowOrdered(ctx, first, shared)
+	if err != nil {
+		return err
+	}
+	switch denied {
+	case 0:
+		return nil
+	case 1:
+		return errRateLimitFirst
+	default:
+		return errRateLimitShared
+	}
 }
 
 // modStatus is deliberately non-blocking: use the last known value and let the
@@ -886,7 +883,7 @@ func (w *Worker) execute(ctx context.Context, payload outgress.Message) error {
 		w.log.Error("twitch request failed", zap.Error(err))
 		return err
 	}
-	defer res.Body.Close()
+	defer drainResponse(res)
 
 	switch {
 	case res.StatusCode == http.StatusTooManyRequests:
@@ -930,4 +927,14 @@ func (w *Worker) execute(ctx context.Context, payload outgress.Message) error {
 	}
 
 	return nil
+}
+
+const maxResponseDrain = 64 << 10
+
+// drainResponse makes small HTTP/1.1 responses reusable without allowing an
+// unexpectedly large or non-terminating body to pin a worker indefinitely. The
+// client's total timeout still bounds a slow body.
+func drainResponse(res *http.Response) {
+	_, _ = io.CopyN(io.Discard, res.Body, maxResponseDrain+1)
+	_ = res.Body.Close()
 }
