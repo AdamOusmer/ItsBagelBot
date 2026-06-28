@@ -61,12 +61,18 @@ func (m *LeaseManager) Allow(ctx context.Context, req Request) (bool, error) {
 	// Fallback to central emergency if borrowing isn't fully implemented or failed
 	// Here we just use central with the original spec for simplicity as a placeholder
 	// In the real system, it would use an emergency spec.
-	return m.central.Allow(ctx, req)
+	if m.central != nil {
+		return m.central.Allow(ctx, req)
+	}
+	return false, nil
 }
 
 func (m *LeaseManager) AllowOrdered(ctx context.Context, first, second Request) (uint8, error) {
 	if m.mode == "central" {
-		return m.central.AllowOrdered(ctx, first, second)
+		if m.central != nil {
+			return m.central.AllowOrdered(ctx, first, second)
+		}
+		return 2, nil
 	}
 
 	bucketID := extractBucketID(second.Key) // the shared bucket represents the full identity
@@ -78,7 +84,11 @@ func (m *LeaseManager) AllowOrdered(ctx context.Context, first, second Request) 
 	}
 
 	if m.mode == "shadow" {
-		centralDenied, err := m.central.AllowOrdered(ctx, first, second)
+		centralDenied := uint8(2)
+		var err error
+		if m.central != nil {
+			centralDenied, err = m.central.AllowOrdered(ctx, first, second)
+		}
 		
 		shadowDenied := uint8(0)
 		if !localFirst {
