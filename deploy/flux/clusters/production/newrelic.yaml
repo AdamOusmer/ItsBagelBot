@@ -106,8 +106,6 @@ spec:
 
     infrastructure:
       enabled: true
-    prometheus:
-      enabled: true
     webhook:
       enabled: false # nri-metadata-injection: NO live webhook, keep off
     ksm:
