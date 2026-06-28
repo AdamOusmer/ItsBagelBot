@@ -47,24 +47,3 @@ spec:
     app.kubernetes.io/instance: valkey
     app.kubernetes.io/name: valkey
   type: ClusterIP
----
-apiVersion: v1
-kind: Service
-metadata:
-  labels:
-    app.kubernetes.io/component: metrics
-    app.kubernetes.io/instance: valkey
-    app.kubernetes.io/name: valkey
-  name: valkey-metrics
-  namespace: valkey
-spec:
-  ports:
-  - name: http-metrics
-    port: 9121
-    protocol: TCP
-    targetPort: metrics
-  selector:
-    app.kubernetes.io/component: node
-    app.kubernetes.io/instance: valkey
-    app.kubernetes.io/name: valkey
-  type: ClusterIP

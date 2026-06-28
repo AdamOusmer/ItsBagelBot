@@ -47,6 +47,14 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
     // Nonce check: stored nonce must match claim (replay / token-swap guard).
     if (storedNonce && claims.nonce !== storedNonce) throw redirect(302, '/login?e=state');
 
+    // Bot-account guard: the bot reauthorizes through the admin bot flow, not
+    // here. If the bot account ever lands on this broadcaster callback, refuse to
+    // mint a streamer session (which would drop it onto the user dashboard) and
+    // skip the grant save. claims.sub is the Twitch user id; ADMIN_BOT_USER_ID is
+    // the same env the admin flow uses to pin the bot's id. No-op if unset.
+    const botId = env.ADMIN_BOT_USER_ID ?? '';
+    if (botId && claims.sub === botId) throw redirect(302, '/login?e=bot');
+
     // Best-effort scope check: if Twitch echoes the granted scope, ensure
     // openid is present. Don't hard-fail on absent scope field.
     if (claims.scope && !claims.scope.includes('openid')) throw redirect(302, '/login?e=scope');

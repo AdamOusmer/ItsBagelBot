@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	bagelMessage = "🥯"
+	bagelMessage = "🥯🥯🥯🥯🥯🥯"
 	bagelCount   = 3
 )
 

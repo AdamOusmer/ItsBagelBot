@@ -27,8 +27,12 @@ type SubSpec struct {
 //   - broadcaster rights cover the channel events the broadcaster's onboarding
 //     consent unlocks: subs, gift subs, resub messages, cheers, follows, and
 //     title/category changes (channel.update).
+//   - stream.online / stream.offline carry only broadcaster_user_id and are
+//     authorized by the conduit app token alone (no user scope), so they cannot
+//     401. They drive the live-event subsystem (go-live cache prewarm and the
+//     mod-status re-verify), so every channel must carry them.
 func ChannelSubscriptions(broadcasterID, botID string) []SubSpec {
-	specs := make([]SubSpec, 0, 7)
+	specs := make([]SubSpec, 0, 9)
 
 	if botID != "" {
 		specs = append(specs,
@@ -43,6 +47,11 @@ func ChannelSubscriptions(broadcasterID, botID string) []SubSpec {
 		SubSpec{"channel.cheer", "1", map[string]string{"broadcaster_user_id": broadcasterID}},
 		SubSpec{"channel.follow", "2", map[string]string{"broadcaster_user_id": broadcasterID, "moderator_user_id": broadcasterID}},
 		SubSpec{"channel.update", "2", map[string]string{"broadcaster_user_id": broadcasterID}},
+		// Authorized by the conduit app token alone (broadcaster_user_id only,
+		// no user scope, no 401 risk). These deliver go-live/go-offline, which
+		// the live-event subsystem depends on.
+		SubSpec{"stream.online", "1", map[string]string{"broadcaster_user_id": broadcasterID}},
+		SubSpec{"stream.offline", "1", map[string]string{"broadcaster_user_id": broadcasterID}},
 	)
 }
 

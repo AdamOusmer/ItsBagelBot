@@ -24,17 +24,30 @@ import (
 // broker (retention window and a hard size cap) are explicit, the rest take
 // safe defaults in reconcileStream.
 type StreamSpec struct {
-	Name     string        // valid JetStream stream name (no dots/spaces/wildcards)
-	Subjects []string      // subjects captured by the stream
-	MaxAge   time.Duration // how long messages are retained for replay/rebuild
-	MaxBytes int64         // hard cap so one stream cannot exhaust the instance
+	Name      string               // valid JetStream stream name (no dots/spaces/wildcards)
+	Subjects  []string             // subjects captured by the stream
+	Retention nats.RetentionPolicy // zero value is the ordinary limits policy
+	MaxAge    time.Duration        // hard lifetime limit for stored messages
+	MaxBytes  int64                // hard cap so one stream cannot exhaust the instance
 }
 
-// DataStreams backs the event bus (the data.> plane from ADR 0007): user,
-// command, module and transaction change events plus reprojection requests all
-// land in one limits-retention stream that the per-service durable consumers
-// and the projector read from. One stream keeps the broker surface small; the
-// durable consumers created by the subscribers do the per-subject fan-out.
+// OutgressStream is owned and reconciled by outgress itself. Keeping it out of
+// DataStreams prevents every producer replica from racing the one-time
+// limits-to-work-queue migration.
+var OutgressStream = StreamSpec{
+	Name:      "TWITCH_OUTGRESS",
+	Subjects:  []string{"twitch.outgress.>"},
+	Retention: nats.WorkQueuePolicy,
+	// Outgress commands are perishable work, not an event log. ACK/TERM removes
+	// them immediately; this ceiling also removes an orphan if no consumer is
+	// available during a rollout.
+	MaxAge:   5 * time.Second,
+	MaxBytes: 256 << 20, // 256 MiB
+}
+
+// DataStreams backs the replayable event bus: user, command, module and
+// transaction change events plus Twitch ingress events. Outgress commands are
+// deliberately excluded because they are perishable work, not event history.
 var DataStreams = []StreamSpec{
 	{
 		Name:     "BAGEL_DATA",
@@ -45,12 +58,6 @@ var DataStreams = []StreamSpec{
 	{
 		Name:     "TWITCH_INGRESS",
 		Subjects: []string{"twitch.ingress.event.>", "twitch.ingress.status.>"},
-		MaxAge:   24 * time.Hour,
-		MaxBytes: 256 << 20, // 256 MiB
-	},
-	{
-		Name:     "TWITCH_OUTGRESS",
-		Subjects: []string{"twitch.outgress.>"},
 		MaxAge:   24 * time.Hour,
 		MaxBytes: 256 << 20, // 256 MiB
 	},
@@ -120,38 +127,11 @@ func EnsureStreams(ctx context.Context, url string, specs []StreamSpec, log *zap
 }
 
 func reconcileStream(js nats.JetStreamManager, spec StreamSpec, log *zap.Logger) error {
-	desired := &nats.StreamConfig{
-		Name:       spec.Name,
-		Subjects:   spec.Subjects,
-		Storage:    nats.FileStorage,
-		Retention:  nats.LimitsPolicy,
-		Discard:    nats.DiscardOld,
-		MaxAge:     spec.MaxAge,
-		MaxBytes:   spec.MaxBytes,
-		Replicas:   1,
-		Duplicates: 2 * time.Minute,
-	}
+	desired := streamConfig(spec)
 
-	info, err := js.StreamInfo(spec.Name)
-	switch {
-	case err == nil:
-		// Stream exists: converge only if the captured subjects drifted, so a
-		// new subject domain added to the spec rolls out on the next deploy.
-		if sameSubjects(info.Config.Subjects, spec.Subjects) {
-			return nil
-		}
-		if _, err := js.UpdateStream(desired); err != nil {
-			return fmt.Errorf("bus: update stream %q: %w", spec.Name, err)
-		}
-		log.Info("converged jetstream stream",
-			zap.String("stream", spec.Name),
-			zap.Strings("subjects", spec.Subjects),
-		)
-		return nil
-
-	case errors.Is(err, nats.ErrStreamNotFound):
+	add := func() error {
 		if _, err := js.AddStream(desired); err != nil {
-			// Another instance won the race between StreamInfo and AddStream.
+			// Another guardian won the create race.
 			if errors.Is(err, nats.ErrStreamNameAlreadyInUse) {
 				return nil
 			}
@@ -160,12 +140,71 @@ func reconcileStream(js nats.JetStreamManager, spec StreamSpec, log *zap.Logger)
 		log.Info("provisioned jetstream stream",
 			zap.String("stream", spec.Name),
 			zap.Strings("subjects", spec.Subjects),
+			zap.String("retention", desired.Retention.String()),
 		)
 		return nil
+	}
+
+	info, err := js.StreamInfo(spec.Name)
+	switch {
+	case err == nil:
+		if streamMatches(info.Config, *desired) {
+			return nil
+		}
+
+		// NATS cannot update a stream to or from work-queue retention. This
+		// one-time migration intentionally purges the old replay log: outgress
+		// commands that were already sent must never be replayed.
+		if info.Config.Retention != desired.Retention &&
+			(info.Config.Retention == nats.WorkQueuePolicy || desired.Retention == nats.WorkQueuePolicy) {
+			if err := js.DeleteStream(spec.Name); err != nil && !errors.Is(err, nats.ErrStreamNotFound) {
+				return fmt.Errorf("bus: replace stream %q: %w", spec.Name, err)
+			}
+			return add()
+		}
+
+		if _, err := js.UpdateStream(desired); err != nil {
+			return fmt.Errorf("bus: update stream %q: %w", spec.Name, err)
+		}
+		log.Info("converged jetstream stream",
+			zap.String("stream", spec.Name),
+			zap.Strings("subjects", spec.Subjects),
+			zap.String("retention", desired.Retention.String()),
+		)
+		return nil
+
+	case errors.Is(err, nats.ErrStreamNotFound):
+		return add()
 
 	default:
 		return fmt.Errorf("bus: inspect stream %q: %w", spec.Name, err)
 	}
+}
+
+func streamConfig(spec StreamSpec) *nats.StreamConfig {
+	duplicateWindow := 2 * time.Minute
+	if spec.MaxAge > 0 && spec.MaxAge < duplicateWindow {
+		// NATS rejects a duplicate window longer than the stream's MaxAge.
+		duplicateWindow = spec.MaxAge
+	}
+	return &nats.StreamConfig{
+		Name:       spec.Name,
+		Subjects:   spec.Subjects,
+		Storage:    nats.FileStorage,
+		Retention:  spec.Retention,
+		Discard:    nats.DiscardOld,
+		MaxAge:     spec.MaxAge,
+		MaxBytes:   spec.MaxBytes,
+		Replicas:   1,
+		Duplicates: duplicateWindow,
+	}
+}
+
+func streamMatches(got, want nats.StreamConfig) bool {
+	return sameSubjects(got.Subjects, want.Subjects) &&
+		got.Retention == want.Retention &&
+		got.MaxAge == want.MaxAge &&
+		got.MaxBytes == want.MaxBytes
 }
 
 func sameSubjects(a, b []string) bool {

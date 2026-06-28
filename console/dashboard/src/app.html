@@ -7,8 +7,14 @@
   %sveltekit.head%
 </head>
 <body data-role="streamer" data-sveltekit-preload-data="hover">
-  <div class="bg-orb"></div>
-  <div class="bg-orb two"></div>
-  %sveltekit.body%
+  <!-- display:contents wrapper isolates the hydration root from browser
+       extensions that inject nodes directly into <body>. Without it, an injected
+       sibling shifts SvelteKit's hydration index walk, the hydrate throws, and
+       the app unmounts to a blank page (only for users with such extensions). -->
+  <div style="display: contents">
+    <div class="bg-orb"></div>
+    <div class="bg-orb two"></div>
+    %sveltekit.body%
+  </div>
 </body>
 </html>
