@@ -80,6 +80,8 @@ type Config struct {
 	// event once). Defaults to twitch.ingress.event.stream, matching the
 	// projector's NATS_SUBJECT_LANE_STREAM.
 	StreamLaneSubject string
+
+	RateMode string
 }
 
 func Load() *Config {
@@ -110,5 +112,6 @@ func Load() *Config {
 		ScaleDownAfter:        env.GetDuration("OUTGRESS_SCALE_DOWN_AFTER", 30*time.Second),
 		PremiumReserve:        env.GetInt("OUTGRESS_PREMIUM_RESERVE_PERCENT", 25),
 		SystemWorkers:         env.GetInt("OUTGRESS_SYSTEM_WORKERS", 2),
+		RateMode:              env.Get("OUTGRESS_RATE_MODE", "central"),
 	}
 }
