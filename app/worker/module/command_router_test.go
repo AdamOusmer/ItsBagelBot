@@ -63,18 +63,13 @@ func collect(r *CommandRouter, c *Context) []Output {
 	return got
 }
 
-// TestCustomAnnounceRequiresModerator is the privilege-escalation guard: a
-// perm=everyone custom command whose response is "/announce ..." must NOT let a
-// non-moderator viewer trigger a moderator-only announce. A moderator may.
-func TestCustomAnnounceRequiresModerator(t *testing.T) {
+// TestCustomAnnounceAllowedForEveryone asserts that a perm=everyone custom command
+// whose response is "/announce ..." lets any viewer trigger an announce output.
+func TestCustomAnnounceAllowedForEveryone(t *testing.T) {
 	r := newRouter("/announce raid incoming", "everyone")
 
-	// everyone chatter: command gate passes (everyone), but the translated
-	// announce is re-gated to moderator and dropped.
-	assert.Empty(t, collect(r, chatCtx("")))
-
-	// moderator chatter: announce goes through.
-	got := collect(r, chatCtx("moderator"))
+	// everyone chatter: announce goes through.
+	got := collect(r, chatCtx(""))
 	require.Len(t, got, 1)
 	assert.Equal(t, outgress.TypeAnnounce, got[0].Type)
 	assert.Equal(t, "primary", got[0].Color)

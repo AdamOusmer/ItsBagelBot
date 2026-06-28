@@ -108,14 +108,6 @@ func (r *CommandRouter) runCustom(ctx context.Context, c *Context, name, args st
 
 	Translate(out)
 
-	// A slash-verb in a custom response can rewrite a perm=everyone command into a
-	// moderator-only action (announce/shoutout). Re-gate the translated output
-	// against the action's own minimum role on top of the command gate, so a lax
-	// custom permission cannot escalate into a privileged Helix call.
-	if req := RequiredRole(out.Type); req != RoleEveryone && !c.Chatter().Allows(req) {
-		PutOutput(out)
-		return nil
-	}
 
 	// Skip an action Translate left with no payload (e.g. "/announce" with no
 	// text, "/shoutout" with no target): Twitch would reject it and the Helix

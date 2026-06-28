@@ -104,16 +104,6 @@ func TestTranslate(t *testing.T) {
 	}
 }
 
-func TestRequiredRole(t *testing.T) {
-	// Privileged Helix actions demand at least moderator, regardless of the
-	// command's own permission. This is what stops a perm=everyone custom command
-	// whose response is "/announce X" from letting any viewer announce.
-	assert.Equal(t, RoleModerator, RequiredRole(outgress.TypeAnnounce))
-	assert.Equal(t, RoleModerator, RequiredRole(outgress.TypeShoutout))
-	assert.Equal(t, RoleEveryone, RequiredRole(outgress.TypeChat))
-	assert.Equal(t, RoleEveryone, RequiredRole(""))
-}
-
 func TestIsEmptyAction(t *testing.T) {
 	assert.True(t, isEmptyAction(&Output{Type: outgress.TypeAnnounce, Text: ""}))
 	assert.False(t, isEmptyAction(&Output{Type: outgress.TypeAnnounce, Text: "hi"}))

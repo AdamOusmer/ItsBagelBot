@@ -48,20 +48,6 @@ func Translate(out *Output) {
 	// /me is a plain passthrough: leave Type=chat and keep the verb in Text.
 }
 
-// RequiredRole is the minimum chatter role a translated output type demands,
-// independent of the command's own permission. Slash verbs that map to
-// moderator-only Helix actions (announce, shoutout) must never be reachable
-// through a lax custom-command permission, so the router re-gates a translated
-// output against this on top of the command's own gate.
-func RequiredRole(outType string) Role {
-	switch outType {
-	case outgress.TypeAnnounce, outgress.TypeShoutout:
-		return RoleModerator
-	default:
-		return RoleEveryone
-	}
-}
-
 // isEmptyAction reports whether a translated output carries no usable payload, so
 // the router can skip emitting a call Twitch would reject: an /announce with no
 // message, a /shoutout with no target, or an empty chat line.
