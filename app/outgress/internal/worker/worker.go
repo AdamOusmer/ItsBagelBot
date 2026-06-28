@@ -14,6 +14,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 	"ItsBagelBot/app/outgress/internal/conduit"
 	"ItsBagelBot/app/outgress/internal/ratelimit"
 	"ItsBagelBot/app/outgress/internal/twitch"
+	eventtwitch "ItsBagelBot/internal/domain/event/twitch"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/domain/rpc/manage"
 	"ItsBagelBot/pkg/cache"
@@ -596,6 +598,48 @@ func (w *Worker) processStreamStatus(ctx context.Context, payload outgress.Messa
 
 	w.log.Debug("stream_status resolved",
 		zap.String("broadcaster_id", payload.BroadcasterID), zap.Bool("live", isLive))
+	return nil
+}
+
+// HandleStreamEvent reacts to a real Twitch stream.online / stream.offline
+// EventSub message off the ingress stream lane (env NATS_SUBJECT_LANE_STREAM).
+//
+// Background: the worker fleet escalates a cold live query to the system lane's
+// stream_status path, which re-verifies the bot's mod status as a side effect.
+// Once stream.online events flow and the projector writes the live key directly,
+// that live query is no longer cold, so the escalation (and its mod-status
+// re-verify) never runs. This handler restores the re-verify by reacting to the
+// real go-live event itself.
+//
+// It is bound under outgress's OWN durable group (separate from the projector's),
+// so every event is delivered here once in addition to the projector's copy. It
+// does NOT write live state (that is the projector's job); it only re-verifies
+// mod status, best-effort. Decoding is shared with the projector via the domain
+// stream_status decoder. Always acks (returns nil): a re-verify is advisory and
+// must never poison or replay the lane.
+func (w *Worker) HandleStreamEvent(msg *message.Message) error {
+
+	status, ok := eventtwitch.DecodeStreamStatus(msg.Payload)
+	if !ok {
+		// Not a stream.online/offline we understand (or malformed). Ack and move
+		// on; the decoder already rejects everything but those two types.
+		return nil
+	}
+
+	// Only go-live triggers the re-verify; an offline event needs no mod check.
+	if !status.Live {
+		return nil
+	}
+
+	broadcasterID := strconv.FormatUint(status.BroadcasterID, 10)
+
+	// modStatus only reads BroadcasterID + SenderID off the payload, and falls
+	// back to the configured bot id for the moderator identity. Pass an empty
+	// channel/found=false so it re-checks against Twitch (the whole point here).
+	_ = w.modStatus(msg.Context(), outgress.Message{BroadcasterID: broadcasterID}, manage.Channel{}, false)
+
+	w.log.Debug("mod status re-verified on go-live",
+		zap.String("broadcaster_id", broadcasterID))
 	return nil
 }
 

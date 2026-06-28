@@ -102,7 +102,7 @@ func main() {
 	live.StartInvalidationListener()
 	go live.StartExpiryWatcher(ctx)
 
-	greet := module.NewValkeyGreetStore(valkeyClient, cfg.LiveTTL)
+	greet := module.NewValkeyGreetStore(valkeyClient, cfg.LiveTTL, log)
 	cooldown := module.NewValkeyCooldown(valkeyClient)
 	special := module.NewSpecialSet(cfg.SpecialUserIDs)
 

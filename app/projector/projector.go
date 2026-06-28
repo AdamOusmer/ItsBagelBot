@@ -221,6 +221,16 @@ func (p *Projector) drop(msg *message.Message, subject string, err error) {
 // for redelivery; an unparseable payload is dropped (acked) since redelivery
 // cannot fix it. A SetStreamLive failure nacks because the live state matters;
 // prewarm is best-effort and only logs.
+//
+// SetStreamLive stays SYNCHRONOUS on purpose. It writes the settings:<id> hash
+// "live" field, a DIFFERENT key/namespace from the worker's flat live:<id>
+// string, and is NOT on any per-message response path: this is a rare,
+// low-frequency stream-event consumer. The synchronous nack-on-failure is a
+// deliberate durability property (a dropped live write would silently corrupt
+// the projector's GetStreamLive RPC fallback with no redelivery). The per-message
+// command latency win lives entirely on the worker side (the node-local replica
+// read + the now fire-and-forget greet/live writes), so there is nothing to gain
+// by making this async and real correctness to lose. Prewarm is already async.
 func (p *Projector) HandleStreamEvent(msg *message.Message) error {
 	st, ok := twitch.DecodeStreamStatus(msg.Payload)
 	if !ok {

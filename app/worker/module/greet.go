@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/valkey-io/valkey-go"
+	"go.uber.org/zap"
 )
 
 // greetKeyPrefix is the per-broadcaster set of chatter ids already greeted in
@@ -28,13 +29,17 @@ type GreetStore interface {
 type ValkeyGreetStore struct {
 	client valkey.Client
 	ttl    time.Duration // safety expiry so an abandoned set is reclaimed
+	log    *zap.Logger
 }
 
-func NewValkeyGreetStore(client valkey.Client, ttl time.Duration) *ValkeyGreetStore {
+func NewValkeyGreetStore(client valkey.Client, ttl time.Duration, log *zap.Logger) *ValkeyGreetStore {
 	if ttl <= 0 {
 		ttl = 12 * time.Hour
 	}
-	return &ValkeyGreetStore{client: client, ttl: ttl}
+	if log == nil {
+		log = zap.NewNop()
+	}
+	return &ValkeyGreetStore{client: client, ttl: ttl, log: log}
 }
 
 func greetKey(id uint64) string { return greetKeyPrefix + strconv.FormatUint(id, 10) }
@@ -46,8 +51,22 @@ func (s *ValkeyGreetStore) FirstGreet(ctx context.Context, broadcasterID uint64,
 		return false, err
 	}
 	if added > 0 {
-		// First greet this session: (re)arm the safety expiry. Best effort.
-		_ = s.client.Do(ctx, s.client.B().Expire().Key(key).Seconds(int64(s.ttl.Seconds())).Build()).Error()
+		// First greet this session: (re)arm the safety expiry. Fire-and-forget so
+		// the EXPIRE round-trip never lands on the response path of the chat
+		// message that won the SADD (the single Valkey master is transatlantic, so
+		// a blocking write would add ~90ms). The SADD above already decided the
+		// greet; the TTL is only a janitorial backstop for an abandoned set, so it
+		// is safe to re-arm asynchronously on its own short context derived from
+		// Background (the request ctx may cancel the instant we ack). Best effort:
+		// a failure only means the safety expiry was not refreshed this time.
+		seconds := int64(s.ttl.Seconds())
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := s.client.Do(ctx, s.client.B().Expire().Key(key).Seconds(seconds).Build()).Error(); err != nil {
+				s.log.Warn("greet: failed to re-arm greeted-set expiry", zap.String("key", key), zap.Error(err))
+			}
+		}()
 	}
 	return added > 0, nil
 }
