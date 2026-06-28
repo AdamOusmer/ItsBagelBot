@@ -136,7 +136,6 @@ func main() {
 	})
 
 	tw := twitch.NewClient(cfg.TwitchClientID, appTokens, userTokens, broadcasterTokens)
-	defer tw.CloseIdleConnections()
 
 	conduitResolver := conduit.New(nc, cfg.ConduitSubject, cfg.TwitchConduitID, 60*time.Second, log.Named("conduit"))
 
