@@ -6,11 +6,14 @@ package tokenstore
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"ItsBagelBot/pkg/bus"
 
 	"github.com/nats-io/nats.go"
 )
+
+const rpcTimeout = 2 * time.Second
 
 type Store struct {
 	nc     *nats.Conn
@@ -30,7 +33,7 @@ type reply struct {
 // Load returns the bot account's stored refresh token. A missing token row
 // surfaces as an error; callers decide whether that is fatal.
 func (s *Store) Load(ctx context.Context) (string, error) {
-	r, err := bus.RequestJSON[reply](ctx, s.nc, s.prefix+".get", map[string]string{"user_id": s.userID})
+	r, err := bus.RequestJSONTimeout[reply](ctx, s.nc, s.prefix+".get", map[string]string{"user_id": s.userID}, rpcTimeout)
 	if err != nil {
 		return "", fmt.Errorf("tokens get rpc: %w", err)
 	}
@@ -48,7 +51,7 @@ func (s *Store) Save(ctx context.Context, accessToken, refreshToken string) erro
 		"refresh_token": refreshToken,
 	}
 
-	r, err := bus.RequestJSON[reply](ctx, s.nc, s.prefix+".save", req)
+	r, err := bus.RequestJSONTimeout[reply](ctx, s.nc, s.prefix+".save", req, rpcTimeout)
 	if err != nil {
 		return fmt.Errorf("tokens save rpc: %w", err)
 	}

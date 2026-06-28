@@ -267,10 +267,27 @@ func (c *Client) request(ctx context.Context, src *Source, method, endpoint stri
 		return res, nil
 	}
 
-	drain(res)
+	// Refreshing cannot add a missing OAuth scope. Preserve the response body
+	// for the caller and return immediately instead of paying token-store RPC +
+	// OAuth refresh + a guaranteed second 401.
+	unauthorizedBody, _ := io.ReadAll(io.LimitReader(res.Body, 64<<10))
+	_ = res.Body.Close()
+	if isMissingScope(unauthorizedBody) {
+		// Do not retry inline, but discard the cached grant so a later background
+		// check reloads a token the operator may have re-authorized in the store.
+		src.Invalidate()
+		res.Body = io.NopCloser(bytes.NewReader(unauthorizedBody))
+		res.ContentLength = int64(len(unauthorizedBody))
+		return res, nil
+	}
+
 	src.Invalidate()
 
 	return c.do(ctx, src, method, endpoint, body)
+}
+
+func isMissingScope(body []byte) bool {
+	return bytes.Contains(bytes.ToLower(body), []byte("missing scope"))
 }
 
 func (c *Client) do(ctx context.Context, src *Source, method, endpoint string, body []byte) (*http.Response, error) {

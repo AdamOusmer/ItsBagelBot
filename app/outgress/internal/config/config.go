@@ -63,9 +63,9 @@ type Config struct {
 	// bot account's token from and persists rotations back to.
 	TokensSubjectPrefix string
 
-	// CacheInvalidatePrefix is the core-NATS prefix outgress publishes a live
-	// cache invalidation on after a stream_status re-check (subject = prefix +
-	// ".live"), so worker replicas drop their cached live bool.
+	// CacheInvalidatePrefix is the core-NATS prefix used for live-state and
+	// outgress channel-registry invalidations. The latter keeps moderator status
+	// coherent across outgress replicas.
 	CacheInvalidatePrefix string
 
 	// LiveTTL is the TTL stamped on a live key written by a stream_status

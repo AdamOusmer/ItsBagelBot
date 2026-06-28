@@ -74,6 +74,10 @@ func main() {
 		log.Fatal("failed to connect to nats", zap.Error(err))
 	}
 	defer nc.Close()
+	if err := registry.StartInvalidationListener(nc, cfg.CacheInvalidatePrefix, log.Named("channels")); err != nil {
+		log.Fatal("failed to subscribe channel cache invalidation", zap.Error(err))
+	}
+	defer registry.Close()
 
 	appTokens := twitch.NewAppTokenSource(cfg.TwitchClientID, cfg.TwitchClientSecret)
 
@@ -143,6 +147,11 @@ func main() {
 	// pays only the reserved system Helix partition, so onboarding bursts
 	// never compete with chat/api traffic for the general budget.
 	system := worker.New(log.Named("system"), limiter, registry, tw, cfg.TwitchBotUserID, host, conduitResolver, worker.LaneSystem)
+	modVerifier := worker.NewModVerifier(registry, tw, cfg.TwitchBotUserID, host, log.Named("mod-status"))
+	defer modVerifier.Close()
+	premium.SetModVerifier(modVerifier)
+	standard.SetModVerifier(modVerifier)
+	system.SetModVerifier(modVerifier)
 	// The system lane also resolves live re-checks (stream_status jobs) and writes
 	// the result back into the live projection for the worker fleet.
 	system.SetLiveWriter(worker.NewLiveWriter(valkeyClient, nc, cfg.CacheInvalidatePrefix, cfg.LiveTTL, log.Named("live")))
