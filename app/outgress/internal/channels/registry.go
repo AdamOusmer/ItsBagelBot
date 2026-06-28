@@ -8,31 +8,92 @@ package channels
 
 import (
 	"context"
+	"encoding/json"
 	"strconv"
 	"time"
 
+	"ItsBagelBot/internal/domain/invalidate"
 	"ItsBagelBot/internal/domain/rpc/manage"
 	"ItsBagelBot/internal/utils"
 	"ItsBagelBot/pkg/cache"
 
+	"github.com/nats-io/nats.go"
 	"github.com/valkey-io/valkey-go"
+	"go.uber.org/zap"
 )
 
 const (
 	keyPrefix = "outgress:channel:"
 	indexKey  = "outgress:channels"
 	pausedKey = "outgress:paused"
+
+	cacheInvalidateScope = "outgress"
 )
 
 type Registry struct {
 	client valkey.Client
 	cache  *cache.Cache[manage.Channel]
+
+	nc               *nats.Conn
+	invalidatePrefix string
+	invalidateSub    *nats.Subscription
+	log              *zap.Logger
 }
 
 func New(client valkey.Client) *Registry {
 	return &Registry{
 		client: client,
 		cache:  cache.New[manage.Channel](10000, 24*time.Hour),
+	}
+}
+
+// StartInvalidationListener keeps the per-pod channel caches coherent. Valkey
+// is authoritative, but without this broadcast one replica can retain a stale
+// moderator status for the cache's full 24-hour TTL after another replica
+// refreshes it.
+func (r *Registry) StartInvalidationListener(nc *nats.Conn, prefix string, log *zap.Logger) error {
+	r.nc = nc
+	r.invalidatePrefix = prefix
+	r.log = log
+
+	subject := prefix + "." + cacheInvalidateScope
+	sub, err := nc.Subscribe(subject, func(msg *nats.Msg) {
+		var payload invalidate.DTO
+		if err := json.Unmarshal(msg.Data, &payload); err != nil {
+			log.Debug("channel cache invalidation: bad payload", zap.Error(err))
+			return
+		}
+		if payload.BroadcasterID == "" {
+			return
+		}
+		r.cache.Invalidate(payload.BroadcasterID)
+	})
+	if err != nil {
+		return err
+	}
+	if err := nc.Flush(); err != nil {
+		_ = sub.Unsubscribe()
+		return err
+	}
+	r.invalidateSub = sub
+	return nil
+}
+
+// Close releases the in-process cache and invalidation subscription.
+func (r *Registry) Close() {
+	if r.invalidateSub != nil {
+		_ = r.invalidateSub.Unsubscribe()
+	}
+	r.cache.Close()
+}
+
+func (r *Registry) publishInvalidation(broadcasterID string) {
+	if r.nc == nil || r.invalidatePrefix == "" {
+		return
+	}
+	if err := invalidate.Publish(r.nc, r.invalidatePrefix, cacheInvalidateScope, broadcasterID); err != nil && r.log != nil {
+		r.log.Warn("failed to publish channel cache invalidation",
+			zap.String("broadcaster_id", broadcasterID), zap.Error(err))
 	}
 }
 
@@ -106,6 +167,7 @@ func (r *Registry) Save(ctx context.Context, ch manage.Channel) error {
 	}
 
 	r.cache.Set(ch.BroadcasterID, ch)
+	r.publishInvalidation(ch.BroadcasterID)
 
 	return nil
 }
@@ -132,6 +194,7 @@ func (r *Registry) SetMod(ctx context.Context, broadcasterID string, isMod bool)
 	}
 
 	r.cache.Invalidate(broadcasterID)
+	r.publishInvalidation(broadcasterID)
 
 	return nil
 }
@@ -159,17 +222,30 @@ func (r *Registry) SetSubState(ctx context.Context, broadcasterID, state, errMsg
 	}
 
 	r.cache.Invalidate(broadcasterID)
+	r.publishInvalidation(broadcasterID)
 
 	return nil
 }
 
 const enrollLockPrefix = "outgress:enroll:lock:"
 
+const modCheckLockPrefix = "outgress:mod-check:lock:"
+
 // AcquireEnrollLock tries to set a Valkey NX key as a distributed lock.
 // Returns true if this caller owns the lock, false if another replica holds it.
 func (r *Registry) AcquireEnrollLock(ctx context.Context, broadcasterID, owner string, ttl time.Duration) (bool, error) {
+	return r.acquireLock(ctx, enrollLockPrefix+broadcasterID, owner, ttl)
+}
 
-	key := enrollLockPrefix + broadcasterID
+// AcquireModCheckLock ensures only one replica verifies a broadcaster's
+// moderator status at a time. Callers may intentionally leave the lock in
+// place after an error to turn its TTL into a distributed retry backoff.
+func (r *Registry) AcquireModCheckLock(ctx context.Context, broadcasterID, owner string, ttl time.Duration) (bool, error) {
+	return r.acquireLock(ctx, modCheckLockPrefix+broadcasterID, owner, ttl)
+}
+
+func (r *Registry) acquireLock(ctx context.Context, key, owner string, ttl time.Duration) (bool, error) {
+
 	res := r.client.Do(ctx,
 		r.client.B().Set().Key(key).Value(owner).Nx().PxMilliseconds(ttl.Milliseconds()).Build(),
 	)
@@ -188,8 +264,15 @@ func (r *Registry) AcquireEnrollLock(ctx context.Context, broadcasterID, owner s
 // ReleaseEnrollLock deletes the lock key only when its value matches owner,
 // preventing a replica from releasing a lock it no longer holds.
 func (r *Registry) ReleaseEnrollLock(ctx context.Context, broadcasterID, owner string) error {
+	return r.releaseLock(ctx, enrollLockPrefix+broadcasterID, owner)
+}
 
-	key := enrollLockPrefix + broadcasterID
+func (r *Registry) ReleaseModCheckLock(ctx context.Context, broadcasterID, owner string) error {
+	return r.releaseLock(ctx, modCheckLockPrefix+broadcasterID, owner)
+}
+
+func (r *Registry) releaseLock(ctx context.Context, key, owner string) error {
+
 	const luaDel = `if redis.call('get',KEYS[1])==ARGV[1] then return redis.call('del',KEYS[1]) else return 0 end`
 	return r.client.Do(ctx,
 		r.client.B().Eval().Script(luaDel).Numkeys(1).Key(key).Arg(owner).Build(),

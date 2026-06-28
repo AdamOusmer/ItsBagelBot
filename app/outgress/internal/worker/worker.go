@@ -61,10 +61,6 @@ const (
 	helixWindow          = 60.0
 	helixSystemReserve   = 100.0
 	helixGeneralCapacity = helixCapacity - helixSystemReserve
-
-	// modStatusTTL is how long a verified mod status is trusted before the
-	// worker re-checks it against Twitch.
-	modStatusTTL = 24 * time.Hour
 )
 
 // Lane identifies which queue a worker drains; it selects the rate-limit
@@ -124,6 +120,9 @@ type Worker struct {
 	// userIDs caches login->id resolutions (shoutout targets) so a repeated
 	// /shoutout to the same channel does not re-hit Helix Get Users each time.
 	userIDs *cache.Cache[string]
+	// modVerifier resolves stale moderator state asynchronously so chat sends
+	// never wait for a paginated Twitch lookup or OAuth refresh.
+	modVerifier *ModVerifier
 	// live writes the result of a Twitch live re-check back into the projection.
 	// Only the system lane sets it (via SetLiveWriter); nil elsewhere.
 	live *LiveWriter
@@ -132,6 +131,8 @@ type Worker struct {
 // SetLiveWriter attaches the live re-check write-back, used by the system lane
 // worker that handles stream_status jobs.
 func (w *Worker) SetLiveWriter(lw *LiveWriter) { w.live = lw }
+
+func (w *Worker) SetModVerifier(v *ModVerifier) { w.modVerifier = v }
 
 func New(log *zap.Logger, limiter *ratelimit.Limiter, registry *channels.Registry, tw *twitch.Client, botID, owner string, conduitResolver *conduit.Resolver, lane Lane) *Worker {
 	return &Worker{
@@ -592,8 +593,8 @@ func (w *Worker) processStreamStatus(ctx context.Context, payload outgress.Messa
 	}
 
 	if isLive {
-		// proactively re-verify mod status when a channel goes live
-		_ = w.modStatus(ctx, payload, manage.Channel{}, false)
+		// Proactively re-verify in the background when a channel goes live.
+		w.scheduleModStatus(payload.BroadcasterID, payload.SenderID)
 	}
 
 	w.log.Debug("stream_status resolved",
@@ -633,12 +634,9 @@ func (w *Worker) HandleStreamEvent(msg *message.Message) error {
 
 	broadcasterID := strconv.FormatUint(status.BroadcasterID, 10)
 
-	// modStatus only reads BroadcasterID + SenderID off the payload, and falls
-	// back to the configured bot id for the moderator identity. Pass an empty
-	// channel/found=false so it re-checks against Twitch (the whole point here).
-	_ = w.modStatus(msg.Context(), outgress.Message{BroadcasterID: broadcasterID}, manage.Channel{}, false)
+	w.scheduleModStatus(broadcasterID, "")
 
-	w.log.Debug("mod status re-verified on go-live",
+	w.log.Debug("mod status refresh scheduled on go-live",
 		zap.String("broadcaster_id", broadcasterID))
 	return nil
 }
@@ -865,38 +863,19 @@ func (w *Worker) take(ctx context.Context, bucket ratelimit.Bucket) error {
 	return nil
 }
 
-// modStatus resolves whether the bot moderates the channel: a fresh verified
-// answer from the registry wins, then live verification when the bot has a
-// user token, then whatever the registry holds, then the safe default of
-// non-mod, which never over-sends.
-func (w *Worker) modStatus(ctx context.Context, payload outgress.Message, ch manage.Channel, found bool) bool {
-
-	if found && !ch.ModCheckedAt.IsZero() && time.Since(ch.ModCheckedAt) < modStatusTTL {
-		return ch.IsMod
-	}
-
-	botID := w.botID
-	if botID == "" {
-		botID = payload.SenderID
-	}
-
-	isMod, err := w.twitch.IsModerator(ctx, botID, payload.BroadcasterID)
-	if err != nil {
-		if !errors.Is(err, twitch.ErrNoUserToken) {
-			w.log.Warn("mod status verification failed",
-				zap.String("broadcaster_id", payload.BroadcasterID),
-				zap.Error(err))
-		}
-		// Cache the failure so we don't hammer Twitch or spin on every message
-		_ = w.registry.SetMod(ctx, payload.BroadcasterID, false)
+// modStatus is deliberately non-blocking: use the last known value and let the
+// shared verifier refresh stale state away from the chat handler.
+func (w *Worker) modStatus(_ context.Context, payload outgress.Message, ch manage.Channel, found bool) bool {
+	if w.modVerifier == nil {
 		return found && ch.IsMod
 	}
+	return w.modVerifier.Status(ch, found, payload.BroadcasterID, payload.SenderID)
+}
 
-	if err := w.registry.SetMod(ctx, payload.BroadcasterID, isMod); err != nil {
-		w.log.Warn("failed to cache mod status", zap.Error(err))
+func (w *Worker) scheduleModStatus(broadcasterID, senderID string) {
+	if w.modVerifier != nil {
+		w.modVerifier.Schedule(broadcasterID, senderID)
 	}
-
-	return isMod
 }
 
 func (w *Worker) execute(ctx context.Context, payload outgress.Message) error {
