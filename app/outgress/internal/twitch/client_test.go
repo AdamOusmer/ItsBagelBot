@@ -51,6 +51,22 @@ func TestHTTPClientPoolMatchesWorkerConcurrency(t *testing.T) {
 	client.CloseIdleConnections()
 }
 
+func TestCloudBotChatAutoRoutingUsesAppToken(t *testing.T) {
+	app := &Source{}
+	user := &Source{}
+	client := &Client{app: app, user: user}
+
+	for _, endpoint := range []string{
+		"/helix/chat/messages",
+		"/helix/chat/announcements?broadcaster_id=1&moderator_id=2",
+		"/helix/chat/shoutouts?from_broadcaster_id=1&to_broadcaster_id=2&moderator_id=3",
+	} {
+		if got := client.sourceFor(endpoint); got != app {
+			t.Errorf("sourceFor(%q) = user token, want app token", endpoint)
+		}
+	}
+}
+
 func TestMissingScope401DoesNotRefreshToken(t *testing.T) {
 	refreshes := 0
 	source := &Source{

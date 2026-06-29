@@ -70,8 +70,10 @@ non-special, non-premium users is dropped before it reaches a lane.
 3. The owning worker consumes the lane, resolves the command via the **commands**
    projection (or RPC), and produces a reply.
 4. The reply is published on `twitch.outgress.{premium|standard|system}`.
-5. **outgress** applies the per-broadcaster rate limit and sends to Twitch using
-   the bot account token (refreshed and rotated through the users token RPC).
+5. **outgress** applies the per-broadcaster rate limit and sends via Helix using
+   the app access token. Twitch associates `sender_id` with the bot's prior
+   `user:bot` / `user:write:chat` grant and the broadcaster's `channel:bot`
+   grant, which makes eligible replies display the Chat Bot badge.
 
 ## Infrastructure
 

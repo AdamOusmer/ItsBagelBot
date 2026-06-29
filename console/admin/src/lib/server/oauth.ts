@@ -31,8 +31,9 @@ export function botClientId(): string {
 }
 
 export function botScopes(): string[] {
-  // Bot account grant. Mirrors the v1 bot scope set (settings.py): chat read/edit
-  // + chat read/write + user/channel bot + moderator scopes.
+  // Bot account grant. These prior authorizations let the app token act as the
+  // cloud bot. channel:bot belongs to each broadcaster's dashboard grant, not
+  // this bot-account grant.
   return [
     'openid',
     'chat:read',
@@ -40,15 +41,14 @@ export function botScopes(): string[] {
     'user:read:chat',
     'user:write:chat',
     'user:bot',
-    'channel:bot',
     'moderator:read:followers',
     'moderator:read:chatters',
     'moderator:manage:banned_users',
     'moderator:manage:chat_messages',
     // Required by the worker's slash-command outgress paths: announcements back
     // /announce[color] (POST /helix/chat/announcements) and shoutouts back
-    // /shoutout (POST /helix/chat/shoutouts). Without these the bot token 401s on
-    // those endpoints. The bot must also be a moderator of the target channel.
+    // /shoutout (POST /helix/chat/shoutouts). The app-token calls rely on these
+    // prior bot authorizations. The bot must also moderate the target channel.
     'moderator:manage:announcements',
     'moderator:manage:shoutouts',
     // Required by outgress mod-status verification (GET /helix/moderation/channels):
