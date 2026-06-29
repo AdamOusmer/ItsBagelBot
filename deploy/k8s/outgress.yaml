@@ -72,7 +72,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: outgress
-          image: ghcr.io/adamousmer/itsbagelbot/outgress:main-1782766362-23ae0f5b2141@sha256:4686333b3f1344e14e9def440f1b6911fd6374f138680b00dfeb5048a5675391 # {"$imagepolicy": "flux-system:outgress"}
+          image: ghcr.io/adamousmer/itsbagelbot/outgress:main-1782766884-cdffb7465e50@sha256:8adb44e84cad22cb9e81fc4eb33bc2ec932429aabf9d1e6e3bb73f256047c001 # {"$imagepolicy": "flux-system:outgress"}
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST
@@ -117,8 +117,8 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
-            # Remaining lease tuning (minimum members, replicas, epoch, etc.)
-            # may be supplied by outgress-env via Doppler.
+                  # Remaining lease tuning (minimum members, replicas, epoch, etc.)
+                  # may be supplied by outgress-env via Doppler.
           envFrom:
             - secretRef:
                 name: outgress-env
