@@ -216,8 +216,8 @@ registry := module.NewRegistry(
 Wire the pools.
 
 ### 10. Outgress (`app/outgress/internal/worker/worker.go`)
-- `typeRoutes`: add `announce -> {POST, /helix/chat/announcements, AsBot}` and
-  `shoutout -> {POST, /helix/chat/shoutouts, AsBot}`.
+- `typeRoutes`: add `announce -> {POST, /helix/chat/announcements, AsApp}` and
+  `shoutout -> {POST, /helix/chat/shoutouts, AsApp}`.
 - Single `typeRoutes` lookup (drop the double `_, mapped` + `r, ok`).
 - `processAnnounce`: inject `moderator_id` = bot (query + body per Twitch), pay the general
   bucket, execute.
