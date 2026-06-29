@@ -211,18 +211,28 @@ func decodeMessage(data []byte, destination *outgress.Message) error {
 	return nil
 }
 
+func recordStageDuration(ctx context.Context, attribute string, started time.Time) {
+	if txn := newrelic.FromContext(ctx); txn != nil {
+		txn.AddAttribute(attribute, float64(time.Since(started).Microseconds())/1000)
+	}
+}
+
 func (w *Worker) Process(msg *message.Message) error {
+	ctx := msg.Context()
+	processStarted := time.Now()
+	defer recordStageDuration(ctx, "outgress.total_ms", processStarted)
 
 	var payload outgress.Message
+	decodeStarted := time.Now()
 	if err := decodeMessage(msg.Payload, &payload); err != nil {
+		recordStageDuration(ctx, "outgress.decode_ms", decodeStarted)
 		w.log.Error("dropping malformed outgress message", zap.Error(err))
-		if txn := newrelic.FromContext(msg.Context()); txn != nil {
+		if txn := newrelic.FromContext(ctx); txn != nil {
 			txn.NoticeError(err)
 		}
 		return nil
 	}
-
-	ctx := msg.Context()
+	recordStageDuration(ctx, "outgress.decode_ms", decodeStarted)
 
 	if txn := newrelic.FromContext(ctx); txn != nil {
 		txn.AddAttribute("event.type", payload.Type)
@@ -232,7 +242,9 @@ func (w *Worker) Process(msg *message.Message) error {
 		}
 	}
 
+	pauseStarted := time.Now()
 	paused, err := w.registry.Paused(ctx)
+	recordStageDuration(ctx, "outgress.pause_ms", pauseStarted)
 	if err != nil {
 		return err
 	}
@@ -303,7 +315,9 @@ func (w *Worker) processChat(ctx context.Context, payload outgress.Message) erro
 	// The enabled/disabled decision belongs to the worker, not outgress: by the
 	// time a chat send reaches here it is already authorized. Outgress only reads
 	// the registry for the bot's mod status (which sets the chat rate capacity).
+	registryStarted := time.Now()
 	ch, found, err := w.registry.Get(ctx, payload.BroadcasterID)
+	recordStageDuration(ctx, "outgress.registry_ms", registryStarted)
 	if err != nil {
 		return err
 	}
@@ -872,6 +886,8 @@ func (w *Worker) takeSystemHelix(ctx context.Context) error {
 // take consumes one token or returns an error that nacks the message, so the
 // paced redelivery retries it once the bucket has refilled.
 func (w *Worker) take(ctx context.Context, req ratelimit.Request) error {
+	started := time.Now()
+	defer recordStageDuration(ctx, "outgress.limiter_ms", started)
 	allowed, err := w.limiter.Allow(ctx, req)
 	if err != nil {
 		return err
@@ -883,6 +899,8 @@ func (w *Worker) take(ctx context.Context, req ratelimit.Request) error {
 }
 
 func (w *Worker) takeOrdered(ctx context.Context, first, shared ratelimit.Request) error {
+	started := time.Now()
+	defer recordStageDuration(ctx, "outgress.limiter_ms", started)
 	denied, err := w.limiter.AllowOrdered(ctx, first, shared)
 	if err != nil {
 		return err
@@ -913,6 +931,8 @@ func (w *Worker) scheduleModStatus(broadcasterID, senderID string) {
 }
 
 func (w *Worker) execute(ctx context.Context, payload outgress.Message) error {
+	started := time.Now()
+	defer recordStageDuration(ctx, "outgress.twitch_ms", started)
 
 	res, err := w.twitch.ExecuteAs(ctx, twitch.ParseIdentity(payload.As),
 		payload.BroadcasterID, payload.Method, payload.Endpoint, payload.Payload)

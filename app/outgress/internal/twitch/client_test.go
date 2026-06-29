@@ -51,6 +51,59 @@ func TestHTTPClientPoolMatchesWorkerConcurrency(t *testing.T) {
 	client.CloseIdleConnections()
 }
 
+func TestWarmupMintsTokenAndPrimesAppConnection(t *testing.T) {
+	refreshes := 0
+	requests := 0
+	source := &Source{refresh: func(context.Context) (string, time.Duration, error) {
+		refreshes++
+		return "warm-token", time.Hour, nil
+	}}
+	client := &Client{
+		clientID: "client",
+		app:      source,
+		http: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			requests++
+			if req.Method != http.MethodGet || req.URL.Path != "/helix/streams" || req.URL.Query().Get("first") != "1" {
+				t.Fatalf("warmup request = %s %s", req.Method, req.URL.String())
+			}
+			if got := req.Header.Get("Authorization"); got != "Bearer warm-token" {
+				t.Fatalf("authorization = %q", got)
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"data":[]}`)),
+				Header:     make(http.Header),
+			}, nil
+		})},
+	}
+
+	if err := client.Warmup(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if requests != 1 || refreshes != 1 {
+		t.Fatalf("requests/refreshes = %d/%d, want 1/1", requests, refreshes)
+	}
+}
+
+func TestWarmupRejectsTwitchFailure(t *testing.T) {
+	source := &Source{token: "cached", expires: time.Now().Add(time.Hour)}
+	client := &Client{
+		clientID: "client",
+		app:      source,
+		http: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusServiceUnavailable,
+				Body:       io.NopCloser(strings.NewReader(`{"message":"unavailable"}`)),
+				Header:     make(http.Header),
+			}, nil
+		})},
+	}
+
+	if err := client.Warmup(context.Background()); err == nil {
+		t.Fatal("Warmup() accepted a Twitch failure")
+	}
+}
+
 func TestCloudBotChatAutoRoutingUsesAppToken(t *testing.T) {
 	app := &Source{}
 	user := &Source{}

@@ -55,6 +55,12 @@ type LeaseCoordinator struct {
 	wg     sync.WaitGroup
 }
 
+const (
+	leaseReconcileInterval = 2 * time.Second
+	leaseMissingPlanRetry  = 250 * time.Millisecond
+	leaseMinimumWake       = 10 * time.Millisecond
+)
+
 func NewLeaseCoordinator(nc *nats.Conn, client valkey.Client, manager *LeaseManager, region, podID string, config CoordinatorConfig, log *zap.Logger) *LeaseCoordinator {
 	if log == nil {
 		log = zap.NewNop()
@@ -70,12 +76,13 @@ func (c *LeaseCoordinator) Start(parent context.Context) error {
 	ctx, cancel := context.WithCancel(parent)
 	c.cancel = cancel
 	var activated, proposed uint64
-	if err := c.reconcile(ctx, &activated, &proposed); err != nil {
+	next, err := c.reconcile(ctx, &activated, &proposed)
+	if err != nil {
 		cancel()
 		return err
 	}
 	c.wg.Add(1)
-	go c.loop(ctx, activated, proposed)
+	go c.loop(ctx, activated, proposed, next)
 	return nil
 }
 
@@ -86,27 +93,34 @@ func (c *LeaseCoordinator) Close() {
 	c.wg.Wait()
 }
 
-func (c *LeaseCoordinator) loop(ctx context.Context, activated, proposed uint64) {
+func (c *LeaseCoordinator) loop(ctx context.Context, activated, proposed uint64, next time.Duration) {
 	defer c.wg.Done()
-	ticker := time.NewTicker(2 * time.Second)
-	defer ticker.Stop()
+	timer := time.NewTimer(next)
+	defer timer.Stop()
 	for {
-		if err := c.reconcile(ctx, &activated, &proposed); err != nil && !errors.Is(err, context.Canceled) {
-			c.log.Debug("lease reconciliation deferred", zap.Error(err))
-		}
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
+		case <-timer.C:
 		}
+
+		next = leaseReconcileInterval
+		var err error
+		if next, err = c.reconcile(ctx, &activated, &proposed); err != nil {
+			if !errors.Is(err, context.Canceled) {
+				c.log.Debug("lease reconciliation deferred", zap.Error(err))
+			}
+			next = leaseReconcileInterval
+		}
+		timer.Reset(next)
 	}
 }
 
-func (c *LeaseCoordinator) reconcile(ctx context.Context, activated, proposed *uint64) error {
+func (c *LeaseCoordinator) reconcile(ctx context.Context, activated, proposed *uint64) (time.Duration, error) {
 	localStart := time.Now()
 	serverNow, err := c.client.ServerTime(ctx)
 	if err != nil {
-		return err
+		return leaseReconcileInterval, err
 	}
 	localEnd := time.Now()
 	roundTrip := localEnd.Sub(localStart)
@@ -115,39 +129,44 @@ func (c *LeaseCoordinator) reconcile(ctx context.Context, activated, proposed *u
 	epochMS := c.config.Epoch.Milliseconds()
 	currentEpoch := uint64(serverNow.UnixMilli() / epochMS)
 	currentBoundary := int64(currentEpoch) * epochMS
+	nextBoundary := currentBoundary + epochMS
+	next := nextLeaseReconcileDelay(serverNow, nextBoundary, uncertainty)
 
 	if *activated != currentEpoch {
 		plan, err := c.client.LoadPlan(ctx, currentEpoch)
 		if err == nil {
 			if err := c.manager.ActivatePlan(*plan, serverNow, localMidpoint, uncertainty); err != nil {
-				return err
+				return leaseReconcileInterval, err
 			}
 			*activated = currentEpoch
 			c.log.Info("lease plan activated", zap.Uint64("epoch", plan.Epoch), zap.Int("members", len(plan.Members)))
 		} else if !valkey.IsValkeyNil(err) {
-			return err
+			return leaseReconcileInterval, err
+		} else {
+			// The epoch may have just turned while its commit is propagating. Retry
+			// promptly instead of leaving the fleet on emergency capacity for 2s.
+			next = min(next, leaseMissingPlanRetry)
 		}
 	}
 
 	nextEpoch := currentEpoch + 1
-	nextBoundary := currentBoundary + epochMS
 	if *proposed == nextEpoch || serverNow.UnixMilli() < nextBoundary-10_000 {
-		return nil
+		return next, nil
 	}
 	members, err := c.discoverMembers(ctx)
 	if err != nil {
-		return err
+		return leaseReconcileInterval, err
 	}
 	if len(members) < c.config.MinMembers {
-		return errors.New("ratelimit: insufficient permit-service members")
+		return leaseReconcileInterval, errors.New("ratelimit: insufficient permit-service members")
 	}
 	plan, err := BuildPlan(nextEpoch, nextBoundary, nextBoundary+epochMS, members)
 	if err != nil {
-		return err
+		return leaseReconcileInterval, err
 	}
 	won, err := c.client.ProposePlan(ctx, plan, c.config.Replicas, c.config.ReplicaTimeout)
 	if err != nil {
-		return err
+		return leaseReconcileInterval, err
 	}
 	if won {
 		*proposed = nextEpoch
@@ -158,7 +177,22 @@ func (c *LeaseCoordinator) reconcile(ctx context.Context, activated, proposed *u
 		// this epoch unrecoverable, because no peer would re-enter ProposePlan.
 		*proposed = nextEpoch
 	}
-	return nil
+	return next, nil
+}
+
+// nextLeaseReconcileDelay retains the low steady-state Valkey polling rate but
+// replaces the last arbitrary poll before an epoch edge with a wakeup aligned
+// to the guarded activation boundary. This removes up to two seconds of avoidable
+// fail-closed time while preserving the intentional clock-uncertainty gap.
+func nextLeaseReconcileDelay(serverNow time.Time, nextBoundaryMS int64, uncertainty time.Duration) time.Duration {
+	delay := time.UnixMilli(nextBoundaryMS).Sub(serverNow) + uncertainty
+	if delay < leaseMinimumWake {
+		return leaseMinimumWake
+	}
+	if delay > leaseReconcileInterval {
+		return leaseReconcileInterval
+	}
+	return delay
 }
 
 func (c *LeaseCoordinator) discoverMembers(ctx context.Context) ([]Member, error) {

@@ -157,8 +157,12 @@ func (m *LeaseManager) allowAt(ctx context.Context, req *Request, now time.Time)
 	}
 
 	bucketID := req.bucketID()
-	if m.tryLocalPremium(now, plan, bucketID, req.Spec.profile) {
+	allowed, existed := m.tryLocalPremiumState(now, plan, bucketID, req.Spec.profile)
+	if allowed {
 		return true, nil
+	}
+	if skipColdChatBorrow(plan, existed, req.Spec.profile) {
+		return m.emergencyAllow(ctx, *req, plan.generation, plan.validFromMS)
 	}
 
 	need := NeedShared
@@ -185,8 +189,12 @@ func (m *LeaseManager) allowOrderedAt(ctx context.Context, first, second *Reques
 	}
 
 	bucketID := second.bucketID()
-	if localFirst, localShared := m.tryLocalStandard(now, plan, bucketID, second.Spec.profile); localFirst && localShared {
+	localFirst, localShared, existed := m.tryLocalStandardState(now, plan, bucketID, second.Spec.profile)
+	if localFirst && localShared {
 		return 0, nil
+	}
+	if skipColdChatBorrow(plan, existed, second.Spec.profile) {
+		return m.emergencyAllowOrdered(ctx, *first, *second, plan.generation, plan.validFromMS)
 	}
 
 	if m.borrow(ctx, plan, bucketID, NeedStandard|NeedShared, second.Spec, first.Spec) == NeedStandard|NeedShared {
@@ -204,40 +212,50 @@ func (m *LeaseManager) active(now time.Time) *activePlan {
 }
 
 func (m *LeaseManager) tryLocalPremium(now time.Time, plan *activePlan, bucketID BucketID, profile uint8) bool {
+	allowed, _ := m.tryLocalPremiumState(now, plan, bucketID, profile)
+	return allowed
+}
+
+func (m *LeaseManager) tryLocalPremiumState(now time.Time, plan *activePlan, bucketID BucketID, profile uint8) (bool, bool) {
 	if plan.selfIndex < 0 || int(profile) >= len(plan.shares) {
-		return false
+		return false, false
 	}
 	share := &plan.shares[profile]
 	if !share.valid {
-		return false
+		return false, false
 	}
-	bucket := m.configuredBucket(now, plan, bucketID, plan.selfPodID, share)
+	bucket, existed := m.configuredBucket(now, plan, bucketID, plan.selfPodID, share)
 	allowed, stale := bucket.TryPremiumLease(now, plan.epoch, plan.generation)
 	if stale {
 		bucket.Update(now, plan.epoch, plan.generation, plan.selfPodID, plan.notBefore, plan.notAfter, share.sharedRate, share.sharedBurst, share.standardRate, share.standardBurst)
 		allowed, _ = bucket.TryPremiumLease(now, plan.epoch, plan.generation)
 	}
-	return allowed
+	return allowed, existed
 }
 
 func (m *LeaseManager) tryLocalStandard(now time.Time, plan *activePlan, bucketID BucketID, profile uint8) (bool, bool) {
+	standard, shared, _ := m.tryLocalStandardState(now, plan, bucketID, profile)
+	return standard, shared
+}
+
+func (m *LeaseManager) tryLocalStandardState(now time.Time, plan *activePlan, bucketID BucketID, profile uint8) (bool, bool, bool) {
 	if plan.selfIndex < 0 || int(profile) >= len(plan.shares) {
-		return false, false
+		return false, false, false
 	}
 	share := &plan.shares[profile]
 	if !share.valid || share.standardBurst <= 0 {
-		return false, false
+		return false, false, false
 	}
-	bucket := m.configuredBucket(now, plan, bucketID, plan.selfPodID, share)
+	bucket, existed := m.configuredBucket(now, plan, bucketID, plan.selfPodID, share)
 	standard, shared, stale := bucket.TryStandardLease(now, plan.epoch, plan.generation)
 	if stale {
 		bucket.Update(now, plan.epoch, plan.generation, plan.selfPodID, plan.notBefore, plan.notAfter, share.sharedRate, share.sharedBurst, share.standardRate, share.standardBurst)
 		standard, shared, _ = bucket.TryStandardLease(now, plan.epoch, plan.generation)
 	}
-	return standard, shared
+	return standard, shared, existed
 }
 
-func (m *LeaseManager) configuredBucket(now time.Time, plan *activePlan, bucketID BucketID, holder string, share *selfShare) *LocalBucket {
+func (m *LeaseManager) configuredBucket(now time.Time, plan *activePlan, bucketID BucketID, holder string, share *selfShare) (*LocalBucket, bool) {
 	if bucket, ok := m.local.Load(bucketID); ok {
 		// Hot path: one atomic load and a uint64 compare against the precomputed
 		// signature. The full config is only rebuilt when the profile changes
@@ -245,7 +263,7 @@ func (m *LeaseManager) configuredBucket(now time.Time, plan *activePlan, bucketI
 		if !bucket.MatchesSignature(share.signature) {
 			bucket.Update(now, plan.epoch, plan.generation, holder, plan.notBefore, plan.notAfter, share.sharedRate, share.sharedBurst, share.standardRate, share.standardBurst)
 		}
-		return bucket
+		return bucket, true
 	}
 	candidate := NewLocalBucket()
 	stableID := bucketID
@@ -258,9 +276,18 @@ func (m *LeaseManager) configuredBucket(now time.Time, plan *activePlan, bucketI
 	bucket, loaded := m.local.LoadOrStore(stableID, candidate)
 	if !loaded {
 		candidate.Update(now, plan.epoch, plan.generation, holder, plan.notBefore, plan.notAfter, share.sharedRate, share.sharedBurst, share.standardRate, share.standardBurst)
-		return candidate
+		return candidate, false
 	}
-	return bucket
+	return bucket, true
+}
+
+// A newly created per-channel bucket starts empty by design, so no member in a
+// newly activated generation can safely spend a local burst immediately. Peer
+// borrowing for that first sparse chat request only adds up to two cross-region
+// round trips; use the globally serialized emergency partition directly. Pods
+// outside the committed plan must still borrow, as they own no local share.
+func skipColdChatBorrow(plan *activePlan, existed bool, profile uint8) bool {
+	return plan.selfIndex >= 0 && !existed && (profile == profileChat || profile == profileChatMod)
 }
 
 func localShare(spec Spec, members, rank int) (rate.Limit, int) {
@@ -343,7 +370,7 @@ func (m *LeaseManager) GrantPermit(now time.Time, request BorrowRequest) BorrowR
 		reply.Status = "invalid"
 		return reply
 	}
-	bucket := m.configuredBucket(now, plan, request.Bucket, plan.selfPodID, share)
+	bucket, _ := m.configuredBucket(now, plan, request.Bucket, plan.selfPodID, share)
 	switch request.Need {
 	case NeedShared:
 		allowed, stale := bucket.TryPremiumLease(now, plan.epoch, plan.generation)
