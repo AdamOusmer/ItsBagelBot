@@ -85,7 +85,7 @@ func TestAllowOrderedIntegration(t *testing.T) {
 		t.Fatalf("second bucket changed after first denial: before=%v after=%v", before, after)
 	}
 
-	// If only the second bucket is empty, the first token remains consumed.
+	// An atomic evaluation means if the second bucket is empty, the first token is NOT consumed.
 	for key, tokens := range map[string]string{firstKey: "2", secondKey: "0"} {
 		if err := client.Do(ctx, client.B().Hset().Key(key).FieldValue().
 			FieldValue("tokens", tokens).FieldValue("last_ms", future).Build()).Error(); err != nil {
@@ -100,8 +100,8 @@ func TestAllowOrderedIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if tokens != "1" {
-		t.Fatalf("first tokens = %q, want 1", tokens)
+	if tokens != "2" {
+		t.Fatalf("first tokens = %q, want 2 (atomic fallback)", tokens)
 	}
 
 	// The script reads both keys before writing either one. A wrong-type second
