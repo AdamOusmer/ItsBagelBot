@@ -22,7 +22,6 @@ import (
 	"ItsBagelBot/pkg/monitor"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
-	"github.com/Yiling-J/theine-go"
 	"go.uber.org/zap"
 )
 
@@ -52,6 +51,15 @@ func main() {
 	defer stop()
 
 	cfg := config.Load()
+	// The quota-lease protocol is the sole rate-limit implementation. Every pod
+	// must declare a stable geographic region so peer borrowing prefers nearby
+	// donors; a missing region would silently classify every peer as remote.
+	if _, explicit := os.LookupEnv("OUTGRESS_REGION"); !explicit {
+		log.Fatal("OUTGRESS_REGION is required")
+	}
+	if err := worker.PrepareJSON(); err != nil {
+		log.Warn("failed to precompile outgress JSON decoders", zap.Error(err))
+	}
 
 	// Outgress commands are perishable work rather than replayable events.
 	// Reconcile this stream here (not only from producer services) so its
@@ -136,22 +144,37 @@ func main() {
 	})
 
 	tw := twitch.NewClient(cfg.TwitchClientID, appTokens, userTokens, broadcasterTokens)
+	defer tw.CloseIdleConnections()
 
 	conduitResolver := conduit.New(nc, cfg.ConduitSubject, cfg.TwitchConduitID, 60*time.Second, log.Named("conduit"))
 
-	// pod identity for single-flight reconnect locks; best-effort, empty string is safe.
-	host, _ := os.Hostname()
+	// Stable pod identity is used only for lease membership and targeted permits;
+	// it never assigns broadcaster ownership.
+	host, err := os.Hostname()
+	if err != nil || host == "" {
+		log.Fatal("failed to determine outgress pod identity", zap.Error(err))
+	}
 
-	buckets, _ := theine.NewBuilder[string, *ratelimit.LocalBucket](10000).Build()
-	defer buckets.Close()
+	buckets := ratelimit.NewBucketStore(10_000)
 
-	permitSvc, err := ratelimit.NewPermitService(nc, "us-east-1", host, buckets)
+	permitSvc, err := ratelimit.NewPermitService(nc, cfg.RateRegion, host, buckets)
 	if err != nil {
 		log.Fatal("failed to initialize permit service", zap.Error(err))
 	}
 	defer permitSvc.Close()
 
-	limiter := ratelimit.NewLeaseManager(centralLimiter, buckets, permitSvc, cfg.RateMode)
+	limiter := ratelimit.NewLeaseManager(centralLimiter, buckets, permitSvc,
+		ratelimit.WithLeaseIdentity(cfg.RateRegion, host))
+	permitSvc.SetGrantor(limiter)
+	coordinator := ratelimit.NewLeaseCoordinator(nc, valkeyClient, limiter, cfg.RateRegion, host,
+		ratelimit.CoordinatorConfig{
+			Epoch: cfg.LeaseEpoch, Guard: cfg.LeaseGuard, MinMembers: cfg.LeaseMinMembers,
+			Replicas: cfg.LeaseReplicas, ReplicaTimeout: cfg.LeaseReplicaTimeout,
+		}, log.Named("leases"))
+	if err := coordinator.Start(ctx); err != nil {
+		log.Fatal("failed to initialize lease coordinator", zap.Error(err))
+	}
+	defer coordinator.Close()
 
 	premium := worker.New(log.Named("premium"), limiter, registry, tw, cfg.TwitchBotUserID, host, conduitResolver, worker.LanePremium)
 	standard := worker.New(log.Named("standard"), limiter, registry, tw, cfg.TwitchBotUserID, host, conduitResolver, worker.LaneStandard)

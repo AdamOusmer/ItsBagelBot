@@ -3,6 +3,10 @@ package worker
 import (
 	"encoding/json"
 	"testing"
+
+	"ItsBagelBot/internal/domain/outgress"
+
+	"github.com/bytedance/sonic"
 )
 
 // oldWithSenderID reconstructs the pre-rewrite chat-body identity injection: it
@@ -25,6 +29,38 @@ func oldWithSenderID(body []byte, senderID string) []byte {
 		return body
 	}
 	return out
+}
+
+var rtEnvelope = []byte(`{"type":"chat","broadcaster_id":"123456789","sender_id":"555555","payload":{"broadcaster_id":"123456789","message":"hey friend welcome to the stream"}}`)
+
+func BenchmarkRTEnvelopeStdlib(b *testing.B) {
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		var message outgress.Message
+		if err := json.Unmarshal(rtEnvelope, &message); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkRTEnvelopeSonic(b *testing.B) {
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		var message outgress.Message
+		if err := sonic.Unmarshal(rtEnvelope, &message); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkRTEnvelopeSonicNoCopy(b *testing.B) {
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		var message outgress.Message
+		if err := decodeMessage(rtEnvelope, &message); err != nil {
+			b.Fatal(err)
+		}
+	}
 }
 
 var rtChatBody = []byte(`{"broadcaster_id":"123456789","message":"hey friend welcome to the stream"}`)

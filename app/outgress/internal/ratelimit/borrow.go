@@ -1,28 +1,40 @@
 package ratelimit
 
 import (
-	"encoding/json"
-	"fmt"
+	"context"
+	"errors"
+	"sync/atomic"
 	"time"
 
 	"github.com/Yiling-J/theine-go"
+	"github.com/bytedance/sonic"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/micro"
+	"github.com/nats-io/nuid"
 )
 
 const (
 	NeedStandard uint8 = 1 << iota
 	NeedShared
 	NeedSystem
+	validNeeds        = NeedStandard | NeedShared | NeedSystem
+	permitTTL         = 250 * time.Millisecond
+	permitServiceName = "outgress-permit-v2"
 )
 
 type BorrowRequest struct {
-	Version    uint16 `json:"version"`
-	RequestID  string `json:"request_id"`
-	Epoch      uint64 `json:"epoch"`
-	Bucket     string `json:"bucket"`
-	Need       uint8  `json:"need"`
-	DeadlineMS int64  `json:"deadline_ms"`
+	Version            uint16   `json:"version"`
+	RequestID          string   `json:"request_id"`
+	Epoch              uint64   `json:"epoch"`
+	Generation         uint64   `json:"generation"`
+	Bucket             BucketID `json:"bucket"`
+	Need               uint8    `json:"need"`
+	Profile            uint8    `json:"profile"`
+	SharedRateMicros   int64    `json:"shared_rate_micros"`
+	SharedBurst        int      `json:"shared_burst"`
+	StandardRateMicros int64    `json:"standard_rate_micros,omitempty"`
+	StandardBurst      int      `json:"standard_burst,omitempty"`
+	DeadlineMS         int64    `json:"deadline_ms"`
 }
 
 type BorrowReply struct {
@@ -31,143 +43,165 @@ type BorrowReply struct {
 	GrantID     string `json:"grant_id,omitempty"`
 	Paid        uint8  `json:"paid,omitempty"`
 	RemainingMS int64  `json:"remaining_ms,omitempty"`
-	Status      string `json:"status"` // granted, partial, empty, stale, invalid
+	Status      string `json:"status"` // granted, empty, stale, invalid
+}
+
+type cachedGrant struct {
+	reply     BorrowReply
+	expiresAt time.Time
 }
 
 type PermitService struct {
+	nc      *nats.Conn
 	service micro.Service
-	buckets *theine.Cache[string, *LocalBucket]
-	dedupe  *theine.Cache[string, BorrowReply]
+	dedupe  *theine.Cache[string, cachedGrant]
+	grantor atomic.Pointer[LeaseManager]
+	region  string
+	podID   string
 }
 
-func NewPermitService(nc *nats.Conn, region, podID string, buckets *theine.Cache[string, *LocalBucket]) (*PermitService, error) {
-	dedupe, err := theine.NewBuilder[string, BorrowReply](10000).Build()
+func NewPermitService(nc *nats.Conn, region, podID string, _ *BucketStore) (*PermitService, error) {
+	if region == "" || podID == "" {
+		return nil, errors.New("ratelimit: permit region and pod ID are required")
+	}
+	dedupe, err := theine.NewBuilder[string, cachedGrant](10_000).Build()
 	if err != nil {
 		return nil, err
 	}
-
-	ps := &PermitService{
-		buckets: buckets,
-		dedupe:  dedupe,
-	}
-
-	subject := fmt.Sprintf("bagel.outgress.permit.v1.%s.%s", region, podID)
-
-	config := micro.Config{
-		Name:        "outgress-permit-" + podID,
-		Version:     "1.0.0",
-		Description: "Outgress peer permit service",
-		Endpoint: &micro.EndpointConfig{
-			Subject: subject,
-			Handler: micro.HandlerFunc(ps.handleRequest),
-		},
-	}
-
-	svc, err := micro.AddService(nc, config)
+	service, err := micro.AddService(nc, micro.Config{
+		Name: permitServiceName, Version: "3.0.0", Description: "Outgress peer permit service",
+		Metadata: map[string]string{"pod_id": podID, "region": region},
+	})
 	if err != nil {
+		dedupe.Close()
 		return nil, err
 	}
-	ps.service = svc
-
-	return ps, nil
+	permit := &PermitService{nc: nc, service: service, dedupe: dedupe, region: region, podID: podID}
+	err = service.AddEndpoint("borrow", micro.HandlerFunc(permit.handleRequest),
+		micro.WithEndpointSubject(permitSubject(region, podID)),
+		micro.WithEndpointQueueGroupDisabled(),
+		micro.WithEndpointPendingLimits(256, 1<<20),
+	)
+	if err != nil {
+		_ = service.Stop()
+		dedupe.Close()
+		return nil, err
+	}
+	return permit, nil
 }
+
+func (ps *PermitService) SetGrantor(manager *LeaseManager) { ps.grantor.Store(manager) }
 
 func (ps *PermitService) Close() {
 	if ps.service != nil {
-		ps.service.Stop()
+		_ = ps.service.Stop()
 	}
 	ps.dedupe.Close()
 }
 
-func (ps *PermitService) handleRequest(req micro.Request) {
-	var br BorrowRequest
-	if err := json.Unmarshal(req.Data(), &br); err != nil {
-		req.Error("400", "invalid request", nil)
-		return
-	}
+func permitSubject(region, podID string) string {
+	return "bagel.outgress.permit.v2." + region + "." + podID
+}
 
-	if br.Version != 1 {
-		reply := BorrowReply{Version: 1, Status: "invalid"}
-		data, _ := json.Marshal(reply)
-		req.Respond(data)
-		return
-	}
-
+func (ps *PermitService) Borrow(ctx context.Context, donor Member, request BorrowRequest) (BorrowReply, error) {
 	now := time.Now()
-	nowMS := now.UnixMilli()
-	
-	if nowMS > br.DeadlineMS {
-		reply := BorrowReply{Version: 1, Status: "stale"}
-		data, _ := json.Marshal(reply)
-		req.Respond(data)
+	deadline, ok := ctx.Deadline()
+	if !ok || deadline.After(now.Add(permitTTL)) {
+		deadline = now.Add(permitTTL)
+	}
+	request.RequestID = nuid.Next()
+	request.DeadlineMS = deadline.UnixMilli()
+	data, err := sonic.Marshal(&request)
+	if err != nil {
+		return BorrowReply{}, err
+	}
+	msg, err := ps.nc.RequestWithContext(ctx, permitSubject(donor.Region, donor.PodID), data)
+	if err != nil {
+		return BorrowReply{}, err
+	}
+	var reply BorrowReply
+	if err := sonic.Unmarshal(msg.Data, &reply); err != nil {
+		return BorrowReply{}, err
+	}
+	if reply.Version != planVersion || reply.Epoch != request.Epoch || reply.Paid&^request.Need != 0 {
+		return BorrowReply{}, errors.New("ratelimit: invalid permit reply")
+	}
+	// Subtract the whole observed RTT. This is deliberately more conservative
+	// than estimating one-way latency from unsynchronized clocks.
+	if reply.Paid != 0 && time.Since(now) >= time.Duration(reply.RemainingMS)*time.Millisecond {
+		return BorrowReply{}, context.DeadlineExceeded
+	}
+	return reply, nil
+}
+
+func (ps *PermitService) handleRequest(req micro.Request) {
+	var borrow BorrowRequest
+	if err := sonic.Unmarshal(req.Data(), &borrow); err != nil {
+		_ = req.Error("400", "invalid request", nil)
+		return
+	}
+	now := time.Now()
+	if borrow.Version != planVersion || borrow.RequestID == "" || borrow.Bucket.Scope == "" ||
+		borrow.Need == 0 || borrow.Need&^validNeeds != 0 || now.UnixMilli() >= borrow.DeadlineMS {
+		ps.respond(req, BorrowReply{Version: planVersion, Epoch: borrow.Epoch, Status: "invalid"})
+		return
+	}
+	if cached, ok := ps.dedupe.Get(borrow.RequestID); ok {
+		remaining := time.Until(cached.expiresAt)
+		if remaining <= 0 {
+			cached.reply.Paid = 0
+			cached.reply.Status = "stale"
+			cached.reply.RemainingMS = 0
+		} else {
+			cached.reply.RemainingMS = remaining.Milliseconds()
+		}
+		ps.respond(req, cached.reply)
 		return
 	}
 
-	// Dedupe cache check
-	if cached, ok := ps.dedupe.Get(br.RequestID); ok {
-		// Update remaining ms if we are serving from cache
-		if cached.RemainingMS > 0 {
-			cached.RemainingMS = br.DeadlineMS - nowMS
-		}
-		data, _ := json.Marshal(cached)
-		req.Respond(data)
+	reply := BorrowReply{Version: planVersion, Epoch: borrow.Epoch, Status: "invalid"}
+	if grantor := ps.grantor.Load(); grantor != nil {
+		reply = grantor.GrantPermit(now, borrow)
+	}
+	if reply.Paid != 0 {
+		expiresAt := now.Add(permitTTL)
+		reply.GrantID = nuid.Next()
+		reply.RemainingMS = permitTTL.Milliseconds()
+		ps.dedupe.SetWithTTL(borrow.RequestID, cachedGrant{reply: reply, expiresAt: expiresAt}, 1, permitTTL)
+	}
+	ps.respond(req, reply)
+}
+
+func (ps *PermitService) respond(req micro.Request, reply BorrowReply) {
+	data, err := sonic.Marshal(&reply)
+	if err != nil {
+		_ = req.Error("500", "encode failure", nil)
 		return
 	}
+	_ = req.Respond(data)
+}
 
-	reply := BorrowReply{
-		Version: 1,
-		Epoch:   br.Epoch,
-		Status:  "empty",
+var (
+	profileChatShared       = NewSpec(20, 20.0/30.0)
+	profileChatStandard     = NewSpec(10, 10.0/30.0)
+	profileChatModShared    = NewSpec(100, 100.0/30.0)
+	profileChatModStandard  = NewSpec(50, 50.0/30.0)
+	profileHelixShared      = NewSpec(700, 700.0/60.0)
+	profileHelixStandard    = NewSpec(350, 350.0/60.0)
+	profileHelixSystemShare = NewSpec(100, 100.0/60.0)
+)
+
+func specsForProfile(profile uint8) (shared, standard Spec, ok bool) {
+	switch profile {
+	case profileChat:
+		return profileChatShared, profileChatStandard, true
+	case profileChatMod:
+		return profileChatModShared, profileChatModStandard, true
+	case profileHelixGeneral:
+		return profileHelixShared, profileHelixStandard, true
+	case profileHelixSystem:
+		return profileHelixSystemShare, Spec{}, true
+	default:
+		return Spec{}, Spec{}, false
 	}
-
-	bucket, ok := ps.buckets.Get(br.Bucket)
-	if ok && bucket.Epoch() == br.Epoch && bucket.IsValid(now) {
-		var paid uint8
-		
-		// Attempt to satisfy Need Standard then Shared then System
-		// Attempt to satisfy Need Standard then Shared then System
-		if br.Need&NeedStandard != 0 && br.Need&NeedShared != 0 {
-			st, sh := bucket.TryStandard(now)
-			// Only grant if both were successfully paid, as standard requires both.
-			if st && sh {
-				paid |= NeedStandard
-				paid |= NeedShared
-			}
-		} else if br.Need&NeedStandard != 0 {
-			// Actually standard can only be tried with shared in our design, 
-			// but if they ask for just standard we can technically still try
-			// Note: LocalBucket has no TryStandardOnly, so we do not blindly call TryStandard
-			// to avoid wasting shared tokens.
-		} else if br.Need&NeedShared != 0 {
-			if bucket.TryPremium(now) {
-				paid |= NeedShared
-			}
-		}
-
-		if br.Need&NeedSystem != 0 {
-			// System is just TryPremium logic essentially
-			if bucket.TryPremium(now) {
-				paid |= NeedSystem
-			}
-		}
-
-		reply.Paid = paid
-		if paid == br.Need {
-			reply.Status = "granted"
-		} else if paid > 0 {
-			reply.Status = "partial"
-		}
-	} else if ok {
-		reply.Status = "stale"
-	} else {
-		reply.Status = "invalid" // don't own bucket
-	}
-
-	reply.GrantID = fmt.Sprintf("grant-%d", now.UnixNano())
-	reply.RemainingMS = br.DeadlineMS - nowMS
-
-	ps.dedupe.SetWithTTL(br.RequestID, reply, 1, 10*time.Second)
-
-	data, _ := json.Marshal(reply)
-	req.Respond(data)
 }
