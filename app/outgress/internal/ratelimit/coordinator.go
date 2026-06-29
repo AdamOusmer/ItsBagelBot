@@ -162,6 +162,14 @@ func (c *LeaseCoordinator) reconcile(ctx context.Context, activated, proposed *u
 }
 
 func (c *LeaseCoordinator) discoverMembers(ctx context.Context) ([]Member, error) {
+	// NATS FlushWithContext rejects a context without a deadline. The
+	// coordinator is driven by the service's long-lived root context, so bound
+	// the discovery exchange explicitly to the same window used to collect
+	// replies. A stalled NATS connection then defers this reconciliation instead
+	// of crashing startup or preventing every epoch proposal.
+	discoveryCtx, cancel := context.WithTimeout(ctx, c.config.DiscoveryWindow)
+	defer cancel()
+
 	subject, err := micro.ControlSubject(micro.InfoVerb, permitServiceName, "")
 	if err != nil {
 		return nil, err
@@ -178,7 +186,7 @@ func (c *LeaseCoordinator) discoverMembers(ctx context.Context) ([]Member, error
 	if err := c.nc.PublishRequest(subject, inbox, nil); err != nil {
 		return nil, err
 	}
-	if err := c.nc.FlushWithContext(ctx); err != nil {
+	if err := c.nc.FlushWithContext(discoveryCtx); err != nil {
 		return nil, err
 	}
 
