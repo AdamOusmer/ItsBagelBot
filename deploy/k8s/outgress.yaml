@@ -72,7 +72,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: outgress
-          image: ghcr.io/adamousmer/itsbagelbot/outgress:main-1782698579-d2e12055e850@sha256:55beef1d995dbd2b062c0d411a378b1cb107eddff6930ee4bb0df9076d25030a # {"$imagepolicy": "flux-system:outgress"}
+          image: ghcr.io/adamousmer/itsbagelbot/outgress:main-1782764808-ea212e07444a@sha256:c120c0837c76892bfdd5219239d7aeb5608d0e8fd04d21ec8340e8dc0b66cf2b # {"$imagepolicy": "flux-system:outgress"}
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST
@@ -106,10 +106,10 @@ spec:
               value: "25"
             - name: OUTGRESS_SYSTEM_WORKERS
               value: "4"
-            # Lease config (OUTGRESS_REGION is required; OUTGRESS_LEASE_MIN_MEMBERS,
-            # OUTGRESS_LEASE_REPLICAS, OUTGRESS_LEASE_EPOCH, ...) is supplied by
-            # outgress-env via Doppler so it can be tuned without a manifest change.
-            # Do not set it here: an explicit env value would override the secret.
+              # Lease config (OUTGRESS_REGION is required; OUTGRESS_LEASE_MIN_MEMBERS,
+              # OUTGRESS_LEASE_REPLICAS, OUTGRESS_LEASE_EPOCH, ...) is supplied by
+              # outgress-env via Doppler so it can be tuned without a manifest change.
+              # Do not set it here: an explicit env value would override the secret.
           envFrom:
             - secretRef:
                 name: outgress-env
