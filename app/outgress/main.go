@@ -51,11 +51,12 @@ func main() {
 	defer stop()
 
 	cfg := config.Load()
-	// The quota-lease protocol is the sole rate-limit implementation. Every pod
-	// must declare a stable geographic region so peer borrowing prefers nearby
-	// donors; a missing region would silently classify every peer as remote.
-	if _, explicit := os.LookupEnv("OUTGRESS_REGION"); !explicit {
-		log.Fatal("OUTGRESS_REGION is required")
+	// The deployment supplies a stable locality for the quota-lease protocol.
+	// Keep the config fallback usable so a missing optional tuning value cannot
+	// turn an otherwise healthy outgress rollout into a fleet-wide outage.
+	if os.Getenv("OUTGRESS_REGION") == "" {
+		log.Warn("OUTGRESS_REGION is unset; using fallback locality",
+			zap.String("rate_region", cfg.RateRegion))
 	}
 	if err := worker.PrepareJSON(); err != nil {
 		log.Warn("failed to precompile outgress JSON decoders", zap.Error(err))
