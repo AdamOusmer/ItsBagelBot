@@ -1,6 +1,7 @@
 package main
 
 import (
+	"ItsBagelBot/app/plain/internal/config"
 	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/logger"
 	"ItsBagelBot/pkg/monitor"
