@@ -106,10 +106,19 @@ spec:
               value: "25"
             - name: OUTGRESS_SYSTEM_WORKERS
               value: "4"
-              # Lease config (OUTGRESS_REGION is required; OUTGRESS_LEASE_MIN_MEMBERS,
-              # OUTGRESS_LEASE_REPLICAS, OUTGRESS_LEASE_EPOCH, ...) is supplied by
-              # outgress-env via Doppler so it can be tuned without a manifest change.
-              # Do not set it here: an explicit env value would override the secret.
+            # Use the scheduled node as the conservative locality boundary.
+            # Kubernetes cannot expose a node topology label through the
+            # downward API, and the fleet intentionally runs one outgress pod
+            # per node. Distinct node localities therefore use the safe remote
+            # peer-borrow timeout instead of misclassifying WAN peers as local.
+            # This is operational identity, not a secret, so do not make pod
+            # startup depend on Doppler carrying it.
+            - name: OUTGRESS_REGION
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            # Remaining lease tuning (minimum members, replicas, epoch, etc.)
+            # may be supplied by outgress-env via Doppler.
           envFrom:
             - secretRef:
                 name: outgress-env
