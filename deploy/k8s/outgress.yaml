@@ -106,6 +106,10 @@ spec:
               value: "25"
             - name: OUTGRESS_SYSTEM_WORKERS
               value: "4"
+            # Lease config (OUTGRESS_REGION is required; OUTGRESS_LEASE_MIN_MEMBERS,
+            # OUTGRESS_LEASE_REPLICAS, OUTGRESS_LEASE_EPOCH, ...) is supplied by
+            # outgress-env via Doppler so it can be tuned without a manifest change.
+            # Do not set it here: an explicit env value would override the secret.
           envFrom:
             - secretRef:
                 name: outgress-env

@@ -1,67 +1,36 @@
 package ratelimit
 
 import (
-	"crypto/sha256"
-	"encoding/binary"
+	"sort"
+
+	"github.com/cespare/xxhash/v2"
 )
 
-// RendezvousHash returns a score for (key, epoch, member).
-func RendezvousHash(key string, epoch uint64, memberID string) uint64 {
-	h := sha256.New()
-	h.Write([]byte(key))
-	
-	var epochBytes [8]byte
-	binary.LittleEndian.PutUint64(epochBytes[:], epoch)
-	h.Write(epochBytes[:])
-	
-	h.Write([]byte(memberID))
-	
-	sum := h.Sum(nil)
-	return binary.LittleEndian.Uint64(sum[:8])
+func membershipGeneration(members []Member) uint64 {
+	ordered := append([]Member(nil), members...)
+	sort.Slice(ordered, func(i, j int) bool { return ordered[i].PodID < ordered[j].PodID })
+	hash := xxhash.New()
+	separator := [1]byte{0}
+	for _, member := range ordered {
+		_, _ = hash.WriteString(member.PodID)
+		_, _ = hash.Write(separator[:])
+		_, _ = hash.WriteString(member.Region)
+		_, _ = hash.Write(separator[:])
+	}
+	generation := hash.Sum64()
+	if generation == 0 {
+		generation = 1
+	}
+	return generation
 }
 
-// AssignChatOwner uses rendezvous hashing to pick one owner.
-func AssignChatOwner(bucket string, epoch uint64, members []Member) string {
-	if len(members) == 0 {
-		return ""
-	}
-	bestMember := members[0].PodID
-	var maxScore uint64
-
-	for _, m := range members {
-		score := RendezvousHash(bucket, epoch, m.PodID)
-		if score > maxScore || (score == maxScore && m.PodID > bestMember) {
-			maxScore = score
-			bestMember = m.PodID
-		}
-	}
-	return bestMember
-}
-
-// BuildPlan creates a new plan for the epoch.
-// For shadow mode, this just implements the chat bucket layout logic.
-func BuildPlan(epoch uint64, validFromMS, validUntilMS int64, members []Member, chatBuckets []string) (*Plan, error) {
+func BuildPlan(epoch uint64, validFromMS, validUntilMS int64, members []Member) (*Plan, error) {
+	ordered := append([]Member(nil), members...)
+	sort.Slice(ordered, func(i, j int) bool { return ordered[i].PodID < ordered[j].PodID })
 	plan := &Plan{
-		Version:      1,
-		Epoch:        epoch,
-		ValidFromMS:  validFromMS,
-		ValidUntilMS: validUntilMS,
-		Members:      members,
+		Version: planVersion, Epoch: epoch, Generation: membershipGeneration(ordered),
+		ValidFromMS: validFromMS, ValidUntilMS: validUntilMS, Members: ordered,
 	}
-
-	for _, bucket := range chatBuckets {
-		owner := AssignChatOwner(bucket, epoch, members)
-		plan.Allocations = append(plan.Allocations, Allocation{
-			Bucket:     bucket,
-			Holder:     owner,
-			Generation: epoch, // Using epoch as generation for simplicity in shadow mode
-			RateMicros: int64(20.0 / 30.0 * 1000000 * 0.9), // 90% leased (20 per 30s)
-			Burst:      int(20.0 * 0.9),
-		})
-	}
-	
-	// Helix allocations would be added similarly
-
 	if err := plan.ComputeDigest(); err != nil {
 		return nil, err
 	}

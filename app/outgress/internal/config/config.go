@@ -81,7 +81,12 @@ type Config struct {
 	// projector's NATS_SUBJECT_LANE_STREAM.
 	StreamLaneSubject string
 
-	RateMode string
+	RateRegion          string
+	LeaseEpoch          time.Duration
+	LeaseGuard          time.Duration
+	LeaseMinMembers     int
+	LeaseReplicas       int
+	LeaseReplicaTimeout time.Duration
 }
 
 func Load() *Config {
@@ -112,6 +117,11 @@ func Load() *Config {
 		ScaleDownAfter:        env.GetDuration("OUTGRESS_SCALE_DOWN_AFTER", 30*time.Second),
 		PremiumReserve:        env.GetInt("OUTGRESS_PREMIUM_RESERVE_PERCENT", 25),
 		SystemWorkers:         env.GetInt("OUTGRESS_SYSTEM_WORKERS", 2),
-		RateMode:              env.Get("OUTGRESS_RATE_MODE", "central"),
+		RateRegion:            env.Get("OUTGRESS_REGION", "local"),
+		LeaseEpoch:            env.GetDuration("OUTGRESS_LEASE_EPOCH", 30*time.Second),
+		LeaseGuard:            env.GetDuration("OUTGRESS_LEASE_GUARD", 250*time.Millisecond),
+		LeaseMinMembers:       env.GetInt("OUTGRESS_LEASE_MIN_MEMBERS", 1),
+		LeaseReplicas:         env.GetInt("OUTGRESS_LEASE_REPLICAS", 0),
+		LeaseReplicaTimeout:   env.GetDuration("OUTGRESS_LEASE_REPLICA_TIMEOUT", 2*time.Second),
 	}
 }
