@@ -9,6 +9,15 @@ import (
 	"golang.org/x/time/rate"
 )
 
+type countingBorrower struct {
+	calls int
+}
+
+func (b *countingBorrower) Borrow(_ context.Context, _ Member, request BorrowRequest) (BorrowReply, error) {
+	b.calls++
+	return BorrowReply{Version: planVersion, Epoch: request.Epoch, Paid: request.Need, Status: "granted"}, nil
+}
+
 func activeTestPlan(t *testing.T, members []Member, generation uint64) (Plan, time.Time) {
 	t.Helper()
 	now := time.Now()
@@ -91,6 +100,35 @@ func TestPremiumCreatedBucketCanServeStandardTraffic(t *testing.T) {
 	standard, shared := manager.tryLocalStandard(later, manager.plan.Load(), bucketID, profileChat)
 	if !standard || !shared {
 		t.Fatal("standard traffic could not use a premium-created bucket")
+	}
+}
+
+func TestColdChatBucketSkipsPeerBorrowOnce(t *testing.T) {
+	borrower := &countingBorrower{}
+	manager := NewLeaseManager(nil, NewBucketStore(16), borrower, WithLeaseIdentity("local", "pod-a"))
+	plan, now := activeTestPlan(t, []Member{
+		{PodID: "pod-a", Region: "local"},
+		{PodID: "pod-b", Region: "remote"},
+	}, 21)
+	if err := manager.ActivatePlan(plan, now, now, 0); err != nil {
+		t.Fatal(err)
+	}
+	req := profileChatShared.ForDynamicKey("ratelimit:chat:", "chat", "123")
+
+	allowed, err := manager.allowAt(context.Background(), &req, now)
+	if err != nil || allowed {
+		t.Fatalf("cold emergency decision = %v, %v; want denied without central limiter", allowed, err)
+	}
+	if borrower.calls != 0 {
+		t.Fatalf("cold bucket made %d peer calls, want 0", borrower.calls)
+	}
+
+	allowed, err = manager.allowAt(context.Background(), &req, now)
+	if err != nil || !allowed {
+		t.Fatalf("warm peer decision = %v, %v; want granted", allowed, err)
+	}
+	if borrower.calls != 1 {
+		t.Fatalf("warm bucket made %d peer calls, want 1", borrower.calls)
 	}
 }
 

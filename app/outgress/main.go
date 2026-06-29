@@ -147,6 +147,21 @@ func main() {
 	tw := twitch.NewClient(cfg.TwitchClientID, appTokens, userTokens, broadcasterTokens)
 	defer tw.CloseIdleConnections()
 
+	// Token minting, DNS/TLS and the first HTTP/2 handshake used to land on the
+	// first real chat message handled by each new pod. Pay that cold-start cost
+	// before consumers and readiness come online. A transient Twitch outage must
+	// not crash-loop the service, so the bounded warmup degrades to a warning.
+	warmupStarted := time.Now()
+	warmupCtx, warmupCancel := context.WithTimeout(ctx, 8*time.Second)
+	warmupErr := tw.Warmup(warmupCtx)
+	warmupCancel()
+	if warmupErr != nil {
+		log.Warn("twitch warmup failed; continuing with lazy retry",
+			zap.Duration("duration", time.Since(warmupStarted)), zap.Error(warmupErr))
+	} else {
+		log.Info("twitch client warmed", zap.Duration("duration", time.Since(warmupStarted)))
+	}
+
 	conduitResolver := conduit.New(nc, cfg.ConduitSubject, cfg.TwitchConduitID, 60*time.Second, log.Named("conduit"))
 
 	// Stable pod identity is used only for lease membership and targeted permits;

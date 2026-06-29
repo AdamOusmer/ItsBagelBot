@@ -64,6 +64,22 @@ func NewClient(clientID string, app, user *Source, broadcasters *BroadcasterToke
 	}
 }
 
+// Warmup mints the app token and establishes a reusable Twitch connection
+// before queue consumers become ready. The read-only request is deliberately
+// tiny; its response is drained so HTTP/1.1 transports can reuse the socket.
+func (c *Client) Warmup(ctx context.Context) error {
+	res, err := c.request(ctx, c.app, http.MethodGet, "/helix/streams?first=1", nil)
+	if err != nil {
+		return err
+	}
+	defer drain(res)
+	if res.StatusCode < http.StatusOK || res.StatusCode >= http.StatusMultipleChoices {
+		body, _ := io.ReadAll(io.LimitReader(res.Body, 2048))
+		return &StatusError{Status: res.StatusCode, Body: string(body)}
+	}
+	return nil
+}
+
 func newHTTPClient() *http.Client {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.MaxIdleConns = maxIdleConnections
