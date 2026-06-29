@@ -277,10 +277,9 @@ func (w *Worker) processChat(ctx context.Context, payload outgress.Message) erro
 		standardSpec = chatModStandardSpec
 	}
 
-	// The standard lane pays its restricted bucket first: if the shared
-	// bucket then rejects, the wasted token only makes standard traffic more
-	// conservative, while the reverse order would let it drain tokens the
-	// premium lane is entitled to.
+	// The standard lane is constrained by BOTH a restricted standard bucket and the shared bucket.
+	// We use takeOrdered to atomically check and consume both. A denial on either bucket
+	// leaves both buckets untouched, avoiding token waste during retry storms.
 	shared := sharedSpec.ForKey("ratelimit:chat:" + payload.BroadcasterID)
 	if w.lane == LaneStandard {
 		standard := standardSpec.ForKey("ratelimit:chat:standard:" + payload.BroadcasterID)

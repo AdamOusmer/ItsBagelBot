@@ -125,21 +125,19 @@ func (ps *PermitService) handleRequest(req micro.Request) {
 		var paid uint8
 		
 		// Attempt to satisfy Need Standard then Shared then System
+		// Attempt to satisfy Need Standard then Shared then System
 		if br.Need&NeedStandard != 0 && br.Need&NeedShared != 0 {
 			st, sh := bucket.TryStandard(now)
-			if st {
+			// Only grant if both were successfully paid, as standard requires both.
+			if st && sh {
 				paid |= NeedStandard
-			}
-			if sh {
 				paid |= NeedShared
 			}
 		} else if br.Need&NeedStandard != 0 {
 			// Actually standard can only be tried with shared in our design, 
 			// but if they ask for just standard we can technically still try
-			st, _ := bucket.TryStandard(now)
-			if st {
-				paid |= NeedStandard
-			}
+			// Note: LocalBucket has no TryStandardOnly, so we do not blindly call TryStandard
+			// to avoid wasting shared tokens.
 		} else if br.Need&NeedShared != 0 {
 			if bucket.TryPremium(now) {
 				paid |= NeedShared
