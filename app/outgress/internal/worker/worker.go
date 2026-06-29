@@ -120,17 +120,18 @@ type helixRoute struct {
 //   - ad/commercial: the broadcaster starts the ad (channel:edit:commercial).
 //   - clip:        the broadcaster's grant creates the clip (clips:edit).
 var typeRoutes = map[string]helixRoute{
-	outgress.TypeChat:       {http.MethodPost, "/helix/chat/messages", ""},
+	outgress.TypeChat:       {http.MethodPost, "/helix/chat/messages", outgress.AsApp},
 	outgress.TypeBan:        {http.MethodPost, "/helix/moderation/bans", outgress.AsBot},
 	outgress.TypeTimeout:    {http.MethodPost, "/helix/moderation/bans", outgress.AsBot},
 	outgress.TypeUnban:      {http.MethodDelete, "/helix/moderation/bans", outgress.AsBot},
 	outgress.TypeAd:         {http.MethodPost, "/helix/channels/commercial", outgress.AsBroadcaster},
 	outgress.TypeCommercial: {http.MethodPost, "/helix/channels/commercial", outgress.AsBroadcaster},
 	outgress.TypeClip:       {http.MethodPost, "/helix/clips", outgress.AsBroadcaster},
-	// Chat actions use the bot token so the bot badge appears in chat. Twitch
-	// requires a user access token for the badge; the app token would hide it.
-	outgress.TypeAnnounce: {http.MethodPost, "/helix/chat/announcements", outgress.AsBot},
-	outgress.TypeShoutout: {http.MethodPost, "/helix/chat/shoutouts", outgress.AsBot},
+	// Cloud-bot chat actions use the app token. Twitch only awards the Chat Bot
+	// badge to Send Chat Message calls made with an app access token, backed by
+	// the bot's user:bot/action grants and the broadcaster's channel:bot grant.
+	outgress.TypeAnnounce: {http.MethodPost, "/helix/chat/announcements", outgress.AsApp},
+	outgress.TypeShoutout: {http.MethodPost, "/helix/chat/shoutouts", outgress.AsApp},
 }
 
 type Worker struct {
@@ -439,7 +440,7 @@ func (w *Worker) processAnnounce(ctx context.Context, payload outgress.Message) 
 		color = "primary"
 	}
 
-	payload.As = outgress.AsBot
+	payload.As = outgress.AsApp
 	payload.Method = http.MethodPost
 	payload.Endpoint = "/helix/chat/announcements?broadcaster_id=" +
 		url.QueryEscape(payload.BroadcasterID) + "&moderator_id=" + url.QueryEscape(mod)
@@ -509,7 +510,7 @@ func (w *Worker) processShoutout(ctx context.Context, payload outgress.Message) 
 		return err
 	}
 
-	payload.As = outgress.AsBot
+	payload.As = outgress.AsApp
 	payload.Method = http.MethodPost
 	payload.Endpoint = shoutoutEndpoint(payload.BroadcasterID, toID, mod)
 	payload.Payload = nil
