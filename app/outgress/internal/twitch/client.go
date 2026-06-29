@@ -110,12 +110,11 @@ func (c *Client) Do(ctx context.Context, method, endpoint string, body []byte) (
 
 // userScopedPrefixes are Helix path prefixes that must run under the bot's USER
 // token rather than the app token, because they read or act in a moderator/user
-// context the app token cannot satisfy. Chat sends ride the bot token so the
-// bot badge appears in chat.
+// context the app token cannot satisfy. Cloud-bot chat sends are intentionally
+// absent: Twitch requires the app token for the Chat Bot badge.
 var userScopedPrefixes = []string{
 	"/helix/moderation/",        // moderated channels, bans, etc.
 	"/helix/chat/chatters",      // moderator:read:chatters
-	"/helix/chat/messages",      // send chat message (needs bot user token for bot badge)
 	"/helix/channels/followers", // moderator:read:followers
 }
 
