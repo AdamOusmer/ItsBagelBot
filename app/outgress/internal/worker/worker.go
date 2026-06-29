@@ -14,6 +14,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -28,6 +29,7 @@ import (
 	"ItsBagelBot/pkg/cache"
 
 	"github.com/ThreeDotsLabs/watermill/message"
+	"github.com/bytedance/sonic"
 	"github.com/newrelic/go-agent/v3/newrelic"
 
 	"go.uber.org/zap"
@@ -171,10 +173,47 @@ func New(log *zap.Logger, limiter ratelimit.Manager, registry *channels.Registry
 	}
 }
 
+// wireMessage keeps the nested payload as a zero-copy view into Watermill's
+// message buffer. The buffer remains owned for the whole synchronous handler.
+type wireMessage struct {
+	Type          string                 `json:"type"`
+	BroadcasterID string                 `json:"broadcaster_id"`
+	SenderID      string                 `json:"sender_id"`
+	Endpoint      string                 `json:"endpoint"`
+	Method        string                 `json:"method"`
+	Payload       sonic.NoCopyRawMessage `json:"payload"`
+	As            string                 `json:"as,omitempty"`
+	Color         string                 `json:"color,omitempty"`
+	To            string                 `json:"to,omitempty"`
+}
+
+// PrepareJSON compiles Sonic's decoders during startup rather than on the first
+// latency-sensitive message.
+func PrepareJSON() error {
+	return sonic.PretouchMany([]reflect.Type{
+		reflect.TypeOf(wireMessage{}),
+		reflect.TypeOf(outgress.EventSubJob{}),
+		reflect.TypeOf(outgress.StreamStatusJob{}),
+	})
+}
+
+func decodeMessage(data []byte, destination *outgress.Message) error {
+	var wire wireMessage
+	if err := sonic.ConfigFastest.Unmarshal(data, &wire); err != nil {
+		return err
+	}
+	*destination = outgress.Message{
+		Type: wire.Type, BroadcasterID: wire.BroadcasterID, SenderID: wire.SenderID,
+		Endpoint: wire.Endpoint, Method: wire.Method, Payload: json.RawMessage(wire.Payload),
+		As: wire.As, Color: wire.Color, To: wire.To,
+	}
+	return nil
+}
+
 func (w *Worker) Process(msg *message.Message) error {
 
 	var payload outgress.Message
-	if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+	if err := decodeMessage(msg.Payload, &payload); err != nil {
 		w.log.Error("dropping malformed outgress message", zap.Error(err))
 		if txn := newrelic.FromContext(msg.Context()); txn != nil {
 			txn.NoticeError(err)
@@ -278,9 +317,9 @@ func (w *Worker) processChat(ctx context.Context, payload outgress.Message) erro
 	// The standard lane is constrained by BOTH a restricted standard bucket and the shared bucket.
 	// We use takeOrdered to atomically check and consume both. A denial on either bucket
 	// leaves both buckets untouched, avoiding token waste during retry storms.
-	shared := sharedSpec.ForKey("ratelimit:chat:" + payload.BroadcasterID)
+	shared := sharedSpec.ForDynamicKey("ratelimit:chat:", "chat", payload.BroadcasterID)
 	if w.lane == LaneStandard {
-		standard := standardSpec.ForKey("ratelimit:chat:standard:" + payload.BroadcasterID)
+		standard := standardSpec.ForDynamicKey("ratelimit:chat:standard:", "chat:standard", payload.BroadcasterID)
 		if err := w.takeOrdered(ctx, standard, shared); err != nil {
 			return err
 		}
@@ -504,7 +543,7 @@ func (w *Worker) processEventSub(ctx context.Context, payload outgress.Message) 
 	}
 
 	var job outgress.EventSubJob
-	if err := json.Unmarshal(payload.Payload, &job); err != nil {
+	if err := sonic.Unmarshal(payload.Payload, &job); err != nil {
 		w.log.Error("dropping malformed eventsub job", zap.Error(err))
 		if txn := newrelic.FromContext(ctx); txn != nil {
 			txn.NoticeError(err)

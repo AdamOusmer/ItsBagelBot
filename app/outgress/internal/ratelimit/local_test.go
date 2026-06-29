@@ -11,13 +11,13 @@ import (
 func TestLocalBucket_Update_StartsEmpty(t *testing.T) {
 	b := NewLocalBucket()
 	now := time.Now()
-	
-	b.Update(now, 1, "pod1", now.Add(-time.Second), now.Add(time.Second), rate.Limit(10), 10, rate.Limit(5), 5)
+
+	b.Update(now, 1, 1, "pod1", now.Add(-time.Second), now.Add(time.Second), rate.Limit(10), 10, rate.Limit(5), 5)
 
 	// Since it's a new holder, it should be drained immediately
 	// TryPremium should fail because 10 burst was drained
 	assert.False(t, b.TryPremium(now), "Expected premium to be empty upon creation")
-	
+
 	st, sh := b.TryStandard(now)
 	assert.False(t, st, "Expected standard to be empty upon creation")
 	assert.False(t, sh)
@@ -30,9 +30,9 @@ func TestLocalBucket_Update_StartsEmpty(t *testing.T) {
 func TestLocalBucket_TryStandard_Fallback(t *testing.T) {
 	b := NewLocalBucket()
 	now := time.Now()
-	
-	b.Update(now, 1, "pod1", now.Add(-time.Second), now.Add(time.Hour), rate.Limit(10), 10, rate.Limit(5), 5)
-	
+
+	b.Update(now, 1, 1, "pod1", now.Add(-time.Second), now.Add(time.Hour), rate.Limit(10), 10, rate.Limit(5), 5)
+
 	// let it refill to full
 	later := now.Add(2 * time.Second)
 
@@ -59,7 +59,7 @@ func TestLocalBucket_Validity(t *testing.T) {
 	notBefore := now.Add(time.Second)
 	notAfter := now.Add(2 * time.Second)
 
-	b.Update(now, 1, "pod1", notBefore, notAfter, rate.Limit(10), 10, rate.Limit(5), 5)
+	b.Update(now, 1, 1, "pod1", notBefore, notAfter, rate.Limit(10), 10, rate.Limit(5), 5)
 
 	// Too early
 	assert.False(t, b.TryPremium(now))
@@ -80,14 +80,14 @@ func TestLocalBucket_Renew(t *testing.T) {
 	b := NewLocalBucket()
 	now := time.Now()
 
-	b.Update(now, 1, "pod1", now.Add(-time.Second), now.Add(time.Second), rate.Limit(10), 10, rate.Limit(5), 5)
-	
+	b.Update(now, 1, 1, "pod1", now.Add(-time.Second), now.Add(time.Second), rate.Limit(10), 10, rate.Limit(5), 5)
+
 	// Fast forward to get some tokens
 	later := now.Add(500 * time.Millisecond)
-	
-	b.Renew(2, later.Add(time.Second))
+
+	b.Renew(2, now, later.Add(time.Second))
 	assert.Equal(t, uint64(2), b.Epoch())
-	
+
 	// Ensure tokens are still available (didn't reset)
 	assert.True(t, b.TryPremium(later))
 }
@@ -96,13 +96,13 @@ func TestLocalBucket_Resize(t *testing.T) {
 	b := NewLocalBucket()
 	now := time.Now()
 
-	b.Update(now, 1, "pod1", now.Add(-time.Second), now.Add(time.Hour), rate.Limit(10), 10, rate.Limit(5), 5)
-	
+	b.Update(now, 1, 1, "pod1", now.Add(-time.Second), now.Add(time.Hour), rate.Limit(10), 10, rate.Limit(5), 5)
+
 	later := now.Add(time.Second)
-	
+
 	// Update with new rate/burst, but same holder. Should not drain tokens.
-	b.Update(later, 2, "pod1", later, later.Add(time.Hour), rate.Limit(20), 20, rate.Limit(10), 10)
-	
+	b.Update(later, 2, 1, "pod1", later, later.Add(time.Hour), rate.Limit(20), 20, rate.Limit(10), 10)
+
 	// Tokens should be available immediately
 	assert.True(t, b.TryPremium(later))
 }
