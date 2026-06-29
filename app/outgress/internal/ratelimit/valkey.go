@@ -74,21 +74,20 @@ for i = 1, count do
         denied = i
         break
     end
-    states[i].tokens = states[i].tokens - 1
 end
 
--- Match the old sequential behavior exactly: a denial updates that bucket and
--- every preceding bucket, while later buckets remain untouched.
-local write_count = count
 if denied ~= 0 then
-    write_count = denied
+    -- Atomic evaluation: if any bucket denies, do not consume tokens from any bucket.
+    return denied
 end
-for i = 1, write_count do
+
+for i = 1, count do
+    states[i].tokens = states[i].tokens - 1
     redis.call("HSET", KEYS[i], "tokens", states[i].tokens, "last_ms", now_ms)
     redis.call("EXPIRE", KEYS[i], states[i].ttl_s)
 end
 
-return denied
+return 0
 `
 
 // Spec is the stable, pre-encoded part of a token bucket. Construct specs once

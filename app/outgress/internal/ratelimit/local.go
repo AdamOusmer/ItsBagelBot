@@ -86,7 +86,7 @@ func (b *LocalBucket) TryPremium(now time.Time) bool {
 // TryStandard attempts to consume a token from the standard bucket first,
 // and if successful, attempts to consume a token from the shared bucket.
 // It returns two booleans: (standardPaid, sharedPaid).
-// If shared denies, the standard token remains consumed.
+// If the shared bucket denies the request, no tokens are consumed from either bucket.
 func (b *LocalBucket) TryStandard(now time.Time) (bool, bool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -99,13 +99,20 @@ func (b *LocalBucket) TryStandard(now time.Time) (bool, bool) {
 		return false, false
 	}
 
-	standardPaid := b.standard.AllowN(now, 1)
-	if !standardPaid {
-		return false, false
+	// Atomic check: ensure both buckets have capacity BEFORE consuming.
+	if b.standard.TokensAt(now) < 1.0 {
+		return false, false // standard denied
+	}
+	if b.shared.TokensAt(now) < 1.0 {
+		// standard has capacity but shared does not, so NO tokens are consumed.
+		// return (true, false) to communicate the exact denial reason (shared bucket).
+		return true, false
 	}
 
-	sharedPaid := b.shared.AllowN(now, 1)
-	return true, sharedPaid
+	// Both have capacity, consume both.
+	_ = b.standard.AllowN(now, 1)
+	_ = b.shared.AllowN(now, 1)
+	return true, true
 }
 
 // IsValid checks if the bucket is active for the given time.
