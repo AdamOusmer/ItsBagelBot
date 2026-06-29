@@ -71,7 +71,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: transactions
-          image: ghcr.io/adamousmer/itsbagelbot/transactions:main-1782698579-d2e12055e850@sha256:7772c12a407069db8e0960c04f5d2ad241c5640c5053adcbf2ade91bf3b8efb8 # {"$imagepolicy": "flux-system:transactions"}
+          image: ghcr.io/adamousmer/itsbagelbot/transactions:main-1782764808-ea212e07444a@sha256:14a55102049beb00974b6688979995cac196b3637b44bc5cce689b8beee5a186 # {"$imagepolicy": "flux-system:transactions"}
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST
