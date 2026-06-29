@@ -47,9 +47,10 @@ func newRouter(resp, perm string) *CommandRouter {
 func chatCtx(badgeRole string) *Context {
 	env := lane.Envelope{
 		Type:              "channel.chat.message",
-		Text:              "!so",
+		Text:              "!so @bob raid incoming",
 		BroadcasterUserID: "123",
 		ChatterUserID:     "999",
+		ChatterUserLogin:  "alice",
 	}
 	if badgeRole != "" {
 		env.Badges = []lane.Badge{{SetID: badgeRole}}
@@ -66,14 +67,14 @@ func collect(r *CommandRouter, c *Context) []Output {
 // TestCustomAnnounceAllowedForEveryone asserts that a perm=everyone custom command
 // whose response is "/announce ..." lets any viewer trigger an announce output.
 func TestCustomAnnounceAllowedForEveryone(t *testing.T) {
-	r := newRouter("/announce raid incoming", "everyone")
+	r := newRouter("/announce {user} says: {args}; target={target}", "everyone")
 
 	// everyone chatter: announce goes through.
 	got := collect(r, chatCtx(""))
 	require.Len(t, got, 1)
 	assert.Equal(t, outgress.TypeAnnounce, got[0].Type)
 	assert.Equal(t, "primary", got[0].Color)
-	assert.Equal(t, "raid incoming", got[0].Text)
+	assert.Equal(t, "alice says: @bob raid incoming; target=bob", got[0].Text)
 }
 
 // TestCustomAnnounceEmptySkipped: a "/announce" with no text leaves an empty

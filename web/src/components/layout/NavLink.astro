@@ -2,13 +2,19 @@
 interface Props {
     href: string;
     label: string;
+    active?: boolean;
 }
 
-const { href, label } = Astro.props;
+const { href, label, active = false } = Astro.props;
 const glyphs = Array.from(label);
 ---
 
-<a class="nav-link-motion" href={href} aria-label={label}>
+<a
+    class:list={["nav-link-motion", { "is-active": active }]}
+    href={href}
+    aria-label={label}
+    aria-current={active ? "page" : undefined}
+>
     <span class="nav-link-motion__mask" aria-hidden="true">
         <span class="nav-link-motion__line nav-link-motion__line--rest">
             {glyphs.map((glyph, index) => (
@@ -119,6 +125,16 @@ const glyphs = Array.from(label);
     .nav-link-motion:focus-visible {
         outline: 1px solid rgba(224, 196, 154, 0.58);
         outline-offset: 6px;
+    }
+
+    /* Active route: persistent colour + lit underline */
+    .nav-link-motion.is-active {
+        color: var(--nav-link-text-active);
+    }
+
+    .nav-link-motion.is-active::before {
+        opacity: 1;
+        transform: scaleX(1);
     }
 
     @media (min-width: 1024px) and (hover: hover) and (pointer: fine) {

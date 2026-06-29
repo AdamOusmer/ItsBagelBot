@@ -19,6 +19,29 @@
     --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
     --ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
 
+    /* Shape scale */
+    --radius-card: 16px;
+    --radius-sm: 6px;
+    --radius-pill: 100px;
+
+    /* Spacing rhythm (shared by every section) */
+    --space-section: clamp(72px, 10vw, 120px);
+    --space-section-sm: clamp(56px, 8vw, 88px);
+
+    /* Content widths */
+    --content-max: 1200px;
+    --content-narrow: 720px;
+    --content-text: 68ch;
+
+    /* Glow accents (echo the hero orbs) */
+    --glow-tan: rgba(201, 168, 124, 0.18);
+    --glow-green: rgba(82, 183, 136, 0.16);
+
+    /* Scroll-reveal */
+    --reveal-distance: 24px;
+    --reveal-duration: 760ms;
+    --reveal-step: 80ms;
+
 }
 
 
@@ -107,6 +130,45 @@ button {
     background: none;
     border: none;
     cursor: pointer;
+}
+
+/* ── Scroll reveal (shared entrance for every section) ── */
+
+[data-reveal] {
+    opacity: 0;
+    transform: translateY(var(--reveal-distance, 24px));
+    transition:
+        opacity var(--reveal-duration, 760ms) var(--ease-out-expo),
+        transform var(--reveal-duration, 760ms) var(--ease-out-expo);
+    transition-delay: calc(var(--reveal-i, 0) * var(--reveal-step, 80ms));
+    will-change: opacity, transform;
+}
+
+[data-reveal].is-revealed {
+    opacity: 1;
+    transform: none;
+    will-change: auto;
+}
+
+/* ── Magnetic pull (primary CTAs) ── */
+
+[data-magnetic] {
+    display: inline-block;
+    translate: var(--magnetic-x, 0px) var(--magnetic-y, 0px);
+    transition: translate 450ms var(--ease-out-expo);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    [data-reveal] {
+        opacity: 1;
+        transform: none;
+        transition: none;
+    }
+
+    [data-magnetic] {
+        translate: none;
+        transition: none;
+    }
 }
 
 /* Global Styles */

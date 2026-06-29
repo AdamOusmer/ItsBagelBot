@@ -18,6 +18,14 @@ import (
 
 const apiBase = "https://api.twitch.tv"
 
+const (
+	// One outgress pod can run many request goroutines. HTTP/1.1's default of
+	// two idle connections per host causes needless connection churn after a
+	// burst; HTTP/2 simply multiplexes over fewer connections.
+	maxIdleConnections        = 256
+	maxIdleConnectionsPerHost = 192
+)
+
 // ErrNoUserToken marks calls that need the bot's user token when none is
 // configured. Callers treat it as "cannot verify", not as a failure.
 var ErrNoUserToken = errors.New("no bot user token configured")
@@ -48,13 +56,24 @@ type Client struct {
 
 func NewClient(clientID string, app, user *Source, broadcasters *BroadcasterTokens) *Client {
 	return &Client{
-		http:         &http.Client{Timeout: 10 * time.Second},
+		http:         newHTTPClient(),
 		clientID:     clientID,
 		app:          app,
 		user:         user,
 		broadcasters: broadcasters,
 	}
 }
+
+func newHTTPClient() *http.Client {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.MaxIdleConns = maxIdleConnections
+	transport.MaxIdleConnsPerHost = maxIdleConnectionsPerHost
+	transport.ForceAttemptHTTP2 = true
+	return &http.Client{Transport: transport, Timeout: 10 * time.Second}
+}
+
+// CloseIdleConnections releases pooled Twitch connections during shutdown.
+func (c *Client) CloseIdleConnections() { c.http.CloseIdleConnections() }
 
 // Identity names whose token a job runs under. IdentityAuto keeps the
 // endpoint-based routing (sourceFor); the rest are explicit producer choices
@@ -91,12 +110,12 @@ func (c *Client) Do(ctx context.Context, method, endpoint string, body []byte) (
 
 // userScopedPrefixes are Helix path prefixes that must run under the bot's USER
 // token rather than the app token, because they read or act in a moderator/user
-// context the app token cannot satisfy. Chat sends (/helix/chat/messages) are
-// deliberately absent: Twitch honors the bot's user:bot grant plus the
-// broadcaster's channel:bot grant for the sender, so they ride the app token.
+// context the app token cannot satisfy. Chat sends ride the bot token so the
+// bot badge appears in chat.
 var userScopedPrefixes = []string{
 	"/helix/moderation/",        // moderated channels, bans, etc.
 	"/helix/chat/chatters",      // moderator:read:chatters
+	"/helix/chat/messages",      // send chat message (needs bot user token for bot badge)
 	"/helix/channels/followers", // moderator:read:followers
 }
 

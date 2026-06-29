@@ -45,7 +45,9 @@ func expand(dst []byte, tmpl string, repl func(key string) (val string, ok bool)
 // expandCommand expands a custom-command response, supporting the {user},
 // {sender}, {args} and {touser} tokens. It is expand specialized for the
 // command path so the hot path needs no closure capture beyond the four
-// strings. dst should be a pooled scratch buffer.
+// strings. {target} is the dashboard-facing name for {touser}; both are kept
+// as aliases so existing commands continue to work. dst should be a pooled
+// scratch buffer.
 func expandCommand(dst []byte, tmpl, user, sender, args, touser string) []byte {
 	return expand(dst, tmpl, func(key string) (string, bool) {
 		switch key {
@@ -55,7 +57,7 @@ func expandCommand(dst []byte, tmpl, user, sender, args, touser string) []byte {
 			return sender, true
 		case "args":
 			return args, true
-		case "touser":
+		case "touser", "target":
 			return touser, true
 		default:
 			return "", false

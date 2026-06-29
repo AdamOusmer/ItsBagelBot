@@ -68,8 +68,8 @@ func TestDrainResponseIsBounded(t *testing.T) {
 func TestSlashActionRoutesUseWarmAppToken(t *testing.T) {
 	for _, typ := range []string{outgress.TypeAnnounce, outgress.TypeShoutout} {
 		route := typeRoutes[typ]
-		if route.as != outgress.AsApp {
-			t.Fatalf("%s route identity = %q, want %q", typ, route.as, outgress.AsApp)
+		if route.as != outgress.AsBot {
+			t.Fatalf("%s route identity = %q, want %q", typ, route.as, outgress.AsBot)
 		}
 	}
 }

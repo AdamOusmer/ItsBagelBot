@@ -60,7 +60,7 @@ func TestBakedPing(t *testing.T) {
 func TestBakedInfoCommands(t *testing.T) {
 	m := newBaked(module.NewSpecialSet(""), &fakeLive{}, &fakeGreet{})
 	for name, want := range map[string]string{
-		"itsbagelbot": "https://itsbagelbot.dev",
+		"itsbagelbot": "https://itsbagelbot.com",
 		"source":      "https://github.com/AdamOusmer/ItsBagelBot",
 	} {
 		cmd := findCmd(t, m, name)

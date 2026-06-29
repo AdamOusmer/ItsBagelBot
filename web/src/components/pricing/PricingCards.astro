@@ -1,0 +1,478 @@
+---
+import Card from '../ui/Card.astro';
+
+interface Tier {
+    name: string;
+    price: string;
+    suffix?: string;
+    description: string;
+    features: string[];
+    cta: string;
+    ctaHref: string;
+    ctaStyle: 'main' | 'secondary';
+    highlighted?: boolean;
+    badge?: string;
+}
+
+const tiers: Tier[] = [
+    {
+        name: 'Free',
+        price: '$0',
+        suffix: '/month',
+        description: 'Full access to every feature. No gates, no tricks.',
+        features: [
+            'Chat moderation & auto-filters',
+            'Custom commands & variables',
+            'Song requests',
+            'Polls & giveaways',
+            'Analytics dashboard',
+            'Community support via Discord',
+        ],
+        cta: 'Get Started',
+        ctaHref: 'https://dashboard.itsbagelbot.com',
+        ctaStyle: 'secondary',
+    },
+    {
+        name: 'Premium',
+        price: '$5',
+        suffix: '/month',
+        description: 'Priority processing for when every millisecond counts.',
+        features: [
+            'Everything in Free',
+            'Priority message processing queue',
+            'Faster command response times',
+            'Priority support',
+        ],
+        cta: 'Subscribe',
+        ctaHref: 'https://dashboard.itsbagelbot.com',
+        ctaStyle: 'main',
+        highlighted: true,
+        badge: 'Recommended',
+    },
+    {
+        name: 'Enterprise',
+        price: 'Custom',
+        description: 'Dedicated infrastructure for organizations managing multiple streamers.',
+        features: [
+            'Everything in Premium',
+            'Dedicated hardware',
+            'Multi-streamer management',
+            'Custom SLA',
+            'Dedicated account manager',
+            'On-call engineering support',
+        ],
+        cta: 'Contact Sales',
+        ctaHref: 'mailto:enterprise@itsbagelbot.com',
+        ctaStyle: 'secondary',
+    },
+];
+---
+
+<section class="pricing-cards">
+    <div class="pricing-cards__grid">
+        {tiers.map((tier, i) => (
+            <Card
+                as="div"
+                class:list={['pc', { 'pc--highlighted': tier.highlighted }]}
+                data-reveal
+                style={`--reveal-i: ${i}`}
+            >
+                {tier.badge && (
+                    <span class="pc__badge">{tier.badge}</span>
+                )}
+
+                <div class="pc__header">
+                    <h3 class="pc__name">{tier.name}</h3>
+
+                    <div class="pc__price">
+                        {tier.price === 'Custom' ? (
+                            <span class="pc__amount pc__amount--static">{tier.price}</span>
+                        ) : (
+                            <>
+                                <span class="pc__prefix" aria-hidden="true">$</span>
+                                <span
+                                    class="pc__amount"
+                                    data-count-up
+                                    data-target={tier.price.replace('$', '')}
+                                >0</span>
+                            </>
+                        )}
+                        {tier.suffix && (
+                            <span class="pc__suffix">{tier.suffix}</span>
+                        )}
+                    </div>
+
+                    <p class="pc__desc">{tier.description}</p>
+                </div>
+
+                <ul class="pc__features">
+                    {tier.features.map((feature, fi) => (
+                        <li class="pc__feature" data-reveal style={`--reveal-i: ${fi + 1}`}>
+                            <svg
+                                class="pc__check"
+                                width="16"
+                                height="16"
+                                viewBox="0 0 16 16"
+                                fill="none"
+                                aria-hidden="true"
+                            >
+                                <path
+                                    class="pc__check-path"
+                                    d="M3.5 8.5L6.5 11.5L12.5 4.5"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                />
+                            </svg>
+                            <span>{feature}</span>
+                        </li>
+                    ))}
+                </ul>
+
+                <div class="pc__cta">
+                    <a
+                        class:list={['pc__btn', `pc__btn--${tier.ctaStyle}`]}
+                        href={tier.ctaHref}
+                        {...(tier.ctaHref.startsWith('mailto') ? {} : { target: '_blank', rel: 'noopener noreferrer' })}
+                        {...(tier.ctaStyle === 'main' ? { 'data-magnetic': '' } : {})}
+                    >
+                        {tier.cta}
+                    </a>
+                </div>
+            </Card>
+        ))}
+    </div>
+
+    <p class="pricing-cards__note">
+        Billed monthly &middot; Cancel anytime &middot; No card required for Free
+    </p>
+</section>
+
+<style>
+    /* ── Section ── */
+    .pricing-cards {
+        padding: 0 24px var(--space-section, 96px);
+        max-width: var(--content-max, 1200px);
+        margin: 0 auto;
+    }
+
+    /* ── Grid ── */
+    .pricing-cards__grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 24px;
+        align-items: start;
+    }
+
+    @media (min-width: 900px) {
+        .pricing-cards__grid {
+            grid-template-columns: repeat(3, 1fr);
+            align-items: stretch;
+        }
+    }
+
+    /* ── Base card overrides ── */
+    /* Card provides: bg, border, border-radius, spotlight hover, lift hover.
+       We layer our own flex layout and per-tier treatments on top. */
+    .pc :global(.card__body) {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+    }
+
+    /* Inner layout shim — card__body wraps everything */
+    .pc {
+        /* reset Card's default padding so we can control it per-region */
+    }
+
+    /* ---- Highlighted (Premium) ---- */
+    .pc--highlighted {
+        border-color: var(--tan, #c9a87c) !important;
+        /* breathing glow */
+        animation: premiumGlow 4s ease-in-out infinite;
+    }
+
+    @media (min-width: 900px) {
+        .pc--highlighted {
+            transform: translateY(-12px);
+            /* counteract Card's hover lift so the translateY baseline is preserved */
+        }
+
+        /* Override Card hover lift for highlighted so the -12px base is preserved */
+        .pc--highlighted:hover {
+            transform: translateY(-16px) !important;
+        }
+    }
+
+    @keyframes premiumGlow {
+        0%, 100% { box-shadow: 0 0 32px rgba(201, 168, 124, 0.10); }
+        50%       { box-shadow: 0 0 56px rgba(201, 168, 124, 0.28), 0 0 100px rgba(201, 168, 124, 0.08); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .pc--highlighted {
+            animation-play-state: paused;
+        }
+    }
+
+    /* ---- Badge ---- */
+    .pc__badge {
+        position: absolute;
+        top: 0;
+        left: 50%;
+        transform: translateX(-50%) translateY(-50%);
+        font-family: var(--font-mono, 'DM Mono', monospace);
+        font-size: 0.65rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        background: var(--tan, #c9a87c);
+        color: var(--black, #0a0a0a);
+        padding: 4px 14px;
+        border-radius: var(--radius-pill, 100px);
+        white-space: nowrap;
+        font-weight: 600;
+        z-index: 1;
+    }
+
+    /* ---- Header ---- */
+    .pc__header {
+        padding: 40px 32px 0;
+        margin-bottom: 24px;
+    }
+
+    .pc__name {
+        font-family: var(--font-display, 'Syne', sans-serif);
+        font-weight: 700;
+        font-size: 1.1rem;
+        letter-spacing: 0.02em;
+        color: var(--white, #f0ece4);
+        text-transform: uppercase;
+        margin: 0 0 20px;
+    }
+
+    /* ---- Price ---- */
+    .pc__price {
+        display: flex;
+        align-items: baseline;
+        gap: 2px;
+        margin-bottom: 16px;
+    }
+
+    .pc__prefix {
+        font-family: var(--font-display, 'Syne', sans-serif);
+        font-weight: 800;
+        font-size: 1.8rem;
+        line-height: 1;
+        color: var(--tan-light, #e0c49a);
+        align-self: flex-start;
+        margin-top: 6px;
+    }
+
+    .pc__amount {
+        font-family: var(--font-display, 'Syne', sans-serif);
+        font-weight: 800;
+        font-size: 3.4rem;
+        line-height: 1;
+        color: var(--white, #f0ece4);
+        letter-spacing: -0.03em;
+        /* tabular figures so count-up doesn't shift layout */
+        font-variant-numeric: tabular-nums;
+    }
+
+    .pc__amount--static {
+        font-size: 2.4rem;
+    }
+
+    .pc__suffix {
+        font-family: var(--font-body, 'DM Sans', sans-serif);
+        font-size: 0.85rem;
+        color: var(--muted, #888077);
+        margin-left: 4px;
+    }
+
+    /* ---- Description ---- */
+    .pc__desc {
+        font-family: var(--font-body, 'DM Sans', sans-serif);
+        font-size: 0.88rem;
+        line-height: 1.6;
+        color: var(--muted, #888077);
+        margin: 0;
+    }
+
+    /* ---- Divider strip between header + features ---- */
+    .pc__features {
+        list-style: none;
+        padding: 24px 32px 0;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 11px;
+        flex: 1;
+        border-top: 1px solid var(--border, rgba(201, 168, 124, 0.15));
+    }
+
+    .pc__feature {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        font-family: var(--font-body, 'DM Sans', sans-serif);
+        font-size: 0.87rem;
+        color: var(--muted, #888077);
+        line-height: 1.45;
+    }
+
+    /* ---- Check mark stroke-draw ---- */
+    .pc__check {
+        flex-shrink: 0;
+        color: var(--green-glow, #52b788);
+        margin-top: 1px;
+    }
+
+    .pc__check-path {
+        stroke-dasharray: 18;
+        stroke-dashoffset: 18;
+        transition: stroke-dashoffset 480ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+        transition-delay: calc(var(--reveal-i, 0) * 60ms + 200ms);
+    }
+
+    /* Trigger draw when parent feature row is revealed */
+    .pc__feature.is-revealed .pc__check-path {
+        stroke-dashoffset: 0;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .pc__check-path {
+            stroke-dashoffset: 0;
+            transition: none;
+        }
+    }
+
+    /* ---- CTA ---- */
+    .pc__cta {
+        padding: 28px 32px 32px;
+        margin-top: auto;
+    }
+
+    .pc__btn {
+        display: block;
+        text-align: center;
+        text-decoration: none;
+        border-radius: var(--radius-sm, 6px);
+        font-weight: 700;
+        transition:
+            background 220ms ease,
+            color 220ms ease,
+            box-shadow 220ms ease;
+    }
+
+    /* Secondary — outline */
+    .pc__btn--secondary {
+        font-family: var(--font-mono, 'DM Mono', monospace);
+        font-size: 0.75rem;
+        padding: 14px 24px;
+        background: transparent;
+        border: 1px solid var(--tan, #c9a87c);
+        color: var(--tan-light, #e0c49a);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+        .pc__btn--secondary:hover {
+            background: var(--tan, #c9a87c);
+            color: var(--black, #0a0a0a);
+        }
+    }
+
+    /* Main — filled tan */
+    .pc__btn--main {
+        font-family: var(--font-display, 'Syne', sans-serif);
+        font-size: 0.95rem;
+        padding: 16px 24px;
+        background: var(--tan, #c9a87c);
+        color: var(--black, #0a0a0a);
+        letter-spacing: -0.01em;
+        border: none;
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+        .pc__btn--main:hover {
+            background: var(--tan-light, #e0c49a);
+            box-shadow: 0 8px 32px rgba(201, 168, 124, 0.28);
+        }
+    }
+
+    /* ---- Billing note ---- */
+    .pricing-cards__note {
+        font-family: var(--font-mono, 'DM Mono', monospace);
+        font-size: 0.72rem;
+        color: var(--muted, #888077);
+        text-align: center;
+        margin-top: 36px;
+        letter-spacing: 0.04em;
+        opacity: 0.72;
+    }
+
+    /* ---- Mobile adjustments ---- */
+    @media (max-width: 480px) {
+        .pc__header {
+            padding: 32px 24px 0;
+        }
+
+        .pc__features {
+            padding: 20px 24px 0;
+        }
+
+        .pc__cta {
+            padding: 24px 24px 28px;
+        }
+    }
+</style>
+
+<script>
+    /* ── Price count-up on reveal ── */
+    function runCountUp(el: HTMLElement) {
+        const target = parseInt(el.dataset.target ?? '0', 10);
+        if (target === 0) { el.textContent = '0'; return; }
+
+        const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (reducedMotion) { el.textContent = String(target); return; }
+
+        const duration = 900;
+        const startTime = performance.now();
+
+        function tick(now: number) {
+            const elapsed = now - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            // ease-out-expo curve
+            const eased = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress);
+            el.textContent = String(Math.round(eased * target));
+            if (progress < 1) requestAnimationFrame(tick);
+        }
+
+        requestAnimationFrame(tick);
+    }
+
+    /* Watch for .is-revealed on the parent Card to trigger count-up */
+    function setupCountUp() {
+        const els = document.querySelectorAll<HTMLElement>('[data-count-up]');
+        if (!els.length) return;
+
+        const obs = new IntersectionObserver((entries) => {
+            entries.forEach((entry) => {
+                if (!entry.isIntersecting) return;
+                const el = entry.target as HTMLElement;
+                if (el.dataset.counted) return;
+                el.dataset.counted = 'true';
+                obs.unobserve(el);
+                runCountUp(el);
+            });
+        }, { threshold: 0.2 });
+
+        els.forEach((el) => obs.observe(el));
+    }
+
+    setupCountUp();
+    document.addEventListener('astro:page-load', setupCountUp);
+</script>
