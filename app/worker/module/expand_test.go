@@ -17,6 +17,7 @@ func TestExpandCommand(t *testing.T) {
 		{"sender alias", "from {sender}", "from alice"},
 		{"args token", "you said {args}", "you said the rest here"},
 		{"touser token", "@{touser} pong", "@bob pong"},
+		{"target alias", "@{target} pong", "@bob pong"},
 		{"multiple tokens", "{user} -> {touser}: {args}", "alice -> bob: the rest here"},
 		{"unknown token preserved", "keep {whatever} intact", "keep {whatever} intact"},
 		// No closing brace anywhere after the first '{': the tail is copied literally.

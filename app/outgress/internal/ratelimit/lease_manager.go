@@ -112,7 +112,14 @@ func (m *LeaseManager) AllowOrdered(ctx context.Context, first, second Request) 
 	// Leased mode
 	if localFirst && localShared {
 		return 0, nil
-	} else if !localFirst {
+	}
+
+	// Fallback to central emergency if borrowing isn't fully implemented or failed
+	if m.central != nil {
+		return m.central.AllowOrdered(ctx, first, second)
+	}
+
+	if !localFirst {
 		return 1, nil
 	} else {
 		return 2, nil

@@ -8,13 +8,16 @@ import MobileMenu from './MobileMenu.astro';
 import NavLink    from './NavLink.astro';
 
 const links = [
-    { href: "#features", label: "Features" },
-    { href: "#how",      label: "Setup"    },
-    { href: "#privacy",  label: "Privacy"  },
-    { href: "#docs",     label: "Docs"     },
+    { href: "/pricing",  label: "Pricing"  },
+    { href: "https://docs.itsbagelbot.com", label: "Docs" },
+    { href: "/contact",  label: "Contact"  },
 ];
 
 const cta = { href: "https://dashboard.itsbagelbot.com", label: "Add to Twitch" };
+
+const currentPath = Astro.url.pathname.replace(/\/+$/, "") || "/";
+const isActive = (href: string) =>
+    href.startsWith("/") && href.replace(/\/+$/, "") === currentPath;
 ---
 
 <nav class="site-nav" aria-label="Primary">
@@ -26,7 +29,7 @@ const cta = { href: "https://dashboard.itsbagelbot.com", label: "Add to Twitch" 
 
         <ul class="links" aria-label="Primary navigation">
             {links.map((link) => (
-                <li><NavLink href={link.href} label={link.label}/></li>
+                <li><NavLink href={link.href} label={link.label} active={isActive(link.href)}/></li>
             ))}
         </ul>
 

@@ -9,7 +9,11 @@ package channels
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"math/rand/v2"
 	"strconv"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"ItsBagelBot/internal/domain/invalidate"
@@ -23,12 +27,34 @@ import (
 )
 
 const (
-	keyPrefix = "outgress:channel:"
-	indexKey  = "outgress:channels"
-	pausedKey = "outgress:paused"
+	keyPrefix        = "outgress:channel:"
+	indexKey         = "outgress:channels"
+	pausedKey        = "outgress:paused"
+	pausedVersionKey = "outgress:paused:version"
 
 	cacheInvalidateScope = "outgress"
+	pauseInvalidateScope = "outgress-pause"
 )
+
+const (
+	pauseReconcileInterval = time.Second
+	pauseReconcileJitter   = 200 * time.Millisecond
+	pauseMaxAge            = 5 * time.Second
+	pauseReadTimeout       = 750 * time.Millisecond
+)
+
+var ErrPauseStateUnavailable = errors.New("outgress pause state is unavailable or stale")
+
+type pauseSnapshot struct {
+	paused     bool
+	version    int64
+	observedAt time.Time
+}
+
+type pauseEvent struct {
+	Paused  bool  `json:"paused"`
+	Version int64 `json:"version"`
+}
 
 type Registry struct {
 	client valkey.Client
@@ -37,7 +63,12 @@ type Registry struct {
 	nc               *nats.Conn
 	invalidatePrefix string
 	invalidateSub    *nats.Subscription
+	pauseSub         *nats.Subscription
 	log              *zap.Logger
+
+	pause       atomic.Pointer[pauseSnapshot]
+	pauseCancel context.CancelFunc
+	pauseWG     sync.WaitGroup
 }
 
 func New(client valkey.Client) *Registry {
@@ -71,18 +102,61 @@ func (r *Registry) StartInvalidationListener(nc *nats.Conn, prefix string, log *
 	if err != nil {
 		return err
 	}
-	if err := nc.Flush(); err != nil {
+
+	pauseSub, err := nc.Subscribe(prefix+"."+pauseInvalidateScope, func(msg *nats.Msg) {
+		var event pauseEvent
+		if err := json.Unmarshal(msg.Data, &event); err != nil || event.Version < 1 {
+			log.Debug("pause cache invalidation: bad payload", zap.Error(err))
+			return
+		}
+		r.applyPauseSnapshot(pauseSnapshot{
+			paused:     event.Paused,
+			version:    event.Version,
+			observedAt: time.Now(),
+		})
+	})
+	if err != nil {
 		_ = sub.Unsubscribe()
 		return err
 	}
+	if err := nc.Flush(); err != nil {
+		_ = sub.Unsubscribe()
+		_ = pauseSub.Unsubscribe()
+		return err
+	}
+
+	// Subscribe before loading. If a concurrent pause arrives between these
+	// operations, version comparison prevents the initial read from reverting it.
+	initialCtx, initialCancel := context.WithTimeout(context.Background(), pauseReadTimeout)
+	initial, err := r.loadPauseSnapshot(initialCtx)
+	initialCancel()
+	if err != nil {
+		_ = sub.Unsubscribe()
+		_ = pauseSub.Unsubscribe()
+		return err
+	}
+	r.applyPauseSnapshot(initial)
+
 	r.invalidateSub = sub
+	r.pauseSub = pauseSub
+	pollCtx, cancel := context.WithCancel(context.Background())
+	r.pauseCancel = cancel
+	r.pauseWG.Add(1)
+	go r.reconcilePause(pollCtx)
 	return nil
 }
 
 // Close releases the in-process cache and invalidation subscription.
 func (r *Registry) Close() {
+	if r.pauseCancel != nil {
+		r.pauseCancel()
+		r.pauseWG.Wait()
+	}
 	if r.invalidateSub != nil {
 		_ = r.invalidateSub.Unsubscribe()
+	}
+	if r.pauseSub != nil {
+		_ = r.pauseSub.Unsubscribe()
 	}
 	r.cache.Close()
 }
@@ -305,26 +379,142 @@ func (r *Registry) List(ctx context.Context) ([]manage.Channel, error) {
 // message; redelivery pacing holds them for a while, but messages older
 // than the retry budget are dropped, which is the right call for chat.
 func (r *Registry) SetPaused(ctx context.Context, paused bool) error {
-
-	if paused {
-		return r.client.Do(ctx, r.client.B().Set().Key(pausedKey).Value("1").Build()).Error()
+	var version int64
+	err := r.client.Dedicated(func(client valkey.DedicatedClient) error {
+		stateCommand := client.B().Del().Key(pausedKey).Build()
+		if paused {
+			stateCommand = client.B().Set().Key(pausedKey).Value("1").Build()
+		}
+		results := client.DoMulti(ctx,
+			client.B().Multi().Build(),
+			stateCommand,
+			client.B().Incr().Key(pausedVersionKey).Build(),
+			client.B().Exec().Build(),
+		)
+		if len(results) != 4 {
+			return errors.New("pause transaction returned an invalid pipeline result")
+		}
+		for i := 0; i < len(results)-1; i++ {
+			if err := results[i].Error(); err != nil {
+				return err
+			}
+		}
+		executed, err := results[len(results)-1].ToArray()
+		if err != nil {
+			return err
+		}
+		if len(executed) != 2 {
+			return errors.New("pause transaction returned an invalid result")
+		}
+		for _, result := range executed {
+			if err := result.Error(); err != nil {
+				return err
+			}
+		}
+		version, err = executed[1].AsInt64()
+		return err
+	})
+	if err != nil {
+		return err
 	}
 
-	return r.client.Do(ctx, r.client.B().Del().Key(pausedKey).Build()).Error()
+	r.applyPauseSnapshot(pauseSnapshot{paused: paused, version: version, observedAt: time.Now()})
+	r.publishPause(paused, version)
+	return nil
 }
 
-// Paused reports the state of the global kill switch.
-func (r *Registry) Paused(ctx context.Context) (bool, error) {
+// Paused reports the global kill switch from one lock-free in-process snapshot.
+// The reconciler bounds staleness without putting Valkey I/O on the message path.
+func (r *Registry) Paused(_ context.Context) (bool, error) {
+	snapshot := r.pause.Load()
+	if snapshot == nil || time.Since(snapshot.observedAt) > pauseMaxAge {
+		return false, ErrPauseStateUnavailable
+	}
+	return snapshot.paused, nil
+}
 
-	res, err := r.client.Do(ctx, r.client.B().Get().Key(pausedKey).Build()).ToString()
+func (r *Registry) publishPause(paused bool, version int64) {
+	if r.nc == nil || r.invalidatePrefix == "" {
+		return
+	}
+	body, err := json.Marshal(pauseEvent{Paused: paused, Version: version})
+	if err == nil {
+		err = r.nc.Publish(r.invalidatePrefix+"."+pauseInvalidateScope, body)
+	}
+	if err != nil && r.log != nil {
+		r.log.Warn("failed to publish pause cache invalidation", zap.Error(err))
+	}
+}
+
+func (r *Registry) loadPauseSnapshot(ctx context.Context) (pauseSnapshot, error) {
+	values, err := r.client.Do(ctx, r.client.B().Mget().Key(pausedKey, pausedVersionKey).Build()).ToArray()
 	if err != nil {
-		if valkey.IsValkeyNil(err) {
-			return false, nil
-		}
-		return false, err
+		return pauseSnapshot{}, err
+	}
+	if len(values) != 2 {
+		return pauseSnapshot{}, errors.New("pause lookup returned an invalid result")
 	}
 
-	return res == "1", nil
+	paused := false
+	if state, err := values[0].ToString(); err == nil {
+		paused = state == "1"
+	} else if !valkey.IsValkeyNil(err) {
+		return pauseSnapshot{}, err
+	}
+
+	version := int64(0)
+	if raw, err := values[1].ToString(); err == nil {
+		version, err = strconv.ParseInt(raw, 10, 64)
+		if err != nil {
+			return pauseSnapshot{}, err
+		}
+	} else if !valkey.IsValkeyNil(err) {
+		return pauseSnapshot{}, err
+	}
+
+	return pauseSnapshot{paused: paused, version: version, observedAt: time.Now()}, nil
+}
+
+func (r *Registry) applyPauseSnapshot(next pauseSnapshot) {
+	for {
+		current := r.pause.Load()
+		if current != nil && next.version < current.version {
+			return
+		}
+		copy := next
+		if r.pause.CompareAndSwap(current, &copy) {
+			return
+		}
+	}
+}
+
+func (r *Registry) reconcilePause(ctx context.Context) {
+	defer r.pauseWG.Done()
+	timer := time.NewTimer(nextPauseReconcileDelay())
+	defer timer.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-timer.C:
+			readCtx, cancel := context.WithTimeout(ctx, pauseReadTimeout)
+			snapshot, err := r.loadPauseSnapshot(readCtx)
+			cancel()
+			if err != nil {
+				if r.log != nil {
+					r.log.Warn("pause state reconciliation failed", zap.Error(err))
+				}
+			} else {
+				r.applyPauseSnapshot(snapshot)
+			}
+			timer.Reset(nextPauseReconcileDelay())
+		}
+	}
+}
+
+func nextPauseReconcileDelay() time.Duration {
+	return pauseReconcileInterval - pauseReconcileJitter/2 + rand.N(pauseReconcileJitter)
 }
 
 func unixField(v string) time.Time {

@@ -33,6 +33,24 @@ func TestIsMissingScope(t *testing.T) {
 	}
 }
 
+func TestHTTPClientPoolMatchesWorkerConcurrency(t *testing.T) {
+	client := newHTTPClient()
+	transport, ok := client.Transport.(*http.Transport)
+	if !ok {
+		t.Fatalf("transport type = %T", client.Transport)
+	}
+	if transport.MaxIdleConns != maxIdleConnections {
+		t.Fatalf("MaxIdleConns = %d, want %d", transport.MaxIdleConns, maxIdleConnections)
+	}
+	if transport.MaxIdleConnsPerHost != maxIdleConnectionsPerHost {
+		t.Fatalf("MaxIdleConnsPerHost = %d, want %d", transport.MaxIdleConnsPerHost, maxIdleConnectionsPerHost)
+	}
+	if !transport.ForceAttemptHTTP2 {
+		t.Fatal("HTTP/2 is not enabled")
+	}
+	client.CloseIdleConnections()
+}
+
 func TestMissingScope401DoesNotRefreshToken(t *testing.T) {
 	refreshes := 0
 	source := &Source{

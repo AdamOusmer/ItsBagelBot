@@ -2,6 +2,7 @@ package bus
 
 import (
 	"context"
+	"errors"
 	"net/http"
 
 	"github.com/ThreeDotsLabs/watermill/message"
@@ -56,18 +57,40 @@ func process(app *newrelic.Application, subject string, msg *message.Message, ha
 	msg.SetContext(newrelic.NewContext(msg.Context(), txn))
 
 	if err := handle(msg); err != nil {
-		txn.NoticeError(err)
+		// Expected backpressure (rate limits and a deliberate system pause) still
+		// nacks, but must not turn an overload into one New Relic error and warning
+		// log per delivery attempt. Packages opt in through this tiny structural
+		// interface, avoiding a dependency from bus onto any worker package.
+		quiet := isExpectedNack(err)
+		if !quiet {
+			txn.NoticeError(err)
+		}
 		txn.End()
 
-		log.Warn("event handling failed, nacking",
-			zap.String("subject", subject),
-			zap.String("message_id", msg.UUID),
-			zap.Error(err),
-		)
+		if quiet {
+			log.Debug("event deferred by expected backpressure",
+				zap.String("subject", subject),
+				zap.String("message_id", msg.UUID),
+				zap.Error(err))
+		} else {
+			log.Warn("event handling failed, nacking",
+				zap.String("subject", subject),
+				zap.String("message_id", msg.UUID),
+				zap.Error(err))
+		}
 		msg.Nack()
 		return
 	}
 
 	txn.End()
 	msg.Ack()
+}
+
+func isExpectedNack(err error) bool {
+	type marker interface{ ExpectedNack() bool }
+	if expected, ok := err.(marker); ok {
+		return expected.ExpectedNack()
+	}
+	var expected marker
+	return errors.As(err, &expected) && expected.ExpectedNack()
 }

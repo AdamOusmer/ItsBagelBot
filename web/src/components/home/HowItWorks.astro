@@ -1,0 +1,192 @@
+---
+import SectionHeading from '../ui/SectionHeading.astro';
+import Card from '../ui/Card.astro';
+
+const steps = [
+    {
+        number: '01',
+        title: 'Connect',
+        desc: 'Link your Twitch account through the dashboard. One OAuth click, no API keys to manage.',
+    },
+    {
+        number: '02',
+        title: 'Configure',
+        desc: 'Set your moderation rules, enable the tools you want, and customize commands. Everything from the web dashboard.',
+    },
+    {
+        number: '03',
+        title: 'Go Live',
+        desc: 'ItsBagelBot joins your channel automatically. It handles moderation, commands, and engagement while you focus on streaming.',
+    },
+];
+---
+
+<section id="how-it-works" class="how-it-works">
+    <SectionHeading eyebrow="Setup" title="Three steps. That's it." />
+
+    <div class="steps-container">
+        {steps.map((step, i) => (
+            <>
+                <Card as="div" class="step" data-reveal style={`--reveal-i: ${i}`}>
+                    <span class="step__number">{step.number}</span>
+                    <h3 class="step__title">{step.title}</h3>
+                    <p class="step__desc">{step.desc}</p>
+                </Card>
+                {i < steps.length - 1 && (
+                    <div
+                        class="step-connector"
+                        aria-hidden="true"
+                        data-reveal
+                        style={`--reveal-i: ${i + 0.5}`}
+                    ></div>
+                )}
+            </>
+        ))}
+    </div>
+</section>
+
+<style>
+    .how-it-works {
+        position: relative;
+        z-index: 2;
+    }
+
+    .steps-container {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+        position: relative;
+        align-items: stretch;
+    }
+
+    /* Step cards */
+    .step {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        text-align: left;
+    }
+
+    .step__number {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 3.5rem;
+        font-weight: 500;
+        line-height: 1;
+        color: var(--green-glow, #52b788);
+        opacity: 0.3;
+        margin-bottom: 16px;
+    }
+
+    .step__title {
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-weight: 700;
+        font-size: 1.4rem;
+        color: var(--white, #f0ece4);
+        margin-bottom: 12px;
+    }
+
+    .step__desc {
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: 0.95rem;
+        line-height: 1.6;
+        color: var(--muted, #888077);
+        margin: 0;
+    }
+
+    /* Vertical connector (mobile) */
+    .step-connector {
+        width: 1px;
+        height: 24px;
+        background: var(--border, rgba(201, 168, 124, 0.15));
+        margin: 0 auto;
+        transform-origin: top center;
+        transform: scaleY(0);
+        transition: transform 500ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+    }
+
+    .step-connector.is-revealed {
+        transform: scaleY(1);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .step-connector {
+            transform: scaleY(1);
+        }
+    }
+
+    /* Desktop: horizontal row */
+    @media (min-width: 900px) {
+        .steps-container {
+            flex-direction: row;
+            align-items: stretch;
+            gap: 0;
+        }
+
+        .step {
+            flex: 1;
+        }
+
+        /* Horizontal connector */
+        .step-connector {
+            width: 48px;
+            height: auto;
+            background: transparent;
+            position: relative;
+            margin: auto 0;
+            transform-origin: left center;
+            transform: scaleX(0);
+            transition: transform 500ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+        }
+
+        .step-connector::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 12px;
+            right: 12px;
+            height: 1px;
+            background: var(--border, rgba(201, 168, 124, 0.15));
+        }
+
+        .step-connector.is-revealed {
+            transform: scaleX(1);
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .step-connector {
+                transform: scaleX(1);
+            }
+        }
+    }
+</style>
+
+<script>
+    function setupConnectors() {
+        const connectors = document.querySelectorAll<HTMLElement>('.step-connector');
+
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            connectors.forEach(el => el.classList.add('is-revealed'));
+            return;
+        }
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        const el = entry.target as HTMLElement;
+                        const revealI = parseFloat(el.style.getPropertyValue('--reveal-i') || '0');
+                        const delay = revealI * 80;
+                        setTimeout(() => el.classList.add('is-revealed'), delay);
+                        observer.unobserve(el);
+                    }
+                });
+            },
+            { threshold: 0.2 }
+        );
+
+        connectors.forEach(el => observer.observe(el));
+    }
+
+    setupConnectors();
+    document.addEventListener('astro:page-load', setupConnectors);
+</script>

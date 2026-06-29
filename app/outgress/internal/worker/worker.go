@@ -125,12 +125,10 @@ var typeRoutes = map[string]helixRoute{
 	outgress.TypeAd:         {http.MethodPost, "/helix/channels/commercial", outgress.AsBroadcaster},
 	outgress.TypeCommercial: {http.MethodPost, "/helix/channels/commercial", outgress.AsBroadcaster},
 	outgress.TypeClip:       {http.MethodPost, "/helix/clips", outgress.AsBroadcaster},
-	// Chat actions use the same already-warm app-token path as Send Chat
-	// Message. Twitch accepts app tokens for both when the bot and broadcaster
-	// grants are present, avoiding a cold bot-token RPC + OAuth refresh on the
-	// first slash action handled by a pod.
-	outgress.TypeAnnounce: {http.MethodPost, "/helix/chat/announcements", outgress.AsApp},
-	outgress.TypeShoutout: {http.MethodPost, "/helix/chat/shoutouts", outgress.AsApp},
+	// Chat actions use the bot token so the bot badge appears in chat. Twitch
+	// requires a user access token for the badge; the app token would hide it.
+	outgress.TypeAnnounce: {http.MethodPost, "/helix/chat/announcements", outgress.AsBot},
+	outgress.TypeShoutout: {http.MethodPost, "/helix/chat/shoutouts", outgress.AsBot},
 }
 
 type Worker struct {
@@ -402,7 +400,7 @@ func (w *Worker) processAnnounce(ctx context.Context, payload outgress.Message) 
 		color = "primary"
 	}
 
-	payload.As = outgress.AsApp
+	payload.As = outgress.AsBot
 	payload.Method = http.MethodPost
 	payload.Endpoint = "/helix/chat/announcements?broadcaster_id=" +
 		url.QueryEscape(payload.BroadcasterID) + "&moderator_id=" + url.QueryEscape(mod)
@@ -472,7 +470,7 @@ func (w *Worker) processShoutout(ctx context.Context, payload outgress.Message) 
 		return err
 	}
 
-	payload.As = outgress.AsApp
+	payload.As = outgress.AsBot
 	payload.Method = http.MethodPost
 	payload.Endpoint = shoutoutEndpoint(payload.BroadcasterID, toID, mod)
 	payload.Payload = nil

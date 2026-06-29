@@ -18,5 +18,8 @@
     "motion": "^12.38.0",
     "three": "^0.184.0",
     "typescript": "^6.0.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.1"
   }
 }
