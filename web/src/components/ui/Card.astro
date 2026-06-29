@@ -1,0 +1,95 @@
+---
+/**
+ * Shared surface card. One hover language across the whole site: a cursor-
+ * tracked tan spotlight, a brightening border, and a small lift. Render as a
+ * <div> (default) or an <a> via `as="a"` + `href`. Extra attributes
+ * (data-reveal, style, target, rel, aria-*) pass straight through.
+ */
+interface Props {
+    as?: "div" | "a";
+    href?: string;
+    class?: string;
+    [key: string]: unknown;
+}
+
+const { as = "div", href, class: className = "", ...attrs } = Astro.props;
+const Tag = as;
+---
+
+<Tag class:list={["card", className]} href={href} data-card {...attrs}>
+    <span class="card__spotlight" aria-hidden="true"></span>
+    <span class="card__body"><slot /></span>
+</Tag>
+
+<style>
+    .card {
+        position: relative;
+        display: block;
+        overflow: hidden;
+        padding: 32px;
+        background: var(--card-bg, #111110);
+        border: 1px solid var(--border, rgba(201, 168, 124, 0.15));
+        border-radius: var(--radius-card, 16px);
+        text-decoration: none;
+        transition:
+            border-color 360ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)),
+            transform 360ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+    }
+
+    .card__spotlight {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        opacity: 0;
+        background: radial-gradient(
+            420px circle at var(--mx, 50%) var(--my, 50%),
+            var(--glow-tan, rgba(201, 168, 124, 0.18)),
+            transparent 60%
+        );
+        transition: opacity 360ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+    }
+
+    .card__body {
+        position: relative;
+        display: block;
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+        .card:hover {
+            border-color: rgba(201, 168, 124, 0.38);
+            transform: translateY(-3px);
+        }
+
+        .card:hover .card__spotlight {
+            opacity: 1;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .card {
+            padding: 24px;
+        }
+    }
+</style>
+
+<script>
+    function setupCard(card: HTMLElement) {
+        if (card.dataset.cardReady === "true") return;
+        card.dataset.cardReady = "true";
+
+        card.addEventListener("pointermove", (event) => {
+            const rect = card.getBoundingClientRect();
+            const x = ((event.clientX - rect.left) / rect.width) * 100;
+            const y = ((event.clientY - rect.top) / rect.height) * 100;
+            card.style.setProperty("--mx", `${x.toFixed(2)}%`);
+            card.style.setProperty("--my", `${y.toFixed(2)}%`);
+        });
+    }
+
+    function setupCards() {
+        document.querySelectorAll<HTMLElement>("[data-card]").forEach(setupCard);
+    }
+
+    setupCards();
+    document.addEventListener("astro:page-load", setupCards);
+</script>

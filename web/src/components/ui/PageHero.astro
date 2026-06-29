@@ -1,0 +1,69 @@
+---
+/**
+ * Top-of-page hero for inner routes (pricing, contact, legal). Shares the
+ * eyebrow + display-title language with SectionHeading; entrance is the shared
+ * scroll-reveal (above the fold, so it plays immediately on load).
+ */
+interface Props {
+    eyebrow?: string;
+    title: string;
+    description?: string;
+}
+
+const { eyebrow, title, description } = Astro.props;
+---
+
+<div class="page-hero">
+    {eyebrow && <span class="page-hero__eyebrow" data-reveal>{eyebrow}</span>}
+    <h1 class="page-hero__title" data-reveal style="--reveal-i: 1">{title}</h1>
+    {description && <p class="page-hero__desc" data-reveal style="--reveal-i: 2">{description}</p>}
+</div>
+
+<style>
+    .page-hero {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        padding: calc(var(--nav-height, 76px) + 64px) 24px 64px;
+        max-width: var(--content-narrow, 720px);
+        margin: 0 auto;
+    }
+
+    .page-hero__eyebrow {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.75rem;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--green-glow, #52b788);
+        margin-bottom: 20px;
+    }
+
+    .page-hero__title {
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-weight: 800;
+        font-size: clamp(2rem, 6vw, 3.5rem);
+        line-height: 1.05;
+        letter-spacing: -0.02em;
+        color: var(--white, #f0ece4);
+        margin-bottom: 20px;
+    }
+
+    .page-hero__desc {
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: 1.05rem;
+        line-height: 1.7;
+        color: var(--muted, #888077);
+        max-width: 560px;
+    }
+
+    @media (max-width: 640px) {
+        .page-hero {
+            padding: calc(var(--nav-height, 68px) + 48px) 20px 48px;
+        }
+
+        .page-hero__desc {
+            font-size: 0.95rem;
+        }
+    }
+</style>

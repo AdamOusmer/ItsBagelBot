@@ -6,7 +6,16 @@ import Cursor from '../components/ui/Cursor.astro'
 import Footer from '../components/layout/Footer.astro'
 import Nav from "../components/layout/Nav.astro";
 import Brackets from '../components/ui/Brackets.astro'
-import BootLoader from '../components/layout/BootLoader.astro'
+
+interface Props {
+    title?: string;
+    description?: string;
+}
+
+const {
+    title = 'ItsBagelBot. Your Stream, Your Rules',
+    description = 'The all-in-one Twitch companion baked for independence. Automated moderation, custom commands, and engagement tools.'
+} = Astro.props;
 ---
 
 
@@ -16,6 +25,11 @@ import BootLoader from '../components/layout/BootLoader.astro'
 <head>
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <meta
+        http-equiv="Content-Security-Policy"
+        content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self'; connect-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+    />
+    <meta name="referrer" content="strict-origin-when-cross-origin"/>
     <link rel="icon" type="image/png" href="/logoBOT.png"/>
     <meta name="generator" content={Astro.generator}/>
 
@@ -29,11 +43,11 @@ import BootLoader from '../components/layout/BootLoader.astro'
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
     <link rel="manifest" href="/site.webmanifest">
 
-    <title>ItsBagelBot. Your Stream, Your Rules</title>
+    <meta name="description" content={description} />
+    <title>{title}</title>
 </head>
 
 <body>
-    <BootLoader/>
     <slot/>
     <Nav/>
     <Brackets/>
@@ -43,6 +57,10 @@ import BootLoader from '../components/layout/BootLoader.astro'
     <script>
         import '../script/scroll.js';
         import '../script/dom-motion/index.js';
+        import '../script/reveal.js';
+        import '../script/interactions.js';
+        import '../script/scenes.js';
+        import '../script/decode.js';
         import '../script/easter-egg';
     </script>
 

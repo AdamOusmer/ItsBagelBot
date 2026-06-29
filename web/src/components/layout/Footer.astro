@@ -5,7 +5,7 @@ import logoImage from '../../assets/LogoBOT.png';
 
 <footer>
     <div class="top">
-        <div class="brand">
+        <div class="brand" data-reveal>
             <Image src={logoImage} alt="ItsBagelBot Logo" width={55} height={55} fetchpriority="high" />
             <div>
                 <span class="name">ItsBagelBot</span>
@@ -14,19 +14,18 @@ import logoImage from '../../assets/LogoBOT.png';
         </div>
 
         <div class="cols">
-            <div class="col">
+            <div class="col" data-reveal style="--reveal-i: 1">
                 <p>Product</p>
-                <a href="#">Features</a>
-                <a href="#">Commands</a>
-                <a href="#">Pricing</a>
-                <a href="#">Changelog</a>
+                <a href="/pricing">Pricing</a>
+                <a href="https://docs.itsbagelbot.com" target="_blank" rel="noopener noreferrer">Documentation</a>
+                <a href="https://dashboard.itsbagelbot.com" target="_blank" rel="noopener noreferrer">Dashboard</a>
             </div>
-            <div class="col">
-                <p>Developers</p>
-                <a href="#">Documentation</a>
-                <a href="#">GitHub</a>
+            <div class="col" data-reveal style="--reveal-i: 2">
+                <p>Company</p>
+                <a href="/contact">Contact</a>
+                <a href="https://github.com/AdamOusmer/ItsBagelBot" target="_blank" rel="noopener noreferrer">GitHub</a>
             </div>
-            <div class="col">
+            <div class="col" data-reveal style="--reveal-i: 3">
                 <p>Community</p>
                 <a href="https://discord.gg/SZ2remwSDv" target="_blank" rel="noopener noreferrer">Discord</a>
                 <a href="https://twitch.tv/itsbagelbot" target="_blank" rel="noopener noreferrer">Twitch</a>
@@ -35,11 +34,11 @@ import logoImage from '../../assets/LogoBOT.png';
     </div>
 
     <div class="bottom">
-        <span class="copy">© 2026 ItsBagelBot</span>
-        <span class="note">No data sold · No trackers · No surprises</span>
+        <span class="copy">&copy; 2026 ItsBagelBot</span>
+        <span class="note">No data sold &middot; No trackers &middot; No surprises</span>
         <div class="legal">
-            <a href="#">Privacy Policy</a>
-            <a href="#">Terms of Service</a>
+            <a href="/privacy">Privacy Policy</a>
+            <a href="/terms">Terms of Service</a>
         </div>
     </div>
 </footer>
@@ -105,14 +104,22 @@ import logoImage from '../../assets/LogoBOT.png';
     }
 
     .col a {
+        width: fit-content;
         font-size: 0.85rem;
         color: var(--muted);
         text-decoration: none;
-        transition: color 0.2s;
+        transition: color 0.2s var(--ease-out-expo), transform 0.3s var(--ease-out-expo);
     }
 
     .col a:hover {
         color: var(--tan-light);
+        transform: translateX(4px);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .col a:hover {
+            transform: none;
+        }
     }
 
     .bottom {

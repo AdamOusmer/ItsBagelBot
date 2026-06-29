@@ -1,0 +1,56 @@
+---
+interface Props {
+    eyebrow?: string;
+    title: string;
+    align?: "center" | "left";
+}
+
+const { eyebrow, title, align = "center" } = Astro.props;
+---
+
+<div class:list={["section-heading", `section-heading--${align}`]}>
+    {eyebrow && <span class="section-heading__eyebrow" data-reveal>{eyebrow}</span>}
+    <h2 class="section-heading__title" data-reveal style="--reveal-i: 1">{title}</h2>
+</div>
+
+<style>
+    .section-heading {
+        display: flex;
+        flex-direction: column;
+        margin-bottom: 56px;
+    }
+
+    .section-heading--center {
+        align-items: center;
+        text-align: center;
+    }
+
+    .section-heading--left {
+        align-items: flex-start;
+        text-align: left;
+    }
+
+    .section-heading__eyebrow {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.72rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--green-glow, #52b788);
+        margin-bottom: 14px;
+    }
+
+    .section-heading__title {
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-weight: 800;
+        font-size: clamp(1.6rem, 4.5vw, 2.5rem);
+        line-height: 1.1;
+        letter-spacing: -0.01em;
+        color: var(--white, #f0ece4);
+    }
+
+    @media (max-width: 640px) {
+        .section-heading {
+            margin-bottom: 40px;
+        }
+    }
+</style>

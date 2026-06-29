@@ -72,7 +72,7 @@ func (m *BakedModule) Commands() []module.Command {
 				emit(&module.Output{
 					Type:          outgress.TypeChat,
 					BroadcasterID: c.Env.BroadcasterUserID,
-					Text:          "🏓 up for " + humanizeUptime(time.Since(m.startedAt)),
+					Text:          "Pong! ItsBagelBot has been up for " + humanizeUptime(time.Since(m.startedAt)),
 				})
 				return nil
 			},
@@ -84,7 +84,7 @@ func (m *BakedModule) Commands() []module.Command {
 				emit(&module.Output{
 					Type:          outgress.TypeChat,
 					BroadcasterID: c.Env.BroadcasterUserID,
-					Text:          "ItsBagelBot 🥯 → https://itsbagelbot.dev",
+					Text:          "ItsBagelBot 🥯 → https://itsbagelbot.com",
 				})
 				return nil
 			},
