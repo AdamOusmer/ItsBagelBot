@@ -100,6 +100,15 @@ spec:
           labelSelector:
             matchLabels:
               app: twitch-ingress
+      # Resolve external hosts (Twitch EventSub/Helix) without the cluster
+      # search-domain fan-out (ndots:1) and serialize A/AAAA to dodge the
+      # conntrack race; cap any DNS stall well under a few seconds.
+      dnsConfig:
+        options:
+          - {name: ndots, value: "1"}
+          - {name: single-request-reopen}
+          - {name: timeout, value: "2"}
+          - {name: attempts, value: "2"}
       securityContext:
         runAsNonRoot: true
         runAsUser: 999 # the image's `ingress` user; numeric so kubelet can verify
