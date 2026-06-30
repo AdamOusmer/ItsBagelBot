@@ -98,6 +98,15 @@ spec:
               value: bagel.rpc.projector.dashboard
             - name: PROJECTOR_WRITE_CONCURRENCY
               value: "8"
+            # Stream-online refreshes keep a full settings snapshot warm for a
+            # day. Dashboard command/module reads hydrate missing sections in
+            # the background with a shorter two-hour retention window.
+            - name: PROJECTOR_LIVE_HYDRATION_TTL
+              value: 24h
+            - name: PROJECTOR_QUERY_HYDRATION_TTL
+              value: 2h
+            - name: PROJECTOR_HYDRATION_CONCURRENCY
+              value: "8"
             - name: GOMEMLIMIT
               value: 256MiB
           envFrom:
