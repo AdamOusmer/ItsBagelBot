@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"ItsBagelBot/app/projector/hydration"
 	rpcprojection "ItsBagelBot/internal/domain/rpc/projection"
 	projectorrpc "ItsBagelBot/internal/domain/rpc/projector"
 	"ItsBagelBot/internal/projection"
@@ -22,6 +23,7 @@ type Dashboard struct {
 	store         *projection.Store
 	commandsTopic string
 	modulesTopic  string
+	hydrator      *hydration.Hydrator
 	log           *zap.Logger
 	writeGate     chan struct{}
 	mu            sync.Mutex
@@ -55,6 +57,7 @@ func SubscribeDashboard(
 	prefix string,
 	commandsTopic string,
 	modulesTopic string,
+	hydrator *hydration.Hydrator,
 	queueGroup string,
 	app *newrelic.Application,
 	log *zap.Logger,
@@ -69,6 +72,7 @@ func SubscribeDashboard(
 		store:         store,
 		commandsTopic: commandsTopic,
 		modulesTopic:  modulesTopic,
+		hydrator:      hydrator,
 		log:           log,
 		writeGate:     make(chan struct{}, writeConcurrency),
 		commandMisses: map[uint64]*commandInFlight{},
@@ -95,6 +99,7 @@ func (d *Dashboard) handleCommandsGet(ctx context.Context, req projectorrpc.Dash
 
 	commands, projected, err := d.store.GetCommands(ctx, userID)
 	if err == nil && projected {
+		d.hydrator.EnsureAsync(userID, hydration.Seed{})
 		return rpcprojection.CommandsReply{UserID: req.UserID, Commands: commands}
 	}
 	if err != nil && d.log != nil {
@@ -103,9 +108,10 @@ func (d *Dashboard) handleCommandsGet(ctx context.Context, req projectorrpc.Dash
 
 	fill := d.loadCommands(ctx, userID, req)
 	if fill.err != "" {
+		d.hydrator.EnsureAsync(userID, hydration.Seed{})
 		return rpcprojection.CommandsReply{UserID: req.UserID, Error: fill.err}
 	}
-	d.writeCommandsAsync(userID, fill.commands)
+	d.hydrator.EnsureAsync(userID, hydration.CommandsSeed(fill.commands))
 	return rpcprojection.CommandsReply{UserID: req.UserID, Commands: fill.commands}
 }
 
@@ -126,6 +132,7 @@ func (d *Dashboard) handleModulesGet(ctx context.Context, req projectorrpc.Dashb
 
 	modules, projected, err := d.store.GetModules(ctx, userID)
 	if err == nil && projected {
+		d.hydrator.EnsureAsync(userID, hydration.Seed{})
 		return rpcprojection.ModulesReply{UserID: req.UserID, Modules: modules}
 	}
 	if err != nil && d.log != nil {
@@ -134,9 +141,10 @@ func (d *Dashboard) handleModulesGet(ctx context.Context, req projectorrpc.Dashb
 
 	fill := d.loadModules(ctx, userID, req)
 	if fill.err != "" {
+		d.hydrator.EnsureAsync(userID, hydration.Seed{})
 		return rpcprojection.ModulesReply{UserID: req.UserID, Error: fill.err}
 	}
-	d.writeModulesAsync(userID, fill.modules)
+	d.hydrator.EnsureAsync(userID, hydration.ModulesSeed(fill.modules))
 	return rpcprojection.ModulesReply{UserID: req.UserID, Modules: fill.modules}
 }
 
