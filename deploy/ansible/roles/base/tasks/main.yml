@@ -71,6 +71,7 @@
   loop:
     - br_netfilter
     - overlay
+  ignore_errors: true
 
 # --- sysctl tuning (copied verbatim from running fleet) ----------------------
 - name: Kubernetes / Tailscale / TCP sysctl tuning
