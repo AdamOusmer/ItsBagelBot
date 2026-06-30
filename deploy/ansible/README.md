@@ -36,6 +36,44 @@ The playbook refuses to run on non-RHEL hosts (pre-task assert).
 - No IPs are copied or committed. `node-ip` is read from the live `tailscale0`
   interface at apply time.
 
+## Direct peer-to-peer UDP is mandatory
+
+The playbook now fails provisioning if any fleet peer remains on DERP or a peer
+relay after ten probes. This is intentional: Flannel carries all cross-node pod
+traffic over Tailscale, so a relayed edge would also carry NATS and JetStream
+RAFT over the relay.
+
+Before provisioning, make UDP `41641` reachable:
+
+1. In every cloud firewall/security group, allow inbound UDP destination port
+   `41641` from `0.0.0.0/0` (and `::/0` when the node has public IPv6). The host
+   firewall still restricts all other public traffic; Tailscale authenticates
+   and encrypts packets arriving on this UDP socket.
+2. On worker1's upstream router, reserve its LAN address and create a static
+   UDP port-forward from WAN `41641` to worker1 port `41641`. Enabling
+   NAT-PMP/UPnP is an alternative, but a static mapping is more predictable for
+   a cluster node.
+3. Allow outbound UDP to arbitrary destinations and UDP `3478` for STUN.
+
+Validate from each node (this pulls the live peer list so it never goes stale):
+
+```bash
+# Ping every fleet peer; skip yourself
+self=$(tailscale status --json | jq -r '.Self.HostName')
+tailscale status --json \
+  | jq -r '.Peer[] | select(.OS != "") | .HostName' \
+  | while read -r peer; do
+      [ "$peer" = "$self" ] && continue
+      tailscale ping --until-direct=true --c=10 --timeout=2s "$peer"
+    done
+```
+
+Every remote peer must finish with `via <public-ip>:<udp-port>`, never
+`via DERP(...)`.
+
+When adding a node, update `tailscale_direct_peers` in `group_vars/all.yml`
+**before** running the playbook so the Ansible enforcement loop includes it.
+
 ## Secrets (Doppler)
 
 Put these in the Doppler config you run with:
@@ -72,7 +110,7 @@ NODE_NAME=node4 doppler run -- ansible-playbook site.yml \
 ### Compute-only nodes (taint + label)
 
 Set `NODE_POOL` to fence a node so **only pods that tolerate it** schedule there
-(default-deny). Used for the residential/compute box — user-facing apps + ingress
+(default-deny). Used for the private compute box — user-facing apps + ingress
 stay on the cloud nodes automatically; only tolerating workloads land here.
 
 ```bash
