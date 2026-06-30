@@ -23,7 +23,7 @@ import (
 // JSDomain is the JetStream domain the fleet's streams live in. Clients dial the
 // leaf (whose own JetStream domain is "leaf"), so every JetStream context must be
 // domain-qualified to reach the authoritative hub streams.
-func JSDomain() string { return env.Get("NATS_JS_DOMAIN", env.Get("NODE_NAME", "")) }
+func JSDomain() string { return env.Get("NATS_JS_DOMAIN", "leaf") }
 
 // serverList returns the ordered NATS endpoint list, leaf first then hub, as the
 // comma-joined string nats.Connect parses into an ordered server pool. override
