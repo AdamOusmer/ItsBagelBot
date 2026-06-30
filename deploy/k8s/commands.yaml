@@ -85,6 +85,10 @@ spec:
               value: nats://nats-leaf:4222
             - name: NATS_LEAF_URL
               value: nats://nats-leaf:4222
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
             - name: DB_MAX_OPEN_CONNS
               value: "4"
             - name: DB_QUERY_CONCURRENCY
