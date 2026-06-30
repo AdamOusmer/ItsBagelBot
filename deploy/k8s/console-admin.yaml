@@ -108,6 +108,10 @@ spec:
               value: nats://nats-leaf:4222
             - name: NATS_LEAF_URL
               value: nats://nats-leaf:4222
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
             - name: NATS_ADMIN_SUBJECT
               value: twitch.ingress.admin.shards.get
             - name: NATS_STATUS_SUBJECT_PREFIX
