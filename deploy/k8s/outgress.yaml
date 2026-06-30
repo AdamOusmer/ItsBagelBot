@@ -65,6 +65,17 @@ spec:
             matchLabels:
               app: outgress
       # DaemonSet placement keeps one outgress pod per schedulable node.
+      # Resolving api.twitch.tv is on the hot path. With the default ndots:5 the
+      # external FQDN first fans out into cluster-domain queries (…svc.cluster.local
+      # etc.), each a chance to hit the cross-node DNS stall; ndots:1 sends the
+      # absolute name first. A shorter timeout with a retry caps a stall well under
+      # the 5s outgress message lifetime instead of blowing it.
+      dnsConfig:
+        options:
+          - {name: ndots, value: "1"}
+          - {name: single-request-reopen}
+          - {name: timeout, value: "2"}
+          - {name: attempts, value: "2"}
       securityContext:
         runAsNonRoot: true
         runAsUser: 65532
