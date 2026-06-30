@@ -73,7 +73,6 @@
       - tailscale
       - set
       - "--hostname={{ fleet_node_name }}"
-      - "--advertise-tags={{ tailscale_tag }}"
       - "--ssh=true"
       - "--accept-routes=true"
       - "--accept-dns=false"
