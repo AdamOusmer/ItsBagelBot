@@ -1,5 +1,6 @@
 ---
 - name: Restart tailscaled
-  ansible.builtin.service:
-    name: tailscaled
-    state: restarted
+  ansible.builtin.shell: sleep 2 && systemctl restart tailscaled
+  async: 1
+  poll: 0
+  ignore_errors: true
