@@ -61,6 +61,7 @@ defmodule Ingress.Application do
        ]},
       nats_connection(),
       nats_bus_connection(),
+      Ingress.NatsFailback,
       Ingress.BroadcasterCache,
       {Task.Supervisor, name: Ingress.Dispatcher.TaskSupervisor},
       Ingress.Dispatcher,

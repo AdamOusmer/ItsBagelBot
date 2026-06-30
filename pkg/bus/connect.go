@@ -76,6 +76,13 @@ func baseOptions(name, user, pass string) []nats.Option {
 		opts = append(opts, nats.UserInfo(user, pass))
 	}
 
+	// Kubernetes may temporarily place this connection on a fallback leaf. Once
+	// the same-node leaf is stably healthy, recycle only that displaced
+	// connection so topology-aware Service routing can return it locally.
+	if option := leafFailbackOption(); option != nil {
+		opts = append(opts, option)
+	}
+
 	return opts
 }
 

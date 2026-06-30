@@ -2,6 +2,7 @@
 // reused across requests (connection setup is the expensive part; a warm conn
 // keeps request/reply in the low-ms range, which is what the p99 budget needs).
 import newrelic from 'newrelic';
+import { createConnection } from 'node:net';
 import {
   connect,
   JSONCodec,
@@ -42,6 +43,87 @@ const pools: Record<Role, Pool> = {
   rpc: { conn: null, dialing: null },
   bus: { conn: null, dialing: null }
 };
+
+const failbackEnabled = new WeakSet<NatsConnection>();
+let failbackQueue: Promise<void> = Promise.resolve();
+
+function positiveNumber(value: string | undefined, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function localLeafReady(address: string, timeoutMs: number): Promise<boolean> {
+  const separator = address.lastIndexOf(':');
+  const host = separator > 0 ? address.slice(0, separator) : address;
+  const port = separator > 0 ? Number(address.slice(separator + 1)) : 4222;
+  return new Promise((resolve) => {
+    const socket = createConnection({ host, port });
+    let settled = false;
+    const finish = (ready: boolean) => {
+      if (settled) return;
+      settled = true;
+      socket.destroy();
+      resolve(ready);
+    };
+    socket.setTimeout(timeoutMs, () => finish(false));
+    socket.once('connect', () => finish(true));
+    socket.once('error', () => finish(false));
+  });
+}
+
+/**
+ * Re-home a connection only after it is known to be remote and the strict
+ * same-node probe has succeeded repeatedly. Reconnects are serialized across
+ * the process and initially jittered to avoid a fleet-wide recovery stampede.
+ */
+export function enableLeafFailback(nc: NatsConnection): void {
+  const nodeName = process.env.NODE_NAME;
+  if (!nodeName || failbackEnabled.has(nc)) return;
+  failbackEnabled.add(nc);
+
+  const intervalMs = positiveNumber(process.env.NATS_FAILBACK_INTERVAL_MS, 30_000);
+  const required = positiveNumber(process.env.NATS_FAILBACK_SUCCESSES, 3);
+  const timeoutMs = positiveNumber(process.env.NATS_FAILBACK_PROBE_TIMEOUT_MS, 1_000);
+  const localAddress = process.env.NATS_LOCAL_LEAF_ADDR ?? 'nats-leaf-local:4222';
+  let consecutive = 0;
+  let running = false;
+
+  const check = async () => {
+    if (running || nc.isClosed()) return;
+    running = true;
+    try {
+      const serverName = nc.info?.server_name ?? '';
+      if (serverName.startsWith(`${nodeName}--`)) {
+        consecutive = 0;
+        return;
+      }
+      if (!(await localLeafReady(localAddress, timeoutMs))) {
+        consecutive = 0;
+        return;
+      }
+      consecutive++;
+      if (consecutive < required) return;
+      consecutive = 0;
+      failbackQueue = failbackQueue.catch(() => {}).then(async () => {
+        if (!nc.isClosed() && !nc.info?.server_name?.startsWith(`${nodeName}--`)) {
+          await nc.reconnect();
+        }
+      });
+      await failbackQueue;
+    } catch {
+      consecutive = 0;
+    } finally {
+      running = false;
+    }
+  };
+
+  const initial = setTimeout(() => {
+    void check();
+    const timer = setInterval(() => void check(), intervalMs);
+    timer.unref();
+  }, Math.random() * intervalMs);
+  initial.unref();
+}
 
 // serverList returns the ordered endpoint list, leaf first then hub. `override`
 // (NATS_RPC_URL for rpc, NATS_URL for bus) is used as the leaf endpoint when the
@@ -95,6 +177,7 @@ async function get(role: Role): Promise<NatsConnection> {
   pool.dialing = connect(options(role))
     .then((c) => {
       pool.conn = c;
+      enableLeafFailback(c);
       return c;
     })
     .finally(() => {
