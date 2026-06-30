@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"ItsBagelBot/app/projector/hydration"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/domain/event/twitch"
 	"ItsBagelBot/internal/domain/invalidate"
@@ -37,17 +38,17 @@ type Projector struct {
 	// section-scoped cache invalidations (commands, modules) to the console
 	// cache bus after Valkey is updated. Subject = prefix + "." + scope.
 	cacheInvalidatePrefix string
-	prewarmer             *Prewarmer
+	hydrator              *hydration.Hydrator
 	log                   *zap.Logger
 }
 
-func NewProjector(store *projection.Store, nc *nats.Conn, invalidateSubject string, cacheInvalidatePrefix string, prewarmer *Prewarmer, log *zap.Logger) *Projector {
+func NewProjector(store *projection.Store, nc *nats.Conn, invalidateSubject string, cacheInvalidatePrefix string, hydrator *hydration.Hydrator, log *zap.Logger) *Projector {
 	return &Projector{
 		store:                 store,
 		nc:                    nc,
 		invalidateSubject:     invalidateSubject,
 		cacheInvalidatePrefix: cacheInvalidatePrefix,
-		prewarmer:             prewarmer,
+		hydrator:              hydrator,
 		log:                   log,
 	}
 }
@@ -213,14 +214,14 @@ func (p *Projector) drop(msg *message.Message, subject string, err error) {
 // HandleStreamEvent handles a Twitch EventSub stream-status message off the
 // JetStream durable consumer. It decodes the payload via the twitch package
 // (which owns the wire shape), persists the live state to Valkey, and triggers
-// a cache pre-warm when the broadcaster goes live.
+// a full cache refresh when the broadcaster goes live.
 //
 // It rides a per-service durable consumer (see main), so each subsystem on this
 // subject gets its own copy and exactly one pod per group handles each event:
-// the prewarm fires once, not once per projector pod. Returning an error nacks
+// the refresh fires once, not once per projector pod. Returning an error nacks
 // for redelivery; an unparseable payload is dropped (acked) since redelivery
 // cannot fix it. A SetStreamLive failure nacks because the live state matters;
-// prewarm is best-effort and only logs.
+// background hydration is best-effort and only logs.
 //
 // SetStreamLive stays SYNCHRONOUS on purpose. It writes the settings:<id> hash
 // "live" field, a DIFFERENT key/namespace from the worker's flat live:<id>
@@ -230,7 +231,7 @@ func (p *Projector) drop(msg *message.Message, subject string, err error) {
 // the projector's GetStreamLive RPC fallback with no redelivery). The per-message
 // command latency win lives entirely on the worker side (the node-local replica
 // read + the now fire-and-forget greet/live writes), so there is nothing to gain
-// by making this async and real correctness to lose. Prewarm is already async.
+// by making this async and real correctness to lose. Hydration is already async.
 func (p *Projector) HandleStreamEvent(msg *message.Message) error {
 	st, ok := twitch.DecodeStreamStatus(msg.Payload)
 	if !ok {
@@ -246,7 +247,7 @@ func (p *Projector) HandleStreamEvent(msg *message.Message) error {
 		return nil
 	}
 
-	p.log.Info("pre-warming cache for stream online", zap.Uint64("user_id", st.BroadcasterID))
-	p.prewarmer.Prewarm(msg.Context(), st.BroadcasterID)
+	p.log.Info("refreshing settings cache for stream online", zap.Uint64("user_id", st.BroadcasterID))
+	p.hydrator.RefreshAsync(st.BroadcasterID)
 	return nil
 }

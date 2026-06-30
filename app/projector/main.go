@@ -5,7 +5,9 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
+	"ItsBagelBot/app/projector/hydration"
 	"ItsBagelBot/app/projector/rpc"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/projection"
@@ -84,14 +86,22 @@ func main() {
 	// (commands, modules) to the console cache bus after Valkey is updated.
 	cacheInvalidatePrefix := env.Get("NATS_CACHE_INVALIDATION_PREFIX", "bagel.cache.invalidate")
 
-	// Stream Online Pre-Warming subjects: resolved here so Prewarmer owns them.
+	// Full settings hydration sources. Stream-online refreshes keep the snapshot
+	// for 24h; command/module queries fill missing sections on the side for 2h.
 	streamTopic := env.Get("NATS_SUBJECT_LANE_STREAM", "twitch.ingress.event.stream")
 	usersTopic := env.Get("NATS_INTERNAL_PROJECTION_USERS_SUBJECT", "bagel.rpc.internal.projection.users.get")
 	modulesTopic := env.Get("NATS_INTERNAL_PROJECTION_MODULES_SUBJECT", "bagel.rpc.internal.projection.modules.get")
 	commandsTopic := env.Get("NATS_INTERNAL_PROJECTION_COMMANDS_SUBJECT", "bagel.rpc.internal.projection.commands.get")
 
-	prewarmer := NewPrewarmer(valkeyStore, nc, usersTopic, modulesTopic, commandsTopic, log)
-	projector := NewProjector(valkeyStore, nc, invalidateSubject, cacheInvalidatePrefix, prewarmer, log)
+	queryHydrationTTL := env.GetDuration("PROJECTOR_QUERY_HYDRATION_TTL", 2*time.Hour)
+	liveHydrationTTL := env.GetDuration("PROJECTOR_LIVE_HYDRATION_TTL", projection.DefaultTTL)
+	hydrationConcurrency := env.GetInt("PROJECTOR_HYDRATION_CONCURRENCY", 8)
+	hydrator := hydration.New(valkeyStore, nc, projection.Subjects{
+		Users:    usersTopic,
+		Modules:  modulesTopic,
+		Commands: commandsTopic,
+	}, queryHydrationTTL, liveHydrationTTL, hydrationConcurrency, log)
+	projector := NewProjector(valkeyStore, nc, invalidateSubject, cacheInvalidatePrefix, hydrator, log)
 
 	if err := bus.Consume(ctx, nrApp, sub, data.SubjectUserChanged, projector.HandleUserChanged, log); err != nil {
 		log.Fatal("failed to subscribe to user changes", zap.Error(err))
@@ -110,10 +120,10 @@ func main() {
 	}
 
 	// Durable JetStream consumer, not a plain core Subscribe: a stream-online
-	// only writes shared Valkey state and pre-warms the shared projection, so
+	// only writes shared Valkey state and refreshes the shared projection, so
 	// exactly one projector pod must handle each event. The durable is keyed by
 	// the projector's service group (sub), so projector pods share one consumer
-	// (one prewarm per event, not pods x 3 prewarm RPCs) and the consumer
+	// (one refresh per event, not pods x 3 hydration RPCs) and the consumer
 	// survives restarts. Other subsystems on this subject bind their own durable
 	// under their own group and still get every event once.
 	if err := bus.Consume(ctx, nrApp, sub, streamTopic, projector.HandleStreamEvent, log); err != nil {
@@ -126,7 +136,7 @@ func main() {
 	}
 
 	dashboardSubject := env.Get("NATS_PROJECTOR_DASHBOARD_SUBJECT_PREFIX", "bagel.rpc.projector.dashboard")
-	if err := rpc.SubscribeDashboard(nc, valkeyStore, dashboardSubject, commandsTopic, modulesTopic, "projector-rpc", nrApp, log); err != nil {
+	if err := rpc.SubscribeDashboard(nc, valkeyStore, dashboardSubject, commandsTopic, modulesTopic, hydrator, "projector-rpc", nrApp, log); err != nil {
 		log.Fatal("failed to subscribe dashboard projector rpc", zap.Error(err))
 	}
 
