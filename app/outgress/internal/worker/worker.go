@@ -1001,15 +1001,6 @@ func (w *Worker) execute(ctx context.Context, payload outgress.Message) error {
 		return nil
 	}
 
-	if strings.HasPrefix(payload.Endpoint, "/helix/chat/messages") {
-		body, err := io.ReadAll(io.LimitReader(res.Body, 2048))
-		if err == nil {
-			w.log.Info("twitch chat message response",
-				zap.String("endpoint", payload.Endpoint),
-				zap.String("body", string(body)))
-		}
-	}
-
 	return nil
 }
 
