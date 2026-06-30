@@ -77,6 +77,22 @@ var (
 	helixSystemSpec     = ratelimit.NewSpec(helixSystemReserve, helixSystemReserve/helixWindow)
 )
 
+// nodeRegion and nodeName label every transaction so Twitch external-segment
+// duration can be faceted by node in New Relic. They are process-wide (one pod
+// is one node) and set once at startup via SetNodeIdentity; the empty default
+// is harmless when the agent is not configured.
+var (
+	nodeRegion string
+	nodeName   string
+)
+
+// SetNodeIdentity records the pod's region and host for transaction labeling.
+// Call once at startup before consuming.
+func SetNodeIdentity(region, host string) {
+	nodeRegion = region
+	nodeName = host
+}
+
 // Lane identifies which queue a worker drains; it selects the rate-limit
 // buckets the worker pays into.
 type Lane int
@@ -235,6 +251,8 @@ func (w *Worker) Process(msg *message.Message) error {
 	recordStageDuration(ctx, "outgress.decode_ms", decodeStarted)
 
 	if txn := newrelic.FromContext(ctx); txn != nil {
+		txn.AddAttribute("node.region", nodeRegion)
+		txn.AddAttribute("node.name", nodeName)
 		txn.AddAttribute("event.type", payload.Type)
 		txn.AddAttribute("event.broadcaster_id", payload.BroadcasterID)
 		if payload.Endpoint != "" {
