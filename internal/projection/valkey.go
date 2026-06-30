@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"strconv"
 	"strings"
+	"time"
 
 	"ItsBagelBot/internal/domain/event/data"
 	contract "ItsBagelBot/internal/domain/rpc/projection"
@@ -17,6 +18,11 @@ import (
 )
 
 const settingsKeyPrefix = "settings:"
+
+// DefaultTTL is used by event-driven projection writes. Query-triggered
+// hydration may request a shorter TTL, but projection expiry is monotonic: a
+// shorter write never reduces a longer TTL already attached to the hash.
+const DefaultTTL = 24 * time.Hour
 
 // Command rows are addressable individually so a single lookup is one HGET, not
 // a whole-hash HGETALL. commandFieldPrefix holds the command JSON keyed by its
@@ -50,12 +56,17 @@ func NewStore(client valkey.Client) *Store {
 
 // SetUser projects the tier status, active flag and ban flag of one user.
 func (v *Store) SetUser(ctx context.Context, userID uint64, status string, isActive bool, banned bool) error {
+	return v.SetUserWithTTL(ctx, userID, status, isActive, banned, DefaultTTL)
+}
+
+// SetUserWithTTL projects the user fields and keeps the hash for at least ttl.
+func (v *Store) SetUserWithTTL(ctx context.Context, userID uint64, status string, isActive bool, banned bool, ttl time.Duration) error {
 
 	defer segment(ctx, "HSET")()
 
 	key := cache.UserKey(settingsKeyPrefix, userID)
 
-	return v.pipeline(ctx,
+	return v.pipelineWithTTL(ctx, key, ttl,
 		v.client.B().Hset().
 			Key(key).
 			FieldValue().
@@ -63,7 +74,6 @@ func (v *Store) SetUser(ctx context.Context, userID uint64, status string, isAct
 			FieldValue("active", utils.BoolField(isActive)).
 			FieldValue("banned", utils.BoolField(banned)).
 			Build(),
-		v.client.B().Expire().Key(key).Seconds(24*60*60).Build(),
 	)
 }
 
@@ -115,13 +125,12 @@ func (v *Store) SetStreamLive(ctx context.Context, userID uint64, live bool) err
 
 	key := cache.UserKey(settingsKeyPrefix, userID)
 
-	return v.pipeline(ctx,
+	return v.pipelineWithTTL(ctx, key, DefaultTTL,
 		v.client.B().Hset().
 			Key(key).
 			FieldValue().
 			FieldValue("live", utils.BoolField(live)).
 			Build(),
-		v.client.B().Expire().Key(key).Seconds(24*60*60).Build(),
 	)
 }
 
@@ -142,10 +151,7 @@ func (v *Store) SetModule(ctx context.Context, userID uint64, name string, isEna
 		fields = fields.FieldValue("module:"+name+":config", string(configs))
 	}
 
-	return v.pipeline(ctx,
-		fields.Build(),
-		v.client.B().Expire().Key(key).Seconds(24*60*60).Build(),
-	)
+	return v.pipelineWithTTL(ctx, key, DefaultTTL, fields.Build())
 }
 
 type ModuleView = contract.ModuleView
@@ -172,6 +178,12 @@ func commandViewFromEvent(dto data.CommandChangedDTO) CommandView {
 // SetModules projects a complete module list and records that an empty list is
 // known data, not a cold Valkey miss.
 func (v *Store) SetModules(ctx context.Context, userID uint64, modules []ModuleView) error {
+	return v.SetModulesWithTTL(ctx, userID, modules, DefaultTTL)
+}
+
+// SetModulesWithTTL replaces the complete module section and keeps the hash
+// for at least ttl. An empty list is still marked as projected.
+func (v *Store) SetModulesWithTTL(ctx context.Context, userID uint64, modules []ModuleView, ttl time.Duration) error {
 	defer segment(ctx, "HSET")()
 
 	key := cache.UserKey(settingsKeyPrefix, userID)
@@ -191,10 +203,7 @@ func (v *Store) SetModules(ctx context.Context, userID uint64, modules []ModuleV
 		}
 	}
 
-	return v.pipeline(ctx,
-		fields.Build(),
-		v.client.B().Expire().Key(key).Seconds(24*60*60).Build(),
-	)
+	return v.pipelineWithTTL(ctx, key, ttl, fields.Build())
 }
 
 // SetCommand projects one command row of one user. The command JSON lands under
@@ -231,8 +240,8 @@ func (v *Store) SetCommand(ctx context.Context, dto data.CommandChangedDTO) erro
 		cmds = append(cmds,
 			v.client.B().Hdel().Key(key).Field(field).Build(),
 			v.client.B().Hset().Key(key).FieldValue().FieldValue("commands:projected", "1").Build(),
-			v.client.B().Expire().Key(key).Seconds(24*60*60).Build(),
 		)
+		cmds = append(cmds, v.expiryCommands(key, DefaultTTL)...)
 		return v.pipeline(ctx, cmds...)
 	}
 
@@ -248,7 +257,8 @@ func (v *Store) SetCommand(ctx context.Context, dto data.CommandChangedDTO) erro
 	for _, a := range view.Aliases {
 		set = set.FieldValue(aliasFieldPrefix+strings.ToLower(a), name)
 	}
-	cmds = append(cmds, set.Build(), v.client.B().Expire().Key(key).Seconds(24*60*60).Build())
+	cmds = append(cmds, set.Build())
+	cmds = append(cmds, v.expiryCommands(key, DefaultTTL)...)
 	return v.pipeline(ctx, cmds...)
 }
 
@@ -302,6 +312,12 @@ func (v *Store) GetCommand(ctx context.Context, userID uint64, name string) (vie
 // SetCommands projects a complete command list and records that an empty list is
 // known data, not a cold Valkey miss.
 func (v *Store) SetCommands(ctx context.Context, userID uint64, commands []CommandView) error {
+	return v.SetCommandsWithTTL(ctx, userID, commands, DefaultTTL)
+}
+
+// SetCommandsWithTTL replaces the complete command section and keeps the hash
+// for at least ttl. An empty list is still marked as projected.
+func (v *Store) SetCommandsWithTTL(ctx context.Context, userID uint64, commands []CommandView, ttl time.Duration) error {
 	defer segment(ctx, "HSET")()
 
 	key := cache.UserKey(settingsKeyPrefix, userID)
@@ -326,10 +342,45 @@ func (v *Store) SetCommands(ctx context.Context, userID uint64, commands []Comma
 		}
 	}
 
-	return v.pipeline(ctx,
-		fields.Build(),
-		v.client.B().Expire().Key(key).Seconds(24*60*60).Build(),
-	)
+	return v.pipelineWithTTL(ctx, key, ttl, fields.Build())
+}
+
+// HydrationState describes which complete sections exist in a user's settings
+// hash. The projected markers distinguish an intentionally empty collection
+// from a cold cache miss.
+type HydrationState struct {
+	User     bool
+	Modules  bool
+	Commands bool
+}
+
+func (s HydrationState) Complete() bool {
+	return s.User && s.Modules && s.Commands
+}
+
+// GetHydrationState checks every section with one HMGET. The live field is not
+// part of configuration hydration; it is maintained independently by stream
+// events.
+func (v *Store) GetHydrationState(ctx context.Context, userID uint64) (HydrationState, error) {
+	defer segment(ctx, "HMGET")()
+
+	key := cache.UserKey(settingsKeyPrefix, userID)
+	fields, err := v.client.Do(ctx, v.client.B().Hmget().Key(key).
+		Field("status").
+		Field("modules:projected").
+		Field("commands:projected").
+		Build()).AsStrSlice()
+	if err != nil {
+		return HydrationState{}, err
+	}
+	if len(fields) < 3 {
+		return HydrationState{}, nil
+	}
+	return HydrationState{
+		User:     fields[0] != "",
+		Modules:  fields[1] == "1",
+		Commands: fields[2] == "1",
+	}, nil
 }
 
 func (v *Store) GetModules(ctx context.Context, userID uint64) ([]ModuleView, bool, error) {
@@ -454,6 +505,26 @@ func (v *Store) pipeline(ctx context.Context, cmds ...valkey.Completed) error {
 		}
 	}
 	return nil
+}
+
+func (v *Store) pipelineWithTTL(ctx context.Context, key string, ttl time.Duration, cmds ...valkey.Completed) error {
+	cmds = append(cmds, v.expiryCommands(key, ttl)...)
+	return v.pipeline(ctx, cmds...)
+}
+
+// expiryCommands sets ttl on a persistent/new hash (NX), then extends an
+// existing shorter expiry (GT). Together these commands implement max(current,
+// requested) without a read/modify/write race, so a 2h query hydration can
+// never shorten a 24h live-event projection.
+func (v *Store) expiryCommands(key string, ttl time.Duration) []valkey.Completed {
+	seconds := int64(ttl / time.Second)
+	if seconds < 1 {
+		seconds = 1
+	}
+	return []valkey.Completed{
+		v.client.B().Expire().Key(key).Seconds(seconds).Nx().Build(),
+		v.client.B().Expire().Key(key).Seconds(seconds).Gt().Build(),
+	}
 }
 
 // segment reports the operation as a datastore segment of the transaction in
