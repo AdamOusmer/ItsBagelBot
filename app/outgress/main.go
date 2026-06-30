@@ -170,6 +170,11 @@ func main() {
 	if err != nil || host == "" {
 		log.Fatal("failed to determine outgress pod identity", zap.Error(err))
 	}
+	// Label every worker transaction with this pod's region and the Kubernetes
+	// node it runs on so the Twitch external-segment duration can be split per
+	// node in New Relic. NODE_NAME (spec.nodeName) names the actual node;
+	// hostname (the pod) is the dev fallback.
+	worker.SetNodeIdentity(cfg.RateRegion, env.Get("NODE_NAME", host))
 
 	buckets := ratelimit.NewBucketStore(10_000)
 
