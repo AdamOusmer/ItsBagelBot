@@ -14,15 +14,30 @@
     name: tailscale
     state: present
 
+- name: Pin the Tailscale UDP listen port
+  ansible.builtin.copy:
+    dest: /etc/default/tailscaled
+    mode: "0644"
+    content: |
+      # Managed by Ansible. A stable port is required for cloud firewall rules
+      # and worker1's upstream static UDP port-forward.
+      PORT="{{ tailscale_port }}"
+      FLAGS=""
+  register: tailscale_daemon_defaults
+  notify: Restart tailscaled
+
 - name: Enable + start tailscaled
   ansible.builtin.service:
     name: tailscaled
     state: started
     enabled: true
 
+- name: Apply a changed Tailscale listen port before connectivity checks
+  ansible.builtin.meta: flush_handlers
+
 - name: Current tailscale backend state
   ansible.builtin.command: tailscale status --json
-  register: ts_status
+  register: tailscale_status
   changed_when: false
   failed_when: false
 
@@ -36,14 +51,59 @@
     --accept-routes
     --accept-dns=false
   when: >-
-    ts_status.rc != 0 or
-    (ts_status.stdout | from_json).BackendState | default('') != 'Running'
+    tailscale_status.rc != 0 or
+    (tailscale_status.stdout | from_json).BackendState | default('') != 'Running'
+  changed_when: true
   no_log: true   # keep the auth key out of logs
 
 - name: Wait until Tailscale is Running
   ansible.builtin.command: tailscale status --json
-  register: ts_ready
+  register: tailscale_ready
   changed_when: false
   retries: 12
   delay: 5
-  until: (ts_ready.stdout | from_json).BackendState | default('') == 'Running'
+  until: (tailscale_ready.stdout | from_json).BackendState | default('') == 'Running'
+
+# `tailscale up` above is intentionally only used for first authentication.
+# Reconcile mutable preferences on every Ansible run; otherwise old nodes keep
+# stale settings forever because their BackendState is already Running.
+- name: Reconcile Tailscale runtime preferences
+  ansible.builtin.command:
+    argv:
+      - tailscale
+      - set
+      - "--hostname={{ fleet_node_name }}"
+      - "--advertise-tags={{ tailscale_tag }}"
+      - "--ssh=true"
+      - "--accept-routes=true"
+      - "--accept-dns=false"
+  changed_when: false
+
+- name: Confirm tailscaled is listening on the pinned UDP port
+  ansible.builtin.shell: >-
+    set -o pipefail &&
+    ss -H -lunp | grep -qE '[:.]{{ tailscale_port }}[[:space:]]'
+  args:
+    executable: /bin/bash
+  changed_when: false
+
+# Direct connectivity is an infrastructure precondition, not a best-effort
+# optimization. If this fails, open UDP/{{ tailscale_port }} in the cloud
+# firewall or add worker1's upstream port-forward described in README.md.
+- name: Require a direct UDP path to every fleet peer
+  ansible.builtin.command:
+    argv:
+      - tailscale
+      - ping
+      - "--until-direct=true"
+      - "--c=10"
+      - "--timeout=2s"
+      - "{{ item }}"
+  loop: "{{ tailscale_direct_peers }}"
+  when: item != fleet_node_name
+  register: tailscale_direct_ping
+  changed_when: false
+  failed_when: >-
+    tailscale_direct_ping.rc != 0 or
+    'via DERP(' in (tailscale_direct_ping.stdout_lines | default([]) | last | default('')) or
+    'via peer-relay' in (tailscale_direct_ping.stdout_lines | default([]) | last | default(''))
