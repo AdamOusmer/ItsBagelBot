@@ -14,6 +14,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/newrelic/go-agent/v3/newrelic"
 )
 
 const apiBase = "https://api.twitch.tv"
@@ -331,7 +333,17 @@ func (c *Client) do(ctx context.Context, src *Source, method, endpoint string, b
 		req.Header.Set("Content-Type", "application/json")
 	}
 
-	return c.http.Do(req)
+	// Record the Helix call as an external segment so its duration is isolated
+	// from in-process work and (faceted by the node.region/node.name attributes
+	// the worker sets on the transaction) tells node latency apart from code
+	// latency. StartExternalSegment finds the transaction on the request context
+	// and is a no-op when none is present, so non-instrumented callers pay
+	// nothing.
+	seg := newrelic.StartExternalSegment(newrelic.FromContext(ctx), req)
+	res, err := c.http.Do(req)
+	seg.Response = res
+	seg.End()
+	return res, err
 }
 
 // RetryAfter converts the Ratelimit-Reset header of a 429 (unix seconds)
