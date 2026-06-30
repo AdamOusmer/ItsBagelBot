@@ -3,6 +3,7 @@
 // request/reply client so a long-lived subscription never interferes with the
 // short-lived RPC requests (and vice versa).
 import { connect, type ConnectionOptions, type NatsConnection, type Subscription } from 'nats';
+import { enableLeafFailback } from '@bagel/shared/server/nats';
 
 let conn: NatsConnection | null = null;
 let dialing: Promise<NatsConnection> | null = null;
@@ -28,6 +29,7 @@ async function get(): Promise<NatsConnection> {
   dialing = connect(opts)
     .then((c) => {
       conn = c;
+      enableLeafFailback(c);
       return c;
     })
     .finally(() => {

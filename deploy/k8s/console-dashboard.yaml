@@ -121,6 +121,10 @@ spec:
               value: nats://nats-leaf:4222
             - name: NATS_LEAF_URL
               value: nats://nats-leaf:4222
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
             - name: NATS_PROJECTOR_DASHBOARD_SUBJECT_PREFIX
               value: bagel.rpc.projector.dashboard
             # Reuse the old tier's 32-byte AES key as the session key.
