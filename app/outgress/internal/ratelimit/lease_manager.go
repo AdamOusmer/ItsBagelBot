@@ -153,7 +153,7 @@ func (m *LeaseManager) allowAt(ctx context.Context, req *Request, now time.Time)
 			return false, nil
 		}
 		// No plan has ever been installed; bootstrap on the emergency partition.
-		return m.emergencyAllow(ctx, *req, 1, now.UnixMilli())
+		return m.emergencyAllow(ctx, *req, 1, 0)
 	}
 
 	bucketID := req.bucketID()
@@ -162,7 +162,7 @@ func (m *LeaseManager) allowAt(ctx context.Context, req *Request, now time.Time)
 		return true, nil
 	}
 	if skipColdChatBorrow(plan, existed, req.Spec.profile) {
-		return m.emergencyAllow(ctx, *req, plan.generation, plan.validFromMS)
+		return m.emergencyAllow(ctx, *req, plan.generation, 0)
 	}
 
 	need := NeedShared
@@ -172,7 +172,7 @@ func (m *LeaseManager) allowAt(ctx context.Context, req *Request, now time.Time)
 	if m.borrow(ctx, plan, bucketID, need, req.Spec, Spec{}) == need {
 		return true, nil
 	}
-	return m.emergencyAllow(ctx, *req, plan.generation, plan.validFromMS)
+	return m.emergencyAllow(ctx, *req, plan.generation, 0)
 }
 
 func (m *LeaseManager) AllowOrdered(ctx context.Context, first, second Request) (uint8, error) {
@@ -185,7 +185,7 @@ func (m *LeaseManager) allowOrderedAt(ctx context.Context, first, second *Reques
 		if m.plan.Load() != nil {
 			return 2, nil
 		}
-		return m.emergencyAllowOrdered(ctx, *first, *second, 1, now.UnixMilli())
+		return m.emergencyAllowOrdered(ctx, *first, *second, 1, 0)
 	}
 
 	bucketID := second.bucketID()
@@ -194,13 +194,13 @@ func (m *LeaseManager) allowOrderedAt(ctx context.Context, first, second *Reques
 		return 0, nil
 	}
 	if skipColdChatBorrow(plan, existed, second.Spec.profile) {
-		return m.emergencyAllowOrdered(ctx, *first, *second, plan.generation, plan.validFromMS)
+		return m.emergencyAllowOrdered(ctx, *first, *second, plan.generation, 0)
 	}
 
 	if m.borrow(ctx, plan, bucketID, NeedStandard|NeedShared, second.Spec, first.Spec) == NeedStandard|NeedShared {
 		return 0, nil
 	}
-	return m.emergencyAllowOrdered(ctx, *first, *second, plan.generation, plan.validFromMS)
+	return m.emergencyAllowOrdered(ctx, *first, *second, plan.generation, 0)
 }
 
 func (m *LeaseManager) active(now time.Time) *activePlan {
