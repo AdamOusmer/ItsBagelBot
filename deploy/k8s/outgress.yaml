@@ -42,7 +42,12 @@ spec:
         config.linkerd.io/proxy-cpu-limit: 1000m
         config.linkerd.io/proxy-memory-request: 16Mi
         config.linkerd.io/proxy-memory-limit: 128Mi
-        config.linkerd.io/skip-outbound-ports: 6379,26379
+        # Valkey (6379/26379) and the Twitch Helix egress (443) skip the proxy.
+        # Outgress's hot path is a synchronous POST to api.twitch.tv; routing it
+        # through the linkerd sidecar adds a proxy hop per send for an external,
+        # already-TLS destination the mesh cannot mTLS anyway. twitch-ingress
+        # skips 443 for the same reason.
+        config.linkerd.io/skip-outbound-ports: 6379,26379,443
     spec:
       tolerations:
         - key: itsbagelbot.dev/pool
@@ -86,6 +91,10 @@ spec:
               value: nats://nats-leaf:4222
             - name: NATS_LEAF_URL
               value: nats://nats-leaf:4222
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
             - name: NODE_IP
               valueFrom:
                 fieldRef:
