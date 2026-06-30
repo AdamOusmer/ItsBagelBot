@@ -42,7 +42,7 @@ spec:
       # so it is correct on all four nodes including worker1.
       initContainers:
       - name: config-init
-        image: valkey/valkey:9.0
+        image: valkey/valkey@sha256:8436e10bc65c94886a91d4415b6a6dfa9cb5a306fb3b996e5bb67cd2b4854193
         imagePullPolicy: IfNotPresent
         command:
         - /bin/sh
@@ -151,7 +151,7 @@ spec:
             secretKeyRef:
               key: valkey-password
               name: valkey-core-secret
-        image: valkey/valkey:9.0
+        image: valkey/valkey@sha256:8436e10bc65c94886a91d4415b6a6dfa9cb5a306fb3b996e5bb67cd2b4854193
         imagePullPolicy: IfNotPresent
         livenessProbe:
           exec:
@@ -220,7 +220,7 @@ spec:
             secretKeyRef:
               key: valkey-password
               name: valkey-core-secret
-        image: valkey/valkey:9.0
+        image: valkey/valkey@sha256:8436e10bc65c94886a91d4415b6a6dfa9cb5a306fb3b996e5bb67cd2b4854193
         imagePullPolicy: IfNotPresent
         livenessProbe:
           exec:
