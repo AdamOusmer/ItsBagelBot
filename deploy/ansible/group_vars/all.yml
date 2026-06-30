@@ -20,6 +20,16 @@ tailscale_authkey: "{{ lookup('env', 'TS_AUTHKEY') }}"
 tailscale_tag: "tag:itsbagelbot"       # node joins pre-authorized under this ACL tag
 tailscale_port: 41641                   # UDP listen port
 
+# A fleet node is not considered provisioned until it can establish a direct
+# UDP path to every other fleet node. This deliberately rejects DERP and peer
+# relay paths: JetStream RAFT must not be built on a hidden TCP relay.
+# Add new stable Tailscale DNS names here before growing the fleet.
+tailscale_direct_peers:
+  - node1
+  - node2
+  - node3
+  - worker1
+
 # --- Node identity -----------------------------------------------------------
 # Resolved/persisted in the base role. Pass NODE_NAME for explicit incremental
 # names (node4, node5…); otherwise a unique bot-XXXXX name is generated so the
