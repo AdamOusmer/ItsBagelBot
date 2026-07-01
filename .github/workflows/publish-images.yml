@@ -189,7 +189,7 @@ jobs:
               app/worker/*)
                 add "worker"
                 ;;
-              console/shared/*|console/bunfig.toml|console/bun.lock|console/package.json)
+              console/shared/*|console/bunfig.toml|console/bun.lock|console/package.json|console/tsconfig.base.json)
                 add "console-dashboard"
                 add "console-admin"
                 ;;

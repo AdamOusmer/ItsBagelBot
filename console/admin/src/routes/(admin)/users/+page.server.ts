@@ -20,7 +20,7 @@ import {
   type ChannelSubState
 } from '$lib/server/services';
 import { requireAdmin, isDemo, type AdminIdentity } from '$lib/server/access';
-import { signViewAs } from '$lib/server/impersonation';
+import { signViewAs } from '@bagel/shared/server/impersonation';
 import { env } from '$env/dynamic/private';
 import { sampleStats, sampleUsers } from '$lib/server/sample';
 

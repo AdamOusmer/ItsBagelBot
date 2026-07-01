@@ -25,6 +25,26 @@ go.work.sum
 # env file
 .env
 
+# Logs and local diagnostics
+*.log
+/.expert/
+
+# Root-only scratch programs and one-off operational experiments
+/sim*.go
+/test_*.go
+/get_keys
+/get_keys.go
+/synthsend-linux
+/change_pass.exp
+/monkey_test.sh
+/fix-kubelet.yaml
+/patch.yaml
+/test-*.yaml
+
+# Console one-off diagnostics; maintained tests use *.test.ts
+/console/test-*.ts
+/console/admin/test-*.ts
+
 
 .idea/
 

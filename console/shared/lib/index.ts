@@ -6,6 +6,7 @@ export { default as Badge } from '../components/Badge.svelte';
 export { default as StatTile } from '../components/StatTile.svelte';
 export { default as NavItem } from '../components/NavItem.svelte';
 export { default as Cursor } from '../components/Cursor.svelte';
+export { default as RootShell } from '../components/RootShell.svelte';
 export { default as AuroraBg } from '../components/AuroraBg.svelte';
 export { default as Modal } from '../components/Modal.svelte';
 export { default as Drawer } from '../components/Drawer.svelte';

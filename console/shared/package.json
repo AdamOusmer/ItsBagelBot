@@ -20,6 +20,7 @@
     "./server/cache-keys": "./lib/server/cache-keys.ts",
     "./server/cache-fabric": "./lib/server/cache-fabric.ts",
     "./server/invalidation": "./lib/server/invalidation.ts",
+    "./server/impersonation": "./lib/server/impersonation.ts",
     "./server/valkey-store": "./lib/server/valkey-store.ts",
     "./styles/tokens.css": "./styles/tokens.css",
     "./styles/app.css": "./styles/app.css",

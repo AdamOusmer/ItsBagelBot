@@ -1,6 +1,9 @@
-# Outgress Hot-Path Optimization Plan
+---
+title: Outgress hot-path canary plan
+description: Acceptance gates for validating the implemented outgress hot-path optimization against production and real Valkey.
+---
 
-Status: implemented, pending a production canary and real-Valkey integration run.
+Status: implementation complete; the production canary and real-Valkey integration run remain outstanding.
 Scope: `app/outgress` plus expected-nack handling in `pkg/bus`.
 
 ## Outcome
