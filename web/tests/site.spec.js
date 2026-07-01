@@ -73,6 +73,18 @@ test.describe('ItsBagelBot site', () => {
 
         // Email lines expose a click-to-copy control
         await expect(page.locator('[data-copy]')).toHaveCount(2);
+        await expect(page.locator('a button')).toHaveCount(0);
+        await page.locator('[data-copy]').first().click();
+        await expect(page).toHaveURL(/\/contact\/?$/);
+    });
+
+    test('production assets referenced by the document are emitted', async ({ page, request }) => {
+        await page.goto('/');
+
+        const favicon = await page.locator('link[rel="icon"][type="image/png"]').first().getAttribute('href');
+        expect(favicon).toBeTruthy();
+        const response = await request.get(favicon);
+        expect(response.ok()).toBeTruthy();
     });
 
     test('legal pages render with toc, plain words, and copy intact', async ({ page }) => {

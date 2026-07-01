@@ -17,6 +17,11 @@ export default defineConfig({
     server: {
       allowedHosts: true, // Bypass Vite 6's network host blocking for external devices
     },
+    build: {
+      // The production CSP only permits scripts loaded from this origin.
+      // Keep Astro/Vite from turning small script chunks into inline tags.
+      assetsInlineLimit: 0,
+    },
   },
 
   build: {
