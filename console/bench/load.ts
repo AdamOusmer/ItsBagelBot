@@ -8,7 +8,9 @@
 const base = process.argv[2] ?? 'http://localhost:3000';
 const concurrency = Number(process.argv[3] ?? 50);
 const total = Number(process.argv[4] ?? 2000);
-const paths = ['/', '/commands', '/moderation'];
+// Current dashboard route set (/moderation never shipped; settings + modules
+// exercise the delegation and projection read paths respectively).
+const paths = ['/', '/commands', '/modules', '/settings'];
 
 function pct(sorted: number[], p: number): number {
   if (!sorted.length) return 0;

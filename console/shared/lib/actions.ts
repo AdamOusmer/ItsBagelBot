@@ -65,6 +65,48 @@ export const magnetic: Action<HTMLElement, MagneticOpts | undefined> = (node, op
 };
 
 /**
+ * Count-up readout: numeric text ticks from 0 to its real value on mount, like
+ * a meter settling. Non-numeric strings (e.g. "Live", "VIP") and reduced-motion
+ * environments render as-is. Preserves thousands separators.
+ * Use as `use:countUp` on the element whose textContent is the number.
+ */
+export const countUp: Action<HTMLElement, { durationMs?: number } | undefined> = (node, opts) => {
+  if (typeof window === 'undefined') return;
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+  const raw = (node.textContent ?? '').trim();
+  // Single bounded quantifier for the numeric prefix, then a plain slice for
+  // the suffix — avoids a regex whose two groups (`[\d,]+` and `.*`) both
+  // match ',' and so overlap, which is what trips ReDoS scanners even though
+  // the trailing `.*$` can't itself fail to match here.
+  const m = raw.match(/^[\d,]+/);
+  if (!m) return;
+  const digits = m[0];
+  const target = Number(digits.replace(/,/g, ''));
+  if (!Number.isFinite(target) || target <= 0) return;
+  const suffix = raw.slice(digits.length);
+  const grouped = digits.includes(',');
+  const duration = opts?.durationMs ?? 900;
+
+  let raf = 0;
+  const t0 = performance.now();
+  const fmt = (n: number) => (grouped ? Math.round(n).toLocaleString() : String(Math.round(n)));
+  const tick = (t: number) => {
+    const p = Math.min(1, (t - t0) / duration);
+    const eased = 1 - Math.pow(1 - p, 4); // ease-out-quart: fast rise, soft landing
+    node.textContent = fmt(target * eased) + suffix;
+    if (p < 1) raf = requestAnimationFrame(tick);
+  };
+  raf = requestAnimationFrame(tick);
+
+  return {
+    destroy() {
+      if (raf) cancelAnimationFrame(raf);
+    }
+  };
+};
+
+/**
  * Smooth scroll via lenis, mirroring web/'s config. Returns a teardown. Call in
  * onMount; no-op for reduced-motion.
  */

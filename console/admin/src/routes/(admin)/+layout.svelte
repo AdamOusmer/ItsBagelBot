@@ -1,6 +1,6 @@
 <script lang="ts">
   import { page } from '$app/state';
-  import { AppShell } from '@bagel/shared';
+  import { AppShell, ToastHost } from '@bagel/shared';
   import type { NavGroupDef, NavLink } from '@bagel/shared';
   let { data, children } = $props();
 
@@ -60,19 +60,21 @@
       : [])
   ] as NavGroupDef[]);
 
-  // Condensed mobile nav: managers get staff/audit/creds, moderators get events.
+  // Dock items (the only navigation now): everyone gets the operate/accounts
+  // set; managers additionally get staff/audit/creds.
   const mobileItems = $derived([
     { href: '/', icon: 'overview', label: 'Overview', active: crumb === 'Overview' },
     { href: '/shards', icon: 'pulse', label: 'Shards', active: crumb === 'Shards' },
     { href: '/lanes', icon: 'activity', label: 'Lanes', active: crumb === 'Lanes' },
     { href: '/users', icon: 'users', label: 'Users', active: crumb === 'Users' },
+    { href: '/events', icon: 'bell', label: 'Events', active: crumb === 'Events' },
     ...(isManager
       ? [
           { href: '/staff', icon: 'moderation', label: 'Staff', active: crumb === 'Staff' },
           { href: '/audit', icon: 'check', label: 'Audit', active: crumb === 'Audit' },
           { href: '/credentials', icon: 'lock', label: 'Creds', active: crumb === 'Credentials' }
         ]
-      : [{ href: '/events', icon: 'bell', label: 'Events', active: crumb === 'Events' }])
+      : [])
   ] as NavLink[]);
 </script>
 
@@ -87,3 +89,6 @@
 >
   {@render children()}
 </AppShell>
+
+<!-- One toast host for the whole admin app; pages push via the shared toast() store. -->
+<ToastHost />

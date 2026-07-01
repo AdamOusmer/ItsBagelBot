@@ -2,7 +2,7 @@ import type { RequestHandler } from './$types';
 import { redirect } from '@sveltejs/kit';
 import { decodeIdToken, OAuth2RequestError } from 'arctic';
 import { twitch } from '$lib/server/oauth';
-import { adminCheck } from '$lib/server/rpc';
+import { adminCheck } from '$lib/server/services';
 import { COOKIE, seal } from '$lib/server/session';
 import { env } from '$env/dynamic/private';
 

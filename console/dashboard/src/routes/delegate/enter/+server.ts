@@ -1,6 +1,6 @@
 import type { RequestHandler } from './$types';
 import { redirect } from '@sveltejs/kit';
-import { delegationAccess } from '$lib/server/rpc';
+import { delegationAccess } from '$lib/server/services';
 import { COOKIE, seal } from '$lib/server/session';
 
 const SESSION_TTL = 7 * 24 * 3600;

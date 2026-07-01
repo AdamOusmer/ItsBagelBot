@@ -70,10 +70,12 @@ function get(): Redis | null {
     host: host || '127.0.0.1',
     port: portStr ? Number(portStr) : 6379,
     password: cfg.password || undefined,
-    // Eager connect so the pool is warm by the first request; the brief connect
-    // window is covered by the offline queue, and per-op latency is bounded by
-    // withTimeout + a single retry so a down node degrades fast (caller -> RPC).
-    enableOfflineQueue: true,
+    // No offline queue: while Valkey is unreachable, ops fail immediately and
+    // readers fall through to RPC (op() returns the miss sentinel). Queueing
+    // would buy nothing here — every op is already bounded by OP_TIMEOUT_MS —
+    // and an extended outage would grow the queue without bound. The boot
+    // warm() + readyz probe cover the brief cold-connect window.
+    enableOfflineQueue: false,
     maxRetriesPerRequest: 1,
     connectTimeout: 1000,
     retryStrategy: (times) => Math.min(times * 200, 2000)

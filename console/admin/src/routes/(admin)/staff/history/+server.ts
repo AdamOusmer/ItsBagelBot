@@ -1,7 +1,7 @@
 import type { RequestHandler } from './$types';
 import { json, error } from '@sveltejs/kit';
 import { requireAdmin, isManager, isDemo } from '$lib/server/access';
-import { auditPage, AUDIT_MAX_PAGES, AUDIT_PAGE_SIZE, type AuditEntry } from '$lib/server/rpc';
+import { auditPage, AUDIT_MAX_PAGES, AUDIT_PAGE_SIZE, type AuditEntry } from '$lib/server/services';
 
 // Lazy per-member history. The staff drawer fetches this on open so the roster
 // page never ships the whole audit log (keeps payload + render cheap).

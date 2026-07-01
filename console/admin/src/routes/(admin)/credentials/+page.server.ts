@@ -1,6 +1,6 @@
 import type { Actions, PageServerLoad } from './$types';
 import { fail, redirect } from '@sveltejs/kit';
-import { auditAppend } from '$lib/server/rpc';
+import { auditAppend } from '$lib/server/services';
 import { isManager, requireAdmin, type AdminIdentity } from '$lib/server/access';
 import {
   credentialStatuses,

@@ -32,10 +32,37 @@
       if (body.snapshot) {
         snapOverride = body.snapshot;
         live = true;
+        sampleLoads(body.snapshot);
       }
     } catch {
       /* transient; keep last good snapshot */
     }
+  }
+
+  // --- Per-shard load sparkline (client-side ring buffer over the poll) ------
+  const SPARK_LEN = 30;
+  let sparks = $state<Record<number, number[]>>({});
+
+  function sampleLoads(s: typeof data.snapshot) {
+    const next: Record<number, number[]> = { ...sparks };
+    for (const sh of s.shards) {
+      const arr = [...(next[sh.shard_id] ?? []), evRate(sh.load)];
+      next[sh.shard_id] = arr.slice(-SPARK_LEN);
+    }
+    sparks = next;
+  }
+
+  // Normalized polyline for a 72x20 viewBox; scales to the series max so shape
+  // (trend) reads even at low absolute rates.
+  function sparkPoints(vals: number[]): string {
+    if (vals.length < 2) return '';
+    const max = Math.max(...vals, 0.001);
+    const w = 72;
+    const h = 20;
+    const step = w / (vals.length - 1);
+    return vals
+      .map((v, i) => `${(i * step).toFixed(1)},${(h - 1 - (v / max) * (h - 2)).toFixed(1)}`)
+      .join(' ');
   }
 
   onMount(() => {
@@ -308,6 +335,11 @@
               <div class="load-bar-fill {ltone}" style="width:{pct}%"></div>
             </div>
             <span class="load-pct {ltone}">{loadLabel(s.load)} · {pct}%</span>
+            {#if sparkPoints(sparks[s.shard_id] ?? [])}
+              <svg class="spark {ltone}" viewBox="0 0 72 20" aria-hidden="true">
+                <polyline points={sparkPoints(sparks[s.shard_id] ?? [])} />
+              </svg>
+            {/if}
           </div>
         {/if}
         <div class="shard-session">session {s.session_id ?? '—'}</div>
@@ -662,6 +694,21 @@
     min-width: 30px;
     text-align: right;
   }
+
+  /* per-shard load trend (fed by the snapshot poll) */
+  .spark {
+    width: 72px;
+    height: 20px;
+    flex: none;
+  }
+  .spark polyline {
+    fill: none;
+    stroke-width: 1.5;
+    stroke: rgba(255, 255, 255, 0.35);
+  }
+  .spark.green polyline { stroke: var(--bb-green-glow); }
+  .spark.warn polyline { stroke: var(--bb-tan); }
+  .spark.err polyline { stroke: #cf8a78; }
   .load-pct.green { color: var(--bb-green-glow); }
   .load-pct.warn  { color: var(--bb-tan-light); }
   .load-pct.err   { color: #cf8a78; }

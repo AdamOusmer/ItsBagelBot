@@ -122,12 +122,84 @@ metadata:
 data:
   level_extract.lua: |-
     -- Normalise log severity into a level field that New Relic maps to
-    -- its severity column (fatal/error/warning/info/debug), and drop
-    -- high-volume cluster sources before they reach New Relic.
+    -- its severity column (fatal/error/warning/info/debug), allow only BagelBot
+    -- service logs plus security findings, and cap oversized messages locally
+    -- so downstream truncation is explicit.
+    local max_message_bytes = 2048
+    local bagelbot_containers = {
+        ["users"] = true,
+        ["modules"] = true,
+        ["commands"] = true,
+        ["transactions"] = true,
+        ["projector"] = true,
+        ["worker"] = true,
+        ["outgress"] = true,
+        ["twitch-ingress"] = true,
+        ["console-dashboard"] = true,
+        ["console-admin"] = true,
+    }
+
+    local function cap_field(record, field)
+        local value = record[field]
+        if type(value) == "string" and #value > max_message_bytes then
+            record[field] = string.sub(value, 1, max_message_bytes) .. "... [truncated by fluent-bit]"
+            record["log_truncated"] = "true"
+        end
+    end
+
+    local function contains_doppler(value)
+        return type(value) == "string" and string.find(string.lower(value), "doppler", 1, true) ~= nil
+    end
+
+    local function contains(value, needle)
+        return type(value) == "string" and string.find(string.lower(value), needle, 1, true) ~= nil
+    end
+
+    local function source_kind(namespace, pod, container)
+        if namespace ~= "production" then
+            if contains(namespace, "falco") or contains(pod, "falco") or contains(container, "falco") then
+                return "falco"
+            end
+            if contains(namespace, "crowdsec") or contains(pod, "crowdsec") or contains(container, "crowdsec") then
+                return "crowdsec"
+            end
+            return "drop"
+        end
+
+        if bagelbot_containers[container] then
+            return "service"
+        end
+
+        return "drop"
+    end
+
+    local function security_signal(kind, msg, level)
+        local m = string.lower(msg or "")
+        if kind == "falco" then
+            return level == "fatal" or level == "critical" or level == "error" or level == "warning"
+                or string.find(m, "priority", 1, true) ~= nil
+                or string.find(m, "rule", 1, true) ~= nil
+                or string.find(m, "output_fields", 1, true) ~= nil
+        end
+        if kind == "crowdsec" then
+            return level == "fatal" or level == "critical" or level == "error" or level == "warning"
+                or string.find(m, "alert", 1, true) ~= nil
+                or string.find(m, "decision", 1, true) ~= nil
+                or string.find(m, "ban", 1, true) ~= nil
+                or string.find(m, "scenario", 1, true) ~= nil
+                or string.find(m, "overflow", 1, true) ~= nil
+        end
+        return false
+    end
+
     function extract_level(tag, timestamp, record)
         local namespace = record["namespace_name"] or ""
         local pod = record["pod_name"] or ""
         local container = record["container_name"] or ""
+
+        if contains_doppler(namespace) or contains_doppler(pod) or contains_doppler(container) then
+            return -1, timestamp, record
+        end
 
         if namespace == "kube-system" then
             return -1, timestamp, record
@@ -136,6 +208,14 @@ data:
         if namespace == "newrelic" then
             return -1, timestamp, record
         end
+
+        local kind = source_kind(namespace, pod, container)
+        if kind == "drop" then
+            return -1, timestamp, record
+        end
+
+        cap_field(record, "message")
+        cap_field(record, "log")
 
         local msg = record["message"] or record["log"] or ""
         local level = "info"
@@ -169,6 +249,13 @@ data:
         end
 
         if level == "warn" then level = "warning" end
+
+        if kind == "falco" or kind == "crowdsec" then
+            if not security_signal(kind, msg, level) then
+                return -1, timestamp, record
+            end
+            record["security_source"] = kind
+        end
 
         local dominated = {debug = true, trace = true, notice = true}
         if dominated[level] then

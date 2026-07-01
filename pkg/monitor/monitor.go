@@ -5,7 +5,6 @@ import (
 
 	"ItsBagelBot/pkg/env"
 
-	"github.com/newrelic/go-agent/v3/integrations/logcontext-v2/nrzap"
 	"github.com/newrelic/go-agent/v3/newrelic"
 
 	"go.uber.org/zap"
@@ -27,28 +26,24 @@ func New(service string, log *zap.Logger) (*newrelic.Application, error) {
 	return newrelic.NewApplication(
 		newrelic.ConfigAppName("ItsBagelBot-"+service),
 		newrelic.ConfigDistributedTracerEnabled(true),
-		newrelic.ConfigAppLogForwardingEnabled(true),
+		// Kubernetes stdout is already forwarded by Fluent Bit. Keep the APM
+		// agent from sending a second copy of every zap line to New Relic.
+		newrelic.ConfigAppLogForwardingEnabled(false),
+		newrelic.ConfigAppLogMetricsEnabled(true),
 		// Reads NEW_RELIC_* variables, so the license key stays out of the
 		// code and any setting can be overridden per deployment.
 		newrelic.ConfigFromEnvironment(),
 	)
 }
 
-// WrapLogger forwards every log line to New Relic alongside stdout. With a
-// nil application the original logger is returned untouched.
+// WrapLogger is kept at service call sites so monitor setup stays centralized.
+// Logs are intentionally not wrapped with nrzap: the cluster Fluent Bit pipeline
+// owns log shipping, and nrzap would forward duplicate log events without
+// decorating the stdout line that Fluent Bit sees.
 func WrapLogger(log *zap.Logger, app *newrelic.Application) *zap.Logger {
 
-	if app == nil {
-		return log
-	}
-
-	core, err := nrzap.WrapBackgroundCore(log.Core(), app)
-	if err != nil {
-		log.Warn("failed to wrap logger for new relic, keeping plain logger", zap.Error(err))
-		return log
-	}
-
-	return zap.New(core)
+	_ = app
+	return log
 }
 
 // Shutdown flushes remaining telemetry; safe on a nil application.

@@ -1,7 +1,12 @@
 <script lang="ts">
-  import { Icon, Card, PageHead, Button } from '@bagel/shared';
-  import type { AuditEntry } from '$lib/server/rpc';
+  import { Icon, Card, PageHead, Button, SegmentedControl, Skeleton } from '@bagel/shared';
+  import type { AuditEntry } from '$lib/server/services';
   let { data } = $props();
+
+  // Client-side result filter over the loaded page (server search stays the
+  // heavy filter; this is a quick lens on what's visible).
+  const RESULT_FILTERS = ['All', 'OK', 'Failed'] as const;
+  let resultFilter = $state<string>('All');
 
   const search = $derived(String(data.search ?? ''));
   const page = $derived(Number(data.page ?? 1));
@@ -85,6 +90,9 @@
     return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
   }
 
+  const visible = $derived(
+    resultFilter === 'All' ? entries : entries.filter((e) => (resultFilter === 'OK' ? e.ok : !e.ok))
+  );
 </script>
 
 <section class="screen active">
@@ -94,6 +102,7 @@
   <Card style="padding:18px 6px">
     <div class="card-head" style="padding:0 12px;gap:.6rem">
       <h3>Trail</h3>
+      <SegmentedControl options={RESULT_FILTERS} bind:value={resultFilter} label="Filter by result" />
       <form method="GET" action="/audit" class="audit-controls">
         <label class="search search-filter">
           <Icon name="search" size={14} />
@@ -114,11 +123,13 @@
       </div>
       <div class="trows">
         {#if loading}
-          <div class="trow"><span class="resp" style="grid-column:1/-1;opacity:.6">Loading audit entries...</span></div>
-        {:else if entries.length === 0}
+          {#each [0, 1, 2, 3, 4] as i (i)}
+            <div class="trow"><span style="grid-column:1/-1"><Skeleton variant="block" height="18px" /></span></div>
+          {/each}
+        {:else if visible.length === 0}
           <div class="trow"><span class="resp" style="grid-column:1/-1;opacity:.6">No matching entries.</span></div>
         {/if}
-        {#each entries as e (e.id)}
+        {#each visible as e (e.id)}
           <div class="trow">
             <span class="when" title={absolute(e.created_at)}>
               <span class="when-abs">{absolute(e.created_at)}</span>
@@ -267,11 +278,22 @@
     .search-filter { max-width: none; min-width: 100%; }
     :global(.search-submit) { flex: 1; justify-content: center; }
     .clear-search { flex: 1; justify-content: center; }
-    .audit-table .thead,
+    /* Stack each entry as a card: when + actor + action flow vertically with
+       the result pinned right, instead of cramming 4 columns into ~400px
+       (which broke long action names letter-by-letter). */
+    .audit-table .thead { display: none; }
     .audit-table .trow {
-      grid-template-columns: 1.3fr 1fr 1fr 0.7fr;
-      gap: 10px;
+      grid-template-columns: 1fr auto;
+      grid-template-areas:
+        'when result'
+        'actor result'
+        'action result';
+      row-gap: 3px;
     }
+    .audit-table .when { grid-area: when; }
+    .audit-table .cmd { grid-area: actor; }
+    .audit-table .action { grid-area: action; }
+    .audit-table .result-cell { grid-area: result; align-items: flex-end; }
     .audit-table .col-target,
     .audit-table .col-detail { display: none; }
     .audit-foot { align-items: stretch; flex-direction: column; padding-inline: 14px; }
