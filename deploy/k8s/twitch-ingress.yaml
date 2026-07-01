@@ -150,7 +150,7 @@ spec:
             - name: NEW_RELIC_APP_NAME
               value: "ItsBagelBot-Ingress"
             - name: NEW_RELIC_LOGS_IN_CONTEXT
-              value: "direct"
+              value: "forwarder"
             - name: INGRESS_DISPATCHER_MAX_RUNNING
               value: "64"
             - name: INGRESS_DISPATCHER_MAX_QUEUE
