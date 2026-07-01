@@ -1,12 +1,16 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import PricingHero from '../components/pricing/PricingHero.astro';
-import PricingCards from '../components/pricing/PricingCards.astro';
-import PricingFaq from '../components/pricing/PricingFaq.astro';
+import PageHero from '../components/ui/PageHero.astro';
+import Tiers from '../components/pricing/Tiers.astro';
+import Faq from '../components/pricing/Faq.astro';
 ---
 
-<Layout title="Pricing — ItsBagelBot" description="Simple, honest pricing. Free plan with full access, Premium for priority processing, Enterprise for organizations.">
-    <PricingHero />
-    <PricingCards />
-    <PricingFaq />
+<Layout title="Pricing — ItsBagelBot" description="Free is the whole product. Premium is the tip jar with perks. Enterprise for organizations running many channels.">
+    <PageHero
+        eyebrow="Pricing"
+        title="Free is the whole product."
+        description="No gates, no trials, no asterisks. Premium exists for the people who want to keep the servers warm."
+    />
+    <Tiers />
+    <Faq />
 </Layout>

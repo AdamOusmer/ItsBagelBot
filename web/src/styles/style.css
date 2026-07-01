@@ -14,6 +14,7 @@
     --font-display: "Syne", sans-serif;
     --font-mono: "DM Mono", monospace;
     --font-body: "DM Sans", sans-serif;
+    --font-hand: "Caveat", cursive;
 
     --nav-height: 76px;
     --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);

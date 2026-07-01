@@ -1,0 +1,407 @@
+---
+/**
+ * QuietWork — a bento of the bot's chores, each card running its own tiny
+ * live demo instead of a feature blurb. Built on the shared Card (spotlight +
+ * lift); the demos are CSS loops, with one small script for the giveaway
+ * name-shuffle and the poll bars (which want a reveal trigger).
+ */
+import Card from '../ui/Card.astro';
+import SectionHeading from '../ui/SectionHeading.astro';
+---
+
+<section class="qw" id="quiet-work">
+    <SectionHeading eyebrow="The quiet work" title="While you play, it sweeps the floor." />
+
+    <div class="qw__grid">
+        <!-- Moderation: spam line gets redacted on loop -->
+        <Card class="qw__card qw__card--wide" data-reveal>
+            <div class="qw__demo qw__demo--mod" aria-hidden="true">
+                <span class="qw-mod__line">
+                    <span class="qw-mod__text">FREE F0LLOWERS &gt;&gt; sketchy.link</span>
+                    <span class="qw-mod__sweep"></span>
+                </span>
+                <span class="qw-mod__verdict">⌁ removed before anyone saw it</span>
+            </div>
+            <h3 class="qw__title">It catches the noise before you do.</h3>
+            <p class="qw__desc">Spam, slurs and scam links get folded away mid-sentence. You find out later, if you even want to.</p>
+        </Card>
+
+        <!-- Commands: typewriter call + response -->
+        <Card class="qw__card qw__card--wide" data-reveal style="--reveal-i: 1">
+            <div class="qw__demo qw__demo--cmd" aria-hidden="true">
+                <span class="qw-cmd__in">!welcome moth_lamp</span>
+                <span class="qw-cmd__out">welcome in, moth_lamp. grab a seat 🥯</span>
+            </div>
+            <h3 class="qw__title">It greets your regulars by name.</h3>
+            <p class="qw__desc">Commands, cooldowns and shout-outs that sound like you wrote them. Because you did, once.</p>
+        </Card>
+
+        <!-- Music: EQ bars -->
+        <Card class="qw__card" data-reveal style="--reveal-i: 2">
+            <div class="qw__demo qw__demo--eq" aria-hidden="true">
+                <span></span><span></span><span></span><span></span><span></span>
+            </div>
+            <h3 class="qw__title">No dead air.</h3>
+            <p class="qw__desc">Requests queue themselves. Skips behave.</p>
+        </Card>
+
+        <!-- Polls: racing bars, triggered on reveal -->
+        <Card class="qw__card" data-reveal style="--reveal-i: 3">
+            <div class="qw__demo qw__demo--poll" aria-hidden="true" data-qw-poll>
+                <span class="qw-poll__bar"><i style="--w: 68%"></i><b>68%</b></span>
+                <span class="qw-poll__bar"><i style="--w: 32%"></i><b>32%</b></span>
+            </div>
+            <h3 class="qw__title">Chat decides. It counts.</h3>
+            <p class="qw__desc">Polls tallied live, no napkin math.</p>
+        </Card>
+
+        <!-- Giveaways: name shuffle that lands -->
+        <Card class="qw__card" data-reveal style="--reveal-i: 4">
+            <div class="qw__demo qw__demo--win" aria-hidden="true">
+                <span class="qw-win__label">winner</span>
+                <span class="qw-win__name" data-qw-winner>night_owl_77</span>
+            </div>
+            <h3 class="qw__title">Fair means random.</h3>
+            <p class="qw__desc">Giveaways drawn honestly, receipts kept.</p>
+        </Card>
+
+        <!-- Always on: heartbeat -->
+        <Card class="qw__card" data-reveal style="--reveal-i: 5">
+            <div class="qw__demo qw__demo--beat" aria-hidden="true">
+                <svg viewBox="0 0 120 32" preserveAspectRatio="none">
+                    <path class="qw-beat__path" d="M0 16 H30 L38 16 L44 4 L52 28 L58 16 H82 L88 10 L94 22 L100 16 H120"
+                          fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" />
+                </svg>
+            </div>
+            <h3 class="qw__title">Awake so you don't have to be.</h3>
+            <p class="qw__desc">It holds the room between streams too.</p>
+        </Card>
+    </div>
+</section>
+
+<style>
+    .qw {
+        position: relative;
+        padding: var(--space-section, 96px) 24px;
+        max-width: var(--content-max, 1200px);
+        margin: 0 auto;
+        z-index: 3;
+    }
+
+    .qw__grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 20px;
+    }
+
+    @media (min-width: 720px) {
+        .qw__grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (min-width: 1024px) {
+        .qw__grid { grid-template-columns: repeat(4, 1fr); }
+        .qw__card--wide { grid-column: span 2; }
+    }
+
+    .qw__title {
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-size: 1.06rem;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+        color: var(--white, #f0ece4);
+        margin: 0 0 8px;
+    }
+
+    .qw__desc {
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: 0.86rem;
+        line-height: 1.6;
+        color: var(--muted, #888077);
+        margin: 0;
+    }
+
+    /* ── Demo stage shared ── */
+
+    .qw__demo {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 8px;
+        height: 84px;
+        margin-bottom: 20px;
+        padding: 14px 16px;
+        border-radius: 10px;
+        background: rgba(10, 10, 10, 0.55);
+        border: 1px solid rgba(240, 236, 228, 0.05);
+        overflow: hidden;
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.74rem;
+    }
+
+    /* ── Moderation: sweep + verdict loop ── */
+
+    .qw-mod__line {
+        position: relative;
+        display: inline-block;
+        width: fit-content;
+        max-width: 100%;
+        color: rgba(217, 138, 138, 0.85);
+        animation: qwModLine 6s ease-in-out infinite;
+    }
+
+    .qw-mod__sweep {
+        position: absolute;
+        inset: -2px -4px;
+        border-radius: 4px;
+        background: linear-gradient(90deg, transparent, rgba(82, 183, 136, 0.35), transparent);
+        transform: translateX(-110%);
+        animation: qwModSweep 6s ease-in-out infinite;
+    }
+
+    .qw-mod__verdict {
+        color: var(--green-glow, #52b788);
+        opacity: 0;
+        animation: qwModVerdict 6s ease-in-out infinite;
+    }
+
+    @keyframes qwModLine {
+        0%, 28% { opacity: 1; filter: none; }
+        38%, 78% { opacity: 0.28; filter: blur(1.5px); }
+        88%, 100% { opacity: 1; filter: none; }
+    }
+
+    @keyframes qwModSweep {
+        0%, 24% { transform: translateX(-110%); }
+        36%, 100% { transform: translateX(110%); }
+    }
+
+    @keyframes qwModVerdict {
+        0%, 34% { opacity: 0; transform: translateY(4px); }
+        44%, 76% { opacity: 1; transform: none; }
+        86%, 100% { opacity: 0; }
+    }
+
+    /* ── Commands: typewriter in, reply out ── */
+
+    .qw-cmd__in {
+        color: var(--tan-light, #e0c49a);
+        width: 18ch;
+        max-width: 100%;
+        white-space: nowrap;
+        overflow: hidden;
+        border-right: 1px solid rgba(224, 196, 154, 0.6);
+        animation: qwType 5.4s steps(18) infinite;
+    }
+
+    .qw-cmd__out {
+        color: var(--green-glow, #52b788);
+        opacity: 0;
+        animation: qwCmdOut 5.4s ease-in-out infinite;
+    }
+
+    @keyframes qwType {
+        0%, 6% { width: 0; }
+        30%, 92% { width: 18ch; }
+        97%, 100% { width: 0; }
+    }
+
+    @keyframes qwCmdOut {
+        0%, 34% { opacity: 0; transform: translateY(4px); }
+        44%, 88% { opacity: 1; transform: none; }
+        96%, 100% { opacity: 0; }
+    }
+
+    /* ── Music: equalizer ── */
+
+    .qw__demo--eq {
+        flex-direction: row;
+        align-items: flex-end;
+        justify-content: center;
+        gap: 6px;
+        padding-bottom: 18px;
+    }
+
+    .qw__demo--eq span {
+        width: 7px;
+        border-radius: 3px 3px 0 0;
+        background: linear-gradient(to top, var(--green, #2d6a4f), var(--green-glow, #52b788));
+        height: 30%;
+        animation: qwEq 1.1s ease-in-out infinite alternate;
+        transform-origin: bottom;
+    }
+
+    .qw__demo--eq span:nth-child(1) { animation-delay: 0ms; height: 34%; }
+    .qw__demo--eq span:nth-child(2) { animation-delay: 140ms; height: 62%; }
+    .qw__demo--eq span:nth-child(3) { animation-delay: 280ms; height: 88%; }
+    .qw__demo--eq span:nth-child(4) { animation-delay: 420ms; height: 52%; }
+    .qw__demo--eq span:nth-child(5) { animation-delay: 560ms; height: 40%; }
+
+    @keyframes qwEq {
+        from { transform: scaleY(0.35); }
+        to { transform: scaleY(1); }
+    }
+
+    /* Cards get a little livelier under the cursor */
+    @media (hover: hover) and (pointer: fine) {
+        .qw__card:hover .qw__demo--eq span { animation-duration: 550ms; }
+    }
+
+    /* ── Polls: bars fill when revealed ── */
+
+    .qw-poll__bar {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .qw-poll__bar i {
+        display: block;
+        height: 7px;
+        width: 4%;
+        border-radius: 4px;
+        background: linear-gradient(90deg, rgba(201, 168, 124, 0.5), var(--tan, #c9a87c));
+        transition: width 1200ms var(--ease-out-expo);
+    }
+
+    .qw-poll__bar:nth-child(2) i {
+        background: linear-gradient(90deg, rgba(82, 183, 136, 0.5), var(--green-glow, #52b788));
+        transition-delay: 140ms;
+    }
+
+    .qw-poll__bar b {
+        font-weight: 500;
+        font-size: 0.68rem;
+        color: var(--muted, #888077);
+    }
+
+    .qw__demo--poll.is-live .qw-poll__bar i { width: var(--w, 50%); }
+
+    /* ── Giveaway winner ── */
+
+    .qw__demo--win { align-items: flex-start; gap: 4px; }
+
+    .qw-win__label {
+        font-size: 0.62rem;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: var(--muted, #888077);
+    }
+
+    .qw-win__name {
+        font-size: 1rem;
+        color: var(--tan-light, #e0c49a);
+        text-shadow: 0 0 18px rgba(201, 168, 124, 0.35);
+    }
+
+    /* ── Heartbeat ── */
+
+    .qw__demo--beat { color: var(--green-glow, #52b788); padding: 18px 12px; }
+
+    .qw__demo--beat svg { width: 100%; height: 100%; overflow: visible; }
+
+    .qw-beat__path {
+        stroke-dasharray: 220;
+        stroke-dashoffset: 220;
+        filter: drop-shadow(0 0 6px rgba(82, 183, 136, 0.55));
+        animation: qwBeat 3.2s linear infinite;
+    }
+
+    @keyframes qwBeat {
+        0% { stroke-dashoffset: 220; opacity: 1; }
+        62% { stroke-dashoffset: 0; opacity: 1; }
+        78% { opacity: 0.25; }
+        100% { stroke-dashoffset: 0; opacity: 0; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .qw-mod__line, .qw-mod__sweep, .qw-mod__verdict,
+        .qw-cmd__in, .qw-cmd__out,
+        .qw__demo--eq span, .qw-beat__path {
+            animation: none;
+        }
+        .qw-mod__sweep { display: none; }
+        .qw-mod__verdict { opacity: 1; }
+        .qw-cmd__in { width: 18ch; border-right: none; }
+        .qw-cmd__out { opacity: 1; }
+        .qw-beat__path { stroke-dashoffset: 0; }
+        .qw-poll__bar i { transition: none; }
+        .qw__demo--poll .qw-poll__bar i { width: var(--w, 50%); }
+    }
+
+    @media (max-width: 640px) {
+        .qw { padding: var(--space-section-sm, 72px) 20px; }
+    }
+</style>
+
+<script>
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+    /* Poll bars fill the first time the card scrolls into view */
+    function setupPolls() {
+        const polls = document.querySelectorAll<HTMLElement>('[data-qw-poll]');
+        if (!polls.length) return;
+        const io = new IntersectionObserver((entries, obs) => {
+            entries.forEach((entry) => {
+                if (!entry.isIntersecting) return;
+                entry.target.classList.add('is-live');
+                obs.unobserve(entry.target);
+            });
+        }, { threshold: 0.4 });
+        polls.forEach((el) => io.observe(el));
+    }
+
+    /* Giveaway name shuffles, then lands. Loops slowly while visible. */
+    const NAMES = ['night_owl_77', 'gg_beans', 'moth_lamp', 'soupdream', 'tiny_cactus', 'pixel_pal'];
+    const GLYPHS = 'abcdefghijklmnopqrstuvwxyz_0123456789';
+
+    function shuffleTo(el: HTMLElement, name: string) {
+        const start = performance.now();
+        const duration = 900;
+        function tick(now: number) {
+            const p = Math.min(1, (now - start) / duration);
+            const reveal = Math.floor(name.length * p);
+            el.textContent = name
+                .split('')
+                .map((ch, i) => (i < reveal ? ch : GLYPHS[Math.floor(Math.random() * GLYPHS.length)]))
+                .join('');
+            if (p < 1) requestAnimationFrame(tick);
+            else el.textContent = name;
+        }
+        requestAnimationFrame(tick);
+    }
+
+    function setupWinners() {
+        document.querySelectorAll<HTMLElement>('[data-qw-winner]').forEach((el) => {
+            if (el.dataset.qwReady === 'true') return;
+            el.dataset.qwReady = 'true';
+            if (reduceMotion.matches) return;
+
+            let visible = false;
+            let i = 0;
+            let timer = 0;
+
+            function loop() {
+                window.clearTimeout(timer);
+                if (!visible || document.hidden) return;
+                shuffleTo(el, NAMES[i++ % NAMES.length]);
+                timer = window.setTimeout(loop, 4200);
+            }
+
+            const io = new IntersectionObserver(([entry]) => {
+                visible = entry.isIntersecting;
+                if (visible) loop();
+                else window.clearTimeout(timer);
+            }, { rootMargin: '40px' });
+            io.observe(el);
+        });
+    }
+
+    function setup() {
+        setupPolls();
+        setupWinners();
+    }
+
+    setup();
+    document.addEventListener('astro:page-load', setup);
+</script>

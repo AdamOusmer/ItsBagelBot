@@ -17,6 +17,11 @@ export default defineConfig({
     server: {
       allowedHosts: true, // Bypass Vite 6's network host blocking for external devices
     },
+    build: {
+      // Never inline small hoisted scripts: the CSP is script-src 'self'
+      // (no hashes/nonces), so inline <script> tags are blocked in production.
+      assetsInlineLimit: 0,
+    },
   },
 
   build: {

@@ -1,0 +1,201 @@
+---
+/**
+ * Steps — connect, shape, go live. A vertical rail draws itself as the
+ * section reveals; each step carries a mono "receipt" line that decodes on
+ * view (shared decode.js). Deliberately small: three beats, no scroll-jack.
+ */
+const steps = [
+    {
+        num: '01',
+        title: 'Connect your channel.',
+        body: 'One click through Twitch. No API keys, no config files, no wizard with nine screens.',
+        receipt: 'oauth ✓ · scopes ✓ · 1.2s',
+    },
+    {
+        num: '02',
+        title: 'Make it yours.',
+        body: 'Toggle the tools you want. Rules read like sentences, not regex.',
+        receipt: 'modules: 6 active · rules: yours',
+    },
+    {
+        num: '03',
+        title: 'Go live, and breathe.',
+        body: 'It joins your chat quietly and gets to work. You get to just stream.',
+        receipt: 'itsbagelbot joined #your_channel',
+    },
+];
+---
+
+<section class="steps" id="how">
+    <div class="steps__head">
+        <span class="steps__eyebrow" data-reveal>Two minutes, start to live</span>
+        <h2 class="steps__title" data-reveal style="--reveal-i: 1">Three steps. None of them hard.</h2>
+    </div>
+
+    <ol class="steps__list" data-reveal style="--reveal-i: 2">
+        <span class="steps__rail" aria-hidden="true"></span>
+        {steps.map((step, i) => (
+            <li class="step" data-reveal style={`--reveal-i: ${i + 2}`}>
+                <span class="step__num" aria-hidden="true">{step.num}</span>
+                <div class="step__body">
+                    <h3 class="step__title">{step.title}</h3>
+                    <p class="step__text">{step.body}</p>
+                    <span class="step__receipt" data-decode={step.receipt}>{step.receipt}</span>
+                </div>
+            </li>
+        ))}
+    </ol>
+</section>
+
+<style>
+    .steps {
+        position: relative;
+        padding: var(--space-section, 96px) 24px;
+        max-width: var(--content-narrow, 720px);
+        margin: 0 auto;
+        z-index: 3;
+    }
+
+    .steps__head {
+        text-align: center;
+        margin-bottom: 56px;
+    }
+
+    .steps__eyebrow {
+        display: block;
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: clamp(0.64rem, 1.4vw, 0.74rem);
+        letter-spacing: 0.24em;
+        text-transform: uppercase;
+        color: var(--green-glow, #52b788);
+        margin-bottom: 16px;
+    }
+
+    .steps__title {
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-weight: 800;
+        font-size: clamp(1.8rem, 4.5vw, 2.8rem);
+        letter-spacing: -0.02em;
+        line-height: 1.08;
+        color: var(--white, #f0ece4);
+        margin: 0;
+    }
+
+    .steps__list {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        gap: 48px;
+        padding-left: 0;
+        margin: 0;
+    }
+
+    /* The rail draws itself once the list reveals */
+    .steps__rail {
+        position: absolute;
+        left: 27px;
+        top: 8px;
+        bottom: 8px;
+        width: 1px;
+        background: linear-gradient(
+            to bottom,
+            rgba(82, 183, 136, 0.5),
+            rgba(201, 168, 124, 0.4)
+        );
+        transform: scaleY(0);
+        transform-origin: top;
+        transition: transform 1400ms var(--ease-out-expo) 200ms;
+    }
+
+    .steps__list.is-revealed .steps__rail {
+        transform: scaleY(1);
+    }
+
+    .step {
+        position: relative;
+        display: flex;
+        gap: 28px;
+        align-items: flex-start;
+    }
+
+    .step__num {
+        position: relative;
+        z-index: 1;
+        flex-shrink: 0;
+        display: grid;
+        place-items: center;
+        width: 54px;
+        height: 54px;
+        border-radius: 50%;
+        background: var(--card-bg, #111110);
+        border: 1px solid var(--border, rgba(201, 168, 124, 0.15));
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.8rem;
+        color: var(--tan-light, #e0c49a);
+        transition:
+            border-color 320ms var(--ease-out-expo),
+            box-shadow 320ms var(--ease-out-expo),
+            color 320ms ease;
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+        .step:hover .step__num {
+            border-color: rgba(201, 168, 124, 0.55);
+            box-shadow: 0 0 24px rgba(201, 168, 124, 0.25);
+            color: var(--tan-pale, #f5e6cf);
+        }
+    }
+
+    .step__title {
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-size: clamp(1.15rem, 2.4vw, 1.4rem);
+        font-weight: 700;
+        letter-spacing: -0.01em;
+        color: var(--white, #f0ece4);
+        margin: 6px 0 8px;
+    }
+
+    .step__text {
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: 0.94rem;
+        line-height: 1.65;
+        color: var(--muted, #888077);
+        max-width: 46ch;
+        margin: 0 0 12px;
+    }
+
+    .step__receipt {
+        display: inline-block;
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.7rem;
+        letter-spacing: 0.05em;
+        color: var(--green-glow, #52b788);
+        background: rgba(82, 183, 136, 0.06);
+        border: 1px solid rgba(82, 183, 136, 0.18);
+        border-radius: 6px;
+        padding: 6px 10px;
+        transition: box-shadow 320ms ease, border-color 320ms ease;
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+        .step:hover .step__receipt {
+            border-color: rgba(82, 183, 136, 0.4);
+            box-shadow: 0 0 18px rgba(82, 183, 136, 0.14);
+        }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .steps__rail {
+            transform: none;
+            transition: none;
+        }
+    }
+
+    @media (max-width: 640px) {
+        .steps { padding: var(--space-section-sm, 72px) 20px; }
+        .steps__list { gap: 40px; }
+        .step { gap: 18px; }
+        .step__num { width: 44px; height: 44px; font-size: 0.72rem; }
+        .steps__rail { left: 22px; }
+    }
+</style>

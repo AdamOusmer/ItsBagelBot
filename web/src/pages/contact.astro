@@ -1,10 +1,14 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import ContactHero from '../components/contact/ContactHero.astro';
-import ContactChannels from '../components/contact/ContactChannels.astro';
+import PageHero from '../components/ui/PageHero.astro';
+import Switchboard from '../components/contact/Switchboard.astro';
 ---
 
-<Layout title="Contact — ItsBagelBot" description="Get in touch with the ItsBagelBot team. Community support via Discord, email support, and enterprise inquiries.">
-    <ContactHero />
-    <ContactChannels />
+<Layout title="Contact — ItsBagelBot" description="Talk to a human. Community support on Discord, real email inboxes for support and enterprise, and the source on GitHub.">
+    <PageHero
+        eyebrow="Contact"
+        title="Talk to a human."
+        description="No ticket portal, no chatbot maze. Pick a line, we're on the other end."
+    />
+    <Switchboard />
 </Layout>

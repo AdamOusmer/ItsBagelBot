@@ -1,0 +1,324 @@
+---
+/**
+ * Switchboard — contact as an old-fashioned operator board: four indexed
+ * lines, each with a full-row link, its own status light, a human note, and
+ * (for email lines) a click-to-copy chip wired through interactions.js.
+ */
+interface Line {
+    index: string;
+    title: string;
+    note: string;
+    href: string;
+    hint: string;
+    external?: boolean;
+    copy?: string;
+    tone: 'green' | 'tan';
+}
+
+const lines: Line[] = [
+    {
+        index: '01',
+        title: 'Discord',
+        note: "The fast lane. The community usually answers before we're even awake.",
+        href: 'https://discord.gg/SZ2remwSDv',
+        hint: 'usually minutes',
+        external: true,
+        tone: 'green',
+    },
+    {
+        index: '02',
+        title: 'Support',
+        note: 'Account trouble, bug reports, or a question you want answered in writing.',
+        href: 'mailto:support@itsbagelbot.com',
+        hint: 'support@itsbagelbot.com',
+        copy: 'support@itsbagelbot.com',
+        tone: 'tan',
+    },
+    {
+        index: '03',
+        title: 'Enterprise',
+        note: 'Running many channels? Dedicated hardware and custom SLAs live here.',
+        href: 'mailto:enterprise@itsbagelbot.com',
+        hint: 'enterprise@itsbagelbot.com',
+        copy: 'enterprise@itsbagelbot.com',
+        tone: 'tan',
+    },
+    {
+        index: '04',
+        title: 'GitHub',
+        note: 'Read the source, audit the code, file issues where we track the work.',
+        href: 'https://github.com/AdamOusmer/ItsBagelBot',
+        hint: 'source available',
+        external: true,
+        tone: 'green',
+    },
+];
+---
+
+<section class="board">
+    <div class="board__list">
+        {lines.map((line, i) => (
+            <div
+                class:list={['line', `line--${line.tone}`]}
+                data-reveal
+                style={`--reveal-i: ${i}`}
+            >
+                <a
+                    class="line__target"
+                    href={line.href}
+                    aria-label={`${line.title}: ${line.note}`}
+                    target={line.external ? '_blank' : undefined}
+                    rel={line.external ? 'noopener noreferrer' : undefined}
+                ></a>
+                <span class="line__index" aria-hidden="true">{line.index}</span>
+                <span class="line__dot" aria-hidden="true"></span>
+                <span class="line__main">
+                    <span class="line__title">{line.title}</span>
+                    <span class="line__note">{line.note}</span>
+                </span>
+                <span class="line__meta">
+                    {line.copy ? (
+                        <button
+                            type="button"
+                            class="line__copy"
+                            data-copy={line.copy}
+                            aria-label={`Copy ${line.copy}`}
+                        >
+                            <span class="line__hint">{line.hint}</span>
+                            <span class="line__copy-icon line__copy-icon--default" aria-hidden="true">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                                </svg>
+                            </span>
+                            <span class="line__copy-icon line__copy-icon--done" aria-hidden="true">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="20 6 9 17 4 12" />
+                                </svg>
+                            </span>
+                        </button>
+                    ) : (
+                        <span class="line__hint">{line.hint}</span>
+                    )}
+                    <span class="line__arrow" aria-hidden="true">→</span>
+                </span>
+            </div>
+        ))}
+    </div>
+
+    <p class="board__note" data-reveal style="--reveal-i: 4">
+        Small team, real inboxes. We read everything, usually within a day. We do sleep sometimes.
+    </p>
+</section>
+
+<style>
+    .board {
+        max-width: 860px;
+        margin: 0 auto;
+        padding: 0 24px var(--space-section, 96px);
+    }
+
+    .board__list {
+        border-top: 1px solid var(--border, rgba(201, 168, 124, 0.15));
+    }
+
+    .line {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        padding: 26px 12px;
+        border-bottom: 1px solid var(--border, rgba(201, 168, 124, 0.15));
+        text-decoration: none;
+        overflow: hidden;
+        transition: padding-left 380ms var(--ease-out-expo), background 300ms ease;
+    }
+
+    /* Warm wash slides in from the left on hover */
+    .line::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(90deg, rgba(201, 168, 124, 0.07), transparent 65%);
+        opacity: 0;
+        transform: translateX(-16px);
+        transition: opacity 320ms ease, transform 420ms var(--ease-out-expo);
+        pointer-events: none;
+    }
+
+    .line__target {
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+        border-radius: 4px;
+    }
+
+    .line__target:focus-visible {
+        outline: 2px solid var(--tan-light, #e0c49a);
+        outline-offset: -3px;
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+        .line:hover { padding-left: 24px; }
+        .line:hover::before { opacity: 1; transform: none; }
+    }
+
+    .line__index {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.7rem;
+        color: var(--muted, #888077);
+        flex-shrink: 0;
+        transition: color 240ms ease;
+    }
+
+    .line:hover .line__index { color: var(--tan, #c9a87c); }
+
+    .line__dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        flex-shrink: 0;
+    }
+
+    .line--green .line__dot {
+        background: var(--green-glow, #52b788);
+        box-shadow: 0 0 8px rgba(82, 183, 136, 0.7);
+        animation: linePulse 2.6s ease-in-out infinite;
+    }
+
+    .line--tan .line__dot {
+        background: var(--tan, #c9a87c);
+        box-shadow: 0 0 8px rgba(201, 168, 124, 0.6);
+    }
+
+    @keyframes linePulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.4; }
+    }
+
+    .line__main {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        min-width: 0;
+        flex: 1;
+    }
+
+    .line__title {
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-size: 1.15rem;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+        color: var(--white, #f0ece4);
+        transition: color 240ms ease;
+    }
+
+    .line:hover .line__title { color: var(--tan-light, #e0c49a); }
+
+    .line__note {
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: 0.86rem;
+        line-height: 1.55;
+        color: var(--muted, #888077);
+        max-width: 52ch;
+    }
+
+    .line__meta {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        flex-shrink: 0;
+    }
+
+    .line__hint {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.68rem;
+        letter-spacing: 0.05em;
+        color: var(--muted, #888077);
+        transition: color 240ms ease;
+    }
+
+    .line:hover .line__hint { color: var(--tan-light, #e0c49a); }
+
+    /* Copy chip */
+    .line__copy {
+        position: relative;
+        z-index: 2;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 12px;
+        border: 1px solid var(--border, rgba(201, 168, 124, 0.15));
+        border-radius: var(--radius-pill, 100px);
+        color: var(--muted, #888077);
+        background: transparent;
+        cursor: pointer;
+        transition: border-color 200ms ease, background 200ms ease, color 200ms ease;
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+        .line__copy:hover {
+            border-color: rgba(201, 168, 124, 0.4);
+            background: rgba(201, 168, 124, 0.07);
+            color: var(--tan-light, #e0c49a);
+        }
+    }
+
+    .line__copy .line__hint { transition: none; }
+
+    .line__copy-icon { display: inline-flex; line-height: 0; }
+    .line__copy-icon--done { display: none; }
+
+    .line__copy.is-copied {
+        border-color: rgba(82, 183, 136, 0.4);
+        background: rgba(82, 183, 136, 0.08);
+        color: var(--green-glow, #52b788);
+    }
+
+    .line__copy.is-copied .line__hint { color: var(--green-glow, #52b788); }
+    .line__copy.is-copied .line__copy-icon--default { display: none; }
+    .line__copy.is-copied .line__copy-icon--done { display: inline-flex; }
+
+    .line__arrow {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        color: var(--tan, #c9a87c);
+        opacity: 0;
+        transform: translateX(-8px);
+        transition: opacity 280ms ease, transform 380ms var(--ease-out-expo);
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+        .line:hover .line__arrow { opacity: 1; transform: none; }
+    }
+
+    /* Touch devices: arrow always faintly present */
+    @media (hover: none) {
+        .line__arrow { opacity: 0.5; transform: none; }
+    }
+
+    .board__note {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.72rem;
+        letter-spacing: 0.05em;
+        line-height: 1.8;
+        color: var(--muted, #888077);
+        text-align: center;
+        margin-top: 40px;
+        opacity: 0.8;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .line, .line::before, .line__arrow { transition: none; }
+        .line--green .line__dot { animation: none; }
+    }
+
+    @media (max-width: 640px) {
+        .line {
+            flex-wrap: wrap;
+            gap: 12px;
+            padding: 22px 4px;
+        }
+        .line__main { flex-basis: 100%; order: 3; }
+        .line__meta { margin-left: auto; }
+    }
+</style>

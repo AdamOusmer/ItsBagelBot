@@ -1,179 +1,92 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import PageHero from '../components/ui/PageHero.astro';
+import LegalShell from '../components/legal/LegalShell.astro';
+
+const sections = [
+    { id: 'agreement', heading: 'Agreement', plain: 'Using the bot means you accept these rules.' },
+    { id: 'service', heading: 'The Service', plain: 'A Twitch bot: moderation, commands, engagement. Provided as-is.' },
+    { id: 'account', heading: 'Your Account', plain: 'Your channel, your connection, your responsibility.' },
+    { id: 'acceptable-use', heading: 'Acceptable Use', plain: "Don't be a jerk, don't break Twitch's rules, don't abuse the service." },
+    { id: 'license', heading: 'Source Available License', plain: 'You can read the code. You cannot resell it.' },
+    { id: 'payments', heading: 'Pricing & Payments', plain: 'Free is free. Premium cancels anytime.' },
+    { id: 'liability', heading: 'Limitation of Liability', plain: "If something breaks, we fix it, but we can't owe you damages." },
+    { id: 'termination', heading: 'Termination', plain: 'Break the rules and we may close your account. You can leave whenever.' },
+    { id: 'changes', heading: 'Changes', plain: 'Terms can change; staying means you accept the new ones.' },
+    { id: 'contact', heading: 'Contact', plain: 'Questions go to support@itsbagelbot.com.' },
+];
 ---
 
 <Layout title="Terms of Service — ItsBagelBot" description="ItsBagelBot terms of service. Understand your rights and responsibilities when using our platform.">
-    <PageHero eyebrow="Legal" title="Terms of Service" />
+    <PageHero eyebrow="Legal" title="Terms of Service" description="The full text, with a plain-words note on every section." />
 
-    <section class="legal">
-        <article class="legal__content">
-            <p class="legal__updated" data-reveal style="--reveal-i: 0">Last updated: June 2026</p>
+    <LegalShell updated="June 2026" sections={sections}>
+        <Fragment slot="agreement">
+            <p>By using ItsBagelBot, you agree to these terms. If you don't agree, please don't use the service.</p>
+        </Fragment>
 
-            <div class="legal__block" data-reveal style="--reveal-i: 1">
-                <h2>Agreement</h2>
-                <p>
-                    By using ItsBagelBot, you agree to these terms. If you don't agree, please don't use the service.
-                </p>
-            </div>
+        <Fragment slot="service">
+            <p>
+                ItsBagelBot provides automated chat moderation, commands, and engagement tools for Twitch
+                streamers. The service is provided as-is.
+            </p>
+        </Fragment>
 
-            <div class="legal__block" data-reveal style="--reveal-i: 2">
-                <h2>The Service</h2>
-                <p>
-                    ItsBagelBot provides automated chat moderation, commands, and engagement tools for Twitch
-                    streamers. The service is provided as-is.
-                </p>
-            </div>
+        <Fragment slot="account">
+            <p>
+                You're responsible for your Twitch account connection and any actions taken by the bot on your
+                channel. Keep your credentials secure.
+            </p>
+        </Fragment>
 
-            <div class="legal__block" data-reveal style="--reveal-i: 3">
-                <h2>Your Account</h2>
-                <p>
-                    You're responsible for your Twitch account connection and any actions taken by the bot on your
-                    channel. Keep your credentials secure.
-                </p>
-            </div>
+        <Fragment slot="acceptable-use">
+            <p>Don't use ItsBagelBot to:</p>
+            <ul>
+                <li>Violate Twitch's Terms of Service</li>
+                <li>Harass or harm others</li>
+                <li>Spam or abuse the service</li>
+                <li>Attempt to reverse-engineer or redistribute the software</li>
+            </ul>
+        </Fragment>
 
-            <div class="legal__block" data-reveal style="--reveal-i: 4">
-                <h2>Acceptable Use</h2>
-                <p>Don't use ItsBagelBot to:</p>
-                <ul>
-                    <li>Violate Twitch's Terms of Service</li>
-                    <li>Harass or harm others</li>
-                    <li>Spam or abuse the service</li>
-                    <li>Attempt to reverse-engineer or redistribute the software</li>
-                </ul>
-            </div>
+        <Fragment slot="license">
+            <p>
+                ItsBagelBot's source code is viewable on GitHub under a source-available license. This means you
+                can view and audit the code, but you may not redistribute, modify for commercial use, or create
+                competing services from it.
+            </p>
+        </Fragment>
 
-            <div class="legal__block" data-reveal style="--reveal-i: 5">
-                <h2>Source Available License</h2>
-                <p>
-                    ItsBagelBot's source code is viewable on GitHub under a source-available license. This means you
-                    can view and audit the code, but you may not redistribute, modify for commercial use, or create
-                    competing services from it.
-                </p>
-            </div>
+        <Fragment slot="payments">
+            <p>
+                Free tier has no cost and no limitations. Premium ($5/month) can be canceled anytime. Enterprise
+                pricing is custom and outlined in separate agreements.
+            </p>
+        </Fragment>
 
-            <div class="legal__block" data-reveal style="--reveal-i: 6">
-                <h2>Pricing &amp; Payments</h2>
-                <p>
-                    Free tier has no cost and no limitations. Premium ($5/month) can be canceled anytime. Enterprise
-                    pricing is custom and outlined in separate agreements.
-                </p>
-            </div>
+        <Fragment slot="liability">
+            <p>
+                ItsBagelBot is provided as-is without warranties. We're not liable for any chat moderation
+                decisions, missed messages, or service interruptions.
+            </p>
+        </Fragment>
 
-            <div class="legal__block" data-reveal style="--reveal-i: 7">
-                <h2>Limitation of Liability</h2>
-                <p>
-                    ItsBagelBot is provided as-is without warranties. We're not liable for any chat moderation
-                    decisions, missed messages, or service interruptions.
-                </p>
-            </div>
+        <Fragment slot="termination">
+            <p>
+                We may suspend or terminate accounts that violate these terms. You may delete your account at
+                any time.
+            </p>
+        </Fragment>
 
-            <div class="legal__block" data-reveal style="--reveal-i: 8">
-                <h2>Termination</h2>
-                <p>
-                    We may suspend or terminate accounts that violate these terms. You may delete your account at
-                    any time.
-                </p>
-            </div>
+        <Fragment slot="changes">
+            <p>We may update these terms. Continued use after changes constitutes acceptance.</p>
+        </Fragment>
 
-            <div class="legal__block" data-reveal style="--reveal-i: 9">
-                <h2>Changes</h2>
-                <p>
-                    We may update these terms. Continued use after changes constitutes acceptance.
-                </p>
-            </div>
-
-            <div class="legal__block" data-reveal style="--reveal-i: 10">
-                <h2>Contact</h2>
-                <p>
-                    Questions? Email
-                    <a href="mailto:support@itsbagelbot.com">support@itsbagelbot.com</a>.
-                </p>
-            </div>
-        </article>
-    </section>
+        <Fragment slot="contact">
+            <p>
+                Questions? Email
+                <a href="mailto:support@itsbagelbot.com">support@itsbagelbot.com</a>.
+            </p>
+        </Fragment>
+    </LegalShell>
 </Layout>
-
-<style>
-    .legal {
-        max-width: 720px;
-        margin: 0 auto;
-        padding: 0 20px 96px;
-    }
-
-    .legal__content {
-        max-width: var(--content-text, 68ch);
-    }
-
-    .legal__updated {
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.78rem;
-        color: var(--green-glow, #52b788);
-        letter-spacing: 0.08em;
-        margin-bottom: 48px;
-    }
-
-    .legal__block {
-        margin-bottom: 0;
-    }
-
-    .legal__block h2 {
-        font-family: var(--font-display, "Syne", sans-serif);
-        font-size: 1.25rem;
-        font-weight: 700;
-        color: var(--white, #f0ece4);
-        margin-top: 52px;
-        margin-bottom: 14px;
-        letter-spacing: -0.01em;
-    }
-
-    .legal__block:first-of-type h2 {
-        margin-top: 0;
-    }
-
-    .legal__block p,
-    .legal__block ul {
-        font-family: var(--font-body, "DM Sans", sans-serif);
-        font-size: 0.94rem;
-        color: var(--muted, #888077);
-        line-height: 1.8;
-        margin-bottom: 14px;
-    }
-
-    .legal__block ul {
-        padding-left: 1.4em;
-        list-style-type: disc;
-    }
-
-    .legal__block ul li {
-        margin-bottom: 7px;
-    }
-
-    .legal__block ul li::marker {
-        color: var(--green-glow, #52b788);
-    }
-
-    .legal__block a {
-        color: var(--tan, #c9a87c);
-        text-decoration: none;
-        border-bottom: 1px solid transparent;
-        transition: color 180ms ease, border-color 180ms ease;
-    }
-
-    .legal__block a:hover {
-        color: var(--tan-light, #e0c49a);
-        border-bottom-color: var(--tan-light, #e0c49a);
-    }
-
-    @media (max-width: 480px) {
-        .legal {
-            padding: 0 16px 72px;
-        }
-
-        .legal__block h2 {
-            font-size: 1.1rem;
-            margin-top: 40px;
-        }
-    }
-</style>

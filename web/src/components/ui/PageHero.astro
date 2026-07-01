@@ -1,8 +1,8 @@
 ---
 /**
- * Top-of-page hero for inner routes (pricing, contact, legal). Shares the
- * eyebrow + display-title language with SectionHeading; entrance is the shared
- * scroll-reveal (above the fold, so it plays immediately on load).
+ * Inner-page hero in the cinematic language: warm light-field + hearth glow +
+ * a decode (scramble→resolve) title, matching the homepage scenes without the
+ * full scroll-scrub. Used by pricing, contact, and legal pages.
  */
 interface Props {
     eyebrow?: string;
@@ -13,57 +13,117 @@ interface Props {
 const { eyebrow, title, description } = Astro.props;
 ---
 
-<div class="page-hero">
-    {eyebrow && <span class="page-hero__eyebrow" data-reveal>{eyebrow}</span>}
-    <h1 class="page-hero__title" data-reveal style="--reveal-i: 1">{title}</h1>
-    {description && <p class="page-hero__desc" data-reveal style="--reveal-i: 2">{description}</p>}
-</div>
+<header class="phero">
+    <canvas class="phero__field" data-field data-warmth="0.7" aria-hidden="true"></canvas>
+    <div class="phero__glow" aria-hidden="true"></div>
+
+    <div class="phero__inner">
+        {eyebrow && <span class="phero__eyebrow">{eyebrow}</span>}
+        <h1 class="phero__title" data-decode={title}>{title}</h1>
+        {description && <p class="phero__desc">{description}</p>}
+    </div>
+</header>
 
 <style>
-    .page-hero {
+    .phero {
+        position: relative;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        min-height: clamp(56vh, 70vh, 80vh);
+        padding: calc(var(--nav-height, 76px) + 80px) 24px 80px;
+        max-width: none;
+        margin: 0;
+    }
+
+    .phero__field {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        display: block;
+        pointer-events: none;
+    }
+
+    .phero__glow {
+        position: absolute;
+        left: 50%;
+        top: 48%;
+        width: 110vmin;
+        height: 90vmin;
+        translate: -50% -50%;
+        pointer-events: none;
+        background: radial-gradient(
+            55% 60% at 50% 50%,
+            rgba(201, 168, 124, 0.16) 0%,
+            rgba(82, 183, 136, 0.06) 38%,
+            transparent 70%
+        );
+        filter: blur(12px);
+    }
+
+    .phero__inner {
+        position: relative;
+        z-index: 2;
+        max-width: var(--content-narrow, 720px);
         display: flex;
         flex-direction: column;
         align-items: center;
-        text-align: center;
-        padding: calc(var(--nav-height, 76px) + 64px) 24px 64px;
-        max-width: var(--content-narrow, 720px);
-        margin: 0 auto;
     }
 
-    .page-hero__eyebrow {
+    .phero__eyebrow {
         font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.75rem;
-        letter-spacing: 0.16em;
+        font-size: clamp(0.66rem, 1.4vw, 0.76rem);
+        letter-spacing: 0.22em;
         text-transform: uppercase;
         color: var(--green-glow, #52b788);
-        margin-bottom: 20px;
+        margin-bottom: 22px;
+        text-shadow: 0 0 16px rgba(82, 183, 136, 0.5);
+        opacity: 0;
+        animation: pheroIn 700ms 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)) forwards;
     }
 
-    .page-hero__title {
+    .phero__title {
         font-family: var(--font-display, "Syne", sans-serif);
         font-weight: 800;
-        font-size: clamp(2rem, 6vw, 3.5rem);
-        line-height: 1.05;
-        letter-spacing: -0.02em;
+        font-size: clamp(2.2rem, 6.5vw, 4rem);
+        line-height: 1.02;
+        letter-spacing: -0.03em;
         color: var(--white, #f0ece4);
-        margin-bottom: 20px;
+        margin: 0;
+        max-width: 16ch;
+        text-shadow:
+            0 0 24px rgba(240, 236, 228, 0.18),
+            0 3px 18px rgba(0, 0, 0, 0.9),
+            0 0 40px rgba(201, 168, 124, 0.22);
+        opacity: 0;
+        animation: pheroIn 760ms 60ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)) forwards;
     }
 
-    .page-hero__desc {
+    .phero__desc {
         font-family: var(--font-body, "DM Sans", sans-serif);
-        font-size: 1.05rem;
+        font-size: clamp(1rem, 1.6vw, 1.15rem);
         line-height: 1.7;
         color: var(--muted, #888077);
-        max-width: 560px;
+        max-width: 52ch;
+        margin: 26px 0 0;
+        opacity: 0;
+        animation: pheroIn 800ms 320ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)) forwards;
+    }
+
+    @keyframes pheroIn {
+        from { opacity: 0; transform: translateY(16px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .phero__eyebrow, .phero__title, .phero__desc { animation: none; opacity: 1; }
+        .phero__field { display: none; }
     }
 
     @media (max-width: 640px) {
-        .page-hero {
-            padding: calc(var(--nav-height, 68px) + 48px) 20px 48px;
-        }
-
-        .page-hero__desc {
-            font-size: 0.95rem;
-        }
+        .phero { min-height: 60vh; padding: calc(var(--nav-height, 68px) + 56px) 20px 56px; }
     }
 </style>
