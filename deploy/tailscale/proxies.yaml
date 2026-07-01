@@ -3,9 +3,9 @@
 #
 # The ingress ProxyGroup runs one proxy per node. The Tailscale operator
 # currently realizes ProxyGroups as StatefulSets, not DaemonSets, so this uses
-# the supported API shape while keeping DaemonSet-like placement: three replicas
-# with strict hostname anti-affinity. Ingresses opt in via the
-# tailscale.com/proxy-group annotation.
+# the supported API shape while keeping DaemonSet-like placement: two replicas
+# with strict hostname anti-affinity (node3 decommissioned, worker1 not
+# included). Ingresses opt in via the tailscale.com/proxy-group annotation.
 apiVersion: tailscale.com/v1alpha1
 kind: ProxyClass
 metadata:
@@ -43,5 +43,5 @@ metadata:
   name: ts-ingress
 spec:
   type: ingress
-  replicas: 3
+  replicas: 2
   proxyClass: ha-spread
