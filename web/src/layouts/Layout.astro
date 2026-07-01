@@ -25,13 +25,17 @@ const {
 <head>
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <meta
+        http-equiv="Content-Security-Policy"
+        content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self'; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+    />
     <meta name="referrer" content="strict-origin-when-cross-origin"/>
     <link rel="icon" type="image/png" href="/logoBOT.png"/>
     <meta name="generator" content={Astro.generator}/>
 
     <link rel="preconnect" href="https://fonts.googleapis.com"/>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400&display=swap"
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&family=DM+Sans:ital,wght@0,400;1,400&family=Caveat:wght@500;600&display=swap"
           rel="stylesheet"/>
 
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
@@ -44,7 +48,10 @@ const {
 </head>
 
 <body>
-    <slot/>
+    <a class="skip-link" href="#main-content">Skip to content</a>
+    <main id="main-content">
+        <slot/>
+    </main>
     <Nav/>
     <Brackets/>
     <Footer/>
@@ -55,10 +62,38 @@ const {
         import '../script/dom-motion/index.js';
         import '../script/reveal.js';
         import '../script/interactions.js';
-        import '../script/scenes.js';
+        import '../script/lightfield.js';
         import '../script/decode.js';
         import '../script/easter-egg';
     </script>
 
 </body>
 </html>
+
+<style>
+    .skip-link {
+        position: absolute;
+        left: 12px;
+        top: -60px;
+        z-index: 200;
+        padding: 10px 16px;
+        border-radius: 8px;
+        background: var(--card-bg, #111110);
+        border: 1px solid var(--tan, #c9a87c);
+        color: var(--tan-light, #e0c49a);
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.8rem;
+        text-decoration: none;
+        transition: top 200ms ease;
+    }
+
+    .skip-link:focus {
+        top: 12px;
+    }
+
+    /* No box: keeps the landmark for a11y without disturbing the hero/Encryption
+       sticky + scroll math (which assumes top-level sections are body children). */
+    main {
+        display: contents;
+    }
+</style>

@@ -1,0 +1,439 @@
+---
+/**
+ * Tiers — pricing with the convention flipped: Free is the hero card because
+ * Free is the product. Premium is framed as the tip jar it actually is, and
+ * Enterprise sits quietly beside it. Count-up price, stroke-drawn checks,
+ * pointer tilt via [data-tilt] (interactions.js).
+ */
+import Card from '../ui/Card.astro';
+
+const freeFeatures = [
+    'Chat moderation & auto-filters',
+    'Custom commands & variables',
+    'Song requests & queue',
+    'Polls & giveaways',
+    'Loyalty & engagement tools',
+    'Analytics dashboard',
+    'Community support via Discord',
+    'Every future feature too',
+];
+
+const premiumFeatures = [
+    'Everything in Free, obviously',
+    'Priority message processing queue',
+    'Faster command response times',
+    'Priority support',
+];
+
+const enterpriseFeatures = [
+    'Everything in Premium',
+    'Dedicated hardware',
+    'Multi-streamer management',
+    'Custom SLA & account manager',
+];
+---
+
+<section class="tiers">
+    <!-- Free: the whole product -->
+    <div class="tiers__tilt" data-tilt="4">
+        <Card class="tier tier--free" data-reveal>
+            <div class="tier-free__layout">
+                <div class="tier-free__head">
+                    <span class="tier__name">Free</span>
+                    <div class="tier__price">
+                        <span class="tier__amount">$0</span>
+                        <span class="tier__suffix">/month, forever</span>
+                    </div>
+                    <p class="tier__desc">
+                        Not a trial. Not a teaser. The entire toolkit, because the
+                        best moderation shouldn't depend on your budget.
+                    </p>
+                    <a
+                        class="tier__btn tier__btn--main"
+                        href="https://dashboard.itsbagelbot.com"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        data-magnetic="0.3"
+                    >Get started</a>
+                </div>
+
+                <ul class="tier__features tier-free__features">
+                    {freeFeatures.map((feature, fi) => (
+                        <li class="tier__feature" data-reveal style={`--reveal-i: ${fi + 1}`}>
+                            <svg class="tier__check" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                                <path class="tier__check-path" d="M3.5 8.5L6.5 11.5L12.5 4.5"
+                                      stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                            <span>{feature}</span>
+                        </li>
+                    ))}
+                </ul>
+            </div>
+        </Card>
+    </div>
+
+    <div class="tiers__pair">
+        <!-- Premium: the tip jar -->
+        <div class="tiers__tilt" data-tilt="5">
+            <Card class="tier tier--premium" data-reveal style="--reveal-i: 1">
+                <span class="tier__badge">The tip jar, with perks</span>
+                <span class="tier__name">Premium</span>
+                <div class="tier__price">
+                    <span class="tier__prefix" aria-hidden="true">$</span>
+                    <span class="tier__amount" data-count-up data-target="5">0</span>
+                    <span class="tier__suffix">/month</span>
+                </div>
+                <p class="tier__desc">
+                    Keeps the servers warm and bumps you to the front of the queue
+                    when chat gets loud.
+                </p>
+                <ul class="tier__features">
+                    {premiumFeatures.map((feature, fi) => (
+                        <li class="tier__feature" data-reveal style={`--reveal-i: ${fi + 1}`}>
+                            <svg class="tier__check" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                                <path class="tier__check-path" d="M3.5 8.5L6.5 11.5L12.5 4.5"
+                                      stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                            <span>{feature}</span>
+                        </li>
+                    ))}
+                </ul>
+                <a
+                    class="tier__btn tier__btn--outline"
+                    href="https://dashboard.itsbagelbot.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                >Chip in</a>
+            </Card>
+        </div>
+
+        <!-- Enterprise -->
+        <div class="tiers__tilt" data-tilt="5">
+            <Card class="tier tier--enterprise" data-reveal style="--reveal-i: 2">
+                <span class="tier__name">Enterprise</span>
+                <div class="tier__price">
+                    <span class="tier__amount tier__amount--static">Custom</span>
+                </div>
+                <p class="tier__desc">
+                    Dedicated infrastructure for orgs running many channels at once.
+                </p>
+                <ul class="tier__features">
+                    {enterpriseFeatures.map((feature, fi) => (
+                        <li class="tier__feature" data-reveal style={`--reveal-i: ${fi + 1}`}>
+                            <svg class="tier__check" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                                <path class="tier__check-path" d="M3.5 8.5L6.5 11.5L12.5 4.5"
+                                      stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                            <span>{feature}</span>
+                        </li>
+                    ))}
+                </ul>
+                <a class="tier__btn tier__btn--outline" href="mailto:enterprise@itsbagelbot.com">Contact sales</a>
+            </Card>
+        </div>
+    </div>
+
+    <p class="tiers__oath" data-reveal>
+        no feature gates · no trials · no card on file · cancelling is one click
+    </p>
+</section>
+
+<style>
+    .tiers {
+        padding: 0 24px var(--space-section, 96px);
+        max-width: var(--content-max, 1200px);
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+    }
+
+    .tiers__pair {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 24px;
+    }
+
+    @media (min-width: 860px) {
+        .tiers__pair { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    /* Tilt wrapper carries the 3D transform so the Card keeps its hover lift */
+    .tiers__tilt {
+        transform: perspective(900px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
+        transition: transform 500ms var(--ease-out-expo);
+        will-change: transform;
+    }
+
+    .tiers__pair .tiers__tilt { display: flex; }
+    .tiers__pair .tiers__tilt :global(.card) { flex: 1; }
+
+    /* ── Card internals ── */
+
+    .tier :global(.card__body) {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+    }
+
+    .tier--free {
+        border-color: rgba(201, 168, 124, 0.35) !important;
+        animation: freeGlow 5s ease-in-out infinite;
+    }
+
+    @keyframes freeGlow {
+        0%, 100% { box-shadow: 0 0 32px rgba(201, 168, 124, 0.08); }
+        50% { box-shadow: 0 0 56px rgba(201, 168, 124, 0.22), 0 0 100px rgba(201, 168, 124, 0.07); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .tier--free { animation-play-state: paused; }
+        .tiers__tilt { transform: none; transition: none; }
+    }
+
+    .tier-free__layout {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 32px;
+    }
+
+    @media (min-width: 860px) {
+        .tier-free__layout {
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+            gap: 48px;
+            align-items: center;
+            padding: 8px;
+        }
+    }
+
+    .tier__badge {
+        position: absolute;
+        top: 0;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.62rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        background: var(--tan, #c9a87c);
+        color: var(--black, #0a0a0a);
+        padding: 4px 14px;
+        border-radius: var(--radius-pill, 100px);
+        white-space: nowrap;
+        font-weight: 600;
+        z-index: 1;
+    }
+
+    .tier__name {
+        display: block;
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-weight: 700;
+        font-size: 1.05rem;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+        color: var(--white, #f0ece4);
+        margin-bottom: 18px;
+    }
+
+    .tier__price {
+        display: flex;
+        align-items: baseline;
+        gap: 2px;
+        margin-bottom: 14px;
+    }
+
+    .tier__prefix {
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-weight: 800;
+        font-size: 1.7rem;
+        line-height: 1;
+        color: var(--tan-light, #e0c49a);
+        align-self: flex-start;
+        margin-top: 5px;
+    }
+
+    .tier__amount {
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-weight: 800;
+        font-size: 3.2rem;
+        line-height: 1;
+        letter-spacing: -0.03em;
+        color: var(--white, #f0ece4);
+        font-variant-numeric: tabular-nums;
+    }
+
+    .tier__amount--static { font-size: 2.2rem; }
+
+    .tier__suffix {
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: 0.85rem;
+        color: var(--muted, #888077);
+        margin-left: 6px;
+    }
+
+    .tier__desc {
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: 0.9rem;
+        line-height: 1.65;
+        color: var(--muted, #888077);
+        margin: 0 0 22px;
+        max-width: 40ch;
+    }
+
+    .tier__features {
+        list-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: 11px;
+        margin: 0 0 26px;
+        padding: 0;
+    }
+
+    .tier-free__features {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 12px;
+        margin: 0;
+        padding: 20px 0 0;
+        border-top: 1px solid var(--border, rgba(201, 168, 124, 0.15));
+    }
+
+    @media (min-width: 560px) {
+        .tier-free__features { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (min-width: 860px) {
+        .tier-free__features { border-top: none; border-left: 1px solid var(--border, rgba(201, 168, 124, 0.15)); padding: 0 0 0 40px; }
+    }
+
+    .tier__feature {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: 0.87rem;
+        line-height: 1.45;
+        color: var(--muted, #888077);
+    }
+
+    .tier--free .tier__feature { color: rgba(240, 236, 228, 0.75); }
+
+    .tier__check {
+        flex-shrink: 0;
+        color: var(--green-glow, #52b788);
+        margin-top: 1px;
+    }
+
+    .tier__check-path {
+        stroke-dasharray: 18;
+        stroke-dashoffset: 18;
+        transition: stroke-dashoffset 480ms var(--ease-out-expo);
+        transition-delay: calc(var(--reveal-i, 0) * 60ms + 200ms);
+    }
+
+    .tier__feature.is-revealed .tier__check-path { stroke-dashoffset: 0; }
+
+    @media (prefers-reduced-motion: reduce) {
+        .tier__check-path { stroke-dashoffset: 0; transition: none; }
+    }
+
+    /* ── Buttons ── */
+
+    .tier__btn {
+        display: inline-block;
+        text-align: center;
+        border-radius: var(--radius-sm, 6px);
+        font-weight: 700;
+        margin-top: auto;
+        transition: background 220ms ease, color 220ms ease, box-shadow 220ms ease;
+    }
+
+    .tier__btn--main {
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-size: 0.95rem;
+        padding: 15px 28px;
+        background: var(--tan, #c9a87c);
+        color: var(--black, #0a0a0a);
+        letter-spacing: -0.01em;
+        align-self: flex-start;
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+        .tier__btn--main:hover {
+            background: var(--tan-light, #e0c49a);
+            box-shadow: 0 8px 32px rgba(201, 168, 124, 0.28);
+        }
+    }
+
+    .tier__btn--outline {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.74rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        padding: 13px 24px;
+        border: 1px solid var(--tan, #c9a87c);
+        color: var(--tan-light, #e0c49a);
+        background: transparent;
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+        .tier__btn--outline:hover {
+            background: var(--tan, #c9a87c);
+            color: var(--black, #0a0a0a);
+        }
+    }
+
+    /* ── Oath strip ── */
+
+    .tiers__oath {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.72rem;
+        letter-spacing: 0.06em;
+        color: var(--muted, #888077);
+        text-align: center;
+        border: 1px dashed rgba(201, 168, 124, 0.22);
+        border-radius: var(--radius-pill, 100px);
+        padding: 12px 24px;
+        margin: 12px auto 0;
+        max-width: fit-content;
+    }
+</style>
+
+<script>
+    /* Price count-up when the amount scrolls into view */
+    function runCountUp(el: HTMLElement) {
+        const target = parseInt(el.dataset.target ?? '0', 10);
+        if (target === 0 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            el.textContent = String(target);
+            return;
+        }
+        const duration = 900;
+        const startTime = performance.now();
+        function tick(now: number) {
+            const progress = Math.min((now - startTime) / duration, 1);
+            const eased = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress);
+            el.textContent = String(Math.round(eased * target));
+            if (progress < 1) requestAnimationFrame(tick);
+        }
+        requestAnimationFrame(tick);
+    }
+
+    function setupCountUp() {
+        const els = document.querySelectorAll<HTMLElement>('[data-count-up]');
+        if (!els.length) return;
+        const obs = new IntersectionObserver((entries) => {
+            entries.forEach((entry) => {
+                if (!entry.isIntersecting) return;
+                const el = entry.target as HTMLElement;
+                if (el.dataset.counted) return;
+                el.dataset.counted = 'true';
+                obs.unobserve(el);
+                runCountUp(el);
+            });
+        }, { threshold: 0.2 });
+        els.forEach((el) => obs.observe(el));
+    }
+
+    setupCountUp();
+    document.addEventListener('astro:page-load', setupCountUp);
+</script>

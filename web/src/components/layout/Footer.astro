@@ -1,12 +1,24 @@
 ---
+/**
+ * Footer — the sign-off. A big warm goodbye line, the usual columns, and a
+ * bottom strip that repeats the only promise that matters. The logo does a
+ * little wobble when you catch it.
+ */
 import { Image } from 'astro:assets';
 import logoImage from '../../assets/LogoBOT.png';
 ---
 
 <footer>
+    <div class="signoff" data-reveal>
+        <p class="signoff__line">Baked late. Served fresh.</p>
+        <p class="signoff__sub">See you in chat.</p>
+    </div>
+
     <div class="top">
         <div class="brand" data-reveal>
-            <Image src={logoImage} alt="ItsBagelBot Logo" width={55} height={55} fetchpriority="high" />
+            <span class="brand__logo">
+                <Image src={logoImage} alt="ItsBagelBot Logo" width={55} height={55} fetchpriority="high" />
+            </span>
             <div>
                 <span class="name">ItsBagelBot</span>
                 <span class="tagline">Your stream. Your rules.</span>
@@ -45,11 +57,62 @@ import logoImage from '../../assets/LogoBOT.png';
 
 <style>
     footer {
+        position: relative;
         border-top: 1px solid var(--border);
-        padding: 64px 4% 40px;
+        padding: 72px 4% 40px;
+        overflow: hidden;
     }
 
+    /* Faint hearth ember behind the sign-off */
+    footer::before {
+        content: "";
+        position: absolute;
+        left: 50%;
+        top: 0;
+        width: 90vmin;
+        height: 40vmin;
+        translate: -50% -50%;
+        pointer-events: none;
+        background: radial-gradient(
+            50% 60% at 50% 50%,
+            rgba(201, 168, 124, 0.09) 0%,
+            transparent 70%
+        );
+        filter: blur(12px);
+    }
+
+    /* ── Sign-off ── */
+
+    .signoff {
+        position: relative;
+        text-align: center;
+        margin-bottom: 72px;
+    }
+
+    .signoff__line {
+        font-family: var(--font-display);
+        font-weight: 800;
+        font-size: clamp(1.7rem, 4.6vw, 2.9rem);
+        letter-spacing: -0.02em;
+        line-height: 1.08;
+        color: var(--white);
+        margin: 0 0 10px;
+        text-shadow: 0 0 30px rgba(201, 168, 124, 0.16);
+    }
+
+    .signoff__sub {
+        font-family: var(--font-hand, "Caveat", cursive);
+        font-size: clamp(1.2rem, 2.6vw, 1.5rem);
+        font-weight: 500;
+        color: var(--tan-light);
+        margin: 0;
+        rotate: -1deg;
+    }
+
+    /* ── Top ── */
+
     .top {
+        position: relative;
         display: flex;
         justify-content: space-between;
         align-items: center;
@@ -61,6 +124,16 @@ import logoImage from '../../assets/LogoBOT.png';
         display: flex;
         align-items: center;
         gap: 15px;
+    }
+
+    .brand__logo {
+        display: inline-block;
+        line-height: 0;
+        transition: rotate 500ms var(--ease-out-back, cubic-bezier(0.34, 1.56, 0.64, 1));
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+        .brand:hover .brand__logo { rotate: 14deg; }
     }
 
     .brand div {
@@ -104,6 +177,7 @@ import logoImage from '../../assets/LogoBOT.png';
     }
 
     .col a {
+        position: relative;
         width: fit-content;
         font-size: 0.85rem;
         color: var(--muted);
@@ -111,16 +185,39 @@ import logoImage from '../../assets/LogoBOT.png';
         transition: color 0.2s var(--ease-out-expo), transform 0.3s var(--ease-out-expo);
     }
 
+    /* Little ember dot slides in ahead of the label */
+    .col a::before {
+        content: "";
+        position: absolute;
+        left: -12px;
+        top: 50%;
+        width: 4px;
+        height: 4px;
+        border-radius: 50%;
+        translate: 0 -50%;
+        background: var(--tan);
+        opacity: 0;
+        scale: 0;
+        transition: opacity 0.25s ease, scale 0.3s var(--ease-out-back, cubic-bezier(0.34, 1.56, 0.64, 1));
+    }
+
     .col a:hover {
         color: var(--tan-light);
-        transform: translateX(4px);
+        transform: translateX(6px);
+    }
+
+    .col a:hover::before {
+        opacity: 1;
+        scale: 1;
     }
 
     @media (prefers-reduced-motion: reduce) {
-        .col a:hover {
-            transform: none;
-        }
+        .col a:hover { transform: none; }
+        .col a::before { display: none; }
+        .brand__logo { transition: none; }
     }
+
+    /* ── Bottom ── */
 
     .bottom {
         display: grid;
@@ -166,8 +263,10 @@ import logoImage from '../../assets/LogoBOT.png';
 
     @media (max-width: 900px) {
         footer {
-            padding: 50px 25px 30px;
+            padding: 56px 25px 30px;
         }
+
+        .signoff { margin-bottom: 56px; }
 
         .top {
             flex-direction: column;

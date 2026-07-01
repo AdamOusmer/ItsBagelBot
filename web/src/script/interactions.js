@@ -9,6 +9,11 @@
  *
  *   [data-copy="text"]     click copies `text` to the clipboard and toggles
  *                          `.is-copied` for ~1.6s of micro-feedback.
+ *
+ *   [data-tilt]            pointer-tracked 3D tilt. Optional numeric value =
+ *                          max degrees (default 4). Writes `--tilt-x/y`; the
+ *                          component's CSS applies the perspective transform.
+ *                          Fine pointer + motion-allowed only.
  */
 
 const finePointer = window.matchMedia("(hover: hover) and (pointer: fine)");
@@ -59,9 +64,35 @@ function setupCopy(el) {
     });
 }
 
+function setupTilt(el) {
+    if (el.dataset.tiltReady === "true") return;
+    el.dataset.tiltReady = "true";
+
+    const maxDeg = parseFloat(el.dataset.tilt) || 4;
+
+    const reset = () => {
+        el.style.setProperty("--tilt-x", "0deg");
+        el.style.setProperty("--tilt-y", "0deg");
+    };
+
+    el.addEventListener("pointermove", (event) => {
+        if (!finePointer.matches || reduceMotion.matches) return;
+        const rect = el.getBoundingClientRect();
+        const px = (event.clientX - rect.left) / rect.width - 0.5;
+        const py = (event.clientY - rect.top) / rect.height - 0.5;
+        el.style.setProperty("--tilt-x", `${(-py * maxDeg).toFixed(2)}deg`);
+        el.style.setProperty("--tilt-y", `${(px * maxDeg).toFixed(2)}deg`);
+    });
+
+    el.addEventListener("pointerleave", reset);
+
+    reset();
+}
+
 function setup() {
     document.querySelectorAll("[data-magnetic]").forEach(setupMagnetic);
     document.querySelectorAll("[data-copy]").forEach(setupCopy);
+    document.querySelectorAll("[data-tilt]").forEach(setupTilt);
 }
 
 setup();

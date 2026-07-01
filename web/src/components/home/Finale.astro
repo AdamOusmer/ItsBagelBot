@@ -1,0 +1,149 @@
+---
+/**
+ * Finale — the door out. Hearth glow, a staggered title, one magnetic CTA,
+ * and an honesty line instead of urgency theatrics.
+ */
+import MainButton from '../ui/Buttons/MainButton.astro';
+import SecondaryButton from '../ui/Buttons/SecondaryButton.astro';
+
+const titleWords = ['Set', 'it', 'up', 'tonight.', 'Stream', 'calmer', 'tomorrow.'];
+---
+
+<section class="finale">
+    <div class="finale__glow" aria-hidden="true"></div>
+    <div class="finale__inner">
+        <span class="finale__eyebrow" data-reveal>The oven's warm</span>
+        <h2 class="finale__title" aria-label={titleWords.join(' ')}>
+            {titleWords.map((word, i) => (
+                <span class="finale__word" aria-hidden="true" data-reveal style={`--reveal-i: ${i + 1}`}>{word}</span>
+            ))}
+        </h2>
+        <p class="finale__sub" data-reveal style="--reveal-i: 8">
+            Free means free. Every tool, no card, no countdown timers.
+        </p>
+        <div class="finale__actions" data-reveal style="--reveal-i: 9">
+            <span data-magnetic="0.4">
+                <MainButton href="https://dashboard.itsbagelbot.com" label="Add to Twitch" />
+            </span>
+            <SecondaryButton href="/pricing" label="See pricing" />
+        </div>
+        <span class="finale__honesty" data-reveal style="--reveal-i: 10">
+            setup ≈ 2 minutes · uninstall anytime · we won't guilt-trip you
+        </span>
+    </div>
+</section>
+
+<style>
+    .finale {
+        position: relative;
+        max-width: none;
+        margin: 0;
+        padding: clamp(120px, 22vh, 220px) 24px clamp(120px, 20vh, 200px);
+        overflow: hidden;
+        text-align: center;
+        z-index: 3;
+        border-top: 1px solid var(--border, rgba(201, 168, 124, 0.15));
+    }
+
+    .finale__glow {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 130vmin;
+        height: 90vmin;
+        translate: -50% -50%;
+        pointer-events: none;
+        background: radial-gradient(
+            55% 60% at 50% 50%,
+            rgba(201, 168, 124, 0.16) 0%,
+            rgba(82, 183, 136, 0.06) 38%,
+            transparent 70%
+        );
+        filter: blur(12px);
+        animation: finaleBreath 7s ease-in-out infinite;
+    }
+
+    @keyframes finaleBreath {
+        0%, 100% { opacity: 0.8; scale: 1; }
+        50% { opacity: 1; scale: 1.04; }
+    }
+
+    .finale__inner {
+        position: relative;
+        z-index: 2;
+        max-width: 680px;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .finale__eyebrow {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: clamp(0.64rem, 1.4vw, 0.74rem);
+        letter-spacing: 0.24em;
+        text-transform: uppercase;
+        color: var(--green-glow, #52b788);
+        margin-bottom: 22px;
+        text-shadow: 0 0 16px rgba(82, 183, 136, 0.55), 0 2px 12px rgba(0, 0, 0, 0.95);
+    }
+
+    .finale__title {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        column-gap: 0.28em;
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-weight: 800;
+        font-size: clamp(2.1rem, 5.5vw, 3.6rem);
+        line-height: 1.08;
+        letter-spacing: -0.03em;
+        color: var(--white, #f0ece4);
+        margin: 0 0 20px;
+        max-width: 18ch;
+        text-shadow:
+            0 0 24px rgba(240, 236, 228, 0.18),
+            0 3px 18px rgba(0, 0, 0, 0.9),
+            0 0 40px rgba(201, 168, 124, 0.24);
+    }
+
+    .finale__word { display: inline-block; }
+
+    .finale__sub {
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: clamp(0.98rem, 1.6vw, 1.12rem);
+        line-height: 1.6;
+        color: var(--muted, #888077);
+        margin: 0 0 40px;
+    }
+
+    .finale__actions {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+    }
+
+    .finale__honesty {
+        margin-top: 30px;
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.7rem;
+        letter-spacing: 0.06em;
+        color: var(--muted, #888077);
+        opacity: 0.75;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .finale__glow { animation: none; }
+    }
+
+    @media (max-width: 480px) {
+        .finale__actions {
+            flex-direction: column;
+            width: 100%;
+        }
+        .finale__actions > * { width: 100%; }
+        .finale__actions :global(a) { display: block; text-align: center; }
+    }
+</style>

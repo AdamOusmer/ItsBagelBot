@@ -1,0 +1,202 @@
+---
+/**
+ * Faq — plain answers, no support-page voice. Native <details> with the
+ * grid-template-rows height trick; mono index numbers; hover nudge.
+ */
+import SectionHeading from '../ui/SectionHeading.astro';
+
+interface FaqItem {
+    question: string;
+    answer: string;
+}
+
+const faqs: FaqItem[] = [
+    {
+        question: 'Is the free plan really free?',
+        answer: "Yes. Every feature, no limits, no expiry. We built this because good tools shouldn't depend on your budget, and we meant it.",
+    },
+    {
+        question: 'So what am I actually paying for with Premium?',
+        answer: "Priority. Premium messages jump the processing queue, so commands and moderation land faster when chat is busiest. It keeps the servers running too.",
+    },
+    {
+        question: 'Can I cancel Premium anytime?',
+        answer: "One click from the dashboard, no penalties, no exit survey. You keep the perks until the end of the billing period.",
+    },
+    {
+        question: "What's included in Enterprise?",
+        answer: 'Dedicated hardware, multi-streamer management, custom SLAs, and direct engineering support. Write to enterprise@itsbagelbot.com for a quote.',
+    },
+    {
+        question: 'Is ItsBagelBot source available?',
+        answer: 'ItsBagelBot is source available, not open source. You can read and audit every line on GitHub, but the license restricts redistribution and commercial use. Transparency without compromise.',
+    },
+];
+---
+
+<section class="faq">
+    <SectionHeading eyebrow="FAQ" title="Fair questions." />
+
+    <div class="faq__list">
+        {faqs.map((faq, i) => (
+            <details class="faq__item" data-reveal style={`--reveal-i: ${i}`}>
+                <summary class="faq__question">
+                    <span class="faq__num" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
+                    <span class="faq__q-text">{faq.question}</span>
+                    <span class="faq__icon" aria-hidden="true" />
+                </summary>
+                <div class="faq__body">
+                    <div class="faq__answer">
+                        <p>{faq.answer}</p>
+                    </div>
+                </div>
+            </details>
+        ))}
+    </div>
+</section>
+
+<style>
+    .faq {
+        padding: var(--space-section, 96px) 48px;
+        max-width: var(--content-max, 1200px);
+        margin: 0 auto;
+    }
+
+    .faq__list {
+        max-width: var(--content-narrow, 720px);
+        margin: 0 auto;
+    }
+
+    .faq__item {
+        border-bottom: 1px solid var(--border, rgba(201, 168, 124, 0.15));
+        transition: background 240ms ease;
+    }
+
+    .faq__question {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        cursor: pointer;
+        padding: 22px 4px;
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--white, #f0ece4);
+        list-style: none;
+        user-select: none;
+        transition: color 200ms ease, padding-left 320ms var(--ease-out-expo);
+    }
+
+    .faq__question::-webkit-details-marker { display: none; }
+    .faq__question::marker { display: none; content: ''; }
+
+    .faq__num {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.68rem;
+        color: var(--muted, #888077);
+        flex-shrink: 0;
+        transition: color 200ms ease;
+    }
+
+    .faq__q-text { flex: 1; }
+
+    @media (hover: hover) and (pointer: fine) {
+        .faq__question:hover {
+            color: var(--tan-light, #e0c49a);
+            padding-left: 10px;
+        }
+
+        .faq__question:hover .faq__num { color: var(--tan, #c9a87c); }
+
+        .faq__question:hover .faq__icon::before,
+        .faq__question:hover .faq__icon::after {
+            background: var(--tan-light, #e0c49a);
+        }
+    }
+
+    /* +/- icon */
+    .faq__icon {
+        position: relative;
+        width: 20px;
+        height: 20px;
+        flex-shrink: 0;
+    }
+
+    .faq__icon::before,
+    .faq__icon::after {
+        content: '';
+        position: absolute;
+        background: var(--muted, #888077);
+        border-radius: 1px;
+        transition:
+            transform 340ms var(--ease-out-expo),
+            background 200ms ease;
+    }
+
+    .faq__icon::before {
+        top: 50%;
+        left: 50%;
+        width: 14px;
+        height: 1.5px;
+        transform: translate(-50%, -50%);
+    }
+
+    .faq__icon::after {
+        top: 50%;
+        left: 50%;
+        width: 1.5px;
+        height: 14px;
+        transform: translate(-50%, -50%);
+    }
+
+    .faq__item[open] .faq__icon::after {
+        transform: translate(-50%, -50%) rotate(90deg);
+    }
+
+    .faq__item[open] .faq__question { color: var(--tan-light, #e0c49a); }
+    .faq__item[open] .faq__num { color: var(--tan, #c9a87c); }
+
+    .faq__item[open] .faq__icon::before,
+    .faq__item[open] .faq__icon::after {
+        background: var(--tan, #c9a87c);
+    }
+
+    /* Smooth height expand via grid-template-rows */
+    .faq__body {
+        display: grid;
+        grid-template-rows: 0fr;
+        transition: grid-template-rows 380ms var(--ease-out-expo);
+    }
+
+    .faq__item[open] .faq__body { grid-template-rows: 1fr; }
+
+    .faq__answer {
+        overflow: hidden;
+        opacity: 0;
+        transition: opacity 280ms ease 60ms;
+    }
+
+    .faq__item[open] .faq__answer { opacity: 1; }
+
+    .faq__answer p {
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: 0.9rem;
+        line-height: 1.75;
+        color: var(--muted, #888077);
+        margin: 0;
+        padding: 0 4px 24px 42px;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .faq__body { transition: none; }
+        .faq__answer { transition: none; opacity: 1; }
+        .faq__icon::before, .faq__icon::after { transition: none; }
+        .faq__question { transition: none; }
+    }
+
+    @media (max-width: 640px) {
+        .faq { padding: var(--space-section-sm, 80px) 24px; }
+        .faq__question { font-size: 0.92rem; padding: 18px 0; gap: 12px; }
+        .faq__answer p { font-size: 0.85rem; padding-left: 32px; }
+    }
+</style>
