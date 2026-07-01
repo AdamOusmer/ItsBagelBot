@@ -3,8 +3,10 @@ import newrelic from 'newrelic';
 import { COOKIE, open } from '$lib/server/session';
 import { warm } from '@bagel/shared/server/nats';
 import { registerServerConfig } from '@bagel/shared/server/config';
-import { startInvalidationListener } from '$lib/server/rpc';
+import { rumTransform } from '@bagel/shared/server/rum';
+import { startInvalidationListener } from '$lib/server/services';
 import { assertConfigSane } from '$lib/server/config-sanity';
+import { ensureLaneStoreHA } from '$lib/server/lanes';
 import dns from 'node:dns';
 
 // Framework-native one-time boot. SvelteKit calls init() once before the first
@@ -32,6 +34,11 @@ export const init: ServerInit = async () => {
   // Pre-dial NATS so the first request hits a warm connection instead of paying
   // the cold dial on the hot path.
   warm();
+  void ensureLaneStoreHA().catch((error) => {
+    newrelic.noticeError(error instanceof Error ? error : new Error(String(error)), {
+      component: 'nats-kv-ha-reconcile'
+    });
+  });
 
   // Subscribe to the cache-invalidation bus so writes in Go services push-drop
   // the right keys without waiting on TTL expiry.
@@ -58,7 +65,10 @@ export const handle: Handle = async ({ event, resolve }) => {
     // SvelteKit preloads js + css by default; add fonts so the SSR'd <head>
     // warms the woff2 files in parallel with the bundle instead of waiting for
     // CSS to parse first. Fewer round-trips, less FOUT/CLS on first paint.
-    preload: ({ type }) => type === 'js' || type === 'css' || type === 'font'
+    preload: ({ type }) => type === 'js' || type === 'css' || type === 'font',
+    // New Relic Browser (RUM) injection; single-chunk, streaming-safe (shared
+    // helper). No-op when the agent isn't connected (dev).
+    transformPageChunk: rumTransform()
   });
 
   res.headers.set('X-Content-Type-Options', 'nosniff');

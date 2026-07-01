@@ -2,8 +2,11 @@
 // with the same defaults as the retired Go admin tier. Every wrapper degrades
 // gracefully: callers catch and fall back to sample data so SSR always renders.
 import { rpc, publish } from '@bagel/shared/server/nats';
-import { MemoryCache } from '@bagel/shared/server/cache';
-import { startInvalidationBus } from '@bagel/shared/server/invalidation';
+import { defineRead, defineWrite } from '@bagel/shared/server/service';
+import { createCacheFabric } from '@bagel/shared/server/cache-fabric';
+import { POLICY, type CachePolicy } from '@bagel/shared/server/cache-keys';
+import { getServerConfig } from '@bagel/shared/server/config';
+import type { ScopeMap } from '@bagel/shared/server/invalidation';
 import type { ShardSnapshot, UserStats } from '@bagel/shared';
 
 // Subjects come from process.env, NOT $env/dynamic/private. This module is
@@ -25,29 +28,50 @@ const SUB = {
 
 export const STATUS_PREFIX = SUB.status;
 
-// Tier-1 read cache: bounded LRU + TTL + single-flight (shared primitive). The
-// thin cached()/setCached()/invalidate() wrappers keep every call site unchanged.
-const cache = new MemoryCache();
+// Scope -> cache key routing for the invalidation bus, declared as data.
+// user:<id> also covers user-login: only via the coarse 'users:'-adjacent
+// prefixes below; login-keyed lookups decay by policy (5s fresh).
+// commands/modules/delegation fire on every dashboard save and admin caches
+// none of that data — explicit no-ops so they don't churn user keys.
+const SCOPES: ScopeMap = {
+  status: (id) => ['users:', `user:${id}`, `token:${id}`],
+  grant: (id) => ['users:', `user:${id}`, `token:${id}`],
+  staff: () => ['staff:', 'auth:'],
+  commands: () => [],
+  modules: () => [],
+  delegation: () => [],
+  '*': (id) => ['users:', `user:${id}`, `token:${id}`]
+};
 
-function cached<T>(key: string, ttlMs: number, load: () => Promise<T>): Promise<T> {
-  return cache.getOrLoad(key, ttlMs, load);
+// Hybrid read path facade: L1 SwrCache with push invalidation + SWR. Admin data
+// has no Valkey projection, so reads are L1 -> RPC. Policies from the shared
+// table keep the operator view ≤5s/≤3s stale while SWR makes repeat loads instant.
+const fabric = createCacheFabric({ app: 'admin', scopes: SCOPES });
+
+function cached<T>(key: string, policy: CachePolicy, load: () => Promise<T>): Promise<T> {
+  return fabric.readKey(key, policy, load);
 }
 
-function setCached<T>(key: string, value: T, ttlMs: number) {
-  cache.set(key, value, ttlMs);
+function setCached<T>(key: string, value: T, policy: CachePolicy) {
+  fabric.cache.set(key, value, policy);
 }
 
 function invalidate(...prefixes: string[]) {
-  cache.invalidate(...prefixes);
+  fabric.invalidate(...prefixes);
 }
 
 function invalidateUser(userId: string) {
   invalidate('users:', `user:${userId}`, `token:${userId}`);
 }
 
-const LIVE_TTL_MS = 1_000;
-const ADMIN_READ_TTL_MS = 5_000;
-const ADMIN_PAGE_TTL_MS = 3_000;
+// Fire-and-forget cross-replica cache-invalidation publish. Local invalidation
+// already ran synchronously; this just tells OTHER replicas to evict their
+// own in-process caches for the same scope.
+function broadcastInvalidate(scope: string, broadcasterId: string) {
+  void publish(`${getServerConfig().cacheInvalidationPrefix}.${scope}`, {
+    broadcaster_id: broadcasterId
+  }).catch(() => {});
+}
 
 // AdminUserWire mirrors the users service's admin wire format (broadcaster-data):
 // numeric id, raw status enum, activity flag, last-update timestamp.
@@ -57,6 +81,9 @@ export interface AdminUserWire {
   is_active: boolean;
   status: string; // "free" | "paid" | "vip"
   banned: boolean;
+  subscription_expires_at?: string;
+  subscription_source?: string;
+  subscription_ref?: string;
   updated_at?: string;
 }
 
@@ -75,21 +102,33 @@ export interface UserPage {
 
 // ── Shards ──────────────────────────────────────────────────────────────────
 
-export async function shardSnapshot(): Promise<ShardSnapshot> {
-  return cached('shards:snapshot', LIVE_TTL_MS, () => rpc<ShardSnapshot>(SUB.shards, {}, 5000));
-}
+export const shardSnapshot = defineRead({
+  subject: SUB.shards,
+  request: () => ({}),
+  map: (reply: ShardSnapshot) => reply,
+  timeoutMs: 5000,
+  cache: {
+    fabric,
+    key: () => 'shards:snapshot',
+    policy: POLICY.live
+  }
+});
 
-export async function shardScale(count: number): Promise<ShardSnapshot> {
-  const snapshot = await rpc<ShardSnapshot>(SUB.scale, { count }, 5000);
-  setCached('shards:snapshot', snapshot, LIVE_TTL_MS);
-  return snapshot;
-}
+export const shardScale = defineWrite({
+  subject: SUB.scale,
+  request: (count: number) => ({ count }),
+  map: (reply: ShardSnapshot) => reply,
+  timeoutMs: 5000,
+  after: (snapshot) => setCached('shards:snapshot', snapshot, POLICY.live)
+});
 
-export async function shardAutoscale(enabled: boolean): Promise<ShardSnapshot> {
-  const snapshot = await rpc<ShardSnapshot>(SUB.autoscale, { enabled }, 5000);
-  setCached('shards:snapshot', snapshot, LIVE_TTL_MS);
-  return snapshot;
-}
+export const shardAutoscale = defineWrite({
+  subject: SUB.autoscale,
+  request: (enabled: boolean) => ({ enabled }),
+  map: (reply: ShardSnapshot) => reply,
+  timeoutMs: 5000,
+  after: (snapshot) => setCached('shards:snapshot', snapshot, POLICY.live)
+});
 
 // ── Users ───────────────────────────────────────────────────────────────────
 
@@ -97,35 +136,49 @@ function isDigits(s: string): boolean {
   return /^[0-9]+$/.test(s);
 }
 
+// Dual-key lookup (numeric id vs. login) plus a write-through side-set of the
+// canonical user:<id> key on a login hit — the factory's single cache-key shape
+// doesn't fit this cleanly, so it stays hand-written.
 export async function userLookup(q: string): Promise<AdminUserWire> {
   const req = isDigits(q) ? { user_id: q } : { username: q };
   const key = isDigits(q) ? `user:${q}` : `user-login:${q.toLowerCase()}`;
-  return cached(key, ADMIN_READ_TTL_MS, async () => {
+  return cached(key, POLICY.adminRead, async () => {
     const r = await rpc<{ user: AdminUserWire }>(`${SUB.user}.get`, req);
-    if (r.user) setCached(`user:${r.user.id}`, r.user, ADMIN_READ_TTL_MS);
+    if (r.user) setCached(`user:${r.user.id}`, r.user, POLICY.adminRead);
     return r.user;
   });
 }
 
-export async function userList(limit = 20): Promise<AdminUserWire[]> {
-  return cached(`users:list:${limit}`, ADMIN_PAGE_TTL_MS, async () => {
-    const r = await rpc<{ users: AdminUserWire[] }>(`${SUB.user}.list`, { limit });
-    return r.users ?? [];
-  });
-}
+export const userList = defineRead({
+  subject: `${SUB.user}.list`,
+  request: (limit = 20) => ({ limit }),
+  map: (reply: { users: AdminUserWire[] }) => reply.users ?? [],
+  cache: {
+    fabric,
+    key: (limit = 20) => `users:list:${limit}`,
+    policy: POLICY.adminPage
+  }
+});
 
-export async function userStats(): Promise<UserStats> {
-  return cached('users:stats', ADMIN_PAGE_TTL_MS, async () => {
-    const r = await rpc<{ stats: UserStats }>(`${SUB.user}.stats`, {});
-    return r.stats;
-  });
-}
+export const userStats = defineRead({
+  subject: `${SUB.user}.stats`,
+  request: () => ({}),
+  map: (reply: { stats: UserStats }) => reply.stats,
+  cache: {
+    fabric,
+    key: () => 'users:stats',
+    policy: POLICY.adminPage
+  }
+});
 
 export const USER_PAGE_SIZE = 15;
 export const USER_MAX_PAGES = 25;
 
+// Hand-written, not defineRead: the reply's page/page_size/max_pages fields
+// fall back to the request args (page, USER_PAGE_SIZE, USER_MAX_PAGES) when the
+// responder omits them, and defineRead's `map` only sees the reply, not args.
 export async function userOverview(page = 1, search = ''): Promise<UserPage> {
-  return cached(`users:overview:${page}:${search}`, ADMIN_PAGE_TTL_MS, async () => {
+  return cached(`users:overview:${page}:${search}`, POLICY.adminPage, async () => {
     const r = await rpc<{
       users?: AdminUserWire[];
       stats: UserStats;
@@ -149,51 +202,54 @@ export async function userOverview(page = 1, search = ''): Promise<UserPage> {
   });
 }
 
-export async function userSetStatus(userId: string, status: string): Promise<AdminUserWire> {
-  const r = await rpc<{ user: AdminUserWire }>(`${SUB.user}.set_status`, {
-    user_id: userId,
-    status
-  });
-  invalidateUser(userId);
-  setCached(`user:${r.user.id}`, r.user, ADMIN_READ_TTL_MS);
-  return r.user;
-}
+export const userSetStatus = defineWrite({
+  subject: `${SUB.user}.set_status`,
+  request: (userId: string, status: string) => ({ user_id: userId, status }),
+  map: (reply: { user: AdminUserWire }) => reply.user,
+  after: (user, userId) => {
+    invalidateUser(userId);
+    setCached(`user:${user.id}`, user, POLICY.adminRead);
+  }
+});
 
-export async function userReset(userId: string): Promise<AdminUserWire> {
-  const r = await rpc<{ user: AdminUserWire }>(`${SUB.user}.reset`, { user_id: userId });
-  invalidateUser(userId);
-  setCached(`user:${r.user.id}`, r.user, ADMIN_READ_TTL_MS);
-  return r.user;
-}
+export const userReset = defineWrite({
+  subject: `${SUB.user}.reset`,
+  request: (userId: string) => ({ user_id: userId }),
+  map: (reply: { user: AdminUserWire }) => reply.user,
+  after: (user, userId) => {
+    invalidateUser(userId);
+    setCached(`user:${user.id}`, user, POLICY.adminRead);
+  }
+});
 
-export async function tokenStatus(userId: string): Promise<TokenStatus> {
-  return cached(`token:${userId}`, ADMIN_READ_TTL_MS, async () => {
-    const r = await rpc<{ token: TokenStatus }>(`${SUB.user}.token_status`, { user_id: userId });
-    return r.token ?? { present: false };
-  });
-}
+export const tokenStatus = defineRead({
+  subject: `${SUB.user}.token_status`,
+  request: (userId: string) => ({ user_id: userId }),
+  map: (reply: { token: TokenStatus }) => reply.token ?? { present: false },
+  cache: {
+    fabric,
+    key: (userId: string) => `token:${userId}`,
+    policy: POLICY.adminRead
+  }
+});
 
-export async function tokenSet(
-  userId: string,
-  accessToken: string,
-  refreshToken: string
-): Promise<TokenStatus> {
-  const r = await rpc<{ token: TokenStatus }>(`${SUB.user}.token_set`, {
+export const tokenSet = defineWrite({
+  subject: `${SUB.user}.token_set`,
+  request: (userId: string, accessToken: string, refreshToken: string) => ({
     user_id: userId,
     access_token: accessToken,
     refresh_token: refreshToken
-  });
-  const token = r.token ?? { present: false };
-  setCached(`token:${userId}`, token, ADMIN_READ_TTL_MS);
-  return token;
-}
+  }),
+  map: (reply: { token: TokenStatus }) => reply.token ?? { present: false },
+  after: (token, userId) => setCached(`token:${userId}`, token, POLICY.adminRead)
+});
 
-export async function tokenClear(userId: string): Promise<TokenStatus> {
-  const r = await rpc<{ token: TokenStatus }>(`${SUB.user}.token_clear`, { user_id: userId });
-  const token = r.token ?? { present: false };
-  setCached(`token:${userId}`, token, ADMIN_READ_TTL_MS);
-  return token;
-}
+export const tokenClear = defineWrite({
+  subject: `${SUB.user}.token_clear`,
+  request: (userId: string) => ({ user_id: userId }),
+  map: (reply: { token: TokenStatus }) => reply.token ?? { present: false },
+  after: (token, userId) => setCached(`token:${userId}`, token, POLICY.adminRead)
+});
 
 export async function userDelete(userId: string): Promise<void> {
   const r = await rpc<{ error?: string }>(`${SUB.user}.delete`, { user_id: userId });
@@ -201,29 +257,35 @@ export async function userDelete(userId: string): Promise<void> {
   invalidateUser(userId);
 }
 
-export async function userSetActive(userId: string, active: boolean): Promise<AdminUserWire> {
-  const r = await rpc<{ user: AdminUserWire }>(`${SUB.user}.set_active`, {
-    user_id: userId,
-    active
-  });
-  invalidateUser(userId);
-  setCached(`user:${r.user.id}`, r.user, ADMIN_READ_TTL_MS);
-  return r.user;
-}
+export const userSetActive = defineWrite({
+  subject: `${SUB.user}.set_active`,
+  request: (userId: string, active: boolean) => ({ user_id: userId, active }),
+  map: (reply: { user: AdminUserWire }) => reply.user,
+  after: (user, userId) => {
+    invalidateUser(userId);
+    setCached(`user:${user.id}`, user, POLICY.adminRead);
+  }
+});
 
-export async function userBan(userId: string): Promise<AdminUserWire> {
-  const r = await rpc<{ user: AdminUserWire }>(`${SUB.user}.ban`, { user_id: userId });
-  invalidateUser(userId);
-  setCached(`user:${r.user.id}`, r.user, ADMIN_READ_TTL_MS);
-  return r.user;
-}
+export const userBan = defineWrite({
+  subject: `${SUB.user}.ban`,
+  request: (userId: string) => ({ user_id: userId }),
+  map: (reply: { user: AdminUserWire }) => reply.user,
+  after: (user, userId) => {
+    invalidateUser(userId);
+    setCached(`user:${user.id}`, user, POLICY.adminRead);
+  }
+});
 
-export async function userUnban(userId: string): Promise<AdminUserWire> {
-  const r = await rpc<{ user: AdminUserWire }>(`${SUB.user}.unban`, { user_id: userId });
-  invalidateUser(userId);
-  setCached(`user:${r.user.id}`, r.user, ADMIN_READ_TTL_MS);
-  return r.user;
-}
+export const userUnban = defineWrite({
+  subject: `${SUB.user}.unban`,
+  request: (userId: string) => ({ user_id: userId }),
+  map: (reply: { user: AdminUserWire }) => reply.user,
+  after: (user, userId) => {
+    invalidateUser(userId);
+    setCached(`user:${user.id}`, user, POLICY.adminRead);
+  }
+});
 
 export async function restartUserEventSub(userId: string): Promise<void> {
   await publish(SUB.outgress, { type: 'eventsub', broadcaster_id: userId, payload: { mode: 'reconnect' } });
@@ -237,7 +299,9 @@ export type ChannelSubState = {
 };
 
 // Read the persisted EventSub enroll state for a channel. Fails safe: returns
-// 'unknown' on RPC error so a transient outage never blocks page render.
+// 'unknown' on RPC error so a transient outage never blocks page render. The
+// try/catch fail-open semantics don't fit defineRead's throw-on-error contract,
+// so this stays hand-written.
 export async function channelSubState(broadcasterId: string): Promise<ChannelSubState> {
   try {
     const r = await rpc<{
@@ -259,17 +323,11 @@ export async function channelSubState(broadcasterId: string): Promise<ChannelSub
 /**
  * Subscribe to the cache-invalidation bus so writes in other services push-drop
  * affected keys without waiting on TTL expiry. Call once at server boot
- * (hooks.server.ts init). The shared bus owns transport + parsing; this maps
- * each scope to the admin's cache keys.
- *
- * Scopes handled:
- *   status | grant -> invalidateUser(broadcasterId) (drops users:, user:<id>, token:<id>)
- *   other          -> ignored (commands/modules/delegation are not cached by admin)
+ * (hooks.server.ts init). Scope -> key routing is the SCOPES map above; the
+ * shared router owns transport, parsing, retry, and gap flushes.
  */
 export function startInvalidationListener(): void {
-  startInvalidationBus((id, scope) => {
-    if (scope === 'status' || scope === 'grant') invalidateUser(id);
-  });
+  fabric.start();
 }
 
 // ── Derived helpers ───────────────────────────────────────────────────────────
@@ -326,26 +384,32 @@ export const AUDIT_MAX_PAGES = 25;
 
 // adminCheck resolves whether a Twitch subject is an active admin. Login/display
 // are passed through so the allowlist self-heals after a Twitch rename.
-export async function adminCheck(
-  userId: string,
-  login?: string,
-  displayName?: string
-): Promise<AdminCheck> {
-  return cached(`auth:${userId}`, ADMIN_READ_TTL_MS, () =>
-    rpc<AdminCheck>(`${SUB.auth}.check`, {
-      user_id: userId,
-      login: login ?? '',
-      display_name: displayName ?? ''
-    })
-  );
-}
+export const adminCheck = defineRead({
+  subject: `${SUB.auth}.check`,
+  request: (userId: string, login?: string, displayName?: string) => ({
+    user_id: userId,
+    login: login ?? '',
+    display_name: displayName ?? ''
+  }),
+  map: (reply: AdminCheck) => reply,
+  cache: {
+    fabric,
+    // Cached by subject id only; login/display are pass-through self-heal hints.
+    key: (userId: string, _login?: string, _displayName?: string) => `auth:${userId}`,
+    policy: POLICY.adminRead
+  }
+});
 
-export async function adminListAccts(): Promise<AdminAcct[]> {
-  return cached('staff:list', ADMIN_PAGE_TTL_MS, async () => {
-    const r = await rpc<{ admins?: AdminAcct[] }>(`${SUB.auth}.list`, {});
-    return r.admins ?? [];
-  });
-}
+export const adminListAccts = defineRead({
+  subject: `${SUB.auth}.list`,
+  request: () => ({}),
+  map: (reply: { admins?: AdminAcct[] }) => reply.admins ?? [],
+  cache: {
+    fabric,
+    key: () => 'staff:list',
+    policy: POLICY.adminPage
+  }
+});
 
 // staffUpsert creates or modifies a staff member. The actor (id + role) is
 // carried so the users service can enforce the role ladder server-side.
@@ -363,6 +427,7 @@ export async function staffUpsert(
   });
   if (r.error) throw new Error(r.error);
   invalidate('staff:', 'auth:');
+  broadcastInvalidate('staff', target.userId);
   return r.admins ?? [];
 }
 
@@ -377,6 +442,7 @@ export async function staffRemove(
   });
   if (r.error) throw new Error(r.error);
   invalidate('staff:', 'auth:');
+  broadcastInvalidate('staff', userId);
   return r.admins ?? [];
 }
 
@@ -405,18 +471,24 @@ export async function auditAppend(entry: {
 
 // auditList returns the newest entries, optionally scoped to one actor's id so
 // a member's history can be lazy-loaded without shipping the whole log.
-export async function auditList(limit = 50, actorId?: string): Promise<AuditEntry[]> {
-  return cached(`audit:list:${limit}:${actorId ?? ''}`, ADMIN_PAGE_TTL_MS, async () => {
-    const r = await rpc<{ entries?: AuditEntry[] }>(`${SUB.audit}.list`, {
-      limit,
-      actor_filter: actorId ?? ''
-    });
-    return r.entries ?? [];
-  });
-}
+export const auditList = defineRead({
+  subject: `${SUB.audit}.list`,
+  request: (limit = 50, actorId?: string) => ({
+    limit,
+    actor_filter: actorId ?? ''
+  }),
+  map: (reply: { entries?: AuditEntry[] }) => reply.entries ?? [],
+  cache: {
+    fabric,
+    key: (limit = 50, actorId?: string) => `audit:list:${limit}:${actorId ?? ''}`,
+    policy: POLICY.adminPage
+  }
+});
 
+// Hand-written, not defineRead: same reply-falls-back-to-args shape as
+// userOverview above (page/page_size/max_pages default from the call args).
 export async function auditPage(page = 1, search = '', actorFilter = ''): Promise<AuditPage> {
-  return cached(`audit:page:${page}:${search}:${actorFilter}`, ADMIN_PAGE_TTL_MS, async () => {
+  return cached(`audit:page:${page}:${search}:${actorFilter}`, POLICY.adminPage, async () => {
     const r = await rpc<{
       entries?: AuditEntry[];
       page?: number;

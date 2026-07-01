@@ -3,21 +3,34 @@
   import { Icon, Card, PageHead } from '@bagel/shared';
   let { data } = $props();
 
-  const def = $derived(data.state.def);
+  const def = $derived(data.def);
   // svelte-ignore state_referenced_locally
-  let enabled = $state(data.state.enabled);
+  let enabled = $state(data.defaults.enabled);
   // svelte-ignore state_referenced_locally
-  let config = $state<Record<string, string>>({ ...data.state.config });
+  let config = $state<Record<string, string>>({ ...data.defaults.config });
+  // True until the streamed saved row lands; guards Save so catalog defaults
+  // can't overwrite a saved config the user never saw.
+  let syncing = $state(true);
 
-  // Re-seed the form when navigating to a different module (component reuse).
-  // svelte-ignore state_referenced_locally
-  let seed = data.state;
+  // Seed from defaults immediately, hydrate from the streamed saved row when it
+  // resolves; re-runs when navigating to a different module (component reuse).
   $effect(() => {
-    if (data.state !== seed) {
-      seed = data.state;
-      enabled = data.state.enabled;
-      config = { ...data.state.config };
-    }
+    const current = data;
+    let cancelled = false;
+    syncing = true;
+    enabled = current.defaults.enabled;
+    config = { ...current.defaults.config };
+    current.saved.then((row) => {
+      if (cancelled) return;
+      if (row) {
+        enabled = row.enabled;
+        config = { ...row.config };
+      }
+      syncing = false;
+    });
+    return () => {
+      cancelled = true;
+    };
   });
 
   let toast = $state<{ kind: 'ok' | 'err'; text: string } | null>(null);
@@ -82,7 +95,9 @@
 
       <div class="actions">
         <a class="btn ghost" href="/modules">Cancel</a>
-        <button class="btn primary" type="submit"><Icon name="check" size={14} /> Save changes</button>
+        <button class="btn primary" type="submit" disabled={syncing}>
+          <Icon name="check" size={14} /> {syncing ? 'Loading…' : 'Save changes'}
+        </button>
       </div>
     </form>
   </Card>

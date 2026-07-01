@@ -2,7 +2,7 @@ import type { RequestHandler } from './$types';
 import { redirect } from '@sveltejs/kit';
 import { decodeIdToken, OAuth2RequestError } from 'arctic';
 import { botTwitch, botClientId } from '$lib/server/oauth';
-import { tokenSet } from '$lib/server/rpc';
+import { tokenSet } from '$lib/server/services';
 import { env } from '$env/dynamic/private';
 
 // Twitch redirects the bot account's browser here after consent. Same cookie

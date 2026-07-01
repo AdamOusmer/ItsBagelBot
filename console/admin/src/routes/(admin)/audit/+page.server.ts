@@ -1,7 +1,7 @@
 import type { PageServerLoad } from './$types';
 import { redirect } from '@sveltejs/kit';
 import { isManager } from '$lib/server/access';
-import { AUDIT_MAX_PAGES, AUDIT_PAGE_SIZE } from '$lib/server/rpc';
+import { AUDIT_MAX_PAGES, AUDIT_PAGE_SIZE } from '$lib/server/services';
 
 const MAX_SEARCH_LENGTH = 200;
 

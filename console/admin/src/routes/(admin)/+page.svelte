@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Icon, StatTile, PageHead, CardHead, Card, Button } from '@bagel/shared';
+  import { Icon, StatTile, PageHead, CardHead, Card, Button, Skeleton } from '@bagel/shared';
   import type { ShardSnapshot } from '@bagel/shared';
   let { data } = $props();
 
@@ -44,8 +44,20 @@
       <StatTile icon="overview" tan label="Conduit" value="…" unit="" delta="loading…" flat />
     </div>
     <div class="grid-2">
-      <Card><CardHead title="Shard summary"/><div class="node-list muted-load">Loading live data…</div></Card>
-      <Card><CardHead title="Bot account"/><div class="node-list muted-load">Loading live data…</div></Card>
+      <Card>
+        <CardHead title="Shard summary"/>
+        <div class="skeleton-list">
+          {#each [0, 1, 2, 3] as i (i)}<Skeleton variant="block" height="34px" />{/each}
+        </div>
+      </Card>
+      <Card>
+        <CardHead title="Bot account"/>
+        <div class="skeleton-list">
+          <Skeleton variant="pill" />
+          <Skeleton variant="text" lines={2} width="70%" />
+          <Skeleton variant="block" height="40px" />
+        </div>
+      </Card>
     </div>
   {:then o}
     {@const sum = shardSummary(o.snapshot)}
@@ -141,12 +153,11 @@
     background: var(--bb-surface, #1a1a1a);
     color: var(--bb-text, #eee);
   }
-  .muted-load {
-    padding: 18px 14px;
-    font-family: var(--bb-font-body);
-    font-size: 13px;
-    color: var(--bb-muted);
-    opacity: 0.7;
+  .skeleton-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
   }
 
   @media (max-width: 760px) {

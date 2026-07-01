@@ -2,7 +2,7 @@
   import { enhance } from '$app/forms';
   import { untrack } from 'svelte';
   import { Icon, StatTile, Button, Modal, Drawer } from '@bagel/shared';
-  import type { AdminUserWire, ChannelSubState } from '$lib/server/rpc';
+  import type { AdminUserWire, ChannelSubState } from '$lib/server/services';
   let { data, form } = $props();
 
   const lookup = $derived(form?.lookup as Record<string, unknown> | undefined);

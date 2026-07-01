@@ -1,7 +1,9 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
-  import { Icon, Card, PageHead } from '@bagel/shared';
+  import type { SubmitFunction } from '@sveltejs/kit';
+  import { Icon, Card, PageHead, SaveStatus, toast } from '@bagel/shared';
   import type { ModuleState } from '@bagel/shared';
+  import type { SaveState } from '@bagel/shared/components/SaveStatus.svelte';
   let { data } = $props();
 
   // svelte-ignore state_referenced_locally
@@ -18,10 +20,45 @@
 
   const activeCount = $derived(items.filter((m) => m.enabled).length);
 
-  // Optimistically flip the local toggle; the form posts the new value.
-  function flip(id: string) {
-    items = items.map((m) => (m.def.id === id ? { ...m, enabled: !m.enabled } : m));
+  // Per-module save indicator (same state machine as the commands page).
+  let modStatus = $state<Record<string, SaveState>>({});
+  const timers = new Map<string, ReturnType<typeof setTimeout>[]>();
+  function setStatus(id: string, s: SaveState) {
+    for (const t of timers.get(id) ?? []) clearTimeout(t);
+    timers.delete(id);
+    modStatus = { ...modStatus, [id]: s };
   }
+  function ackSaved(id: string) {
+    setStatus(id, 'saved');
+    timers.set(id, [
+      setTimeout(() => (modStatus = { ...modStatus, [id]: 'live' }), 2500),
+      setTimeout(() => (modStatus = { ...modStatus, [id]: 'idle' }), 7000)
+    ]);
+  }
+
+  // Optimistic flip with rollback: the toggle applies instantly; a rejected
+  // write flips it back and explains why.
+  const toggleSubmit =
+    (m: ModuleState): SubmitFunction =>
+    () => {
+      const wasEnabled = m.enabled;
+      items = items.map((x) => (x.def.id === m.def.id ? { ...x, enabled: !wasEnabled } : x));
+      setStatus(m.def.id, 'saving');
+      return async ({ result }) => {
+        const payload =
+          result.type === 'success' || result.type === 'failure'
+            ? (result.data as { ok?: boolean; error?: string } | undefined)
+            : undefined;
+        if (result.type === 'success' && payload?.ok) {
+          ackSaved(m.def.id);
+        } else {
+          items = items.map((x) => (x.def.id === m.def.id ? { ...x, enabled: wasEnabled } : x));
+          setStatus(m.def.id, 'error');
+          timers.set(m.def.id, [setTimeout(() => (modStatus = { ...modStatus, [m.def.id]: 'idle' }), 4000)]);
+          toast('err', payload?.error ?? `Could not toggle ${m.def.label}.`);
+        }
+      };
+    };
 </script>
 
 <section class="screen active">
@@ -51,13 +88,9 @@
             <a class="cfg" href={`/modules/${m.def.id}`}>
               <Icon name="settings" size={13} /> Configure
             </a>
+            <SaveStatus state={modStatus[m.def.id] ?? 'idle'} />
             <span class="grow"></span>
-            <!-- svelte-ignore a11y_no_static_element_interactions -->
-            <form
-              method="POST"
-              action="?/toggle"
-              use:enhance={() => async () => { /* optimistic; no invalidate */ }}
-            >
+            <form method="POST" action="?/toggle" use:enhance={toggleSubmit(m)}>
               <input type="hidden" name="name" value={m.def.id} />
               <input type="hidden" name="config" value={JSON.stringify(m.config)} />
               <input type="hidden" name="is_enabled" value={m.enabled ? '' : 'on'} />
@@ -65,7 +98,6 @@
                 class="toggle {m.enabled ? 'on' : ''}"
                 type="submit"
                 aria-label="Toggle {m.def.label}"
-                onclick={() => flip(m.def.id)}
               ></button>
             </form>
           </div>

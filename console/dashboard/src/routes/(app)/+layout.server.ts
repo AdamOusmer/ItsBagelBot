@@ -2,7 +2,7 @@ import { redirect } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
 import type { LayoutServerLoad } from './$types';
 import type { Session } from '$lib/server/session';
-import { isBanned } from '$lib/server/rpc';
+import { isBanned } from '$lib/server/services';
 
 // Demo session lets the app render without the Twitch OAuth flow wired up yet.
 // Off unless DEMO=1; production paths require a real encrypted session.

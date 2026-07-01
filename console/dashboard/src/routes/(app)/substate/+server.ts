@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
-import { channelSubState } from '$lib/server/rpc';
+import { channelSubState } from '$lib/server/services';
 import type { RequestHandler } from './$types';
 
 // Lightweight poll target: the dashboard fires a reconnect, then polls this

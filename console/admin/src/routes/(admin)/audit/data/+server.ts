@@ -6,7 +6,7 @@ import {
   AUDIT_MAX_PAGES,
   AUDIT_PAGE_SIZE,
   type AuditEntry
-} from '$lib/server/rpc';
+} from '$lib/server/services';
 
 const MAX_SEARCH_LENGTH = 200;
 
