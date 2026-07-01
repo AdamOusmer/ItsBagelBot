@@ -12,7 +12,7 @@ spec:
     whenDeleted: Retain
     whenScaled: Retain
   podManagementPolicy: OrderedReady
-  replicas: 4 # one valkey+sentinel pod per node incl worker1 (hostPort + one-per-node spread)
+  replicas: 3 # one valkey+sentinel pod per node incl worker1 (hostPort + one-per-node spread); node3 decommissioned
   revisionHistoryLimit: 10
   selector:
     matchLabels:
@@ -41,6 +41,48 @@ spec:
       # node's tailnet address on this cluster) rather than a hardcoded table,
       # so it is correct on all four nodes including worker1.
       initContainers:
+      # The valkey/valkey image is Debian-based with no curl/wget/openssl and
+      # runs non-root with no package-manager access, so the k8s-API lookup
+      # below needs a separate image that actually has curl. Writes the
+      # result to a shared emptyDir for config-init to read.
+      - name: fetch-master-ip
+        image: curlimages/curl:8.11.0
+        imagePullPolicy: IfNotPresent
+        command:
+        - /bin/sh
+        - -ec
+        - |
+          if [ -f /data/sentinel.conf ]; then
+            exit 0
+          fi
+          TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+          CACERT=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+          APISERVER=https://kubernetes.default.svc
+
+          MASTER_IP=""
+          while [ -z "${MASTER_IP}" ]; do
+            RES=$(curl -s --cacert ${CACERT} -H "Authorization: Bearer ${TOKEN}" ${APISERVER}/api/v1/namespaces/valkey/pods/valkey-node-0 || true)
+            MASTER_IP=$(echo "${RES}" | grep -o '"hostIP": "[^"]*"' | head -n 1 | cut -d'"' -f4)
+            if [ -z "${MASTER_IP}" ]; then
+              echo "Waiting for valkey-node-0 to be scheduled and have a hostIP..."
+              sleep 2
+            fi
+          done
+          echo -n "${MASTER_IP}" > /shared/master_ip
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          runAsNonRoot: true
+          runAsUser: 999
+          seccompProfile:
+            type: RuntimeDefault
+        volumeMounts:
+        - mountPath: /data
+          name: valkey-data
+        - mountPath: /shared
+          name: shared-tmp
       - name: config-init
         image: valkey/valkey@sha256:8436e10bc65c94886a91d4415b6a6dfa9cb5a306fb3b996e5bb67cd2b4854193
         imagePullPolicy: IfNotPresent
@@ -64,26 +106,7 @@ spec:
             chmod 600 /data/valkey.conf
           fi
           if [ ! -f /data/sentinel.conf ]; then
-            # Dynamically read pod-0's node IP (Tailscale IP) from k8s API
-            TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
-            CACERT=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-            APISERVER=https://kubernetes.default.svc
-
-            MASTER_IP=""
-            while [ -z "${MASTER_IP}" ]; do
-              # Use curl (or wget fallback if curl is missing) to get pod-0 status
-              if command -v curl >/dev/null 2>&1; then
-                RES=$(curl -s --cacert ${CACERT} -H "Authorization: Bearer ${TOKEN}" ${APISERVER}/api/v1/namespaces/valkey/pods/valkey-node-0 || true)
-              else
-                RES=$(wget -qO- --ca-certificate=${CACERT} --header="Authorization: Bearer ${TOKEN}" ${APISERVER}/api/v1/namespaces/valkey/pods/valkey-node-0 || true)
-              fi
-              MASTER_IP=$(echo "${RES}" | grep -o '"hostIP": "[^"]*"' | head -n 1 | cut -d'"' -f4)
-              if [ -z "${MASTER_IP}" ]; then
-                echo "Waiting for valkey-node-0 to be scheduled and have a hostIP..."
-                sleep 2
-              fi
-            done
-
+            MASTER_IP=$(cat /shared/master_ip)
             cp /config/sentinel.conf /data/sentinel.conf
             {
               echo "requirepass ${CORE}"
@@ -123,6 +146,8 @@ spec:
         - mountPath: /config
           name: valkey-config
           readOnly: true
+        - mountPath: /shared
+          name: shared-tmp
       containers:
       # valkey-server runs the seeded /data/valkey.conf directly. masterauth and
       # the Tailscale announce address come in as flags from the downward API /
@@ -309,6 +334,8 @@ spec:
           defaultMode: 420
           name: valkey-config
         name: valkey-config
+      - name: shared-tmp
+        emptyDir: {}
   updateStrategy:
     type: RollingUpdate
   volumeClaimTemplates:
