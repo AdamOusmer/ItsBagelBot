@@ -71,7 +71,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: modules
-          image: ghcr.io/adamousmer/itsbagelbot/modules:main-1782947117-944279542029@sha256:441512a13e894bc19656eba70764f8569b2ff1ed9e3d0d9dfbdc800e37bef815 # {"$imagepolicy": "flux-system:modules"}
+          image: ghcr.io/adamousmer/itsbagelbot/modules:main-1782948954-7e5634f64ec3@sha256:1541fa5b99d55f5105622ed0409d57ecc36164392e4cf07beda568fbfb6beecc # {"$imagepolicy": "flux-system:modules"}
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST
