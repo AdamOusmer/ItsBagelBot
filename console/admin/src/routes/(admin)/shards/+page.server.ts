@@ -1,6 +1,6 @@
 import type { Actions, PageServerLoad } from './$types';
 import { fail } from '@sveltejs/kit';
-import { shardSnapshot, shardScale, shardAutoscale } from '$lib/server/rpc';
+import { shardSnapshot, shardScale, shardAutoscale } from '$lib/server/services';
 import { requireAdmin, isDemo } from '$lib/server/access';
 import { sampleSnapshot } from '$lib/server/sample';
 

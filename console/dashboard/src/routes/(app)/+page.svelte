@@ -1,7 +1,7 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import { onMount } from 'svelte';
-  import { Button, Card, CardHead, Icon, PageHead, StatTile, Modal } from '@bagel/shared';
+  import { Button, Card, CardHead, Icon, PageHead, StatTile, Modal, Skeleton } from '@bagel/shared';
   let { data } = $props();
 
   const statusLabel = (s: string) =>
@@ -125,7 +125,7 @@
       <div>
         <div class="live off"><span class="dot"></span> Checking connection…</div>
         <h2>#{data.login ?? 'itsmavey'}</h2>
-        <div class="meta"><span class="status-tag">—</span></div>
+        <div class="meta"><Skeleton variant="pill" /></div>
       </div>
       <div class="actions"></div>
     {:then c}
@@ -197,33 +197,59 @@
 
   <div class="grid-2 overview-grid">
     <Card>
-      <CardHead title="Next up">{#snippet action()}<a class="more" href="/commands">Commands</a>{/snippet}</CardHead>
-      <div class="feed">
-        <div class="feed-row">
-          <div class="fi green"><Icon name="commands" size={15} /></div>
-          <div class="ft">
-            <b>Review chat commands</b>
-            <span>Create, edit, disable, and tune cooldowns for your channel responses.</span>
-          </div>
-          <a class="fw overview-link" href="/commands">Open</a>
+      <CardHead title="Your top commands">{#snippet action()}<a class="more" href="/commands">All commands</a>{/snippet}</CardHead>
+      {#await data.top}
+        <div class="feed">
+          {#each [0, 1, 2] as i (i)}
+            <div class="feed-row">
+              <div class="fi green"><Icon name="commands" size={15} /></div>
+              <div class="ft"><Skeleton variant="text" lines={2} width="80%" /></div>
+            </div>
+          {/each}
         </div>
-        <div class="feed-row">
-          <div class="fi"><Icon name="settings" size={15} /></div>
-          <div class="ft">
-            <b>Check account access</b>
-            <span>Reconnect Twitch or manage shared dashboard links.</span>
+      {:then top}
+        {#if top.length}
+          <div class="feed">
+            {#each top as c (c.name)}
+              <div class="feed-row">
+                <div class="fi green"><Icon name="commands" size={15} /></div>
+                <div class="ft">
+                  <b class="mono">!{c.name}</b>
+                  <span class="clip">{c.response}</span>
+                </div>
+                <span class="fw uses">{c.uses ?? '0'} uses</span>
+              </div>
+            {/each}
+            <div class="feed-row">
+              <div class="fi"><Icon name="plus" size={15} /></div>
+              <div class="ft">
+                <b>Add another</b>
+                <span>Create, edit, and tune cooldowns for your channel responses.</span>
+              </div>
+              <a class="fw overview-link" href="/commands">Open</a>
+            </div>
           </div>
-          <a class="fw overview-link" href="/settings">Open</a>
-        </div>
-        <div class="feed-row">
-          <div class="fi green"><Icon name="activity" size={15} /></div>
-          <div class="ft">
-            <b>Keep the bot fresh</b>
-            <span>Restart the connection if chat delivery ever feels stale.</span>
+        {:else}
+          <div class="feed">
+            <div class="feed-row">
+              <div class="fi green"><Icon name="commands" size={15} /></div>
+              <div class="ft">
+                <b>Create your first command</b>
+                <span>Custom responses your viewers trigger with !name in chat.</span>
+              </div>
+              <a class="fw overview-link" href="/commands">Open</a>
+            </div>
+            <div class="feed-row">
+              <div class="fi"><Icon name="settings" size={15} /></div>
+              <div class="ft">
+                <b>Check account access</b>
+                <span>Reconnect Twitch or manage shared dashboard links.</span>
+              </div>
+              <a class="fw overview-link" href="/settings">Open</a>
+            </div>
           </div>
-          <span class="fw">Overview</span>
-        </div>
-      </div>
+        {/if}
+      {/await}
     </Card>
 
     <Card>
@@ -329,6 +355,20 @@
   }
   .overview-link:hover {
     color: var(--bb-tan-pale);
+  }
+  .mono { font-family: var(--bb-font-mono); }
+  .uses {
+    font-family: var(--bb-font-mono);
+    font-size: 11px;
+    color: var(--bb-muted);
+    white-space: nowrap;
+  }
+  .clip {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: block;
+    max-width: 100%;
   }
 
   /* Mobile: stack botmark above text, actions full-width buttons */

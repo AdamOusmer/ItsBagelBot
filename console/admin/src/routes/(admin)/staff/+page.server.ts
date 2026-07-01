@@ -1,8 +1,8 @@
 import type { Actions, PageServerLoad } from './$types';
 import { fail, redirect } from '@sveltejs/kit';
 import { requireAdmin, isManager, canManage, isDemo, type AdminIdentity } from '$lib/server/access';
-import { staffUpsert, staffRemove, adminListAccts, auditAppend, type AdminRole } from '$lib/server/rpc';
-import type { AdminAcct } from '$lib/server/rpc';
+import { staffUpsert, staffRemove, adminListAccts, auditAppend, type AdminRole } from '$lib/server/services';
+import type { AdminAcct } from '$lib/server/services';
 
 const ROLES = new Set<AdminRole>(['moderator', 'admin', 'owner']);
 

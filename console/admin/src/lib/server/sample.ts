@@ -2,7 +2,7 @@
 // responder is briefly unreachable. Nothing here is live; it mirrors the wire
 // shapes only so the screens have something to paint.
 import type { ShardSnapshot, UserStats } from '@bagel/shared';
-import type { AdminUserWire } from './rpc';
+import type { AdminUserWire } from './services';
 
 export const sampleStats: UserStats = {
   total_users: 1842,

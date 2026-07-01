@@ -1,7 +1,8 @@
 import type { Actions, PageServerLoad } from './$types';
 import type { CommandView, Perm } from '@bagel/shared';
-import { PERMS } from '@bagel/shared';
-import { listCommands, upsertCommand, deleteCommand, auditDashboardImpersonation } from '$lib/server/rpc';
+import { PERMS, normName, validateCommand, firstError } from '@bagel/shared';
+import { listCommands, upsertCommand, deleteCommand } from '$lib/server/commands-store';
+import { auditDashboardImpersonation } from '$lib/server/services';
 import type { Session } from '$lib/server/session';
 import { env } from '$env/dynamic/private';
 import { fail, redirect } from '@sveltejs/kit';
@@ -19,15 +20,17 @@ function gateCommands(session: Session | null | undefined): void {
   }
 }
 
+// Sample rows use the STORED key format (no leading "!" — chat adds it), same
+// as what the projector serves; the UI renders the "!" itself.
 const sample: CommandView[] = [
-  { name: '!uptime', aliases: ['!live', '!up'], response: '@{user} the stream has been live for {uptime} 🥯', perm: 'everyone', cooldown: 5, uses: '412', is_active: true, stream_online_only: true },
-  { name: '!socials', aliases: ['!social', '!links'], response: 'Follow along → twitch.tv/itsmavey · @itsmavey everywhere', perm: 'everyone', cooldown: 30, uses: '288', is_active: true },
-  { name: '!bagel', response: '{user} tosses a warm bagel to {target}. Toasty.', perm: 'everyone', cooldown: 10, uses: '1.2k', is_active: true },
-  { name: '!so', response: 'Go show some love to twitch.tv/{target} — absolute legend', perm: 'mod', cooldown: 0, uses: '96', is_active: true },
-  { name: '!discord', response: 'Join the bakery → discord.gg/itsbagelbot', perm: 'everyone', cooldown: 60, uses: '203', is_active: true },
-  { name: '!uptime-debug', response: 'node={node} replica={id} lag={ms}ms', perm: 'broadcaster', cooldown: 0, uses: '14', is_active: false },
-  { name: '!lurk', response: '{user} fades into the shadows. Thanks for the lurk.', perm: 'everyone', cooldown: 5, uses: '521', is_active: true },
-  { name: '!followage', response: "@{user} you've followed for {followage} 🥯", perm: 'sub', cooldown: 15, uses: '177', is_active: true }
+  { name: 'uptime', aliases: ['live', 'up'], response: '@{user} the stream has been live for {uptime} 🥯', perm: 'everyone', cooldown: 5, uses: '412', is_active: true, stream_online_only: true },
+  { name: 'socials', aliases: ['social', 'links'], response: 'Follow along → twitch.tv/itsmavey · @itsmavey everywhere', perm: 'everyone', cooldown: 30, uses: '288', is_active: true },
+  { name: 'bagel', response: '{user} tosses a warm bagel to {target}. Toasty.', perm: 'everyone', cooldown: 10, uses: '1.2k', is_active: true },
+  { name: 'so', response: 'Go show some love to twitch.tv/{target} — absolute legend', perm: 'mod', cooldown: 0, uses: '96', is_active: true },
+  { name: 'discord', response: 'Join the bakery → discord.gg/itsbagelbot', perm: 'everyone', cooldown: 60, uses: '203', is_active: true },
+  { name: 'uptime-debug', response: 'node={node} replica={id} lag={ms}ms', perm: 'broadcaster', cooldown: 0, uses: '14', is_active: false },
+  { name: 'lurk', response: '{user} fades into the shadows. Thanks for the lurk.', perm: 'everyone', cooldown: 5, uses: '521', is_active: true },
+  { name: 'followage', response: "@{user} you've followed for {followage} 🥯", perm: 'sub', cooldown: 15, uses: '177', is_active: true }
 ];
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -42,15 +45,10 @@ export const load: PageServerLoad = async ({ locals }) => {
   }
 };
 
-// The bare command trigger: drop a leading "!" and lower-case, matching the
-// commands service. Chat keeps the "!" to invoke; the stored key never has it,
-// so the optimistic UI key agrees with what the service returns (no phantom
-// duplicate row on rename).
-function normName(s: string): string {
-  return s.trim().replace(/^!+/, '').trim().toLowerCase();
-}
-
 // Parses and normalizes the shared command fields out of a submitted form.
+// Normalization (normName: drop the leading "!", lower-case) matches the
+// commands service, so the optimistic UI key agrees with what the service
+// returns (no phantom duplicate row on rename).
 function parseCommand(f: FormData) {
   const name = normName(String(f.get('name') ?? ''));
 
@@ -82,11 +80,30 @@ function parseCommand(f: FormData) {
   return { name, aliases, response, perm, cooldown, allowedUserId, streamOnlineOnly };
 }
 
+// Build the CommandView a DEMO action echoes back (mirrors upsertCommand's
+// optimistic view construction).
+function demoView(cmd: ReturnType<typeof parseCommand>, isActive: boolean): CommandView {
+  return {
+    name: cmd.name,
+    aliases: cmd.aliases,
+    response: cmd.response,
+    is_active: isActive,
+    stream_online_only: cmd.streamOnlineOnly,
+    perm: cmd.perm,
+    cooldown: cmd.cooldown,
+    allowed_user_id: cmd.allowedUserId
+  };
+}
+
 export const actions: Actions = {
   save: async ({ request, locals }) => {
     gateCommands(locals.session);
     const uid = effectiveId(locals.session);
-    if (!locals.session) return fail(401, { ok: false, error: 'Not signed in.' });
+    // DEMO runs without a real session; the demo branches below short-circuit
+    // before any RPC, so only production requests need the auth gate.
+    if (env.DEMO !== '1' && !locals.session) {
+      return fail(401, { ok: false, error: 'Not signed in.' });
+    }
 
     const f = await request.formData();
     const cmd = parseCommand(f);
@@ -95,8 +112,32 @@ export const actions: Actions = {
     const originalName = normName(String(f.get('original_name') ?? ''));
     const renamed = isEdit && originalName !== '' && originalName !== cmd.name;
 
-    if (!cmd.name) return fail(400, { ok: false, error: 'Command name is required.' });
-    if (!cmd.response) return fail(400, { ok: false, error: 'Response is required.' });
+    // Shared validator: the client editor runs the exact same checks, so this
+    // is the authoritative re-check. errors is a field -> message map for
+    // inline display; error keeps the single-line toast fallback.
+    const errors = validateCommand({
+      name: cmd.name,
+      aliases: cmd.aliases,
+      response: cmd.response,
+      cooldown: cmd.cooldown,
+      allowedUserId: cmd.allowedUserId
+    });
+    if (Object.keys(errors).length) {
+      return fail(400, { ok: false, errors, error: firstError(errors) });
+    }
+
+    // DEMO: echo the row back as a success so the demo console exercises the
+    // full optimistic flow without NATS. applyResult only reads the affected
+    // row out of `commands`, so echoing just that row is enough.
+    if (env.DEMO === '1') {
+      return {
+        ok: true,
+        action: isEdit ? 'updated' : 'created',
+        name: cmd.name,
+        original: renamed ? originalName : undefined,
+        commands: [demoView(cmd, isActive)]
+      };
+    }
 
     // A rename passes original_name so the commands service updates the row's
     // name field in place (single write) instead of delete-old + create-new.
@@ -124,11 +165,19 @@ export const actions: Actions = {
   toggle: async ({ request, locals }) => {
     gateCommands(locals.session);
     const uid = effectiveId(locals.session);
-    if (!locals.session) return fail(401, { ok: false, error: 'Not signed in.' });
+    // DEMO runs without a real session; the demo branches below short-circuit
+    // before any RPC, so only production requests need the auth gate.
+    if (env.DEMO !== '1' && !locals.session) {
+      return fail(401, { ok: false, error: 'Not signed in.' });
+    }
 
     const f = await request.formData();
     const cmd = parseCommand(f);
     const isActive = f.get('is_active') === 'on';
+
+    if (env.DEMO === '1') {
+      return { ok: true, action: 'updated', name: cmd.name, commands: [demoView(cmd, isActive)], silent: true };
+    }
 
     const { commands, error } = await upsertCommand(uid, { ...cmd, isActive });
     if (error) return fail(400, { ok: false, error, commands });
@@ -141,10 +190,17 @@ export const actions: Actions = {
   delete: async ({ request, locals }) => {
     gateCommands(locals.session);
     const uid = effectiveId(locals.session);
-    if (!locals.session) return fail(401, { ok: false, error: 'Not signed in.' });
+    // DEMO runs without a real session; the demo branches below short-circuit
+    // before any RPC, so only production requests need the auth gate.
+    if (env.DEMO !== '1' && !locals.session) {
+      return fail(401, { ok: false, error: 'Not signed in.' });
+    }
 
     const f = await request.formData();
     const name = String(f.get('name') ?? '');
+
+    if (env.DEMO === '1') return { ok: true, action: 'deleted', name };
+
     const { commands, error } = await deleteCommand(uid, name);
     if (error) return fail(400, { ok: false, error, commands });
 

@@ -1,37 +1,69 @@
-// Cache-invalidation bus consumer (transport only).
+// Cache-invalidation bus consumer: durable transport + data-driven key routing.
 //
 // Go services publish `${prefix}.<scope>` with a `{ broadcaster_id }` body when
 // they mutate user state. Every console replica subscribes (no queue group:
-// each owns its own in-process cache and must hear every message) and evicts the
-// affected keys immediately, so writes propagate without waiting on TTL.
+// each owns its own in-process cache and must hear every message) and evicts
+// the affected keys immediately, so writes propagate without waiting on TTL.
 //
-// This module owns only the transport + message parsing; key-routing (which
-// scope evicts which cache key) is the app's concern, passed in as the handler.
-// That keeps the dashboard and admin scope maps separate while sharing the wire.
-import { subscribe } from './nats';
+// Routing is declared per app as data (a ScopeMap), not as divergent switch
+// statements: the subject's last dot-segment picks the scope, the map yields
+// the key prefixes to evict. Unknown scopes fall through to the '*' entry so a
+// new publisher-side scope degrades to a coarse per-user flush instead of being
+// silently ignored.
+//
+// Transport is subscribeDurable: the subscription retries forever (a boot-time
+// NATS outage no longer kills invalidation for the process lifetime) and any
+// connectivity gap flushes the whole cache — long-TTL entries must never
+// outlive missed invalidations.
+import { subscribeDurable } from './nats';
 import { getServerConfig } from './config';
-
-/** Called per invalidation message with the parsed broadcaster id and scope. */
-export type InvalidationHandler = (broadcasterId: string, scope: string | undefined) => void;
+import type { SwrCache } from './cache';
 
 /**
- * Subscribe to the invalidation bus and dispatch to `onInvalidate`. Call once at
- * boot (from the init hook, after registerServerConfig). Fire-and-forget and
- * resilient to NATS restarts via the shared subscribe() primitive.
+ * scope -> key prefixes to evict for one broadcaster id. Must include a '*'
+ * fallback for missing/unknown scopes. Returned strings are PREFIXES (evicted
+ * via cache.invalidate), so `delegations:<id>` also drops `delegations:<id>:given`.
  */
-export function startInvalidationBus(onInvalidate: InvalidationHandler): void {
+export type ScopeMap = Record<string, (id: string) => string[]>;
+
+export interface InvalidationBusOptions {
+  cache: SwrCache;
+  scopes: ScopeMap;
+  /** Extra tap per applied invalidation (metrics/logging). */
+  onApplied?: (scope: string, id: string, prefixes: string[]) => void;
+}
+
+/**
+ * Subscribe to the invalidation bus and evict per the scope map. Call once at
+ * boot (from the init hook, after registerServerConfig).
+ */
+export function startInvalidationBus(opts: InvalidationBusOptions): void {
   const prefix = getServerConfig().cacheInvalidationPrefix;
-  subscribe(prefix + '.>', (subject, data) => {
-    try {
-      const msg = JSON.parse(new TextDecoder().decode(data)) as { broadcaster_id?: unknown };
-      const id = typeof msg.broadcaster_id === 'string' ? msg.broadcaster_id : undefined;
-      if (!id) return;
-      // Scope = last dot-segment of the matched subject, e.g.
-      // "bagel.cache.invalidate.status" -> "status".
-      const scope = subject.slice(subject.lastIndexOf('.') + 1) || undefined;
-      onInvalidate(id, scope);
-    } catch {
-      // Malformed message — ignore.
+  const fallback = opts.scopes['*'];
+  if (!fallback) throw new Error("invalidation scope map must declare a '*' fallback");
+
+  subscribeDurable(
+    prefix + '.>',
+    (subject, data) => {
+      try {
+        const msg = JSON.parse(new TextDecoder().decode(data)) as { broadcaster_id?: unknown };
+        const id = typeof msg.broadcaster_id === 'string' ? msg.broadcaster_id : undefined;
+        if (!id) return;
+        // Scope = last dot-segment of the matched subject, e.g.
+        // "bagel.cache.invalidate.status" -> "status".
+        const scope = subject.slice(subject.lastIndexOf('.') + 1);
+        const route = opts.scopes[scope] ?? fallback;
+        const prefixes = route(id);
+        if (prefixes.length) opts.cache.invalidate(...prefixes);
+        opts.onApplied?.(scope, id, prefixes);
+      } catch {
+        // Malformed message — ignore.
+      }
+    },
+    () => {
+      // Connectivity gap: invalidations may have been missed while offline.
+      // Flush everything; the SWR windows repopulate on the next reads.
+      opts.cache.clear();
     }
-  });
+  );
 }

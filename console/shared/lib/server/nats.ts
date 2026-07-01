@@ -30,8 +30,8 @@ function rpcSegment(subject: string): string {
 //   * 'bus'  — the shared BUS account (NATS_USER/PASSWORD): the JetStream lane
 //     view (admin) and the outgress-system stream-feed publish (twitch.*).
 //
-// Both prefer the node-local leaf and fall back to the hub, ordered and never
-// shuffled (noRandomize) so a reconnect always retries the leaf first.
+// RPC prefers the strict same-node leaf and falls back to the hub. BUS connects
+// directly to the hub so JetStream never pays a leaf hop.
 type Role = 'rpc' | 'bus';
 
 interface Pool {
@@ -104,9 +104,16 @@ export function enableLeafFailback(nc: NatsConnection): void {
       consecutive++;
       if (consecutive < required) return;
       consecutive = 0;
-      failbackQueue = failbackQueue.catch(() => {}).then(async () => {
-        if (!nc.isClosed() && !nc.info?.server_name?.startsWith(`${nodeName}--`)) {
-          await nc.reconnect();
+      // The queued task must never reject: a rejecting reconnect() would leave
+      // the queue tail rejected and stall every later failback until the next
+      // .catch() re-arms it. Swallow inside the task; the probe cycle retries.
+      failbackQueue = failbackQueue.then(async () => {
+        try {
+          if (!nc.isClosed() && !nc.info?.server_name?.startsWith(`${nodeName}--`)) {
+            await nc.reconnect();
+          }
+        } catch {
+          /* reconnect failed; next probe cycle retries */
         }
       });
       await failbackQueue;
@@ -125,27 +132,31 @@ export function enableLeafFailback(nc: NatsConnection): void {
   initial.unref();
 }
 
-// serverList returns the ordered endpoint list, leaf first then hub. `override`
-// (NATS_RPC_URL for rpc, NATS_URL for bus) is used as the leaf endpoint when the
-// explicit NATS_LEAF_URL/NATS_HUB_URL split is absent, so local dev and
-// pre-migration deploys keep working against a single server.
-function serverList(override: string | undefined): string[] {
-  const leaf = process.env.NATS_LEAF_URL;
+function fallbackServer(override: string | undefined): string {
+  return override ?? `nats://${process.env.NATS_HOST ?? '127.0.0.1'}:${process.env.NATS_PORT ?? '4222'}`;
+}
+
+// Ordered RPC pool. Legacy NATS_LEAF_URL values are intentionally ignored so
+// a stale secret cannot override the strict local-only NATS_RPC_URL.
+function rpcServerList(override: string | undefined): string[] {
+  const leaf = fallbackServer(override);
   const hub = process.env.NATS_HUB_URL;
-  const fallback =
-    override ?? `nats://${process.env.NATS_HOST ?? '127.0.0.1'}:${process.env.NATS_PORT ?? '4222'}`;
-  if (!leaf && !hub) return [fallback];
-  const list: string[] = [];
-  list.push(leaf ?? fallback);
-  if (hub && hub !== list[0]) list.push(hub);
+  const list = [leaf];
+  if (hub && hub !== leaf) list.push(hub);
   return list;
+}
+
+function busServerList(override: string | undefined): string[] {
+  return [process.env.NATS_HUB_URL ?? fallbackServer(override)];
 }
 
 function options(role: Role): ConnectionOptions {
   const isRpc = role === 'rpc';
   const opts: ConnectionOptions = {
-    servers: serverList(isRpc ? process.env.NATS_RPC_URL : process.env.NATS_URL),
-    // Honor leaf-first order on the initial dial and every reconnect.
+    servers: isRpc
+      ? rpcServerList(process.env.NATS_RPC_URL)
+      : busServerList(process.env.NATS_URL),
+    // Honor local-leaf-first RPC order on the initial dial and reconnect.
     noRandomize: true,
     name: `${process.env.NATS_CLIENT_NAME ?? 'console'}-${role}`,
     maxReconnectAttempts: -1,
@@ -176,8 +187,12 @@ async function get(role: Role): Promise<NatsConnection> {
   // process restarts. finally lets the next get() re-dial.
   pool.dialing = connect(options(role))
     .then((c) => {
+      // Tolerate a close that raced the dial (e.g. shutdown mid-connect): treat
+      // it as a failed dial so the next get() re-dials instead of pinning a
+      // dead connection in the pool.
+      if (c.isClosed()) throw new Error('nats connection closed during dial');
       pool.conn = c;
-      enableLeafFailback(c);
+      if (role === 'rpc') enableLeafFailback(c);
       return c;
     })
     .finally(() => {
@@ -312,4 +327,107 @@ export function subscribe(subject: string, onMsg: (subject: string, data: Uint8A
     .catch(() => {
       // Dial failed at subscribe time; the next request will re-dial via get().
     });
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    const t = setTimeout(resolve, ms);
+    t.unref();
+  });
+}
+
+function backoffMs(attempt: number): number {
+  const base = Math.min(500 * 2 ** Math.min(attempt, 6), 30_000);
+  return base / 2 + Math.random() * (base / 2); // jitter: [base/2, base)
+}
+
+/**
+ * Durable core subscription for the cache-invalidation bus. Unlike subscribe(),
+ * this NEVER gives up:
+ *
+ *   * a failed dial (NATS down at boot) is retried forever with exponential
+ *     backoff + jitter — previously a boot-time outage silently killed the
+ *     invalidation bus for the process lifetime, leaving replicas to decay by
+ *     TTL alone;
+ *   * if the message iterator terminates (connection closed/errored), the loop
+ *     re-dials and resubscribes;
+ *   * `onGap` fires after every window in which messages may have been missed:
+ *     each client-level reconnect, every resubscribe after an iterator death,
+ *     and an initial subscribe that only succeeded after failed attempts.
+ *     Callers use it to flush their cache — a missed invalidation must not
+ *     leave poisoned long-TTL entries.
+ *
+ * No queue group — every replica receives every message (each owns its own
+ * in-process cache). onMsg exceptions are swallowed per message.
+ */
+export function subscribeDurable(
+  subject: string,
+  onMsg: (subject: string, data: Uint8Array) => void,
+  onGap?: () => void
+): void {
+  const gap = () => {
+    try {
+      onGap?.();
+    } catch {
+      /* gap handler must not kill the loop */
+    }
+  };
+
+  void (async () => {
+    let attempt = 0;
+    for (;;) {
+      let nc: NatsConnection;
+      try {
+        nc = await get('rpc');
+      } catch {
+        attempt++;
+        newrelic.recordMetric('Custom/NatsBus/dial_retry', 1);
+        await sleep(backoffMs(attempt));
+        continue;
+      }
+
+      // Messages published while we were not subscribed were lost: anything
+      // after a failed first dial or a dead iterator is a gap.
+      if (attempt > 0) {
+        newrelic.recordMetric('Custom/NatsBus/gap_flush', 1);
+        gap();
+      }
+      attempt = 0;
+
+      // Client-level reconnects resubscribe automatically but drop whatever was
+      // published while disconnected — flush on every reconnect notification.
+      // The watcher dies with the connection; the outer loop replaces it.
+      void (async () => {
+        try {
+          for await (const s of nc.status()) {
+            if (s.type === 'reconnect') {
+              newrelic.recordMetric('Custom/NatsBus/gap_flush', 1);
+              gap();
+            }
+          }
+        } catch {
+          /* status iterator ends with the connection */
+        }
+      })();
+
+      try {
+        const sub = nc.subscribe(subject);
+        for await (const m of sub) {
+          try {
+            onMsg(m.subject, m.data);
+          } catch {
+            /* per-message handler error — keep consuming */
+          }
+        }
+      } catch {
+        /* subscription iterator died — fall through to re-dial */
+      }
+
+      // Iterator ended: connection closed (shutdown) or errored. Back off and
+      // loop; get() re-dials since the pooled conn is closed.
+      attempt++;
+      newrelic.recordMetric('Custom/NatsBus/resubscribe', 1);
+      await sleep(backoffMs(attempt));
+    }
+  })();
 }

@@ -35,21 +35,41 @@ export interface LaneMutationResult {
 }
 
 const LANE_BUCKET = 'admin_lanes';
+const LANE_STREAM = `KV_${LANE_BUCKET}`;
+const NATS_REPLICAS = 3;
 let kvStore: KV | null = null;
 
 async function getKV(): Promise<KV> {
   if (kvStore) return kvStore;
   const client = await js();
+  const manager = await jsm();
   try {
-    kvStore = await client.views.kv(LANE_BUCKET, { history: 1 });
+    const info = await manager.streams.info(LANE_STREAM);
+    if (info.config.num_replicas !== NATS_REPLICAS) {
+      await manager.streams.update(LANE_STREAM, {
+        ...info.config,
+        num_replicas: NATS_REPLICAS
+      });
+    }
+    kvStore = await client.views.kv(LANE_BUCKET, { history: 1, replicas: NATS_REPLICAS });
   } catch (err: any) {
     if (err.code === '404' || err.message?.includes('not found')) {
-      kvStore = await client.views.kv(LANE_BUCKET, { history: 1, description: 'admin lane display aliases' });
+      kvStore = await client.views.kv(LANE_BUCKET, {
+        history: 1,
+        replicas: NATS_REPLICAS,
+        description: 'admin lane display aliases'
+      });
     } else {
       throw err;
     }
   }
   return kvStore;
+}
+
+// Best-effort boot reconciliation; request-time callers retry through getKV if
+// the hub did not yet have quorum while this process was starting.
+export async function ensureLaneStoreHA(): Promise<void> {
+  await getKV();
 }
 
 function laneKey(stream: string, consumer: string) {
@@ -137,10 +157,19 @@ async function loadAliases(): Promise<Map<string, string>> {
   const kv = await getKV();
   const aliases = new Map<string, string>();
   try {
+    // Collect keys first, then fetch values in parallel (chunked so a large
+    // alias set can't fan out unbounded). The old per-key serial `await kv.get`
+    // paid one KV round-trip per alias — 100 aliases = 100 sequential hops.
+    const keys: string[] = [];
     const keysIter = await kv.keys();
-    for await (const k of keysIter) {
-      const e = await kv.get(k);
-      if (e) aliases.set(k, e.string());
+    for await (const k of keysIter) keys.push(k);
+    const CHUNK = 50;
+    for (let i = 0; i < keys.length; i += CHUNK) {
+      const chunk = keys.slice(i, i + CHUNK);
+      const entries = await Promise.all(chunk.map((k) => kv.get(k)));
+      entries.forEach((e, j) => {
+        if (e) aliases.set(chunk[j], e.string());
+      });
     }
   } catch (err: any) {
     if (err.code !== '404') console.warn('lane alias fetch error:', err);

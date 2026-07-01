@@ -1,6 +1,6 @@
 <script lang="ts">
   import { page } from '$app/state';
-  import { AppShell, ImpersonationBanner } from '@bagel/shared';
+  import { AppShell, ImpersonationBanner, ToastHost } from '@bagel/shared';
   import type { NavGroupDef, NavLink } from '@bagel/shared';
   let { data, children } = $props();
 
@@ -65,3 +65,6 @@
   {/snippet}
   {@render children()}
 </AppShell>
+
+<!-- One toast host for the whole app; pages push via the shared toast() store. -->
+<ToastHost />

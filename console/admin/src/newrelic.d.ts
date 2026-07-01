@@ -10,6 +10,7 @@ declare module 'newrelic' {
     addCustomAttributes(atts: Record<string, AttrValue>): void;
     setUserID(userID: string): void;
     noticeError(error: Error, customAttributes?: Record<string, AttrValue>): void;
+    recordMetric(name: string, value: number): void;
     startSegment<T>(name: string, record: boolean, handler: () => T, callback?: () => void): T;
     getBrowserTimingHeader(options?: { nonce?: string; hasToRemoveScriptWrapper?: boolean }): string;
     getLinkingMetadata(omitSupportability?: boolean): Record<string, string>;

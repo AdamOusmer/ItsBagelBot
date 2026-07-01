@@ -1,6 +1,6 @@
 import type { RequestHandler } from './$types';
 import { redirect } from '@sveltejs/kit';
-import { delegationGet } from '$lib/server/rpc';
+import { delegationGet } from '$lib/server/services';
 
 // Entry point for an invitee opening a share link. Validates the token is real
 // and unconsumed, stashes it in a short-lived HttpOnly cookie, then hands off to

@@ -1,5 +1,5 @@
 import type { PageServerLoad } from './$types';
-import { shardSnapshot, userStats, tokenStatus } from '$lib/server/rpc';
+import { shardSnapshot, userStats, tokenStatus } from '$lib/server/services';
 import { isDemo } from '$lib/server/access';
 import { sampleSnapshot, sampleStats } from '$lib/server/sample';
 import { env } from '$env/dynamic/private';

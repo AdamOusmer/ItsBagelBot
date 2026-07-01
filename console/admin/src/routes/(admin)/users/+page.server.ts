@@ -18,7 +18,7 @@ import {
   auditAppend,
   type AdminUserWire,
   type ChannelSubState
-} from '$lib/server/rpc';
+} from '$lib/server/services';
 import { requireAdmin, isDemo, type AdminIdentity } from '$lib/server/access';
 import { signViewAs } from '$lib/server/impersonation';
 import { env } from '$env/dynamic/private';
