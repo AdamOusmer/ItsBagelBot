@@ -1,0 +1,681 @@
+---
+/**
+ * Playground — the first thing after the Encryption act: not a claim, the
+ * actual product. A live-simulated Twitch chat you can poke. Ambient viewers
+ * drift by, spam gets caught in front of you, and the command chips (or the
+ * real input) talk to the bot. Everything is DOM + textContent; no innerHTML
+ * for anything user-typed.
+ */
+const chips = [
+    { cmd: '!bagel', label: '!bagel' },
+    { cmd: '!song', label: '!song' },
+    { cmd: '!poll', label: '!poll' },
+    { cmd: '!lurk', label: '!lurk' },
+];
+---
+
+<section class="play" id="playground">
+    <div class="play__copy">
+        <span class="play__eyebrow" data-reveal>No demo video. The real thing.</span>
+        <h2 class="play__title" data-reveal style="--reveal-i: 1">Go on, poke it.</h2>
+        <p class="play__sub" data-reveal style="--reveal-i: 2">
+            Past the cryptography, this is what your viewers actually meet: a bot
+            sitting quietly in chat. Try a command. Send some spam. Watch what happens.
+        </p>
+
+        <div class="play__chips" data-reveal style="--reveal-i: 3">
+            {chips.map((chip) => (
+                <button type="button" class="play__chip" data-play-cmd={chip.cmd}>{chip.label}</button>
+            ))}
+            <button type="button" class="play__chip play__chip--evil" data-play-spam>
+                send spam<span aria-hidden="true"> ☠</span>
+            </button>
+        </div>
+
+        <p class="play__hint" data-reveal style="--reveal-i: 4">
+            The bot only speaks when spoken to. Chat stays yours.
+        </p>
+    </div>
+
+    <div class="play__stage" data-reveal style="--reveal-i: 2" data-playground>
+        <div class="play__window">
+            <div class="play__bar">
+                <span class="play__dot" aria-hidden="true"></span>
+                <span class="play__channel">#your_channel</span>
+                <span class="play__live">live</span>
+            </div>
+
+            <div class="play__feed" data-play-feed role="log" aria-label="Simulated Twitch chat"></div>
+
+            <form class="play__composer" data-play-form>
+                <input
+                    class="play__input"
+                    data-play-input
+                    type="text"
+                    maxlength="80"
+                    placeholder="try !bagel"
+                    aria-label="Type a chat message"
+                    autocomplete="off"
+                    spellcheck="false"
+                />
+                <button class="play__send" type="submit" aria-label="Send message">↵</button>
+            </form>
+        </div>
+    </div>
+</section>
+
+<style>
+    .play {
+        position: relative;
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 48px;
+        align-items: center;
+        padding: var(--space-section, 96px) 24px;
+        max-width: var(--content-max, 1200px);
+        margin: 0 auto;
+        z-index: 3;
+    }
+
+    @media (min-width: 960px) {
+        .play {
+            grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+            gap: 64px;
+            padding-inline: 48px;
+        }
+    }
+
+    /* ── Copy column ── */
+
+    .play__eyebrow {
+        display: block;
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: clamp(0.64rem, 1.4vw, 0.74rem);
+        letter-spacing: 0.24em;
+        text-transform: uppercase;
+        color: var(--green-glow, #52b788);
+        margin-bottom: 18px;
+    }
+
+    .play__title {
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-weight: 800;
+        font-size: clamp(2rem, 5vw, 3.2rem);
+        line-height: 1.05;
+        letter-spacing: -0.03em;
+        color: var(--white, #f0ece4);
+        margin: 0 0 18px;
+    }
+
+    .play__sub {
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: clamp(0.95rem, 1.5vw, 1.08rem);
+        line-height: 1.65;
+        color: var(--muted, #888077);
+        max-width: 42ch;
+        margin: 0 0 28px;
+    }
+
+    .play__chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 18px;
+    }
+
+    .play__chip {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.78rem;
+        letter-spacing: 0.04em;
+        color: var(--tan-light, #e0c49a);
+        background: rgba(201, 168, 124, 0.07);
+        border: 1px solid var(--border, rgba(201, 168, 124, 0.15));
+        border-radius: var(--radius-pill, 100px);
+        padding: 9px 16px;
+        cursor: pointer;
+        transition:
+            border-color 240ms var(--ease-out-expo),
+            background 240ms var(--ease-out-expo),
+            transform 240ms var(--ease-out-back, cubic-bezier(0.34, 1.56, 0.64, 1));
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+        .play__chip:hover {
+            border-color: rgba(201, 168, 124, 0.5);
+            background: rgba(201, 168, 124, 0.14);
+            transform: translateY(-2px);
+        }
+    }
+
+    .play__chip:active {
+        transform: translateY(0) scale(0.96);
+    }
+
+    .play__chip--evil {
+        color: #d98a8a;
+        background: rgba(217, 138, 138, 0.06);
+        border-color: rgba(217, 138, 138, 0.22);
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+        .play__chip--evil:hover {
+            border-color: rgba(217, 138, 138, 0.55);
+            background: rgba(217, 138, 138, 0.12);
+        }
+    }
+
+    .play__hint {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.72rem;
+        letter-spacing: 0.06em;
+        color: var(--muted, #888077);
+        opacity: 0.75;
+        margin: 0;
+    }
+
+    /* ── Chat window ── */
+
+    .play__window {
+        display: flex;
+        flex-direction: column;
+        height: clamp(420px, 56vh, 520px);
+        background: var(--card-bg, #111110);
+        border: 1px solid var(--border, rgba(201, 168, 124, 0.15));
+        border-radius: var(--radius-card, 16px);
+        overflow: hidden;
+        box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5);
+    }
+
+    .play__bar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 14px 18px;
+        border-bottom: 1px solid var(--border, rgba(201, 168, 124, 0.15));
+        background: rgba(255, 255, 255, 0.015);
+    }
+
+    .play__dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--green-glow, #52b788);
+        box-shadow: 0 0 10px rgba(82, 183, 136, 0.8);
+        animation: playPulse 2.4s ease-in-out infinite;
+    }
+
+    @keyframes playPulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.45; }
+    }
+
+    .play__channel {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.78rem;
+        color: var(--white, #f0ece4);
+        letter-spacing: 0.04em;
+    }
+
+    .play__live {
+        margin-left: auto;
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.62rem;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--green-glow, #52b788);
+    }
+
+    .play__feed {
+        flex: 1;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        gap: 2px;
+        padding: 16px 14px;
+        mask-image: linear-gradient(to bottom, transparent 0, black 56px);
+        -webkit-mask-image: linear-gradient(to bottom, transparent 0, black 56px);
+    }
+
+    /* Messages are appended by the script; style them globally within the feed. */
+    .play__feed :global(.pmsg) {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        padding: 5px 8px;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        line-height: 1.5;
+        animation: pmsgIn 420ms var(--ease-out-expo) both;
+    }
+
+    @keyframes pmsgIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: none; }
+    }
+
+    .play__feed :global(.pmsg__name) {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.78rem;
+        flex-shrink: 0;
+        color: var(--hue, var(--tan, #c9a87c));
+    }
+
+    .play__feed :global(.pmsg__text) {
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        color: rgba(240, 236, 228, 0.82);
+        min-width: 0;
+        overflow-wrap: anywhere;
+    }
+
+    .play__feed :global(.pmsg--you) {
+        background: rgba(201, 168, 124, 0.06);
+    }
+
+    .play__feed :global(.pmsg--bot) {
+        background: rgba(82, 183, 136, 0.05);
+        border-left: 2px solid rgba(82, 183, 136, 0.4);
+    }
+
+    .play__feed :global(.pmsg--bot .pmsg__name) {
+        color: var(--green-glow, #52b788);
+    }
+
+    .play__feed :global(.pmsg--bot .pmsg__name::after) {
+        content: " ✓";
+        font-size: 0.62rem;
+        opacity: 0.7;
+    }
+
+    /* Typing indicator */
+    .play__feed :global(.pmsg--typing .pmsg__text) {
+        display: inline-flex;
+        gap: 4px;
+        align-items: center;
+        padding-top: 4px;
+    }
+
+    .play__feed :global(.pmsg--typing .pmsg__text i) {
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: rgba(82, 183, 136, 0.7);
+        animation: playTyping 900ms ease-in-out infinite;
+    }
+
+    .play__feed :global(.pmsg--typing .pmsg__text i:nth-child(2)) { animation-delay: 150ms; }
+    .play__feed :global(.pmsg--typing .pmsg__text i:nth-child(3)) { animation-delay: 300ms; }
+
+    @keyframes playTyping {
+        0%, 100% { opacity: 0.3; transform: translateY(0); }
+        50% { opacity: 1; transform: translateY(-3px); }
+    }
+
+    /* Spam catch */
+    .play__feed :global(.pmsg--spam .pmsg__text) {
+        color: rgba(217, 138, 138, 0.9);
+    }
+
+    .play__feed :global(.pmsg--spam.is-caught) {
+        transition: opacity 320ms ease, filter 320ms ease;
+        opacity: 0.5;
+        filter: blur(1.5px);
+    }
+
+    .play__feed :global(.pmsg--spam.is-caught .pmsg__text) {
+        text-decoration: line-through;
+    }
+
+    .play__feed :global(.pmsg--caught) {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.7rem;
+        letter-spacing: 0.06em;
+        color: var(--green-glow, #52b788);
+        background: rgba(82, 183, 136, 0.07);
+        border: 1px dashed rgba(82, 183, 136, 0.3);
+        border-radius: 8px;
+        padding: 6px 10px;
+    }
+
+    /* Poll bubble */
+    .play__feed :global(.pmsg--poll) {
+        display: block;
+        background: rgba(82, 183, 136, 0.05);
+        border-left: 2px solid rgba(82, 183, 136, 0.4);
+        padding: 8px 10px;
+    }
+
+    .play__feed :global(.ppoll__q) {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.74rem;
+        color: var(--green-glow, #52b788);
+        margin-bottom: 7px;
+        display: block;
+    }
+
+    .play__feed :global(.ppoll__row) {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        align-items: center;
+        gap: 8px;
+        margin-top: 5px;
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.7rem;
+        color: rgba(240, 236, 228, 0.8);
+    }
+
+    .play__feed :global(.ppoll__track) {
+        position: relative;
+        height: 6px;
+        border-radius: 3px;
+        background: rgba(240, 236, 228, 0.07);
+        overflow: hidden;
+    }
+
+    .play__feed :global(.ppoll__fill) {
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: 0;
+        border-radius: 3px;
+        background: linear-gradient(90deg, var(--green, #2d6a4f), var(--green-glow, #52b788));
+        transition: width 1100ms var(--ease-out-expo);
+    }
+
+    .play__feed :global(.ppoll__label) {
+        display: block;
+        margin-bottom: 3px;
+    }
+
+    /* Composer */
+    .play__composer {
+        display: flex;
+        gap: 10px;
+        padding: 12px 14px;
+        border-top: 1px solid var(--border, rgba(201, 168, 124, 0.15));
+        background: rgba(255, 255, 255, 0.015);
+    }
+
+    .play__input {
+        flex: 1;
+        min-width: 0;
+        background: rgba(10, 10, 10, 0.6);
+        border: 1px solid var(--border, rgba(201, 168, 124, 0.15));
+        border-radius: 10px;
+        padding: 11px 14px;
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.8rem;
+        color: var(--white, #f0ece4);
+        outline: none;
+        transition: border-color 240ms ease, box-shadow 240ms ease;
+    }
+
+    .play__input::placeholder {
+        color: var(--muted, #888077);
+        opacity: 0.6;
+    }
+
+    .play__input:focus {
+        border-color: rgba(201, 168, 124, 0.45);
+        box-shadow: 0 0 0 3px rgba(201, 168, 124, 0.08);
+    }
+
+    .play__send {
+        flex-shrink: 0;
+        width: 42px;
+        border-radius: 10px;
+        background: var(--tan, #c9a87c);
+        color: var(--black, #0a0a0a);
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.9rem;
+        transition: background 200ms ease, transform 200ms var(--ease-out-back);
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+        .play__send:hover {
+            background: var(--tan-light, #e0c49a);
+            transform: translateY(-1px);
+        }
+    }
+
+    .play__send:active {
+        transform: scale(0.94);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .play__dot { animation: none; }
+        .play__feed :global(.pmsg) { animation: none; }
+        .play__feed :global(.ppoll__fill) { transition: none; }
+        .play__chip, .play__send { transition: none; }
+    }
+
+    @media (max-width: 640px) {
+        .play { padding: var(--space-section-sm, 72px) 20px; }
+        .play__window { height: 420px; }
+    }
+</style>
+
+<script>
+    /**
+     * Simulated chat. All content is inserted with textContent; the only
+     * markup built here is from these hardcoded literals.
+     */
+    const VIEWERS: Array<[string, string]> = [
+        ['moth_lamp', '#e0c49a'],
+        ['gg_beans', '#52b788'],
+        ['pixel_pal', '#c9a87c'],
+        ['night_owl_77', '#9ad1b5'],
+        ['soupdream', '#d9c08a'],
+        ['tiny_cactus', '#7cc9a4'],
+    ];
+
+    const AMBIENT = [
+        'this soundtrack is so good',
+        'LETS GOOO',
+        'first time here, vibes are great',
+        'anyone else hungry now',
+        'that jump was clean',
+        'chat moving fast tonight',
+        'ok that was actually smooth',
+        '🥯🥯🥯',
+        'gl on the next run',
+        'the bot caught that fast lol',
+    ];
+
+    const SPAM_LINES = [
+        'FREE F0LLOWERS >> sketchy.link/boost CLICK NOW',
+        'im giving away gift subs, DM me on telegram!!',
+        'V1EWBOTS cheap!! totally-legit.biz',
+    ];
+
+    const REPLIES: Record<string, string | null> = {
+        '!bagel': '@you 🥯 fresh from the oven. warm bagel delivered, zero calories.',
+        '!song': "now playing · 'late night lo-fi' · queued for @you",
+        '!lurk': "@you settled into the lurk. seat's saved, I'll wave when you're back.",
+        '!help': 'try !bagel, !song, !poll or !lurk. everything else is configurable from the dashboard.',
+        '!poll': null, // special-cased: renders the animated poll bubble
+    };
+
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+    function setupPlayground(root: HTMLElement) {
+        if (root.dataset.playReady === 'true') return;
+        root.dataset.playReady = 'true';
+
+        const feed = root.querySelector<HTMLElement>('[data-play-feed]');
+        const form = root.querySelector<HTMLFormElement>('[data-play-form]');
+        const input = root.querySelector<HTMLInputElement>('[data-play-input]');
+        const section = root.closest('section');
+        if (!feed || !form || !input || !section) return;
+
+        let visible = false;
+        let ambientTimer = 0;
+        let quietNoteShown = false;
+        let seq = 0;
+
+        function trim() {
+            while (feed!.children.length > 14) feed!.removeChild(feed!.firstChild!);
+        }
+
+        function baseMsg(cls: string) {
+            const row = document.createElement('div');
+            row.className = `pmsg ${cls}`;
+            return row;
+        }
+
+        function addChat(name: string, hue: string, text: string, cls = '') {
+            const row = baseMsg(cls);
+            const who = document.createElement('span');
+            who.className = 'pmsg__name';
+            who.style.setProperty('--hue', hue);
+            who.textContent = name;
+            const body = document.createElement('span');
+            body.className = 'pmsg__text';
+            body.textContent = text;
+            row.append(who, body);
+            feed!.appendChild(row);
+            trim();
+            return row;
+        }
+
+        function addBot(text: string, delay = 700) {
+            const typing = baseMsg('pmsg--bot pmsg--typing');
+            const who = document.createElement('span');
+            who.className = 'pmsg__name';
+            who.textContent = 'itsbagelbot';
+            const dots = document.createElement('span');
+            dots.className = 'pmsg__text';
+            dots.append(document.createElement('i'), document.createElement('i'), document.createElement('i'));
+            typing.append(who, dots);
+            feed!.appendChild(typing);
+            trim();
+
+            const wait = reduceMotion.matches ? 80 : delay;
+            window.setTimeout(() => {
+                typing.remove();
+                addChat('itsbagelbot', '', text, 'pmsg--bot');
+            }, wait);
+        }
+
+        function addPoll() {
+            addBot('poll is up. chat, vote with 1 or 2.', 500);
+            window.setTimeout(() => {
+                const bubble = baseMsg('pmsg--poll');
+                const q = document.createElement('span');
+                q.className = 'ppoll__q';
+                q.textContent = 'poll · one more game?';
+                bubble.appendChild(q);
+
+                const rows: Array<[string, number]> = [['yes', 68], ['always', 32]];
+                const fills: HTMLElement[] = [];
+                for (const [label, pct] of rows) {
+                    const row = document.createElement('span');
+                    row.className = 'ppoll__row';
+                    const track = document.createElement('span');
+                    track.className = 'ppoll__track';
+                    const fill = document.createElement('span');
+                    fill.className = 'ppoll__fill';
+                    track.appendChild(fill);
+                    const tag = document.createElement('span');
+                    tag.textContent = `${label} ${pct}%`;
+                    row.append(track, tag);
+                    bubble.appendChild(row);
+                    fills.push(fill);
+                    fill.dataset.pct = String(pct);
+                }
+                feed!.appendChild(bubble);
+                trim();
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        fills.forEach((f) => { f.style.width = `${f.dataset.pct}%`; });
+                    });
+                });
+            }, reduceMotion.matches ? 120 : 900);
+        }
+
+        function addSpam() {
+            const line = SPAM_LINES[seq++ % SPAM_LINES.length];
+            const row = addChat('definitely_human_01', '#d98a8a', line, 'pmsg--spam');
+            const catchDelay = reduceMotion.matches ? 150 : 650;
+            window.setTimeout(() => {
+                row.classList.add('is-caught');
+                window.setTimeout(() => {
+                    const note = baseMsg('pmsg--caught');
+                    note.textContent = '⌁ removed · link spam · 0 viewers saw it';
+                    row.replaceWith(note);
+                    trim();
+                }, reduceMotion.matches ? 100 : 480);
+            }, catchDelay);
+        }
+
+        function handleCommand(raw: string) {
+            const text = raw.trim();
+            if (!text) return;
+            addChat('you', '#e0c49a', text, 'pmsg--you');
+
+            if (!text.startsWith('!')) {
+                if (!quietNoteShown) {
+                    quietNoteShown = true;
+                    window.setTimeout(() => {
+                        const note = baseMsg('pmsg--caught');
+                        note.textContent = 'the bot stays quiet unless called. chat is yours.';
+                        feed!.appendChild(note);
+                        trim();
+                    }, reduceMotion.matches ? 100 : 800);
+                }
+                return;
+            }
+
+            const cmd = text.split(/\s+/)[0].toLowerCase();
+            if (cmd === '!poll') { addPoll(); return; }
+            const reply = REPLIES[cmd];
+            if (reply) { addBot(reply); return; }
+            addBot(`@you I don't know ${cmd} yet. you could teach it to me from the dashboard in about ten seconds.`);
+        }
+
+        /* Ambient chatter, gated on visibility */
+        function scheduleAmbient() {
+            window.clearTimeout(ambientTimer);
+            if (!visible || document.hidden) return;
+            const wait = 2600 + Math.random() * 2600;
+            ambientTimer = window.setTimeout(() => {
+                const [name, hue] = VIEWERS[Math.floor(Math.random() * VIEWERS.length)];
+                addChat(name, hue, AMBIENT[Math.floor(Math.random() * AMBIENT.length)]);
+                if (++seq % 7 === 0) addSpam();
+                scheduleAmbient();
+            }, wait);
+        }
+
+        const io = new IntersectionObserver(([entry]) => {
+            visible = entry.isIntersecting;
+            if (visible) scheduleAmbient();
+            else window.clearTimeout(ambientTimer);
+        }, { rootMargin: '80px' });
+        io.observe(root);
+
+        document.addEventListener('visibilitychange', scheduleAmbient);
+
+        /* Seed the feed so it never opens empty */
+        addChat('gg_beans', '#52b788', 'chat moving fast tonight');
+        addChat('moth_lamp', '#e0c49a', 'try typing !bagel');
+
+        form.addEventListener('submit', (event) => {
+            event.preventDefault();
+            handleCommand(input.value);
+            input.value = '';
+            input.focus();
+        });
+
+        section.querySelectorAll<HTMLButtonElement>('[data-play-cmd]').forEach((btn) => {
+            btn.addEventListener('click', () => handleCommand(btn.dataset.playCmd ?? ''));
+        });
+
+        section.querySelector<HTMLButtonElement>('[data-play-spam]')?.addEventListener('click', () => addSpam());
+    }
+
+    function setup() {
+        document.querySelectorAll<HTMLElement>('[data-playground]').forEach(setupPlayground);
+    }
+
+    setup();
+    document.addEventListener('astro:page-load', setup);
+</script>
