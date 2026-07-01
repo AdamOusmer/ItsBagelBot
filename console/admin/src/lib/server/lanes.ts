@@ -1,6 +1,12 @@
 import { jsm, js } from '@bagel/shared/server/nats';
-import { isDemo } from './access';
 import type { KV } from 'nats';
+
+// Keep this boot-safe. Importing access.ts here pulls in SvelteKit's dynamic
+// environment module and services.ts, creating a cycle through hooks.server.ts
+// while adapter-node is still awaiting server initialization.
+function isDemo(): boolean {
+  return process.env.DEMO === '1';
+}
 
 export interface LaneView {
   stream: string;
