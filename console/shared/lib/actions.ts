@@ -75,12 +75,17 @@ export const countUp: Action<HTMLElement, { durationMs?: number } | undefined> =
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
   const raw = (node.textContent ?? '').trim();
-  const m = raw.match(/^([\d,]+)(.*)$/);
+  // Single bounded quantifier for the numeric prefix, then a plain slice for
+  // the suffix — avoids a regex whose two groups (`[\d,]+` and `.*`) both
+  // match ',' and so overlap, which is what trips ReDoS scanners even though
+  // the trailing `.*$` can't itself fail to match here.
+  const m = raw.match(/^[\d,]+/);
   if (!m) return;
-  const target = Number(m[1].replace(/,/g, ''));
+  const digits = m[0];
+  const target = Number(digits.replace(/,/g, ''));
   if (!Number.isFinite(target) || target <= 0) return;
-  const suffix = m[2] ?? '';
-  const grouped = m[1].includes(',');
+  const suffix = raw.slice(digits.length);
+  const grouped = digits.includes(',');
   const duration = opts?.durationMs ?? 900;
 
   let raf = 0;
