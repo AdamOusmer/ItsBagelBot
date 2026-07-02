@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -22,6 +23,10 @@ const DefaultBaseURL = "https://headless.tebex.io"
 type Config struct {
 	// WebstoreToken is the public Headless API token (Tebex webstore identifier).
 	WebstoreToken string
+	// PrivateKey is the Headless API private key. When set, backend-created
+	// baskets use HTTP Basic auth (public token as username, private key as
+	// password) so Tebex accepts the customer's IPv4 address.
+	PrivateKey string
 	// PackageID is the premium package to place in every basket.
 	PackageID int
 	// PackageType is "subscription" or "single"; premium is a monthly
@@ -39,7 +44,7 @@ type Client struct {
 }
 
 // PublicToken is safe to expose to the browser and is required by Tebex.js's
-// Payment Portal. The private API key is never held by this Headless client.
+// Payment Portal. The private API key stays server-side.
 func (c *Client) PublicToken() string { return c.cfg.WebstoreToken }
 
 type Basket struct {
@@ -109,7 +114,7 @@ func (c *Client) CreateBasket(ctx context.Context, spec BasketSpec) (Basket, err
 		"custom":                 custom,
 		"username":               spec.Username,
 	}
-	if spec.IPAddress != "" {
+	if spec.IPAddress != "" && c.cfg.PrivateKey != "" {
 		create["ip_address"] = spec.IPAddress
 	}
 
@@ -155,6 +160,9 @@ func (c *Client) post(ctx context.Context, path string, payload any, out any) er
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
+	if c.cfg.PrivateKey != "" && strings.HasPrefix(path, "/api/accounts/") {
+		req.SetBasicAuth(c.cfg.WebstoreToken, c.cfg.PrivateKey)
+	}
 
 	resp, err := c.cfg.HTTPClient.Do(req)
 	if err != nil {
