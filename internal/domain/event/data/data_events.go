@@ -5,12 +5,11 @@ import "encoding/json"
 // Subjects form the public contract between the data services, their caches
 // and the projector (see ADR 0003). Renaming one is a breaking change.
 const (
-	SubjectUserChanged         = "data.users.changed"
-	SubjectUserDeleted         = "data.users.deleted"
-	SubjectModuleChanged       = "data.modules.changed"
-	SubjectCommandChanged      = "data.commands.changed"
-	SubjectCommandUsed         = "data.commands.used"
-	SubjectTransactionRecorded = "data.transactions.recorded"
+	SubjectUserChanged    = "data.users.changed"
+	SubjectUserDeleted    = "data.users.deleted"
+	SubjectModuleChanged  = "data.modules.changed"
+	SubjectCommandChanged = "data.commands.changed"
+	SubjectCommandUsed    = "data.commands.used"
 
 	// SubjectReprojectRequest asks every data service to republish its
 	// current state as ordinary change events. The projector sends it on a
@@ -69,9 +68,4 @@ type CommandUsedDTO struct {
 	Name   string `json:"name"`
 	// Count of executions in the window; 0 or absent means 1.
 	Count uint64 `json:"count,omitempty"`
-}
-
-type TransactionRecordedDTO struct {
-	ID     string `json:"id"`
-	UserID uint64 `json:"user_id"`
 }

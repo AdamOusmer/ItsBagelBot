@@ -34,15 +34,8 @@ func SubscribeCheckout(nc *nats.Conn, client *tebex.Client, prefix, userGetSubje
 
 	// Basket creation is two upstream HTTP calls (plus a recipient lookup for
 	// gifts), so give it more room than the default in-cluster RPC budget.
-	if err := bus.QueueSubscribeJSON[transactionsrpc.BasketCreateRequest, transactionsrpc.BasketCreateReply](
-		nc, prefix+".basket_create", queueGroup, 15*time.Second, app, log, c.basketCreate); err != nil {
-		return err
-	}
-	return bus.QueueSubscribeJSON[struct{}, transactionsrpc.ConfigReply](
-		nc, prefix+".config_get", queueGroup, 2*time.Second, app, log,
-		func(context.Context, struct{}) transactionsrpc.ConfigReply {
-			return transactionsrpc.ConfigReply{PublicToken: client.PublicToken()}
-		})
+	return bus.QueueSubscribeJSON[transactionsrpc.BasketCreateRequest, transactionsrpc.BasketCreateReply](
+		nc, prefix+".basket_create", queueGroup, 15*time.Second, app, log, c.basketCreate)
 }
 
 func (c *checkoutRPC) basketCreate(ctx context.Context, req transactionsrpc.BasketCreateRequest) transactionsrpc.BasketCreateReply {

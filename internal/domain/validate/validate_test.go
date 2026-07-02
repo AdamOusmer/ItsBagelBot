@@ -71,15 +71,6 @@ func TestConfigsJSON(t *testing.T) {
 	assert.Error(t, validate.ConfigsJSON(huge), "oversized configs must be refused")
 }
 
-func TestTransactionID(t *testing.T) {
-	assert.NoError(t, validate.TransactionID("tbx-20260609-AB12"))
-
-	assert.Error(t, validate.TransactionID(""))
-	assert.Error(t, validate.TransactionID("has space"))
-	assert.Error(t, validate.TransactionID("semi;colon"))
-	assert.Error(t, validate.TransactionID(strings.Repeat("a", 65)))
-}
-
 func TestToken(t *testing.T) {
 	assert.NoError(t, validate.Token([]byte("oauth-token")))
 
