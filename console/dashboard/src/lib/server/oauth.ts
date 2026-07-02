@@ -28,3 +28,14 @@ export function twitch(): Twitch {
   return new Twitch(id, secret, redirect);
 }
 
+// Post-login deep links must stay inside the app: a single leading slash only
+// (no '//' or '/\' protocol-relative escapes), and never back into the auth
+// routes themselves. Used on both sides of the OAuth round trip — when the
+// login route stores the destination and when the callback consumes it.
+export function safeNextPath(value: string | null | undefined): string | null {
+  if (!value || !value.startsWith('/')) return null;
+  if (value.startsWith('//') || value.startsWith('/\\')) return null;
+  if (value === '/login' || value.startsWith('/login?') || value.startsWith('/auth/')) return null;
+  return value;
+}
+

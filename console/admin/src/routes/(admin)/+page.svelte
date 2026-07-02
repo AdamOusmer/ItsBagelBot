@@ -40,7 +40,7 @@
     <div class="stat-grid">
       <StatTile icon="users" label="Registered users" value="—" unit="total" delta="loading…" flat />
       <StatTile icon="pulse" tan label="Premium users" value="—" unit="premium" delta="loading…" flat />
-      <StatTile icon="activity" label="Shards" value="—" unit="up" delta="loading…" flat />
+      <StatTile icon="server" label="Shards" value="—" unit="up" delta="loading…" flat />
       <StatTile icon="overview" tan label="Conduit" value="…" unit="" delta="loading…" flat />
     </div>
     <div class="grid-2">
@@ -68,7 +68,7 @@
     <div class="stat-grid">
       <StatTile icon="users" label="Registered users" value={o.stats.total_users.toLocaleString()} unit="total" delta={`${o.stats.active_users.toLocaleString()} active`} flat />
       <StatTile icon="pulse" tan label="Premium users" value={o.stats.premium_users.toLocaleString()} unit="premium" delta={`${o.stats.vip_users} VIP · ${o.stats.paid_users} paid`} flat />
-      <StatTile icon="activity" label="Shards" value={`${sum.connected}/${sum.total}`} unit="up" delta={`${o.snapshot.nodes.length} nodes · ${sum.health}`} flat />
+      <StatTile icon="server" label="Shards" value={`${sum.connected}/${sum.total}`} unit="up" delta={`${o.snapshot.nodes.length} nodes · ${sum.health}`} flat />
       <StatTile icon="overview" tan label="Conduit" value={o.snapshot.conduit_manager?.state ?? 'unknown'} unit="" delta={`node ${o.snapshot.conduit_manager?.node ?? '—'}`} flat />
     </div>
 

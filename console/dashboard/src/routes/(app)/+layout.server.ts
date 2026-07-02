@@ -21,7 +21,13 @@ const demo: Session = {
 export const load: LayoutServerLoad = async ({ locals, url, cookies }) => {
   let s = locals.session;
   if (!s && env.DEMO === '1') s = demo;
-  if (!s) throw redirect(302, '/login');
+  // Keep the requested path through the login flow (e.g. the pricing page
+  // deep-links /billing?subscribe=1), so sign-in lands back where the visitor
+  // was headed instead of on the home screen.
+  if (!s) {
+    const next = url.pathname + url.search;
+    throw redirect(302, next === '/' ? '/login' : `/login?next=${encodeURIComponent(next)}`);
+  }
 
   if (env.DEMO !== '1') {
     // Defense in depth: bounce a session whose user was banned after sign-in.

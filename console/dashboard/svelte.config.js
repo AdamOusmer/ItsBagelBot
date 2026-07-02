@@ -28,16 +28,22 @@ export default {
         'default-src': ['self'],
         // js-agent.newrelic.com hosts the New Relic Browser (RUM) agent that the
         // nonce'd inline loader (injected in hooks.server.ts) pulls in.
-        'script-src': ['self', 'https://js-agent.newrelic.com'],
+        // js.tebex.io is the official Tebex.js embedded-checkout script the
+        // billing page loads.
+        'script-src': ['self', 'https://js-agent.newrelic.com', 'https://js.tebex.io'],
         'style-src': ['self'],
         'style-src-attr': ['unsafe-inline'],
         'font-src': ['self'],
         'img-src': ['self', 'data:'],
         // *.nr-data.net is the New Relic Browser beacon (RUM page views, JS
-        // errors, SPA routes, web vitals).
-        'connect-src': ['self', 'https://dashboard.itsbagelbot.com', 'https://*.nr-data.net'],
+        // errors, SPA routes, web vitals). pay.tebex.io answers Tebex.js's
+        // checkout bootstrap calls from the parent page.
+        'connect-src': ['self', 'https://dashboard.itsbagelbot.com', 'https://*.nr-data.net', 'https://pay.tebex.io'],
         'object-src': ['none'],
         'base-uri': ['self'],
+        // The Tebex.js payment overlay is an iframe served from pay.tebex.io
+        // (checkout.tebex.io covers its legacy hosts).
+        'frame-src': ['https://pay.tebex.io', 'https://checkout.tebex.io'],
         'frame-ancestors': ['none']
       }
     }

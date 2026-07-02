@@ -12,6 +12,8 @@ import (
 	// import every write fails: "forgotten import ent/runtime?".
 	_ "ItsBagelBot/app/transactions/ent/runtime"
 	"ItsBagelBot/app/transactions/repository"
+	"ItsBagelBot/app/transactions/rpc"
+	"ItsBagelBot/app/transactions/tebex"
 	"ItsBagelBot/app/transactions/web"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/db"
@@ -72,6 +74,40 @@ func main() {
 
 	repo := repository.NewTransactions(client, pub)
 
+	// Checkout RPC (dashboard -> basket_create). Optional: without the Tebex
+	// Headless credentials the service stays webhook-only, exactly as before.
+	checkoutConfigured := false
+	// TEBEX_HEADLESS_TOKEN is the legacy name for the same webstore public token.
+	webstoreToken := env.Get("TEBEX_WEBSTORE_TOKEN", env.Get("TEBEX_HEADLESS_TOKEN", ""))
+	packageID := env.GetInt("TEBEX_PACKAGE_ID", 0)
+	if webstoreToken != "" && packageID > 0 {
+		dashboardOrigin := env.Get("DASHBOARD_ORIGIN", "https://dashboard.itsbagelbot.com")
+		tebexClient, err := tebex.New(tebex.Config{
+			WebstoreToken: webstoreToken,
+			PackageID:     packageID,
+			PackageType:   env.Get("TEBEX_PACKAGE_TYPE", "subscription"),
+			CompleteURL:   dashboardOrigin + "/billing?checkout=complete",
+			CancelURL:     dashboardOrigin + "/billing?checkout=cancelled",
+		})
+		if err != nil {
+			log.Fatal("failed to build tebex client", zap.Error(err))
+		}
+
+		nc, err := bus.Connect(bus.RPCURL(natsURL), serviceName)
+		if err != nil {
+			log.Fatal("failed to connect rpc nats", zap.Error(err))
+		}
+		defer nc.Close()
+
+		prefix := env.Get("NATS_TRANSACTIONS_SUBJECT_PREFIX", "bagel.rpc.transactions")
+		if err := rpc.SubscribeCheckout(nc, tebexClient, prefix, "transactions-rpc", nrApp, log); err != nil {
+			log.Fatal("failed to subscribe checkout rpc", zap.Error(err))
+		}
+		checkoutConfigured = true
+	} else {
+		log.Warn("tebex checkout rpc disabled: TEBEX_WEBSTORE_TOKEN / TEBEX_PACKAGE_ID not configured")
+	}
+
 	listenAddr := env.Get("LISTEN_ADDR", ":8080")
 	httpApp := web.New(repo, web.Config{
 		WebhookSecret: env.Get("TEBEX_WEBHOOK_SECRET", ""),
@@ -85,6 +121,7 @@ func main() {
 	log.Info("transactions service ready",
 		zap.String("listen_addr", listenAddr),
 		zap.Bool("tebex_webhook_configured", env.Get("TEBEX_WEBHOOK_SECRET", "") != ""),
+		zap.Bool("tebex_checkout_configured", checkoutConfigured),
 	)
 
 	select {

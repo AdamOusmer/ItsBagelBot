@@ -76,8 +76,11 @@ spec:
           env:
             - name: NATS_HOST
               value: nats
-            # BUS-only service (JetStream, no RPC account). Connects only to the
-            # node-local leaf cluster; the hub is reached over the leafnode link.
+            # Both planes (BUS JetStream publisher + TRANSACTIONS_RPC checkout
+            # responder) connect to the node-local leaf cluster; the hub is
+            # reached over the leafnode link. RPC creds (NATS_RPC_USER/PASSWORD)
+            # and the Tebex Headless secrets (TEBEX_WEBSTORE_TOKEN,
+            # TEBEX_PACKAGE_ID) ride in via envFrom from Doppler.
             - name: NATS_URL
               value: nats://nats-leaf:4222
             - name: NATS_LEAF_URL
