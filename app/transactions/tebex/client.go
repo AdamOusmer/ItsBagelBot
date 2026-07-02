@@ -72,19 +72,36 @@ func New(cfg Config) (*Client, error) {
 	return &Client{cfg: cfg}, nil
 }
 
-// CreateBasket mints a basket for one user and adds the premium package. The
+// BasketSpec names who the entitlement lands on (UserID/Username) and, for
+// gifts, who pays (GiftedByID/GiftedByLogin). For a self-purchase the gifted-by
+// fields stay zero.
+type BasketSpec struct {
+	UserID        uint64
+	Username      string
+	GiftedByID    uint64
+	GiftedByLogin string
+}
+
+// CreateBasket mints a basket and adds the premium package. The recipient's
 // user id rides in the basket's custom payload, which Tebex echoes back on the
-// payment webhook — that is the whole attribution chain.
-func (c *Client) CreateBasket(ctx context.Context, userID uint64, username string) (Basket, error) {
+// payment webhook — that is the whole attribution chain; gifted_by is carried
+// alongside for the gift notification and the audit trail.
+func (c *Client) CreateBasket(ctx context.Context, spec BasketSpec) (Basket, error) {
+
+	custom := map[string]string{
+		"user_id":  strconv.FormatUint(spec.UserID, 10),
+		"username": spec.Username,
+	}
+	if spec.GiftedByID != 0 {
+		custom["gifted_by"] = strconv.FormatUint(spec.GiftedByID, 10)
+		custom["gifted_by_login"] = spec.GiftedByLogin
+	}
 
 	create := map[string]any{
 		"complete_url":           c.cfg.CompleteURL,
 		"cancel_url":             c.cfg.CancelURL,
 		"complete_auto_redirect": true,
-		"custom": map[string]string{
-			"user_id":  strconv.FormatUint(userID, 10),
-			"username": username,
-		},
+		"custom":                 custom,
 	}
 
 	var created basketData

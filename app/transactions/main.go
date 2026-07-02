@@ -74,6 +74,14 @@ func main() {
 
 	repo := repository.NewTransactions(client, pub)
 
+	// RPC-plane connection (TRANSACTIONS_RPC account): answers the checkout
+	// basket verb and issues the recipient-lookup / gift-notification requests.
+	nc, err := bus.Connect(bus.RPCURL(natsURL), serviceName)
+	if err != nil {
+		log.Fatal("failed to connect rpc nats", zap.Error(err))
+	}
+	defer nc.Close()
+
 	// Checkout RPC (dashboard -> basket_create). Optional: without the Tebex
 	// Headless credentials the service stays webhook-only, exactly as before.
 	checkoutConfigured := false
@@ -93,14 +101,9 @@ func main() {
 			log.Fatal("failed to build tebex client", zap.Error(err))
 		}
 
-		nc, err := bus.Connect(bus.RPCURL(natsURL), serviceName)
-		if err != nil {
-			log.Fatal("failed to connect rpc nats", zap.Error(err))
-		}
-		defer nc.Close()
-
+		userGetSubject := env.Get("NATS_ADMIN_USER_SUBJECT_PREFIX", "bagel.rpc.admin.user") + ".get"
 		prefix := env.Get("NATS_TRANSACTIONS_SUBJECT_PREFIX", "bagel.rpc.transactions")
-		if err := rpc.SubscribeCheckout(nc, tebexClient, prefix, "transactions-rpc", nrApp, log); err != nil {
+		if err := rpc.SubscribeCheckout(nc, tebexClient, prefix, userGetSubject, "transactions-rpc", nrApp, log); err != nil {
 			log.Fatal("failed to subscribe checkout rpc", zap.Error(err))
 		}
 		checkoutConfigured = true
@@ -108,9 +111,13 @@ func main() {
 		log.Warn("tebex checkout rpc disabled: TEBEX_WEBSTORE_TOKEN / TEBEX_PACKAGE_ID not configured")
 	}
 
+	sendSubject := env.Get("NATS_ADMIN_NOTIFICATIONS_SUBJECT_PREFIX", "bagel.rpc.admin.notifications") + ".send"
+	notifier := rpc.NewGiftNotifier(nc, sendSubject)
+
 	listenAddr := env.Get("LISTEN_ADDR", ":8080")
 	httpApp := web.New(repo, web.Config{
 		WebhookSecret: env.Get("TEBEX_WEBHOOK_SECRET", ""),
+		NotifyGift:    notifier.Notify,
 	}, log.Named("http"))
 
 	serverErr := make(chan error, 1)

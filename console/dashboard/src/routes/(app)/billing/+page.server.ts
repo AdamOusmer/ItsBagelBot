@@ -1,6 +1,7 @@
 import type { Actions, PageServerLoad } from './$types';
 import { redirect, fail } from '@sveltejs/kit';
 import { billingState, checkoutBasketCreate, type BillingState } from '$lib/server/services';
+import { RpcError } from '@bagel/shared/server/nats';
 import { env } from '$env/dynamic/private';
 
 type BillingLinks = {
@@ -101,6 +102,38 @@ export const actions: Actions = {
     const url = links().checkoutUrl;
     if (!url) return fail(503, { error: 'Subscriptions are not available right now.' });
     throw redirect(303, url);
+  },
+
+  // Gift premium to another registered user. The transactions service resolves
+  // the Twitch login and vets the recipient (registered, not banned, not
+  // already premium); its error strings are user-facing, so surface them
+  // verbatim on the gift form. The buyer's own plan does not gate gifting.
+  gift: async ({ locals, request }) => {
+    const s = locals.session;
+    if (!s) return fail(401, { gift: true, error: 'Not signed in.' });
+    if (s.delegate_of || s.impersonator_id) {
+      return fail(403, { gift: true, error: 'Only the account owner can gift premium.' });
+    }
+
+    const form = await request.formData();
+    const recipient = String(form.get('recipient') ?? '').trim();
+    if (!recipient) return fail(400, { gift: true, error: 'Enter the Twitch username to gift to.' });
+    if (!/^@?[A-Za-z0-9_]{3,25}$/.test(recipient)) {
+      return fail(400, { gift: true, error: 'That does not look like a Twitch username.' });
+    }
+
+    try {
+      const basket = await checkoutBasketCreate(s.user_id, s.login, recipient);
+      return {
+        ident: basket.ident,
+        checkoutUrl: basket.checkoutUrl,
+        recipientLogin: basket.recipientLogin
+      };
+    } catch (err) {
+      if (err instanceof RpcError) return fail(409, { gift: true, error: err.message });
+      console.error('[billing] gift basket create failed:', err);
+      return fail(502, { gift: true, error: 'Gifting is not available right now. Try again in a moment.' });
+    }
   },
 
   // Cancellation/account management lives on Tebex. We still gate the button

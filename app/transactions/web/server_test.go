@@ -193,3 +193,83 @@ func doWebhook(t *testing.T, app *fiber.App, body string, secret string, validSi
 	require.NoError(t, err)
 	return resp
 }
+
+func TestGiftedPaymentNotifiesRecipientOnce(t *testing.T) {
+
+	store := &fakeStore{}
+	var notices []GiftNotice
+	app := New(store, Config{
+		WebhookSecret: testSecret,
+		NotifyGift: func(_ context.Context, n GiftNotice) error {
+			notices = append(notices, n)
+			return nil
+		},
+	}, nil)
+
+	body := `{"id":"evt-gift","type":"payment.completed","subject":{"transaction_id":"tbx-gift-1","custom":{"user_id":"111","username":"recipient","gifted_by":"804932984","gifted_by_login":"mavey"}}}`
+	resp := doWebhook(t, app, body, testSecret, true)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
+	require.Len(t, store.records, 1)
+	assert.Equal(t, uint64(111), store.records[0].UserID)
+	require.Len(t, notices, 1)
+	assert.Equal(t, GiftNotice{
+		WebhookID:     "evt-gift",
+		RecipientID:   111,
+		GiftedByID:    804932984,
+		GiftedByLogin: "mavey",
+	}, notices[0])
+}
+
+func TestGiftNotificationSkippedOnRenewalAndSelfPurchase(t *testing.T) {
+
+	store := &fakeStore{}
+	var notices []GiftNotice
+	app := New(store, Config{
+		WebhookSecret: testSecret,
+		NotifyGift: func(_ context.Context, n GiftNotice) error {
+			notices = append(notices, n)
+			return nil
+		},
+	}, nil)
+
+	// Renewal of a gifted subscription: entitlement recorded, no ping.
+	renewal := `{"id":"evt-renew","type":"recurring-payment.renewed","subject":{"reference":"sub-1","last_payment":{"transaction_id":"tbx-gift-2","custom":{"user_id":"111","gifted_by":"804932984","gifted_by_login":"mavey"}}}}`
+	resp := doWebhook(t, app, renewal, testSecret, true)
+	resp.Body.Close()
+	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
+
+	// Self-purchase (no gifted_by): no ping.
+	self := `{"id":"evt-self","type":"payment.completed","subject":{"transaction_id":"tbx-3","custom":{"user_id":"222"}}}`
+	resp = doWebhook(t, app, self, testSecret, true)
+	resp.Body.Close()
+	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
+
+	// Basket "gifted" to its own buyer collapses to a plain purchase: no ping.
+	selfGift := `{"id":"evt-selfgift","type":"payment.completed","subject":{"transaction_id":"tbx-4","custom":{"user_id":"333","gifted_by":"333","gifted_by_login":"me"}}}`
+	resp = doWebhook(t, app, selfGift, testSecret, true)
+	resp.Body.Close()
+	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
+
+	assert.Len(t, store.records, 3)
+	assert.Empty(t, notices)
+}
+
+func TestGiftNotificationFailureDoesNotFailWebhook(t *testing.T) {
+
+	store := &fakeStore{}
+	app := New(store, Config{
+		WebhookSecret: testSecret,
+		NotifyGift: func(_ context.Context, _ GiftNotice) error {
+			return context.DeadlineExceeded
+		},
+	}, nil)
+
+	body := `{"id":"evt-gift-fail","type":"payment.completed","subject":{"transaction_id":"tbx-5","custom":{"user_id":"111","gifted_by":"804932984","gifted_by_login":"mavey"}}}`
+	resp := doWebhook(t, app, body, testSecret, true)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
+	require.Len(t, store.records, 1)
+}
