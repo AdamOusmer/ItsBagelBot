@@ -455,6 +455,30 @@ jobs:
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | podman login "${REGISTRY}" -u "${{ github.actor }}" --password-stdin
 
+      # The console images ship hashed client assets. HTML from one pod must be
+      # able to fetch its bundles from any other pod, so the ARM and Intel
+      # builds have to emit identical client files — a mismatch 404s the
+      # immutable assets in production and kills hydration.
+      - name: Verify console client bundles match across architectures
+        if: startsWith(matrix.image, 'console-')
+        shell: bash
+        env:
+          SUBJECT: ${{ steps.meta.outputs.subject }}
+        run: |
+          set -euo pipefail
+          tag="sha-${GITHUB_SHA::12}"
+          for arch in linuxx86_64 linuxarm64; do
+            podman pull -q "docker://${SUBJECT}:${tag}-${arch}"
+            cid="$(podman create "${SUBJECT}:${tag}-${arch}")"
+            podman cp "${cid}:/app/build/client/_app/immutable" "immutable-${arch}"
+            podman rm "${cid}" >/dev/null
+            (cd "immutable-${arch}" && find . -type f | sort) > "assets-${arch}.txt"
+          done
+          if ! diff -u assets-linuxx86_64.txt assets-linuxarm64.txt; then
+            echo "::error::ARM and Intel client bundles differ — the build is non-deterministic and would 404 immutable assets in production."
+            exit 1
+          fi
+
       - name: Publish multi-architecture manifests
         id: publish
         shell: bash
