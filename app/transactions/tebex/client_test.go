@@ -41,7 +41,7 @@ func TestCreateBasket(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"data": map[string]any{
 				"ident": "bkt-1",
-				"links": map[string]any{"checkout": "https://pay.tebex.io/bkt-1"},
+				"links": []any{},
 			},
 		})
 	})
