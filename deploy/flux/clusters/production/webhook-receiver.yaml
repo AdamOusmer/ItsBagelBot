@@ -13,3 +13,54 @@ spec:
   resources:
     - kind: GitRepository
       name: flux-system
+---
+# GitHub emits a package event after GHCR publishes an image. Reconcile the
+# ImageRepositories immediately instead of waiting for their polling interval;
+# the downstream ImagePolicy and ImageUpdateAutomation resources react to the
+# new revisions automatically.
+apiVersion: notification.toolkit.fluxcd.io/v1
+kind: Receiver
+metadata:
+  name: github-image-receiver
+  namespace: flux-system
+spec:
+  type: github
+  events:
+    - "ping"
+    - "package"
+  secretRef:
+    name: webhook-token
+  resources:
+    - apiVersion: image.toolkit.fluxcd.io/v1
+      kind: ImageRepository
+      name: commands
+    - apiVersion: image.toolkit.fluxcd.io/v1
+      kind: ImageRepository
+      name: console-admin
+    - apiVersion: image.toolkit.fluxcd.io/v1
+      kind: ImageRepository
+      name: console-dashboard
+    - apiVersion: image.toolkit.fluxcd.io/v1
+      kind: ImageRepository
+      name: modules
+    - apiVersion: image.toolkit.fluxcd.io/v1
+      kind: ImageRepository
+      name: notifications
+    - apiVersion: image.toolkit.fluxcd.io/v1
+      kind: ImageRepository
+      name: outgress
+    - apiVersion: image.toolkit.fluxcd.io/v1
+      kind: ImageRepository
+      name: projector
+    - apiVersion: image.toolkit.fluxcd.io/v1
+      kind: ImageRepository
+      name: transactions
+    - apiVersion: image.toolkit.fluxcd.io/v1
+      kind: ImageRepository
+      name: twitch-ingress
+    - apiVersion: image.toolkit.fluxcd.io/v1
+      kind: ImageRepository
+      name: users
+    - apiVersion: image.toolkit.fluxcd.io/v1
+      kind: ImageRepository
+      name: worker
