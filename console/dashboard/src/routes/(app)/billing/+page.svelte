@@ -91,13 +91,13 @@
   }
 
   async function launchCheckout(ident: string, fallbackUrl: string | null, setBusy: (busy: boolean) => void) {
-    const tebex = await waitForTebex();
+    if (fallbackUrl) {
+      window.location.href = fallbackUrl;
+      return;
+    }
+
+    const tebex = await waitForTebex(1500);
     if (!tebex) {
-      // Script blocked or offline: hosted checkout still works.
-      if (fallbackUrl) {
-        window.location.href = fallbackUrl;
-        return;
-      }
       setBusy(false);
       toast('err', 'Could not open checkout. Please try again.');
       return;
