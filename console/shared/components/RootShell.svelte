@@ -18,7 +18,21 @@
   onMount(() => {
     let teardown: (() => void) | undefined;
     initLenis().then((fn) => (teardown = fn));
-    return () => teardown?.();
+
+    // bfcache guard: Safari (and iOS) restore the frozen DOM of the last page
+    // even with Cache-Control: no-store, so reopening/returning to the app shows
+    // the previous route's body while the fresh nav highlights the new URL (e.g.
+    // stale /settings under an "Overview" nav). Force a real load so SSR is
+    // authoritative and the visible page always matches the URL.
+    const onPageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) location.reload();
+    };
+    window.addEventListener('pageshow', onPageShow);
+
+    return () => {
+      teardown?.();
+      window.removeEventListener('pageshow', onPageShow);
+    };
   });
 
   afterNavigate(() => {
