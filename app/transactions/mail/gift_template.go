@@ -121,11 +121,14 @@ var giftTmpl = template.Must(template.New("gift").Parse(strings.TrimSpace(`
           <!-- sign-off: the letter signature + bagel stamp from the site's story section -->
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:36px;">
             <tr>
-              <td valign="middle" style="font-family:'Caveat',cursive;font-size:26px;font-weight:600;line-height:1;color:` + colorTanLt + `;">
-                the folks behind the bagel
+              <td valign="middle">
+                <span style="display:inline-block;">
+                  <span style="font-family:'Caveat',cursive;font-size:26px;font-weight:600;line-height:1;color:` + colorTanLt + `;">the folks behind the bagel</span>
+                  <span style="display:block;height:2px;margin-top:8px;border-radius:2px;background-color:` + colorTan + `;background-image:linear-gradient(90deg,rgba(201,168,124,0.7),rgba(82,183,136,0.5));font-size:0;line-height:0;">&nbsp;</span>
+                </span>
               </td>
               <td valign="middle" align="right" width="66">
-                <div style="display:inline-block;width:55px;height:55px;line-height:55px;text-align:center;font-size:24px;border:1.5px dashed rgba(201,168,124,0.4);border-radius:50%;transform:rotate(8deg);">&#129704;</div>
+                <div style="display:inline-block;width:55px;height:55px;line-height:55px;text-align:center;font-size:24px;border:1.5px dashed rgba(201,168,124,0.4);border-radius:50%;transform:rotate(8deg);">&#129391;</div>
               </td>
             </tr>
           </table>
