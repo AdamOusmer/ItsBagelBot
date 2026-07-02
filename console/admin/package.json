@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "build": "NODE_OPTIONS=--require=../sorted-readdir.cjs vite build",
+    "build": "vite build",
     "preview": "node build",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json"
   },
