@@ -2,9 +2,9 @@ import type { PageServerLoad } from './$types';
 import { redirect } from '@sveltejs/kit';
 import { ACCOUNT_DELETED_COOKIE } from '$lib/server/session';
 
-export const load: PageServerLoad = ({ locals, cookies }) => {
+export const load: PageServerLoad = ({ locals, cookies, url }) => {
   const wasDeleted = cookies.get(ACCOUNT_DELETED_COOKIE) === '1';
-  cookies.delete(ACCOUNT_DELETED_COOKIE, { path: '/' });
+  cookies.delete(ACCOUNT_DELETED_COOKIE, { path: '/', secure: url.protocol === 'https:' });
 
   if (locals.session) throw redirect(302, '/');
   if (!wasDeleted) throw redirect(302, '/login');
