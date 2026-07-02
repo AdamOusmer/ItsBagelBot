@@ -26,12 +26,16 @@ export default {
       mode: 'auto',
       directives: {
         'default-src': ['self'],
-        'script-src': ['self'],
+        // js-agent.newrelic.com hosts the New Relic Browser (RUM) agent that the
+        // nonce'd inline loader (injected in hooks.server.ts) pulls in.
+        'script-src': ['self', 'https://js-agent.newrelic.com'],
         'style-src': ['self'],
         'style-src-attr': ['unsafe-inline'],
         'font-src': ['self'],
         'img-src': ['self', 'data:'],
-        'connect-src': ['self', 'https://dashboard.itsbagelbot.com'],
+        // *.nr-data.net is the New Relic Browser beacon (RUM page views, JS
+        // errors, SPA routes, web vitals).
+        'connect-src': ['self', 'https://dashboard.itsbagelbot.com', 'https://*.nr-data.net'],
         'object-src': ['none'],
         'base-uri': ['self'],
         'frame-ancestors': ['none']
