@@ -248,6 +248,7 @@
             class="gift-input"
             type="text"
             name="recipient"
+            data-cursor
             placeholder="Twitch username"
             autocomplete="off"
             spellcheck="false"
