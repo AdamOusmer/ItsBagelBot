@@ -36,6 +36,8 @@ type Commands struct {
 	Cooldown uint `json:"cooldown,omitempty"`
 	// AllowedUserID holds the value of the "allowed_user_id" field.
 	AllowedUserID uint64 `json:"allowed_user_id,omitempty"`
+	// Uses holds the value of the "uses" field.
+	Uses uint64 `json:"uses,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// UpdatedAt holds the value of the "updated_at" field.
@@ -52,7 +54,7 @@ func (*Commands) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case commands.FieldIsActive, commands.FieldStreamOnlineOnly:
 			values[i] = new(sql.NullBool)
-		case commands.FieldID, commands.FieldUserID, commands.FieldCooldown, commands.FieldAllowedUserID:
+		case commands.FieldID, commands.FieldUserID, commands.FieldCooldown, commands.FieldAllowedUserID, commands.FieldUses:
 			values[i] = new(sql.NullInt64)
 		case commands.FieldName, commands.FieldResponse, commands.FieldPerm:
 			values[i] = new(sql.NullString)
@@ -135,6 +137,12 @@ func (_m *Commands) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.AllowedUserID = uint64(value.Int64)
 			}
+		case commands.FieldUses:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field uses", values[i])
+			} else if value.Valid {
+				_m.Uses = uint64(value.Int64)
+			}
 		case commands.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field created_at", values[i])
@@ -209,6 +217,9 @@ func (_m *Commands) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("allowed_user_id=")
 	builder.WriteString(fmt.Sprintf("%v", _m.AllowedUserID))
+	builder.WriteString(", ")
+	builder.WriteString("uses=")
+	builder.WriteString(fmt.Sprintf("%v", _m.Uses))
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))

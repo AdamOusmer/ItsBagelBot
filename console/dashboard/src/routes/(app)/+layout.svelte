@@ -22,11 +22,9 @@
         ? 'Modules'
         : path.startsWith('/billing')
           ? 'Billing'
-          : path.startsWith('/notifications')
-            ? 'Notifications'
-            : path.startsWith('/settings') || path.startsWith('/access')
-              ? 'Settings'
-              : 'Overview'
+          : path.startsWith('/settings') || path.startsWith('/access')
+            ? 'Settings'
+            : 'Overview'
   );
 
   // Delegate view: nav and routes are limited to the granted sections, and the
@@ -35,29 +33,20 @@
   const canCommands = $derived(!isDelegate || sections.includes('commands'));
   const canModules = $derived(!isDelegate || sections.includes('modules'));
 
+  // Notifications deliberately have NO nav entry: the topbar bell (badge +
+  // dropdown, "View all" link) is the only way in.
   const items = $derived([
     ...(!isDelegate
-      ? [{ href: '/', icon: 'overview', label: 'Overview', active: crumb === 'Overview' }]
+      ? [{ href: '/', icon: 'home', label: 'Overview', active: crumb === 'Overview' }]
       : []),
     ...(canCommands
       ? [{ href: '/commands', icon: 'commands', label: 'Commands', active: crumb === 'Commands' }]
       : []),
     ...(canModules
-      ? [{ href: '/modules', icon: 'power', label: 'Modules', active: crumb === 'Modules' }]
+      ? [{ href: '/modules', icon: 'puzzle', label: 'Modules', active: crumb === 'Modules' }]
       : []),
     ...(!isDelegate
-      ? [{ href: '/billing', icon: 'heart', label: 'Billing', active: crumb === 'Billing' }]
-      : []),
-    ...(!isDelegate
-      ? [
-          {
-            href: '/notifications',
-            icon: 'bell',
-            label: 'Notifications',
-            active: crumb === 'Notifications',
-            count: data.unreadCount ? data.unreadCount : undefined
-          }
-        ]
+      ? [{ href: '/billing', icon: 'card', label: 'Billing', active: crumb === 'Billing' }]
       : []),
     ...(!isDelegate
       ? [{ href: '/settings', icon: 'settings', label: 'Settings', active: crumb === 'Settings' }]
@@ -95,7 +84,7 @@
       <NotificationBell
         notifications={(data.bellNotifications ?? [])}
         unreadCount={data.unreadCount ?? 0}
-        viewAllHref="/notifications"
+        viewAllHref="/settings#notifications"
         onMarkRead={markRead}
       />
     {/if}
@@ -104,8 +93,8 @@
 </AppShell>
 
 <!-- Hidden mark-read form the bell submits into; ?/markRead lives on the
-     /notifications route but SvelteKit actions can target any page. -->
-<form method="POST" action="/notifications?/markRead" use:enhance bind:this={markReadForm} hidden>
+     /settings route but SvelteKit actions can target any page. -->
+<form method="POST" action="/settings?/markRead" use:enhance bind:this={markReadForm} hidden>
   <input type="hidden" name="id" value={markReadId ?? ''} />
 </form>
 

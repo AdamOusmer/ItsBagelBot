@@ -44,12 +44,16 @@ func init() {
 	commandsDescAllowedUserID := commandsFields[8].Descriptor()
 	// commands.DefaultAllowedUserID holds the default value on creation for the allowed_user_id field.
 	commands.DefaultAllowedUserID = commandsDescAllowedUserID.Default.(uint64)
+	// commandsDescUses is the schema descriptor for uses field.
+	commandsDescUses := commandsFields[9].Descriptor()
+	// commands.DefaultUses holds the default value on creation for the uses field.
+	commands.DefaultUses = commandsDescUses.Default.(uint64)
 	// commandsDescCreatedAt is the schema descriptor for created_at field.
-	commandsDescCreatedAt := commandsFields[9].Descriptor()
+	commandsDescCreatedAt := commandsFields[10].Descriptor()
 	// commands.DefaultCreatedAt holds the default value on creation for the created_at field.
 	commands.DefaultCreatedAt = commandsDescCreatedAt.Default.(func() time.Time)
 	// commandsDescUpdatedAt is the schema descriptor for updated_at field.
-	commandsDescUpdatedAt := commandsFields[10].Descriptor()
+	commandsDescUpdatedAt := commandsFields[11].Descriptor()
 	// commands.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	commands.DefaultUpdatedAt = commandsDescUpdatedAt.Default.(func() time.Time)
 	// commands.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.

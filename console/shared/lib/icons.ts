@@ -31,7 +31,14 @@ export const icons = {
   blocked: '<circle cx="12" cy="12" r="9"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/>',
   symbol: '<rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V8a5 5 0 0 1 10 0v3"/>',
   follower: '<path d="M3 3v5h5"/><path d="M3.05 13a9 9 0 1 0 .5-4.6L3 8"/>',
-  x: '<line x1="6" y1="6" x2="18" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="18" y1="6" x2="6" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>'
+  x: '<line x1="6" y1="6" x2="18" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="18" y1="6" x2="6" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  home: '<path d="M3 10.5 12 3l9 7.5"/><path d="M5.5 9.5V20a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1V9.5"/><path d="M9.5 21v-6h5v6"/>',
+  puzzle:
+    '<path d="M9.5 4a2 2 0 0 1 4 0v1.5H17A1.5 1.5 0 0 1 18.5 7v3.5H20a2 2 0 0 1 0 4h-1.5V18a1.5 1.5 0 0 1-1.5 1.5h-3.5V21a2 2 0 0 1-4 0v-1.5H6A1.5 1.5 0 0 1 4.5 18v-3.5H6a2 2 0 0 0 0-4H4.5V7A1.5 1.5 0 0 1 6 5.5h3.5z"/>',
+  card: '<rect x="2.5" y="5.5" width="19" height="13" rx="2"/><line x1="2.5" y1="10" x2="21.5" y2="10"/><line x1="6" y1="15" x2="10" y2="15"/>',
+  server:
+    '<rect x="3.5" y="4" width="17" height="7" rx="1.5"/><rect x="3.5" y="13" width="17" height="7" rx="1.5"/><line x1="7" y1="7.5" x2="7.01" y2="7.5"/><line x1="7" y1="16.5" x2="7.01" y2="16.5"/><line x1="10.5" y1="7.5" x2="13" y2="7.5"/><line x1="10.5" y1="16.5" x2="13" y2="16.5"/>',
+  list: '<line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><circle cx="5" cy="6" r="1"/><circle cx="5" cy="12" r="1"/><circle cx="5" cy="18" r="1"/>'
 } as const;
 
 export type IconName = keyof typeof icons;

@@ -9,6 +9,7 @@ const (
 	SubjectUserDeleted         = "data.users.deleted"
 	SubjectModuleChanged       = "data.modules.changed"
 	SubjectCommandChanged      = "data.commands.changed"
+	SubjectCommandUsed         = "data.commands.used"
 	SubjectTransactionRecorded = "data.transactions.recorded"
 
 	// SubjectReprojectRequest asks every data service to republish its
@@ -51,7 +52,23 @@ type CommandChangedDTO struct {
 	Perm             string   `json:"perm,omitempty"`
 	Cooldown         uint     `json:"cooldown,omitempty"`
 	AllowedUserID    uint64   `json:"allowed_user_id,omitempty"`
-	Deleted          bool     `json:"deleted"`
+	// Uses is the lifetime execution counter (see SubjectCommandUsed). Carried
+	// on every change event so the projection never regresses it.
+	Uses    uint64 `json:"uses,omitempty"`
+	Deleted bool   `json:"deleted"`
+}
+
+// CommandUsedDTO reports successful executions of a custom command in chat.
+// The worker aggregates ticks locally and publishes summed events on a flush
+// window (rate-limiting the bus: a spammed command costs one event per window,
+// not one per run). The commands service sums them into the row's lifetime
+// counter on its own batch flush. Counters are loss-tolerant: a dropped event
+// costs at most one window of ticks.
+type CommandUsedDTO struct {
+	UserID uint64 `json:"user_id"`
+	Name   string `json:"name"`
+	// Count of executions in the window; 0 or absent means 1.
+	Count uint64 `json:"count,omitempty"`
 }
 
 type TransactionRecordedDTO struct {

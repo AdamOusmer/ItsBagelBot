@@ -3,7 +3,7 @@ import { nanoid } from 'nanoid';
 
 import mysql from 'mysql2/promise';
 
-export type DbServiceId = 'users' | 'commands' | 'modules' | 'transactions';
+export type DbServiceId = 'users' | 'commands' | 'modules' | 'transactions' | 'notifications';
 
 export type DbCredentialStatus = {
   id: DbServiceId;
@@ -49,6 +49,14 @@ const services: Record<DbServiceId, Omit<DbCredentialStatus, 'dbUser' | 'autoMig
     config: 'prd',
     schema: 'bagel_transactions',
     expectedUserPrefix: 'transactions_svc'
+  },
+  notifications: {
+    id: 'notifications',
+    label: 'Notifications',
+    project: 'notifications',
+    config: 'prd',
+    schema: 'bagel_notifications',
+    expectedUserPrefix: 'notifications_svc'
   }
 };
 
@@ -256,7 +264,7 @@ function accountSql(dbUser: string): string {
 }
 
 function schemaSql(schema: string): string {
-  if (!/^bagel_(users|commands|modules|transactions)$/.test(schema)) {
+  if (!/^bagel_(users|commands|modules|transactions|notifications)$/.test(schema)) {
     throw new Error('invalid database schema');
   }
   return `\`${schema}\``;

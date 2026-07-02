@@ -115,6 +115,22 @@ func main() {
 	}
 	defer func() { _ = grouped.Close() }()
 
+	// Use-counter events from the worker: exactly one instance sums each event
+	// (queue group), the repo batches them and flushes uses = uses + n.
+	if err := bus.Consume(ctx, nrApp, grouped, data.SubjectCommandUsed, func(msg *message.Message) error {
+
+		var dto data.CommandUsedDTO
+		if err := json.Unmarshal(msg.Payload, &dto); err != nil {
+			log.Warn("commands: bad command_used payload", zap.Error(err))
+			return nil
+		}
+
+		repo.RecordUse(dto.UserID, dto.Name, dto.Count)
+		return nil
+	}, log); err != nil {
+		log.Fatal("failed to subscribe to command used events", zap.Error(err))
+	}
+
 	if err := bus.Consume(ctx, nrApp, grouped, data.SubjectUserDeleted, func(msg *message.Message) error {
 
 		var dto data.UserDeletedDTO

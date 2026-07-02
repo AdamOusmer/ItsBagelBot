@@ -7,9 +7,13 @@ import {
   delegationOptOut,
   delegationRevoke,
   deleteSelf,
-  auditDashboardImpersonation
+  auditDashboardImpersonation,
+  notificationsForUser,
+  notificationMarkRead,
+  type NotificationWire
 } from '$lib/server/services';
 import { ACCOUNT_DELETED_COOKIE, COOKIE } from '$lib/server/session';
+import { demoNotifications } from '$lib/server/demo-notifications';
 import { env } from '$env/dynamic/private';
 
 const SECTIONS = ['commands'] as const;
@@ -28,6 +32,7 @@ export const load: PageServerLoad = async ({ locals }) => {
         { token: 'demo-consumed-token-5678', sections: ['commands'], delegate_login: 'trusty_mod', consumed: true }
       ],
       received: [{ owner_user_id: '42', owner_login: 'ferret_king', sections: ['commands'] }],
+      notifications: demoNotifications,
       degraded: false
     };
   }
@@ -40,22 +45,45 @@ export const load: PageServerLoad = async ({ locals }) => {
   const self = s.user_id;
   let given: Awaited<ReturnType<typeof delegationList>> = [];
   let received: Awaited<ReturnType<typeof delegationAccess>> = [];
+  let notifications: NotificationWire[] = [];
   let degraded = false;
 
-  const [givenResult, receivedResult] = await Promise.allSettled([
+  const [givenResult, receivedResult, notifResult] = await Promise.allSettled([
     delegationList(self),
-    delegationAccess(self)
+    delegationAccess(self),
+    notificationsForUser(self)
   ]);
 
   if (givenResult.status === 'fulfilled') given = givenResult.value;
   else degraded = true;
   if (receivedResult.status === 'fulfilled') received = receivedResult.value;
   else degraded = true;
+  // Notifications are a nice-to-have section; a failed fetch just shows empty.
+  if (notifResult.status === 'fulfilled') notifications = notifResult.value.notifications;
 
-  return { given, received, degraded };
+  return { given, received, notifications, degraded };
 };
 
 export const actions: Actions = {
+  // markRead lives here (not on a dedicated notifications page) because the
+  // bell dropdown and the Settings section are the only notification surfaces.
+  markRead: async ({ request, locals }) => {
+    const s = locals.session;
+    if (env.DEMO === '1') return { ok: true, action: 'read' };
+    if (!s) return fail(401, { error: 'Not signed in.' });
+    if (s.delegate_of) return fail(403, { error: 'Only the account owner can do that.' });
+
+    const id = Number(String((await request.formData()).get('id') ?? ''));
+    if (!Number.isFinite(id) || id <= 0) return fail(400, { error: 'id required' });
+
+    try {
+      await notificationMarkRead(s.user_id, id);
+      return { ok: true, action: 'read' };
+    } catch {
+      return fail(502, { error: 'Could not update. Try again in a moment.' });
+    }
+  },
+
   delete: async ({ locals, cookies, url }) => {
     const s = locals.session;
     if (!s) return fail(401, { error: 'Not signed in.' });
