@@ -72,7 +72,6 @@ func (a *adminRPC) send(ctx context.Context, req notificationsrpc.SendRequest) n
 	if err != nil {
 		return notificationsrpc.SendReply{Error: "actor_id must be numeric"}
 	}
-
 	var target *uint64
 	if scope == notification.ScopeDirect {
 		id, err := a.resolveTarget(ctx, req.TargetUserID, req.TargetUsername)
@@ -82,14 +81,19 @@ func (a *adminRPC) send(ctx context.Context, req notificationsrpc.SendRequest) n
 		target = &id
 	}
 
-	row, err := a.repo.Create(ctx, scope, target, req.Title, req.Body, level, actorID, req.ActorLogin, req.ExpiresAt)
+	row, created, err := a.repo.Create(ctx, req.RequestID, scope, target, req.Title, req.Body, level, actorID, req.ActorLogin, req.ExpiresAt)
 	if err != nil {
 		return notificationsrpc.SendReply{Error: err.Error()}
 	}
 
-	a.invalidate(target)
-	a.log.Info("admin notification sent",
-		zap.String("scope", req.Scope), zap.Int("id", row.ID), zap.Uint64("actor", actorID))
+	if created {
+		a.invalidate(target)
+		a.log.Info("admin notification sent",
+			zap.String("scope", req.Scope), zap.Int("id", row.ID), zap.Uint64("actor", actorID))
+	} else {
+		a.log.Warn("duplicate admin notification suppressed",
+			zap.String("scope", req.Scope), zap.Int("id", row.ID), zap.Uint64("actor", actorID))
+	}
 
 	view := viewOf(row, false)
 	return notificationsrpc.SendReply{Notification: &view}

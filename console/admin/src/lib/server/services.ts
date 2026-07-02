@@ -396,7 +396,10 @@ export const notificationSend = defineWrite({
     level: params.level,
     expires_at: params.expiresAt || undefined,
     actor_id: params.actorId,
-    actor_login: params.actorLogin
+    actor_login: params.actorLogin,
+    // One value per logical send. If NATS transports the request over more
+    // than one route, every delivery carries the same database idempotency key.
+    request_id: crypto.randomUUID()
   }),
   map: (reply: { notification: NotificationWire }) => reply.notification,
   after: () => invalidate('notifications:')

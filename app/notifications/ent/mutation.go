@@ -44,6 +44,7 @@ type NotificationMutation struct {
 	created_by        *uint64
 	addcreated_by     *int64
 	created_by_login  *string
+	request_id        *string
 	created_at        *time.Time
 	expires_at        *time.Time
 	clearedFields     map[string]struct{}
@@ -459,6 +460,55 @@ func (m *NotificationMutation) ResetCreatedByLogin() {
 	m.created_by_login = nil
 }
 
+// SetRequestID sets the "request_id" field.
+func (m *NotificationMutation) SetRequestID(s string) {
+	m.request_id = &s
+}
+
+// RequestID returns the value of the "request_id" field in the mutation.
+func (m *NotificationMutation) RequestID() (r string, exists bool) {
+	v := m.request_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRequestID returns the old "request_id" field's value of the Notification entity.
+// If the Notification object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *NotificationMutation) OldRequestID(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRequestID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRequestID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRequestID: %w", err)
+	}
+	return oldValue.RequestID, nil
+}
+
+// ClearRequestID clears the value of the "request_id" field.
+func (m *NotificationMutation) ClearRequestID() {
+	m.request_id = nil
+	m.clearedFields[notification.FieldRequestID] = struct{}{}
+}
+
+// RequestIDCleared returns if the "request_id" field was cleared in this mutation.
+func (m *NotificationMutation) RequestIDCleared() bool {
+	_, ok := m.clearedFields[notification.FieldRequestID]
+	return ok
+}
+
+// ResetRequestID resets all changes to the "request_id" field.
+func (m *NotificationMutation) ResetRequestID() {
+	m.request_id = nil
+	delete(m.clearedFields, notification.FieldRequestID)
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (m *NotificationMutation) SetCreatedAt(t time.Time) {
 	m.created_at = &t
@@ -632,7 +682,7 @@ func (m *NotificationMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *NotificationMutation) Fields() []string {
-	fields := make([]string, 0, 9)
+	fields := make([]string, 0, 10)
 	if m.scope != nil {
 		fields = append(fields, notification.FieldScope)
 	}
@@ -653,6 +703,9 @@ func (m *NotificationMutation) Fields() []string {
 	}
 	if m.created_by_login != nil {
 		fields = append(fields, notification.FieldCreatedByLogin)
+	}
+	if m.request_id != nil {
+		fields = append(fields, notification.FieldRequestID)
 	}
 	if m.created_at != nil {
 		fields = append(fields, notification.FieldCreatedAt)
@@ -682,6 +735,8 @@ func (m *NotificationMutation) Field(name string) (ent.Value, bool) {
 		return m.CreatedBy()
 	case notification.FieldCreatedByLogin:
 		return m.CreatedByLogin()
+	case notification.FieldRequestID:
+		return m.RequestID()
 	case notification.FieldCreatedAt:
 		return m.CreatedAt()
 	case notification.FieldExpiresAt:
@@ -709,6 +764,8 @@ func (m *NotificationMutation) OldField(ctx context.Context, name string) (ent.V
 		return m.OldCreatedBy(ctx)
 	case notification.FieldCreatedByLogin:
 		return m.OldCreatedByLogin(ctx)
+	case notification.FieldRequestID:
+		return m.OldRequestID(ctx)
 	case notification.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
 	case notification.FieldExpiresAt:
@@ -770,6 +827,13 @@ func (m *NotificationMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetCreatedByLogin(v)
+		return nil
+	case notification.FieldRequestID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRequestID(v)
 		return nil
 	case notification.FieldCreatedAt:
 		v, ok := value.(time.Time)
@@ -845,6 +909,9 @@ func (m *NotificationMutation) ClearedFields() []string {
 	if m.FieldCleared(notification.FieldTargetUserID) {
 		fields = append(fields, notification.FieldTargetUserID)
 	}
+	if m.FieldCleared(notification.FieldRequestID) {
+		fields = append(fields, notification.FieldRequestID)
+	}
 	if m.FieldCleared(notification.FieldExpiresAt) {
 		fields = append(fields, notification.FieldExpiresAt)
 	}
@@ -864,6 +931,9 @@ func (m *NotificationMutation) ClearField(name string) error {
 	switch name {
 	case notification.FieldTargetUserID:
 		m.ClearTargetUserID()
+		return nil
+	case notification.FieldRequestID:
+		m.ClearRequestID()
 		return nil
 	case notification.FieldExpiresAt:
 		m.ClearExpiresAt()
@@ -896,6 +966,9 @@ func (m *NotificationMutation) ResetField(name string) error {
 		return nil
 	case notification.FieldCreatedByLogin:
 		m.ResetCreatedByLogin()
+		return nil
+	case notification.FieldRequestID:
+		m.ResetRequestID()
 		return nil
 	case notification.FieldCreatedAt:
 		m.ResetCreatedAt()

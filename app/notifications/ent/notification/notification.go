@@ -29,6 +29,8 @@ const (
 	FieldCreatedBy = "created_by"
 	// FieldCreatedByLogin holds the string denoting the created_by_login field in the database.
 	FieldCreatedByLogin = "created_by_login"
+	// FieldRequestID holds the string denoting the request_id field in the database.
+	FieldRequestID = "request_id"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// FieldExpiresAt holds the string denoting the expires_at field in the database.
@@ -56,6 +58,7 @@ var Columns = []string{
 	FieldLevel,
 	FieldCreatedBy,
 	FieldCreatedByLogin,
+	FieldRequestID,
 	FieldCreatedAt,
 	FieldExpiresAt,
 }
@@ -173,6 +176,11 @@ func ByCreatedBy(opts ...sql.OrderTermOption) OrderOption {
 // ByCreatedByLogin orders the results by the created_by_login field.
 func ByCreatedByLogin(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldCreatedByLogin, opts...).ToFunc()
+}
+
+// ByRequestID orders the results by the request_id field.
+func ByRequestID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldRequestID, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.

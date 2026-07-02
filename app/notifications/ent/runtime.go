@@ -28,7 +28,7 @@ func init() {
 	// notification.CreatedByLoginValidator is a validator for the "created_by_login" field. It is called by the builders before save.
 	notification.CreatedByLoginValidator = notificationDescCreatedByLogin.Validators[0].(func(string) error)
 	// notificationDescCreatedAt is the schema descriptor for created_at field.
-	notificationDescCreatedAt := notificationFields[7].Descriptor()
+	notificationDescCreatedAt := notificationFields[8].Descriptor()
 	// notification.DefaultCreatedAt holds the default value on creation for the created_at field.
 	notification.DefaultCreatedAt = notificationDescCreatedAt.Default.(func() time.Time)
 	notificationreadFields := schema.NotificationRead{}.Fields()

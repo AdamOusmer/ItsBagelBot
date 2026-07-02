@@ -21,7 +21,7 @@ func TestBroadcastVisibleToEveryUser(t *testing.T) {
 	repo := repository.New(client)
 	ctx := context.Background()
 
-	_, err := repo.Create(ctx, notification.ScopeBroadcast, nil, "Maintenance", "Downtime tonight", notification.LevelWarning, 1, "itsmavey", nil)
+	_, _, err := repo.Create(ctx, "broadcast-1", notification.ScopeBroadcast, nil, "Maintenance", "Downtime tonight", notification.LevelWarning, 1, "itsmavey", nil)
 	require.NoError(t, err)
 
 	rows, read, err := repo.ListForUser(ctx, 1001, 50)
@@ -42,7 +42,7 @@ func TestDirectNotificationScopedToTarget(t *testing.T) {
 	ctx := context.Background()
 
 	target := uint64(1001)
-	_, err := repo.Create(ctx, notification.ScopeDirect, &target, "Welcome", "Thanks for subscribing", notification.LevelInfo, 1, "itsmavey", nil)
+	_, _, err := repo.Create(ctx, "direct-1", notification.ScopeDirect, &target, "Welcome", "Thanks for subscribing", notification.LevelInfo, 1, "itsmavey", nil)
 	require.NoError(t, err)
 
 	rows, _, err := repo.ListForUser(ctx, 1001, 50)
@@ -61,7 +61,7 @@ func TestMarkReadIsIdempotentAndPerUser(t *testing.T) {
 	repo := repository.New(client)
 	ctx := context.Background()
 
-	row, err := repo.Create(ctx, notification.ScopeBroadcast, nil, "Heads up", "Body", notification.LevelInfo, 1, "itsmavey", nil)
+	row, _, err := repo.Create(ctx, "read-1", notification.ScopeBroadcast, nil, "Heads up", "Body", notification.LevelInfo, 1, "itsmavey", nil)
 	require.NoError(t, err)
 
 	require.NoError(t, repo.MarkRead(ctx, row.ID, 1001))
@@ -84,11 +84,11 @@ func TestExpiredNotificationExcluded(t *testing.T) {
 	ctx := context.Background()
 
 	past := time.Now().Add(-time.Hour)
-	_, err := repo.Create(ctx, notification.ScopeBroadcast, nil, "Expired", "Body", notification.LevelInfo, 1, "itsmavey", &past)
+	_, _, err := repo.Create(ctx, "expired-1", notification.ScopeBroadcast, nil, "Expired", "Body", notification.LevelInfo, 1, "itsmavey", &past)
 	require.NoError(t, err)
 
 	future := time.Now().Add(time.Hour)
-	_, err = repo.Create(ctx, notification.ScopeBroadcast, nil, "Still live", "Body", notification.LevelInfo, 1, "itsmavey", &future)
+	_, _, err = repo.Create(ctx, "live-1", notification.ScopeBroadcast, nil, "Still live", "Body", notification.LevelInfo, 1, "itsmavey", &future)
 	require.NoError(t, err)
 
 	rows, _, err := repo.ListForUser(ctx, 1001, 50)
@@ -104,7 +104,7 @@ func TestDeleteCascadesReads(t *testing.T) {
 	repo := repository.New(client)
 	ctx := context.Background()
 
-	row, err := repo.Create(ctx, notification.ScopeBroadcast, nil, "Bye", "Body", notification.LevelInfo, 1, "itsmavey", nil)
+	row, _, err := repo.Create(ctx, "delete-1", notification.ScopeBroadcast, nil, "Bye", "Body", notification.LevelInfo, 1, "itsmavey", nil)
 	require.NoError(t, err)
 	require.NoError(t, repo.MarkRead(ctx, row.ID, 1001))
 
@@ -115,4 +115,22 @@ func TestDeleteCascadesReads(t *testing.T) {
 	admin, err := repo.ListForAdmin(ctx, 20, 0)
 	require.NoError(t, err)
 	assert.Empty(t, admin)
+}
+
+func TestCreateIsIdempotentByRequestID(t *testing.T) {
+	client := enttest.Open(t, "sqlite3", "file:notifidempotency?mode=memory&cache=shared&_fk=1")
+	t.Cleanup(func() { _ = client.Close() })
+
+	repo := repository.New(client)
+	ctx := context.Background()
+
+	first, created, err := repo.Create(ctx, "send-123", notification.ScopeBroadcast, nil, "Once", "Body", notification.LevelInfo, 1, "itsmavey", nil)
+	require.NoError(t, err)
+	assert.True(t, created)
+
+	duplicate, created, err := repo.Create(ctx, "send-123", notification.ScopeBroadcast, nil, "Once", "Body", notification.LevelInfo, 1, "itsmavey", nil)
+	require.NoError(t, err)
+	assert.False(t, created)
+	assert.Equal(t, first.ID, duplicate.ID)
+	assert.Equal(t, 1, client.Notification.Query().CountX(ctx))
 }
