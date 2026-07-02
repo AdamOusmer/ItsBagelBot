@@ -71,7 +71,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: transactions
-          image: ghcr.io/adamousmer/itsbagelbot/transactions:main-1782963915-650cc7b93f24@sha256:f13b3f3bfcf55e538790eac1aab587a4f2aa107c7ab7e96830dd2ea8d7ddfd73 # {"$imagepolicy": "flux-system:transactions"}
+          image: ghcr.io/adamousmer/itsbagelbot/transactions:main-1783008441-ada450620f8f@sha256:808ae75c2725676a576b67644117b338c221d6dfc760034866dd9b4550c528da # {"$imagepolicy": "flux-system:transactions"}
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST
@@ -159,7 +159,7 @@ metadata:
 spec:
   entryPoints: [websecure]
   routes:
-    - match: Host(`webhooks.itsbagelbot.com`) && Path(`/tebex`)
+    - match: Host(`webhooks.itsbagelbot.com`) && (PathPrefix(`/tebex`) || PathPrefix(`/webhooks/tebex`))
       kind: Rule
       services:
         - name: transactions

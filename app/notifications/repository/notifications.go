@@ -27,6 +27,7 @@ func New(client *ent.Client) *Notifications {
 // Create records a notification. targetUserID is nil for scope=broadcast.
 func (r *Notifications) Create(
 	ctx context.Context,
+	requestID string,
 	scope notification.Scope,
 	targetUserID *uint64,
 	title, body string,
@@ -34,8 +35,8 @@ func (r *Notifications) Create(
 	createdBy uint64,
 	createdByLogin string,
 	expiresAt *time.Time,
-) (*ent.Notification, error) {
-	return db.WithQuery(ctx, func(ctx context.Context) (*ent.Notification, error) {
+) (*ent.Notification, bool, error) {
+	row, err := db.WithQuery(ctx, func(ctx context.Context) (*ent.Notification, error) {
 		q := r.client.Notification.Create().
 			SetScope(scope).
 			SetTitle(title).
@@ -45,8 +46,28 @@ func (r *Notifications) Create(
 			SetCreatedByLogin(createdByLogin).
 			SetNillableTargetUserID(targetUserID).
 			SetNillableExpiresAt(expiresAt)
+		if requestID != "" {
+			q.SetRequestID(requestID)
+		}
 		return q.Save(ctx)
 	})
+	if err == nil {
+		return row, true, nil
+	}
+	if !ent.IsConstraintError(err) || requestID == "" {
+		return nil, false, err
+	}
+
+	// Another replica may have committed this logical send first. Return that
+	// row as success so every RPC delivery produces the same reply without a
+	// second insert or cache invalidation.
+	row, lookupErr := db.WithQuery(ctx, func(ctx context.Context) (*ent.Notification, error) {
+		return r.client.Notification.Query().Where(notification.RequestIDEQ(requestID)).Only(ctx)
+	})
+	if lookupErr != nil {
+		return nil, false, lookupErr
+	}
+	return row, false, nil
 }
 
 // ListForAdmin returns rows newest-first for the admin console.

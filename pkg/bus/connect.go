@@ -66,6 +66,12 @@ func baseOptions(name, user, pass string) []nats.Option {
 		// Honor serverList order on the initial dial and on every reconnect; the
 		// default shuffles the pool and would let a client pin the hub.
 		nats.DontRandomize(),
+		// Keep reconnecting through authorization errors. The default aborts the
+		// connection for good after two consecutive auth failures against the
+		// same server, which permanently strands a pod when the broker's account
+		// env lags a credential rotation (readyz stays 503 but healthz keeps the
+		// container alive, so it never restarts on its own).
+		nats.IgnoreAuthErrorAbort(),
 	}
 
 	if name != "" {
