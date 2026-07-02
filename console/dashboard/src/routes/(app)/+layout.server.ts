@@ -1,8 +1,9 @@
 import { redirect } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
 import type { LayoutServerLoad } from './$types';
-import type { Session } from '$lib/server/session';
-import { isBanned, notificationsForUser, type NotificationWire } from '$lib/server/services';
+import { COOKIE, type Session } from '$lib/server/session';
+import { accountState, isBanned, notificationsForUser, type NotificationWire } from '$lib/server/services';
+import { RpcError } from '@bagel/shared/server/nats';
 import { demoNotifications } from '$lib/server/demo-notifications';
 
 const BELL_PEEK = 5;
@@ -17,14 +18,33 @@ const demo: Session = {
   expires_at: Math.floor(Date.now() / 1000) + 3600
 };
 
-export const load: LayoutServerLoad = async ({ locals, url }) => {
+export const load: LayoutServerLoad = async ({ locals, url, cookies }) => {
   let s = locals.session;
   if (!s && env.DEMO === '1') s = demo;
   if (!s) throw redirect(302, '/login');
 
-  // Defense in depth: bounce a session whose user was banned after sign-in.
-  // isBanned fails open so an RPC blip never locks out the whole app.
-  if (env.DEMO !== '1' && (await isBanned(s.user_id))) throw redirect(302, '/login?e=banned');
+  if (env.DEMO !== '1') {
+    // Defense in depth: bounce a session whose user was banned after sign-in.
+    // isBanned fails open so an RPC blip never locks out the whole app.
+    if (await isBanned(s.user_id)) throw redirect(302, '/login?e=banned');
+
+    // Ghost-session gate: a session cookie stays cryptographically valid until
+    // it expires, so a browser that still holds one for a DELETED account (or
+    // one deleted from another device) could keep acting on the app — and its
+    // stale deletion cookies could bounce it through /goodbye on any action.
+    // accountState is fabric-cached, so this costs ~0 on the hot path; an
+    // RpcError means the users service itself answered "no such user"
+    // (transport failures throw plain errors and deliberately fail open).
+    try {
+      await accountState(s.user_id);
+    } catch (err) {
+      if (err instanceof RpcError) {
+        cookies.delete(COOKIE, { path: '/' });
+        throw redirect(302, '/login?e=signedout');
+      }
+      // Transient transport problem: keep the session, pages degrade instead.
+    }
+  }
 
   // A delegate may only roam the sections they were granted. Home, account
   // (overview actions) and the share-management page are owner-only. If the

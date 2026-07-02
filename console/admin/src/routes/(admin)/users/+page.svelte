@@ -158,10 +158,31 @@
     deleteTarget = null;
   }
 
+  // --- Paid-grant modal state ------------------------------------------
+  // Paid is never set blind: the modal fixes the start day (today) and asks
+  // for the end day the grant runs to; the expiry sweeper downgrades on it.
+  let grantTarget = $state<AdminUserWire | null>(null);
+  let grantEnd = $state('');
+
+  function dateOnly(d: Date): string {
+    return d.toISOString().slice(0, 10);
+  }
+  const grantToday = $derived(dateOnly(new Date()));
+  const grantMin = $derived(dateOnly(new Date(Date.now() + 864e5)));
+
+  function openGrant(u: AdminUserWire) {
+    grantTarget = u;
+    grantEnd = dateOnly(new Date(Date.now() + 30 * 864e5)); // default: one month
+  }
+  function closeGrant() {
+    grantTarget = null;
+  }
+
   // Esc closes modal first, then drawer.
   function handleKey(e: KeyboardEvent) {
     if (e.key !== 'Escape') return;
     if (deleteTarget) closeDelete();
+    else if (grantTarget) closeGrant();
     else if (selected) closeDrawer();
   }
 
@@ -299,6 +320,12 @@
       <!-- Profile meta -->
       <div class="meta-block">
         <div class="meta-line"><span class="meta-k">Status</span><span class="meta-v">{drawerUser.status}</span></div>
+        {#if drawerUser.subscription_expires_at}
+          <div class="meta-line">
+            <span class="meta-k">Paid until</span>
+            <span class="meta-v">{drawerUser.subscription_expires_at.slice(0, 10)}{drawerUser.subscription_source ? ` · ${drawerUser.subscription_source}` : ''}</span>
+          </div>
+        {/if}
         <div class="meta-line"><span class="meta-k">State</span><span class="meta-v">{drawerUser.is_active ? 'active' : 'inactive'}</span></div>
         <div class="meta-line"><span class="meta-k">Ban</span><span class="meta-v">{drawerUser.banned ? 'banned' : 'allowed'}</span></div>
         <div class="meta-line">
@@ -320,19 +347,37 @@
         <span class="field-label">Tier</span>
         <div class="segment">
           {#each tiers as t}
-            <form method="POST" action="?/setStatus" use:enhance={refresh}>
-              <input type="hidden" name="user_id" value={drawerUser.id} />
-              <input type="hidden" name="status" value={t.key} />
+            {#if t.key === 'paid'}
+              <!-- Paid goes through the grant modal: it needs an end date. -->
               <button
                 class="seg-btn"
                 class:on={drawerUser.status === t.key}
-                type="submit"
+                type="button"
                 disabled={drawerUser.status === t.key}
                 aria-pressed={drawerUser.status === t.key}
+                onclick={() => openGrant(drawerUser)}
               >{t.label}</button>
-            </form>
+            {:else}
+              <form method="POST" action="?/setStatus" use:enhance={refresh}>
+                <input type="hidden" name="user_id" value={drawerUser.id} />
+                <input type="hidden" name="status" value={t.key} />
+                <button
+                  class="seg-btn"
+                  class:on={drawerUser.status === t.key}
+                  type="submit"
+                  disabled={drawerUser.status === t.key}
+                  aria-pressed={drawerUser.status === t.key}
+                >{t.label}</button>
+              </form>
+            {/if}
           {/each}
         </div>
+        {#if drawerUser.status === 'paid' && drawerUser.subscription_expires_at}
+          <p class="notice-muted">
+            Paid until {drawerUser.subscription_expires_at.slice(0, 10)}
+            {drawerUser.subscription_source ? ` (${drawerUser.subscription_source})` : ''}
+          </p>
+        {/if}
       </div>
 
       <!-- Active toggle -->
@@ -455,7 +500,58 @@
   {/if}
 </Modal>
 
+<!-- Paid-grant modal: start day is fixed to today, the end day is the date the
+     expiry sweeper downgrades the user back to free. Both land in the audit
+     log (set_status detail: status=paid start=... end=...). -->
+<Modal open={grantTarget !== null} title={`Grant paid to @${grantTarget?.username}?`} closeModal={closeGrant}>
+  {#if grantTarget}
+    <p class="modal-body">
+      The user gets the premium tier immediately and is downgraded automatically when the grant ends.
+      While the grant is active they cannot be charged through Tebex.
+    </p>
+    <form
+      method="POST"
+      action="?/setStatus"
+      use:enhance={() => async ({ update }) => {
+        await update({ invalidateAll: false });
+        closeGrant();
+      }}
+    >
+      <input type="hidden" name="user_id" value={grantTarget.id} />
+      <input type="hidden" name="status" value="paid" />
+      <div class="grant-dates">
+        <label class="grant-date">
+          <span class="meta-k">Starts</span>
+          <input type="date" value={grantToday} disabled />
+        </label>
+        <label class="grant-date">
+          <span class="meta-k">Ends</span>
+          <input type="date" name="expires_at" bind:value={grantEnd} min={grantMin} required />
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button class="btn ghost" type="button" onclick={closeGrant}>Cancel</button>
+        <button class="btn" type="submit" disabled={!grantEnd}>Grant paid until {grantEnd || '…'}</button>
+      </div>
+    </form>
+  {/if}
+</Modal>
+
 <style>
+  /* paid-grant modal date row */
+  .grant-dates { display: flex; gap: 12px; margin: 12px 0 4px; }
+  .grant-date { display: flex; flex-direction: column; gap: 6px; flex: 1; }
+  .grant-date input[type='date'] {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+    border-radius: 8px;
+    color: var(--bb-white, #fff);
+    padding: 8px 10px;
+    font: inherit;
+    color-scheme: dark;
+  }
+  .grant-date input[type='date']:disabled { opacity: 0.55; }
+
   /* notice text variants */
   .notice-muted { font-size: .85rem; color: var(--bb-muted); margin: .8rem 0 0; }
   .notice-ok  { font-size: .82rem; color: var(--bb-green-glow); margin: 0 0 .2rem; }

@@ -206,7 +206,13 @@ export async function userOverview(page = 1, search = ''): Promise<UserPage> {
 
 export const userSetStatus = defineWrite({
   subject: `${SUB.user}.set_status`,
-  request: (userId: string, status: string) => ({ user_id: userId, status }),
+  // expiresAt (ISO timestamp) is required by the users service when status is
+  // "paid": every operator grant carries the day it ends.
+  request: (userId: string, status: string, expiresAt?: string) => ({
+    user_id: userId,
+    status,
+    ...(expiresAt ? { expires_at: expiresAt } : {})
+  }),
   map: (reply: { user: AdminUserWire }) => reply.user,
   after: (user, userId) => {
     invalidateUser(userId);

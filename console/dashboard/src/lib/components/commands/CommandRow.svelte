@@ -204,8 +204,16 @@
     .resp { grid-area: resp; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; }
     .meta { grid-area: meta; }
     .state { display: none; }
-    .row-act { grid-area: act; flex-direction: column; gap: 8px; }
-    .row-act .toggle { min-width: 40px; min-height: 44px; display: flex; align-items: center; }
+    .row-act { grid-area: act; flex-direction: column; gap: 4px; }
+    /* 44px touch target lives on the form wrapper; the switch keeps its
+       natural 42x24 shape instead of being stretched into a tall box. */
+    .row-act form {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 44px;
+      min-height: 44px;
+    }
     .mini { min-width: 44px; min-height: 44px; }
   }
 </style>

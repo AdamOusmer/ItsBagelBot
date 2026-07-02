@@ -17,8 +17,9 @@
     offset?: boolean; banner?: Snippet; topActions?: Snippet; children: Snippet;
   } = $props();
 
-  // The dock wants one flat list. Prefer the curated mobileItems (already the
-  // condensed set); fall back to flattening the sidebar-era groups.
+  // Flat apps (one group) get their curated mobileItems in the dock; apps with
+  // several groups (admin) get the grouped dock, which collapses each group
+  // into one button + popover so the bar never bloats.
   const dockItems = $derived(
     mobileItems.length ? mobileItems : groups.flatMap((g) => g.items)
   );
@@ -39,7 +40,7 @@
   <main class="main">
     <div class="canvas">{@render children()}</div>
   </main>
-  <Dock items={dockItems} />
+  <Dock items={dockItems} {groups} />
 </div>
 
 <style>

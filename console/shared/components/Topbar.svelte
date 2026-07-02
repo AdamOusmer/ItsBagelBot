@@ -44,7 +44,6 @@
   </a>
 
   <div class="crumb">
-    <span class="sig">SIG</span>
     <span class="root">{root}</span><span class="sep">/</span><span class="here">{crumb}</span>
   </div>
 
@@ -82,18 +81,14 @@
   }
 
   .station { display: flex; align-items: center; gap: 9px; text-decoration: none; flex: none; }
-  .station img { width: 24px; height: 24px; border-radius: 2px; }
+  .station img { width: 26px; height: 26px; border-radius: var(--bb-radius-sm, 6px); }
   .station-id { display: flex; flex-direction: column; line-height: 1; }
-  .station-id b { font-family: var(--bb-font-display); font-weight: 800; font-size: 13px; letter-spacing: -0.01em; color: var(--bb-white); }
-  .station-id i { font-style: normal; font-family: var(--bb-font-mono); font-size: 8px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--bb-tan); margin-top: 3px; }
+  .station-id b { font-family: var(--bb-font-display); font-weight: 800; font-size: 13.5px; letter-spacing: -0.01em; color: var(--bb-white); }
+  .station-id i { font-style: normal; font-family: var(--bb-font-body); font-weight: 600; font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--bb-tan); margin-top: 3px; }
 
-  .crumb { font-family: var(--bb-font-mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--bb-muted); display: flex; align-items: center; gap: 10px; min-width: 0; }
-  .sig {
-    color: var(--bb-green-glow); font-size: 9px; letter-spacing: 0.2em;
-    border: 1px solid rgba(82, 183, 136, 0.35); padding: 2px 6px; border-radius: 2px; flex: none;
-  }
+  .crumb { font-family: var(--bb-font-body); font-weight: 500; font-size: 13px; color: var(--bb-muted); display: flex; align-items: center; gap: 8px; min-width: 0; }
   .crumb .sep { opacity: 0.45; }
-  .crumb .here { color: var(--bb-tan); white-space: nowrap; }
+  .crumb .here { color: var(--bb-tan-light); white-space: nowrap; font-weight: 600; }
   .crumb .root { white-space: nowrap; }
 
   .grow { flex: 1; }
@@ -106,14 +101,14 @@
 
   .operator { display: none; align-items: center; gap: 9px; }
   .avatar {
-    width: 26px; height: 26px; border-radius: 2px; flex: none;
+    width: 28px; height: 28px; border-radius: 50%; flex: none;
     background: linear-gradient(135deg, var(--bb-green-light), var(--bb-tan));
     display: flex; align-items: center; justify-content: center;
     font-family: var(--bb-font-display); font-weight: 800; font-size: 12px; color: #0a0a0a;
   }
   .op-id { display: flex; flex-direction: column; line-height: 1; }
   .op-id b { font-family: var(--bb-font-body); font-weight: 600; font-size: 12px; color: var(--bb-white); max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .op-id i { font-style: normal; font-family: var(--bb-font-mono); font-size: 8.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--bb-tan); margin-top: 3px; }
+  .op-id i { font-style: normal; font-family: var(--bb-font-body); font-weight: 600; font-size: 10px; letter-spacing: 0.06em; color: var(--bb-tan); margin-top: 3px; }
 
   @media (min-width: 761px) {
     .clock { display: inline; }
@@ -124,7 +119,7 @@
     .crumb .root, .crumb .sep { display: none; }
   }
 
-  .icon-btn { width: 32px; height: 32px; border-radius: 2px; display: flex; align-items: center; justify-content: center;
+  .icon-btn { width: 34px; height: 34px; border-radius: var(--bb-radius-md, 10px); display: flex; align-items: center; justify-content: center;
     background: none; border: 1px solid var(--rule, rgba(240, 236, 228, 0.1)); color: var(--bb-tan-light); cursor: pointer;
     transition: all var(--bb-dur-base) var(--bb-ease-out-expo); flex: none; }
   .icon-btn :global(svg) { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.7; }

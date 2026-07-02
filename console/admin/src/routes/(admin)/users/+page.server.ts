@@ -20,7 +20,7 @@ import {
   type ChannelSubState
 } from '$lib/server/services';
 import { requireAdmin, isDemo, type AdminIdentity } from '$lib/server/access';
-import { signViewAs } from '$lib/server/impersonation';
+import { signViewAs } from '@bagel/shared/server/impersonation';
 import { env } from '$env/dynamic/private';
 import { sampleStats, sampleUsers } from '$lib/server/sample';
 
@@ -149,13 +149,38 @@ export const actions: Actions = {
     const userId = String(f.get('user_id') ?? '').trim();
     const status = String(f.get('status') ?? '').trim();
     if (!userId || !STATUSES.has(status)) return fail(400, { error: 'invalid status' });
+
+    // A paid grant always carries its end date (the users service enforces it
+    // too). The grant runs from today until end-of-day on the chosen date.
+    let expiresAt: string | undefined;
+    let detail = `status=${status}`;
+    if (status === 'paid') {
+      const raw = String(f.get('expires_at') ?? '').trim(); // YYYY-MM-DD from the modal
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+        return { action: { ok: false, notice: 'paid grant needs an end date' } };
+      }
+      const end = new Date(`${raw}T23:59:59.999Z`);
+      if (Number.isNaN(end.getTime()) || end.getTime() <= Date.now()) {
+        return { action: { ok: false, notice: 'end date must be in the future' } };
+      }
+      if (end.getTime() > Date.now() + 5 * 365 * 864e5) {
+        return { action: { ok: false, notice: 'end date is too far out (max 5 years)' } };
+      }
+      expiresAt = end.toISOString();
+      const start = new Date().toISOString().slice(0, 10);
+      detail = `status=paid start=${start} end=${raw}`;
+    }
+
     if (isDemo()) return { action: { ok: true, notice: `status set to ${status} (demo)` } };
     try {
-      const user: AdminUserWire = await userSetStatus(userId, status);
-      audit(admin, 'set_status', userId, status, true);
-      return { action: { ok: true, notice: `status set to ${user.status}` }, lookup: { user } };
+      const user: AdminUserWire = await userSetStatus(userId, status, expiresAt);
+      audit(admin, 'set_status', userId, detail, true);
+      const until = user.subscription_expires_at
+        ? ` until ${user.subscription_expires_at.slice(0, 10)}`
+        : '';
+      return { action: { ok: true, notice: `status set to ${user.status}${until}` }, lookup: { user } };
     } catch (e) {
-      audit(admin, 'set_status', userId, status, false, (e as Error).message);
+      audit(admin, 'set_status', userId, detail, false, (e as Error).message);
       return { action: { ok: false, notice: (e as Error).message } };
     }
   },

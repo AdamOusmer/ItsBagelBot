@@ -20,11 +20,13 @@
       ? 'Commands'
       : path.startsWith('/modules')
         ? 'Modules'
-        : path.startsWith('/notifications')
-          ? 'Notifications'
-          : path.startsWith('/settings') || path.startsWith('/access')
-            ? 'Settings'
-            : 'Overview'
+        : path.startsWith('/billing')
+          ? 'Billing'
+          : path.startsWith('/notifications')
+            ? 'Notifications'
+            : path.startsWith('/settings') || path.startsWith('/access')
+              ? 'Settings'
+              : 'Overview'
   );
 
   // Delegate view: nav and routes are limited to the granted sections, and the
@@ -42,6 +44,9 @@
       : []),
     ...(canModules
       ? [{ href: '/modules', icon: 'power', label: 'Modules', active: crumb === 'Modules' }]
+      : []),
+    ...(!isDelegate
+      ? [{ href: '/billing', icon: 'heart', label: 'Billing', active: crumb === 'Billing' }]
       : []),
     ...(!isDelegate
       ? [
