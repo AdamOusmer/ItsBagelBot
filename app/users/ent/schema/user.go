@@ -25,6 +25,13 @@ func (User) Fields() []ent.Field {
 
 		field.String("email").NotEmpty().Unique().Sensitive(),
 
+		// Real contact email captured at Twitch login (user:read:email scope),
+		// stored as a Tink AEAD envelope bound to the user id (AAD) so a
+		// database leak never exposes addresses. Absent until the user's next
+		// login. Deleted with the row, so account erasure covers it. The
+		// legacy "email" column above stays a synthetic placeholder.
+		field.Bytes("email_enc").Optional().Sensitive(),
+
 		field.Bool("is_active").Default(true),
 
 		field.Bool("banned").Default(false),

@@ -57,6 +57,18 @@ func (_u *UserUpdate) SetNillableEmail(v *string) *UserUpdate {
 	return _u
 }
 
+// SetEmailEnc sets the "email_enc" field.
+func (_u *UserUpdate) SetEmailEnc(v []byte) *UserUpdate {
+	_u.mutation.SetEmailEnc(v)
+	return _u
+}
+
+// ClearEmailEnc clears the value of the "email_enc" field.
+func (_u *UserUpdate) ClearEmailEnc() *UserUpdate {
+	_u.mutation.ClearEmailEnc()
+	return _u
+}
+
 // SetIsActive sets the "is_active" field.
 func (_u *UserUpdate) SetIsActive(v bool) *UserUpdate {
 	_u.mutation.SetIsActive(v)
@@ -342,6 +354,12 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.Email(); ok {
 		_spec.SetField(user.FieldEmail, field.TypeString, value)
 	}
+	if value, ok := _u.mutation.EmailEnc(); ok {
+		_spec.SetField(user.FieldEmailEnc, field.TypeBytes, value)
+	}
+	if _u.mutation.EmailEncCleared() {
+		_spec.ClearField(user.FieldEmailEnc, field.TypeBytes)
+	}
 	if value, ok := _u.mutation.IsActive(); ok {
 		_spec.SetField(user.FieldIsActive, field.TypeBool, value)
 	}
@@ -477,6 +495,18 @@ func (_u *UserUpdateOne) SetNillableEmail(v *string) *UserUpdateOne {
 	if v != nil {
 		_u.SetEmail(*v)
 	}
+	return _u
+}
+
+// SetEmailEnc sets the "email_enc" field.
+func (_u *UserUpdateOne) SetEmailEnc(v []byte) *UserUpdateOne {
+	_u.mutation.SetEmailEnc(v)
+	return _u
+}
+
+// ClearEmailEnc clears the value of the "email_enc" field.
+func (_u *UserUpdateOne) ClearEmailEnc() *UserUpdateOne {
+	_u.mutation.ClearEmailEnc()
 	return _u
 }
 
@@ -794,6 +824,12 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	}
 	if value, ok := _u.mutation.Email(); ok {
 		_spec.SetField(user.FieldEmail, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.EmailEnc(); ok {
+		_spec.SetField(user.FieldEmailEnc, field.TypeBytes, value)
+	}
+	if _u.mutation.EmailEncCleared() {
+		_spec.ClearField(user.FieldEmailEnc, field.TypeBytes)
 	}
 	if value, ok := _u.mutation.IsActive(); ok {
 		_spec.SetField(user.FieldIsActive, field.TypeBool, value)
