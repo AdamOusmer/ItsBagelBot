@@ -31,6 +31,10 @@ export default {
         // billing page loads.
         'script-src': ['self', 'https://js-agent.newrelic.com', 'https://js.tebex.io'],
         'style-src': ['self'],
+        // Tebex.js injects a small inline <style> block for its checkout
+        // overlay. Keep style attributes separate below, and keep scripts
+        // nonce-based; this is just for third-party checkout CSS injection.
+        'style-src-elem': ['self', 'unsafe-inline'],
         'style-src-attr': ['unsafe-inline'],
         'font-src': ['self'],
         'img-src': ['self', 'data:'],
