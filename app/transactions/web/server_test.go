@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"ItsBagelBot/app/transactions/repository"
+	billingrpc "ItsBagelBot/internal/domain/rpc/billing"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
@@ -18,6 +19,7 @@ import (
 type fakeStore struct {
 	records []recordablePayment
 	events  []repository.WebhookEvent
+	changes []billingrpc.ApplyRequest
 }
 
 func (f *fakeStore) Record(_ context.Context, id string, userID uint64) error {
@@ -116,20 +118,21 @@ func TestPaymentCompletedWithoutUserIDStoresFailedState(t *testing.T) {
 	assert.Contains(t, store.events[0].Error, "user id")
 }
 
-func TestUnsupportedActionableWebhookStoresFailedState(t *testing.T) {
+func TestRefundRevokesEntitlementAndStoresProcessedState(t *testing.T) {
 
 	store := &fakeStore{}
 	app := newTestApp(store)
-	body := `{"id":"evt-refund","type":"payment.refunded","date":"2026-07-02T00:00:00+00:00","subject":{}}`
+	body := `{"id":"evt-refund","type":"payment.refunded","date":"2026-07-02T00:00:00+00:00","subject":{"transaction_id":"tbx-refund","custom":{"user_id":"1001"}}}`
 
 	resp := doWebhook(t, app, body, testSecret, true)
 	defer resp.Body.Close()
 
-	assert.Equal(t, http.StatusNotImplemented, resp.StatusCode)
+	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
 	assert.Empty(t, store.records)
 	require.Len(t, store.events, 1)
-	assert.Equal(t, repository.WebhookFailed, store.events[0].Status)
-	assert.Contains(t, store.events[0].Error, "not implemented")
+	assert.Equal(t, repository.WebhookProcessed, store.events[0].Status)
+	require.Len(t, store.changes, 1)
+	assert.Equal(t, billingrpc.ActionRevoke, store.changes[0].Action)
 }
 
 func TestBadSignatureIsRejectedBeforeStoringState(t *testing.T) {
@@ -174,7 +177,14 @@ func TestRecurringRenewedUsesLastPayment(t *testing.T) {
 const testSecret = "webhook-secret"
 
 func newTestApp(store *fakeStore) *fiber.App {
-	return New(store, Config{WebhookSecret: testSecret}, nil)
+	return New(store, Config{WebhookSecret: testSecret, ApplyBilling: applyFor(store)}, nil)
+}
+
+func applyFor(store *fakeStore) func(context.Context, billingrpc.ApplyRequest) error {
+	return func(_ context.Context, req billingrpc.ApplyRequest) error {
+		store.changes = append(store.changes, req)
+		return nil
+	}
 }
 
 func doWebhook(t *testing.T, app *fiber.App, body string, secret string, validSignature bool) *http.Response {
@@ -200,13 +210,14 @@ func TestGiftedPaymentNotifiesRecipientOnce(t *testing.T) {
 	var notices []GiftNotice
 	app := New(store, Config{
 		WebhookSecret: testSecret,
+		ApplyBilling:  applyFor(store),
 		NotifyGift: func(_ context.Context, n GiftNotice) error {
 			notices = append(notices, n)
 			return nil
 		},
 	}, nil)
 
-	body := `{"id":"evt-gift","type":"payment.completed","subject":{"transaction_id":"tbx-gift-1","custom":{"user_id":"111","username":"recipient","gifted_by":"804932984","gifted_by_login":"mavey"}}}`
+	body := `{"id":"evt-gift","type":"payment.completed","date":"2026-07-02T00:00:00Z","subject":{"transaction_id":"tbx-gift-1","custom":{"user_id":"111","username":"recipient","gifted_by":"804932984","gifted_by_login":"mavey"}}}`
 	resp := doWebhook(t, app, body, testSecret, true)
 	defer resp.Body.Close()
 
@@ -228,6 +239,7 @@ func TestGiftNotificationSkippedOnRenewalAndSelfPurchase(t *testing.T) {
 	var notices []GiftNotice
 	app := New(store, Config{
 		WebhookSecret: testSecret,
+		ApplyBilling:  applyFor(store),
 		NotifyGift: func(_ context.Context, n GiftNotice) error {
 			notices = append(notices, n)
 			return nil
@@ -235,19 +247,19 @@ func TestGiftNotificationSkippedOnRenewalAndSelfPurchase(t *testing.T) {
 	}, nil)
 
 	// Renewal of a gifted subscription: entitlement recorded, no ping.
-	renewal := `{"id":"evt-renew","type":"recurring-payment.renewed","subject":{"reference":"sub-1","last_payment":{"transaction_id":"tbx-gift-2","custom":{"user_id":"111","gifted_by":"804932984","gifted_by_login":"mavey"}}}}`
+	renewal := `{"id":"evt-renew","type":"recurring-payment.renewed","date":"2026-07-02T00:00:00Z","subject":{"reference":"sub-1","last_payment":{"transaction_id":"tbx-gift-2","custom":{"user_id":"111","gifted_by":"804932984","gifted_by_login":"mavey"}}}}`
 	resp := doWebhook(t, app, renewal, testSecret, true)
 	resp.Body.Close()
 	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
 
 	// Self-purchase (no gifted_by): no ping.
-	self := `{"id":"evt-self","type":"payment.completed","subject":{"transaction_id":"tbx-3","custom":{"user_id":"222"}}}`
+	self := `{"id":"evt-self","type":"payment.completed","date":"2026-07-02T00:01:00Z","subject":{"transaction_id":"tbx-3","custom":{"user_id":"222"}}}`
 	resp = doWebhook(t, app, self, testSecret, true)
 	resp.Body.Close()
 	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
 
 	// Basket "gifted" to its own buyer collapses to a plain purchase: no ping.
-	selfGift := `{"id":"evt-selfgift","type":"payment.completed","subject":{"transaction_id":"tbx-4","custom":{"user_id":"333","gifted_by":"333","gifted_by_login":"me"}}}`
+	selfGift := `{"id":"evt-selfgift","type":"payment.completed","date":"2026-07-02T00:02:00Z","subject":{"transaction_id":"tbx-4","custom":{"user_id":"333","gifted_by":"333","gifted_by_login":"me"}}}`
 	resp = doWebhook(t, app, selfGift, testSecret, true)
 	resp.Body.Close()
 	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
@@ -261,12 +273,13 @@ func TestGiftNotificationFailureDoesNotFailWebhook(t *testing.T) {
 	store := &fakeStore{}
 	app := New(store, Config{
 		WebhookSecret: testSecret,
+		ApplyBilling:  applyFor(store),
 		NotifyGift: func(_ context.Context, _ GiftNotice) error {
 			return context.DeadlineExceeded
 		},
 	}, nil)
 
-	body := `{"id":"evt-gift-fail","type":"payment.completed","subject":{"transaction_id":"tbx-5","custom":{"user_id":"111","gifted_by":"804932984","gifted_by_login":"mavey"}}}`
+	body := `{"id":"evt-gift-fail","type":"payment.completed","date":"2026-07-02T00:00:00Z","subject":{"transaction_id":"tbx-5","custom":{"user_id":"111","gifted_by":"804932984","gifted_by_login":"mavey"}}}`
 	resp := doWebhook(t, app, body, testSecret, true)
 	defer resp.Body.Close()
 

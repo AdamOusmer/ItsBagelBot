@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"ItsBagelBot/app/transactions/repository"
+	billingrpc "ItsBagelBot/internal/domain/rpc/billing"
 
 	"github.com/gofiber/fiber/v2"
 	"go.uber.org/zap"
@@ -41,6 +42,10 @@ type Config struct {
 	// only, not renewals). Best-effort: failures are logged, never surfaced to
 	// Tebex — the entitlement is already durable at that point.
 	NotifyGift func(ctx context.Context, notice GiftNotice) error
+	// ApplyBilling synchronously updates the users service after signature
+	// verification. Returning an error makes Tebex retry the webhook, so a
+	// transient NATS/users outage cannot lose a paid entitlement.
+	ApplyBilling func(ctx context.Context, req billingrpc.ApplyRequest) error
 }
 
 type Server struct {
@@ -57,19 +62,22 @@ type tebexEvent struct {
 }
 
 type paymentSubject struct {
-	TransactionID string                     `json:"transaction_id"`
-	Custom        map[string]json.RawMessage `json:"custom"`
-	Customer      struct {
+	TransactionID             string                     `json:"transaction_id"`
+	RecurringPaymentReference string                     `json:"recurring_payment_reference"`
+	Custom                    map[string]json.RawMessage `json:"custom"`
+	Customer                  struct {
 		Username usernameRef `json:"username"`
 	} `json:"customer"`
 	Products []struct {
-		Custom   map[string]json.RawMessage `json:"custom"`
-		Username usernameRef                `json:"username"`
+		Custom    map[string]json.RawMessage `json:"custom"`
+		Username  usernameRef                `json:"username"`
+		ExpiresAt string                     `json:"expires_at"`
 	} `json:"products"`
 }
 
 type recurringSubject struct {
 	Reference      string          `json:"reference"`
+	NextPaymentAt  string          `json:"next_payment_at"`
 	InitialPayment *paymentSubject `json:"initial_payment"`
 	LastPayment    *paymentSubject `json:"last_payment"`
 }
@@ -82,8 +90,10 @@ type recordablePayment struct {
 	TransactionID string
 	UserID        uint64
 	// Gift attribution from the basket custom payload; zero for self-purchases.
-	GiftedByID    uint64
-	GiftedByLogin string
+	GiftedByID         uint64
+	GiftedByLogin      string
+	RecurringReference string
+	ExpiresAt          *time.Time
 }
 
 var errNoRecordablePayment = errors.New("no recordable Tebex payment for event")
@@ -181,21 +191,61 @@ func (s *Server) tebexWebhook(c *fiber.Ctx) error {
 		if err := s.store.Record(ctx, payment.TransactionID, payment.UserID); err != nil {
 			return s.failEvent(c, event, payment, fiber.StatusInternalServerError, err)
 		}
+		if err := s.applyBilling(ctx, event, payment, billingrpc.ActionActivate); err != nil {
+			return s.failEvent(c, event, payment, fiber.StatusInternalServerError, err)
+		}
 		if err := s.saveEvent(ctx, event, repository.WebhookProcessed, payment, ""); err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to save webhook state"})
 		}
 		s.notifyGift(ctx, event, payment)
 		return c.SendStatus(fiber.StatusNoContent)
-	}
 
-	if unsupportedActionable(event.Type) {
-		return s.failEvent(c, event, recordablePayment{}, fiber.StatusNotImplemented, fmt.Errorf("handler not implemented for %s", event.Type))
+	case "recurring-payment.cancellation.requested":
+		return s.applyLifecycle(c, event, billingrpc.ActionCancelRequested)
+
+	case "recurring-payment.cancellation.aborted", "payment.dispute.won":
+		return s.applyLifecycle(c, event, billingrpc.ActionCancelAborted)
+
+	case "recurring-payment.ended", "payment.refunded", "payment.dispute.opened", "payment.dispute.lost":
+		return s.applyLifecycle(c, event, billingrpc.ActionRevoke)
 	}
 
 	if err := s.saveEvent(ctx, event, repository.WebhookIgnored, recordablePayment{}, ""); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to save webhook state"})
 	}
 	return c.SendStatus(fiber.StatusNoContent)
+}
+
+func (s *Server) applyLifecycle(c *fiber.Ctx, event tebexEvent, action billingrpc.Action) error {
+	payment, err := recordableFromEvent(event)
+	if err != nil {
+		return s.failEvent(c, event, payment, fiber.StatusUnprocessableEntity, err)
+	}
+	if err := s.applyBilling(c.UserContext(), event, payment, action); err != nil {
+		return s.failEvent(c, event, payment, fiber.StatusInternalServerError, err)
+	}
+	if err := s.saveEvent(c.UserContext(), event, repository.WebhookProcessed, payment, ""); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to save webhook state"})
+	}
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+func (s *Server) applyBilling(ctx context.Context, event tebexEvent, payment recordablePayment, action billingrpc.Action) error {
+	if s.cfg.ApplyBilling == nil {
+		return errors.New("billing entitlement handler not configured")
+	}
+	occurredAt, err := time.Parse(time.RFC3339, event.Date)
+	if err != nil {
+		return fmt.Errorf("invalid webhook date: %w", err)
+	}
+	return s.cfg.ApplyBilling(ctx, billingrpc.ApplyRequest{
+		UserID:             payment.UserID,
+		EventID:            event.ID,
+		Action:             action,
+		OccurredAt:         occurredAt,
+		ExpiresAt:          payment.ExpiresAt,
+		RecurringReference: payment.RecurringReference,
+	})
 }
 
 func (s *Server) failEvent(c *fiber.Ctx, event tebexEvent, payment recordablePayment, status int, cause error) error {
@@ -290,21 +340,37 @@ func recordableFromEvent(event tebexEvent) (recordablePayment, error) {
 		}
 		return recordableFromPayment(payment)
 
-	case "recurring-payment.started", "recurring-payment.renewed":
+	case "payment.refunded", "payment.dispute.opened", "payment.dispute.won", "payment.dispute.lost", "payment.dispute.closed":
+		var payment paymentSubject
+		if err := json.Unmarshal(event.Subject, &payment); err != nil {
+			return recordablePayment{}, err
+		}
+		return recordableFromPayment(payment)
+
+	case "recurring-payment.started", "recurring-payment.renewed", "recurring-payment.ended", "recurring-payment.cancellation.requested", "recurring-payment.cancellation.aborted":
 		var recurring recurringSubject
 		if err := json.Unmarshal(event.Subject, &recurring); err != nil {
 			return recordablePayment{}, err
 		}
+		var payment recordablePayment
+		var err error
 		if event.Type == "recurring-payment.renewed" && recurring.LastPayment != nil {
-			return recordableFromPayment(*recurring.LastPayment)
+			payment, err = recordableFromPayment(*recurring.LastPayment)
+		} else if recurring.InitialPayment != nil {
+			payment, err = recordableFromPayment(*recurring.InitialPayment)
+		} else if recurring.LastPayment != nil {
+			payment, err = recordableFromPayment(*recurring.LastPayment)
+		} else {
+			return recordablePayment{}, errNoRecordablePayment
 		}
-		if recurring.InitialPayment != nil {
-			return recordableFromPayment(*recurring.InitialPayment)
+		if err != nil {
+			return recordablePayment{}, err
 		}
-		if recurring.LastPayment != nil {
-			return recordableFromPayment(*recurring.LastPayment)
+		payment.RecurringReference = recurring.Reference
+		if expiresAt, ok := parseTebexTime(recurring.NextPaymentAt); ok {
+			payment.ExpiresAt = &expiresAt
 		}
-		return recordablePayment{}, errNoRecordablePayment
+		return payment, nil
 
 	default:
 		return recordablePayment{}, errNoRecordablePayment
@@ -323,15 +389,30 @@ func recordableFromPayment(payment paymentSubject) (recordablePayment, error) {
 		if giftedBy == userID {
 			giftedBy, giftedByLogin = 0, ""
 		}
-		return recordablePayment{
-			TransactionID: payment.TransactionID,
-			UserID:        userID,
-			GiftedByID:    giftedBy,
-			GiftedByLogin: giftedByLogin,
-		}, nil
+		result := recordablePayment{
+			TransactionID:      payment.TransactionID,
+			UserID:             userID,
+			GiftedByID:         giftedBy,
+			GiftedByLogin:      giftedByLogin,
+			RecurringReference: payment.RecurringPaymentReference,
+		}
+		for _, product := range payment.Products {
+			if expiresAt, ok := parseTebexTime(product.ExpiresAt); ok && (result.ExpiresAt == nil || expiresAt.After(*result.ExpiresAt)) {
+				result.ExpiresAt = &expiresAt
+			}
+		}
+		return result, nil
 	}
 
 	return recordablePayment{TransactionID: payment.TransactionID}, errors.New("payment user id missing")
+}
+
+func parseTebexTime(raw string) (time.Time, bool) {
+	if raw == "" {
+		return time.Time{}, false
+	}
+	parsed, err := time.Parse(time.RFC3339, raw)
+	return parsed, err == nil
 }
 
 // giftFromPayment reads the gifted_by attribution the basket carried. Checked
@@ -413,21 +494,4 @@ func rawUint(raw json.RawMessage) (uint64, bool) {
 	}
 	parsed, err := strconv.ParseUint(number.String(), 10, 64)
 	return parsed, err == nil && parsed != 0
-}
-
-func unsupportedActionable(eventType string) bool {
-
-	switch eventType {
-	case "payment.refunded",
-		"payment.dispute.opened",
-		"payment.dispute.won",
-		"payment.dispute.lost",
-		"payment.dispute.closed",
-		"recurring-payment.ended",
-		"recurring-payment.cancellation.requested",
-		"recurring-payment.cancellation.aborted":
-		return true
-	default:
-		return false
-	}
 }

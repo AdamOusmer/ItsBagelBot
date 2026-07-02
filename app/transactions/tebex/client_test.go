@@ -53,7 +53,7 @@ func TestCreateBasket(t *testing.T) {
 		})
 	})
 
-	basket, err := newTestClient(t, mux).CreateBasket(context.Background(), BasketSpec{UserID: 804932984, Username: "mavey"})
+	basket, err := newTestClient(t, mux).CreateBasket(context.Background(), BasketSpec{UserID: 804932984, Username: "mavey", IPAddress: "203.0.113.10"})
 	if err != nil {
 		t.Fatalf("CreateBasket: %v", err)
 	}
@@ -74,6 +74,12 @@ func TestCreateBasket(t *testing.T) {
 	}
 	if createBody["complete_url"] != "https://dashboard.example/billing?checkout=complete" {
 		t.Errorf("complete_url = %v", createBody["complete_url"])
+	}
+	if createBody["username"] != "mavey" {
+		t.Errorf("username = %v, want mavey", createBody["username"])
+	}
+	if createBody["ip_address"] != "203.0.113.10" {
+		t.Errorf("ip_address = %v, want 203.0.113.10", createBody["ip_address"])
 	}
 
 	if packageBody["package_id"] != float64(42) {

@@ -16,16 +16,21 @@ type AdminRequest struct {
 	Search       string `json:"search"`
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
+	ExpiresAt    string `json:"expires_at,omitempty"`
 }
 
 // AdminUserView is a single user row in an admin reply.
 type AdminUserView struct {
-	ID        uint64    `json:"id"`
-	Username  string    `json:"username"`
-	IsActive  bool      `json:"is_active"`
-	Status    string    `json:"status"`
-	Banned    bool      `json:"banned"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID                        uint64     `json:"id"`
+	Username                  string     `json:"username"`
+	IsActive                  bool       `json:"is_active"`
+	Status                    string     `json:"status"`
+	Banned                    bool       `json:"banned"`
+	SubscriptionExpiresAt     *time.Time `json:"subscription_expires_at,omitempty"`
+	SubscriptionSource        string     `json:"subscription_source,omitempty"`
+	SubscriptionRef           *string    `json:"subscription_ref,omitempty"`
+	SubscriptionCancelPending bool       `json:"subscription_cancel_pending"`
+	UpdatedAt                 time.Time  `json:"updated_at"`
 }
 
 // AdminStats aggregates user counts for the admin overview.

@@ -396,6 +396,8 @@ export type BillingState = {
   expiresAt: string | null;
   // 'tebex' | 'admin' | '' — who granted the paid period.
   source: string;
+  subscriptionRef: string | null;
+  cancelPending: boolean;
 };
 
 // Billing-page variant of accountState: same state_get RPC but carrying the
@@ -404,11 +406,20 @@ export type BillingState = {
 export const billingState = defineRead({
   subject: `${SUB.dashboard}.state_get`,
   request: (userId: string) => ({ broadcaster_user_id: userId }),
-  map: (r: { active: boolean; status: string; expires_at?: string; source?: string }): BillingState => ({
+  map: (r: {
+    active: boolean;
+    status: string;
+    expires_at?: string;
+    source?: string;
+    subscription_ref?: string;
+    subscription_cancel_pending?: boolean;
+  }): BillingState => ({
     active: !!r.active,
     status: normalizeStatus(r.status),
     expiresAt: r.expires_at ?? null,
-    source: r.source ?? ''
+    source: r.source ?? '',
+    subscriptionRef: r.subscription_ref ?? null,
+    cancelPending: !!r.subscription_cancel_pending
   }),
   timeoutMs: READ_TIMEOUT_MS,
   cache: {
@@ -428,14 +439,25 @@ export const billingState = defineRead({
 // read budget.
 export type CheckoutBasket = { ident: string; checkoutUrl: string | null; recipientLogin: string | null };
 
+export async function billingPortalToken(): Promise<string | null> {
+  const r = await rpc<{ public_token?: string }>(`${SUB.transactions}.config_get`, {}, 3000);
+  return r.public_token ?? null;
+}
+
 export async function checkoutBasketCreate(
   userId: string,
   username: string,
-  recipientUsername?: string
+  recipientUsername?: string,
+  ipAddress?: string
 ): Promise<CheckoutBasket> {
   const r = await rpc<{ ident?: string; checkout_url?: string; recipient_login?: string }>(
     `${SUB.transactions}.basket_create`,
-    { user_id: userId, username, recipient_username: recipientUsername || undefined },
+    {
+      user_id: userId,
+      username,
+      recipient_username: recipientUsername || undefined,
+      ip_address: ipAddress || undefined
+    },
     16000
   );
   if (!r.ident) throw new Error('basket create returned no ident');
