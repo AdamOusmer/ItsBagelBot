@@ -79,6 +79,20 @@ func (_c *NotificationCreate) SetCreatedByLogin(v string) *NotificationCreate {
 	return _c
 }
 
+// SetRequestID sets the "request_id" field.
+func (_c *NotificationCreate) SetRequestID(v string) *NotificationCreate {
+	_c.mutation.SetRequestID(v)
+	return _c
+}
+
+// SetNillableRequestID sets the "request_id" field if the given value is not nil.
+func (_c *NotificationCreate) SetNillableRequestID(v *string) *NotificationCreate {
+	if v != nil {
+		_c.SetRequestID(*v)
+	}
+	return _c
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_c *NotificationCreate) SetCreatedAt(v time.Time) *NotificationCreate {
 	_c.mutation.SetCreatedAt(v)
@@ -268,6 +282,10 @@ func (_c *NotificationCreate) createSpec() (*Notification, *sqlgraph.CreateSpec)
 	if value, ok := _c.mutation.CreatedByLogin(); ok {
 		_spec.SetField(notification.FieldCreatedByLogin, field.TypeString, value)
 		_node.CreatedByLogin = value
+	}
+	if value, ok := _c.mutation.RequestID(); ok {
+		_spec.SetField(notification.FieldRequestID, field.TypeString, value)
+		_node.RequestID = &value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(notification.FieldCreatedAt, field.TypeTime, value)

@@ -18,6 +18,7 @@ var (
 		{Name: "level", Type: field.TypeEnum, Enums: []string{"info", "success", "warning", "critical"}, Default: "info"},
 		{Name: "created_by", Type: field.TypeUint64},
 		{Name: "created_by_login", Type: field.TypeString},
+		{Name: "request_id", Type: field.TypeString, Unique: true, Nullable: true},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "expires_at", Type: field.TypeTime, Nullable: true},
 	}
@@ -35,7 +36,7 @@ var (
 			{
 				Name:    "notification_created_at",
 				Unique:  false,
-				Columns: []*schema.Column{NotificationsColumns[8]},
+				Columns: []*schema.Column{NotificationsColumns[9]},
 			},
 		},
 	}
