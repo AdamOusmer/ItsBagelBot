@@ -25,12 +25,11 @@ export const SUB = {
   outgressRpc: process.env.NATS_OUTGRESS_RPC_PREFIX ?? 'bagel.rpc.outgress',
   audit: process.env.NATS_ADMIN_AUDIT_SUBJECT_PREFIX ?? 'bagel.rpc.admin.user.audit',
   delegation: process.env.NATS_DELEGATION_SUBJECT_PREFIX ?? 'bagel.rpc.delegation',
-  billing: process.env.NATS_TRANSACTIONS_BILLING_SUBJECT_PREFIX ?? 'bagel.rpc.transactions.billing',
   notifications: process.env.NATS_NOTIFICATIONS_SUBJECT_PREFIX ?? 'bagel.rpc.notifications'
 };
 
 function userPrefixes(id: string): string[] {
-  return [`grant:${id}`, `account:${id}`, `tier:${id}`, `billing:${id}`, `billing-state:${id}`, `commands:${id}`, `modules:${id}`, `delegations:${id}`];
+  return [`grant:${id}`, `account:${id}`, `tier:${id}`, `billing-state:${id}`, `commands:${id}`, `modules:${id}`, `delegations:${id}`];
 }
 
 // Scope -> cache key routing for the invalidation bus, declared as data. The
@@ -38,9 +37,8 @@ function userPrefixes(id: string): string[] {
 // missing scopes fall through to '*' (coarse per-user flush, back-compat).
 const SCOPES: ScopeMap = {
   grant: (id) => [`grant:${id}`, `account:${id}`],
-  // Billing webhooks land as status invalidations (users service publishes
-  // them on entitlement change), so the billing summary rides the same scope.
-  status: (id) => [`account:${id}`, `tier:${id}`, `ban:${id}`, `billing:${id}`, `billing-state:${id}`],
+  // Billing webhooks land as status invalidations after entitlement changes.
+  status: (id) => [`account:${id}`, `tier:${id}`, `ban:${id}`, `billing-state:${id}`],
   commands: (id) => [`commands:${id}`],
   modules: (id) => [`modules:${id}`],
   delegation: (id) => [`delegations:${id}`],
@@ -388,34 +386,7 @@ export const saveGrant = defineWrite({
 });
 
 // ---------------------------------------------------------------------------
-// Billing (transactions service, Tebex-backed)
-
-export type BillingSubscription = {
-  reference: string;
-  plan_id?: string;
-  status: string;
-  started_at?: string;
-  current_period_start?: string;
-  current_period_end?: string;
-  cancel_requested_at?: string;
-  ended_at?: string;
-};
-
-export type BillingPayment = {
-  id: string;
-  status: string;
-  amount_cents?: number;
-  currency?: string;
-  created_at: string;
-  period_ends_at?: string;
-};
-
-export type BillingSummary = {
-  subscription: BillingSubscription | null;
-  payments: BillingPayment[];
-  canCheckout: boolean;
-  canCancel: boolean;
-};
+// Billing (local entitlement status; checkout/account management live on Tebex)
 
 export type BillingState = {
   active: boolean;
@@ -445,54 +416,6 @@ export const billingState = defineRead({
     policy: POLICY.entity
   }
 });
-
-export const billingSummary = defineRead({
-  subject: `${SUB.billing}.summary`,
-  request: (userId: string) => ({ user_id: userId }),
-  map: (r: {
-    subscription?: BillingSubscription;
-    payments?: BillingPayment[];
-    can_checkout?: boolean;
-    can_cancel?: boolean;
-  }): BillingSummary => ({
-    subscription: r.subscription ?? null,
-    payments: r.payments ?? [],
-    canCheckout: r.can_checkout === true,
-    canCancel: r.can_cancel === true
-  }),
-  timeoutMs: READ_TIMEOUT_MS,
-  cache: {
-    fabric,
-    key: (userId: string) => `billing:${userId}`,
-    policy: POLICY.entity
-  }
-});
-
-// Start a Tebex-hosted subscription checkout. The transactions service creates
-// the basket server-side with custom.user_id from this session, so the id the
-// webhook later grants against can never be chosen by the browser. Slow path
-// (two Tebex API round trips), hence the long timeout.
-export async function billingCheckout(userId: string): Promise<string> {
-  const r = await rpc<{ url?: string; error?: string }>(
-    `${SUB.billing}.checkout`,
-    { user_id: userId },
-    16000
-  );
-  if (!r.url) throw new Error(r.error ?? 'checkout failed');
-  return r.url;
-}
-
-// Cancel the user's recurring payment. Tebex confirms via webhook; access runs
-// to the end of the paid period. Idempotent server-side.
-export async function billingCancel(userId: string): Promise<void> {
-  const r = await rpc<{ ok?: boolean; error?: string }>(
-    `${SUB.billing}.cancel`,
-    { user_id: userId },
-    16000
-  );
-  if (!r.ok) throw new Error(r.error ?? 'cancel failed');
-  invalidate(`billing:${userId}`, `account:${userId}`, `tier:${userId}`);
-}
 
 // ---------------------------------------------------------------------------
 // Notifications (notifications service)

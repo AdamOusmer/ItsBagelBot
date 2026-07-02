@@ -22,6 +22,9 @@ type CommandView struct {
 	Perm             string   `json:"perm"`
 	Cooldown         uint     `json:"cooldown"`
 	AllowedUserID    string   `json:"allowed_user_id,omitempty"`
+	// Uses is the lifetime execution counter, maintained by the commands
+	// service from the worker's data.commands.used events.
+	Uses uint64 `json:"uses,omitempty"`
 }
 
 // ModuleView is the canonical wire shape for one module row as stored in the

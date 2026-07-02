@@ -65,7 +65,7 @@
           <span class="lock" title="Only runs while live"><Icon name="pulse" size={11} /></span>
         {/if}
         {#if unsaved}
-          <span class="unsaved" title="You have unsaved edits for this command">unsaved</span>
+          <span class="unsaved" title="You have unsaved edits for this command">Unsaved</span>
         {/if}
       </span>
       {#if c.aliases?.length}
@@ -146,14 +146,14 @@
 
   .unsaved {
     margin-left: 8px;
-    font-family: var(--bb-font-mono);
-    font-size: 9px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+    font-family: var(--bb-font-display);
+    font-weight: 700;
+    font-size: 9.5px;
+    letter-spacing: 0.02em;
     color: var(--bb-tan-light);
     border: 1px solid rgba(201, 168, 124, 0.4);
-    border-radius: 2px;
-    padding: 1px 6px;
+    border-radius: var(--bb-radius-pill, 100px);
+    padding: 1px 8px;
   }
 
   .aliases { display: flex; flex-wrap: wrap; gap: 4px; }

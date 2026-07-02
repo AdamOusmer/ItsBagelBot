@@ -1,10 +1,10 @@
 <script lang="ts">
-  // Topbar notification bell: unread badge + a modal listing recent items.
+  // Topbar notification bell: unread badge + an anchored dropdown of recent
+  // items (not a centered modal — notifications are a glance, not a task).
   // Presentational only — the host page owns fetching/caching the list and
   // wiring onMarkRead to its own form action (mark-read semantics differ
   // between the dashboard, which tracks per-user read state, and admin,
   // which has none and passes no onMarkRead at all).
-  import Modal from './Modal.svelte';
   import Icon from './Icon.svelte';
 
   export interface BellNotification {
@@ -33,80 +33,136 @@
   let open = $state(false);
 </script>
 
-<button class="icon-btn bell-btn" aria-label="Notifications" onclick={() => (open = true)}>
-  <Icon name="bell" size={16} />
-  {#if unreadCount > 0}<span class="badge">{unreadCount > 9 ? '9+' : unreadCount}</span>{/if}
-</button>
+<svelte:window onkeydown={(e) => { if (e.key === 'Escape') open = false; }} />
 
-<Modal {open} title="Notifications" closeModal={() => (open = false)}>
-  {#if notifications.length === 0}
-    <p class="empty">{emptyLabel}</p>
-  {:else}
-    <div class="items">
-      {#each notifications as n (n.id)}
-        <div class="item" class:unread={!n.read}>
-          <span class="level {n.level}">{n.level}</span>
-          <div class="text">
-            <b>{n.title}</b>
-            <p>{n.body}</p>
-          </div>
-          {#if onMarkRead && !n.read}
-            <button type="button" class="btn ghost sm" onclick={() => onMarkRead?.(n.id)}>
-              <Icon name="check" size={12} /> Read
-            </button>
-          {/if}
+<div class="bell-wrap">
+  <button
+    class="icon-btn bell-btn"
+    class:open
+    aria-label="Notifications"
+    aria-expanded={open}
+    aria-haspopup="menu"
+    onclick={() => (open = !open)}
+  >
+    <Icon name="bell" size={16} />
+    {#if unreadCount > 0}<span class="badge">{unreadCount > 9 ? '9+' : unreadCount}</span>{/if}
+  </button>
+
+  {#if open}
+    <!-- Click-away scrim; Escape (window handler above) is the keyboard path. -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="scrim"
+      role="presentation"
+      onclick={() => (open = false)}
+      onkeydown={(e) => { if (e.key === 'Enter') open = false; }}
+    ></div>
+
+    <div class="dropdown" role="menu" aria-label="Recent notifications">
+      <div class="drop-head">
+        <h4>Notifications</h4>
+        <a class="view-all" href={viewAllHref} onclick={() => (open = false)}>View all →</a>
+      </div>
+      {#if notifications.length === 0}
+        <p class="empty">{emptyLabel}</p>
+      {:else}
+        <div class="items">
+          {#each notifications as n (n.id)}
+            <div class="item" class:unread={!n.read}>
+              <span class="level {n.level}">{n.level}</span>
+              <div class="text">
+                <b>{n.title}</b>
+                <p>{n.body}</p>
+              </div>
+              {#if onMarkRead && !n.read}
+                <button type="button" class="btn ghost sm" onclick={() => onMarkRead?.(n.id)}>
+                  <Icon name="check" size={12} /> Read
+                </button>
+              {/if}
+            </div>
+          {/each}
         </div>
-      {/each}
+      {/if}
     </div>
   {/if}
-  <a class="view-all" href={viewAllHref} onclick={() => (open = false)}>View all →</a>
-</Modal>
+</div>
 
 <style>
+  .bell-wrap { position: relative; display: inline-flex; }
+
   .icon-btn {
-    width: 32px; height: 32px; border-radius: 2px; display: flex; align-items: center; justify-content: center;
-    background: none; border: 1px solid var(--rule, rgba(240, 236, 228, 0.1)); color: var(--bb-tan-light); cursor: pointer;
+    width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    background: none; border: 1px solid var(--bb-border, rgba(201, 168, 124, 0.15)); color: var(--bb-tan-light); cursor: pointer;
     transition: all var(--bb-dur-base) var(--bb-ease-out-expo); flex: none; position: relative;
   }
-  .icon-btn :global(svg) { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.7; }
-  .icon-btn:hover { border-color: var(--rule-tan, rgba(201, 168, 124, 0.45)); color: var(--bb-tan-pale); }
+  .icon-btn:hover, .icon-btn.open { border-color: var(--bb-border-strong, rgba(201, 168, 124, 0.35)); color: var(--bb-tan-pale); }
+  .icon-btn.open { background: rgba(201, 168, 124, 0.1); }
 
   .badge {
     position: absolute; top: -5px; right: -5px;
     min-width: 16px; height: 16px; padding: 0 4px;
     border-radius: 999px; background: var(--bb-tan, #c9a87c); color: #0a0a0a;
-    font-family: var(--bb-font-mono); font-size: 9px; font-weight: 700; line-height: 16px; text-align: center;
+    font-family: var(--bb-font-body); font-size: 9.5px; font-weight: 700; line-height: 16px; text-align: center;
     box-shadow: 0 0 0 2px rgba(10, 10, 10, 0.85);
   }
 
-  .empty { color: var(--bb-muted); font-size: 13px; margin: 4px 0 16px; }
+  .scrim { position: fixed; inset: 0; z-index: 89; }
 
-  .items { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; max-height: 50vh; overflow-y: auto; }
+  /* anchored dropdown card, popping from the bell */
+  .dropdown {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    z-index: 90;
+    width: min(380px, calc(100vw - 24px));
+    background: var(--bb-card-bg, #111110);
+    border: 1px solid var(--bb-border-strong, rgba(201, 168, 124, 0.35));
+    border-radius: var(--bb-radius-lg, 16px);
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+    padding: 14px;
+    transform-origin: top right;
+    animation: drop-in 240ms var(--bb-ease-out-back, ease-out) both;
+  }
+  @keyframes drop-in {
+    from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  .drop-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+  .drop-head h4 { font-family: var(--bb-font-display); font-weight: 700; font-size: 15px; letter-spacing: -0.01em; color: var(--bb-white); margin: 0; }
+
+  .empty { color: var(--bb-muted); font-family: var(--bb-font-body); font-size: 13px; margin: 4px 0 4px; }
+
+  .items { display: flex; flex-direction: column; gap: 8px; max-height: min(420px, 60vh); overflow-y: auto; }
   .item {
     display: flex; align-items: flex-start; gap: 10px;
-    border: 1px solid var(--glass-border); border-radius: var(--bb-radius-md, 10px);
+    border: 1px solid var(--bb-border, rgba(201, 168, 124, 0.15)); border-radius: var(--bb-radius-md, 10px);
     padding: 10px 12px; background: rgba(255, 255, 255, 0.02);
   }
-  .item.unread { border-color: rgba(201, 168, 124, 0.3); background: rgba(201, 168, 124, 0.04); }
+  .item.unread { border-color: rgba(201, 168, 124, 0.3); background: rgba(201, 168, 124, 0.05); }
 
   .text { flex: 1; min-width: 0; }
-  .text b { font-size: 13.5px; color: var(--bb-white); }
-  .text p { margin: 4px 0 0; font-size: 12.5px; color: var(--bb-muted); }
+  .text b { font-family: var(--bb-font-body); font-size: 13.5px; color: var(--bb-white); }
+  .text p { margin: 4px 0 0; font-family: var(--bb-font-body); font-size: 12.5px; color: var(--bb-muted); line-height: 1.45; }
 
   .level {
-    font-family: var(--bb-font-mono); font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase;
-    padding: 3px 8px; border-radius: var(--bb-radius-pill); border: 1px solid transparent; white-space: nowrap;
+    font-family: var(--bb-font-body); font-weight: 600; font-size: 10px;
+    padding: 3px 9px; border-radius: var(--bb-radius-pill, 100px); border: 1px solid transparent; white-space: nowrap;
   }
-  .level.info { background: rgba(255,255,255,0.04); color: var(--bb-muted); border-color: var(--glass-border); }
-  .level.success { background: rgba(82,183,136,0.10); color: var(--bb-green-glow); border-color: rgba(82,183,136,0.28); }
-  .level.warning { background: rgba(201,168,124,0.10); color: var(--bb-tan-light); border-color: rgba(201,168,124,0.28); }
+  .level.info { background: rgba(255,255,255,0.04); color: var(--bb-muted); border-color: var(--bb-border); }
+  .level.success { background: rgba(82,183,136,0.12); color: var(--bb-green-glow); border-color: rgba(82,183,136,0.3); }
+  .level.warning { background: rgba(201,168,124,0.12); color: var(--bb-tan-light); border-color: rgba(201,168,124,0.3); }
   .level.critical { background: rgba(176,90,70,0.15); color: #cf8a78; border-color: rgba(176,90,70,0.4); }
 
   .btn.sm { padding: 4px 10px; font-size: 11px; white-space: nowrap; }
 
   .view-all {
-    display: inline-block; font-family: var(--bb-font-mono); font-size: 11px; letter-spacing: 0.06em;
+    font-family: var(--bb-font-body); font-weight: 600; font-size: 12px;
     color: var(--bb-tan); text-decoration: none;
   }
   .view-all:hover { color: var(--bb-tan-pale); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .dropdown { animation: none; }
+  }
 </style>

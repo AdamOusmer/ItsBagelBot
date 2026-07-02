@@ -1,8 +1,33 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import { onMount } from 'svelte';
+  import { page } from '$app/state';
   import { Button, Card, CardHead, Icon, PageHead, StatTile, Modal, Skeleton, type IconName } from '@bagel/shared';
+  import OnboardingModal from '$lib/components/OnboardingModal.svelte';
   let { data } = $props();
+
+  // First-visit onboarding: opens once for genuinely new users (nothing
+  // created yet, never dismissed) or on demand via ?welcome=1.
+  const ONBOARDED_KEY = 'bb-onboarded';
+  let onboardOpen = $state(false);
+  onMount(() => {
+    if (page.url.searchParams.get('welcome') === '1') {
+      onboardOpen = true;
+      return;
+    }
+    if (localStorage.getItem(ONBOARDED_KEY) === '1') return;
+    data.commands.then((cd) => {
+      if (cd.total === 0) onboardOpen = true;
+    });
+  });
+  function finishOnboarding() {
+    onboardOpen = false;
+    try {
+      localStorage.setItem(ONBOARDED_KEY, '1');
+    } catch {
+      /* storage unavailable — it'll just show again */
+    }
+  }
 
   // Real problems only, each with its fix. Empty array = healthy.
   type Issue = { icon: IconName; text: string; cta: string; href: string | null };
@@ -128,7 +153,9 @@
 </script>
 
 <section class="screen active">
-  <PageHead eyebrow="Status" description="Manage your bot connection and commands from here.">{greeting}, <em>{data?.displayName ?? 'there'}</em></PageHead>
+  <!-- The operator chip in the topbar already carries the name; greeting stays
+       impersonal so it doesn't appear twice on one screen. -->
+  <PageHead eyebrow="Status" description="Manage your bot connection and commands from here.">Good <em>{greeting.split(' ')[1]}</em></PageHead>
 
   <!-- status-hero keeps page-scoped descendant styles (.live.off/.meta/.botmark),
        so it stays a raw glass card rather than the <Card> component. -->
@@ -317,6 +344,9 @@
 
   </div>
 </section>
+
+<!-- First-visit setup stepper -->
+<OnboardingModal open={onboardOpen} onDone={finishOnboarding} />
 
 <!-- Confirm modal -->
 <Modal open={pending !== null} title={modalTitle} closeModal={closeModal}>

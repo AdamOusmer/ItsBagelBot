@@ -32,12 +32,15 @@
     data.role === 'owner' ? 'Owner' : data.role === 'admin' ? 'Admin' : 'Moderator'
   );
 
+  // Notifications (compose + history) has NO nav entry: the topbar bell is the
+  // only way in. Icons picked to read literally: home, server racks, queue
+  // flow, people, live pulse, shield, log lines, lock.
   const groups = $derived([
     {
       label: 'Operate',
       items: [
-        { href: '/', icon: 'overview', label: 'Overview', active: crumb === 'Overview' },
-        { href: '/shards', icon: 'pulse', label: 'Shards', active: crumb === 'Shards' },
+        { href: '/', icon: 'home', label: 'Overview', active: crumb === 'Overview' },
+        { href: '/shards', icon: 'server', label: 'Shards', active: crumb === 'Shards' },
         { href: '/lanes', icon: 'activity', label: 'Lanes', active: crumb === 'Lanes' }
       ]
     },
@@ -45,8 +48,7 @@
       label: 'Accounts',
       items: [
         { href: '/users', icon: 'users', label: 'Users', active: crumb === 'Users' },
-        { href: '/notifications', icon: 'send', label: 'Notifications', active: crumb === 'Notifications' },
-        { href: '/events', icon: 'bell', label: 'Events', active: crumb === 'Events' }
+        { href: '/events', icon: 'pulse', label: 'Events', active: crumb === 'Events' }
       ]
     },
     ...(isManager
@@ -55,7 +57,7 @@
             label: 'Access',
             items: [
               { href: '/staff', icon: 'moderation', label: 'Staff', active: crumb === 'Staff' },
-              { href: '/audit', icon: 'check', label: 'Audit', active: crumb === 'Audit' },
+              { href: '/audit', icon: 'list', label: 'Audit', active: crumb === 'Audit' },
               { href: '/credentials', icon: 'lock', label: 'Credentials', active: crumb === 'Credentials' }
             ]
           }
@@ -66,16 +68,15 @@
   // Dock items (the only navigation now): everyone gets the operate/accounts
   // set; managers additionally get staff/audit/creds.
   const mobileItems = $derived([
-    { href: '/', icon: 'overview', label: 'Overview', active: crumb === 'Overview' },
-    { href: '/shards', icon: 'pulse', label: 'Shards', active: crumb === 'Shards' },
+    { href: '/', icon: 'home', label: 'Overview', active: crumb === 'Overview' },
+    { href: '/shards', icon: 'server', label: 'Shards', active: crumb === 'Shards' },
     { href: '/lanes', icon: 'activity', label: 'Lanes', active: crumb === 'Lanes' },
     { href: '/users', icon: 'users', label: 'Users', active: crumb === 'Users' },
-    { href: '/notifications', icon: 'send', label: 'Notifications', active: crumb === 'Notifications' },
-    { href: '/events', icon: 'bell', label: 'Events', active: crumb === 'Events' },
+    { href: '/events', icon: 'pulse', label: 'Events', active: crumb === 'Events' },
     ...(isManager
       ? [
           { href: '/staff', icon: 'moderation', label: 'Staff', active: crumb === 'Staff' },
-          { href: '/audit', icon: 'check', label: 'Audit', active: crumb === 'Audit' },
+          { href: '/audit', icon: 'list', label: 'Audit', active: crumb === 'Audit' },
           { href: '/credentials', icon: 'lock', label: 'Creds', active: crumb === 'Credentials' }
         ]
       : [])

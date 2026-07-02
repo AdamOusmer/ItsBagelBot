@@ -3,9 +3,12 @@
   import { page } from '$app/state';
   import { enhance } from '$app/forms';
   import CheckButton from '$lib/components/CheckButton.svelte';
-  import type { DelegationGrant } from '$lib/server/services';
+  import type { DelegationGrant, NotificationWire } from '$lib/server/services';
 
   let { data, form } = $props();
+
+  const notifications = $derived((data.notifications ?? []) as NotificationWire[]);
+  const levelLabel = (l: string) => l.charAt(0).toUpperCase() + l.slice(1);
 
   const createdGrant = $derived(form?.createdGrant as DelegationGrant | undefined);
   const given = $derived.by<DelegationGrant[]>(() => {
@@ -137,6 +140,34 @@
     </form>
   </Card>
 
+  <!-- NOTIFICATIONS: the bell dropdown's "view all" target — a compact history
+       section rather than a dedicated page. -->
+  <Card class="settings-card" id="notifications">
+    <h2>Notifications</h2>
+    {#if notifications.length === 0}
+      <p class="hint">Nothing yet — messages from the ItsBagelBot team will show up here.</p>
+    {:else}
+      <div class="notif-list">
+        {#each notifications as n (n.id)}
+          <div class="notif-item" class:unread={!n.read}>
+            <span class="level {n.level}">{levelLabel(n.level)}</span>
+            <div class="notif-text">
+              <b>{n.title}</b>
+              <p>{n.body}</p>
+              <span class="notif-meta">{new Date(n.created_at).toLocaleString()}</span>
+            </div>
+            {#if !n.read}
+              <form method="POST" action="?/markRead" use:enhance>
+                <input type="hidden" name="id" value={n.id} />
+                <button type="submit" class="btn ghost sm"><Icon name="check" size={12} /> Read</button>
+              </form>
+            {/if}
+          </div>
+        {/each}
+      </div>
+    {/if}
+  </Card>
+
   <!-- SHARED WITH YOU -->
   <Card class="settings-card">
     <h2>Dashboards shared with you</h2>
@@ -236,8 +267,9 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
+    font-family: var(--bb-font-display);
+    font-weight: 700;
+    font-size: 10.5px;
     letter-spacing: 0.03em;
     text-transform: uppercase;
     color: var(--bb-muted);
@@ -284,6 +316,27 @@
   .actions { display: flex; gap: 8px; align-items: center; }
   .actions form { margin: 0; }
   .btn.sm { padding: 4px 10px; font-size: 12px; }
+
+  /* --- notifications section --- */
+  .notif-list { display: flex; flex-direction: column; gap: 10px; }
+  .notif-item {
+    display: flex; align-items: flex-start; gap: 12px;
+    border: 1px solid var(--bb-border); border-radius: var(--bb-radius-md, 10px);
+    padding: 12px 14px; background: rgba(255, 255, 255, 0.02);
+  }
+  .notif-item.unread { border-color: rgba(201, 168, 124, 0.3); background: rgba(201, 168, 124, 0.05); }
+  .notif-text { flex: 1; min-width: 0; }
+  .notif-text b { font-size: 14px; color: var(--bb-white); }
+  .notif-text p { margin: 4px 0; font-size: 13px; color: var(--bb-muted); }
+  .notif-meta { font-family: var(--bb-font-body); font-size: 11px; color: var(--bb-muted); opacity: 0.8; }
+  .level {
+    font-family: var(--bb-font-body); font-weight: 600; font-size: 10.5px;
+    padding: 3px 10px; border-radius: var(--bb-radius-pill, 100px); border: 1px solid transparent; white-space: nowrap;
+  }
+  .level.info { background: rgba(255,255,255,0.04); color: var(--bb-muted); border-color: var(--bb-border); }
+  .level.success { background: rgba(82,183,136,0.12); color: var(--bb-green-glow); border-color: rgba(82,183,136,0.3); }
+  .level.warning { background: rgba(201,168,124,0.12); color: var(--bb-tan-light); border-color: rgba(201,168,124,0.3); }
+  .level.critical { background: rgba(176,90,70,0.15); color: #cf8a78; border-color: rgba(176,90,70,0.4); }
   .btn.danger { color: #e08f8f; }
 
   .delete-btn {
@@ -298,6 +351,7 @@
     .grant-top { flex-direction: column; align-items: flex-start; }
     .grant-link { flex-direction: column; align-items: stretch; }
     .grant-link .btn { justify-content: center; min-height: 40px; }
+    .notif-item { flex-direction: column; align-items: flex-start; gap: 8px; }
     .modal-actions { flex-direction: column-reverse; }
   }
 </style>

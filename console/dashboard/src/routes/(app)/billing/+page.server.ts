@@ -1,43 +1,29 @@
 import type { Actions, PageServerLoad } from './$types';
 import { redirect, fail } from '@sveltejs/kit';
-import {
-  billingState,
-  billingSummary,
-  billingCheckout,
-  billingCancel,
-  type BillingState,
-  type BillingSummary
-} from '$lib/server/services';
+import { billingState, type BillingState } from '$lib/server/services';
 import { env } from '$env/dynamic/private';
 
-const demoSummary: BillingSummary = {
-  subscription: {
-    reference: 'tbx-r-demo',
-    plan_id: 'premium',
-    status: 'active',
-    started_at: new Date(Date.now() - 45 * 864e5).toISOString(),
-    current_period_start: new Date(Date.now() - 15 * 864e5).toISOString(),
-    current_period_end: new Date(Date.now() + 15 * 864e5).toISOString()
-  },
-  payments: [
-    {
-      id: 'tbx-demo-2',
-      status: 'completed',
-      amount_cents: 499,
-      currency: 'USD',
-      created_at: new Date(Date.now() - 15 * 864e5).toISOString()
-    },
-    {
-      id: 'tbx-demo-1',
-      status: 'completed',
-      amount_cents: 499,
-      currency: 'USD',
-      created_at: new Date(Date.now() - 45 * 864e5).toISOString()
-    }
-  ],
-  canCheckout: true,
-  canCancel: true
+type BillingLinks = {
+  checkoutUrl: string | null;
+  cancelUrl: string | null;
 };
+
+function optionalHttpsURL(value: string | undefined): string | null {
+  if (!value) return null;
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === 'https:' ? parsed.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+function links(): BillingLinks {
+  return {
+    checkoutUrl: optionalHttpsURL(env.TEBEX_PREMIUM_CHECKOUT_URL),
+    cancelUrl: optionalHttpsURL(env.TEBEX_CANCEL_URL)
+  };
+}
 
 export const load: PageServerLoad = async ({ locals }) => {
   if (env.DEMO === '1') {
@@ -45,10 +31,13 @@ export const load: PageServerLoad = async ({ locals }) => {
       account: {
         active: true,
         status: 'paid',
-        expiresAt: demoSummary.subscription?.current_period_end ?? null,
+        expiresAt: new Date(Date.now() + 15 * 864e5).toISOString(),
         source: 'tebex'
       } as BillingState,
-      billing: demoSummary,
+      links: {
+        checkoutUrl: 'https://example.tebex.io/package/premium',
+        cancelUrl: 'https://example.tebex.io/account'
+      } satisfies BillingLinks,
       degraded: false
     };
   }
@@ -57,27 +46,24 @@ export const load: PageServerLoad = async ({ locals }) => {
   // Owner-only: billing is never part of a delegated section grant.
   if (!s || s.delegate_of) throw redirect(302, '/');
 
-  const [accountResult, billingResult] = await Promise.allSettled([
-    billingState(s.user_id),
-    billingSummary(s.user_id)
-  ]);
+  const accountResult = await billingState(s.user_id).then(
+    (value) => ({ status: 'fulfilled' as const, value }),
+    () => ({ status: 'rejected' as const })
+  );
 
   return {
     account:
       accountResult.status === 'fulfilled'
         ? accountResult.value
         : ({ active: false, status: 'free', expiresAt: null, source: '' } as BillingState),
-    billing:
-      billingResult.status === 'fulfilled'
-        ? billingResult.value
-        : ({ subscription: null, payments: [], canCheckout: false, canCancel: false } as BillingSummary),
-    degraded: accountResult.status !== 'fulfilled' || billingResult.status !== 'fulfilled'
+    links: links(),
+    degraded: accountResult.status !== 'fulfilled'
   };
 };
 
 export const actions: Actions = {
-  // Kick off a Tebex checkout and send the browser there. 303 so the POST
-  // becomes a GET on the external checkout page.
+  // Send the browser to the Tebex checkout selected by our dashboard UI. 303 so
+  // the POST becomes a GET on the external payment page.
   subscribe: async ({ locals }) => {
     const s = locals.session;
     if (!s) return fail(401, { error: 'Not signed in.' });
@@ -85,10 +71,12 @@ export const actions: Actions = {
       return fail(403, { error: 'Only the account owner can subscribe.' });
     }
 
-    // Never send an already-premium user to Tebex: a staff-granted period or a
-    // live subscription must run out before a new charge is possible. (The
-    // transactions service independently refuses while a Tebex subscription is
-    // live; this check also covers admin grants, which live in the users DB.)
+    const url = links().checkoutUrl;
+    if (!url) return fail(503, { error: 'Subscriptions are not available right now.' });
+
+    // Never send an already-premium user to Tebex: a staff-granted period,
+    // active Tebex entitlement, or VIP grant must run out before a new charge is
+    // possible.
     try {
       const state = await billingState(s.user_id);
       if (state.status !== 'free') {
@@ -98,15 +86,11 @@ export const actions: Actions = {
       return fail(502, { error: 'Could not verify your current plan. Try again in a moment.' });
     }
 
-    let url: string;
-    try {
-      url = await billingCheckout(s.user_id);
-    } catch {
-      return fail(502, { error: 'Could not start checkout. Try again in a moment.' });
-    }
     throw redirect(303, url);
   },
 
+  // Cancellation/account management lives on Tebex. We still gate the button
+  // behind an owner session so delegated or view-as sessions cannot act on it.
   cancel: async ({ locals }) => {
     const s = locals.session;
     if (!s) return fail(401, { error: 'Not signed in.' });
@@ -114,11 +98,18 @@ export const actions: Actions = {
       return fail(403, { error: 'Only the account owner can cancel the subscription.' });
     }
 
+    const url = links().cancelUrl;
+    if (!url) return fail(503, { error: 'Subscription management is not available right now.' });
+
     try {
-      await billingCancel(s.user_id);
-      return { ok: true, action: 'cancelled' };
+      const state = await billingState(s.user_id);
+      if (state.status !== 'paid' || state.source !== 'tebex') {
+        return fail(409, { error: 'There is no Tebex subscription to cancel for this account.' });
+      }
     } catch {
-      return fail(502, { error: 'Could not cancel. Try again, or contact support.' });
+      return fail(502, { error: 'Could not verify your current plan. Try again in a moment.' });
     }
+
+    throw redirect(303, url);
   }
 };

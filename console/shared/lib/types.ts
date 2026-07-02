@@ -27,7 +27,9 @@ export interface CommandView {
   cooldown?: number;
   // Twitch id of the only user allowed to run the command; '' or undefined = unrestricted.
   allowed_user_id?: string;
-  uses?: string;
+  // Lifetime execution counter. The backend sends a number; older sample data
+  // used human-formatted strings ('1.2k'), so both are accepted for display.
+  uses?: number | string;
 }
 
 export interface AdminUser {

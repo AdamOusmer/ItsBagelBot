@@ -114,6 +114,20 @@ func (_c *CommandsCreate) SetNillableAllowedUserID(v *uint64) *CommandsCreate {
 	return _c
 }
 
+// SetUses sets the "uses" field.
+func (_c *CommandsCreate) SetUses(v uint64) *CommandsCreate {
+	_c.mutation.SetUses(v)
+	return _c
+}
+
+// SetNillableUses sets the "uses" field if the given value is not nil.
+func (_c *CommandsCreate) SetNillableUses(v *uint64) *CommandsCreate {
+	if v != nil {
+		_c.SetUses(*v)
+	}
+	return _c
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_c *CommandsCreate) SetCreatedAt(v time.Time) *CommandsCreate {
 	_c.mutation.SetCreatedAt(v)
@@ -199,6 +213,10 @@ func (_c *CommandsCreate) defaults() error {
 		v := commands.DefaultAllowedUserID
 		_c.mutation.SetAllowedUserID(v)
 	}
+	if _, ok := _c.mutation.Uses(); !ok {
+		v := commands.DefaultUses
+		_c.mutation.SetUses(v)
+	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		if commands.DefaultCreatedAt == nil {
 			return fmt.Errorf("ent: uninitialized commands.DefaultCreatedAt (forgotten import ent/runtime?)")
@@ -251,6 +269,9 @@ func (_c *CommandsCreate) check() error {
 	}
 	if _, ok := _c.mutation.AllowedUserID(); !ok {
 		return &ValidationError{Name: "allowed_user_id", err: errors.New(`ent: missing required field "Commands.allowed_user_id"`)}
+	}
+	if _, ok := _c.mutation.Uses(); !ok {
+		return &ValidationError{Name: "uses", err: errors.New(`ent: missing required field "Commands.uses"`)}
 	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		return &ValidationError{Name: "created_at", err: errors.New(`ent: missing required field "Commands.created_at"`)}
@@ -319,6 +340,10 @@ func (_c *CommandsCreate) createSpec() (*Commands, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.AllowedUserID(); ok {
 		_spec.SetField(commands.FieldAllowedUserID, field.TypeUint64, value)
 		_node.AllowedUserID = value
+	}
+	if value, ok := _c.mutation.Uses(); ok {
+		_spec.SetField(commands.FieldUses, field.TypeUint64, value)
+		_node.Uses = value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(commands.FieldCreatedAt, field.TypeTime, value)

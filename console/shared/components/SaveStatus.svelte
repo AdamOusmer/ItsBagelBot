@@ -30,10 +30,10 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    font-family: var(--bb-font-mono);
-    font-size: 10.5px;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
+    font-family: var(--bb-font-display);
+    font-weight: 700;
+    font-size: 11px;
+    letter-spacing: 0.02em;
     white-space: nowrap;
   }
 

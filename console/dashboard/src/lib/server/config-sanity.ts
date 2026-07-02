@@ -10,4 +10,17 @@ export function assertConfigSane(env: Env): void {
     origin,
     callbackPath: '/auth/callback'
   });
+  assertOptionalHTTPSURL('TEBEX_PREMIUM_CHECKOUT_URL', env.TEBEX_PREMIUM_CHECKOUT_URL);
+  assertOptionalHTTPSURL('TEBEX_CANCEL_URL', env.TEBEX_CANCEL_URL);
+}
+
+function assertOptionalHTTPSURL(name: string, value: string | undefined): void {
+  if (!value) return;
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(`${name} must be an absolute URL`);
+  }
+  if (parsed.protocol !== 'https:') throw new Error(`${name} must use https`);
 }
