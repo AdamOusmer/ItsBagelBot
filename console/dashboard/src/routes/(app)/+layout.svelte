@@ -37,13 +37,13 @@
   // dropdown, "View all" link) is the only way in.
   const items = $derived([
     ...(!isDelegate
-      ? [{ href: '/', icon: 'home', label: 'Overview', active: crumb === 'Overview' }]
+      ? [{ href: '/', icon: 'overview', label: 'Overview', active: crumb === 'Overview' }]
       : []),
     ...(canCommands
       ? [{ href: '/commands', icon: 'commands', label: 'Commands', active: crumb === 'Commands' }]
       : []),
     ...(canModules
-      ? [{ href: '/modules', icon: 'puzzle', label: 'Modules', active: crumb === 'Modules' }]
+      ? [{ href: '/modules', icon: 'modules', label: 'Modules', active: crumb === 'Modules' }]
       : []),
     ...(!isDelegate
       ? [{ href: '/billing', icon: 'card', label: 'Billing', active: crumb === 'Billing' }]

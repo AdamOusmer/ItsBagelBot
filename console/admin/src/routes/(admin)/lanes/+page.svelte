@@ -12,7 +12,7 @@
   {#if data.degraded}
     <div class="card degraded-notice">
       <div class="card-head">
-        <div class="notice-icon"><Icon name="activity" size={16} /></div>
+        <div class="notice-icon"><Icon name="lanes" size={16} /></div>
         <h3>Lane data unavailable</h3>
       </div>
       <p class="notice-body">

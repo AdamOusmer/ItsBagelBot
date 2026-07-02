@@ -1,0 +1,158 @@
+// Package tebex is the minimal Tebex Headless API client the checkout RPC
+// needs: create a basket carrying the buyer's user id and put the premium
+// package in it. Everything else (payment, receipts, subscription state)
+// stays on Tebex's side and comes back through the webhook.
+package tebex
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"strconv"
+	"time"
+)
+
+const DefaultBaseURL = "https://headless.tebex.io"
+
+type Config struct {
+	// WebstoreToken is the public Headless API token (Tebex webstore identifier).
+	WebstoreToken string
+	// PackageID is the premium package to place in every basket.
+	PackageID int
+	// PackageType is "subscription" or "single"; premium is a monthly
+	// subscription so that is the default.
+	PackageType string
+	// CompleteURL / CancelURL are where hosted checkout returns the browser.
+	CompleteURL string
+	CancelURL   string
+	BaseURL     string
+	HTTPClient  *http.Client
+}
+
+type Client struct {
+	cfg Config
+}
+
+type Basket struct {
+	Ident       string
+	CheckoutURL string
+}
+
+// basketData is the shared shape of the Headless API's basket envelope.
+type basketData struct {
+	Data struct {
+		Ident string `json:"ident"`
+		Links struct {
+			Checkout string `json:"checkout"`
+		} `json:"links"`
+	} `json:"data"`
+}
+
+func New(cfg Config) (*Client, error) {
+	if cfg.WebstoreToken == "" {
+		return nil, errors.New("tebex webstore token required")
+	}
+	if cfg.PackageID <= 0 {
+		return nil, errors.New("tebex package id required")
+	}
+	if cfg.PackageType == "" {
+		cfg.PackageType = "subscription"
+	}
+	if cfg.BaseURL == "" {
+		cfg.BaseURL = DefaultBaseURL
+	}
+	if cfg.HTTPClient == nil {
+		cfg.HTTPClient = &http.Client{Timeout: 10 * time.Second}
+	}
+	return &Client{cfg: cfg}, nil
+}
+
+// CreateBasket mints a basket for one user and adds the premium package. The
+// user id rides in the basket's custom payload, which Tebex echoes back on the
+// payment webhook — that is the whole attribution chain.
+func (c *Client) CreateBasket(ctx context.Context, userID uint64, username string) (Basket, error) {
+
+	create := map[string]any{
+		"complete_url":           c.cfg.CompleteURL,
+		"cancel_url":             c.cfg.CancelURL,
+		"complete_auto_redirect": true,
+		"custom": map[string]string{
+			"user_id":  strconv.FormatUint(userID, 10),
+			"username": username,
+		},
+	}
+
+	var created basketData
+	createPath := fmt.Sprintf("/api/accounts/%s/baskets", url.PathEscape(c.cfg.WebstoreToken))
+	if err := c.post(ctx, createPath, create, &created); err != nil {
+		return Basket{}, fmt.Errorf("create basket: %w", err)
+	}
+	if created.Data.Ident == "" {
+		return Basket{}, errors.New("create basket: response missing ident")
+	}
+
+	addPackage := map[string]any{
+		"package_id": c.cfg.PackageID,
+		"quantity":   1,
+		"type":       c.cfg.PackageType,
+	}
+
+	var updated basketData
+	addPath := fmt.Sprintf("/api/baskets/%s/packages", url.PathEscape(created.Data.Ident))
+	if err := c.post(ctx, addPath, addPackage, &updated); err != nil {
+		return Basket{}, fmt.Errorf("add package: %w", err)
+	}
+
+	checkout := updated.Data.Links.Checkout
+	if checkout == "" {
+		checkout = created.Data.Links.Checkout
+	}
+
+	return Basket{Ident: created.Data.Ident, CheckoutURL: checkout}, nil
+}
+
+func (c *Client) post(ctx context.Context, path string, payload any, out any) error {
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.cfg.BaseURL+path, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.cfg.HTTPClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	// Cap the read: Tebex baskets are small, and an error body only needs enough
+	// bytes to be diagnosable.
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("tebex responded %d: %s", resp.StatusCode, truncate(data, 300))
+	}
+
+	return json.Unmarshal(data, out)
+}
+
+func truncate(b []byte, n int) string {
+	if len(b) <= n {
+		return string(b)
+	}
+	return string(b[:n])
+}

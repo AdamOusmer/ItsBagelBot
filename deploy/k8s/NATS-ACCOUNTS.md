@@ -20,7 +20,8 @@ service's Doppler project.
 | projector | `projector_bus` | `projector_rpc` | PROJECTOR_RPC |
 | outgress | `outgress_bus` | `outgress_rpc` | OUTGRESS_RPC |
 | worker | `worker_bus` | `worker_rpc` | WORKER_RPC |
-| transactions | `transactions_bus` | — (BUS-only) | — |
+| transactions | `transactions_bus` | `transactions_rpc` | TRANSACTIONS_RPC |
+| notifications | `notifications_bus` | `notifications_rpc` | NOTIFICATIONS_RPC |
 | dashboard (console) | `dashboard_bus` | `dashboard_rpc` | DASHBOARD_RPC |
 | admin (console) | `admin_bus` | `admin_rpc` | ADMIN_RPC |
 | twitch-ingress | `twitch_ingress_bus` | `twitch_ingress_rpc` | TWITCH_INGRESS_RPC |
@@ -36,28 +37,29 @@ All values are **bcrypt hashes** except the `*_REMOTE_URL_*` entries.
 `NATS_BCRYPT_TWITCH_INGRESS_BUS`, `NATS_BCRYPT_DASHBOARD_BUS`,
 `NATS_BCRYPT_ADMIN_BUS`
 
-**RPC user hashes (9):**
+**RPC user hashes (10):**
 `NATS_BCRYPT_USERS_RPC`, `NATS_BCRYPT_COMMANDS_RPC`, `NATS_BCRYPT_MODULES_RPC`,
 `NATS_BCRYPT_PROJECTOR_RPC`, `NATS_BCRYPT_OUTGRESS_RPC`,
 `NATS_BCRYPT_WORKER_RPC`, `NATS_BCRYPT_DASHBOARD_RPC`, `NATS_BCRYPT_ADMIN_RPC`,
-`NATS_BCRYPT_TWITCH_INGRESS_RPC`
+`NATS_BCRYPT_TWITCH_INGRESS_RPC`, `NATS_BCRYPT_TRANSACTIONS_RPC`
 
 **System account (1):** `NATS_BCRYPT_SYS`
 
-**Leaf link hashes — hub authorization, one per account (10):**
+**Leaf link hashes — hub authorization, one per account (11):**
 `NATS_BCRYPT_LEAF_BUS`, `NATS_BCRYPT_LEAF_USERS`, `NATS_BCRYPT_LEAF_COMMANDS`,
 `NATS_BCRYPT_LEAF_MODULES`, `NATS_BCRYPT_LEAF_PROJECTOR`,
 `NATS_BCRYPT_LEAF_OUTGRESS`, `NATS_BCRYPT_LEAF_WORKER`,
 `NATS_BCRYPT_LEAF_DASHBOARD`, `NATS_BCRYPT_LEAF_ADMIN`,
-`NATS_BCRYPT_LEAF_TWITCH_INGRESS`
+`NATS_BCRYPT_LEAF_TWITCH_INGRESS`, `NATS_BCRYPT_LEAF_TRANSACTIONS`
 
-**Leaf remote URLs — leaf side, one per account (10):** each embeds the
+**Leaf remote URLs — leaf side, one per account (11):** each embeds the
 *plaintext* leaf password matching the hash above:
 `NATS_LEAF_REMOTE_URL_BUS`, `NATS_LEAF_REMOTE_URL_USERS`,
 `NATS_LEAF_REMOTE_URL_COMMANDS`, `NATS_LEAF_REMOTE_URL_MODULES`,
 `NATS_LEAF_REMOTE_URL_PROJECTOR`, `NATS_LEAF_REMOTE_URL_OUTGRESS`,
 `NATS_LEAF_REMOTE_URL_WORKER`, `NATS_LEAF_REMOTE_URL_DASHBOARD`,
-`NATS_LEAF_REMOTE_URL_ADMIN`, `NATS_LEAF_REMOTE_URL_TWITCH_INGRESS`
+`NATS_LEAF_REMOTE_URL_ADMIN`, `NATS_LEAF_REMOTE_URL_TWITCH_INGRESS`,
+`NATS_LEAF_REMOTE_URL_TRANSACTIONS`
 
 Form: `nats-leaf://leaf_<account>:<plaintext>@nats.production.svc.cluster.local:7422`
 e.g. `NATS_LEAF_REMOTE_URL_USERS=nats-leaf://leaf_users:<pw>@nats.production.svc.cluster.local:7422`
@@ -70,9 +72,8 @@ is needed for the credentials — only the keys below.
 
 - **All services:** `NATS_USER` = `<service>_bus`, `NATS_PASSWORD` = the BUS
   plaintext (matches `NATS_BCRYPT_<SERVICE>_BUS`).
-- **All except transactions:** `NATS_RPC_USER` = `<service>_rpc`,
-  `NATS_RPC_PASSWORD` = the RPC plaintext (matches `NATS_BCRYPT_<SERVICE>_RPC`).
-- `transactions` sets only `NATS_USER`/`NATS_PASSWORD`.
+- **All services:** `NATS_RPC_USER` = `<service>_rpc`, `NATS_RPC_PASSWORD` = the
+  RPC plaintext (matches `NATS_BCRYPT_<SERVICE>_RPC`).
 
 Leaf-first endpoint env is set in the manifests already: Go/console get
 `NATS_LEAF_URL`/`NATS_HUB_URL`, ingress gets `NATS_LEAF_HOST`/`NATS_HUB_HOST`.
