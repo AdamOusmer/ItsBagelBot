@@ -439,11 +439,14 @@ export const billingState = defineRead({
 // read budget.
 export type CheckoutBasket = { ident: string; checkoutUrl: string | null; recipientLogin: string | null };
 
+export type CheckoutPackageType = 'single' | 'subscription';
+
 export async function checkoutBasketCreate(
   userId: string,
   username: string,
   recipientUsername?: string,
-  ipAddress?: string
+  ipAddress?: string,
+  packageType?: CheckoutPackageType
 ): Promise<CheckoutBasket> {
   const r = await rpc<{ ident?: string; checkout_url?: string; recipient_login?: string }>(
     `${SUB.transactions}.basket_create`,
@@ -451,7 +454,8 @@ export async function checkoutBasketCreate(
       user_id: userId,
       username,
       recipient_username: recipientUsername || undefined,
-      ip_address: ipAddress || undefined
+      ip_address: ipAddress || undefined,
+      package_type: packageType || undefined
     },
     16000
   );

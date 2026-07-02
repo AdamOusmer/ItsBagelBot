@@ -14,6 +14,10 @@ type BasketCreateRequest struct {
 	Username          string `json:"username,omitempty"`
 	RecipientUsername string `json:"recipient_username,omitempty"`
 	IPAddress         string `json:"ip_address,omitempty"`
+	// PackageType selects how the buyer pays: "single" (one month, one charge)
+	// or "subscription" (auto-renews monthly). Empty falls back to the
+	// service's configured default. Gifts are always "single" regardless.
+	PackageType string `json:"package_type,omitempty"`
 }
 
 type BasketCreateReply struct {
