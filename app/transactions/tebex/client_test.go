@@ -162,7 +162,7 @@ func TestCreateBasketWithoutPrivateKeyOmitsAuthenticatedIP(t *testing.T) {
 }
 
 func TestCreateBasketGiftCarriesAttribution(t *testing.T) {
-	var createBody map[string]any
+	var createBody, packageBody map[string]any
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/accounts/token-123/baskets", func(w http.ResponseWriter, r *http.Request) {
@@ -177,6 +177,9 @@ func TestCreateBasketGiftCarriesAttribution(t *testing.T) {
 		})
 	})
 	mux.HandleFunc("POST /api/baskets/bkt-gift/packages", func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&packageBody); err != nil {
+			t.Fatalf("decode package body: %v", err)
+		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"data": map[string]any{
 				"ident": "bkt-gift",
@@ -190,6 +193,7 @@ func TestCreateBasketGiftCarriesAttribution(t *testing.T) {
 		Username:      "recipient",
 		GiftedByID:    804932984,
 		GiftedByLogin: "mavey",
+		PackageType:   "single",
 	})
 	if err != nil {
 		t.Fatalf("CreateBasket: %v", err)
@@ -204,6 +208,9 @@ func TestCreateBasketGiftCarriesAttribution(t *testing.T) {
 	}
 	if custom["gifted_by_login"] != "mavey" {
 		t.Errorf("custom.gifted_by_login = %v, want mavey", custom["gifted_by_login"])
+	}
+	if packageBody["type"] != "single" {
+		t.Errorf("type = %v, want the per-basket single override", packageBody["type"])
 	}
 }
 

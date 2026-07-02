@@ -62,6 +62,8 @@ func (c *checkoutRPC) basketCreate(ctx context.Context, req transactionsrpc.Bask
 			IPAddress:     validIPv4(req.IPAddress),
 			GiftedByID:    buyerID,
 			GiftedByLogin: req.Username,
+			// A gift is one paid month, never a recurring charge on the buyer.
+			PackageType: "single",
 		}
 		recipientLogin = view.Username
 	}

@@ -85,6 +85,10 @@ func TestPaymentCompletedActivatesAndStoresProcessedState(t *testing.T) {
 	require.Len(t, store.changes, 1)
 	assert.Equal(t, billingrpc.ActionActivate, store.changes[0].Action)
 	assert.Equal(t, uint64(1001), store.changes[0].UserID)
+	// No expiry on the payment subject (one-time purchase): the activation
+	// must still carry one, defaulted to a month after the event.
+	require.NotNil(t, store.changes[0].ExpiresAt)
+	assert.Equal(t, "2026-08-02", store.changes[0].ExpiresAt.UTC().Format("2006-01-02"))
 	require.Len(t, store.events, 1)
 	assert.Equal(t, repository.WebhookProcessed, store.events[0].Status)
 	assert.Equal(t, "tbx-1234", store.events[0].TransactionID)
