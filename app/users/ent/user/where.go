@@ -65,6 +65,11 @@ func Email(v string) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldEmail, v))
 }
 
+// EmailEnc applies equality check predicate on the "email_enc" field. It's identical to EmailEncEQ.
+func EmailEnc(v []byte) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldEmailEnc, v))
+}
+
 // IsActive applies equality check predicate on the "is_active" field. It's identical to IsActiveEQ.
 func IsActive(v bool) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldIsActive, v))
@@ -243,6 +248,56 @@ func EmailEqualFold(v string) predicate.User {
 // EmailContainsFold applies the ContainsFold predicate on the "email" field.
 func EmailContainsFold(v string) predicate.User {
 	return predicate.User(sql.FieldContainsFold(FieldEmail, v))
+}
+
+// EmailEncEQ applies the EQ predicate on the "email_enc" field.
+func EmailEncEQ(v []byte) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldEmailEnc, v))
+}
+
+// EmailEncNEQ applies the NEQ predicate on the "email_enc" field.
+func EmailEncNEQ(v []byte) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldEmailEnc, v))
+}
+
+// EmailEncIn applies the In predicate on the "email_enc" field.
+func EmailEncIn(vs ...[]byte) predicate.User {
+	return predicate.User(sql.FieldIn(FieldEmailEnc, vs...))
+}
+
+// EmailEncNotIn applies the NotIn predicate on the "email_enc" field.
+func EmailEncNotIn(vs ...[]byte) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldEmailEnc, vs...))
+}
+
+// EmailEncGT applies the GT predicate on the "email_enc" field.
+func EmailEncGT(v []byte) predicate.User {
+	return predicate.User(sql.FieldGT(FieldEmailEnc, v))
+}
+
+// EmailEncGTE applies the GTE predicate on the "email_enc" field.
+func EmailEncGTE(v []byte) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldEmailEnc, v))
+}
+
+// EmailEncLT applies the LT predicate on the "email_enc" field.
+func EmailEncLT(v []byte) predicate.User {
+	return predicate.User(sql.FieldLT(FieldEmailEnc, v))
+}
+
+// EmailEncLTE applies the LTE predicate on the "email_enc" field.
+func EmailEncLTE(v []byte) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldEmailEnc, v))
+}
+
+// EmailEncIsNil applies the IsNil predicate on the "email_enc" field.
+func EmailEncIsNil() predicate.User {
+	return predicate.User(sql.FieldIsNull(FieldEmailEnc))
+}
+
+// EmailEncNotNil applies the NotNil predicate on the "email_enc" field.
+func EmailEncNotNil() predicate.User {
+	return predicate.User(sql.FieldNotNull(FieldEmailEnc))
 }
 
 // IsActiveEQ applies the EQ predicate on the "is_active" field.

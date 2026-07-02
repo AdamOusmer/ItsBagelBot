@@ -28,6 +28,28 @@ export function twitch(): Twitch {
   return new Twitch(id, secret, redirect);
 }
 
+// Fetch the account email from Helix with the just-issued user token. The
+// user:read:email scope in the login consent is what authorizes the field.
+// Best-effort with a short timeout: email capture must never slow down or
+// break a login, so every failure path returns null. The address is only
+// forwarded to the users service (stored encrypted) and never logged here.
+export async function fetchAccountEmail(accessToken: string): Promise<string | null> {
+  const clientId = env.TWITCH_CLIENT_ID;
+  if (!clientId) return null;
+  try {
+    const res = await fetch('https://api.twitch.tv/helix/users', {
+      headers: { Authorization: `Bearer ${accessToken}`, 'Client-Id': clientId },
+      signal: AbortSignal.timeout(2500)
+    });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { data?: Array<{ email?: string }> };
+    const email = body.data?.[0]?.email?.trim() ?? '';
+    return email.includes('@') ? email : null;
+  } catch {
+    return null;
+  }
+}
+
 // Post-login deep links must stay inside the app: a single leading slash only
 // (no '//' or '/\' protocol-relative escapes), and never back into the auth
 // routes themselves. Used on both sides of the OAuth round trip — when the

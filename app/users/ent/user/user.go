@@ -19,6 +19,8 @@ const (
 	FieldUsername = "username"
 	// FieldEmail holds the string denoting the email field in the database.
 	FieldEmail = "email"
+	// FieldEmailEnc holds the string denoting the email_enc field in the database.
+	FieldEmailEnc = "email_enc"
 	// FieldIsActive holds the string denoting the is_active field in the database.
 	FieldIsActive = "is_active"
 	// FieldBanned holds the string denoting the banned field in the database.
@@ -59,6 +61,7 @@ var Columns = []string{
 	FieldID,
 	FieldUsername,
 	FieldEmail,
+	FieldEmailEnc,
 	FieldIsActive,
 	FieldBanned,
 	FieldStatus,

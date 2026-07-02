@@ -131,6 +131,25 @@ type UpsertUserRequest struct {
 	UserID      string `json:"user_id"`
 	Username    string `json:"username"`
 	DisplayName string `json:"display_name"`
+	// Email is the real Twitch account email (user:read:email), forwarded by
+	// the dashboard login callback when Twitch returns one. Optional:
+	// registration proceeds without it, and storage failure never blocks a
+	// session. Stored encrypted at rest, only for transactional mail.
+	Email string `json:"email,omitempty"`
+}
+
+// EmailGetRequest asks for a user's decrypted contact email. Internal-only:
+// the subject is export/import-scoped on the NATS account level so only
+// services that send transactional mail can call it.
+type EmailGetRequest struct {
+	UserID string `json:"user_id"`
+}
+
+// EmailGetReply carries the contact email or a terminal error. An empty Email
+// with empty Error means the user has none on record yet.
+type EmailGetReply struct {
+	Email string `json:"email,omitempty"`
+	Error string `json:"error,omitempty"`
 }
 
 // GrantSaveRequest is the payload for the dashboard grant_save verb.

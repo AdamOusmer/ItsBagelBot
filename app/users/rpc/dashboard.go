@@ -87,6 +87,16 @@ func (d *dashboardRPC) handleUpsertUser(ctx context.Context, msg *nats.Msg) {
 		return
 	}
 
+	// Capture the real contact email when the callback forwarded one.
+	// Best-effort: a storage failure must never bounce a login, and the
+	// address itself never reaches the log line.
+	if req.Email != "" {
+		if err := d.repo.SetContactEmail(ctx, id, req.Email); err != nil {
+			d.log.Warn("upsert_user contact email store failed",
+				zap.Uint64("user_id", id), zap.Error(err))
+		}
+	}
+
 	// Push-drop cached account state on every console replica: a recreated
 	// account must not keep serving another pod's deleted-era view for the
 	// rest of that pod's SWR window.

@@ -21,6 +21,8 @@ type User struct {
 	Username string `json:"username,omitempty"`
 	// Email holds the value of the "email" field.
 	Email string `json:"-"`
+	// EmailEnc holds the value of the "email_enc" field.
+	EmailEnc []byte `json:"-"`
 	// IsActive holds the value of the "is_active" field.
 	IsActive bool `json:"is_active,omitempty"`
 	// Banned holds the value of the "banned" field.
@@ -72,6 +74,8 @@ func (*User) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
+		case user.FieldEmailEnc:
+			values[i] = new([]byte)
 		case user.FieldIsActive, user.FieldBanned, user.FieldSubscriptionCancelPending:
 			values[i] = new(sql.NullBool)
 		case user.FieldID:
@@ -112,6 +116,12 @@ func (_m *User) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field email", values[i])
 			} else if value.Valid {
 				_m.Email = value.String
+			}
+		case user.FieldEmailEnc:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field email_enc", values[i])
+			} else if value != nil {
+				_m.EmailEnc = *value
 			}
 		case user.FieldIsActive:
 			if value, ok := values[i].(*sql.NullBool); !ok {
@@ -228,6 +238,8 @@ func (_m *User) String() string {
 	builder.WriteString(_m.Username)
 	builder.WriteString(", ")
 	builder.WriteString("email=<sensitive>")
+	builder.WriteString(", ")
+	builder.WriteString("email_enc=<sensitive>")
 	builder.WriteString(", ")
 	builder.WriteString("is_active=")
 	builder.WriteString(fmt.Sprintf("%v", _m.IsActive))
