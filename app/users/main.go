@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"ItsBagelBot/app/users/ent"
 	// Wire the ent schema runtime (field defaults/hooks); without this blank
@@ -145,6 +146,13 @@ func main() {
 		log.Fatal("failed to subscribe admin rpc", zap.Error(err))
 	}
 
+	billingSubject := env.Get("NATS_INTERNAL_BILLING_SUBJECT", "bagel.rpc.internal.billing.apply")
+	if err := rpc.SubscribeBilling(nc, repo, billingSubject, invalidationPrefix, queueGroup, nrApp, log); err != nil {
+		log.Fatal("failed to subscribe billing rpc", zap.Error(err))
+	}
+
+	go expireSubscriptions(ctx, repo, log)
+
 	// Lane (JetStream consumer) telemetry for the admin console. Served under
 
 	// Admin authorization + audit. Seed the bootstrap owners/admins so a fresh
@@ -184,11 +192,34 @@ func main() {
 	log.Info("users service ready",
 		zap.String("dashboard_prefix", dashPrefix),
 		zap.String("admin_prefix", adminPrefix),
+		zap.String("billing_subject", billingSubject),
 		zap.String("projection_subject", projectionSubject))
 
 	<-ctx.Done()
 
 	log.Info("users service shutting down")
+}
+
+func expireSubscriptions(ctx context.Context, repo *repository.Users, log *zap.Logger) {
+	const tebexGrace = 24 * time.Hour
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case now := <-ticker.C:
+			runCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+			count, err := repo.ExpireSubscriptions(runCtx, now, tebexGrace)
+			cancel()
+			if err != nil {
+				log.Error("failed to expire subscriptions", zap.Error(err))
+			} else if count > 0 {
+				log.Info("expired subscriptions", zap.Int("count", count))
+			}
+		}
+	}
 }
 
 // parseIDs splits a comma-separated list of Twitch ids, dropping blanks and

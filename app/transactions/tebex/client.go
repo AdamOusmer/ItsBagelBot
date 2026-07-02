@@ -38,6 +38,10 @@ type Client struct {
 	cfg Config
 }
 
+// PublicToken is safe to expose to the browser and is required by Tebex.js's
+// Payment Portal. The private API key is never held by this Headless client.
+func (c *Client) PublicToken() string { return c.cfg.WebstoreToken }
+
 type Basket struct {
 	Ident       string
 	CheckoutURL string
@@ -78,6 +82,7 @@ func New(cfg Config) (*Client, error) {
 type BasketSpec struct {
 	UserID        uint64
 	Username      string
+	IPAddress     string
 	GiftedByID    uint64
 	GiftedByLogin string
 }
@@ -102,6 +107,10 @@ func (c *Client) CreateBasket(ctx context.Context, spec BasketSpec) (Basket, err
 		"cancel_url":             c.cfg.CancelURL,
 		"complete_auto_redirect": true,
 		"custom":                 custom,
+		"username":               spec.Username,
+	}
+	if spec.IPAddress != "" {
+		create["ip_address"] = spec.IPAddress
 	}
 
 	var created basketData

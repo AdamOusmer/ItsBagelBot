@@ -2,6 +2,7 @@ package rpc
 
 import (
 	"context"
+	"net"
 	"strconv"
 	"strings"
 	"time"
@@ -33,8 +34,15 @@ func SubscribeCheckout(nc *nats.Conn, client *tebex.Client, prefix, userGetSubje
 
 	// Basket creation is two upstream HTTP calls (plus a recipient lookup for
 	// gifts), so give it more room than the default in-cluster RPC budget.
-	return bus.QueueSubscribeJSON[transactionsrpc.BasketCreateRequest, transactionsrpc.BasketCreateReply](
-		nc, prefix+".basket_create", queueGroup, 15*time.Second, app, log, c.basketCreate)
+	if err := bus.QueueSubscribeJSON[transactionsrpc.BasketCreateRequest, transactionsrpc.BasketCreateReply](
+		nc, prefix+".basket_create", queueGroup, 15*time.Second, app, log, c.basketCreate); err != nil {
+		return err
+	}
+	return bus.QueueSubscribeJSON[struct{}, transactionsrpc.ConfigReply](
+		nc, prefix+".config_get", queueGroup, 2*time.Second, app, log,
+		func(context.Context, struct{}) transactionsrpc.ConfigReply {
+			return transactionsrpc.ConfigReply{PublicToken: client.PublicToken()}
+		})
 }
 
 func (c *checkoutRPC) basketCreate(ctx context.Context, req transactionsrpc.BasketCreateRequest) transactionsrpc.BasketCreateReply {
@@ -44,7 +52,7 @@ func (c *checkoutRPC) basketCreate(ctx context.Context, req transactionsrpc.Bask
 		return transactionsrpc.BasketCreateReply{Error: "user_id must be numeric"}
 	}
 
-	spec := tebex.BasketSpec{UserID: buyerID, Username: req.Username}
+	spec := tebex.BasketSpec{UserID: buyerID, Username: req.Username, IPAddress: validIPv4(req.IPAddress)}
 	recipientLogin := ""
 
 	if recipient := normalizeLogin(req.RecipientUsername); recipient != "" {
@@ -58,6 +66,7 @@ func (c *checkoutRPC) basketCreate(ctx context.Context, req transactionsrpc.Bask
 		spec = tebex.BasketSpec{
 			UserID:        view.ID,
 			Username:      view.Username,
+			IPAddress:     validIPv4(req.IPAddress),
 			GiftedByID:    buyerID,
 			GiftedByLogin: req.Username,
 		}
@@ -76,6 +85,14 @@ func (c *checkoutRPC) basketCreate(ctx context.Context, req transactionsrpc.Bask
 		CheckoutURL:    basket.CheckoutURL,
 		RecipientLogin: recipientLogin,
 	}
+}
+
+func validIPv4(raw string) string {
+	ip := net.ParseIP(strings.TrimSpace(raw))
+	if ip == nil || ip.To4() == nil {
+		return ""
+	}
+	return ip.String()
 }
 
 // resolveRecipient vets a gift target: the Twitch login must belong to a

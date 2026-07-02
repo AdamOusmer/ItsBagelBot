@@ -12,6 +12,7 @@ import (
 	"ItsBagelBot/app/users/ent/user"
 	"ItsBagelBot/app/users/repository"
 	"ItsBagelBot/internal/domain/event/data"
+	billingrpc "ItsBagelBot/internal/domain/rpc/billing"
 	"ItsBagelBot/pkg/bus/bustest"
 	"ItsBagelBot/pkg/crypto"
 
@@ -131,6 +132,120 @@ func TestSetStatusRefreshesViewAndPublishes(t *testing.T) {
 
 	assert.Len(t, pub.On(data.SubjectUserChanged), 2, "register and status change must both announce state")
 }
+
+func TestApplyBillingLifecycleIsMonotonicAndProtectsAdminGrants(t *testing.T) {
+	_, _, repo := setup(t)
+	ctx := context.Background()
+	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "mavey@example.com"))
+
+	started := time.Date(2026, 7, 2, 12, 0, 0, 0, time.UTC)
+	expires := started.AddDate(0, 1, 0)
+	applied, err := repo.ApplyBilling(ctx, billingrpc.ApplyRequest{
+		UserID: 1001, EventID: "evt-start", Action: billingrpc.ActionActivate,
+		OccurredAt: started, ExpiresAt: &expires, RecurringReference: "tbx-r-current",
+	})
+	require.NoError(t, err)
+	assert.True(t, applied)
+
+	view, err := repo.Get(ctx, 1001)
+	require.NoError(t, err)
+	assert.Equal(t, "paid", view.Status)
+	assert.Equal(t, "tebex", view.SubscriptionSource)
+	assert.Equal(t, "tbx-r-current", *view.SubscriptionRef)
+	assert.Equal(t, expires, *view.SubscriptionExpiresAt)
+
+	// An older delivery cannot roll back current state.
+	applied, err = repo.ApplyBilling(ctx, billingrpc.ApplyRequest{
+		UserID: 1001, EventID: "evt-old", Action: billingrpc.ActionRevoke,
+		OccurredAt: started.Add(-time.Minute), RecurringReference: "tbx-r-current",
+	})
+	require.NoError(t, err)
+	assert.False(t, applied)
+
+	// Nor can a late event for another recurring reference revoke this one.
+	applied, err = repo.ApplyBilling(ctx, billingrpc.ApplyRequest{
+		UserID: 1001, EventID: "evt-other", Action: billingrpc.ActionRevoke,
+		OccurredAt: started.Add(time.Minute), RecurringReference: "tbx-r-old",
+	})
+	require.NoError(t, err)
+	assert.False(t, applied)
+
+	grantExpiry := expires.AddDate(0, 1, 0)
+	require.NoError(t, repo.SetAdminStatus(ctx, 1001, user.StatusPaid, &grantExpiry))
+	applied, err = repo.ApplyBilling(ctx, billingrpc.ApplyRequest{
+		UserID: 1001, EventID: "evt-refund", Action: billingrpc.ActionRevoke,
+		OccurredAt: time.Now().Add(time.Minute), RecurringReference: "tbx-r-current",
+	})
+	require.NoError(t, err)
+	assert.False(t, applied, "Tebex must not revoke an operator grant")
+}
+
+func TestApplyBillingCancellationAndEnd(t *testing.T) {
+	_, _, repo := setup(t)
+	ctx := context.Background()
+	require.NoError(t, repo.Register(ctx, 2002, "Bagel", "bagel@example.com"))
+
+	started := time.Now().Add(-time.Hour)
+	_, err := repo.ApplyBilling(ctx, billingrpc.ApplyRequest{
+		UserID: 2002, EventID: "evt-start", Action: billingrpc.ActionActivate,
+		OccurredAt: started, RecurringReference: "tbx-r-2",
+	})
+	require.NoError(t, err)
+
+	_, err = repo.ApplyBilling(ctx, billingrpc.ApplyRequest{
+		UserID: 2002, EventID: "evt-cancel", Action: billingrpc.ActionCancelRequested,
+		OccurredAt: started.Add(time.Minute), RecurringReference: "tbx-r-2",
+	})
+	require.NoError(t, err)
+	view, _ := repo.Get(ctx, 2002)
+	assert.True(t, view.SubscriptionCancelPending)
+	assert.Equal(t, "paid", view.Status)
+
+	_, err = repo.ApplyBilling(ctx, billingrpc.ApplyRequest{
+		UserID: 2002, EventID: "evt-ended", Action: billingrpc.ActionRevoke,
+		OccurredAt: started.Add(2 * time.Minute), RecurringReference: "tbx-r-2",
+	})
+	require.NoError(t, err)
+	view, _ = repo.Get(ctx, 2002)
+	assert.Equal(t, "free", view.Status)
+	assert.Empty(t, view.SubscriptionSource)
+}
+
+func TestExpireSubscriptionsHonorsTebexGrace(t *testing.T) {
+	client, _, repo := setup(t)
+	ctx := context.Background()
+	now := time.Date(2026, 7, 2, 12, 0, 0, 0, time.UTC)
+
+	require.NoError(t, repo.Register(ctx, 3003, "AdminGrant", "admin@example.com"))
+	adminExpiry := now.Add(-time.Minute)
+	require.NoError(t, repo.SetAdminStatus(ctx, 3003, user.StatusPaid, ptrTime(time.Now().Add(time.Hour))))
+	require.NoError(t, client.User.UpdateOneID(3003).SetSubscriptionExpiresAt(adminExpiry).Exec(ctx))
+
+	require.NoError(t, repo.Register(ctx, 4004, "TebexGrace", "tebex@example.com"))
+	tebexExpiry := now.Add(-time.Hour)
+	_, err := repo.ApplyBilling(ctx, billingrpc.ApplyRequest{
+		UserID: 4004, EventID: "evt-tebex", Action: billingrpc.ActionActivate,
+		OccurredAt: now.Add(-48 * time.Hour), ExpiresAt: &tebexExpiry,
+	})
+	require.NoError(t, err)
+
+	count, err := repo.ExpireSubscriptions(ctx, now, 24*time.Hour)
+	require.NoError(t, err)
+	assert.Equal(t, 1, count)
+
+	admin, _ := repo.Get(ctx, 3003)
+	tebex, _ := repo.Get(ctx, 4004)
+	assert.Equal(t, "free", admin.Status)
+	assert.Equal(t, "paid", tebex.Status)
+
+	count, err = repo.ExpireSubscriptions(ctx, now.Add(24*time.Hour), 24*time.Hour)
+	require.NoError(t, err)
+	assert.Equal(t, 1, count)
+	tebex, _ = repo.Get(ctx, 4004)
+	assert.Equal(t, "free", tebex.Status)
+}
+
+func ptrTime(value time.Time) *time.Time { return &value }
 
 func TestDeleteCascadesAndPublishes(t *testing.T) {
 	client, pub, repo := setup(t)

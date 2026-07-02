@@ -260,7 +260,14 @@ func (d *dashboardRPC) handleStateGet(ctx context.Context, msg *nats.Msg) {
 		return
 	}
 
-	bus.Respond(msg, map[string]any{"active": view.IsActive, "status": view.Status})
+	bus.Respond(msg, map[string]any{
+		"active":                      view.IsActive,
+		"status":                      view.Status,
+		"expires_at":                  view.SubscriptionExpiresAt,
+		"source":                      view.SubscriptionSource,
+		"subscription_ref":            view.SubscriptionRef,
+		"subscription_cancel_pending": view.SubscriptionCancelPending,
+	})
 }
 
 // handleDeleteSelf removes the user and every delegation they own. Delegations

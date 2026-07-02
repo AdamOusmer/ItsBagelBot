@@ -13,6 +13,7 @@ type BasketCreateRequest struct {
 	UserID            string `json:"user_id"`
 	Username          string `json:"username,omitempty"`
 	RecipientUsername string `json:"recipient_username,omitempty"`
+	IPAddress         string `json:"ip_address,omitempty"`
 }
 
 type BasketCreateReply struct {
@@ -24,4 +25,9 @@ type BasketCreateReply struct {
 	// RecipientLogin echoes the resolved gift recipient (gift baskets only).
 	RecipientLogin string `json:"recipient_login,omitempty"`
 	Error          string `json:"error,omitempty"`
+}
+
+type ConfigReply struct {
+	PublicToken string `json:"public_token,omitempty"`
+	Error       string `json:"error,omitempty"`
 }
