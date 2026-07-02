@@ -12,6 +12,11 @@
     retry: 'Sign-in did not finish on our side — nothing was saved. Please try again.'
   };
   const notice = $derived(NOTICES[page.url.searchParams.get('e') ?? ''] ?? null);
+
+  // Post-login destination (validated server-side in /auth/login); rides the
+  // OAuth round trip so a deep link like /billing?subscribe=1 survives sign-in.
+  const next = $derived(page.url.searchParams.get('next'));
+  const loginHref = $derived(next ? `/auth/login?next=${encodeURIComponent(next)}` : '/auth/login');
 </script>
 
 <AuroraBg />
@@ -41,7 +46,7 @@
     Private, distributed, encrypted. Manage commands and your bot from one warm console.
   </p>
 
-  <a class="cta reveal" style="--d:1s" href="/auth/login">
+  <a class="cta reveal" style="--d:1s" href={loginHref}>
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3h16v12l-4 4h-4l-3 3v-3H4z" /><line x1="9" y1="8" x2="9" y2="12" /><line x1="14" y1="8" x2="14" y2="12" /></svg>
     Continue with Twitch
   </a>

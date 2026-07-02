@@ -25,7 +25,8 @@ export const SUB = {
   outgressRpc: process.env.NATS_OUTGRESS_RPC_PREFIX ?? 'bagel.rpc.outgress',
   audit: process.env.NATS_ADMIN_AUDIT_SUBJECT_PREFIX ?? 'bagel.rpc.admin.user.audit',
   delegation: process.env.NATS_DELEGATION_SUBJECT_PREFIX ?? 'bagel.rpc.delegation',
-  notifications: process.env.NATS_NOTIFICATIONS_SUBJECT_PREFIX ?? 'bagel.rpc.notifications'
+  notifications: process.env.NATS_NOTIFICATIONS_SUBJECT_PREFIX ?? 'bagel.rpc.notifications',
+  transactions: process.env.NATS_TRANSACTIONS_SUBJECT_PREFIX ?? 'bagel.rpc.transactions'
 };
 
 function userPrefixes(id: string): string[] {
@@ -416,6 +417,23 @@ export const billingState = defineRead({
     policy: POLICY.entity
   }
 });
+
+// Mint a Tebex Headless basket for this user via the transactions service. The
+// ident feeds Tebex.js's embedded checkout; the checkout URL is the hosted
+// fallback. Never cached — every checkout attempt gets a fresh basket. Basket
+// creation is two Tebex HTTP calls upstream, so the timeout is looser than the
+// in-cluster read budget.
+export type CheckoutBasket = { ident: string; checkoutUrl: string | null };
+
+export async function checkoutBasketCreate(userId: string, username: string): Promise<CheckoutBasket> {
+  const r = await rpc<{ ident?: string; checkout_url?: string }>(
+    `${SUB.transactions}.basket_create`,
+    { user_id: userId, username },
+    16000
+  );
+  if (!r.ident) throw new Error('basket create returned no ident');
+  return { ident: r.ident, checkoutUrl: r.checkout_url ?? null };
+}
 
 // ---------------------------------------------------------------------------
 // Notifications (notifications service)

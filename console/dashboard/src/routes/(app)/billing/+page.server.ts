@@ -1,6 +1,6 @@
 import type { Actions, PageServerLoad } from './$types';
 import { redirect, fail } from '@sveltejs/kit';
-import { billingState, type BillingState } from '$lib/server/services';
+import { billingState, checkoutBasketCreate, type BillingState } from '$lib/server/services';
 import { env } from '$env/dynamic/private';
 
 type BillingLinks = {
@@ -25,7 +25,11 @@ function links(): BillingLinks {
   };
 }
 
-export const load: PageServerLoad = async ({ locals }) => {
+export const load: PageServerLoad = async ({ locals, url }) => {
+  // ?subscribe=1 comes from the marketing site's pricing page (rides through
+  // the login flow); the page auto-opens checkout when the plan allows it.
+  const autostart = url.searchParams.get('subscribe') === '1';
+
   if (env.DEMO === '1') {
     return {
       account: {
@@ -38,7 +42,8 @@ export const load: PageServerLoad = async ({ locals }) => {
         checkoutUrl: 'https://example.tebex.io/package/premium',
         cancelUrl: 'https://example.tebex.io/account'
       } satisfies BillingLinks,
-      degraded: false
+      degraded: false,
+      autostart
     };
   }
 
@@ -57,22 +62,22 @@ export const load: PageServerLoad = async ({ locals }) => {
         ? accountResult.value
         : ({ active: false, status: 'free', expiresAt: null, source: '' } as BillingState),
     links: links(),
-    degraded: accountResult.status !== 'fulfilled'
+    degraded: accountResult.status !== 'fulfilled',
+    autostart
   };
 };
 
 export const actions: Actions = {
-  // Send the browser to the Tebex checkout selected by our dashboard UI. 303 so
-  // the POST becomes a GET on the external payment page.
+  // Mint a Tebex basket for this user (transactions service -> Headless API)
+  // and hand the ident back so the page can launch the official Tebex.js
+  // embedded checkout. If basket minting is down but a static hosted-checkout
+  // URL is configured, fall back to the old 303 hand-off.
   subscribe: async ({ locals }) => {
     const s = locals.session;
     if (!s) return fail(401, { error: 'Not signed in.' });
     if (s.delegate_of || s.impersonator_id) {
       return fail(403, { error: 'Only the account owner can subscribe.' });
     }
-
-    const url = links().checkoutUrl;
-    if (!url) return fail(503, { error: 'Subscriptions are not available right now.' });
 
     // Never send an already-premium user to Tebex: a staff-granted period,
     // active Tebex entitlement, or VIP grant must run out before a new charge is
@@ -86,6 +91,15 @@ export const actions: Actions = {
       return fail(502, { error: 'Could not verify your current plan. Try again in a moment.' });
     }
 
+    try {
+      const basket = await checkoutBasketCreate(s.user_id, s.login);
+      return { ident: basket.ident, checkoutUrl: basket.checkoutUrl };
+    } catch (err) {
+      console.error('[billing] basket create failed:', err);
+    }
+
+    const url = links().checkoutUrl;
+    if (!url) return fail(503, { error: 'Subscriptions are not available right now.' });
     throw redirect(303, url);
   },
 

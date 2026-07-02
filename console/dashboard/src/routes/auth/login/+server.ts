@@ -2,7 +2,7 @@ import type { RequestHandler } from './$types';
 import { redirect } from '@sveltejs/kit';
 import { generateState } from 'arctic';
 import { randomBytes } from 'node:crypto';
-import { twitch, scopes } from '$lib/server/oauth';
+import { twitch, scopes, safeNextPath } from '$lib/server/oauth';
 
 // Start of the Twitch authorization-code flow. State is stored in a short-lived
 // HttpOnly cookie and verified in the callback (CSRF protection for OAuth).
@@ -25,6 +25,12 @@ export const GET: RequestHandler = ({ cookies, url }) => {
 
   cookies.set('oauth_state', state, cookieOpts);
   cookies.set('oauth_nonce', nonce, cookieOpts);
+
+  // Where to land after the callback (e.g. /billing?subscribe=1 from the
+  // pricing page). Rides its own short-lived cookie, same as state/nonce.
+  const next = safeNextPath(url.searchParams.get('next'));
+  if (next) cookies.set('login_next', next, cookieOpts);
+  else cookies.delete('login_next', { path: '/' });
 
   throw redirect(302, authUrl.toString());
 };

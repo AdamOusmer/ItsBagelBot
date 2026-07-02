@@ -1,6 +1,9 @@
 <script lang="ts">
   import { Icon, PageHead, Card, ConfirmDialog, toast } from '@bagel/shared';
   import { page } from '$app/state';
+  import { enhance } from '$app/forms';
+  import { invalidateAll, replaceState } from '$app/navigation';
+  import { onMount } from 'svelte';
   import type { BillingState } from '$lib/server/services';
 
   let { data, form } = $props();
@@ -13,8 +16,80 @@
   const staffGrant = $derived(account.status === 'paid' && account.source === 'admin');
   const tebexPaid = $derived(account.status === 'paid' && account.source === 'tebex');
   const paidUntil = $derived(account.expiresAt);
-  const canSubscribe = $derived(!!links.checkoutUrl && !isPaid);
+  // Basket minting happens server-side on click, so subscribing only needs a
+  // free plan; the static checkoutUrl is just the hosted fallback.
+  const canSubscribe = $derived(!isPaid);
   const canCancel = $derived(!!links.cancelUrl && tebexPaid);
+
+  // ── Tebex.js embedded checkout ──
+  // The official script (js.tebex.io, loaded in <svelte:head>) exposes
+  // window.Tebex. The subscribe action returns a basket ident; init + launch
+  // opens the payment overlay without leaving the dashboard.
+  type TebexGlobal = {
+    checkout: {
+      init: (opts: { ident: string; theme?: 'light' | 'dark' }) => void;
+      launch: () => void;
+      close: () => void;
+      on: (event: 'payment:complete' | 'payment:error' | 'close', cb: () => void) => void;
+    };
+  };
+  const tebexGlobal = () => (window as unknown as { Tebex?: TebexGlobal }).Tebex;
+
+  let launching = $state(false);
+  let subscribeForm = $state<HTMLFormElement | null>(null);
+
+  function waitForTebex(timeoutMs = 6000): Promise<TebexGlobal | null> {
+    return new Promise((resolve) => {
+      const started = Date.now();
+      const poll = () => {
+        const t = tebexGlobal();
+        if (t) return resolve(t);
+        if (Date.now() - started > timeoutMs) return resolve(null);
+        setTimeout(poll, 100);
+      };
+      poll();
+    });
+  }
+
+  async function launchCheckout(ident: string, fallbackUrl: string | null) {
+    const tebex = await waitForTebex();
+    if (!tebex) {
+      // Script blocked or offline: hosted checkout still works.
+      if (fallbackUrl) {
+        window.location.href = fallbackUrl;
+        return;
+      }
+      launching = false;
+      toast('err', 'Could not open checkout. Please try again.');
+      return;
+    }
+
+    tebex.checkout.init({ ident, theme: 'dark' });
+    tebex.checkout.on('payment:complete', () => {
+      toast('ok', 'Payment received — your plan activates within a minute.');
+      tebex.checkout.close();
+      // The entitlement lands via the Tebex webhook; refetch shortly after.
+      setTimeout(() => void invalidateAll(), 1500);
+    });
+    tebex.checkout.on('payment:error', () => {
+      toast('err', 'Payment did not go through. No charge was made.');
+    });
+    tebex.checkout.on('close', () => {
+      launching = false;
+    });
+    tebex.checkout.launch();
+  }
+
+  // Auto-open checkout when the pricing page sent the visitor here with
+  // ?subscribe=1 (possibly via the login flow). One shot: the param is
+  // stripped so a refresh does not re-launch.
+  onMount(() => {
+    if (!data.autostart) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete('subscribe');
+    replaceState(url, {});
+    if (canSubscribe && !launching) subscribeForm?.requestSubmit();
+  });
 
   const fmtDate = (iso?: string | null) =>
     iso
@@ -47,6 +122,11 @@
 
   const statusLabel = $derived(isVip ? 'VIP' : isPaid ? 'Premium' : 'Free');
 </script>
+
+<svelte:head>
+  <!-- Official Tebex.js — embedded checkout overlay (allowed by CSP script-src). -->
+  <script src="https://js.tebex.io/v/1.js" async></script>
+</svelte:head>
 
 <section class="screen active">
   <PageHead eyebrow="Account" description="Your plan lives here. Tebex handles payment and subscription management.">Your <em>billing</em></PageHead>
@@ -87,20 +167,42 @@
 
       <div class="plan-actions">
         {#if canSubscribe}
-          <form method="POST" action="?/subscribe">
-            <button class="btn primary" type="submit">
+          <form
+            method="POST"
+            action="?/subscribe"
+            bind:this={subscribeForm}
+            use:enhance={() => {
+              launching = true;
+              return async ({ result, update }) => {
+                if (result.type === 'success' && result.data?.ident) {
+                  await launchCheckout(
+                    String(result.data.ident),
+                    result.data.checkoutUrl ? String(result.data.checkoutUrl) : null
+                  );
+                  return;
+                }
+                if (result.type === 'redirect') {
+                  // Hosted-checkout fallback is an external URL; goto() cannot
+                  // take it, so navigate directly.
+                  window.location.href = result.location;
+                  return;
+                }
+                launching = false;
+                await update();
+              };
+            }}
+          >
+            <button class="btn primary" type="submit" disabled={launching}>
               <Icon name="heart" size={14} />
-              Subscribe
+              {launching ? 'Opening checkout…' : 'Subscribe'}
             </button>
           </form>
-          <p class="hint tiny">Secure payment opens on Tebex. Your plan updates here after the webhook lands.</p>
+          <p class="hint tiny">Secure payment by Tebex, right here. Your plan updates after the payment lands.</p>
         {:else if canCancel}
           <button type="button" class="btn ghost danger" onclick={() => (cancelOpen = true)}>
             Cancel subscription
           </button>
           <p class="hint tiny">You will leave the dashboard and manage the subscription on Tebex.</p>
-        {:else if !links.checkoutUrl && !isPaid}
-          <p class="hint">Subscriptions aren't available right now.</p>
         {/if}
       </div>
     </div>

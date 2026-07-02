@@ -1,7 +1,7 @@
 import type { RequestHandler } from './$types';
 import { redirect } from '@sveltejs/kit';
 import { decodeIdToken, OAuth2RequestError } from 'arctic';
-import { twitch } from '$lib/server/oauth';
+import { twitch, safeNextPath } from '$lib/server/oauth';
 import { rpc } from '@bagel/shared/server/nats';
 import { saveGrant, isBanned, delegationConsume } from '$lib/server/services';
 import { COOKIE, seal } from '$lib/server/session';
@@ -15,8 +15,12 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
   const state = url.searchParams.get('state');
   const stored = cookies.get('oauth_state');
   const storedNonce = cookies.get('oauth_nonce');
+  // Deep link stored by /auth/login (e.g. /billing?subscribe=1 from the
+  // pricing page). Re-validated here: the cookie is client-writable.
+  const next = safeNextPath(cookies.get('login_next'));
   cookies.delete('oauth_state', { path: '/' });
   cookies.delete('oauth_nonce', { path: '/' });
+  cookies.delete('login_next', { path: '/' });
 
   // Constant-ish state check: reject missing/mismatched state before any exchange.
   if (!code || !state || !stored || state !== stored) throw redirect(302, '/login?e=state');
@@ -147,5 +151,7 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
     throw e;
   }
 
-  throw redirect(302, '/');
+  // Owner session minted: honor the stored deep link (delegate sessions
+  // redirect inside the try block and never reach this).
+  throw redirect(302, next ?? '/');
 };

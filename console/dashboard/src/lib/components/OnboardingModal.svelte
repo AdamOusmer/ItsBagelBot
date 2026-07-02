@@ -49,7 +49,7 @@
       cta: { href: '/commands', label: 'Open Commands' }
     },
     {
-      icon: 'puzzle' as const,
+      icon: 'modules' as const,
       title: 'Flip on modules',
       body: 'Optional extras like Auto Shoutout for incoming raids. One toggle each, configured in a minute.',
       cta: { href: '/modules', label: 'Browse modules' }
