@@ -3,6 +3,7 @@ package rpc
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -67,6 +68,10 @@ func (a *adminRPC) send(ctx context.Context, req notificationsrpc.SendRequest) n
 	if err := notification.LevelValidator(level); err != nil {
 		return notificationsrpc.SendReply{Error: "level must be info, success, warning or critical"}
 	}
+	actorID, err := strconv.ParseUint(req.ActorID, 10, 64)
+	if err != nil {
+		return notificationsrpc.SendReply{Error: "actor_id must be numeric"}
+	}
 
 	var target *uint64
 	if scope == notification.ScopeDirect {
@@ -77,14 +82,14 @@ func (a *adminRPC) send(ctx context.Context, req notificationsrpc.SendRequest) n
 		target = &id
 	}
 
-	row, err := a.repo.Create(ctx, scope, target, req.Title, req.Body, level, req.ActorID, req.ActorLogin, req.ExpiresAt)
+	row, err := a.repo.Create(ctx, scope, target, req.Title, req.Body, level, actorID, req.ActorLogin, req.ExpiresAt)
 	if err != nil {
 		return notificationsrpc.SendReply{Error: err.Error()}
 	}
 
 	a.invalidate(target)
 	a.log.Info("admin notification sent",
-		zap.String("scope", req.Scope), zap.Int("id", row.ID), zap.Uint64("actor", req.ActorID))
+		zap.String("scope", req.Scope), zap.Int("id", row.ID), zap.Uint64("actor", actorID))
 
 	view := viewOf(row, false)
 	return notificationsrpc.SendReply{Notification: &view}
