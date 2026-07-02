@@ -155,6 +155,9 @@ type BasketSpec struct {
 	IPAddress     string
 	GiftedByID    uint64
 	GiftedByLogin string
+	// PackageType overrides Config.PackageType for this basket ("single" buys
+	// one period one-time, "subscription" auto-renews). Empty uses the config.
+	PackageType string
 }
 
 // CreateBasket mints a basket and adds the premium package. The recipient's
@@ -194,10 +197,15 @@ func (c *Client) CreateBasket(ctx context.Context, spec BasketSpec) (Basket, err
 		return Basket{}, errors.New("create basket: response missing ident")
 	}
 
+	packageType := c.cfg.PackageType
+	if spec.PackageType != "" {
+		packageType = spec.PackageType
+	}
+
 	addPackage := map[string]any{
 		"package_id": c.cfg.PackageID,
 		"quantity":   1,
-		"type":       c.cfg.PackageType,
+		"type":       packageType,
 	}
 
 	var updated basketData
