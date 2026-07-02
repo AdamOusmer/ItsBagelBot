@@ -296,12 +296,21 @@ func (s *Server) applyBilling(ctx context.Context, event tebexEvent, payment rec
 	if err != nil {
 		return fmt.Errorf("invalid webhook date: %w", err)
 	}
+	expiresAt := payment.ExpiresAt
+	if action == billingrpc.ActionActivate && expiresAt == nil {
+		// One-time purchases (single-month buys, gifts) can arrive without any
+		// expiry on the payment subject, but a paid month must still run out —
+		// an activation without expiry would never be revoked by the safety
+		// net. Default to one month from the payment event.
+		fallback := occurredAt.AddDate(0, 1, 0)
+		expiresAt = &fallback
+	}
 	return s.cfg.ApplyBilling(ctx, billingrpc.ApplyRequest{
 		UserID:             payment.UserID,
 		EventID:            event.ID,
 		Action:             action,
 		OccurredAt:         occurredAt,
-		ExpiresAt:          payment.ExpiresAt,
+		ExpiresAt:          expiresAt,
 		RecurringReference: payment.RecurringReference,
 	})
 }
