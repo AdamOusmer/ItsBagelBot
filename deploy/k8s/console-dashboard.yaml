@@ -24,7 +24,9 @@
 # config prd) that the old Go tier used - same TWITCH_CLIENT_ID/
 # SECRET, authenticated NATS creds (NATS_HOST/PORT/USER/PASSWORD), and the 32-byte
 # DASHBOARD_SESSION_KEY (mapped to SESSION_KEY below). Only TWITCH_REDIRECT_URI
-# was added to that config for the new OAuth callback.
+# was added to that config for the new OAuth callback. Billing links are also
+# read from this secret when present: TEBEX_PREMIUM_CHECKOUT_URL opens the
+# hosted checkout, and TEBEX_CANCEL_URL opens Tebex subscription management.
 apiVersion: secrets.doppler.com/v1alpha1
 kind: DopplerSecret
 metadata:

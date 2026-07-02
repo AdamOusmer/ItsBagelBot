@@ -43,16 +43,16 @@ SERVICES = {
     "twitch_ingress": "twitch-ingress",
     "dashboard": "dashboard",
     "admin": "admin",
-    "transactions": "transactions",  # BUS only, no RPC account
+    "transactions": "transactions",
     "notifications": "notifications",
 }
-NO_RPC = {"transactions"}
+NO_RPC: set[str] = set()
 
 # One leaf link per account: the BUS account plus every *_RPC account.
 LEAF_ACCOUNTS = [
     "bus", "users", "commands", "modules", "projector",
     "outgress", "worker", "dashboard", "admin", "twitch_ingress",
-    "notifications",
+    "notifications", "transactions",
 ]
 
 
