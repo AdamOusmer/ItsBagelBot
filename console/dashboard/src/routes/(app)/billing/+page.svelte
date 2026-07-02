@@ -220,6 +220,10 @@
             giftLaunching = true;
           }}
         >
+          <!-- readonly, never disabled: the submit handler flips giftLaunching
+               before the browser serializes the form, and disabled fields are
+               dropped from form data — the server would always see an empty
+               recipient. -->
           <input
             class="gift-input"
             type="text"
@@ -229,7 +233,7 @@
             spellcheck="false"
             maxlength="26"
             bind:value={giftRecipient}
-            disabled={giftLaunching}
+            readonly={giftLaunching}
           />
           <button class="btn primary" type="submit" disabled={giftLaunching || !giftRecipient.trim()}>
             <Icon name="heart" size={14} />

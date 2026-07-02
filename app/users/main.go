@@ -177,6 +177,11 @@ func main() {
 		log.Fatal("failed to subscribe projection rpc", zap.Error(err))
 	}
 
+	emailSubject := env.Get("NATS_INTERNAL_USERS_EMAIL_SUBJECT", "bagel.rpc.internal.users.email.get")
+	if err := rpc.SubscribeEmail(nc, repo, emailSubject, queueGroup, nrApp, log); err != nil {
+		log.Fatal("failed to subscribe email rpc", zap.Error(err))
+	}
+
 	tokensPrefix := env.Get("NATS_INTERNAL_TOKENS_SUBJECT_PREFIX", "bagel.rpc.internal.tokens")
 	if err := rpc.SubscribeTokens(nc, repo, tokensPrefix, queueGroup, nrApp, log); err != nil {
 		log.Fatal("failed to subscribe tokens rpc", zap.Error(err))
