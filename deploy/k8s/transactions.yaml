@@ -156,7 +156,7 @@ metadata:
 spec:
   entryPoints: [websecure]
   routes:
-    - match: Host(`webhooks.itsbagelbot.com`) && Path(`/tebex`)
+    - match: Host(`webhooks.itsbagelbot.com`) && (PathPrefix(`/tebex`) || PathPrefix(`/webhooks/tebex`))
       kind: Rule
       services:
         - name: transactions

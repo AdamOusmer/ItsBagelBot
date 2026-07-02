@@ -48,6 +48,25 @@ func TestValidationWebhookEchoesIDAndStoresState(t *testing.T) {
 	assert.Empty(t, store.records)
 }
 
+func TestWebhookAliasesExposeReachability(t *testing.T) {
+
+	store := &fakeStore{}
+	app := newTestApp(store)
+
+	for _, path := range []string{"/tebex", "/tebex/", "/webhooks/tebex", "/webhooks/tebex/"} {
+		req, err := http.NewRequest(http.MethodGet, path, nil)
+		require.NoError(t, err)
+
+		resp, err := app.Test(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		assert.Equal(t, http.StatusOK, resp.StatusCode, path)
+	}
+	assert.Empty(t, store.records)
+	assert.Empty(t, store.events)
+}
+
 func TestPaymentCompletedRecordsTransactionAndStoresProcessedState(t *testing.T) {
 
 	store := &fakeStore{}
