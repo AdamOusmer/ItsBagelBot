@@ -9,10 +9,9 @@ export default {
     output: {
       bundleStrategy: 'single'
     },
-    // Deterministic build id (commit SHA via BUILD_VERSION) so the per-arch
-    // native builds (ARM/Intel) emit identical hashed asset names. Default is a
-    // timestamp, which diverges across the two builds and 404s chunks under the
-    // stateless LB.
+    // Pin the version metadata to the commit SHA. The build script separately
+    // sorts route-directory reads so native ARM/Intel builds also assign the
+    // same SvelteKit node IDs and emit byte-identical client bundles.
     // pollInterval lets the client poll _app/version.json and flip the `updated`
     // store on a new deploy, so the root layout can force a full reload instead
     // of fetching a now-deleted bundle hash (404 -> dead SPA until hard refresh).

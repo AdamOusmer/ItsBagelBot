@@ -7,13 +7,16 @@
   %sveltekit.head%
 </head>
 <body data-role="admin" data-sveltekit-preload-data="hover">
+  <!-- Decorative siblings must stay outside the hydration root below. SvelteKit
+       passes the body-script's parent to app.start(), whose first managed node
+       must be Svelte's hydration marker. -->
+  <div class="bg-orb"></div>
+  <div class="bg-orb two"></div>
   <!-- display:contents wrapper isolates the hydration root from browser
        extensions that inject nodes directly into <body>. Without it, an injected
        sibling shifts SvelteKit's hydration index walk, the hydrate throws, and
        the app unmounts to a blank page (only for users with such extensions). -->
   <div style="display: contents">
-    <div class="bg-orb"></div>
-    <div class="bg-orb two"></div>
     %sveltekit.body%
   </div>
 </body>
