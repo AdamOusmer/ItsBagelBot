@@ -71,7 +71,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: commands
-          image: ghcr.io/adamousmer/itsbagelbot/commands:main-1782997962-b2171be11598@sha256:4aaeee354cc8cc5ab1e4adb2830bc332f8c6bb003538baa7d5abad2d5bd345b9 # {"$imagepolicy": "flux-system:commands"}
+          image: ghcr.io/adamousmer/itsbagelbot/commands:main-1783001481-4a47b60f8080@sha256:4f5a30da79dfd07756e71df597c041a7609fce29716f3a100eca1789d619fd7d # {"$imagepolicy": "flux-system:commands"}
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST
