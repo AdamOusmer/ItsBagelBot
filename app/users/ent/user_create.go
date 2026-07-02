@@ -75,6 +75,90 @@ func (_c *UserCreate) SetNillableStatus(v *user.Status) *UserCreate {
 	return _c
 }
 
+// SetSubscriptionSource sets the "subscription_source" field.
+func (_c *UserCreate) SetSubscriptionSource(v string) *UserCreate {
+	_c.mutation.SetSubscriptionSource(v)
+	return _c
+}
+
+// SetNillableSubscriptionSource sets the "subscription_source" field if the given value is not nil.
+func (_c *UserCreate) SetNillableSubscriptionSource(v *string) *UserCreate {
+	if v != nil {
+		_c.SetSubscriptionSource(*v)
+	}
+	return _c
+}
+
+// SetSubscriptionExpiresAt sets the "subscription_expires_at" field.
+func (_c *UserCreate) SetSubscriptionExpiresAt(v time.Time) *UserCreate {
+	_c.mutation.SetSubscriptionExpiresAt(v)
+	return _c
+}
+
+// SetNillableSubscriptionExpiresAt sets the "subscription_expires_at" field if the given value is not nil.
+func (_c *UserCreate) SetNillableSubscriptionExpiresAt(v *time.Time) *UserCreate {
+	if v != nil {
+		_c.SetSubscriptionExpiresAt(*v)
+	}
+	return _c
+}
+
+// SetSubscriptionRef sets the "subscription_ref" field.
+func (_c *UserCreate) SetSubscriptionRef(v string) *UserCreate {
+	_c.mutation.SetSubscriptionRef(v)
+	return _c
+}
+
+// SetNillableSubscriptionRef sets the "subscription_ref" field if the given value is not nil.
+func (_c *UserCreate) SetNillableSubscriptionRef(v *string) *UserCreate {
+	if v != nil {
+		_c.SetSubscriptionRef(*v)
+	}
+	return _c
+}
+
+// SetSubscriptionCancelPending sets the "subscription_cancel_pending" field.
+func (_c *UserCreate) SetSubscriptionCancelPending(v bool) *UserCreate {
+	_c.mutation.SetSubscriptionCancelPending(v)
+	return _c
+}
+
+// SetNillableSubscriptionCancelPending sets the "subscription_cancel_pending" field if the given value is not nil.
+func (_c *UserCreate) SetNillableSubscriptionCancelPending(v *bool) *UserCreate {
+	if v != nil {
+		_c.SetSubscriptionCancelPending(*v)
+	}
+	return _c
+}
+
+// SetBillingEventAt sets the "billing_event_at" field.
+func (_c *UserCreate) SetBillingEventAt(v time.Time) *UserCreate {
+	_c.mutation.SetBillingEventAt(v)
+	return _c
+}
+
+// SetNillableBillingEventAt sets the "billing_event_at" field if the given value is not nil.
+func (_c *UserCreate) SetNillableBillingEventAt(v *time.Time) *UserCreate {
+	if v != nil {
+		_c.SetBillingEventAt(*v)
+	}
+	return _c
+}
+
+// SetBillingEventID sets the "billing_event_id" field.
+func (_c *UserCreate) SetBillingEventID(v string) *UserCreate {
+	_c.mutation.SetBillingEventID(v)
+	return _c
+}
+
+// SetNillableBillingEventID sets the "billing_event_id" field if the given value is not nil.
+func (_c *UserCreate) SetNillableBillingEventID(v *string) *UserCreate {
+	if v != nil {
+		_c.SetBillingEventID(*v)
+	}
+	return _c
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_c *UserCreate) SetCreatedAt(v time.Time) *UserCreate {
 	_c.mutation.SetCreatedAt(v)
@@ -171,6 +255,14 @@ func (_c *UserCreate) defaults() {
 		v := user.DefaultStatus
 		_c.mutation.SetStatus(v)
 	}
+	if _, ok := _c.mutation.SubscriptionSource(); !ok {
+		v := user.DefaultSubscriptionSource
+		_c.mutation.SetSubscriptionSource(v)
+	}
+	if _, ok := _c.mutation.SubscriptionCancelPending(); !ok {
+		v := user.DefaultSubscriptionCancelPending
+		_c.mutation.SetSubscriptionCancelPending(v)
+	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := user.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
@@ -212,6 +304,12 @@ func (_c *UserCreate) check() error {
 		if err := user.StatusValidator(v); err != nil {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "User.status": %w`, err)}
 		}
+	}
+	if _, ok := _c.mutation.SubscriptionSource(); !ok {
+		return &ValidationError{Name: "subscription_source", err: errors.New(`ent: missing required field "User.subscription_source"`)}
+	}
+	if _, ok := _c.mutation.SubscriptionCancelPending(); !ok {
+		return &ValidationError{Name: "subscription_cancel_pending", err: errors.New(`ent: missing required field "User.subscription_cancel_pending"`)}
 	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		return &ValidationError{Name: "created_at", err: errors.New(`ent: missing required field "User.created_at"`)}
@@ -270,6 +368,30 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Status(); ok {
 		_spec.SetField(user.FieldStatus, field.TypeEnum, value)
 		_node.Status = value
+	}
+	if value, ok := _c.mutation.SubscriptionSource(); ok {
+		_spec.SetField(user.FieldSubscriptionSource, field.TypeString, value)
+		_node.SubscriptionSource = value
+	}
+	if value, ok := _c.mutation.SubscriptionExpiresAt(); ok {
+		_spec.SetField(user.FieldSubscriptionExpiresAt, field.TypeTime, value)
+		_node.SubscriptionExpiresAt = &value
+	}
+	if value, ok := _c.mutation.SubscriptionRef(); ok {
+		_spec.SetField(user.FieldSubscriptionRef, field.TypeString, value)
+		_node.SubscriptionRef = &value
+	}
+	if value, ok := _c.mutation.SubscriptionCancelPending(); ok {
+		_spec.SetField(user.FieldSubscriptionCancelPending, field.TypeBool, value)
+		_node.SubscriptionCancelPending = value
+	}
+	if value, ok := _c.mutation.BillingEventAt(); ok {
+		_spec.SetField(user.FieldBillingEventAt, field.TypeTime, value)
+		_node.BillingEventAt = &value
+	}
+	if value, ok := _c.mutation.BillingEventID(); ok {
+		_spec.SetField(user.FieldBillingEventID, field.TypeString, value)
+		_node.BillingEventID = &value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(user.FieldCreatedAt, field.TypeTime, value)

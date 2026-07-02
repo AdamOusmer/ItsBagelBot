@@ -75,6 +75,36 @@ func Banned(v bool) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldBanned, v))
 }
 
+// SubscriptionSource applies equality check predicate on the "subscription_source" field. It's identical to SubscriptionSourceEQ.
+func SubscriptionSource(v string) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldSubscriptionSource, v))
+}
+
+// SubscriptionExpiresAt applies equality check predicate on the "subscription_expires_at" field. It's identical to SubscriptionExpiresAtEQ.
+func SubscriptionExpiresAt(v time.Time) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldSubscriptionExpiresAt, v))
+}
+
+// SubscriptionRef applies equality check predicate on the "subscription_ref" field. It's identical to SubscriptionRefEQ.
+func SubscriptionRef(v string) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldSubscriptionRef, v))
+}
+
+// SubscriptionCancelPending applies equality check predicate on the "subscription_cancel_pending" field. It's identical to SubscriptionCancelPendingEQ.
+func SubscriptionCancelPending(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldSubscriptionCancelPending, v))
+}
+
+// BillingEventAt applies equality check predicate on the "billing_event_at" field. It's identical to BillingEventAtEQ.
+func BillingEventAt(v time.Time) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldBillingEventAt, v))
+}
+
+// BillingEventID applies equality check predicate on the "billing_event_id" field. It's identical to BillingEventIDEQ.
+func BillingEventID(v string) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldBillingEventID, v))
+}
+
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldCreatedAt, v))
@@ -253,6 +283,331 @@ func StatusIn(vs ...Status) predicate.User {
 // StatusNotIn applies the NotIn predicate on the "status" field.
 func StatusNotIn(vs ...Status) predicate.User {
 	return predicate.User(sql.FieldNotIn(FieldStatus, vs...))
+}
+
+// SubscriptionSourceEQ applies the EQ predicate on the "subscription_source" field.
+func SubscriptionSourceEQ(v string) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldSubscriptionSource, v))
+}
+
+// SubscriptionSourceNEQ applies the NEQ predicate on the "subscription_source" field.
+func SubscriptionSourceNEQ(v string) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldSubscriptionSource, v))
+}
+
+// SubscriptionSourceIn applies the In predicate on the "subscription_source" field.
+func SubscriptionSourceIn(vs ...string) predicate.User {
+	return predicate.User(sql.FieldIn(FieldSubscriptionSource, vs...))
+}
+
+// SubscriptionSourceNotIn applies the NotIn predicate on the "subscription_source" field.
+func SubscriptionSourceNotIn(vs ...string) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldSubscriptionSource, vs...))
+}
+
+// SubscriptionSourceGT applies the GT predicate on the "subscription_source" field.
+func SubscriptionSourceGT(v string) predicate.User {
+	return predicate.User(sql.FieldGT(FieldSubscriptionSource, v))
+}
+
+// SubscriptionSourceGTE applies the GTE predicate on the "subscription_source" field.
+func SubscriptionSourceGTE(v string) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldSubscriptionSource, v))
+}
+
+// SubscriptionSourceLT applies the LT predicate on the "subscription_source" field.
+func SubscriptionSourceLT(v string) predicate.User {
+	return predicate.User(sql.FieldLT(FieldSubscriptionSource, v))
+}
+
+// SubscriptionSourceLTE applies the LTE predicate on the "subscription_source" field.
+func SubscriptionSourceLTE(v string) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldSubscriptionSource, v))
+}
+
+// SubscriptionSourceContains applies the Contains predicate on the "subscription_source" field.
+func SubscriptionSourceContains(v string) predicate.User {
+	return predicate.User(sql.FieldContains(FieldSubscriptionSource, v))
+}
+
+// SubscriptionSourceHasPrefix applies the HasPrefix predicate on the "subscription_source" field.
+func SubscriptionSourceHasPrefix(v string) predicate.User {
+	return predicate.User(sql.FieldHasPrefix(FieldSubscriptionSource, v))
+}
+
+// SubscriptionSourceHasSuffix applies the HasSuffix predicate on the "subscription_source" field.
+func SubscriptionSourceHasSuffix(v string) predicate.User {
+	return predicate.User(sql.FieldHasSuffix(FieldSubscriptionSource, v))
+}
+
+// SubscriptionSourceEqualFold applies the EqualFold predicate on the "subscription_source" field.
+func SubscriptionSourceEqualFold(v string) predicate.User {
+	return predicate.User(sql.FieldEqualFold(FieldSubscriptionSource, v))
+}
+
+// SubscriptionSourceContainsFold applies the ContainsFold predicate on the "subscription_source" field.
+func SubscriptionSourceContainsFold(v string) predicate.User {
+	return predicate.User(sql.FieldContainsFold(FieldSubscriptionSource, v))
+}
+
+// SubscriptionExpiresAtEQ applies the EQ predicate on the "subscription_expires_at" field.
+func SubscriptionExpiresAtEQ(v time.Time) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldSubscriptionExpiresAt, v))
+}
+
+// SubscriptionExpiresAtNEQ applies the NEQ predicate on the "subscription_expires_at" field.
+func SubscriptionExpiresAtNEQ(v time.Time) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldSubscriptionExpiresAt, v))
+}
+
+// SubscriptionExpiresAtIn applies the In predicate on the "subscription_expires_at" field.
+func SubscriptionExpiresAtIn(vs ...time.Time) predicate.User {
+	return predicate.User(sql.FieldIn(FieldSubscriptionExpiresAt, vs...))
+}
+
+// SubscriptionExpiresAtNotIn applies the NotIn predicate on the "subscription_expires_at" field.
+func SubscriptionExpiresAtNotIn(vs ...time.Time) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldSubscriptionExpiresAt, vs...))
+}
+
+// SubscriptionExpiresAtGT applies the GT predicate on the "subscription_expires_at" field.
+func SubscriptionExpiresAtGT(v time.Time) predicate.User {
+	return predicate.User(sql.FieldGT(FieldSubscriptionExpiresAt, v))
+}
+
+// SubscriptionExpiresAtGTE applies the GTE predicate on the "subscription_expires_at" field.
+func SubscriptionExpiresAtGTE(v time.Time) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldSubscriptionExpiresAt, v))
+}
+
+// SubscriptionExpiresAtLT applies the LT predicate on the "subscription_expires_at" field.
+func SubscriptionExpiresAtLT(v time.Time) predicate.User {
+	return predicate.User(sql.FieldLT(FieldSubscriptionExpiresAt, v))
+}
+
+// SubscriptionExpiresAtLTE applies the LTE predicate on the "subscription_expires_at" field.
+func SubscriptionExpiresAtLTE(v time.Time) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldSubscriptionExpiresAt, v))
+}
+
+// SubscriptionExpiresAtIsNil applies the IsNil predicate on the "subscription_expires_at" field.
+func SubscriptionExpiresAtIsNil() predicate.User {
+	return predicate.User(sql.FieldIsNull(FieldSubscriptionExpiresAt))
+}
+
+// SubscriptionExpiresAtNotNil applies the NotNil predicate on the "subscription_expires_at" field.
+func SubscriptionExpiresAtNotNil() predicate.User {
+	return predicate.User(sql.FieldNotNull(FieldSubscriptionExpiresAt))
+}
+
+// SubscriptionRefEQ applies the EQ predicate on the "subscription_ref" field.
+func SubscriptionRefEQ(v string) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldSubscriptionRef, v))
+}
+
+// SubscriptionRefNEQ applies the NEQ predicate on the "subscription_ref" field.
+func SubscriptionRefNEQ(v string) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldSubscriptionRef, v))
+}
+
+// SubscriptionRefIn applies the In predicate on the "subscription_ref" field.
+func SubscriptionRefIn(vs ...string) predicate.User {
+	return predicate.User(sql.FieldIn(FieldSubscriptionRef, vs...))
+}
+
+// SubscriptionRefNotIn applies the NotIn predicate on the "subscription_ref" field.
+func SubscriptionRefNotIn(vs ...string) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldSubscriptionRef, vs...))
+}
+
+// SubscriptionRefGT applies the GT predicate on the "subscription_ref" field.
+func SubscriptionRefGT(v string) predicate.User {
+	return predicate.User(sql.FieldGT(FieldSubscriptionRef, v))
+}
+
+// SubscriptionRefGTE applies the GTE predicate on the "subscription_ref" field.
+func SubscriptionRefGTE(v string) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldSubscriptionRef, v))
+}
+
+// SubscriptionRefLT applies the LT predicate on the "subscription_ref" field.
+func SubscriptionRefLT(v string) predicate.User {
+	return predicate.User(sql.FieldLT(FieldSubscriptionRef, v))
+}
+
+// SubscriptionRefLTE applies the LTE predicate on the "subscription_ref" field.
+func SubscriptionRefLTE(v string) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldSubscriptionRef, v))
+}
+
+// SubscriptionRefContains applies the Contains predicate on the "subscription_ref" field.
+func SubscriptionRefContains(v string) predicate.User {
+	return predicate.User(sql.FieldContains(FieldSubscriptionRef, v))
+}
+
+// SubscriptionRefHasPrefix applies the HasPrefix predicate on the "subscription_ref" field.
+func SubscriptionRefHasPrefix(v string) predicate.User {
+	return predicate.User(sql.FieldHasPrefix(FieldSubscriptionRef, v))
+}
+
+// SubscriptionRefHasSuffix applies the HasSuffix predicate on the "subscription_ref" field.
+func SubscriptionRefHasSuffix(v string) predicate.User {
+	return predicate.User(sql.FieldHasSuffix(FieldSubscriptionRef, v))
+}
+
+// SubscriptionRefIsNil applies the IsNil predicate on the "subscription_ref" field.
+func SubscriptionRefIsNil() predicate.User {
+	return predicate.User(sql.FieldIsNull(FieldSubscriptionRef))
+}
+
+// SubscriptionRefNotNil applies the NotNil predicate on the "subscription_ref" field.
+func SubscriptionRefNotNil() predicate.User {
+	return predicate.User(sql.FieldNotNull(FieldSubscriptionRef))
+}
+
+// SubscriptionRefEqualFold applies the EqualFold predicate on the "subscription_ref" field.
+func SubscriptionRefEqualFold(v string) predicate.User {
+	return predicate.User(sql.FieldEqualFold(FieldSubscriptionRef, v))
+}
+
+// SubscriptionRefContainsFold applies the ContainsFold predicate on the "subscription_ref" field.
+func SubscriptionRefContainsFold(v string) predicate.User {
+	return predicate.User(sql.FieldContainsFold(FieldSubscriptionRef, v))
+}
+
+// SubscriptionCancelPendingEQ applies the EQ predicate on the "subscription_cancel_pending" field.
+func SubscriptionCancelPendingEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldSubscriptionCancelPending, v))
+}
+
+// SubscriptionCancelPendingNEQ applies the NEQ predicate on the "subscription_cancel_pending" field.
+func SubscriptionCancelPendingNEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldSubscriptionCancelPending, v))
+}
+
+// BillingEventAtEQ applies the EQ predicate on the "billing_event_at" field.
+func BillingEventAtEQ(v time.Time) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldBillingEventAt, v))
+}
+
+// BillingEventAtNEQ applies the NEQ predicate on the "billing_event_at" field.
+func BillingEventAtNEQ(v time.Time) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldBillingEventAt, v))
+}
+
+// BillingEventAtIn applies the In predicate on the "billing_event_at" field.
+func BillingEventAtIn(vs ...time.Time) predicate.User {
+	return predicate.User(sql.FieldIn(FieldBillingEventAt, vs...))
+}
+
+// BillingEventAtNotIn applies the NotIn predicate on the "billing_event_at" field.
+func BillingEventAtNotIn(vs ...time.Time) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldBillingEventAt, vs...))
+}
+
+// BillingEventAtGT applies the GT predicate on the "billing_event_at" field.
+func BillingEventAtGT(v time.Time) predicate.User {
+	return predicate.User(sql.FieldGT(FieldBillingEventAt, v))
+}
+
+// BillingEventAtGTE applies the GTE predicate on the "billing_event_at" field.
+func BillingEventAtGTE(v time.Time) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldBillingEventAt, v))
+}
+
+// BillingEventAtLT applies the LT predicate on the "billing_event_at" field.
+func BillingEventAtLT(v time.Time) predicate.User {
+	return predicate.User(sql.FieldLT(FieldBillingEventAt, v))
+}
+
+// BillingEventAtLTE applies the LTE predicate on the "billing_event_at" field.
+func BillingEventAtLTE(v time.Time) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldBillingEventAt, v))
+}
+
+// BillingEventAtIsNil applies the IsNil predicate on the "billing_event_at" field.
+func BillingEventAtIsNil() predicate.User {
+	return predicate.User(sql.FieldIsNull(FieldBillingEventAt))
+}
+
+// BillingEventAtNotNil applies the NotNil predicate on the "billing_event_at" field.
+func BillingEventAtNotNil() predicate.User {
+	return predicate.User(sql.FieldNotNull(FieldBillingEventAt))
+}
+
+// BillingEventIDEQ applies the EQ predicate on the "billing_event_id" field.
+func BillingEventIDEQ(v string) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldBillingEventID, v))
+}
+
+// BillingEventIDNEQ applies the NEQ predicate on the "billing_event_id" field.
+func BillingEventIDNEQ(v string) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldBillingEventID, v))
+}
+
+// BillingEventIDIn applies the In predicate on the "billing_event_id" field.
+func BillingEventIDIn(vs ...string) predicate.User {
+	return predicate.User(sql.FieldIn(FieldBillingEventID, vs...))
+}
+
+// BillingEventIDNotIn applies the NotIn predicate on the "billing_event_id" field.
+func BillingEventIDNotIn(vs ...string) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldBillingEventID, vs...))
+}
+
+// BillingEventIDGT applies the GT predicate on the "billing_event_id" field.
+func BillingEventIDGT(v string) predicate.User {
+	return predicate.User(sql.FieldGT(FieldBillingEventID, v))
+}
+
+// BillingEventIDGTE applies the GTE predicate on the "billing_event_id" field.
+func BillingEventIDGTE(v string) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldBillingEventID, v))
+}
+
+// BillingEventIDLT applies the LT predicate on the "billing_event_id" field.
+func BillingEventIDLT(v string) predicate.User {
+	return predicate.User(sql.FieldLT(FieldBillingEventID, v))
+}
+
+// BillingEventIDLTE applies the LTE predicate on the "billing_event_id" field.
+func BillingEventIDLTE(v string) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldBillingEventID, v))
+}
+
+// BillingEventIDContains applies the Contains predicate on the "billing_event_id" field.
+func BillingEventIDContains(v string) predicate.User {
+	return predicate.User(sql.FieldContains(FieldBillingEventID, v))
+}
+
+// BillingEventIDHasPrefix applies the HasPrefix predicate on the "billing_event_id" field.
+func BillingEventIDHasPrefix(v string) predicate.User {
+	return predicate.User(sql.FieldHasPrefix(FieldBillingEventID, v))
+}
+
+// BillingEventIDHasSuffix applies the HasSuffix predicate on the "billing_event_id" field.
+func BillingEventIDHasSuffix(v string) predicate.User {
+	return predicate.User(sql.FieldHasSuffix(FieldBillingEventID, v))
+}
+
+// BillingEventIDIsNil applies the IsNil predicate on the "billing_event_id" field.
+func BillingEventIDIsNil() predicate.User {
+	return predicate.User(sql.FieldIsNull(FieldBillingEventID))
+}
+
+// BillingEventIDNotNil applies the NotNil predicate on the "billing_event_id" field.
+func BillingEventIDNotNil() predicate.User {
+	return predicate.User(sql.FieldNotNull(FieldBillingEventID))
+}
+
+// BillingEventIDEqualFold applies the EqualFold predicate on the "billing_event_id" field.
+func BillingEventIDEqualFold(v string) predicate.User {
+	return predicate.User(sql.FieldEqualFold(FieldBillingEventID, v))
+}
+
+// BillingEventIDContainsFold applies the ContainsFold predicate on the "billing_event_id" field.
+func BillingEventIDContainsFold(v string) predicate.User {
+	return predicate.User(sql.FieldContainsFold(FieldBillingEventID, v))
 }
 
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.

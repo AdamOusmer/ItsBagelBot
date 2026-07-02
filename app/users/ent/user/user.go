@@ -25,6 +25,18 @@ const (
 	FieldBanned = "banned"
 	// FieldStatus holds the string denoting the status field in the database.
 	FieldStatus = "status"
+	// FieldSubscriptionSource holds the string denoting the subscription_source field in the database.
+	FieldSubscriptionSource = "subscription_source"
+	// FieldSubscriptionExpiresAt holds the string denoting the subscription_expires_at field in the database.
+	FieldSubscriptionExpiresAt = "subscription_expires_at"
+	// FieldSubscriptionRef holds the string denoting the subscription_ref field in the database.
+	FieldSubscriptionRef = "subscription_ref"
+	// FieldSubscriptionCancelPending holds the string denoting the subscription_cancel_pending field in the database.
+	FieldSubscriptionCancelPending = "subscription_cancel_pending"
+	// FieldBillingEventAt holds the string denoting the billing_event_at field in the database.
+	FieldBillingEventAt = "billing_event_at"
+	// FieldBillingEventID holds the string denoting the billing_event_id field in the database.
+	FieldBillingEventID = "billing_event_id"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// FieldUpdatedAt holds the string denoting the updated_at field in the database.
@@ -50,6 +62,12 @@ var Columns = []string{
 	FieldIsActive,
 	FieldBanned,
 	FieldStatus,
+	FieldSubscriptionSource,
+	FieldSubscriptionExpiresAt,
+	FieldSubscriptionRef,
+	FieldSubscriptionCancelPending,
+	FieldBillingEventAt,
+	FieldBillingEventID,
 	FieldCreatedAt,
 	FieldUpdatedAt,
 }
@@ -73,6 +91,10 @@ var (
 	DefaultIsActive bool
 	// DefaultBanned holds the default value on creation for the "banned" field.
 	DefaultBanned bool
+	// DefaultSubscriptionSource holds the default value on creation for the "subscription_source" field.
+	DefaultSubscriptionSource string
+	// DefaultSubscriptionCancelPending holds the default value on creation for the "subscription_cancel_pending" field.
+	DefaultSubscriptionCancelPending bool
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 	// DefaultUpdatedAt holds the default value on creation for the "updated_at" field.
@@ -139,6 +161,36 @@ func ByBanned(opts ...sql.OrderTermOption) OrderOption {
 // ByStatus orders the results by the status field.
 func ByStatus(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldStatus, opts...).ToFunc()
+}
+
+// BySubscriptionSource orders the results by the subscription_source field.
+func BySubscriptionSource(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldSubscriptionSource, opts...).ToFunc()
+}
+
+// BySubscriptionExpiresAt orders the results by the subscription_expires_at field.
+func BySubscriptionExpiresAt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldSubscriptionExpiresAt, opts...).ToFunc()
+}
+
+// BySubscriptionRef orders the results by the subscription_ref field.
+func BySubscriptionRef(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldSubscriptionRef, opts...).ToFunc()
+}
+
+// BySubscriptionCancelPending orders the results by the subscription_cancel_pending field.
+func BySubscriptionCancelPending(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldSubscriptionCancelPending, opts...).ToFunc()
+}
+
+// ByBillingEventAt orders the results by the billing_event_at field.
+func ByBillingEventAt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldBillingEventAt, opts...).ToFunc()
+}
+
+// ByBillingEventID orders the results by the billing_event_id field.
+func ByBillingEventID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldBillingEventID, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.

@@ -1,12 +1,13 @@
 import type { Actions, PageServerLoad } from './$types';
 import { redirect, fail } from '@sveltejs/kit';
-import { billingState, checkoutBasketCreate, type BillingState } from '$lib/server/services';
+import { billingPortalToken, billingState, checkoutBasketCreate, type BillingState } from '$lib/server/services';
 import { RpcError } from '@bagel/shared/server/nats';
 import { env } from '$env/dynamic/private';
 
 type BillingLinks = {
   checkoutUrl: string | null;
   cancelUrl: string | null;
+  portalToken: string | null;
 };
 
 function optionalHttpsURL(value: string | undefined): string | null {
@@ -19,10 +20,12 @@ function optionalHttpsURL(value: string | undefined): string | null {
   }
 }
 
-function links(): BillingLinks {
+function links(portalToken: string | null = null): BillingLinks {
   return {
     checkoutUrl: optionalHttpsURL(env.TEBEX_PREMIUM_CHECKOUT_URL),
-    cancelUrl: optionalHttpsURL(env.TEBEX_CANCEL_URL)
+    cancelUrl: optionalHttpsURL(env.TEBEX_CANCEL_URL),
+    // Public project token used by Tebex.js's embedded Payment Portal.
+    portalToken: portalToken || env.TEBEX_PUBLIC_TOKEN || env.TEBEX_WEBSTORE_TOKEN || null
   };
 }
 
@@ -37,11 +40,14 @@ export const load: PageServerLoad = async ({ locals, url }) => {
         active: true,
         status: 'paid',
         expiresAt: new Date(Date.now() + 15 * 864e5).toISOString(),
-        source: 'tebex'
+        source: 'tebex',
+        subscriptionRef: 'tbx-r-demo',
+        cancelPending: false
       } as BillingState,
       links: {
         checkoutUrl: 'https://example.tebex.io/package/premium',
-        cancelUrl: 'https://example.tebex.io/account'
+        cancelUrl: 'https://example.tebex.io/account',
+        portalToken: 'demo-public-token'
       } satisfies BillingLinks,
       degraded: false,
       autostart
@@ -52,17 +58,20 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   // Owner-only: billing is never part of a delegated section grant.
   if (!s || s.delegate_of) throw redirect(302, '/');
 
-  const accountResult = await billingState(s.user_id).then(
-    (value) => ({ status: 'fulfilled' as const, value }),
-    () => ({ status: 'rejected' as const })
-  );
+  const [accountResult, portalToken] = await Promise.all([
+    billingState(s.user_id).then(
+      (value) => ({ status: 'fulfilled' as const, value }),
+      () => ({ status: 'rejected' as const })
+    ),
+    billingPortalToken().catch(() => null)
+  ]);
 
   return {
     account:
       accountResult.status === 'fulfilled'
         ? accountResult.value
-        : ({ active: false, status: 'free', expiresAt: null, source: '' } as BillingState),
-    links: links(),
+        : ({ active: false, status: 'free', expiresAt: null, source: '', subscriptionRef: null, cancelPending: false } as BillingState),
+    links: links(portalToken),
     degraded: accountResult.status !== 'fulfilled',
     autostart
   };
@@ -73,7 +82,7 @@ export const actions: Actions = {
   // and hand the ident back so the page can launch the official Tebex.js
   // embedded checkout. If basket minting is down but a static hosted-checkout
   // URL is configured, fall back to the old 303 hand-off.
-  subscribe: async ({ locals }) => {
+  subscribe: async ({ locals, getClientAddress }) => {
     const s = locals.session;
     if (!s) return fail(401, { error: 'Not signed in.' });
     if (s.delegate_of || s.impersonator_id) {
@@ -93,7 +102,7 @@ export const actions: Actions = {
     }
 
     try {
-      const basket = await checkoutBasketCreate(s.user_id, s.login);
+      const basket = await checkoutBasketCreate(s.user_id, s.login, undefined, getClientAddress());
       return { ident: basket.ident, checkoutUrl: basket.checkoutUrl };
     } catch (err) {
       console.error('[billing] basket create failed:', err);
@@ -108,7 +117,7 @@ export const actions: Actions = {
   // the Twitch login and vets the recipient (registered, not banned, not
   // already premium); its error strings are user-facing, so surface them
   // verbatim on the gift form. The buyer's own plan does not gate gifting.
-  gift: async ({ locals, request }) => {
+  gift: async ({ locals, request, getClientAddress }) => {
     const s = locals.session;
     if (!s) return fail(401, { gift: true, error: 'Not signed in.' });
     if (s.delegate_of || s.impersonator_id) {
@@ -123,7 +132,7 @@ export const actions: Actions = {
     }
 
     try {
-      const basket = await checkoutBasketCreate(s.user_id, s.login, recipient);
+      const basket = await checkoutBasketCreate(s.user_id, s.login, recipient, getClientAddress());
       return {
         ident: basket.ident,
         checkoutUrl: basket.checkoutUrl,

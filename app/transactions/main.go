@@ -113,11 +113,14 @@ func main() {
 
 	sendSubject := env.Get("NATS_ADMIN_NOTIFICATIONS_SUBJECT_PREFIX", "bagel.rpc.admin.notifications") + ".send"
 	notifier := rpc.NewGiftNotifier(nc, sendSubject)
+	billingSubject := env.Get("NATS_INTERNAL_BILLING_SUBJECT", "bagel.rpc.internal.billing.apply")
+	billing := rpc.NewBillingApplier(nc, billingSubject)
 
 	listenAddr := env.Get("LISTEN_ADDR", ":8080")
 	httpApp := web.New(repo, web.Config{
 		WebhookSecret: env.Get("TEBEX_WEBHOOK_SECRET", ""),
 		NotifyGift:    notifier.Notify,
+		ApplyBilling:  billing.Apply,
 	}, log.Named("http"))
 
 	serverErr := make(chan error, 1)

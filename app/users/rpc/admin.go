@@ -159,7 +159,15 @@ func (a *adminRPC) setStatus(ctx context.Context, req usersrpc.AdminRequest) use
 		return usersrpc.AdminReply{Error: "status must be free, paid or vip"}
 	}
 
-	if err := a.repo.SetStatus(ctx, u.ID, status); err != nil {
+	var expiresAt *time.Time
+	if req.ExpiresAt != "" {
+		parsed, err := time.Parse(time.RFC3339, req.ExpiresAt)
+		if err != nil {
+			return usersrpc.AdminReply{Error: "expires_at must be an RFC3339 timestamp"}
+		}
+		expiresAt = &parsed
+	}
+	if err := a.repo.SetAdminStatus(ctx, u.ID, status, expiresAt); err != nil {
 		return usersrpc.AdminReply{Error: err.Error()}
 	}
 
@@ -341,12 +349,16 @@ func (a *adminRPC) invalidate(id uint64) {
 
 func viewOf(u *ent.User) usersrpc.AdminUserView {
 	return usersrpc.AdminUserView{
-		ID:        u.ID,
-		Username:  u.Username,
-		IsActive:  u.IsActive,
-		Status:    string(u.Status),
-		Banned:    u.Banned,
-		UpdatedAt: u.UpdatedAt,
+		ID:                        u.ID,
+		Username:                  u.Username,
+		IsActive:                  u.IsActive,
+		Status:                    string(u.Status),
+		Banned:                    u.Banned,
+		SubscriptionExpiresAt:     u.SubscriptionExpiresAt,
+		SubscriptionSource:        u.SubscriptionSource,
+		SubscriptionRef:           u.SubscriptionRef,
+		SubscriptionCancelPending: u.SubscriptionCancelPending,
+		UpdatedAt:                 u.UpdatedAt,
 	}
 }
 
