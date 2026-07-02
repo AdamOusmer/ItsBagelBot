@@ -53,7 +53,7 @@ func TestCreateBasket(t *testing.T) {
 		})
 	})
 
-	basket, err := newTestClient(t, mux).CreateBasket(context.Background(), 804932984, "mavey")
+	basket, err := newTestClient(t, mux).CreateBasket(context.Background(), BasketSpec{UserID: 804932984, Username: "mavey"})
 	if err != nil {
 		t.Fatalf("CreateBasket: %v", err)
 	}
@@ -69,6 +69,9 @@ func TestCreateBasket(t *testing.T) {
 	if custom["user_id"] != "804932984" {
 		t.Errorf("custom.user_id = %v, want 804932984", custom["user_id"])
 	}
+	if _, present := custom["gifted_by"]; present {
+		t.Errorf("self-purchase basket must not carry gifted_by, got %v", custom["gifted_by"])
+	}
 	if createBody["complete_url"] != "https://dashboard.example/billing?checkout=complete" {
 		t.Errorf("complete_url = %v", createBody["complete_url"])
 	}
@@ -81,13 +84,59 @@ func TestCreateBasket(t *testing.T) {
 	}
 }
 
+func TestCreateBasketGiftCarriesAttribution(t *testing.T) {
+	var createBody map[string]any
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/accounts/token-123/baskets", func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&createBody); err != nil {
+			t.Fatalf("decode create body: %v", err)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"data": map[string]any{
+				"ident": "bkt-gift",
+				"links": map[string]any{"checkout": "https://pay.tebex.io/bkt-gift"},
+			},
+		})
+	})
+	mux.HandleFunc("POST /api/baskets/bkt-gift/packages", func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"data": map[string]any{
+				"ident": "bkt-gift",
+				"links": map[string]any{"checkout": "https://pay.tebex.io/bkt-gift"},
+			},
+		})
+	})
+
+	_, err := newTestClient(t, mux).CreateBasket(context.Background(), BasketSpec{
+		UserID:        111,
+		Username:      "recipient",
+		GiftedByID:    804932984,
+		GiftedByLogin: "mavey",
+	})
+	if err != nil {
+		t.Fatalf("CreateBasket: %v", err)
+	}
+
+	custom, _ := createBody["custom"].(map[string]any)
+	if custom["user_id"] != "111" {
+		t.Errorf("custom.user_id = %v, want recipient 111", custom["user_id"])
+	}
+	if custom["gifted_by"] != "804932984" {
+		t.Errorf("custom.gifted_by = %v, want 804932984", custom["gifted_by"])
+	}
+	if custom["gifted_by_login"] != "mavey" {
+		t.Errorf("custom.gifted_by_login = %v, want mavey", custom["gifted_by_login"])
+	}
+}
+
 func TestCreateBasketUpstreamError(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"message":"store disabled"}`, http.StatusForbidden)
 	})
 
-	if _, err := newTestClient(t, mux).CreateBasket(context.Background(), 1, ""); err == nil {
+	if _, err := newTestClient(t, mux).CreateBasket(context.Background(), BasketSpec{UserID: 1}); err == nil {
 		t.Fatal("expected error on 403 upstream")
 	}
 }
@@ -98,7 +147,7 @@ func TestCreateBasketMissingIdent(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(map[string]any{"data": map[string]any{}})
 	})
 
-	if _, err := newTestClient(t, mux).CreateBasket(context.Background(), 1, ""); err == nil {
+	if _, err := newTestClient(t, mux).CreateBasket(context.Background(), BasketSpec{UserID: 1}); err == nil {
 		t.Fatal("expected error on missing ident")
 	}
 }

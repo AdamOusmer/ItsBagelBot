@@ -37,6 +37,45 @@
 
   let launching = $state(false);
   let subscribeForm = $state<HTMLFormElement | null>(null);
+  let giftLaunching = $state(false);
+  let giftRecipient = $state('');
+
+  // Shared enhance handler for both checkout forms (subscribe + gift): a
+  // successful action returns a basket ident to launch, the hosted-checkout
+  // fallback arrives as an external redirect, anything else releases the
+  // button and lets the form-error toast handle it.
+  function checkoutEnhance(setBusy: (busy: boolean) => void) {
+    return () => {
+      setBusy(true);
+      return async ({
+        result,
+        update
+      }: {
+        result: import('@sveltejs/kit').ActionResult;
+        update: () => Promise<void>;
+      }) => {
+        if (result.type === 'success' && result.data?.ident) {
+          if (result.data.recipientLogin) {
+            toast('ok', `Gifting premium to ${String(result.data.recipientLogin)} — complete the payment to send it.`);
+          }
+          await launchCheckout(
+            String(result.data.ident),
+            result.data.checkoutUrl ? String(result.data.checkoutUrl) : null,
+            setBusy
+          );
+          return;
+        }
+        if (result.type === 'redirect') {
+          // Hosted-checkout fallback is an external URL; goto() cannot take
+          // it, so navigate directly.
+          window.location.href = result.location;
+          return;
+        }
+        setBusy(false);
+        await update();
+      };
+    };
+  }
 
   function waitForTebex(timeoutMs = 6000): Promise<TebexGlobal | null> {
     return new Promise((resolve) => {
@@ -51,7 +90,7 @@
     });
   }
 
-  async function launchCheckout(ident: string, fallbackUrl: string | null) {
+  async function launchCheckout(ident: string, fallbackUrl: string | null, setBusy: (busy: boolean) => void) {
     const tebex = await waitForTebex();
     if (!tebex) {
       // Script blocked or offline: hosted checkout still works.
@@ -59,14 +98,14 @@
         window.location.href = fallbackUrl;
         return;
       }
-      launching = false;
+      setBusy(false);
       toast('err', 'Could not open checkout. Please try again.');
       return;
     }
 
     tebex.checkout.init({ ident, theme: 'dark' });
     tebex.checkout.on('payment:complete', () => {
-      toast('ok', 'Payment received — your plan activates within a minute.');
+      toast('ok', 'Payment received — it activates within a minute.');
       tebex.checkout.close();
       // The entitlement lands via the Tebex webhook; refetch shortly after.
       setTimeout(() => void invalidateAll(), 1500);
@@ -75,7 +114,7 @@
       toast('err', 'Payment did not go through. No charge was made.');
     });
     tebex.checkout.on('close', () => {
-      launching = false;
+      setBusy(false);
     });
     tebex.checkout.launch();
   }
@@ -171,26 +210,7 @@
             method="POST"
             action="?/subscribe"
             bind:this={subscribeForm}
-            use:enhance={() => {
-              launching = true;
-              return async ({ result, update }) => {
-                if (result.type === 'success' && result.data?.ident) {
-                  await launchCheckout(
-                    String(result.data.ident),
-                    result.data.checkoutUrl ? String(result.data.checkoutUrl) : null
-                  );
-                  return;
-                }
-                if (result.type === 'redirect') {
-                  // Hosted-checkout fallback is an external URL; goto() cannot
-                  // take it, so navigate directly.
-                  window.location.href = result.location;
-                  return;
-                }
-                launching = false;
-                await update();
-              };
-            }}
+            use:enhance={checkoutEnhance((busy) => (launching = busy))}
           >
             <button class="btn primary" type="submit" disabled={launching}>
               <Icon name="heart" size={14} />
@@ -205,6 +225,43 @@
           <p class="hint tiny">You will leave the dashboard and manage the subscription on Tebex.</p>
         {/if}
       </div>
+    </div>
+  </Card>
+
+  <!-- GIFT: pay for someone else's premium. Open regardless of your own plan;
+       the recipient must be a registered, non-premium ItsBagelBot user (the
+       transactions service vets this and its errors surface as toasts). -->
+  <Card class="billing-card">
+    <div class="gift-top">
+      <div>
+        <h2>Gift premium</h2>
+        <p class="hint">
+          Pay for another streamer's premium. They need an ItsBagelBot account, and they get a
+          notification the moment your payment lands.
+        </p>
+      </div>
+      <form
+        class="gift-form"
+        method="POST"
+        action="?/gift"
+        use:enhance={checkoutEnhance((busy) => (giftLaunching = busy))}
+      >
+        <input
+          class="gift-input"
+          type="text"
+          name="recipient"
+          placeholder="Twitch username"
+          autocomplete="off"
+          spellcheck="false"
+          maxlength="26"
+          bind:value={giftRecipient}
+          disabled={giftLaunching}
+        />
+        <button class="btn primary" type="submit" disabled={giftLaunching || !giftRecipient.trim()}>
+          <Icon name="heart" size={14} />
+          {giftLaunching ? 'Opening checkout…' : 'Gift premium'}
+        </button>
+      </form>
     </div>
   </Card>
 </section>
@@ -261,9 +318,39 @@
   .plan-actions .hint { text-align: right; }
   .btn.danger { color: #e08f8f; }
 
+  .gift-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
+  }
+  .gift-form {
+    display: flex;
+    gap: 10px;
+    flex-shrink: 0;
+    align-items: center;
+  }
+  .gift-input {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--bb-border, rgba(255, 255, 255, 0.1));
+    border-radius: var(--bb-radius-md, 10px);
+    color: var(--bb-white, #f0ece4);
+    font-family: var(--bb-font-body);
+    font-size: 13.5px;
+    padding: 10px 14px;
+    width: 200px;
+  }
+  .gift-input:focus {
+    outline: none;
+    border-color: var(--bb-tan, #c9a87c);
+  }
+
   @media (max-width: 760px) {
     .plan-top { flex-direction: column; }
     .plan-actions { align-items: stretch; width: 100%; }
     .plan-actions .hint { text-align: left; }
+    .gift-top { flex-direction: column; }
+    .gift-form { width: 100%; flex-wrap: wrap; }
+    .gift-input { flex: 1; min-width: 0; }
   }
 </style>

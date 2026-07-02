@@ -4,11 +4,15 @@
 package transactionsrpc
 
 // BasketCreateRequest asks the transactions service to mint a Tebex Headless
-// basket for the premium package, tagged with the buyer's Twitch user id so the
-// payment webhook can attribute the entitlement.
+// basket for the premium package. UserID/Username identify the signed-in buyer.
+// When RecipientUsername is set the purchase is a gift: the service resolves
+// that Twitch login against the users service (must be a registered, non-banned
+// account without premium) and the entitlement lands on the recipient while the
+// buyer pays.
 type BasketCreateRequest struct {
-	UserID   string `json:"user_id"`
-	Username string `json:"username,omitempty"`
+	UserID            string `json:"user_id"`
+	Username          string `json:"username,omitempty"`
+	RecipientUsername string `json:"recipient_username,omitempty"`
 }
 
 type BasketCreateReply struct {
@@ -17,5 +21,7 @@ type BasketCreateReply struct {
 	// CheckoutURL is the hosted-checkout link for the same basket, kept as a
 	// fallback when the embedded checkout cannot run.
 	CheckoutURL string `json:"checkout_url,omitempty"`
-	Error       string `json:"error,omitempty"`
+	// RecipientLogin echoes the resolved gift recipient (gift baskets only).
+	RecipientLogin string `json:"recipient_login,omitempty"`
+	Error          string `json:"error,omitempty"`
 }
