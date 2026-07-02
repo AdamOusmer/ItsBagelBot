@@ -92,12 +92,13 @@ func main() {
 	if webstoreToken != "" && packageID > 0 {
 		dashboardOrigin := env.Get("DASHBOARD_ORIGIN", "https://dashboard.itsbagelbot.com")
 		tebexClient, err := tebex.New(tebex.Config{
-			WebstoreToken: webstoreToken,
-			PrivateKey:    privateKey,
-			PackageID:     packageID,
-			PackageType:   env.Get("TEBEX_PACKAGE_TYPE", "subscription"),
-			CompleteURL:   dashboardOrigin + "/billing?checkout=complete",
-			CancelURL:     dashboardOrigin + "/billing?checkout=cancelled",
+			WebstoreToken:   webstoreToken,
+			PrivateKey:      privateKey,
+			IncludeUsername: env.GetBool("TEBEX_INCLUDE_USERNAME", false),
+			PackageID:       packageID,
+			PackageType:     env.Get("TEBEX_PACKAGE_TYPE", "subscription"),
+			CompleteURL:     dashboardOrigin + "/billing?checkout=complete",
+			CancelURL:       dashboardOrigin + "/billing?checkout=cancelled",
 		})
 		if err != nil {
 			log.Fatal("failed to build tebex client", zap.Error(err))
@@ -135,6 +136,7 @@ func main() {
 		zap.Bool("tebex_webhook_configured", env.Get("TEBEX_WEBHOOK_SECRET", "") != ""),
 		zap.Bool("tebex_checkout_configured", checkoutConfigured),
 		zap.Bool("tebex_checkout_auth_configured", privateKey != ""),
+		zap.Bool("tebex_checkout_username_configured", env.GetBool("TEBEX_INCLUDE_USERNAME", false)),
 	)
 
 	select {
