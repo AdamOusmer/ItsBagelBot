@@ -3,7 +3,7 @@
 # node2); no cross-arch emulation.
 FROM docker.io/oven/bun:1.3.10 AS build
 WORKDIR /src
-# Pin SvelteKit's version metadata to the commit SHA. sorted-readdir.cjs also
+# Pin SvelteKit's version metadata to the commit SHA. sorted-readdir.mjs also
 # makes route-node assignment deterministic across the native ARM/Intel builds.
 ARG BUILD_VERSION=dev
 ENV BUILD_VERSION=$BUILD_VERSION
@@ -11,7 +11,7 @@ ENV BUILD_VERSION=$BUILD_VERSION
 # the install so the hoisted linker applies (flat node_modules the image can ship).
 COPY package.json bun.lock bunfig.toml ./
 COPY tsconfig.base.json tsconfig.base.json
-COPY sorted-readdir.cjs sorted-readdir.cjs
+COPY sorted-readdir.mjs sorted-readdir.mjs
 COPY shared/package.json shared/package.json
 COPY dashboard/package.json dashboard/package.json
 COPY admin/package.json admin/package.json

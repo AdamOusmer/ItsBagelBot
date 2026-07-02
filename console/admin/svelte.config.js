@@ -9,8 +9,8 @@ export default {
     output: {
       bundleStrategy: 'single'
     },
-    // Pin the version metadata to the commit SHA. The build script separately
-    // sorts route-directory reads so native ARM/Intel builds also assign the
+    // Pin the version metadata to the commit SHA. vite.config.ts separately
+    // loads sorted-readdir.cjs so native ARM/Intel builds also assign the
     // same SvelteKit node IDs and emit byte-identical client bundles.
     // pollInterval lets the client poll _app/version.json and flip the `updated`
     // store on a new deploy, so the root layout can force a full reload instead
