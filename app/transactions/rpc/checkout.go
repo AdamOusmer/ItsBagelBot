@@ -45,7 +45,15 @@ func (c *checkoutRPC) basketCreate(ctx context.Context, req transactionsrpc.Bask
 		return transactionsrpc.BasketCreateReply{Error: "user_id must be numeric"}
 	}
 
-	spec := tebex.BasketSpec{UserID: buyerID, Username: req.Username, IPAddress: validIPv4(req.IPAddress)}
+	packageType := ""
+	switch req.PackageType {
+	case "", "single", "subscription":
+		packageType = req.PackageType
+	default:
+		return transactionsrpc.BasketCreateReply{Error: "package_type must be single or subscription"}
+	}
+
+	spec := tebex.BasketSpec{UserID: buyerID, Username: req.Username, IPAddress: validIPv4(req.IPAddress), PackageType: packageType}
 	recipientLogin := ""
 
 	if recipient := normalizeLogin(req.RecipientUsername); recipient != "" {
