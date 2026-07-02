@@ -30,7 +30,7 @@ type SendRequest struct {
 	Body           string     `json:"body"`
 	Level          string     `json:"level"`
 	ExpiresAt      *time.Time `json:"expires_at,omitempty"`
-	ActorID        uint64     `json:"actor_id"`
+	ActorID        string     `json:"actor_id"`
 	ActorLogin     string     `json:"actor_login"`
 }
 
