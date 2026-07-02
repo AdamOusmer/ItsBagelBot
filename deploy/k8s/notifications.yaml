@@ -80,7 +80,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: notifications
-          image: ghcr.io/adamousmer/itsbagelbot/notifications:main-1782997962-b2171be11598@sha256:088bb071ca98a69118c6769c5ba4438e22321c6868a00c3de80f809002c15490 # {"$imagepolicy": "flux-system:notifications"}
+          image: ghcr.io/adamousmer/itsbagelbot/notifications:main-1783001481-4a47b60f8080@sha256:d42010e7fedd40fb6490c48991de7fd83cc8b1167510118bc616d257a7b8ab99 # {"$imagepolicy": "flux-system:notifications"}
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST
