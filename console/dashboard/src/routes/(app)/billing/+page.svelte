@@ -192,6 +192,9 @@
           </form>
           <p class="hint tiny">Both redirect to Tebex-hosted subscription management, where cancellation is one click.</p>
         {/if}
+        {#if form?.error && !form?.gift}
+          <p class="hint form-error">{form.error}</p>
+        {/if}
       </div>
     </div>
   </Card>
@@ -208,30 +211,37 @@
           notification the moment your payment lands.
         </p>
       </div>
-      <form
-        class="gift-form"
-        method="POST"
-        action="?/gift"
-        onsubmit={() => {
-          giftLaunching = true;
-        }}
-      >
-        <input
-          class="gift-input"
-          type="text"
-          name="recipient"
-          placeholder="Twitch username"
-          autocomplete="off"
-          spellcheck="false"
-          maxlength="26"
-          bind:value={giftRecipient}
-          disabled={giftLaunching}
-        />
-        <button class="btn primary" type="submit" disabled={giftLaunching || !giftRecipient.trim()}>
-          <Icon name="heart" size={14} />
-          {giftLaunching ? 'Opening checkout…' : 'Gift premium'}
-        </button>
-      </form>
+      <div class="gift-side">
+        <form
+          class="gift-form"
+          method="POST"
+          action="?/gift"
+          onsubmit={() => {
+            giftLaunching = true;
+          }}
+        >
+          <input
+            class="gift-input"
+            type="text"
+            name="recipient"
+            placeholder="Twitch username"
+            autocomplete="off"
+            spellcheck="false"
+            maxlength="26"
+            bind:value={giftRecipient}
+            disabled={giftLaunching}
+          />
+          <button class="btn primary" type="submit" disabled={giftLaunching || !giftRecipient.trim()}>
+            <Icon name="heart" size={14} />
+            {giftLaunching ? 'Opening checkout…' : 'Gift premium'}
+          </button>
+        </form>
+        <!-- Inline so the reason survives the full-page re-render of a failed
+             plain-form POST; the toast alone is easy to miss. -->
+        {#if form?.gift && form?.error}
+          <p class="hint form-error">{form.error}</p>
+        {/if}
+      </div>
     </div>
   </Card>
 </section>
@@ -299,6 +309,19 @@
     border-color: rgba(229, 72, 77, 0.4);
   }
 
+  .gift-side {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .form-error {
+    color: #e5484d;
+    max-width: 34ch;
+    text-align: right;
+  }
+
   .gift-input {
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid var(--bb-border, rgba(255, 255, 255, 0.1));
@@ -319,7 +342,9 @@
     .plan-actions { align-items: stretch; width: 100%; }
     .plan-actions .hint { text-align: left; }
     .gift-top { flex-direction: column; }
+    .gift-side { align-items: stretch; width: 100%; }
     .gift-form { width: 100%; flex-wrap: wrap; }
     .gift-input { flex: 1; min-width: 0; }
+    .form-error { text-align: left; max-width: none; }
   }
 </style>

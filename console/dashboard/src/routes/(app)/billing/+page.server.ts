@@ -127,7 +127,10 @@ export const actions: Actions = {
       const basket = await checkoutBasketCreate(s.user_id, s.login, recipient, getClientAddress());
       checkoutUrl = optionalHttpsURL(basket.checkoutUrl ?? undefined);
     } catch (err) {
-      if (err instanceof RpcError) return fail(409, { gift: true, error: err.message });
+      if (err instanceof RpcError) {
+        console.warn(`[billing] gift rejected for ${s.user_id} -> ${recipient}: ${err.message}`);
+        return fail(409, { gift: true, error: err.message });
+      }
       console.error('[billing] gift basket create failed:', err);
     }
 
