@@ -14,12 +14,13 @@ func newTestClient(t *testing.T, handler http.Handler) *Client {
 	t.Cleanup(srv.Close)
 
 	client, err := New(Config{
-		WebstoreToken: "token-123",
-		PrivateKey:    "private-456",
-		PackageID:     42,
-		CompleteURL:   "https://dashboard.example/billing?checkout=complete",
-		CancelURL:     "https://dashboard.example/billing?checkout=cancelled",
-		BaseURL:       srv.URL,
+		WebstoreToken:   "token-123",
+		PrivateKey:      "private-456",
+		IncludeUsername: true,
+		PackageID:       42,
+		CompleteURL:     "https://dashboard.example/billing?checkout=complete",
+		CancelURL:       "https://dashboard.example/billing?checkout=cancelled",
+		BaseURL:         srv.URL,
 	})
 	if err != nil {
 		t.Fatalf("New: %v", err)
@@ -147,6 +148,13 @@ func TestCreateBasketWithoutPrivateKeyOmitsAuthenticatedIP(t *testing.T) {
 
 	if _, present := createBody["ip_address"]; present {
 		t.Errorf("ip_address must be omitted without private key, got %v", createBody["ip_address"])
+	}
+	if _, present := createBody["username"]; present {
+		t.Errorf("username must be omitted unless IncludeUsername is set, got %v", createBody["username"])
+	}
+	custom, _ := createBody["custom"].(map[string]any)
+	if custom["username"] != "mavey" {
+		t.Errorf("custom.username = %v, want mavey", custom["username"])
 	}
 	if createAuth != "" {
 		t.Errorf("Authorization = %q, want empty without private key", createAuth)
