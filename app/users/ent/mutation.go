@@ -3035,6 +3035,7 @@ type UserMutation struct {
 	id                          *uint64
 	username                    *string
 	email                       *string
+	email_enc                   *[]byte
 	is_active                   *bool
 	banned                      *bool
 	status                      *user.Status
@@ -3229,6 +3230,55 @@ func (m *UserMutation) OldEmail(ctx context.Context) (v string, err error) {
 // ResetEmail resets all changes to the "email" field.
 func (m *UserMutation) ResetEmail() {
 	m.email = nil
+}
+
+// SetEmailEnc sets the "email_enc" field.
+func (m *UserMutation) SetEmailEnc(b []byte) {
+	m.email_enc = &b
+}
+
+// EmailEnc returns the value of the "email_enc" field in the mutation.
+func (m *UserMutation) EmailEnc() (r []byte, exists bool) {
+	v := m.email_enc
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldEmailEnc returns the old "email_enc" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldEmailEnc(ctx context.Context) (v []byte, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldEmailEnc is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldEmailEnc requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldEmailEnc: %w", err)
+	}
+	return oldValue.EmailEnc, nil
+}
+
+// ClearEmailEnc clears the value of the "email_enc" field.
+func (m *UserMutation) ClearEmailEnc() {
+	m.email_enc = nil
+	m.clearedFields[user.FieldEmailEnc] = struct{}{}
+}
+
+// EmailEncCleared returns if the "email_enc" field was cleared in this mutation.
+func (m *UserMutation) EmailEncCleared() bool {
+	_, ok := m.clearedFields[user.FieldEmailEnc]
+	return ok
+}
+
+// ResetEmailEnc resets all changes to the "email_enc" field.
+func (m *UserMutation) ResetEmailEnc() {
+	m.email_enc = nil
+	delete(m.clearedFields, user.FieldEmailEnc)
 }
 
 // SetIsActive sets the "is_active" field.
@@ -3767,12 +3817,15 @@ func (m *UserMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UserMutation) Fields() []string {
-	fields := make([]string, 0, 13)
+	fields := make([]string, 0, 14)
 	if m.username != nil {
 		fields = append(fields, user.FieldUsername)
 	}
 	if m.email != nil {
 		fields = append(fields, user.FieldEmail)
+	}
+	if m.email_enc != nil {
+		fields = append(fields, user.FieldEmailEnc)
 	}
 	if m.is_active != nil {
 		fields = append(fields, user.FieldIsActive)
@@ -3819,6 +3872,8 @@ func (m *UserMutation) Field(name string) (ent.Value, bool) {
 		return m.Username()
 	case user.FieldEmail:
 		return m.Email()
+	case user.FieldEmailEnc:
+		return m.EmailEnc()
 	case user.FieldIsActive:
 		return m.IsActive()
 	case user.FieldBanned:
@@ -3854,6 +3909,8 @@ func (m *UserMutation) OldField(ctx context.Context, name string) (ent.Value, er
 		return m.OldUsername(ctx)
 	case user.FieldEmail:
 		return m.OldEmail(ctx)
+	case user.FieldEmailEnc:
+		return m.OldEmailEnc(ctx)
 	case user.FieldIsActive:
 		return m.OldIsActive(ctx)
 	case user.FieldBanned:
@@ -3898,6 +3955,13 @@ func (m *UserMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetEmail(v)
+		return nil
+	case user.FieldEmailEnc:
+		v, ok := value.([]byte)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetEmailEnc(v)
 		return nil
 	case user.FieldIsActive:
 		v, ok := value.(bool)
@@ -4006,6 +4070,9 @@ func (m *UserMutation) AddField(name string, value ent.Value) error {
 // mutation.
 func (m *UserMutation) ClearedFields() []string {
 	var fields []string
+	if m.FieldCleared(user.FieldEmailEnc) {
+		fields = append(fields, user.FieldEmailEnc)
+	}
 	if m.FieldCleared(user.FieldSubscriptionExpiresAt) {
 		fields = append(fields, user.FieldSubscriptionExpiresAt)
 	}
@@ -4032,6 +4099,9 @@ func (m *UserMutation) FieldCleared(name string) bool {
 // error if the field is not defined in the schema.
 func (m *UserMutation) ClearField(name string) error {
 	switch name {
+	case user.FieldEmailEnc:
+		m.ClearEmailEnc()
+		return nil
 	case user.FieldSubscriptionExpiresAt:
 		m.ClearSubscriptionExpiresAt()
 		return nil
@@ -4057,6 +4127,9 @@ func (m *UserMutation) ResetField(name string) error {
 		return nil
 	case user.FieldEmail:
 		m.ResetEmail()
+		return nil
+	case user.FieldEmailEnc:
+		m.ResetEmailEnc()
 		return nil
 	case user.FieldIsActive:
 		m.ResetIsActive()

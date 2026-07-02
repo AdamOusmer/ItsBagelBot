@@ -33,6 +33,12 @@ func (_c *UserCreate) SetEmail(v string) *UserCreate {
 	return _c
 }
 
+// SetEmailEnc sets the "email_enc" field.
+func (_c *UserCreate) SetEmailEnc(v []byte) *UserCreate {
+	_c.mutation.SetEmailEnc(v)
+	return _c
+}
+
 // SetIsActive sets the "is_active" field.
 func (_c *UserCreate) SetIsActive(v bool) *UserCreate {
 	_c.mutation.SetIsActive(v)
@@ -356,6 +362,10 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Email(); ok {
 		_spec.SetField(user.FieldEmail, field.TypeString, value)
 		_node.Email = value
+	}
+	if value, ok := _c.mutation.EmailEnc(); ok {
+		_spec.SetField(user.FieldEmailEnc, field.TypeBytes, value)
+		_node.EmailEnc = value
 	}
 	if value, ok := _c.mutation.IsActive(); ok {
 		_spec.SetField(user.FieldIsActive, field.TypeBool, value)

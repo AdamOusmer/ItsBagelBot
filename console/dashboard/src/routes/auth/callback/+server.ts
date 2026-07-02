@@ -1,7 +1,7 @@
 import type { RequestHandler } from './$types';
 import { redirect } from '@sveltejs/kit';
 import { decodeIdToken, OAuth2RequestError } from 'arctic';
-import { twitch, safeNextPath } from '$lib/server/oauth';
+import { twitch, safeNextPath, fetchAccountEmail } from '$lib/server/oauth';
 import { rpc } from '@bagel/shared/server/nats';
 import { saveGrant, isBanned, delegationConsume } from '$lib/server/services';
 import { COOKIE, seal } from '$lib/server/session';
@@ -107,12 +107,17 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
     // wipes the cookie, so minting a session for a row that failed to land
     // is an instant sign-out loop. If the upsert cannot land, refuse the
     // session and let the user retry the flow.
+    // Real account email (user:read:email consent). Null on any failure —
+    // capture is best-effort and the users service stores it encrypted.
+    const email = await fetchAccountEmail(tokens.accessToken());
+
     let registered = false;
     try {
       await rpc(`${DASHBOARD}.upsert_user`, {
         user_id: userId,
         username: login,
-        display_name: displayName
+        display_name: displayName,
+        ...(email ? { email } : {})
       });
       registered = true;
     } catch (err: unknown) {

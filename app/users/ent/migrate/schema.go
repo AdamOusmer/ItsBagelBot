@@ -133,6 +133,7 @@ var (
 		{Name: "id", Type: field.TypeUint64, Increment: true},
 		{Name: "username", Type: field.TypeString},
 		{Name: "email", Type: field.TypeString, Unique: true},
+		{Name: "email_enc", Type: field.TypeBytes, Nullable: true},
 		{Name: "is_active", Type: field.TypeBool, Default: true},
 		{Name: "banned", Type: field.TypeBool, Default: false},
 		{Name: "status", Type: field.TypeEnum, Enums: []string{"free", "paid", "vip"}, Default: "free"},
