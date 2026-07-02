@@ -17,14 +17,8 @@ import (
 )
 
 type fakeStore struct {
-	records []recordablePayment
 	events  []repository.WebhookEvent
 	changes []billingrpc.ApplyRequest
-}
-
-func (f *fakeStore) Record(_ context.Context, id string, userID uint64) error {
-	f.records = append(f.records, recordablePayment{TransactionID: id, UserID: userID})
-	return nil
 }
 
 func (f *fakeStore) SaveWebhookEvent(_ context.Context, event repository.WebhookEvent) error {
@@ -47,7 +41,7 @@ func TestValidationWebhookEchoesIDAndStoresState(t *testing.T) {
 	assert.JSONEq(t, `{"id":"evt-validation"}`, string(payload))
 	require.Len(t, store.events, 1)
 	assert.Equal(t, repository.WebhookValidation, store.events[0].Status)
-	assert.Empty(t, store.records)
+	assert.Empty(t, store.changes)
 }
 
 func TestWebhookAliasesExposeReachability(t *testing.T) {
@@ -65,11 +59,11 @@ func TestWebhookAliasesExposeReachability(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, resp.StatusCode, path)
 	}
-	assert.Empty(t, store.records)
+	assert.Empty(t, store.changes)
 	assert.Empty(t, store.events)
 }
 
-func TestPaymentCompletedRecordsTransactionAndStoresProcessedState(t *testing.T) {
+func TestPaymentCompletedActivatesAndStoresProcessedState(t *testing.T) {
 
 	store := &fakeStore{}
 	app := newTestApp(store)
@@ -88,8 +82,9 @@ func TestPaymentCompletedRecordsTransactionAndStoresProcessedState(t *testing.T)
 	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
-	require.Len(t, store.records, 1)
-	assert.Equal(t, recordablePayment{TransactionID: "tbx-1234", UserID: 1001}, store.records[0])
+	require.Len(t, store.changes, 1)
+	assert.Equal(t, billingrpc.ActionActivate, store.changes[0].Action)
+	assert.Equal(t, uint64(1001), store.changes[0].UserID)
 	require.Len(t, store.events, 1)
 	assert.Equal(t, repository.WebhookProcessed, store.events[0].Status)
 	assert.Equal(t, "tbx-1234", store.events[0].TransactionID)
@@ -111,7 +106,7 @@ func TestPaymentCompletedWithoutUserIDStoresFailedState(t *testing.T) {
 	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode)
-	assert.Empty(t, store.records)
+	assert.Empty(t, store.changes)
 	require.Len(t, store.events, 1)
 	assert.Equal(t, repository.WebhookFailed, store.events[0].Status)
 	assert.Equal(t, "tbx-1234", store.events[0].TransactionID)
@@ -128,7 +123,6 @@ func TestRefundRevokesEntitlementAndStoresProcessedState(t *testing.T) {
 	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
-	assert.Empty(t, store.records)
 	require.Len(t, store.events, 1)
 	assert.Equal(t, repository.WebhookProcessed, store.events[0].Status)
 	require.Len(t, store.changes, 1)
@@ -145,7 +139,7 @@ func TestBadSignatureIsRejectedBeforeStoringState(t *testing.T) {
 	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
-	assert.Empty(t, store.records)
+	assert.Empty(t, store.changes)
 	assert.Empty(t, store.events)
 }
 
@@ -170,8 +164,121 @@ func TestRecurringRenewedUsesLastPayment(t *testing.T) {
 	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
-	require.Len(t, store.records, 1)
-	assert.Equal(t, recordablePayment{TransactionID: "tbx-renewal", UserID: 1001}, store.records[0])
+	require.Len(t, store.changes, 1)
+	assert.Equal(t, billingrpc.ActionActivate, store.changes[0].Action)
+	assert.Equal(t, uint64(1001), store.changes[0].UserID)
+	require.Len(t, store.events, 1)
+	assert.Equal(t, "tbx-renewal", store.events[0].TransactionID)
+}
+
+func TestTrialStartedActivatesUntilTrialEnd(t *testing.T) {
+
+	store := &fakeStore{}
+	app := newTestApp(store)
+	body := `{
+		"id":"evt-trial-start",
+		"type":"recurring-payment.trial.started",
+		"date":"2026-07-02T00:00:00+00:00",
+		"subject":{
+			"reference":"tbx-r-trial",
+			"next_payment_at":"2026-07-16T00:00:00+00:00",
+			"initial_payment":{
+				"transaction_id":"tbx-trial",
+				"custom":{"user_id":"1001"}
+			}
+		}
+	}`
+
+	resp := doWebhook(t, app, body, testSecret, true)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
+	require.Len(t, store.changes, 1)
+	assert.Equal(t, billingrpc.ActionActivate, store.changes[0].Action)
+	assert.Equal(t, uint64(1001), store.changes[0].UserID)
+	require.NotNil(t, store.changes[0].ExpiresAt)
+	assert.Equal(t, "2026-07-16", store.changes[0].ExpiresAt.UTC().Format("2006-01-02"))
+	require.Len(t, store.events, 1)
+	assert.Equal(t, repository.WebhookProcessed, store.events[0].Status)
+}
+
+func TestTrialCancelledMarksCancelPending(t *testing.T) {
+
+	store := &fakeStore{}
+	app := newTestApp(store)
+	body := `{
+		"id":"evt-trial-cancel",
+		"type":"recurring-payment.trial.cancelled",
+		"date":"2026-07-02T00:00:00+00:00",
+		"subject":{
+			"reference":"tbx-r-trial",
+			"next_payment_at":"2026-07-16T00:00:00+00:00",
+			"initial_payment":{
+				"transaction_id":"tbx-trial",
+				"custom":{"user_id":"1001"}
+			}
+		}
+	}`
+
+	resp := doWebhook(t, app, body, testSecret, true)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
+	require.Len(t, store.changes, 1)
+	assert.Equal(t, billingrpc.ActionCancelRequested, store.changes[0].Action)
+}
+
+func TestTrialEndedIsAuditedWithoutEntitlementChange(t *testing.T) {
+
+	store := &fakeStore{}
+	app := newTestApp(store)
+	body := `{"id":"evt-trial-end","type":"recurring-payment.trial.ended","date":"2026-07-02T00:00:00+00:00","subject":{"reference":"tbx-r-trial"}}`
+
+	resp := doWebhook(t, app, body, testSecret, true)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
+	assert.Empty(t, store.changes)
+	require.Len(t, store.events, 1)
+	assert.Equal(t, repository.WebhookIgnored, store.events[0].Status)
+}
+
+// A trial subject can arrive without any payment (nothing has been charged
+// yet). Redelivery cannot fix attribution, so the webhook must be audited and
+// acknowledged instead of erroring into a Tebex retry loop.
+func TestTrialStartedWithoutPaymentIsAcknowledged(t *testing.T) {
+
+	store := &fakeStore{}
+	app := newTestApp(store)
+	body := `{"id":"evt-trial-bare","type":"recurring-payment.trial.started","date":"2026-07-02T00:00:00+00:00","subject":{"reference":"tbx-r-trial","next_payment_at":"2026-07-16T00:00:00+00:00"}}`
+
+	resp := doWebhook(t, app, body, testSecret, true)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
+	assert.Empty(t, store.changes)
+	require.Len(t, store.events, 1)
+	assert.Equal(t, repository.WebhookIgnored, store.events[0].Status)
+	assert.Contains(t, store.events[0].Error, "no recordable")
+}
+
+// Informational types the store is subscribed to but that change no
+// entitlement must be audited and acknowledged.
+func TestInformationalEventsAreAuditedAsIgnored(t *testing.T) {
+
+	for _, eventType := range []string{"payment.declined", "payment.dispute.closed", "recurring-payment.status.changed"} {
+		store := &fakeStore{}
+		app := newTestApp(store)
+		body := `{"id":"evt-info","type":"` + eventType + `","date":"2026-07-02T00:00:00+00:00","subject":{"transaction_id":"tbx-1234","custom":{"user_id":"1001"}}}`
+
+		resp := doWebhook(t, app, body, testSecret, true)
+		resp.Body.Close()
+
+		assert.Equal(t, http.StatusNoContent, resp.StatusCode, eventType)
+		assert.Empty(t, store.changes, eventType)
+		require.Len(t, store.events, 1, eventType)
+		assert.Equal(t, repository.WebhookIgnored, store.events[0].Status, eventType)
+	}
 }
 
 const testSecret = "webhook-secret"
@@ -222,8 +329,8 @@ func TestGiftedPaymentNotifiesRecipientOnce(t *testing.T) {
 	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
-	require.Len(t, store.records, 1)
-	assert.Equal(t, uint64(111), store.records[0].UserID)
+	require.Len(t, store.changes, 1)
+	assert.Equal(t, uint64(111), store.changes[0].UserID)
 	require.Len(t, notices, 1)
 	assert.Equal(t, GiftNotice{
 		WebhookID:     "evt-gift",
@@ -264,7 +371,7 @@ func TestGiftNotificationSkippedOnRenewalAndSelfPurchase(t *testing.T) {
 	resp.Body.Close()
 	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
 
-	assert.Len(t, store.records, 3)
+	assert.Len(t, store.changes, 3)
 	assert.Empty(t, notices)
 }
 
@@ -284,5 +391,5 @@ func TestGiftNotificationFailureDoesNotFailWebhook(t *testing.T) {
 	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
-	require.Len(t, store.records, 1)
+	require.Len(t, store.changes, 1)
 }

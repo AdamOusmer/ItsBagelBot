@@ -62,17 +62,7 @@ func main() {
 
 	natsURL := env.Get("NATS_URL", "nats://127.0.0.1:4222")
 
-	if err := bus.EnsureStreams(ctx, natsURL, bus.DataStreams, log); err != nil {
-		log.Fatal("failed to provision jetstream streams", zap.Error(err))
-	}
-
-	pub, err := bus.NewPublisher(natsURL, log)
-	if err != nil {
-		log.Fatal("failed to connect publisher", zap.Error(err))
-	}
-	defer func() { _ = pub.Close() }()
-
-	repo := repository.NewTransactions(client, pub)
+	repo := repository.NewTransactions(client)
 
 	// RPC-plane connection (TRANSACTIONS_RPC account): answers the checkout
 	// basket verb and issues the recipient-lookup / gift-notification requests.

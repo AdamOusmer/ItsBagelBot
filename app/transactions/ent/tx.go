@@ -12,8 +12,6 @@ import (
 // Tx is a transactional client that is created by calling Client.Tx().
 type Tx struct {
 	config
-	// TebexTransactions is the client for interacting with the TebexTransactions builders.
-	TebexTransactions *TebexTransactionsClient
 	// TebexWebhookEvents is the client for interacting with the TebexWebhookEvents builders.
 	TebexWebhookEvents *TebexWebhookEventsClient
 
@@ -147,7 +145,6 @@ func (tx *Tx) Client() *Client {
 }
 
 func (tx *Tx) init() {
-	tx.TebexTransactions = NewTebexTransactionsClient(tx.config)
 	tx.TebexWebhookEvents = NewTebexWebhookEventsClient(tx.config)
 }
 
@@ -158,7 +155,7 @@ func (tx *Tx) init() {
 // of them in order to commit or rollback the transaction.
 //
 // If a closed transaction is embedded in one of the generated entities, and the entity
-// applies a query, for example: TebexTransactions.QueryXXX(), the query will be executed
+// applies a query, for example: TebexWebhookEvents.QueryXXX(), the query will be executed
 // through the driver which created this transaction.
 //
 // Note that txDriver is not goroutine safe.

@@ -8,18 +8,6 @@ import (
 	"fmt"
 )
 
-// The TebexTransactionsFunc type is an adapter to allow the use of ordinary
-// function as TebexTransactions mutator.
-type TebexTransactionsFunc func(context.Context, *ent.TebexTransactionsMutation) (ent.Value, error)
-
-// Mutate calls f(ctx, m).
-func (f TebexTransactionsFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
-	if mv, ok := m.(*ent.TebexTransactionsMutation); ok {
-		return f(ctx, mv)
-	}
-	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.TebexTransactionsMutation", m)
-}
-
 // The TebexWebhookEventsFunc type is an adapter to allow the use of ordinary
 // function as TebexWebhookEvents mutator.
 type TebexWebhookEventsFunc func(context.Context, *ent.TebexWebhookEventsMutation) (ent.Value, error)
