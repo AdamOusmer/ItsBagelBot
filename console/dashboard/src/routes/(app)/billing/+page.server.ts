@@ -73,12 +73,17 @@ export const actions: Actions = {
   // required because it carries our custom user_id for webhook attribution; do
   // not fall back to a static package URL that could charge without attributing
   // the resulting entitlement.
-  subscribe: async ({ locals, getClientAddress }) => {
+  subscribe: async ({ locals, request, getClientAddress }) => {
     const s = locals.session;
     if (!s) return fail(401, { error: 'Not signed in.' });
     if (s.delegate_of || s.impersonator_id) {
       return fail(403, { error: 'Only the account owner can subscribe.' });
     }
+
+    // 'monthly' = auto-renewing subscription, anything else = one paid month.
+    // Recurring billing only ever happens on an explicit monthly choice.
+    const form = await request.formData();
+    const packageType = form.get('plan') === 'monthly' ? 'subscription' : 'single';
 
     // Never send an already-premium user to Tebex: a staff-granted period,
     // active Tebex entitlement, or VIP grant must run out before a new charge is
@@ -94,7 +99,7 @@ export const actions: Actions = {
 
     let checkoutUrl: string | null = null;
     try {
-      const basket = await checkoutBasketCreate(s.user_id, s.login, undefined, getClientAddress());
+      const basket = await checkoutBasketCreate(s.user_id, s.login, undefined, getClientAddress(), packageType);
       checkoutUrl = optionalHttpsURL(basket.checkoutUrl ?? undefined);
     } catch (err) {
       console.error('[billing] basket create failed:', err);

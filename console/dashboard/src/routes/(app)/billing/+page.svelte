@@ -169,19 +169,39 @@
 
       <div class="plan-actions">
         {#if canSubscribe}
-          <form
-            method="POST"
-            action="?/subscribe"
-            bind:this={subscribeForm}
-            onsubmit={() => {
-              launching = true;
-            }}
-          >
-            <button class="btn primary" type="submit" disabled={launching}>
-              <Icon name="heart" size={14} />
-              {launching ? 'Opening checkout…' : 'Subscribe'}
-            </button>
-          </form>
+          <!-- Two ways to pay, both one click: an auto-renewing monthly
+               subscription or a single month with no renewal. The plan rides
+               in a hidden input (never a button value: submit-time state
+               changes can drop the submitter from the form data). -->
+          <div class="plan-buttons">
+            <form
+              method="POST"
+              action="?/subscribe"
+              bind:this={subscribeForm}
+              onsubmit={() => {
+                launching = true;
+              }}
+            >
+              <input type="hidden" name="plan" value="monthly" />
+              <button class="btn primary" type="submit" disabled={launching}>
+                <Icon name="heart" size={14} />
+                {launching ? 'Opening checkout…' : 'Subscribe monthly'}
+              </button>
+            </form>
+            <form
+              method="POST"
+              action="?/subscribe"
+              onsubmit={() => {
+                launching = true;
+              }}
+            >
+              <input type="hidden" name="plan" value="once" />
+              <button class="btn ghost" type="submit" disabled={launching}>
+                {launching ? 'Opening checkout…' : 'Buy one month'}
+              </button>
+            </form>
+          </div>
+          <p class="hint tiny">Monthly renews automatically until cancelled. One month is a single charge, no renewal.</p>
           <p class="hint tiny">Redirects to Tebex’s secure hosted checkout. Your plan updates after the payment lands.</p>
         {:else if canManage}
           <form method="POST" action="?/cancel">
@@ -228,6 +248,7 @@
             class="gift-input"
             type="text"
             name="recipient"
+            data-cursor
             placeholder="Twitch username"
             autocomplete="off"
             spellcheck="false"
@@ -282,6 +303,11 @@
     align-items: flex-end;
     gap: 8px;
     flex-shrink: 0;
+  }
+  .plan-buttons {
+    display: flex;
+    gap: 10px;
+    align-items: center;
   }
   .plan-actions .hint { text-align: right; }
 
@@ -345,6 +371,9 @@
     .plan-top { flex-direction: column; }
     .plan-actions { align-items: stretch; width: 100%; }
     .plan-actions .hint { text-align: left; }
+    .plan-buttons { flex-direction: column; align-items: stretch; }
+    .plan-buttons form { width: 100%; }
+    .plan-buttons .btn { width: 100%; justify-content: center; }
     .gift-top { flex-direction: column; }
     .gift-side { align-items: stretch; width: 100%; }
     .gift-form { width: 100%; flex-wrap: wrap; }
