@@ -201,7 +201,10 @@
     }
     .idx { display: none; }
     .cmd { grid-area: cmd; }
-    .resp { grid-area: resp; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; }
+    /* Unprefixed line-clamp is NOT a drop-in for the -webkit- combo: in new
+       Chromium it implies `continue: discard`, which collapses this box to
+       display:none. Legacy -webkit- clamp only. */
+    .resp { grid-area: resp; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
     .meta { grid-area: meta; }
     .state { display: none; }
     .row-act { grid-area: act; flex-direction: column; gap: 4px; }

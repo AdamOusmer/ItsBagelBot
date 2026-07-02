@@ -134,11 +134,16 @@
   .empty { color: var(--bb-muted); font-family: var(--bb-font-body); font-size: 13px; margin: 4px 0 4px; }
 
   .items { display: flex; flex-direction: column; gap: 8px; max-height: min(420px, 60vh); overflow-y: auto; }
+  /* Level pill + Read share the top row; title/body take the full card width
+     below, so the text never gets squeezed into a sliver between them. */
   .item {
-    display: flex; align-items: flex-start; gap: 10px;
+    display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px 10px;
     border: 1px solid var(--bb-border, rgba(201, 168, 124, 0.15)); border-radius: var(--bb-radius-md, 10px);
     padding: 10px 12px; background: rgba(255, 255, 255, 0.02);
   }
+  .item .level { justify-self: start; grid-row: 1; }
+  .item .text { grid-column: 1 / -1; }
+  .item .btn { grid-column: 2; grid-row: 1; justify-self: end; }
   .item.unread { border-color: rgba(201, 168, 124, 0.3); background: rgba(201, 168, 124, 0.05); }
 
   .text { flex: 1; min-width: 0; }
