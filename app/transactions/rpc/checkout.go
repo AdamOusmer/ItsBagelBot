@@ -25,10 +25,10 @@ type checkoutRPC struct {
 }
 
 // SubscribeCheckout registers the dashboard-facing basket_create verb: mint a
-// Tebex basket so the dashboard can launch the embedded checkout, either for
-// the signed-in buyer or as a gift to another registered user. userGetSubject
-// is the users service admin lookup (bagel.rpc.admin.user.get) used to resolve
-// and vet gift recipients.
+// Tebex basket so the dashboard can redirect to Tebex-hosted checkout, either
+// for the signed-in buyer or as a gift to another registered user.
+// userGetSubject is the users service admin lookup (bagel.rpc.admin.user.get)
+// used to resolve and vet gift recipients.
 func SubscribeCheckout(nc *nats.Conn, client *tebex.Client, prefix, userGetSubject, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
 	c := &checkoutRPC{tebex: client, nc: nc, userGetSubject: userGetSubject, log: log}
 

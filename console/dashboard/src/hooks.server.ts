@@ -70,11 +70,9 @@ export const handle: Handle = async ({ event, resolve }) => {
   res.headers.set('X-Content-Type-Options', 'nosniff');
   res.headers.set('X-Frame-Options', 'DENY');
   res.headers.set('Referrer-Policy', 'same-origin');
-  // Tebex checkout can use the browser Payment Request API from its hosted
-  // payment frame. Everything else stays denied.
   res.headers.set(
     'Permissions-Policy',
-    'camera=(), microphone=(), geolocation=(), payment=(self "https://pay.tebex.io" "https://checkout.tebex.io"), join-ad-interest-group=(), run-ad-auction=(), shared-storage=(), browsing-topics=()'
+    'camera=(), microphone=(), geolocation=(), payment=(), join-ad-interest-group=(), run-ad-auction=(), shared-storage=(), browsing-topics=()'
   );
   res.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
 

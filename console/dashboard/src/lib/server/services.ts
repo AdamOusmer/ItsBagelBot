@@ -429,13 +429,13 @@ export const billingState = defineRead({
   }
 });
 
-// Mint a Tebex Headless basket via the transactions service. The ident feeds
-// Tebex.js's embedded checkout; the checkout URL is the hosted fallback. When
-// recipientUsername is set the basket is a gift: the transactions service
-// resolves and vets the recipient (registered, not banned, not already
-// premium) and the entitlement lands on them while this user pays. Never
-// cached — every checkout attempt gets a fresh basket. Basket creation is two
-// Tebex HTTP calls upstream, so the timeout is looser than the in-cluster
+// Mint a Tebex Headless basket via the transactions service. The checkout URL
+// is always Tebex-hosted; the dashboard redirects the browser there instead of
+// embedding payment UI. When recipientUsername is set the basket is a gift: the
+// transactions service resolves and vets the recipient (registered, not banned,
+// not already premium) and the entitlement lands on them while this user pays.
+// Never cached — every checkout attempt gets a fresh basket. Basket creation is
+// two Tebex HTTP calls upstream, so the timeout is looser than the in-cluster
 // read budget.
 export type CheckoutBasket = { ident: string; checkoutUrl: string | null; recipientLogin: string | null };
 

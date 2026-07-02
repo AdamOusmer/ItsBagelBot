@@ -1,13 +1,11 @@
 import type { Actions, PageServerLoad } from './$types';
 import { redirect, fail } from '@sveltejs/kit';
-import { billingPortalToken, billingState, checkoutBasketCreate, type BillingState } from '$lib/server/services';
+import { billingState, checkoutBasketCreate, type BillingState } from '$lib/server/services';
 import { RpcError } from '@bagel/shared/server/nats';
 import { env } from '$env/dynamic/private';
 
 type BillingLinks = {
-  checkoutUrl: string | null;
   cancelUrl: string | null;
-  portalToken: string | null;
 };
 
 function optionalHttpsURL(value: string | undefined): string | null {
@@ -20,12 +18,9 @@ function optionalHttpsURL(value: string | undefined): string | null {
   }
 }
 
-function links(portalToken: string | null = null): BillingLinks {
+function links(): BillingLinks {
   return {
-    checkoutUrl: optionalHttpsURL(env.TEBEX_PREMIUM_CHECKOUT_URL),
-    cancelUrl: optionalHttpsURL(env.TEBEX_CANCEL_URL),
-    // Public project token used by Tebex.js's embedded Payment Portal.
-    portalToken: portalToken || env.TEBEX_PUBLIC_TOKEN || env.TEBEX_WEBSTORE_TOKEN || null
+    cancelUrl: optionalHttpsURL(env.TEBEX_CANCEL_URL)
   };
 }
 
@@ -45,9 +40,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
         cancelPending: false
       } as BillingState,
       links: {
-        checkoutUrl: 'https://example.tebex.io/package/premium',
-        cancelUrl: 'https://example.tebex.io/account',
-        portalToken: 'demo-public-token'
+        cancelUrl: 'https://example.tebex.io/account'
       } satisfies BillingLinks,
       degraded: false,
       autostart
@@ -58,20 +51,17 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   // Owner-only: billing is never part of a delegated section grant.
   if (!s || s.delegate_of) throw redirect(302, '/');
 
-  const [accountResult, portalToken] = await Promise.all([
-    billingState(s.user_id).then(
-      (value) => ({ status: 'fulfilled' as const, value }),
-      () => ({ status: 'rejected' as const })
-    ),
-    billingPortalToken().catch(() => null)
-  ]);
+  const accountResult = await billingState(s.user_id).then(
+    (value) => ({ status: 'fulfilled' as const, value }),
+    () => ({ status: 'rejected' as const })
+  );
 
   return {
     account:
       accountResult.status === 'fulfilled'
         ? accountResult.value
         : ({ active: false, status: 'free', expiresAt: null, source: '', subscriptionRef: null, cancelPending: false } as BillingState),
-    links: links(portalToken),
+    links: links(),
     degraded: accountResult.status !== 'fulfilled',
     autostart
   };
@@ -79,9 +69,10 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 export const actions: Actions = {
   // Mint a Tebex basket for this user (transactions service -> Headless API)
-  // and hand the ident back so the page can launch the official Tebex.js
-  // embedded checkout. If basket minting is down but a static hosted-checkout
-  // URL is configured, fall back to the old 303 hand-off.
+  // and redirect the browser to Tebex-hosted checkout. The basket URL is still
+  // required because it carries our custom user_id for webhook attribution; do
+  // not fall back to a static package URL that could charge without attributing
+  // the resulting entitlement.
   subscribe: async ({ locals, getClientAddress }) => {
     const s = locals.session;
     if (!s) return fail(401, { error: 'Not signed in.' });
@@ -101,16 +92,16 @@ export const actions: Actions = {
       return fail(502, { error: 'Could not verify your current plan. Try again in a moment.' });
     }
 
+    let checkoutUrl: string | null = null;
     try {
       const basket = await checkoutBasketCreate(s.user_id, s.login, undefined, getClientAddress());
-      return { ident: basket.ident, checkoutUrl: basket.checkoutUrl };
+      checkoutUrl = optionalHttpsURL(basket.checkoutUrl ?? undefined);
     } catch (err) {
       console.error('[billing] basket create failed:', err);
     }
 
-    const url = links().checkoutUrl;
-    if (!url) return fail(503, { error: 'Subscriptions are not available right now.' });
-    throw redirect(303, url);
+    if (!checkoutUrl) return fail(503, { error: 'Subscriptions are not available right now.' });
+    throw redirect(303, checkoutUrl);
   },
 
   // Gift premium to another registered user. The transactions service resolves
@@ -131,18 +122,17 @@ export const actions: Actions = {
       return fail(400, { gift: true, error: 'That does not look like a Twitch username.' });
     }
 
+    let checkoutUrl: string | null = null;
     try {
       const basket = await checkoutBasketCreate(s.user_id, s.login, recipient, getClientAddress());
-      return {
-        ident: basket.ident,
-        checkoutUrl: basket.checkoutUrl,
-        recipientLogin: basket.recipientLogin
-      };
+      checkoutUrl = optionalHttpsURL(basket.checkoutUrl ?? undefined);
     } catch (err) {
       if (err instanceof RpcError) return fail(409, { gift: true, error: err.message });
       console.error('[billing] gift basket create failed:', err);
-      return fail(502, { gift: true, error: 'Gifting is not available right now. Try again in a moment.' });
     }
+
+    if (!checkoutUrl) return fail(502, { gift: true, error: 'Gifting is not available right now. Try again in a moment.' });
+    throw redirect(303, checkoutUrl);
   },
 
   // Cancellation/account management lives on Tebex. We still gate the button
