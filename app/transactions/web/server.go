@@ -24,9 +24,23 @@ type Store interface {
 	SaveWebhookEvent(ctx context.Context, event repository.WebhookEvent) error
 }
 
+// GiftNotice describes a gifted entitlement that just landed: who received it,
+// who paid, and the webhook id (used as the idempotency key so Tebex's webhook
+// retries never duplicate the notification).
+type GiftNotice struct {
+	WebhookID     string
+	RecipientID   uint64
+	GiftedByID    uint64
+	GiftedByLogin string
+}
+
 type Config struct {
 	WebhookSecret string
 	Ready         func() bool
+	// NotifyGift is called after a gifted payment is recorded (initial payment
+	// only, not renewals). Best-effort: failures are logged, never surfaced to
+	// Tebex — the entitlement is already durable at that point.
+	NotifyGift func(ctx context.Context, notice GiftNotice) error
 }
 
 type Server struct {
@@ -67,6 +81,9 @@ type usernameRef struct {
 type recordablePayment struct {
 	TransactionID string
 	UserID        uint64
+	// Gift attribution from the basket custom payload; zero for self-purchases.
+	GiftedByID    uint64
+	GiftedByLogin string
 }
 
 var errNoRecordablePayment = errors.New("no recordable Tebex payment for event")
@@ -167,6 +184,7 @@ func (s *Server) tebexWebhook(c *fiber.Ctx) error {
 		if err := s.saveEvent(ctx, event, repository.WebhookProcessed, payment, ""); err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to save webhook state"})
 		}
+		s.notifyGift(ctx, event, payment)
 		return c.SendStatus(fiber.StatusNoContent)
 	}
 
@@ -199,6 +217,34 @@ func (s *Server) failEvent(c *fiber.Ctx, event tebexEvent, payment recordablePay
 		zap.Error(cause),
 	)
 	return c.Status(status).JSON(fiber.Map{"error": cause.Error()})
+}
+
+// notifyGift tells the recipient their gifted premium landed. Initial payments
+// only — a renewal keeps the plan running and does not warrant a ping. Never
+// fails the webhook: the entitlement is already recorded.
+func (s *Server) notifyGift(ctx context.Context, event tebexEvent, payment recordablePayment) {
+
+	if s.cfg.NotifyGift == nil || payment.GiftedByID == 0 {
+		return
+	}
+	if event.Type == "recurring-payment.renewed" {
+		return
+	}
+
+	err := s.cfg.NotifyGift(ctx, GiftNotice{
+		WebhookID:     event.ID,
+		RecipientID:   payment.UserID,
+		GiftedByID:    payment.GiftedByID,
+		GiftedByLogin: payment.GiftedByLogin,
+	})
+	if err != nil {
+		s.log.Warn("gift notification failed",
+			zap.String("webhook_id", event.ID),
+			zap.Uint64("recipient", payment.UserID),
+			zap.Uint64("gifted_by", payment.GiftedByID),
+			zap.Error(err),
+		)
+	}
 }
 
 func (s *Server) saveEvent(ctx context.Context, event tebexEvent, status repository.WebhookStatus, payment recordablePayment, message string) error {
@@ -272,10 +318,44 @@ func recordableFromPayment(payment paymentSubject) (recordablePayment, error) {
 	}
 
 	if userID, ok := userIDFromPayment(payment); ok {
-		return recordablePayment{TransactionID: payment.TransactionID, UserID: userID}, nil
+		giftedBy, giftedByLogin := giftFromPayment(payment)
+		// A basket gifted to yourself is a plain purchase; drop the marker.
+		if giftedBy == userID {
+			giftedBy, giftedByLogin = 0, ""
+		}
+		return recordablePayment{
+			TransactionID: payment.TransactionID,
+			UserID:        userID,
+			GiftedByID:    giftedBy,
+			GiftedByLogin: giftedByLogin,
+		}, nil
 	}
 
 	return recordablePayment{TransactionID: payment.TransactionID}, errors.New("payment user id missing")
+}
+
+// giftFromPayment reads the gifted_by attribution the basket carried. Checked
+// on the payment-level custom payload first, then per-product (mirrors
+// userIDFromPayment's search order).
+func giftFromPayment(payment paymentSubject) (uint64, string) {
+
+	if id, ok := rawUint(payment.Custom["gifted_by"]); ok {
+		return id, rawString(payment.Custom["gifted_by_login"])
+	}
+	for _, product := range payment.Products {
+		if id, ok := rawUint(product.Custom["gifted_by"]); ok {
+			return id, rawString(product.Custom["gifted_by_login"])
+		}
+	}
+	return 0, ""
+}
+
+func rawString(raw json.RawMessage) string {
+	var value string
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return ""
+	}
+	return value
 }
 
 func userIDFromPayment(payment paymentSubject) (uint64, bool) {

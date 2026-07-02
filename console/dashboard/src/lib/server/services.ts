@@ -418,21 +418,28 @@ export const billingState = defineRead({
   }
 });
 
-// Mint a Tebex Headless basket for this user via the transactions service. The
-// ident feeds Tebex.js's embedded checkout; the checkout URL is the hosted
-// fallback. Never cached — every checkout attempt gets a fresh basket. Basket
-// creation is two Tebex HTTP calls upstream, so the timeout is looser than the
-// in-cluster read budget.
-export type CheckoutBasket = { ident: string; checkoutUrl: string | null };
+// Mint a Tebex Headless basket via the transactions service. The ident feeds
+// Tebex.js's embedded checkout; the checkout URL is the hosted fallback. When
+// recipientUsername is set the basket is a gift: the transactions service
+// resolves and vets the recipient (registered, not banned, not already
+// premium) and the entitlement lands on them while this user pays. Never
+// cached — every checkout attempt gets a fresh basket. Basket creation is two
+// Tebex HTTP calls upstream, so the timeout is looser than the in-cluster
+// read budget.
+export type CheckoutBasket = { ident: string; checkoutUrl: string | null; recipientLogin: string | null };
 
-export async function checkoutBasketCreate(userId: string, username: string): Promise<CheckoutBasket> {
-  const r = await rpc<{ ident?: string; checkout_url?: string }>(
+export async function checkoutBasketCreate(
+  userId: string,
+  username: string,
+  recipientUsername?: string
+): Promise<CheckoutBasket> {
+  const r = await rpc<{ ident?: string; checkout_url?: string; recipient_login?: string }>(
     `${SUB.transactions}.basket_create`,
-    { user_id: userId, username },
+    { user_id: userId, username, recipient_username: recipientUsername || undefined },
     16000
   );
   if (!r.ident) throw new Error('basket create returned no ident');
-  return { ident: r.ident, checkoutUrl: r.checkout_url ?? null };
+  return { ident: r.ident, checkoutUrl: r.checkout_url ?? null, recipientLogin: r.recipient_login ?? null };
 }
 
 // ---------------------------------------------------------------------------
