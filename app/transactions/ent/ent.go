@@ -4,6 +4,7 @@ package ent
 
 import (
 	"ItsBagelBot/app/transactions/ent/tebextransactions"
+	"ItsBagelBot/app/transactions/ent/tebexwebhookevents"
 	"context"
 	"errors"
 	"fmt"
@@ -73,7 +74,8 @@ var (
 func checkColumn(t, c string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
-			tebextransactions.Table: tebextransactions.ValidColumn,
+			tebextransactions.Table:  tebextransactions.ValidColumn,
+			tebexwebhookevents.Table: tebexwebhookevents.ValidColumn,
 		})
 	})
 	return columnCheck(t, c)
