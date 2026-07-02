@@ -15,6 +15,7 @@ func newTestClient(t *testing.T, handler http.Handler) *Client {
 
 	client, err := New(Config{
 		WebstoreToken: "token-123",
+		PrivateKey:    "private-456",
 		PackageID:     42,
 		CompleteURL:   "https://dashboard.example/billing?checkout=complete",
 		CancelURL:     "https://dashboard.example/billing?checkout=cancelled",
@@ -28,9 +29,11 @@ func newTestClient(t *testing.T, handler http.Handler) *Client {
 
 func TestCreateBasket(t *testing.T) {
 	var createBody, packageBody map[string]any
+	var createAuth string
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/accounts/token-123/baskets", func(w http.ResponseWriter, r *http.Request) {
+		createAuth = r.Header.Get("Authorization")
 		if err := json.NewDecoder(r.Body).Decode(&createBody); err != nil {
 			t.Fatalf("decode create body: %v", err)
 		}
@@ -81,12 +84,72 @@ func TestCreateBasket(t *testing.T) {
 	if createBody["ip_address"] != "203.0.113.10" {
 		t.Errorf("ip_address = %v, want 203.0.113.10", createBody["ip_address"])
 	}
+	if createAuth != "Basic dG9rZW4tMTIzOnByaXZhdGUtNDU2" {
+		t.Errorf("Authorization = %q, want Basic auth with public token/private key", createAuth)
+	}
 
 	if packageBody["package_id"] != float64(42) {
 		t.Errorf("package_id = %v, want 42", packageBody["package_id"])
 	}
 	if packageBody["type"] != "subscription" {
 		t.Errorf("type = %v, want subscription", packageBody["type"])
+	}
+}
+
+func TestCreateBasketWithoutPrivateKeyOmitsAuthenticatedIP(t *testing.T) {
+	var createBody map[string]any
+	var createAuth string
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/accounts/token-123/baskets", func(w http.ResponseWriter, r *http.Request) {
+		createAuth = r.Header.Get("Authorization")
+		if err := json.NewDecoder(r.Body).Decode(&createBody); err != nil {
+			t.Fatalf("decode create body: %v", err)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"data": map[string]any{
+				"ident": "bkt-legacy",
+				"links": map[string]any{"checkout": "https://pay.tebex.io/bkt-legacy"},
+			},
+		})
+	})
+	mux.HandleFunc("POST /api/baskets/bkt-legacy/packages", func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"data": map[string]any{
+				"ident": "bkt-legacy",
+				"links": map[string]any{"checkout": "https://pay.tebex.io/bkt-legacy"},
+			},
+		})
+	})
+
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	client, err := New(Config{
+		WebstoreToken: "token-123",
+		PackageID:     42,
+		CompleteURL:   "https://dashboard.example/billing?checkout=complete",
+		CancelURL:     "https://dashboard.example/billing?checkout=cancelled",
+		BaseURL:       srv.URL,
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	_, err = client.CreateBasket(context.Background(), BasketSpec{
+		UserID:    804932984,
+		Username:  "mavey",
+		IPAddress: "203.0.113.10",
+	})
+	if err != nil {
+		t.Fatalf("CreateBasket: %v", err)
+	}
+
+	if _, present := createBody["ip_address"]; present {
+		t.Errorf("ip_address must be omitted without private key, got %v", createBody["ip_address"])
+	}
+	if createAuth != "" {
+		t.Errorf("Authorization = %q, want empty without private key", createAuth)
 	}
 }
 
