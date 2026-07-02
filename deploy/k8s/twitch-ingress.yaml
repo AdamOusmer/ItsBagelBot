@@ -116,7 +116,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: ingress
-          image: ghcr.io/adamousmer/itsbagelbot/twitch-ingress:main-1782826151-583725a4e4b9@sha256:23554a1a1415a6799469d697935a9f1b8eccbf73383926c2c25ad9c92a6e36c4 # {"$imagepolicy": "flux-system:twitch-ingress"}
+          image: ghcr.io/adamousmer/itsbagelbot/twitch-ingress:main-1782948954-7e5634f64ec3@sha256:07eded511a9c7e908a1416472f110a67a1f945c20143eaf9e01ad430fc4ab47a # {"$imagepolicy": "flux-system:twitch-ingress"}
           imagePullPolicy: IfNotPresent
           envFrom:
             - secretRef:
@@ -150,7 +150,7 @@ spec:
             - name: NEW_RELIC_APP_NAME
               value: "ItsBagelBot-Ingress"
             - name: NEW_RELIC_LOGS_IN_CONTEXT
-              value: "direct"
+              value: "forwarder"
             - name: INGRESS_DISPATCHER_MAX_RUNNING
               value: "64"
             - name: INGRESS_DISPATCHER_MAX_QUEUE

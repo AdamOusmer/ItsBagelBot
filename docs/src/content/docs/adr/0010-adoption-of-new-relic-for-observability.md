@@ -47,8 +47,8 @@ wired through a single shared package (`pkg/monitor`).
 - **Instrumented edges.** The MySQL pool opens through the `nrmysql` wrapper, so every ent query reports as a
   datastore segment of whatever transaction rides in the context. The projector reports each Valkey command as a
   datastore segment (under the Redis product, which is wire-accurate). Batch flushes run as their own background
-  transactions, since they execute detached from any request. Logs forward through the `nrzap` core, so log lines
-  carry trace context.
+  transactions, since they execute detached from any request. Logs are shipped once through the cluster Fluent Bit
+  pipeline; Go APM agents keep application log forwarding disabled so stdout is not double-ingested.
 
 ## Consequences
 

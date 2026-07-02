@@ -3,7 +3,7 @@ import { redirect } from '@sveltejs/kit';
 import { decodeIdToken, OAuth2RequestError } from 'arctic';
 import { twitch } from '$lib/server/oauth';
 import { rpc } from '@bagel/shared/server/nats';
-import { saveGrant, isBanned, delegationConsume } from '$lib/server/rpc';
+import { saveGrant, isBanned, delegationConsume } from '$lib/server/services';
 import { COOKIE, seal } from '$lib/server/session';
 import { env } from '$env/dynamic/private';
 

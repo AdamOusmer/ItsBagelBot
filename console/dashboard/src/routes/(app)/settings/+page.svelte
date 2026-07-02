@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { Icon, Modal, PageHead, Card } from '@bagel/shared';
+  import { Icon, Modal, PageHead, Card, ConfirmDialog, EmptyState, toast } from '@bagel/shared';
   import { page } from '$app/state';
   import { enhance } from '$app/forms';
   import CheckButton from '$lib/components/CheckButton.svelte';
-  import type { DelegationGrant } from '$lib/server/rpc';
+  import type { DelegationGrant } from '$lib/server/services';
 
   let { data, form } = $props();
 
@@ -22,13 +22,37 @@
     return `${origin}/delegate/accept?t=${token}`;
   }
 
+  // One-tap copy with per-grant "copied" feedback (lifecycle: created -> link
+  // copied -> consumed).
+  let copied = $state<Record<string, boolean>>({});
   async function copy(token: string) {
     try {
       await navigator.clipboard.writeText(linkFor(token));
+      copied = { ...copied, [token]: true };
+      toast('ok', 'Invite link copied.');
+      setTimeout(() => (copied = { ...copied, [token]: false }), 4000);
     } catch {
-      /* clipboard blocked; user can select manually */
+      toast('err', 'Clipboard blocked — select the link manually.');
     }
   }
+
+  // Surface action results as toasts (replaces the old inline banners).
+  // svelte-ignore state_referenced_locally
+  let lastForm: unknown = form;
+  $effect(() => {
+    if (form === lastForm) return;
+    lastForm = form;
+    if (!form) return;
+    if (form.error) toast('err', String(form.error));
+    else if (form.ok && form.action === 'created') toast('ok', 'Share link created — copy it below.');
+    else if (form.ok && form.action === 'revoked') toast('ok', 'Link revoked.');
+    else if (form.ok && form.action === 'opted_out') toast('ok', 'Dashboard removed.');
+  });
+
+  // Revoke is irreversible (tokens are single-use), so it gets a confirm
+  // dialog rather than optimistic apply + undo.
+  let revokeTarget = $state<DelegationGrant | null>(null);
+  let revokeForm = $state<HTMLFormElement | null>(null);
 
   // Delete confirm modal: the box must be checked before Delete enables.
   let deleteOpen = $state(false);
@@ -42,16 +66,6 @@
 
 <section class="screen active">
   <PageHead eyebrow="Account" description="Manage your connection, account, and who can reach parts of your dashboard.">Your <em>settings</em></PageHead>
-
-  {#if form?.error}
-    <p class="banner err">{form.error}</p>
-  {:else if form?.ok && form.action === 'created'}
-    <p class="banner ok">Link created. Copy it from the list below.</p>
-  {:else if form?.ok && form.action === 'revoked'}
-    <p class="banner ok">Link revoked.</p>
-  {:else if form?.ok && form.action === 'opted_out'}
-    <p class="banner ok">Dashboard removed.</p>
-  {/if}
 
   <!-- ACCOUNT -->
   <Card class="settings-card">
@@ -72,46 +86,47 @@
     </div>
   </Card>
 
-  <!-- CONTROL -->
+  <!-- ACCESS YOU GRANTED -->
   <Card class="settings-card">
     <h2>Access you granted</h2>
-    <p class="hint">Generate a link to give someone scoped access to your dashboard. The first person to accept it is bound to that access permanently — revoke it here any time.</p>
+    <p class="hint">
+      Generate a link to give someone scoped access to your dashboard. The first person to accept it
+      is bound to that access permanently — revoke it here any time.
+    </p>
+
     {#if given.length === 0}
-      <p class="hint">No links yet.</p>
+      <EmptyState icon="link" title="No share links yet" body="Create one below to let a mod manage parts of your dashboard." />
     {:else}
-      <table>
-        <thead>
-          <tr><th>Sections</th><th>Status</th><th>Link</th><th></th></tr>
-        </thead>
-        <tbody>
-          {#each given as g (g.token)}
-            <tr>
-              <td>{g.sections.join(', ')}</td>
-              <td>
-                {#if g.consumed}
-                  <span class="tag used">Active · {g.delegate_login || 'unknown'}</span>
-                {:else}
-                  <span class="tag open">Pending · not yet accepted</span>
-                {/if}
-              </td>
-              <td class="linkcell">
-                {#if g.consumed}
-                  <span class="muted">—</span>
-                {:else}
-                  <code>{linkFor(g.token)}</code>
-                  <button type="button" class="btn ghost sm" onclick={() => copy(g.token)}>Copy</button>
-                {/if}
-              </td>
-              <td>
-                <form method="POST" action="?/revoke" use:enhance>
-                  <input type="hidden" name="token" value={g.token} />
-                  <button type="submit" class="btn ghost sm danger">Revoke</button>
-                </form>
-              </td>
-            </tr>
-          {/each}
-        </tbody>
-      </table>
+      <div class="grants">
+        {#each given as g (g.token)}
+          <div class="grant {g.consumed ? 'consumed' : 'pending'}">
+            <div class="grant-top">
+              <span class="lifecycle">
+                <span class="stage done">created</span>
+                <span class="sep">→</span>
+                <span class="stage {g.consumed || copied[g.token] ? 'done' : ''}">link shared</span>
+                <span class="sep">→</span>
+                <span class="stage {g.consumed ? 'done live' : ''}">
+                  {g.consumed ? `in use by ${g.delegate_login || 'unknown'}` : 'waiting for accept'}
+                </span>
+              </span>
+              <button type="button" class="btn ghost sm danger" onclick={() => (revokeTarget = g)}>Revoke</button>
+            </div>
+            <div class="grant-sections">
+              {#each g.sections as s (s)}<span class="section-chip">{s}</span>{/each}
+            </div>
+            {#if !g.consumed}
+              <div class="grant-link">
+                <code>{linkFor(g.token)}</code>
+                <button type="button" class="btn ghost sm" onclick={() => copy(g.token)}>
+                  <Icon name={copied[g.token] ? 'check' : 'link'} size={12} />
+                  {copied[g.token] ? 'Copied' : 'Copy'}
+                </button>
+              </div>
+            {/if}
+          </div>
+        {/each}
+      </div>
     {/if}
 
     <form method="POST" action="?/create" class="create" use:enhance>
@@ -122,34 +137,55 @@
     </form>
   </Card>
 
+  <!-- SHARED WITH YOU -->
   <Card class="settings-card">
     <h2>Dashboards shared with you</h2>
     {#if received.length === 0}
-      <p class="hint">No one has shared a dashboard with you.</p>
+      <EmptyState icon="overview" title="Nothing shared with you" body="When a broadcaster shares their dashboard, it appears here." />
     {:else}
-      <table>
-        <thead>
-          <tr><th>Owner</th><th>Sections</th><th></th></tr>
-        </thead>
-        <tbody>
-          {#each received as r (r.owner_user_id)}
-            <tr>
-              <td>{r.owner_login}</td>
-              <td>{r.sections.join(', ')}</td>
-              <td class="actions">
+      <div class="grants">
+        {#each received as r (r.owner_user_id)}
+          <div class="grant consumed">
+            <div class="grant-top">
+              <span class="owner"><Icon name="overview" size={14} /> {r.owner_login}</span>
+              <span class="actions">
                 <a class="btn ghost sm" href={`/delegate/enter?owner=${r.owner_user_id}`}>Open</a>
                 <form method="POST" action="?/optOut" use:enhance>
                   <input type="hidden" name="owner_user_id" value={r.owner_user_id} />
                   <button type="submit" class="btn ghost sm danger">Leave</button>
                 </form>
-              </td>
-            </tr>
-          {/each}
-        </tbody>
-      </table>
+              </span>
+            </div>
+            <div class="grant-sections">
+              {#each r.sections as s (s)}<span class="section-chip">{s}</span>{/each}
+            </div>
+          </div>
+        {/each}
+      </div>
     {/if}
   </Card>
 </section>
+
+<!-- Revoke confirm -->
+<ConfirmDialog
+  open={revokeTarget !== null}
+  title="Revoke this link?"
+  body={revokeTarget?.consumed
+    ? `${revokeTarget.delegate_login || 'The delegate'} immediately loses access to your dashboard. This cannot be undone.`
+    : 'The link stops working immediately. This cannot be undone.'}
+  confirmLabel="Revoke"
+  danger
+  onCancel={() => (revokeTarget = null)}
+  onConfirm={() => {
+    revokeForm?.requestSubmit();
+    revokeTarget = null;
+  }}
+/>
+{#if revokeTarget}
+  <form method="POST" action="?/revoke" use:enhance bind:this={revokeForm} hidden>
+    <input type="hidden" name="token" value={revokeTarget.token} />
+  </form>
+{/if}
 
 <!-- Delete confirm modal -->
 <Modal open={deleteOpen} title="Delete your account?" closeModal={closeDelete}>
@@ -183,26 +219,72 @@
   .row .hint { margin: 4px 0 0; }
   .create { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--bb-line, rgba(255, 255, 255, 0.06)); }
   .create .btn { margin-top: 14px; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--bb-line, rgba(255, 255, 255, 0.06)); }
-  th { color: var(--bb-muted, #998f82); font-weight: 600; }
-  .linkcell code { font-size: 12px; word-break: break-all; }
-  .muted { color: var(--bb-muted, #998f82); }
-  .actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-  }
-  .actions form { margin: 0; }
-  .tag { padding: 2px 8px; border-radius: 999px; font-size: 12px; }
-  .tag.open { background: rgba(120, 200, 120, 0.18); color: #8fd08f; }
-  .tag.used { background: rgba(200, 160, 120, 0.18); color: #c9a87c; }
-  .btn.sm { padding: 4px 10px; font-size: 12px; margin-left: 8px; }
-  .btn.danger { color: #e08f8f; }
-  .banner { padding: 10px 14px; border-radius: 10px; font-size: 13px; margin-top: 14px; }
-  .banner.err { background: rgba(220, 120, 120, 0.16); color: #e08f8f; }
-  .banner.ok { background: rgba(120, 200, 120, 0.16); color: #8fd08f; }
 
+  /* --- Grant lifecycle cards --- */
+  .grants { display: flex; flex-direction: column; gap: 10px; }
+  .grant {
+    border: 1px solid var(--glass-border);
+    border-radius: var(--bb-radius-md, 10px);
+    padding: 12px 14px;
+    background: rgba(255, 255, 255, 0.02);
+  }
+  .grant.pending { border-color: rgba(201, 168, 124, 0.3); }
+  .grant.consumed { border-color: rgba(82, 183, 136, 0.25); }
+
+  .grant-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .lifecycle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--bb-font-mono);
+    font-size: 11px;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--bb-muted);
+    flex-wrap: wrap;
+  }
+  .stage { opacity: 0.55; }
+  .stage.done { opacity: 1; color: var(--bb-tan-light); }
+  .stage.done.live { color: var(--bb-green-glow, #52b788); }
+  .sep { opacity: 0.4; }
+
+  .owner {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--bb-font-display);
+    font-weight: 700;
+    font-size: 14.5px;
+    color: var(--bb-white);
+  }
+
+  .grant-sections { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .section-chip {
+    font-family: var(--bb-font-mono);
+    font-size: 11px;
+    color: var(--bb-tan-light);
+    background: rgba(201, 168, 124, 0.1);
+    border: 1px solid rgba(201, 168, 124, 0.28);
+    border-radius: 999px;
+    padding: 2px 10px;
+  }
+
+  .grant-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+    padding: 8px 10px;
+    border: 1px dashed var(--glass-border);
+    border-radius: var(--bb-radius-sm, 8px);
+    background: rgba(255, 255, 255, 0.02);
+  }
+  .grant-link code { font-size: 12px; word-break: break-all; flex: 1; color: var(--bb-muted); }
+
+  .actions { display: flex; gap: 8px; align-items: center; }
+  .actions form { margin: 0; }
+  .btn.sm { padding: 4px 10px; font-size: 12px; }
+  .btn.danger { color: #e08f8f; }
 
   .delete-btn {
     background: rgba(220, 120, 120, 0.16);
@@ -213,7 +295,9 @@
 
   @media (max-width: 760px) {
     .row { flex-direction: column; align-items: stretch; }
-    .actions { justify-content: flex-start; }
+    .grant-top { flex-direction: column; align-items: flex-start; }
+    .grant-link { flex-direction: column; align-items: stretch; }
+    .grant-link .btn { justify-content: center; min-height: 40px; }
     .modal-actions { flex-direction: column-reverse; }
   }
 </style>

@@ -1,8 +1,23 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import { onMount } from 'svelte';
-  import { Button, Card, CardHead, Icon, PageHead, StatTile, Modal } from '@bagel/shared';
+  import { Button, Card, CardHead, Icon, PageHead, StatTile, Modal, Skeleton, type IconName } from '@bagel/shared';
   let { data } = $props();
+
+  // Real problems only, each with its fix. Empty array = healthy.
+  type Issue = { icon: IconName; text: string; cta: string; href: string | null };
+  function issuesFor(
+    c: { enabled: boolean; receiving: boolean },
+    ss: string,
+    commandTotal: number
+  ): Issue[] {
+    const out: Issue[] = [];
+    if (!c.enabled) out.push({ icon: 'power', text: 'The bot has no Twitch authorization for your channel.', cta: 'Connect', href: '/settings' });
+    if (c.enabled && !c.receiving) out.push({ icon: 'activity', text: 'The bot is connected but not replying in chat.', cta: 'Enable above', href: null });
+    if (ss === 'failing') out.push({ icon: 'ban', text: 'Chat subscriptions dropped — viewers may not get replies.', cta: 'Reconnect', href: '/settings' });
+    if (commandTotal === 0) out.push({ icon: 'commands', text: 'You have no commands yet — the bot has nothing to say.', cta: 'Create one', href: '/commands' });
+    return out;
+  }
 
   const statusLabel = (s: string) =>
     ({ free: 'Free', paid: 'Paid', vip: 'VIP' })[s] ?? 'Free';
@@ -125,7 +140,7 @@
       <div>
         <div class="live off"><span class="dot"></span> Checking connection…</div>
         <h2>#{data.login ?? 'itsmavey'}</h2>
-        <div class="meta"><span class="status-tag">—</span></div>
+        <div class="meta"><Skeleton variant="pill" /></div>
       </div>
       <div class="actions"></div>
     {:then c}
@@ -160,103 +175,146 @@
     {/await}
   </div>
 
-  {#await data.conn}
-    <div class="stat-grid overview-stats">
-      <StatTile icon="power" label="Bot status" value="—" delta="checking connection…" flat />
-      <StatTile icon="activity" tan label="Chat delivery" value="—" delta="checking EventSub…" flat />
-      <StatTile icon="pulse" label="Plan" value="—" delta="loading account…" flat />
-      <StatTile icon="commands" tan label="Commands" value="Open" delta="manage responses" flat />
-    </div>
-  {:then c}
-    <div class="stat-grid overview-stats">
+  <!-- Quick actions: the three things a streamer actually comes here to do. -->
+  <div class="quick-row">
+    <a class="btn primary" href="/commands"><Icon name="plus" size={14} /> New command</a>
+    <a class="btn ghost" href="/modules"><Icon name="power" size={14} /> Manage modules</a>
+    <a class="btn ghost" href="/settings"><Icon name="settings" size={14} /> Settings</a>
+  </div>
+
+  <!-- Needs-attention strip: shows ONLY real problems with their fix; one quiet
+       line when everything is healthy. The hero already says "connected", so
+       nothing here repeats it. -->
+  {#await data.conn then c}
+    {@const ss = sub?.state ?? c.subState}
+    {#await data.commands then cd}
+      {@const issues = issuesFor(c, ss, cd.total)}
+      {#if issues.length}
+        <div class="attention">
+          {#each issues as issue (issue.text)}
+            <div class="attn-row">
+              <span class="attn-ico"><Icon name={issue.icon} size={14} /></span>
+              <span class="attn-text">{issue.text}</span>
+              {#if issue.href}<a class="btn ghost sm-btn" href={issue.href}>{issue.cta}</a>
+              {:else}<span class="attn-hint">{issue.cta}</span>{/if}
+            </div>
+          {/each}
+        </div>
+      {:else}
+        <p class="all-good"><Icon name="check" size={13} /> Everything's running — nothing needs you right now.</p>
+      {/if}
+    {/await}
+  {/await}
+
+  <!-- At a glance: your bot's actual numbers, each linking to its page. -->
+  <div class="stat-grid overview-stats">
+    {#await data.commands}
+      <StatTile icon="commands" label="Active commands" value="—" delta="counting…" flat />
+    {:then cd}
+      <StatTile
+        icon="commands"
+        label="Active commands"
+        value={String(cd.active)}
+        unit={`of ${cd.total}`}
+        delta={cd.uses > 0 ? `${cd.uses.toLocaleString()} uses all-time` : 'create your first response'}
+      />
+    {/await}
+    {#await data.modules}
+      <StatTile icon="power" tan label="Modules on" value="—" delta="checking…" flat />
+    {:then md}
       <StatTile
         icon="power"
-        label="Bot status"
-        value={c.receiving ? 'Live' : c.enabled ? 'Idle' : 'Off'}
-        delta={c.receiving ? 'serving your channel' : c.enabled ? 'connected, not receiving' : 'enable when ready'}
-        flat
-      />
-      <StatTile
-        icon="activity"
         tan
-        label="Chat delivery"
-        value={c.receiving ? 'On' : 'Paused'}
-        delta={c.enabled ? 'authorization stored' : 'authorization needed'}
-        flat
+        label="Modules on"
+        value={String(md.on)}
+        unit={`of ${md.total}`}
+        delta={md.on > 0 ? 'running for your channel' : 'browse the catalog'}
       />
+    {/await}
+    {#await data.shares}
+      <StatTile icon="users" label="Shared access" value="—" delta="checking…" flat />
+    {:then sh}
+      <StatTile
+        icon="users"
+        label="Shared access"
+        value={String(sh.people)}
+        unit={sh.people === 1 ? 'person' : 'people'}
+        delta={sh.pending > 0 ? `${sh.pending} invite${sh.pending === 1 ? '' : 's'} pending` : 'manage in Settings'}
+        flat={sh.pending === 0}
+      />
+    {/await}
+    {#await data.conn}
+      <StatTile icon="pulse" tan label="Plan" value="—" delta="loading account…" flat />
+    {:then c}
       <StatTile
         icon="pulse"
+        tan
         label="Plan"
         value={statusLabel(c.status)}
         delta={c.status === 'free' ? 'standard access' : 'premium access'}
         flat
       />
-      <StatTile icon="commands" tan label="Commands" value="Open" delta="review chat responses" flat />
-    </div>
-  {/await}
+    {/await}
+  </div>
 
-  <div class="grid-2 overview-grid">
+  <div class="overview-grid">
     <Card>
-      <CardHead title="Next up">{#snippet action()}<a class="more" href="/commands">Commands</a>{/snippet}</CardHead>
-      <div class="feed">
-        <div class="feed-row">
-          <div class="fi green"><Icon name="commands" size={15} /></div>
-          <div class="ft">
-            <b>Review chat commands</b>
-            <span>Create, edit, disable, and tune cooldowns for your channel responses.</span>
-          </div>
-          <a class="fw overview-link" href="/commands">Open</a>
+      <CardHead title="Your top commands">{#snippet action()}<a class="more" href="/commands">All commands</a>{/snippet}</CardHead>
+      {#await data.commands}
+        <div class="feed">
+          {#each [0, 1, 2] as i (i)}
+            <div class="feed-row">
+              <div class="fi green"><Icon name="commands" size={15} /></div>
+              <div class="ft"><Skeleton variant="text" lines={2} width="80%" /></div>
+            </div>
+          {/each}
         </div>
-        <div class="feed-row">
-          <div class="fi"><Icon name="settings" size={15} /></div>
-          <div class="ft">
-            <b>Check account access</b>
-            <span>Reconnect Twitch or manage shared dashboard links.</span>
+      {:then cd}
+        {@const top = cd.top}
+        {#if top.length}
+          <div class="feed">
+            {#each top as c (c.name)}
+              <div class="feed-row">
+                <div class="fi green"><Icon name="commands" size={15} /></div>
+                <div class="ft">
+                  <b class="mono">!{c.name}</b>
+                  <span class="clip">{c.response}</span>
+                </div>
+                <span class="fw uses">{c.uses ?? '0'} uses</span>
+              </div>
+            {/each}
+            <div class="feed-row">
+              <div class="fi"><Icon name="plus" size={15} /></div>
+              <div class="ft">
+                <b>Add another</b>
+                <span>Create, edit, and tune cooldowns for your channel responses.</span>
+              </div>
+              <a class="fw overview-link" href="/commands">Open</a>
+            </div>
           </div>
-          <a class="fw overview-link" href="/settings">Open</a>
-        </div>
-        <div class="feed-row">
-          <div class="fi green"><Icon name="activity" size={15} /></div>
-          <div class="ft">
-            <b>Keep the bot fresh</b>
-            <span>Restart the connection if chat delivery ever feels stale.</span>
+        {:else}
+          <div class="feed">
+            <div class="feed-row">
+              <div class="fi green"><Icon name="commands" size={15} /></div>
+              <div class="ft">
+                <b>Create your first command</b>
+                <span>Custom responses your viewers trigger with !name in chat.</span>
+              </div>
+              <a class="fw overview-link" href="/commands">Open</a>
+            </div>
+            <div class="feed-row">
+              <div class="fi"><Icon name="settings" size={15} /></div>
+              <div class="ft">
+                <b>Check account access</b>
+                <span>Reconnect Twitch or manage shared dashboard links.</span>
+              </div>
+              <a class="fw overview-link" href="/settings">Open</a>
+            </div>
           </div>
-          <span class="fw">Overview</span>
-        </div>
-      </div>
-    </Card>
-
-    <Card>
-      <CardHead title="Connection checklist"/>
-      {#await data.conn}
-        <div class="node-list">
-          <div class="node-row"><span class="nd warn"></span><span class="nm">Twitch grant</span><span class="sv">Checking</span><span class="pg">—</span></div>
-          <div class="node-row"><span class="nd warn"></span><span class="nm">Bot active</span><span class="sv">Checking</span><span class="pg">—</span></div>
-          <div class="node-row"><span class="nd warn"></span><span class="nm">Account tier</span><span class="sv">Checking</span><span class="pg">—</span></div>
-        </div>
-      {:then c}
-        <div class="node-list">
-          <div class="node-row">
-            <span class="nd {c.enabled ? '' : 'warn'}"></span>
-            <span class="nm">Twitch grant</span>
-            <span class="sv">{c.enabled ? 'Authorized' : 'Needs reconnect'}</span>
-            <span class="pg">{c.enabled ? 'OK' : 'Set up'}</span>
-          </div>
-          <div class="node-row">
-            <span class="nd {c.receiving ? '' : 'warn'}"></span>
-            <span class="nm">Bot active</span>
-            <span class="sv">{c.receiving ? 'Receiving events' : c.enabled ? 'Ready to enable' : 'Waiting'}</span>
-            <span class="pg">{c.receiving ? 'Live' : 'Paused'}</span>
-          </div>
-          <div class="node-row">
-            <span class="nd"></span>
-            <span class="nm">Account tier</span>
-            <span class="sv">{statusLabel(c.status)}</span>
-            <span class="pg">{c.status === 'free' ? 'Base' : 'Plus'}</span>
-          </div>
-        </div>
+        {/if}
       {/await}
     </Card>
+
   </div>
 </section>
 
@@ -320,6 +378,65 @@
   .overview-stats {
     margin-bottom: var(--row-gap);
   }
+  .quick-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: var(--row-gap);
+  }
+  .quick-row .btn { text-decoration: none; }
+  @media (max-width: 480px) {
+    .quick-row .btn { flex: 1; justify-content: center; }
+  }
+
+  /* needs-attention strip */
+  .attention {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: var(--row-gap);
+  }
+  .attn-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: rgba(201, 168, 124, 0.07);
+    border: 1px solid rgba(201, 168, 124, 0.3);
+    border-radius: var(--bb-radius-md, 10px);
+  }
+  .attn-ico {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    flex: none;
+    border-radius: var(--bb-radius-sm, 6px);
+    background: rgba(201, 168, 124, 0.14);
+    color: var(--bb-tan-light);
+  }
+  .attn-ico :global(svg) { stroke: currentColor; fill: none; stroke-width: 1.7; }
+  .attn-text {
+    flex: 1;
+    min-width: 0;
+    font-family: var(--bb-font-body);
+    font-size: 13.5px;
+    color: var(--bb-white);
+  }
+  .attn-hint { font-family: var(--bb-font-body); font-weight: 600; font-size: 12.5px; color: var(--bb-tan-light); white-space: nowrap; }
+  .sm-btn { padding: 7px 14px; font-size: 12px; }
+
+  .all-good {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 var(--row-gap);
+    font-family: var(--bb-font-body);
+    font-size: 13px;
+    color: var(--bb-green-glow);
+  }
+  .all-good :global(svg) { stroke: currentColor; fill: none; stroke-width: 2; }
   .overview-grid {
     align-items: stretch;
   }
@@ -329,6 +446,20 @@
   }
   .overview-link:hover {
     color: var(--bb-tan-pale);
+  }
+  .mono { font-family: var(--bb-font-mono); }
+  .uses {
+    font-family: var(--bb-font-mono);
+    font-size: 11px;
+    color: var(--bb-muted);
+    white-space: nowrap;
+  }
+  .clip {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: block;
+    max-width: 100%;
   }
 
   /* Mobile: stack botmark above text, actions full-width buttons */

@@ -4,7 +4,7 @@
 // actions audit back to the admin while these fields are present.
 import type { RequestHandler } from './$types';
 import { redirect } from '@sveltejs/kit';
-import { verifyViewAs } from '$lib/server/impersonation';
+import { verifyViewAs } from '@bagel/shared/server/impersonation';
 import { COOKIE, seal } from '$lib/server/session';
 
 const SESSION_TTL = 3600; // 1h — shorter than a normal login.

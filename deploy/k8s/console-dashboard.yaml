@@ -106,7 +106,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: console-dashboard
-          image: ghcr.io/adamousmer/itsbagelbot/console-dashboard:main-1782826151-583725a4e4b9@sha256:fa8facc606dd0a5889f637edf8b747c9b37331b61ae52cd014a6d2e96eeab61a # {"$imagepolicy": "flux-system:console-dashboard"}
+          image: ghcr.io/adamousmer/itsbagelbot/console-dashboard:main-1782948954-7e5634f64ec3@sha256:7a6925e25881183b8b991166fed73280b3e334a2362f0415166872075bc29e04 # {"$imagepolicy": "flux-system:console-dashboard"}
           imagePullPolicy: IfNotPresent
           env:
             - name: PORT
@@ -136,6 +136,8 @@ spec:
                   fieldPath: spec.nodeName
             - name: NATS_PROJECTOR_DASHBOARD_SUBJECT_PREFIX
               value: bagel.rpc.projector.dashboard
+            - name: NATS_NOTIFICATIONS_SUBJECT_PREFIX
+              value: bagel.rpc.notifications
             # Reuse the old tier's 32-byte AES key as the session key.
             - name: SESSION_KEY
               valueFrom:

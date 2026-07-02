@@ -1,6 +1,6 @@
 <script lang="ts">
   import { page } from '$app/state';
-  import { AppShell } from '@bagel/shared';
+  import { AppShell, NotificationBell, ToastHost } from '@bagel/shared';
   import type { NavGroupDef, NavLink } from '@bagel/shared';
   let { data, children } = $props();
 
@@ -12,9 +12,11 @@
         ? 'Lanes'
         : path.startsWith('/users')
           ? 'Users'
-          : path.startsWith('/events')
-            ? 'Events'
-            : path.startsWith('/staff')
+          : path.startsWith('/notifications')
+            ? 'Notifications'
+            : path.startsWith('/events')
+              ? 'Events'
+              : path.startsWith('/staff')
               ? 'Staff'
               : path.startsWith('/audit')
                 ? 'Audit'
@@ -43,6 +45,7 @@
       label: 'Accounts',
       items: [
         { href: '/users', icon: 'users', label: 'Users', active: crumb === 'Users' },
+        { href: '/notifications', icon: 'send', label: 'Notifications', active: crumb === 'Notifications' },
         { href: '/events', icon: 'bell', label: 'Events', active: crumb === 'Events' }
       ]
     },
@@ -60,19 +63,22 @@
       : [])
   ] as NavGroupDef[]);
 
-  // Condensed mobile nav: managers get staff/audit/creds, moderators get events.
+  // Dock items (the only navigation now): everyone gets the operate/accounts
+  // set; managers additionally get staff/audit/creds.
   const mobileItems = $derived([
     { href: '/', icon: 'overview', label: 'Overview', active: crumb === 'Overview' },
     { href: '/shards', icon: 'pulse', label: 'Shards', active: crumb === 'Shards' },
     { href: '/lanes', icon: 'activity', label: 'Lanes', active: crumb === 'Lanes' },
     { href: '/users', icon: 'users', label: 'Users', active: crumb === 'Users' },
+    { href: '/notifications', icon: 'send', label: 'Notifications', active: crumb === 'Notifications' },
+    { href: '/events', icon: 'bell', label: 'Events', active: crumb === 'Events' },
     ...(isManager
       ? [
           { href: '/staff', icon: 'moderation', label: 'Staff', active: crumb === 'Staff' },
           { href: '/audit', icon: 'check', label: 'Audit', active: crumb === 'Audit' },
           { href: '/credentials', icon: 'lock', label: 'Creds', active: crumb === 'Credentials' }
         ]
-      : [{ href: '/events', icon: 'bell', label: 'Events', active: crumb === 'Events' }])
+      : [])
   ] as NavLink[]);
 </script>
 
@@ -85,5 +91,15 @@
   {groups}
   {mobileItems}
 >
+  {#snippet topActions()}
+    <NotificationBell
+      notifications={(data.recentNotifications ?? [])}
+      viewAllHref="/notifications"
+      emptyLabel="Nothing sent yet."
+    />
+  {/snippet}
   {@render children()}
 </AppShell>
+
+<!-- One toast host for the whole admin app; pages push via the shared toast() store. -->
+<ToastHost />

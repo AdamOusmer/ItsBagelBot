@@ -1,4 +1,6 @@
 import type { Actions, PageServerLoad } from './$types';
+import type { CommandView } from '@bagel/shared';
+import { MODULE_CATALOG } from '@bagel/shared';
 import {
   hasGrant,
   accountState,
@@ -7,9 +9,11 @@ import {
   publishEventSubReconnect,
   channelSubState,
   auditDashboardImpersonation,
+  delegationList,
   type AccountStatus,
   type ChannelSubState
-} from '$lib/server/rpc';
+} from '$lib/server/services';
+import { listCommands, listModules } from '$lib/server/commands-store';
 import { env } from '$env/dynamic/private';
 import { fail } from '@sveltejs/kit';
 
@@ -38,18 +42,92 @@ async function connState(uid: string): Promise<ConnState> {
   return { enabled, receiving, status, subState, subError };
 }
 
+// Parse the human-formatted uses counter ('1.2k', '412') for ranking.
+function usesCount(raw: string | undefined): number {
+  if (!raw) return 0;
+  const m = raw.trim().toLowerCase().match(/^([\d.]+)(k|m)?$/);
+  if (!m) return 0;
+  const n = Number(m[1]) || 0;
+  return m[2] === 'm' ? n * 1_000_000 : m[2] === 'k' ? n * 1000 : n;
+}
+
+// Everything the home page shows about commands, from one cached read: the
+// most-used rows for the strip plus real counts for the stat cards.
+export type CommandDigest = {
+  top: CommandView[];
+  active: number;
+  total: number;
+  uses: number;
+};
+
+function digest(cmds: CommandView[]): CommandDigest {
+  const active = cmds.filter((c) => c.is_active);
+  return {
+    top: [...active].toSorted((a, b) => usesCount(b.uses) - usesCount(a.uses)).slice(0, 3),
+    active: active.length,
+    total: cmds.length,
+    uses: cmds.reduce((n, c) => n + usesCount(c.uses), 0)
+  };
+}
+
+const demoDigest: CommandDigest = digest([
+  { name: 'bagel', response: '{user} tosses a warm bagel to {target}. Toasty.', is_active: true, uses: '1.2k' },
+  { name: 'lurk', response: '{user} fades into the shadows. Thanks for the lurk.', is_active: true, uses: '521' },
+  { name: 'uptime', response: '@{user} the stream has been live for {uptime} 🥯', is_active: true, uses: '412' },
+  { name: 'socials', response: 'Follow along → twitch.tv/itsmavey', is_active: true, uses: '288' },
+  { name: 'uptime-debug', response: 'node={node}', is_active: false, uses: '14' }
+]);
+
+// Modules at a glance: enabled count over the user-facing catalog.
+export type ModuleDigest = { on: number; total: number };
+
+// Who can reach this dashboard: consumed delegation grants.
+export type ShareDigest = { people: number; pending: number };
+
 export const load: PageServerLoad = ({ locals }) => {
   const uid = locals.session?.user_id ?? 'demo';
 
-  // Return the RPC as an unawaited promise so SvelteKit streams it: the page
-  // shell flushes immediately and the connection state hydrates when the round
-  // trip lands, instead of blocking SSR (and the post-login redirect) on NATS.
+  // Return the RPCs as unawaited promises so SvelteKit streams them: the page
+  // shell flushes immediately and each section hydrates when its round trip
+  // lands, instead of blocking SSR (and the post-login redirect) on NATS.
   const conn: Promise<ConnState> =
     env.DEMO === '1'
       ? Promise.resolve({ enabled: true, receiving: true, status: 'vip', subState: 'ok', subError: '' })
       : connState(uid);
 
-  return { conn };
+  // Command digest for the stat cards + top strip. Cache-backed (same fabric
+  // entry as the commands page) and optional: a failure just hides the strip.
+  const commands: Promise<CommandDigest> =
+    env.DEMO === '1'
+      ? Promise.resolve(demoDigest)
+      : listCommands(uid)
+          .then(digest)
+          .catch(() => ({ top: [], active: 0, total: 0, uses: 0 }) as CommandDigest);
+
+  const catalogIds = new Set(MODULE_CATALOG.map((m) => m.id));
+  const modules: Promise<ModuleDigest> =
+    env.DEMO === '1'
+      ? Promise.resolve({ on: 1, total: MODULE_CATALOG.length })
+      : listModules(uid)
+          .then((rows) => ({
+            on: rows.filter((r) => catalogIds.has(r.name) && r.is_enabled).length,
+            total: MODULE_CATALOG.length
+          }))
+          .catch(() => ({ on: 0, total: MODULE_CATALOG.length }));
+
+  // Delegation shares only exist for owners; a delegate browsing the owner's
+  // board doesn't own grants, so show zero rather than erroring.
+  const shares: Promise<ShareDigest> =
+    env.DEMO === '1'
+      ? Promise.resolve({ people: 1, pending: 1 })
+      : delegationList(uid)
+          .then((grants) => ({
+            people: grants.filter((g) => g.consumed).length,
+            pending: grants.filter((g) => !g.consumed).length
+          }))
+          .catch(() => ({ people: 0, pending: 0 }));
+
+  return { conn, commands, modules, shares };
 };
 
 export const actions: Actions = {

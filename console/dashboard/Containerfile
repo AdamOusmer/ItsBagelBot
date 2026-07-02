@@ -12,6 +12,7 @@ ENV BUILD_VERSION=$BUILD_VERSION
 # Workspace manifests first for cached installs. bunfig.toml MUST be present for
 # the install so the hoisted linker applies (flat node_modules the image can ship).
 COPY package.json bun.lock bunfig.toml ./
+COPY tsconfig.base.json tsconfig.base.json
 COPY shared/package.json shared/package.json
 COPY dashboard/package.json dashboard/package.json
 COPY admin/package.json admin/package.json

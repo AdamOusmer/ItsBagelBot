@@ -1,8 +1,18 @@
 <script lang="ts">
   import { page } from '$app/state';
-  import { AppShell, ImpersonationBanner } from '@bagel/shared';
+  import { enhance } from '$app/forms';
+  import { AppShell, ImpersonationBanner, NotificationBell, ToastHost } from '@bagel/shared';
   import type { NavGroupDef, NavLink } from '@bagel/shared';
   let { data, children } = $props();
+
+  const isDelegate = $derived(!!data.delegateOf);
+
+  let markReadForm = $state<HTMLFormElement | null>(null);
+  let markReadId = $state<number | null>(null);
+  function markRead(id: number) {
+    markReadId = id;
+    queueMicrotask(() => markReadForm?.requestSubmit());
+  }
 
   const path = $derived(page.url.pathname);
   const crumb = $derived(
@@ -10,14 +20,17 @@
       ? 'Commands'
       : path.startsWith('/modules')
         ? 'Modules'
-        : path.startsWith('/settings') || path.startsWith('/access')
-          ? 'Settings'
-          : 'Overview'
+        : path.startsWith('/billing')
+          ? 'Billing'
+          : path.startsWith('/notifications')
+            ? 'Notifications'
+            : path.startsWith('/settings') || path.startsWith('/access')
+              ? 'Settings'
+              : 'Overview'
   );
 
   // Delegate view: nav and routes are limited to the granted sections, and the
   // owner-only Overview/Settings entries are hidden.
-  const isDelegate = $derived(!!data.delegateOf);
   const sections = $derived((data.sections ?? []) as string[]);
   const canCommands = $derived(!isDelegate || sections.includes('commands'));
   const canModules = $derived(!isDelegate || sections.includes('modules'));
@@ -31,6 +44,20 @@
       : []),
     ...(canModules
       ? [{ href: '/modules', icon: 'power', label: 'Modules', active: crumb === 'Modules' }]
+      : []),
+    ...(!isDelegate
+      ? [{ href: '/billing', icon: 'heart', label: 'Billing', active: crumb === 'Billing' }]
+      : []),
+    ...(!isDelegate
+      ? [
+          {
+            href: '/notifications',
+            icon: 'bell',
+            label: 'Notifications',
+            active: crumb === 'Notifications',
+            count: data.unreadCount ? data.unreadCount : undefined
+          }
+        ]
       : []),
     ...(!isDelegate
       ? [{ href: '/settings', icon: 'settings', label: 'Settings', active: crumb === 'Settings' }]
@@ -63,5 +90,24 @@
       </ImpersonationBanner>
     {/if}
   {/snippet}
+  {#snippet topActions()}
+    {#if !isDelegate}
+      <NotificationBell
+        notifications={(data.bellNotifications ?? [])}
+        unreadCount={data.unreadCount ?? 0}
+        viewAllHref="/notifications"
+        onMarkRead={markRead}
+      />
+    {/if}
+  {/snippet}
   {@render children()}
 </AppShell>
+
+<!-- Hidden mark-read form the bell submits into; ?/markRead lives on the
+     /notifications route but SvelteKit actions can target any page. -->
+<form method="POST" action="/notifications?/markRead" use:enhance bind:this={markReadForm} hidden>
+  <input type="hidden" name="id" value={markReadId ?? ''} />
+</form>
+
+<!-- One toast host for the whole app; pages push via the shared toast() store. -->
+<ToastHost />

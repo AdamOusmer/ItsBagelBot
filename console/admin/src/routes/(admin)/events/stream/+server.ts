@@ -2,7 +2,7 @@ import type { RequestHandler } from './$types';
 import { error } from '@sveltejs/kit';
 import { requireAdmin, isDemo } from '$lib/server/access';
 import { subscribeStatus, decode, type FeedEvent } from '$lib/server/feed';
-import { STATUS_PREFIX } from '$lib/server/rpc';
+import { STATUS_PREFIX } from '$lib/server/services';
 
 const enc = new TextEncoder();
 

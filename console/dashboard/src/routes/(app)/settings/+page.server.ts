@@ -8,8 +8,9 @@ import {
   delegationRevoke,
   deleteSelf,
   auditDashboardImpersonation
-} from '$lib/server/rpc';
+} from '$lib/server/services';
 import { ACCOUNT_DELETED_COOKIE, COOKIE } from '$lib/server/session';
+import { env } from '$env/dynamic/private';
 
 const SECTIONS = ['commands'] as const;
 
@@ -18,6 +19,19 @@ function tokenLabel(token: string): string {
 }
 
 export const load: PageServerLoad = async ({ locals }) => {
+  // DEMO: sample grants covering the full lifecycle (pending + consumed) so the
+  // page renders and is exercisable without OAuth + NATS.
+  if (env.DEMO === '1') {
+    return {
+      given: [
+        { token: 'demo-pending-token-1234', sections: ['commands'], delegate_login: '', consumed: false },
+        { token: 'demo-consumed-token-5678', sections: ['commands'], delegate_login: 'trusty_mod', consumed: true }
+      ],
+      received: [{ owner_user_id: '42', owner_login: 'ferret_king', sections: ['commands'] }],
+      degraded: false
+    };
+  }
+
   const s = locals.session;
   // Owner-only. Delegates are confined to their sections by the layout, but
   // bounce defensively in case one ever reaches this route directly.

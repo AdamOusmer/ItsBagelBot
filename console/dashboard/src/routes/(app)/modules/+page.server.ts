@@ -1,7 +1,8 @@
 import type { Actions, PageServerLoad } from './$types';
 import type { ModuleState } from '@bagel/shared';
 import { MODULE_CATALOG, moduleDef } from '@bagel/shared';
-import { listModules, upsertModule, auditDashboardImpersonation, type ModuleView } from '$lib/server/rpc';
+import { listModules, upsertModule, type ModuleView } from '$lib/server/commands-store';
+import { auditDashboardImpersonation } from '$lib/server/services';
 import type { Session } from '$lib/server/session';
 import { env } from '$env/dynamic/private';
 import { fail, redirect } from '@sveltejs/kit';
@@ -58,7 +59,9 @@ export const actions: Actions = {
   toggle: async ({ request, locals }) => {
     gateModules(locals.session);
     const uid = effectiveId(locals.session);
-    if (!locals.session) return fail(401, { ok: false, error: 'Not signed in.' });
+    if (env.DEMO !== '1' && !locals.session) {
+      return fail(401, { ok: false, error: 'Not signed in.' });
+    }
 
     const f = await request.formData();
     const name = String(f.get('name') ?? '');
@@ -72,6 +75,9 @@ export const actions: Actions = {
     } catch {
       config = undefined;
     }
+
+    // DEMO: acknowledge without RPC so the optimistic flow is exercisable.
+    if (env.DEMO === '1') return { ok: true, name, enabled };
 
     const { error } = await upsertModule(uid, name, enabled, config);
     if (error) return fail(400, { ok: false, error });

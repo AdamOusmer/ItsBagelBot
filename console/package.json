@@ -8,7 +8,8 @@
     "build": "bun run --filter dashboard build && bun run --filter admin build",
     "dev:dashboard": "bun run --filter dashboard dev",
     "dev:admin": "bun run --filter admin dev",
-    "check": "bun run --filter '*' check"
+    "check": "bun run --filter '*' check",
+    "test": "bun test shared"
   },
   "devDependencies": {
     "@types/node": "^22.13.1",

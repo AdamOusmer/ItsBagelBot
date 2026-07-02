@@ -96,7 +96,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: console-admin
-          image: ghcr.io/adamousmer/itsbagelbot/console-admin:main-1782826151-583725a4e4b9@sha256:62e9263a6a0d747f707654b342ddbc06b9c09b49b640d3ef1f733f9a0ec9328f # {"$imagepolicy": "flux-system:console-admin"}
+          image: ghcr.io/adamousmer/itsbagelbot/console-admin:main-1782948954-7e5634f64ec3@sha256:568b47c1ec493d06683d7a6ac963beab35cf0c4461965e0b44f766aaf9ad6ed6 # {"$imagepolicy": "flux-system:console-admin"}
           imagePullPolicy: IfNotPresent
           env:
             - name: PORT
@@ -133,6 +133,8 @@ spec:
               value: bagel.rpc.admin.user.auth
             - name: NATS_ADMIN_AUDIT_SUBJECT_PREFIX
               value: bagel.rpc.admin.user.audit
+            - name: NATS_ADMIN_NOTIFICATIONS_SUBJECT_PREFIX
+              value: bagel.rpc.admin.notifications
             # Twitch OAuth callback for operator sign-in (admin host).
             - name: TWITCH_REDIRECT_URI
               value: https://admin.tail451e6d.ts.net/auth/callback

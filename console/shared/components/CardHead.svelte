@@ -9,7 +9,8 @@
 </div>
 
 <style>
-  .card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
-  h3 { font-family: var(--bb-font-display); font-weight: 600; font-size: 17px; color: var(--bb-white); margin: 0; letter-spacing: -0.01em; }
-  .card-head :global(.more) { font-family: var(--bb-font-mono); font-size: 11px; letter-spacing: 0.06em; color: var(--bb-tan); cursor: pointer; }
+  .card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+  h3 { font-family: var(--bb-font-display); font-weight: 700; font-size: 16px; letter-spacing: -0.01em; color: var(--bb-white); margin: 0; }
+  .card-head :global(.more) { font-family: var(--bb-font-body); font-weight: 600; font-size: 12.5px; color: var(--bb-tan); cursor: pointer; text-decoration: none; }
+  .card-head :global(.more:hover) { color: var(--bb-tan-pale); }
 </style>

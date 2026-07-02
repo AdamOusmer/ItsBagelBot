@@ -4,7 +4,8 @@ import { COOKIE, open } from '$lib/server/session';
 import { warm } from '@bagel/shared/server/nats';
 import { warm as warmValkey } from '@bagel/shared/server/valkey-store';
 import { registerServerConfig } from '@bagel/shared/server/config';
-import { startInvalidationListener } from '$lib/server/rpc';
+import { rumTransform } from '@bagel/shared/server/rum';
+import { startInvalidationListener } from '$lib/server/services';
 import { assertConfigSane } from '$lib/server/config-sanity';
 import dns from 'node:dns';
 
@@ -56,33 +57,14 @@ export const handle: Handle = async ({ event, resolve }) => {
   });
   if (session?.user_id) newrelic.setUserID(String(session.user_id));
 
-  // New Relic Browser (RUM): inject the agent loader inline in <head>, reusing
-  // the per-response CSP nonce SvelteKit already emitted so `script-src` stays
-  // nonce-based (no 'unsafe-inline'). Captured from whichever streamed chunk
-  // carries it; injected at </head>. Empty when the agent isn't connected (dev),
-  // so this is a clean no-op there.
-  let cspNonce: string | undefined;
   const res = await resolve(event, {
     // SvelteKit preloads js + css by default; add fonts so the SSR'd <head>
     // warms the woff2 files in parallel with the bundle instead of waiting for
     // CSS to parse first. Fewer round-trips, less FOUT/CLS on first paint.
     preload: ({ type }) => type === 'js' || type === 'css' || type === 'font',
-    transformPageChunk: ({ html }) => {
-      if (!cspNonce) {
-        const m = html.match(/nonce="([^"]+)"/);
-        if (m) cspNonce = m[1];
-      }
-      if (cspNonce && html.includes('</head>')) {
-        let snippet = '';
-        try {
-          snippet = newrelic.getBrowserTimingHeader({ nonce: cspNonce });
-        } catch {
-          /* agent not ready (e.g. dev); skip injection */
-        }
-        if (snippet) return html.replace('</head>', `${snippet}</head>`);
-      }
-      return html;
-    }
+    // New Relic Browser (RUM) injection; single-chunk, streaming-safe (shared
+    // helper). No-op when the agent isn't connected (dev).
+    transformPageChunk: rumTransform()
   });
 
   res.headers.set('X-Content-Type-Options', 'nosniff');

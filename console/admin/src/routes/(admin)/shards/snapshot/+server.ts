@@ -1,7 +1,7 @@
 import type { RequestHandler } from './$types';
 import { json, error } from '@sveltejs/kit';
 import { requireAdmin, isDemo } from '$lib/server/access';
-import { shardSnapshot } from '$lib/server/rpc';
+import { shardSnapshot } from '$lib/server/services';
 import { sampleSnapshot } from '$lib/server/sample';
 
 // Live snapshot poll target for the Shards page so shard state (connecting ->

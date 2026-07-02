@@ -1,7 +1,7 @@
 import type { Actions, PageServerLoad } from './$types';
-import type { ModuleState } from '@bagel/shared';
 import { moduleDef } from '@bagel/shared';
-import { listModules, upsertModule, auditDashboardImpersonation } from '$lib/server/rpc';
+import { listModules, upsertModule } from '$lib/server/commands-store';
+import { auditDashboardImpersonation } from '$lib/server/services';
 import type { Session } from '$lib/server/session';
 import { env } from '$env/dynamic/private';
 import { error, fail, redirect } from '@sveltejs/kit';
@@ -26,28 +26,35 @@ function asConfig(raw: unknown): Record<string, string> {
   return out;
 }
 
-export const load: PageServerLoad = async ({ params, locals }) => {
+export type SavedModule = { enabled: boolean; config: Record<string, string> } | null;
+
+export const load: PageServerLoad = ({ params, locals }) => {
   gateModules(locals.session);
   const def = moduleDef(params.id);
   if (!def) throw error(404, 'Unknown module');
 
   const uid = effectiveId(locals.session);
-  let enabled = def.defaultEnabled;
-  let config: Record<string, string> = {};
 
-  if (env.DEMO !== '1') {
-    try {
-      const row = (await listModules(uid)).find((r) => r.name === def.id);
-      if (row) {
-        enabled = row.is_enabled;
-        config = asConfig(row.configs);
-      }
-    } catch {
-      /* fall back to defaults */
-    }
-  }
+  // The catalog definition renders instantly; the user's saved row streams in as
+  // an unawaited promise (SvelteKit streams nested promises). The old blocking
+  // `await listModules(uid)` held the whole page hostage to a cold cache — up to
+  // the 2s RPC timeout before ANY paint. null = no saved row / lookup failed;
+  // the page keeps the catalog defaults.
+  const saved: Promise<SavedModule> =
+    env.DEMO === '1'
+      ? Promise.resolve(null)
+      : listModules(uid)
+          .then((rows): SavedModule => {
+            const row = rows.find((r) => r.name === def.id);
+            return row ? { enabled: row.is_enabled, config: asConfig(row.configs) } : null;
+          })
+          .catch((): SavedModule => null);
 
-  return { state: { def, enabled, config } satisfies ModuleState };
+  return {
+    def,
+    defaults: { enabled: def.defaultEnabled, config: {} as Record<string, string> },
+    saved
+  };
 };
 
 export const actions: Actions = {
