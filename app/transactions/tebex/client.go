@@ -27,6 +27,11 @@ type Config struct {
 	// baskets use HTTP Basic auth (public token as username, private key as
 	// password) so Tebex accepts the customer's IPv4 address.
 	PrivateKey string
+	// IncludeUsername sends the store/customer username at Tebex's top level.
+	// Minecraft/Overwolf stores require it; Universal stores reject it. Twitch
+	// account attribution for ItsBagelBot does not depend on this field because
+	// user_id/username are always carried in the custom payload.
+	IncludeUsername bool
 	// PackageID is the premium package to place in every basket.
 	PackageID int
 	// PackageType is "subscription" or "single"; premium is a monthly
@@ -112,7 +117,9 @@ func (c *Client) CreateBasket(ctx context.Context, spec BasketSpec) (Basket, err
 		"cancel_url":             c.cfg.CancelURL,
 		"complete_auto_redirect": true,
 		"custom":                 custom,
-		"username":               spec.Username,
+	}
+	if c.cfg.IncludeUsername && spec.Username != "" {
+		create["username"] = spec.Username
 	}
 	if spec.IPAddress != "" && c.cfg.PrivateKey != "" {
 		create["ip_address"] = spec.IPAddress
