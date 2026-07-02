@@ -25,6 +25,9 @@ spec:
     metadata:
       annotations:
         linkerd.io/inject: enabled
+        # Cluster listener/routes cannot be introduced by a config reload;
+        # force a rolling restart when the leaf cluster topology changes.
+        itsbagelbot.dev/config-revision: "leaf-cluster-v1"
         # NATS speaks first on the wire, so protocol detection would stall;
         # opaque keeps Linkerd mTLS without the detection timeout. 6222 is the
         # leaf-to-leaf cluster route port.

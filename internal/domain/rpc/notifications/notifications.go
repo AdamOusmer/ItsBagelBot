@@ -32,6 +32,7 @@ type SendRequest struct {
 	ExpiresAt      *time.Time `json:"expires_at,omitempty"`
 	ActorID        string     `json:"actor_id"`
 	ActorLogin     string     `json:"actor_login"`
+	RequestID      string     `json:"request_id,omitempty"`
 }
 
 type SendReply struct {
