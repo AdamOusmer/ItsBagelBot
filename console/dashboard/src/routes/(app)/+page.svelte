@@ -153,9 +153,7 @@
 </script>
 
 <section class="screen active">
-  <!-- The operator chip in the topbar already carries the name; greeting stays
-       impersonal so it doesn't appear twice on one screen. -->
-  <PageHead eyebrow="Status" description="Manage your bot connection and commands from here.">Good <em>{greeting.split(' ')[1]}</em></PageHead>
+  <PageHead eyebrow="Status" description="Manage your bot connection and commands from here.">Good {greeting.split(' ')[1]}, <em>{data.displayName ?? data.login}</em></PageHead>
 
   <!-- status-hero keeps page-scoped descendant styles (.live.off/.meta/.botmark),
        so it stays a raw glass card rather than the <Card> component. -->
@@ -166,7 +164,6 @@
     {#await data.conn}
       <div>
         <div class="live off"><span class="dot"></span> Checking connection…</div>
-        <h2>#{data.login ?? 'itsmavey'}</h2>
         <div class="meta"><Skeleton variant="pill" /></div>
       </div>
       <div class="actions"></div>
@@ -176,7 +173,6 @@
         <div class="live {c.receiving ? '' : 'off'}">
           <span class="dot"></span> {c.receiving ? 'Online · in chat' : c.enabled ? 'Connected · idle' : 'Not connected'}
         </div>
-        <h2>#{data.login ?? 'itsmavey'}</h2>
         <div class="meta">
           <span class="status-tag {c.status !== 'free' ? 'premium' : ''}">{statusLabel(c.status)}</span>
           {#if ss === 'failing'}
@@ -365,6 +361,19 @@
 </Modal>
 
 <style>
+  /* With the #login heading gone, the connection status is the hero's headline:
+     promote it from a small mono pill to a display-weight line that fills the row. */
+  .status-hero .live {
+    font-family: var(--bb-font-display);
+    font-weight: 700;
+    font-size: 22px;
+    letter-spacing: -0.01em;
+    text-transform: none;
+    color: var(--bb-white);
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .status-hero .live .dot { width: 9px; height: 9px; }
   .status-hero .live.off { color: var(--bb-muted); }
   .status-hero .live.off .dot { background: var(--bb-muted); box-shadow: none; animation: none; }
   .status-tag {
