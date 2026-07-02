@@ -234,10 +234,7 @@
   <Card class="billing-card">
     <div class="gift-top">
       <div>
-        <div class="gift-header">
-          <div class="dot-indicator" aria-hidden="true"></div>
-          <h2>Gift premium</h2>
-        </div>
+        <h2>Gift premium</h2>
         <p class="hint">
           Pay for another streamer's premium. They need an ItsBagelBot account, and they get a
           notification the moment your payment lands.
@@ -321,24 +318,6 @@
   .plan-actions .hint { text-align: right; }
   .btn.danger { color: #e08f8f; }
 
-  .gift-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 6px;
-  }
-  .gift-header h2 {
-    margin: 0;
-  }
-  .dot-indicator {
-    flex: 0 0 auto;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    border: 1px solid var(--bb-tan-light, #e0c9a4);
-    background: var(--bb-tan, #c9a87c);
-    box-shadow: 0 0 0 3px rgba(201, 168, 124, 0.18);
-  }
   .gift-top {
     display: flex;
     align-items: flex-start;
@@ -352,22 +331,18 @@
     align-items: center;
   }
   .gift-input {
-    background: #ffffff;
-    border: 1px solid transparent;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--bb-border, rgba(255, 255, 255, 0.1));
     border-radius: var(--bb-radius-md, 10px);
-    color: #1a1a1a;
+    color: var(--bb-white, #f0ece4);
     font-family: var(--bb-font-body);
     font-size: 13.5px;
     padding: 10px 14px;
     width: 200px;
   }
-  .gift-input::placeholder {
-    color: #777;
-  }
   .gift-input:focus {
     outline: none;
     border-color: var(--bb-tan, #c9a87c);
-    box-shadow: 0 0 0 2px rgba(201, 168, 124, 0.3);
   }
 
   @media (max-width: 760px) {
