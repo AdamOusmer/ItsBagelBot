@@ -27,9 +27,12 @@ on:
           - console-dashboard
           - console-admin
 
+# Queue, never cancel: Flux's digest-pin commits land on main right after a
+# merge and share this group — with cancel-in-progress they killed the very
+# build that produces the images those pins were waiting for.
 concurrency:
   group: publish-images-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: read
