@@ -87,11 +87,13 @@ func main() {
 	checkoutConfigured := false
 	// TEBEX_HEADLESS_TOKEN is the legacy name for the same webstore public token.
 	webstoreToken := env.Get("TEBEX_WEBSTORE_TOKEN", env.Get("TEBEX_HEADLESS_TOKEN", ""))
+	privateKey := env.Get("TEBEX_PRIVATE_KEY", env.Get("TEBEX_SECRET_KEY", env.Get("TEBEX_API_PRIVATE_KEY", "")))
 	packageID := env.GetInt("TEBEX_PACKAGE_ID", 0)
 	if webstoreToken != "" && packageID > 0 {
 		dashboardOrigin := env.Get("DASHBOARD_ORIGIN", "https://dashboard.itsbagelbot.com")
 		tebexClient, err := tebex.New(tebex.Config{
 			WebstoreToken: webstoreToken,
+			PrivateKey:    privateKey,
 			PackageID:     packageID,
 			PackageType:   env.Get("TEBEX_PACKAGE_TYPE", "subscription"),
 			CompleteURL:   dashboardOrigin + "/billing?checkout=complete",
@@ -132,6 +134,7 @@ func main() {
 		zap.String("listen_addr", listenAddr),
 		zap.Bool("tebex_webhook_configured", env.Get("TEBEX_WEBHOOK_SECRET", "") != ""),
 		zap.Bool("tebex_checkout_configured", checkoutConfigured),
+		zap.Bool("tebex_checkout_auth_configured", privateKey != ""),
 	)
 
 	select {
