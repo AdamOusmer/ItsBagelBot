@@ -1,3 +1,8 @@
+// Side-effect import: sorts src/ directory reads so the native ARM/Intel image
+// builds assign identical SvelteKit node IDs and emit byte-identical client
+// bundles. Must live here (inside the build process) — bun ignores
+// NODE_OPTIONS=--require, so a script-level shim never runs.
+import '../sorted-readdir.mjs';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 
