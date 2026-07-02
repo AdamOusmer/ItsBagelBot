@@ -60,11 +60,75 @@ type Basket struct {
 // basketData is the shared shape of the Headless API's basket envelope.
 type basketData struct {
 	Data struct {
-		Ident string `json:"ident"`
-		Links struct {
-			Checkout string `json:"checkout"`
-		} `json:"links"`
+		Ident string      `json:"ident"`
+		Links basketLinks `json:"links"`
 	} `json:"data"`
+}
+
+// basketLinks accepts both Tebex shapes seen in production/docs:
+//   - {"checkout":"https://pay.tebex.io/..."} once a package is in the basket
+//   - [] on a freshly created basket before packages have been added
+//
+// Some API surfaces also model links as rel/href arrays, so tolerate that too.
+type basketLinks struct {
+	Checkout string
+}
+
+func (l *basketLinks) UnmarshalJSON(data []byte) error {
+
+	data = bytes.TrimSpace(data)
+	if len(data) == 0 || bytes.Equal(data, []byte("null")) {
+		return nil
+	}
+
+	switch data[0] {
+	case '{':
+		var obj struct {
+			Checkout string `json:"checkout"`
+		}
+		if err := json.Unmarshal(data, &obj); err != nil {
+			return err
+		}
+		l.Checkout = obj.Checkout
+		return nil
+	case '[':
+		var arr []struct {
+			Rel      string `json:"rel"`
+			Name     string `json:"name"`
+			Href     string `json:"href"`
+			URL      string `json:"url"`
+			Checkout string `json:"checkout"`
+		}
+		if err := json.Unmarshal(data, &arr); err != nil {
+			return err
+		}
+		for _, link := range arr {
+			if link.Checkout != "" {
+				l.Checkout = link.Checkout
+				return nil
+			}
+			if strings.EqualFold(link.Rel, "checkout") || strings.EqualFold(link.Name, "checkout") {
+				if link.Href != "" {
+					l.Checkout = link.Href
+					return nil
+				}
+				if link.URL != "" {
+					l.Checkout = link.URL
+					return nil
+				}
+			}
+		}
+		return nil
+	case '"':
+		var checkout string
+		if err := json.Unmarshal(data, &checkout); err != nil {
+			return err
+		}
+		l.Checkout = checkout
+		return nil
+	default:
+		return fmt.Errorf("unexpected basket links shape: %s", truncate(data, 80))
+	}
 }
 
 func New(cfg Config) (*Client, error) {
