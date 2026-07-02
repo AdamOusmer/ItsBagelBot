@@ -19,15 +19,10 @@ type BasketCreateRequest struct {
 type BasketCreateReply struct {
 	// Ident is the basket identifier Tebex.js launches checkout with.
 	Ident string `json:"ident,omitempty"`
-	// CheckoutURL is the hosted-checkout link for the same basket, kept as a
-	// fallback when the embedded checkout cannot run.
+	// CheckoutURL is the Tebex-hosted checkout link for the basket; the
+	// dashboard redirects the browser there.
 	CheckoutURL string `json:"checkout_url,omitempty"`
 	// RecipientLogin echoes the resolved gift recipient (gift baskets only).
 	RecipientLogin string `json:"recipient_login,omitempty"`
 	Error          string `json:"error,omitempty"`
-}
-
-type ConfigReply struct {
-	PublicToken string `json:"public_token,omitempty"`
-	Error       string `json:"error,omitempty"`
 }

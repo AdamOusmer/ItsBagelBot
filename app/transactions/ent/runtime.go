@@ -4,7 +4,6 @@ package ent
 
 import (
 	"ItsBagelBot/app/transactions/ent/schema"
-	"ItsBagelBot/app/transactions/ent/tebextransactions"
 	"ItsBagelBot/app/transactions/ent/tebexwebhookevents"
 	"time"
 )
@@ -13,16 +12,6 @@ import (
 // (default values, validators, hooks and policies) and stitches it
 // to their package variables.
 func init() {
-	tebextransactionsFields := schema.TebexTransactions{}.Fields()
-	_ = tebextransactionsFields
-	// tebextransactionsDescCreatedAt is the schema descriptor for created_at field.
-	tebextransactionsDescCreatedAt := tebextransactionsFields[2].Descriptor()
-	// tebextransactions.DefaultCreatedAt holds the default value on creation for the created_at field.
-	tebextransactions.DefaultCreatedAt = tebextransactionsDescCreatedAt.Default.(func() time.Time)
-	// tebextransactionsDescID is the schema descriptor for id field.
-	tebextransactionsDescID := tebextransactionsFields[0].Descriptor()
-	// tebextransactions.IDValidator is a validator for the "id" field. It is called by the builders before save.
-	tebextransactions.IDValidator = tebextransactionsDescID.Validators[0].(func(string) error)
 	tebexwebhookeventsFields := schema.TebexWebhookEvents{}.Fields()
 	_ = tebexwebhookeventsFields
 	// tebexwebhookeventsDescEventType is the schema descriptor for event_type field.

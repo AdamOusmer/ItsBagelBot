@@ -439,11 +439,6 @@ export const billingState = defineRead({
 // read budget.
 export type CheckoutBasket = { ident: string; checkoutUrl: string | null; recipientLogin: string | null };
 
-export async function billingPortalToken(): Promise<string | null> {
-  const r = await rpc<{ public_token?: string }>(`${SUB.transactions}.config_get`, {}, 3000);
-  return r.public_token ?? null;
-}
-
 export async function checkoutBasketCreate(
   userId: string,
   username: string,

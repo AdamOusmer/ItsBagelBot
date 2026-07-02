@@ -8,25 +8,6 @@ import (
 )
 
 var (
-	// TebexTransactionsColumns holds the columns for the "tebex_transactions" table.
-	TebexTransactionsColumns = []*schema.Column{
-		{Name: "id", Type: field.TypeString, Unique: true},
-		{Name: "user_id", Type: field.TypeUint64},
-		{Name: "created_at", Type: field.TypeTime},
-	}
-	// TebexTransactionsTable holds the schema information for the "tebex_transactions" table.
-	TebexTransactionsTable = &schema.Table{
-		Name:       "tebex_transactions",
-		Columns:    TebexTransactionsColumns,
-		PrimaryKey: []*schema.Column{TebexTransactionsColumns[0]},
-		Indexes: []*schema.Index{
-			{
-				Name:    "tebextransactions_user_id",
-				Unique:  false,
-				Columns: []*schema.Column{TebexTransactionsColumns[1]},
-			},
-		},
-	}
 	// TebexWebhookEventsColumns holds the columns for the "tebex_webhook_events" table.
 	TebexWebhookEventsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString, Unique: true},
@@ -68,7 +49,6 @@ var (
 	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
-		TebexTransactionsTable,
 		TebexWebhookEventsTable,
 	}
 )

@@ -3,7 +3,6 @@
 package ent
 
 import (
-	"ItsBagelBot/app/transactions/ent/tebextransactions"
 	"ItsBagelBot/app/transactions/ent/tebexwebhookevents"
 	"context"
 	"errors"
@@ -74,7 +73,6 @@ var (
 func checkColumn(t, c string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
-			tebextransactions.Table:  tebextransactions.ValidColumn,
 			tebexwebhookevents.Table: tebexwebhookevents.ValidColumn,
 		})
 	})
