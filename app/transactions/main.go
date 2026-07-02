@@ -11,6 +11,7 @@ import (
 	// Wire the ent schema runtime (field defaults/hooks); without this blank
 	// import every write fails: "forgotten import ent/runtime?".
 	_ "ItsBagelBot/app/transactions/ent/runtime"
+	"ItsBagelBot/app/transactions/mail"
 	"ItsBagelBot/app/transactions/repository"
 	"ItsBagelBot/app/transactions/rpc"
 	"ItsBagelBot/app/transactions/tebex"
@@ -79,8 +80,8 @@ func main() {
 	webstoreToken := env.Get("TEBEX_WEBSTORE_TOKEN", env.Get("TEBEX_HEADLESS_TOKEN", ""))
 	privateKey := env.Get("TEBEX_PRIVATE_KEY", env.Get("TEBEX_SECRET_KEY", env.Get("TEBEX_API_PRIVATE_KEY", "")))
 	packageID := env.GetInt("TEBEX_PACKAGE_ID", 0)
+	dashboardOrigin := env.Get("DASHBOARD_ORIGIN", "https://dashboard.itsbagelbot.com")
 	if webstoreToken != "" && packageID > 0 {
-		dashboardOrigin := env.Get("DASHBOARD_ORIGIN", "https://dashboard.itsbagelbot.com")
 		tebexClient, err := tebex.New(tebex.Config{
 			WebstoreToken:   webstoreToken,
 			PrivateKey:      privateKey,
@@ -105,7 +106,21 @@ func main() {
 	}
 
 	sendSubject := env.Get("NATS_ADMIN_NOTIFICATIONS_SUBJECT_PREFIX", "bagel.rpc.admin.notifications") + ".send"
-	notifier := rpc.NewGiftNotifier(nc, sendSubject)
+
+	// Gift email channel (Resend). Optional: without the API key the notifier
+	// keeps sending the in-app notification only, exactly as before.
+	var mailer *mail.Mailer
+	// RESEND_API is the Doppler name; RESEND_API_KEY accepted as an alias.
+	if resendKey := env.Get("RESEND_API", env.Get("RESEND_API_KEY", "")); resendKey != "" {
+		mailer = mail.New(resendKey,
+			env.Get("RESEND_FROM", "ItsBagelBot <no-reply@itsbagelbot.com>"),
+			dashboardOrigin)
+	} else {
+		log.Warn("gift email disabled: RESEND_API not configured")
+	}
+
+	emailSubject := env.Get("NATS_INTERNAL_USERS_EMAIL_SUBJECT", "bagel.rpc.internal.users.email.get")
+	notifier := rpc.NewGiftNotifier(nc, sendSubject, emailSubject, mailer, log.Named("gift"))
 	billingSubject := env.Get("NATS_INTERNAL_BILLING_SUBJECT", "bagel.rpc.internal.billing.apply")
 	billing := rpc.NewBillingApplier(nc, billingSubject)
 
