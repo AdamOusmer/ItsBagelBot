@@ -136,6 +136,12 @@ var (
 		{Name: "is_active", Type: field.TypeBool, Default: true},
 		{Name: "banned", Type: field.TypeBool, Default: false},
 		{Name: "status", Type: field.TypeEnum, Enums: []string{"free", "paid", "vip"}, Default: "free"},
+		{Name: "subscription_source", Type: field.TypeString, Default: ""},
+		{Name: "subscription_expires_at", Type: field.TypeTime, Nullable: true},
+		{Name: "subscription_ref", Type: field.TypeString, Nullable: true},
+		{Name: "subscription_cancel_pending", Type: field.TypeBool, Default: false},
+		{Name: "billing_event_at", Type: field.TypeTime, Nullable: true},
+		{Name: "billing_event_id", Type: field.TypeString, Nullable: true},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
 	}

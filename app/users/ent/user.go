@@ -27,6 +27,18 @@ type User struct {
 	Banned bool `json:"banned,omitempty"`
 	// Status holds the value of the "status" field.
 	Status user.Status `json:"status,omitempty"`
+	// SubscriptionSource holds the value of the "subscription_source" field.
+	SubscriptionSource string `json:"subscription_source,omitempty"`
+	// SubscriptionExpiresAt holds the value of the "subscription_expires_at" field.
+	SubscriptionExpiresAt *time.Time `json:"subscription_expires_at,omitempty"`
+	// SubscriptionRef holds the value of the "subscription_ref" field.
+	SubscriptionRef *string `json:"subscription_ref,omitempty"`
+	// SubscriptionCancelPending holds the value of the "subscription_cancel_pending" field.
+	SubscriptionCancelPending bool `json:"subscription_cancel_pending,omitempty"`
+	// BillingEventAt holds the value of the "billing_event_at" field.
+	BillingEventAt *time.Time `json:"billing_event_at,omitempty"`
+	// BillingEventID holds the value of the "billing_event_id" field.
+	BillingEventID *string `json:"billing_event_id,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// UpdatedAt holds the value of the "updated_at" field.
@@ -60,13 +72,13 @@ func (*User) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case user.FieldIsActive, user.FieldBanned:
+		case user.FieldIsActive, user.FieldBanned, user.FieldSubscriptionCancelPending:
 			values[i] = new(sql.NullBool)
 		case user.FieldID:
 			values[i] = new(sql.NullInt64)
-		case user.FieldUsername, user.FieldEmail, user.FieldStatus:
+		case user.FieldUsername, user.FieldEmail, user.FieldStatus, user.FieldSubscriptionSource, user.FieldSubscriptionRef, user.FieldBillingEventID:
 			values[i] = new(sql.NullString)
-		case user.FieldCreatedAt, user.FieldUpdatedAt:
+		case user.FieldSubscriptionExpiresAt, user.FieldBillingEventAt, user.FieldCreatedAt, user.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -118,6 +130,46 @@ func (_m *User) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field status", values[i])
 			} else if value.Valid {
 				_m.Status = user.Status(value.String)
+			}
+		case user.FieldSubscriptionSource:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field subscription_source", values[i])
+			} else if value.Valid {
+				_m.SubscriptionSource = value.String
+			}
+		case user.FieldSubscriptionExpiresAt:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field subscription_expires_at", values[i])
+			} else if value.Valid {
+				_m.SubscriptionExpiresAt = new(time.Time)
+				*_m.SubscriptionExpiresAt = value.Time
+			}
+		case user.FieldSubscriptionRef:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field subscription_ref", values[i])
+			} else if value.Valid {
+				_m.SubscriptionRef = new(string)
+				*_m.SubscriptionRef = value.String
+			}
+		case user.FieldSubscriptionCancelPending:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field subscription_cancel_pending", values[i])
+			} else if value.Valid {
+				_m.SubscriptionCancelPending = value.Bool
+			}
+		case user.FieldBillingEventAt:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field billing_event_at", values[i])
+			} else if value.Valid {
+				_m.BillingEventAt = new(time.Time)
+				*_m.BillingEventAt = value.Time
+			}
+		case user.FieldBillingEventID:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field billing_event_id", values[i])
+			} else if value.Valid {
+				_m.BillingEventID = new(string)
+				*_m.BillingEventID = value.String
 			}
 		case user.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -185,6 +237,32 @@ func (_m *User) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("status=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Status))
+	builder.WriteString(", ")
+	builder.WriteString("subscription_source=")
+	builder.WriteString(_m.SubscriptionSource)
+	builder.WriteString(", ")
+	if v := _m.SubscriptionExpiresAt; v != nil {
+		builder.WriteString("subscription_expires_at=")
+		builder.WriteString(v.Format(time.ANSIC))
+	}
+	builder.WriteString(", ")
+	if v := _m.SubscriptionRef; v != nil {
+		builder.WriteString("subscription_ref=")
+		builder.WriteString(*v)
+	}
+	builder.WriteString(", ")
+	builder.WriteString("subscription_cancel_pending=")
+	builder.WriteString(fmt.Sprintf("%v", _m.SubscriptionCancelPending))
+	builder.WriteString(", ")
+	if v := _m.BillingEventAt; v != nil {
+		builder.WriteString("billing_event_at=")
+		builder.WriteString(v.Format(time.ANSIC))
+	}
+	builder.WriteString(", ")
+	if v := _m.BillingEventID; v != nil {
+		builder.WriteString("billing_event_id=")
+		builder.WriteString(*v)
+	}
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))

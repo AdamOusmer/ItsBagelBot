@@ -99,6 +99,114 @@ func (_u *UserUpdate) SetNillableStatus(v *user.Status) *UserUpdate {
 	return _u
 }
 
+// SetSubscriptionSource sets the "subscription_source" field.
+func (_u *UserUpdate) SetSubscriptionSource(v string) *UserUpdate {
+	_u.mutation.SetSubscriptionSource(v)
+	return _u
+}
+
+// SetNillableSubscriptionSource sets the "subscription_source" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableSubscriptionSource(v *string) *UserUpdate {
+	if v != nil {
+		_u.SetSubscriptionSource(*v)
+	}
+	return _u
+}
+
+// SetSubscriptionExpiresAt sets the "subscription_expires_at" field.
+func (_u *UserUpdate) SetSubscriptionExpiresAt(v time.Time) *UserUpdate {
+	_u.mutation.SetSubscriptionExpiresAt(v)
+	return _u
+}
+
+// SetNillableSubscriptionExpiresAt sets the "subscription_expires_at" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableSubscriptionExpiresAt(v *time.Time) *UserUpdate {
+	if v != nil {
+		_u.SetSubscriptionExpiresAt(*v)
+	}
+	return _u
+}
+
+// ClearSubscriptionExpiresAt clears the value of the "subscription_expires_at" field.
+func (_u *UserUpdate) ClearSubscriptionExpiresAt() *UserUpdate {
+	_u.mutation.ClearSubscriptionExpiresAt()
+	return _u
+}
+
+// SetSubscriptionRef sets the "subscription_ref" field.
+func (_u *UserUpdate) SetSubscriptionRef(v string) *UserUpdate {
+	_u.mutation.SetSubscriptionRef(v)
+	return _u
+}
+
+// SetNillableSubscriptionRef sets the "subscription_ref" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableSubscriptionRef(v *string) *UserUpdate {
+	if v != nil {
+		_u.SetSubscriptionRef(*v)
+	}
+	return _u
+}
+
+// ClearSubscriptionRef clears the value of the "subscription_ref" field.
+func (_u *UserUpdate) ClearSubscriptionRef() *UserUpdate {
+	_u.mutation.ClearSubscriptionRef()
+	return _u
+}
+
+// SetSubscriptionCancelPending sets the "subscription_cancel_pending" field.
+func (_u *UserUpdate) SetSubscriptionCancelPending(v bool) *UserUpdate {
+	_u.mutation.SetSubscriptionCancelPending(v)
+	return _u
+}
+
+// SetNillableSubscriptionCancelPending sets the "subscription_cancel_pending" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableSubscriptionCancelPending(v *bool) *UserUpdate {
+	if v != nil {
+		_u.SetSubscriptionCancelPending(*v)
+	}
+	return _u
+}
+
+// SetBillingEventAt sets the "billing_event_at" field.
+func (_u *UserUpdate) SetBillingEventAt(v time.Time) *UserUpdate {
+	_u.mutation.SetBillingEventAt(v)
+	return _u
+}
+
+// SetNillableBillingEventAt sets the "billing_event_at" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableBillingEventAt(v *time.Time) *UserUpdate {
+	if v != nil {
+		_u.SetBillingEventAt(*v)
+	}
+	return _u
+}
+
+// ClearBillingEventAt clears the value of the "billing_event_at" field.
+func (_u *UserUpdate) ClearBillingEventAt() *UserUpdate {
+	_u.mutation.ClearBillingEventAt()
+	return _u
+}
+
+// SetBillingEventID sets the "billing_event_id" field.
+func (_u *UserUpdate) SetBillingEventID(v string) *UserUpdate {
+	_u.mutation.SetBillingEventID(v)
+	return _u
+}
+
+// SetNillableBillingEventID sets the "billing_event_id" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableBillingEventID(v *string) *UserUpdate {
+	if v != nil {
+		_u.SetBillingEventID(*v)
+	}
+	return _u
+}
+
+// ClearBillingEventID clears the value of the "billing_event_id" field.
+func (_u *UserUpdate) ClearBillingEventID() *UserUpdate {
+	_u.mutation.ClearBillingEventID()
+	return _u
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_u *UserUpdate) SetCreatedAt(v time.Time) *UserUpdate {
 	_u.mutation.SetCreatedAt(v)
@@ -243,6 +351,36 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(user.FieldStatus, field.TypeEnum, value)
 	}
+	if value, ok := _u.mutation.SubscriptionSource(); ok {
+		_spec.SetField(user.FieldSubscriptionSource, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.SubscriptionExpiresAt(); ok {
+		_spec.SetField(user.FieldSubscriptionExpiresAt, field.TypeTime, value)
+	}
+	if _u.mutation.SubscriptionExpiresAtCleared() {
+		_spec.ClearField(user.FieldSubscriptionExpiresAt, field.TypeTime)
+	}
+	if value, ok := _u.mutation.SubscriptionRef(); ok {
+		_spec.SetField(user.FieldSubscriptionRef, field.TypeString, value)
+	}
+	if _u.mutation.SubscriptionRefCleared() {
+		_spec.ClearField(user.FieldSubscriptionRef, field.TypeString)
+	}
+	if value, ok := _u.mutation.SubscriptionCancelPending(); ok {
+		_spec.SetField(user.FieldSubscriptionCancelPending, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.BillingEventAt(); ok {
+		_spec.SetField(user.FieldBillingEventAt, field.TypeTime, value)
+	}
+	if _u.mutation.BillingEventAtCleared() {
+		_spec.ClearField(user.FieldBillingEventAt, field.TypeTime)
+	}
+	if value, ok := _u.mutation.BillingEventID(); ok {
+		_spec.SetField(user.FieldBillingEventID, field.TypeString, value)
+	}
+	if _u.mutation.BillingEventIDCleared() {
+		_spec.ClearField(user.FieldBillingEventID, field.TypeString)
+	}
 	if value, ok := _u.mutation.CreatedAt(); ok {
 		_spec.SetField(user.FieldCreatedAt, field.TypeTime, value)
 	}
@@ -381,6 +519,114 @@ func (_u *UserUpdateOne) SetNillableStatus(v *user.Status) *UserUpdateOne {
 	if v != nil {
 		_u.SetStatus(*v)
 	}
+	return _u
+}
+
+// SetSubscriptionSource sets the "subscription_source" field.
+func (_u *UserUpdateOne) SetSubscriptionSource(v string) *UserUpdateOne {
+	_u.mutation.SetSubscriptionSource(v)
+	return _u
+}
+
+// SetNillableSubscriptionSource sets the "subscription_source" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableSubscriptionSource(v *string) *UserUpdateOne {
+	if v != nil {
+		_u.SetSubscriptionSource(*v)
+	}
+	return _u
+}
+
+// SetSubscriptionExpiresAt sets the "subscription_expires_at" field.
+func (_u *UserUpdateOne) SetSubscriptionExpiresAt(v time.Time) *UserUpdateOne {
+	_u.mutation.SetSubscriptionExpiresAt(v)
+	return _u
+}
+
+// SetNillableSubscriptionExpiresAt sets the "subscription_expires_at" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableSubscriptionExpiresAt(v *time.Time) *UserUpdateOne {
+	if v != nil {
+		_u.SetSubscriptionExpiresAt(*v)
+	}
+	return _u
+}
+
+// ClearSubscriptionExpiresAt clears the value of the "subscription_expires_at" field.
+func (_u *UserUpdateOne) ClearSubscriptionExpiresAt() *UserUpdateOne {
+	_u.mutation.ClearSubscriptionExpiresAt()
+	return _u
+}
+
+// SetSubscriptionRef sets the "subscription_ref" field.
+func (_u *UserUpdateOne) SetSubscriptionRef(v string) *UserUpdateOne {
+	_u.mutation.SetSubscriptionRef(v)
+	return _u
+}
+
+// SetNillableSubscriptionRef sets the "subscription_ref" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableSubscriptionRef(v *string) *UserUpdateOne {
+	if v != nil {
+		_u.SetSubscriptionRef(*v)
+	}
+	return _u
+}
+
+// ClearSubscriptionRef clears the value of the "subscription_ref" field.
+func (_u *UserUpdateOne) ClearSubscriptionRef() *UserUpdateOne {
+	_u.mutation.ClearSubscriptionRef()
+	return _u
+}
+
+// SetSubscriptionCancelPending sets the "subscription_cancel_pending" field.
+func (_u *UserUpdateOne) SetSubscriptionCancelPending(v bool) *UserUpdateOne {
+	_u.mutation.SetSubscriptionCancelPending(v)
+	return _u
+}
+
+// SetNillableSubscriptionCancelPending sets the "subscription_cancel_pending" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableSubscriptionCancelPending(v *bool) *UserUpdateOne {
+	if v != nil {
+		_u.SetSubscriptionCancelPending(*v)
+	}
+	return _u
+}
+
+// SetBillingEventAt sets the "billing_event_at" field.
+func (_u *UserUpdateOne) SetBillingEventAt(v time.Time) *UserUpdateOne {
+	_u.mutation.SetBillingEventAt(v)
+	return _u
+}
+
+// SetNillableBillingEventAt sets the "billing_event_at" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableBillingEventAt(v *time.Time) *UserUpdateOne {
+	if v != nil {
+		_u.SetBillingEventAt(*v)
+	}
+	return _u
+}
+
+// ClearBillingEventAt clears the value of the "billing_event_at" field.
+func (_u *UserUpdateOne) ClearBillingEventAt() *UserUpdateOne {
+	_u.mutation.ClearBillingEventAt()
+	return _u
+}
+
+// SetBillingEventID sets the "billing_event_id" field.
+func (_u *UserUpdateOne) SetBillingEventID(v string) *UserUpdateOne {
+	_u.mutation.SetBillingEventID(v)
+	return _u
+}
+
+// SetNillableBillingEventID sets the "billing_event_id" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableBillingEventID(v *string) *UserUpdateOne {
+	if v != nil {
+		_u.SetBillingEventID(*v)
+	}
+	return _u
+}
+
+// ClearBillingEventID clears the value of the "billing_event_id" field.
+func (_u *UserUpdateOne) ClearBillingEventID() *UserUpdateOne {
+	_u.mutation.ClearBillingEventID()
 	return _u
 }
 
@@ -557,6 +803,36 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(user.FieldStatus, field.TypeEnum, value)
+	}
+	if value, ok := _u.mutation.SubscriptionSource(); ok {
+		_spec.SetField(user.FieldSubscriptionSource, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.SubscriptionExpiresAt(); ok {
+		_spec.SetField(user.FieldSubscriptionExpiresAt, field.TypeTime, value)
+	}
+	if _u.mutation.SubscriptionExpiresAtCleared() {
+		_spec.ClearField(user.FieldSubscriptionExpiresAt, field.TypeTime)
+	}
+	if value, ok := _u.mutation.SubscriptionRef(); ok {
+		_spec.SetField(user.FieldSubscriptionRef, field.TypeString, value)
+	}
+	if _u.mutation.SubscriptionRefCleared() {
+		_spec.ClearField(user.FieldSubscriptionRef, field.TypeString)
+	}
+	if value, ok := _u.mutation.SubscriptionCancelPending(); ok {
+		_spec.SetField(user.FieldSubscriptionCancelPending, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.BillingEventAt(); ok {
+		_spec.SetField(user.FieldBillingEventAt, field.TypeTime, value)
+	}
+	if _u.mutation.BillingEventAtCleared() {
+		_spec.ClearField(user.FieldBillingEventAt, field.TypeTime)
+	}
+	if value, ok := _u.mutation.BillingEventID(); ok {
+		_spec.SetField(user.FieldBillingEventID, field.TypeString, value)
+	}
+	if _u.mutation.BillingEventIDCleared() {
+		_spec.ClearField(user.FieldBillingEventID, field.TypeString)
 	}
 	if value, ok := _u.mutation.CreatedAt(); ok {
 		_spec.SetField(user.FieldCreatedAt, field.TypeTime, value)

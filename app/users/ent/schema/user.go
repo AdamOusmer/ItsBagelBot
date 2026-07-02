@@ -33,6 +33,16 @@ func (User) Fields() []ent.Field {
 			Values("free", "paid", "vip"). // vip is a permanent paid tier
 			Default("free"),
 
+		// Billing ownership is deliberately stored with the user tier. This lets
+		// webhook retries apply idempotently and prevents a Tebex cancellation
+		// from revoking a staff grant or permanent VIP status.
+		field.String("subscription_source").Default(""),
+		field.Time("subscription_expires_at").Optional().Nillable(),
+		field.String("subscription_ref").Optional().Nillable(),
+		field.Bool("subscription_cancel_pending").Default(false),
+		field.Time("billing_event_at").Optional().Nillable(),
+		field.String("billing_event_id").Optional().Nillable(),
+
 		field.Time("created_at").Default(time.Now),
 
 		field.Time("updated_at").

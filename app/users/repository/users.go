@@ -27,11 +27,15 @@ const (
 // UserView is the read model served from the in-process cache. It carries no
 // sensitive fields, so holding it in memory is safe.
 type UserView struct {
-	ID       uint64 `json:"id"`
-	Username string `json:"username"`
-	IsActive bool   `json:"is_active"`
-	Status   string `json:"status"`
-	Banned   bool   `json:"banned"`
+	ID                        uint64     `json:"id"`
+	Username                  string     `json:"username"`
+	IsActive                  bool       `json:"is_active"`
+	Status                    string     `json:"status"`
+	Banned                    bool       `json:"banned"`
+	SubscriptionSource        string     `json:"subscription_source"`
+	SubscriptionExpiresAt     *time.Time `json:"subscription_expires_at,omitempty"`
+	SubscriptionRef           *string    `json:"subscription_ref,omitempty"`
+	SubscriptionCancelPending bool       `json:"subscription_cancel_pending"`
 }
 
 // Users persists the user records and their OAuth tokens. Status reads are
@@ -115,11 +119,15 @@ func (r *Users) Get(ctx context.Context, id uint64) (UserView, error) {
 			}
 
 			return UserView{
-				ID:       u.ID,
-				Username: u.Username,
-				IsActive: u.IsActive,
-				Status:   string(u.Status),
-				Banned:   u.Banned,
+				ID:                        u.ID,
+				Username:                  u.Username,
+				IsActive:                  u.IsActive,
+				Status:                    string(u.Status),
+				Banned:                    u.Banned,
+				SubscriptionSource:        u.SubscriptionSource,
+				SubscriptionExpiresAt:     u.SubscriptionExpiresAt,
+				SubscriptionRef:           u.SubscriptionRef,
+				SubscriptionCancelPending: u.SubscriptionCancelPending,
 			}, nil
 		})
 	})
