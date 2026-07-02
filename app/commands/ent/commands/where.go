@@ -94,6 +94,11 @@ func AllowedUserID(v uint64) predicate.Commands {
 	return predicate.Commands(sql.FieldEQ(FieldAllowedUserID, v))
 }
 
+// Uses applies equality check predicate on the "uses" field. It's identical to UsesEQ.
+func Uses(v uint64) predicate.Commands {
+	return predicate.Commands(sql.FieldEQ(FieldUses, v))
+}
+
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.Commands {
 	return predicate.Commands(sql.FieldEQ(FieldCreatedAt, v))
@@ -447,6 +452,46 @@ func AllowedUserIDLT(v uint64) predicate.Commands {
 // AllowedUserIDLTE applies the LTE predicate on the "allowed_user_id" field.
 func AllowedUserIDLTE(v uint64) predicate.Commands {
 	return predicate.Commands(sql.FieldLTE(FieldAllowedUserID, v))
+}
+
+// UsesEQ applies the EQ predicate on the "uses" field.
+func UsesEQ(v uint64) predicate.Commands {
+	return predicate.Commands(sql.FieldEQ(FieldUses, v))
+}
+
+// UsesNEQ applies the NEQ predicate on the "uses" field.
+func UsesNEQ(v uint64) predicate.Commands {
+	return predicate.Commands(sql.FieldNEQ(FieldUses, v))
+}
+
+// UsesIn applies the In predicate on the "uses" field.
+func UsesIn(vs ...uint64) predicate.Commands {
+	return predicate.Commands(sql.FieldIn(FieldUses, vs...))
+}
+
+// UsesNotIn applies the NotIn predicate on the "uses" field.
+func UsesNotIn(vs ...uint64) predicate.Commands {
+	return predicate.Commands(sql.FieldNotIn(FieldUses, vs...))
+}
+
+// UsesGT applies the GT predicate on the "uses" field.
+func UsesGT(v uint64) predicate.Commands {
+	return predicate.Commands(sql.FieldGT(FieldUses, v))
+}
+
+// UsesGTE applies the GTE predicate on the "uses" field.
+func UsesGTE(v uint64) predicate.Commands {
+	return predicate.Commands(sql.FieldGTE(FieldUses, v))
+}
+
+// UsesLT applies the LT predicate on the "uses" field.
+func UsesLT(v uint64) predicate.Commands {
+	return predicate.Commands(sql.FieldLT(FieldUses, v))
+}
+
+// UsesLTE applies the LTE predicate on the "uses" field.
+func UsesLTE(v uint64) predicate.Commands {
+	return predicate.Commands(sql.FieldLTE(FieldUses, v))
 }
 
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.

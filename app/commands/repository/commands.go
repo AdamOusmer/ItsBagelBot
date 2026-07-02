@@ -4,10 +4,12 @@ import (
 	"context"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"ItsBagelBot/app/commands/ent"
 	"ItsBagelBot/app/commands/ent/commands"
+	"ItsBagelBot/app/commands/ent/predicate"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/domain/rpc/projection"
 	"ItsBagelBot/internal/domain/validate"
@@ -58,6 +60,13 @@ const (
 
 	flushInterval = 2 * time.Second
 	flushMaxSize  = 256
+
+	// Use-counter flush cadence. Counters are loss-tolerant, so the window can
+	// be generous: one UPDATE ... uses = uses + n per hot command per window,
+	// and one change event per affected command so the projection + consoles
+	// pick the new count up through the normal pipeline.
+	usesFlushInterval = 30 * time.Second
+	usesFlushMaxKeys  = 512
 )
 
 // CommandView is the read model for one custom command of one user.
@@ -79,19 +88,40 @@ type Commands struct {
 	batcher *batch.Batcher[commandKey, data.CommandChangedDTO]
 	app     *newrelic.Application
 	log     *zap.Logger
+
+	// use-counter accumulator: RecordUse sums here; flushUses drains on a
+	// ticker (or when the key set grows large) into uses = uses + n updates.
+	usesMu     sync.Mutex
+	usesPend   map[commandKey]uint64
+	usesTicker *time.Ticker
+	usesDone   chan struct{}
 }
 
 func NewCommands(client *ent.Client, pub message.Publisher, app *newrelic.Application, log *zap.Logger) *Commands {
 
 	r := &Commands{
-		client: client,
-		views:  cache.New[[]CommandView](cache.DefaultCapacity, commandsCacheTTL),
-		pub:    pub,
-		app:    app,
-		log:    log,
+		client:   client,
+		views:    cache.New[[]CommandView](cache.DefaultCapacity, commandsCacheTTL),
+		pub:      pub,
+		app:      app,
+		log:      log,
+		usesPend: map[commandKey]uint64{},
+		usesDone: make(chan struct{}),
 	}
 
 	r.batcher = batch.New[commandKey, data.CommandChangedDTO](flushInterval, flushMaxSize, r.flush, log)
+
+	r.usesTicker = time.NewTicker(usesFlushInterval)
+	go func() {
+		for {
+			select {
+			case <-r.usesTicker.C:
+				r.flushUses(context.Background())
+			case <-r.usesDone:
+				return
+			}
+		}
+	}()
 
 	return r
 }
@@ -120,6 +150,7 @@ func (r *Commands) List(ctx context.Context, userID uint64) ([]CommandView, erro
 					Perm:             row.Perm,
 					Cooldown:         row.Cooldown,
 					AllowedUserID:    formatAllowed(row.AllowedUserID),
+					Uses:             row.Uses,
 				}
 			}
 
@@ -238,7 +269,10 @@ func (r *Commands) Rename(ctx context.Context, userID uint64, oldName, newName s
 	}); err != nil {
 		return err
 	}
-	return bus.PublishJSON(ctx, r.pub, data.SubjectCommandChanged, data.CommandChangedDTO{
+
+	// The rename preserved the row, so its uses counter survives; carry it on
+	// the event so the projection doesn't regress it to zero.
+	changed := data.CommandChangedDTO{
 		UserID:           userID,
 		Name:             newName,
 		Aliases:          aliases,
@@ -248,7 +282,13 @@ func (r *Commands) Rename(ctx context.Context, userID uint64, oldName, newName s
 		Perm:             perm,
 		Cooldown:         cooldown,
 		AllowedUserID:    allowedUserID,
-	})
+	}
+	if states, serr := r.rowStates(ctx, []commandKey{{userID: userID, name: newName}}); serr == nil {
+		if s, ok := states[commandKey{userID: userID, name: newName}]; ok {
+			changed.Uses = s.Uses
+		}
+	}
+	return bus.PublishJSON(ctx, r.pub, data.SubjectCommandChanged, changed)
 }
 
 // Delete removes a command immediately and announces it.
@@ -308,8 +348,144 @@ func (r *Commands) Invalidate(userID uint64) {
 	r.views.Invalidate(cache.UserKey(commandsKeyPrefix, userID))
 }
 
+// RecordUse counts successful executions of a command in chat (the worker
+// pre-aggregates, so count covers one flush window). Purely an in-memory sum;
+// flushUses persists on a ticker. Over-threshold key sets flush immediately so
+// a viral chat can't grow the map without bound.
+func (r *Commands) RecordUse(userID uint64, name string, count uint64) {
+	name = normalizeName(name)
+	if userID == 0 || name == "" {
+		return
+	}
+	if count == 0 {
+		count = 1 // absent on the wire means a single execution
+	}
+	r.usesMu.Lock()
+	r.usesPend[commandKey{userID: userID, name: name}] += count
+	overflow := len(r.usesPend) >= usesFlushMaxKeys
+	r.usesMu.Unlock()
+	if overflow {
+		go r.flushUses(context.Background())
+	}
+}
+
+// flushUses drains the accumulator into uses = uses + n updates, then reloads
+// the affected rows and publishes ordinary change events built from DB truth —
+// the projector and the consoles pick the new counts up through the exact same
+// pipeline as an edit, so nothing downstream needs a special counter path.
+func (r *Commands) flushUses(ctx context.Context) {
+
+	r.usesMu.Lock()
+	if len(r.usesPend) == 0 {
+		r.usesMu.Unlock()
+		return
+	}
+	pend := r.usesPend
+	r.usesPend = map[commandKey]uint64{}
+	r.usesMu.Unlock()
+
+	txn := r.app.StartTransaction("flush command uses")
+	defer txn.End()
+	ctx = newrelic.NewContext(ctx, txn)
+
+	keys := make([]commandKey, 0, len(pend))
+	if err := db.WithExec(ctx, func(ctx context.Context) error {
+		for key, n := range pend {
+			_, err := r.client.Commands.Update().
+				Where(
+					commands.UserIDEQ(key.userID),
+					commands.NameEQ(key.name),
+				).
+				AddUses(int64(n)). //nolint:gosec // n is a small per-window count
+				Save(ctx)
+			if err != nil {
+				// Keep counting the rest; a single missing/deleted row must not
+				// drop the whole window.
+				txn.NoticeError(err)
+				r.log.Warn("failed to persist command uses",
+					zap.Uint64("user_id", key.userID),
+					zap.String("command", key.name),
+					zap.Error(err),
+				)
+				continue
+			}
+			keys = append(keys, key)
+		}
+		return nil
+	}); err != nil {
+		txn.NoticeError(err)
+		return
+	}
+
+	states, err := r.rowStates(ctx, keys)
+	if err != nil {
+		txn.NoticeError(err)
+		r.log.Warn("failed to load rows after uses flush", zap.Error(err))
+		return
+	}
+
+	seenUsers := map[uint64]struct{}{}
+	for _, key := range keys {
+		if _, ok := seenUsers[key.userID]; !ok {
+			seenUsers[key.userID] = struct{}{}
+			r.Invalidate(key.userID)
+		}
+		dto, ok := states[key]
+		if !ok {
+			continue // row deleted between update and reload
+		}
+		if err := bus.PublishJSON(ctx, r.pub, data.SubjectCommandChanged, dto); err != nil {
+			r.log.Error("failed to publish command uses change",
+				zap.Uint64("user_id", key.userID),
+				zap.String("command", key.name),
+				zap.Error(err),
+			)
+		}
+	}
+}
+
+// rowStates loads the given command rows and renders each as a full-state
+// change DTO (event-carried state transfer, including the uses counter).
+func (r *Commands) rowStates(ctx context.Context, keys []commandKey) (map[commandKey]data.CommandChangedDTO, error) {
+	if len(keys) == 0 {
+		return map[commandKey]data.CommandChangedDTO{}, nil
+	}
+
+	preds := make([]predicate.Commands, 0, len(keys))
+	for _, key := range keys {
+		preds = append(preds, commands.And(commands.UserIDEQ(key.userID), commands.NameEQ(key.name)))
+	}
+
+	rows, err := db.WithQuery(ctx, func(ctx context.Context) ([]*ent.Commands, error) {
+		return r.client.Commands.Query().Where(commands.Or(preds...)).All(ctx)
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	out := make(map[commandKey]data.CommandChangedDTO, len(rows))
+	for _, row := range rows {
+		out[commandKey{userID: row.UserID, name: row.Name}] = data.CommandChangedDTO{
+			UserID:           row.UserID,
+			Name:             row.Name,
+			Aliases:          row.Aliases,
+			Response:         row.Response,
+			IsActive:         row.IsActive,
+			StreamOnlineOnly: row.StreamOnlineOnly,
+			Perm:             row.Perm,
+			Cooldown:         row.Cooldown,
+			AllowedUserID:    row.AllowedUserID,
+			Uses:             row.Uses,
+		}
+	}
+	return out, nil
+}
+
 // Close flushes pending writes and stops the background machinery.
 func (r *Commands) Close(ctx context.Context) {
+	r.usesTicker.Stop()
+	close(r.usesDone)
+	r.flushUses(ctx)
 	r.batcher.Close(ctx)
 	r.views.Close()
 }
@@ -346,11 +522,27 @@ func (r *Commands) flush(ctx context.Context, items []data.CommandChangedDTO) er
 		return err
 	}
 
+	// Publish DB truth rather than the queued edit: the row keeps counters the
+	// edit never carried (uses), and event-carried state transfer must not
+	// regress them in the projection.
+	keys := make([]commandKey, 0, len(items))
+	for _, item := range items {
+		keys = append(keys, commandKey{userID: item.UserID, name: item.Name})
+	}
+	states, serr := r.rowStates(ctx, keys)
+	if serr != nil {
+		r.log.Warn("failed to reload rows after flush; publishing queued state", zap.Error(serr))
+	}
+
 	for _, item := range items {
 
 		r.Invalidate(item.UserID)
 
-		if err := bus.PublishJSON(ctx, r.pub, data.SubjectCommandChanged, item); err != nil {
+		dto := item
+		if s, ok := states[commandKey{userID: item.UserID, name: item.Name}]; ok {
+			dto = s
+		}
+		if err := bus.PublishJSON(ctx, r.pub, data.SubjectCommandChanged, dto); err != nil {
 			r.log.Error("failed to publish command change",
 				zap.Uint64("user_id", item.UserID),
 				zap.String("command", item.Name),

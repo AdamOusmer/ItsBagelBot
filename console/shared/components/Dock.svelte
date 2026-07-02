@@ -9,11 +9,12 @@
   import type { IconName } from '../lib/icons';
   import type { NavLink, NavGroupDef } from '../lib/types';
 
+  // Log out is deliberately NOT here: it lives in the topbar's account menu,
+  // which keeps the dock to pure navigation and phones uncrowded.
   let {
     items,
-    groups = [] as NavGroupDef[],
-    logout = true
-  }: { items: NavLink[]; groups?: NavGroupDef[]; logout?: boolean } = $props();
+    groups = [] as NavGroupDef[]
+  }: { items: NavLink[]; groups?: NavGroupDef[] } = $props();
 
   const GROUP_ICONS: Record<string, IconName> = {};
   function groupIcon(g: NavGroupDef): IconName {
@@ -114,21 +115,12 @@
       {/each}
     {:else}
       {#each items as it (it.href)}
-        <a href={it.href} class="dock-item {it.active ? 'active' : ''}" aria-current={it.active ? 'page' : undefined}>
+        <a href={it.href} class="dock-item {it.active ? 'active' : ''}" aria-current={it.active ? 'page' : undefined} onclick={closeOnNav}>
           <Icon name={it.icon} size={18} />
           <span class="lbl">{it.label}</span>
           {#if it.count}<span class="dock-count" aria-hidden="true">{it.count}</span>{/if}
         </a>
       {/each}
-    {/if}
-    {#if logout}
-      <span class="dock-rule" aria-hidden="true"></span>
-      <form method="POST" action="/auth/logout" class="dock-form">
-        <button type="submit" class="dock-item" title="Log out">
-          <Icon name="power" size={18} />
-          <span class="lbl">Log out</span>
-        </button>
-      </form>
     {/if}
   </div>
 </nav>
@@ -275,18 +267,18 @@
     text-align: center;
   }
 
-  .dock-rule { width: 1px; background: var(--bb-border, rgba(201, 168, 124, 0.15)); margin: 8px 4px; }
-  .dock-form { display: flex; }
-
+  /* Phones: icons-only, except the ACTIVE item which keeps its label (an
+     expanding pill, iOS-tab-bar style) — every destination stays one tap away
+     without crowding a 375px row. */
   @media (max-width: 760px) {
     .dock { padding: 0 8px calc(8px + env(safe-area-inset-bottom)); }
     .dock-inner { width: 100%; justify-content: space-around; }
-    .dock-item { min-width: 0; flex: 1; padding: 8px 6px 7px; }
+    .dock-item { min-width: 0; flex: 1; padding: 10px 6px 9px; }
+    .dock-item .lbl { display: none; }
+    .dock-item.active { flex: 1.6; }
+    .dock-item.active .lbl { display: block; }
     .group-wrap { flex: 1; }
     .group-wrap .dock-item { width: 100%; }
-  }
-  @media (max-width: 400px) {
-    .dock-item .lbl { display: none; }
   }
   @media (prefers-reduced-motion: reduce) {
     .dock-inner, .popover { animation: none; }

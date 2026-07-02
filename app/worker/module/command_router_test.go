@@ -38,6 +38,7 @@ func newRouter(resp, perm string) *CommandRouter {
 		oneCommandReader{cmd: projection.Command{Name: "so", Response: resp, IsActive: true, Perm: perm}},
 		liveAlways{},
 		NoopCooldown{},
+		nil, // no publisher in tests: use-counter events are disabled
 		zap.NewNop(),
 	)
 	r.Bind(NewRegistry(zap.NewNop(), r))

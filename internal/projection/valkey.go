@@ -172,6 +172,7 @@ func commandViewFromEvent(dto data.CommandChangedDTO) CommandView {
 		Perm:             dto.Perm,
 		Cooldown:         dto.Cooldown,
 		AllowedUserID:    allowed,
+		Uses:             dto.Uses,
 	}
 }
 

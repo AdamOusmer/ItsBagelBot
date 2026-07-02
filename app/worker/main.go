@@ -113,7 +113,8 @@ func main() {
 	// (baked + custom) behind one set of gates. Named modules (shoutout) are
 	// toggled + configured per broadcaster. Adding a feature is registering a
 	// module here.
-	router := module.NewCommandRouter(proj, live, cooldown, log)
+	router := module.NewCommandRouter(proj, live, cooldown, pub, log)
+	defer router.Close() // flushes pending use-counter ticks on shutdown
 	registry := module.NewRegistry(log,
 		builtin.NewBakedModule(special, live, greet, log),
 		router,

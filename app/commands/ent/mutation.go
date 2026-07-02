@@ -46,6 +46,8 @@ type CommandsMutation struct {
 	addcooldown        *int
 	allowed_user_id    *uint64
 	addallowed_user_id *int64
+	uses               *uint64
+	adduses            *int64
 	created_at         *time.Time
 	updated_at         *time.Time
 	clearedFields      map[string]struct{}
@@ -565,6 +567,62 @@ func (m *CommandsMutation) ResetAllowedUserID() {
 	m.addallowed_user_id = nil
 }
 
+// SetUses sets the "uses" field.
+func (m *CommandsMutation) SetUses(u uint64) {
+	m.uses = &u
+	m.adduses = nil
+}
+
+// Uses returns the value of the "uses" field in the mutation.
+func (m *CommandsMutation) Uses() (r uint64, exists bool) {
+	v := m.uses
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUses returns the old "uses" field's value of the Commands entity.
+// If the Commands object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CommandsMutation) OldUses(ctx context.Context) (v uint64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUses is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUses requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUses: %w", err)
+	}
+	return oldValue.Uses, nil
+}
+
+// AddUses adds u to the "uses" field.
+func (m *CommandsMutation) AddUses(u int64) {
+	if m.adduses != nil {
+		*m.adduses += u
+	} else {
+		m.adduses = &u
+	}
+}
+
+// AddedUses returns the value that was added to the "uses" field in this mutation.
+func (m *CommandsMutation) AddedUses() (r int64, exists bool) {
+	v := m.adduses
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetUses resets all changes to the "uses" field.
+func (m *CommandsMutation) ResetUses() {
+	m.uses = nil
+	m.adduses = nil
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (m *CommandsMutation) SetCreatedAt(t time.Time) {
 	m.created_at = &t
@@ -671,7 +729,7 @@ func (m *CommandsMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *CommandsMutation) Fields() []string {
-	fields := make([]string, 0, 11)
+	fields := make([]string, 0, 12)
 	if m.user_id != nil {
 		fields = append(fields, commands.FieldUserID)
 	}
@@ -698,6 +756,9 @@ func (m *CommandsMutation) Fields() []string {
 	}
 	if m.allowed_user_id != nil {
 		fields = append(fields, commands.FieldAllowedUserID)
+	}
+	if m.uses != nil {
+		fields = append(fields, commands.FieldUses)
 	}
 	if m.created_at != nil {
 		fields = append(fields, commands.FieldCreatedAt)
@@ -731,6 +792,8 @@ func (m *CommandsMutation) Field(name string) (ent.Value, bool) {
 		return m.Cooldown()
 	case commands.FieldAllowedUserID:
 		return m.AllowedUserID()
+	case commands.FieldUses:
+		return m.Uses()
 	case commands.FieldCreatedAt:
 		return m.CreatedAt()
 	case commands.FieldUpdatedAt:
@@ -762,6 +825,8 @@ func (m *CommandsMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldCooldown(ctx)
 	case commands.FieldAllowedUserID:
 		return m.OldAllowedUserID(ctx)
+	case commands.FieldUses:
+		return m.OldUses(ctx)
 	case commands.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
 	case commands.FieldUpdatedAt:
@@ -838,6 +903,13 @@ func (m *CommandsMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetAllowedUserID(v)
 		return nil
+	case commands.FieldUses:
+		v, ok := value.(uint64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUses(v)
+		return nil
 	case commands.FieldCreatedAt:
 		v, ok := value.(time.Time)
 		if !ok {
@@ -869,6 +941,9 @@ func (m *CommandsMutation) AddedFields() []string {
 	if m.addallowed_user_id != nil {
 		fields = append(fields, commands.FieldAllowedUserID)
 	}
+	if m.adduses != nil {
+		fields = append(fields, commands.FieldUses)
+	}
 	return fields
 }
 
@@ -883,6 +958,8 @@ func (m *CommandsMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedCooldown()
 	case commands.FieldAllowedUserID:
 		return m.AddedAllowedUserID()
+	case commands.FieldUses:
+		return m.AddedUses()
 	}
 	return nil, false
 }
@@ -912,6 +989,13 @@ func (m *CommandsMutation) AddField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddAllowedUserID(v)
+		return nil
+	case commands.FieldUses:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddUses(v)
 		return nil
 	}
 	return fmt.Errorf("unknown Commands numeric field %s", name)
@@ -975,6 +1059,9 @@ func (m *CommandsMutation) ResetField(name string) error {
 		return nil
 	case commands.FieldAllowedUserID:
 		m.ResetAllowedUserID()
+		return nil
+	case commands.FieldUses:
+		m.ResetUses()
 		return nil
 	case commands.FieldCreatedAt:
 		m.ResetCreatedAt()

@@ -159,6 +159,27 @@ func (_u *CommandsUpdate) AddAllowedUserID(v int64) *CommandsUpdate {
 	return _u
 }
 
+// SetUses sets the "uses" field.
+func (_u *CommandsUpdate) SetUses(v uint64) *CommandsUpdate {
+	_u.mutation.ResetUses()
+	_u.mutation.SetUses(v)
+	return _u
+}
+
+// SetNillableUses sets the "uses" field if the given value is not nil.
+func (_u *CommandsUpdate) SetNillableUses(v *uint64) *CommandsUpdate {
+	if v != nil {
+		_u.SetUses(*v)
+	}
+	return _u
+}
+
+// AddUses adds value to the "uses" field.
+func (_u *CommandsUpdate) AddUses(v int64) *CommandsUpdate {
+	_u.mutation.AddUses(v)
+	return _u
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_u *CommandsUpdate) SetCreatedAt(v time.Time) *CommandsUpdate {
 	_u.mutation.SetCreatedAt(v)
@@ -290,6 +311,12 @@ func (_u *CommandsUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.AddedAllowedUserID(); ok {
 		_spec.AddField(commands.FieldAllowedUserID, field.TypeUint64, value)
+	}
+	if value, ok := _u.mutation.Uses(); ok {
+		_spec.SetField(commands.FieldUses, field.TypeUint64, value)
+	}
+	if value, ok := _u.mutation.AddedUses(); ok {
+		_spec.AddField(commands.FieldUses, field.TypeUint64, value)
 	}
 	if value, ok := _u.mutation.CreatedAt(); ok {
 		_spec.SetField(commands.FieldCreatedAt, field.TypeTime, value)
@@ -444,6 +471,27 @@ func (_u *CommandsUpdateOne) SetNillableAllowedUserID(v *uint64) *CommandsUpdate
 // AddAllowedUserID adds value to the "allowed_user_id" field.
 func (_u *CommandsUpdateOne) AddAllowedUserID(v int64) *CommandsUpdateOne {
 	_u.mutation.AddAllowedUserID(v)
+	return _u
+}
+
+// SetUses sets the "uses" field.
+func (_u *CommandsUpdateOne) SetUses(v uint64) *CommandsUpdateOne {
+	_u.mutation.ResetUses()
+	_u.mutation.SetUses(v)
+	return _u
+}
+
+// SetNillableUses sets the "uses" field if the given value is not nil.
+func (_u *CommandsUpdateOne) SetNillableUses(v *uint64) *CommandsUpdateOne {
+	if v != nil {
+		_u.SetUses(*v)
+	}
+	return _u
+}
+
+// AddUses adds value to the "uses" field.
+func (_u *CommandsUpdateOne) AddUses(v int64) *CommandsUpdateOne {
+	_u.mutation.AddUses(v)
 	return _u
 }
 
@@ -608,6 +656,12 @@ func (_u *CommandsUpdateOne) sqlSave(ctx context.Context) (_node *Commands, err 
 	}
 	if value, ok := _u.mutation.AddedAllowedUserID(); ok {
 		_spec.AddField(commands.FieldAllowedUserID, field.TypeUint64, value)
+	}
+	if value, ok := _u.mutation.Uses(); ok {
+		_spec.SetField(commands.FieldUses, field.TypeUint64, value)
+	}
+	if value, ok := _u.mutation.AddedUses(); ok {
+		_spec.AddField(commands.FieldUses, field.TypeUint64, value)
 	}
 	if value, ok := _u.mutation.CreatedAt(); ok {
 		_spec.SetField(commands.FieldCreatedAt, field.TypeTime, value)

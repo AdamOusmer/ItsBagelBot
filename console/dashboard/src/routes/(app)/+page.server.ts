@@ -42,8 +42,10 @@ async function connState(uid: string): Promise<ConnState> {
   return { enabled, receiving, status, subState, subError };
 }
 
-// Parse the human-formatted uses counter ('1.2k', '412') for ranking.
-function usesCount(raw: string | undefined): number {
+// Parse the uses counter for ranking: the backend sends a plain number, while
+// older sample data used human-formatted strings ('1.2k', '412').
+function usesCount(raw: number | string | undefined): number {
+  if (typeof raw === 'number') return raw;
   if (!raw) return 0;
   const m = raw.trim().toLowerCase().match(/^([\d.]+)(k|m)?$/);
   if (!m) return 0;

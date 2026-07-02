@@ -180,7 +180,10 @@ export async function upsertCommand(
       stream_online_only: cmd.streamOnlineOnly,
       perm: cmd.perm,
       cooldown: cmd.cooldown,
-      allowed_user_id: cmd.allowedUserId
+      allowed_user_id: cmd.allowedUserId,
+      // Preserve the lifetime counter through the optimistic merge — edits
+      // never change it and losing it here would flash 0 in the UI.
+      uses: current.find((c) => c.name === (originalName ?? cmd.name))?.uses
     };
     let merged = false;
     commands = commands.map((v) => {

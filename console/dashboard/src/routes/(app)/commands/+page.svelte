@@ -433,9 +433,9 @@
       <div class="inspector-head">
         <span class="inspector-tag">
           {#if editorDraft}
-            {editorDraft.edit ? `EDIT / !${editorDraft.originalName}` : 'NEW COMMAND'}
+            {editorDraft.edit ? `Editing !${editorDraft.originalName}` : 'New command'}
           {:else}
-            INSPECTOR
+            Inspector
           {/if}
         </span>
         {#if editorDraft}
@@ -466,10 +466,9 @@
 
   .keys {
     display: none;
-    font-family: var(--bb-font-mono);
-    font-size: 10px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+    font-family: var(--bb-font-body);
+    font-weight: 600;
+    font-size: 11px;
     color: var(--bb-muted);
     align-items: center;
     gap: 6px;
@@ -528,10 +527,10 @@
     border-bottom: 1px solid var(--rule);
   }
   .inspector-tag {
-    font-family: var(--bb-font-mono);
-    font-size: 10px;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
+    font-family: var(--bb-font-display);
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: 0.02em;
     color: var(--bb-tan);
   }
   .inspector-body { padding: 16px; overflow-y: auto; }

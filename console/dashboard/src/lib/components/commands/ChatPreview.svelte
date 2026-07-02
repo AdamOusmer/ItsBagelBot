@@ -57,7 +57,7 @@
 </script>
 
 <div class="chat" aria-label="Chat preview">
-  <span class="chat-tag">chat rehearsal</span>
+  <span class="chat-tag">Chat rehearsal</span>
   <div class="line viewer">
     <span class="who viewer-name">sesame_sam</span>
     <span class="msg">{trigger}</span>
@@ -100,12 +100,12 @@
   }
   .chat-tag {
     position: absolute;
-    top: -7px;
+    top: -8px;
     left: 10px;
-    font-family: var(--bb-font-mono);
-    font-size: 9px;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
+    font-family: var(--bb-font-display);
+    font-weight: 700;
+    font-size: 10px;
+    letter-spacing: 0.02em;
     color: var(--bb-green-glow);
     background: var(--bb-bg-0, #0a0a0a);
     padding: 0 6px;

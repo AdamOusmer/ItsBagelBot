@@ -20,6 +20,7 @@ var (
 		{Name: "perm", Type: field.TypeString, Default: "everyone"},
 		{Name: "cooldown", Type: field.TypeUint, Default: 0},
 		{Name: "allowed_user_id", Type: field.TypeUint64, Default: 0},
+		{Name: "uses", Type: field.TypeUint64, Default: 0},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
 	}

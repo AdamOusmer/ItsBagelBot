@@ -9,6 +9,8 @@ import (
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/projection"
 
+	"github.com/ThreeDotsLabs/watermill/message"
+
 	"go.uber.org/zap"
 )
 
@@ -26,14 +28,28 @@ type CommandRouter struct {
 	proj     projection.Reader
 	live     IsLiveChecker
 	cooldown CooldownStore
+	uses     *useReporter
 	log      *zap.Logger
 }
 
 // NewCommandRouter builds a router. The registry is wired in separately via Bind
 // because the router is itself a module that goes into the registry, so the
-// registry does not exist yet at construction time.
-func NewCommandRouter(proj projection.Reader, live IsLiveChecker, cooldown CooldownStore, log *zap.Logger) *CommandRouter {
-	return &CommandRouter{proj: proj, live: live, cooldown: cooldown, log: log}
+// registry does not exist yet at construction time. pub carries the summed
+// data.commands.used counter events (see useReporter); nil disables them.
+func NewCommandRouter(proj projection.Reader, live IsLiveChecker, cooldown CooldownStore, pub message.Publisher, log *zap.Logger) *CommandRouter {
+	r := &CommandRouter{proj: proj, live: live, cooldown: cooldown, log: log}
+	if pub != nil {
+		r.uses = newUseReporter(pub, log)
+	}
+	return r
+}
+
+// Close flushes and stops the use reporter. Safe on a router built without a
+// publisher (tests).
+func (r *CommandRouter) Close() {
+	if r.uses != nil {
+		r.uses.Close()
+	}
 }
 
 // Bind wires the registry into the router. main constructs the router, passes it
@@ -119,6 +135,15 @@ func (r *CommandRouter) runCustom(ctx context.Context, c *Context, name, args st
 
 	emit(out)
 	PutOutput(out)
+
+	// Count the successful run. The reporter sums ticks locally and publishes
+	// one event per command per flush window (the bus rate limiter), so chat
+	// spam never floods NATS. cc.Name is the canonical key (an alias lookup
+	// resolves to it), so alias invocations all count against the one command.
+	if r.uses != nil {
+		r.uses.Record(c.BroadcasterID, cc.Name)
+	}
+
 	return nil
 }
 

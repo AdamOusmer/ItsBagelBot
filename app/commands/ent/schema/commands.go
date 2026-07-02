@@ -50,6 +50,11 @@ func (Commands) Fields() []ent.Field {
 		// perm). 0 means the perm tier applies normally.
 		field.Uint64("allowed_user_id").Default(0),
 
+		// Lifetime execution counter, summed from the worker's
+		// data.commands.used events on a batch flush. Loss-tolerant by design;
+		// command edits never touch it (only the counter flush writes it).
+		field.Uint64("uses").Default(0),
+
 		field.Time("created_at").Default(time.Now),
 
 		field.Time("updated_at").Default(time.Now).UpdateDefault(time.Now),

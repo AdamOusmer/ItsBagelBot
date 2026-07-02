@@ -24,6 +24,10 @@
 
   const initial = $derived((accountName || '?').charAt(0).toUpperCase());
 
+  // Account menu: the avatar chip opens a small dropdown holding Log out —
+  // sign-out lives here (not in the dock) so navigation stays uncrowded.
+  let menuOpen = $state(false);
+
   // Local wall-clock readout — the strip's "master control" pulse.
   let now = $state('');
   $effect(() => {
@@ -33,6 +37,8 @@
     return () => clearInterval(t);
   });
 </script>
+
+<svelte:window onkeydown={(e) => { if (e.key === 'Escape') menuOpen = false; }} />
 
 <header class="topbar">
   <a class="station" href="/">
@@ -52,13 +58,44 @@
   <span class="clock" aria-hidden="true">{now}</span>
 
   {#if accountName}
-    <span class="operator" title="{accountName} · {accountRole}">
-      <span class="avatar">{initial}</span>
-      <span class="op-id">
-        <b>{accountName}</b>
-        <i>{accountRole}</i>
-      </span>
-    </span>
+    <div class="operator-wrap">
+      <button
+        class="operator"
+        class:open={menuOpen}
+        title="{accountName} · {accountRole}"
+        aria-expanded={menuOpen}
+        aria-haspopup="menu"
+        onclick={() => (menuOpen = !menuOpen)}
+      >
+        <span class="avatar">{initial}</span>
+        <span class="op-id">
+          <b>{accountName}</b>
+          <i>{accountRole}</i>
+        </span>
+      </button>
+      {#if menuOpen}
+        <!-- Click-away scrim; Escape via the window handler below. -->
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div
+          class="op-scrim"
+          role="presentation"
+          onclick={() => (menuOpen = false)}
+          onkeydown={(e) => { if (e.key === 'Enter') menuOpen = false; }}
+        ></div>
+        <div class="op-menu" role="menu">
+          <div class="op-menu-head">
+            <b>{accountName}</b>
+            <i>{accountRole}</i>
+          </div>
+          <form method="POST" action="/auth/logout">
+            <button type="submit" class="op-menu-item" role="menuitem">
+              <Icon name="power" size={15} />
+              Log out
+            </button>
+          </form>
+        </div>
+      {/if}
+    </div>
   {/if}
 
   {#if actions}
@@ -84,7 +121,7 @@
   .station img { width: 26px; height: 26px; border-radius: var(--bb-radius-sm, 6px); }
   .station-id { display: flex; flex-direction: column; line-height: 1; }
   .station-id b { font-family: var(--bb-font-display); font-weight: 800; font-size: 13.5px; letter-spacing: -0.01em; color: var(--bb-white); }
-  .station-id i { font-style: normal; font-family: var(--bb-font-body); font-weight: 600; font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--bb-tan); margin-top: 3px; }
+  .station-id i { font-style: normal; font-family: var(--bb-font-display); font-weight: 700; font-size: 9.5px; letter-spacing: 0.04em; color: var(--bb-tan); margin-top: 3px; }
 
   .crumb { font-family: var(--bb-font-body); font-weight: 500; font-size: 13px; color: var(--bb-muted); display: flex; align-items: center; gap: 8px; min-width: 0; }
   .crumb .sep { opacity: 0.45; }
@@ -99,20 +136,63 @@
     display: none;
   }
 
-  .operator { display: none; align-items: center; gap: 9px; }
+  .operator-wrap { position: relative; display: flex; }
+  .operator {
+    display: flex; align-items: center; gap: 9px;
+    background: none; border: none; padding: 3px; border-radius: var(--bb-radius-pill, 100px);
+    cursor: pointer;
+    transition: background var(--bb-dur-fast, 180ms) ease;
+  }
+  .operator:hover, .operator.open { background: rgba(201, 168, 124, 0.1); }
   .avatar {
-    width: 28px; height: 28px; border-radius: 50%; flex: none;
+    width: 30px; height: 30px; border-radius: 50%; flex: none;
     background: linear-gradient(135deg, var(--bb-green-light), var(--bb-tan));
     display: flex; align-items: center; justify-content: center;
     font-family: var(--bb-font-display); font-weight: 800; font-size: 12px; color: #0a0a0a;
   }
-  .op-id { display: flex; flex-direction: column; line-height: 1; }
+  .op-id { display: none; flex-direction: column; line-height: 1; text-align: left; }
   .op-id b { font-family: var(--bb-font-body); font-weight: 600; font-size: 12px; color: var(--bb-white); max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .op-id i { font-style: normal; font-family: var(--bb-font-body); font-weight: 600; font-size: 10px; letter-spacing: 0.06em; color: var(--bb-tan); margin-top: 3px; }
+  .op-id i { font-style: normal; font-family: var(--bb-font-display); font-weight: 700; font-size: 10px; letter-spacing: 0.02em; color: var(--bb-tan); margin-top: 3px; }
+
+  .op-scrim { position: fixed; inset: 0; z-index: 89; }
+  .op-menu {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    z-index: 90;
+    min-width: 190px;
+    padding: 8px;
+    background: var(--bb-card-bg, #111110);
+    border: 1px solid var(--bb-border-strong, rgba(201, 168, 124, 0.35));
+    border-radius: var(--bb-radius-lg, 16px);
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+    transform-origin: top right;
+    animation: menu-in 240ms var(--bb-ease-out-back, ease-out) both;
+  }
+  @keyframes menu-in {
+    from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .op-menu-head { display: flex; flex-direction: column; gap: 3px; padding: 6px 10px 10px; border-bottom: 1px solid var(--bb-border); margin-bottom: 6px; }
+  .op-menu-head b { font-family: var(--bb-font-body); font-weight: 600; font-size: 13px; color: var(--bb-white); }
+  .op-menu-head i { font-style: normal; font-family: var(--bb-font-display); font-weight: 700; font-size: 10px; color: var(--bb-tan); }
+  .op-menu form { display: flex; }
+  .op-menu-item {
+    display: flex; align-items: center; gap: 10px; width: 100%;
+    padding: 10px 10px; border-radius: var(--bb-radius-md, 10px);
+    background: none; border: none; cursor: pointer;
+    font-family: var(--bb-font-body); font-weight: 600; font-size: 13px; color: var(--bb-muted);
+    transition: color var(--bb-dur-fast, 180ms) ease, background var(--bb-dur-fast, 180ms) ease;
+  }
+  .op-menu-item :global(svg) { stroke: currentColor; fill: none; }
+  .op-menu-item:hover { color: var(--bb-white); background: rgba(201, 168, 124, 0.1); }
 
   @media (min-width: 761px) {
     .clock { display: inline; }
-    .operator { display: flex; }
+    .op-id { display: flex; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .op-menu { animation: none; }
   }
   /* On phones the station id doubles as the crumb root, so hide the root. */
   @media (max-width: 480px) {
