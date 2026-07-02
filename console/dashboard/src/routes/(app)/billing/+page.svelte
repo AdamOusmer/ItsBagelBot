@@ -1,14 +1,13 @@
 <script lang="ts">
   import { Icon, PageHead, Card, toast } from '@bagel/shared';
   import { page } from '$app/state';
-  import { replaceState } from '$app/navigation';
+  import { replaceState, invalidateAll } from '$app/navigation';
   import { onMount } from 'svelte';
   import type { BillingState } from '$lib/server/services';
 
   let { data, form } = $props();
 
   const account = $derived(data.account as BillingState);
-  const links = $derived(data.links as { cancelUrl: string | null });
 
   const isVip = $derived(account.status === 'vip');
   const isPaid = $derived(account.status === 'paid' || isVip);
@@ -18,12 +17,22 @@
   // Basket minting happens server-side on click; the browser is then redirected
   // to Tebex-hosted checkout so payment collection never happens in our frame.
   const canSubscribe = $derived(!isPaid);
-  const canManage = $derived(tebexPaid && !!links.cancelUrl);
+  // Rendered for every Tebex subscriber even when TEBEX_CANCEL_URL is not
+  // configured: the ?/cancel action then answers 503 with a clear toast, which
+  // beats silently hiding the only cancellation path.
+  const canManage = $derived(tebexPaid);
 
   let launching = $state(false);
   let subscribeForm = $state<HTMLFormElement | null>(null);
   let giftLaunching = $state(false);
   let giftRecipient = $state('');
+
+  // Set when the browser returns from hosted checkout with ?checkout=complete.
+  // The entitlement lands out-of-band (Tebex webhook -> users service), so the
+  // page thanks the buyer immediately and polls the billing state until the
+  // plan flips to paid instead of asking for manual reloads.
+  let justPaid = $state(false);
+  let activationSlow = $state(false);
 
   // Auto-open checkout when the pricing page sent the visitor here with
   // ?subscribe=1 (possibly via the login flow). One shot: the param is
@@ -37,21 +46,48 @@
     if (canSubscribe && !launching) subscribeForm?.requestSubmit();
   });
 
+  // Returning from hosted checkout with a completed payment: thank the buyer,
+  // strip the param (refreshes must not re-trigger), then chase the webhook by
+  // re-running the load every few seconds until the plan flips to paid. The
+  // server cache is event-invalidated when the entitlement lands, so a poll
+  // hit after that is fresh. Bounded: after ~2 minutes stop and say so.
+  onMount(() => {
+    if (page.url.searchParams.get('checkout') !== 'complete') return;
+    justPaid = true;
+    const url = new URL(window.location.href);
+    url.searchParams.delete('checkout');
+    replaceState(url, {});
+    toast('ok', 'Payment received — thank you!');
+
+    let tries = 0;
+    const timer = setInterval(() => {
+      if (isPaid) {
+        clearInterval(timer);
+        return;
+      }
+      if (++tries > 40) {
+        activationSlow = true;
+        clearInterval(timer);
+        return;
+      }
+      void invalidateAll();
+    }, 3000);
+    return () => clearInterval(timer);
+  });
+
   const fmtDate = (iso?: string | null) =>
     iso
       ? new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
       : '';
 
-  // Returning from Tebex: ?checkout=complete|cancelled (set on the basket's
-  // return URLs). The entitlement itself lands via webhook moments later.
+  // A cancelled checkout only needs the one toast (the complete case is
+  // handled in onMount above, where the polling lifecycle lives).
   let checkoutToasted = false;
   $effect(() => {
     if (checkoutToasted) return;
-    const c = page.url.searchParams.get('checkout');
-    if (!c) return;
+    if (page.url.searchParams.get('checkout') !== 'cancelled') return;
     checkoutToasted = true;
-    if (c === 'complete') toast('ok', 'Payment received — your plan activates within a minute.');
-    else if (c === 'cancelled') toast('err', 'Checkout cancelled. No charge was made.');
+    toast('err', 'Checkout cancelled. No charge was made.');
   });
 
   // svelte-ignore state_referenced_locally
@@ -60,6 +96,10 @@
     if (form === lastForm) return;
     lastForm = form;
     if (!form) return;
+    // A form result means the action did not redirect to Tebex — re-enable the
+    // buttons instead of leaving them stuck on "Opening checkout…".
+    launching = false;
+    giftLaunching = false;
     if (form.error) toast('err', String(form.error));
   });
 
@@ -72,6 +112,30 @@
   {#if data.degraded}
     <Card class="billing-card">
       <p class="hint">Billing data is temporarily unavailable. What you see may be incomplete — try again shortly.</p>
+    </Card>
+  {/if}
+
+  {#if justPaid}
+    <Card class="billing-card">
+      <div class="thanks">
+        <Icon name="heart" size={18} />
+        {#if isPaid}
+          <div>
+            <strong>Thank you! Premium is active.</strong>
+            <p class="hint">Your support keeps ItsBagelBot running. Everything premium is unlocked now.</p>
+          </div>
+        {:else if activationSlow}
+          <div>
+            <strong>Payment received — activation is taking longer than usual.</strong>
+            <p class="hint">Tebex confirmed the payment. Give it a minute and refresh; if it still shows Free, contact us.</p>
+          </div>
+        {:else}
+          <div>
+            <strong>Thank you! Payment received.</strong>
+            <p class="hint">Activating your premium — this page updates by itself, usually within a minute.</p>
+          </div>
+        {/if}
+      </div>
     </Card>
   {/if}
 
@@ -123,7 +187,10 @@
           <form method="POST" action="?/cancel">
             <button type="submit" class="btn ghost">Manage subscription</button>
           </form>
-          <p class="hint tiny">Redirects to Tebex-hosted subscription management.</p>
+          <form method="POST" action="?/cancel">
+            <button type="submit" class="btn ghost danger">Cancel subscription</button>
+          </form>
+          <p class="hint tiny">Both redirect to Tebex-hosted subscription management, where cancellation is one click.</p>
         {/if}
       </div>
     </div>
@@ -216,6 +283,22 @@
     flex-shrink: 0;
     align-items: center;
   }
+  .thanks {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .thanks strong {
+    color: var(--bb-white);
+    font-size: 15px;
+  }
+  .thanks .hint { margin-top: 4px; }
+
+  .btn.danger {
+    color: #e5484d;
+    border-color: rgba(229, 72, 77, 0.4);
+  }
+
   .gift-input {
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid var(--bb-border, rgba(255, 255, 255, 0.1));
