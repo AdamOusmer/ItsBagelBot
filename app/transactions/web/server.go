@@ -93,8 +93,14 @@ func New(store Store, cfg Config, log *zap.Logger) *fiber.App {
 	app.Get("/healthz", s.health)
 	app.Get("/readyz", s.ready)
 	app.Get("/drain", s.drain)
+	app.Get("/tebex", s.tebexReachable)
+	app.Get("/tebex/", s.tebexReachable)
+	app.Get("/webhooks/tebex", s.tebexReachable)
+	app.Get("/webhooks/tebex/", s.tebexReachable)
 	app.Post("/tebex", s.tebexWebhook)
+	app.Post("/tebex/", s.tebexWebhook)
 	app.Post("/webhooks/tebex", s.tebexWebhook)
+	app.Post("/webhooks/tebex/", s.tebexWebhook)
 
 	return app
 }
@@ -112,6 +118,10 @@ func (s *Server) ready(c *fiber.Ctx) error {
 
 func (s *Server) drain(c *fiber.Ctx) error {
 	time.Sleep(10 * time.Second)
+	return c.SendString("ok\n")
+}
+
+func (s *Server) tebexReachable(c *fiber.Ctx) error {
 	return c.SendString("ok\n")
 }
 

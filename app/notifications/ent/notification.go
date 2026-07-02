@@ -31,6 +31,8 @@ type Notification struct {
 	CreatedBy uint64 `json:"created_by,omitempty"`
 	// CreatedByLogin holds the value of the "created_by_login" field.
 	CreatedByLogin string `json:"created_by_login,omitempty"`
+	// RequestID holds the value of the "request_id" field.
+	RequestID *string `json:"request_id,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// ExpiresAt holds the value of the "expires_at" field.
@@ -66,7 +68,7 @@ func (*Notification) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case notification.FieldID, notification.FieldTargetUserID, notification.FieldCreatedBy:
 			values[i] = new(sql.NullInt64)
-		case notification.FieldScope, notification.FieldTitle, notification.FieldBody, notification.FieldLevel, notification.FieldCreatedByLogin:
+		case notification.FieldScope, notification.FieldTitle, notification.FieldBody, notification.FieldLevel, notification.FieldCreatedByLogin, notification.FieldRequestID:
 			values[i] = new(sql.NullString)
 		case notification.FieldCreatedAt, notification.FieldExpiresAt:
 			values[i] = new(sql.NullTime)
@@ -133,6 +135,13 @@ func (_m *Notification) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field created_by_login", values[i])
 			} else if value.Valid {
 				_m.CreatedByLogin = value.String
+			}
+		case notification.FieldRequestID:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field request_id", values[i])
+			} else if value.Valid {
+				_m.RequestID = new(string)
+				*_m.RequestID = value.String
 			}
 		case notification.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -210,6 +219,11 @@ func (_m *Notification) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("created_by_login=")
 	builder.WriteString(_m.CreatedByLogin)
+	builder.WriteString(", ")
+	if v := _m.RequestID; v != nil {
+		builder.WriteString("request_id=")
+		builder.WriteString(*v)
+	}
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))

@@ -307,6 +307,9 @@ func (_u *NotificationUpdate) sqlSave(ctx context.Context) (_node int, err error
 	if value, ok := _u.mutation.CreatedByLogin(); ok {
 		_spec.SetField(notification.FieldCreatedByLogin, field.TypeString, value)
 	}
+	if _u.mutation.RequestIDCleared() {
+		_spec.ClearField(notification.FieldRequestID, field.TypeString)
+	}
 	if value, ok := _u.mutation.ExpiresAt(); ok {
 		_spec.SetField(notification.FieldExpiresAt, field.TypeTime, value)
 	}
@@ -685,6 +688,9 @@ func (_u *NotificationUpdateOne) sqlSave(ctx context.Context) (_node *Notificati
 	}
 	if value, ok := _u.mutation.CreatedByLogin(); ok {
 		_spec.SetField(notification.FieldCreatedByLogin, field.TypeString, value)
+	}
+	if _u.mutation.RequestIDCleared() {
+		_spec.ClearField(notification.FieldRequestID, field.TypeString)
 	}
 	if value, ok := _u.mutation.ExpiresAt(); ok {
 		_spec.SetField(notification.FieldExpiresAt, field.TypeTime, value)
