@@ -2,7 +2,7 @@
 // responder is briefly unreachable. Nothing here is live; it mirrors the wire
 // shapes only so the screens have something to paint.
 import type { ShardSnapshot, UserStats } from '@bagel/shared';
-import type { AdminUserWire } from './services';
+import type { AdminUserWire, NotificationWire } from './services';
 
 export const sampleStats: UserStats = {
   total_users: 1842,
@@ -36,4 +36,28 @@ export const sampleUsers: AdminUserWire[] = [
   { id: 23910044, username: 'bagel_enjoyer', is_active: true, status: 'free', banned: false, updated_at: new Date().toISOString() },
   { id: 70113355, username: 'kettle', is_active: false, status: 'free', banned: true, updated_at: new Date().toISOString() },
   { id: 99884412, username: 'loudguy99', is_active: true, status: 'paid', banned: false, updated_at: new Date().toISOString() }
+];
+
+export const sampleNotifications: NotificationWire[] = [
+  {
+    id: 3,
+    scope: 'broadcast',
+    title: 'Scheduled maintenance tonight',
+    body: 'The bot will restart briefly around midnight UTC. Commands may pause for a few seconds.',
+    level: 'warning',
+    created_by_login: 'itsmavey',
+    created_at: new Date(Date.now() - 2 * 3600e3).toISOString(),
+    read: false
+  },
+  {
+    id: 2,
+    scope: 'direct',
+    title: 'Welcome aboard',
+    body: "Thanks for joining ItsBagelBot — let us know if you run into anything.",
+    level: 'info',
+    target_user_id: 81002934,
+    created_by_login: 'itsmavey',
+    created_at: new Date(Date.now() - 26 * 3600e3).toISOString(),
+    read: true
+  }
 ];

@@ -23,7 +23,8 @@ const SUB = {
   auth: process.env.NATS_ADMIN_AUTH_SUBJECT_PREFIX ?? 'bagel.rpc.admin.user.auth',
   audit: process.env.NATS_ADMIN_AUDIT_SUBJECT_PREFIX ?? 'bagel.rpc.admin.user.audit',
   outgress: process.env.NATS_OUTGRESS_SYSTEM_SUBJECT ?? 'twitch.outgress.system',
-  outgressRpc: process.env.NATS_OUTGRESS_RPC_PREFIX ?? 'bagel.rpc.outgress'
+  outgressRpc: process.env.NATS_OUTGRESS_RPC_PREFIX ?? 'bagel.rpc.outgress',
+  notifications: process.env.NATS_ADMIN_NOTIFICATIONS_SUBJECT_PREFIX ?? 'bagel.rpc.admin.notifications'
 };
 
 export const STATUS_PREFIX = SUB.status;
@@ -40,6 +41,7 @@ const SCOPES: ScopeMap = {
   commands: () => [],
   modules: () => [],
   delegation: () => [],
+  notifications: () => ['notifications:'],
   '*': (id) => ['users:', `user:${id}`, `token:${id}`]
 };
 
@@ -316,6 +318,88 @@ export async function channelSubState(broadcasterId: string): Promise<ChannelSub
   } catch {
     return { state: 'unknown', error: '', checkedAt: null };
   }
+}
+
+// ── Notifications ────────────────────────────────────────────────────────────
+
+export interface NotificationWire {
+  id: number;
+  scope: 'broadcast' | 'direct';
+  title: string;
+  body: string;
+  level: 'info' | 'success' | 'warning' | 'critical';
+  target_user_id?: number;
+  created_by_login: string;
+  created_at: string;
+  expires_at?: string;
+  read: boolean;
+}
+
+export interface NotificationPage {
+  notifications: NotificationWire[];
+  page: number;
+  page_size: number;
+  max_pages: number;
+  has_more: boolean;
+}
+
+export const NOTIFICATIONS_PAGE_SIZE = 20;
+export const NOTIFICATIONS_MAX_PAGES = 25;
+
+export const notificationsList = defineRead({
+  subject: `${SUB.notifications}.list`,
+  request: (page = 1) => ({ page, limit: NOTIFICATIONS_PAGE_SIZE }),
+  map: (reply: {
+    notifications?: NotificationWire[];
+    page?: number;
+    page_size?: number;
+    max_pages?: number;
+    has_more?: boolean;
+  }): NotificationPage => ({
+    notifications: reply.notifications ?? [],
+    page: reply.page ?? 1,
+    page_size: reply.page_size ?? NOTIFICATIONS_PAGE_SIZE,
+    max_pages: reply.max_pages ?? NOTIFICATIONS_MAX_PAGES,
+    has_more: Boolean(reply.has_more)
+  }),
+  cache: {
+    fabric,
+    key: (page = 1) => `notifications:list:${page}`,
+    policy: POLICY.adminPage
+  }
+});
+
+export const notificationSend = defineWrite({
+  subject: `${SUB.notifications}.send`,
+  request: (params: {
+    scope: 'broadcast' | 'direct';
+    targetUserId?: string;
+    targetUsername?: string;
+    title: string;
+    body: string;
+    level: string;
+    expiresAt?: string;
+    actorId: string;
+    actorLogin: string;
+  }) => ({
+    scope: params.scope,
+    target_user_id: params.targetUserId ?? '',
+    target_username: params.targetUsername ?? '',
+    title: params.title,
+    body: params.body,
+    level: params.level,
+    expires_at: params.expiresAt || undefined,
+    actor_id: params.actorId,
+    actor_login: params.actorLogin
+  }),
+  map: (reply: { notification: NotificationWire }) => reply.notification,
+  after: () => invalidate('notifications:')
+});
+
+export async function notificationDelete(id: number): Promise<void> {
+  const r = await rpc<{ error?: string }>(`${SUB.notifications}.delete`, { id });
+  if (r.error) throw new Error(r.error);
+  invalidate('notifications:');
 }
 
 // ── Cache invalidation listener ───────────────────────────────────────────────

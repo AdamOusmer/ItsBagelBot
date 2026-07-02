@@ -1,0 +1,149 @@
+apiVersion: secrets.doppler.com/v1alpha1
+kind: DopplerSecret
+metadata:
+  name: notifications-env
+  namespace: production
+spec:
+  host: https://api.doppler.com
+  tokenSecret:
+    name: notifications-doppler-token
+  managedSecret:
+    name: notifications-env
+    namespace: production
+    type: Opaque
+  resyncSeconds: 60
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notifications
+  namespace: production
+  annotations:
+    secrets.doppler.com/reload: "true"
+spec:
+  replicas: 3 # one per schedulable node incl worker1 (tolerates worker-pool)
+  revisionHistoryLimit: 3
+  minReadySeconds: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: notifications
+  template:
+    metadata:
+      labels:
+        app: notifications
+      annotations:
+        linkerd.io/inject: enabled
+        config.linkerd.io/proxy-cpu-request: 5m
+        config.linkerd.io/proxy-cpu-limit: 750m
+        config.linkerd.io/proxy-memory-request: 16Mi
+        config.linkerd.io/proxy-memory-limit: 96Mi
+    spec:
+      tolerations:
+        - key: itsbagelbot.dev/pool
+          operator: Equal
+          value: worker-pool
+          effect: NoSchedule
+        - key: node.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+        - key: node.kubernetes.io/not-ready
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: notifications
+      # DaemonSet placement keeps one notifications pod per schedulable node.
+      # Resolve external hosts without the cluster search-domain fan-out
+      # (ndots:1) and serialize A/AAAA to dodge the conntrack race; cap any
+      # DNS stall well under a few seconds.
+      dnsConfig:
+        options:
+          - {name: ndots, value: "1"}
+          - {name: single-request-reopen}
+          - {name: timeout, value: "2"}
+          - {name: attempts, value: "2"}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: notifications
+          image: ghcr.io/adamousmer/itsbagelbot/notifications:main-1782860843-fed9be97024b@sha256:c19d0f9fdc88e4c0cf4be2a0e64e79127db822e554fb1d3c7a3e4c99ce02db80 # {"$imagepolicy": "flux-system:notifications"}
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: NATS_HOST
+              value: nats
+            # JetStream goes straight to the HA hub. RPC prefers the strict
+            # same-node leaf and falls back directly to the hub.
+            - name: NATS_URL
+              value: nats://nats:4222
+            - name: NATS_RPC_URL
+              value: nats://nats-leaf-local:4222
+            - name: NATS_HUB_URL
+              value: nats://nats:4222
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: DB_MAX_OPEN_CONNS
+              value: "4"
+            - name: DB_QUERY_CONCURRENCY
+              value: "4"
+            - name: DB_AUTO_MIGRATE
+              value: "true"
+            - name: GOMEMLIMIT
+              value: 160MiB
+          envFrom:
+            - secretRef:
+                name: notifications-env
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 1500m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+          lifecycle:
+            preStop:
+              httpGet:
+                path: /drain
+                port: 8080
+          livenessProbe:
+            httpGet: {path: /healthz, port: 8080}
+            periodSeconds: 30
+          readinessProbe:
+            httpGet: {path: /readyz, port: 8080}
+            periodSeconds: 10
+          startupProbe:
+            httpGet: {path: /healthz, port: 8080}
+            failureThreshold: 18 # 18 × 5s = 90s max startup window
+            periodSeconds: 5
+      terminationGracePeriodSeconds: 45
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: notifications
+  namespace: production
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: notifications

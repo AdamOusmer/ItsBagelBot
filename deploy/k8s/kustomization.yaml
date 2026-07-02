@@ -7,6 +7,7 @@ resources:
   - console-dashboard.yaml
   # console-admin.yaml now replaces the Go admin tier, sharing the admin.tail451e6d.ts.net host.
   - modules.yaml
+  - notifications.yaml
   - outgress.yaml
   - projector.yaml
   - transactions.yaml

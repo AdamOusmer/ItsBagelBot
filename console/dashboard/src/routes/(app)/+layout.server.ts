@@ -2,7 +2,10 @@ import { redirect } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
 import type { LayoutServerLoad } from './$types';
 import type { Session } from '$lib/server/session';
-import { isBanned } from '$lib/server/services';
+import { isBanned, notificationsForUser, type NotificationWire } from '$lib/server/services';
+import { demoNotifications } from '$lib/server/demo-notifications';
+
+const BELL_PEEK = 5;
 
 // Demo session lets the app render without the Twitch OAuth flow wired up yet.
 // Off unless DEMO=1; production paths require a real encrypted session.
@@ -35,6 +38,22 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
     }
   }
 
+  // Owner-only, best-effort: an RPC blip should never block the shell from
+  // rendering, so a failed fetch just shows an empty bell peek.
+  let unreadCount = 0;
+  let notifications: NotificationWire[] = [];
+  if (env.DEMO === '1') {
+    notifications = demoNotifications;
+    unreadCount = demoNotifications.filter((n) => !n.read).length;
+  } else if (!s.delegate_of) {
+    await notificationsForUser(s.user_id)
+      .then((r) => {
+        notifications = r.notifications;
+        unreadCount = r.unreadCount;
+      })
+      .catch(() => {});
+  }
+
   return {
     role: s.role,
     displayName: s.display_name,
@@ -42,6 +61,8 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
     impersonatorLogin: s.impersonator_id ? s.impersonator_login : undefined,
     delegateOf: s.delegate_of,
     delegateLogin: s.delegate_of ? s.delegate_login : undefined,
-    sections: s.delegate_of ? (s.sections ?? []) : undefined
+    sections: s.delegate_of ? (s.sections ?? []) : undefined,
+    unreadCount,
+    bellNotifications: notifications.slice(0, BELL_PEEK)
   };
 };

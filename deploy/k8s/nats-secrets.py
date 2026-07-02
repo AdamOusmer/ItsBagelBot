@@ -44,6 +44,7 @@ SERVICES = {
     "dashboard": "dashboard",
     "admin": "admin",
     "transactions": "transactions",  # BUS only, no RPC account
+    "notifications": "notifications",
 }
 NO_RPC = {"transactions"}
 
@@ -51,6 +52,7 @@ NO_RPC = {"transactions"}
 LEAF_ACCOUNTS = [
     "bus", "users", "commands", "modules", "projector",
     "outgress", "worker", "dashboard", "admin", "twitch_ingress",
+    "notifications",
 ]
 
 

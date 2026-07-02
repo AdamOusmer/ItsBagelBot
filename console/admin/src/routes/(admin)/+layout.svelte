@@ -1,6 +1,6 @@
 <script lang="ts">
   import { page } from '$app/state';
-  import { AppShell, ToastHost } from '@bagel/shared';
+  import { AppShell, NotificationBell, ToastHost } from '@bagel/shared';
   import type { NavGroupDef, NavLink } from '@bagel/shared';
   let { data, children } = $props();
 
@@ -12,9 +12,11 @@
         ? 'Lanes'
         : path.startsWith('/users')
           ? 'Users'
-          : path.startsWith('/events')
-            ? 'Events'
-            : path.startsWith('/staff')
+          : path.startsWith('/notifications')
+            ? 'Notifications'
+            : path.startsWith('/events')
+              ? 'Events'
+              : path.startsWith('/staff')
               ? 'Staff'
               : path.startsWith('/audit')
                 ? 'Audit'
@@ -43,6 +45,7 @@
       label: 'Accounts',
       items: [
         { href: '/users', icon: 'users', label: 'Users', active: crumb === 'Users' },
+        { href: '/notifications', icon: 'send', label: 'Notifications', active: crumb === 'Notifications' },
         { href: '/events', icon: 'bell', label: 'Events', active: crumb === 'Events' }
       ]
     },
@@ -67,6 +70,7 @@
     { href: '/shards', icon: 'pulse', label: 'Shards', active: crumb === 'Shards' },
     { href: '/lanes', icon: 'activity', label: 'Lanes', active: crumb === 'Lanes' },
     { href: '/users', icon: 'users', label: 'Users', active: crumb === 'Users' },
+    { href: '/notifications', icon: 'send', label: 'Notifications', active: crumb === 'Notifications' },
     { href: '/events', icon: 'bell', label: 'Events', active: crumb === 'Events' },
     ...(isManager
       ? [
@@ -87,6 +91,13 @@
   {groups}
   {mobileItems}
 >
+  {#snippet topActions()}
+    <NotificationBell
+      notifications={(data.recentNotifications ?? [])}
+      viewAllHref="/notifications"
+      emptyLabel="Nothing sent yet."
+    />
+  {/snippet}
   {@render children()}
 </AppShell>
 

@@ -133,6 +133,8 @@ spec:
               value: bagel.rpc.admin.user.auth
             - name: NATS_ADMIN_AUDIT_SUBJECT_PREFIX
               value: bagel.rpc.admin.user.audit
+            - name: NATS_ADMIN_NOTIFICATIONS_SUBJECT_PREFIX
+              value: bagel.rpc.admin.notifications
             # Twitch OAuth callback for operator sign-in (admin host).
             - name: TWITCH_REDIRECT_URI
               value: https://admin.tail451e6d.ts.net/auth/callback

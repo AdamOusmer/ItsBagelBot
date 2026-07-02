@@ -17,6 +17,7 @@ on:
           - all
           - commands
           - modules
+          - notifications
           - outgress
           - projector
           - transactions
@@ -72,6 +73,12 @@ jobs:
               "context": ".",
               "containerfile": "app/modules/Containerfile",
               "description": "ItsBagelBot modules data service"
+            },
+            {
+              "image": "notifications",
+              "context": ".",
+              "containerfile": "app/notifications/Containerfile",
+              "description": "ItsBagelBot notifications data service"
             },
             {
               "image": "outgress",
@@ -132,6 +139,7 @@ jobs:
           add_root_go_services() {
             add "commands"
             add "modules"
+            add "notifications"
             add "outgress"
             add "projector"
             add "transactions"
@@ -142,6 +150,7 @@ jobs:
           add_all_services() {
             add "commands"
             add "modules"
+            add "notifications"
             add "outgress"
             add "projector"
             add "transactions"
@@ -173,6 +182,9 @@ jobs:
                 ;;
               app/modules/*)
                 add "modules"
+                ;;
+              app/notifications/*)
+                add "notifications"
                 ;;
               app/outgress/*)
                 add "outgress"

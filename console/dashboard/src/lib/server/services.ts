@@ -24,7 +24,8 @@ export const SUB = {
   outgress: process.env.NATS_OUTGRESS_SYSTEM_SUBJECT ?? 'twitch.outgress.system',
   outgressRpc: process.env.NATS_OUTGRESS_RPC_PREFIX ?? 'bagel.rpc.outgress',
   audit: process.env.NATS_ADMIN_AUDIT_SUBJECT_PREFIX ?? 'bagel.rpc.admin.user.audit',
-  delegation: process.env.NATS_DELEGATION_SUBJECT_PREFIX ?? 'bagel.rpc.delegation'
+  delegation: process.env.NATS_DELEGATION_SUBJECT_PREFIX ?? 'bagel.rpc.delegation',
+  notifications: process.env.NATS_NOTIFICATIONS_SUBJECT_PREFIX ?? 'bagel.rpc.notifications'
 };
 
 function userPrefixes(id: string): string[] {
@@ -40,6 +41,7 @@ const SCOPES: ScopeMap = {
   commands: (id) => [`commands:${id}`],
   modules: (id) => [`modules:${id}`],
   delegation: (id) => [`delegations:${id}`],
+  notifications: (id) => [`notifications:${id}`, 'notifications:all'],
   '*': (id) => [...userPrefixes(id), `ban:${id}`]
 };
 
@@ -380,6 +382,54 @@ export const saveGrant = defineWrite({
     refresh_token: refreshToken
   }),
   after: (_result: unknown, userId: string) => invalidate(`grant:${userId}`, `account:${userId}`)
+});
+
+// ---------------------------------------------------------------------------
+// Notifications (notifications service)
+
+export type NotificationWire = {
+  id: number;
+  scope: 'broadcast' | 'direct';
+  title: string;
+  body: string;
+  level: 'info' | 'success' | 'warning' | 'critical';
+  created_by_login: string;
+  created_at: string;
+  expires_at?: string;
+  read: boolean;
+};
+
+export type NotificationsForUser = {
+  notifications: NotificationWire[];
+  unreadCount: number;
+};
+
+// Broadcast sends can't be push-invalidated per user (the sender doesn't know
+// every recipient's cache key), so this rides a short freshness window
+// instead of relying solely on the invalidation bus — same tradeoff as the
+// shard snapshot's `live` policy.
+export const notificationsForUser = defineRead({
+  subject: `${SUB.notifications}.list`,
+  request: (userId: string) => ({ user_id: userId }),
+  map: (r: { notifications?: NotificationWire[]; unread_count?: number }): NotificationsForUser => ({
+    notifications: r.notifications ?? [],
+    unreadCount: r.unread_count ?? 0
+  }),
+  timeoutMs: READ_TIMEOUT_MS,
+  cache: {
+    fabric,
+    key: (userId: string) => `notifications:${userId}`,
+    policy: POLICY.live
+  }
+});
+
+export const notificationMarkRead = defineWrite({
+  subject: `${SUB.notifications}.mark_read`,
+  request: (userId: string, notificationId: number) => ({
+    user_id: userId,
+    notification_id: String(notificationId)
+  }),
+  after: (_result: unknown, userId: string) => invalidate(`notifications:${userId}`)
 });
 
 // Irreversibly delete the user's own account (and their owned delegations,

@@ -29,6 +29,8 @@ export { default as ConfirmDialog } from '../components/ConfirmDialog.svelte';
 export { default as Skeleton } from '../components/Skeleton.svelte';
 export { default as EmptyState } from '../components/EmptyState.svelte';
 export { default as SegmentedControl } from '../components/SegmentedControl.svelte';
+export { default as RadioGroup } from '../components/RadioGroup.svelte';
+export { default as NotificationBell } from '../components/NotificationBell.svelte';
 export { default as SearchInput } from '../components/SearchInput.svelte';
 export { default as DataList } from '../components/DataList.svelte';
 

@@ -43,6 +43,7 @@ jobs:
           go run -mod=mod entgo.io/ent/cmd/ent generate ./app/modules/ent/schema
           go run -mod=mod entgo.io/ent/cmd/ent generate ./app/transactions/ent/schema
           go run -mod=mod entgo.io/ent/cmd/ent generate ./app/users/ent/schema
+          go run -mod=mod entgo.io/ent/cmd/ent generate ./app/notifications/ent/schema
 
       # 5. Run the Tests
       # -race detects race conditions (very good for concurrent bots)
