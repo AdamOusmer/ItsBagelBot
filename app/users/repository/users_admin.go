@@ -39,7 +39,7 @@ func (r *Users) FindUser(ctx context.Context, userID uint64) (*ent.User, error) 
 // when the row does not exist.
 func (r *Users) FindUserByUsername(ctx context.Context, username string) (*ent.User, error) {
 	u, err := db.WithQuery(ctx, func(ctx context.Context) (*ent.User, error) {
-		return r.client.User.Query().Where(user.UsernameEQ(username)).Only(ctx)
+		return r.client.User.Query().Where(user.UsernameEqualFold(username)).Only(ctx)
 	})
 	if ent.IsNotFound(err) {
 		return nil, ErrUserNotFound
