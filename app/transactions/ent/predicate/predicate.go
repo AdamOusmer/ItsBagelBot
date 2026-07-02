@@ -6,8 +6,5 @@ import (
 	"entgo.io/ent/dialect/sql"
 )
 
-// TebexTransactions is the predicate function for tebextransactions builders.
-type TebexTransactions func(*sql.Selector)
-
 // TebexWebhookEvents is the predicate function for tebexwebhookevents builders.
 type TebexWebhookEvents func(*sql.Selector)

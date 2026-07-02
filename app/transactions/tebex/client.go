@@ -48,10 +48,6 @@ type Client struct {
 	cfg Config
 }
 
-// PublicToken is safe to expose to the browser and is required by Tebex.js's
-// Payment Portal. The private API key stays server-side.
-func (c *Client) PublicToken() string { return c.cfg.WebstoreToken }
-
 type Basket struct {
 	Ident       string
 	CheckoutURL string

@@ -21,7 +21,6 @@ import (
 )
 
 type Store interface {
-	Record(ctx context.Context, id string, userID uint64) error
 	SaveWebhookEvent(ctx context.Context, event repository.WebhookEvent) error
 }
 
@@ -96,7 +95,10 @@ type recordablePayment struct {
 	ExpiresAt          *time.Time
 }
 
-var errNoRecordablePayment = errors.New("no recordable Tebex payment for event")
+var (
+	errNoRecordablePayment = errors.New("no recordable Tebex payment for event")
+	errPaymentUserMissing  = errors.New("payment user id missing")
+)
 
 func New(store Store, cfg Config, log *zap.Logger) *fiber.App {
 
@@ -188,9 +190,6 @@ func (s *Server) tebexWebhook(c *fiber.Ctx) error {
 		if err != nil {
 			return s.failEvent(c, event, payment, fiber.StatusUnprocessableEntity, err)
 		}
-		if err := s.store.Record(ctx, payment.TransactionID, payment.UserID); err != nil {
-			return s.failEvent(c, event, payment, fiber.StatusInternalServerError, err)
-		}
 		if err := s.applyBilling(ctx, event, payment, billingrpc.ActionActivate); err != nil {
 			return s.failEvent(c, event, payment, fiber.StatusInternalServerError, err)
 		}
@@ -210,7 +209,66 @@ func (s *Server) tebexWebhook(c *fiber.Ctx) error {
 		return s.applyLifecycle(c, event, billingrpc.ActionRevoke)
 	}
 
+	// The trial webhooks exist in the Tebex panel but not (yet) in their docs,
+	// so match by prefix rather than exact strings.
+	if strings.HasPrefix(event.Type, "recurring-payment.trial") {
+		return s.trialLifecycle(c, event)
+	}
+
+	// Everything else changes no entitlement and is audited as ignored:
+	// payment.declined (nothing was granted), payment.dispute.closed (won/lost
+	// carry the outcome), recurring-payment status changes (renewed/ended carry
+	// the transitions we act on), and any future types.
 	if err := s.saveEvent(ctx, event, repository.WebhookIgnored, recordablePayment{}, ""); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to save webhook state"})
+	}
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+// trialLifecycle maps trial webhooks onto the billing actions: a started trial
+// activates premium until the trial's next payment date, a cancelled trial
+// keeps the entitlement but marks the cancellation pending (the expiry safety
+// net or a recurring-payment.ended does the actual revoke at trial end), and
+// the rest (ending-soon reminder, trial ended) change nothing — a conversion
+// to paid arrives as payment.completed / recurring-payment.renewed.
+func (s *Server) trialLifecycle(c *fiber.Ctx, event tebexEvent) error {
+
+	var action billingrpc.Action
+	switch {
+	case strings.Contains(event.Type, "cancel"):
+		action = billingrpc.ActionCancelRequested
+	case strings.Contains(event.Type, "start"):
+		action = billingrpc.ActionActivate
+	default:
+		if err := s.saveEvent(c.UserContext(), event, repository.WebhookIgnored, recordablePayment{}, ""); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to save webhook state"})
+		}
+		return c.SendStatus(fiber.StatusNoContent)
+	}
+
+	payment, err := recordableFromEvent(event)
+	if err != nil {
+		// A trial subject may carry no payment (nothing has been charged), so
+		// attribution can be impossible. Retries cannot fix that — audit the
+		// event and acknowledge instead of making Tebex redeliver forever.
+		if errors.Is(err, errNoRecordablePayment) || errors.Is(err, errPaymentUserMissing) {
+			s.log.Warn("tebex trial webhook without attributable payment",
+				zap.String("webhook_id", event.ID),
+				zap.String("webhook_type", event.Type),
+				zap.Error(err),
+			)
+			if err := s.saveEvent(c.UserContext(), event, repository.WebhookIgnored, payment, err.Error()); err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to save webhook state"})
+			}
+			return c.SendStatus(fiber.StatusNoContent)
+		}
+		return s.failEvent(c, event, payment, fiber.StatusUnprocessableEntity, err)
+	}
+
+	if err := s.applyBilling(c.UserContext(), event, payment, action); err != nil {
+		return s.failEvent(c, event, payment, fiber.StatusInternalServerError, err)
+	}
+	if err := s.saveEvent(c.UserContext(), event, repository.WebhookProcessed, payment, ""); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to save webhook state"})
 	}
 	return c.SendStatus(fiber.StatusNoContent)
@@ -332,22 +390,15 @@ func tebexSignature(body []byte, secret string) []byte {
 
 func recordableFromEvent(event tebexEvent) (recordablePayment, error) {
 
-	switch event.Type {
-	case "payment.completed":
+	switch {
+	case strings.HasPrefix(event.Type, "payment."):
 		var payment paymentSubject
 		if err := json.Unmarshal(event.Subject, &payment); err != nil {
 			return recordablePayment{}, err
 		}
 		return recordableFromPayment(payment)
 
-	case "payment.refunded", "payment.dispute.opened", "payment.dispute.won", "payment.dispute.lost", "payment.dispute.closed":
-		var payment paymentSubject
-		if err := json.Unmarshal(event.Subject, &payment); err != nil {
-			return recordablePayment{}, err
-		}
-		return recordableFromPayment(payment)
-
-	case "recurring-payment.started", "recurring-payment.renewed", "recurring-payment.ended", "recurring-payment.cancellation.requested", "recurring-payment.cancellation.aborted":
+	case strings.HasPrefix(event.Type, "recurring-payment."):
 		var recurring recurringSubject
 		if err := json.Unmarshal(event.Subject, &recurring); err != nil {
 			return recordablePayment{}, err
@@ -404,7 +455,7 @@ func recordableFromPayment(payment paymentSubject) (recordablePayment, error) {
 		return result, nil
 	}
 
-	return recordablePayment{TransactionID: payment.TransactionID}, errors.New("payment user id missing")
+	return recordablePayment{TransactionID: payment.TransactionID}, errPaymentUserMissing
 }
 
 func parseTebexTime(raw string) (time.Time, bool) {
