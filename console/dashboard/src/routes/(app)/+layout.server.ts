@@ -45,7 +45,7 @@ export const load: LayoutServerLoad = async ({ locals, url, cookies }) => {
       await accountState(s.user_id);
     } catch (err) {
       if (err instanceof RpcError) {
-        cookies.delete(COOKIE, { path: '/' });
+        cookies.delete(COOKIE, { path: '/', secure: url.protocol === 'https:' });
         throw redirect(302, '/login?e=signedout');
       }
       // Transient transport problem: keep the session, pages degrade instead.
