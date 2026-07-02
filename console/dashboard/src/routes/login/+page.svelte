@@ -8,7 +8,8 @@
   const NOTICES: Record<string, string> = {
     signedout: 'You were signed out — that account no longer exists on ItsBagelBot.',
     banned: 'This account can no longer use the console.',
-    link: 'That share link is no longer valid. Ask the broadcaster for a new one.'
+    link: 'That share link is no longer valid. Ask the broadcaster for a new one.',
+    retry: 'Sign-in did not finish on our side — nothing was saved. Please try again.'
   };
   const notice = $derived(NOTICES[page.url.searchParams.get('e') ?? ''] ?? null);
 

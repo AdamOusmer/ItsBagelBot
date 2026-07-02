@@ -87,6 +87,13 @@ func (d *dashboardRPC) handleUpsertUser(ctx context.Context, msg *nats.Msg) {
 		return
 	}
 
+	// Push-drop cached account state on every console replica: a recreated
+	// account must not keep serving another pod's deleted-era view for the
+	// rest of that pod's SWR window.
+	if err := invalidate.Publish(d.nc, d.invalidationPrefix, "status", req.UserID); err != nil {
+		d.log.Warn("upsert_user invalidation publish failed", zap.Error(err))
+	}
+
 	bus.Respond(msg, map[string]any{"ok": true})
 }
 
@@ -283,6 +290,15 @@ func (d *dashboardRPC) handleDeleteSelf(ctx context.Context, msg *nats.Msg) {
 		d.log.Error("delete_self user", zap.Error(err))
 		bus.Respond(msg, map[string]any{"error": err.Error()})
 		return
+	}
+
+	// "user" is not a routed scope on the console side, so it falls through to
+	// the '*' entry: a coarse per-user flush of every cached prefix. That is
+	// exactly right for deletion — no replica may keep any view of this user,
+	// and without this ping other pods would serve stale state for the rest of
+	// their SWR windows (the deleting pod only drops its own L1).
+	if err := invalidate.Publish(d.nc, d.invalidationPrefix, "user", req.UserID); err != nil {
+		d.log.Warn("delete_self invalidation publish failed", zap.Error(err))
 	}
 
 	bus.Respond(msg, map[string]any{"ok": true})

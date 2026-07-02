@@ -98,7 +98,24 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
       throw redirect(302, '/');
     }
 
-    // Issue session cookie immediately — no NATS round-trip on the hot path.
+    // Register the user BEFORE sealing a session. The (app) layout's
+    // ghost-session gate treats a missing user row as a deleted account and
+    // wipes the cookie, so minting a session for a row that failed to land
+    // is an instant sign-out loop. If the upsert cannot land, refuse the
+    // session and let the user retry the flow.
+    let registered = false;
+    try {
+      await rpc(`${DASHBOARD}.upsert_user`, {
+        user_id: userId,
+        username: login,
+        display_name: displayName
+      });
+      registered = true;
+    } catch (err: unknown) {
+      console.error('[callback] upsert_user failed, refusing session:', err);
+    }
+    if (!registered) throw redirect(302, '/login?e=retry');
+
     const value = seal({
       user_id: userId,
       login: login,
@@ -115,20 +132,15 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
       maxAge: SESSION_TTL
     });
 
-    // Register the user, then persist the OAuth grant (access + refresh). The
-    // token row references the user, so upsert must land first. Both are awaited:
-    // skipping grant_save is exactly the bug where login succeeds but the bot
-    // never gets a token to act in the channel. A failure here is logged but does
-    // not block sign-in — the user can re-auth to retry.
+    // Persist the OAuth grant (access + refresh) after the user row exists —
+    // the token row references it. Grant failure stays non-fatal: the session
+    // is still valid (the row exists), the bot just has no channel token yet,
+    // and the home needs-attention strip surfaces that. The user can re-auth
+    // to retry.
     try {
-      await rpc(`${DASHBOARD}.upsert_user`, {
-        user_id: userId,
-        username: login,
-        display_name: displayName
-      });
       await saveGrant(userId, tokens.accessToken(), tokens.refreshToken());
     } catch (err: unknown) {
-      console.error('[callback] upsert_user/grant_save failed (non-fatal):', err);
+      console.error('[callback] grant_save failed (non-fatal):', err);
     }
   } catch (e) {
     if (e instanceof OAuth2RequestError) throw redirect(302, '/login?e=oauth');
