@@ -5,6 +5,7 @@ package ent
 import (
 	"ItsBagelBot/app/transactions/ent/schema"
 	"ItsBagelBot/app/transactions/ent/tebextransactions"
+	"ItsBagelBot/app/transactions/ent/tebexwebhookevents"
 	"time"
 )
 
@@ -22,4 +23,28 @@ func init() {
 	tebextransactionsDescID := tebextransactionsFields[0].Descriptor()
 	// tebextransactions.IDValidator is a validator for the "id" field. It is called by the builders before save.
 	tebextransactions.IDValidator = tebextransactionsDescID.Validators[0].(func(string) error)
+	tebexwebhookeventsFields := schema.TebexWebhookEvents{}.Fields()
+	_ = tebexwebhookeventsFields
+	// tebexwebhookeventsDescEventType is the schema descriptor for event_type field.
+	tebexwebhookeventsDescEventType := tebexwebhookeventsFields[1].Descriptor()
+	// tebexwebhookevents.EventTypeValidator is a validator for the "event_type" field. It is called by the builders before save.
+	tebexwebhookevents.EventTypeValidator = tebexwebhookeventsDescEventType.Validators[0].(func(string) error)
+	// tebexwebhookeventsDescError is the schema descriptor for error field.
+	tebexwebhookeventsDescError := tebexwebhookeventsFields[5].Descriptor()
+	// tebexwebhookevents.ErrorValidator is a validator for the "error" field. It is called by the builders before save.
+	tebexwebhookevents.ErrorValidator = tebexwebhookeventsDescError.Validators[0].(func(string) error)
+	// tebexwebhookeventsDescCreatedAt is the schema descriptor for created_at field.
+	tebexwebhookeventsDescCreatedAt := tebexwebhookeventsFields[6].Descriptor()
+	// tebexwebhookevents.DefaultCreatedAt holds the default value on creation for the created_at field.
+	tebexwebhookevents.DefaultCreatedAt = tebexwebhookeventsDescCreatedAt.Default.(func() time.Time)
+	// tebexwebhookeventsDescUpdatedAt is the schema descriptor for updated_at field.
+	tebexwebhookeventsDescUpdatedAt := tebexwebhookeventsFields[7].Descriptor()
+	// tebexwebhookevents.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	tebexwebhookevents.DefaultUpdatedAt = tebexwebhookeventsDescUpdatedAt.Default.(func() time.Time)
+	// tebexwebhookevents.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	tebexwebhookevents.UpdateDefaultUpdatedAt = tebexwebhookeventsDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// tebexwebhookeventsDescID is the schema descriptor for id field.
+	tebexwebhookeventsDescID := tebexwebhookeventsFields[0].Descriptor()
+	// tebexwebhookevents.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	tebexwebhookevents.IDValidator = tebexwebhookeventsDescID.Validators[0].(func(string) error)
 }

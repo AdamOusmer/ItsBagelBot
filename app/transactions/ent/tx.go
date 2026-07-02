@@ -14,6 +14,8 @@ type Tx struct {
 	config
 	// TebexTransactions is the client for interacting with the TebexTransactions builders.
 	TebexTransactions *TebexTransactionsClient
+	// TebexWebhookEvents is the client for interacting with the TebexWebhookEvents builders.
+	TebexWebhookEvents *TebexWebhookEventsClient
 
 	// lazily loaded.
 	client     *Client
@@ -146,6 +148,7 @@ func (tx *Tx) Client() *Client {
 
 func (tx *Tx) init() {
 	tx.TebexTransactions = NewTebexTransactionsClient(tx.config)
+	tx.TebexWebhookEvents = NewTebexWebhookEventsClient(tx.config)
 }
 
 // txDriver wraps the given dialect.Tx with a nop dialect.Driver implementation.

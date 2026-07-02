@@ -27,9 +27,49 @@ var (
 			},
 		},
 	}
+	// TebexWebhookEventsColumns holds the columns for the "tebex_webhook_events" table.
+	TebexWebhookEventsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString, Unique: true},
+		{Name: "event_type", Type: field.TypeString},
+		{Name: "status", Type: field.TypeEnum, Enums: []string{"processed", "failed", "ignored", "validation"}, Default: "processed"},
+		{Name: "transaction_id", Type: field.TypeString, Nullable: true},
+		{Name: "user_id", Type: field.TypeUint64, Nullable: true},
+		{Name: "error", Type: field.TypeString, Nullable: true, Size: 500},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+	}
+	// TebexWebhookEventsTable holds the schema information for the "tebex_webhook_events" table.
+	TebexWebhookEventsTable = &schema.Table{
+		Name:       "tebex_webhook_events",
+		Columns:    TebexWebhookEventsColumns,
+		PrimaryKey: []*schema.Column{TebexWebhookEventsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "tebexwebhookevents_status",
+				Unique:  false,
+				Columns: []*schema.Column{TebexWebhookEventsColumns[2]},
+			},
+			{
+				Name:    "tebexwebhookevents_event_type",
+				Unique:  false,
+				Columns: []*schema.Column{TebexWebhookEventsColumns[1]},
+			},
+			{
+				Name:    "tebexwebhookevents_user_id",
+				Unique:  false,
+				Columns: []*schema.Column{TebexWebhookEventsColumns[4]},
+			},
+			{
+				Name:    "tebexwebhookevents_transaction_id",
+				Unique:  false,
+				Columns: []*schema.Column{TebexWebhookEventsColumns[3]},
+			},
+		},
+	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
 		TebexTransactionsTable,
+		TebexWebhookEventsTable,
 	}
 )
 

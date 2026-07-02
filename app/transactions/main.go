@@ -5,16 +5,17 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"ItsBagelBot/app/transactions/ent"
 	// Wire the ent schema runtime (field defaults/hooks); without this blank
 	// import every write fails: "forgotten import ent/runtime?".
 	_ "ItsBagelBot/app/transactions/ent/runtime"
 	"ItsBagelBot/app/transactions/repository"
+	"ItsBagelBot/app/transactions/web"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/db"
 	"ItsBagelBot/pkg/env"
-	"ItsBagelBot/pkg/health"
 	"ItsBagelBot/pkg/logger"
 	"ItsBagelBot/pkg/monitor"
 
@@ -69,14 +70,34 @@ func main() {
 	}
 	defer func() { _ = pub.Close() }()
 
-	_ = repository.NewTransactions(client, pub) // wired to the ingress (Tebex webhook consumer) next
+	repo := repository.NewTransactions(client, pub)
 
-	// No core NATS connection yet, so readiness is just process-up.
-	health.Serve(env.Get("LISTEN_ADDR", ":8080"), nil)
+	listenAddr := env.Get("LISTEN_ADDR", ":8080")
+	httpApp := web.New(repo, web.Config{
+		WebhookSecret: env.Get("TEBEX_WEBHOOK_SECRET", ""),
+	}, log.Named("http"))
 
-	log.Info("transactions service ready")
+	serverErr := make(chan error, 1)
+	go func() {
+		serverErr <- httpApp.Listen(listenAddr)
+	}()
 
-	<-ctx.Done()
+	log.Info("transactions service ready",
+		zap.String("listen_addr", listenAddr),
+		zap.Bool("tebex_webhook_configured", env.Get("TEBEX_WEBHOOK_SECRET", "") != ""),
+	)
+
+	select {
+	case <-ctx.Done():
+	case err := <-serverErr:
+		log.Fatal("transactions http server stopped", zap.Error(err))
+	}
 
 	log.Info("transactions service shutting down")
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := httpApp.ShutdownWithContext(shutdownCtx); err != nil {
+		log.Warn("transactions http server shutdown failed", zap.Error(err))
+	}
 }

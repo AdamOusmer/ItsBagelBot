@@ -5,6 +5,7 @@ package ent
 import (
 	"ItsBagelBot/app/transactions/ent/predicate"
 	"ItsBagelBot/app/transactions/ent/tebextransactions"
+	"ItsBagelBot/app/transactions/ent/tebexwebhookevents"
 	"context"
 	"errors"
 	"fmt"
@@ -24,7 +25,8 @@ const (
 	OpUpdateOne = ent.OpUpdateOne
 
 	// Node types.
-	TypeTebexTransactions = "TebexTransactions"
+	TypeTebexTransactions  = "TebexTransactions"
+	TypeTebexWebhookEvents = "TebexWebhookEvents"
 )
 
 // TebexTransactionsMutation represents an operation that mutates the TebexTransactions nodes in the graph.
@@ -447,4 +449,757 @@ func (m *TebexTransactionsMutation) ClearEdge(name string) error {
 // It returns an error if the edge is not defined in the schema.
 func (m *TebexTransactionsMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown TebexTransactions edge %s", name)
+}
+
+// TebexWebhookEventsMutation represents an operation that mutates the TebexWebhookEvents nodes in the graph.
+type TebexWebhookEventsMutation struct {
+	config
+	op             Op
+	typ            string
+	id             *string
+	event_type     *string
+	status         *tebexwebhookevents.Status
+	transaction_id *string
+	user_id        *uint64
+	adduser_id     *int64
+	error          *string
+	created_at     *time.Time
+	updated_at     *time.Time
+	clearedFields  map[string]struct{}
+	done           bool
+	oldValue       func(context.Context) (*TebexWebhookEvents, error)
+	predicates     []predicate.TebexWebhookEvents
+}
+
+var _ ent.Mutation = (*TebexWebhookEventsMutation)(nil)
+
+// tebexwebhookeventsOption allows management of the mutation configuration using functional options.
+type tebexwebhookeventsOption func(*TebexWebhookEventsMutation)
+
+// newTebexWebhookEventsMutation creates new mutation for the TebexWebhookEvents entity.
+func newTebexWebhookEventsMutation(c config, op Op, opts ...tebexwebhookeventsOption) *TebexWebhookEventsMutation {
+	m := &TebexWebhookEventsMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeTebexWebhookEvents,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withTebexWebhookEventsID sets the ID field of the mutation.
+func withTebexWebhookEventsID(id string) tebexwebhookeventsOption {
+	return func(m *TebexWebhookEventsMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *TebexWebhookEvents
+		)
+		m.oldValue = func(ctx context.Context) (*TebexWebhookEvents, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().TebexWebhookEvents.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withTebexWebhookEvents sets the old TebexWebhookEvents of the mutation.
+func withTebexWebhookEvents(node *TebexWebhookEvents) tebexwebhookeventsOption {
+	return func(m *TebexWebhookEventsMutation) {
+		m.oldValue = func(context.Context) (*TebexWebhookEvents, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m TebexWebhookEventsMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m TebexWebhookEventsMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of TebexWebhookEvents entities.
+func (m *TebexWebhookEventsMutation) SetID(id string) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *TebexWebhookEventsMutation) ID() (id string, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *TebexWebhookEventsMutation) IDs(ctx context.Context) ([]string, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []string{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().TebexWebhookEvents.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetEventType sets the "event_type" field.
+func (m *TebexWebhookEventsMutation) SetEventType(s string) {
+	m.event_type = &s
+}
+
+// EventType returns the value of the "event_type" field in the mutation.
+func (m *TebexWebhookEventsMutation) EventType() (r string, exists bool) {
+	v := m.event_type
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldEventType returns the old "event_type" field's value of the TebexWebhookEvents entity.
+// If the TebexWebhookEvents object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TebexWebhookEventsMutation) OldEventType(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldEventType is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldEventType requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldEventType: %w", err)
+	}
+	return oldValue.EventType, nil
+}
+
+// ResetEventType resets all changes to the "event_type" field.
+func (m *TebexWebhookEventsMutation) ResetEventType() {
+	m.event_type = nil
+}
+
+// SetStatus sets the "status" field.
+func (m *TebexWebhookEventsMutation) SetStatus(t tebexwebhookevents.Status) {
+	m.status = &t
+}
+
+// Status returns the value of the "status" field in the mutation.
+func (m *TebexWebhookEventsMutation) Status() (r tebexwebhookevents.Status, exists bool) {
+	v := m.status
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStatus returns the old "status" field's value of the TebexWebhookEvents entity.
+// If the TebexWebhookEvents object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TebexWebhookEventsMutation) OldStatus(ctx context.Context) (v tebexwebhookevents.Status, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStatus is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStatus requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStatus: %w", err)
+	}
+	return oldValue.Status, nil
+}
+
+// ResetStatus resets all changes to the "status" field.
+func (m *TebexWebhookEventsMutation) ResetStatus() {
+	m.status = nil
+}
+
+// SetTransactionID sets the "transaction_id" field.
+func (m *TebexWebhookEventsMutation) SetTransactionID(s string) {
+	m.transaction_id = &s
+}
+
+// TransactionID returns the value of the "transaction_id" field in the mutation.
+func (m *TebexWebhookEventsMutation) TransactionID() (r string, exists bool) {
+	v := m.transaction_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTransactionID returns the old "transaction_id" field's value of the TebexWebhookEvents entity.
+// If the TebexWebhookEvents object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TebexWebhookEventsMutation) OldTransactionID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTransactionID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTransactionID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTransactionID: %w", err)
+	}
+	return oldValue.TransactionID, nil
+}
+
+// ClearTransactionID clears the value of the "transaction_id" field.
+func (m *TebexWebhookEventsMutation) ClearTransactionID() {
+	m.transaction_id = nil
+	m.clearedFields[tebexwebhookevents.FieldTransactionID] = struct{}{}
+}
+
+// TransactionIDCleared returns if the "transaction_id" field was cleared in this mutation.
+func (m *TebexWebhookEventsMutation) TransactionIDCleared() bool {
+	_, ok := m.clearedFields[tebexwebhookevents.FieldTransactionID]
+	return ok
+}
+
+// ResetTransactionID resets all changes to the "transaction_id" field.
+func (m *TebexWebhookEventsMutation) ResetTransactionID() {
+	m.transaction_id = nil
+	delete(m.clearedFields, tebexwebhookevents.FieldTransactionID)
+}
+
+// SetUserID sets the "user_id" field.
+func (m *TebexWebhookEventsMutation) SetUserID(u uint64) {
+	m.user_id = &u
+	m.adduser_id = nil
+}
+
+// UserID returns the value of the "user_id" field in the mutation.
+func (m *TebexWebhookEventsMutation) UserID() (r uint64, exists bool) {
+	v := m.user_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserID returns the old "user_id" field's value of the TebexWebhookEvents entity.
+// If the TebexWebhookEvents object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TebexWebhookEventsMutation) OldUserID(ctx context.Context) (v uint64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserID: %w", err)
+	}
+	return oldValue.UserID, nil
+}
+
+// AddUserID adds u to the "user_id" field.
+func (m *TebexWebhookEventsMutation) AddUserID(u int64) {
+	if m.adduser_id != nil {
+		*m.adduser_id += u
+	} else {
+		m.adduser_id = &u
+	}
+}
+
+// AddedUserID returns the value that was added to the "user_id" field in this mutation.
+func (m *TebexWebhookEventsMutation) AddedUserID() (r int64, exists bool) {
+	v := m.adduser_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearUserID clears the value of the "user_id" field.
+func (m *TebexWebhookEventsMutation) ClearUserID() {
+	m.user_id = nil
+	m.adduser_id = nil
+	m.clearedFields[tebexwebhookevents.FieldUserID] = struct{}{}
+}
+
+// UserIDCleared returns if the "user_id" field was cleared in this mutation.
+func (m *TebexWebhookEventsMutation) UserIDCleared() bool {
+	_, ok := m.clearedFields[tebexwebhookevents.FieldUserID]
+	return ok
+}
+
+// ResetUserID resets all changes to the "user_id" field.
+func (m *TebexWebhookEventsMutation) ResetUserID() {
+	m.user_id = nil
+	m.adduser_id = nil
+	delete(m.clearedFields, tebexwebhookevents.FieldUserID)
+}
+
+// SetError sets the "error" field.
+func (m *TebexWebhookEventsMutation) SetError(s string) {
+	m.error = &s
+}
+
+// Error returns the value of the "error" field in the mutation.
+func (m *TebexWebhookEventsMutation) Error() (r string, exists bool) {
+	v := m.error
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldError returns the old "error" field's value of the TebexWebhookEvents entity.
+// If the TebexWebhookEvents object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TebexWebhookEventsMutation) OldError(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldError is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldError requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldError: %w", err)
+	}
+	return oldValue.Error, nil
+}
+
+// ClearError clears the value of the "error" field.
+func (m *TebexWebhookEventsMutation) ClearError() {
+	m.error = nil
+	m.clearedFields[tebexwebhookevents.FieldError] = struct{}{}
+}
+
+// ErrorCleared returns if the "error" field was cleared in this mutation.
+func (m *TebexWebhookEventsMutation) ErrorCleared() bool {
+	_, ok := m.clearedFields[tebexwebhookevents.FieldError]
+	return ok
+}
+
+// ResetError resets all changes to the "error" field.
+func (m *TebexWebhookEventsMutation) ResetError() {
+	m.error = nil
+	delete(m.clearedFields, tebexwebhookevents.FieldError)
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *TebexWebhookEventsMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *TebexWebhookEventsMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the TebexWebhookEvents entity.
+// If the TebexWebhookEvents object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TebexWebhookEventsMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *TebexWebhookEventsMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *TebexWebhookEventsMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *TebexWebhookEventsMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the TebexWebhookEvents entity.
+// If the TebexWebhookEvents object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TebexWebhookEventsMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *TebexWebhookEventsMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// Where appends a list predicates to the TebexWebhookEventsMutation builder.
+func (m *TebexWebhookEventsMutation) Where(ps ...predicate.TebexWebhookEvents) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the TebexWebhookEventsMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *TebexWebhookEventsMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.TebexWebhookEvents, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *TebexWebhookEventsMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *TebexWebhookEventsMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (TebexWebhookEvents).
+func (m *TebexWebhookEventsMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *TebexWebhookEventsMutation) Fields() []string {
+	fields := make([]string, 0, 7)
+	if m.event_type != nil {
+		fields = append(fields, tebexwebhookevents.FieldEventType)
+	}
+	if m.status != nil {
+		fields = append(fields, tebexwebhookevents.FieldStatus)
+	}
+	if m.transaction_id != nil {
+		fields = append(fields, tebexwebhookevents.FieldTransactionID)
+	}
+	if m.user_id != nil {
+		fields = append(fields, tebexwebhookevents.FieldUserID)
+	}
+	if m.error != nil {
+		fields = append(fields, tebexwebhookevents.FieldError)
+	}
+	if m.created_at != nil {
+		fields = append(fields, tebexwebhookevents.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, tebexwebhookevents.FieldUpdatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *TebexWebhookEventsMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case tebexwebhookevents.FieldEventType:
+		return m.EventType()
+	case tebexwebhookevents.FieldStatus:
+		return m.Status()
+	case tebexwebhookevents.FieldTransactionID:
+		return m.TransactionID()
+	case tebexwebhookevents.FieldUserID:
+		return m.UserID()
+	case tebexwebhookevents.FieldError:
+		return m.Error()
+	case tebexwebhookevents.FieldCreatedAt:
+		return m.CreatedAt()
+	case tebexwebhookevents.FieldUpdatedAt:
+		return m.UpdatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *TebexWebhookEventsMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case tebexwebhookevents.FieldEventType:
+		return m.OldEventType(ctx)
+	case tebexwebhookevents.FieldStatus:
+		return m.OldStatus(ctx)
+	case tebexwebhookevents.FieldTransactionID:
+		return m.OldTransactionID(ctx)
+	case tebexwebhookevents.FieldUserID:
+		return m.OldUserID(ctx)
+	case tebexwebhookevents.FieldError:
+		return m.OldError(ctx)
+	case tebexwebhookevents.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case tebexwebhookevents.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown TebexWebhookEvents field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *TebexWebhookEventsMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case tebexwebhookevents.FieldEventType:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetEventType(v)
+		return nil
+	case tebexwebhookevents.FieldStatus:
+		v, ok := value.(tebexwebhookevents.Status)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStatus(v)
+		return nil
+	case tebexwebhookevents.FieldTransactionID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTransactionID(v)
+		return nil
+	case tebexwebhookevents.FieldUserID:
+		v, ok := value.(uint64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserID(v)
+		return nil
+	case tebexwebhookevents.FieldError:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetError(v)
+		return nil
+	case tebexwebhookevents.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case tebexwebhookevents.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown TebexWebhookEvents field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *TebexWebhookEventsMutation) AddedFields() []string {
+	var fields []string
+	if m.adduser_id != nil {
+		fields = append(fields, tebexwebhookevents.FieldUserID)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *TebexWebhookEventsMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case tebexwebhookevents.FieldUserID:
+		return m.AddedUserID()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *TebexWebhookEventsMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case tebexwebhookevents.FieldUserID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddUserID(v)
+		return nil
+	}
+	return fmt.Errorf("unknown TebexWebhookEvents numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *TebexWebhookEventsMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(tebexwebhookevents.FieldTransactionID) {
+		fields = append(fields, tebexwebhookevents.FieldTransactionID)
+	}
+	if m.FieldCleared(tebexwebhookevents.FieldUserID) {
+		fields = append(fields, tebexwebhookevents.FieldUserID)
+	}
+	if m.FieldCleared(tebexwebhookevents.FieldError) {
+		fields = append(fields, tebexwebhookevents.FieldError)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *TebexWebhookEventsMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *TebexWebhookEventsMutation) ClearField(name string) error {
+	switch name {
+	case tebexwebhookevents.FieldTransactionID:
+		m.ClearTransactionID()
+		return nil
+	case tebexwebhookevents.FieldUserID:
+		m.ClearUserID()
+		return nil
+	case tebexwebhookevents.FieldError:
+		m.ClearError()
+		return nil
+	}
+	return fmt.Errorf("unknown TebexWebhookEvents nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *TebexWebhookEventsMutation) ResetField(name string) error {
+	switch name {
+	case tebexwebhookevents.FieldEventType:
+		m.ResetEventType()
+		return nil
+	case tebexwebhookevents.FieldStatus:
+		m.ResetStatus()
+		return nil
+	case tebexwebhookevents.FieldTransactionID:
+		m.ResetTransactionID()
+		return nil
+	case tebexwebhookevents.FieldUserID:
+		m.ResetUserID()
+		return nil
+	case tebexwebhookevents.FieldError:
+		m.ResetError()
+		return nil
+	case tebexwebhookevents.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case tebexwebhookevents.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown TebexWebhookEvents field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *TebexWebhookEventsMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *TebexWebhookEventsMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *TebexWebhookEventsMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *TebexWebhookEventsMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *TebexWebhookEventsMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *TebexWebhookEventsMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *TebexWebhookEventsMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown TebexWebhookEvents unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *TebexWebhookEventsMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown TebexWebhookEvents edge %s", name)
 }

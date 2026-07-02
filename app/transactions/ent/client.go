@@ -12,6 +12,7 @@ import (
 	"ItsBagelBot/app/transactions/ent/migrate"
 
 	"ItsBagelBot/app/transactions/ent/tebextransactions"
+	"ItsBagelBot/app/transactions/ent/tebexwebhookevents"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect"
@@ -25,6 +26,8 @@ type Client struct {
 	Schema *migrate.Schema
 	// TebexTransactions is the client for interacting with the TebexTransactions builders.
 	TebexTransactions *TebexTransactionsClient
+	// TebexWebhookEvents is the client for interacting with the TebexWebhookEvents builders.
+	TebexWebhookEvents *TebexWebhookEventsClient
 }
 
 // NewClient creates a new client configured with the given options.
@@ -37,6 +40,7 @@ func NewClient(opts ...Option) *Client {
 func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
 	c.TebexTransactions = NewTebexTransactionsClient(c.config)
+	c.TebexWebhookEvents = NewTebexWebhookEventsClient(c.config)
 }
 
 type (
@@ -127,9 +131,10 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	cfg := c.config
 	cfg.driver = tx
 	return &Tx{
-		ctx:               ctx,
-		config:            cfg,
-		TebexTransactions: NewTebexTransactionsClient(cfg),
+		ctx:                ctx,
+		config:             cfg,
+		TebexTransactions:  NewTebexTransactionsClient(cfg),
+		TebexWebhookEvents: NewTebexWebhookEventsClient(cfg),
 	}, nil
 }
 
@@ -147,9 +152,10 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 	cfg := c.config
 	cfg.driver = &txDriver{tx: tx, drv: c.driver}
 	return &Tx{
-		ctx:               ctx,
-		config:            cfg,
-		TebexTransactions: NewTebexTransactionsClient(cfg),
+		ctx:                ctx,
+		config:             cfg,
+		TebexTransactions:  NewTebexTransactionsClient(cfg),
+		TebexWebhookEvents: NewTebexWebhookEventsClient(cfg),
 	}, nil
 }
 
@@ -179,12 +185,14 @@ func (c *Client) Close() error {
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
 	c.TebexTransactions.Use(hooks...)
+	c.TebexWebhookEvents.Use(hooks...)
 }
 
 // Intercept adds the query interceptors to all the entity clients.
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	c.TebexTransactions.Intercept(interceptors...)
+	c.TebexWebhookEvents.Intercept(interceptors...)
 }
 
 // Mutate implements the ent.Mutator interface.
@@ -192,6 +200,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 	switch m := m.(type) {
 	case *TebexTransactionsMutation:
 		return c.TebexTransactions.mutate(ctx, m)
+	case *TebexWebhookEventsMutation:
+		return c.TebexWebhookEvents.mutate(ctx, m)
 	default:
 		return nil, fmt.Errorf("ent: unknown mutation type %T", m)
 	}
@@ -330,12 +340,145 @@ func (c *TebexTransactionsClient) mutate(ctx context.Context, m *TebexTransactio
 	}
 }
 
+// TebexWebhookEventsClient is a client for the TebexWebhookEvents schema.
+type TebexWebhookEventsClient struct {
+	config
+}
+
+// NewTebexWebhookEventsClient returns a client for the TebexWebhookEvents from the given config.
+func NewTebexWebhookEventsClient(c config) *TebexWebhookEventsClient {
+	return &TebexWebhookEventsClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `tebexwebhookevents.Hooks(f(g(h())))`.
+func (c *TebexWebhookEventsClient) Use(hooks ...Hook) {
+	c.hooks.TebexWebhookEvents = append(c.hooks.TebexWebhookEvents, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `tebexwebhookevents.Intercept(f(g(h())))`.
+func (c *TebexWebhookEventsClient) Intercept(interceptors ...Interceptor) {
+	c.inters.TebexWebhookEvents = append(c.inters.TebexWebhookEvents, interceptors...)
+}
+
+// Create returns a builder for creating a TebexWebhookEvents entity.
+func (c *TebexWebhookEventsClient) Create() *TebexWebhookEventsCreate {
+	mutation := newTebexWebhookEventsMutation(c.config, OpCreate)
+	return &TebexWebhookEventsCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of TebexWebhookEvents entities.
+func (c *TebexWebhookEventsClient) CreateBulk(builders ...*TebexWebhookEventsCreate) *TebexWebhookEventsCreateBulk {
+	return &TebexWebhookEventsCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *TebexWebhookEventsClient) MapCreateBulk(slice any, setFunc func(*TebexWebhookEventsCreate, int)) *TebexWebhookEventsCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &TebexWebhookEventsCreateBulk{err: fmt.Errorf("calling to TebexWebhookEventsClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*TebexWebhookEventsCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &TebexWebhookEventsCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for TebexWebhookEvents.
+func (c *TebexWebhookEventsClient) Update() *TebexWebhookEventsUpdate {
+	mutation := newTebexWebhookEventsMutation(c.config, OpUpdate)
+	return &TebexWebhookEventsUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *TebexWebhookEventsClient) UpdateOne(_m *TebexWebhookEvents) *TebexWebhookEventsUpdateOne {
+	mutation := newTebexWebhookEventsMutation(c.config, OpUpdateOne, withTebexWebhookEvents(_m))
+	return &TebexWebhookEventsUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *TebexWebhookEventsClient) UpdateOneID(id string) *TebexWebhookEventsUpdateOne {
+	mutation := newTebexWebhookEventsMutation(c.config, OpUpdateOne, withTebexWebhookEventsID(id))
+	return &TebexWebhookEventsUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for TebexWebhookEvents.
+func (c *TebexWebhookEventsClient) Delete() *TebexWebhookEventsDelete {
+	mutation := newTebexWebhookEventsMutation(c.config, OpDelete)
+	return &TebexWebhookEventsDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *TebexWebhookEventsClient) DeleteOne(_m *TebexWebhookEvents) *TebexWebhookEventsDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *TebexWebhookEventsClient) DeleteOneID(id string) *TebexWebhookEventsDeleteOne {
+	builder := c.Delete().Where(tebexwebhookevents.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &TebexWebhookEventsDeleteOne{builder}
+}
+
+// Query returns a query builder for TebexWebhookEvents.
+func (c *TebexWebhookEventsClient) Query() *TebexWebhookEventsQuery {
+	return &TebexWebhookEventsQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeTebexWebhookEvents},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a TebexWebhookEvents entity by its id.
+func (c *TebexWebhookEventsClient) Get(ctx context.Context, id string) (*TebexWebhookEvents, error) {
+	return c.Query().Where(tebexwebhookevents.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *TebexWebhookEventsClient) GetX(ctx context.Context, id string) *TebexWebhookEvents {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *TebexWebhookEventsClient) Hooks() []Hook {
+	return c.hooks.TebexWebhookEvents
+}
+
+// Interceptors returns the client interceptors.
+func (c *TebexWebhookEventsClient) Interceptors() []Interceptor {
+	return c.inters.TebexWebhookEvents
+}
+
+func (c *TebexWebhookEventsClient) mutate(ctx context.Context, m *TebexWebhookEventsMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&TebexWebhookEventsCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&TebexWebhookEventsUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&TebexWebhookEventsUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&TebexWebhookEventsDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown TebexWebhookEvents mutation op: %q", m.Op())
+	}
+}
+
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		TebexTransactions []ent.Hook
+		TebexTransactions, TebexWebhookEvents []ent.Hook
 	}
 	inters struct {
-		TebexTransactions []ent.Interceptor
+		TebexTransactions, TebexWebhookEvents []ent.Interceptor
 	}
 )
