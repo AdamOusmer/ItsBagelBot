@@ -86,8 +86,9 @@ non-special, non-premium users is dropped before it reaches a lane.
 - **Mesh**: Linkerd native-sidecar.
 - **Delivery**: pull-based **Flux CD** from GHCR with digest-pinned images. The
   old root SSH build/deploy scripts are deprecated.
-- **NATS config**: `.conf` files are managed out-of-band via `apply-nats.sh`
-  (not Flux), hot-reloaded with `SIGHUP`.
+- **NATS config**: `.conf` files are Flux-managed via a kustomize
+  `configMapGenerator` in `deploy/k8s`; a git push hot-reloads them through the
+  `config-reloader` sidecar (`SIGHUP`), no pod restart.
 
 ## Targets
 

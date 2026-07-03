@@ -105,10 +105,10 @@ The tailnet-only exposure is structural, not policy-on-top:
 1. **DNS**: the name is MagicDNS. It resolves only for tailnet members; there is no public DNS record of any
    kind, and the nodes' tailnet IPs appear in no public zone.
 2. **Data plane**: the `tailscale`-class Ingress attaches to the `ts-ingress` ProxyGroup
-   (`deploy/tailscale/proxies.yaml`), two proxy pods spread across node1/node2 that advertise the Tailscale
+   (`deploy/infra/tailscale/proxies.yaml`), two proxy pods spread across node1/node2 that advertise the Tailscale
    Service `svc:admin`. The path shares nothing with public ingress: no traefik route, no cloudflared
    hostname, no listener on any node interface.
-3. **Access control**: the tailnet policy (`deploy/tailscale/policy.hujson`) grants `svc:admin:443` to
+3. **Access control**: the tailnet policy (`deploy/infra/tailscale/policy.hujson`) grants `svc:admin:443` to
    operator devices only; bare metal accepts nothing but SSH from them.
 4. **TLS**: the proxy terminates HTTPS with an operator-provisioned Let's Encrypt certificate for the
    MagicDNS name; browsers show a normal padlock with no private CA to install.
