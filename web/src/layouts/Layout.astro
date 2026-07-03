@@ -2,6 +2,7 @@
 import '../styles/style.css';
 import logoImage from '../assets/LogoBOT.png';
 
+import { ClientRouter } from 'astro:transitions';
 import Cursor from '../components/ui/Cursor.astro'
 import Footer from '../components/layout/Footer.astro'
 import Nav from "../components/layout/Nav.astro";
@@ -69,6 +70,13 @@ const frHref = new URL(basePath === '/' ? '/fr/' : `/fr${basePath}`, Astro.site)
     )}
 
     <title>{title}</title>
+
+    <!-- SPA-style navigation. The site's components already re-init on
+         astro:page-load and clean up on astro:before-swap; this wires them up
+         and adds the custom page transition below. The router script is bundled
+         (assetsInlineLimit:0 keeps it external) so it stays within the strict
+         script-src 'self' CSP. -->
+    <ClientRouter />
 </head>
 
 <body>
@@ -120,4 +128,43 @@ const frHref = new URL(basePath === '/' ? '/fr/' : `/fr${basePath}`, Astro.site)
     main {
         display: contents;
     }
+</style>
+
+<style is:global>
+    /* ── Custom page transition ──────────────────────────────────────
+       A warm, cinematic "lift and settle" between pages: the leaving view
+       softens and drifts up as it dims, and the arriving one rises from just
+       below, sheds its blur, and settles on the site's expo easing. Only the
+       page content plays it (the nav/footer/cursor use transition:persist), so
+       the chrome stays rock-steady. Runs on navigation only, never first paint. */
+    @keyframes bb-page-leave {
+        to {
+            opacity: 0;
+            transform: translateY(-16px) scale(0.985);
+            filter: blur(5px) brightness(0.9);
+        }
+    }
+    @keyframes bb-page-enter {
+        from {
+            opacity: 0;
+            transform: translateY(26px) scale(0.99);
+            filter: blur(8px);
+        }
+    }
+
+    ::view-transition-group(root) { animation-duration: 460ms; }
+    ::view-transition-old(root) {
+        animation: bb-page-leave 320ms cubic-bezier(0.4, 0, 1, 1) both;
+    }
+    ::view-transition-new(root) {
+        animation: bb-page-enter 460ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+
+    /* Respect reduced motion: a quick, still crossfade, no drift or blur. */
+    @media (prefers-reduced-motion: reduce) {
+        ::view-transition-old(root) { animation: bb-fade-out 160ms ease both; }
+        ::view-transition-new(root) { animation: bb-fade-in 160ms ease both; }
+    }
+    @keyframes bb-fade-out { to { opacity: 0; } }
+    @keyframes bb-fade-in { from { opacity: 0; } }
 </style>
