@@ -127,9 +127,10 @@ spec:
                 # bare SIGTERM would otherwise abort the graceful drain.
                 command: ["/bin/sh", "-c", "nats-server --signal ldm=/var/run/nats/nats.pid; sleep 36"]
         # Watches the mounted config (nats.conf + auth.conf, sourced from the
-        # nats-leaf-config configmap) and SIGHUPs nats-server on change, so an
-        # apply-nats.sh configmap update hot-reloads without a manual signal or
-        # a pod restart. TODO(deploy): pin to a digest like the other images.
+        # nats-leaf-config configmap) and SIGHUPs nats-server on change, so a
+        # git push updating the Flux-managed configMapGenerator hot-reloads
+        # without a manual signal or a pod restart.
+        # TODO(deploy): pin to a digest like the other images.
         - name: reloader
           image: natsio/nats-server-config-reloader:0.23.0
           imagePullPolicy: IfNotPresent

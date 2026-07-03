@@ -91,8 +91,3 @@ kubectl -n production get deploy -o wide
 5. `ImageUpdateAutomation` commits the updated image reference to `deploy/k8s/` on `main`.
 6. The `apps` `Kustomization` detects the change (10m interval or immediate via webhook)
    and applies the rolling update to the cluster.
-
-## Legacy Scripts
-
-The legacy SSH-based deploy scripts at the repo root (`build_and_deploy_fixed.sh`,
-`build_all.sh`, etc.) are superseded by this GitOps workflow and should not be used.

@@ -22,7 +22,7 @@ read-only or single mutations; nothing here deletes monitoring data.
   newrelic-logging, newrelic-prometheus-agent. DISABLED (no workload, no webhook):
   nri-kube-events, nri-metadata-injection, k8s-agents-operator.
 - All license/password secrets are already Doppler-synced (5 DopplerSecrets,
-  also being adopted by Flux via `deploy/k8s-cluster/newrelic-dopplersecrets.yaml`).
+  also being adopted by Flux via `deploy/infra/cluster/newrelic-dopplersecrets.yaml`).
 
 ---
 
@@ -98,9 +98,9 @@ If any of pre-flight 1-4 is unexpected, STOP and re-investigate.
 
 Merge the branch carrying:
 - `deploy/flux/clusters/production/newrelic.yaml` (HelmRepository + HelmRelease)
-- `deploy/k8s-cluster/newrelic-dopplersecrets.yaml` (5 DopplerSecrets adopted)
-- deletion of `deploy/k8s-cluster/newrelic-values.yaml` (superseded partial overlay)
-- `deploy/k8s-cluster/newrelic-logging.yaml` (unchanged; stays standalone, see "logging split")
+- `deploy/infra/cluster/newrelic-dopplersecrets.yaml` (5 DopplerSecrets adopted)
+- deletion of `deploy/infra/cluster/newrelic-values.yaml` (superseded partial overlay)
+- `deploy/infra/cluster/newrelic-logging.yaml` (unchanged; stays standalone, see "logging split")
 
 **Do NOT let Flux reconcile the HelmRelease yet.** Suspend it the instant it
 appears so the delete in Step 2 happens before helm-controller tries to install:
@@ -229,7 +229,7 @@ restores the previous (static-2-valkey) state.
 `payload.lua`, which cannot be expressed in chart values at this version. Both
 logging ConfigMaps (`nri-bundle-newrelic-logging-fluent-bit-config` and
 `nri-bundle-newrelic-logging-lua`) therefore remain the standalone, Flux-managed
-manifests in `deploy/k8s-cluster/newrelic-logging.yaml` (already labelled
+manifests in `deploy/infra/cluster/newrelic-logging.yaml` (already labelled
 `kustomize.toolkit.fluxcd.io/name=cluster`). The chart's fluent-bit DaemonSet
 mounts both by their fixed names, so the split is transparent to the pod.
 
@@ -244,7 +244,7 @@ in-values config. Tracked here so it is not lost.
 
 ## Recommendation: remove the inert annotation on the valkey StatefulSet
 
-`deploy/k8s-valkey/statefulset.yaml` carries a `newrelic.com/integrations` pod
+`deploy/infra/valkey/statefulset.yaml` carries a `newrelic.com/integrations` pod
 annotation (added during the static-config era). The kubelet `agent` container
 (infrastructure-bundle 3.3.12) loads integrations from
 `/etc/newrelic-infra/integrations.d/` only; it does **not** read pod annotations.

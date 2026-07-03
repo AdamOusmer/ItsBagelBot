@@ -13,7 +13,7 @@ spec:
   sourceRef:
     kind: GitRepository
     name: flux-system
-  path: ./deploy/tailscale
+  path: ./deploy/infra/tailscale
   prune: true
   wait: false
   timeout: 5m

@@ -252,7 +252,7 @@ spec:
     #
     # IMPORTANT LOGGING SPLIT (read before touching this):
     # The custom logging pipeline lives in TWO live ConfigMaps that are ALREADY
-    # Flux-managed standalone via deploy/k8s-cluster/newrelic-logging.yaml (label
+    # Flux-managed standalone via deploy/infra/cluster/newrelic-logging.yaml (label
     # kustomize.toolkit.fluxcd.io/name=cluster):
     #   1. nri-bundle-newrelic-logging-fluent-bit-config  (fluent-bit.conf + parsers.conf)
     #   2. nri-bundle-newrelic-logging-lua                (level_extract.lua + payload.lua)
