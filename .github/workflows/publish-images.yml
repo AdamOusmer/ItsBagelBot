@@ -22,7 +22,6 @@ on:
           - projector
           - transactions
           - users
-          - worker
           - sesame
           - twitch-ingress
           - console-dashboard
@@ -109,16 +108,10 @@ jobs:
               "description": "ItsBagelBot users data service"
             },
             {
-              "image": "worker",
-              "context": ".",
-              "containerfile": "app/worker/Containerfile",
-              "description": "ItsBagelBot Twitch event worker"
-            },
-            {
               "image": "sesame",
               "context": ".",
               "containerfile": "app/sesame/Containerfile",
-              "description": "ItsBagelBot Twitch event worker (sesame rewrite)"
+              "description": "ItsBagelBot Twitch event worker (sesame)"
             },
             {
               "image": "twitch-ingress",
@@ -154,7 +147,6 @@ jobs:
             add "projector"
             add "transactions"
             add "users"
-            add "worker"
             add "sesame"
           }
 
@@ -166,7 +158,6 @@ jobs:
             add "projector"
             add "transactions"
             add "users"
-            add "worker"
             add "sesame"
             add "twitch-ingress"
             add "console-dashboard"
@@ -209,9 +200,6 @@ jobs:
                 ;;
               app/users/*)
                 add "users"
-                ;;
-              app/worker/*)
-                add "worker"
                 ;;
               app/sesame/*)
                 add "sesame"
