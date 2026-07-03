@@ -13,6 +13,13 @@ resources:
   - transactions.yaml
   - users.yaml
   - worker.yaml
+  # sesame is the worker rewrite. It ships ALONGSIDE worker on purpose: it reuses
+  # worker's lane consumer group ("worker"), so the two share the DeliverGroup and
+  # messages load-balance across them — no double-processing, no gap. Once sesame is
+  # confirmed healthy, the worker-deletion PR removes worker.yaml (apps Kustomization
+  # has prune=true, so dropping it prunes the worker Deployment/PDB/DopplerSecret)
+  # along with app/worker/ and images/worker.yaml.
+  - sesame.yaml
   - twitch-ingress.yaml
   - network-policies.yaml
   - linkerd-auth.yaml
