@@ -36,23 +36,27 @@ function setupField(canvas) {
         }));
     }
 
+    // renderMote advances one mote and paints it, wrapping it around the
+    // viewport edges (up-and-out re-enters from the bottom at a fresh x).
+    function renderMote(m) {
+        m.y += m.vy;
+        m.x += m.vx;
+        if (m.y < -10) { m.y = h + 10; m.x = Math.random() * w; }
+        if (m.x < -10) m.x = w + 10; else if (m.x > w + 10) m.x = -10;
+        const col = m.warm < warmth ? "201, 168, 124" : "82, 183, 136";
+        ctx.beginPath();
+        ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${col}, ${m.a.toFixed(3)})`;
+        ctx.fill();
+    }
+
     function draw() {
         if (!w || !h || !motes.length) build();
         if (!w || !h) return;
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         ctx.clearRect(0, 0, w, h);
         ctx.globalCompositeOperation = "lighter";
-        for (const m of motes) {
-            m.y += m.vy;
-            m.x += m.vx;
-            if (m.y < -10) { m.y = h + 10; m.x = Math.random() * w; }
-            if (m.x < -10) m.x = w + 10; else if (m.x > w + 10) m.x = -10;
-            const col = m.warm < warmth ? "201, 168, 124" : "82, 183, 136";
-            ctx.beginPath();
-            ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(${col}, ${m.a.toFixed(3)})`;
-            ctx.fill();
-        }
+        for (const m of motes) renderMote(m);
         ctx.globalCompositeOperation = "source-over";
     }
 
