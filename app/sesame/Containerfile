@@ -1,0 +1,22 @@
+# sesame (Go, root module) - build from the REPO ROOT:
+#   podman build -t itsbagelbot/sesame -f app/sesame/Containerfile .
+FROM docker.io/library/golang:1.26-bookworm AS build
+
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY internal/domain internal/domain
+COPY internal/projection internal/projection
+COPY internal/utils internal/utils
+COPY pkg pkg
+COPY app/sesame app/sesame
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /sesame ./app/sesame
+
+# ---------------------------------------------------------------------------
+FROM gcr.io/distroless/static-debian12:nonroot
+
+COPY --from=build /sesame /sesame
+
+USER nonroot
+ENTRYPOINT ["/sesame"]
