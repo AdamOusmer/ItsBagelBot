@@ -158,6 +158,29 @@ func (s *Server) tebexReachable(c *fiber.Ctx) error {
 	return c.SendString("ok\n")
 }
 
+// billingEventActions maps each Tebex event type that changes an entitlement to
+// the action it applies. notify is true for the activation group, where a
+// first-time gift warrants a recipient ping (notifyGift itself skips renewals).
+// Handling a new event type is one entry here, not a new branch.
+var billingEventActions = map[string]struct {
+	action billingrpc.Action
+	notify bool
+}{
+	"payment.completed":                        {billingrpc.ActionActivate, true},
+	"recurring-payment.started":                {billingrpc.ActionActivate, true},
+	"recurring-payment.renewed":                {billingrpc.ActionActivate, true},
+	"recurring-payment.cancellation.requested": {billingrpc.ActionCancelRequested, false},
+	"recurring-payment.cancellation.aborted":   {billingrpc.ActionCancelAborted, false},
+	"payment.dispute.won":                      {billingrpc.ActionCancelAborted, false},
+	"recurring-payment.ended":                  {billingrpc.ActionRevoke, false},
+	"payment.refunded":                         {billingrpc.ActionRevoke, false},
+	"payment.dispute.opened":                   {billingrpc.ActionRevoke, false},
+	"payment.dispute.lost":                     {billingrpc.ActionRevoke, false},
+}
+
+// tebexWebhook owns only the HTTP-and-verification concern: authenticate the
+// request, then route the event to its handler. The per-outcome work lives in
+// the dispatch helpers below.
 func (s *Server) tebexWebhook(c *fiber.Ctx) error {
 
 	if s.cfg.WebhookSecret == "" {
@@ -180,53 +203,68 @@ func (s *Server) tebexWebhook(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "webhook id and type are required"})
 	}
 
-	ctx := c.UserContext()
-
-	switch event.Type {
-	case "validation.webhook":
-		if err := s.saveEvent(ctx, event, repository.WebhookValidation, recordablePayment{}, ""); err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to save webhook state"})
-		}
-		return c.Status(fiber.StatusOK).JSON(fiber.Map{"id": event.ID})
-
-	case "payment.completed", "recurring-payment.started", "recurring-payment.renewed":
-		payment, err := recordableFromEvent(event)
-		if err != nil {
-			return s.failEvent(c, event, payment, fiber.StatusUnprocessableEntity, err)
-		}
-		if err := s.applyBilling(ctx, event, payment, billingrpc.ActionActivate); err != nil {
-			return s.failEvent(c, event, payment, fiber.StatusInternalServerError, err)
-		}
-		if err := s.saveEvent(ctx, event, repository.WebhookProcessed, payment, ""); err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to save webhook state"})
-		}
-		s.notifyGift(ctx, event, payment)
-		return c.SendStatus(fiber.StatusNoContent)
-
-	case "recurring-payment.cancellation.requested":
-		return s.applyLifecycle(c, event, billingrpc.ActionCancelRequested)
-
-	case "recurring-payment.cancellation.aborted", "payment.dispute.won":
-		return s.applyLifecycle(c, event, billingrpc.ActionCancelAborted)
-
-	case "recurring-payment.ended", "payment.refunded", "payment.dispute.opened", "payment.dispute.lost":
-		return s.applyLifecycle(c, event, billingrpc.ActionRevoke)
+	if event.Type == "validation.webhook" {
+		return s.handleValidation(c, event)
 	}
-
-	// The trial webhooks exist in the Tebex panel but not (yet) in their docs,
-	// so match by prefix rather than exact strings.
+	if spec, ok := billingEventActions[event.Type]; ok {
+		return s.processBillingEvent(c, event, spec.action, spec.notify)
+	}
+	// Trial webhooks exist in the Tebex panel but not (yet) in their docs, so
+	// match by prefix rather than exact strings.
 	if strings.HasPrefix(event.Type, "recurring-payment.trial") {
 		return s.trialLifecycle(c, event)
 	}
-
 	// Everything else changes no entitlement and is audited as ignored:
 	// payment.declined (nothing was granted), payment.dispute.closed (won/lost
-	// carry the outcome), recurring-payment status changes (renewed/ended carry
-	// the transitions we act on), and any future types.
-	if err := s.saveEvent(ctx, event, repository.WebhookIgnored, recordablePayment{}, ""); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to save webhook state"})
+	// carry the outcome), status changes, and any future types.
+	return s.auditIgnored(c, event)
+}
+
+// processBillingEvent is the single path every entitlement-changing event
+// follows: parse the payment, apply the billing action, persist the processed
+// audit row, and (for activations) notify the gift recipient. A parse or apply
+// failure is recorded and surfaced so Tebex retries; a persist failure alone
+// returns 500.
+func (s *Server) processBillingEvent(c *fiber.Ctx, event tebexEvent, action billingrpc.Action, notify bool) error {
+	ctx := c.UserContext()
+
+	payment, err := recordableFromEvent(event)
+	if err != nil {
+		return s.failEvent(c, event, payment, fiber.StatusUnprocessableEntity, err)
+	}
+	if err := s.applyBilling(ctx, event, payment, action); err != nil {
+		return s.failEvent(c, event, payment, fiber.StatusInternalServerError, err)
+	}
+	if err := s.saveEvent(ctx, event, repository.WebhookProcessed, payment, ""); err != nil {
+		return s.saveError(c)
+	}
+	if notify {
+		s.notifyGift(ctx, event, payment)
 	}
 	return c.SendStatus(fiber.StatusNoContent)
+}
+
+// handleValidation acknowledges Tebex's endpoint-validation ping: record it and
+// echo the id back.
+func (s *Server) handleValidation(c *fiber.Ctx, event tebexEvent) error {
+	if err := s.saveEvent(c.UserContext(), event, repository.WebhookValidation, recordablePayment{}, ""); err != nil {
+		return s.saveError(c)
+	}
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{"id": event.ID})
+}
+
+// auditIgnored records an event that changes no entitlement and acknowledges it.
+func (s *Server) auditIgnored(c *fiber.Ctx, event tebexEvent) error {
+	if err := s.saveEvent(c.UserContext(), event, repository.WebhookIgnored, recordablePayment{}, ""); err != nil {
+		return s.saveError(c)
+	}
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+// saveError is the one response for a failed audit-log write, which makes Tebex
+// retry the delivery.
+func (s *Server) saveError(c *fiber.Ctx) error {
+	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to save webhook state"})
 }
 
 // trialLifecycle maps trial webhooks onto the billing actions: a started trial
@@ -237,17 +275,9 @@ func (s *Server) tebexWebhook(c *fiber.Ctx) error {
 // to paid arrives as payment.completed / recurring-payment.renewed.
 func (s *Server) trialLifecycle(c *fiber.Ctx, event tebexEvent) error {
 
-	var action billingrpc.Action
-	switch {
-	case strings.Contains(event.Type, "cancel"):
-		action = billingrpc.ActionCancelRequested
-	case strings.Contains(event.Type, "start"):
-		action = billingrpc.ActionActivate
-	default:
-		if err := s.saveEvent(c.UserContext(), event, repository.WebhookIgnored, recordablePayment{}, ""); err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to save webhook state"})
-		}
-		return c.SendStatus(fiber.StatusNoContent)
+	action, ok := trialAction(event.Type)
+	if !ok {
+		return s.auditIgnored(c, event)
 	}
 
 	payment, err := recordableFromEvent(event)
@@ -262,7 +292,7 @@ func (s *Server) trialLifecycle(c *fiber.Ctx, event tebexEvent) error {
 				zap.Error(err),
 			)
 			if err := s.saveEvent(c.UserContext(), event, repository.WebhookIgnored, payment, err.Error()); err != nil {
-				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to save webhook state"})
+				return s.saveError(c)
 			}
 			return c.SendStatus(fiber.StatusNoContent)
 		}
@@ -273,23 +303,22 @@ func (s *Server) trialLifecycle(c *fiber.Ctx, event tebexEvent) error {
 		return s.failEvent(c, event, payment, fiber.StatusInternalServerError, err)
 	}
 	if err := s.saveEvent(c.UserContext(), event, repository.WebhookProcessed, payment, ""); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to save webhook state"})
+		return s.saveError(c)
 	}
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
-func (s *Server) applyLifecycle(c *fiber.Ctx, event tebexEvent, action billingrpc.Action) error {
-	payment, err := recordableFromEvent(event)
-	if err != nil {
-		return s.failEvent(c, event, payment, fiber.StatusUnprocessableEntity, err)
+// trialAction picks the billing action a trial event drives, or false when the
+// event (ending-soon reminder, trial ended) changes nothing.
+func trialAction(eventType string) (billingrpc.Action, bool) {
+	switch {
+	case strings.Contains(eventType, "cancel"):
+		return billingrpc.ActionCancelRequested, true
+	case strings.Contains(eventType, "start"):
+		return billingrpc.ActionActivate, true
+	default:
+		return "", false
 	}
-	if err := s.applyBilling(c.UserContext(), event, payment, action); err != nil {
-		return s.failEvent(c, event, payment, fiber.StatusInternalServerError, err)
-	}
-	if err := s.saveEvent(c.UserContext(), event, repository.WebhookProcessed, payment, ""); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to save webhook state"})
-	}
-	return c.SendStatus(fiber.StatusNoContent)
 }
 
 func (s *Server) applyBilling(ctx context.Context, event tebexEvent, payment recordablePayment, action billingrpc.Action) error {
