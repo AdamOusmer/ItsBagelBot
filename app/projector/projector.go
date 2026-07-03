@@ -70,7 +70,7 @@ func (p *Projector) HandleUserChanged(msg *message.Message) error {
 		return nil
 	}
 
-	if err := p.store.SetUser(msg.Context(), dto.UserID, dto.Status, dto.IsActive, dto.Banned); err != nil {
+	if err := p.store.SetUser(msg.Context(), dto.UserID, dto.Status, dto.IsActive, dto.Banned, dto.Locale); err != nil {
 		return err
 	}
 	p.broadcastInvalidate(dto.UserID)

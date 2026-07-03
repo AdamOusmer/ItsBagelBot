@@ -5,6 +5,7 @@ import { warm } from '@bagel/shared/server/nats';
 import { warm as warmValkey } from '@bagel/shared/server/valkey-store';
 import { registerServerConfig } from '@bagel/shared/server/config';
 import { rumTransform } from '@bagel/shared/server/rum';
+import { detectLocale, LOCALE_COOKIE } from '@bagel/shared/i18n';
 import { startInvalidationListener } from '$lib/server/services';
 import { assertConfigSane } from '$lib/server/config-sanity';
 import dns from 'node:dns';
@@ -46,6 +47,15 @@ export const handle: Handle = async ({ event, resolve }) => {
   const cookie = event.cookies.get(COOKIE);
   event.locals.session = cookie ? open(cookie) : null;
 
+  // Resolve the UI locale once per request: explicit switcher cookie wins, else
+  // the browser's Accept-Language, else English. Exposed on locals so the root
+  // layout can hand it to the i18n context and the SSR'd <html lang> is correct.
+  const locale = detectLocale({
+    cookie: event.cookies.get(LOCALE_COOKIE),
+    accept: event.request.headers.get('accept-language')
+  });
+  event.locals.locale = locale;
+
   // New Relic: name the web transaction by SvelteKit route (not the raw URL, so
   // per-id paths group), and tag it with request/session context for faceting.
   const session = event.locals.session;
@@ -57,14 +67,25 @@ export const handle: Handle = async ({ event, resolve }) => {
   });
   if (session?.user_id) newrelic.setUserID(String(session.user_id));
 
+  // Compose the RUM injector with a one-shot <html lang> rewrite: the shell's
+  // opening tag ships lang="en" (app.html), so patch it to the resolved locale
+  // on the first chunk that carries it. Both transforms are per-request and
+  // streaming-safe.
+  const rum = rumTransform();
+  let langPatched = false;
   const res = await resolve(event, {
     // SvelteKit preloads js + css by default; add fonts so the SSR'd <head>
     // warms the woff2 files in parallel with the bundle instead of waiting for
     // CSS to parse first. Fewer round-trips, less FOUT/CLS on first paint.
     preload: ({ type }) => type === 'js' || type === 'css' || type === 'font',
-    // New Relic Browser (RUM) injection; single-chunk, streaming-safe (shared
-    // helper). No-op when the agent isn't connected (dev).
-    transformPageChunk: rumTransform()
+    transformPageChunk: (opts) => {
+      let html = rum(opts);
+      if (!langPatched && html.includes('<html')) {
+        html = html.replace('lang="en"', `lang="${locale}"`);
+        langPatched = true;
+      }
+      return html;
+    }
   });
 
   res.headers.set('X-Content-Type-Options', 'nosniff');

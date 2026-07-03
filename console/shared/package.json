@@ -22,6 +22,7 @@
     "./server/invalidation": "./lib/server/invalidation.ts",
     "./server/impersonation": "./lib/server/impersonation.ts",
     "./server/valkey-store": "./lib/server/valkey-store.ts",
+    "./i18n": "./lib/i18n/messages.ts",
     "./styles/tokens.css": "./styles/tokens.css",
     "./styles/app.css": "./styles/app.css",
     "./components/*": "./components/*"

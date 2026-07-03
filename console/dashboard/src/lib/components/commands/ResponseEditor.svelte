@@ -2,7 +2,9 @@
   // Response textarea with a variable palette (insert-at-cursor), live counter,
   // and a preview line that highlights {tokens} so authors can see what the bot
   // will substitute.
-  import { RESPONSE_MAX } from '@bagel/shared';
+  import { RESPONSE_MAX, getI18n } from '@bagel/shared';
+
+  const i18n = getI18n();
 
   let {
     value = $bindable(''),
@@ -13,10 +15,10 @@
   } = $props();
 
   const TOKENS = [
-    { token: '{user}', hint: 'who ran the command' },
-    { token: '{target}', hint: 'first argument, e.g. a mentioned user' },
-    { token: '{uptime}', hint: 'how long the stream has been live' },
-    { token: '{followage}', hint: 'how long the user has followed' }
+    { token: '{user}', hint: 'commandEditor.tokUser' },
+    { token: '{target}', hint: 'commandEditor.tokTarget' },
+    { token: '{uptime}', hint: 'commandEditor.tokUptime' },
+    { token: '{followage}', hint: 'commandEditor.tokFollowage' }
   ];
 
   let area: HTMLTextAreaElement;
@@ -41,16 +43,16 @@
     {name}
     rows="4"
     maxlength={RESPONSE_MAX}
-    placeholder="What the bot replies… insert variables below."
+    placeholder={i18n.t('commandEditor.responsePlaceholder')}
     bind:value
     bind:this={area}
   ></textarea>
   <span class="resp-count">{value.length}/{RESPONSE_MAX}</span>
 </div>
 
-<div class="palette" role="toolbar" aria-label="Insert variable">
-  {#each TOKENS as t (t.token)}
-    <button type="button" class="var" title={t.hint} onclick={() => insert(t.token)}>{t.token}</button>
+<div class="palette" role="toolbar" aria-label={i18n.t('commandEditor.insertVariable')}>
+  {#each TOKENS as tk (tk.token)}
+    <button type="button" class="var" title={i18n.t(tk.hint)} onclick={() => insert(tk.token)}>{tk.token}</button>
   {/each}
 </div>
 

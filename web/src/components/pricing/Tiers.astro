@@ -6,30 +6,22 @@
  * pointer tilt via [data-tilt] (interactions.js).
  */
 import Card from '../ui/Card.astro';
+import { getLangFromUrl, useTranslations } from '../../i18n/ui';
+
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
 
 const freeFeatures = [
-    'Chat moderation & auto-filters',
-    'Custom commands & variables',
-    'Song requests & queue',
-    'Polls & giveaways',
-    'Loyalty & engagement tools',
-    'Analytics dashboard',
-    'Community support via Discord',
-    'Every future feature too',
+    t('tier.freeFeat1'), t('tier.freeFeat2'), t('tier.freeFeat3'), t('tier.freeFeat4'),
+    t('tier.freeFeat5'), t('tier.freeFeat6'), t('tier.freeFeat7'), t('tier.freeFeat8'),
 ];
 
 const premiumFeatures = [
-    'Everything in Free, obviously',
-    'Priority message processing queue',
-    'Faster command response times',
-    'Priority support',
+    t('tier.premiumFeat1'), t('tier.premiumFeat2'), t('tier.premiumFeat3'), t('tier.premiumFeat4'),
 ];
 
 const enterpriseFeatures = [
-    'Everything in Premium',
-    'Dedicated hardware',
-    'Multi-streamer management',
-    'Custom SLA & account manager',
+    t('tier.enterpriseFeat1'), t('tier.enterpriseFeat2'), t('tier.enterpriseFeat3'), t('tier.enterpriseFeat4'),
 ];
 ---
 
@@ -39,14 +31,13 @@ const enterpriseFeatures = [
         <Card class="tier tier--free" data-reveal>
             <div class="tier-free__layout">
                 <div class="tier-free__head">
-                    <span class="tier__name">Free</span>
+                    <span class="tier__name">{t('tier.free')}</span>
                     <div class="tier__price">
                         <span class="tier__amount">$0</span>
-                        <span class="tier__suffix">/month, forever</span>
+                        <span class="tier__suffix">{t('tier.freeSuffix')}</span>
                     </div>
                     <p class="tier__desc">
-                        Not a trial. Not a teaser. The entire toolkit, because the
-                        best moderation shouldn't depend on your budget.
+                        {t('tier.freeDesc')}
                     </p>
                     <a
                         class="tier__btn tier__btn--main"
@@ -54,7 +45,7 @@ const enterpriseFeatures = [
                         target="_blank"
                         rel="noopener noreferrer"
                         data-magnetic="0.3"
-                    >Get started</a>
+                    >{t('tier.getStarted')}</a>
                 </div>
 
                 <ul class="tier__features tier-free__features">
@@ -76,16 +67,15 @@ const enterpriseFeatures = [
         <!-- Premium: the tip jar -->
         <div class="tiers__tilt" data-tilt="5">
             <Card class="tier tier--premium" data-reveal style="--reveal-i: 1">
-                <span class="tier__badge">The tip jar, with perks</span>
-                <span class="tier__name">Premium</span>
+                <span class="tier__badge">{t('tier.premiumBadge')}</span>
+                <span class="tier__name">{t('tier.premium')}</span>
                 <div class="tier__price">
                     <span class="tier__prefix" aria-hidden="true">$</span>
                     <span class="tier__amount" data-count-up data-target="5">0</span>
-                    <span class="tier__suffix">/month</span>
+                    <span class="tier__suffix">{t('tier.premiumSuffix')}</span>
                 </div>
                 <p class="tier__desc">
-                    Keeps the servers warm and bumps you to the front of the queue
-                    when chat gets loud.
+                    {t('tier.premiumDesc')}
                 </p>
                 <ul class="tier__features">
                     {premiumFeatures.map((feature, fi) => (
@@ -105,19 +95,19 @@ const enterpriseFeatures = [
                     href="https://dashboard.itsbagelbot.com/billing?subscribe=1"
                     target="_blank"
                     rel="noopener noreferrer"
-                >Chip in</a>
+                >{t('tier.chipIn')}</a>
             </Card>
         </div>
 
         <!-- Enterprise -->
         <div class="tiers__tilt" data-tilt="5">
             <Card class="tier tier--enterprise" data-reveal style="--reveal-i: 2">
-                <span class="tier__name">Enterprise</span>
+                <span class="tier__name">{t('tier.enterprise')}</span>
                 <div class="tier__price">
-                    <span class="tier__amount tier__amount--static">Custom</span>
+                    <span class="tier__amount tier__amount--static">{t('tier.enterpriseAmount')}</span>
                 </div>
                 <p class="tier__desc">
-                    Dedicated infrastructure for orgs running many channels at once.
+                    {t('tier.enterpriseDesc')}
                 </p>
                 <ul class="tier__features">
                     {enterpriseFeatures.map((feature, fi) => (
@@ -130,13 +120,13 @@ const enterpriseFeatures = [
                         </li>
                     ))}
                 </ul>
-                <a class="tier__btn tier__btn--outline" href="mailto:enterprise@itsbagelbot.com">Contact sales</a>
+                <a class="tier__btn tier__btn--outline" href="mailto:enterprise@itsbagelbot.com">{t('tier.contactSales')}</a>
             </Card>
         </div>
     </div>
 
     <p class="tiers__oath" data-reveal>
-        no feature gates · no trials · no card on file · cancelling is one click
+        {t('tier.oath')}
     </p>
 </section>
 

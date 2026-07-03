@@ -1,4 +1,8 @@
 ---
+import { getLangFromUrl, useTranslations } from '../../i18n/ui';
+
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
 ---
 
 
@@ -30,38 +34,37 @@
 
 
     <div class="header-material">
-        <p class="top-text">Freshly baked for Twitch chat</p>
+        <p class="top-text">{t('hero.topText')}</p>
 
         <h1>
-            <span class="tan">Your Stream.</span>
-            <span>Your Tools.</span>
-            <span class="green">Your Rules.</span>
+            <span class="tan">{t('hero.title1')}</span>
+            <span>{t('hero.title2')}</span>
+            <span class="green">{t('hero.title3')}</span>
         </h1>
 
 
         <p>
-            ItsBagelBot is the all-in-one Twitch companion baked for independence. One setup,
-            every tool - no corporate tracking, no recurring fees, no compromises.
+            {t('hero.lede')}
         </p>
 
         <a class="dev-banner-link" href="https://discord.gg/SZ2remwSDv" target="_blank" rel="noopener noreferrer">
             <div class="dev-banner">
                 <div class="dev-banner__dot"></div>
                 <div class="dev-banner__text">
-                    <strong>ItsBagelBot is in active development</strong>
-                    <p>The early-access is on the way. Join the discord for more updates.</p>
+                    <strong>{t('hero.devTitle')}</strong>
+                    <p>{t('hero.devBody')}</p>
                 </div>
-                <span class="dev-banner__badge">Alpha</span>
+                <span class="dev-banner__badge">{t('hero.devBadge')}</span>
             </div>
         </a>
 
         <div class="badges">
 
-            <span>Privacy-First</span>
-            <span>One-Time Setup</span>
-            <span>Eco-Friendly</span>
-            <span>Source Available</span>
-            <span>All Tools Included</span>
+            <span>{t('hero.badge1')}</span>
+            <span>{t('hero.badge2')}</span>
+            <span>{t('hero.badge3')}</span>
+            <span>{t('hero.badge4')}</span>
+            <span>{t('hero.badge5')}</span>
 
         </div>
     </div>

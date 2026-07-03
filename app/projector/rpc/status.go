@@ -99,7 +99,7 @@ func (s *statusRPC) tierOf(ctx context.Context, id uint64) statusEntry {
 	// 1. In-process cache check
 	entry, err := s.views.GetOrLoad(ctx, tierKey(id), func(ctx context.Context) (statusEntry, error) {
 		// 2. Valkey check
-		statusStr, active, banned, err := s.valkey.GetUser(ctx, id)
+		statusStr, active, banned, _, err := s.valkey.GetUser(ctx, id)
 		if err == nil && statusStr != "" {
 			if !active {
 				return statusEntry{Tier: "standard", Banned: banned}, nil
@@ -112,13 +112,14 @@ func (s *statusRPC) tierOf(ctx context.Context, id uint64) statusEntry {
 			Status   string `json:"status"`
 			IsActive bool   `json:"is_active"`
 			Banned   bool   `json:"banned"`
+			Locale   string `json:"locale"`
 		}](ctx, s.nc, s.usersTopic, map[string]string{"user_id": fmt.Sprint(id)})
 		if err != nil {
 			return statusEntry{Tier: "standard"}, nil
 		}
 
-		// Populate cache
-		_ = s.valkey.SetUser(ctx, id, reply.Status, reply.IsActive, reply.Banned)
+		// Populate cache (seeds locale too when the users service returned one).
+		_ = s.valkey.SetUser(ctx, id, reply.Status, reply.IsActive, reply.Banned, reply.Locale)
 
 		if !reply.IsActive {
 			return statusEntry{Tier: "standard", Banned: reply.Banned}, nil

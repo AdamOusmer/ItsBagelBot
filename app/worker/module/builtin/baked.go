@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"time"
 
+	workeri18n "ItsBagelBot/app/worker/i18n"
 	"ItsBagelBot/app/worker/module"
 	"ItsBagelBot/internal/domain/outgress"
 
@@ -72,7 +73,7 @@ func (m *BakedModule) Commands() []module.Command {
 				emit(&module.Output{
 					Type:          outgress.TypeChat,
 					BroadcasterID: c.Env.BroadcasterUserID,
-					Text:          "Pong! ItsBagelBot has been up for " + humanizeUptime(time.Since(m.startedAt)),
+					Text:          fmt.Sprintf(workeri18n.T(c.Locale, "ping"), humanizeUptime(time.Since(m.startedAt))),
 				})
 				return nil
 			},

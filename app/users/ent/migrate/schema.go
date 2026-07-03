@@ -137,6 +137,7 @@ var (
 		{Name: "is_active", Type: field.TypeBool, Default: true},
 		{Name: "banned", Type: field.TypeBool, Default: false},
 		{Name: "status", Type: field.TypeEnum, Enums: []string{"free", "paid", "vip"}, Default: "free"},
+		{Name: "locale", Type: field.TypeString, Size: 8, Default: "en"},
 		{Name: "subscription_source", Type: field.TypeString, Default: ""},
 		{Name: "subscription_expires_at", Type: field.TypeTime, Nullable: true},
 		{Name: "subscription_ref", Type: field.TypeString, Nullable: true},

@@ -8,6 +8,9 @@
   import Icon from './Icon.svelte';
   import type { IconName } from '../lib/icons';
   import type { NavLink, NavGroupDef } from '../lib/types';
+  import { getI18n } from '../lib/i18n/context';
+
+  const { t } = getI18n();
 
   // Log out is deliberately NOT here: it lives in the topbar's account menu,
   // which keeps the dock to pure navigation and phones uncrowded.
@@ -63,7 +66,7 @@
   ></div>
 {/if}
 
-<nav class="dock" aria-label="Main navigation">
+<nav class="dock" aria-label={t('nav.ariaMain')}>
   <div class="dock-inner">
     {#if grouped}
       {#if home}

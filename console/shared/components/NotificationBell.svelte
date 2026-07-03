@@ -21,13 +21,19 @@
     unreadCount = 0,
     viewAllHref,
     onMarkRead,
-    emptyLabel = 'Nothing yet.'
+    emptyLabel = 'Nothing yet.',
+    title = 'Notifications',
+    viewAllLabel = 'View all →',
+    readLabel = 'Read'
   }: {
     notifications: BellNotification[];
     unreadCount?: number;
     viewAllHref: string;
     onMarkRead?: (id: number) => void;
     emptyLabel?: string;
+    title?: string;
+    viewAllLabel?: string;
+    readLabel?: string;
   } = $props();
 
   let open = $state(false);
@@ -39,7 +45,7 @@
   <button
     class="icon-btn bell-btn"
     class:open
-    aria-label="Notifications"
+    aria-label={title}
     aria-expanded={open}
     aria-haspopup="menu"
     onclick={() => (open = !open)}
@@ -60,8 +66,8 @@
 
     <div class="dropdown" role="menu" aria-label="Recent notifications">
       <div class="drop-head">
-        <h4>Notifications</h4>
-        <a class="view-all" href={viewAllHref} onclick={() => (open = false)}>View all →</a>
+        <h4>{title}</h4>
+        <a class="view-all" href={viewAllHref} onclick={() => (open = false)}>{viewAllLabel}</a>
       </div>
       {#if notifications.length === 0}
         <p class="empty">{emptyLabel}</p>
@@ -76,7 +82,7 @@
               </div>
               {#if onMarkRead && !n.read}
                 <button type="button" class="btn ghost sm" onclick={() => onMarkRead?.(n.id)}>
-                  <Icon name="check" size={12} /> Read
+                  <Icon name="check" size={12} /> {readLabel}
                 </button>
               {/if}
             </div>

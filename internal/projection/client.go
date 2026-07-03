@@ -31,11 +31,16 @@ import (
 	"go.uber.org/zap"
 )
 
-// User is the projected tier state of one broadcaster.
+// User is the projected tier state of one broadcaster. Live state is NOT here:
+// the worker reads it from the dedicated live:<id> store (module.IsLiveChecker),
+// never from this projection.
 type User struct {
 	Status   string `json:"status"`
 	IsActive bool   `json:"is_active"`
-	IsLive   bool   `json:"is_live"`
+	// Locale is the broadcaster's console UI language ("en", "fr", …), used to
+	// answer system commands in their language. Empty means the projection has
+	// no locale yet; callers treat that as the default language.
+	Locale string `json:"locale,omitempty"`
 }
 
 // Premium reports whether the user should be served on the premium lane. It
@@ -143,10 +148,10 @@ func (c *Client) Close() {
 // so editing one command on a 50-pod fleet no longer triggers 50 HGETALLs.
 //
 // Scope -> cache mapping:
-//   - "commands"          -> per-command entries named in Keys
-//   - "modules"           -> modules cache (whole)
-//   - "status" or "grant" -> users cache
-//   - "delegation"        -> ignored (worker does not cache delegations)
+//   - "commands"                    -> per-command entries named in Keys
+//   - "modules"                     -> modules cache (whole)
+//   - "status" / "grant" / "locale" -> users cache
+//   - "delegation"                  -> ignored (worker does not cache delegations)
 func (c *Client) StartInvalidationListener(prefix string) {
 	subject := prefix + ".>"
 	sub, err := c.nc.Subscribe(subject, func(msg *nats.Msg) {
@@ -173,10 +178,11 @@ func (c *Client) StartInvalidationListener(prefix string) {
 			}
 		case "modules":
 			c.modules.Invalidate(key("modules", id))
-		case "status", "grant", "live":
-			// Tier/ban (status/grant) and the legacy live field both live on the
-			// projected User, so drop it. The dedicated live store keeps its own
-			// listener for the live key; this only keeps User coherent.
+		case "status", "grant", "live", "locale":
+			// Tier/ban (status/grant), the legacy live field and the UI locale
+			// all live on the projected User, so drop it. The dedicated live
+			// store keeps its own listener for the live key; this only keeps
+			// User coherent.
 			c.users.Invalidate(key("user", id))
 		case "delegation":
 			// Worker does not cache delegations; nothing to evict.
@@ -194,18 +200,17 @@ func (c *Client) StartInvalidationListener(prefix string) {
 
 func (c *Client) User(ctx context.Context, userID uint64) (User, error) {
 	return c.users.GetOrLoad(ctx, key("user", userID), func(ctx context.Context) (User, error) {
-		status, active, live, err := c.store.GetUser(ctx, userID)
+		status, active, _, locale, err := c.store.GetUser(ctx, userID)
 		if err == nil && status != "" {
-			return User{Status: status, IsActive: active, IsLive: live}, nil
+			return User{Status: status, IsActive: active, Locale: locale}, nil
 		}
 
 		reply, err := bus.RequestJSONTimeout[User](ctx, c.nc, c.subjects.Users, projectionRequest(userID), c.rpcTimeout)
 		if err != nil {
 			// Unknown users fall back to standard, never premium, so a
 			// projector outage cannot promote traffic.
-			return User{Status: "standard", IsLive: live}, nil
+			return User{Status: "standard"}, nil
 		}
-		reply.IsLive = live
 		return reply, nil
 	})
 }

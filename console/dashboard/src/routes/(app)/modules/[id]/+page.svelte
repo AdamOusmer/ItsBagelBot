@@ -1,7 +1,9 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
-  import { Icon, Card, PageHead } from '@bagel/shared';
+  import { Icon, Card, PageHead, getI18n } from '@bagel/shared';
   let { data } = $props();
+
+  const { t } = getI18n();
 
   const def = $derived(data.def);
   // svelte-ignore state_referenced_locally
@@ -43,22 +45,22 @@
 </script>
 
 <section class="screen active">
-  <a class="back" href="/modules"><Icon name="x" size={13} /> All modules</a>
-  <PageHead eyebrow="Module" description={def.description}>{def.label}</PageHead>
+  <a class="back" href="/modules"><Icon name="x" size={13} /> {t('modules.allModules')}</a>
+  <PageHead eyebrow={t('modules.detailEyebrow')} description={def.description}>{def.label}</PageHead>
 
   <Card style="padding:0;max-width:640px">
     <form
       method="POST"
       action="?/save"
       use:enhance={() => async ({ result }) => {
-        if (result.type === 'success' && result.data?.ok) flash('ok', `${def.label} saved.`);
-        else if (result.type === 'failure') flash('err', String(result.data?.error ?? 'Save failed.'));
+        if (result.type === 'success' && result.data?.ok) flash('ok', t('modules.saved', { label: def.label }));
+        else if (result.type === 'failure') flash('err', String(result.data?.error ?? t('modules.saveFailed')));
       }}
     >
       <div class="row toprow">
         <div class="row-text">
-          <span class="row-label">Enabled</span>
-          <span class="row-help">Turn this module on or off for your channel.</span>
+          <span class="row-label">{t('modules.enabled')}</span>
+          <span class="row-help">{t('modules.enabledHelp')}</span>
         </div>
         <input type="hidden" name="is_enabled" value={enabled ? 'on' : ''} />
         <button
