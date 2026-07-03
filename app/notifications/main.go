@@ -76,12 +76,18 @@ func main() {
 	userGetSubject := env.Get("NATS_ADMIN_USER_SUBJECT_PREFIX", "bagel.rpc.admin.user") + ".get"
 
 	adminPrefix := env.Get("NATS_ADMIN_NOTIFICATIONS_SUBJECT_PREFIX", "bagel.rpc.admin.notifications")
-	if err := rpc.SubscribeAdmin(nc, repo, adminPrefix, invalidationPrefix, userGetSubject, queueGroup, nrApp, log); err != nil {
+	adminCfg := rpc.AdminConfig{
+		Prefix:             adminPrefix,
+		InvalidationPrefix: invalidationPrefix,
+		UserGetSubject:     userGetSubject,
+		QueueGroup:         queueGroup,
+	}
+	if err := rpc.SubscribeAdmin(nc, repo, adminCfg, nrApp, log); err != nil {
 		log.Fatal("failed to subscribe admin rpc", zap.Error(err))
 	}
 
 	userPrefix := env.Get("NATS_NOTIFICATIONS_SUBJECT_PREFIX", "bagel.rpc.notifications")
-	if err := rpc.SubscribeUser(nc, repo, userPrefix, queueGroup, nrApp, log); err != nil {
+	if err := rpc.SubscribeUser(nc, repo, rpc.UserConfig{Prefix: userPrefix, QueueGroup: queueGroup}, nrApp, log); err != nil {
 		log.Fatal("failed to subscribe user rpc", zap.Error(err))
 	}
 

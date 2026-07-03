@@ -24,37 +24,42 @@ func New(client *ent.Client) *Notifications {
 	return &Notifications{client: client}
 }
 
-// Create records a notification. targetUserID is nil for scope=broadcast.
-func (r *Notifications) Create(
-	ctx context.Context,
-	requestID string,
-	scope notification.Scope,
-	targetUserID *uint64,
-	title, body string,
-	level notification.Level,
-	createdBy uint64,
-	createdByLogin string,
-	expiresAt *time.Time,
-) (*ent.Notification, bool, error) {
+// CreateParams describes one notification to record. TargetUserID is nil for
+// scope=broadcast; RequestID (when set) deduplicates redelivered sends.
+type CreateParams struct {
+	RequestID      string
+	Scope          notification.Scope
+	TargetUserID   *uint64
+	Title          string
+	Body           string
+	Level          notification.Level
+	CreatedBy      uint64
+	CreatedByLogin string
+	ExpiresAt      *time.Time
+}
+
+// Create records a notification. The bool reports whether a new row was
+// inserted (false = an earlier delivery of the same RequestID won).
+func (r *Notifications) Create(ctx context.Context, p CreateParams) (*ent.Notification, bool, error) {
 	row, err := db.WithQuery(ctx, func(ctx context.Context) (*ent.Notification, error) {
 		q := r.client.Notification.Create().
-			SetScope(scope).
-			SetTitle(title).
-			SetBody(body).
-			SetLevel(level).
-			SetCreatedBy(createdBy).
-			SetCreatedByLogin(createdByLogin).
-			SetNillableTargetUserID(targetUserID).
-			SetNillableExpiresAt(expiresAt)
-		if requestID != "" {
-			q.SetRequestID(requestID)
+			SetScope(p.Scope).
+			SetTitle(p.Title).
+			SetBody(p.Body).
+			SetLevel(p.Level).
+			SetCreatedBy(p.CreatedBy).
+			SetCreatedByLogin(p.CreatedByLogin).
+			SetNillableTargetUserID(p.TargetUserID).
+			SetNillableExpiresAt(p.ExpiresAt)
+		if p.RequestID != "" {
+			q.SetRequestID(p.RequestID)
 		}
 		return q.Save(ctx)
 	})
 	if err == nil {
 		return row, true, nil
 	}
-	if !ent.IsConstraintError(err) || requestID == "" {
+	if !ent.IsConstraintError(err) || p.RequestID == "" {
 		return nil, false, err
 	}
 
@@ -62,7 +67,7 @@ func (r *Notifications) Create(
 	// row as success so every RPC delivery produces the same reply without a
 	// second insert or cache invalidation.
 	row, lookupErr := db.WithQuery(ctx, func(ctx context.Context) (*ent.Notification, error) {
-		return r.client.Notification.Query().Where(notification.RequestIDEQ(requestID)).Only(ctx)
+		return r.client.Notification.Query().Where(notification.RequestIDEQ(p.RequestID)).Only(ctx)
 	})
 	if lookupErr != nil {
 		return nil, false, lookupErr

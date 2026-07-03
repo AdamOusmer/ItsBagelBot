@@ -26,39 +26,49 @@ type adminRPC struct {
 	log                *zap.Logger
 }
 
+// AdminConfig carries the NATS wiring for the admin RPC surface.
+type AdminConfig struct {
+	Prefix             string
+	InvalidationPrefix string
+	UserGetSubject     string
+	QueueGroup         string
+}
+
 // SubscribeAdmin registers the admin-console verbs: compose/send a
 // notification, list the sent history, and retract one.
-func SubscribeAdmin(nc *nats.Conn, repo *repository.Notifications, prefix, invalidationPrefix, userGetSubject, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
+func SubscribeAdmin(nc *nats.Conn, repo *repository.Notifications, cfg AdminConfig, app *newrelic.Application, log *zap.Logger) error {
 	a := &adminRPC{
 		repo:               repo,
 		nc:                 nc,
-		invalidationPrefix: invalidationPrefix,
-		userGetSubject:     userGetSubject,
+		invalidationPrefix: cfg.InvalidationPrefix,
+		userGetSubject:     cfg.UserGetSubject,
 		log:                log,
 	}
 
 	if err := bus.QueueSubscribeJSON[notificationsrpc.SendRequest, notificationsrpc.SendReply](
-		a.nc, prefix+".send", queueGroup, 5*time.Second, app, log, a.send); err != nil {
+		a.nc, cfg.Prefix+".send", cfg.QueueGroup, 5*time.Second, app, log, a.send); err != nil {
 		return err
 	}
 	if err := bus.QueueSubscribeJSON[notificationsrpc.ListAdminRequest, notificationsrpc.ListAdminReply](
-		a.nc, prefix+".list", queueGroup, 3*time.Second, app, log, a.list); err != nil {
+		a.nc, cfg.Prefix+".list", cfg.QueueGroup, 3*time.Second, app, log, a.list); err != nil {
 		return err
 	}
 	if err := bus.QueueSubscribeJSON[notificationsrpc.DeleteRequest, notificationsrpc.DeleteReply](
-		a.nc, prefix+".delete", queueGroup, 3*time.Second, app, log, a.delete); err != nil {
+		a.nc, cfg.Prefix+".delete", cfg.QueueGroup, 3*time.Second, app, log, a.delete); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (a *adminRPC) send(ctx context.Context, req notificationsrpc.SendRequest) notificationsrpc.SendReply {
+// parseSendRequest validates the compose form fields and renders them as
+// repository parameters (target resolution happens separately: it needs I/O).
+func parseSendRequest(req notificationsrpc.SendRequest) (repository.CreateParams, error) {
 	scope := notification.Scope(req.Scope)
 	if err := notification.ScopeValidator(scope); err != nil {
-		return notificationsrpc.SendReply{Error: "scope must be broadcast or direct"}
+		return repository.CreateParams{}, fmt.Errorf("scope must be broadcast or direct")
 	}
 	if req.Title == "" || req.Body == "" {
-		return notificationsrpc.SendReply{Error: "title and body are required"}
+		return repository.CreateParams{}, fmt.Errorf("title and body are required")
 	}
 
 	level := notification.Level(req.Level)
@@ -66,56 +76,80 @@ func (a *adminRPC) send(ctx context.Context, req notificationsrpc.SendRequest) n
 		level = notification.LevelInfo
 	}
 	if err := notification.LevelValidator(level); err != nil {
-		return notificationsrpc.SendReply{Error: "level must be info, success, warning or critical"}
+		return repository.CreateParams{}, fmt.Errorf("level must be info, success, warning or critical")
 	}
 	actorID, err := strconv.ParseUint(req.ActorID, 10, 64)
 	if err != nil {
-		return notificationsrpc.SendReply{Error: "actor_id must be numeric"}
+		return repository.CreateParams{}, fmt.Errorf("actor_id must be numeric")
 	}
-	var target *uint64
-	if scope == notification.ScopeDirect {
+
+	return repository.CreateParams{
+		RequestID:      req.RequestID,
+		Scope:          scope,
+		Title:          req.Title,
+		Body:           req.Body,
+		Level:          level,
+		CreatedBy:      actorID,
+		CreatedByLogin: req.ActorLogin,
+		ExpiresAt:      req.ExpiresAt,
+	}, nil
+}
+
+func (a *adminRPC) send(ctx context.Context, req notificationsrpc.SendRequest) notificationsrpc.SendReply {
+	params, err := parseSendRequest(req)
+	if err != nil {
+		return notificationsrpc.SendReply{Error: err.Error()}
+	}
+
+	if params.Scope == notification.ScopeDirect {
 		id, err := a.resolveTarget(ctx, req.TargetUserID, req.TargetUsername)
 		if err != nil {
 			return notificationsrpc.SendReply{Error: err.Error()}
 		}
-		target = &id
+		params.TargetUserID = &id
 	}
 
-	row, created, err := a.repo.Create(ctx, req.RequestID, scope, target, req.Title, req.Body, level, actorID, req.ActorLogin, req.ExpiresAt)
+	row, created, err := a.repo.Create(ctx, params)
 	if err != nil {
 		return notificationsrpc.SendReply{Error: err.Error()}
 	}
 
 	if created {
-		a.invalidate(target)
+		a.invalidate(params.TargetUserID)
 		a.log.Info("admin notification sent",
-			zap.String("scope", req.Scope), zap.Int("id", row.ID), zap.Uint64("actor", actorID))
+			zap.String("scope", req.Scope), zap.Int("id", row.ID), zap.Uint64("actor", params.CreatedBy))
 	} else {
 		a.log.Warn("duplicate admin notification suppressed",
-			zap.String("scope", req.Scope), zap.Int("id", row.ID), zap.Uint64("actor", actorID))
+			zap.String("scope", req.Scope), zap.Int("id", row.ID), zap.Uint64("actor", params.CreatedBy))
 	}
 
 	view := viewOf(row, false)
 	return notificationsrpc.SendReply{Notification: &view}
 }
 
-func (a *adminRPC) list(ctx context.Context, req notificationsrpc.ListAdminRequest) notificationsrpc.ListAdminReply {
-	pageSize := req.Limit
+// clampAdminPage bounds the requested page/limit to the admin window and
+// returns the fetch limit (one extra row probes for a following page).
+func clampAdminPage(req notificationsrpc.ListAdminRequest) (page, pageSize, fetchLimit int) {
+	pageSize = req.Limit
 	if pageSize <= 0 || pageSize > repository.AdminPageSize {
 		pageSize = repository.AdminPageSize
 	}
-	page := req.Page
+	page = req.Page
 	if page < 1 {
 		page = 1
 	}
 	if page > repository.AdminMaxPages {
 		page = repository.AdminMaxPages
 	}
-
-	fetchLimit := pageSize
+	fetchLimit = pageSize
 	if page < repository.AdminMaxPages {
 		fetchLimit++
 	}
+	return page, pageSize, fetchLimit
+}
+
+func (a *adminRPC) list(ctx context.Context, req notificationsrpc.ListAdminRequest) notificationsrpc.ListAdminReply {
+	page, pageSize, fetchLimit := clampAdminPage(req)
 	rows, err := a.repo.ListForAdmin(ctx, fetchLimit, (page-1)*pageSize)
 	if err != nil {
 		return notificationsrpc.ListAdminReply{Error: err.Error()}
