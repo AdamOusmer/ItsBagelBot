@@ -5,40 +5,39 @@
  * signature uses the handwriting face; the stamp sprinkles sesame seeds
  * (reusing the global .sesame-seed easter-egg styles) when clicked.
  */
+import { getLangFromUrl, useTranslations } from '../../i18n/ui';
+
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
 ---
 
 <section class="letter" id="letter">
     <div class="letter__paper" data-reveal>
         <div class="letter__meta">
             <span>notes.txt</span>
-            <span>02:14 · draft 47</span>
+            <span>{t('letter.meta2')}</span>
         </div>
 
         <p class="letter__line">
-            We started building this after a stream where four tools broke in one
-            night. Chat scrolled past faster than two hands could moderate, the
-            song queue died, and the giveaway picked nobody.
+            {t('letter.line1')}
         </p>
 
         <p class="letter__line">
-            Every feature in here exists because one of us needed it at 2 a.m.
-            and couldn't find it, couldn't afford it, or didn't trust where the
-            data went.
+            {t('letter.line2')}
         </p>
 
         <p class="letter__line">
-            So: no trackers, no data sold, no feature held hostage. If it makes
-            one stream calmer, it's doing its job.
+            {t('letter.line3')}
         </p>
 
         <div class="letter__sign">
-            <span class="letter__signature">the folks behind the bagel</span>
-            <button type="button" class="letter__stamp" data-letter-stamp aria-label="Sprinkle sesame seeds">
+            <span class="letter__signature">{t('letter.signature')}</span>
+            <button type="button" class="letter__stamp" data-letter-stamp aria-label={t('letter.stampAria')}>
                 🥯
             </button>
         </div>
 
-        <span class="letter__ps">p.s. click the stamp.</span>
+        <span class="letter__ps">{t('letter.ps')}</span>
     </div>
 </section>
 

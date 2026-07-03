@@ -5,30 +5,33 @@
  */
 import MainButton from '../ui/Buttons/MainButton.astro';
 import SecondaryButton from '../ui/Buttons/SecondaryButton.astro';
+import { getLangFromUrl, useTranslations, localizePath } from '../../i18n/ui';
 
-const titleWords = ['Set', 'it', 'up', 'tonight.', 'Stream', 'calmer', 'tomorrow.'];
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+const titleWords = t('finale.title').split(' ');
 ---
 
 <section class="finale">
     <div class="finale__glow" aria-hidden="true"></div>
     <div class="finale__inner">
-        <span class="finale__eyebrow" data-reveal>The oven's warm</span>
+        <span class="finale__eyebrow" data-reveal>{t('finale.eyebrow')}</span>
         <h2 class="finale__title" aria-label={titleWords.join(' ')}>
             {titleWords.map((word, i) => (
                 <span class="finale__word" aria-hidden="true" data-reveal style={`--reveal-i: ${i + 1}`}>{word}</span>
             ))}
         </h2>
         <p class="finale__sub" data-reveal style="--reveal-i: 8">
-            Free means free. Every tool, no card, no countdown timers.
+            {t('finale.sub')}
         </p>
         <div class="finale__actions" data-reveal style="--reveal-i: 9">
             <span data-magnetic="0.4">
-                <MainButton href="https://dashboard.itsbagelbot.com" label="Add to Twitch" />
+                <MainButton href="https://dashboard.itsbagelbot.com" label={t('nav.cta')} />
             </span>
-            <SecondaryButton href="/pricing" label="See pricing" />
+            <SecondaryButton href={localizePath('/pricing', lang)} label={t('finale.seePricing')} />
         </div>
         <span class="finale__honesty" data-reveal style="--reveal-i: 10">
-            setup ≈ 2 minutes · uninstall anytime · we won't guilt-trip you
+            {t('finale.honesty')}
         </span>
     </div>
 </section>
