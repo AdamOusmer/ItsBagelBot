@@ -160,9 +160,11 @@ func (p *Pipeline) Process(msg *message.Message) error {
 	}
 
 	if isChat {
-		p.dispatch(ctx, mctx, views, emit, broadcasterID)
+		p.dispatch(ctx, mctx, views, emit)
 	}
-	p.runHandlers(ctx, handlers, env.Type, views, mctx, emit, broadcasterID)
+	if len(handlers) > 0 {
+		p.runHandlers(ctx, views, mctx, emit)
+	}
 
 	// nil = ack; a publish/marshal failure on the emit path = nack.
 	return emitErr
@@ -202,18 +204,19 @@ func (p *Pipeline) moduleViews(ctx context.Context, eventType string, broadcaste
 
 // dispatch runs the command stage; a gate store error is logged and skipped like
 // a handler error, never nacked.
-func (p *Pipeline) dispatch(ctx context.Context, mctx *module.Context, views map[string]projection.ModuleView, emit module.Emit, broadcasterID uint64) {
+func (p *Pipeline) dispatch(ctx context.Context, mctx *module.Context, views map[string]projection.ModuleView, emit module.Emit) {
 	if err := p.dispatchCommand(ctx, mctx, views, emit); err != nil {
-		p.log.Error("command dispatch failed", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
+		p.log.Error("command dispatch failed", zap.Uint64("broadcaster_id", mctx.BroadcasterID), zap.Error(err))
 		notice(ctx, err)
 	}
 }
 
-// runHandlers runs each enabled module's handler for the event type in
+// runHandlers runs each enabled module's handler for the message's event type in
 // registration order. A handler's logic error is logged and skipped, never
 // nacked (that would re-fire the siblings that already succeeded on redelivery).
-func (p *Pipeline) runHandlers(ctx context.Context, handlers []module.Module, eventType string, views map[string]projection.ModuleView, mctx *module.Context, emit module.Emit, broadcasterID uint64) {
-	for _, m := range handlers {
+func (p *Pipeline) runHandlers(ctx context.Context, views map[string]projection.ModuleView, mctx *module.Context, emit module.Emit) {
+	eventType := mctx.Env.Type
+	for _, m := range p.registry.For(eventType) {
 		if !p.enabled(m, views, mctx) {
 			continue
 		}
@@ -222,17 +225,18 @@ func (p *Pipeline) runHandlers(ctx context.Context, handlers []module.Module, ev
 			continue
 		}
 		if err := handle(ctx, mctx, emit); err != nil {
-			p.handlerFailed(ctx, m, eventType, broadcasterID, err)
+			p.handlerFailed(ctx, mctx, m, err)
 		}
 	}
 }
 
-// handlerFailed records a handler's logic error to the log and NR.
-func (p *Pipeline) handlerFailed(ctx context.Context, m module.Module, eventType string, broadcasterID uint64, err error) {
+// handlerFailed records a handler's logic error to the log and NR. The event type
+// and broadcaster id come from the Context.
+func (p *Pipeline) handlerFailed(ctx context.Context, mctx *module.Context, m module.Module, err error) {
 	p.log.Error("module handler failed",
 		zap.String("module", moduleLabel(m)),
-		zap.String("type", eventType),
-		zap.Uint64("broadcaster_id", broadcasterID),
+		zap.String("type", mctx.Env.Type),
+		zap.Uint64("broadcaster_id", mctx.BroadcasterID),
 		zap.Error(err))
 	if txn := newrelic.FromContext(ctx); txn != nil {
 		txn.AddAttribute("module.failed", moduleLabel(m))

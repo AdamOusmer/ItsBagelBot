@@ -63,10 +63,12 @@ func main() {
 	}
 	defer valkeyClient.Close()
 
-	proj := newProjection(valkeyClient, nc, cfg, log)
+	in := infra{nc: nc, pub: pub, sub: sub, vc: valkeyClient}
+
+	proj := newProjection(in, cfg, log)
 	defer proj.Close()
 
-	live := newLive(ctx, valkeyClient, nc, pub, cfg, log)
+	live := newLive(ctx, in, cfg, log)
 	defer live.Close()
 
 	// Deps is the bundle every module fn captures; main builds it once. modules.All
@@ -115,6 +117,15 @@ func main() {
 	log.Info("sesame shutting down")
 }
 
+// infra bundles the process's shared clients so the wiring helpers take one
+// value instead of a long argument list.
+type infra struct {
+	nc  *nats.Conn
+	pub message.Publisher
+	sub message.Subscriber
+	vc  valkey.Client
+}
+
 // dialNATS opens the core RPC connection (projector fallback) and the JetStream
 // publisher/subscriber that drive the lanes. Any failure is fatal.
 func dialNATS(cfg *config.Config, log *zap.Logger) (*nats.Conn, message.Publisher, message.Subscriber) {
@@ -139,8 +150,8 @@ func dialNATS(cfg *config.Config, log *zap.Logger) (*nats.Conn, message.Publishe
 // newProjection builds the settings-projection reader (in-process cache fronting
 // Valkey, with a projector RPC fallback) and starts its cache invalidation
 // listener.
-func newProjection(vc valkey.Client, nc *nats.Conn, cfg *config.Config, log *zap.Logger) *projection.Client {
-	proj := projection.NewClient(projection.NewStore(vc), nc, projection.Subjects{
+func newProjection(in infra, cfg *config.Config, log *zap.Logger) *projection.Client {
+	proj := projection.NewClient(projection.NewStore(in.vc), in.nc, projection.Subjects{
 		Users:    cfg.ProjectionUsersSubject,
 		Modules:  cfg.ProjectionModulesSubject,
 		Commands: cfg.ProjectionCommandsSubject,
@@ -153,8 +164,8 @@ func newProjection(vc valkey.Client, nc *nats.Conn, cfg *config.Config, log *zap
 // through an in-process cache, written from the stream events sesame consumes,
 // with a projector RPC fallback on a cold key and a key-expiry re-check against
 // Twitch (via the outgress system lane) — and starts its listeners.
-func newLive(ctx context.Context, vc valkey.Client, nc *nats.Conn, pub message.Publisher, cfg *config.Config, log *zap.Logger) *engine.ValkeyLiveStore {
-	live := engine.NewValkeyLiveStore(vc, nc, pub, engine.LiveConfig{
+func newLive(ctx context.Context, in infra, cfg *config.Config, log *zap.Logger) *engine.ValkeyLiveStore {
+	live := engine.NewValkeyLiveStore(in.vc, in.nc, in.pub, engine.LiveConfig{
 		TTL:                   cfg.LiveTTL,
 		CacheTTL:              projectionCacheTTL,
 		ProjectorLiveSubject:  cfg.ProjectionLiveSubject,

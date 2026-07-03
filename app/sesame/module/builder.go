@@ -140,26 +140,26 @@ func validateCommand(owner map[string]string, c *Command) error {
 	if c.Run == nil {
 		return fmt.Errorf("command %q has no Run (chain .Run to finish it)", c.Name)
 	}
-	if err := claim(owner, c.Name, c.Name); err != nil {
+	if err := claim(owner, c.Name, c); err != nil {
 		return err
 	}
 	for _, a := range c.Aliases {
 		if a == "" {
 			return fmt.Errorf("command %q has an empty alias", c.Name)
 		}
-		if err := claim(owner, a, c.Name); err != nil {
+		if err := claim(owner, a, c); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// claim records trigger as owned by cmdName, or errors when it is already taken.
-func claim(owner map[string]string, trigger, cmdName string) error {
+// claim records trigger as owned by command c, or errors when it is already taken.
+func claim(owner map[string]string, trigger string, c *Command) error {
 	if prev, dup := owner[trigger]; dup {
-		return fmt.Errorf("duplicate command trigger %q (command %q collides with %q)", trigger, cmdName, prev)
+		return fmt.Errorf("duplicate command trigger %q (command %q collides with %q)", trigger, c.Name, prev)
 	}
-	owner[trigger] = cmdName
+	owner[trigger] = c.Name
 	return nil
 }
 
