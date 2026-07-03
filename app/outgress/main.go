@@ -62,12 +62,14 @@ func main() {
 		log.Warn("failed to precompile outgress JSON decoders", zap.Error(err))
 	}
 
-	// Outgress commands are perishable work rather than replayable events.
-	// Reconcile this stream here (not only from producer services) so its
-	// work-queue retention and five-second lifetime are guaranteed before any
-	// lane consumer attaches.
-	if err := bus.EnsureStreams(ctx, cfg.NATSURL, []bus.StreamSpec{bus.OutgressStream}, log); err != nil {
-		log.Fatal("failed to provision outgress stream", zap.Error(err))
+	// Reconcile both outgress streams here (not only from producer services) so
+	// their retention and lifetimes are guaranteed before any lane consumer
+	// attaches. Order matters: the chat stream is narrowed off the system subject
+	// FIRST, so adding the system stream cannot overlap it. The chat lanes are
+	// perishable work-queue (5s); the control lane keeps a longer lifetime so an
+	// EventSub enroll survives a rollout gap instead of being purged.
+	if err := bus.EnsureStreams(ctx, cfg.NATSURL, []bus.StreamSpec{bus.OutgressStream, bus.OutgressSystemStream}, log); err != nil {
+		log.Fatal("failed to provision outgress streams", zap.Error(err))
 	}
 
 	valkeyClient, err := pkg_valkey.NewClient(cfg.ValkeyAddr, cfg.ValkeyPassword)
@@ -226,7 +228,7 @@ func main() {
 	}
 	defer func() { _ = standardSub.Close() }()
 
-	systemSub, err := bus.NewLaneSubscriber(cfg.NATSURL, bus.OutgressStream.Name, cfg.SystemSubject, "outgress-system", nakDelay, maxRedeliveries, log)
+	systemSub, err := bus.NewLaneSubscriber(cfg.NATSURL, bus.OutgressSystemStream.Name, cfg.SystemSubject, "outgress-system", nakDelay, maxRedeliveries, log)
 	if err != nil {
 		log.Fatal("failed to connect system subscriber", zap.Error(err))
 	}

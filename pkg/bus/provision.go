@@ -31,18 +31,39 @@ type StreamSpec struct {
 	MaxBytes  int64                // hard cap so one stream cannot exhaust the instance
 }
 
-// OutgressStream is owned and reconciled by outgress itself. Keeping it out of
-// DataStreams prevents every producer replica from racing the one-time
-// limits-to-work-queue migration.
+// OutgressStream carries the perishable chat lanes (premium/standard). It is
+// owned and reconciled by outgress itself; keeping it out of DataStreams
+// prevents every producer replica from racing the one-time limits-to-work-queue
+// migration. The control lane (twitch.outgress.system) is deliberately NOT here
+// — it lives on OutgressSystemStream with a longer lifetime; see that spec.
 var OutgressStream = StreamSpec{
 	Name:      "TWITCH_OUTGRESS",
-	Subjects:  []string{"twitch.outgress.>"},
+	Subjects:  []string{"twitch.outgress.premium", "twitch.outgress.standard"},
 	Retention: nats.WorkQueuePolicy,
-	// Outgress commands are perishable work, not an event log. ACK/TERM removes
-	// them immediately; this ceiling also removes an orphan if no consumer is
-	// available during a rollout.
+	// Chat sends are perishable work, not an event log. ACK/TERM removes them
+	// immediately; this 5s ceiling also drops a message that outlived its
+	// usefulness (a chat line older than the retry budget must never be sent
+	// late) and removes an orphan if no consumer is available during a rollout.
 	MaxAge:   5 * time.Second,
 	MaxBytes: 256 << 20, // 256 MiB
+}
+
+// OutgressSystemStream carries the outgress control lane: EventSub enroll
+// (enable/disable/reconnect) jobs and stream_status live re-checks. Unlike chat
+// these are control-plane work that MUST survive until acknowledged — an enroll
+// silently dropped on the floor leaves a channel un-ingested with nobody the
+// wiser. It stays a work-queue (ACK removes the message, so this is
+// acknowledgment, not a replayable log) but with a generous MaxAge so a job
+// published during a rollout gap, or nacked on a transient infra error, is
+// retried instead of purged at the chat lane's 5s. Same subject namespace as the
+// chat lanes, so producers and the NATS ACLs are unchanged; only the stream that
+// captures twitch.outgress.system differs.
+var OutgressSystemStream = StreamSpec{
+	Name:      "TWITCH_OUTGRESS_SYSTEM",
+	Subjects:  []string{"twitch.outgress.system"},
+	Retention: nats.WorkQueuePolicy,
+	MaxAge:    5 * time.Minute,
+	MaxBytes:  64 << 20, // 64 MiB: control jobs are small and low-volume
 }
 
 // DataStreams backs the replayable event bus: user, command, module and
@@ -164,6 +185,19 @@ func reconcileStream(js nats.JetStreamManager, spec StreamSpec, log *zap.Logger)
 		}
 
 		if _, err := js.UpdateStream(desired); err != nil {
+			// A work-queue stream is perishable, so replacing it is safe when an
+			// in-place update is rejected — notably narrowing subjects out from
+			// under an existing consumer's filter (the one-time migration that
+			// splits the control lane onto its own stream). No replay to preserve;
+			// the consumers are re-created against the converged stream.
+			if desired.Retention == nats.WorkQueuePolicy {
+				log.Warn("work-queue stream update rejected; replacing",
+					zap.String("stream", spec.Name), zap.Error(err))
+				if derr := js.DeleteStream(spec.Name); derr != nil && !errors.Is(derr, nats.ErrStreamNotFound) {
+					return fmt.Errorf("bus: replace stream %q after failed update: %w", spec.Name, derr)
+				}
+				return add()
+			}
 			return fmt.Errorf("bus: update stream %q: %w", spec.Name, err)
 		}
 		log.Info("converged jetstream stream",

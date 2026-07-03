@@ -175,6 +175,12 @@ func streamForTopic(topic string) (string, error) {
 		}
 	}
 
+	for _, subj := range OutgressSystemStream.Subjects {
+		if match(topic, subj) {
+			return OutgressSystemStream.Name, nil
+		}
+	}
+
 	return "", fmt.Errorf("bus: no stream matches subject %q", topic)
 }
 

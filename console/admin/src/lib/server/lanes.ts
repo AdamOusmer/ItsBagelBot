@@ -23,7 +23,8 @@ export interface LaneView {
 }
 
 const sampleLanes: LaneView[] = [
-  { stream: 'TWITCH_OUTGRESS', consumer: 'chat-egress', display: 'chat egress', subject: 'twitch.outgress.system', category: 'system', ephemeral: false, orphan: false, pending: 0, inFlight: '0 / 256', rate: '18 msg/s', redelivered: 0 },
+  { stream: 'TWITCH_OUTGRESS', consumer: 'chat-egress', display: 'chat egress', subject: 'twitch.outgress.premium', category: 'system', ephemeral: false, orphan: false, pending: 0, inFlight: '0 / 256', rate: '18 msg/s', redelivered: 0 },
+  { stream: 'TWITCH_OUTGRESS_SYSTEM', consumer: 'outgress-system_twitch_outgress_system', display: 'eventsub + live', subject: 'twitch.outgress.system', category: 'system', ephemeral: false, orphan: false, pending: 0, inFlight: '0 / 1000', rate: '0.2 msg/s', redelivered: 0 },
   { stream: 'BAGEL_DATA', consumer: 'projection-users', display: 'users projection', subject: 'bagel.data.users.>', category: 'projection', ephemeral: false, orphan: false, pending: 3, inFlight: '1', rate: '2.4 msg/s', redelivered: 0 },
   { stream: 'BAGEL_DATA', consumer: 'cache-invalidate-7f3a', display: 'ephemeral', subject: 'bagel.data.invalidate', category: 'ephemeral', ephemeral: true, orphan: true, pending: 0, inFlight: '0', rate: '—', redelivered: 0 }
 ];
@@ -122,7 +123,9 @@ function laneGroup(name: string, filter: string, ephemeral: boolean) {
 
 function laneCategory(stream: string, ephemeral: boolean) {
   if (ephemeral) return 'ephemeral';
-  if (stream === 'TWITCH_OUTGRESS') return 'system';
+  // Both outgress streams are the egress/control lanes: TWITCH_OUTGRESS (chat)
+  // and TWITCH_OUTGRESS_SYSTEM (EventSub enroll + stream_status).
+  if (stream.startsWith('TWITCH_OUTGRESS')) return 'system';
   return 'projection';
 }
 
