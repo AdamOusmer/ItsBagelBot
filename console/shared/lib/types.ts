@@ -89,6 +89,16 @@ export interface NavGroupDef {
   items: NavLink[];
 }
 
+// A dashboard the signed-in user has been granted access to (a delegation
+// received). Rendered in the topbar account menu as a quick-switch link into
+// the owner's board via /delegate/enter.
+export interface DashboardLink {
+  // Full href to enter the board, e.g. /delegate/enter?owner=<id>.
+  href: string;
+  // Owner's Twitch login, shown as the row name + gradient-badge initial.
+  name: string;
+}
+
 // --- Module catalog -------------------------------------------------------
 // The user-facing modules the dashboard lets a broadcaster toggle/configure.
 // Core, hidden modules (the command processor, the live tracker, and the system

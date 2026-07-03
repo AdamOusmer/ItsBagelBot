@@ -75,6 +75,7 @@
   {crumb}
   accountName={data.displayName}
   accountRole={t('topbar.roleBroadcaster')}
+  dashboards={data.authorizedDashboards ?? []}
   {groups}
   mobileItems={items}
   offset={showBanner}
