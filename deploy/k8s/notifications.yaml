@@ -147,3 +147,72 @@ spec:
   selector:
     matchLabels:
       app: notifications
+---
+# Janitor: fires the internal cleanup verb once per day so exactly one service
+# replica (queue group) hard-deletes globally-expired notifications; their
+# per-user read receipts cascade. Reuses the service image with the `cleanup`
+# arg and the service's own NATS creds (notifications-env), so no extra image or
+# NATS account is needed — the cleanup subject is internal to the
+# NOTIFICATIONS_RPC account and unreachable from anywhere else.
+#
+# Not Linkerd-injected: a meshed Job would hang on the lingering proxy, and NATS
+# is reachable un-meshed (no Server gates its port; `notifications` is outside
+# the default-deny NetworkPolicy). NATS auth is account creds, not mesh identity.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: notifications-cleanup
+  namespace: production
+spec:
+  schedule: "17 3 * * *" # daily, off the top of the hour
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 300
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 120
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app: notifications-cleanup
+          annotations:
+            linkerd.io/inject: disabled
+        spec:
+          restartPolicy: OnFailure
+          tolerations:
+            - key: itsbagelbot.dev/pool
+              operator: Equal
+              value: worker-pool
+              effect: NoSchedule
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            seccompProfile: {type: RuntimeDefault}
+          containers:
+            - name: cleanup
+              image: ghcr.io/adamousmer/itsbagelbot/notifications:main-1783103414-b9b8748aca7c@sha256:52d785d654387b0ec045d1bf42a3f220c77881cd07706a01f45436bf320d3fc5 # {"$imagepolicy": "flux-system:notifications"}
+              imagePullPolicy: IfNotPresent
+              args: ["cleanup"]
+              env:
+                - name: NATS_URL
+                  value: nats://nats:4222
+                - name: NATS_RPC_URL
+                  value: nats://nats-leaf-local:4222
+                - name: NATS_HUB_URL
+                  value: nats://nats:4222
+              envFrom:
+                - secretRef:
+                    name: notifications-env
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  cpu: 250m
+                  memory: 64Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities: {drop: ["ALL"]}

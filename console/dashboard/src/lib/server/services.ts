@@ -538,6 +538,16 @@ export const notificationMarkRead = defineWrite({
   after: (_result: unknown, userId: string) => invalidate(`notifications:${userId}`)
 });
 
+// Dropdown-open "peek": soft-acknowledge every notification the user can see,
+// shortening each unread one's per-user life to the reduced peek TTL and
+// clearing the unread badge. The notifications service picks the affected set,
+// so the request carries only the user id.
+export const notificationMarkPeeked = defineWrite({
+  subject: `${SUB.notifications}.mark_peeked`,
+  request: (userId: string) => ({ user_id: userId }),
+  after: (_result: unknown, userId: string) => invalidate(`notifications:${userId}`)
+});
+
 // Irreversibly delete the user's own account (and their owned delegations,
 // cleared server-side). The caller drops the session cookie after this resolves.
 // Custom error mapping (throw on !ok) doesn't fit defineWrite's result shape

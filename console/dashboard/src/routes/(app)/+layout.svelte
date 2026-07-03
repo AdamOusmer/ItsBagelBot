@@ -16,6 +16,13 @@
     queueMicrotask(() => markReadForm?.requestSubmit());
   }
 
+  // Opening the bell dropdown soft-acknowledges everything (server-side "peek");
+  // fired once per page by the bell so it only round-trips on the first open.
+  let peekForm = $state<HTMLFormElement | null>(null);
+  function peek() {
+    queueMicrotask(() => peekForm?.requestSubmit());
+  }
+
   // A stable section key drives active-state + the breadcrumb label; the label
   // itself is translated, so comparisons never break across languages.
   const path = $derived(page.url.pathname);
@@ -91,6 +98,7 @@
         unreadCount={data.unreadCount ?? 0}
         viewAllHref="/settings#notifications"
         onMarkRead={markRead}
+        onOpen={peek}
         title={t('bell.title')}
         viewAllLabel={t('bell.viewAll')}
         emptyLabel={t('bell.empty')}
@@ -106,6 +114,9 @@
 <form method="POST" action="/settings?/markRead" use:enhance bind:this={markReadForm} hidden>
   <input type="hidden" name="id" value={markReadId ?? ''} />
 </form>
+
+<!-- Hidden peek form: submitted once when the bell dropdown first opens. -->
+<form method="POST" action="/settings?/markPeeked" use:enhance bind:this={peekForm} hidden></form>
 
 <!-- One toast host for the whole app; pages push via the shared toast() store. -->
 <ToastHost />

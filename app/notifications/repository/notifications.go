@@ -7,6 +7,7 @@ import (
 	"ItsBagelBot/app/notifications/ent"
 	"ItsBagelBot/app/notifications/ent/notification"
 	"ItsBagelBot/app/notifications/ent/notificationread"
+	"ItsBagelBot/app/notifications/ent/predicate"
 	"ItsBagelBot/pkg/db"
 )
 
@@ -92,23 +93,45 @@ func (r *Notifications) CountForAdmin(ctx context.Context) (int, error) {
 	})
 }
 
+// visibleForUser matches notifications this user is allowed to see (broadcast or
+// directed at them) and whose global expiry has not passed at now. Shared by
+// ListForUser and MarkPeeked so both agree on the candidate set.
+func visibleForUser(userID uint64, now time.Time) predicate.Notification {
+	return notification.And(
+		notification.Or(
+			notification.ScopeEQ(notification.ScopeBroadcast),
+			notification.TargetUserIDEQ(userID),
+		),
+		notification.Or(
+			notification.ExpiresAtIsNil(),
+			notification.ExpiresAtGT(now),
+		),
+	)
+}
+
+// lapsedForUser matches notifications this user has already let expire: a read
+// row exists whose per-user cutoff (full read or dropdown peek) has passed.
+func lapsedForUser(userID uint64, now time.Time) predicate.Notification {
+	return notification.HasReadsWith(
+		notificationread.UserIDEQ(userID),
+		notificationread.ExpiresAtNotNil(),
+		notificationread.ExpiresAtLTE(now),
+	)
+}
+
 // ListForUser returns the broadcast + direct-to-user notifications this user
-// can see (newest first, expired rows excluded), plus the set of ids already
-// acknowledged by that user.
+// can see (newest first, globally- and per-user-expired rows excluded), plus
+// the set of ids already acknowledged by that user.
 func (r *Notifications) ListForUser(ctx context.Context, userID uint64, limit int) ([]*ent.Notification, map[int]bool, error) {
 	now := time.Now()
 
 	rows, err := db.WithQuery(ctx, func(ctx context.Context) ([]*ent.Notification, error) {
 		return r.client.Notification.Query().
 			Where(
-				notification.Or(
-					notification.ScopeEQ(notification.ScopeBroadcast),
-					notification.TargetUserIDEQ(userID),
-				),
-				notification.Or(
-					notification.ExpiresAtIsNil(),
-					notification.ExpiresAtGT(now),
-				),
+				visibleForUser(userID, now),
+				// Drop anything this user has already let lapse so the reduced
+				// peek / full-read cutoff actually hides it.
+				notification.Not(lapsedForUser(userID, now)),
 			).
 			Order(ent.Desc(notification.FieldCreatedAt)).
 			Limit(limit).
@@ -149,19 +172,140 @@ func (r *Notifications) ListForUser(ctx context.Context, userID uint64, limit in
 	return rows, read, nil
 }
 
-// MarkRead records that userID has acknowledged notificationID. Idempotent:
-// a repeat mark-read is a silent no-op rather than a unique-constraint error.
-func (r *Notifications) MarkRead(ctx context.Context, notificationID int, userID uint64) error {
-	err := db.WithExec(ctx, func(ctx context.Context) error {
-		return r.client.NotificationRead.Create().
+// MarkRead records (or refreshes) that userID has acknowledged notificationID
+// and sets the per-user visibility cutoff to expiresAt. Idempotent: a repeat
+// mark-read — or a full read after a dropdown peek — shortens the cutoff on the
+// existing row instead of erroring on the unique (user, notification) index.
+func (r *Notifications) MarkRead(ctx context.Context, notificationID int, userID uint64, expiresAt time.Time) error {
+	return db.WithExec(ctx, func(ctx context.Context) error {
+		err := r.client.NotificationRead.Create().
 			SetNotificationID(notificationID).
 			SetUserID(userID).
+			SetExpiresAt(expiresAt).
+			Exec(ctx)
+		if err == nil {
+			return nil
+		}
+		if !ent.IsConstraintError(err) {
+			return err
+		}
+		// Row already exists (earlier read or peek): pull the cutoff in.
+		_, updErr := r.client.NotificationRead.Update().
+			Where(
+				notificationread.UserIDEQ(userID),
+				notificationread.HasNotificationWith(notification.IDEQ(notificationID)),
+			).
+			SetExpiresAt(expiresAt).
+			Save(ctx)
+		return updErr
+	})
+}
+
+// MarkPeeked is the dropdown-open path: it inserts a read row carrying the
+// reduced peek cutoff for every notification this user can currently see that
+// has no read row yet. Rows already read (or peeked earlier) are left untouched
+// — a peek only ever shortens a notification's life for a user, never extends
+// it, so it must not overwrite an existing (shorter, full-read) cutoff. Returns
+// how many notifications were newly peeked.
+func (r *Notifications) MarkPeeked(ctx context.Context, userID uint64, expiresAt time.Time) (int, error) {
+	now := time.Now()
+
+	ids, err := db.WithQuery(ctx, func(ctx context.Context) ([]int, error) {
+		return r.client.Notification.Query().
+			Where(visibleForUser(userID, now)).
+			Limit(UserListLimit).
+			IDs(ctx)
+	})
+	if err != nil {
+		return 0, err
+	}
+	if len(ids) == 0 {
+		return 0, nil
+	}
+
+	readRows, err := db.WithQuery(ctx, func(ctx context.Context) ([]*ent.NotificationRead, error) {
+		return r.client.NotificationRead.Query().
+			Where(
+				notificationread.UserIDEQ(userID),
+				notificationread.HasNotificationWith(notification.IDIn(ids...)),
+			).
+			WithNotification().
+			All(ctx)
+	})
+	if err != nil {
+		return 0, err
+	}
+	already := make(map[int]bool, len(readRows))
+	for _, rr := range readRows {
+		if rr.Edges.Notification != nil {
+			already[rr.Edges.Notification.ID] = true
+		}
+	}
+
+	missing := make([]int, 0, len(ids))
+	for _, id := range ids {
+		if !already[id] {
+			missing = append(missing, id)
+		}
+	}
+	if len(missing) == 0 {
+		return 0, nil
+	}
+
+	builders := make([]*ent.NotificationReadCreate, len(missing))
+	for i, id := range missing {
+		builders[i] = r.client.NotificationRead.Create().
+			SetNotificationID(id).
+			SetUserID(userID).
+			SetExpiresAt(expiresAt)
+	}
+
+	// Fast path: one bulk insert. MySQL rejects the whole batch on a unique
+	// collision (a concurrent peek by the same user), so fall back to
+	// per-row inserts that skip the rows another writer already claimed.
+	err = db.WithExec(ctx, func(ctx context.Context) error {
+		return r.client.NotificationRead.CreateBulk(builders...).Exec(ctx)
+	})
+	if err == nil {
+		return len(missing), nil
+	}
+	if !ent.IsConstraintError(err) {
+		return 0, err
+	}
+
+	peeked := 0
+	for _, id := range missing {
+		insErr := db.WithExec(ctx, func(ctx context.Context) error {
+			return r.client.NotificationRead.Create().
+				SetNotificationID(id).
+				SetUserID(userID).
+				SetExpiresAt(expiresAt).
+				Exec(ctx)
+		})
+		if insErr == nil {
+			peeked++
+			continue
+		}
+		if !ent.IsConstraintError(insErr) {
+			return peeked, insErr
+		}
+	}
+	return peeked, nil
+}
+
+// DeleteExpired hard-deletes every notification whose global expiry has passed,
+// cascading its read receipts. This is the janitor the k3s cron drives; per-user
+// read cutoffs only hide rows (ListForUser filtering), so their storage is
+// reclaimed when the parent notification is swept here. Returns rows removed.
+func (r *Notifications) DeleteExpired(ctx context.Context, now time.Time) (int, error) {
+	return db.WithQuery(ctx, func(ctx context.Context) (int, error) {
+		return r.client.Notification.Delete().
+			Where(
+				notification.ExpiresAtNotNil(),
+				notification.ExpiresAtLTE(now),
+			).
 			Exec(ctx)
 	})
-	if err != nil && ent.IsConstraintError(err) {
-		return nil
-	}
-	return err
 }
 
 // Delete retracts a notification (cascades to its read receipts).

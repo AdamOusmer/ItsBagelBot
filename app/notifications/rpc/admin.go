@@ -23,7 +23,11 @@ type adminRPC struct {
 	nc                 *nats.Conn
 	invalidationPrefix string
 	userGetSubject     string
-	log                *zap.Logger
+	// defaultTTL bounds a notification's global life when the sender does not
+	// set an explicit expiry, so every send is eventually reachable by the
+	// cron janitor instead of living forever.
+	defaultTTL time.Duration
+	log        *zap.Logger
 }
 
 // AdminConfig carries the NATS wiring for the admin RPC surface.
@@ -32,6 +36,10 @@ type AdminConfig struct {
 	InvalidationPrefix string
 	UserGetSubject     string
 	QueueGroup         string
+	// DefaultTTL bounds a notification's global life when the sender does not
+	// set an explicit expiry, so every send is eventually reachable by the
+	// cron janitor instead of living forever.
+	DefaultTTL time.Duration
 }
 
 // SubscribeAdmin registers the admin-console verbs: compose/send a
@@ -42,6 +50,7 @@ func SubscribeAdmin(nc *nats.Conn, repo *repository.Notifications, cfg AdminConf
 		nc:                 nc,
 		invalidationPrefix: cfg.InvalidationPrefix,
 		userGetSubject:     cfg.UserGetSubject,
+		defaultTTL:         cfg.DefaultTTL,
 		log:                log,
 	}
 
@@ -107,6 +116,14 @@ func (a *adminRPC) send(ctx context.Context, req notificationsrpc.SendRequest) n
 			return notificationsrpc.SendReply{Error: err.Error()}
 		}
 		params.TargetUserID = &id
+	}
+
+	// Fall back to the default global TTL when the sender didn't pin an expiry,
+	// so the notification is eventually swept by the cron instead of living
+	// forever.
+	if params.ExpiresAt == nil && a.defaultTTL > 0 {
+		exp := time.Now().Add(a.defaultTTL)
+		params.ExpiresAt = &exp
 	}
 
 	row, created, err := a.repo.Create(ctx, params)
