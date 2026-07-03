@@ -115,6 +115,11 @@ func BillingEventID(v string) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldBillingEventID, v))
 }
 
+// GiftsSent applies equality check predicate on the "gifts_sent" field. It's identical to GiftsSentEQ.
+func GiftsSent(v uint32) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldGiftsSent, v))
+}
+
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldCreatedAt, v))
@@ -733,6 +738,46 @@ func BillingEventIDEqualFold(v string) predicate.User {
 // BillingEventIDContainsFold applies the ContainsFold predicate on the "billing_event_id" field.
 func BillingEventIDContainsFold(v string) predicate.User {
 	return predicate.User(sql.FieldContainsFold(FieldBillingEventID, v))
+}
+
+// GiftsSentEQ applies the EQ predicate on the "gifts_sent" field.
+func GiftsSentEQ(v uint32) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldGiftsSent, v))
+}
+
+// GiftsSentNEQ applies the NEQ predicate on the "gifts_sent" field.
+func GiftsSentNEQ(v uint32) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldGiftsSent, v))
+}
+
+// GiftsSentIn applies the In predicate on the "gifts_sent" field.
+func GiftsSentIn(vs ...uint32) predicate.User {
+	return predicate.User(sql.FieldIn(FieldGiftsSent, vs...))
+}
+
+// GiftsSentNotIn applies the NotIn predicate on the "gifts_sent" field.
+func GiftsSentNotIn(vs ...uint32) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldGiftsSent, vs...))
+}
+
+// GiftsSentGT applies the GT predicate on the "gifts_sent" field.
+func GiftsSentGT(v uint32) predicate.User {
+	return predicate.User(sql.FieldGT(FieldGiftsSent, v))
+}
+
+// GiftsSentGTE applies the GTE predicate on the "gifts_sent" field.
+func GiftsSentGTE(v uint32) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldGiftsSent, v))
+}
+
+// GiftsSentLT applies the LT predicate on the "gifts_sent" field.
+func GiftsSentLT(v uint32) predicate.User {
+	return predicate.User(sql.FieldLT(FieldGiftsSent, v))
+}
+
+// GiftsSentLTE applies the LTE predicate on the "gifts_sent" field.
+func GiftsSentLTE(v uint32) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldGiftsSent, v))
 }
 
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.

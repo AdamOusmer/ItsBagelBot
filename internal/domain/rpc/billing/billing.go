@@ -21,6 +21,10 @@ type ApplyRequest struct {
 	OccurredAt         time.Time  `json:"occurred_at"`
 	ExpiresAt          *time.Time `json:"expires_at,omitempty"`
 	RecurringReference string     `json:"recurring_reference,omitempty"`
+	// GifterID is the buyer when this activation is a gift to UserID; zero for a
+	// self-purchase or renewal. When set (and this is a first-time activation),
+	// the users service bumps the gifter's gifts_sent counter idempotently.
+	GifterID uint64 `json:"gifter_id,omitempty"`
 }
 
 type ApplyReply struct {
