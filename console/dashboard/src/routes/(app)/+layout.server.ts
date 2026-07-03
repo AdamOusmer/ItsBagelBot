@@ -2,7 +2,7 @@ import { redirect, type Cookies } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
 import type { LayoutServerLoad } from './$types';
 import { COOKIE, type Session } from '$lib/server/session';
-import { accountState, isBanned, notificationsForUser, type NotificationWire } from '$lib/server/services';
+import { accountState, isBanned, notificationsForUser, delegationAccess, type NotificationWire } from '$lib/server/services';
 import { RpcError } from '@bagel/shared/server/nats';
 import { demoNotifications } from '$lib/server/demo-notifications';
 
@@ -75,6 +75,26 @@ async function loadBellPeek(s: Session): Promise<{ unreadCount: number; notifica
   return { unreadCount, notifications };
 }
 
+// loadAuthorizedDashboards lists the boards shared with this user, for the
+// account-menu quick switch. Normal sessions only: /delegate/enter refuses a
+// delegate session, so a delegate must exit before switching boards.
+// Best-effort: an RPC blip just hides the list.
+async function loadAuthorizedDashboards(s: Session): Promise<{ href: string; name: string }[]> {
+  if (env.DEMO === '1') {
+    return [
+      { href: '/delegate/enter?owner=42', name: 'ferret_king' },
+      { href: '/delegate/enter?owner=77', name: 'bagel_queen' }
+    ];
+  }
+  if (s.delegate_of) return [];
+  try {
+    const grants = await delegationAccess(s.user_id);
+    return grants.map((g) => ({ href: `/delegate/enter?owner=${g.owner_user_id}`, name: g.owner_login }));
+  } catch {
+    return [];
+  }
+}
+
 export const load: LayoutServerLoad = async ({ locals, url, cookies }) => {
   let s = locals.session;
   if (!s && env.DEMO === '1') s = demo;
@@ -89,7 +109,10 @@ export const load: LayoutServerLoad = async ({ locals, url, cookies }) => {
   if (env.DEMO !== '1') await enforceAccountGates(s, url, cookies);
   enforceDelegateScope(s, url);
 
-  const { unreadCount, notifications } = await loadBellPeek(s);
+  const [{ unreadCount, notifications }, authorizedDashboards] = await Promise.all([
+    loadBellPeek(s),
+    loadAuthorizedDashboards(s)
+  ]);
 
   return {
     role: s.role,
@@ -100,6 +123,7 @@ export const load: LayoutServerLoad = async ({ locals, url, cookies }) => {
     delegateLogin: s.delegate_of ? s.delegate_login : undefined,
     sections: s.delegate_of ? (s.sections ?? []) : undefined,
     unreadCount,
-    bellNotifications: notifications.slice(0, BELL_PEEK)
+    bellNotifications: notifications.slice(0, BELL_PEEK),
+    authorizedDashboards
   };
 };

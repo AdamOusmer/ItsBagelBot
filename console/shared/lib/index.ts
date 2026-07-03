@@ -34,6 +34,7 @@ export { default as RadioGroup } from '../components/RadioGroup.svelte';
 export { default as NotificationBell } from '../components/NotificationBell.svelte';
 export { default as SearchInput } from '../components/SearchInput.svelte';
 export { default as DataList } from '../components/DataList.svelte';
+export { default as Scroller } from '../components/Scroller.svelte';
 
 export { initLenis, magnetic, countUp } from './actions';
 export { icons, type IconName } from './icons';

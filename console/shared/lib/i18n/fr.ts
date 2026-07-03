@@ -43,7 +43,8 @@ export const fr = {
   topbar: {
     roleBroadcaster: 'Diffuseur',
     notifications: 'Notifications',
-    logout: 'Se déconnecter'
+    logout: 'Se déconnecter',
+    dashboards: 'Tableaux partagés'
   },
 
   banner: {

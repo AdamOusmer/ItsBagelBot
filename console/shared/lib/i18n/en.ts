@@ -44,7 +44,8 @@ export const en = {
   topbar: {
     roleBroadcaster: 'Broadcaster',
     notifications: 'Notifications',
-    logout: 'Log out'
+    logout: 'Log out',
+    dashboards: 'Shared dashboards'
   },
 
   banner: {

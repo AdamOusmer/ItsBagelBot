@@ -4,6 +4,8 @@
   // operator. One thin ruled line, everything else is page.
   import type { Snippet } from 'svelte';
   import Icon from './Icon.svelte';
+  import Scroller from './Scroller.svelte';
+  import type { DashboardLink } from '../lib/types';
   import { getI18n } from '../lib/i18n/context';
 
   // Falls back to English when no i18n context is set (admin), so the label is
@@ -17,7 +19,8 @@
     brandTitle = 'ItsBagelBot',
     brandSub = '',
     accountName = '',
-    accountRole = ''
+    accountRole = '',
+    dashboards = []
   }: {
     root: string;
     crumb: string;
@@ -26,9 +29,13 @@
     brandSub?: string;
     accountName?: string;
     accountRole?: string;
+    // Boards shared with this user; renders a scrollable quick-switch list in
+    // the account menu. Empty (e.g. admin, or a user with no grants) hides it.
+    dashboards?: DashboardLink[];
   } = $props();
 
   const initial = $derived((accountName || '?').charAt(0).toUpperCase());
+  const dashInitial = (name: string) => (name || '?').charAt(0).toUpperCase();
 
   // Account menu: the avatar chip opens a small dropdown holding Log out —
   // sign-out lives here (not in the dock) so navigation stays uncrowded.
@@ -93,6 +100,24 @@
             <b>{accountName}</b>
             <i>{accountRole}</i>
           </div>
+          {#if dashboards.length}
+            <!-- Boards shared with this user; the Scroller caps the list so a
+                 long roster never runs the menu off-screen. Each row jumps into
+                 that owner's dashboard via the /delegate/enter link. -->
+            <div class="op-dash-group">
+              <div class="op-menu-section">{t('topbar.dashboards')}</div>
+              <Scroller maxHeight="208px" role="group" aria-label={t('topbar.dashboards')}>
+                <div class="op-dash-list">
+                  {#each dashboards as d (d.href)}
+                    <a class="op-dash" href={d.href} role="menuitem">
+                      <span class="dash-avatar">{dashInitial(d.name)}</span>
+                      <span class="dash-name">{d.name}</span>
+                    </a>
+                  {/each}
+                </div>
+              </Scroller>
+            </div>
+          {/if}
           <form method="POST" action="/auth/logout">
             <button type="submit" class="op-menu-item" role="menuitem">
               <Icon name="power" size={15} />
@@ -184,6 +209,36 @@
   .op-menu-head { display: flex; flex-direction: column; gap: 3px; padding: 6px 10px 10px; border-bottom: 1px solid var(--bb-border); margin-bottom: 6px; }
   .op-menu-head b { font-family: var(--bb-font-body); font-weight: 600; font-size: 13px; color: var(--bb-white); }
   .op-menu-head i { font-style: normal; font-family: var(--bb-font-display); font-weight: 700; font-size: 10px; color: var(--bb-tan); }
+
+  .op-menu-section {
+    padding: 2px 10px 4px;
+    font-family: var(--bb-font-mono); font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--bb-tan);
+  }
+  /* Ruled off from Log out below; the Scroller inside caps the height (~4.5 rows)
+     so a long roster never pushes Log out off-screen. */
+  .op-dash-group { margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px solid var(--bb-border); }
+  .op-dash-list { display: flex; flex-direction: column; gap: 2px; }
+  .op-dash {
+    display: flex; align-items: center; gap: 10px; width: 100%;
+    padding: 7px 10px; border-radius: var(--bb-radius-md, 10px);
+    text-decoration: none; cursor: pointer;
+    transition: background var(--bb-dur-fast, 180ms) ease;
+  }
+  .op-dash:hover { background: rgba(201, 168, 124, 0.1); }
+  /* Same gradient + first-letter mark as the account badge, scaled down. */
+  .dash-avatar {
+    width: 26px; height: 26px; border-radius: 50%; flex: none;
+    background: linear-gradient(135deg, var(--bb-green-light), var(--bb-tan));
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--bb-font-display); font-weight: 800; font-size: 11px; color: #0a0a0a;
+  }
+  .dash-name {
+    font-family: var(--bb-font-body); font-weight: 600; font-size: 13px; color: var(--bb-muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+  }
+  .op-dash:hover .dash-name { color: var(--bb-white); }
+
   .op-menu form { display: flex; }
   .op-menu-item {
     display: flex; align-items: center; gap: 10px; width: 100%;
