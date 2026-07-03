@@ -119,12 +119,11 @@ func (b *Builder) validateKindName() error {
 }
 
 // validateCommands checks every command and that no trigger (name or alias) is
-// claimed twice within the module.
+// claimed twice within the module. claimed is the set of triggers already taken.
 func (b *Builder) validateCommands() error {
-	// owner maps a trigger token to the command that first claimed it.
-	owner := make(map[string]string, len(b.cmds))
+	claimed := make(map[string]struct{}, len(b.cmds))
 	for _, c := range b.cmds {
-		if err := validateCommand(owner, c); err != nil {
+		if err := validateCommand(claimed, c); err != nil {
 			return err
 		}
 	}
@@ -133,33 +132,33 @@ func (b *Builder) validateCommands() error {
 
 // validateCommand checks one command's name and Run, then claims its name and
 // each alias as a trigger.
-func validateCommand(owner map[string]string, c *Command) error {
+func validateCommand(claimed map[string]struct{}, c *Command) error {
 	if c.Name == "" {
 		return errors.New("command with an empty name")
 	}
 	if c.Run == nil {
 		return fmt.Errorf("command %q has no Run (chain .Run to finish it)", c.Name)
 	}
-	if err := claim(owner, c.Name, c); err != nil {
+	if err := claim(claimed, c.Name, c); err != nil {
 		return err
 	}
 	for _, a := range c.Aliases {
 		if a == "" {
 			return fmt.Errorf("command %q has an empty alias", c.Name)
 		}
-		if err := claim(owner, a, c); err != nil {
+		if err := claim(claimed, a, c); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// claim records trigger as owned by command c, or errors when it is already taken.
-func claim(owner map[string]string, trigger string, c *Command) error {
-	if prev, dup := owner[trigger]; dup {
-		return fmt.Errorf("duplicate command trigger %q (command %q collides with %q)", trigger, c.Name, prev)
+// claim adds trigger to the claimed set, or errors when it is already taken.
+func claim(claimed map[string]struct{}, trigger string, c *Command) error {
+	if _, dup := claimed[trigger]; dup {
+		return fmt.Errorf("duplicate command trigger %q in module (command %q)", trigger, c.Name)
 	}
-	owner[trigger] = c.Name
+	claimed[trigger] = struct{}{}
 	return nil
 }
 
