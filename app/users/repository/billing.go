@@ -56,30 +56,10 @@ func (r *Users) ApplyBilling(ctx context.Context, req billingrpc.ApplyRequest) (
 		)
 		switch req.Action {
 		case billingrpc.ActionActivate, billingrpc.ActionCancelAborted:
-			q.SetStatus(user.StatusPaid).
-				SetSubscriptionSource("tebex").
-				SetSubscriptionCancelPending(false).
-				SetBillingEventAt(req.OccurredAt).
-				SetBillingEventID(req.EventID)
-			if req.ExpiresAt != nil {
-				q.SetSubscriptionExpiresAt(*req.ExpiresAt)
-			}
-			if req.RecurringReference != "" {
-				q.SetSubscriptionRef(req.RecurringReference)
-			}
+			applyPaidUpdate(q, req, false)
 
 		case billingrpc.ActionCancelRequested:
-			q.SetStatus(user.StatusPaid).
-				SetSubscriptionSource("tebex").
-				SetSubscriptionCancelPending(true).
-				SetBillingEventAt(req.OccurredAt).
-				SetBillingEventID(req.EventID)
-			if req.ExpiresAt != nil {
-				q.SetSubscriptionExpiresAt(*req.ExpiresAt)
-			}
-			if req.RecurringReference != "" {
-				q.SetSubscriptionRef(req.RecurringReference)
-			}
+			applyPaidUpdate(q, req, true)
 
 		case billingrpc.ActionRevoke:
 			q.SetStatus(user.StatusFree).
@@ -119,6 +99,23 @@ func (r *Users) countGiftForGifter(ctx context.Context, req billingrpc.ApplyRequ
 	_ = db.WithExec(ctx, func(ctx context.Context) error {
 		return r.client.User.Update().Where(user.IDEQ(req.GifterID)).AddGiftsSent(1).Exec(ctx)
 	})
+}
+
+// applyPaidUpdate sets the paid-tier fields common to a Tebex activation and a
+// cancellation-requested event; the two differ only in whether the cancellation
+// is pending. One place, so the update chain is not duplicated per action.
+func applyPaidUpdate(q *ent.UserUpdate, req billingrpc.ApplyRequest, cancelPending bool) {
+	q.SetStatus(user.StatusPaid).
+		SetSubscriptionSource("tebex").
+		SetSubscriptionCancelPending(cancelPending).
+		SetBillingEventAt(req.OccurredAt).
+		SetBillingEventID(req.EventID)
+	if req.ExpiresAt != nil {
+		q.SetSubscriptionExpiresAt(*req.ExpiresAt)
+	}
+	if req.RecurringReference != "" {
+		q.SetSubscriptionRef(req.RecurringReference)
+	}
 }
 
 // SetAdminStatus owns operator grants. Paid grants require an expiry and are
