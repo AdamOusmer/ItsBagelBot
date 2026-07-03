@@ -60,6 +60,43 @@ export const load: PageServerLoad = async ({ url }) => {
   }
 };
 
+type SendForm = {
+  scope: 'broadcast' | 'direct';
+  targetUserId: string;
+  targetUsername: string;
+  title: string;
+  body: string;
+  level: string;
+  expiresAtRaw: string;
+  target: string;
+};
+
+// parseSendForm trims/caps the compose fields and validates them. Returns the
+// parsed form, or { error } for the action to hand to fail(400).
+function parseSendForm(f: FormData): SendForm | { error: string } {
+  const scope = String(f.get('scope') ?? '').trim();
+  const targetUserId = String(f.get('target_user_id') ?? '').trim();
+  const targetUsername = String(f.get('target_username') ?? '').trim();
+  const title = String(f.get('title') ?? '')
+    .trim()
+    .slice(0, MAX_TITLE_LENGTH);
+  const body = String(f.get('body') ?? '')
+    .trim()
+    .slice(0, MAX_BODY_LENGTH);
+  const level = String(f.get('level') ?? 'info').trim();
+  const expiresAtRaw = String(f.get('expires_at') ?? '').trim();
+
+  if (scope !== 'broadcast' && scope !== 'direct') return { error: 'invalid scope' };
+  if (scope === 'direct' && !targetUserId && !targetUsername) {
+    return { error: 'target user id or username required' };
+  }
+  if (!title || !body) return { error: 'title and body are required' };
+  if (!LEVELS.has(level)) return { error: 'invalid level' };
+
+  const target = scope === 'direct' ? targetUserId || targetUsername : 'all users';
+  return { scope, targetUserId, targetUsername, title, body, level, expiresAtRaw, target };
+}
+
 // audit records a mutating action best-effort: a logging failure must never
 // block or fail the operator action it describes. Skipped in demo (synthetic
 // non-numeric actor id).
@@ -82,23 +119,9 @@ export const actions: Actions = {
     const admin = await requireAdmin(locals.session);
     if (!admin) return fail(403, { error: 'forbidden' });
 
-    const f = await request.formData();
-    const scope = String(f.get('scope') ?? '').trim();
-    const targetUserId = String(f.get('target_user_id') ?? '').trim();
-    const targetUsername = String(f.get('target_username') ?? '').trim();
-    const title = String(f.get('title') ?? '').trim().slice(0, MAX_TITLE_LENGTH);
-    const body = String(f.get('body') ?? '').trim().slice(0, MAX_BODY_LENGTH);
-    const level = String(f.get('level') ?? 'info').trim();
-    const expiresAtRaw = String(f.get('expires_at') ?? '').trim();
-
-    if (scope !== 'broadcast' && scope !== 'direct') return fail(400, { error: 'invalid scope' });
-    if (scope === 'direct' && !targetUserId && !targetUsername) {
-      return fail(400, { error: 'target user id or username required' });
-    }
-    if (!title || !body) return fail(400, { error: 'title and body are required' });
-    if (!LEVELS.has(level)) return fail(400, { error: 'invalid level' });
-
-    const target = scope === 'direct' ? targetUserId || targetUsername : 'all users';
+    const parsed = parseSendForm(await request.formData());
+    if ('error' in parsed) return fail(400, { error: parsed.error });
+    const { scope, targetUserId, targetUsername, title, body, level, expiresAtRaw, target } = parsed;
 
     if (isDemo()) {
       return { action: { ok: true, notice: `notification sent to ${target} (demo)` } };
