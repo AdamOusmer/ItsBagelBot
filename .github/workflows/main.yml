@@ -18,35 +18,27 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2. Install Go
+      # setup-go@v5 caches the module cache + build cache by default, keyed on
+      # go.sum, so no separate actions/cache step is needed.
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.26'
 
-      # 3. Cache dependencies (Makes subsequent runs faster)
-      - name: Cache Go modules
-        uses: actions/cache@v3
-        with:
-          path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
-
-      # 4. Install dependencies
       - name: Install dependencies
         run: go mod download
 
+      # Regenerate every service's Ent client. Discovered from app/*/ent/schema
+      # so adding a new Ent service needs no edit here.
       - name: Generate Ent clients
         run: |
-          go run -mod=mod entgo.io/ent/cmd/ent generate ./app/commands/ent/schema
-          go run -mod=mod entgo.io/ent/cmd/ent generate ./app/modules/ent/schema
-          go run -mod=mod entgo.io/ent/cmd/ent generate ./app/transactions/ent/schema
-          go run -mod=mod entgo.io/ent/cmd/ent generate ./app/users/ent/schema
-          go run -mod=mod entgo.io/ent/cmd/ent generate ./app/notifications/ent/schema
+          set -euo pipefail
+          for schema in app/*/ent/schema; do
+            echo "ent generate ./$schema"
+            go run -mod=mod entgo.io/ent/cmd/ent generate "./$schema"
+          done
 
-      # 5. Run the Tests
-      # -race detects race conditions (very good for concurrent bots)
-      # -v gives verbose output so you can see which test failed
+      # -race detects race conditions (good for a concurrent bot); -v names the
+      # failing test.
       - name: Run Tests
         run: go test -v -race ./...
