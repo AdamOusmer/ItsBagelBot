@@ -1,11 +1,14 @@
 <script lang="ts">
-  import { Icon, PageHead, Card, toast } from '@bagel/shared';
+  import { Icon, PageHead, Card, Modal, toast, getI18n, containsLink } from '@bagel/shared';
   import { page } from '$app/state';
   import { replaceState, invalidateAll } from '$app/navigation';
   import { onMount } from 'svelte';
   import type { BillingState } from '$lib/server/services';
 
   let { data, form } = $props();
+
+  const i18n = getI18n();
+  const { t } = i18n;
 
   const account = $derived(data.account as BillingState);
 
@@ -21,23 +24,118 @@
   // configured: the ?/cancel action then answers 503 with a clear toast, which
   // beats silently hiding the only cancellation path.
   const canManage = $derived(tebexPaid);
+  const statusLabel = $derived(isVip ? 'VIP' : isPaid ? t('billing.premium') : t('billing.free'));
+
+  const freeFeatures = $derived([
+    t('billing.freeFeat1'),
+    t('billing.freeFeat2'),
+    t('billing.freeFeat3'),
+    t('billing.freeFeat4'),
+    t('billing.freeFeat5'),
+    t('billing.freeFeat6')
+  ]);
+  const premiumFeatures = $derived([
+    t('billing.premiumFeat1'),
+    t('billing.premiumFeat2'),
+    t('billing.premiumFeat3'),
+    t('billing.premiumFeat4')
+  ]);
 
   let launching = $state(false);
   let subscribeForm = $state<HTMLFormElement | null>(null);
+
+  // Gift modal state.
+  let giftModalOpen = $state(false);
   let giftLaunching = $state(false);
   let giftRecipient = $state('');
+  let giftMessage = $state('');
 
-  // Set when the browser returns from hosted checkout with ?checkout=complete.
-  // The entitlement lands out-of-band (Tebex webhook -> users service), so the
-  // page thanks the buyer immediately and polls the billing state until the
-  // plan flips to paid instead of asking for manual reloads.
-  let justPaid = $state(false);
+  // Gift notes are emailed to the recipient, so links are refused. Checked live
+  // for instant feedback, again in the server action, and a third time in the
+  // transactions service (@bagel/shared/validation mirrors the Go detector).
+  const giftMessageHasLink = $derived(giftMessage.trim().length > 0 && containsLink(giftMessage));
+
+  // Celebratory purchase-complete modal (replaces the old top ribbon).
+  let celebrateOpen = $state(false);
+  let celebrateKind = $state<'premium' | 'gift'>('premium');
+  let celebrateRecipient = $state('');
   let activationSlow = $state(false);
+  let celebratedActivation = $state(false);
+  let confetti = $state<
+    { tx: number; ty: number; rot: number; delay: number; dur: number; color: string; w: number; h: number }[]
+  >([]);
+
+  const INTENT_KEY = 'bagel_checkout_intent';
+
+  const prefersReducedMotion = () =>
+    typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function stashIntent(kind: 'premium' | 'gift', recipient = '') {
+    try {
+      sessionStorage.setItem(INTENT_KEY, JSON.stringify({ kind, recipient }));
+    } catch {
+      /* private mode / storage disabled — modal falls back to the premium copy */
+    }
+  }
+
+  function readIntent(): { kind: 'premium' | 'gift'; recipient: string } | null {
+    try {
+      const raw = sessionStorage.getItem(INTENT_KEY);
+      sessionStorage.removeItem(INTENT_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      return { kind: parsed.kind === 'gift' ? 'gift' : 'premium', recipient: String(parsed.recipient ?? '') };
+    } catch {
+      return null;
+    }
+  }
+
+  const CONFETTI_COLORS = ['#c9a87c', '#e0c49a', '#52b788', '#f0ece4'];
+
+  function burst() {
+    if (prefersReducedMotion()) return;
+    confetti = Array.from({ length: 44 }, () => ({
+      tx: Math.round((Math.random() - 0.5) * 620),
+      ty: Math.round(140 + Math.random() * 460),
+      rot: Math.round((Math.random() - 0.5) * 720),
+      delay: Math.round(Math.random() * 140),
+      dur: Math.round(900 + Math.random() * 700),
+      color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
+      w: 6 + Math.round(Math.random() * 6),
+      h: 3 + Math.round(Math.random() * 4)
+    }));
+    // Clear after the longest piece finishes so re-opens start clean.
+    setTimeout(() => (confetti = []), 1900);
+  }
+
+  function openGift() {
+    giftModalOpen = true;
+  }
+  function closeGift() {
+    if (giftLaunching) return;
+    giftModalOpen = false;
+  }
+  function onSubscribeSubmit() {
+    launching = true;
+    stashIntent('premium');
+  }
+  function onGiftSubmit(e: SubmitEvent) {
+    // Block the round-trip if a link is present; the inline error already shows.
+    if (giftMessageHasLink) {
+      e.preventDefault();
+      return;
+    }
+    giftLaunching = true;
+    stashIntent('gift', giftRecipient.trim());
+  }
+  function closeCelebrate() {
+    celebrateOpen = false;
+    confetti = [];
+  }
 
   // Auto-open checkout when the pricing page sent the visitor here with
-  // ?subscribe=1 (possibly via the login flow). One shot: the param is
-  // stripped so a refresh does not re-launch. The form performs a native
-  // top-level redirect to Tebex-hosted checkout.
+  // ?subscribe=1 (possibly via the login flow). One shot: the param is stripped
+  // so a refresh does not re-launch.
   onMount(() => {
     if (!data.autostart) return;
     const url = new URL(window.location.href);
@@ -46,19 +144,30 @@
     if (canSubscribe && !launching) subscribeForm?.requestSubmit();
   });
 
-  // Returning from hosted checkout with a completed payment: thank the buyer,
-  // strip the param (refreshes must not re-trigger), then chase the webhook by
-  // re-running the load every few seconds until the plan flips to paid. The
-  // server cache is event-invalidated when the entitlement lands, so a poll
-  // hit after that is fresh. Bounded: after ~2 minutes stop and say so.
+  // Returning from hosted checkout with a completed payment: open the
+  // celebratory modal with copy that matches what the buyer did (self-purchase
+  // vs gift, recovered from the sessionStorage intent stashed at submit time).
+  // A self-purchase then polls the billing state until the plan flips to paid;
+  // a gift changes nothing on the buyer's own account so it does not poll.
   onMount(() => {
     if (page.url.searchParams.get('checkout') !== 'complete') return;
-    justPaid = true;
+
+    const intent = readIntent();
+    celebrateKind = intent?.kind ?? 'premium';
+    celebrateRecipient = intent?.recipient ?? '';
+    celebrateOpen = true;
+    burst();
+
     const url = new URL(window.location.href);
     url.searchParams.delete('checkout');
     replaceState(url, {});
-    toast('ok', 'Payment received — thank you!');
 
+    if (celebrateKind === 'gift') {
+      toast('ok', t('billing.toastGiftSent'));
+      return;
+    }
+
+    toast('ok', t('billing.toastPaymentReceived'));
     let tries = 0;
     const timer = setInterval(() => {
       if (isPaid) {
@@ -75,19 +184,27 @@
     return () => clearInterval(timer);
   });
 
+  // When a self-purchase finally flips to paid while the modal is open, fire a
+  // second confetti burst to mark the activation.
+  $effect(() => {
+    if (celebrateOpen && celebrateKind === 'premium' && isPaid && !celebratedActivation) {
+      celebratedActivation = true;
+      burst();
+    }
+  });
+
   const fmtDate = (iso?: string | null) =>
     iso
-      ? new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
+      ? new Date(iso).toLocaleDateString(i18n.locale, { year: 'numeric', month: 'long', day: 'numeric' })
       : '';
 
-  // A cancelled checkout only needs the one toast (the complete case is
-  // handled in onMount above, where the polling lifecycle lives).
+  // A cancelled checkout only needs the one toast.
   let checkoutToasted = false;
   $effect(() => {
     if (checkoutToasted) return;
     if (page.url.searchParams.get('checkout') !== 'cancelled') return;
     checkoutToasted = true;
-    toast('err', 'Checkout cancelled. No charge was made.');
+    toast('err', t('billing.toastCheckoutCancelled'));
   });
 
   // svelte-ignore state_referenced_locally
@@ -101,185 +218,462 @@
     launching = false;
     giftLaunching = false;
     if (form.error) toast('err', String(form.error));
+    // A gift error re-renders the whole page (plain POST), losing the modal —
+    // reopen it and repopulate the fields the action echoed back.
+    if (form.gift) {
+      giftModalOpen = true;
+      if ('recipient' in form) giftRecipient = String(form.recipient);
+      if ('message' in form) giftMessage = String(form.message);
+    }
   });
-
-  const statusLabel = $derived(isVip ? 'VIP' : isPaid ? 'Premium' : 'Free');
 </script>
 
 <section class="screen active">
-  <PageHead eyebrow="Account" description="Your plan lives here. Tebex handles payment and subscription management.">Your <em>billing</em></PageHead>
+  <PageHead
+    eyebrow={t('billing.eyebrow')}
+    description={isPaid ? t('billing.descManage') : t('billing.descChoose')}
+  >
+    {isPaid ? t('billing.managePre') : t('billing.choosePre')}<em>{t('billing.planEm')}</em>
+  </PageHead>
 
   {#if data.degraded}
     <Card class="billing-card">
-      <p class="hint">Billing data is temporarily unavailable. What you see may be incomplete — try again shortly.</p>
+      <p class="hint">{t('billing.degraded')}</p>
     </Card>
   {/if}
 
-  {#if justPaid}
-    <Card class="billing-card">
-      <div class="thanks">
-        <Icon name="heart" size={18} />
-        {#if isPaid}
-          <div>
-            <strong>Thank you! Premium is active.</strong>
-            <p class="hint">Your support keeps ItsBagelBot running. Everything premium is unlocked now.</p>
-          </div>
-        {:else if activationSlow}
-          <div>
-            <strong>Payment received — activation is taking longer than usual.</strong>
-            <p class="hint">Tebex confirmed the payment. Give it a minute and refresh; if it still shows Free, contact us.</p>
-          </div>
-        {:else}
-          <div>
-            <strong>Thank you! Payment received.</strong>
-            <p class="hint">Activating your premium — this page updates by itself, usually within a minute.</p>
-          </div>
-        {/if}
-      </div>
-    </Card>
-  {/if}
-
-  <!-- PLAN -->
-  <Card class="billing-card">
-    <div class="plan-top">
-      <div>
-        <h2>Current plan</h2>
-        <div class="plan-name {isPaid ? 'premium' : ''}">
-          <Icon name={isPaid ? 'heart' : 'overview'} size={16} />
-          {statusLabel}
+  {#if !isPaid}
+    <!-- ────── SELECTION VIEW (free plan) ────── -->
+    <div class="plans">
+      <!-- Free: the whole product -->
+      <Card class="plan-card">
+        <span class="plan-eyebrow">{t('billing.currentPlan')}</span>
+        <div class="plan-headline">{t('billing.free')}</div>
+        <div class="plan-price">
+          <span class="plan-amt">$0</span>
+          <span class="plan-per">{t('billing.priceForever')}</span>
         </div>
-        {#if isVip}
-          <p class="hint">VIP is permanent. It never expires and there is nothing to pay.</p>
-        {:else if staffGrant}
-          <p class="hint">
-            Premium granted by the ItsBagelBot team{paidUntil ? `, active until ${fmtDate(paidUntil)}` : ''}.
-            Nothing to pay and nothing will be charged while the grant is active.
-          </p>
-        {:else if tebexPaid}
-          <p class="hint">
-            {account.cancelPending ? 'Cancellation is scheduled' : 'Premium is active through Tebex'}{paidUntil ? ` until ${fmtDate(paidUntil)}` : ''}.
-            Use Tebex-hosted subscription management to review payments or change the subscription.
-          </p>
-        {:else if isPaid}
-          <p class="hint">Premium is active{paidUntil ? ` until ${fmtDate(paidUntil)}` : ''}.</p>
-        {:else}
-          <p class="hint">You are on the free plan. Premium unlocks the priority lane and premium modules.</p>
-        {/if}
-      </div>
+        <p class="plan-desc">{t('billing.freeDesc')}</p>
+        <ul class="plan-feats">
+          {#each freeFeatures as feature}
+            <li><Icon name="check" size={15} />{feature}</li>
+          {/each}
+        </ul>
+        <div class="plan-current">{t('billing.onThisPlan')}</div>
+      </Card>
 
-      <div class="plan-actions">
-        {#if canSubscribe}
-          <!-- Two ways to pay, both one click: an auto-renewing monthly
-               subscription or a single month with no renewal. The plan rides
-               in a hidden input (never a button value: submit-time state
-               changes can drop the submitter from the form data). -->
-          <div class="plan-buttons">
-            <form
-              method="POST"
-              action="?/subscribe"
-              bind:this={subscribeForm}
-              onsubmit={() => {
-                launching = true;
-              }}
-            >
-              <input type="hidden" name="plan" value="monthly" />
-              <button class="btn primary" type="submit" disabled={launching}>
-                <Icon name="heart" size={14} />
-                {launching ? 'Opening checkout…' : 'Subscribe monthly'}
-              </button>
-            </form>
-            <form
-              method="POST"
-              action="?/subscribe"
-              onsubmit={() => {
-                launching = true;
-              }}
-            >
-              <input type="hidden" name="plan" value="once" />
-              <button class="btn ghost" type="submit" disabled={launching}>
-                {launching ? 'Opening checkout…' : 'Buy one month'}
-              </button>
-            </form>
+      <!-- Premium: the upgrade -->
+      <Card class="plan-card plan-card--premium">
+        <span class="plan-badge">{t('billing.priorityLane')}</span>
+        <span class="plan-eyebrow">{t('billing.upgrade')}</span>
+        <div class="plan-headline">{t('billing.premium')}</div>
+        <div class="plan-price">
+          <span class="plan-cur">$</span>
+          <span class="plan-amt">5</span>
+          <span class="plan-per">{t('billing.perMonth')}</span>
+        </div>
+        <p class="plan-desc">{t('billing.premiumDesc')}</p>
+        <ul class="plan-feats">
+          {#each premiumFeatures as feature}
+            <li><Icon name="check" size={15} />{feature}</li>
+          {/each}
+        </ul>
+        <div class="plan-buttons">
+          <form method="POST" action="?/subscribe" bind:this={subscribeForm} onsubmit={onSubscribeSubmit}>
+            <input type="hidden" name="plan" value="monthly" />
+            <button class="btn primary" type="submit" disabled={launching}>
+              <Icon name="heart" size={14} />
+              {launching ? t('billing.openingCheckout') : t('billing.subscribeMonthly')}
+            </button>
+          </form>
+          <form method="POST" action="?/subscribe" onsubmit={onSubscribeSubmit}>
+            <input type="hidden" name="plan" value="once" />
+            <button class="btn ghost" type="submit" disabled={launching}>
+              {launching ? t('billing.openingCheckout') : t('billing.buyOneMonth')}
+            </button>
+          </form>
+        </div>
+        <p class="plan-fine">{t('billing.premiumFine')}</p>
+      </Card>
+    </div>
+
+    <p class="oath">{t('billing.oath')}</p>
+
+    <div class="gift-link-row">
+      <button type="button" class="gift-link" onclick={openGift}>{t('billing.giftLink')}</button>
+    </div>
+    {#if form?.error && !form?.gift}
+      <p class="form-error center">{form.error}</p>
+    {/if}
+  {:else}
+    <!-- ────── MANAGEMENT VIEW (premium / vip) ────── -->
+    <Card class="billing-card">
+      <div class="mgmt-top">
+        <div>
+          <span class="plan-eyebrow">Current plan</span>
+          <div class="plan-name premium">
+            <Icon name="heart" size={16} />
+            {statusLabel}
           </div>
-          <p class="hint tiny">Monthly renews automatically until cancelled. One month is a single charge, no renewal.</p>
-          <p class="hint tiny">Redirects to Tebex’s secure hosted checkout. Your plan updates after the payment lands.</p>
-        {:else if canManage}
-          <form method="POST" action="?/cancel">
-            <button type="submit" class="btn ghost">Manage subscription</button>
-          </form>
-          <form method="POST" action="?/cancel">
-            <button type="submit" class="btn ghost danger">Cancel subscription</button>
-          </form>
-          <p class="hint tiny">Both redirect to Tebex-hosted subscription management, where cancellation is one click.</p>
-        {/if}
-        {#if form?.error && !form?.gift}
-          <p class="hint form-error">{form.error}</p>
-        {/if}
-      </div>
-    </div>
-  </Card>
+          {#if isVip}
+            <p class="hint">{t('billing.vipHint')}</p>
+          {:else if staffGrant}
+            <p class="hint">
+              {t('billing.staffGrantHint', { until: paidUntil ? t('billing.activeUntil', { date: fmtDate(paidUntil) }) : '' })}
+            </p>
+          {:else if tebexPaid}
+            <p class="hint">
+              {t('billing.tebexHint', {
+                state: account.cancelPending ? t('billing.cancelScheduled') : t('billing.activeThroughTebex'),
+                until: paidUntil ? t('billing.untilDate', { date: fmtDate(paidUntil) }) : ''
+              })}
+            </p>
+          {:else}
+            <p class="hint">{t('billing.premiumActive', { until: paidUntil ? t('billing.untilDate', { date: fmtDate(paidUntil) }) : '' })}</p>
+          {/if}
+        </div>
 
-  <!-- GIFT: pay for someone else's premium. Open regardless of your own plan;
-       the recipient must be a registered, non-premium ItsBagelBot user (the
-       transactions service vets this and its errors surface as toasts). -->
-  <Card class="billing-card">
-    <div class="gift-top">
-      <div>
-        <h2>Gift premium</h2>
-        <p class="hint">
-          Pay for another streamer's premium. They need an ItsBagelBot account, and they get a
-          notification the moment your payment lands.
-        </p>
+        <div class="mgmt-actions">
+          {#if canManage}
+            <form method="POST" action="?/cancel">
+              <button type="submit" class="btn ghost">{t('billing.manageSubscription')}</button>
+            </form>
+            <form method="POST" action="?/cancel">
+              <button type="submit" class="btn ghost danger">{t('billing.cancelSubscription')}</button>
+            </form>
+            <p class="hint tiny">{t('billing.manageTiny')}</p>
+          {/if}
+          {#if form?.error && !form?.gift}
+            <p class="hint form-error">{form.error}</p>
+          {/if}
+        </div>
       </div>
-      <div class="gift-side">
-        <form
-          class="gift-form"
-          method="POST"
-          action="?/gift"
-          onsubmit={() => {
-            giftLaunching = true;
-          }}
-        >
-          <!-- readonly, never disabled: the submit handler flips giftLaunching
-               before the browser serializes the form, and disabled fields are
-               dropped from form data — the server would always see an empty
-               recipient. -->
-          <input
-            class="gift-input"
-            type="text"
-            name="recipient"
-            data-cursor
-            placeholder="Twitch username"
-            autocomplete="off"
-            spellcheck="false"
-            maxlength="26"
-            bind:value={giftRecipient}
-            readonly={giftLaunching}
-          />
-          <button class="btn primary" type="submit" disabled={giftLaunching || !giftRecipient.trim()}>
-            <Icon name="heart" size={14} />
-            {giftLaunching ? 'Opening checkout…' : 'Gift premium'}
-          </button>
-        </form>
-        <!-- Inline so the reason survives the full-page re-render of a failed
-             plain-form POST; the toast alone is easy to miss. -->
-        {#if form?.gift && form?.error}
-          <p class="hint form-error">{form.error}</p>
-        {/if}
+    </Card>
+
+    <!-- Gift: available whatever your own plan is -->
+    <Card class="billing-card">
+      <div class="gift-cta">
+        <div>
+          <h2>{t('billing.giftPremium')}</h2>
+          <p class="hint">
+            {t('billing.giftCtaHint')}
+          </p>
+        </div>
+        <button type="button" class="btn ghost" onclick={openGift}>
+          <Icon name="heart" size={14} />
+          {t('billing.giftPremium')}
+        </button>
       </div>
-    </div>
-  </Card>
+    </Card>
+  {/if}
 </section>
+
+<!-- ────── GIFT MODAL (both views) ────── -->
+<Modal open={giftModalOpen} title={t('billing.giftPremium')} closeModal={closeGift}>
+  <p class="modal-body">
+    {t('billing.giftModalBody')}
+  </p>
+  <form method="POST" action="?/gift" onsubmit={onGiftSubmit} class="gift-form">
+    <label class="fld">
+      <span class="fld-label">{t('billing.twitchUsername')}</span>
+      <input
+        class="fld-input"
+        type="text"
+        name="recipient"
+        data-cursor
+        placeholder={t('billing.usernamePlaceholder')}
+        autocomplete="off"
+        spellcheck="false"
+        maxlength="26"
+        bind:value={giftRecipient}
+        readonly={giftLaunching}
+      />
+    </label>
+    <label class="fld">
+      <span class="fld-label">{t('billing.messageLabel')} <em>{t('billing.optional')}</em></span>
+      <textarea
+        class="fld-input fld-textarea"
+        name="message"
+        data-cursor
+        placeholder={t('billing.messagePlaceholder')}
+        maxlength="280"
+        rows="3"
+        bind:value={giftMessage}
+        readonly={giftLaunching}
+      ></textarea>
+      <span class="counter" class:counter--full={giftMessage.length >= 280}>{giftMessage.length}/280</span>
+      {#if giftMessageHasLink}
+        <p class="form-error">{t('billing.giftNoteLink')}</p>
+      {/if}
+    </label>
+    {#if form?.gift && form?.error}
+      <p class="form-error">{form.error}</p>
+    {/if}
+    <div class="modal-actions">
+      <button type="button" class="btn ghost" onclick={closeGift} disabled={giftLaunching}>{t('common.cancel')}</button>
+      <button class="btn primary" type="submit" disabled={giftLaunching || !giftRecipient.trim() || giftMessageHasLink}>
+        <Icon name="heart" size={14} />
+        {giftLaunching ? t('billing.openingCheckout') : t('billing.giftPremium')}
+      </button>
+    </div>
+  </form>
+</Modal>
+
+<!-- ────── CELEBRATORY PURCHASE-COMPLETE MODAL ────── -->
+<Modal open={celebrateOpen} closeModal={closeCelebrate}>
+  <div class="celebrate">
+    <div class="celebrate-badge" class:celebrate-badge--gift={celebrateKind === 'gift'}>
+      <Icon name="heart" size={30} />
+    </div>
+
+    {#if celebrateKind === 'gift'}
+      <h3 class="celebrate-title">{t('billing.giftSent')}</h3>
+      <p class="celebrate-body">
+        {#if celebrateRecipient}
+          {t('billing.giftSentNamedPre')}<strong>@{celebrateRecipient}</strong>{t('billing.giftSentNamedPost')}
+        {:else}
+          {t('billing.giftSentBody')}
+        {/if}
+      </p>
+    {:else if isPaid}
+      <h3 class="celebrate-title">{t('billing.premiumActivated')}</h3>
+      <p class="celebrate-body">
+        {t('billing.premiumActivatedBody')}
+      </p>
+    {:else if activationSlow}
+      <h3 class="celebrate-title">{t('billing.paymentReceived')}</h3>
+      <p class="celebrate-body">
+        {t('billing.paymentSlowBody')}
+      </p>
+    {:else}
+      <h3 class="celebrate-title">{t('billing.paymentReceivedTitle')}</h3>
+      <p class="celebrate-body">
+        {t('billing.paymentReceivedBody')}
+      </p>
+      <div class="celebrate-spinner" aria-hidden="true"></div>
+    {/if}
+
+    <div class="modal-actions celebrate-actions">
+      <button type="button" class="btn primary" onclick={closeCelebrate}>
+        {celebrateKind === 'gift' ? t('common.done') : isPaid ? t('billing.explorePremium') : t('common.gotIt')}
+      </button>
+    </div>
+  </div>
+</Modal>
+
+{#if confetti.length}
+  <div class="confetti-layer" aria-hidden="true">
+    {#each confetti as p}
+      <span
+        class="confetti-piece"
+        style="--tx:{p.tx}px; --ty:{p.ty}px; --rot:{p.rot}deg; --delay:{p.delay}ms; --dur:{p.dur}ms; background:{p.color}; width:{p.w}px; height:{p.h}px;"
+      ></span>
+    {/each}
+  </div>
+{/if}
 
 <style>
   :global(.billing-card) {
     margin-top: 18px;
   }
-  h2 { margin: 0 0 6px; font-size: 16px; }
-  .hint { color: var(--bb-muted, #998f82); font-size: 13px; margin: 6px 0 0; max-width: 52ch; }
-  .hint.tiny { font-size: 12px; }
+  h2 {
+    margin: 0 0 6px;
+    font-size: 16px;
+  }
+  .hint {
+    color: var(--bb-muted, #998f82);
+    font-size: 13px;
+    margin: 6px 0 0;
+    max-width: 52ch;
+  }
+  .hint.tiny {
+    font-size: 12px;
+  }
 
-  .plan-top {
+  /* ── Selection view: plan cards ── */
+  .plans {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 20px;
+    margin-top: 18px;
+  }
+  @media (min-width: 820px) {
+    .plans {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  :global(.plan-card) {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+  :global(.plan-card--premium) {
+    border-color: rgba(201, 168, 124, 0.4) !important;
+    box-shadow: 0 0 44px rgba(201, 168, 124, 0.08);
+  }
+
+  /* Seated inside the card's top-right corner: the shared Card clips overflow,
+     so a badge straddling the top border (translateY(-50%)) gets cut off. */
+  .plan-badge {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    font-family: var(--bb-font-mono);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    background: var(--bb-tan);
+    color: #0a0a0a;
+    padding: 4px 12px;
+    border-radius: var(--bb-radius-pill, 100px);
+    font-weight: 600;
+  }
+  .plan-eyebrow {
+    font-family: var(--bb-font-mono);
+    font-size: 11px;
+    letter-spacing: var(--bb-tracking-eyebrow, 0.14em);
+    text-transform: uppercase;
+    color: var(--bb-muted);
+  }
+  .plan-headline {
+    font-family: var(--bb-font-display);
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--bb-white);
+    margin: 6px 0 12px;
+  }
+  .plan-price {
+    display: flex;
+    align-items: baseline;
+    gap: 3px;
+    margin-bottom: 12px;
+  }
+  .plan-cur {
+    font-family: var(--bb-font-display);
+    font-weight: 800;
+    font-size: 1.5rem;
+    color: var(--bb-tan-light);
+    align-self: flex-start;
+    margin-top: 6px;
+  }
+  .plan-amt {
+    font-family: var(--bb-font-display);
+    font-weight: 800;
+    font-size: 3rem;
+    line-height: 1;
+    letter-spacing: -0.03em;
+    color: var(--bb-white);
+    font-variant-numeric: tabular-nums;
+  }
+  .plan-per {
+    font-family: var(--bb-font-body);
+    font-size: 0.85rem;
+    color: var(--bb-muted);
+    margin-left: 4px;
+  }
+  .plan-desc {
+    font-family: var(--bb-font-body);
+    font-size: 0.9rem;
+    line-height: 1.6;
+    color: var(--bb-muted);
+    margin: 0 0 20px;
+    max-width: 42ch;
+  }
+  .plan-feats {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 11px;
+    margin: 0 0 24px;
+    padding: 20px 0 0;
+    border-top: 1px solid var(--bb-border);
+  }
+  .plan-feats li {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-family: var(--bb-font-body);
+    font-size: 0.87rem;
+    line-height: 1.45;
+    color: rgba(240, 236, 228, 0.82);
+  }
+  .plan-feats :global(svg) {
+    flex-shrink: 0;
+    color: var(--bb-green-glow, #52b788);
+    margin-top: 1px;
+  }
+  .plan-current {
+    margin-top: auto;
+    font-family: var(--bb-font-mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--bb-green-light, #74c69d);
+    border: 1px solid rgba(82, 183, 136, 0.3);
+    border-radius: var(--bb-radius-pill, 100px);
+    padding: 9px 16px;
+    text-align: center;
+  }
+  .plan-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: auto;
+  }
+  .plan-buttons form {
+    flex: 1;
+  }
+  .plan-buttons .btn {
+    width: 100%;
+    justify-content: center;
+  }
+  .plan-fine {
+    font-family: var(--bb-font-body);
+    font-size: 12px;
+    color: var(--bb-muted);
+    margin: 12px 0 0;
+    line-height: 1.5;
+  }
+
+  .oath {
+    font-family: var(--bb-font-mono);
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    color: var(--bb-muted);
+    text-align: center;
+    border: 1px dashed rgba(201, 168, 124, 0.22);
+    border-radius: var(--bb-radius-pill, 100px);
+    padding: 11px 22px;
+    margin: 18px auto 0;
+    max-width: fit-content;
+  }
+
+  .gift-link-row {
+    display: flex;
+    justify-content: center;
+    margin-top: 22px;
+  }
+  .gift-link {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: var(--bb-font-body);
+    font-size: 13.5px;
+    color: var(--bb-tan-light);
+    padding: 8px 4px;
+    transition: color var(--bb-dur-fast, 160ms) ease;
+  }
+  .gift-link:hover {
+    color: var(--bb-tan-pale, #e8d8c0);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  /* ── Management view ── */
+  .mgmt-top {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
@@ -295,64 +689,69 @@
     font-size: 20px;
     color: var(--bb-white);
   }
-  .plan-name.premium { color: var(--bb-tan-light, #c9a87c); }
-
-  .plan-actions {
+  .plan-name.premium {
+    color: var(--bb-tan-light, #c9a87c);
+  }
+  .mgmt-actions {
     display: flex;
     flex-direction: column;
     align-items: flex-end;
     gap: 8px;
     flex-shrink: 0;
   }
-  .plan-buttons {
-    display: flex;
-    gap: 10px;
-    align-items: center;
+  .mgmt-actions .hint {
+    text-align: right;
   }
-  .plan-actions .hint { text-align: right; }
-
-  .gift-top {
+  .gift-cta {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
     gap: 18px;
   }
-  .gift-form {
-    display: flex;
-    gap: 10px;
+  .gift-cta .btn {
     flex-shrink: 0;
-    align-items: center;
   }
-  .thanks {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-  }
-  .thanks strong {
-    color: var(--bb-white);
-    font-size: 15px;
-  }
-  .thanks .hint { margin-top: 4px; }
 
   .btn.danger {
     color: #e5484d;
     border-color: rgba(229, 72, 77, 0.4);
   }
 
-  .gift-side {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 8px;
-    flex-shrink: 0;
-  }
   .form-error {
     color: #e5484d;
-    max-width: 34ch;
-    text-align: right;
+    font-size: 13px;
+  }
+  .form-error.center {
+    text-align: center;
+    margin-top: 14px;
   }
 
-  .gift-input {
+  /* ── Gift modal form ── */
+  .gift-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .fld {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    position: relative;
+  }
+  .fld-label {
+    font-family: var(--bb-font-mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--bb-muted);
+  }
+  .fld-label em {
+    font-style: normal;
+    text-transform: none;
+    letter-spacing: 0;
+    opacity: 0.7;
+  }
+  .fld-input {
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid var(--bb-border, rgba(255, 255, 255, 0.1));
     border-radius: var(--bb-radius-md, 10px);
@@ -360,24 +759,179 @@
     font-family: var(--bb-font-body);
     font-size: 13.5px;
     padding: 10px 14px;
-    width: 200px;
+    width: 100%;
   }
-  .gift-input:focus {
+  .fld-input:focus {
     outline: none;
     border-color: var(--bb-tan, #c9a87c);
   }
+  .fld-textarea {
+    resize: vertical;
+    min-height: 68px;
+    line-height: 1.5;
+  }
+  .counter {
+    align-self: flex-end;
+    font-family: var(--bb-font-mono);
+    font-size: 11px;
+    color: var(--bb-muted);
+  }
+  .counter--full {
+    color: var(--bb-tan-light);
+  }
+
+  /* ── Celebratory modal ── */
+  .celebrate {
+    text-align: center;
+    padding: 4px 2px 0;
+  }
+  .celebrate-badge {
+    width: 68px;
+    height: 68px;
+    margin: 0 auto 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    color: var(--bb-tan-light);
+    background: radial-gradient(circle at 50% 40%, rgba(201, 168, 124, 0.28), rgba(201, 168, 124, 0.06));
+    border: 1px solid rgba(201, 168, 124, 0.4);
+    animation: pop 620ms var(--bb-ease-out-back, cubic-bezier(0.34, 1.56, 0.64, 1)) both;
+  }
+  .celebrate-badge--gift {
+    color: var(--bb-green-light, #74c69d);
+    background: radial-gradient(circle at 50% 40%, rgba(82, 183, 136, 0.28), rgba(82, 183, 136, 0.06));
+    border-color: rgba(82, 183, 136, 0.4);
+  }
+  .celebrate-title {
+    font-family: var(--bb-font-display);
+    font-weight: 800;
+    font-size: 24px;
+    color: var(--bb-white);
+    margin: 0 0 10px;
+    letter-spacing: -0.01em;
+    animation: rise 500ms var(--bb-ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)) both;
+    animation-delay: 80ms;
+  }
+  .celebrate-body {
+    font-family: var(--bb-font-body);
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--bb-muted);
+    margin: 0 auto;
+    max-width: 42ch;
+    animation: rise 500ms var(--bb-ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)) both;
+    animation-delay: 140ms;
+  }
+  .celebrate-body strong {
+    color: var(--bb-tan-light);
+  }
+  .celebrate-spinner {
+    width: 22px;
+    height: 22px;
+    margin: 18px auto 0;
+    border: 2px solid var(--bb-border-strong, rgba(201, 168, 124, 0.3));
+    border-top-color: var(--bb-tan);
+    border-radius: 50%;
+    animation: spin 700ms linear infinite;
+  }
+  .celebrate-actions {
+    justify-content: center;
+    margin-top: 24px;
+  }
+
+  @keyframes pop {
+    0% {
+      transform: scale(0);
+      opacity: 0;
+    }
+    60% {
+      transform: scale(1.12);
+    }
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+  @keyframes rise {
+    from {
+      transform: translateY(10px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  /* ── Confetti ── */
+  .confetti-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 260;
+    pointer-events: none;
+    overflow: hidden;
+  }
+  .confetti-piece {
+    position: absolute;
+    top: 42%;
+    left: 50%;
+    border-radius: 1px;
+    opacity: 0;
+    animation: confetti var(--dur, 1200ms) var(--bb-ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)) var(--delay, 0ms) forwards;
+  }
+  @keyframes confetti {
+    0% {
+      transform: translate(-50%, -50%) rotate(0deg) scale(1);
+      opacity: 1;
+    }
+    100% {
+      transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) rotate(var(--rot)) scale(0.9);
+      opacity: 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .celebrate-badge,
+    .celebrate-title,
+    .celebrate-body,
+    .celebrate-spinner,
+    .confetti-piece {
+      animation: none;
+    }
+    .celebrate-badge,
+    .celebrate-title,
+    .celebrate-body {
+      opacity: 1;
+      transform: none;
+    }
+  }
 
   @media (max-width: 760px) {
-    .plan-top { flex-direction: column; }
-    .plan-actions { align-items: stretch; width: 100%; }
-    .plan-actions .hint { text-align: left; }
-    .plan-buttons { flex-direction: column; align-items: stretch; }
-    .plan-buttons form { width: 100%; }
-    .plan-buttons .btn { width: 100%; justify-content: center; }
-    .gift-top { flex-direction: column; }
-    .gift-side { align-items: stretch; width: 100%; }
-    .gift-form { width: 100%; flex-wrap: wrap; }
-    .gift-input { flex: 1; min-width: 0; }
-    .form-error { text-align: left; max-width: none; }
+    .mgmt-top {
+      flex-direction: column;
+    }
+    .mgmt-actions {
+      align-items: stretch;
+      width: 100%;
+    }
+    .mgmt-actions .hint {
+      text-align: left;
+    }
+    .gift-cta {
+      flex-direction: column;
+    }
+    .gift-cta .btn {
+      width: 100%;
+      justify-content: center;
+    }
+    .plan-buttons {
+      flex-direction: column;
+    }
   }
 </style>
