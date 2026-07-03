@@ -1,15 +1,15 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  let { exitHref, exitForm = false, children }:
-    { exitHref?: string; exitForm?: boolean; children: Snippet } = $props();
+  let { exitHref, exitForm = false, exitLabel = 'Exit', children }:
+    { exitHref?: string; exitForm?: boolean; exitLabel?: string; children: Snippet } = $props();
 </script>
 
 <div class="imp-banner" role="status">
   <span>{@render children()}</span>
   {#if exitForm}
-    <form method="POST" action="/auth/logout"><button type="submit" class="imp-exit">Exit</button></form>
+    <form method="POST" action="/auth/logout"><button type="submit" class="imp-exit">{exitLabel}</button></form>
   {:else}
-    <a href={exitHref} class="imp-exit">Exit</a>
+    <a href={exitHref} class="imp-exit">{exitLabel}</a>
   {/if}
 </div>
 

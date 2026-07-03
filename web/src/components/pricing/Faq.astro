@@ -4,6 +4,10 @@
  * grid-template-rows height trick; mono index numbers; hover nudge.
  */
 import SectionHeading from '../ui/SectionHeading.astro';
+import { getLangFromUrl, useTranslations } from '../../i18n/ui';
+
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
 
 interface FaqItem {
     question: string;
@@ -11,31 +15,16 @@ interface FaqItem {
 }
 
 const faqs: FaqItem[] = [
-    {
-        question: 'Is the free plan really free?',
-        answer: "Yes. Every feature, no limits, no expiry. We built this because good tools shouldn't depend on your budget, and we meant it.",
-    },
-    {
-        question: 'So what am I actually paying for with Premium?',
-        answer: "Priority. Premium messages jump the processing queue, so commands and moderation land faster when chat is busiest. It keeps the servers running too.",
-    },
-    {
-        question: 'Can I cancel Premium anytime?',
-        answer: "One click from the dashboard, no penalties, no exit survey. You keep the perks until the end of the billing period.",
-    },
-    {
-        question: "What's included in Enterprise?",
-        answer: 'Dedicated hardware, multi-streamer management, custom SLAs, and direct engineering support. Write to enterprise@itsbagelbot.com for a quote.',
-    },
-    {
-        question: 'Is ItsBagelBot source available?',
-        answer: 'ItsBagelBot is source available, not open source. You can read and audit every line on GitHub, but the license restricts redistribution and commercial use. Transparency without compromise.',
-    },
+    { question: t('faq.q1'), answer: t('faq.a1') },
+    { question: t('faq.q2'), answer: t('faq.a2') },
+    { question: t('faq.q3'), answer: t('faq.a3') },
+    { question: t('faq.q4'), answer: t('faq.a4') },
+    { question: t('faq.q5'), answer: t('faq.a5') },
 ];
 ---
 
 <section class="faq">
-    <SectionHeading eyebrow="FAQ" title="Fair questions." />
+    <SectionHeading eyebrow={t('faq.eyebrow')} title={t('faq.title')} />
 
     <div class="faq__list">
         {faqs.map((faq, i) => (

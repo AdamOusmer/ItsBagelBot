@@ -5,8 +5,10 @@
   // optimistic-UI state lives in one place.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { Icon, Badge, SaveStatus, type CommandView, type Perm } from '@bagel/shared';
+  import { Icon, Badge, SaveStatus, getI18n, type CommandView, type Perm } from '@bagel/shared';
   import type { SaveState } from '@bagel/shared/components/SaveStatus.svelte';
+
+  const { t } = getI18n();
 
   let {
     command,
@@ -59,17 +61,17 @@
       <span class="cmd-name">
         !{c.name}
         {#if c.allowed_user_id}
-          <span class="lock" title="Locked to user {c.allowed_user_id}"><Icon name="lock" size={11} /></span>
+          <span class="lock" title={t('commandRow.lockedTo', { id: c.allowed_user_id })}><Icon name="lock" size={11} /></span>
         {/if}
         {#if c.stream_online_only}
-          <span class="lock" title="Only runs while live"><Icon name="pulse" size={11} /></span>
+          <span class="lock" title={t('commandRow.liveOnly')}><Icon name="pulse" size={11} /></span>
         {/if}
         {#if unsaved}
-          <span class="unsaved" title="You have unsaved edits for this command">Unsaved</span>
+          <span class="unsaved" title={t('commandRow.unsavedTitle')}>{t('commandRow.unsaved')}</span>
         {/if}
       </span>
       {#if c.aliases?.length}
-        <span class="aliases" title="Also: {c.aliases.join(', ')}">
+        <span class="aliases" title={t('commandRow.also', { aliases: c.aliases.join(', ') })}>
           {#each c.aliases as a}<span class="alias-tag">{a}</span>{/each}
         </span>
       {/if}
@@ -77,8 +79,8 @@
     <span class="resp">{c.response}</span>
     <span class="meta">
       <Badge perm={(c.perm ?? 'everyone') as Perm} />
-      <span class="cd" title="Cooldown">{cd}</span>
-      <span class="uses" title="Uses">{c.uses ?? '0'}</span>
+      <span class="cd" title={t('commandRow.cooldown')}>{cd}</span>
+      <span class="uses" title={t('commandRow.uses')}>{c.uses ?? '0'}</span>
     </span>
     <span class="state"><SaveStatus state={status} /></span>
     <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
@@ -93,9 +95,9 @@
         <input type="hidden" name="allowed_user_id" value={c.allowed_user_id ?? ''} />
         <input type="hidden" name="stream_online_only" value={c.stream_online_only ? 'on' : ''} />
         <input type="hidden" name="is_active" value={c.is_active ? '' : 'on'} />
-        <button class="toggle {c.is_active ? 'on' : ''}" type="submit" aria-label="Toggle !{c.name}"></button>
+        <button class="toggle {c.is_active ? 'on' : ''}" type="submit" aria-label={t('commandRow.toggleAria', { name: c.name })}></button>
       </form>
-      <button class="mini" type="button" aria-label="Delete !{c.name}" onclick={onDelete}>
+      <button class="mini" type="button" aria-label={t('commandRow.deleteAria', { name: c.name })} onclick={onDelete}>
         <Icon name="trash" size={15} />
       </button>
     </span>

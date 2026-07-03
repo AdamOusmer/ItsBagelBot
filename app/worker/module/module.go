@@ -126,6 +126,12 @@ type Context struct {
 	BroadcasterID uint64
 	Log           *zap.Logger
 
+	// Locale is the broadcaster's console UI language ("en", "fr", …). The
+	// command router fills it (from the user projection) before running a baked
+	// command, so system replies can be localized. Empty means the default
+	// language.
+	Locale string
+
 	// Config is this module's raw configuration blob from its ModuleView; the
 	// pipeline sets it before calling Handle. Empty for core modules.
 	Config json.RawMessage
@@ -161,6 +167,7 @@ func (c *Context) Reset() {
 	c.Env = lane.Envelope{}
 	c.Regress = RegressStandard
 	c.BroadcasterID = 0
+	c.Locale = ""
 	c.Config = nil
 	c.role = RoleEveryone
 	c.roleSet = false

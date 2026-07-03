@@ -32,6 +32,7 @@ type UserView struct {
 	IsActive                  bool       `json:"is_active"`
 	Status                    string     `json:"status"`
 	Banned                    bool       `json:"banned"`
+	Locale                    string     `json:"locale"`
 	SubscriptionSource        string     `json:"subscription_source"`
 	SubscriptionExpiresAt     *time.Time `json:"subscription_expires_at,omitempty"`
 	SubscriptionRef           *string    `json:"subscription_ref,omitempty"`
@@ -124,6 +125,7 @@ func (r *Users) Get(ctx context.Context, id uint64) (UserView, error) {
 				IsActive:                  u.IsActive,
 				Status:                    string(u.Status),
 				Banned:                    u.Banned,
+				Locale:                    u.Locale,
 				SubscriptionSource:        u.SubscriptionSource,
 				SubscriptionExpiresAt:     u.SubscriptionExpiresAt,
 				SubscriptionRef:           u.SubscriptionRef,
@@ -168,6 +170,28 @@ func (r *Users) SetActive(ctx context.Context, id uint64, active bool) error {
 	if err := db.WithExec(ctx, func(ctx context.Context) error {
 		return r.client.User.UpdateOneID(id).
 			SetIsActive(active).
+			Exec(ctx)
+	}); err != nil {
+		return err
+	}
+
+	return r.publishChanged(ctx, id)
+}
+
+// SetLocale stores the user's console UI language and announces the change so
+// the projector folds the new locale into the Valkey user projection (the
+// worker reads it there to answer system commands in the user's language). The
+// console's own locale cache is dropped separately via the RPC handler's
+// invalidation ping.
+func (r *Users) SetLocale(ctx context.Context, id uint64, locale string) error {
+
+	if err := validate.UserID(id); err != nil {
+		return err
+	}
+
+	if err := db.WithExec(ctx, func(ctx context.Context) error {
+		return r.client.User.UpdateOneID(id).
+			SetLocale(locale).
 			Exec(ctx)
 	}); err != nil {
 		return err
@@ -238,6 +262,7 @@ func (r *Users) publishChanged(ctx context.Context, id uint64) error {
 		IsActive: view.IsActive,
 		Status:   view.Status,
 		Banned:   view.Banned,
+		Locale:   view.Locale,
 	})
 }
 
@@ -269,6 +294,7 @@ func (r *Users) Reproject(ctx context.Context) error {
 				IsActive: row.IsActive,
 				Status:   string(row.Status),
 				Banned:   row.Banned,
+				Locale:   row.Locale,
 			}); err != nil {
 				return err
 			}

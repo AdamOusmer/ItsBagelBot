@@ -6,6 +6,7 @@ import Cursor from '../components/ui/Cursor.astro'
 import Footer from '../components/layout/Footer.astro'
 import Nav from "../components/layout/Nav.astro";
 import Brackets from '../components/ui/Brackets.astro'
+import { getLangFromUrl } from '../i18n/ui';
 
 interface Props {
     title?: string;
@@ -16,15 +17,29 @@ const {
     title = 'ItsBagelBot. Your Stream, Your Rules',
     description = 'The all-in-one Twitch companion baked for independence. Automated moderation, custom commands, and engagement tools.'
 } = Astro.props;
+
+const lang = getLangFromUrl(Astro.url);
+
+// hreflang alternates for the routes that exist in both locales, so search
+// engines pair the English and French versions instead of treating them as
+// duplicates. Legal/doc paths have no French route and are left out.
+const LOCALIZED = new Set(['/', '/pricing', '/contact']);
+let basePath = Astro.url.pathname.startsWith('/fr')
+    ? (Astro.url.pathname.slice(3) || '/')
+    : Astro.url.pathname;
+basePath = basePath.replace(/\/+$/, '') || '/';
+const hasAlternates = LOCALIZED.has(basePath);
+const enHref = new URL(basePath, Astro.site).href;
+const frHref = new URL(basePath === '/' ? '/fr/' : `/fr${basePath}`, Astro.site).href;
 ---
 
 
 <!doctype html>
-<html lang="en">
+<html lang={lang}>
 
 <head>
     <meta charset="UTF-8"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
     <meta
         http-equiv="Content-Security-Policy"
         content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self' https://static.cloudflareinsights.com; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com https://cloudflareinsights.com; base-uri 'self'; form-action 'self'"
@@ -44,6 +59,15 @@ const {
     <link rel="manifest" href="/site.webmanifest">
 
     <meta name="description" content={description} />
+
+    {hasAlternates && (
+        <Fragment>
+            <link rel="alternate" hreflang="en" href={enHref} />
+            <link rel="alternate" hreflang="fr" href={frHref} />
+            <link rel="alternate" hreflang="x-default" href={enHref} />
+        </Fragment>
+    )}
+
     <title>{title}</title>
 </head>
 

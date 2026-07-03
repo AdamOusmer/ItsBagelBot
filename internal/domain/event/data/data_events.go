@@ -28,6 +28,11 @@ type UserChangedDTO struct {
 	IsActive bool   `json:"is_active"`
 	Status   string `json:"status"`
 	Banned   bool   `json:"banned"`
+	// Locale is the user's console UI language, projected so the worker can
+	// answer system commands in their language. Omitted by older publishers;
+	// the projector treats an empty value as "unchanged" and never clobbers a
+	// previously projected locale.
+	Locale string `json:"locale,omitempty"`
 }
 
 type UserDeletedDTO struct {

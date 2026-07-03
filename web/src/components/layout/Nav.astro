@@ -6,34 +6,41 @@ import Button     from '../ui/Buttons/SecondaryButton.astro';
 import Hamburger  from '../ui/Hamburger.astro';
 import MobileMenu from './MobileMenu.astro';
 import NavLink    from './NavLink.astro';
+import LanguageSwitcher from './LanguageSwitcher.astro';
+import { getLangFromUrl, useTranslations, localizePath } from '../../i18n/ui';
+
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
 
 const links = [
-    { href: "/pricing",  label: "Pricing"  },
-    { href: "https://docs.itsbagelbot.com", label: "Docs" },
-    { href: "/contact",  label: "Contact"  },
+    { href: localizePath("/pricing", lang),  label: t('nav.pricing')  },
+    { href: "https://docs.itsbagelbot.com", label: t('nav.docs') },
+    { href: localizePath("/contact", lang),  label: t('nav.contact')  },
 ];
 
-const cta = { href: "https://dashboard.itsbagelbot.com", label: "Add to Twitch" };
+const cta = { href: "https://dashboard.itsbagelbot.com", label: t('nav.cta') };
+const homeHref = localizePath("/", lang);
 
 const currentPath = Astro.url.pathname.replace(/\/+$/, "") || "/";
 const isActive = (href: string) =>
     href.startsWith("/") && href.replace(/\/+$/, "") === currentPath;
 ---
 
-<nav class="site-nav" aria-label="Primary">
+<nav class="site-nav" aria-label={t('nav.primary')}>
     <div class="site-nav__inner">
-        <a class="logo" href="/" aria-label="ItsBagelBot home" data-home-logo>
+        <a class="logo" href={homeHref} aria-label={t('nav.home')} data-home-logo>
             <Image src={logoImage} alt="" width={35} height={35} loading="eager" fetchpriority="high"/>
             <span>ItsBagelBot</span>
         </a>
 
-        <ul class="links" aria-label="Primary navigation">
+        <ul class="links" aria-label={t('nav.primary')}>
             {links.map((link) => (
                 <li><NavLink href={link.href} label={link.label} active={isActive(link.href)}/></li>
             ))}
         </ul>
 
         <div class="button">
+            <LanguageSwitcher />
             <Button href={cta.href} label={cta.label}/>
         </div>
 
@@ -342,6 +349,7 @@ const isActive = (href: string) =>
         display: flex;
         justify-content: flex-end;
         align-items: center;
+        gap: 14px;
     }
 
     .button :global(a) {

@@ -6,12 +6,16 @@
  */
 import { Image } from 'astro:assets';
 import logoImage from '../../assets/LogoBOT.png';
+import { getLangFromUrl, useTranslations, localizePath } from '../../i18n/ui';
+
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
 ---
 
 <footer>
     <div class="signoff" data-reveal>
-        <p class="signoff__line">Baked late. Served fresh.</p>
-        <p class="signoff__sub">See you in chat.</p>
+        <p class="signoff__line">{t('footer.signoff')}</p>
+        <p class="signoff__sub">{t('footer.signoffSub')}</p>
     </div>
 
     <div class="top">
@@ -21,24 +25,24 @@ import logoImage from '../../assets/LogoBOT.png';
             </span>
             <div>
                 <span class="name">ItsBagelBot</span>
-                <span class="tagline">Your stream. Your rules.</span>
+                <span class="tagline">{t('footer.tagline')}</span>
             </div>
         </div>
 
         <div class="cols">
             <div class="col" data-reveal style="--reveal-i: 1">
-                <p>Product</p>
-                <a href="/pricing">Pricing</a>
-                <a href="https://docs.itsbagelbot.com" target="_blank" rel="noopener noreferrer">Documentation</a>
-                <a href="https://dashboard.itsbagelbot.com" target="_blank" rel="noopener noreferrer">Dashboard</a>
+                <p>{t('footer.product')}</p>
+                <a href={localizePath("/pricing", lang)}>{t('footer.pricing')}</a>
+                <a href="https://docs.itsbagelbot.com" target="_blank" rel="noopener noreferrer">{t('footer.docs')}</a>
+                <a href="https://dashboard.itsbagelbot.com" target="_blank" rel="noopener noreferrer">{t('footer.dashboard')}</a>
             </div>
             <div class="col" data-reveal style="--reveal-i: 2">
-                <p>Company</p>
-                <a href="/contact">Contact</a>
+                <p>{t('footer.company')}</p>
+                <a href={localizePath("/contact", lang)}>{t('footer.contact')}</a>
                 <a href="https://github.com/AdamOusmer/ItsBagelBot" target="_blank" rel="noopener noreferrer">GitHub</a>
             </div>
             <div class="col" data-reveal style="--reveal-i: 3">
-                <p>Community</p>
+                <p>{t('footer.community')}</p>
                 <a href="https://discord.gg/SZ2remwSDv" target="_blank" rel="noopener noreferrer">Discord</a>
                 <a href="https://twitch.tv/itsbagelbot" target="_blank" rel="noopener noreferrer">Twitch</a>
             </div>
@@ -47,10 +51,10 @@ import logoImage from '../../assets/LogoBOT.png';
 
     <div class="bottom">
         <span class="copy">&copy; 2026 ItsBagelBot</span>
-        <span class="note">No data sold &middot; No trackers &middot; No surprises</span>
+        <span class="note">{t('footer.note')}</span>
         <div class="legal">
-            <a href="/privacy">Privacy Policy</a>
-            <a href="/terms">Terms of Service</a>
+            <a href="/privacy">{t('footer.privacy')}</a>
+            <a href="/terms">{t('footer.terms')}</a>
         </div>
     </div>
 </footer>

@@ -2,9 +2,11 @@
   import { enhance } from '$app/forms';
   import { onMount } from 'svelte';
   import { page } from '$app/state';
-  import { Button, Card, CardHead, Icon, PageHead, StatTile, Modal, Skeleton, type IconName } from '@bagel/shared';
+  import { Button, Card, CardHead, Icon, PageHead, StatTile, Modal, Skeleton, getI18n, type IconName } from '@bagel/shared';
   import OnboardingModal from '$lib/components/OnboardingModal.svelte';
   let { data } = $props();
+
+  const { t } = getI18n();
 
   // First-visit onboarding: opens once for genuinely new users (nothing
   // created yet, never dismissed) or on demand via ?welcome=1.
@@ -37,24 +39,22 @@
     commandTotal: number
   ): Issue[] {
     const out: Issue[] = [];
-    if (!c.enabled) out.push({ icon: 'power', text: 'The bot has no Twitch authorization for your channel.', cta: 'Connect', href: '/settings' });
-    if (c.enabled && !c.receiving) out.push({ icon: 'activity', text: 'The bot is connected but not replying in chat.', cta: 'Enable above', href: null });
-    if (ss === 'failing') out.push({ icon: 'ban', text: 'Chat subscriptions dropped — viewers may not get replies.', cta: 'Reconnect', href: '/settings' });
-    if (commandTotal === 0) out.push({ icon: 'commands', text: 'You have no commands yet — the bot has nothing to say.', cta: 'Create one', href: '/commands' });
+    if (!c.enabled) out.push({ icon: 'power', text: t('overview.issueNoAuth'), cta: t('overview.issueNoAuthCta'), href: '/settings' });
+    if (c.enabled && !c.receiving) out.push({ icon: 'activity', text: t('overview.issueIdle'), cta: t('overview.issueIdleCta'), href: null });
+    if (ss === 'failing') out.push({ icon: 'ban', text: t('overview.issueSubs'), cta: t('overview.issueSubsCta'), href: '/settings' });
+    if (commandTotal === 0) out.push({ icon: 'commands', text: t('overview.issueNoCommands'), cta: t('overview.issueNoCommandsCta'), href: '/commands' });
     return out;
   }
 
   const statusLabel = (s: string) =>
-    ({ free: 'Free', paid: 'Paid', vip: 'VIP' })[s] ?? 'Free';
+    t(`planLabel.${(['free', 'paid', 'vip'].includes(s) ? s : 'free')}`);
 
-  type Greeting = 'Good morning' | 'Good afternoon' | 'Good evening';
+  let greeting = $state(t('overview.greetingEvening'));
 
-  let greeting = $state<Greeting>('Good evening');
-
-  function greetingForHour(hour: number): Greeting {
-    if (hour >= 5 && hour < 12) return 'Good morning';
-    if (hour >= 12 && hour < 17) return 'Good afternoon';
-    return 'Good evening';
+  function greetingForHour(hour: number): string {
+    if (hour >= 5 && hour < 12) return t('overview.greetingMorning');
+    if (hour >= 12 && hour < 17) return t('overview.greetingAfternoon');
+    return t('overview.greetingEvening');
   }
 
   onMount(() => {
@@ -66,12 +66,10 @@
   let pending = $state<PendingAction>(null);
 
   const modalTitle = $derived(
-    pending === 'restart' ? 'Restart bot connection?' : 'Disconnect bot?'
+    pending === 'restart' ? t('overview.modalRestartTitle') : t('overview.modalDisconnectTitle')
   );
   const modalBody = $derived(
-    pending === 'restart'
-      ? 'This drops all your EventSub subscriptions and immediately reconnects them.'
-      : 'This disconnects your bot from chat and drops all active EventSub subscriptions.'
+    pending === 'restart' ? t('overview.modalRestartBody') : t('overview.modalDisconnectBody')
   );
   const modalAction = $derived(pending === 'restart' ? '?/restart' : '?/disconnect');
 
@@ -153,7 +151,7 @@
 </script>
 
 <section class="screen active">
-  <PageHead eyebrow="Status" description="Manage your bot connection and commands from here.">Good {greeting.split(' ')[1]}, <em>{data.displayName ?? data.login}</em></PageHead>
+  <PageHead eyebrow={t('overview.eyebrow')} description={t('overview.description')}>{greeting}, <em>{data.displayName ?? data.login}</em></PageHead>
 
   <!-- status-hero keeps page-scoped descendant styles (.live.off/.meta/.botmark),
        so it stays a raw glass card rather than the <Card> component. -->
@@ -163,7 +161,7 @@
          placeholder until the RPC lands so navigation stays instant. -->
     {#await data.conn}
       <div>
-        <div class="live off"><span class="dot"></span> Checking connection…</div>
+        <div class="live off"><span class="dot"></span> {t('overview.checking')}</div>
         <div class="meta"><Skeleton variant="pill" /></div>
       </div>
       <div class="actions"></div>
@@ -171,27 +169,27 @@
       {@const ss = sub?.state ?? c.subState}
       <div>
         <div class="live {c.receiving ? '' : 'off'}">
-          <span class="dot"></span> {c.receiving ? 'Online · in chat' : c.enabled ? 'Connected · idle' : 'Not connected'}
+          <span class="dot"></span> {c.receiving ? t('overview.onlineInChat') : c.enabled ? t('overview.connectedIdle') : t('overview.notConnected')}
         </div>
         <div class="meta">
           <span class="status-tag {c.status !== 'free' ? 'premium' : ''}">{statusLabel(c.status)}</span>
           {#if ss === 'failing'}
-            <span class="status-tag sub-state err">Reconnect needed</span>
+            <span class="status-tag sub-state err">{t('overview.reconnectNeeded')}</span>
           {:else if ss === 'pending'}
-            <span class="status-tag sub-state warn">Reconnecting…</span>
+            <span class="status-tag sub-state warn">{t('overview.reconnecting')}</span>
           {/if}
         </div>
         {#if ss === 'failing'}
-          <p class="sub-fix">Chat subscriptions dropped. Fix in <strong>Settings → Reconnect</strong>.</p>
+          <p class="sub-fix">{t('overview.subFixPre')}<strong>{t('overview.subFixStrong')}</strong>.</p>
         {/if}
       </div>
       <div class="actions">
         {#if c.receiving}
-          <Button variant="ghost" icon="activity" type="button" onclick={() => openModal('restart')}>Restart</Button>
-          <Button variant="tan" icon="power" type="button" onclick={() => openModal('disconnect')}>Disconnect</Button>
+          <Button variant="ghost" icon="activity" type="button" onclick={() => openModal('restart')}>{t('overview.restart')}</Button>
+          <Button variant="tan" icon="power" type="button" onclick={() => openModal('disconnect')}>{t('overview.disconnect')}</Button>
         {:else}
           <form method="POST" action="?/enable" use:enhance={enableSubmit}>
-            <Button variant="primary" icon="power" type="submit">Enable</Button>
+            <Button variant="primary" icon="power" type="submit">{t('overview.enable')}</Button>
           </form>
         {/if}
       </div>
@@ -200,9 +198,9 @@
 
   <!-- Quick actions: the three things a streamer actually comes here to do. -->
   <div class="quick-row">
-    <a class="btn primary" href="/commands"><Icon name="plus" size={14} /> New command</a>
-    <a class="btn ghost" href="/modules"><Icon name="power" size={14} /> Manage modules</a>
-    <a class="btn ghost" href="/settings"><Icon name="settings" size={14} /> Settings</a>
+    <a class="btn primary" href="/commands"><Icon name="plus" size={14} /> {t('overview.quickNewCommand')}</a>
+    <a class="btn ghost" href="/modules"><Icon name="power" size={14} /> {t('overview.quickModules')}</a>
+    <a class="btn ghost" href="/settings"><Icon name="settings" size={14} /> {t('overview.quickSettings')}</a>
   </div>
 
   <!-- Needs-attention strip: shows ONLY real problems with their fix; one quiet
@@ -224,7 +222,7 @@
           {/each}
         </div>
       {:else}
-        <p class="all-good"><Icon name="check" size={13} /> Everything's running — nothing needs you right now.</p>
+        <p class="all-good"><Icon name="check" size={13} /> {t('overview.allGood')}</p>
       {/if}
     {/await}
   {/await}
@@ -232,49 +230,49 @@
   <!-- At a glance: your bot's actual numbers, each linking to its page. -->
   <div class="stat-grid overview-stats">
     {#await data.commands}
-      <StatTile icon="commands" label="Active commands" value="—" delta="counting…" flat />
+      <StatTile icon="commands" label={t('overview.statActiveCommands')} value="—" delta={t('overview.counting')} flat />
     {:then cd}
       <StatTile
         icon="commands"
-        label="Active commands"
+        label={t('overview.statActiveCommands')}
         value={String(cd.active)}
-        unit={`of ${cd.total}`}
-        delta={cd.uses > 0 ? `${cd.uses.toLocaleString()} uses all-time` : 'create your first response'}
+        unit={t('overview.ofN', { n: cd.total })}
+        delta={cd.uses > 0 ? t('overview.usesAllTime', { n: cd.uses.toLocaleString() }) : t('overview.createFirstResponse')}
       />
     {/await}
     {#await data.modules}
-      <StatTile icon="power" tan label="Modules on" value="—" delta="checking…" flat />
+      <StatTile icon="power" tan label={t('overview.statModulesOn')} value="—" delta={t('overview.checkingShort')} flat />
     {:then md}
       <StatTile
         icon="power"
         tan
-        label="Modules on"
+        label={t('overview.statModulesOn')}
         value={String(md.on)}
-        unit={`of ${md.total}`}
-        delta={md.on > 0 ? 'running for your channel' : 'browse the catalog'}
+        unit={t('overview.ofN', { n: md.total })}
+        delta={md.on > 0 ? t('overview.runningForChannel') : t('overview.browseCatalog')}
       />
     {/await}
     {#await data.shares}
-      <StatTile icon="users" label="Shared access" value="—" delta="checking…" flat />
+      <StatTile icon="users" label={t('overview.statSharedAccess')} value="—" delta={t('overview.checkingShort')} flat />
     {:then sh}
       <StatTile
         icon="users"
-        label="Shared access"
+        label={t('overview.statSharedAccess')}
         value={String(sh.people)}
-        unit={sh.people === 1 ? 'person' : 'people'}
-        delta={sh.pending > 0 ? `${sh.pending} invite${sh.pending === 1 ? '' : 's'} pending` : 'manage in Settings'}
+        unit={sh.people === 1 ? t('overview.person') : t('overview.people')}
+        delta={sh.pending > 0 ? t('overview.invitesPending', { n: sh.pending }) : t('overview.manageInSettings')}
         flat={sh.pending === 0}
       />
     {/await}
     {#await data.conn}
-      <StatTile icon="pulse" tan label="Plan" value="—" delta="loading account…" flat />
+      <StatTile icon="pulse" tan label={t('overview.statPlan')} value="—" delta={t('overview.loadingAccount')} flat />
     {:then c}
       <StatTile
         icon="pulse"
         tan
-        label="Plan"
+        label={t('overview.statPlan')}
         value={statusLabel(c.status)}
-        delta={c.status === 'free' ? 'standard access' : 'premium access'}
+        delta={c.status === 'free' ? t('overview.standardAccess') : t('overview.premiumAccess')}
         flat
       />
     {/await}
@@ -282,7 +280,7 @@
 
   <div class="overview-grid">
     <Card>
-      <CardHead title="Your top commands">{#snippet action()}<a class="more" href="/commands">All commands</a>{/snippet}</CardHead>
+      <CardHead title={t('overview.topCommands')}>{#snippet action()}<a class="more" href="/commands">{t('overview.allCommands')}</a>{/snippet}</CardHead>
       {#await data.commands}
         <div class="feed">
           {#each [0, 1, 2] as i (i)}
@@ -303,16 +301,16 @@
                   <b class="mono">!{c.name}</b>
                   <span class="clip">{c.response}</span>
                 </div>
-                <span class="fw uses">{c.uses ?? '0'} uses</span>
+                <span class="fw uses">{t('overview.usesN', { n: c.uses ?? '0' })}</span>
               </div>
             {/each}
             <div class="feed-row">
               <div class="fi"><Icon name="plus" size={15} /></div>
               <div class="ft">
-                <b>Add another</b>
-                <span>Create, edit, and tune cooldowns for your channel responses.</span>
+                <b>{t('overview.addAnother')}</b>
+                <span>{t('overview.addAnotherDesc')}</span>
               </div>
-              <a class="fw overview-link" href="/commands">Open</a>
+              <a class="fw overview-link" href="/commands">{t('common.open')}</a>
             </div>
           </div>
         {:else}
@@ -320,18 +318,18 @@
             <div class="feed-row">
               <div class="fi green"><Icon name="commands" size={15} /></div>
               <div class="ft">
-                <b>Create your first command</b>
-                <span>Custom responses your viewers trigger with !name in chat.</span>
+                <b>{t('overview.createFirstCommand')}</b>
+                <span>{t('overview.createFirstCommandDesc')}</span>
               </div>
-              <a class="fw overview-link" href="/commands">Open</a>
+              <a class="fw overview-link" href="/commands">{t('common.open')}</a>
             </div>
             <div class="feed-row">
               <div class="fi"><Icon name="settings" size={15} /></div>
               <div class="ft">
-                <b>Check account access</b>
-                <span>Reconnect Twitch or manage shared dashboard links.</span>
+                <b>{t('overview.checkAccess')}</b>
+                <span>{t('overview.checkAccessDesc')}</span>
               </div>
-              <a class="fw overview-link" href="/settings">Open</a>
+              <a class="fw overview-link" href="/settings">{t('common.open')}</a>
             </div>
           </div>
         {/if}
@@ -349,12 +347,12 @@
   {#if pending !== null}
     <p class="modal-body">{modalBody}</p>
     <form method="POST" action={modalAction} use:enhance={closeAfterSubmit} class="modal-actions">
-      <Button variant="ghost" type="button" onclick={closeModal}>Cancel</Button>
+      <Button variant="ghost" type="button" onclick={closeModal}>{t('common.cancel')}</Button>
       <Button
         variant={pending === 'disconnect' ? 'tan' : 'primary'}
         type="submit"
       >
-        {pending === 'restart' ? 'Restart' : 'Disconnect'}
+        {pending === 'restart' ? t('overview.restart') : t('overview.disconnect')}
       </Button>
     </form>
   {/if}

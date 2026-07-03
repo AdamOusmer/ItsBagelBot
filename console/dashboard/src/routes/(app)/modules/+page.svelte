@@ -1,10 +1,12 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { Icon, Card, PageHead, SaveStatus, toast } from '@bagel/shared';
+  import { Icon, Card, PageHead, SaveStatus, toast, getI18n } from '@bagel/shared';
   import type { ModuleState } from '@bagel/shared';
   import type { SaveState } from '@bagel/shared/components/SaveStatus.svelte';
   let { data } = $props();
+
+  const { t } = getI18n();
 
   // svelte-ignore state_referenced_locally
   let items = $state<ModuleState[]>(data.modules ?? []);
@@ -55,7 +57,7 @@
           items = items.map((x) => (x.def.id === m.def.id ? { ...x, enabled: wasEnabled } : x));
           setStatus(m.def.id, 'error');
           timers.set(m.def.id, [setTimeout(() => (modStatus = { ...modStatus, [m.def.id]: 'idle' }), 4000)]);
-          toast('err', payload?.error ?? `Could not toggle ${m.def.label}.`);
+          toast('err', payload?.error ?? t('modules.couldNotToggle', { label: m.def.label }));
         }
       };
     };
@@ -63,13 +65,13 @@
 
 <section class="screen active">
   <PageHead
-    eyebrow="Manage"
-    description="Optional features for your channel. {activeCount} of {items.length} enabled."
-  >Channel <em>modules</em></PageHead>
+    eyebrow={t('modules.eyebrow')}
+    description={t('modules.description', { active: activeCount, total: items.length })}
+  >{t('modules.titlePre')}<em>{t('modules.titleEm')}</em></PageHead>
 
   {#if data.degraded}
     <Card style="padding:14px 16px;margin-bottom:14px">
-      <span class="degraded"><Icon name="ban" size={14} /> Module settings are temporarily unavailable. Showing defaults.</span>
+      <span class="degraded"><Icon name="ban" size={14} /> {t('modules.degraded')}</span>
     </Card>
   {/if}
 
@@ -86,7 +88,7 @@
           </a>
           <div class="mod-foot">
             <a class="cfg" href={`/modules/${m.def.id}`}>
-              <Icon name="settings" size={13} /> Configure
+              <Icon name="settings" size={13} /> {t('modules.configure')}
             </a>
             <SaveStatus state={modStatus[m.def.id] ?? 'idle'} />
             <span class="grow"></span>
@@ -107,7 +109,7 @@
   </div>
 
   {#if items.length === 0}
-    <Card style="padding:28px 18px"><div class="empty">No modules available yet.</div></Card>
+    <Card style="padding:28px 18px"><div class="empty">{t('modules.empty')}</div></Card>
   {/if}
 </section>
 

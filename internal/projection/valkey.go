@@ -54,49 +54,58 @@ func NewStore(client valkey.Client) *Store {
 	return &Store{client: client}
 }
 
-// SetUser projects the tier status, active flag and ban flag of one user.
-func (v *Store) SetUser(ctx context.Context, userID uint64, status string, isActive bool, banned bool) error {
-	return v.SetUserWithTTL(ctx, userID, status, isActive, banned, DefaultTTL)
+// SetUser projects the tier status, active flag, ban flag and UI locale of one
+// user. An empty locale leaves the projected locale untouched (see
+// SetUserWithTTL).
+func (v *Store) SetUser(ctx context.Context, userID uint64, status string, isActive bool, banned bool, locale string) error {
+	return v.SetUserWithTTL(ctx, userID, status, isActive, banned, locale, DefaultTTL)
 }
 
 // SetUserWithTTL projects the user fields and keeps the hash for at least ttl.
-func (v *Store) SetUserWithTTL(ctx context.Context, userID uint64, status string, isActive bool, banned bool, ttl time.Duration) error {
+// locale is written only when non-empty: cold-read write-backs (the status RPC)
+// and older events that carry no locale must not overwrite a locale the full
+// user projection already set.
+func (v *Store) SetUserWithTTL(ctx context.Context, userID uint64, status string, isActive bool, banned bool, locale string, ttl time.Duration) error {
 
 	defer segment(ctx, "HSET")()
 
 	key := cache.UserKey(settingsKeyPrefix, userID)
 
-	return v.pipelineWithTTL(ctx, key, ttl,
-		v.client.B().Hset().
-			Key(key).
-			FieldValue().
-			FieldValue("status", status).
-			FieldValue("active", utils.BoolField(isActive)).
-			FieldValue("banned", utils.BoolField(banned)).
-			Build(),
-	)
+	fields := v.client.B().Hset().
+		Key(key).
+		FieldValue().
+		FieldValue("status", status).
+		FieldValue("active", utils.BoolField(isActive)).
+		FieldValue("banned", utils.BoolField(banned))
+	if locale != "" {
+		fields = fields.FieldValue("locale", locale)
+	}
+
+	return v.pipelineWithTTL(ctx, key, ttl, fields.Build())
 }
 
-// GetUser retrieves the tier status, active flag and ban flag of one user.
-func (v *Store) GetUser(ctx context.Context, userID uint64) (string, bool, bool, error) {
+// GetUser retrieves the tier status, active flag, ban flag and UI locale of one
+// user. locale is empty when the hash predates locale projection.
+func (v *Store) GetUser(ctx context.Context, userID uint64) (string, bool, bool, string, error) {
 	defer segment(ctx, "HGETALL")()
 
 	key := cache.UserKey(settingsKeyPrefix, userID)
 
-	res, err := v.client.Do(ctx, v.client.B().Hmget().Key(key).Field("status").Field("active").Field("banned").Build()).AsStrSlice()
+	res, err := v.client.Do(ctx, v.client.B().Hmget().Key(key).Field("status").Field("active").Field("banned").Field("locale").Build()).AsStrSlice()
 	if err != nil {
-		return "", false, false, err
+		return "", false, false, "", err
 	}
 
-	if len(res) < 3 {
-		return "", false, false, nil
+	if len(res) < 4 {
+		return "", false, false, "", nil
 	}
 
 	status := res[0]
 	active := res[1] == "1"
 	banned := res[2] == "1"
+	locale := res[3]
 
-	return status, active, banned, nil
+	return status, active, banned, locale, nil
 }
 
 // GetStreamLive reads the projected live/offline signal for one user. known is

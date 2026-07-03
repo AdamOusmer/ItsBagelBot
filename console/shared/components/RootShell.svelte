@@ -5,8 +5,17 @@
   import { updated } from '$app/state';
   import Cursor from './Cursor.svelte';
   import { initLenis } from '../lib/actions';
+  import { setI18n } from '../lib/i18n/context';
+  import { DEFAULT_LOCALE, type Locale } from '../lib/i18n/messages';
 
-  let { children }: { children: Snippet } = $props();
+  let { children, locale = DEFAULT_LOCALE }: { children: Snippet; locale?: Locale } = $props();
+
+  // Publish the i18n translator to the whole render tree. Apps that don't pass a
+  // locale (admin) get the default-locale translator, so nothing breaks. Reading
+  // the initial value is intentional: switching locale sets a cookie and does a
+  // full reload, so this render tree never needs to react to it in place.
+  // svelte-ignore state_referenced_locally
+  setI18n(locale);
 
   beforeNavigate((navigation) => {
     if (updated.current && navigation.to?.url && !navigation.willUnload) {

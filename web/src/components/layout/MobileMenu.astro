@@ -1,4 +1,7 @@
 ---
+import LanguageSwitcher from './LanguageSwitcher.astro';
+import { getLangFromUrl, useTranslations } from '../../i18n/ui';
+
 interface Props {
     links: { href: string; label: string }[];
     ctaHref?: string;
@@ -6,6 +9,8 @@ interface Props {
 }
 
 const { links, ctaHref = "#", ctaLabel = "Add to Twitch" } = Astro.props;
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
 ---
 
 <div class="mobile-menu" id="mobile-menu" data-mobile-menu aria-hidden="true" inert>
@@ -17,7 +22,7 @@ const { links, ctaHref = "#", ctaLabel = "Add to Twitch" } = Astro.props;
         </defs>
     </svg>
 
-    <div class="mobile-menu__panel" role="dialog" aria-label="Primary menu" aria-modal="true">
+    <div class="mobile-menu__panel" role="dialog" aria-label={t('menu.primary')} aria-modal="true">
         <ul class="mobile-menu__links">
             {links.map((link) => (
                 <li data-menu-item><a class="mobile-menu__link" href={link.href}>{link.label}</a></li>
@@ -26,7 +31,8 @@ const { links, ctaHref = "#", ctaLabel = "Add to Twitch" } = Astro.props;
 
         <div class="mobile-menu__footer" data-menu-footer>
             <a class="mobile-menu__cta" href={ctaHref}>{ctaLabel}</a>
-            <span class="mobile-menu__meta">Freshly baked for Twitch chat</span>
+            <div class="mobile-menu__lang"><LanguageSwitcher /></div>
+            <span class="mobile-menu__meta">{t('menu.meta')}</span>
         </div>
     </div>
 </div>
@@ -146,6 +152,11 @@ const { links, ctaHref = "#", ctaLabel = "Add to Twitch" } = Astro.props;
     .mobile-menu__cta:active {
         background: var(--tan, #c9a87c);
         color: var(--black, #0a0a0a);
+    }
+
+    .mobile-menu__lang {
+        display: flex;
+        justify-content: center;
     }
 
     .mobile-menu__meta {

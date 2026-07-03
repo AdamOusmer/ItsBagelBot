@@ -1,7 +1,7 @@
 <script lang="ts">
   import '../app.css';
   import { RootShell } from '@bagel/shared';
-  let { children } = $props();
+  let { data, children } = $props();
 </script>
 
-<RootShell>{@render children()}</RootShell>
+<RootShell locale={data.locale}>{@render children()}</RootShell>
