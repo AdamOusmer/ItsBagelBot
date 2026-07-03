@@ -35,7 +35,7 @@ const { links, ctaHref = "#", ctaLabel = "Add to Twitch" } = Astro.props;
     .mobile-menu {
         display: none;
         position: fixed;
-        inset: var(--nav-height, 76px) 0 0;
+        inset: var(--nav-offset, 76px) 0 0;
         padding: 16px;
         background: rgba(10, 10, 10, 0.72);
         backdrop-filter: blur(22px);
@@ -122,7 +122,7 @@ const { links, ctaHref = "#", ctaLabel = "Add to Twitch" } = Astro.props;
         display: flex;
         flex-direction: column;
         gap: 16px;
-        margin-bottom: clamp(56px, 8vh, 86px);
+        margin-bottom: calc(clamp(56px, 8vh, 86px) + env(safe-area-inset-bottom, 0px));
         padding-top: 24px;
         border-top: 1px solid rgba(201, 168, 124, 0.15);
     }
@@ -177,7 +177,7 @@ const { links, ctaHref = "#", ctaLabel = "Add to Twitch" } = Astro.props;
         }
 
         .mobile-menu__footer {
-            margin-bottom: clamp(64px, 9vh, 92px);
+            margin-bottom: calc(clamp(64px, 9vh, 92px) + env(safe-area-inset-bottom, 0px));
         }
     }
 

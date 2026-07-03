@@ -350,7 +350,13 @@ kbd.hint {
 @media (max-width: 1100px) { .mod-grid { grid-template-columns: 1fr; } }
 
 @media (max-width: 760px) {
-  .stat-grid { grid-template-columns: 1fr 1fr; }
+  /* Tighten the page gutter so cards get the width back on phones. */
+  :root { --gutter: 16px; }
+  .stat-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stat { padding: 16px; }
+  .stat .ico { margin-bottom: 12px; }
+  .stat .value { font-size: clamp(24px, 7vw, 34px); }
+  .grid-2, .mod-grid { gap: 14px; }
   .thead { display: none; }
   .trow { grid-template-columns: 1fr auto; gap: 8px; }
   .trow .resp, .trow .cd, .trow .perm-cell { display: none; }
