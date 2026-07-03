@@ -34,7 +34,7 @@ DMARC passes if SPF **or** DKIM aligns. Both senders DKIM-sign with
 `sp=quarantine` covers spoofed subdomains. It does not affect Resend: Resend's
 visible From is the root domain, governed by `p=`, not `sp=`.
 
-## Open items to reach "fully enforced + branded"
+## Open items
 
 ### 1. `dmarc@itsbagelbot.com` mailbox  — REQUIRED
 
@@ -59,30 +59,27 @@ doppler run -p cloudflared -c prd -- sh -c '
 '
 ```
 
-### 3. BIMI logo must be live  — ships with the next web deploy
+## BIMI: free tier, no certificate (decided)
 
-`l=` points at `https://itsbagelbot.com/bimi.svg`. The file is
-[`web/public/bimi.svg`](../../web/public/bimi.svg) (SVG Tiny PS: `baseProfile=
-tiny-ps`, one `<title>`, square viewBox, no CSS/script/external refs). It goes
-live when the web image builds and Flux rolls it. Until then the URL 404s and
-clients fall back to the normal avatar (no harm). Verify after deploy:
+We run BIMI **without** a VMC or CMC. The record is `l=` only (logo URL, no
+`a=`). This is a deliberate choice, not an unfinished step:
+
+- The logo is live at [`web/public/bimi.svg`](../../web/public/bimi.svg)
+  (served by Cloudflare Pages at `https://itsbagelbot.com/bimi.svg`, SVG Tiny
+  PS). Clients that do not require a certificate (Fastmail, La Poste, and
+  others) show it now.
+- **Gmail, Apple Mail and Yahoo will not show the logo** without an `a=`
+  certificate. We accept that. A VMC (~$1k+/yr, needs a *registered* trademark)
+  or CMC (similar price, Apple-only, no Gmail) is not worth it: the logo is
+  cosmetic, and the actual anti-spoofing protection is DMARC, which is free and
+  already enforced.
+
+If that calculus ever changes: buy a VMC/CMC against the exact SVG, host the
+PEM at `https://itsbagelbot.com/vmc.pem`, then add `a=https://itsbagelbot.com/vmc.pem`
+to the BIMI record (same CF API PATCH pattern as the DMARC ramp above).
+
+Verify the logo is served correctly:
 
 ```sh
 curl -sI https://itsbagelbot.com/bimi.svg | grep -i content-type   # want image/svg+xml
 ```
-
-### 4. VMC (Verified Mark Certificate)  — required for Gmail / Apple / Yahoo
-
-The bare `l=` record is valid and some clients (Fastmail, La Poste) render it
-once the SVG is live. **Gmail, Apple Mail and Yahoo only show the logo when the
-record also carries `a=` pointing at a VMC.** A VMC is a paid certificate
-(~$1k+/yr, DigiCert or Entrust) issued against a **registered trademark** of the
-logo (a Common Mark Certificate / CMC is the trademark-free alternative Apple
-accepts, still paid). Steps:
-
-1. Register the ItsBagelBot logo as a trademark (or gather CMC prior-use
-   evidence). This is the long pole, months.
-2. Buy the VMC from DigiCert/Entrust using the exact SVG in `web/public/bimi.svg`.
-3. Host the issued PEM at `https://itsbagelbot.com/vmc.pem` (drop it in
-   `web/public/vmc.pem`, deploy).
-4. Add the `a=` tag: run [`bimi-add-vmc.sh`](bimi-add-vmc.sh).

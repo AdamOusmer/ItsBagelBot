@@ -45,16 +45,17 @@ Full state and runbook: [`deploy/dns/email-auth.md`](../deploy/dns/email-auth.md
   and Resend, both aligned. DMARC is at `p=quarantine; pct=100` (spoofed
   `@itsbagelbot.com` goes to spam); ramp to `p=reject` after ~2 weeks of clean
   reports.
-- **BIMI** — record live at `default._bimi.itsbagelbot.com`, logo at
-  [`web/public/bimi.svg`](../web/public/bimi.svg). Goes live on the next web
-  deploy; Gmail/Apple then show the logo **once a VMC is added** (paid cert,
-  needs a trademark — see the runbook).
+- **BIMI** — record live at `default._bimi.itsbagelbot.com`, logo live at
+  [`web/public/bimi.svg`](../web/public/bimi.svg). Run **free tier** (no VMC/CMC
+  certificate): cert-free clients (Fastmail, etc.) show the logo; Gmail/Apple do
+  not, and that is an accepted tradeoff (the logo is cosmetic, DMARC is the
+  actual protection). See the runbook.
 - **One consistent From identity**, e.g. `ItsBagelBot Support
   <support@itsbagelbot.com>`, and a matching subject prefix such as
   `[ItsBagelBot]`. Consistency is what trains recognition.
 
 Still owed by you: create the `dmarc@itsbagelbot.com` mailbox so reports land,
-then ramp DMARC to reject and buy the VMC. All in the runbook.
+then ramp DMARC to reject. All in the runbook.
 
 ## Sending a reply
 
