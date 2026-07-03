@@ -30,11 +30,14 @@ type paymentSubject struct {
 	Customer                  struct {
 		Username usernameRef `json:"username"`
 	} `json:"customer"`
-	Products []struct {
-		Custom    map[string]json.RawMessage `json:"custom"`
-		Username  usernameRef                `json:"username"`
-		ExpiresAt string                     `json:"expires_at"`
-	} `json:"products"`
+	Products []productLine `json:"products"`
+}
+
+// productLine is one item in a Tebex payment subject.
+type productLine struct {
+	Custom    map[string]json.RawMessage `json:"custom"`
+	Username  usernameRef                `json:"username"`
+	ExpiresAt string                     `json:"expires_at"`
 }
 
 type recurringSubject struct {
@@ -98,7 +101,6 @@ func trialAction(eventType string) (billingrpc.Action, bool) {
 }
 
 func recordableFromEvent(event tebexEvent) (recordablePayment, error) {
-
 	switch {
 	case strings.HasPrefix(event.Type, "payment."):
 		var payment paymentSubject
@@ -108,33 +110,49 @@ func recordableFromEvent(event tebexEvent) (recordablePayment, error) {
 		return recordableFromPayment(payment)
 
 	case strings.HasPrefix(event.Type, "recurring-payment."):
-		var recurring recurringSubject
-		if err := json.Unmarshal(event.Subject, &recurring); err != nil {
-			return recordablePayment{}, err
-		}
-		var payment recordablePayment
-		var err error
-		if event.Type == "recurring-payment.renewed" && recurring.LastPayment != nil {
-			payment, err = recordableFromPayment(*recurring.LastPayment)
-		} else if recurring.InitialPayment != nil {
-			payment, err = recordableFromPayment(*recurring.InitialPayment)
-		} else if recurring.LastPayment != nil {
-			payment, err = recordableFromPayment(*recurring.LastPayment)
-		} else {
-			return recordablePayment{}, errNoRecordablePayment
-		}
-		if err != nil {
-			return recordablePayment{}, err
-		}
-		payment.RecurringReference = recurring.Reference
-		if expiresAt, ok := parseTebexTime(recurring.NextPaymentAt); ok {
-			payment.ExpiresAt = &expiresAt
-		}
-		return payment, nil
+		return recordableFromRecurring(event.Type, event.Subject)
 
 	default:
 		return recordablePayment{}, errNoRecordablePayment
 	}
+}
+
+// recordableFromRecurring parses a recurring-payment event: pick the payment to
+// attribute, then overlay the subscription reference and next-payment expiry.
+func recordableFromRecurring(eventType string, subject json.RawMessage) (recordablePayment, error) {
+	var recurring recurringSubject
+	if err := json.Unmarshal(subject, &recurring); err != nil {
+		return recordablePayment{}, err
+	}
+	source, ok := pickRecurringPayment(recurring, eventType)
+	if !ok {
+		return recordablePayment{}, errNoRecordablePayment
+	}
+	payment, err := recordableFromPayment(*source)
+	if err != nil {
+		return recordablePayment{}, err
+	}
+	payment.RecurringReference = recurring.Reference
+	if expiresAt, ok := parseTebexTime(recurring.NextPaymentAt); ok {
+		payment.ExpiresAt = &expiresAt
+	}
+	return payment, nil
+}
+
+// pickRecurringPayment chooses which embedded payment a recurring event is
+// attributed to: a renewal uses the last payment, otherwise the initial one,
+// falling back to the last.
+func pickRecurringPayment(recurring recurringSubject, eventType string) (*paymentSubject, bool) {
+	if eventType == "recurring-payment.renewed" && recurring.LastPayment != nil {
+		return recurring.LastPayment, true
+	}
+	if recurring.InitialPayment != nil {
+		return recurring.InitialPayment, true
+	}
+	if recurring.LastPayment != nil {
+		return recurring.LastPayment, true
+	}
+	return nil, false
 }
 
 func recordableFromPayment(payment paymentSubject) (recordablePayment, error) {
@@ -142,31 +160,43 @@ func recordableFromPayment(payment paymentSubject) (recordablePayment, error) {
 	if payment.TransactionID == "" {
 		return recordablePayment{}, errors.New("payment transaction_id missing")
 	}
-
-	if userID, ok := userIDFromPayment(payment); ok {
-		giftedBy, giftedByLogin := giftFromPayment(payment)
-		giftMessage := giftMessageFromPayment(payment)
-		// A basket gifted to yourself is a plain purchase; drop the markers.
-		if giftedBy == userID {
-			giftedBy, giftedByLogin, giftMessage = 0, "", ""
-		}
-		result := recordablePayment{
-			TransactionID:      payment.TransactionID,
-			UserID:             userID,
-			GiftedByID:         giftedBy,
-			GiftedByLogin:      giftedByLogin,
-			GiftMessage:        giftMessage,
-			RecurringReference: payment.RecurringPaymentReference,
-		}
-		for _, product := range payment.Products {
-			if expiresAt, ok := parseTebexTime(product.ExpiresAt); ok && (result.ExpiresAt == nil || expiresAt.After(*result.ExpiresAt)) {
-				result.ExpiresAt = &expiresAt
-			}
-		}
-		return result, nil
+	userID, ok := userIDFromPayment(payment)
+	if !ok {
+		return recordablePayment{TransactionID: payment.TransactionID}, errPaymentUserMissing
 	}
 
-	return recordablePayment{TransactionID: payment.TransactionID}, errPaymentUserMissing
+	giftedBy, giftedByLogin := giftFromPayment(payment)
+	giftMessage := giftMessageFromPayment(payment)
+	// A basket gifted to yourself is a plain purchase; drop the markers.
+	if giftedBy == userID {
+		giftedBy, giftedByLogin, giftMessage = 0, "", ""
+	}
+	return recordablePayment{
+		TransactionID:      payment.TransactionID,
+		UserID:             userID,
+		GiftedByID:         giftedBy,
+		GiftedByLogin:      giftedByLogin,
+		GiftMessage:        giftMessage,
+		RecurringReference: payment.RecurringPaymentReference,
+		ExpiresAt:          latestProductExpiry(payment.Products),
+	}, nil
+}
+
+// latestProductExpiry returns the furthest-out parseable product expiry, or nil
+// when no product carries one.
+func latestProductExpiry(products []productLine) *time.Time {
+	var latest *time.Time
+	for _, product := range products {
+		expiresAt, ok := parseTebexTime(product.ExpiresAt)
+		if !ok {
+			continue
+		}
+		if latest == nil || expiresAt.After(*latest) {
+			e := expiresAt
+			latest = &e
+		}
+	}
+	return latest
 }
 
 func parseTebexTime(raw string) (time.Time, bool) {
@@ -254,13 +284,22 @@ func userIDFromCustom(custom map[string]json.RawMessage) (uint64, bool) {
 // bytes.Reader the naive path allocated; the surrounding quotes of a JSON string
 // id (never escaped for digits) are stripped in place.
 func rawUint(raw json.RawMessage) (uint64, bool) {
-	raw = bytes.TrimSpace(raw)
-	if n := len(raw); n >= 2 && raw[0] == '"' && raw[n-1] == '"' {
-		raw = raw[1 : n-1]
-	}
+	raw = unquoteJSON(bytes.TrimSpace(raw))
 	if len(raw) == 0 {
 		return 0, false
 	}
 	parsed, err := strconv.ParseUint(string(raw), 10, 64)
 	return parsed, err == nil && parsed != 0
+}
+
+// unquoteJSON strips the surrounding quotes of a JSON string value in place; ids
+// ride the custom payload as strings and never contain escapes.
+func unquoteJSON(raw []byte) []byte {
+	if len(raw) < 2 {
+		return raw
+	}
+	if raw[0] == '"' && raw[len(raw)-1] == '"' {
+		return raw[1 : len(raw)-1]
+	}
+	return raw
 }
