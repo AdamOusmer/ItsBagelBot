@@ -32,6 +32,9 @@ type GiftNotice struct {
 	RecipientID   uint64
 	GiftedByID    uint64
 	GiftedByLogin string
+	// GiftMessage is the buyer's optional personal note from the basket custom
+	// payload; empty falls back to the default gift email copy.
+	GiftMessage string
 }
 
 type Config struct {
@@ -91,6 +94,7 @@ type recordablePayment struct {
 	// Gift attribution from the basket custom payload; zero for self-purchases.
 	GiftedByID         uint64
 	GiftedByLogin      string
+	GiftMessage        string
 	RecurringReference string
 	ExpiresAt          *time.Time
 }
@@ -353,6 +357,7 @@ func (s *Server) notifyGift(ctx context.Context, event tebexEvent, payment recor
 		RecipientID:   payment.UserID,
 		GiftedByID:    payment.GiftedByID,
 		GiftedByLogin: payment.GiftedByLogin,
+		GiftMessage:   payment.GiftMessage,
 	})
 	if err != nil {
 		s.log.Warn("gift notification failed",
@@ -445,15 +450,17 @@ func recordableFromPayment(payment paymentSubject) (recordablePayment, error) {
 
 	if userID, ok := userIDFromPayment(payment); ok {
 		giftedBy, giftedByLogin := giftFromPayment(payment)
-		// A basket gifted to yourself is a plain purchase; drop the marker.
+		giftMessage := giftMessageFromPayment(payment)
+		// A basket gifted to yourself is a plain purchase; drop the markers.
 		if giftedBy == userID {
-			giftedBy, giftedByLogin = 0, ""
+			giftedBy, giftedByLogin, giftMessage = 0, "", ""
 		}
 		result := recordablePayment{
 			TransactionID:      payment.TransactionID,
 			UserID:             userID,
 			GiftedByID:         giftedBy,
 			GiftedByLogin:      giftedByLogin,
+			GiftMessage:        giftMessage,
 			RecurringReference: payment.RecurringPaymentReference,
 		}
 		for _, product := range payment.Products {
@@ -489,6 +496,22 @@ func giftFromPayment(payment paymentSubject) (uint64, string) {
 		}
 	}
 	return 0, ""
+}
+
+// giftMessageFromPayment reads the buyer's optional gift note the basket
+// carried. Same search order as giftFromPayment: payment-level custom first,
+// then per-product.
+func giftMessageFromPayment(payment paymentSubject) string {
+
+	if msg := rawString(payment.Custom["gift_message"]); msg != "" {
+		return msg
+	}
+	for _, product := range payment.Products {
+		if msg := rawString(product.Custom["gift_message"]); msg != "" {
+			return msg
+		}
+	}
+	return ""
 }
 
 func rawString(raw json.RawMessage) string {

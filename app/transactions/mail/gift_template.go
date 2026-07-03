@@ -82,7 +82,15 @@ var giftTmpl = template.Must(template.New("gift").Parse(strings.TrimSpace(`
             <strong style="color:` + colorTanLt + `;font-weight:600;">1 month of ItsBagelBot Premium</strong>.
             No strings, nothing to do. It's already yours.
           </div>
-
+{{if .Message}}
+          <!-- personal note from the buyer -->
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px;">
+            <tr><td style="background-color:#0d0d0c;border:1px solid ` + colorBorder + `;border-left:3px solid ` + colorTan + `;border-radius:8px;padding:16px 18px;">
+              <div style="font-family:` + fontMono + `;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:` + colorTan + `;padding-bottom:9px;">{{.NoteLabel}}</div>
+              <div style="font-family:` + fontBody + `;font-size:15px;line-height:1.6;color:#d8d0c4;font-style:italic;">&ldquo;{{.Message}}&rdquo;</div>
+            </td></tr>
+          </table>
+{{end}}
           <!-- active line -->
           <div style="font-family:` + fontMono + `;font-size:12px;letter-spacing:0.5px;color:` + colorGreen + `;padding-bottom:26px;">
             Active on your account now
@@ -153,33 +161,62 @@ var giftTmpl = template.Must(template.New("gift").Parse(strings.TrimSpace(`
 
 type giftData struct {
 	Gifter       string
+	Message      template.HTML
+	NoteLabel    string
 	DashboardURL string
 	Preheader    string
 }
 
-func giftHTML(giftedByLogin, dashboardURL string) (string, error) {
+// giftMessageHTML escapes the buyer's note for the HTML email and keeps line
+// breaks as <br>. The result is a template.HTML so the template inserts it
+// verbatim — escaping must happen here, never rely on the note being safe.
+func giftMessageHTML(msg string) template.HTML {
+	escaped := template.HTMLEscapeString(msg)
+	escaped = strings.ReplaceAll(escaped, "\n", "<br>")
+	return template.HTML(escaped) //nolint:gosec // escaped just above
+}
+
+func giftHTML(giftedByLogin, personalMessage, dashboardURL string) (string, error) {
 
 	preheader := "A month of ItsBagelBot Premium just landed on your account."
 	if giftedByLogin != "" {
 		preheader = fmt.Sprintf("%s sent you a month of ItsBagelBot Premium. It's live now.", giftedByLogin)
 	}
 
-	var b strings.Builder
-	if err := giftTmpl.Execute(&b, giftData{
+	data := giftData{
 		Gifter:       giftedByLogin,
 		DashboardURL: dashboardURL,
 		Preheader:    preheader,
-	}); err != nil {
+	}
+	if personalMessage != "" {
+		data.Message = giftMessageHTML(personalMessage)
+		data.NoteLabel = "A note for you"
+		if giftedByLogin != "" {
+			data.NoteLabel = giftedByLogin + " wrote"
+		}
+	}
+
+	var b strings.Builder
+	if err := giftTmpl.Execute(&b, data); err != nil {
 		return "", err
 	}
 	return b.String(), nil
 }
 
-func giftText(giftedByLogin, dashboardURL string) string {
+func giftText(giftedByLogin, personalMessage, dashboardURL string) string {
 
 	who := "You've been gifted"
 	if giftedByLogin != "" {
 		who = giftedByLogin + " gifted you"
+	}
+
+	note := ""
+	if personalMessage != "" {
+		label := "A note for you"
+		if giftedByLogin != "" {
+			label = giftedByLogin + " wrote"
+		}
+		note = fmt.Sprintf("%s:\n%q\n\n", label, personalMessage)
 	}
 
 	return fmt.Sprintf(`You've got Premium
@@ -187,9 +224,9 @@ func giftText(giftedByLogin, dashboardURL string) string {
 %s 1 month of ItsBagelBot Premium.
 The priority lane and every premium perk are active on your account now.
 
-See what's new: %s
+%sSee what's new: %s
 
 Sent by ItsBagelBot because you received a Premium gift.
 https://itsbagelbot.com
-`, who, dashboardURL)
+`, who, note, dashboardURL)
 }
