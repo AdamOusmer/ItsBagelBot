@@ -30,7 +30,7 @@ export const SUB = {
 };
 
 function userPrefixes(id: string): string[] {
-  return [`grant:${id}`, `account:${id}`, `tier:${id}`, `billing-state:${id}`, `commands:${id}`, `modules:${id}`, `delegations:${id}`];
+  return [`grant:${id}`, `account:${id}`, `tier:${id}`, `billing-state:${id}`, `commands:${id}`, `modules:${id}`, `delegations:${id}`, `locale:${id}`];
 }
 
 // Scope -> cache key routing for the invalidation bus, declared as data. The
@@ -44,6 +44,7 @@ const SCOPES: ScopeMap = {
   modules: (id) => [`modules:${id}`],
   delegation: (id) => [`delegations:${id}`],
   notifications: (id) => [`notifications:${id}`, 'notifications:all'],
+  locale: (id) => [`locale:${id}`],
   '*': (id) => [...userPrefixes(id), `ban:${id}`]
 };
 
@@ -373,6 +374,30 @@ export const setActive = defineWrite({
   after: (_result: unknown, userId: string) => invalidate(`account:${userId}`)
 });
 
+// Persisted console UI language. state_get carries it back; own cache key with
+// no Valkey L2 (the projected user hash has no locale), and it is only read at
+// login to seed the preference cookie, so a little staleness is harmless.
+export const userLocale = defineRead({
+  subject: `${SUB.dashboard}.state_get`,
+  request: (userId: string) => ({ broadcaster_user_id: userId }),
+  map: (r: { locale?: string }): string => r.locale || 'en',
+  timeoutMs: READ_TIMEOUT_MS,
+  cache: {
+    fabric,
+    key: (userId: string) => `locale:${userId}`,
+    policy: POLICY.entity
+  }
+});
+
+// Write the user's language choice through to the users service. The switcher
+// also sets the cookie so the current render flips immediately; this is what
+// makes the choice follow the account to another browser/device.
+export const setLocale = defineWrite({
+  subject: `${SUB.dashboard}.locale_set`,
+  request: (userId: string, locale: string) => ({ broadcaster_user_id: userId, locale }),
+  after: (_result: unknown, userId: string) => invalidate(`locale:${userId}`)
+});
+
 // Persist the broadcaster's Twitch OAuth grant (the per-channel bot token the
 // dashboard consent mints). Called once on login: without it the user row exists
 // but the bot has no token to act in the channel.
@@ -446,7 +471,8 @@ export async function checkoutBasketCreate(
   username: string,
   recipientUsername?: string,
   ipAddress?: string,
-  packageType?: CheckoutPackageType
+  packageType?: CheckoutPackageType,
+  giftMessage?: string
 ): Promise<CheckoutBasket> {
   const r = await rpc<{ ident?: string; checkout_url?: string; recipient_login?: string }>(
     `${SUB.transactions}.basket_create`,
@@ -455,7 +481,8 @@ export async function checkoutBasketCreate(
       username,
       recipient_username: recipientUsername || undefined,
       ip_address: ipAddress || undefined,
-      package_type: packageType || undefined
+      package_type: packageType || undefined,
+      gift_message: giftMessage || undefined
     },
     16000
   );

@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { AuroraBg } from '@bagel/shared';
+  import { AuroraBg, getI18n } from '@bagel/shared';
+
+  const { t } = getI18n();
 
   const HOME = 'https://itsbagelbot.com';
   const DELAY_MS = 5000;
@@ -21,7 +23,7 @@
 </script>
 
 <svelte:head>
-  <title>Goodbye</title>
+  <title>{t('goodbye.title')}</title>
   <noscript><meta http-equiv="refresh" content="5;url=https://itsbagelbot.com" /></noscript>
 </svelte:head>
 
@@ -33,16 +35,15 @@
     <span class="halo"></span>
   </div>
 
-  <div class="eyebrow reveal" style="--d:.18s">Account closed</div>
+  <div class="eyebrow reveal" style="--d:.18s">{t('goodbye.eyebrow')}</div>
 
-  <h1 class="hero reveal" style="--d:.3s">We're sorry to see you <span class="accent">go.</span></h1>
+  <h1 class="hero reveal" style="--d:.3s">{t('goodbye.heroPre')}<span class="accent">{t('goodbye.heroAccent')}</span></h1>
 
   <p class="lede reveal" style="--d:.6s">
-    Your account, commands, and links have been removed. Thanks for being part of the bakery — the
-    door's always open if you come back.
+    {t('goodbye.lede')}
   </p>
 
-  <a class="cta reveal" style="--d:.85s" href={HOME}>Back to itsbagelbot.com</a>
+  <a class="cta reveal" style="--d:.85s" href={HOME}>{t('goodbye.cta')}</a>
 
   <span class="bar reveal" style="--d:1s" aria-hidden="true"><i></i></span>
 </main>

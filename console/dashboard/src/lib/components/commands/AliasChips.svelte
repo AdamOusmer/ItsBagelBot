@@ -2,7 +2,9 @@
   // Alternate-name (alias) chip input. Commits on Enter/comma/blur, pops the
   // last chip on Backspace in an empty input, de-duplicates case-insensitively
   // against the command's own name and existing chips.
-  import { Icon } from '@bagel/shared';
+  import { Icon, getI18n } from '@bagel/shared';
+
+  const { t } = getI18n();
 
   let {
     aliases = $bindable<string[]>([]),
@@ -40,7 +42,7 @@
 
 <input
   class="search"
-  placeholder="Type a name, press Enter"
+  placeholder={t('commandEditor.aliasPlaceholder')}
   bind:value={draft}
   onkeydown={onKey}
   onblur={commit}
@@ -48,7 +50,7 @@
 {#if aliases.length}
   <div class="pills">
     {#each aliases as a (a)}
-      <button type="button" class="pill" onclick={() => remove(a)} aria-label="Remove {a}">
+      <button type="button" class="pill" onclick={() => remove(a)} aria-label={t('commandEditor.removeAlias', { name: a })}>
         <span>{a}</span>
         <Icon name="x" size={11} />
       </button>

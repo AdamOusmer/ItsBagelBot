@@ -13,6 +13,7 @@
     validateCommand,
     normName,
     COOLDOWN_MAX,
+    getI18n,
     type CommandErrors
   } from '@bagel/shared';
   import CheckButton from '$lib/components/CheckButton.svelte';
@@ -34,6 +35,8 @@
     onCancel: () => void;
     onSubmit: SubmitFunction;
   } = $props();
+
+  const { t } = getI18n();
 
   let aliasDraft = $state('');
   let chips = $state<ReturnType<typeof AliasChips>>();
@@ -82,14 +85,14 @@
   {/if}
 
   <label class="field">
-    <span>Name</span>
-    <input class="search" name="name" placeholder="!command" bind:value={draft.name} required />
+    <span>{t('commandEditor.name')}</span>
+    <input class="search" name="name" placeholder={t('commandEditor.namePlaceholder')} bind:value={draft.name} required />
     <FieldError message={errors.name} />
-    {#if draft.edit}<small>The trigger viewers type in chat. Renaming keeps the response and settings.</small>{/if}
+    {#if draft.edit}<small>{t('commandEditor.renameHint')}</small>{/if}
   </label>
 
   <div class="field">
-    <span>Alternate names <small>(optional)</small></span>
+    <span>{t('commandEditor.altNames')} <small>{t('common.optional')}</small></span>
     <AliasChips bind:this={chips} bind:aliases={draft.aliases} bind:draft={aliasDraft} commandName={draft.name} />
     {#each draft.aliases as a}
       <input type="hidden" name="aliases" value={a} />
@@ -98,7 +101,7 @@
   </div>
 
   <label class="field">
-    <span>Response</span>
+    <span>{t('commandEditor.response')}</span>
     <ResponseEditor bind:value={draft.response} />
     <FieldError message={errors.response} />
   </label>
@@ -107,7 +110,7 @@
 
   <div class="field-row">
     <label class="field">
-      <span>Access</span>
+      <span>{t('commandEditor.access')}</span>
       <select class="search" name="perm" bind:value={draft.perm}>
         {#each PERMS as p}
           <option value={p}>{PERM_LABELS[p]}</option>
@@ -116,37 +119,37 @@
     </label>
 
     <label class="field">
-      <span>Cooldown (s)</span>
+      <span>{t('commandEditor.cooldownS')}</span>
       <input class="search" type="number" name="cooldown" min="0" max={COOLDOWN_MAX} bind:value={draft.cooldown} />
       <FieldError message={errors.cooldown} />
     </label>
   </div>
 
   <label class="field">
-    <span>Restrict to user ID <small>(optional)</small></span>
+    <span>{t('commandEditor.restrictUser')} <small>{t('common.optional')}</small></span>
     <input
       class="search"
       name="allowed_user_id"
       inputmode="numeric"
-      placeholder="Twitch user ID — only they can run it"
+      placeholder={t('commandEditor.restrictPlaceholder')}
       bind:value={draft.allowed_user_id}
     />
     <FieldError message={errors.allowed_user_id} />
   </label>
 
   <div class="check">
-    <CheckButton name="is_active" bind:checked={draft.is_active} label="Active" />
+    <CheckButton name="is_active" bind:checked={draft.is_active} label={t('commandEditor.active')} />
   </div>
 
   <div class="check">
-    <CheckButton name="stream_online_only" bind:checked={draft.stream_online_only} label="Only while live" />
+    <CheckButton name="stream_online_only" bind:checked={draft.stream_online_only} label={t('commandEditor.onlyWhileLive')} />
   </div>
 
   <div class="actions">
-    <button type="button" class="btn ghost" onclick={onCancel} disabled={busy}>Cancel</button>
+    <button type="button" class="btn ghost" onclick={onCancel} disabled={busy}>{t('common.cancel')}</button>
     <button type="submit" class="btn primary" disabled={busy}>
       <Icon name="check" size={14} />
-      {busy ? 'Saving…' : draft.edit ? 'Save changes' : 'Create'}
+      {busy ? t('commandEditor.saving') : draft.edit ? t('commandEditor.saveChanges') : t('commandEditor.create')}
     </button>
   </div>
 </form>

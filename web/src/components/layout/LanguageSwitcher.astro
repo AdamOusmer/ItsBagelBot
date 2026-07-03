@@ -1,0 +1,65 @@
+---
+/**
+ * EN / FR toggle. Each option links to the current page's equivalent in that
+ * locale. Only home, pricing, and contact have French routes (legal stays
+ * English for now), so for any other path the FR link falls back to the same
+ * English path — no dead /fr/ links.
+ */
+import { getLangFromUrl, type Lang } from '../../i18n/ui';
+
+const LOCALIZED = new Set(['/', '/pricing', '/contact']);
+const current = getLangFromUrl(Astro.url);
+
+function localePath(url: URL, target: Lang): string {
+  let p = url.pathname;
+  if (p.startsWith('/fr/')) p = p.slice(3);
+  else if (p === '/fr') p = '/';
+  p = p.replace(/\/+$/, '') || '/';
+  if (target === 'en') return p;
+  if (!LOCALIZED.has(p)) return p; // no French route → keep English path
+  return p === '/' ? '/fr/' : `/fr${p}`;
+}
+
+const options: Lang[] = ['en', 'fr'];
+---
+
+<div class="lang-switch" role="group" aria-label="Language">
+  {options.map((l) => (
+    <a
+      href={localePath(Astro.url, l)}
+      hreflang={l}
+      class:list={['lang-switch__opt', { 'is-active': l === current }]}
+      aria-current={l === current ? 'true' : undefined}
+    >{l.toUpperCase()}</a>
+  ))}
+</div>
+
+<style>
+  .lang-switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 3px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+  }
+
+  .lang-switch__opt {
+    font-family: var(--font-mono, "DM Mono", monospace);
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    text-decoration: none;
+    padding: 4px 9px;
+    border-radius: 999px;
+    transition: color 0.2s ease, background 0.2s ease;
+  }
+
+  .lang-switch__opt:hover { color: var(--tan-light); }
+
+  .lang-switch__opt.is-active {
+    color: var(--black, #0a0a0a);
+    background: var(--tan, #c9a87c);
+  }
+</style>

@@ -1,9 +1,11 @@
 <script lang="ts">
   import { page } from '$app/state';
   import { enhance } from '$app/forms';
-  import { AppShell, ImpersonationBanner, NotificationBell, ToastHost } from '@bagel/shared';
+  import { AppShell, ImpersonationBanner, NotificationBell, ToastHost, getI18n } from '@bagel/shared';
   import type { NavGroupDef, NavLink } from '@bagel/shared';
   let { data, children } = $props();
+
+  const { t } = getI18n();
 
   const isDelegate = $derived(!!data.delegateOf);
 
@@ -14,18 +16,21 @@
     queueMicrotask(() => markReadForm?.requestSubmit());
   }
 
+  // A stable section key drives active-state + the breadcrumb label; the label
+  // itself is translated, so comparisons never break across languages.
   const path = $derived(page.url.pathname);
-  const crumb = $derived(
+  const section = $derived(
     path.startsWith('/commands')
-      ? 'Commands'
+      ? 'commands'
       : path.startsWith('/modules')
-        ? 'Modules'
+        ? 'modules'
         : path.startsWith('/billing')
-          ? 'Billing'
+          ? 'billing'
           : path.startsWith('/settings') || path.startsWith('/access')
-            ? 'Settings'
-            : 'Overview'
+            ? 'settings'
+            : 'overview'
   );
+  const crumb = $derived(t(`nav.${section}`));
 
   // Delegate view: nav and routes are limited to the granted sections, and the
   // owner-only Overview/Settings entries are hidden.
@@ -37,45 +42,45 @@
   // dropdown, "View all" link) is the only way in.
   const items = $derived([
     ...(!isDelegate
-      ? [{ href: '/', icon: 'overview', label: 'Overview', active: crumb === 'Overview' }]
+      ? [{ href: '/', icon: 'overview', label: t('nav.overview'), active: section === 'overview' }]
       : []),
     ...(canCommands
-      ? [{ href: '/commands', icon: 'commands', label: 'Commands', active: crumb === 'Commands' }]
+      ? [{ href: '/commands', icon: 'commands', label: t('nav.commands'), active: section === 'commands' }]
       : []),
     ...(canModules
-      ? [{ href: '/modules', icon: 'modules', label: 'Modules', active: crumb === 'Modules' }]
+      ? [{ href: '/modules', icon: 'modules', label: t('nav.modules'), active: section === 'modules' }]
       : []),
     ...(!isDelegate
-      ? [{ href: '/billing', icon: 'card', label: 'Billing', active: crumb === 'Billing' }]
+      ? [{ href: '/billing', icon: 'card', label: t('nav.billing'), active: section === 'billing' }]
       : []),
     ...(!isDelegate
-      ? [{ href: '/settings', icon: 'settings', label: 'Settings', active: crumb === 'Settings' }]
+      ? [{ href: '/settings', icon: 'settings', label: t('nav.settings'), active: section === 'settings' }]
       : [])
   ] as NavLink[]);
 
-  const groups = $derived([{ label: 'Manage', items }] as NavGroupDef[]);
+  const groups = $derived([{ label: t('nav.manage'), items }] as NavGroupDef[]);
   const showBanner = $derived(isDelegate || !!data.impersonatorLogin);
 </script>
 
 <AppShell
-  brandSub="Console"
+  brandSub={t('common.console')}
   crumbRoot="ItsBagelBot"
   {crumb}
   accountName={data.displayName}
-  accountRole="Broadcaster"
+  accountRole={t('topbar.roleBroadcaster')}
   {groups}
   mobileItems={items}
   offset={showBanner}
 >
   {#snippet banner()}
     {#if isDelegate}
-      <ImpersonationBanner exitHref="/delegate/exit">
-        Shared access to <b>{data.delegateLogin}</b>'s dashboard ({sections.join(', ')})
+      <ImpersonationBanner exitHref="/delegate/exit" exitLabel={t('banner.exit')}>
+        {t('banner.sharedPre')}<b>{data.delegateLogin}</b>{t('banner.sharedPost', { sections: sections.join(', ') })}
       </ImpersonationBanner>
     {/if}
     {#if data.impersonatorLogin}
-      <ImpersonationBanner exitForm>
-        Viewing as <b>{data.login}</b> (admin {data.impersonatorLogin})
+      <ImpersonationBanner exitForm exitLabel={t('banner.exit')}>
+        {t('banner.viewingPre')}<b>{data.login}</b>{t('banner.viewingPost', { admin: data.impersonatorLogin })}
       </ImpersonationBanner>
     {/if}
   {/snippet}
@@ -86,6 +91,10 @@
         unreadCount={data.unreadCount ?? 0}
         viewAllHref="/settings#notifications"
         onMarkRead={markRead}
+        title={t('bell.title')}
+        viewAllLabel={t('bell.viewAll')}
+        emptyLabel={t('bell.empty')}
+        readLabel={t('bell.read')}
       />
     {/if}
   {/snippet}

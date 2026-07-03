@@ -175,6 +175,12 @@ type DeleteSelfRequest struct {
 	UserID string `json:"user_id"`
 }
 
+// LocaleSetRequest is the payload for the dashboard locale_set verb.
+type LocaleSetRequest struct {
+	BroadcasterUserID string `json:"broadcaster_user_id"`
+	Locale            string `json:"locale"`
+}
+
 // CreateDelegationRequest is the payload for the delegation create verb.
 type CreateDelegationRequest struct {
 	OwnerUserID string   `json:"owner_user_id"`

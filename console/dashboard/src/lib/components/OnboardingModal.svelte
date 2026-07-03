@@ -3,9 +3,21 @@
   // the dashboard (they're already connected by then, so it starts at the step
   // people actually miss — modding the bot). Dismissal is remembered in
   // localStorage; `?welcome=1` re-opens it for a refresher.
-  import { Icon, Modal } from '@bagel/shared';
+  import { Icon, Modal, getI18n, type IconName } from '@bagel/shared';
+  import LangSwitch from './LangSwitch.svelte';
+
+  type Step = {
+    icon: IconName;
+    title: string;
+    body: string;
+    lang?: boolean;
+    mod?: boolean;
+    cta?: { href: string; label: string };
+  };
 
   let { open = false, onDone }: { open: boolean; onDone: () => void } = $props();
+
+  const { t } = getI18n();
 
   const MOD_COMMAND = '/mod ItsBagelBot';
   let copied = $state(false);
@@ -35,24 +47,30 @@
     }
   }
 
-  const steps = [
+  const steps: Step[] = [
+    {
+      icon: 'settings' as const,
+      title: t('onboarding.langTitle'),
+      body: t('onboarding.langBody'),
+      lang: true
+    },
     {
       icon: 'moderation' as const,
-      title: 'Mod the bot',
-      body: 'Type this in your Twitch chat. Without mod status, Twitch silences the bot in follower-only, sub-only, and slow-mode chats — it would look like it just stopped working.',
+      title: t('onboarding.step1Title'),
+      body: t('onboarding.step1Body'),
       mod: true
     },
     {
       icon: 'commands' as const,
-      title: 'Create your first command',
-      body: 'Head to Commands and build a !command — the live chat rehearsal shows exactly what the bot will say before you save.',
-      cta: { href: '/commands', label: 'Open Commands' }
+      title: t('onboarding.step2Title'),
+      body: t('onboarding.step2Body'),
+      cta: { href: '/commands', label: t('onboarding.step2Cta') }
     },
     {
       icon: 'modules' as const,
-      title: 'Flip on modules',
-      body: 'Optional extras like Auto Shoutout for incoming raids. One toggle each, configured in a minute.',
-      cta: { href: '/modules', label: 'Browse modules' }
+      title: t('onboarding.step3Title'),
+      body: t('onboarding.step3Body'),
+      cta: { href: '/modules', label: t('onboarding.step3Cta') }
     }
   ];
 
@@ -60,8 +78,8 @@
   const last = $derived(step === steps.length - 1);
 </script>
 
-<Modal {open} title="Welcome aboard 🥯" closeModal={onDone}>
-  <p class="intro">You're connected — the bot can see your chat. Two minutes of setup and it's fully live:</p>
+<Modal {open} title={t('onboarding.title')} closeModal={onDone}>
+  <p class="intro">{t('onboarding.intro')}</p>
 
   {#key step}
     {@const cta = steps[step].cta}
@@ -71,12 +89,15 @@
         <h4>{steps[step].title}</h4>
       </div>
       <p class="step-body">{steps[step].body}</p>
+      {#if steps[step].lang}
+        <div class="lang-row"><LangSwitch /></div>
+      {/if}
       {#if steps[step].mod}
-        <button type="button" class="mod-cmd" onclick={copyMod} title="Copy to clipboard">
+        <button type="button" class="mod-cmd" onclick={copyMod} title={t('common.copy')}>
           <code>{MOD_COMMAND}</code>
           <span class="copy-hint">
             <Icon name={copied ? 'check' : 'link'} size={12} />
-            {copied ? 'Copied' : 'Copy'}
+            {copied ? t('common.copied') : t('common.copy')}
           </span>
         </button>
       {/if}
@@ -89,26 +110,26 @@
   {/key}
 
   <div class="foot">
-    <div class="dots" aria-label="Step {step + 1} of {steps.length}">
+    <div class="dots" aria-label={t('onboarding.stepOf', { n: step + 1, total: steps.length })}>
       {#each steps as _, i (i)}
         <button
           type="button"
           class="dot {i === step ? 'on' : ''}"
-          aria-label="Go to step {i + 1}"
+          aria-label={t('onboarding.goToStep', { n: i + 1 })}
           onclick={() => (step = i)}
         ></button>
       {/each}
     </div>
     <div class="nav">
       {#if step > 0}
-        <button type="button" class="btn ghost" onclick={() => (step -= 1)}>Back</button>
+        <button type="button" class="btn ghost" onclick={() => (step -= 1)}>{t('onboarding.back')}</button>
       {:else}
-        <button type="button" class="btn ghost" onclick={onDone}>Skip</button>
+        <button type="button" class="btn ghost" onclick={onDone}>{t('onboarding.skip')}</button>
       {/if}
       {#if last}
-        <button type="button" class="btn primary" onclick={onDone}>Done</button>
+        <button type="button" class="btn primary" onclick={onDone}>{t('onboarding.done')}</button>
       {:else}
-        <button type="button" class="btn primary" onclick={() => (step += 1)}>Next</button>
+        <button type="button" class="btn primary" onclick={() => (step += 1)}>{t('onboarding.next')}</button>
       {/if}
     </div>
   </div>
@@ -170,6 +191,8 @@
   .mod-cmd:hover .copy-hint { color: var(--bb-tan-pale); }
 
   .step-cta { display: inline-flex; margin-top: 12px; text-decoration: none; }
+
+  .lang-row { margin-top: 14px; display: flex; }
 
   .foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .dots { display: flex; gap: 7px; }

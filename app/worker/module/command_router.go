@@ -81,6 +81,13 @@ func (r *CommandRouter) runBaked(ctx context.Context, c *Context, cmd Command, a
 	if err != nil || !pass {
 		return err
 	}
+	// Resolve the broadcaster's UI locale so baked commands can localize their
+	// replies. Only for commands that actually run (past the gate); the read is
+	// in-process cache-fronted, and any miss leaves Locale empty (default
+	// language).
+	if u, uerr := r.proj.User(ctx, c.BroadcasterID); uerr == nil {
+		c.Locale = u.Locale
+	}
 	return cmd.Run(ctx, c, args, emit)
 }
 

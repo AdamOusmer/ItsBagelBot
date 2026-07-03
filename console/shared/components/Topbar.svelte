@@ -4,6 +4,12 @@
   // operator. One thin ruled line, everything else is page.
   import type { Snippet } from 'svelte';
   import Icon from './Icon.svelte';
+  import { getI18n } from '../lib/i18n/context';
+
+  // Falls back to English when no i18n context is set (admin), so the label is
+  // correct in every app without prop-drilling it through AppShell.
+  const { t } = getI18n();
+
   let {
     root,
     crumb,
@@ -90,7 +96,7 @@
           <form method="POST" action="/auth/logout">
             <button type="submit" class="op-menu-item" role="menuitem">
               <Icon name="power" size={15} />
-              Log out
+              {t('topbar.logout')}
             </button>
           </form>
         </div>

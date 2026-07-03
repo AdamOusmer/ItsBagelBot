@@ -9,6 +9,17 @@ export default defineConfig({
   compressHTML: true,
   integrations: [sitemap()],
 
+  // English at the root (/), French under /fr/. prefixDefaultLocale:false keeps
+  // every existing English URL exactly where it is, so nothing 301s.
+  i18n: {
+    defaultLocale: 'en',
+    locales: ['en', 'fr'],
+    routing: {
+      prefixDefaultLocale: false,
+      redirectToDefaultLocale: false,
+    },
+  },
+
   server: {
     host: true, // Listen on all local IP addresses
   },

@@ -2,13 +2,17 @@
 import Layout from '../layouts/Layout.astro';
 import PageHero from '../components/ui/PageHero.astro';
 import Switchboard from '../components/contact/Switchboard.astro';
+import { getLangFromUrl, useTranslations } from '../i18n/ui';
+
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
 ---
 
-<Layout title="Contact — ItsBagelBot" description="Talk to a human. Community support on Discord, real email inboxes for support and enterprise, and the source on GitHub.">
+<Layout title={t('contact.metaTitle')} description={t('contact.metaDesc')}>
     <PageHero
-        eyebrow="Contact"
-        title="Talk to a human."
-        description="No ticket portal, no chatbot maze. Pick a line, we're on the other end."
+        eyebrow={t('contact.eyebrow')}
+        title={t('contact.title')}
+        description={t('contact.desc')}
     />
     <Switchboard />
 </Layout>
