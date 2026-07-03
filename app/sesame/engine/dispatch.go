@@ -43,7 +43,7 @@ func (p *Pipeline) dispatchCommand(ctx context.Context, c *module.Context, views
 // emits is routed through the post-processing middleware (see emitCommand), so a
 // baked command can write "/announce ..." the same way a custom one does.
 func (p *Pipeline) runBaked(ctx context.Context, c *module.Context, cmd module.Command, args string, emit module.Emit) error {
-	pass, err := p.gate(ctx, c, cmd.Name, cmd.AllowedUserID, cmd.Perm, cmd.LiveOnly, cmd.Cooldown)
+	pass, err := p.gate(ctx, c, gateRule{cmd.Name, cmd.AllowedUserID, cmd.Perm, cmd.LiveOnly, cmd.Cooldown})
 	if err != nil || !pass {
 		return err
 	}
@@ -68,7 +68,8 @@ func (p *Pipeline) runCustom(ctx context.Context, c *module.Context, name, args 
 		return nil
 	}
 
-	pass, err := p.gate(ctx, c, name, cc.AllowedUserID, module.ParsePerm(cc.Perm), cc.StreamOnlineOnly, time.Duration(cc.Cooldown)*time.Second)
+	rule := gateRule{name, cc.AllowedUserID, module.ParsePerm(cc.Perm), cc.StreamOnlineOnly, time.Duration(cc.Cooldown) * time.Second}
+	pass, err := p.gate(ctx, c, rule)
 	if err != nil || !pass {
 		return err
 	}
@@ -79,24 +80,10 @@ func (p *Pipeline) runCustom(ctx context.Context, c *module.Context, name, args 
 		zap.Uint64("broadcaster_id", c.BroadcasterID),
 	)
 
-	sender := c.Env.ChatterUserLogin
-	touser := sender
-	if args != "" {
-		firstWord, _, _ := strings.Cut(args, " ")
-		touser = strings.TrimPrefix(firstWord, "@")
-	}
-
-	buf := GetBuf()
-	buf = expandCommand(buf, cc.Response, sender, sender, args, touser)
-	out := GetOutput()
-	out.Type = outgress.TypeChat
-	out.BroadcasterID = c.Env.BroadcasterUserID
-	out.Text = string(buf)
-	PutBuf(buf)
-
 	// Route the expanded response through the post-processing middleware. A
 	// response left with no payload (an "/announce" with no text, a "/shoutout"
 	// with no target) is dropped and not counted.
+	out := renderResponse(c, cc.Response, args)
 	emitted := p.emitCommand(out, emit)
 	PutOutput(out)
 	if !emitted {
@@ -112,6 +99,26 @@ func (p *Pipeline) runCustom(ctx context.Context, c *module.Context, name, args 
 	}
 
 	return nil
+}
+
+// renderResponse expands a custom command's response template into a pooled
+// Output. The caller owns the returned Output and must PutOutput it after use.
+func renderResponse(c *module.Context, response, args string) *module.Output {
+	sender := c.Env.ChatterUserLogin
+	touser := sender
+	if args != "" {
+		firstWord, _, _ := strings.Cut(args, " ")
+		touser = strings.TrimPrefix(firstWord, "@")
+	}
+
+	buf := GetBuf()
+	buf = expandCommand(buf, response, tokens{user: sender, sender: sender, args: args, touser: touser})
+	out := GetOutput()
+	out.Type = outgress.TypeChat
+	out.BroadcasterID = c.Env.BroadcasterUserID
+	out.Text = string(buf)
+	PutBuf(buf)
+	return out
 }
 
 // emitCommand is the command-output post-processing middleware. Every output a
@@ -132,42 +139,56 @@ func (p *Pipeline) emitCommand(o *module.Output, emit module.Emit) bool {
 	return true
 }
 
-// gate applies the one shared command gate: permission (an explicit allowed user
-// overrides the role tier entirely), then live-only, then cooldown. It returns
-// (true, nil) only when every applicable check passes. It allocates nothing on
-// the hot path (the cooldown key is built into a pooled buffer).
-func (p *Pipeline) gate(ctx context.Context, c *module.Context, name, allowedUserID string, perm module.Role, liveOnly bool, cooldown time.Duration) (bool, error) {
-	// Permission: an explicit allowed user overrides the role tier entirely.
-	if allowedUserID != "" {
-		if c.Env.ChatterUserID != allowedUserID {
-			return false, nil
-		}
-	} else if !c.Chatter().Allows(perm) {
+// gateRule is the set of checks one command is gated by, so the gate takes a
+// single value rather than a long parameter list. runBaked builds it from a
+// module.Command; runCustom builds it from a projection.Command.
+type gateRule struct {
+	name          string
+	allowedUserID string
+	perm          module.Role
+	liveOnly      bool
+	cooldown      time.Duration
+}
+
+// gate applies the one shared command gate — permission, then live-only, then
+// cooldown — and returns (true, nil) only when every applicable check passes.
+// Each check is its own helper so the gate reads as three linear steps and
+// allocates nothing on the hot path (the cooldown key is built into a pooled
+// buffer).
+func (p *Pipeline) gate(ctx context.Context, c *module.Context, r gateRule) (bool, error) {
+	if !permits(c, r.allowedUserID, r.perm) {
 		return false, nil
 	}
-
-	if liveOnly {
-		live, err := p.live.IsLive(ctx, c.BroadcasterID)
-		if err != nil {
-			return false, err
-		}
-		if !live {
-			return false, nil
-		}
+	if ok, err := p.liveOK(ctx, c, r.liveOnly); !ok {
+		return false, err
 	}
+	return p.cooldownOK(ctx, c.BroadcasterID, r.name, r.cooldown)
+}
 
-	if cooldown > 0 {
-		key := cooldownKey(c.BroadcasterID, name)
-		allowed, err := p.cooldown.Allow(ctx, key, cooldown)
-		if err != nil {
-			return false, err
-		}
-		if !allowed {
-			return false, nil
-		}
+// permits checks the permission tier: an explicit allowed user overrides the
+// role tier entirely.
+func permits(c *module.Context, allowedUserID string, perm module.Role) bool {
+	if allowedUserID != "" {
+		return c.Env.ChatterUserID == allowedUserID
 	}
+	return c.Chatter().Allows(perm)
+}
 
-	return true, nil
+// liveOK passes when the command is not live-only or the broadcaster is live.
+func (p *Pipeline) liveOK(ctx context.Context, c *module.Context, liveOnly bool) (bool, error) {
+	if !liveOnly {
+		return true, nil
+	}
+	return p.live.IsLive(ctx, c.BroadcasterID)
+}
+
+// cooldownOK passes when the command has no cooldown or its window is free (and
+// claims it).
+func (p *Pipeline) cooldownOK(ctx context.Context, broadcasterID uint64, name string, cooldown time.Duration) (bool, error) {
+	if cooldown <= 0 {
+		return true, nil
+	}
+	return p.cooldown.Allow(ctx, cooldownKey(broadcasterID, name), cooldown)
 }
 
 // cooldownKey builds "cooldown:cmd:<broadcasterID>:<name>" into a pooled scratch

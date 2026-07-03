@@ -19,6 +19,10 @@ import (
 	"ItsBagelBot/pkg/monitor"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
+	"github.com/ThreeDotsLabs/watermill/message"
+	"github.com/nats-io/nats.go"
+	"github.com/newrelic/go-agent/v3/newrelic"
+	"github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
 )
 
@@ -48,27 +52,9 @@ func main() {
 		log.Fatal("failed to provision jetstream streams", zap.Error(err))
 	}
 
-	// Core connection drives the projector RPC fallback; JetStream pub/sub drives
-	// the lanes.
-	nc, err := bus.Connect(cfg.NATSRPCURL, serviceName)
-	if err != nil {
-		log.Fatal("failed to connect to nats", zap.Error(err))
-	}
+	nc, pub, sub := dialNATS(cfg, log)
 	defer nc.Close()
-
-	pub, err := bus.NewPublisher(cfg.NATSURL, log)
-	if err != nil {
-		log.Fatal("failed to connect publisher", zap.Error(err))
-	}
 	defer func() { _ = pub.Close() }()
-
-	// ConsumerName defaults to "worker" so sesame binds the worker's existing lane
-	// consumer (drop-in on the same lanes; no DeliverAll replay, rollout overlap
-	// load-balances instead of double-processing).
-	sub, err := bus.NewSubscriber(cfg.NATSURL, cfg.ConsumerName, log)
-	if err != nil {
-		log.Fatal("failed to connect subscriber", zap.Error(err))
-	}
 	defer func() { _ = sub.Close() }()
 
 	valkeyClient, err := pkg_valkey.NewClient(cfg.ValkeyAddr, cfg.ValkeyPassword)
@@ -76,35 +62,14 @@ func main() {
 		log.Fatal("failed to connect to valkey", zap.Error(err))
 	}
 	defer valkeyClient.Close()
-	valkeyStore := projection.NewStore(valkeyClient)
 
-	proj := projection.NewClient(valkeyStore, nc, projection.Subjects{
-		Users:    cfg.ProjectionUsersSubject,
-		Modules:  cfg.ProjectionModulesSubject,
-		Commands: cfg.ProjectionCommandsSubject,
-	}, projectionCacheTTL, log)
+	in := infra{nc: nc, pub: pub, sub: sub, vc: valkeyClient}
+
+	proj := newProjection(in, cfg, log)
 	defer proj.Close()
-	proj.StartInvalidationListener(cfg.CacheInvalidationPrefix)
 
-	// Live status: a dedicated Valkey key (live:<id>) read through an in-process
-	// cache, written from the stream events sesame already consumes, with a
-	// projector RPC fallback on a cold key and a key-expiry re-check against Twitch
-	// (via the outgress system lane).
-	live := engine.NewValkeyLiveStore(valkeyClient, nc, pub, engine.LiveConfig{
-		TTL:                   cfg.LiveTTL,
-		CacheTTL:              projectionCacheTTL,
-		ProjectorLiveSubject:  cfg.ProjectionLiveSubject,
-		OutgressSystemSubject: cfg.OutgressSystemSubject,
-		CacheInvalidatePrefix: cfg.CacheInvalidationPrefix,
-		KeyspaceDB:            0,
-	}, log)
+	live := newLive(ctx, in, cfg, log)
 	defer live.Close()
-	live.StartInvalidationListener()
-	go live.StartExpiryWatcher(ctx)
-
-	greet := engine.NewValkeyGreetStore(valkeyClient, cfg.LiveTTL, log)
-	cooldown := engine.NewValkeyCooldown(valkeyClient)
-	special := engine.NewSpecialSet(cfg.SpecialUserIDs)
 
 	// Deps is the bundle every module fn captures; main builds it once. modules.All
 	// returns the built modules (core commands + bagel, live tracker, opt-in
@@ -113,9 +78,9 @@ func main() {
 	deps := engine.Deps{
 		Proj:     proj,
 		Live:     live,
-		Greet:    greet,
-		Cooldown: cooldown,
-		Special:  special,
+		Greet:    engine.NewValkeyGreetStore(valkeyClient, cfg.LiveTTL, log),
+		Cooldown: engine.NewValkeyCooldown(valkeyClient),
+		Special:  engine.NewSpecialSet(cfg.SpecialUserIDs),
 		Pub:      pub,
 		Log:      log,
 	}
@@ -129,23 +94,7 @@ func main() {
 	})
 	defer pipe.Close() // flushes pending use-counter ticks on shutdown
 
-	// One autoscaling consumer drains the premium and standard lanes into a shared
-	// pool of pipeline routines, with premium reserving a slice so it is never
-	// starved. Live events ride these same lanes, so there is no separate stream
-	// consumer.
-	cons := consumer.New(sub, nrApp,
-		consumer.Lanes{PremiumSubject: cfg.PremiumSubject, StandardSubject: cfg.StandardSubject},
-		bus.ScalePolicy{
-			MinRoutines:    cfg.MinRoutines,
-			MaxRoutines:    cfg.MaxRoutines,
-			MaxConsumers:   cfg.MaxConsumers,
-			ScaleUpAfter:   cfg.ScaleUpAfter,
-			ScaleDownAfter: cfg.ScaleDownAfter,
-		},
-		cfg.PremiumReserve,
-		log,
-	)
-	if err := cons.Start(ctx, pipe.Process); err != nil {
+	if err := newConsumer(sub, nrApp, cfg, log).Start(ctx, pipe.Process); err != nil {
 		log.Fatal("failed to start consumer", zap.Error(err))
 	}
 
@@ -159,11 +108,91 @@ func main() {
 		zap.Int("max_routines", cfg.MaxRoutines),
 		zap.Int("max_consumers", cfg.MaxConsumers),
 		zap.Int("premium_reserve_percent", cfg.PremiumReserve),
-		zap.Int("special_users", special.Len()),
+		zap.Int("special_users", deps.Special.Len()),
 		zap.Duration("live_ttl", cfg.LiveTTL),
 	)
 
 	<-ctx.Done()
 
 	log.Info("sesame shutting down")
+}
+
+// infra bundles the process's shared clients so the wiring helpers take one
+// value instead of a long argument list.
+type infra struct {
+	nc  *nats.Conn
+	pub message.Publisher
+	sub message.Subscriber
+	vc  valkey.Client
+}
+
+// dialNATS opens the core RPC connection (projector fallback) and the JetStream
+// publisher/subscriber that drive the lanes. Any failure is fatal.
+func dialNATS(cfg *config.Config, log *zap.Logger) (*nats.Conn, message.Publisher, message.Subscriber) {
+	nc, err := bus.Connect(cfg.NATSRPCURL, serviceName)
+	if err != nil {
+		log.Fatal("failed to connect to nats", zap.Error(err))
+	}
+	pub, err := bus.NewPublisher(cfg.NATSURL, log)
+	if err != nil {
+		log.Fatal("failed to connect publisher", zap.Error(err))
+	}
+	// ConsumerName defaults to "worker" so sesame binds the worker's existing lane
+	// consumer (drop-in on the same lanes; no DeliverAll replay, rollout overlap
+	// load-balances instead of double-processing).
+	sub, err := bus.NewSubscriber(cfg.NATSURL, cfg.ConsumerName, log)
+	if err != nil {
+		log.Fatal("failed to connect subscriber", zap.Error(err))
+	}
+	return nc, pub, sub
+}
+
+// newProjection builds the settings-projection reader (in-process cache fronting
+// Valkey, with a projector RPC fallback) and starts its cache invalidation
+// listener.
+func newProjection(in infra, cfg *config.Config, log *zap.Logger) *projection.Client {
+	proj := projection.NewClient(projection.NewStore(in.vc), in.nc, projection.Subjects{
+		Users:    cfg.ProjectionUsersSubject,
+		Modules:  cfg.ProjectionModulesSubject,
+		Commands: cfg.ProjectionCommandsSubject,
+	}, projectionCacheTTL, log)
+	proj.StartInvalidationListener(cfg.CacheInvalidationPrefix)
+	return proj
+}
+
+// newLive builds the Valkey-backed live store — a dedicated live:<id> key read
+// through an in-process cache, written from the stream events sesame consumes,
+// with a projector RPC fallback on a cold key and a key-expiry re-check against
+// Twitch (via the outgress system lane) — and starts its listeners.
+func newLive(ctx context.Context, in infra, cfg *config.Config, log *zap.Logger) *engine.ValkeyLiveStore {
+	live := engine.NewValkeyLiveStore(in.vc, in.nc, in.pub, engine.LiveConfig{
+		TTL:                   cfg.LiveTTL,
+		CacheTTL:              projectionCacheTTL,
+		ProjectorLiveSubject:  cfg.ProjectionLiveSubject,
+		OutgressSystemSubject: cfg.OutgressSystemSubject,
+		CacheInvalidatePrefix: cfg.CacheInvalidationPrefix,
+		KeyspaceDB:            0,
+		Log:                   log,
+	})
+	live.StartInvalidationListener()
+	go live.StartExpiryWatcher(ctx)
+	return live
+}
+
+// newConsumer builds the one autoscaling consumer that drains the premium and
+// standard lanes into a shared pool, with premium reserving a slice so it is
+// never starved. Live events ride these same lanes, so there is no separate
+// stream consumer.
+func newConsumer(sub message.Subscriber, nrApp *newrelic.Application, cfg *config.Config, log *zap.Logger) *consumer.Consumer {
+	return consumer.New(sub, nrApp, consumer.Config{
+		Lanes: consumer.Lanes{PremiumSubject: cfg.PremiumSubject, StandardSubject: cfg.StandardSubject},
+		Policy: bus.ScalePolicy{
+			MinRoutines:    cfg.MinRoutines,
+			MaxRoutines:    cfg.MaxRoutines,
+			MaxConsumers:   cfg.MaxConsumers,
+			ScaleUpAfter:   cfg.ScaleUpAfter,
+			ScaleDownAfter: cfg.ScaleDownAfter,
+		},
+		PremiumReserve: cfg.PremiumReserve,
+	}, log)
 }

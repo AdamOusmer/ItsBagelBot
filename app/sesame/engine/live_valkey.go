@@ -42,6 +42,8 @@ type LiveConfig struct {
 	CacheInvalidatePrefix string
 	// KeyspaceDB is the Valkey db the key-event watcher listens on (default 0).
 	KeyspaceDB int
+	// Log is the store's logger; a nil Log defaults to a no-op.
+	Log *zap.Logger
 }
 
 // ValkeyLiveStore is the default LiveStore. The same struct owns the read path
@@ -65,9 +67,13 @@ type ValkeyLiveStore struct {
 
 // NewValkeyLiveStore builds a live store. pub publishes the re-check job onto the
 // outgress system lane; nc carries the projector RPC and the invalidation fan-out.
-func NewValkeyLiveStore(client valkey.Client, nc *nats.Conn, pub message.Publisher, cfg LiveConfig, log *zap.Logger) *ValkeyLiveStore {
+func NewValkeyLiveStore(client valkey.Client, nc *nats.Conn, pub message.Publisher, cfg LiveConfig) *ValkeyLiveStore {
 	if cfg.CacheTTL <= 0 {
 		cfg.CacheTTL = 30 * time.Second
+	}
+	log := cfg.Log
+	if log == nil {
+		log = zap.NewNop()
 	}
 	return &ValkeyLiveStore{
 		client:     client,
