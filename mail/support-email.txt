@@ -1,0 +1,24 @@
+[ Official ItsBagelBot email - itsbagelbot.com ]
+
+[[EYEBROW — e.g. Support reply]]
+
+[[HEADING — e.g. We sorted that out.]]
+
+[[BODY — write to the customer in plain sentences. Blank line between
+paragraphs. No markup, this is the text-only version.]]
+
+[[OPTIONAL NOTE — LABEL: the highlighted detail. Delete if unused.]]
+
+[[OPTIONAL STATUS — e.g. Resolved on your account now. Delete if unused.]]
+
+[[OPTIONAL CTA LABEL]]: [[CTA URL — https://...   Delete both if unused.]]
+
+the ItsBagelBot support team
+
+Staying safe: ItsBagelBot will never ask for your password, payment or card
+details, or login and verification codes by email. We only send from
+@itsbagelbot.com. If a message asks for any of that, it isn't us. Ignore it and
+reach the real team on Discord: https://discord.gg/SZ2remwSDv
+
+Sent by ItsBagelBot support in reply to your message. Just reply to reach us again.
+https://itsbagelbot.com
