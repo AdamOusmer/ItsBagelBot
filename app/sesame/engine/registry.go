@@ -45,25 +45,36 @@ func NewRegistry(log *zap.Logger, mods ...module.Module) *Registry {
 		needViews: make(map[string]bool),
 	}
 	for _, m := range mods {
-		for evt := range m.Events {
-			r.byEvent[evt] = append(r.byEvent[evt], m)
-			if m.Kind != module.KindCore {
-				r.needViews[evt] = true
-			}
-		}
-		for _, cmd := range m.Commands {
-			r.bind(log, m, cmd, cmd.Name)
-			for _, alias := range cmd.Aliases {
-				r.bind(log, m, cmd, alias)
-			}
-			// A command owned by a named module must be gated by that module's
-			// ModuleView, so the chat path needs the view fetch.
-			if m.Kind != module.KindCore {
-				r.needViews[chatType] = true
-			}
-		}
+		r.indexEvents(m)
+		r.indexCommands(log, m)
 	}
 	return r
+}
+
+// indexEvents registers a module under every event type it handles, flagging the
+// type as needing ModuleView fetches when the module is name-gated.
+func (r *Registry) indexEvents(m module.Module) {
+	for evt := range m.Events {
+		r.byEvent[evt] = append(r.byEvent[evt], m)
+		if m.Kind != module.KindCore {
+			r.needViews[evt] = true
+		}
+	}
+}
+
+// indexCommands registers a module's commands (name and aliases) in the bound
+// index. A command owned by a named module must be gated by that module's
+// ModuleView, so it flags the chat path as needing the view fetch.
+func (r *Registry) indexCommands(log *zap.Logger, m module.Module) {
+	for _, cmd := range m.Commands {
+		r.bind(log, m, cmd, cmd.Name)
+		for _, alias := range cmd.Aliases {
+			r.bind(log, m, cmd, alias)
+		}
+		if m.Kind != module.KindCore {
+			r.needViews[chatType] = true
+		}
+	}
 }
 
 // bind registers cmd (owned by m) under trigger, first-wins.

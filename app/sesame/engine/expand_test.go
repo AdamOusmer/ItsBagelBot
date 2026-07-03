@@ -29,7 +29,7 @@ func TestExpandCommand(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := expandCommand(nil, tt.tmpl, "alice", "alice", "the rest here", "bob")
+			got := expandCommand(nil, tt.tmpl, tokens{user: "alice", sender: "alice", args: "the rest here", touser: "bob"})
 			assert.Equal(t, tt.want, string(got))
 		})
 	}
@@ -52,6 +52,6 @@ func TestExpandGenericRepl(t *testing.T) {
 
 func TestExpandAppendsIntoDst(t *testing.T) {
 	dst := []byte("prefix: ")
-	got := expandCommand(dst, "hi {user}", "alice", "alice", "", "alice")
+	got := expandCommand(dst, "hi {user}", tokens{user: "alice", sender: "alice", touser: "alice"})
 	assert.Equal(t, "prefix: hi alice", string(got))
 }

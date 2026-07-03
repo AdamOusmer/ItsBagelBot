@@ -11,54 +11,65 @@ package engine
 // through to the end.
 func expand(dst []byte, tmpl string, repl func(key string) (val string, ok bool)) []byte {
 	for i := 0; i < len(tmpl); {
-		c := tmpl[i]
-		if c != '{' {
-			dst = append(dst, c)
+		if tmpl[i] != '{' {
+			dst = append(dst, tmpl[i])
 			i++
 			continue
 		}
-		// Find the closing brace.
-		end := -1
-		for j := i + 1; j < len(tmpl); j++ {
-			if tmpl[j] == '}' {
-				end = j
-				break
-			}
-		}
+		end := closeBrace(tmpl, i+1)
 		if end < 0 {
 			// No closing brace: copy the rest literally.
-			dst = append(dst, tmpl[i:]...)
-			break
+			return append(dst, tmpl[i:]...)
 		}
-		key := tmpl[i+1 : end]
-		if val, ok := repl(key); ok {
-			dst = append(dst, val...)
-		} else {
-			// Unknown token: keep it literal, braces and all.
-			dst = append(dst, tmpl[i:end+1]...)
-		}
+		dst = appendToken(dst, tmpl, i, end, repl)
 		i = end + 1
 	}
 	return dst
 }
 
+// closeBrace returns the index of the next '}' at or after from, or -1.
+func closeBrace(s string, from int) int {
+	for j := from; j < len(s); j++ {
+		if s[j] == '}' {
+			return j
+		}
+	}
+	return -1
+}
+
+// appendToken resolves the "{key}" span tmpl[open:end+1] and appends either its
+// value or, for an unknown key, the literal span (braces and all).
+func appendToken(dst []byte, tmpl string, open, end int, repl func(key string) (val string, ok bool)) []byte {
+	if val, ok := repl(tmpl[open+1 : end]); ok {
+		return append(dst, val...)
+	}
+	return append(dst, tmpl[open:end+1]...)
+}
+
+// tokens are the substitution values a custom-command response can reference.
+type tokens struct {
+	user   string
+	sender string
+	args   string
+	touser string
+}
+
 // expandCommand expands a custom-command response, supporting the {user},
-// {sender}, {args} and {touser} tokens. It is expand specialized for the
-// command path so the hot path needs no closure capture beyond the four
-// strings. {target} is the dashboard-facing name for {touser}; both are kept
-// as aliases so existing commands continue to work. dst should be a pooled
-// scratch buffer.
-func expandCommand(dst []byte, tmpl, user, sender, args, touser string) []byte {
+// {sender}, {args} and {touser} tokens. It is expand specialized for the command
+// path. {target} is the dashboard-facing name for {touser}; both are kept as
+// aliases so existing commands continue to work. dst should be a pooled scratch
+// buffer.
+func expandCommand(dst []byte, tmpl string, t tokens) []byte {
 	return expand(dst, tmpl, func(key string) (string, bool) {
 		switch key {
 		case "user":
-			return user, true
+			return t.user, true
 		case "sender":
-			return sender, true
+			return t.sender, true
 		case "args":
-			return args, true
+			return t.args, true
 		case "touser", "target":
-			return touser, true
+			return t.touser, true
 		default:
 			return "", false
 		}
