@@ -27,6 +27,8 @@ const (
 	FieldBanned = "banned"
 	// FieldStatus holds the string denoting the status field in the database.
 	FieldStatus = "status"
+	// FieldLocale holds the string denoting the locale field in the database.
+	FieldLocale = "locale"
 	// FieldSubscriptionSource holds the string denoting the subscription_source field in the database.
 	FieldSubscriptionSource = "subscription_source"
 	// FieldSubscriptionExpiresAt holds the string denoting the subscription_expires_at field in the database.
@@ -65,6 +67,7 @@ var Columns = []string{
 	FieldIsActive,
 	FieldBanned,
 	FieldStatus,
+	FieldLocale,
 	FieldSubscriptionSource,
 	FieldSubscriptionExpiresAt,
 	FieldSubscriptionRef,
@@ -94,6 +97,10 @@ var (
 	DefaultIsActive bool
 	// DefaultBanned holds the default value on creation for the "banned" field.
 	DefaultBanned bool
+	// DefaultLocale holds the default value on creation for the "locale" field.
+	DefaultLocale string
+	// LocaleValidator is a validator for the "locale" field. It is called by the builders before save.
+	LocaleValidator func(string) error
 	// DefaultSubscriptionSource holds the default value on creation for the "subscription_source" field.
 	DefaultSubscriptionSource string
 	// DefaultSubscriptionCancelPending holds the default value on creation for the "subscription_cancel_pending" field.
@@ -164,6 +171,11 @@ func ByBanned(opts ...sql.OrderTermOption) OrderOption {
 // ByStatus orders the results by the status field.
 func ByStatus(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldStatus, opts...).ToFunc()
+}
+
+// ByLocale orders the results by the locale field.
+func ByLocale(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldLocale, opts...).ToFunc()
 }
 
 // BySubscriptionSource orders the results by the subscription_source field.

@@ -7,6 +7,7 @@
     PageHead,
     toast,
     normName,
+    getI18n,
     type CommandView,
     type CommandErrors,
     type Perm
@@ -17,6 +18,8 @@
   import { loadDraft, clearDraft, hasDraft, type CommandDraft } from '$lib/components/commands/drafts';
 
   let { data } = $props();
+
+  const { t } = getI18n();
 
   // Local source of truth, seeded from the SSR load. Each action result is
   // reconciled row-by-row into this list (see applyResult) rather than wholesale
@@ -66,8 +69,13 @@
       }
     }
     if (!d.silent) {
-      const verb = d.action === 'deleted' ? 'deleted' : (d.action ?? 'updated');
-      toast('ok', `Command !${d.name} ${verb}.`);
+      const key =
+        d.action === 'deleted'
+          ? 'commands.toastDeleted'
+          : d.action === 'created'
+            ? 'commands.toastCreated'
+            : 'commands.toastUpdated';
+      toast('ok', t(key, { name: d.name ?? '' }));
     }
   }
 
@@ -102,6 +110,9 @@
 
   // --- Filters ---------------------------------------------------------------
   const filters = ['All', 'Active', 'Disabled'] as const;
+  // Internal keys drive the filter logic; only the display label is translated.
+  const filterLabel = (f: (typeof filters)[number]) =>
+    f === 'Active' ? t('commands.filterActive') : f === 'Disabled' ? t('commands.filterDisabled') : t('commands.filterAll');
   let active = $state<(typeof filters)[number]>('All');
   let search = $state('');
 
@@ -163,7 +174,7 @@
     const restored = loadDraft('', false);
     editorDraft = restored ?? blankDraft();
     expanded = NEW;
-    if (restored) toast('info', 'Restored your unsaved draft.');
+    if (restored) toast('info', t('commands.toastRestoreDraft'));
   }
 
   function openEdit(c: CommandView) {
@@ -175,7 +186,7 @@
     const restored = loadDraft(c.name, true);
     editorDraft = restored ?? fromView(c);
     expanded = c.name;
-    if (restored) toast('info', 'Restored your unsaved edits.');
+    if (restored) toast('info', t('commands.toastRestoreEdits'));
   }
 
   function closeEditor() {
@@ -235,7 +246,7 @@
       flagError(orig ?? key);
       serverErrors = payload?.errors ?? null;
       if (payload?.error && !payload.errors) toast('err', payload.error);
-      else if (!payload) toast('err', 'Save failed — network error.');
+      else if (!payload) toast('err', t('commands.toastSaveFailed'));
     };
   };
 
@@ -257,7 +268,7 @@
         } else {
           items = items.map((x) => (x.name === c.name ? before : x));
           flagError(c.name);
-          toast('err', payload?.error ?? 'Toggle failed.');
+          toast('err', payload?.error ?? t('commands.toastToggleFailed'));
         }
       };
     };
@@ -294,10 +305,10 @@
     if (payload?.ok) {
       applyResult({ ...payload, silent: true });
       ackSaved(snapshot.name);
-      toast('ok', `Command !${snapshot.name} restored.`);
+      toast('ok', t('commands.toastRestored', { name: snapshot.name }));
     } else {
       flagError(snapshot.name);
-      toast('err', `Could not restore !${snapshot.name} — recreate it manually.`);
+      toast('err', t('commands.toastCouldNotRestore', { name: snapshot.name }));
     }
   }
 
@@ -311,8 +322,8 @@
     // The delete RPC is immediate server-side, so undo is a re-create from the
     // snapshot (the save's write-behind flush lands after the delete: safe order).
     let undone = false;
-    toast('ok', `Deleted !${c.name}.`, {
-      undoLabel: 'Undo',
+    toast('ok', t('commands.toastDeletedShort', { name: c.name }), {
+      undoLabel: t('commands.undo'),
       onUndo: () => {
         undone = true;
         void restore(snapshot);
@@ -324,7 +335,7 @@
     const payload = await postAction('delete', body);
     if (!payload?.ok && !undone) {
       items = [...items.filter((x) => x.name !== snapshot.name), snapshot];
-      toast('err', payload?.error ?? `Delete of !${c.name} failed.`);
+      toast('err', payload?.error ?? t('commands.toastDeleteFailed', { name: c.name }));
     }
   }
 
@@ -357,33 +368,33 @@
 
 <section class="screen active">
   <PageHead
-    eyebrow="Manage"
-    description="Custom responses your viewers can trigger in chat. {activeCount} active, {items.length - activeCount} disabled."
+    eyebrow={t('commands.eyebrow')}
+    description={t('commands.description', { active: activeCount, disabled: items.length - activeCount })}
   >
-    Chat <em>commands</em>
+    {t('commands.titlePre')}<em>{t('commands.titleEm')}</em>
   </PageHead>
 
   {#if data.degraded}
     <div class="degraded" role="alert">
       <Icon name="ban" size={13} />
-      Live command data is unreachable right now — showing nothing rather than stale rows. Retry shortly.
+      {t('commands.degraded')}
     </div>
   {/if}
 
   <div class="toolbar">
     <div class="chip-row">
       {#each filters as f}
-        <button class="chip {active === f ? 'on' : ''}" onclick={() => (active = f)}>{f}</button>
+        <button class="chip {active === f ? 'on' : ''}" onclick={() => (active = f)}>{filterLabel(f)}</button>
       {/each}
     </div>
     <div class="grow"></div>
-    <span class="keys" aria-hidden="true"><kbd class="hint">/</kbd> search <kbd class="hint">N</kbd> new</span>
+    <span class="keys" aria-hidden="true"><kbd class="hint">/</kbd> {t('commands.keysSearch')} <kbd class="hint">N</kbd> {t('commands.keysNew')}</span>
     <label class="search toolbar-search">
       <Icon name="search" size={15} />
-      <input type="text" placeholder="Search name, alias, response…" bind:value={search} bind:this={searchInput} />
+      <input type="text" placeholder={t('commands.searchPlaceholder')} bind:value={search} bind:this={searchInput} />
     </label>
     <button class="btn primary" onclick={openNew} disabled={expanded === NEW}>
-      <Icon name="plus" size={14} /> New command
+      <Icon name="plus" size={14} /> {t('commands.newCommand')}
     </button>
   </div>
 
@@ -407,11 +418,11 @@
         {#if rows.length === 0}
           <div class="empty">
             {#if items.length === 0}
-              <p class="empty-title">No commands yet.</p>
-              <p class="empty-sub">Create your first custom response — viewers trigger it with <code>!name</code> in chat.</p>
-              <button class="btn primary" onclick={openNew}><Icon name="plus" size={14} /> New command</button>
+              <p class="empty-title">{t('commands.noneYet')}</p>
+              <p class="empty-sub">{t('commands.noneYetSub')} <code>!name</code> {t('commands.inChat')}</p>
+              <button class="btn primary" onclick={openNew}><Icon name="plus" size={14} /> {t('commands.newCommand')}</button>
             {:else}
-              No commands match.
+              {t('commands.noneMatch')}
             {/if}
           </div>
         {/if}
@@ -433,13 +444,13 @@
       <div class="inspector-head">
         <span class="inspector-tag">
           {#if editorDraft}
-            {editorDraft.edit ? `Editing !${editorDraft.originalName}` : 'New command'}
+            {editorDraft.edit ? t('commands.editing', { name: editorDraft.originalName }) : t('commands.newCommand')}
           {:else}
-            Inspector
+            {t('commands.inspector')}
           {/if}
         </span>
         {#if editorDraft}
-          <button class="mini" type="button" aria-label="Close editor" onclick={closeEditor}>
+          <button class="mini" type="button" aria-label={t('commands.closeEditor')} onclick={closeEditor}>
             <Icon name="x" size={14} />
           </button>
         {/if}
@@ -451,8 +462,8 @@
       {:else}
         <div class="inspector-idle">
           <span class="idle-glyph"><Icon name="commands" size={18} /></span>
-          <p>Select a command to edit it here, or start a new one.</p>
-          <button class="btn ghost" onclick={openNew}><Icon name="plus" size={13} /> New command</button>
+          <p>{t('commands.inspectorIdle')}</p>
+          <button class="btn ghost" onclick={openNew}><Icon name="plus" size={13} /> {t('commands.newCommand')}</button>
         </div>
       {/if}
     </aside>

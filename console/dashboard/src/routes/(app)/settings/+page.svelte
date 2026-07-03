@@ -1,11 +1,14 @@
 <script lang="ts">
-  import { Icon, Modal, PageHead, Card, ConfirmDialog, EmptyState, toast } from '@bagel/shared';
+  import { Icon, Modal, PageHead, Card, ConfirmDialog, EmptyState, toast, getI18n } from '@bagel/shared';
   import { page } from '$app/state';
   import { enhance } from '$app/forms';
   import CheckButton from '$lib/components/CheckButton.svelte';
+  import LangSwitch from '$lib/components/LangSwitch.svelte';
   import type { DelegationGrant, NotificationWire } from '$lib/server/services';
 
   let { data, form } = $props();
+
+  const { t } = getI18n();
 
   const notifications = $derived((data.notifications ?? []) as NotificationWire[]);
   const levelLabel = (l: string) => l.charAt(0).toUpperCase() + l.slice(1);
@@ -32,10 +35,10 @@
     try {
       await navigator.clipboard.writeText(linkFor(token));
       copied = { ...copied, [token]: true };
-      toast('ok', 'Invite link copied.');
+      toast('ok', t('settings.toastInviteCopied'));
       setTimeout(() => (copied = { ...copied, [token]: false }), 4000);
     } catch {
-      toast('err', 'Clipboard blocked — select the link manually.');
+      toast('err', t('settings.toastClipboardBlocked'));
     }
   }
 
@@ -47,9 +50,9 @@
     lastForm = form;
     if (!form) return;
     if (form.error) toast('err', String(form.error));
-    else if (form.ok && form.action === 'created') toast('ok', 'Share link created — copy it below.');
-    else if (form.ok && form.action === 'revoked') toast('ok', 'Link revoked.');
-    else if (form.ok && form.action === 'opted_out') toast('ok', 'Dashboard removed.');
+    else if (form.ok && form.action === 'created') toast('ok', t('settings.toastCreated'));
+    else if (form.ok && form.action === 'revoked') toast('ok', t('settings.toastRevoked'));
+    else if (form.ok && form.action === 'opted_out') toast('ok', t('settings.toastOptedOut'));
   });
 
   // Revoke is irreversible (tokens are single-use), so it gets a confirm
@@ -68,52 +71,58 @@
 </script>
 
 <section class="screen active">
-  <PageHead eyebrow="Account" description="Manage your connection, account, and who can reach parts of your dashboard.">Your <em>settings</em></PageHead>
+  <PageHead eyebrow={t('settings.eyebrow')} description={t('settings.description')}>{t('settings.titlePre')}<em>{t('settings.titleEm')}</em></PageHead>
 
   <!-- ACCOUNT -->
   <Card class="settings-card">
-    <h2>Account</h2>
+    <h2>{t('settings.account')}</h2>
     <div class="row">
       <div>
-        <b>Reconnect Twitch</b>
-        <p class="hint">Re-run Twitch authorization to refresh the bot's access to your channel.</p>
+        <b>{t('settings.language')}</b>
+        <p class="hint">{t('settings.languageHint')}</p>
       </div>
-      <a class="btn ghost" href="/auth/login"><Icon name="power" size={14} /> Reconnect</a>
+      <LangSwitch />
     </div>
     <div class="row">
       <div>
-        <b>Delete account</b>
-        <p class="hint">Permanently remove your account and all of your configurations.</p>
+        <b>{t('settings.reconnectTwitch')}</b>
+        <p class="hint">{t('settings.reconnectTwitchHint')}</p>
       </div>
-      <button type="button" class="btn ghost danger" onclick={openDelete}>Delete account</button>
+      <a class="btn ghost" href="/auth/login"><Icon name="power" size={14} /> {t('common.reconnect')}</a>
+    </div>
+    <div class="row">
+      <div>
+        <b>{t('settings.deleteAccount')}</b>
+        <p class="hint">{t('settings.deleteAccountHint')}</p>
+      </div>
+      <button type="button" class="btn ghost danger" onclick={openDelete}>{t('settings.deleteAccount')}</button>
     </div>
   </Card>
 
   <!-- ACCESS YOU GRANTED -->
   <Card class="settings-card">
-    <h2>Access you granted</h2>
+    <h2>{t('settings.accessGranted')}</h2>
     <p class="hint">
-      Generate a link to give someone scoped access to your dashboard. The first person to accept it
-      is bound to that access permanently — revoke it here any time.
+      {t('settings.accessGrantedHint')}
     </p>
 
     {#if given.length === 0}
-      <EmptyState icon="link" title="No share links yet" body="Create one below to let a mod manage parts of your dashboard." />
+      <EmptyState icon="link" title={t('settings.noShareLinks')} body={t('settings.noShareLinksBody')} />
     {:else}
       <div class="grants">
         {#each given as g (g.token)}
           <div class="grant {g.consumed ? 'consumed' : 'pending'}">
             <div class="grant-top">
               <span class="lifecycle">
-                <span class="stage done">created</span>
+                <span class="stage done">{t('settings.stageCreated')}</span>
                 <span class="sep">→</span>
-                <span class="stage {g.consumed || copied[g.token] ? 'done' : ''}">link shared</span>
+                <span class="stage {g.consumed || copied[g.token] ? 'done' : ''}">{t('settings.stageLinkShared')}</span>
                 <span class="sep">→</span>
                 <span class="stage {g.consumed ? 'done live' : ''}">
-                  {g.consumed ? `in use by ${g.delegate_login || 'unknown'}` : 'waiting for accept'}
+                  {g.consumed ? t('settings.stageInUse', { login: g.delegate_login || t('settings.unknown') }) : t('settings.stageWaiting')}
                 </span>
               </span>
-              <button type="button" class="btn ghost sm danger" onclick={() => (revokeTarget = g)}>Revoke</button>
+              <button type="button" class="btn ghost sm danger" onclick={() => (revokeTarget = g)}>{t('common.revoke')}</button>
             </div>
             <div class="grant-sections">
               {#each g.sections as s (s)}<span class="section-chip">{s}</span>{/each}
@@ -121,9 +130,9 @@
             {#if !g.consumed}
               <div class="grant-link">
                 <code>{linkFor(g.token)}</code>
-                <button type="button" class="btn ghost sm" onclick={() => copy(g.token)}>
+                <button type="button" class="btn ghost sm" onclick={() => copy(g.token)} aria-label={t('settings.copyLinkAria')}>
                   <Icon name={copied[g.token] ? 'check' : 'link'} size={12} />
-                  {copied[g.token] ? 'Copied' : 'Copy'}
+                  {copied[g.token] ? t('common.copied') : t('common.copy')}
                 </button>
               </div>
             {/if}
@@ -133,19 +142,19 @@
     {/if}
 
     <form method="POST" action="?/create" class="create" use:enhance>
-      <h3>New share link</h3>
-      <p class="hint">Pick which sections the invitee can manage.</p>
-      <CheckButton name="commands" checked={true} label="Commands" />
-      <button class="btn primary" type="submit"><Icon name="link" size={14} /> Generate link</button>
+      <h3>{t('settings.newShareLink')}</h3>
+      <p class="hint">{t('settings.newShareLinkHint')}</p>
+      <CheckButton name="commands" checked={true} label={t('settings.commands')} />
+      <button class="btn primary" type="submit"><Icon name="link" size={14} /> {t('common.generate')}</button>
     </form>
   </Card>
 
   <!-- NOTIFICATIONS: the bell dropdown's "view all" target — a compact history
        section rather than a dedicated page. -->
   <Card class="settings-card" id="notifications">
-    <h2>Notifications</h2>
+    <h2>{t('settings.notifications')}</h2>
     {#if notifications.length === 0}
-      <p class="hint">Nothing yet — messages from the ItsBagelBot team will show up here.</p>
+      <p class="hint">{t('settings.notificationsEmpty')}</p>
     {:else}
       <div class="notif-list">
         {#each notifications as n (n.id)}
@@ -159,7 +168,7 @@
             {#if !n.read}
               <form method="POST" action="?/markRead" use:enhance>
                 <input type="hidden" name="id" value={n.id} />
-                <button type="submit" class="btn ghost sm"><Icon name="check" size={12} /> Read</button>
+                <button type="submit" class="btn ghost sm"><Icon name="check" size={12} /> {t('common.read')}</button>
               </form>
             {/if}
           </div>
@@ -170,9 +179,9 @@
 
   <!-- SHARED WITH YOU -->
   <Card class="settings-card">
-    <h2>Dashboards shared with you</h2>
+    <h2>{t('settings.sharedWithYou')}</h2>
     {#if received.length === 0}
-      <EmptyState icon="overview" title="Nothing shared with you" body="When a broadcaster shares their dashboard, it appears here." />
+      <EmptyState icon="overview" title={t('settings.nothingShared')} body={t('settings.nothingSharedBody')} />
     {:else}
       <div class="grants">
         {#each received as r (r.owner_user_id)}
@@ -180,10 +189,10 @@
             <div class="grant-top">
               <span class="owner"><Icon name="overview" size={14} /> {r.owner_login}</span>
               <span class="actions">
-                <a class="btn ghost sm" href={`/delegate/enter?owner=${r.owner_user_id}`}>Open</a>
+                <a class="btn ghost sm" href={`/delegate/enter?owner=${r.owner_user_id}`}>{t('common.open')}</a>
                 <form method="POST" action="?/optOut" use:enhance>
                   <input type="hidden" name="owner_user_id" value={r.owner_user_id} />
-                  <button type="submit" class="btn ghost sm danger">Leave</button>
+                  <button type="submit" class="btn ghost sm danger">{t('common.leave')}</button>
                 </form>
               </span>
             </div>
@@ -200,11 +209,12 @@
 <!-- Revoke confirm -->
 <ConfirmDialog
   open={revokeTarget !== null}
-  title="Revoke this link?"
+  title={t('settings.revokeTitle')}
   body={revokeTarget?.consumed
-    ? `${revokeTarget.delegate_login || 'The delegate'} immediately loses access to your dashboard. This cannot be undone.`
-    : 'The link stops working immediately. This cannot be undone.'}
-  confirmLabel="Revoke"
+    ? t('settings.revokeBodyConsumed', { login: revokeTarget.delegate_login || t('settings.revokeBodyDelegate') })
+    : t('settings.revokeBodyPending')}
+  confirmLabel={t('common.revoke')}
+  cancelLabel={t('common.cancel')}
   danger
   onCancel={() => (revokeTarget = null)}
   onConfirm={() => {
@@ -219,14 +229,14 @@
 {/if}
 
 <!-- Delete confirm modal -->
-<Modal open={deleteOpen} title="Delete your account?" closeModal={closeDelete}>
-  <p class="modal-body">This removes your account, commands, and any links you created. It cannot be undone.</p>
+<Modal open={deleteOpen} title={t('settings.deleteTitle')} closeModal={closeDelete}>
+  <p class="modal-body">{t('settings.deleteBody')}</p>
   <div class="ack">
-    <CheckButton bind:checked={ack} label="I recognize that this action is irreversible and will lose all my configurations" />
+    <CheckButton bind:checked={ack} label={t('settings.deleteAck')} />
   </div>
   <form method="POST" action="?/delete" use:enhance class="modal-actions">
-    <button type="button" class="btn ghost" onclick={closeDelete}>Cancel</button>
-    <button type="submit" class="btn delete-btn" disabled={!ack}>Delete account</button>
+    <button type="button" class="btn ghost" onclick={closeDelete}>{t('common.cancel')}</button>
+    <button type="submit" class="btn delete-btn" disabled={!ack}>{t('settings.deleteAccount')}</button>
   </form>
 </Modal>
 

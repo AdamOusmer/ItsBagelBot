@@ -41,6 +41,7 @@ type UserReply struct {
 	Status   string `json:"status"`
 	IsActive bool   `json:"is_active"`
 	Banned   bool   `json:"banned"`
+	Locale   string `json:"locale,omitempty"`
 	Error    string `json:"error,omitempty"`
 }
 

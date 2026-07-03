@@ -37,6 +37,19 @@ export { default as DataList } from '../components/DataList.svelte';
 
 export { initLenis, magnetic, countUp } from './actions';
 export { icons, type IconName } from './icons';
+
+// i18n: context helpers for components + the pure runtime/detection surface.
+export { setI18n, getI18n, type I18n } from './i18n/context';
+export {
+  translate,
+  translateList,
+  detectLocale,
+  isLocale,
+  LOCALES,
+  DEFAULT_LOCALE,
+  LOCALE_COOKIE,
+  type Locale
+} from './i18n/messages';
 export * from './types';
 export * from './toast';
 export * from './commands-validate';

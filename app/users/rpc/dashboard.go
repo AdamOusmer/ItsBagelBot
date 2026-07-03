@@ -45,6 +45,7 @@ func SubscribeDashboard(nc *nats.Conn, repo *repository.Users, prefix, invalidat
 		{"active_get", d.handleActiveGet},
 		{"status_get", d.handleStatusGet},
 		{"state_get", d.handleStateGet},
+		{"locale_set", d.handleLocaleSet},
 		{"delete_self", d.handleDeleteSelf},
 	}
 	for _, h := range verbs {
@@ -273,11 +274,55 @@ func (d *dashboardRPC) handleStateGet(ctx context.Context, msg *nats.Msg) {
 	bus.Respond(msg, map[string]any{
 		"active":                      view.IsActive,
 		"status":                      view.Status,
+		"locale":                      view.Locale,
 		"expires_at":                  view.SubscriptionExpiresAt,
 		"source":                      view.SubscriptionSource,
 		"subscription_ref":            view.SubscriptionRef,
 		"subscription_cancel_pending": view.SubscriptionCancelPending,
 	})
+}
+
+// supportedLocales is the console's UI language set. Kept here so the service
+// rejects a bogus value rather than storing it; it must stay in step with the
+// console's LOCALES list (console/shared/lib/i18n).
+var supportedLocales = map[string]bool{"en": true, "fr": true}
+
+// handleLocaleSet persists the user's console language preference. The value is
+// validated against the supported set so a stray write can't poison the column;
+// the console mirrors the same choice into a cookie for fast SSR.
+func (d *dashboardRPC) handleLocaleSet(ctx context.Context, msg *nats.Msg) {
+	var req usersrpc.LocaleSetRequest
+	if err := json.Unmarshal(msg.Data, &req); err != nil {
+		bus.Respond(msg, map[string]any{"error": "bad request"})
+		return
+	}
+
+	id, err := strconv.ParseUint(req.BroadcasterUserID, 10, 64)
+	if err != nil {
+		bus.Respond(msg, map[string]any{"error": "broadcaster_user_id must be numeric"})
+		return
+	}
+	if !supportedLocales[req.Locale] {
+		bus.Respond(msg, map[string]any{"error": "unsupported locale"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	if err := d.repo.SetLocale(ctx, id, req.Locale); err != nil {
+		d.log.Error("locale_set", zap.Error(err))
+		bus.Respond(msg, map[string]any{"error": err.Error()})
+		return
+	}
+
+	// Drop the console's cached locale view on every replica so a change is
+	// visible on the next login/render instead of riding out the SWR window.
+	if err := invalidate.Publish(d.nc, d.invalidationPrefix, "locale", req.BroadcasterUserID); err != nil {
+		d.log.Warn("locale_set invalidation publish failed", zap.Error(err))
+	}
+
+	bus.Respond(msg, map[string]any{"ok": true})
 }
 
 // handleDeleteSelf removes the user and every delegation they own. Delegations

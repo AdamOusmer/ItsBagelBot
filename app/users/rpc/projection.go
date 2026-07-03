@@ -48,5 +48,6 @@ func (p *projectionRPC) handleGet(ctx context.Context, req projection.Request) p
 		Status:   view.Status,
 		IsActive: view.IsActive,
 		Banned:   view.Banned,
+		Locale:   view.Locale,
 	}
 }

@@ -40,6 +40,12 @@ func (User) Fields() []ent.Field {
 			Values("free", "paid", "vip"). // vip is a permanent paid tier
 			Default("free"),
 
+		// UI language preference for the console. Chosen at onboarding, editable
+		// in settings, and mirrored into a cookie so the SSR render is fast. A
+		// plain string (not an enum) so shipping a new locale needs no schema
+		// migration; the console validates the value against its locale set.
+		field.String("locale").Default("en").MaxLen(8),
+
 		// Billing ownership is deliberately stored with the user tier. This lets
 		// webhook retries apply idempotently and prevents a Tebex cancellation
 		// from revoking a staff grant or permanent VIP status.

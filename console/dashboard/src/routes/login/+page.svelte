@@ -1,15 +1,18 @@
 <script lang="ts">
   import { page } from '$app/state';
-  import { AuroraBg, Icon } from '@bagel/shared';
+  import { AuroraBg, Icon, getI18n } from '@bagel/shared';
+  import LangSwitch from '$lib/components/LangSwitch.svelte';
 
-  const headline = ['Your', 'stream.', 'Your', 'tools.', 'Your', 'rules.'];
+  const { t } = getI18n();
+
+  const headline = $derived(t('login.headline').split(' '));
 
   // Why the visitor bounced back here, when the app sent them with a reason.
   const NOTICES: Record<string, string> = {
-    signedout: 'You were signed out — that account no longer exists on ItsBagelBot.',
-    banned: 'This account can no longer use the console.',
-    link: 'That share link is no longer valid. Ask the broadcaster for a new one.',
-    retry: 'Sign-in did not finish on our side — nothing was saved. Please try again.'
+    signedout: t('login.noticeSignedout'),
+    banned: t('login.noticeBanned'),
+    link: t('login.noticeLink'),
+    retry: t('login.noticeRetry')
   };
   const notice = $derived(NOTICES[page.url.searchParams.get('e') ?? ''] ?? null);
 
@@ -20,6 +23,8 @@
 </script>
 
 <AuroraBg />
+
+<div class="lang-corner"><LangSwitch /></div>
 
 <main class="onboard">
   {#if notice}
@@ -34,7 +39,7 @@
     <span class="halo"></span>
   </div>
 
-  <div class="eyebrow reveal" style="--d:.18s">ItsBagelBot Console</div>
+  <div class="eyebrow reveal" style="--d:.18s">{t('login.eyebrow')}</div>
 
   <h1 class="hero">
     {#each headline as w, i}
@@ -43,22 +48,29 @@
   </h1>
 
   <p class="lede reveal" style="--d:.85s">
-    Private, distributed, encrypted. Manage commands and your bot from one warm console.
+    {t('login.lede')}
   </p>
 
   <a class="cta reveal" style="--d:1s" href={loginHref}>
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3h16v12l-4 4h-4l-3 3v-3H4z" /><line x1="9" y1="8" x2="9" y2="12" /><line x1="14" y1="8" x2="14" y2="12" /></svg>
-    Continue with Twitch
+    {t('login.cta')}
   </a>
 
   <div class="features reveal" style="--d:1.15s">
-    <span class="feat">Zero downtime</span>
-    <span class="feat">End-to-end encrypted</span>
-    <span class="feat">Edge-routed, 3 regions</span>
+    <span class="feat">{t('login.featUptime')}</span>
+    <span class="feat">{t('login.featEncrypted')}</span>
+    <span class="feat">{t('login.featEdge')}</span>
   </div>
 </main>
 
 <style>
+  .lang-corner {
+    position: fixed;
+    top: max(16px, env(safe-area-inset-top, 0px));
+    right: max(16px, env(safe-area-inset-right, 0px));
+    z-index: 5;
+  }
+
   .onboard {
     position: relative;
     z-index: 1;
