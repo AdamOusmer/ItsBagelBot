@@ -21,6 +21,7 @@
     unreadCount = 0,
     viewAllHref,
     onMarkRead,
+    onOpen,
     emptyLabel = 'Nothing yet.',
     title = 'Notifications',
     viewAllLabel = 'View all →',
@@ -30,6 +31,10 @@
     unreadCount?: number;
     viewAllHref: string;
     onMarkRead?: (id: number) => void;
+    // Fired the first time the dropdown opens. The host uses it to "peek"
+    // (soft-acknowledge) every notification, so opening the bell counts as
+    // seeing them. Only hosts that track per-user read state pass this.
+    onOpen?: () => void;
     emptyLabel?: string;
     title?: string;
     viewAllLabel?: string;
@@ -37,6 +42,21 @@
   } = $props();
 
   let open = $state(false);
+  // Once a peek-capable host has been notified of an open, clear the badge
+  // optimistically so the count doesn't linger while the server round-trips.
+  let peeked = $state(false);
+
+  function toggle() {
+    open = !open;
+    if (open && onOpen && !peeked) {
+      peeked = true;
+      onOpen();
+    }
+  }
+
+  // Suppress the badge only for peek-capable hosts (dashboard); the admin bell
+  // has no per-user read state and keeps its badge behavior unchanged.
+  const showBadge = $derived(unreadCount > 0 && !(onOpen && peeked));
 </script>
 
 <svelte:window onkeydown={(e) => { if (e.key === 'Escape') open = false; }} />
@@ -48,10 +68,10 @@
     aria-label={title}
     aria-expanded={open}
     aria-haspopup="menu"
-    onclick={() => (open = !open)}
+    onclick={toggle}
   >
     <Icon name="bell" size={16} />
-    {#if unreadCount > 0}<span class="badge">{unreadCount > 9 ? '9+' : unreadCount}</span>{/if}
+    {#if showBadge}<span class="badge">{unreadCount > 9 ? '9+' : unreadCount}</span>{/if}
   </button>
 
   {#if open}

@@ -83,3 +83,30 @@ type MarkReadRequest struct {
 type MarkReadReply struct {
 	Error string `json:"error,omitempty"`
 }
+
+// MarkPeekedRequest is the payload for the user-facing mark_peeked verb, fired
+// when the topbar bell dropdown is opened. It soft-acknowledges every
+// notification the user can currently see, shortening each one's per-user life
+// to the reduced peek TTL (a full read shortens it further still).
+type MarkPeekedRequest struct {
+	UserID string `json:"user_id"`
+}
+
+type MarkPeekedReply struct {
+	// Peeked is how many previously-unacknowledged notifications this call
+	// newly marked; 0 means everything was already read or peeked.
+	Peeked int    `json:"peeked"`
+	Error  string `json:"error,omitempty"`
+}
+
+// CleanupRequest is the payload for the internal maintenance cleanup verb the
+// k3s cron drives. It carries no arguments; the service sweeps whatever is
+// globally expired at handling time.
+type CleanupRequest struct{}
+
+type CleanupReply struct {
+	// Deleted is the number of globally-expired notifications swept (their read
+	// receipts cascade).
+	Deleted int    `json:"deleted"`
+	Error   string `json:"error,omitempty"`
+}

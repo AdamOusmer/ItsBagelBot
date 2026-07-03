@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
@@ -46,6 +47,26 @@ func (_u *NotificationReadUpdate) SetNillableUserID(v *uint64) *NotificationRead
 // AddUserID adds value to the "user_id" field.
 func (_u *NotificationReadUpdate) AddUserID(v int64) *NotificationReadUpdate {
 	_u.mutation.AddUserID(v)
+	return _u
+}
+
+// SetExpiresAt sets the "expires_at" field.
+func (_u *NotificationReadUpdate) SetExpiresAt(v time.Time) *NotificationReadUpdate {
+	_u.mutation.SetExpiresAt(v)
+	return _u
+}
+
+// SetNillableExpiresAt sets the "expires_at" field if the given value is not nil.
+func (_u *NotificationReadUpdate) SetNillableExpiresAt(v *time.Time) *NotificationReadUpdate {
+	if v != nil {
+		_u.SetExpiresAt(*v)
+	}
+	return _u
+}
+
+// ClearExpiresAt clears the value of the "expires_at" field.
+func (_u *NotificationReadUpdate) ClearExpiresAt() *NotificationReadUpdate {
+	_u.mutation.ClearExpiresAt()
 	return _u
 }
 
@@ -124,6 +145,12 @@ func (_u *NotificationReadUpdate) sqlSave(ctx context.Context) (_node int, err e
 	if value, ok := _u.mutation.AddedUserID(); ok {
 		_spec.AddField(notificationread.FieldUserID, field.TypeUint64, value)
 	}
+	if value, ok := _u.mutation.ExpiresAt(); ok {
+		_spec.SetField(notificationread.FieldExpiresAt, field.TypeTime, value)
+	}
+	if _u.mutation.ExpiresAtCleared() {
+		_spec.ClearField(notificationread.FieldExpiresAt, field.TypeTime)
+	}
 	if _u.mutation.NotificationCleared() {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.M2O,
@@ -191,6 +218,26 @@ func (_u *NotificationReadUpdateOne) SetNillableUserID(v *uint64) *NotificationR
 // AddUserID adds value to the "user_id" field.
 func (_u *NotificationReadUpdateOne) AddUserID(v int64) *NotificationReadUpdateOne {
 	_u.mutation.AddUserID(v)
+	return _u
+}
+
+// SetExpiresAt sets the "expires_at" field.
+func (_u *NotificationReadUpdateOne) SetExpiresAt(v time.Time) *NotificationReadUpdateOne {
+	_u.mutation.SetExpiresAt(v)
+	return _u
+}
+
+// SetNillableExpiresAt sets the "expires_at" field if the given value is not nil.
+func (_u *NotificationReadUpdateOne) SetNillableExpiresAt(v *time.Time) *NotificationReadUpdateOne {
+	if v != nil {
+		_u.SetExpiresAt(*v)
+	}
+	return _u
+}
+
+// ClearExpiresAt clears the value of the "expires_at" field.
+func (_u *NotificationReadUpdateOne) ClearExpiresAt() *NotificationReadUpdateOne {
+	_u.mutation.ClearExpiresAt()
 	return _u
 }
 
@@ -298,6 +345,12 @@ func (_u *NotificationReadUpdateOne) sqlSave(ctx context.Context) (_node *Notifi
 	}
 	if value, ok := _u.mutation.AddedUserID(); ok {
 		_spec.AddField(notificationread.FieldUserID, field.TypeUint64, value)
+	}
+	if value, ok := _u.mutation.ExpiresAt(); ok {
+		_spec.SetField(notificationread.FieldExpiresAt, field.TypeTime, value)
+	}
+	if _u.mutation.ExpiresAtCleared() {
+		_spec.ClearField(notificationread.FieldExpiresAt, field.TypeTime)
 	}
 	if _u.mutation.NotificationCleared() {
 		edge := &sqlgraph.EdgeSpec{
