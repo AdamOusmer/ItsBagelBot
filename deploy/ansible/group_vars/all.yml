@@ -27,7 +27,6 @@ tailscale_port: 41641                   # UDP listen port
 tailscale_direct_peers:
   - node1
   - node2
-  - node3
   - worker1
 
 # --- Node identity -----------------------------------------------------------
