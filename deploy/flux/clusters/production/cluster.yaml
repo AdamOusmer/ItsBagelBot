@@ -15,7 +15,7 @@ spec:
   sourceRef:
     kind: GitRepository
     name: flux-system
-  path: ./deploy/k8s-cluster
+  path: ./deploy/infra/cluster
   prune: true
   wait: false
   timeout: 10m
