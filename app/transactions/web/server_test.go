@@ -328,7 +328,7 @@ func TestGiftedPaymentNotifiesRecipientOnce(t *testing.T) {
 		},
 	}, nil)
 
-	body := `{"id":"evt-gift","type":"payment.completed","date":"2026-07-02T00:00:00Z","subject":{"transaction_id":"tbx-gift-1","custom":{"user_id":"111","username":"recipient","gifted_by":"804932984","gifted_by_login":"mavey"}}}`
+	body := `{"id":"evt-gift","type":"payment.completed","date":"2026-07-02T00:00:00Z","subject":{"transaction_id":"tbx-gift-1","custom":{"user_id":"111","username":"recipient","gifted_by":"804932984","gifted_by_login":"mavey","gift_message":"happy streaming!"}}}`
 	resp := doWebhook(t, app, body, testSecret, true)
 	defer resp.Body.Close()
 
@@ -341,6 +341,7 @@ func TestGiftedPaymentNotifiesRecipientOnce(t *testing.T) {
 		RecipientID:   111,
 		GiftedByID:    804932984,
 		GiftedByLogin: "mavey",
+		GiftMessage:   "happy streaming!",
 	}, notices[0])
 }
 

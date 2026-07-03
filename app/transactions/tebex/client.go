@@ -158,6 +158,10 @@ type BasketSpec struct {
 	// PackageType overrides Config.PackageType for this basket ("single" buys
 	// one period one-time, "subscription" auto-renews). Empty uses the config.
 	PackageType string
+	// GiftMessage is the buyer's optional personal note. Carried in the basket
+	// custom payload (gift baskets only) so the webhook can put it in the
+	// recipient's gift email. Already sanitized/capped by the caller.
+	GiftMessage string
 }
 
 // CreateBasket mints a basket and adds the premium package. The recipient's
@@ -173,6 +177,9 @@ func (c *Client) CreateBasket(ctx context.Context, spec BasketSpec) (Basket, err
 	if spec.GiftedByID != 0 {
 		custom["gifted_by"] = strconv.FormatUint(spec.GiftedByID, 10)
 		custom["gifted_by_login"] = spec.GiftedByLogin
+		if spec.GiftMessage != "" {
+			custom["gift_message"] = spec.GiftMessage
+		}
 	}
 
 	create := map[string]any{

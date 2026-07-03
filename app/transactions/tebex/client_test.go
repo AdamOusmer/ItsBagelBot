@@ -214,6 +214,57 @@ func TestCreateBasketGiftCarriesAttribution(t *testing.T) {
 	}
 }
 
+// giftCustom mints a gift basket with the given spec and returns the custom
+// payload sent to Tebex.
+func giftCustom(t *testing.T, spec BasketSpec) map[string]any {
+	t.Helper()
+	var createBody map[string]any
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/accounts/token-123/baskets", func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&createBody); err != nil {
+			t.Fatalf("decode create body: %v", err)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"data": map[string]any{"ident": "bkt-gm", "links": map[string]any{"checkout": "https://pay.tebex.io/bkt-gm"}},
+		})
+	})
+	mux.HandleFunc("POST /api/baskets/bkt-gm/packages", func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{"data": map[string]any{"ident": "bkt-gm", "links": map[string]any{}}})
+	})
+	if _, err := newTestClient(t, mux).CreateBasket(context.Background(), spec); err != nil {
+		t.Fatalf("CreateBasket: %v", err)
+	}
+	custom, _ := createBody["custom"].(map[string]any)
+	return custom
+}
+
+func TestGiftBasketCarriesMessage(t *testing.T) {
+	custom := giftCustom(t, BasketSpec{
+		UserID: 111, Username: "recipient", GiftedByID: 804932984, GiftedByLogin: "mavey",
+		PackageType: "single", GiftMessage: "happy streaming!",
+	})
+	if custom["gift_message"] != "happy streaming!" {
+		t.Errorf("custom.gift_message = %v, want the note", custom["gift_message"])
+	}
+}
+
+func TestGiftBasketOmitsEmptyMessage(t *testing.T) {
+	custom := giftCustom(t, BasketSpec{
+		UserID: 111, Username: "recipient", GiftedByID: 804932984, GiftedByLogin: "mavey", PackageType: "single",
+	})
+	if _, present := custom["gift_message"]; present {
+		t.Errorf("empty note must not add gift_message, got %v", custom["gift_message"])
+	}
+}
+
+func TestSelfPurchaseIgnoresMessage(t *testing.T) {
+	// A message with no gifted_by is a self-purchase; the note never rides along.
+	custom := giftCustom(t, BasketSpec{UserID: 804932984, Username: "mavey", GiftMessage: "note"})
+	if _, present := custom["gift_message"]; present {
+		t.Errorf("self-purchase must not carry gift_message, got %v", custom["gift_message"])
+	}
+}
+
 func TestCreateBasketUpstreamError(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {

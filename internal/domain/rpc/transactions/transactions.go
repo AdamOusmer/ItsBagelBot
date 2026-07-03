@@ -18,6 +18,10 @@ type BasketCreateRequest struct {
 	// or "subscription" (auto-renews monthly). Empty falls back to the
 	// service's configured default. Gifts are always "single" regardless.
 	PackageType string `json:"package_type,omitempty"`
+	// GiftMessage is an optional personal note the buyer attaches to a gift; it
+	// rides the basket custom payload to the recipient's gift email. Ignored for
+	// self-purchases and capped/sanitized by the service.
+	GiftMessage string `json:"gift_message,omitempty"`
 }
 
 type BasketCreateReply struct {
