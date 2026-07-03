@@ -3,9 +3,12 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/newrelic/go-agent/v3/newrelic"
 
 	"ItsBagelBot/app/commands/ent"
 	// Wire the ent schema runtime (field defaults like updated_at, and the name
@@ -29,6 +32,77 @@ import (
 )
 
 const serviceName = "commands"
+
+// registerConsumers wires the event subscriptions onto repo: cache
+// invalidation fans out to every instance (broadcast), while use-counter and
+// account-deletion events are handled once per event (grouped).
+func registerConsumers(ctx context.Context, nrApp *newrelic.Application, repo *repository.Commands, broadcast, grouped message.Subscriber, log *zap.Logger) error {
+	// Use-counter events from the worker: exactly one instance sums each event
+	// (queue group), the repo batches them and flushes uses = uses + n.
+	subs := []struct {
+		name    string
+		sub     message.Subscriber
+		subject string
+		handle  func(*message.Message) error
+	}{
+		{"command changes", broadcast, data.SubjectCommandChanged, invalidateOnChange(repo)},
+		{"command used events", grouped, data.SubjectCommandUsed, recordUse(repo, log)},
+		{"user deleted events", grouped, data.SubjectUserDeleted, deleteAllForUser(repo, log)},
+	}
+	for _, s := range subs {
+		if err := bus.Consume(ctx, nrApp, s.sub, s.subject, s.handle, log); err != nil {
+			return fmt.Errorf("subscribe to %s: %w", s.name, err)
+		}
+	}
+	return nil
+}
+
+// invalidateOnChange drops the cached view of the changed user.
+func invalidateOnChange(repo *repository.Commands) func(*message.Message) error {
+	return func(msg *message.Message) error {
+		var dto data.CommandChangedDTO
+		if err := json.Unmarshal(msg.Payload, &dto); err != nil {
+			return err
+		}
+		repo.Invalidate(dto.UserID)
+		return nil
+	}
+}
+
+// recordUse folds a worker use-counter event into the repo's accumulator. A
+// malformed payload is dropped (nil), not retried.
+func recordUse(repo *repository.Commands, log *zap.Logger) func(*message.Message) error {
+	return func(msg *message.Message) error {
+		var dto data.CommandUsedDTO
+		if err := json.Unmarshal(msg.Payload, &dto); err != nil {
+			log.Warn("commands: bad command_used payload", zap.Error(err))
+			return nil
+		}
+		repo.RecordUse(dto.UserID, dto.Name, dto.Count)
+		return nil
+	}
+}
+
+// deleteAllForUser removes every command of a deleted account. Malformed or
+// invalid payloads are dropped; a DB failure is returned for retry.
+func deleteAllForUser(repo *repository.Commands, log *zap.Logger) func(*message.Message) error {
+	return func(msg *message.Message) error {
+		var dto data.UserDeletedDTO
+		if err := json.Unmarshal(msg.Payload, &dto); err != nil {
+			log.Warn("commands: bad user_deleted payload", zap.Error(err))
+			return nil
+		}
+		if err := validate.UserID(dto.UserID); err != nil {
+			log.Warn("commands: invalid user_id in user_deleted", zap.Error(err))
+			return nil
+		}
+		if err := repo.DeleteAllForUser(msg.Context(), dto.UserID); err != nil {
+			return err
+		}
+		log.Info("commands: deleted all for user", zap.Uint64("user_id", dto.UserID))
+		return nil
+	}
+}
 
 func main() {
 
@@ -94,19 +168,6 @@ func main() {
 	}
 	defer func() { _ = broadcast.Close() }()
 
-	if err := bus.Consume(ctx, nrApp, broadcast, data.SubjectCommandChanged, func(msg *message.Message) error {
-
-		var dto data.CommandChangedDTO
-		if err := json.Unmarshal(msg.Payload, &dto); err != nil {
-			return err
-		}
-
-		repo.Invalidate(dto.UserID)
-		return nil
-	}, log); err != nil {
-		log.Fatal("failed to subscribe to command changes", zap.Error(err))
-	}
-
 	// Durable group subscription: exactly one instance handles the delete so
 	// rows are not redundantly removed, and any instance failure is retried.
 	grouped, err := bus.NewSubscriber(natsURL, serviceName, log)
@@ -115,43 +176,8 @@ func main() {
 	}
 	defer func() { _ = grouped.Close() }()
 
-	// Use-counter events from the worker: exactly one instance sums each event
-	// (queue group), the repo batches them and flushes uses = uses + n.
-	if err := bus.Consume(ctx, nrApp, grouped, data.SubjectCommandUsed, func(msg *message.Message) error {
-
-		var dto data.CommandUsedDTO
-		if err := json.Unmarshal(msg.Payload, &dto); err != nil {
-			log.Warn("commands: bad command_used payload", zap.Error(err))
-			return nil
-		}
-
-		repo.RecordUse(dto.UserID, dto.Name, dto.Count)
-		return nil
-	}, log); err != nil {
-		log.Fatal("failed to subscribe to command used events", zap.Error(err))
-	}
-
-	if err := bus.Consume(ctx, nrApp, grouped, data.SubjectUserDeleted, func(msg *message.Message) error {
-
-		var dto data.UserDeletedDTO
-		if err := json.Unmarshal(msg.Payload, &dto); err != nil {
-			log.Warn("commands: bad user_deleted payload", zap.Error(err))
-			return nil
-		}
-
-		if err := validate.UserID(dto.UserID); err != nil {
-			log.Warn("commands: invalid user_id in user_deleted", zap.Error(err))
-			return nil
-		}
-
-		if err := repo.DeleteAllForUser(msg.Context(), dto.UserID); err != nil {
-			return err
-		}
-
-		log.Info("commands: deleted all for user", zap.Uint64("user_id", dto.UserID))
-		return nil
-	}, log); err != nil {
-		log.Fatal("failed to subscribe to user deleted events", zap.Error(err))
+	if err := registerConsumers(ctx, nrApp, repo, broadcast, grouped, log); err != nil {
+		log.Fatal("failed to subscribe to events", zap.Error(err))
 	}
 
 	projectionSubject := env.Get("NATS_INTERNAL_PROJECTION_COMMANDS_SUBJECT", "bagel.rpc.internal.projection.commands.get")

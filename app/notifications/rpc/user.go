@@ -20,17 +20,23 @@ type userRPC struct {
 	log  *zap.Logger
 }
 
+// UserConfig carries the NATS wiring for the dashboard-facing RPC surface.
+type UserConfig struct {
+	Prefix     string
+	QueueGroup string
+}
+
 // SubscribeUser registers the dashboard-facing verbs: list what a user can
 // see (broadcast + direct, newest first) and acknowledge one.
-func SubscribeUser(nc *nats.Conn, repo *repository.Notifications, prefix, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
+func SubscribeUser(nc *nats.Conn, repo *repository.Notifications, cfg UserConfig, app *newrelic.Application, log *zap.Logger) error {
 	u := &userRPC{repo: repo, log: log}
 
 	if err := bus.QueueSubscribeJSON[notificationsrpc.UserListRequest, notificationsrpc.UserListReply](
-		nc, prefix+".list", queueGroup, 3*time.Second, app, log, u.list); err != nil {
+		nc, cfg.Prefix+".list", cfg.QueueGroup, 3*time.Second, app, log, u.list); err != nil {
 		return err
 	}
 	if err := bus.QueueSubscribeJSON[notificationsrpc.MarkReadRequest, notificationsrpc.MarkReadReply](
-		nc, prefix+".mark_read", queueGroup, 3*time.Second, app, log, u.markRead); err != nil {
+		nc, cfg.Prefix+".mark_read", cfg.QueueGroup, 3*time.Second, app, log, u.markRead); err != nil {
 		return err
 	}
 	return nil
