@@ -157,7 +157,7 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
     // language follows the user to a new browser/device. Best-effort: a new user
     // defaults to 'en', and an RPC blip just leaves detection to Accept-Language.
     try {
-      const saved = await userLocale(userId);
+      const saved = await userLocale(identity.userId);
       if (isLocale(saved)) {
         cookies.set(LOCALE_COOKIE, saved, {
           path: '/',
