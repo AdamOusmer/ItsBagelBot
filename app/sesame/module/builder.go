@@ -94,6 +94,15 @@ func (b *Builder) Build() Module {
 // across all of the module's commands, that every trigger (name or alias) is
 // non-empty, unique within the module, and backed by a Run.
 func (b *Builder) Validate() error {
+	if err := b.validateKindName(); err != nil {
+		return err
+	}
+	return b.validateCommands()
+}
+
+// validateKindName enforces the kind/name pairing: core modules have an empty
+// name, named modules a non-empty one.
+func (b *Builder) validateKindName() error {
 	switch b.kind {
 	case KindCore:
 		if b.name != "" {
@@ -106,31 +115,51 @@ func (b *Builder) Validate() error {
 	default:
 		return fmt.Errorf("unknown module kind %d", int(b.kind))
 	}
+	return nil
+}
 
-	// owner maps a trigger token to the command name that first claimed it, so a
-	// collision message can name both sides.
+// validateCommands checks every command and that no trigger (name or alias) is
+// claimed twice within the module.
+func (b *Builder) validateCommands() error {
+	// owner maps a trigger token to the command that first claimed it.
 	owner := make(map[string]string, len(b.cmds))
 	for _, c := range b.cmds {
-		if c.Name == "" {
-			return errors.New("command with an empty name")
-		}
-		if c.Run == nil {
-			return fmt.Errorf("command %q has no Run (chain .Run to finish it)", c.Name)
-		}
-		if prev, dup := owner[c.Name]; dup {
-			return fmt.Errorf("duplicate command trigger %q (already used by %q)", c.Name, prev)
-		}
-		owner[c.Name] = c.Name
-		for _, a := range c.Aliases {
-			if a == "" {
-				return fmt.Errorf("command %q has an empty alias", c.Name)
-			}
-			if prev, dup := owner[a]; dup {
-				return fmt.Errorf("alias %q of command %q collides with %q", a, c.Name, prev)
-			}
-			owner[a] = c.Name
+		if err := validateCommand(owner, c); err != nil {
+			return err
 		}
 	}
+	return nil
+}
+
+// validateCommand checks one command's name and Run, then claims its name and
+// each alias as a trigger.
+func validateCommand(owner map[string]string, c *Command) error {
+	if c.Name == "" {
+		return errors.New("command with an empty name")
+	}
+	if c.Run == nil {
+		return fmt.Errorf("command %q has no Run (chain .Run to finish it)", c.Name)
+	}
+	if err := claim(owner, c.Name, c.Name); err != nil {
+		return err
+	}
+	for _, a := range c.Aliases {
+		if a == "" {
+			return fmt.Errorf("command %q has an empty alias", c.Name)
+		}
+		if err := claim(owner, a, c.Name); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// claim records trigger as owned by cmdName, or errors when it is already taken.
+func claim(owner map[string]string, trigger, cmdName string) error {
+	if prev, dup := owner[trigger]; dup {
+		return fmt.Errorf("duplicate command trigger %q (command %q collides with %q)", trigger, cmdName, prev)
+	}
+	owner[trigger] = cmdName
 	return nil
 }
 

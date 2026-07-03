@@ -1,7 +1,10 @@
 package engine
 
 import (
+	"context"
+
 	"ItsBagelBot/app/sesame/module"
+	"ItsBagelBot/internal/domain/event/lane"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
@@ -89,7 +92,9 @@ func (p *Pipeline) Close() {
 const chatType = "channel.chat.message"
 
 // Process decodes one message, dispatches a command when the line is one, runs
-// the event handlers registered for the type, and publishes what they emit.
+// the event handlers registered for the type, and publishes what they emit. It
+// reads as a short sequence of guards and stages; the loops and the failure
+// bookkeeping live in the helpers below.
 func (p *Pipeline) Process(msg *message.Message) error {
 	ctx := msg.Context()
 
@@ -97,25 +102,16 @@ func (p *Pipeline) Process(msg *message.Message) error {
 	env := GetEnvelope()
 	defer PutEnvelope(env)
 	if err := sonic.Unmarshal(msg.Payload, env); err != nil {
-		// A malformed envelope is poison: redelivering it forever helps no one, so
-		// drop it (ack) and move on.
-		p.log.Warn("dropping malformed envelope", zap.String("message_id", msg.UUID), zap.Error(err))
-		if txn := newrelic.FromContext(ctx); txn != nil {
-			txn.NoticeError(err)
-		}
-		return nil
+		return p.dropPoison(ctx, msg.UUID, err)
 	}
 
 	isChat := env.Type == chatType
-
-	// The bot sees its own chat sends via EventSub; never react to them.
-	if p.botID != "" && isChat && env.ChatterUserID == p.botID {
+	if p.isOwnChat(env, isChat) {
 		return nil
 	}
 
-	// Event handlers registered for this type. Chat always runs (command dispatch
-	// is engine-internal, not a registered handler), so only non-chat types with
-	// no handler can bail out here with no work.
+	// Chat always runs (command dispatch is engine-internal, not a registered
+	// handler), so only a non-chat type with no handler bails out here.
 	handlers := p.registry.For(env.Type)
 	if !isChat && len(handlers) == 0 {
 		return nil
@@ -125,42 +121,26 @@ func (p *Pipeline) Process(msg *message.Message) error {
 	if !ok {
 		return nil
 	}
+	traceEvent(ctx, env.Type, broadcasterID)
 
-	if txn := newrelic.FromContext(ctx); txn != nil {
-		txn.AddAttribute("event.type", env.Type)
-		txn.AddAttribute("event.broadcaster_id", broadcasterID)
-	}
-
-	regress := module.RegressFromLane(env.Lane)
-
-	// Resolve the broadcaster's module toggles + configs once, and only when a
-	// name-gated handler is registered for this type. Plain chat hits only core
-	// handlers, so this read is skipped entirely.
-	var views map[string]projection.ModuleView
-	if p.registry.NeedsModuleViews(env.Type) {
-		list, err := p.proj.Modules(ctx, broadcasterID)
-		if err != nil {
-			return err // infrastructure failure: nack
-		}
-		views = make(map[string]projection.ModuleView, len(list))
-		for _, v := range list {
-			views[v.Name] = v
-		}
+	views, err := p.moduleViews(ctx, env.Type, broadcasterID)
+	if err != nil {
+		return err // infrastructure failure: nack
 	}
 
 	mctx := GetContext()
 	defer PutContext(mctx)
 	mctx.Env = *env
-	mctx.Regress = regress
+	mctx.Regress = module.RegressFromLane(env.Lane)
 	mctx.BroadcasterID = broadcasterID
 	mctx.Log = p.log
 
-	// emit is the sink command Run and event handlers hand their Outputs to. It
-	// builds and publishes inline onto the lane matching the regress status. The
-	// first publish or marshal failure is captured and short-circuits the rest:
-	// an infrastructure error must nack, and once one publish has failed there is
-	// no point attempting the siblings.
+	// emit is the sink command Run and event handlers hand their Outputs to. The
+	// first publish or marshal failure is captured in emitErr (which nacks) and
+	// short-circuits the rest. It stays a closure here so the no-output hot path
+	// allocates nothing beyond it.
 	var emitErr error
+	regress := mctx.Regress
 	emit := func(o *module.Output) {
 		if emitErr != nil || o == nil || o.Type == "" {
 			return
@@ -169,55 +149,110 @@ func (p *Pipeline) Process(msg *message.Message) error {
 		if regress.IsPremium() {
 			subject = p.outgressPremium
 		}
-		body, err := buildOutgress(o)
-		if err != nil {
-			emitErr = err
+		body, berr := buildOutgress(o)
+		if berr != nil {
+			emitErr = berr
 			return
 		}
-		if err := bus.PublishRaw(ctx, p.pub, subject, body); err != nil {
-			emitErr = err
+		if perr := bus.PublishRaw(ctx, p.pub, subject, body); perr != nil {
+			emitErr = perr
 		}
 	}
 
-	// Command dispatch stage: chat only, always on. A gate store error is logged
-	// and skipped like a handler error, never nacked.
 	if isChat {
-		if err := p.dispatchCommand(ctx, mctx, views, emit); err != nil {
-			p.log.Error("command dispatch failed",
-				zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
-			if txn := newrelic.FromContext(ctx); txn != nil {
-				txn.NoticeError(err)
-			}
-		}
+		p.dispatch(ctx, mctx, views, emit, broadcasterID)
 	}
+	p.runHandlers(ctx, handlers, env.Type, views, mctx, emit, broadcasterID)
 
-	// Event handlers (the non-command path).
+	// nil = ack; a publish/marshal failure on the emit path = nack.
+	return emitErr
+}
+
+// dropPoison logs a malformed envelope and acks it: redelivering poison forever
+// helps no one.
+func (p *Pipeline) dropPoison(ctx context.Context, msgID string, err error) error {
+	p.log.Warn("dropping malformed envelope", zap.String("message_id", msgID), zap.Error(err))
+	notice(ctx, err)
+	return nil
+}
+
+// isOwnChat reports whether this is the bot's own chat message (seen via
+// EventSub), which must never be reacted to.
+func (p *Pipeline) isOwnChat(env *lane.Envelope, isChat bool) bool {
+	return p.botID != "" && isChat && env.ChatterUserID == p.botID
+}
+
+// moduleViews fetches the broadcaster's ModuleView set, but only when a
+// name-gated handler or command owner needs it; plain chat skips the read
+// entirely and returns nil.
+func (p *Pipeline) moduleViews(ctx context.Context, eventType string, broadcasterID uint64) (map[string]projection.ModuleView, error) {
+	if !p.registry.NeedsModuleViews(eventType) {
+		return nil, nil
+	}
+	list, err := p.proj.Modules(ctx, broadcasterID)
+	if err != nil {
+		return nil, err
+	}
+	views := make(map[string]projection.ModuleView, len(list))
+	for _, v := range list {
+		views[v.Name] = v
+	}
+	return views, nil
+}
+
+// dispatch runs the command stage; a gate store error is logged and skipped like
+// a handler error, never nacked.
+func (p *Pipeline) dispatch(ctx context.Context, mctx *module.Context, views map[string]projection.ModuleView, emit module.Emit, broadcasterID uint64) {
+	if err := p.dispatchCommand(ctx, mctx, views, emit); err != nil {
+		p.log.Error("command dispatch failed", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
+		notice(ctx, err)
+	}
+}
+
+// runHandlers runs each enabled module's handler for the event type in
+// registration order. A handler's logic error is logged and skipped, never
+// nacked (that would re-fire the siblings that already succeeded on redelivery).
+func (p *Pipeline) runHandlers(ctx context.Context, handlers []module.Module, eventType string, views map[string]projection.ModuleView, mctx *module.Context, emit module.Emit, broadcasterID uint64) {
 	for _, m := range handlers {
 		if !p.enabled(m, views, mctx) {
 			continue
 		}
-		handle := m.Events[env.Type]
+		handle := m.Events[eventType]
 		if handle == nil {
 			continue
 		}
 		if err := handle(ctx, mctx, emit); err != nil {
-			// Logic error: log and skip this module, do not nack (would re-fire the
-			// siblings that already succeeded on redelivery).
-			p.log.Error("module handler failed",
-				zap.String("module", moduleLabel(m)),
-				zap.String("type", env.Type),
-				zap.Uint64("broadcaster_id", broadcasterID),
-				zap.Error(err))
-			if txn := newrelic.FromContext(ctx); txn != nil {
-				txn.AddAttribute("module.failed", moduleLabel(m))
-				txn.NoticeError(err)
-			}
-			continue
+			p.handlerFailed(ctx, m, eventType, broadcasterID, err)
 		}
 	}
+}
 
-	// nil = ack; a publish/marshal failure on the emit path = nack.
-	return emitErr
+// handlerFailed records a handler's logic error to the log and NR.
+func (p *Pipeline) handlerFailed(ctx context.Context, m module.Module, eventType string, broadcasterID uint64, err error) {
+	p.log.Error("module handler failed",
+		zap.String("module", moduleLabel(m)),
+		zap.String("type", eventType),
+		zap.Uint64("broadcaster_id", broadcasterID),
+		zap.Error(err))
+	if txn := newrelic.FromContext(ctx); txn != nil {
+		txn.AddAttribute("module.failed", moduleLabel(m))
+		txn.NoticeError(err)
+	}
+}
+
+// traceEvent tags the current New Relic transaction with the event identity.
+func traceEvent(ctx context.Context, eventType string, broadcasterID uint64) {
+	if txn := newrelic.FromContext(ctx); txn != nil {
+		txn.AddAttribute("event.type", eventType)
+		txn.AddAttribute("event.broadcaster_id", broadcasterID)
+	}
+}
+
+// notice records err on the current New Relic transaction, if any.
+func notice(ctx context.Context, err error) {
+	if txn := newrelic.FromContext(ctx); txn != nil {
+		txn.NoticeError(err)
+	}
 }
 
 // enabled applies the per-module enable gate and wires the module's config into

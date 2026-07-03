@@ -30,33 +30,32 @@ type Lanes struct {
 	StandardSubject string
 }
 
+// Config bundles the consumer's tuning: the two lanes, the autoscaler policy, and
+// the percentage of the pool the premium lane reserves.
+type Config struct {
+	Lanes          Lanes
+	Policy         bus.ScalePolicy
+	PremiumReserve int
+}
+
 // Consumer drains the premium and standard lanes into one autoscaling pool.
 type Consumer struct {
-	sub            message.Subscriber
-	nrApp          *newrelic.Application
-	log            *zap.Logger
-	lanes          Lanes
-	policy         bus.ScalePolicy
-	premiumReserve int
+	sub   message.Subscriber
+	nrApp *newrelic.Application
+	log   *zap.Logger
+	cfg   Config
 }
 
 // New builds a Consumer over one subscriber.
-func New(sub message.Subscriber, nrApp *newrelic.Application, lanes Lanes, policy bus.ScalePolicy, premiumReserve int, log *zap.Logger) *Consumer {
-	return &Consumer{
-		sub:            sub,
-		nrApp:          nrApp,
-		log:            log,
-		lanes:          lanes,
-		policy:         policy,
-		premiumReserve: premiumReserve,
-	}
+func New(sub message.Subscriber, nrApp *newrelic.Application, cfg Config, log *zap.Logger) *Consumer {
+	return &Consumer{sub: sub, nrApp: nrApp, log: log, cfg: cfg}
 }
 
 // Start binds both lanes to handle and begins draining. It returns once the first
 // consumer is running; the pool and autoscaler stop when ctx is cancelled.
 func (c *Consumer) Start(ctx context.Context, handle Handler) error {
 	return bus.ConsumeWeighted(ctx, c.nrApp, []bus.WeightedLane{
-		{Sub: c.sub, Subject: c.lanes.PremiumSubject, Handle: handle, Reserve: c.premiumReserve},
-		{Sub: c.sub, Subject: c.lanes.StandardSubject, Handle: handle},
-	}, c.policy, c.log)
+		{Sub: c.sub, Subject: c.cfg.Lanes.PremiumSubject, Handle: handle, Reserve: c.cfg.PremiumReserve},
+		{Sub: c.sub, Subject: c.cfg.Lanes.StandardSubject, Handle: handle},
+	}, c.cfg.Policy, c.log)
 }
