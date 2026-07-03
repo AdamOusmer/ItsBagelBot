@@ -7,10 +7,14 @@
  */
 import Card from '../ui/Card.astro';
 import SectionHeading from '../ui/SectionHeading.astro';
+import { getLangFromUrl, useTranslations } from '../../i18n/ui';
+
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
 ---
 
 <section class="qw" id="quiet-work">
-    <SectionHeading eyebrow="The quiet work" title="While you play, it sweeps the floor." />
+    <SectionHeading eyebrow={t('qw.eyebrow')} title={t('qw.title')} />
 
     <div class="qw__grid">
         <!-- Moderation: spam line gets redacted on loop -->
@@ -20,20 +24,20 @@ import SectionHeading from '../ui/SectionHeading.astro';
                     <span class="qw-mod__text">FREE F0LLOWERS &gt;&gt; sketchy.link</span>
                     <span class="qw-mod__sweep"></span>
                 </span>
-                <span class="qw-mod__verdict">⌁ removed before anyone saw it</span>
+                <span class="qw-mod__verdict">{t('qw.modVerdict')}</span>
             </div>
-            <h3 class="qw__title">It catches the noise before you do.</h3>
-            <p class="qw__desc">Spam, slurs and scam links get folded away mid-sentence. You find out later, if you even want to.</p>
+            <h3 class="qw__title">{t('qw.modTitle')}</h3>
+            <p class="qw__desc">{t('qw.modDesc')}</p>
         </Card>
 
         <!-- Commands: typewriter call + response -->
         <Card class="qw__card qw__card--wide" data-reveal style="--reveal-i: 1">
             <div class="qw__demo qw__demo--cmd" aria-hidden="true">
                 <span class="qw-cmd__in">!welcome moth_lamp</span>
-                <span class="qw-cmd__out">welcome in, moth_lamp. grab a seat 🥯</span>
+                <span class="qw-cmd__out">{t('qw.cmdOut')}</span>
             </div>
-            <h3 class="qw__title">It greets your regulars by name.</h3>
-            <p class="qw__desc">Commands, cooldowns and shout-outs that sound like you wrote them. Because you did, once.</p>
+            <h3 class="qw__title">{t('qw.cmdTitle')}</h3>
+            <p class="qw__desc">{t('qw.cmdDesc')}</p>
         </Card>
 
         <!-- Music: EQ bars -->
@@ -41,8 +45,8 @@ import SectionHeading from '../ui/SectionHeading.astro';
             <div class="qw__demo qw__demo--eq" aria-hidden="true">
                 <span></span><span></span><span></span><span></span><span></span>
             </div>
-            <h3 class="qw__title">No dead air.</h3>
-            <p class="qw__desc">Requests queue themselves. Skips behave.</p>
+            <h3 class="qw__title">{t('qw.eqTitle')}</h3>
+            <p class="qw__desc">{t('qw.eqDesc')}</p>
         </Card>
 
         <!-- Polls: racing bars, triggered on reveal -->
@@ -51,18 +55,18 @@ import SectionHeading from '../ui/SectionHeading.astro';
                 <span class="qw-poll__bar"><i style="--w: 68%"></i><b>68%</b></span>
                 <span class="qw-poll__bar"><i style="--w: 32%"></i><b>32%</b></span>
             </div>
-            <h3 class="qw__title">Chat decides. It counts.</h3>
-            <p class="qw__desc">Polls tallied live, no napkin math.</p>
+            <h3 class="qw__title">{t('qw.pollTitle')}</h3>
+            <p class="qw__desc">{t('qw.pollDesc')}</p>
         </Card>
 
         <!-- Giveaways: name shuffle that lands -->
         <Card class="qw__card" data-reveal style="--reveal-i: 4">
             <div class="qw__demo qw__demo--win" aria-hidden="true">
-                <span class="qw-win__label">winner</span>
+                <span class="qw-win__label">{t('qw.winLabel')}</span>
                 <span class="qw-win__name" data-qw-winner>night_owl_77</span>
             </div>
-            <h3 class="qw__title">Fair means random.</h3>
-            <p class="qw__desc">Giveaways drawn honestly, receipts kept.</p>
+            <h3 class="qw__title">{t('qw.winTitle')}</h3>
+            <p class="qw__desc">{t('qw.winDesc')}</p>
         </Card>
 
         <!-- Always on: heartbeat -->
@@ -73,8 +77,8 @@ import SectionHeading from '../ui/SectionHeading.astro';
                           fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" />
                 </svg>
             </div>
-            <h3 class="qw__title">Awake so you don't have to be.</h3>
-            <p class="qw__desc">It holds the room between streams too.</p>
+            <h3 class="qw__title">{t('qw.beatTitle')}</h3>
+            <p class="qw__desc">{t('qw.beatDesc')}</p>
         </Card>
     </div>
 </section>

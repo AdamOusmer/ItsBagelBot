@@ -1,6 +1,6 @@
 import type { MessageTree } from './types';
 
-// English catalog — the source of truth. Every key rendered in the console
+// English catalog. The source of truth. Every key rendered in the console
 // exists here; fr.ts may be partial (translate() falls back to these strings),
 // so nothing ever renders blank while a translation is still in flight.
 export const en = {
@@ -70,10 +70,10 @@ export const en = {
     featUptime: 'Zero downtime',
     featEncrypted: 'End-to-end encrypted',
     featEdge: 'Edge-routed, 3 regions',
-    noticeSignedout: 'You were signed out — that account no longer exists on ItsBagelBot.',
+    noticeSignedout: 'You were signed out. That account no longer exists on ItsBagelBot.',
     noticeBanned: 'This account can no longer use the console.',
     noticeLink: 'That share link is no longer valid. Ask the broadcaster for a new one.',
-    noticeRetry: 'Sign-in did not finish on our side — nothing was saved. Please try again.'
+    noticeRetry: 'Sign-in did not finish on our side. Nothing was saved. Please try again.'
   },
 
   goodbye: {
@@ -81,7 +81,7 @@ export const en = {
     eyebrow: 'Account closed',
     heroPre: "We're sorry to see you ",
     heroAccent: 'go.',
-    lede: "Your account, commands, and links have been removed. Thanks for being part of the bakery — the door's always open if you come back.",
+    lede: "Your account, commands, and links have been removed. Thanks for being part of the bakery. The door's always open if you come back.",
     cta: 'Back to itsbagelbot.com'
   },
 
@@ -109,11 +109,11 @@ export const en = {
     issueNoAuthCta: 'Connect',
     issueIdle: 'The bot is connected but not replying in chat.',
     issueIdleCta: 'Enable above',
-    issueSubs: 'Chat subscriptions dropped — viewers may not get replies.',
+    issueSubs: 'Chat subscriptions dropped. Viewers may not get replies.',
     issueSubsCta: 'Reconnect',
-    issueNoCommands: 'You have no commands yet — the bot has nothing to say.',
+    issueNoCommands: 'You have no commands yet. The bot has nothing to say.',
     issueNoCommandsCta: 'Create one',
-    allGood: "Everything's running — nothing needs you right now.",
+    allGood: "Everything's running. Nothing needs you right now.",
     statActiveCommands: 'Active commands',
     ofN: 'of {n}',
     counting: 'counting…',
@@ -162,7 +162,7 @@ export const en = {
     deleteAccount: 'Delete account',
     deleteAccountHint: 'Permanently remove your account and all of your configurations.',
     accessGranted: 'Access you granted',
-    accessGrantedHint: 'Generate a link to give someone scoped access to your dashboard. The first person to accept it is bound to that access permanently — revoke it here any time.',
+    accessGrantedHint: 'Generate a link to give someone scoped access to your dashboard. The first person to accept it is bound to that access permanently. Revoke it here any time.',
     noShareLinks: 'No share links yet',
     noShareLinksBody: 'Create one below to let a mod manage parts of your dashboard.',
     stageCreated: 'created',
@@ -174,7 +174,7 @@ export const en = {
     newShareLinkHint: 'Pick which sections the invitee can manage.',
     commands: 'Commands',
     notifications: 'Notifications',
-    notificationsEmpty: 'Nothing yet — messages from the ItsBagelBot team will show up here.',
+    notificationsEmpty: 'Nothing yet. Messages from the ItsBagelBot team will show up here.',
     sharedWithYou: 'Dashboards shared with you',
     nothingShared: 'Nothing shared with you',
     nothingSharedBody: 'When a broadcaster shares their dashboard, it appears here.',
@@ -186,8 +186,8 @@ export const en = {
     deleteBody: 'This removes your account, commands, and any links you created. It cannot be undone.',
     deleteAck: 'I recognize that this action is irreversible and will lose all my configurations',
     toastInviteCopied: 'Invite link copied.',
-    toastClipboardBlocked: 'Clipboard blocked — select the link manually.',
-    toastCreated: 'Share link created — copy it below.',
+    toastClipboardBlocked: 'Clipboard blocked. Select the link manually.',
+    toastCreated: 'Share link created. Copy it below.',
     toastRevoked: 'Link revoked.',
     toastOptedOut: 'Dashboard removed.',
     copyLinkAria: 'Copy invite link'
@@ -200,7 +200,7 @@ export const en = {
     planEm: 'plan',
     descManage: 'Manage your plan and status. Tebex handles payment and subscription changes.',
     descChoose: 'Choose a plan. Tebex handles secure payment; nothing is stored in our frame.',
-    degraded: 'Billing data is temporarily unavailable. What you see may be incomplete — try again shortly.',
+    degraded: 'Billing data is temporarily unavailable. What you see may be incomplete. Try again shortly.',
     currentPlan: 'Current plan',
     free: 'Free',
     priceForever: '/month, forever',
@@ -245,21 +245,21 @@ export const en = {
     usernamePlaceholder: 'e.g. streamername',
     messageLabel: 'Message',
     optional: '(optional)',
-    messagePlaceholder: 'Say something nice — it rides along in their gift email.',
+    messagePlaceholder: 'Say something nice. It rides along in their gift email.',
     giftNoteLink: "Gift notes can't contain links or web addresses. Please remove it and try again.",
     giftSent: 'Gift sent 🎁',
     giftSentNamedPre: 'We let ',
-    giftSentNamedPost: ' know — their month of Premium is activating now.',
+    giftSentNamedPost: ' know. Their month of Premium is activating now.',
     giftSentBody: "Their month of Premium is activating now, and we've let them know.",
     premiumActivated: 'Premium activated 🎉',
     premiumActivatedBody: 'Your support keeps ItsBagelBot running. The priority lane and every premium perk are unlocked now.',
     paymentReceived: 'Payment received',
-    paymentSlowBody: 'Tebex confirmed the payment, but activation is taking longer than usual. Give it a minute and refresh — if it still shows Free, contact us.',
+    paymentSlowBody: 'Tebex confirmed the payment, but activation is taking longer than usual. Give it a minute and refresh. If it still shows Free, contact us.',
     paymentReceivedTitle: 'Payment received 🥯',
-    paymentReceivedBody: "Thank you! We're activating your Premium — this updates on its own, usually within a minute.",
+    paymentReceivedBody: "Thank you! We're activating your Premium. This updates on its own, usually within a minute.",
     explorePremium: 'Explore Premium',
-    toastGiftSent: 'Gift sent — thank you!',
-    toastPaymentReceived: 'Payment received — thank you!',
+    toastGiftSent: 'Gift sent. Thank you!',
+    toastPaymentReceived: 'Payment received. Thank you!',
     toastCheckoutCancelled: 'Checkout cancelled. No charge was made.'
   },
 
@@ -268,7 +268,7 @@ export const en = {
     titlePre: 'Chat ',
     titleEm: 'commands',
     description: 'Custom responses your viewers can trigger in chat. {active} active, {disabled} disabled.',
-    degraded: 'Live command data is unreachable right now — showing nothing rather than stale rows. Retry shortly.',
+    degraded: 'Live command data is unreachable right now. Showing nothing rather than stale rows. Retry shortly.',
     filterAll: 'All',
     filterActive: 'Active',
     filterDisabled: 'Disabled',
@@ -277,7 +277,7 @@ export const en = {
     searchPlaceholder: 'Search name, alias, response…',
     newCommand: 'New command',
     noneYet: 'No commands yet.',
-    noneYetSub: 'Create your first custom response — viewers trigger it with',
+    noneYetSub: 'Create your first custom response. Viewers trigger it with',
     inChat: 'in chat.',
     noneMatch: 'No commands match.',
     editing: 'Editing !{name}',
@@ -292,9 +292,9 @@ export const en = {
     undo: 'Undo',
     toastRestoreDraft: 'Restored your unsaved draft.',
     toastRestoreEdits: 'Restored your unsaved edits.',
-    toastSaveFailed: 'Save failed — network error.',
+    toastSaveFailed: 'Save failed. Network error.',
     toastToggleFailed: 'Toggle failed.',
-    toastCouldNotRestore: 'Could not restore !{name} — recreate it manually.',
+    toastCouldNotRestore: 'Could not restore !{name}. Recreate it manually.',
     toastDeleteFailed: 'Delete of !{name} failed.'
   },
 
@@ -319,13 +319,13 @@ export const en = {
 
   onboarding: {
     title: 'Welcome aboard 🥯',
-    intro: "You're connected — the bot can see your chat. Two minutes of setup and it's fully live:",
+    intro: "You're connected. The bot can see your chat. Two minutes of setup and it's fully live:",
     langTitle: 'Choose your language',
     langBody: 'Pick the language for your console. You can change it later in Settings.',
     step1Title: 'Mod the bot',
-    step1Body: 'Type this in your Twitch chat. Without mod status, Twitch silences the bot in follower-only, sub-only, and slow-mode chats — it would look like it just stopped working.',
+    step1Body: 'Type this in your Twitch chat. Without mod status, Twitch silences the bot in follower-only, sub-only, and slow-mode chats. It would look like it just stopped working.',
     step2Title: 'Create your first command',
-    step2Body: 'Head to Commands and build a !command — the live chat rehearsal shows exactly what the bot will say before you save.',
+    step2Body: 'Head to Commands and build a !command. The live chat rehearsal shows exactly what the bot will say before you save.',
     step2Cta: 'Open Commands',
     step3Title: 'Flip on modules',
     step3Body: 'Optional extras like Auto Shoutout for incoming raids. One toggle each, configured in a minute.',
@@ -355,7 +355,7 @@ export const en = {
     access: 'Access',
     cooldownS: 'Cooldown (s)',
     restrictUser: 'Restrict to user ID',
-    restrictPlaceholder: 'Twitch user ID — only they can run it',
+    restrictPlaceholder: 'Twitch user ID. Only they can run it',
     active: 'Active',
     onlyWhileLive: 'Only while live',
     saving: 'Saving…',
