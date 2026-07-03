@@ -17,6 +17,31 @@ const chips = [
     { cmd: '!poll', label: '!poll' },
     { cmd: '!lurk', label: '!lurk' },
 ];
+
+// The simulated chat runs in a client script (below) that can't reach this
+// catalog, so the localized strings are handed to it as a JSON data attribute.
+// Spam lines stay in the script: they are deliberately broken-English scam bait.
+const playChat = {
+    ambient: [
+        t('play.amb1'), t('play.amb2'), t('play.amb3'), t('play.amb4'), t('play.amb5'),
+        t('play.amb6'), t('play.amb7'), '🥯🥯🥯', t('play.amb8'), t('play.amb9'),
+    ],
+    replies: {
+        '!bagel': t('play.rBagel'),
+        '!song': t('play.rSong'),
+        '!lurk': t('play.rLurk'),
+        '!help': t('play.rHelp'),
+    } as Record<string, string>,
+    pollIntro: t('play.pollIntro'),
+    pollQ: t('play.pollQ'),
+    pollYes: t('play.pollYes'),
+    pollAlways: t('play.pollAlways'),
+    spamCaught: t('play.spamCaught'),
+    quietNote: t('play.quietNote'),
+    unknownCmd: t('play.unknownCmd'),
+    seed1: t('play.amb6'),
+    seed2: t('play.seed2'),
+};
 ---
 
 <section class="play" id="playground">
@@ -41,7 +66,7 @@ const chips = [
         </p>
     </div>
 
-    <div class="play__stage" data-reveal style="--reveal-i: 2" data-playground>
+    <div class="play__stage" data-reveal style="--reveal-i: 2" data-playground data-play-i18n={JSON.stringify(playChat)}>
         <div class="play__window">
             <div class="play__bar">
                 <span class="play__dot" aria-hidden="true"></span>
@@ -472,31 +497,21 @@ const chips = [
         ['tiny_cactus', '#7cc9a4'],
     ];
 
-    const AMBIENT = [
-        'this soundtrack is so good',
-        'LETS GOOO',
-        'first time here, vibes are great',
-        'anyone else hungry now',
-        'that jump was clean',
-        'chat moving fast tonight',
-        'ok that was actually smooth',
-        '🥯🥯🥯',
-        'gl on the next run',
-        'the bot caught that fast lol',
-    ];
-
+    // Deliberately broken-English scam bait; not localized so it still reads as spam.
     const SPAM_LINES = [
         'FREE F0LLOWERS >> sketchy.link/boost CLICK NOW',
         'im giving away gift subs, DM me on telegram!!',
         'V1EWBOTS cheap!! totally-legit.biz',
     ];
 
-    const REPLIES: Record<string, string | null> = {
-        '!bagel': '@you 🥯 fresh from the oven. warm bagel delivered, zero calories.',
-        '!song': "now playing · 'late night lo-fi' · queued for @you",
-        '!lurk': "@you settled into the lurk. seat's saved, I'll wave when you're back.",
-        '!help': 'try !bagel, !song, !poll or !lurk. everything else is configurable from the dashboard.',
-        '!poll': null, // special-cased: renders the animated poll bubble
+    // Locale-dependent copy, handed in from Astro via the data-play-i18n attribute
+    // (the catalog can't be reached from a client script).
+    type PlayI18n = {
+        ambient: string[];
+        replies: Record<string, string>;
+        pollIntro: string; pollQ: string; pollYes: string; pollAlways: string;
+        spamCaught: string; quietNote: string; unknownCmd: string;
+        seed1: string; seed2: string;
     };
 
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -504,6 +519,14 @@ const chips = [
     function setupPlayground(root: HTMLElement) {
         if (root.dataset.playReady === 'true') return;
         root.dataset.playReady = 'true';
+
+        let i18n: PlayI18n;
+        try {
+            i18n = JSON.parse(root.dataset.playI18n || '{}');
+        } catch {
+            return;
+        }
+        if (!i18n.ambient || !i18n.replies) return;
 
         const feed = root.querySelector<HTMLElement>('[data-play-feed]');
         const form = root.querySelector<HTMLFormElement>('[data-play-form]');
@@ -561,15 +584,15 @@ const chips = [
         }
 
         function addPoll() {
-            addBot('poll is up. chat, vote with 1 or 2.', 500);
+            addBot(i18n.pollIntro, 500);
             window.setTimeout(() => {
                 const bubble = baseMsg('pmsg--poll');
                 const q = document.createElement('span');
                 q.className = 'ppoll__q';
-                q.textContent = 'poll · one more game?';
+                q.textContent = i18n.pollQ;
                 bubble.appendChild(q);
 
-                const rows: Array<[string, number]> = [['yes', 68], ['always', 32]];
+                const rows: Array<[string, number]> = [[i18n.pollYes, 68], [i18n.pollAlways, 32]];
                 const fills: HTMLElement[] = [];
                 for (const [label, pct] of rows) {
                     const row = document.createElement('span');
@@ -604,7 +627,7 @@ const chips = [
                 row.classList.add('is-caught');
                 window.setTimeout(() => {
                     const note = baseMsg('pmsg--caught');
-                    note.textContent = '⌁ removed · link spam · 0 viewers saw it';
+                    note.textContent = i18n.spamCaught;
                     row.replaceWith(note);
                     trim();
                 }, reduceMotion.matches ? 100 : 480);
@@ -621,7 +644,7 @@ const chips = [
                     quietNoteShown = true;
                     window.setTimeout(() => {
                         const note = baseMsg('pmsg--caught');
-                        note.textContent = 'the bot stays quiet unless called. chat is yours.';
+                        note.textContent = i18n.quietNote;
                         feed!.appendChild(note);
                         trim();
                     }, reduceMotion.matches ? 100 : 800);
@@ -631,9 +654,9 @@ const chips = [
 
             const cmd = text.split(/\s+/)[0].toLowerCase();
             if (cmd === '!poll') { addPoll(); return; }
-            const reply = REPLIES[cmd];
+            const reply = i18n.replies[cmd];
             if (reply) { addBot(reply); return; }
-            addBot(`@you I don't know ${cmd} yet. you could teach it to me from the dashboard in about ten seconds.`);
+            addBot(i18n.unknownCmd.replace('{cmd}', cmd));
         }
 
         /* Ambient chatter, gated on visibility */
@@ -643,7 +666,7 @@ const chips = [
             const wait = 2600 + Math.random() * 2600;
             ambientTimer = window.setTimeout(() => {
                 const [name, hue] = VIEWERS[Math.floor(Math.random() * VIEWERS.length)];
-                addChat(name, hue, AMBIENT[Math.floor(Math.random() * AMBIENT.length)]);
+                addChat(name, hue, i18n.ambient[Math.floor(Math.random() * i18n.ambient.length)]);
                 if (++seq % 7 === 0) addSpam();
                 scheduleAmbient();
             }, wait);
@@ -659,8 +682,8 @@ const chips = [
         document.addEventListener('visibilitychange', scheduleAmbient);
 
         /* Seed the feed so it never opens empty */
-        addChat('gg_beans', '#52b788', 'chat moving fast tonight');
-        addChat('moth_lamp', '#e0c49a', 'try typing !bagel');
+        addChat('gg_beans', '#52b788', i18n.seed1);
+        addChat('moth_lamp', '#e0c49a', i18n.seed2);
 
         form.addEventListener('submit', (event) => {
             event.preventDefault();
