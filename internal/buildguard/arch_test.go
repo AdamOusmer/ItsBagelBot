@@ -19,30 +19,31 @@ func deps(t *testing.T, pkg string) []string {
 	return strings.Fields(string(out))
 }
 
-// TestWorkerIsReadOnlyToData asserts the worker never links a database or an ent
-// package. The worker is a read-only consumer of the projection (Valkey + the
-// projector RPC); only the projector writes Valkey and only the data services
-// own a DB. A refactor that pulls an ent client or a SQL driver into the worker
-// would silently grant it a write path it must not have, so fail the build here.
-func TestWorkerIsReadOnlyToData(t *testing.T) {
-	for _, dep := range deps(t, "ItsBagelBot/app/worker") {
+// TestSesameIsReadOnlyToData asserts sesame never links a database or an ent
+// package. sesame (the Twitch event worker) is a read-only consumer of the
+// projection (Valkey + the projector RPC); only the projector writes Valkey and
+// only the data services own a DB. A refactor that pulls an ent client or a SQL
+// driver into sesame would silently grant it a write path it must not have, so
+// fail the build here.
+func TestSesameIsReadOnlyToData(t *testing.T) {
+	for _, dep := range deps(t, "ItsBagelBot/app/sesame") {
 		isEnt := strings.HasPrefix(dep, "ItsBagelBot/") && (strings.HasSuffix(dep, "/ent") || strings.Contains(dep, "/ent/"))
 		if isEnt || dep == "ItsBagelBot/pkg/db" || dep == "database/sql" {
-			t.Fatalf("app/worker must not depend on a DB/ent package, but links %q; the worker is read-only to the projection (Valkey + projector RPC)", dep)
+			t.Fatalf("app/sesame must not depend on a DB/ent package, but links %q; sesame is read-only to the projection (Valkey + projector RPC)", dep)
 		}
 	}
 }
 
-// TestPipelineDoesNotImportBuiltin enforces the DIP boundary: the pipeline
-// depends only on the module abstractions (Registry, Module, the store
-// interfaces), never the concrete builtin modules. main is the single
-// composition root that wires concretes. If the pipeline starts importing
-// builtin, adding a feature would force pipeline edits (OCP violation).
-func TestPipelineDoesNotImportBuiltin(t *testing.T) {
-	const builtin = "ItsBagelBot/app/worker/module/builtin"
-	for _, dep := range deps(t, "ItsBagelBot/app/worker/pipeline") {
-		if dep == builtin {
-			t.Fatalf("app/worker/pipeline must not import %q; the pipeline depends on module abstractions only, main wires concretes", builtin)
+// TestEngineDoesNotImportModules enforces the DIP boundary: the engine (registry,
+// pipeline, gate) depends only on the module abstractions (module.Module and the
+// store interfaces), never the concrete feature package. modules.All is wired by
+// main, the single composition root. If the engine starts importing the modules
+// package, adding a feature would force engine edits (OCP violation).
+func TestEngineDoesNotImportModules(t *testing.T) {
+	const modules = "ItsBagelBot/app/sesame/modules"
+	for _, dep := range deps(t, "ItsBagelBot/app/sesame/engine") {
+		if dep == modules {
+			t.Fatalf("app/sesame/engine must not import %q; the engine depends on module abstractions only, main wires the concrete modules", modules)
 		}
 	}
 }
