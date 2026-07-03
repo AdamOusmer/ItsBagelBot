@@ -1,15 +1,10 @@
 package web
 
 import (
-	"bytes"
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -55,54 +50,6 @@ type Server struct {
 	cfg   Config
 	log   *zap.Logger
 }
-
-type tebexEvent struct {
-	ID      string          `json:"id"`
-	Type    string          `json:"type"`
-	Date    string          `json:"date"`
-	Subject json.RawMessage `json:"subject"`
-}
-
-type paymentSubject struct {
-	TransactionID             string                     `json:"transaction_id"`
-	RecurringPaymentReference string                     `json:"recurring_payment_reference"`
-	Custom                    map[string]json.RawMessage `json:"custom"`
-	Customer                  struct {
-		Username usernameRef `json:"username"`
-	} `json:"customer"`
-	Products []struct {
-		Custom    map[string]json.RawMessage `json:"custom"`
-		Username  usernameRef                `json:"username"`
-		ExpiresAt string                     `json:"expires_at"`
-	} `json:"products"`
-}
-
-type recurringSubject struct {
-	Reference      string          `json:"reference"`
-	NextPaymentAt  string          `json:"next_payment_at"`
-	InitialPayment *paymentSubject `json:"initial_payment"`
-	LastPayment    *paymentSubject `json:"last_payment"`
-}
-
-type usernameRef struct {
-	ID json.RawMessage `json:"id"`
-}
-
-type recordablePayment struct {
-	TransactionID string
-	UserID        uint64
-	// Gift attribution from the basket custom payload; zero for self-purchases.
-	GiftedByID         uint64
-	GiftedByLogin      string
-	GiftMessage        string
-	RecurringReference string
-	ExpiresAt          *time.Time
-}
-
-var (
-	errNoRecordablePayment = errors.New("no recordable Tebex payment for event")
-	errPaymentUserMissing  = errors.New("payment user id missing")
-)
 
 func New(store Store, cfg Config, log *zap.Logger) *fiber.App {
 
@@ -158,29 +105,9 @@ func (s *Server) tebexReachable(c *fiber.Ctx) error {
 	return c.SendString("ok\n")
 }
 
-// billingEventActions maps each Tebex event type that changes an entitlement to
-// the action it applies. notify is true for the activation group, where a
-// first-time gift warrants a recipient ping (notifyGift itself skips renewals).
-// Handling a new event type is one entry here, not a new branch.
-var billingEventActions = map[string]struct {
-	action billingrpc.Action
-	notify bool
-}{
-	"payment.completed":                        {billingrpc.ActionActivate, true},
-	"recurring-payment.started":                {billingrpc.ActionActivate, true},
-	"recurring-payment.renewed":                {billingrpc.ActionActivate, true},
-	"recurring-payment.cancellation.requested": {billingrpc.ActionCancelRequested, false},
-	"recurring-payment.cancellation.aborted":   {billingrpc.ActionCancelAborted, false},
-	"payment.dispute.won":                      {billingrpc.ActionCancelAborted, false},
-	"recurring-payment.ended":                  {billingrpc.ActionRevoke, false},
-	"payment.refunded":                         {billingrpc.ActionRevoke, false},
-	"payment.dispute.opened":                   {billingrpc.ActionRevoke, false},
-	"payment.dispute.lost":                     {billingrpc.ActionRevoke, false},
-}
-
 // tebexWebhook owns only the HTTP-and-verification concern: authenticate the
-// request, then route the event to its handler. The per-outcome work lives in
-// the dispatch helpers below.
+// request, then route the event to its handler. Event classification lives in
+// tebexevent.go; the per-outcome work lives in the dispatch helpers below.
 func (s *Server) tebexWebhook(c *fiber.Ctx) error {
 
 	if s.cfg.WebhookSecret == "" {
@@ -308,19 +235,6 @@ func (s *Server) trialLifecycle(c *fiber.Ctx, event tebexEvent) error {
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
-// trialAction picks the billing action a trial event drives, or false when the
-// event (ending-soon reminder, trial ended) changes nothing.
-func trialAction(eventType string) (billingrpc.Action, bool) {
-	switch {
-	case strings.Contains(eventType, "cancel"):
-		return billingrpc.ActionCancelRequested, true
-	case strings.Contains(eventType, "start"):
-		return billingrpc.ActionActivate, true
-	default:
-		return "", false
-	}
-}
-
 func (s *Server) applyBilling(ctx context.Context, event tebexEvent, payment recordablePayment, action billingrpc.Action) error {
 	if s.cfg.ApplyBilling == nil {
 		return errors.New("billing entitlement handler not configured")
@@ -360,7 +274,7 @@ func (s *Server) failEvent(c *fiber.Ctx, event tebexEvent, payment recordablePay
 			zap.String("webhook_type", event.Type),
 			zap.Error(err),
 		)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to save webhook state"})
+		return s.saveError(c)
 	}
 
 	s.log.Warn("tebex webhook failed",
@@ -412,202 +326,4 @@ func (s *Server) saveEvent(ctx context.Context, event tebexEvent, status reposit
 		UserID:        payment.UserID,
 		Error:         message,
 	})
-}
-
-func verifyTebexSignature(body []byte, signature string, secret string) bool {
-
-	provided, err := hex.DecodeString(strings.TrimSpace(signature))
-	if err != nil {
-		return false
-	}
-	expected := tebexSignature(body, secret)
-	return hmac.Equal(provided, expected)
-}
-
-func tebexSignature(body []byte, secret string) []byte {
-
-	bodyHash := sha256.Sum256(body)
-	bodyHashHex := make([]byte, hex.EncodedLen(len(bodyHash)))
-	hex.Encode(bodyHashHex, bodyHash[:])
-
-	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write(bodyHashHex)
-	return mac.Sum(nil)
-}
-
-func recordableFromEvent(event tebexEvent) (recordablePayment, error) {
-
-	switch {
-	case strings.HasPrefix(event.Type, "payment."):
-		var payment paymentSubject
-		if err := json.Unmarshal(event.Subject, &payment); err != nil {
-			return recordablePayment{}, err
-		}
-		return recordableFromPayment(payment)
-
-	case strings.HasPrefix(event.Type, "recurring-payment."):
-		var recurring recurringSubject
-		if err := json.Unmarshal(event.Subject, &recurring); err != nil {
-			return recordablePayment{}, err
-		}
-		var payment recordablePayment
-		var err error
-		if event.Type == "recurring-payment.renewed" && recurring.LastPayment != nil {
-			payment, err = recordableFromPayment(*recurring.LastPayment)
-		} else if recurring.InitialPayment != nil {
-			payment, err = recordableFromPayment(*recurring.InitialPayment)
-		} else if recurring.LastPayment != nil {
-			payment, err = recordableFromPayment(*recurring.LastPayment)
-		} else {
-			return recordablePayment{}, errNoRecordablePayment
-		}
-		if err != nil {
-			return recordablePayment{}, err
-		}
-		payment.RecurringReference = recurring.Reference
-		if expiresAt, ok := parseTebexTime(recurring.NextPaymentAt); ok {
-			payment.ExpiresAt = &expiresAt
-		}
-		return payment, nil
-
-	default:
-		return recordablePayment{}, errNoRecordablePayment
-	}
-}
-
-func recordableFromPayment(payment paymentSubject) (recordablePayment, error) {
-
-	if payment.TransactionID == "" {
-		return recordablePayment{}, errors.New("payment transaction_id missing")
-	}
-
-	if userID, ok := userIDFromPayment(payment); ok {
-		giftedBy, giftedByLogin := giftFromPayment(payment)
-		giftMessage := giftMessageFromPayment(payment)
-		// A basket gifted to yourself is a plain purchase; drop the markers.
-		if giftedBy == userID {
-			giftedBy, giftedByLogin, giftMessage = 0, "", ""
-		}
-		result := recordablePayment{
-			TransactionID:      payment.TransactionID,
-			UserID:             userID,
-			GiftedByID:         giftedBy,
-			GiftedByLogin:      giftedByLogin,
-			GiftMessage:        giftMessage,
-			RecurringReference: payment.RecurringPaymentReference,
-		}
-		for _, product := range payment.Products {
-			if expiresAt, ok := parseTebexTime(product.ExpiresAt); ok && (result.ExpiresAt == nil || expiresAt.After(*result.ExpiresAt)) {
-				result.ExpiresAt = &expiresAt
-			}
-		}
-		return result, nil
-	}
-
-	return recordablePayment{TransactionID: payment.TransactionID}, errPaymentUserMissing
-}
-
-func parseTebexTime(raw string) (time.Time, bool) {
-	if raw == "" {
-		return time.Time{}, false
-	}
-	parsed, err := time.Parse(time.RFC3339, raw)
-	return parsed, err == nil
-}
-
-// giftFromPayment reads the gifted_by attribution the basket carried. Checked
-// on the payment-level custom payload first, then per-product (mirrors
-// userIDFromPayment's search order).
-func giftFromPayment(payment paymentSubject) (uint64, string) {
-
-	if id, ok := rawUint(payment.Custom["gifted_by"]); ok {
-		return id, rawString(payment.Custom["gifted_by_login"])
-	}
-	for _, product := range payment.Products {
-		if id, ok := rawUint(product.Custom["gifted_by"]); ok {
-			return id, rawString(product.Custom["gifted_by_login"])
-		}
-	}
-	return 0, ""
-}
-
-// giftMessageFromPayment reads the buyer's optional gift note the basket
-// carried. Same search order as giftFromPayment: payment-level custom first,
-// then per-product.
-func giftMessageFromPayment(payment paymentSubject) string {
-
-	if msg := rawString(payment.Custom["gift_message"]); msg != "" {
-		return msg
-	}
-	for _, product := range payment.Products {
-		if msg := rawString(product.Custom["gift_message"]); msg != "" {
-			return msg
-		}
-	}
-	return ""
-}
-
-func rawString(raw json.RawMessage) string {
-	var value string
-	if err := json.Unmarshal(raw, &value); err != nil {
-		return ""
-	}
-	return value
-}
-
-func userIDFromPayment(payment paymentSubject) (uint64, bool) {
-
-	if userID, ok := userIDFromCustom(payment.Custom); ok {
-		return userID, true
-	}
-	if userID, ok := rawUint(payment.Customer.Username.ID); ok {
-		return userID, true
-	}
-
-	for _, product := range payment.Products {
-		if userID, ok := userIDFromCustom(product.Custom); ok {
-			return userID, true
-		}
-		if userID, ok := rawUint(product.Username.ID); ok {
-			return userID, true
-		}
-	}
-
-	return 0, false
-}
-
-func userIDFromCustom(custom map[string]json.RawMessage) (uint64, bool) {
-
-	for _, key := range []string{"user_id", "twitch_user_id", "broadcaster_user_id"} {
-		if userID, ok := rawUint(custom[key]); ok {
-			return userID, true
-		}
-	}
-	return 0, false
-}
-
-func rawUint(raw json.RawMessage) (uint64, bool) {
-
-	raw = bytes.TrimSpace(raw)
-	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
-		return 0, false
-	}
-
-	if raw[0] == '"' {
-		var value string
-		if err := json.Unmarshal(raw, &value); err != nil {
-			return 0, false
-		}
-		parsed, err := strconv.ParseUint(value, 10, 64)
-		return parsed, err == nil && parsed != 0
-	}
-
-	var number json.Number
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	dec.UseNumber()
-	if err := dec.Decode(&number); err != nil {
-		return 0, false
-	}
-	parsed, err := strconv.ParseUint(number.String(), 10, 64)
-	return parsed, err == nil && parsed != 0
 }
