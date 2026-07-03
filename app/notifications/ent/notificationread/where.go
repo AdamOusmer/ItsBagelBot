@@ -65,6 +65,11 @@ func ReadAt(v time.Time) predicate.NotificationRead {
 	return predicate.NotificationRead(sql.FieldEQ(FieldReadAt, v))
 }
 
+// ExpiresAt applies equality check predicate on the "expires_at" field. It's identical to ExpiresAtEQ.
+func ExpiresAt(v time.Time) predicate.NotificationRead {
+	return predicate.NotificationRead(sql.FieldEQ(FieldExpiresAt, v))
+}
+
 // UserIDEQ applies the EQ predicate on the "user_id" field.
 func UserIDEQ(v uint64) predicate.NotificationRead {
 	return predicate.NotificationRead(sql.FieldEQ(FieldUserID, v))
@@ -143,6 +148,56 @@ func ReadAtLT(v time.Time) predicate.NotificationRead {
 // ReadAtLTE applies the LTE predicate on the "read_at" field.
 func ReadAtLTE(v time.Time) predicate.NotificationRead {
 	return predicate.NotificationRead(sql.FieldLTE(FieldReadAt, v))
+}
+
+// ExpiresAtEQ applies the EQ predicate on the "expires_at" field.
+func ExpiresAtEQ(v time.Time) predicate.NotificationRead {
+	return predicate.NotificationRead(sql.FieldEQ(FieldExpiresAt, v))
+}
+
+// ExpiresAtNEQ applies the NEQ predicate on the "expires_at" field.
+func ExpiresAtNEQ(v time.Time) predicate.NotificationRead {
+	return predicate.NotificationRead(sql.FieldNEQ(FieldExpiresAt, v))
+}
+
+// ExpiresAtIn applies the In predicate on the "expires_at" field.
+func ExpiresAtIn(vs ...time.Time) predicate.NotificationRead {
+	return predicate.NotificationRead(sql.FieldIn(FieldExpiresAt, vs...))
+}
+
+// ExpiresAtNotIn applies the NotIn predicate on the "expires_at" field.
+func ExpiresAtNotIn(vs ...time.Time) predicate.NotificationRead {
+	return predicate.NotificationRead(sql.FieldNotIn(FieldExpiresAt, vs...))
+}
+
+// ExpiresAtGT applies the GT predicate on the "expires_at" field.
+func ExpiresAtGT(v time.Time) predicate.NotificationRead {
+	return predicate.NotificationRead(sql.FieldGT(FieldExpiresAt, v))
+}
+
+// ExpiresAtGTE applies the GTE predicate on the "expires_at" field.
+func ExpiresAtGTE(v time.Time) predicate.NotificationRead {
+	return predicate.NotificationRead(sql.FieldGTE(FieldExpiresAt, v))
+}
+
+// ExpiresAtLT applies the LT predicate on the "expires_at" field.
+func ExpiresAtLT(v time.Time) predicate.NotificationRead {
+	return predicate.NotificationRead(sql.FieldLT(FieldExpiresAt, v))
+}
+
+// ExpiresAtLTE applies the LTE predicate on the "expires_at" field.
+func ExpiresAtLTE(v time.Time) predicate.NotificationRead {
+	return predicate.NotificationRead(sql.FieldLTE(FieldExpiresAt, v))
+}
+
+// ExpiresAtIsNil applies the IsNil predicate on the "expires_at" field.
+func ExpiresAtIsNil() predicate.NotificationRead {
+	return predicate.NotificationRead(sql.FieldIsNull(FieldExpiresAt))
+}
+
+// ExpiresAtNotNil applies the NotNil predicate on the "expires_at" field.
+func ExpiresAtNotNil() predicate.NotificationRead {
+	return predicate.NotificationRead(sql.FieldNotNull(FieldExpiresAt))
 }
 
 // HasNotification applies the HasEdge predicate on the "notification" edge.

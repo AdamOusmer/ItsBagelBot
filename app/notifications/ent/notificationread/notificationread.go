@@ -18,6 +18,8 @@ const (
 	FieldUserID = "user_id"
 	// FieldReadAt holds the string denoting the read_at field in the database.
 	FieldReadAt = "read_at"
+	// FieldExpiresAt holds the string denoting the expires_at field in the database.
+	FieldExpiresAt = "expires_at"
 	// EdgeNotification holds the string denoting the notification edge name in mutations.
 	EdgeNotification = "notification"
 	// Table holds the table name of the notificationread in the database.
@@ -36,6 +38,7 @@ var Columns = []string{
 	FieldID,
 	FieldUserID,
 	FieldReadAt,
+	FieldExpiresAt,
 }
 
 // ForeignKeys holds the SQL foreign-keys that are owned by the "notification_reads"
@@ -80,6 +83,11 @@ func ByUserID(opts ...sql.OrderTermOption) OrderOption {
 // ByReadAt orders the results by the read_at field.
 func ByReadAt(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldReadAt, opts...).ToFunc()
+}
+
+// ByExpiresAt orders the results by the expires_at field.
+func ByExpiresAt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldExpiresAt, opts...).ToFunc()
 }
 
 // ByNotificationField orders the results by notification field.

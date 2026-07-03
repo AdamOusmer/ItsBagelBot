@@ -22,6 +22,8 @@ type NotificationRead struct {
 	UserID uint64 `json:"user_id,omitempty"`
 	// ReadAt holds the value of the "read_at" field.
 	ReadAt time.Time `json:"read_at,omitempty"`
+	// ExpiresAt holds the value of the "expires_at" field.
+	ExpiresAt *time.Time `json:"expires_at,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the NotificationReadQuery when eager-loading is set.
 	Edges              NotificationReadEdges `json:"edges"`
@@ -56,7 +58,7 @@ func (*NotificationRead) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case notificationread.FieldID, notificationread.FieldUserID:
 			values[i] = new(sql.NullInt64)
-		case notificationread.FieldReadAt:
+		case notificationread.FieldReadAt, notificationread.FieldExpiresAt:
 			values[i] = new(sql.NullTime)
 		case notificationread.ForeignKeys[0]: // notification_reads
 			values[i] = new(sql.NullInt64)
@@ -92,6 +94,13 @@ func (_m *NotificationRead) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field read_at", values[i])
 			} else if value.Valid {
 				_m.ReadAt = value.Time
+			}
+		case notificationread.FieldExpiresAt:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field expires_at", values[i])
+			} else if value.Valid {
+				_m.ExpiresAt = new(time.Time)
+				*_m.ExpiresAt = value.Time
 			}
 		case notificationread.ForeignKeys[0]:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
@@ -146,6 +155,11 @@ func (_m *NotificationRead) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("read_at=")
 	builder.WriteString(_m.ReadAt.Format(time.ANSIC))
+	builder.WriteString(", ")
+	if v := _m.ExpiresAt; v != nil {
+		builder.WriteString("expires_at=")
+		builder.WriteString(v.Format(time.ANSIC))
+	}
 	builder.WriteByte(')')
 	return builder.String()
 }

@@ -10,6 +10,7 @@ import {
   auditDashboardImpersonation,
   notificationsForUser,
   notificationMarkRead,
+  notificationMarkPeeked,
   type NotificationWire
 } from '$lib/server/services';
 import { ACCOUNT_DELETED_COOKIE, COOKIE, type Session } from '$lib/server/session';
@@ -100,6 +101,22 @@ export const actions: Actions = {
       return { ok: true, action: 'read' };
     } catch {
       return fail(502, { error: 'Could not update. Try again in a moment.' });
+    }
+  },
+
+  // markPeeked is the bell-dropdown-open path: soft-acknowledge everything the
+  // user can see. Best-effort — a failure just leaves the badge for next time,
+  // so it never surfaces an error to the glance-only bell.
+  markPeeked: async ({ locals }) => {
+    const s = locals.session;
+    if (env.DEMO === '1') return { ok: true, action: 'peeked' };
+    if (!s || s.delegate_of) return fail(403, { error: 'Not allowed.' });
+
+    try {
+      await notificationMarkPeeked(s.user_id);
+      return { ok: true, action: 'peeked' };
+    } catch {
+      return fail(502, { error: 'Could not update.' });
     }
   },
 
