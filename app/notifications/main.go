@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"ItsBagelBot/app/notifications/ent"
 	// Wire the ent schema runtime (field defaults/hooks); without this blank
@@ -28,6 +29,17 @@ func main() {
 
 	log := logger.New(env.Get("APP_ENV", "development")).Named(serviceName)
 	defer func() { _ = log.Sync() }()
+
+	// One-shot cron mode: `notifications cleanup` just fires the janitor verb at
+	// the running service and exits, so the k3s CronJob reuses this same image.
+	if len(os.Args) > 1 && os.Args[1] == "cleanup" {
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+		if err := runCleanup(ctx, log); err != nil {
+			log.Fatal("notification cleanup failed", zap.Error(err))
+		}
+		return
+	}
 
 	nrApp, err := monitor.New(serviceName, log)
 	if err != nil {
@@ -71,6 +83,14 @@ func main() {
 	queueGroup := "notifications-rpc"
 	invalidationPrefix := env.Get("NATS_CACHE_INVALIDATION_PREFIX", "bagel.cache.invalidate")
 
+	// TTL tiers (all Go durations). A send with no explicit expiry lives
+	// defaultTTL globally so the cron eventually sweeps it; a full read hides it
+	// from that user after fullReadTTL; opening the bell dropdown (peek) hides
+	// an unread one after the longer, reduced peekTTL.
+	defaultTTL := env.GetDuration("NOTIF_DEFAULT_TTL", 90*24*time.Hour)
+	fullReadTTL := env.GetDuration("NOTIF_FULL_READ_TTL", 24*time.Hour)
+	peekTTL := env.GetDuration("NOTIF_PEEK_TTL", 7*24*time.Hour)
+
 	// Cross-service lookup so an admin can target a direct notification by
 	// username, not just numeric id.
 	userGetSubject := env.Get("NATS_ADMIN_USER_SUBJECT_PREFIX", "bagel.rpc.admin.user") + ".get"
@@ -81,21 +101,37 @@ func main() {
 		InvalidationPrefix: invalidationPrefix,
 		UserGetSubject:     userGetSubject,
 		QueueGroup:         queueGroup,
+		DefaultTTL:         defaultTTL,
 	}
 	if err := rpc.SubscribeAdmin(nc, repo, adminCfg, nrApp, log); err != nil {
 		log.Fatal("failed to subscribe admin rpc", zap.Error(err))
 	}
 
 	userPrefix := env.Get("NATS_NOTIFICATIONS_SUBJECT_PREFIX", "bagel.rpc.notifications")
-	if err := rpc.SubscribeUser(nc, repo, rpc.UserConfig{Prefix: userPrefix, QueueGroup: queueGroup}, nrApp, log); err != nil {
+	userCfg := rpc.UserConfig{
+		Prefix:      userPrefix,
+		QueueGroup:  queueGroup,
+		FullReadTTL: fullReadTTL,
+		PeekTTL:     peekTTL,
+	}
+	if err := rpc.SubscribeUser(nc, repo, userCfg, nrApp, log); err != nil {
 		log.Fatal("failed to subscribe user rpc", zap.Error(err))
+	}
+
+	// Internal janitor verb driven by the k3s cron (see deploy/k8s). Not
+	// exported from the NATS account, so only a client with the service's own
+	// credentials can reach it.
+	cleanupSubject := env.Get("NATS_NOTIFICATIONS_CLEANUP_SUBJECT", "bagel.rpc.internal.notifications.cleanup")
+	if err := rpc.SubscribeMaintenance(nc, repo, cleanupSubject, queueGroup, nrApp, log); err != nil {
+		log.Fatal("failed to subscribe maintenance rpc", zap.Error(err))
 	}
 
 	health.Serve(env.Get("LISTEN_ADDR", ":8080"), nc.IsConnected)
 
 	log.Info("notifications service ready",
 		zap.String("admin_prefix", adminPrefix),
-		zap.String("user_prefix", userPrefix))
+		zap.String("user_prefix", userPrefix),
+		zap.String("cleanup_subject", cleanupSubject))
 
 	<-ctx.Done()
 

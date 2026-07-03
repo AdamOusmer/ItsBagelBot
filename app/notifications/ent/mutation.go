@@ -1073,6 +1073,7 @@ type NotificationReadMutation struct {
 	user_id             *uint64
 	adduser_id          *int64
 	read_at             *time.Time
+	expires_at          *time.Time
 	clearedFields       map[string]struct{}
 	notification        *int
 	clearednotification bool
@@ -1271,6 +1272,55 @@ func (m *NotificationReadMutation) ResetReadAt() {
 	m.read_at = nil
 }
 
+// SetExpiresAt sets the "expires_at" field.
+func (m *NotificationReadMutation) SetExpiresAt(t time.Time) {
+	m.expires_at = &t
+}
+
+// ExpiresAt returns the value of the "expires_at" field in the mutation.
+func (m *NotificationReadMutation) ExpiresAt() (r time.Time, exists bool) {
+	v := m.expires_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldExpiresAt returns the old "expires_at" field's value of the NotificationRead entity.
+// If the NotificationRead object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *NotificationReadMutation) OldExpiresAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldExpiresAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldExpiresAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldExpiresAt: %w", err)
+	}
+	return oldValue.ExpiresAt, nil
+}
+
+// ClearExpiresAt clears the value of the "expires_at" field.
+func (m *NotificationReadMutation) ClearExpiresAt() {
+	m.expires_at = nil
+	m.clearedFields[notificationread.FieldExpiresAt] = struct{}{}
+}
+
+// ExpiresAtCleared returns if the "expires_at" field was cleared in this mutation.
+func (m *NotificationReadMutation) ExpiresAtCleared() bool {
+	_, ok := m.clearedFields[notificationread.FieldExpiresAt]
+	return ok
+}
+
+// ResetExpiresAt resets all changes to the "expires_at" field.
+func (m *NotificationReadMutation) ResetExpiresAt() {
+	m.expires_at = nil
+	delete(m.clearedFields, notificationread.FieldExpiresAt)
+}
+
 // SetNotificationID sets the "notification" edge to the Notification entity by id.
 func (m *NotificationReadMutation) SetNotificationID(id int) {
 	m.notification = &id
@@ -1344,12 +1394,15 @@ func (m *NotificationReadMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *NotificationReadMutation) Fields() []string {
-	fields := make([]string, 0, 2)
+	fields := make([]string, 0, 3)
 	if m.user_id != nil {
 		fields = append(fields, notificationread.FieldUserID)
 	}
 	if m.read_at != nil {
 		fields = append(fields, notificationread.FieldReadAt)
+	}
+	if m.expires_at != nil {
+		fields = append(fields, notificationread.FieldExpiresAt)
 	}
 	return fields
 }
@@ -1363,6 +1416,8 @@ func (m *NotificationReadMutation) Field(name string) (ent.Value, bool) {
 		return m.UserID()
 	case notificationread.FieldReadAt:
 		return m.ReadAt()
+	case notificationread.FieldExpiresAt:
+		return m.ExpiresAt()
 	}
 	return nil, false
 }
@@ -1376,6 +1431,8 @@ func (m *NotificationReadMutation) OldField(ctx context.Context, name string) (e
 		return m.OldUserID(ctx)
 	case notificationread.FieldReadAt:
 		return m.OldReadAt(ctx)
+	case notificationread.FieldExpiresAt:
+		return m.OldExpiresAt(ctx)
 	}
 	return nil, fmt.Errorf("unknown NotificationRead field %s", name)
 }
@@ -1398,6 +1455,13 @@ func (m *NotificationReadMutation) SetField(name string, value ent.Value) error 
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetReadAt(v)
+		return nil
+	case notificationread.FieldExpiresAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetExpiresAt(v)
 		return nil
 	}
 	return fmt.Errorf("unknown NotificationRead field %s", name)
@@ -1443,7 +1507,11 @@ func (m *NotificationReadMutation) AddField(name string, value ent.Value) error 
 // ClearedFields returns all nullable fields that were cleared during this
 // mutation.
 func (m *NotificationReadMutation) ClearedFields() []string {
-	return nil
+	var fields []string
+	if m.FieldCleared(notificationread.FieldExpiresAt) {
+		fields = append(fields, notificationread.FieldExpiresAt)
+	}
+	return fields
 }
 
 // FieldCleared returns a boolean indicating if a field with the given name was
@@ -1456,6 +1524,11 @@ func (m *NotificationReadMutation) FieldCleared(name string) bool {
 // ClearField clears the value of the field with the given name. It returns an
 // error if the field is not defined in the schema.
 func (m *NotificationReadMutation) ClearField(name string) error {
+	switch name {
+	case notificationread.FieldExpiresAt:
+		m.ClearExpiresAt()
+		return nil
+	}
 	return fmt.Errorf("unknown NotificationRead nullable field %s", name)
 }
 
@@ -1468,6 +1541,9 @@ func (m *NotificationReadMutation) ResetField(name string) error {
 		return nil
 	case notificationread.FieldReadAt:
 		m.ResetReadAt()
+		return nil
+	case notificationread.FieldExpiresAt:
+		m.ResetExpiresAt()
 		return nil
 	}
 	return fmt.Errorf("unknown NotificationRead field %s", name)

@@ -41,6 +41,20 @@ func (_c *NotificationReadCreate) SetNillableReadAt(v *time.Time) *NotificationR
 	return _c
 }
 
+// SetExpiresAt sets the "expires_at" field.
+func (_c *NotificationReadCreate) SetExpiresAt(v time.Time) *NotificationReadCreate {
+	_c.mutation.SetExpiresAt(v)
+	return _c
+}
+
+// SetNillableExpiresAt sets the "expires_at" field if the given value is not nil.
+func (_c *NotificationReadCreate) SetNillableExpiresAt(v *time.Time) *NotificationReadCreate {
+	if v != nil {
+		_c.SetExpiresAt(*v)
+	}
+	return _c
+}
+
 // SetNotificationID sets the "notification" edge to the Notification entity by ID.
 func (_c *NotificationReadCreate) SetNotificationID(id int) *NotificationReadCreate {
 	_c.mutation.SetNotificationID(id)
@@ -137,6 +151,10 @@ func (_c *NotificationReadCreate) createSpec() (*NotificationRead, *sqlgraph.Cre
 	if value, ok := _c.mutation.ReadAt(); ok {
 		_spec.SetField(notificationread.FieldReadAt, field.TypeTime, value)
 		_node.ReadAt = value
+	}
+	if value, ok := _c.mutation.ExpiresAt(); ok {
+		_spec.SetField(notificationread.FieldExpiresAt, field.TypeTime, value)
+		_node.ExpiresAt = &value
 	}
 	if nodes := _c.mutation.NotificationIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{

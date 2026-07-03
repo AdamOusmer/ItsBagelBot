@@ -21,6 +21,12 @@ func (NotificationRead) Fields() []ent.Field {
 		field.Uint64("user_id"),
 
 		field.Time("read_at").Default(time.Now).Immutable(),
+
+		// Per-user visibility cutoff. Once passed the notification drops out of
+		// this user's list even though the row (and the notification) still
+		// exist. A full read sets a short cutoff; a dropdown "peek" sets a longer
+		// reduced one. Nil means the read never lapses (legacy rows).
+		field.Time("expires_at").Optional().Nillable(),
 	}
 }
 

@@ -45,6 +45,7 @@ var (
 		{Name: "id", Type: field.TypeInt, Increment: true},
 		{Name: "user_id", Type: field.TypeUint64},
 		{Name: "read_at", Type: field.TypeTime},
+		{Name: "expires_at", Type: field.TypeTime, Nullable: true},
 		{Name: "notification_reads", Type: field.TypeInt},
 	}
 	// NotificationReadsTable holds the schema information for the "notification_reads" table.
@@ -55,7 +56,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "notification_reads_notifications_reads",
-				Columns:    []*schema.Column{NotificationReadsColumns[3]},
+				Columns:    []*schema.Column{NotificationReadsColumns[4]},
 				RefColumns: []*schema.Column{NotificationsColumns[0]},
 				OnDelete:   schema.Cascade,
 			},
@@ -64,7 +65,7 @@ var (
 			{
 				Name:    "notificationread_user_id_notification_reads",
 				Unique:  true,
-				Columns: []*schema.Column{NotificationReadsColumns[1], NotificationReadsColumns[3]},
+				Columns: []*schema.Column{NotificationReadsColumns[1], NotificationReadsColumns[4]},
 			},
 		},
 	}
