@@ -144,6 +144,7 @@ var (
 		{Name: "subscription_cancel_pending", Type: field.TypeBool, Default: false},
 		{Name: "billing_event_at", Type: field.TypeTime, Nullable: true},
 		{Name: "billing_event_id", Type: field.TypeString, Nullable: true},
+		{Name: "gifts_sent", Type: field.TypeUint32, Default: 0},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
 	}

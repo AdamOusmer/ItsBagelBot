@@ -316,6 +316,10 @@ func (s *Server) applyBilling(ctx context.Context, event tebexEvent, payment rec
 		OccurredAt:         occurredAt,
 		ExpiresAt:          expiresAt,
 		RecurringReference: payment.RecurringReference,
+		// Non-zero only on a gift payment (gifts are one-time "single" packages,
+		// so this is set on the initial payment.completed and never on renewals);
+		// lets the users service count the gift against the buyer.
+		GifterID: payment.GiftedByID,
 	})
 }
 

@@ -180,6 +180,46 @@ func TestApplyBillingLifecycleIsMonotonicAndProtectsAdminGrants(t *testing.T) {
 	assert.False(t, applied, "Tebex must not revoke an operator grant")
 }
 
+func TestApplyBillingCountsGiftForGifterIdempotently(t *testing.T) {
+	client, _, repo := setup(t)
+	ctx := context.Background()
+	require.NoError(t, repo.Register(ctx, 4001, "Gifter", "gifter@example.com"))
+	require.NoError(t, repo.Register(ctx, 4002, "Recipient", "recipient@example.com"))
+
+	when := time.Date(2026, 7, 3, 12, 0, 0, 0, time.UTC)
+	expires := when.AddDate(0, 1, 0)
+	gift := billingrpc.ApplyRequest{
+		UserID: 4002, EventID: "evt-gift-1", Action: billingrpc.ActionActivate,
+		OccurredAt: when, ExpiresAt: &expires, GifterID: 4001,
+	}
+
+	applied, err := repo.ApplyBilling(ctx, gift)
+	require.NoError(t, err)
+	assert.True(t, applied)
+
+	rv, err := repo.Get(ctx, 4002)
+	require.NoError(t, err)
+	assert.Equal(t, "paid", rv.Status, "recipient still gets premium")
+
+	g := client.User.GetX(ctx, 4001)
+	assert.Equal(t, uint32(1), g.GiftsSent, "gifter counter bumped once")
+
+	// A Tebex retry of the exact same webhook must not double-count.
+	_, err = repo.ApplyBilling(ctx, gift)
+	require.NoError(t, err)
+	g = client.User.GetX(ctx, 4001)
+	assert.Equal(t, uint32(1), g.GiftsSent, "webhook retry must not double-count")
+
+	// A self-purchase (no gifter) must not bump the counter.
+	_, err = repo.ApplyBilling(ctx, billingrpc.ApplyRequest{
+		UserID: 4001, EventID: "evt-self", Action: billingrpc.ActionActivate,
+		OccurredAt: when.Add(time.Hour), ExpiresAt: &expires, GifterID: 0,
+	})
+	require.NoError(t, err)
+	g = client.User.GetX(ctx, 4001)
+	assert.Equal(t, uint32(1), g.GiftsSent, "self-purchase must not bump the counter")
+}
+
 func TestApplyBillingCancellationAndEnd(t *testing.T) {
 	_, _, repo := setup(t)
 	ctx := context.Background()

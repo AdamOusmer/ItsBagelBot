@@ -98,6 +98,16 @@ func (r *Users) ApplyBilling(ctx context.Context, req billingrpc.ApplyRequest) (
 	if err != nil || updated == 0 {
 		return false, err
 	}
+	// A first-time gift activation bumps the gifter's counter. Idempotent: a
+	// replay of the same event returns early above, so this runs exactly once
+	// per gift. Best-effort: a counter failure must never fail the already
+	// applied entitlement (that would make Tebex retry and re-apply), so its
+	// error is intentionally dropped.
+	if req.Action == billingrpc.ActionActivate && req.GifterID != 0 && req.GifterID != req.UserID {
+		_ = db.WithExec(ctx, func(ctx context.Context) error {
+			return r.client.User.Update().Where(user.IDEQ(req.GifterID)).AddGiftsSent(1).Exec(ctx)
+		})
+	}
 	if err := r.publishChanged(ctx, req.UserID); err != nil {
 		return false, err
 	}

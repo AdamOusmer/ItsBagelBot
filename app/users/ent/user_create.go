@@ -179,6 +179,20 @@ func (_c *UserCreate) SetNillableBillingEventID(v *string) *UserCreate {
 	return _c
 }
 
+// SetGiftsSent sets the "gifts_sent" field.
+func (_c *UserCreate) SetGiftsSent(v uint32) *UserCreate {
+	_c.mutation.SetGiftsSent(v)
+	return _c
+}
+
+// SetNillableGiftsSent sets the "gifts_sent" field if the given value is not nil.
+func (_c *UserCreate) SetNillableGiftsSent(v *uint32) *UserCreate {
+	if v != nil {
+		_c.SetGiftsSent(*v)
+	}
+	return _c
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_c *UserCreate) SetCreatedAt(v time.Time) *UserCreate {
 	_c.mutation.SetCreatedAt(v)
@@ -287,6 +301,10 @@ func (_c *UserCreate) defaults() {
 		v := user.DefaultSubscriptionCancelPending
 		_c.mutation.SetSubscriptionCancelPending(v)
 	}
+	if _, ok := _c.mutation.GiftsSent(); !ok {
+		v := user.DefaultGiftsSent
+		_c.mutation.SetGiftsSent(v)
+	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := user.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
@@ -342,6 +360,9 @@ func (_c *UserCreate) check() error {
 	}
 	if _, ok := _c.mutation.SubscriptionCancelPending(); !ok {
 		return &ValidationError{Name: "subscription_cancel_pending", err: errors.New(`ent: missing required field "User.subscription_cancel_pending"`)}
+	}
+	if _, ok := _c.mutation.GiftsSent(); !ok {
+		return &ValidationError{Name: "gifts_sent", err: errors.New(`ent: missing required field "User.gifts_sent"`)}
 	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		return &ValidationError{Name: "created_at", err: errors.New(`ent: missing required field "User.created_at"`)}
@@ -432,6 +453,10 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.BillingEventID(); ok {
 		_spec.SetField(user.FieldBillingEventID, field.TypeString, value)
 		_node.BillingEventID = &value
+	}
+	if value, ok := _c.mutation.GiftsSent(); ok {
+		_spec.SetField(user.FieldGiftsSent, field.TypeUint32, value)
+		_node.GiftsSent = value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(user.FieldCreatedAt, field.TypeTime, value)
