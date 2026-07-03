@@ -4,32 +4,37 @@
  * section reveals; each step carries a mono "receipt" line that decodes on
  * view (shared decode.js). Deliberately small: three beats, no scroll-jack.
  */
+import { getLangFromUrl, useTranslations } from '../../i18n/ui';
+
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+
 const steps = [
     {
         num: '01',
-        title: 'Connect your channel.',
-        body: 'One click through Twitch. No API keys, no config files, no wizard with nine screens.',
+        title: t('steps.s1Title'),
+        body: t('steps.s1Body'),
         receipt: 'oauth ✓ · scopes ✓ · 1.2s',
     },
     {
         num: '02',
-        title: 'Make it yours.',
-        body: 'Toggle the tools you want. Rules read like sentences, not regex.',
-        receipt: 'modules: 6 active · rules: yours',
+        title: t('steps.s2Title'),
+        body: t('steps.s2Body'),
+        receipt: t('steps.s2Receipt'),
     },
     {
         num: '03',
-        title: 'Go live, and breathe.',
-        body: 'It joins your chat quietly and gets to work. You get to just stream.',
-        receipt: 'itsbagelbot joined #your_channel',
+        title: t('steps.s3Title'),
+        body: t('steps.s3Body'),
+        receipt: t('steps.s3Receipt'),
     },
 ];
 ---
 
 <section class="steps" id="how">
     <div class="steps__head">
-        <span class="steps__eyebrow" data-reveal>Two minutes, start to live</span>
-        <h2 class="steps__title" data-reveal style="--reveal-i: 1">Three steps. None of them hard.</h2>
+        <span class="steps__eyebrow" data-reveal>{t('steps.eyebrow')}</span>
+        <h2 class="steps__title" data-reveal style="--reveal-i: 1">{t('steps.title')}</h2>
     </div>
 
     <ol class="steps__list" data-reveal style="--reveal-i: 2">
