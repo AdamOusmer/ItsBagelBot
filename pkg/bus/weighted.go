@@ -337,10 +337,26 @@ func newRoutinePool(laneReserve []int, capacity int) *routinePool {
 }
 
 // laneLimit is the most slots lane may hold: the whole pool minus the slots
-// reserved for every other lane.
+// reserved for every other lane. The slots reserved for the other lanes are
+// rounded UP so a reserving lane keeps its share even in a small pool: a 25%
+// reserve must still hold one slot in a 2-slot pool, where truncating the
+// product down would round the reservation to zero and let a flood on the
+// unreserved lane take the whole pool. Every lane keeps at least one slot, so a
+// pool that has shrunk to a single routine never starves a lane completely
+// (at capacity 1 no reservation can be honoured anyway).
 func (p *routinePool) laneLimit(lane int) int {
 	otherReserve := p.totalReserve - p.laneReserve[lane]
-	return p.capacity - p.capacity*otherReserve/100
+	limit := p.capacity - ceilDiv(p.capacity*otherReserve, 100)
+	if limit < 1 {
+		limit = 1
+	}
+	return limit
+}
+
+// ceilDiv returns ceil(a/b) for a >= 0 and b > 0 without floating point, so a
+// fractional reserved slot rounds up to a whole reserved slot.
+func ceilDiv(a, b int) int {
+	return (a + b - 1) / b
 }
 
 // acquire blocks until a slot is free for lane, returning false only when the
