@@ -245,6 +245,7 @@ export const fr = {
     messageLabel: 'Message',
     optional: '(optionnel)',
     messagePlaceholder: 'Dites quelque chose de gentil — cela accompagne l\'e-mail de cadeau.',
+    giftNoteLink: 'Les mots pour la carte cadeau ne peuvent pas contenir de liens ou d\'adresses web. Merci de les retirer et de réessayer.',
     giftSent: 'Cadeau envoyé 🎁',
     giftSentNamedPre: 'Nous avons prévenu ',
     giftSentNamedPost: ' — son mois de Premium s\'active maintenant.',

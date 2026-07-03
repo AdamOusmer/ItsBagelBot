@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/nats-io/nats.go"
 	"github.com/newrelic/go-agent/v3/newrelic"
@@ -14,6 +16,7 @@ import (
 	"ItsBagelBot/app/transactions/tebex"
 	transactionsrpc "ItsBagelBot/internal/domain/rpc/transactions"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
+	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/pkg/bus"
 )
 
@@ -53,10 +56,18 @@ func (c *checkoutRPC) basketCreate(ctx context.Context, req transactionsrpc.Bask
 		return transactionsrpc.BasketCreateReply{Error: "package_type must be single or subscription"}
 	}
 
-	spec := tebex.BasketSpec{UserID: buyerID, Username: req.Username, IPAddress: validIPv4(req.IPAddress), PackageType: packageType}
+	buyerLogin := clampLogin(req.Username)
+	spec := tebex.BasketSpec{UserID: buyerID, Username: buyerLogin, IPAddress: validIPv4(req.IPAddress), PackageType: packageType}
 	recipientLogin := ""
 
 	if recipient := normalizeLogin(req.RecipientUsername); recipient != "" {
+		if utf8.RuneCountInString(recipient) > twitchLoginMaxLen {
+			// No real Twitch login is this long, so it can't belong to a
+			// registered user. Reject before the lookup rather than let an
+			// oversized, attacker-supplied login ride the NATS request and (on a
+			// fluke match) the basket custom payload and gift email.
+			return transactionsrpc.BasketCreateReply{Error: errRecipientNotRegistered.Error()}
+		}
 		view, err := c.resolveRecipient(ctx, recipient)
 		if err != nil {
 			return transactionsrpc.BasketCreateReply{Error: err.Error()}
@@ -64,14 +75,19 @@ func (c *checkoutRPC) basketCreate(ctx context.Context, req transactionsrpc.Bask
 		if view.ID == buyerID {
 			return transactionsrpc.BasketCreateReply{Error: "that is your own account — use Subscribe instead"}
 		}
+		giftMessage := sanitizeGiftMessage(req.GiftMessage)
+		if noteHasLink(giftMessage) {
+			return transactionsrpc.BasketCreateReply{Error: errGiftMessageLink.Error()}
+		}
 		spec = tebex.BasketSpec{
 			UserID:        view.ID,
 			Username:      view.Username,
 			IPAddress:     validIPv4(req.IPAddress),
 			GiftedByID:    buyerID,
-			GiftedByLogin: req.Username,
+			GiftedByLogin: buyerLogin,
 			// A gift is one paid month, never a recurring charge on the buyer.
 			PackageType: "single",
+			GiftMessage: giftMessage,
 		}
 		recipientLogin = view.Username
 	}
@@ -131,11 +147,17 @@ var (
 	errRecipientNotEligible    = constError("that account can't receive premium")
 	errRecipientAlreadyPremium = constError("that user already has premium")
 	errRecipientLookup         = constError("could not verify the recipient right now — try again in a moment")
+	errGiftMessageLink         = constError("gift notes can't contain links or web addresses — please remove it and try again")
 )
 
 type constError string
 
 func (e constError) Error() string { return string(e) }
+
+// twitchLoginMaxLen bounds a Twitch login. Real logins are 4-25 characters, so
+// anything longer is junk that must not ride the recipient lookup, the Tebex
+// basket custom payload, or the gift email/notification attribution.
+const twitchLoginMaxLen = 25
 
 // normalizeLogin turns user input into a Twitch login: trimmed, lowercased,
 // leading @ dropped.
@@ -143,4 +165,54 @@ func normalizeLogin(input string) string {
 	login := strings.TrimSpace(input)
 	login = strings.TrimPrefix(login, "@")
 	return strings.ToLower(login)
+}
+
+// clampLogin trims the buyer's display login and hard-caps it so a caller
+// cannot push an oversized attribution string into the basket or gift email.
+// The buyer login is display-only, so it is truncated (never rejected) to avoid
+// failing a paid checkout over a cosmetic field.
+func clampLogin(input string) string {
+	login := strings.TrimSpace(input)
+	if utf8.RuneCountInString(login) <= twitchLoginMaxLen {
+		return login
+	}
+	return string([]rune(login)[:twitchLoginMaxLen])
+}
+
+// giftMessageMaxRunes bounds the note before it rides the Tebex custom payload.
+const giftMessageMaxRunes = 280
+
+// noteHasLink reports whether a sanitized gift note carries a link. Gift notes
+// are emailed to another user, so a link (or any obfuscated form of one) is
+// refused rather than delivered. See internal/domain/validate.ContainsLink.
+func noteHasLink(sanitized string) bool {
+	return sanitized != "" && validate.ContainsLink(sanitized)
+}
+
+// sanitizeGiftMessage cleans the buyer's optional gift note: control characters
+// are dropped (newlines survive as the email preserves line breaks), the result
+// is trimmed and hard-capped so an oversized or hostile note cannot bloat the
+// basket. HTML escaping happens at render time in the mail package, not here.
+func sanitizeGiftMessage(input string) string {
+
+	cleaned := strings.Map(func(r rune) rune {
+		if r == '\n' {
+			return r
+		}
+		if r == '\t' {
+			return ' '
+		}
+		if unicode.IsControl(r) {
+			return -1
+		}
+		return r
+	}, input)
+
+	cleaned = strings.TrimSpace(cleaned)
+	if utf8.RuneCountInString(cleaned) <= giftMessageMaxRunes {
+		return cleaned
+	}
+
+	runes := []rune(cleaned)
+	return strings.TrimSpace(string(runes[:giftMessageMaxRunes]))
 }

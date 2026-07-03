@@ -108,7 +108,7 @@ func (g *GiftNotifier) sendEmail(ctx context.Context, notice web.GiftNotice) {
 		return
 	}
 
-	if err := g.mailer.SendGift(ctx, reply.Email, notice.GiftedByLogin, "tebex-gift-"+notice.WebhookID); err != nil {
+	if err := g.mailer.SendGift(ctx, reply.Email, notice.GiftedByLogin, notice.GiftMessage, "tebex-gift-"+notice.WebhookID); err != nil {
 		g.log.Warn("gift email send failed",
 			zap.String("webhook_id", notice.WebhookID),
 			zap.Uint64("recipient", notice.RecipientID),
