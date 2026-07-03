@@ -3046,6 +3046,8 @@ type UserMutation struct {
 	subscription_cancel_pending *bool
 	billing_event_at            *time.Time
 	billing_event_id            *string
+	gifts_sent                  *uint32
+	addgifts_sent               *int32
 	created_at                  *time.Time
 	updated_at                  *time.Time
 	clearedFields               map[string]struct{}
@@ -3694,6 +3696,62 @@ func (m *UserMutation) ResetBillingEventID() {
 	delete(m.clearedFields, user.FieldBillingEventID)
 }
 
+// SetGiftsSent sets the "gifts_sent" field.
+func (m *UserMutation) SetGiftsSent(u uint32) {
+	m.gifts_sent = &u
+	m.addgifts_sent = nil
+}
+
+// GiftsSent returns the value of the "gifts_sent" field in the mutation.
+func (m *UserMutation) GiftsSent() (r uint32, exists bool) {
+	v := m.gifts_sent
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldGiftsSent returns the old "gifts_sent" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldGiftsSent(ctx context.Context) (v uint32, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldGiftsSent is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldGiftsSent requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldGiftsSent: %w", err)
+	}
+	return oldValue.GiftsSent, nil
+}
+
+// AddGiftsSent adds u to the "gifts_sent" field.
+func (m *UserMutation) AddGiftsSent(u int32) {
+	if m.addgifts_sent != nil {
+		*m.addgifts_sent += u
+	} else {
+		m.addgifts_sent = &u
+	}
+}
+
+// AddedGiftsSent returns the value that was added to the "gifts_sent" field in this mutation.
+func (m *UserMutation) AddedGiftsSent() (r int32, exists bool) {
+	v := m.addgifts_sent
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetGiftsSent resets all changes to the "gifts_sent" field.
+func (m *UserMutation) ResetGiftsSent() {
+	m.gifts_sent = nil
+	m.addgifts_sent = nil
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (m *UserMutation) SetCreatedAt(t time.Time) {
 	m.created_at = &t
@@ -3854,7 +3912,7 @@ func (m *UserMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UserMutation) Fields() []string {
-	fields := make([]string, 0, 15)
+	fields := make([]string, 0, 16)
 	if m.username != nil {
 		fields = append(fields, user.FieldUsername)
 	}
@@ -3893,6 +3951,9 @@ func (m *UserMutation) Fields() []string {
 	}
 	if m.billing_event_id != nil {
 		fields = append(fields, user.FieldBillingEventID)
+	}
+	if m.gifts_sent != nil {
+		fields = append(fields, user.FieldGiftsSent)
 	}
 	if m.created_at != nil {
 		fields = append(fields, user.FieldCreatedAt)
@@ -3934,6 +3995,8 @@ func (m *UserMutation) Field(name string) (ent.Value, bool) {
 		return m.BillingEventAt()
 	case user.FieldBillingEventID:
 		return m.BillingEventID()
+	case user.FieldGiftsSent:
+		return m.GiftsSent()
 	case user.FieldCreatedAt:
 		return m.CreatedAt()
 	case user.FieldUpdatedAt:
@@ -3973,6 +4036,8 @@ func (m *UserMutation) OldField(ctx context.Context, name string) (ent.Value, er
 		return m.OldBillingEventAt(ctx)
 	case user.FieldBillingEventID:
 		return m.OldBillingEventID(ctx)
+	case user.FieldGiftsSent:
+		return m.OldGiftsSent(ctx)
 	case user.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
 	case user.FieldUpdatedAt:
@@ -4077,6 +4142,13 @@ func (m *UserMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetBillingEventID(v)
 		return nil
+	case user.FieldGiftsSent:
+		v, ok := value.(uint32)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetGiftsSent(v)
+		return nil
 	case user.FieldCreatedAt:
 		v, ok := value.(time.Time)
 		if !ok {
@@ -4098,13 +4170,21 @@ func (m *UserMutation) SetField(name string, value ent.Value) error {
 // AddedFields returns all numeric fields that were incremented/decremented during
 // this mutation.
 func (m *UserMutation) AddedFields() []string {
-	return nil
+	var fields []string
+	if m.addgifts_sent != nil {
+		fields = append(fields, user.FieldGiftsSent)
+	}
+	return fields
 }
 
 // AddedField returns the numeric value that was incremented/decremented on a field
 // with the given name. The second boolean return value indicates that this field
 // was not set, or was not defined in the schema.
 func (m *UserMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case user.FieldGiftsSent:
+		return m.AddedGiftsSent()
+	}
 	return nil, false
 }
 
@@ -4113,6 +4193,13 @@ func (m *UserMutation) AddedField(name string) (ent.Value, bool) {
 // type.
 func (m *UserMutation) AddField(name string, value ent.Value) error {
 	switch name {
+	case user.FieldGiftsSent:
+		v, ok := value.(int32)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddGiftsSent(v)
+		return nil
 	}
 	return fmt.Errorf("unknown User numeric field %s", name)
 }
@@ -4211,6 +4298,9 @@ func (m *UserMutation) ResetField(name string) error {
 		return nil
 	case user.FieldBillingEventID:
 		m.ResetBillingEventID()
+		return nil
+	case user.FieldGiftsSent:
+		m.ResetGiftsSent()
 		return nil
 	case user.FieldCreatedAt:
 		m.ResetCreatedAt()
