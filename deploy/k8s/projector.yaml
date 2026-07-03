@@ -21,7 +21,7 @@ metadata:
   annotations:
     secrets.doppler.com/reload: "true"
 spec:
-  replicas: 4 # one per node; 4 schedulable nodes incl worker1 (tolerates worker-pool)
+  replicas: 3 # one per node; 3 schedulable nodes incl worker1 (tolerates worker-pool); node3 decommissioned
   revisionHistoryLimit: 3
   minReadySeconds: 10
   strategy:
