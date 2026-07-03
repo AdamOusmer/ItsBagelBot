@@ -100,14 +100,3 @@ bustest
 /test_templ_templ.go
 /test_htmx.html
 /test-env.yaml
-/start_server.sh
-
-# Legacy build/deploy scripts (superseded by Flux GitOps; see deploy/flux/README.md)
-/build_all.sh
-/build_and_deploy_fixed.sh
-/build_dashboard_only.sh
-/build_local.sh
-/build_outgress.sh
-/build_users.sh
-/deploy_only.sh
-/update_manifests.sh
