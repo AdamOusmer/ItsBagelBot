@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 
+	"ItsBagelBot/internal/domain/validate"
+
 	"github.com/resend/resend-go/v3"
 )
 
@@ -27,17 +29,25 @@ func New(apiKey, from, dashboardURL string) *Mailer {
 }
 
 // SendGift emails the "you received premium" note. giftedByLogin may be
-// empty (anonymous gift copy is used). idempotencyKey collapses Tebex webhook
-// retries into a single send on Resend's side, mirroring the in-app
-// notification's request id dedupe.
-func (m *Mailer) SendGift(ctx context.Context, to, giftedByLogin, idempotencyKey string) error {
+// empty (anonymous gift copy is used). personalMessage is the buyer's optional
+// note, already sanitized/capped upstream; empty falls back to the default
+// copy. idempotencyKey collapses Tebex webhook retries into a single send on
+// Resend's side, mirroring the in-app notification's request id dedupe.
+func (m *Mailer) SendGift(ctx context.Context, to, giftedByLogin, personalMessage, idempotencyKey string) error {
+
+	// Defense in depth: the note is link-checked at checkout, but a basket
+	// crafted directly against Tebex could still carry one. Drop the note
+	// rather than email a link to the recipient; the default copy stands in.
+	if personalMessage != "" && validate.ContainsLink(personalMessage) {
+		personalMessage = ""
+	}
 
 	subject := "You've been gifted a month of Premium 🥯"
 	if giftedByLogin != "" {
 		subject = fmt.Sprintf("%s gifted you a month of Premium 🥯", giftedByLogin)
 	}
 
-	html, err := giftHTML(giftedByLogin, m.dashboardURL)
+	html, err := giftHTML(giftedByLogin, personalMessage, m.dashboardURL)
 	if err != nil {
 		return fmt.Errorf("render gift email: %w", err)
 	}
@@ -47,7 +57,7 @@ func (m *Mailer) SendGift(ctx context.Context, to, giftedByLogin, idempotencyKey
 		To:      []string{to},
 		Subject: subject,
 		Html:    html,
-		Text:    giftText(giftedByLogin, m.dashboardURL),
+		Text:    giftText(giftedByLogin, personalMessage, m.dashboardURL),
 	}, &resend.SendEmailOptions{IdempotencyKey: idempotencyKey})
 	if err != nil {
 		return fmt.Errorf("resend send: %w", err)

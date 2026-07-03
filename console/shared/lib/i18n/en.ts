@@ -246,6 +246,7 @@ export const en = {
     messageLabel: 'Message',
     optional: '(optional)',
     messagePlaceholder: 'Say something nice — it rides along in their gift email.',
+    giftNoteLink: "Gift notes can't contain links or web addresses. Please remove it and try again.",
     giftSent: 'Gift sent 🎁',
     giftSentNamedPre: 'We let ',
     giftSentNamedPost: ' know — their month of Premium is activating now.',
