@@ -56,30 +56,10 @@ func (r *Users) ApplyBilling(ctx context.Context, req billingrpc.ApplyRequest) (
 		)
 		switch req.Action {
 		case billingrpc.ActionActivate, billingrpc.ActionCancelAborted:
-			q.SetStatus(user.StatusPaid).
-				SetSubscriptionSource("tebex").
-				SetSubscriptionCancelPending(false).
-				SetBillingEventAt(req.OccurredAt).
-				SetBillingEventID(req.EventID)
-			if req.ExpiresAt != nil {
-				q.SetSubscriptionExpiresAt(*req.ExpiresAt)
-			}
-			if req.RecurringReference != "" {
-				q.SetSubscriptionRef(req.RecurringReference)
-			}
+			applyPaidUpdate(q, req, false)
 
 		case billingrpc.ActionCancelRequested:
-			q.SetStatus(user.StatusPaid).
-				SetSubscriptionSource("tebex").
-				SetSubscriptionCancelPending(true).
-				SetBillingEventAt(req.OccurredAt).
-				SetBillingEventID(req.EventID)
-			if req.ExpiresAt != nil {
-				q.SetSubscriptionExpiresAt(*req.ExpiresAt)
-			}
-			if req.RecurringReference != "" {
-				q.SetSubscriptionRef(req.RecurringReference)
-			}
+			applyPaidUpdate(q, req, true)
 
 		case billingrpc.ActionRevoke:
 			q.SetStatus(user.StatusFree).
@@ -98,20 +78,44 @@ func (r *Users) ApplyBilling(ctx context.Context, req billingrpc.ApplyRequest) (
 	if err != nil || updated == 0 {
 		return false, err
 	}
-	// A first-time gift activation bumps the gifter's counter. Idempotent: a
-	// replay of the same event returns early above, so this runs exactly once
-	// per gift. Best-effort: a counter failure must never fail the already
-	// applied entitlement (that would make Tebex retry and re-apply), so its
-	// error is intentionally dropped.
-	if req.Action == billingrpc.ActionActivate && req.GifterID != 0 && req.GifterID != req.UserID {
-		_ = db.WithExec(ctx, func(ctx context.Context) error {
-			return r.client.User.Update().Where(user.IDEQ(req.GifterID)).AddGiftsSent(1).Exec(ctx)
-		})
-	}
+	r.countGiftForGifter(ctx, req)
 	if err := r.publishChanged(ctx, req.UserID); err != nil {
 		return false, err
 	}
 	return true, nil
+}
+
+// countGiftForGifter bumps the gifter's gifts_sent by one when this apply is a
+// first-time gift activation (a gift carries a non-zero GifterID distinct from
+// the recipient; self-purchases and renewals do not). Idempotent because event
+// replays return early in ApplyBilling before this runs, so a gift counts once.
+// Best-effort: a counter failure must never fail the already applied
+// entitlement (that would make Tebex retry and re-apply), so its error is
+// intentionally dropped.
+func (r *Users) countGiftForGifter(ctx context.Context, req billingrpc.ApplyRequest) {
+	if req.Action != billingrpc.ActionActivate || req.GifterID == 0 || req.GifterID == req.UserID {
+		return
+	}
+	_ = db.WithExec(ctx, func(ctx context.Context) error {
+		return r.client.User.Update().Where(user.IDEQ(req.GifterID)).AddGiftsSent(1).Exec(ctx)
+	})
+}
+
+// applyPaidUpdate sets the paid-tier fields common to a Tebex activation and a
+// cancellation-requested event; the two differ only in whether the cancellation
+// is pending. One place, so the update chain is not duplicated per action.
+func applyPaidUpdate(q *ent.UserUpdate, req billingrpc.ApplyRequest, cancelPending bool) {
+	q.SetStatus(user.StatusPaid).
+		SetSubscriptionSource("tebex").
+		SetSubscriptionCancelPending(cancelPending).
+		SetBillingEventAt(req.OccurredAt).
+		SetBillingEventID(req.EventID)
+	if req.ExpiresAt != nil {
+		q.SetSubscriptionExpiresAt(*req.ExpiresAt)
+	}
+	if req.RecurringReference != "" {
+		q.SetSubscriptionRef(req.RecurringReference)
+	}
 }
 
 // SetAdminStatus owns operator grants. Paid grants require an expiry and are
