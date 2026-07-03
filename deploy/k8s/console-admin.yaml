@@ -36,7 +36,7 @@ metadata:
   annotations:
     secrets.doppler.com/reload: "true"
 spec:
-  replicas: 4 # +1; no worker toleration so it doubles on a normal node (soft spread), never worker1
+  replicas: 3 # no worker toleration: runs on the 2 normal nodes (soft spread), never worker1; node3 decommissioned
   revisionHistoryLimit: 3
   minReadySeconds: 10
   strategy:
