@@ -4,6 +4,11 @@
  * lines, each with a full-row link, its own status light, a human note, and
  * (for email lines) a click-to-copy chip wired through interactions.js.
  */
+import { getLangFromUrl, useTranslations } from '../../i18n/ui';
+
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+
 interface Line {
     index: string;
     title: string;
@@ -19,16 +24,16 @@ const lines: Line[] = [
     {
         index: '01',
         title: 'Discord',
-        note: "The fast lane. The community usually answers before we're even awake.",
+        note: t('board.l1Note'),
         href: 'https://discord.gg/SZ2remwSDv',
-        hint: 'usually minutes',
+        hint: t('board.l1Hint'),
         external: true,
         tone: 'green',
     },
     {
         index: '02',
         title: 'Support',
-        note: 'Account trouble, bug reports, or a question you want answered in writing.',
+        note: t('board.l2Note'),
         href: 'mailto:support@itsbagelbot.com',
         hint: 'support@itsbagelbot.com',
         copy: 'support@itsbagelbot.com',
@@ -37,7 +42,7 @@ const lines: Line[] = [
     {
         index: '03',
         title: 'Enterprise',
-        note: 'Running many channels? Dedicated hardware and custom SLAs live here.',
+        note: t('board.l3Note'),
         href: 'mailto:enterprise@itsbagelbot.com',
         hint: 'enterprise@itsbagelbot.com',
         copy: 'enterprise@itsbagelbot.com',
@@ -46,9 +51,9 @@ const lines: Line[] = [
     {
         index: '04',
         title: 'GitHub',
-        note: 'Read the source, audit the code, file issues where we track the work.',
+        note: t('board.l4Note'),
         href: 'https://github.com/AdamOusmer/ItsBagelBot',
-        hint: 'source available',
+        hint: t('board.l4Hint'),
         external: true,
         tone: 'green',
     },
@@ -82,7 +87,7 @@ const lines: Line[] = [
                             type="button"
                             class="line__copy"
                             data-copy={line.copy}
-                            aria-label={`Copy ${line.copy}`}
+                            aria-label={`${t('board.copy')} ${line.copy}`}
                         >
                             <span class="line__hint">{line.hint}</span>
                             <span class="line__copy-icon line__copy-icon--default" aria-hidden="true">
@@ -107,7 +112,7 @@ const lines: Line[] = [
     </div>
 
     <p class="board__note" data-reveal style="--reveal-i: 4">
-        Small team, real inboxes. We read everything, usually within a day. We do sleep sometimes.
+        {t('board.note')}
     </p>
 </section>
 

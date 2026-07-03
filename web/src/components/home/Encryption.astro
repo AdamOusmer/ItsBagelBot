@@ -1,4 +1,8 @@
 ---
+import { getLangFromUrl, useTranslations } from '../../i18n/ui';
+
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
 ---
 
 <section class="enc" id="enc-section">
@@ -30,29 +34,27 @@
         </div>
 
         <div class="enc-overlay" id="enc-ov-0">
-            <span class="enc-eyebrow">End-to-End Encryption</span>
-            <h2 class="enc-h2">Encrypted by design.</h2>
-            <p class="enc-p">Your data stays private from origin to destination. No middlemen, no tracking, no
-                compromise.</p>
+            <span class="enc-eyebrow">{t('enc.p1Eyebrow')}</span>
+            <h2 class="enc-h2">{t('enc.p1Title')}</h2>
+            <p class="enc-p">{t('enc.p1Desc')}</p>
         </div>
 
         <div class="enc-overlay enc-overlay--right" id="enc-ov-1">
-            <span class="enc-eyebrow">Distributed Network</span>
-            <h2 class="enc-h2">Every node, every link, secured.</h2>
-            <p class="enc-p">A web of independent services, each verifying the other. No single weak link.</p>
+            <span class="enc-eyebrow">{t('enc.p2Eyebrow')}</span>
+            <h2 class="enc-h2">{t('enc.p2Title')}</h2>
+            <p class="enc-p">{t('enc.p2Desc')}</p>
         </div>
 
         <div class="enc-overlay" id="enc-ov-2">
-            <span class="enc-eyebrow">Powerful Architecture</span>
-            <h2 class="enc-h2">Built to withstand.</h2>
-            <p class="enc-p">Built for optimization and throughput. Every systems are engineered to maximize
-                performance, efficiency and security with latest enterprise standards.</p>
+            <span class="enc-eyebrow">{t('enc.p3Eyebrow')}</span>
+            <h2 class="enc-h2">{t('enc.p3Title')}</h2>
+            <p class="enc-p">{t('enc.p3Desc')}</p>
         </div>
 
         <div class="enc-overlay enc-overlay--right" id="enc-ov-3">
-            <span class="enc-eyebrow">Yours · Always</span>
-            <h2 class="enc-h2">Yours, forever.</h2>
-            <p class="enc-p">Source available, privacy-first. The way streaming infrastructure should be.</p>
+            <span class="enc-eyebrow">{t('enc.p4Eyebrow')}</span>
+            <h2 class="enc-h2">{t('enc.p4Title')}</h2>
+            <p class="enc-p">{t('enc.p4Desc')}</p>
         </div>
 
     </div>

@@ -6,6 +6,11 @@
  * real input) talk to the bot. Everything is DOM + textContent; no innerHTML
  * for anything user-typed.
  */
+import { getLangFromUrl, useTranslations } from '../../i18n/ui';
+
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+
 const chips = [
     { cmd: '!bagel', label: '!bagel' },
     { cmd: '!song', label: '!song' },
@@ -16,11 +21,10 @@ const chips = [
 
 <section class="play" id="playground">
     <div class="play__copy">
-        <span class="play__eyebrow" data-reveal>No demo video. The real thing.</span>
-        <h2 class="play__title" data-reveal style="--reveal-i: 1">Go on, poke it.</h2>
+        <span class="play__eyebrow" data-reveal>{t('play.eyebrow')}</span>
+        <h2 class="play__title" data-reveal style="--reveal-i: 1">{t('play.title')}</h2>
         <p class="play__sub" data-reveal style="--reveal-i: 2">
-            Past the cryptography, this is what your viewers actually meet: a bot
-            sitting quietly in chat. Try a command. Send some spam. Watch what happens.
+            {t('play.sub')}
         </p>
 
         <div class="play__chips" data-reveal style="--reveal-i: 3">
@@ -28,12 +32,12 @@ const chips = [
                 <button type="button" class="play__chip" data-play-cmd={chip.cmd}>{chip.label}</button>
             ))}
             <button type="button" class="play__chip play__chip--evil" data-play-spam>
-                send spam<span aria-hidden="true"> ☠</span>
+                {t('play.sendSpam')}<span aria-hidden="true"> ☠</span>
             </button>
         </div>
 
         <p class="play__hint" data-reveal style="--reveal-i: 4">
-            The bot only speaks when spoken to. Chat stays yours.
+            {t('play.hint')}
         </p>
     </div>
 
@@ -42,10 +46,10 @@ const chips = [
             <div class="play__bar">
                 <span class="play__dot" aria-hidden="true"></span>
                 <span class="play__channel">#your_channel</span>
-                <span class="play__live">live</span>
+                <span class="play__live">{t('play.live')}</span>
             </div>
 
-            <div class="play__feed" data-play-feed role="log" aria-label="Simulated Twitch chat"></div>
+            <div class="play__feed" data-play-feed role="log" aria-label={t('play.feedAria')}></div>
 
             <form class="play__composer" data-play-form>
                 <input
@@ -53,12 +57,12 @@ const chips = [
                     data-play-input
                     type="text"
                     maxlength="80"
-                    placeholder="try !bagel"
-                    aria-label="Type a chat message"
+                    placeholder={t('play.inputPlaceholder')}
+                    aria-label={t('play.inputAria')}
                     autocomplete="off"
                     spellcheck="false"
                 />
-                <button class="play__send" type="submit" aria-label="Send message">↵</button>
+                <button class="play__send" type="submit" aria-label={t('play.sendAria')}>↵</button>
             </form>
         </div>
     </div>
