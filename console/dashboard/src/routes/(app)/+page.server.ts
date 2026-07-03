@@ -133,14 +133,19 @@ export const load: PageServerLoad = ({ locals }) => {
 };
 
 export const actions: Actions = {
-  // Enable: mark the channel active and atomically (re)create EventSub subs.
+  // Enable: mark the channel active and create the EventSub subs. This is a
+  // plain create (enabled=true), not a reconnect: a first-time or re-enable has
+  // nothing to drop, and the creates are 409-idempotent, so drop-then-recreate
+  // would only add a needless delete pass and reset Twitch's conduit routing
+  // propagation for the fresh channel.chat.message sub. Use restart (below) for
+  // an intentional drop+recreate of an already-connected channel.
   enable: async ({ locals }) => {
     if (locals.session?.delegate_of) return fail(403);
     const uid = locals.session?.user_id;
     if (!uid) return fail(401);
     try {
       await setActive(uid, true);
-      await publishEventSubReconnect(uid);
+      await publishEventSub(uid, true);
       auditDashboardImpersonation(locals.session, 'enable');
       return { ok: true, action: 'enable' };
     } catch {
