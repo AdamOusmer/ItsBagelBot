@@ -233,6 +233,27 @@ func (_u *UserUpdate) ClearBillingEventID() *UserUpdate {
 	return _u
 }
 
+// SetGiftsSent sets the "gifts_sent" field.
+func (_u *UserUpdate) SetGiftsSent(v uint32) *UserUpdate {
+	_u.mutation.ResetGiftsSent()
+	_u.mutation.SetGiftsSent(v)
+	return _u
+}
+
+// SetNillableGiftsSent sets the "gifts_sent" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableGiftsSent(v *uint32) *UserUpdate {
+	if v != nil {
+		_u.SetGiftsSent(*v)
+	}
+	return _u
+}
+
+// AddGiftsSent adds value to the "gifts_sent" field.
+func (_u *UserUpdate) AddGiftsSent(v int32) *UserUpdate {
+	_u.mutation.AddGiftsSent(v)
+	return _u
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_u *UserUpdate) SetCreatedAt(v time.Time) *UserUpdate {
 	_u.mutation.SetCreatedAt(v)
@@ -420,6 +441,12 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if _u.mutation.BillingEventIDCleared() {
 		_spec.ClearField(user.FieldBillingEventID, field.TypeString)
+	}
+	if value, ok := _u.mutation.GiftsSent(); ok {
+		_spec.SetField(user.FieldGiftsSent, field.TypeUint32, value)
+	}
+	if value, ok := _u.mutation.AddedGiftsSent(); ok {
+		_spec.AddField(user.FieldGiftsSent, field.TypeUint32, value)
 	}
 	if value, ok := _u.mutation.CreatedAt(); ok {
 		_spec.SetField(user.FieldCreatedAt, field.TypeTime, value)
@@ -696,6 +723,27 @@ func (_u *UserUpdateOne) ClearBillingEventID() *UserUpdateOne {
 	return _u
 }
 
+// SetGiftsSent sets the "gifts_sent" field.
+func (_u *UserUpdateOne) SetGiftsSent(v uint32) *UserUpdateOne {
+	_u.mutation.ResetGiftsSent()
+	_u.mutation.SetGiftsSent(v)
+	return _u
+}
+
+// SetNillableGiftsSent sets the "gifts_sent" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableGiftsSent(v *uint32) *UserUpdateOne {
+	if v != nil {
+		_u.SetGiftsSent(*v)
+	}
+	return _u
+}
+
+// AddGiftsSent adds value to the "gifts_sent" field.
+func (_u *UserUpdateOne) AddGiftsSent(v int32) *UserUpdateOne {
+	_u.mutation.AddGiftsSent(v)
+	return _u
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_u *UserUpdateOne) SetCreatedAt(v time.Time) *UserUpdateOne {
 	_u.mutation.SetCreatedAt(v)
@@ -913,6 +961,12 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	}
 	if _u.mutation.BillingEventIDCleared() {
 		_spec.ClearField(user.FieldBillingEventID, field.TypeString)
+	}
+	if value, ok := _u.mutation.GiftsSent(); ok {
+		_spec.SetField(user.FieldGiftsSent, field.TypeUint32, value)
+	}
+	if value, ok := _u.mutation.AddedGiftsSent(); ok {
+		_spec.AddField(user.FieldGiftsSent, field.TypeUint32, value)
 	}
 	if value, ok := _u.mutation.CreatedAt(); ok {
 		_spec.SetField(user.FieldCreatedAt, field.TypeTime, value)
