@@ -1,8 +1,11 @@
 ---
 ---
 
-<div class="cursor" id="cursor"></div>
-<div class="cursor-ring" id="cursorRing"></div>
+<!-- Persisted across navigations: the script grabs these once and drives them
+     with a rAF loop, so they must survive the view-transition swap or the
+     cursor would freeze at its default corner until the next mousemove. -->
+<div class="cursor" id="cursor" transition:persist></div>
+<div class="cursor-ring" id="cursorRing" transition:persist></div>
 
 <style>
     /* ── dot ── */
@@ -170,10 +173,12 @@
         document.addEventListener('pointerout',   onOut,  { passive: true });
         document.addEventListener('visibilitychange', () => document.hidden || start());
 
-        // Support Astro View Transitions — re-register after each navigation.
+        // Support Astro View Transitions. The dot/ring are transition:persist,
+        // so their references stay valid and no listeners need re-binding; just
+        // re-assert the cursor-hiding class (a swap can reset <html>) and make
+        // sure the loop is running.
         document.addEventListener('astro:page-load', () => {
-            // No-op: event delegation means no per-element listeners to re-bind.
-            // Just restart the loop in case it was paused.
+            document.documentElement.classList.add('bb-cursor-on');
             start();
         });
     }
