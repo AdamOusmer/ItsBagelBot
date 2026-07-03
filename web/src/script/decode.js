@@ -3,10 +3,27 @@
  * encryption scene as a shared utility. Tag an element `data-decode`; the
  * first time it scrolls into view its text scrambles, then resolves
  * character-by-character. Honors reduced-motion (shows final text instantly).
+ *
+ * The scramble is a first-impression flourish: it plays on the initial page
+ * load, but on client-side navigations (Astro view transitions) the text is
+ * resolved immediately. Running the per-frame scramble during a page
+ * transition thrashed the main thread and made the transition stutter.
  */
 
 const SCRAMBLE = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#$%&*+-/<>";
 const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+// In-flight scramble frames + observers, tracked so a navigation can cancel
+// them instead of leaving them to run against the incoming page.
+const runningFrames = new Set();
+const observers = new Set();
+
+function cancelAll() {
+    runningFrames.forEach((id) => cancelAnimationFrame(id));
+    runningFrames.clear();
+    observers.forEach((observer) => observer.disconnect());
+    observers.clear();
+}
 
 function runDecode(el, text) {
     if (reduceMotion.matches) {
@@ -17,8 +34,10 @@ function runDecode(el, text) {
     const chars = Array.from(text);
     const duration = Math.min(1000, 380 + chars.length * 26);
     const start = performance.now();
+    let frameId;
 
     function tick(now) {
+        runningFrames.delete(frameId);
         const progress = Math.min(1, (now - start) / duration);
         const revealCount = Math.floor(chars.length * progress);
         const t = Math.floor(progress * 22);
@@ -31,36 +50,55 @@ function runDecode(el, text) {
             })
             .join("");
 
-        if (progress < 1) requestAnimationFrame(tick);
-        else el.textContent = text;
+        if (progress < 1) {
+            frameId = requestAnimationFrame(tick);
+            runningFrames.add(frameId);
+        } else {
+            el.textContent = text;
+        }
     }
 
-    requestAnimationFrame(tick);
+    frameId = requestAnimationFrame(tick);
+    runningFrames.add(frameId);
 }
 
-function setupDecode(el) {
+// scramble=true animates on scroll-in; false resolves the text instantly
+// (used on navigations so nothing runs during the page transition).
+function setupDecode(el, scramble) {
     if (el.dataset.decodeReady === "true") return;
     el.dataset.decodeReady = "true";
 
     const text = (el.dataset.decode && el.dataset.decode.length ? el.dataset.decode : el.textContent) ?? "";
+
+    if (!scramble) {
+        el.textContent = text;
+        return;
+    }
 
     const observer = new IntersectionObserver(
         (entries) => {
             entries.forEach((entry) => {
                 if (!entry.isIntersecting) return;
                 observer.unobserve(entry.target);
+                observers.delete(observer);
                 runDecode(entry.target, text);
             });
         },
         { threshold: 0.45 },
     );
 
+    observers.add(observer);
     observer.observe(el);
 }
 
+let firstLoad = true;
 function setup() {
-    document.querySelectorAll("[data-decode]").forEach(setupDecode);
+    document.querySelectorAll("[data-decode]").forEach((el) => setupDecode(el, firstLoad));
 }
 
 setup();
-document.addEventListener("astro:page-load", setup);
+document.addEventListener("astro:before-swap", cancelAll);
+document.addEventListener("astro:page-load", () => {
+    firstLoad = false;
+    setup();
+});
