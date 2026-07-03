@@ -56,7 +56,7 @@ flowchart LR
 
 ### ACL shape
 
-The policy is committed as code at `deploy/tailscale/policy.hujson` and pasted/applied to the admin
+The policy is committed as code at `deploy/infra/tailscale/policy.hujson` and pasted/applied to the admin
 console; it is **default-deny** (grants only). The posture in one sentence: **bare metal accepts only
 SSH from operator devices; everything Kubernetes-hosted is reached through Tailscale operator proxies.**
 
