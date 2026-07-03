@@ -280,6 +280,23 @@
 
   @media (max-width: 760px) {
     .dock { padding: 0 8px calc(8px + env(safe-area-inset-bottom)); }
+    /* Full-bleed veil behind the pill: fades the scrolling page out and paints
+       the canvas colour solid across the home-indicator strip, so nothing shows
+       through the gaps around the floating dock. */
+    .dock::before {
+      content: "";
+      position: absolute;
+      inset: -22px 0 0;
+      background: linear-gradient(
+        to top,
+        var(--bb-bg-0) 0%,
+        var(--bb-bg-0) 46%,
+        rgba(10, 10, 10, 0.72) 72%,
+        transparent 100%
+      );
+      pointer-events: none;
+      z-index: -1;
+    }
     .dock-inner { width: 100%; justify-content: space-around; }
     .dock-item { min-width: 0; flex: 1; padding: 8px 6px 7px; }
     .group-wrap { flex: 1; }

@@ -285,8 +285,12 @@ const isActive = (href: string) =>
         top: 0;
         left: 0;
         width: 100%;
-        height: var(--nav-height, 76px);
-        padding: 0 max(24px, 4vw);
+        /* Grow up into the notch so the blurred bar paints the safe area; the
+           top padding pushes the button row back down to its normal band. */
+        height: calc(var(--nav-height, 76px) + env(safe-area-inset-top, 0px));
+        padding-top: env(safe-area-inset-top, 0px);
+        padding-bottom: 0;
+        padding-inline: max(24px, 4vw, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
         border-bottom: var(--border) 1px solid;
         z-index: 50;
         backdrop-filter: blur(12px);
@@ -351,7 +355,7 @@ const isActive = (href: string) =>
 
     @media (max-width: 1120px) {
         .site-nav {
-            padding-inline: 28px;
+            padding-inline: max(28px, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
         }
 
         .site-nav__inner {
@@ -375,7 +379,7 @@ const isActive = (href: string) =>
 
     @media (max-width: 1023px) {
         .site-nav {
-            padding-inline: 24px;
+            padding-inline: max(24px, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
         }
 
         .site-nav__inner {
@@ -391,7 +395,7 @@ const isActive = (href: string) =>
 
     @media (max-width: 420px) {
         .site-nav {
-            padding-inline: 18px;
+            padding-inline: max(18px, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
         }
 
         .logo span {

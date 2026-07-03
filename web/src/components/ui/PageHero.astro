@@ -33,7 +33,7 @@ const { eyebrow, title, description } = Astro.props;
         justify-content: center;
         text-align: center;
         min-height: clamp(56vh, 70vh, 80vh);
-        padding: calc(var(--nav-height, 76px) + 80px) 24px 80px;
+        padding: calc(var(--nav-offset, 76px) + 80px) 24px 80px;
         max-width: none;
         margin: 0;
     }
@@ -124,6 +124,6 @@ const { eyebrow, title, description } = Astro.props;
     }
 
     @media (max-width: 640px) {
-        .phero { min-height: 60vh; padding: calc(var(--nav-height, 68px) + 56px) 20px 56px; }
+        .phero { min-height: 60vh; padding: calc(var(--nav-offset, 68px) + 56px) 20px 56px; }
     }
 </style>
