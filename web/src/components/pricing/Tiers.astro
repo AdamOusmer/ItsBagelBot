@@ -224,6 +224,11 @@ const enterpriseFeatures = [
         z-index: 1;
     }
 
+    /* The badge straddles the top of the card body (its positioned ancestor),
+       so the premium card drops its content down to clear it — otherwise the
+       ribbon sits on top of the "Premium" title. */
+    .tier--premium :global(.card__body) { padding-top: 22px; }
+
     .tier__name {
         display: block;
         font-family: var(--font-display, "Syne", sans-serif);
