@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="supported-color-schemes" content="dark">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Caveat:wght@600&display=swap');
+</style>
+<!-- EDIT: browser/tab title. Most inboxes ignore it; harmless to leave. -->
+<title>ItsBagelBot Support</title>
+</head>
+<!--
+  ==========================================================================
+  ItsBagelBot support email  ·  paste-ready template
+  --------------------------------------------------------------------------
+  Mirrors the transactional gift email (app/transactions/mail/gift_template.go)
+  and the marketing design system (web/src/styles/style.css): near-black
+  canvas with fractal-noise grain, warm tan accents, green for "done" states,
+  pill button, 16px card, Syne display type, Caveat signature.
+
+  HOW TO USE
+    1. Find every [[ ... ]] marker below and replace it with your copy.
+    2. Delete any optional block whose banner comment says so (the note
+       callout and the button are both optional).
+    3. Paste the whole file into your sender (Resend dashboard "HTML",
+       Gmail via a paste-HTML add-on, or your help desk's raw-HTML editor).
+    4. Also paste support-email.txt as the plain-text alternative so
+       text-only clients get a clean version.
+
+  RULES (email clients are picky, do not "clean this up"):
+    - Keep the table layout and inline styles. No external CSS, no <div> grids.
+    - Do not add remote images beyond the logo; many clients block them.
+    - Fonts load via @import with system fallbacks. If a client strips the
+       webfont the layout still holds, it just uses Arial/Helvetica.
+  ==========================================================================
+-->
+<body style="margin:0;padding:0;background-color:#0a0a0a;">
+
+<!-- EDIT: preheader = the grey preview line shown in the inbox list, next to
+     the subject. Keep it short. It is hidden inside the email body itself. -->
+<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">[[PREHEADER — one-line inbox preview, e.g. We looked into your Premium question.]]</div>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#0a0a0a" style="background-color:#0a0a0a;background-image:url(&quot;data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.055'/%3E%3C/svg%3E&quot;);">
+<tr><td align="center" style="padding:40px 16px 48px;">
+
+  <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="width:560px;max-width:100%;">
+
+    <!-- logo + wordmark, centered -->
+    <tr><td align="center" style="padding:0 0 14px;">
+      <img src="https://itsbagelbot.com/logo.png" width="52" height="52" alt="" style="display:inline-block;width:52px;height:52px;vertical-align:middle;">
+      <span style="font-family:'Syne','Avenir Next','Helvetica Neue',Arial,sans-serif;font-size:20px;font-weight:800;letter-spacing:0.01em;color:#f0ece4;vertical-align:middle;padding-left:12px;">ItsBagelBot</span>
+    </td></tr>
+
+    <!-- verified-sender strip. Ships on EVERY ItsBagelBot email, unchanged, so
+         recipients learn to recognise it at a glance: green tick + our domain.
+         Do not personalise or remove it. -->
+    <tr><td align="center" style="padding:0 0 26px;">
+      <span style="font-family:'DM Mono',Menlo,Consolas,monospace;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:#52b788;">&#10003;&nbsp; Official ItsBagelBot email &middot; itsbagelbot.com</span>
+    </td></tr>
+
+    <!-- card -->
+    <tr><td style="background-color:#111110;border:1px solid #2b241b;border-radius:16px;overflow:hidden;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+
+        <!-- accent bar -->
+        <tr><td height="3" bgcolor="#c9a87c" style="height:3px;background:linear-gradient(90deg,#c9a87c,#52b788);font-size:0;line-height:0;">&nbsp;</td></tr>
+
+        <tr><td style="padding:40px 40px 36px;">
+
+          <!-- EDIT: eyebrow / kicker. Small uppercase label above the heading. -->
+          <div style="font-family:'DM Mono',Menlo,Consolas,monospace;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#c9a87c;padding-bottom:18px;">
+            [[EYEBROW — e.g. Support &middot; Reply]]
+          </div>
+
+          <!-- EDIT: headline. One short line. Use &nbsp; between the last two
+               words to stop an ugly single word wrapping alone. -->
+          <div style="font-family:'Syne','Avenir Next','Helvetica Neue',Arial,sans-serif;font-size:30px;line-height:1.15;font-weight:800;color:#f0ece4;padding-bottom:16px;">
+            [[HEADING — e.g. We sorted&nbsp;that out.]]
+          </div>
+
+          <!-- EDIT: body. Write to the customer. Duplicate this whole <div>
+               for each extra paragraph. <a> links use the tan style shown. -->
+          <div style="font-family:'DM Sans','Helvetica Neue',Arial,sans-serif;font-size:15px;line-height:1.65;color:#a89f92;padding-bottom:20px;">
+            [[BODY PARAGRAPH — plain sentences. Bold with
+            <strong style="color:#e0c49a;font-weight:600;">this span</strong>,
+            link with
+            <a href="https://example.com" style="color:#c9a87c;text-decoration:underline;">a tan link</a>.]]
+          </div>
+
+          <!-- ============ OPTIONAL: highlight / note callout ============
+               Use to surface an order id, steps, or a quote. DELETE this
+               whole comment + table if you do not need it. -->
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px;">
+            <tr><td style="background-color:#0d0d0c;border:1px solid #2b241b;border-left:3px solid #c9a87c;border-radius:8px;padding:16px 18px;">
+              <div style="font-family:'DM Mono',Menlo,Consolas,monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#c9a87c;padding-bottom:9px;">[[NOTE LABEL — e.g. Your order]]</div>
+              <div style="font-family:'DM Sans','Helvetica Neue',Arial,sans-serif;font-size:15px;line-height:1.6;color:#d8d0c4;">[[NOTE BODY — the highlighted detail.]]</div>
+            </td></tr>
+          </table>
+          <!-- ============ /OPTIONAL note callout ============ -->
+
+          <!-- ============ OPTIONAL: status line ============
+               Green "done" line, matches the gift email's "Active now".
+               DELETE if not relevant. -->
+          <div style="font-family:'DM Mono',Menlo,Consolas,monospace;font-size:12px;letter-spacing:0.5px;color:#52b788;padding-bottom:26px;">
+            [[STATUS — e.g. Resolved on your account now]]
+          </div>
+          <!-- ============ /OPTIONAL status line ============ -->
+
+          <!-- divider -->
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr><td height="1" style="height:1px;background-color:#2b241b;font-size:0;line-height:0;">&nbsp;</td></tr>
+          </table>
+
+          <!-- ============ OPTIONAL: call-to-action button ============
+               DELETE this whole comment + table if the email needs no button. -->
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:30px;">
+            <tr><td bgcolor="#c9a87c" style="border-radius:100px;">
+              <a href="[[CTA URL — https://...]]" style="display:inline-block;padding:13px 30px;font-family:'DM Sans','Helvetica Neue',Arial,sans-serif;font-size:14px;font-weight:700;color:#0a0a0a;text-decoration:none;border-radius:100px;">
+                [[CTA LABEL — e.g. Open your dashboard &rarr;]]
+              </a>
+            </td></tr>
+          </table>
+          <!-- ============ /OPTIONAL call-to-action button ============ -->
+
+          <!-- sign-off: handwritten signature + bagel stamp, from the site's
+               story section. EDIT only the name line if you want. -->
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:36px;">
+            <tr>
+              <td valign="middle">
+                <span style="display:inline-block;">
+                  <span style="font-family:'Caveat',cursive;font-size:26px;font-weight:600;line-height:1;color:#e0c49a;">the ItsBagelBot support team</span>
+                  <span style="display:block;height:2px;margin-top:8px;border-radius:2px;background-color:#c9a87c;background-image:linear-gradient(90deg,rgba(201,168,124,0.7),rgba(82,183,136,0.5));font-size:0;line-height:0;">&nbsp;</span>
+                </span>
+              </td>
+              <td valign="middle" align="right" width="66">
+                <div style="display:inline-block;width:55px;height:55px;line-height:55px;text-align:center;font-size:24px;border:1.5px dashed rgba(201,168,124,0.4);border-radius:50%;transform:rotate(8deg);">&#129391;</div>
+              </td>
+            </tr>
+          </table>
+
+        </td></tr>
+      </table>
+    </td></tr>
+
+    <!-- anti-phishing notice. Ships on EVERY email, unchanged. Do not water
+         it down: it is the line that protects users from spoofed mail. -->
+    <tr><td style="padding:30px 8px 0;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr><td height="1" style="height:1px;background-color:#2b241b;font-size:0;line-height:0;">&nbsp;</td></tr>
+      </table>
+      <div style="padding:16px 14px 0;font-family:'DM Sans','Helvetica Neue',Arial,sans-serif;font-size:12px;line-height:1.7;color:#888077;text-align:center;">
+        <span style="color:#c9a87c;font-weight:600;">&#128274; Staying safe.</span>
+        ItsBagelBot will never ask for your password, payment or card details, or login and verification codes by email. We only send from <span style="color:#a89f92;">@itsbagelbot.com</span>. If a message asks for any of that, it isn't us. Ignore it and reach the real team on <a href="https://discord.gg/SZ2remwSDv" style="color:#c9a87c;text-decoration:none;">Discord</a>.
+      </div>
+    </td></tr>
+
+    <!-- footer. EDIT the reason line if you like; keep the site link. -->
+    <tr><td align="center" style="padding:18px 20px 0;font-family:'DM Sans','Helvetica Neue',Arial,sans-serif;font-size:12px;line-height:1.7;color:#888077;">
+      Sent by ItsBagelBot support in reply to your message. Just reply to reach us again.<br>
+      <a href="https://itsbagelbot.com" style="color:#c9a87c;text-decoration:none;">itsbagelbot.com</a>
+    </td></tr>
+
+  </table>
+
+</td></tr>
+</table>
+</body>
+</html>
