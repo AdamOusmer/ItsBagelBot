@@ -107,7 +107,7 @@ const { updated, sections } = Astro.props;
         .lshell__toc {
             display: block;
             position: sticky;
-            top: calc(var(--nav-height, 76px) + 32px);
+            top: calc(var(--nav-offset, 76px) + 32px);
             align-self: start;
         }
     }
@@ -174,7 +174,7 @@ const { updated, sections } = Astro.props;
         margin-bottom: 48px;
     }
 
-    .lshell__block { scroll-margin-top: calc(var(--nav-height, 76px) + 24px); }
+    .lshell__block { scroll-margin-top: calc(var(--nav-offset, 76px) + 24px); }
 
     .lshell__block h2 {
         font-family: var(--font-display, "Syne", sans-serif);

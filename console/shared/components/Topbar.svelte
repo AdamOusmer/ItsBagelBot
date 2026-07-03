@@ -109,12 +109,14 @@
   .topbar {
     position: sticky; top: 0; z-index: 40;
     display: flex; align-items: center; gap: 14px;
-    padding: 9px 16px;
+    /* Top padding carries the notch inset so the strip's ink paints the safe
+       area; the row itself stays at its normal height below it. */
+    padding: calc(9px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) 9px max(16px, env(safe-area-inset-left, 0px));
     background: rgba(10, 10, 10, 0.85);
     border-bottom: 1px solid var(--rule, rgba(240, 236, 228, 0.1));
   }
   @media (min-width: 761px) {
-    .topbar { gap: 20px; padding: 9px var(--gutter); }
+    .topbar { gap: 20px; padding: calc(9px + env(safe-area-inset-top, 0px)) var(--gutter) 9px; }
   }
 
   .station { display: flex; align-items: center; gap: 9px; text-decoration: none; flex: none; }

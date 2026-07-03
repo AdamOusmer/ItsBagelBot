@@ -17,6 +17,9 @@
     --font-hand: "Caveat", cursive;
 
     --nav-height: 76px;
+    /* Visual nav band (--nav-height) plus the iOS notch inset above it. Fixed
+       nav grows into the safe area; content offsets clear the whole thing. */
+    --nav-offset: calc(var(--nav-height) + env(safe-area-inset-top, 0px));
     --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
     --ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
 
