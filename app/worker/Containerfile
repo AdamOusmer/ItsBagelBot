@@ -1,7 +1,8 @@
-from docker.io/library/golang:1.26-bookworm AS build
+# worker (Go, root module) - build from the REPO ROOT:
+#   podman build -t itsbagelbot/worker -f app/worker/Containerfile .
+FROM docker.io/library/golang:1.26-bookworm AS build
 
 WORKDIR /src
-
 COPY go.mod go.sum ./
 RUN go mod download
 
