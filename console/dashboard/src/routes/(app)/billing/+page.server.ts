@@ -2,6 +2,7 @@ import type { Actions, PageServerLoad } from './$types';
 import { redirect, fail } from '@sveltejs/kit';
 import { billingState, checkoutBasketCreate, type BillingState } from '$lib/server/services';
 import { RpcError } from '@bagel/shared/server/nats';
+import { containsLink } from '@bagel/shared/validation';
 import { env } from '$env/dynamic/private';
 
 type BillingLinks = {
@@ -122,24 +123,36 @@ export const actions: Actions = {
 
     const form = await request.formData();
     const recipient = String(form.get('recipient') ?? '').trim();
-    if (!recipient) return fail(400, { gift: true, error: 'Enter the Twitch username to gift to.' });
+    // Optional personal note. Capped here as defence-in-depth (the textarea caps
+    // it client-side and the transactions service caps + sanitizes again); empty
+    // falls back to the default gift email copy. Echoed back on failures so the
+    // gift modal can repopulate after a plain-form re-render.
+    const message = String(form.get('message') ?? '').trim().slice(0, 280);
+
+    if (!recipient) return fail(400, { gift: true, error: 'Enter the Twitch username to gift to.', recipient, message });
     if (!/^@?[A-Za-z0-9_]{3,25}$/.test(recipient)) {
-      return fail(400, { gift: true, error: 'That does not look like a Twitch username.' });
+      return fail(400, { gift: true, error: 'That does not look like a Twitch username.', recipient, message });
+    }
+    // No links in the gift note: it is emailed to the recipient, so a link (or
+    // any obfuscated form) is refused here as well as in the transactions
+    // service. Mirrors @bagel/shared/validation used live on the client.
+    if (message && containsLink(message)) {
+      return fail(400, { gift: true, error: "Gift notes can't contain links or web addresses. Please remove it and try again.", recipient, message });
     }
 
     let checkoutUrl: string | null = null;
     try {
-      const basket = await checkoutBasketCreate(s.user_id, s.login, recipient, getClientAddress());
+      const basket = await checkoutBasketCreate(s.user_id, s.login, recipient, getClientAddress(), undefined, message);
       checkoutUrl = optionalHttpsURL(basket.checkoutUrl ?? undefined);
     } catch (err) {
       if (err instanceof RpcError) {
         console.warn(`[billing] gift rejected for ${s.user_id} -> ${recipient}: ${err.message}`);
-        return fail(409, { gift: true, error: err.message });
+        return fail(409, { gift: true, error: err.message, recipient, message });
       }
       console.error('[billing] gift basket create failed:', err);
     }
 
-    if (!checkoutUrl) return fail(502, { gift: true, error: 'Gifting is not available right now. Try again in a moment.' });
+    if (!checkoutUrl) return fail(502, { gift: true, error: 'Gifting is not available right now. Try again in a moment.', recipient, message });
     throw redirect(303, checkoutUrl);
   },
 
