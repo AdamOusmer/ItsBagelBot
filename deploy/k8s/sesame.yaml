@@ -1,0 +1,171 @@
+# sesame replaces the worker: same lanes, same pkg/bus consumer group ("worker"),
+# same Doppler secret values. It reuses the worker's Doppler service token
+# (worker-doppler-token, created out-of-band and never pruned), so sesame-env
+# holds the identical secrets the worker read (VALKEY_*, NATS_CACHE_INVALIDATION_PREFIX,
+# TWITCH_SPECIAL_USER_IDS). Only the k8s secret name differs.
+apiVersion: secrets.doppler.com/v1alpha1
+kind: DopplerSecret
+metadata:
+  name: sesame-env
+  namespace: production
+spec:
+  host: https://api.doppler.com
+  tokenSecret:
+    name: worker-doppler-token
+  managedSecret:
+    name: sesame-env
+    namespace: production
+    type: Opaque
+  resyncSeconds: 60
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sesame
+  namespace: production
+  annotations:
+    secrets.doppler.com/reload: "true"
+spec:
+  replicas: 4 # one per node; 4 schedulable nodes incl worker1 (tolerates worker-pool)
+  revisionHistoryLimit: 3
+  minReadySeconds: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: sesame
+  template:
+    metadata:
+      labels:
+        app: sesame
+      annotations:
+        linkerd.io/inject: enabled
+        config.linkerd.io/proxy-cpu-request: 5m
+        config.linkerd.io/proxy-cpu-limit: 1000m
+        config.linkerd.io/proxy-memory-request: 16Mi
+        config.linkerd.io/proxy-memory-limit: 128Mi
+        config.linkerd.io/skip-outbound-ports: 6379,26379
+    spec:
+      tolerations:
+        - key: itsbagelbot.dev/pool
+          operator: Equal
+          value: worker-pool
+          effect: NoSchedule
+        - key: node.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+        - key: node.kubernetes.io/not-ready
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: sesame
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: sesame
+          image: ghcr.io/adamousmer/itsbagelbot/sesame:main # {"$imagepolicy": "flux-system:sesame"}
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: NATS_HOST
+              value: nats
+            # Apps connect only to the node-local leaf cluster; the hub is reached
+            # over the leafnode link for JetStream. No hub in the server list.
+            - name: NATS_URL
+              value: nats://nats-leaf:4222
+            - name: NATS_RPC_URL
+              value: nats://nats-leaf:4222
+            - name: NATS_LEAF_URL
+              value: nats://nats-leaf:4222
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: NODE_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: GOMEMLIMIT
+              value: 512MiB
+            # Reuse the worker's shared lane consumer so this is a true drop-in:
+            # no DeliverAll replay, and rollout overlap load-balances instead of
+            # double-processing.
+            - name: SESAME_CONSUMER_NAME
+              value: worker
+            - name: SESAME_MIN_ROUTINES
+              value: "4"
+            - name: SESAME_MAX_ROUTINES
+              value: "25"
+            - name: SESAME_MAX_CONSUMERS
+              value: "4"
+            - name: SESAME_SCALE_UP_AFTER
+              value: 2s
+            - name: SESAME_SCALE_DOWN_AFTER
+              value: 45s
+            - name: SESAME_PREMIUM_RESERVE_PERCENT
+              value: "25"
+            # Live status: dedicated Valkey key with a TTL backstop; on expiry sesame
+            # re-checks the stream against Twitch via the outgress system lane,
+            # falling back to the projector live RPC on a cold key.
+            - name: SESAME_LIVE_TTL
+              value: 12h
+            - name: NATS_OUTGRESS_SYSTEM_SUBJECT
+              value: twitch.outgress.system
+            - name: NATS_BROADCASTER_LIVE_SUBJECT
+              value: bagel.rpc.broadcaster.live.get
+          envFrom:
+            # sesame-env (Doppler) carries VALKEY_*, NATS_CACHE_INVALIDATION_PREFIX,
+            # and TWITCH_SPECIAL_USER_IDS — the same values the worker read.
+            - secretRef:
+                name: sesame-env
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: "2"
+              memory: 768Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+          lifecycle:
+            preStop:
+              httpGet:
+                path: /drain
+                port: 8080
+          livenessProbe:
+            httpGet: {path: /healthz, port: 8080}
+            periodSeconds: 30
+          readinessProbe:
+            httpGet: {path: /readyz, port: 8080}
+            periodSeconds: 10
+          startupProbe:
+            httpGet: {path: /healthz, port: 8080}
+            failureThreshold: 18
+            periodSeconds: 5
+      terminationGracePeriodSeconds: 45
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: sesame
+  namespace: production
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: sesame
