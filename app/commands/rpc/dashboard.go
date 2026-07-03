@@ -77,14 +77,25 @@ func (d *dashboardRPC) handleUpsert(ctx context.Context, req commandsrpc.Dashboa
 		allowedUserID = parsed
 	}
 
+	spec := repository.CommandSpec{
+		Name:             req.Name,
+		Aliases:          req.Aliases,
+		Response:         req.Response,
+		IsActive:         req.IsActive,
+		StreamOnlineOnly: req.StreamOnlineOnly,
+		Perm:             req.Perm,
+		Cooldown:         req.Cooldown,
+		AllowedUserID:    allowedUserID,
+	}
+
 	// A rename updates the existing row's name field in place; a plain edit or
 	// create goes through the write-behind upsert.
 	rename := req.OriginalName != "" && req.OriginalName != req.Name
 	var opErr error
 	if rename {
-		opErr = d.repo.Rename(ctx, id, req.OriginalName, req.Name, req.Aliases, req.Response, req.IsActive, req.StreamOnlineOnly, req.Perm, req.Cooldown, allowedUserID)
+		opErr = d.repo.Rename(ctx, id, req.OriginalName, spec)
 	} else {
-		opErr = d.repo.Upsert(id, req.Name, req.Aliases, req.Response, req.IsActive, req.StreamOnlineOnly, req.Perm, req.Cooldown, allowedUserID)
+		opErr = d.repo.Upsert(id, spec)
 	}
 	if opErr != nil {
 		// Validation/conflict error: return it.

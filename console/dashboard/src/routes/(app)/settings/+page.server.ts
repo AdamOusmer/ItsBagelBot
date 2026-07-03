@@ -12,7 +12,7 @@ import {
   notificationMarkRead,
   type NotificationWire
 } from '$lib/server/services';
-import { ACCOUNT_DELETED_COOKIE, COOKIE } from '$lib/server/session';
+import { ACCOUNT_DELETED_COOKIE, COOKIE, type Session } from '$lib/server/session';
 import { demoNotifications } from '$lib/server/demo-notifications';
 import { env } from '$env/dynamic/private';
 
@@ -20,6 +20,25 @@ const SECTIONS = ['commands'] as const;
 
 function tokenLabel(token: string): string {
   return token.length <= 8 ? 'token=redacted' : `token=${token.slice(0, 8)}...`;
+}
+
+// ownerAction wraps the shared shape of the delegation actions: owner-only
+// guard, form parse, and a 502 failure when the backing RPC is down.
+function ownerAction<R>(
+  failMsg: string,
+  run: (s: Session, form: FormData) => Promise<R>
+) {
+  return async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+    const s = locals.session;
+    if (!s || s.delegate_of) return fail(403, { error: 'Not allowed.' });
+
+    const form = await request.formData();
+    try {
+      return await run(s, form);
+    } catch {
+      return fail(502, { error: failMsg });
+    }
+  };
 }
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -106,63 +125,39 @@ export const actions: Actions = {
     throw redirect(302, '/goodbye');
   },
 
-  create: async ({ request, locals }) => {
-    const s = locals.session;
-    if (!s || s.delegate_of) return fail(403, { error: 'Not allowed.' });
-
-    const f = await request.formData();
+  create: ownerAction('Could not create link.', async (s, f) => {
     const sections = SECTIONS.filter((sec) => f.get(sec) === 'on');
     if (sections.length === 0) return fail(400, { error: 'Pick at least one section.' });
 
-    try {
-      const token = await delegationCreate(s.user_id, s.login, sections);
-      auditDashboardImpersonation(s, 'delegation:create', `sections=${sections.join(',')}`);
-      return {
-        ok: true,
-        action: 'created',
-        createdGrant: {
-          token,
-          sections,
-          delegate_login: '',
-          consumed: false
-        }
-      };
-    } catch {
-      return fail(502, { error: 'Could not create link.' });
-    }
-  },
+    const token = await delegationCreate(s.user_id, s.login, sections);
+    auditDashboardImpersonation(s, 'delegation:create', `sections=${sections.join(',')}`);
+    return {
+      ok: true,
+      action: 'created',
+      createdGrant: {
+        token,
+        sections,
+        delegate_login: '',
+        consumed: false
+      }
+    };
+  }),
 
-  revoke: async ({ request, locals }) => {
-    const s = locals.session;
-    if (!s || s.delegate_of) return fail(403, { error: 'Not allowed.' });
-
-    const f = await request.formData();
+  revoke: ownerAction('Could not revoke link.', async (s, f) => {
     const token = String(f.get('token') ?? '');
     if (!token) return fail(400, { error: 'Missing token.' });
 
-    try {
-      await delegationRevoke(s.user_id, token);
-      auditDashboardImpersonation(s, 'delegation:revoke', tokenLabel(token));
-      return { ok: true, action: 'revoked' };
-    } catch {
-      return fail(502, { error: 'Could not revoke link.' });
-    }
-  },
+    await delegationRevoke(s.user_id, token);
+    auditDashboardImpersonation(s, 'delegation:revoke', tokenLabel(token));
+    return { ok: true, action: 'revoked' };
+  }),
 
-  optOut: async ({ request, locals }) => {
-    const s = locals.session;
-    if (!s || s.delegate_of) return fail(403, { error: 'Not allowed.' });
-
-    const f = await request.formData();
+  optOut: ownerAction('Could not leave dashboard.', async (s, f) => {
     const ownerId = String(f.get('owner_user_id') ?? '');
     if (!ownerId) return fail(400, { error: 'Missing dashboard.' });
 
-    try {
-      await delegationOptOut(s.user_id, ownerId);
-      auditDashboardImpersonation(s, 'delegation:opt_out', `owner=${ownerId}`);
-      return { ok: true, action: 'opted_out' };
-    } catch {
-      return fail(502, { error: 'Could not leave dashboard.' });
-    }
-  }
+    await delegationOptOut(s.user_id, ownerId);
+    auditDashboardImpersonation(s, 'delegation:opt_out', `owner=${ownerId}`);
+    return { ok: true, action: 'opted_out' };
+  })
 };

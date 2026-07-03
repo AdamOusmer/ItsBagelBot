@@ -20,6 +20,10 @@ import (
 	"ItsBagelBot/pkg/monitor"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
+	"github.com/ThreeDotsLabs/watermill/message"
+	"github.com/newrelic/go-agent/v3/newrelic"
+	"github.com/valkey-io/valkey-go"
+
 	"go.uber.org/zap"
 )
 
@@ -28,6 +32,51 @@ const serviceName = "worker"
 // projectionCacheTTL bounds how long a stale module/command/user view can
 // linger in the worker before the next read re-checks Valkey and the projector.
 const projectionCacheTTL = 30 * time.Second
+
+// buildRegistry assembles the pluggable behavior set. Core modules (the baked
+// primitives, the command router, the live tracker) are always on and never
+// shown on the dashboard; the baked module owns the immutable commands plus
+// the bagel greeting, and the command router does all command dispatch (baked
+// + custom) behind one set of gates. Named modules (shoutout) are toggled +
+// configured per broadcaster. Adding a feature is registering a module here.
+// The returned router must be Closed by the caller (it flushes pending
+// use-counter ticks on shutdown).
+func buildRegistry(cfg *config.Config, valkeyClient valkey.Client, proj *projection.Client, live *module.ValkeyLiveStore, pub message.Publisher, special *module.SpecialSet, log *zap.Logger) (*module.Registry, *module.CommandRouter) {
+	greet := module.NewValkeyGreetStore(valkeyClient, cfg.LiveTTL, log)
+	cooldown := module.NewValkeyCooldown(valkeyClient)
+
+	router := module.NewCommandRouter(proj, live, cooldown, pub, log)
+	registry := module.NewRegistry(log,
+		builtin.NewBakedModule(special, live, greet, log),
+		router,
+		builtin.NewLiveModule(live, greet, log),
+		builtin.NewShoutoutModule(log),
+	)
+	// The router resolves baked commands through the registry's baked index, so
+	// it must be bound after the registry is built (before the first message).
+	router.Bind(registry)
+	return registry, router
+}
+
+// startConsumer launches the autoscaling consumer that drains the premium and
+// standard lanes into a shared pool of pipeline routines, with premium
+// reserving a slice so it is never starved. Live events ride these same lanes
+// (ingress dual-publishes them), so there is no separate stream consumer.
+func startConsumer(ctx context.Context, cfg *config.Config, sub message.Subscriber, nrApp *newrelic.Application, process consumer.Handler, log *zap.Logger) error {
+	cons := consumer.New(sub, nrApp,
+		consumer.Lanes{PremiumSubject: cfg.PremiumSubject, StandardSubject: cfg.StandardSubject},
+		bus.ScalePolicy{
+			MinRoutines:    cfg.MinRoutines,
+			MaxRoutines:    cfg.MaxRoutines,
+			MaxConsumers:   cfg.MaxConsumers,
+			ScaleUpAfter:   cfg.ScaleUpAfter,
+			ScaleDownAfter: cfg.ScaleDownAfter,
+		},
+		cfg.PremiumReserve,
+		log,
+	)
+	return cons.Start(ctx, process)
+}
 
 func main() {
 
@@ -102,28 +151,10 @@ func main() {
 	live.StartInvalidationListener()
 	go live.StartExpiryWatcher(ctx)
 
-	greet := module.NewValkeyGreetStore(valkeyClient, cfg.LiveTTL, log)
-	cooldown := module.NewValkeyCooldown(valkeyClient)
 	special := module.NewSpecialSet(cfg.SpecialUserIDs)
 
-	// The module registry is the pluggable behavior set. Core modules (the baked
-	// primitives, the command router, the live tracker) are always on and never
-	// shown on the dashboard; the baked module owns the immutable commands plus
-	// the bagel greeting, and the command router does all command dispatch
-	// (baked + custom) behind one set of gates. Named modules (shoutout) are
-	// toggled + configured per broadcaster. Adding a feature is registering a
-	// module here.
-	router := module.NewCommandRouter(proj, live, cooldown, pub, log)
+	registry, router := buildRegistry(cfg, valkeyClient, proj, live, pub, special, log)
 	defer router.Close() // flushes pending use-counter ticks on shutdown
-	registry := module.NewRegistry(log,
-		builtin.NewBakedModule(special, live, greet, log),
-		router,
-		builtin.NewLiveModule(live, greet, log),
-		builtin.NewShoutoutModule(log),
-	)
-	// The router resolves baked commands through the registry's baked index, so
-	// it must be bound after the registry is built (before the first message).
-	router.Bind(registry)
 
 	pipe := pipeline.NewPipeline(
 		log,
@@ -135,23 +166,7 @@ func main() {
 		cfg.OutgressStandardSubject,
 	)
 
-	// One autoscaling consumer drains the premium and standard lanes into a
-	// shared pool of pipeline routines, with premium reserving a slice so it is
-	// never starved. Live events ride these same lanes (ingress dual-publishes
-	// them), so there is no separate stream consumer here.
-	cons := consumer.New(sub, nrApp,
-		consumer.Lanes{PremiumSubject: cfg.PremiumSubject, StandardSubject: cfg.StandardSubject},
-		bus.ScalePolicy{
-			MinRoutines:    cfg.MinRoutines,
-			MaxRoutines:    cfg.MaxRoutines,
-			MaxConsumers:   cfg.MaxConsumers,
-			ScaleUpAfter:   cfg.ScaleUpAfter,
-			ScaleDownAfter: cfg.ScaleDownAfter,
-		},
-		cfg.PremiumReserve,
-		log,
-	)
-	if err := cons.Start(ctx, pipe.Process); err != nil {
+	if err := startConsumer(ctx, cfg, sub, nrApp, pipe.Process, log); err != nil {
 		log.Fatal("failed to start consumer", zap.Error(err))
 	}
 

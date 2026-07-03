@@ -159,43 +159,70 @@ func (r *Commands) List(ctx context.Context, userID uint64) ([]CommandView, erro
 	})
 }
 
+// CommandSpec is the caller-editable state of one command, as accepted by
+// Upsert and Rename. Name and Aliases arrive raw from the console and are
+// normalized before validation.
+type CommandSpec struct {
+	Name             string
+	Aliases          []string
+	Response         string
+	IsActive         bool
+	StreamOnlineOnly bool
+	Perm             string
+	Cooldown         uint
+	AllowedUserID    uint64
+}
+
+func (s *CommandSpec) normalize() {
+	s.Name = normalizeName(s.Name)
+	s.Aliases = normalizeAliases(s.Aliases)
+}
+
+func (s *CommandSpec) validate() error {
+	if err := validate.CommandName(s.Name); err != nil {
+		return err
+	}
+	if err := validate.CommandAliases(s.Aliases); err != nil {
+		return err
+	}
+	if err := validate.CommandResponse(s.Response); err != nil {
+		return err
+	}
+	if err := validate.Perm(s.Perm); err != nil {
+		return err
+	}
+	return validate.Cooldown(s.Cooldown)
+}
+
+// dto renders the spec as a full-state change event for userID.
+func (s *CommandSpec) dto(userID uint64) data.CommandChangedDTO {
+	return data.CommandChangedDTO{
+		UserID:           userID,
+		Name:             s.Name,
+		Aliases:          s.Aliases,
+		Response:         s.Response,
+		IsActive:         s.IsActive,
+		StreamOnlineOnly: s.StreamOnlineOnly,
+		Perm:             s.Perm,
+		Cooldown:         s.Cooldown,
+		AllowedUserID:    s.AllowedUserID,
+	}
+}
+
 // Upsert validates and queues a command create or edit. Consecutive edits of
 // the same command coalesce into the latest state before the next flush.
-func (r *Commands) Upsert(userID uint64, name string, aliases []string, response string, isActive bool, streamOnlineOnly bool, perm string, cooldown uint, allowedUserID uint64) error {
+func (r *Commands) Upsert(userID uint64, spec CommandSpec) error {
 
-	name = normalizeName(name)
-	aliases = normalizeAliases(aliases)
+	spec.normalize()
 
 	if err := validate.UserID(userID); err != nil {
 		return err
 	}
-	if err := validate.CommandName(name); err != nil {
-		return err
-	}
-	if err := validate.CommandAliases(aliases); err != nil {
-		return err
-	}
-	if err := validate.CommandResponse(response); err != nil {
-		return err
-	}
-	if err := validate.Perm(perm); err != nil {
-		return err
-	}
-	if err := validate.Cooldown(cooldown); err != nil {
+	if err := spec.validate(); err != nil {
 		return err
 	}
 
-	r.batcher.Add(commandKey{userID: userID, name: name}, data.CommandChangedDTO{
-		UserID:           userID,
-		Name:             name,
-		Aliases:          aliases,
-		Response:         response,
-		IsActive:         isActive,
-		StreamOnlineOnly: streamOnlineOnly,
-		Perm:             perm,
-		Cooldown:         cooldown,
-		AllowedUserID:    allowedUserID,
-	})
+	r.batcher.Add(commandKey{userID: userID, name: spec.Name}, spec.dto(userID))
 
 	return nil
 }
@@ -206,11 +233,10 @@ func (r *Commands) Upsert(userID uint64, name string, aliases []string, response
 // can't be represented as a queued edit of the old key. Emits a delete for the
 // old name and a change for the new so name-keyed consumers (projector, bot)
 // drop the stale entry and pick up the renamed command.
-func (r *Commands) Rename(ctx context.Context, userID uint64, oldName, newName string, aliases []string, response string, isActive bool, streamOnlineOnly bool, perm string, cooldown uint, allowedUserID uint64) error {
+func (r *Commands) Rename(ctx context.Context, userID uint64, oldName string, spec CommandSpec) error {
 
 	oldName = normalizeName(oldName)
-	newName = normalizeName(newName)
-	aliases = normalizeAliases(aliases)
+	spec.normalize()
 
 	if err := validate.UserID(userID); err != nil {
 		return err
@@ -218,38 +244,11 @@ func (r *Commands) Rename(ctx context.Context, userID uint64, oldName, newName s
 	if err := validate.CommandName(oldName); err != nil {
 		return err
 	}
-	if err := validate.CommandName(newName); err != nil {
-		return err
-	}
-	if err := validate.CommandAliases(aliases); err != nil {
-		return err
-	}
-	if err := validate.CommandResponse(response); err != nil {
-		return err
-	}
-	if err := validate.Perm(perm); err != nil {
-		return err
-	}
-	if err := validate.Cooldown(cooldown); err != nil {
+	if err := spec.validate(); err != nil {
 		return err
 	}
 
-	updated, err := db.WithQuery(ctx, func(ctx context.Context) (int, error) {
-		return r.client.Commands.Update().
-			Where(
-				commands.UserIDEQ(userID),
-				commands.NameEQ(oldName),
-			).
-			SetName(newName).
-			SetAliases(aliases).
-			SetResponse(response).
-			SetIsActive(isActive).
-			SetStreamOnlineOnly(streamOnlineOnly).
-			SetPerm(perm).
-			SetCooldown(cooldown).
-			SetAllowedUserID(allowedUserID).
-			Save(ctx)
-	})
+	updated, err := r.renameRow(ctx, userID, oldName, spec)
 	if err != nil {
 		return err
 	}
@@ -257,7 +256,7 @@ func (r *Commands) Rename(ctx context.Context, userID uint64, oldName, newName s
 	// Old row absent (already renamed/deleted elsewhere): fall back to a plain
 	// write of the new command so the edit is not lost.
 	if updated == 0 {
-		return r.Upsert(userID, newName, aliases, response, isActive, streamOnlineOnly, perm, cooldown, allowedUserID)
+		return r.Upsert(userID, spec)
 	}
 
 	r.Invalidate(userID)
@@ -272,23 +271,35 @@ func (r *Commands) Rename(ctx context.Context, userID uint64, oldName, newName s
 
 	// The rename preserved the row, so its uses counter survives; carry it on
 	// the event so the projection doesn't regress it to zero.
-	changed := data.CommandChangedDTO{
-		UserID:           userID,
-		Name:             newName,
-		Aliases:          aliases,
-		Response:         response,
-		IsActive:         isActive,
-		StreamOnlineOnly: streamOnlineOnly,
-		Perm:             perm,
-		Cooldown:         cooldown,
-		AllowedUserID:    allowedUserID,
-	}
-	if states, serr := r.rowStates(ctx, []commandKey{{userID: userID, name: newName}}); serr == nil {
-		if s, ok := states[commandKey{userID: userID, name: newName}]; ok {
+	changed := spec.dto(userID)
+	key := commandKey{userID: userID, name: spec.Name}
+	if states, serr := r.rowStates(ctx, []commandKey{key}); serr == nil {
+		if s, ok := states[key]; ok {
 			changed.Uses = s.Uses
 		}
 	}
 	return bus.PublishJSON(ctx, r.pub, data.SubjectCommandChanged, changed)
+}
+
+// renameRow rewrites the old row's key and payload in one UPDATE, returning
+// the number of rows hit (0 = old name no longer exists).
+func (r *Commands) renameRow(ctx context.Context, userID uint64, oldName string, spec CommandSpec) (int, error) {
+	return db.WithQuery(ctx, func(ctx context.Context) (int, error) {
+		return r.client.Commands.Update().
+			Where(
+				commands.UserIDEQ(userID),
+				commands.NameEQ(oldName),
+			).
+			SetName(spec.Name).
+			SetAliases(spec.Aliases).
+			SetResponse(spec.Response).
+			SetIsActive(spec.IsActive).
+			SetStreamOnlineOnly(spec.StreamOnlineOnly).
+			SetPerm(spec.Perm).
+			SetCooldown(spec.Cooldown).
+			SetAllowedUserID(spec.AllowedUserID).
+			Save(ctx)
+	})
 }
 
 // Delete removes a command immediately and announces it.
@@ -375,21 +386,42 @@ func (r *Commands) RecordUse(userID uint64, name string, count uint64) {
 // pipeline as an edit, so nothing downstream needs a special counter path.
 func (r *Commands) flushUses(ctx context.Context) {
 
-	r.usesMu.Lock()
-	if len(r.usesPend) == 0 {
-		r.usesMu.Unlock()
+	pend := r.drainPendingUses()
+	if len(pend) == 0 {
 		return
 	}
-	pend := r.usesPend
-	r.usesPend = map[commandKey]uint64{}
-	r.usesMu.Unlock()
 
 	txn := r.app.StartTransaction("flush command uses")
 	defer txn.End()
 	ctx = newrelic.NewContext(ctx, txn)
 
+	keys, err := r.persistUses(ctx, txn, pend)
+	if err != nil {
+		txn.NoticeError(err)
+		return
+	}
+
+	r.publishUseEvents(ctx, txn, keys)
+}
+
+// drainPendingUses swaps out the accumulator under the lock.
+func (r *Commands) drainPendingUses() map[commandKey]uint64 {
+	r.usesMu.Lock()
+	defer r.usesMu.Unlock()
+	if len(r.usesPend) == 0 {
+		return nil
+	}
+	pend := r.usesPend
+	r.usesPend = map[commandKey]uint64{}
+	return pend
+}
+
+// persistUses applies uses = uses + n per key and returns the keys that
+// landed. A single missing/deleted row must not drop the whole window, so
+// per-row failures are logged and skipped.
+func (r *Commands) persistUses(ctx context.Context, txn *newrelic.Transaction, pend map[commandKey]uint64) ([]commandKey, error) {
 	keys := make([]commandKey, 0, len(pend))
-	if err := db.WithExec(ctx, func(ctx context.Context) error {
+	err := db.WithExec(ctx, func(ctx context.Context) error {
 		for key, n := range pend {
 			_, err := r.client.Commands.Update().
 				Where(
@@ -399,8 +431,6 @@ func (r *Commands) flushUses(ctx context.Context) {
 				AddUses(int64(n)). //nolint:gosec // n is a small per-window count
 				Save(ctx)
 			if err != nil {
-				// Keep counting the rest; a single missing/deleted row must not
-				// drop the whole window.
 				txn.NoticeError(err)
 				r.log.Warn("failed to persist command uses",
 					zap.Uint64("user_id", key.userID),
@@ -412,11 +442,13 @@ func (r *Commands) flushUses(ctx context.Context) {
 			keys = append(keys, key)
 		}
 		return nil
-	}); err != nil {
-		txn.NoticeError(err)
-		return
-	}
+	})
+	return keys, err
+}
 
+// publishUseEvents reloads the flushed rows and publishes ordinary change
+// events built from DB truth, invalidating each affected user's cache once.
+func (r *Commands) publishUseEvents(ctx context.Context, txn *newrelic.Transaction, keys []commandKey) {
 	states, err := r.rowStates(ctx, keys)
 	if err != nil {
 		txn.NoticeError(err)
