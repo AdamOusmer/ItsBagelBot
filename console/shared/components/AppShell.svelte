@@ -5,14 +5,14 @@
   import type { Snippet } from 'svelte';
   import Topbar from './Topbar.svelte';
   import Dock from './Dock.svelte';
-  import type { NavGroupDef, NavLink } from '../lib/types';
+  import type { NavGroupDef, NavLink, DashboardLink } from '../lib/types';
   let {
     brandTitle = 'ItsBagelBot', brandSub, crumbRoot, crumb,
-    accountName, accountRole, groups, mobileItems,
+    accountName, accountRole, dashboards = [], groups, mobileItems,
     offset = false, banner, topActions, children
   }: {
     brandTitle?: string; brandSub: string; crumbRoot: string; crumb: string;
-    accountName: string; accountRole: string;
+    accountName: string; accountRole: string; dashboards?: DashboardLink[];
     groups: NavGroupDef[]; mobileItems: NavLink[];
     offset?: boolean; banner?: Snippet; topActions?: Snippet; children: Snippet;
   } = $props();
@@ -36,6 +36,7 @@
     {brandSub}
     {accountName}
     {accountRole}
+    {dashboards}
   />
   <main class="main">
     <div class="canvas">{@render children()}</div>
