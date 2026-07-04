@@ -152,6 +152,10 @@ var typeRoutes = map[string]helixRoute{
 	// the bot's user:bot/action grants and the broadcaster's channel:bot grant.
 	outgress.TypeAnnounce: {http.MethodPost, "/helix/chat/announcements", outgress.AsApp},
 	outgress.TypeShoutout: {http.MethodPost, "/helix/chat/shoutouts", outgress.AsApp},
+	// Shield Mode is a moderator action (PUT /helix/moderation/shield_mode → bot
+	// user token, moderator:manage:shield_mode). Like ban it needs broadcaster_id +
+	// moderator_id on the query string, handled in processShieldMode.
+	outgress.TypeShieldMode: {http.MethodPut, "/helix/moderation/shield_mode", outgress.AsBot},
 }
 
 type Worker struct {
@@ -353,6 +357,12 @@ func (w *Worker) Process(msg *message.Message) error {
 		return w.processBan(ctx, payload)
 	}
 
+	// Shield Mode carries broadcaster_id + moderator_id on the query string too, so
+	// it gets its own handler before the generic helix path.
+	if payload.Type == outgress.TypeShieldMode {
+		return w.processShieldMode(ctx, payload)
+	}
+
 	// Only "chat" pays the chat rate buckets; every other Helix call pays the
 	// general bucket.
 	if payload.Type == outgress.TypeChat {
@@ -543,6 +553,39 @@ func (w *Worker) processBan(ctx context.Context, payload outgress.Message) error
 	payload.As = outgress.AsBot
 	payload.Method = http.MethodPost
 	payload.Endpoint = "/helix/moderation/bans?broadcaster_id=" +
+		url.QueryEscape(payload.BroadcasterID) + "&moderator_id=" + url.QueryEscape(mod)
+
+	return w.execute(ctx, payload)
+}
+
+// processShieldMode toggles a channel's Shield Mode as the bot moderator.
+// broadcaster_id and moderator_id ride the query string (Twitch reads them there,
+// not the body); the body carries {"is_active":bool} built by the producer. It is
+// a single channel-level call the automod escalates to instead of banning a whole
+// mass-raid account by account, so one PUT replaces thousands of bans. Pays the
+// general Helix budget like processBan, then hands the request to execute() for
+// the shared status handling.
+func (w *Worker) processShieldMode(ctx context.Context, payload outgress.Message) error {
+	// The acting moderator is the bot: prefer an explicit sender, else the
+	// configured bot id. Without one there is no one to act as, so drop the job
+	// (mirroring processBan's no-moderator guard).
+	mod := payload.SenderID
+	if mod == "" {
+		mod = w.botID
+	}
+	if mod == "" {
+		w.log.Error("dropping shield_mode: no bot moderator id configured",
+			zap.String("broadcaster_id", payload.BroadcasterID))
+		return nil
+	}
+
+	if err := w.takeGeneralHelix(ctx); err != nil {
+		return err
+	}
+
+	payload.As = outgress.AsBot
+	payload.Method = http.MethodPut
+	payload.Endpoint = "/helix/moderation/shield_mode?broadcaster_id=" +
 		url.QueryEscape(payload.BroadcasterID) + "&moderator_id=" + url.QueryEscape(mod)
 
 	return w.execute(ctx, payload)

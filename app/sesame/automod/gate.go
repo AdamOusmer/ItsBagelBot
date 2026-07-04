@@ -3,6 +3,7 @@ package automod
 import (
 	"bytes"
 	"sync"
+	"sync/atomic"
 
 	"ItsBagelBot/app/sesame/module"
 )
@@ -16,10 +17,12 @@ const (
 )
 
 // Gate is the inline automod. Safe for concurrent use: categories are read-only
-// after New and skeleton buffers come from a pool.
+// after New, the emote set is swapped atomically, and skeleton buffers come from
+// a pool.
 type Gate struct {
-	cats []category
-	buf  sync.Pool
+	cats   []category
+	buf    sync.Pool
+	emotes atomic.Pointer[EmoteSet]
 }
 
 // New builds a Gate with the default curated blocklists. Later phases load
@@ -30,6 +33,11 @@ func New() *Gate {
 		buf:  sync.Pool{New: func() any { b := make([]byte, 0, 256); return &b }},
 	}
 }
+
+// SetEmotes swaps in the known third-party emote-code set used to suppress the
+// caps-heuristic false positive on all-caps emote spam. Safe to call at any time
+// (the refresher calls it periodically); nil clears the set.
+func (g *Gate) SetEmotes(set *EmoteSet) { g.emotes.Store(set) }
 
 // Inspect returns the automod verdict for one chat line. The clean path (a short,
 // mostly-ascii line with no suspicious signal from a non-exempt chatter) returns
@@ -46,10 +54,11 @@ func (g *Gate) Inspect(role module.Role, text string) Verdict {
 	}
 
 	sig := scan(text)
-	heuristic := sig.zeroWidth > 0 ||
-		sig.maxRepeat >= repeatRun ||
-		(sig.runes >= capsMinLen && sig.capsRatio() >= capsThreshold) ||
-		sig.symbolRatio() >= symbolRatioHi
+	zeroWidth := sig.zeroWidth > 0
+	repeat := sig.maxRepeat >= repeatRun
+	caps := sig.runes >= capsMinLen && sig.capsRatio() >= capsThreshold
+	symbol := sig.symbolRatio() >= symbolRatioHi
+	heuristic := zeroWidth || repeat || caps || symbol
 
 	// Clean-path bail: a short ascii line with no heuristic never allocates.
 	// (Phase 3+ optimization: a cheap link/keyword pre-filter to also bail on
@@ -74,6 +83,12 @@ func (g *Gate) Inspect(role module.Role, text string) Verdict {
 	}
 
 	if heuristic {
+		// Emote false positive: a line whose ONLY flag is caps and which is
+		// dominated by known third-party emote codes ("KEKW KEKW LUL") is communal
+		// spam, not abuse. zero-width, repeat and symbol flags are never suppressed.
+		if caps && !zeroWidth && !repeat && !symbol && g.emoteDominant(text) {
+			return Verdict{}
+		}
 		return Verdict{Action: ActionDelete, Rule: "heuristic"}
 	}
 	return Verdict{}

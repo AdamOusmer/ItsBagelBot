@@ -261,3 +261,33 @@ func TestShoutoutEndpoint(t *testing.T) {
 		t.Fatalf("shoutout endpoint (escaped) = %q, want %q", got, wantEsc)
 	}
 }
+
+// TestShieldModeRoute pins the Shield Mode routing: a PUT to the moderation
+// shield_mode endpoint under the bot's moderator token, so the automod's
+// mass-raid escalation lands as a moderator action, not an app call.
+func TestShieldModeRoute(t *testing.T) {
+	route, ok := typeRoutes[outgress.TypeShieldMode]
+	if !ok {
+		t.Fatal("shield_mode has no type route")
+	}
+	if route.method != http.MethodPut {
+		t.Fatalf("shield_mode method = %q, want PUT", route.method)
+	}
+	if route.endpoint != "/helix/moderation/shield_mode" {
+		t.Fatalf("shield_mode endpoint = %q", route.endpoint)
+	}
+	if route.as != outgress.AsBot {
+		t.Fatalf("shield_mode identity = %q, want %q", route.as, outgress.AsBot)
+	}
+}
+
+// TestShieldModeEndpoint mirrors the query-param assembly processShieldMode uses:
+// broadcaster_id + moderator_id ride the query string, URL-escaped.
+func TestShieldModeEndpoint(t *testing.T) {
+	ep := "/helix/moderation/shield_mode?broadcaster_id=" +
+		url.QueryEscape("44322889") + "&moderator_id=" + url.QueryEscape("987654")
+	want := "/helix/moderation/shield_mode?broadcaster_id=44322889&moderator_id=987654"
+	if ep != want {
+		t.Fatalf("shield_mode endpoint = %q, want %q", ep, want)
+	}
+}
