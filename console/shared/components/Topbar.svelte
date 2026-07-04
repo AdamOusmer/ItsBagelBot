@@ -3,6 +3,7 @@
   // content — station mark, route readout, wall clock, and the signed-in
   // operator. One thin ruled line, everything else is page.
   import type { Snippet } from 'svelte';
+  import { afterNavigate } from '$app/navigation';
   import Icon from './Icon.svelte';
   import Scroller from './Scroller.svelte';
   import type { DashboardLink } from '../lib/types';
@@ -40,6 +41,11 @@
   // Account menu: the avatar chip opens a small dropdown holding Log out —
   // sign-out lives here (not in the dock) so navigation stays uncrowded.
   let menuOpen = $state(false);
+
+  // The Topbar lives in the persistent layout, so a shared-dashboard link in
+  // the menu navigates without unmounting it, leaving the menu open. Close it
+  // on any completed navigation (covers back/forward too).
+  afterNavigate(() => (menuOpen = false));
 
   // Local wall-clock readout — the strip's "master control" pulse.
   let now = $state('');
