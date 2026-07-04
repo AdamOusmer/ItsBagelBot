@@ -79,7 +79,7 @@
     padding: 12px 14px 26px;
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid var(--glass-border);
-    border-radius: var(--bb-radius-md, 10px);
+    border-radius: 8px 8px;
     color: var(--bb-white);
     font-family: var(--bb-font-body);
     font-size: 13.5px;

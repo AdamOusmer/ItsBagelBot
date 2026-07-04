@@ -233,7 +233,7 @@
     padding: 14px 14px 12px;
     border: 1px solid var(--rule, rgba(240, 236, 228, 0.1));
     border-left: 2px solid rgba(82, 183, 136, 0.5);
-    border-radius: var(--bb-radius-sm, 2px);
+    border-radius: 8px 8px;
     background: rgba(0, 0, 0, 0.3);
     display: flex;
     flex-direction: column;
@@ -271,7 +271,7 @@
   .line.bot.me .bot-name::after { content: none; }
   .line.bot.special .bot-name::after { content: none; }
   .bot-name { color: var(--bb-green-glow); }
-  .bot-avatar { width: 14px; height: 14px; border-radius: 2px; }
+  .bot-avatar { width: 14px; height: 14px; border-radius: 8px; }
 
   .msg {
     font-family: var(--bb-font-body);
@@ -292,7 +292,7 @@
   .msg mark {
     background: rgba(82, 183, 136, 0.14);
     color: var(--bb-green-glow, #52b788);
-    border-radius: 2px;
+    border-radius: 8px;
     padding: 0 3px;
   }
   .msg mark.unknown {
@@ -326,7 +326,7 @@
     flex-direction: column;
     gap: 5px;
     padding: 9px 11px;
-    border-radius: var(--bb-radius-sm, 4px);
+    border-radius: 8px 8px;
     border-left: 3px solid var(--acc);
     background: color-mix(in srgb, var(--acc) 10%, rgba(0, 0, 0, 0.25));
     animation: reply-in 240ms var(--bb-ease-out-back, ease-out) both;
@@ -351,7 +351,7 @@
     gap: 8px;
     flex-wrap: wrap;
     padding: 7px 11px;
-    border-radius: var(--bb-radius-sm, 4px);
+    border-radius: 8px 8px;
     border: 1px dashed rgba(82, 183, 136, 0.4);
     background: rgba(82, 183, 136, 0.06);
     animation: reply-in 240ms var(--bb-ease-out-back, ease-out) both;

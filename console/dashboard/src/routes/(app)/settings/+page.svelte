@@ -305,7 +305,7 @@
   .grants { display: flex; flex-direction: column; gap: 10px; }
   .grant {
     border: 1px solid var(--glass-border);
-    border-radius: var(--bb-radius-md, 10px);
+    border-radius: 8px 8px;
     padding: 12px 14px;
     background: rgba(255, 255, 255, 0.02);
   }
@@ -362,7 +362,7 @@
     margin-top: 10px;
     padding: 8px 10px;
     border: 1px dashed var(--glass-border);
-    border-radius: var(--bb-radius-sm, 8px);
+    border-radius: 8px 8px;
     background: rgba(255, 255, 255, 0.02);
   }
   .grant-link code { font-size: 12px; word-break: break-all; flex: 1; color: var(--bb-muted); }
@@ -375,7 +375,7 @@
   .notif-list { display: flex; flex-direction: column; gap: 10px; }
   .notif-item {
     display: flex; align-items: flex-start; gap: 12px;
-    border: 1px solid var(--bb-border); border-radius: var(--bb-radius-md, 10px);
+    border: 1px solid var(--bb-border); border-radius: 8px 8px;
     padding: 12px 14px; background: rgba(255, 255, 255, 0.02);
   }
   .notif-item.unread { border-color: rgba(201, 168, 124, 0.3); background: rgba(201, 168, 124, 0.05); }

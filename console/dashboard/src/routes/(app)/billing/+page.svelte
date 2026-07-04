@@ -311,51 +311,54 @@
     {/if}
   {:else}
     <!-- ────── MANAGEMENT VIEW (premium / vip) ────── -->
-    <Card class="billing-card">
-      <div class="mgmt-top">
-        <div>
-          <span class="plan-eyebrow">Current plan</span>
-          <div class="plan-name premium">
-            <Icon name="heart" size={16} />
-            {statusLabel}
-          </div>
+    <div class="premium-dashboard-hero">
+      <div class="premium-hero-content">
+        <div class="premium-hero-badge">
+          <img src="/premium-logo.png" alt="Premium" />
+        </div>
+        <div class="premium-hero-text">
+          <span class="premium-eyebrow">Current Plan</span>
+          <h2 class="premium-title">{statusLabel}</h2>
+          
           {#if isVip}
-            <p class="hint">{t('billing.vipHint')}</p>
+            <p class="premium-hint">{t('billing.vipHint')}</p>
           {:else if staffGrant}
-            <p class="hint">
+            <p class="premium-hint">
               {t('billing.staffGrantHint', { until: paidUntil ? t('billing.activeUntil', { date: fmtDate(paidUntil) }) : '' })}
             </p>
           {:else if tebexPaid}
-            <p class="hint">
+            <p class="premium-hint">
               {t('billing.tebexHint', {
                 state: account.cancelPending ? t('billing.cancelScheduled') : t('billing.activeThroughTebex'),
                 until: paidUntil ? t('billing.untilDate', { date: fmtDate(paidUntil) }) : ''
               })}
             </p>
           {:else}
-            <p class="hint">{t('billing.premiumActive', { until: paidUntil ? t('billing.untilDate', { date: fmtDate(paidUntil) }) : '' })}</p>
+            <p class="premium-hint">{t('billing.premiumActive', { until: paidUntil ? t('billing.untilDate', { date: fmtDate(paidUntil) }) : '' })}</p>
           {/if}
         </div>
+      </div>
 
-        <div class="mgmt-actions">
-          {#if canManage}
+      <div class="premium-hero-actions">
+        {#if canManage}
+          <div class="premium-actions-row">
             <form method="POST" action="?/cancel">
-              <button type="submit" class="btn ghost">{t('billing.manageSubscription')}</button>
+              <button type="submit" class="btn premium-btn">{t('billing.manageSubscription')}</button>
             </form>
             <form method="POST" action="?/cancel">
               <button type="submit" class="btn ghost danger">{t('billing.cancelSubscription')}</button>
             </form>
-            <p class="hint tiny">{t('billing.manageTiny')}</p>
-          {/if}
-          {#if form?.error && !form?.gift}
-            <p class="hint form-error">{form.error}</p>
-          {/if}
-        </div>
+          </div>
+          <p class="premium-tiny-hint">{t('billing.manageTiny')}</p>
+        {/if}
+        {#if form?.error && !form?.gift}
+          <p class="form-error center">{form.error}</p>
+        {/if}
       </div>
-    </Card>
+    </div>
 
     <!-- Gift: available whatever your own plan is. -->
-    <Card class="billing-card">
+    <Card class="billing-card premium-gift-card">
       <div class="gift-cta">
         <div>
           <h2>{t('billing.giftPremium')}</h2>
@@ -363,7 +366,7 @@
             {t('billing.giftCtaHint')}
           </p>
         </div>
-        <button type="button" class="btn ghost" onclick={openGift}>
+        <button type="button" class="btn premium-btn" onclick={openGift}>
           <Icon name="heart" size={14} />
           {t('billing.giftPremium')}
         </button>
@@ -668,35 +671,125 @@
     text-underline-offset: 3px;
   }
 
-  /* ── Management view ── */
-  .mgmt-top {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 18px;
-  }
-  .plan-name {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    margin-top: 6px;
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 20px;
-    color: var(--bb-white);
-  }
-  .plan-name.premium {
-    color: var(--bb-tan-light, #c9a87c);
-  }
-  .mgmt-actions {
+  /* ── Premium Management View ── */
+  .premium-dashboard-hero {
+    margin-top: 24px;
+    padding: 32px;
+    border-radius: 8px 8px;
+    border: 1px solid rgba(201, 168, 124, 0.4);
+    background: radial-gradient(circle at 10% 0%, rgba(201, 168, 124, 0.12) 0%, rgba(10, 10, 10, 0) 60%),
+                linear-gradient(180deg, rgba(201, 168, 124, 0.05) 0%, rgba(10, 10, 10, 0) 100%),
+                var(--bb-card-bg, #111110);
+    box-shadow: 0 12px 64px rgba(201, 168, 124, 0.1);
     display: flex;
     flex-direction: column;
-    align-items: flex-end;
-    gap: 8px;
-    flex-shrink: 0;
+    gap: 32px;
   }
-  .mgmt-actions .hint {
-    text-align: right;
+  @media (min-width: 720px) {
+    .premium-dashboard-hero {
+      flex-direction: row;
+      align-items: flex-start;
+      justify-content: space-between;
+    }
+  }
+  
+  .premium-hero-content {
+    display: flex;
+    align-items: flex-start;
+    gap: 24px;
+  }
+  
+  .premium-hero-badge {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: rgba(201, 168, 124, 0.15);
+    border: 1px solid rgba(201, 168, 124, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-shadow: 0 0 24px rgba(201, 168, 124, 0.2);
+  }
+  .premium-hero-badge img {
+    width: 36px;
+    height: 36px;
+    object-fit: contain;
+  }
+
+  .premium-hero-text {
+    display: flex;
+    flex-direction: column;
+  }
+  .premium-eyebrow {
+    font-family: var(--bb-font-mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--bb-tan, #c9a87c);
+    margin-bottom: 6px;
+  }
+  .premium-title {
+    font-family: var(--bb-font-display);
+    font-weight: 800;
+    font-size: 28px;
+    letter-spacing: -0.02em;
+    color: var(--bb-white);
+    margin: 0 0 8px;
+    background: linear-gradient(135deg, var(--bb-white) 0%, var(--bb-tan-pale) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .premium-hint {
+    font-family: var(--bb-font-body);
+    font-size: 14.5px;
+    line-height: 1.5;
+    color: rgba(240, 236, 228, 0.7);
+    max-width: 46ch;
+    margin: 0;
+  }
+
+  .premium-hero-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  @media (min-width: 720px) {
+    .premium-hero-actions {
+      align-items: flex-end;
+    }
+  }
+  
+  .premium-actions-row {
+    display: flex;
+    gap: 12px;
+  }
+
+  .premium-tiny-hint {
+    font-size: 12px;
+    color: rgba(240, 236, 228, 0.4);
+    margin: 0;
+  }
+
+  /* Premium Buttons */
+  :global(.btn.premium-btn) {
+    background: linear-gradient(180deg, var(--bb-tan-light, #dcb98a) 0%, var(--bb-tan, #c9a87c) 100%);
+    color: #0a0a0a !important;
+    border: 1px solid rgba(255,255,255,0.2);
+    box-shadow: 0 2px 12px rgba(201, 168, 124, 0.25);
+    font-weight: 700;
+  }
+  :global(.btn.premium-btn:hover) {
+    background: linear-gradient(180deg, #e8d8c0 0%, var(--bb-tan-light, #dcb98a) 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px rgba(201, 168, 124, 0.35);
+  }
+
+  /* ── Premium Gift Card ── */
+  :global(.premium-gift-card) {
+    border-color: rgba(201, 168, 124, 0.2) !important;
+    background: linear-gradient(180deg, rgba(201, 168, 124, 0.02) 0%, rgba(10, 10, 10, 0) 100%), var(--bb-card-bg, #111110) !important;
   }
   .gift-cta {
     display: flex;
@@ -750,7 +843,7 @@
   .fld-input {
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid var(--bb-border, rgba(255, 255, 255, 0.1));
-    border-radius: var(--bb-radius-md, 10px);
+    border-radius: 8px 8px;
     color: var(--bb-white, #f0ece4);
     font-family: var(--bb-font-body);
     font-size: 13.5px;
@@ -877,7 +970,7 @@
     position: absolute;
     top: 42%;
     left: 50%;
-    border-radius: 1px;
+    border-radius: 8px;
     opacity: 0;
     animation: confetti var(--dur, 1200ms) var(--bb-ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)) var(--delay, 0ms) forwards;
   }

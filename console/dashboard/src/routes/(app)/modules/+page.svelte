@@ -114,7 +114,7 @@
     margin-bottom: 14px;
     padding: 10px 14px;
     border: 1px solid rgba(176, 90, 70, 0.4);
-    border-radius: var(--bb-radius-md, 10px);
+    border-radius: 8px 8px;
     background: rgba(176, 90, 70, 0.08);
     color: #cf8a78;
     font-family: var(--bb-font-body);
@@ -131,7 +131,7 @@
     display: flex;
     flex-direction: column;
     border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.08));
-    border-radius: var(--bb-radius-lg, 14px);
+    border-radius: 8px 8px;
     background: linear-gradient(180deg, rgba(240, 236, 228, 0.03), rgba(240, 236, 228, 0.012));
     transition: border-color var(--bb-dur-fast, 140ms) ease, background var(--bb-dur-fast, 140ms) ease;
   }
@@ -156,7 +156,7 @@
     width: 40px;
     height: 40px;
     flex: none;
-    border-radius: var(--bb-radius-md, 10px);
+    border-radius: 8px 8px;
     background: rgba(201, 168, 124, 0.12);
     border: 1px solid var(--glass-border);
     color: var(--bb-tan-light);

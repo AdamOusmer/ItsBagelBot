@@ -33,11 +33,11 @@
     );
     background-size: 200% 100%;
     animation: shimmer 1.4s ease-in-out infinite;
-    border-radius: var(--bb-radius-sm, 8px);
+    border-radius: 8px 8px;
   }
   .text { height: 0.9em; width: 8ch; vertical-align: middle; }
   .pill { height: 22px; width: 72px; border-radius: 999px; }
-  .block { display: block; width: 100%; height: 64px; border-radius: var(--bb-radius-md, 10px); }
+  .block { display: block; width: 100%; height: 64px; border-radius: 8px 8px; }
 
   .skel-lines { display: flex; flex-direction: column; gap: 8px; }
 

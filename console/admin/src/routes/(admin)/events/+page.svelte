@@ -91,7 +91,7 @@
     font-size: 13.5px;
   }
   .feed-empty .fi {
-    width: 32px; height: 32px; border-radius: 9px;
+    width: 32px; height: 32px; border-radius: 8px;
     display: flex; align-items: center; justify-content: center;
     background: rgba(255,255,255,.04); border: 1px solid var(--glass-border);
     flex-shrink: 0;

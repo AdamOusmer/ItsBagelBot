@@ -172,14 +172,14 @@
   input[type='text'], input[type='datetime-local'], textarea, select {
     font-family: var(--bb-font-body); font-size: 14px; text-transform: none; letter-spacing: normal;
     color: var(--bb-white); background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border);
-    border-radius: var(--bb-radius-sm, 8px); padding: 9px 12px;
+    border-radius: 8px 8px; padding: 9px 12px;
   }
   textarea { resize: vertical; font-family: var(--bb-font-body); }
 
   .list { display: flex; flex-direction: column; gap: 10px; }
   .row-item {
     display: flex; align-items: flex-start; justify-content: space-between; gap: 14px;
-    border: 1px solid var(--glass-border); border-radius: var(--bb-radius-md, 10px);
+    border: 1px solid var(--glass-border); border-radius: 8px 8px;
     padding: 12px 14px; background: rgba(255, 255, 255, 0.02);
   }
   .row-main { display: flex; gap: 12px; align-items: flex-start; flex: 1; min-width: 0; }

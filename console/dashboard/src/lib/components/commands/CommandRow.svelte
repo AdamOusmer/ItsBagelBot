@@ -186,7 +186,7 @@
     font-size: 10px;
     color: var(--bb-muted);
     border: 1px solid var(--rule, rgba(240, 236, 228, 0.1));
-    border-radius: 2px;
+    border-radius: 8px;
     padding: 1px 6px;
     white-space: nowrap;
   }

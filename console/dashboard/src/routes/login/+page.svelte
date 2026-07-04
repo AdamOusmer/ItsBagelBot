@@ -105,7 +105,7 @@
     align-items: center;
     gap: 9px;
     padding: 11px 18px;
-    border-radius: var(--bb-radius-md, 10px);
+    border-radius: 8px 8px;
     background: rgba(176, 90, 70, 0.1);
     border: 1px solid rgba(176, 90, 70, 0.4);
     color: #cf8a78;
@@ -116,7 +116,7 @@
   .notice :global(svg) { stroke: currentColor; fill: none; stroke-width: 1.8; flex: none; }
 
   .logo { position: relative; width: 84px; height: 84px; display: grid; place-items: center; margin-bottom: 6px; }
-  .logo img { width: 72px; height: 72px; border-radius: 18px; animation: float 6s ease-in-out infinite; }
+  .logo img { width: 72px; height: 72px; border-radius: 8px; animation: float 6s ease-in-out infinite; }
   .logo .halo { position: absolute; inset: -22px; border-radius: 50%; background: radial-gradient(circle, rgba(82, 183, 136, 0.35), transparent 68%); filter: blur(8px); animation: pulse 3.2s ease-in-out infinite; }
 
   .eyebrow { font-family: var(--bb-font-mono); font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--bb-green-glow); }
@@ -131,7 +131,7 @@
     display: inline-flex; align-items: center; gap: 10px;
     font-family: var(--bb-font-display); font-weight: 700; font-size: 15px; letter-spacing: -0.01em;
     color: #0a0a0a; background: var(--bb-tan);
-    padding: 16px 32px; border-radius: var(--bb-radius-md, 10px); text-decoration: none;
+    padding: 16px 32px; border-radius: 8px 8px; text-decoration: none;
     transition: background 0.25s, transform 0.25s, box-shadow 0.25s;
   }
   .cta svg { width: 17px; height: 17px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linejoin: round; }

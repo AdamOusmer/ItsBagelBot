@@ -155,8 +155,8 @@
 
   <!-- status-hero keeps page-scoped descendant styles (.live.off/.meta/.botmark),
        so it stays a raw glass card rather than the <Card> component. -->
-  <div class="card sheen status-hero">
-    <div class="botmark"><img src="/logo.png" alt="" /></div>
+  <div class="card sheen status-hero" class:status-hero--premium={data.isPremium}>
+    <div class="botmark"><img src={data.isPremium ? '/premium-logo.png' : '/logo.png'} alt="" /></div>
     <!-- Connection state streams in after the shell renders; show a neutral
          placeholder until the RPC lands so navigation stays instant. -->
     {#await data.conn}
@@ -371,6 +371,15 @@
     gap: 12px;
     margin-bottom: 12px;
   }
+  
+  :global(.status-hero--premium .botmark) {
+    border-radius: 50% !important;
+    border-color: rgba(201, 168, 124, 0.4) !important;
+    background: rgba(201, 168, 124, 0.05) !important;
+  }
+  :global(.status-hero--premium .botmark img) {
+    border-radius: 50% !important;
+  }
   .status-hero .live .dot { width: 9px; height: 9px; }
   .status-hero .live.off { color: var(--bb-muted); }
   .status-hero .live.off .dot { background: var(--bb-muted); box-shadow: none; animation: none; }
@@ -440,7 +449,7 @@
     padding: 12px 16px;
     background: rgba(201, 168, 124, 0.07);
     border: 1px solid rgba(201, 168, 124, 0.3);
-    border-radius: var(--bb-radius-md, 10px);
+    border-radius: 8px 8px;
   }
   .attn-ico {
     display: inline-flex;
@@ -449,7 +458,7 @@
     width: 28px;
     height: 28px;
     flex: none;
-    border-radius: var(--bb-radius-sm, 6px);
+    border-radius: 8px 8px;
     background: rgba(201, 168, 124, 0.14);
     color: var(--bb-tan-light);
   }

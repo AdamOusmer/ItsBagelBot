@@ -21,7 +21,9 @@
     brandSub = '',
     accountName = '',
     accountRole = '',
-    dashboards = []
+    dashboards = [],
+    logoSrc = '/logo.png',
+    isPremium = false
   }: {
     root: string;
     crumb: string;
@@ -33,6 +35,8 @@
     // Boards shared with this user; renders a scrollable quick-switch list in
     // the account menu. Empty (e.g. admin, or a user with no grants) hides it.
     dashboards?: DashboardLink[];
+    logoSrc?: string;
+    isPremium?: boolean;
   } = $props();
 
   const initial = $derived((accountName || '?').charAt(0).toUpperCase());
@@ -60,8 +64,8 @@
 <svelte:window onkeydown={(e) => { if (e.key === 'Escape') menuOpen = false; }} />
 
 <header class="topbar">
-  <a class="station" href="/">
-    <img src="/logo.png" alt="" />
+  <a class="station" href="/" class:station--premium={isPremium}>
+    <img src={logoSrc} alt="" />
     <span class="station-id">
       <b>{brandTitle}</b>
       {#if brandSub}<i>{brandSub}</i>{/if}
@@ -156,8 +160,10 @@
     .topbar { gap: 20px; padding: calc(9px + env(safe-area-inset-top, 0px)) var(--gutter) 9px; }
   }
 
-  .station { display: flex; align-items: center; gap: 9px; text-decoration: none; flex: none; }
-  .station img { width: 26px; height: 26px; border-radius: var(--bb-radius-sm, 6px); }
+  .station { display: flex; align-items: center; gap: 9px; text-decoration: none; flex: none; padding: 4px 12px 4px 4px; border-radius: var(--bb-radius-pill, 100px); border: none; background: transparent; transition: all var(--bb-dur-base) ease; }
+  .station--premium { }
+  .station img { width: 26px; height: 26px; border-radius: 8px 8px; }
+  .station--premium img { border-radius: 50%; }
   .station-id { display: flex; flex-direction: column; line-height: 1; }
   .station-id b { font-family: var(--bb-font-display); font-weight: 800; font-size: 13.5px; letter-spacing: -0.01em; color: var(--bb-white); }
   .station-id i { font-style: normal; font-family: var(--bb-font-display); font-weight: 700; font-size: 9.5px; letter-spacing: 0.04em; color: var(--bb-tan); margin-top: 3px; }
@@ -203,7 +209,7 @@
     padding: 8px;
     background: var(--bb-card-bg, #111110);
     border: 1px solid var(--bb-border-strong, rgba(201, 168, 124, 0.35));
-    border-radius: var(--bb-radius-lg, 16px);
+    border-radius: 8px 8px;
     box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
     transform-origin: top right;
     animation: menu-in 240ms var(--bb-ease-out-back, ease-out) both;
@@ -227,7 +233,7 @@
   .op-dash-list { display: flex; flex-direction: column; gap: 2px; }
   .op-dash {
     display: flex; align-items: center; gap: 10px; width: 100%;
-    padding: 7px 10px; border-radius: var(--bb-radius-md, 10px);
+    padding: 7px 10px; border-radius: 8px 8px;
     text-decoration: none; cursor: pointer;
     transition: background var(--bb-dur-fast, 180ms) ease;
   }
@@ -248,7 +254,7 @@
   .op-menu form { display: flex; }
   .op-menu-item {
     display: flex; align-items: center; gap: 10px; width: 100%;
-    padding: 10px 10px; border-radius: var(--bb-radius-md, 10px);
+    padding: 10px 10px; border-radius: 8px 8px;
     background: none; border: none; cursor: pointer;
     font-family: var(--bb-font-body); font-weight: 600; font-size: 13px; color: var(--bb-muted);
     transition: color var(--bb-dur-fast, 180ms) ease, background var(--bb-dur-fast, 180ms) ease;
@@ -268,7 +274,7 @@
     .crumb .root, .crumb .sep { display: none; }
   }
 
-  .icon-btn { width: 34px; height: 34px; border-radius: var(--bb-radius-md, 10px); display: flex; align-items: center; justify-content: center;
+  .icon-btn { width: 34px; height: 34px; border-radius: 8px 8px; display: flex; align-items: center; justify-content: center;
     background: none; border: 1px solid var(--rule, rgba(240, 236, 228, 0.1)); color: var(--bb-tan-light); cursor: pointer;
     transition: all var(--bb-dur-base) var(--bb-ease-out-expo); flex: none; }
   .icon-btn :global(svg) { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.7; }

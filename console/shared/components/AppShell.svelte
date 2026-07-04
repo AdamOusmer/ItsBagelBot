@@ -9,12 +9,12 @@
   let {
     brandTitle = 'ItsBagelBot', brandSub, crumbRoot, crumb,
     accountName, accountRole, dashboards = [], groups, mobileItems,
-    offset = false, banner, topActions, children
+    offset = false, logoSrc = '/logo.png', isPremium = false, banner, topActions, children
   }: {
     brandTitle?: string; brandSub: string; crumbRoot: string; crumb: string;
     accountName: string; accountRole: string; dashboards?: DashboardLink[];
     groups: NavGroupDef[]; mobileItems: NavLink[];
-    offset?: boolean; banner?: Snippet; topActions?: Snippet; children: Snippet;
+    offset?: boolean; logoSrc?: string; isPremium?: boolean; banner?: Snippet; topActions?: Snippet; children: Snippet;
   } = $props();
 
   // Flat apps (one group) get their curated mobileItems in the dock; apps with
@@ -37,6 +37,8 @@
     {accountName}
     {accountRole}
     {dashboards}
+    {logoSrc}
+    {isPremium}
   />
   <main class="main">
     <div class="canvas">{@render children()}</div>
