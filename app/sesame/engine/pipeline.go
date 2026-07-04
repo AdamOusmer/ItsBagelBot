@@ -67,6 +67,7 @@ type Pipeline struct {
 
 	automod        *automod.Gate
 	automodEnforce bool
+	reputation     Reputation
 }
 
 // NewPipeline wires a Pipeline from the shared Deps, a pre-built registry, and
@@ -86,6 +87,7 @@ func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 		outgressStandard: cfg.OutgressStandard,
 		automod:          d.Automod,
 		automodEnforce:   cfg.AutomodEnforce,
+		reputation:       d.Reputation,
 	}
 	if p.dedup == nil {
 		p.dedup = NoopDedup{}
@@ -204,6 +206,12 @@ func (p *Pipeline) Process(msg *message.Message) (err error) {
 	actioned := false
 	if isChat && p.automod != nil && len(env.Senders) == 0 {
 		if v := p.automod.Inspect(mctx.Chatter(), env.Text); v.Action != automod.ActionNone {
+			// Tier-2 reputation escalation: a repeat offender's timeout becomes a
+			// ban, then this hit is recorded against the chatter.
+			if p.reputation != nil {
+				v = escalateByReputation(v, p.reputation.Score(ctx, env.ChatterUserID))
+				p.reputation.Bump(ctx, env.ChatterUserID)
+			}
 			if p.automodEnforce {
 				actioned = p.emitAutomod(v, env, emit)
 			}
@@ -217,8 +225,15 @@ func (p *Pipeline) Process(msg *message.Message) (err error) {
 	}
 
 	// A folded duplicate cohort (Senders present) is plain chat the ingress
-	// squash collapsed; it is never a command, so skip command dispatch. The
-	// automod (later phase) fans out over env.Senders for reputation/campaign.
+	// squash collapsed identical lines from many chatters into env.Senders. Fan
+	// reputation out over every sender so a coordinated duplicate flood builds
+	// each participant's score; command dispatch is skipped (never a command).
+	if isChat && len(env.Senders) > 0 && p.reputation != nil {
+		for i := range env.Senders {
+			p.reputation.Bump(ctx, env.Senders[i].ChatterUserID)
+		}
+	}
+
 	if isChat && !actioned && len(env.Senders) == 0 {
 		p.dispatch(ctx, mctx, views, emit)
 	}
@@ -359,6 +374,21 @@ func (p *Pipeline) enabled(m module.Module, views map[string]projection.ModuleVi
 	default:
 		return false
 	}
+}
+
+// repEscalateThreshold is the reputation score at or above which a repeat
+// offender's timeout is upgraded to a ban.
+const repEscalateThreshold = 3
+
+// escalateByReputation raises a verdict against a repeat offender: a chatter
+// whose reputation score meets the threshold has a timeout upgraded to a ban.
+// Other verdicts are unchanged.
+func escalateByReputation(v automod.Verdict, score int) automod.Verdict {
+	if score >= repEscalateThreshold && v.Action == automod.ActionTimeout {
+		v.Action = automod.ActionBan
+		v.Rule += "+repeat"
+	}
+	return v
 }
 
 // emitAutomod translates an enforced verdict into an outgress moderation action
