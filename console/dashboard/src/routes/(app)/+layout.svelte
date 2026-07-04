@@ -74,6 +74,8 @@
   const sections = $derived((data.sections ?? []) as string[]);
   const canCommands = $derived(!isDelegate || sections.includes('commands'));
   const canModules = $derived(!isDelegate || sections.includes('modules'));
+  // Billing is owner-only except for a delegate explicitly granted it (view-only).
+  const canBilling = $derived(!isDelegate || sections.includes('billing'));
 
   // Notifications deliberately have NO nav entry: the topbar bell (badge +
   // dropdown, "View all" link) is the only way in.
@@ -87,7 +89,7 @@
     ...(canModules
       ? [{ href: '/modules', icon: 'modules', label: t('nav.modules'), active: section === 'modules' }]
       : []),
-    ...(!isDelegate
+    ...(canBilling
       ? [{ href: '/billing', icon: 'card', label: t('nav.billing'), active: section === 'billing' }]
       : []),
     ...(!isDelegate

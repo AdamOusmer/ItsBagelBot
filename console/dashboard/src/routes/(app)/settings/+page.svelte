@@ -24,6 +24,15 @@
   );
   const origin = $derived(page.url.origin);
 
+  // Sections an owner can grant (from the server so it stays in one place).
+  const grantable = $derived((data.grantableSections ?? ['commands', 'modules', 'billing']) as string[]);
+  function sectionLabel(sec: string): string {
+    return sec === 'modules' ? t('settings.modules') : sec === 'billing' ? t('settings.billing') : t('settings.commands');
+  }
+
+  // Which grant's access is being edited inline (add/remove sections).
+  let editingToken = $state<string | null>(null);
+
   function linkFor(token: string): string {
     return `${origin}/delegate/accept?t=${token}`;
   }
@@ -51,6 +60,7 @@
     if (!form) return;
     if (form.error) toast('err', String(form.error));
     else if (form.ok && form.action === 'created') toast('ok', t('settings.toastCreated'));
+    else if (form.ok && form.action === 'updated') toast('ok', t('settings.toastAccessUpdated'));
     else if (form.ok && form.action === 'revoked') toast('ok', t('settings.toastRevoked'));
     else if (form.ok && form.action === 'opted_out') toast('ok', t('settings.toastOptedOut'));
   });
@@ -124,9 +134,34 @@
               </span>
               <button type="button" class="btn ghost sm danger" onclick={() => (revokeTarget = g)}>{t('common.revoke')}</button>
             </div>
-            <div class="grant-sections">
-              {#each g.sections as s (s)}<span class="section-chip">{s}</span>{/each}
-            </div>
+            {#if editingToken === g.token}
+              <form
+                method="POST"
+                action="?/updateSections"
+                class="grant-edit"
+                use:enhance={() =>
+                  async ({ result, update }) => {
+                    await update();
+                    if (result.type === 'success') editingToken = null;
+                  }}
+              >
+                <input type="hidden" name="token" value={g.token} />
+                <div class="section-picks compact">
+                  {#each grantable as sec (sec)}
+                    <CheckButton name={sec} checked={g.sections.includes(sec)} label={sectionLabel(sec)} />
+                  {/each}
+                </div>
+                <div class="grant-edit-actions">
+                  <button type="button" class="btn ghost sm" onclick={() => (editingToken = null)}>{t('common.cancel')}</button>
+                  <button type="submit" class="btn primary sm"><Icon name="check" size={12} /> {t('common.save')}</button>
+                </div>
+              </form>
+            {:else}
+              <div class="grant-sections">
+                {#each g.sections as s (s)}<span class="section-chip">{sectionLabel(s)}</span>{/each}
+                <button type="button" class="btn ghost sm edit-access" onclick={() => (editingToken = g.token)}>{t('settings.editAccess')}</button>
+              </div>
+            {/if}
             {#if !g.consumed}
               <div class="grant-link">
                 <code>{linkFor(g.token)}</code>
@@ -145,8 +180,9 @@
       <h3>{t('settings.newShareLink')}</h3>
       <p class="hint">{t('settings.newShareLinkHint')}</p>
       <div class="section-picks">
-        <CheckButton name="commands" checked={true} label={t('settings.commands')} />
-        <CheckButton name="modules" label={t('settings.modules')} />
+        {#each grantable as sec (sec)}
+          <CheckButton name={sec} checked={sec === 'commands'} label={sectionLabel(sec)} />
+        {/each}
       </div>
       <button class="btn primary" type="submit"><Icon name="link" size={14} /> {t('common.generate')}</button>
     </form>
@@ -200,7 +236,7 @@
               </span>
             </div>
             <div class="grant-sections">
-              {#each r.sections as s (s)}<span class="section-chip">{s}</span>{/each}
+              {#each r.sections as s (s)}<span class="section-chip">{sectionLabel(s)}</span>{/each}
             </div>
           </div>
         {/each}
@@ -304,7 +340,11 @@
     color: var(--bb-white);
   }
 
-  .grant-sections { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .grant-sections { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+  .edit-access { margin-left: 2px; }
+  .grant-edit { margin-top: 10px; display: flex; flex-direction: column; gap: 10px; }
+  .grant-edit .section-picks.compact { display: flex; flex-direction: row; flex-wrap: wrap; gap: 8px 16px; }
+  .grant-edit-actions { display: flex; gap: 8px; justify-content: flex-end; }
   .section-chip {
     font-family: var(--bb-font-mono);
     font-size: 11px;

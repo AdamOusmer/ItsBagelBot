@@ -4,6 +4,7 @@ import {
   delegationList,
   delegationAccess,
   delegationCreate,
+  delegationUpdate,
   delegationOptOut,
   delegationRevoke,
   deleteSelf,
@@ -17,7 +18,9 @@ import { ACCOUNT_DELETED_COOKIE, COOKIE, type Session } from '$lib/server/sessio
 import { demoNotifications } from '$lib/server/demo-notifications';
 import { env } from '$env/dynamic/private';
 
-const SECTIONS = ['commands', 'modules'] as const;
+// Dashboard sections an owner can delegate. Billing is view-only for a delegate
+// (the money actions stay owner-only — see billing/+page.server.ts).
+const SECTIONS = ['commands', 'modules', 'billing'] as const;
 
 function tokenLabel(token: string): string {
   return token.length <= 8 ? 'token=redacted' : `token=${token.slice(0, 8)}...`;
@@ -48,10 +51,11 @@ export const load: PageServerLoad = async ({ locals }) => {
   if (env.DEMO === '1') {
     return {
       given: [
-        { token: 'demo-pending-token-1234', sections: ['commands'], delegate_login: '', consumed: false },
+        { token: 'demo-pending-token-1234', sections: ['commands', 'modules'], delegate_login: '', consumed: false },
         { token: 'demo-consumed-token-5678', sections: ['commands'], delegate_login: 'trusty_mod', consumed: true }
       ],
       received: [{ owner_user_id: '42', owner_login: 'ferret_king', sections: ['commands'] }],
+      grantableSections: [...SECTIONS],
       notifications: demoNotifications,
       degraded: false
     };
@@ -81,7 +85,7 @@ export const load: PageServerLoad = async ({ locals }) => {
   // Notifications are a nice-to-have section; a failed fetch just shows empty.
   if (notifResult.status === 'fulfilled') notifications = notifResult.value.notifications;
 
-  return { given, received, notifications, degraded };
+  return { given, received, grantableSections: [...SECTIONS], notifications, degraded };
 };
 
 export const actions: Actions = {
@@ -158,6 +162,19 @@ export const actions: Actions = {
         consumed: false
       }
     };
+  }),
+
+  // Re-scope an existing grant: add/remove sections in place (the delegate keeps
+  // the same link, and a consumed grant's access follows on their next visit).
+  updateSections: ownerAction('Could not update link.', async (s, f) => {
+    const token = String(f.get('token') ?? '');
+    if (!token) return fail(400, { error: 'Missing grant.' });
+    const sections = SECTIONS.filter((sec) => f.get(sec) === 'on');
+    if (sections.length === 0) return fail(400, { error: 'Pick at least one section.' });
+
+    await delegationUpdate(s.user_id, token, sections);
+    auditDashboardImpersonation(s, 'delegation:update', `${tokenLabel(token)} sections=${sections.join(',')}`);
+    return { ok: true, action: 'updated', updatedToken: token, updatedSections: sections };
   }),
 
   revoke: ownerAction('Could not revoke link.', async (s, f) => {
