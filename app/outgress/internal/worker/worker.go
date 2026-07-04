@@ -346,6 +346,13 @@ func (w *Worker) Process(msg *message.Message) error {
 		return w.processClip(ctx, payload)
 	}
 
+	// Ban and timeout both hit /helix/moderation/bans and need broadcaster_id +
+	// moderator_id on the query string (Twitch reads them there, not the body),
+	// so they get their own handler before the generic helix path.
+	if payload.Type == outgress.TypeBan || payload.Type == outgress.TypeTimeout {
+		return w.processBan(ctx, payload)
+	}
+
 	// Only "chat" pays the chat rate buckets; every other Helix call pays the
 	// general bucket.
 	if payload.Type == outgress.TypeChat {
@@ -505,6 +512,38 @@ func (w *Worker) processAnnounce(ctx context.Context, payload outgress.Message) 
 	payload.Endpoint = "/helix/chat/announcements?broadcaster_id=" +
 		url.QueryEscape(payload.BroadcasterID) + "&moderator_id=" + url.QueryEscape(mod)
 	payload.Payload = withField(payload.Payload, "color", color)
+
+	return w.execute(ctx, payload)
+}
+
+// processBan issues a Helix ban or timeout as the bot moderator. broadcaster_id
+// and moderator_id ride the query string (Twitch reads them there, not the
+// body); the body carries {data:{user_id,duration,reason}} built by the
+// producer, where the presence of a duration makes it a timeout rather than a
+// permanent ban. It pays the general Helix budget like processAnnounce, then
+// hands the assembled request to execute() for the shared status handling.
+func (w *Worker) processBan(ctx context.Context, payload outgress.Message) error {
+	// The acting moderator is the bot: prefer an explicit sender, else the
+	// configured bot id. Without one there is no one to act as, so drop the job
+	// (mirroring processAnnounce's no-moderator guard).
+	mod := payload.SenderID
+	if mod == "" {
+		mod = w.botID
+	}
+	if mod == "" {
+		w.log.Error("dropping ban/timeout: no bot moderator id configured",
+			zap.String("broadcaster_id", payload.BroadcasterID))
+		return nil
+	}
+
+	if err := w.takeGeneralHelix(ctx, payload); err != nil {
+		return err
+	}
+
+	payload.As = outgress.AsBot
+	payload.Method = http.MethodPost
+	payload.Endpoint = "/helix/moderation/bans?broadcaster_id=" +
+		url.QueryEscape(payload.BroadcasterID) + "&moderator_id=" + url.QueryEscape(mod)
 
 	return w.execute(ctx, payload)
 }

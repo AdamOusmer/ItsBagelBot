@@ -186,7 +186,10 @@ func (p *Pipeline) Process(msg *message.Message) (err error) {
 		}
 	}
 
-	if isChat {
+	// A folded duplicate cohort (Senders present) is plain chat the ingress
+	// squash collapsed; it is never a command, so skip command dispatch. The
+	// automod (later phase) fans out over env.Senders for reputation/campaign.
+	if isChat && len(env.Senders) == 0 {
 		p.dispatch(ctx, mctx, views, emit)
 	}
 	if len(handlers) > 0 {
@@ -328,6 +331,15 @@ func (p *Pipeline) enabled(m module.Module, views map[string]projection.ModuleVi
 	}
 }
 
+// banData is the inner object of a Helix Ban User request body. Duration is
+// omitted for a permanent ban and set (in seconds) for a timeout; reason is
+// optional.
+type banData struct {
+	UserID   string `json:"user_id"`
+	Duration int    `json:"duration,omitempty"`
+	Reason   string `json:"reason,omitempty"`
+}
+
 // buildOutgress translates a module Output into the marshaled bytes of the full
 // outgress.Message wire contract. The inner Payload is built from a small typed
 // struct rather than a map so sonic escapes emoji and quotes in the body
@@ -388,6 +400,23 @@ func buildOutgress(o *module.Output) ([]byte, error) {
 		}
 		msg = outgress.Message{
 			Type:          outgress.TypeClip,
+			BroadcasterID: o.BroadcasterID,
+			Payload:       payload,
+		}
+	case outgress.TypeBan, outgress.TypeTimeout:
+		// Helix Ban User body: {"data":{"user_id","duration","reason"}}. A ban
+		// omits duration (permanent); a timeout sets it (whole seconds; Output
+		// shares the Duration field with clip, which carries a fraction).
+		// broadcaster_id and moderator_id are added by outgress on the query
+		// string, not here.
+		payload, err := sonic.Marshal(struct {
+			Data banData `json:"data"`
+		}{banData{UserID: o.TargetUserID, Duration: int(o.Duration), Reason: o.Reason}})
+		if err != nil {
+			return nil, err
+		}
+		msg = outgress.Message{
+			Type:          o.Type,
 			BroadcasterID: o.BroadcasterID,
 			Payload:       payload,
 		}
