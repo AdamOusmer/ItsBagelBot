@@ -23,6 +23,37 @@ func TestRoutinePoolLaneLimitReserve(t *testing.T) {
 	}
 }
 
+// TestRoutinePoolReserveSurvivesSmallPool pins the ceil rounding: a 25% premium
+// reserve must hold at least one slot even in a 2- or 3-routine pool, where
+// truncating capacity*reserve/100 down would round the reservation to zero and
+// let a standard flood take the whole pool at raid onset (before the autoscaler
+// grows the pool past capacity 4).
+func TestRoutinePoolReserveSurvivesSmallPool(t *testing.T) {
+	cases := []struct {
+		capacity     int
+		wantPremium  int // premium may use the whole pool
+		wantStandard int // pool minus premium's rounded-up reserve
+	}{
+		{1, 1, 1}, // no reservation possible at one slot; neither lane starved
+		{2, 2, 1}, // premium keeps 1 (old math gave standard 2, reserve 0)
+		{3, 3, 2}, // premium keeps 1 (old math gave standard 3, reserve 0)
+		{4, 4, 3},
+		{8, 8, 6},
+	}
+	for _, tc := range cases {
+		p := newRoutinePool([]int{25, 0}, tc.capacity)
+		if got := p.laneLimit(0); got != tc.wantPremium {
+			t.Errorf("cap %d: premium limit = %d, want %d", tc.capacity, got, tc.wantPremium)
+		}
+		if got := p.laneLimit(1); got != tc.wantStandard {
+			t.Errorf("cap %d: standard limit = %d, want %d", tc.capacity, got, tc.wantStandard)
+		}
+		if reserved := tc.capacity - tc.wantStandard; tc.capacity >= 2 && reserved < 1 {
+			t.Errorf("cap %d: premium reserved %d slots, want >= 1", tc.capacity, reserved)
+		}
+	}
+}
+
 func TestRoutinePoolStandardCannotTakeReservedSlots(t *testing.T) {
 	p := newRoutinePool([]int{25, 0}, 4)
 
