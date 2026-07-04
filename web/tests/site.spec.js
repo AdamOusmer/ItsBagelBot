@@ -1,6 +1,44 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('ItsBagelBot site', () => {
+    async function jumpDown(page) {
+        await page.evaluate(() => {
+            const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+            const target = Math.min(Math.max(window.innerHeight * 1.4, 700), maxScroll);
+            window.lenis?.scrollTo?.(target, { immediate: true, force: true });
+            window.scrollTo({ top: target, behavior: 'instant' });
+        });
+        await page.waitForFunction(() => window.scrollY > 500);
+    }
+
+    async function expectPageTop(page) {
+        await page.waitForFunction(() => {
+            const lenis = window.lenis;
+            const lenisScroll = typeof lenis?.scroll === 'number' ? lenis.scroll : 0;
+            const lenisTarget = typeof lenis?.targetScroll === 'number' ? lenis.targetScroll : 0;
+            const savedScroll = typeof history.state?.scrollY === 'number' ? history.state.scrollY : 0;
+
+            return window.scrollY < 2 && lenisScroll < 2 && lenisTarget < 2 && savedScroll < 2;
+        });
+    }
+
+    async function expectEncryptionInitialized(page, previousId = 0) {
+        await page.waitForFunction((previousId) => {
+            const canvas = document.querySelector('#enc-canvas');
+            const active = window.__itsbagelbotPreload?.activeEncryption;
+            return Boolean(
+                canvas &&
+                active?.id > previousId &&
+                active.section === document.querySelector('#enc-section') &&
+                canvas.clientWidth > 0 &&
+                canvas.clientHeight > 0 &&
+                canvas.width >= canvas.clientWidth &&
+                canvas.height >= canvas.clientHeight &&
+                (canvas.width !== 300 || canvas.height !== 150)
+            );
+        }, previousId);
+    }
+
     test('home renders hero + Act II sections', async ({ page }) => {
         await page.goto('/');
 
@@ -103,7 +141,62 @@ test.describe('ItsBagelBot site', () => {
 
     test('active nav route is marked', async ({ page }) => {
         await page.goto('/pricing');
-        await expect(page.locator('nav .is-active')).toContainText('Pricing');
+        await expect(page.locator('nav a[aria-label="Pricing"].is-active')).toHaveCount(1);
+    });
+
+    test('client route changes always start at the top', async ({ page }) => {
+        await page.goto('/');
+        await jumpDown(page);
+
+        await page.locator('nav a[aria-label="Pricing"]').click();
+        await expect(page).toHaveURL(/\/pricing\/?$/);
+        await expectPageTop(page);
+
+        await jumpDown(page);
+        await page.locator('nav a[aria-label="Contact"]').click();
+        await expect(page).toHaveURL(/\/contact\/?$/);
+        await expectPageTop(page);
+
+        await page.goBack();
+        await expect(page).toHaveURL(/\/pricing\/?$/);
+        await expectPageTop(page);
+    });
+
+    test('decode text animates after client route swaps', async ({ page }) => {
+        await page.goto('/');
+
+        await page.locator('nav a[aria-label="Pricing"]').click();
+        await expect(page).toHaveURL(/\/pricing\/?$/);
+
+        await page.waitForFunction(() => {
+            const title = document.querySelector('.phero__title');
+            return Boolean(
+                title &&
+                title.dataset.decodeReady === 'true' &&
+                title.dataset.decode &&
+                title.textContent !== title.dataset.decode
+            );
+        });
+
+        await expect(page.locator('.phero__title')).toContainText('Free is the whole product.', { timeout: 3000 });
+    });
+
+    test('encryption scene boots again when returning home', async ({ page }) => {
+        await page.goto('/');
+
+        await expectEncryptionInitialized(page);
+
+        const firstSceneId = await page.evaluate(() => window.__itsbagelbotPreload.activeEncryption.id);
+
+        await page.locator('nav a[aria-label="Pricing"]').click();
+        await expect(page).toHaveURL(/\/pricing\/?$/);
+        await expect(page.locator('#enc-canvas')).toHaveCount(0);
+
+        await page.goBack();
+        await page.waitForFunction(() => location.pathname === '/');
+        await expectPageTop(page);
+
+        await expectEncryptionInitialized(page, firstSceneId);
     });
 });
 

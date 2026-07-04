@@ -4,10 +4,9 @@
  * first time it scrolls into view its text scrambles, then resolves
  * character-by-character. Honors reduced-motion (shows final text instantly).
  *
- * The scramble is a first-impression flourish: it plays on the initial page
- * load, but on client-side navigations (Astro view transitions) the text is
- * resolved immediately. Running the per-frame scramble during a page
- * transition thrashed the main thread and made the transition stutter.
+ * The scramble plays whenever a fresh Astro page enters. In-flight work is
+ * cancelled before swaps so the outgoing page cannot keep animating against
+ * the incoming DOM.
  */
 
 const SCRAMBLE = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#$%&*+-/<>";
@@ -62,18 +61,11 @@ function runDecode(el, text) {
     runningFrames.add(frameId);
 }
 
-// scramble=true animates on scroll-in; false resolves the text instantly
-// (used on navigations so nothing runs during the page transition).
-function setupDecode(el, scramble) {
+function setupDecode(el) {
     if (el.dataset.decodeReady === "true") return;
     el.dataset.decodeReady = "true";
 
     const text = (el.dataset.decode && el.dataset.decode.length ? el.dataset.decode : el.textContent) ?? "";
-
-    if (!scramble) {
-        el.textContent = text;
-        return;
-    }
 
     const observer = new IntersectionObserver(
         (entries) => {
@@ -91,14 +83,10 @@ function setupDecode(el, scramble) {
     observer.observe(el);
 }
 
-let firstLoad = true;
 function setup() {
-    document.querySelectorAll("[data-decode]").forEach((el) => setupDecode(el, firstLoad));
+    document.querySelectorAll("[data-decode]").forEach(setupDecode);
 }
 
 setup();
 document.addEventListener("astro:before-swap", cancelAll);
-document.addEventListener("astro:page-load", () => {
-    firstLoad = false;
-    setup();
-});
+document.addEventListener("astro:page-load", setup);
