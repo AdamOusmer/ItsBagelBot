@@ -6,20 +6,30 @@
 
   const i18n = getI18n();
 
-  let {
-    value = $bindable(''),
-    name = 'response'
-  }: {
-    value: string;
-    name?: string;
-  } = $props();
+  // tokens: the insert palette. Defaults to the command tokens (hint = i18n key);
+  // callers (e.g. module replies) can pass their own with a plain `label` title.
+  type PaletteToken = { token: string; hint?: string; label?: string };
 
-  const TOKENS = [
+  const DEFAULT_TOKENS: PaletteToken[] = [
     { token: '{user}', hint: 'commandEditor.tokUser' },
     { token: '{target}', hint: 'commandEditor.tokTarget' },
     { token: '{uptime}', hint: 'commandEditor.tokUptime' },
     { token: '{followage}', hint: 'commandEditor.tokFollowage' }
   ];
+
+  let {
+    value = $bindable(''),
+    name = 'response',
+    tokens = DEFAULT_TOKENS,
+    placeholder
+  }: {
+    value: string;
+    name?: string;
+    tokens?: PaletteToken[];
+    placeholder?: string;
+  } = $props();
+
+  const chipTitle = (tk: PaletteToken) => (tk.hint ? i18n.t(tk.hint) : (tk.label ?? tk.token));
 
   let area: HTMLTextAreaElement;
 
@@ -43,7 +53,7 @@
     {name}
     rows="4"
     maxlength={RESPONSE_MAX}
-    placeholder={i18n.t('commandEditor.responsePlaceholder')}
+    placeholder={placeholder ?? i18n.t('commandEditor.responsePlaceholder')}
     bind:value
     bind:this={area}
   ></textarea>
@@ -51,8 +61,8 @@
 </div>
 
 <div class="palette" role="toolbar" aria-label={i18n.t('commandEditor.insertVariable')}>
-  {#each TOKENS as tk (tk.token)}
-    <button type="button" class="var" title={i18n.t(tk.hint)} onclick={() => insert(tk.token)}>{tk.token}</button>
+  {#each tokens as tk (tk.token)}
+    <button type="button" class="var" title={chipTitle(tk)} onclick={() => insert(tk.token)}>{tk.token}</button>
   {/each}
 </div>
 

@@ -18,7 +18,7 @@ function gateModules(session: Session | null | undefined): void {
   }
 }
 
-// Coerce a stored module config blob into a flat string map for the form fields.
+// Coerce a stored module config blob into a flat string map.
 function asConfig(raw: unknown): Record<string, string> {
   const out: Record<string, string> = {};
   if (raw && typeof raw === 'object') {
@@ -43,6 +43,8 @@ function merge(rows: ModuleView[]): ModuleState[] {
   });
 }
 
+// Tiles read state for the status + quick toggle; each module's own page owns the
+// reply builder and per-reply toggles.
 export const load: PageServerLoad = async ({ locals }) => {
   gateModules(locals.session);
   const uid = effectiveId(locals.session);
@@ -55,7 +57,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 };
 
 export const actions: Actions = {
-  // List-level quick toggle: flips enabled while preserving the stored config.
+  // Quick tile on/off: flips enabled while preserving the stored config.
   toggle: async ({ request, locals }) => {
     gateModules(locals.session);
     const uid = effectiveId(locals.session);
@@ -76,12 +78,8 @@ export const actions: Actions = {
       config = undefined;
     }
 
-    // DEMO: acknowledge without RPC so the optimistic flow is exercisable.
     if (env.DEMO === '1') return { ok: true, name, enabled };
 
-    // A write failure throws (RpcError / NATS timeout). Log the real reason
-    // server-side and return a generic fail() — the client renders its own
-    // localized "could not toggle" copy; internal detail never reaches the UI.
     try {
       await upsertModule(uid, name, enabled, config);
     } catch (e) {
@@ -90,43 +88,6 @@ export const actions: Actions = {
     }
 
     auditDashboardImpersonation(locals.session, 'module:toggle', `${name}=${enabled}`);
-    return { ok: true, name, enabled };
-  },
-
-  // Full config save from the docked inspector: enable flag + the catalog's
-  // declared fields. Mirrors the old per-module detail page's save, but keyed by
-  // the submitted module name so it lives on the list route alongside toggle.
-  save: async ({ request, locals }) => {
-    gateModules(locals.session);
-    const uid = effectiveId(locals.session);
-    if (env.DEMO !== '1' && !locals.session) {
-      return fail(401, { ok: false, error: 'Not signed in.' });
-    }
-
-    const f = await request.formData();
-    const name = String(f.get('name') ?? '');
-    const def = moduleDef(name);
-    if (!def) return fail(400, { ok: false, error: 'Unknown module.' });
-    const enabled = f.get('is_enabled') === 'on';
-
-    // Build the config blob from the catalog's declared fields only; drop blanks
-    // (an unset text field), but keep the explicit "off" a sub-toggle writes.
-    const config: Record<string, string> = {};
-    for (const field of def.fields) {
-      const v = String(f.get(`cfg.${field.key}`) ?? '').trim();
-      if (v) config[field.key] = v;
-    }
-
-    if (env.DEMO === '1') return { ok: true, name, enabled };
-
-    try {
-      await upsertModule(uid, name, enabled, config);
-    } catch (e) {
-      console.error(`[modules] save ${name} failed:`, e instanceof Error ? (e.stack ?? e.message) : e);
-      return fail(400, { ok: false });
-    }
-
-    auditDashboardImpersonation(locals.session, 'module:update', `${name}=${enabled}`);
     return { ok: true, name, enabled };
   }
 };

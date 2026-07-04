@@ -56,8 +56,13 @@ export interface BuiltinCommandDef {
   description: string; // longer copy for the inspector
   // usage lists example invocations shown in the inspector.
   usage: string[];
-  // preview is a mock of the chat line the bot posts, for the inspector.
+  // preview is the bot REPLY template, rendered through ChatPreview so the
+  // inspector shows the same rehearsal as a custom command (viewer line + the
+  // ItsBagelBot name/logo). previewArgs is what the viewer types after the
+  // trigger; previewSamples fills tokens ChatPreview does not know by default.
   preview: string;
+  previewArgs?: string;
+  previewSamples?: Record<string, string>;
   defaultActive: boolean;
   defaultPerm: Perm;
   defaultCooldown: number; // seconds
@@ -73,7 +78,12 @@ export const BUILTIN_COMMANDS: readonly BuiltinCommandDef[] = [
     description:
       'Viewers create a clip of the recent stream and the bot replies in chat with the clip link. Add an optional title after the command. Only works while you are live.',
     usage: ['!clip', '!clip <title>'],
-    preview: '🎬 viewer clipped: That was insane → clips.twitch.tv/AbCdEf',
+    // Real reply format: "🎬 <clipper> clipped: <title> → <url>" (see
+    // app/outgress/internal/worker clipReplyText). {user} = the clipper, {target}
+    // = the title argument (standard command token).
+    preview: '🎬 {user} clipped: {target} → {clip}',
+    previewArgs: 'That is amazing',
+    previewSamples: { target: 'That is amazing', clip: 'clips.twitch.tv/AbCdEf' },
     defaultActive: true,
     defaultPerm: 'everyone',
     defaultCooldown: 15,
@@ -171,15 +181,38 @@ export interface ModuleField {
   help?: string;
 }
 
+// One chat line a module can post, rendered as a row on the module page. Clicking
+// the row opens the exact same builder as a custom command's response (the shared
+// ResponseEditor + ChatPreview, standard {user}/{target}/… tokens). messageKey/
+// enableKey are the Configs JSON keys the matching sesame module reads (see
+// app/sesame/modules).
+export interface ModuleReply {
+  key: string; // stable row id
+  label: string; // 'Follow alert'
+  tagline: string; // short row description
+  // Preview context: what fires this line, e.g. 'on follow'.
+  event: string;
+  messageKey: string; // Configs key holding the template
+  // Configs key for this reply's own on/off toggle; omit when the reply has no
+  // per-reply switch (it fires whenever the module is on). Stored "on"/"off";
+  // empty/absent means on, matching sesame's alertOn semantics.
+  enableKey?: string;
+  defaultMessage: string; // sesame default template (placeholder + preview fallback)
+}
+
 export interface ModuleDef {
   // id is the ModuleView.name key in the modules service.
   id: string;
   label: string;
-  tagline: string; // one-liner for the list card
-  description: string; // longer copy for the detail page
+  tagline: string; // one-liner for the tile
+  description: string; // longer copy for the module page
   icon: IconName;
   defaultEnabled: boolean;
-  fields: ModuleField[];
+  // The module's configurable chat lines (the "commands" of the module page).
+  replies: ModuleReply[];
+  // Plain non-reply settings (rendered in the settings strip). Optional; the
+  // current modules have none beyond their master enable + per-reply toggles.
+  settings?: ModuleField[];
 }
 
 // A module's current state as shown on the dashboard: catalog metadata merged
@@ -196,16 +229,18 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
     label: 'Auto Shoutout',
     tagline: 'Welcome incoming raids with an automatic shoutout.',
     description:
-      'When another channel raids in, the bot posts a shoutout pointing your chat at the raider. Customize the message below.',
+      'When another channel raids in, the bot posts a shoutout pointing your chat at the raider. Turn the module on and customize the shoutout line.',
     icon: 'send',
     defaultEnabled: false,
-    fields: [
+    replies: [
       {
-        key: 'message',
-        label: 'Shoutout message',
-        type: 'textarea',
-        placeholder: '🥯 Huge shoutout to {raider} who raided with {viewers}! Go show some love → twitch.tv/{raider_login}',
-        help: 'Tokens: {raider}, {raider_login}, {viewers}. Leave blank to use the default.'
+        key: 'shoutout',
+        label: 'Raid shoutout',
+        tagline: 'Posted when another channel raids in.',
+        event: 'on raid',
+        messageKey: 'message',
+        defaultMessage:
+          '🥯 Huge shoutout to {raider} who raided with {viewers}! Go show some love → twitch.tv/{raider_login}'
       }
     ]
   },
@@ -217,58 +252,42 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
       'The bot posts a chat line when someone follows, subscribes, cheers, or raids. Turn each alert on or off and customize its message. New alerts default on.',
     icon: 'bell',
     defaultEnabled: true,
-    fields: [
+    replies: [
       {
-        key: 'followEnabled',
+        key: 'follow',
         label: 'Follow alert',
-        type: 'toggle',
-        help: 'Post a chat line when someone follows.'
+        tagline: 'When someone follows your channel.',
+        event: 'on follow',
+        enableKey: 'followEnabled',
+        messageKey: 'followMessage',
+        defaultMessage: '🥯 Thanks for the follow, {user}!'
       },
       {
-        key: 'followMessage',
-        label: 'Follow message',
-        type: 'textarea',
-        placeholder: '🥯 Thanks for the follow, {user}!',
-        help: 'Tokens: {user}, {user_login}. Leave blank to use the default.'
-      },
-      {
-        key: 'subEnabled',
+        key: 'sub',
         label: 'Subscribe alert',
-        type: 'toggle',
-        help: 'Post a chat line when someone subscribes.'
+        tagline: 'When someone subscribes.',
+        event: 'on subscribe',
+        enableKey: 'subEnabled',
+        messageKey: 'subMessage',
+        defaultMessage: '🥯 {user} just subscribed! Welcome to the sub squad!'
       },
       {
-        key: 'subMessage',
-        label: 'Subscribe message',
-        type: 'textarea',
-        placeholder: '🥯 {user} just subscribed! Welcome to the sub squad!',
-        help: 'Tokens: {user}, {user_login}, {tier}. Leave blank to use the default.'
-      },
-      {
-        key: 'cheerEnabled',
+        key: 'cheer',
         label: 'Cheer alert',
-        type: 'toggle',
-        help: 'Post a chat line when someone cheers bits.'
+        tagline: 'When someone cheers bits.',
+        event: 'on cheer',
+        enableKey: 'cheerEnabled',
+        messageKey: 'cheerMessage',
+        defaultMessage: '🥯 {user} cheered {bits} bits! Thanks for the support!'
       },
       {
-        key: 'cheerMessage',
-        label: 'Cheer message',
-        type: 'textarea',
-        placeholder: '🥯 {user} cheered {bits} bits! Thanks for the support!',
-        help: 'Tokens: {user}, {user_login}, {bits}. Leave blank to use the default.'
-      },
-      {
-        key: 'raidEnabled',
+        key: 'raid',
         label: 'Raid alert',
-        type: 'toggle',
-        help: 'Post a chat line when another channel raids in.'
-      },
-      {
-        key: 'raidMessage',
-        label: 'Raid message',
-        type: 'textarea',
-        placeholder: '🥯 {user} is raiding with {viewers} viewers!',
-        help: 'Tokens: {user}, {user_login}, {viewers}. Leave blank to use the default.'
+        tagline: 'When another channel raids in.',
+        event: 'on raid',
+        enableKey: 'raidEnabled',
+        messageKey: 'raidMessage',
+        defaultMessage: '🥯 {user} is raiding with {viewers} viewers!'
       }
     ]
   }

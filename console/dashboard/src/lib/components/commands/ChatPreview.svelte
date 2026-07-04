@@ -13,19 +13,41 @@
 
   const { t } = getI18n();
 
-  let { name = '', response = '' }: { name?: string; response?: string } = $props();
+  // Reused beyond custom commands: built-in commands pass `args` (the text a
+  // viewer types after the trigger, e.g. "!clip That is amazing") and sample
+  // overrides; event-driven module replies pass showViewer=false + a `tag` (the
+  // firing event, e.g. "on follow") so only the bot line renders.
+  let {
+    name = '',
+    response = '',
+    args = '',
+    showViewer = true,
+    tag = undefined as string | undefined,
+    samples = undefined as Record<string, string> | undefined
+  }: {
+    name?: string;
+    response?: string;
+    args?: string;
+    showViewer?: boolean;
+    tag?: string;
+    samples?: Record<string, string>;
+  } = $props();
 
-  const SAMPLES: Record<string, string> = {
+  const DEFAULT_SAMPLES: Record<string, string> = {
     user: 'sesame_sam',
     target: '@ferret_king',
     uptime: '3h 24m',
     followage: '8 months',
+    tier: '1000',
+    bits: '500',
     raider: 'CrustyCrumbs',
     raider_login: 'crustycrumbs',
     viewers: '42'
   };
+  // Caller overrides win (e.g. a raid alert where {user} is the raiding channel).
+  const SAMPLES = $derived<Record<string, string>>({ ...DEFAULT_SAMPLES, ...(samples ?? {}) });
 
-  const trigger = $derived('!' + (normName(name) || 'command'));
+  const trigger = $derived('!' + (normName(name) || 'command') + (args ? ' ' + args : ''));
 
   // --- Slash-verb parse, mirrored from app/worker/module/slash.go ---------
   // The worker recognizes a leading verb, rewrites the outgress Type, and
@@ -134,11 +156,13 @@
 </script>
 
 <div class="chat" aria-label={t('chatPreview.ariaPreview')}>
-  <span class="chat-tag">{t('chatPreview.rehearsal')}</span>
-  <div class="line viewer">
-    <span class="who viewer-name">sesame_sam</span>
-    <span class="msg">{trigger}</span>
-  </div>
+  <span class="chat-tag">{tag ?? t('chatPreview.rehearsal')}</span>
+  {#if showViewer}
+    <div class="line viewer">
+      <span class="who viewer-name">{SAMPLES.user}</span>
+      <span class="msg">{trigger}</span>
+    </div>
+  {/if}
   <div class="line bot" class:special={parsed.mode !== 'chat'} class:me={parsed.mode === 'me'}>
     <span class="who bot-name">
       <img src="/logo.png" alt="" class="bot-avatar" />

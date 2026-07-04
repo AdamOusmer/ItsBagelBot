@@ -17,6 +17,7 @@
     type BuiltinCommandDef,
     type Perm
   } from '@bagel/shared';
+  import ChatPreview from './ChatPreview.svelte';
 
   let {
     command,
@@ -61,13 +62,7 @@
 
   <div class="field">
     <span>{t('builtinInspector.preview')}</span>
-    <div class="chat" aria-label={t('chatPreview.ariaPreview')}>
-      <span class="chat-tag">{t('chatPreview.rehearsal')}</span>
-      <div class="line bot">
-        <span class="bot-name">bot</span>
-        <span class="msg">{def.preview}</span>
-      </div>
-    </div>
+    <ChatPreview name={def.id} args={def.previewArgs ?? ''} response={def.preview} samples={def.previewSamples} />
   </div>
 
   <div class="field-row">
@@ -179,54 +174,5 @@
     color: var(--bb-white);
     font-family: var(--bb-font-mono);
     font-size: 13px;
-  }
-
-  /* Preview card mirrors ChatPreview's rehearsal look (green left rule, floating
-     tag, bot line) so the preview matches the custom-command editor's rehearsal. */
-  .chat {
-    position: relative;
-    padding: 14px 14px 12px;
-    border: 1px solid var(--rule, rgba(240, 236, 228, 0.1));
-    border-left: 2px solid rgba(82, 183, 136, 0.5);
-    border-radius: var(--bb-radius-sm, 6px);
-    background: rgba(0, 0, 0, 0.3);
-  }
-  .chat-tag {
-    position: absolute;
-    top: -8px;
-    left: 10px;
-    background: var(--bb-bg-0, #0a0a0a);
-    padding: 0 6px;
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 9.5px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
-  }
-  .line.bot {
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
-    min-width: 0;
-  }
-  .bot-name {
-    flex: none;
-    font-family: var(--bb-font-mono);
-    font-weight: 600;
-    font-size: 12.5px;
-    color: var(--bb-green-glow);
-  }
-  .bot-name::after {
-    content: ':';
-    color: var(--bb-muted);
-    font-weight: 400;
-  }
-  .msg {
-    font-family: var(--bb-font-body);
-    font-size: 13px;
-    color: var(--bb-white);
-    line-height: 1.5;
-    word-break: break-word;
   }
 </style>
