@@ -9,6 +9,7 @@ import type { ScopeMap } from '@bagel/shared/server/invalidation';
 import * as valkey from '@bagel/shared/server/valkey-store';
 import type { Tier } from '@bagel/shared';
 import type { Session } from './session';
+import * as liveHub from './live-hub';
 
 // Subjects come from process.env, NOT $env/dynamic/private. This module is
 // imported at boot (hooks.server.ts -> startInvalidationListener), and reading
@@ -51,7 +52,14 @@ const SCOPES: ScopeMap = {
 // Hybrid read path: L1 SwrCache (+ push invalidation, SWR, stale-if-error) over
 // per-key Valkey readers over RPC. Freshness policy per data class lives in the
 // shared POLICY table; the bus, not the clock, is the main freshness lever.
-export const fabric = createCacheFabric({ app: 'dashboard', scopes: SCOPES });
+// onInvalidation forwards each applied bus event to the live hub, which pushes it
+// to that board's open browser SSE connections (see routes/events) so an open
+// page re-fetches instantly — no client polling.
+export const fabric = createCacheFabric({
+  app: 'dashboard',
+  scopes: SCOPES,
+  onInvalidation: (scope, id) => liveHub.publish(id, scope)
+});
 
 function cached<T>(key: string, policy: CachePolicy, load: () => Promise<T>): Promise<T> {
   return fabric.readKey(key, policy, load);

@@ -172,13 +172,15 @@ export const actions: Actions = {
     // A rename passes original_name so the commands service updates the row's
     // name field in place (single write) instead of delete-old + create-new.
     // The optimistic reply already drops the old key and lists the renamed
-    // command, so one round trip covers it.
-    const { commands, error } = await upsertCommand(
-      uid,
-      { ...cmd, isActive },
-      renamed ? originalName : undefined
-    );
-    if (error) return fail(400, { ok: false, error, commands });
+    // command, so one round trip covers it. A write failure throws the service's
+    // real error, returned as a fail() so the toast shows it (not a bare "failed").
+    let commands: CommandView[];
+    try {
+      ({ commands } = await upsertCommand(uid, { ...cmd, isActive }, renamed ? originalName : undefined));
+    } catch (e) {
+      logRpcFailure('save', e);
+      return fail(400, { ok: false });
+    }
 
     auditDashboardImpersonation(locals.session, isEdit ? 'command:update' : 'command:create', cmd.name);
 
@@ -209,8 +211,13 @@ export const actions: Actions = {
       return { ok: true, action: 'updated', name: cmd.name, commands: [demoView(cmd, isActive)], silent: true };
     }
 
-    const { commands, error } = await upsertCommand(uid, { ...cmd, isActive });
-    if (error) return fail(400, { ok: false, error, commands });
+    let commands: CommandView[];
+    try {
+      ({ commands } = await upsertCommand(uid, { ...cmd, isActive }));
+    } catch (e) {
+      logRpcFailure('toggle', e);
+      return fail(400, { ok: false });
+    }
 
     auditDashboardImpersonation(locals.session, 'command:toggle', `${cmd.name}=${isActive}`);
 
@@ -231,8 +238,13 @@ export const actions: Actions = {
 
     if (env.DEMO === '1') return { ok: true, action: 'deleted', name };
 
-    const { commands, error } = await deleteCommand(uid, name);
-    if (error) return fail(400, { ok: false, error, commands });
+    let commands: CommandView[];
+    try {
+      ({ commands } = await deleteCommand(uid, name));
+    } catch (e) {
+      logRpcFailure('delete', e);
+      return fail(400, { ok: false });
+    }
 
     auditDashboardImpersonation(locals.session, 'command:delete', name);
 
@@ -270,10 +282,22 @@ export const actions: Actions = {
       return { ok: true, action: 'updated', name, commands: [view], silent: true };
     }
 
-    const { error } = await upsertModule(uid, def.id, isActive);
-    if (error) return fail(400, { ok: false, error });
+    try {
+      await upsertModule(uid, def.id, isActive);
+    } catch (e) {
+      logRpcFailure('toggleBuiltin', e);
+      return fail(400, { ok: false });
+    }
 
     auditDashboardImpersonation(locals.session, 'command:builtin_toggle', `${name}=${isActive}`);
     return { ok: true, action: 'updated', name, commands: [view], silent: true };
   }
 };
+
+// Log the real RPC failure server-side — RpcError / NATS timeout messages can
+// carry internal service detail, so they go to the logs, never the dashboard.
+// The action returns a generic fail() instead; the client shows its own
+// localized "…failed" copy.
+function logRpcFailure(action: string, e: unknown): void {
+  console.error(`[commands] ${action} failed:`, e instanceof Error ? (e.stack ?? e.message) : e);
+}

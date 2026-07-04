@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Icon, PageHead, Card, Modal, toast, getI18n, containsLink } from '@bagel/shared';
   import { page } from '$app/state';
-  import { replaceState, invalidateAll } from '$app/navigation';
+  import { replaceState } from '$app/navigation';
   import { onMount } from 'svelte';
   import type { BillingState } from '$lib/server/services';
 
@@ -90,6 +90,15 @@
     }
   }
 
+  // Drop ?checkout=complete from the URL. Kept in the URL while polling so each
+  // invalidateAll re-runs the load's fresh-read path; stripped once we stop.
+  function stripCheckoutParam() {
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has('checkout')) return;
+    url.searchParams.delete('checkout');
+    replaceState(url, {});
+  }
+
   const CONFETTI_COLORS = ['#c9a87c', '#e0c49a', '#52b788', '#f0ece4'];
 
   function burst() {
@@ -157,31 +166,25 @@
     celebrateRecipient = intent?.recipient ?? '';
     celebrateOpen = true;
     burst();
+    stripCheckoutParam();
 
-    const url = new URL(window.location.href);
-    url.searchParams.delete('checkout');
-    replaceState(url, {});
-
+    // A gift never changes the buyer's own plan, so there is nothing to wait for.
     if (celebrateKind === 'gift') {
       toast('ok', t('billing.toastGiftSent'));
       return;
     }
 
     toast('ok', t('billing.toastPaymentReceived'));
-    let tries = 0;
-    const timer = setInterval(() => {
-      if (isPaid) {
-        clearInterval(timer);
-        return;
-      }
-      if (++tries > 40) {
-        activationSlow = true;
-        clearInterval(timer);
-        return;
-      }
-      void invalidateAll();
-    }, 3000);
-    return () => clearInterval(timer);
+    // The entitlement lands via an async webhook. The live invalidation stream
+    // (see (app)/+layout.svelte) re-fetches this page the instant it does, so the
+    // view flips to premium on its own — no polling. If it hasn't landed in ~2
+    // min, swap the modal to the "taking a little longer" copy (SSE still flips
+    // it whenever it finally arrives).
+    if (isPaid) return;
+    const slow = setTimeout(() => {
+      if (!isPaid) activationSlow = true;
+    }, 120000);
+    return () => clearTimeout(slow);
   });
 
   // When a self-purchase finally flips to paid while the modal is open, fire a

@@ -100,20 +100,27 @@ function commitOptimistic<T>(key: string, value: T, synced: boolean): void {
 // upsertModule writes one module's enabled flag + config to the modules service
 // (source of truth, write-behind), then optimistically refreshes the projection
 // and the local cache, mirroring upsertCommand.
+//
+// The write RPC throws (RpcError / timeout / no-responders) when the write
+// itself fails — callers convert that into a `fail()` so the real reason reaches
+// the toast. The projection/cache refresh AFTER a confirmed write is best-effort:
+// a hiccup reading it back must never turn a landed write into a reported
+// failure (that was the old bug — a slow projector made a successful toggle look
+// broken and gave no feedback).
 export async function upsertModule(
   userId: string,
   name: string,
   isEnabled: boolean,
   configs?: unknown
-): Promise<{ modules: ModuleView[]; error?: string }> {
-  const r = await rpc<{ error?: string }>(`${SUB.modules}.upsert`, {
+): Promise<{ modules: ModuleView[] }> {
+  await rpc(`${SUB.modules}.upsert`, {
     user_id: userId,
     name,
     is_enabled: isEnabled,
     // Omit empty configs so the service stores nothing rather than "{}".
     configs: configs && Object.keys(configs as object).length ? configs : undefined
   });
-  if (!r.error) {
+  try {
     const current = await listModules(userId);
     const upserted: ModuleView = { name, is_enabled: isEnabled, configs: configs ?? {} };
     let merged = false;
@@ -128,10 +135,12 @@ export async function upsertModule(
 
     const synced = await replaceProjectedModules(userId, modules);
     commitOptimistic(`modules:${userId}`, modules, synced);
-    return { modules, error: r.error };
-  } else {
+    return { modules };
+  } catch {
+    // Write landed but the read-back failed: drop the stale cache and let the
+    // next load re-read. The operation still succeeded.
     invalidate(`modules:${userId}`);
-    return { modules: await listModules(userId), error: r.error };
+    return { modules: [] };
   }
 }
 
@@ -153,8 +162,10 @@ export async function upsertCommand(
   userId: string,
   cmd: CommandInput,
   originalName?: string
-): Promise<{ commands: CommandView[]; error?: string }> {
-  const r = await rpc<{ error?: string }>(`${SUB.commands}.upsert`, {
+): Promise<{ commands: CommandView[] }> {
+  // Write to the source of truth. A thrown RpcError/timeout means the write
+  // failed; let it propagate so the action reports the real reason as a fail().
+  await rpc(`${SUB.commands}.upsert`, {
     user_id: userId,
     name: cmd.name,
     aliases: cmd.aliases,
@@ -166,7 +177,7 @@ export async function upsertCommand(
     allowed_user_id: cmd.allowedUserId,
     original_name: originalName ?? ''
   });
-  if (!r.error) {
+  try {
     const current = await listCommands(userId);
     let commands = current;
     if (originalName && originalName !== cmd.name) {
@@ -197,29 +208,27 @@ export async function upsertCommand(
 
     const synced = await replaceProjectedCommands(userId, commands);
     commitOptimistic(`commands:${userId}`, commands, synced);
-    return { commands, error: r.error };
-  } else {
+    return { commands };
+  } catch {
+    // Write landed but the read-back failed: the operation still succeeded.
     invalidate(`commands:${userId}`);
-    return { commands: await listCommands(userId), error: r.error };
+    return { commands: [] };
   }
 }
 
 export async function deleteCommand(
   userId: string,
   name: string
-): Promise<{ commands: CommandView[]; error?: string }> {
-  const r = await rpc<{ error?: string }>(`${SUB.commands}.delete`, {
-    user_id: userId,
-    name
-  });
-  if (!r.error) {
+): Promise<{ commands: CommandView[] }> {
+  await rpc(`${SUB.commands}.delete`, { user_id: userId, name });
+  try {
     const current = await listCommands(userId);
     const commands = current.filter((c) => c.name !== name);
     const synced = await replaceProjectedCommands(userId, commands);
     commitOptimistic(`commands:${userId}`, commands, synced);
-    return { commands, error: r.error };
-  } else {
+    return { commands };
+  } catch {
     invalidate(`commands:${userId}`);
-    return { commands: await listCommands(userId), error: r.error };
+    return { commands: [] };
   }
 }

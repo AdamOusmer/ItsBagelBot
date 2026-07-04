@@ -1,11 +1,41 @@
 <script lang="ts">
   import { page } from '$app/state';
   import { enhance } from '$app/forms';
+  import { onMount } from 'svelte';
+  import { invalidateAll } from '$app/navigation';
   import { AppShell, ImpersonationBanner, NotificationBell, ToastHost, getI18n } from '@bagel/shared';
   import type { NavGroupDef, NavLink } from '@bagel/shared';
   let { data, children } = $props();
 
   const { t } = getI18n();
+
+  // Live refresh: one EventSource to /events, fed by the same cache-invalidation
+  // bus every Go write publishes. On any event for this user's board — and on
+  // every (re)connect, to reconcile anything missed while briefly offline — we
+  // re-fetch, so an open page (e.g. billing flipping to premium after a payment
+  // webhook) updates on its own with no polling. Delegates get no /events (the
+  // stream is owner/board-scoped and delegate pages already SSR fresh).
+  onMount(() => {
+    if (typeof EventSource === 'undefined' || isDelegate) return;
+    let debounce: ReturnType<typeof setTimeout> | undefined;
+    let seenReady = false;
+    const refresh = () => {
+      clearTimeout(debounce);
+      debounce = setTimeout(() => void invalidateAll(), 250);
+    };
+    const es = new EventSource('/events');
+    es.addEventListener('invalidate', refresh);
+    // The first 'ready' is the initial connect (the page already SSR'd fresh);
+    // only reconcile on later ones (reconnects after a drop).
+    es.addEventListener('ready', () => {
+      if (seenReady) refresh();
+      else seenReady = true;
+    });
+    return () => {
+      clearTimeout(debounce);
+      es.close();
+    };
+  });
 
   const isDelegate = $derived(!!data.delegateOf);
 

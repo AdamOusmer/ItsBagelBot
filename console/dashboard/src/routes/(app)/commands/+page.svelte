@@ -195,12 +195,24 @@
     };
   }
 
+  // Leaving a command — switching rows, starting a new one, or closing — is a
+  // deliberate act: drop the open command's in-progress sessionStorage draft so
+  // reopening shows the real command, not a silent "restore". The mirror only
+  // exists so a forced browser reload can recover work that was never left.
+  function discardOpenDraft() {
+    if (editorDraft && !editorDraft.builtin) {
+      clearDraft(editorDraft.edit ? editorDraft.originalName : '', editorDraft.edit);
+    }
+    draftVersion++;
+  }
+
   function openNew() {
     serverErrors = null;
-    const restored = loadDraft('', false);
-    editorDraft = restored ?? blankDraft();
+    discardOpenDraft();
+    // A draft under the "new" key only survives a forced reload now; restore it
+    // quietly (no toast) when it does.
+    editorDraft = loadDraft('', false) ?? blankDraft();
     expanded = NEW;
-    if (restored) toast('info', t('commands.toastRestoreDraft'));
   }
 
   function openEdit(c: CommandView) {
@@ -209,6 +221,7 @@
       return;
     }
     serverErrors = null;
+    discardOpenDraft();
     // Built-ins have no editable draft: the inspector is a read-only preview +
     // toggle, so skip the sessionStorage draft machinery entirely.
     if (c.builtin) {
@@ -216,10 +229,10 @@
       expanded = c.name;
       return;
     }
-    const restored = loadDraft(c.name, true);
-    editorDraft = restored ?? fromView(c);
+    // loadDraft only returns something after a forced reload (deliberate exits
+    // clear it above); restore it quietly, no toast.
+    editorDraft = loadDraft(c.name, true) ?? fromView(c);
     expanded = c.name;
-    if (restored) toast('info', t('commands.toastRestoreEdits'));
   }
 
   // Explicit close (cancel / X / backdrop / Escape / collapse) drops the draft:
@@ -282,8 +295,10 @@
       items = [...items.filter((c) => c.name !== key && c.name !== orig), ...prevRows];
       flagError(orig ?? key);
       serverErrors = payload?.errors ?? null;
-      if (payload?.error && !payload.errors) toast('err', payload.error);
-      else if (!payload) toast('err', t('commands.toastSaveFailed'));
+      // Field-level validation shows inline; anything else (RPC failure, missing
+      // payload) falls back to the localized generic toast so the failure is
+      // never silent. The server logs the real reason.
+      if (!payload?.errors) toast('err', payload?.error ?? t('commands.toastSaveFailed'));
     };
   };
 
@@ -505,7 +520,14 @@
               <BuiltinInspector command={selectedCmd} {def} toggleSubmit={toggleSubmit(selectedCmd)} />
             {/if}
           {:else}
-            <CommandEditor bind:draft={editorDraft} {serverErrors} {busy} onCancel={closeEditor} onSubmit={saveSubmit} />
+            <!-- Keyed on the selected command so switching rows mounts a FRESH
+                 editor. The editor snapshots its draft key + initial value at
+                 mount; reusing one instance across commands froze those to the
+                 first row, mirroring later edits into the wrong command's
+                 draft. -->
+            {#key expanded}
+              <CommandEditor bind:draft={editorDraft} {serverErrors} {busy} onCancel={closeEditor} onSubmit={saveSubmit} />
+            {/key}
           {/if}
         </Scroller>
       {:else}

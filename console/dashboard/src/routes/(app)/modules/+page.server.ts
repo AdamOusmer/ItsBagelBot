@@ -79,10 +79,54 @@ export const actions: Actions = {
     // DEMO: acknowledge without RPC so the optimistic flow is exercisable.
     if (env.DEMO === '1') return { ok: true, name, enabled };
 
-    const { error } = await upsertModule(uid, name, enabled, config);
-    if (error) return fail(400, { ok: false, error });
+    // A write failure throws (RpcError / NATS timeout). Log the real reason
+    // server-side and return a generic fail() — the client renders its own
+    // localized "could not toggle" copy; internal detail never reaches the UI.
+    try {
+      await upsertModule(uid, name, enabled, config);
+    } catch (e) {
+      console.error(`[modules] toggle ${name} failed:`, e instanceof Error ? (e.stack ?? e.message) : e);
+      return fail(400, { ok: false });
+    }
 
     auditDashboardImpersonation(locals.session, 'module:toggle', `${name}=${enabled}`);
+    return { ok: true, name, enabled };
+  },
+
+  // Full config save from the docked inspector: enable flag + the catalog's
+  // declared fields. Mirrors the old per-module detail page's save, but keyed by
+  // the submitted module name so it lives on the list route alongside toggle.
+  save: async ({ request, locals }) => {
+    gateModules(locals.session);
+    const uid = effectiveId(locals.session);
+    if (env.DEMO !== '1' && !locals.session) {
+      return fail(401, { ok: false, error: 'Not signed in.' });
+    }
+
+    const f = await request.formData();
+    const name = String(f.get('name') ?? '');
+    const def = moduleDef(name);
+    if (!def) return fail(400, { ok: false, error: 'Unknown module.' });
+    const enabled = f.get('is_enabled') === 'on';
+
+    // Build the config blob from the catalog's declared fields only; drop blanks
+    // (an unset text field), but keep the explicit "off" a sub-toggle writes.
+    const config: Record<string, string> = {};
+    for (const field of def.fields) {
+      const v = String(f.get(`cfg.${field.key}`) ?? '').trim();
+      if (v) config[field.key] = v;
+    }
+
+    if (env.DEMO === '1') return { ok: true, name, enabled };
+
+    try {
+      await upsertModule(uid, name, enabled, config);
+    } catch (e) {
+      console.error(`[modules] save ${name} failed:`, e instanceof Error ? (e.stack ?? e.message) : e);
+      return fail(400, { ok: false });
+    }
+
+    auditDashboardImpersonation(locals.session, 'module:update', `${name}=${enabled}`);
     return { ok: true, name, enabled };
   }
 };

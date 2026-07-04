@@ -58,6 +58,10 @@ export interface CacheFabricOptions {
   /** Injectable for tests/DEMO. Defaults to New Relic; pass null to disable. */
   metrics?: CacheMetrics | null;
   capacity?: number;
+  /** Tap fired for every applied invalidation (scope + broadcaster id) AFTER the
+   *  local cache is evicted. The dashboard forwards it to connected browsers over
+   *  SSE so an open page re-fetches the instant Go state changes (no polling). */
+  onInvalidation?: (scope: string, id: string) => void;
 }
 
 export interface ReadThrough<T> {
@@ -71,10 +75,12 @@ export class CacheFabric {
   readonly cache: SwrCache;
   private readonly scopes: ScopeMap;
   private readonly metrics: CacheMetrics;
+  private readonly onInvalidation?: (scope: string, id: string) => void;
   private started = false;
 
   constructor(opts: CacheFabricOptions) {
     this.scopes = opts.scopes;
+    this.onInvalidation = opts.onInvalidation;
     this.metrics = opts.metrics === null ? NOOP_METRICS : (opts.metrics ?? newRelicMetrics(opts.app));
     this.cache = new SwrCache({
       capacity: opts.capacity,
@@ -119,7 +125,11 @@ export class CacheFabric {
   start(): void {
     if (this.started) return;
     this.started = true;
-    startInvalidationBus({ cache: this.cache, scopes: this.scopes });
+    startInvalidationBus({
+      cache: this.cache,
+      scopes: this.scopes,
+      onApplied: this.onInvalidation ? (scope, id) => this.onInvalidation!(scope, id) : undefined
+    });
   }
 }
 
