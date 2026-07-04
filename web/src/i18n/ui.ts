@@ -200,6 +200,16 @@ const en = {
   'play.quiet': 'the bot stays quiet unless you call it. chat is yours.',
   'play.unknown': "@you I don't know {cmd} yet. you could teach it in the dashboard in about ten seconds.",
   'play.seedTry': 'try typing !bagel',
+  // Ambient viewer chatter (the spam lines stay English, they are scam bait)
+  'play.amb1': 'this soundtrack is so good',
+  'play.amb2': 'LETS GOOO',
+  'play.amb3': 'first time here, vibes are great',
+  'play.amb4': 'anyone else hungry now',
+  'play.amb5': 'that jump was clean',
+  'play.amb6': 'chat moving fast tonight',
+  'play.amb7': 'ok that was actually smooth',
+  'play.amb8': 'gl on the next run',
+  'play.amb9': 'the bot caught that fast lol',
 
   // ── Contact: switchboard ────────────────────────────────────────
   'board.l1Note': "The fast lane. The community usually answers before we're even awake.",
@@ -398,6 +408,15 @@ const fr: Partial<Record<UIKey, string>> = {
   'play.quiet': 'le bot reste tranquille tant que tu ne l\'appelles pas. le chat est à toi.',
   'play.unknown': '@toi je ne connais pas encore {cmd}. tu pourrais me l\'apprendre dans le tableau de bord en dix secondes.',
   'play.seedTry': 'essaie de taper !bagel',
+  'play.amb1': 'cette bande-son est trop bonne',
+  'play.amb2': 'ALLEZ',
+  'play.amb3': 'première fois ici, super ambiance',
+  'play.amb4': 'quelqu\'un a faim maintenant ou c\'est que moi',
+  'play.amb5': 'ce saut était nickel',
+  'play.amb6': 'ça défile vite dans le chat ce soir',
+  'play.amb7': 'ok ça c\'était vraiment fluide',
+  'play.amb8': 'bonne chance pour la prochaine',
+  'play.amb9': 'le bot a chopé ça vite lol',
 
   // Contact: switchboard
   'board.l1Note': 'La voie rapide. La communauté répond souvent avant même que nous soyons réveillés.',

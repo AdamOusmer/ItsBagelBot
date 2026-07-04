@@ -33,6 +33,11 @@ const playStrings = {
     quiet: t('play.quiet'),
     unknown: t('play.unknown'),
     seedTry: t('play.seedTry'),
+    seed1: t('play.amb6'),
+    ambient: [
+        t('play.amb1'), t('play.amb2'), t('play.amb3'), t('play.amb4'), t('play.amb5'),
+        t('play.amb6'), t('play.amb7'), '🥯🥯🥯', t('play.amb8'), t('play.amb9'),
+    ],
 };
 ---
 
@@ -490,19 +495,8 @@ const playStrings = {
         ['tiny_cactus', '#7cc9a4'],
     ];
 
-    const AMBIENT = [
-        'this soundtrack is so good',
-        'LETS GOOO',
-        'first time here, vibes are great',
-        'anyone else hungry now',
-        'that jump was clean',
-        'chat moving fast tonight',
-        'ok that was actually smooth',
-        '🥯🥯🥯',
-        'gl on the next run',
-        'the bot caught that fast lol',
-    ];
-
+    // Ambient chatter is localized and handed in via the island (S.ambient).
+    // The spam lines below stay English on purpose: broken-English scam bait.
     const SPAM_LINES = [
         'FREE F0LLOWERS >> sketchy.link/boost CLICK NOW',
         'im giving away gift subs, DM me on telegram!!',
@@ -513,6 +507,7 @@ const playStrings = {
         replyBagel: string; replySong: string; replyLurk: string; replyHelp: string;
         pollUp: string; pollQ: string; pollYes: string; pollAlways: string;
         spamRemoved: string; quiet: string; unknown: string; seedTry: string;
+        ambient: string[]; seed1: string;
     };
     const S: PlayStrings = JSON.parse(
         document.querySelector('[data-play-i18n]')?.textContent || '{}',
@@ -670,7 +665,7 @@ const playStrings = {
             const wait = 2600 + Math.random() * 2600;
             ambientTimer = window.setTimeout(() => {
                 const [name, hue] = VIEWERS[Math.floor(Math.random() * VIEWERS.length)];
-                addChat(name, hue, AMBIENT[Math.floor(Math.random() * AMBIENT.length)]);
+                addChat(name, hue, S.ambient[Math.floor(Math.random() * S.ambient.length)]);
                 if (++seq % 7 === 0) addSpam();
                 scheduleAmbient();
             }, wait);
@@ -686,7 +681,7 @@ const playStrings = {
         document.addEventListener('visibilitychange', scheduleAmbient);
 
         /* Seed the feed so it never opens empty */
-        addChat('gg_beans', '#52b788', 'chat moving fast tonight');
+        addChat('gg_beans', '#52b788', S.seed1);
         addChat('moth_lamp', '#e0c49a', S.seedTry);
 
         form.addEventListener('submit', (event) => {
