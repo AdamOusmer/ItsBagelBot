@@ -52,6 +52,11 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   // Owner-only: billing is never part of a delegated section grant.
   if (!s || s.delegate_of) throw redirect(302, '/');
 
+  // Returning from hosted checkout lands here (?checkout=complete). The
+  // entitlement is applied by an async Tebex webhook, which publishes a `status`
+  // invalidation on the cache bus; that both drops the server cache and — via the
+  // live SSE stream — re-fetches this page, so the view flips to premium on its
+  // own. No special-casing needed in the load.
   const accountResult = await billingState(s.user_id).then(
     (value) => ({ status: 'fulfilled' as const, value }),
     () => ({ status: 'rejected' as const })

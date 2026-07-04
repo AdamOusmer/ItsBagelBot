@@ -71,8 +71,8 @@ export const BUILTIN_COMMANDS: readonly BuiltinCommandDef[] = [
     label: 'Clip',
     summary: 'Built-in · clips the last moments of the stream and posts the link.',
     description:
-      'Viewers create a clip of the recent stream. The bot replies in chat with the clip link. Type !clip <title>, or add a number like !clip30 <title> — the number is accepted but Twitch fixes the clip length, so it is cosmetic. Only works while you are live.',
-    usage: ['!clip <title>', '!clip30 <title>'],
+      'Viewers create a clip of the recent stream and the bot replies in chat with the clip link. Add an optional title after the command. Only works while you are live.',
+    usage: ['!clip', '!clip <title>'],
     preview: '🎬 viewer clipped: That was insane → clips.twitch.tv/AbCdEf',
     defaultActive: true,
     defaultPerm: 'everyone',
@@ -204,7 +204,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
         key: 'message',
         label: 'Shoutout message',
         type: 'textarea',
-        placeholder: '🥯 Huge shoutout to {raider} who raided with {viewers}! → twitch.tv/{raider_login}',
+        placeholder: '🥯 Huge shoutout to {raider} who raided with {viewers}! Go show some love → twitch.tv/{raider_login}',
         help: 'Tokens: {raider}, {raider_login}, {viewers}. Leave blank to use the default.'
       }
     ]
