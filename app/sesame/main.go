@@ -77,17 +77,18 @@ func main() {
 	// shoutout), which the engine registry indexes. Adding a feature is a new file
 	// in app/sesame/modules plus one line in all.go — no wiring here.
 	deps := engine.Deps{
-		Proj:     proj,
-		Live:     live,
-		Greet:    engine.NewValkeyGreetStore(valkeyClient, cfg.LiveTTL, log),
-		Cooldown: engine.NewValkeyCooldown(valkeyClient),
-		Dedup:    engine.NewValkeyDedup(valkeyClient, 10*time.Minute),
-		Special:  engine.NewSpecialSet(cfg.SpecialUserIDs),
-		Pub:      pub,
-		Commands: engine.NewCommandsRPC(nc, cfg.CommandsDashboardPrefix),
-		Gateway:  engine.NewGatewayRPC(nc, cfg.GatewayRPCPrefix),
-		Log:      log,
-		Automod:  automod.New(),
+		Proj:       proj,
+		Live:       live,
+		Greet:      engine.NewValkeyGreetStore(valkeyClient, cfg.LiveTTL, log),
+		Cooldown:   engine.NewValkeyCooldown(valkeyClient),
+		Dedup:      engine.NewValkeyDedup(valkeyClient, 10*time.Minute),
+		Special:    engine.NewSpecialSet(cfg.SpecialUserIDs),
+		Pub:        pub,
+		Commands:   engine.NewCommandsRPC(nc, cfg.CommandsDashboardPrefix),
+		Gateway:    engine.NewGatewayRPC(nc, cfg.GatewayRPCPrefix),
+		Log:        log,
+		Automod:    automod.New(),
+		Reputation: engine.NewValkeyReputation(valkeyClient, 6*time.Hour, log),
 	}
 	registry := engine.NewRegistry(log, modules.All(deps)...)
 

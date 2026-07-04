@@ -47,8 +47,11 @@ type Deps struct {
 	Gateway  GatewayCaller
 	Log      *zap.Logger
 	// Automod is the inline chat guard. nil disables it; when set it inspects
-	// each chat line and (in this phase) the engine only logs the shadow verdict.
+	// each chat line and the engine acts on or shadow-logs the verdict.
 	Automod *automod.Gate
+	// Reputation is the per-chatter strike store: it feeds the automod's Tier-2
+	// escalation and is fed by the folded-cohort fan-out. nil disables it.
+	Reputation Reputation
 }
 
 // IsLiveChecker is the read-only slice of the live store: just "is this
