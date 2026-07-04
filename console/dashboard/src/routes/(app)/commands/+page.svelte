@@ -5,6 +5,7 @@
     Icon,
     Card,
     PageHead,
+    Scroller,
     toast,
     normName,
     getI18n,
@@ -456,9 +457,9 @@
         {/if}
       </div>
       {#if editorDraft}
-        <div class="inspector-body" data-lenis-prevent>
+        <Scroller fill padding="16px" data-lenis-prevent>
           <CommandEditor bind:draft={editorDraft} {serverErrors} {busy} onCancel={closeEditor} onSubmit={saveSubmit} />
-        </div>
+        </Scroller>
       {:else}
         <div class="inspector-idle">
           <span class="idle-glyph"><Icon name="commands" size={18} /></span>
@@ -544,7 +545,6 @@
     letter-spacing: 0.02em;
     color: var(--bb-tan);
   }
-  .inspector-body { padding: 16px; overflow-y: auto; }
 
   .inspector-idle {
     padding: 34px 20px;
