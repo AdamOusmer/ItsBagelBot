@@ -61,7 +61,8 @@ defmodule Ingress.ShardSession do
             handshake_timer: nil,
             attempts: 0,
             bound_at: nil,
-            last_frame_at: nil,
+            last_frame_mono_ms: nil,
+            last_frame_system_ms: nil,
             # duplicate-shard takeover in flight: %{winner:, monitor:, timer:}
             takeover: nil,
             # Aggregate counter for notification load.
