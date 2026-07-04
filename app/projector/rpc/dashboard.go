@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"ItsBagelBot/app/projector/hydration"
+	"ItsBagelBot/internal/domain/invalidate"
 	rpcprojection "ItsBagelBot/internal/domain/rpc/projection"
 	projectorrpc "ItsBagelBot/internal/domain/rpc/projector"
 	"ItsBagelBot/internal/projection"
@@ -19,14 +20,15 @@ import (
 )
 
 type Dashboard struct {
-	nc            *nats.Conn
-	store         *projection.Store
-	commandsTopic string
-	modulesTopic  string
-	hydrator      *hydration.Hydrator
-	log           *zap.Logger
-	writeGate     chan struct{}
-	mu            sync.Mutex
+	nc                    *nats.Conn
+	store                 *projection.Store
+	commandsTopic         string
+	modulesTopic          string
+	cacheInvalidatePrefix string
+	hydrator              *hydration.Hydrator
+	log                   *zap.Logger
+	writeGate             chan struct{}
+	mu                    sync.Mutex
 	commandMisses map[uint64]*commandInFlight
 	moduleMisses  map[uint64]*moduleInFlight
 }
@@ -57,6 +59,7 @@ func SubscribeDashboard(
 	prefix string,
 	commandsTopic string,
 	modulesTopic string,
+	cacheInvalidatePrefix string,
 	hydrator *hydration.Hydrator,
 	queueGroup string,
 	app *newrelic.Application,
@@ -68,15 +71,16 @@ func SubscribeDashboard(
 	}
 
 	d := &Dashboard{
-		nc:            nc,
-		store:         store,
-		commandsTopic: commandsTopic,
-		modulesTopic:  modulesTopic,
-		hydrator:      hydrator,
-		log:           log,
-		writeGate:     make(chan struct{}, writeConcurrency),
-		commandMisses: map[uint64]*commandInFlight{},
-		moduleMisses:  map[uint64]*moduleInFlight{},
+		nc:                    nc,
+		store:                 store,
+		commandsTopic:         commandsTopic,
+		modulesTopic:          modulesTopic,
+		cacheInvalidatePrefix: cacheInvalidatePrefix,
+		hydrator:              hydrator,
+		log:                   log,
+		writeGate:             make(chan struct{}, writeConcurrency),
+		commandMisses:         map[uint64]*commandInFlight{},
+		moduleMisses:          map[uint64]*moduleInFlight{},
 	}
 
 	if err := bus.QueueSubscribeJSON[projectorrpc.DashboardRequest, rpcprojection.CommandsReply](nc, prefix+".commands.get", queueGroup, 2*time.Second, app, log, d.handleCommandsGet); err != nil {
@@ -169,6 +173,9 @@ func (d *Dashboard) writeCommandsAsync(userID uint64, commands []projection.Comm
 		if err := d.store.SetCommands(ctx, userID, commands); err != nil && d.log != nil {
 			d.log.Warn("projector command valkey write failed", zap.Uint64("user_id", userID), zap.Error(err))
 		}
+		if d.cacheInvalidatePrefix != "" {
+			_ = invalidate.PublishKeys(d.nc, d.cacheInvalidatePrefix, "commands", strconv.FormatUint(userID, 10))
+		}
 	}()
 }
 
@@ -183,6 +190,9 @@ func (d *Dashboard) writeModulesAsync(userID uint64, modules []projection.Module
 
 		if err := d.store.SetModules(ctx, userID, modules); err != nil && d.log != nil {
 			d.log.Warn("projector module valkey write failed", zap.Uint64("user_id", userID), zap.Error(err))
+		}
+		if d.cacheInvalidatePrefix != "" {
+			_ = invalidate.PublishKeys(d.nc, d.cacheInvalidatePrefix, "modules", strconv.FormatUint(userID, 10))
 		}
 	}()
 }

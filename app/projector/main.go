@@ -136,7 +136,11 @@ func main() {
 	}
 
 	dashboardSubject := env.Get("NATS_PROJECTOR_DASHBOARD_SUBJECT_PREFIX", "bagel.rpc.projector.dashboard")
-	if err := rpc.SubscribeDashboard(nc, valkeyStore, dashboardSubject, commandsTopic, modulesTopic, hydrator, "projector-rpc", nrApp, log); err != nil {
+	if err := rpc.SubscribeDashboard(
+		nc, valkeyStore,
+		dashboardSubject,
+		commandsTopic, modulesTopic, cacheInvalidatePrefix, hydrator, "projector-rpc", nrApp, log,
+	); err != nil {
 		log.Fatal("failed to subscribe dashboard projector rpc", zap.Error(err))
 	}
 
