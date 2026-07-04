@@ -173,6 +173,7 @@ export const fr = {
     newShareLink: 'Nouveau lien de partage',
     newShareLinkHint: 'Choisissez les sections que l\'invité peut gérer.',
     commands: 'Commandes',
+    modules: 'Modules',
     notifications: 'Notifications',
     notificationsEmpty: 'Rien pour le moment. Les messages de l\'équipe ItsBagelBot apparaîtront ici.',
     sharedWithYou: 'Tableaux de bord partagés avec vous',

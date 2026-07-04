@@ -174,6 +174,7 @@ export const en = {
     newShareLink: 'New share link',
     newShareLinkHint: 'Pick which sections the invitee can manage.',
     commands: 'Commands',
+    modules: 'Modules',
     notifications: 'Notifications',
     notificationsEmpty: 'Nothing yet. Messages from the ItsBagelBot team will show up here.',
     sharedWithYou: 'Dashboards shared with you',

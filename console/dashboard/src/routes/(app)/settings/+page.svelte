@@ -144,7 +144,10 @@
     <form method="POST" action="?/create" class="create" use:enhance>
       <h3>{t('settings.newShareLink')}</h3>
       <p class="hint">{t('settings.newShareLinkHint')}</p>
-      <CheckButton name="commands" checked={true} label={t('settings.commands')} />
+      <div class="section-picks">
+        <CheckButton name="commands" checked={true} label={t('settings.commands')} />
+        <CheckButton name="modules" label={t('settings.modules')} />
+      </div>
       <button class="btn primary" type="submit"><Icon name="link" size={14} /> {t('common.generate')}</button>
     </form>
   </Card>
@@ -260,6 +263,7 @@
   .row .hint { margin: 4px 0 0; }
   .create { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--bb-line, rgba(255, 255, 255, 0.06)); }
   .create .btn { margin-top: 14px; }
+  .section-picks { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; }
 
   /* --- Grant lifecycle cards --- */
   .grants { display: flex; flex-direction: column; gap: 10px; }
