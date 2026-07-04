@@ -2,10 +2,13 @@ package modules
 
 import (
 	"context"
+	"strconv"
 	"time"
 
 	"ItsBagelBot/app/sesame/engine"
+	"ItsBagelBot/app/sesame/i18n"
 	"ItsBagelBot/app/sesame/module"
+	"ItsBagelBot/internal/domain/outgress"
 
 	"go.uber.org/zap"
 )
@@ -32,7 +35,7 @@ func Live(d engine.Deps) module.Module {
 
 	m := module.NewModule("", module.KindCore)
 
-	m.On("stream.online", func(_ context.Context, c *module.Context, _ module.Emit) error {
+	m.On("stream.online", func(_ context.Context, c *module.Context, emit module.Emit) error {
 		id := c.BroadcasterID
 		go func() {
 			wctx, cancel := context.WithTimeout(context.Background(), liveWriteTimeout)
@@ -45,6 +48,13 @@ func Live(d engine.Deps) module.Module {
 				log.Warn("live: failed to reset greets", zap.Uint64("broadcaster_id", id), zap.Error(err))
 			}
 		}()
+		
+		emit(&module.Output{
+			Type:          outgress.TypeChat,
+			BroadcasterID: strconv.FormatUint(id, 10),
+			Text:          i18n.T(c.Locale, "bagels_ready"),
+		})
+		
 		log.Debug("stream online", zap.Uint64("broadcaster_id", id))
 		return nil
 	})
