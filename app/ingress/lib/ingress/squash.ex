@@ -13,10 +13,10 @@ defmodule Ingress.Squash do
       immediately as a normal `channel.chat.message` (zero added latency for the
       common unique message, and an instant content look for the automod);
     * every later identical line within the window is buffered as just its
-      SENDER, and the window is flushed into ONE
-      `channel.chat.message.duplicates` cohort event carrying every duplicate
-      sender. `M` distinct users on identical text is exactly the campaign
-      primitive, delivered pre-assembled.
+      SENDER, and the window is flushed into ONE folded `channel.chat.message`
+      carrying every duplicate sender. `M` distinct users on identical text is
+      exactly the campaign primitive, delivered pre-assembled, and it rides the
+      normal premium/standard lane like any other chat event.
 
   Commands (`!followage`, custom commands with integrations) and special users
   never reach here: a repeated command is a legitimate second invocation the
@@ -152,7 +152,7 @@ defmodule Ingress.Squash do
     distinct = senders |> Enum.map(& &1.chatter_user_id) |> Enum.uniq() |> length()
 
     message = %{
-      type: "channel.chat.message.duplicates",
+      type: "channel.chat.message",
       lane: base.lane,
       broadcaster_user_id: base.broadcaster_user_id,
       broadcaster_user_login: base.broadcaster_user_login,
