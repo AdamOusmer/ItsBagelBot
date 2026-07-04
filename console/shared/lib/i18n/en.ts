@@ -220,7 +220,7 @@ export const en = {
     priorityLane: 'Priority lane',
     upgrade: 'Upgrade',
     premium: 'Premium',
-    perMonth: '/month',
+    perMonth: 'CAD +tx /month',
     premiumDesc: 'Keeps the servers warm and bumps you to the front of the queue when chat gets loud.',
     premiumFeat1: 'Everything in Free, obviously',
     premiumFeat2: 'Your messages jump to the front of the line',
