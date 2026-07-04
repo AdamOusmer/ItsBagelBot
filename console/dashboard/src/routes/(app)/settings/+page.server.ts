@@ -17,7 +17,7 @@ import { ACCOUNT_DELETED_COOKIE, COOKIE, type Session } from '$lib/server/sessio
 import { demoNotifications } from '$lib/server/demo-notifications';
 import { env } from '$env/dynamic/private';
 
-const SECTIONS = ['commands'] as const;
+const SECTIONS = ['commands', 'modules'] as const;
 
 function tokenLabel(token: string): string {
   return token.length <= 8 ? 'token=redacted' : `token=${token.slice(0, 8)}...`;
