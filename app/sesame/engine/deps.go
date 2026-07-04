@@ -15,6 +15,7 @@ import (
 	"context"
 	"time"
 
+	"ItsBagelBot/app/sesame/automod"
 	"ItsBagelBot/internal/projection"
 
 	"github.com/ThreeDotsLabs/watermill/message"
@@ -45,6 +46,9 @@ type Deps struct {
 	Commands CommandManager
 	Gateway  GatewayCaller
 	Log      *zap.Logger
+	// Automod is the inline chat guard. nil disables it; when set it inspects
+	// each chat line and (in this phase) the engine only logs the shadow verdict.
+	Automod *automod.Gate
 }
 
 // IsLiveChecker is the read-only slice of the live store: just "is this
