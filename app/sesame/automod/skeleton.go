@@ -33,16 +33,23 @@ func isStrippable(r rune) bool {
 }
 
 // confusables folds common cross-script and leet lookalikes to their latin
-// skeleton. A curated starter set (Cyrillic/Greek/digits); the full Unicode
-// confusables table is loaded from the pattern artifact in a later phase.
+// skeleton. Keys are the LOWERCASE code point: Normalize lowercases before it
+// folds, so a single lowercase entry catches both cases (an uppercase Cyrillic 'А'
+// lowercases to 'а' and then folds), and the map stays half the size. A curated
+// set (Cyrillic, Greek, math/fullwidth left to NFKC, digit/symbol leet); the full
+// Unicode confusables table is loaded from the pattern artifact in a later phase.
 var confusables = map[rune]rune{
+	// Cyrillic lowercase lookalikes.
 	0x0430: 'a', 0x0435: 'e', 0x043e: 'o', 0x0440: 'p', 0x0441: 'c', // а е о р с
 	0x0445: 'x', 0x0443: 'y', 0x043a: 'k', 0x043c: 'm', 0x0442: 't', // х у к м т
-	0x043d: 'h', 0x0432: 'b', 0x0456: 'i', 0x0455: 's', // н в і ѕ
-	0x0391: 'a', 0x0392: 'b', 0x0395: 'e', 0x0397: 'h', 0x0399: 'i', // Α Β Ε Η Ι
-	0x039a: 'k', 0x039c: 'm', 0x039d: 'n', 0x039f: 'o', 0x03a1: 'p', // Κ Μ Ν Ο Ρ
-	0x03a4: 't', 0x03a5: 'y', 0x03a7: 'x', 0x0396: 'z', // Τ Υ Χ Ζ
-	'0': 'o', '1': 'i', '3': 'e', '4': 'a', '5': 's', '7': 't', '@': 'a', '$': 's',
+	0x043d: 'h', 0x0432: 'b', 0x0456: 'i', 0x0455: 's', 0x0458: 'j', // н в і ѕ ј
+	0x0501: 'd', 0x04bb: 'h', 0x0433: 'r', // ԁ һ г
+	// Greek lowercase lookalikes.
+	0x03b1: 'a', 0x03b2: 'b', 0x03b5: 'e', 0x03b7: 'h', 0x03b9: 'i', // α β ε η ι
+	0x03ba: 'k', 0x03bd: 'v', 0x03bf: 'o', 0x03c1: 'p', 0x03c4: 't', // κ ν ο ρ τ
+	0x03c5: 'y', 0x03c7: 'x', 0x03b6: 'z', 0x03c9: 'w', 0x03c3: 'o', // υ χ ζ ω σ
+	// Digit/symbol leet (scoped to skeleton blocklist matching).
+	'0': 'o', '1': 'i', '3': 'e', '4': 'a', '5': 's', '7': 't', '8': 'b', '@': 'a', '$': 's',
 }
 
 // Normalize folds a message into its detection skeleton and writes it into dst (a
@@ -70,10 +77,13 @@ func Normalize(dst []byte, text string) []byte {
 			continue
 		}
 		spaced = false
+		// Lowercase first, THEN fold: a single lowercase confusables entry then
+		// catches an uppercase cross-script lookalike too (uppercase Cyrillic 'А'
+		// lowercases to 'а' before the fold), closing an evasion gap.
+		r = unicode.ToLower(r)
 		if c, ok := confusables[r]; ok {
 			r = c
 		}
-		r = unicode.ToLower(r)
 		n := utf8.EncodeRune(buf[:], r)
 		dst = append(dst, buf[:n]...)
 	}
