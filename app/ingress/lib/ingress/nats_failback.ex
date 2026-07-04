@@ -76,7 +76,9 @@ defmodule Ingress.NatsFailback do
 
   defp local_connection?(name, node) do
     case Process.whereis(name) do
-      nil -> false
+      nil ->
+        false
+
       _pid ->
         try do
           Gnat.server_info(name).server_name |> String.starts_with?(node <> "--")
@@ -99,7 +101,8 @@ defmodule Ingress.NatsFailback do
   defp local_leaf_ready?(address, timeout) do
     with [host, port_string] <- String.split(address, ":", parts: 2),
          {port, ""} <- Integer.parse(port_string),
-         {:ok, socket} <- :gen_tcp.connect(String.to_charlist(host), port, [:binary, active: false], timeout) do
+         {:ok, socket} <-
+           :gen_tcp.connect(String.to_charlist(host), port, [:binary, active: false], timeout) do
       :gen_tcp.close(socket)
       true
     else

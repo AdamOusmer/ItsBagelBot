@@ -47,11 +47,6 @@ defmodule Ingress.ShardSession do
   @base_backoff_ms 1_000
   @max_backoff_ms 60_000
 
-  # Window over which notification events are counted for the load metric.
-  # A short window (60 s) reflects current activity; the autoscaler samples
-  # this at its own interval, so the two do not need to be aligned.
-  @load_window_ms 60_000
-
   defstruct shard_id: nil,
             conduit_id: nil,
             # active socket (may still be pre-welcome on fresh connect)
@@ -69,10 +64,8 @@ defmodule Ingress.ShardSession do
             last_frame_at: nil,
             # duplicate-shard takeover in flight: %{winner:, monitor:, timer:}
             takeover: nil,
-            # Ring of {monotonic_time_ms} timestamps for recent notification
-            # events, used to compute the per-shard load rate. Older than
-            # @load_window_ms entries are pruned on each notification.
-            event_times: []
+            # Aggregate counter for notification load.
+            load_counter: Ingress.LoadCounter.new()
 
   def start_link(opts) do
     shard_id = Keyword.fetch!(opts, :shard_id)
@@ -114,7 +107,11 @@ defmodule Ingress.ShardSession do
 
   @impl true
   def handle_call(:status, _from, state) do
-    {:reply, status_map(state), state}
+    {load, updated_counter} =
+      Ingress.LoadCounter.value(state.load_counter, System.monotonic_time(:millisecond))
+
+    state = %{state | load_counter: updated_counter}
+    {:reply, status_map(state, load), state}
   end
 
   # The other copy of this shard is bound but lost the registry merge; it is
@@ -125,7 +122,14 @@ defmodule Ingress.ShardSession do
   def handle_cast(:stand_down_duplicate, %{bound?: true} = state), do: {:noreply, state}
   def handle_cast(:stand_down_duplicate, state), do: {:stop, :normal, stand_down(state)}
 
-  defp status_map(state) do
+  defp status_map(state, load) do
+    last_frame_at =
+      if state.last_frame_system_ms do
+        DateTime.from_unix!(state.last_frame_system_ms, :millisecond)
+      else
+        nil
+      end
+
     %{
       shard_id: state.shard_id,
       state: derive_state(state),
@@ -140,12 +144,12 @@ defmodule Ingress.ShardSession do
       keepalive_ms: state.keepalive_ms,
       attempts: state.attempts,
       bound_at: state.bound_at,
-      last_frame_at: state.last_frame_at,
+      last_frame_at: last_frame_at,
       # Notifications received in the last @load_window_ms milliseconds.
       # This is a raw count, not a rate; callers divide by the window if they
       # want events/second. Using the current wall of pruned timestamps avoids
       # a separate timer and stays consistent with the window definition.
-      load: length(state.event_times)
+      load: load
     }
   end
 
@@ -165,10 +169,28 @@ defmodule Ingress.ShardSession do
 
   def handle_info(:welcome_deadline, state), do: {:noreply, state}
 
-  def handle_info(:keepalive_timeout, state) do
-    Logger.warning("keepalive window elapsed; zombie connection, reconnecting")
-    Metrics.count("Shard/ZombieTimeouts")
-    {:noreply, reconnect(state)}
+  def handle_info({:keepalive_timeout, token}, state) do
+    case state.watchdog do
+      {_timer, ^token} ->
+        now_mono = System.monotonic_time(:millisecond)
+        window = (state.keepalive_ms || 10_000) + @keepalive_grace_ms
+
+        elapsed =
+          if state.last_frame_mono_ms, do: now_mono - state.last_frame_mono_ms, else: window
+
+        if elapsed >= window do
+          Logger.warning("keepalive window elapsed; zombie connection, reconnecting")
+          Metrics.count("Shard/ZombieTimeouts")
+          {:noreply, reconnect(%{state | watchdog: nil})}
+        else
+          remaining = window - elapsed
+          new_timer = Process.send_after(self(), {:keepalive_timeout, token}, remaining)
+          {:noreply, %{state | watchdog: {new_timer, token}}}
+        end
+
+      _ ->
+        {:noreply, state}
+    end
   end
 
   def handle_info(:handshake_deadline, %{pending: pending} = state) when pending != nil do
@@ -360,6 +382,9 @@ defmodule Ingress.ShardSession do
         attempts: 0
     }
 
+    cancel_watchdog(state.watchdog)
+    state = %{state | watchdog: nil}
+
     publish_bound(state, "moved")
 
     {:noreply, pet_watchdog(state)}
@@ -378,6 +403,9 @@ defmodule Ingress.ShardSession do
         session_id: session_id,
         keepalive_ms: keepalive_ms(session, state)
     }
+
+    cancel_watchdog(state.watchdog)
+    state = %{state | watchdog: nil}
 
     case Api.assign_shard(state.conduit_id, state.shard_id, session_id) do
       :ok ->
@@ -436,7 +464,7 @@ defmodule Ingress.ShardSession do
       ts: meta["message_timestamp"]
     })
 
-    {:noreply, state |> record_event() |> pet_watchdog()}
+    {:noreply, state |> count_notification() |> pet_watchdog()}
   end
 
   defp handle_twitch(_which, "revocation", payload, _meta, state) do
@@ -570,7 +598,8 @@ defmodule Ingress.ShardSession do
   defp teardown(state) do
     WS.close(state.primary)
     WS.close(state.pending)
-    Enum.each([state.watchdog, state.welcome_timer, state.handshake_timer], &cancel/1)
+    cancel_watchdog(state.watchdog)
+    Enum.each([state.welcome_timer, state.handshake_timer], &cancel/1)
 
     %{
       state
@@ -595,26 +624,31 @@ defmodule Ingress.ShardSession do
     %{state | attempts: attempts}
   end
 
-  # Record a notification event timestamp and prune entries older than the
-  # load window. The resulting list length is the load value in status/0.
-  defp record_event(state) do
+  # Increment the aggregate load counter.
+  defp count_notification(state) do
     now = System.monotonic_time(:millisecond)
-    cutoff = now - @load_window_ms
-    times = [now | Enum.take_while(state.event_times, &(&1 >= cutoff))]
-    %{state | event_times: times}
+    %{state | load_counter: Ingress.LoadCounter.increment(state.load_counter, now)}
   end
 
-  # Every inbound message proves the socket is alive; re-arm the watchdog.
+  # Every inbound message proves the socket is alive.
   defp pet_watchdog(state) do
-    cancel(state.watchdog)
-    window = (state.keepalive_ms || 10_000) + @keepalive_grace_ms
+    now_mono = System.monotonic_time(:millisecond)
+    now_sys = System.os_time(:millisecond)
 
-    %{
+    state = %{state | last_frame_mono_ms: now_mono, last_frame_system_ms: now_sys}
+
+    if state.watchdog == nil do
+      window = (state.keepalive_ms || 10_000) + @keepalive_grace_ms
+      token = make_ref()
+      timer = Process.send_after(self(), {:keepalive_timeout, token}, window)
+      %{state | watchdog: {timer, token}}
+    else
       state
-      | watchdog: Process.send_after(self(), :keepalive_timeout, window),
-        last_frame_at: DateTime.utc_now()
-    }
+    end
   end
+
+  defp cancel_watchdog({timer, _}), do: cancel(timer)
+  defp cancel_watchdog(nil), do: :ok
 
   defp cancel(nil), do: :ok
   defp cancel(ref), do: Process.cancel_timer(ref)

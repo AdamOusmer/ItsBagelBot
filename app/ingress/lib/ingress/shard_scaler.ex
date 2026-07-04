@@ -46,15 +46,8 @@ defmodule Ingress.ShardScaler do
 
   # --- tunables ---------------------------------------------------------------
 
-  # Notification events per @load_window_ms per shard above which we add a shard.
-  @scale_up_threshold 50
-  # Notification events per @load_window_ms per shard below which we consider
-  # removing a shard (requires @scale_down_ticks consecutive ticks).
-  @scale_down_threshold 10
   # How often the autoscaler evaluates load.
   @autoscale_interval_ms 30_000
-  # Consecutive low-load ticks required before scaling down (hysteresis).
-  @scale_down_ticks 3
   # --- public API ------------------------------------------------------------
 
   def start_link(_opts) do
@@ -129,7 +122,7 @@ defmodule Ingress.ShardScaler do
     target = seed_target()
     Logger.info("shard_scaler started: target=#{target} on #{node()}")
     schedule_autoscale()
-    {:ok, %{target: target, autoscale: true, low_ticks: 0}}
+    {:ok, %{target: target, autoscale: true, low_ticks: 0, last_sample: nil}}
   end
 
   @impl true
@@ -139,8 +132,8 @@ defmodule Ingress.ShardScaler do
 
   @impl true
   def handle_call(:status, _from, state) do
-    load = aggregate_load(state)
     min_s = min_shards()
+    load = if state.last_sample, do: state.last_sample.aggregate_load, else: 0
 
     {:reply,
      %{
@@ -148,7 +141,8 @@ defmodule Ingress.ShardScaler do
        autoscale: state.autoscale,
        min_shards: min_s,
        desired: compute_desired(state),
-       load: load
+       load: load,
+       last_sample: state.last_sample
      }, state}
   end
 
@@ -213,87 +207,91 @@ defmodule Ingress.ShardScaler do
     length([self_node | Node.list()])
   end
 
-  defp compute_desired(%{target: target, autoscale: false}) do
-    max(target, min_shards())
-  end
-
-  defp compute_desired(%{target: target, autoscale: true} = state) do
-    load = aggregate_load(state)
-    min_s = min_shards()
-    lower = max(target, min_s)
-    clamp(load_target(load, compute_desired_raw(state)), lower, Config.max_shards())
-  end
-
-  # Raw desired without clamping — used internally by load_target to know
-  # the current scale to decide whether to go up or down.
-  defp compute_desired_raw(%{target: target}) do
-    max(target, min_shards())
-  end
-
-  # Given aggregate load across all shards and the current shard count,
-  # propose a new count.
-  defp load_target(load, current) when current == 0, do: max(load, 1)
-
-  defp load_target(load, current) do
-    avg = div(load, current)
-
-    cond do
-      avg > @scale_up_threshold -> current + 1
-      avg < @scale_down_threshold -> max(current - 1, 1)
-      true -> current
-    end
+  defp compute_desired(state) do
+    clamp(state.target, min_shards(), Config.max_shards())
   end
 
   defp evaluate_autoscale(state) do
-    load = aggregate_load(state)
-    current = compute_desired_raw(state)
-    avg = if current > 0, do: div(load, current), else: 0
+    sample = sample_shards(state)
+    state = %{state | last_sample: sample}
 
-    cond do
-      avg > @scale_up_threshold ->
-        new_target = min(state.target + 1, Config.max_shards())
-        Logger.info("shard_scaler: autoscale up avg_load=#{avg} → target #{state.target} → #{new_target}")
-        %{state | target: new_target, low_ticks: 0}
+    min_s = min_shards()
 
-      avg < @scale_down_threshold ->
-        ticks = state.low_ticks + 1
+    {new_target, low_ticks, action} =
+      Ingress.ShardScaler.Policy.evaluate(
+        sample,
+        state.target,
+        state.low_ticks,
+        min_s,
+        Config.max_shards()
+      )
 
-        if ticks >= @scale_down_ticks do
-          new_target = max(state.target - 1, min_shards())
-          Logger.info("shard_scaler: autoscale down avg_load=#{avg} ticks=#{ticks} → target #{state.target} → #{new_target}")
-          %{state | target: new_target, low_ticks: 0}
-        else
-          Logger.debug("shard_scaler: low load avg=#{avg} (#{ticks}/#{@scale_down_ticks} ticks)")
-          %{state | low_ticks: ticks}
+    case action do
+      :up ->
+        Logger.info(
+          "shard_scaler: autoscale up avg_load=#{sample.avg_load} → target #{state.target} → #{new_target}"
+        )
+
+      :down ->
+        Logger.info(
+          "shard_scaler: autoscale down avg_load=#{sample.avg_load} ticks=#{low_ticks} → target #{state.target} → #{new_target}"
+        )
+
+      :hold ->
+        if low_ticks > 0 do
+          Logger.debug("shard_scaler: low load avg=#{sample.avg_load} (#{low_ticks}/3 ticks)")
         end
-
-      true ->
-        %{state | low_ticks: 0}
     end
+
+    %{state | target: new_target, low_ticks: low_ticks}
   end
 
-  # Collect the load field from every currently-registered shard and sum.
-  # Unresponsive shards contribute 0 (conservative: do not scale down when
-  # a shard is mid-reconnect and we cannot reach it).
-  defp aggregate_load(_state) do
-    current = compute_desired_raw(%{target: 0})
+  defp sample_shards(state) do
+    expected = compute_desired(state)
 
-    0..(current - 1)
-    |> Enum.map(fn shard_id ->
-      case Horde.Registry.lookup(Ingress.Registry, {:shard, shard_id}) do
-        [{pid, _}] ->
-          try do
-            status = Ingress.ShardSession.status(pid, 1_000)
-            Map.get(status, :load, 0)
-          catch
-            :exit, _ -> 0
-          end
+    if expected == 0 do
+      %{expected_count: 0, responsive_count: 0, missing_count: 0, aggregate_load: 0, avg_load: 0}
+    else
+      results =
+        0..(expected - 1)
+        |> Task.async_stream(
+          fn shard_id ->
+            case Horde.Registry.lookup(Ingress.Registry, {:shard, shard_id}) do
+              [{pid, _}] ->
+                try do
+                  status = Ingress.ShardSession.status(pid, 1_000)
+                  {:ok, Map.get(status, :load, 0)}
+                catch
+                  :exit, _ -> :error
+                end
 
-        [] ->
-          0
-      end
-    end)
-    |> Enum.sum()
+              [] ->
+                :error
+            end
+          end,
+          max_concurrency: 8,
+          timeout: 1_500,
+          on_timeout: :kill_task
+        )
+        |> Enum.to_list()
+
+      {responsive, total_load} =
+        Enum.reduce(results, {0, 0}, fn
+          {:ok, {:ok, load}}, {r, l} -> {r + 1, l + load}
+          _, {r, l} -> {r, l}
+        end)
+
+      missing = expected - responsive
+      avg = if responsive > 0, do: div(total_load, responsive), else: 0
+
+      %{
+        expected_count: expected,
+        responsive_count: responsive,
+        missing_count: missing,
+        aggregate_load: total_load,
+        avg_load: avg
+      }
+    end
   end
 
   defp schedule_autoscale do
@@ -310,7 +308,8 @@ defmodule Ingress.ShardScaler do
       autoscale: false,
       min_shards: min_shards(),
       desired: Config.conduit_shard_count(),
-      load: 0
+      load: 0,
+      last_sample: nil
     }
   end
 end
