@@ -17,15 +17,25 @@ defmodule Ingress.Pipeline do
   Every published event carries its `type` in the payload so consumers filter
   there, not on the subject.
 
-  For `channel.chat.message` there are exactly three outcomes:
+  For `channel.chat.message` there are three outcomes:
 
     1. The chatter is one of the special user IDs (from secrets): publish to
        the **premium** lane, always, even when the broadcaster is on the free
        tier.
-    2. The message text starts with `!`: publish to the lane matching the
-       **broadcaster's** status (premium or standard), looked up through
-       `Ingress.BroadcasterCache`.
-    3. Anything else: drop.
+    2. The message text starts with `!` (a command): publish to the lane
+       matching the **broadcaster's** status, looked up through
+       `Ingress.BroadcasterCache`. Commands are never squashed - a repeated
+       command is a legitimate second invocation the worker gates by cooldown.
+    3. Anything else (plain chat): gated behind the `chat_passthrough_enabled`
+       flag. While it is off (the default) plain chat is dropped exactly as
+       before, so the guards ship dark; flip it on once the worker's automod is
+       ready. When on, it is published under two guards: identical lines are
+       coalesced by `Ingress.Squash` into one `channel.chat.message.duplicates`
+       cohort (keeping the full reputation/campaign signal), and the surviving
+       distinct lines are rate-capped per channel by `Ingress.FloodShed`.
+
+  A size guard drops oversized/malformed chat text (`max_chat_text_bytes`)
+  before any routing.
 
   Every other EventSub type rides the premium/standard lanes, routed by the
   event's broadcaster status. Events without an extractable broadcaster
@@ -34,9 +44,9 @@ defmodule Ingress.Pipeline do
 
   require Logger
 
-  alias Ingress.{BroadcasterCache, Config, Metrics, Nats}
+  alias Ingress.{BroadcasterCache, Config, FloodShed, Metrics, Nats, Squash}
 
-  @type decision :: :special | :command | :drop
+  @type decision :: :special | :command | :chat
 
   @type lane :: :premium | :standard | :stream | :drop
 
@@ -49,6 +59,18 @@ defmodule Ingress.Pipeline do
 
       {:publish_many, publishes} ->
         Enum.each(publishes, fn {subject, message} -> publish_one(subject, message) end)
+
+      :squash ->
+        Metrics.count("Squashed")
+        :squash
+
+      :shed ->
+        Metrics.count("Shed")
+        :shed
+
+      :oversized ->
+        Metrics.count("Oversized")
+        :oversized
 
       :drop ->
         Metrics.count("Dropped")
@@ -96,17 +118,17 @@ defmodule Ingress.Pipeline do
   def route(%{"subscription" => %{"type" => "channel.chat.message"}, "event" => event}, meta) do
     text = get_in(event, ["message", "text"]) || ""
 
-    case decide(text, event["chatter_user_id"], Config.special_user_ids()) do
-      :drop ->
-        :drop
+    cond do
+      # Size guard: a well-formed Twitch chat line is <= 500 chars; anything far
+      # past that is malformed or abuse and is dropped before any further work.
+      oversized?(text) ->
+        :oversized
 
-      :special ->
-        chat_message(:premium, event, text, meta)
-
-      :command ->
-        case BroadcasterCache.lane(event["broadcaster_user_id"]) do
-          :drop -> :drop
-          lane -> chat_message(lane, event, text, meta)
+      true ->
+        case decide(text, event["chatter_user_id"], Config.special_user_ids()) do
+          :special -> chat_message(:premium, event, text, meta)
+          :command -> broadcaster_lane_publish(event, text, meta)
+          :chat -> plain_chat(event, text, meta)
         end
     end
   end
@@ -149,7 +171,7 @@ defmodule Ingress.Pipeline do
     cond do
       chatter_id != nil and chatter_id in special_user_ids -> :special
       String.starts_with?(String.trim_leading(text), "!") -> :command
-      true -> :drop
+      true -> :chat
     end
   end
 
@@ -171,6 +193,72 @@ defmodule Ingress.Pipeline do
       shard_id: meta.shard_id,
       msg_id: meta.msg_id,
       received_at: meta.ts
+    }
+  end
+
+  # Commands (and their like): publish to the broadcaster's own lane, unless the
+  # broadcaster is dropped (banned). Never squashed or shed, so a legitimate
+  # repeated command still runs (the worker gates abuse by cooldown).
+  defp broadcaster_lane_publish(event, text, meta) do
+    case BroadcasterCache.lane(event["broadcaster_user_id"]) do
+      :drop -> :drop
+      lane -> chat_message(lane, event, text, meta)
+    end
+  end
+
+  # Plain (non-command) chat. The `!` lift is gated behind a flag so the code
+  # ships dark: when disabled, plain chat keeps the pre-lift behaviour and is
+  # dropped, and the flag is flipped only once the worker's automod is ready to
+  # consume the volume. When enabled, identical lines are squashed into a cohort
+  # (Ingress.Squash) and the surviving distinct lines are rate-capped per channel
+  # (Ingress.FloodShed) before publishing.
+  defp plain_chat(event, text, meta) do
+    broadcaster_id = event["broadcaster_user_id"]
+
+    cond do
+      not Config.chat_passthrough_enabled?() ->
+        :drop
+
+      true ->
+        case BroadcasterCache.lane(broadcaster_id) do
+          :drop ->
+            :drop
+
+          lane ->
+            case Squash.observe(cohort_base(lane, event, text), sender_entry(event, meta)) do
+              :buffered -> :squash
+              :first -> flood_gated_publish(broadcaster_id, lane, event, text, meta)
+            end
+        end
+    end
+  end
+
+  defp flood_gated_publish(broadcaster_id, lane, event, text, meta) do
+    if FloodShed.allow?(broadcaster_id) do
+      chat_message(lane, event, text, meta)
+    else
+      :shed
+    end
+  end
+
+  defp oversized?(text), do: byte_size(text) > Config.max_chat_text_bytes()
+
+  defp cohort_base(lane, event, text) do
+    %{
+      broadcaster_user_id: event["broadcaster_user_id"],
+      broadcaster_user_login: event["broadcaster_user_login"],
+      lane: lane,
+      text: text
+    }
+  end
+
+  defp sender_entry(event, meta) do
+    %{
+      chatter_user_id: event["chatter_user_id"],
+      chatter_user_login: event["chatter_user_login"],
+      msg_id: meta.msg_id,
+      ts: meta.ts,
+      badges: event["badges"]
     }
   end
 
