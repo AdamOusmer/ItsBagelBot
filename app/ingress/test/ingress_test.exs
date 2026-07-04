@@ -22,16 +22,16 @@ defmodule Ingress.PipelineTest do
       assert Pipeline.decide("   !points", "555", @special) == :command
     end
 
-    test "plain chatter from a regular user is dropped" do
-      assert Pipeline.decide("just chatting", "555", @special) == :drop
+    test "plain chatter from a regular user is chat (published, then squashed)" do
+      assert Pipeline.decide("just chatting", "555", @special) == :chat
     end
 
-    test "empty text from an unknown user is dropped" do
-      assert Pipeline.decide("", nil, @special) == :drop
+    test "empty text from an unknown user is chat" do
+      assert Pipeline.decide("", nil, @special) == :chat
     end
 
     test "bang in the middle of the message is not a command" do
-      assert Pipeline.decide("nice play!", "555", @special) == :drop
+      assert Pipeline.decide("nice play!", "555", @special) == :chat
     end
   end
 
@@ -110,6 +110,16 @@ defmodule Ingress.PipelineTest do
       assert {:publish, _subject, %{badges: ^badges}} =
                Pipeline.route(notification("channel.chat.message", event), @meta)
     end
+
+    test "oversized chat text is dropped before routing" do
+      event = %{
+        "broadcaster_user_id" => "77",
+        "chatter_user_id" => "555",
+        "message" => %{"text" => String.duplicate("a", 5_000)}
+      }
+
+      assert :oversized = Pipeline.route(notification("channel.chat.message", event), @meta)
+    end
   end
 
   describe "broadcaster_id/1" do
@@ -136,9 +146,7 @@ defmodule Ingress.BroadcasterCacheTest do
   defp start_cache(loader, opts \\ []) do
     name = :"cache_#{System.unique_integer([:positive])}"
 
-    start_supervised!(
-      {BroadcasterCache, [name: name, table: name, loader: loader] ++ opts}
-    )
+    start_supervised!({BroadcasterCache, [name: name, table: name, loader: loader] ++ opts})
 
     name
   end
@@ -272,5 +280,134 @@ defmodule Ingress.CacheInvalidatorTest do
   test "garbage bodies are ignored without crashing the consumer" do
     assert :ok = CacheInvalidator.request(%{body: ""})
     assert :ok = CacheInvalidator.request(%{body: "   "})
+  end
+end
+
+defmodule Ingress.SquashTest do
+  use ExUnit.Case, async: false
+
+  alias Ingress.Squash
+
+  defp start_squash(opts) do
+    test = self()
+    publish = fn subject, msg -> send(test, {:published, subject, msg}) end
+    start_supervised!({Squash, [publish: publish] ++ opts})
+    :ok
+  end
+
+  defp base(text, lane \\ :standard),
+    do: %{broadcaster_user_id: "77", broadcaster_user_login: "chan", lane: lane, text: text}
+
+  defp sender(id),
+    do: %{chatter_user_id: id, chatter_user_login: "u#{id}", msg_id: "m#{id}", ts: 0, badges: nil}
+
+  test "the first identical line is :first, the rest are :buffered" do
+    start_squash(window_ms: 10_000, sweep_ms: 10_000)
+    assert Squash.observe(base("gg"), sender("1")) == :first
+    assert Squash.observe(base("gg"), sender("2")) == :buffered
+    assert Squash.observe(base("gg"), sender("3")) == :buffered
+  end
+
+  test "distinct text opens distinct windows (both :first)" do
+    start_squash(window_ms: 10_000, sweep_ms: 10_000)
+    assert Squash.observe(base("aaa"), sender("1")) == :first
+    assert Squash.observe(base("bbb"), sender("1")) == :first
+  end
+
+  test "the window flushes one cohort carrying every duplicate sender in order" do
+    start_squash(window_ms: 20, sweep_ms: 10)
+    assert Squash.observe(base("spam", :premium), sender("1")) == :first
+    assert Squash.observe(base("spam", :premium), sender("2")) == :buffered
+    assert Squash.observe(base("spam", :premium), sender("3")) == :buffered
+
+    assert_receive {:published, "twitch.ingress.event.premium", cohort}, 500
+    assert cohort.type == "channel.chat.message.duplicates"
+    assert cohort.text == "spam"
+    assert cohort.count == 2
+    assert cohort.distinct_users == 2
+    assert Enum.map(cohort.senders, & &1.chatter_user_id) == ["2", "3"]
+  end
+
+  test "a cohort at the size cap flushes early without waiting for the window" do
+    start_squash(window_ms: 60_000, sweep_ms: 60_000, max_senders: 2)
+    assert Squash.observe(base("flood"), sender("1")) == :first
+    assert Squash.observe(base("flood"), sender("2")) == :buffered
+    assert Squash.observe(base("flood"), sender("3")) == :buffered
+
+    assert_receive {:published, _subject, cohort}, 500
+    assert cohort.count == 2
+  end
+
+  test "observe fails open to :first when the table is absent" do
+    # No Squash started: the pipeline must never lose a message.
+    assert Squash.observe(base("x"), sender("1")) == :first
+  end
+end
+
+defmodule Ingress.PipelineGuardsTest do
+  # async: false - mutates the shared :chat_passthrough_enabled app env.
+  use ExUnit.Case, async: false
+
+  alias Ingress.Pipeline
+
+  @meta %{shard_id: 0, msg_id: "m1", ts: "2026-06-10T00:00:00Z"}
+
+  setup do
+    start_supervised!({Ingress.BroadcasterCache, [loader: fn _id -> {:ok, :standard} end]})
+    on_exit(fn -> Application.delete_env(:ingress, :chat_passthrough_enabled) end)
+    :ok
+  end
+
+  defp plain_chat do
+    %{
+      "subscription" => %{"type" => "channel.chat.message"},
+      "event" => %{
+        "broadcaster_user_id" => "77",
+        "chatter_user_id" => "555",
+        "message" => %{"text" => "just chatting"}
+      }
+    }
+  end
+
+  test "plain chat is dropped while the passthrough flag is off (ships dark)" do
+    Application.put_env(:ingress, :chat_passthrough_enabled, false)
+    assert :drop = Pipeline.route(plain_chat(), @meta)
+  end
+
+  test "plain chat publishes when the passthrough flag is on (guards fail open)" do
+    Application.put_env(:ingress, :chat_passthrough_enabled, true)
+
+    assert {:publish, "twitch.ingress.event.standard",
+            %{type: "channel.chat.message", text: "just chatting"}} =
+             Pipeline.route(plain_chat(), @meta)
+  end
+end
+
+defmodule Ingress.FloodShedTest do
+  use ExUnit.Case, async: false
+
+  alias Ingress.FloodShed
+
+  test "allows up to the per-second limit, then sheds" do
+    start_supervised!({FloodShed, [per_sec: 3, sweep_ms: 60_000]})
+
+    assert FloodShed.allow?("c1")
+    assert FloodShed.allow?("c1")
+    assert FloodShed.allow?("c1")
+    refute FloodShed.allow?("c1")
+    refute FloodShed.allow?("c1")
+  end
+
+  test "the budget is per channel" do
+    start_supervised!({FloodShed, [per_sec: 1, sweep_ms: 60_000]})
+
+    assert FloodShed.allow?("a")
+    refute FloodShed.allow?("a")
+    # A different channel has its own budget.
+    assert FloodShed.allow?("b")
+  end
+
+  test "fails open when not started so a missing guard never drops traffic" do
+    assert FloodShed.allow?("nope")
   end
 end
