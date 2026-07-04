@@ -9,6 +9,7 @@
     toast,
     normName,
     getI18n,
+    builtinDef,
     type CommandView,
     type CommandErrors,
     type Perm
@@ -16,6 +17,7 @@
   import type { SaveState } from '@bagel/shared/components/SaveStatus.svelte';
   import CommandRow from '$lib/components/commands/CommandRow.svelte';
   import CommandEditor from '$lib/components/commands/CommandEditor.svelte';
+  import BuiltinInspector from '$lib/components/commands/BuiltinInspector.svelte';
   import { loadDraft, clearDraft, hasDraft, type CommandDraft } from '$lib/components/commands/drafts';
 
   let { data } = $props();
@@ -110,16 +112,37 @@
   }
 
   // --- Filters ---------------------------------------------------------------
-  const filters = ['All', 'Active', 'Disabled'] as const;
+  const filters = ['All', 'Active', 'Disabled', 'Built-in', 'Custom'] as const;
   // Internal keys drive the filter logic; only the display label is translated.
   const filterLabel = (f: (typeof filters)[number]) =>
-    f === 'Active' ? t('commands.filterActive') : f === 'Disabled' ? t('commands.filterDisabled') : t('commands.filterAll');
+    f === 'Active'
+      ? t('commands.filterActive')
+      : f === 'Disabled'
+        ? t('commands.filterDisabled')
+        : f === 'Built-in'
+          ? t('commands.filterBuiltin')
+          : f === 'Custom'
+            ? t('commands.filterCustom')
+            : t('commands.filterAll');
   let active = $state<(typeof filters)[number]>('All');
   let search = $state('');
 
   const rows = $derived(
     items
-      .filter((c) => (active === 'Disabled' ? !c.is_active : active === 'Active' ? c.is_active : true))
+      .filter((c) => {
+        switch (active) {
+          case 'Active':
+            return c.is_active;
+          case 'Disabled':
+            return !c.is_active;
+          case 'Built-in':
+            return !!c.builtin;
+          case 'Custom':
+            return !c.builtin;
+          default:
+            return true;
+        }
+      })
       .filter((c) => {
         const q = search.toLowerCase();
         return (
@@ -128,7 +151,8 @@
           c.response.toLowerCase().includes(q)
         );
       })
-      .toSorted((a, b) => a.name.localeCompare(b.name))
+      // Built-ins float to the top, then alphabetical within each group.
+      .toSorted((a, b) => Number(!!b.builtin) - Number(!!a.builtin) || a.name.localeCompare(b.name))
   );
 
   // --- Inline editor ----------------------------------------------------------
@@ -166,7 +190,8 @@
       cooldown: c.cooldown ?? 0,
       allowed_user_id: c.allowed_user_id ?? '',
       stream_online_only: c.stream_online_only === true,
-      is_active: c.is_active
+      is_active: c.is_active,
+      builtin: c.builtin === true
     };
   }
 
@@ -184,6 +209,13 @@
       return;
     }
     serverErrors = null;
+    // Built-ins have no editable draft: the inspector is a read-only preview +
+    // toggle, so skip the sessionStorage draft machinery entirely.
+    if (c.builtin) {
+      editorDraft = { ...blankDraft(), edit: true, name: c.name, originalName: c.name, is_active: c.is_active, builtin: true };
+      expanded = c.name;
+      return;
+    }
     const restored = loadDraft(c.name, true);
     editorDraft = restored ?? fromView(c);
     expanded = c.name;
@@ -346,6 +378,11 @@
 
   const activeCount = $derived(items.filter((c) => c.is_active).length);
 
+  // The command currently loaded in the inspector (built-in path reads it live).
+  const selectedCmd = $derived(
+    expanded && expanded !== NEW ? items.find((c) => c.name === expanded) : undefined
+  );
+
   // --- Keyboard control: "/" jumps to search, "n" starts a new command,
   // Escape closes the inspector. Ignored while typing in any field. ---
   let searchInput = $state<HTMLInputElement | null>(null);
@@ -462,7 +499,14 @@
       </div>
       {#if editorDraft}
         <Scroller fill padding="16px" data-lenis-prevent>
-          <CommandEditor bind:draft={editorDraft} {serverErrors} {busy} onCancel={closeEditor} onSubmit={saveSubmit} />
+          {#if editorDraft.builtin && selectedCmd}
+            {@const def = builtinDef(selectedCmd.name)}
+            {#if def}
+              <BuiltinInspector command={selectedCmd} {def} toggleSubmit={toggleSubmit(selectedCmd)} />
+            {/if}
+          {:else}
+            <CommandEditor bind:draft={editorDraft} {serverErrors} {busy} onCancel={closeEditor} onSubmit={saveSubmit} />
+          {/if}
         </Scroller>
       {:else}
         <div class="inspector-idle">

@@ -66,6 +66,9 @@
         {#if c.stream_online_only}
           <span class="lock" title={t('commandRow.liveOnly')}><Icon name="pulse" size={11} /></span>
         {/if}
+        {#if c.builtin}
+          <span class="builtin-tag" title={t('commandRow.builtinTitle')}>{t('commandRow.builtin')}</span>
+        {/if}
         {#if unsaved}
           <span class="unsaved" title={t('commandRow.unsavedTitle')}>{t('commandRow.unsaved')}</span>
         {/if}
@@ -86,7 +89,7 @@
     <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
     <span class="row-act" onclick={(e) => e.stopPropagation()}>
       <!-- Toggle: silent upsert that flips is_active, preserving config -->
-      <form method="POST" action="?/toggle" use:enhance={toggleSubmit}>
+      <form method="POST" action={c.builtin ? '?/toggleBuiltin' : '?/toggle'} use:enhance={toggleSubmit}>
         <input type="hidden" name="name" value={c.name} />
         {#each c.aliases ?? [] as a}<input type="hidden" name="aliases" value={a} />{/each}
         <input type="hidden" name="response" value={c.response} />
@@ -97,9 +100,15 @@
         <input type="hidden" name="is_active" value={c.is_active ? '' : 'on'} />
         <button class="toggle {c.is_active ? 'on' : ''}" type="submit" aria-label={t('commandRow.toggleAria', { name: c.name })}></button>
       </form>
-      <button class="mini" type="button" aria-label={t('commandRow.deleteAria', { name: c.name })} onclick={onDelete}>
-        <Icon name="trash" size={15} />
-      </button>
+      {#if !c.builtin}
+        <button class="mini" type="button" aria-label={t('commandRow.deleteAria', { name: c.name })} onclick={onDelete}>
+          <Icon name="trash" size={15} />
+        </button>
+      {:else}
+        <!-- Built-ins can't be deleted; hold the delete slot so the toggle stays
+             column-aligned with the deletable custom rows. -->
+        <span class="mini-spacer" aria-hidden="true"></span>
+      {/if}
     </span>
   </div>
 </div>
@@ -158,6 +167,19 @@
     padding: 1px 8px;
   }
 
+  .builtin-tag {
+    margin-left: 8px;
+    font-family: var(--bb-font-display);
+    font-weight: 700;
+    font-size: 9.5px;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--bb-green-glow, #7fd4a3);
+    border: 1px solid rgba(82, 183, 136, 0.4);
+    border-radius: var(--bb-radius-pill, 100px);
+    padding: 1px 8px;
+  }
+
   .aliases { display: flex; flex-wrap: wrap; gap: 4px; }
   .alias-tag {
     font-family: var(--bb-font-mono);
@@ -191,6 +213,7 @@
 
   .state { min-width: 0; }
   .row-act { display: inline-flex; align-items: center; gap: 6px; }
+  .mini-spacer { width: 28px; height: 28px; flex: none; }
 
   @media (max-width: 760px) {
     .trow {
@@ -220,5 +243,6 @@
       min-height: 44px;
     }
     .mini { min-width: 44px; min-height: 44px; }
+    .mini-spacer { width: 44px; height: 44px; }
   }
 </style>

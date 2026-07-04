@@ -273,6 +273,8 @@ export const en = {
     filterAll: 'All',
     filterActive: 'Active',
     filterDisabled: 'Disabled',
+    filterBuiltin: 'Built-in',
+    filterCustom: 'Custom',
     keysSearch: 'search',
     keysNew: 'new',
     searchPlaceholder: 'Search name, alias, response…',
@@ -387,6 +389,17 @@ export const en = {
     cooldown: 'Cooldown',
     uses: 'Uses',
     toggleAria: 'Toggle !{name}',
-    deleteAria: 'Delete !{name}'
+    deleteAria: 'Delete !{name}',
+    builtin: 'Built-in',
+    builtinTitle: 'Built-in command: toggle only, no editable response'
+  },
+
+  builtinInspector: {
+    enabled: 'Enabled',
+    enabledHelp: 'Turn this built-in command on or off for your channel.',
+    usage: 'Usage',
+    preview: 'Preview',
+    access: 'Access',
+    cooldown: 'Cooldown'
   }
 } satisfies MessageTree;
