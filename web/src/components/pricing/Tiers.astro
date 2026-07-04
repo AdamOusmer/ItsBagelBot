@@ -70,8 +70,7 @@ const enterpriseFeatures = [
                 <span class="tier__badge">{t('tier.premiumBadge')}</span>
                 <span class="tier__name">{t('tier.premium')}</span>
                 <div class="tier__price">
-                    <span class="tier__prefix" aria-hidden="true">$</span>
-                    <span class="tier__amount" data-count-up data-target="5">0</span>
+                    <span class="tier__amount" data-count-up data-target="7" data-suffix="$">0$</span>
                     <span class="tier__suffix">{t('tier.premiumSuffix')}</span>
                 </div>
                 <p class="tier__desc">
@@ -400,8 +399,9 @@ const enterpriseFeatures = [
     /* Price count-up when the amount scrolls into view */
     function runCountUp(el: HTMLElement) {
         const target = parseInt(el.dataset.target ?? '0', 10);
+        const suffix = el.dataset.suffix ?? '';
         if (target === 0 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-            el.textContent = String(target);
+            el.textContent = `${target}${suffix}`;
             return;
         }
         const duration = 900;
@@ -409,7 +409,7 @@ const enterpriseFeatures = [
         function tick(now: number) {
             const progress = Math.min((now - startTime) / duration, 1);
             const eased = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress);
-            el.textContent = String(Math.round(eased * target));
+            el.textContent = `${Math.round(eased * target)}${suffix}`;
             if (progress < 1) requestAnimationFrame(tick);
         }
         requestAnimationFrame(tick);

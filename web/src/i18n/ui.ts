@@ -77,7 +77,7 @@ const en = {
 
   'tier.premium': 'Premium',
   'tier.premiumBadge': 'The tip jar, with perks',
-  'tier.premiumSuffix': '/month',
+  'tier.premiumSuffix': 'CAD +tx /month',
   'tier.premiumDesc': 'Keeps the servers warm and bumps you to the front of the queue when chat gets loud.',
   'tier.chipIn': 'Chip in',
   'tier.premiumFeat1': 'Everything in Free, obviously',
@@ -299,7 +299,7 @@ const fr: Partial<Record<UIKey, string>> = {
 
   'tier.premium': 'Premium',
   'tier.premiumBadge': 'La cagnotte, avec des avantages',
-  'tier.premiumSuffix': '/mois',
+  'tier.premiumSuffix': 'CAD +tx /mois',
   'tier.premiumDesc': 'Garde les serveurs au chaud et vous fait passer en tête de file quand le chat s\'emballe.',
   'tier.chipIn': 'Participer',
   'tier.premiumFeat1': 'Tout ce qui est dans Gratuit, évidemment',
