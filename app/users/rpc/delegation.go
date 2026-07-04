@@ -41,6 +41,7 @@ func SubscribeDelegation(nc *nats.Conn, repo *repository.Users, prefix, invalida
 		{"consume", d.handleConsume},
 		{"list", d.handleList},
 		{"revoke", d.handleRevoke},
+		{"update", d.handleUpdate},
 		{"access", d.handleAccess},
 		{"opt_out", d.handleOptOut},
 	}
@@ -213,6 +214,35 @@ func (d *delegationRPC) handleRevoke(ctx context.Context, msg *nats.Msg) {
 	defer cancel()
 
 	if err := d.repo.RevokeDelegation(ctx, req.Token, ownerID); err != nil {
+		bus.Respond(msg, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+
+	d.publishInvalidation(ownerID)
+	bus.Respond(msg, map[string]any{"ok": true})
+}
+
+func (d *delegationRPC) handleUpdate(ctx context.Context, msg *nats.Msg) {
+	var req usersrpc.UpdateDelegationRequest
+	if err := json.Unmarshal(msg.Data, &req); err != nil {
+		bus.Respond(msg, map[string]any{"ok": false, "error": "bad request"})
+		return
+	}
+
+	ownerID, err := strconv.ParseUint(req.OwnerUserID, 10, 64)
+	if err != nil {
+		bus.Respond(msg, map[string]any{"ok": false, "error": "owner_user_id must be numeric"})
+		return
+	}
+	if len(req.Sections) == 0 {
+		bus.Respond(msg, map[string]any{"ok": false, "error": "at least one section required"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	if err := d.repo.UpdateDelegationSections(ctx, req.Token, ownerID, req.Sections); err != nil {
 		bus.Respond(msg, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}

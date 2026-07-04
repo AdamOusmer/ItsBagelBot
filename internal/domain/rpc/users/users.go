@@ -211,6 +211,14 @@ type RevokeDelegationRequest struct {
 	Token       string `json:"token"`
 }
 
+// UpdateDelegationRequest changes the granted sections of an existing grant
+// (pending or consumed), scoped to its owner.
+type UpdateDelegationRequest struct {
+	OwnerUserID string   `json:"owner_user_id"`
+	Token       string   `json:"token"`
+	Sections    []string `json:"sections"`
+}
+
 // AccessRequest is the payload for the delegation access verb.
 type AccessRequest struct {
 	DelegateUserID string `json:"delegate_user_id"`

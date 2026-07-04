@@ -160,6 +160,29 @@ func (r *Users) DeleteDelegationsByOwner(ctx context.Context, ownerID uint64) er
 	})
 }
 
+// UpdateDelegationSections replaces the granted sections of a grant, scoped to
+// its owner so a token alone (held by an invitee) can never re-scope someone
+// else's grant. Applies to pending and consumed grants alike; a consumed grant's
+// delegate picks up the change the next time they open the board.
+func (r *Users) UpdateDelegationSections(ctx context.Context, token string, ownerID uint64, sections []string) error {
+	n, err := db.WithQuery(ctx, func(ctx context.Context) (int, error) {
+		return r.client.Delegation.Update().
+			Where(
+				delegation.TokenEQ(token),
+				delegation.OwnerIDEQ(ownerID),
+			).
+			SetSections(sections).
+			Save(ctx)
+	})
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return errors.New("not found")
+	}
+	return nil
+}
+
 // RevokeDelegation deletes a grant, scoped to its owner so a token alone (held
 // by an invitee) can never revoke someone else's grant.
 func (r *Users) RevokeDelegation(ctx context.Context, token string, ownerID uint64) error {
