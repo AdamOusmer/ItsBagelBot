@@ -1,0 +1,270 @@
+---
+/**
+ * Games — game integrations bento grid. 
+ * Shows Bedwars, MCSR Ranked, and a call-to-action for requesting more games.
+ */
+import Card from '../ui/Card.astro';
+import SectionHeading from '../ui/SectionHeading.astro';
+import { getLangFromUrl, useTranslations } from '../../i18n/ui';
+
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+---
+
+<section class="games" id="integrations">
+    <SectionHeading eyebrow={t('games.eyebrow')} title={t('games.title')} />
+
+    <div class="games__grid">
+        <!-- Bedwars Stats -->
+        <Card class="games__card" data-reveal>
+            <div class="games__demo games__demo--bw" aria-hidden="true">
+                <span class="games-bw__line">!bwstats player123</span>
+                <div class="games-bw__stats">
+                    <span class="games-bw__stat"><b>Level</b> 402</span>
+                    <span class="games-bw__stat"><b>Wins</b> 2,541</span>
+                    <span class="games-bw__stat"><b>FKDR</b> 4.82</span>
+                </div>
+            </div>
+            <h3 class="games__title">
+                {t('games.bwTitle')}
+                <span class="badge-incoming">{t('badge.incoming')}</span>
+            </h3>
+            <p class="games__desc">{t('games.bwDesc')}</p>
+        </Card>
+
+        <!-- MCSR Ranked -->
+        <Card class="games__card" data-reveal style="--reveal-i: 1">
+            <div class="games__demo games__demo--mcsr" aria-hidden="true">
+                <span class="games-mcsr__line">!mcsr ranked</span>
+                <div class="games-mcsr__stats">
+                    <span class="games-mcsr__badge" data-rank="diamond"></span>
+                    <span class="games-mcsr__stat"><b>Elo</b> 1520</span>
+                    <span class="games-mcsr__stat"><b>W/L</b> 142/98</span>
+                </div>
+            </div>
+            <h3 class="games__title">
+                {t('games.mcsrTitle')}
+                <span class="badge-incoming">{t('badge.incoming')}</span>
+            </h3>
+            <p class="games__desc">{t('games.mcsrDesc')}</p>
+        </Card>
+
+        <!-- Request more games -->
+        <Card class="games__card games__card--req" data-reveal style="--reveal-i: 2">
+            <div class="games__demo games__demo--req" aria-hidden="true">
+                <a href="https://github.com/AdamOusmer/ItsBagelBot/issues/new" target="_blank" rel="noopener noreferrer" class="games-req__btn">
+                    <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path>
+                    </svg>
+                    New Issue
+                </a>
+            </div>
+            <h3 class="games__title">{t('games.reqTitle')}</h3>
+            <p class="games__desc">{t('games.reqDesc')}</p>
+        </Card>
+    </div>
+</section>
+
+<style>
+    .games {
+        position: relative;
+        padding: var(--space-section, 96px) 24px;
+        max-width: var(--content-max, 1200px);
+        margin: 0 auto;
+        z-index: 3;
+    }
+
+    .games__grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 20px;
+    }
+
+    @media (min-width: 720px) {
+        .games__grid { grid-template-columns: repeat(3, 1fr); }
+    }
+
+    .games__title {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-size: 1.06rem;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+        color: var(--white, #f0ece4);
+        margin: 0 0 8px;
+    }
+
+    .badge-incoming {
+        display: inline-flex;
+        align-items: center;
+        padding: 5px 12px;
+        border-radius: 100px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(82, 183, 136, 0.4);
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.65rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--green-glow, #52b788);
+    }
+
+    .games__desc {
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: 0.86rem;
+        line-height: 1.6;
+        color: var(--muted, #888077);
+        margin: 0;
+    }
+
+    /* ── Demo stage shared ── */
+
+    .games__demo {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 12px;
+        height: 104px;
+        margin-bottom: 20px;
+        padding: 14px 16px;
+        border-radius: 10px;
+        background: rgba(10, 10, 10, 0.55);
+        border: 1px solid rgba(240, 236, 228, 0.05);
+        overflow: hidden;
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.74rem;
+    }
+
+    /* ── Bedwars Stats ── */
+
+    .games-bw__line {
+        color: var(--tan-light, #e0c49a);
+        font-weight: 500;
+        width: max-content;
+        border-right: 1px solid rgba(224, 196, 154, 0.6);
+        white-space: nowrap;
+        overflow: hidden;
+        animation: gamesTypeBw 6s steps(17) infinite;
+    }
+
+    .games-bw__stats {
+        display: flex;
+        gap: 12px;
+        color: var(--green-glow, #52b788);
+        opacity: 0;
+        transform: translateY(4px);
+        animation: gamesFadeIn 6s ease-in-out infinite;
+    }
+
+    .games-bw__stat b {
+        color: var(--muted, #888077);
+        font-weight: 400;
+        margin-right: 4px;
+    }
+
+    /* ── MCSR Ranked ── */
+
+    .games-mcsr__line {
+        color: var(--tan-light, #e0c49a);
+        font-weight: 500;
+        width: max-content;
+        border-right: 1px solid rgba(224, 196, 154, 0.6);
+        white-space: nowrap;
+        overflow: hidden;
+        animation: gamesTypeMcsr 6s steps(12) infinite;
+    }
+
+    .games-mcsr__stats {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: var(--green-glow, #52b788);
+        opacity: 0;
+        transform: translateY(4px);
+        animation: gamesFadeIn 6s ease-in-out infinite;
+    }
+
+    .games-mcsr__badge {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #b9f2ff, #59b6c9);
+        box-shadow: 0 0 10px rgba(89, 182, 201, 0.5);
+    }
+
+    .games-mcsr__stat b {
+        color: var(--muted, #888077);
+        font-weight: 400;
+        margin-right: 4px;
+    }
+
+    /* ── Request ── */
+
+    .games__demo--req {
+        align-items: center;
+    }
+
+    .games-req__btn {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--tan-light, #e0c49a);
+        background: rgba(201, 168, 124, 0.1);
+        border: 1px solid rgba(201, 168, 124, 0.2);
+        padding: 8px 16px;
+        border-radius: 6px;
+        text-decoration: none;
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-weight: 500;
+        font-size: 0.9rem;
+        transition: all 0.2s ease;
+    }
+
+    .games-req__btn:hover {
+        background: rgba(201, 168, 124, 0.2);
+        border-color: rgba(201, 168, 124, 0.4);
+        transform: translateY(-1px);
+        color: var(--white, #f0ece4);
+    }
+
+    /* ── Animations ── */
+
+    @keyframes gamesTypeBw {
+        0%, 10% { width: 0; }
+        25%, 85% { width: 17ch; }
+        95%, 100% { width: 0; }
+    }
+
+    @keyframes gamesTypeMcsr {
+        0%, 10% { width: 0; }
+        25%, 85% { width: 12ch; }
+        95%, 100% { width: 0; }
+    }
+
+    @keyframes gamesFadeIn {
+        0%, 30% { opacity: 0; transform: translateY(4px); }
+        40%, 80% { opacity: 1; transform: none; }
+        90%, 100% { opacity: 0; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .games-bw__line, .games-mcsr__line {
+            animation: none;
+            border-right: none;
+        }
+        .games-bw__line { width: 17ch; }
+        .games-mcsr__line { width: 12ch; }
+        .games-bw__stats, .games-mcsr__stats {
+            animation: none;
+            opacity: 1;
+            transform: none;
+        }
+    }
+
+    @media (max-width: 640px) {
+        .games { padding: var(--space-section-sm, 72px) 20px; }
+        .games-bw__stats, .games-mcsr__stats { flex-wrap: wrap; gap: 8px; }
+    }
+</style>

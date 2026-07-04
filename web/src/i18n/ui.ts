@@ -19,6 +19,7 @@ const en = {
   'menu.meta': 'Freshly baked for Twitch chat',
   'menu.primary': 'Primary menu',
   'lang.switch': 'Language',
+  'badge.incoming': 'Incoming feature',
 
   // ── Footer ──────────────────────────────────────────────────────
   'footer.signoff': 'Baked late. Served fresh.',
@@ -114,6 +115,16 @@ const en = {
   'contact.desc': "No ticket portal, no chatbot maze. Pick a line, we're on the other end.",
   'contact.metaTitle': 'Contact - ItsBagelBot',
   'contact.metaDesc': 'Talk to a human. Community support on Discord, real email inboxes for support and enterprise, and the source on GitHub.',
+
+  // ── Home: game integrations ──────────────────────────────────────
+  'games.eyebrow': 'Game Integrations',
+  'games.title': 'Stats in chat, no alt-tabbing.',
+  'games.bwTitle': 'Hypixel Bedwars Stats.',
+  'games.bwDesc': 'Pull your Hypixel Bedwars stats right into chat.',
+  'games.mcsrTitle': 'MCSR Ranked.',
+  'games.mcsrDesc': 'Show off your Minecraft Speedrunning Elo and ranked stats instantly.',
+  'games.reqTitle': 'Want another game?',
+  'games.reqDesc': 'We are adding more. Open an issue on GitHub and tell us what you play.',
 
   // ── Home: quiet-work bento ──────────────────────────────────────
   'qw.eyebrow': 'The quiet work',
@@ -234,6 +245,7 @@ const fr: Partial<Record<UIKey, string>> = {
   'menu.meta': 'Fraîchement préparé pour le chat Twitch',
   'menu.primary': 'Menu principal',
   'lang.switch': 'Langue',
+  'badge.incoming': 'Fonctionnalité à venir',
 
   'footer.signoff': 'Préparé tard. Servi frais.',
   'footer.signoffSub': 'À bientôt dans le chat.',
@@ -323,6 +335,16 @@ const fr: Partial<Record<UIKey, string>> = {
   'contact.desc': 'Aucun portail de tickets, aucun dédale de chatbot. Choisissez une ligne, nous sommes à l\'autre bout.',
   'contact.metaTitle': 'Contact - ItsBagelBot',
   'contact.metaDesc': 'Parlez à un humain. Support communautaire sur Discord, de vraies boîtes e-mail pour le support et les entreprises, et le code sur GitHub.',
+
+  // Home: game integrations
+  'games.eyebrow': 'Intégrations de jeux',
+  'games.title': 'Stats dans le chat, sans alt-tab.',
+  'games.bwTitle': 'Stats Hypixel Bedwars.',
+  'games.bwDesc': 'Affichez vos stats Hypixel Bedwars directement dans le chat.',
+  'games.mcsrTitle': 'MCSR Ranked.',
+  'games.mcsrDesc': 'Montrez instantanément votre Elo de speedrun Minecraft et vos stats classées.',
+  'games.reqTitle': 'Vous voulez un autre jeu ?',
+  'games.reqDesc': 'Nous en ajoutons d\'autres. Ouvrez une issue sur GitHub et dites-nous à quoi vous jouez.',
 
   // Home: quiet-work bento
   'qw.eyebrow': 'Le travail discret',
