@@ -30,7 +30,7 @@ func (p *Pipeline) dispatchCommand(ctx context.Context, c *module.Context, views
 	if !ok {
 		return nil
 	}
-	if bc, isBaked := p.registry.Command(name); isBaked {
+	if bc, _, isBaked := p.registry.ResolveCommand(name); isBaked {
 		if !p.enabled(bc.Owner, views, c) {
 			return nil
 		}

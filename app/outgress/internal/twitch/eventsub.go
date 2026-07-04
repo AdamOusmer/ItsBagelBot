@@ -32,7 +32,7 @@ type SubSpec struct {
 //     401. They drive the live-event subsystem (go-live cache prewarm and the
 //     mod-status re-verify), so every channel must carry them.
 func ChannelSubscriptions(broadcasterID, botID string) []SubSpec {
-	specs := make([]SubSpec, 0, 9)
+	specs := make([]SubSpec, 0, 10)
 
 	if botID != "" {
 		specs = append(specs,
@@ -46,6 +46,10 @@ func ChannelSubscriptions(broadcasterID, botID string) []SubSpec {
 		SubSpec{"channel.subscription.message", "1", map[string]string{"broadcaster_user_id": broadcasterID}},
 		SubSpec{"channel.cheer", "1", map[string]string{"broadcaster_user_id": broadcasterID}},
 		SubSpec{"channel.follow", "2", map[string]string{"broadcaster_user_id": broadcasterID, "moderator_user_id": broadcasterID}},
+		// Condition keys off the receiving channel: a raid is "to" this broadcaster,
+		// not "from" them, so to_broadcaster_user_id is what makes this channel's
+		// raid handlers (shoutout, alerts) actually fire.
+		SubSpec{"channel.raid", "1", map[string]string{"to_broadcaster_user_id": broadcasterID}},
 		SubSpec{"channel.update", "2", map[string]string{"broadcaster_user_id": broadcasterID}},
 		// Authorized by the conduit app token alone (broadcaster_user_id only,
 		// no user scope, no 401 risk). These deliver go-live/go-offline, which
@@ -164,3 +168,4 @@ func statusError(res *http.Response, op string) error {
 	body, _ := io.ReadAll(io.LimitReader(res.Body, 2048))
 	return &StatusError{Status: res.StatusCode, Op: op, Body: string(body)}
 }
+

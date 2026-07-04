@@ -15,6 +15,10 @@ export interface CommandDraft {
   allowed_user_id: string;
   stream_online_only: boolean;
   is_active: boolean;
+  // Set for a built-in command: the inspector renders a read-only preview +
+  // toggle instead of the editable form. Built-ins are never persisted as
+  // drafts.
+  builtin?: boolean;
 }
 
 const PREFIX = 'bb-cmd-draft:';

@@ -1,7 +1,7 @@
 import type { Actions, PageServerLoad } from './$types';
 import type { CommandView, Perm } from '@bagel/shared';
-import { PERMS, normName, validateCommand, firstError } from '@bagel/shared';
-import { listCommands, upsertCommand, deleteCommand } from '$lib/server/commands-store';
+import { PERMS, normName, validateCommand, firstError, BUILTIN_COMMANDS, BUILTIN_NAMES, builtinDef } from '@bagel/shared';
+import { listCommands, upsertCommand, deleteCommand, listModules, upsertModule } from '$lib/server/commands-store';
 import { auditDashboardImpersonation } from '$lib/server/services';
 import type { Session } from '$lib/server/session';
 import { env } from '$env/dynamic/private';
@@ -33,15 +33,45 @@ const sample: CommandView[] = [
   { name: 'followage', response: "@{user} you've followed for {followage} 🥯", perm: 'sub', cooldown: 15, uses: '177', is_active: true }
 ];
 
+// builtinViews turns the built-in catalog into command rows, reading each
+// built-in's on/off state from the modules service (key = the built-in id). A
+// missing module row means the catalog default. These render read-only on the
+// commands page with a toggle + preview.
+function builtinViews(modules: { name: string; is_enabled: boolean }[]): CommandView[] {
+  const byName = new Map(modules.map((m) => [m.name, m]));
+  return BUILTIN_COMMANDS.map((def) => {
+    const row = byName.get(def.id);
+    return {
+      name: def.id,
+      response: def.summary,
+      is_active: row ? row.is_enabled : def.defaultActive,
+      perm: def.defaultPerm,
+      cooldown: def.defaultCooldown,
+      stream_online_only: def.liveOnly,
+      builtin: true
+    } satisfies CommandView;
+  });
+}
+
+// mergeCommands lists built-ins first, then the user's custom commands with any
+// name colliding with a built-in dropped (built-ins reserve their trigger).
+function mergeCommands(custom: CommandView[], modules: { name: string; is_enabled: boolean }[]): CommandView[] {
+  const builtins = builtinViews(modules);
+  const customs = custom.filter((c) => !BUILTIN_NAMES.has(c.name));
+  return [...builtins, ...customs];
+}
+
 export const load: PageServerLoad = async ({ locals }) => {
   gateCommands(locals.session);
   const uid = effectiveId(locals.session);
-  if (env.DEMO === '1') return { commands: sample };
+  if (env.DEMO === '1') return { commands: mergeCommands(sample, []) };
   try {
-    return { commands: await listCommands(uid) };
+    const [custom, modules] = await Promise.all([listCommands(uid), listModules(uid).catch(() => [])]);
+    return { commands: mergeCommands(custom, modules) };
   } catch {
     // Don't show fabricated rows in production; surface a degraded state.
-    return { commands: [] as CommandView[], degraded: true };
+    // Built-ins still render (their defaults) so the list is never empty.
+    return { commands: mergeCommands([], []), degraded: true };
   }
 };
 
@@ -207,5 +237,43 @@ export const actions: Actions = {
     auditDashboardImpersonation(locals.session, 'command:delete', name);
 
     return { ok: true, action: 'deleted', name, commands };
+  },
+
+  // Toggle a built-in command on/off. Built-in state lives in the modules
+  // service (key = the built-in id), not the commands service, so this is a
+  // separate path from the custom-command toggle. Returns the rebuilt built-in
+  // row so the optimistic UI reconciles the same way it does for custom rows.
+  toggleBuiltin: async ({ request, locals }) => {
+    gateCommands(locals.session);
+    const uid = effectiveId(locals.session);
+    if (env.DEMO !== '1' && !locals.session) {
+      return fail(401, { ok: false, error: 'Not signed in.' });
+    }
+
+    const f = await request.formData();
+    const name = normName(String(f.get('name') ?? ''));
+    const def = builtinDef(name);
+    if (!def) return fail(400, { ok: false, error: 'Unknown built-in command.' });
+    const isActive = f.get('is_active') === 'on';
+
+    const view: CommandView = {
+      name: def.id,
+      response: def.summary,
+      is_active: isActive,
+      perm: def.defaultPerm,
+      cooldown: def.defaultCooldown,
+      stream_online_only: def.liveOnly,
+      builtin: true
+    };
+
+    if (env.DEMO === '1') {
+      return { ok: true, action: 'updated', name, commands: [view], silent: true };
+    }
+
+    const { error } = await upsertModule(uid, def.id, isActive);
+    if (error) return fail(400, { ok: false, error });
+
+    auditDashboardImpersonation(locals.session, 'command:builtin_toggle', `${name}=${isActive}`);
+    return { ok: true, action: 'updated', name, commands: [view], silent: true };
   }
 };

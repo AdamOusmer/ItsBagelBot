@@ -272,6 +272,8 @@ export const fr = {
     filterAll: 'Toutes',
     filterActive: 'Actives',
     filterDisabled: 'Désactivées',
+    filterBuiltin: 'Intégrées',
+    filterCustom: 'Personnalisées',
     keysSearch: 'rechercher',
     keysNew: 'nouvelle',
     searchPlaceholder: 'Rechercher nom, alias, réponse…',
@@ -386,6 +388,17 @@ export const fr = {
     cooldown: 'Délai',
     uses: 'Utilisations',
     toggleAria: 'Basculer !{name}',
-    deleteAria: 'Supprimer !{name}'
+    deleteAria: 'Supprimer !{name}',
+    builtin: 'Intégrée',
+    builtinTitle: 'Commande intégrée : activation seulement, pas de réponse modifiable'
+  },
+
+  builtinInspector: {
+    enabled: 'Activée',
+    enabledHelp: 'Activez ou désactivez cette commande intégrée pour votre chaîne.',
+    usage: 'Utilisation',
+    preview: 'Aperçu',
+    access: 'Accès',
+    cooldown: 'Délai'
   }
 } satisfies MessageTree;
