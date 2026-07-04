@@ -19,6 +19,8 @@
   const paidUntil = $derived(account.expiresAt);
   // Basket minting happens server-side on click; the browser is then redirected
   // to Tebex-hosted checkout so payment collection never happens in our frame.
+  // Owners and billing-granted delegates share the same CTAs (the server gates
+  // access + targets the owner's account).
   const canSubscribe = $derived(!isPaid);
   // Rendered for every Tebex subscriber even when TEBEX_CANCEL_URL is not
   // configured: the ?/cancel action then answers 503 with a clear toast, which
@@ -353,7 +355,7 @@
       </div>
     </Card>
 
-    <!-- Gift: available whatever your own plan is -->
+    <!-- Gift: available whatever your own plan is. -->
     <Card class="billing-card">
       <div class="gift-cta">
         <div>

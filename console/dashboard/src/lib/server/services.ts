@@ -157,6 +157,17 @@ export const delegationList = defineRead({
   }
 });
 
+// Re-scope an existing grant (pending or consumed) to a new set of sections.
+export async function delegationUpdate(ownerId: string, token: string, sections: string[]): Promise<void> {
+  const r = await rpc<{ ok?: boolean; error?: string }>(`${SUB.delegation}.update`, {
+    owner_user_id: ownerId,
+    token,
+    sections
+  });
+  if (!r.ok) throw new Error(r.error ?? 'update failed');
+  invalidate(`delegation-token:${token}`, `delegations:${ownerId}`);
+}
+
 export async function delegationRevoke(ownerId: string, token: string): Promise<void> {
   const r = await rpc<{ ok?: boolean; error?: string }>(`${SUB.delegation}.revoke`, {
     owner_user_id: ownerId,

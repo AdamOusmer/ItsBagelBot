@@ -175,6 +175,8 @@ export const en = {
     newShareLinkHint: 'Pick which sections the invitee can manage.',
     commands: 'Commands',
     modules: 'Modules',
+    billing: 'Billing',
+    editAccess: 'Edit access',
     notifications: 'Notifications',
     notificationsEmpty: 'Nothing yet. Messages from the ItsBagelBot team will show up here.',
     sharedWithYou: 'Dashboards shared with you',
@@ -190,6 +192,7 @@ export const en = {
     toastInviteCopied: 'Invite link copied.',
     toastClipboardBlocked: 'Clipboard blocked. Select the link manually.',
     toastCreated: 'Share link created. Copy it below.',
+    toastAccessUpdated: 'Access updated.',
     toastRevoked: 'Link revoked.',
     toastOptedOut: 'Dashboard removed.',
     copyLinkAria: 'Copy invite link'

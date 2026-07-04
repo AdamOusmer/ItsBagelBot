@@ -1,9 +1,24 @@
 import type { Actions, PageServerLoad } from './$types';
 import { redirect, fail } from '@sveltejs/kit';
 import { billingState, checkoutBasketCreate, type BillingState } from '$lib/server/services';
+import type { Session } from '$lib/server/session';
 import { RpcError } from '@bagel/shared/server/nats';
 import { containsLink } from '@bagel/shared/validation';
 import { env } from '$env/dynamic/private';
+
+// Who a billing action operates on: the owner's account. Runnable by the owner,
+// or by a delegate explicitly granted the billing section (Tebex handles the
+// actual payment identity at checkout). Admin impersonation (view-as) never
+// spends. Returns null when the caller may not act. delegate_of / delegate_login
+// carry the OWNER's id + login (set in delegate/enter).
+function billingActor(s: Session | null | undefined): { id: string; login: string } | null {
+  if (!s || s.impersonator_id) return null;
+  if (s.delegate_of) {
+    if (!(s.sections ?? []).includes('billing')) return null;
+    return { id: s.delegate_of, login: s.delegate_login ?? s.login };
+  }
+  return { id: s.user_id, login: s.login };
+}
 
 type BillingLinks = {
   cancelUrl: string | null;
@@ -49,15 +64,21 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   }
 
   const s = locals.session;
-  // Owner-only: billing is never part of a delegated section grant.
-  if (!s || s.delegate_of) throw redirect(302, '/');
+  if (!s) throw redirect(302, '/login');
+  // Billing is owner-only unless a delegate was explicitly granted the billing
+  // section (then they manage it on the owner's behalf — see billingActor).
+  const isDelegate = !!s.delegate_of;
+  if (isDelegate && !(s.sections ?? []).includes('billing')) throw redirect(302, '/');
+
+  // The board being read: the owner's for a delegate, otherwise the user's own.
+  const uid = s.delegate_of ?? s.user_id;
 
   // Returning from hosted checkout lands here (?checkout=complete). The
   // entitlement is applied by an async Tebex webhook, which publishes a `status`
   // invalidation on the cache bus; that both drops the server cache and — via the
   // live SSE stream — re-fetches this page, so the view flips to premium on its
   // own. No special-casing needed in the load.
-  const accountResult = await billingState(s.user_id).then(
+  const accountResult = await billingState(uid).then(
     (value) => ({ status: 'fulfilled' as const, value }),
     () => ({ status: 'rejected' as const })
   );
@@ -82,30 +103,31 @@ export const actions: Actions = {
   subscribe: async ({ locals, request, getClientAddress }) => {
     const s = locals.session;
     if (!s) return fail(401, { error: 'Not signed in.' });
-    if (s.delegate_of || s.impersonator_id) {
-      return fail(403, { error: 'Only the account owner can subscribe.' });
-    }
+    const actor = billingActor(s);
+    if (!actor) return fail(403, { error: 'You do not have access to manage billing.' });
 
     // 'monthly' = auto-renewing subscription, anything else = one paid month.
     // Recurring billing only ever happens on an explicit monthly choice.
     const form = await request.formData();
     const packageType = form.get('plan') === 'monthly' ? 'subscription' : 'single';
 
-    // Never send an already-premium user to Tebex: a staff-granted period,
+    // Never send an already-premium account to Tebex: a staff-granted period,
     // active Tebex entitlement, or VIP grant must run out before a new charge is
-    // possible.
+    // possible. Checked against the owner's account (actor.id).
     try {
-      const state = await billingState(s.user_id);
+      const state = await billingState(actor.id);
       if (state.status !== 'free') {
-        return fail(409, { error: 'You already have premium. Subscribing again is blocked so you are not double-charged.' });
+        return fail(409, { error: 'This account already has premium. Subscribing again is blocked so nobody is double-charged.' });
       }
     } catch {
-      return fail(502, { error: 'Could not verify your current plan. Try again in a moment.' });
+      return fail(502, { error: 'Could not verify the current plan. Try again in a moment.' });
     }
 
     let checkoutUrl: string | null = null;
     try {
-      const basket = await checkoutBasketCreate(s.user_id, s.login, undefined, getClientAddress(), packageType);
+      // Entitlement is attributed to the owner (actor.id); Tebex collects payment
+      // from whoever completes checkout.
+      const basket = await checkoutBasketCreate(actor.id, actor.login, undefined, getClientAddress(), packageType);
       checkoutUrl = optionalHttpsURL(basket.checkoutUrl ?? undefined);
     } catch (err) {
       console.error('[billing] basket create failed:', err);
@@ -122,9 +144,10 @@ export const actions: Actions = {
   gift: async ({ locals, request, getClientAddress }) => {
     const s = locals.session;
     if (!s) return fail(401, { gift: true, error: 'Not signed in.' });
-    if (s.delegate_of || s.impersonator_id) {
-      return fail(403, { gift: true, error: 'Only the account owner can gift premium.' });
-    }
+    // A gift is the buyer's own purchase (they pay, the recipient gets premium),
+    // so the buyer stays the acting session user below — but access is still
+    // gated to owners + billing-granted delegates.
+    if (!billingActor(s)) return fail(403, { gift: true, error: 'You do not have access to manage billing.' });
 
     const form = await request.formData();
     const recipient = String(form.get('recipient') ?? '').trim();
@@ -166,20 +189,19 @@ export const actions: Actions = {
   cancel: async ({ locals }) => {
     const s = locals.session;
     if (!s) return fail(401, { error: 'Not signed in.' });
-    if (s.delegate_of || s.impersonator_id) {
-      return fail(403, { error: 'Only the account owner can cancel the subscription.' });
-    }
+    const actor = billingActor(s);
+    if (!actor) return fail(403, { error: 'You do not have access to manage billing.' });
 
     const url = links().cancelUrl;
     if (!url) return fail(503, { error: 'Subscription management is not available right now.' });
 
     try {
-      const state = await billingState(s.user_id);
+      const state = await billingState(actor.id);
       if (state.status !== 'paid' || state.source !== 'tebex') {
         return fail(409, { error: 'There is no Tebex subscription to cancel for this account.' });
       }
     } catch {
-      return fail(502, { error: 'Could not verify your current plan. Try again in a moment.' });
+      return fail(502, { error: 'Could not verify the current plan. Try again in a moment.' });
     }
 
     throw redirect(303, url);

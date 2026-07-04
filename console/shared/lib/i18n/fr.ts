@@ -174,6 +174,8 @@ export const fr = {
     newShareLinkHint: 'Choisissez les sections que l\'invité peut gérer.',
     commands: 'Commandes',
     modules: 'Modules',
+    billing: 'Facturation',
+    editAccess: 'Modifier l\'accès',
     notifications: 'Notifications',
     notificationsEmpty: 'Rien pour le moment. Les messages de l\'équipe ItsBagelBot apparaîtront ici.',
     sharedWithYou: 'Tableaux de bord partagés avec vous',
@@ -189,6 +191,7 @@ export const fr = {
     toastInviteCopied: 'Lien d\'invitation copié.',
     toastClipboardBlocked: 'Presse-papiers bloqué. Sélectionnez le lien manuellement.',
     toastCreated: 'Lien de partage créé. Copiez-le ci-dessous.',
+    toastAccessUpdated: 'Accès mis à jour.',
     toastRevoked: 'Lien révoqué.',
     toastOptedOut: 'Tableau de bord retiré.',
     copyLinkAria: 'Copier le lien d\'invitation'
