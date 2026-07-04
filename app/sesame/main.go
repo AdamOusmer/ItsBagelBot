@@ -7,6 +7,7 @@ import (
 	"syscall"
 	"time"
 
+	"ItsBagelBot/app/sesame/automod"
 	"ItsBagelBot/app/sesame/engine"
 	"ItsBagelBot/app/sesame/internal/config"
 	"ItsBagelBot/app/sesame/internal/consumer"
@@ -86,6 +87,7 @@ func main() {
 		Commands: engine.NewCommandsRPC(nc, cfg.CommandsDashboardPrefix),
 		Gateway:  engine.NewGatewayRPC(nc, cfg.GatewayRPCPrefix),
 		Log:      log,
+		Automod:  automod.New(),
 	}
 	registry := engine.NewRegistry(log, modules.All(deps)...)
 

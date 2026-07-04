@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"ItsBagelBot/app/sesame/automod"
 	"ItsBagelBot/app/sesame/module"
 	"ItsBagelBot/internal/domain/event/lane"
 	"ItsBagelBot/internal/domain/outgress"
@@ -59,6 +60,8 @@ type Pipeline struct {
 	botID            string
 	outgressPremium  string
 	outgressStandard string
+
+	automod *automod.Gate
 }
 
 // NewPipeline wires a Pipeline from the shared Deps, a pre-built registry, and
@@ -76,6 +79,7 @@ func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 		botID:            cfg.BotID,
 		outgressPremium:  cfg.OutgressPremium,
 		outgressStandard: cfg.OutgressStandard,
+		automod:          d.Automod,
 	}
 	if p.dedup == nil {
 		p.dedup = NoopDedup{}
@@ -183,6 +187,19 @@ func (p *Pipeline) Process(msg *message.Message) (err error) {
 		}
 		if perr := bus.PublishRaw(ctx, p.pub, subject, body); perr != nil {
 			emitErr = perr
+		}
+	}
+
+	// Automod shadow gate: inspect the chat line before dispatch and log the
+	// verdict. This phase is observation only, so no action is taken. Cohorts
+	// (Senders present) are handled by a later phase, not inspected here.
+	if isChat && p.automod != nil && len(env.Senders) == 0 {
+		if v := p.automod.Inspect(mctx.Chatter(), env.Text); v.Action != automod.ActionNone {
+			p.log.Info("automod shadow verdict",
+				zap.String("action", v.Action.String()),
+				zap.String("rule", v.Rule),
+				zap.Uint64("broadcaster_id", broadcasterID),
+				zap.String("chatter_id", env.ChatterUserID))
 		}
 	}
 
