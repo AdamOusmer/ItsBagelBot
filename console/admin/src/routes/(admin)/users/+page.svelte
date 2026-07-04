@@ -584,7 +584,7 @@
     flex: 1; min-width: 0;
     font-family: var(--bb-font-mono); font-size: 12px; color: var(--bb-tan-light);
     background: rgba(255,255,255,0.025);
-    border: 1px solid var(--glass-border); border-radius: var(--bb-radius-sm, 8px);
+    border: 1px solid var(--glass-border); border-radius: 8px 8px;
     padding: 8px 10px;
   }
 
@@ -750,7 +750,7 @@
   .drawer-close {
     display: inline-flex; align-items: center; justify-content: center;
     width: 32px; height: 32px; flex: none;
-    border: 1px solid var(--glass-border); border-radius: var(--bb-radius-sm, 8px);
+    border: 1px solid var(--glass-border); border-radius: 8px 8px;
     background: transparent; color: var(--bb-muted); cursor: pointer;
     transition: all var(--bb-dur-fast, 140ms) var(--bb-ease-out-expo, ease);
   }
@@ -770,7 +770,7 @@
     padding: 14px 16px; margin-bottom: 18px;
     background: rgba(255,255,255,0.025);
     border: 1px solid var(--glass-border);
-    border-radius: var(--bb-radius-md, 12px);
+    border-radius: 8px 8px;
   }
   .meta-line { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
   .meta-k { font-size: 12px; color: var(--bb-muted); text-transform: uppercase; letter-spacing: .05em; }
@@ -795,7 +795,7 @@
     color: var(--bb-muted);
     background: transparent;
     border: 1px solid var(--glass-border);
-    border-radius: var(--bb-radius-sm, 8px);
+    border-radius: 8px 8px;
     transition: all var(--bb-dur-fast, 140ms) var(--bb-ease-out-expo, ease);
   }
   .seg-btn:hover:not(:disabled) { color: var(--bb-white); border-color: var(--bb-border-strong); background: rgba(255,255,255,0.04); }
@@ -870,7 +870,7 @@
     .drawer {
       width: 100vw; height: 92vh; top: auto; bottom: 0; right: 0;
       border-left: none; border-top: 1px solid var(--glass-border);
-      border-radius: var(--bb-radius-lg, 16px) var(--bb-radius-lg, 16px) 0 0;
+      border-radius: 8px 8px 8px 8px 0 0;
       transform: translateY(100%);
       animation: sheet-in var(--bb-dur-med, 320ms) var(--bb-ease-out-expo, cubic-bezier(.16,1,.3,1)) forwards;
     }

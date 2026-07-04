@@ -146,7 +146,7 @@
 
   .step {
     border: 1px solid var(--bb-border);
-    border-radius: var(--bb-radius-lg, 16px);
+    border-radius: 8px 8px;
     padding: 18px;
     margin-bottom: 16px;
     animation: step-in 260ms var(--bb-ease-out-expo, ease) both;
@@ -159,7 +159,7 @@
   .step-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
   .step-ico {
     display: inline-flex; align-items: center; justify-content: center;
-    width: 32px; height: 32px; border-radius: var(--bb-radius-md, 10px); flex: none;
+    width: 32px; height: 32px; border-radius: 8px 8px; flex: none;
     background: rgba(82, 183, 136, 0.12); border: 1px solid rgba(82, 183, 136, 0.3);
     color: var(--bb-green-glow);
   }
@@ -177,7 +177,7 @@
     width: 100%; margin-top: 12px; padding: 10px 12px;
     background: rgba(0, 0, 0, 0.35);
     border: 1px dashed var(--bb-border-strong);
-    border-radius: var(--bb-radius-md, 10px);
+    border-radius: 8px 8px;
     cursor: pointer;
     transition: border-color 0.2s, background 0.2s;
   }

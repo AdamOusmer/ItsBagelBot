@@ -109,10 +109,13 @@ export const load: LayoutServerLoad = async ({ locals, url, cookies }) => {
   if (env.DEMO !== '1') await enforceAccountGates(s, url, cookies);
   enforceDelegateScope(s, url);
 
-  const [{ unreadCount, notifications }, authorizedDashboards] = await Promise.all([
+  const [{ unreadCount, notifications }, authorizedDashboards, acc] = await Promise.all([
     loadBellPeek(s),
-    loadAuthorizedDashboards(s)
+    loadAuthorizedDashboards(s),
+    env.DEMO === '1' ? Promise.resolve({ active: true, status: 'vip' }) : accountState(s.user_id).catch(() => null)
   ]);
+
+  const isPremium = acc ? acc.status === 'vip' || acc.status === 'paid' : false;
 
   return {
     role: s.role,
@@ -124,6 +127,7 @@ export const load: LayoutServerLoad = async ({ locals, url, cookies }) => {
     sections: s.delegate_of ? (s.sections ?? []) : undefined,
     unreadCount,
     bellNotifications: notifications.slice(0, BELL_PEEK),
-    authorizedDashboards
+    authorizedDashboards,
+    isPremium
   };
 };

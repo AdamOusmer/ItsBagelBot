@@ -125,7 +125,7 @@
     letter-spacing: .06em;
     text-transform: uppercase;
     padding: 2px 7px;
-    border-radius: 4px;
+    border-radius: 8px;
     background: rgba(255,255,255,.04);
     border: 1px solid var(--glass-border);
     color: var(--bb-muted);

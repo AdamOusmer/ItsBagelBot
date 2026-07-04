@@ -44,7 +44,7 @@
     align-items: center;
     gap: 9px;
     padding: 12px 14px;
-    border-radius: var(--bb-radius-md, 10px);
+    border-radius: 8px 8px;
     background: var(--bb-card-bg);
     border: 1px solid var(--bb-border-strong);
     box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5);
@@ -86,7 +86,7 @@
     background: transparent;
     color: var(--bb-muted);
     cursor: pointer;
-    border-radius: 6px;
+    border-radius: 8px;
   }
   .close:hover { color: var(--bb-white); background: rgba(255, 255, 255, 0.06); }
 

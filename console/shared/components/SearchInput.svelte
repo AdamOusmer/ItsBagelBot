@@ -53,7 +53,7 @@
     background: transparent;
     color: var(--bb-muted);
     cursor: pointer;
-    border-radius: 6px;
+    border-radius: 8px;
   }
   .clear:hover { color: var(--bb-white); }
 </style>

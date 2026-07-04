@@ -36,7 +36,7 @@
   .card {
     background: var(--bb-card-bg);
     border: 1px solid var(--bb-border);
-    border-radius: var(--bb-radius-lg);
+    border-radius: 8px;
     padding: var(--card-pad);
     position: relative;
     overflow: hidden;

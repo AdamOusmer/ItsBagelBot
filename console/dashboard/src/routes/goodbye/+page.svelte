@@ -70,7 +70,7 @@
   @keyframes pop { from { opacity: 0; transform: scale(0.6); filter: blur(12px); } to { opacity: 1; transform: none; filter: none; } }
 
   .logo { position: relative; width: 84px; height: 84px; display: grid; place-items: center; margin-bottom: 6px; }
-  .logo img { width: 72px; height: 72px; border-radius: 18px; animation: float 6s ease-in-out infinite; }
+  .logo img { width: 72px; height: 72px; border-radius: 8px; animation: float 6s ease-in-out infinite; }
   .logo .halo { position: absolute; inset: -22px; border-radius: 50%; background: radial-gradient(circle, rgba(82, 183, 136, 0.35), transparent 68%); filter: blur(8px); animation: pulse 3.2s ease-in-out infinite; }
 
   .eyebrow { font-family: var(--bb-font-mono); font-size: 12px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--bb-green-glow); }

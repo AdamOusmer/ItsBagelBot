@@ -111,6 +111,8 @@
   {groups}
   mobileItems={items}
   offset={showBanner}
+  logoSrc={data.isPremium ? '/premium-logo.png' : '/logo.png'}
+  isPremium={data.isPremium}
 >
   {#snippet banner()}
     {#if isDelegate}

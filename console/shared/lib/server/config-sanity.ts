@@ -11,7 +11,7 @@ function parseURL(name: string, value: string | undefined): URL {
   } catch {
     throw new Error(`${name} must be an absolute URL`);
   }
-  if (parsed.protocol !== 'https:') throw new Error(`${name} must use https`);
+  if (parsed.protocol !== 'https:' && parsed.hostname !== 'localhost') throw new Error(`${name} must use https`);
   return parsed;
 }
 

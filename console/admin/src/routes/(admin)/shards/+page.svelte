@@ -395,7 +395,7 @@
   .conduit-body .meta .mid { color: var(--bb-border-strong); }
 
   .fi {
-    width: 36px; height: 36px; border-radius: 9px; flex-shrink: 0;
+    width: 36px; height: 36px; border-radius: 8px; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
     background: rgba(201,168,124,.10); border: 1px solid rgba(201,168,124,.26);
   }
@@ -414,7 +414,7 @@
     letter-spacing: .1em;
     text-transform: uppercase;
     padding: 2px 8px;
-    border-radius: 4px;
+    border-radius: 8px;
   }
   .badge-on {
     color: var(--bb-green-glow);
@@ -465,7 +465,7 @@
     align-items: center;
     gap: 0;
     border: 1px solid var(--bb-border-strong);
-    border-radius: 7px;
+    border-radius: 8px;
     overflow: hidden;
     transition: opacity .15s;
   }
@@ -512,7 +512,7 @@
     padding: 0 18px;
     background: rgba(201,168,124,.12);
     border: 1px solid rgba(201,168,124,.38);
-    border-radius: 7px;
+    border-radius: 8px;
     color: var(--bb-tan-light);
     font-family: var(--bb-font-mono);
     font-size: 12px;
@@ -539,7 +539,7 @@
     gap: 10px;
     height: 34px;
     padding: 0 16px;
-    border-radius: 7px;
+    border-radius: 8px;
     font-family: var(--bb-font-mono);
     font-size: 12px;
     letter-spacing: .08em;
@@ -576,7 +576,7 @@
     font-family: var(--bb-font-mono);
     font-size: 12px;
     padding: 6px 10px;
-    border-radius: 5px;
+    border-radius: 8px;
   }
   .notice-ok {
     color: var(--bb-green-glow);
@@ -660,7 +660,7 @@
     color: var(--bb-tan-light);
     background: rgba(201,168,124,.10);
     border: 1px solid rgba(201,168,124,.28);
-    border-radius: 4px;
+    border-radius: 8px;
     padding: 1px 6px;
     font-size: 10px;
   }
@@ -674,13 +674,13 @@
   .load-bar-track {
     flex: 1;
     height: 7px;
-    border-radius: 4px;
+    border-radius: 8px;
     background: rgba(255,255,255,.08);
     overflow: hidden;
   }
   .load-bar-fill {
     height: 100%;
-    border-radius: 4px;
+    border-radius: 8px;
     transition: width .3s ease;
   }
   .load-bar-fill.green { background: var(--bb-green-glow); }
