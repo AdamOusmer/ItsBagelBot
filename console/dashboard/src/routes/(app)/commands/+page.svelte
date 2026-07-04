@@ -190,7 +190,11 @@
     if (restored) toast('info', t('commands.toastRestoreEdits'));
   }
 
+  // Explicit close (cancel / X / backdrop / Escape / collapse) drops the draft:
+  // the sessionStorage mirror exists only to survive a reload, so any deliberate
+  // exit discards work-in-progress. Save clears its own draft before landing here.
   function closeEditor() {
+    if (editorDraft) clearDraft(editorDraft.edit ? editorDraft.originalName : '', editorDraft.edit);
     expanded = null;
     editorDraft = null;
     serverErrors = null;
