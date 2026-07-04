@@ -68,6 +68,14 @@ func TestNeedsModuleViewsForNamedCommand(t *testing.T) {
 	assert.True(t, reg.NeedsModuleViews(chatType))
 }
 
+func TestNamedCoreSkipsModuleViews(t *testing.T) {
+	// A named built-in (KindCore with a name) still skips the ModuleView fetch: it
+	// is always on and never toggled, so it must not force a projection read.
+	m := cmdModule("system", module.KindCore, "sys", module.RoleEveryone)
+	reg := NewRegistry(nil, m)
+	assert.False(t, reg.NeedsModuleViews(chatType))
+}
+
 func TestRegistryCommandIndex(t *testing.T) {
 	b := module.NewModule("", module.KindCore)
 	b.Command("ping").Everyone().Cooldown(5 * time.Second).Run(noRun)

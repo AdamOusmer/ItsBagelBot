@@ -98,7 +98,7 @@ func TestValidateKindNamePairing(t *testing.T) {
 		wantErr bool
 	}{
 		{"core empty ok", func() *Builder { return NewModule("", KindCore) }, false},
-		{"core named bad", func() *Builder { return NewModule("x", KindCore) }, true},
+		{"core named ok", func() *Builder { return NewModule("system", KindCore) }, false},
 		{"default named ok", func() *Builder {
 			b := NewModule("greeter", KindDefault)
 			b.On("channel.chat.message", noopEvt)
@@ -157,7 +157,18 @@ func TestBuildPanicsOnInvalid(t *testing.T) {
 			t.Fatal("Build did not panic on an invalid module")
 		}
 	}()
-	NewModule("x", KindCore).Build() // core module with a name: must panic
+	NewModule("", KindDefault).Build() // named module with an empty name: must panic
+}
+
+// TestNamedCoreBuilds is the named built-in: a KindCore module may carry a name
+// (for identity) while staying always-on, never toggled or configured.
+func TestNamedCoreBuilds(t *testing.T) {
+	m := NewModule("system", KindCore)
+	m.Command("sys").Run(noopRun)
+	mod := m.Build()
+	if mod.Name != "system" || mod.Kind != KindCore {
+		t.Fatalf("named core: got name=%q kind=%v, want system/core", mod.Name, mod.Kind)
+	}
 }
 
 func TestDuplicateEventKeepsLast(t *testing.T) {
