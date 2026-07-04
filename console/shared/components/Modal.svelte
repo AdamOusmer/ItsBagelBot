@@ -54,7 +54,7 @@
   .modal-card {
     background: var(--bb-bg-1, #111);
     border: 1px solid var(--glass-border);
-    border-radius: var(--bb-radius-lg);
+    border-radius: 8px;
     backdrop-filter: blur(var(--glass-blur)); -webkit-backdrop-filter: blur(var(--glass-blur));
     padding: 28px 28px 24px; max-width: 420px; width: 100%;
     max-height: calc(100vh - 32px); overflow-y: auto; overscroll-behavior: contain;

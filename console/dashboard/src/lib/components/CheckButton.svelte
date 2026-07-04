@@ -52,7 +52,7 @@
     width: 20px;
     height: 20px;
     margin-top: 1px;
-    border-radius: var(--bb-radius-sm, 6px);
+    border-radius: 8px 8px;
     border: 1px solid var(--glass-border, var(--bb-line, rgba(255, 255, 255, 0.18)));
     background:
       linear-gradient(var(--glass-fill-2, rgba(255, 255, 255, 0.03)), var(--glass-fill-2, rgba(255, 255, 255, 0.03))),

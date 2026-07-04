@@ -149,7 +149,7 @@
     font-family: var(--bb-font-mono, monospace);
     font-size: 12px;
     border: 1px solid var(--bb-border, #333);
-    border-radius: 6px;
+    border-radius: 8px;
     background: var(--bb-surface, #1a1a1a);
     color: var(--bb-text, #eee);
   }

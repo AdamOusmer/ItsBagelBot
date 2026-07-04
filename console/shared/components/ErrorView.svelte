@@ -70,7 +70,7 @@
     text-align: center;
     background: var(--glass-fill, rgba(255, 255, 255, 0.055));
     border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.14));
-    border-radius: var(--bb-radius-lg, 16px);
+    border-radius: 8px 8px;
     backdrop-filter: blur(var(--glass-blur, 26px)) saturate(var(--glass-sat, 180%));
     -webkit-backdrop-filter: blur(var(--glass-blur, 26px)) saturate(var(--glass-sat, 180%));
     box-shadow: var(--glass-rim), var(--glass-shadow);
@@ -81,7 +81,7 @@
     justify-content: center;
     width: 48px;
     height: 48px;
-    border-radius: 12px;
+    border-radius: 8px;
     background: rgba(255, 255, 255, 0.05);
     color: var(--bb-tan, #c9a87c);
     border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.14));

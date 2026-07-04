@@ -28,7 +28,7 @@
   .imp-exit {
     cursor: pointer; font: inherit; font-weight: 700;
     display: inline-block; text-decoration: none; line-height: 1.4;
-    padding: 3px 12px; border-radius: var(--bb-radius-sm, 8px);
+    padding: 3px 12px; border-radius: 8px 8px;
     color: var(--bb-bg-1, #111);
     background: transparent; border: 1px solid rgba(0, 0, 0, 0.35);
   }

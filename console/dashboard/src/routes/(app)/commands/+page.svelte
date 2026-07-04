@@ -567,7 +567,7 @@
     margin-bottom: 14px;
     padding: 10px 14px;
     border: 1px solid rgba(176, 90, 70, 0.4);
-    border-radius: var(--bb-radius-md, 10px);
+    border-radius: 8px 8px;
     background: rgba(176, 90, 70, 0.08);
     color: #cf8a78;
     font-family: var(--bb-font-body);
@@ -594,7 +594,7 @@
     top: 62px;
     border: 1px solid var(--rule);
     border-top-color: var(--rule-strong);
-    border-radius: var(--bb-radius-lg);
+    border-radius: 8px;
     background: linear-gradient(180deg, rgba(240, 236, 228, 0.03), rgba(240, 236, 228, 0.012));
     display: flex;
     flex-direction: column;
@@ -634,7 +634,7 @@
     width: 40px;
     height: 40px;
     border: 1px solid var(--rule-tan);
-    border-radius: var(--bb-radius-sm);
+    border-radius: 8px;
     color: var(--bb-tan-light);
   }
   .inspector-idle p { margin: 0; max-width: 26ch; line-height: 1.5; }
@@ -651,7 +651,7 @@
       top: auto;
       z-index: 220;
       max-height: 88vh;
-      border-radius: var(--bb-radius-lg) var(--bb-radius-lg) 0 0;
+      border-radius: 8px 8px 0 0;
       background: var(--bb-bg-1, #111);
       animation: sheet-in var(--bb-dur-base, 320ms) var(--bb-ease-out-expo, cubic-bezier(.16,1,.3,1)) both;
     }
@@ -682,7 +682,7 @@
     font-family: var(--bb-font-mono);
     color: var(--bb-tan-light);
     background: rgba(201, 168, 124, 0.1);
-    border-radius: 4px;
+    border-radius: 8px;
     padding: 0 5px;
   }
 

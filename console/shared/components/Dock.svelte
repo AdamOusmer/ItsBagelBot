@@ -147,7 +147,7 @@
     padding: 7px;
     background: rgba(17, 17, 16, 0.92);
     border: 1px solid var(--bb-border, rgba(201, 168, 124, 0.15));
-    border-radius: var(--bb-radius-lg, 16px);
+    border-radius: 8px 8px;
     box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
     animation: dock-in 520ms var(--bb-ease-out-expo) 120ms both;
     max-width: calc(100vw - 24px);
@@ -168,7 +168,7 @@
     gap: 4px;
     min-width: 64px;
     padding: 8px 14px 7px;
-    border-radius: var(--bb-radius-md, 10px);
+    border-radius: 8px 8px;
     color: var(--bb-muted);
     text-decoration: none;
     cursor: pointer;
@@ -229,7 +229,7 @@
     padding: 6px;
     background: var(--bb-card-bg, #111110);
     border: 1px solid var(--bb-border-strong, rgba(201, 168, 124, 0.35));
-    border-radius: var(--bb-radius-lg, 16px);
+    border-radius: 8px 8px;
     box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
     display: flex;
     flex-direction: column;
@@ -247,7 +247,7 @@
     align-items: center;
     gap: 10px;
     padding: 10px 12px;
-    border-radius: var(--bb-radius-md, 10px);
+    border-radius: 8px 8px;
     color: var(--bb-muted);
     text-decoration: none;
     font-family: var(--bb-font-body);

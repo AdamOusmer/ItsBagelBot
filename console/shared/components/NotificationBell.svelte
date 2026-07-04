@@ -143,7 +143,7 @@
     width: min(380px, calc(100vw - 24px));
     background: var(--bb-card-bg, #111110);
     border: 1px solid var(--bb-border-strong, rgba(201, 168, 124, 0.35));
-    border-radius: var(--bb-radius-lg, 16px);
+    border-radius: 8px 8px;
     box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
     padding: 14px;
     transform-origin: top right;
@@ -164,7 +164,7 @@
      below, so the text never gets squeezed into a sliver between them. */
   .item {
     display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px 10px;
-    border: 1px solid var(--bb-border, rgba(201, 168, 124, 0.15)); border-radius: var(--bb-radius-md, 10px);
+    border: 1px solid var(--bb-border, rgba(201, 168, 124, 0.15)); border-radius: 8px 8px;
     padding: 10px 12px; background: rgba(255, 255, 255, 0.02);
   }
   .item .level { justify-self: start; grid-row: 1; }
