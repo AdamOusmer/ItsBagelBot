@@ -14,5 +14,7 @@ func All(d engine.Deps) []module.Module {
 		Core(d),
 		Live(d),
 		Shoutout(d),
+		Alerts(d),
+		Clip(d),
 	}
 }

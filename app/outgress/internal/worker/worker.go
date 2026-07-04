@@ -320,6 +320,13 @@ func (w *Worker) Process(msg *message.Message) error {
 		return w.processShoutout(ctx, payload)
 	}
 
+	// Clip needs broadcaster_id in the query string, and — uniquely — reads the
+	// Create Clip response to post the clip URL back to chat, so it gets its own
+	// handler.
+	if payload.Type == outgress.TypeClip {
+		return w.processClip(ctx, payload)
+	}
+
 	// Only "chat" pays the chat rate buckets; every other Helix call pays the
 	// general bucket.
 	if payload.Type == outgress.TypeChat {
@@ -1088,4 +1095,123 @@ const maxResponseDrain = 64 << 10
 func drainResponse(res *http.Response) {
 	_, _ = io.CopyN(io.Discard, res.Body, maxResponseDrain+1)
 	_ = res.Body.Close()
+}
+
+// clipMeta is the metadata sesame threads on a TypeClip message: the title the
+// viewer typed and their login. The Create Clip call needs neither
+// (broadcaster_id rides the query, no body); they compose the chat reply posted
+// with the clip URL.
+type clipMeta struct {
+	Title   string `json:"title"`
+	Clipper string `json:"clipper"`
+}
+
+// clipCreateReply is the subset of the Helix Create Clip response we read.
+type clipCreateReply struct {
+	Data []struct {
+		ID      string `json:"id"`
+		EditURL string `json:"edit_url"`
+	} `json:"data"`
+}
+
+// processClip creates a clip on the broadcaster's channel and posts the public
+// clip URL back to chat. The Create Clip response (and thus the URL) is visible
+// only here, so this is the one place that can surface it.
+//
+// Redelivery safety: once the clip is created (2xx) this returns nil no matter
+// what happens to the reply — re-running the message would create a DUPLICATE
+// clip, far worse than a missing reply line. Only failures BEFORE the clip
+// exists (rate bucket, transport, 429, 5xx) return an error to redeliver.
+func (w *Worker) processClip(ctx context.Context, payload outgress.Message) error {
+	var meta clipMeta
+	if len(payload.Payload) > 0 {
+		_ = sonic.Unmarshal(payload.Payload, &meta)
+	}
+
+	if err := w.takeGeneralHelix(ctx); err != nil {
+		return err // no clip created yet: safe to redeliver
+	}
+
+	// broadcaster_id rides the query string; the Create Clip call takes no body.
+	endpoint := "/helix/clips?broadcaster_id=" + url.QueryEscape(payload.BroadcasterID)
+	res, err := w.twitch.ExecuteAs(ctx, twitch.ParseIdentity(outgress.AsBroadcaster),
+		payload.BroadcasterID, http.MethodPost, endpoint, nil)
+	if err != nil {
+		w.log.Error("clip create failed",
+			zap.String("broadcaster_id", payload.BroadcasterID), zap.Error(err))
+		return err // no clip: redeliver
+	}
+	defer drainResponse(res)
+
+	switch {
+	case res.StatusCode == http.StatusTooManyRequests:
+		w.log.Warn("twitch rate limited clip create",
+			zap.String("broadcaster_id", payload.BroadcasterID),
+			zap.Duration("retry_after", twitch.RetryAfter(res)))
+		return fmt.Errorf("twitch 429 on clip create")
+	case res.StatusCode >= 500:
+		return fmt.Errorf("twitch server error on clip create: %d", res.StatusCode)
+	case res.StatusCode >= 400:
+		body, _ := io.ReadAll(io.LimitReader(res.Body, 2048))
+		w.log.Error("dropping clip: twitch rejected create",
+			zap.Int("status", res.StatusCode),
+			zap.String("broadcaster_id", payload.BroadcasterID),
+			zap.String("body", string(body)))
+		if txn := newrelic.FromContext(ctx); txn != nil {
+			txn.NoticeError(fmt.Errorf("twitch rejected clip create: %d %s", res.StatusCode, string(body)))
+		}
+		return nil // permanent: don't redeliver
+	}
+
+	// Clip now exists. From here on never return an error (see the doc comment).
+	var reply clipCreateReply
+	if err := json.NewDecoder(io.LimitReader(res.Body, 4096)).Decode(&reply); err != nil ||
+		len(reply.Data) == 0 || reply.Data[0].ID == "" {
+		w.log.Warn("clip created but response unparseable; skipping reply",
+			zap.String("broadcaster_id", payload.BroadcasterID), zap.Error(err))
+		return nil
+	}
+
+	clipURL := "https://clips.twitch.tv/" + reply.Data[0].ID
+	if err := w.sendClipReply(ctx, payload.BroadcasterID, meta, clipURL); err != nil {
+		w.log.Warn("clip created but reply chat failed",
+			zap.String("broadcaster_id", payload.BroadcasterID), zap.Error(err))
+	}
+	return nil
+}
+
+// sendClipReply posts the chat line announcing a freshly created clip through
+// the normal chat path (rate buckets, sender-id injection). Its error is only
+// for the caller to log; the clip already exists, so the caller must not
+// redeliver on a reply failure.
+func (w *Worker) sendClipReply(ctx context.Context, broadcasterID string, meta clipMeta, clipURL string) error {
+	body, err := sonic.Marshal(struct {
+		BroadcasterID string `json:"broadcaster_id"`
+		Message       string `json:"message"`
+	}{broadcasterID, clipReplyText(meta, clipURL)})
+	if err != nil {
+		return err
+	}
+	return w.processChat(ctx, outgress.Message{
+		Type:          outgress.TypeChat,
+		BroadcasterID: broadcasterID,
+		Payload:       body,
+	})
+}
+
+// clipReplyText composes the chat line for a new clip: it names the clipper,
+// echoes the title they typed (when any), and links the public clip URL.
+func clipReplyText(meta clipMeta, clipURL string) string {
+	who := meta.Clipper
+	title := strings.TrimSpace(meta.Title)
+	switch {
+	case who != "" && title != "":
+		return "🎬 " + who + " clipped: " + title + " → " + clipURL
+	case who != "":
+		return "🎬 " + who + " made a clip → " + clipURL
+	case title != "":
+		return "🎬 Clip: " + title + " → " + clipURL
+	default:
+		return "🎬 New clip → " + clipURL
+	}
 }

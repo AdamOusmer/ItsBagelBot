@@ -112,6 +112,27 @@ func (r *Registry) Command(name string) (BoundCommand, bool) {
 	return bc, ok
 }
 
+// ResolveCommand resolves a chat trigger to a bound command. It first tries an
+// exact match; on a miss it strips a trailing run of digits and retries the
+// base, matching only when that base command opted into a numeric suffix
+// (Command.NumericSuffix). "clip30" resolves to "clip" with num="30"; an exact
+// hit returns num="". The digits are returned for the caller's information but
+// are not the command's argument string. This lets a built-in like !clip accept
+// an inline number without registering every !clipN variant.
+func (r *Registry) ResolveCommand(name string) (bc BoundCommand, num string, ok bool) {
+	if bc, ok := r.commands[name]; ok {
+		return bc, "", true
+	}
+	base, digits := splitTrailingDigits(name)
+	if digits == "" || base == "" {
+		return BoundCommand{}, "", false
+	}
+	if bc, ok := r.commands[base]; ok && bc.Cmd.NumericSuffix {
+		return bc, digits, true
+	}
+	return BoundCommand{}, "", false
+}
+
 // Commands returns the bound-command index. The map is owned by the registry and
 // must be treated as read-only.
 func (r *Registry) Commands() map[string]BoundCommand { return r.commands }

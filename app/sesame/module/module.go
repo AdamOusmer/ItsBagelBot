@@ -99,6 +99,11 @@ type Command struct {
 	// AllowedUserID, when non-empty, restricts the command to exactly that
 	// chatter id and overrides Perm entirely.
 	AllowedUserID string
+	// NumericSuffix lets the trigger absorb a trailing run of digits typed
+	// inline (e.g. "!clip30" resolves to "clip"). The digits are not passed to
+	// the command; they only widen what matches this trigger. Used by built-ins
+	// like !clip that accept an inline number.
+	NumericSuffix bool
 	// Run executes the command after the gates pass.
 	Run RunFunc
 }

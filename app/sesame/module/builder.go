@@ -196,6 +196,11 @@ func (c *CmdBuilder) Cooldown(d time.Duration) *CmdBuilder { c.cmd.Cooldown = d;
 // LiveOnly gates the command to when the broadcaster is live.
 func (c *CmdBuilder) LiveOnly() *CmdBuilder { c.cmd.LiveOnly = true; return c }
 
+// NumericSuffix lets the trigger match with a trailing run of digits typed
+// inline: "!clip30" resolves to the "clip" command. The digits are stripped and
+// discarded (they are not the argument string). See Registry.ResolveCommand.
+func (c *CmdBuilder) NumericSuffix() *CmdBuilder { c.cmd.NumericSuffix = true; return c }
+
 // AllowUser restricts the command to exactly one chatter id, overriding the role
 // gate entirely.
 func (c *CmdBuilder) AllowUser(id string) *CmdBuilder { c.cmd.AllowedUserID = id; return c }

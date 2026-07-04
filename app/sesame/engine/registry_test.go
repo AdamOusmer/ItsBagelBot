@@ -126,3 +126,47 @@ func TestRegistryDuplicateCommandFirstWins(t *testing.T) {
 	assert.Equal(t, "a", bc.Owner.Name)
 	assert.Len(t, reg.Commands(), 1)
 }
+
+func TestSplitTrailingDigits(t *testing.T) {
+	cases := []struct{ in, base, digits string }{
+		{"clip30", "clip", "30"},
+		{"clip", "clip", ""},
+		{"clip0", "clip", "0"},
+		{"30", "", "30"},
+		{"", "", ""},
+	}
+	for _, c := range cases {
+		base, digits := splitTrailingDigits(c.in)
+		assert.Equal(t, c.base, base, "base of %q", c.in)
+		assert.Equal(t, c.digits, digits, "digits of %q", c.in)
+	}
+}
+
+func TestResolveCommandNumericSuffix(t *testing.T) {
+	b := module.NewModule("", module.KindCore)
+	b.Command("clip").Everyone().NumericSuffix().Run(noRun)
+	b.Command("ping").Everyone().Run(noRun) // no numeric suffix
+	reg := NewRegistry(nil, b.Build())
+
+	// Exact match: no digits absorbed.
+	bc, num, ok := reg.ResolveCommand("clip")
+	assert.True(t, ok)
+	assert.Equal(t, "", num)
+	assert.Equal(t, "clip", bc.Cmd.Name)
+
+	// Numeric suffix resolves to the base and reports the digits.
+	bc, num, ok = reg.ResolveCommand("clip30")
+	assert.True(t, ok)
+	assert.Equal(t, "30", num)
+	assert.Equal(t, "clip", bc.Cmd.Name)
+
+	// A command without NumericSuffix does not absorb a trailing number.
+	_, _, ok = reg.ResolveCommand("ping5")
+	assert.False(t, ok)
+
+	// Unknown trigger and digits-only both miss.
+	_, _, ok = reg.ResolveCommand("nope")
+	assert.False(t, ok)
+	_, _, ok = reg.ResolveCommand("30")
+	assert.False(t, ok)
+}

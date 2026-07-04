@@ -72,27 +72,44 @@
       </div>
 
       {#each def.fields as field (field.key)}
-        <label class="field">
-          <span>{field.label}</span>
-          {#if field.type === 'textarea'}
-            <textarea
-              class="resp-area"
-              name={`cfg.${field.key}`}
-              rows="3"
-              placeholder={field.placeholder ?? ''}
-              bind:value={config[field.key]}
-            ></textarea>
-          {:else}
-            <input
-              class="search"
-              type={field.type === 'number' ? 'number' : 'text'}
-              name={`cfg.${field.key}`}
-              placeholder={field.placeholder ?? ''}
-              bind:value={config[field.key]}
-            />
-          {/if}
-          {#if field.help}<small>{field.help}</small>{/if}
-        </label>
+        {#if field.type === 'toggle'}
+          <div class="row subrow">
+            <div class="row-text">
+              <span class="row-label sm">{field.label}</span>
+              {#if field.help}<span class="row-help">{field.help}</span>{/if}
+            </div>
+            <input type="hidden" name={`cfg.${field.key}`} value={config[field.key] === 'off' ? 'off' : 'on'} />
+            <button
+              class="toggle {config[field.key] === 'off' ? '' : 'on'}"
+              type="button"
+              aria-label="Toggle {field.label}"
+              onclick={() =>
+                (config = { ...config, [field.key]: config[field.key] === 'off' ? 'on' : 'off' })}
+            ></button>
+          </div>
+        {:else}
+          <label class="field">
+            <span>{field.label}</span>
+            {#if field.type === 'textarea'}
+              <textarea
+                class="resp-area"
+                name={`cfg.${field.key}`}
+                rows="3"
+                placeholder={field.placeholder ?? ''}
+                bind:value={config[field.key]}
+              ></textarea>
+            {:else}
+              <input
+                class="search"
+                type={field.type === 'number' ? 'number' : 'text'}
+                name={`cfg.${field.key}`}
+                placeholder={field.placeholder ?? ''}
+                bind:value={config[field.key]}
+              />
+            {/if}
+            {#if field.help}<small>{field.help}</small>{/if}
+          </label>
+        {/if}
       {/each}
 
       <div class="actions">
@@ -126,6 +143,8 @@
   .row-label { font-family: var(--bb-font-display); font-weight: 700; font-size: 15px; color: var(--bb-white); }
   .row-help { font-family: var(--bb-font-body); font-size: 12.5px; color: var(--bb-muted); }
   .row .toggle { margin-left: auto; }
+  .subrow { border-top: 1px solid var(--glass-border); }
+  .row-label.sm { font-size: 13.5px; }
 
   .field { display: flex; flex-direction: column; gap: 6px; padding: 16px 20px 0; }
   .field > span { font-family: var(--bb-font-body); font-size: 12.5px; color: var(--bb-muted); }
