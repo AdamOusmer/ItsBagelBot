@@ -18,6 +18,19 @@ type Badge struct {
 	Info  string `json:"info,omitempty"`
 }
 
+// Sender is one chatter in a folded duplicate cohort. The ingress squash
+// collapses identical non-command lines into a single channel.chat.message
+// carrying every duplicate sender here (see app/ingress/lib/ingress/squash.ex),
+// so the worker keeps per-user reputation and cross-user campaign signal without
+// one event per duplicate.
+type Sender struct {
+	ChatterUserID    string  `json:"chatter_user_id,omitempty"`
+	ChatterUserLogin string  `json:"chatter_user_login,omitempty"`
+	MsgID            string  `json:"msg_id,omitempty"`
+	TS               string  `json:"ts,omitempty"`
+	Badges           []Badge `json:"badges,omitempty"`
+}
+
 // Envelope is the wire contract published by ingress. Consumers read exactly the
 // fields ingress writes. Every event carries its Twitch EventSub `type` and the
 // `lane` it was routed on; the rest depends on the type:
@@ -37,6 +50,12 @@ type Envelope struct {
 	ChatterUserLogin     string  `json:"chatter_user_login,omitempty"`
 	Text                 string  `json:"text,omitempty"`
 	Badges               []Badge `json:"badges,omitempty"`
+
+	// Senders is set only on a folded duplicate cohort: the identical non-command
+	// lines the ingress squash collapsed into this one channel.chat.message. When
+	// present the line is plain chat (never a command), so command dispatch is
+	// skipped and the automod fans out over the senders for reputation/campaign.
+	Senders []Sender `json:"senders,omitempty"`
 
 	// Raw EventSub event object (set for every non-chat type).
 	Event json.RawMessage `json:"event,omitempty"`
