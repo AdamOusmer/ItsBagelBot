@@ -4,7 +4,7 @@ import { redirect } from '@sveltejs/kit';
 import { decodeIdToken, OAuth2RequestError } from 'arctic';
 import { twitch, safeNextPath, fetchAccountEmail } from '$lib/server/oauth';
 import { rpc } from '@bagel/shared/server/nats';
-import { saveGrant, isBanned, delegationConsume, userLocale } from '$lib/server/services';
+import { saveGrant, isBanned, delegationConsume, userLocale, setLocale } from '$lib/server/services';
 import { COOKIE, seal } from '$lib/server/session';
 import { isLocale, LOCALE_COOKIE } from '@bagel/shared/i18n';
 import { env } from '$env/dynamic/private';
@@ -153,12 +153,20 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 
     setSessionCookie(cookies, url, streamerSession(identity));
 
-    // Seed the locale cookie from the account's saved preference so the chosen
-    // language follows the user to a new browser/device. Best-effort: a new user
-    // defaults to 'en', and an RPC blip just leaves detection to Accept-Language.
+    // Seed the locale cookie from the account's saved preference, or if the
+    // user explicitly set a locale on this device before logging in, persist
+    // that choice to the account instead of overwriting it.
     try {
       const saved = await userLocale(identity.userId);
-      if (isLocale(saved)) {
+      const existingCookie = cookies.get(LOCALE_COOKIE);
+
+      if (existingCookie && isLocale(existingCookie) && existingCookie !== saved) {
+        try {
+          await setLocale(identity.userId, existingCookie);
+        } catch (err) {
+          console.error('[callback] failed to sync pre-login locale to account:', err);
+        }
+      } else if (isLocale(saved)) {
         cookies.set(LOCALE_COOKIE, saved, {
           path: '/',
           httpOnly: true,

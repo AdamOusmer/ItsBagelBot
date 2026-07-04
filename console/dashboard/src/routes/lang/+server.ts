@@ -24,15 +24,10 @@ export const POST: RequestHandler = async ({ request, url, cookies, locals }) =>
 
     // Persist to the account — but not while an admin is impersonating (the
     // cookie already flips the current view; writing would change the *target*
-    // user's saved preference). Best-effort: the cookie is authoritative for
-    // rendering, so an RPC hiccup must not fail the switch.
+    // user's saved preference).
     const s = locals.session;
     if (s?.user_id && !s.impersonator_id) {
-      try {
-        await setLocale(s.user_id, to);
-      } catch {
-        /* cookie already set; DB will catch up on the next change */
-      }
+      await setLocale(s.user_id, to);
     }
   }
 
