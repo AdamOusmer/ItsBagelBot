@@ -247,7 +247,6 @@ const t = useTranslations(lang);
 
 <script>
     import lenis from '../../script/scroll.js';
-    import { runDecode } from '../../script/decode.js';
     import {
         buildEncryptionGeometryData,
         FLOW_CURVE_SAMPLES,
@@ -262,12 +261,15 @@ const t = useTranslations(lang);
     type EncryptionGeometryData = ReturnType<typeof buildEncryptionGeometryData>;
     type VirtualScrollData = { deltaX: number; deltaY: number; event: WheelEvent | TouchEvent };
     type EncryptionScrollAssist = (data: VirtualScrollData) => boolean | void;
+    type EncryptionCleanup = (event?: Event) => void;
     type WindowWithEncryptionAssist = Window & {
         __encryptionScrollAssist?: EncryptionScrollAssist;
         __itsbagelbotPreload?: {
             bootComplete?: boolean;
             preloadEncryption?: () => Promise<void>;
             encryptionData?: EncryptionGeometryData;
+            activeEncryption?: { id: number; cleanup: EncryptionCleanup; section?: HTMLElement };
+            nextEncryptionInstanceId?: number;
         };
     };
     type LenisController = {
@@ -302,29 +304,22 @@ const t = useTranslations(lang);
     const TAN = 0xc9a87c;
     const WHITE = 0xf0ece4;
 
-    /* ─── dom (re-queried on every Astro page-load: view transitions
-       swap the DOM out from under us, so cached nodes go stale) ────── */
-    let canvas: HTMLCanvasElement;
-    let section: HTMLElement;
-    let pin: HTMLElement;
-    let overlays: HTMLElement[] = [];
-    let headings: (HTMLElement | null)[] = [];
-    let paragraphs: (HTMLElement | null)[] = [];
-    let connectors: HTMLElement[] = [];
-    let headingText: string[] = [];
+    function setupEncryption() {
+    /* ─── dom ────────────────────────────────────────────────────── */
+    const canvas = document.getElementById('enc-canvas') as HTMLCanvasElement | null;
+    const section = document.getElementById('enc-section') as HTMLElement | null;
+    if (!canvas || !section) return;
 
-    function queryDom() {
-        canvas = document.getElementById('enc-canvas') as HTMLCanvasElement;
-        section = document.getElementById('enc-section') as HTMLElement;
-        if (!canvas || !section) return false;
-        pin = section.querySelector('.enc-pin') as HTMLElement;
-        overlays = [0, 1, 2, 3].map(i => document.getElementById(`enc-ov-${i}`) as HTMLElement);
-        headings = overlays.map(el => el?.querySelector('.enc-h2') as HTMLElement | null);
-        paragraphs = overlays.map(el => el?.querySelector('.enc-p') as HTMLElement | null);
-        connectors = [0, 1, 2, 3].map(i => document.getElementById(`enc-line-${i}`) as HTMLElement);
-        headingText = headings.map(el => el?.textContent ?? '');
-        return true;
-    }
+    const pin = section.querySelector('.enc-pin') as HTMLElement | null;
+    if (!pin) return;
+
+    const overlays = [0, 1, 2, 3].map(i => document.getElementById(`enc-ov-${i}`) as HTMLElement);
+    const headings = overlays.map(el => el?.querySelector('.enc-h2') as HTMLElement | null);
+    const paragraphs = overlays.map(el => el?.querySelector('.enc-p') as HTMLElement | null);
+    const connectors = [0, 1, 2, 3].map(i => document.getElementById(`enc-line-${i}`) as HTMLElement);
+    const headingText = headings.map(el => el?.textContent ?? '');
+    const SCRAMBLE_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#$%&*+-/<>[]{}';
+    const TITLE_SCRAMBLE_SPAN = 0.115;
     const TEXT_ENTER_SPAN = 0.06;
     const TEXT_EXIT_SPAN = 0.045;
     const SNAP_POINTS = [0.125, 0.375, 0.625, 0.875];
@@ -343,11 +338,16 @@ const t = useTranslations(lang);
     let destroyed = false;
     let loadObserver: IntersectionObserver | null = null;
     let initPromise: Promise<void> | null = null;
-    let cleanupScene: (() => void) | null = null;
+    let cleanupScene: ((deferGpuDispose?: boolean) => void) | null = null;
     const scrollController = lenis as LenisController;
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
     const assistedWindow = window as WindowWithEncryptionAssist;
     const preloadRegistry = (assistedWindow.__itsbagelbotPreload ??= {});
+    const previousActiveEncryption = preloadRegistry.activeEncryption;
+    if (previousActiveEncryption?.section === section) return;
+
+    const instanceId = (preloadRegistry.nextEncryptionInstanceId ?? 0) + 1;
+    preloadRegistry.nextEncryptionInstanceId = instanceId;
     const POST_BOOT_INIT_DELAY_MS = 960;
     const POST_BOOT_SCROLL_THRESHOLD = 36;
     let preloadModulesPromise: Promise<[
@@ -361,6 +361,15 @@ const t = useTranslations(lang);
         document.getElementById('loader-wrapper')?.getAttribute('aria-hidden') === 'true' ||
         !document.getElementById('loader-wrapper');
     let postBootStartTimer = 0;
+
+    function ownsActiveEncryption() {
+        return preloadRegistry.activeEncryption?.id === instanceId;
+    }
+
+    function isSectionNearViewport() {
+        const rect = section.getBoundingClientRect();
+        return rect.bottom >= -900 && rect.top <= window.innerHeight + 900;
+    }
 
     function preloadEncryptionModules() {
         if (!preloadModulesPromise) {
@@ -440,7 +449,6 @@ const t = useTranslations(lang);
     }
 
     function dampEncryptionScroll(data: VirtualScrollData) {
-        if (!section) return true;
         const {deltaX, deltaY, event} = data;
         if (event instanceof WheelEvent && event.ctrlKey) return true;
         if (Math.abs(deltaY) < NODE_SLOW_MIN_DELTA_PX || Math.abs(deltaY) <= Math.abs(deltaX)) return true;
@@ -472,6 +480,20 @@ const t = useTranslations(lang);
 
     assistedWindow.__encryptionScrollAssist = dampEncryptionScroll;
 
+    function scrambleTitle(text: string, progress: number, seed: number) {
+        const chars = Array.from(text);
+        const revealCount = Math.floor(chars.length * progress);
+        const tick = Math.floor(progress * 16);
+
+        return chars.map((char, i) => {
+            if (char === ' ' || /\W/.test(char)) return char;
+            if (i < revealCount) return char;
+
+            const n = (i * 19 + tick * 7 + seed * 13) % SCRAMBLE_CHARS.length;
+            return SCRAMBLE_CHARS[n];
+        }).join('');
+    }
+
     async function initEncryption() {
         const [
             three,
@@ -479,7 +501,7 @@ const t = useTranslations(lang);
             {UnrealBloomPass},
         ] = await preloadEncryptionModules();
 
-        if (destroyed) return;
+        if (destroyed || !ownsActiveEncryption() || !canvas.isConnected) return;
 
         const {
             WebGLRenderer, Scene, Group, PerspectiveCamera,
@@ -537,14 +559,16 @@ const t = useTranslations(lang);
         const coreGroup = new Group();
         world.add(coreGroup);
 
+        const coreOuterSource = new IcosahedronGeometry(1.6, 1);
         const coreOuter = new LineSegments(
-            new WireframeGeometry(new IcosahedronGeometry(1.6, 1)),
+            new WireframeGeometry(coreOuterSource),
             matCoreOuter,
         );
         coreGroup.add(coreOuter);
 
+        const coreInnerSource = new IcosahedronGeometry(0.8, 0);
         const coreInner = new LineSegments(
-            new EdgesGeometry(new IcosahedronGeometry(0.8, 0)),
+            new EdgesGeometry(coreInnerSource),
             matCoreInner,
         );
         coreGroup.add(coreInner);
@@ -563,6 +587,7 @@ const t = useTranslations(lang);
         ];
         const NODE_WIRES = NODE_GEOS.map(g => new WireframeGeometry(g));
         const NODE_DOT_GEO = new SphereGeometry(0.05, 6, 6);
+        const SOURCE_GEOS = [coreOuterSource, coreInnerSource, ...NODE_GEOS];
 
         const nodes: { group: Group; pos: Vector3 }[] = [];
         for (let i = 0; i < N_NODES; i++) {
@@ -794,11 +819,9 @@ const t = useTranslations(lang);
         }
 
         const connectorVarCache: Array<Record<string, string>> = connectors.map(() => ({}));
-        // One decode per appearance: fire the shared scramble reveal when an
-        // overlay becomes visible, re-arm once it fully fades back out.
-        const headingDecoded: boolean[] = headings.map(() => false);
-        const DECODE_SHOW = 0.5;
-        const DECODE_HIDE = 0.05;
+        const headingCharLengths = headingText.map((text) => Array.from(text).length);
+        const SCRAMBLE_ORIGINAL = -1;
+        const headingScrambleState: number[] = headings.map(() => SCRAMBLE_ORIGINAL - 1);
 
         function setConnectorVar(index: number, name: string, value: string) {
             const cache = connectorVarCache[index];
@@ -1088,6 +1111,7 @@ const t = useTranslations(lang);
                 const scale = 1 - exitProgress * 0.025;
                 const blur = exitProgress * 5;
                 const lineProgress = Math.min(fadeIn, ss(start + 0.015, start + 0.11, p));
+                const titleProgress = ss(start, start + TITLE_SCRAMBLE_SPAN, p);
                 setOverlayStyle(
                     i,
                     el,
@@ -1098,17 +1122,20 @@ const t = useTranslations(lang);
                 updateNodeConnector(i, alpha, lineProgress, dy);
 
                 const heading = headings[i];
+                const original = headingText[i];
                 if (!heading) continue;
 
-                // Trigger the shared decode reveal once as the overlay appears;
-                // re-arm when it has fully faded out so a scroll-back replays it.
-                if (alpha > DECODE_SHOW) {
-                    if (!headingDecoded[i]) {
-                        headingDecoded[i] = true;
-                        runDecode(heading, headingText[i]);
+                if (alpha > 0.01 && titleProgress < 1) {
+                    const revealCount = Math.floor(headingCharLengths[i] * titleProgress);
+                    const tick = Math.floor(titleProgress * 16);
+                    const state = revealCount * 32 + tick;
+                    if (state !== headingScrambleState[i]) {
+                        heading.textContent = scrambleTitle(original, titleProgress, i);
+                        headingScrambleState[i] = state;
                     }
-                } else if (alpha < DECODE_HIDE) {
-                    headingDecoded[i] = false;
+                } else if (headingScrambleState[i] !== SCRAMBLE_ORIGINAL) {
+                    heading.textContent = original;
+                    headingScrambleState[i] = SCRAMBLE_ORIGINAL;
                 }
             }
         }
@@ -1126,31 +1153,28 @@ const t = useTranslations(lang);
             refreshConnectorLayout();
         }
 
+        let disposed = false;
+        let gpuDisposed = false;
+        let disposeFallbackTimer = 0;
+        let removeAfterSwapDispose: (() => void) | null = null;
+        let bgFrame = 0;
+
         window.addEventListener('resize', resize);
         mediaQuery.addEventListener('change', resize);
         resize();
-        document.fonts?.ready.then(refreshConnectorLayout).catch(() => {});
+        document.fonts?.ready
+            .then(() => { if (!disposed) refreshConnectorLayout(); })
+            .catch(() => {});
 
         const timer = new Timer();
         timer.reset();
-        let disposed = false;
-        let bgFrame = 0;
 
-        cleanupScene = () => {
-            if (disposed) return;
-            disposed = true;
-
-            window.clearTimeout(snapTimer);
-            scrollController.off?.('virtual-scroll', onVirtualScroll);
-            window.removeEventListener('wheel', onWheel);
-            window.removeEventListener('touchend', onTouchEnd);
-            renderer.setAnimationLoop(null);
-            window.removeEventListener('scroll', onScroll);
-            window.removeEventListener('resize', resize);
-            document.removeEventListener('visibilitychange', onVisibilityChange);
-            mediaQuery.removeEventListener('change', resize);
-            obs.disconnect();
-            timer.dispose();
+        function disposeGpu() {
+            if (gpuDisposed) return;
+            gpuDisposed = true;
+            window.clearTimeout(disposeFallbackTimer);
+            removeAfterSwapDispose?.();
+            removeAfterSwapDispose = null;
 
             renderer.setEffects([]);
             renderPass.dispose();
@@ -1178,9 +1202,50 @@ const t = useTranslations(lang);
                 });
             });
 
-            NODE_GEOS.forEach((geometry) => geometry.dispose());
+            SOURCE_GEOS.forEach((geometry) => {
+                if (disposedGeometries.has(geometry)) return;
+                geometry.dispose();
+                disposedGeometries.add(geometry);
+            });
+
             renderer.dispose();
             renderer.forceContextLoss();
+            canvas.width = 0;
+            canvas.height = 0;
+        }
+
+        function scheduleGpuDisposeAfterSwap() {
+            const disposeAfterSwap = () => {
+                removeAfterSwapDispose = null;
+                requestAnimationFrame(disposeGpu);
+            };
+
+            document.addEventListener('astro:after-swap', disposeAfterSwap, {once: true});
+            removeAfterSwapDispose = () => document.removeEventListener('astro:after-swap', disposeAfterSwap);
+            disposeFallbackTimer = window.setTimeout(disposeGpu, 1400);
+        }
+
+        cleanupScene = (deferGpuDispose = false) => {
+            if (disposed) {
+                if (!deferGpuDispose) disposeGpu();
+                return;
+            }
+            disposed = true;
+
+            window.clearTimeout(snapTimer);
+            scrollController.off?.('virtual-scroll', onVirtualScroll);
+            window.removeEventListener('wheel', onWheel);
+            window.removeEventListener('touchend', onTouchEnd);
+            renderer.setAnimationLoop(null);
+            window.removeEventListener('scroll', onScroll);
+            window.removeEventListener('resize', resize);
+            document.removeEventListener('visibilitychange', onVisibilityChange);
+            mediaQuery.removeEventListener('change', resize);
+            obs.disconnect();
+            timer.dispose();
+
+            if (deferGpuDispose) scheduleGpuDisposeAfterSwap();
+            else disposeGpu();
         };
 
         renderer.setAnimationLoop((time) => {
@@ -1194,7 +1259,7 @@ const t = useTranslations(lang);
     }
 
     function startEncryption() {
-        if (initPromise) return;
+        if (destroyed || !ownsActiveEncryption() || initPromise) return;
         initPromise = initEncryption().catch((error: unknown) => {
             console.error('Encryption scene failed to load', error);
         });
@@ -1207,7 +1272,7 @@ const t = useTranslations(lang);
     }
 
     function maybeStartAfterBoot() {
-        if (destroyed || !pendingStart || !bootCompleted) return;
+        if (destroyed || !ownsActiveEncryption() || !pendingStart || !bootCompleted) return;
 
         if (window.scrollY >= POST_BOOT_SCROLL_THRESHOLD) {
             clearPostBootTimer();
@@ -1223,7 +1288,7 @@ const t = useTranslations(lang);
     }
 
     function requestEncryptionStart() {
-        if (destroyed) return;
+        if (destroyed || !ownsActiveEncryption()) return;
         pendingStart = true;
         void preloadEncryptionScene();
         maybeStartAfterBoot();
@@ -1240,7 +1305,7 @@ const t = useTranslations(lang);
         maybeStartAfterBoot();
     }
 
-    function cleanup() {
+    function cleanup(event?: Event) {
         if (destroyed) return;
         destroyed = true;
         clearPostBootTimer();
@@ -1252,50 +1317,49 @@ const t = useTranslations(lang);
         if (preloadRegistry.preloadEncryption === preloadEncryptionScene) {
             delete preloadRegistry.preloadEncryption;
         }
-        cleanupScene?.();
+        if (preloadRegistry.activeEncryption?.id === instanceId) {
+            delete preloadRegistry.activeEncryption;
+        }
+        cleanupScene?.(event?.type === 'astro:before-swap');
         cleanupScene = null;
         document.removeEventListener('itsbagelbot:loader-complete', onBootLoaderComplete);
         window.removeEventListener('scroll', onBootScroll);
+        document.removeEventListener('astro:before-swap', cleanup);
+        window.removeEventListener('pagehide', cleanup);
     }
 
-    function setup() {
-        // Astro view transitions swap the DOM and never re-execute this
-        // module, so each entry (initial load + navigating back) must
-        // re-query the fresh nodes and rebuild boot state from scratch.
-        if (!queryDom()) return;
+    previousActiveEncryption?.cleanup(new Event('itsbagelbot:replace'));
+    preloadRegistry.activeEncryption = {id: instanceId, cleanup, section};
 
-        destroyed = false;
-        initPromise = null;
-        cleanupScene = null;
-        pendingStart = false;
-        postBootStartTimer = 0;
-        bootCompleted =
-            preloadRegistry.bootComplete === true ||
-            document.getElementById('loader-wrapper')?.getAttribute('aria-hidden') === 'true' ||
-            !document.getElementById('loader-wrapper');
+    loadObserver = new IntersectionObserver(
+        ([entry]) => {
+            if (!entry.isIntersecting || !ownsActiveEncryption()) return;
+            loadObserver?.disconnect();
+            loadObserver = null;
+            requestEncryptionStart();
+        },
+        {rootMargin: '900px 0px'},
+    );
+    loadObserver.observe(section);
+    document.addEventListener('itsbagelbot:loader-complete', onBootLoaderComplete);
+    window.addEventListener('scroll', onBootScroll, {passive: true});
 
-        assistedWindow.__encryptionScrollAssist = dampEncryptionScroll;
-        preloadRegistry.preloadEncryption = preloadEncryptionScene;
+    if (bootCompleted) {
+        maybeStartAfterBoot();
+    }
 
-        loadObserver = new IntersectionObserver(
-            ([entry]) => {
-                if (!entry.isIntersecting) return;
-                loadObserver?.disconnect();
-                loadObserver = null;
-                requestEncryptionStart();
-            },
-            {rootMargin: '900px 0px'},
-        );
-        loadObserver.observe(section);
-        document.addEventListener('itsbagelbot:loader-complete', onBootLoaderComplete);
-        window.addEventListener('scroll', onBootScroll, {passive: true});
-
-        if (bootCompleted) {
-            maybeStartAfterBoot();
+    requestAnimationFrame(() => {
+        if (!destroyed && ownsActiveEncryption() && isSectionNearViewport()) {
+            loadObserver?.disconnect();
+            loadObserver = null;
+            requestEncryptionStart();
         }
+    });
+
+    document.addEventListener('astro:before-swap', cleanup, {once: true});
+    window.addEventListener('pagehide', cleanup, {once: true});
     }
 
-    document.addEventListener('astro:page-load', setup);
-    document.addEventListener('astro:before-swap', cleanup);
-    window.addEventListener('pagehide', cleanup);
+    setupEncryption();
+    document.addEventListener('astro:page-load', setupEncryption);
 </script>

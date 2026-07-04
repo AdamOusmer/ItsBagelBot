@@ -74,6 +74,35 @@ function stopRaf() {
     rafId = 0;
 }
 
+function stampCurrentHistoryPosition(left = 0, top = 0) {
+    if (!history.state) return;
+
+    history.scrollRestoration = 'manual';
+    history.replaceState({
+        ...history.state,
+        scrollX: left,
+        scrollY: top,
+    }, '');
+}
+
+function jumpToPageTop() {
+    lenis.resize?.();
+    lenis.scrollTo(0, {immediate: true, force: true});
+    window.scrollTo({left: 0, top: 0, behavior: 'instant'});
+    stampCurrentHistoryPosition(0, 0);
+    updateViewportHeight();
+    updateHeroProgress();
+}
+
+function resetRouteScroll() {
+    jumpToPageTop();
+
+    requestAnimationFrame(() => {
+        jumpToPageTop();
+        lenis.resize?.();
+    });
+}
+
 function onVisibilityChange() {
     if (document.hidden) {
         stopRaf();
@@ -88,6 +117,7 @@ function onVisibilityChange() {
 
 window.addEventListener('resize', updateViewportHeight, {passive: true});
 document.addEventListener('visibilitychange', onVisibilityChange);
+document.addEventListener('astro:after-swap', resetRouteScroll);
 document.addEventListener('itsbagelbot:loader-complete', () => {
     updateViewportHeight();
     updateHeroProgress();

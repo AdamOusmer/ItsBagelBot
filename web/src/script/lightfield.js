@@ -5,14 +5,18 @@
  */
 
 const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+const activeFieldCleanups = new Set();
 
 function setupField(canvas) {
     if (canvas.dataset.fieldReady === "true") return;
-    canvas.dataset.fieldReady = "true";
     if (reduceMotion.matches) return;
+    canvas.dataset.fieldReady = "true";
 
     const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    if (!ctx) {
+        canvas.removeAttribute("data-field-ready");
+        return;
+    }
 
     let w = 0, h = 0, motes = [];
     let dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -61,15 +65,34 @@ function setupField(canvas) {
     }
 
     let rafId = 0;
+    function stopLoop() {
+        if (!rafId) return;
+        cancelAnimationFrame(rafId);
+        rafId = 0;
+    }
+
     function loop() { draw(); rafId = requestAnimationFrame(loop); }
 
     const io = new IntersectionObserver(([e]) => {
         if (e.isIntersecting && !rafId) rafId = requestAnimationFrame(loop);
-        else if (!e.isIntersecting && rafId) { cancelAnimationFrame(rafId); rafId = 0; }
+        else if (!e.isIntersecting) stopLoop();
     }, { rootMargin: "150px" });
     io.observe(canvas);
 
-    window.addEventListener("resize", () => { dpr = Math.min(window.devicePixelRatio || 1, 2); build(); }, { passive: true });
+    const onResize = () => { dpr = Math.min(window.devicePixelRatio || 1, 2); build(); };
+    window.addEventListener("resize", onResize, { passive: true });
+
+    const cleanup = () => {
+        stopLoop();
+        io.disconnect();
+        window.removeEventListener("resize", onResize);
+        canvas.removeAttribute("data-field-ready");
+        canvas.width = 0;
+        canvas.height = 0;
+        activeFieldCleanups.delete(cleanup);
+    };
+    activeFieldCleanups.add(cleanup);
+
     build();
 }
 
@@ -77,5 +100,11 @@ function setup() {
     document.querySelectorAll("canvas[data-field]").forEach(setupField);
 }
 
+function cleanupAll() {
+    activeFieldCleanups.forEach((cleanup) => cleanup());
+}
+
 setup();
 document.addEventListener("astro:page-load", setup);
+document.addEventListener("astro:before-swap", cleanupAll);
+window.addEventListener("pagehide", cleanupAll);
