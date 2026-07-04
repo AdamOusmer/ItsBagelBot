@@ -27,6 +27,10 @@ type Config struct {
 	// CountUses starts the command-use reporter (a background flusher). Off in
 	// tests so they leak no goroutine and publish no counter events.
 	CountUses bool
+
+	// AutomodEnforce arms the automod gate: false shadow-logs verdicts, true
+	// emits the ban/timeout action and skips dispatch for an actioned line.
+	AutomodEnforce bool
 }
 
 // Pipeline is the per-message stage the consumer hands each decoded message to.
@@ -61,7 +65,8 @@ type Pipeline struct {
 	outgressPremium  string
 	outgressStandard string
 
-	automod *automod.Gate
+	automod        *automod.Gate
+	automodEnforce bool
 }
 
 // NewPipeline wires a Pipeline from the shared Deps, a pre-built registry, and
@@ -80,6 +85,7 @@ func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 		outgressPremium:  cfg.OutgressPremium,
 		outgressStandard: cfg.OutgressStandard,
 		automod:          d.Automod,
+		automodEnforce:   cfg.AutomodEnforce,
 	}
 	if p.dedup == nil {
 		p.dedup = NoopDedup{}
@@ -190,14 +196,21 @@ func (p *Pipeline) Process(msg *message.Message) (err error) {
 		}
 	}
 
-	// Automod shadow gate: inspect the chat line before dispatch and log the
-	// verdict. This phase is observation only, so no action is taken. Cohorts
+	// Automod gate: inspect the chat line before dispatch. With enforcement on, a
+	// ban/timeout verdict is emitted and command dispatch + handlers are skipped
+	// for this line (the chatter is being actioned); a verdict we cannot yet
+	// enforce is logged. With enforcement off it is shadow-logged only. Cohorts
 	// (Senders present) are handled by a later phase, not inspected here.
+	actioned := false
 	if isChat && p.automod != nil && len(env.Senders) == 0 {
 		if v := p.automod.Inspect(mctx.Chatter(), env.Text); v.Action != automod.ActionNone {
-			p.log.Info("automod shadow verdict",
+			if p.automodEnforce {
+				actioned = p.emitAutomod(v, env, emit)
+			}
+			p.log.Info("automod verdict",
 				zap.String("action", v.Action.String()),
 				zap.String("rule", v.Rule),
+				zap.Bool("enforced", actioned),
 				zap.Uint64("broadcaster_id", broadcasterID),
 				zap.String("chatter_id", env.ChatterUserID))
 		}
@@ -206,10 +219,10 @@ func (p *Pipeline) Process(msg *message.Message) (err error) {
 	// A folded duplicate cohort (Senders present) is plain chat the ingress
 	// squash collapsed; it is never a command, so skip command dispatch. The
 	// automod (later phase) fans out over env.Senders for reputation/campaign.
-	if isChat && len(env.Senders) == 0 {
+	if isChat && !actioned && len(env.Senders) == 0 {
 		p.dispatch(ctx, mctx, views, emit)
 	}
-	if len(handlers) > 0 {
+	if len(handlers) > 0 && !actioned {
 		// Event handlers can emit localized system text too (for example the
 		// stream-online bagel announcement). Command dispatch resolves locale for
 		// baked commands, but non-command events never pass through that path.
@@ -346,6 +359,30 @@ func (p *Pipeline) enabled(m module.Module, views map[string]projection.ModuleVi
 	default:
 		return false
 	}
+}
+
+// emitAutomod translates an enforced verdict into an outgress moderation action
+// and emits it, returning whether an action was actually emitted. Only ban and
+// timeout are wired to Helix today (phase 0); delete/restrict/warn are left for
+// the caller to log until their outgress path lands.
+func (p *Pipeline) emitAutomod(v automod.Verdict, env *lane.Envelope, emit module.Emit) bool {
+	o := GetOutput()
+	switch v.Action {
+	case automod.ActionBan:
+		o.Type = outgress.TypeBan
+	case automod.ActionTimeout:
+		o.Type = outgress.TypeTimeout
+		o.Duration = float64(v.Seconds)
+	default:
+		PutOutput(o)
+		return false
+	}
+	o.BroadcasterID = env.BroadcasterUserID
+	o.TargetUserID = env.ChatterUserID
+	o.Reason = "automod:" + v.Rule
+	emit(o)
+	PutOutput(o)
+	return true
 }
 
 // banData is the inner object of a Helix Ban User request body. Duration is

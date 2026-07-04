@@ -96,6 +96,7 @@ func main() {
 		OutgressPremium:  cfg.OutgressPremiumSubject,
 		OutgressStandard: cfg.OutgressStandardSubject,
 		CountUses:        true,
+		AutomodEnforce:   cfg.AutomodEnforce,
 	})
 	defer pipe.Close() // flushes pending use-counter ticks on shutdown
 

@@ -124,6 +124,14 @@ func (p *Pipeline) emitResponse(c *module.Context, response, args string, emit m
 		touser = strings.TrimPrefix(firstWord, "@")
 	}
 
+	// Enforce the user-controlled variables: strip a leading slash run so a
+	// crafted {args}/{touser} can never inject a leading slash-verb (/ban,
+	// /timeout) into the expanded response for Translate to route. Command
+	// CONTENT is validated at save-time on the dashboard; this guards only the
+	// runtime injection vector.
+	args = sanitizeVar(args)
+	touser = sanitizeVar(touser)
+
 	buf := GetBuf()
 	buf = expandCommand(buf, response, tokens{
 		user:    sender,
