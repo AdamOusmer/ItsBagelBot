@@ -17,9 +17,27 @@ const chips = [
     { cmd: '!poll', label: '!poll' },
     { cmd: '!lurk', label: '!lurk' },
 ];
+
+// Strings the client script needs at runtime. Serialized into a JSON island
+// below so the simulated bot speaks the visitor's language too.
+const playStrings = {
+    replyBagel: t('play.replyBagel'),
+    replySong: t('play.replySong'),
+    replyLurk: t('play.replyLurk'),
+    replyHelp: t('play.replyHelp'),
+    pollUp: t('play.pollUp'),
+    pollQ: t('play.pollQ'),
+    pollYes: t('play.pollYes'),
+    pollAlways: t('play.pollAlways'),
+    spamRemoved: t('play.spamRemoved'),
+    quiet: t('play.quiet'),
+    unknown: t('play.unknown'),
+    seedTry: t('play.seedTry'),
+};
 ---
 
 <section class="play" id="playground">
+    <script type="application/json" data-play-i18n set:html={JSON.stringify(playStrings)}></script>
     <div class="play__copy">
         <span class="play__eyebrow" data-reveal>{t('play.eyebrow')}</span>
         <h2 class="play__title" data-reveal style="--reveal-i: 1">{t('play.title')}</h2>
@@ -491,11 +509,20 @@ const chips = [
         'V1EWBOTS cheap!! totally-legit.biz',
     ];
 
+    type PlayStrings = {
+        replyBagel: string; replySong: string; replyLurk: string; replyHelp: string;
+        pollUp: string; pollQ: string; pollYes: string; pollAlways: string;
+        spamRemoved: string; quiet: string; unknown: string; seedTry: string;
+    };
+    const S: PlayStrings = JSON.parse(
+        document.querySelector('[data-play-i18n]')?.textContent || '{}',
+    );
+
     const REPLIES: Record<string, string | null> = {
-        '!bagel': '@you 🥯 fresh from the oven. warm bagel delivered, zero calories.',
-        '!song': "now playing · 'late night lo-fi' · queued for @you",
-        '!lurk': "@you settled into the lurk. seat's saved, I'll wave when you're back.",
-        '!help': 'try !bagel, !song, !poll or !lurk. everything else is configurable from the dashboard.',
+        '!bagel': S.replyBagel,
+        '!song': S.replySong,
+        '!lurk': S.replyLurk,
+        '!help': S.replyHelp,
         '!poll': null, // special-cased: renders the animated poll bubble
     };
 
@@ -561,15 +588,15 @@ const chips = [
         }
 
         function addPoll() {
-            addBot('poll is up. chat, vote with 1 or 2.', 500);
+            addBot(S.pollUp, 500);
             window.setTimeout(() => {
                 const bubble = baseMsg('pmsg--poll');
                 const q = document.createElement('span');
                 q.className = 'ppoll__q';
-                q.textContent = 'poll · one more game?';
+                q.textContent = S.pollQ;
                 bubble.appendChild(q);
 
-                const rows: Array<[string, number]> = [['yes', 68], ['always', 32]];
+                const rows: Array<[string, number]> = [[S.pollYes, 68], [S.pollAlways, 32]];
                 const fills: HTMLElement[] = [];
                 for (const [label, pct] of rows) {
                     const row = document.createElement('span');
@@ -604,7 +631,7 @@ const chips = [
                 row.classList.add('is-caught');
                 window.setTimeout(() => {
                     const note = baseMsg('pmsg--caught');
-                    note.textContent = '⌁ removed · link spam · 0 viewers saw it';
+                    note.textContent = S.spamRemoved;
                     row.replaceWith(note);
                     trim();
                 }, reduceMotion.matches ? 100 : 480);
@@ -621,7 +648,7 @@ const chips = [
                     quietNoteShown = true;
                     window.setTimeout(() => {
                         const note = baseMsg('pmsg--caught');
-                        note.textContent = 'the bot stays quiet unless called. chat is yours.';
+                        note.textContent = S.quiet;
                         feed!.appendChild(note);
                         trim();
                     }, reduceMotion.matches ? 100 : 800);
@@ -633,7 +660,7 @@ const chips = [
             if (cmd === '!poll') { addPoll(); return; }
             const reply = REPLIES[cmd];
             if (reply) { addBot(reply); return; }
-            addBot(`@you I don't know ${cmd} yet. you could teach it to me from the dashboard in about ten seconds.`);
+            addBot(S.unknown.replace('{cmd}', cmd));
         }
 
         /* Ambient chatter, gated on visibility */
@@ -660,7 +687,7 @@ const chips = [
 
         /* Seed the feed so it never opens empty */
         addChat('gg_beans', '#52b788', 'chat moving fast tonight');
-        addChat('moth_lamp', '#e0c49a', 'try typing !bagel');
+        addChat('moth_lamp', '#e0c49a', S.seedTry);
 
         form.addEventListener('submit', (event) => {
             event.preventDefault();
