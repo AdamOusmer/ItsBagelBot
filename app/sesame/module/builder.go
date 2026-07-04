@@ -30,8 +30,10 @@ type Builder struct {
 // NewModule starts a module of the given name and kind. Deps are not passed
 // here: a command's Run and an event handler capture whatever services they need
 // by closure, which is what keeps this package free of runtime wiring. A core
-// module (KindCore) must use an empty name; a named module (KindDefault /
-// KindOptIn) must use a non-empty one. Build enforces this.
+// module (KindCore) is always on and never toggled or configured, so its name is
+// optional — empty for the classic unnamed built-ins, or set to give a named
+// built-in an identity. A named module (KindDefault / KindOptIn) must use a
+// non-empty name. Build enforces this.
 func NewModule(name string, kind Kind) *Builder {
 	return &Builder{name: name, kind: kind}
 }
@@ -100,14 +102,14 @@ func (b *Builder) Validate() error {
 	return b.validateCommands()
 }
 
-// validateKindName enforces the kind/name pairing: core modules have an empty
-// name, named modules a non-empty one.
+// validateKindName enforces the kind/name pairing. A named module (default or
+// opt-in) needs a non-empty name to key its ModuleView. A core module's name is
+// optional: empty for the classic unnamed built-ins, or set to give a named
+// built-in an identity — either way it is always on and never gets a ModuleView.
 func (b *Builder) validateKindName() error {
 	switch b.kind {
 	case KindCore:
-		if b.name != "" {
-			return fmt.Errorf("core module must have an empty name, got %q", b.name)
-		}
+		// name optional; always-on built-in, no ModuleView key.
 	case KindDefault, KindOptIn:
 		if b.name == "" {
 			return fmt.Errorf("%s module must have a non-empty name", b.kind)

@@ -22,8 +22,11 @@ import (
 type Kind int
 
 const (
-	// KindCore is always on, never listed to broadcasters, and immutable. A core
-	// module must have an empty Name (it has no ModuleView key).
+	// KindCore is always on, never listed to broadcasters, and immutable: it is
+	// never toggled or configured, and the engine skips the ModuleView check for
+	// it entirely (no projection fetch on its account). Its Name is optional —
+	// empty for the classic unnamed built-ins, or set to give a named built-in an
+	// identity (it still has no ModuleView key and no config).
 	KindCore Kind = iota
 	// KindDefault is a named module that ships enabled: it runs unless the
 	// broadcaster's ModuleView disables it.
