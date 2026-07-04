@@ -14,7 +14,7 @@ defmodule Ingress.ShardDistributionTest do
     }
 
   test "round-robins shards across two nodes, 3/2 for five shards" do
-    members = [member(:"ingress@node2"), member(:"ingress@node1")]
+    members = [member(:ingress@node2), member(:ingress@node1)]
 
     placements =
       for id <- 0..4 do
@@ -24,16 +24,16 @@ defmodule Ingress.ShardDistributionTest do
 
     # Sorted by node name: node1 gets even ids, node2 odd ids.
     assert placements == [
-             :"ingress@node1",
-             :"ingress@node2",
-             :"ingress@node1",
-             :"ingress@node2",
-             :"ingress@node1"
+             :ingress@node1,
+             :ingress@node2,
+             :ingress@node1,
+             :ingress@node2,
+             :ingress@node1
            ]
   end
 
   test "placement is deterministic regardless of member order" do
-    a = [member(:"ingress@node1"), member(:"ingress@node2")]
+    a = [member(:ingress@node1), member(:ingress@node2)]
     b = Enum.reverse(a)
 
     for id <- 0..4 do
@@ -43,24 +43,24 @@ defmodule Ingress.ShardDistributionTest do
   end
 
   test "dead members receive nothing" do
-    members = [member(:"ingress@node1"), member(:"ingress@node2", :dead)]
+    members = [member(:ingress@node1), member(:ingress@node2, :dead)]
 
     for id <- 0..4 do
-      assert {:ok, %{name: {_sup, :"ingress@node1"}}} =
+      assert {:ok, %{name: {_sup, :ingress@node1}}} =
                ShardDistribution.choose_node(shard_spec(id), members)
     end
   end
 
   test "no alive members is an error" do
     assert {:error, :no_alive_nodes} =
-             ShardDistribution.choose_node(shard_spec(0), [member(:"ingress@node1", :dead)])
+             ShardDistribution.choose_node(shard_spec(0), [member(:ingress@node1, :dead)])
   end
 
   test "non-shard children fall back to uniform distribution" do
-    members = [member(:"ingress@node1"), member(:"ingress@node2")]
+    members = [member(:ingress@node1), member(:ingress@node2)]
     spec = %{id: :conduit_manager, start: {Ingress.ConduitManager, :start_link, [[]]}}
 
     assert {:ok, %{name: {_sup, node}}} = ShardDistribution.choose_node(spec, members)
-    assert node in [:"ingress@node1", :"ingress@node2"]
+    assert node in [:ingress@node1, :ingress@node2]
   end
 end

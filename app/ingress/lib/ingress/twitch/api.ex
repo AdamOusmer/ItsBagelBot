@@ -50,8 +50,12 @@ defmodule Ingress.Twitch.Api do
   # binding shards to an arbitrary conduit.
   defp pick_conduit(conduits) do
     case Config.twitch_conduit_id() do
-      nil -> {:error, :conduit_id_unset}
-      "" -> {:error, :conduit_id_unset}
+      nil ->
+        {:error, :conduit_id_unset}
+
+      "" ->
+        {:error, :conduit_id_unset}
+
       id ->
         case Enum.find(conduits, &(&1["id"] == id)) do
           nil -> {:error, {:pinned_conduit_missing, id}}

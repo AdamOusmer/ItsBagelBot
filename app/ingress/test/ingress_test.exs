@@ -42,6 +42,7 @@ defmodule Ingress.PipelineTest do
       # The live event is now dual-published, so routing reads the broadcaster
       # status for the event-lane copy. Stand up a cache that always returns
       # premium for these tests.
+      start_supervised!({Task.Supervisor, name: Ingress.BroadcasterCache.TaskSupervisor})
       start_supervised!({Ingress.BroadcasterCache, [loader: fn _id -> {:ok, :premium} end]})
       :ok
     end
@@ -158,6 +159,7 @@ defmodule Ingress.BroadcasterCacheTest do
   defp start_cache(loader, opts \\ []) do
     name = :"cache_#{System.unique_integer([:positive])}"
 
+    start_supervised!({Task.Supervisor, name: Ingress.BroadcasterCache.TaskSupervisor})
     start_supervised!({BroadcasterCache, [name: name, table: name, loader: loader] ++ opts})
 
     name
@@ -254,6 +256,7 @@ defmodule Ingress.CacheInvalidatorTest do
       {:ok, :premium}
     end
 
+    start_supervised!({Task.Supervisor, name: Ingress.BroadcasterCache.TaskSupervisor})
     start_supervised!({BroadcasterCache, [loader: loader, ttl_ms: 60_000]})
     %{counter: counter}
   end

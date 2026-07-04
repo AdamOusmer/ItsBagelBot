@@ -11,11 +11,15 @@ defmodule Ingress.Dispatcher do
 
   require Logger
 
-  alias Ingress.{Config, Metrics, Pipeline}
+  alias Ingress.{Config, Metrics}
 
-  @task_supervisor Ingress.Dispatcher.TaskSupervisor
-
-  defstruct [:max_running, :max_queue, running: %{}, queue: :queue.new()]
+  defstruct [
+    :max_running,
+    :max_queue,
+    idle_workers: :queue.new(),
+    busy_workers: %{},
+    queue: :queue.new()
+  ]
 
   @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts), do: GenServer.start_link(__MODULE__, opts, name: __MODULE__)
@@ -29,7 +33,21 @@ defmodule Ingress.Dispatcher do
         :ok
 
       pid ->
-        send(pid, {:dispatch, payload, meta})
+        try do
+          count = :ets.update_counter(__MODULE__, :admitted_count, {2, 1})
+          capacity = :ets.lookup_element(__MODULE__, :capacity, 2)
+
+          if count > capacity do
+            :ets.update_counter(__MODULE__, :admitted_count, {2, -1})
+            Metrics.count("Dispatcher/Dropped")
+          else
+            send(pid, {:dispatch, payload, meta})
+          end
+        catch
+          :error, :badarg ->
+            Metrics.count("Dispatcher/Dropped")
+        end
+
         :ok
     end
   end
@@ -38,62 +56,82 @@ defmodule Ingress.Dispatcher do
   def init(opts) do
     max_running = Keyword.get(opts, :max_running, Config.dispatcher_max_running())
     max_queue = Keyword.get(opts, :max_queue, Config.dispatcher_max_queue())
+    capacity = max_running + max_queue
+
+    :ets.new(__MODULE__, [
+      :named_table,
+      :public,
+      :set,
+      read_concurrency: true,
+      write_concurrency: true
+    ])
+
+    :ets.insert(__MODULE__, {:admitted_count, 0})
+    :ets.insert(__MODULE__, {:capacity, capacity})
 
     {:ok, %__MODULE__{max_running: max_running, max_queue: max_queue}}
   end
 
   @impl true
   def handle_info({:dispatch, payload, meta}, state) do
-    enqueue_or_start({payload, meta}, state)
+    case :queue.out(state.idle_workers) do
+      {{:value, worker_pid}, idle_workers} ->
+        Metrics.count("Dispatcher/Started")
+        GenServer.cast(worker_pid, {:process, payload, meta})
+
+        state = %{
+          state
+          | idle_workers: idle_workers,
+            busy_workers: Map.put(state.busy_workers, worker_pid, true)
+        }
+
+        {:noreply, state}
+
+      {:empty, _} ->
+        Metrics.count("Dispatcher/Queued")
+        {:noreply, %{state | queue: :queue.in({payload, meta}, state.queue)}}
+    end
   end
 
-  def handle_info({ref, _result}, state) when is_reference(ref) do
-    Process.demonitor(ref, [:flush])
-    finish(ref, state)
+  def handle_info({:worker_ready, worker_pid}, state) do
+    state =
+      if Map.has_key?(state.busy_workers, worker_pid) do
+        :ets.update_counter(__MODULE__, :admitted_count, {2, -1})
+        %{state | busy_workers: Map.delete(state.busy_workers, worker_pid)}
+      else
+        Process.monitor(worker_pid)
+        state
+      end
+
+    case :queue.out(state.queue) do
+      {{:value, {payload, meta}}, queue} ->
+        Metrics.count("Dispatcher/Started")
+        GenServer.cast(worker_pid, {:process, payload, meta})
+
+        state = %{
+          state
+          | queue: queue,
+            busy_workers: Map.put(state.busy_workers, worker_pid, true)
+        }
+
+        {:noreply, state}
+
+      {:empty, _} ->
+        {:noreply, %{state | idle_workers: :queue.in(worker_pid, state.idle_workers)}}
+    end
   end
 
-  def handle_info({:DOWN, ref, :process, _pid, reason}, state) do
-    if reason != :normal do
-      Logger.warning("ingress dispatch task failed: #{inspect(reason)}")
+  def handle_info({:DOWN, _ref, :process, pid, _reason}, state) do
+    if Map.has_key?(state.busy_workers, pid) do
+      :ets.update_counter(__MODULE__, :admitted_count, {2, -1})
       Metrics.count("Dispatcher/TaskFailed")
     end
 
-    finish(ref, state)
-  end
+    state = %{state | busy_workers: Map.delete(state.busy_workers, pid)}
 
-  defp enqueue_or_start(item, state) do
-    if map_size(state.running) < state.max_running do
-      {:noreply, start_task(item, state)}
-    else
-      if :queue.len(state.queue) < state.max_queue do
-        Metrics.count("Dispatcher/Queued")
-        {:noreply, %{state | queue: :queue.in(item, state.queue)}}
-      else
-        Metrics.count("Dispatcher/Dropped")
-        {:noreply, state}
-      end
-    end
-  end
+    idle_list = :queue.to_list(state.idle_workers) |> Enum.reject(&(&1 == pid))
+    state = %{state | idle_workers: :queue.from_list(idle_list)}
 
-  defp finish(ref, state) do
-    state = %{state | running: Map.delete(state.running, ref)}
-
-    case :queue.out(state.queue) do
-      {{:value, item}, queue} ->
-        {:noreply, start_task(item, %{state | queue: queue})}
-
-      {:empty, _queue} ->
-        {:noreply, state}
-    end
-  end
-
-  defp start_task({payload, meta}, state) do
-    task =
-      Task.Supervisor.async_nolink(@task_supervisor, fn ->
-        Pipeline.handle_event(payload, meta)
-      end)
-
-    Metrics.count("Dispatcher/Started")
-    %{state | running: Map.put(state.running, task.ref, task.pid)}
+    {:noreply, state}
   end
 end

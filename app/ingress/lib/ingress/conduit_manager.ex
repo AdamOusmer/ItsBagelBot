@@ -103,8 +103,11 @@ defmodule Ingress.ConduitManager do
           Logger.info("stopping excess shard #{shard_id} (desired=#{desired})")
 
           case Horde.DynamicSupervisor.terminate_child(Ingress.ShardSupervisor, pid) do
-            :ok -> :ok
-            {:error, reason} -> Logger.warning("stop shard #{shard_id} failed: #{inspect(reason)}")
+            :ok ->
+              :ok
+
+            {:error, reason} ->
+              Logger.warning("stop shard #{shard_id} failed: #{inspect(reason)}")
           end
 
         [] ->
