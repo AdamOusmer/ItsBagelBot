@@ -26,13 +26,11 @@ defmodule Ingress.Pipeline do
        matching the **broadcaster's** status, looked up through
        `Ingress.BroadcasterCache`. Commands are never squashed - a repeated
        command is a legitimate second invocation the worker gates by cooldown.
-    3. Anything else (plain chat): gated behind the `chat_passthrough_enabled`
-       flag. While it is off (the default) plain chat is dropped exactly as
-       before, so the guards ship dark; flip it on once the worker's automod is
-       ready. When on, it is published under two guards: identical lines are
-       coalesced by `Ingress.Squash` into one `channel.chat.message.duplicates`
-       cohort (keeping the full reputation/campaign signal), and the surviving
-       distinct lines are rate-capped per channel by `Ingress.FloodShed`.
+    3. Anything else (plain chat): published to the broadcaster's lane so the
+       worker's automod sees every message. Identical lines are coalesced by
+       `Ingress.Squash` into one folded `channel.chat.message` carrying every
+       sender, so per-user reputation and cross-user campaign detection keep the
+       full signal at a fraction of the event count.
 
   A size guard drops oversized/malformed chat text (`max_chat_text_bytes`)
   before any routing.
@@ -44,7 +42,7 @@ defmodule Ingress.Pipeline do
 
   require Logger
 
-  alias Ingress.{BroadcasterCache, Config, FloodShed, Metrics, Nats, Squash}
+  alias Ingress.{BroadcasterCache, Config, Metrics, Nats, Squash}
 
   @type decision :: :special | :command | :chat
 
@@ -63,10 +61,6 @@ defmodule Ingress.Pipeline do
       :squash ->
         Metrics.count("Squashed")
         :squash
-
-      :shed ->
-        Metrics.count("Shed")
-        :shed
 
       :oversized ->
         Metrics.count("Oversized")
@@ -206,38 +200,19 @@ defmodule Ingress.Pipeline do
     end
   end
 
-  # Plain (non-command) chat. The `!` lift is gated behind a flag so the code
-  # ships dark: when disabled, plain chat keeps the pre-lift behaviour and is
-  # dropped, and the flag is flipped only once the worker's automod is ready to
-  # consume the volume. When enabled, identical lines are squashed into a cohort
-  # (Ingress.Squash) and the surviving distinct lines are rate-capped per channel
-  # (Ingress.FloodShed) before publishing.
+  # Plain (non-command) chat now flows to the worker for the automod. Identical
+  # lines are coalesced by Ingress.Squash: the first publishes immediately, the
+  # rest fold into one channel.chat.message carrying every sender.
   defp plain_chat(event, text, meta) do
-    broadcaster_id = event["broadcaster_user_id"]
-
-    cond do
-      not Config.chat_passthrough_enabled?() ->
+    case BroadcasterCache.lane(event["broadcaster_user_id"]) do
+      :drop ->
         :drop
 
-      true ->
-        case BroadcasterCache.lane(broadcaster_id) do
-          :drop ->
-            :drop
-
-          lane ->
-            case Squash.observe(cohort_base(lane, event, text), sender_entry(event, meta)) do
-              :buffered -> :squash
-              :first -> flood_gated_publish(broadcaster_id, lane, event, text, meta)
-            end
+      lane ->
+        case Squash.observe(cohort_base(lane, event, text), sender_entry(event, meta)) do
+          :buffered -> :squash
+          :first -> chat_message(lane, event, text, meta)
         end
-    end
-  end
-
-  defp flood_gated_publish(broadcaster_id, lane, event, text, meta) do
-    if FloodShed.allow?(broadcaster_id) do
-      chat_message(lane, event, text, meta)
-    else
-      :shed
     end
   end
 
