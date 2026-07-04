@@ -10,6 +10,9 @@ defmodule Ingress.Application do
       them to surviving nodes when a node leaves.
     * `Ingress.BroadcasterCache` - in-process ETS cache over the broadcaster
       status NATS RPC (the ingress never reads the database directly).
+    * `Ingress.Squash` - coalesces identical non-command chat into one folded
+      `channel.chat.message` carrying every sender, so duplicates keep their
+      reputation/campaign signal without one bus event each.
     * `Ingress.Dispatcher` - bounded async notification filtering and NATS
       publish workers so shard socket processes never do that work inline.
     * `Ingress.Twitch.AppToken` - cached app access token for Helix calls.
@@ -63,6 +66,7 @@ defmodule Ingress.Application do
       nats_bus_connection(),
       Ingress.NatsFailback,
       Ingress.BroadcasterCache,
+      Ingress.Squash,
       {Task.Supervisor, name: Ingress.Dispatcher.TaskSupervisor},
       Ingress.Dispatcher,
       Ingress.Twitch.AppToken,

@@ -94,7 +94,7 @@ spec:
             # broker is OOMKilled the moment a stream uses its memory budget.
             # CPU limit preserves burst headroom for low-p99 local RPC paths
             # on JetStream flushes or GC bursts; this node carries the whole bus.
-            requests: {cpu: 250m, memory: 256Mi}
+            requests: {cpu: 150m, memory: 384Mi}
             limits: {cpu: 2000m, memory: 768Mi}
           securityContext:
             allowPrivilegeEscalation: false

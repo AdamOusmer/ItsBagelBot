@@ -5,6 +5,11 @@ import { defineConfig } from '@playwright/test';
 export default defineConfig({
     testDir: './tests',
     fullyParallel: true,
+    // The encryption scene runs a real WebGL context (software-rendered in
+    // headless); too many parallel workers starve rAF and make the timing-based
+    // assertions flake. Cap workers and allow one retry for residual contention.
+    workers: 3,
+    retries: 1,
     use: {
         baseURL: 'http://localhost:4399',
     },

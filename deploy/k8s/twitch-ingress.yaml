@@ -45,7 +45,7 @@ metadata:
   annotations:
     secrets.doppler.com/reload: "true"
 spec:
-  replicas: 5 # enforced even spread across node1/2/3/worker1 (2,1,1,1) via hard topology spread below
+  replicas: 4 # node1 excluded via hot-path anti-affinity; soft even spread across node2/worker1 (2,2)
   revisionHistoryLimit: 3
   strategy:
     type: RollingUpdate
@@ -85,18 +85,24 @@ spec:
           operator: Exists
           effect: NoExecute
           tolerationSeconds: 60
-      # Enforced even spread (maxSkew 1, DoNotSchedule): 5 pods across 4 nodes
-      # lands 2,1,1,1 and never piles onto one node. The previous soft spread
-      # plus a worker-pool nodeAffinity preference let the scheduler's
-      # least-allocated scoring put ALL pods on worker1 (the bandwidth-capped,
-      # LAN-isolated worker node), defeating HA and closest-node routing. The
-      # worker-pool preference is removed; the toleration stays so worker1 still
-      # carries its share. maxSkew 1 stays satisfiable even if one node is
-      # transiently unschedulable (5 pods on 3 nodes = 2,2,1, skew 1).
+      # node1 (2-core ARM) is reserved for stateful/frontend + infra; keep ingress
+      # off it via nodeAffinity. That leaves node2 + worker1 as the only eligible
+      # nodes, so the spread is SOFT (ScheduleAnyway): a worker1 outage (home node)
+      # must not strand ingress with a hard maxSkew it cannot satisfy on one node.
+      # The worker-pool preference was already removed, so soft maxSkew 1 still
+      # lands 2,2 in normal operation without piling onto worker1.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values: [node1]
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: DoNotSchedule
+          whenUnsatisfiable: ScheduleAnyway
           labelSelector:
             matchLabels:
               app: twitch-ingress
@@ -116,7 +122,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: ingress
-          image: ghcr.io/adamousmer/itsbagelbot/twitch-ingress:main-1783117453-ec5a4e11823d@sha256:3205a116594564c7c03c4a2e29cd79c3be358472cf234536635525cdc2410f9e # {"$imagepolicy": "flux-system:twitch-ingress"}
+          image: ghcr.io/adamousmer/itsbagelbot/twitch-ingress:main-1783137247-4df774c64a0a@sha256:bebf497e7a908698d43927ee9e7985b7e0a129ed7bb8b3fda614b96d6e93b422 # {"$imagepolicy": "flux-system:twitch-ingress"}
           imagePullPolicy: IfNotPresent
           envFrom:
             - secretRef:
@@ -165,8 +171,8 @@ spec:
                 +S 2:2 +SDio 4 +sbwt none +sbwtdcpu none +sbwtdio none -kernel inet_dist_listen_min 9100 -kernel inet_dist_listen_max 9110
           resources:
             requests:
-              cpu: 50m
-              memory: 192Mi
+              cpu: 150m
+              memory: 256Mi
             limits:
               cpu: "2"
               memory: 512Mi
