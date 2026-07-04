@@ -247,6 +247,7 @@ const t = useTranslations(lang);
 
 <script>
     import lenis from '../../script/scroll.js';
+    import { runDecode } from '../../script/decode.js';
     import {
         buildEncryptionGeometryData,
         FLOW_CURVE_SAMPLES,
@@ -301,17 +302,29 @@ const t = useTranslations(lang);
     const TAN = 0xc9a87c;
     const WHITE = 0xf0ece4;
 
-    /* ─── dom ────────────────────────────────────────────────────── */
-    const canvas = document.getElementById('enc-canvas') as HTMLCanvasElement;
-    const section = document.getElementById('enc-section') as HTMLElement;
-    const pin = section.querySelector('.enc-pin') as HTMLElement;
-    const overlays = [0, 1, 2, 3].map(i => document.getElementById(`enc-ov-${i}`) as HTMLElement);
-    const headings = overlays.map(el => el?.querySelector('.enc-h2') as HTMLElement | null);
-    const paragraphs = overlays.map(el => el?.querySelector('.enc-p') as HTMLElement | null);
-    const connectors = [0, 1, 2, 3].map(i => document.getElementById(`enc-line-${i}`) as HTMLElement);
-    const headingText = headings.map(el => el?.textContent ?? '');
-    const SCRAMBLE_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#$%&*+-/<>[]{}';
-    const TITLE_SCRAMBLE_SPAN = 0.115;
+    /* ─── dom (re-queried on every Astro page-load: view transitions
+       swap the DOM out from under us, so cached nodes go stale) ────── */
+    let canvas: HTMLCanvasElement;
+    let section: HTMLElement;
+    let pin: HTMLElement;
+    let overlays: HTMLElement[] = [];
+    let headings: (HTMLElement | null)[] = [];
+    let paragraphs: (HTMLElement | null)[] = [];
+    let connectors: HTMLElement[] = [];
+    let headingText: string[] = [];
+
+    function queryDom() {
+        canvas = document.getElementById('enc-canvas') as HTMLCanvasElement;
+        section = document.getElementById('enc-section') as HTMLElement;
+        if (!canvas || !section) return false;
+        pin = section.querySelector('.enc-pin') as HTMLElement;
+        overlays = [0, 1, 2, 3].map(i => document.getElementById(`enc-ov-${i}`) as HTMLElement);
+        headings = overlays.map(el => el?.querySelector('.enc-h2') as HTMLElement | null);
+        paragraphs = overlays.map(el => el?.querySelector('.enc-p') as HTMLElement | null);
+        connectors = [0, 1, 2, 3].map(i => document.getElementById(`enc-line-${i}`) as HTMLElement);
+        headingText = headings.map(el => el?.textContent ?? '');
+        return true;
+    }
     const TEXT_ENTER_SPAN = 0.06;
     const TEXT_EXIT_SPAN = 0.045;
     const SNAP_POINTS = [0.125, 0.375, 0.625, 0.875];
@@ -427,6 +440,7 @@ const t = useTranslations(lang);
     }
 
     function dampEncryptionScroll(data: VirtualScrollData) {
+        if (!section) return true;
         const {deltaX, deltaY, event} = data;
         if (event instanceof WheelEvent && event.ctrlKey) return true;
         if (Math.abs(deltaY) < NODE_SLOW_MIN_DELTA_PX || Math.abs(deltaY) <= Math.abs(deltaX)) return true;
@@ -457,20 +471,6 @@ const t = useTranslations(lang);
     }
 
     assistedWindow.__encryptionScrollAssist = dampEncryptionScroll;
-
-    function scrambleTitle(text: string, progress: number, seed: number) {
-        const chars = Array.from(text);
-        const revealCount = Math.floor(chars.length * progress);
-        const tick = Math.floor(progress * 16);
-
-        return chars.map((char, i) => {
-            if (char === ' ' || /\W/.test(char)) return char;
-            if (i < revealCount) return char;
-
-            const n = (i * 19 + tick * 7 + seed * 13) % SCRAMBLE_CHARS.length;
-            return SCRAMBLE_CHARS[n];
-        }).join('');
-    }
 
     async function initEncryption() {
         const [
@@ -794,9 +794,11 @@ const t = useTranslations(lang);
         }
 
         const connectorVarCache: Array<Record<string, string>> = connectors.map(() => ({}));
-        const headingCharLengths = headingText.map((text) => Array.from(text).length);
-        const SCRAMBLE_ORIGINAL = -1;
-        const headingScrambleState: number[] = headings.map(() => SCRAMBLE_ORIGINAL - 1);
+        // One decode per appearance: fire the shared scramble reveal when an
+        // overlay becomes visible, re-arm once it fully fades back out.
+        const headingDecoded: boolean[] = headings.map(() => false);
+        const DECODE_SHOW = 0.5;
+        const DECODE_HIDE = 0.05;
 
         function setConnectorVar(index: number, name: string, value: string) {
             const cache = connectorVarCache[index];
@@ -1086,7 +1088,6 @@ const t = useTranslations(lang);
                 const scale = 1 - exitProgress * 0.025;
                 const blur = exitProgress * 5;
                 const lineProgress = Math.min(fadeIn, ss(start + 0.015, start + 0.11, p));
-                const titleProgress = ss(start, start + TITLE_SCRAMBLE_SPAN, p);
                 setOverlayStyle(
                     i,
                     el,
@@ -1097,20 +1098,17 @@ const t = useTranslations(lang);
                 updateNodeConnector(i, alpha, lineProgress, dy);
 
                 const heading = headings[i];
-                const original = headingText[i];
                 if (!heading) continue;
 
-                if (alpha > 0.01 && titleProgress < 1) {
-                    const revealCount = Math.floor(headingCharLengths[i] * titleProgress);
-                    const tick = Math.floor(titleProgress * 16);
-                    const state = revealCount * 32 + tick;
-                    if (state !== headingScrambleState[i]) {
-                        heading.textContent = scrambleTitle(original, titleProgress, i);
-                        headingScrambleState[i] = state;
+                // Trigger the shared decode reveal once as the overlay appears;
+                // re-arm when it has fully faded out so a scroll-back replays it.
+                if (alpha > DECODE_SHOW) {
+                    if (!headingDecoded[i]) {
+                        headingDecoded[i] = true;
+                        runDecode(heading, headingText[i]);
                     }
-                } else if (headingScrambleState[i] !== SCRAMBLE_ORIGINAL) {
-                    heading.textContent = original;
-                    headingScrambleState[i] = SCRAMBLE_ORIGINAL;
+                } else if (alpha < DECODE_HIDE) {
+                    headingDecoded[i] = false;
                 }
             }
         }
@@ -1258,27 +1256,46 @@ const t = useTranslations(lang);
         cleanupScene = null;
         document.removeEventListener('itsbagelbot:loader-complete', onBootLoaderComplete);
         window.removeEventListener('scroll', onBootScroll);
-        document.removeEventListener('astro:before-swap', cleanup);
-        window.removeEventListener('pagehide', cleanup);
     }
 
-    loadObserver = new IntersectionObserver(
-        ([entry]) => {
-            if (!entry.isIntersecting) return;
-            loadObserver?.disconnect();
-            loadObserver = null;
-            requestEncryptionStart();
-        },
-        {rootMargin: '900px 0px'},
-    );
-    loadObserver.observe(section);
-    document.addEventListener('itsbagelbot:loader-complete', onBootLoaderComplete);
-    window.addEventListener('scroll', onBootScroll, {passive: true});
+    function setup() {
+        // Astro view transitions swap the DOM and never re-execute this
+        // module, so each entry (initial load + navigating back) must
+        // re-query the fresh nodes and rebuild boot state from scratch.
+        if (!queryDom()) return;
 
-    if (bootCompleted) {
-        maybeStartAfterBoot();
+        destroyed = false;
+        initPromise = null;
+        cleanupScene = null;
+        pendingStart = false;
+        postBootStartTimer = 0;
+        bootCompleted =
+            preloadRegistry.bootComplete === true ||
+            document.getElementById('loader-wrapper')?.getAttribute('aria-hidden') === 'true' ||
+            !document.getElementById('loader-wrapper');
+
+        assistedWindow.__encryptionScrollAssist = dampEncryptionScroll;
+        preloadRegistry.preloadEncryption = preloadEncryptionScene;
+
+        loadObserver = new IntersectionObserver(
+            ([entry]) => {
+                if (!entry.isIntersecting) return;
+                loadObserver?.disconnect();
+                loadObserver = null;
+                requestEncryptionStart();
+            },
+            {rootMargin: '900px 0px'},
+        );
+        loadObserver.observe(section);
+        document.addEventListener('itsbagelbot:loader-complete', onBootLoaderComplete);
+        window.addEventListener('scroll', onBootScroll, {passive: true});
+
+        if (bootCompleted) {
+            maybeStartAfterBoot();
+        }
     }
 
-    document.addEventListener('astro:before-swap', cleanup, {once: true});
-    window.addEventListener('pagehide', cleanup, {once: true});
+    document.addEventListener('astro:page-load', setup);
+    document.addEventListener('astro:before-swap', cleanup);
+    window.addEventListener('pagehide', cleanup);
 </script>

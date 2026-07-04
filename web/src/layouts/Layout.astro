@@ -71,11 +71,11 @@ const frHref = new URL(basePath === '/' ? '/fr/' : `/fr${basePath}`, Astro.site)
 
     <title>{title}</title>
 
-    <!-- SPA-style navigation. The site's components already re-init on
-         astro:page-load and clean up on astro:before-swap; this wires them up
-         and adds the custom page transition below. The router script is bundled
-         (assetsInlineLimit:0 keeps it external) so it stays within the strict
-         script-src 'self' CSP. -->
+    <!-- SPA-style navigation. The site's components re-init on
+         astro:page-load and clean up on astro:before-swap; this wires them up.
+         Uses Astro's default view transition (no custom ::view-transition
+         animation). The router script is bundled (assetsInlineLimit:0 keeps it
+         external) so it stays within the strict script-src 'self' CSP. -->
     <ClientRouter />
 </head>
 
@@ -127,42 +127,5 @@ const frHref = new URL(basePath === '/' ? '/fr/' : `/fr${basePath}`, Astro.site)
        sticky + scroll math (which assumes top-level sections are body children). */
     main {
         display: contents;
-    }
-</style>
-
-<style is:global>
-    /* ── Custom page transition ──────────────────────────────────────
-       The arriving page slides up and fades in ON TOP of the leaving one,
-       which stays fully opaque and only recedes a touch for depth. Keeping the
-       old view opaque underneath is deliberate: if both faded out, the dark
-       page backdrop would show through mid-transition (the "fade to black").
-       This way the incoming page always covers a solid surface.
-
-       No blur filter: blurring a full-viewport snapshot every frame is the main
-       cost of a view transition, so the motion is opacity + a small lift/scale.
-       Runs on navigation only, never on first paint. */
-    @keyframes bb-page-leave {
-        to { transform: scale(0.985); }
-    }
-    @keyframes bb-page-enter {
-        from {
-            opacity: 0;
-            transform: translateY(22px) scale(0.995);
-        }
-    }
-
-    ::view-transition-group(root) { animation-duration: 440ms; }
-    ::view-transition-old(root) {
-        /* stays opaque; just recedes slightly under the incoming page */
-        animation: bb-page-leave 440ms cubic-bezier(0.33, 1, 0.68, 1) both;
-    }
-    ::view-transition-new(root) {
-        animation: bb-page-enter 440ms cubic-bezier(0.16, 1, 0.3, 1) both;
-    }
-
-    /* Respect reduced motion: a plain instant swap, no drift or fade. */
-    @media (prefers-reduced-motion: reduce) {
-        ::view-transition-old(root),
-        ::view-transition-new(root) { animation: none; }
     }
 </style>

@@ -103,7 +103,9 @@ test.describe('ItsBagelBot site', () => {
 
     test('active nav route is marked', async ({ page }) => {
         await page.goto('/pricing');
-        await expect(page.locator('nav .is-active')).toContainText('Pricing');
+        // Scope to the nav route link (aria-current="page"); the language
+        // switcher also carries .is-active for the active locale (aria-current="true").
+        await expect(page.locator('nav a[aria-current="page"]')).toContainText('Pricing');
     });
 });
 
