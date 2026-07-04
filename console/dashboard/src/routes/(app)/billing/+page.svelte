@@ -273,8 +273,7 @@
         <span class="plan-eyebrow">{t('billing.upgrade')}</span>
         <div class="plan-headline">{t('billing.premium')}</div>
         <div class="plan-price">
-          <span class="plan-cur">$</span>
-          <span class="plan-amt">5</span>
+          <span class="plan-amt">7$</span>
           <span class="plan-per">{t('billing.perMonth')}</span>
         </div>
         <p class="plan-desc">{t('billing.premiumDesc')}</p>
@@ -556,14 +555,6 @@
     align-items: baseline;
     gap: 3px;
     margin-bottom: 12px;
-  }
-  .plan-cur {
-    font-family: var(--bb-font-display);
-    font-weight: 800;
-    font-size: 1.5rem;
-    color: var(--bb-tan-light);
-    align-self: flex-start;
-    margin-top: 6px;
   }
   .plan-amt {
     font-family: var(--bb-font-display);

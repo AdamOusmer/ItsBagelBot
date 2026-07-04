@@ -219,7 +219,7 @@ export const fr = {
     priorityLane: 'File prioritaire',
     upgrade: 'Améliorer',
     premium: 'Premium',
-    perMonth: '/mois',
+    perMonth: 'CAD +tx /mois',
     premiumDesc: 'Garde les serveurs au chaud et vous fait passer en tête de file quand le chat s\'emballe.',
     premiumFeat1: 'Tout ce qui est dans Gratuit, évidemment',
     premiumFeat2: 'Vos messages passent devant tout le monde',
