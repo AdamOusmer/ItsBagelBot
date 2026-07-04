@@ -63,6 +63,10 @@ const (
 	TypeClip         = "clip"
 	TypeAnnounce     = "announce"
 	TypeShoutout     = "shoutout"
+	// TypeShieldMode activates a channel's Shield Mode: one PUT that gates the
+	// whole channel (blocks non-followers/new accounts) instead of banning a
+	// mass-raid account by account, which would blow the shared Helix budget.
+	TypeShieldMode = "shield_mode"
 )
 
 // EventSubJob mode values for the Mode field.

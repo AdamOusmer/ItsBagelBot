@@ -76,6 +76,10 @@ func main() {
 	// returns the built modules (core commands + bagel, live tracker, opt-in
 	// shoutout), which the engine registry indexes. Adding a feature is a new file
 	// in app/sesame/modules plus one line in all.go — no wiring here.
+	// guard is the inline automod gate; hoisted so the emote refresher can install
+	// its false-positive-suppression sets onto the same instance.
+	guard := automod.New()
+
 	deps := engine.Deps{
 		Proj:       proj,
 		Live:       live,
@@ -87,10 +91,14 @@ func main() {
 		Commands:   engine.NewCommandsRPC(nc, cfg.CommandsDashboardPrefix),
 		Gateway:    engine.NewGatewayRPC(nc, cfg.GatewayRPCPrefix),
 		Log:        log,
-		Automod:    automod.New(),
+		Automod:    guard,
 		Reputation: engine.NewValkeyReputation(valkeyClient, 6*time.Hour, log),
 	}
 	registry := engine.NewRegistry(log, modules.All(deps)...)
+
+	if cfg.EmotesEnabled {
+		go refreshEmotes(ctx, guard, log)
+	}
 
 	pipe := engine.NewPipeline(deps, registry, engine.Config{
 		BotID:            cfg.BotUserID,
@@ -98,6 +106,7 @@ func main() {
 		OutgressStandard: cfg.OutgressStandardSubject,
 		CountUses:        true,
 		AutomodEnforce:   cfg.AutomodEnforce,
+		ShieldEnabled:    cfg.ShieldEnabled,
 	})
 	defer pipe.Close() // flushes pending use-counter ticks on shutdown
 
@@ -122,6 +131,40 @@ func main() {
 	<-ctx.Done()
 
 	log.Info("sesame shutting down")
+}
+
+// emoteRefreshInterval is how often the global third-party emote sets are
+// re-fetched. They change slowly; hourly keeps the caps false-positive suppression
+// fresh at negligible cost (a few small unauthenticated GETs).
+const emoteRefreshInterval = time.Hour
+
+// refreshEmotes keeps the automod's third-party emote set current: it installs the
+// global BTTV/FFZ/7TV codes once at startup, then re-fetches on a slow ticker. A
+// fetch failure is logged and the previous set is kept; it never blocks the gate,
+// which treats an absent set as "suppress nothing" (the pre-emote behavior).
+func refreshEmotes(ctx context.Context, guard *automod.Gate, log *zap.Logger) {
+	fetcher := automod.NewEmoteFetcher(nil, automod.DefaultEmoteEndpoints)
+
+	load := func() {
+		n, err := fetcher.Refresh(ctx, guard)
+		if err != nil {
+			log.Warn("emote set refresh partial or failed", zap.Int("codes", n), zap.Error(err))
+			return
+		}
+		log.Info("emote set refreshed", zap.Int("codes", n))
+	}
+
+	load()
+	ticker := time.NewTicker(emoteRefreshInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			load()
+		}
+	}
 }
 
 // infra bundles the process's shared clients so the wiring helpers take one
