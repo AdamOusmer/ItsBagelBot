@@ -15,9 +15,11 @@ const DefaultLocale = "en"
 var catalog = map[string]map[string]string{
 	"en": {
 		"ping": "Pong! ItsBagelBot has been up for %s",
+		"bagels_ready": "/me The bagels are ready! 🥯",
 	},
 	"fr": {
 		"ping": "Pong ! ItsBagelBot est actif depuis %s",
+		"bagels_ready": "/me Les bagels sont prêts ! 🥯",
 	},
 }
 
