@@ -65,6 +65,10 @@ type Config struct {
 	// chat messages so it never reacts to itself.
 	BotUserID string
 
+	// AutomodEnforce arms the automod: false (default) runs it in shadow mode
+	// (verdicts are logged, no action taken); true emits the ban/timeout actions.
+	AutomodEnforce bool
+
 	// LiveTTL bounds how long a live key survives without a refresh.
 	LiveTTL time.Duration
 
@@ -123,6 +127,8 @@ func Load() *Config {
 		SpecialUserIDs: env.Get("TWITCH_SPECIAL_USER_IDS", ""),
 
 		BotUserID: env.Get("TWITCH_BOT_USER_ID", ""),
+
+		AutomodEnforce: env.Get("SESAME_AUTOMOD_ENFORCE", "false") == "true",
 
 		LiveTTL: env.GetDuration("SESAME_LIVE_TTL", 12*time.Hour),
 
