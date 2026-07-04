@@ -59,25 +59,10 @@ defmodule Ingress.Config do
   def squash_sweep_ms,
     do: Application.get_env(:ingress, :squash_sweep_ms, 500)
 
-  # Feature flag for the lifted `!` filter. While false (the default), plain
-  # non-command chat is dropped exactly as before, so the guards can ship dark;
-  # flip it true once the worker's automod is ready to consume all chat.
-  def chat_passthrough_enabled?,
-    do: Application.get_env(:ingress, :chat_passthrough_enabled, false)
-
   # Size guard: chat text past this many bytes is malformed/abuse and dropped.
   # A well-formed Twitch line is <= 500 chars; the ceiling is generous.
   def max_chat_text_bytes,
     do: Application.get_env(:ingress, :max_chat_text_bytes, 4_096)
-
-  # Per-channel plain-chat rate cap (messages per second) before shedding; see
-  # Ingress.FloodShed. Identical lines are squashed first, so this caps distinct
-  # plain chat only.
-  def flood_shed_per_sec,
-    do: Application.get_env(:ingress, :flood_shed_per_sec, 40)
-
-  def flood_shed_sweep_ms,
-    do: Application.get_env(:ingress, :flood_shed_sweep_ms, 2_000)
 
   def dispatcher_max_running,
     do: Application.get_env(:ingress, :dispatcher_max_running, 64)

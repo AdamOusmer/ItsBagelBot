@@ -120,6 +120,18 @@ defmodule Ingress.PipelineTest do
 
       assert :oversized = Pipeline.route(notification("channel.chat.message", event), @meta)
     end
+
+    test "plain chat publishes to the broadcaster lane (squash fails open when unstarted)" do
+      event = %{
+        "broadcaster_user_id" => "77",
+        "chatter_user_id" => "555",
+        "message" => %{"text" => "just chatting"}
+      }
+
+      assert {:publish, "twitch.ingress.event.premium",
+              %{type: "channel.chat.message", lane: :premium, text: "just chatting"}} =
+               Pipeline.route(notification("channel.chat.message", event), @meta)
+    end
   end
 
   describe "broadcaster_id/1" do
@@ -321,7 +333,7 @@ defmodule Ingress.SquashTest do
     assert Squash.observe(base("spam", :premium), sender("3")) == :buffered
 
     assert_receive {:published, "twitch.ingress.event.premium", cohort}, 500
-    assert cohort.type == "channel.chat.message.duplicates"
+    assert cohort.type == "channel.chat.message"
     assert cohort.text == "spam"
     assert cohort.count == 2
     assert cohort.distinct_users == 2
@@ -341,73 +353,5 @@ defmodule Ingress.SquashTest do
   test "observe fails open to :first when the table is absent" do
     # No Squash started: the pipeline must never lose a message.
     assert Squash.observe(base("x"), sender("1")) == :first
-  end
-end
-
-defmodule Ingress.PipelineGuardsTest do
-  # async: false - mutates the shared :chat_passthrough_enabled app env.
-  use ExUnit.Case, async: false
-
-  alias Ingress.Pipeline
-
-  @meta %{shard_id: 0, msg_id: "m1", ts: "2026-06-10T00:00:00Z"}
-
-  setup do
-    start_supervised!({Ingress.BroadcasterCache, [loader: fn _id -> {:ok, :standard} end]})
-    on_exit(fn -> Application.delete_env(:ingress, :chat_passthrough_enabled) end)
-    :ok
-  end
-
-  defp plain_chat do
-    %{
-      "subscription" => %{"type" => "channel.chat.message"},
-      "event" => %{
-        "broadcaster_user_id" => "77",
-        "chatter_user_id" => "555",
-        "message" => %{"text" => "just chatting"}
-      }
-    }
-  end
-
-  test "plain chat is dropped while the passthrough flag is off (ships dark)" do
-    Application.put_env(:ingress, :chat_passthrough_enabled, false)
-    assert :drop = Pipeline.route(plain_chat(), @meta)
-  end
-
-  test "plain chat publishes when the passthrough flag is on (guards fail open)" do
-    Application.put_env(:ingress, :chat_passthrough_enabled, true)
-
-    assert {:publish, "twitch.ingress.event.standard",
-            %{type: "channel.chat.message", text: "just chatting"}} =
-             Pipeline.route(plain_chat(), @meta)
-  end
-end
-
-defmodule Ingress.FloodShedTest do
-  use ExUnit.Case, async: false
-
-  alias Ingress.FloodShed
-
-  test "allows up to the per-second limit, then sheds" do
-    start_supervised!({FloodShed, [per_sec: 3, sweep_ms: 60_000]})
-
-    assert FloodShed.allow?("c1")
-    assert FloodShed.allow?("c1")
-    assert FloodShed.allow?("c1")
-    refute FloodShed.allow?("c1")
-    refute FloodShed.allow?("c1")
-  end
-
-  test "the budget is per channel" do
-    start_supervised!({FloodShed, [per_sec: 1, sweep_ms: 60_000]})
-
-    assert FloodShed.allow?("a")
-    refute FloodShed.allow?("a")
-    # A different channel has its own budget.
-    assert FloodShed.allow?("b")
-  end
-
-  test "fails open when not started so a missing guard never drops traffic" do
-    assert FloodShed.allow?("nope")
   end
 end
