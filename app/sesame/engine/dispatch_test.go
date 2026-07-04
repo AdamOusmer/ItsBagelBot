@@ -131,6 +131,17 @@ func TestBakedOutputRoutedByMiddleware(t *testing.T) {
 	assert.Equal(t, "hi", got[0].Text)
 }
 
+// TestNamedCoreCommandAlwaysRuns proves a named built-in (KindCore) command runs
+// with no ModuleView fetched and cannot be gated off by a missing toggle.
+func TestNamedCoreCommandAlwaysRuns(t *testing.T) {
+	sys := cmdEmit("system", module.KindCore, "sys", "ok")
+	pub := &fakePublisher{}
+	p := newPipelineWith(pub, fakeReader{}, sys)
+	require.NoError(t, p.Process(chatMsg(t, "standard", "!sys")))
+	require.Len(t, pub.got, 1)
+	assert.Equal(t, "ok", chatMessageText(t, pub.got[0].msg))
+}
+
 // --- integration: a command is gated by its owning module's enable state ---
 
 func TestOptInCommandGatedByModule(t *testing.T) {

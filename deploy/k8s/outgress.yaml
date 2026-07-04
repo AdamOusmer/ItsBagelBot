@@ -62,6 +62,17 @@ spec:
           operator: Exists
           effect: NoExecute
           tolerationSeconds: 60
+      # node1 is the 2-core ARM node reserved for stateful/frontend + infra; keep
+      # the hot-path sender off it. outgress is Twitch-rate-limited so it never
+      # needs node1 as burst surface.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values: [node1]
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
@@ -146,11 +157,11 @@ spec:
             - containerPort: 8080
           resources:
             requests:
-              cpu: 100m
+              cpu: 75m
               memory: 128Mi
             limits:
               cpu: 1000m
-              memory: 768Mi
+              memory: 512Mi
           securityContext:
             allowPrivilegeEscalation: false
             capabilities: {drop: ["ALL"]}

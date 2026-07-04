@@ -62,6 +62,16 @@ spec:
           operator: Exists
           effect: NoExecute
           tolerationSeconds: 60
+      # node1 is the 2-core ARM node reserved for stateful/frontend + infra; keep
+      # the hot-path worker off it. KEDA (later) scales onto node2/worker1.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values: [node1]
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
@@ -76,7 +86,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: sesame
-          image: ghcr.io/adamousmer/itsbagelbot/sesame:main-1783126439-43b0db84e397@sha256:16c168830223c74e55e43347a8e8842f550ef32c612b371403932f54ff1dee48 # {"$imagepolicy": "flux-system:sesame"}
+          image: ghcr.io/adamousmer/itsbagelbot/sesame:main-1783130941-e3e31ffe943b@sha256:e3c6cfcf1ee8380ea4a8f8ea7b3472654a2ebb121cc7aa8b3597f7ec027acb31 # {"$imagepolicy": "flux-system:sesame"}
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST
@@ -134,8 +144,8 @@ spec:
             - containerPort: 8080
           resources:
             requests:
-              cpu: 250m
-              memory: 256Mi
+              cpu: 50m
+              memory: 128Mi
             limits:
               cpu: "2"
               memory: 768Mi

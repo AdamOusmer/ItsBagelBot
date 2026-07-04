@@ -44,6 +44,26 @@ defmodule Ingress.Config do
   def broadcaster_cache_ttl_ms,
     do: Application.get_env(:ingress, :broadcaster_cache_ttl_ms, 300_000)
 
+  # How long identical non-command chat is coalesced before the cohort is
+  # flushed (see Ingress.Squash).
+  def squash_window_ms,
+    do: Application.get_env(:ingress, :squash_window_ms, 2_000)
+
+  # A cohort this large flushes early instead of waiting for the window, to
+  # bound the event size under a raid.
+  def squash_max_senders,
+    do: Application.get_env(:ingress, :squash_max_senders, 500)
+
+  # How often the squash sweep runs; keep it well under the window so cohorts
+  # flush promptly after their window closes.
+  def squash_sweep_ms,
+    do: Application.get_env(:ingress, :squash_sweep_ms, 500)
+
+  # Size guard: chat text past this many bytes is malformed/abuse and dropped.
+  # A well-formed Twitch line is <= 500 chars; the ceiling is generous.
+  def max_chat_text_bytes,
+    do: Application.get_env(:ingress, :max_chat_text_bytes, 4_096)
+
   def dispatcher_max_running,
     do: Application.get_env(:ingress, :dispatcher_max_running, 64)
 

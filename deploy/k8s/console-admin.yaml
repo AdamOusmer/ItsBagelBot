@@ -96,7 +96,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: console-admin
-          image: ghcr.io/adamousmer/itsbagelbot/console-admin:main-1783128237-cad4e1922ed7@sha256:d8d1db32971f0412f45759f7ca5399924e3e712846018cac28d3eddc6c4035a5 # {"$imagepolicy": "flux-system:console-admin"}
+          image: ghcr.io/adamousmer/itsbagelbot/console-admin:main-1783138651-3405400ddde5@sha256:f81eb2b9c25beb0ab7ba111fb25227c4823e6a846d681bffd95f2c9da73bc95f # {"$imagepolicy": "flux-system:console-admin"}
           imagePullPolicy: IfNotPresent
           env:
             - name: PORT
@@ -216,7 +216,7 @@ spec:
           resources:
             requests:
               cpu: 25m
-              memory: 64Mi
+              memory: 96Mi
             limits:
               cpu: 500m
               memory: 192Mi

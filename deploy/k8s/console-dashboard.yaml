@@ -108,7 +108,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: console-dashboard
-          image: ghcr.io/adamousmer/itsbagelbot/console-dashboard:main-1783128237-cad4e1922ed7@sha256:02e142407957cb2abc55e5573cb011ce6498399ee6b13e68c5116b8b73fb3be9 # {"$imagepolicy": "flux-system:console-dashboard"}
+          image: ghcr.io/adamousmer/itsbagelbot/console-dashboard:main-1783138651-3405400ddde5@sha256:8bf5955b8edd2e387e0cad792279dcd35ac5c0f46ead14e4509cffbe28ac1037 # {"$imagepolicy": "flux-system:console-dashboard"}
           imagePullPolicy: IfNotPresent
           env:
             - name: PORT
@@ -201,7 +201,7 @@ spec:
           resources:
             requests:
               cpu: 25m
-              memory: 80Mi
+              memory: 96Mi
             limits:
               cpu: "1"
               memory: 256Mi
