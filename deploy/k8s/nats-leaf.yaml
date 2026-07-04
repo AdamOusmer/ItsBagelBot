@@ -93,7 +93,7 @@ spec:
           resources:
             # Leaves are encrypted local relays, not durable stores; keep burst
             # headroom but avoid reserving hub-sized memory on every node.
-            requests: {cpu: 100m, memory: 128Mi}
+            requests: {cpu: 50m, memory: 192Mi}
             limits: {cpu: 1500m, memory: 512Mi}
           securityContext:
             allowPrivilegeEscalation: false
