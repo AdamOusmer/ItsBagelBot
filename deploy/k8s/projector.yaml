@@ -116,11 +116,11 @@ spec:
             - containerPort: 8080
           resources:
             requests:
-              cpu: 100m
-              memory: 128Mi
+              cpu: 50m
+              memory: 96Mi
             limits:
-              cpu: 1500m
-              memory: 384Mi
+              cpu: 750m
+              memory: 256Mi
           securityContext:
             allowPrivilegeEscalation: false
             capabilities: {drop: ["ALL"]}

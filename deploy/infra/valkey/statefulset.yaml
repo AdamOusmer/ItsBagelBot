@@ -211,10 +211,10 @@ spec:
         resources:
           limits:
             cpu: '1'
-            memory: 256Mi
+            memory: 1Gi
           requests:
             cpu: 100m
-            memory: 64Mi
+            memory: 256Mi
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
