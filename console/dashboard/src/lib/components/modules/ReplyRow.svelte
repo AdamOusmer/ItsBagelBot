@@ -74,11 +74,9 @@
 <style>
   .row-shell {
     border-bottom: 1px solid var(--rule, rgba(240, 236, 228, 0.08));
-    border-left: 1px solid transparent;
     transition: background var(--bb-dur-fast, 140ms) ease, border-color var(--bb-dur-fast, 140ms) ease;
   }
   .row-shell.selected {
-    border-left-color: var(--bb-tan);
     background: rgba(201, 168, 124, 0.05);
   }
   .row-shell.off .trow > :not(.row-act) { opacity: 0.5; }
