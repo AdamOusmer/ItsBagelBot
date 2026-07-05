@@ -33,10 +33,7 @@
   const freeFeatures = $derived([
     t('billing.freeFeat1'),
     t('billing.freeFeat2'),
-    t('billing.freeFeat3'),
-    t('billing.freeFeat4'),
-    t('billing.freeFeat5'),
-    t('billing.freeFeat6')
+    t('billing.freeFeat3')
   ]);
   const premiumFeatures = $derived([
     t('billing.premiumFeat1'),
