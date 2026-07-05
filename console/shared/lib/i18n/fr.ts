@@ -230,6 +230,7 @@ export const fr = {
     subscribeMonthly: 'S\'abonner mensuellement',
     buyOneMonth: 'Acheter un mois',
     premiumFine: 'L\'abonnement mensuel se renouvelle automatiquement jusqu\'à annulation. Un mois est un paiement unique, sans renouvellement.',
+    tebexNote: 'Paiement sécurisé via Tebex',
     oath: 'aucune carte enregistrée · annulation en un clic · redirige vers le paiement sécurisé hébergé par Tebex',
     giftLink: 'Offrir Premium à quelqu\'un d\'autre →',
     vipHint: 'Le statut VIP est permanent. Il n\'expire jamais et il n\'y a rien à payer.',

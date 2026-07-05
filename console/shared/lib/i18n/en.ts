@@ -231,6 +231,7 @@ export const en = {
     subscribeMonthly: 'Subscribe monthly',
     buyOneMonth: 'Buy one month',
     premiumFine: 'Monthly renews automatically until cancelled. One month is a single charge, no renewal.',
+    tebexNote: 'Secure checkout via Tebex',
     oath: "no card on file · cancel in one click · redirects to Tebex's secure hosted checkout",
     giftLink: 'Gift Premium to someone else →',
     vipHint: 'VIP is permanent. It never expires and there is nothing to pay.',
