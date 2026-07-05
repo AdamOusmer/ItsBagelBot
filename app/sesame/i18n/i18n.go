@@ -15,7 +15,7 @@ const DefaultLocale = "en"
 var catalog = map[string]map[string]string{
 	"en": {
 		"ping":         "Pong! ItsBagelBot has been up for %s",
-		"bagels_ready": "/me The bagels are ready! 🥯",
+		"bagels_ready": "/me I brought the bagels! 🥯",
 
 		"cmd.added":            "@{user} the command {command} has been added",
 		"cmd.removed":          "@{user} the command {command} has been removed",
@@ -27,7 +27,7 @@ var catalog = map[string]map[string]string{
 	},
 	"fr": {
 		"ping":         "Pong ! ItsBagelBot est actif depuis %s",
-		"bagels_ready": "/me Les bagels sont prêts ! 🥯",
+		"bagels_ready": "/me J'ai ramené les bagels ! 🥯",
 
 		"cmd.added":            "@{user} la commande {command} a été ajoutée",
 		"cmd.removed":          "@{user} la commande {command} a été supprimée",

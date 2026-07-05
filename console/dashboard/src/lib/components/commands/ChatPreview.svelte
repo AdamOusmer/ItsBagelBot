@@ -35,7 +35,7 @@
 
   const DEFAULT_SAMPLES: Record<string, string> = {
     user: 'sesame_sam',
-    target: '@ferret_king',
+    target: 'ferret_king',
     uptime: '3h 24m',
     followage: '8 months',
     tier: '1000',
@@ -64,7 +64,7 @@
 
   // Twitch announcement accent colors. "primary" is the channel accent.
   const ACCENT: Record<string, string> = {
-    primary: '#9147ff',
+    primary: 'var(--bb-tan-light)',
     blue: '#4a9eff',
     green: '#52b788',
     orange: '#ff9f45',

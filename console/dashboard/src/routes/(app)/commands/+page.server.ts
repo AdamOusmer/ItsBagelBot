@@ -23,14 +23,14 @@ function gateCommands(session: Session | null | undefined): void {
 // Sample rows use the STORED key format (no leading "!" — chat adds it), same
 // as what the projector serves; the UI renders the "!" itself.
 const sample: CommandView[] = [
-  { name: 'uptime', aliases: ['live', 'up'], response: '@{user} the stream has been live for {uptime}', perm: 'everyone', cooldown: 5, uses: '412', is_active: true, stream_online_only: true },
+  { name: 'uptime', aliases: ['live', 'up'], response: '{user} the stream has been live for {uptime}', perm: 'everyone', cooldown: 5, uses: '412', is_active: true, stream_online_only: true },
   { name: 'socials', aliases: ['social', 'links'], response: 'Follow along → twitch.tv/itsmavey · @itsmavey everywhere', perm: 'everyone', cooldown: 30, uses: '288', is_active: true },
   { name: 'bagel', response: '{user} tosses a warm bagel to {target}. Toasty.', perm: 'everyone', cooldown: 10, uses: '1.2k', is_active: true },
   { name: 'so', response: 'Go show some love to twitch.tv/{target} — absolute legend', perm: 'mod', cooldown: 0, uses: '96', is_active: true },
   { name: 'discord', response: 'Join the bakery → discord.gg/itsbagelbot', perm: 'everyone', cooldown: 60, uses: '203', is_active: true },
   { name: 'uptime-debug', response: 'node={node} replica={id} lag={ms}ms', perm: 'broadcaster', cooldown: 0, uses: '14', is_active: false },
   { name: 'lurk', response: '{user} fades into the shadows. Thanks for the lurk.', perm: 'everyone', cooldown: 5, uses: '521', is_active: true },
-  { name: 'followage', response: "@{user} you've followed for {followage}", perm: 'sub', cooldown: 15, uses: '177', is_active: true }
+  { name: 'followage', response: "{user} you've followed for {followage}", perm: 'sub', cooldown: 15, uses: '177', is_active: true }
 ];
 
 // builtinViews turns the built-in catalog into command rows, reading each
