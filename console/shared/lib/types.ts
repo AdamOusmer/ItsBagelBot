@@ -236,10 +236,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
       {
         key: 'shoutout',
         label: 'Raid shoutout',
-        summary: 'Automated chat shoutout when raided',
-        description:
-          'A customizable shoutout message posted automatically when another channel raids you. The message defaults to:\n' +
-          "'Massive shoutout to {raider} for the raid with {viewers} viewers! Check them out at twitch.tv/{raider.login}'",
+        tagline: 'Automated chat shoutout when raided',
         event: 'on raid',
         messageKey: 'message',
         defaultMessage:

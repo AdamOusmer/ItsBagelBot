@@ -375,12 +375,8 @@
   }
   
   :global(.status-hero--premium .botmark) {
-    border-radius: 50% !important;
     border-color: rgba(201, 168, 124, 0.4) !important;
     background: rgba(201, 168, 124, 0.05) !important;
-  }
-  :global(.status-hero--premium .botmark img) {
-    border-radius: 50% !important;
   }
   .status-hero .live .dot { width: 9px; height: 9px; }
   .status-hero .live.off { color: var(--bb-muted); }
