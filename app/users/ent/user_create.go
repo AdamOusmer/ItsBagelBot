@@ -193,6 +193,20 @@ func (_c *UserCreate) SetNillableGiftsSent(v *uint32) *UserCreate {
 	return _c
 }
 
+// SetOnboarded sets the "onboarded" field.
+func (_c *UserCreate) SetOnboarded(v bool) *UserCreate {
+	_c.mutation.SetOnboarded(v)
+	return _c
+}
+
+// SetNillableOnboarded sets the "onboarded" field if the given value is not nil.
+func (_c *UserCreate) SetNillableOnboarded(v *bool) *UserCreate {
+	if v != nil {
+		_c.SetOnboarded(*v)
+	}
+	return _c
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_c *UserCreate) SetCreatedAt(v time.Time) *UserCreate {
 	_c.mutation.SetCreatedAt(v)
@@ -305,6 +319,10 @@ func (_c *UserCreate) defaults() {
 		v := user.DefaultGiftsSent
 		_c.mutation.SetGiftsSent(v)
 	}
+	if _, ok := _c.mutation.Onboarded(); !ok {
+		v := user.DefaultOnboarded
+		_c.mutation.SetOnboarded(v)
+	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := user.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
@@ -363,6 +381,9 @@ func (_c *UserCreate) check() error {
 	}
 	if _, ok := _c.mutation.GiftsSent(); !ok {
 		return &ValidationError{Name: "gifts_sent", err: errors.New(`ent: missing required field "User.gifts_sent"`)}
+	}
+	if _, ok := _c.mutation.Onboarded(); !ok {
+		return &ValidationError{Name: "onboarded", err: errors.New(`ent: missing required field "User.onboarded"`)}
 	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		return &ValidationError{Name: "created_at", err: errors.New(`ent: missing required field "User.created_at"`)}
@@ -457,6 +478,10 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.GiftsSent(); ok {
 		_spec.SetField(user.FieldGiftsSent, field.TypeUint32, value)
 		_node.GiftsSent = value
+	}
+	if value, ok := _c.mutation.Onboarded(); ok {
+		_spec.SetField(user.FieldOnboarded, field.TypeBool, value)
+		_node.Onboarded = value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(user.FieldCreatedAt, field.TypeTime, value)

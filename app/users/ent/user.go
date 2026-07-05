@@ -45,6 +45,8 @@ type User struct {
 	BillingEventID *string `json:"billing_event_id,omitempty"`
 	// GiftsSent holds the value of the "gifts_sent" field.
 	GiftsSent uint32 `json:"gifts_sent,omitempty"`
+	// Onboarded holds the value of the "onboarded" field.
+	Onboarded bool `json:"onboarded,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// UpdatedAt holds the value of the "updated_at" field.
@@ -80,7 +82,7 @@ func (*User) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case user.FieldEmailEnc:
 			values[i] = new([]byte)
-		case user.FieldIsActive, user.FieldBanned, user.FieldSubscriptionCancelPending:
+		case user.FieldIsActive, user.FieldBanned, user.FieldSubscriptionCancelPending, user.FieldOnboarded:
 			values[i] = new(sql.NullBool)
 		case user.FieldID, user.FieldGiftsSent:
 			values[i] = new(sql.NullInt64)
@@ -197,6 +199,12 @@ func (_m *User) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.GiftsSent = uint32(value.Int64)
 			}
+		case user.FieldOnboarded:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field onboarded", values[i])
+			} else if value.Valid {
+				_m.Onboarded = value.Bool
+			}
 		case user.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field created_at", values[i])
@@ -297,6 +305,9 @@ func (_m *User) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("gifts_sent=")
 	builder.WriteString(fmt.Sprintf("%v", _m.GiftsSent))
+	builder.WriteString(", ")
+	builder.WriteString("onboarded=")
+	builder.WriteString(fmt.Sprintf("%v", _m.Onboarded))
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))

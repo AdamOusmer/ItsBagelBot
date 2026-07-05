@@ -5,6 +5,7 @@ import {
   hasGrant,
   accountState,
   setActive,
+  setOnboarded,
   publishEventSub,
   publishEventSubReconnect,
   channelSubState,
@@ -177,6 +178,18 @@ export const actions: Actions = {
       return { ok: true, action: 'disconnect' };
     } catch {
       return fail(502, { error: 'disconnect failed' });
+    }
+  },
+  // Onboarded: mark the user as having completed the onboarding flow.
+  onboarded: async ({ locals }) => {
+    if (locals.session?.delegate_of) return fail(403);
+    const uid = locals.session?.user_id;
+    if (!uid) return fail(401);
+    try {
+      await setOnboarded(uid, true);
+      return { ok: true, action: 'onboarded' };
+    } catch {
+      return fail(502, { error: 'onboarded failed' });
     }
   }
 };

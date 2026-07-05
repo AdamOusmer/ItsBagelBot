@@ -113,12 +113,16 @@ func init() {
 	userDescGiftsSent := userFields[14].Descriptor()
 	// user.DefaultGiftsSent holds the default value on creation for the gifts_sent field.
 	user.DefaultGiftsSent = userDescGiftsSent.Default.(uint32)
+	// userDescOnboarded is the schema descriptor for onboarded field.
+	userDescOnboarded := userFields[15].Descriptor()
+	// user.DefaultOnboarded holds the default value on creation for the onboarded field.
+	user.DefaultOnboarded = userDescOnboarded.Default.(bool)
 	// userDescCreatedAt is the schema descriptor for created_at field.
-	userDescCreatedAt := userFields[15].Descriptor()
+	userDescCreatedAt := userFields[16].Descriptor()
 	// user.DefaultCreatedAt holds the default value on creation for the created_at field.
 	user.DefaultCreatedAt = userDescCreatedAt.Default.(func() time.Time)
 	// userDescUpdatedAt is the schema descriptor for updated_at field.
-	userDescUpdatedAt := userFields[16].Descriptor()
+	userDescUpdatedAt := userFields[17].Descriptor()
 	// user.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	user.DefaultUpdatedAt = userDescUpdatedAt.Default.(func() time.Time)
 	// user.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.

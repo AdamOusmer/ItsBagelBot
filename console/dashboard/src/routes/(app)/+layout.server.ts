@@ -112,7 +112,7 @@ export const load: LayoutServerLoad = async ({ locals, url, cookies }) => {
   const [{ unreadCount, notifications }, authorizedDashboards, acc] = await Promise.all([
     loadBellPeek(s),
     loadAuthorizedDashboards(s),
-    env.DEMO === '1' ? Promise.resolve({ active: true, status: 'vip' }) : accountState(s.user_id).catch(() => null)
+    env.DEMO === '1' ? Promise.resolve({ active: true, status: 'vip', onboarded: true }) : accountState(s.user_id).catch(() => null)
   ]);
 
   const isPremium = acc ? acc.status === 'vip' || acc.status === 'paid' : false;
@@ -128,6 +128,7 @@ export const load: LayoutServerLoad = async ({ locals, url, cookies }) => {
     unreadCount,
     bellNotifications: notifications.slice(0, BELL_PEEK),
     authorizedDashboards,
-    isPremium
+    isPremium,
+    onboarded: acc ? acc.onboarded : false
   };
 };
