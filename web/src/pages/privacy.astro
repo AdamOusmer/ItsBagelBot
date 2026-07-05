@@ -9,6 +9,7 @@ const sections = [
     { id: 'data-not-collected', heading: "Data We Don't Collect", plain: 'No browsing history, no tracking IPs, no ad data. Ever.' },
     { id: 'cookies', heading: 'Cookies & Analytics', plain: 'No tracking cookies. Only strictly necessary security cookies.' },
     { id: 'data-use', heading: 'How We Use Your Data & Legal Basis', plain: 'To run the bot based on your consent and contract. Nothing is sold, rented, or shared.' },
+    { id: 'payment-processing', heading: 'Third-Party Processors', plain: 'We use Tebex to securely handle checkout and payments. They act as the merchant of record.' },
     { id: 'storage', heading: 'Data Storage & Transfers', plain: 'Chat is processed live, not kept. Settings are encrypted in Canada.' },
     { id: 'rights', heading: 'Your Rights (GDPR, PIPEDA, Law 25)', plain: 'Ask for your data, portability, or its deletion any time.' },
     { id: 'changes', heading: 'Changes', plain: "If this policy changes meaningfully, you'll hear about it." },
@@ -56,6 +57,12 @@ const sections = [
             <p>
                 Solely to provide the ItsBagelBot service: moderate chat, execute commands, and run engagement
                 features. Our legal basis for processing this data is the fulfillment of our contract with you (Terms of Service) and our legitimate interest in securing our service. We do not sell, rent, or share your data with third parties.
+            </p>
+        </Fragment>
+
+        <Fragment slot="payment-processing">
+            <p>
+                To offer premium subscriptions, we integrate with Tebex via their headless API. Tebex acts as the merchant of record for all transactions. When you initiate a checkout, we create a secure basket and redirect you to Tebex to complete the purchase. We do not process, collect, or store any payment details (like credit card numbers). We only receive the transaction ID and order status to fulfill your subscription. Tebex processes your payment data subject to their own Privacy Policy.
             </p>
         </Fragment>
 
