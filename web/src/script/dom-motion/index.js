@@ -4,8 +4,8 @@
  * Composes two subsystems that share a single Pointer and a single
  * requestAnimationFrame loop:
  *
- *   Parallax — header/footer + ornaments drift against the cursor with a
- *              soft 3D tilt.
+ *   Parallax — header/footer + ornaments drift against the cursor (header
+ *              retains a soft 3D tilt, footer only drifts).
  *
  * Top-level <section> and <main> are deliberately excluded from the
  * transform: applying `transform` or `translate` to them creates a new
@@ -32,13 +32,18 @@ const SETTLE_DELAY_MS = 700;
 
 const MOTION_CSS = `
 @media (prefers-reduced-motion: no-preference) and (hover: hover) and (pointer: fine) {
-    :root.${ACTIVE_CLASS} body > :where(header, footer) {
+    :root.${ACTIVE_CLASS} body > header {
         translate: var(--dom-motion-page-x, 0px) var(--dom-motion-page-y, 0px);
         transform: perspective(1800px)
             rotateX(var(--dom-motion-page-tilt-x, 0deg))
             rotateY(var(--dom-motion-page-tilt-y, 0deg));
         transform-origin: center center;
         will-change: translate, transform;
+    }
+
+    :root.${ACTIVE_CLASS} body > footer {
+        translate: var(--dom-motion-page-x, 0px) var(--dom-motion-page-y, 0px);
+        will-change: translate;
     }
 
     :root.${ACTIVE_CLASS} body > .ornaments--page {
