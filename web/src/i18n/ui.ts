@@ -146,6 +146,25 @@ const en = {
   'qw.beatTitle': "Awake so you don't have to be.",
   'qw.beatDesc': 'It holds the room between streams too.',
 
+  // ── Home: safety layers ─────────────────────────────────────────
+  'safe.eyebrow': 'Moderation, built in layers',
+  'safe.title': 'Three systems. One calmer chat.',
+  'safe.juryTitle': 'A classifier jury, not one guess.',
+  'safe.juryDesc': 'Independent classifiers compare notes on spam and hate signals before anything is removed.',
+  'safe.juryVerdict': 'consensus',
+  'safe.spam': 'spam',
+  'safe.hate': 'hate',
+  'safe.gatesTitle': 'Static gates handle the obvious.',
+  'safe.gatesDesc': 'Fast, predictable rules catch malformed messages, floods and known-bad links before deeper processing.',
+  'safe.gateRate': 'rate',
+  'safe.gateShape': 'shape',
+  'safe.gateLink': 'link',
+  'safe.gatesPassed': '3 gates passed',
+  'safe.networkTitle': 'One raid warns every protected channel.',
+  'safe.networkDesc': 'The central security system recognizes coordinated raids and shares the signature across the entire network.',
+  'safe.networkAlert': 'raid signature',
+  'safe.networkStatus': 'network protected',
+
   // ── Home: steps ─────────────────────────────────────────────────
   'steps.eyebrow': 'Two minutes, start to live',
   'steps.title': 'Three steps. None of them hard.',
@@ -372,6 +391,25 @@ const fr: Partial<Record<UIKey, string>> = {
   'qw.winDesc': 'Tirages faits honnêtement, preuves conservées.',
   'qw.beatTitle': 'Éveillé pour que vous n\'ayez pas à l\'être.',
   'qw.beatDesc': 'Il tient la salle entre les streams aussi.',
+
+  // Home: safety layers
+  'safe.eyebrow': 'La modération, couche par couche',
+  'safe.title': 'Trois systèmes. Un chat plus calme.',
+  'safe.juryTitle': 'Un jury de classificateurs, pas une seule supposition.',
+  'safe.juryDesc': 'Des classificateurs indépendants comparent les signaux de spam et de haine avant toute suppression.',
+  'safe.juryVerdict': 'consensus',
+  'safe.spam': 'spam',
+  'safe.hate': 'haine',
+  'safe.gatesTitle': 'Des filtres statiques règlent l’évidence.',
+  'safe.gatesDesc': 'Des règles rapides et prévisibles arrêtent les messages malformés, les rafales et les liens connus avant l’analyse approfondie.',
+  'safe.gateRate': 'débit',
+  'safe.gateShape': 'format',
+  'safe.gateLink': 'lien',
+  'safe.gatesPassed': '3 filtres franchis',
+  'safe.networkTitle': 'Un raid avertit chaque chaîne protégée.',
+  'safe.networkDesc': 'Le système de sécurité central reconnaît les raids coordonnés et partage leur signature dans tout le réseau.',
+  'safe.networkAlert': 'signature de raid',
+  'safe.networkStatus': 'réseau protégé',
 
   // Home: steps
   'steps.eyebrow': 'Deux minutes, du début au direct',

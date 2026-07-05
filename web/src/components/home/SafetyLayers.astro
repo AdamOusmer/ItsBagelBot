@@ -1,0 +1,579 @@
+---
+/**
+ * SafetyLayers — animated snapshots of the moderation pipeline.
+ * The visual language follows QuietWork: tactile cards, small mono system
+ * readouts, and motion that demonstrates the feature instead of decorating it.
+ */
+import Card from '../ui/Card.astro';
+import SectionHeading from '../ui/SectionHeading.astro';
+import IncomingBadge from '../ui/IncomingBadge.astro';
+import HomeLightField from './HomeLightField.astro';
+import { getLangFromUrl, useTranslations } from '../../i18n/ui';
+
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+---
+
+<section class="safe" id="safety-layers">
+    <HomeLightField />
+    <SectionHeading eyebrow={t('safe.eyebrow')} title={t('safe.title')} />
+
+    <div class="safe__grid">
+        <Card class="safe__card" data-reveal>
+            <div class="safe__demo safe__demo--jury" aria-hidden="true">
+                <span class="jury__case">{t('safe.spam')} / {t('safe.hate')}</span>
+                <div class="jury__table">
+                    <span class="jury__seat jury__seat--tl" style="--jury-i: 0"><i></i><em>block</em></span>
+                    <span class="jury__seat jury__seat--tr" style="--jury-i: 1"><i></i><em>block</em></span>
+                    <span class="jury__seat jury__seat--l" style="--jury-i: 2"><i></i><em>block</em></span>
+                    <span class="jury__seat jury__seat--r" style="--jury-i: 3"><i></i><em>allowed</em></span>
+                    <span class="jury__seat jury__seat--bl" style="--jury-i: 4"><i></i><em>block</em></span>
+                    <span class="jury__seat jury__seat--br" style="--jury-i: 5"><i></i><em>block</em></span>
+                    <span class="jury__tally">
+                        <small>{t('safe.juryVerdict')}</small>
+                        <b>5—1</b>
+                        <em>block</em>
+                    </span>
+                </div>
+            </div>
+            <h3 class="safe__card-title">
+                <span>{t('safe.juryTitle')}</span>
+                <IncomingBadge label={t('badge.incoming')} />
+            </h3>
+            <p class="safe__desc">{t('safe.juryDesc')}</p>
+        </Card>
+
+        <Card class="safe__card" data-reveal style="--reveal-i: 1">
+            <div class="safe__demo safe__demo--gates" aria-hidden="true">
+                <div class="gates__lane">
+                    <span class="gates__packet">MSG</span>
+                    <span class="gates__gate" style="--gate-i: 0"><i></i><b>{t('safe.gateRate')}</b></span>
+                    <span class="gates__gate" style="--gate-i: 1"><i></i><b>{t('safe.gateShape')}</b></span>
+                    <span class="gates__gate" style="--gate-i: 2"><i></i><b>{t('safe.gateLink')}</b></span>
+                    <span class="gates__exit">✓</span>
+                </div>
+                <div class="gates__receipt">
+                    <span>{t('safe.gateRate')} <b>✓</b></span>
+                    <span>{t('safe.gateShape')} <b>✓</b></span>
+                    <span>{t('safe.gateLink')} <b>✓</b></span>
+                    <em>{t('safe.gatesPassed')}</em>
+                </div>
+            </div>
+            <h3 class="safe__card-title">
+                <span>{t('safe.gatesTitle')}</span>
+                <IncomingBadge label={t('badge.incoming')} />
+            </h3>
+            <p class="safe__desc">{t('safe.gatesDesc')}</p>
+        </Card>
+
+        <Card class="safe__card safe__card--network" data-reveal style="--reveal-i: 2">
+            <div class="safe__demo safe__demo--network" aria-hidden="true">
+                <svg class="network__map" viewBox="0 0 360 112" role="presentation">
+                    <g class="network__links">
+                        <path d="M180 56 L54 20" pathLength="1" />
+                        <path d="M180 56 L55 92" pathLength="1" />
+                        <path d="M180 56 L118 14" pathLength="1" />
+                        <path d="M180 56 L242 14" pathLength="1" />
+                        <path d="M180 56 L305 92" pathLength="1" />
+                        <path d="M180 56 L306 20" pathLength="1" />
+                    </g>
+                    <g class="network__nodes">
+                        <circle cx="54" cy="20" r="5" style="--node-i: 0" />
+                        <circle cx="55" cy="92" r="5" style="--node-i: 1" />
+                        <circle cx="118" cy="14" r="5" style="--node-i: 2" />
+                        <circle cx="242" cy="14" r="5" style="--node-i: 3" />
+                        <circle cx="305" cy="92" r="5" style="--node-i: 4" />
+                        <circle cx="306" cy="20" r="5" style="--node-i: 5" />
+                    </g>
+                    <g class="network__core">
+                        <circle cx="180" cy="56" r="20" />
+                        <circle cx="180" cy="56" r="8" />
+                    </g>
+                </svg>
+                <span class="network__alert">{t('safe.networkAlert')}</span>
+                <span class="network__status">{t('safe.networkStatus')}</span>
+            </div>
+            <h3 class="safe__card-title">
+                <span>{t('safe.networkTitle')}</span>
+                <IncomingBadge label={t('badge.incoming')} />
+            </h3>
+            <p class="safe__desc">{t('safe.networkDesc')}</p>
+        </Card>
+    </div>
+</section>
+
+<style>
+    .safe {
+        position: relative;
+        max-width: var(--content-max, 1200px);
+        margin: 0 auto;
+        padding: var(--space-section, 96px) 24px;
+        z-index: 3;
+    }
+
+    .safe__grid {
+        position: relative;
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 20px;
+    }
+
+    .safe__card {
+        min-width: 0;
+    }
+
+    .safe__card-title {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 9px;
+        margin: 0 0 9px;
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-size: 1.08rem;
+        font-weight: 700;
+        line-height: 1.35;
+        letter-spacing: -0.01em;
+        color: var(--white, #f0ece4);
+    }
+
+    .safe__desc {
+        margin: 0;
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: 0.86rem;
+        line-height: 1.6;
+        color: var(--muted, #888077);
+    }
+
+    .safe__demo {
+        position: relative;
+        height: 132px;
+        margin-bottom: 22px;
+        padding: 16px;
+        overflow: hidden;
+        border: 1px solid rgba(240, 236, 228, 0.05);
+        border-radius: 10px;
+        background: rgba(8, 8, 8, 0.68);
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.66rem;
+    }
+
+    /* Classifier jury */
+    .safe__demo--jury {
+        display: grid;
+        place-items: center;
+        padding: 9px 18px;
+    }
+
+    .jury__case {
+        position: absolute;
+        top: 9px;
+        left: 11px;
+        color: rgba(217, 138, 138, 0.74);
+        font-size: 0.54rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+    }
+
+    .jury__table {
+        position: relative;
+        width: min(310px, 82%);
+        height: 92px;
+        border: 1px solid rgba(201, 168, 124, 0.18);
+        border-radius: 50%;
+        background: radial-gradient(ellipse, rgba(201, 168, 124, 0.07), transparent 68%);
+        box-shadow: inset 0 0 24px rgba(201, 168, 124, 0.025);
+    }
+
+    .jury__table::after {
+        content: "";
+        position: absolute;
+        inset: 10px 24px;
+        border: 1px solid rgba(240, 236, 228, 0.04);
+        border-radius: 50%;
+    }
+
+    .jury__seat {
+        position: absolute;
+        z-index: 3;
+        width: 24px;
+        height: 30px;
+    }
+
+    .jury__seat i::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 8px;
+        width: 8px;
+        height: 8px;
+        border: 1px solid rgba(240, 236, 228, 0.58);
+        border-radius: 50%;
+        background: #0b0b0a;
+    }
+
+    .jury__seat i::after {
+        content: "";
+        position: absolute;
+        top: 11px;
+        left: 4px;
+        width: 16px;
+        height: 9px;
+        border: 1px solid rgba(240, 236, 228, 0.36);
+        border-bottom: 0;
+        border-radius: 10px 10px 0 0;
+    }
+
+    .jury__seat em {
+        position: absolute;
+        left: 50%;
+        bottom: 3px;
+        padding: 2px 4px;
+        border: 1px solid rgba(217, 138, 138, 0.42);
+        border-radius: 2px;
+        color: #d98a8a;
+        background: #0b0b0a;
+        font-size: 0.42rem;
+        font-style: normal;
+        text-transform: uppercase;
+        opacity: 0;
+        transform: translate(-50%, 7px) rotate(-5deg);
+        animation: juryBallot 5.8s var(--ease-out-back) infinite;
+        animation-delay: calc(700ms + var(--jury-i) * 180ms);
+    }
+
+    .jury__seat--tr em,
+    .jury__seat--r em,
+    .jury__seat--br em { transform: translate(-50%, 7px) rotate(5deg); }
+    .jury__seat--r em { color: var(--green-glow, #52b788); border-color: rgba(82, 183, 136, 0.42); }
+
+    .jury__seat--tl { top: -9px; left: 22%; }
+    .jury__seat--tr { top: -9px; right: 22%; }
+    .jury__seat--l { top: 31px; left: -13px; }
+    .jury__seat--r { top: 31px; right: -13px; }
+    .jury__seat--bl { bottom: -11px; left: 22%; }
+    .jury__seat--br { right: 22%; bottom: -11px; }
+
+    .jury__tally {
+        position: absolute;
+        z-index: 2;
+        inset: 23px 32%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+        text-align: center;
+        opacity: 0;
+        animation: juryTally 5.8s ease-in-out infinite;
+    }
+
+    .jury__tally small {
+        font-size: 0.44rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }
+
+    .jury__tally b {
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-size: 1rem;
+        line-height: 1;
+        color: var(--white, #f0ece4);
+    }
+
+    .jury__tally em {
+        color: #d98a8a;
+        font-size: 0.48rem;
+        font-style: normal;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
+    @keyframes juryBallot {
+        0%, 18% { opacity: 0; transform: translate(-50%, 7px) scale(0.8); }
+        34%, 82% { opacity: 1; transform: translate(-50%, -7px) scale(1); }
+        94%, 100% { opacity: 0; transform: translate(-50%, -7px) scale(0.9); }
+    }
+
+    @keyframes juryTally {
+        0%, 54% { opacity: 0; transform: scale(0.88); }
+        66%, 86% { opacity: 1; transform: scale(1); text-shadow: 0 0 12px rgba(217, 138, 138, 0.3); }
+        96%, 100% { opacity: 0; transform: scale(0.88); }
+    }
+
+    /* Static gates */
+    .safe__demo--gates {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+    }
+
+    .gates__lane {
+        position: relative;
+        height: 68px;
+    }
+
+    .gates__lane::before {
+        content: "";
+        position: absolute;
+        top: 25px;
+        left: 8px;
+        right: 8px;
+        height: 1px;
+        background: rgba(240, 236, 228, 0.08);
+    }
+
+    .gates__packet {
+        position: absolute;
+        z-index: 3;
+        top: 12px;
+        left: 4px;
+        display: grid;
+        place-items: center;
+        width: 36px;
+        height: 27px;
+        border: 1px solid rgba(201, 168, 124, 0.42);
+        border-radius: 4px;
+        color: var(--tan-light, #e0c49a);
+        background: #0b0b0a;
+        box-shadow: 0 0 12px rgba(201, 168, 124, 0.1);
+        animation: gatePacket 6s linear infinite;
+    }
+
+    .gates__gate {
+        position: absolute;
+        top: 2px;
+        left: calc(29% + var(--gate-i) * 21%);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 5px;
+        color: var(--muted, #888077);
+    }
+
+    .gates__gate i {
+        width: 2px;
+        height: 48px;
+        background: rgba(136, 128, 119, 0.56);
+        box-shadow: 0 0 0 4px #0b0b0a;
+        transform-origin: top;
+        animation-duration: 6s;
+        animation-timing-function: ease-in-out;
+        animation-iteration-count: infinite;
+    }
+
+    .gates__gate:nth-child(2) i { animation-name: gateOne; }
+    .gates__gate:nth-child(3) i { animation-name: gateTwo; }
+    .gates__gate:nth-child(4) i { animation-name: gateThree; }
+
+    .gates__gate b { font-size: 0.52rem; font-weight: 500; text-transform: uppercase; }
+
+    .gates__exit {
+        position: absolute;
+        top: 13px;
+        right: 2px;
+        display: grid;
+        place-items: center;
+        width: 26px;
+        height: 26px;
+        border: 1px solid rgba(82, 183, 136, 0.28);
+        border-radius: 50%;
+        color: var(--green-glow, #52b788);
+        opacity: 0;
+        animation: gateExit 6s ease-in-out infinite;
+    }
+
+    .gates__receipt {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: var(--muted, #888077);
+    }
+
+    .gates__receipt span {
+        font-size: 0.54rem;
+        text-transform: uppercase;
+        opacity: 0.26;
+        animation-duration: 6s;
+        animation-timing-function: ease-in-out;
+        animation-iteration-count: infinite;
+    }
+    .gates__receipt span:nth-child(1) { animation-name: receiptOne; }
+    .gates__receipt span:nth-child(2) { animation-name: receiptTwo; }
+    .gates__receipt span:nth-child(3) { animation-name: receiptThree; }
+    .gates__receipt b { color: var(--green-glow, #52b788); font-weight: 500; }
+    .gates__receipt em {
+        margin-left: auto;
+        color: var(--green-glow, #52b788);
+        font-size: 0.58rem;
+        font-style: normal;
+        opacity: 0;
+        animation: gateExit 6s ease-in-out infinite;
+    }
+
+    @keyframes gatePacket {
+        0%, 8% { left: 4px; }
+        25% { left: 22%; }
+        32% { left: 34%; }
+        40% { left: 43%; }
+        47% { left: 55%; }
+        55% { left: 64%; }
+        62% { left: 76%; }
+        76%, 90% { left: calc(100% - 38px); border-color: rgba(82, 183, 136, 0.64); color: var(--green-glow, #52b788); }
+        100% { left: 4px; }
+    }
+
+    @keyframes gateOne {
+        0%, 19%, 36%, 100% { transform: scaleY(1); background: rgba(136, 128, 119, 0.56); }
+        24%, 32% { transform: scaleY(0.22); background: var(--green-glow, #52b788); }
+    }
+
+    @keyframes gateTwo {
+        0%, 35%, 51%, 100% { transform: scaleY(1); background: rgba(136, 128, 119, 0.56); }
+        40%, 47% { transform: scaleY(0.22); background: var(--green-glow, #52b788); }
+    }
+
+    @keyframes gateThree {
+        0%, 50%, 67%, 100% { transform: scaleY(1); background: rgba(136, 128, 119, 0.56); }
+        55%, 62% { transform: scaleY(0.22); background: var(--green-glow, #52b788); }
+    }
+
+    @keyframes gateExit {
+        0%, 74% { opacity: 0; transform: scale(0.8); }
+        80%, 92% { opacity: 1; transform: scale(1); }
+        100% { opacity: 0; }
+    }
+
+    @keyframes receiptOne { 0%, 31% { opacity: 0.26; } 36%, 90% { opacity: 1; } 100% { opacity: 0.26; } }
+    @keyframes receiptTwo { 0%, 46% { opacity: 0.26; } 51%, 90% { opacity: 1; } 100% { opacity: 0.26; } }
+    @keyframes receiptThree { 0%, 61% { opacity: 0.26; } 67%, 90% { opacity: 1; } 100% { opacity: 0.26; } }
+
+    /* Network-wide raid propagation */
+    .safe__demo--network { padding: 10px 16px; }
+
+    .network__map {
+        width: 100%;
+        height: 100%;
+        overflow: visible;
+    }
+
+    .network__links path {
+        fill: none;
+        stroke: rgba(82, 183, 136, 0.48);
+        stroke-width: 1;
+        stroke-dasharray: 1;
+        stroke-dashoffset: 1;
+        animation: networkLine 5.8s var(--ease-out-expo) infinite;
+    }
+
+    .network__nodes circle {
+        fill: #0b0b0a;
+        stroke: rgba(136, 128, 119, 0.52);
+        stroke-width: 1;
+        animation: networkNode 5.8s ease-in-out infinite;
+        animation-delay: calc(var(--node-i) * 90ms);
+    }
+
+    .network__core circle:first-child {
+        fill: rgba(217, 138, 138, 0.04);
+        stroke: rgba(217, 138, 138, 0.5);
+        animation: networkPulse 5.8s ease-in-out infinite;
+    }
+
+    .network__core circle:last-child {
+        fill: rgba(217, 138, 138, 0.78);
+        filter: drop-shadow(0 0 7px rgba(217, 138, 138, 0.55));
+    }
+
+    .network__alert,
+    .network__status {
+        position: absolute;
+        top: 11px;
+        padding: 4px 7px;
+        border-radius: 4px;
+        font-size: 0.58rem;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+    }
+
+    .network__alert {
+        left: 12px;
+        border: 1px solid rgba(217, 138, 138, 0.28);
+        color: rgba(230, 161, 161, 0.9);
+    }
+
+    .network__status {
+        right: 12px;
+        border: 1px solid rgba(82, 183, 136, 0.26);
+        color: var(--green-glow, #52b788);
+        opacity: 0;
+        animation: networkStatus 5.8s ease-in-out infinite;
+    }
+
+    @keyframes networkLine {
+        0%, 26% { stroke-dashoffset: 1; }
+        60%, 88% { stroke-dashoffset: 0; }
+        100% { stroke-dashoffset: 1; }
+    }
+
+    @keyframes networkNode {
+        0%, 42% { fill: #0b0b0a; stroke: rgba(136, 128, 119, 0.52); }
+        58%, 88% { fill: var(--green-glow, #52b788); stroke: rgba(167, 243, 208, 0.86); filter: drop-shadow(0 0 6px rgba(82, 183, 136, 0.62)); }
+        100% { fill: #0b0b0a; stroke: rgba(136, 128, 119, 0.52); }
+    }
+
+    @keyframes networkPulse {
+        0%, 100% { r: 20px; opacity: 0.7; }
+        30%, 52% { r: 27px; opacity: 0.12; }
+        66%, 84% { r: 20px; opacity: 0.7; }
+    }
+
+    @keyframes networkStatus {
+        0%, 60% { opacity: 0; transform: translateY(-3px); }
+        70%, 88% { opacity: 1; transform: none; }
+        100% { opacity: 0; }
+    }
+
+    @media (min-width: 720px) {
+        .safe__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .safe__card--network { grid-column: 1 / -1; }
+    }
+
+    @media (min-width: 1024px) {
+        .safe__card--network .safe__demo { padding-inline: 28px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .jury__seat em,
+        .jury__tally,
+        .gates__packet,
+        .gates__gate i,
+        .gates__exit,
+        .gates__receipt em,
+        .gates__receipt span,
+        .network__links path,
+        .network__nodes circle,
+        .network__core circle:first-child,
+        .network__status {
+            animation: none;
+        }
+
+        .jury__seat em { opacity: 1; transform: translate(-50%, -7px); }
+        .jury__tally,
+        .gates__exit,
+        .gates__receipt em,
+        .gates__receipt span,
+        .network__status { opacity: 1; transform: none; }
+        .gates__packet { left: calc(100% - 38px); color: var(--green-glow, #52b788); }
+        .gates__gate i { background: var(--green-glow, #52b788); }
+        .network__links path { stroke-dashoffset: 0; }
+        .network__nodes circle { fill: var(--green-glow, #52b788); stroke: rgba(167, 243, 208, 0.86); }
+    }
+
+    @media (max-width: 640px) {
+        .safe { padding: var(--space-section-sm, 72px) 20px; }
+        .safe__demo { height: 126px; }
+        .safe__desc { margin-left: 0; }
+        .network__alert,
+        .network__status { font-size: 0.52rem; }
+    }
+</style>
