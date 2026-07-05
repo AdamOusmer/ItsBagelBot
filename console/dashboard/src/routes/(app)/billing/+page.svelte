@@ -292,7 +292,7 @@
             </button>
           </form>
         </div>
-        <p class="plan-fine">{t('billing.premiumFine')} &middot; Secure checkout via Tebex</p>
+        <p class="plan-fine">{t('billing.premiumFine')} &middot; {t('billing.tebexNote')}</p>
       </Card>
     </div>
 

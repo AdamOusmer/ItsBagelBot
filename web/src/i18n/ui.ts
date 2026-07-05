@@ -94,6 +94,7 @@ const en = {
   'tier.enterpriseFeat4': 'Custom terms & a real account manager',
   'tier.contactSales': 'Contact sales',
   'tier.oath': 'no feature gates · no trials · no card on file · cancelling is one click',
+  'tier.tebexNote': 'Secure checkout provided by Tebex.',
 
   // ── FAQ ─────────────────────────────────────────────────────────
   'faq.eyebrow': 'FAQ',
@@ -231,6 +232,11 @@ const en = {
   'board.l4Hint': 'source available',
   'board.note': 'Small team, real inboxes. We read everything, usually within a day. We do sleep sometimes.',
   'board.copy': 'Copy',
+
+  // ── Eco Friendly ────────────────────────────────────────────────
+  'eco.eyebrow': 'Eco Friendly',
+  'eco.title': 'This web page appears to be running on sustainable energy',
+  'eco.desc': 'Moreover we are fully on hydro-electricity and everything is optimized to lower the amount of hardware used to a maximum.',
 } as const;
 
 export type UIKey = keyof typeof en;
@@ -316,6 +322,7 @@ const fr: Partial<Record<UIKey, string>> = {
   'tier.enterpriseFeat4': 'Conditions sur mesure et un vrai gestionnaire de compte',
   'tier.contactSales': 'Contacter les ventes',
   'tier.oath': 'aucune barrière de fonctionnalité · aucun essai · aucune carte enregistrée · l\'annulation se fait en un clic',
+  'tier.tebexNote': 'Paiement sécurisé fourni par Tebex.',
 
   'faq.eyebrow': 'FAQ',
   'faq.title': 'Questions légitimes.',
@@ -449,6 +456,10 @@ const fr: Partial<Record<UIKey, string>> = {
   'board.l4Hint': 'source disponible',
   'board.note': 'Petite équipe, vraies boîtes de réception. Nous lisons tout, généralement en un jour. Il nous arrive de dormir.',
   'board.copy': 'Copier',
+
+  'eco.eyebrow': 'Écoresponsable',
+  'eco.title': 'Cette page web semble fonctionner à l\'énergie durable',
+  'eco.desc': 'De plus, nous sommes entièrement à l\'hydroélectricité et tout est optimisé pour réduire au maximum la quantité de matériel utilisé.',
 };
 
 const catalog: Record<Lang, Partial<Record<UIKey, string>>> = { en, fr };

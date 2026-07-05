@@ -2,8 +2,7 @@
 /**
  * Tiers — pricing with the convention flipped: Free is the hero card because
  * Free is the product. Premium is framed as the tip jar it actually is, and
- * Enterprise sits quietly beside it. Count-up price, stroke-drawn checks,
- * pointer tilt via [data-tilt] (interactions.js).
+ * Enterprise sits quietly beside it. Count-up price, stroke-drawn checks.
  */
 import Card from '../ui/Card.astro';
 import { getLangFromUrl, useTranslations } from '../../i18n/ui';
@@ -27,102 +26,97 @@ const enterpriseFeatures = [
 
 <section class="tiers">
     <!-- Free: the whole product -->
-    <div class="tiers__tilt" data-tilt="4">
-        <Card class="tier tier--free" data-reveal>
-            <div class="tier-free__layout">
-                <div class="tier-free__head">
-                    <span class="tier__name">{t('tier.free')}</span>
-                    <div class="tier__price">
-                        <span class="tier__amount">$0</span>
-                        <span class="tier__suffix">{t('tier.freeSuffix')}</span>
-                    </div>
-                    <p class="tier__desc">
-                        {t('tier.freeDesc')}
-                    </p>
-                    <a
-                        class="tier__btn tier__btn--main"
-                        href="https://dashboard.itsbagelbot.com"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        data-magnetic="0.3"
-                    >{t('tier.getStarted')}</a>
+    <Card class="tier tier--free" data-reveal>
+        <div class="tier-free__layout">
+            <div class="tier-free__head">
+                <span class="tier__name">{t('tier.free')}</span>
+                <div class="tier__price">
+                    <span class="tier__amount">$0</span>
+                    <span class="tier__suffix">{t('tier.freeSuffix')}</span>
                 </div>
-
-                <ul class="tier__features tier-free__features">
-                    {freeFeatures.map((feature, fi) => (
-                        <li class="tier__feature" data-reveal style={`--reveal-i: ${fi + 1}`}>
-                            <svg class="tier__check" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                                <path class="tier__check-path" d="M3.5 8.5L6.5 11.5L12.5 4.5"
-                                      stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-                            </svg>
-                            <span>{feature}</span>
-                        </li>
-                    ))}
-                </ul>
+                <p class="tier__desc">
+                    {t('tier.freeDesc')}
+                </p>
+                <a
+                    class="tier__btn tier__btn--main"
+                    href="https://dashboard.itsbagelbot.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    data-magnetic="0.3"
+                >{t('tier.getStarted')}</a>
             </div>
-        </Card>
-    </div>
+
+            <ul class="tier__features tier-free__features">
+                {freeFeatures.map((feature, fi) => (
+                    <li class="tier__feature" data-reveal style={`--reveal-i: ${fi + 1}`}>
+                        <svg class="tier__check" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                            <path class="tier__check-path" d="M3.5 8.5L6.5 11.5L12.5 4.5"
+                                  stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                        <span>{feature}</span>
+                    </li>
+                ))}
+            </ul>
+        </div>
+    </Card>
 
     <div class="tiers__pair">
         <!-- Premium: the tip jar -->
-        <div class="tiers__tilt" data-tilt="5">
-            <Card class="tier tier--premium" data-reveal style="--reveal-i: 1">
-                <span class="tier__badge">{t('tier.premiumBadge')}</span>
-                <span class="tier__name">{t('tier.premium')}</span>
-                <div class="tier__price">
-                    <span class="tier__amount" data-count-up data-target="7" data-suffix="$">0$</span>
-                    <span class="tier__suffix">{t('tier.premiumSuffix')}</span>
-                </div>
-                <p class="tier__desc">
-                    {t('tier.premiumDesc')}
-                </p>
-                <ul class="tier__features">
-                    {premiumFeatures.map((feature, fi) => (
-                        <li class="tier__feature" data-reveal style={`--reveal-i: ${fi + 1}`}>
-                            <svg class="tier__check" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                                <path class="tier__check-path" d="M3.5 8.5L6.5 11.5L12.5 4.5"
-                                      stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-                            </svg>
-                            <span>{feature}</span>
-                        </li>
-                    ))}
-                </ul>
-                <!-- Deep link: signs the visitor in (Twitch OAuth, path preserved)
-                     and lands on billing with checkout auto-opened. -->
-                <a
-                    class="tier__btn tier__btn--outline"
-                    href="https://dashboard.itsbagelbot.com/billing?subscribe=1"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                >{t('tier.chipIn')}</a>
-                <p class="tier__tebex-note">Secure checkout provided by Tebex.</p>
-            </Card>
-        </div>
+        <Card class="tier tier--premium" data-reveal style="--reveal-i: 1">
+            <span class="tier__badge">{t('tier.premiumBadge')}</span>
+            <img src="/premium-logo.png" alt="Premium" class="tier__premium-logo" />
+            <span class="tier__name">{t('tier.premium')}</span>
+            <div class="tier__price">
+                <span class="tier__amount" data-count-up data-target="7" data-suffix="$">0$</span>
+                <span class="tier__suffix">{t('tier.premiumSuffix')}</span>
+            </div>
+            <p class="tier__desc">
+                {t('tier.premiumDesc')}
+            </p>
+            <ul class="tier__features">
+                {premiumFeatures.map((feature, fi) => (
+                    <li class="tier__feature" data-reveal style={`--reveal-i: ${fi + 1}`}>
+                        <svg class="tier__check" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                            <path class="tier__check-path" d="M3.5 8.5L6.5 11.5L12.5 4.5"
+                                  stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                        <span>{feature}</span>
+                    </li>
+                ))}
+            </ul>
+            <!-- Deep link: signs the visitor in (Twitch OAuth, path preserved)
+                 and lands on billing with checkout auto-opened. -->
+            <a
+                class="tier__btn tier__btn--outline"
+                href="https://dashboard.itsbagelbot.com/billing?subscribe=1"
+                target="_blank"
+                rel="noopener noreferrer"
+            >{t('tier.chipIn')}</a>
+            <p class="tier__tebex-note">{t('tier.tebexNote')}</p>
+        </Card>
 
         <!-- Enterprise -->
-        <div class="tiers__tilt" data-tilt="5">
-            <Card class="tier tier--enterprise" data-reveal style="--reveal-i: 2">
-                <span class="tier__name">{t('tier.enterprise')}</span>
-                <div class="tier__price">
-                    <span class="tier__amount tier__amount--static">{t('tier.enterpriseAmount')}</span>
-                </div>
-                <p class="tier__desc">
-                    {t('tier.enterpriseDesc')}
-                </p>
-                <ul class="tier__features">
-                    {enterpriseFeatures.map((feature, fi) => (
-                        <li class="tier__feature" data-reveal style={`--reveal-i: ${fi + 1}`}>
-                            <svg class="tier__check" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                                <path class="tier__check-path" d="M3.5 8.5L6.5 11.5L12.5 4.5"
-                                      stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-                            </svg>
-                            <span>{feature}</span>
-                        </li>
-                    ))}
-                </ul>
-                <a class="tier__btn tier__btn--outline" href="mailto:enterprise@itsbagelbot.com">{t('tier.contactSales')}</a>
-            </Card>
-        </div>
+        <Card class="tier tier--enterprise" data-reveal style="--reveal-i: 2">
+            <span class="tier__name">{t('tier.enterprise')}</span>
+            <div class="tier__price">
+                <span class="tier__amount tier__amount--static">{t('tier.enterpriseAmount')}</span>
+            </div>
+            <p class="tier__desc">
+                {t('tier.enterpriseDesc')}
+            </p>
+            <ul class="tier__features">
+                {enterpriseFeatures.map((feature, fi) => (
+                    <li class="tier__feature" data-reveal style={`--reveal-i: ${fi + 1}`}>
+                        <svg class="tier__check" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                            <path class="tier__check-path" d="M3.5 8.5L6.5 11.5L12.5 4.5"
+                                  stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                        <span>{feature}</span>
+                    </li>
+                ))}
+            </ul>
+            <a class="tier__btn tier__btn--outline" href="mailto:enterprise@itsbagelbot.com">{t('tier.contactSales')}</a>
+        </Card>
     </div>
 
     <p class="tiers__oath" data-reveal>
@@ -150,15 +144,7 @@ const enterpriseFeatures = [
         .tiers__pair { grid-template-columns: repeat(2, 1fr); }
     }
 
-    /* Tilt wrapper carries the 3D transform so the Card keeps its hover lift */
-    .tiers__tilt {
-        transform: perspective(900px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
-        transition: transform 500ms var(--ease-out-expo);
-        will-change: transform;
-    }
-
-    .tiers__pair .tiers__tilt { display: flex; }
-    .tiers__pair .tiers__tilt :global(.card) { flex: 1; }
+    .tiers__pair :global(.card) { flex: 1; }
 
     /* ── Card internals ── */
 
@@ -180,7 +166,6 @@ const enterpriseFeatures = [
 
     @media (prefers-reduced-motion: reduce) {
         .tier--free { animation-play-state: paused; }
-        .tiers__tilt { transform: none; transition: none; }
     }
 
     .tier-free__layout {
@@ -234,6 +219,13 @@ const enterpriseFeatures = [
        so the premium card drops its content down to clear it — otherwise the
        ribbon sits on top of the "Premium" title. */
     .tier--premium :global(.card__body) { padding-top: 22px; }
+
+    .tier__premium-logo {
+        height: 42px;
+        width: auto;
+        margin-bottom: 16px;
+        display: block;
+    }
 
     .tier__name {
         display: block;
