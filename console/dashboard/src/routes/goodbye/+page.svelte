@@ -10,6 +10,7 @@
   let leaving = $state(false);
 
   onMount(() => {
+    localStorage.removeItem('bb-onboarded');
     let exit: ReturnType<typeof setTimeout>;
     const t = setTimeout(() => {
       leaving = true;
