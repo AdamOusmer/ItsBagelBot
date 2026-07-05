@@ -15,6 +15,7 @@
     accountName: string; accountRole: string; dashboards?: DashboardLink[];
     groups: NavGroupDef[]; mobileItems: NavLink[];
     offset?: boolean; logoSrc?: string; isPremium?: boolean; banner?: Snippet; topActions?: Snippet; children: Snippet;
+    isDelegate?: boolean; delegateExitHref?: string; delegateExitLabel?: string;
   } = $props();
 
   // Flat apps (one group) get their curated mobileItems in the dock; apps with
@@ -39,6 +40,9 @@
     {dashboards}
     {logoSrc}
     {isPremium}
+    {isDelegate}
+    {delegateExitHref}
+    {delegateExitLabel}
   />
   <main class="main">
     <div class="canvas">{@render children()}</div>

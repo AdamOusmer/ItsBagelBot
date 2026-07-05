@@ -113,6 +113,9 @@
   offset={showBanner}
   logoSrc={data.isPremium ? '/premium-logo.png' : '/logo.png'}
   isPremium={data.isPremium}
+  {isDelegate}
+  delegateExitHref="/delegate/exit"
+  delegateExitLabel={t('banner.exit')}
 >
   {#snippet banner()}
     {#if isDelegate}
