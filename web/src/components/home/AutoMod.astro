@@ -1,0 +1,392 @@
+---
+import Card from '../ui/Card.astro';
+import SectionHeading from '../ui/SectionHeading.astro';
+import { getLangFromUrl, useTranslations } from '../../i18n/ui';
+
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+---
+
+<section class="am" id="automod">
+    <SectionHeading eyebrow={t('automod.eyebrow')} title={t('automod.title')} />
+
+    <div class="am__grid">
+        <!-- Classifier Jury -->
+        <Card class="am__card am__card--wide" data-reveal>
+            <div class="am__demo am__demo--jury" aria-hidden="true">
+                <div class="am-jury__msg">CLICK HERE FOR FREE SUBS!!</div>
+                <div class="am-jury__scanners">
+                    <span class="am-jury__node" style="--d: 0s"></span>
+                    <span class="am-jury__node" style="--d: 0.15s"></span>
+                    <span class="am-jury__node" style="--d: 0.3s"></span>
+                    <span class="am-jury__node" style="--d: 0.45s"></span>
+                </div>
+                <div class="am-jury__verdict">BLOCKED</div>
+            </div>
+            <h3 class="am__title">{t('automod.juryTitle')}</h3>
+            <p class="am__desc">{t('automod.juryDesc')}</p>
+        </Card>
+
+        <!-- Static Gates -->
+        <Card class="am__card" data-reveal style="--reveal-i: 1">
+            <div class="am__demo am__demo--gates" aria-hidden="true">
+                <div class="am-gate">
+                    <span class="am-gate__user" style="--d: 0s">bot_83</span>
+                    <span class="am-gate__wall"></span>
+                </div>
+                <div class="am-gate">
+                    <span class="am-gate__user" style="--d: 1s">bot_99</span>
+                    <span class="am-gate__wall"></span>
+                </div>
+            </div>
+            <h3 class="am__title">{t('automod.gatesTitle')}</h3>
+            <p class="am__desc">{t('automod.gatesDesc')}</p>
+        </Card>
+
+        <!-- Reputation Engine -->
+        <Card class="am__card" data-reveal style="--reveal-i: 2">
+            <div class="am__demo am__demo--rep" aria-hidden="true">
+                <div class="am-rep__user">
+                    <span class="am-rep__badge">
+                        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0L10.47 5.03L16 5.84L12 9.76L12.94 15.26L8 12.66L3.06 15.26L4 9.76L0 5.84L5.53 5.03L8 0Z"/></svg>
+                    </span>
+                    <span class="am-rep__name">trusted_viewer</span>
+                </div>
+                <div class="am-rep__msg">LMAO ALL CAPS HYPE!!!</div>
+                <div class="am-rep__verdict">ALLOWED</div>
+            </div>
+            <h3 class="am__title">{t('automod.reputationTitle')}</h3>
+            <p class="am__desc">{t('automod.reputationDesc')}</p>
+        </Card>
+
+        <!-- Centralized Hive -->
+        <Card class="am__card am__card--wide" data-reveal style="--reveal-i: 3">
+            <div class="am__demo am__demo--hive" aria-hidden="true">
+                <div class="am-hive__network">
+                    <div class="am-hive__node am-hive__node--origin"></div>
+                    <div class="am-hive__line" style="--r: 0deg"></div>
+                    <div class="am-hive__line" style="--r: 72deg"></div>
+                    <div class="am-hive__line" style="--r: 144deg"></div>
+                    <div class="am-hive__line" style="--r: 216deg"></div>
+                    <div class="am-hive__line" style="--r: 288deg"></div>
+                    
+                    <div class="am-hive__node" style="--x: 30px; --y: -35px;"></div>
+                    <div class="am-hive__node" style="--x: 40px; --y: 15px;"></div>
+                    <div class="am-hive__node" style="--x: -10px; --y: 40px;"></div>
+                    <div class="am-hive__node" style="--x: -40px; --y: 5px;"></div>
+                    <div class="am-hive__node" style="--x: -20px; --y: -30px;"></div>
+                </div>
+                <div class="am-hive__alert">THREAT BLOCKED GLOBALLY</div>
+            </div>
+            <h3 class="am__title">{t('automod.hiveTitle')}</h3>
+            <p class="am__desc">{t('automod.hiveDesc')}</p>
+        </Card>
+    </div>
+</section>
+
+<style>
+    .am {
+        position: relative;
+        padding: var(--space-section, 96px) 24px;
+        max-width: var(--content-max, 1200px);
+        margin: 0 auto;
+        z-index: 3;
+    }
+
+    .am__grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 20px;
+    }
+
+    @media (min-width: 720px) {
+        .am__grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (min-width: 1024px) {
+        .am__grid { grid-template-columns: repeat(6, 1fr); }
+        .am__card { grid-column: span 2; }
+        .am__card--wide { grid-column: span 3; }
+    }
+
+    .am__title {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-size: 1.06rem;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+        color: var(--white, #f0ece4);
+        margin: 0 0 8px;
+    }
+
+    .am__desc {
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: 0.86rem;
+        line-height: 1.6;
+        color: var(--muted, #888077);
+        margin: 0;
+    }
+
+    /* ── Demo stage shared ── */
+    .am__demo {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 8px;
+        height: 84px;
+        margin-bottom: 24px;
+        border-radius: 6px;
+        background: rgba(10, 10, 10, 0.4);
+        border: 1px solid rgba(240, 236, 228, 0.05);
+        padding: 0 16px;
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.75rem;
+        overflow: hidden;
+        position: relative;
+    }
+
+    /* ── Classifier Jury ── */
+    .am__demo--jury {
+        align-items: center;
+        flex-direction: row;
+        justify-content: space-between;
+    }
+    
+    .am-jury__msg {
+        color: var(--muted);
+        animation: fadeOutMsg 4s ease-in-out infinite;
+    }
+    
+    .am-jury__scanners {
+        display: flex;
+        gap: 6px;
+    }
+    
+    .am-jury__node {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--muted);
+        animation: scanNode 4s ease-in-out infinite;
+        animation-delay: var(--d);
+    }
+    
+    .am-jury__verdict {
+        position: absolute;
+        right: 16px;
+        color: #ff6b6b;
+        font-weight: bold;
+        opacity: 0;
+        transform: translateX(10px);
+        animation: verdictIn 4s ease-in-out infinite;
+    }
+
+    @keyframes scanNode {
+        0%, 15% { background: var(--muted); }
+        20%, 35% { background: var(--tan); box-shadow: 0 0 8px var(--tan); }
+        40%, 100% { background: #ff6b6b; box-shadow: 0 0 8px #ff6b6b; }
+    }
+    
+    @keyframes fadeOutMsg {
+        0%, 35% { opacity: 1; text-decoration: none; color: var(--muted); }
+        40%, 80% { opacity: 0.4; text-decoration: line-through; color: #ff6b6b; }
+        85%, 100% { opacity: 1; text-decoration: none; color: var(--muted); }
+    }
+    
+    @keyframes verdictIn {
+        0%, 35% { opacity: 0; transform: translateX(10px); }
+        40%, 80% { opacity: 1; transform: translateX(0); }
+        85%, 100% { opacity: 0; transform: translateX(10px); }
+    }
+
+    /* ── Static Gates ── */
+    .am__demo--gates {
+        align-items: flex-start;
+    }
+    
+    .am-gate {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        width: 100%;
+    }
+    
+    .am-gate__user {
+        color: var(--muted);
+        position: relative;
+        animation: moveUser 3s ease-in-out infinite;
+        animation-delay: var(--d);
+    }
+    
+    .am-gate__wall {
+        width: 4px;
+        height: 16px;
+        background: var(--tan);
+        margin-left: auto;
+        opacity: 0.3;
+        border-radius: 2px;
+        animation: wallFlash 3s ease-in-out infinite;
+        animation-delay: var(--d);
+    }
+
+    @keyframes moveUser {
+        0%, 10% { transform: translateX(0); opacity: 0; }
+        15% { opacity: 1; }
+        35% { transform: translateX(150px); opacity: 1; }
+        40% { transform: translateX(130px); opacity: 0; }
+        100% { transform: translateX(0); opacity: 0; }
+    }
+    
+    @keyframes wallFlash {
+        0%, 30% { background: var(--tan); opacity: 0.3; box-shadow: none; }
+        35%, 45% { background: #ff6b6b; opacity: 1; box-shadow: 0 0 8px #ff6b6b; }
+        50%, 100% { background: var(--tan); opacity: 0.3; box-shadow: none; }
+    }
+
+    /* ── Reputation Engine ── */
+    .am__demo--rep {
+        justify-content: center;
+        align-items: center;
+        gap: 4px;
+    }
+    
+    .am-rep__user {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    
+    .am-rep__badge {
+        color: var(--tan);
+        width: 12px;
+        height: 12px;
+        animation: badgeGlow 4s ease-in-out infinite;
+    }
+    
+    .am-rep__name {
+        color: var(--white);
+        font-weight: bold;
+    }
+    
+    .am-rep__msg {
+        color: var(--muted);
+    }
+    
+    .am-rep__verdict {
+        position: absolute;
+        right: 16px;
+        top: 16px;
+        color: var(--green-glow);
+        font-weight: bold;
+        opacity: 0;
+        animation: verdictAllowed 4s ease-in-out infinite;
+    }
+
+    @keyframes badgeGlow {
+        0%, 20% { filter: drop-shadow(0 0 2px rgba(201,168,124,0)); }
+        30%, 70% { filter: drop-shadow(0 0 6px var(--tan)); transform: scale(1.1); }
+        80%, 100% { filter: drop-shadow(0 0 2px rgba(201,168,124,0)); }
+    }
+    
+    @keyframes verdictAllowed {
+        0%, 25% { opacity: 0; transform: translateY(-5px); }
+        35%, 75% { opacity: 1; transform: translateY(0); }
+        85%, 100% { opacity: 0; transform: translateY(-5px); }
+    }
+
+    /* ── Centralized Hive ── */
+    .am__demo--hive {
+        align-items: center;
+    }
+    
+    .am-hive__network {
+        position: relative;
+        width: 100px;
+        height: 100px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .am-hive__node {
+        position: absolute;
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--green-glow);
+        transform: translate(var(--x, 0), var(--y, 0));
+        animation: hiveNode 5s infinite;
+    }
+    
+    .am-hive__node--origin {
+        width: 10px;
+        height: 10px;
+        background: #ff6b6b;
+        transform: none;
+        z-index: 2;
+        animation: hiveOrigin 5s infinite;
+    }
+    
+    .am-hive__line {
+        position: absolute;
+        width: 40px;
+        height: 1px;
+        background: linear-gradient(90deg, #ff6b6b, transparent);
+        transform-origin: left center;
+        transform: rotate(var(--r));
+        opacity: 0;
+        animation: hiveLine 5s infinite;
+    }
+    
+    .am-hive__alert {
+        position: absolute;
+        bottom: 12px;
+        left: 50%;
+        transform: translateX(-50%);
+        color: #ff6b6b;
+        font-weight: bold;
+        letter-spacing: 0.1em;
+        opacity: 0;
+        animation: hiveAlert 5s infinite;
+    }
+
+    @keyframes hiveOrigin {
+        0%, 10% { box-shadow: 0 0 0 rgba(255,107,107,0); }
+        15%, 85% { box-shadow: 0 0 12px rgba(255,107,107,0.8); }
+        90%, 100% { box-shadow: 0 0 0 rgba(255,107,107,0); }
+    }
+    
+    @keyframes hiveLine {
+        0%, 15% { opacity: 0; width: 0; }
+        20%, 80% { opacity: 0.8; width: 40px; }
+        85%, 100% { opacity: 0; width: 0; }
+    }
+    
+    @keyframes hiveNode {
+        0%, 20% { background: var(--green-glow); box-shadow: none; }
+        25%, 75% { background: #ff6b6b; box-shadow: 0 0 8px #ff6b6b; }
+        80%, 100% { background: var(--green-glow); box-shadow: none; }
+    }
+    
+    @keyframes hiveAlert {
+        0%, 30% { opacity: 0; }
+        35%, 70% { opacity: 1; }
+        75%, 100% { opacity: 0; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .am-jury__msg, .am-jury__node, .am-jury__verdict,
+        .am-gate__user, .am-gate__wall,
+        .am-rep__badge, .am-rep__verdict,
+        .am-hive__node, .am-hive__node--origin, .am-hive__line, .am-hive__alert {
+            animation: none !important;
+            opacity: 1 !important;
+            transform: none !important;
+            text-decoration: none !important;
+            box-shadow: none !important;
+        }
+    }
+</style>
