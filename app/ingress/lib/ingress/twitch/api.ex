@@ -22,20 +22,20 @@ defmodule Ingress.Twitch.Api do
   first existing conduit for this client is reused, and one is created when
   none exists.
   """
-  @spec ensure_conduit() :: {:ok, String.t()} | {:error, term()}
+  @spec ensure_conduit() :: {:ok, String.t(), pos_integer()} | {:error, term()}
   def ensure_conduit do
     desired = Config.conduit_shard_count()
 
     with {:ok, conduits} <- list_conduits() do
       case pick_conduit(conduits) do
         {:ok, nil} ->
-          create_conduit(desired)
+          with {:ok, id} <- create_conduit(desired), do: {:ok, id, desired}
 
         {:ok, %{"id" => id, "shard_count" => count}} when count < desired ->
-          with :ok <- update_conduit(id, desired), do: {:ok, id}
+          with :ok <- update_conduit(id, desired), do: {:ok, id, desired}
 
-        {:ok, %{"id" => id}} ->
-          {:ok, id}
+        {:ok, %{"id" => id, "shard_count" => count}} ->
+          {:ok, id, count}
 
         {:error, reason} ->
           {:error, reason}

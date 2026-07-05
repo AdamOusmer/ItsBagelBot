@@ -37,7 +37,7 @@ type activePlan struct {
 	members     []Member
 	selfIndex   int
 	selfPodID   string
-	shares      [profileHelixSystem + 1]selfShare
+	shares      [profileHelixUser + 1]selfShare
 }
 
 type LeaseManager struct {
@@ -103,7 +103,7 @@ func (m *LeaseManager) ActivatePlan(plan Plan, serverNow, localNow time.Time, gu
 	if selfIndex >= 0 {
 		ap.selfPodID = canonical.Members[selfIndex].PodID
 		members := len(canonical.Members)
-		for profile := profileChat; profile <= profileHelixSystem; profile++ {
+		for profile := profileChat; profile <= profileHelixUser; profile++ {
 			shared, standard, ok := specsForProfile(profile)
 			if !ok {
 				continue
@@ -126,6 +126,7 @@ func (m *LeaseManager) ActivatePlan(plan Plan, serverNow, localNow time.Time, gu
 		}
 	}
 	m.plan.Store(ap)
+	m.primeFixedBuckets(localNow, ap)
 	if m.local != nil {
 		// Keep the immediately previous incarnation so an unchanged holder can
 		// renew without losing its token balance. Older idle buckets are safe to
@@ -133,6 +134,38 @@ func (m *LeaseManager) ActivatePlan(plan Plan, serverNow, localNow time.Time, gu
 		m.local.DeleteExpired(localNow.Add(-2 * notAfter.Sub(notBefore)).UnixNano())
 	}
 	return nil
+}
+
+// primeFixedBuckets creates the fleet-wide Helix buckets as soon as a lease
+// plan activates and renews them every epoch. Unlike per-channel chat buckets,
+// these sparse control buckets must remain resident: creating them on the first
+// EventSub operation would start them empty and expose only the 10% emergency
+// partition to an operation that needs a larger burst.
+func (m *LeaseManager) primeFixedBuckets(now time.Time, plan *activePlan) {
+	if m.local == nil || plan.selfIndex < 0 {
+		return
+	}
+	for _, fixed := range []struct {
+		id      BucketID
+		profile uint8
+	}{
+		{BucketID{Scope: "helix:app"}, profileHelixGeneral},
+		{BucketID{Scope: "helix:system"}, profileHelixSystem},
+		{BucketID{Scope: "helix:user:bot"}, profileHelixUser},
+	} {
+		share := &plan.shares[fixed.profile]
+		if !share.valid {
+			continue
+		}
+		bucket, _ := m.configuredBucket(now, plan, fixed.id, plan.selfPodID, share)
+		if bucket.Generation() != plan.generation || bucket.Holder() != plan.selfPodID {
+			bucket.Update(now, plan.epoch, plan.generation, plan.selfPodID,
+				plan.notBefore, plan.notAfter, share.sharedRate, share.sharedBurst,
+				share.standardRate, share.standardBurst)
+		} else {
+			bucket.Renew(plan.epoch, plan.notBefore, plan.notAfter)
+		}
+	}
 }
 
 func (m *LeaseManager) Allow(ctx context.Context, req Request) (bool, error) {

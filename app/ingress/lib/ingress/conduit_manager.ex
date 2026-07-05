@@ -9,10 +9,9 @@ defmodule Ingress.ConduitManager do
   `Ingress.ShardScaler`), then converges the running `Ingress.ShardSession`
   processes to match — starting missing shards and stopping excess ones.
 
-  Reconciliation repeats periodically: it heals shards whose supervisor gave
-  up, re-asserts the Conduit size against Twitch (the one external source of
-  truth we cannot avoid reconciling with), and shrinks when the scaler's
-  desired count drops below the current session count.
+  Reconciliation repeats periodically to heal local shards whose supervisor
+  gave up. Twitch is updated only when the internally-owned desired shard count
+  changes; stable reconciliation ticks never spend Helix quota.
   """
 
   use GenServer
@@ -32,7 +31,7 @@ defmodule Ingress.ConduitManager do
 
   @impl true
   def init(_) do
-    {:ok, %{conduit_id: nil}, {:continue, :reconcile}}
+    {:ok, %{conduit_id: nil, applied_shard_count: nil}, {:continue, :reconcile}}
   end
 
   @impl true
@@ -48,11 +47,11 @@ defmodule Ingress.ConduitManager do
 
   defp reconcile(state) do
     case ensure_conduit(state) do
-      {:ok, conduit_id} ->
+      {:ok, conduit_id, applied_shard_count} ->
         desired = ShardScaler.desired()
-        converge_shards(conduit_id, desired)
+        applied_shard_count = converge_shards(conduit_id, desired, applied_shard_count)
         Process.send_after(self(), :reconcile, @reconcile_interval_ms)
-        %{state | conduit_id: conduit_id}
+        %{state | conduit_id: conduit_id, applied_shard_count: applied_shard_count}
 
       {:error, reason} ->
         Logger.error("conduit reconcile failed: #{inspect(reason)}")
@@ -62,29 +61,38 @@ defmodule Ingress.ConduitManager do
   end
 
   defp ensure_conduit(%{conduit_id: nil}), do: Api.ensure_conduit()
-  defp ensure_conduit(%{conduit_id: id}), do: {:ok, id}
+  defp ensure_conduit(%{conduit_id: id, applied_shard_count: count}), do: {:ok, id, count}
 
   # Converge the Conduit (Twitch side) and local ShardSession processes to
   # exactly `desired` shards. Grows or shrinks as needed.
   #
   # Order of operations:
-  #   1. Resize the Conduit on Twitch's side so it accepts exactly `desired`
-  #      shard bindings. update_conduit/2 works both directions.
+  #   1. If `desired` changed, resize the Conduit on Twitch's side so it
+  #      accepts exactly that many shard bindings.
   #   2. Stop sessions for shard IDs >= desired (the Conduit no longer has
   #      slots for them; stopping is safe because :transient restart means a
   #      deliberate shutdown will not restart the session).
   #   3. Start any missing sessions for shard IDs 0..(desired-1).
-  defp converge_shards(conduit_id, desired) when desired > 0 do
-    case Api.update_conduit(conduit_id, desired) do
-      :ok ->
-        Logger.debug("conduit resized to #{desired} shards")
-
-      {:error, reason} ->
-        Logger.warning("conduit resize to #{desired} failed: #{inspect(reason)}")
-    end
+  defp converge_shards(conduit_id, desired, applied) when desired > 0 do
+    applied = maybe_resize_conduit(conduit_id, desired, applied)
 
     stop_excess_shards(desired)
     start_missing_shards(conduit_id, desired)
+    applied
+  end
+
+  defp maybe_resize_conduit(_conduit_id, desired, desired), do: desired
+
+  defp maybe_resize_conduit(conduit_id, desired, applied) do
+    case Api.update_conduit(conduit_id, desired) do
+      :ok ->
+        Logger.info("conduit resized to #{desired} shards")
+        desired
+
+      {:error, reason} ->
+        Logger.warning("conduit resize to #{desired} failed: #{inspect(reason)}")
+        applied
+    end
   end
 
   # Stop ShardSession processes for shard IDs >= desired. We look them up in

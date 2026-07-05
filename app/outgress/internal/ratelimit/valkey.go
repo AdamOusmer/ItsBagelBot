@@ -165,6 +165,7 @@ const (
 	profileChatMod
 	profileHelixGeneral
 	profileHelixSystem
+	profileHelixUser
 )
 
 func detectProfile(capacity int, refill float64) uint8 {
@@ -179,6 +180,8 @@ func detectProfile(capacity int, refill float64) uint8 {
 		return profileHelixSystem
 	case 700:
 		return profileHelixGeneral
+	case 800:
+		return profileHelixUser
 	default:
 		return profileUnknown
 	}
