@@ -37,6 +37,9 @@
     dashboards?: DashboardLink[];
     logoSrc?: string;
     isPremium?: boolean;
+    isDelegate?: boolean;
+    delegateExitHref?: string;
+    delegateExitLabel?: string;
   } = $props();
 
   const initial = $derived((accountName || '?').charAt(0).toUpperCase());
@@ -126,6 +129,14 @@
                   {/each}
                 </div>
               </Scroller>
+            </div>
+          {/if}
+          {#if isDelegate}
+            <div class="op-dash-group">
+              <a class="op-dash" href={delegateExitHref} role="menuitem">
+                <span class="dash-avatar"><Icon name="home" size={14} /></span>
+                <span class="dash-name">{delegateExitLabel}</span>
+              </a>
             </div>
           {/if}
           <form method="POST" action="/auth/logout">
@@ -255,7 +266,7 @@
   .op-menu-item {
     display: flex; align-items: center; gap: 10px; width: 100%;
     padding: 10px 10px; border-radius: 8px 8px;
-    background: none; border: none; cursor: pointer;
+    background: none; border: none; cursor: pointer; text-decoration: none;
     font-family: var(--bb-font-body); font-weight: 600; font-size: 13px; color: var(--bb-muted);
     transition: color var(--bb-dur-fast, 180ms) ease, background var(--bb-dur-fast, 180ms) ease;
   }
