@@ -23,6 +23,7 @@ export { default as CardHead } from '../components/CardHead.svelte';
 export { default as Chip } from '../components/Chip.svelte';
 export { default as MiniButton } from '../components/MiniButton.svelte';
 export { default as ErrorView } from '../components/ErrorView.svelte';
+export { default as LightField } from '../components/LightField.svelte';
 export { default as ToastHost } from '../components/ToastHost.svelte';
 export { default as SaveStatus } from '../components/SaveStatus.svelte';
 export { default as FieldError } from '../components/FieldError.svelte';
