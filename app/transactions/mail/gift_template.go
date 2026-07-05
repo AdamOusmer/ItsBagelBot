@@ -85,7 +85,7 @@ var giftTmpl = template.Must(template.New("gift").Parse(strings.TrimSpace(`
 {{if .Message}}
           <!-- personal note from the buyer -->
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px;">
-            <tr><td style="background-color:#0d0d0c;border:1px solid ` + colorBorder + `;border-left:3px solid ` + colorTan + `;border-radius:8px;padding:16px 18px;">
+            <tr><td style="background-color:#0d0d0c;border:1px solid ` + colorBorder + `;border-radius:8px;padding:16px 18px;">
               <div style="font-family:` + fontMono + `;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:` + colorTan + `;padding-bottom:9px;">{{.NoteLabel}}</div>
               <div style="font-family:` + fontBody + `;font-size:15px;line-height:1.6;color:#d8d0c4;font-style:italic;">&ldquo;{{.Message}}&rdquo;</div>
             </td></tr>

@@ -232,7 +232,6 @@
     margin-top: 10px;
     padding: 14px 14px 12px;
     border: 1px solid var(--rule, rgba(240, 236, 228, 0.1));
-    border-left: 2px solid rgba(82, 183, 136, 0.5);
     border-radius: 8px 8px;
     background: rgba(0, 0, 0, 0.3);
     display: flex;
@@ -327,7 +326,6 @@
     gap: 5px;
     padding: 9px 11px;
     border-radius: 8px 8px;
-    border-left: 3px solid var(--acc);
     background: color-mix(in srgb, var(--acc) 10%, rgba(0, 0, 0, 0.25));
     animation: reply-in 240ms var(--bb-ease-out-back, ease-out) both;
   }
