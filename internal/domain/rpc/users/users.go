@@ -181,6 +181,12 @@ type LocaleSetRequest struct {
 	Locale            string `json:"locale"`
 }
 
+// OnboardedSetRequest is the payload for the dashboard onboarded_set verb.
+type OnboardedSetRequest struct {
+	BroadcasterUserID string `json:"broadcaster_user_id"`
+	Onboarded         bool   `json:"onboarded"`
+}
+
 // CreateDelegationRequest is the payload for the delegation create verb.
 type CreateDelegationRequest struct {
 	OwnerUserID string   `json:"owner_user_id"`

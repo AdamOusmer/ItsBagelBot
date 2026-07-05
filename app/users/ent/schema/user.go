@@ -58,9 +58,10 @@ func (User) Fields() []ent.Field {
 
 		// Number of premium gifts this user has paid for (as the gifter). Bumped
 		// once per gift when the payment lands, on the idempotent billing-apply
-		// path so Tebex webhook retries never double-count. Existing rows get 0
-		// on migration.
+		// Existing rows get 0 on migration.
 		field.Uint32("gifts_sent").Default(0),
+
+		field.Bool("onboarded").Default(false),
 
 		field.Time("created_at").Default(time.Now),
 

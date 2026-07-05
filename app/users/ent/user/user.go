@@ -43,6 +43,8 @@ const (
 	FieldBillingEventID = "billing_event_id"
 	// FieldGiftsSent holds the string denoting the gifts_sent field in the database.
 	FieldGiftsSent = "gifts_sent"
+	// FieldOnboarded holds the string denoting the onboarded field in the database.
+	FieldOnboarded = "onboarded"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// FieldUpdatedAt holds the string denoting the updated_at field in the database.
@@ -77,6 +79,7 @@ var Columns = []string{
 	FieldBillingEventAt,
 	FieldBillingEventID,
 	FieldGiftsSent,
+	FieldOnboarded,
 	FieldCreatedAt,
 	FieldUpdatedAt,
 }
@@ -110,6 +113,8 @@ var (
 	DefaultSubscriptionCancelPending bool
 	// DefaultGiftsSent holds the default value on creation for the "gifts_sent" field.
 	DefaultGiftsSent uint32
+	// DefaultOnboarded holds the default value on creation for the "onboarded" field.
+	DefaultOnboarded bool
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 	// DefaultUpdatedAt holds the default value on creation for the "updated_at" field.
@@ -216,6 +221,11 @@ func ByBillingEventID(opts ...sql.OrderTermOption) OrderOption {
 // ByGiftsSent orders the results by the gifts_sent field.
 func ByGiftsSent(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldGiftsSent, opts...).ToFunc()
+}
+
+// ByOnboarded orders the results by the onboarded field.
+func ByOnboarded(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldOnboarded, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.

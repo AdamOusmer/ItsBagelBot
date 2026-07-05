@@ -10,25 +10,25 @@
 
   // First-visit onboarding: opens once for genuinely new users (nothing
   // created yet, never dismissed) or on demand via ?welcome=1.
-  const ONBOARDED_KEY = 'bb-onboarded';
   let onboardOpen = $state(false);
+  let onboardForm: HTMLFormElement;
+
   onMount(() => {
     if (page.url.searchParams.get('welcome') === '1') {
       onboardOpen = true;
       return;
     }
-    if (localStorage.getItem(ONBOARDED_KEY) === '1') return;
+    if (data.onboarded) return;
+    
+    // Only open the modal if the user actually has no commands (and isn't onboarded yet)
     data.commands.then((cd) => {
       if (cd.total === 0) onboardOpen = true;
     });
   });
+
   function finishOnboarding() {
     onboardOpen = false;
-    try {
-      localStorage.setItem(ONBOARDED_KEY, '1');
-    } catch {
-      /* storage unavailable — it'll just show again */
-    }
+    onboardForm?.requestSubmit();
   }
 
   // Real problems only, each with its fix. Empty array = healthy.
@@ -341,6 +341,8 @@
 
 <!-- First-visit setup stepper -->
 <OnboardingModal open={onboardOpen} onDone={finishOnboarding} />
+
+<form method="POST" action="?/onboarded" use:enhance bind:this={onboardForm} hidden></form>
 
 <!-- Confirm modal -->
 <Modal open={pending !== null} title={modalTitle} closeModal={closeModal}>

@@ -254,6 +254,20 @@ func (_u *UserUpdate) AddGiftsSent(v int32) *UserUpdate {
 	return _u
 }
 
+// SetOnboarded sets the "onboarded" field.
+func (_u *UserUpdate) SetOnboarded(v bool) *UserUpdate {
+	_u.mutation.SetOnboarded(v)
+	return _u
+}
+
+// SetNillableOnboarded sets the "onboarded" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableOnboarded(v *bool) *UserUpdate {
+	if v != nil {
+		_u.SetOnboarded(*v)
+	}
+	return _u
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_u *UserUpdate) SetCreatedAt(v time.Time) *UserUpdate {
 	_u.mutation.SetCreatedAt(v)
@@ -447,6 +461,9 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.AddedGiftsSent(); ok {
 		_spec.AddField(user.FieldGiftsSent, field.TypeUint32, value)
+	}
+	if value, ok := _u.mutation.Onboarded(); ok {
+		_spec.SetField(user.FieldOnboarded, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.CreatedAt(); ok {
 		_spec.SetField(user.FieldCreatedAt, field.TypeTime, value)
@@ -744,6 +761,20 @@ func (_u *UserUpdateOne) AddGiftsSent(v int32) *UserUpdateOne {
 	return _u
 }
 
+// SetOnboarded sets the "onboarded" field.
+func (_u *UserUpdateOne) SetOnboarded(v bool) *UserUpdateOne {
+	_u.mutation.SetOnboarded(v)
+	return _u
+}
+
+// SetNillableOnboarded sets the "onboarded" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableOnboarded(v *bool) *UserUpdateOne {
+	if v != nil {
+		_u.SetOnboarded(*v)
+	}
+	return _u
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_u *UserUpdateOne) SetCreatedAt(v time.Time) *UserUpdateOne {
 	_u.mutation.SetCreatedAt(v)
@@ -967,6 +998,9 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	}
 	if value, ok := _u.mutation.AddedGiftsSent(); ok {
 		_spec.AddField(user.FieldGiftsSent, field.TypeUint32, value)
+	}
+	if value, ok := _u.mutation.Onboarded(); ok {
+		_spec.SetField(user.FieldOnboarded, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.CreatedAt(); ok {
 		_spec.SetField(user.FieldCreatedAt, field.TypeTime, value)

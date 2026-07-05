@@ -45,6 +45,7 @@ func SubscribeDashboard(nc *nats.Conn, repo *repository.Users, prefix, invalidat
 		{"active_get", d.handleActiveGet},
 		{"status_get", d.handleStatusGet},
 		{"state_get", d.handleStateGet},
+		{"onboarded_set", d.handleOnboardedSet},
 		{"locale_set", d.handleLocaleSet},
 		{"delete_self", d.handleDeleteSelf},
 	}
@@ -241,8 +242,10 @@ func (d *dashboardRPC) handleStatusGet(ctx context.Context, msg *nats.Msg) {
 		bus.Respond(msg, map[string]any{"error": err.Error()})
 		return
 	}
-
-	bus.Respond(msg, map[string]any{"status": view.Status})
+	bus.Respond(msg, map[string]any{
+		"status":    view.Status,
+		"onboarded": view.Onboarded,
+	})
 }
 
 // handleStateGet returns both the receive toggle and billing tier in one reply.
@@ -274,12 +277,43 @@ func (d *dashboardRPC) handleStateGet(ctx context.Context, msg *nats.Msg) {
 	bus.Respond(msg, map[string]any{
 		"active":                      view.IsActive,
 		"status":                      view.Status,
+		"onboarded":                   view.Onboarded,
 		"locale":                      view.Locale,
 		"expires_at":                  view.SubscriptionExpiresAt,
 		"source":                      view.SubscriptionSource,
 		"subscription_ref":            view.SubscriptionRef,
 		"subscription_cancel_pending": view.SubscriptionCancelPending,
 	})
+}
+
+// handleOnboardedSet saves the user's completion of the onboarding flow.
+func (d *dashboardRPC) handleOnboardedSet(ctx context.Context, msg *nats.Msg) {
+	var req usersrpc.OnboardedSetRequest
+	if err := json.Unmarshal(msg.Data, &req); err != nil {
+		bus.Respond(msg, map[string]any{"error": "bad request"})
+		return
+	}
+
+	id, err := strconv.ParseUint(req.BroadcasterUserID, 10, 64)
+	if err != nil {
+		bus.Respond(msg, map[string]any{"error": "broadcaster_user_id must be numeric"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	if err := d.repo.SetOnboarded(ctx, id, req.Onboarded); err != nil {
+		d.log.Error("onboarded_set", zap.Error(err))
+		bus.Respond(msg, map[string]any{"error": err.Error()})
+		return
+	}
+
+	if err := invalidate.Publish(d.nc, d.invalidationPrefix, "status", req.BroadcasterUserID); err != nil {
+		d.log.Warn("onboarded_set invalidation publish failed", zap.Error(err))
+	}
+
+	bus.Respond(msg, map[string]any{"ok": true})
 }
 
 // supportedLocales is the console's UI language set. Kept here so the service

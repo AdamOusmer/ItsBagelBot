@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"time"
 
@@ -37,6 +38,7 @@ type UserView struct {
 	SubscriptionExpiresAt     *time.Time `json:"subscription_expires_at,omitempty"`
 	SubscriptionRef           *string    `json:"subscription_ref,omitempty"`
 	SubscriptionCancelPending bool       `json:"subscription_cancel_pending"`
+	Onboarded                 bool       `json:"onboarded"`
 }
 
 // Users persists the user records and their OAuth tokens. Status reads are
@@ -130,6 +132,7 @@ func (r *Users) Get(ctx context.Context, id uint64) (UserView, error) {
 				SubscriptionExpiresAt:     u.SubscriptionExpiresAt,
 				SubscriptionRef:           u.SubscriptionRef,
 				SubscriptionCancelPending: u.SubscriptionCancelPending,
+				Onboarded:                 u.Onboarded,
 			}, nil
 		})
 	})
@@ -218,6 +221,25 @@ func (r *Users) SetBanned(ctx context.Context, id uint64, banned bool) error {
 	}
 
 	return r.publishChanged(ctx, id)
+}
+
+// SetOnboarded marks the user as having finished the onboarding flow.
+func (r *Users) SetOnboarded(ctx context.Context, id uint64, onboarded bool) error {
+	_, err := r.client.User.UpdateOneID(id).
+		SetOnboarded(onboarded).
+		Save(ctx)
+
+	if ent.IsNotFound(err) {
+		return fmt.Errorf("user not found")
+	}
+	if err != nil {
+		return err
+	}
+
+	if err := r.publishChanged(ctx, id); err != nil {
+		r.views.Invalidate(cache.UserKey(userKeyPrefix, id))
+	}
+	return nil
 }
 
 // Delete removes the user; tokens cascade away with the row.

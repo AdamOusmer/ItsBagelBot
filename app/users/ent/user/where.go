@@ -120,6 +120,11 @@ func GiftsSent(v uint32) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldGiftsSent, v))
 }
 
+// Onboarded applies equality check predicate on the "onboarded" field. It's identical to OnboardedEQ.
+func Onboarded(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldOnboarded, v))
+}
+
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldCreatedAt, v))
@@ -778,6 +783,16 @@ func GiftsSentLT(v uint32) predicate.User {
 // GiftsSentLTE applies the LTE predicate on the "gifts_sent" field.
 func GiftsSentLTE(v uint32) predicate.User {
 	return predicate.User(sql.FieldLTE(FieldGiftsSent, v))
+}
+
+// OnboardedEQ applies the EQ predicate on the "onboarded" field.
+func OnboardedEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldOnboarded, v))
+}
+
+// OnboardedNEQ applies the NEQ predicate on the "onboarded" field.
+func OnboardedNEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldOnboarded, v))
 }
 
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.
