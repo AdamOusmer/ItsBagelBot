@@ -215,9 +215,9 @@ kbd.hint {
 
 /* ── overview: status hero ── */
 .status-hero { display: grid; grid-template-columns: auto 1fr auto; gap: 26px; align-items: center; margin-bottom: var(--row-gap); }
-.status-hero .botmark { width: 62px; height: 62px; border-radius: 8px; background: rgba(82,183,136,0.07); border: 1px solid rgba(82,183,136,0.3);
-  display: flex; align-items: center; justify-content: center; }
-.status-hero .botmark img { width: 40px; height: 40px; }
+.status-hero .botmark { width: 62px; height: 62px; border-radius: 50%; background: rgba(82,183,136,0.07); border: 1px solid rgba(82,183,136,0.3);
+  display: flex; align-items: center; justify-content: center; flex: none; }
+.status-hero .botmark img { width: 40px; height: 40px; border-radius: 50%; }
 .status-hero .live { display: inline-flex; align-items: center; gap: 8px; font-family: var(--bb-font-mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--bb-green-glow); margin-bottom: 10px; }
 .status-hero .live .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--bb-green-glow); box-shadow: 0 0 8px var(--bb-green-glow); animation: pulse 2.4s ease-in-out infinite; }
 .status-hero h2 { font-family: var(--bb-font-display); font-weight: 800; font-size: 28px; letter-spacing: -0.02em; color: var(--bb-white); margin: 0 0 6px; }
