@@ -26,8 +26,9 @@ type Badge struct {
 //   - every other type, including stream.online/offline, nests the raw EventSub
 //     `event` object.
 type Envelope struct {
-	Type string `json:"type"`
-	Lane string `json:"lane"`
+	Type    string `json:"type"`
+	Lane    string `json:"lane"`
+	EventID string `json:"event_id,omitempty"`
 
 	// Flattened chat fields (only set for channel.chat.message).
 	BroadcasterUserID    string  `json:"broadcaster_user_id,omitempty"`

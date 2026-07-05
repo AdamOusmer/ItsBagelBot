@@ -80,6 +80,7 @@ func main() {
 		Live:     live,
 		Greet:    engine.NewValkeyGreetStore(valkeyClient, cfg.LiveTTL, log),
 		Cooldown: engine.NewValkeyCooldown(valkeyClient),
+		Dedup:    engine.NewValkeyDedup(valkeyClient, 10*time.Minute),
 		Special:  engine.NewSpecialSet(cfg.SpecialUserIDs),
 		Pub:      pub,
 		Log:      log,
