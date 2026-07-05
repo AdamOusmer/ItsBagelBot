@@ -42,7 +42,7 @@
   .nav-item {
     display: flex; align-items: center; gap: 10px; padding: 11px 10px 11px 12px;
     cursor: pointer; position: relative;
-    color: var(--bb-muted); border: none; border-left: 1px solid transparent;
+    color: var(--bb-muted); border: none;
     transition: color var(--bb-dur-base) var(--bb-ease-out-expo),
                 border-color var(--bb-dur-base) var(--bb-ease-out-expo);
     font-family: var(--bb-font-mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;
@@ -53,7 +53,7 @@
   .lbl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .nav-item:hover { color: var(--bb-white); }
   .nav-item:hover .idx { opacity: 1; }
-  .nav-item.active { color: var(--bb-white); border-left-color: var(--bb-tan); }
+  .nav-item.active { color: var(--bb-white); }
   .nav-item.active .idx { color: var(--bb-tan); opacity: 1; }
   .nav-item.active::after {
     content: ""; position: absolute; right: 8px; top: 50%; transform: translateY(-50%);

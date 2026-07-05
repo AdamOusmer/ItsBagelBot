@@ -199,7 +199,7 @@
   <!-- Quick actions: the three things a streamer actually comes here to do. -->
   <div class="quick-row">
     <a class="btn primary" href="/commands"><Icon name="plus" size={14} /> {t('overview.quickNewCommand')}</a>
-    <a class="btn ghost" href="/modules"><Icon name="power" size={14} /> {t('overview.quickModules')}</a>
+    <a class="btn ghost" href="/modules"><Icon name="modules" size={14} /> {t('overview.quickModules')}</a>
     <a class="btn ghost" href="/settings"><Icon name="settings" size={14} /> {t('overview.quickSettings')}</a>
   </div>
 
@@ -241,10 +241,10 @@
       />
     {/await}
     {#await data.modules}
-      <StatTile icon="power" tan label={t('overview.statModulesOn')} value="—" delta={t('overview.checkingShort')} flat />
+      <StatTile icon="modules" tan label={t('overview.statModulesOn')} value="—" delta={t('overview.checkingShort')} flat />
     {:then md}
       <StatTile
-        icon="power"
+        icon="modules"
         tan
         label={t('overview.statModulesOn')}
         value={String(md.on)}
