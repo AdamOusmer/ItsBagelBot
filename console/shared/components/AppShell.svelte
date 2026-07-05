@@ -9,7 +9,8 @@
   let {
     brandTitle = 'ItsBagelBot', brandSub, crumbRoot, crumb,
     accountName, accountRole, dashboards = [], groups, mobileItems,
-    offset = false, logoSrc = '/logo.png', isPremium = false, banner, topActions, children
+    offset = false, logoSrc = '/logo.png', isPremium = false, banner, topActions, children,
+    isDelegate = false, delegateExitHref = '', delegateExitLabel = ''
   }: {
     brandTitle?: string; brandSub: string; crumbRoot: string; crumb: string;
     accountName: string; accountRole: string; dashboards?: DashboardLink[];

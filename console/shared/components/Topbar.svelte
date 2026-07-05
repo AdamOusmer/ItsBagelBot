@@ -23,7 +23,10 @@
     accountRole = '',
     dashboards = [],
     logoSrc = '/logo.png',
-    isPremium = false
+    isPremium = false,
+    isDelegate = false,
+    delegateExitHref = '',
+    delegateExitLabel = ''
   }: {
     root: string;
     crumb: string;
