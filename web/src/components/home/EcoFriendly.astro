@@ -1,0 +1,158 @@
+---
+import Card from '../ui/Card.astro';
+import SectionHeading from '../ui/SectionHeading.astro';
+import { getLangFromUrl, useTranslations } from '../../i18n/ui';
+
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+---
+
+<section class="eco" id="eco-friendly">
+    <SectionHeading eyebrow={t('eco.eyebrow')} title={t('eco.title')} />
+
+    <div class="eco__grid">
+        <Card class="eco__card" data-reveal>
+            <div class="eco__demo" aria-hidden="true">
+                <svg class="eco__leaf" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path class="eco__leaf-path" d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1.5 2 2 4.4 2 8.6-2 5-6 10-10 9.4"></path>
+                    <path class="eco__leaf-stem" d="M2 22l9-9"></path>
+                </svg>
+            </div>
+            <h3 class="eco__title">{t('eco.title')}</h3>
+            <p class="eco__desc">{t('eco.desc')}</p>
+            <div class="eco__links">
+                <a href="https://www.websitecarbon.com/website/itsbagelbot-com/" target="_blank" rel="noopener noreferrer">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                    Website Carbon: ItsBagelBot
+                </a>
+                <a href="https://www.websitecarbon.com/website/dashboard-itsbagelbot-com-login/" target="_blank" rel="noopener noreferrer">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                    Website Carbon: Dashboard
+                </a>
+            </div>
+        </Card>
+    </div>
+</section>
+
+<style>
+    .eco {
+        position: relative;
+        padding: var(--space-section, 96px) 24px;
+        max-width: var(--content-max, 1200px);
+        margin: 0 auto;
+        z-index: 3;
+    }
+
+    .eco__grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 20px;
+    }
+
+    @media (min-width: 720px) {
+        .eco__grid { grid-template-columns: minmax(0, 560px); justify-content: center; }
+    }
+
+    .eco__title {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-size: 1.06rem;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+        color: var(--white, #f0ece4);
+        margin: 0 0 8px;
+    }
+
+    .eco__desc {
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: 0.95rem;
+        line-height: 1.6;
+        color: var(--muted, #888077);
+        margin: 0 0 20px;
+    }
+
+    .eco__links {
+        display: flex;
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 16px;
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.8rem;
+    }
+
+    .eco__links a {
+        color: var(--green-glow, #52b788);
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: color 0.2s ease;
+    }
+
+    .eco__links a:hover {
+        color: var(--white, #f0ece4);
+    }
+
+    .eco__demo {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 120px;
+        margin-bottom: 24px;
+        padding: 14px 16px;
+        border-radius: 10px;
+        background: rgba(10, 10, 10, 0.55);
+        border: 1px solid rgba(240, 236, 228, 0.05);
+        overflow: hidden;
+    }
+
+    .eco__leaf {
+        width: 64px;
+        height: 64px;
+        color: var(--green-glow, #52b788);
+        filter: drop-shadow(0 0 16px rgba(82, 183, 136, 0.4));
+        animation: leafSway 4s ease-in-out infinite;
+        transform-origin: bottom left;
+    }
+
+    .eco__leaf-path {
+        stroke-dasharray: 40;
+        stroke-dashoffset: 40;
+        animation: drawLeaf 3s ease-out forwards;
+    }
+    
+    .eco__leaf-stem {
+        stroke-dasharray: 15;
+        stroke-dashoffset: 15;
+        animation: drawStem 1s ease-out forwards 0.5s;
+    }
+
+
+    @keyframes leafSway {
+        0%, 100% { transform: rotate(0deg); }
+        50% { transform: rotate(12deg); }
+    }
+
+    @keyframes drawLeaf {
+        to { stroke-dashoffset: 0; }
+    }
+
+    @keyframes drawStem {
+        to { stroke-dashoffset: 0; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .eco__leaf { animation: none; transform: none; }
+        .eco__leaf-path, .eco__leaf-stem { animation: none; stroke-dashoffset: 0; }
+    }
+    
+    @media (max-width: 640px) {
+        .eco__demo { height: 100px; padding: 16px; }
+        .eco__links { flex-direction: column; align-items: flex-start; gap: 10px; }
+    }
+</style>
