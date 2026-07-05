@@ -14,7 +14,8 @@ export const POST: RequestHandler = async ({ request, url, cookies, locals }) =>
   const next = String(form.get('next') ?? '/');
 
   if (isLocale(to)) {
-    cookies.set(LOCALE_COOKIE, to, {
+    const s = locals.session;
+    cookies.set(LOCALE_COOKIE, s?.impersonator_id ? 'en' : to, {
       path: '/',
       maxAge: 60 * 60 * 24 * 365,
       sameSite: 'lax',
@@ -22,11 +23,11 @@ export const POST: RequestHandler = async ({ request, url, cookies, locals }) =>
       secure: url.protocol === 'https:'
     });
 
-    // Persist to the account — but not while an admin is impersonating (the
-    // cookie already flips the current view; writing would change the *target*
-    // user's saved preference).
-    const s = locals.session;
-    if (s?.user_id && !s.impersonator_id) {
+    // The session user is always the account whose dashboard is being viewed.
+    // During impersonation that is deliberately the target user, so persist the
+    // choice there as well; the impersonator id is audit metadata, not the owner
+    // of this preference.
+    if (s?.user_id) {
       await setLocale(s.user_id, to);
     }
   }

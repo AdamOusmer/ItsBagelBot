@@ -55,10 +55,15 @@ export const handle: Handle = async ({ event, resolve }) => {
 
   // Resolve the UI locale once per request: query parameter wins (if just set), else
   // the explicit switcher cookie, else the browser's Accept-Language, else English.
-  const locale = detectLocale({
-    cookie: queryLang || event.cookies.get(LOCALE_COOKIE),
-    accept: event.request.headers.get('accept-language')
-  });
+  // Admin view-as sessions are always rendered in English. Their language
+  // control edits the target account preference; it must not translate the
+  // administrative UI itself.
+  const locale = event.locals.session?.impersonator_id
+    ? 'en'
+    : detectLocale({
+        cookie: queryLang || event.cookies.get(LOCALE_COOKIE),
+        accept: event.request.headers.get('accept-language')
+      });
   event.locals.locale = locale;
 
   // New Relic: name the web transaction by SvelteKit route (not the raw URL, so
