@@ -1,0 +1,292 @@
+---
+import HomeLightField from '../home/HomeLightField.astro';
+
+interface Props {
+    status: number;
+    eyebrow: string;
+    title: string;
+    description: string;
+    actionLabel?: string;
+    actionHref?: string;
+}
+
+const {
+    status,
+    eyebrow,
+    title,
+    description,
+    actionLabel = 'Back to home',
+    actionHref = '/',
+} = Astro.props;
+---
+
+<section class="error-scene" aria-labelledby="error-title">
+    <HomeLightField />
+    <div class="error-scene__glow" aria-hidden="true"></div>
+
+    <div class="error-scene__orbit" aria-hidden="true">
+        <span class="orbit orbit--one"></span>
+        <span class="orbit orbit--two"></span>
+    </div>
+
+    <div class="error-scene__content">
+        <p class="error-scene__eyebrow"><span>{status}</span> · {eyebrow}</p>
+        <p class="error-scene__code" aria-hidden="true">{status}</p>
+        <h1 id="error-title">{title}</h1>
+        <p class="error-scene__description">{description}</p>
+
+        <div class="error-scene__actions">
+            <a class="error-action error-action--primary" href={actionHref}>{actionLabel}</a>
+            <button class="error-action error-action--quiet" type="button" data-error-back>Go back</button>
+        </div>
+
+        <p class="error-scene__aside">The oven is still warm. Everything else is right where you left it.</p>
+    </div>
+</section>
+
+<script>
+    document.addEventListener('click', (event) => {
+        const target = event.target;
+        if (!(target instanceof Element) || !target.closest('[data-error-back]')) return;
+        if (window.history.length > 1) window.history.back();
+        else window.location.assign('/');
+    });
+</script>
+
+<style>
+    .error-scene {
+        position: relative;
+        isolation: isolate;
+        overflow: hidden;
+        display: grid;
+        place-items: center;
+        min-height: 100svh;
+        max-width: none;
+        margin: 0;
+        padding: calc(var(--nav-offset, 76px) + 70px) 24px 84px;
+        text-align: center;
+    }
+
+    .error-scene__glow {
+        position: absolute;
+        z-index: -1;
+        left: 50%;
+        top: 48%;
+        width: min(920px, 110vw);
+        aspect-ratio: 1.35;
+        translate: -50% -50%;
+        border-radius: 50%;
+        background:
+            radial-gradient(circle at 48% 44%, rgba(201, 168, 124, 0.16), transparent 34%),
+            radial-gradient(circle at 54% 58%, rgba(82, 183, 136, 0.09), transparent 58%);
+        filter: blur(18px);
+        animation: errorGlow 7s ease-in-out infinite;
+        pointer-events: none;
+    }
+
+    .error-scene__orbit {
+        position: absolute;
+        z-index: -1;
+        left: 50%;
+        top: 47%;
+        width: min(650px, 82vw);
+        aspect-ratio: 1;
+        translate: -50% -50%;
+        pointer-events: none;
+        opacity: 0;
+        animation: orbitIn 1.2s 100ms var(--ease-out-expo) forwards;
+    }
+
+    .orbit {
+        position: absolute;
+        inset: 8%;
+        border: 1px solid rgba(201, 168, 124, 0.13);
+        border-radius: 50%;
+        transform: rotate(-18deg) scaleY(0.46);
+    }
+
+    .orbit::after {
+        content: "";
+        position: absolute;
+        top: 48%;
+        left: -4px;
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--tan-light);
+        box-shadow: 0 0 16px rgba(224, 196, 154, 0.8);
+    }
+
+    .orbit--one { animation: orbitOne 18s linear infinite; }
+    .orbit--two {
+        inset: 18%;
+        border-color: rgba(82, 183, 136, 0.13);
+        transform: rotate(38deg) scaleY(0.58);
+        animation: orbitTwo 23s linear infinite reverse;
+    }
+    .orbit--two::after {
+        left: auto;
+        right: -3px;
+        background: var(--green-glow);
+        box-shadow: 0 0 16px rgba(82, 183, 136, 0.75);
+    }
+
+    .error-scene__content {
+        position: relative;
+        z-index: 2;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: min(100%, 760px);
+    }
+
+    .error-scene__eyebrow {
+        margin: 0 0 18px;
+        color: var(--green-glow);
+        font-family: var(--font-mono);
+        font-size: clamp(0.68rem, 1.6vw, 0.78rem);
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        text-shadow: 0 0 16px rgba(82, 183, 136, 0.45);
+        opacity: 0;
+        animation: errorRise 720ms 100ms var(--ease-out-expo) forwards;
+    }
+    .error-scene__eyebrow span { color: var(--tan-light); }
+
+    .error-scene__code {
+        margin: 0 0 -0.18em;
+        color: transparent;
+        font-family: var(--font-display);
+        font-size: clamp(6.8rem, 24vw, 13.5rem);
+        font-weight: 800;
+        line-height: 0.72;
+        letter-spacing: -0.08em;
+        -webkit-text-stroke: 1px rgba(201, 168, 124, 0.28);
+        text-shadow: 0 0 60px rgba(201, 168, 124, 0.08);
+        opacity: 0;
+        animation: codeIn 1s 20ms var(--ease-out-expo) forwards, codeBreathe 6s 1.1s ease-in-out infinite;
+    }
+
+    h1 {
+        max-width: 13ch;
+        margin: 0;
+        color: var(--white);
+        font-family: var(--font-display);
+        font-size: clamp(2.2rem, 6.5vw, 4.5rem);
+        font-weight: 800;
+        line-height: 0.98;
+        letter-spacing: -0.035em;
+        text-shadow: 0 3px 18px rgba(0, 0, 0, 0.9), 0 0 38px rgba(201, 168, 124, 0.16);
+        opacity: 0;
+        animation: errorRise 780ms 260ms var(--ease-out-expo) forwards;
+    }
+
+    .error-scene__description {
+        max-width: 49ch;
+        margin: 24px 0 0;
+        color: #aaa197;
+        font-family: var(--font-body);
+        font-size: clamp(0.98rem, 1.8vw, 1.12rem);
+        line-height: 1.7;
+        opacity: 0;
+        animation: errorRise 780ms 390ms var(--ease-out-expo) forwards;
+    }
+
+    .error-scene__actions {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        margin-top: 34px;
+        opacity: 0;
+        animation: errorRise 780ms 500ms var(--ease-out-expo) forwards;
+    }
+
+    .error-action {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 48px;
+        padding: 0 22px;
+        border: 1px solid transparent;
+        border-radius: var(--radius-sm, 6px);
+        font-family: var(--font-display);
+        font-size: 0.88rem;
+        font-weight: 700;
+        text-decoration: none;
+        cursor: pointer;
+        transition: transform 320ms var(--ease-out-expo), background 220ms ease, border-color 220ms ease, box-shadow 320ms ease;
+    }
+    .error-action--primary { background: var(--tan); color: var(--black); }
+    .error-action--primary:hover,
+    .error-action--primary:focus-visible {
+        background: var(--tan-light);
+        transform: translateY(-2px);
+        box-shadow: 0 10px 32px rgba(201, 168, 124, 0.22);
+    }
+    .error-action--quiet {
+        background: rgba(10, 10, 10, 0.32);
+        border-color: rgba(201, 168, 124, 0.3);
+        color: var(--tan-light);
+    }
+    .error-action--quiet:hover,
+    .error-action--quiet:focus-visible {
+        border-color: rgba(201, 168, 124, 0.58);
+        background: rgba(201, 168, 124, 0.08);
+        transform: translateY(-2px);
+    }
+
+    .error-scene__aside {
+        margin: 32px 0 0;
+        color: var(--muted);
+        font-family: var(--font-mono);
+        font-size: 0.68rem;
+        line-height: 1.6;
+        letter-spacing: 0.08em;
+        opacity: 0;
+        animation: errorRise 780ms 610ms var(--ease-out-expo) forwards;
+    }
+
+    @keyframes errorRise {
+        from { opacity: 0; transform: translateY(18px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes codeIn {
+        from { opacity: 0; transform: scale(0.92); filter: blur(8px); }
+        to { opacity: 1; transform: scale(1); filter: blur(0); }
+    }
+    @keyframes codeBreathe { 50% { text-shadow: 0 0 80px rgba(201, 168, 124, 0.16); } }
+    @keyframes errorGlow { 50% { opacity: 0.72; transform: scale(1.06); } }
+    @keyframes orbitIn { to { opacity: 1; } }
+    @keyframes orbitOne { to { transform: rotate(342deg) scaleY(0.46); } }
+    @keyframes orbitTwo { to { transform: rotate(398deg) scaleY(0.58); } }
+    @media (max-width: 520px) {
+        .error-scene { padding-inline: 20px; }
+        .error-scene__orbit { width: 110vw; }
+        .error-scene__actions { width: 100%; flex-direction: column; }
+        .error-action { width: min(100%, 300px); }
+        .error-scene__aside { max-width: 33ch; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .error-scene__glow,
+        .error-scene__orbit,
+        .orbit,
+        .error-scene__eyebrow,
+        .error-scene__code,
+        h1,
+        .error-scene__description,
+        .error-scene__actions,
+        .error-scene__aside {
+            animation: none;
+        }
+        .error-scene__orbit,
+        .error-scene__eyebrow,
+        .error-scene__code,
+        h1,
+        .error-scene__description,
+        .error-scene__actions,
+        .error-scene__aside { opacity: 1; }
+        .error-action:hover { transform: none; }
+    }
+</style>

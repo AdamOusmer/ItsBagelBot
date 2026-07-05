@@ -1,0 +1,17 @@
+---
+import Layout from '../layouts/Layout.astro';
+import ErrorScene from '../components/errors/ErrorScene.astro';
+---
+
+<Layout
+    title="500 — Something went wrong | ItsBagelBot"
+    description="ItsBagelBot hit an unexpected error."
+>
+    <ErrorScene
+        status={500}
+        eyebrow="A little overbaked"
+        title="Something went sideways."
+        description="A tray tipped over behind the scenes. Give us a moment, then try the page again."
+        actionLabel="Back to safety"
+    />
+</Layout>
