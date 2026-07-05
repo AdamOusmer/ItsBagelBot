@@ -182,13 +182,15 @@ func (ps *PermitService) respond(req micro.Request, reply BorrowReply) {
 }
 
 var (
-	profileChatShared       = NewSpec(20, 20.0/30.0)
-	profileChatStandard     = NewSpec(10, 10.0/30.0)
-	profileChatModShared    = NewSpec(100, 100.0/30.0)
-	profileChatModStandard  = NewSpec(50, 50.0/30.0)
-	profileHelixShared      = NewSpec(700, 700.0/60.0)
-	profileHelixStandard    = NewSpec(350, 350.0/60.0)
-	profileHelixSystemShare = NewSpec(100, 100.0/60.0)
+	profileChatShared        = NewSpec(20, 20.0/30.0)
+	profileChatStandard      = NewSpec(10, 10.0/30.0)
+	profileChatModShared     = NewSpec(100, 100.0/30.0)
+	profileChatModStandard   = NewSpec(50, 50.0/30.0)
+	profileHelixShared       = NewSpec(700, 700.0/60.0)
+	profileHelixStandard     = NewSpec(350, 350.0/60.0)
+	profileHelixSystemShare  = NewSpec(100, 100.0/60.0)
+	profileHelixUserShared   = NewSpec(800, 800.0/60.0)
+	profileHelixUserStandard = NewSpec(400, 400.0/60.0)
 )
 
 func specsForProfile(profile uint8) (shared, standard Spec, ok bool) {
@@ -201,6 +203,8 @@ func specsForProfile(profile uint8) (shared, standard Spec, ok bool) {
 		return profileHelixShared, profileHelixStandard, true
 	case profileHelixSystem:
 		return profileHelixSystemShare, Spec{}, true
+	case profileHelixUser:
+		return profileHelixUserShared, profileHelixUserStandard, true
 	default:
 		return Spec{}, Spec{}, false
 	}
