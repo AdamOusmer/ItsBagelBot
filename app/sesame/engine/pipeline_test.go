@@ -112,6 +112,19 @@ func emitModule(name string, kind module.Kind, text string) module.Module {
 	return b.Build()
 }
 
+func emitLocaleModule(eventType string) module.Module {
+	b := module.NewModule("", module.KindCore)
+	b.On(eventType, func(_ context.Context, c *module.Context, emit module.Emit) error {
+		emit(&module.Output{
+			Type:          outgress.TypeChat,
+			BroadcasterID: c.Env.BroadcasterUserID,
+			Text:          c.Locale,
+		})
+		return nil
+	})
+	return b.Build()
+}
+
 // errCore is a core module whose chat handler returns a logic error.
 func errCore() module.Module {
 	b := module.NewModule("", module.KindCore)
@@ -174,6 +187,21 @@ func TestProcessMalformedEnvelopeDropped(t *testing.T) {
 	err := p.Process(message.NewMessage("uuid-bad", []byte("{not json")))
 	assert.NoError(t, err)   // ack, not nack
 	assert.Empty(t, pub.got) // nothing published
+}
+
+func TestProcessLoadsLocaleForEventHandlers(t *testing.T) {
+	pub := &fakePublisher{}
+	p := newPipelineWith(pub, fakeReader{user: projection.User{Locale: "fr"}}, emitLocaleModule("stream.online"))
+	body, err := sonic.Marshal(map[string]any{
+		"type":                "stream.online",
+		"lane":                "standard",
+		"broadcaster_user_id": "123",
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, p.Process(message.NewMessage("uuid-locale", body)))
+	require.Len(t, pub.got, 1)
+	assert.Equal(t, "fr", chatMessageText(t, pub.got[0].msg))
 }
 
 func TestProcessNoModuleAcks(t *testing.T) {

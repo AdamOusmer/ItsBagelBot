@@ -6,12 +6,11 @@ import type { RequestHandler } from './$types';
 import { redirect } from '@sveltejs/kit';
 import { verifyViewAs } from '@bagel/shared/server/impersonation';
 import { COOKIE, seal } from '$lib/server/session';
-import { isLocale, LOCALE_COOKIE } from '@bagel/shared/i18n';
-import { userLocale } from '$lib/server/services';
+import { LOCALE_COOKIE } from '@bagel/shared/i18n';
 
 const SESSION_TTL = 3600; // 1h — shorter than a normal login.
 
-export const GET: RequestHandler = async ({ url, cookies }) => {
+export const GET: RequestHandler = ({ url, cookies }) => {
   const token = url.searchParams.get('t') ?? '';
   const p = verifyViewAs(token);
   if (!p) throw redirect(302, '/login?e=imp');
@@ -34,20 +33,16 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
     maxAge: SESSION_TTL
   });
 
-  try {
-    const saved = await userLocale(p.sub);
-    if (isLocale(saved)) {
-      cookies.set(LOCALE_COOKIE, saved, {
-        path: '/',
-        httpOnly: true,
-        secure: url.protocol === 'https:',
-        sameSite: 'lax',
-        maxAge: 60 * 60 * 24 * 365
-      });
-    }
-  } catch (err) {
-    /* best-effort */
-  }
+  // Impersonation is an admin surface: keep its chrome in English regardless
+  // of the target account's preference. The Settings switch still writes the
+  // target's saved locale through /lang.
+  cookies.set(LOCALE_COOKIE, 'en', {
+    path: '/',
+    httpOnly: true,
+    secure: url.protocol === 'https:',
+    sameSite: 'lax',
+    maxAge: 60 * 60 * 24 * 365
+  });
 
   throw redirect(302, '/');
 };

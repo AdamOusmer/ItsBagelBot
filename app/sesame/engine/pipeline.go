@@ -190,6 +190,16 @@ func (p *Pipeline) Process(msg *message.Message) (err error) {
 		p.dispatch(ctx, mctx, views, emit)
 	}
 	if len(handlers) > 0 {
+		// Event handlers can emit localized system text too (for example the
+		// stream-online bagel announcement). Command dispatch resolves locale for
+		// baked commands, but non-command events never pass through that path.
+		// Reuse the value when dispatch already populated it and otherwise load it
+		// from the projected user before invoking handlers.
+		if mctx.Locale == "" {
+			if u, uerr := p.proj.User(ctx, broadcasterID); uerr == nil {
+				mctx.Locale = u.Locale
+			}
+		}
 		p.runHandlers(ctx, views, mctx, emit)
 	}
 
