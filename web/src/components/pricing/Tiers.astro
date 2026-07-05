@@ -95,6 +95,7 @@ const enterpriseFeatures = [
                     target="_blank"
                     rel="noopener noreferrer"
                 >{t('tier.chipIn')}</a>
+                <p class="tier__tebex-note">Secure checkout provided by Tebex.</p>
             </Card>
         </div>
 
@@ -195,6 +196,20 @@ const enterpriseFeatures = [
             align-items: center;
             padding: 8px;
         }
+    }
+
+    .tier__btn:active {
+        transform: translateY(2px) scale(0.96);
+    }
+
+    .tier__tebex-note {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.75rem;
+        color: var(--muted, #888077);
+        text-align: center;
+        margin-top: 12px;
+        margin-bottom: 0;
+        letter-spacing: 0.02em;
     }
 
     .tier__badge {
