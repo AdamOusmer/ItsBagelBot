@@ -25,9 +25,7 @@ const titleWords = t('finale.title').split(' ');
             {t('finale.sub')}
         </p>
         <div class="finale__actions" data-reveal style="--reveal-i: 9">
-            <span data-magnetic="0.4">
-                <MainButton href={`https://dashboard.itsbagelbot.com${lang === 'fr' ? '?lang=fr' : ''}`} label={t('nav.cta')} />
-            </span>
+            <MainButton href={`https://dashboard.itsbagelbot.com${lang === 'fr' ? '?lang=fr' : ''}`} label={t('nav.cta')} />
             <SecondaryButton href={localizePath('/pricing', lang)} label={t('finale.seePricing')} />
         </div>
         <span class="finale__honesty" data-reveal style="--reveal-i: 10">
