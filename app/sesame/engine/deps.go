@@ -30,6 +30,7 @@ type Deps struct {
 	Live     LiveStore
 	Greet    GreetStore
 	Cooldown CooldownStore
+	Dedup    DedupStore
 	Special  *SpecialSet
 	Pub      message.Publisher
 	Log      *zap.Logger
@@ -65,8 +66,22 @@ type CooldownStore interface {
 	Allow(ctx context.Context, key string, ttl time.Duration) (bool, error)
 }
 
+// DedupStore folds replicated ingress deliveries by claiming an EventSub id for
+// long enough that overlapping publishers cannot re-run the same notification.
+type DedupStore interface {
+	Claim(ctx context.Context, key string) (bool, error)
+	Release(ctx context.Context, key string) error
+}
+
 // NoopCooldown never gates: every call is allowed. Used in tests and when no
 // cooldown backend is configured.
 type NoopCooldown struct{}
 
 func (NoopCooldown) Allow(context.Context, string, time.Duration) (bool, error) { return true, nil }
+
+// NoopDedup never folds deliveries. It keeps tests and alternate embeddings
+// working when no shared dedup backend is configured.
+type NoopDedup struct{}
+
+func (NoopDedup) Claim(context.Context, string) (bool, error) { return true, nil }
+func (NoopDedup) Release(context.Context, string) error       { return nil }
