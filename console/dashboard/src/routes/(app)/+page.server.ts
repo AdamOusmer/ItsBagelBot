@@ -76,7 +76,7 @@ function digest(cmds: CommandView[]): CommandDigest {
 const demoDigest: CommandDigest = digest([
   { name: 'bagel', response: '{user} tosses a warm bagel to {target}. Toasty.', is_active: true, uses: '1.2k' },
   { name: 'lurk', response: '{user} fades into the shadows. Thanks for the lurk.', is_active: true, uses: '521' },
-  { name: 'uptime', response: '@{user} the stream has been live for {uptime}', is_active: true, uses: '412' },
+  { name: 'uptime', response: '{user} the stream has been live for {uptime}', is_active: true, uses: '412' },
   { name: 'socials', response: 'Follow along → twitch.tv/itsmavey', is_active: true, uses: '288' },
   { name: 'uptime-debug', response: 'node={node}', is_active: false, uses: '14' }
 ]);
