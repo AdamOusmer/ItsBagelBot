@@ -12,7 +12,7 @@
       <span>{role}</span>
     </div>
   </div>
-  <form method="POST" action="/auth/logout">
+  <form method="POST" action="/auth/logout" onsubmit={() => localStorage.removeItem('bb-onboarded')}>
     <Button variant="ghost" type="submit" icon="power" style="width:100%;justify-content:center;margin-top:10px">
       Log out
     </Button>
