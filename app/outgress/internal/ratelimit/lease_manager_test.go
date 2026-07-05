@@ -51,6 +51,58 @@ func TestLocalSharesPreserveGlobalBudget(t *testing.T) {
 	}
 }
 
+func TestFixedSystemBucketWarmsBeforeFirstBurst(t *testing.T) {
+	store := NewBucketStore(16)
+	manager := NewLeaseManager(nil, store, nil, WithLeaseIdentity("local", "pod-a"))
+	plan, now := activeTestPlan(t, []Member{{PodID: "pod-a", Region: "local"}}, 31)
+	if err := manager.ActivatePlan(plan, now, now, 0); err != nil {
+		t.Fatal(err)
+	}
+
+	// No system request has arrived yet. The plan activation must still have
+	// created the bucket so its leased share can refill while the lane is idle.
+	later := now.Add(time.Minute)
+	req := profileHelixSystemShare.ForKey("ratelimit:helix:system")
+	for i := 0; i < 20; i++ {
+		allowed, err := manager.allowAt(context.Background(), &req, later)
+		if err != nil || !allowed {
+			t.Fatalf("system request %d denied after warmup: allowed=%v err=%v", i+1, allowed, err)
+		}
+	}
+}
+
+func TestFixedHelixBucketsRenewWithoutTraffic(t *testing.T) {
+	store := NewBucketStore(16)
+	manager := NewLeaseManager(nil, store, nil, WithLeaseIdentity("local", "pod-a"))
+	base := time.Now()
+	var original *LocalBucket
+
+	for epoch := uint64(1); epoch <= 5; epoch++ {
+		now := base.Add(time.Duration(epoch-1) * 30 * time.Second)
+		plan := Plan{
+			Version: planVersion, Epoch: epoch, Generation: 32,
+			ValidFromMS:  now.Add(-time.Second).UnixMilli(),
+			ValidUntilMS: now.Add(29 * time.Second).UnixMilli(),
+			Members:      []Member{{PodID: "pod-a", Region: "local"}},
+		}
+		if err := plan.ComputeDigest(); err != nil {
+			t.Fatal(err)
+		}
+		if err := manager.ActivatePlan(plan, now, now, 0); err != nil {
+			t.Fatal(err)
+		}
+		bucket, ok := store.Load(BucketID{Scope: "helix:system"})
+		if !ok {
+			t.Fatalf("fixed system bucket missing at epoch %d", epoch)
+		}
+		if original == nil {
+			original = bucket
+		} else if bucket != original {
+			t.Fatalf("fixed system bucket was evicted and recreated at epoch %d", epoch)
+		}
+	}
+}
+
 func TestGenerationChangeStartsSameHolderEmpty(t *testing.T) {
 	bucket := NewLocalBucket()
 	start := time.Now()

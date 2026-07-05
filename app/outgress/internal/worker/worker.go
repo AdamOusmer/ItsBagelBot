@@ -36,8 +36,8 @@ import (
 )
 
 // Twitch enforces the chat limits per channel (20 messages per 30s, 100 when
-// the bot moderates the channel) and one Helix budget per app token (800 per
-// minute, shared by every endpoint the app calls).
+// the bot moderates the channel), one Helix budget for app-access requests,
+// and a separate budget per client ID + user for user-access requests.
 //
 // That 800/min budget is partitioned so the lanes cannot starve each other:
 //
@@ -63,18 +63,21 @@ const (
 	helixWindow          = 60.0
 	helixSystemReserve   = 100.0
 	helixGeneralCapacity = helixCapacity - helixSystemReserve
+	helixUserCapacity    = 800.0
 )
 
 // Stable bucket parameters are formatted once at process initialization. Chat
 // keys remain per-broadcaster, but their numeric Lua arguments do not.
 var (
-	chatSpec            = ratelimit.NewSpec(chatCapacity, chatCapacity/chatWindow)
-	chatStandardSpec    = ratelimit.NewSpec(chatCapacity/2, chatCapacity/chatWindow/2)
-	chatModSpec         = ratelimit.NewSpec(chatModCapacity, chatModCapacity/chatWindow)
-	chatModStandardSpec = ratelimit.NewSpec(chatModCapacity/2, chatModCapacity/chatWindow/2)
-	helixGeneralSpec    = ratelimit.NewSpec(helixGeneralCapacity, helixGeneralCapacity/helixWindow)
-	helixStandardSpec   = ratelimit.NewSpec(helixGeneralCapacity/2, helixGeneralCapacity/helixWindow/2)
-	helixSystemSpec     = ratelimit.NewSpec(helixSystemReserve, helixSystemReserve/helixWindow)
+	chatSpec              = ratelimit.NewSpec(chatCapacity, chatCapacity/chatWindow)
+	chatStandardSpec      = ratelimit.NewSpec(chatCapacity/2, chatCapacity/chatWindow/2)
+	chatModSpec           = ratelimit.NewSpec(chatModCapacity, chatModCapacity/chatWindow)
+	chatModStandardSpec   = ratelimit.NewSpec(chatModCapacity/2, chatModCapacity/chatWindow/2)
+	helixGeneralSpec      = ratelimit.NewSpec(helixGeneralCapacity, helixGeneralCapacity/helixWindow)
+	helixStandardSpec     = ratelimit.NewSpec(helixGeneralCapacity/2, helixGeneralCapacity/helixWindow/2)
+	helixSystemSpec       = ratelimit.NewSpec(helixSystemReserve, helixSystemReserve/helixWindow)
+	helixUserSpec         = ratelimit.NewSpec(helixUserCapacity, helixUserCapacity/helixWindow)
+	helixUserStandardSpec = ratelimit.NewSpec(helixUserCapacity/2, helixUserCapacity/helixWindow/2)
 )
 
 // nodeRegion and nodeName label every transaction so Twitch external-segment
@@ -443,7 +446,7 @@ func withField(body []byte, field, value string) []byte {
 }
 
 func (w *Worker) processAPI(ctx context.Context, payload outgress.Message) error {
-	if err := w.takeGeneralHelix(ctx); err != nil {
+	if err := w.takeGeneralHelix(ctx, payload); err != nil {
 		return err
 	}
 
@@ -470,7 +473,7 @@ func (w *Worker) processAnnounce(ctx context.Context, payload outgress.Message) 
 		return nil
 	}
 
-	if err := w.takeGeneralHelix(ctx); err != nil {
+	if err := w.takeGeneralHelix(ctx, payload); err != nil {
 		return err
 	}
 
@@ -545,7 +548,7 @@ func (w *Worker) processShoutout(ctx context.Context, payload outgress.Message) 
 		return nil
 	}
 
-	if err := w.takeGeneralHelix(ctx); err != nil {
+	if err := w.takeGeneralHelix(ctx, payload); err != nil {
 		return err
 	}
 
@@ -968,10 +971,26 @@ func isPermanent(err error) bool {
 
 // takeGeneralHelix consumes one token from the general Helix budget, the
 // partition that backs ordinary api traffic.
-func (w *Worker) takeGeneralHelix(ctx context.Context) error {
-	shared := helixGeneralSpec.ForKey("ratelimit:helix:app")
+func generalHelixRequests(payload outgress.Message) (ratelimit.Request, ratelimit.Request) {
+	identity := twitch.ResolveIdentity(twitch.ParseIdentity(payload.As), payload.Endpoint)
+	var shared, standard ratelimit.Request
+	switch identity {
+	case twitch.IdentityBot:
+		shared = helixUserSpec.ForKey("ratelimit:helix:user:bot")
+		standard = helixUserStandardSpec.ForKey("ratelimit:helix:user:bot:standard")
+	case twitch.IdentityBroadcaster:
+		shared = helixUserSpec.ForDynamicKey("ratelimit:helix:user:", "helix:user", payload.BroadcasterID)
+		standard = helixUserStandardSpec.ForDynamicKey("ratelimit:helix:user:standard:", "helix:user:standard", payload.BroadcasterID)
+	default:
+		shared = helixGeneralSpec.ForKey("ratelimit:helix:app")
+		standard = helixStandardSpec.ForKey("ratelimit:helix:app:standard")
+	}
+	return standard, shared
+}
+
+func (w *Worker) takeGeneralHelix(ctx context.Context, payload outgress.Message) error {
+	standard, shared := generalHelixRequests(payload)
 	if w.lane == LaneStandard {
-		standard := helixStandardSpec.ForKey("ratelimit:helix:app:standard")
 		return w.takeOrdered(ctx, standard, shared)
 	}
 	return w.take(ctx, shared)
@@ -1128,7 +1147,8 @@ func (w *Worker) processClip(ctx context.Context, payload outgress.Message) erro
 		_ = sonic.Unmarshal(payload.Payload, &meta)
 	}
 
-	if err := w.takeGeneralHelix(ctx); err != nil {
+	payload.As = outgress.AsBroadcaster
+	if err := w.takeGeneralHelix(ctx, payload); err != nil {
 		return err // no clip created yet: safe to redeliver
 	}
 
