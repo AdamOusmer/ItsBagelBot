@@ -47,11 +47,16 @@ export const handle: Handle = async ({ event, resolve }) => {
   const cookie = event.cookies.get(COOKIE);
   event.locals.session = cookie ? open(cookie) : null;
 
-  // Resolve the UI locale once per request: explicit switcher cookie wins, else
-  // the browser's Accept-Language, else English. Exposed on locals so the root
-  // layout can hand it to the i18n context and the SSR'd <html lang> is correct.
+  let queryLang = event.url.searchParams.get('lang');
+  if (queryLang === 'fr' || queryLang === 'en') {
+    // If the url contains a valid lang override (e.g. from the marketing site), pin it.
+    event.cookies.set(LOCALE_COOKIE, queryLang, { path: '/', maxAge: 31536000, secure: true, sameSite: 'lax' });
+  }
+
+  // Resolve the UI locale once per request: query parameter wins (if just set), else
+  // the explicit switcher cookie, else the browser's Accept-Language, else English.
   const locale = detectLocale({
-    cookie: event.cookies.get(LOCALE_COOKIE),
+    cookie: queryLang || event.cookies.get(LOCALE_COOKIE),
     accept: event.request.headers.get('accept-language')
   });
   event.locals.locale = locale;

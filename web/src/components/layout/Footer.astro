@@ -34,7 +34,7 @@ const t = useTranslations(lang);
                 <p>{t('footer.product')}</p>
                 <a href={localizePath("/pricing", lang)}>{t('footer.pricing')}</a>
                 <a href="https://docs.itsbagelbot.com" target="_blank" rel="noopener noreferrer">{t('footer.docs')}</a>
-                <a href="https://dashboard.itsbagelbot.com" target="_blank" rel="noopener noreferrer">{t('footer.dashboard')}</a>
+                <a href={`https://dashboard.itsbagelbot.com${lang === 'fr' ? '?lang=fr' : ''}`} target="_blank" rel="noopener noreferrer">{t('footer.dashboard')}</a>
             </div>
             <div class="col" data-reveal style="--reveal-i: 2">
                 <p>{t('footer.company')}</p>

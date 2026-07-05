@@ -18,7 +18,7 @@ const links = [
     { href: localizePath("/contact", lang),  label: t('nav.contact')  },
 ];
 
-const cta = { href: "https://dashboard.itsbagelbot.com", label: t('nav.cta') };
+const cta = { href: `https://dashboard.itsbagelbot.com${lang === 'fr' ? '?lang=fr' : ''}`, label: t('nav.cta') };
 const homeHref = localizePath("/", lang);
 
 const currentPath = Astro.url.pathname.replace(/\/+$/, "") || "/";
