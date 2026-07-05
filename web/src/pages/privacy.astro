@@ -7,21 +7,22 @@ const sections = [
     { id: 'overview', heading: 'Overview', plain: 'What we collect, why, and what you can do about it.' },
     { id: 'data-collected', heading: 'Data We Collect', plain: 'Your Twitch handle, chat processed in the moment, anonymous usage stats.' },
     { id: 'data-not-collected', heading: "Data We Don't Collect", plain: 'No browsing history, no tracking IPs, no ad data. Ever.' },
-    { id: 'data-use', heading: 'How We Use Your Data', plain: 'To run the bot. Nothing is sold, rented, or shared.' },
-    { id: 'storage', heading: 'Data Storage', plain: 'Chat is processed live, not kept. Settings are encrypted.' },
-    { id: 'rights', heading: 'Your Rights', plain: 'Ask for your data or its deletion any time; deleting your account wipes everything.' },
+    { id: 'cookies', heading: 'Cookies & Analytics', plain: 'No tracking cookies. Only strictly necessary security cookies.' },
+    { id: 'data-use', heading: 'How We Use Your Data & Legal Basis', plain: 'To run the bot based on your consent and contract. Nothing is sold, rented, or shared.' },
+    { id: 'storage', heading: 'Data Storage & Transfers', plain: 'Chat is processed live, not kept. Settings are encrypted in Canada.' },
+    { id: 'rights', heading: 'Your Rights (GDPR, PIPEDA, Law 25)', plain: 'Ask for your data, portability, or its deletion any time.' },
     { id: 'changes', heading: 'Changes', plain: "If this policy changes meaningfully, you'll hear about it." },
-    { id: 'contact', heading: 'Contact', plain: 'Privacy questions go to support@itsbagelbot.com.' },
+    { id: 'contact', heading: 'Contact & Data Protection Officer', plain: 'Privacy questions go to support@itsbagelbot.com.' },
 ];
 ---
 
 <Layout title="Privacy Policy — ItsBagelBot" description="ItsBagelBot privacy policy. Learn how we handle your data with transparency and respect.">
     <PageHero eyebrow="Legal" title="Privacy Policy" description="The full text, with a plain-words note on every section." />
 
-    <LegalShell updated="June 2026" sections={sections}>
+    <LegalShell updated="July 2026" sections={sections}>
         <Fragment slot="overview">
             <p>
-                ItsBagelBot is committed to protecting your privacy. This policy explains what data we collect,
+                ItsBagelBot is committed to protecting your privacy in accordance with GDPR (Europe), PIPEDA (Canada), and Law 25 (Quebec). This policy explains what data we collect,
                 how we use it, and your rights.
             </p>
         </Fragment>
@@ -45,25 +46,32 @@ const sections = [
             </ul>
         </Fragment>
 
+        <Fragment slot="cookies">
+            <p>
+                We use Cloudflare Web Analytics for performance monitoring. Cloudflare's analytics are privacy-first and <strong>do not use cookies</strong> or store any client-side state. We do not use cookie banners because we do not use tracking or profiling cookies. Cloudflare may place strictly necessary security cookies (like <code>__cf_bm</code>) to protect against bots and DDoS attacks, which do not require consent.
+            </p>
+        </Fragment>
+
         <Fragment slot="data-use">
             <p>
                 Solely to provide the ItsBagelBot service: moderate chat, execute commands, and run engagement
-                features. We do not sell, rent, or share your data with third parties.
+                features. Our legal basis for processing this data is the fulfillment of our contract with you (Terms of Service) and our legitimate interest in securing our service. We do not sell, rent, or share your data with third parties.
             </p>
         </Fragment>
 
         <Fragment slot="storage">
             <p>
                 Chat messages are processed in real-time and not permanently stored. Configuration data is
-                encrypted at rest. All data transit uses TLS 1.3 encryption.
+                encrypted at rest. All data transit uses TLS 1.3 encryption. Your data is stored and processed securely in Canada, which benefits from an adequacy decision by the European Commission under the GDPR.
             </p>
         </Fragment>
 
         <Fragment slot="rights">
             <p>
+                Under GDPR, Law 25, and PIPEDA, you have the right to access, rectify, port, or erase your personal data. 
                 You can request data export or deletion at any time by contacting
                 <a href="mailto:support@itsbagelbot.com">support@itsbagelbot.com</a>. Deleting your account
-                removes all associated data.
+                removes all associated data immediately.
             </p>
         </Fragment>
 
@@ -76,7 +84,7 @@ const sections = [
 
         <Fragment slot="contact">
             <p>
-                Questions about privacy? Email
+                For questions about privacy, or to reach our designated Data Protection Officer (Person in charge of personal information under Law 25), email
                 <a href="mailto:support@itsbagelbot.com">support@itsbagelbot.com</a>.
             </p>
         </Fragment>

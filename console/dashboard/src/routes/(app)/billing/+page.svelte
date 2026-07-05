@@ -12,10 +12,12 @@
 
   const account = $derived(data.account as BillingState);
 
+  let optimisticPaid = $state(false);
+
   const isVip = $derived(account.status === 'vip');
-  const isPaid = $derived(account.status === 'paid' || isVip);
+  const isPaid = $derived(account.status === 'paid' || isVip || optimisticPaid);
   const staffGrant = $derived(account.status === 'paid' && account.source === 'admin');
-  const tebexPaid = $derived(account.status === 'paid' && account.source === 'tebex');
+  const tebexPaid = $derived((account.status === 'paid' && account.source === 'tebex') || optimisticPaid);
   const paidUntil = $derived(account.expiresAt);
   // Basket minting happens server-side on click; the browser is then redirected
   // to Tebex-hosted checkout so payment collection never happens in our frame.
@@ -158,8 +160,9 @@
   // Returning from hosted checkout with a completed payment: open the
   // celebratory modal with copy that matches what the buyer did (self-purchase
   // vs gift, recovered from the sessionStorage intent stashed at submit time).
-  // A self-purchase then polls the billing state until the plan flips to paid;
-  // a gift changes nothing on the buyer's own account so it does not poll.
+  // A self-purchase immediately optimistically updates the UI to show Premium,
+  // bypassing the spinner, while the backend syncs.
+  // A gift changes nothing on the buyer's own account so it does not poll.
   onMount(() => {
     if (page.url.searchParams.get('checkout') !== 'complete') return;
 
@@ -177,16 +180,8 @@
     }
 
     toast('ok', t('billing.toastPaymentReceived'));
-    // The entitlement lands via an async webhook. The live invalidation stream
-    // (see (app)/+layout.svelte) re-fetches this page the instant it does, so the
-    // view flips to premium on its own — no polling. If it hasn't landed in ~2
-    // min, swap the modal to the "taking a little longer" copy (SSE still flips
-    // it whenever it finally arrives).
-    if (isPaid) return;
-    const slow = setTimeout(() => {
-      if (!isPaid) activationSlow = true;
-    }, 120000);
-    return () => clearTimeout(slow);
+    // Optimistically update the UI to show premium immediately.
+    optimisticPaid = true;
   });
 
   // When a self-purchase finally flips to paid while the modal is open, fire a

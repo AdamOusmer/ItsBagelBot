@@ -3,7 +3,7 @@
   // the dashboard (they're already connected by then, so it starts at the step
   // people actually miss — modding the bot). Dismissal is remembered in
   // localStorage; `?welcome=1` re-opens it for a refresher.
-  import { Icon, Modal, getI18n, type IconName } from '@bagel/shared';
+  import { Icon, Modal, Toggle, getI18n, type IconName } from '@bagel/shared';
   import LangSwitch from './LangSwitch.svelte';
 
   type Step = {
@@ -12,12 +12,15 @@
     body: string;
     lang?: boolean;
     mod?: boolean;
+    consent?: boolean;
     cta?: { href: string; label: string };
   };
 
   let { open = false, onDone }: { open: boolean; onDone: () => void } = $props();
 
   const { t } = getI18n();
+  
+  let consentAccepted = $state(false);
 
   const MOD_COMMAND = '/mod ItsBagelBot';
   let copied = $state(false);
@@ -48,6 +51,12 @@
   }
 
   const steps: Step[] = [
+    {
+      icon: 'lock' as const,
+      title: t('onboarding.consentTitle'),
+      body: t('onboarding.consentBody'),
+      consent: true
+    },
     {
       icon: 'settings' as const,
       title: t('onboarding.langTitle'),
@@ -89,6 +98,12 @@
         <h4>{steps[step].title}</h4>
       </div>
       <p class="step-body">{steps[step].body}</p>
+      {#if steps[step].consent}
+        <div class="consent-check">
+          <Toggle bind:on={consentAccepted} />
+          <span>{@html t('onboarding.consentLabel')}</span>
+        </div>
+      {/if}
       {#if steps[step].lang}
         <div class="lang-row"><LangSwitch /></div>
       {/if}
@@ -124,12 +139,14 @@
       {#if step > 0}
         <button type="button" class="btn ghost" onclick={() => (step -= 1)}>{t('onboarding.back')}</button>
       {:else}
-        <button type="button" class="btn ghost" onclick={onDone}>{t('onboarding.skip')}</button>
+        {#if !steps[step].consent}
+          <button type="button" class="btn ghost" onclick={onDone}>{t('onboarding.skip')}</button>
+        {/if}
       {/if}
       {#if last}
-        <button type="button" class="btn primary" onclick={onDone}>{t('onboarding.done')}</button>
+        <button type="button" class="btn primary" onclick={onDone} disabled={steps[step].consent && !consentAccepted}>{t('onboarding.done')}</button>
       {:else}
-        <button type="button" class="btn primary" onclick={() => (step += 1)}>{t('onboarding.next')}</button>
+        <button type="button" class="btn primary" onclick={() => (step += 1)} disabled={steps[step].consent && !consentAccepted}>{t('onboarding.next')}</button>
       {/if}
     </div>
   </div>
@@ -191,6 +208,13 @@
   .mod-cmd:hover .copy-hint { color: var(--bb-tan-pale); }
 
   .step-cta { display: inline-flex; margin-top: 12px; text-decoration: none; }
+
+  .consent-check {
+    display: flex; align-items: center; gap: 12px; margin-top: 14px;
+    font-family: var(--bb-font-body); font-size: 13.5px; color: var(--bb-muted);
+  }
+  .consent-check :global(a) { color: var(--bb-tan-light); text-decoration: none; font-weight: 500; }
+  .consent-check :global(a:hover) { text-decoration: underline; }
 
   .lang-row { margin-top: 14px; display: flex; }
 

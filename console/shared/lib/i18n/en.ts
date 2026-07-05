@@ -74,7 +74,8 @@ export const en = {
     noticeSignedout: 'You were signed out. That account no longer exists on ItsBagelBot.',
     noticeBanned: 'This account can no longer use the console.',
     noticeLink: 'That share link is no longer valid. Ask the broadcaster for a new one.',
-    noticeRetry: 'Sign-in did not finish on our side. Nothing was saved. Please try again.'
+    noticeRetry: 'Sign-in did not finish on our side. Nothing was saved. Please try again.',
+    consent: 'I agree to the <a href="https://itsbagelbot.com/terms" target="_blank">Terms</a> and <a href="https://itsbagelbot.com/privacy" target="_blank">Privacy Policy</a>'
   },
 
   goodbye: {
@@ -337,6 +338,9 @@ export const en = {
   onboarding: {
     title: 'Welcome aboard 🥯',
     intro: "You're connected. The bot can see your chat. Two minutes of setup and it's fully live:",
+    consentTitle: 'Legal agreements',
+    consentBody: 'Please accept our Terms of Service and Privacy Policy before proceeding.',
+    consentLabel: 'I agree to the <a href="https://itsbagelbot.com/terms" target="_blank">Terms</a> and <a href="https://itsbagelbot.com/privacy" target="_blank">Privacy Policy</a>',
     langTitle: 'Choose your language',
     langBody: 'Pick the language for your console. You can change it later in Settings.',
     step1Title: 'Mod the bot',
