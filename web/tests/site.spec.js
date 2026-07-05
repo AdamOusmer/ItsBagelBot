@@ -47,6 +47,11 @@ test.describe('ItsBagelBot site', () => {
         // Encryption act is untouched
         await expect(page.locator('#enc-section')).toHaveCount(1);
 
+        // Sparse pockets reuse the inner-page mote field without covering home.
+        await expect(page.locator('.home-light-field[data-field]')).toHaveCount(2);
+        await expect(page.locator('#safety-layers .home-light-field')).toHaveCount(1);
+        await expect(page.locator('#how .home-light-field')).toHaveCount(1);
+
         // Playground: chat window, command chips, spam button, live feed seed
         const play = page.locator('#playground');
         await expect(play.locator('h2')).toContainText('Go on, poke it.');
@@ -62,8 +67,14 @@ test.describe('ItsBagelBot site', () => {
 
         // Quiet work bento
         const quiet = page.locator('#quiet-work');
-        await expect(quiet.locator('[data-card]')).toHaveCount(6);
+        await expect(quiet.locator('[data-card]')).toHaveCount(5);
         await expect(quiet).toContainText('It catches the noise before you do.');
+
+        // Four-layer safety pipeline
+        const safety = page.locator('#safety-layers');
+        await expect(safety.locator('[data-card]')).toHaveCount(3);
+        await expect(safety).toContainText('A classifier jury, not one guess.');
+        await expect(safety).toContainText('One raid warns every protected channel.');
 
         // Steps
         const how = page.locator('#how');
@@ -99,6 +110,38 @@ test.describe('ItsBagelBot site', () => {
         // Source available, never positioned as "open source"
         // (FAQ answer lives in a collapsed <details>, so assert presence, not visibility)
         await expect(page.getByText('source available, not open source')).toHaveCount(1);
+    });
+
+    test('static gates open in sync with the message', async ({ page }) => {
+        await page.goto('/');
+
+        const samples = await page.evaluate(() => {
+            const lane = document.querySelector('.gates__lane');
+            const packet = document.querySelector('.gates__packet');
+            const gates = [...document.querySelectorAll('.gates__gate i')];
+            if (!lane || !packet || gates.length !== 3) return [];
+
+            const animated = [packet, ...gates];
+            const animations = animated.map((element) => element.getAnimations()[0]);
+            animations.forEach((animation) => animation.pause());
+
+            return [1680, 2580, 3480].map((time) => {
+                animations.forEach((animation) => { animation.currentTime = time; });
+                const laneRect = lane.getBoundingClientRect();
+                const packetRect = packet.getBoundingClientRect();
+                return {
+                    packet: (packetRect.left - laneRect.left) / laneRect.width,
+                    gates: gates.map((gate) => gate.getBoundingClientRect().height),
+                };
+            });
+        });
+
+        expect(samples).toHaveLength(3);
+        for (const [index, sample] of samples.entries()) {
+            expect(sample.packet).toBeGreaterThan([0.2, 0.4, 0.6][index]);
+            expect(sample.packet).toBeLessThan([0.38, 0.58, 0.8][index]);
+            expect(sample.gates[index]).toBeLessThan(25);
+        }
     });
 
     test('contact renders 4 switchboard lines with copy affordance', async ({ page }) => {

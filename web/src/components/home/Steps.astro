@@ -5,6 +5,7 @@
  * view (shared decode.js). Deliberately small: three beats, no scroll-jack.
  */
 import { getLangFromUrl, useTranslations } from '../../i18n/ui';
+import HomeLightField from './HomeLightField.astro';
 
 const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
@@ -32,6 +33,7 @@ const steps = [
 ---
 
 <section class="steps" id="how">
+    <HomeLightField />
     <div class="steps__head">
         <span class="steps__eyebrow" data-reveal>{t('steps.eyebrow')}</span>
         <h2 class="steps__title" data-reveal style="--reveal-i: 1">{t('steps.title')}</h2>

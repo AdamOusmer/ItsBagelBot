@@ -1,0 +1,26 @@
+---
+interface Props {
+    label: string;
+}
+
+const { label } = Astro.props;
+---
+
+<span class="badge-incoming">{label}</span>
+
+<style>
+    .badge-incoming {
+        display: inline-flex;
+        align-items: center;
+        padding: 5px 12px;
+        border: 1px solid rgba(82, 183, 136, 0.4);
+        border-radius: 100px;
+        background: rgba(255, 255, 255, 0.05);
+        color: var(--green-glow, #52b788);
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.65rem;
+        font-weight: 400;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+    }
+</style>

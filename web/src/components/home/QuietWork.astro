@@ -7,6 +7,7 @@
  */
 import Card from '../ui/Card.astro';
 import SectionHeading from '../ui/SectionHeading.astro';
+import IncomingBadge from '../ui/IncomingBadge.astro';
 import { getLangFromUrl, useTranslations } from '../../i18n/ui';
 
 const lang = getLangFromUrl(Astro.url);
@@ -28,7 +29,7 @@ const t = useTranslations(lang);
             </div>
             <h3 class="qw__title">
                 {t('qw.modTitle')}
-                <span class="badge-incoming">{t('badge.incoming')}</span>
+                <IncomingBadge label={t('badge.incoming')} />
             </h3>
             <p class="qw__desc">{t('qw.modDesc')}</p>
         </Card>
@@ -61,7 +62,7 @@ const t = useTranslations(lang);
             </div>
             <h3 class="qw__title">
                 {t('qw.winTitle')}
-                <span class="badge-incoming">{t('badge.incoming')}</span>
+                <IncomingBadge label={t('badge.incoming')} />
             </h3>
             <p class="qw__desc">{t('qw.winDesc')}</p>
         </Card>
@@ -116,20 +117,6 @@ const t = useTranslations(lang);
         letter-spacing: -0.01em;
         color: var(--white, #f0ece4);
         margin: 0 0 8px;
-    }
-
-    .badge-incoming {
-        display: inline-flex;
-        align-items: center;
-        padding: 5px 12px;
-        border-radius: 100px;
-        background: rgba(255, 255, 255, 0.05);
-        border: 1px solid rgba(82, 183, 136, 0.4);
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.65rem;
-        letter-spacing: 0.1em;
-        text-transform: uppercase;
-        color: var(--green-glow, #52b788);
     }
 
     .qw__desc {
