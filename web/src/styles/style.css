@@ -154,14 +154,6 @@ button {
     will-change: auto;
 }
 
-/* ── Magnetic pull (primary CTAs) ── */
-
-[data-magnetic] {
-    display: inline-block;
-    translate: var(--magnetic-x, 0px) var(--magnetic-y, 0px);
-    transition: translate 450ms var(--ease-out-expo);
-}
-
 @media (prefers-reduced-motion: reduce) {
     [data-reveal] {
         opacity: 1;
@@ -169,10 +161,6 @@ button {
         transition: none;
     }
 
-    [data-magnetic] {
-        translate: none;
-        transition: none;
-    }
 }
 
 /* Global Styles */
