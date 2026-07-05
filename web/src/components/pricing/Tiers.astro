@@ -39,7 +39,7 @@ const enterpriseFeatures = [
                 </p>
                 <a
                     class="tier__btn tier__btn--main"
-                    href="https://dashboard.itsbagelbot.com"
+                    href={`https://dashboard.itsbagelbot.com${lang === 'fr' ? '?lang=fr' : ''}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     data-magnetic="0.3"
@@ -64,7 +64,9 @@ const enterpriseFeatures = [
         <!-- Premium: the tip jar -->
         <Card class="tier tier--premium" data-reveal style="--reveal-i: 1">
             <span class="tier__badge">{t('tier.premiumBadge')}</span>
-            <img src="/premium-logo.png" alt="Premium" class="tier__premium-logo" />
+            <div class="tier__demo" aria-hidden="true">
+                <img src="/premium-logo.png" alt="Premium" class="tier__premium-logo" />
+            </div>
             <span class="tier__name">{t('tier.premium')}</span>
             <div class="tier__price">
                 <span class="tier__amount" data-count-up data-target="7" data-suffix="$">0$</span>
@@ -88,7 +90,7 @@ const enterpriseFeatures = [
                  and lands on billing with checkout auto-opened. -->
             <a
                 class="tier__btn tier__btn--outline"
-                href="https://dashboard.itsbagelbot.com/billing?subscribe=1"
+                href={`https://dashboard.itsbagelbot.com/billing?subscribe=1${lang === 'fr' ? '&lang=fr' : ''}`}
                 target="_blank"
                 rel="noopener noreferrer"
             >{t('tier.chipIn')}</a>
@@ -97,6 +99,19 @@ const enterpriseFeatures = [
 
         <!-- Enterprise -->
         <Card class="tier tier--enterprise" data-reveal style="--reveal-i: 2">
+            <div class="tier__demo" aria-hidden="true">
+                <div class="tier__demo-ent">
+                    <div class="ent-server">
+                        <span class="ent-light"></span><span class="ent-line"></span>
+                    </div>
+                    <div class="ent-server">
+                        <span class="ent-light" style="animation-delay: 0.5s"></span><span class="ent-line"></span>
+                    </div>
+                    <div class="ent-server">
+                        <span class="ent-light" style="animation-delay: 1s"></span><span class="ent-line"></span>
+                    </div>
+                </div>
+            </div>
             <span class="tier__name">{t('tier.enterprise')}</span>
             <div class="tier__price">
                 <span class="tier__amount tier__amount--static">{t('tier.enterpriseAmount')}</span>
@@ -220,11 +235,74 @@ const enterpriseFeatures = [
        ribbon sits on top of the "Premium" title. */
     .tier--premium :global(.card__body) { padding-top: 22px; }
 
+    /* ── Demo stage (mirrors QuietWork and Games) ── */
+    .tier__demo {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        height: 104px;
+        margin-bottom: 24px;
+        padding: 14px 16px;
+        border-radius: 10px;
+        background: rgba(10, 10, 10, 0.55);
+        border: 1px solid rgba(240, 236, 228, 0.05);
+        overflow: hidden;
+    }
+
     .tier__premium-logo {
-        height: 42px;
-        width: auto;
-        margin-bottom: 16px;
-        display: block;
+        max-width: 90%;
+        max-height: 80px;
+        object-fit: contain;
+        animation: premiumFloat 5s ease-in-out infinite;
+    }
+
+    @keyframes premiumFloat {
+        0%, 100% { transform: translateY(0) scale(1); filter: drop-shadow(0 4px 12px rgba(201, 168, 124, 0.15)); }
+        50% { transform: translateY(-3px) scale(1.02); filter: drop-shadow(0 8px 20px rgba(201, 168, 124, 0.35)); }
+    }
+
+    .tier__demo-ent {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        width: 80px;
+    }
+
+    .ent-server {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 4px 8px;
+        border: 1px solid rgba(224, 196, 154, 0.15);
+        border-radius: 4px;
+        background: rgba(0, 0, 0, 0.3);
+    }
+
+    .ent-light {
+        width: 4px;
+        height: 4px;
+        border-radius: 50%;
+        background: var(--green-glow, #52b788);
+        animation: entBlink 2.5s infinite;
+    }
+
+    .ent-line {
+        flex: 1;
+        height: 2px;
+        background: rgba(224, 196, 154, 0.2);
+        border-radius: 1px;
+    }
+
+    @keyframes entBlink {
+        0%, 40% { opacity: 1; box-shadow: 0 0 6px var(--green-glow, #52b788); }
+        50%, 90% { opacity: 0.2; box-shadow: none; }
+        100% { opacity: 1; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .tier__premium-logo { animation: none; }
+        .ent-light { animation: none; opacity: 1; box-shadow: 0 0 4px var(--green-glow, #52b788); }
     }
 
     .tier__name {

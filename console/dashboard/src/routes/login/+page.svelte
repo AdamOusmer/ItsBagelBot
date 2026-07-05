@@ -43,7 +43,7 @@
 
   <h1 class="hero">
     {#each headline as w, i}
-      <span class="word reveal" style="--d:{0.28 + i * 0.07}s" class:accent={i >= 4}>{w}&nbsp;</span>
+      <span class="word reveal" style="--d:{0.28 + i * 0.07}s" class:tan={i <= 1} class:green={i >= 4}>{w}&nbsp;</span>
     {/each}
   </h1>
 
@@ -61,6 +61,10 @@
     <span class="feat">{t('login.featEncrypted')}</span>
     <span class="feat">{t('login.featEdge')}</span>
   </div>
+
+  <a href="https://itsbagelbot.com" class="back-link reveal" style="--d:1.3s">
+    &larr; {t('login.back')}
+  </a>
 </main>
 
 <style>
@@ -122,7 +126,8 @@
   .eyebrow { font-family: var(--bb-font-mono); font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--bb-green-glow); }
   .hero { font-family: var(--bb-font-display); font-weight: 800; font-size: clamp(40px, 8vw, 92px); line-height: 0.98; letter-spacing: -0.02em; color: var(--bb-white); margin: 4px 0; max-width: 12ch; }
   .hero .word { display: inline-block; }
-  .hero .accent { color: var(--bb-tan-light); font-style: normal; }
+  .hero .tan { color: var(--bb-tan); font-style: normal; }
+  .hero .green { color: var(--bb-green); font-style: normal; }
 
   .lede { font-family: var(--bb-font-body); font-size: clamp(15px, 1.6vw, 18px); color: var(--bb-muted); max-width: 52ch; line-height: 1.6; margin: 4px 0 6px; }
 
@@ -139,6 +144,9 @@
 
   .features { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 22px; }
   .feat { font-family: var(--bb-font-body); font-weight: 600; font-size: 12px; color: var(--bb-tan); padding: 8px 16px; border-radius: var(--bb-radius-pill, 100px); background: rgba(255, 255, 255, 0.03); border: 1px solid var(--bb-border); }
+
+  .back-link { display: inline-block; margin-top: 32px; font-family: var(--bb-font-body); font-size: 14px; font-weight: 500; color: var(--bb-muted); text-decoration: none; transition: color 0.2s; }
+  .back-link:hover { color: var(--bb-white); }
 
   @keyframes float { 0%, 100% { transform: translateY(0) rotate(-1deg); } 50% { transform: translateY(-10px) rotate(1deg); } }
   @keyframes pulse { 0%, 100% { opacity: 0.55; transform: scale(1); } 50% { opacity: 0.9; transform: scale(1.12); } }

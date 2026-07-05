@@ -65,15 +65,16 @@ export const fr = {
   login: {
     eyebrow: 'Console ItsBagelBot',
     headline: 'Votre stream. Vos outils. Vos règles.',
-    lede: 'Privé, chiffré, toujours actif. Pilotez votre bot et vos commandes depuis une seule console, au calme.',
+    lede: 'Privé, chiffré, toujours actif. Gérez votre bot et vos commandes depuis une console sereine.',
     cta: 'Continuer avec Twitch',
     featUptime: 'Toujours actif',
-    featEncrypted: 'Chiffré de bout en bout',
-    featEdge: 'Rapide de partout',
+    featEncrypted: 'Chiffrement de bout en bout',
+    featEdge: 'Rapide partout',
     noticeSignedout: 'Vous avez été déconnecté. Ce compte n\'existe plus sur ItsBagelBot.',
     noticeBanned: 'Ce compte ne peut plus utiliser la console.',
-    noticeLink: 'Ce lien de partage n\'est plus valide. Demandez-en un nouveau au diffuseur.',
-    noticeRetry: 'La connexion ne s\'est pas terminée de notre côté. Rien n\'a été enregistré. Veuillez réessayer.',
+    noticeLink: 'Ce lien de partage n\'est plus valide. Demandez un nouveau lien au diffuseur.',
+    noticeRetry: 'La connexion n\'a pas abouti. Rien n\'a été sauvegardé. Veuillez réessayer.',
+    back: 'Retour à itsbagelbot.com',
     consent: 'J\'accepte les <a href="https://itsbagelbot.com/terms" target="_blank">Conditions</a> et la <a href="https://itsbagelbot.com/privacy" target="_blank">Politique de confidentialité</a>'
   },
 
