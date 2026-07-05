@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Icon, Modal, PageHead, Card, ConfirmDialog, EmptyState, toast, getI18n } from '@bagel/shared';
+  import { Icon, Modal, PageHead, Card, ConfirmDialog, EmptyState, toast, getI18n, type Locale } from '@bagel/shared';
   import { page } from '$app/state';
   import { enhance } from '$app/forms';
   import CheckButton from '$lib/components/CheckButton.svelte';
@@ -11,6 +11,7 @@
   const { t } = getI18n();
 
   const notifications = $derived((data.notifications ?? []) as NotificationWire[]);
+  const savedLocale = $derived((data.savedLocale ?? 'en') as Locale);
   const levelLabel = (l: string) => l.charAt(0).toUpperCase() + l.slice(1);
 
   const createdGrant = $derived(form?.createdGrant as DelegationGrant | undefined);
@@ -91,7 +92,7 @@
         <b>{t('settings.language')}</b>
         <p class="hint">{t('settings.languageHint')}</p>
       </div>
-      <LangSwitch />
+      <LangSwitch selected={savedLocale} />
     </div>
     <div class="row">
       <div>
