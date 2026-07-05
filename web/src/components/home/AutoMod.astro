@@ -7,28 +7,27 @@ const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
 ---
 
-<section class="am" id="automod">
+<section class="am" id="auto-mod">
     <SectionHeading eyebrow={t('automod.eyebrow')} title={t('automod.title')} />
 
     <div class="am__grid">
         <!-- Classifier Jury -->
         <Card class="am__card am__card--wide" data-reveal>
             <div class="am__demo am__demo--jury" aria-hidden="true">
-                <div class="am-court__judges">
-                    <div class="am-judge" style="--d: 0s">
-                        <span class="am-judge__icon">🧠</span>
-                        <span class="am-judge__label">Spam</span>
-                    </div>
-                    <div class="am-judge" style="--d: 0.15s">
-                        <span class="am-judge__icon">🛡️</span>
-                        <span class="am-judge__label">Toxicity</span>
-                    </div>
-                    <div class="am-judge" style="--d: 0.3s">
-                        <span class="am-judge__icon">👁️</span>
-                        <span class="am-judge__label">Context</span>
-                    </div>
+                <div class="am-jury__msg-wrapper">
+                    <span class="am-jury__msg">CLICK HERE FOR FREE SUBS!!</span>
+                    <span class="am-jury__sweep"></span>
                 </div>
-                <div class="am-court__stamp">BLOCKED</div>
+                <div class="am-jury__bottom">
+                    <div class="am-jury__votes">
+                        <span class="am-jury__vote" style="--d: 0s"></span>
+                        <span class="am-jury__vote" style="--d: 0.15s"></span>
+                        <span class="am-jury__vote am-jury__vote--green" style="--d: 0.3s"></span>
+                        <span class="am-jury__vote" style="--d: 0.45s"></span>
+                        <span class="am-jury__vote" style="--d: 0.6s"></span>
+                    </div>
+                    <span class="am-jury__verdict">BLOCKED</span>
+                </div>
             </div>
             <h3 class="am__title">
                 {t('automod.juryTitle')}
@@ -40,13 +39,12 @@ const t = useTranslations(lang);
         <!-- Static Gates -->
         <Card class="am__card" data-reveal style="--reveal-i: 1">
             <div class="am__demo am__demo--gates" aria-hidden="true">
-                <div class="am-gate">
-                    <span class="am-gate__user" style="--d: 0s">bot_83</span>
-                    <span class="am-gate__wall"></span>
-                </div>
-                <div class="am-gate">
-                    <span class="am-gate__user" style="--d: 1s">bot_99</span>
-                    <span class="am-gate__wall"></span>
+                <div class="am-gate__container">
+                    <div class="am-gate__wall"></div>
+                    <span class="am-gate__dot am-gate__dot--bot" style="--d: 0s"></span>
+                    <span class="am-gate__dot am-gate__dot--bot" style="--d: 1.5s"></span>
+                    <span class="am-gate__dot am-gate__dot--user" style="--d: 3s"></span>
+                    <span class="am-gate__dot am-gate__dot--bot" style="--d: 4.5s"></span>
                 </div>
             </div>
             <h3 class="am__title">{t('automod.gatesTitle')}</h3>
@@ -56,16 +54,18 @@ const t = useTranslations(lang);
         <!-- Reputation Engine -->
         <Card class="am__card" data-reveal style="--reveal-i: 2">
             <div class="am__demo am__demo--rep" aria-hidden="true">
-                <div class="am-rep__score">
-                    <svg viewBox="0 0 36 36" class="am-rep__ring">
-                        <path class="am-rep__circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                        <path class="am-rep__circle" stroke-dasharray="100, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                    </svg>
-                    <span class="am-rep__num">98</span>
+                <div class="am-rep__line">
+                    <span class="am-rep__user">new_user:</span>
+                    <span class="am-rep__msg-wrapper">
+                        <span class="am-rep__msg">LMAO ALL CAPS HYPE</span>
+                        <span class="am-rep__sweep"></span>
+                    </span>
+                    <span class="am-rep__verdict-blocked">BLOCKED</span>
                 </div>
-                <div class="am-rep__info">
-                    <span class="am-rep__name">trusted_viewer</span>
-                    <span class="am-rep__status">High Trust</span>
+                <div class="am-rep__line">
+                    <span class="am-rep__user am-rep__user--trusted">trusted_viewer:</span>
+                    <span class="am-rep__msg">LMAO ALL CAPS HYPE</span>
+                    <span class="am-rep__badge">BYPASS</span>
                 </div>
             </div>
             <h3 class="am__title">{t('automod.reputationTitle')}</h3>
@@ -75,21 +75,15 @@ const t = useTranslations(lang);
         <!-- Centralized Hive -->
         <Card class="am__card am__card--wide" data-reveal style="--reveal-i: 3">
             <div class="am__demo am__demo--hive" aria-hidden="true">
-                <div class="am-hive__network">
-                    <div class="am-hive__node am-hive__node--origin"></div>
-                    <div class="am-hive__line" style="--r: 0deg"></div>
-                    <div class="am-hive__line" style="--r: 72deg"></div>
-                    <div class="am-hive__line" style="--r: 144deg"></div>
-                    <div class="am-hive__line" style="--r: 216deg"></div>
-                    <div class="am-hive__line" style="--r: 288deg"></div>
-                    
-                    <div class="am-hive__node" style="--x: 35px; --y: -40px;"></div>
-                    <div class="am-hive__node" style="--x: 45px; --y: 15px;"></div>
-                    <div class="am-hive__node" style="--x: -15px; --y: 45px;"></div>
-                    <div class="am-hive__node" style="--x: -45px; --y: 5px;"></div>
-                    <div class="am-hive__node" style="--x: -25px; --y: -35px;"></div>
+                <div class="am-hive__net">
+                    <span class="am-hive__node am-hive__node--center"></span>
+                    <span class="am-hive__node am-hive__node--sat" style="--r: 0deg"></span>
+                    <span class="am-hive__node am-hive__node--sat" style="--r: 60deg"></span>
+                    <span class="am-hive__node am-hive__node--sat" style="--r: 120deg"></span>
+                    <span class="am-hive__node am-hive__node--sat" style="--r: 180deg"></span>
+                    <span class="am-hive__node am-hive__node--sat" style="--r: 240deg"></span>
+                    <span class="am-hive__node am-hive__node--sat" style="--r: 300deg"></span>
                 </div>
-                <div class="am-hive__alert">THREAT BLOCKED GLOBALLY</div>
             </div>
             <h3 class="am__title">{t('automod.hiveTitle')}</h3>
             <p class="am__desc">{t('automod.hiveDesc')}</p>
@@ -157,295 +151,303 @@ const t = useTranslations(lang);
         margin: 0;
     }
 
-    /* ── Demo stage shared ── */
+    /* ── Demo stage shared (Matches QuietWork exactly) ── */
     .am__demo {
         display: flex;
         flex-direction: column;
         justify-content: center;
-        align-items: center;
         gap: 8px;
         height: 84px;
-        margin-bottom: 24px;
-        border-radius: 6px;
-        background: rgba(10, 10, 10, 0.4);
+        margin-bottom: 20px;
+        padding: 14px 16px;
+        border-radius: 10px;
+        background: rgba(10, 10, 10, 0.55);
         border: 1px solid rgba(240, 236, 228, 0.05);
-        padding: 0 16px;
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.75rem;
         overflow: hidden;
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.74rem;
         position: relative;
     }
 
     /* ── Classifier Jury ── */
-    .am__demo--jury {
-        flex-direction: row;
-        justify-content: center;
-    }
-    
-    .am-court__judges {
-        display: flex;
-        gap: 28px;
-        align-items: center;
-    }
-    
-    .am-judge {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 6px;
-        color: var(--muted);
-        animation: judgeEval 4s ease-in-out infinite;
-        animation-delay: var(--d);
-    }
-    
-    .am-judge__icon { font-size: 1.1rem; }
-    .am-judge__label { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.05em; }
-    
-    .am-court__stamp {
-        position: absolute;
-        top: 50%; left: 50%;
-        transform: translate(-50%, -50%) scale(2) rotate(-5deg);
-        color: #ff6b6b;
-        font-family: var(--font-display, "Syne", sans-serif);
-        font-weight: 800;
-        font-size: 1.4rem;
-        letter-spacing: 0.1em;
-        text-shadow: 0 0 12px rgba(255, 107, 107, 0.6);
-        padding: 4px 12px;
-        border: 2px solid #ff6b6b;
-        border-radius: 4px;
-        opacity: 0;
-        animation: stampIn 4s cubic-bezier(0.175, 0.885, 0.32, 1.275) infinite;
-        background: rgba(10, 10, 10, 0.7);
+    .am-jury__msg-wrapper {
+        position: relative;
+        display: inline-block;
+        width: fit-content;
+        max-width: 100%;
+        color: rgba(217, 138, 138, 0.85);
+        animation: amJuryLine 6s ease-in-out infinite;
     }
 
-    @keyframes judgeEval {
-        0%, 15% { color: var(--muted); filter: grayscale(1); }
-        20%, 35% { color: var(--white); filter: grayscale(0) drop-shadow(0 0 8px rgba(255,255,255,0.3)); transform: translateY(-2px); }
-        40%, 100% { color: #ff6b6b; filter: grayscale(0) drop-shadow(0 0 8px rgba(255,107,107,0.5)); transform: translateY(0); }
+    .am-jury__sweep {
+        position: absolute;
+        inset: -2px -4px;
+        border-radius: 4px;
+        background: linear-gradient(90deg, transparent, rgba(217, 138, 138, 0.35), transparent);
+        transform: translateX(-110%);
+        animation: amJurySweep 6s ease-in-out infinite;
     }
-    
-    @keyframes stampIn {
-        0%, 35% { opacity: 0; transform: translate(-50%, -50%) scale(2) rotate(-5deg); }
-        40%, 80% { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(-5deg); }
-        85%, 100% { opacity: 0; transform: translate(-50%, -50%) scale(0.8) rotate(-5deg); }
+
+    .am-jury__bottom {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .am-jury__votes {
+        display: flex;
+        gap: 4px;
+    }
+
+    .am-jury__vote {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.1);
+        animation: amJuryVote 6s ease-in-out infinite;
+        animation-delay: var(--d);
+    }
+
+    .am-jury__vote--green {
+        animation-name: amJuryVoteGreen;
+    }
+
+    .am-jury__verdict {
+        color: rgba(217, 138, 138, 1);
+        font-weight: bold;
+        opacity: 0;
+        animation: amJuryVerdict 6s ease-in-out infinite;
+    }
+
+    @keyframes amJuryLine {
+        0%, 38% { opacity: 1; filter: none; }
+        48%, 88% { opacity: 0.28; filter: blur(1.5px); text-decoration: line-through; }
+        98%, 100% { opacity: 1; filter: none; }
+    }
+
+    @keyframes amJurySweep {
+        0%, 34% { transform: translateX(-110%); }
+        46%, 100% { transform: translateX(110%); }
+    }
+
+    @keyframes amJuryVote {
+        0%, 15% { background: rgba(255, 255, 255, 0.1); }
+        20%, 88% { background: rgba(217, 138, 138, 1); box-shadow: 0 0 6px rgba(217, 138, 138, 0.6); }
+        95%, 100% { background: rgba(255, 255, 255, 0.1); }
+    }
+
+    @keyframes amJuryVoteGreen {
+        0%, 15% { background: rgba(255, 255, 255, 0.1); }
+        20%, 88% { background: var(--green-glow, #52b788); box-shadow: 0 0 6px rgba(82, 183, 136, 0.6); }
+        95%, 100% { background: rgba(255, 255, 255, 0.1); }
+    }
+
+    @keyframes amJuryVerdict {
+        0%, 44% { opacity: 0; transform: translateY(4px); }
+        54%, 86% { opacity: 1; transform: none; }
+        96%, 100% { opacity: 0; }
     }
 
     /* ── Static Gates ── */
-    .am__demo--gates {
-        align-items: stretch;
-    }
-    
-    .am-gate {
+    .am-gate__container {
+        position: relative;
+        width: 100%;
+        height: 100%;
         display: flex;
         align-items: center;
-        gap: 16px;
-        width: 100%;
-    }
-    
-    .am-gate__user {
-        color: var(--tan-light, #e0c49a);
-        position: relative;
-        animation: moveUser 3s ease-in-out infinite;
-        animation-delay: var(--d);
-    }
-    
-    .am-gate__wall {
-        width: 4px;
-        height: 20px;
-        background: rgba(201, 168, 124, 0.4);
-        margin-left: auto;
-        border-radius: 2px;
-        animation: wallFlash 3s ease-in-out infinite;
-        animation-delay: var(--d);
+        justify-content: center;
     }
 
-    @keyframes moveUser {
-        0%, 10% { transform: translateX(0); opacity: 0; }
-        15% { opacity: 1; }
-        35% { transform: translateX(150px); opacity: 1; }
-        40% { transform: translateX(130px); opacity: 0; }
-        100% { transform: translateX(0); opacity: 0; }
+    .am-gate__wall {
+        position: absolute;
+        right: 20%;
+        top: 10%;
+        bottom: 10%;
+        width: 2px;
+        background: rgba(255, 255, 255, 0.1);
+        animation: amGateWall 6s infinite;
     }
-    
-    @keyframes wallFlash {
-        0%, 30% { background: rgba(201, 168, 124, 0.4); box-shadow: none; }
-        35%, 45% { background: #ff6b6b; box-shadow: 0 0 8px #ff6b6b; }
-        50%, 100% { background: rgba(201, 168, 124, 0.4); box-shadow: none; }
+
+    .am-gate__dot {
+        position: absolute;
+        left: 10%;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        opacity: 0;
+        animation: amGateDotBot 6s linear infinite;
+        animation-delay: var(--d);
+        background: rgba(217, 138, 138, 1);
+    }
+
+    .am-gate__dot--user {
+        background: var(--green-glow, #52b788);
+        animation-name: amGateDotUser;
+    }
+
+    @keyframes amGateDotBot {
+        0% { opacity: 0; transform: translateX(0); }
+        10% { opacity: 1; transform: translateX(20px); }
+        45% { opacity: 1; transform: translateX(180px); } /* Hits wall */
+        50% { opacity: 0; transform: translateX(160px) translateY(-10px); } /* Bounce back */
+        100% { opacity: 0; }
+    }
+
+    @keyframes amGateDotUser {
+        0% { opacity: 0; transform: translateX(0); }
+        10% { opacity: 1; transform: translateX(20px); }
+        45% { opacity: 1; transform: translateX(180px); } /* Reaches wall */
+        80% { opacity: 1; transform: translateX(300px); } /* Passes through */
+        90% { opacity: 0; transform: translateX(340px); }
+        100% { opacity: 0; }
+    }
+
+    @keyframes amGateWall {
+        0%, 40% { background: rgba(255, 255, 255, 0.1); box-shadow: none; width: 2px; }
+        45%, 48% { background: rgba(217, 138, 138, 1); box-shadow: 0 0 10px rgba(217, 138, 138, 0.8); width: 4px; }
+        52%, 100% { background: rgba(255, 255, 255, 0.1); box-shadow: none; width: 2px; }
     }
 
     /* ── Reputation Engine ── */
     .am__demo--rep {
-        flex-direction: row;
         justify-content: center;
-        align-items: center;
-        gap: 16px;
-    }
-    
-    .am-rep__score {
-        position: relative;
-        width: 48px;
-        height: 48px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-    
-    .am-rep__ring {
-        position: absolute;
-        width: 100%;
-        height: 100%;
-        transform: rotate(-90deg);
-    }
-    
-    .am-rep__circle-bg {
-        fill: none;
-        stroke: rgba(255,255,255,0.05);
-        stroke-width: 2.5;
-    }
-    
-    .am-rep__circle {
-        fill: none;
-        stroke: var(--green-glow, #52b788);
-        stroke-width: 2.5;
-        stroke-linecap: round;
-        animation: fillRing 4s ease-in-out infinite;
-    }
-    
-    .am-rep__num {
-        color: var(--white);
-        font-weight: bold;
-        font-size: 0.9rem;
-        z-index: 2;
-    }
-    
-    .am-rep__info {
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        gap: 4px;
-    }
-    
-    .am-rep__name {
-        color: var(--white);
-        font-weight: bold;
-        font-size: 0.85rem;
-    }
-    
-    .am-rep__status {
-        color: var(--green-glow, #52b788);
-        font-size: 0.7rem;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        opacity: 0;
-        animation: statusPulse 4s ease-in-out infinite;
+        gap: 12px;
     }
 
-    @keyframes fillRing {
-        0%, 15% { stroke-dasharray: 0, 100; opacity: 0; }
-        30%, 80% { stroke-dasharray: 98, 100; opacity: 1; filter: drop-shadow(0 0 6px rgba(82, 183, 136, 0.4)); }
-        90%, 100% { stroke-dasharray: 98, 100; opacity: 0; }
+    .am-rep__line {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .am-rep__user {
+        color: var(--muted);
+    }
+
+    .am-rep__user--trusted {
+        color: var(--tan-light, #e0c49a);
+    }
+
+    .am-rep__msg-wrapper {
+        position: relative;
+        display: inline-block;
+        color: rgba(217, 138, 138, 0.85);
+        animation: amRepLine 6s ease-in-out infinite;
+    }
+
+    .am-rep__msg {
+        color: var(--white);
     }
     
-    @keyframes statusPulse {
-        0%, 30% { opacity: 0; transform: translateY(2px); }
-        35%, 75% { opacity: 1; transform: translateY(0); }
-        80%, 100% { opacity: 0; transform: translateY(-2px); }
+    .am-rep__msg-wrapper .am-rep__msg {
+        color: inherit;
     }
+
+    .am-rep__sweep {
+        position: absolute;
+        inset: -2px -4px;
+        border-radius: 4px;
+        background: linear-gradient(90deg, transparent, rgba(217, 138, 138, 0.35), transparent);
+        transform: translateX(-110%);
+        animation: amRepSweep 6s ease-in-out infinite;
+    }
+
+    .am-rep__verdict-blocked {
+        color: rgba(217, 138, 138, 1);
+        font-weight: bold;
+        opacity: 0;
+        animation: amRepBlocked 6s ease-in-out infinite;
+    }
+
+    .am-rep__badge {
+        color: var(--green-glow, #52b788);
+        border: 1px solid rgba(82, 183, 136, 0.4);
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 0.6rem;
+        opacity: 0;
+        animation: amRepAllowed 6s ease-in-out infinite;
+    }
+
+    @keyframes amRepLine {
+        0%, 28% { opacity: 1; filter: none; }
+        38%, 78% { opacity: 0.28; filter: blur(1.5px); text-decoration: line-through; }
+        88%, 100% { opacity: 1; filter: none; }
+    }
+
+    @keyframes amRepSweep {
+        0%, 24% { transform: translateX(-110%); }
+        36%, 100% { transform: translateX(110%); }
+    }
+
+    @keyframes amRepBlocked {
+        0%, 34% { opacity: 0; transform: translateY(4px); }
+        44%, 76% { opacity: 1; transform: none; }
+        86%, 100% { opacity: 0; }
+    }
+
+    @keyframes amRepAllowed {
+        0%, 24% { opacity: 0; transform: scale(0.9); }
+        34%, 86% { opacity: 1; transform: scale(1); }
+        96%, 100% { opacity: 0; }
+    }
+
 
     /* ── Centralized Hive ── */
     .am__demo--hive {
         align-items: center;
-        justify-content: center;
     }
     
-    .am-hive__network {
+    .am-hive__net {
         position: relative;
-        width: 100px;
-        height: 100px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-    
-    .am-hive__node {
-        position: absolute;
-        width: 6px;
-        height: 6px;
-        border-radius: 50%;
-        background: var(--green-glow);
-        transform: translate(var(--x, 0), var(--y, 0));
-        animation: hiveNode 5s infinite;
-    }
-    
-    .am-hive__node--origin {
-        width: 10px;
-        height: 10px;
-        background: #ff6b6b;
-        transform: none;
-        z-index: 2;
-        animation: hiveOrigin 5s infinite;
-    }
-    
-    .am-hive__line {
-        position: absolute;
         width: 40px;
-        height: 2px;
-        background: linear-gradient(90deg, rgba(255, 107, 107, 0.8), transparent);
-        transform-origin: left center;
-        transform: rotate(var(--r));
-        opacity: 0;
-        animation: hiveLine 5s infinite;
-    }
-    
-    .am-hive__alert {
-        position: absolute;
-        bottom: 12px;
-        left: 50%;
-        transform: translateX(-50%);
-        color: #ff6b6b;
-        font-weight: bold;
-        letter-spacing: 0.1em;
-        text-shadow: 0 0 6px rgba(255, 107, 107, 0.4);
-        opacity: 0;
-        white-space: nowrap;
-        animation: hiveAlert 5s infinite;
+        height: 40px;
     }
 
-    @keyframes hiveOrigin {
-        0%, 10% { box-shadow: 0 0 0 rgba(255,107,107,0); }
-        15%, 85% { box-shadow: 0 0 12px rgba(255,107,107,0.8); }
-        90%, 100% { box-shadow: 0 0 0 rgba(255,107,107,0); }
+    .am-hive__node {
+        position: absolute;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.2);
     }
-    
-    @keyframes hiveLine {
-        0%, 15% { opacity: 0; width: 0; }
-        20%, 80% { opacity: 0.8; width: 40px; }
-        85%, 100% { opacity: 0; width: 0; }
+
+    .am-hive__node--center {
+        width: 10px;
+        height: 10px;
+        top: 15px;
+        left: 15px;
+        animation: amHiveCenter 4s infinite;
     }
-    
-    @keyframes hiveNode {
-        0%, 20% { background: var(--green-glow); box-shadow: none; }
-        25%, 75% { background: #ff6b6b; box-shadow: 0 0 8px #ff6b6b; }
-        80%, 100% { background: var(--green-glow); box-shadow: none; }
+
+    .am-hive__node--sat {
+        width: 6px;
+        height: 6px;
+        top: 17px;
+        left: 17px;
+        transform: rotate(var(--r)) translateY(-24px);
+        animation: amHiveSat 4s infinite;
     }
-    
-    @keyframes hiveAlert {
-        0%, 30% { opacity: 0; }
-        35%, 70% { opacity: 1; }
-        75%, 100% { opacity: 0; }
+
+    @keyframes amHiveCenter {
+        0%, 10% { background: rgba(255, 255, 255, 0.2); box-shadow: none; }
+        15%, 50% { background: rgba(217, 138, 138, 1); box-shadow: 0 0 10px rgba(217, 138, 138, 0.8); }
+        60%, 100% { background: rgba(255, 255, 255, 0.2); box-shadow: none; }
+    }
+
+    @keyframes amHiveSat {
+        0%, 25% { background: rgba(255, 255, 255, 0.2); box-shadow: none; }
+        30%, 50% { background: rgba(217, 138, 138, 1); box-shadow: 0 0 8px rgba(217, 138, 138, 0.6); }
+        60%, 100% { background: rgba(255, 255, 255, 0.2); box-shadow: none; }
     }
 
     @media (prefers-reduced-motion: reduce) {
-        .am-judge, .am-court__stamp,
-        .am-gate__user, .am-gate__wall,
-        .am-rep__circle, .am-rep__status,
-        .am-hive__node, .am-hive__node--origin, .am-hive__line, .am-hive__alert {
+        .am-jury__msg-wrapper, .am-jury__sweep, .am-jury__vote, .am-jury__verdict,
+        .am-gate__dot, .am-gate__wall,
+        .am-rep__msg-wrapper, .am-rep__sweep, .am-rep__verdict-blocked, .am-rep__badge,
+        .am-hive__node--center, .am-hive__node--sat {
             animation: none !important;
             opacity: 1 !important;
             transform: none !important;
-            text-decoration: none !important;
-            box-shadow: none !important;
+            filter: none !important;
         }
     }
 </style>
