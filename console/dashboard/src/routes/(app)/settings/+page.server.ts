@@ -12,6 +12,7 @@ import {
   notificationsForUser,
   notificationMarkRead,
   notificationMarkPeeked,
+  userLocale,
   type NotificationWire
 } from '$lib/server/services';
 import { ACCOUNT_DELETED_COOKIE, COOKIE, type Session } from '$lib/server/session';
@@ -57,6 +58,7 @@ export const load: PageServerLoad = async ({ locals }) => {
       received: [{ owner_user_id: '42', owner_login: 'ferret_king', sections: ['commands'] }],
       grantableSections: [...SECTIONS],
       notifications: demoNotifications,
+      savedLocale: 'en' as const,
       degraded: false
     };
   }
@@ -72,10 +74,11 @@ export const load: PageServerLoad = async ({ locals }) => {
   let notifications: NotificationWire[] = [];
   let degraded = false;
 
-  const [givenResult, receivedResult, notifResult] = await Promise.allSettled([
+  const [givenResult, receivedResult, notifResult, localeResult] = await Promise.allSettled([
     delegationList(self),
     delegationAccess(self),
-    notificationsForUser(self)
+    notificationsForUser(self),
+    userLocale(self)
   ]);
 
   if (givenResult.status === 'fulfilled') given = givenResult.value;
@@ -85,7 +88,12 @@ export const load: PageServerLoad = async ({ locals }) => {
   // Notifications are a nice-to-have section; a failed fetch just shows empty.
   if (notifResult.status === 'fulfilled') notifications = notifResult.value.notifications;
 
-  return { given, received, grantableSections: [...SECTIONS], notifications, degraded };
+  const savedLocale = localeResult.status === 'fulfilled' && (localeResult.value === 'en' || localeResult.value === 'fr')
+    ? localeResult.value
+    : 'en';
+  if (localeResult.status === 'rejected') degraded = true;
+
+  return { given, received, grantableSections: [...SECTIONS], notifications, savedLocale, degraded };
 };
 
 export const actions: Actions = {

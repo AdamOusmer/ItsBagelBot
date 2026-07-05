@@ -4,7 +4,9 @@
   import { page } from '$app/state';
   import { getI18n, LOCALES, type Locale } from '@bagel/shared';
 
+  let { selected }: { selected?: Locale } = $props();
   const i18n = getI18n();
+  const active = $derived(selected ?? i18n.locale);
   const next = $derived(page.url.pathname + page.url.search);
   const short = (l: Locale) => l.toUpperCase();
 </script>
@@ -17,8 +19,8 @@
       name="to"
       value={l}
       class="lang-opt"
-      class:active={l === i18n.locale}
-      aria-pressed={l === i18n.locale}
+      class:active={l === active}
+      aria-pressed={l === active}
       title={i18n.t(`lang.${l}`)}
     >{short(l)}</button>
   {/each}
