@@ -83,6 +83,7 @@ func main() {
 		Dedup:    engine.NewValkeyDedup(valkeyClient, 10*time.Minute),
 		Special:  engine.NewSpecialSet(cfg.SpecialUserIDs),
 		Pub:      pub,
+		Commands: engine.NewCommandsRPC(nc, cfg.CommandsDashboardPrefix),
 		Log:      log,
 	}
 	registry := engine.NewRegistry(log, modules.All(deps)...)

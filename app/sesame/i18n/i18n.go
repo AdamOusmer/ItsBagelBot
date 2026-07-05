@@ -14,12 +14,28 @@ const DefaultLocale = "en"
 // catalog[locale][key] -> template. Templates may carry fmt verbs (see T).
 var catalog = map[string]map[string]string{
 	"en": {
-		"ping": "Pong! ItsBagelBot has been up for %s",
+		"ping":         "Pong! ItsBagelBot has been up for %s",
 		"bagels_ready": "/me The bagels are ready! 🥯",
+
+		"cmd.added":            "@{user} the command {command} has been added",
+		"cmd.removed":          "@{user} the command {command} has been removed",
+		"cmd.modified":         "@{user} the command {command} has been modified",
+		"cmd.err.usage":        "Usage: !cmd <add|edit|remove> <name> [response]",
+		"cmd.err.exists":       "@{user} the command {command} already exists, use !cmd edit",
+		"cmd.err.not_found":    "@{user} the command {command} was not found, use !cmd add",
+		"cmd.err.missing_resp": "@{user} please provide a response for the command",
 	},
 	"fr": {
-		"ping": "Pong ! ItsBagelBot est actif depuis %s",
+		"ping":         "Pong ! ItsBagelBot est actif depuis %s",
 		"bagels_ready": "/me Les bagels sont prêts ! 🥯",
+
+		"cmd.added":            "@{user} la commande {command} a été ajoutée",
+		"cmd.removed":          "@{user} la commande {command} a été supprimée",
+		"cmd.modified":         "@{user} la commande {command} a été modifiée",
+		"cmd.err.usage":        "Utilisation : !cmd <add|edit|remove> <nom> [réponse]",
+		"cmd.err.exists":       "@{user} la commande {command} existe déjà, utilisez !cmd edit",
+		"cmd.err.not_found":    "@{user} la commande {command} n'a pas été trouvée, utilisez !cmd add",
+		"cmd.err.missing_resp": "@{user} veuillez fournir une réponse pour la commande",
 	},
 }
 

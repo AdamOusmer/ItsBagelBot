@@ -236,11 +236,14 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
       {
         key: 'shoutout',
         label: 'Raid shoutout',
-        tagline: 'Posted when another channel raids in.',
+        summary: 'Automated chat shoutout when raided',
+        description:
+          'A customizable shoutout message posted automatically when another channel raids you. The message defaults to:\n' +
+          "'Massive shoutout to {raider} for the raid with {viewers} viewers! Check them out at twitch.tv/{raider.login}'",
         event: 'on raid',
         messageKey: 'message',
         defaultMessage:
-          '🥯 Huge shoutout to {raider} who raided with {viewers}! Go show some love → twitch.tv/{raider_login}'
+          'Massive shoutout to {raider} for the raid with {viewers} viewers! Check them out at twitch.tv/{raider.login}'
       }
     ]
   },
@@ -260,7 +263,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
         event: 'on follow',
         enableKey: 'followEnabled',
         messageKey: 'followMessage',
-        defaultMessage: '🥯 Thanks for the follow, {user}!'
+        defaultMessage: 'Thank you for following the channel, {user}!'
       },
       {
         key: 'sub',
@@ -269,7 +272,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
         event: 'on subscribe',
         enableKey: 'subEnabled',
         messageKey: 'subMessage',
-        defaultMessage: '🥯 {user} just subscribed! Welcome to the sub squad!'
+        defaultMessage: 'Welcome to the community, {user}! Thank you for subscribing!'
       },
       {
         key: 'cheer',
@@ -278,7 +281,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
         event: 'on cheer',
         enableKey: 'cheerEnabled',
         messageKey: 'cheerMessage',
-        defaultMessage: '🥯 {user} cheered {bits} bits! Thanks for the support!'
+        defaultMessage: 'Thank you for the {bits} bits, {user}!'
       },
       {
         key: 'raid',
@@ -287,7 +290,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
         event: 'on raid',
         enableKey: 'raidEnabled',
         messageKey: 'raidMessage',
-        defaultMessage: '🥯 {user} is raiding with {viewers} viewers!'
+        defaultMessage: '{user} is raiding the channel with {viewers} viewers! Welcome everyone!'
       }
     ]
   }

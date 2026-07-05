@@ -13,6 +13,7 @@ func All(d engine.Deps) []module.Module {
 	return []module.Module{
 		Core(d),
 		Live(d),
+		Cmd(d),
 		Shoutout(d),
 		Alerts(d),
 		Clip(d),

@@ -78,6 +78,11 @@ type Config struct {
 	// push invalidation of its in-process projection cache.
 	CacheInvalidationPrefix string
 
+	// CommandsDashboardPrefix is the NATS subject prefix the commands service
+	// dashboard RPC subscribes to; sesame appends ".upsert" / ".delete" to
+	// manage custom commands from chat (the !cmd module).
+	CommandsDashboardPrefix string
+
 	// Valkey holds the settings projection (user tier + modules) sesame reads on
 	// the hot path.
 	ValkeyAddr     string
@@ -121,6 +126,8 @@ func Load() *Config {
 		ProjectionCommandsSubject: env.Get("NATS_INTERNAL_PROJECTION_COMMANDS_SUBJECT", "bagel.rpc.internal.projection.commands.get"),
 
 		CacheInvalidationPrefix: env.Get("NATS_CACHE_INVALIDATION_PREFIX", "bagel.cache.invalidate"),
+
+		CommandsDashboardPrefix: env.Get("NATS_COMMANDS_DASHBOARD_PREFIX", "bagel.rpc.commands"),
 
 		ValkeyAddr:     env.Get("VALKEY_ADDR", "127.0.0.1:6379"),
 		ValkeyPassword: env.Get("VALKEY_PASSWORD", ""),
