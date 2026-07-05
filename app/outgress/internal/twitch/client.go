@@ -120,6 +120,25 @@ func ParseIdentity(s string) Identity {
 	}
 }
 
+// ResolveIdentity returns the token bucket identity used for a request. An
+// explicit wire identity wins; automatic routing mirrors sourceFor so rate
+// limiting and token selection cannot disagree.
+func ResolveIdentity(id Identity, endpoint string) Identity {
+	if id != IdentityAuto {
+		return id
+	}
+	path := endpoint
+	if i := strings.IndexByte(path, '?'); i >= 0 {
+		path = path[:i]
+	}
+	for _, prefix := range userScopedPrefixes {
+		if strings.HasPrefix(path, prefix) {
+			return IdentityBot
+		}
+	}
+	return IdentityApp
+}
+
 // Do executes one Helix request under the app token (chat sends, conduit
 // EventSub management, general reads). The caller owns the response body.
 func (c *Client) Do(ctx context.Context, method, endpoint string, body []byte) (*http.Response, error) {
@@ -154,7 +173,7 @@ func (c *Client) sourceFor(endpoint string) *Source {
 // sourceForIdentity resolves the token a job runs under. An explicit identity
 // wins; IdentityAuto falls back to endpoint-based routing.
 func (c *Client) sourceForIdentity(id Identity, broadcasterID, endpoint string) *Source {
-	switch id {
+	switch ResolveIdentity(id, endpoint) {
 	case IdentityApp:
 		return c.app
 	case IdentityBot:
@@ -162,7 +181,7 @@ func (c *Client) sourceForIdentity(id Identity, broadcasterID, endpoint string) 
 	case IdentityBroadcaster:
 		return c.broadcasters.Get(broadcasterID)
 	default:
-		return c.sourceFor(endpoint)
+		return c.app
 	}
 }
 

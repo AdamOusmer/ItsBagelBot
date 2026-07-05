@@ -42,8 +42,6 @@ defmodule Ingress.ShardScaler do
   require Logger
 
   alias Ingress.Config
-  alias Ingress.Twitch.Api
-
   # --- tunables ---------------------------------------------------------------
 
   # How often the autoscaler evaluates load.
@@ -117,9 +115,10 @@ defmodule Ingress.ShardScaler do
 
   @impl true
   def init(_) do
-    # Seed target from the live conduit's shard_count so we do not race the
-    # ConduitManager on boot with a stale env value.
-    target = seed_target()
+    # The scaler is the source of truth. ConduitManager performs the one
+    # startup read needed to locate the pinned conduit and applies this target
+    # only when Twitch's recorded count differs.
+    target = Config.conduit_shard_count()
     Logger.info("shard_scaler started: target=#{target} on #{node()}")
     schedule_autoscale()
     {:ok, %{target: target, autoscale: true, low_ticks: 0, last_sample: nil}}
@@ -185,19 +184,6 @@ defmodule Ingress.ShardScaler do
 
       [] ->
         {:error, :not_running}
-    end
-  end
-
-  # Seed from the live conduit if reachable; fall back to the env value so
-  # the first reconcile does not needlessly resize.
-  defp seed_target do
-    case Api.list_conduits() do
-      {:ok, [%{"shard_count" => n} | _]} when is_integer(n) and n > 0 ->
-        Logger.info("shard_scaler: seeded target from conduit shard_count=#{n}")
-        n
-
-      _ ->
-        Config.conduit_shard_count()
     end
   end
 

@@ -74,6 +74,48 @@ func TestCloudBotChatActionsUseAppToken(t *testing.T) {
 	}
 }
 
+func TestGeneralHelixRequestsUseTokenSpecificBuckets(t *testing.T) {
+	tests := []struct {
+		name       string
+		message    outgress.Message
+		sharedKey  string
+		sharedPref string
+		scope      string
+		value      string
+	}{
+		{
+			name:      "app token",
+			message:   outgress.Message{As: outgress.AsApp, Endpoint: "/helix/users"},
+			sharedKey: "ratelimit:helix:app",
+		},
+		{
+			name:      "bot user token",
+			message:   outgress.Message{As: outgress.AsBot, Endpoint: "/helix/moderation/bans"},
+			sharedKey: "ratelimit:helix:user:bot",
+		},
+		{
+			name:      "auto-routed bot user token",
+			message:   outgress.Message{Endpoint: "/helix/moderation/channels?first=100"},
+			sharedKey: "ratelimit:helix:user:bot",
+		},
+		{
+			name:       "broadcaster user token",
+			message:    outgress.Message{As: outgress.AsBroadcaster, BroadcasterID: "123", Endpoint: "/helix/clips"},
+			sharedPref: "ratelimit:helix:user:", scope: "helix:user", value: "123",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, shared := generalHelixRequests(tc.message)
+			if shared.Key != tc.sharedKey || shared.DynamicPrefix != tc.sharedPref ||
+				shared.Bucket.Scope != tc.scope || shared.Bucket.Value != tc.value {
+				t.Fatalf("shared request = %+v", shared)
+			}
+		})
+	}
+}
+
 func TestWithField(t *testing.T) {
 	tests := []struct {
 		name  string
