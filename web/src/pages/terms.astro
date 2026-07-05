@@ -12,6 +12,7 @@ const sections = [
     { id: 'payments', heading: 'Pricing & Payments', plain: 'Free is free. Premium cancels anytime.' },
     { id: 'liability', heading: 'Limitation of Liability', plain: "If something breaks, we fix it, but we can't owe you damages." },
     { id: 'termination', heading: 'Termination', plain: 'Break the rules and we may close your account. You can leave whenever.' },
+    { id: 'governing-law', heading: 'Governing Law', plain: 'These terms are governed by the laws of Quebec, Canada.' },
     { id: 'changes', heading: 'Changes', plain: 'Terms can change; staying means you accept the new ones.' },
     { id: 'contact', heading: 'Contact', plain: 'Questions go to support@itsbagelbot.com.' },
 ];
@@ -20,9 +21,9 @@ const sections = [
 <Layout title="Terms of Service — ItsBagelBot" description="ItsBagelBot terms of service. Understand your rights and responsibilities when using our platform.">
     <PageHero eyebrow="Legal" title="Terms of Service" description="The full text, with a plain-words note on every section." />
 
-    <LegalShell updated="June 2026" sections={sections}>
+    <LegalShell updated="July 2026" sections={sections}>
         <Fragment slot="agreement">
-            <p>By using ItsBagelBot, you agree to these terms. If you don't agree, please don't use the service.</p>
+            <p>By using ItsBagelBot, you agree to these terms. If you don't agree, please don't use the service. You must be at least 13 years old (or 16 in the EU/EEA) to use this service.</p>
         </Fragment>
 
         <Fragment slot="service">
@@ -75,6 +76,12 @@ const sections = [
             <p>
                 We may suspend or terminate accounts that violate these terms. You may delete your account at
                 any time.
+            </p>
+        </Fragment>
+
+        <Fragment slot="governing-law">
+            <p>
+                These terms shall be governed and construed in accordance with the laws of Quebec, Canada, without regard to its conflict of law provisions.
             </p>
         </Fragment>
 

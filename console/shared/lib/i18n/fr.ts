@@ -73,7 +73,8 @@ export const fr = {
     noticeSignedout: 'Vous avez été déconnecté. Ce compte n\'existe plus sur ItsBagelBot.',
     noticeBanned: 'Ce compte ne peut plus utiliser la console.',
     noticeLink: 'Ce lien de partage n\'est plus valide. Demandez-en un nouveau au diffuseur.',
-    noticeRetry: 'La connexion ne s\'est pas terminée de notre côté. Rien n\'a été enregistré. Veuillez réessayer.'
+    noticeRetry: 'La connexion ne s\'est pas terminée de notre côté. Rien n\'a été enregistré. Veuillez réessayer.',
+    consent: 'J\'accepte les <a href="https://itsbagelbot.com/terms" target="_blank">Conditions</a> et la <a href="https://itsbagelbot.com/privacy" target="_blank">Politique de confidentialité</a>'
   },
 
   goodbye: {
@@ -336,6 +337,9 @@ export const fr = {
   onboarding: {
     title: 'Bienvenue à bord 🥯',
     intro: 'Vous êtes connecté. Le bot peut voir votre chat. Deux minutes de configuration et il est pleinement actif :',
+    consentTitle: 'Accords légaux',
+    consentBody: 'Veuillez accepter nos Conditions d\'utilisation et notre Politique de confidentialité avant de continuer.',
+    consentLabel: 'J\'accepte les <a href="https://itsbagelbot.com/terms" target="_blank">Conditions</a> et la <a href="https://itsbagelbot.com/privacy" target="_blank">Politique de confidentialité</a>',
     langTitle: 'Choisissez votre langue',
     langBody: 'Choisissez la langue de votre console. Vous pourrez la changer plus tard dans les Paramètres.',
     step1Title: 'Donnez le rôle de modérateur au bot',
