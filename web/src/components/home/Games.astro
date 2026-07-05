@@ -37,7 +37,6 @@ const t = useTranslations(lang);
             <div class="games__demo games__demo--mcsr" aria-hidden="true">
                 <span class="games-mcsr__line">!mcsr ranked</span>
                 <div class="games-mcsr__stats">
-                    <span class="games-mcsr__badge" data-rank="diamond"></span>
                     <span class="games-mcsr__stat"><b>Elo</b> 1520</span>
                     <span class="games-mcsr__stat"><b>W/L</b> 142/98</span>
                 </div>
@@ -186,13 +185,7 @@ const t = useTranslations(lang);
         animation: gamesFadeIn 6s ease-in-out infinite;
     }
 
-    .games-mcsr__badge {
-        width: 14px;
-        height: 14px;
-        border-radius: 50%;
-        background: linear-gradient(135deg, #b9f2ff, #59b6c9);
-        box-shadow: 0 0 10px rgba(89, 182, 201, 0.5);
-    }
+
 
     .games-mcsr__stat b {
         color: var(--muted, #888077);

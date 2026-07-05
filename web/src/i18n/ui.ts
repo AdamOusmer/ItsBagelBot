@@ -238,17 +238,6 @@ const en = {
   'eco.title': 'Powered by Sustainable Energy.',
   'eco.desc': 'We run entirely on hydro-electricity and hyper-optimized code to minimize hardware overhead. This makes our website cleaner than 92% of all pages tested, and the dashboard cleaner than 95%.',
 
-  // ── Auto Mod ────────────────────────────────────────────────────
-  'automod.eyebrow': 'Defense',
-  'automod.title': 'A fortress for your chat.',
-  'automod.juryTitle': 'Classifier Jury',
-  'automod.juryDesc': 'Every message faces a multi-layered panel of classifiers before it ever reaches your screen. Spam is identified instantly and silently.',
-  'automod.gatesTitle': 'Static Gates',
-  'automod.gatesDesc': 'Strict entry criteria for fresh or suspicious accounts. Botnets and mass-followers bounce right off.',
-  'automod.reputationTitle': 'Reputation Engine',
-  'automod.reputationDesc': 'Known regulars earn trust over time. Good behavior means your community never gets caught in the crossfire of strict filters.',
-  'automod.hiveTitle': 'Centralized Security',
-  'automod.hiveDesc': 'If a hate raid or spam campaign hits one channel, the exact pattern is instantly blocked across the entire ItsBagelBot network.',
 } as const;
 
 export type UIKey = keyof typeof en;
@@ -473,17 +462,6 @@ const fr: Partial<Record<UIKey, string>> = {
   'eco.title': 'Alimenté par une énergie durable.',
   'eco.desc': 'Nous fonctionnons entièrement à l\'hydro-électricité et avec un code hyper-optimisé pour minimiser l\'utilisation matérielle. Cela rend notre site web plus propre que 92% des pages testées, et le tableau de bord plus propre que 95%.',
 
-  // ── Auto Mod ────────────────────────────────────────────────────
-  'automod.eyebrow': 'Défense',
-  'automod.title': 'Une forteresse pour votre chat.',
-  'automod.juryTitle': 'Jury de Classificateurs',
-  'automod.juryDesc': 'Chaque message affronte un panel multicouche de classificateurs avant même d\'atteindre votre écran. Le spam est identifié instantanément et silencieusement.',
-  'automod.gatesTitle': 'Portes Statiques',
-  'automod.gatesDesc': 'Critères d\'entrée stricts pour les comptes récents ou suspects. Les botnets rebondissent à la porte.',
-  'automod.reputationTitle': 'Moteur de Réputation',
-  'automod.reputationDesc': 'Les habitués gagnent votre confiance avec le temps. Un bon comportement permet à votre communauté de ne jamais être prise entre les feux des filtres stricts.',
-  'automod.hiveTitle': 'Sécurité Centralisée',
-  'automod.hiveDesc': 'Si un raid de haine ou une campagne de spam touche un canal, le motif exact est instantanément bloqué sur l\'ensemble du réseau ItsBagelBot.',
 };
 
 const catalog: Record<Lang, Partial<Record<UIKey, string>>> = { en, fr };
