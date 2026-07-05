@@ -13,10 +13,10 @@ import (
 
 // Default chat templates for each alert. Tokens are documented per handler below.
 const (
-	defaultFollowTemplate = "🥯 Thanks for the follow, {user}!"
-	defaultSubTemplate    = "🥯 {user} just subscribed! Welcome to the sub squad!"
-	defaultCheerTemplate  = "🥯 {user} cheered {bits} bits! Thanks for the support!"
-	defaultRaidTemplate   = "🥯 {user} is raiding with {viewers} viewers!"
+	defaultFollowTemplate = "Thank you for following the channel, {user}!"
+	defaultSubTemplate    = "Welcome to the community, {user}! Thank you for subscribing!"
+	defaultCheerTemplate  = "Thank you for the {bits} bits, {user}!"
+	defaultRaidTemplate   = "{user} is raiding the channel with {viewers} viewers! Welcome everyone!"
 )
 
 // alertsConfig holds the broadcaster's per-alert enable flags and customized
@@ -96,10 +96,19 @@ func Alerts(_ engine.Deps) module.Module {
 			tmpl = defaultFollowTemplate
 		}
 
+		msg := module.ExpandString(tmpl, func(key string) (string, bool) {
+			switch key {
+			case "user":
+				return strings.TrimPrefix(displayName(ev.UserName, ev.UserLogin), "@"), true
+			default:
+				return module.ParseDynamic(key)
+			}
+		})
+
 		emit(&module.Output{
 			Type:          outgress.TypeChat,
 			BroadcasterID: ev.BroadcasterUserID,
-			Text:          expandUserTokens(tmpl, displayName(ev.UserName, ev.UserLogin), ev.UserLogin),
+			Text:          msg,
 		})
 		return nil
 	})
@@ -126,11 +135,16 @@ func Alerts(_ engine.Deps) module.Module {
 			tmpl = defaultSubTemplate
 		}
 
-		msg := strings.NewReplacer(
-			"{user}", displayName(ev.UserName, ev.UserLogin),
-			"{user_login}", ev.UserLogin,
-			"{tier}", ev.Tier,
-		).Replace(tmpl)
+		msg := module.ExpandString(tmpl, func(key string) (string, bool) {
+			switch key {
+			case "user":
+				return strings.TrimPrefix(displayName(ev.UserName, ev.UserLogin), "@"), true
+			case "tier":
+				return ev.Tier, true
+			default:
+				return module.ParseDynamic(key)
+			}
+		})
 
 		emit(&module.Output{
 			Type:          outgress.TypeChat,
@@ -163,16 +177,20 @@ func Alerts(_ engine.Deps) module.Module {
 		}
 
 		cheerer := "An anonymous cheerer"
-		login := ev.UserLogin
 		if !ev.IsAnonymous {
 			cheerer = displayName(ev.UserName, ev.UserLogin)
 		}
 
-		msg := strings.NewReplacer(
-			"{user}", cheerer,
-			"{user_login}", login,
-			"{bits}", strconv.Itoa(ev.Bits),
-		).Replace(tmpl)
+		msg := module.ExpandString(tmpl, func(key string) (string, bool) {
+			switch key {
+			case "user":
+				return strings.TrimPrefix(cheerer, "@"), true
+			case "bits":
+				return strconv.Itoa(ev.Bits), true
+			default:
+				return module.ParseDynamic(key)
+			}
+		})
 
 		emit(&module.Output{
 			Type:          outgress.TypeChat,
@@ -204,11 +222,16 @@ func Alerts(_ engine.Deps) module.Module {
 			tmpl = defaultRaidTemplate
 		}
 
-		msg := strings.NewReplacer(
-			"{user}", displayName(ev.FromBroadcasterUserName, ev.FromBroadcasterUserLogin),
-			"{user_login}", ev.FromBroadcasterUserLogin,
-			"{viewers}", strconv.Itoa(ev.Viewers),
-		).Replace(tmpl)
+		msg := module.ExpandString(tmpl, func(key string) (string, bool) {
+			switch key {
+			case "user":
+				return strings.TrimPrefix(displayName(ev.FromBroadcasterUserName, ev.FromBroadcasterUserLogin), "@"), true
+			case "viewers":
+				return strconv.Itoa(ev.Viewers), true
+			default:
+				return module.ParseDynamic(key)
+			}
+		})
 
 		emit(&module.Output{
 			Type:          outgress.TypeChat,
@@ -230,7 +253,3 @@ func displayName(name, login string) string {
 	return login
 }
 
-// expandUserTokens replaces {user} and {user_login} in tmpl.
-func expandUserTokens(tmpl, user, login string) string {
-	return strings.NewReplacer("{user}", user, "{user_login}", login).Replace(tmpl)
-}

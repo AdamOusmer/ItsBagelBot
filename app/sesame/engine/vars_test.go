@@ -20,38 +20,21 @@ func TestExpandCommand(t *testing.T) {
 		{"target alias", "@{target} pong", "@bob pong"},
 		{"multiple tokens", "{user} -> {touser}: {args}", "alice -> bob: the rest here"},
 		{"unknown token preserved", "keep {whatever} intact", "keep {whatever} intact"},
-		// No closing brace anywhere after the first '{': the tail is copied literally.
 		{"unterminated brace literal", "dangling {user and {more", "dangling {user and {more"},
-		// First '}' closes the span; the {user} resolves, the trailing '{more' is literal.
 		{"first brace closes span", "{user} and {more", "alice and {more"},
 		{"adjacent tokens", "{user}{touser}", "alicebob"},
 		{"empty braces preserved", "a {} b", "a {} b"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := expandCommand(nil, tt.tmpl, tokens{user: "alice", sender: "alice", args: "the rest here", touser: "bob"})
+			got := expandCommand(nil, tt.tmpl, tokens{user: "alice", sender: "alice", args: "the rest here", touser: "bob", channel: "channel_name"})
 			assert.Equal(t, tt.want, string(got))
 		})
 	}
 }
 
-func TestExpandGenericRepl(t *testing.T) {
-	repl := func(key string) (string, bool) {
-		switch key {
-		case "raider":
-			return "CoolStreamer", true
-		case "viewers":
-			return "42", true
-		default:
-			return "", false
-		}
-	}
-	got := expand(nil, "{raider} raided with {viewers}! {unknown}", repl)
-	assert.Equal(t, "CoolStreamer raided with 42! {unknown}", string(got))
-}
-
 func TestExpandAppendsIntoDst(t *testing.T) {
 	dst := []byte("prefix: ")
-	got := expandCommand(dst, "hi {user}", tokens{user: "alice", sender: "alice", touser: "alice"})
+	got := expandCommand(dst, "hi {user}", tokens{user: "alice", sender: "alice", touser: "alice", channel: "channel_name"})
 	assert.Equal(t, "prefix: hi alice", string(got))
 }

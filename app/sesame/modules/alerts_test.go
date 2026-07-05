@@ -55,10 +55,10 @@ func TestAlertsFollowDefaultTemplate(t *testing.T) {
 
 func TestAlertsFollowCustomTemplate(t *testing.T) {
 	var col collector
-	cfg := `{"followMessage":"welcome {user} ({user_login})"}`
+	cfg := `{"followMessage":"welcome {user}"}`
 	require.NoError(t, alertsHandler(t, "channel.follow")(context.Background(), alertsCtx("channel.follow", followJSON, cfg), col.emit))
 	require.Len(t, col.out, 1)
-	assert.Equal(t, "welcome CoolViewer (coolviewer)", col.out[0].Text)
+	assert.Equal(t, "welcome CoolViewer", col.out[0].Text)
 }
 
 func TestAlertsFollowIgnoresEmptyEvent(t *testing.T) {

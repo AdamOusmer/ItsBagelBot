@@ -11,9 +11,7 @@ import (
 	"ItsBagelBot/internal/domain/outgress"
 )
 
-// defaultShoutoutTemplate is used when the broadcaster has not set one. Tokens:
-// {raider} display name, {raider_login} login, {viewers} raid party size.
-const defaultShoutoutTemplate = "🥯 Huge shoutout to {raider} who raided with {viewers}! Go show some love → twitch.tv/{raider_login}"
+const defaultShoutoutTemplate = "Massive shoutout to {raider} for the raid with {viewers} viewers! Check them out at twitch.tv/{raider.login}"
 
 type shoutoutConfig struct {
 	Message string `json:"message"`
@@ -56,11 +54,18 @@ func Shoutout(_ engine.Deps) module.Module {
 		if raider == "" {
 			raider = ev.FromBroadcasterUserLogin
 		}
-		msg := strings.NewReplacer(
-			"{raider}", raider,
-			"{raider_login}", ev.FromBroadcasterUserLogin,
-			"{viewers}", strconv.Itoa(ev.Viewers),
-		).Replace(tmpl)
+		msg := module.ExpandString(tmpl, func(key string) (string, bool) {
+			switch key {
+			case "raider":
+				return strings.TrimPrefix(raider, "@"), true
+			case "raider.login":
+				return strings.TrimPrefix(ev.FromBroadcasterUserLogin, "@"), true
+			case "viewers":
+				return strconv.Itoa(ev.Viewers), true
+			default:
+				return module.ParseDynamic(key)
+			}
+		})
 
 		// The raid event names the receiving channel as to_broadcaster_user_id.
 		emit(&module.Output{

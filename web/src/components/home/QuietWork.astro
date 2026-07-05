@@ -50,7 +50,10 @@ const t = useTranslations(lang);
                 <span class="qw-poll__bar"><i style="--w: 68%"></i><b>68%</b></span>
                 <span class="qw-poll__bar"><i style="--w: 32%"></i><b>32%</b></span>
             </div>
-            <h3 class="qw__title">{t('qw.pollTitle')}</h3>
+            <h3 class="qw__title">
+                {t('qw.pollTitle')}
+                <IncomingBadge label={t('badge.incoming')} />
+            </h3>
             <p class="qw__desc">{t('qw.pollDesc')}</p>
         </Card>
 

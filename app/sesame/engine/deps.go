@@ -22,6 +22,15 @@ import (
 	"go.uber.org/zap"
 )
 
+// CommandManager is the write side of the custom commands store. The read side
+// lives in projection.Reader.Command; this interface lets a module (the cmd
+// module) create, update and delete commands by calling the commands service's
+// dashboard RPC over NATS.
+type CommandManager interface {
+	Upsert(ctx context.Context, userID string, name, response string) error
+	Delete(ctx context.Context, userID string, name string) error
+}
+
 // Deps is the bundle of runtime services a module fn captures by closure when it
 // builds its Module. main constructs it once and hands it to modules.All. Not
 // every module uses every field; unused ones are harmless.
@@ -33,6 +42,7 @@ type Deps struct {
 	Dedup    DedupStore
 	Special  *SpecialSet
 	Pub      message.Publisher
+	Commands CommandManager
 	Log      *zap.Logger
 }
 

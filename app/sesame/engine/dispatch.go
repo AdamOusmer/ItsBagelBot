@@ -112,7 +112,13 @@ func renderResponse(c *module.Context, response, args string) *module.Output {
 	}
 
 	buf := GetBuf()
-	buf = expandCommand(buf, response, tokens{user: sender, sender: sender, args: args, touser: touser})
+	buf = expandCommand(buf, response, tokens{
+		user:    sender,
+		sender:  sender,
+		args:    args,
+		touser:  touser,
+		channel: c.Env.BroadcasterUserLogin,
+	})
 	out := GetOutput()
 	out.Type = outgress.TypeChat
 	out.BroadcasterID = c.Env.BroadcasterUserID
