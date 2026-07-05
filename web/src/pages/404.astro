@@ -1,0 +1,16 @@
+---
+import Layout from '../layouts/Layout.astro';
+import ErrorScene from '../components/errors/ErrorScene.astro';
+---
+
+<Layout
+    title="404 — Page not found | ItsBagelBot"
+    description="This ItsBagelBot page could not be found."
+>
+    <ErrorScene
+        status={404}
+        eyebrow="Lost in the crumbs"
+        title="This page wandered off."
+        description="We looked under every sesame seed, but the page you're after isn't here."
+    />
+</Layout>
