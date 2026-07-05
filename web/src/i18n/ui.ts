@@ -234,9 +234,9 @@ const en = {
   'board.copy': 'Copy',
 
   // ── Eco Friendly ────────────────────────────────────────────────
-  'eco.eyebrow': 'Eco Friendly',
-  'eco.title': 'This web page appears to be running on sustainable energy',
-  'eco.desc': 'Moreover we are fully on hydro-electricity and everything is optimized to lower the amount of hardware used to a maximum.',
+  'eco.eyebrow': 'Eco-Friendly',
+  'eco.title': 'Powered by Sustainable Energy.',
+  'eco.desc': 'We run entirely on hydro-electricity and hyper-optimized code to minimize hardware overhead. This makes our website cleaner than 92% of all pages tested, and the dashboard cleaner than 95%.',
 } as const;
 
 export type UIKey = keyof typeof en;
@@ -458,8 +458,8 @@ const fr: Partial<Record<UIKey, string>> = {
   'board.copy': 'Copier',
 
   'eco.eyebrow': 'Écoresponsable',
-  'eco.title': 'Cette page web semble fonctionner à l\'énergie durable',
-  'eco.desc': 'De plus, nous sommes entièrement à l\'hydroélectricité et tout est optimisé pour réduire au maximum la quantité de matériel utilisé.',
+  'eco.title': 'Alimenté par une énergie durable.',
+  'eco.desc': 'Nous fonctionnons entièrement à l\'hydroélectricité et avec un code hyper-optimisé pour minimiser la consommation. Cela rend notre site web plus propre que 92 % des pages testées, et notre tableau de bord plus propre que 95 %.',
 };
 
 const catalog: Record<Lang, Partial<Record<UIKey, string>>> = { en, fr };
