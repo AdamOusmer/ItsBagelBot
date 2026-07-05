@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"fmt"
 
 	"ItsBagelBot/app/sesame/module"
 	"ItsBagelBot/internal/domain/event/lane"
@@ -52,6 +53,7 @@ type Pipeline struct {
 
 	live     IsLiveChecker
 	cooldown CooldownStore
+	dedup    DedupStore
 	uses     *useReporter
 
 	botID            string
@@ -70,9 +72,13 @@ func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 		registry:         registry,
 		live:             d.Live,
 		cooldown:         d.Cooldown,
+		dedup:            d.Dedup,
 		botID:            cfg.BotID,
 		outgressPremium:  cfg.OutgressPremium,
 		outgressStandard: cfg.OutgressStandard,
+	}
+	if p.dedup == nil {
+		p.dedup = NoopDedup{}
 	}
 	if cfg.CountUses && d.Pub != nil {
 		p.uses = newUseReporter(d.Pub, d.Log)
@@ -95,7 +101,7 @@ const chatType = "channel.chat.message"
 // the event handlers registered for the type, and publishes what they emit. It
 // reads as a short sequence of guards and stages; the loops and the failure
 // bookkeeping live in the helpers below.
-func (p *Pipeline) Process(msg *message.Message) error {
+func (p *Pipeline) Process(msg *message.Message) (err error) {
 	ctx := msg.Context()
 
 	// Decode into a pooled envelope so the plain-chat path allocates nothing here.
@@ -122,6 +128,27 @@ func (p *Pipeline) Process(msg *message.Message) error {
 		return nil
 	}
 	traceEvent(ctx, env.Type, broadcasterID)
+
+	var dedupKey string
+	if env.EventID != "" {
+		dedupKey = fmt.Sprintf("sesame:dedup:%d:%s", broadcasterID, env.EventID)
+		claimed, claimErr := p.dedup.Claim(ctx, dedupKey)
+		if claimErr != nil {
+			p.log.Warn("dedup claim failed; processing event", zap.String("dedup_key", dedupKey), zap.Error(claimErr))
+			notice(ctx, claimErr)
+		} else if !claimed {
+			return nil
+		} else {
+			defer func() {
+				if err != nil {
+					if relErr := p.dedup.Release(ctx, dedupKey); relErr != nil {
+						p.log.Warn("dedup release failed", zap.String("dedup_key", dedupKey), zap.Error(relErr))
+						notice(ctx, relErr)
+					}
+				}
+			}()
+		}
+	}
 
 	views, err := p.moduleViews(ctx, env.Type, broadcasterID)
 	if err != nil {
