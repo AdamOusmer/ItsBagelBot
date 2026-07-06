@@ -1,13 +1,12 @@
 ---
 /**
  * EN / FR toggle. Each option links to the current page's equivalent in that
- * locale. Only home, pricing, and contact have French routes (legal stays
- * English for now), so for any other path the FR link falls back to the same
- * English path — no dead /fr/ links.
+ * locale. Routes without a translated counterpart fall back to English so the
+ * switcher never creates a dead /fr/ link.
  */
 import { getLangFromUrl, type Lang } from '../../i18n/ui';
 
-const LOCALIZED = new Set(['/', '/pricing', '/contact']);
+const LOCALIZED = new Set(['/', '/pricing', '/contact', '/privacy', '/terms']);
 const current = getLangFromUrl(Astro.url);
 
 function localePath(url: URL, target: Lang): string {

@@ -10,7 +10,7 @@ import (
 	"ItsBagelBot/app/outgress/internal/channels"
 	"ItsBagelBot/app/outgress/internal/conduit"
 	"ItsBagelBot/app/outgress/internal/config"
-	"ItsBagelBot/app/outgress/internal/ratelimit"
+	"ItsBagelBot/pkg/ratelimit"
 	"ItsBagelBot/app/outgress/internal/tokenstore"
 	"ItsBagelBot/app/outgress/internal/twitch"
 	"ItsBagelBot/app/outgress/internal/worker"
@@ -214,21 +214,28 @@ func main() {
 	// the result back into the live projection for the worker fleet.
 	system.SetLiveWriter(worker.NewLiveWriter(valkeyClient, nc, cfg.CacheInvalidatePrefix, cfg.LiveTTL, log.Named("live")))
 
-	// One durable group per lane so each lane drains independently; the
 	// paced redelivery keeps rate-limit nacks from spinning.
-	premiumSub, err := bus.NewLaneSubscriber(cfg.NATSURL, bus.OutgressStream.Name, cfg.PremiumSubject, "outgress-premium", nakDelay, maxRedeliveries, log)
+	premiumSub, err := bus.NewLaneSubscriber(cfg.NATSURL, bus.OutgressStream.Name, cfg.PremiumSubject, "outgress-premium", []time.Duration{nakDelay}, maxRedeliveries, log)
 	if err != nil {
 		log.Fatal("failed to connect premium subscriber", zap.Error(err))
 	}
 	defer func() { _ = premiumSub.Close() }()
 
-	standardSub, err := bus.NewLaneSubscriber(cfg.NATSURL, bus.OutgressStream.Name, cfg.StandardSubject, "outgress-standard", nakDelay, maxRedeliveries, log)
+	standardSub, err := bus.NewLaneSubscriber(cfg.NATSURL, bus.OutgressStream.Name, cfg.StandardSubject, "outgress-standard", []time.Duration{nakDelay}, maxRedeliveries, log)
 	if err != nil {
 		log.Fatal("failed to connect standard subscriber", zap.Error(err))
 	}
 	defer func() { _ = standardSub.Close() }()
 
-	systemSub, err := bus.NewLaneSubscriber(cfg.NATSURL, bus.OutgressSystemStream.Name, cfg.SystemSubject, "outgress-system", nakDelay, maxRedeliveries, log)
+	systemBackoff := []time.Duration{
+		15 * time.Second,
+		time.Minute,
+		3 * time.Minute,
+		5 * time.Minute,
+		15 * time.Minute,
+		30 * time.Minute,
+	}
+	systemSub, err := bus.NewLaneSubscriber(cfg.NATSURL, bus.OutgressSystemStream.Name, cfg.SystemSubject, "outgress-system", systemBackoff, uint64(len(systemBackoff)), log)
 	if err != nil {
 		log.Fatal("failed to connect system subscriber", zap.Error(err))
 	}
