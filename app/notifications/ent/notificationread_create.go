@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"time"
 
+	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 )
@@ -19,6 +20,7 @@ type NotificationReadCreate struct {
 	config
 	mutation *NotificationReadMutation
 	hooks    []Hook
+	conflict []sql.ConflictOption
 }
 
 // SetUserID sets the "user_id" field.
@@ -144,6 +146,7 @@ func (_c *NotificationReadCreate) createSpec() (*NotificationRead, *sqlgraph.Cre
 		_node = &NotificationRead{config: _c.config}
 		_spec = sqlgraph.NewCreateSpec(notificationread.Table, sqlgraph.NewFieldSpec(notificationread.FieldID, field.TypeInt))
 	)
+	_spec.OnConflict = _c.conflict
 	if value, ok := _c.mutation.UserID(); ok {
 		_spec.SetField(notificationread.FieldUserID, field.TypeUint64, value)
 		_node.UserID = value
@@ -176,11 +179,217 @@ func (_c *NotificationReadCreate) createSpec() (*NotificationRead, *sqlgraph.Cre
 	return _node, _spec
 }
 
+// OnConflict allows configuring the `ON CONFLICT` / `ON DUPLICATE KEY` clause
+// of the `INSERT` statement. For example:
+//
+//	client.NotificationRead.Create().
+//		SetUserID(v).
+//		OnConflict(
+//			// Update the row with the new values
+//			// the was proposed for insertion.
+//			sql.ResolveWithNewValues(),
+//		).
+//		// Override some of the fields with custom
+//		// update values.
+//		Update(func(u *ent.NotificationReadUpsert) {
+//			SetUserID(v+v).
+//		}).
+//		Exec(ctx)
+func (_c *NotificationReadCreate) OnConflict(opts ...sql.ConflictOption) *NotificationReadUpsertOne {
+	_c.conflict = opts
+	return &NotificationReadUpsertOne{
+		create: _c,
+	}
+}
+
+// OnConflictColumns calls `OnConflict` and configures the columns
+// as conflict target. Using this option is equivalent to using:
+//
+//	client.NotificationRead.Create().
+//		OnConflict(sql.ConflictColumns(columns...)).
+//		Exec(ctx)
+func (_c *NotificationReadCreate) OnConflictColumns(columns ...string) *NotificationReadUpsertOne {
+	_c.conflict = append(_c.conflict, sql.ConflictColumns(columns...))
+	return &NotificationReadUpsertOne{
+		create: _c,
+	}
+}
+
+type (
+	// NotificationReadUpsertOne is the builder for "upsert"-ing
+	//  one NotificationRead node.
+	NotificationReadUpsertOne struct {
+		create *NotificationReadCreate
+	}
+
+	// NotificationReadUpsert is the "OnConflict" setter.
+	NotificationReadUpsert struct {
+		*sql.UpdateSet
+	}
+)
+
+// SetUserID sets the "user_id" field.
+func (u *NotificationReadUpsert) SetUserID(v uint64) *NotificationReadUpsert {
+	u.Set(notificationread.FieldUserID, v)
+	return u
+}
+
+// UpdateUserID sets the "user_id" field to the value that was provided on create.
+func (u *NotificationReadUpsert) UpdateUserID() *NotificationReadUpsert {
+	u.SetExcluded(notificationread.FieldUserID)
+	return u
+}
+
+// AddUserID adds v to the "user_id" field.
+func (u *NotificationReadUpsert) AddUserID(v uint64) *NotificationReadUpsert {
+	u.Add(notificationread.FieldUserID, v)
+	return u
+}
+
+// SetExpiresAt sets the "expires_at" field.
+func (u *NotificationReadUpsert) SetExpiresAt(v time.Time) *NotificationReadUpsert {
+	u.Set(notificationread.FieldExpiresAt, v)
+	return u
+}
+
+// UpdateExpiresAt sets the "expires_at" field to the value that was provided on create.
+func (u *NotificationReadUpsert) UpdateExpiresAt() *NotificationReadUpsert {
+	u.SetExcluded(notificationread.FieldExpiresAt)
+	return u
+}
+
+// ClearExpiresAt clears the value of the "expires_at" field.
+func (u *NotificationReadUpsert) ClearExpiresAt() *NotificationReadUpsert {
+	u.SetNull(notificationread.FieldExpiresAt)
+	return u
+}
+
+// UpdateNewValues updates the mutable fields using the new values that were set on create.
+// Using this option is equivalent to using:
+//
+//	client.NotificationRead.Create().
+//		OnConflict(
+//			sql.ResolveWithNewValues(),
+//		).
+//		Exec(ctx)
+func (u *NotificationReadUpsertOne) UpdateNewValues() *NotificationReadUpsertOne {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWithNewValues())
+	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(s *sql.UpdateSet) {
+		if _, exists := u.create.mutation.ReadAt(); exists {
+			s.SetIgnore(notificationread.FieldReadAt)
+		}
+	}))
+	return u
+}
+
+// Ignore sets each column to itself in case of conflict.
+// Using this option is equivalent to using:
+//
+//	client.NotificationRead.Create().
+//	    OnConflict(sql.ResolveWithIgnore()).
+//	    Exec(ctx)
+func (u *NotificationReadUpsertOne) Ignore() *NotificationReadUpsertOne {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWithIgnore())
+	return u
+}
+
+// DoNothing configures the conflict_action to `DO NOTHING`.
+// Supported only by SQLite and PostgreSQL.
+func (u *NotificationReadUpsertOne) DoNothing() *NotificationReadUpsertOne {
+	u.create.conflict = append(u.create.conflict, sql.DoNothing())
+	return u
+}
+
+// Update allows overriding fields `UPDATE` values. See the NotificationReadCreate.OnConflict
+// documentation for more info.
+func (u *NotificationReadUpsertOne) Update(set func(*NotificationReadUpsert)) *NotificationReadUpsertOne {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(update *sql.UpdateSet) {
+		set(&NotificationReadUpsert{UpdateSet: update})
+	}))
+	return u
+}
+
+// SetUserID sets the "user_id" field.
+func (u *NotificationReadUpsertOne) SetUserID(v uint64) *NotificationReadUpsertOne {
+	return u.Update(func(s *NotificationReadUpsert) {
+		s.SetUserID(v)
+	})
+}
+
+// AddUserID adds v to the "user_id" field.
+func (u *NotificationReadUpsertOne) AddUserID(v uint64) *NotificationReadUpsertOne {
+	return u.Update(func(s *NotificationReadUpsert) {
+		s.AddUserID(v)
+	})
+}
+
+// UpdateUserID sets the "user_id" field to the value that was provided on create.
+func (u *NotificationReadUpsertOne) UpdateUserID() *NotificationReadUpsertOne {
+	return u.Update(func(s *NotificationReadUpsert) {
+		s.UpdateUserID()
+	})
+}
+
+// SetExpiresAt sets the "expires_at" field.
+func (u *NotificationReadUpsertOne) SetExpiresAt(v time.Time) *NotificationReadUpsertOne {
+	return u.Update(func(s *NotificationReadUpsert) {
+		s.SetExpiresAt(v)
+	})
+}
+
+// UpdateExpiresAt sets the "expires_at" field to the value that was provided on create.
+func (u *NotificationReadUpsertOne) UpdateExpiresAt() *NotificationReadUpsertOne {
+	return u.Update(func(s *NotificationReadUpsert) {
+		s.UpdateExpiresAt()
+	})
+}
+
+// ClearExpiresAt clears the value of the "expires_at" field.
+func (u *NotificationReadUpsertOne) ClearExpiresAt() *NotificationReadUpsertOne {
+	return u.Update(func(s *NotificationReadUpsert) {
+		s.ClearExpiresAt()
+	})
+}
+
+// Exec executes the query.
+func (u *NotificationReadUpsertOne) Exec(ctx context.Context) error {
+	if len(u.create.conflict) == 0 {
+		return errors.New("ent: missing options for NotificationReadCreate.OnConflict")
+	}
+	return u.create.Exec(ctx)
+}
+
+// ExecX is like Exec, but panics if an error occurs.
+func (u *NotificationReadUpsertOne) ExecX(ctx context.Context) {
+	if err := u.create.Exec(ctx); err != nil {
+		panic(err)
+	}
+}
+
+// Exec executes the UPSERT query and returns the inserted/updated ID.
+func (u *NotificationReadUpsertOne) ID(ctx context.Context) (id int, err error) {
+	node, err := u.create.Save(ctx)
+	if err != nil {
+		return id, err
+	}
+	return node.ID, nil
+}
+
+// IDX is like ID, but panics if an error occurs.
+func (u *NotificationReadUpsertOne) IDX(ctx context.Context) int {
+	id, err := u.ID(ctx)
+	if err != nil {
+		panic(err)
+	}
+	return id
+}
+
 // NotificationReadCreateBulk is the builder for creating many NotificationRead entities in bulk.
 type NotificationReadCreateBulk struct {
 	config
 	err      error
 	builders []*NotificationReadCreate
+	conflict []sql.ConflictOption
 }
 
 // Save creates the NotificationRead entities in the database.
@@ -210,6 +419,7 @@ func (_c *NotificationReadCreateBulk) Save(ctx context.Context) ([]*Notification
 					_, err = mutators[i+1].Mutate(root, _c.builders[i+1].mutation)
 				} else {
 					spec := &sqlgraph.BatchCreateSpec{Nodes: specs}
+					spec.OnConflict = _c.conflict
 					// Invoke the actual operation on the latest mutation in the chain.
 					if err = sqlgraph.BatchCreate(ctx, _c.driver, spec); err != nil {
 						if sqlgraph.IsConstraintError(err) {
@@ -260,6 +470,159 @@ func (_c *NotificationReadCreateBulk) Exec(ctx context.Context) error {
 // ExecX is like Exec, but panics if an error occurs.
 func (_c *NotificationReadCreateBulk) ExecX(ctx context.Context) {
 	if err := _c.Exec(ctx); err != nil {
+		panic(err)
+	}
+}
+
+// OnConflict allows configuring the `ON CONFLICT` / `ON DUPLICATE KEY` clause
+// of the `INSERT` statement. For example:
+//
+//	client.NotificationRead.CreateBulk(builders...).
+//		OnConflict(
+//			// Update the row with the new values
+//			// the was proposed for insertion.
+//			sql.ResolveWithNewValues(),
+//		).
+//		// Override some of the fields with custom
+//		// update values.
+//		Update(func(u *ent.NotificationReadUpsert) {
+//			SetUserID(v+v).
+//		}).
+//		Exec(ctx)
+func (_c *NotificationReadCreateBulk) OnConflict(opts ...sql.ConflictOption) *NotificationReadUpsertBulk {
+	_c.conflict = opts
+	return &NotificationReadUpsertBulk{
+		create: _c,
+	}
+}
+
+// OnConflictColumns calls `OnConflict` and configures the columns
+// as conflict target. Using this option is equivalent to using:
+//
+//	client.NotificationRead.Create().
+//		OnConflict(sql.ConflictColumns(columns...)).
+//		Exec(ctx)
+func (_c *NotificationReadCreateBulk) OnConflictColumns(columns ...string) *NotificationReadUpsertBulk {
+	_c.conflict = append(_c.conflict, sql.ConflictColumns(columns...))
+	return &NotificationReadUpsertBulk{
+		create: _c,
+	}
+}
+
+// NotificationReadUpsertBulk is the builder for "upsert"-ing
+// a bulk of NotificationRead nodes.
+type NotificationReadUpsertBulk struct {
+	create *NotificationReadCreateBulk
+}
+
+// UpdateNewValues updates the mutable fields using the new values that
+// were set on create. Using this option is equivalent to using:
+//
+//	client.NotificationRead.Create().
+//		OnConflict(
+//			sql.ResolveWithNewValues(),
+//		).
+//		Exec(ctx)
+func (u *NotificationReadUpsertBulk) UpdateNewValues() *NotificationReadUpsertBulk {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWithNewValues())
+	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(s *sql.UpdateSet) {
+		for _, b := range u.create.builders {
+			if _, exists := b.mutation.ReadAt(); exists {
+				s.SetIgnore(notificationread.FieldReadAt)
+			}
+		}
+	}))
+	return u
+}
+
+// Ignore sets each column to itself in case of conflict.
+// Using this option is equivalent to using:
+//
+//	client.NotificationRead.Create().
+//		OnConflict(sql.ResolveWithIgnore()).
+//		Exec(ctx)
+func (u *NotificationReadUpsertBulk) Ignore() *NotificationReadUpsertBulk {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWithIgnore())
+	return u
+}
+
+// DoNothing configures the conflict_action to `DO NOTHING`.
+// Supported only by SQLite and PostgreSQL.
+func (u *NotificationReadUpsertBulk) DoNothing() *NotificationReadUpsertBulk {
+	u.create.conflict = append(u.create.conflict, sql.DoNothing())
+	return u
+}
+
+// Update allows overriding fields `UPDATE` values. See the NotificationReadCreateBulk.OnConflict
+// documentation for more info.
+func (u *NotificationReadUpsertBulk) Update(set func(*NotificationReadUpsert)) *NotificationReadUpsertBulk {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(update *sql.UpdateSet) {
+		set(&NotificationReadUpsert{UpdateSet: update})
+	}))
+	return u
+}
+
+// SetUserID sets the "user_id" field.
+func (u *NotificationReadUpsertBulk) SetUserID(v uint64) *NotificationReadUpsertBulk {
+	return u.Update(func(s *NotificationReadUpsert) {
+		s.SetUserID(v)
+	})
+}
+
+// AddUserID adds v to the "user_id" field.
+func (u *NotificationReadUpsertBulk) AddUserID(v uint64) *NotificationReadUpsertBulk {
+	return u.Update(func(s *NotificationReadUpsert) {
+		s.AddUserID(v)
+	})
+}
+
+// UpdateUserID sets the "user_id" field to the value that was provided on create.
+func (u *NotificationReadUpsertBulk) UpdateUserID() *NotificationReadUpsertBulk {
+	return u.Update(func(s *NotificationReadUpsert) {
+		s.UpdateUserID()
+	})
+}
+
+// SetExpiresAt sets the "expires_at" field.
+func (u *NotificationReadUpsertBulk) SetExpiresAt(v time.Time) *NotificationReadUpsertBulk {
+	return u.Update(func(s *NotificationReadUpsert) {
+		s.SetExpiresAt(v)
+	})
+}
+
+// UpdateExpiresAt sets the "expires_at" field to the value that was provided on create.
+func (u *NotificationReadUpsertBulk) UpdateExpiresAt() *NotificationReadUpsertBulk {
+	return u.Update(func(s *NotificationReadUpsert) {
+		s.UpdateExpiresAt()
+	})
+}
+
+// ClearExpiresAt clears the value of the "expires_at" field.
+func (u *NotificationReadUpsertBulk) ClearExpiresAt() *NotificationReadUpsertBulk {
+	return u.Update(func(s *NotificationReadUpsert) {
+		s.ClearExpiresAt()
+	})
+}
+
+// Exec executes the query.
+func (u *NotificationReadUpsertBulk) Exec(ctx context.Context) error {
+	if u.create.err != nil {
+		return u.create.err
+	}
+	for i, b := range u.create.builders {
+		if len(b.conflict) != 0 {
+			return fmt.Errorf("ent: OnConflict was set for builder %d. Set it on the NotificationReadCreateBulk instead", i)
+		}
+	}
+	if len(u.create.conflict) == 0 {
+		return errors.New("ent: missing options for NotificationReadCreateBulk.OnConflict")
+	}
+	return u.create.Exec(ctx)
+}
+
+// ExecX is like Exec, but panics if an error occurs.
+func (u *NotificationReadUpsertBulk) ExecX(ctx context.Context) {
+	if err := u.create.Exec(ctx); err != nil {
 		panic(err)
 	}
 }

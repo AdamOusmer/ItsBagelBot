@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 
+	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 )
@@ -18,6 +19,7 @@ type TokensCreate struct {
 	config
 	mutation *TokensMutation
 	hooks    []Hook
+	conflict []sql.ConflictOption
 }
 
 // SetType sets the "type" field.
@@ -166,6 +168,7 @@ func (_c *TokensCreate) createSpec() (*Tokens, *sqlgraph.CreateSpec) {
 		_node = &Tokens{config: _c.config}
 		_spec = sqlgraph.NewCreateSpec(tokens.Table, sqlgraph.NewFieldSpec(tokens.FieldID, field.TypeInt))
 	)
+	_spec.OnConflict = _c.conflict
 	if value, ok := _c.mutation.GetType(); ok {
 		_spec.SetField(tokens.FieldType, field.TypeEnum, value)
 		_node.Type = value
@@ -202,11 +205,251 @@ func (_c *TokensCreate) createSpec() (*Tokens, *sqlgraph.CreateSpec) {
 	return _node, _spec
 }
 
+// OnConflict allows configuring the `ON CONFLICT` / `ON DUPLICATE KEY` clause
+// of the `INSERT` statement. For example:
+//
+//	client.Tokens.Create().
+//		SetType(v).
+//		OnConflict(
+//			// Update the row with the new values
+//			// the was proposed for insertion.
+//			sql.ResolveWithNewValues(),
+//		).
+//		// Override some of the fields with custom
+//		// update values.
+//		Update(func(u *ent.TokensUpsert) {
+//			SetType(v+v).
+//		}).
+//		Exec(ctx)
+func (_c *TokensCreate) OnConflict(opts ...sql.ConflictOption) *TokensUpsertOne {
+	_c.conflict = opts
+	return &TokensUpsertOne{
+		create: _c,
+	}
+}
+
+// OnConflictColumns calls `OnConflict` and configures the columns
+// as conflict target. Using this option is equivalent to using:
+//
+//	client.Tokens.Create().
+//		OnConflict(sql.ConflictColumns(columns...)).
+//		Exec(ctx)
+func (_c *TokensCreate) OnConflictColumns(columns ...string) *TokensUpsertOne {
+	_c.conflict = append(_c.conflict, sql.ConflictColumns(columns...))
+	return &TokensUpsertOne{
+		create: _c,
+	}
+}
+
+type (
+	// TokensUpsertOne is the builder for "upsert"-ing
+	//  one Tokens node.
+	TokensUpsertOne struct {
+		create *TokensCreate
+	}
+
+	// TokensUpsert is the "OnConflict" setter.
+	TokensUpsert struct {
+		*sql.UpdateSet
+	}
+)
+
+// SetType sets the "type" field.
+func (u *TokensUpsert) SetType(v tokens.Type) *TokensUpsert {
+	u.Set(tokens.FieldType, v)
+	return u
+}
+
+// UpdateType sets the "type" field to the value that was provided on create.
+func (u *TokensUpsert) UpdateType() *TokensUpsert {
+	u.SetExcluded(tokens.FieldType)
+	return u
+}
+
+// SetToken sets the "token" field.
+func (u *TokensUpsert) SetToken(v []byte) *TokensUpsert {
+	u.Set(tokens.FieldToken, v)
+	return u
+}
+
+// UpdateToken sets the "token" field to the value that was provided on create.
+func (u *TokensUpsert) UpdateToken() *TokensUpsert {
+	u.SetExcluded(tokens.FieldToken)
+	return u
+}
+
+// SetRefreshToken sets the "refresh_token" field.
+func (u *TokensUpsert) SetRefreshToken(v []byte) *TokensUpsert {
+	u.Set(tokens.FieldRefreshToken, v)
+	return u
+}
+
+// UpdateRefreshToken sets the "refresh_token" field to the value that was provided on create.
+func (u *TokensUpsert) UpdateRefreshToken() *TokensUpsert {
+	u.SetExcluded(tokens.FieldRefreshToken)
+	return u
+}
+
+// ClearRefreshToken clears the value of the "refresh_token" field.
+func (u *TokensUpsert) ClearRefreshToken() *TokensUpsert {
+	u.SetNull(tokens.FieldRefreshToken)
+	return u
+}
+
+// SetPlatform sets the "platform" field.
+func (u *TokensUpsert) SetPlatform(v tokens.Platform) *TokensUpsert {
+	u.Set(tokens.FieldPlatform, v)
+	return u
+}
+
+// UpdatePlatform sets the "platform" field to the value that was provided on create.
+func (u *TokensUpsert) UpdatePlatform() *TokensUpsert {
+	u.SetExcluded(tokens.FieldPlatform)
+	return u
+}
+
+// UpdateNewValues updates the mutable fields using the new values that were set on create.
+// Using this option is equivalent to using:
+//
+//	client.Tokens.Create().
+//		OnConflict(
+//			sql.ResolveWithNewValues(),
+//		).
+//		Exec(ctx)
+func (u *TokensUpsertOne) UpdateNewValues() *TokensUpsertOne {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWithNewValues())
+	return u
+}
+
+// Ignore sets each column to itself in case of conflict.
+// Using this option is equivalent to using:
+//
+//	client.Tokens.Create().
+//	    OnConflict(sql.ResolveWithIgnore()).
+//	    Exec(ctx)
+func (u *TokensUpsertOne) Ignore() *TokensUpsertOne {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWithIgnore())
+	return u
+}
+
+// DoNothing configures the conflict_action to `DO NOTHING`.
+// Supported only by SQLite and PostgreSQL.
+func (u *TokensUpsertOne) DoNothing() *TokensUpsertOne {
+	u.create.conflict = append(u.create.conflict, sql.DoNothing())
+	return u
+}
+
+// Update allows overriding fields `UPDATE` values. See the TokensCreate.OnConflict
+// documentation for more info.
+func (u *TokensUpsertOne) Update(set func(*TokensUpsert)) *TokensUpsertOne {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(update *sql.UpdateSet) {
+		set(&TokensUpsert{UpdateSet: update})
+	}))
+	return u
+}
+
+// SetType sets the "type" field.
+func (u *TokensUpsertOne) SetType(v tokens.Type) *TokensUpsertOne {
+	return u.Update(func(s *TokensUpsert) {
+		s.SetType(v)
+	})
+}
+
+// UpdateType sets the "type" field to the value that was provided on create.
+func (u *TokensUpsertOne) UpdateType() *TokensUpsertOne {
+	return u.Update(func(s *TokensUpsert) {
+		s.UpdateType()
+	})
+}
+
+// SetToken sets the "token" field.
+func (u *TokensUpsertOne) SetToken(v []byte) *TokensUpsertOne {
+	return u.Update(func(s *TokensUpsert) {
+		s.SetToken(v)
+	})
+}
+
+// UpdateToken sets the "token" field to the value that was provided on create.
+func (u *TokensUpsertOne) UpdateToken() *TokensUpsertOne {
+	return u.Update(func(s *TokensUpsert) {
+		s.UpdateToken()
+	})
+}
+
+// SetRefreshToken sets the "refresh_token" field.
+func (u *TokensUpsertOne) SetRefreshToken(v []byte) *TokensUpsertOne {
+	return u.Update(func(s *TokensUpsert) {
+		s.SetRefreshToken(v)
+	})
+}
+
+// UpdateRefreshToken sets the "refresh_token" field to the value that was provided on create.
+func (u *TokensUpsertOne) UpdateRefreshToken() *TokensUpsertOne {
+	return u.Update(func(s *TokensUpsert) {
+		s.UpdateRefreshToken()
+	})
+}
+
+// ClearRefreshToken clears the value of the "refresh_token" field.
+func (u *TokensUpsertOne) ClearRefreshToken() *TokensUpsertOne {
+	return u.Update(func(s *TokensUpsert) {
+		s.ClearRefreshToken()
+	})
+}
+
+// SetPlatform sets the "platform" field.
+func (u *TokensUpsertOne) SetPlatform(v tokens.Platform) *TokensUpsertOne {
+	return u.Update(func(s *TokensUpsert) {
+		s.SetPlatform(v)
+	})
+}
+
+// UpdatePlatform sets the "platform" field to the value that was provided on create.
+func (u *TokensUpsertOne) UpdatePlatform() *TokensUpsertOne {
+	return u.Update(func(s *TokensUpsert) {
+		s.UpdatePlatform()
+	})
+}
+
+// Exec executes the query.
+func (u *TokensUpsertOne) Exec(ctx context.Context) error {
+	if len(u.create.conflict) == 0 {
+		return errors.New("ent: missing options for TokensCreate.OnConflict")
+	}
+	return u.create.Exec(ctx)
+}
+
+// ExecX is like Exec, but panics if an error occurs.
+func (u *TokensUpsertOne) ExecX(ctx context.Context) {
+	if err := u.create.Exec(ctx); err != nil {
+		panic(err)
+	}
+}
+
+// Exec executes the UPSERT query and returns the inserted/updated ID.
+func (u *TokensUpsertOne) ID(ctx context.Context) (id int, err error) {
+	node, err := u.create.Save(ctx)
+	if err != nil {
+		return id, err
+	}
+	return node.ID, nil
+}
+
+// IDX is like ID, but panics if an error occurs.
+func (u *TokensUpsertOne) IDX(ctx context.Context) int {
+	id, err := u.ID(ctx)
+	if err != nil {
+		panic(err)
+	}
+	return id
+}
+
 // TokensCreateBulk is the builder for creating many Tokens entities in bulk.
 type TokensCreateBulk struct {
 	config
 	err      error
 	builders []*TokensCreate
+	conflict []sql.ConflictOption
 }
 
 // Save creates the Tokens entities in the database.
@@ -236,6 +479,7 @@ func (_c *TokensCreateBulk) Save(ctx context.Context) ([]*Tokens, error) {
 					_, err = mutators[i+1].Mutate(root, _c.builders[i+1].mutation)
 				} else {
 					spec := &sqlgraph.BatchCreateSpec{Nodes: specs}
+					spec.OnConflict = _c.conflict
 					// Invoke the actual operation on the latest mutation in the chain.
 					if err = sqlgraph.BatchCreate(ctx, _c.driver, spec); err != nil {
 						if sqlgraph.IsConstraintError(err) {
@@ -286,6 +530,173 @@ func (_c *TokensCreateBulk) Exec(ctx context.Context) error {
 // ExecX is like Exec, but panics if an error occurs.
 func (_c *TokensCreateBulk) ExecX(ctx context.Context) {
 	if err := _c.Exec(ctx); err != nil {
+		panic(err)
+	}
+}
+
+// OnConflict allows configuring the `ON CONFLICT` / `ON DUPLICATE KEY` clause
+// of the `INSERT` statement. For example:
+//
+//	client.Tokens.CreateBulk(builders...).
+//		OnConflict(
+//			// Update the row with the new values
+//			// the was proposed for insertion.
+//			sql.ResolveWithNewValues(),
+//		).
+//		// Override some of the fields with custom
+//		// update values.
+//		Update(func(u *ent.TokensUpsert) {
+//			SetType(v+v).
+//		}).
+//		Exec(ctx)
+func (_c *TokensCreateBulk) OnConflict(opts ...sql.ConflictOption) *TokensUpsertBulk {
+	_c.conflict = opts
+	return &TokensUpsertBulk{
+		create: _c,
+	}
+}
+
+// OnConflictColumns calls `OnConflict` and configures the columns
+// as conflict target. Using this option is equivalent to using:
+//
+//	client.Tokens.Create().
+//		OnConflict(sql.ConflictColumns(columns...)).
+//		Exec(ctx)
+func (_c *TokensCreateBulk) OnConflictColumns(columns ...string) *TokensUpsertBulk {
+	_c.conflict = append(_c.conflict, sql.ConflictColumns(columns...))
+	return &TokensUpsertBulk{
+		create: _c,
+	}
+}
+
+// TokensUpsertBulk is the builder for "upsert"-ing
+// a bulk of Tokens nodes.
+type TokensUpsertBulk struct {
+	create *TokensCreateBulk
+}
+
+// UpdateNewValues updates the mutable fields using the new values that
+// were set on create. Using this option is equivalent to using:
+//
+//	client.Tokens.Create().
+//		OnConflict(
+//			sql.ResolveWithNewValues(),
+//		).
+//		Exec(ctx)
+func (u *TokensUpsertBulk) UpdateNewValues() *TokensUpsertBulk {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWithNewValues())
+	return u
+}
+
+// Ignore sets each column to itself in case of conflict.
+// Using this option is equivalent to using:
+//
+//	client.Tokens.Create().
+//		OnConflict(sql.ResolveWithIgnore()).
+//		Exec(ctx)
+func (u *TokensUpsertBulk) Ignore() *TokensUpsertBulk {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWithIgnore())
+	return u
+}
+
+// DoNothing configures the conflict_action to `DO NOTHING`.
+// Supported only by SQLite and PostgreSQL.
+func (u *TokensUpsertBulk) DoNothing() *TokensUpsertBulk {
+	u.create.conflict = append(u.create.conflict, sql.DoNothing())
+	return u
+}
+
+// Update allows overriding fields `UPDATE` values. See the TokensCreateBulk.OnConflict
+// documentation for more info.
+func (u *TokensUpsertBulk) Update(set func(*TokensUpsert)) *TokensUpsertBulk {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(update *sql.UpdateSet) {
+		set(&TokensUpsert{UpdateSet: update})
+	}))
+	return u
+}
+
+// SetType sets the "type" field.
+func (u *TokensUpsertBulk) SetType(v tokens.Type) *TokensUpsertBulk {
+	return u.Update(func(s *TokensUpsert) {
+		s.SetType(v)
+	})
+}
+
+// UpdateType sets the "type" field to the value that was provided on create.
+func (u *TokensUpsertBulk) UpdateType() *TokensUpsertBulk {
+	return u.Update(func(s *TokensUpsert) {
+		s.UpdateType()
+	})
+}
+
+// SetToken sets the "token" field.
+func (u *TokensUpsertBulk) SetToken(v []byte) *TokensUpsertBulk {
+	return u.Update(func(s *TokensUpsert) {
+		s.SetToken(v)
+	})
+}
+
+// UpdateToken sets the "token" field to the value that was provided on create.
+func (u *TokensUpsertBulk) UpdateToken() *TokensUpsertBulk {
+	return u.Update(func(s *TokensUpsert) {
+		s.UpdateToken()
+	})
+}
+
+// SetRefreshToken sets the "refresh_token" field.
+func (u *TokensUpsertBulk) SetRefreshToken(v []byte) *TokensUpsertBulk {
+	return u.Update(func(s *TokensUpsert) {
+		s.SetRefreshToken(v)
+	})
+}
+
+// UpdateRefreshToken sets the "refresh_token" field to the value that was provided on create.
+func (u *TokensUpsertBulk) UpdateRefreshToken() *TokensUpsertBulk {
+	return u.Update(func(s *TokensUpsert) {
+		s.UpdateRefreshToken()
+	})
+}
+
+// ClearRefreshToken clears the value of the "refresh_token" field.
+func (u *TokensUpsertBulk) ClearRefreshToken() *TokensUpsertBulk {
+	return u.Update(func(s *TokensUpsert) {
+		s.ClearRefreshToken()
+	})
+}
+
+// SetPlatform sets the "platform" field.
+func (u *TokensUpsertBulk) SetPlatform(v tokens.Platform) *TokensUpsertBulk {
+	return u.Update(func(s *TokensUpsert) {
+		s.SetPlatform(v)
+	})
+}
+
+// UpdatePlatform sets the "platform" field to the value that was provided on create.
+func (u *TokensUpsertBulk) UpdatePlatform() *TokensUpsertBulk {
+	return u.Update(func(s *TokensUpsert) {
+		s.UpdatePlatform()
+	})
+}
+
+// Exec executes the query.
+func (u *TokensUpsertBulk) Exec(ctx context.Context) error {
+	if u.create.err != nil {
+		return u.create.err
+	}
+	for i, b := range u.create.builders {
+		if len(b.conflict) != 0 {
+			return fmt.Errorf("ent: OnConflict was set for builder %d. Set it on the TokensCreateBulk instead", i)
+		}
+	}
+	if len(u.create.conflict) == 0 {
+		return errors.New("ent: missing options for TokensCreateBulk.OnConflict")
+	}
+	return u.create.Exec(ctx)
+}
+
+// ExecX is like Exec, but panics if an error occurs.
+func (u *TokensUpsertBulk) ExecX(ctx context.Context) {
+	if err := u.create.Exec(ctx); err != nil {
 		panic(err)
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"time"
 
+	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 )
@@ -19,6 +20,7 @@ type UserCreate struct {
 	config
 	mutation *UserMutation
 	hooks    []Hook
+	conflict []sql.ConflictOption
 }
 
 // SetUsername sets the "username" field.
@@ -419,6 +421,7 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 		_node = &User{config: _c.config}
 		_spec = sqlgraph.NewCreateSpec(user.Table, sqlgraph.NewFieldSpec(user.FieldID, field.TypeUint64))
 	)
+	_spec.OnConflict = _c.conflict
 	if id, ok := _c.mutation.ID(); ok {
 		_node.ID = id
 		_spec.ID.Value = id
@@ -510,11 +513,662 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	return _node, _spec
 }
 
+// OnConflict allows configuring the `ON CONFLICT` / `ON DUPLICATE KEY` clause
+// of the `INSERT` statement. For example:
+//
+//	client.User.Create().
+//		SetUsername(v).
+//		OnConflict(
+//			// Update the row with the new values
+//			// the was proposed for insertion.
+//			sql.ResolveWithNewValues(),
+//		).
+//		// Override some of the fields with custom
+//		// update values.
+//		Update(func(u *ent.UserUpsert) {
+//			SetUsername(v+v).
+//		}).
+//		Exec(ctx)
+func (_c *UserCreate) OnConflict(opts ...sql.ConflictOption) *UserUpsertOne {
+	_c.conflict = opts
+	return &UserUpsertOne{
+		create: _c,
+	}
+}
+
+// OnConflictColumns calls `OnConflict` and configures the columns
+// as conflict target. Using this option is equivalent to using:
+//
+//	client.User.Create().
+//		OnConflict(sql.ConflictColumns(columns...)).
+//		Exec(ctx)
+func (_c *UserCreate) OnConflictColumns(columns ...string) *UserUpsertOne {
+	_c.conflict = append(_c.conflict, sql.ConflictColumns(columns...))
+	return &UserUpsertOne{
+		create: _c,
+	}
+}
+
+type (
+	// UserUpsertOne is the builder for "upsert"-ing
+	//  one User node.
+	UserUpsertOne struct {
+		create *UserCreate
+	}
+
+	// UserUpsert is the "OnConflict" setter.
+	UserUpsert struct {
+		*sql.UpdateSet
+	}
+)
+
+// SetUsername sets the "username" field.
+func (u *UserUpsert) SetUsername(v string) *UserUpsert {
+	u.Set(user.FieldUsername, v)
+	return u
+}
+
+// UpdateUsername sets the "username" field to the value that was provided on create.
+func (u *UserUpsert) UpdateUsername() *UserUpsert {
+	u.SetExcluded(user.FieldUsername)
+	return u
+}
+
+// SetEmail sets the "email" field.
+func (u *UserUpsert) SetEmail(v string) *UserUpsert {
+	u.Set(user.FieldEmail, v)
+	return u
+}
+
+// UpdateEmail sets the "email" field to the value that was provided on create.
+func (u *UserUpsert) UpdateEmail() *UserUpsert {
+	u.SetExcluded(user.FieldEmail)
+	return u
+}
+
+// SetEmailEnc sets the "email_enc" field.
+func (u *UserUpsert) SetEmailEnc(v []byte) *UserUpsert {
+	u.Set(user.FieldEmailEnc, v)
+	return u
+}
+
+// UpdateEmailEnc sets the "email_enc" field to the value that was provided on create.
+func (u *UserUpsert) UpdateEmailEnc() *UserUpsert {
+	u.SetExcluded(user.FieldEmailEnc)
+	return u
+}
+
+// ClearEmailEnc clears the value of the "email_enc" field.
+func (u *UserUpsert) ClearEmailEnc() *UserUpsert {
+	u.SetNull(user.FieldEmailEnc)
+	return u
+}
+
+// SetIsActive sets the "is_active" field.
+func (u *UserUpsert) SetIsActive(v bool) *UserUpsert {
+	u.Set(user.FieldIsActive, v)
+	return u
+}
+
+// UpdateIsActive sets the "is_active" field to the value that was provided on create.
+func (u *UserUpsert) UpdateIsActive() *UserUpsert {
+	u.SetExcluded(user.FieldIsActive)
+	return u
+}
+
+// SetBanned sets the "banned" field.
+func (u *UserUpsert) SetBanned(v bool) *UserUpsert {
+	u.Set(user.FieldBanned, v)
+	return u
+}
+
+// UpdateBanned sets the "banned" field to the value that was provided on create.
+func (u *UserUpsert) UpdateBanned() *UserUpsert {
+	u.SetExcluded(user.FieldBanned)
+	return u
+}
+
+// SetStatus sets the "status" field.
+func (u *UserUpsert) SetStatus(v user.Status) *UserUpsert {
+	u.Set(user.FieldStatus, v)
+	return u
+}
+
+// UpdateStatus sets the "status" field to the value that was provided on create.
+func (u *UserUpsert) UpdateStatus() *UserUpsert {
+	u.SetExcluded(user.FieldStatus)
+	return u
+}
+
+// SetLocale sets the "locale" field.
+func (u *UserUpsert) SetLocale(v string) *UserUpsert {
+	u.Set(user.FieldLocale, v)
+	return u
+}
+
+// UpdateLocale sets the "locale" field to the value that was provided on create.
+func (u *UserUpsert) UpdateLocale() *UserUpsert {
+	u.SetExcluded(user.FieldLocale)
+	return u
+}
+
+// SetSubscriptionSource sets the "subscription_source" field.
+func (u *UserUpsert) SetSubscriptionSource(v string) *UserUpsert {
+	u.Set(user.FieldSubscriptionSource, v)
+	return u
+}
+
+// UpdateSubscriptionSource sets the "subscription_source" field to the value that was provided on create.
+func (u *UserUpsert) UpdateSubscriptionSource() *UserUpsert {
+	u.SetExcluded(user.FieldSubscriptionSource)
+	return u
+}
+
+// SetSubscriptionExpiresAt sets the "subscription_expires_at" field.
+func (u *UserUpsert) SetSubscriptionExpiresAt(v time.Time) *UserUpsert {
+	u.Set(user.FieldSubscriptionExpiresAt, v)
+	return u
+}
+
+// UpdateSubscriptionExpiresAt sets the "subscription_expires_at" field to the value that was provided on create.
+func (u *UserUpsert) UpdateSubscriptionExpiresAt() *UserUpsert {
+	u.SetExcluded(user.FieldSubscriptionExpiresAt)
+	return u
+}
+
+// ClearSubscriptionExpiresAt clears the value of the "subscription_expires_at" field.
+func (u *UserUpsert) ClearSubscriptionExpiresAt() *UserUpsert {
+	u.SetNull(user.FieldSubscriptionExpiresAt)
+	return u
+}
+
+// SetSubscriptionRef sets the "subscription_ref" field.
+func (u *UserUpsert) SetSubscriptionRef(v string) *UserUpsert {
+	u.Set(user.FieldSubscriptionRef, v)
+	return u
+}
+
+// UpdateSubscriptionRef sets the "subscription_ref" field to the value that was provided on create.
+func (u *UserUpsert) UpdateSubscriptionRef() *UserUpsert {
+	u.SetExcluded(user.FieldSubscriptionRef)
+	return u
+}
+
+// ClearSubscriptionRef clears the value of the "subscription_ref" field.
+func (u *UserUpsert) ClearSubscriptionRef() *UserUpsert {
+	u.SetNull(user.FieldSubscriptionRef)
+	return u
+}
+
+// SetSubscriptionCancelPending sets the "subscription_cancel_pending" field.
+func (u *UserUpsert) SetSubscriptionCancelPending(v bool) *UserUpsert {
+	u.Set(user.FieldSubscriptionCancelPending, v)
+	return u
+}
+
+// UpdateSubscriptionCancelPending sets the "subscription_cancel_pending" field to the value that was provided on create.
+func (u *UserUpsert) UpdateSubscriptionCancelPending() *UserUpsert {
+	u.SetExcluded(user.FieldSubscriptionCancelPending)
+	return u
+}
+
+// SetBillingEventAt sets the "billing_event_at" field.
+func (u *UserUpsert) SetBillingEventAt(v time.Time) *UserUpsert {
+	u.Set(user.FieldBillingEventAt, v)
+	return u
+}
+
+// UpdateBillingEventAt sets the "billing_event_at" field to the value that was provided on create.
+func (u *UserUpsert) UpdateBillingEventAt() *UserUpsert {
+	u.SetExcluded(user.FieldBillingEventAt)
+	return u
+}
+
+// ClearBillingEventAt clears the value of the "billing_event_at" field.
+func (u *UserUpsert) ClearBillingEventAt() *UserUpsert {
+	u.SetNull(user.FieldBillingEventAt)
+	return u
+}
+
+// SetBillingEventID sets the "billing_event_id" field.
+func (u *UserUpsert) SetBillingEventID(v string) *UserUpsert {
+	u.Set(user.FieldBillingEventID, v)
+	return u
+}
+
+// UpdateBillingEventID sets the "billing_event_id" field to the value that was provided on create.
+func (u *UserUpsert) UpdateBillingEventID() *UserUpsert {
+	u.SetExcluded(user.FieldBillingEventID)
+	return u
+}
+
+// ClearBillingEventID clears the value of the "billing_event_id" field.
+func (u *UserUpsert) ClearBillingEventID() *UserUpsert {
+	u.SetNull(user.FieldBillingEventID)
+	return u
+}
+
+// SetGiftsSent sets the "gifts_sent" field.
+func (u *UserUpsert) SetGiftsSent(v uint32) *UserUpsert {
+	u.Set(user.FieldGiftsSent, v)
+	return u
+}
+
+// UpdateGiftsSent sets the "gifts_sent" field to the value that was provided on create.
+func (u *UserUpsert) UpdateGiftsSent() *UserUpsert {
+	u.SetExcluded(user.FieldGiftsSent)
+	return u
+}
+
+// AddGiftsSent adds v to the "gifts_sent" field.
+func (u *UserUpsert) AddGiftsSent(v uint32) *UserUpsert {
+	u.Add(user.FieldGiftsSent, v)
+	return u
+}
+
+// SetOnboarded sets the "onboarded" field.
+func (u *UserUpsert) SetOnboarded(v bool) *UserUpsert {
+	u.Set(user.FieldOnboarded, v)
+	return u
+}
+
+// UpdateOnboarded sets the "onboarded" field to the value that was provided on create.
+func (u *UserUpsert) UpdateOnboarded() *UserUpsert {
+	u.SetExcluded(user.FieldOnboarded)
+	return u
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (u *UserUpsert) SetCreatedAt(v time.Time) *UserUpsert {
+	u.Set(user.FieldCreatedAt, v)
+	return u
+}
+
+// UpdateCreatedAt sets the "created_at" field to the value that was provided on create.
+func (u *UserUpsert) UpdateCreatedAt() *UserUpsert {
+	u.SetExcluded(user.FieldCreatedAt)
+	return u
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (u *UserUpsert) SetUpdatedAt(v time.Time) *UserUpsert {
+	u.Set(user.FieldUpdatedAt, v)
+	return u
+}
+
+// UpdateUpdatedAt sets the "updated_at" field to the value that was provided on create.
+func (u *UserUpsert) UpdateUpdatedAt() *UserUpsert {
+	u.SetExcluded(user.FieldUpdatedAt)
+	return u
+}
+
+// UpdateNewValues updates the mutable fields using the new values that were set on create except the ID field.
+// Using this option is equivalent to using:
+//
+//	client.User.Create().
+//		OnConflict(
+//			sql.ResolveWithNewValues(),
+//			sql.ResolveWith(func(u *sql.UpdateSet) {
+//				u.SetIgnore(user.FieldID)
+//			}),
+//		).
+//		Exec(ctx)
+func (u *UserUpsertOne) UpdateNewValues() *UserUpsertOne {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWithNewValues())
+	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(s *sql.UpdateSet) {
+		if _, exists := u.create.mutation.ID(); exists {
+			s.SetIgnore(user.FieldID)
+		}
+	}))
+	return u
+}
+
+// Ignore sets each column to itself in case of conflict.
+// Using this option is equivalent to using:
+//
+//	client.User.Create().
+//	    OnConflict(sql.ResolveWithIgnore()).
+//	    Exec(ctx)
+func (u *UserUpsertOne) Ignore() *UserUpsertOne {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWithIgnore())
+	return u
+}
+
+// DoNothing configures the conflict_action to `DO NOTHING`.
+// Supported only by SQLite and PostgreSQL.
+func (u *UserUpsertOne) DoNothing() *UserUpsertOne {
+	u.create.conflict = append(u.create.conflict, sql.DoNothing())
+	return u
+}
+
+// Update allows overriding fields `UPDATE` values. See the UserCreate.OnConflict
+// documentation for more info.
+func (u *UserUpsertOne) Update(set func(*UserUpsert)) *UserUpsertOne {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(update *sql.UpdateSet) {
+		set(&UserUpsert{UpdateSet: update})
+	}))
+	return u
+}
+
+// SetUsername sets the "username" field.
+func (u *UserUpsertOne) SetUsername(v string) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetUsername(v)
+	})
+}
+
+// UpdateUsername sets the "username" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateUsername() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateUsername()
+	})
+}
+
+// SetEmail sets the "email" field.
+func (u *UserUpsertOne) SetEmail(v string) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetEmail(v)
+	})
+}
+
+// UpdateEmail sets the "email" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateEmail() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateEmail()
+	})
+}
+
+// SetEmailEnc sets the "email_enc" field.
+func (u *UserUpsertOne) SetEmailEnc(v []byte) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetEmailEnc(v)
+	})
+}
+
+// UpdateEmailEnc sets the "email_enc" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateEmailEnc() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateEmailEnc()
+	})
+}
+
+// ClearEmailEnc clears the value of the "email_enc" field.
+func (u *UserUpsertOne) ClearEmailEnc() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearEmailEnc()
+	})
+}
+
+// SetIsActive sets the "is_active" field.
+func (u *UserUpsertOne) SetIsActive(v bool) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetIsActive(v)
+	})
+}
+
+// UpdateIsActive sets the "is_active" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateIsActive() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateIsActive()
+	})
+}
+
+// SetBanned sets the "banned" field.
+func (u *UserUpsertOne) SetBanned(v bool) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetBanned(v)
+	})
+}
+
+// UpdateBanned sets the "banned" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateBanned() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateBanned()
+	})
+}
+
+// SetStatus sets the "status" field.
+func (u *UserUpsertOne) SetStatus(v user.Status) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetStatus(v)
+	})
+}
+
+// UpdateStatus sets the "status" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateStatus() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateStatus()
+	})
+}
+
+// SetLocale sets the "locale" field.
+func (u *UserUpsertOne) SetLocale(v string) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetLocale(v)
+	})
+}
+
+// UpdateLocale sets the "locale" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateLocale() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateLocale()
+	})
+}
+
+// SetSubscriptionSource sets the "subscription_source" field.
+func (u *UserUpsertOne) SetSubscriptionSource(v string) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetSubscriptionSource(v)
+	})
+}
+
+// UpdateSubscriptionSource sets the "subscription_source" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateSubscriptionSource() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateSubscriptionSource()
+	})
+}
+
+// SetSubscriptionExpiresAt sets the "subscription_expires_at" field.
+func (u *UserUpsertOne) SetSubscriptionExpiresAt(v time.Time) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetSubscriptionExpiresAt(v)
+	})
+}
+
+// UpdateSubscriptionExpiresAt sets the "subscription_expires_at" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateSubscriptionExpiresAt() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateSubscriptionExpiresAt()
+	})
+}
+
+// ClearSubscriptionExpiresAt clears the value of the "subscription_expires_at" field.
+func (u *UserUpsertOne) ClearSubscriptionExpiresAt() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearSubscriptionExpiresAt()
+	})
+}
+
+// SetSubscriptionRef sets the "subscription_ref" field.
+func (u *UserUpsertOne) SetSubscriptionRef(v string) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetSubscriptionRef(v)
+	})
+}
+
+// UpdateSubscriptionRef sets the "subscription_ref" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateSubscriptionRef() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateSubscriptionRef()
+	})
+}
+
+// ClearSubscriptionRef clears the value of the "subscription_ref" field.
+func (u *UserUpsertOne) ClearSubscriptionRef() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearSubscriptionRef()
+	})
+}
+
+// SetSubscriptionCancelPending sets the "subscription_cancel_pending" field.
+func (u *UserUpsertOne) SetSubscriptionCancelPending(v bool) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetSubscriptionCancelPending(v)
+	})
+}
+
+// UpdateSubscriptionCancelPending sets the "subscription_cancel_pending" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateSubscriptionCancelPending() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateSubscriptionCancelPending()
+	})
+}
+
+// SetBillingEventAt sets the "billing_event_at" field.
+func (u *UserUpsertOne) SetBillingEventAt(v time.Time) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetBillingEventAt(v)
+	})
+}
+
+// UpdateBillingEventAt sets the "billing_event_at" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateBillingEventAt() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateBillingEventAt()
+	})
+}
+
+// ClearBillingEventAt clears the value of the "billing_event_at" field.
+func (u *UserUpsertOne) ClearBillingEventAt() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearBillingEventAt()
+	})
+}
+
+// SetBillingEventID sets the "billing_event_id" field.
+func (u *UserUpsertOne) SetBillingEventID(v string) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetBillingEventID(v)
+	})
+}
+
+// UpdateBillingEventID sets the "billing_event_id" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateBillingEventID() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateBillingEventID()
+	})
+}
+
+// ClearBillingEventID clears the value of the "billing_event_id" field.
+func (u *UserUpsertOne) ClearBillingEventID() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearBillingEventID()
+	})
+}
+
+// SetGiftsSent sets the "gifts_sent" field.
+func (u *UserUpsertOne) SetGiftsSent(v uint32) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetGiftsSent(v)
+	})
+}
+
+// AddGiftsSent adds v to the "gifts_sent" field.
+func (u *UserUpsertOne) AddGiftsSent(v uint32) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.AddGiftsSent(v)
+	})
+}
+
+// UpdateGiftsSent sets the "gifts_sent" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateGiftsSent() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateGiftsSent()
+	})
+}
+
+// SetOnboarded sets the "onboarded" field.
+func (u *UserUpsertOne) SetOnboarded(v bool) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetOnboarded(v)
+	})
+}
+
+// UpdateOnboarded sets the "onboarded" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateOnboarded() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateOnboarded()
+	})
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (u *UserUpsertOne) SetCreatedAt(v time.Time) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetCreatedAt(v)
+	})
+}
+
+// UpdateCreatedAt sets the "created_at" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateCreatedAt() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateCreatedAt()
+	})
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (u *UserUpsertOne) SetUpdatedAt(v time.Time) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetUpdatedAt(v)
+	})
+}
+
+// UpdateUpdatedAt sets the "updated_at" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateUpdatedAt() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateUpdatedAt()
+	})
+}
+
+// Exec executes the query.
+func (u *UserUpsertOne) Exec(ctx context.Context) error {
+	if len(u.create.conflict) == 0 {
+		return errors.New("ent: missing options for UserCreate.OnConflict")
+	}
+	return u.create.Exec(ctx)
+}
+
+// ExecX is like Exec, but panics if an error occurs.
+func (u *UserUpsertOne) ExecX(ctx context.Context) {
+	if err := u.create.Exec(ctx); err != nil {
+		panic(err)
+	}
+}
+
+// Exec executes the UPSERT query and returns the inserted/updated ID.
+func (u *UserUpsertOne) ID(ctx context.Context) (id uint64, err error) {
+	node, err := u.create.Save(ctx)
+	if err != nil {
+		return id, err
+	}
+	return node.ID, nil
+}
+
+// IDX is like ID, but panics if an error occurs.
+func (u *UserUpsertOne) IDX(ctx context.Context) uint64 {
+	id, err := u.ID(ctx)
+	if err != nil {
+		panic(err)
+	}
+	return id
+}
+
 // UserCreateBulk is the builder for creating many User entities in bulk.
 type UserCreateBulk struct {
 	config
 	err      error
 	builders []*UserCreate
+	conflict []sql.ConflictOption
 }
 
 // Save creates the User entities in the database.
@@ -544,6 +1198,7 @@ func (_c *UserCreateBulk) Save(ctx context.Context) ([]*User, error) {
 					_, err = mutators[i+1].Mutate(root, _c.builders[i+1].mutation)
 				} else {
 					spec := &sqlgraph.BatchCreateSpec{Nodes: specs}
+					spec.OnConflict = _c.conflict
 					// Invoke the actual operation on the latest mutation in the chain.
 					if err = sqlgraph.BatchCreate(ctx, _c.driver, spec); err != nil {
 						if sqlgraph.IsConstraintError(err) {
@@ -594,6 +1249,400 @@ func (_c *UserCreateBulk) Exec(ctx context.Context) error {
 // ExecX is like Exec, but panics if an error occurs.
 func (_c *UserCreateBulk) ExecX(ctx context.Context) {
 	if err := _c.Exec(ctx); err != nil {
+		panic(err)
+	}
+}
+
+// OnConflict allows configuring the `ON CONFLICT` / `ON DUPLICATE KEY` clause
+// of the `INSERT` statement. For example:
+//
+//	client.User.CreateBulk(builders...).
+//		OnConflict(
+//			// Update the row with the new values
+//			// the was proposed for insertion.
+//			sql.ResolveWithNewValues(),
+//		).
+//		// Override some of the fields with custom
+//		// update values.
+//		Update(func(u *ent.UserUpsert) {
+//			SetUsername(v+v).
+//		}).
+//		Exec(ctx)
+func (_c *UserCreateBulk) OnConflict(opts ...sql.ConflictOption) *UserUpsertBulk {
+	_c.conflict = opts
+	return &UserUpsertBulk{
+		create: _c,
+	}
+}
+
+// OnConflictColumns calls `OnConflict` and configures the columns
+// as conflict target. Using this option is equivalent to using:
+//
+//	client.User.Create().
+//		OnConflict(sql.ConflictColumns(columns...)).
+//		Exec(ctx)
+func (_c *UserCreateBulk) OnConflictColumns(columns ...string) *UserUpsertBulk {
+	_c.conflict = append(_c.conflict, sql.ConflictColumns(columns...))
+	return &UserUpsertBulk{
+		create: _c,
+	}
+}
+
+// UserUpsertBulk is the builder for "upsert"-ing
+// a bulk of User nodes.
+type UserUpsertBulk struct {
+	create *UserCreateBulk
+}
+
+// UpdateNewValues updates the mutable fields using the new values that
+// were set on create. Using this option is equivalent to using:
+//
+//	client.User.Create().
+//		OnConflict(
+//			sql.ResolveWithNewValues(),
+//			sql.ResolveWith(func(u *sql.UpdateSet) {
+//				u.SetIgnore(user.FieldID)
+//			}),
+//		).
+//		Exec(ctx)
+func (u *UserUpsertBulk) UpdateNewValues() *UserUpsertBulk {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWithNewValues())
+	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(s *sql.UpdateSet) {
+		for _, b := range u.create.builders {
+			if _, exists := b.mutation.ID(); exists {
+				s.SetIgnore(user.FieldID)
+			}
+		}
+	}))
+	return u
+}
+
+// Ignore sets each column to itself in case of conflict.
+// Using this option is equivalent to using:
+//
+//	client.User.Create().
+//		OnConflict(sql.ResolveWithIgnore()).
+//		Exec(ctx)
+func (u *UserUpsertBulk) Ignore() *UserUpsertBulk {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWithIgnore())
+	return u
+}
+
+// DoNothing configures the conflict_action to `DO NOTHING`.
+// Supported only by SQLite and PostgreSQL.
+func (u *UserUpsertBulk) DoNothing() *UserUpsertBulk {
+	u.create.conflict = append(u.create.conflict, sql.DoNothing())
+	return u
+}
+
+// Update allows overriding fields `UPDATE` values. See the UserCreateBulk.OnConflict
+// documentation for more info.
+func (u *UserUpsertBulk) Update(set func(*UserUpsert)) *UserUpsertBulk {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(update *sql.UpdateSet) {
+		set(&UserUpsert{UpdateSet: update})
+	}))
+	return u
+}
+
+// SetUsername sets the "username" field.
+func (u *UserUpsertBulk) SetUsername(v string) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetUsername(v)
+	})
+}
+
+// UpdateUsername sets the "username" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateUsername() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateUsername()
+	})
+}
+
+// SetEmail sets the "email" field.
+func (u *UserUpsertBulk) SetEmail(v string) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetEmail(v)
+	})
+}
+
+// UpdateEmail sets the "email" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateEmail() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateEmail()
+	})
+}
+
+// SetEmailEnc sets the "email_enc" field.
+func (u *UserUpsertBulk) SetEmailEnc(v []byte) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetEmailEnc(v)
+	})
+}
+
+// UpdateEmailEnc sets the "email_enc" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateEmailEnc() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateEmailEnc()
+	})
+}
+
+// ClearEmailEnc clears the value of the "email_enc" field.
+func (u *UserUpsertBulk) ClearEmailEnc() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearEmailEnc()
+	})
+}
+
+// SetIsActive sets the "is_active" field.
+func (u *UserUpsertBulk) SetIsActive(v bool) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetIsActive(v)
+	})
+}
+
+// UpdateIsActive sets the "is_active" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateIsActive() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateIsActive()
+	})
+}
+
+// SetBanned sets the "banned" field.
+func (u *UserUpsertBulk) SetBanned(v bool) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetBanned(v)
+	})
+}
+
+// UpdateBanned sets the "banned" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateBanned() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateBanned()
+	})
+}
+
+// SetStatus sets the "status" field.
+func (u *UserUpsertBulk) SetStatus(v user.Status) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetStatus(v)
+	})
+}
+
+// UpdateStatus sets the "status" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateStatus() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateStatus()
+	})
+}
+
+// SetLocale sets the "locale" field.
+func (u *UserUpsertBulk) SetLocale(v string) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetLocale(v)
+	})
+}
+
+// UpdateLocale sets the "locale" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateLocale() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateLocale()
+	})
+}
+
+// SetSubscriptionSource sets the "subscription_source" field.
+func (u *UserUpsertBulk) SetSubscriptionSource(v string) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetSubscriptionSource(v)
+	})
+}
+
+// UpdateSubscriptionSource sets the "subscription_source" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateSubscriptionSource() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateSubscriptionSource()
+	})
+}
+
+// SetSubscriptionExpiresAt sets the "subscription_expires_at" field.
+func (u *UserUpsertBulk) SetSubscriptionExpiresAt(v time.Time) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetSubscriptionExpiresAt(v)
+	})
+}
+
+// UpdateSubscriptionExpiresAt sets the "subscription_expires_at" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateSubscriptionExpiresAt() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateSubscriptionExpiresAt()
+	})
+}
+
+// ClearSubscriptionExpiresAt clears the value of the "subscription_expires_at" field.
+func (u *UserUpsertBulk) ClearSubscriptionExpiresAt() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearSubscriptionExpiresAt()
+	})
+}
+
+// SetSubscriptionRef sets the "subscription_ref" field.
+func (u *UserUpsertBulk) SetSubscriptionRef(v string) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetSubscriptionRef(v)
+	})
+}
+
+// UpdateSubscriptionRef sets the "subscription_ref" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateSubscriptionRef() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateSubscriptionRef()
+	})
+}
+
+// ClearSubscriptionRef clears the value of the "subscription_ref" field.
+func (u *UserUpsertBulk) ClearSubscriptionRef() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearSubscriptionRef()
+	})
+}
+
+// SetSubscriptionCancelPending sets the "subscription_cancel_pending" field.
+func (u *UserUpsertBulk) SetSubscriptionCancelPending(v bool) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetSubscriptionCancelPending(v)
+	})
+}
+
+// UpdateSubscriptionCancelPending sets the "subscription_cancel_pending" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateSubscriptionCancelPending() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateSubscriptionCancelPending()
+	})
+}
+
+// SetBillingEventAt sets the "billing_event_at" field.
+func (u *UserUpsertBulk) SetBillingEventAt(v time.Time) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetBillingEventAt(v)
+	})
+}
+
+// UpdateBillingEventAt sets the "billing_event_at" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateBillingEventAt() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateBillingEventAt()
+	})
+}
+
+// ClearBillingEventAt clears the value of the "billing_event_at" field.
+func (u *UserUpsertBulk) ClearBillingEventAt() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearBillingEventAt()
+	})
+}
+
+// SetBillingEventID sets the "billing_event_id" field.
+func (u *UserUpsertBulk) SetBillingEventID(v string) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetBillingEventID(v)
+	})
+}
+
+// UpdateBillingEventID sets the "billing_event_id" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateBillingEventID() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateBillingEventID()
+	})
+}
+
+// ClearBillingEventID clears the value of the "billing_event_id" field.
+func (u *UserUpsertBulk) ClearBillingEventID() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearBillingEventID()
+	})
+}
+
+// SetGiftsSent sets the "gifts_sent" field.
+func (u *UserUpsertBulk) SetGiftsSent(v uint32) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetGiftsSent(v)
+	})
+}
+
+// AddGiftsSent adds v to the "gifts_sent" field.
+func (u *UserUpsertBulk) AddGiftsSent(v uint32) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.AddGiftsSent(v)
+	})
+}
+
+// UpdateGiftsSent sets the "gifts_sent" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateGiftsSent() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateGiftsSent()
+	})
+}
+
+// SetOnboarded sets the "onboarded" field.
+func (u *UserUpsertBulk) SetOnboarded(v bool) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetOnboarded(v)
+	})
+}
+
+// UpdateOnboarded sets the "onboarded" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateOnboarded() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateOnboarded()
+	})
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (u *UserUpsertBulk) SetCreatedAt(v time.Time) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetCreatedAt(v)
+	})
+}
+
+// UpdateCreatedAt sets the "created_at" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateCreatedAt() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateCreatedAt()
+	})
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (u *UserUpsertBulk) SetUpdatedAt(v time.Time) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetUpdatedAt(v)
+	})
+}
+
+// UpdateUpdatedAt sets the "updated_at" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateUpdatedAt() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateUpdatedAt()
+	})
+}
+
+// Exec executes the query.
+func (u *UserUpsertBulk) Exec(ctx context.Context) error {
+	if u.create.err != nil {
+		return u.create.err
+	}
+	for i, b := range u.create.builders {
+		if len(b.conflict) != 0 {
+			return fmt.Errorf("ent: OnConflict was set for builder %d. Set it on the UserCreateBulk instead", i)
+		}
+	}
+	if len(u.create.conflict) == 0 {
+		return errors.New("ent: missing options for UserCreateBulk.OnConflict")
+	}
+	return u.create.Exec(ctx)
+}
+
+// ExecX is like Exec, but panics if an error occurs.
+func (u *UserUpsertBulk) ExecX(ctx context.Context) {
+	if err := u.create.Exec(ctx); err != nil {
 		panic(err)
 	}
 }

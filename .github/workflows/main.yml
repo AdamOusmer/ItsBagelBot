@@ -35,7 +35,10 @@ jobs:
           set -euo pipefail
           for schema in app/*/ent/schema; do
             echo "ent generate ./$schema"
-            go run -mod=mod entgo.io/ent/cmd/ent generate "./$schema"
+            # sql/upsert is required by the commands/modules batch flush
+            # (INSERT ... ON DUPLICATE KEY UPDATE); applied to every schema so
+            # generated clients stay uniform across services.
+            go run -mod=mod entgo.io/ent/cmd/ent generate --feature sql/upsert "./$schema"
           done
 
       # -race detects race conditions (good for a concurrent bot); -v names the
