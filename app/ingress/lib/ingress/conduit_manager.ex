@@ -46,8 +46,11 @@ defmodule Ingress.ConduitManager do
   def handle_info(:reconcile, state), do: {:noreply, reconcile(state)}
 
   defp reconcile(state) do
+    first_sync = is_nil(state.conduit_id)
+
     case ensure_conduit(state) do
       {:ok, conduit_id, applied_shard_count} ->
+        if first_sync, do: adopt_applied_count(applied_shard_count)
         desired = ShardScaler.desired()
         applied_shard_count = converge_shards(conduit_id, desired, applied_shard_count)
         Process.send_after(self(), :reconcile, @reconcile_interval_ms)
@@ -62,6 +65,20 @@ defmodule Ingress.ConduitManager do
 
   defp ensure_conduit(%{conduit_id: nil}), do: Api.ensure_conduit()
   defp ensure_conduit(%{conduit_id: id, applied_shard_count: count}), do: {:ok, id, count}
+
+  # Twitch's recorded shard count is the only survivor of a singleton failover
+  # or deploy: the scaler restarts at the config floor, so without adoption the
+  # first reconcile would shrink an autoscaled conduit and drop shard bindings
+  # until the autoscaler climbed back. Only raises the target (set_target
+  # clamps to max_shards); a count at or below the current desired changes
+  # nothing. Best-effort: an unreachable scaler just keeps its floor.
+  defp adopt_applied_count(applied) do
+    if applied > ShardScaler.desired() do
+      _ = ShardScaler.set_target(applied)
+    end
+
+    :ok
+  end
 
   # Converge the Conduit (Twitch side) and local ShardSession processes to
   # exactly `desired` shards. Grows or shrinks as needed.
