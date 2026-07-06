@@ -12,6 +12,7 @@ package mcsr
 import (
 	"context"
 	"errors"
+	"math"
 	"strings"
 	"time"
 
@@ -67,8 +68,10 @@ func New(cfg Config, cache *core.Cache, limiter *ratelimit.Limiter, log *zap.Log
 	if cfg.RateLimit <= 0 {
 		cfg.RateLimit = 500
 	}
-	generalCapacity := cfg.RateLimit
-	standardCapacity := cfg.RateLimit * 0.75
+	// Floored: NewSpec requires integer capacities, and panicking at boot over
+	// an odd configured limit would crashloop the pod.
+	generalCapacity := math.Max(1, math.Floor(cfg.RateLimit))
+	standardCapacity := math.Max(1, math.Floor(generalCapacity*0.75))
 	return &Provider{
 		http:  core.NewHTTPClient(base, headers, httpTimeout),
 		cache: cache,

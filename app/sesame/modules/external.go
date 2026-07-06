@@ -28,21 +28,29 @@ func resolveAccount(args, linked, broadcasterLogin string) string {
 	return broadcasterLogin
 }
 
-// chatReplyError turns a gateway reply-level failure (player not found, rate
-// limited) into a chat line so the viewer gets an answer instead of silence.
-// It reports whether the error was handled; an infrastructure error (timeout,
-// no responder) returns false and should be propagated for logging.
+// chatReplyError turns a gateway failure into a chat line so the viewer gets an
+// answer instead of silence. A reply-level failure (player not found, rate
+// limited) chats the gateway's own message and reports handled=true. An
+// infrastructure failure (timeout, no responder) also chats — a cold lookup can
+// outlive sesame's RPC budget while the gateway finishes and caches, so telling
+// the viewer to retry is exactly right — but reports handled=false so the
+// caller still propagates the error for logging.
 func chatReplyError(c *module.Context, emit module.Emit, account string, err error) bool {
 	var re bus.RPCReplyError
-	if !errors.As(err, &re) {
-		return false
+	if errors.As(err, &re) {
+		emit(&module.Output{
+			Type:          outgress.TypeChat,
+			BroadcasterID: c.Env.BroadcasterUserID,
+			Text:          account + ": " + re.Message,
+		})
+		return true
 	}
 	emit(&module.Output{
 		Type:          outgress.TypeChat,
 		BroadcasterID: c.Env.BroadcasterUserID,
-		Text:          account + ": " + re.Message,
+		Text:          account + ": still looking that up, try again in a moment",
 	})
-	return true
+	return false
 }
 
 // ratio renders kills/deaths style ratios with two decimals; a zero

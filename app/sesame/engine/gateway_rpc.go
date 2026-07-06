@@ -12,7 +12,13 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-const gatewayRPCTimeout = 8 * time.Second
+// gatewayRPCTimeout bounds one gateway request from sesame's side. It sits just
+// under the gateway's own 15s handler budget: a cold lookup (a player the
+// upstream has never tracked forces a synchronous Mojang/Hypixel resolve) can
+// take 5-10s, and giving up earlier made the first command per cold player die
+// silently while the gateway finished and cached — the "works on the second
+// try" symptom.
+const gatewayRPCTimeout = 12 * time.Second
 
 // GatewayCaller is the external-data surface modules pull third-party stats
 // through (the urchin and mcsr modules). One generic Call keeps Deps flat while

@@ -158,13 +158,17 @@ func TestUrchinReplyErrorChatsBack(t *testing.T) {
 	assert.Equal(t, "ghostplayer: player not found", col.out[0].Text)
 }
 
-func TestUrchinInfraErrorPropagates(t *testing.T) {
+// An infrastructure failure (cold lookup outliving the RPC budget, gateway
+// down) still chats a retry hint — the first attempt must not be silent — while
+// the error propagates for logging.
+func TestUrchinInfraErrorPropagatesAndChatsRetry(t *testing.T) {
 	gw := &fakeGateway{err: context.DeadlineExceeded}
 	cmd := urchinCmd(t, gw, "daily")
 
 	var col collector
 	require.Error(t, cmd.Run(context.Background(), urchinCtx(""), "", col.emit))
-	assert.Empty(t, col.out)
+	require.Len(t, col.out, 1)
+	assert.Contains(t, col.out[0].Text, "try again in a moment")
 }
 
 func TestUrchinTagsFormatting(t *testing.T) {

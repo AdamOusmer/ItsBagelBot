@@ -210,3 +210,112 @@ func TestMissingAccount(t *testing.T) {
 	reply := endpoint(t, p, "daily")(context.Background(), gatewayrpc.Request{}).(gatewayrpc.UrchinSessionReply)
 	assert.Equal(t, "missing account", reply.Error)
 }
+
+// --- Hypixel stats path -------------------------------------------------------
+
+// newHypixelProvider wires a provider with BOTH upstreams faked: coral answers
+// the uuid resolve (tags endpoint), hypixel answers /v2/player.
+func newHypixelProvider(t *testing.T, coral, hypixel http.Handler) *Provider {
+	t.Helper()
+	coralSrv := httptest.NewServer(coral)
+	t.Cleanup(coralSrv.Close)
+	hypixelSrv := httptest.NewServer(hypixel)
+	t.Cleanup(hypixelSrv.Close)
+	return New(Config{
+		BaseURL: coralSrv.URL, APIKey: "test-key",
+		HypixelBaseURL: hypixelSrv.URL, HypixelAPIKey: "hypixel-key",
+	}, core.NewCache(newMemStore()), nil, zap.NewNop())
+}
+
+const hypixelPlayerBody = `{
+	"success": true,
+	"player": {
+		"displayname": "Techno",
+		"achievements": {"bedwars_level": 402},
+		"stats": {"Bedwars": {
+			"wins_bedwars": 1000, "losses_bedwars": 100,
+			"final_kills_bedwars": 5000, "final_deaths_bedwars": 500,
+			"beds_broken_bedwars": 2000
+		}}
+	}
+}`
+
+// With a Hypixel key, !bwstats resolves the uuid through Coral and reads the
+// player from Hypixel — Coral's profile (which 403s for our key) is never hit.
+func TestStatsViaHypixel(t *testing.T) {
+	var gotKey string
+	p := newHypixelProvider(t,
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			require.Equal(t, "/v3/player/tags", r.URL.Path, "coral must only resolve the uuid")
+			_, _ = w.Write([]byte(`{"uuid":"deadbeef","displayname":"Techno","tags":[]}`))
+		}),
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			require.Equal(t, "/v2/player", r.URL.Path)
+			assert.Equal(t, "deadbeef", r.URL.Query().Get("uuid"))
+			gotKey = r.Header.Get("API-Key")
+			_, _ = w.Write([]byte(hypixelPlayerBody))
+		}))
+
+	reply := endpoint(t, p, "stats")(context.Background(), gatewayrpc.Request{Account: "Techno"}).(gatewayrpc.UrchinStatsReply)
+	require.Empty(t, reply.Error)
+	assert.Equal(t, "hypixel-key", gotKey)
+	assert.Equal(t, "Techno", reply.Player)
+	assert.Equal(t, int64(402), reply.Stars)
+	assert.Equal(t, int64(1000), reply.Wins)
+	assert.Equal(t, int64(500), reply.FinalDeaths)
+}
+
+// Hypixel answers 200 with player:null for an unknown uuid; that must chat
+// "player not found" and negative-cache (the second call hits no upstream).
+func TestStatsHypixelUnknownPlayerNegativeCached(t *testing.T) {
+	var hypixelHits int
+	p := newHypixelProvider(t,
+		http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write([]byte(`{"uuid":"deadbeef","displayname":null,"tags":[]}`))
+		}),
+		http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			hypixelHits++
+			_, _ = w.Write([]byte(`{"success": true, "player": null}`))
+		}))
+	h := endpoint(t, p, "stats")
+
+	reply := h(context.Background(), gatewayrpc.Request{Account: "ghost"}).(gatewayrpc.UrchinStatsReply)
+	assert.Equal(t, "player not found", reply.Error)
+
+	reply = h(context.Background(), gatewayrpc.Request{Account: "ghost"}).(gatewayrpc.UrchinStatsReply)
+	assert.Equal(t, "player not found", reply.Error)
+	assert.Equal(t, 1, hypixelHits, "unknown player must be served from the negative cache")
+}
+
+// Without a Hypixel key the coral profile fallback runs; a 403 (key lacks the
+// Player Data permission) maps to a config-flavored chat message instead of the
+// generic failure line.
+func TestStatsCoralForbiddenFriendly(t *testing.T) {
+	p := newTestProvider(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`{"error":"insufficient permissions"}`))
+	}))
+
+	reply := endpoint(t, p, "stats")(context.Background(), gatewayrpc.Request{Account: "Techno"}).(gatewayrpc.UrchinStatsReply)
+	assert.Equal(t, "stats lookup not permitted right now", reply.Error)
+}
+
+// An empty uuid on a 200 tags reply must read as "player not found", never as a
+// cacheable success that would poison the downstream cubelify/Hypixel calls.
+func TestResolveEmptyUUIDIsNotFound(t *testing.T) {
+	p := newTestProvider(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/v3/player/tags", r.URL.Path)
+		_, _ = w.Write([]byte(`{"uuid":"","displayname":null,"tags":[]}`))
+	}))
+
+	reply := endpoint(t, p, "sniper")(context.Background(), gatewayrpc.Request{Account: "ghost"}).(gatewayrpc.UrchinSniperReply)
+	assert.Equal(t, "player not found", reply.Error)
+}
+
+// Odd configured rate limits must floor, not panic the boot (NewSpec requires
+// integer capacities; 550.5 * 0.75 style fractions crashlooped otherwise).
+func TestOddRateLimitDoesNotPanic(t *testing.T) {
+	assert.NotPanics(t, func() {
+		New(Config{APIKey: "k", RateLimit: 550.5, HypixelAPIKey: "h", HypixelRateLimit: 100.3}, core.NewCache(newMemStore()), nil, zap.NewNop())
+	})
+}

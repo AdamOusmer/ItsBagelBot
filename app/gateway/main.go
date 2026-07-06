@@ -101,7 +101,17 @@ func buildProviders(cfg *config.Config, cache *core.Cache, limiter *ratelimit.Li
 			BaseURL:   cfg.UrchinBaseURL,
 			APIKey:    cfg.UrchinAPIKey,
 			RateLimit: cfg.UrchinRateLimit,
+
+			HypixelBaseURL:   cfg.HypixelBaseURL,
+			HypixelAPIKey:    cfg.HypixelAPIKey,
+			HypixelRateLimit: cfg.HypixelRateLimit,
 		}, cache, limiter, log))
+		if cfg.HypixelAPIKey == "" {
+			// The stats endpoint then uses Coral's profile, which needs the
+			// Player Data permission on the Coral key — without either, !bwstats
+			// answers "stats lookup not permitted".
+			log.Warn("hypixel key not set: bwstats falls back to Coral profile (needs Player Data permission)")
+		}
 	} else {
 		log.Warn("urchin provider disabled: URCHIN_API_KEY not set")
 	}

@@ -12,6 +12,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math"
 	"net/url"
 	"strings"
 	"time"
@@ -46,11 +47,18 @@ const (
 )
 
 // Config carries the provider's environment: the Coral base URL and the API
-// key every request authenticates with.
+// key every request authenticates with. Hypixel* configures the direct Hypixel
+// API used for lifetime stats: Coral's /v3/player/profile needs the "Player
+// Data" permission our key does not carry (it answers 403), so !bwstats reads
+// Hypixel directly and Coral only resolves the uuid.
 type Config struct {
 	BaseURL   string
 	APIKey    string
 	RateLimit float64
+
+	HypixelBaseURL   string
+	HypixelAPIKey    string
+	HypixelRateLimit float64
 }
 
 // Provider implements provider.Provider for the Coral API.
@@ -63,6 +71,24 @@ type Provider struct {
 	limiter      *ratelimit.Limiter
 	generalSpec  ratelimit.Spec
 	standardSpec ratelimit.Spec
+
+	// hypixel is the direct Hypixel API client for lifetime stats; nil when no
+	// key is configured, which falls the stats endpoint back to Coral's profile
+	// (useful only for keys that do carry the Player Data permission).
+	hypixel             *core.HTTPClient
+	hypixelGeneralSpec  ratelimit.Spec
+	hypixelStandardSpec ratelimit.Spec
+}
+
+// bucketSpecs derives the (general, standard) token-bucket pair for one
+// upstream: standard traffic keeps 75% of the capacity so premium always has a
+// reserve, mirroring the fleet's premium lane discipline. Capacities are
+// floored because NewSpec requires integers and panicking at boot over an odd
+// configured limit would crashloop the pod.
+func bucketSpecs(capacity, windowSeconds float64) (general, standard ratelimit.Spec) {
+	gen := math.Max(1, math.Floor(capacity))
+	std := math.Max(1, math.Floor(gen*0.75))
+	return ratelimit.NewSpec(gen, gen/windowSeconds), ratelimit.NewSpec(std, std/windowSeconds)
 }
 
 // New builds the urchin provider. cfg.APIKey must be non-empty (main skips the
@@ -75,18 +101,32 @@ func New(cfg Config, cache *core.Cache, limiter *ratelimit.Limiter, log *zap.Log
 	if cfg.RateLimit <= 0 {
 		cfg.RateLimit = 600
 	}
-	generalCapacity := cfg.RateLimit
-	standardCapacity := cfg.RateLimit * 0.75
-	return &Provider{
+	generalSpec, standardSpec := bucketSpecs(cfg.RateLimit, 300.0)
+
+	p := &Provider{
 		http:  core.NewHTTPClient(base, map[string]string{"X-API-Key": cfg.APIKey}, httpTimeout),
 		cache: cache,
 		key:   cfg.APIKey,
 		log:   log,
 
 		limiter:      limiter,
-		generalSpec:  ratelimit.NewSpec(generalCapacity, generalCapacity/300.0),
-		standardSpec: ratelimit.NewSpec(standardCapacity, standardCapacity/300.0),
+		generalSpec:  generalSpec,
+		standardSpec: standardSpec,
 	}
+
+	if cfg.HypixelAPIKey != "" {
+		hypixelBase := strings.TrimSuffix(cfg.HypixelBaseURL, "/")
+		if hypixelBase == "" {
+			hypixelBase = "https://api.hypixel.net"
+		}
+		if cfg.HypixelRateLimit <= 0 {
+			cfg.HypixelRateLimit = 300 // Hypixel personal key: 300 requests / 5 min
+		}
+		p.hypixel = core.NewHTTPClient(hypixelBase, map[string]string{"API-Key": cfg.HypixelAPIKey}, httpTimeout)
+		p.hypixelGeneralSpec, p.hypixelStandardSpec = bucketSpecs(cfg.HypixelRateLimit, 300.0)
+	}
+
+	return p
 }
 
 func (p *Provider) Name() string { return "urchin" }
@@ -110,13 +150,27 @@ func accountKey(account string) string { return strings.ToLower(strings.TrimSpac
 // must pass both their restricted bucket and the general bucket. Premium requests
 // only consume from the general bucket, enjoying the 25% reserve.
 func (p *Provider) enforceRateLimit(ctx context.Context, isPremium bool) error {
-	if p.limiter == nil {
+	return enforceBuckets(ctx, p.limiter, "ratelimit:gateway:urchin", p.generalSpec, p.standardSpec, isPremium)
+}
+
+// enforceHypixelRateLimit is the same premium/standard discipline on the direct
+// Hypixel key's own budget, which is much smaller than Coral's.
+func (p *Provider) enforceHypixelRateLimit(ctx context.Context, isPremium bool) error {
+	return enforceBuckets(ctx, p.limiter, "ratelimit:gateway:hypixel", p.hypixelGeneralSpec, p.hypixelStandardSpec, isPremium)
+}
+
+// enforceBuckets runs the ordered two-bucket check for one upstream budget
+// rooted at key: standard traffic must pass its restricted bucket AND the
+// general bucket (a denial consumes neither); premium consumes only the general
+// bucket, enjoying the 25% reserve.
+func enforceBuckets(ctx context.Context, limiter *ratelimit.Limiter, key string, general, standard ratelimit.Spec, isPremium bool) error {
+	if limiter == nil {
 		return nil
 	}
-	generalReq := ratelimit.Request{Key: "ratelimit:gateway:urchin", Spec: p.generalSpec}
-	
+	generalReq := ratelimit.Request{Key: key, Spec: general}
+
 	if isPremium {
-		ok, err := p.limiter.Allow(ctx, generalReq)
+		ok, err := limiter.Allow(ctx, generalReq)
 		if err != nil {
 			return err
 		}
@@ -126,8 +180,8 @@ func (p *Provider) enforceRateLimit(ctx context.Context, isPremium bool) error {
 		return nil
 	}
 
-	standardReq := ratelimit.Request{Key: "ratelimit:gateway:urchin:standard", Spec: p.standardSpec}
-	deniedIdx, err := p.limiter.AllowOrdered(ctx, standardReq, generalReq)
+	standardReq := ratelimit.Request{Key: key + ":standard", Spec: standard}
+	deniedIdx, err := limiter.AllowOrdered(ctx, standardReq, generalReq)
 	if err != nil {
 		return err
 	}
@@ -148,6 +202,10 @@ func friendlyError(err error) string {
 				return ue.Message
 			}
 			return "player not found"
+		case 403:
+			// The API key lacks the permission (or is locked). A config problem,
+			// not a player problem — say so instead of the generic failure line.
+			return "stats lookup not permitted right now"
 		case 429:
 			return "stats service is busy, try again in a minute"
 		}
@@ -252,32 +310,73 @@ func (p *Provider) fetchSession(ctx context.Context, period, account string) (ga
 // profileResponse is the Coral PlayerStatsResponse subset the gateway reads:
 // the resolved name plus the raw Hypixel player object.
 type profileResponse struct {
-	Username    string  `json:"username"`
-	DisplayName *string `json:"displayname"`
-	Hypixel     struct {
-		Achievements struct {
-			BedwarsLevel int64 `json:"bedwars_level"`
-		} `json:"achievements"`
-		Stats struct {
-			Bedwars struct {
-				Wins        int64 `json:"wins_bedwars"`
-				Losses      int64 `json:"losses_bedwars"`
-				FinalKills  int64 `json:"final_kills_bedwars"`
-				FinalDeaths int64 `json:"final_deaths_bedwars"`
-				BedsBroken  int64 `json:"beds_broken_bedwars"`
-			} `json:"Bedwars"`
-		} `json:"stats"`
-	} `json:"hypixel"`
+	Username    string       `json:"username"`
+	DisplayName *string      `json:"displayname"`
+	Hypixel     bedwarsStats `json:"hypixel"`
 }
 
+// bedwarsStats is the Bed Wars slice both stats sources share: Coral's profile
+// embeds the raw Hypixel player object, and the direct Hypixel API returns the
+// same object under "player".
+type bedwarsStats struct {
+	Achievements struct {
+		BedwarsLevel int64 `json:"bedwars_level"`
+	} `json:"achievements"`
+	Stats struct {
+		Bedwars struct {
+			Wins        int64 `json:"wins_bedwars"`
+			Losses      int64 `json:"losses_bedwars"`
+			FinalKills  int64 `json:"final_kills_bedwars"`
+			FinalDeaths int64 `json:"final_deaths_bedwars"`
+			BedsBroken  int64 `json:"beds_broken_bedwars"`
+		} `json:"Bedwars"`
+	} `json:"stats"`
+}
+
+// statsReply shapes one player object into the wire reply.
+func statsReply(name string, hp bedwarsStats) gatewayrpc.UrchinStatsReply {
+	bw := hp.Stats.Bedwars
+	return gatewayrpc.UrchinStatsReply{
+		Player:      name,
+		Stars:       hp.Achievements.BedwarsLevel,
+		Wins:        bw.Wins,
+		Losses:      bw.Losses,
+		FinalKills:  bw.FinalKills,
+		FinalDeaths: bw.FinalDeaths,
+		BedsBroken:  bw.BedsBroken,
+	}
+}
+
+// stats answers !bwstats. With a Hypixel key configured it resolves the uuid
+// through Coral (which our key may do) and reads the player straight from the
+// Hypixel API — Coral's profile endpoint needs the Player Data permission and
+// answers 403 without it. The Coral profile path remains as the fallback for
+// deployments whose Coral key does carry that permission.
 func (p *Provider) stats(ctx context.Context, req gatewayrpc.Request) any {
 	account := strings.TrimSpace(req.Account)
 	if account == "" {
 		return gatewayrpc.UrchinStatsReply{Error: "missing account"}
 	}
 	key := core.Key(p.Name(), "stats", accountKey(account))
-	reply, err := core.Cached(ctx, p.cache, key, statsTTL, 5*time.Minute, func(ctx context.Context) (gatewayrpc.UrchinStatsReply, error) {
-		if err := p.enforceRateLimit(ctx, req.IsPremium); err != nil {
+	fetch := p.fetchStatsCoral(account, req.IsPremium)
+	if p.hypixel != nil {
+		fetch = p.fetchStatsHypixel(account, req.IsPremium)
+	}
+	reply, err := core.Cached(ctx, p.cache, key, statsTTL, 5*time.Minute, fetch)
+	if err != nil {
+		if msg := friendlyError(err); msg != "" {
+			return gatewayrpc.UrchinStatsReply{Player: account, Error: msg}
+		}
+		p.log.Warn("urchin stats fetch failed", zap.String("account", account), zap.Error(err))
+		return gatewayrpc.UrchinStatsReply{Player: account, Error: "stats lookup failed"}
+	}
+	return reply
+}
+
+// fetchStatsCoral reads the full profile from Coral (needs Player Data).
+func (p *Provider) fetchStatsCoral(account string, isPremium bool) func(context.Context) (gatewayrpc.UrchinStatsReply, error) {
+	return func(ctx context.Context) (gatewayrpc.UrchinStatsReply, error) {
+		if err := p.enforceRateLimit(ctx, isPremium); err != nil {
 			return gatewayrpc.UrchinStatsReply{}, err
 		}
 		var resp profileResponse
@@ -289,25 +388,46 @@ func (p *Provider) stats(ctx context.Context, req gatewayrpc.Request) any {
 		if name == "" {
 			name = account
 		}
-		bw := resp.Hypixel.Stats.Bedwars
-		return gatewayrpc.UrchinStatsReply{
-			Player:      name,
-			Stars:       resp.Hypixel.Achievements.BedwarsLevel,
-			Wins:        bw.Wins,
-			Losses:      bw.Losses,
-			FinalKills:  bw.FinalKills,
-			FinalDeaths: bw.FinalDeaths,
-			BedsBroken:  bw.BedsBroken,
-		}, nil
-	})
-	if err != nil {
-		if msg := friendlyError(err); msg != "" {
-			return gatewayrpc.UrchinStatsReply{Player: account, Error: msg}
-		}
-		p.log.Warn("urchin stats fetch failed", zap.String("account", account), zap.Error(err))
-		return gatewayrpc.UrchinStatsReply{Player: account, Error: "stats lookup failed"}
+		return statsReply(name, resp.Hypixel), nil
 	}
-	return reply
+}
+
+// hypixelPlayerResponse is the api.hypixel.net/v2/player envelope subset the
+// gateway reads. Player is null for an unknown uuid even on a 200.
+type hypixelPlayerResponse struct {
+	Success bool `json:"success"`
+	Player  *struct {
+		DisplayName string `json:"displayname"`
+		bedwarsStats
+	} `json:"player"`
+}
+
+// fetchStatsHypixel resolves the uuid through Coral, then reads the player from
+// the Hypixel API on its own (smaller) rate budget.
+func (p *Provider) fetchStatsHypixel(account string, isPremium bool) func(context.Context) (gatewayrpc.UrchinStatsReply, error) {
+	return func(ctx context.Context) (gatewayrpc.UrchinStatsReply, error) {
+		uuid, err := p.resolveUUID(ctx, account, isPremium)
+		if err != nil {
+			return gatewayrpc.UrchinStatsReply{}, err
+		}
+		if err := p.enforceHypixelRateLimit(ctx, isPremium); err != nil {
+			return gatewayrpc.UrchinStatsReply{}, err
+		}
+		var resp hypixelPlayerResponse
+		if err := p.hypixel.GetJSON(ctx, "/v2/player", url.Values{"uuid": {uuid}}, &resp); err != nil {
+			return gatewayrpc.UrchinStatsReply{}, err
+		}
+		if resp.Player == nil {
+			// Hypixel answers 200 with player:null for an unknown uuid; shape it
+			// like a 404 so it negative-caches and chats "player not found".
+			return gatewayrpc.UrchinStatsReply{}, &core.UpstreamError{Status: 404, Message: "player not found"}
+		}
+		name := resp.Player.DisplayName
+		if name == "" {
+			name = account
+		}
+		return statsReply(name, resp.Player.bedwarsStats), nil
+	}
 }
 
 // --- blacklist: tags + sniper score -------------------------------------------
@@ -374,7 +494,9 @@ type cubelifyResponse struct {
 }
 
 // resolveUUID turns a username into the canonical uuid via the tags endpoint,
-// cached for a day.
+// cached for a day. An empty uuid on a 200 is shaped like a 404 so it negative
+// caches instead of being stored as a "successful" blank that would poison the
+// downstream cubelify/Hypixel calls.
 func (p *Provider) resolveUUID(ctx context.Context, account string, isPremium bool) (string, error) {
 	key := core.Key(p.Name(), "uuid", accountKey(account))
 	return core.Cached(ctx, p.cache, key, uuidTTL, 5*time.Minute, func(ctx context.Context) (string, error) {
@@ -384,6 +506,9 @@ func (p *Provider) resolveUUID(ctx context.Context, account string, isPremium bo
 		resp, err := p.fetchTags(ctx, account)
 		if err != nil {
 			return "", err
+		}
+		if strings.TrimSpace(resp.UUID) == "" {
+			return "", &core.UpstreamError{Status: 404, Message: "player not found"}
 		}
 		return resp.UUID, nil
 	})
