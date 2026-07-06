@@ -62,10 +62,17 @@ func NewSubscriber(url string, group string, log *zap.Logger) (message.Subscribe
 // deleted when the creating pod unsubscribes, which used to erase the shared
 // ACK floor during every rolling update and replay the retained stream.
 //
+// nakDelay paces redelivery after a NACK (rate limits, transient failures),
+// applied per message through Watermill's NakWithDelay. It must NOT become a
+// consumer-level BackOff: the server forces AckWait down to backoff[0], so a
+// short nack delay would also redeliver every message whose handler is merely
+// slower than that delay — while the first replica is still working — and fan
+// one job out across the whole fleet (duplicate chat sends, duplicate clips).
+//
 // maxRedeliveries excludes the first delivery. NATS enforces the total on the
 // consumer and the Watermill delay terminates the final failed delivery, so a
 // failed command cannot come back after its budget is exhausted.
-func NewLaneSubscriber(url, stream, subject, group string, backoff []time.Duration, maxRedeliveries uint64, log *zap.Logger) (message.Subscriber, error) {
+func NewLaneSubscriber(url, stream, subject, group string, nakDelay time.Duration, maxRedeliveries uint64, log *zap.Logger) (message.Subscriber, error) {
 	maxDeliveries := maxRedeliveries + 1
 	consumer := durableName(group, subject)
 
@@ -79,21 +86,16 @@ func NewLaneSubscriber(url, stream, subject, group string, backoff []time.Durati
 		nc.Close()
 		return nil, err
 	}
-	if err := ensureLaneConsumer(js, stream, subject, group, consumer, int(maxDeliveries), backoff); err != nil {
+	if err := ensureLaneConsumer(js, stream, subject, group, consumer, int(maxDeliveries)); err != nil {
 		nc.Close()
 		return nil, err
-	}
-
-	var baseDelay time.Duration
-	if len(backoff) > 0 {
-		baseDelay = backoff[0]
 	}
 
 	sub, err := wmnats.NewSubscriberWithNatsConn(nc, wmnats.SubscriberSubscriptionConfig{
 		QueueGroupPrefix: group,
 		SubscribersCount: 1,
 		AckWaitTimeout:   30 * time.Second,
-		NakDelay:         wmnats.NewMaxRetryDelay(baseDelay, maxDeliveries),
+		NakDelay:         wmnats.NewMaxRetryDelay(nakDelay, maxDeliveries),
 		Unmarshaler:      &wmnats.NATSMarshaler{},
 		JetStream: wmnats.JetStreamConfig{
 			AutoProvision:     false,
@@ -115,8 +117,8 @@ func NewLaneSubscriber(url, stream, subject, group string, backoff []time.Durati
 
 const managedConsumerMetadata = "itsbagelbot.dev/managed"
 
-func ensureLaneConsumer(js nats.JetStreamManager, stream, subject, group, name string, maxDeliveries int, backoff []time.Duration) error {
-	desired := laneConsumerConfig(subject, group, name, maxDeliveries, backoff)
+func ensureLaneConsumer(js nats.JetStreamManager, stream, subject, group, name string, maxDeliveries int) error {
+	desired := laneConsumerConfig(subject, group, name, maxDeliveries)
 	info, err := js.ConsumerInfo(stream, name)
 	if err != nil {
 		if errors.Is(err, nats.ErrConsumerNotFound) {
@@ -126,15 +128,31 @@ func ensureLaneConsumer(js nats.JetStreamManager, stream, subject, group, name s
 		return err
 	}
 
-	// Update mutable parameters.
+	// Update mutable parameters. Some transitions are not updatable in place
+	// (notably clearing a legacy BackOff schedule on older servers), so fall
+	// back to replacing the consumer: the deliver subject and group are
+	// deterministic, so replicas already bound keep receiving from the
+	// recreated consumer, and the lanes are perishable work queues with no
+	// replay to preserve.
 	desired.DeliverSubject = info.Config.DeliverSubject
 	if _, err := js.UpdateConsumer(stream, desired); err != nil {
-		return fmt.Errorf("bus: update consumer %q: %w", name, err)
+		if derr := js.DeleteConsumer(stream, name); derr != nil && !errors.Is(derr, nats.ErrConsumerNotFound) {
+			return fmt.Errorf("bus: update consumer %q: %w (replace failed: %v)", name, err, derr)
+		}
+		if _, aerr := js.AddConsumer(stream, desired); aerr != nil {
+			return fmt.Errorf("bus: recreate consumer %q: %w", name, aerr)
+		}
 	}
 	return nil
 }
 
-func laneConsumerConfig(subject, group, name string, maxDeliveries int, backoff []time.Duration) *nats.ConsumerConfig {
+// laneConsumerConfig deliberately sets no BackOff: the server clamps AckWait to
+// backoff[0], and a short first step turns every handler slower than it into a
+// premature redelivery to another replica while the first is still working —
+// the same job then executes on several pods (duplicate chat sends / clips).
+// NACK pacing lives in the subscriber's per-message NakWithDelay instead, which
+// leaves AckWait as the sole in-flight redelivery clock.
+func laneConsumerConfig(subject, group, name string, maxDeliveries int) *nats.ConsumerConfig {
 	return &nats.ConsumerConfig{
 		Durable:        name,
 		Name:           name,
@@ -143,7 +161,6 @@ func laneConsumerConfig(subject, group, name string, maxDeliveries int, backoff 
 		AckPolicy:      nats.AckExplicitPolicy,
 		AckWait:        30 * time.Second,
 		MaxDeliver:     maxDeliveries,
-		BackOff:        backoff,
 		FilterSubject:  subject,
 		ReplayPolicy:   nats.ReplayInstantPolicy,
 		MaxAckPending:  1000,
@@ -235,7 +252,7 @@ func (s *fleetSubscriber) Subscribe(ctx context.Context, topic string) (<-chan *
 			nc.Close()
 			return nil, err
 		}
-		if err := ensureLaneConsumer(js, stream, topic, s.group, consumer, 1000, nil); err != nil {
+		if err := ensureLaneConsumer(js, stream, topic, s.group, consumer, 1000); err != nil {
 			nc.Close()
 			return nil, err
 		}
