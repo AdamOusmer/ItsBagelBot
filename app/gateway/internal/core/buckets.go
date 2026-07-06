@@ -17,17 +17,39 @@ type Buckets struct {
 	standard ratelimit.Spec
 }
 
+// strictBucket derives a token bucket that can never exceed limit requests in
+// ANY window of windowSeconds. A bucket with burst B and refill r admits up to
+// B + r*window requests per window in the worst case (full burst, then a full
+// window of refill), so sizing burst = refill-per-window = limit/2 keeps every
+// rolling window at or under the upstream's allowance — a bucket naively sized
+// capacity=limit, refill=limit/window would admit up to 2x the allowance.
+// Burst is floored because ratelimit.NewSpec requires an integer capacity and
+// panicking at boot over an odd configured limit would crashloop the pod.
+func strictBucket(limit, windowSeconds float64) (burst, refillPerSecond float64) {
+	burst = math.Max(1, math.Floor(limit/2))
+	refillPerSecond = (limit - burst) / windowSeconds
+	if refillPerSecond <= 0 {
+		// Degenerate budget (limit ~1): NewSpec requires a positive refill;
+		// strictness yields to a valid spec on a config that tiny.
+		refillPerSecond = burst / windowSeconds
+	}
+	return burst, refillPerSecond
+}
+
 // NewBuckets derives the (general, standard) token-bucket pair for one
-// upstream allowing capacity requests per windowSeconds. Capacities are
-// floored because ratelimit.NewSpec requires integers and panicking at boot
-// over an odd configured limit would crashloop the pod.
+// upstream allowing capacity requests per windowSeconds — strictly: the
+// general bucket bounds TOTAL spend to the allowance in every rolling window,
+// and the standard bucket bounds standard-lane spend to 75% of it, so premium
+// always keeps a 25% reserve.
 func NewBuckets(key string, capacity, windowSeconds float64) Buckets {
 	gen := math.Max(1, math.Floor(capacity))
 	std := math.Max(1, math.Floor(gen*0.75))
+	genBurst, genRefill := strictBucket(gen, windowSeconds)
+	stdBurst, stdRefill := strictBucket(std, windowSeconds)
 	return Buckets{
 		key:      key,
-		general:  ratelimit.NewSpec(gen, gen/windowSeconds),
-		standard: ratelimit.NewSpec(std, std/windowSeconds),
+		general:  ratelimit.NewSpec(genBurst, genRefill),
+		standard: ratelimit.NewSpec(stdBurst, stdRefill),
 	}
 }
 

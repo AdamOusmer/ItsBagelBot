@@ -198,6 +198,23 @@ export interface ModuleReply {
   // empty/absent means on, matching sesame's alertOn semantics.
   enableKey?: string;
   defaultMessage: string; // sesame default template (placeholder + preview fallback)
+
+  // --- command-style replies (gateway modules: urchin, mcsr) ---------------
+  // command is the chat trigger without '!' (e.g. 'daily'). When set, the
+  // inspector rehearses the reply exactly like a custom command: the border
+  // reads "Chat rehearsal", a viewer line types the trigger, and the bot
+  // answers with previewSamples substituted into the template.
+  command?: string;
+  // previewArgs is what the sample viewer types after the trigger.
+  previewArgs?: string;
+  // previewSamples maps this reply's tokens to sample values. When command is
+  // set the preview substitutes ONLY these (samplesOnly): sesame expands only
+  // the module's own tokens here, so the generic {user}/{uptime} samples would
+  // preview values the bot will never produce.
+  previewSamples?: Record<string, string>;
+  // tokens is the editor's insert palette (without braces), replacing the
+  // default command tokens with the ones this reply actually supports.
+  tokens?: string[];
 }
 
 export interface ModuleDef {
@@ -222,6 +239,31 @@ export interface ModuleState {
   enabled: boolean;
   config: Record<string, string>;
 }
+
+// Shared token palette + preview samples for the Bed Wars session commands
+// (!daily / !weekly / !monthly) — same template surface, one source of truth.
+const BW_SESSION_TOKENS = [
+  'player',
+  'wins',
+  'losses',
+  'finals',
+  'finaldeaths',
+  'beds',
+  'games',
+  'levels',
+  'fkdr'
+];
+const BW_SESSION_SAMPLES: Record<string, string> = {
+  player: 'Technoblade',
+  wins: '5',
+  losses: '2',
+  finals: '21',
+  finaldeaths: '3',
+  beds: '9',
+  games: '8',
+  levels: '1',
+  fkdr: '7.00'
+};
 
 export const MODULE_CATALOG: readonly ModuleDef[] = [
   {
@@ -308,54 +350,102 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
         label: '!daily',
         tagline: 'Bed Wars session since the daily reset.',
         event: '!daily',
+        command: 'daily',
         enableKey: 'dailyEnabled',
         messageKey: 'dailyMessage',
-        defaultMessage: '{player} today: {wins}W {losses}L · {finals} finals · {beds} beds · {fkdr} FKDR'
+        defaultMessage: '{player} today: {wins}W {losses}L · {finals} finals · {beds} beds · {fkdr} FKDR',
+        tokens: BW_SESSION_TOKENS,
+        previewSamples: BW_SESSION_SAMPLES
       },
       {
         key: 'weekly',
         label: '!weekly',
         tagline: 'Bed Wars session since the weekly reset.',
         event: '!weekly',
+        command: 'weekly',
         enableKey: 'weeklyEnabled',
         messageKey: 'weeklyMessage',
-        defaultMessage: '{player} this week: {wins}W {losses}L · {finals} finals · {beds} beds · {fkdr} FKDR'
+        defaultMessage: '{player} this week: {wins}W {losses}L · {finals} finals · {beds} beds · {fkdr} FKDR',
+        tokens: BW_SESSION_TOKENS,
+        previewSamples: BW_SESSION_SAMPLES
       },
       {
         key: 'monthly',
         label: '!monthly',
         tagline: 'Bed Wars session since the monthly reset.',
         event: '!monthly',
+        command: 'monthly',
         enableKey: 'monthlyEnabled',
         messageKey: 'monthlyMessage',
-        defaultMessage: '{player} this month: {wins}W {losses}L · {finals} finals · {beds} beds · {fkdr} FKDR'
+        defaultMessage: '{player} this month: {wins}W {losses}L · {finals} finals · {beds} beds · {fkdr} FKDR',
+        tokens: BW_SESSION_TOKENS,
+        previewSamples: BW_SESSION_SAMPLES
       },
       {
         key: 'stats',
         label: '!bwstats',
         tagline: 'Lifetime Bed Wars stats.',
         event: '!bwstats',
+        command: 'bwstats',
         enableKey: 'statsEnabled',
         messageKey: 'statsMessage',
-        defaultMessage: '{player}: {stars} stars · {wins} wins · {finals} finals · {fkdr} FKDR · {beds} beds broken'
+        defaultMessage: '{player}: {stars} stars · {wins} wins · {finals} finals · {fkdr} FKDR · {beds} beds broken',
+        tokens: ['player', 'stars', 'wins', 'losses', 'finals', 'finaldeaths', 'beds', 'fkdr', 'wlr'],
+        previewSamples: {
+          player: 'Technoblade',
+          stars: '402',
+          wins: '1000',
+          losses: '100',
+          finals: '5000',
+          finaldeaths: '500',
+          beds: '2000',
+          fkdr: '10.00',
+          wlr: '10.00'
+        }
       },
       {
         key: 'sniper',
         label: '!sniper',
         tagline: 'Urchin (Cubelify overlay) score.',
         event: '!sniper',
+        command: 'sniper',
         enableKey: 'sniperEnabled',
         messageKey: 'sniperMessage',
-        defaultMessage: '{player} urchin score: {score}'
+        defaultMessage: '{player} urchin score: {score}',
+        tokens: ['player', 'score', 'mode', 'tagcount'],
+        previewSamples: { player: 'Technoblade', score: '7.5', mode: 'warn', tagcount: '1' }
       },
       {
         key: 'tags',
-        label: '!tags',
+        label: '!tag',
         tagline: 'Active Urchin blacklist tags.',
-        event: '!tags',
+        event: '!tag',
+        command: 'tag',
         enableKey: 'tagsEnabled',
         messageKey: 'tagsMessage',
-        defaultMessage: '{player}: {tags}'
+        defaultMessage: '{player}: {tags}',
+        tokens: ['player', 'tags', 'tagcount'],
+        previewSamples: {
+          player: 'Technoblade',
+          tags: 'Blatant Cheater (added Jul 3, 2024)',
+          tagcount: '1'
+        }
+      },
+      {
+        key: 'tagdescription',
+        label: '!tagdescription',
+        tagline: 'Blacklist tags with their reasons.',
+        event: '!tagdescription',
+        command: 'tagdescription',
+        enableKey: 'tagDescriptionEnabled',
+        messageKey: 'tagDescriptionMessage',
+        defaultMessage: '{player}: {tags}',
+        tokens: ['player', 'tags', 'tagcount'],
+        previewSamples: {
+          player: 'Technoblade',
+          tags: 'Blatant Cheater (bhop - added Jul 3, 2024)',
+          tagcount: '1'
+        }
       }
     ],
     settings: [
@@ -382,18 +472,39 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
         label: '!elo',
         tagline: 'Current elo, rank and season record.',
         event: '!elo',
+        command: 'elo',
         enableKey: 'eloEnabled',
         messageKey: 'eloMessage',
-        defaultMessage: '{player}: {elo} elo · rank #{rank} · {wins}W {losses}L this season'
+        defaultMessage: '{player}: {elo} elo · rank #{rank} · {wins}W {losses}L this season',
+        tokens: ['player', 'elo', 'rank', 'wins', 'losses', 'matches', 'country'],
+        previewSamples: {
+          player: 'Feinberg',
+          elo: '1650',
+          rank: '12',
+          wins: '40',
+          losses: '20',
+          matches: '61',
+          country: 'us'
+        }
       },
       {
         key: 'session',
         label: '!session',
         tagline: 'Elo and record since the stream started.',
         event: '!session',
+        command: 'session',
         enableKey: 'sessionEnabled',
         messageKey: 'sessionMessage',
-        defaultMessage: '{player} this stream: {elochange} elo ({elo} now) · {wins}W {losses}L in {matches} matches'
+        defaultMessage: '{player} this stream: {elochange} elo ({elo} now) · {wins}W {losses}L in {matches} matches',
+        tokens: ['player', 'elo', 'elochange', 'wins', 'losses', 'matches'],
+        previewSamples: {
+          player: 'Feinberg',
+          elo: '1660',
+          elochange: '+24',
+          wins: '3',
+          losses: '1',
+          matches: '4'
+        }
       }
     ],
     settings: [
