@@ -13,6 +13,7 @@
     validateCommand,
     normName,
     COOLDOWN_MAX,
+    RESPONSE_MAX_LINES,
     getI18n,
     type CommandErrors
   } from '@bagel/shared';
@@ -102,7 +103,7 @@
 
   <label class="field">
     <span>{t('commandEditor.response')}</span>
-    <ResponseEditor bind:value={draft.response} />
+    <ResponseEditor bind:value={draft.response} maxLines={RESPONSE_MAX_LINES} />
     <FieldError message={errors.response} />
   </label>
 

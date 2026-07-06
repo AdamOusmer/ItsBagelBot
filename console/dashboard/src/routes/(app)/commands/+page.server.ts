@@ -95,7 +95,10 @@ function parseCommand(f: FormData) {
     aliases.push(a);
   }
 
-  const response = String(f.get('response') ?? '');
+  // Form submission encodes textarea newlines as CRLF; fold to LF so the wire
+  // payload matches the commands service's stored form (it normalizes anyway,
+  // this keeps the optimistic UI's echo identical to what comes back).
+  const response = String(f.get('response') ?? '').replace(/\r\n|\r/g, '\n');
   const permRaw = String(f.get('perm') ?? 'everyone');
   const perm: Perm = (PERMS as readonly string[]).includes(permRaw) ? (permRaw as Perm) : 'everyone';
 

@@ -8,6 +8,7 @@ import (
 
 	"ItsBagelBot/app/sesame/module"
 	"ItsBagelBot/internal/domain/outgress"
+	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/internal/projection"
 
 	"go.uber.org/zap"
@@ -87,12 +88,12 @@ func (p *Pipeline) runCustom(ctx context.Context, c *module.Context, name, args 
 		zap.Uint64("broadcaster_id", c.BroadcasterID),
 	)
 
-	// Route the expanded response through the post-processing middleware. A
-	// response left with no payload (an "/announce" with no text, a "/shoutout"
-	// with no target) is dropped and not counted.
-	out := renderResponse(c, cc.Response, args)
-	emitted := p.emitCommand(out, emit)
-	PutOutput(out)
+	// Route the expanded response through the post-processing middleware, one
+	// output per line — a multi-line response sends one chat message per line,
+	// each with its own slash-verb translation. A line left with no payload (an
+	// "/announce" with no text, a "/shoutout" with no target) is dropped; the
+	// run counts once if anything was emitted.
+	emitted := p.emitResponse(c, cc.Response, args, emit)
 	if !emitted {
 		return nil
 	}
@@ -108,9 +109,14 @@ func (p *Pipeline) runCustom(ctx context.Context, c *module.Context, name, args 
 	return nil
 }
 
-// renderResponse expands a custom command's response template into a pooled
-// Output. The caller owns the returned Output and must PutOutput it after use.
-func renderResponse(c *module.Context, response, args string) *module.Output {
+// emitResponse expands a custom command's response template once, then emits
+// one chat output per non-empty line through the post-processing middleware
+// (each line gets its own slash-verb translation, so "/announce hi\nplain"
+// mixes an announcement and a chat line). The line count is capped at
+// validate.MaxResponseLines — the write path enforces it, this is the emit-side
+// backstop so an expanded token can never fan out further. Reports whether at
+// least one line was actually emitted.
+func (p *Pipeline) emitResponse(c *module.Context, response, args string, emit module.Emit) bool {
 	sender := c.Env.ChatterUserLogin
 	touser := sender
 	if args != "" {
@@ -126,12 +132,29 @@ func renderResponse(c *module.Context, response, args string) *module.Output {
 		touser:  touser,
 		channel: c.Env.BroadcasterUserLogin,
 	})
-	out := GetOutput()
-	out.Type = outgress.TypeChat
-	out.BroadcasterID = c.Env.BroadcasterUserID
-	out.Text = string(buf)
+	expanded := string(buf)
 	PutBuf(buf)
-	return out
+
+	emitted := false
+	lines := 0
+	for line := range strings.SplitSeq(expanded, "\n") {
+		if line == "" {
+			continue
+		}
+		lines++
+		if lines > validate.MaxResponseLines {
+			break
+		}
+		out := GetOutput()
+		out.Type = outgress.TypeChat
+		out.BroadcasterID = c.Env.BroadcasterUserID
+		out.Text = line
+		if p.emitCommand(out, emit) {
+			emitted = true
+		}
+		PutOutput(out)
+	}
+	return emitted
 }
 
 // emitCommand is the command-output post-processing middleware. Every output a
