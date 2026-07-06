@@ -6,6 +6,9 @@ resources:
   - commands.yaml
   - console-dashboard.yaml
   # console-admin.yaml now replaces the Go admin tier, sharing the admin.tail451e6d.ts.net host.
+  # gateway is the external-API proxy + cache (urchin.gg, MCSR Ranked) sesame
+  # queries over bagel.rpc.gateway.>.
+  - gateway.yaml
   - modules.yaml
   - notifications.yaml
   - outgress.yaml

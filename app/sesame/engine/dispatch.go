@@ -20,21 +20,25 @@ import (
 // command router: unlike the worker it is not a module, so it reads the registry
 // directly and needs no Bind. A non-command line returns nil with no work.
 //
-// A baked command is first gated by its owning module's enable/premium state
-// (the same enabled() check event handlers pass), so a command on a disabled or
-// premium-only module never runs; that gate also wires the module's config into
-// the Context before the command runs. views is the broadcaster's ModuleView set
-// (nil when the chat path needs none, i.e. only core command owners).
+// A baked command is first gated by its owning module's enable state (the same
+// enabled() check event handlers pass), so a command on a disabled module never
+// runs — the trigger instead falls through to the broadcaster's custom
+// commands, so an opt-in module can ship friendly triggers without reserving
+// them fleet-wide. The gate also wires the module's config into the Context
+// before the command runs. views is the broadcaster's ModuleView set (nil when
+// the chat path needs none, i.e. only core command owners).
 func (p *Pipeline) dispatchCommand(ctx context.Context, c *module.Context, views map[string]projection.ModuleView, emit module.Emit) error {
 	name, args, ok := parseCommand(c.Env.Text)
 	if !ok {
 		return nil
 	}
 	if bc, _, isBaked := p.registry.ResolveCommand(name); isBaked {
-		if !p.enabled(bc.Owner, views, c) {
-			return nil
+		if p.enabled(bc.Owner, views, c) {
+			return p.runBaked(ctx, c, bc.Cmd, args, emit)
 		}
-		return p.runBaked(ctx, c, bc.Cmd, args, emit)
+		// The owner module is off: fall through to the broadcaster's custom
+		// commands so an opt-in module's trigger (e.g. !daily) never reserves the
+		// name on channels that did not enable it.
 	}
 	return p.runCustom(ctx, c, name, args, emit)
 }
