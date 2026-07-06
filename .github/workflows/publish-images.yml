@@ -114,6 +114,12 @@ jobs:
               "description": "ItsBagelBot Twitch event worker (sesame)"
             },
             {
+              "image": "gateway",
+              "context": ".",
+              "containerfile": "app/gateway/Containerfile",
+              "description": "ItsBagelBot external API gateway"
+            },
+            {
               "image": "twitch-ingress",
               "context": "app/ingress",
               "containerfile": "app/ingress/Containerfile",
@@ -148,6 +154,7 @@ jobs:
             add "transactions"
             add "users"
             add "sesame"
+            add "gateway"
           }
 
           add_all_services() {
@@ -159,6 +166,7 @@ jobs:
             add "transactions"
             add "users"
             add "sesame"
+            add "gateway"
             add "twitch-ingress"
             add "console-dashboard"
             add "console-admin"
@@ -203,6 +211,9 @@ jobs:
                 ;;
               app/sesame/*)
                 add "sesame"
+                ;;
+              app/gateway/*)
+                add "gateway"
                 ;;
               console/shared/*|console/bunfig.toml|console/bun.lock|console/package.json|console/tsconfig.base.json)
                 add "console-dashboard"

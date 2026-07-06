@@ -1,0 +1,96 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import PageHero from '../../components/ui/PageHero.astro';
+import LegalShell from '../../components/legal/LegalShell.astro';
+
+const sections = [
+    { id: 'overview', heading: 'Aperçu', plain: 'Ce que nous recueillons, pourquoi nous le faisons et les choix qui vous sont offerts.' },
+    { id: 'data-collected', heading: 'Renseignements recueillis', plain: 'Votre identifiant Twitch, le clavardage traité sur le moment et des statistiques d’utilisation agrégées.' },
+    { id: 'data-not-collected', heading: 'Renseignements non recueillis', plain: 'Aucun profil de navigation personnel, aucune donnée publicitaire et aucun suivi par adresse IP de notre part.' },
+    { id: 'cookies', heading: 'Cloudflare, témoins et analytique', plain: 'Cloudflare protège et achemine le service. L’analytique est sans témoin; des témoins de sécurité peuvent être utilisés au besoin.' },
+    { id: 'data-use', heading: 'Utilisation et fondements juridiques', plain: 'Nous utilisons les renseignements pour fournir et sécuriser le service. Nous ne les vendons ni ne les louons.' },
+    { id: 'payment-processing', heading: 'Autres fournisseurs tiers', plain: 'Tebex traite le paiement de façon sécurisée et agit comme marchand officiel.' },
+    { id: 'storage', heading: 'Stockage et transferts', plain: 'Le clavardage est traité en direct, sans être conservé. Les réglages sont chiffrés au Canada; Cloudflare traite le trafic mondialement.' },
+    { id: 'rights', heading: 'Vos droits (RGPD, LPRPDE, Loi 25)', plain: 'Vous pouvez demander l’accès, la rectification, la portabilité ou la suppression de vos renseignements.' },
+    { id: 'changes', heading: 'Modifications', plain: 'Nous vous aviserons si cette politique change de façon importante.' },
+    { id: 'contact', heading: 'Nous joindre et responsable de la protection des renseignements personnels', plain: 'Écrivez à support@itsbagelbot.com pour toute question relative à la vie privée.' },
+];
+---
+
+<Layout title="Politique de confidentialité — ItsBagelBot" description="Politique de confidentialité d’ItsBagelBot. Découvrez comment nous traitons vos renseignements avec transparence et respect.">
+    <PageHero eyebrow="Juridique" title="Politique de confidentialité" description="Le texte intégral, accompagné d’une explication en clair pour chaque section." />
+
+    <LegalShell updated="juillet 2026" sections={sections}>
+        <Fragment slot="overview">
+            <p>
+                ItsBagelBot s’engage à protéger votre vie privée conformément au Règlement général sur la protection des données (RGPD) en Europe, à la Loi sur la protection des renseignements personnels et les documents électroniques (LPRPDE) au Canada et à la Loi 25 au Québec. Cette politique explique les renseignements que nous recueillons, l’usage que nous en faisons et les droits dont vous disposez.
+            </p>
+        </Fragment>
+
+        <Fragment slot="data-collected">
+            <p>Nous recueillons uniquement ce qui est nécessaire pour fournir le service :</p>
+            <ul>
+                <li>les renseignements de votre compte Twitch (nom d’utilisateur et identifiant de chaîne) transmis lors de la connexion OAuth;</li>
+                <li>les messages de clavardage traités en temps réel aux fins de modération, sans conservation permanente;</li>
+                <li>des données d’utilisation agrégées et anonymisées, sans renseignements personnels;</li>
+                <li>les données techniques de requête et de sécurité traitées par Cloudflare, comme l’adresse IP, les données d’acheminement, les renseignements sur le navigateur ou l’appareil, l’URL demandée et les événements de sécurité.</li>
+            </ul>
+        </Fragment>
+
+        <Fragment slot="data-not-collected">
+            <p>Nous ne recueillons jamais :</p>
+            <ul>
+                <li>vos données personnelles de navigation;</li>
+                <li>votre adresse IP pour établir un profil ou vous suivre d’un site à l’autre;</li>
+                <li>des renseignements provenant de traceurs tiers;</li>
+                <li>des données à des fins publicitaires.</li>
+            </ul>
+        </Fragment>
+
+        <Fragment slot="cookies">
+            <p>
+                Nous faisons appel à Cloudflare, Inc. pour acheminer et protéger nos sites Web et nos services. Cloudflare agit comme mandataire inverse, réseau de diffusion de contenu, fournisseur DNS, service de protection contre les attaques DDoS et les robots, et fournisseur de tunnel sécurisé. Puisque les requêtes passent par Cloudflare avant d’atteindre notre infrastructure, Cloudflare traite nécessairement certaines données techniques, notamment votre adresse IP, les données d’acheminement, les renseignements sur le système et le navigateur, les URL demandées et les signaux de sécurité. Ce traitement sert à livrer le contenu, prévenir les abus, enquêter sur les incidents de sécurité et assurer la fiabilité du service.
+            </p>
+            <p>
+                Nous utilisons également Cloudflare Web Analytics pour mesurer, sous forme agrégée, le trafic et la performance des pages. Sa balise de navigateur <strong>n’utilise ni témoins ni stockage du navigateur</strong> et ne sert pas à suivre des personnes d’un site à l’autre. La balise reçoit une adresse IP dans le cadre normal de la requête réseau, mais Cloudflare indique qu’elle la supprime au centre de données le plus proche plutôt que de la conserver dans les journaux de Web Analytics.
+            </p>
+            <p>
+                Cloudflare peut déposer des témoins de sécurité strictement nécessaires, comme <code>__cf_bm</code> ou <code>cf_clearance</code>, lorsque la protection contre les robots ou un contrôle de sécurité l’exige. Ces témoins servent à la sécurité et à la gestion du trafic; nous ne les utilisons ni pour la publicité ni pour le profilage comportemental. Pour en savoir plus, consultez la <a href="https://www.cloudflare.com/policies/privacy/" target="_blank" rel="noopener noreferrer">politique de confidentialité de Cloudflare</a> et sa <a href="https://developers.cloudflare.com/fundamentals/reference/policies-compliances/cloudflare-cookies/" target="_blank" rel="noopener noreferrer">documentation sur les témoins</a>.
+            </p>
+        </Fragment>
+
+        <Fragment slot="data-use">
+            <p>
+                Nous utilisons vos renseignements uniquement pour fournir le service ItsBagelBot : modérer le clavardage, exécuter les commandes et faire fonctionner les fonctions de participation. Le traitement repose sur l’exécution de notre contrat avec vous (les Conditions d’utilisation) et sur notre intérêt légitime à sécuriser et à améliorer le service. Nous ne vendons ni ne louons vos renseignements personnels. Nous les communiquons seulement aux fournisseurs décrits dans cette politique lorsque cela est nécessaire à la prestation du service, ou lorsque la loi l’exige.
+            </p>
+        </Fragment>
+
+        <Fragment slot="payment-processing">
+            <p>
+                Pour offrir les abonnements Premium, nous intégrons Tebex, qui agit comme marchand officiel pour toutes les transactions. Lorsque vous commencez un paiement, nous créons un panier sécurisé et vous redirigeons vers Tebex pour conclure l’achat. Nous ne traitons, ne recueillons et ne conservons aucun renseignement de paiement, comme un numéro de carte de crédit. Nous recevons uniquement l’identifiant de transaction et l’état de la commande afin d’activer votre abonnement. Tebex traite vos renseignements de paiement conformément à sa propre politique de confidentialité.
+            </p>
+        </Fragment>
+
+        <Fragment slot="storage">
+            <p>
+                Les messages de clavardage sont traités en temps réel et ne sont pas conservés de façon permanente. Les données de configuration sont chiffrées au repos et les données en transit le sont au moyen de TLS. Les données de notre application sont hébergées au Canada, qui bénéficie d’une décision d’adéquation de la Commission européenne au titre du RGPD. Comme Cloudflare exploite un réseau mondial, les données techniques de requête, de sécurité et de témoins peuvent être traitées à l’extérieur du Canada, notamment aux États-Unis et dans d’autres pays où Cloudflare exerce ses activités. Cloudflare encadre ces transferts au moyen des mesures décrites dans sa politique de confidentialité et son addenda sur le traitement des données.
+            </p>
+        </Fragment>
+
+        <Fragment slot="rights">
+            <p>
+                En vertu du RGPD, de la Loi 25 et de la LPRPDE, vous pouvez demander l’accès à vos renseignements personnels, leur rectification, leur portabilité ou leur suppression. Vous pouvez demander une copie ou la suppression de vos données en tout temps en écrivant à <a href="mailto:support@itsbagelbot.com">support@itsbagelbot.com</a>. La suppression de votre compte efface immédiatement toutes les données qui y sont associées.
+            </p>
+        </Fragment>
+
+        <Fragment slot="changes">
+            <p>Nous pouvons mettre cette politique à jour. Toute modification importante sera annoncée sur Discord et dans le tableau de bord.</p>
+        </Fragment>
+
+        <Fragment slot="contact">
+            <p>
+                Pour toute question sur la vie privée ou pour joindre notre responsable de la protection des renseignements personnels désigné en vertu de la Loi 25, écrivez à <a href="mailto:support@itsbagelbot.com">support@itsbagelbot.com</a>.
+            </p>
+        </Fragment>
+    </LegalShell>
+</Layout>

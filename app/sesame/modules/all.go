@@ -17,5 +17,7 @@ func All(d engine.Deps) []module.Module {
 		Shoutout(d),
 		Alerts(d),
 		Clip(d),
+		Urchin(d),
+		Mcsr(d),
 	}
 }

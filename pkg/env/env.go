@@ -66,3 +66,16 @@ func MustGet(key string) string {
 
 	return value
 }
+
+// GetFloat returns the float64 value of key, or fallback when unset, empty, or
+// not parseable by strconv.ParseFloat.
+func GetFloat(key string, fallback float64) float64 {
+
+	if value := os.Getenv(key); value != "" {
+		if f, err := strconv.ParseFloat(value, 64); err == nil {
+			return f
+		}
+	}
+
+	return fallback
+}

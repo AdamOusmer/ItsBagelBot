@@ -101,7 +101,7 @@ The reason? Because I can.
 And because I want to learn more and apply modern software engineering practices to a fun project while showcasing my
 capabilities.
 
-The entirety of the bot is hosted on Oracle Cloud Infrastructure's in Canadian region. The location was chosen for higher
+The entirety of the bot is hosted on Oracle Cloud Infrastructure in a Canadian region. The location was chosen for higher
 availability of the resources I need, as well as the advantages of data sovereignty and Canadian privacy laws. Moreover, the 
 data centers are located in a region where hydroelectric power is abundant, making it an environmentally conscious choice.
 
@@ -118,6 +118,7 @@ It is based on Twitch's Conduit architecture for scalability and reliability. Tw
 - **Message Bus**: NATS is the only inter-service transport, carrying both subject-based events (pub/sub) and request-reply RPC. No service reads another service's database directly.
 - **Services** (Go): Each feature of the bot is implemented as a separate service that owns its own MySQL schema, subscribes to relevant subjects, and answers RPC for cross-service reads.
 - **Outgress Service** (Go): Sends messages back to Twitch based on the processed data from the services, applying per-broadcaster rate limiting and the bot account token lifecycle.
+- **Web Interface** (Astro/Bun): A modern frontend for user interaction and bot management.
 
 
 ### Tech Stack
@@ -127,11 +128,13 @@ Currently in development, but will be built with the following technologies:
 #### Languages
 
 ![Go](https://img.shields.io/badge/go-%2300ADD8.svg?style=for-the-badge&logo=go&logoColor=white)
+![Elixir](https://img.shields.io/badge/elixir-%234B275F.svg?style=for-the-badge&logo=elixir&logoColor=white)
+![TypeScript](https://img.shields.io/badge/typescript-%23007ACC.svg?style=for-the-badge&logo=typescript&logoColor=white)
 
 #### Technologies & Tools
 
-![Elixir](https://img.shields.io/badge/elixir-%234B275F.svg?style=for-the-badge&logo=elixir&logoColor=white)
-![Svelte](https://img.shields.io/badge/svelte-%23f1413d.svg?style=for-the-badge&logo=svelte&logoColor=white)
+![Astro](https://img.shields.io/badge/astro-%232C2052.svg?style=for-the-badge&logo=astro&logoColor=white)
+![Bun](https://img.shields.io/badge/Bun-%23000000.svg?style=for-the-badge&logo=bun&logoColor=white)
 ![Watermill](https://img.shields.io/badge/Watermill-%2307C0E1.svg?style=for-the-badge&logo=go&logoColor=white)
 ![NATS](https://img.shields.io/badge/NATS-%2327AAE1.svg?style=for-the-badge&logo=natsdotio&logoColor=white)
 ![Ent](https://img.shields.io/badge/ent-%235164E3.svg?style=for-the-badge&logo=go&logoColor=white)

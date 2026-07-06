@@ -1,0 +1,148 @@
+# gateway: the fleet's external-API gateway. Sesame requests third-party data
+# (urchin.gg Coral, MCSR Ranked) over NATS RPC (bagel.rpc.gateway.>); the
+# gateway fetches, normalizes, and caches replies in Valkey. It is the only
+# app that dials those external hosts.
+#
+# gateway-env (Doppler) carries VALKEY_*, URCHIN_API_KEY (provider disabled
+# without it), optional MCSR_API_KEY, NEW_RELIC_*, and the NATS_RPC_USER /
+# NATS_RPC_PASSWORD pair for the GATEWAY_RPC account.
+apiVersion: secrets.doppler.com/v1alpha1
+kind: DopplerSecret
+metadata:
+  name: gateway-env
+  namespace: production
+spec:
+  host: https://api.doppler.com
+  tokenSecret:
+    name: gateway-doppler-token
+  managedSecret:
+    name: gateway-env
+    namespace: production
+    type: Opaque
+  resyncSeconds: 60
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  namespace: production
+  annotations:
+    secrets.doppler.com/reload: "true"
+spec:
+  # Stateless and cache-backed: two replicas queue-group the RPC subjects. Not
+  # per-node — the working set is one HTTP client and a Valkey connection.
+  replicas: 2
+  revisionHistoryLimit: 3
+  minReadySeconds: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: gateway
+  template:
+    metadata:
+      labels:
+        app: gateway
+      annotations:
+        linkerd.io/inject: enabled
+        config.linkerd.io/proxy-cpu-request: 5m
+        config.linkerd.io/proxy-cpu-limit: 750m
+        config.linkerd.io/proxy-memory-request: 16Mi
+        config.linkerd.io/proxy-memory-limit: 96Mi
+    spec:
+      tolerations:
+        - key: itsbagelbot.dev/pool
+          operator: Equal
+          value: worker-pool
+          effect: NoSchedule
+        - key: node.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+        - key: node.kubernetes.io/not-ready
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: gateway
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: gateway
+          image: ghcr.io/adamousmer/itsbagelbot/gateway:main-1783320021-0da500e8b293@sha256:9013e69e5eb7f3b68dd5813a3567d7ca24fe9e7e7e4562b49dd749aa9249a826 # {"$imagepolicy": "flux-system:gateway"}
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: NATS_HOST
+              value: nats
+            # Apps connect only to the node-local leaf cluster; the hub is
+            # reached over the leafnode link. No hub in the server list.
+            - name: NATS_URL
+              value: nats://nats-leaf:4222
+            - name: NATS_RPC_URL
+              value: nats://nats-leaf:4222
+            - name: NATS_LEAF_URL
+              value: nats://nats-leaf:4222
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            # Node-local Valkey reads (NODE_IP:6379); writes ride Sentinel.
+            - name: NODE_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: GOMEMLIMIT
+              value: 96MiB
+          envFrom:
+            - secretRef:
+                name: gateway-env
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+          lifecycle:
+            preStop:
+              httpGet:
+                path: /drain
+                port: 8080
+          livenessProbe:
+            httpGet: {path: /healthz, port: 8080}
+            periodSeconds: 30
+          readinessProbe:
+            httpGet: {path: /readyz, port: 8080}
+            periodSeconds: 10
+          startupProbe:
+            httpGet: {path: /healthz, port: 8080}
+            failureThreshold: 18 # 18 × 5s = 90s max startup window
+            periodSeconds: 5
+      terminationGracePeriodSeconds: 45
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: gateway
+  namespace: production
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: gateway
