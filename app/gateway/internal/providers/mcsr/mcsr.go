@@ -217,7 +217,7 @@ func (p *Provider) fetchUser(ctx context.Context, account string, isPremium bool
 // cachedUser is fetchUser behind the shared 60s cache.
 func (p *Provider) cachedUser(ctx context.Context, account string, isPremium bool) (gatewayrpc.McsrUserReply, error) {
 	key := core.Key(p.Name(), "user", strings.ToLower(strings.TrimSpace(account)))
-	return core.Cached(ctx, p.cache, key, userTTL, 2*time.Hour, func(ctx context.Context) (gatewayrpc.McsrUserReply, error) {
+	return core.Cached(ctx, p.cache, key, userTTL, 5*time.Minute, func(ctx context.Context) (gatewayrpc.McsrUserReply, error) {
 		return p.fetchUser(ctx, account, isPremium)
 	})
 }
