@@ -12,14 +12,12 @@ package mcsr
 import (
 	"context"
 	"errors"
-	"math"
 	"strings"
 	"time"
 
 	"ItsBagelBot/app/gateway/internal/core"
 	"ItsBagelBot/app/gateway/internal/provider"
 	gatewayrpc "ItsBagelBot/internal/domain/rpc/gateway"
-	"ItsBagelBot/pkg/ratelimit"
 
 	"go.uber.org/zap"
 )
@@ -50,13 +48,15 @@ type Provider struct {
 	cache *core.Cache
 	log   *zap.Logger
 
-	limiter      *ratelimit.Limiter
-	generalSpec  ratelimit.Spec
-	standardSpec ratelimit.Spec
+	deps    provider.Deps
+	buckets core.Buckets
 }
 
+// rateWindowSeconds is the MCSR budget window (10 minutes: 500 requests).
+const rateWindowSeconds = 600.0
+
 // New builds the mcsr provider.
-func New(cfg Config, cache *core.Cache, limiter *ratelimit.Limiter, log *zap.Logger) *Provider {
+func New(cfg Config, d provider.Deps) *Provider {
 	base := strings.TrimSuffix(cfg.BaseURL, "/")
 	if base == "" {
 		base = "https://api.mcsrranked.com"
@@ -68,18 +68,17 @@ func New(cfg Config, cache *core.Cache, limiter *ratelimit.Limiter, log *zap.Log
 	if cfg.RateLimit <= 0 {
 		cfg.RateLimit = 500
 	}
-	// Floored: NewSpec requires integer capacities, and panicking at boot over
-	// an odd configured limit would crashloop the pod.
-	generalCapacity := math.Max(1, math.Floor(cfg.RateLimit))
-	standardCapacity := math.Max(1, math.Floor(generalCapacity*0.75))
+	log := d.Log
+	if log == nil {
+		log = zap.NewNop()
+	}
 	return &Provider{
 		http:  core.NewHTTPClient(base, headers, httpTimeout),
-		cache: cache,
+		cache: d.Cache,
 		log:   log,
 
-		limiter:      limiter,
-		generalSpec:  ratelimit.NewSpec(generalCapacity, generalCapacity/600.0),
-		standardSpec: ratelimit.NewSpec(standardCapacity, standardCapacity/600.0),
+		deps:    d,
+		buckets: core.NewBuckets("ratelimit:gateway:mcsr", cfg.RateLimit, rateWindowSeconds),
 	}
 }
 
@@ -144,35 +143,10 @@ func friendlyError(err error) string {
 	return ""
 }
 
-// enforceRateLimit consumes from the provider's token buckets. Standard requests
-// must pass both their restricted bucket and the general bucket. Premium requests
-// only consume from the general bucket, enjoying the 25% reserve.
+// enforceRateLimit consumes one request from the MCSR budget under the shared
+// premium/standard bucket discipline (see core.Buckets).
 func (p *Provider) enforceRateLimit(ctx context.Context, isPremium bool) error {
-	if p.limiter == nil {
-		return nil
-	}
-	generalReq := ratelimit.Request{Key: "ratelimit:gateway:mcsr", Spec: p.generalSpec}
-	
-	if isPremium {
-		ok, err := p.limiter.Allow(ctx, generalReq)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			return &core.UpstreamError{Status: 429, Message: "premium rate limit exceeded"}
-		}
-		return nil
-	}
-
-	standardReq := ratelimit.Request{Key: "ratelimit:gateway:mcsr:standard", Spec: p.standardSpec}
-	deniedIdx, err := p.limiter.AllowOrdered(ctx, standardReq, generalReq)
-	if err != nil {
-		return err
-	}
-	if deniedIdx != 0 {
-		return &core.UpstreamError{Status: 429, Message: "standard rate limit exceeded"}
-	}
-	return nil
+	return p.buckets.Enforce(ctx, p.deps.Limiter, isPremium)
 }
 
 // fetchUser loads a player's live standing straight from the API.

@@ -28,10 +28,12 @@ type Config struct {
 	UrchinAPIKey    string
 	UrchinRateLimit float64
 
-	// Direct Hypixel API for lifetime Bed Wars stats (!bwstats): Coral's
-	// profile endpoint needs the Player Data permission our key lacks (403), so
-	// stats read Hypixel directly. Key empty = fall back to Coral's profile.
+	// Hypixel provider (lifetime Bed Wars stats for !bwstats): its own external
+	// system with its own key and budget — Coral's profile endpoint needs the
+	// Player Data permission our key lacks (403). Key empty = provider disabled.
+	// Usernames resolve to uuids through Mojang's public API.
 	HypixelBaseURL   string
+	MojangBaseURL    string
 	HypixelAPIKey    string
 	HypixelRateLimit float64
 
@@ -61,6 +63,7 @@ func Load() *Config {
 		UrchinRateLimit: env.GetFloat("URCHIN_RATE_LIMIT", 600.0),
 
 		HypixelBaseURL: env.Get("HYPIXEL_BASE_URL", "https://api.hypixel.net"),
+		MojangBaseURL:  env.Get("MOJANG_BASE_URL", "https://api.mojang.com"),
 		HypixelAPIKey:  env.Get("HYPIXEL_API_KEY", ""),
 		// Hypixel personal keys allow 300 requests per 5 minutes.
 		HypixelRateLimit: env.GetFloat("HYPIXEL_RATE_LIMIT", 300.0),

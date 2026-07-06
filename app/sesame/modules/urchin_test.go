@@ -136,8 +136,10 @@ func TestUrchinPerCommandToggleOff(t *testing.T) {
 }
 
 func TestUrchinCustomTemplate(t *testing.T) {
+	// !bwstats rides the gateway's hypixel provider (its own external system);
+	// the command stays on the urchin dashboard module.
 	gw := &fakeGateway{replies: map[string]any{
-		"urchin.stats": gatewayrpc.UrchinStatsReply{Player: "Techno", Stars: 402, Wins: 1000, Losses: 100},
+		"hypixel.stats": gatewayrpc.HypixelStatsReply{Player: "Techno", Stars: 402, Wins: 1000, Losses: 100},
 	}}
 	cmd := urchinCmd(t, gw, "bwstats")
 

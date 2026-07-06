@@ -63,6 +63,24 @@ type UrchinStatsReply struct {
 	Error       string `json:"error,omitempty"`
 }
 
+// --- hypixel (direct Hypixel API) --------------------------------------------
+
+// HypixelStatsReply is the answer to hypixel.stats: the player's lifetime Bed
+// Wars stats read straight from the Hypixel API. It is the wire the urchin
+// dashboard module's !bwstats rides — same shape as UrchinStatsReply, owned by
+// the hypixel provider (Coral's profile endpoint needs a key permission ours
+// does not carry, so lifetime stats bypass Coral entirely).
+type HypixelStatsReply struct {
+	Player      string `json:"player"`
+	Stars       int64  `json:"stars"`
+	Wins        int64  `json:"wins"`
+	Losses      int64  `json:"losses"`
+	FinalKills  int64  `json:"final_kills"`
+	FinalDeaths int64  `json:"final_deaths"`
+	BedsBroken  int64  `json:"beds_broken"`
+	Error       string `json:"error,omitempty"`
+}
+
 // UrchinSniperReply is the answer to urchin.sniper: the player's Urchin
 // (Cubelify overlay) sniper score.
 type UrchinSniperReply struct {

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/bytedance/sonic"
 	"github.com/valkey-io/valkey-go"
 	"golang.org/x/sync/singleflight"
 )
@@ -19,7 +20,10 @@ import (
 type Store interface {
 	// Get returns the cached bytes and whether the key existed.
 	Get(ctx context.Context, key string) ([]byte, bool, error)
-	// Set writes val under key for ttl.
+	// Set writes val under key for ttl. val may come from a pooled buffer the
+	// caller recycles as soon as Set returns, so an implementation must not
+	// retain it (the valkey client serializes within the call; an in-memory
+	// test store must copy).
 	Set(ctx context.Context, key string, val []byte, ttl time.Duration) error
 	// Del removes key.
 	Del(ctx context.Context, key string) error
@@ -92,7 +96,7 @@ func decodeEnvelope[T any](b []byte) (v T, negative *UpstreamError, ok bool) {
 		Value json.RawMessage `json:"v"`
 		Error *UpstreamError  `json:"e"`
 	}
-	if err := json.Unmarshal(b, &probe); err != nil {
+	if err := sonic.Unmarshal(b, &probe); err != nil {
 		return v, nil, false
 	}
 	if probe.Error != nil && probe.Error.Status != 0 {
@@ -101,7 +105,7 @@ func decodeEnvelope[T any](b []byte) (v T, negative *UpstreamError, ok bool) {
 	if len(probe.Value) == 0 {
 		return v, nil, false // no marker: legacy or foreign format
 	}
-	if err := json.Unmarshal(probe.Value, &v); err != nil {
+	if err := sonic.Unmarshal(probe.Value, &v); err != nil {
 		var zero T
 		return zero, nil, false
 	}
@@ -154,7 +158,7 @@ func Cached[T any](ctx context.Context, c *Cache, key string, ttl, negativeTTL t
 			cacheTTL = ttl
 		}
 
-		if b, merr := json.Marshal(env); merr == nil {
+		if b, merr := sonic.Marshal(env); merr == nil {
 			_ = c.store.Set(ctx, key, b, cacheTTL)
 		}
 		
@@ -179,7 +183,7 @@ func (c *Cache) GetJSON(ctx context.Context, key string, out any) (bool, error) 
 	if err != nil || !ok {
 		return false, err
 	}
-	if err := json.Unmarshal(b, out); err != nil {
+	if err := sonic.Unmarshal(b, out); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -187,7 +191,7 @@ func (c *Cache) GetJSON(ctx context.Context, key string, out any) (bool, error) 
 
 // SetJSON writes a raw entry for ttl.
 func (c *Cache) SetJSON(ctx context.Context, key string, v any, ttl time.Duration) error {
-	b, err := json.Marshal(v)
+	b, err := sonic.Marshal(v)
 	if err != nil {
 		return err
 	}
