@@ -30,7 +30,11 @@ func (Commands) Fields() []ent.Field {
 		// collision.
 		field.Strings("aliases").Optional(),
 
-		field.String("response").NotEmpty(),
+		// Newline-delimited: the bot sends one chat message per line, up to 5
+		// lines of 500 characters each (see validate.CommandResponse). Sized to
+		// hold the worst case (5*500 + 4 separators) so the column outgrows the
+		// dialect's default varchar.
+		field.String("response").NotEmpty().MaxLen(2504),
 
 		field.Bool("is_active").Default(true),
 

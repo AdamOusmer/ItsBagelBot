@@ -46,10 +46,17 @@ func TestCommandName(t *testing.T) {
 
 func TestCommandResponse(t *testing.T) {
 	assert.NoError(t, validate.CommandResponse("Welcome to the stream! 🎉"))
+	assert.NoError(t, validate.CommandResponse("line one\nline two"), "newlines separate chat messages")
+	assert.NoError(t, validate.CommandResponse(strings.Repeat("one\n", 4)+"five"), "five lines is the ceiling")
+	assert.NoError(t, validate.CommandResponse(strings.Repeat("a", 500)+"\n"+strings.Repeat("b", 500)), "each line gets the full single-message budget")
 
 	assert.Error(t, validate.CommandResponse(""))
-	assert.Error(t, validate.CommandResponse("line\nbreak"), "control characters must be refused")
-	assert.Error(t, validate.CommandResponse(strings.Repeat("a", 501)))
+	assert.Error(t, validate.CommandResponse("tab\tcharacter"), "control characters must be refused")
+	assert.Error(t, validate.CommandResponse("carriage\rreturn"), "CR must be normalized away before validation")
+	assert.Error(t, validate.CommandResponse(strings.Repeat("a", 501)), "a single line beyond the message limit")
+	assert.Error(t, validate.CommandResponse("ok\n"+strings.Repeat("a", 501)), "any line beyond the message limit")
+	assert.Error(t, validate.CommandResponse(strings.Repeat("line\n", 5)+"six"), "more than five lines")
+	assert.Error(t, validate.CommandResponse("blank\n\nline"), "blank lines must be normalized away before validation")
 }
 
 func TestModuleName(t *testing.T) {

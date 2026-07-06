@@ -9,7 +9,10 @@
   // line (see app/worker/module/slash.go). The rehearsal mirrors that parse so
   // authors can see they're driving a Twitch command — an announcement callout,
   // a shoutout card, or an italic /me action — with a badge naming the verb.
-  import { normName, getI18n } from '@bagel/shared';
+  // A multi-line response (newline-delimited, up to 5 lines) is acted out as
+  // the bot sending one chat message per line, in order — the same fan-out the
+  // worker performs — so authors see exactly how many messages they're minting.
+  import { normName, responseLines, RESPONSE_MAX_LINES, getI18n } from '@bagel/shared';
 
   const { t } = getI18n();
 
@@ -88,8 +91,7 @@
     return null;
   }
 
-  const parsed = $derived.by<Parsed>(() => {
-    const text = response;
+  function parseLine(text: string): Parsed {
     for (const [verb, color] of ANNOUNCE) {
       const rest = cutVerb(text, verb);
       if (rest !== null) return { mode: 'announce', body: rest, verb, color };
@@ -107,34 +109,46 @@
     const me = cutVerb(text, '/me');
     if (me !== null) return { mode: 'me', body: me, verb: '/me' };
     return { mode: 'chat', body: text };
-  });
+  }
 
   // Human label for the "uses Twitch command" badge.
-  const verbLabel = $derived.by(() => {
-    if (parsed.mode === 'announce') {
-      return parsed.color === 'primary' ? '/announce' : `/announce (${parsed.color})`;
+  function verbLabelOf(p: Parsed): string {
+    if (p.mode === 'announce') {
+      return p.color === 'primary' ? '/announce' : `/announce (${p.color})`;
     }
-    return parsed.verb ?? '';
-  });
+    return p.verb ?? '';
+  }
 
   // Substituted segments over the *stripped* body: known tokens become
   // highlighted sample values, unknown {tokens} stay marked so typos are visible.
   type Seg = { text: string; kind: 'plain' | 'sample' | 'unknown' };
-  const segments = $derived.by<Seg[]>(() => {
-    const body = parsed.body;
+  function segmentsOf(body: string, samples: Record<string, string>): Seg[] {
     const out: Seg[] = [];
     const re = /\{([a-z_]+)\}/gi;
     let last = 0;
     for (const m of body.matchAll(re)) {
       if (m.index > last) out.push({ text: body.slice(last, m.index), kind: 'plain' });
       const key = m[1].toLowerCase();
-      if (key in SAMPLES) out.push({ text: SAMPLES[key], kind: 'sample' });
+      if (key in samples) out.push({ text: samples[key], kind: 'sample' });
       else out.push({ text: m[0], kind: 'unknown' });
       last = m.index + m[0].length;
     }
     if (last < body.length) out.push({ text: body.slice(last), kind: 'plain' });
     return out;
-  });
+  }
+
+  // One rehearsed bot message per response line, mirroring the worker's
+  // fan-out: every line is parsed for its own slash-verb and substituted
+  // independently, capped at the same ceiling the service enforces.
+  type LineView = Parsed & { segments: Seg[] };
+  const views = $derived.by<LineView[]>(() =>
+    responseLines(response)
+      .slice(0, RESPONSE_MAX_LINES)
+      .map((line) => {
+        const p = parseLine(line);
+        return { ...p, segments: segmentsOf(p.body, SAMPLES) };
+      })
+  );
 
   // Typing beat: edits flip to the dots, settle back to the reply. Debounced so
   // the bot doesn't stutter on every keystroke.
@@ -163,67 +177,89 @@
       <span class="msg">{trigger}</span>
     </div>
   {/if}
-  <div class="line bot" class:special={parsed.mode !== 'chat'} class:me={parsed.mode === 'me'}>
-    <span class="who bot-name">
-      <img src="/logo.png" alt="" class="bot-avatar" />
-      ItsBagelBot
-    </span>
-    {#if typing}
+  {#if typing}
+    <div class="line bot">
+      <span class="who bot-name">
+        <img src="/logo.png" alt="" class="bot-avatar" />
+        ItsBagelBot
+      </span>
       <span class="msg typing" aria-label={t('chatPreview.ariaTyping')}>
         <span class="tdot"></span><span class="tdot"></span><span class="tdot"></span>
       </span>
-    {:else if parsed.mode === 'announce'}
-      <div class="announce" style="--acc: {ACCENT[parsed.color ?? 'primary']}">
-        <span class="announce-head">
-          <span class="via" title={t('chatPreview.runsVerb', { verb: parsed.verb ?? '' })}>Twitch {verbLabel}</span>
-          {t('chatPreview.announcement')}
+    </div>
+  {:else if views.length === 0}
+    <div class="line bot">
+      <span class="who bot-name">
+        <img src="/logo.png" alt="" class="bot-avatar" />
+        ItsBagelBot
+      </span>
+      <span class="msg empty">{t('chatPreview.nothingToSay')}</span>
+    </div>
+  {:else}
+    <!-- One bot message per response line, staggered like the worker's send order. -->
+    {#each views as v, li (li)}
+      <div
+        class="line bot"
+        class:special={v.mode !== 'chat'}
+        class:me={v.mode === 'me'}
+        style="--reply-delay: {li * 140}ms"
+      >
+        <span class="who bot-name">
+          <img src="/logo.png" alt="" class="bot-avatar" />
+          ItsBagelBot
         </span>
-        {#if segments.length}
+        {#if v.mode === 'announce'}
+          <div class="announce" style="--acc: {ACCENT[v.color ?? 'primary']}">
+            <span class="announce-head">
+              <span class="via" title={t('chatPreview.runsVerb', { verb: v.verb ?? '' })}>Twitch {verbLabelOf(v)}</span>
+              {t('chatPreview.announcement')}
+            </span>
+            {#if v.segments.length}
+              <span class="msg reply">
+                {#each v.segments as seg, i (i)}
+                  {#if seg.kind === 'sample'}<mark>{seg.text}</mark>
+                  {:else if seg.kind === 'unknown'}<mark class="unknown" title={t('chatPreview.unknownVar')}>{seg.text}</mark>
+                  {:else}{seg.text}{/if}
+                {/each}
+              </span>
+            {:else}
+              <span class="msg empty">{t('chatPreview.addMessageAfter', { verb: v.verb ?? '' })}</span>
+            {/if}
+          </div>
+        {:else if v.mode === 'shoutout'}
+          <div class="shoutout">
+            <span class="via" title={t('chatPreview.runsVerb', { verb: '/shoutout' })}>Twitch /shoutout</span>
+            {#if v.target}
+              <span class="msg reply">{t('chatPreview.shoutsOut')} <strong>@{v.target}</strong></span>
+            {:else}
+              <span class="msg empty">{t('chatPreview.nameChannel')}</span>
+            {/if}
+          </div>
+        {:else if v.mode === 'me'}
+          <span class="via inline" title={t('chatPreview.runsVerb', { verb: '/me' })}>Twitch /me</span>
+          {#if v.segments.length}
+            <span class="msg reply action">
+              {#each v.segments as seg, i (i)}
+                {#if seg.kind === 'sample'}<mark>{seg.text}</mark>
+                {:else if seg.kind === 'unknown'}<mark class="unknown" title={t('chatPreview.unknownVar')}>{seg.text}</mark>
+                {:else}{seg.text}{/if}
+              {/each}
+            </span>
+          {:else}
+            <span class="msg empty">{t('chatPreview.addActionAfterMe')}</span>
+          {/if}
+        {:else}
           <span class="msg reply">
-            {#each segments as seg, i (i)}
+            {#each v.segments as seg, i (i)}
               {#if seg.kind === 'sample'}<mark>{seg.text}</mark>
               {:else if seg.kind === 'unknown'}<mark class="unknown" title={t('chatPreview.unknownVar')}>{seg.text}</mark>
               {:else}{seg.text}{/if}
             {/each}
           </span>
-        {:else}
-          <span class="msg empty">{t('chatPreview.addMessageAfter', { verb: parsed.verb ?? '' })}</span>
         {/if}
       </div>
-    {:else if parsed.mode === 'shoutout'}
-      <div class="shoutout">
-        <span class="via" title={t('chatPreview.runsVerb', { verb: '/shoutout' })}>Twitch /shoutout</span>
-        {#if parsed.target}
-          <span class="msg reply">{t('chatPreview.shoutsOut')} <strong>@{parsed.target}</strong></span>
-        {:else}
-          <span class="msg empty">{t('chatPreview.nameChannel')}</span>
-        {/if}
-      </div>
-    {:else if parsed.mode === 'me'}
-      <span class="via inline" title={t('chatPreview.runsVerb', { verb: '/me' })}>Twitch /me</span>
-      {#if segments.length}
-        <span class="msg reply action">
-          {#each segments as seg, i (i)}
-            {#if seg.kind === 'sample'}<mark>{seg.text}</mark>
-            {:else if seg.kind === 'unknown'}<mark class="unknown" title={t('chatPreview.unknownVar')}>{seg.text}</mark>
-            {:else}{seg.text}{/if}
-          {/each}
-        </span>
-      {:else}
-        <span class="msg empty">{t('chatPreview.addActionAfterMe')}</span>
-      {/if}
-    {:else if parsed.body.trim()}
-      <span class="msg reply">
-        {#each segments as seg, i (i)}
-          {#if seg.kind === 'sample'}<mark>{seg.text}</mark>
-          {:else if seg.kind === 'unknown'}<mark class="unknown" title={t('chatPreview.unknownVar')}>{seg.text}</mark>
-          {:else}{seg.text}{/if}
-        {/each}
-      </span>
-    {:else}
-      <span class="msg empty">{t('chatPreview.nothingToSay')}</span>
-    {/if}
-  </div>
+    {/each}
+  {/if}
 </div>
 
 <style>
@@ -282,7 +318,7 @@
   }
   .line.viewer .msg { font-family: var(--bb-font-mono); color: var(--bb-tan-light); font-size: 12.5px; }
 
-  .reply { animation: reply-in 240ms var(--bb-ease-out-back, ease-out) both; }
+  .reply { animation: reply-in 240ms var(--bb-ease-out-back, ease-out) both; animation-delay: var(--reply-delay, 0ms); }
   @keyframes reply-in {
     from { opacity: 0; transform: translateY(4px); }
     to { opacity: 1; transform: translateY(0); }
@@ -328,6 +364,7 @@
     border-radius: 8px 8px;
     background: color-mix(in srgb, var(--acc) 10%, rgba(0, 0, 0, 0.25));
     animation: reply-in 240ms var(--bb-ease-out-back, ease-out) both;
+    animation-delay: var(--reply-delay, 0ms);
   }
   .announce-head {
     display: inline-flex;
@@ -353,6 +390,7 @@
     border: 1px dashed rgba(82, 183, 136, 0.4);
     background: rgba(82, 183, 136, 0.06);
     animation: reply-in 240ms var(--bb-ease-out-back, ease-out) both;
+    animation-delay: var(--reply-delay, 0ms);
   }
   .shoutout .reply strong { color: var(--bb-green-glow); }
 
