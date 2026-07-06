@@ -73,8 +73,37 @@ func TestClipEmitsWhenEnabled(t *testing.T) {
 	o := col.out[0]
 	assert.Equal(t, outgress.TypeClip, o.Type)
 	assert.Equal(t, "5", o.BroadcasterID)
-	assert.Equal(t, "Sick play", o.Text)   // title echoed
-	assert.Equal(t, "viewer", o.To)         // clipper for the reply
+	assert.Equal(t, "Sick play", o.Text) // title echoed + sent to Twitch
+	assert.Equal(t, "viewer", o.To)      // clipper for the reply
+	assert.Zero(t, o.Duration, "plain !clip leaves duration unset (Twitch default)")
+}
+
+func TestClipDurationFromNumericSuffix(t *testing.T) {
+	cmd := clipCommand(t, engine.Deps{Proj: clipReader{}, Log: zap.NewNop()})
+	c := clipCtx()
+	c.Num = "45" // !clip45
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), c, "", col.emit))
+	require.Len(t, col.out, 1)
+	assert.Equal(t, 45.0, col.out[0].Duration)
+}
+
+func TestClipDuration(t *testing.T) {
+	cases := map[string]float64{
+		"":                         0,  // plain !clip: unset, Twitch default
+		"30":                       30, // in range
+		"5":                        5,  // min
+		"60":                       60, // max
+		"3":                        5,  // below min clamps up
+		"90":                       60, // above max clamps down
+		"0":                        5,  // zero clamps to min
+		"999999999999999999999999": 60, // overflow clamps to max
+	}
+	for in, want := range cases {
+		if got := clipDuration(in); got != want {
+			t.Errorf("clipDuration(%q) = %v, want %v", in, got, want)
+		}
+	}
 }
 
 func TestClipSuppressedWhenDisabled(t *testing.T) {
