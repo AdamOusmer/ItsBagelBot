@@ -28,6 +28,13 @@ type Config struct {
 	UrchinAPIKey    string
 	UrchinRateLimit float64
 
+	// Direct Hypixel API for lifetime Bed Wars stats (!bwstats): Coral's
+	// profile endpoint needs the Player Data permission our key lacks (403), so
+	// stats read Hypixel directly. Key empty = fall back to Coral's profile.
+	HypixelBaseURL   string
+	HypixelAPIKey    string
+	HypixelRateLimit float64
+
 	// MCSR Ranked provider. The public API needs no key; APIKey optionally
 	// unlocks expanded rate limits. Enabled unless MCSR_ENABLED=false.
 	McsrBaseURL   string
@@ -52,6 +59,11 @@ func Load() *Config {
 		UrchinBaseURL:   env.Get("URCHIN_BASE_URL", "https://api.urchin.gg"),
 		UrchinAPIKey:    env.Get("URCHIN_API_KEY", ""),
 		UrchinRateLimit: env.GetFloat("URCHIN_RATE_LIMIT", 600.0),
+
+		HypixelBaseURL: env.Get("HYPIXEL_BASE_URL", "https://api.hypixel.net"),
+		HypixelAPIKey:  env.Get("HYPIXEL_API_KEY", ""),
+		// Hypixel personal keys allow 300 requests per 5 minutes.
+		HypixelRateLimit: env.GetFloat("HYPIXEL_RATE_LIMIT", 300.0),
 
 		McsrBaseURL:   env.Get("MCSR_BASE_URL", "https://api.mcsrranked.com"),
 		McsrAPIKey:    env.Get("MCSR_API_KEY", ""),
