@@ -20,6 +20,15 @@ export interface ValkeyConfig {
   /** host:port of the node-local read instance, e.g. "127.0.0.1:6379". */
   addr: string;
   password?: string;
+  /**
+   * host:port of a Sentinel endpoint, e.g. "valkey.valkey.svc:26379". When set,
+   * write-path clients (rate limiter) connect through Sentinel so they always
+   * track the elected master across failovers; when absent, writes go to
+   * `addr` directly (single-instance/dev setups).
+   */
+  sentinelAddr?: string;
+  /** Sentinel master set name. Defaults to "myprimary" (the fleet's set). */
+  sentinelMaster?: string;
 }
 
 export interface ServerConfig {
