@@ -81,11 +81,20 @@ func TestLaneConsumerHasBoundedDeliveryBudget(t *testing.T) {
 		"outgress-premium",
 		"outgress-premium_twitch_outgress_premium",
 		4,
-		nil,
 	)
 
 	if cfg.MaxDeliver != 4 {
 		t.Fatalf("max deliver = %d, want initial delivery plus 3 redeliveries", cfg.MaxDeliver)
+	}
+	// A consumer BackOff clamps AckWait to backoff[0] on the server, which
+	// redelivers still-in-flight slow handlers to other replicas and duplicates
+	// the job fleet-wide (the !clip reply incident). NACK pacing belongs to the
+	// subscriber's per-message NakWithDelay, never to the consumer.
+	if len(cfg.BackOff) != 0 {
+		t.Fatalf("backoff = %v, want none: it would clamp ack wait to its first step", cfg.BackOff)
+	}
+	if cfg.AckWait != 30*time.Second {
+		t.Fatalf("ack wait = %v, want 30s of in-flight tolerance", cfg.AckWait)
 	}
 	if cfg.AckPolicy != nats.AckExplicitPolicy {
 		t.Fatalf("ack policy = %v, want explicit", cfg.AckPolicy)
