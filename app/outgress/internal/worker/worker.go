@@ -1160,27 +1160,15 @@ type clipCreateReply struct {
 	} `json:"data"`
 }
 
-// clipGetReply is the subset of the Helix Get Clips response we read: the public
-// URL of the finished clip. Get Clips is also how Twitch says to confirm a clip
-// was actually created (an empty data array means it is not ready yet).
-type clipGetReply struct {
-	Data []struct {
-		URL string `json:"url"`
-	} `json:"data"`
-}
-
-// Creating a clip is asynchronous: the id comes back immediately but Get Clips
-// only returns the clip once Twitch finishes processing it. These bound the
-// confirmation poll — a few quick tries, then fall back to the constructed URL
-// rather than block the lane worker for Twitch's full 60s window.
-const (
-	clipConfirmAttempts = 4
-	clipConfirmDelay    = time.Second
-)
-
 // processClip creates a clip on the broadcaster's channel and posts the public
 // clip URL back to chat. The Create Clip response (and thus the URL) is visible
 // only here, so this is the one place that can surface it.
+//
+// The reply posts immediately with the constructed public URL
+// (https://clips.twitch.tv/<id>): the Create Clip id doubles as the clip's
+// public slug, and Get Clips reports exactly that link once processing
+// finishes, so polling it first only delayed the reply by seconds while
+// pinning a lane routine — the link resolves the moment Twitch publishes.
 //
 // Redelivery safety: once the clip is created (2xx) this returns nil no matter
 // what happens to the reply — re-running the message would create a DUPLICATE
@@ -1247,63 +1235,12 @@ func (w *Worker) processClip(ctx context.Context, payload outgress.Message) erro
 		return nil
 	}
 
-	// Confirm the clip and read its canonical public URL via Get Clips (Twitch's
-	// prescribed success check). Falls back to the constructed short URL if the
-	// clip is still processing after the poll — that link resolves once Twitch
-	// publishes the clip, so the reply is never left without a URL.
-	clipID := reply.Data[0].ID
-	clipURL := w.resolveClipURL(ctx, payload.BroadcasterID, clipID)
+	clipURL := "https://clips.twitch.tv/" + reply.Data[0].ID
 	if err := w.sendClipReply(ctx, payload.BroadcasterID, meta, clipURL); err != nil {
 		w.log.Warn("clip created but reply chat failed",
 			zap.String("broadcaster_id", payload.BroadcasterID), zap.Error(err))
 	}
 	return nil
-}
-
-// resolveClipURL confirms a freshly created clip and returns its public URL. It
-// polls Get Clips by id a few times (creation is asynchronous, so the clip is
-// briefly absent) and returns the URL Twitch reports. If the clip has not
-// surfaced by the end of the poll it returns the constructed short URL
-// (https://clips.twitch.tv/<id>), which redirects to the clip once it is
-// published, so the caller always has a usable link. Never returns an error: the
-// clip already exists, and a missing confirmation must not fail the reply.
-func (w *Worker) resolveClipURL(ctx context.Context, broadcasterID, clipID string) string {
-	endpoint := "/helix/clips?id=" + url.QueryEscape(clipID)
-	for attempt := 0; attempt < clipConfirmAttempts; attempt++ {
-		if attempt > 0 && !sleepCtx(ctx, clipConfirmDelay) {
-			break // context cancelled: stop polling, use the fallback
-		}
-		res, err := w.twitch.ExecuteAs(ctx, twitch.ParseIdentity(outgress.AsBroadcaster),
-			broadcasterID, http.MethodGet, endpoint, nil)
-		if err != nil {
-			w.log.Warn("clip confirm request failed",
-				zap.String("broadcaster_id", broadcasterID), zap.Error(err))
-			continue
-		}
-		var got clipGetReply
-		if res.StatusCode == http.StatusOK {
-			_ = json.NewDecoder(io.LimitReader(res.Body, 4096)).Decode(&got)
-		}
-		drainResponse(res)
-		if len(got.Data) > 0 && got.Data[0].URL != "" {
-			return got.Data[0].URL
-		}
-	}
-	return "https://clips.twitch.tv/" + clipID
-}
-
-// sleepCtx waits for d or until ctx is cancelled, whichever comes first. It
-// reports true when the full delay elapsed and false when ctx cancelled, so a
-// polling loop can stop early on shutdown.
-func sleepCtx(ctx context.Context, d time.Duration) bool {
-	t := time.NewTimer(d)
-	defer t.Stop()
-	select {
-	case <-ctx.Done():
-		return false
-	case <-t.C:
-		return true
-	}
 }
 
 // sendClipReply posts the chat line announcing a freshly created clip through
