@@ -418,6 +418,9 @@ export const fr = {
     usage: 'Utilisation',
     preview: 'Aperçu',
     access: 'Accès',
-    cooldown: 'Délai'
+    cooldown: 'Délai',
+    replyMessage: 'Message de réponse',
+    replyHint: 'Laissez vide pour le message par défaut. {clip} = le lien du clip, {user} = le créateur, {target} = le titre.',
+    saveReply: 'Enregistrer'
   }
 } satisfies MessageTree;

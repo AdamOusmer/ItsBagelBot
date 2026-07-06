@@ -78,6 +78,25 @@ func TestClipEmitsWhenEnabled(t *testing.T) {
 	assert.Zero(t, o.Duration, "plain !clip leaves duration unset (Twitch default)")
 }
 
+func TestClipReplyTemplateFromConfig(t *testing.T) {
+	reader := clipReader{modules: []projection.ModuleView{
+		{Name: "clip", IsEnabled: true, Configs: []byte(`{"reply":"{user} clipped {clip}"}`)},
+	}}
+	cmd := clipCommand(t, engine.Deps{Proj: reader, Log: zap.NewNop()})
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), clipCtx(), "x", col.emit))
+	require.Len(t, col.out, 1)
+	assert.Equal(t, "{user} clipped {clip}", col.out[0].Template)
+}
+
+func TestClipNoTemplateWhenConfigEmpty(t *testing.T) {
+	cmd := clipCommand(t, engine.Deps{Proj: clipReader{}, Log: zap.NewNop()})
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), clipCtx(), "x", col.emit))
+	require.Len(t, col.out, 1)
+	assert.Empty(t, col.out[0].Template)
+}
+
 func TestClipDurationFromNumericSuffix(t *testing.T) {
 	cmd := clipCommand(t, engine.Deps{Proj: clipReader{}, Log: zap.NewNop()})
 	c := clipCtx()
