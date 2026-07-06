@@ -59,11 +59,14 @@ type Config struct {
 }
 
 // wireConfig is the JSON shape stored in the automod ModuleView.Configs blob.
+// The dashboard module form writes flat string values (one field per key, see
+// MODULE_CATALOG id "automod" in console/shared/lib/types.ts), so the term lists
+// are a single comma- or newline-separated string, not JSON arrays. The enable
+// toggle is NOT here: it is the module row's own is_enabled flag.
 type wireConfig struct {
-	Disabled   bool     `json:"disabled"`
-	Profile    string   `json:"profile"`
-	BlockTerms []string `json:"block_terms"`
-	AllowTerms []string `json:"allow_terms"`
+	Profile    string `json:"profile"`
+	BlockTerms string `json:"block_terms"`
+	AllowTerms string `json:"allow_terms"`
 }
 
 // ParseConfig decodes a ModuleView.Configs blob. An empty or malformed blob
@@ -78,11 +81,26 @@ func ParseConfig(raw json.RawMessage) *Config {
 		return nil
 	}
 	return &Config{
-		Disabled:   w.Disabled,
 		Profile:    parseProfile(w.Profile),
-		blockTerms: normalizeTerms(w.BlockTerms),
-		allowTerms: normalizeTerms(w.AllowTerms),
+		blockTerms: normalizeTerms(splitTerms(w.BlockTerms)),
+		allowTerms: normalizeTerms(splitTerms(w.AllowTerms)),
 	}
+}
+
+// splitTerms breaks a dashboard textarea value into individual terms: commas and
+// newlines both separate, surrounding whitespace is trimmed, empties dropped.
+func splitTerms(s string) []string {
+	if s == "" {
+		return nil
+	}
+	fields := strings.FieldsFunc(s, func(r rune) bool { return r == ',' || r == '\n' || r == '\r' })
+	out := fields[:0]
+	for _, f := range fields {
+		if f = strings.TrimSpace(f); f != "" {
+			out = append(out, f)
+		}
+	}
+	return out
 }
 
 // normalizeTerms folds each term into the skeleton space (NFKC + confusable fold

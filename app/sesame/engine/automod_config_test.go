@@ -1,10 +1,12 @@
 package engine
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
 	"ItsBagelBot/app/sesame/automod"
+	"ItsBagelBot/app/sesame/module"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/projection"
 
@@ -13,52 +15,81 @@ import (
 	"go.uber.org/zap"
 )
 
-func configPipeline(pub *fakePublisher, reader projection.Reader, wantConfig bool) *Pipeline {
+// automodTestModule mirrors modules.Automod (which engine tests cannot import:
+// modules imports engine): a named KindDefault module with a no-op chat handler,
+// whose registration is what makes the registry fetch ModuleViews for chat so the
+// pipeline can read the "automod" row.
+func automodTestModule() module.Module {
+	m := module.NewModule("automod", module.KindDefault)
+	m.On(chatType, func(context.Context, *module.Context, module.Emit) error { return nil })
+	return m.Build()
+}
+
+func configPipeline(pub *fakePublisher, reader projection.Reader) *Pipeline {
 	d := Deps{
 		Proj: reader, Live: liveAlways{}, Cooldown: NoopCooldown{},
 		Pub: pub, Log: zap.NewNop(), Automod: automod.New(),
 	}
-	cfg := Config{
-		OutgressPremium: premiumSubj, OutgressStandard: standardSubj,
-		AutomodEnforce: true, AutomodConfig: wantConfig,
-	}
-	return NewPipeline(d, NewRegistry(zap.NewNop()), cfg)
+	cfg := Config{OutgressPremium: premiumSubj, OutgressStandard: standardSubj, AutomodEnforce: true}
+	return NewPipeline(d, NewRegistry(zap.NewNop(), automodTestModule()), cfg)
 }
 
 // A broadcaster who disabled the automod module opts the gate out end-to-end: an
 // IP-logger line that would otherwise be a floor timeout produces no action.
-func TestAutomodConfigDisabledSuppressesFloor(t *testing.T) {
+func TestAutomodModuleDisabledSuppressesFloor(t *testing.T) {
 	reader := fakeReader{modules: []projection.ModuleView{{Name: "automod", IsEnabled: false}}}
 	pub := &fakePublisher{}
-	p := configPipeline(pub, reader, true)
+	p := configPipeline(pub, reader)
 
 	require.NoError(t, p.Process(ipLoggerChat(t)))
-	assert.Empty(t, pub.got, "a channel that disabled automod takes no action")
+	assert.Empty(t, pub.got, "a channel that disabled the automod module takes no action")
 }
 
-// With the config flag off, the same disabled row is never fetched, so the gate
-// runs the global default and the floor still fires.
-func TestAutomodConfigIgnoredWhenFlagOff(t *testing.T) {
-	reader := fakeReader{modules: []projection.ModuleView{{Name: "automod", IsEnabled: false}}}
+// No row for the channel = KindDefault ships enabled: the gate runs the global
+// default and the floor acts.
+func TestAutomodModuleAbsentRowActs(t *testing.T) {
+	reader := fakeReader{} // no module rows at all
 	pub := &fakePublisher{}
-	p := configPipeline(pub, reader, false)
+	p := configPipeline(pub, reader)
 
 	require.NoError(t, p.Process(ipLoggerChat(t)))
-	require.Len(t, pub.got, 1, "config off: the disabled row is ignored, floor still acts")
+	require.Len(t, pub.got, 1, "no row means enabled by default")
 	assert.Equal(t, outgress.TypeTimeout, pub.got[0].msg.Type)
 }
 
-// An enabled automod row runs the gate normally.
-func TestAutomodConfigEnabledRowActs(t *testing.T) {
+// An enabled automod row with a config blob runs the gate under it.
+func TestAutomodModuleEnabledRowActs(t *testing.T) {
 	reader := fakeReader{modules: []projection.ModuleView{
 		{Name: "automod", IsEnabled: true, Configs: json.RawMessage(`{"profile":"moderate"}`)},
 	}}
 	pub := &fakePublisher{}
-	p := configPipeline(pub, reader, true)
+	p := configPipeline(pub, reader)
 
 	require.NoError(t, p.Process(ipLoggerChat(t)))
 	require.Len(t, pub.got, 1, "enabled automod acts on the floor")
 	assert.Equal(t, outgress.TypeTimeout, pub.got[0].msg.Type)
+}
+
+// The profile stored in the row reaches the gate: under "adult" the floor still
+// acts (immovable) while a caps-only line passes; both behaviors flow from the
+// same fetched row.
+func TestAutomodModuleProfileReachesGate(t *testing.T) {
+	reader := fakeReader{modules: []projection.ModuleView{
+		{Name: "automod", IsEnabled: true, Configs: json.RawMessage(`{"profile":"adult"}`)},
+	}}
+
+	// Caps-only shouting: adult profile drops the nag, nothing emitted.
+	pub := &fakePublisher{}
+	p := configPipeline(pub, reader)
+	require.NoError(t, p.Process(chatMsg(t, "standard", "STOP SCREAMING IN CHAT RIGHT NOW PLEASE")))
+	assert.Empty(t, pub.got, "adult profile drops the caps nag for this channel")
+
+	// The floor is immovable under the same row.
+	pub2 := &fakePublisher{}
+	p2 := configPipeline(pub2, reader)
+	require.NoError(t, p2.Process(ipLoggerChat(t)))
+	require.Len(t, pub2.got, 1, "the floor still acts under the adult profile")
+	assert.Equal(t, outgress.TypeTimeout, pub2.got[0].msg.Type)
 }
 
 func TestAutomodConfigFrom(t *testing.T) {
