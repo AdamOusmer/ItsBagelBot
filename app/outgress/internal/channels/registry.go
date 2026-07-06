@@ -43,6 +43,15 @@ const (
 	pauseReadTimeout       = 750 * time.Millisecond
 )
 
+// The per-pod channel cache only needs the working set of channels this pod is
+// actively sending to; Valkey remains authoritative and NATS invalidation keeps
+// hits coherent. A short TTL lets channels that stop chatting leave memory
+// instead of sitting resident for a day.
+const (
+	channelCacheCapacity = 4096
+	channelCacheTTL      = 6 * time.Hour
+)
+
 var ErrPauseStateUnavailable = errors.New("outgress pause state is unavailable or stale")
 
 type pauseSnapshot struct {
@@ -74,14 +83,13 @@ type Registry struct {
 func New(client valkey.Client) *Registry {
 	return &Registry{
 		client: client,
-		cache:  cache.New[manage.Channel](10000, 24*time.Hour),
+		cache:  cache.New[manage.Channel](channelCacheCapacity, channelCacheTTL),
 	}
 }
 
 // StartInvalidationListener keeps the per-pod channel caches coherent. Valkey
 // is authoritative, but without this broadcast one replica can retain a stale
-// moderator status for the cache's full 24-hour TTL after another replica
-// refreshes it.
+// moderator status for the cache's full TTL after another replica refreshes it.
 func (r *Registry) StartInvalidationListener(nc *nats.Conn, prefix string, log *zap.Logger) error {
 	r.nc = nc
 	r.invalidatePrefix = prefix
