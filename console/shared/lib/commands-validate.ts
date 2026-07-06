@@ -26,8 +26,16 @@ export function normName(s: string): string {
 export function responseLines(response: string): string[] {
   return response
     .split(/\r\n|\r|\n/)
-    .map((l) => l.replace(/[ \t]+$/, ''))
+    .map(trimLineEnd)
     .filter((l) => l !== '');
+}
+
+// Linear-time right-trim of spaces/tabs (mirrors Go's TrimRight(" \t")); a
+// trailing-whitespace regex backtracks polynomially on adversarial input.
+function trimLineEnd(line: string): string {
+  let end = line.length;
+  while (end > 0 && (line[end - 1] === ' ' || line[end - 1] === '\t')) end--;
+  return line.slice(0, end);
 }
 
 export interface CommandFields {
