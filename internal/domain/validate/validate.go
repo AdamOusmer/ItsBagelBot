@@ -18,12 +18,17 @@ const (
 	maxEmailLength         = 254 // RFC 5321
 	maxCommandNameLength   = 64
 	maxCommandAliases      = 25
-	maxResponseLength      = 500   // Twitch chat message limit
+	maxResponseLineLength  = 500   // Twitch chat message limit, per line
 	maxCooldownSeconds     = 86400 // one day; guards against absurd values
 	maxModuleNameLength    = 64
 	maxConfigsBytes        = 16 << 10
 	maxTokenBytes          = 8 << 10
 )
+
+// MaxResponseLines caps how many chat messages one command response may fan
+// out into: the response is newline-delimited and the bot sends one message
+// per line. Exported so the worker can enforce the same ceiling at emit time.
+const MaxResponseLines = 5
 
 var (
 	ErrUserIDZero      = errors.New("user id must not be zero")
@@ -31,7 +36,7 @@ var (
 	ErrEmailInvalid    = errors.New("email address is not valid")
 	ErrCommandName     = errors.New("command name must be 1-64 printable ASCII characters without spaces")
 	ErrCommandAliases  = errors.New("aliases must each be a valid command name, unique, and at most 25 in total")
-	ErrResponseInvalid = errors.New("command response must be 1-500 characters without control characters")
+	ErrResponseInvalid = errors.New("command response must be 1-5 lines, each 1-500 characters without control characters")
 	ErrPermInvalid     = errors.New("perm must be one of everyone, sub, vip, mod, lead_mod, broadcaster")
 	ErrCooldownInvalid = errors.New("cooldown must be between 0 and 86400 seconds")
 	ErrModuleName      = errors.New("module name must be 1-64 characters of [a-z0-9_-]")
@@ -122,15 +127,30 @@ func CommandAliases(aliases []string) error {
 	return nil
 }
 
+// CommandResponse checks a newline-delimited command response: at most
+// MaxResponseLines lines, each line 1-500 characters with no control
+// characters. The bot sends one chat message per line, so each line is held
+// to the single-message limit. Callers normalize first (CRLF folded to LF,
+// blank lines dropped), so a blank line here is a hard error, not noise.
 func CommandResponse(response string) error {
 
-	if len(response) == 0 || len(response) > maxResponseLength {
+	if len(response) == 0 {
 		return ErrResponseInvalid
 	}
 
-	for _, r := range response {
-		if r < ' ' { // control characters, including CR/LF
+	lines := strings.Split(response, "\n")
+	if len(lines) > MaxResponseLines {
+		return ErrResponseInvalid
+	}
+
+	for _, line := range lines {
+		if len(line) == 0 || len(line) > maxResponseLineLength {
 			return ErrResponseInvalid
+		}
+		for _, r := range line {
+			if r < ' ' { // control characters, including CR
+				return ErrResponseInvalid
+			}
 		}
 	}
 

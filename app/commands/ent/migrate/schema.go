@@ -14,7 +14,7 @@ var (
 		{Name: "user_id", Type: field.TypeUint64},
 		{Name: "name", Type: field.TypeString},
 		{Name: "aliases", Type: field.TypeJSON, Nullable: true},
-		{Name: "response", Type: field.TypeString},
+		{Name: "response", Type: field.TypeString, Size: 2504},
 		{Name: "is_active", Type: field.TypeBool, Default: true},
 		{Name: "stream_online_only", Type: field.TypeBool, Default: false},
 		{Name: "perm", Type: field.TypeString, Default: "everyone"},
