@@ -9,6 +9,7 @@ import (
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/domain/event/twitch"
 	"ItsBagelBot/internal/domain/invalidate"
+	livekey "ItsBagelBot/internal/domain/live"
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/internal/projection"
 
@@ -243,6 +244,15 @@ func (p *Projector) HandleStreamEvent(msg *message.Message) error {
 		return err
 	}
 
+	// Fan the live change to every live-cache holder (sesame's per-replica bool
+	// cache) so a go-live/go-offline is reflected immediately instead of only on
+	// the cache's short TTL. Without this the projection is fresh but sesame keeps
+	// serving its cached (often stale-offline) answer until the entry lapses. Both
+	// directions invalidate: online and offline. Best effort — the projection is
+	// already written, so a missed ping only delays visibility until the TTL and
+	// the cold-key RPC that reads this same state.
+	p.broadcastLiveInvalidate(st.BroadcasterID)
+
 	if !st.Live {
 		return nil
 	}
@@ -250,4 +260,18 @@ func (p *Projector) HandleStreamEvent(msg *message.Message) error {
 	p.log.Info("refreshing settings cache for stream online", zap.Uint64("user_id", st.BroadcasterID))
 	p.hydrator.RefreshAsync(st.BroadcasterID)
 	return nil
+}
+
+// broadcastLiveInvalidate fans a live-state change over the console cache bus on
+// the "live" scope sesame's invalidation listener subscribes to, so every sesame
+// replica drops its cached live bool and re-reads the freshly projected state.
+// Best effort: Valkey is already written, so a missed ping only delays visibility
+// until the cache TTL lapses.
+func (p *Projector) broadcastLiveInvalidate(userID uint64) {
+	if p.nc == nil || p.cacheInvalidatePrefix == "" {
+		return
+	}
+	if err := invalidate.Publish(p.nc, p.cacheInvalidatePrefix, livekey.InvalidateScope, strconv.FormatUint(userID, 10)); err != nil {
+		p.log.Warn("failed to broadcast live invalidation", zap.Uint64("user_id", userID), zap.Error(err))
+	}
 }
