@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 )
@@ -18,6 +19,7 @@ type ModulesCreate struct {
 	config
 	mutation *ModulesMutation
 	hooks    []Hook
+	conflict []sql.ConflictOption
 }
 
 // SetUserID sets the "user_id" field.
@@ -156,6 +158,7 @@ func (_c *ModulesCreate) createSpec() (*Modules, *sqlgraph.CreateSpec) {
 		_node = &Modules{config: _c.config}
 		_spec = sqlgraph.NewCreateSpec(modules.Table, sqlgraph.NewFieldSpec(modules.FieldID, field.TypeInt))
 	)
+	_spec.OnConflict = _c.conflict
 	if value, ok := _c.mutation.UserID(); ok {
 		_spec.SetField(modules.FieldUserID, field.TypeUint64, value)
 		_node.UserID = value
@@ -179,11 +182,256 @@ func (_c *ModulesCreate) createSpec() (*Modules, *sqlgraph.CreateSpec) {
 	return _node, _spec
 }
 
+// OnConflict allows configuring the `ON CONFLICT` / `ON DUPLICATE KEY` clause
+// of the `INSERT` statement. For example:
+//
+//	client.Modules.Create().
+//		SetUserID(v).
+//		OnConflict(
+//			// Update the row with the new values
+//			// the was proposed for insertion.
+//			sql.ResolveWithNewValues(),
+//		).
+//		// Override some of the fields with custom
+//		// update values.
+//		Update(func(u *ent.ModulesUpsert) {
+//			SetUserID(v+v).
+//		}).
+//		Exec(ctx)
+func (_c *ModulesCreate) OnConflict(opts ...sql.ConflictOption) *ModulesUpsertOne {
+	_c.conflict = opts
+	return &ModulesUpsertOne{
+		create: _c,
+	}
+}
+
+// OnConflictColumns calls `OnConflict` and configures the columns
+// as conflict target. Using this option is equivalent to using:
+//
+//	client.Modules.Create().
+//		OnConflict(sql.ConflictColumns(columns...)).
+//		Exec(ctx)
+func (_c *ModulesCreate) OnConflictColumns(columns ...string) *ModulesUpsertOne {
+	_c.conflict = append(_c.conflict, sql.ConflictColumns(columns...))
+	return &ModulesUpsertOne{
+		create: _c,
+	}
+}
+
+type (
+	// ModulesUpsertOne is the builder for "upsert"-ing
+	//  one Modules node.
+	ModulesUpsertOne struct {
+		create *ModulesCreate
+	}
+
+	// ModulesUpsert is the "OnConflict" setter.
+	ModulesUpsert struct {
+		*sql.UpdateSet
+	}
+)
+
+// SetName sets the "name" field.
+func (u *ModulesUpsert) SetName(v string) *ModulesUpsert {
+	u.Set(modules.FieldName, v)
+	return u
+}
+
+// UpdateName sets the "name" field to the value that was provided on create.
+func (u *ModulesUpsert) UpdateName() *ModulesUpsert {
+	u.SetExcluded(modules.FieldName)
+	return u
+}
+
+// SetIsEnabled sets the "is_enabled" field.
+func (u *ModulesUpsert) SetIsEnabled(v bool) *ModulesUpsert {
+	u.Set(modules.FieldIsEnabled, v)
+	return u
+}
+
+// UpdateIsEnabled sets the "is_enabled" field to the value that was provided on create.
+func (u *ModulesUpsert) UpdateIsEnabled() *ModulesUpsert {
+	u.SetExcluded(modules.FieldIsEnabled)
+	return u
+}
+
+// SetConfigs sets the "configs" field.
+func (u *ModulesUpsert) SetConfigs(v []uint8) *ModulesUpsert {
+	u.Set(modules.FieldConfigs, v)
+	return u
+}
+
+// UpdateConfigs sets the "configs" field to the value that was provided on create.
+func (u *ModulesUpsert) UpdateConfigs() *ModulesUpsert {
+	u.SetExcluded(modules.FieldConfigs)
+	return u
+}
+
+// ClearConfigs clears the value of the "configs" field.
+func (u *ModulesUpsert) ClearConfigs() *ModulesUpsert {
+	u.SetNull(modules.FieldConfigs)
+	return u
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (u *ModulesUpsert) SetUpdatedAt(v time.Time) *ModulesUpsert {
+	u.Set(modules.FieldUpdatedAt, v)
+	return u
+}
+
+// UpdateUpdatedAt sets the "updated_at" field to the value that was provided on create.
+func (u *ModulesUpsert) UpdateUpdatedAt() *ModulesUpsert {
+	u.SetExcluded(modules.FieldUpdatedAt)
+	return u
+}
+
+// UpdateNewValues updates the mutable fields using the new values that were set on create.
+// Using this option is equivalent to using:
+//
+//	client.Modules.Create().
+//		OnConflict(
+//			sql.ResolveWithNewValues(),
+//		).
+//		Exec(ctx)
+func (u *ModulesUpsertOne) UpdateNewValues() *ModulesUpsertOne {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWithNewValues())
+	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(s *sql.UpdateSet) {
+		if _, exists := u.create.mutation.UserID(); exists {
+			s.SetIgnore(modules.FieldUserID)
+		}
+	}))
+	return u
+}
+
+// Ignore sets each column to itself in case of conflict.
+// Using this option is equivalent to using:
+//
+//	client.Modules.Create().
+//	    OnConflict(sql.ResolveWithIgnore()).
+//	    Exec(ctx)
+func (u *ModulesUpsertOne) Ignore() *ModulesUpsertOne {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWithIgnore())
+	return u
+}
+
+// DoNothing configures the conflict_action to `DO NOTHING`.
+// Supported only by SQLite and PostgreSQL.
+func (u *ModulesUpsertOne) DoNothing() *ModulesUpsertOne {
+	u.create.conflict = append(u.create.conflict, sql.DoNothing())
+	return u
+}
+
+// Update allows overriding fields `UPDATE` values. See the ModulesCreate.OnConflict
+// documentation for more info.
+func (u *ModulesUpsertOne) Update(set func(*ModulesUpsert)) *ModulesUpsertOne {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(update *sql.UpdateSet) {
+		set(&ModulesUpsert{UpdateSet: update})
+	}))
+	return u
+}
+
+// SetName sets the "name" field.
+func (u *ModulesUpsertOne) SetName(v string) *ModulesUpsertOne {
+	return u.Update(func(s *ModulesUpsert) {
+		s.SetName(v)
+	})
+}
+
+// UpdateName sets the "name" field to the value that was provided on create.
+func (u *ModulesUpsertOne) UpdateName() *ModulesUpsertOne {
+	return u.Update(func(s *ModulesUpsert) {
+		s.UpdateName()
+	})
+}
+
+// SetIsEnabled sets the "is_enabled" field.
+func (u *ModulesUpsertOne) SetIsEnabled(v bool) *ModulesUpsertOne {
+	return u.Update(func(s *ModulesUpsert) {
+		s.SetIsEnabled(v)
+	})
+}
+
+// UpdateIsEnabled sets the "is_enabled" field to the value that was provided on create.
+func (u *ModulesUpsertOne) UpdateIsEnabled() *ModulesUpsertOne {
+	return u.Update(func(s *ModulesUpsert) {
+		s.UpdateIsEnabled()
+	})
+}
+
+// SetConfigs sets the "configs" field.
+func (u *ModulesUpsertOne) SetConfigs(v []uint8) *ModulesUpsertOne {
+	return u.Update(func(s *ModulesUpsert) {
+		s.SetConfigs(v)
+	})
+}
+
+// UpdateConfigs sets the "configs" field to the value that was provided on create.
+func (u *ModulesUpsertOne) UpdateConfigs() *ModulesUpsertOne {
+	return u.Update(func(s *ModulesUpsert) {
+		s.UpdateConfigs()
+	})
+}
+
+// ClearConfigs clears the value of the "configs" field.
+func (u *ModulesUpsertOne) ClearConfigs() *ModulesUpsertOne {
+	return u.Update(func(s *ModulesUpsert) {
+		s.ClearConfigs()
+	})
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (u *ModulesUpsertOne) SetUpdatedAt(v time.Time) *ModulesUpsertOne {
+	return u.Update(func(s *ModulesUpsert) {
+		s.SetUpdatedAt(v)
+	})
+}
+
+// UpdateUpdatedAt sets the "updated_at" field to the value that was provided on create.
+func (u *ModulesUpsertOne) UpdateUpdatedAt() *ModulesUpsertOne {
+	return u.Update(func(s *ModulesUpsert) {
+		s.UpdateUpdatedAt()
+	})
+}
+
+// Exec executes the query.
+func (u *ModulesUpsertOne) Exec(ctx context.Context) error {
+	if len(u.create.conflict) == 0 {
+		return errors.New("ent: missing options for ModulesCreate.OnConflict")
+	}
+	return u.create.Exec(ctx)
+}
+
+// ExecX is like Exec, but panics if an error occurs.
+func (u *ModulesUpsertOne) ExecX(ctx context.Context) {
+	if err := u.create.Exec(ctx); err != nil {
+		panic(err)
+	}
+}
+
+// Exec executes the UPSERT query and returns the inserted/updated ID.
+func (u *ModulesUpsertOne) ID(ctx context.Context) (id int, err error) {
+	node, err := u.create.Save(ctx)
+	if err != nil {
+		return id, err
+	}
+	return node.ID, nil
+}
+
+// IDX is like ID, but panics if an error occurs.
+func (u *ModulesUpsertOne) IDX(ctx context.Context) int {
+	id, err := u.ID(ctx)
+	if err != nil {
+		panic(err)
+	}
+	return id
+}
+
 // ModulesCreateBulk is the builder for creating many Modules entities in bulk.
 type ModulesCreateBulk struct {
 	config
 	err      error
 	builders []*ModulesCreate
+	conflict []sql.ConflictOption
 }
 
 // Save creates the Modules entities in the database.
@@ -213,6 +461,7 @@ func (_c *ModulesCreateBulk) Save(ctx context.Context) ([]*Modules, error) {
 					_, err = mutators[i+1].Mutate(root, _c.builders[i+1].mutation)
 				} else {
 					spec := &sqlgraph.BatchCreateSpec{Nodes: specs}
+					spec.OnConflict = _c.conflict
 					// Invoke the actual operation on the latest mutation in the chain.
 					if err = sqlgraph.BatchCreate(ctx, _c.driver, spec); err != nil {
 						if sqlgraph.IsConstraintError(err) {
@@ -263,6 +512,180 @@ func (_c *ModulesCreateBulk) Exec(ctx context.Context) error {
 // ExecX is like Exec, but panics if an error occurs.
 func (_c *ModulesCreateBulk) ExecX(ctx context.Context) {
 	if err := _c.Exec(ctx); err != nil {
+		panic(err)
+	}
+}
+
+// OnConflict allows configuring the `ON CONFLICT` / `ON DUPLICATE KEY` clause
+// of the `INSERT` statement. For example:
+//
+//	client.Modules.CreateBulk(builders...).
+//		OnConflict(
+//			// Update the row with the new values
+//			// the was proposed for insertion.
+//			sql.ResolveWithNewValues(),
+//		).
+//		// Override some of the fields with custom
+//		// update values.
+//		Update(func(u *ent.ModulesUpsert) {
+//			SetUserID(v+v).
+//		}).
+//		Exec(ctx)
+func (_c *ModulesCreateBulk) OnConflict(opts ...sql.ConflictOption) *ModulesUpsertBulk {
+	_c.conflict = opts
+	return &ModulesUpsertBulk{
+		create: _c,
+	}
+}
+
+// OnConflictColumns calls `OnConflict` and configures the columns
+// as conflict target. Using this option is equivalent to using:
+//
+//	client.Modules.Create().
+//		OnConflict(sql.ConflictColumns(columns...)).
+//		Exec(ctx)
+func (_c *ModulesCreateBulk) OnConflictColumns(columns ...string) *ModulesUpsertBulk {
+	_c.conflict = append(_c.conflict, sql.ConflictColumns(columns...))
+	return &ModulesUpsertBulk{
+		create: _c,
+	}
+}
+
+// ModulesUpsertBulk is the builder for "upsert"-ing
+// a bulk of Modules nodes.
+type ModulesUpsertBulk struct {
+	create *ModulesCreateBulk
+}
+
+// UpdateNewValues updates the mutable fields using the new values that
+// were set on create. Using this option is equivalent to using:
+//
+//	client.Modules.Create().
+//		OnConflict(
+//			sql.ResolveWithNewValues(),
+//		).
+//		Exec(ctx)
+func (u *ModulesUpsertBulk) UpdateNewValues() *ModulesUpsertBulk {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWithNewValues())
+	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(s *sql.UpdateSet) {
+		for _, b := range u.create.builders {
+			if _, exists := b.mutation.UserID(); exists {
+				s.SetIgnore(modules.FieldUserID)
+			}
+		}
+	}))
+	return u
+}
+
+// Ignore sets each column to itself in case of conflict.
+// Using this option is equivalent to using:
+//
+//	client.Modules.Create().
+//		OnConflict(sql.ResolveWithIgnore()).
+//		Exec(ctx)
+func (u *ModulesUpsertBulk) Ignore() *ModulesUpsertBulk {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWithIgnore())
+	return u
+}
+
+// DoNothing configures the conflict_action to `DO NOTHING`.
+// Supported only by SQLite and PostgreSQL.
+func (u *ModulesUpsertBulk) DoNothing() *ModulesUpsertBulk {
+	u.create.conflict = append(u.create.conflict, sql.DoNothing())
+	return u
+}
+
+// Update allows overriding fields `UPDATE` values. See the ModulesCreateBulk.OnConflict
+// documentation for more info.
+func (u *ModulesUpsertBulk) Update(set func(*ModulesUpsert)) *ModulesUpsertBulk {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(update *sql.UpdateSet) {
+		set(&ModulesUpsert{UpdateSet: update})
+	}))
+	return u
+}
+
+// SetName sets the "name" field.
+func (u *ModulesUpsertBulk) SetName(v string) *ModulesUpsertBulk {
+	return u.Update(func(s *ModulesUpsert) {
+		s.SetName(v)
+	})
+}
+
+// UpdateName sets the "name" field to the value that was provided on create.
+func (u *ModulesUpsertBulk) UpdateName() *ModulesUpsertBulk {
+	return u.Update(func(s *ModulesUpsert) {
+		s.UpdateName()
+	})
+}
+
+// SetIsEnabled sets the "is_enabled" field.
+func (u *ModulesUpsertBulk) SetIsEnabled(v bool) *ModulesUpsertBulk {
+	return u.Update(func(s *ModulesUpsert) {
+		s.SetIsEnabled(v)
+	})
+}
+
+// UpdateIsEnabled sets the "is_enabled" field to the value that was provided on create.
+func (u *ModulesUpsertBulk) UpdateIsEnabled() *ModulesUpsertBulk {
+	return u.Update(func(s *ModulesUpsert) {
+		s.UpdateIsEnabled()
+	})
+}
+
+// SetConfigs sets the "configs" field.
+func (u *ModulesUpsertBulk) SetConfigs(v []uint8) *ModulesUpsertBulk {
+	return u.Update(func(s *ModulesUpsert) {
+		s.SetConfigs(v)
+	})
+}
+
+// UpdateConfigs sets the "configs" field to the value that was provided on create.
+func (u *ModulesUpsertBulk) UpdateConfigs() *ModulesUpsertBulk {
+	return u.Update(func(s *ModulesUpsert) {
+		s.UpdateConfigs()
+	})
+}
+
+// ClearConfigs clears the value of the "configs" field.
+func (u *ModulesUpsertBulk) ClearConfigs() *ModulesUpsertBulk {
+	return u.Update(func(s *ModulesUpsert) {
+		s.ClearConfigs()
+	})
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (u *ModulesUpsertBulk) SetUpdatedAt(v time.Time) *ModulesUpsertBulk {
+	return u.Update(func(s *ModulesUpsert) {
+		s.SetUpdatedAt(v)
+	})
+}
+
+// UpdateUpdatedAt sets the "updated_at" field to the value that was provided on create.
+func (u *ModulesUpsertBulk) UpdateUpdatedAt() *ModulesUpsertBulk {
+	return u.Update(func(s *ModulesUpsert) {
+		s.UpdateUpdatedAt()
+	})
+}
+
+// Exec executes the query.
+func (u *ModulesUpsertBulk) Exec(ctx context.Context) error {
+	if u.create.err != nil {
+		return u.create.err
+	}
+	for i, b := range u.create.builders {
+		if len(b.conflict) != 0 {
+			return fmt.Errorf("ent: OnConflict was set for builder %d. Set it on the ModulesCreateBulk instead", i)
+		}
+	}
+	if len(u.create.conflict) == 0 {
+		return errors.New("ent: missing options for ModulesCreateBulk.OnConflict")
+	}
+	return u.create.Exec(ctx)
+}
+
+// ExecX is like Exec, but panics if an error occurs.
+func (u *ModulesUpsertBulk) ExecX(ctx context.Context) {
+	if err := u.create.Exec(ctx); err != nil {
 		panic(err)
 	}
 }

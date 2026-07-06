@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"ItsBagelBot/app/commands/ent"
@@ -17,6 +18,8 @@ import (
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/cache"
 	"ItsBagelBot/pkg/db"
+
+	entsql "entgo.io/ent/dialect/sql"
 
 	"github.com/ThreeDotsLabs/watermill/message"
 
@@ -95,6 +98,11 @@ type Commands struct {
 	usesPend   map[commandKey]uint64
 	usesTicker *time.Ticker
 	usesDone   chan struct{}
+
+	// Single-flight guard for the overflow-triggered flush: a viral chat can
+	// trip the key cap on every RecordUse, and each trip must not spawn
+	// another concurrent flush goroutine.
+	usesFlushing atomic.Bool
 }
 
 func NewCommands(client *ent.Client, pub message.Publisher, app *newrelic.Application, log *zap.Logger) *Commands {
@@ -375,8 +383,11 @@ func (r *Commands) RecordUse(userID uint64, name string, count uint64) {
 	r.usesPend[commandKey{userID: userID, name: name}] += count
 	overflow := len(r.usesPend) >= usesFlushMaxKeys
 	r.usesMu.Unlock()
-	if overflow {
-		go r.flushUses(context.Background())
+	if overflow && r.usesFlushing.CompareAndSwap(false, true) {
+		go func() {
+			defer r.usesFlushing.Store(false)
+			r.flushUses(context.Background())
+		}()
 	}
 }
 
@@ -531,34 +542,27 @@ func (r *Commands) flush(ctx context.Context, items []data.CommandChangedDTO) er
 
 	ctx = newrelic.NewContext(ctx, txn)
 
+	// Fast path: the whole window lands as one INSERT ... ON DUPLICATE KEY
+	// UPDATE. If that statement fails, fall back to per-item writes so one
+	// unpersistable row cannot wedge the entire batch in the retry loop
+	// forever (the old whole-batch rollback + requeue did exactly that).
+	landed := items
 	if err := db.WithExec(ctx, func(ctx context.Context) error {
-		tx, err := r.client.Tx(ctx)
-		if err != nil {
-			return err
-		}
-
-		for _, item := range items {
-			if err := upsertCommand(ctx, tx, item); err != nil {
-				_ = tx.Rollback()
-				txn.NoticeError(err)
-				return err
-			}
-		}
-
-		if err := tx.Commit(); err != nil {
-			txn.NoticeError(err)
-			return err
-		}
-		return nil
+		return bulkUpsertCommands(ctx, r.client, items)
 	}); err != nil {
-		return err
+		txn.NoticeError(err)
+		landed = r.upsertEach(ctx, txn, items)
+	}
+
+	if len(landed) == 0 {
+		return nil
 	}
 
 	// Publish DB truth rather than the queued edit: the row keeps counters the
 	// edit never carried (uses), and event-carried state transfer must not
 	// regress them in the projection.
-	keys := make([]commandKey, 0, len(items))
-	for _, item := range items {
+	keys := make([]commandKey, 0, len(landed))
+	for _, item := range landed {
 		keys = append(keys, commandKey{userID: item.UserID, name: item.Name})
 	}
 	states, serr := r.rowStates(ctx, keys)
@@ -566,7 +570,7 @@ func (r *Commands) flush(ctx context.Context, items []data.CommandChangedDTO) er
 		r.log.Warn("failed to reload rows after flush; publishing queued state", zap.Error(serr))
 	}
 
-	for _, item := range items {
+	for _, item := range landed {
 
 		r.Invalidate(item.UserID)
 
@@ -586,9 +590,82 @@ func (r *Commands) flush(ctx context.Context, items []data.CommandChangedDTO) er
 	return nil
 }
 
-func upsertCommand(ctx context.Context, tx *ent.Tx, item data.CommandChangedDTO) error {
+// bulkUpsertCommands lands one flush window as a single
+// INSERT ... ON DUPLICATE KEY UPDATE keyed on the (user_id, name) unique
+// index. Only the edit-owned columns are updated on conflict: `uses` belongs
+// to the counter flush and created_at to the original insert, and neither
+// must be regressed by an edit.
+func bulkUpsertCommands(ctx context.Context, client *ent.Client, items []data.CommandChangedDTO) error {
 
-	updated, err := tx.Commands.Update().
+	builders := make([]*ent.CommandsCreate, 0, len(items))
+	for _, item := range items {
+		builders = append(builders, client.Commands.Create().
+			SetUserID(item.UserID).
+			SetName(item.Name).
+			SetAliases(item.Aliases).
+			SetResponse(item.Response).
+			SetIsActive(item.IsActive).
+			SetStreamOnlineOnly(item.StreamOnlineOnly).
+			SetPerm(item.Perm).
+			SetCooldown(item.Cooldown).
+			SetAllowedUserID(item.AllowedUserID))
+	}
+
+	// MySQL ignores the conflict target (ON DUPLICATE KEY UPDATE is index-less);
+	// SQLite (tests) requires it.
+	return client.Commands.CreateBulk(builders...).
+		OnConflict(entsql.ConflictColumns(commands.FieldUserID, commands.FieldName)).
+		Update(func(u *ent.CommandsUpsert) {
+			u.UpdateAliases()
+			u.UpdateResponse()
+			u.UpdateIsActive()
+			u.UpdateStreamOnlineOnly()
+			u.UpdatePerm()
+			u.UpdateCooldown()
+			u.UpdateAllowedUserID()
+			u.UpdateUpdatedAt()
+		}).
+		Exec(ctx)
+}
+
+// upsertEach persists a failed window one item at a time and returns the
+// items that landed. Rows the database will never accept (validation or
+// constraint errors) are dropped with an error log; transiently failing rows
+// are requeued into the batcher so the next window retries them without
+// holding the rest of the batch hostage.
+func (r *Commands) upsertEach(ctx context.Context, txn *newrelic.Transaction, items []data.CommandChangedDTO) []data.CommandChangedDTO {
+
+	landed := make([]data.CommandChangedDTO, 0, len(items))
+	for _, item := range items {
+		err := db.WithExec(ctx, func(ctx context.Context) error {
+			return upsertCommand(ctx, r.client.Commands, item)
+		})
+		if err == nil {
+			landed = append(landed, item)
+			continue
+		}
+		txn.NoticeError(err)
+		if ent.IsValidationError(err) || ent.IsConstraintError(err) {
+			r.log.Error("dropping unpersistable command edit",
+				zap.Uint64("user_id", item.UserID),
+				zap.String("command", item.Name),
+				zap.Error(err),
+			)
+			continue
+		}
+		r.log.Warn("requeueing command edit after transient flush failure",
+			zap.Uint64("user_id", item.UserID),
+			zap.String("command", item.Name),
+			zap.Error(err),
+		)
+		r.batcher.Requeue(commandKey{userID: item.UserID, name: item.Name}, item)
+	}
+	return landed
+}
+
+func upsertCommand(ctx context.Context, c *ent.CommandsClient, item data.CommandChangedDTO) error {
+
+	updated, err := c.Update().
 		Where(
 			commands.UserIDEQ(item.UserID),
 			commands.NameEQ(item.Name),
@@ -609,7 +686,7 @@ func upsertCommand(ctx context.Context, tx *ent.Tx, item data.CommandChangedDTO)
 		return nil
 	}
 
-	if err := tx.Commands.Create().
+	if err := c.Create().
 		SetUserID(item.UserID).
 		SetName(item.Name).
 		SetAliases(item.Aliases).
@@ -621,7 +698,7 @@ func upsertCommand(ctx context.Context, tx *ent.Tx, item data.CommandChangedDTO)
 		SetAllowedUserID(item.AllowedUserID).
 		Exec(ctx); err != nil {
 		if ent.IsConstraintError(err) {
-			_, err = tx.Commands.Update().
+			_, err = c.Update().
 				Where(
 					commands.UserIDEQ(item.UserID),
 					commands.NameEQ(item.Name),

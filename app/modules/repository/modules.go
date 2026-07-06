@@ -15,6 +15,8 @@ import (
 	"ItsBagelBot/pkg/cache"
 	"ItsBagelBot/pkg/db"
 
+	entsql "entgo.io/ent/dialect/sql"
+
 	"github.com/ThreeDotsLabs/watermill/message"
 
 	"github.com/newrelic/go-agent/v3/newrelic"
@@ -190,9 +192,9 @@ func (r *Modules) Close(ctx context.Context) {
 	r.views.Close()
 }
 
-// flush lands one window of coalesced changes in a single transaction, then
-// invalidates the local cache and announces every change on the bus. It runs
-// detached from any request, so it reports as its own background transaction.
+// flush lands one window of coalesced changes, then invalidates the local
+// cache and announces every landed change on the bus. It runs detached from
+// any request, so it reports as its own background transaction.
 func (r *Modules) flush(ctx context.Context, items []data.ModuleChangedDTO) error {
 
 	txn := r.app.StartTransaction("flush modules")
@@ -200,30 +202,19 @@ func (r *Modules) flush(ctx context.Context, items []data.ModuleChangedDTO) erro
 
 	ctx = newrelic.NewContext(ctx, txn)
 
+	// Fast path: the whole window lands as one INSERT ... ON DUPLICATE KEY
+	// UPDATE. If that statement fails, fall back to per-item writes so one
+	// unpersistable row cannot wedge the entire batch in the retry loop
+	// forever (the old whole-batch rollback + requeue did exactly that).
+	landed := items
 	if err := db.WithExec(ctx, func(ctx context.Context) error {
-		tx, err := r.client.Tx(ctx)
-		if err != nil {
-			return err
-		}
-
-		for _, item := range items {
-			if err := upsertModule(ctx, tx, item); err != nil {
-				_ = tx.Rollback()
-				txn.NoticeError(err)
-				return err
-			}
-		}
-
-		if err := tx.Commit(); err != nil {
-			txn.NoticeError(err)
-			return err
-		}
-		return nil
+		return bulkUpsertModules(ctx, r.client, items)
 	}); err != nil {
-		return err
+		txn.NoticeError(err)
+		landed = r.upsertEach(ctx, txn, items)
 	}
 
-	for _, item := range items {
+	for _, item := range landed {
 
 		r.Invalidate(item.UserID)
 
@@ -241,9 +232,69 @@ func (r *Modules) flush(ctx context.Context, items []data.ModuleChangedDTO) erro
 	return nil
 }
 
-func upsertModule(ctx context.Context, tx *ent.Tx, item data.ModuleChangedDTO) error {
+// bulkUpsertModules lands one flush window as a single
+// INSERT ... ON DUPLICATE KEY UPDATE keyed on the (user_id, name) unique index.
+func bulkUpsertModules(ctx context.Context, client *ent.Client, items []data.ModuleChangedDTO) error {
 
-	updated, err := tx.Modules.Update().
+	builders := make([]*ent.ModulesCreate, 0, len(items))
+	for _, item := range items {
+		builders = append(builders, client.Modules.Create().
+			SetUserID(item.UserID).
+			SetName(item.Name).
+			SetIsEnabled(item.IsEnabled).
+			SetConfigs(item.Configs))
+	}
+
+	// MySQL ignores the conflict target (ON DUPLICATE KEY UPDATE is index-less);
+	// SQLite (tests) requires it.
+	return client.Modules.CreateBulk(builders...).
+		OnConflict(entsql.ConflictColumns(modules.FieldUserID, modules.FieldName)).
+		Update(func(u *ent.ModulesUpsert) {
+			u.UpdateIsEnabled()
+			u.UpdateConfigs()
+			u.UpdateUpdatedAt()
+		}).
+		Exec(ctx)
+}
+
+// upsertEach persists a failed window one item at a time and returns the
+// items that landed. Rows the database will never accept (validation or
+// constraint errors) are dropped with an error log; transiently failing rows
+// are requeued into the batcher so the next window retries them without
+// holding the rest of the batch hostage.
+func (r *Modules) upsertEach(ctx context.Context, txn *newrelic.Transaction, items []data.ModuleChangedDTO) []data.ModuleChangedDTO {
+
+	landed := make([]data.ModuleChangedDTO, 0, len(items))
+	for _, item := range items {
+		err := db.WithExec(ctx, func(ctx context.Context) error {
+			return upsertModule(ctx, r.client.Modules, item)
+		})
+		if err == nil {
+			landed = append(landed, item)
+			continue
+		}
+		txn.NoticeError(err)
+		if ent.IsValidationError(err) || ent.IsConstraintError(err) {
+			r.log.Error("dropping unpersistable module change",
+				zap.Uint64("user_id", item.UserID),
+				zap.String("module", item.Name),
+				zap.Error(err),
+			)
+			continue
+		}
+		r.log.Warn("requeueing module change after transient flush failure",
+			zap.Uint64("user_id", item.UserID),
+			zap.String("module", item.Name),
+			zap.Error(err),
+		)
+		r.batcher.Requeue(moduleKey{userID: item.UserID, name: item.Name}, item)
+	}
+	return landed
+}
+
+func upsertModule(ctx context.Context, c *ent.ModulesClient, item data.ModuleChangedDTO) error {
+
+	updated, err := c.Update().
 		Where(
 			modules.UserIDEQ(item.UserID),
 			modules.NameEQ(item.Name),
@@ -259,14 +310,14 @@ func upsertModule(ctx context.Context, tx *ent.Tx, item data.ModuleChangedDTO) e
 		return nil
 	}
 
-	if err := tx.Modules.Create().
+	if err := c.Create().
 		SetUserID(item.UserID).
 		SetName(item.Name).
 		SetIsEnabled(item.IsEnabled).
 		SetConfigs(item.Configs).
 		Exec(ctx); err != nil {
 		if ent.IsConstraintError(err) {
-			_, err = tx.Modules.Update().
+			_, err = c.Update().
 				Where(
 					modules.UserIDEQ(item.UserID),
 					modules.NameEQ(item.Name),
