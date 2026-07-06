@@ -1310,6 +1310,12 @@ func sleepCtx(ctx context.Context, d time.Duration) bool {
 // the normal chat path (rate buckets, sender-id injection). Its error is only
 // for the caller to log; the clip already exists, so the caller must not
 // redeliver on a reply failure.
+//
+// processChat runs the send with payload.Endpoint/Method/As already resolved: on
+// the normal chat path the dispatcher fills them from typeRoutes before calling
+// it. This synthetic reply bypasses the dispatcher, so it must set the same chat
+// route itself — otherwise the request goes out with an empty endpoint/method
+// and Twitch's edge rejects it (403).
 func (w *Worker) sendClipReply(ctx context.Context, broadcasterID string, meta clipMeta, clipURL string) error {
 	body, err := sonic.Marshal(struct {
 		BroadcasterID string `json:"broadcaster_id"`
@@ -1318,9 +1324,13 @@ func (w *Worker) sendClipReply(ctx context.Context, broadcasterID string, meta c
 	if err != nil {
 		return err
 	}
+	route := typeRoutes[outgress.TypeChat]
 	return w.processChat(ctx, outgress.Message{
 		Type:          outgress.TypeChat,
 		BroadcasterID: broadcasterID,
+		Endpoint:      route.endpoint,
+		Method:        route.method,
+		As:            route.as,
 		Payload:       body,
 	})
 }
