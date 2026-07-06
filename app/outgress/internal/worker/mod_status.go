@@ -17,6 +17,9 @@ const (
 	modCheckTimeout      = 15 * time.Second
 	modCheckErrorBackoff = 5 * time.Minute
 	maxConcurrentChecks  = 4
+	// backoffPruneAbove bounds the backoff map: entries for channels that never
+	// chat again would otherwise accumulate for the life of the process.
+	backoffPruneAbove = 1024
 )
 
 // ModVerifier keeps moderator discovery off the latency-sensitive chat path.
@@ -129,10 +132,18 @@ func (v *ModVerifier) verify(broadcasterID, botID string) {
 		<-v.slots
 		v.mu.Lock()
 		delete(v.pending, broadcasterID)
+		now := time.Now()
 		if failed {
-			v.backoff[broadcasterID] = time.Now().Add(modCheckErrorBackoff)
+			v.backoff[broadcasterID] = now.Add(modCheckErrorBackoff)
 		} else {
 			delete(v.backoff, broadcasterID)
+		}
+		if len(v.backoff) > backoffPruneAbove {
+			for id, until := range v.backoff {
+				if now.After(until) {
+					delete(v.backoff, id)
+				}
+			}
 		}
 		v.mu.Unlock()
 	}()

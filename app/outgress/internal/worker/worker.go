@@ -17,6 +17,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"ItsBagelBot/app/outgress/internal/channels"
@@ -179,6 +180,21 @@ func (w *Worker) SetLiveWriter(lw *LiveWriter) { w.live = lw }
 
 func (w *Worker) SetModVerifier(v *ModVerifier) { w.modVerifier = v }
 
+// Shoutout targets are a small, fleet-shared keyspace, so the three lane
+// workers share one bounded cache instead of each holding a default-capacity
+// copy. Built lazily so importing the package does not spin cache machinery.
+var (
+	sharedUserIDs     *cache.Cache[string]
+	sharedUserIDsOnce sync.Once
+)
+
+func userIDCache() *cache.Cache[string] {
+	sharedUserIDsOnce.Do(func() {
+		sharedUserIDs = cache.New[string](1024, 10*time.Minute)
+	})
+	return sharedUserIDs
+}
+
 func New(log *zap.Logger, limiter ratelimit.Manager, registry *channels.Registry, tw *twitch.Client, botID, owner string, conduitResolver *conduit.Resolver, lane Lane) *Worker {
 	return &Worker{
 		log:      log,
@@ -189,7 +205,7 @@ func New(log *zap.Logger, limiter ratelimit.Manager, registry *channels.Registry
 		owner:    owner,
 		conduit:  conduitResolver,
 		lane:     lane,
-		userIDs:  cache.New[string](cache.DefaultCapacity, 10*time.Minute),
+		userIDs:  userIDCache(),
 	}
 }
 
@@ -473,6 +489,9 @@ func (w *Worker) processAnnounce(ctx context.Context, payload outgress.Message) 
 		return nil
 	}
 
+	// Announcements always execute on the app token; normalize before paying
+	// the rate bucket so accounting matches the token the call runs under.
+	payload.As = outgress.AsApp
 	if err := w.takeGeneralHelix(ctx, payload); err != nil {
 		return err
 	}
@@ -482,7 +501,6 @@ func (w *Worker) processAnnounce(ctx context.Context, payload outgress.Message) 
 		color = "primary"
 	}
 
-	payload.As = outgress.AsApp
 	payload.Method = http.MethodPost
 	payload.Endpoint = "/helix/chat/announcements?broadcaster_id=" +
 		url.QueryEscape(payload.BroadcasterID) + "&moderator_id=" + url.QueryEscape(mod)
@@ -548,11 +566,13 @@ func (w *Worker) processShoutout(ctx context.Context, payload outgress.Message) 
 		return nil
 	}
 
+	// Shoutouts always execute on the app token; normalize before paying the
+	// rate bucket so accounting matches the token the call runs under.
+	payload.As = outgress.AsApp
 	if err := w.takeGeneralHelix(ctx, payload); err != nil {
 		return err
 	}
 
-	payload.As = outgress.AsApp
 	payload.Method = http.MethodPost
 	payload.Endpoint = shoutoutEndpoint(payload.BroadcasterID, toID, mod)
 	payload.Payload = nil
@@ -969,11 +989,11 @@ func isPermanent(err error) bool {
 	return false
 }
 
-// takeGeneralHelix consumes one token from the general Helix budget, the
-// partition that backs ordinary api traffic.
-func generalHelixRequests(payload outgress.Message) (ratelimit.Request, ratelimit.Request) {
+// generalHelixRequests maps a message to the standard and shared bucket
+// requests for the token identity it will execute under, mirroring
+// twitch.ResolveIdentity so accounting and token selection cannot disagree.
+func generalHelixRequests(payload outgress.Message) (standard, shared ratelimit.Request) {
 	identity := twitch.ResolveIdentity(twitch.ParseIdentity(payload.As), payload.Endpoint)
-	var shared, standard ratelimit.Request
 	switch identity {
 	case twitch.IdentityBot:
 		shared = helixUserSpec.ForKey("ratelimit:helix:user:bot")
@@ -988,6 +1008,9 @@ func generalHelixRequests(payload outgress.Message) (ratelimit.Request, ratelimi
 	return standard, shared
 }
 
+// takeGeneralHelix consumes one token from the Helix budget backing the
+// message's token identity: the general app partition, the bot user budget,
+// or the target broadcaster's own user budget.
 func (w *Worker) takeGeneralHelix(ctx context.Context, payload outgress.Message) error {
 	standard, shared := generalHelixRequests(payload)
 	if w.lane == LaneStandard {
