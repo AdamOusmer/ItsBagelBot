@@ -113,6 +113,32 @@ func TestBakedCommandPermGate(t *testing.T) {
 	require.Len(t, collectDispatch(p, chatCtx("!clear", "moderator")), 1) // mod -> runs
 }
 
+// TestBakedDisabledFallsThroughToCustom proves a disabled opt-in module's
+// trigger does not reserve the name: the broadcaster's custom command with the
+// same trigger still answers.
+func TestBakedDisabledFallsThroughToCustom(t *testing.T) {
+	reader := fakeReader{cmd: projection.Command{Name: "daily", Response: "custom daily", IsActive: true, Perm: "everyone"}, cmdFound: true}
+	p := newPipelineWith(&fakePublisher{}, reader, cmdEmit("urchin", module.KindOptIn, "daily", "baked daily"))
+
+	// nil views = the opt-in module is not enabled for this broadcaster.
+	got := collectDispatch(p, chatCtx("!daily", ""))
+	require.Len(t, got, 1)
+	assert.Equal(t, "custom daily", got[0].Text)
+}
+
+// TestBakedEnabledWinsOverCustom is the counterpart: with the module enabled,
+// the baked command answers and the custom one is shadowed.
+func TestBakedEnabledWinsOverCustom(t *testing.T) {
+	reader := fakeReader{cmd: projection.Command{Name: "daily", Response: "custom daily", IsActive: true, Perm: "everyone"}, cmdFound: true}
+	p := newPipelineWith(&fakePublisher{}, reader, cmdEmit("urchin", module.KindOptIn, "daily", "baked daily"))
+
+	views := map[string]projection.ModuleView{"urchin": {Name: "urchin", IsEnabled: true}}
+	var got []module.Output
+	require.NoError(t, p.dispatchCommand(context.Background(), chatCtx("!daily", ""), views, func(o *module.Output) { got = append(got, *o) }))
+	require.Len(t, got, 1)
+	assert.Equal(t, "baked daily", got[0].Text)
+}
+
 // TestBakedOutputRoutedByMiddleware proves announce is post-processing, not a
 // command: a baked command that writes "/announce hi" is routed to an announce
 // action by the shared middleware, exactly as a custom command would be.

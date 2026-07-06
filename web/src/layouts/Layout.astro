@@ -23,8 +23,8 @@ const lang = getLangFromUrl(Astro.url);
 
 // hreflang alternates for the routes that exist in both locales, so search
 // engines pair the English and French versions instead of treating them as
-// duplicates. Legal/doc paths have no French route and are left out.
-const LOCALIZED = new Set(['/', '/pricing', '/contact']);
+// duplicates.
+const LOCALIZED = new Set(['/', '/pricing', '/contact', '/privacy', '/terms']);
 let basePath = Astro.url.pathname.startsWith('/fr')
     ? (Astro.url.pathname.slice(3) || '/')
     : Astro.url.pathname;
@@ -97,7 +97,7 @@ const contentSecurityPolicy = [
 </head>
 
 <body>
-    <a class="skip-link" href="#main-content">Skip to content</a>
+    <a class="skip-link" href="#main-content">{lang === 'fr' ? 'Aller au contenu' : 'Skip to content'}</a>
     <main id="main-content">
         <slot/>
     </main>

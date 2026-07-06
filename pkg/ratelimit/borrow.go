@@ -64,7 +64,9 @@ func NewPermitService(nc *nats.Conn, region, podID string, _ *BucketStore) (*Per
 	if region == "" || podID == "" {
 		return nil, errors.New("ratelimit: permit region and pod ID are required")
 	}
-	dedupe, err := theine.NewBuilder[string, cachedGrant](10_000).Build()
+	// Grants live for permitTTL (250ms), and each pod caps in-flight borrows at
+	// 64, so even a large fleet keeps well under this many live entries.
+	dedupe, err := theine.NewBuilder[string, cachedGrant](2048).Build()
 	if err != nil {
 		return nil, err
 	}

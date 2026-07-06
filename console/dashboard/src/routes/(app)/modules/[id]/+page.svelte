@@ -1,6 +1,6 @@
 <script lang="ts">
   import { deserialize } from '$app/forms';
-  import { Icon, Card, PageHead, Scroller, SaveStatus, toast, getI18n, type ModuleReply } from '@bagel/shared';
+  import { Icon, Card, PageHead, Scroller, SaveStatus, toast, getI18n, type ModuleField, type ModuleReply } from '@bagel/shared';
   import type { SaveState } from '@bagel/shared/components/SaveStatus.svelte';
   import ReplyRow from '$lib/components/modules/ReplyRow.svelte';
   import ReplyEditor from '$lib/components/modules/ReplyEditor.svelte';
@@ -80,6 +80,21 @@
       enabled = before;
       flagError('module');
       toast('err', t('modules.couldNotToggle', { label: def.label }));
+    }
+  }
+
+  // --- Plain settings fields (linked account, ...) ----------------------------
+  async function saveSetting(field: ModuleField, value: string) {
+    const key = field.key;
+    const before = config[key] ?? '';
+    if (value.trim() === before.trim()) return;
+    config = { ...config, [key]: value.trim() };
+    setStatus(`setting:${key}`, 'saving');
+    if (await persist(enabled, config)) ackSaved(`setting:${key}`);
+    else {
+      config = { ...config, [key]: before };
+      flagError(`setting:${key}`);
+      toast('err', t('modules.saveFailed'));
     }
   }
 
@@ -167,6 +182,24 @@
         onclick={toggleModule}
       ></button>
     </div>
+    {#each def.settings ?? [] as field (field.key)}
+      <div class="setting-row">
+        <label class="tr-text" for="mod-setting-{field.key}">
+          <span class="tr-label">{field.label}</span>
+          {#if field.help}<span class="tr-help">{field.help}</span>{/if}
+        </label>
+        <SaveStatus state={modStatus[`setting:${field.key}`] ?? 'idle'} />
+        <input
+          id="mod-setting-{field.key}"
+          class="setting-input"
+          type={field.type === 'number' ? 'number' : 'text'}
+          placeholder={field.placeholder ?? ''}
+          value={config[field.key] ?? ''}
+          onchange={(e) => saveSetting(field, e.currentTarget.value)}
+          onkeydown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+        />
+      </div>
+    {/each}
   </Card>
 
   <!-- The deck: reply ledger + docked builder inspector (same as commands). -->
@@ -255,6 +288,35 @@
   .tr-text { display: flex; flex-direction: column; gap: 3px; margin-right: auto; }
   .tr-label { font-family: var(--bb-font-display); font-weight: 700; font-size: 14px; color: var(--bb-white); }
   .tr-help { font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
+
+  /* Plain settings fields under the master switch (e.g. linked account). */
+  .setting-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 18px;
+    border-top: 1px solid var(--rule);
+  }
+  .setting-input {
+    width: min(260px, 44vw);
+    padding: 8px 12px;
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    background: rgba(240, 236, 228, 0.04);
+    color: var(--bb-white);
+    font-family: var(--bb-font-body);
+    font-size: 13px;
+    transition: border-color var(--bb-dur-fast, 140ms) ease;
+  }
+  .setting-input:focus {
+    outline: none;
+    border-color: var(--bb-tan, #c9a87c);
+  }
+  .setting-input::placeholder { color: var(--bb-muted); opacity: 0.7; }
+  @media (max-width: 560px) {
+    .setting-row { flex-wrap: wrap; }
+    .setting-input { width: 100%; }
+  }
 
   /* ── the deck: list + docked inspector (identical to the commands deck) ── */
   .deck {

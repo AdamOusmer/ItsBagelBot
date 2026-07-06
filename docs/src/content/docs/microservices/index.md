@@ -13,14 +13,17 @@ for events, request-reply for RPC. No service reads another service's database.
 | Service | Repo path | Language | Owns / does | Exposes |
 |---|---|---|---|---|
 | [Twitch Ingress](/microservices/twitch-ingress/) | `app/ingress/` | Elixir (OTP 27+) | EventSub Conduit + WebSocket shards; per-shard supervision; tenant OAuth; filter-and-normalize events | `twitch.ingress.event.*`, `twitch.ingress.status.*`, `twitch.ingress.admin.shards.get` |
-| **Outgress** | `app/outgress/` | Go | Sends to Twitch; per-broadcaster rate limit (Valkey); channel registry; app/user token lifecycle; kill switch | consumes `twitch.outgress.*`; serves `bagel.rpc.outgress.*` |
-| **Projector** | `app/projector/` | Go | Builds the Valkey settings projection on stream-online; serves broadcaster tier lookups | `bagel.rpc.broadcaster.status.get` |
-| **Users** | `app/users/` | Go | User accounts, status (free/paid/vip), active toggle, Twitch OAuth tokens | `bagel.rpc.dashboard.*`, `bagel.rpc.admin.user.*`, `bagel.rpc.internal.projection.users.get`, `bagel.rpc.internal.tokens.*`; emits `data.users.*` |
-| **Commands** | `app/commands/` | Go | Custom chat commands | `bagel.rpc.commands.*`, `bagel.rpc.internal.projection.commands.get`; emits `data.commands.changed` |
-| **Modules** | `app/modules/` | Go | Per-broadcaster feature modules | `bagel.rpc.internal.projection.modules.get`; emits `data.modules.changed` |
-| **Transactions** | `app/transactions/` | Go | Tebex purchase records | consumes `data.transactions.recorded` |
+| [Sesame](/microservices/sesame/) | `app/sesame/` | Go | Core engine and command processor; consumes ingress events, runs module handlers and commands, routes to outgress | consumes `twitch.ingress.event.*`; publishes to `twitch.outgress.*` |
+| [Outgress](/microservices/outgress/) | `app/outgress/` | Go | Sends to Twitch; per-broadcaster rate limit (Valkey); channel registry; app/user token lifecycle; kill switch | consumes `twitch.outgress.*`; serves `bagel.rpc.outgress.*` |
+| [Projector](/microservices/projector/) | `app/projector/` | Go | Builds the Valkey settings projection on stream-online; serves broadcaster tier lookups | `bagel.rpc.broadcaster.status.get` |
+| [Users](/microservices/users/) | `app/users/` | Go | User accounts, status (free/paid/vip), active toggle, Twitch OAuth tokens | `bagel.rpc.dashboard.*`, `bagel.rpc.admin.user.*`, `bagel.rpc.internal.projection.users.get`, `bagel.rpc.internal.tokens.*`; emits `data.users.*` |
+| [Commands](/microservices/commands/) | `app/commands/` | Go | Custom chat commands | `bagel.rpc.commands.*`, `bagel.rpc.internal.projection.commands.get`; emits `data.commands.changed` |
+| [Modules](/microservices/modules/) | `app/modules/` | Go | Per-broadcaster feature modules | `bagel.rpc.internal.projection.modules.get`; emits `data.modules.changed` |
+| [Notifications](/microservices/notifications/) | `app/notifications/` | Go | Dashboard notifications, admin announcements, and TTL cleanup | `bagel.rpc.notifications.*`, `bagel.rpc.admin.notifications.*` |
+| [Transactions](/microservices/transactions/) | `app/transactions/` | Go | Tebex purchase records | consumes `data.transactions.recorded` |
 | [Admin](/microservices/admin/) (legacy) | `app/admin/` | Go + templ | Read-only operator window over NATS (shard fleet, users) | Operators only, over the tailnet |
-| **Console** | `console/` | SvelteKit SSR | `dashboard` (broadcaster self-serve) + `admin` (operator); arctic OAuth | HTTPS via cloudflared / tailnet; talks to services only over NATS RPC |
+| [Console](/microservices/console/) | `console/` | SvelteKit SSR | `dashboard` (broadcaster self-serve) + `admin` (operator); arctic OAuth | HTTPS via cloudflared / tailnet; talks to services only over NATS RPC |
+| [Web](/microservices/web/) | `web/` | Astro | Public marketing site and documentation | Public HTTPS |
 
 See [System state](/reference/system-overview/) for the data plane, the bus, and
 the end-to-end request flow, and [RPC contracts](/reference/rpc-contracts/) for the

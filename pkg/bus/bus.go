@@ -65,7 +65,7 @@ func NewSubscriber(url string, group string, log *zap.Logger) (message.Subscribe
 // maxRedeliveries excludes the first delivery. NATS enforces the total on the
 // consumer and the Watermill delay terminates the final failed delivery, so a
 // failed command cannot come back after its budget is exhausted.
-func NewLaneSubscriber(url, stream, subject, group string, delay time.Duration, maxRedeliveries uint64, log *zap.Logger) (message.Subscriber, error) {
+func NewLaneSubscriber(url, stream, subject, group string, backoff []time.Duration, maxRedeliveries uint64, log *zap.Logger) (message.Subscriber, error) {
 	maxDeliveries := maxRedeliveries + 1
 	consumer := durableName(group, subject)
 
@@ -79,16 +79,21 @@ func NewLaneSubscriber(url, stream, subject, group string, delay time.Duration, 
 		nc.Close()
 		return nil, err
 	}
-	if err := ensureLaneConsumer(js, stream, subject, group, consumer, int(maxDeliveries)); err != nil {
+	if err := ensureLaneConsumer(js, stream, subject, group, consumer, int(maxDeliveries), backoff); err != nil {
 		nc.Close()
 		return nil, err
+	}
+
+	var baseDelay time.Duration
+	if len(backoff) > 0 {
+		baseDelay = backoff[0]
 	}
 
 	sub, err := wmnats.NewSubscriberWithNatsConn(nc, wmnats.SubscriberSubscriptionConfig{
 		QueueGroupPrefix: group,
 		SubscribersCount: 1,
 		AckWaitTimeout:   30 * time.Second,
-		NakDelay:         wmnats.NewMaxRetryDelay(delay, maxDeliveries),
+		NakDelay:         wmnats.NewMaxRetryDelay(baseDelay, maxDeliveries),
 		Unmarshaler:      &wmnats.NATSMarshaler{},
 		JetStream: wmnats.JetStreamConfig{
 			AutoProvision:     false,
@@ -104,29 +109,24 @@ func NewLaneSubscriber(url, stream, subject, group string, delay time.Duration, 
 		nc.Close()
 		return nil, err
 	}
+
 	return sub, nil
 }
 
 const managedConsumerMetadata = "itsbagelbot.dev/managed"
 
-func ensureLaneConsumer(js nats.JetStreamManager, stream, subject, group, name string, maxDeliveries int) error {
-	desired := laneConsumerConfig(subject, group, name, maxDeliveries)
-
+func ensureLaneConsumer(js nats.JetStreamManager, stream, subject, group, name string, maxDeliveries int, backoff []time.Duration) error {
+	desired := laneConsumerConfig(subject, group, name, maxDeliveries, backoff)
 	info, err := js.ConsumerInfo(stream, name)
-	switch {
-	case errors.Is(err, nats.ErrConsumerNotFound):
-		if _, err := js.AddConsumer(stream, desired); err != nil {
-			// AddConsumer is idempotent for the same config; a different-config
-			// race is surfaced because binding to it would violate our limits.
-			return fmt.Errorf("bus: create consumer %q: %w", name, err)
+	if err != nil {
+		if errors.Is(err, nats.ErrConsumerNotFound) {
+			_, err = js.AddConsumer(stream, desired)
+			return err
 		}
-		return nil
-	case err != nil:
-		return fmt.Errorf("bus: inspect consumer %q: %w", name, err)
+		return err
 	}
 
-	// Preserve the server-assigned delivery subject while converging old
-	// consumers to the bounded retry policy. Existing ACK state is retained.
+	// Update mutable parameters.
 	desired.DeliverSubject = info.Config.DeliverSubject
 	if _, err := js.UpdateConsumer(stream, desired); err != nil {
 		return fmt.Errorf("bus: update consumer %q: %w", name, err)
@@ -134,7 +134,7 @@ func ensureLaneConsumer(js nats.JetStreamManager, stream, subject, group, name s
 	return nil
 }
 
-func laneConsumerConfig(subject, group, name string, maxDeliveries int) *nats.ConsumerConfig {
+func laneConsumerConfig(subject, group, name string, maxDeliveries int, backoff []time.Duration) *nats.ConsumerConfig {
 	return &nats.ConsumerConfig{
 		Durable:        name,
 		Name:           name,
@@ -143,6 +143,7 @@ func laneConsumerConfig(subject, group, name string, maxDeliveries int) *nats.Co
 		AckPolicy:      nats.AckExplicitPolicy,
 		AckWait:        30 * time.Second,
 		MaxDeliver:     maxDeliveries,
+		BackOff:        backoff,
 		FilterSubject:  subject,
 		ReplayPolicy:   nats.ReplayInstantPolicy,
 		MaxAckPending:  1000,
@@ -234,8 +235,7 @@ func (s *fleetSubscriber) Subscribe(ctx context.Context, topic string) (<-chan *
 			nc.Close()
 			return nil, err
 		}
-		
-		if err := ensureLaneConsumer(js, stream, topic, s.group, consumer, 1000); err != nil {
+		if err := ensureLaneConsumer(js, stream, topic, s.group, consumer, 1000, nil); err != nil {
 			nc.Close()
 			return nil, err
 		}
