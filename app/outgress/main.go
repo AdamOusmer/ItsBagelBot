@@ -178,7 +178,10 @@ func main() {
 	// hostname (the pod) is the dev fallback.
 	worker.SetNodeIdentity(cfg.RateRegion, env.Get("NODE_NAME", host))
 
-	buckets := ratelimit.NewBucketStore(10_000)
+	// Sized for the working set of lease buckets (active chat channels plus the
+	// fixed Helix buckets); DeleteExpired prunes idle channels every epoch and
+	// the store grows past the presize if a burst ever needs it.
+	buckets := ratelimit.NewBucketStore(2048)
 
 	permitSvc, err := ratelimit.NewPermitService(nc, cfg.RateRegion, host, buckets)
 	if err != nil {

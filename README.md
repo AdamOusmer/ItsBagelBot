@@ -51,7 +51,7 @@
 
 <br />
 
-[![Email](https://img.shields.io/badge/contact%40adam--ousmer.dev-D14836?style=for-the-badge&logo=gmail&logoColor=white)](mailto:contact@adam-ousmer.dev)
+[![Email](https://img.shields.io/badge/contact%40itsbagelbot.com-D14836?style=for-the-badge&logo=gmail&logoColor=white)](mailto:contact@itsbagelbot.com)
 [![GitHub](https://img.shields.io/badge/AdamOusmer-%23121011.svg?style=for-the-badge&logo=github&logoColor=white)](https://github.com/AdamOusmer)
 
 
