@@ -32,9 +32,9 @@ func (p *Pipeline) dispatchCommand(ctx context.Context, c *module.Context, views
 	if !ok {
 		return nil
 	}
-	if bc, _, isBaked := p.registry.ResolveCommand(name); isBaked {
+	if bc, num, isBaked := p.registry.ResolveCommand(name); isBaked {
 		if p.enabled(bc.Owner, views, c) {
-			return p.runBaked(ctx, c, bc.Cmd, args, emit)
+			return p.runBaked(ctx, c, bc.Cmd, num, args, emit)
 		}
 		// The owner module is off: fall through to the broadcaster's custom
 		// commands so an opt-in module's trigger (e.g. !daily) never reserves the
@@ -45,12 +45,15 @@ func (p *Pipeline) dispatchCommand(ctx context.Context, c *module.Context, views
 
 // runBaked gates and runs a command a module owns. Every output the command
 // emits is routed through the post-processing middleware (see emitCommand), so a
-// baked command can write "/announce ..." the same way a custom one does.
-func (p *Pipeline) runBaked(ctx context.Context, c *module.Context, cmd module.Command, args string, emit module.Emit) error {
+// baked command can write "/announce ..." the same way a custom one does. num is
+// the inline numeric suffix the trigger absorbed ("" when none / not a
+// NumericSuffix command); it is exposed on the Context for the command to read.
+func (p *Pipeline) runBaked(ctx context.Context, c *module.Context, cmd module.Command, num, args string, emit module.Emit) error {
 	pass, err := p.gate(ctx, c, gateRule{cmd.Name, cmd.AllowedUserID, cmd.Perm, cmd.LiveOnly, cmd.Cooldown})
 	if err != nil || !pass {
 		return err
 	}
+	c.Num = num
 	// Resolve the broadcaster's UI locale so baked commands can localize replies.
 	// Only for commands that actually run (past the gate); the read is cache
 	// fronted, and any miss leaves Locale empty (default language).

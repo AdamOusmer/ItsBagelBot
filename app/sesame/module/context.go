@@ -28,6 +28,12 @@ type Context struct {
 	// engine sets it before calling a named module. Empty for core modules.
 	Config json.RawMessage
 
+	// Num is the inline numeric suffix a NumericSuffix command absorbed from its
+	// trigger ("30" for "!clip30"), or empty when none was typed or the command
+	// does not opt into NumericSuffix. Set by the engine before running a baked
+	// command; a command reads it to interpret the number (e.g. clip duration).
+	Num string
+
 	role    Role
 	roleSet bool
 }
@@ -61,6 +67,7 @@ func (c *Context) Reset() {
 	c.BroadcasterID = 0
 	c.Locale = ""
 	c.Config = nil
+	c.Num = ""
 	c.role = RoleEveryone
 	c.roleSet = false
 }
