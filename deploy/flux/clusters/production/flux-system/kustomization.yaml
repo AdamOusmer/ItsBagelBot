@@ -3,3 +3,40 @@ kind: Kustomization
 resources:
 - gotk-components.yaml
 - gotk-sync.yaml
+patches:
+# Memory-limit trims. Upstream gotk-components ships every controller with
+# limits.memory: 1Gi, and GOMEMLIMIT is wired to limits.memory via
+# resourceFieldRef, so the Go GC happily lets the heap coast toward 1Gi.
+# Lowering the limit lowers GOMEMLIMIT with it and the GC keeps RSS near the
+# real working set instead. Measured before the trim (2026-07-06):
+# image-reflector 580Mi RSS (12 ImageRepositories, ~5.5k tags in its badger
+# cache), kustomize 210Mi. 384Mi leaves the reflector headroom for badger
+# compaction spikes; kustomize builds this small repo well under 256Mi.
+- patch: |-
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: image-reflector-controller
+      namespace: flux-system
+    spec:
+      template:
+        spec:
+          containers:
+            - name: manager
+              resources:
+                limits:
+                  memory: 384Mi
+- patch: |-
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: kustomize-controller
+      namespace: flux-system
+    spec:
+      template:
+        spec:
+          containers:
+            - name: manager
+              resources:
+                limits:
+                  memory: 256Mi
