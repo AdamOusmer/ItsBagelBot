@@ -36,7 +36,7 @@ func TestMcsrEloDefaultTemplate(t *testing.T) {
 	var col collector
 	require.NoError(t, cmd.Run(context.Background(), mcsrCtx(""), "", col.emit))
 	require.Len(t, col.out, 1)
-	assert.Equal(t, "🏆 Feinberg: 1650 elo · rank #12 · 40W 20L this season", col.out[0].Text)
+	assert.Equal(t, "Feinberg: 1650 elo · rank #12 · 40W 20L this season", col.out[0].Text)
 }
 
 func TestMcsrEloUnrated(t *testing.T) {
@@ -63,10 +63,24 @@ func TestMcsrSessionWithSnapshot(t *testing.T) {
 	var col collector
 	require.NoError(t, cmd.Run(context.Background(), mcsrCtx(`{"account":"Feinberg"}`), "", col.emit))
 	require.Len(t, col.out, 1)
-	assert.Equal(t, "📈 Feinberg this stream: +24 elo (1660 now) · 3W 1L in 4 matches", col.out[0].Text)
+	assert.Equal(t, "Feinberg this stream: +24 elo (1660 now) · 3W 1L in 4 matches", col.out[0].Text)
 
 	// The session request is scoped to this channel.
 	assert.Equal(t, "2", gw.lastCall(t).req.ChannelID)
+	assert.Equal(t, "Feinberg", gw.lastCall(t).req.Account)
+}
+
+// !session ignores a typed player argument so a viewer cannot retarget (and
+// clobber) the streamer's per-channel baseline; it always uses the linked
+// account.
+func TestMcsrSessionIgnoresArgument(t *testing.T) {
+	gw := &fakeGateway{replies: map[string]any{
+		"mcsr.session": gatewayrpc.McsrSessionReply{Nickname: "Feinberg", HasSnapshot: true},
+	}}
+	cmd := findCmd(t, mcsrModule(gw), "session")
+
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), mcsrCtx(`{"account":"Feinberg"}`), "SomeoneElse", col.emit))
 	assert.Equal(t, "Feinberg", gw.lastCall(t).req.Account)
 }
 

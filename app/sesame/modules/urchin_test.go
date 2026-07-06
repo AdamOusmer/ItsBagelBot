@@ -105,7 +105,7 @@ func TestUrchinDailyDefaultTemplate(t *testing.T) {
 	require.Len(t, col.out, 1)
 	assert.Equal(t, outgress.TypeChat, col.out[0].Type)
 	assert.Equal(t, "2", col.out[0].BroadcasterID)
-	assert.Equal(t, "🛏 Techno today: 5W 2L · 21 finals · 9 beds · 7.00 FKDR", col.out[0].Text)
+	assert.Equal(t, "Techno today: 5W 2L · 21 finals · 9 beds · 7.00 FKDR", col.out[0].Text)
 
 	// No linked account and no arg: falls back to the broadcaster's login.
 	assert.Equal(t, "streamer", gw.lastCall(t).req.Account)
@@ -179,7 +179,7 @@ func TestUrchinTagsFormatting(t *testing.T) {
 	var col collector
 	require.NoError(t, cmd.Run(context.Background(), urchinCtx(""), "", col.emit))
 	require.Len(t, col.out, 1)
-	assert.Equal(t, "🏷️ Sus: cheater (bhop), sniper", col.out[0].Text)
+	assert.Equal(t, "Sus: cheater (bhop), sniper", col.out[0].Text)
 }
 
 func TestUrchinTagsClean(t *testing.T) {
@@ -191,7 +191,7 @@ func TestUrchinTagsClean(t *testing.T) {
 	var col collector
 	require.NoError(t, cmd.Run(context.Background(), urchinCtx(""), "", col.emit))
 	require.Len(t, col.out, 1)
-	assert.Equal(t, "🏷️ Clean: no tags — clean", col.out[0].Text)
+	assert.Equal(t, "Clean: no tags — clean", col.out[0].Text)
 }
 
 func TestUrchinSniperScore(t *testing.T) {
@@ -203,5 +203,5 @@ func TestUrchinSniperScore(t *testing.T) {
 	var col collector
 	require.NoError(t, cmd.Run(context.Background(), urchinCtx(""), "", col.emit))
 	require.Len(t, col.out, 1)
-	assert.Equal(t, "🎯 Aim urchin score: 7.5", col.out[0].Text)
+	assert.Equal(t, "Aim urchin score: 7.5", col.out[0].Text)
 }

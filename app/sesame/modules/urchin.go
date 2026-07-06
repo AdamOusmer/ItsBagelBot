@@ -24,12 +24,12 @@ const urchinCooldown = 10 * time.Second
 // Default reply templates. The broadcaster customizes them per command on the
 // module page; blank falls back to these.
 const (
-	defaultUrchinDailyTemplate   = "🛏 {player} today: {wins}W {losses}L · {finals} finals · {beds} beds · {fkdr} FKDR"
-	defaultUrchinWeeklyTemplate  = "🛏 {player} this week: {wins}W {losses}L · {finals} finals · {beds} beds · {fkdr} FKDR"
-	defaultUrchinMonthlyTemplate = "🛏 {player} this month: {wins}W {losses}L · {finals} finals · {beds} beds · {fkdr} FKDR"
-	defaultUrchinStatsTemplate   = "🛏 {player}: {stars}✫ · {wins} wins · {finals} finals · {fkdr} FKDR · {beds} beds broken"
-	defaultUrchinSniperTemplate  = "🎯 {player} urchin score: {score}"
-	defaultUrchinTagsTemplate    = "🏷️ {player}: {tags}"
+	defaultUrchinDailyTemplate   = "{player} today: {wins}W {losses}L · {finals} finals · {beds} beds · {fkdr} FKDR"
+	defaultUrchinWeeklyTemplate  = "{player} this week: {wins}W {losses}L · {finals} finals · {beds} beds · {fkdr} FKDR"
+	defaultUrchinMonthlyTemplate = "{player} this month: {wins}W {losses}L · {finals} finals · {beds} beds · {fkdr} FKDR"
+	defaultUrchinStatsTemplate   = "{player}: {stars} stars · {wins} wins · {finals} finals · {fkdr} FKDR · {beds} beds broken"
+	defaultUrchinSniperTemplate  = "{player} urchin score: {score}"
+	defaultUrchinTagsTemplate    = "{player}: {tags}"
 )
 
 // urchinConfig is the module's dashboard configuration. Account is the linked

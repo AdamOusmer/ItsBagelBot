@@ -310,7 +310,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
         event: '!daily',
         enableKey: 'dailyEnabled',
         messageKey: 'dailyMessage',
-        defaultMessage: '🛏 {player} today: {wins}W {losses}L · {finals} finals · {beds} beds · {fkdr} FKDR'
+        defaultMessage: '{player} today: {wins}W {losses}L · {finals} finals · {beds} beds · {fkdr} FKDR'
       },
       {
         key: 'weekly',
@@ -319,7 +319,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
         event: '!weekly',
         enableKey: 'weeklyEnabled',
         messageKey: 'weeklyMessage',
-        defaultMessage: '🛏 {player} this week: {wins}W {losses}L · {finals} finals · {beds} beds · {fkdr} FKDR'
+        defaultMessage: '{player} this week: {wins}W {losses}L · {finals} finals · {beds} beds · {fkdr} FKDR'
       },
       {
         key: 'monthly',
@@ -328,7 +328,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
         event: '!monthly',
         enableKey: 'monthlyEnabled',
         messageKey: 'monthlyMessage',
-        defaultMessage: '🛏 {player} this month: {wins}W {losses}L · {finals} finals · {beds} beds · {fkdr} FKDR'
+        defaultMessage: '{player} this month: {wins}W {losses}L · {finals} finals · {beds} beds · {fkdr} FKDR'
       },
       {
         key: 'stats',
@@ -337,7 +337,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
         event: '!bwstats',
         enableKey: 'statsEnabled',
         messageKey: 'statsMessage',
-        defaultMessage: '🛏 {player}: {stars}✫ · {wins} wins · {finals} finals · {fkdr} FKDR · {beds} beds broken'
+        defaultMessage: '{player}: {stars} stars · {wins} wins · {finals} finals · {fkdr} FKDR · {beds} beds broken'
       },
       {
         key: 'sniper',
@@ -346,7 +346,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
         event: '!sniper',
         enableKey: 'sniperEnabled',
         messageKey: 'sniperMessage',
-        defaultMessage: '🎯 {player} urchin score: {score}'
+        defaultMessage: '{player} urchin score: {score}'
       },
       {
         key: 'tags',
@@ -355,7 +355,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
         event: '!tags',
         enableKey: 'tagsEnabled',
         messageKey: 'tagsMessage',
-        defaultMessage: '🏷️ {player}: {tags}'
+        defaultMessage: '{player}: {tags}'
       }
     ],
     settings: [
@@ -373,7 +373,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
     label: 'MCSR Ranked',
     tagline: 'Ranked elo and per-stream session stats for MCSR runners.',
     description:
-      'Viewer commands backed by the MCSR Ranked API: !elo shows the current rating and season record; !session shows elo and wins/losses since the stream started — the bot snapshots your standing the moment you go live. Commands default to your linked Minecraft account; viewers can also name any player.',
+      'Viewer commands backed by the MCSR Ranked API: !elo shows the current rating and season record; !session shows elo and wins/losses since the stream started, snapshotting your standing the moment you go live. !elo can name any player (e.g. "!elo Feinberg"); !session always tracks your linked account.',
     icon: 'clock',
     defaultEnabled: false,
     replies: [
@@ -384,7 +384,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
         event: '!elo',
         enableKey: 'eloEnabled',
         messageKey: 'eloMessage',
-        defaultMessage: '🏆 {player}: {elo} elo · rank #{rank} · {wins}W {losses}L this season'
+        defaultMessage: '{player}: {elo} elo · rank #{rank} · {wins}W {losses}L this season'
       },
       {
         key: 'session',
@@ -393,7 +393,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
         event: '!session',
         enableKey: 'sessionEnabled',
         messageKey: 'sessionMessage',
-        defaultMessage: '📈 {player} this stream: {elochange} elo ({elo} now) · {wins}W {losses}L in {matches} matches'
+        defaultMessage: '{player} this stream: {elochange} elo ({elo} now) · {wins}W {losses}L in {matches} matches'
       }
     ],
     settings: [
