@@ -127,3 +127,22 @@ func TestFailedFlushRetriesWithoutClobbering(t *testing.T) {
 
 	require.Equal(t, []int{2}, rec.all())
 }
+
+// Requeue restores a transiently failed item unless a newer write for the
+// same key arrived while the flush ran.
+func TestRequeueDoesNotClobberNewerWrite(t *testing.T) {
+	rec := &recorder{}
+
+	b := New[string, int](time.Hour, 100, rec.flush, zap.NewNop())
+
+	b.Requeue("gone", 1) // no pending value: restored
+	b.Add("fresh", 2)
+	b.Requeue("fresh", 1) // newer pending value wins
+
+	b.mu.Lock()
+	assert.Equal(t, 1, b.pending["gone"])
+	assert.Equal(t, 2, b.pending["fresh"])
+	b.mu.Unlock()
+
+	b.Close(context.Background())
+}
