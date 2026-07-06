@@ -81,6 +81,7 @@ func TestLaneConsumerHasBoundedDeliveryBudget(t *testing.T) {
 		"outgress-premium",
 		"outgress-premium_twitch_outgress_premium",
 		4,
+		nil,
 	)
 
 	if cfg.MaxDeliver != 4 {
