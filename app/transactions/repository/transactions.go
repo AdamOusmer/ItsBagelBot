@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"ItsBagelBot/app/transactions/ent"
 	"ItsBagelBot/app/transactions/ent/tebexwebhookevents"
@@ -107,6 +108,53 @@ func (r *Transactions) SaveWebhookEvent(ctx context.Context, event WebhookEvent)
 
 		return update.Exec(ctx)
 	})
+}
+
+// TransactionProof is the audit evidence that a verified Tebex webhook applied a
+// transaction: the webhook that carried it, its type, the entitled user, and
+// when it was recorded. It is read straight from the webhook audit log; there is
+// no separate transaction store (Tebex stays the payment system of record).
+type TransactionProof struct {
+	TransactionID string
+	UserID        uint64
+	WebhookID     string
+	EventType     string
+	ProcessedAt   time.Time
+}
+
+// ProcessedProof returns the audit evidence that a given Tebex transaction was
+// processed: the earliest webhook event with status "processed" carrying that
+// transaction id. ok is false when the audit holds no processed row for it. This
+// is the proof-of-processing lookup over the existing audit; it adds no storage.
+func (r *Transactions) ProcessedProof(ctx context.Context, transactionID string) (TransactionProof, bool, error) {
+
+	if transactionID == "" {
+		return TransactionProof{}, false, errors.New("transaction id required")
+	}
+
+	row, err := db.WithQuery(ctx, func(ctx context.Context) (*ent.TebexWebhookEvents, error) {
+		return r.client.TebexWebhookEvents.Query().
+			Where(
+				tebexwebhookevents.TransactionIDEQ(transactionID),
+				tebexwebhookevents.StatusEQ(tebexwebhookevents.StatusProcessed),
+			).
+			Order(ent.Asc(tebexwebhookevents.FieldCreatedAt)).
+			First(ctx)
+	})
+	if ent.IsNotFound(err) {
+		return TransactionProof{}, false, nil
+	}
+	if err != nil {
+		return TransactionProof{}, false, err
+	}
+
+	return TransactionProof{
+		TransactionID: row.TransactionID,
+		UserID:        row.UserID,
+		WebhookID:     row.ID,
+		EventType:     row.EventType,
+		ProcessedAt:   row.CreatedAt,
+	}, true, nil
 }
 
 func webhookStatus(status WebhookStatus) (tebexwebhookevents.Status, error) {
