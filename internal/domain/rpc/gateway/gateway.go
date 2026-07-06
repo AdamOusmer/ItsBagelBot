@@ -77,8 +77,9 @@ type UrchinSniperReply struct {
 
 // UrchinTag is one active blacklist tag on a player.
 type UrchinTag struct {
-	Type   string `json:"type"`
-	Reason string `json:"reason,omitempty"`
+	Type    string `json:"type"`
+	Reason  string `json:"reason,omitempty"`
+	AddedOn int64  `json:"added_on,omitempty"`
 }
 
 // UrchinTagsReply is the answer to urchin.tags: the blacklist tags currently
