@@ -5,6 +5,7 @@ import { warm } from '@bagel/shared/server/nats';
 import { warm as warmValkey } from '@bagel/shared/server/valkey-store';
 import { registerServerConfig } from '@bagel/shared/server/config';
 import { rumTransform } from '@bagel/shared/server/rum';
+import { ValkeyRateLimiter, warmRateLimiter, clientIp } from '@bagel/shared/server/rate-limit';
 import { detectLocale, LOCALE_COOKIE } from '@bagel/shared/i18n';
 import { startInvalidationListener } from '$lib/server/services';
 import { assertConfigSane } from '$lib/server/config-sanity';
@@ -28,24 +29,81 @@ export const init: ServerInit = async () => {
   // Register the caching-layer config (Valkey read tier + invalidation bus) so
   // shared infra resolves it without touching $env itself.
   registerServerConfig({
-    valkey: env.VALKEY_ADDR ? { addr: env.VALKEY_ADDR, password: env.VALKEY_PASSWORD } : undefined,
+    valkey: env.VALKEY_ADDR
+      ? {
+          addr: env.VALKEY_ADDR,
+          password: env.VALKEY_PASSWORD,
+          // Optional Sentinel endpoint for write-path clients (rate limiter):
+          // tracks the elected master across failovers instead of pinning a
+          // node-local instance that may be a read-only replica.
+          sentinelAddr: env.VALKEY_SENTINEL_ADDR,
+          sentinelMaster: env.VALKEY_MASTER_SET
+        }
+      : undefined,
     cacheInvalidationPrefix: env.NATS_CACHE_INVALIDATION_PREFIX ?? 'bagel.cache.invalidate'
   });
 
-  // Pre-dial NATS and pre-connect the Valkey read pool so the first request hits
-  // warm connections instead of paying the cold dial/connect on the hot path.
+  // Pre-dial NATS and pre-connect the Valkey read pool and rate-limit write
+  // client so the first request hits warm connections instead of paying the
+  // cold dial/connect on the hot path.
   warm();
   warmValkey();
+  warmRateLimiter();
 
   // Subscribe to the cache-invalidation bus so writes in Go services push-drop
   // the right keys without waiting on TTL expiry.
   startInvalidationListener();
 };
 
+// Fleet-wide rate limits: the buckets live in Valkey (Sentinel master), so
+// every pod enforces the same global budget; on any Valkey failure each tier
+// degrades to a per-pod bucket with the same tuning (see rate-limit.ts).
+// Three tiers, tightest wins by route/method:
+//   * auth   — /auth/* + /delegate/*: OAuth redirects/callbacks and session
+//     escalation. Brute-force target, humans hit it a handful of times.
+//   * write  — any non-GET/HEAD elsewhere: form actions and API mutations.
+//     Clicking around settings is bursty, so allow a real burst but a modest
+//     sustained rate (the Go batchers coalesce anyway).
+//   * read   — everything else: page loads, __data.json, SSE connects.
+// Keyed by session user id when logged in (stable across CGNAT/mobile IP
+// churn), else by client IP.
+const authLimiter = new ValkeyRateLimiter({ name: 'auth', capacity: 10, refillPerSec: 10 / 60 });
+const writeLimiter = new ValkeyRateLimiter({ name: 'write', capacity: 30, refillPerSec: 0.5 });
+const readLimiter = new ValkeyRateLimiter({ name: 'read', capacity: 60, refillPerSec: 2 });
+
+// Kubelet probes are frequent, unauthenticated and share the node IP; limiting
+// them would let the limiter fail readiness. Static /_app assets never reach
+// this handle (served by sirv in serve-node.js).
+const RATE_EXEMPT = new Set(['/healthz', '/readyz']);
+
+function pickLimiter(pathname: string, method: string): ValkeyRateLimiter {
+  if (pathname.startsWith('/auth/') || pathname.startsWith('/delegate/')) return authLimiter;
+  if (method !== 'GET' && method !== 'HEAD') return writeLimiter;
+  return readLimiter;
+}
+
 // Session + the security headers SvelteKit's CSP config does not own.
 export const handle: Handle = async ({ event, resolve }) => {
   const cookie = event.cookies.get(COOKIE);
   event.locals.session = cookie ? open(cookie) : null;
+
+  if (!RATE_EXEMPT.has(event.url.pathname)) {
+    const key = event.locals.session?.user_id
+      ? `u:${event.locals.session.user_id}`
+      : `ip:${clientIp(event.request.headers, event.getClientAddress)}`;
+    const decision = await pickLimiter(event.url.pathname, event.request.method).check(key);
+    if (!decision.allowed) {
+      newrelic.addCustomAttributes({ 'ratelimit.limited': true, 'route.id': event.route.id ?? 'unmatched' });
+      return new Response('Too many requests', {
+        status: 429,
+        headers: {
+          'Retry-After': String(decision.retryAfterSec),
+          'Cache-Control': 'no-store',
+          'Content-Type': 'text/plain; charset=utf-8'
+        }
+      });
+    }
+  }
 
   let queryLang = event.url.searchParams.get('lang');
   if (queryLang === 'fr' || queryLang === 'en') {

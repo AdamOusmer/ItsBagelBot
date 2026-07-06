@@ -16,6 +16,7 @@
     "./server/service": "./lib/server/service.ts",
     "./server/rum": "./lib/server/rum.ts",
     "./server/resilience": "./lib/server/resilience.ts",
+    "./server/rate-limit": "./lib/server/rate-limit.ts",
     "./server/cache": "./lib/server/cache.ts",
     "./server/cache-keys": "./lib/server/cache-keys.ts",
     "./server/cache-fabric": "./lib/server/cache-fabric.ts",

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 )
@@ -18,6 +19,7 @@ type CommandsCreate struct {
 	config
 	mutation *CommandsMutation
 	hooks    []Hook
+	conflict []sql.ConflictOption
 }
 
 // SetUserID sets the "user_id" field.
@@ -305,6 +307,7 @@ func (_c *CommandsCreate) createSpec() (*Commands, *sqlgraph.CreateSpec) {
 		_node = &Commands{config: _c.config}
 		_spec = sqlgraph.NewCreateSpec(commands.Table, sqlgraph.NewFieldSpec(commands.FieldID, field.TypeInt))
 	)
+	_spec.OnConflict = _c.conflict
 	if value, ok := _c.mutation.UserID(); ok {
 		_spec.SetField(commands.FieldUserID, field.TypeUint64, value)
 		_node.UserID = value
@@ -356,11 +359,477 @@ func (_c *CommandsCreate) createSpec() (*Commands, *sqlgraph.CreateSpec) {
 	return _node, _spec
 }
 
+// OnConflict allows configuring the `ON CONFLICT` / `ON DUPLICATE KEY` clause
+// of the `INSERT` statement. For example:
+//
+//	client.Commands.Create().
+//		SetUserID(v).
+//		OnConflict(
+//			// Update the row with the new values
+//			// the was proposed for insertion.
+//			sql.ResolveWithNewValues(),
+//		).
+//		// Override some of the fields with custom
+//		// update values.
+//		Update(func(u *ent.CommandsUpsert) {
+//			SetUserID(v+v).
+//		}).
+//		Exec(ctx)
+func (_c *CommandsCreate) OnConflict(opts ...sql.ConflictOption) *CommandsUpsertOne {
+	_c.conflict = opts
+	return &CommandsUpsertOne{
+		create: _c,
+	}
+}
+
+// OnConflictColumns calls `OnConflict` and configures the columns
+// as conflict target. Using this option is equivalent to using:
+//
+//	client.Commands.Create().
+//		OnConflict(sql.ConflictColumns(columns...)).
+//		Exec(ctx)
+func (_c *CommandsCreate) OnConflictColumns(columns ...string) *CommandsUpsertOne {
+	_c.conflict = append(_c.conflict, sql.ConflictColumns(columns...))
+	return &CommandsUpsertOne{
+		create: _c,
+	}
+}
+
+type (
+	// CommandsUpsertOne is the builder for "upsert"-ing
+	//  one Commands node.
+	CommandsUpsertOne struct {
+		create *CommandsCreate
+	}
+
+	// CommandsUpsert is the "OnConflict" setter.
+	CommandsUpsert struct {
+		*sql.UpdateSet
+	}
+)
+
+// SetName sets the "name" field.
+func (u *CommandsUpsert) SetName(v string) *CommandsUpsert {
+	u.Set(commands.FieldName, v)
+	return u
+}
+
+// UpdateName sets the "name" field to the value that was provided on create.
+func (u *CommandsUpsert) UpdateName() *CommandsUpsert {
+	u.SetExcluded(commands.FieldName)
+	return u
+}
+
+// SetAliases sets the "aliases" field.
+func (u *CommandsUpsert) SetAliases(v []string) *CommandsUpsert {
+	u.Set(commands.FieldAliases, v)
+	return u
+}
+
+// UpdateAliases sets the "aliases" field to the value that was provided on create.
+func (u *CommandsUpsert) UpdateAliases() *CommandsUpsert {
+	u.SetExcluded(commands.FieldAliases)
+	return u
+}
+
+// ClearAliases clears the value of the "aliases" field.
+func (u *CommandsUpsert) ClearAliases() *CommandsUpsert {
+	u.SetNull(commands.FieldAliases)
+	return u
+}
+
+// SetResponse sets the "response" field.
+func (u *CommandsUpsert) SetResponse(v string) *CommandsUpsert {
+	u.Set(commands.FieldResponse, v)
+	return u
+}
+
+// UpdateResponse sets the "response" field to the value that was provided on create.
+func (u *CommandsUpsert) UpdateResponse() *CommandsUpsert {
+	u.SetExcluded(commands.FieldResponse)
+	return u
+}
+
+// SetIsActive sets the "is_active" field.
+func (u *CommandsUpsert) SetIsActive(v bool) *CommandsUpsert {
+	u.Set(commands.FieldIsActive, v)
+	return u
+}
+
+// UpdateIsActive sets the "is_active" field to the value that was provided on create.
+func (u *CommandsUpsert) UpdateIsActive() *CommandsUpsert {
+	u.SetExcluded(commands.FieldIsActive)
+	return u
+}
+
+// SetStreamOnlineOnly sets the "stream_online_only" field.
+func (u *CommandsUpsert) SetStreamOnlineOnly(v bool) *CommandsUpsert {
+	u.Set(commands.FieldStreamOnlineOnly, v)
+	return u
+}
+
+// UpdateStreamOnlineOnly sets the "stream_online_only" field to the value that was provided on create.
+func (u *CommandsUpsert) UpdateStreamOnlineOnly() *CommandsUpsert {
+	u.SetExcluded(commands.FieldStreamOnlineOnly)
+	return u
+}
+
+// SetPerm sets the "perm" field.
+func (u *CommandsUpsert) SetPerm(v string) *CommandsUpsert {
+	u.Set(commands.FieldPerm, v)
+	return u
+}
+
+// UpdatePerm sets the "perm" field to the value that was provided on create.
+func (u *CommandsUpsert) UpdatePerm() *CommandsUpsert {
+	u.SetExcluded(commands.FieldPerm)
+	return u
+}
+
+// SetCooldown sets the "cooldown" field.
+func (u *CommandsUpsert) SetCooldown(v uint) *CommandsUpsert {
+	u.Set(commands.FieldCooldown, v)
+	return u
+}
+
+// UpdateCooldown sets the "cooldown" field to the value that was provided on create.
+func (u *CommandsUpsert) UpdateCooldown() *CommandsUpsert {
+	u.SetExcluded(commands.FieldCooldown)
+	return u
+}
+
+// AddCooldown adds v to the "cooldown" field.
+func (u *CommandsUpsert) AddCooldown(v uint) *CommandsUpsert {
+	u.Add(commands.FieldCooldown, v)
+	return u
+}
+
+// SetAllowedUserID sets the "allowed_user_id" field.
+func (u *CommandsUpsert) SetAllowedUserID(v uint64) *CommandsUpsert {
+	u.Set(commands.FieldAllowedUserID, v)
+	return u
+}
+
+// UpdateAllowedUserID sets the "allowed_user_id" field to the value that was provided on create.
+func (u *CommandsUpsert) UpdateAllowedUserID() *CommandsUpsert {
+	u.SetExcluded(commands.FieldAllowedUserID)
+	return u
+}
+
+// AddAllowedUserID adds v to the "allowed_user_id" field.
+func (u *CommandsUpsert) AddAllowedUserID(v uint64) *CommandsUpsert {
+	u.Add(commands.FieldAllowedUserID, v)
+	return u
+}
+
+// SetUses sets the "uses" field.
+func (u *CommandsUpsert) SetUses(v uint64) *CommandsUpsert {
+	u.Set(commands.FieldUses, v)
+	return u
+}
+
+// UpdateUses sets the "uses" field to the value that was provided on create.
+func (u *CommandsUpsert) UpdateUses() *CommandsUpsert {
+	u.SetExcluded(commands.FieldUses)
+	return u
+}
+
+// AddUses adds v to the "uses" field.
+func (u *CommandsUpsert) AddUses(v uint64) *CommandsUpsert {
+	u.Add(commands.FieldUses, v)
+	return u
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (u *CommandsUpsert) SetCreatedAt(v time.Time) *CommandsUpsert {
+	u.Set(commands.FieldCreatedAt, v)
+	return u
+}
+
+// UpdateCreatedAt sets the "created_at" field to the value that was provided on create.
+func (u *CommandsUpsert) UpdateCreatedAt() *CommandsUpsert {
+	u.SetExcluded(commands.FieldCreatedAt)
+	return u
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (u *CommandsUpsert) SetUpdatedAt(v time.Time) *CommandsUpsert {
+	u.Set(commands.FieldUpdatedAt, v)
+	return u
+}
+
+// UpdateUpdatedAt sets the "updated_at" field to the value that was provided on create.
+func (u *CommandsUpsert) UpdateUpdatedAt() *CommandsUpsert {
+	u.SetExcluded(commands.FieldUpdatedAt)
+	return u
+}
+
+// UpdateNewValues updates the mutable fields using the new values that were set on create.
+// Using this option is equivalent to using:
+//
+//	client.Commands.Create().
+//		OnConflict(
+//			sql.ResolveWithNewValues(),
+//		).
+//		Exec(ctx)
+func (u *CommandsUpsertOne) UpdateNewValues() *CommandsUpsertOne {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWithNewValues())
+	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(s *sql.UpdateSet) {
+		if _, exists := u.create.mutation.UserID(); exists {
+			s.SetIgnore(commands.FieldUserID)
+		}
+	}))
+	return u
+}
+
+// Ignore sets each column to itself in case of conflict.
+// Using this option is equivalent to using:
+//
+//	client.Commands.Create().
+//	    OnConflict(sql.ResolveWithIgnore()).
+//	    Exec(ctx)
+func (u *CommandsUpsertOne) Ignore() *CommandsUpsertOne {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWithIgnore())
+	return u
+}
+
+// DoNothing configures the conflict_action to `DO NOTHING`.
+// Supported only by SQLite and PostgreSQL.
+func (u *CommandsUpsertOne) DoNothing() *CommandsUpsertOne {
+	u.create.conflict = append(u.create.conflict, sql.DoNothing())
+	return u
+}
+
+// Update allows overriding fields `UPDATE` values. See the CommandsCreate.OnConflict
+// documentation for more info.
+func (u *CommandsUpsertOne) Update(set func(*CommandsUpsert)) *CommandsUpsertOne {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(update *sql.UpdateSet) {
+		set(&CommandsUpsert{UpdateSet: update})
+	}))
+	return u
+}
+
+// SetName sets the "name" field.
+func (u *CommandsUpsertOne) SetName(v string) *CommandsUpsertOne {
+	return u.Update(func(s *CommandsUpsert) {
+		s.SetName(v)
+	})
+}
+
+// UpdateName sets the "name" field to the value that was provided on create.
+func (u *CommandsUpsertOne) UpdateName() *CommandsUpsertOne {
+	return u.Update(func(s *CommandsUpsert) {
+		s.UpdateName()
+	})
+}
+
+// SetAliases sets the "aliases" field.
+func (u *CommandsUpsertOne) SetAliases(v []string) *CommandsUpsertOne {
+	return u.Update(func(s *CommandsUpsert) {
+		s.SetAliases(v)
+	})
+}
+
+// UpdateAliases sets the "aliases" field to the value that was provided on create.
+func (u *CommandsUpsertOne) UpdateAliases() *CommandsUpsertOne {
+	return u.Update(func(s *CommandsUpsert) {
+		s.UpdateAliases()
+	})
+}
+
+// ClearAliases clears the value of the "aliases" field.
+func (u *CommandsUpsertOne) ClearAliases() *CommandsUpsertOne {
+	return u.Update(func(s *CommandsUpsert) {
+		s.ClearAliases()
+	})
+}
+
+// SetResponse sets the "response" field.
+func (u *CommandsUpsertOne) SetResponse(v string) *CommandsUpsertOne {
+	return u.Update(func(s *CommandsUpsert) {
+		s.SetResponse(v)
+	})
+}
+
+// UpdateResponse sets the "response" field to the value that was provided on create.
+func (u *CommandsUpsertOne) UpdateResponse() *CommandsUpsertOne {
+	return u.Update(func(s *CommandsUpsert) {
+		s.UpdateResponse()
+	})
+}
+
+// SetIsActive sets the "is_active" field.
+func (u *CommandsUpsertOne) SetIsActive(v bool) *CommandsUpsertOne {
+	return u.Update(func(s *CommandsUpsert) {
+		s.SetIsActive(v)
+	})
+}
+
+// UpdateIsActive sets the "is_active" field to the value that was provided on create.
+func (u *CommandsUpsertOne) UpdateIsActive() *CommandsUpsertOne {
+	return u.Update(func(s *CommandsUpsert) {
+		s.UpdateIsActive()
+	})
+}
+
+// SetStreamOnlineOnly sets the "stream_online_only" field.
+func (u *CommandsUpsertOne) SetStreamOnlineOnly(v bool) *CommandsUpsertOne {
+	return u.Update(func(s *CommandsUpsert) {
+		s.SetStreamOnlineOnly(v)
+	})
+}
+
+// UpdateStreamOnlineOnly sets the "stream_online_only" field to the value that was provided on create.
+func (u *CommandsUpsertOne) UpdateStreamOnlineOnly() *CommandsUpsertOne {
+	return u.Update(func(s *CommandsUpsert) {
+		s.UpdateStreamOnlineOnly()
+	})
+}
+
+// SetPerm sets the "perm" field.
+func (u *CommandsUpsertOne) SetPerm(v string) *CommandsUpsertOne {
+	return u.Update(func(s *CommandsUpsert) {
+		s.SetPerm(v)
+	})
+}
+
+// UpdatePerm sets the "perm" field to the value that was provided on create.
+func (u *CommandsUpsertOne) UpdatePerm() *CommandsUpsertOne {
+	return u.Update(func(s *CommandsUpsert) {
+		s.UpdatePerm()
+	})
+}
+
+// SetCooldown sets the "cooldown" field.
+func (u *CommandsUpsertOne) SetCooldown(v uint) *CommandsUpsertOne {
+	return u.Update(func(s *CommandsUpsert) {
+		s.SetCooldown(v)
+	})
+}
+
+// AddCooldown adds v to the "cooldown" field.
+func (u *CommandsUpsertOne) AddCooldown(v uint) *CommandsUpsertOne {
+	return u.Update(func(s *CommandsUpsert) {
+		s.AddCooldown(v)
+	})
+}
+
+// UpdateCooldown sets the "cooldown" field to the value that was provided on create.
+func (u *CommandsUpsertOne) UpdateCooldown() *CommandsUpsertOne {
+	return u.Update(func(s *CommandsUpsert) {
+		s.UpdateCooldown()
+	})
+}
+
+// SetAllowedUserID sets the "allowed_user_id" field.
+func (u *CommandsUpsertOne) SetAllowedUserID(v uint64) *CommandsUpsertOne {
+	return u.Update(func(s *CommandsUpsert) {
+		s.SetAllowedUserID(v)
+	})
+}
+
+// AddAllowedUserID adds v to the "allowed_user_id" field.
+func (u *CommandsUpsertOne) AddAllowedUserID(v uint64) *CommandsUpsertOne {
+	return u.Update(func(s *CommandsUpsert) {
+		s.AddAllowedUserID(v)
+	})
+}
+
+// UpdateAllowedUserID sets the "allowed_user_id" field to the value that was provided on create.
+func (u *CommandsUpsertOne) UpdateAllowedUserID() *CommandsUpsertOne {
+	return u.Update(func(s *CommandsUpsert) {
+		s.UpdateAllowedUserID()
+	})
+}
+
+// SetUses sets the "uses" field.
+func (u *CommandsUpsertOne) SetUses(v uint64) *CommandsUpsertOne {
+	return u.Update(func(s *CommandsUpsert) {
+		s.SetUses(v)
+	})
+}
+
+// AddUses adds v to the "uses" field.
+func (u *CommandsUpsertOne) AddUses(v uint64) *CommandsUpsertOne {
+	return u.Update(func(s *CommandsUpsert) {
+		s.AddUses(v)
+	})
+}
+
+// UpdateUses sets the "uses" field to the value that was provided on create.
+func (u *CommandsUpsertOne) UpdateUses() *CommandsUpsertOne {
+	return u.Update(func(s *CommandsUpsert) {
+		s.UpdateUses()
+	})
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (u *CommandsUpsertOne) SetCreatedAt(v time.Time) *CommandsUpsertOne {
+	return u.Update(func(s *CommandsUpsert) {
+		s.SetCreatedAt(v)
+	})
+}
+
+// UpdateCreatedAt sets the "created_at" field to the value that was provided on create.
+func (u *CommandsUpsertOne) UpdateCreatedAt() *CommandsUpsertOne {
+	return u.Update(func(s *CommandsUpsert) {
+		s.UpdateCreatedAt()
+	})
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (u *CommandsUpsertOne) SetUpdatedAt(v time.Time) *CommandsUpsertOne {
+	return u.Update(func(s *CommandsUpsert) {
+		s.SetUpdatedAt(v)
+	})
+}
+
+// UpdateUpdatedAt sets the "updated_at" field to the value that was provided on create.
+func (u *CommandsUpsertOne) UpdateUpdatedAt() *CommandsUpsertOne {
+	return u.Update(func(s *CommandsUpsert) {
+		s.UpdateUpdatedAt()
+	})
+}
+
+// Exec executes the query.
+func (u *CommandsUpsertOne) Exec(ctx context.Context) error {
+	if len(u.create.conflict) == 0 {
+		return errors.New("ent: missing options for CommandsCreate.OnConflict")
+	}
+	return u.create.Exec(ctx)
+}
+
+// ExecX is like Exec, but panics if an error occurs.
+func (u *CommandsUpsertOne) ExecX(ctx context.Context) {
+	if err := u.create.Exec(ctx); err != nil {
+		panic(err)
+	}
+}
+
+// Exec executes the UPSERT query and returns the inserted/updated ID.
+func (u *CommandsUpsertOne) ID(ctx context.Context) (id int, err error) {
+	node, err := u.create.Save(ctx)
+	if err != nil {
+		return id, err
+	}
+	return node.ID, nil
+}
+
+// IDX is like ID, but panics if an error occurs.
+func (u *CommandsUpsertOne) IDX(ctx context.Context) int {
+	id, err := u.ID(ctx)
+	if err != nil {
+		panic(err)
+	}
+	return id
+}
+
 // CommandsCreateBulk is the builder for creating many Commands entities in bulk.
 type CommandsCreateBulk struct {
 	config
 	err      error
 	builders []*CommandsCreate
+	conflict []sql.ConflictOption
 }
 
 // Save creates the Commands entities in the database.
@@ -390,6 +859,7 @@ func (_c *CommandsCreateBulk) Save(ctx context.Context) ([]*Commands, error) {
 					_, err = mutators[i+1].Mutate(root, _c.builders[i+1].mutation)
 				} else {
 					spec := &sqlgraph.BatchCreateSpec{Nodes: specs}
+					spec.OnConflict = _c.conflict
 					// Invoke the actual operation on the latest mutation in the chain.
 					if err = sqlgraph.BatchCreate(ctx, _c.driver, spec); err != nil {
 						if sqlgraph.IsConstraintError(err) {
@@ -440,6 +910,299 @@ func (_c *CommandsCreateBulk) Exec(ctx context.Context) error {
 // ExecX is like Exec, but panics if an error occurs.
 func (_c *CommandsCreateBulk) ExecX(ctx context.Context) {
 	if err := _c.Exec(ctx); err != nil {
+		panic(err)
+	}
+}
+
+// OnConflict allows configuring the `ON CONFLICT` / `ON DUPLICATE KEY` clause
+// of the `INSERT` statement. For example:
+//
+//	client.Commands.CreateBulk(builders...).
+//		OnConflict(
+//			// Update the row with the new values
+//			// the was proposed for insertion.
+//			sql.ResolveWithNewValues(),
+//		).
+//		// Override some of the fields with custom
+//		// update values.
+//		Update(func(u *ent.CommandsUpsert) {
+//			SetUserID(v+v).
+//		}).
+//		Exec(ctx)
+func (_c *CommandsCreateBulk) OnConflict(opts ...sql.ConflictOption) *CommandsUpsertBulk {
+	_c.conflict = opts
+	return &CommandsUpsertBulk{
+		create: _c,
+	}
+}
+
+// OnConflictColumns calls `OnConflict` and configures the columns
+// as conflict target. Using this option is equivalent to using:
+//
+//	client.Commands.Create().
+//		OnConflict(sql.ConflictColumns(columns...)).
+//		Exec(ctx)
+func (_c *CommandsCreateBulk) OnConflictColumns(columns ...string) *CommandsUpsertBulk {
+	_c.conflict = append(_c.conflict, sql.ConflictColumns(columns...))
+	return &CommandsUpsertBulk{
+		create: _c,
+	}
+}
+
+// CommandsUpsertBulk is the builder for "upsert"-ing
+// a bulk of Commands nodes.
+type CommandsUpsertBulk struct {
+	create *CommandsCreateBulk
+}
+
+// UpdateNewValues updates the mutable fields using the new values that
+// were set on create. Using this option is equivalent to using:
+//
+//	client.Commands.Create().
+//		OnConflict(
+//			sql.ResolveWithNewValues(),
+//		).
+//		Exec(ctx)
+func (u *CommandsUpsertBulk) UpdateNewValues() *CommandsUpsertBulk {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWithNewValues())
+	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(s *sql.UpdateSet) {
+		for _, b := range u.create.builders {
+			if _, exists := b.mutation.UserID(); exists {
+				s.SetIgnore(commands.FieldUserID)
+			}
+		}
+	}))
+	return u
+}
+
+// Ignore sets each column to itself in case of conflict.
+// Using this option is equivalent to using:
+//
+//	client.Commands.Create().
+//		OnConflict(sql.ResolveWithIgnore()).
+//		Exec(ctx)
+func (u *CommandsUpsertBulk) Ignore() *CommandsUpsertBulk {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWithIgnore())
+	return u
+}
+
+// DoNothing configures the conflict_action to `DO NOTHING`.
+// Supported only by SQLite and PostgreSQL.
+func (u *CommandsUpsertBulk) DoNothing() *CommandsUpsertBulk {
+	u.create.conflict = append(u.create.conflict, sql.DoNothing())
+	return u
+}
+
+// Update allows overriding fields `UPDATE` values. See the CommandsCreateBulk.OnConflict
+// documentation for more info.
+func (u *CommandsUpsertBulk) Update(set func(*CommandsUpsert)) *CommandsUpsertBulk {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(update *sql.UpdateSet) {
+		set(&CommandsUpsert{UpdateSet: update})
+	}))
+	return u
+}
+
+// SetName sets the "name" field.
+func (u *CommandsUpsertBulk) SetName(v string) *CommandsUpsertBulk {
+	return u.Update(func(s *CommandsUpsert) {
+		s.SetName(v)
+	})
+}
+
+// UpdateName sets the "name" field to the value that was provided on create.
+func (u *CommandsUpsertBulk) UpdateName() *CommandsUpsertBulk {
+	return u.Update(func(s *CommandsUpsert) {
+		s.UpdateName()
+	})
+}
+
+// SetAliases sets the "aliases" field.
+func (u *CommandsUpsertBulk) SetAliases(v []string) *CommandsUpsertBulk {
+	return u.Update(func(s *CommandsUpsert) {
+		s.SetAliases(v)
+	})
+}
+
+// UpdateAliases sets the "aliases" field to the value that was provided on create.
+func (u *CommandsUpsertBulk) UpdateAliases() *CommandsUpsertBulk {
+	return u.Update(func(s *CommandsUpsert) {
+		s.UpdateAliases()
+	})
+}
+
+// ClearAliases clears the value of the "aliases" field.
+func (u *CommandsUpsertBulk) ClearAliases() *CommandsUpsertBulk {
+	return u.Update(func(s *CommandsUpsert) {
+		s.ClearAliases()
+	})
+}
+
+// SetResponse sets the "response" field.
+func (u *CommandsUpsertBulk) SetResponse(v string) *CommandsUpsertBulk {
+	return u.Update(func(s *CommandsUpsert) {
+		s.SetResponse(v)
+	})
+}
+
+// UpdateResponse sets the "response" field to the value that was provided on create.
+func (u *CommandsUpsertBulk) UpdateResponse() *CommandsUpsertBulk {
+	return u.Update(func(s *CommandsUpsert) {
+		s.UpdateResponse()
+	})
+}
+
+// SetIsActive sets the "is_active" field.
+func (u *CommandsUpsertBulk) SetIsActive(v bool) *CommandsUpsertBulk {
+	return u.Update(func(s *CommandsUpsert) {
+		s.SetIsActive(v)
+	})
+}
+
+// UpdateIsActive sets the "is_active" field to the value that was provided on create.
+func (u *CommandsUpsertBulk) UpdateIsActive() *CommandsUpsertBulk {
+	return u.Update(func(s *CommandsUpsert) {
+		s.UpdateIsActive()
+	})
+}
+
+// SetStreamOnlineOnly sets the "stream_online_only" field.
+func (u *CommandsUpsertBulk) SetStreamOnlineOnly(v bool) *CommandsUpsertBulk {
+	return u.Update(func(s *CommandsUpsert) {
+		s.SetStreamOnlineOnly(v)
+	})
+}
+
+// UpdateStreamOnlineOnly sets the "stream_online_only" field to the value that was provided on create.
+func (u *CommandsUpsertBulk) UpdateStreamOnlineOnly() *CommandsUpsertBulk {
+	return u.Update(func(s *CommandsUpsert) {
+		s.UpdateStreamOnlineOnly()
+	})
+}
+
+// SetPerm sets the "perm" field.
+func (u *CommandsUpsertBulk) SetPerm(v string) *CommandsUpsertBulk {
+	return u.Update(func(s *CommandsUpsert) {
+		s.SetPerm(v)
+	})
+}
+
+// UpdatePerm sets the "perm" field to the value that was provided on create.
+func (u *CommandsUpsertBulk) UpdatePerm() *CommandsUpsertBulk {
+	return u.Update(func(s *CommandsUpsert) {
+		s.UpdatePerm()
+	})
+}
+
+// SetCooldown sets the "cooldown" field.
+func (u *CommandsUpsertBulk) SetCooldown(v uint) *CommandsUpsertBulk {
+	return u.Update(func(s *CommandsUpsert) {
+		s.SetCooldown(v)
+	})
+}
+
+// AddCooldown adds v to the "cooldown" field.
+func (u *CommandsUpsertBulk) AddCooldown(v uint) *CommandsUpsertBulk {
+	return u.Update(func(s *CommandsUpsert) {
+		s.AddCooldown(v)
+	})
+}
+
+// UpdateCooldown sets the "cooldown" field to the value that was provided on create.
+func (u *CommandsUpsertBulk) UpdateCooldown() *CommandsUpsertBulk {
+	return u.Update(func(s *CommandsUpsert) {
+		s.UpdateCooldown()
+	})
+}
+
+// SetAllowedUserID sets the "allowed_user_id" field.
+func (u *CommandsUpsertBulk) SetAllowedUserID(v uint64) *CommandsUpsertBulk {
+	return u.Update(func(s *CommandsUpsert) {
+		s.SetAllowedUserID(v)
+	})
+}
+
+// AddAllowedUserID adds v to the "allowed_user_id" field.
+func (u *CommandsUpsertBulk) AddAllowedUserID(v uint64) *CommandsUpsertBulk {
+	return u.Update(func(s *CommandsUpsert) {
+		s.AddAllowedUserID(v)
+	})
+}
+
+// UpdateAllowedUserID sets the "allowed_user_id" field to the value that was provided on create.
+func (u *CommandsUpsertBulk) UpdateAllowedUserID() *CommandsUpsertBulk {
+	return u.Update(func(s *CommandsUpsert) {
+		s.UpdateAllowedUserID()
+	})
+}
+
+// SetUses sets the "uses" field.
+func (u *CommandsUpsertBulk) SetUses(v uint64) *CommandsUpsertBulk {
+	return u.Update(func(s *CommandsUpsert) {
+		s.SetUses(v)
+	})
+}
+
+// AddUses adds v to the "uses" field.
+func (u *CommandsUpsertBulk) AddUses(v uint64) *CommandsUpsertBulk {
+	return u.Update(func(s *CommandsUpsert) {
+		s.AddUses(v)
+	})
+}
+
+// UpdateUses sets the "uses" field to the value that was provided on create.
+func (u *CommandsUpsertBulk) UpdateUses() *CommandsUpsertBulk {
+	return u.Update(func(s *CommandsUpsert) {
+		s.UpdateUses()
+	})
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (u *CommandsUpsertBulk) SetCreatedAt(v time.Time) *CommandsUpsertBulk {
+	return u.Update(func(s *CommandsUpsert) {
+		s.SetCreatedAt(v)
+	})
+}
+
+// UpdateCreatedAt sets the "created_at" field to the value that was provided on create.
+func (u *CommandsUpsertBulk) UpdateCreatedAt() *CommandsUpsertBulk {
+	return u.Update(func(s *CommandsUpsert) {
+		s.UpdateCreatedAt()
+	})
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (u *CommandsUpsertBulk) SetUpdatedAt(v time.Time) *CommandsUpsertBulk {
+	return u.Update(func(s *CommandsUpsert) {
+		s.SetUpdatedAt(v)
+	})
+}
+
+// UpdateUpdatedAt sets the "updated_at" field to the value that was provided on create.
+func (u *CommandsUpsertBulk) UpdateUpdatedAt() *CommandsUpsertBulk {
+	return u.Update(func(s *CommandsUpsert) {
+		s.UpdateUpdatedAt()
+	})
+}
+
+// Exec executes the query.
+func (u *CommandsUpsertBulk) Exec(ctx context.Context) error {
+	if u.create.err != nil {
+		return u.create.err
+	}
+	for i, b := range u.create.builders {
+		if len(b.conflict) != 0 {
+			return fmt.Errorf("ent: OnConflict was set for builder %d. Set it on the CommandsCreateBulk instead", i)
+		}
+	}
+	if len(u.create.conflict) == 0 {
+		return errors.New("ent: missing options for CommandsCreateBulk.OnConflict")
+	}
+	return u.create.Exec(ctx)
+}
+
+// ExecX is like Exec, but panics if an error occurs.
+func (u *CommandsUpsertBulk) ExecX(ctx context.Context) {
+	if err := u.create.Exec(ctx); err != nil {
 		panic(err)
 	}
 }
