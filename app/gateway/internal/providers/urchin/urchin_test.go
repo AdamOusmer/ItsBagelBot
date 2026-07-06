@@ -47,7 +47,7 @@ func newTestProvider(t *testing.T, handler http.Handler) *Provider {
 	t.Helper()
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)
-	return New(Config{BaseURL: srv.URL, APIKey: "test-key"}, core.NewCache(newMemStore()), zap.NewNop())
+	return New(Config{BaseURL: srv.URL, APIKey: "test-key"}, core.NewCache(newMemStore()), nil, zap.NewNop())
 }
 
 func endpoint(t *testing.T, p *Provider, name string) func(context.Context, gatewayrpc.Request) any {
@@ -93,7 +93,7 @@ func TestDailySessionParsing(t *testing.T) {
 	require.Empty(t, reply.Error)
 	assert.Equal(t, "test-key", gotKey)
 	assert.Equal(t, "Techno", gotPlayer)
-	assert.Equal(t, "§7Techno", reply.Player)
+	assert.Equal(t, "Techno", reply.Player)
 	assert.Equal(t, int64(1720000000), reply.SinceUnix)
 	assert.Equal(t, int64(5), reply.Wins)
 	assert.Equal(t, int64(2), reply.Losses)

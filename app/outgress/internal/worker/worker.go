@@ -22,7 +22,7 @@ import (
 
 	"ItsBagelBot/app/outgress/internal/channels"
 	"ItsBagelBot/app/outgress/internal/conduit"
-	"ItsBagelBot/app/outgress/internal/ratelimit"
+	"ItsBagelBot/pkg/ratelimit"
 	"ItsBagelBot/app/outgress/internal/twitch"
 	eventtwitch "ItsBagelBot/internal/domain/event/twitch"
 	"ItsBagelBot/internal/domain/outgress"
@@ -947,10 +947,10 @@ func (w *Worker) reconnectEventSubs(ctx context.Context, broadcasterID, conduitI
 	}
 
 	_ = w.registry.SetSubState(ctx, broadcasterID, "failing", lastErr.Error())
-	w.log.Error("reconnect: eventsubs not fully accepted, marked failing",
+	w.log.Error("reconnect: eventsubs not fully accepted, retrying",
 		zap.String("broadcaster_id", broadcasterID),
 		zap.Error(lastErr))
-	return nil // ack: failing state is surfaced for the operator
+	return lastErr
 }
 
 // createAllEventSubs creates every SubSpec for the channel; returns the first

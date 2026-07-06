@@ -70,7 +70,7 @@ func newTestProvider(t *testing.T, handler http.Handler) (*Provider, *memStore) 
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)
 	st := newMemStore()
-	return New(Config{BaseURL: srv.URL}, core.NewCache(st), zap.NewNop()), st
+	return New(Config{BaseURL: srv.URL}, core.NewCache(st), nil, zap.NewNop()), st
 }
 
 func endpoint(t *testing.T, p *Provider, name string) func(context.Context, gatewayrpc.Request) any {

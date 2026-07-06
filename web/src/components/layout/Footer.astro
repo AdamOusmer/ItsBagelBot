@@ -33,7 +33,7 @@ const t = useTranslations(lang);
             <div class="col" data-reveal style="--reveal-i: 1">
                 <p>{t('footer.product')}</p>
                 <a href={localizePath("/pricing", lang)}>{t('footer.pricing')}</a>
-                <a href="https://docs.itsbagelbot.com" target="_blank" rel="noopener noreferrer">{t('footer.docs')}</a>
+                <a href="https://docs.itsbagelbot.com" target="_blank" rel="noopener noreferrer">{t('footer.developer')}</a>
                 <a href={`https://dashboard.itsbagelbot.com${lang === 'fr' ? '?lang=fr' : ''}`} target="_blank" rel="noopener noreferrer">{t('footer.dashboard')}</a>
             </div>
             <div class="col" data-reveal style="--reveal-i: 2">
@@ -53,8 +53,8 @@ const t = useTranslations(lang);
         <span class="copy">&copy; 2026 ItsBagelBot</span>
         <span class="note">{t('footer.note')}</span>
         <div class="legal">
-            <a href="/privacy">{t('footer.privacy')}</a>
-            <a href="/terms">{t('footer.terms')}</a>
+            <a href={localizePath('/privacy', lang)}>{t('footer.privacy')}</a>
+            <a href={localizePath('/terms', lang)}>{t('footer.terms')}</a>
         </div>
     </div>
 </footer>
