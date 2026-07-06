@@ -84,6 +84,7 @@ func main() {
 		Special:  engine.NewSpecialSet(cfg.SpecialUserIDs),
 		Pub:      pub,
 		Commands: engine.NewCommandsRPC(nc, cfg.CommandsDashboardPrefix),
+		Gateway:  engine.NewGatewayRPC(nc, cfg.GatewayRPCPrefix),
 		Log:      log,
 	}
 	registry := engine.NewRegistry(log, modules.All(deps)...)
