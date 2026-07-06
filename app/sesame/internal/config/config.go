@@ -83,6 +83,11 @@ type Config struct {
 	// manage custom commands from chat (the !cmd module).
 	CommandsDashboardPrefix string
 
+	// GatewayRPCPrefix is the NATS subject prefix the gateway service (external
+	// API proxy + cache) subscribes to; the urchin/mcsr modules append
+	// ".<provider>.<endpoint>".
+	GatewayRPCPrefix string
+
 	// Valkey holds the settings projection (user tier + modules) sesame reads on
 	// the hot path.
 	ValkeyAddr     string
@@ -128,6 +133,8 @@ func Load() *Config {
 		CacheInvalidationPrefix: env.Get("NATS_CACHE_INVALIDATION_PREFIX", "bagel.cache.invalidate"),
 
 		CommandsDashboardPrefix: env.Get("NATS_COMMANDS_DASHBOARD_PREFIX", "bagel.rpc.commands"),
+
+		GatewayRPCPrefix: env.Get("NATS_GATEWAY_SUBJECT_PREFIX", "bagel.rpc.gateway"),
 
 		ValkeyAddr:     env.Get("VALKEY_ADDR", "127.0.0.1:6379"),
 		ValkeyPassword: env.Get("VALKEY_PASSWORD", ""),

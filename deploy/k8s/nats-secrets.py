@@ -45,14 +45,17 @@ SERVICES = {
     "admin": "admin",
     "transactions": "transactions",
     "notifications": "notifications",
+    "gateway": "gateway",
 }
 NO_RPC: set[str] = set()
+# gateway is RPC-only (no JetStream/event plane), so it gets no BUS user.
+NO_BUS: set[str] = {"gateway"}
 
 # One leaf link per account: the BUS account plus every *_RPC account.
 LEAF_ACCOUNTS = [
     "bus", "users", "commands", "modules", "projector",
     "outgress", "worker", "dashboard", "admin", "twitch_ingress",
-    "notifications", "transactions",
+    "notifications", "transactions", "gateway",
 ]
 
 
@@ -83,10 +86,11 @@ def main() -> None:
     print("== per-service credentials ==")
     for svc, project in SERVICES.items():
         kv: dict[str, str] = {}
-        bus_pw = gen()
-        kv["NATS_USER"] = f"{svc}_bus"
-        kv["NATS_PASSWORD"] = bus_pw
-        broker[f"NATS_BCRYPT_{svc.upper()}_BUS"] = bcrypt_hash(bus_pw)
+        if svc not in NO_BUS:
+            bus_pw = gen()
+            kv["NATS_USER"] = f"{svc}_bus"
+            kv["NATS_PASSWORD"] = bus_pw
+            broker[f"NATS_BCRYPT_{svc.upper()}_BUS"] = bcrypt_hash(bus_pw)
         if svc not in NO_RPC:
             rpc_pw = gen()
             kv["NATS_RPC_USER"] = f"{svc}_rpc"

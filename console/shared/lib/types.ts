@@ -290,6 +290,121 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
         defaultMessage: '{user} is raiding the channel with {viewers} viewers! Welcome everyone!'
       }
     ]
+  },
+  // External-stats modules: chat commands answered through the gateway service
+  // (external API proxy + cache). Config keys must match the sesame module
+  // structs (app/sesame/modules/urchin.go, mcsr.go).
+  {
+    id: 'urchin',
+    label: 'Bed Wars Stats',
+    tagline: 'Hypixel Bed Wars stats, urchin score and blacklist tags in chat.',
+    description:
+      'Viewer commands backed by urchin.gg: daily, weekly and monthly Bed Wars sessions, lifetime stats, the Urchin sniper score and active blacklist tags. Commands default to your linked Minecraft account; viewers can also name any player, e.g. "!daily Technoblade".',
+    icon: 'pulse',
+    defaultEnabled: false,
+    replies: [
+      {
+        key: 'daily',
+        label: '!daily',
+        tagline: 'Bed Wars session since the daily reset.',
+        event: '!daily',
+        enableKey: 'dailyEnabled',
+        messageKey: 'dailyMessage',
+        defaultMessage: '{player} today: {wins}W {losses}L · {finals} finals · {beds} beds · {fkdr} FKDR'
+      },
+      {
+        key: 'weekly',
+        label: '!weekly',
+        tagline: 'Bed Wars session since the weekly reset.',
+        event: '!weekly',
+        enableKey: 'weeklyEnabled',
+        messageKey: 'weeklyMessage',
+        defaultMessage: '{player} this week: {wins}W {losses}L · {finals} finals · {beds} beds · {fkdr} FKDR'
+      },
+      {
+        key: 'monthly',
+        label: '!monthly',
+        tagline: 'Bed Wars session since the monthly reset.',
+        event: '!monthly',
+        enableKey: 'monthlyEnabled',
+        messageKey: 'monthlyMessage',
+        defaultMessage: '{player} this month: {wins}W {losses}L · {finals} finals · {beds} beds · {fkdr} FKDR'
+      },
+      {
+        key: 'stats',
+        label: '!bwstats',
+        tagline: 'Lifetime Bed Wars stats.',
+        event: '!bwstats',
+        enableKey: 'statsEnabled',
+        messageKey: 'statsMessage',
+        defaultMessage: '{player}: {stars} stars · {wins} wins · {finals} finals · {fkdr} FKDR · {beds} beds broken'
+      },
+      {
+        key: 'sniper',
+        label: '!sniper',
+        tagline: 'Urchin (Cubelify overlay) score.',
+        event: '!sniper',
+        enableKey: 'sniperEnabled',
+        messageKey: 'sniperMessage',
+        defaultMessage: '{player} urchin score: {score}'
+      },
+      {
+        key: 'tags',
+        label: '!tags',
+        tagline: 'Active Urchin blacklist tags.',
+        event: '!tags',
+        enableKey: 'tagsEnabled',
+        messageKey: 'tagsMessage',
+        defaultMessage: '{player}: {tags}'
+      }
+    ],
+    settings: [
+      {
+        key: 'account',
+        label: 'Linked Minecraft account',
+        type: 'text',
+        placeholder: 'Your Minecraft username',
+        help: 'Default player for every command. Leave blank to use your Twitch username.'
+      }
+    ]
+  },
+  {
+    id: 'mcsr',
+    label: 'MCSR Ranked',
+    tagline: 'Ranked elo and per-stream session stats for MCSR runners.',
+    description:
+      'Viewer commands backed by the MCSR Ranked API: !elo shows the current rating and season record; !session shows elo and wins/losses since the stream started, snapshotting your standing the moment you go live. !elo can name any player (e.g. "!elo Feinberg"); !session always tracks your linked account.',
+    icon: 'clock',
+    defaultEnabled: false,
+    replies: [
+      {
+        key: 'elo',
+        label: '!elo',
+        tagline: 'Current elo, rank and season record.',
+        event: '!elo',
+        enableKey: 'eloEnabled',
+        messageKey: 'eloMessage',
+        defaultMessage: '{player}: {elo} elo · rank #{rank} · {wins}W {losses}L this season'
+      },
+      {
+        key: 'session',
+        label: '!session',
+        tagline: 'Elo and record since the stream started.',
+        event: '!session',
+        enableKey: 'sessionEnabled',
+        messageKey: 'sessionMessage',
+        defaultMessage: '{player} this stream: {elochange} elo ({elo} now) · {wins}W {losses}L in {matches} matches'
+      }
+    ],
+    settings: [
+      {
+        key: 'account',
+        label: 'Linked Minecraft account',
+        type: 'text',
+        placeholder: 'Your Minecraft username',
+        help: 'Default player for every command. Leave blank to use your Twitch username.'
+      }
+    ]
   }
 ];
 
