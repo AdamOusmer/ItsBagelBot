@@ -15,26 +15,21 @@ defmodule Ingress.ShardScaler do
 
   ## Autoscaler
 
-  When `autoscale: true` the scaler samples the aggregate per-shard load
-  (notifications received in the last 60 s per shard, collected from
-  `Ingress.ShardSession.status/2`) and adjusts the target:
+  When `autoscale: true` the scaler samples the aggregate load across shards
+  (notifications received in the last 60 s, collected from
+  `Ingress.ShardSession.status/2`) and sizes the fleet from capacity:
+  Twitch conduits load-balance notifications across all enabled shards, so
+  the needed count is `ceil(aggregate / per-shard budget)` where the budget
+  is the shard rating × target utilization (≥20% kept as burst cushion).
 
-    * avg load per shard > scale-up threshold for consecutive ticks   → +1
-    * avg load per shard < scale-down threshold for consecutive ticks → -1
-    * otherwise                                                        → hold
+    * needed > target for consecutive ticks → jump target to needed
+      (immediately when aggregate exceeds the fleet's full rating)
+    * needed < target for consecutive ticks → drain one shard
+    * otherwise                             → hold
 
   The effective desired count is always `clamp(target, min_shards, max_shards)`.
-  Decisions run every `@autoscale_interval_ms`. Both directions require the
-  watermark to be sustained for consecutive ticks to avoid flapping; a single
-  30 s burst never changes the shard count.
-
-  Thresholds and tick counts live in `Ingress.ShardScaler.Policy`. They are
-  deliberately loose: one shard comfortably handles far more traffic than the
-  scale-up watermark; the autoscaler is a safety net against sustained load
-  spikes, not a latency optimizer. Note the trigger is the *average* across
-  shards, so one hot shard among idle ones (a single busy broadcaster) does
-  not add capacity — Twitch pins existing subscriptions to their shard, so
-  extra shards would not offload it anyway.
+  Decisions run every `@autoscale_interval_ms`. Ratings, utilization, and
+  tick counts live in `Ingress.ShardScaler.Policy`.
   """
 
   use GenServer
@@ -221,24 +216,24 @@ defmodule Ingress.ShardScaler do
     case action do
       :up ->
         Logger.info(
-          "shard_scaler: autoscale up avg_load=#{sample.avg_load} → target #{state.target} → #{new_target}"
+          "shard_scaler: autoscale up load=#{sample.aggregate_load}/window → target #{state.target} → #{new_target}"
         )
 
       :down ->
         Logger.info(
-          "shard_scaler: autoscale down avg_load=#{sample.avg_load} → target #{state.target} → #{new_target}"
+          "shard_scaler: autoscale down load=#{sample.aggregate_load}/window → target #{state.target} → #{new_target}"
         )
 
       :hold ->
         cond do
           ticks.high > 0 ->
             Logger.debug(
-              "shard_scaler: high load avg=#{sample.avg_load} (#{ticks.high}/#{Ingress.ShardScaler.Policy.scale_up_ticks()} ticks)"
+              "shard_scaler: undercapacity load=#{sample.aggregate_load}/window (#{ticks.high}/#{Ingress.ShardScaler.Policy.scale_up_ticks()} ticks)"
             )
 
           ticks.low > 0 ->
             Logger.debug(
-              "shard_scaler: low load avg=#{sample.avg_load} (#{ticks.low}/#{Ingress.ShardScaler.Policy.scale_down_ticks()} ticks)"
+              "shard_scaler: overcapacity load=#{sample.aggregate_load}/window (#{ticks.low}/#{Ingress.ShardScaler.Policy.scale_down_ticks()} ticks)"
             )
 
           true ->
