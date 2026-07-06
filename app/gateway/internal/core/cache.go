@@ -6,6 +6,7 @@ package core
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -70,17 +71,28 @@ func Key(provider, endpoint, id string) string {
 	return "gateway:" + provider + ":" + endpoint + ":" + id
 }
 
+// cacheEnvelope wraps a cached item so we can store both successful values and
+// intentional negative responses (like 404 Not Found) without needing the caller
+// to know how to serialize bare errors.
+type cacheEnvelope[T any] struct {
+	Value T              `json:"v,omitempty"`
+	Error *UpstreamError `json:"e,omitempty"`
+}
+
 // Cached returns the cached T under key, or runs fetch to fill it for ttl.
-// Only successful fetches are cached: an upstream failure is returned to this
-// caller and the next request retries. A Store read/write error degrades to a
-// direct fetch rather than failing the lookup — the cache is an optimization,
-// never a dependency.
-func Cached[T any](ctx context.Context, c *Cache, key string, ttl time.Duration, fetch func(context.Context) (T, error)) (T, error) {
+// Only successful fetches are cached, EXCEPT for typed *UpstreamError failures
+// with status 400 or 404 (e.g. "player not found"), which are negatively cached
+// for negativeTTL to prevent repeated lookups of missing resources. A Store
+// read/write error degrades to a direct fetch rather than failing the lookup.
+func Cached[T any](ctx context.Context, c *Cache, key string, ttl, negativeTTL time.Duration, fetch func(context.Context) (T, error)) (T, error) {
 	var zero T
 	if b, ok, err := c.store.Get(ctx, key); err == nil && ok {
-		var v T
-		if err := json.Unmarshal(b, &v); err == nil {
-			return v, nil
+		var env cacheEnvelope[T]
+		if err := json.Unmarshal(b, &env); err == nil {
+			if env.Error != nil {
+				return zero, env.Error
+			}
+			return env.Value, nil
 		}
 		// Poison entry (shape drift after a deploy): drop it and refetch.
 		_ = c.store.Del(ctx, key)
@@ -89,28 +101,48 @@ func Cached[T any](ctx context.Context, c *Cache, key string, ttl time.Duration,
 	res, err, _ := c.sf.Do(key, func() (any, error) {
 		// A previous flight may have filled the key while we queued.
 		if b, ok, gerr := c.store.Get(ctx, key); gerr == nil && ok {
-			var v T
-			if uerr := json.Unmarshal(b, &v); uerr == nil {
-				return v, nil
+			var env cacheEnvelope[T]
+			if uerr := json.Unmarshal(b, &env); uerr == nil {
+				if env.Error != nil {
+					return zero, env.Error
+				}
+				return env.Value, nil
 			}
 		}
 		v, ferr := fetch(ctx)
+		var ue *UpstreamError
+		var env cacheEnvelope[T]
+		var cacheTTL time.Duration
+
 		if ferr != nil {
-			return nil, ferr
+			if errors.As(ferr, &ue) && (ue.Status == 404 || ue.Status == 400) {
+				// Negative cache hit
+				env.Error = ue
+				cacheTTL = negativeTTL
+			} else {
+				return nil, ferr
+			}
+		} else {
+			env.Value = v
+			cacheTTL = ttl
 		}
-		if b, merr := json.Marshal(v); merr == nil {
-			_ = c.store.Set(ctx, key, b, ttl)
+
+		if b, merr := json.Marshal(env); merr == nil {
+			_ = c.store.Set(ctx, key, b, cacheTTL)
 		}
-		return v, nil
+		
+		if env.Error != nil {
+			return nil, env.Error
+		}
+		return env.Value, nil
 	})
 	if err != nil {
 		return zero, err
 	}
-	v, ok := res.(T)
-	if !ok {
-		return zero, fmt.Errorf("cache %s: unexpected value type %T", key, res)
+	if v, ok := res.(T); ok {
+		return v, nil
 	}
-	return v, nil
+	return zero, fmt.Errorf("cache %s: unexpected value type %T", key, res)
 }
 
 // GetJSON reads a raw (non-fetching) entry, for provider-owned state like the

@@ -171,27 +171,42 @@ func TestUrchinTagsFormatting(t *testing.T) {
 	gw := &fakeGateway{replies: map[string]any{
 		"urchin.tags": gatewayrpc.UrchinTagsReply{
 			Player: "Sus",
-			Tags:   []gatewayrpc.UrchinTag{{Type: "cheater", Reason: "bhop"}, {Type: "sniper"}},
+			Tags:   []gatewayrpc.UrchinTag{{Type: "blatant_cheater", Reason: "bhop"}, {Type: "sniper"}},
 		},
 	}}
-	cmd := urchinCmd(t, gw, "tags")
+	cmd := urchinCmd(t, gw, "tag")
 
 	var col collector
 	require.NoError(t, cmd.Run(context.Background(), urchinCtx(""), "", col.emit))
 	require.Len(t, col.out, 1)
-	assert.Equal(t, "Sus: cheater (bhop), sniper", col.out[0].Text)
+	assert.Equal(t, "Sus: Blatant Cheater, Sniper", col.out[0].Text)
 }
 
 func TestUrchinTagsClean(t *testing.T) {
 	gw := &fakeGateway{replies: map[string]any{
 		"urchin.tags": gatewayrpc.UrchinTagsReply{Player: "Clean", Tags: nil},
 	}}
-	cmd := urchinCmd(t, gw, "tags")
+	cmd := urchinCmd(t, gw, "tag")
 
 	var col collector
 	require.NoError(t, cmd.Run(context.Background(), urchinCtx(""), "", col.emit))
 	require.Len(t, col.out, 1)
-	assert.Equal(t, "Clean: no tags — clean", col.out[0].Text)
+	assert.Equal(t, "Clean: No tags", col.out[0].Text)
+}
+
+func TestUrchinTagDescription(t *testing.T) {
+	gw := &fakeGateway{replies: map[string]any{
+		"urchin.tags": gatewayrpc.UrchinTagsReply{
+			Player: "Sus",
+			Tags:   []gatewayrpc.UrchinTag{{Type: "blatant_cheater", Reason: "bhop"}, {Type: "sniper"}},
+		},
+	}}
+	cmd := urchinCmd(t, gw, "tagdescription")
+
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), urchinCtx(""), "", col.emit))
+	require.Len(t, col.out, 1)
+	assert.Equal(t, "Sus: Blatant Cheater (bhop), Sniper", col.out[0].Text)
 }
 
 func TestUrchinSniperScore(t *testing.T) {

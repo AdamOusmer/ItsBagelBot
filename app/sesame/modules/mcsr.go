@@ -80,7 +80,7 @@ func Mcsr(d engine.Deps) module.Module {
 			wctx, cancel := context.WithTimeout(context.Background(), mcsrSnapshotTimeout)
 			defer cancel()
 			var reply gatewayrpc.McsrSnapshotReply
-			if err := d.Gateway.Call(wctx, "mcsr", "session_start", gatewayrpc.Request{Account: account, ChannelID: channelID}, &reply); err != nil {
+			if err := d.Gateway.Call(wctx, "mcsr", "session_start", gatewayrpc.Request{Account: account, ChannelID: channelID, IsPremium: c.Regress.IsPremium()}, &reply); err != nil {
 				log.Warn("mcsr: stream-start snapshot failed",
 					zap.String("channel_id", channelID), zap.String("account", account), zap.Error(err))
 				return
@@ -106,7 +106,7 @@ func mcsrEloRun(d engine.Deps) module.RunFunc {
 
 		account := resolveAccount(args, cfg.Account, c.Env.BroadcasterUserLogin)
 		var reply gatewayrpc.McsrUserReply
-		if err := d.Gateway.Call(ctx, "mcsr", "user", gatewayrpc.Request{Account: account}, &reply); err != nil {
+		if err := d.Gateway.Call(ctx, "mcsr", "user", gatewayrpc.Request{Account: account, IsPremium: c.Regress.IsPremium()}, &reply); err != nil {
 			if chatReplyError(c, emit, account, err) {
 				return nil
 			}
@@ -156,7 +156,7 @@ func mcsrSessionRun(d engine.Deps) module.RunFunc {
 		// account, so honoring an arbitrary player would clobber the streamer's
 		// stream-start baseline. Per-player lookups go through !elo instead.
 		account := resolveAccount("", cfg.Account, c.Env.BroadcasterUserLogin)
-		req := gatewayrpc.Request{Account: account, ChannelID: strconv.FormatUint(c.BroadcasterID, 10)}
+		req := gatewayrpc.Request{Account: account, ChannelID: strconv.FormatUint(c.BroadcasterID, 10), IsPremium: c.Regress.IsPremium()}
 		var reply gatewayrpc.McsrSessionReply
 		if err := d.Gateway.Call(ctx, "mcsr", "session", req, &reply); err != nil {
 			if chatReplyError(c, emit, account, err) {

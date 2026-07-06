@@ -18,6 +18,10 @@ interface Props {
 }
 
 const { updated, sections } = Astro.props;
+const isFrench = Astro.url.pathname.startsWith('/fr/');
+const labels = isFrench
+    ? { toc: 'Sur cette page', updated: 'Dernière mise à jour :', plain: 'en clair' }
+    : { toc: 'On this page', updated: 'Last updated:', plain: 'plain words' };
 ---
 
 <div class="lshell" data-legal>
@@ -26,8 +30,8 @@ const { updated, sections } = Astro.props;
     </div>
 
     <div class="lshell__grid">
-        <nav class="lshell__toc" aria-label="On this page">
-            <span class="lshell__toc-label">On this page</span>
+        <nav class="lshell__toc" aria-label={labels.toc}>
+            <span class="lshell__toc-label">{labels.toc}</span>
             <ul>
                 {sections.map((section) => (
                     <li>
@@ -38,13 +42,13 @@ const { updated, sections } = Astro.props;
         </nav>
 
         <article class="lshell__content">
-            <p class="lshell__updated" data-reveal>Last updated: {updated}</p>
+            <p class="lshell__updated" data-reveal>{labels.updated} {updated}</p>
 
             {await Promise.all(sections.map(async (section, i) => (
                 <div class="lshell__block" id={section.id} data-legal-section data-reveal style={`--reveal-i: ${Math.min(i + 1, 6)}`}>
                     <h2>{section.heading}</h2>
                     <p class="lshell__plain">
-                        <span class="lshell__plain-tag">plain words</span>
+                        <span class="lshell__plain-tag">{labels.plain}</span>
                         {section.plain}
                     </p>
                     <Fragment set:html={await Astro.slots.render(section.id)} />

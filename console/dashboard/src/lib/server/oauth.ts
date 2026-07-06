@@ -14,7 +14,7 @@ export function scopes(): string[] {
   // moderator:read:followers + user:read:chat + user:write:chat) plus channel:bot
   // so the bot may act in the channel. Adds channel:read:subscriptions and bits:read
   // for EventSub access.
-  const bot = 'channel:bot moderator:read:followers user:read:chat user:write:chat channel:read:subscriptions bits:read'
+  const bot = 'channel:bot moderator:read:followers user:read:chat user:write:chat channel:read:subscriptions bits:read user:read:moderated_channels'
     .split(/\s+/)
     .filter(Boolean);
   return ['openid', 'user:read:email', ...bot];

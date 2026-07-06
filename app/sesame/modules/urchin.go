@@ -29,7 +29,8 @@ const (
 	defaultUrchinMonthlyTemplate = "{player} this month: {wins}W {losses}L · {finals} finals · {beds} beds · {fkdr} FKDR"
 	defaultUrchinStatsTemplate   = "{player}: {stars} stars · {wins} wins · {finals} finals · {fkdr} FKDR · {beds} beds broken"
 	defaultUrchinSniperTemplate  = "{player} urchin score: {score}"
-	defaultUrchinTagsTemplate    = "{player}: {tags}"
+	defaultUrchinTagsTemplate            = "{player}: {tags}"
+	defaultUrchinTagDescriptionTemplate  = "{player}: {tags}"
 )
 
 // urchinConfig is the module's dashboard configuration. Account is the linked
@@ -50,8 +51,10 @@ type urchinConfig struct {
 	StatsMessage   string `json:"statsMessage"`
 	SniperEnabled  string `json:"sniperEnabled"`
 	SniperMessage  string `json:"sniperMessage"`
-	TagsEnabled    string `json:"tagsEnabled"`
-	TagsMessage    string `json:"tagsMessage"`
+	TagsEnabled              string `json:"tagsEnabled"`
+	TagsMessage              string `json:"tagsMessage"`
+	TagDescriptionEnabled    string `json:"tagDescriptionEnabled"`
+	TagDescriptionMessage    string `json:"tagDescriptionMessage"`
 }
 
 // Urchin owns the Hypixel Bed Wars stats commands backed by the urchin.gg
@@ -81,8 +84,10 @@ func Urchin(d engine.Deps) module.Module {
 		Run(urchinStatsRun(d))
 	m.Command("sniper").Everyone().Cooldown(urchinCooldown).Aliases("urchin").
 		Run(urchinSniperRun(d))
-	m.Command("tags").Everyone().Cooldown(urchinCooldown).Aliases("bwtags").
+	m.Command("tag").Everyone().Cooldown(urchinCooldown).Aliases("tags", "bwtags").
 		Run(urchinTagsRun(d))
+	m.Command("tagdescription").Everyone().Cooldown(urchinCooldown).
+		Run(urchinTagDescriptionRun(d))
 	return m.Build()
 }
 
@@ -102,6 +107,8 @@ func urchinToggle(cfg urchinConfig, endpoint string) (enabled bool, tmpl string)
 		return alertOn(cfg.SniperEnabled), orDefault(cfg.SniperMessage, defaultUrchinSniperTemplate)
 	case "tags":
 		return alertOn(cfg.TagsEnabled), orDefault(cfg.TagsMessage, defaultUrchinTagsTemplate)
+	case "tagdescription":
+		return alertOn(cfg.TagDescriptionEnabled), orDefault(cfg.TagDescriptionMessage, defaultUrchinTagDescriptionTemplate)
 	default:
 		return false, ""
 	}
@@ -121,7 +128,7 @@ func urchinSessionRun(d engine.Deps, endpoint string) module.RunFunc {
 
 		account := resolveAccount(args, cfg.Account, c.Env.BroadcasterUserLogin)
 		var reply gatewayrpc.UrchinSessionReply
-		if err := d.Gateway.Call(ctx, "urchin", endpoint, gatewayrpc.Request{Account: account}, &reply); err != nil {
+		if err := d.Gateway.Call(ctx, "urchin", endpoint, gatewayrpc.Request{Account: account, IsPremium: c.Regress.IsPremium()}, &reply); err != nil {
 			if chatReplyError(c, emit, account, err) {
 				return nil
 			}
@@ -171,7 +178,7 @@ func urchinStatsRun(d engine.Deps) module.RunFunc {
 
 		account := resolveAccount(args, cfg.Account, c.Env.BroadcasterUserLogin)
 		var reply gatewayrpc.UrchinStatsReply
-		if err := d.Gateway.Call(ctx, "urchin", "stats", gatewayrpc.Request{Account: account}, &reply); err != nil {
+		if err := d.Gateway.Call(ctx, "urchin", "stats", gatewayrpc.Request{Account: account, IsPremium: c.Regress.IsPremium()}, &reply); err != nil {
 			if chatReplyError(c, emit, account, err) {
 				return nil
 			}
@@ -220,7 +227,7 @@ func urchinSniperRun(d engine.Deps) module.RunFunc {
 
 		account := resolveAccount(args, cfg.Account, c.Env.BroadcasterUserLogin)
 		var reply gatewayrpc.UrchinSniperReply
-		if err := d.Gateway.Call(ctx, "urchin", "sniper", gatewayrpc.Request{Account: account}, &reply); err != nil {
+		if err := d.Gateway.Call(ctx, "urchin", "sniper", gatewayrpc.Request{Account: account, IsPremium: c.Regress.IsPremium()}, &reply); err != nil {
 			if chatReplyError(c, emit, account, err) {
 				return nil
 			}
@@ -246,8 +253,8 @@ func urchinSniperRun(d engine.Deps) module.RunFunc {
 	}
 }
 
-// urchinTagsRun answers !tags with the player's active blacklist tags.
-// Template tokens: {player} {tags} {tagcount}.
+// urchinTagsRun answers !tag with the player's active blacklist tags (display
+// names only, no reason). Template tokens: {player} {tags} {tagcount}.
 func urchinTagsRun(d engine.Deps) module.RunFunc {
 	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
 		var cfg urchinConfig
@@ -259,7 +266,7 @@ func urchinTagsRun(d engine.Deps) module.RunFunc {
 
 		account := resolveAccount(args, cfg.Account, c.Env.BroadcasterUserLogin)
 		var reply gatewayrpc.UrchinTagsReply
-		if err := d.Gateway.Call(ctx, "urchin", "tags", gatewayrpc.Request{Account: account}, &reply); err != nil {
+		if err := d.Gateway.Call(ctx, "urchin", "tags", gatewayrpc.Request{Account: account, IsPremium: c.Regress.IsPremium()}, &reply); err != nil {
 			if chatReplyError(c, emit, account, err) {
 				return nil
 			}
@@ -283,18 +290,91 @@ func urchinTagsRun(d engine.Deps) module.RunFunc {
 	}
 }
 
-// formatUrchinTags renders the tag list for chat: "cheater (bhop), sniper", or
-// "no tags — clean" when the player has none.
+// urchinTagDescriptionRun answers !tagdescription with the player's active
+// blacklist tags including the reason (the cleanup version).
+// Template tokens: {player} {tags} {tagcount}.
+func urchinTagDescriptionRun(d engine.Deps) module.RunFunc {
+	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
+		var cfg urchinConfig
+		_ = c.Decode(&cfg)
+		enabled, tmpl := urchinToggle(cfg, "tagdescription")
+		if !enabled || d.Gateway == nil {
+			return nil
+		}
+
+		account := resolveAccount(args, cfg.Account, c.Env.BroadcasterUserLogin)
+		var reply gatewayrpc.UrchinTagsReply
+		if err := d.Gateway.Call(ctx, "urchin", "tags", gatewayrpc.Request{Account: account, IsPremium: c.Regress.IsPremium()}, &reply); err != nil {
+			if chatReplyError(c, emit, account, err) {
+				return nil
+			}
+			return err
+		}
+
+		msg := module.ExpandString(tmpl, func(key string) (string, bool) {
+			switch key {
+			case "player":
+				return reply.Player, true
+			case "tags":
+				return formatUrchinTagDescriptions(reply.Tags), true
+			case "tagcount":
+				return i64(int64(len(reply.Tags))), true
+			default:
+				return module.ParseDynamic(key)
+			}
+		})
+		emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: msg})
+		return nil
+	}
+}
+
+// displayTagType maps a Coral API tag_type to a human-readable display name.
+func displayTagType(tagType string) string {
+	switch tagType {
+	case "blatant_cheater":
+		return "Blatant Cheater"
+	case "confirmed_cheater":
+		return "Confirmed Cheater"
+	case "closet_cheater":
+		return "Closet Cheater"
+	case "sniper":
+		return "Sniper"
+	default:
+		// Future-proof: title-case with underscores replaced by spaces.
+		s := strings.ReplaceAll(tagType, "_", " ")
+		if len(s) > 0 {
+			return strings.ToUpper(s[:1]) + s[1:]
+		}
+		return s
+	}
+}
+
+// formatUrchinTags renders the tag list for chat with display names only:
+// "Blatant Cheater, Sniper", or "No tags" when the player has none.
 func formatUrchinTags(tags []gatewayrpc.UrchinTag) string {
 	if len(tags) == 0 {
-		return "no tags — clean"
+		return "No tags"
 	}
 	parts := make([]string, 0, len(tags))
 	for _, t := range tags {
+		parts = append(parts, displayTagType(t.Type))
+	}
+	return strings.Join(parts, ", ")
+}
+
+// formatUrchinTagDescriptions renders the tag list with display names and
+// reasons: "Blatant Cheater (bhop), Sniper", or "No tags" when empty.
+func formatUrchinTagDescriptions(tags []gatewayrpc.UrchinTag) string {
+	if len(tags) == 0 {
+		return "No tags"
+	}
+	parts := make([]string, 0, len(tags))
+	for _, t := range tags {
+		name := displayTagType(t.Type)
 		if t.Reason != "" {
-			parts = append(parts, t.Type+" ("+t.Reason+")")
+			parts = append(parts, name+" ("+t.Reason+")")
 		} else {
-			parts = append(parts, t.Type)
+			parts = append(parts, name)
 		}
 	}
 	return strings.Join(parts, ", ")
