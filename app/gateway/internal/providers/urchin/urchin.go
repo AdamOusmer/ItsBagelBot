@@ -203,7 +203,7 @@ func (p *Provider) session(period string) func(context.Context, gatewayrpc.Reque
 			return gatewayrpc.UrchinSessionReply{Error: "missing account"}
 		}
 		key := core.Key(p.Name(), period, accountKey(account))
-		reply, err := core.Cached(ctx, p.cache, key, sessionTTL, 2*time.Hour, func(ctx context.Context) (gatewayrpc.UrchinSessionReply, error) {
+		reply, err := core.Cached(ctx, p.cache, key, sessionTTL, 5*time.Minute, func(ctx context.Context) (gatewayrpc.UrchinSessionReply, error) {
 			if err := p.enforceRateLimit(ctx, req.IsPremium); err != nil {
 				return gatewayrpc.UrchinSessionReply{}, err
 			}
@@ -276,7 +276,7 @@ func (p *Provider) stats(ctx context.Context, req gatewayrpc.Request) any {
 		return gatewayrpc.UrchinStatsReply{Error: "missing account"}
 	}
 	key := core.Key(p.Name(), "stats", accountKey(account))
-	reply, err := core.Cached(ctx, p.cache, key, statsTTL, 2*time.Hour, func(ctx context.Context) (gatewayrpc.UrchinStatsReply, error) {
+	reply, err := core.Cached(ctx, p.cache, key, statsTTL, 5*time.Minute, func(ctx context.Context) (gatewayrpc.UrchinStatsReply, error) {
 		if err := p.enforceRateLimit(ctx, req.IsPremium); err != nil {
 			return gatewayrpc.UrchinStatsReply{}, err
 		}
@@ -336,7 +336,7 @@ func (p *Provider) tags(ctx context.Context, req gatewayrpc.Request) any {
 		return gatewayrpc.UrchinTagsReply{Error: "missing account"}
 	}
 	key := core.Key(p.Name(), "tags", accountKey(account))
-	reply, err := core.Cached(ctx, p.cache, key, tagsTTL, 2*time.Hour, func(ctx context.Context) (gatewayrpc.UrchinTagsReply, error) {
+	reply, err := core.Cached(ctx, p.cache, key, tagsTTL, 5*time.Minute, func(ctx context.Context) (gatewayrpc.UrchinTagsReply, error) {
 		if err := p.enforceRateLimit(ctx, req.IsPremium); err != nil {
 			return gatewayrpc.UrchinTagsReply{}, err
 		}
@@ -376,7 +376,7 @@ type cubelifyResponse struct {
 // cached for a day.
 func (p *Provider) resolveUUID(ctx context.Context, account string, isPremium bool) (string, error) {
 	key := core.Key(p.Name(), "uuid", accountKey(account))
-	return core.Cached(ctx, p.cache, key, uuidTTL, 2*time.Hour, func(ctx context.Context) (string, error) {
+	return core.Cached(ctx, p.cache, key, uuidTTL, 5*time.Minute, func(ctx context.Context) (string, error) {
 		if err := p.enforceRateLimit(ctx, isPremium); err != nil {
 			return "", err
 		}
@@ -394,7 +394,7 @@ func (p *Provider) sniper(ctx context.Context, req gatewayrpc.Request) any {
 		return gatewayrpc.UrchinSniperReply{Error: "missing account"}
 	}
 	key := core.Key(p.Name(), "sniper", accountKey(account))
-	reply, err := core.Cached(ctx, p.cache, key, sniperTTL, 2*time.Hour, func(ctx context.Context) (gatewayrpc.UrchinSniperReply, error) {
+	reply, err := core.Cached(ctx, p.cache, key, sniperTTL, 5*time.Minute, func(ctx context.Context) (gatewayrpc.UrchinSniperReply, error) {
 		uuid, err := p.resolveUUID(ctx, account, req.IsPremium)
 		if err != nil {
 			return gatewayrpc.UrchinSniperReply{}, err
