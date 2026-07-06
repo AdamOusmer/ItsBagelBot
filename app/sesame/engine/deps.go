@@ -43,6 +43,7 @@ type Deps struct {
 	Special  *SpecialSet
 	Pub      message.Publisher
 	Commands CommandManager
+	Gateway  GatewayCaller
 	Log      *zap.Logger
 }
 
