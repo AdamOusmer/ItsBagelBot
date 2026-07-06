@@ -86,7 +86,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: sesame
-          image: ghcr.io/adamousmer/itsbagelbot/sesame:main-1783315071-c4f773f0d81b@sha256:59c2f08b15719538db5d8f62e270ca600277b35a48fb431cff67fc94b3ce3b73 # {"$imagepolicy": "flux-system:sesame"}
+          image: ghcr.io/adamousmer/itsbagelbot/sesame:main-1783317952-dd69a7feb7b9@sha256:f50177f9a8e63c5ae8d1c875639208d4e580523852eab89689b9af691abef238 # {"$imagepolicy": "flux-system:sesame"}
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST
