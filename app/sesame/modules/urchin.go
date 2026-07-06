@@ -2,6 +2,7 @@ package modules
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -357,7 +358,11 @@ func formatUrchinTags(tags []gatewayrpc.UrchinTag) string {
 	}
 	parts := make([]string, 0, len(tags))
 	for _, t := range tags {
-		parts = append(parts, displayTagType(t.Type))
+		name := displayTagType(t.Type)
+		if t.AddedOn > 0 {
+			name += fmt.Sprintf(" (added %s)", time.Unix(t.AddedOn, 0).UTC().Format("Jan 2, 2006"))
+		}
+		parts = append(parts, name)
 	}
 	return strings.Join(parts, ", ")
 }
@@ -371,8 +376,15 @@ func formatUrchinTagDescriptions(tags []gatewayrpc.UrchinTag) string {
 	parts := make([]string, 0, len(tags))
 	for _, t := range tags {
 		name := displayTagType(t.Type)
+		var extras []string
 		if t.Reason != "" {
-			parts = append(parts, name+" ("+t.Reason+")")
+			extras = append(extras, t.Reason)
+		}
+		if t.AddedOn > 0 {
+			extras = append(extras, "added "+time.Unix(t.AddedOn, 0).UTC().Format("Jan 2, 2006"))
+		}
+		if len(extras) > 0 {
+			parts = append(parts, fmt.Sprintf("%s (%s)", name, strings.Join(extras, " - ")))
 		} else {
 			parts = append(parts, name)
 		}

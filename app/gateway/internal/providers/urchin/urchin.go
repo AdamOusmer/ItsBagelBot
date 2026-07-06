@@ -322,6 +322,7 @@ type tagsResponse struct {
 	Tags        []struct {
 		TagType string `json:"tag_type"`
 		Reason  string `json:"reason"`
+		AddedOn int64  `json:"added_on"`
 	} `json:"tags"`
 }
 
@@ -349,7 +350,7 @@ func (p *Provider) tags(ctx context.Context, req gatewayrpc.Request) any {
 			Tags:   make([]gatewayrpc.UrchinTag, 0, len(resp.Tags)),
 		}
 		for _, t := range resp.Tags {
-			out.Tags = append(out.Tags, gatewayrpc.UrchinTag{Type: t.TagType, Reason: t.Reason})
+			out.Tags = append(out.Tags, gatewayrpc.UrchinTag{Type: t.TagType, Reason: t.Reason, AddedOn: t.AddedOn / 1000})
 		}
 		return out, nil
 	})
