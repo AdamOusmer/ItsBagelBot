@@ -22,12 +22,12 @@ import (
 
 	"ItsBagelBot/app/outgress/internal/channels"
 	"ItsBagelBot/app/outgress/internal/conduit"
-	"ItsBagelBot/pkg/ratelimit"
 	"ItsBagelBot/app/outgress/internal/twitch"
 	eventtwitch "ItsBagelBot/internal/domain/event/twitch"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/domain/rpc/manage"
 	"ItsBagelBot/pkg/cache"
+	"ItsBagelBot/pkg/ratelimit"
 
 	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/bytedance/sonic"
@@ -1140,12 +1140,14 @@ func drainResponse(res *http.Response) {
 }
 
 // clipMeta is the metadata sesame threads on a TypeClip message: the title the
-// viewer typed and their login. The Create Clip call needs neither
-// (broadcaster_id rides the query, no body); they compose the chat reply posted
-// with the clip URL.
+// viewer typed, their login, and the requested clip length. Title and Duration
+// are passed through to Twitch's Create Clip call (both in the query string);
+// Title and Clipper also compose the chat reply posted with the clip URL.
+// Duration 0 means unset, so Twitch applies its default (30s).
 type clipMeta struct {
-	Title   string `json:"title"`
-	Clipper string `json:"clipper"`
+	Title    string  `json:"title"`
+	Clipper  string  `json:"clipper"`
+	Duration float64 `json:"duration"`
 }
 
 // clipCreateReply is the subset of the Helix Create Clip response we read.
@@ -1155,6 +1157,24 @@ type clipCreateReply struct {
 		EditURL string `json:"edit_url"`
 	} `json:"data"`
 }
+
+// clipGetReply is the subset of the Helix Get Clips response we read: the public
+// URL of the finished clip. Get Clips is also how Twitch says to confirm a clip
+// was actually created (an empty data array means it is not ready yet).
+type clipGetReply struct {
+	Data []struct {
+		URL string `json:"url"`
+	} `json:"data"`
+}
+
+// Creating a clip is asynchronous: the id comes back immediately but Get Clips
+// only returns the clip once Twitch finishes processing it. These bound the
+// confirmation poll — a few quick tries, then fall back to the constructed URL
+// rather than block the lane worker for Twitch's full 60s window.
+const (
+	clipConfirmAttempts = 4
+	clipConfirmDelay    = time.Second
+)
 
 // processClip creates a clip on the broadcaster's channel and posts the public
 // clip URL back to chat. The Create Clip response (and thus the URL) is visible
@@ -1175,8 +1195,18 @@ func (w *Worker) processClip(ctx context.Context, payload outgress.Message) erro
 		return err // no clip created yet: safe to redeliver
 	}
 
-	// broadcaster_id rides the query string; the Create Clip call takes no body.
-	endpoint := "/helix/clips?broadcaster_id=" + url.QueryEscape(payload.BroadcasterID)
+	// broadcaster_id, and the optional title and duration, all ride the query
+	// string; the Create Clip call takes no body. Duration 0 is omitted so Twitch
+	// applies its default length.
+	q := url.Values{}
+	q.Set("broadcaster_id", payload.BroadcasterID)
+	if title := strings.TrimSpace(meta.Title); title != "" {
+		q.Set("title", title)
+	}
+	if meta.Duration > 0 {
+		q.Set("duration", strconv.FormatFloat(meta.Duration, 'f', -1, 64))
+	}
+	endpoint := "/helix/clips?" + q.Encode()
 	res, err := w.twitch.ExecuteAs(ctx, twitch.ParseIdentity(outgress.AsBroadcaster),
 		payload.BroadcasterID, http.MethodPost, endpoint, nil)
 	if err != nil {
@@ -1215,12 +1245,63 @@ func (w *Worker) processClip(ctx context.Context, payload outgress.Message) erro
 		return nil
 	}
 
-	clipURL := "https://clips.twitch.tv/" + reply.Data[0].ID
+	// Confirm the clip and read its canonical public URL via Get Clips (Twitch's
+	// prescribed success check). Falls back to the constructed short URL if the
+	// clip is still processing after the poll — that link resolves once Twitch
+	// publishes the clip, so the reply is never left without a URL.
+	clipID := reply.Data[0].ID
+	clipURL := w.resolveClipURL(ctx, payload.BroadcasterID, clipID)
 	if err := w.sendClipReply(ctx, payload.BroadcasterID, meta, clipURL); err != nil {
 		w.log.Warn("clip created but reply chat failed",
 			zap.String("broadcaster_id", payload.BroadcasterID), zap.Error(err))
 	}
 	return nil
+}
+
+// resolveClipURL confirms a freshly created clip and returns its public URL. It
+// polls Get Clips by id a few times (creation is asynchronous, so the clip is
+// briefly absent) and returns the URL Twitch reports. If the clip has not
+// surfaced by the end of the poll it returns the constructed short URL
+// (https://clips.twitch.tv/<id>), which redirects to the clip once it is
+// published, so the caller always has a usable link. Never returns an error: the
+// clip already exists, and a missing confirmation must not fail the reply.
+func (w *Worker) resolveClipURL(ctx context.Context, broadcasterID, clipID string) string {
+	endpoint := "/helix/clips?id=" + url.QueryEscape(clipID)
+	for attempt := 0; attempt < clipConfirmAttempts; attempt++ {
+		if attempt > 0 && !sleepCtx(ctx, clipConfirmDelay) {
+			break // context cancelled: stop polling, use the fallback
+		}
+		res, err := w.twitch.ExecuteAs(ctx, twitch.ParseIdentity(outgress.AsBroadcaster),
+			broadcasterID, http.MethodGet, endpoint, nil)
+		if err != nil {
+			w.log.Warn("clip confirm request failed",
+				zap.String("broadcaster_id", broadcasterID), zap.Error(err))
+			continue
+		}
+		var got clipGetReply
+		if res.StatusCode == http.StatusOK {
+			_ = json.NewDecoder(io.LimitReader(res.Body, 4096)).Decode(&got)
+		}
+		drainResponse(res)
+		if len(got.Data) > 0 && got.Data[0].URL != "" {
+			return got.Data[0].URL
+		}
+	}
+	return "https://clips.twitch.tv/" + clipID
+}
+
+// sleepCtx waits for d or until ctx is cancelled, whichever comes first. It
+// reports true when the full delay elapsed and false when ctx cancelled, so a
+// polling loop can stop early on shutdown.
+func sleepCtx(ctx context.Context, d time.Duration) bool {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-t.C:
+		return true
+	}
 }
 
 // sendClipReply posts the chat line announcing a freshly created clip through

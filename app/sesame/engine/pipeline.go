@@ -371,14 +371,16 @@ func buildOutgress(o *module.Output) ([]byte, error) {
 			Payload:       []byte("{}"),
 		}
 	case outgress.TypeClip:
-		// The Create Clip call itself needs no body (broadcaster_id rides the
-		// query string, added by outgress). This payload is metadata outgress
-		// reads to compose the reply it posts with the clip URL: the title the
-		// viewer typed and their login.
+		// The Create Clip call takes no body: broadcaster_id, title and duration
+		// all ride the query string, which outgress builds. This payload carries
+		// what outgress needs — the title and duration to pass to Twitch, plus the
+		// clipper login used only to compose the reply posted with the clip URL.
+		// Duration 0 (plain !clip) is omitted so Twitch applies its default.
 		payload, err := sonic.Marshal(struct {
-			Title   string `json:"title,omitempty"`
-			Clipper string `json:"clipper,omitempty"`
-		}{o.Text, o.To})
+			Title    string  `json:"title,omitempty"`
+			Clipper  string  `json:"clipper,omitempty"`
+			Duration float64 `json:"duration,omitempty"`
+		}{o.Text, o.To, o.Duration})
 		if err != nil {
 			return nil, err
 		}
