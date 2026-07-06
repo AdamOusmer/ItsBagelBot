@@ -38,13 +38,6 @@ type Config struct {
 	// than AutomodEnforce because Shield Mode is broadcaster-visible and aggressive;
 	// it only takes effect when AutomodEnforce is also on. Off by default.
 	ShieldEnabled bool
-
-	// AutomodConfig makes the chat path fetch the broadcaster's "automod"
-	// ModuleView so per-channel settings (profile, block/allow terms, opt-out)
-	// apply. Off by default: chat then skips the view read entirely and the gate
-	// runs the global default, keeping the zero-alloc hot path. On, chat pays the
-	// (cached) view read like a channel with a name-gated module already does.
-	AutomodConfig bool
 }
 
 // Pipeline is the per-message stage the consumer hands each decoded message to.
@@ -87,10 +80,6 @@ type Pipeline struct {
 	// per channel so one raid activates Shield Mode once, not on every folded burst.
 	shieldEnabled bool
 	raidGate      *raidCooldown
-
-	// automodConfig makes the chat path fetch the broadcaster's "automod"
-	// ModuleView so the gate runs under per-channel settings.
-	automodConfig bool
 }
 
 // NewPipeline wires a Pipeline from the shared Deps, a pre-built registry, and
@@ -113,7 +102,6 @@ func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 		reputation:       d.Reputation,
 		shieldEnabled:    cfg.ShieldEnabled,
 		raidGate:         newRaidCooldown(raidCooldownTTL),
-		automodConfig:    cfg.AutomodConfig,
 	}
 	if p.dedup == nil {
 		p.dedup = NoopDedup{}
@@ -229,9 +217,10 @@ func (p *Pipeline) Process(msg *message.Message) (err error) {
 	// for this line (the chatter is being actioned); a verdict we cannot yet
 	// enforce is logged. With enforcement off it is shadow-logged only. Cohorts
 	// (Senders present) are handled by a later phase, not inspected here.
-	// amCfg is the broadcaster's automod config (nil = global default). It is read
-	// from the "automod" ModuleView, present only when AutomodConfig is enabled;
-	// otherwise views is nil for chat and this is nil, so the gate runs the default.
+	// amCfg is the broadcaster's automod config (nil = global default), read from
+	// the "automod" ModuleView. The automod module (app/sesame/modules/automod.go)
+	// registers a chat handler, so the registry marks chat as needing ModuleViews
+	// and the row arrives here through the standard module path.
 	amCfg := automodConfigFrom(views)
 
 	actioned := false
@@ -323,13 +312,12 @@ func (p *Pipeline) isOwnChat(env *lane.Envelope, isChat bool) bool {
 }
 
 // moduleViews fetches the broadcaster's ModuleView set, but only when a
-// name-gated handler or command owner needs it; plain chat skips the read
-// entirely and returns nil. When per-broadcaster automod config is enabled the
-// chat path also needs the read (to see the "automod" view), so it is forced here.
+// name-gated handler or command owner needs it; an event nobody name-gated skips
+// the read entirely and returns nil. The automod module registers a chat handler,
+// so chat needs the read whenever it is wired (its row carries the enable toggle
+// and per-channel config the gate runs under).
 func (p *Pipeline) moduleViews(ctx context.Context, eventType string, broadcasterID uint64) (map[string]projection.ModuleView, error) {
-	needViews := p.registry.NeedsModuleViews(eventType) ||
-		(eventType == chatType && p.automodConfig && p.automod != nil)
-	if !needViews {
+	if !p.registry.NeedsModuleViews(eventType) {
 		return nil, nil
 	}
 	list, err := p.proj.Modules(ctx, broadcasterID)
@@ -343,15 +331,18 @@ func (p *Pipeline) moduleViews(ctx context.Context, eventType string, broadcaste
 	return views, nil
 }
 
-// automodModuleName is the ModuleView name that carries a broadcaster's automod
-// settings (profile, block/allow terms, opt-out). It is not a registered engine
-// module: the console owns the config UI and writes the row; sesame only reads it.
+// automodModuleName is the module that carries a broadcaster's automod settings
+// (profile, block/allow terms) and enable toggle. It is a real registered module
+// (app/sesame/modules/automod.go, MODULE_CATALOG id "automod" on the dashboard);
+// its handler is a no-op because the gate runs inline before dispatch, so the
+// pipeline reads the row directly here instead of through enabled().
 const automodModuleName = "automod"
 
 // automodConfigFrom extracts the broadcaster's automod Config from the fetched
-// ModuleViews. nil views (config disabled or no read) or an absent row yields nil
-// (the global default). A row present but disabled maps to a Config that opts the
-// gate out for that channel, reusing the same enable toggle every module has.
+// ModuleViews. nil views (no name-gated module needs chat) or an absent row
+// yields nil (the global default: KindDefault ships enabled). A row present but
+// disabled maps to a Config that opts the gate out for that channel, the same
+// enable toggle every module has.
 func automodConfigFrom(views map[string]projection.ModuleView) *automod.Config {
 	if views == nil {
 		return nil

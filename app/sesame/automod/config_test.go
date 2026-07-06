@@ -20,15 +20,26 @@ func TestParseConfig(t *testing.T) {
 	if ParseConfig(json.RawMessage(`{bad`)) != nil {
 		t.Fatal("malformed blob must yield nil, never a fail-closed config")
 	}
-	c := ParseConfig(json.RawMessage(`{"profile":"18+","disabled":true,"block_terms":["BadWord"],"allow_terms":["okThing"]}`))
-	if c == nil || !c.Disabled || c.Profile != ProfileAdult {
+	// The dashboard form writes flat strings; terms split on commas and newlines.
+	c := ParseConfig(json.RawMessage(`{"profile":"18+","block_terms":"BadWord, other thing\nthird","allow_terms":" okThing "}`))
+	if c == nil || c.Disabled || c.Profile != ProfileAdult {
 		t.Fatalf("parsed config wrong: %+v", c)
 	}
-	if len(c.blockTerms) != 1 || string(c.blockTerms[0]) != "badword" {
-		t.Fatalf("block term not normalized to skeleton: %q", c.blockTerms)
+	if len(c.blockTerms) != 3 || string(c.blockTerms[0]) != "badword" || string(c.blockTerms[1]) != "other thing" || string(c.blockTerms[2]) != "third" {
+		t.Fatalf("block terms not split+normalized: %q", c.blockTerms)
 	}
 	if len(c.allowTerms) != 1 || string(c.allowTerms[0]) != "okthing" {
 		t.Fatalf("allow term not normalized: %q", c.allowTerms)
+	}
+}
+
+func TestSplitTerms(t *testing.T) {
+	got := splitTerms("a, b\n c ,,\n")
+	if len(got) != 3 || got[0] != "a" || got[1] != "b" || got[2] != "c" {
+		t.Fatalf("splitTerms = %q", got)
+	}
+	if splitTerms("") != nil {
+		t.Fatal("empty input yields nil")
 	}
 }
 
@@ -55,7 +66,7 @@ func TestConfigDisabledOptsOut(t *testing.T) {
 
 func TestFloorImmovableUnderAdultAndAllow(t *testing.T) {
 	g := New()
-	cfg := ParseConfig(json.RawMessage(`{"profile":"adult","allow_terms":["grabify.link"]}`))
+	cfg := ParseConfig(json.RawMessage(`{"profile":"adult","allow_terms":"grabify.link"}`))
 	// Adult profile + an allow-term covering the domain must NOT let the floor
 	// through: objectively-abusive infrastructure is enforced under every profile.
 	if v := g.InspectWith(module.RoleEveryone, ipLoggerLine, cfg); v.Rule != "ip_logger" {
@@ -88,7 +99,7 @@ func TestPGProfileTightensCaps(t *testing.T) {
 
 func TestBlockTermFlags(t *testing.T) {
 	g := New()
-	cfg := ParseConfig(json.RawMessage(`{"block_terms":["badword"]}`))
+	cfg := ParseConfig(json.RawMessage(`{"block_terms":"badword"}`))
 	if v := g.InspectWith(module.RoleEveryone, "this has badword in it", cfg); v.Rule != "block_term" {
 		t.Fatalf("channel block term should flag, got rule=%s", v.Rule)
 	}
@@ -105,12 +116,12 @@ func TestAllowTermSuppressesNonFloor(t *testing.T) {
 		t.Fatalf("baseline caps should flag, got %s", v.Action)
 	}
 	// An allow-term present in the line suppresses the non-floor heuristic.
-	cfg := ParseConfig(json.RawMessage(`{"allow_terms":["hello"]}`))
+	cfg := ParseConfig(json.RawMessage(`{"allow_terms":"hello"}`))
 	if v := g.InspectWith(module.RoleEveryone, shout, cfg); v.Action != ActionNone {
 		t.Fatalf("allow term should suppress the heuristic, got %s", v.Action)
 	}
 	// Allow also cancels a channel block term (broadcaster owns that call).
-	both := ParseConfig(json.RawMessage(`{"block_terms":["badword"],"allow_terms":["badword"]}`))
+	both := ParseConfig(json.RawMessage(`{"block_terms":"badword","allow_terms":"badword"}`))
 	if v := g.InspectWith(module.RoleEveryone, "look a badword here", both); v.Action != ActionNone {
 		t.Fatalf("allow should cancel its own block term, got %s", v.Action)
 	}

@@ -107,7 +107,6 @@ func main() {
 		CountUses:        true,
 		AutomodEnforce:   cfg.AutomodEnforce,
 		ShieldEnabled:    cfg.ShieldEnabled,
-		AutomodConfig:    cfg.AutomodConfig,
 	})
 	defer pipe.Close() // flushes pending use-counter ticks on shutdown
 

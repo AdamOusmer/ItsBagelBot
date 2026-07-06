@@ -286,6 +286,38 @@ const BW_SESSION_SAMPLES: Record<string, string> = {
 
 export const MODULE_CATALOG: readonly ModuleDef[] = [
   {
+    id: 'automod',
+    label: 'AutoMod',
+    tagline: 'Catch scams, IP-grabbers and raid spam before your mods do.',
+    description:
+      'The bot screens every chat line for objectively harmful content (IP-logger links, scam bait, obfuscated spam) and coordinated raid floods, and times out or bans the sender. Trusted chatters (VIPs, mods, subscribers of rank) are always exempt, and anything borderline is left to your human mods. The safety floor (IP-grabbers and scams) is always enforced; the profile below only tunes how picky the style checks (caps, symbol spam) are.',
+    icon: 'moderation',
+    defaultEnabled: true,
+    fields: [
+      {
+        key: 'profile',
+        label: 'Content profile',
+        type: 'text',
+        placeholder: 'moderate',
+        help: 'One of: pg (strict, family), moderate (default), adult (18+, style checks off). The safety floor applies to all profiles.'
+      },
+      {
+        key: 'block_terms',
+        label: 'Blocked terms',
+        type: 'textarea',
+        placeholder: 'term one, term two',
+        help: 'Extra words or phrases to flag in your channel. Separate with commas or new lines. Matched even through obfuscation (l33t, look-alike letters).'
+      },
+      {
+        key: 'allow_terms',
+        label: 'Allowed terms',
+        type: 'textarea',
+        placeholder: '',
+        help: 'Words that are fine in your channel: a line containing one is never flagged by the style checks or your blocked terms. Cannot override the safety floor.'
+      }
+    ]
+  },
+  {
     id: 'shoutout',
     label: 'Auto Shoutout',
     tagline: 'Welcome incoming raids with an automatic shoutout.',

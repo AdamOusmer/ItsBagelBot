@@ -80,12 +80,6 @@ type Config struct {
 	// suppression. On by default; the endpoints are small, public and unauthenticated.
 	EmotesEnabled bool
 
-	// AutomodConfig makes the chat path fetch each broadcaster's "automod"
-	// ModuleView so per-channel settings (profile, block/allow terms, opt-out)
-	// apply. Off by default: leaving it off keeps chat's zero-alloc hot path (no
-	// view read) and runs the global default profile.
-	AutomodConfig bool
-
 	// LiveTTL bounds how long a live key survives without a refresh.
 	LiveTTL time.Duration
 
@@ -148,7 +142,6 @@ func Load() *Config {
 		AutomodEnforce: env.Get("SESAME_AUTOMOD_ENFORCE", "false") == "true",
 		ShieldEnabled:  env.Get("SESAME_AUTOMOD_SHIELD", "false") == "true",
 		EmotesEnabled:  env.Get("SESAME_AUTOMOD_EMOTES", "true") == "true",
-		AutomodConfig:  env.Get("SESAME_AUTOMOD_CONFIG", "false") == "true",
 
 		LiveTTL: env.GetDuration("SESAME_LIVE_TTL", 12*time.Hour),
 
