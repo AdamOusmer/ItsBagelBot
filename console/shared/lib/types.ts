@@ -68,6 +68,19 @@ export interface BuiltinCommandDef {
   defaultCooldown: number; // seconds
   // liveOnly commands run only while the broadcaster is streaming.
   liveOnly: boolean;
+  // editable: the reply template can be customized on the dashboard. When true
+  // the inspector shows a ResponseEditor (with the `tokens` palette) and a
+  // rehearsal, and saves the template into the modules-service config under
+  // `replyKey`. The bot expands the tokens when it posts the reply (e.g. {clip}
+  // → the clip URL, resolved by outgress once the clip exists). Non-editable
+  // built-ins stay a read-only preview. `preview` doubles as the default
+  // template when no custom reply is set.
+  editable?: boolean;
+  // replyKey is the Configs key the custom reply template is stored under (only
+  // meaningful when editable).
+  replyKey?: string;
+  // tokens is the reply editor's insert palette (token names without braces).
+  tokens?: string[];
 }
 
 export const BUILTIN_COMMANDS: readonly BuiltinCommandDef[] = [
@@ -78,16 +91,22 @@ export const BUILTIN_COMMANDS: readonly BuiltinCommandDef[] = [
     description:
       'Viewers create a clip of the recent stream and the bot replies in chat with the clip link. Add an optional title after the command. Only works while you are live.',
     usage: ['!clip', '!clip <title>'],
-    // Real reply format: "🎬 <clipper> clipped: <title> → <url>" (see
+    // Real reply format: "<clipper> clipped: <title> → <url>" (see
     // app/outgress/internal/worker clipReplyText). {user} = the clipper, {target}
     // = the title argument (standard command token).
-    preview: '🎬 {user} clipped: {target} → {clip}',
+    preview: '{user} clipped: {target} → {clip}',
     previewArgs: 'That is amazing',
     previewSamples: { target: 'That is amazing', clip: 'clips.twitch.tv/AbCdEf' },
     defaultActive: true,
     defaultPerm: 'everyone',
     defaultCooldown: 15,
-    liveOnly: true
+    liveOnly: true,
+    // The reply is customizable: {clip} is the clip link, {user} the clipper,
+    // {target} the title the viewer typed. Stored under the "reply" config key,
+    // read by sesame and expanded by outgress (see app/sesame/modules/clip.go).
+    editable: true,
+    replyKey: 'reply',
+    tokens: ['clip', 'user', 'target']
   }
 ];
 

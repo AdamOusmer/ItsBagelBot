@@ -419,6 +419,9 @@ export const en = {
     usage: 'Usage',
     preview: 'Preview',
     access: 'Access',
-    cooldown: 'Cooldown'
+    cooldown: 'Cooldown',
+    replyMessage: 'Reply message',
+    replyHint: 'Leave blank for the default. {clip} = the clip link, {user} = the clipper, {target} = the title.',
+    saveReply: 'Save reply'
   }
 } satisfies MessageTree;

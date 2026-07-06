@@ -1140,14 +1140,16 @@ func drainResponse(res *http.Response) {
 }
 
 // clipMeta is the metadata sesame threads on a TypeClip message: the title the
-// viewer typed, their login, and the requested clip length. Title and Duration
-// are passed through to Twitch's Create Clip call (both in the query string);
-// Title and Clipper also compose the chat reply posted with the clip URL.
-// Duration 0 means unset, so Twitch applies its default (30s).
+// viewer typed, their login, the requested clip length, and the broadcaster's
+// custom reply template. Title and Duration are passed through to Twitch's
+// Create Clip call (both in the query string); Title, Clipper and Reply compose
+// the chat reply posted with the clip URL. Duration 0 means unset, so Twitch
+// applies its default (30s); an empty Reply falls back to the default format.
 type clipMeta struct {
 	Title    string  `json:"title"`
 	Clipper  string  `json:"clipper"`
 	Duration float64 `json:"duration"`
+	Reply    string  `json:"reply"`
 }
 
 // clipCreateReply is the subset of the Helix Create Clip response we read.
@@ -1323,19 +1325,40 @@ func (w *Worker) sendClipReply(ctx context.Context, broadcasterID string, meta c
 	})
 }
 
-// clipReplyText composes the chat line for a new clip: it names the clipper,
-// echoes the title they typed (when any), and links the public clip URL.
+// clipReplyText composes the chat line for a new clip. When the broadcaster set
+// a custom reply template it is expanded (see clipExpand); otherwise a default
+// line is used that names the clipper, echoes the title they typed (when any),
+// and links the public clip URL.
 func clipReplyText(meta clipMeta, clipURL string) string {
 	who := meta.Clipper
 	title := strings.TrimSpace(meta.Title)
+	if tmpl := strings.TrimSpace(meta.Reply); tmpl != "" {
+		return clipExpand(tmpl, who, title, clipURL)
+	}
 	switch {
 	case who != "" && title != "":
-		return "🎬 " + who + " clipped: " + title + " → " + clipURL
+		return who + " clipped: " + title + " → " + clipURL
 	case who != "":
-		return "🎬 " + who + " made a clip → " + clipURL
+		return who + " made a clip → " + clipURL
 	case title != "":
-		return "🎬 Clip: " + title + " → " + clipURL
+		return "Clip: " + title + " → " + clipURL
 	default:
-		return "🎬 New clip → " + clipURL
+		return "New clip → " + clipURL
 	}
+}
+
+// clipExpand substitutes the clip reply tokens into a broadcaster's custom
+// template: {clip} → the public clip URL, {user}/{clipper} → the clipper's
+// login, {target}/{title} → the title the viewer typed. Unknown tokens are left
+// untouched (mirroring the dashboard rehearsal, which marks them). The {user}
+// and {target} aliases match the standard command tokens so the same palette
+// applies; {clipper}/{title} read more naturally for a clip.
+func clipExpand(tmpl, clipper, title, clipURL string) string {
+	return strings.NewReplacer(
+		"{clip}", clipURL,
+		"{user}", clipper,
+		"{clipper}", clipper,
+		"{target}", title,
+		"{title}", title,
+	).Replace(tmpl)
 }
