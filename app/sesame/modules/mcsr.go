@@ -26,8 +26,8 @@ const mcsrCooldown = 10 * time.Second
 const mcsrSnapshotTimeout = 10 * time.Second
 
 const (
-	defaultMcsrEloTemplate     = "🏆 {player}: {elo} elo · rank #{rank} · {wins}W {losses}L this season"
-	defaultMcsrSessionTemplate = "📈 {player} this stream: {elochange} elo ({elo} now) · {wins}W {losses}L in {matches} matches"
+	defaultMcsrEloTemplate     = "{player}: {elo} elo · rank #{rank} · {wins}W {losses}L this season"
+	defaultMcsrSessionTemplate = "{player} this stream: {elochange} elo ({elo} now) · {wins}W {losses}L in {matches} matches"
 )
 
 // mcsrConfig is the module's dashboard configuration. Account is the linked
@@ -144,14 +144,18 @@ func mcsrEloRun(d engine.Deps) module.RunFunc {
 // {matches}. Without a baseline (module enabled mid-stream) the gateway starts
 // tracking now and the reply says so instead of faking a zero delta.
 func mcsrSessionRun(d engine.Deps) module.RunFunc {
-	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
+	return func(ctx context.Context, c *module.Context, _ string, emit module.Emit) error {
 		var cfg mcsrConfig
 		_ = c.Decode(&cfg)
 		if !alertOn(cfg.SessionEnabled) || d.Gateway == nil {
 			return nil
 		}
 
-		account := resolveAccount(args, cfg.Account, c.Env.BroadcasterUserLogin)
+		// !session is always the linked account, never a typed argument: the
+		// baseline snapshot is stored per channel and keyed to the linked
+		// account, so honoring an arbitrary player would clobber the streamer's
+		// stream-start baseline. Per-player lookups go through !elo instead.
+		account := resolveAccount("", cfg.Account, c.Env.BroadcasterUserLogin)
 		req := gatewayrpc.Request{Account: account, ChannelID: strconv.FormatUint(c.BroadcasterID, 10)}
 		var reply gatewayrpc.McsrSessionReply
 		if err := d.Gateway.Call(ctx, "mcsr", "session", req, &reply); err != nil {
@@ -165,7 +169,7 @@ func mcsrSessionRun(d engine.Deps) module.RunFunc {
 			emit(&module.Output{
 				Type:          outgress.TypeChat,
 				BroadcasterID: c.Env.BroadcasterUserID,
-				Text:          "📈 " + reply.Nickname + ": session tracking just started (" + mcsrElo(reply.Elo) + " elo) — ask again after a match!",
+				Text:          reply.Nickname + ": session tracking just started (" + mcsrElo(reply.Elo) + " elo), ask again after a match!",
 			})
 			return nil
 		}
