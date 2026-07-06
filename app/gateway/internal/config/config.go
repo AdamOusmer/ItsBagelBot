@@ -51,7 +51,7 @@ func Load() *Config {
 
 		UrchinBaseURL:   env.Get("URCHIN_BASE_URL", "https://api.urchin.gg"),
 		UrchinAPIKey:    env.Get("URCHIN_API_KEY", ""),
-		UrchinRateLimit: env.GetFloat("URCHIN_RATE_LIMIT", 500.0),
+		UrchinRateLimit: env.GetFloat("URCHIN_RATE_LIMIT", 600.0),
 
 		McsrBaseURL:   env.Get("MCSR_BASE_URL", "https://api.mcsrranked.com"),
 		McsrAPIKey:    env.Get("MCSR_API_KEY", ""),
