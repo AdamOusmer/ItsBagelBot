@@ -171,7 +171,7 @@ func TestUrchinTagsFormatting(t *testing.T) {
 	gw := &fakeGateway{replies: map[string]any{
 		"urchin.tags": gatewayrpc.UrchinTagsReply{
 			Player: "Sus",
-			Tags:   []gatewayrpc.UrchinTag{{Type: "blatant_cheater", Reason: "bhop"}, {Type: "sniper"}},
+			Tags:   []gatewayrpc.UrchinTag{{Type: "blatant_cheater", Reason: "bhop", AddedOn: 1720000000}, {Type: "sniper", AddedOn: 1720000000}},
 		},
 	}}
 	cmd := urchinCmd(t, gw, "tag")
@@ -179,7 +179,7 @@ func TestUrchinTagsFormatting(t *testing.T) {
 	var col collector
 	require.NoError(t, cmd.Run(context.Background(), urchinCtx(""), "", col.emit))
 	require.Len(t, col.out, 1)
-	assert.Equal(t, "Sus: Blatant Cheater, Sniper", col.out[0].Text)
+	assert.Equal(t, "Sus: Blatant Cheater (added Jul 3, 2024), Sniper (added Jul 3, 2024)", col.out[0].Text)
 }
 
 func TestUrchinTagsClean(t *testing.T) {
@@ -198,7 +198,7 @@ func TestUrchinTagDescription(t *testing.T) {
 	gw := &fakeGateway{replies: map[string]any{
 		"urchin.tags": gatewayrpc.UrchinTagsReply{
 			Player: "Sus",
-			Tags:   []gatewayrpc.UrchinTag{{Type: "blatant_cheater", Reason: "bhop"}, {Type: "sniper"}},
+			Tags:   []gatewayrpc.UrchinTag{{Type: "blatant_cheater", Reason: "bhop", AddedOn: 1720000000}, {Type: "sniper", AddedOn: 1720000000}},
 		},
 	}}
 	cmd := urchinCmd(t, gw, "tagdescription")
@@ -206,7 +206,7 @@ func TestUrchinTagDescription(t *testing.T) {
 	var col collector
 	require.NoError(t, cmd.Run(context.Background(), urchinCtx(""), "", col.emit))
 	require.Len(t, col.out, 1)
-	assert.Equal(t, "Sus: Blatant Cheater (bhop), Sniper", col.out[0].Text)
+	assert.Equal(t, "Sus: Blatant Cheater (bhop - added Jul 3, 2024), Sniper (added Jul 3, 2024)", col.out[0].Text)
 }
 
 func TestUrchinSniperScore(t *testing.T) {
