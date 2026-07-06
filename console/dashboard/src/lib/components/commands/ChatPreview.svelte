@@ -23,7 +23,8 @@
     args = '',
     showViewer = true,
     tag = undefined as string | undefined,
-    samples = undefined as Record<string, string> | undefined
+    samples = undefined as Record<string, string> | undefined,
+    samplesOnly = false
   }: {
     name?: string;
     response?: string;
@@ -31,6 +32,12 @@
     showViewer?: boolean;
     tag?: string;
     samples?: Record<string, string>;
+    // samplesOnly drops the default command samples entirely: gateway module
+    // replies substitute ONLY their own tokens ({player}, {wins}, ...) — the
+    // bot never expands {user}/{uptime} there, so previewing those as values
+    // would rehearse a reply the bot cannot produce. Unknown tokens stay
+    // marked, exactly like a typo in a custom command.
+    samplesOnly?: boolean;
   } = $props();
 
   const DEFAULT_SAMPLES: Record<string, string> = {
@@ -45,7 +52,11 @@
     viewers: '42'
   };
   // Caller overrides win (e.g. a raid alert where {user} is the raiding channel).
-  const SAMPLES = $derived<Record<string, string>>({ ...DEFAULT_SAMPLES, ...(samples ?? {}) });
+  const SAMPLES = $derived<Record<string, string>>(
+    samplesOnly ? (samples ?? {}) : { ...DEFAULT_SAMPLES, ...(samples ?? {}) }
+  );
+  // The sample viewer typing the trigger; module replies carry no {user} sample.
+  const viewerName = $derived(SAMPLES.user ?? DEFAULT_SAMPLES.user);
 
   const trigger = $derived('!' + (normName(name) || 'command') + (args ? ' ' + args : ''));
 
@@ -159,7 +170,7 @@
   <span class="chat-tag">{tag ?? t('chatPreview.rehearsal')}</span>
   {#if showViewer}
     <div class="line viewer">
-      <span class="who viewer-name">{SAMPLES.user}</span>
+      <span class="who viewer-name">{viewerName}</span>
       <span class="msg">{trigger}</span>
     </div>
   {/if}
