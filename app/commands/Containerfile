@@ -10,7 +10,7 @@ COPY internal/domain internal/domain
 COPY internal/utils internal/utils
 COPY pkg pkg
 COPY app/commands app/commands
-RUN go run -mod=mod entgo.io/ent/cmd/ent generate ./app/commands/ent/schema \
+RUN go run -mod=mod entgo.io/ent/cmd/ent generate --feature sql/upsert ./app/commands/ent/schema \
  && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /commands ./app/commands
 
 # ---------------------------------------------------------------------------

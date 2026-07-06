@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"time"
 
+	"entgo.io/ent/dialect"
+	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 )
@@ -18,6 +20,7 @@ type TebexWebhookEventsCreate struct {
 	config
 	mutation *TebexWebhookEventsMutation
 	hooks    []Hook
+	conflict []sql.ConflictOption
 }
 
 // SetEventType sets the "event_type" field.
@@ -230,6 +233,7 @@ func (_c *TebexWebhookEventsCreate) createSpec() (*TebexWebhookEvents, *sqlgraph
 		_node = &TebexWebhookEvents{config: _c.config}
 		_spec = sqlgraph.NewCreateSpec(tebexwebhookevents.Table, sqlgraph.NewFieldSpec(tebexwebhookevents.FieldID, field.TypeString))
 	)
+	_spec.OnConflict = _c.conflict
 	if id, ok := _c.mutation.ID(); ok {
 		_node.ID = id
 		_spec.ID.Value = id
@@ -265,11 +269,335 @@ func (_c *TebexWebhookEventsCreate) createSpec() (*TebexWebhookEvents, *sqlgraph
 	return _node, _spec
 }
 
+// OnConflict allows configuring the `ON CONFLICT` / `ON DUPLICATE KEY` clause
+// of the `INSERT` statement. For example:
+//
+//	client.TebexWebhookEvents.Create().
+//		SetEventType(v).
+//		OnConflict(
+//			// Update the row with the new values
+//			// the was proposed for insertion.
+//			sql.ResolveWithNewValues(),
+//		).
+//		// Override some of the fields with custom
+//		// update values.
+//		Update(func(u *ent.TebexWebhookEventsUpsert) {
+//			SetEventType(v+v).
+//		}).
+//		Exec(ctx)
+func (_c *TebexWebhookEventsCreate) OnConflict(opts ...sql.ConflictOption) *TebexWebhookEventsUpsertOne {
+	_c.conflict = opts
+	return &TebexWebhookEventsUpsertOne{
+		create: _c,
+	}
+}
+
+// OnConflictColumns calls `OnConflict` and configures the columns
+// as conflict target. Using this option is equivalent to using:
+//
+//	client.TebexWebhookEvents.Create().
+//		OnConflict(sql.ConflictColumns(columns...)).
+//		Exec(ctx)
+func (_c *TebexWebhookEventsCreate) OnConflictColumns(columns ...string) *TebexWebhookEventsUpsertOne {
+	_c.conflict = append(_c.conflict, sql.ConflictColumns(columns...))
+	return &TebexWebhookEventsUpsertOne{
+		create: _c,
+	}
+}
+
+type (
+	// TebexWebhookEventsUpsertOne is the builder for "upsert"-ing
+	//  one TebexWebhookEvents node.
+	TebexWebhookEventsUpsertOne struct {
+		create *TebexWebhookEventsCreate
+	}
+
+	// TebexWebhookEventsUpsert is the "OnConflict" setter.
+	TebexWebhookEventsUpsert struct {
+		*sql.UpdateSet
+	}
+)
+
+// SetStatus sets the "status" field.
+func (u *TebexWebhookEventsUpsert) SetStatus(v tebexwebhookevents.Status) *TebexWebhookEventsUpsert {
+	u.Set(tebexwebhookevents.FieldStatus, v)
+	return u
+}
+
+// UpdateStatus sets the "status" field to the value that was provided on create.
+func (u *TebexWebhookEventsUpsert) UpdateStatus() *TebexWebhookEventsUpsert {
+	u.SetExcluded(tebexwebhookevents.FieldStatus)
+	return u
+}
+
+// SetTransactionID sets the "transaction_id" field.
+func (u *TebexWebhookEventsUpsert) SetTransactionID(v string) *TebexWebhookEventsUpsert {
+	u.Set(tebexwebhookevents.FieldTransactionID, v)
+	return u
+}
+
+// UpdateTransactionID sets the "transaction_id" field to the value that was provided on create.
+func (u *TebexWebhookEventsUpsert) UpdateTransactionID() *TebexWebhookEventsUpsert {
+	u.SetExcluded(tebexwebhookevents.FieldTransactionID)
+	return u
+}
+
+// ClearTransactionID clears the value of the "transaction_id" field.
+func (u *TebexWebhookEventsUpsert) ClearTransactionID() *TebexWebhookEventsUpsert {
+	u.SetNull(tebexwebhookevents.FieldTransactionID)
+	return u
+}
+
+// SetUserID sets the "user_id" field.
+func (u *TebexWebhookEventsUpsert) SetUserID(v uint64) *TebexWebhookEventsUpsert {
+	u.Set(tebexwebhookevents.FieldUserID, v)
+	return u
+}
+
+// UpdateUserID sets the "user_id" field to the value that was provided on create.
+func (u *TebexWebhookEventsUpsert) UpdateUserID() *TebexWebhookEventsUpsert {
+	u.SetExcluded(tebexwebhookevents.FieldUserID)
+	return u
+}
+
+// AddUserID adds v to the "user_id" field.
+func (u *TebexWebhookEventsUpsert) AddUserID(v uint64) *TebexWebhookEventsUpsert {
+	u.Add(tebexwebhookevents.FieldUserID, v)
+	return u
+}
+
+// ClearUserID clears the value of the "user_id" field.
+func (u *TebexWebhookEventsUpsert) ClearUserID() *TebexWebhookEventsUpsert {
+	u.SetNull(tebexwebhookevents.FieldUserID)
+	return u
+}
+
+// SetError sets the "error" field.
+func (u *TebexWebhookEventsUpsert) SetError(v string) *TebexWebhookEventsUpsert {
+	u.Set(tebexwebhookevents.FieldError, v)
+	return u
+}
+
+// UpdateError sets the "error" field to the value that was provided on create.
+func (u *TebexWebhookEventsUpsert) UpdateError() *TebexWebhookEventsUpsert {
+	u.SetExcluded(tebexwebhookevents.FieldError)
+	return u
+}
+
+// ClearError clears the value of the "error" field.
+func (u *TebexWebhookEventsUpsert) ClearError() *TebexWebhookEventsUpsert {
+	u.SetNull(tebexwebhookevents.FieldError)
+	return u
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (u *TebexWebhookEventsUpsert) SetUpdatedAt(v time.Time) *TebexWebhookEventsUpsert {
+	u.Set(tebexwebhookevents.FieldUpdatedAt, v)
+	return u
+}
+
+// UpdateUpdatedAt sets the "updated_at" field to the value that was provided on create.
+func (u *TebexWebhookEventsUpsert) UpdateUpdatedAt() *TebexWebhookEventsUpsert {
+	u.SetExcluded(tebexwebhookevents.FieldUpdatedAt)
+	return u
+}
+
+// UpdateNewValues updates the mutable fields using the new values that were set on create except the ID field.
+// Using this option is equivalent to using:
+//
+//	client.TebexWebhookEvents.Create().
+//		OnConflict(
+//			sql.ResolveWithNewValues(),
+//			sql.ResolveWith(func(u *sql.UpdateSet) {
+//				u.SetIgnore(tebexwebhookevents.FieldID)
+//			}),
+//		).
+//		Exec(ctx)
+func (u *TebexWebhookEventsUpsertOne) UpdateNewValues() *TebexWebhookEventsUpsertOne {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWithNewValues())
+	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(s *sql.UpdateSet) {
+		if _, exists := u.create.mutation.ID(); exists {
+			s.SetIgnore(tebexwebhookevents.FieldID)
+		}
+		if _, exists := u.create.mutation.EventType(); exists {
+			s.SetIgnore(tebexwebhookevents.FieldEventType)
+		}
+		if _, exists := u.create.mutation.CreatedAt(); exists {
+			s.SetIgnore(tebexwebhookevents.FieldCreatedAt)
+		}
+	}))
+	return u
+}
+
+// Ignore sets each column to itself in case of conflict.
+// Using this option is equivalent to using:
+//
+//	client.TebexWebhookEvents.Create().
+//	    OnConflict(sql.ResolveWithIgnore()).
+//	    Exec(ctx)
+func (u *TebexWebhookEventsUpsertOne) Ignore() *TebexWebhookEventsUpsertOne {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWithIgnore())
+	return u
+}
+
+// DoNothing configures the conflict_action to `DO NOTHING`.
+// Supported only by SQLite and PostgreSQL.
+func (u *TebexWebhookEventsUpsertOne) DoNothing() *TebexWebhookEventsUpsertOne {
+	u.create.conflict = append(u.create.conflict, sql.DoNothing())
+	return u
+}
+
+// Update allows overriding fields `UPDATE` values. See the TebexWebhookEventsCreate.OnConflict
+// documentation for more info.
+func (u *TebexWebhookEventsUpsertOne) Update(set func(*TebexWebhookEventsUpsert)) *TebexWebhookEventsUpsertOne {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(update *sql.UpdateSet) {
+		set(&TebexWebhookEventsUpsert{UpdateSet: update})
+	}))
+	return u
+}
+
+// SetStatus sets the "status" field.
+func (u *TebexWebhookEventsUpsertOne) SetStatus(v tebexwebhookevents.Status) *TebexWebhookEventsUpsertOne {
+	return u.Update(func(s *TebexWebhookEventsUpsert) {
+		s.SetStatus(v)
+	})
+}
+
+// UpdateStatus sets the "status" field to the value that was provided on create.
+func (u *TebexWebhookEventsUpsertOne) UpdateStatus() *TebexWebhookEventsUpsertOne {
+	return u.Update(func(s *TebexWebhookEventsUpsert) {
+		s.UpdateStatus()
+	})
+}
+
+// SetTransactionID sets the "transaction_id" field.
+func (u *TebexWebhookEventsUpsertOne) SetTransactionID(v string) *TebexWebhookEventsUpsertOne {
+	return u.Update(func(s *TebexWebhookEventsUpsert) {
+		s.SetTransactionID(v)
+	})
+}
+
+// UpdateTransactionID sets the "transaction_id" field to the value that was provided on create.
+func (u *TebexWebhookEventsUpsertOne) UpdateTransactionID() *TebexWebhookEventsUpsertOne {
+	return u.Update(func(s *TebexWebhookEventsUpsert) {
+		s.UpdateTransactionID()
+	})
+}
+
+// ClearTransactionID clears the value of the "transaction_id" field.
+func (u *TebexWebhookEventsUpsertOne) ClearTransactionID() *TebexWebhookEventsUpsertOne {
+	return u.Update(func(s *TebexWebhookEventsUpsert) {
+		s.ClearTransactionID()
+	})
+}
+
+// SetUserID sets the "user_id" field.
+func (u *TebexWebhookEventsUpsertOne) SetUserID(v uint64) *TebexWebhookEventsUpsertOne {
+	return u.Update(func(s *TebexWebhookEventsUpsert) {
+		s.SetUserID(v)
+	})
+}
+
+// AddUserID adds v to the "user_id" field.
+func (u *TebexWebhookEventsUpsertOne) AddUserID(v uint64) *TebexWebhookEventsUpsertOne {
+	return u.Update(func(s *TebexWebhookEventsUpsert) {
+		s.AddUserID(v)
+	})
+}
+
+// UpdateUserID sets the "user_id" field to the value that was provided on create.
+func (u *TebexWebhookEventsUpsertOne) UpdateUserID() *TebexWebhookEventsUpsertOne {
+	return u.Update(func(s *TebexWebhookEventsUpsert) {
+		s.UpdateUserID()
+	})
+}
+
+// ClearUserID clears the value of the "user_id" field.
+func (u *TebexWebhookEventsUpsertOne) ClearUserID() *TebexWebhookEventsUpsertOne {
+	return u.Update(func(s *TebexWebhookEventsUpsert) {
+		s.ClearUserID()
+	})
+}
+
+// SetError sets the "error" field.
+func (u *TebexWebhookEventsUpsertOne) SetError(v string) *TebexWebhookEventsUpsertOne {
+	return u.Update(func(s *TebexWebhookEventsUpsert) {
+		s.SetError(v)
+	})
+}
+
+// UpdateError sets the "error" field to the value that was provided on create.
+func (u *TebexWebhookEventsUpsertOne) UpdateError() *TebexWebhookEventsUpsertOne {
+	return u.Update(func(s *TebexWebhookEventsUpsert) {
+		s.UpdateError()
+	})
+}
+
+// ClearError clears the value of the "error" field.
+func (u *TebexWebhookEventsUpsertOne) ClearError() *TebexWebhookEventsUpsertOne {
+	return u.Update(func(s *TebexWebhookEventsUpsert) {
+		s.ClearError()
+	})
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (u *TebexWebhookEventsUpsertOne) SetUpdatedAt(v time.Time) *TebexWebhookEventsUpsertOne {
+	return u.Update(func(s *TebexWebhookEventsUpsert) {
+		s.SetUpdatedAt(v)
+	})
+}
+
+// UpdateUpdatedAt sets the "updated_at" field to the value that was provided on create.
+func (u *TebexWebhookEventsUpsertOne) UpdateUpdatedAt() *TebexWebhookEventsUpsertOne {
+	return u.Update(func(s *TebexWebhookEventsUpsert) {
+		s.UpdateUpdatedAt()
+	})
+}
+
+// Exec executes the query.
+func (u *TebexWebhookEventsUpsertOne) Exec(ctx context.Context) error {
+	if len(u.create.conflict) == 0 {
+		return errors.New("ent: missing options for TebexWebhookEventsCreate.OnConflict")
+	}
+	return u.create.Exec(ctx)
+}
+
+// ExecX is like Exec, but panics if an error occurs.
+func (u *TebexWebhookEventsUpsertOne) ExecX(ctx context.Context) {
+	if err := u.create.Exec(ctx); err != nil {
+		panic(err)
+	}
+}
+
+// Exec executes the UPSERT query and returns the inserted/updated ID.
+func (u *TebexWebhookEventsUpsertOne) ID(ctx context.Context) (id string, err error) {
+	if u.create.driver.Dialect() == dialect.MySQL {
+		// In case of "ON CONFLICT", there is no way to get back non-numeric ID
+		// fields from the database since MySQL does not support the RETURNING clause.
+		return id, errors.New("ent: TebexWebhookEventsUpsertOne.ID is not supported by MySQL driver. Use TebexWebhookEventsUpsertOne.Exec instead")
+	}
+	node, err := u.create.Save(ctx)
+	if err != nil {
+		return id, err
+	}
+	return node.ID, nil
+}
+
+// IDX is like ID, but panics if an error occurs.
+func (u *TebexWebhookEventsUpsertOne) IDX(ctx context.Context) string {
+	id, err := u.ID(ctx)
+	if err != nil {
+		panic(err)
+	}
+	return id
+}
+
 // TebexWebhookEventsCreateBulk is the builder for creating many TebexWebhookEvents entities in bulk.
 type TebexWebhookEventsCreateBulk struct {
 	config
 	err      error
 	builders []*TebexWebhookEventsCreate
+	conflict []sql.ConflictOption
 }
 
 // Save creates the TebexWebhookEvents entities in the database.
@@ -299,6 +627,7 @@ func (_c *TebexWebhookEventsCreateBulk) Save(ctx context.Context) ([]*TebexWebho
 					_, err = mutators[i+1].Mutate(root, _c.builders[i+1].mutation)
 				} else {
 					spec := &sqlgraph.BatchCreateSpec{Nodes: specs}
+					spec.OnConflict = _c.conflict
 					// Invoke the actual operation on the latest mutation in the chain.
 					if err = sqlgraph.BatchCreate(ctx, _c.driver, spec); err != nil {
 						if sqlgraph.IsConstraintError(err) {
@@ -345,6 +674,224 @@ func (_c *TebexWebhookEventsCreateBulk) Exec(ctx context.Context) error {
 // ExecX is like Exec, but panics if an error occurs.
 func (_c *TebexWebhookEventsCreateBulk) ExecX(ctx context.Context) {
 	if err := _c.Exec(ctx); err != nil {
+		panic(err)
+	}
+}
+
+// OnConflict allows configuring the `ON CONFLICT` / `ON DUPLICATE KEY` clause
+// of the `INSERT` statement. For example:
+//
+//	client.TebexWebhookEvents.CreateBulk(builders...).
+//		OnConflict(
+//			// Update the row with the new values
+//			// the was proposed for insertion.
+//			sql.ResolveWithNewValues(),
+//		).
+//		// Override some of the fields with custom
+//		// update values.
+//		Update(func(u *ent.TebexWebhookEventsUpsert) {
+//			SetEventType(v+v).
+//		}).
+//		Exec(ctx)
+func (_c *TebexWebhookEventsCreateBulk) OnConflict(opts ...sql.ConflictOption) *TebexWebhookEventsUpsertBulk {
+	_c.conflict = opts
+	return &TebexWebhookEventsUpsertBulk{
+		create: _c,
+	}
+}
+
+// OnConflictColumns calls `OnConflict` and configures the columns
+// as conflict target. Using this option is equivalent to using:
+//
+//	client.TebexWebhookEvents.Create().
+//		OnConflict(sql.ConflictColumns(columns...)).
+//		Exec(ctx)
+func (_c *TebexWebhookEventsCreateBulk) OnConflictColumns(columns ...string) *TebexWebhookEventsUpsertBulk {
+	_c.conflict = append(_c.conflict, sql.ConflictColumns(columns...))
+	return &TebexWebhookEventsUpsertBulk{
+		create: _c,
+	}
+}
+
+// TebexWebhookEventsUpsertBulk is the builder for "upsert"-ing
+// a bulk of TebexWebhookEvents nodes.
+type TebexWebhookEventsUpsertBulk struct {
+	create *TebexWebhookEventsCreateBulk
+}
+
+// UpdateNewValues updates the mutable fields using the new values that
+// were set on create. Using this option is equivalent to using:
+//
+//	client.TebexWebhookEvents.Create().
+//		OnConflict(
+//			sql.ResolveWithNewValues(),
+//			sql.ResolveWith(func(u *sql.UpdateSet) {
+//				u.SetIgnore(tebexwebhookevents.FieldID)
+//			}),
+//		).
+//		Exec(ctx)
+func (u *TebexWebhookEventsUpsertBulk) UpdateNewValues() *TebexWebhookEventsUpsertBulk {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWithNewValues())
+	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(s *sql.UpdateSet) {
+		for _, b := range u.create.builders {
+			if _, exists := b.mutation.ID(); exists {
+				s.SetIgnore(tebexwebhookevents.FieldID)
+			}
+			if _, exists := b.mutation.EventType(); exists {
+				s.SetIgnore(tebexwebhookevents.FieldEventType)
+			}
+			if _, exists := b.mutation.CreatedAt(); exists {
+				s.SetIgnore(tebexwebhookevents.FieldCreatedAt)
+			}
+		}
+	}))
+	return u
+}
+
+// Ignore sets each column to itself in case of conflict.
+// Using this option is equivalent to using:
+//
+//	client.TebexWebhookEvents.Create().
+//		OnConflict(sql.ResolveWithIgnore()).
+//		Exec(ctx)
+func (u *TebexWebhookEventsUpsertBulk) Ignore() *TebexWebhookEventsUpsertBulk {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWithIgnore())
+	return u
+}
+
+// DoNothing configures the conflict_action to `DO NOTHING`.
+// Supported only by SQLite and PostgreSQL.
+func (u *TebexWebhookEventsUpsertBulk) DoNothing() *TebexWebhookEventsUpsertBulk {
+	u.create.conflict = append(u.create.conflict, sql.DoNothing())
+	return u
+}
+
+// Update allows overriding fields `UPDATE` values. See the TebexWebhookEventsCreateBulk.OnConflict
+// documentation for more info.
+func (u *TebexWebhookEventsUpsertBulk) Update(set func(*TebexWebhookEventsUpsert)) *TebexWebhookEventsUpsertBulk {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(update *sql.UpdateSet) {
+		set(&TebexWebhookEventsUpsert{UpdateSet: update})
+	}))
+	return u
+}
+
+// SetStatus sets the "status" field.
+func (u *TebexWebhookEventsUpsertBulk) SetStatus(v tebexwebhookevents.Status) *TebexWebhookEventsUpsertBulk {
+	return u.Update(func(s *TebexWebhookEventsUpsert) {
+		s.SetStatus(v)
+	})
+}
+
+// UpdateStatus sets the "status" field to the value that was provided on create.
+func (u *TebexWebhookEventsUpsertBulk) UpdateStatus() *TebexWebhookEventsUpsertBulk {
+	return u.Update(func(s *TebexWebhookEventsUpsert) {
+		s.UpdateStatus()
+	})
+}
+
+// SetTransactionID sets the "transaction_id" field.
+func (u *TebexWebhookEventsUpsertBulk) SetTransactionID(v string) *TebexWebhookEventsUpsertBulk {
+	return u.Update(func(s *TebexWebhookEventsUpsert) {
+		s.SetTransactionID(v)
+	})
+}
+
+// UpdateTransactionID sets the "transaction_id" field to the value that was provided on create.
+func (u *TebexWebhookEventsUpsertBulk) UpdateTransactionID() *TebexWebhookEventsUpsertBulk {
+	return u.Update(func(s *TebexWebhookEventsUpsert) {
+		s.UpdateTransactionID()
+	})
+}
+
+// ClearTransactionID clears the value of the "transaction_id" field.
+func (u *TebexWebhookEventsUpsertBulk) ClearTransactionID() *TebexWebhookEventsUpsertBulk {
+	return u.Update(func(s *TebexWebhookEventsUpsert) {
+		s.ClearTransactionID()
+	})
+}
+
+// SetUserID sets the "user_id" field.
+func (u *TebexWebhookEventsUpsertBulk) SetUserID(v uint64) *TebexWebhookEventsUpsertBulk {
+	return u.Update(func(s *TebexWebhookEventsUpsert) {
+		s.SetUserID(v)
+	})
+}
+
+// AddUserID adds v to the "user_id" field.
+func (u *TebexWebhookEventsUpsertBulk) AddUserID(v uint64) *TebexWebhookEventsUpsertBulk {
+	return u.Update(func(s *TebexWebhookEventsUpsert) {
+		s.AddUserID(v)
+	})
+}
+
+// UpdateUserID sets the "user_id" field to the value that was provided on create.
+func (u *TebexWebhookEventsUpsertBulk) UpdateUserID() *TebexWebhookEventsUpsertBulk {
+	return u.Update(func(s *TebexWebhookEventsUpsert) {
+		s.UpdateUserID()
+	})
+}
+
+// ClearUserID clears the value of the "user_id" field.
+func (u *TebexWebhookEventsUpsertBulk) ClearUserID() *TebexWebhookEventsUpsertBulk {
+	return u.Update(func(s *TebexWebhookEventsUpsert) {
+		s.ClearUserID()
+	})
+}
+
+// SetError sets the "error" field.
+func (u *TebexWebhookEventsUpsertBulk) SetError(v string) *TebexWebhookEventsUpsertBulk {
+	return u.Update(func(s *TebexWebhookEventsUpsert) {
+		s.SetError(v)
+	})
+}
+
+// UpdateError sets the "error" field to the value that was provided on create.
+func (u *TebexWebhookEventsUpsertBulk) UpdateError() *TebexWebhookEventsUpsertBulk {
+	return u.Update(func(s *TebexWebhookEventsUpsert) {
+		s.UpdateError()
+	})
+}
+
+// ClearError clears the value of the "error" field.
+func (u *TebexWebhookEventsUpsertBulk) ClearError() *TebexWebhookEventsUpsertBulk {
+	return u.Update(func(s *TebexWebhookEventsUpsert) {
+		s.ClearError()
+	})
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (u *TebexWebhookEventsUpsertBulk) SetUpdatedAt(v time.Time) *TebexWebhookEventsUpsertBulk {
+	return u.Update(func(s *TebexWebhookEventsUpsert) {
+		s.SetUpdatedAt(v)
+	})
+}
+
+// UpdateUpdatedAt sets the "updated_at" field to the value that was provided on create.
+func (u *TebexWebhookEventsUpsertBulk) UpdateUpdatedAt() *TebexWebhookEventsUpsertBulk {
+	return u.Update(func(s *TebexWebhookEventsUpsert) {
+		s.UpdateUpdatedAt()
+	})
+}
+
+// Exec executes the query.
+func (u *TebexWebhookEventsUpsertBulk) Exec(ctx context.Context) error {
+	if u.create.err != nil {
+		return u.create.err
+	}
+	for i, b := range u.create.builders {
+		if len(b.conflict) != 0 {
+			return fmt.Errorf("ent: OnConflict was set for builder %d. Set it on the TebexWebhookEventsCreateBulk instead", i)
+		}
+	}
+	if len(u.create.conflict) == 0 {
+		return errors.New("ent: missing options for TebexWebhookEventsCreateBulk.OnConflict")
+	}
+	return u.create.Exec(ctx)
+}
+
+// ExecX is like Exec, but panics if an error occurs.
+func (u *TebexWebhookEventsUpsertBulk) ExecX(ctx context.Context) {
+	if err := u.create.Exec(ctx); err != nil {
 		panic(err)
 	}
 }

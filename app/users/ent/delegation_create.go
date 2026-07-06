@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 )
@@ -18,6 +19,7 @@ type DelegationCreate struct {
 	config
 	mutation *DelegationMutation
 	hooks    []Hook
+	conflict []sql.ConflictOption
 }
 
 // SetToken sets the "token" field.
@@ -207,6 +209,7 @@ func (_c *DelegationCreate) createSpec() (*Delegation, *sqlgraph.CreateSpec) {
 		_node = &Delegation{config: _c.config}
 		_spec = sqlgraph.NewCreateSpec(delegation.Table, sqlgraph.NewFieldSpec(delegation.FieldID, field.TypeInt))
 	)
+	_spec.OnConflict = _c.conflict
 	if value, ok := _c.mutation.Token(); ok {
 		_spec.SetField(delegation.FieldToken, field.TypeString, value)
 		_node.Token = value
@@ -246,11 +249,425 @@ func (_c *DelegationCreate) createSpec() (*Delegation, *sqlgraph.CreateSpec) {
 	return _node, _spec
 }
 
+// OnConflict allows configuring the `ON CONFLICT` / `ON DUPLICATE KEY` clause
+// of the `INSERT` statement. For example:
+//
+//	client.Delegation.Create().
+//		SetToken(v).
+//		OnConflict(
+//			// Update the row with the new values
+//			// the was proposed for insertion.
+//			sql.ResolveWithNewValues(),
+//		).
+//		// Override some of the fields with custom
+//		// update values.
+//		Update(func(u *ent.DelegationUpsert) {
+//			SetToken(v+v).
+//		}).
+//		Exec(ctx)
+func (_c *DelegationCreate) OnConflict(opts ...sql.ConflictOption) *DelegationUpsertOne {
+	_c.conflict = opts
+	return &DelegationUpsertOne{
+		create: _c,
+	}
+}
+
+// OnConflictColumns calls `OnConflict` and configures the columns
+// as conflict target. Using this option is equivalent to using:
+//
+//	client.Delegation.Create().
+//		OnConflict(sql.ConflictColumns(columns...)).
+//		Exec(ctx)
+func (_c *DelegationCreate) OnConflictColumns(columns ...string) *DelegationUpsertOne {
+	_c.conflict = append(_c.conflict, sql.ConflictColumns(columns...))
+	return &DelegationUpsertOne{
+		create: _c,
+	}
+}
+
+type (
+	// DelegationUpsertOne is the builder for "upsert"-ing
+	//  one Delegation node.
+	DelegationUpsertOne struct {
+		create *DelegationCreate
+	}
+
+	// DelegationUpsert is the "OnConflict" setter.
+	DelegationUpsert struct {
+		*sql.UpdateSet
+	}
+)
+
+// SetToken sets the "token" field.
+func (u *DelegationUpsert) SetToken(v string) *DelegationUpsert {
+	u.Set(delegation.FieldToken, v)
+	return u
+}
+
+// UpdateToken sets the "token" field to the value that was provided on create.
+func (u *DelegationUpsert) UpdateToken() *DelegationUpsert {
+	u.SetExcluded(delegation.FieldToken)
+	return u
+}
+
+// SetOwnerID sets the "owner_id" field.
+func (u *DelegationUpsert) SetOwnerID(v uint64) *DelegationUpsert {
+	u.Set(delegation.FieldOwnerID, v)
+	return u
+}
+
+// UpdateOwnerID sets the "owner_id" field to the value that was provided on create.
+func (u *DelegationUpsert) UpdateOwnerID() *DelegationUpsert {
+	u.SetExcluded(delegation.FieldOwnerID)
+	return u
+}
+
+// AddOwnerID adds v to the "owner_id" field.
+func (u *DelegationUpsert) AddOwnerID(v uint64) *DelegationUpsert {
+	u.Add(delegation.FieldOwnerID, v)
+	return u
+}
+
+// SetOwnerLogin sets the "owner_login" field.
+func (u *DelegationUpsert) SetOwnerLogin(v string) *DelegationUpsert {
+	u.Set(delegation.FieldOwnerLogin, v)
+	return u
+}
+
+// UpdateOwnerLogin sets the "owner_login" field to the value that was provided on create.
+func (u *DelegationUpsert) UpdateOwnerLogin() *DelegationUpsert {
+	u.SetExcluded(delegation.FieldOwnerLogin)
+	return u
+}
+
+// SetSections sets the "sections" field.
+func (u *DelegationUpsert) SetSections(v []string) *DelegationUpsert {
+	u.Set(delegation.FieldSections, v)
+	return u
+}
+
+// UpdateSections sets the "sections" field to the value that was provided on create.
+func (u *DelegationUpsert) UpdateSections() *DelegationUpsert {
+	u.SetExcluded(delegation.FieldSections)
+	return u
+}
+
+// SetDelegateID sets the "delegate_id" field.
+func (u *DelegationUpsert) SetDelegateID(v uint64) *DelegationUpsert {
+	u.Set(delegation.FieldDelegateID, v)
+	return u
+}
+
+// UpdateDelegateID sets the "delegate_id" field to the value that was provided on create.
+func (u *DelegationUpsert) UpdateDelegateID() *DelegationUpsert {
+	u.SetExcluded(delegation.FieldDelegateID)
+	return u
+}
+
+// AddDelegateID adds v to the "delegate_id" field.
+func (u *DelegationUpsert) AddDelegateID(v uint64) *DelegationUpsert {
+	u.Add(delegation.FieldDelegateID, v)
+	return u
+}
+
+// ClearDelegateID clears the value of the "delegate_id" field.
+func (u *DelegationUpsert) ClearDelegateID() *DelegationUpsert {
+	u.SetNull(delegation.FieldDelegateID)
+	return u
+}
+
+// SetDelegateLogin sets the "delegate_login" field.
+func (u *DelegationUpsert) SetDelegateLogin(v string) *DelegationUpsert {
+	u.Set(delegation.FieldDelegateLogin, v)
+	return u
+}
+
+// UpdateDelegateLogin sets the "delegate_login" field to the value that was provided on create.
+func (u *DelegationUpsert) UpdateDelegateLogin() *DelegationUpsert {
+	u.SetExcluded(delegation.FieldDelegateLogin)
+	return u
+}
+
+// ClearDelegateLogin clears the value of the "delegate_login" field.
+func (u *DelegationUpsert) ClearDelegateLogin() *DelegationUpsert {
+	u.SetNull(delegation.FieldDelegateLogin)
+	return u
+}
+
+// SetConsumedAt sets the "consumed_at" field.
+func (u *DelegationUpsert) SetConsumedAt(v time.Time) *DelegationUpsert {
+	u.Set(delegation.FieldConsumedAt, v)
+	return u
+}
+
+// UpdateConsumedAt sets the "consumed_at" field to the value that was provided on create.
+func (u *DelegationUpsert) UpdateConsumedAt() *DelegationUpsert {
+	u.SetExcluded(delegation.FieldConsumedAt)
+	return u
+}
+
+// ClearConsumedAt clears the value of the "consumed_at" field.
+func (u *DelegationUpsert) ClearConsumedAt() *DelegationUpsert {
+	u.SetNull(delegation.FieldConsumedAt)
+	return u
+}
+
+// SetExpiresAt sets the "expires_at" field.
+func (u *DelegationUpsert) SetExpiresAt(v time.Time) *DelegationUpsert {
+	u.Set(delegation.FieldExpiresAt, v)
+	return u
+}
+
+// UpdateExpiresAt sets the "expires_at" field to the value that was provided on create.
+func (u *DelegationUpsert) UpdateExpiresAt() *DelegationUpsert {
+	u.SetExcluded(delegation.FieldExpiresAt)
+	return u
+}
+
+// ClearExpiresAt clears the value of the "expires_at" field.
+func (u *DelegationUpsert) ClearExpiresAt() *DelegationUpsert {
+	u.SetNull(delegation.FieldExpiresAt)
+	return u
+}
+
+// UpdateNewValues updates the mutable fields using the new values that were set on create.
+// Using this option is equivalent to using:
+//
+//	client.Delegation.Create().
+//		OnConflict(
+//			sql.ResolveWithNewValues(),
+//		).
+//		Exec(ctx)
+func (u *DelegationUpsertOne) UpdateNewValues() *DelegationUpsertOne {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWithNewValues())
+	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(s *sql.UpdateSet) {
+		if _, exists := u.create.mutation.CreatedAt(); exists {
+			s.SetIgnore(delegation.FieldCreatedAt)
+		}
+	}))
+	return u
+}
+
+// Ignore sets each column to itself in case of conflict.
+// Using this option is equivalent to using:
+//
+//	client.Delegation.Create().
+//	    OnConflict(sql.ResolveWithIgnore()).
+//	    Exec(ctx)
+func (u *DelegationUpsertOne) Ignore() *DelegationUpsertOne {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWithIgnore())
+	return u
+}
+
+// DoNothing configures the conflict_action to `DO NOTHING`.
+// Supported only by SQLite and PostgreSQL.
+func (u *DelegationUpsertOne) DoNothing() *DelegationUpsertOne {
+	u.create.conflict = append(u.create.conflict, sql.DoNothing())
+	return u
+}
+
+// Update allows overriding fields `UPDATE` values. See the DelegationCreate.OnConflict
+// documentation for more info.
+func (u *DelegationUpsertOne) Update(set func(*DelegationUpsert)) *DelegationUpsertOne {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(update *sql.UpdateSet) {
+		set(&DelegationUpsert{UpdateSet: update})
+	}))
+	return u
+}
+
+// SetToken sets the "token" field.
+func (u *DelegationUpsertOne) SetToken(v string) *DelegationUpsertOne {
+	return u.Update(func(s *DelegationUpsert) {
+		s.SetToken(v)
+	})
+}
+
+// UpdateToken sets the "token" field to the value that was provided on create.
+func (u *DelegationUpsertOne) UpdateToken() *DelegationUpsertOne {
+	return u.Update(func(s *DelegationUpsert) {
+		s.UpdateToken()
+	})
+}
+
+// SetOwnerID sets the "owner_id" field.
+func (u *DelegationUpsertOne) SetOwnerID(v uint64) *DelegationUpsertOne {
+	return u.Update(func(s *DelegationUpsert) {
+		s.SetOwnerID(v)
+	})
+}
+
+// AddOwnerID adds v to the "owner_id" field.
+func (u *DelegationUpsertOne) AddOwnerID(v uint64) *DelegationUpsertOne {
+	return u.Update(func(s *DelegationUpsert) {
+		s.AddOwnerID(v)
+	})
+}
+
+// UpdateOwnerID sets the "owner_id" field to the value that was provided on create.
+func (u *DelegationUpsertOne) UpdateOwnerID() *DelegationUpsertOne {
+	return u.Update(func(s *DelegationUpsert) {
+		s.UpdateOwnerID()
+	})
+}
+
+// SetOwnerLogin sets the "owner_login" field.
+func (u *DelegationUpsertOne) SetOwnerLogin(v string) *DelegationUpsertOne {
+	return u.Update(func(s *DelegationUpsert) {
+		s.SetOwnerLogin(v)
+	})
+}
+
+// UpdateOwnerLogin sets the "owner_login" field to the value that was provided on create.
+func (u *DelegationUpsertOne) UpdateOwnerLogin() *DelegationUpsertOne {
+	return u.Update(func(s *DelegationUpsert) {
+		s.UpdateOwnerLogin()
+	})
+}
+
+// SetSections sets the "sections" field.
+func (u *DelegationUpsertOne) SetSections(v []string) *DelegationUpsertOne {
+	return u.Update(func(s *DelegationUpsert) {
+		s.SetSections(v)
+	})
+}
+
+// UpdateSections sets the "sections" field to the value that was provided on create.
+func (u *DelegationUpsertOne) UpdateSections() *DelegationUpsertOne {
+	return u.Update(func(s *DelegationUpsert) {
+		s.UpdateSections()
+	})
+}
+
+// SetDelegateID sets the "delegate_id" field.
+func (u *DelegationUpsertOne) SetDelegateID(v uint64) *DelegationUpsertOne {
+	return u.Update(func(s *DelegationUpsert) {
+		s.SetDelegateID(v)
+	})
+}
+
+// AddDelegateID adds v to the "delegate_id" field.
+func (u *DelegationUpsertOne) AddDelegateID(v uint64) *DelegationUpsertOne {
+	return u.Update(func(s *DelegationUpsert) {
+		s.AddDelegateID(v)
+	})
+}
+
+// UpdateDelegateID sets the "delegate_id" field to the value that was provided on create.
+func (u *DelegationUpsertOne) UpdateDelegateID() *DelegationUpsertOne {
+	return u.Update(func(s *DelegationUpsert) {
+		s.UpdateDelegateID()
+	})
+}
+
+// ClearDelegateID clears the value of the "delegate_id" field.
+func (u *DelegationUpsertOne) ClearDelegateID() *DelegationUpsertOne {
+	return u.Update(func(s *DelegationUpsert) {
+		s.ClearDelegateID()
+	})
+}
+
+// SetDelegateLogin sets the "delegate_login" field.
+func (u *DelegationUpsertOne) SetDelegateLogin(v string) *DelegationUpsertOne {
+	return u.Update(func(s *DelegationUpsert) {
+		s.SetDelegateLogin(v)
+	})
+}
+
+// UpdateDelegateLogin sets the "delegate_login" field to the value that was provided on create.
+func (u *DelegationUpsertOne) UpdateDelegateLogin() *DelegationUpsertOne {
+	return u.Update(func(s *DelegationUpsert) {
+		s.UpdateDelegateLogin()
+	})
+}
+
+// ClearDelegateLogin clears the value of the "delegate_login" field.
+func (u *DelegationUpsertOne) ClearDelegateLogin() *DelegationUpsertOne {
+	return u.Update(func(s *DelegationUpsert) {
+		s.ClearDelegateLogin()
+	})
+}
+
+// SetConsumedAt sets the "consumed_at" field.
+func (u *DelegationUpsertOne) SetConsumedAt(v time.Time) *DelegationUpsertOne {
+	return u.Update(func(s *DelegationUpsert) {
+		s.SetConsumedAt(v)
+	})
+}
+
+// UpdateConsumedAt sets the "consumed_at" field to the value that was provided on create.
+func (u *DelegationUpsertOne) UpdateConsumedAt() *DelegationUpsertOne {
+	return u.Update(func(s *DelegationUpsert) {
+		s.UpdateConsumedAt()
+	})
+}
+
+// ClearConsumedAt clears the value of the "consumed_at" field.
+func (u *DelegationUpsertOne) ClearConsumedAt() *DelegationUpsertOne {
+	return u.Update(func(s *DelegationUpsert) {
+		s.ClearConsumedAt()
+	})
+}
+
+// SetExpiresAt sets the "expires_at" field.
+func (u *DelegationUpsertOne) SetExpiresAt(v time.Time) *DelegationUpsertOne {
+	return u.Update(func(s *DelegationUpsert) {
+		s.SetExpiresAt(v)
+	})
+}
+
+// UpdateExpiresAt sets the "expires_at" field to the value that was provided on create.
+func (u *DelegationUpsertOne) UpdateExpiresAt() *DelegationUpsertOne {
+	return u.Update(func(s *DelegationUpsert) {
+		s.UpdateExpiresAt()
+	})
+}
+
+// ClearExpiresAt clears the value of the "expires_at" field.
+func (u *DelegationUpsertOne) ClearExpiresAt() *DelegationUpsertOne {
+	return u.Update(func(s *DelegationUpsert) {
+		s.ClearExpiresAt()
+	})
+}
+
+// Exec executes the query.
+func (u *DelegationUpsertOne) Exec(ctx context.Context) error {
+	if len(u.create.conflict) == 0 {
+		return errors.New("ent: missing options for DelegationCreate.OnConflict")
+	}
+	return u.create.Exec(ctx)
+}
+
+// ExecX is like Exec, but panics if an error occurs.
+func (u *DelegationUpsertOne) ExecX(ctx context.Context) {
+	if err := u.create.Exec(ctx); err != nil {
+		panic(err)
+	}
+}
+
+// Exec executes the UPSERT query and returns the inserted/updated ID.
+func (u *DelegationUpsertOne) ID(ctx context.Context) (id int, err error) {
+	node, err := u.create.Save(ctx)
+	if err != nil {
+		return id, err
+	}
+	return node.ID, nil
+}
+
+// IDX is like ID, but panics if an error occurs.
+func (u *DelegationUpsertOne) IDX(ctx context.Context) int {
+	id, err := u.ID(ctx)
+	if err != nil {
+		panic(err)
+	}
+	return id
+}
+
 // DelegationCreateBulk is the builder for creating many Delegation entities in bulk.
 type DelegationCreateBulk struct {
 	config
 	err      error
 	builders []*DelegationCreate
+	conflict []sql.ConflictOption
 }
 
 // Save creates the Delegation entities in the database.
@@ -280,6 +697,7 @@ func (_c *DelegationCreateBulk) Save(ctx context.Context) ([]*Delegation, error)
 					_, err = mutators[i+1].Mutate(root, _c.builders[i+1].mutation)
 				} else {
 					spec := &sqlgraph.BatchCreateSpec{Nodes: specs}
+					spec.OnConflict = _c.conflict
 					// Invoke the actual operation on the latest mutation in the chain.
 					if err = sqlgraph.BatchCreate(ctx, _c.driver, spec); err != nil {
 						if sqlgraph.IsConstraintError(err) {
@@ -330,6 +748,271 @@ func (_c *DelegationCreateBulk) Exec(ctx context.Context) error {
 // ExecX is like Exec, but panics if an error occurs.
 func (_c *DelegationCreateBulk) ExecX(ctx context.Context) {
 	if err := _c.Exec(ctx); err != nil {
+		panic(err)
+	}
+}
+
+// OnConflict allows configuring the `ON CONFLICT` / `ON DUPLICATE KEY` clause
+// of the `INSERT` statement. For example:
+//
+//	client.Delegation.CreateBulk(builders...).
+//		OnConflict(
+//			// Update the row with the new values
+//			// the was proposed for insertion.
+//			sql.ResolveWithNewValues(),
+//		).
+//		// Override some of the fields with custom
+//		// update values.
+//		Update(func(u *ent.DelegationUpsert) {
+//			SetToken(v+v).
+//		}).
+//		Exec(ctx)
+func (_c *DelegationCreateBulk) OnConflict(opts ...sql.ConflictOption) *DelegationUpsertBulk {
+	_c.conflict = opts
+	return &DelegationUpsertBulk{
+		create: _c,
+	}
+}
+
+// OnConflictColumns calls `OnConflict` and configures the columns
+// as conflict target. Using this option is equivalent to using:
+//
+//	client.Delegation.Create().
+//		OnConflict(sql.ConflictColumns(columns...)).
+//		Exec(ctx)
+func (_c *DelegationCreateBulk) OnConflictColumns(columns ...string) *DelegationUpsertBulk {
+	_c.conflict = append(_c.conflict, sql.ConflictColumns(columns...))
+	return &DelegationUpsertBulk{
+		create: _c,
+	}
+}
+
+// DelegationUpsertBulk is the builder for "upsert"-ing
+// a bulk of Delegation nodes.
+type DelegationUpsertBulk struct {
+	create *DelegationCreateBulk
+}
+
+// UpdateNewValues updates the mutable fields using the new values that
+// were set on create. Using this option is equivalent to using:
+//
+//	client.Delegation.Create().
+//		OnConflict(
+//			sql.ResolveWithNewValues(),
+//		).
+//		Exec(ctx)
+func (u *DelegationUpsertBulk) UpdateNewValues() *DelegationUpsertBulk {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWithNewValues())
+	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(s *sql.UpdateSet) {
+		for _, b := range u.create.builders {
+			if _, exists := b.mutation.CreatedAt(); exists {
+				s.SetIgnore(delegation.FieldCreatedAt)
+			}
+		}
+	}))
+	return u
+}
+
+// Ignore sets each column to itself in case of conflict.
+// Using this option is equivalent to using:
+//
+//	client.Delegation.Create().
+//		OnConflict(sql.ResolveWithIgnore()).
+//		Exec(ctx)
+func (u *DelegationUpsertBulk) Ignore() *DelegationUpsertBulk {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWithIgnore())
+	return u
+}
+
+// DoNothing configures the conflict_action to `DO NOTHING`.
+// Supported only by SQLite and PostgreSQL.
+func (u *DelegationUpsertBulk) DoNothing() *DelegationUpsertBulk {
+	u.create.conflict = append(u.create.conflict, sql.DoNothing())
+	return u
+}
+
+// Update allows overriding fields `UPDATE` values. See the DelegationCreateBulk.OnConflict
+// documentation for more info.
+func (u *DelegationUpsertBulk) Update(set func(*DelegationUpsert)) *DelegationUpsertBulk {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(update *sql.UpdateSet) {
+		set(&DelegationUpsert{UpdateSet: update})
+	}))
+	return u
+}
+
+// SetToken sets the "token" field.
+func (u *DelegationUpsertBulk) SetToken(v string) *DelegationUpsertBulk {
+	return u.Update(func(s *DelegationUpsert) {
+		s.SetToken(v)
+	})
+}
+
+// UpdateToken sets the "token" field to the value that was provided on create.
+func (u *DelegationUpsertBulk) UpdateToken() *DelegationUpsertBulk {
+	return u.Update(func(s *DelegationUpsert) {
+		s.UpdateToken()
+	})
+}
+
+// SetOwnerID sets the "owner_id" field.
+func (u *DelegationUpsertBulk) SetOwnerID(v uint64) *DelegationUpsertBulk {
+	return u.Update(func(s *DelegationUpsert) {
+		s.SetOwnerID(v)
+	})
+}
+
+// AddOwnerID adds v to the "owner_id" field.
+func (u *DelegationUpsertBulk) AddOwnerID(v uint64) *DelegationUpsertBulk {
+	return u.Update(func(s *DelegationUpsert) {
+		s.AddOwnerID(v)
+	})
+}
+
+// UpdateOwnerID sets the "owner_id" field to the value that was provided on create.
+func (u *DelegationUpsertBulk) UpdateOwnerID() *DelegationUpsertBulk {
+	return u.Update(func(s *DelegationUpsert) {
+		s.UpdateOwnerID()
+	})
+}
+
+// SetOwnerLogin sets the "owner_login" field.
+func (u *DelegationUpsertBulk) SetOwnerLogin(v string) *DelegationUpsertBulk {
+	return u.Update(func(s *DelegationUpsert) {
+		s.SetOwnerLogin(v)
+	})
+}
+
+// UpdateOwnerLogin sets the "owner_login" field to the value that was provided on create.
+func (u *DelegationUpsertBulk) UpdateOwnerLogin() *DelegationUpsertBulk {
+	return u.Update(func(s *DelegationUpsert) {
+		s.UpdateOwnerLogin()
+	})
+}
+
+// SetSections sets the "sections" field.
+func (u *DelegationUpsertBulk) SetSections(v []string) *DelegationUpsertBulk {
+	return u.Update(func(s *DelegationUpsert) {
+		s.SetSections(v)
+	})
+}
+
+// UpdateSections sets the "sections" field to the value that was provided on create.
+func (u *DelegationUpsertBulk) UpdateSections() *DelegationUpsertBulk {
+	return u.Update(func(s *DelegationUpsert) {
+		s.UpdateSections()
+	})
+}
+
+// SetDelegateID sets the "delegate_id" field.
+func (u *DelegationUpsertBulk) SetDelegateID(v uint64) *DelegationUpsertBulk {
+	return u.Update(func(s *DelegationUpsert) {
+		s.SetDelegateID(v)
+	})
+}
+
+// AddDelegateID adds v to the "delegate_id" field.
+func (u *DelegationUpsertBulk) AddDelegateID(v uint64) *DelegationUpsertBulk {
+	return u.Update(func(s *DelegationUpsert) {
+		s.AddDelegateID(v)
+	})
+}
+
+// UpdateDelegateID sets the "delegate_id" field to the value that was provided on create.
+func (u *DelegationUpsertBulk) UpdateDelegateID() *DelegationUpsertBulk {
+	return u.Update(func(s *DelegationUpsert) {
+		s.UpdateDelegateID()
+	})
+}
+
+// ClearDelegateID clears the value of the "delegate_id" field.
+func (u *DelegationUpsertBulk) ClearDelegateID() *DelegationUpsertBulk {
+	return u.Update(func(s *DelegationUpsert) {
+		s.ClearDelegateID()
+	})
+}
+
+// SetDelegateLogin sets the "delegate_login" field.
+func (u *DelegationUpsertBulk) SetDelegateLogin(v string) *DelegationUpsertBulk {
+	return u.Update(func(s *DelegationUpsert) {
+		s.SetDelegateLogin(v)
+	})
+}
+
+// UpdateDelegateLogin sets the "delegate_login" field to the value that was provided on create.
+func (u *DelegationUpsertBulk) UpdateDelegateLogin() *DelegationUpsertBulk {
+	return u.Update(func(s *DelegationUpsert) {
+		s.UpdateDelegateLogin()
+	})
+}
+
+// ClearDelegateLogin clears the value of the "delegate_login" field.
+func (u *DelegationUpsertBulk) ClearDelegateLogin() *DelegationUpsertBulk {
+	return u.Update(func(s *DelegationUpsert) {
+		s.ClearDelegateLogin()
+	})
+}
+
+// SetConsumedAt sets the "consumed_at" field.
+func (u *DelegationUpsertBulk) SetConsumedAt(v time.Time) *DelegationUpsertBulk {
+	return u.Update(func(s *DelegationUpsert) {
+		s.SetConsumedAt(v)
+	})
+}
+
+// UpdateConsumedAt sets the "consumed_at" field to the value that was provided on create.
+func (u *DelegationUpsertBulk) UpdateConsumedAt() *DelegationUpsertBulk {
+	return u.Update(func(s *DelegationUpsert) {
+		s.UpdateConsumedAt()
+	})
+}
+
+// ClearConsumedAt clears the value of the "consumed_at" field.
+func (u *DelegationUpsertBulk) ClearConsumedAt() *DelegationUpsertBulk {
+	return u.Update(func(s *DelegationUpsert) {
+		s.ClearConsumedAt()
+	})
+}
+
+// SetExpiresAt sets the "expires_at" field.
+func (u *DelegationUpsertBulk) SetExpiresAt(v time.Time) *DelegationUpsertBulk {
+	return u.Update(func(s *DelegationUpsert) {
+		s.SetExpiresAt(v)
+	})
+}
+
+// UpdateExpiresAt sets the "expires_at" field to the value that was provided on create.
+func (u *DelegationUpsertBulk) UpdateExpiresAt() *DelegationUpsertBulk {
+	return u.Update(func(s *DelegationUpsert) {
+		s.UpdateExpiresAt()
+	})
+}
+
+// ClearExpiresAt clears the value of the "expires_at" field.
+func (u *DelegationUpsertBulk) ClearExpiresAt() *DelegationUpsertBulk {
+	return u.Update(func(s *DelegationUpsert) {
+		s.ClearExpiresAt()
+	})
+}
+
+// Exec executes the query.
+func (u *DelegationUpsertBulk) Exec(ctx context.Context) error {
+	if u.create.err != nil {
+		return u.create.err
+	}
+	for i, b := range u.create.builders {
+		if len(b.conflict) != 0 {
+			return fmt.Errorf("ent: OnConflict was set for builder %d. Set it on the DelegationCreateBulk instead", i)
+		}
+	}
+	if len(u.create.conflict) == 0 {
+		return errors.New("ent: missing options for DelegationCreateBulk.OnConflict")
+	}
+	return u.create.Exec(ctx)
+}
+
+// ExecX is like Exec, but panics if an error occurs.
+func (u *DelegationUpsertBulk) ExecX(ctx context.Context) {
+	if err := u.create.Exec(ctx); err != nil {
 		panic(err)
 	}
 }
