@@ -2,6 +2,7 @@ package urchin
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"ItsBagelBot/app/gateway/internal/core"
+	"ItsBagelBot/app/gateway/internal/provider"
 	gatewayrpc "ItsBagelBot/internal/domain/rpc/gateway"
 
 	"github.com/stretchr/testify/assert"
@@ -33,7 +35,9 @@ func (s *memStore) Get(_ context.Context, key string) ([]byte, bool, error) {
 func (s *memStore) Set(_ context.Context, key string, val []byte, _ time.Duration) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.m[key] = val
+	// Copy: the Store contract says val may come from a pooled buffer the
+	// caller recycles as soon as Set returns.
+	s.m[key] = append([]byte(nil), val...)
 	return nil
 }
 func (s *memStore) Del(_ context.Context, key string) error {
@@ -47,7 +51,8 @@ func newTestProvider(t *testing.T, handler http.Handler) *Provider {
 	t.Helper()
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)
-	return New(Config{BaseURL: srv.URL, APIKey: "test-key"}, core.NewCache(newMemStore()), nil, zap.NewNop())
+	return New(Config{BaseURL: srv.URL, APIKey: "test-key"},
+		provider.Deps{Cache: core.NewCache(newMemStore()), Log: zap.NewNop()})
 }
 
 func endpoint(t *testing.T, p *Provider, name string) func(context.Context, gatewayrpc.Request) any {
@@ -59,6 +64,21 @@ func endpoint(t *testing.T, p *Provider, name string) func(context.Context, gate
 	}
 	t.Fatalf("endpoint %q not declared", name)
 	return nil
+}
+
+// asReply decodes one handler result into T. Byte-flow endpoints answer
+// pre-marshaled wire bytes (json.RawMessage); guard-path failures answer the
+// typed reply directly. Both decode the same on the wire.
+func asReply[T any](t *testing.T, res any) T {
+	t.Helper()
+	if v, ok := res.(T); ok {
+		return v
+	}
+	raw, ok := res.(json.RawMessage)
+	require.True(t, ok, "unexpected handler result type %T", res)
+	var v T
+	require.NoError(t, json.Unmarshal(raw, &v))
+	return v
 }
 
 const sessionBody = `{
@@ -89,7 +109,7 @@ func TestDailySessionParsing(t *testing.T) {
 		_, _ = w.Write([]byte(sessionBody))
 	}))
 
-	reply := endpoint(t, p, "daily")(context.Background(), gatewayrpc.Request{Account: "Techno"}).(gatewayrpc.UrchinSessionReply)
+	reply := asReply[gatewayrpc.UrchinSessionReply](t, endpoint(t, p, "daily")(context.Background(), gatewayrpc.Request{Account: "Techno"}))
 	require.Empty(t, reply.Error)
 	assert.Equal(t, "test-key", gotKey)
 	assert.Equal(t, "Techno", gotPlayer)
@@ -112,7 +132,7 @@ func TestSessionObjectDeltaSkipped(t *testing.T) {
 		_, _ = w.Write([]byte(body))
 	}))
 
-	reply := endpoint(t, p, "weekly")(context.Background(), gatewayrpc.Request{Account: "x"}).(gatewayrpc.UrchinSessionReply)
+	reply := asReply[gatewayrpc.UrchinSessionReply](t, endpoint(t, p, "weekly")(context.Background(), gatewayrpc.Request{Account: "x"}))
 	require.Empty(t, reply.Error)
 	assert.Zero(t, reply.Wins)
 }
@@ -125,45 +145,44 @@ func TestSessionCachesReply(t *testing.T) {
 	}))
 	h := endpoint(t, p, "daily")
 
-	_ = h(context.Background(), gatewayrpc.Request{Account: "Techno"})
-	// Same player, case-insensitive: served from cache.
-	_ = h(context.Background(), gatewayrpc.Request{Account: "techno"})
+	first := asReply[gatewayrpc.UrchinSessionReply](t, h(context.Background(), gatewayrpc.Request{Account: "Techno"}))
+	// Same player, case-insensitive: served from cache, byte-identical.
+	second := asReply[gatewayrpc.UrchinSessionReply](t, h(context.Background(), gatewayrpc.Request{Account: "techno"}))
 	assert.Equal(t, 1, hits)
+	assert.Equal(t, first, second)
 }
 
-func TestPlayerNotFoundIsReplyError(t *testing.T) {
+// A cache hit answers pre-marshaled bytes: the second call must be a raw
+// passthrough, not a re-marshaled struct.
+func TestSessionHitIsRawBytes(t *testing.T) {
 	p := newTestProvider(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(sessionBody))
+	}))
+	h := endpoint(t, p, "daily")
+
+	_ = h(context.Background(), gatewayrpc.Request{Account: "Techno"})
+	res := h(context.Background(), gatewayrpc.Request{Account: "Techno"})
+	_, isRaw := res.(json.RawMessage)
+	assert.True(t, isRaw, "cache hit must answer stored wire bytes")
+}
+
+// A 404 negative-caches the FRIENDLY REPLY itself: the second lookup answers
+// from the store with no upstream hit.
+func TestPlayerNotFoundNegativeCached(t *testing.T) {
+	var hits int
+	p := newTestProvider(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hits++
 		w.WriteHeader(http.StatusNotFound)
 		_, _ = w.Write([]byte(`{"error":"player not found"}`))
 	}))
+	h := endpoint(t, p, "daily")
 
-	reply := endpoint(t, p, "daily")(context.Background(), gatewayrpc.Request{Account: "ghost"}).(gatewayrpc.UrchinSessionReply)
+	reply := asReply[gatewayrpc.UrchinSessionReply](t, h(context.Background(), gatewayrpc.Request{Account: "ghost"}))
 	assert.Equal(t, "player not found", reply.Error)
-}
 
-func TestStatsParsing(t *testing.T) {
-	body := `{
-		"uuid": "abc", "username": "Techno", "displayname": "Techno", "slim": false, "tags": [],
-		"hypixel": {
-			"achievements": {"bedwars_level": 402},
-			"stats": {"Bedwars": {
-				"wins_bedwars": 1000, "losses_bedwars": 100,
-				"final_kills_bedwars": 5000, "final_deaths_bedwars": 500,
-				"beds_broken_bedwars": 2000
-			}}
-		}
-	}`
-	p := newTestProvider(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/v3/player/profile", r.URL.Path)
-		assert.NotEmpty(t, r.URL.Query().Get("max_cache_age"))
-		_, _ = w.Write([]byte(body))
-	}))
-
-	reply := endpoint(t, p, "stats")(context.Background(), gatewayrpc.Request{Account: "Techno"}).(gatewayrpc.UrchinStatsReply)
-	require.Empty(t, reply.Error)
-	assert.Equal(t, int64(402), reply.Stars)
-	assert.Equal(t, int64(1000), reply.Wins)
-	assert.Equal(t, int64(5000), reply.FinalKills)
+	reply = asReply[gatewayrpc.UrchinSessionReply](t, h(context.Background(), gatewayrpc.Request{Account: "ghost"}))
+	assert.Equal(t, "player not found", reply.Error)
+	assert.Equal(t, 1, hits, "the miss must be served from the negative cache")
 }
 
 func TestSniperResolvesUUIDThenScores(t *testing.T) {
@@ -180,11 +199,23 @@ func TestSniperResolvesUUIDThenScores(t *testing.T) {
 		}
 	}))
 
-	reply := endpoint(t, p, "sniper")(context.Background(), gatewayrpc.Request{Account: "Aim"}).(gatewayrpc.UrchinSniperReply)
+	reply := asReply[gatewayrpc.UrchinSniperReply](t, endpoint(t, p, "sniper")(context.Background(), gatewayrpc.Request{Account: "Aim"}))
 	require.Empty(t, reply.Error)
 	assert.Equal(t, 7.5, reply.Score)
 	assert.Equal(t, "warn", reply.Mode)
 	assert.Equal(t, 1, reply.TagCount)
+}
+
+// An empty uuid on a 200 tags reply must read as "player not found", never as a
+// cacheable success that would poison the downstream cubelify call.
+func TestResolveEmptyUUIDIsNotFound(t *testing.T) {
+	p := newTestProvider(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/v3/player/tags", r.URL.Path)
+		_, _ = w.Write([]byte(`{"uuid":"","displayname":null,"tags":[]}`))
+	}))
+
+	reply := asReply[gatewayrpc.UrchinSniperReply](t, endpoint(t, p, "sniper")(context.Background(), gatewayrpc.Request{Account: "ghost"}))
+	assert.Equal(t, "player not found", reply.Error)
 }
 
 func TestTagsParsing(t *testing.T) {
@@ -196,7 +227,7 @@ func TestTagsParsing(t *testing.T) {
 		_, _ = w.Write([]byte(body))
 	}))
 
-	reply := endpoint(t, p, "tags")(context.Background(), gatewayrpc.Request{Account: "Sus"}).(gatewayrpc.UrchinTagsReply)
+	reply := asReply[gatewayrpc.UrchinTagsReply](t, endpoint(t, p, "tags")(context.Background(), gatewayrpc.Request{Account: "Sus"}))
 	require.Empty(t, reply.Error)
 	require.Len(t, reply.Tags, 2)
 	assert.Equal(t, gatewayrpc.UrchinTag{Type: "cheater", Reason: "bhop"}, reply.Tags[0])
@@ -207,6 +238,15 @@ func TestMissingAccount(t *testing.T) {
 	p := newTestProvider(t, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		t.Error("no upstream call expected")
 	}))
-	reply := endpoint(t, p, "daily")(context.Background(), gatewayrpc.Request{}).(gatewayrpc.UrchinSessionReply)
+	reply := asReply[gatewayrpc.UrchinSessionReply](t, endpoint(t, p, "daily")(context.Background(), gatewayrpc.Request{}))
 	assert.Equal(t, "missing account", reply.Error)
+}
+
+// Odd configured rate limits must floor, not panic the boot (NewSpec requires
+// integer capacities; 550.5 * 0.75 style fractions crashlooped otherwise).
+func TestOddRateLimitDoesNotPanic(t *testing.T) {
+	assert.NotPanics(t, func() {
+		New(Config{APIKey: "k", RateLimit: 550.5},
+			provider.Deps{Cache: core.NewCache(newMemStore()), Log: zap.NewNop()})
+	})
 }

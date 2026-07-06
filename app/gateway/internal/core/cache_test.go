@@ -30,7 +30,9 @@ func (s *memStore) Get(_ context.Context, key string) ([]byte, bool, error) {
 func (s *memStore) Set(_ context.Context, key string, val []byte, _ time.Duration) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.m[key] = val
+	// Copy: the Store contract says val may come from a pooled buffer the
+	// caller recycles as soon as Set returns.
+	s.m[key] = append([]byte(nil), val...)
 	return nil
 }
 
@@ -113,6 +115,93 @@ func TestCachedPoisonEntryRefetched(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "fresh", got.Name)
+}
+
+// A legacy/foreign-format entry is VALID JSON but carries no envelope marker.
+// It once unmarshaled "successfully" into a zero-value envelope and the caller
+// served an empty reply (blank player, zero stats) until the entry expired —
+// the live "command answers garbage until retried later" bug. It must read as
+// poison and refetch instead.
+func TestCachedLegacyFormatEntryRefetched(t *testing.T) {
+	st := newMemStore()
+	require.NoError(t, st.Set(context.Background(), "k", []byte(`{"name":"old-format","n":42}`), time.Minute))
+	c := NewCache(st)
+
+	got, err := Cached(context.Background(), c, "k", time.Minute, time.Minute, func(context.Context) (payload, error) {
+		return payload{Name: "fresh", N: 7}, nil
+	})
+	require.NoError(t, err)
+	assert.Equal(t, payload{Name: "fresh", N: 7}, got)
+
+	// And the refreshed entry now serves without another fetch.
+	got, err = Cached(context.Background(), c, "k", time.Minute, time.Minute, func(context.Context) (payload, error) {
+		t.Error("must not refetch a repaired entry")
+		return payload{}, nil
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "fresh", got.Name)
+}
+
+// A zero-value success (empty string) still round-trips: the always-present "v"
+// member is the format marker, so it must not be mistaken for a legacy entry.
+func TestCachedZeroValueSuccessRoundTrips(t *testing.T) {
+	c := NewCache(newMemStore())
+	var fetches atomic.Int32
+
+	for range 2 {
+		v, err := Cached(context.Background(), c, "k", time.Minute, time.Minute, func(context.Context) (string, error) {
+			fetches.Add(1)
+			return "", nil
+		})
+		require.NoError(t, err)
+		assert.Empty(t, v)
+	}
+	assert.Equal(t, int32(1), fetches.Load(), "empty-string success must be served from cache")
+}
+
+// A 429 (rate limited) must NOT be negatively cached: the next request should
+// retry the bucket, not be pinned to a denial for the negative TTL.
+func TestCachedRateLimitNotCached(t *testing.T) {
+	c := NewCache(newMemStore())
+	var fetches atomic.Int32
+	busy := &UpstreamError{Status: 429, Message: "busy"}
+
+	_, err := Cached(context.Background(), c, "k", time.Minute, time.Minute, func(context.Context) (payload, error) {
+		fetches.Add(1)
+		return payload{}, busy
+	})
+	assert.Equal(t, busy, err)
+
+	got, err := Cached(context.Background(), c, "k", time.Minute, time.Minute, func(context.Context) (payload, error) {
+		fetches.Add(1)
+		return payload{Name: "recovered"}, nil
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "recovered", got.Name)
+	assert.Equal(t, int32(2), fetches.Load(), "a 429 must be retried, never cached")
+}
+
+// The negative entry must also be honored on the fast path AFTER a fresh Cache
+// (fresh singleflight group) reads it — i.e. it survives in the store, not just
+// in-process.
+func TestCachedNegativeSharedAcrossInstances(t *testing.T) {
+	st := newMemStore()
+	notFound := &UpstreamError{Status: 404, Message: "player not found"}
+
+	_, err := Cached(context.Background(), NewCache(st), "k", time.Minute, time.Minute, func(context.Context) (payload, error) {
+		return payload{}, notFound
+	})
+	assert.Equal(t, notFound, err)
+
+	// A different Cache instance (another replica) sharing the same store.
+	_, err = Cached(context.Background(), NewCache(st), "k", time.Minute, time.Minute, func(context.Context) (payload, error) {
+		t.Error("second replica must serve the negative from the shared store")
+		return payload{}, nil
+	})
+	var ue *UpstreamError
+	require.ErrorAs(t, err, &ue)
+	assert.Equal(t, 404, ue.Status)
+	assert.Equal(t, "player not found", ue.Message)
 }
 
 func TestCachedSingleflightCollapses(t *testing.T) {

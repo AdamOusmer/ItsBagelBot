@@ -1,8 +1,12 @@
 // gateway is the fleet's external-API gateway: sesame (and any future caller)
 // requests third-party data over NATS RPC and the gateway fetches, normalizes
-// and caches it in Valkey. External systems plug in as providers
-// (app/gateway/internal/providers/*); adding one is a new package plus one
-// line in buildProviders.
+// and caches it in Valkey.
+//
+// Its architecture mirrors sesame's: provider is the authoring surface,
+// app/gateway/internal/providers holds one package per external system plus
+// the one-line-per-provider All registration, and engine is the runtime that
+// indexes and serves them. main only wires infrastructure — adding an external
+// system never touches this file.
 package main
 
 import (
@@ -13,10 +17,9 @@ import (
 
 	"ItsBagelBot/app/gateway/internal/config"
 	"ItsBagelBot/app/gateway/internal/core"
+	"ItsBagelBot/app/gateway/internal/engine"
 	"ItsBagelBot/app/gateway/internal/provider"
-	"ItsBagelBot/app/gateway/internal/providers/mcsr"
-	"ItsBagelBot/app/gateway/internal/providers/urchin"
-	gatewayrpc "ItsBagelBot/internal/domain/rpc/gateway"
+	"ItsBagelBot/app/gateway/internal/providers"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/health"
@@ -25,8 +28,6 @@ import (
 	"ItsBagelBot/pkg/ratelimit"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
-	"github.com/newrelic/go-agent/v3/newrelic"
-	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 )
 
@@ -63,21 +64,28 @@ func main() {
 	}
 	defer nc.Close()
 
-	cache := core.NewCache(core.NewValkeyStore(valkeyClient))
-	limiter := ratelimit.New(valkeyClient)
+	// Deps is the bundle every provider captures; main builds it once.
+	// providers.All returns the configured providers, which the engine
+	// subscribes. Adding an external system is a new package under
+	// internal/providers plus one line in all.go — no wiring here.
+	deps := provider.Deps{
+		Cache:   core.NewCache(core.NewValkeyStore(valkeyClient)),
+		Limiter: ratelimit.New(valkeyClient),
+		Log:     log,
+	}
 
-	providers := buildProviders(cfg, cache, limiter, log)
-	if len(providers) == 0 {
+	active := providers.All(cfg, deps)
+	if len(active) == 0 {
 		log.Warn("no providers configured; gateway will answer nothing")
 	}
-	if err := subscribeProviders(nc, cfg.SubjectPrefix, providers, nrApp, log); err != nil {
+	if err := engine.Serve(nc, cfg.SubjectPrefix, queueGroup, active, nrApp, log); err != nil {
 		log.Fatal("failed to subscribe provider endpoints", zap.Error(err))
 	}
 
 	health.Serve(cfg.ListenAddr, nc.IsConnected)
 
-	names := make([]string, 0, len(providers))
-	for _, p := range providers {
+	names := make([]string, 0, len(active))
+	for _, p := range active {
 		names = append(names, p.Name())
 	}
 	log.Info("gateway ready",
@@ -88,53 +96,4 @@ func main() {
 	<-ctx.Done()
 
 	log.Info("gateway shutting down")
-}
-
-// buildProviders wires every configured provider. A provider missing its
-// credentials is skipped with a warning: its subjects then simply time out at
-// the caller, the same failure mode as the upstream being down.
-func buildProviders(cfg *config.Config, cache *core.Cache, limiter *ratelimit.Limiter, log *zap.Logger) []provider.Provider {
-	var providers []provider.Provider
-
-	if cfg.UrchinAPIKey != "" {
-		providers = append(providers, urchin.New(urchin.Config{
-			BaseURL:   cfg.UrchinBaseURL,
-			APIKey:    cfg.UrchinAPIKey,
-			RateLimit: cfg.UrchinRateLimit,
-		}, cache, limiter, log))
-	} else {
-		log.Warn("urchin provider disabled: URCHIN_API_KEY not set")
-	}
-
-	if cfg.McsrEnabled {
-		providers = append(providers, mcsr.New(mcsr.Config{
-			BaseURL:   cfg.McsrBaseURL,
-			APIKey:    cfg.McsrAPIKey,
-			RateLimit: cfg.McsrRateLimit,
-		}, cache, limiter, log))
-	} else {
-		log.Warn("mcsr provider disabled: MCSR_ENABLED=false")
-	}
-
-	return providers
-}
-
-// subscribeProviders registers every endpoint of every provider on the RPC
-// connection, queue-grouped so replicas share the load.
-func subscribeProviders(nc *nats.Conn, prefix string, providers []provider.Provider, nrApp *newrelic.Application, log *zap.Logger) error {
-	for _, p := range providers {
-		for _, ep := range p.Endpoints() {
-			subject := gatewayrpc.Subject(prefix, p.Name(), ep.Name)
-			handle := ep.Handle
-			err := bus.QueueSubscribeJSON(nc, subject, queueGroup, ep.Timeout, nrApp, log,
-				func(ctx context.Context, req gatewayrpc.Request) any {
-					return handle(ctx, req)
-				})
-			if err != nil {
-				return err
-			}
-			log.Debug("gateway endpoint registered", zap.String("subject", subject))
-		}
-	}
-	return nil
 }

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"ItsBagelBot/app/gateway/internal/core"
+	"ItsBagelBot/app/gateway/internal/provider"
 	gatewayrpc "ItsBagelBot/internal/domain/rpc/gateway"
 
 	"github.com/stretchr/testify/assert"
@@ -34,7 +35,9 @@ func (s *memStore) Get(_ context.Context, key string) ([]byte, bool, error) {
 func (s *memStore) Set(_ context.Context, key string, val []byte, _ time.Duration) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.m[key] = val
+	// Copy: the Store contract says val may come from a pooled buffer the
+	// caller recycles as soon as Set returns.
+	s.m[key] = append([]byte(nil), val...)
 	return nil
 }
 func (s *memStore) Del(_ context.Context, key string) error {
@@ -70,7 +73,8 @@ func newTestProvider(t *testing.T, handler http.Handler) (*Provider, *memStore) 
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)
 	st := newMemStore()
-	return New(Config{BaseURL: srv.URL}, core.NewCache(st), nil, zap.NewNop()), st
+	return New(Config{BaseURL: srv.URL},
+		provider.Deps{Cache: core.NewCache(st), Log: zap.NewNop()}), st
 }
 
 func endpoint(t *testing.T, p *Provider, name string) func(context.Context, gatewayrpc.Request) any {
