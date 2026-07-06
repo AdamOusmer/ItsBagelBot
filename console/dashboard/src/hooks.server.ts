@@ -5,6 +5,7 @@ import { warm } from '@bagel/shared/server/nats';
 import { warm as warmValkey } from '@bagel/shared/server/valkey-store';
 import { registerServerConfig } from '@bagel/shared/server/config';
 import { rumTransform } from '@bagel/shared/server/rum';
+import { RateLimiter, clientIp } from '@bagel/shared/server/rate-limit';
 import { detectLocale, LOCALE_COOKIE } from '@bagel/shared/i18n';
 import { startInvalidationListener } from '$lib/server/services';
 import { assertConfigSane } from '$lib/server/config-sanity';
@@ -42,10 +43,53 @@ export const init: ServerInit = async () => {
   startInvalidationListener();
 };
 
+// Per-pod rate limits (see rate-limit.ts for why these are not Valkey-backed).
+// Three tiers, tightest wins by route/method:
+//   * auth   — /auth/* + /delegate/*: OAuth redirects/callbacks and session
+//     escalation. Brute-force target, humans hit it a handful of times.
+//   * write  — any non-GET/HEAD elsewhere: form actions and API mutations.
+//     Clicking around settings is bursty, so allow a real burst but a modest
+//     sustained rate (the Go batchers coalesce anyway).
+//   * read   — everything else: page loads, __data.json, SSE connects.
+// Keyed by session user id when logged in (stable across CGNAT/mobile IP
+// churn), else by client IP.
+const authLimiter = new RateLimiter({ capacity: 10, refillPerSec: 10 / 60 });
+const writeLimiter = new RateLimiter({ capacity: 30, refillPerSec: 0.5 });
+const readLimiter = new RateLimiter({ capacity: 60, refillPerSec: 2 });
+
+// Kubelet probes are frequent, unauthenticated and share the node IP; limiting
+// them would let the limiter fail readiness. Static /_app assets never reach
+// this handle (served by sirv in serve-node.js).
+const RATE_EXEMPT = new Set(['/healthz', '/readyz']);
+
+function pickLimiter(pathname: string, method: string): RateLimiter {
+  if (pathname.startsWith('/auth/') || pathname.startsWith('/delegate/')) return authLimiter;
+  if (method !== 'GET' && method !== 'HEAD') return writeLimiter;
+  return readLimiter;
+}
+
 // Session + the security headers SvelteKit's CSP config does not own.
 export const handle: Handle = async ({ event, resolve }) => {
   const cookie = event.cookies.get(COOKIE);
   event.locals.session = cookie ? open(cookie) : null;
+
+  if (!RATE_EXEMPT.has(event.url.pathname)) {
+    const key = event.locals.session?.user_id
+      ? `u:${event.locals.session.user_id}`
+      : `ip:${clientIp(event.request.headers, event.getClientAddress)}`;
+    const decision = pickLimiter(event.url.pathname, event.request.method).check(key);
+    if (!decision.allowed) {
+      newrelic.addCustomAttributes({ 'ratelimit.limited': true, 'route.id': event.route.id ?? 'unmatched' });
+      return new Response('Too many requests', {
+        status: 429,
+        headers: {
+          'Retry-After': String(decision.retryAfterSec),
+          'Cache-Control': 'no-store',
+          'Content-Type': 'text/plain; charset=utf-8'
+        }
+      });
+    }
+  }
 
   let queryLang = event.url.searchParams.get('lang');
   if (queryLang === 'fr' || queryLang === 'en') {
