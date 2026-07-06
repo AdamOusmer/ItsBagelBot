@@ -30,7 +30,9 @@ func (s *memStore) Get(_ context.Context, key string) ([]byte, bool, error) {
 func (s *memStore) Set(_ context.Context, key string, val []byte, _ time.Duration) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.m[key] = val
+	// Copy: the Store contract says val may come from a pooled buffer the
+	// caller recycles as soon as Set returns.
+	s.m[key] = append([]byte(nil), val...)
 	return nil
 }
 

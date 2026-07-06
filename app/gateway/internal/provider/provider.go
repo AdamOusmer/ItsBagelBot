@@ -1,16 +1,25 @@
-// Package provider defines the gateway's pluggable external-API surface. One
-// Provider wraps one external system (urchin, mcsr, ...) and declares the RPC
-// endpoints it answers; main subscribes each endpoint at
-// "<prefix>.<provider>.<endpoint>" with the shared queue group. Adding an
-// external system is a new package under internal/providers plus one line in
-// main — the same shape as sesame's module registry.
+// Package provider is the gateway's provider authoring surface, the twin of
+// sesame's module package: one Provider wraps one external system (urchin,
+// hypixel, mcsr, ...) and declares the RPC endpoints it answers; the engine
+// (app/gateway/internal/engine) indexes and serves them at
+// "<prefix>.<provider>.<endpoint>". Adding an external system is a new package
+// under internal/providers plus one line in providers.All — the same shape as
+// sesame's modules.All.
+//
+// Like sesame's module package, this one carries no runtime wiring: a provider
+// captures the services it needs (cache, limiter, HTTP clients) from Deps by
+// closure, so the authoring surface stays small and unit-testable on its own.
 package provider
 
 import (
 	"context"
 	"time"
 
+	"ItsBagelBot/app/gateway/internal/core"
 	gatewayrpc "ItsBagelBot/internal/domain/rpc/gateway"
+	"ItsBagelBot/pkg/ratelimit"
+
+	"go.uber.org/zap"
 )
 
 // Endpoint is one RPC verb a provider answers. Handle returns the reply value
@@ -32,4 +41,13 @@ type Provider interface {
 	Name() string
 	// Endpoints lists the verbs the provider answers.
 	Endpoints() []Endpoint
+}
+
+// Deps is the bundle of runtime services a provider captures when it is built,
+// mirroring sesame's engine.Deps: main constructs it once and hands it to
+// providers.All. Not every provider uses every field; unused ones are harmless.
+type Deps struct {
+	Cache   *core.Cache
+	Limiter *ratelimit.Limiter
+	Log     *zap.Logger
 }

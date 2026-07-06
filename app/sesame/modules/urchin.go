@@ -168,6 +168,11 @@ func urchinSessionRun(d engine.Deps, endpoint string) module.RunFunc {
 // urchinStatsRun answers !bwstats with lifetime Bed Wars stats. Template
 // tokens: {player} {stars} {wins} {losses} {finals} {finaldeaths} {beds}
 // {fkdr} {wlr}.
+//
+// The data rides the gateway's hypixel provider — a separate external system
+// with its own key and budget (Coral cannot serve lifetime stats on our key) —
+// but the command stays on the one urchin module page: gateway provider layout
+// is not a dashboard concern.
 func urchinStatsRun(d engine.Deps) module.RunFunc {
 	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
 		var cfg urchinConfig
@@ -178,8 +183,8 @@ func urchinStatsRun(d engine.Deps) module.RunFunc {
 		}
 
 		account := resolveAccount(args, cfg.Account, c.Env.BroadcasterUserLogin)
-		var reply gatewayrpc.UrchinStatsReply
-		if err := d.Gateway.Call(ctx, "urchin", "stats", gatewayrpc.Request{Account: account, IsPremium: c.Regress.IsPremium()}, &reply); err != nil {
+		var reply gatewayrpc.HypixelStatsReply
+		if err := d.Gateway.Call(ctx, "hypixel", "stats", gatewayrpc.Request{Account: account, IsPremium: c.Regress.IsPremium()}, &reply); err != nil {
 			if chatReplyError(c, emit, account, err) {
 				return nil
 			}
