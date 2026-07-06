@@ -64,6 +64,10 @@ func (k Kind) String() string {
 //   - Duration is the requested clip length in seconds (Twitch allows 5–60);
 //     zero means unset, so Twitch applies its default (30). Only Type clip
 //     reads it.
+//   - Template is a custom reply template a command can carry for downstream
+//     expansion (e.g. the clip reply's {clip} token, expanded by outgress once
+//     the clip URL exists). Empty means use the default reply. Only Type clip
+//     reads it.
 type Output struct {
 	Type          string
 	BroadcasterID string
@@ -71,6 +75,7 @@ type Output struct {
 	Color         string
 	To            string
 	Duration      float64
+	Template      string
 }
 
 // Emit publishes one Output. The callee must not retain o past the call: the
