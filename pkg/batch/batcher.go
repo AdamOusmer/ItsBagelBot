@@ -70,6 +70,19 @@ func (b *Batcher[K, V]) Add(key K, value V) {
 	}
 }
 
+// Requeue restores a value whose flush failed transiently, unless a newer
+// write for the same key arrived while the flush ran — the newer value wins,
+// exactly like the batcher's own whole-batch retry. Flush callbacks use this
+// to retry individual items instead of failing the entire batch.
+func (b *Batcher[K, V]) Requeue(key K, value V) {
+
+	b.mu.Lock()
+	if _, exists := b.pending[key]; !exists {
+		b.pending[key] = value
+	}
+	b.mu.Unlock()
+}
+
 // Close flushes whatever is pending and stops the background loop.
 func (b *Batcher[K, V]) Close(ctx context.Context) {
 
