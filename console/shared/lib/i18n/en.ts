@@ -367,6 +367,8 @@ export const en = {
     removeAlias: 'Remove {name}',
     response: 'Response',
     responsePlaceholder: 'What the bot replies… insert variables below.',
+    linesCount: '{n}/{max} lines',
+    linesHint: 'Up to {max} lines — each line is sent as its own chat message.',
     insertVariable: 'Insert variable',
     tokUser: 'who ran the command',
     tokTarget: 'first argument, e.g. a mentioned user',

@@ -61,12 +61,16 @@ func (k Kind) String() string {
 //   - Color is the announce color (primary/blue/green/orange/purple); empty
 //     unless Type is an announce.
 //   - To is the shoutout target (login or id); empty unless Type is a shoutout.
+//   - Duration is the requested clip length in seconds (Twitch allows 5–60);
+//     zero means unset, so Twitch applies its default (30). Only Type clip
+//     reads it.
 type Output struct {
 	Type          string
 	BroadcasterID string
 	Text          string
 	Color         string
 	To            string
+	Duration      float64
 }
 
 // Emit publishes one Output. The callee must not retain o past the call: the
