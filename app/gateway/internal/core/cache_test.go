@@ -54,11 +54,11 @@ func TestCachedMissFillsThenHits(t *testing.T) {
 		return payload{Name: "x", N: 7}, nil
 	}
 
-	got, err := Cached(context.Background(), c, "k", time.Minute, fetch)
+	got, err := Cached(context.Background(), c, "k", time.Minute, time.Minute, fetch)
 	require.NoError(t, err)
 	assert.Equal(t, payload{Name: "x", N: 7}, got)
 
-	got, err = Cached(context.Background(), c, "k", time.Minute, fetch)
+	got, err = Cached(context.Background(), c, "k", time.Minute, time.Minute, fetch)
 	require.NoError(t, err)
 	assert.Equal(t, payload{Name: "x", N: 7}, got)
 	assert.Equal(t, int32(1), fetches.Load(), "second read must come from cache")
@@ -69,13 +69,13 @@ func TestCachedErrorNotCached(t *testing.T) {
 	var fetches atomic.Int32
 	boom := errors.New("boom")
 
-	_, err := Cached(context.Background(), c, "k", time.Minute, func(context.Context) (payload, error) {
+	_, err := Cached(context.Background(), c, "k", time.Minute, time.Minute, func(context.Context) (payload, error) {
 		fetches.Add(1)
 		return payload{}, boom
 	})
 	require.ErrorIs(t, err, boom)
 
-	got, err := Cached(context.Background(), c, "k", time.Minute, func(context.Context) (payload, error) {
+	got, err := Cached(context.Background(), c, "k", time.Minute, time.Minute, func(context.Context) (payload, error) {
 		fetches.Add(1)
 		return payload{Name: "ok"}, nil
 	})
@@ -84,12 +84,31 @@ func TestCachedErrorNotCached(t *testing.T) {
 	assert.Equal(t, int32(2), fetches.Load(), "a failed fetch must be retried, never cached")
 }
 
+func TestCachedNegativeCache(t *testing.T) {
+	c := NewCache(newMemStore())
+	var fetches atomic.Int32
+	notFound := &UpstreamError{Status: 404, Message: "player not found"}
+
+	_, err := Cached(context.Background(), c, "k", time.Minute, time.Minute, func(context.Context) (payload, error) {
+		fetches.Add(1)
+		return payload{}, notFound
+	})
+	assert.Equal(t, notFound, err)
+
+	_, err = Cached(context.Background(), c, "k", time.Minute, time.Minute, func(context.Context) (payload, error) {
+		fetches.Add(1)
+		return payload{}, notFound
+	})
+	assert.Equal(t, notFound, err)
+	assert.Equal(t, int32(1), fetches.Load(), "a 404 fetch must be negatively cached")
+}
+
 func TestCachedPoisonEntryRefetched(t *testing.T) {
 	st := newMemStore()
 	require.NoError(t, st.Set(context.Background(), "k", []byte("{not json"), time.Minute))
 	c := NewCache(st)
 
-	got, err := Cached(context.Background(), c, "k", time.Minute, func(context.Context) (payload, error) {
+	got, err := Cached(context.Background(), c, "k", time.Minute, time.Minute, func(context.Context) (payload, error) {
 		return payload{Name: "fresh"}, nil
 	})
 	require.NoError(t, err)
@@ -106,7 +125,7 @@ func TestCachedSingleflightCollapses(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, _ = Cached(context.Background(), c, "k", time.Minute, func(context.Context) (payload, error) {
+			_, _ = Cached(context.Background(), c, "k", time.Minute, time.Minute, func(context.Context) (payload, error) {
 				fetches.Add(1)
 				<-release
 				return payload{Name: "one"}, nil

@@ -22,6 +22,7 @@ import (
 	"ItsBagelBot/pkg/health"
 	"ItsBagelBot/pkg/logger"
 	"ItsBagelBot/pkg/monitor"
+	"ItsBagelBot/pkg/ratelimit"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/newrelic/go-agent/v3/newrelic"
@@ -63,8 +64,9 @@ func main() {
 	defer nc.Close()
 
 	cache := core.NewCache(core.NewValkeyStore(valkeyClient))
+	limiter := ratelimit.New(valkeyClient)
 
-	providers := buildProviders(cfg, cache, log)
+	providers := buildProviders(cfg, cache, limiter, log)
 	if len(providers) == 0 {
 		log.Warn("no providers configured; gateway will answer nothing")
 	}
@@ -91,23 +93,25 @@ func main() {
 // buildProviders wires every configured provider. A provider missing its
 // credentials is skipped with a warning: its subjects then simply time out at
 // the caller, the same failure mode as the upstream being down.
-func buildProviders(cfg *config.Config, cache *core.Cache, log *zap.Logger) []provider.Provider {
+func buildProviders(cfg *config.Config, cache *core.Cache, limiter *ratelimit.Limiter, log *zap.Logger) []provider.Provider {
 	var providers []provider.Provider
 
 	if cfg.UrchinAPIKey != "" {
 		providers = append(providers, urchin.New(urchin.Config{
-			BaseURL: cfg.UrchinBaseURL,
-			APIKey:  cfg.UrchinAPIKey,
-		}, cache, log))
+			BaseURL:   cfg.UrchinBaseURL,
+			APIKey:    cfg.UrchinAPIKey,
+			RateLimit: cfg.UrchinRateLimit,
+		}, cache, limiter, log))
 	} else {
 		log.Warn("urchin provider disabled: URCHIN_API_KEY not set")
 	}
 
 	if cfg.McsrEnabled {
 		providers = append(providers, mcsr.New(mcsr.Config{
-			BaseURL: cfg.McsrBaseURL,
-			APIKey:  cfg.McsrAPIKey,
-		}, cache, log))
+			BaseURL:   cfg.McsrBaseURL,
+			APIKey:    cfg.McsrAPIKey,
+			RateLimit: cfg.McsrRateLimit,
+		}, cache, limiter, log))
 	} else {
 		log.Warn("mcsr provider disabled: MCSR_ENABLED=false")
 	}

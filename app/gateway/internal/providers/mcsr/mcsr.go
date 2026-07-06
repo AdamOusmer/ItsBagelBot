@@ -18,6 +18,7 @@ import (
 	"ItsBagelBot/app/gateway/internal/core"
 	"ItsBagelBot/app/gateway/internal/provider"
 	gatewayrpc "ItsBagelBot/internal/domain/rpc/gateway"
+	"ItsBagelBot/pkg/ratelimit"
 
 	"go.uber.org/zap"
 )
@@ -37,8 +38,9 @@ const (
 // Config carries the provider's environment. APIKey is optional: MCSR grants
 // expanded rate limits to keyed clients via the Private-Key header.
 type Config struct {
-	BaseURL string
-	APIKey  string
+	BaseURL   string
+	APIKey    string
+	RateLimit float64
 }
 
 // Provider implements provider.Provider for the MCSR Ranked API.
@@ -46,10 +48,14 @@ type Provider struct {
 	http  *core.HTTPClient
 	cache *core.Cache
 	log   *zap.Logger
+
+	limiter      *ratelimit.Limiter
+	generalSpec  ratelimit.Spec
+	standardSpec ratelimit.Spec
 }
 
 // New builds the mcsr provider.
-func New(cfg Config, cache *core.Cache, log *zap.Logger) *Provider {
+func New(cfg Config, cache *core.Cache, limiter *ratelimit.Limiter, log *zap.Logger) *Provider {
 	base := strings.TrimSuffix(cfg.BaseURL, "/")
 	if base == "" {
 		base = "https://api.mcsrranked.com"
@@ -58,10 +64,19 @@ func New(cfg Config, cache *core.Cache, log *zap.Logger) *Provider {
 	if cfg.APIKey != "" {
 		headers = map[string]string{"Private-Key": cfg.APIKey}
 	}
+	if cfg.RateLimit <= 0 {
+		cfg.RateLimit = 500
+	}
+	generalCapacity := cfg.RateLimit
+	standardCapacity := cfg.RateLimit * 0.75
 	return &Provider{
 		http:  core.NewHTTPClient(base, headers, httpTimeout),
 		cache: cache,
 		log:   log,
+
+		limiter:      limiter,
+		generalSpec:  ratelimit.NewSpec(generalCapacity, generalCapacity/600.0),
+		standardSpec: ratelimit.NewSpec(standardCapacity, standardCapacity/600.0),
 	}
 }
 
@@ -126,8 +141,42 @@ func friendlyError(err error) string {
 	return ""
 }
 
+// enforceRateLimit consumes from the provider's token buckets. Standard requests
+// must pass both their restricted bucket and the general bucket. Premium requests
+// only consume from the general bucket, enjoying the 25% reserve.
+func (p *Provider) enforceRateLimit(ctx context.Context, isPremium bool) error {
+	if p.limiter == nil {
+		return nil
+	}
+	generalReq := ratelimit.Request{Key: "ratelimit:gateway:mcsr", Spec: p.generalSpec}
+	
+	if isPremium {
+		ok, err := p.limiter.Allow(ctx, generalReq)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return &core.UpstreamError{Status: 429, Message: "premium rate limit exceeded"}
+		}
+		return nil
+	}
+
+	standardReq := ratelimit.Request{Key: "ratelimit:gateway:mcsr:standard", Spec: p.standardSpec}
+	deniedIdx, err := p.limiter.AllowOrdered(ctx, standardReq, generalReq)
+	if err != nil {
+		return err
+	}
+	if deniedIdx != 0 {
+		return &core.UpstreamError{Status: 429, Message: "standard rate limit exceeded"}
+	}
+	return nil
+}
+
 // fetchUser loads a player's live standing straight from the API.
-func (p *Provider) fetchUser(ctx context.Context, account string) (gatewayrpc.McsrUserReply, error) {
+func (p *Provider) fetchUser(ctx context.Context, account string, isPremium bool) (gatewayrpc.McsrUserReply, error) {
+	if err := p.enforceRateLimit(ctx, isPremium); err != nil {
+		return gatewayrpc.McsrUserReply{}, err
+	}
 	var resp userResponse
 	if err := p.http.GetJSON(ctx, "/users/"+strings.TrimSpace(account), nil, &resp); err != nil {
 		return gatewayrpc.McsrUserReply{}, err
@@ -166,10 +215,10 @@ func (p *Provider) fetchUser(ctx context.Context, account string) (gatewayrpc.Mc
 }
 
 // cachedUser is fetchUser behind the shared 60s cache.
-func (p *Provider) cachedUser(ctx context.Context, account string) (gatewayrpc.McsrUserReply, error) {
+func (p *Provider) cachedUser(ctx context.Context, account string, isPremium bool) (gatewayrpc.McsrUserReply, error) {
 	key := core.Key(p.Name(), "user", strings.ToLower(strings.TrimSpace(account)))
-	return core.Cached(ctx, p.cache, key, userTTL, func(ctx context.Context) (gatewayrpc.McsrUserReply, error) {
-		return p.fetchUser(ctx, account)
+	return core.Cached(ctx, p.cache, key, userTTL, 2*time.Hour, func(ctx context.Context) (gatewayrpc.McsrUserReply, error) {
+		return p.fetchUser(ctx, account, isPremium)
 	})
 }
 
@@ -180,7 +229,7 @@ func (p *Provider) user(ctx context.Context, req gatewayrpc.Request) any {
 	if account == "" {
 		return gatewayrpc.McsrUserReply{Error: "missing account"}
 	}
-	reply, err := p.cachedUser(ctx, account)
+	reply, err := p.cachedUser(ctx, account, req.IsPremium)
 	if err != nil {
 		if msg := friendlyError(err); msg != "" {
 			return gatewayrpc.McsrUserReply{Nickname: account, Error: msg}
@@ -199,7 +248,7 @@ func (p *Provider) sessionStart(ctx context.Context, req gatewayrpc.Request) any
 	if account == "" || req.ChannelID == "" {
 		return gatewayrpc.McsrSnapshotReply{Error: "missing account or channel"}
 	}
-	user, err := p.fetchUser(ctx, account)
+	user, err := p.fetchUser(ctx, account, req.IsPremium)
 	if err != nil {
 		if msg := friendlyError(err); msg != "" {
 			return gatewayrpc.McsrSnapshotReply{Error: msg}
@@ -236,7 +285,7 @@ func (p *Provider) session(ctx context.Context, req gatewayrpc.Request) any {
 		return gatewayrpc.McsrSessionReply{Error: "missing account or channel"}
 	}
 
-	user, err := p.cachedUser(ctx, account)
+	user, err := p.cachedUser(ctx, account, req.IsPremium)
 	if err != nil {
 		if msg := friendlyError(err); msg != "" {
 			return gatewayrpc.McsrSessionReply{Nickname: account, Error: msg}

@@ -24,14 +24,16 @@ type Config struct {
 	ValkeyPassword string
 
 	// Urchin (Coral) provider. APIKey empty = provider disabled.
-	UrchinBaseURL string
-	UrchinAPIKey  string
+	UrchinBaseURL   string
+	UrchinAPIKey    string
+	UrchinRateLimit float64
 
 	// MCSR Ranked provider. The public API needs no key; APIKey optionally
 	// unlocks expanded rate limits. Enabled unless MCSR_ENABLED=false.
-	McsrBaseURL string
-	McsrAPIKey  string
-	McsrEnabled bool
+	McsrBaseURL   string
+	McsrAPIKey    string
+	McsrEnabled   bool
+	McsrRateLimit float64
 
 	ListenAddr string
 }
@@ -47,12 +49,14 @@ func Load() *Config {
 		ValkeyAddr:     env.Get("VALKEY_ADDR", "127.0.0.1:6379"),
 		ValkeyPassword: env.Get("VALKEY_PASSWORD", ""),
 
-		UrchinBaseURL: env.Get("URCHIN_BASE_URL", "https://api.urchin.gg"),
-		UrchinAPIKey:  env.Get("URCHIN_API_KEY", ""),
+		UrchinBaseURL:   env.Get("URCHIN_BASE_URL", "https://api.urchin.gg"),
+		UrchinAPIKey:    env.Get("URCHIN_API_KEY", ""),
+		UrchinRateLimit: env.GetFloat("URCHIN_RATE_LIMIT", 500.0),
 
-		McsrBaseURL: env.Get("MCSR_BASE_URL", "https://api.mcsrranked.com"),
-		McsrAPIKey:  env.Get("MCSR_API_KEY", ""),
-		McsrEnabled: env.GetBool("MCSR_ENABLED", true),
+		McsrBaseURL:   env.Get("MCSR_BASE_URL", "https://api.mcsrranked.com"),
+		McsrAPIKey:    env.Get("MCSR_API_KEY", ""),
+		McsrEnabled:   env.GetBool("MCSR_ENABLED", true),
+		McsrRateLimit: env.GetFloat("MCSR_RATE_LIMIT", 500.0),
 
 		ListenAddr: env.Get("LISTEN_ADDR", ":8080"),
 	}

@@ -22,6 +22,9 @@ type Request struct {
 	// one broadcaster, so two channels tracking the same player never share a
 	// stream session.
 	ChannelID string `json:"channel_id,omitempty"`
+	// IsPremium indicates whether the caller is on the premium lane, enabling
+	// the provider to consume from the reserved premium rate limit bucket.
+	IsPremium bool `json:"is_premium,omitempty"`
 }
 
 // Subject builds the NATS subject for one provider endpoint under prefix.

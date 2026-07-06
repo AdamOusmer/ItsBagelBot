@@ -19,6 +19,7 @@ import (
 	"ItsBagelBot/app/gateway/internal/core"
 	"ItsBagelBot/app/gateway/internal/provider"
 	gatewayrpc "ItsBagelBot/internal/domain/rpc/gateway"
+	"ItsBagelBot/pkg/ratelimit"
 
 	"go.uber.org/zap"
 )
@@ -47,8 +48,9 @@ const (
 // Config carries the provider's environment: the Coral base URL and the API
 // key every request authenticates with.
 type Config struct {
-	BaseURL string
-	APIKey  string
+	BaseURL   string
+	APIKey    string
+	RateLimit float64
 }
 
 // Provider implements provider.Provider for the Coral API.
@@ -57,20 +59,33 @@ type Provider struct {
 	cache *core.Cache
 	key   string
 	log   *zap.Logger
+
+	limiter      *ratelimit.Limiter
+	generalSpec  ratelimit.Spec
+	standardSpec ratelimit.Spec
 }
 
 // New builds the urchin provider. cfg.APIKey must be non-empty (main skips the
 // provider entirely when it is not configured).
-func New(cfg Config, cache *core.Cache, log *zap.Logger) *Provider {
+func New(cfg Config, cache *core.Cache, limiter *ratelimit.Limiter, log *zap.Logger) *Provider {
 	base := strings.TrimSuffix(cfg.BaseURL, "/")
 	if base == "" {
 		base = "https://api.urchin.gg"
 	}
+	if cfg.RateLimit <= 0 {
+		cfg.RateLimit = 500
+	}
+	generalCapacity := cfg.RateLimit
+	standardCapacity := cfg.RateLimit * 0.75
 	return &Provider{
 		http:  core.NewHTTPClient(base, map[string]string{"X-API-Key": cfg.APIKey}, httpTimeout),
 		cache: cache,
 		key:   cfg.APIKey,
 		log:   log,
+
+		limiter:      limiter,
+		generalSpec:  ratelimit.NewSpec(generalCapacity, generalCapacity/600.0),
+		standardSpec: ratelimit.NewSpec(standardCapacity, standardCapacity/600.0),
 	}
 }
 
@@ -90,6 +105,37 @@ func (p *Provider) Endpoints() []provider.Endpoint {
 // accountKey normalizes the player identifier for cache keys so "Player" and
 // "player" share an entry.
 func accountKey(account string) string { return strings.ToLower(strings.TrimSpace(account)) }
+
+// enforceRateLimit consumes from the provider's token buckets. Standard requests
+// must pass both their restricted bucket and the general bucket. Premium requests
+// only consume from the general bucket, enjoying the 25% reserve.
+func (p *Provider) enforceRateLimit(ctx context.Context, isPremium bool) error {
+	if p.limiter == nil {
+		return nil
+	}
+	generalReq := ratelimit.Request{Key: "ratelimit:gateway:urchin", Spec: p.generalSpec}
+	
+	if isPremium {
+		ok, err := p.limiter.Allow(ctx, generalReq)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return &core.UpstreamError{Status: 429, Message: "premium rate limit exceeded"}
+		}
+		return nil
+	}
+
+	standardReq := ratelimit.Request{Key: "ratelimit:gateway:urchin:standard", Spec: p.standardSpec}
+	deniedIdx, err := p.limiter.AllowOrdered(ctx, standardReq, generalReq)
+	if err != nil {
+		return err
+	}
+	if deniedIdx != 0 {
+		return &core.UpstreamError{Status: 429, Message: "standard rate limit exceeded"}
+	}
+	return nil
+}
 
 // friendlyError maps an upstream failure onto a user-facing reply error, or
 // returns "" for an infrastructure failure the caller should propagate.
@@ -157,7 +203,10 @@ func (p *Provider) session(period string) func(context.Context, gatewayrpc.Reque
 			return gatewayrpc.UrchinSessionReply{Error: "missing account"}
 		}
 		key := core.Key(p.Name(), period, accountKey(account))
-		reply, err := core.Cached(ctx, p.cache, key, sessionTTL, func(ctx context.Context) (gatewayrpc.UrchinSessionReply, error) {
+		reply, err := core.Cached(ctx, p.cache, key, sessionTTL, 2*time.Hour, func(ctx context.Context) (gatewayrpc.UrchinSessionReply, error) {
+			if err := p.enforceRateLimit(ctx, req.IsPremium); err != nil {
+				return gatewayrpc.UrchinSessionReply{}, err
+			}
 			return p.fetchSession(ctx, period, account)
 		})
 		if err != nil {
@@ -227,7 +276,10 @@ func (p *Provider) stats(ctx context.Context, req gatewayrpc.Request) any {
 		return gatewayrpc.UrchinStatsReply{Error: "missing account"}
 	}
 	key := core.Key(p.Name(), "stats", accountKey(account))
-	reply, err := core.Cached(ctx, p.cache, key, statsTTL, func(ctx context.Context) (gatewayrpc.UrchinStatsReply, error) {
+	reply, err := core.Cached(ctx, p.cache, key, statsTTL, 2*time.Hour, func(ctx context.Context) (gatewayrpc.UrchinStatsReply, error) {
+		if err := p.enforceRateLimit(ctx, req.IsPremium); err != nil {
+			return gatewayrpc.UrchinStatsReply{}, err
+		}
 		var resp profileResponse
 		q := url.Values{"player": {account}, "max_cache_age": {profileCacheAge}}
 		if err := p.http.GetJSON(ctx, "/v3/player/profile", q, &resp); err != nil {
@@ -284,7 +336,10 @@ func (p *Provider) tags(ctx context.Context, req gatewayrpc.Request) any {
 		return gatewayrpc.UrchinTagsReply{Error: "missing account"}
 	}
 	key := core.Key(p.Name(), "tags", accountKey(account))
-	reply, err := core.Cached(ctx, p.cache, key, tagsTTL, func(ctx context.Context) (gatewayrpc.UrchinTagsReply, error) {
+	reply, err := core.Cached(ctx, p.cache, key, tagsTTL, 2*time.Hour, func(ctx context.Context) (gatewayrpc.UrchinTagsReply, error) {
+		if err := p.enforceRateLimit(ctx, req.IsPremium); err != nil {
+			return gatewayrpc.UrchinTagsReply{}, err
+		}
 		resp, err := p.fetchTags(ctx, account)
 		if err != nil {
 			return gatewayrpc.UrchinTagsReply{}, err
@@ -319,9 +374,12 @@ type cubelifyResponse struct {
 
 // resolveUUID turns a username into the canonical uuid via the tags endpoint,
 // cached for a day.
-func (p *Provider) resolveUUID(ctx context.Context, account string) (string, error) {
+func (p *Provider) resolveUUID(ctx context.Context, account string, isPremium bool) (string, error) {
 	key := core.Key(p.Name(), "uuid", accountKey(account))
-	return core.Cached(ctx, p.cache, key, uuidTTL, func(ctx context.Context) (string, error) {
+	return core.Cached(ctx, p.cache, key, uuidTTL, 2*time.Hour, func(ctx context.Context) (string, error) {
+		if err := p.enforceRateLimit(ctx, isPremium); err != nil {
+			return "", err
+		}
 		resp, err := p.fetchTags(ctx, account)
 		if err != nil {
 			return "", err
@@ -336,9 +394,12 @@ func (p *Provider) sniper(ctx context.Context, req gatewayrpc.Request) any {
 		return gatewayrpc.UrchinSniperReply{Error: "missing account"}
 	}
 	key := core.Key(p.Name(), "sniper", accountKey(account))
-	reply, err := core.Cached(ctx, p.cache, key, sniperTTL, func(ctx context.Context) (gatewayrpc.UrchinSniperReply, error) {
-		uuid, err := p.resolveUUID(ctx, account)
+	reply, err := core.Cached(ctx, p.cache, key, sniperTTL, 2*time.Hour, func(ctx context.Context) (gatewayrpc.UrchinSniperReply, error) {
+		uuid, err := p.resolveUUID(ctx, account, req.IsPremium)
 		if err != nil {
+			return gatewayrpc.UrchinSniperReply{}, err
+		}
+		if err := p.enforceRateLimit(ctx, req.IsPremium); err != nil {
 			return gatewayrpc.UrchinSniperReply{}, err
 		}
 		// The cubelify endpoint authenticates via the key query parameter (it is
@@ -366,9 +427,34 @@ func (p *Provider) sniper(ctx context.Context, req gatewayrpc.Request) any {
 }
 
 // displayOr prefers the API's display name when present and non-empty.
+// Minecraft color codes (§X) are stripped so Twitch chat gets a clean name.
 func displayOr(display *string, fallback string) string {
 	if display != nil && *display != "" {
-		return *display
+		return stripMinecraftCodes(*display)
 	}
 	return fallback
+}
+
+// stripMinecraftCodes removes Minecraft §X formatting sequences (section sign
+// followed by one character) from s. Returns s unchanged when no codes are
+// present.
+func stripMinecraftCodes(s string) string {
+	if !strings.Contains(s, "§") {
+		return s
+	}
+	var b strings.Builder
+	b.Grow(len(s))
+	skip := false
+	for _, r := range s {
+		if skip {
+			skip = false
+			continue
+		}
+		if r == '§' {
+			skip = true
+			continue
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
 }
