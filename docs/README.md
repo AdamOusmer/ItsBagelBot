@@ -1,50 +1,34 @@
-# Starlight Starter Kit: Basics
+# ItsBagelBot Documentation
 
-[![Built with Starlight](https://astro.badg.es/v2/built-with-starlight/tiny.svg)](https://starlight.astro.build)
-
-```
-bun create astro@latest -- --template starlight
-```
-
-> 🧑‍🚀 **Seasoned astronaut?** Delete this file. Have fun!
+This directory contains the documentation for ItsBagelBot, built with [Astro Starlight](https://starlight.astro.build).
 
 ## 🚀 Project Structure
 
-Inside of your Astro + Starlight project, you'll see the following folders and files:
-
-```
-.
-├── public/
-├── src/
-│   ├── assets/
-│   ├── content/
-│   │   └── docs/
-│   └── content.config.ts
-├── astro.config.mjs
-├── package.json
-└── tsconfig.json
-```
-
-Starlight looks for `.md` or `.mdx` files in the `src/content/docs/` directory. Each file is exposed as a route based on its file name.
-
-Images can be added to `src/assets/` and embedded in Markdown with a relative link.
-
-Static assets, like favicons, can be placed in the `public/` directory.
+- `src/content/docs/`: Markdown and MDX files for the documentation routes.
+  - `adr/`: Architecture Decision Records.
+  - `architecture/`: General architecture documentation.
+  - `infrastructure/`: Infrastructure setup and deployment docs.
+  - `data-and-state/`: Data models and state management.
+  - `microservices/`: Details of individual microservices.
+  - `qa/`: QA Reports and testing docs.
+  - `reference/`: API and system references.
+- `src/assets/`: Images and other assets used in docs.
+- `public/`: Static assets like favicons.
+- `astro.config.mjs`: Starlight configuration (sidebar, theme, etc.).
 
 ## 🧞 Commands
 
-All commands are run from the root of the project, from a terminal:
+Run these from the `docs/` directory using `bun`:
 
 | Command                   | Action                                           |
 | :------------------------ | :----------------------------------------------- |
 | `bun install`             | Installs dependencies                            |
-| `bun dev`             | Starts local dev server at `localhost:4321`      |
-| `bun build`           | Build your production site to `./dist/`          |
-| `bun preview`         | Preview your build locally, before deploying     |
-| `bun astro ...`       | Run CLI commands like `astro add`, `astro check` |
-| `bun astro -- --help` | Get help using the Astro CLI                     |
+| `bun dev`                 | Starts local dev server at `localhost:4321`      |
+| `bun build`               | Build your production site to `./dist/`          |
+| `bun preview`             | Preview your build locally, before deploying     |
+| `bun astro ...`           | Run CLI commands like `astro add`, `astro check` |
 
-## 📝 Architecture Decision Records
+## 📝 Architecture Decision Records (ADRs)
 
 ADRs are managed with [`adr-tools`](https://github.com/npryce/adr-tools) (install with `brew install adr-tools`) and live under `src/content/docs/adr/`.
 
@@ -56,12 +40,7 @@ Use the project wrapper so the local template is picked up:
 ./bin/adr list
 ```
 
-Configuration:
+## 👀 Writing Documentation
 
-- `.adr-dir` — points adr-tools at `src/content/docs/decisions`.
-- `.adr/template.md` — Starlight-compatible template (frontmatter + Nygard sections + Alternatives).
-- `bin/adr` — wrapper that exports `ADR_TEMPLATE` and delegates to `adr`.
-
-## 👀 Want to learn more?
-
-Check out [Starlight’s docs](https://starlight.astro.build/), read [the Astro documentation](https://docs.astro.build), or jump into the [Astro Discord server](https://astro.build/chat).
+- The documentation uses Starlight's standard Markdown and MDX capabilities.
+- We have integrated `astro-mermaid` for diagrams. See `astro.config.mjs` for custom theme configuration.

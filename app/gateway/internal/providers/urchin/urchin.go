@@ -73,7 +73,7 @@ func New(cfg Config, cache *core.Cache, limiter *ratelimit.Limiter, log *zap.Log
 		base = "https://api.urchin.gg"
 	}
 	if cfg.RateLimit <= 0 {
-		cfg.RateLimit = 500
+		cfg.RateLimit = 600
 	}
 	generalCapacity := cfg.RateLimit
 	standardCapacity := cfg.RateLimit * 0.75
@@ -84,8 +84,8 @@ func New(cfg Config, cache *core.Cache, limiter *ratelimit.Limiter, log *zap.Log
 		log:   log,
 
 		limiter:      limiter,
-		generalSpec:  ratelimit.NewSpec(generalCapacity, generalCapacity/600.0),
-		standardSpec: ratelimit.NewSpec(standardCapacity, standardCapacity/600.0),
+		generalSpec:  ratelimit.NewSpec(generalCapacity, generalCapacity/300.0),
+		standardSpec: ratelimit.NewSpec(standardCapacity, standardCapacity/300.0),
 	}
 }
 

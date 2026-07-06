@@ -132,9 +132,9 @@ func Cached[T any](ctx context.Context, c *Cache, key string, ttl, negativeTTL t
 		}
 		
 		if env.Error != nil {
-			return nil, env.Error
+			return v, env.Error
 		}
-		return env.Value, nil
+		return v, nil
 	})
 	if err != nil {
 		return zero, err
