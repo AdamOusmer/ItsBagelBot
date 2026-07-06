@@ -1,9 +1,19 @@
 <script lang="ts">
   // Builder inspector for one module reply — the same surface as editing a custom
   // command's response: the shared ResponseEditor (message + token chips) and the
-  // ChatPreview rehearsal (ItsBagelBot name + logo), framed by the firing event
-  // instead of a viewer typing a command. Save/Cancel are handled by the page so
-  // the whole-module config persists in one place.
+  // ChatPreview rehearsal (ItsBagelBot name + logo).
+  //
+  // Two reply shapes:
+  //  - event replies (shoutout, alerts): framed by the firing event (`tag`),
+  //    bot line only, default samples.
+  //  - command replies (gateway modules: reply.command set): rehearsed exactly
+  //    like a custom command — "Chat rehearsal" border, a sample viewer typing
+  //    the trigger, the bot answering with THIS reply's own sample values
+  //    substituted (samplesOnly, so foreign tokens stay marked as unknown) —
+  //    and the token palette swaps to the reply's supported variables.
+  //
+  // Save/Cancel are handled by the page so the whole-module config persists in
+  // one place.
   import { Icon, getI18n, type ModuleReply } from '@bagel/shared';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
@@ -27,16 +37,40 @@
   // Blank posts the module default, so preview the default (matches the
   // placeholder) instead of an empty "nothing to say yet".
   const effectiveMessage = $derived(message.trim() ? message : reply.defaultMessage);
+
+  const isCommand = $derived(!!reply.command);
+  // The reply's own insert palette; undefined keeps ResponseEditor's default
+  // command tokens (event replies define no token list yet). The chip tooltip
+  // shows the sample value the preview substitutes.
+  const palette = $derived(
+    reply.tokens?.map((tk) => {
+      const token = `{${tk}}`;
+      const sample = reply.previewSamples?.[tk];
+      return { token, label: sample ? `${token} → ${sample}` : token };
+    })
+  );
 </script>
 
 <div class="editor">
   <label class="field">
     <span>{t('modules.replyMessage', { label: reply.label })}</span>
-    <ResponseEditor bind:value={message} placeholder={reply.defaultMessage} />
+    <ResponseEditor bind:value={message} placeholder={reply.defaultMessage} tokens={palette} />
     <small>{t('modules.replyBlankHint')}</small>
   </label>
 
-  <ChatPreview name="" showViewer={false} tag={reply.event} response={effectiveMessage} />
+  {#if isCommand}
+    <!-- Same rehearsal as the commands page: viewer types the trigger, the bot
+         answers with the reply's sample values substituted. -->
+    <ChatPreview
+      name={reply.command}
+      args={reply.previewArgs ?? ''}
+      samples={reply.previewSamples}
+      samplesOnly
+      response={effectiveMessage}
+    />
+  {:else}
+    <ChatPreview name="" showViewer={false} tag={reply.event} response={effectiveMessage} />
+  {/if}
 
   <div class="actions">
     <button type="button" class="btn ghost" onclick={onCancel} disabled={busy}>{t('common.cancel')}</button>
