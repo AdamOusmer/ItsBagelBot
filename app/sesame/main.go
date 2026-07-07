@@ -93,11 +93,15 @@ func main() {
 		Log:        log,
 		Automod:    guard,
 		Reputation: engine.NewValkeyReputation(valkeyClient, 6*time.Hour, log),
+		Campaign:   engine.NewValkeyCampaign(valkeyClient, log),
 	}
 	registry := engine.NewRegistry(log, modules.All(deps)...)
 
 	if cfg.EmotesEnabled {
 		go refreshEmotes(ctx, guard, log)
+	}
+	if dir := env.Get("SESAME_AUTOMOD_LEXICON_DIR", ""); dir != "" {
+		go reloadLexicon(ctx, dir, guard, log)
 	}
 
 	pipe := engine.NewPipeline(deps, registry, engine.Config{
@@ -137,6 +141,39 @@ func main() {
 // re-fetched. They change slowly; hourly keeps the caps false-positive suppression
 // fresh at negligible cost (a few small unauthenticated GETs).
 const emoteRefreshInterval = time.Hour
+
+// lexiconReloadInterval is how often the lexicon override directory is re-read.
+// The pattern artifact is a mounted ConfigMap (the Flux-managed reviewable-list
+// pattern); a few minutes of staleness on a word-list change is fine.
+const lexiconReloadInterval = 5 * time.Minute
+
+// reloadLexicon loads the lexicon override directory at startup and re-reads it
+// on a slow ticker, swapping the compiled set into the gate. A load failure is
+// logged and the previous (or embedded) lexicon stays active, so a bad mount can
+// never blank the floor lists.
+func reloadLexicon(ctx context.Context, dir string, guard *automod.Gate, log *zap.Logger) {
+	load := func() {
+		l, err := automod.LoadLexiconDir(dir)
+		if err != nil {
+			log.Warn("lexicon override load failed, keeping previous", zap.String("dir", dir), zap.Error(err))
+			return
+		}
+		guard.SetLexicon(l)
+		log.Info("lexicon override loaded", zap.String("dir", dir))
+	}
+
+	load()
+	ticker := time.NewTicker(lexiconReloadInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			load()
+		}
+	}
+}
 
 // refreshEmotes keeps the automod's third-party emote set current: it installs the
 // global BTTV/FFZ/7TV codes once at startup, then re-fetches on a slow ticker. A

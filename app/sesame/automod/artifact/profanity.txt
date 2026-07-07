@@ -1,0 +1,15 @@
+# Plain profanity: deleted only under the pg/family profile; moderate and
+# adult channels ignore this category entirely. Word-bounded, so "class" or
+# "assignment" never trip the short entries.
+fuck
+shit
+bitch
+cunt
+asshole
+dick
+pussy
+cock
+whore
+slut
+ass
+bastard

@@ -75,6 +75,7 @@ type Pipeline struct {
 	automod        *automod.Gate
 	automodEnforce bool
 	reputation     Reputation
+	campaign       Campaign
 
 	// shieldEnabled gates the mass-raid Shield Mode escalation; raidGate dedups it
 	// per channel so one raid activates Shield Mode once, not on every folded burst.
@@ -100,6 +101,7 @@ func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 		automod:          d.Automod,
 		automodEnforce:   cfg.AutomodEnforce,
 		reputation:       d.Reputation,
+		campaign:         d.Campaign,
 		shieldEnabled:    cfg.ShieldEnabled,
 		raidGate:         newRaidCooldown(raidCooldownTTL),
 	}
@@ -225,9 +227,32 @@ func (p *Pipeline) Process(msg *message.Message) (err error) {
 
 	actioned := false
 	if isChat && p.automod != nil && len(env.Senders) == 0 {
-		if v := p.automod.InspectWith(mctx.Chatter(), env.Text, amCfg); v.Action != automod.ActionNone {
-			// Tier-2 reputation escalation: a repeat offender's timeout becomes a
-			// ban, then this hit is recorded against the chatter.
+		v, sigs := p.automod.Assess(mctx.Chatter(), env.Text, amCfg)
+
+		// Campaign juror (the council's cross-sender vote): consult the valkey
+		// distinct-sender count for this line's template when the line is either
+		// already content-flagged at delete level or an unflagged link carrier.
+		// Corroboration escalates a delete to a timeout; on its own it only adds
+		// the mildest action (delete), never a punishment - abstain in favor of
+		// the user. Observe is HLL-idempotent per sender.
+		if p.campaign != nil && sigs.SimHash != 0 &&
+			(sigs.Linkish || v.Action == automod.ActionDelete) {
+			n := p.campaign.Observe(ctx, sigs.SimHash, env.ChatterUserID)
+			if n >= campaignThreshold {
+				switch v.Action {
+				case automod.ActionNone:
+					v = automod.Verdict{Action: automod.ActionDelete, Rule: "council:campaign"}
+				case automod.ActionDelete:
+					v.Action = automod.ActionTimeout
+					v.Seconds = 600
+					v.Rule += "+campaign"
+				}
+			}
+		}
+
+		if v.Action != automod.ActionNone {
+			// Reputation juror: repeat offenders climb the ladder (warn ->
+			// timeout -> ban), then this hit is recorded against the chatter.
 			if p.reputation != nil {
 				v = escalateByReputation(v, p.reputation.Score(ctx, env.ChatterUserID))
 				p.reputation.Bump(ctx, env.ChatterUserID)
@@ -450,14 +475,26 @@ func (p *Pipeline) enabled(m module.Module, views map[string]projection.ModuleVi
 	}
 }
 
-// repEscalateThreshold is the reputation score at or above which a repeat
-// offender's timeout is upgraded to a ban.
-const repEscalateThreshold = 3
+// Reputation ladder thresholds: a first-strike warn becomes a timeout for a
+// chatter with any recent strike, and a timeout becomes a ban for a repeat
+// offender. campaignThreshold is the distinct-sender count at which the
+// campaign juror's vote counts (see Process).
+const (
+	repEscalateThreshold  = 3
+	repWarnToTimeoutScore = 1
+	campaignThreshold     = 8
+)
 
-// escalateByReputation raises a verdict against a repeat offender: a chatter
-// whose reputation score meets the threshold has a timeout upgraded to a ban.
-// Other verdicts are unchanged.
+// escalateByReputation climbs the ladder against a repeat offender: warn ->
+// timeout (any recent strike) -> ban (repeat threshold). Delete and stronger
+// verdicts than the rule allows are unchanged.
 func escalateByReputation(v automod.Verdict, score int) automod.Verdict {
+	if score >= repWarnToTimeoutScore && v.Action == automod.ActionWarn {
+		v.Action = automod.ActionTimeout
+		v.Seconds = 600
+		v.Rule += "+repeat"
+		return v
+	}
 	if score >= repEscalateThreshold && v.Action == automod.ActionTimeout {
 		v.Action = automod.ActionBan
 		v.Rule += "+repeat"
@@ -465,17 +502,27 @@ func escalateByReputation(v automod.Verdict, score int) automod.Verdict {
 	return v
 }
 
-// emitAutomod translates an enforced single-chatter verdict into an outgress
-// moderation action and emits it, returning whether an action was emitted.
+// emitAutomod translates an enforced single-chatter verdict into outgress
+// moderation actions and emits them, returning whether anything was emitted.
+// A warn verdict also deletes the offending message (the warn is the formal
+// strike; the message should not stay up while the chatter acknowledges it).
 func (p *Pipeline) emitAutomod(v automod.Verdict, env *lane.Envelope, emit module.Emit) bool {
-	return p.emitModeration(v, env.BroadcasterUserID, env.ChatterUserID, emit)
+	acted := p.emitModeration(v, env.BroadcasterUserID, env.ChatterUserID, env.MsgID, emit)
+	if v.Action == automod.ActionWarn && env.MsgID != "" {
+		del := automod.Verdict{Action: automod.ActionDelete, Rule: v.Rule}
+		if p.emitModeration(del, env.BroadcasterUserID, env.ChatterUserID, env.MsgID, emit) {
+			acted = true
+		}
+	}
+	return acted
 }
 
-// emitModeration maps a verdict to a ban/timeout Output against one target and
-// emits it, returning whether an action was actually emitted. Only ban and
-// timeout are wired to Helix today (phase 0); delete/restrict/warn are left for
-// the caller to log until their outgress path lands.
-func (p *Pipeline) emitModeration(v automod.Verdict, broadcasterID, targetUserID string, emit module.Emit) bool {
+// emitModeration maps a verdict to one outgress moderation Output against one
+// target and emits it, returning whether an action was actually emitted. Ban,
+// timeout, warn and delete are wired to Helix; a delete without a message id
+// cannot be executed and is skipped (the caller's log line still records the
+// verdict). Restrict has no public Helix write API and is never emitted.
+func (p *Pipeline) emitModeration(v automod.Verdict, broadcasterID, targetUserID, msgID string, emit module.Emit) bool {
 	o := GetOutput()
 	switch v.Action {
 	case automod.ActionBan:
@@ -483,6 +530,15 @@ func (p *Pipeline) emitModeration(v automod.Verdict, broadcasterID, targetUserID
 	case automod.ActionTimeout:
 		o.Type = outgress.TypeTimeout
 		o.Duration = float64(v.Seconds)
+	case automod.ActionWarn:
+		o.Type = outgress.TypeWarn
+	case automod.ActionDelete:
+		if msgID == "" {
+			PutOutput(o)
+			return false
+		}
+		o.Type = outgress.TypeDelete
+		o.MsgID = msgID
 	default:
 		PutOutput(o)
 		return false
@@ -539,7 +595,7 @@ func (p *Pipeline) emitCohort(v automod.Verdict, broadcasterID uint64, env *lane
 		if id == "" {
 			continue
 		}
-		if p.emitModeration(v, env.BroadcasterUserID, id, emit) {
+		if p.emitModeration(v, env.BroadcasterUserID, id, env.Senders[i].MsgID, emit) {
 			acted = true
 		}
 	}
@@ -656,6 +712,30 @@ func buildOutgress(o *module.Output) ([]byte, error) {
 			Type:          outgress.TypeShieldMode,
 			BroadcasterID: o.BroadcasterID,
 			Payload:       []byte(`{"is_active":true}`),
+		}
+	case outgress.TypeDelete:
+		// Helix Delete Chat Messages takes everything on the query string
+		// (broadcaster_id + moderator_id added by outgress, message_id from
+		// MsgID); no body.
+		msg = outgress.Message{
+			Type:          outgress.TypeDelete,
+			BroadcasterID: o.BroadcasterID,
+			MsgID:         o.MsgID,
+		}
+	case outgress.TypeWarn:
+		// Helix Warn Chat User body: {"data":{"user_id","reason"}} (a warning
+		// requires a reason; Twitch shows it to the chatter). broadcaster_id and
+		// moderator_id ride the query string, added by outgress.
+		payload, err := sonic.Marshal(struct {
+			Data banData `json:"data"`
+		}{banData{UserID: o.TargetUserID, Reason: o.Reason}})
+		if err != nil {
+			return nil, err
+		}
+		msg = outgress.Message{
+			Type:          outgress.TypeWarn,
+			BroadcasterID: o.BroadcasterID,
+			Payload:       payload,
 		}
 	default:
 		msg = outgress.Message{
