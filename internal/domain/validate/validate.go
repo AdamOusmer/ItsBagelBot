@@ -107,7 +107,11 @@ func CommandName(name string) error {
 		}
 	}
 
-	return nil
+	// The name is displayed on the dashboard and echoed in chat with every use
+	// ("!<name>"), so it is held to the same immovable floor as the response;
+	// CommandAliases inherits this per alias. Leet obfuscation folds onto the
+	// plain spelling before matching.
+	return FloorClean(name)
 }
 
 // CommandAliases validates the alternate names a command answers to: each must
@@ -122,6 +126,11 @@ func CommandAliases(aliases []string) error {
 	seen := make(map[string]struct{}, len(aliases))
 	for _, alias := range aliases {
 		if err := CommandName(alias); err != nil {
+			// A floor hit carries its own precise message; do not blur it
+			// into the generic alias error.
+			if errors.Is(err, ErrContentFloor) {
+				return err
+			}
 			return ErrCommandAliases
 		}
 		key := strings.ToLower(alias)
