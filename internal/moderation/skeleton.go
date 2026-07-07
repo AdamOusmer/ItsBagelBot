@@ -1,4 +1,4 @@
-package automod
+package moderation
 
 import (
 	"unicode"
@@ -7,10 +7,10 @@ import (
 	"golang.org/x/text/unicode/norm"
 )
 
-// isInvisible reports the explicit zero-width and RTL/LTR-override code points
+// IsInvisible reports the explicit zero-width and RTL/LTR-override code points
 // spam uses to break up tokens or defeat dedup. Counted as a signal by scan.
 // Written as hex code points so no invisible rune ever sits in the source.
-func isInvisible(r rune) bool {
+func IsInvisible(r rune) bool {
 	switch r {
 	case 0x200b, // zero width space
 		0x200c, // zero width non-joiner
@@ -28,7 +28,7 @@ func isInvisible(r rune) bool {
 // isStrippable reports code points removed from the skeleton: the invisible set
 // above, all format (Cf) and non-spacing-mark (Mn, Zalgo) runes, and controls.
 func isStrippable(r rune) bool {
-	return isInvisible(r) || unicode.IsControl(r) ||
+	return IsInvisible(r) || unicode.IsControl(r) ||
 		unicode.Is(unicode.Cf, r) || unicode.Is(unicode.Mn, r)
 }
 

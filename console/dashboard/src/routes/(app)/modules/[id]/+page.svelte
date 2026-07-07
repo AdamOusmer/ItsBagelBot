@@ -1,6 +1,6 @@
 <script lang="ts">
   import { deserialize } from '$app/forms';
-  import { Icon, Card, PageHead, Scroller, SaveStatus, toast, getI18n, type ModuleField, type ModuleReply } from '@bagel/shared';
+  import { Icon, Card, PageHead, Scroller, SaveStatus, toast, getI18n, automodToggleDefault, type ModuleField, type ModuleReply } from '@bagel/shared';
   import type { SaveState } from '@bagel/shared/components/SaveStatus.svelte';
   import ReplyRow from '$lib/components/modules/ReplyRow.svelte';
   import ReplyEditor from '$lib/components/modules/ReplyEditor.svelte';
@@ -98,6 +98,16 @@
     }
   }
 
+  // A follows-level toggle setting rests on its level's default (see
+  // automodToggleDefault) until the user flips it, when the blob stores an
+  // explicit "on"/"off". Mirrors the Go tri-state in app/sesame/automod/config.go.
+  function settingToggleOn(field: ModuleField): boolean {
+    const v = config[field.key] ?? '';
+    if (v === 'on') return true;
+    if (v === 'off') return false;
+    return field.followsLevel ? automodToggleDefault(config['level'] || 'moderate', field.key) : false;
+  }
+
   // --- Per-reply toggle (optimistic) -----------------------------------------
   async function toggleReply(reply: ModuleReply) {
     if (!reply.enableKey) return;
@@ -189,15 +199,36 @@
           {#if field.help}<span class="tr-help">{field.help}</span>{/if}
         </label>
         <SaveStatus state={modStatus[`setting:${field.key}`] ?? 'idle'} />
-        <input
-          id="mod-setting-{field.key}"
-          class="setting-input"
-          type={field.type === 'number' ? 'number' : 'text'}
-          placeholder={field.placeholder ?? ''}
-          value={config[field.key] ?? ''}
-          onchange={(e) => saveSetting(field, e.currentTarget.value)}
-          onkeydown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
-        />
+        {#if field.type === 'toggle'}
+          <button
+            id="mod-setting-{field.key}"
+            class="toggle {settingToggleOn(field) ? 'on' : ''}"
+            type="button"
+            aria-label="Toggle {field.label}"
+            onclick={() => saveSetting(field, settingToggleOn(field) ? 'off' : 'on')}
+          ></button>
+        {:else if field.type === 'select'}
+          <select
+            id="mod-setting-{field.key}"
+            class="setting-input"
+            value={config[field.key] || field.placeholder || field.options?.[0]?.value || ''}
+            onchange={(e) => saveSetting(field, e.currentTarget.value)}
+          >
+            {#each field.options ?? [] as opt (opt.value)}
+              <option value={opt.value}>{opt.label}</option>
+            {/each}
+          </select>
+        {:else}
+          <input
+            id="mod-setting-{field.key}"
+            class="setting-input"
+            type={field.type === 'number' ? 'number' : 'text'}
+            placeholder={field.placeholder ?? ''}
+            value={config[field.key] ?? ''}
+            onchange={(e) => saveSetting(field, e.currentTarget.value)}
+            onkeydown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+          />
+        {/if}
       </div>
     {/each}
   </Card>
