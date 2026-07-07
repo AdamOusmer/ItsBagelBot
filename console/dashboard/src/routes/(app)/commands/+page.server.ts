@@ -95,7 +95,11 @@ function parseCommand(f: FormData) {
     aliases.push(a);
   }
 
-  const response = String(f.get('response') ?? '');
+  // Twitch chat is single-line: a textarea lets users press Enter, but the
+  // shared validator rejects any control character (CR/LF/tab). Fold control
+  // characters to spaces and trim so a pasted multi-line note saves cleanly
+  // instead of failing validation.
+  const response = String(f.get('response') ?? '').replace(/[\u0000-\u001F]+/g, ' ').trim();
   const permRaw = String(f.get('perm') ?? 'everyone');
   const perm: Perm = (PERMS as readonly string[]).includes(permRaw) ? (permRaw as Perm) : 'everyone';
 
