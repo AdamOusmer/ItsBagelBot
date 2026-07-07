@@ -15,6 +15,7 @@ import (
 	"context"
 	"time"
 
+	"ItsBagelBot/app/sesame/automod"
 	"ItsBagelBot/internal/projection"
 
 	"github.com/ThreeDotsLabs/watermill/message"
@@ -45,6 +46,15 @@ type Deps struct {
 	Commands CommandManager
 	Gateway  GatewayCaller
 	Log      *zap.Logger
+	// Automod is the inline chat guard. nil disables it; when set it inspects
+	// each chat line and the engine acts on or shadow-logs the verdict.
+	Automod *automod.Gate
+	// Reputation is the per-chatter strike store: it feeds the automod's Tier-2
+	// escalation and is fed by the folded-cohort fan-out. nil disables it.
+	Reputation Reputation
+	// Campaign is the council's cross-sender juror: distinct-sender counts per
+	// near-duplicate template (SimHash bands in valkey). nil disables it.
+	Campaign Campaign
 }
 
 // IsLiveChecker is the read-only slice of the live store: just "is this

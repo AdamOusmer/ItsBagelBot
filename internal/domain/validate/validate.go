@@ -9,20 +9,23 @@ package validate
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/mail"
 	"strings"
+
+	"ItsBagelBot/internal/moderation"
 )
 
 const (
-	maxUsernameLength      = 25  // Twitch login limit
-	maxEmailLength         = 254 // RFC 5321
-	maxCommandNameLength   = 64
-	maxCommandAliases      = 25
-	maxResponseLineLength  = 500   // Twitch chat message limit, per line
-	maxCooldownSeconds     = 86400 // one day; guards against absurd values
-	maxModuleNameLength    = 64
-	maxConfigsBytes        = 16 << 10
-	maxTokenBytes          = 8 << 10
+	maxUsernameLength     = 25  // Twitch login limit
+	maxEmailLength        = 254 // RFC 5321
+	maxCommandNameLength  = 64
+	maxCommandAliases     = 25
+	maxResponseLineLength = 500   // Twitch chat message limit, per line
+	maxCooldownSeconds    = 86400 // one day; guards against absurd values
+	maxModuleNameLength   = 64
+	maxConfigsBytes       = 16 << 10
+	maxTokenBytes         = 8 << 10
 )
 
 // MaxResponseLines caps how many chat messages one command response may fan
@@ -43,6 +46,10 @@ var (
 	ErrConfigsInvalid  = errors.New("module configs must be valid JSON of at most 16KiB")
 	ErrTokenInvalid    = errors.New("token must be 1 byte to 8KiB")
 	ErrStatusInvalid   = errors.New("status must be free, paid or vip")
+	// ErrContentFloor rejects text carrying immovable-floor content (identity
+	// slurs, IP-grabber hosts). The bot would post this text as itself, so it is
+	// refused at save time regardless of any per-channel automod setting.
+	ErrContentFloor = errors.New("text contains a disallowed term (hate or abuse infrastructure)")
 )
 
 func UserID(id uint64) error {
@@ -100,7 +107,11 @@ func CommandName(name string) error {
 		}
 	}
 
-	return nil
+	// The name is displayed on the dashboard and echoed in chat with every use
+	// ("!<name>"), so it is held to the same immovable floor as the response;
+	// CommandAliases inherits this per alias. Leet obfuscation folds onto the
+	// plain spelling before matching.
+	return FloorClean(name)
 }
 
 // CommandAliases validates the alternate names a command answers to: each must
@@ -115,6 +126,11 @@ func CommandAliases(aliases []string) error {
 	seen := make(map[string]struct{}, len(aliases))
 	for _, alias := range aliases {
 		if err := CommandName(alias); err != nil {
+			// A floor hit carries its own precise message; do not blur it
+			// into the generic alias error.
+			if errors.Is(err, ErrContentFloor) {
+				return err
+			}
 			return ErrCommandAliases
 		}
 		key := strings.ToLower(alias)
@@ -154,6 +170,21 @@ func CommandResponse(response string) error {
 		}
 	}
 
+	// The bot posts this text as itself, so the immovable floor (identity
+	// slurs, IP-grabber hosts) is enforced at save time: hosting it in a
+	// command risks the broadcaster's channel and the bot account platform-wide
+	// (Twitch ToS). Everything milder is deliberately allowed - broadcasters
+	// say what they want; only hate and abuse infrastructure are refused.
+	return FloorClean(response)
+}
+
+// FloorClean rejects text carrying immovable-floor content. Matching runs over
+// the normalized skeleton, so leet and lookalike-letter obfuscation folds onto
+// the plain spelling.
+func FloorClean(text string) error {
+	if term, hit := moderation.CheckFloor(text); hit {
+		return fmt.Errorf("%w: %q", ErrContentFloor, term)
+	}
 	return nil
 }
 
@@ -208,6 +239,36 @@ func ConfigsJSON(configs []byte) error {
 		return ErrConfigsInvalid
 	}
 
+	// Module config strings can end up in bot-emitted chat (a shoutout
+	// template, a greeting), so every string value in the blob is held to the
+	// same immovable floor as a command response. Keys and non-string values
+	// carry no free text. Nested shapes are walked; the 16KiB cap above bounds
+	// the work.
+	var doc any
+	if err := json.Unmarshal(configs, &doc); err != nil {
+		return ErrConfigsInvalid
+	}
+	return floorCleanValues(doc)
+}
+
+// floorCleanValues walks a decoded JSON value and floor-checks every string.
+func floorCleanValues(v any) error {
+	switch t := v.(type) {
+	case string:
+		return FloorClean(t)
+	case map[string]any:
+		for _, e := range t {
+			if err := floorCleanValues(e); err != nil {
+				return err
+			}
+		}
+	case []any:
+		for _, e := range t {
+			if err := floorCleanValues(e); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 

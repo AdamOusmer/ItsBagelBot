@@ -74,8 +74,17 @@ type Output struct {
 	Text          string
 	Color         string
 	To            string
-	Duration      float64
-	Template      string
+	// Duration is shared: the clip length (fractional seconds) for a clip
+	// Output, the timeout length in whole seconds for a timeout (0 = permanent
+	// ban). Template is the clip reply template.
+	Duration float64
+	Template string
+	// Moderation-action fields, set only for a ban/timeout/delete Output.
+	// TargetUserID is the chatter to action; Reason is the optional audit
+	// reason; MsgID is the chat message to delete.
+	TargetUserID string
+	Reason       string
+	MsgID        string
 }
 
 // Emit publishes one Output. The callee must not retain o past the call: the
