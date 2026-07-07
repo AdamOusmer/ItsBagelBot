@@ -19,6 +19,7 @@ import (
 	"ItsBagelBot/app/commands/rpc"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/domain/validate"
+	"ItsBagelBot/internal/moderation"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/db"
 	"ItsBagelBot/pkg/env"
@@ -105,6 +106,7 @@ func deleteAllForUser(repo *repository.Commands, log *zap.Logger) func(*message.
 }
 
 func main() {
+	validate.CheckFloor = moderation.CheckFloor
 
 	log := logger.New(env.Get("APP_ENV", "development")).Named(serviceName)
 	defer func() { _ = log.Sync() }()

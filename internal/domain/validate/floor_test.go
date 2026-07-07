@@ -7,6 +7,10 @@ import (
 	"ItsBagelBot/internal/moderation"
 )
 
+func init() {
+	CheckFloor = moderation.CheckFloor
+}
+
 // floorSlur pulls a term from the embedded hate artifact so no slur sits in
 // test source.
 func floorSlur(t *testing.T) string {
