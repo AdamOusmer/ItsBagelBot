@@ -325,6 +325,34 @@
       };
     };
 
+  // --- Built-in reply save (optimistic response swap) ------------------------
+  // Editable built-ins (e.g. clip) persist their reply template to the modules
+  // service. Optimistically swap the row's response to the typed value, then let
+  // the server's rebuilt row reconcile (it normalizes a blank reply back to the
+  // default template).
+  const replySubmit =
+    (c: CommandView): SubmitFunction =>
+    ({ formData }) => {
+      const next = String(formData.get('reply') ?? '');
+      const before = { ...c };
+      items = items.map((x) => (x.name === c.name ? { ...x, response: next } : x));
+      setStatus(c.name, 'saving');
+      return async ({ result }) => {
+        const payload =
+          result.type === 'success' || result.type === 'failure'
+            ? (result.data as ActionResult | undefined)
+            : undefined;
+        if (result.type === 'success' && payload?.ok) {
+          applyResult(payload); // silent from the server
+          ackSaved(c.name);
+        } else {
+          items = items.map((x) => (x.name === c.name ? before : x));
+          flagError(c.name);
+          toast('err', payload?.error ?? t('commands.toastSaveFailed'));
+        }
+      };
+    };
+
   // --- Delete (optimistic removal + undo toast) --------------------------------
   function postAction(action: string, body: FormData): Promise<ActionResult | null> {
     return fetch(`?/${action}`, { method: 'POST', body })
@@ -517,7 +545,13 @@
           {#if editorDraft.builtin && selectedCmd}
             {@const def = builtinDef(selectedCmd.name)}
             {#if def}
-              <BuiltinInspector command={selectedCmd} {def} toggleSubmit={toggleSubmit(selectedCmd)} />
+              <BuiltinInspector
+                command={selectedCmd}
+                {def}
+                toggleSubmit={toggleSubmit(selectedCmd)}
+                replySubmit={replySubmit(selectedCmd)}
+                {busy}
+              />
             {/if}
           {:else}
             <!-- Keyed on the selected command so switching rows mounts a FRESH

@@ -61,12 +61,30 @@ func (k Kind) String() string {
 //   - Color is the announce color (primary/blue/green/orange/purple); empty
 //     unless Type is an announce.
 //   - To is the shoutout target (login or id); empty unless Type is a shoutout.
+//   - Duration is the requested clip length in seconds (Twitch allows 5–60);
+//     zero means unset, so Twitch applies its default (30). Only Type clip
+//     reads it.
+//   - Template is a custom reply template a command can carry for downstream
+//     expansion (e.g. the clip reply's {clip} token, expanded by outgress once
+//     the clip URL exists). Empty means use the default reply. Only Type clip
+//     reads it.
 type Output struct {
 	Type          string
 	BroadcasterID string
 	Text          string
 	Color         string
 	To            string
+	// Duration is shared: the clip length (fractional seconds) for a clip
+	// Output, the timeout length in whole seconds for a timeout (0 = permanent
+	// ban). Template is the clip reply template.
+	Duration float64
+	Template string
+	// Moderation-action fields, set only for a ban/timeout/delete Output.
+	// TargetUserID is the chatter to action; Reason is the optional audit
+	// reason; MsgID is the chat message to delete.
+	TargetUserID string
+	Reason       string
+	MsgID        string
 }
 
 // Emit publishes one Output. The callee must not retain o past the call: the

@@ -199,8 +199,14 @@ spec:
             mountPath: /secrets/valkey
             readOnly: true
 
-      # controlPlane autodiscovery is the chart default and matches the live
-      # render (etcd/scheduler selectors in kube-system); left at defaults.
+      # Control-plane scraping is OFF: k3s embeds etcd(kine)/scheduler/
+      # controller-manager/apiserver inside the k3s server process, so there
+      # are NO kube-system pods for the chart's etcd/scheduler autodiscovery
+      # selectors to match (verified 2026-07-06: zero matches, the nrk8s-
+      # controlplane pod collected nothing). Removing the DaemonSet frees
+      # ~40Mi on node2 with no data loss.
+      controlPlane:
+        enabled: false
 
     # =======================================================================
     # kube-state-metrics (bundled subchart, image pinned by the chart)

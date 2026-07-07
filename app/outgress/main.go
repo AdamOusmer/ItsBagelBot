@@ -30,9 +30,17 @@ const serviceName = "outgress"
 // A failed command is retried three times at one-second intervals. The
 // work-queue stream also has a five-second MaxAge, so it cannot survive a
 // restart and reappear later as stale chat output.
+//
+// System (EventSub enroll / stream_status) jobs live on their own stream with
+// a five-minute MaxAge, so their retries are slower and more numerous: a
+// transient Twitch or rate-limit failure gets another shot every fifteen
+// seconds for as long as the message survives.
 const (
 	nakDelay        = time.Second
 	maxRedeliveries = 3
+
+	systemNakDelay        = 15 * time.Second
+	systemMaxRedeliveries = 6
 )
 
 func main() {
@@ -218,27 +226,19 @@ func main() {
 	system.SetLiveWriter(worker.NewLiveWriter(valkeyClient, nc, cfg.CacheInvalidatePrefix, cfg.LiveTTL, log.Named("live")))
 
 	// paced redelivery keeps rate-limit nacks from spinning.
-	premiumSub, err := bus.NewLaneSubscriber(cfg.NATSURL, bus.OutgressStream.Name, cfg.PremiumSubject, "outgress-premium", []time.Duration{nakDelay}, maxRedeliveries, log)
+	premiumSub, err := bus.NewLaneSubscriber(cfg.NATSURL, bus.OutgressStream.Name, cfg.PremiumSubject, "outgress-premium", nakDelay, maxRedeliveries, log)
 	if err != nil {
 		log.Fatal("failed to connect premium subscriber", zap.Error(err))
 	}
 	defer func() { _ = premiumSub.Close() }()
 
-	standardSub, err := bus.NewLaneSubscriber(cfg.NATSURL, bus.OutgressStream.Name, cfg.StandardSubject, "outgress-standard", []time.Duration{nakDelay}, maxRedeliveries, log)
+	standardSub, err := bus.NewLaneSubscriber(cfg.NATSURL, bus.OutgressStream.Name, cfg.StandardSubject, "outgress-standard", nakDelay, maxRedeliveries, log)
 	if err != nil {
 		log.Fatal("failed to connect standard subscriber", zap.Error(err))
 	}
 	defer func() { _ = standardSub.Close() }()
 
-	systemBackoff := []time.Duration{
-		15 * time.Second,
-		time.Minute,
-		3 * time.Minute,
-		5 * time.Minute,
-		15 * time.Minute,
-		30 * time.Minute,
-	}
-	systemSub, err := bus.NewLaneSubscriber(cfg.NATSURL, bus.OutgressSystemStream.Name, cfg.SystemSubject, "outgress-system", systemBackoff, uint64(len(systemBackoff)), log)
+	systemSub, err := bus.NewLaneSubscriber(cfg.NATSURL, bus.OutgressSystemStream.Name, cfg.SystemSubject, "outgress-system", systemNakDelay, systemMaxRedeliveries, log)
 	if err != nil {
 		log.Fatal("failed to connect system subscriber", zap.Error(err))
 	}

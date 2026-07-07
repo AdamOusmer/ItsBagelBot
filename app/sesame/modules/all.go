@@ -19,5 +19,6 @@ func All(d engine.Deps) []module.Module {
 		Clip(d),
 		Urchin(d),
 		Mcsr(d),
+		Automod(d),
 	}
 }

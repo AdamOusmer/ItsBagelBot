@@ -6,12 +6,36 @@
 // leading "!" and is lower-case; chat keeps the "!" to invoke.
 
 export const COMMAND_NAME_MAX = 64;
+/** Per line — each line is sent as its own chat message (Twitch limit). */
 export const RESPONSE_MAX = 500;
+/** A response is newline-delimited: the bot sends one message per line. */
+export const RESPONSE_MAX_LINES = 5;
 export const COOLDOWN_MAX = 86400;
 
 /** The bare command trigger: drop a leading "!" and lower-case. */
 export function normName(s: string): string {
   return s.trim().replace(/^!+/, '').trim().toLowerCase();
+}
+
+/**
+ * The response's meaningful lines, mirroring the commands service's
+ * normalization: CRLF folds to LF, trailing whitespace per line and blank
+ * lines are dropped. Shared by the validator, the editor's counters and the
+ * chat rehearsal so all three agree on what actually gets sent.
+ */
+export function responseLines(response: string): string[] {
+  return response
+    .split(/\r\n|\r|\n/)
+    .map(trimLineEnd)
+    .filter((l) => l !== '');
+}
+
+// Linear-time right-trim of spaces/tabs (mirrors Go's TrimRight(" \t")); a
+// trailing-whitespace regex backtracks polynomially on adversarial input.
+function trimLineEnd(line: string): string {
+  let end = line.length;
+  while (end > 0 && (line[end - 1] === ' ' || line[end - 1] === '\t')) end--;
+  return line.slice(0, end);
 }
 
 export interface CommandFields {
@@ -62,9 +86,12 @@ export function validateCommand(f: CommandFields): CommandErrors {
     seen.add(a);
   }
 
-  if (!f.response.trim()) errors.response = 'Response is required.';
-  else if (f.response.length > RESPONSE_MAX) {
-    errors.response = `Response must be at most ${RESPONSE_MAX} characters.`;
+  const lines = responseLines(f.response);
+  if (lines.length === 0) errors.response = 'Response is required.';
+  else if (lines.length > RESPONSE_MAX_LINES) {
+    errors.response = `Response can be at most ${RESPONSE_MAX_LINES} lines — each line is sent as its own chat message.`;
+  } else if (lines.some((l) => l.length > RESPONSE_MAX)) {
+    errors.response = `Each line must be at most ${RESPONSE_MAX} characters.`;
   }
 
   if (!Number.isFinite(f.cooldown) || f.cooldown < 0 || f.cooldown > COOLDOWN_MAX) {

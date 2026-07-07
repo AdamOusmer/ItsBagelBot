@@ -79,6 +79,12 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            # Leaves are JS-disabled local RPC relays; without a heap target the
+            # Go GC let RSS drift to 130-180Mi per node. 96MiB keeps the GC
+            # honest while staying above the leaf's real working set (client
+            # buffers + leaf mesh routes).
+            - name: GOMEMLIMIT
+              value: 96MiB
           envFrom:
             - secretRef:
                 name: nats-auth-env
@@ -93,8 +99,10 @@ spec:
           resources:
             # Leaves are encrypted local relays, not durable stores; keep burst
             # headroom but avoid reserving hub-sized memory on every node.
-            requests: {cpu: 50m, memory: 192Mi}
-            limits: {cpu: 1500m, memory: 512Mi}
+            # Sized against GOMEMLIMIT=96MiB above: ~110-120Mi steady RSS
+            # (heap target + goroutine stacks + mmap), 256Mi hard cap.
+            requests: {cpu: 50m, memory: 96Mi}
+            limits: {cpu: 1500m, memory: 256Mi}
           securityContext:
             allowPrivilegeEscalation: false
             capabilities: {drop: ["ALL"]}

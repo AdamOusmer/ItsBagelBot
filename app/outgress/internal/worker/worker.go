@@ -22,12 +22,12 @@ import (
 
 	"ItsBagelBot/app/outgress/internal/channels"
 	"ItsBagelBot/app/outgress/internal/conduit"
-	"ItsBagelBot/pkg/ratelimit"
 	"ItsBagelBot/app/outgress/internal/twitch"
 	eventtwitch "ItsBagelBot/internal/domain/event/twitch"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/domain/rpc/manage"
 	"ItsBagelBot/pkg/cache"
+	"ItsBagelBot/pkg/ratelimit"
 
 	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/bytedance/sonic"
@@ -152,6 +152,15 @@ var typeRoutes = map[string]helixRoute{
 	// the bot's user:bot/action grants and the broadcaster's channel:bot grant.
 	outgress.TypeAnnounce: {http.MethodPost, "/helix/chat/announcements", outgress.AsApp},
 	outgress.TypeShoutout: {http.MethodPost, "/helix/chat/shoutouts", outgress.AsApp},
+	// Shield Mode is a moderator action (PUT /helix/moderation/shield_mode → bot
+	// user token, moderator:manage:shield_mode). Like ban it needs broadcaster_id +
+	// moderator_id on the query string, handled in processShieldMode.
+	outgress.TypeShieldMode: {http.MethodPut, "/helix/moderation/shield_mode", outgress.AsBot},
+	// Delete Chat Messages (moderator:manage:chat_messages) and Warn Chat User
+	// (moderator:manage:warnings) are moderator actions too; query strings are
+	// assembled in processDelete / processWarn.
+	outgress.TypeDelete: {http.MethodDelete, "/helix/moderation/chat", outgress.AsBot},
+	outgress.TypeWarn:   {http.MethodPost, "/helix/moderation/warnings", outgress.AsBot},
 }
 
 type Worker struct {
@@ -221,6 +230,7 @@ type wireMessage struct {
 	As            string                 `json:"as,omitempty"`
 	Color         string                 `json:"color,omitempty"`
 	To            string                 `json:"to,omitempty"`
+	MsgID         string                 `json:"msg_id,omitempty"`
 }
 
 // PrepareJSON compiles Sonic's decoders during startup rather than on the first
@@ -241,7 +251,7 @@ func decodeMessage(data []byte, destination *outgress.Message) error {
 	*destination = outgress.Message{
 		Type: wire.Type, BroadcasterID: wire.BroadcasterID, SenderID: wire.SenderID,
 		Endpoint: wire.Endpoint, Method: wire.Method, Payload: json.RawMessage(wire.Payload),
-		As: wire.As, Color: wire.Color, To: wire.To,
+		As: wire.As, Color: wire.Color, To: wire.To, MsgID: wire.MsgID,
 	}
 	return nil
 }
@@ -344,6 +354,27 @@ func (w *Worker) Process(msg *message.Message) error {
 	// handler.
 	if payload.Type == outgress.TypeClip {
 		return w.processClip(ctx, payload)
+	}
+
+	// Ban and timeout both hit /helix/moderation/bans and need broadcaster_id +
+	// moderator_id on the query string (Twitch reads them there, not the body),
+	// so they get their own handler before the generic helix path.
+	if payload.Type == outgress.TypeBan || payload.Type == outgress.TypeTimeout {
+		return w.processBan(ctx, payload)
+	}
+
+	// Shield Mode carries broadcaster_id + moderator_id on the query string too, so
+	// it gets its own handler before the generic helix path.
+	if payload.Type == outgress.TypeShieldMode {
+		return w.processShieldMode(ctx, payload)
+	}
+
+	// Delete and warn are moderator actions with query-string identities too.
+	if payload.Type == outgress.TypeDelete {
+		return w.processDelete(ctx, payload)
+	}
+	if payload.Type == outgress.TypeWarn {
+		return w.processWarn(ctx, payload)
 	}
 
 	// Only "chat" pays the chat rate buckets; every other Helix call pays the
@@ -505,6 +536,141 @@ func (w *Worker) processAnnounce(ctx context.Context, payload outgress.Message) 
 	payload.Endpoint = "/helix/chat/announcements?broadcaster_id=" +
 		url.QueryEscape(payload.BroadcasterID) + "&moderator_id=" + url.QueryEscape(mod)
 	payload.Payload = withField(payload.Payload, "color", color)
+
+	return w.execute(ctx, payload)
+}
+
+// processBan issues a Helix ban or timeout as the bot moderator. broadcaster_id
+// and moderator_id ride the query string (Twitch reads them there, not the
+// body); the body carries {data:{user_id,duration,reason}} built by the
+// producer, where the presence of a duration makes it a timeout rather than a
+// permanent ban. It pays the general Helix budget like processAnnounce, then
+// hands the assembled request to execute() for the shared status handling.
+func (w *Worker) processBan(ctx context.Context, payload outgress.Message) error {
+	// The acting moderator is the bot: prefer an explicit sender, else the
+	// configured bot id. Without one there is no one to act as, so drop the job
+	// (mirroring processAnnounce's no-moderator guard).
+	mod := payload.SenderID
+	if mod == "" {
+		mod = w.botID
+	}
+	if mod == "" {
+		w.log.Error("dropping ban/timeout: no bot moderator id configured",
+			zap.String("broadcaster_id", payload.BroadcasterID))
+		return nil
+	}
+
+	if err := w.takeGeneralHelix(ctx, payload); err != nil {
+		return err
+	}
+
+	payload.As = outgress.AsBot
+	payload.Method = http.MethodPost
+	payload.Endpoint = "/helix/moderation/bans?broadcaster_id=" +
+		url.QueryEscape(payload.BroadcasterID) + "&moderator_id=" + url.QueryEscape(mod)
+
+	return w.execute(ctx, payload)
+}
+
+// processShieldMode toggles a channel's Shield Mode as the bot moderator.
+// broadcaster_id and moderator_id ride the query string (Twitch reads them there,
+// not the body); the body carries {"is_active":bool} built by the producer. It is
+// a single channel-level call the automod escalates to instead of banning a whole
+// mass-raid account by account, so one PUT replaces thousands of bans. Pays the
+// general Helix budget like processBan, then hands the request to execute() for
+// the shared status handling.
+func (w *Worker) processShieldMode(ctx context.Context, payload outgress.Message) error {
+	// The acting moderator is the bot: prefer an explicit sender, else the
+	// configured bot id. Without one there is no one to act as, so drop the job
+	// (mirroring processBan's no-moderator guard).
+	mod := payload.SenderID
+	if mod == "" {
+		mod = w.botID
+	}
+	if mod == "" {
+		w.log.Error("dropping shield_mode: no bot moderator id configured",
+			zap.String("broadcaster_id", payload.BroadcasterID))
+		return nil
+	}
+
+	if err := w.takeGeneralHelix(ctx, payload); err != nil {
+		return err
+	}
+
+	payload.As = outgress.AsBot
+	payload.Method = http.MethodPut
+	payload.Endpoint = "/helix/moderation/shield_mode?broadcaster_id=" +
+		url.QueryEscape(payload.BroadcasterID) + "&moderator_id=" + url.QueryEscape(mod)
+
+	return w.execute(ctx, payload)
+}
+
+// processDelete removes one chat message as the bot moderator (Helix Delete
+// Chat Messages). Everything rides the query string: broadcaster_id +
+// moderator_id + the target message_id (Message.MsgID); there is no body. Pays
+// the general Helix budget, then hands the request to execute() for the shared
+// status handling. A delete for an already-gone message is a 404 Twitch treats
+// as permanent, which execute() drops - exactly right for a race with another
+// bot or a human mod.
+func (w *Worker) processDelete(ctx context.Context, payload outgress.Message) error {
+	mod := payload.SenderID
+	if mod == "" {
+		mod = w.botID
+	}
+	if mod == "" {
+		w.log.Error("dropping delete: no bot moderator id configured",
+			zap.String("broadcaster_id", payload.BroadcasterID))
+		return nil
+	}
+	if payload.MsgID == "" {
+		w.log.Error("dropping delete: no message id",
+			zap.String("broadcaster_id", payload.BroadcasterID))
+		return nil
+	}
+
+	if err := w.takeGeneralHelix(ctx, payload); err != nil {
+		return err
+	}
+
+	payload.As = outgress.AsBot
+	payload.Method = http.MethodDelete
+	payload.Endpoint = deleteEndpoint(payload.BroadcasterID, mod, payload.MsgID)
+	payload.Payload = nil
+
+	return w.execute(ctx, payload)
+}
+
+// deleteEndpoint assembles the Helix Delete Chat Messages path; all three ids
+// ride the query string, URL-escaped.
+func deleteEndpoint(broadcasterID, moderatorID, msgID string) string {
+	return "/helix/moderation/chat?broadcaster_id=" + url.QueryEscape(broadcasterID) +
+		"&moderator_id=" + url.QueryEscape(moderatorID) +
+		"&message_id=" + url.QueryEscape(msgID)
+}
+
+// processWarn issues a Helix chat warning as the bot moderator: the chatter must
+// acknowledge it before chatting again. broadcaster_id and moderator_id ride the
+// query string; the body carries {"data":{"user_id","reason"}} built by the
+// producer. Pays the general Helix budget like processBan.
+func (w *Worker) processWarn(ctx context.Context, payload outgress.Message) error {
+	mod := payload.SenderID
+	if mod == "" {
+		mod = w.botID
+	}
+	if mod == "" {
+		w.log.Error("dropping warn: no bot moderator id configured",
+			zap.String("broadcaster_id", payload.BroadcasterID))
+		return nil
+	}
+
+	if err := w.takeGeneralHelix(ctx, payload); err != nil {
+		return err
+	}
+
+	payload.As = outgress.AsBot
+	payload.Method = http.MethodPost
+	payload.Endpoint = "/helix/moderation/warnings?broadcaster_id=" +
+		url.QueryEscape(payload.BroadcasterID) + "&moderator_id=" + url.QueryEscape(mod)
 
 	return w.execute(ctx, payload)
 }
@@ -1140,12 +1306,16 @@ func drainResponse(res *http.Response) {
 }
 
 // clipMeta is the metadata sesame threads on a TypeClip message: the title the
-// viewer typed and their login. The Create Clip call needs neither
-// (broadcaster_id rides the query, no body); they compose the chat reply posted
-// with the clip URL.
+// viewer typed, their login, the requested clip length, and the broadcaster's
+// custom reply template. Title and Duration are passed through to Twitch's
+// Create Clip call (both in the query string); Title, Clipper and Reply compose
+// the chat reply posted with the clip URL. Duration 0 means unset, so Twitch
+// applies its default (30s); an empty Reply falls back to the default format.
 type clipMeta struct {
-	Title   string `json:"title"`
-	Clipper string `json:"clipper"`
+	Title    string  `json:"title"`
+	Clipper  string  `json:"clipper"`
+	Duration float64 `json:"duration"`
+	Reply    string  `json:"reply"`
 }
 
 // clipCreateReply is the subset of the Helix Create Clip response we read.
@@ -1159,6 +1329,12 @@ type clipCreateReply struct {
 // processClip creates a clip on the broadcaster's channel and posts the public
 // clip URL back to chat. The Create Clip response (and thus the URL) is visible
 // only here, so this is the one place that can surface it.
+//
+// The reply posts immediately with the constructed public URL
+// (https://clips.twitch.tv/<id>): the Create Clip id doubles as the clip's
+// public slug, and Get Clips reports exactly that link once processing
+// finishes, so polling it first only delayed the reply by seconds while
+// pinning a lane routine — the link resolves the moment Twitch publishes.
 //
 // Redelivery safety: once the clip is created (2xx) this returns nil no matter
 // what happens to the reply — re-running the message would create a DUPLICATE
@@ -1175,8 +1351,18 @@ func (w *Worker) processClip(ctx context.Context, payload outgress.Message) erro
 		return err // no clip created yet: safe to redeliver
 	}
 
-	// broadcaster_id rides the query string; the Create Clip call takes no body.
-	endpoint := "/helix/clips?broadcaster_id=" + url.QueryEscape(payload.BroadcasterID)
+	// broadcaster_id, and the optional title and duration, all ride the query
+	// string; the Create Clip call takes no body. Duration 0 is omitted so Twitch
+	// applies its default length.
+	q := url.Values{}
+	q.Set("broadcaster_id", payload.BroadcasterID)
+	if title := strings.TrimSpace(meta.Title); title != "" {
+		q.Set("title", title)
+	}
+	if meta.Duration > 0 {
+		q.Set("duration", strconv.FormatFloat(meta.Duration, 'f', -1, 64))
+	}
+	endpoint := "/helix/clips?" + q.Encode()
 	res, err := w.twitch.ExecuteAs(ctx, twitch.ParseIdentity(outgress.AsBroadcaster),
 		payload.BroadcasterID, http.MethodPost, endpoint, nil)
 	if err != nil {
@@ -1227,6 +1413,12 @@ func (w *Worker) processClip(ctx context.Context, payload outgress.Message) erro
 // the normal chat path (rate buckets, sender-id injection). Its error is only
 // for the caller to log; the clip already exists, so the caller must not
 // redeliver on a reply failure.
+//
+// processChat runs the send with payload.Endpoint/Method/As already resolved: on
+// the normal chat path the dispatcher fills them from typeRoutes before calling
+// it. This synthetic reply bypasses the dispatcher, so it must set the same chat
+// route itself — otherwise the request goes out with an empty endpoint/method
+// and Twitch's edge rejects it (403).
 func (w *Worker) sendClipReply(ctx context.Context, broadcasterID string, meta clipMeta, clipURL string) error {
 	body, err := sonic.Marshal(struct {
 		BroadcasterID string `json:"broadcaster_id"`
@@ -1235,26 +1427,51 @@ func (w *Worker) sendClipReply(ctx context.Context, broadcasterID string, meta c
 	if err != nil {
 		return err
 	}
+	route := typeRoutes[outgress.TypeChat]
 	return w.processChat(ctx, outgress.Message{
 		Type:          outgress.TypeChat,
 		BroadcasterID: broadcasterID,
+		Endpoint:      route.endpoint,
+		Method:        route.method,
+		As:            route.as,
 		Payload:       body,
 	})
 }
 
-// clipReplyText composes the chat line for a new clip: it names the clipper,
-// echoes the title they typed (when any), and links the public clip URL.
+// clipReplyText composes the chat line for a new clip. When the broadcaster set
+// a custom reply template it is expanded (see clipExpand); otherwise a default
+// line is used that names the clipper, echoes the title they typed (when any),
+// and links the public clip URL.
 func clipReplyText(meta clipMeta, clipURL string) string {
 	who := meta.Clipper
 	title := strings.TrimSpace(meta.Title)
+	if tmpl := strings.TrimSpace(meta.Reply); tmpl != "" {
+		return clipExpand(tmpl, who, title, clipURL)
+	}
 	switch {
 	case who != "" && title != "":
-		return "🎬 " + who + " clipped: " + title + " → " + clipURL
+		return who + " clipped: " + title + " → " + clipURL
 	case who != "":
-		return "🎬 " + who + " made a clip → " + clipURL
+		return who + " made a clip → " + clipURL
 	case title != "":
-		return "🎬 Clip: " + title + " → " + clipURL
+		return "Clip: " + title + " → " + clipURL
 	default:
-		return "🎬 New clip → " + clipURL
+		return "New clip → " + clipURL
 	}
+}
+
+// clipExpand substitutes the clip reply tokens into a broadcaster's custom
+// template: {clip} → the public clip URL, {user}/{clipper} → the clipper's
+// login, {target}/{title} → the title the viewer typed. Unknown tokens are left
+// untouched (mirroring the dashboard rehearsal, which marks them). The {user}
+// and {target} aliases match the standard command tokens so the same palette
+// applies; {clipper}/{title} read more naturally for a clip.
+func clipExpand(tmpl, clipper, title, clipURL string) string {
+	return strings.NewReplacer(
+		"{clip}", clipURL,
+		"{user}", clipper,
+		"{clipper}", clipper,
+		"{target}", title,
+		"{title}", title,
+	).Replace(tmpl)
 }

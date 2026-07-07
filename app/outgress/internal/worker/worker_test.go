@@ -261,3 +261,60 @@ func TestShoutoutEndpoint(t *testing.T) {
 		t.Fatalf("shoutout endpoint (escaped) = %q, want %q", got, wantEsc)
 	}
 }
+
+// TestShieldModeRoute pins the Shield Mode routing: a PUT to the moderation
+// shield_mode endpoint under the bot's moderator token, so the automod's
+// mass-raid escalation lands as a moderator action, not an app call.
+func TestShieldModeRoute(t *testing.T) {
+	route, ok := typeRoutes[outgress.TypeShieldMode]
+	if !ok {
+		t.Fatal("shield_mode has no type route")
+	}
+	if route.method != http.MethodPut {
+		t.Fatalf("shield_mode method = %q, want PUT", route.method)
+	}
+	if route.endpoint != "/helix/moderation/shield_mode" {
+		t.Fatalf("shield_mode endpoint = %q", route.endpoint)
+	}
+	if route.as != outgress.AsBot {
+		t.Fatalf("shield_mode identity = %q, want %q", route.as, outgress.AsBot)
+	}
+}
+
+// TestShieldModeEndpoint mirrors the query-param assembly processShieldMode uses:
+// broadcaster_id + moderator_id ride the query string, URL-escaped.
+func TestShieldModeEndpoint(t *testing.T) {
+	ep := "/helix/moderation/shield_mode?broadcaster_id=" +
+		url.QueryEscape("44322889") + "&moderator_id=" + url.QueryEscape("987654")
+	want := "/helix/moderation/shield_mode?broadcaster_id=44322889&moderator_id=987654"
+	if ep != want {
+		t.Fatalf("shield_mode endpoint = %q, want %q", ep, want)
+	}
+}
+
+// TestDeleteAndWarnRoutes pins the moderator-action routing for the automod's
+// delete (Delete Chat Messages) and warn (Warn Chat User) intents.
+func TestDeleteAndWarnRoutes(t *testing.T) {
+	del, ok := typeRoutes[outgress.TypeDelete]
+	if !ok || del.method != http.MethodDelete || del.endpoint != "/helix/moderation/chat" || del.as != outgress.AsBot {
+		t.Fatalf("delete route = %+v", del)
+	}
+	warn, ok := typeRoutes[outgress.TypeWarn]
+	if !ok || warn.method != http.MethodPost || warn.endpoint != "/helix/moderation/warnings" || warn.as != outgress.AsBot {
+		t.Fatalf("warn route = %+v", warn)
+	}
+}
+
+// TestDeleteEndpoint pins the query assembly processDelete uses: all three ids
+// on the query string, URL-escaped, no body.
+func TestDeleteEndpoint(t *testing.T) {
+	got := deleteEndpoint("44322889", "987654", "abc-123")
+	want := "/helix/moderation/chat?broadcaster_id=44322889&moderator_id=987654&message_id=abc-123"
+	if got != want {
+		t.Fatalf("delete endpoint = %q, want %q", got, want)
+	}
+	if esc := deleteEndpoint("a b", "c&d", "e?f"); esc !=
+		"/helix/moderation/chat?broadcaster_id=a+b&moderator_id=c%26d&message_id=e%3Ff" {
+		t.Fatalf("delete endpoint (escaped) = %q", esc)
+	}
+}

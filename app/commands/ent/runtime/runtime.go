@@ -23,7 +23,21 @@ func init() {
 	// commandsDescResponse is the schema descriptor for response field.
 	commandsDescResponse := commandsFields[3].Descriptor()
 	// commands.ResponseValidator is a validator for the "response" field. It is called by the builders before save.
-	commands.ResponseValidator = commandsDescResponse.Validators[0].(func(string) error)
+	commands.ResponseValidator = func() func(string) error {
+		validators := commandsDescResponse.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(response string) error {
+			for _, fn := range fns {
+				if err := fn(response); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
 	// commandsDescIsActive is the schema descriptor for is_active field.
 	commandsDescIsActive := commandsFields[4].Descriptor()
 	// commands.DefaultIsActive holds the default value on creation for the is_active field.

@@ -366,6 +366,10 @@ export const fr = {
     removeAlias: 'Supprimer {name}',
     response: 'Réponse',
     responsePlaceholder: 'Ce que le bot répond… insérez des variables ci-dessous.',
+    linePlaceholder: 'Le message suivant…',
+    addLine: 'Ajouter une ligne',
+    removeLine: 'Supprimer la ligne {n}',
+    linesHint: 'Jusqu\'à {max} lignes — chaque ligne est envoyée comme un message de chat distinct.',
     insertVariable: 'Insérer une variable',
     tokUser: 'qui a lancé la commande',
     tokTarget: 'premier argument, ex. un utilisateur mentionné',
@@ -416,6 +420,9 @@ export const fr = {
     usage: 'Utilisation',
     preview: 'Aperçu',
     access: 'Accès',
-    cooldown: 'Délai'
+    cooldown: 'Délai',
+    replyMessage: 'Message de réponse',
+    replyHint: 'Laissez vide pour le message par défaut. {clip} = le lien du clip, {user} = le créateur, {target} = le titre.',
+    saveReply: 'Enregistrer'
   }
 } satisfies MessageTree;

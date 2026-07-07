@@ -11,6 +11,7 @@
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import {
+    Icon,
     getI18n,
     PERM_LABELS,
     type CommandView,
@@ -18,19 +19,54 @@
     type Perm
   } from '@bagel/shared';
   import ChatPreview from './ChatPreview.svelte';
+  import ResponseEditor from './ResponseEditor.svelte';
 
   let {
     command,
     def,
-    toggleSubmit
+    toggleSubmit,
+    replySubmit,
+    busy = false
   }: {
     command: CommandView;
     def: BuiltinCommandDef;
     toggleSubmit: SubmitFunction;
+    // replySubmit persists an editable built-in's reply template (only used when
+    // def.editable). Omitted for read-only built-ins.
+    replySubmit?: SubmitFunction;
+    busy?: boolean;
   } = $props();
 
   const { t } = getI18n();
   const c = $derived(command);
+
+  // --- Editable reply (e.g. clip) ------------------------------------------
+  // Seed the editor from the saved template (command.response), and re-seed when
+  // switching to a different built-in row so the draft never leaks across rows.
+  // seededFor starts null so the first effect run seeds it; it re-seeds only on
+  // an actual row change, so editing (which leaves the name unchanged) never
+  // fights the seed.
+  let message = $state('');
+  let seededFor = $state<string | null>(null);
+  $effect(() => {
+    if (command.name !== seededFor) {
+      seededFor = command.name;
+      message = command.response;
+    }
+  });
+
+  // The insert palette: the built-in's own tokens, each chip tooltip showing the
+  // sample value the rehearsal substitutes (mirrors the module ReplyEditor).
+  const palette = $derived(
+    (def.tokens ?? []).map((tk) => {
+      const token = `{${tk}}`;
+      const sample = def.previewSamples?.[tk];
+      return { token, label: sample ? `${token} → ${sample}` : token };
+    })
+  );
+  // Blank posts the default template, so preview the default instead of "nothing
+  // to say yet".
+  const effectiveMessage = $derived(message.trim() ? message : def.preview);
 </script>
 
 <div class="editor builtin">
@@ -60,10 +96,37 @@
     </ul>
   </div>
 
-  <div class="field">
-    <span>{t('builtinInspector.preview')}</span>
-    <ChatPreview name={def.id} args={def.previewArgs ?? ''} response={def.preview} samples={def.previewSamples} />
-  </div>
+  {#if def.editable && replySubmit}
+    <!-- Editable reply: same surface as a custom command — message editor with a
+         token palette, then the chat rehearsal. Saved to the modules-service
+         config (via ?/saveBuiltinReply), not the commands service. -->
+    <form class="reply-form" method="POST" action="?/saveBuiltinReply" use:enhance={replySubmit}>
+      <input type="hidden" name="name" value={c.name} />
+      <input type="hidden" name="is_active" value={c.is_active ? 'on' : ''} />
+      <div class="field">
+        <span>{t('builtinInspector.replyMessage')}</span>
+        <ResponseEditor name="reply" bind:value={message} tokens={palette} placeholder={def.preview} />
+        <small class="hint">{t('builtinInspector.replyHint')}</small>
+      </div>
+      <ChatPreview
+        name={def.id}
+        args={def.previewArgs ?? ''}
+        response={effectiveMessage}
+        samples={def.previewSamples}
+      />
+      <div class="reply-actions">
+        <button class="btn primary" type="submit" disabled={busy}>
+          <Icon name="check" size={14} />
+          {t('builtinInspector.saveReply')}
+        </button>
+      </div>
+    </form>
+  {:else}
+    <div class="field">
+      <span>{t('builtinInspector.preview')}</span>
+      <ChatPreview name={def.id} args={def.previewArgs ?? ''} response={def.preview} samples={def.previewSamples} />
+    </div>
+  {/if}
 
   <div class="field-row">
     <div class="field">
@@ -133,6 +196,13 @@
     font-size: 12.5px;
     color: var(--bb-muted);
     letter-spacing: 0.01em;
+  }
+
+  .reply-form { margin-bottom: 14px; }
+  .field .hint { color: var(--bb-muted); opacity: 0.7; font-size: 11px; }
+  .reply-actions { display: flex; justify-content: flex-end; margin-top: 12px; }
+  @media (max-width: 480px) {
+    .reply-actions .btn { width: 100%; justify-content: center; min-height: 44px; }
   }
 
   .field-row {

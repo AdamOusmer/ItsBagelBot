@@ -65,6 +65,21 @@ type Config struct {
 	// chat messages so it never reacts to itself.
 	BotUserID string
 
+	// AutomodEnforce arms the automod: false (default) runs it in shadow mode
+	// (verdicts are logged, no action taken); true emits the ban/timeout actions.
+	AutomodEnforce bool
+
+	// ShieldEnabled lets a confirmed mass-raid escalate to channel-level Shield
+	// Mode. It is stricter than AutomodEnforce (Shield Mode is aggressive and
+	// broadcaster-visible) and only takes effect when AutomodEnforce is also on.
+	// Off by default.
+	ShieldEnabled bool
+
+	// EmotesEnabled starts the background third-party emote-set refresher (BTTV,
+	// FFZ, 7TV global sets) that feeds the automod's caps-heuristic false-positive
+	// suppression. On by default; the endpoints are small, public and unauthenticated.
+	EmotesEnabled bool
+
 	// LiveTTL bounds how long a live key survives without a refresh.
 	LiveTTL time.Duration
 
@@ -123,6 +138,10 @@ func Load() *Config {
 		SpecialUserIDs: env.Get("TWITCH_SPECIAL_USER_IDS", ""),
 
 		BotUserID: env.Get("TWITCH_BOT_USER_ID", ""),
+
+		AutomodEnforce: env.Get("SESAME_AUTOMOD_ENFORCE", "false") == "true",
+		ShieldEnabled:  env.Get("SESAME_AUTOMOD_SHIELD", "false") == "true",
+		EmotesEnabled:  env.Get("SESAME_AUTOMOD_EMOTES", "true") == "true",
 
 		LiveTTL: env.GetDuration("SESAME_LIVE_TTL", 12*time.Hour),
 
