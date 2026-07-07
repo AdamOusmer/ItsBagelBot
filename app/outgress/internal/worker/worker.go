@@ -593,7 +593,7 @@ func (w *Worker) processShieldMode(ctx context.Context, payload outgress.Message
 		return nil
 	}
 
-	if err := w.takeGeneralHelix(ctx); err != nil {
+	if err := w.takeGeneralHelix(ctx, payload); err != nil {
 		return err
 	}
 
@@ -628,7 +628,7 @@ func (w *Worker) processDelete(ctx context.Context, payload outgress.Message) er
 		return nil
 	}
 
-	if err := w.takeGeneralHelix(ctx); err != nil {
+	if err := w.takeGeneralHelix(ctx, payload); err != nil {
 		return err
 	}
 
@@ -663,7 +663,7 @@ func (w *Worker) processWarn(ctx context.Context, payload outgress.Message) erro
 		return nil
 	}
 
-	if err := w.takeGeneralHelix(ctx); err != nil {
+	if err := w.takeGeneralHelix(ctx, payload); err != nil {
 		return err
 	}
 
