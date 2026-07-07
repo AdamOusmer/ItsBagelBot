@@ -1,0 +1,10 @@
+# Directed-harm phrases (self-harm bait). Word/phrase-bounded on the skeleton.
+# First offense is a warn + message delete; reputation escalates repeats to
+# timeout, then ban. Suppressible by a channel allow-term (unlike the floor):
+# some communities trash-talk, and the broadcaster owns that call.
+kill yourself
+kys
+neck yourself
+rope yourself
+go hang yourself
+go die
