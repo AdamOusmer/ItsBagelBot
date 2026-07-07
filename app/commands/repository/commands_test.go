@@ -59,6 +59,33 @@ func TestUpsertCoalescesEdits(t *testing.T) {
 	require.Len(t, pub.On(data.SubjectCommandChanged), 1)
 }
 
+// TestUpsertNormalizesMultiLineResponse proves the response canonicalization:
+// CRLF folds to LF, trailing whitespace and blank lines vanish, and what lands
+// in the row is the newline-delimited form the worker splits on.
+func TestUpsertNormalizesMultiLineResponse(t *testing.T) {
+	client, _, repo := setup(t)
+	ctx := context.Background()
+
+	require.NoError(t, repo.Upsert(1001, spec("!multi", "line one  \r\n\r\nline two\r\nline three", false, 0)))
+
+	repo.Close(ctx) // deterministic flush
+
+	rows := client.Commands.Query().AllX(ctx)
+	require.Len(t, rows, 1)
+	assert.Equal(t, "line one\nline two\nline three", rows[0].Response)
+}
+
+// TestUpsertRejectsTooManyLines proves the six-line response is refused at the
+// trust boundary (five is the ceiling).
+func TestUpsertRejectsTooManyLines(t *testing.T) {
+	_, _, repo := setup(t)
+
+	err := repo.Upsert(1001, spec("!multi", "1\n2\n3\n4\n5\n6", false, 0))
+	require.Error(t, err)
+
+	repo.Close(context.Background())
+}
+
 func TestDeleteIsImmediateAndAnnounced(t *testing.T) {
 	client, pub, repo := setup(t)
 	ctx := context.Background()

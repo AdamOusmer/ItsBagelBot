@@ -15,27 +15,21 @@ defmodule Ingress.ShardScaler do
 
   ## Autoscaler
 
-  When `autoscale: true` the scaler samples the aggregate per-shard load
-  (notifications received in the last 60 s per shard, collected from
-  `Ingress.ShardSession.status/2`) and adjusts the target:
+  When `autoscale: true` the scaler samples the aggregate load across shards
+  (notifications received in the last 60 s, collected from
+  `Ingress.ShardSession.status/2`) and sizes the fleet from capacity:
+  Twitch conduits load-balance notifications across all enabled shards, so
+  the needed count is `ceil(aggregate / per-shard budget)` where the budget
+  is the shard rating × target utilization (≥20% kept as burst cushion).
 
-    * avg load per shard > `@scale_up_threshold`   → increment target by 1
-    * avg load per shard < `@scale_down_threshold`  → decrement target by 1
-    * otherwise                                      → no change
+    * needed > target for consecutive ticks → jump target to needed
+      (immediately when aggregate exceeds the fleet's full rating)
+    * needed < target for consecutive ticks → drain one shard
+    * otherwise                             → hold
 
   The effective desired count is always `clamp(target, min_shards, max_shards)`.
-  Decisions run every `@autoscale_interval_ms`. Scale-down requires the low
-  watermark to be sustained for `@scale_down_ticks` consecutive ticks to
-  avoid flapping.
-
-  ## Thresholds (tunable via module attributes)
-
-    * `@scale_up_threshold`   = 50 events/window per shard   (~0.83 ev/s)
-    * `@scale_down_threshold` = 10 events/window per shard   (~0.17 ev/s)
-
-  These are deliberately conservative: a single shard can comfortably handle
-  far more traffic; the autoscaler is a safety net against sustained load
-  spikes, not a latency optimizer.
+  Decisions run every `@autoscale_interval_ms`. Ratings, utilization, and
+  tick counts live in `Ingress.ShardScaler.Policy`.
   """
 
   use GenServer
@@ -121,7 +115,14 @@ defmodule Ingress.ShardScaler do
     target = Config.conduit_shard_count()
     Logger.info("shard_scaler started: target=#{target} on #{node()}")
     schedule_autoscale()
-    {:ok, %{target: target, autoscale: true, low_ticks: 0, last_sample: nil}}
+
+    {:ok,
+     %{
+       target: target,
+       autoscale: true,
+       ticks: Ingress.ShardScaler.Policy.reset_ticks(),
+       last_sample: nil
+     }}
   end
 
   @impl true
@@ -149,13 +150,13 @@ defmodule Ingress.ShardScaler do
   def handle_call({:set_target, count}, _from, state) do
     clamped = clamp(count, min_shards(), Config.max_shards())
     Logger.info("shard_scaler: manual target #{state.target} → #{clamped}")
-    {:reply, :ok, %{state | target: clamped, low_ticks: 0}}
+    {:reply, :ok, %{state | target: clamped, ticks: Ingress.ShardScaler.Policy.reset_ticks()}}
   end
 
   @impl true
   def handle_call({:set_autoscale, enabled}, _from, state) do
     Logger.info("shard_scaler: autoscale #{state.autoscale} → #{enabled}")
-    {:reply, :ok, %{state | autoscale: enabled, low_ticks: 0}}
+    {:reply, :ok, %{state | autoscale: enabled, ticks: Ingress.ShardScaler.Policy.reset_ticks()}}
   end
 
   @impl true
@@ -203,11 +204,11 @@ defmodule Ingress.ShardScaler do
 
     min_s = min_shards()
 
-    {new_target, low_ticks, action} =
+    {new_target, ticks, action} =
       Ingress.ShardScaler.Policy.evaluate(
         sample,
         state.target,
-        state.low_ticks,
+        state.ticks,
         min_s,
         Config.max_shards()
       )
@@ -215,21 +216,32 @@ defmodule Ingress.ShardScaler do
     case action do
       :up ->
         Logger.info(
-          "shard_scaler: autoscale up avg_load=#{sample.avg_load} → target #{state.target} → #{new_target}"
+          "shard_scaler: autoscale up load=#{sample.aggregate_load}/window → target #{state.target} → #{new_target}"
         )
 
       :down ->
         Logger.info(
-          "shard_scaler: autoscale down avg_load=#{sample.avg_load} ticks=#{low_ticks} → target #{state.target} → #{new_target}"
+          "shard_scaler: autoscale down load=#{sample.aggregate_load}/window → target #{state.target} → #{new_target}"
         )
 
       :hold ->
-        if low_ticks > 0 do
-          Logger.debug("shard_scaler: low load avg=#{sample.avg_load} (#{low_ticks}/3 ticks)")
+        cond do
+          ticks.high > 0 ->
+            Logger.debug(
+              "shard_scaler: undercapacity load=#{sample.aggregate_load}/window (#{ticks.high}/#{Ingress.ShardScaler.Policy.scale_up_ticks()} ticks)"
+            )
+
+          ticks.low > 0 ->
+            Logger.debug(
+              "shard_scaler: overcapacity load=#{sample.aggregate_load}/window (#{ticks.low}/#{Ingress.ShardScaler.Policy.scale_down_ticks()} ticks)"
+            )
+
+          true ->
+            :ok
         end
     end
 
-    %{state | target: new_target, low_ticks: low_ticks}
+    %{state | target: new_target, ticks: ticks}
   end
 
   defp sample_shards(state) do

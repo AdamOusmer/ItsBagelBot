@@ -36,6 +36,26 @@ func normalizeName(name string) string {
 	return strings.ToLower(strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(name), "!")))
 }
 
+// normalizeResponse canonicalizes a newline-delimited response before
+// validation: CRLF/CR fold to LF, trailing whitespace per line is dropped
+// (invisible in chat, burns budget), and blank lines vanish — the bot sends
+// one message per line and an empty message is unsendable. Validation then
+// only has to reject, never repair.
+func normalizeResponse(response string) string {
+	response = strings.ReplaceAll(response, "\r\n", "\n")
+	response = strings.ReplaceAll(response, "\r", "\n")
+	lines := strings.Split(response, "\n")
+	out := lines[:0]
+	for _, line := range lines {
+		line = strings.TrimRight(line, " \t")
+		if line == "" {
+			continue
+		}
+		out = append(out, line)
+	}
+	return strings.Join(out, "\n")
+}
+
 func normalizeAliases(aliases []string) []string {
 	if len(aliases) == 0 {
 		return aliases
@@ -184,6 +204,7 @@ type CommandSpec struct {
 func (s *CommandSpec) normalize() {
 	s.Name = normalizeName(s.Name)
 	s.Aliases = normalizeAliases(s.Aliases)
+	s.Response = normalizeResponse(s.Response)
 }
 
 func (s *CommandSpec) validate() error {

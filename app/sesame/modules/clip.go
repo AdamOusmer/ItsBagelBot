@@ -2,6 +2,8 @@ package modules
 
 import (
 	"context"
+	"encoding/json"
+	"strconv"
 	"strings"
 	"time"
 
@@ -10,6 +12,14 @@ import (
 	"ItsBagelBot/internal/domain/outgress"
 
 	"go.uber.org/zap"
+)
+
+// Twitch's Create Clip API accepts a duration from 5 to 60 seconds inclusive; a
+// request outside that range is rejected, so the inline number is clamped into
+// it here rather than sent raw.
+const (
+	clipMinDuration = 5
+	clipMaxDuration = 60
 )
 
 // clipCooldown is the shared per-channel window on !clip so a single viewer (or
@@ -33,10 +43,10 @@ const clipModuleName = "clip"
 // command gate skips it when the broadcaster is not streaming.
 //
 // !clip <title> and !clip<N> <title> both work: N is an inline number the
-// trigger absorbs (NumericSuffix). Twitch's Create Clip API cannot set a clip
-// title or a custom duration (clips are a fixed recent window, titled later on
-// Twitch's edit page), so <title> and N are cosmetic on Twitch's side; the title
-// is echoed back in the chat reply outgress posts with the clip URL.
+// trigger absorbs (NumericSuffix) and sets the clip length in seconds. Twitch's
+// Create Clip API takes a duration from 5 to 60 (default 30); N is clamped into
+// that range and passed through outgress, and <title> becomes the clip's title.
+// Both are echoed back in the chat reply outgress posts with the clip URL.
 func Clip(d engine.Deps) module.Module {
 	log := d.Log
 	if log == nil {
@@ -49,44 +59,82 @@ func Clip(d engine.Deps) module.Module {
 }
 
 // clipRun creates a clip for the broadcaster when the built-in is enabled. It
-// emits one TypeClip outgress action carrying the title and the clipper's login;
-// outgress creates the clip and posts the resulting public URL (with the title)
-// back to chat, since the Create Clip response — and thus the URL — is only
-// visible to outgress, never here.
+// emits one TypeClip outgress action carrying the title, the requested duration,
+// the clipper's login, and the broadcaster's custom reply template (if any);
+// outgress creates the clip and posts the resulting public URL back to chat
+// (expanding the template's {clip} token), since the Create Clip response — and
+// thus the URL — is only visible to outgress, never here.
 func clipRun(d engine.Deps, log *zap.Logger) module.RunFunc {
 	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
-		if !clipEnabled(ctx, d, c.BroadcasterID, log) {
+		enabled, reply := clipSettings(ctx, d, c.BroadcasterID, log)
+		if !enabled {
 			return nil
 		}
 		emit(&module.Output{
 			Type:          outgress.TypeClip,
 			BroadcasterID: c.Env.BroadcasterUserID,
-			Text:          strings.TrimSpace(args), // clip title, echoed in the reply
-			To:            c.Env.ChatterUserLogin,   // the clipper, named in the reply
+			Text:          strings.TrimSpace(args), // clip title, sent to Twitch and echoed
+			To:            c.Env.ChatterUserLogin,  // the clipper, named in the reply
+			Duration:      clipDuration(c.Num),     // inline !clipN, clamped to Twitch's 5–60
+			Template:      reply,                   // custom reply template; empty = default
 		})
 		return nil
 	}
 }
 
-// clipEnabled reports whether the broadcaster has the built-in clip command on.
-// The toggle lives in the modules service under clipModuleName; a missing row
-// means default-on (the built-in ships enabled). Read lazily here, not on the
-// hot chat path. On a projection error it fails open (allows the clip): a
-// transient read blip should not silently swallow a viewer's clip.
-func clipEnabled(ctx context.Context, d engine.Deps, broadcasterID uint64, log *zap.Logger) bool {
+// clipDuration turns the inline numeric suffix ("30" for !clip30) into a Twitch
+// Create Clip duration in seconds. An empty suffix (plain !clip) returns 0,
+// which outgress omits so Twitch applies its default (30). Any typed value is
+// clamped to Twitch's accepted 5–60 range so an out-of-range number (!clip3,
+// !clip90) still creates a clip at the nearest legal length instead of being
+// rejected. A number too large to parse (overflow) is treated as the maximum.
+func clipDuration(num string) float64 {
+	if num == "" {
+		return 0
+	}
+	n, err := strconv.Atoi(num)
+	if err != nil || n > clipMaxDuration {
+		return clipMaxDuration
+	}
+	if n < clipMinDuration {
+		return clipMinDuration
+	}
+	return float64(n)
+}
+
+// clipConfig is the built-in clip command's per-broadcaster config, stored in
+// the modules-service "clip" row's config blob alongside the on/off toggle.
+// Reply is the custom chat-reply template the broadcaster set on the dashboard;
+// empty means outgress falls back to the default reply format. The template's
+// {clip} token is expanded to the clip URL by outgress (only it knows the URL).
+type clipConfig struct {
+	Reply string `json:"reply"`
+}
+
+// clipSettings reads the built-in clip command's per-broadcaster state from the
+// modules service: whether it is enabled and the custom reply template (if any).
+// The state lives under clipModuleName; a missing row means default-on with no
+// custom template (the built-in ships enabled). Read lazily here, not on the hot
+// chat path. On a projection error it fails open (enabled, no template): a
+// transient read blip must not silently swallow a viewer's clip.
+func clipSettings(ctx context.Context, d engine.Deps, broadcasterID uint64, log *zap.Logger) (enabled bool, reply string) {
 	if d.Proj == nil {
-		return true
+		return true, ""
 	}
 	views, err := d.Proj.Modules(ctx, broadcasterID)
 	if err != nil {
 		log.Warn("clip: module state read failed, allowing",
 			zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
-		return true
+		return true, ""
 	}
 	for _, v := range views {
 		if v.Name == clipModuleName {
-			return v.IsEnabled
+			var cfg clipConfig
+			if len(v.Configs) > 0 {
+				_ = json.Unmarshal(v.Configs, &cfg)
+			}
+			return v.IsEnabled, strings.TrimSpace(cfg.Reply)
 		}
 	}
-	return true
+	return true, ""
 }

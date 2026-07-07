@@ -1,7 +1,7 @@
 import type { Actions, PageServerLoad } from './$types';
 import type { CommandView, Perm } from '@bagel/shared';
-import { PERMS, normName, validateCommand, firstError, BUILTIN_COMMANDS, BUILTIN_NAMES, builtinDef } from '@bagel/shared';
-import { listCommands, upsertCommand, deleteCommand, listModules, upsertModule } from '$lib/server/commands-store';
+import { PERMS, RESPONSE_MAX, normName, validateCommand, firstError, BUILTIN_COMMANDS, BUILTIN_NAMES, builtinDef } from '@bagel/shared';
+import { listCommands, upsertCommand, deleteCommand, listModules, upsertModule, type ModuleView } from '$lib/server/commands-store';
 import { auditDashboardImpersonation } from '$lib/server/services';
 import type { Session } from '$lib/server/session';
 import { env } from '$env/dynamic/private';
@@ -33,17 +33,34 @@ const sample: CommandView[] = [
   { name: 'followage', response: "{user} you've followed for {followage}", perm: 'sub', cooldown: 15, uses: '177', is_active: true }
 ];
 
+// configString reads one string field out of a module's opaque config blob,
+// tolerating any non-object/absent shape. Used to pull a built-in's saved reply
+// template out of the modules-service config.
+function configString(configs: unknown, key: string): string {
+  if (configs && typeof configs === 'object') {
+    const v = (configs as Record<string, unknown>)[key];
+    if (typeof v === 'string') return v;
+  }
+  return '';
+}
+
 // builtinViews turns the built-in catalog into command rows, reading each
-// built-in's on/off state from the modules service (key = the built-in id). A
-// missing module row means the catalog default. These render read-only on the
-// commands page with a toggle + preview.
-function builtinViews(modules: { name: string; is_enabled: boolean }[]): CommandView[] {
+// built-in's on/off state (and, for editable built-ins, its saved reply
+// template) from the modules service (key = the built-in id). A missing module
+// row means the catalog default. Non-editable built-ins render read-only with a
+// toggle + preview; editable ones (e.g. clip) expose a reply template whose
+// current value seeds the inspector's editor.
+function builtinViews(modules: ModuleView[]): CommandView[] {
   const byName = new Map(modules.map((m) => [m.name, m]));
   return BUILTIN_COMMANDS.map((def) => {
     const row = byName.get(def.id);
+    const savedReply = def.editable && def.replyKey ? configString(row?.configs, def.replyKey) : '';
     return {
       name: def.id,
-      response: def.summary,
+      // Editable built-ins carry the saved template (or the default) so the
+      // inspector's editor and rehearsal start from the real value; others show
+      // the static summary.
+      response: def.editable ? savedReply || def.preview : def.summary,
       is_active: row ? row.is_enabled : def.defaultActive,
       perm: def.defaultPerm,
       cooldown: def.defaultCooldown,
@@ -55,7 +72,7 @@ function builtinViews(modules: { name: string; is_enabled: boolean }[]): Command
 
 // mergeCommands lists built-ins first, then the user's custom commands with any
 // name colliding with a built-in dropped (built-ins reserve their trigger).
-function mergeCommands(custom: CommandView[], modules: { name: string; is_enabled: boolean }[]): CommandView[] {
+function mergeCommands(custom: CommandView[], modules: ModuleView[]): CommandView[] {
   const builtins = builtinViews(modules);
   const customs = custom.filter((c) => !BUILTIN_NAMES.has(c.name));
   return [...builtins, ...customs];
@@ -294,6 +311,56 @@ export const actions: Actions = {
     }
 
     auditDashboardImpersonation(locals.session, 'command:builtin_toggle', `${name}=${isActive}`);
+    return { ok: true, action: 'updated', name, commands: [view], silent: true };
+  },
+
+  // Save an editable built-in's custom reply template. Like the toggle, the
+  // value lives in the modules service (under the built-in id, config key
+  // def.replyKey), so this writes there — not the commands service. An empty
+  // reply clears the override (upsertModule omits empty config), so the bot
+  // falls back to the default template. The current on/off state rides along so
+  // the write preserves it.
+  saveBuiltinReply: async ({ request, locals }) => {
+    gateCommands(locals.session);
+    const uid = effectiveId(locals.session);
+    if (env.DEMO !== '1' && !locals.session) {
+      return fail(401, { ok: false, error: 'Not signed in.' });
+    }
+
+    const f = await request.formData();
+    const name = normName(String(f.get('name') ?? ''));
+    const def = builtinDef(name);
+    if (!def || !def.editable || !def.replyKey) {
+      return fail(400, { ok: false, error: 'This command has no editable reply.' });
+    }
+    const reply = String(f.get('reply') ?? '').trim();
+    if (reply.length > RESPONSE_MAX) {
+      return fail(400, { ok: false, error: `Reply is too long (max ${RESPONSE_MAX}).` });
+    }
+    const isActive = f.get('is_active') === 'on';
+
+    const view: CommandView = {
+      name: def.id,
+      response: reply || def.preview,
+      is_active: isActive,
+      perm: def.defaultPerm,
+      cooldown: def.defaultCooldown,
+      stream_online_only: def.liveOnly,
+      builtin: true
+    };
+
+    if (env.DEMO === '1') {
+      return { ok: true, action: 'updated', name, commands: [view], silent: true };
+    }
+
+    try {
+      await upsertModule(uid, def.id, isActive, reply ? { [def.replyKey]: reply } : undefined);
+    } catch (e) {
+      logRpcFailure('saveBuiltinReply', e);
+      return fail(400, { ok: false });
+    }
+
+    auditDashboardImpersonation(locals.session, 'command:builtin_reply', name);
     return { ok: true, action: 'updated', name, commands: [view], silent: true };
   }
 };

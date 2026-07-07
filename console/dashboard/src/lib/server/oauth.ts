@@ -13,8 +13,9 @@ export function scopes(): string[] {
   // Broadcaster grant. Mirrors the v1 broadcaster scope set (settings.py:
   // moderator:read:followers + user:read:chat + user:write:chat) plus channel:bot
   // so the bot may act in the channel. Adds channel:read:subscriptions and bits:read
-  // for EventSub access.
-  const bot = 'channel:bot moderator:read:followers user:read:chat user:write:chat channel:read:subscriptions bits:read user:read:moderated_channels'
+  // for EventSub access, and clips:edit so !clip can create clips on the channel
+  // (Create Clip runs on the broadcaster's own token, not the bot's).
+  const bot = 'channel:bot moderator:read:followers user:read:chat user:write:chat channel:read:subscriptions bits:read user:read:moderated_channels clips:edit'
     .split(/\s+/)
     .filter(Boolean);
   return ['openid', 'user:read:email', ...bot];

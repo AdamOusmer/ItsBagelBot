@@ -81,6 +81,42 @@ func TestCustomPlainChatStillEmits(t *testing.T) {
 	assert.Equal(t, outgress.TypeChat, got[0].Type)
 }
 
+// TestCustomMultiLineEmitsOnePerLine proves a newline-delimited response fans
+// out into one chat message per line, in order, with tokens expanded on every
+// line and each line getting its own slash-verb translation.
+func TestCustomMultiLineEmitsOnePerLine(t *testing.T) {
+	p := customPipeline("first {user}\nsecond line\n/announce third", "everyone")
+	got := collectDispatch(p, chatCtx("!so", ""))
+	require.Len(t, got, 3)
+	assert.Equal(t, outgress.TypeChat, got[0].Type)
+	assert.Equal(t, "first alice", got[0].Text)
+	assert.Equal(t, outgress.TypeChat, got[1].Type)
+	assert.Equal(t, "second line", got[1].Text)
+	assert.Equal(t, outgress.TypeAnnounce, got[2].Type)
+	assert.Equal(t, "third", got[2].Text)
+}
+
+// TestCustomMultiLineCappedAtMax proves the emit-side backstop: a response
+// with more lines than the ceiling (e.g. a stale row predating validation)
+// stops at validate.MaxResponseLines messages.
+func TestCustomMultiLineCappedAtMax(t *testing.T) {
+	p := customPipeline("1\n2\n3\n4\n5\n6\n7", "everyone")
+	got := collectDispatch(p, chatCtx("!so", ""))
+	require.Len(t, got, 5)
+	assert.Equal(t, "5", got[4].Text)
+}
+
+// TestCustomMultiLineSkipsEmptyLines proves blank lines never become empty
+// chat messages, and an all-verb line with no payload is dropped without
+// suppressing its siblings.
+func TestCustomMultiLineSkipsEmptyLines(t *testing.T) {
+	p := customPipeline("one\n\n/announce\ntwo", "everyone")
+	got := collectDispatch(p, chatCtx("!so", ""))
+	require.Len(t, got, 2)
+	assert.Equal(t, "one", got[0].Text)
+	assert.Equal(t, "two", got[1].Text)
+}
+
 // --- baked command dispatch + gate ---
 
 // cmdEmit builds a module owning one everyone-perm command that emits reply.

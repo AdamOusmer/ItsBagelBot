@@ -38,3 +38,19 @@ func expandCommand(dst []byte, tmpl string, t tokens) []byte {
 		}
 	})
 }
+
+// sanitizeVar neutralizes a user-supplied command variable so it cannot inject a
+// leading slash-verb into the expanded response. Leading spaces and slashes are
+// trimmed; the rest is untouched (a URL's "http://" keeps its slashes because
+// they are not leading).
+func sanitizeVar(s string) string {
+	return trimLeftSlashSpace(s)
+}
+
+func trimLeftSlashSpace(s string) string {
+	i := 0
+	for i < len(s) && (s[i] == ' ' || s[i] == '/') {
+		i++
+	}
+	return s[i:]
+}

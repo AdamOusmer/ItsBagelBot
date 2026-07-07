@@ -68,6 +68,19 @@ export interface BuiltinCommandDef {
   defaultCooldown: number; // seconds
   // liveOnly commands run only while the broadcaster is streaming.
   liveOnly: boolean;
+  // editable: the reply template can be customized on the dashboard. When true
+  // the inspector shows a ResponseEditor (with the `tokens` palette) and a
+  // rehearsal, and saves the template into the modules-service config under
+  // `replyKey`. The bot expands the tokens when it posts the reply (e.g. {clip}
+  // → the clip URL, resolved by outgress once the clip exists). Non-editable
+  // built-ins stay a read-only preview. `preview` doubles as the default
+  // template when no custom reply is set.
+  editable?: boolean;
+  // replyKey is the Configs key the custom reply template is stored under (only
+  // meaningful when editable).
+  replyKey?: string;
+  // tokens is the reply editor's insert palette (token names without braces).
+  tokens?: string[];
 }
 
 export const BUILTIN_COMMANDS: readonly BuiltinCommandDef[] = [
@@ -78,16 +91,22 @@ export const BUILTIN_COMMANDS: readonly BuiltinCommandDef[] = [
     description:
       'Viewers create a clip of the recent stream and the bot replies in chat with the clip link. Add an optional title after the command. Only works while you are live.',
     usage: ['!clip', '!clip <title>'],
-    // Real reply format: "🎬 <clipper> clipped: <title> → <url>" (see
+    // Real reply format: "<clipper> clipped: <title> → <url>" (see
     // app/outgress/internal/worker clipReplyText). {user} = the clipper, {target}
     // = the title argument (standard command token).
-    preview: '🎬 {user} clipped: {target} → {clip}',
+    preview: '{user} clipped: {target} → {clip}',
     previewArgs: 'That is amazing',
     previewSamples: { target: 'That is amazing', clip: 'clips.twitch.tv/AbCdEf' },
     defaultActive: true,
     defaultPerm: 'everyone',
     defaultCooldown: 15,
-    liveOnly: true
+    liveOnly: true,
+    // The reply is customizable: {clip} is the clip link, {user} the clipper,
+    // {target} the title the viewer typed. Stored under the "reply" config key,
+    // read by sesame and expanded by outgress (see app/sesame/modules/clip.go).
+    editable: true,
+    replyKey: 'reply',
+    tokens: ['clip', 'user', 'target']
   }
 ];
 
@@ -170,7 +189,7 @@ export interface DashboardLink {
 // module that owns !ping/!itsbagelbot and the bagel greeting) are deliberately
 // NOT listed here: they are always on and never shown.
 
-export type ModuleFieldType = 'text' | 'textarea' | 'number' | 'toggle';
+export type ModuleFieldType = 'text' | 'textarea' | 'number' | 'select' | 'toggle';
 
 export interface ModuleField {
   // key is the JSON property written into the module's Configs blob.
@@ -179,6 +198,28 @@ export interface ModuleField {
   type: ModuleFieldType;
   placeholder?: string;
   help?: string;
+  // options drive a 'select' field.
+  options?: { value: string; label: string }[];
+  // followsLevel marks a 'toggle' whose unset state follows the module's
+  // "level" select (see automodToggleDefault): the blob only stores an
+  // explicit "on"/"off" once the user flips it.
+  followsLevel?: boolean;
+}
+
+// Mirrors levelSections in app/sesame/automod/config.go: which automod sections
+// each level preset enables. Renders the resting state of a follows-level
+// toggle; the authoritative resolution happens in Go.
+export const AUTOMOD_LEVEL_DEFAULTS: Record<string, Record<string, boolean>> = {
+  none: { harassment: false, sexual: false, profanity: false, style: false, links: false },
+  basic: { harassment: true, sexual: false, profanity: false, style: false, links: false },
+  moderate: { harassment: true, sexual: true, profanity: false, style: true, links: true },
+  strict: { harassment: true, sexual: true, profanity: true, style: true, links: true }
+};
+
+// automodToggleDefault resolves a follows-level toggle's resting state for the
+// currently selected level.
+export function automodToggleDefault(level: string, key: string): boolean {
+  return (AUTOMOD_LEVEL_DEFAULTS[level] ?? AUTOMOD_LEVEL_DEFAULTS.moderate)[key] ?? false;
 }
 
 // One chat line a module can post, rendered as a row on the module page. Clicking
@@ -266,6 +307,81 @@ const BW_SESSION_SAMPLES: Record<string, string> = {
 };
 
 export const MODULE_CATALOG: readonly ModuleDef[] = [
+  {
+    id: 'automod',
+    label: 'AutoMod',
+    tagline: 'Catch scams, IP-grabbers and raid spam before your mods do.',
+    description:
+      'The bot screens every chat line for harmful content and coordinated raid floods, and warns, deletes, times out or bans the sender. Trusted chatters (VIPs, mods, the broadcaster) are always exempt, and anything borderline is left to your human mods. Pick a level from None to All, then fine-tune each check below. The safety floor (hate slurs and IP-grabber links) is always enforced, on every level and even with the module off: hosting those risks your channel and the bot account platform-wide. Everything else is your call.',
+    icon: 'moderation',
+    defaultEnabled: true,
+    // AutoMod is pure configuration: no chat reply lines, only the settings strip.
+    replies: [],
+    settings: [
+      {
+        key: 'level',
+        label: 'Enforcement level',
+        type: 'select',
+        placeholder: 'moderate',
+        options: [
+          { value: 'none', label: 'None - safety floor only' },
+          { value: 'basic', label: 'Basic - floor + harassment' },
+          { value: 'moderate', label: 'Moderate - recommended (default)' },
+          { value: 'strict', label: 'All - every check, family-strict' }
+        ],
+        help: 'Sets the default for every check below. The safety floor applies at every level.'
+      },
+      {
+        key: 'harassment',
+        label: 'Harassment',
+        type: 'toggle',
+        followsLevel: true,
+        help: 'Directed harm ("kys" and friends): warns the sender and removes the message; repeat offenders are timed out, then banned.'
+      },
+      {
+        key: 'sexual',
+        label: 'Sexual content',
+        type: 'toggle',
+        followsLevel: true,
+        help: 'Removes messages with explicit sexual terms.'
+      },
+      {
+        key: 'profanity',
+        label: 'Profanity',
+        type: 'toggle',
+        followsLevel: true,
+        help: 'Removes plain swearing. Off by default: most channels allow it.'
+      },
+      {
+        key: 'style',
+        label: 'Caps & symbol spam',
+        type: 'toggle',
+        followsLevel: true,
+        help: 'Removes shouting, symbol walls and character floods. Emote walls (KEKW spam) are recognized and never flagged.'
+      },
+      {
+        key: 'links',
+        label: 'Link-spam radar',
+        type: 'toggle',
+        followsLevel: true,
+        help: 'Watches for the same link template posted by many different accounts and removes the wave. Single links are never touched.'
+      },
+      {
+        key: 'block_terms',
+        label: 'Blocked terms',
+        type: 'textarea',
+        placeholder: 'term one, term two',
+        help: 'Extra words or phrases to flag in your channel. Separate with commas or new lines. Matched even through obfuscation (l33t, look-alike letters).'
+      },
+      {
+        key: 'allow_terms',
+        label: 'Allowed terms',
+        type: 'textarea',
+        placeholder: '',
+        help: 'Words that are fine in your channel: a line containing one is never flagged by the checks above or your blocked terms. Cannot override the safety floor.'
+      }
+    ]
+  },
   {
     id: 'shoutout',
     label: 'Auto Shoutout',

@@ -367,6 +367,10 @@ export const en = {
     removeAlias: 'Remove {name}',
     response: 'Response',
     responsePlaceholder: 'What the bot replies… insert variables below.',
+    linePlaceholder: 'The next message…',
+    addLine: 'Add line',
+    removeLine: 'Remove line {n}',
+    linesHint: 'Up to {max} lines — each line is sent as its own chat message.',
     insertVariable: 'Insert variable',
     tokUser: 'who ran the command',
     tokTarget: 'first argument, e.g. a mentioned user',
@@ -417,6 +421,9 @@ export const en = {
     usage: 'Usage',
     preview: 'Preview',
     access: 'Access',
-    cooldown: 'Cooldown'
+    cooldown: 'Cooldown',
+    replyMessage: 'Reply message',
+    replyHint: 'Leave blank for the default. {clip} = the clip link, {user} = the clipper, {target} = the title.',
+    saveReply: 'Save reply'
   }
 } satisfies MessageTree;

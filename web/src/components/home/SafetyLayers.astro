@@ -23,6 +23,7 @@ const t = useTranslations(lang);
             <div class="safe__demo safe__demo--jury" aria-hidden="true">
                 <span class="jury__case">{t('safe.spam')} / {t('safe.hate')}</span>
                 <div class="jury__table">
+                    <span class="jury__evidence">msg</span>
                     <span class="jury__seat jury__seat--tl" style="--jury-i: 0"><i></i><em>block</em></span>
                     <span class="jury__seat jury__seat--tr" style="--jury-i: 1"><i></i><em>block</em></span>
                     <span class="jury__seat jury__seat--l" style="--jury-i: 2"><i></i><em>block</em></span>
@@ -70,24 +71,25 @@ const t = useTranslations(lang);
             <div class="safe__demo safe__demo--network" aria-hidden="true">
                 <svg class="network__map" viewBox="0 0 360 112" role="presentation">
                     <g class="network__links">
-                        <path d="M180 56 L54 20" pathLength="1" />
-                        <path d="M180 56 L55 92" pathLength="1" />
-                        <path d="M180 56 L118 14" pathLength="1" />
-                        <path d="M180 56 L242 14" pathLength="1" />
-                        <path d="M180 56 L305 92" pathLength="1" />
-                        <path d="M180 56 L306 20" pathLength="1" />
+                        <path d="M180 56 L118 14" pathLength="1" style="--wave-i: 0" />
+                        <path d="M180 56 L242 14" pathLength="1" style="--wave-i: 0" />
+                        <path d="M180 56 L54 20" pathLength="1" style="--wave-i: 1" />
+                        <path d="M180 56 L55 92" pathLength="1" style="--wave-i: 1" />
+                        <path d="M180 56 L305 92" pathLength="1" style="--wave-i: 1" />
+                        <path d="M180 56 L306 20" pathLength="1" style="--wave-i: 1" />
                     </g>
                     <g class="network__nodes">
-                        <circle cx="54" cy="20" r="5" style="--node-i: 0" />
-                        <circle cx="55" cy="92" r="5" style="--node-i: 1" />
-                        <circle cx="118" cy="14" r="5" style="--node-i: 2" />
-                        <circle cx="242" cy="14" r="5" style="--node-i: 3" />
-                        <circle cx="305" cy="92" r="5" style="--node-i: 4" />
-                        <circle cx="306" cy="20" r="5" style="--node-i: 5" />
+                        <circle cx="118" cy="14" r="5" style="--wave-i: 0" />
+                        <circle cx="242" cy="14" r="5" style="--wave-i: 0" />
+                        <circle cx="54" cy="20" r="5" style="--wave-i: 1" />
+                        <circle cx="55" cy="92" r="5" style="--wave-i: 1" />
+                        <circle cx="305" cy="92" r="5" style="--wave-i: 1" />
+                        <circle cx="306" cy="20" r="5" style="--wave-i: 1" />
                     </g>
                     <g class="network__core">
-                        <circle cx="180" cy="56" r="20" />
-                        <circle cx="180" cy="56" r="8" />
+                        <circle class="network__ping" cx="180" cy="56" r="20" />
+                        <circle class="network__ring" cx="180" cy="56" r="20" />
+                        <circle class="network__dot" cx="180" cy="56" r="8" />
                     </g>
                 </svg>
                 <span class="network__alert">{t('safe.networkAlert')}</span>
@@ -209,6 +211,8 @@ const t = useTranslations(lang);
         border: 1px solid rgba(240, 236, 228, 0.58);
         border-radius: 50%;
         background: #0b0b0a;
+        animation: jurySeatThink 7.2s ease-in-out infinite;
+        animation-delay: calc(var(--jury-i) * 70ms);
     }
 
     .jury__seat i::after {
@@ -236,15 +240,36 @@ const t = useTranslations(lang);
         font-style: normal;
         text-transform: uppercase;
         opacity: 0;
-        transform: translate(-50%, 7px) rotate(-5deg);
-        animation: juryBallot 5.8s var(--ease-out-back) infinite;
-        animation-delay: calc(700ms + var(--jury-i) * 180ms);
+        transform: translate(-50%, 9px) rotate(var(--ballot-rot, -5deg)) scale(0.85);
+        animation: juryBallot 7.2s ease infinite;
+        animation-delay: calc(var(--jury-i) * 140ms);
     }
 
-    .jury__seat--tr em,
-    .jury__seat--r em,
-    .jury__seat--br em { transform: translate(-50%, 7px) rotate(5deg); }
+    .jury__seat--tl,
+    .jury__seat--l,
+    .jury__seat--bl { --ballot-rot: -5deg; }
+    .jury__seat--tr,
+    .jury__seat--r,
+    .jury__seat--br { --ballot-rot: 5deg; }
     .jury__seat--r em { color: var(--green-glow, #52b788); border-color: rgba(82, 183, 136, 0.42); }
+
+    .jury__evidence {
+        position: absolute;
+        z-index: 2;
+        top: 50%;
+        left: 50%;
+        padding: 3px 7px;
+        border: 1px dashed rgba(217, 138, 138, 0.5);
+        border-radius: 3px;
+        color: rgba(230, 161, 161, 0.9);
+        background: #0b0b0a;
+        font-size: 0.52rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.72);
+        animation: juryEvidence 7.2s ease infinite;
+    }
 
     .jury__seat--tl { top: -9px; left: 22%; }
     .jury__seat--tr { top: -9px; right: 22%; }
@@ -264,7 +289,7 @@ const t = useTranslations(lang);
         gap: 2px;
         text-align: center;
         opacity: 0;
-        animation: juryTally 5.8s ease-in-out infinite;
+        animation: juryTally 7.2s ease-in-out infinite;
     }
 
     .jury__tally small {
@@ -288,16 +313,34 @@ const t = useTranslations(lang);
         text-transform: uppercase;
     }
 
+    /*
+     * Jury timeline (7.2s): evidence lands → seats deliberate → ballots
+     * rise in a stagger → verdict stamps → everything settles out together.
+     */
+    @keyframes juryEvidence {
+        0%, 2% { opacity: 0; transform: translate(-50%, -50%) scale(0.72); animation-timing-function: var(--ease-out-back); }
+        7% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        20% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        26%, 100% { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+    }
+
+    @keyframes jurySeatThink {
+        0%, 8%, 24%, 100% { border-color: rgba(240, 236, 228, 0.58); box-shadow: none; }
+        12%, 20% { border-color: rgba(224, 196, 154, 0.9); box-shadow: 0 0 7px rgba(201, 168, 124, 0.5); }
+    }
+
     @keyframes juryBallot {
-        0%, 18% { opacity: 0; transform: translate(-50%, 7px) scale(0.8); }
-        34%, 82% { opacity: 1; transform: translate(-50%, -7px) scale(1); }
-        94%, 100% { opacity: 0; transform: translate(-50%, -7px) scale(0.9); }
+        0%, 24% { opacity: 0; transform: translate(-50%, 9px) rotate(var(--ballot-rot, -5deg)) scale(0.85); animation-timing-function: var(--ease-out-back); }
+        31% { opacity: 1; transform: translate(-50%, -7px) rotate(var(--ballot-rot, -5deg)) scale(1); }
+        80% { opacity: 1; transform: translate(-50%, -7px) rotate(var(--ballot-rot, -5deg)) scale(1); }
+        87%, 100% { opacity: 0; transform: translate(-50%, -4px) rotate(var(--ballot-rot, -5deg)) scale(0.95); }
     }
 
     @keyframes juryTally {
-        0%, 54% { opacity: 0; transform: scale(0.88); }
-        66%, 86% { opacity: 1; transform: scale(1); text-shadow: 0 0 12px rgba(217, 138, 138, 0.3); }
-        96%, 100% { opacity: 0; transform: scale(0.88); }
+        0%, 38% { opacity: 0; transform: scale(1.18); }
+        44% { opacity: 1; transform: scale(1); text-shadow: 0 0 12px rgba(217, 138, 138, 0.3); }
+        88% { opacity: 1; transform: scale(1); text-shadow: 0 0 12px rgba(217, 138, 138, 0.3); }
+        95%, 100% { opacity: 0; transform: scale(0.96); }
     }
 
     /* Static gates */
@@ -336,7 +379,8 @@ const t = useTranslations(lang);
         color: var(--tan-light, #e0c49a);
         background: #0b0b0a;
         box-shadow: 0 0 12px rgba(201, 168, 124, 0.1);
-        animation: gatePacket 6s linear infinite;
+        opacity: 0;
+        animation: gatePacket 7.2s ease infinite;
     }
 
     .gates__gate {
@@ -356,7 +400,7 @@ const t = useTranslations(lang);
         background: rgba(136, 128, 119, 0.56);
         box-shadow: 0 0 0 4px #0b0b0a;
         transform-origin: top;
-        animation-duration: 6s;
+        animation-duration: 7.2s;
         animation-timing-function: ease-in-out;
         animation-iteration-count: infinite;
     }
@@ -379,7 +423,7 @@ const t = useTranslations(lang);
         border-radius: 50%;
         color: var(--green-glow, #52b788);
         opacity: 0;
-        animation: gateExit 6s ease-in-out infinite;
+        animation: gateExit 7.2s ease infinite;
     }
 
     .gates__receipt {
@@ -393,8 +437,8 @@ const t = useTranslations(lang);
         font-size: 0.54rem;
         text-transform: uppercase;
         opacity: 0.26;
-        animation-duration: 6s;
-        animation-timing-function: ease-in-out;
+        animation-duration: 7.2s;
+        animation-timing-function: ease;
         animation-iteration-count: infinite;
     }
     .gates__receipt span:nth-child(1) { animation-name: receiptOne; }
@@ -407,45 +451,74 @@ const t = useTranslations(lang);
         font-size: 0.58rem;
         font-style: normal;
         opacity: 0;
-        animation: gateExit 6s ease-in-out infinite;
+        animation: gateExit 7.2s ease infinite;
     }
 
+    /*
+     * Gates timeline (7.2s): the packet stops in front of each gate, the gate
+     * scans it (tan flicker), opens, the packet moves through and the matching
+     * receipt line ticks. Fade-out at the exit hides the loop reset.
+     */
     @keyframes gatePacket {
-        0%, 8% { left: 4px; }
-        25% { left: 22%; }
-        32% { left: 34%; }
-        40% { left: 43%; }
-        47% { left: 55%; }
-        55% { left: 64%; }
-        62% { left: 76%; }
-        76%, 90% { left: calc(100% - 38px); border-color: rgba(82, 183, 136, 0.64); color: var(--green-glow, #52b788); }
-        100% { left: 4px; }
+        0% { left: 4px; opacity: 0; }
+        2% { opacity: 1; animation-timing-function: var(--ease-out-expo); }
+        15% { left: calc(29% - 46px); }
+        26% { left: calc(29% - 46px); animation-timing-function: var(--ease-out-expo); }
+        36% { left: calc(50% - 46px); }
+        48% { left: calc(50% - 46px); animation-timing-function: var(--ease-out-expo); }
+        58% { left: calc(71% - 46px); }
+        68% { left: calc(71% - 46px); animation-timing-function: var(--ease-out-expo); }
+        78% { left: calc(100% - 74px); border-color: rgba(82, 183, 136, 0.64); color: var(--green-glow, #52b788); }
+        90% { left: calc(100% - 74px); border-color: rgba(82, 183, 136, 0.64); color: var(--green-glow, #52b788); opacity: 1; }
+        95%, 100% { left: calc(100% - 74px); border-color: rgba(82, 183, 136, 0.64); color: var(--green-glow, #52b788); opacity: 0; }
     }
 
     @keyframes gateOne {
-        0%, 19%, 36%, 100% { transform: scaleY(1); background: rgba(136, 128, 119, 0.56); }
-        24%, 32% { transform: scaleY(0.22); background: var(--green-glow, #52b788); }
+        0%, 16%, 21% { transform: scaleY(1); background: rgba(136, 128, 119, 0.56); box-shadow: 0 0 0 4px #0b0b0a; }
+        17.5%, 20% { transform: scaleY(1); background: rgba(224, 196, 154, 0.95); box-shadow: 0 0 0 4px #0b0b0a, 0 0 9px rgba(201, 168, 124, 0.55); }
+        23%, 34% { transform: scaleY(0.18); background: var(--green-glow, #52b788); box-shadow: 0 0 0 4px #0b0b0a; }
+        39%, 100% { transform: scaleY(1); background: rgba(136, 128, 119, 0.56); box-shadow: 0 0 0 4px #0b0b0a; }
     }
 
     @keyframes gateTwo {
-        0%, 35%, 51%, 100% { transform: scaleY(1); background: rgba(136, 128, 119, 0.56); }
-        40%, 47% { transform: scaleY(0.22); background: var(--green-glow, #52b788); }
+        0%, 38%, 43% { transform: scaleY(1); background: rgba(136, 128, 119, 0.56); box-shadow: 0 0 0 4px #0b0b0a; }
+        39.5%, 42% { transform: scaleY(1); background: rgba(224, 196, 154, 0.95); box-shadow: 0 0 0 4px #0b0b0a, 0 0 9px rgba(201, 168, 124, 0.55); }
+        45%, 56% { transform: scaleY(0.18); background: var(--green-glow, #52b788); box-shadow: 0 0 0 4px #0b0b0a; }
+        61%, 100% { transform: scaleY(1); background: rgba(136, 128, 119, 0.56); box-shadow: 0 0 0 4px #0b0b0a; }
     }
 
     @keyframes gateThree {
-        0%, 50%, 67%, 100% { transform: scaleY(1); background: rgba(136, 128, 119, 0.56); }
-        55%, 62% { transform: scaleY(0.22); background: var(--green-glow, #52b788); }
+        0%, 58%, 63% { transform: scaleY(1); background: rgba(136, 128, 119, 0.56); box-shadow: 0 0 0 4px #0b0b0a; }
+        59.5%, 62% { transform: scaleY(1); background: rgba(224, 196, 154, 0.95); box-shadow: 0 0 0 4px #0b0b0a, 0 0 9px rgba(201, 168, 124, 0.55); }
+        65%, 76% { transform: scaleY(0.18); background: var(--green-glow, #52b788); box-shadow: 0 0 0 4px #0b0b0a; }
+        81%, 100% { transform: scaleY(1); background: rgba(136, 128, 119, 0.56); box-shadow: 0 0 0 4px #0b0b0a; }
     }
 
     @keyframes gateExit {
-        0%, 74% { opacity: 0; transform: scale(0.8); }
-        80%, 92% { opacity: 1; transform: scale(1); }
-        100% { opacity: 0; }
+        0%, 79% { opacity: 0; transform: scale(0.7); animation-timing-function: var(--ease-out-back); }
+        84% { opacity: 1; transform: scale(1); }
+        92% { opacity: 1; transform: scale(1); }
+        97%, 100% { opacity: 0; transform: scale(0.9); }
     }
 
-    @keyframes receiptOne { 0%, 31% { opacity: 0.26; } 36%, 90% { opacity: 1; } 100% { opacity: 0.26; } }
-    @keyframes receiptTwo { 0%, 46% { opacity: 0.26; } 51%, 90% { opacity: 1; } 100% { opacity: 0.26; } }
-    @keyframes receiptThree { 0%, 61% { opacity: 0.26; } 67%, 90% { opacity: 1; } 100% { opacity: 0.26; } }
+    @keyframes receiptOne {
+        0%, 22% { opacity: 0.26; transform: translateY(2px); }
+        26% { opacity: 1; transform: none; }
+        92% { opacity: 1; transform: none; }
+        98%, 100% { opacity: 0.26; transform: translateY(2px); }
+    }
+    @keyframes receiptTwo {
+        0%, 44% { opacity: 0.26; transform: translateY(2px); }
+        48% { opacity: 1; transform: none; }
+        92% { opacity: 1; transform: none; }
+        98%, 100% { opacity: 0.26; transform: translateY(2px); }
+    }
+    @keyframes receiptThree {
+        0%, 64% { opacity: 0.26; transform: translateY(2px); }
+        68% { opacity: 1; transform: none; }
+        92% { opacity: 1; transform: none; }
+        98%, 100% { opacity: 0.26; transform: translateY(2px); }
+    }
 
     /* Network-wide raid propagation */
     .safe__demo--network { padding: 10px 16px; }
@@ -462,26 +535,38 @@ const t = useTranslations(lang);
         stroke-width: 1;
         stroke-dasharray: 1;
         stroke-dashoffset: 1;
-        animation: networkLine 5.8s var(--ease-out-expo) infinite;
+        opacity: 0;
+        animation: networkLine 7.2s var(--ease-out-expo) infinite;
+        animation-delay: calc(var(--wave-i) * 200ms);
     }
 
     .network__nodes circle {
         fill: #0b0b0a;
         stroke: rgba(136, 128, 119, 0.52);
         stroke-width: 1;
-        animation: networkNode 5.8s ease-in-out infinite;
-        animation-delay: calc(var(--node-i) * 90ms);
+        animation: networkNode 7.2s ease-in-out infinite;
+        animation-delay: calc(var(--wave-i) * 200ms);
     }
 
-    .network__core circle:first-child {
+    .network__ping {
+        fill: none;
+        stroke: rgba(82, 183, 136, 0.55);
+        stroke-width: 1;
+        opacity: 0;
+        transform-box: fill-box;
+        transform-origin: center;
+        animation: networkPing 7.2s ease-out infinite;
+    }
+
+    .network__ring {
         fill: rgba(217, 138, 138, 0.04);
-        stroke: rgba(217, 138, 138, 0.5);
-        animation: networkPulse 5.8s ease-in-out infinite;
+        stroke: rgba(136, 128, 119, 0.35);
+        animation: networkRing 7.2s ease-in-out infinite;
     }
 
-    .network__core circle:last-child {
-        fill: rgba(217, 138, 138, 0.78);
-        filter: drop-shadow(0 0 7px rgba(217, 138, 138, 0.55));
+    .network__dot {
+        fill: rgba(136, 128, 119, 0.6);
+        animation: networkDot 7.2s ease-in-out infinite;
     }
 
     .network__alert,
@@ -501,36 +586,71 @@ const t = useTranslations(lang);
         color: rgba(230, 161, 161, 0.9);
     }
 
+    .network__alert {
+        opacity: 0;
+        animation: networkAlert 7.2s ease infinite;
+    }
+
     .network__status {
         right: 12px;
         border: 1px solid rgba(82, 183, 136, 0.26);
         color: var(--green-glow, #52b788);
         opacity: 0;
-        animation: networkStatus 5.8s ease-in-out infinite;
+        animation: networkStatus 7.2s ease infinite;
+    }
+
+    /*
+     * Network timeline (7.2s): core flashes red (raid hits one channel) →
+     * shield ping expands → links draw and nodes light in distance order →
+     * alert clears, "shielded" status holds → everything settles out.
+     */
+    @keyframes networkDot {
+        0%, 2% { fill: rgba(136, 128, 119, 0.6); filter: none; }
+        5%, 9%, 13% { fill: rgba(217, 138, 138, 0.9); filter: drop-shadow(0 0 8px rgba(217, 138, 138, 0.65)); }
+        7%, 11% { fill: rgba(217, 138, 138, 0.35); filter: drop-shadow(0 0 3px rgba(217, 138, 138, 0.3)); }
+        30% { fill: rgba(217, 138, 138, 0.9); filter: drop-shadow(0 0 8px rgba(217, 138, 138, 0.65)); }
+        40%, 86% { fill: rgba(82, 183, 136, 0.85); filter: drop-shadow(0 0 7px rgba(82, 183, 136, 0.55)); }
+        96%, 100% { fill: rgba(136, 128, 119, 0.6); filter: none; }
+    }
+
+    @keyframes networkRing {
+        0%, 2% { stroke: rgba(136, 128, 119, 0.35); }
+        6%, 30% { stroke: rgba(217, 138, 138, 0.55); }
+        40%, 86% { stroke: rgba(82, 183, 136, 0.5); }
+        96%, 100% { stroke: rgba(136, 128, 119, 0.35); }
+    }
+
+    @keyframes networkPing {
+        0%, 13% { opacity: 0; transform: scale(0.5); }
+        16% { opacity: 0.7; }
+        34% { opacity: 0; transform: scale(2.9); }
+        35%, 100% { opacity: 0; transform: scale(0.5); }
     }
 
     @keyframes networkLine {
-        0%, 26% { stroke-dashoffset: 1; }
-        60%, 88% { stroke-dashoffset: 0; }
-        100% { stroke-dashoffset: 1; }
+        0%, 15% { stroke-dashoffset: 1; opacity: 0; }
+        17% { opacity: 1; }
+        30% { stroke-dashoffset: 0; opacity: 1; }
+        88% { stroke-dashoffset: 0; opacity: 1; }
+        94%, 100% { stroke-dashoffset: 0; opacity: 0; }
     }
 
     @keyframes networkNode {
-        0%, 42% { fill: #0b0b0a; stroke: rgba(136, 128, 119, 0.52); }
-        58%, 88% { fill: var(--green-glow, #52b788); stroke: rgba(167, 243, 208, 0.86); filter: drop-shadow(0 0 6px rgba(82, 183, 136, 0.62)); }
-        100% { fill: #0b0b0a; stroke: rgba(136, 128, 119, 0.52); }
+        0%, 24% { fill: #0b0b0a; stroke: rgba(136, 128, 119, 0.52); filter: none; }
+        30%, 88% { fill: var(--green-glow, #52b788); stroke: rgba(167, 243, 208, 0.86); filter: drop-shadow(0 0 6px rgba(82, 183, 136, 0.62)); }
+        95%, 100% { fill: #0b0b0a; stroke: rgba(136, 128, 119, 0.52); filter: none; }
     }
 
-    @keyframes networkPulse {
-        0%, 100% { r: 20px; opacity: 0.7; }
-        30%, 52% { r: 27px; opacity: 0.12; }
-        66%, 84% { r: 20px; opacity: 0.7; }
+    @keyframes networkAlert {
+        0%, 2% { opacity: 0; transform: translateY(-4px); }
+        5%, 44% { opacity: 1; transform: none; }
+        50%, 100% { opacity: 0; transform: translateY(-4px); }
     }
 
     @keyframes networkStatus {
-        0%, 60% { opacity: 0; transform: translateY(-3px); }
-        70%, 88% { opacity: 1; transform: none; }
-        100% { opacity: 0; }
+        0%, 38% { opacity: 0; transform: translateY(-4px); }
+        43%, 88% { opacity: 1; transform: none; }
+        94%, 100% { opacity: 0; transform: translateY(-4px); }
     }
 
     @media (min-width: 720px) {
@@ -543,6 +663,8 @@ const t = useTranslations(lang);
     }
 
     @media (prefers-reduced-motion: reduce) {
+        .jury__evidence,
+        .jury__seat i::before,
         .jury__seat em,
         .jury__tally,
         .gates__packet,
@@ -552,21 +674,27 @@ const t = useTranslations(lang);
         .gates__receipt span,
         .network__links path,
         .network__nodes circle,
-        .network__core circle:first-child,
+        .network__ping,
+        .network__ring,
+        .network__dot,
+        .network__alert,
         .network__status {
             animation: none;
         }
 
-        .jury__seat em { opacity: 1; transform: translate(-50%, -7px); }
+        .jury__evidence { opacity: 0; }
+        .jury__seat em { opacity: 1; transform: translate(-50%, -7px) rotate(var(--ballot-rot, -5deg)); }
         .jury__tally,
         .gates__exit,
         .gates__receipt em,
         .gates__receipt span,
+        .network__alert,
         .network__status { opacity: 1; transform: none; }
-        .gates__packet { left: calc(100% - 38px); color: var(--green-glow, #52b788); }
-        .gates__gate i { background: var(--green-glow, #52b788); }
-        .network__links path { stroke-dashoffset: 0; }
+        .gates__packet { left: calc(100% - 74px); opacity: 1; color: var(--green-glow, #52b788); border-color: rgba(82, 183, 136, 0.64); }
+        .network__links path { stroke-dashoffset: 0; opacity: 1; }
         .network__nodes circle { fill: var(--green-glow, #52b788); stroke: rgba(167, 243, 208, 0.86); }
+        .network__dot { fill: rgba(82, 183, 136, 0.85); filter: drop-shadow(0 0 7px rgba(82, 183, 136, 0.55)); }
+        .network__ring { stroke: rgba(82, 183, 136, 0.5); }
     }
 
     @media (max-width: 640px) {

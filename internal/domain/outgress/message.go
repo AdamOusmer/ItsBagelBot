@@ -23,6 +23,9 @@ type Message struct {
 	Color string `json:"color,omitempty"`
 	// To is the shoutout target (login or id); outgress resolves login to id.
 	To string `json:"to,omitempty"`
+	// MsgID is the Twitch chat message id a "delete" targets; outgress puts it
+	// on the query string.
+	MsgID string `json:"msg_id,omitempty"`
 }
 
 // StreamStatusJob is the payload of a "stream_status" message: a request for
@@ -63,6 +66,16 @@ const (
 	TypeClip         = "clip"
 	TypeAnnounce     = "announce"
 	TypeShoutout     = "shoutout"
+	// TypeShieldMode activates a channel's Shield Mode: one PUT that gates the
+	// whole channel (blocks non-followers/new accounts) instead of banning a
+	// mass-raid account by account, which would blow the shared Helix budget.
+	TypeShieldMode = "shield_mode"
+	// TypeDelete removes one chat message (Helix Delete Chat Messages); the
+	// target message id rides Message.MsgID.
+	TypeDelete = "delete"
+	// TypeWarn issues a Twitch chat warning the target must acknowledge before
+	// chatting again (Helix Warn Chat User); body {"data":{"user_id","reason"}}.
+	TypeWarn = "warn"
 )
 
 // EventSubJob mode values for the Mode field.

@@ -1,0 +1,19 @@
+# Floor category: identity slurs that are hostile in any context. Immovable -
+# enforced under every profile, never suppressed by a channel allow-term
+# (Twitch ToS bans this platform-wide, so allowing it endangers the streamer's
+# channel and the bot account). Terms are matched word-bounded over the
+# normalized skeleton, so leet and lookalike-letter obfuscation folds onto
+# these spellings. Deliberately short: only terms with no in-group or benign
+# reading belong here; context-dependent terms go to human mods.
+# Ops can extend via SESAME_AUTOMOD_LEXICON_DIR without a rebuild.
+nigger
+faggot
+kike
+chink
+spic
+wetback
+gook
+beaner
+towelhead
+raghead
+tranny
