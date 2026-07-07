@@ -291,3 +291,30 @@ func TestShieldModeEndpoint(t *testing.T) {
 		t.Fatalf("shield_mode endpoint = %q, want %q", ep, want)
 	}
 }
+
+// TestDeleteAndWarnRoutes pins the moderator-action routing for the automod's
+// delete (Delete Chat Messages) and warn (Warn Chat User) intents.
+func TestDeleteAndWarnRoutes(t *testing.T) {
+	del, ok := typeRoutes[outgress.TypeDelete]
+	if !ok || del.method != http.MethodDelete || del.endpoint != "/helix/moderation/chat" || del.as != outgress.AsBot {
+		t.Fatalf("delete route = %+v", del)
+	}
+	warn, ok := typeRoutes[outgress.TypeWarn]
+	if !ok || warn.method != http.MethodPost || warn.endpoint != "/helix/moderation/warnings" || warn.as != outgress.AsBot {
+		t.Fatalf("warn route = %+v", warn)
+	}
+}
+
+// TestDeleteEndpoint pins the query assembly processDelete uses: all three ids
+// on the query string, URL-escaped, no body.
+func TestDeleteEndpoint(t *testing.T) {
+	got := deleteEndpoint("44322889", "987654", "abc-123")
+	want := "/helix/moderation/chat?broadcaster_id=44322889&moderator_id=987654&message_id=abc-123"
+	if got != want {
+		t.Fatalf("delete endpoint = %q, want %q", got, want)
+	}
+	if esc := deleteEndpoint("a b", "c&d", "e?f"); esc !=
+		"/helix/moderation/chat?broadcaster_id=a+b&moderator_id=c%26d&message_id=e%3Ff" {
+		t.Fatalf("delete endpoint (escaped) = %q", esc)
+	}
+}

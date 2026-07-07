@@ -6,13 +6,26 @@ import "unicode"
 // raw message. The clean-path check uses them to bail before the costly skeleton
 // normalization ever runs, so a plain chat line never allocates.
 type signals struct {
-	runes       int
-	letters     int
-	upper       int
-	symbols     int
-	maxRepeat   int
-	zeroWidth   int
-	hasNonASCII bool
+	runes     int
+	letters   int
+	upper     int
+	symbols   int
+	maxRepeat int
+	zeroWidth int
+	// lettersNonASCII counts letters above ascii - emoji and symbols are NOT
+	// letters, so an english line full of emoji stays at 0 while a genuinely
+	// foreign-language line dominates. Gates the (comparatively expensive)
+	// language-detection juror.
+	lettersNonASCII int
+	hasNonASCII     bool
+}
+
+// foreignLeaning reports whether non-ascii letters make up enough of the line
+// (a third or more) to be worth asking the language juror. An obfuscated latin
+// line with one Cyrillic lookalike stays below this and is scanned in full;
+// emoji do not count at all.
+func (s signals) foreignLeaning() bool {
+	return s.letters > 0 && s.lettersNonASCII*3 >= s.letters
 }
 
 func (s signals) capsRatio() float64 {
@@ -43,6 +56,9 @@ func scan(text string) signals {
 		switch {
 		case unicode.IsLetter(r):
 			s.letters++
+			if r > unicode.MaxASCII {
+				s.lettersNonASCII++
+			}
 			if unicode.IsUpper(r) {
 				s.upper++
 			}

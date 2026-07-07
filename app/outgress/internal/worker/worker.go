@@ -156,6 +156,11 @@ var typeRoutes = map[string]helixRoute{
 	// user token, moderator:manage:shield_mode). Like ban it needs broadcaster_id +
 	// moderator_id on the query string, handled in processShieldMode.
 	outgress.TypeShieldMode: {http.MethodPut, "/helix/moderation/shield_mode", outgress.AsBot},
+	// Delete Chat Messages (moderator:manage:chat_messages) and Warn Chat User
+	// (moderator:manage:warnings) are moderator actions too; query strings are
+	// assembled in processDelete / processWarn.
+	outgress.TypeDelete: {http.MethodDelete, "/helix/moderation/chat", outgress.AsBot},
+	outgress.TypeWarn:   {http.MethodPost, "/helix/moderation/warnings", outgress.AsBot},
 }
 
 type Worker struct {
@@ -225,6 +230,7 @@ type wireMessage struct {
 	As            string                 `json:"as,omitempty"`
 	Color         string                 `json:"color,omitempty"`
 	To            string                 `json:"to,omitempty"`
+	MsgID         string                 `json:"msg_id,omitempty"`
 }
 
 // PrepareJSON compiles Sonic's decoders during startup rather than on the first
@@ -245,7 +251,7 @@ func decodeMessage(data []byte, destination *outgress.Message) error {
 	*destination = outgress.Message{
 		Type: wire.Type, BroadcasterID: wire.BroadcasterID, SenderID: wire.SenderID,
 		Endpoint: wire.Endpoint, Method: wire.Method, Payload: json.RawMessage(wire.Payload),
-		As: wire.As, Color: wire.Color, To: wire.To,
+		As: wire.As, Color: wire.Color, To: wire.To, MsgID: wire.MsgID,
 	}
 	return nil
 }
@@ -361,6 +367,14 @@ func (w *Worker) Process(msg *message.Message) error {
 	// it gets its own handler before the generic helix path.
 	if payload.Type == outgress.TypeShieldMode {
 		return w.processShieldMode(ctx, payload)
+	}
+
+	// Delete and warn are moderator actions with query-string identities too.
+	if payload.Type == outgress.TypeDelete {
+		return w.processDelete(ctx, payload)
+	}
+	if payload.Type == outgress.TypeWarn {
+		return w.processWarn(ctx, payload)
 	}
 
 	// Only "chat" pays the chat rate buckets; every other Helix call pays the
@@ -586,6 +600,76 @@ func (w *Worker) processShieldMode(ctx context.Context, payload outgress.Message
 	payload.As = outgress.AsBot
 	payload.Method = http.MethodPut
 	payload.Endpoint = "/helix/moderation/shield_mode?broadcaster_id=" +
+		url.QueryEscape(payload.BroadcasterID) + "&moderator_id=" + url.QueryEscape(mod)
+
+	return w.execute(ctx, payload)
+}
+
+// processDelete removes one chat message as the bot moderator (Helix Delete
+// Chat Messages). Everything rides the query string: broadcaster_id +
+// moderator_id + the target message_id (Message.MsgID); there is no body. Pays
+// the general Helix budget, then hands the request to execute() for the shared
+// status handling. A delete for an already-gone message is a 404 Twitch treats
+// as permanent, which execute() drops - exactly right for a race with another
+// bot or a human mod.
+func (w *Worker) processDelete(ctx context.Context, payload outgress.Message) error {
+	mod := payload.SenderID
+	if mod == "" {
+		mod = w.botID
+	}
+	if mod == "" {
+		w.log.Error("dropping delete: no bot moderator id configured",
+			zap.String("broadcaster_id", payload.BroadcasterID))
+		return nil
+	}
+	if payload.MsgID == "" {
+		w.log.Error("dropping delete: no message id",
+			zap.String("broadcaster_id", payload.BroadcasterID))
+		return nil
+	}
+
+	if err := w.takeGeneralHelix(ctx); err != nil {
+		return err
+	}
+
+	payload.As = outgress.AsBot
+	payload.Method = http.MethodDelete
+	payload.Endpoint = deleteEndpoint(payload.BroadcasterID, mod, payload.MsgID)
+	payload.Payload = nil
+
+	return w.execute(ctx, payload)
+}
+
+// deleteEndpoint assembles the Helix Delete Chat Messages path; all three ids
+// ride the query string, URL-escaped.
+func deleteEndpoint(broadcasterID, moderatorID, msgID string) string {
+	return "/helix/moderation/chat?broadcaster_id=" + url.QueryEscape(broadcasterID) +
+		"&moderator_id=" + url.QueryEscape(moderatorID) +
+		"&message_id=" + url.QueryEscape(msgID)
+}
+
+// processWarn issues a Helix chat warning as the bot moderator: the chatter must
+// acknowledge it before chatting again. broadcaster_id and moderator_id ride the
+// query string; the body carries {"data":{"user_id","reason"}} built by the
+// producer. Pays the general Helix budget like processBan.
+func (w *Worker) processWarn(ctx context.Context, payload outgress.Message) error {
+	mod := payload.SenderID
+	if mod == "" {
+		mod = w.botID
+	}
+	if mod == "" {
+		w.log.Error("dropping warn: no bot moderator id configured",
+			zap.String("broadcaster_id", payload.BroadcasterID))
+		return nil
+	}
+
+	if err := w.takeGeneralHelix(ctx); err != nil {
+		return err
+	}
+
+	payload.As = outgress.AsBot
+	payload.Method = http.MethodPost
+	payload.Endpoint = "/helix/moderation/warnings?broadcaster_id=" +
 		url.QueryEscape(payload.BroadcasterID) + "&moderator_id=" + url.QueryEscape(mod)
 
 	return w.execute(ctx, payload)
