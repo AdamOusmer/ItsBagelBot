@@ -12,8 +12,6 @@ import (
 	"fmt"
 	"net/mail"
 	"strings"
-
-	"ItsBagelBot/internal/moderation"
 )
 
 const (
@@ -178,11 +176,18 @@ func CommandResponse(response string) error {
 	return FloorClean(response)
 }
 
+// CheckFloor is an injectable hook for moderation filtering.
+// If set, it returns the matched term and true if the text hits the immovable floor.
+var CheckFloor func(text string) (term string, hit bool)
+
 // FloorClean rejects text carrying immovable-floor content. Matching runs over
 // the normalized skeleton, so leet and lookalike-letter obfuscation folds onto
 // the plain spelling.
 func FloorClean(text string) error {
-	if term, hit := moderation.CheckFloor(text); hit {
+	if CheckFloor == nil {
+		return nil
+	}
+	if term, hit := CheckFloor(text); hit {
 		return fmt.Errorf("%w: %q", ErrContentFloor, term)
 	}
 	return nil
