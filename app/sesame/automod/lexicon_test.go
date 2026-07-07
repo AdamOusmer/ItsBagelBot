@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"ItsBagelBot/app/sesame/module"
+	"ItsBagelBot/internal/moderation"
 )
 
 // A slur from the embedded floor list, written out only via obfuscation in the
@@ -15,10 +16,10 @@ import (
 func floorTerm(t *testing.T) string {
 	t.Helper()
 	l := EmbeddedLexicon()
-	if len(l.terms[lexHate]) == 0 {
+	if len(l.Terms(moderation.CatHate)) == 0 {
 		t.Fatal("embedded hate list is empty")
 	}
-	return l.terms[lexHate][0]
+	return l.Terms(moderation.CatHate)[0]
 }
 
 func TestLexiconHateFloorImmovable(t *testing.T) {

@@ -9,6 +9,7 @@ import (
 	"ItsBagelBot/app/sesame/module"
 	"ItsBagelBot/internal/domain/event/lane"
 	"ItsBagelBot/internal/domain/outgress"
+	"ItsBagelBot/internal/moderation"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 
@@ -199,6 +200,18 @@ func (p *Pipeline) Process(msg *message.Message) (err error) {
 	emit := func(o *module.Output) {
 		if emitErr != nil || o == nil || o.Type == "" {
 			return
+		}
+		// Send-time floor guard: the bot must never SAY floor content, no matter
+		// what a runtime variable ({args}, {touser}, an API result) injected into
+		// a saved-clean template. Save-time validation covers the template; this
+		// covers the expansion. Only outbound text carriers pay the check.
+		if o.Text != "" && (o.Type == outgress.TypeChat || o.Type == outgress.TypeAnnounce) {
+			if term, hit := moderation.CheckFloor(o.Text); hit {
+				p.log.Warn("suppressed outgoing message carrying floor content",
+					zap.String("term", term),
+					zap.String("broadcaster_id", o.BroadcasterID))
+				return
+			}
 		}
 		subject := p.outgressStandard
 		if regress.IsPremium() {

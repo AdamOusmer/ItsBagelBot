@@ -1,6 +1,10 @@
 package automod
 
-import "unicode"
+import (
+	"unicode"
+
+	"ItsBagelBot/internal/moderation"
+)
 
 // signals are the cheap, allocation-free measures taken in a single pass over the
 // raw message. The clean-path check uses them to bail before the costly skeleton
@@ -62,7 +66,7 @@ func scan(text string) signals {
 			if unicode.IsUpper(r) {
 				s.upper++
 			}
-		case isInvisible(r):
+		case moderation.IsInvisible(r):
 			s.zeroWidth++
 		case !unicode.IsSpace(r) && !unicode.IsDigit(r):
 			s.symbols++

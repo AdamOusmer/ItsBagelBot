@@ -189,7 +189,7 @@ export interface DashboardLink {
 // module that owns !ping/!itsbagelbot and the bagel greeting) are deliberately
 // NOT listed here: they are always on and never shown.
 
-export type ModuleFieldType = 'text' | 'textarea' | 'number' | 'toggle';
+export type ModuleFieldType = 'text' | 'textarea' | 'number' | 'select' | 'toggle';
 
 export interface ModuleField {
   // key is the JSON property written into the module's Configs blob.
@@ -198,6 +198,28 @@ export interface ModuleField {
   type: ModuleFieldType;
   placeholder?: string;
   help?: string;
+  // options drive a 'select' field.
+  options?: { value: string; label: string }[];
+  // followsLevel marks a 'toggle' whose unset state follows the module's
+  // "level" select (see automodToggleDefault): the blob only stores an
+  // explicit "on"/"off" once the user flips it.
+  followsLevel?: boolean;
+}
+
+// Mirrors levelSections in app/sesame/automod/config.go: which automod sections
+// each level preset enables. Renders the resting state of a follows-level
+// toggle; the authoritative resolution happens in Go.
+export const AUTOMOD_LEVEL_DEFAULTS: Record<string, Record<string, boolean>> = {
+  none: { harassment: false, sexual: false, profanity: false, style: false, links: false },
+  basic: { harassment: true, sexual: false, profanity: false, style: false, links: false },
+  moderate: { harassment: true, sexual: true, profanity: false, style: true, links: true },
+  strict: { harassment: true, sexual: true, profanity: true, style: true, links: true }
+};
+
+// automodToggleDefault resolves a follows-level toggle's resting state for the
+// currently selected level.
+export function automodToggleDefault(level: string, key: string): boolean {
+  return (AUTOMOD_LEVEL_DEFAULTS[level] ?? AUTOMOD_LEVEL_DEFAULTS.moderate)[key] ?? false;
 }
 
 // One chat line a module can post, rendered as a row on the module page. Clicking
@@ -290,16 +312,59 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
     label: 'AutoMod',
     tagline: 'Catch scams, IP-grabbers and raid spam before your mods do.',
     description:
-      'The bot screens every chat line for objectively harmful content (IP-logger links, scam bait, obfuscated spam) and coordinated raid floods, and times out or bans the sender. Trusted chatters (VIPs, mods, subscribers of rank) are always exempt, and anything borderline is left to your human mods. The safety floor (IP-grabbers and scams) is always enforced; the profile below only tunes how picky the style checks (caps, symbol spam) are.',
+      'The bot screens every chat line for harmful content and coordinated raid floods, and warns, deletes, times out or bans the sender. Trusted chatters (VIPs, mods, the broadcaster) are always exempt, and anything borderline is left to your human mods. Pick a level from None to All, then fine-tune each check below. The safety floor (hate slurs and IP-grabber links) is always enforced, on every level and even with the module off: hosting those risks your channel and the bot account platform-wide. Everything else is your call.',
     icon: 'moderation',
     defaultEnabled: true,
-    fields: [
+    // AutoMod is pure configuration: no chat reply lines, only the settings strip.
+    replies: [],
+    settings: [
       {
-        key: 'profile',
-        label: 'Content profile',
-        type: 'text',
+        key: 'level',
+        label: 'Enforcement level',
+        type: 'select',
         placeholder: 'moderate',
-        help: 'One of: pg (strict, family), moderate (default), adult (18+, style checks off). The safety floor applies to all profiles.'
+        options: [
+          { value: 'none', label: 'None - safety floor only' },
+          { value: 'basic', label: 'Basic - floor + harassment' },
+          { value: 'moderate', label: 'Moderate - recommended (default)' },
+          { value: 'strict', label: 'All - every check, family-strict' }
+        ],
+        help: 'Sets the default for every check below. The safety floor applies at every level.'
+      },
+      {
+        key: 'harassment',
+        label: 'Harassment',
+        type: 'toggle',
+        followsLevel: true,
+        help: 'Directed harm ("kys" and friends): warns the sender and removes the message; repeat offenders are timed out, then banned.'
+      },
+      {
+        key: 'sexual',
+        label: 'Sexual content',
+        type: 'toggle',
+        followsLevel: true,
+        help: 'Removes messages with explicit sexual terms.'
+      },
+      {
+        key: 'profanity',
+        label: 'Profanity',
+        type: 'toggle',
+        followsLevel: true,
+        help: 'Removes plain swearing. Off by default: most channels allow it.'
+      },
+      {
+        key: 'style',
+        label: 'Caps & symbol spam',
+        type: 'toggle',
+        followsLevel: true,
+        help: 'Removes shouting, symbol walls and character floods. Emote walls (KEKW spam) are recognized and never flagged.'
+      },
+      {
+        key: 'links',
+        label: 'Link-spam radar',
+        type: 'toggle',
+        followsLevel: true,
+        help: 'Watches for the same link template posted by many different accounts and removes the wave. Single links are never touched.'
       },
       {
         key: 'block_terms',
@@ -313,7 +378,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
         label: 'Allowed terms',
         type: 'textarea',
         placeholder: '',
-        help: 'Words that are fine in your channel: a line containing one is never flagged by the style checks or your blocked terms. Cannot override the safety floor.'
+        help: 'Words that are fine in your channel: a line containing one is never flagged by the checks above or your blocked terms. Cannot override the safety floor.'
       }
     ]
   },

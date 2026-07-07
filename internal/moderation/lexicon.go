@@ -1,4 +1,4 @@
-package automod
+package moderation
 
 import (
 	"bufio"
@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 // The lexicon juror: categorized word lists matched word-bounded over the
@@ -25,27 +26,27 @@ import (
 //go:embed artifact/*.txt
 var embeddedLexicon embed.FS
 
-// lexCat identifies a lexicon category. Order is severity: the scan returns the
+// Category identifies a lexicon category. Order is severity: the scan returns the
 // first category with a hit, checked in this order.
-type lexCat uint8
+type Category uint8
 
 const (
-	lexNone lexCat = iota
-	lexHate
-	lexHarassment
-	lexSexual
-	lexProfanity
+	CatNone Category = iota
+	CatHate
+	CatHarassment
+	CatSexual
+	CatProfanity
 )
 
-func (c lexCat) String() string {
+func (c Category) String() string {
 	switch c {
-	case lexHate:
+	case CatHate:
 		return "hate"
-	case lexHarassment:
+	case CatHarassment:
 		return "harassment"
-	case lexSexual:
+	case CatSexual:
 		return "sexual"
-	case lexProfanity:
+	case CatProfanity:
 		return "profanity"
 	default:
 		return "none"
@@ -55,19 +56,19 @@ func (c lexCat) String() string {
 // lexFiles maps a category to its artifact filename (both embedded and in an
 // override directory).
 var lexFiles = []struct {
-	cat  lexCat
+	cat  Category
 	file string
 }{
-	{lexHate, "hate.txt"},
-	{lexHarassment, "harassment.txt"},
-	{lexSexual, "sexual.txt"},
-	{lexProfanity, "profanity.txt"},
+	{CatHate, "hate.txt"},
+	{CatHarassment, "harassment.txt"},
+	{CatSexual, "sexual.txt"},
+	{CatProfanity, "profanity.txt"},
 }
 
 // Lexicon is an immutable compiled set of category matchers. Built once per
 // load and swapped in whole (Gate.SetLexicon), so matching needs no lock.
 type Lexicon struct {
-	cats  [5]*matcher // indexed by lexCat; nil = empty category
+	cats  [5]*matcher // indexed by Category; nil = empty category
 	terms [5][]string // the raw terms per category, for rule reporting
 }
 
@@ -75,12 +76,12 @@ type Lexicon struct {
 // space-padded skeleton, plus the term itself for the audit rule. floorOnly
 // restricts the scan to the hate floor (used for reliably non-latin text, where
 // the word-list categories are meaningless English).
-func (l *Lexicon) scan(padded []byte, floorOnly bool) (lexCat, string) {
+func (l *Lexicon) Scan(padded []byte, floorOnly bool) (Category, string) {
 	if l == nil {
-		return lexNone, ""
+		return CatNone, ""
 	}
 	for _, spec := range lexFiles {
-		if floorOnly && spec.cat != lexHate {
+		if floorOnly && spec.cat != CatHate {
 			break // lexFiles is severity-ordered; hate comes first
 		}
 		m := l.cats[spec.cat]
@@ -91,7 +92,7 @@ func (l *Lexicon) scan(padded []byte, floorOnly bool) (lexCat, string) {
 			return spec.cat, l.terms[spec.cat][i]
 		}
 	}
-	return lexNone, ""
+	return CatNone, ""
 }
 
 // FloorPrescan reports whether raw text contains a hate-floor term under the
@@ -103,13 +104,13 @@ func (l *Lexicon) FloorPrescan(text string) bool {
 	if l == nil {
 		return false
 	}
-	m := l.cats[lexHate]
+	m := l.cats[CatHate]
 	return m != nil && m.findFolded(text)
 }
 
 // newLexicon compiles per-category term lists into matchers. Terms are
 // normalized into skeleton space and space-padded for word-bounded matching.
-func newLexicon(byCat map[lexCat][]string) *Lexicon {
+func newLexicon(byCat map[Category][]string) *Lexicon {
 	l := &Lexicon{}
 	for cat, terms := range byCat {
 		patterns := make([][]byte, 0, len(terms))
@@ -149,9 +150,11 @@ func parseTerms(data []byte) []string {
 	return out
 }
 
-// EmbeddedLexicon compiles the starter artifact shipped in the binary.
-func EmbeddedLexicon() *Lexicon {
-	byCat := make(map[lexCat][]string, len(lexFiles))
+// EmbeddedLexicon returns the compiled starter artifact shipped in the binary.
+// Compiled once (a Lexicon is immutable, so sharing is safe); CheckFloor runs on
+// every dashboard save and must not rebuild the automaton each time.
+var EmbeddedLexicon = sync.OnceValue(func() *Lexicon {
+	byCat := make(map[Category][]string, len(lexFiles))
 	for _, spec := range lexFiles {
 		data, err := embeddedLexicon.ReadFile("artifact/" + spec.file)
 		if err != nil {
@@ -160,7 +163,7 @@ func EmbeddedLexicon() *Lexicon {
 		byCat[spec.cat] = parseTerms(data)
 	}
 	return newLexicon(byCat)
-}
+})
 
 // LoadLexiconDir compiles a lexicon from override files in dir. A category
 // file absent from the directory falls back to the embedded starter for that
@@ -170,7 +173,7 @@ func LoadLexiconDir(dir string) (*Lexicon, error) {
 	if _, err := os.Stat(dir); err != nil {
 		return nil, fmt.Errorf("lexicon dir: %w", err)
 	}
-	byCat := make(map[lexCat][]string, len(lexFiles))
+	byCat := make(map[Category][]string, len(lexFiles))
 	for _, spec := range lexFiles {
 		if data, err := os.ReadFile(filepath.Join(dir, spec.file)); err == nil {
 			byCat[spec.cat] = parseTerms(data)

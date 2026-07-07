@@ -34,15 +34,25 @@ func configPipeline(pub *fakePublisher, reader projection.Reader) *Pipeline {
 	return NewPipeline(d, NewRegistry(zap.NewNop(), automodTestModule()), cfg)
 }
 
-// A broadcaster who disabled the automod module opts the gate out end-to-end: an
-// IP-logger line that would otherwise be a floor timeout produces no action.
-func TestAutomodModuleDisabledSuppressesFloor(t *testing.T) {
+// A broadcaster who disables the automod module gets floor-only mode, NOT a
+// full opt-out: the immovable floor (IP-loggers, hate) still acts, because
+// hosting it risks the channel and the bot account platform-wide. Everything
+// non-floor (here, a caps heuristic) goes quiet.
+func TestAutomodModuleDisabledKeepsFloorOnly(t *testing.T) {
 	reader := fakeReader{modules: []projection.ModuleView{{Name: "automod", IsEnabled: false}}}
+
+	// Floor line still actions.
 	pub := &fakePublisher{}
 	p := configPipeline(pub, reader)
-
 	require.NoError(t, p.Process(ipLoggerChat(t)))
-	assert.Empty(t, pub.got, "a channel that disabled the automod module takes no action")
+	require.Len(t, pub.got, 1, "the floor holds even for a disabled module row")
+	assert.Equal(t, outgress.TypeTimeout, pub.got[0].msg.Type)
+
+	// Non-floor (caps shouting) is silent for the disabled channel.
+	pub2 := &fakePublisher{}
+	p2 := configPipeline(pub2, reader)
+	require.NoError(t, p2.Process(chatMsg(t, "standard", "STOP SCREAMING IN CHAT RIGHT NOW PLEASE")))
+	assert.Empty(t, pub2.got, "non-floor checks are off for a disabled module row")
 }
 
 // No row for the channel = KindDefault ships enabled: the gate runs the global

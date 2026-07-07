@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 
 	"ItsBagelBot/app/sesame/module"
+	"ItsBagelBot/internal/moderation"
 )
 
 const (
@@ -23,7 +24,7 @@ type Gate struct {
 	cats    []category
 	buf     sync.Pool
 	emotes  atomic.Pointer[EmoteSet]
-	lexicon atomic.Pointer[Lexicon]
+	lexicon atomic.Pointer[moderation.Lexicon]
 }
 
 // New builds a Gate with the default curated blocklists and the embedded
@@ -33,7 +34,7 @@ func New() *Gate {
 		cats: defaultCategories(),
 		buf:  sync.Pool{New: func() any { b := make([]byte, 0, 256); return &b }},
 	}
-	g.lexicon.Store(EmbeddedLexicon())
+	g.lexicon.Store(moderation.EmbeddedLexicon())
 	return g
 }
 
@@ -44,9 +45,9 @@ func (g *Gate) SetEmotes(set *EmoteSet) { g.emotes.Store(set) }
 
 // SetLexicon swaps in a lexicon (the reloader calls it when the override
 // directory changes). nil restores the embedded starter.
-func (g *Gate) SetLexicon(l *Lexicon) {
+func (g *Gate) SetLexicon(l *moderation.Lexicon) {
 	if l == nil {
-		l = EmbeddedLexicon()
+		l = moderation.EmbeddedLexicon()
 	}
 	g.lexicon.Store(l)
 }
@@ -97,23 +98,25 @@ func (g *Gate) Assess(role module.Role, text string, cfg *Config) (Verdict, Sign
 	if role >= module.RoleVIP {
 		return Verdict{}, Signals{}
 	}
-	// A channel that opted the gate out entirely: human mods take the whole load.
-	if cfg.disabled() {
-		return Verdict{}, Signals{}
-	}
 
-	capsThresh, capsOn, symbolOn := profileHeuristics(cfg.profile())
+	// The channel's effective sections: the level preset (none -> all) with the
+	// per-section toggles applied. A disabled module row resolves to floor-only,
+	// never to "everything off" - the floor is what keeps the account safe.
+	sec := cfg.resolved()
 
 	sig := scan(text)
+	// Zero-width injection is an evasion signal, not a style preference: it is
+	// checked under every level. Caps/symbol/repeat are the toggleable style
+	// section.
 	zeroWidth := sig.zeroWidth > 0
-	repeat := sig.maxRepeat >= repeatRun
-	caps := capsOn && sig.runes >= capsMinLen && sig.capsRatio() >= capsThresh
-	symbol := symbolOn && sig.symbolRatio() >= symbolRatioHi
+	repeat := sec.style && sig.maxRepeat >= repeatRun
+	caps := sec.style && sig.runes >= capsMinLen && sig.capsRatio() >= sec.capsThresh
+	symbol := sec.style && sig.symbolRatio() >= symbolRatioHi
 	heuristic := zeroWidth || repeat || caps || symbol
 
 	// A channel block-term needs the skeleton, so its presence forces the deep
 	// path even for an otherwise-clean short line.
-	hasBlockTerms := cfg != nil && len(cfg.blockTerms) > 0
+	hasBlockTerms := cfg.hasBlockTerms()
 
 	// Clean-path bail: a short ascii line with no heuristic and no channel
 	// block-terms never allocates (preserves the zero-alloc hot path when no
@@ -128,11 +131,12 @@ func (g *Gate) Assess(role module.Role, text string, cfg *Config) (Verdict, Sign
 
 	// Deep path: normalize into a pooled buffer, then scan over the skeleton.
 	pb := g.buf.Get().(*[]byte)
-	skel := Normalize(*pb, text)
+	skel := moderation.Normalize(*pb, text)
 	*pb = skel
 	defer g.buf.Put(pb)
 
-	out := Signals{Deep: true, Linkish: linkish(skel), SimHash: simHash(skel)}
+	// The links toggle gates the campaign juror's counting signal.
+	out := Signals{Deep: true, Linkish: sec.links && linkish(skel), SimHash: simHash(skel)}
 
 	// Immovable floor, part 1: abusive infrastructure (IP-logger domains, scam
 	// bait). Substring semantics: a domain hits inside any URL shape. Enforced
@@ -162,11 +166,11 @@ func (g *Gate) Assess(role module.Role, text string, cfg *Config) (Verdict, Sign
 	padded = append(padded, ' ')
 	padded = append(padded, skel...)
 	padded = append(padded, ' ')
-	cat, term := g.lexicon.Load().scan(padded, floorOnly)
+	cat, term := g.lexicon.Load().Scan(padded, floorOnly)
 
 	// Immovable floor, part 2: the hate lexicon acts under every profile and is
 	// never suppressed by an allow-term.
-	if cat == lexHate {
+	if cat == moderation.CatHate {
 		return Verdict{Action: ActionTimeout, Seconds: 1800, Rule: "lex:hate:" + term}, out
 	}
 
@@ -175,7 +179,7 @@ func (g *Gate) Assess(role module.Role, text string, cfg *Config) (Verdict, Sign
 	allowed := cfg.allows(skel)
 
 	if !allowed {
-		if v, ok := lexVerdict(cat, term, cfg.profile()); ok {
+		if v, ok := lexVerdict(cat, term, sec); ok {
 			return v, out
 		}
 		if hasBlockTerms {
@@ -202,21 +206,22 @@ func (g *Gate) Assess(role module.Role, text string, cfg *Config) (Verdict, Sign
 	return Verdict{}, out
 }
 
-// lexVerdict maps a non-floor lexicon category to its action under a profile.
-// Harassment warns (the engine pairs the warn with a message delete; reputation
-// escalates repeats). Sexual content is deleted for pg and moderate channels;
-// plain profanity only for pg. ok=false means the category carries no action
-// under this profile.
-func lexVerdict(cat lexCat, term string, p Profile) (Verdict, bool) {
+// lexVerdict maps a non-floor lexicon category to its action under the resolved
+// sections. Harassment warns (the engine pairs the warn with a message delete;
+// reputation escalates repeats); sexual and profanity delete. ok=false means the
+// category's section is off for this channel.
+func lexVerdict(cat moderation.Category, term string, sec sections) (Verdict, bool) {
 	switch cat {
-	case lexHarassment:
-		return Verdict{Action: ActionWarn, Rule: "lex:harassment:" + term}, true
-	case lexSexual:
-		if p != ProfileAdult {
+	case moderation.CatHarassment:
+		if sec.harassment {
+			return Verdict{Action: ActionWarn, Rule: "lex:harassment:" + term}, true
+		}
+	case moderation.CatSexual:
+		if sec.sexual {
 			return Verdict{Action: ActionDelete, Rule: "lex:sexual:" + term}, true
 		}
-	case lexProfanity:
-		if p == ProfilePG {
+	case moderation.CatProfanity:
+		if sec.profanity {
 			return Verdict{Action: ActionDelete, Rule: "lex:profanity:" + term}, true
 		}
 	}

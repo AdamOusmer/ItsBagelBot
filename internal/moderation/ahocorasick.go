@@ -1,4 +1,4 @@
-package automod
+package moderation
 
 // A compact Aho-Corasick matcher: one pass over the text finds whether any of a
 // set of byte patterns occurs, replacing the per-term bytes.Contains loop once a
