@@ -6,6 +6,7 @@ package providers
 import (
 	"ItsBagelBot/app/gateway/internal/config"
 	"ItsBagelBot/app/gateway/internal/provider"
+	"ItsBagelBot/app/gateway/internal/providers/govee"
 	"ItsBagelBot/app/gateway/internal/providers/hypixel"
 	"ItsBagelBot/app/gateway/internal/providers/mcsr"
 	"ItsBagelBot/app/gateway/internal/providers/urchin"
@@ -53,6 +54,19 @@ func All(cfg *config.Config, d provider.Deps) []provider.Provider {
 		}, d))
 	} else {
 		log.Warn("mcsr provider disabled: MCSR_ENABLED=false")
+	}
+
+	// The govee provider needs no service key — each broadcaster brings their
+	// own — but it does need the key resolver to fetch them. Without it (the
+	// modules internal key RPC unwired) there is nothing to authenticate with,
+	// so it is skipped like any credential-less provider.
+	if d.GoveeKeys != nil {
+		out = append(out, govee.New(govee.Config{
+			BaseURL:   cfg.GoveeBaseURL,
+			RateLimit: cfg.GoveeRateLimit,
+		}, d))
+	} else {
+		log.Warn("govee provider disabled: no key resolver (modules govee RPC unwired)")
 	}
 
 	return out

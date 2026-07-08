@@ -20,11 +20,28 @@ type Request struct {
 	Account string `json:"account"`
 	// ChannelID scopes session-stateful endpoints (mcsr session snapshots) to
 	// one broadcaster, so two channels tracking the same player never share a
-	// stream session.
+	// stream session. The govee provider also reads it as the broadcaster whose
+	// stored (encrypted) Govee API key the call authenticates with.
 	ChannelID string `json:"channel_id,omitempty"`
 	// IsPremium indicates whether the caller is on the premium lane, enabling
 	// the provider to consume from the reserved premium rate limit bucket.
 	IsPremium bool `json:"is_premium,omitempty"`
+
+	// --- govee (per-broadcaster smart-light control) ------------------------
+	// The govee provider authenticates with the broadcaster's own stored key
+	// (resolved from ChannelID), so these carry only which device to act on and
+	// the colour to set. Zero on every non-govee request.
+
+	// Device is the Govee device id (its MAC-style address) govee.control acts
+	// on; empty on govee.devices (which lists them).
+	Device string `json:"device,omitempty"`
+	// SKU is the device model (e.g. "H6159") the Govee control payload pairs
+	// with Device.
+	SKU string `json:"sku,omitempty"`
+	// ColorRGB is the packed 24-bit colour (r<<16|g<<8|b) govee.control sets.
+	// Range 0..0xFFFFFF; the caller rejects an unparseable colour before the
+	// call, so 0 (sent as omitted) only reaches control as a deliberate black.
+	ColorRGB int `json:"color_rgb,omitempty"`
 }
 
 // Subject builds the NATS subject for one provider endpoint under prefix.
@@ -134,6 +151,37 @@ type McsrSnapshotReply struct {
 	Nickname string `json:"nickname"`
 	Elo      int    `json:"elo"`
 	Error    string `json:"error,omitempty"`
+}
+
+// --- govee (smart-light control over the broadcaster's own key) -------------
+
+// GoveeDevice is one controllable device on a broadcaster's Govee account, as
+// govee.devices lists it for the dashboard's device picker.
+type GoveeDevice struct {
+	// Device is the device id (MAC-style address) control calls target.
+	Device string `json:"device"`
+	// SKU is the model code paired with Device in a control payload.
+	SKU string `json:"sku"`
+	// Name is the user-facing device name set in the Govee app.
+	Name string `json:"name"`
+	// Color reports whether the device advertises the RGB colour capability, so
+	// the picker can hide lights the color reward could never drive.
+	Color bool `json:"color"`
+}
+
+// GoveeDevicesReply is the answer to govee.devices: the broadcaster's
+// controllable devices. A missing/invalid key surfaces as Error so the
+// dashboard can prompt the broadcaster to re-enter it.
+type GoveeDevicesReply struct {
+	Devices []GoveeDevice `json:"devices"`
+	Error   string        `json:"error,omitempty"`
+}
+
+// GoveeControlReply is the answer to govee.control: it acknowledges that the
+// device was powered on and set to the requested colour, or reports why not.
+type GoveeControlReply struct {
+	OK    bool   `json:"ok"`
+	Error string `json:"error,omitempty"`
 }
 
 // McsrSessionReply is the answer to mcsr.session: the change in a player's

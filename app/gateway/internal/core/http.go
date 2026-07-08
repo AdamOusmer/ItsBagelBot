@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -53,18 +54,50 @@ func NewHTTPClient(base string, headers map[string]string, timeout time.Duration
 // status returns an *UpstreamError carrying the upstream's own error message
 // when it sent one.
 func (c *HTTPClient) GetJSON(ctx context.Context, path string, query url.Values, out any) error {
+	return c.GetJSONWithHeaders(ctx, path, query, nil, out)
+}
+
+// GetJSONWithHeaders is GetJSON with per-request headers merged over the
+// client's fixed set. Providers whose credential is per-caller rather than
+// per-service (govee, where each broadcaster brings their own API key)
+// construct the client with no baked auth header and pass it here instead.
+func (c *HTTPClient) GetJSONWithHeaders(ctx context.Context, path string, query url.Values, headers map[string]string, out any) error {
 	u := c.base + path
 	if len(query) > 0 {
 		u += "?" + query.Encode()
 	}
+	return c.do(ctx, http.MethodGet, u, headers, nil, out)
+}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+// PostJSON sends body as a JSON POST to base+path with per-request headers
+// merged over the client's fixed set, and decodes the reply into out.
+func (c *HTTPClient) PostJSON(ctx context.Context, path string, headers map[string]string, body []byte, out any) error {
+	return c.do(ctx, http.MethodPost, c.base+path, headers, body, out)
+}
+
+// do performs one request/response cycle: it attaches the standard headers,
+// the client's fixed headers, then the per-request headers, reads a bounded
+// body, maps a non-2xx to an *UpstreamError (carrying the upstream's own error
+// text when present), and otherwise decodes the body into out.
+func (c *HTTPClient) do(ctx context.Context, method, url string, headers map[string]string, body []byte, out any) error {
+	var reqBody io.Reader
+	if body != nil {
+		reqBody = bytes.NewReader(body)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, url, reqBody)
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", "ItsBagelBot-gateway/1.0")
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
 	for k, v := range c.headers {
+		req.Header.Set(k, v)
+	}
+	for k, v := range headers {
 		req.Header.Set(k, v)
 	}
 
@@ -74,18 +107,23 @@ func (c *HTTPClient) GetJSON(ctx context.Context, path string, query url.Values,
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBody))
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, maxBody))
 	if err != nil {
 		return err
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		var envelope struct {
-			Error string `json:"error"`
+			Error   string `json:"error"`
+			Message string `json:"message"`
 		}
-		_ = json.Unmarshal(body, &envelope)
-		return &UpstreamError{Status: resp.StatusCode, Message: envelope.Error}
+		_ = json.Unmarshal(respBody, &envelope)
+		msg := envelope.Error
+		if msg == "" {
+			msg = envelope.Message // Govee reports failures in "message", not "error"
+		}
+		return &UpstreamError{Status: resp.StatusCode, Message: msg}
 	}
 
-	return json.Unmarshal(body, out)
+	return json.Unmarshal(respBody, out)
 }

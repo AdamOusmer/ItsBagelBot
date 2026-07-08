@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"os/signal"
 	"syscall"
@@ -17,6 +18,7 @@ import (
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/internal/moderation"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/crypto"
 	"ItsBagelBot/pkg/db"
 	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/health"
@@ -81,6 +83,13 @@ func main() {
 	repo := repository.NewModules(client, pub, nrApp, log)
 	defer repo.Close(context.Background()) // flushes pending writes on shutdown
 
+	// Govee API-key custody is optional: with no keyset provisioned the store
+	// stays nil, its RPCs go unsubscribed, and the govee feature degrades to
+	// "not set up" instead of crash-looping this core service. Once
+	// TINK_KEYSET_PATH is mounted, keys seal with the modules service's own
+	// keyset (distinct from the users service's).
+	goveeCreds := loadGoveeCreds(client, log)
+
 	nc, err := bus.Connect(rpcURL, serviceName)
 	if err != nil {
 		log.Fatal("failed to connect to nats", zap.Error(err))
@@ -139,6 +148,14 @@ func main() {
 			return err
 		}
 
+		// The govee key lives outside the module rows, so it must be swept
+		// separately; a missing key is a no-op.
+		if goveeCreds != nil {
+			if err := goveeCreds.ClearKey(msg.Context(), dto.UserID); err != nil {
+				log.Warn("modules: failed to clear govee key on user delete", zap.Uint64("user_id", dto.UserID), zap.Error(err))
+			}
+		}
+
 		log.Info("modules: deleted all for user", zap.Uint64("user_id", dto.UserID))
 		return nil
 	}, log); err != nil {
@@ -157,6 +174,17 @@ func main() {
 		log.Fatal("failed to subscribe dashboard rpc", zap.Error(err))
 	}
 
+	// Govee key custody: dashboard set/clear/status plus the gateway-only
+	// internal decrypt verb. Only wired when a keyset is on hand.
+	if goveeCreds != nil {
+		goveeDashPrefix := env.Get("NATS_MODULES_GOVEE_SUBJECT_PREFIX", "bagel.rpc.modules.govee")
+		goveeInternalPrefix := env.Get("NATS_INTERNAL_GOVEE_KEY_SUBJECT_PREFIX", "bagel.rpc.internal.govee.key")
+		if err := rpc.SubscribeGovee(nc, goveeCreds, goveeDashPrefix, goveeInternalPrefix, "modules-rpc", nrApp, log); err != nil {
+			log.Fatal("failed to subscribe govee rpc", zap.Error(err))
+		}
+		log.Info("govee key custody enabled", zap.String("dashboard_prefix", goveeDashPrefix))
+	}
+
 	health.Serve(env.Get("LISTEN_ADDR", ":8080"), nc.IsConnected)
 
 	log.Info("modules service ready", zap.String("projection_subject", projectionSubject))
@@ -164,4 +192,31 @@ func main() {
 	<-ctx.Done()
 
 	log.Info("modules service shutting down")
+}
+
+// loadGoveeCreds builds the Govee key custody store from the service's Tink
+// keyset. It is best-effort so a core service never crash-loops on a secret
+// that may not be provisioned yet: an unset TINK_KEYSET_PATH, or a path whose
+// file is not present (the manifest mounts the keyset as an optional secret),
+// disables the feature and returns nil. Only a present-but-invalid keyset is
+// fatal, since that is a real misconfiguration rather than "feature off".
+func loadGoveeCreds(client *ent.Client, log *zap.Logger) *repository.GoveeCreds {
+	path := env.Get("TINK_KEYSET_PATH", "")
+	if path == "" {
+		log.Warn("govee key custody disabled: TINK_KEYSET_PATH not set")
+		return nil
+	}
+	keysetJSON, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		log.Warn("govee key custody disabled: keyset not provisioned yet", zap.String("path", path))
+		return nil
+	}
+	if err != nil {
+		log.Fatal("failed to read tink keyset", zap.Error(err))
+	}
+	packer, err := crypto.NewCrypto(keysetJSON)
+	if err != nil {
+		log.Fatal("failed to initialize crypto", zap.Error(err))
+	}
+	return repository.NewGoveeCreds(client, packer)
 }

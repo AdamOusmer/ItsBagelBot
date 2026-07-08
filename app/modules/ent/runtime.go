@@ -3,6 +3,7 @@
 package ent
 
 import (
+	"ItsBagelBot/app/modules/ent/goveecredential"
 	"ItsBagelBot/app/modules/ent/modules"
 	"ItsBagelBot/app/modules/ent/schema"
 	"time"
@@ -12,6 +13,14 @@ import (
 // (default values, validators, hooks and policies) and stitches it
 // to their package variables.
 func init() {
+	goveecredentialFields := schema.GoveeCredential{}.Fields()
+	_ = goveecredentialFields
+	// goveecredentialDescUpdatedAt is the schema descriptor for updated_at field.
+	goveecredentialDescUpdatedAt := goveecredentialFields[2].Descriptor()
+	// goveecredential.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	goveecredential.DefaultUpdatedAt = goveecredentialDescUpdatedAt.Default.(func() time.Time)
+	// goveecredential.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	goveecredential.UpdateDefaultUpdatedAt = goveecredentialDescUpdatedAt.UpdateDefault.(func() time.Time)
 	modulesFields := schema.Modules{}.Fields()
 	_ = modulesFields
 	// modulesDescName is the schema descriptor for name field.

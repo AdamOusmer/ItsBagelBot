@@ -9,7 +9,7 @@ const sections = [
     { id: 'data-not-collected', heading: 'Renseignements non recueillis', plain: 'Aucun profil de navigation personnel, aucune donnée publicitaire et aucun suivi par adresse IP de notre part.' },
     { id: 'cookies', heading: 'Cloudflare, témoins et analytique', plain: 'Cloudflare héberge, protège et achemine le service. L’analytique est sans témoin; des témoins de sécurité peuvent être utilisés au besoin.' },
     { id: 'data-use', heading: 'Utilisation et fondements juridiques', plain: 'Nous utilisons les renseignements pour fournir et sécuriser le service. Nous ne les vendons ni ne les louons.' },
-    { id: 'payment-processing', heading: 'Services tiers', plain: 'Tebex traite les paiements, Resend nos courriels automatisés, Zoho notre correspondance, et le soutien passe aussi par Discord.' },
+    { id: 'payment-processing', heading: 'Services tiers', plain: 'Tebex traite les paiements, Resend nos courriels automatisés, Zoho notre correspondance, le soutien passe aussi par Discord, et Govee alimente la fonction facultative de lumières connectées.' },
     { id: 'storage', heading: 'Stockage, conservation et transferts', plain: 'Le clavardage est traité en direct, sans être conservé. Les réglages restent chiffrés au Canada tant que votre compte existe.' },
     { id: 'children', heading: 'Vie privée des enfants', plain: 'Le service ne s’adresse pas aux enfants de moins de 13 ans et nous ne recueillons pas sciemment leurs renseignements.' },
     { id: 'rights', heading: 'Vos droits (RGPD, LPRPDE, Loi 25, CCPA)', plain: 'Vous pouvez demander l’accès, la rectification, la portabilité ou la suppression de vos renseignements. Les résidents de la Californie bénéficient aussi des droits prévus par la CCPA. Vous pouvez également porter plainte auprès d’un organisme de protection de la vie privée.' },
@@ -35,6 +35,7 @@ const sections = [
                 <li>les messages de clavardage traités en temps réel aux fins de modération, sans conservation permanente;</li>
                 <li>des données d’utilisation agrégées et anonymisées, sans renseignements personnels;</li>
                 <li>une adresse courriel de contact facultative, si vous choisissez de la fournir, utilisée pour les reçus d’achat, les avis de cadeau et les messages liés à votre compte. Elle est chiffrée au repos et n’est jamais utilisée à des fins de marketing sans votre consentement;</li>
+                <li>une clé d’API Govee facultative, uniquement si vous connectez la fonction Lumières Govee. Elle permet au robot d’allumer et de colorer vos propres lumières connectées lorsqu’un spectateur échange une récompense de points de chaîne. Elle est chiffrée au repos, déchiffrée uniquement sur nos serveurs pour envoyer des commandes à Govee, ne vous est jamais réaffichée, et est supprimée dès que vous la retirez ou désactivez l’intégration;</li>
                 <li>les données techniques de requête et de sécurité traitées par Cloudflare, comme l’adresse IP, les données d’acheminement, les renseignements sur le navigateur ou l’appareil, l’URL demandée et les événements de sécurité.</li>
             </ul>
         </Fragment>
@@ -82,6 +83,9 @@ const sections = [
             </p>
             <p>
                 Nous offrons également du soutien sur notre serveur Discord. Si vous nous y contactez, Discord Inc. traite les renseignements de votre compte Discord et vos messages conformément à la <a href="https://discord.com/privacy" target="_blank" rel="noopener noreferrer">politique de confidentialité de Discord</a>, sur laquelle nous n’exerçons aucun contrôle. Évitez de publier des renseignements sensibles dans les canaux publics.
+            </p>
+            <p>
+                Si vous activez la fonction Lumières Govee, vous fournissez une clé d’API Govee que nous conservons chiffrée et que nous utilisons uniquement pour contrôler vos propres appareils Govee. Lorsqu’un spectateur échange la récompense, nous envoyons une commande d’allumage et de couleur à l’API de Govee en votre nom, authentifiée avec votre clé. Govee traite ces requêtes conformément à sa propre politique de confidentialité. Votre clé ne vous est jamais réaffichée, et vous pouvez la retirer à tout moment depuis le tableau de bord, ce qui la supprime de nos systèmes.
             </p>
         </Fragment>
 

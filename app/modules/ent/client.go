@@ -11,6 +11,7 @@ import (
 
 	"ItsBagelBot/app/modules/ent/migrate"
 
+	"ItsBagelBot/app/modules/ent/goveecredential"
 	"ItsBagelBot/app/modules/ent/modules"
 
 	"entgo.io/ent"
@@ -23,6 +24,8 @@ type Client struct {
 	config
 	// Schema is the client for creating, migrating and dropping schema.
 	Schema *migrate.Schema
+	// GoveeCredential is the client for interacting with the GoveeCredential builders.
+	GoveeCredential *GoveeCredentialClient
 	// Modules is the client for interacting with the Modules builders.
 	Modules *ModulesClient
 }
@@ -36,6 +39,7 @@ func NewClient(opts ...Option) *Client {
 
 func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
+	c.GoveeCredential = NewGoveeCredentialClient(c.config)
 	c.Modules = NewModulesClient(c.config)
 }
 
@@ -127,9 +131,10 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	cfg := c.config
 	cfg.driver = tx
 	return &Tx{
-		ctx:     ctx,
-		config:  cfg,
-		Modules: NewModulesClient(cfg),
+		ctx:             ctx,
+		config:          cfg,
+		GoveeCredential: NewGoveeCredentialClient(cfg),
+		Modules:         NewModulesClient(cfg),
 	}, nil
 }
 
@@ -147,16 +152,17 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 	cfg := c.config
 	cfg.driver = &txDriver{tx: tx, drv: c.driver}
 	return &Tx{
-		ctx:     ctx,
-		config:  cfg,
-		Modules: NewModulesClient(cfg),
+		ctx:             ctx,
+		config:          cfg,
+		GoveeCredential: NewGoveeCredentialClient(cfg),
+		Modules:         NewModulesClient(cfg),
 	}, nil
 }
 
 // Debug returns a new debug-client. It's used to get verbose logging on specific operations.
 //
 //	client.Debug().
-//		Modules.
+//		GoveeCredential.
 //		Query().
 //		Count(ctx)
 func (c *Client) Debug() *Client {
@@ -178,22 +184,159 @@ func (c *Client) Close() error {
 // Use adds the mutation hooks to all the entity clients.
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
+	c.GoveeCredential.Use(hooks...)
 	c.Modules.Use(hooks...)
 }
 
 // Intercept adds the query interceptors to all the entity clients.
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
+	c.GoveeCredential.Intercept(interceptors...)
 	c.Modules.Intercept(interceptors...)
 }
 
 // Mutate implements the ent.Mutator interface.
 func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 	switch m := m.(type) {
+	case *GoveeCredentialMutation:
+		return c.GoveeCredential.mutate(ctx, m)
 	case *ModulesMutation:
 		return c.Modules.mutate(ctx, m)
 	default:
 		return nil, fmt.Errorf("ent: unknown mutation type %T", m)
+	}
+}
+
+// GoveeCredentialClient is a client for the GoveeCredential schema.
+type GoveeCredentialClient struct {
+	config
+}
+
+// NewGoveeCredentialClient returns a client for the GoveeCredential from the given config.
+func NewGoveeCredentialClient(c config) *GoveeCredentialClient {
+	return &GoveeCredentialClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `goveecredential.Hooks(f(g(h())))`.
+func (c *GoveeCredentialClient) Use(hooks ...Hook) {
+	c.hooks.GoveeCredential = append(c.hooks.GoveeCredential, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `goveecredential.Intercept(f(g(h())))`.
+func (c *GoveeCredentialClient) Intercept(interceptors ...Interceptor) {
+	c.inters.GoveeCredential = append(c.inters.GoveeCredential, interceptors...)
+}
+
+// Create returns a builder for creating a GoveeCredential entity.
+func (c *GoveeCredentialClient) Create() *GoveeCredentialCreate {
+	mutation := newGoveeCredentialMutation(c.config, OpCreate)
+	return &GoveeCredentialCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of GoveeCredential entities.
+func (c *GoveeCredentialClient) CreateBulk(builders ...*GoveeCredentialCreate) *GoveeCredentialCreateBulk {
+	return &GoveeCredentialCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *GoveeCredentialClient) MapCreateBulk(slice any, setFunc func(*GoveeCredentialCreate, int)) *GoveeCredentialCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &GoveeCredentialCreateBulk{err: fmt.Errorf("calling to GoveeCredentialClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*GoveeCredentialCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &GoveeCredentialCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for GoveeCredential.
+func (c *GoveeCredentialClient) Update() *GoveeCredentialUpdate {
+	mutation := newGoveeCredentialMutation(c.config, OpUpdate)
+	return &GoveeCredentialUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *GoveeCredentialClient) UpdateOne(_m *GoveeCredential) *GoveeCredentialUpdateOne {
+	mutation := newGoveeCredentialMutation(c.config, OpUpdateOne, withGoveeCredential(_m))
+	return &GoveeCredentialUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *GoveeCredentialClient) UpdateOneID(id int) *GoveeCredentialUpdateOne {
+	mutation := newGoveeCredentialMutation(c.config, OpUpdateOne, withGoveeCredentialID(id))
+	return &GoveeCredentialUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for GoveeCredential.
+func (c *GoveeCredentialClient) Delete() *GoveeCredentialDelete {
+	mutation := newGoveeCredentialMutation(c.config, OpDelete)
+	return &GoveeCredentialDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *GoveeCredentialClient) DeleteOne(_m *GoveeCredential) *GoveeCredentialDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *GoveeCredentialClient) DeleteOneID(id int) *GoveeCredentialDeleteOne {
+	builder := c.Delete().Where(goveecredential.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &GoveeCredentialDeleteOne{builder}
+}
+
+// Query returns a query builder for GoveeCredential.
+func (c *GoveeCredentialClient) Query() *GoveeCredentialQuery {
+	return &GoveeCredentialQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeGoveeCredential},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a GoveeCredential entity by its id.
+func (c *GoveeCredentialClient) Get(ctx context.Context, id int) (*GoveeCredential, error) {
+	return c.Query().Where(goveecredential.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *GoveeCredentialClient) GetX(ctx context.Context, id int) *GoveeCredential {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *GoveeCredentialClient) Hooks() []Hook {
+	return c.hooks.GoveeCredential
+}
+
+// Interceptors returns the client interceptors.
+func (c *GoveeCredentialClient) Interceptors() []Interceptor {
+	return c.inters.GoveeCredential
+}
+
+func (c *GoveeCredentialClient) mutate(ctx context.Context, m *GoveeCredentialMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&GoveeCredentialCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&GoveeCredentialUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&GoveeCredentialUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&GoveeCredentialDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown GoveeCredential mutation op: %q", m.Op())
 	}
 }
 
@@ -333,9 +476,9 @@ func (c *ModulesClient) mutate(ctx context.Context, m *ModulesMutation) (Value, 
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		Modules []ent.Hook
+		GoveeCredential, Modules []ent.Hook
 	}
 	inters struct {
-		Modules []ent.Interceptor
+		GoveeCredential, Modules []ent.Interceptor
 	}
 )

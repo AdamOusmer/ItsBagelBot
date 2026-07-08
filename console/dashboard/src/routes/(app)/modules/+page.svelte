@@ -177,7 +177,7 @@
           <div class="grid">
             {#each cat.modules as m (m.def.id)}
               <div class="tile {m.enabled ? 'on' : 'off'}">
-                <a class="tile-main" href={`/modules/${m.def.id}`}>
+                <a class="tile-main" href={m.def.href ?? `/modules/${m.def.id}`}>
                   <span class="tile-icon"><Icon name={m.def.icon} size={20} /></span>
                   <span class="tile-text">
                     <span class="tile-label">{m.def.label}</span>
@@ -185,7 +185,7 @@
                   </span>
                 </a>
                 <div class="tile-foot">
-                  <a class="open" href={`/modules/${m.def.id}`}><Icon name="settings" size={13} /> {t('modules.configure')}</a>
+                  <a class="open" href={m.def.href ?? `/modules/${m.def.id}`}><Icon name="settings" size={13} /> {t('modules.configure')}</a>
                   <span class="grow"></span>
                   <SaveStatus state={modStatus[m.def.id] ?? 'idle'} />
                   <form method="POST" action="?/toggle" use:enhance={toggleSubmit(m)}>
