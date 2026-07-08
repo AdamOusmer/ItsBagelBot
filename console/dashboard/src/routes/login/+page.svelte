@@ -12,7 +12,8 @@
     signedout: t('login.noticeSignedout'),
     banned: t('login.noticeBanned'),
     link: t('login.noticeLink'),
-    retry: t('login.noticeRetry')
+    retry: t('login.noticeRetry'),
+    imp: t('login.noticeImpersonation')
   };
   const notice = $derived(NOTICES[page.url.searchParams.get('e') ?? ''] ?? null);
 
