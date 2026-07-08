@@ -18,9 +18,11 @@ function effectiveId(session: Session | null | undefined): string {
   return session?.delegate_of ?? session?.user_id ?? 'demo';
 }
 
-// A delegate needs the 'timers' section; a normal login always may.
+// Timers rides under the 'commands' scope (no standalone timers grant). Legacy
+// links minted with a bare 'timers' section still pass. A normal login always may.
 function gate(session: Session | null | undefined): void {
-  if (session?.delegate_of && !(session.sections ?? []).includes('timers')) {
+  const secs = session?.sections ?? [];
+  if (session?.delegate_of && !secs.includes('commands') && !secs.includes('timers')) {
     throw redirect(302, '/');
   }
 }

@@ -79,7 +79,8 @@
   const canCommands = $derived(!isDelegate || sections.includes('commands'));
   const canModules = $derived(!isDelegate || sections.includes('modules'));
   const canChannelPoints = $derived(!isDelegate || sections.includes('channelpoints'));
-  const canTimers = $derived(!isDelegate || sections.includes('timers'));
+  // Timers rides under the commands scope; legacy 'timers' grants still count.
+  const canTimers = $derived(!isDelegate || sections.includes('commands') || sections.includes('timers'));
   // Billing is owner-only except for a delegate explicitly granted it (view-only).
   const canBilling = $derived(!isDelegate || sections.includes('billing'));
 
