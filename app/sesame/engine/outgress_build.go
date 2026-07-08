@@ -91,7 +91,7 @@ func shoutoutOutgress(o *module.Output) (outgress.Message, error) {
 // clipOutgress builds the Create Clip job. The call takes no body:
 // broadcaster_id, title and duration all ride the query string, which outgress
 // builds. This payload carries what outgress needs — the title and duration to
-// pass to Twitch, the clipper login, and the broadcaster's custom reply
+// pass to Twitch, the clipper's display name, and the broadcaster's custom reply
 // template — to compose the reply posted with the clip URL (outgress expands
 // its {clip} token). Duration 0 (plain !clip) and an empty reply are omitted.
 func clipOutgress(o *module.Output) (outgress.Message, error) {

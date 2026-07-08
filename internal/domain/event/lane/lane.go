@@ -43,11 +43,17 @@ type Envelope struct {
 	Lane    string `json:"lane"`
 	EventID string `json:"event_id,omitempty"`
 
-	// Flattened chat fields (only set for channel.chat.message).
+	// Flattened chat fields (only set for channel.chat.message). Both the stable
+	// login and the mutable display name are carried: the login is the identifier
+	// (API calls, lookups, cooldown keys), the *UserName is what the viewer set as
+	// their display name and is what chat-facing text should show. See
+	// BroadcasterName / ChatterName.
 	BroadcasterUserID    string  `json:"broadcaster_user_id,omitempty"`
 	BroadcasterUserLogin string  `json:"broadcaster_user_login,omitempty"`
+	BroadcasterUserName  string  `json:"broadcaster_user_name,omitempty"`
 	ChatterUserID        string  `json:"chatter_user_id,omitempty"`
 	ChatterUserLogin     string  `json:"chatter_user_login,omitempty"`
+	ChatterUserName      string  `json:"chatter_user_name,omitempty"`
 	Text                 string  `json:"text,omitempty"`
 	Badges               []Badge `json:"badges,omitempty"`
 
@@ -62,6 +68,25 @@ type Envelope struct {
 
 	MsgID   string `json:"msg_id,omitempty"`
 	ShardID int    `json:"shard_id,omitempty"`
+}
+
+// BroadcasterName is the broadcaster's Twitch display name for chat-facing text,
+// falling back to the login when the event carried no display name. The login
+// stays the stable identifier; only shown names should use this.
+func (e Envelope) BroadcasterName() string {
+	if e.BroadcasterUserName != "" {
+		return e.BroadcasterUserName
+	}
+	return e.BroadcasterUserLogin
+}
+
+// ChatterName is the chatter's Twitch display name for chat-facing text, falling
+// back to the login when the event carried no display name.
+func (e Envelope) ChatterName() string {
+	if e.ChatterUserName != "" {
+		return e.ChatterUserName
+	}
+	return e.ChatterUserLogin
 }
 
 // BroadcasterID returns the broadcaster the event belongs to as a uint64. For
