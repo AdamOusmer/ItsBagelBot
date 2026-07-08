@@ -26,13 +26,17 @@
   const origin = $derived(page.url.origin);
 
   // Sections an owner can grant (from the server so it stays in one place).
-  const grantable = $derived((data.grantableSections ?? ['commands', 'modules', 'channelpoints', 'billing']) as string[]);
+  const grantable = $derived(
+    (data.grantableSections ?? ['commands', 'modules', 'channelpoints', 'timers', 'billing']) as string[]
+  );
   function sectionLabel(sec: string): string {
     switch (sec) {
       case 'modules':
         return t('settings.modules');
       case 'channelpoints':
         return t('nav.channelpoints');
+      case 'timers':
+        return t('nav.timers');
       case 'billing':
         return t('settings.billing');
       default:

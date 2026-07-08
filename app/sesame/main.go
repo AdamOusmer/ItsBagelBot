@@ -72,6 +72,8 @@ func main() {
 	live := newLive(ctx, in, cfg, log)
 	defer live.Close()
 
+	timers := newTimers(ctx, in, proj, live, cfg, log)
+
 	// Deps is the bundle every module fn captures; main builds it once. modules.All
 	// returns the built modules (core commands + bagel, live tracker, opt-in
 	// shoutout), which the engine registry indexes. Adding a feature is a new file
@@ -94,6 +96,7 @@ func main() {
 		Automod:    guard,
 		Reputation: engine.NewValkeyReputation(valkeyClient, 6*time.Hour, log),
 		Campaign:   engine.NewValkeyCampaign(valkeyClient, log),
+		Timers:     timers,
 
 		PublicBaseURL: cfg.PublicBaseURL,
 	}
@@ -266,6 +269,21 @@ func newLive(ctx context.Context, in infra, cfg *config.Config, log *zap.Logger)
 	live.StartInvalidationListener()
 	go live.StartExpiryWatcher(ctx)
 	return live
+}
+
+// newTimers builds the Valkey-backed timer store — one schedule key per
+// enabled repeating message, armed on stream.online and fired off key expiry
+// (see live_valkey.go's key-expiry idiom, which this shares the deployment's
+// notify-keyspace-events config with) — and starts its expiry watcher.
+func newTimers(ctx context.Context, in infra, proj *projection.Client, live *engine.ValkeyLiveStore, cfg *config.Config, log *zap.Logger) *engine.ValkeyTimerStore {
+	timers := engine.NewValkeyTimerStore(in.vc, in.pub, proj, live, engine.TimersConfig{
+		OutgressPremiumSubject:  cfg.OutgressPremiumSubject,
+		OutgressStandardSubject: cfg.OutgressStandardSubject,
+		KeyspaceDB:              0,
+		Log:                     log,
+	})
+	go timers.StartExpiryWatcher(ctx)
+	return timers
 }
 
 // newConsumer builds the one autoscaling consumer that drains the premium and
