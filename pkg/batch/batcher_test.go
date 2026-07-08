@@ -14,21 +14,29 @@ import (
 )
 
 type recorder struct {
-	mu      sync.Mutex
-	flushes [][]int
-	fail    bool
+	mu       sync.Mutex
+	flushes  [][]int
+	attempts int
+	fail     bool
 }
 
 func (r *recorder) flush(_ context.Context, items []int) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	r.attempts++
 	if r.fail {
 		return errors.New("flush failed")
 	}
 
 	r.flushes = append(r.flushes, append([]int(nil), items...))
 	return nil
+}
+
+func (r *recorder) attemptCount() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.attempts
 }
 
 func (r *recorder) all() []int {
@@ -110,7 +118,15 @@ func TestFailedFlushRetriesWithoutClobbering(t *testing.T) {
 
 	b.Add("key", 1) // flushes immediately and fails
 
+	// Wait for the first flush to have actually RUN and failed, returning the
+	// item to pending. Gating on pending alone is racy: "key" is present from
+	// Add before the flush ever takes it, so the wait could fall through before
+	// the failing flush runs — then fail=false would take effect and the flush
+	// of "1" would succeed, leaving [1, 2] instead of [2].
 	assert.Eventually(t, func() bool {
+		if rec.attemptCount() < 1 {
+			return false
+		}
 		b.mu.Lock()
 		defer b.mu.Unlock()
 		_, pending := b.pending["key"]
