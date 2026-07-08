@@ -55,6 +55,9 @@ type Deps struct {
 	// Campaign is the council's cross-sender juror: distinct-sender counts per
 	// near-duplicate template (SimHash bands in valkey). nil disables it.
 	Campaign Campaign
+	// Queue is the per-broadcaster play queue behind the queue module. nil
+	// leaves the module's commands inert.
+	Queue QueueStore
 }
 
 // IsLiveChecker is the read-only slice of the live store: just "is this

@@ -632,6 +632,19 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
         help: 'Default player for every command. Leave blank to use your Twitch username.'
       }
     ]
+  },
+  {
+    id: 'queue',
+    label: 'Play Queue',
+    tagline: 'Let viewers line up to play with you, first come first served.',
+    description:
+      'Viewers type !join to get in line and !list to see who is next (the first 10). You (and your mods) run the line from chat: !queue open and !queue close accept or stop new joins, !queue next pulls up the next player, !queue remove <user> takes someone out, and !queue clear empties it. Viewers can step out any time with !leave. Turn the module on to enable the commands; the line survives closing so you can play through everyone already waiting.',
+    icon: 'list',
+    defaultEnabled: false,
+    // The queue posts fixed system lines (join confirmations, the roster, next-up
+    // calls), not customizable templates, so there are no reply rows or settings —
+    // just the master enable.
+    replies: []
   }
 ];
 
