@@ -105,14 +105,20 @@ func permitSubject(region, podID string) string {
 	return "bagel.outgress.permit.v2." + region + "." + podID
 }
 
-func (ps *PermitService) Borrow(ctx context.Context, donor Member, request BorrowRequest) (BorrowReply, error) {
-	now := time.Now()
+// borrowDeadline caps a borrow's deadline at permitTTL from now: the context's
+// own deadline when it is sooner, else the TTL horizon.
+func borrowDeadline(ctx context.Context, now time.Time) time.Time {
 	deadline, ok := ctx.Deadline()
 	if !ok || deadline.After(now.Add(permitTTL)) {
-		deadline = now.Add(permitTTL)
+		return now.Add(permitTTL)
 	}
+	return deadline
+}
+
+func (ps *PermitService) Borrow(ctx context.Context, donor Member, request BorrowRequest) (BorrowReply, error) {
+	now := time.Now()
 	request.RequestID = nuid.Next()
-	request.DeadlineMS = deadline.UnixMilli()
+	request.DeadlineMS = borrowDeadline(ctx, now).UnixMilli()
 	data, err := sonic.Marshal(&request)
 	if err != nil {
 		return BorrowReply{}, err
@@ -125,7 +131,7 @@ func (ps *PermitService) Borrow(ctx context.Context, donor Member, request Borro
 	if err := sonic.Unmarshal(msg.Data, &reply); err != nil {
 		return BorrowReply{}, err
 	}
-	if reply.Version != planVersion || reply.Epoch != request.Epoch || reply.Paid&^request.Need != 0 {
+	if !reply.validFor(request) {
 		return BorrowReply{}, errors.New("ratelimit: invalid permit reply")
 	}
 	// Subtract the whole observed RTT. This is deliberately more conservative
@@ -136,6 +142,12 @@ func (ps *PermitService) Borrow(ctx context.Context, donor Member, request Borro
 	return reply, nil
 }
 
+// validFor reports whether a reply is a well-formed answer to request: right
+// protocol version and epoch, and it never grants more than was asked.
+func (r BorrowReply) validFor(request BorrowRequest) bool {
+	return r.Version == planVersion && r.Epoch == request.Epoch && r.Paid&^request.Need == 0
+}
+
 func (ps *PermitService) handleRequest(req micro.Request) {
 	var borrow BorrowRequest
 	if err := sonic.Unmarshal(req.Data(), &borrow); err != nil {
@@ -143,21 +155,12 @@ func (ps *PermitService) handleRequest(req micro.Request) {
 		return
 	}
 	now := time.Now()
-	if borrow.Version != planVersion || borrow.RequestID == "" || borrow.Bucket.Scope == "" ||
-		borrow.Need == 0 || borrow.Need&^validNeeds != 0 || now.UnixMilli() >= borrow.DeadlineMS {
+	if !borrow.wellFormed(now) {
 		ps.respond(req, BorrowReply{Version: planVersion, Epoch: borrow.Epoch, Status: "invalid"})
 		return
 	}
 	if cached, ok := ps.dedupe.Get(borrow.RequestID); ok {
-		remaining := time.Until(cached.expiresAt)
-		if remaining <= 0 {
-			cached.reply.Paid = 0
-			cached.reply.Status = "stale"
-			cached.reply.RemainingMS = 0
-		} else {
-			cached.reply.RemainingMS = remaining.Milliseconds()
-		}
-		ps.respond(req, cached.reply)
+		ps.respond(req, agedGrant(cached))
 		return
 	}
 
@@ -166,12 +169,49 @@ func (ps *PermitService) handleRequest(req micro.Request) {
 		reply = grantor.GrantPermit(now, borrow)
 	}
 	if reply.Paid != 0 {
-		expiresAt := now.Add(permitTTL)
 		reply.GrantID = nuid.Next()
 		reply.RemainingMS = permitTTL.Milliseconds()
-		ps.dedupe.SetWithTTL(borrow.RequestID, cachedGrant{reply: reply, expiresAt: expiresAt}, 1, permitTTL)
+		ps.dedupe.SetWithTTL(borrow.RequestID, cachedGrant{reply: reply, expiresAt: now.Add(permitTTL)}, 1, permitTTL)
 	}
 	ps.respond(req, reply)
+}
+
+// wellFormed validates an inbound borrow request: right protocol version, a
+// request id and bucket scope, a non-empty need drawn only from the valid
+// bits, and a deadline still in the future.
+func (r BorrowRequest) wellFormed(now time.Time) bool {
+	if r.Version != planVersion {
+		return false
+	}
+	if r.RequestID == "" || r.Bucket.Scope == "" {
+		return false
+	}
+	if !validNeed(r.Need) {
+		return false
+	}
+	return now.UnixMilli() < r.DeadlineMS
+}
+
+// validNeed reports whether a need mask is non-empty and carries only known
+// need bits.
+func validNeed(need uint8) bool {
+	return need != 0 && need&^validNeeds == 0
+}
+
+// agedGrant re-times a cached grant reply against its expiry: an expired entry
+// is downgraded to a spent "stale" reply, else its remaining budget is
+// refreshed for this response.
+func agedGrant(cached cachedGrant) BorrowReply {
+	reply := cached.reply
+	remaining := time.Until(cached.expiresAt)
+	if remaining <= 0 {
+		reply.Paid = 0
+		reply.Status = "stale"
+		reply.RemainingMS = 0
+	} else {
+		reply.RemainingMS = remaining.Milliseconds()
+	}
+	return reply
 }
 
 func (ps *PermitService) respond(req micro.Request, reply BorrowReply) {
