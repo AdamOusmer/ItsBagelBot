@@ -79,7 +79,9 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
   const [{ unreadCount, notifications }, authorizedDashboards, acc] = await Promise.all([
     loadBellPeek(s),
     loadAuthorizedDashboards(s),
-    env.DEMO === '1' ? Promise.resolve({ active: true, status: 'vip', onboarded: true }) : accountState(s.user_id).catch(() => null)
+    env.DEMO === '1'
+      ? Promise.resolve({ active: true, status: 'vip', onboarded: true, creatorCode: null })
+      : accountState(s.user_id).catch(() => null)
   ]);
 
   const isPremium = acc ? acc.status === 'vip' || acc.status === 'paid' : false;

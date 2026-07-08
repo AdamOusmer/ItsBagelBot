@@ -8,6 +8,8 @@ import {
   type Perm
 } from '@bagel/shared';
 import { listCommands, listModules, type ModuleView } from '$lib/server/commands-store';
+import { accountState } from '$lib/server/services';
+import { env } from '$env/dynamic/private';
 
 // SSR renders the full page for SEO/no-JS; hydration is left on so the hero's
 // warm light-field ("star" motes) and decode-on-view title can animate. Both
@@ -36,6 +38,38 @@ type PublicModule = {
   commands: ModuleDetail[];
   events: ModuleDetail[];
 };
+
+const demoCommands: PublicCommand[] = [
+  {
+    trigger: '!bagel',
+    aliases: ['!snack'],
+    response: '{user} tosses a warm bagel to {target}. Toasty.',
+    perm: PERM_LABELS.everyone,
+    cooldown: 10,
+    liveOnly: false,
+    uses: '1.2k'
+  },
+  {
+    trigger: '!socials',
+    aliases: ['!links'],
+    response: 'Follow along on Twitch and everywhere else.',
+    perm: PERM_LABELS.everyone,
+    cooldown: 30,
+    liveOnly: false,
+    uses: '288'
+  }
+];
+
+const demoModules: PublicModule[] = [
+  {
+    id: 'clip',
+    label: 'Clip',
+    category: 'Built-in',
+    tagline: 'Let viewers capture and share a recent stream moment.',
+    commands: [{ label: '!clip', meta: 'clip the last moment' }],
+    events: []
+  }
+];
 
 function cleanChannel(raw: string | null): string {
   return (raw ?? '').replace(/^@+/, '').replace(/[^\w]/g, '').slice(0, 32);
@@ -143,15 +177,28 @@ export const load: PageServerLoad = async ({ params, url }) => {
   const channel = cleanChannel(url.searchParams.get('channel'));
   const channelName = channel || `channel ${userId}`;
 
+  if (env.DEMO === '1') {
+    return {
+      userId,
+      channelName,
+      creatorCode: 'MAVEY10',
+      commands: demoCommands,
+      modules: demoModules,
+      degraded: false
+    };
+  }
+
   try {
-    const [commands, modules] = await Promise.all([
+    const [commands, modules, account] = await Promise.all([
       listCommands(userId),
-      listModules(userId)
+      listModules(userId),
+      accountState(userId).catch(() => null)
     ]);
 
     return {
       userId,
       channelName,
+      creatorCode: account?.creatorCode ?? null,
       commands: publicCommands(commands),
       modules: publicModules(modules),
       degraded: false
@@ -160,6 +207,7 @@ export const load: PageServerLoad = async ({ params, url }) => {
     return {
       userId,
       channelName,
+      creatorCode: null,
       commands: [],
       modules: [],
       degraded: true
