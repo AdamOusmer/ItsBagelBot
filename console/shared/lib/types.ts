@@ -403,6 +403,14 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
         defaultMessage:
           'Massive shoutout to {raider} for the raid with {viewers} viewers! Check them out at twitch.tv/{raider.login}'
       }
+    ],
+    settings: [
+      {
+        key: 'native_shoutout',
+        label: 'Also send Twitch shoutout',
+        type: 'toggle',
+        help: "Fires Twitch's own /shoutout on the raider alongside the chat line, which shows their current category and profile card natively. Off by default."
+      }
     ]
   },
   {

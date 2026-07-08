@@ -57,6 +57,24 @@ func TestShoutoutCustomTemplate(t *testing.T) {
 	assert.Equal(t, "yo CoolStreamer +42", col.out[0].Text)
 }
 
+func TestShoutoutNativeToggleOff(t *testing.T) {
+	var col collector
+	require.NoError(t, raidHandler(t)(context.Background(), raidCtx(`{"native_shoutout":"off"}`), col.emit))
+	require.Len(t, col.out, 1)
+	assert.Equal(t, outgress.TypeChat, col.out[0].Type)
+}
+
+func TestShoutoutNativeToggleOn(t *testing.T) {
+	var col collector
+	require.NoError(t, raidHandler(t)(context.Background(), raidCtx(`{"native_shoutout":"on"}`), col.emit))
+	require.Len(t, col.out, 2)
+	assert.Equal(t, outgress.TypeChat, col.out[0].Type)
+	o := col.out[1]
+	assert.Equal(t, outgress.TypeShoutout, o.Type)
+	assert.Equal(t, "2", o.BroadcasterID)
+	assert.Equal(t, "coolstreamer", o.To)
+}
+
 func TestShoutoutIgnoresEmptyEvent(t *testing.T) {
 	c := &module.Context{Env: lane.Envelope{Type: "channel.raid"}, BroadcasterID: 2, Log: zap.NewNop()}
 	var col collector
