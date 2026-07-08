@@ -20,13 +20,20 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
   const p = verifyViewAs(token);
   if (!p) throw redirect(302, '/login?e=imp');
 
-  // Single-use gate. Fail closed when Valkey is configured but unreachable:
-  // impersonation is an admin surface, and a retry in a minute beats leaving a
-  // replayable admin-grade link in browser history. 'unconfigured' (dev, no
-  // Valkey) passes so local flows still work.
+  // Single-use gate. Only a proven replay is rejected. The jti burn is
+  // defense-in-depth behind the token's own controls (5-min TTL + single-actor
+  // Ed25519 signature), so it degrades OPEN when the Valkey write path is down:
+  // Valkey is never a hard dependency elsewhere (readyz doesn't gate it, reads
+  // fall back to RPC), and failing closed here turned a write-path blip into a
+  // total outage of an admin-only, audited surface. The residual risk is a
+  // link replayable for <=5 min only while the write path is unreachable.
+  // 'unconfigured' (dev, no Valkey) also passes so local flows work. We still
+  // tag 'unavailable' so a persistent write-path outage stays visible.
   const claim = await claimOnce(`viewas:jti:${p.jti}`, JTI_TTL_SECONDS);
   if (claim === 'replayed' || claim === 'unavailable') {
     newrelic.addCustomAttributes({ 'viewas.claim': claim, 'viewas.by': p.by_id });
+  }
+  if (claim === 'replayed') {
     throw redirect(302, '/login?e=imp');
   }
 
