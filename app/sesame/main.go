@@ -94,6 +94,7 @@ func main() {
 		Automod:    guard,
 		Reputation: engine.NewValkeyReputation(valkeyClient, 6*time.Hour, log),
 		Campaign:   engine.NewValkeyCampaign(valkeyClient, log),
+		Queue:      engine.NewValkeyQueueStore(valkeyClient, 24*time.Hour, log),
 	}
 	registry := engine.NewRegistry(log, modules.All(deps)...)
 
