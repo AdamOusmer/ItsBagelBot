@@ -295,6 +295,7 @@ func newTimers(ctx context.Context, in infra, proj *projection.Client, live *eng
 	})
 	go timers.StartExpiryWatcher(ctx)
 	go timers.StartRearmWatcher(ctx)
+	go timers.StartReconciler(ctx)
 	return timers
 }
 

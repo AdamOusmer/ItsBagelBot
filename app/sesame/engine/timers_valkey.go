@@ -10,6 +10,7 @@ import (
 
 	"ItsBagelBot/app/sesame/module"
 	"ItsBagelBot/internal/domain/invalidate"
+	livekey "ItsBagelBot/internal/domain/live"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/moderation"
 	"ItsBagelBot/internal/projection"
@@ -56,6 +57,20 @@ const timerFirstFireJitter = 30 * time.Second
 // a modules cache-invalidation, so a stalled Valkey/projector never pins the
 // goroutine the rearm watcher spawns per message.
 const rearmTimeout = 5 * time.Second
+
+// reconcileInterval is how often the reconciler re-arms live broadcasters'
+// timers, recovering any that silently stalled (a missed expiry notification).
+// A stalled timer comes back within one interval, no stream restart needed.
+const reconcileInterval = time.Minute
+
+// reconcileClaimKey serializes the sweep to one replica per tick. It sorts
+// under timerClaimPrefix so onExpired ignores its own expiry, and its short TTL
+// only has to cover the skew between replicas' independent tickers — a rare
+// double-sweep is harmless (NX arming dedups it), so this is efficiency, not
+// correctness.
+const reconcileClaimKey = timerClaimPrefix + "reconcile"
+
+const reconcileClaimTTL = 30 * time.Second
 
 // timerDef is one broadcaster-authored repeating chat message.
 type timerDef struct {
@@ -182,6 +197,71 @@ func (s *ValkeyTimerStore) RearmIfLive(ctx context.Context, broadcasterID uint64
 		return
 	}
 	s.ArmAll(ctx, broadcasterID)
+}
+
+// StartReconciler periodically re-arms every live broadcaster's timers, so a
+// timer that silently stalled comes back mid-stream without a stream restart.
+// A stall happens when an expiry notification is lost — Valkey pub/sub is
+// fire-and-forget with no replay, so a Sentinel failover, a watcher reconnect,
+// or an onExpired that hit a transient error and returned without re-arming can
+// leave a timer's key expired and never re-set. The expiry watcher alone never
+// recovers that until the next stream.online; this sweep does.
+//
+// ArmAll's NX SET keeps it cheap and safe: a still-armed timer is untouched,
+// only a missing (stalled) one is re-armed. One replica sweeps per tick (a
+// fleet-wide NX claim), so the scan isn't multiplied across the pool. Runs
+// until ctx is cancelled.
+func (s *ValkeyTimerStore) StartReconciler(ctx context.Context) {
+	ticker := time.NewTicker(reconcileInterval)
+	defer ticker.Stop()
+	s.log.Info("timers: reconciler starting", zap.Duration("interval", reconcileInterval))
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			s.reconcile(ctx)
+		}
+	}
+}
+
+// reconcile claims the sweep for this tick, then re-arms every live
+// broadcaster's timers. RearmIfLive re-checks live state and NX-arms, so an
+// already-armed timer is left counting down and only a stalled one restarts.
+func (s *ValkeyTimerStore) reconcile(ctx context.Context) {
+	got, err := s.client.Do(ctx, s.client.B().Set().Key(reconcileClaimKey).Value("1").Nx().ExSeconds(int64(reconcileClaimTTL.Seconds())).Build()).ToString()
+	if err != nil || got != "OK" {
+		return // another replica owns this tick, or the claim write failed
+	}
+	for _, id := range s.liveBroadcasters(ctx) {
+		s.RearmIfLive(ctx, id)
+	}
+}
+
+// liveBroadcasters SCANs the live-key set and returns the broadcaster ids
+// currently live, skipping the recheck guard keys that share the live: prefix.
+func (s *ValkeyTimerStore) liveBroadcasters(ctx context.Context) []uint64 {
+	var ids []uint64
+	cursor := uint64(0)
+	for {
+		entry, err := s.client.Do(ctx, s.client.B().Scan().Cursor(cursor).Match(livekey.KeyPrefix+"*").Count(200).Build()).AsScanEntry()
+		if err != nil {
+			s.log.Warn("timers: reconcile scan failed", zap.Error(err))
+			return ids
+		}
+		for _, k := range entry.Elements {
+			if strings.HasPrefix(k, recheckKeyPrefix) {
+				continue
+			}
+			if id, err := strconv.ParseUint(strings.TrimPrefix(k, livekey.KeyPrefix), 10, 64); err == nil && id != 0 {
+				ids = append(ids, id)
+			}
+		}
+		cursor = entry.Cursor
+		if cursor == 0 {
+			return ids
+		}
+	}
 }
 
 // clampInterval turns a configured interval (seconds) into a Duration floored
