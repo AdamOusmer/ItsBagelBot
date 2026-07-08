@@ -9,7 +9,7 @@ const sections = [
     { id: 'data-not-collected', heading: "Data We Don't Collect", plain: 'No personal browsing profiles, ad data, or IP-based tracking by us.' },
     { id: 'cookies', heading: 'Cloudflare, Cookies & Analytics', plain: 'Cloudflare hosts, protects, and delivers the service. Analytics are cookie-free; security cookies may be used when needed.' },
     { id: 'data-use', heading: 'How We Use Your Data & Legal Basis', plain: 'We use data to provide and secure the service. We never sell or rent it.' },
-    { id: 'payment-processing', heading: 'Third-Party Services', plain: 'Tebex handles payments, Resend our automated emails, Zoho our correspondence, and support also runs on Discord.' },
+    { id: 'payment-processing', heading: 'Third-Party Services', plain: 'Tebex handles payments, Resend our automated emails, Zoho our correspondence, support runs on Discord, and Govee powers the optional smart-light feature.' },
     { id: 'storage', heading: 'Data Storage, Retention & Transfers', plain: 'Chat is processed live, not kept. Settings stay encrypted in Canada for as long as your account exists.' },
     { id: 'children', heading: "Children's Privacy", plain: 'The service is not for children under 13, and we do not knowingly collect their data.' },
     { id: 'rights', heading: 'Your Rights (GDPR, PIPEDA, Law 25, CCPA)', plain: 'Ask for your data, portability, or its deletion any time. California residents get CCPA rights too. You can also complain to a privacy regulator.' },
@@ -36,6 +36,7 @@ const sections = [
                 <li>Chat messages processed in real-time for moderation (not stored permanently)</li>
                 <li>Usage analytics (aggregated, anonymized, no PII)</li>
                 <li>An optional contact email address, if you choose to provide one, used for purchase receipts, gift notifications, and account-related messages. It is encrypted at rest and never used for marketing without your consent</li>
+                <li>An optional Govee API key, only if you connect the Govee Lights feature. It lets the bot set your own smart lights when a viewer redeems a channel-points reward. It is encrypted at rest, decrypted only on our servers to send commands to Govee, never shown back to you, and deleted the moment you remove it or disable the integration</li>
                 <li>Technical request and security data processed by Cloudflare, such as IP address, routing data, browser or device information, requested URL, and security events</li>
             </ul>
         </Fragment>
@@ -84,6 +85,9 @@ const sections = [
             </p>
             <p>
                 We also offer support through our Discord server. If you contact us there, Discord Inc. processes your Discord account information and messages under <a href="https://discord.com/privacy" target="_blank" rel="noopener noreferrer">Discord's own Privacy Policy</a>, which we do not control. Avoid posting sensitive information in public channels.
+            </p>
+            <p>
+                If you enable the Govee Lights feature, you provide a Govee API key that we store encrypted and use only to control your own Govee devices. When a viewer redeems the reward, we send a power and colour command to Govee's API on your behalf, authenticated with your key. Govee processes those requests under its own Privacy Policy. Your key is never shown back to you, and you can remove it at any time from the dashboard, which deletes it from our systems.
             </p>
         </Fragment>
 

@@ -21,5 +21,6 @@ func All(d engine.Deps) []module.Module {
 		Mcsr(d),
 		Automod(d),
 		ChannelPoints(d),
+		Govee(d),
 	}
 }

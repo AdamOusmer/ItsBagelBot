@@ -44,6 +44,13 @@ type Config struct {
 	McsrEnabled   bool
 	McsrRateLimit float64
 
+	// Govee smart-light provider. It holds no service key (each broadcaster
+	// brings their own, fetched from the modules service). GoveeKeySubjectPrefix
+	// is that internal RPC's subject prefix; empty disables the provider.
+	GoveeBaseURL          string
+	GoveeRateLimit        float64
+	GoveeKeySubjectPrefix string
+
 	ListenAddr string
 }
 
@@ -72,6 +79,10 @@ func Load() *Config {
 		McsrAPIKey:    env.Get("MCSR_API_KEY", ""),
 		McsrEnabled:   env.GetBool("MCSR_ENABLED", true),
 		McsrRateLimit: env.GetFloat("MCSR_RATE_LIMIT", 500.0),
+
+		GoveeBaseURL:          env.Get("GOVEE_BASE_URL", "https://openapi.api.govee.com"),
+		GoveeRateLimit:        env.GetFloat("GOVEE_RATE_LIMIT", 8.0),
+		GoveeKeySubjectPrefix: env.Get("NATS_INTERNAL_GOVEE_KEY_SUBJECT_PREFIX", "bagel.rpc.internal.govee.key"),
 
 		ListenAddr: env.Get("LISTEN_ADDR", ":8080"),
 	}

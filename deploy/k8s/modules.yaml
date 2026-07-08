@@ -97,9 +97,20 @@ spec:
               value: "true"
             - name: GOMEMLIMIT
               value: 160MiB
+            # Tink keyset for at-rest Govee API-key encryption (this service's
+            # own keyset, distinct from users'), consumed as a file. The mount is
+            # optional (see volumes): until the TINK_KEYSET secret is provisioned
+            # the file is absent and the service degrades to "govee off" rather
+            # than crash-looping.
+            - name: TINK_KEYSET_PATH
+              value: /etc/tink/keyset.json
           envFrom:
             - secretRef:
                 name: modules-env
+          volumeMounts:
+            - name: tink-keyset
+              mountPath: /etc/tink
+              readOnly: true
           ports:
             - containerPort: 8080
           resources:
@@ -128,6 +139,16 @@ spec:
             failureThreshold: 18 # 18 × 5s = 90s max startup window
             periodSeconds: 5
       terminationGracePeriodSeconds: 45
+      volumes:
+        # Optional: a missing TINK_KEYSET key leaves the file absent, and the
+        # service disables govee key custody instead of failing to start.
+        - name: tink-keyset
+          secret:
+            secretName: modules-env
+            optional: true
+            items:
+              - key: TINK_KEYSET
+                path: keyset.json
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
