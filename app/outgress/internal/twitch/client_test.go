@@ -142,7 +142,7 @@ func TestMissingScope401DoesNotRefreshToken(t *testing.T) {
 		})},
 	}
 
-	res, err := client.request(context.Background(), source, http.MethodGet, "/helix/moderation/channels", nil)
+	res, err := client.request(context.Background(), source, getCall("/helix/moderation/channels"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -195,7 +195,7 @@ func TestInvalidToken401StillRefreshesAndRetries(t *testing.T) {
 		})},
 	}
 
-	res, err := client.request(context.Background(), source, http.MethodGet, "/helix/users", nil)
+	res, err := client.request(context.Background(), source, getCall("/helix/users"))
 	if err != nil {
 		t.Fatal(err)
 	}

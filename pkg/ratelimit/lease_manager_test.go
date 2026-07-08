@@ -106,12 +106,12 @@ func TestFixedHelixBucketsRenewWithoutTraffic(t *testing.T) {
 func TestGenerationChangeStartsSameHolderEmpty(t *testing.T) {
 	bucket := NewLocalBucket()
 	start := time.Now()
-	bucket.Update(start, 1, 1, "pod-a", start, start.Add(time.Hour), rate.Limit(10), 10, 0, 0)
+	bucket.Update(start, BucketConfig{Epoch: 1, Generation: 1, Holder: "pod-a", NotBefore: start, NotAfter: start.Add(time.Hour), SharedRate: rate.Limit(10), SharedBurst: 10, StandardRate: 0, StandardBurst: 0})
 	later := start.Add(time.Second)
 	if !bucket.TryPremium(later) {
 		t.Fatal("old generation did not refill")
 	}
-	bucket.Update(later, 2, 2, "pod-a", later, later.Add(time.Hour), rate.Limit(10), 10, 0, 0)
+	bucket.Update(later, BucketConfig{Epoch: 2, Generation: 2, Holder: "pod-a", NotBefore: later, NotAfter: later.Add(time.Hour), SharedRate: rate.Limit(10), SharedBurst: 10, StandardRate: 0, StandardBurst: 0})
 	if bucket.TryPremium(later) {
 		t.Fatal("new generation replayed the old holder's burst")
 	}
@@ -120,7 +120,7 @@ func TestGenerationChangeStartsSameHolderEmpty(t *testing.T) {
 func TestStandardDenialDoesNotConsumeEitherBucket(t *testing.T) {
 	bucket := NewLocalBucket()
 	start := time.Now()
-	bucket.Update(start, 1, 1, "pod-a", start, start.Add(time.Hour), 1, 1, 1, 1)
+	bucket.Update(start, BucketConfig{Epoch: 1, Generation: 1, Holder: "pod-a", NotBefore: start, NotAfter: start.Add(time.Hour), SharedRate: 1, SharedBurst: 1, StandardRate: 1, StandardBurst: 1})
 	later := start.Add(time.Second)
 	if !bucket.TryPremium(later) {
 		t.Fatal("shared setup debit failed")

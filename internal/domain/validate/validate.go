@@ -158,13 +158,8 @@ func CommandResponse(response string) error {
 	}
 
 	for _, line := range lines {
-		if len(line) == 0 || len(line) > maxResponseLineLength {
+		if !validResponseLine(line) {
 			return ErrResponseInvalid
-		}
-		for _, r := range line {
-			if r < ' ' { // control characters, including CR
-				return ErrResponseInvalid
-			}
 		}
 	}
 
@@ -174,6 +169,20 @@ func CommandResponse(response string) error {
 	// (Twitch ToS). Everything milder is deliberately allowed - broadcasters
 	// say what they want; only hate and abuse infrastructure are refused.
 	return FloorClean(response)
+}
+
+// validResponseLine reports whether one chat line is within the single-message
+// limit and carries no control characters (including CR).
+func validResponseLine(line string) bool {
+	if len(line) == 0 || len(line) > maxResponseLineLength {
+		return false
+	}
+	for _, r := range line {
+		if r < ' ' {
+			return false
+		}
+	}
+	return true
 }
 
 // CheckFloor is an injectable hook for moderation filtering.
@@ -225,13 +234,25 @@ func ModuleName(name string) error {
 	}
 
 	for i := 0; i < len(name); i++ {
-		c := name[i]
-		if (c < 'a' || c > 'z') && (c < '0' || c > '9') && c != '_' && c != '-' {
+		if !validModuleChar(name[i]) {
 			return ErrModuleName
 		}
 	}
 
 	return nil
+}
+
+// validModuleChar reports whether c is allowed in a module name: lowercase
+// ascii, digits, underscore, or hyphen (a ':' would forge a Valkey hash field).
+func validModuleChar(c byte) bool {
+	switch {
+	case c >= 'a' && c <= 'z':
+		return true
+	case c >= '0' && c <= '9':
+		return true
+	default:
+		return c == '_' || c == '-'
+	}
 }
 
 func ConfigsJSON(configs []byte) error {
@@ -262,19 +283,31 @@ func floorCleanValues(v any) error {
 	case string:
 		return FloorClean(t)
 	case map[string]any:
-		for _, e := range t {
-			if err := floorCleanValues(e); err != nil {
-				return err
-			}
-		}
+		return floorCleanEach(mapValues(t))
 	case []any:
-		for _, e := range t {
-			if err := floorCleanValues(e); err != nil {
-				return err
-			}
+		return floorCleanEach(t)
+	}
+	return nil
+}
+
+// floorCleanEach floor-checks every element of a decoded JSON array (or a map's
+// values), recursing into nested shapes.
+func floorCleanEach(values []any) error {
+	for _, e := range values {
+		if err := floorCleanValues(e); err != nil {
+			return err
 		}
 	}
 	return nil
+}
+
+// mapValues collects a decoded JSON object's values; keys carry no free text.
+func mapValues(m map[string]any) []any {
+	out := make([]any, 0, len(m))
+	for _, v := range m {
+		out = append(out, v)
+	}
+	return out
 }
 
 func Token(token []byte) error {

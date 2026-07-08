@@ -241,6 +241,14 @@ export type ChannelSubState = {
   checkedAt: string | null;
 };
 
+function unknownSubState(): ChannelSubState {
+  return { state: 'unknown', error: '', checkedAt: null };
+}
+
+function isKnownSubState(s: string): s is 'ok' | 'pending' | 'failing' {
+  return s === 'ok' || s === 'pending' || s === 'failing';
+}
+
 // Read the persisted EventSub enroll state for a channel. Fails safe: returns
 // 'unknown' on RPC error so a transient outage never blocks page render. The
 // fail-open catch doesn't fit defineRead cleanly (no cache involved either), so
@@ -252,12 +260,14 @@ export async function channelSubState(broadcasterId: string): Promise<ChannelSub
       channel?: { sub_state: string; sub_error: string; sub_checked_at: string };
     }>(`${SUB.outgressRpc}.channel.get`, { broadcaster_id: broadcasterId }, 2000);
     const c = r.channel;
-    if (!r.found || !c) return { state: 'unknown', error: '', checkedAt: null };
-    const s = (c.sub_state || '') as string;
-    const state = (s === 'ok' || s === 'pending' || s === 'failing') ? s : 'unknown';
-    return { state, error: c.sub_error || '', checkedAt: c.sub_checked_at || null };
+    if (!r.found || !c) return unknownSubState();
+    return {
+      state: isKnownSubState(c.sub_state) ? c.sub_state : 'unknown',
+      error: c.sub_error || '',
+      checkedAt: c.sub_checked_at || null
+    };
   } catch {
-    return { state: 'unknown', error: '', checkedAt: null };
+    return unknownSubState();
   }
 }
 
@@ -316,23 +326,25 @@ export async function isBanned(userId: string): Promise<boolean> {
   }
 }
 
+export type AuditEntry = {
+  actorId: string;
+  actorLogin: string;
+  action: string;
+  target: string;
+  detail: string;
+};
+
 // auditImpersonation records a dashboard write performed while an admin is
 // viewing as the user. Best-effort: a logging failure must never block the
 // action it describes, so callers fire-and-forget and we swallow errors here.
-export async function auditImpersonation(
-  actorId: string,
-  actorLogin: string,
-  action: string,
-  target: string,
-  detail: string
-): Promise<void> {
+export async function auditImpersonation(entry: AuditEntry): Promise<void> {
   try {
     await rpc(`${SUB.audit}.append`, {
-      actor_id: actorId,
-      actor_login: actorLogin,
-      action,
-      target,
-      detail,
+      actor_id: entry.actorId,
+      actor_login: entry.actorLogin,
+      action: entry.action,
+      target: entry.target,
+      detail: entry.detail,
       ok: true,
       error: ''
     });
@@ -349,13 +361,13 @@ export function auditDashboardImpersonation(
   detail = ''
 ): void {
   if (!session?.impersonator_id) return;
-  auditImpersonation(
-    session.impersonator_id,
-    session.impersonator_login ?? '',
-    `dashboard:${action}`,
-    session.user_id,
+  auditImpersonation({
+    actorId: session.impersonator_id,
+    actorLogin: session.impersonator_login ?? '',
+    action: `dashboard:${action}`,
+    target: session.user_id,
     detail
-  );
+  });
 }
 
 export const hasGrant = defineRead({
@@ -514,23 +526,25 @@ export type CheckoutBasket = { ident: string; checkoutUrl: string | null; recipi
 
 export type CheckoutPackageType = 'single' | 'subscription';
 
-export async function checkoutBasketCreate(
-  userId: string,
-  username: string,
-  recipientUsername?: string,
-  ipAddress?: string,
-  packageType?: CheckoutPackageType,
-  giftMessage?: string
-): Promise<CheckoutBasket> {
+export type CheckoutRequest = {
+  userId: string;
+  username: string;
+  recipientUsername?: string;
+  ipAddress?: string;
+  packageType?: CheckoutPackageType;
+  giftMessage?: string;
+};
+
+export async function checkoutBasketCreate(req: CheckoutRequest): Promise<CheckoutBasket> {
   const r = await rpc<{ ident?: string; checkout_url?: string; recipient_login?: string }>(
     `${SUB.transactions}.basket_create`,
     {
-      user_id: userId,
-      username,
-      recipient_username: recipientUsername || undefined,
-      ip_address: ipAddress || undefined,
-      package_type: packageType || undefined,
-      gift_message: giftMessage || undefined
+      user_id: req.userId,
+      username: req.username,
+      recipient_username: req.recipientUsername || undefined,
+      ip_address: req.ipAddress || undefined,
+      package_type: req.packageType || undefined,
+      gift_message: req.giftMessage || undefined
     },
     16000
   );

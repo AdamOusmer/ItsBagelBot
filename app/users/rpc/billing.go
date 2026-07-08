@@ -5,19 +5,17 @@ import (
 	"fmt"
 	"time"
 
-	"ItsBagelBot/app/users/repository"
 	"ItsBagelBot/internal/domain/invalidate"
 	billingrpc "ItsBagelBot/internal/domain/rpc/billing"
 	"ItsBagelBot/pkg/bus"
 
-	"github.com/nats-io/nats.go"
-	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
 )
 
 // SubscribeBilling exposes the narrow private write surface used by the
 // transactions service after it has verified a Tebex webhook signature.
-func SubscribeBilling(nc *nats.Conn, repo *repository.Users, subject, invalidationPrefix, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
+func SubscribeBilling(w Wiring, subject, invalidationPrefix string) error {
+	nc, repo, app, log, queueGroup := w.NC, w.Repo, w.App, w.Log, w.Queue
 	return bus.QueueSubscribeJSON[billingrpc.ApplyRequest, billingrpc.ApplyReply](
 		nc, subject, queueGroup, 5*time.Second, app, log,
 		func(ctx context.Context, req billingrpc.ApplyRequest) billingrpc.ApplyReply {

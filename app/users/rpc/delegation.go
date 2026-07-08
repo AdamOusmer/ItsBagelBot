@@ -4,13 +4,10 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"strconv"
-	"time"
 
 	"github.com/nats-io/nats.go"
-	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
 
 	"ItsBagelBot/app/users/repository"
@@ -28,32 +25,23 @@ type delegationRPC struct {
 
 // SubscribeDelegation serves the single-use dashboard-delegation surface under
 // the configured prefix. Mirrors SubscribeDashboard's queue-group wiring.
-func SubscribeDelegation(nc *nats.Conn, repo *repository.Users, prefix, invalidationPrefix, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
-	d := &delegationRPC{repo: repo, nc: nc, invalidationPrefix: invalidationPrefix, log: log}
+func SubscribeDelegation(w Wiring, prefix, invalidationPrefix string) error {
+	d := &delegationRPC{repo: w.Repo, nc: w.NC, invalidationPrefix: invalidationPrefix, log: w.Log}
 
-	type handler struct {
-		verb string
-		fn   func(context.Context, *nats.Msg)
+	verbs := map[string]func(context.Context, *nats.Msg){
+		"create":  d.handleCreate,
+		"get":     d.handleGet,
+		"consume": d.handleConsume,
+		"list":    d.handleList,
+		"revoke":  d.handleRevoke,
+		"update":  d.handleUpdate,
+		"access":  d.handleAccess,
+		"opt_out": d.handleOptOut,
 	}
-	verbs := []handler{
-		{"create", d.handleCreate},
-		{"get", d.handleGet},
-		{"consume", d.handleConsume},
-		{"list", d.handleList},
-		{"revoke", d.handleRevoke},
-		{"update", d.handleUpdate},
-		{"access", d.handleAccess},
-		{"opt_out", d.handleOptOut},
-	}
-	for _, h := range verbs {
-		subject := prefix + "." + h.verb
-		fn := h.fn
-		if _, err := nc.QueueSubscribe(subject, queueGroup, func(msg *nats.Msg) {
-			txn := app.StartTransaction("rpc " + subject)
-			defer txn.End()
-			ctx := newrelic.NewContext(context.Background(), txn)
-			fn(ctx, msg)
-		}); err != nil {
+	for verb, fn := range verbs {
+		subject := prefix + "." + verb
+		fn := fn
+		if _, err := w.NC.QueueSubscribe(subject, w.Queue, tracedHandler(w.App, subject, fn)); err != nil {
 			return fmt.Errorf("subscribe %s: %w", subject, err)
 		}
 	}
@@ -69,29 +57,25 @@ func newToken() (string, error) {
 }
 
 func (d *delegationRPC) handleCreate(ctx context.Context, msg *nats.Msg) {
-	var req usersrpc.CreateDelegationRequest
-	if err := json.Unmarshal(msg.Data, &req); err != nil {
-		bus.Respond(msg, map[string]any{"error": "bad request"})
+	req, ok := decodeRequest[usersrpc.CreateDelegationRequest](msg)
+	if !ok {
 		return
 	}
-
-	ownerID, err := strconv.ParseUint(req.OwnerUserID, 10, 64)
-	if err != nil {
-		bus.Respond(msg, map[string]any{"error": "owner_user_id must be numeric"})
+	ownerID, ok := parseWireID(msg, req.OwnerUserID, "owner_user_id")
+	if !ok {
 		return
 	}
 	if len(req.Sections) == 0 {
-		bus.Respond(msg, map[string]any{"error": "at least one section required"})
+		respondErr(msg, "at least one section required")
 		return
 	}
-
 	token, err := newToken()
 	if err != nil {
-		bus.Respond(msg, map[string]any{"error": "token generation failed"})
+		respondErr(msg, "token generation failed")
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	ctx, cancel := timeout(ctx)
 	defer cancel()
 
 	// No expiry: the link stays valid until the invitee accepts it (binding them
@@ -99,7 +83,7 @@ func (d *delegationRPC) handleCreate(ctx context.Context, msg *nats.Msg) {
 	// time-boxed.
 	if err := d.repo.CreateDelegation(ctx, token, ownerID, req.OwnerLogin, req.Sections, nil); err != nil {
 		d.log.Error("delegation create", zap.Error(err))
-		bus.Respond(msg, map[string]any{"error": err.Error()})
+		respondErr(msg, err.Error())
 		return
 	}
 
@@ -108,18 +92,17 @@ func (d *delegationRPC) handleCreate(ctx context.Context, msg *nats.Msg) {
 }
 
 func (d *delegationRPC) handleGet(ctx context.Context, msg *nats.Msg) {
-	var req usersrpc.TokenRequest
-	if err := json.Unmarshal(msg.Data, &req); err != nil {
-		bus.Respond(msg, map[string]any{"error": "bad request"})
+	req, ok := decodeRequest[usersrpc.TokenRequest](msg)
+	if !ok {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	ctx, cancel := timeout(ctx)
 	defer cancel()
 
 	view, err := d.repo.GetDelegation(ctx, req.Token)
 	if err != nil {
-		bus.Respond(msg, map[string]any{"error": "not found"})
+		respondErr(msg, "not found")
 		return
 	}
 
@@ -132,19 +115,16 @@ func (d *delegationRPC) handleGet(ctx context.Context, msg *nats.Msg) {
 }
 
 func (d *delegationRPC) handleConsume(ctx context.Context, msg *nats.Msg) {
-	var req usersrpc.ConsumeDelegationRequest
-	if err := json.Unmarshal(msg.Data, &req); err != nil {
-		bus.Respond(msg, map[string]any{"ok": false, "error": "bad request"})
+	req, ok := decodeRequest[usersrpc.ConsumeDelegationRequest](msg)
+	if !ok {
+		return
+	}
+	delegateID, ok := parseWireID(msg, req.DelegateUserID, "delegate_user_id")
+	if !ok {
 		return
 	}
 
-	delegateID, err := strconv.ParseUint(req.DelegateUserID, 10, 64)
-	if err != nil {
-		bus.Respond(msg, map[string]any{"ok": false, "error": "delegate_user_id must be numeric"})
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	ctx, cancel := timeout(ctx)
 	defer cancel()
 
 	view, err := d.repo.ConsumeDelegation(ctx, req.Token, delegateID, req.DelegateLogin)
@@ -164,24 +144,21 @@ func (d *delegationRPC) handleConsume(ctx context.Context, msg *nats.Msg) {
 }
 
 func (d *delegationRPC) handleList(ctx context.Context, msg *nats.Msg) {
-	var req usersrpc.OwnerRequest
-	if err := json.Unmarshal(msg.Data, &req); err != nil {
-		bus.Respond(msg, map[string]any{"error": "bad request"})
+	req, ok := decodeRequest[usersrpc.OwnerRequest](msg)
+	if !ok {
+		return
+	}
+	ownerID, ok := parseWireID(msg, req.OwnerUserID, "owner_user_id")
+	if !ok {
 		return
 	}
 
-	ownerID, err := strconv.ParseUint(req.OwnerUserID, 10, 64)
-	if err != nil {
-		bus.Respond(msg, map[string]any{"error": "owner_user_id must be numeric"})
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	ctx, cancel := timeout(ctx)
 	defer cancel()
 
 	views, err := d.repo.ListDelegationsByOwner(ctx, ownerID)
 	if err != nil {
-		bus.Respond(msg, map[string]any{"error": err.Error()})
+		respondErr(msg, err.Error())
 		return
 	}
 
@@ -198,78 +175,71 @@ func (d *delegationRPC) handleList(ctx context.Context, msg *nats.Msg) {
 }
 
 func (d *delegationRPC) handleRevoke(ctx context.Context, msg *nats.Msg) {
-	var req usersrpc.RevokeDelegationRequest
-	if err := json.Unmarshal(msg.Data, &req); err != nil {
-		bus.Respond(msg, map[string]any{"ok": false, "error": "bad request"})
+	req, ok := decodeRequest[usersrpc.RevokeDelegationRequest](msg)
+	if !ok {
+		return
+	}
+	ownerID, ok := parseWireID(msg, req.OwnerUserID, "owner_user_id")
+	if !ok {
 		return
 	}
 
-	ownerID, err := strconv.ParseUint(req.OwnerUserID, 10, 64)
-	if err != nil {
-		bus.Respond(msg, map[string]any{"ok": false, "error": "owner_user_id must be numeric"})
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	ctx, cancel := timeout(ctx)
 	defer cancel()
 
-	if err := d.repo.RevokeDelegation(ctx, req.Token, ownerID); err != nil {
+	d.writeThenOK(msg, func() error { return d.repo.RevokeDelegation(ctx, req.Token, ownerID) }, ownerID)
+}
+
+// writeThenOK runs a delegation mutation and replies with the ok-shaped result:
+// {"ok":false,"error":...} on failure, else {"ok":true} after invalidating each
+// affected user's cache.
+func (d *delegationRPC) writeThenOK(msg *nats.Msg, write func() error, invalidateIDs ...uint64) {
+	if err := write(); err != nil {
 		bus.Respond(msg, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
-
-	d.publishInvalidation(ownerID)
+	for _, id := range invalidateIDs {
+		d.publishInvalidation(id)
+	}
 	bus.Respond(msg, map[string]any{"ok": true})
 }
 
 func (d *delegationRPC) handleUpdate(ctx context.Context, msg *nats.Msg) {
-	var req usersrpc.UpdateDelegationRequest
-	if err := json.Unmarshal(msg.Data, &req); err != nil {
-		bus.Respond(msg, map[string]any{"ok": false, "error": "bad request"})
+	req, ok := decodeRequest[usersrpc.UpdateDelegationRequest](msg)
+	if !ok {
 		return
 	}
-
-	ownerID, err := strconv.ParseUint(req.OwnerUserID, 10, 64)
-	if err != nil {
-		bus.Respond(msg, map[string]any{"ok": false, "error": "owner_user_id must be numeric"})
+	ownerID, ok := parseWireID(msg, req.OwnerUserID, "owner_user_id")
+	if !ok {
 		return
 	}
 	if len(req.Sections) == 0 {
-		bus.Respond(msg, map[string]any{"ok": false, "error": "at least one section required"})
+		respondErr(msg, "at least one section required")
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	ctx, cancel := timeout(ctx)
 	defer cancel()
 
-	if err := d.repo.UpdateDelegationSections(ctx, req.Token, ownerID, req.Sections); err != nil {
-		bus.Respond(msg, map[string]any{"ok": false, "error": err.Error()})
-		return
-	}
-
-	d.publishInvalidation(ownerID)
-	bus.Respond(msg, map[string]any{"ok": true})
+	d.writeThenOK(msg, func() error { return d.repo.UpdateDelegationSections(ctx, req.Token, ownerID, req.Sections) }, ownerID)
 }
 
 func (d *delegationRPC) handleAccess(ctx context.Context, msg *nats.Msg) {
-	var req usersrpc.AccessRequest
-	if err := json.Unmarshal(msg.Data, &req); err != nil {
-		bus.Respond(msg, map[string]any{"error": "bad request"})
+	req, ok := decodeRequest[usersrpc.AccessRequest](msg)
+	if !ok {
+		return
+	}
+	delegateID, ok := parseWireID(msg, req.DelegateUserID, "delegate_user_id")
+	if !ok {
 		return
 	}
 
-	delegateID, err := strconv.ParseUint(req.DelegateUserID, 10, 64)
-	if err != nil {
-		bus.Respond(msg, map[string]any{"error": "delegate_user_id must be numeric"})
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	ctx, cancel := timeout(ctx)
 	defer cancel()
 
 	views, err := d.repo.ListAccessByDelegate(ctx, delegateID)
 	if err != nil {
-		bus.Respond(msg, map[string]any{"error": err.Error()})
+		respondErr(msg, err.Error())
 		return
 	}
 
@@ -285,34 +255,23 @@ func (d *delegationRPC) handleAccess(ctx context.Context, msg *nats.Msg) {
 }
 
 func (d *delegationRPC) handleOptOut(ctx context.Context, msg *nats.Msg) {
-	var req usersrpc.OptOutDelegationRequest
-	if err := json.Unmarshal(msg.Data, &req); err != nil {
-		bus.Respond(msg, map[string]any{"ok": false, "error": "bad request"})
+	req, ok := decodeRequest[usersrpc.OptOutDelegationRequest](msg)
+	if !ok {
+		return
+	}
+	ownerID, ok := parseWireID(msg, req.OwnerUserID, "owner_user_id")
+	if !ok {
+		return
+	}
+	delegateID, ok := parseWireID(msg, req.DelegateUserID, "delegate_user_id")
+	if !ok {
 		return
 	}
 
-	ownerID, err := strconv.ParseUint(req.OwnerUserID, 10, 64)
-	if err != nil {
-		bus.Respond(msg, map[string]any{"ok": false, "error": "owner_user_id must be numeric"})
-		return
-	}
-	delegateID, err := strconv.ParseUint(req.DelegateUserID, 10, 64)
-	if err != nil {
-		bus.Respond(msg, map[string]any{"ok": false, "error": "delegate_user_id must be numeric"})
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	ctx, cancel := timeout(ctx)
 	defer cancel()
 
-	if err := d.repo.OptOutDelegation(ctx, ownerID, delegateID); err != nil {
-		bus.Respond(msg, map[string]any{"ok": false, "error": err.Error()})
-		return
-	}
-
-	d.publishInvalidation(ownerID)
-	d.publishInvalidation(delegateID)
-	bus.Respond(msg, map[string]any{"ok": true})
+	d.writeThenOK(msg, func() error { return d.repo.OptOutDelegation(ctx, ownerID, delegateID) }, ownerID, delegateID)
 }
 
 func (d *delegationRPC) publishInvalidation(id uint64) {

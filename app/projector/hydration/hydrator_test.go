@@ -16,7 +16,7 @@ import (
 
 type fakeStore struct {
 	getState    func(context.Context, uint64) (projection.HydrationState, error)
-	setUser     func(context.Context, uint64, string, bool, bool, string, time.Duration) error
+	setUser     func(context.Context, uint64, projection.UserProjection, time.Duration) error
 	setModules  func(context.Context, uint64, []projection.ModuleView, time.Duration) error
 	setCommands func(context.Context, uint64, []projection.CommandView,
 		time.Duration) error
@@ -26,8 +26,8 @@ func (s *fakeStore) GetHydrationState(ctx context.Context, id uint64) (projectio
 	return s.getState(ctx, id)
 }
 
-func (s *fakeStore) SetUserWithTTL(ctx context.Context, id uint64, status string, active, banned bool, locale string, ttl time.Duration) error {
-	return s.setUser(ctx, id, status, active, banned, locale, ttl)
+func (s *fakeStore) SetUserWithTTL(ctx context.Context, id uint64, u projection.UserProjection, ttl time.Duration) error {
+	return s.setUser(ctx, id, u, ttl)
 }
 
 func (s *fakeStore) SetModulesWithTTL(ctx context.Context, id uint64, modules []projection.ModuleView, ttl time.Duration) error {
@@ -80,7 +80,7 @@ func TestEnsureAsyncHydratesMissingSectionsWithQueryTTLAndReusesSeed(t *testing.
 	store.getState = func(context.Context, uint64) (projection.HydrationState, error) {
 		return projection.HydrationState{}, nil
 	}
-	store.setUser = func(_ context.Context, _ uint64, _ string, _ bool, _ bool, _ string, ttl time.Duration) error {
+	store.setUser = func(_ context.Context, _ uint64, _ projection.UserProjection, ttl time.Duration) error {
 		writes <- write{section: "user", ttl: ttl}
 		return nil
 	}
@@ -209,7 +209,7 @@ func TestRefreshAsyncForcesFullHydrationWithLiveTTL(t *testing.T) {
 		t.Fatal("forced live refresh must not use the completeness shortcut")
 		return projection.HydrationState{}, nil
 	}
-	store.setUser = func(_ context.Context, _ uint64, _ string, _ bool, _ bool, _ string, ttl time.Duration) error {
+	store.setUser = func(_ context.Context, _ uint64, _ projection.UserProjection, ttl time.Duration) error {
 		writes <- write{section: "user", ttl: ttl}
 		return nil
 	}
@@ -237,7 +237,7 @@ func TestEnsureAsyncLeavesFailedSectionUnprojectedForRetry(t *testing.T) {
 	store.getState = func(context.Context, uint64) (projection.HydrationState, error) {
 		return projection.HydrationState{}, nil
 	}
-	store.setUser = func(_ context.Context, _ uint64, _ string, _ bool, _ bool, _ string, ttl time.Duration) error {
+	store.setUser = func(_ context.Context, _ uint64, _ projection.UserProjection, ttl time.Duration) error {
 		writes <- write{section: "user", ttl: ttl}
 		return nil
 	}
@@ -272,7 +272,7 @@ func noOpStore() *fakeStore {
 		getState: func(context.Context, uint64) (projection.HydrationState, error) {
 			return projection.HydrationState{}, nil
 		},
-		setUser: func(context.Context, uint64, string, bool, bool, string, time.Duration) error { return nil },
+		setUser: func(context.Context, uint64, projection.UserProjection, time.Duration) error { return nil },
 		setModules: func(context.Context, uint64, []projection.ModuleView, time.Duration) error {
 			return nil
 		},

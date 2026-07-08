@@ -146,85 +146,119 @@ function demoView(cmd: ReturnType<typeof parseCommand>, isActive: boolean): Comm
   };
 }
 
-export const actions: Actions = {
-  save: async ({ request, locals }) => {
-    gateCommands(locals.session);
-    const uid = effectiveId(locals.session);
-    // DEMO runs without a real session; the demo branches below short-circuit
-    // before any RPC, so only production requests need the auth gate.
-    if (env.DEMO !== '1' && !locals.session) {
-      return fail(401, { ok: false, error: 'Not signed in.' });
-    }
+// actionContext runs the shared action prologue: section gate, effective
+// dashboard id, auth check, and form parse. DEMO runs without a real session;
+// the demo branches in each action short-circuit before any RPC, so only
+// production requests need the auth gate — null means "respond 401".
+async function actionContext({ request, locals }: { request: Request; locals: App.Locals }) {
+  gateCommands(locals.session);
+  if (env.DEMO !== '1' && !locals.session) return null;
+  return {
+    uid: effectiveId(locals.session),
+    session: locals.session,
+    form: await request.formData()
+  };
+}
 
-    const f = await request.formData();
-    const cmd = parseCommand(f);
-    const isActive = f.get('is_active') === 'on';
-    const isEdit = f.get('edit') === '1';
-    const originalName = normName(String(f.get('original_name') ?? ''));
-    const renamed = isEdit && originalName !== '' && originalName !== cmd.name;
+const notSignedIn = () => fail(401, { ok: false, error: 'Not signed in.' });
+
+// tryRpc runs one store RPC, logging the real failure server-side — RpcError /
+// NATS timeout messages can carry internal service detail, so they go to the
+// logs, never the dashboard. The caller returns a generic fail(); the client
+// shows its own localized "…failed" copy.
+async function tryRpc<T>(action: string, call: () => Promise<T>): Promise<{ ok: true; value: T } | { ok: false }> {
+  try {
+    return { ok: true, value: await call() };
+  } catch (e) {
+    console.error(`[commands] ${action} failed:`, e instanceof Error ? (e.stack ?? e.message) : e);
+    return { ok: false };
+  }
+}
+
+// builtinRow rebuilds one built-in's CommandView so the optimistic UI
+// reconciles the same way it does for custom rows.
+function builtinRow(def: NonNullable<ReturnType<typeof builtinDef>>, response: string, isActive: boolean): CommandView {
+  return {
+    name: def.id,
+    response,
+    is_active: isActive,
+    perm: def.defaultPerm,
+    cooldown: def.defaultCooldown,
+    stream_online_only: def.liveOnly,
+    builtin: true
+  };
+}
+
+// parseSaveForm reads the editor's submission: the shared command fields plus
+// the edit/rename bookkeeping. A rename passes original_name so the commands
+// service updates the row's name field in place (single write) instead of
+// delete-old + create-new.
+function parseSaveForm(f: FormData) {
+  const cmd = parseCommand(f);
+  const isEdit = f.get('edit') === '1';
+  const originalName = normName(String(f.get('original_name') ?? ''));
+  return {
+    cmd,
+    isActive: f.get('is_active') === 'on',
+    isEdit,
+    originalName,
+    renamed: isEdit && originalName !== '' && originalName !== cmd.name
+  };
+}
+
+// saveResult shapes the save action's reply; applyResult only reads the
+// affected row out of `commands`, so echoing just that row is enough in DEMO.
+function saveResult(s: ReturnType<typeof parseSaveForm>, commands: CommandView[]) {
+  return {
+    ok: true,
+    action: s.isEdit ? 'updated' : 'created',
+    name: s.cmd.name,
+    original: s.renamed ? s.originalName : undefined,
+    commands
+  };
+}
+
+export const actions: Actions = {
+  save: async (event) => {
+    const ctx = await actionContext(event);
+    if (!ctx) return notSignedIn();
+    const s = parseSaveForm(ctx.form);
 
     // Shared validator: the client editor runs the exact same checks, so this
     // is the authoritative re-check. errors is a field -> message map for
     // inline display; error keeps the single-line toast fallback.
     const errors = validateCommand({
-      name: cmd.name,
-      aliases: cmd.aliases,
-      response: cmd.response,
-      cooldown: cmd.cooldown,
-      allowedUserId: cmd.allowedUserId
+      name: s.cmd.name,
+      aliases: s.cmd.aliases,
+      response: s.cmd.response,
+      cooldown: s.cmd.cooldown,
+      allowedUserId: s.cmd.allowedUserId
     });
     if (Object.keys(errors).length) {
       return fail(400, { ok: false, errors, error: firstError(errors) });
     }
 
     // DEMO: echo the row back as a success so the demo console exercises the
-    // full optimistic flow without NATS. applyResult only reads the affected
-    // row out of `commands`, so echoing just that row is enough.
+    // full optimistic flow without NATS.
     if (env.DEMO === '1') {
-      return {
-        ok: true,
-        action: isEdit ? 'updated' : 'created',
-        name: cmd.name,
-        original: renamed ? originalName : undefined,
-        commands: [demoView(cmd, isActive)]
-      };
+      return saveResult(s, [demoView(s.cmd, s.isActive)]);
     }
 
-    // A rename passes original_name so the commands service updates the row's
-    // name field in place (single write) instead of delete-old + create-new.
-    // The optimistic reply already drops the old key and lists the renamed
-    // command, so one round trip covers it. A write failure throws the service's
-    // real error, returned as a fail() so the toast shows it (not a bare "failed").
-    let commands: CommandView[];
-    try {
-      ({ commands } = await upsertCommand(uid, { ...cmd, isActive }, renamed ? originalName : undefined));
-    } catch (e) {
-      logRpcFailure('save', e);
-      return fail(400, { ok: false });
-    }
+    const res = await tryRpc('save', () =>
+      upsertCommand(ctx.uid, { ...s.cmd, isActive: s.isActive }, s.renamed ? s.originalName : undefined)
+    );
+    if (!res.ok) return fail(400, { ok: false });
 
-    auditDashboardImpersonation(locals.session, isEdit ? 'command:update' : 'command:create', cmd.name);
-
-    return {
-      ok: true,
-      action: isEdit ? 'updated' : 'created',
-      name: cmd.name,
-      original: renamed ? originalName : undefined,
-      commands
-    };
+    auditDashboardImpersonation(ctx.session, s.isEdit ? 'command:update' : 'command:create', s.cmd.name);
+    return saveResult(s, res.value.commands);
   },
 
   // Lightweight toggle: flips is_active without going through the full editor.
-  toggle: async ({ request, locals }) => {
-    gateCommands(locals.session);
-    const uid = effectiveId(locals.session);
-    // DEMO runs without a real session; the demo branches below short-circuit
-    // before any RPC, so only production requests need the auth gate.
-    if (env.DEMO !== '1' && !locals.session) {
-      return fail(401, { ok: false, error: 'Not signed in.' });
-    }
+  toggle: async (event) => {
+    const ctx = await actionContext(event);
+    if (!ctx) return notSignedIn();
+    const { uid, form: f } = ctx;
 
-    const f = await request.formData();
     const cmd = parseCommand(f);
     const isActive = f.get('is_active') === 'on';
 
@@ -232,85 +266,53 @@ export const actions: Actions = {
       return { ok: true, action: 'updated', name: cmd.name, commands: [demoView(cmd, isActive)], silent: true };
     }
 
-    let commands: CommandView[];
-    try {
-      ({ commands } = await upsertCommand(uid, { ...cmd, isActive }));
-    } catch (e) {
-      logRpcFailure('toggle', e);
-      return fail(400, { ok: false });
-    }
+    const res = await tryRpc('toggle', () => upsertCommand(uid, { ...cmd, isActive }));
+    if (!res.ok) return fail(400, { ok: false });
 
-    auditDashboardImpersonation(locals.session, 'command:toggle', `${cmd.name}=${isActive}`);
+    auditDashboardImpersonation(ctx.session, 'command:toggle', `${cmd.name}=${isActive}`);
 
-    return { ok: true, action: 'updated', name: cmd.name, commands, silent: true };
+    return { ok: true, action: 'updated', name: cmd.name, commands: res.value.commands, silent: true };
   },
 
-  delete: async ({ request, locals }) => {
-    gateCommands(locals.session);
-    const uid = effectiveId(locals.session);
-    // DEMO runs without a real session; the demo branches below short-circuit
-    // before any RPC, so only production requests need the auth gate.
-    if (env.DEMO !== '1' && !locals.session) {
-      return fail(401, { ok: false, error: 'Not signed in.' });
-    }
+  delete: async (event) => {
+    const ctx = await actionContext(event);
+    if (!ctx) return notSignedIn();
+    const { uid, form: f } = ctx;
 
-    const f = await request.formData();
     const name = String(f.get('name') ?? '');
 
     if (env.DEMO === '1') return { ok: true, action: 'deleted', name };
 
-    let commands: CommandView[];
-    try {
-      ({ commands } = await deleteCommand(uid, name));
-    } catch (e) {
-      logRpcFailure('delete', e);
-      return fail(400, { ok: false });
-    }
+    const res = await tryRpc('delete', () => deleteCommand(uid, name));
+    if (!res.ok) return fail(400, { ok: false });
 
-    auditDashboardImpersonation(locals.session, 'command:delete', name);
+    auditDashboardImpersonation(ctx.session, 'command:delete', name);
 
-    return { ok: true, action: 'deleted', name, commands };
+    return { ok: true, action: 'deleted', name, commands: res.value.commands };
   },
 
   // Toggle a built-in command on/off. Built-in state lives in the modules
   // service (key = the built-in id), not the commands service, so this is a
-  // separate path from the custom-command toggle. Returns the rebuilt built-in
-  // row so the optimistic UI reconciles the same way it does for custom rows.
-  toggleBuiltin: async ({ request, locals }) => {
-    gateCommands(locals.session);
-    const uid = effectiveId(locals.session);
-    if (env.DEMO !== '1' && !locals.session) {
-      return fail(401, { ok: false, error: 'Not signed in.' });
-    }
+  // separate path from the custom-command toggle.
+  toggleBuiltin: async (event) => {
+    const ctx = await actionContext(event);
+    if (!ctx) return notSignedIn();
+    const { uid, form: f } = ctx;
 
-    const f = await request.formData();
     const name = normName(String(f.get('name') ?? ''));
     const def = builtinDef(name);
     if (!def) return fail(400, { ok: false, error: 'Unknown built-in command.' });
     const isActive = f.get('is_active') === 'on';
-
-    const view: CommandView = {
-      name: def.id,
-      response: def.summary,
-      is_active: isActive,
-      perm: def.defaultPerm,
-      cooldown: def.defaultCooldown,
-      stream_online_only: def.liveOnly,
-      builtin: true
-    };
+    const view = builtinRow(def, def.summary, isActive);
 
     if (env.DEMO === '1') {
       return { ok: true, action: 'updated', name, commands: [view], silent: true };
     }
 
-    try {
-      await upsertModule(uid, def.id, isActive);
-    } catch (e) {
-      logRpcFailure('toggleBuiltin', e);
-      return fail(400, { ok: false });
-    }
+    const res = await tryRpc('toggleBuiltin', () => upsertModule(uid, def.id, isActive));
+    if (!res.ok) return fail(400, { ok: false });
 
-    auditDashboardImpersonation(locals.session, 'command:builtin_toggle', `${name}=${isActive}`);
+    auditDashboardImpersonation(ctx.session, 'command:builtin_toggle', `${name}=${isActive}`);
     return { ok: true, action: 'updated', name, commands: [view], silent: true };
   },
 
@@ -320,17 +322,14 @@ export const actions: Actions = {
   // reply clears the override (upsertModule omits empty config), so the bot
   // falls back to the default template. The current on/off state rides along so
   // the write preserves it.
-  saveBuiltinReply: async ({ request, locals }) => {
-    gateCommands(locals.session);
-    const uid = effectiveId(locals.session);
-    if (env.DEMO !== '1' && !locals.session) {
-      return fail(401, { ok: false, error: 'Not signed in.' });
-    }
+  saveBuiltinReply: async (event) => {
+    const ctx = await actionContext(event);
+    if (!ctx) return notSignedIn();
+    const { uid, form: f } = ctx;
 
-    const f = await request.formData();
     const name = normName(String(f.get('name') ?? ''));
-    const def = builtinDef(name);
-    if (!def || !def.editable || !def.replyKey) {
+    const def = editableBuiltin(name);
+    if (!def) {
       return fail(400, { ok: false, error: 'This command has no editable reply.' });
     }
     const reply = String(f.get('reply') ?? '').trim();
@@ -338,37 +337,25 @@ export const actions: Actions = {
       return fail(400, { ok: false, error: `Reply is too long (max ${RESPONSE_MAX}).` });
     }
     const isActive = f.get('is_active') === 'on';
-
-    const view: CommandView = {
-      name: def.id,
-      response: reply || def.preview,
-      is_active: isActive,
-      perm: def.defaultPerm,
-      cooldown: def.defaultCooldown,
-      stream_online_only: def.liveOnly,
-      builtin: true
-    };
+    const view = builtinRow(def, reply || def.preview, isActive);
 
     if (env.DEMO === '1') {
       return { ok: true, action: 'updated', name, commands: [view], silent: true };
     }
 
-    try {
-      await upsertModule(uid, def.id, isActive, reply ? { [def.replyKey]: reply } : undefined);
-    } catch (e) {
-      logRpcFailure('saveBuiltinReply', e);
-      return fail(400, { ok: false });
-    }
+    const res = await tryRpc('saveBuiltinReply', () =>
+      upsertModule(uid, def.id, isActive, reply ? { [def.replyKey!]: reply } : undefined)
+    );
+    if (!res.ok) return fail(400, { ok: false });
 
-    auditDashboardImpersonation(locals.session, 'command:builtin_reply', name);
+    auditDashboardImpersonation(ctx.session, 'command:builtin_reply', name);
     return { ok: true, action: 'updated', name, commands: [view], silent: true };
   }
 };
 
-// Log the real RPC failure server-side — RpcError / NATS timeout messages can
-// carry internal service detail, so they go to the logs, never the dashboard.
-// The action returns a generic fail() instead; the client shows its own
-// localized "…failed" copy.
-function logRpcFailure(action: string, e: unknown): void {
-  console.error(`[commands] ${action} failed:`, e instanceof Error ? (e.stack ?? e.message) : e);
+// editableBuiltin resolves a built-in that carries an editable reply template.
+function editableBuiltin(name: string) {
+  const def = builtinDef(name);
+  if (!def?.editable || !def.replyKey) return undefined;
+  return def;
 }

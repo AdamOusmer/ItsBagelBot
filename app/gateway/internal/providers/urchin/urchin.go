@@ -101,9 +101,19 @@ func (p *Provider) Endpoints() []provider.Endpoint {
 	}
 }
 
-// accountKey normalizes the player identifier for cache keys so "Player" and
-// "player" share an entry.
-func accountKey(account string) string { return strings.ToLower(strings.TrimSpace(account)) }
+// account is a Minecraft player identifier (a username or UUID; Coral resolves
+// usernames through Mojang) as supplied by the caller. It is a distinct type so
+// the many handoffs below carry the player's meaning rather than a bare string.
+type account string
+
+func (a account) String() string { return string(a) }
+
+// empty reports whether the (trimmed) identifier is absent.
+func (a account) empty() bool { return strings.TrimSpace(string(a)) == "" }
+
+// cacheKey normalizes the identifier for cache keys so "Player" and "player"
+// share an entry.
+func (a account) cacheKey() string { return strings.ToLower(strings.TrimSpace(string(a))) }
 
 // --- session deltas (daily / weekly / monthly) -------------------------------
 
@@ -148,39 +158,39 @@ func numDelta(raw json.RawMessage) int64 {
 
 func (p *Provider) session(period string) func(context.Context, gatewayrpc.Request) any {
 	return func(ctx context.Context, req gatewayrpc.Request) any {
-		account := strings.TrimSpace(req.Account)
-		if account == "" {
+		acct := account(strings.TrimSpace(req.Account))
+		if acct.empty() {
 			return gatewayrpc.UrchinSessionReply{Error: "missing account"}
 		}
-		key := core.Key(p.Name(), period, accountKey(account))
+		key := core.Key(p.Name(), period, acct.cacheKey())
 		b, err := core.CachedBytes(ctx, p.cache, key, func(ctx context.Context) ([]byte, time.Duration, error) {
 			return core.BuildReply(ctx, sessionTTL, negativeTTL,
 				func(ctx context.Context) (any, error) {
 					if err := p.buckets.Enforce(ctx, p.deps.Limiter, req.IsPremium); err != nil {
 						return nil, err
 					}
-					return p.fetchSession(ctx, period, account)
+					return p.fetchSession(ctx, period, acct)
 				},
-				func(msg string) any { return gatewayrpc.UrchinSessionReply{Player: account, Error: msg} },
+				func(msg string) any { return gatewayrpc.UrchinSessionReply{Player: acct.String(), Error: msg} },
 			)
 		})
 		if err != nil {
-			p.log.Warn("urchin session fetch failed", zap.String("period", period), zap.String("account", account), zap.Error(err))
-			return gatewayrpc.UrchinSessionReply{Player: account, Error: "stats lookup failed"}
+			p.log.Warn("urchin session fetch failed", zap.String("period", period), zap.String("account", acct.String()), zap.Error(err))
+			return gatewayrpc.UrchinSessionReply{Player: acct.String(), Error: "stats lookup failed"}
 		}
 		return json.RawMessage(b)
 	}
 }
 
-func (p *Provider) fetchSession(ctx context.Context, period, account string) (gatewayrpc.UrchinSessionReply, error) {
+func (p *Provider) fetchSession(ctx context.Context, period string, acct account) (gatewayrpc.UrchinSessionReply, error) {
 	var resp sessionResponse
-	q := url.Values{"player": {account}}
+	q := url.Values{"player": {acct.String()}}
 	if err := p.http.GetJSON(ctx, "/v3/player/sessions/"+period, q, &resp); err != nil {
 		return gatewayrpc.UrchinSessionReply{}, err
 	}
 
 	reply := gatewayrpc.UrchinSessionReply{
-		Player:    displayOr(resp.DisplayName, account),
+		Player:    displayOr(resp.DisplayName, acct.String()),
 		SinceUnix: resp.From / 1000, // Coral timestamps are Unix milliseconds
 	}
 	if len(resp.Delta) > 0 {
@@ -215,29 +225,29 @@ type tagsResponse struct {
 	} `json:"tags"`
 }
 
-func (p *Provider) fetchTags(ctx context.Context, account string) (tagsResponse, error) {
+func (p *Provider) fetchTags(ctx context.Context, acct account) (tagsResponse, error) {
 	var resp tagsResponse
-	return resp, p.http.GetJSON(ctx, "/v3/player/tags", url.Values{"player": {account}}, &resp)
+	return resp, p.http.GetJSON(ctx, "/v3/player/tags", url.Values{"player": {acct.String()}}, &resp)
 }
 
 func (p *Provider) tags(ctx context.Context, req gatewayrpc.Request) any {
-	account := strings.TrimSpace(req.Account)
-	if account == "" {
+	acct := account(strings.TrimSpace(req.Account))
+	if acct.empty() {
 		return gatewayrpc.UrchinTagsReply{Error: "missing account"}
 	}
-	key := core.Key(p.Name(), "tags", accountKey(account))
+	key := core.Key(p.Name(), "tags", acct.cacheKey())
 	b, err := core.CachedBytes(ctx, p.cache, key, func(ctx context.Context) ([]byte, time.Duration, error) {
 		return core.BuildReply(ctx, tagsTTL, negativeTTL,
 			func(ctx context.Context) (any, error) {
 				if err := p.buckets.Enforce(ctx, p.deps.Limiter, req.IsPremium); err != nil {
 					return nil, err
 				}
-				resp, err := p.fetchTags(ctx, account)
+				resp, err := p.fetchTags(ctx, acct)
 				if err != nil {
 					return nil, err
 				}
 				out := gatewayrpc.UrchinTagsReply{
-					Player: displayOr(resp.DisplayName, account),
+					Player: displayOr(resp.DisplayName, acct.String()),
 					Tags:   make([]gatewayrpc.UrchinTag, 0, len(resp.Tags)),
 				}
 				for _, t := range resp.Tags {
@@ -245,12 +255,12 @@ func (p *Provider) tags(ctx context.Context, req gatewayrpc.Request) any {
 				}
 				return out, nil
 			},
-			func(msg string) any { return gatewayrpc.UrchinTagsReply{Player: account, Error: msg} },
+			func(msg string) any { return gatewayrpc.UrchinTagsReply{Player: acct.String(), Error: msg} },
 		)
 	})
 	if err != nil {
-		p.log.Warn("urchin tags fetch failed", zap.String("account", account), zap.Error(err))
-		return gatewayrpc.UrchinTagsReply{Player: account, Error: "tags lookup failed"}
+		p.log.Warn("urchin tags fetch failed", zap.String("account", acct.String()), zap.Error(err))
+		return gatewayrpc.UrchinTagsReply{Player: acct.String(), Error: "tags lookup failed"}
 	}
 	return json.RawMessage(b)
 }
@@ -268,13 +278,13 @@ type cubelifyResponse struct {
 // cached for a day. An empty uuid on a 200 is shaped like a 404 so it negative
 // caches instead of being stored as a "successful" blank that would poison the
 // downstream cubelify call.
-func (p *Provider) resolveUUID(ctx context.Context, account string, isPremium bool) (string, error) {
-	key := core.Key(p.Name(), "uuid", accountKey(account))
+func (p *Provider) resolveUUID(ctx context.Context, acct account, isPremium bool) (string, error) {
+	key := core.Key(p.Name(), "uuid", acct.cacheKey())
 	return core.Cached(ctx, p.cache, key, uuidTTL, negativeTTL, func(ctx context.Context) (string, error) {
 		if err := p.buckets.Enforce(ctx, p.deps.Limiter, isPremium); err != nil {
 			return "", err
 		}
-		resp, err := p.fetchTags(ctx, account)
+		resp, err := p.fetchTags(ctx, acct)
 		if err != nil {
 			return "", err
 		}
@@ -286,15 +296,15 @@ func (p *Provider) resolveUUID(ctx context.Context, account string, isPremium bo
 }
 
 func (p *Provider) sniper(ctx context.Context, req gatewayrpc.Request) any {
-	account := strings.TrimSpace(req.Account)
-	if account == "" {
+	acct := account(strings.TrimSpace(req.Account))
+	if acct.empty() {
 		return gatewayrpc.UrchinSniperReply{Error: "missing account"}
 	}
-	key := core.Key(p.Name(), "sniper", accountKey(account))
+	key := core.Key(p.Name(), "sniper", acct.cacheKey())
 	b, err := core.CachedBytes(ctx, p.cache, key, func(ctx context.Context) ([]byte, time.Duration, error) {
 		return core.BuildReply(ctx, sniperTTL, negativeTTL,
 			func(ctx context.Context) (any, error) {
-				uuid, err := p.resolveUUID(ctx, account, req.IsPremium)
+				uuid, err := p.resolveUUID(ctx, acct, req.IsPremium)
 				if err != nil {
 					return nil, err
 				}
@@ -305,23 +315,23 @@ func (p *Provider) sniper(ctx context.Context, req gatewayrpc.Request) any {
 				// (it is built for the overlay); the client's X-API-Key header
 				// rides along too.
 				var resp cubelifyResponse
-				q := url.Values{"uuid": {uuid}, "key": {p.key}, "name": {account}}
+				q := url.Values{"uuid": {uuid}, "key": {p.key}, "name": {acct.String()}}
 				if err := p.http.GetJSON(ctx, "/v3/cubelify", q, &resp); err != nil {
 					return nil, err
 				}
 				return gatewayrpc.UrchinSniperReply{
-					Player:   account,
+					Player:   acct.String(),
 					Score:    resp.Score.Value,
 					Mode:     resp.Score.Mode,
 					TagCount: len(resp.Tags),
 				}, nil
 			},
-			func(msg string) any { return gatewayrpc.UrchinSniperReply{Player: account, Error: msg} },
+			func(msg string) any { return gatewayrpc.UrchinSniperReply{Player: acct.String(), Error: msg} },
 		)
 	})
 	if err != nil {
-		p.log.Warn("urchin sniper fetch failed", zap.String("account", account), zap.Error(err))
-		return gatewayrpc.UrchinSniperReply{Player: account, Error: "score lookup failed"}
+		p.log.Warn("urchin sniper fetch failed", zap.String("account", acct.String()), zap.Error(err))
+		return gatewayrpc.UrchinSniperReply{Player: acct.String(), Error: "score lookup failed"}
 	}
 	return json.RawMessage(b)
 }

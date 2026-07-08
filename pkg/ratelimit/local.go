@@ -97,54 +97,105 @@ func NewLocalBucket() *LocalBucket {
 	return &LocalBucket{}
 }
 
+// BucketConfig is one incarnation of a bucket's committed configuration: the
+// plan identity (epoch/generation/holder), the local validity window, and the
+// shared + standard partition rates and bursts.
+type BucketConfig struct {
+	Epoch         uint64
+	Generation    uint64
+	Holder        string
+	NotBefore     time.Time
+	NotAfter      time.Time
+	SharedRate    rate.Limit
+	SharedBurst   int
+	StandardRate  rate.Limit
+	StandardBurst int
+}
+
+// valid reports whether the config describes a usable bucket: a real
+// generation and holder, an ordered window, a positive shared partition, and a
+// standard partition that is either absent (burst 0) or fully specified.
+func (c BucketConfig) valid() bool {
+	if c.Generation == 0 || c.Holder == "" {
+		return false
+	}
+	if !c.NotBefore.Before(c.NotAfter) {
+		return false
+	}
+	if c.SharedRate <= 0 || c.SharedBurst <= 0 {
+		return false
+	}
+	if c.StandardBurst < 0 {
+		return false
+	}
+	// A standard partition, when present, needs a positive rate.
+	return c.StandardBurst == 0 || c.StandardRate > 0
+}
+
 // Update updates the bucket configuration. If the holder changes, the limiters are recreated
 // and drained immediately to avoid minting bursts. If only the burst/rate change, they are updated in place.
-func (b *LocalBucket) Update(now time.Time, epoch, generation uint64, holder string, notBefore, notAfter time.Time, sharedRate rate.Limit, sharedBurst int, standardRate rate.Limit, standardBurst int) {
+func (b *LocalBucket) Update(now time.Time, cfg BucketConfig) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	if generation == 0 || holder == "" || !notBefore.Before(notAfter) || sharedRate <= 0 || sharedBurst <= 0 || standardBurst < 0 || standardBurst > 0 && standardRate <= 0 {
-		b.epoch = 0
-		b.generation = 0
-		b.holder = ""
-		b.hasShared = false
-		b.hasStandard = false
-		b.shared = tokenBucket{}
-		b.standard = tokenBucket{}
-		b.notBefore = time.Time{}
-		b.notAfter = time.Time{}
-		b.config.Store(0)
+	if !cfg.valid() {
+		b.reset()
 		return
 	}
 
-	incarnationChanged := b.holder != holder || b.generation != generation
-	b.epoch = epoch
-	b.generation = generation
-	b.notBefore = notBefore
-	b.notAfter = notAfter
-	b.holder = holder
+	incarnationChanged := b.holder != cfg.Holder || b.generation != cfg.Generation
+	b.epoch = cfg.Epoch
+	b.generation = cfg.Generation
+	b.notBefore = cfg.NotBefore
+	b.notAfter = cfg.NotAfter
+	b.holder = cfg.Holder
 
+	b.applyShared(now, cfg, incarnationChanged)
+	b.applyStandard(now, cfg, incarnationChanged)
+	b.config.Store(bucketConfigSignature(cfg.SharedRate, cfg.SharedBurst, cfg.StandardRate, cfg.StandardBurst))
+}
+
+// reset clears the bucket to an unconfigured state (an invalid config).
+func (b *LocalBucket) reset() {
+	b.epoch = 0
+	b.generation = 0
+	b.holder = ""
+	b.hasShared = false
+	b.hasStandard = false
+	b.shared = tokenBucket{}
+	b.standard = tokenBucket{}
+	b.notBefore = time.Time{}
+	b.notAfter = time.Time{}
+	b.config.Store(0)
+}
+
+// applyShared (re)configures the shared partition: a new incarnation starts
+// empty; an in-place change only adjusts rate and burst.
+func (b *LocalBucket) applyShared(now time.Time, cfg BucketConfig, incarnationChanged bool) {
 	if !b.hasShared || incarnationChanged {
-		b.shared.init(now, float64(sharedRate), sharedBurst) // new incarnations always start empty
+		b.shared.init(now, float64(cfg.SharedRate), cfg.SharedBurst)
 		b.hasShared = true
-	} else {
-		b.shared.setRate(now, float64(sharedRate))
-		b.shared.setBurst(now, sharedBurst)
+		return
 	}
+	b.shared.setRate(now, float64(cfg.SharedRate))
+	b.shared.setBurst(now, cfg.SharedBurst)
+}
 
-	if standardBurst > 0 {
-		if !b.hasStandard || incarnationChanged {
-			b.standard.init(now, float64(standardRate), standardBurst)
-			b.hasStandard = true
-		} else {
-			b.standard.setRate(now, float64(standardRate))
-			b.standard.setBurst(now, standardBurst)
-		}
-	} else {
+// applyStandard (re)configures the standard partition, dropping it when the
+// config carries no standard burst.
+func (b *LocalBucket) applyStandard(now time.Time, cfg BucketConfig, incarnationChanged bool) {
+	if cfg.StandardBurst <= 0 {
 		b.hasStandard = false
 		b.standard = tokenBucket{}
+		return
 	}
-	b.config.Store(bucketConfigSignature(sharedRate, sharedBurst, standardRate, standardBurst))
+	if !b.hasStandard || incarnationChanged {
+		b.standard.init(now, float64(cfg.StandardRate), cfg.StandardBurst)
+		b.hasStandard = true
+		return
+	}
+	b.standard.setRate(now, float64(cfg.StandardRate))
+	b.standard.setBurst(now, cfg.StandardBurst)
 }
 
 // MatchesConfig is an allocation-free optimistic check used before admission.
@@ -188,26 +239,36 @@ func (b *LocalBucket) TryPremium(now time.Time) bool {
 	return allowed
 }
 
+// windowValid reports whether the bucket is admissible for this call. When
+// epoch != 0 the caller passes the committed epoch/generation and a mismatch
+// yields stale=true (a matching incarnation means the bucket window already
+// equals the active plan window the caller validated). When epoch == 0 the
+// local notBefore/notAfter window is checked, and stale is never set.
+func (b *LocalBucket) windowValid(now time.Time, epoch, generation uint64) (ok, stale bool) {
+	if epoch != 0 {
+		if b.epoch != epoch || b.generation != generation {
+			return false, true
+		}
+		return true, false
+	}
+	if now.Before(b.notBefore) || !now.Before(b.notAfter) {
+		return false, false
+	}
+	return true, false
+}
+
 // TryPremiumLease returns stale when the bucket belongs to a different plan
 // incarnation. The common hit performs one outer lock and one x/time/rate call.
 func (b *LocalBucket) TryPremiumLease(now time.Time, epoch, generation uint64) (allowed, stale bool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	if epoch != 0 {
-		if b.epoch != epoch || b.generation != generation {
-			return false, true
-		}
-		// A matching incarnation means the bucket window equals the active plan
-		// window, which the caller already validated; skip re-checking it here.
-	} else if now.Before(b.notBefore) || !now.Before(b.notAfter) {
-		return false, false
+	if ok, stale := b.windowValid(now, epoch, generation); !ok {
+		return false, stale
 	}
-
 	if !b.hasShared {
 		return false, false
 	}
-
 	return b.shared.allow(now), false
 }
 
@@ -224,14 +285,8 @@ func (b *LocalBucket) TryStandardLease(now time.Time, epoch, generation uint64) 
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	if epoch != 0 {
-		if b.epoch != epoch || b.generation != generation {
-			return false, false, true
-		}
-		// A matching incarnation means the bucket window equals the active plan
-		// window, which the caller already validated; skip re-checking it here.
-	} else if now.Before(b.notBefore) || !now.Before(b.notAfter) {
-		return false, false, false
+	if ok, stale := b.windowValid(now, epoch, generation); !ok {
+		return false, false, stale
 	}
 
 	if !b.hasStandard || !b.hasShared {

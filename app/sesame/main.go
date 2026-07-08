@@ -243,11 +243,17 @@ func dialNATS(cfg *config.Config, log *zap.Logger) (*nats.Conn, message.Publishe
 // Valkey, with a projector RPC fallback) and starts its cache invalidation
 // listener.
 func newProjection(in infra, cfg *config.Config, log *zap.Logger) *projection.Client {
-	proj := projection.NewClient(projection.NewStore(in.vc), in.nc, projection.Subjects{
-		Users:    cfg.ProjectionUsersSubject,
-		Modules:  cfg.ProjectionModulesSubject,
-		Commands: cfg.ProjectionCommandsSubject,
-	}, projectionCacheTTL, log)
+	proj := projection.NewClient(projection.Config{
+		Store: projection.NewStore(in.vc),
+		NC:    in.nc,
+		Subjects: projection.Subjects{
+			Users:    cfg.ProjectionUsersSubject,
+			Modules:  cfg.ProjectionModulesSubject,
+			Commands: cfg.ProjectionCommandsSubject,
+		},
+		TTL: projectionCacheTTL,
+		Log: log,
+	})
 	proj.StartInvalidationListener(cfg.CacheInvalidationPrefix)
 	return proj
 }
