@@ -265,6 +265,7 @@ export interface ModuleDef {
   tagline: string; // one-liner for the tile
   description: string; // longer copy for the module page
   icon: IconName;
+  category: string;
   defaultEnabled: boolean;
   // The module's configurable chat lines (the "commands" of the module page).
   replies: ModuleReply[];
@@ -281,7 +282,7 @@ export interface ModuleState {
   config: Record<string, string>;
 }
 
-// Shared token palette + preview samples for the Bed Wars session commands
+// Shared token palette + preview samples for the Bedwars session commands
 // (!daily / !weekly / !monthly) — same template surface, one source of truth.
 const BW_SESSION_TOKENS = [
   'player',
@@ -314,6 +315,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
     description:
       'The bot screens every chat line for harmful content and coordinated raid floods, and warns, deletes, times out or bans the sender. Trusted chatters (VIPs, mods, the broadcaster) are always exempt, and anything borderline is left to your human mods. Pick a level from None to All, then fine-tune each check below. The safety floor (hate slurs and IP-grabber links) is always enforced, on every level and even with the module off: hosting those risks your channel and the bot account platform-wide. Everything else is your call.',
     icon: 'moderation',
+    category: 'Moderation',
     defaultEnabled: true,
     // AutoMod is pure configuration: no chat reply lines, only the settings strip.
     replies: [],
@@ -389,6 +391,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
     description:
       'When another channel raids in, the bot posts a shoutout pointing your chat at the raider. Turn the module on and customize the shoutout line.',
     icon: 'send',
+    category: 'Community',
     defaultEnabled: false,
     replies: [
       {
@@ -409,6 +412,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
     description:
       'The bot posts a chat line when someone follows, subscribes, cheers, or raids. Turn each alert on or off and customize its message. New alerts default on.',
     icon: 'bell',
+    category: 'Community',
     defaultEnabled: true,
     replies: [
       {
@@ -454,17 +458,18 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
   // structs (app/sesame/modules/urchin.go, mcsr.go).
   {
     id: 'urchin',
-    label: 'Bed Wars Stats',
-    tagline: 'Hypixel Bed Wars stats, urchin score and blacklist tags in chat.',
+    label: 'Bedwars Stats',
+    tagline: 'Hypixel Bedwars stats, urchin score and blacklist tags in chat.',
     description:
-      'Viewer commands backed by urchin.gg: daily, weekly and monthly Bed Wars sessions, lifetime stats, the Urchin sniper score and active blacklist tags. Commands default to your linked Minecraft account; viewers can also name any player, e.g. "!daily Technoblade".',
+      'Viewer commands backed by urchin.gg: daily, weekly and monthly Bedwars sessions, lifetime stats, the Urchin sniper score and active blacklist tags. Commands default to your linked Minecraft account; viewers can also name any player, e.g. "!daily Technoblade".',
     icon: 'pulse',
+    category: 'Games',
     defaultEnabled: false,
     replies: [
       {
         key: 'daily',
         label: '!daily',
-        tagline: 'Bed Wars session since the daily reset.',
+        tagline: 'Bedwars session since the daily reset.',
         event: '!daily',
         command: 'daily',
         enableKey: 'dailyEnabled',
@@ -476,7 +481,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
       {
         key: 'weekly',
         label: '!weekly',
-        tagline: 'Bed Wars session since the weekly reset.',
+        tagline: 'Bedwars session since the weekly reset.',
         event: '!weekly',
         command: 'weekly',
         enableKey: 'weeklyEnabled',
@@ -488,7 +493,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
       {
         key: 'monthly',
         label: '!monthly',
-        tagline: 'Bed Wars session since the monthly reset.',
+        tagline: 'Bedwars session since the monthly reset.',
         event: '!monthly',
         command: 'monthly',
         enableKey: 'monthlyEnabled',
@@ -500,7 +505,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
       {
         key: 'stats',
         label: '!bwstats',
-        tagline: 'Lifetime Bed Wars stats.',
+        tagline: 'Lifetime Bedwars stats.',
         event: '!bwstats',
         command: 'bwstats',
         enableKey: 'statsEnabled',
@@ -581,6 +586,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
     description:
       'Viewer commands backed by the MCSR Ranked API: !elo shows the current rating and season record; !session shows elo and wins/losses since the stream started, snapshotting your standing the moment you go live. !elo can name any player (e.g. "!elo Feinberg"); !session always tracks your linked account.',
     icon: 'clock',
+    category: 'Games',
     defaultEnabled: false,
     replies: [
       {
