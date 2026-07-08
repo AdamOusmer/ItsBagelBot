@@ -259,9 +259,9 @@
     font-size: 13px;
   }
 
-  /* Master switch, worn like a toolbar control. */
-  .toolbar { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
-  .grow { flex: 1; }
+  /* Master switch, worn like a toolbar control. The .toolbar/.grow layout is
+     the shared app.css rule (matches commands/channelpoints); only the master
+     block is page-local. */
   .master { display: inline-flex; align-items: center; gap: 12px; }
   .master-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
   .master-label {
