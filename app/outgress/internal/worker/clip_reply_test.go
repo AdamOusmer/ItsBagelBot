@@ -54,7 +54,11 @@ func TestClipReplyTextCustomTemplate(t *testing.T) {
 
 func TestClipExpand(t *testing.T) {
 	// {clipper} and {title} aliases, plus an unknown token left untouched.
-	got := clipExpand("{clipper}: {title} {clip} {mystery}", "viewer", "sick play", testClipURL)
+	got := clipExpand(clipMeta{
+		Clipper: "viewer",
+		Title:   "sick play",
+		Reply:   "{clipper}: {title} {clip} {mystery}",
+	}, testClipURL)
 	want := "viewer: sick play " + testClipURL + " {mystery}"
 	if got != want {
 		t.Errorf("clipExpand = %q, want %q", got, want)
