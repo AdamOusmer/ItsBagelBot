@@ -27,69 +27,63 @@ type checkoutRPC struct {
 	log            *zap.Logger
 }
 
+// CheckoutConfig names the subjects the checkout RPC binds and resolves
+// against. UserGetSubject is the users service admin lookup
+// (bagel.rpc.admin.user.get) used to resolve and vet gift recipients.
+type CheckoutConfig struct {
+	Prefix         string
+	UserGetSubject string
+	QueueGroup     string
+}
+
+// CheckoutRuntime bundles the process-wide handles the checkout RPC binds
+// against.
+type CheckoutRuntime struct {
+	NC  *nats.Conn
+	App *newrelic.Application
+	Log *zap.Logger
+}
+
 // SubscribeCheckout registers the dashboard-facing basket_create verb: mint a
 // Tebex basket so the dashboard can redirect to Tebex-hosted checkout, either
 // for the signed-in buyer or as a gift to another registered user.
-// userGetSubject is the users service admin lookup (bagel.rpc.admin.user.get)
-// used to resolve and vet gift recipients.
-func SubscribeCheckout(nc *nats.Conn, client *tebex.Client, prefix, userGetSubject, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
-	c := &checkoutRPC{tebex: client, nc: nc, userGetSubject: userGetSubject, log: log}
+func SubscribeCheckout(rt CheckoutRuntime, client *tebex.Client, cfg CheckoutConfig) error {
+	c := &checkoutRPC{tebex: client, nc: rt.NC, userGetSubject: cfg.UserGetSubject, log: rt.Log}
 
 	// Basket creation is two upstream HTTP calls (plus a recipient lookup for
 	// gifts), so give it more room than the default in-cluster RPC budget.
 	return bus.QueueSubscribeJSON[transactionsrpc.BasketCreateRequest, transactionsrpc.BasketCreateReply](
-		nc, prefix+".basket_create", queueGroup, 15*time.Second, app, log, c.basketCreate)
+		rt.NC, cfg.Prefix+".basket_create", cfg.QueueGroup, 15*time.Second, rt.App, rt.Log, c.basketCreate)
+}
+
+// buyer is the signed-in purchaser: their numeric id and clamped display login.
+type buyer struct {
+	id    uint64
+	login string
 }
 
 func (c *checkoutRPC) basketCreate(ctx context.Context, req transactionsrpc.BasketCreateRequest) transactionsrpc.BasketCreateReply {
-
 	buyerID, err := strconv.ParseUint(req.UserID, 10, 64)
 	if err != nil || buyerID == 0 {
 		return transactionsrpc.BasketCreateReply{Error: "user_id must be numeric"}
 	}
-
-	packageType := ""
-	switch req.PackageType {
-	case "", "single", "subscription":
-		packageType = req.PackageType
-	default:
+	packageType, ok := normalizePackageType(req.PackageType)
+	if !ok {
 		return transactionsrpc.BasketCreateReply{Error: "package_type must be single or subscription"}
 	}
 
-	buyerLogin := clampLogin(req.Username)
-	spec := tebex.BasketSpec{UserID: buyerID, Username: buyerLogin, IPAddress: validIPv4(req.IPAddress), PackageType: packageType}
+	b := buyer{id: buyerID, login: clampLogin(req.Username)}
+	spec := tebex.BasketSpec{UserID: b.id, Username: b.login, IPAddress: validIPv4(req.IPAddress), PackageType: packageType}
 	recipientLogin := ""
 
-	if recipient := normalizeLogin(req.RecipientUsername); recipient != "" {
-		if utf8.RuneCountInString(recipient) > twitchLoginMaxLen {
-			// No real Twitch login is this long, so it can't belong to a
-			// registered user. Reject before the lookup rather than let an
-			// oversized, attacker-supplied login ride the NATS request and (on a
-			// fluke match) the basket custom payload and gift email.
-			return transactionsrpc.BasketCreateReply{Error: errRecipientNotRegistered.Error()}
+	// A recipient turns this into a gift: the spec is rebuilt against the vetted
+	// recipient with the buyer as gifter.
+	if !normalizeLogin(req.RecipientUsername).empty() {
+		giftSpec, recipient, errReply := c.buildGiftSpec(ctx, req, b)
+		if errReply != "" {
+			return transactionsrpc.BasketCreateReply{Error: errReply}
 		}
-		view, err := c.resolveRecipient(ctx, recipient)
-		if err != nil {
-			return transactionsrpc.BasketCreateReply{Error: err.Error()}
-		}
-		if view.ID == buyerID {
-			return transactionsrpc.BasketCreateReply{Error: "that is your own account — use Subscribe instead"}
-		}
-		giftMessage := sanitizeGiftMessage(req.GiftMessage)
-		if noteHasLink(giftMessage) {
-			return transactionsrpc.BasketCreateReply{Error: errGiftMessageLink.Error()}
-		}
-		spec = tebex.BasketSpec{
-			UserID:        view.ID,
-			Username:      view.Username,
-			IPAddress:     validIPv4(req.IPAddress),
-			GiftedByID:    buyerID,
-			GiftedByLogin: buyerLogin,
-			// A gift is one paid month, never a recurring charge on the buyer.
-			PackageType: "single",
-			GiftMessage: giftMessage,
-		}
-		recipientLogin = view.Username
+		spec, recipientLogin = giftSpec, recipient
 	}
 
 	basket, err := c.tebex.CreateBasket(ctx, spec)
@@ -106,6 +100,51 @@ func (c *checkoutRPC) basketCreate(ctx context.Context, req transactionsrpc.Bask
 	}
 }
 
+// normalizePackageType accepts the empty, single, or subscription package
+// types; ok is false for anything else.
+func normalizePackageType(raw string) (string, bool) {
+	switch raw {
+	case "", "single", "subscription":
+		return raw, true
+	default:
+		return "", false
+	}
+}
+
+// buildGiftSpec vets the gift recipient and assembles the gift basket spec
+// (one paid month, never recurring). A non-empty errReply is the user-facing
+// error to return; recipientLogin echoes the resolved recipient on success.
+func (c *checkoutRPC) buildGiftSpec(ctx context.Context, req transactionsrpc.BasketCreateRequest, b buyer) (spec tebex.BasketSpec, recipientLogin, errReply string) {
+	recipient := normalizeLogin(req.RecipientUsername)
+	if utf8.RuneCountInString(string(recipient)) > twitchLoginMaxLen {
+		// No real Twitch login is this long, so it can't belong to a registered
+		// user. Reject before the lookup rather than let an oversized,
+		// attacker-supplied login ride the NATS request and (on a fluke match)
+		// the basket custom payload and gift email.
+		return tebex.BasketSpec{}, "", errRecipientNotRegistered.Error()
+	}
+	view, err := c.resolveRecipient(ctx, recipient)
+	if err != nil {
+		return tebex.BasketSpec{}, "", err.Error()
+	}
+	if view.ID == b.id {
+		return tebex.BasketSpec{}, "", "that is your own account — use Subscribe instead"
+	}
+	giftMessage := sanitizeGiftMessage(req.GiftMessage)
+	if noteHasLink(giftMessage) {
+		return tebex.BasketSpec{}, "", errGiftMessageLink.Error()
+	}
+	return tebex.BasketSpec{
+		UserID:        view.ID,
+		Username:      view.Username,
+		IPAddress:     validIPv4(req.IPAddress),
+		GiftedByID:    b.id,
+		GiftedByLogin: b.login,
+		PackageType:   "single",
+		GiftMessage:   giftMessage,
+	}, view.Username, ""
+}
+
 func validIPv4(raw string) string {
 	ip := net.ParseIP(strings.TrimSpace(raw))
 	if ip == nil || ip.To4() == nil {
@@ -114,19 +153,25 @@ func validIPv4(raw string) string {
 	return ip.String()
 }
 
+// login is a normalized Twitch login (trimmed, lowercased, '@' dropped),
+// distinct from the raw user input it is derived from.
+type login string
+
+func (l login) empty() bool { return l == "" }
+
 // resolveRecipient vets a gift target: the Twitch login must belong to a
 // registered ItsBagelBot user who is not banned and does not already have a
 // paid or VIP plan. Error strings are user-facing (the dashboard surfaces them
 // on the gift form verbatim).
-func (c *checkoutRPC) resolveRecipient(ctx context.Context, login string) (*usersrpc.AdminUserView, error) {
+func (c *checkoutRPC) resolveRecipient(ctx context.Context, l login) (*usersrpc.AdminUserView, error) {
 
 	reply, err := bus.RequestJSONTimeout[usersrpc.AdminReply](ctx, c.nc, c.userGetSubject,
-		usersrpc.AdminRequest{Username: login}, 3*time.Second)
+		usersrpc.AdminRequest{Username: string(l)}, 3*time.Second)
 	if err != nil {
 		if _, isReply := err.(bus.RPCReplyError); isReply {
 			return nil, errRecipientNotRegistered
 		}
-		c.log.Warn("gift recipient lookup failed", zap.String("login", login), zap.Error(err))
+		c.log.Warn("gift recipient lookup failed", zap.String("login", string(l)), zap.Error(err))
 		return nil, errRecipientLookup
 	}
 	if reply.User == nil {
@@ -161,10 +206,10 @@ const twitchLoginMaxLen = 25
 
 // normalizeLogin turns user input into a Twitch login: trimmed, lowercased,
 // leading @ dropped.
-func normalizeLogin(input string) string {
-	login := strings.TrimSpace(input)
-	login = strings.TrimPrefix(login, "@")
-	return strings.ToLower(login)
+func normalizeLogin(input string) login {
+	l := strings.TrimSpace(input)
+	l = strings.TrimPrefix(l, "@")
+	return login(strings.ToLower(l))
 }
 
 // clampLogin trims the buyer's display login and hard-caps it so a caller
@@ -172,11 +217,11 @@ func normalizeLogin(input string) string {
 // The buyer login is display-only, so it is truncated (never rejected) to avoid
 // failing a paid checkout over a cosmetic field.
 func clampLogin(input string) string {
-	login := strings.TrimSpace(input)
-	if utf8.RuneCountInString(login) <= twitchLoginMaxLen {
-		return login
+	trimmed := strings.TrimSpace(input)
+	if utf8.RuneCountInString(trimmed) <= twitchLoginMaxLen {
+		return trimmed
 	}
-	return string([]rune(login)[:twitchLoginMaxLen])
+	return string([]rune(trimmed)[:twitchLoginMaxLen])
 }
 
 // giftMessageMaxRunes bounds the note before it rides the Tebex custom payload.
