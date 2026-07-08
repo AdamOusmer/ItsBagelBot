@@ -20,5 +20,6 @@ func All(d engine.Deps) []module.Module {
 		Urchin(d),
 		Mcsr(d),
 		Automod(d),
+		ChannelPoints(d),
 	}
 }

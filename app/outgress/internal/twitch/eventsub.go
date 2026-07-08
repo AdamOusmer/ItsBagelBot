@@ -59,6 +59,22 @@ func ChannelSubscriptions(broadcasterID, botID string) []SubSpec {
 	)
 }
 
+// ChannelOptionalSubscriptions lists subscriptions that only some channels can
+// carry, so a create failure must not fail the whole enroll:
+//
+//   - channel.channel_points_custom_reward_redemption.add drives the channel
+//     points module. It is authorized by the broadcaster's channel:read:redemptions
+//     grant (part of the channel:manage:redemptions consent the dashboard adds).
+//     A non-affiliate has no channel points, so Twitch answers 403 — expected, not
+//     a fault. It also 401s for a broadcaster whose stored grant predates the
+//     scope, until they re-consent. Both are permanent and tolerated by the
+//     caller; the mandatory set is unaffected.
+func ChannelOptionalSubscriptions(broadcasterID string) []SubSpec {
+	return []SubSpec{
+		{"channel.channel_points_custom_reward_redemption.add", "1", map[string]string{"broadcaster_user_id": broadcasterID}},
+	}
+}
+
 // CreateEventSub creates one subscription on the Conduit under the app
 // token. An already-existing subscription (409) is success, so re-running a
 // partially applied job converges instead of failing.

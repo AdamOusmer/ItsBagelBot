@@ -297,6 +297,12 @@ func main() {
 		log.Fatal("failed to subscribe management rpc", zap.Error(err))
 	}
 
+	// Channel-points reward management (create/edit/delete custom rewards under
+	// each broadcaster's own token), driven synchronously by the dashboard tab.
+	if err := rpc.SubscribeChannelPoints(nc, tw, cfg.RPCPrefix, "outgress-rpc", nrApp, log.Named("rpc")); err != nil {
+		log.Fatal("failed to subscribe channel-points rpc", zap.Error(err))
+	}
+
 	health.Serve(env.Get("LISTEN_ADDR", ":8080"), nc.IsConnected)
 
 	log.Info("outgress ready",
