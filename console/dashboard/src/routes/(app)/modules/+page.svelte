@@ -141,12 +141,17 @@
 
   <div class="search-bar">
     <Icon name="search" size={16} />
-    <input 
-      type="search" 
-      bind:value={searchQuery} 
-      placeholder="Search modules..." 
+    <input
+      type="text"
+      bind:value={searchQuery}
+      placeholder="Search modules..."
       aria-label="Search modules"
     />
+    {#if searchQuery}
+      <button type="button" class="clear" aria-label="Clear search" onclick={() => (searchQuery = '')}>
+        <Icon name="x" size={12} />
+      </button>
+    {/if}
   </div>
 
   <div class="layout-grid">
@@ -235,7 +240,7 @@
     align-items: center;
   }
 
-  .search-bar :global(svg) {
+  .search-bar > :global(svg) {
     position: absolute;
     left: 14px;
     color: var(--bb-muted);
@@ -244,23 +249,44 @@
 
   .search-bar input {
     width: 100%;
-    padding: 12px 14px 12px 42px;
+    padding: 12px 40px 12px 42px;
     border-radius: 8px;
     border: 1px solid var(--bb-border, rgba(255, 255, 255, 0.08));
     background: rgba(240, 236, 228, 0.03);
     color: var(--bb-white);
     font-family: var(--bb-font-body);
     font-size: 14px;
-    transition: border-color var(--bb-dur-fast, 140ms) ease;
+    transition: border-color var(--bb-dur-fast, 140ms) ease, box-shadow var(--bb-dur-fast, 140ms) ease;
   }
 
   .search-bar input:focus {
     outline: none;
     border-color: var(--bb-tan, #c9a87c);
+    box-shadow: 0 0 0 3px rgba(201, 168, 124, 0.1);
   }
 
   .search-bar input::placeholder {
     color: var(--bb-muted);
+  }
+
+  .search-bar .clear {
+    position: absolute;
+    right: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border: none;
+    background: transparent;
+    color: var(--bb-muted);
+    cursor: pointer;
+    border-radius: 8px;
+    transition: color var(--bb-dur-fast, 140ms) ease;
+  }
+
+  .search-bar .clear:hover {
+    color: var(--bb-white);
   }
 
   .layout-grid {
