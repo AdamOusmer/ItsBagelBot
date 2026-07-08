@@ -102,21 +102,112 @@ function dashboardOrigin(url: URL): string {
   throw new Error('DASHBOARD_PUBLIC_ORIGIN not set');
 }
 
+type AuditOutcome = {
+  action: string;
+  target: string;
+  detail?: string;
+  ok: boolean;
+  error?: string;
+};
+
 // audit records a mutating action best-effort: a logging failure must never
 // block or fail the operator action it describes. Skipped in demo (synthetic
 // non-numeric actor id).
-function audit(
-  admin: AdminIdentity,
-  action: string,
-  target: string,
-  detail: string,
-  ok: boolean,
-  error?: string
-): void {
+function audit(admin: AdminIdentity, outcome: AuditOutcome): void {
   if (isDemo()) return;
-  auditAppend({ actor_id: admin.id, actor_login: admin.login, action, target, detail, ok, error }).catch(
-    () => {}
-  );
+  auditAppend({
+    actor_id: admin.id,
+    actor_login: admin.login,
+    action: outcome.action,
+    target: outcome.target,
+    detail: outcome.detail ?? '',
+    ok: outcome.ok,
+    error: outcome.error
+  }).catch(() => {});
+}
+
+const unknownSubState: ChannelSubState = { state: 'unknown', error: '', checkedAt: null };
+
+function demoLookup(q: string) {
+  const u = sampleUsers.find((s) => s.username === q || String(s.id) === q);
+  if (!u) return { lookup: { error: 'user not found', q } };
+  return {
+    lookup: {
+      user: u,
+      tokenPresent: u.status !== 'free',
+      subState: { state: 'ok', error: '', checkedAt: null } as ChannelSubState
+    }
+  };
+}
+
+// probeUser fetches the row plus its token/enroll state; allSettled keeps a
+// slow or down responder from failing the whole lookup.
+async function probeUser(q: string) {
+  const user = await userLookup(q);
+  const uid = String(user.id);
+  const [tokenRes, subRes] = await Promise.allSettled([tokenStatus(uid), channelSubState(uid)]);
+  return {
+    user,
+    tokenPresent: tokenRes.status === 'fulfilled' ? tokenRes.value.present : false,
+    subState: subRes.status === 'fulfilled' ? subRes.value : unknownSubState
+  };
+}
+
+// parsePaidGrant validates the status modal's end date: a paid grant always
+// carries one (the users service enforces it too) and runs from today until
+// end-of-day on the chosen date.
+function parsePaidGrant(f: FormData): { expiresAt: string; detail: string } | { notice: string } {
+  const raw = String(f.get('expires_at') ?? '').trim(); // YYYY-MM-DD from the modal
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return { notice: 'paid grant needs an end date' };
+  }
+  const end = new Date(`${raw}T23:59:59.999Z`);
+  if (Number.isNaN(end.getTime()) || end.getTime() <= Date.now()) {
+    return { notice: 'end date must be in the future' };
+  }
+  if (end.getTime() > Date.now() + 5 * 365 * 864e5) {
+    return { notice: 'end date is too far out (max 5 years)' };
+  }
+  const start = new Date().toISOString().slice(0, 10);
+  return { expiresAt: end.toISOString(), detail: `status=paid start=${start} end=${raw}` };
+}
+
+// userAction wraps the shared per-user mutation shape: admin gate, user_id
+// parse, demo short-circuit, the RPC, the audit trail, and the notice reply.
+// run returns the refreshed user row when the service echoes one (so the
+// inspector panel updates), or null for row-less mutations.
+type UserActionSpec = {
+  name: string; // audit action id
+  demoNotice: string;
+  notice: (user: AdminUserWire | null) => string;
+  detail?: (f: FormData) => string;
+  run: (userId: string, f: FormData) => Promise<AdminUserWire | null>;
+};
+
+function userAction(spec: UserActionSpec) {
+  return async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+    const admin = await requireAdmin(locals.session);
+    if (!admin) return fail(403, { error: 'forbidden' });
+    const f = await request.formData();
+    const userId = String(f.get('user_id') ?? '').trim();
+    if (!userId) return fail(400, { error: 'user_id required' });
+    if (isDemo()) return { action: { ok: true, notice: spec.demoNotice } };
+
+    const detail = spec.detail?.(f) ?? '';
+    try {
+      const user = await spec.run(userId, f);
+      audit(admin, { action: spec.name, target: userId, detail, ok: true });
+      const reply = { action: { ok: true, notice: spec.notice(user) } };
+      return user ? { ...reply, lookup: { user } } : reply;
+    } catch (e) {
+      audit(admin, { action: spec.name, target: userId, detail, ok: false, error: (e as Error).message });
+      return { action: { ok: false, notice: (e as Error).message } };
+    }
+  };
+}
+
+function formActive(f: FormData): boolean {
+  return String(f.get('active') ?? '').trim() === 'true';
 }
 
 export const actions: Actions = {
@@ -125,18 +216,9 @@ export const actions: Actions = {
     const q = String((await request.formData()).get('q') ?? '').trim();
     if (!q) return fail(400, { error: 'query required' });
     if (q.length > 128) return fail(400, { error: 'query too long' });
-    if (isDemo()) {
-      const u = sampleUsers.find((s) => s.username === q || String(s.id) === q);
-      if (!u) return { lookup: { error: 'user not found', q } };
-      return { lookup: { user: u, tokenPresent: u.status !== 'free', subState: { state: 'ok', error: '', checkedAt: null } as ChannelSubState } };
-    }
+    if (isDemo()) return demoLookup(q);
     try {
-      const user = await userLookup(q);
-      const uid = String(user.id);
-      const [tokenRes, subRes] = await Promise.allSettled([tokenStatus(uid), channelSubState(uid)]);
-      const present = tokenRes.status === 'fulfilled' ? tokenRes.value.present : false;
-      const subState: ChannelSubState = subRes.status === 'fulfilled' ? subRes.value : { state: 'unknown', error: '', checkedAt: null };
-      return { lookup: { user, tokenPresent: present, subState } };
+      return { lookup: await probeUser(q) };
     } catch (e) {
       return { lookup: { error: (e as Error).message, q } };
     }
@@ -150,136 +232,85 @@ export const actions: Actions = {
     const status = String(f.get('status') ?? '').trim();
     if (!userId || !STATUSES.has(status)) return fail(400, { error: 'invalid status' });
 
-    // A paid grant always carries its end date (the users service enforces it
-    // too). The grant runs from today until end-of-day on the chosen date.
     let expiresAt: string | undefined;
     let detail = `status=${status}`;
     if (status === 'paid') {
-      const raw = String(f.get('expires_at') ?? '').trim(); // YYYY-MM-DD from the modal
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
-        return { action: { ok: false, notice: 'paid grant needs an end date' } };
-      }
-      const end = new Date(`${raw}T23:59:59.999Z`);
-      if (Number.isNaN(end.getTime()) || end.getTime() <= Date.now()) {
-        return { action: { ok: false, notice: 'end date must be in the future' } };
-      }
-      if (end.getTime() > Date.now() + 5 * 365 * 864e5) {
-        return { action: { ok: false, notice: 'end date is too far out (max 5 years)' } };
-      }
-      expiresAt = end.toISOString();
-      const start = new Date().toISOString().slice(0, 10);
-      detail = `status=paid start=${start} end=${raw}`;
+      const grant = parsePaidGrant(f);
+      if ('notice' in grant) return { action: { ok: false, notice: grant.notice } };
+      ({ expiresAt, detail } = grant);
     }
 
     if (isDemo()) return { action: { ok: true, notice: `status set to ${status} (demo)` } };
     try {
       const user: AdminUserWire = await userSetStatus(userId, status, expiresAt);
-      audit(admin, 'set_status', userId, detail, true);
+      audit(admin, { action: 'set_status', target: userId, detail, ok: true });
       const until = user.subscription_expires_at
         ? ` until ${user.subscription_expires_at.slice(0, 10)}`
         : '';
       return { action: { ok: true, notice: `status set to ${user.status}${until}` }, lookup: { user } };
     } catch (e) {
-      audit(admin, 'set_status', userId, detail, false, (e as Error).message);
+      audit(admin, { action: 'set_status', target: userId, detail, ok: false, error: (e as Error).message });
       return { action: { ok: false, notice: (e as Error).message } };
     }
   },
 
-  reset: async ({ request, locals }) => {
-    const admin = await requireAdmin(locals.session);
-    if (!admin) return fail(403, { error: 'forbidden' });
-    const userId = String((await request.formData()).get('user_id') ?? '').trim();
-    if (!userId) return fail(400, { error: 'user_id required' });
-    if (isDemo()) return { action: { ok: true, notice: 'user reset (demo)' } };
-    try {
-      const user = await userReset(userId);
-      audit(admin, 'reset', userId, '', true);
-      return { action: { ok: true, notice: 'user reset' }, lookup: { user } };
-    } catch (e) {
-      audit(admin, 'reset', userId, '', false, (e as Error).message);
-      return { action: { ok: false, notice: (e as Error).message } };
-    }
-  },
+  reset: userAction({
+    name: 'reset',
+    demoNotice: 'user reset (demo)',
+    notice: () => 'user reset',
+    run: (userId) => userReset(userId)
+  }),
 
-  clearToken: async ({ request, locals }) => {
-    const admin = await requireAdmin(locals.session);
-    if (!admin) return fail(403, { error: 'forbidden' });
-    const userId = String((await request.formData()).get('user_id') ?? '').trim();
-    if (!userId) return fail(400, { error: 'user_id required' });
-    if (isDemo()) return { action: { ok: true, notice: 'token cleared (demo)' } };
-    try {
+  clearToken: userAction({
+    name: 'clear_token',
+    demoNotice: 'token cleared (demo)',
+    notice: () => 'token cleared',
+    run: async (userId) => {
       await tokenClear(userId);
-      audit(admin, 'clear_token', userId, '', true);
-      return { action: { ok: true, notice: 'token cleared' } };
-    } catch (e) {
-      audit(admin, 'clear_token', userId, '', false, (e as Error).message);
-      return { action: { ok: false, notice: (e as Error).message } };
+      return null;
     }
-  },
+  }),
 
-  setActive: async ({ request, locals }) => {
-    const admin = await requireAdmin(locals.session);
-    if (!admin) return fail(403, { error: 'forbidden' });
-    const f = await request.formData();
-    const userId = String(f.get('user_id') ?? '').trim();
-    const active = String(f.get('active') ?? '').trim() === 'true';
-    if (!userId) return fail(400, { error: 'user_id required' });
-    if (isDemo()) return { action: { ok: true, notice: 'active set (demo)' } };
-    try {
-      const user: AdminUserWire = await userSetActive(userId, active);
-      audit(admin, 'set_active', userId, String(active), true);
-      return { action: { ok: true, notice: `active=${user.is_active}` }, lookup: { user } };
-    } catch (e) {
-      audit(admin, 'set_active', userId, String(active), false, (e as Error).message);
-      return { action: { ok: false, notice: (e as Error).message } };
-    }
-  },
+  setActive: userAction({
+    name: 'set_active',
+    demoNotice: 'active set (demo)',
+    notice: (user) => `active=${user?.is_active}`,
+    detail: (f) => String(formActive(f)),
+    run: (userId, f) => userSetActive(userId, formActive(f))
+  }),
 
-  ban: async ({ request, locals }) => {
-    const admin = await requireAdmin(locals.session);
-    if (!admin) return fail(403, { error: 'forbidden' });
-    const userId = String((await request.formData()).get('user_id') ?? '').trim();
-    if (!userId) return fail(400, { error: 'user_id required' });
-    if (isDemo()) return { action: { ok: true, notice: 'user banned (demo)' } };
-    try {
-      const user: AdminUserWire = await userBan(userId);
-      audit(admin, 'ban', userId, '', true);
-      return { action: { ok: true, notice: 'user banned' }, lookup: { user } };
-    } catch (e) {
-      audit(admin, 'ban', userId, '', false, (e as Error).message);
-      return { action: { ok: false, notice: (e as Error).message } };
-    }
-  },
+  ban: userAction({
+    name: 'ban',
+    demoNotice: 'user banned (demo)',
+    notice: () => 'user banned',
+    run: (userId) => userBan(userId)
+  }),
 
-  unban: async ({ request, locals }) => {
-    const admin = await requireAdmin(locals.session);
-    if (!admin) return fail(403, { error: 'forbidden' });
-    const userId = String((await request.formData()).get('user_id') ?? '').trim();
-    if (!userId) return fail(400, { error: 'user_id required' });
-    if (isDemo()) return { action: { ok: true, notice: 'user unbanned (demo)' } };
-    try {
-      const user: AdminUserWire = await userUnban(userId);
-      audit(admin, 'unban', userId, '', true);
-      return { action: { ok: true, notice: 'user unbanned' }, lookup: { user } };
-    } catch (e) {
-      audit(admin, 'unban', userId, '', false, (e as Error).message);
-      return { action: { ok: false, notice: (e as Error).message } };
-    }
-  },
+  unban: userAction({
+    name: 'unban',
+    demoNotice: 'user unbanned (demo)',
+    notice: () => 'user unbanned',
+    run: (userId) => userUnban(userId)
+  }),
 
   restart: async ({ request, locals }) => {
     const admin = await requireAdmin(locals.session);
     if (!admin) return fail(403, { error: 'forbidden' });
     const userId = String((await request.formData()).get('user_id') ?? '').trim();
     if (!userId) return fail(400, { error: 'user_id required' });
-    if (isDemo()) return { action: { ok: true, notice: 'bot restarted (demo only, no real subs dropped)' }, subState: { state: 'ok', error: '', checkedAt: null } as ChannelSubState };
+    if (isDemo()) {
+      return {
+        action: { ok: true, notice: 'bot restarted (demo only, no real subs dropped)' },
+        subState: { state: 'ok', error: '', checkedAt: null } as ChannelSubState
+      };
+    }
     try {
       await restartUserEventSub(userId);
-      audit(admin, 'restart', userId, '', true);
-      const subState: ChannelSubState = await channelSubState(userId).catch(() => ({ state: 'unknown' as const, error: '', checkedAt: null }));
+      audit(admin, { action: 'restart', target: userId, ok: true });
+      const subState: ChannelSubState = await channelSubState(userId).catch(() => unknownSubState);
       return { action: { ok: true, notice: 'bot restarted (atomic reconnect queued)' }, subState };
     } catch (e) {
-      audit(admin, 'restart', userId, '', false, (e as Error).message);
+      audit(admin, { action: 'restart', target: userId, ok: false, error: (e as Error).message });
       return { action: { ok: false, notice: (e as Error).message } };
     }
   },
@@ -317,30 +348,24 @@ export const actions: Actions = {
         by_id: admin.id,
         by_login: admin.login
       });
-      audit(admin, 'impersonate', userId, '', true);
+      audit(admin, { action: 'impersonate', target: userId, ok: true });
       return {
         action: { ok: true, notice: 'view-as link minted (valid 5 min)' },
         viewAsUrl: `${origin}/auth/impersonate?t=${token}`
       };
     } catch (e) {
-      audit(admin, 'impersonate', userId, '', false, (e as Error).message);
+      audit(admin, { action: 'impersonate', target: userId, ok: false, error: (e as Error).message });
       return { action: { ok: false, notice: (e as Error).message } };
     }
   },
 
-  delete: async ({ request, locals }) => {
-    const admin = await requireAdmin(locals.session);
-    if (!admin) return fail(403, { error: 'forbidden' });
-    const userId = String((await request.formData()).get('user_id') ?? '').trim();
-    if (!userId) return fail(400, { error: 'user_id required' });
-    if (isDemo()) return { action: { ok: true, notice: 'user deleted (demo only, no real data removed)' } };
-    try {
+  delete: userAction({
+    name: 'delete',
+    demoNotice: 'user deleted (demo only, no real data removed)',
+    notice: () => 'user deleted',
+    run: async (userId) => {
       await userDelete(userId);
-      audit(admin, 'delete', userId, '', true);
-      return { action: { ok: true, notice: 'user deleted' } };
-    } catch (e) {
-      audit(admin, 'delete', userId, '', false, (e as Error).message);
-      return { action: { ok: false, notice: (e as Error).message } };
+      return null;
     }
-  }
+  })
 };
