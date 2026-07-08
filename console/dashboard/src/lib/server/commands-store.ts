@@ -27,16 +27,36 @@ const READ_TIMEOUT_MS = 2000;
 // Optimistic entries that failed the projector push decay fast (see above).
 const UNSYNCED_TTL_MS = 5_000;
 
+// section names the projected collection (commands or modules) a store
+// operation targets; it drives the cache key and the projector subject verbs so
+// the read/replace paths stay identical for both.
+type section = 'commands' | 'modules';
+
+function cacheKey(kind: section, userId: string): string {
+  return `${kind}:${userId}`;
+}
+
+// readProjected is the shared list read path (L1 -> Valkey projection ->
+// projector RPC) for either collection. valkeyRead answers whether the Valkey
+// projection is populated and, if so, its rows; a cold projection falls back to
+// the projector's get RPC. pick names the field on the RPC reply.
+async function readProjected<T>(
+  kind: section,
+  userId: string,
+  valkeyRead: (userId: string) => Promise<{ projected: boolean; rows: T[] }>
+): Promise<T[]> {
+  return fabric.readKey(cacheKey(kind, userId), POLICY.projected, async () => {
+    const v = await valkeyRead(userId);
+    if (v.projected) return v.rows;
+    const r = await rpc<Record<string, T[]>>(`${SUB.projector}.${kind}.get`, { user_id: userId }, READ_TIMEOUT_MS);
+    return r[kind] ?? [];
+  });
+}
+
 export async function listCommands(userId: string): Promise<CommandView[]> {
-  return fabric.readKey(`commands:${userId}`, POLICY.projected, async () => {
-    const v = await valkey.getCommands(userId);
-    if (v.projected) return v.commands;
-    const r = await rpc<{ commands: CommandView[] }>(
-      `${SUB.projector}.commands.get`,
-      { user_id: userId },
-      READ_TIMEOUT_MS
-    );
-    return r.commands ?? [];
+  return readProjected<CommandView>('commands', userId, async (id) => {
+    const v = await valkey.getCommands(id);
+    return { projected: v.projected, rows: v.commands };
   });
 }
 
@@ -47,48 +67,33 @@ export interface ModuleView {
 }
 
 export async function listModules(userId: string): Promise<ModuleView[]> {
-  return fabric.readKey(`modules:${userId}`, POLICY.projected, async () => {
-    const v = await valkey.getModules(userId);
-    if (v.projected) return v.modules;
-    const r = await rpc<{ modules: ModuleView[] }>(
-      `${SUB.projector}.modules.get`,
-      { user_id: userId },
-      READ_TIMEOUT_MS
-    );
-    return r.modules ?? [];
+  return readProjected<ModuleView>('modules', userId, async (id) => {
+    const v = await valkey.getModules(id);
+    return { projected: v.projected, rows: v.modules };
   });
 }
 
-// Best-effort projection push. Returns whether the projector confirmed it, so
-// callers can decide how long to trust their optimistic cache entry. Failures
-// are logged (they silently degraded freshness for minutes before) but never
-// thrown — the change-event pipeline reconciles the projection regardless.
-async function replaceProjectedCommands(userId: string, commands: CommandView[]): Promise<boolean> {
+// replaceProjected is the best-effort projection push for either collection.
+// Returns whether the projector confirmed it, so callers can decide how long to
+// trust their optimistic cache entry. Failures are logged (they silently
+// degraded freshness for minutes before) but never thrown — the change-event
+// pipeline reconciles the projection regardless.
+async function replaceProjected(kind: section, userId: string, rows: unknown[]): Promise<boolean> {
   try {
-    await rpc(`${SUB.projector}.commands.replace`, { user_id: userId, commands }, 2000);
+    await rpc(`${SUB.projector}.${kind}.replace`, { user_id: userId, [kind]: rows }, 2000);
     return true;
   } catch (err) {
     newrelic.noticeError(err instanceof Error ? err : new Error(String(err)), {
       component: 'projector-replace',
-      kind: 'commands',
+      kind,
       userId
     });
     return false;
   }
 }
 
-export async function replaceProjectedModules(userId: string, modules: ModuleView[]): Promise<boolean> {
-  try {
-    await rpc(`${SUB.projector}.modules.replace`, { user_id: userId, modules }, 2000);
-    return true;
-  } catch (err) {
-    newrelic.noticeError(err instanceof Error ? err : new Error(String(err)), {
-      component: 'projector-replace',
-      kind: 'modules',
-      userId
-    });
-    return false;
-  }
+export function replaceProjectedModules(userId: string, modules: ModuleView[]): Promise<boolean> {
+  return replaceProjected('modules', userId, modules);
 }
 
 // Commit an optimistically merged list: trusted for the full projected window
@@ -133,13 +138,13 @@ export async function upsertModule(
     });
     if (!merged) modules.push(upserted);
 
-    const synced = await replaceProjectedModules(userId, modules);
-    commitOptimistic(`modules:${userId}`, modules, synced);
+    const synced = await replaceProjected('modules', userId, modules);
+    commitOptimistic(cacheKey('modules', userId), modules, synced);
     return { modules };
   } catch {
     // Write landed but the read-back failed: drop the stale cache and let the
     // next load re-read. The operation still succeeded.
-    invalidate(`modules:${userId}`);
+    invalidate(cacheKey('modules', userId));
     return { modules: [] };
   }
 }
@@ -206,12 +211,12 @@ export async function upsertCommand(
     });
     if (!merged) commands.push(upserted);
 
-    const synced = await replaceProjectedCommands(userId, commands);
-    commitOptimistic(`commands:${userId}`, commands, synced);
+    const synced = await replaceProjected('commands', userId, commands);
+    commitOptimistic(cacheKey('commands', userId), commands, synced);
     return { commands };
   } catch {
     // Write landed but the read-back failed: the operation still succeeded.
-    invalidate(`commands:${userId}`);
+    invalidate(cacheKey('commands', userId));
     return { commands: [] };
   }
 }
@@ -224,11 +229,11 @@ export async function deleteCommand(
   try {
     const current = await listCommands(userId);
     const commands = current.filter((c) => c.name !== name);
-    const synced = await replaceProjectedCommands(userId, commands);
-    commitOptimistic(`commands:${userId}`, commands, synced);
+    const synced = await replaceProjected('commands', userId, commands);
+    commitOptimistic(cacheKey('commands', userId), commands, synced);
     return { commands };
   } catch {
-    invalidate(`commands:${userId}`);
+    invalidate(cacheKey('commands', userId));
     return { commands: [] };
   }
 }
