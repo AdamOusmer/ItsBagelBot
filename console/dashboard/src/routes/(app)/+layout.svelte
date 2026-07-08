@@ -61,11 +61,15 @@
       ? 'commands'
       : path.startsWith('/modules')
         ? 'modules'
-        : path.startsWith('/billing')
-          ? 'billing'
-          : path.startsWith('/settings') || path.startsWith('/access')
-            ? 'settings'
-            : 'overview'
+        : path.startsWith('/channelpoints')
+          ? 'channelpoints'
+          : path.startsWith('/timers')
+            ? 'timers'
+            : path.startsWith('/billing')
+              ? 'billing'
+              : path.startsWith('/settings') || path.startsWith('/access')
+                ? 'settings'
+                : 'overview'
   );
   const crumb = $derived(t(`nav.${section}`));
 
@@ -74,6 +78,8 @@
   const sections = $derived((data.sections ?? []) as string[]);
   const canCommands = $derived(!isDelegate || sections.includes('commands'));
   const canModules = $derived(!isDelegate || sections.includes('modules'));
+  const canChannelPoints = $derived(!isDelegate || sections.includes('channelpoints'));
+  const canTimers = $derived(!isDelegate || sections.includes('timers'));
   // Billing is owner-only except for a delegate explicitly granted it (view-only).
   const canBilling = $derived(!isDelegate || sections.includes('billing'));
 
@@ -89,6 +95,10 @@
     ...(canModules
       ? [{ href: '/modules', icon: 'modules', label: t('nav.modules'), active: section === 'modules' }]
       : []),
+    ...(canChannelPoints
+      ? [{ href: '/channelpoints', icon: 'gem', label: t('nav.channelpoints'), active: section === 'channelpoints' }]
+      : []),
+    ...(canTimers ? [{ href: '/timers', icon: 'clock', label: t('nav.timers'), active: section === 'timers' }] : []),
     ...(canBilling
       ? [{ href: '/billing', icon: 'card', label: t('nav.billing'), active: section === 'billing' }]
       : []),

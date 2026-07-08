@@ -85,6 +85,11 @@ func Locale(v string) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldLocale, v))
 }
 
+// CreatorCode applies equality check predicate on the "creator_code" field. It's identical to CreatorCodeEQ.
+func CreatorCode(v string) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldCreatorCode, v))
+}
+
 // SubscriptionSource applies equality check predicate on the "subscription_source" field. It's identical to SubscriptionSourceEQ.
 func SubscriptionSource(v string) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldSubscriptionSource, v))
@@ -418,6 +423,81 @@ func LocaleEqualFold(v string) predicate.User {
 // LocaleContainsFold applies the ContainsFold predicate on the "locale" field.
 func LocaleContainsFold(v string) predicate.User {
 	return predicate.User(sql.FieldContainsFold(FieldLocale, v))
+}
+
+// CreatorCodeEQ applies the EQ predicate on the "creator_code" field.
+func CreatorCodeEQ(v string) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldCreatorCode, v))
+}
+
+// CreatorCodeNEQ applies the NEQ predicate on the "creator_code" field.
+func CreatorCodeNEQ(v string) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldCreatorCode, v))
+}
+
+// CreatorCodeIn applies the In predicate on the "creator_code" field.
+func CreatorCodeIn(vs ...string) predicate.User {
+	return predicate.User(sql.FieldIn(FieldCreatorCode, vs...))
+}
+
+// CreatorCodeNotIn applies the NotIn predicate on the "creator_code" field.
+func CreatorCodeNotIn(vs ...string) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldCreatorCode, vs...))
+}
+
+// CreatorCodeGT applies the GT predicate on the "creator_code" field.
+func CreatorCodeGT(v string) predicate.User {
+	return predicate.User(sql.FieldGT(FieldCreatorCode, v))
+}
+
+// CreatorCodeGTE applies the GTE predicate on the "creator_code" field.
+func CreatorCodeGTE(v string) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldCreatorCode, v))
+}
+
+// CreatorCodeLT applies the LT predicate on the "creator_code" field.
+func CreatorCodeLT(v string) predicate.User {
+	return predicate.User(sql.FieldLT(FieldCreatorCode, v))
+}
+
+// CreatorCodeLTE applies the LTE predicate on the "creator_code" field.
+func CreatorCodeLTE(v string) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldCreatorCode, v))
+}
+
+// CreatorCodeContains applies the Contains predicate on the "creator_code" field.
+func CreatorCodeContains(v string) predicate.User {
+	return predicate.User(sql.FieldContains(FieldCreatorCode, v))
+}
+
+// CreatorCodeHasPrefix applies the HasPrefix predicate on the "creator_code" field.
+func CreatorCodeHasPrefix(v string) predicate.User {
+	return predicate.User(sql.FieldHasPrefix(FieldCreatorCode, v))
+}
+
+// CreatorCodeHasSuffix applies the HasSuffix predicate on the "creator_code" field.
+func CreatorCodeHasSuffix(v string) predicate.User {
+	return predicate.User(sql.FieldHasSuffix(FieldCreatorCode, v))
+}
+
+// CreatorCodeIsNil applies the IsNil predicate on the "creator_code" field.
+func CreatorCodeIsNil() predicate.User {
+	return predicate.User(sql.FieldIsNull(FieldCreatorCode))
+}
+
+// CreatorCodeNotNil applies the NotNil predicate on the "creator_code" field.
+func CreatorCodeNotNil() predicate.User {
+	return predicate.User(sql.FieldNotNull(FieldCreatorCode))
+}
+
+// CreatorCodeEqualFold applies the EqualFold predicate on the "creator_code" field.
+func CreatorCodeEqualFold(v string) predicate.User {
+	return predicate.User(sql.FieldEqualFold(FieldCreatorCode, v))
+}
+
+// CreatorCodeContainsFold applies the ContainsFold predicate on the "creator_code" field.
+func CreatorCodeContainsFold(v string) predicate.User {
+	return predicate.User(sql.FieldContainsFold(FieldCreatorCode, v))
 }
 
 // SubscriptionSourceEQ applies the EQ predicate on the "subscription_source" field.

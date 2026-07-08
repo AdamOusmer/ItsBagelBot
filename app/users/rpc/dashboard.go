@@ -238,6 +238,7 @@ func (d *dashboardRPC) handleStateGet(ctx context.Context, msg *nats.Msg) {
 			"status":                      view.Status,
 			"onboarded":                   view.Onboarded,
 			"locale":                      view.Locale,
+			"creator_code":                view.CreatorCode,
 			"expires_at":                  view.SubscriptionExpiresAt,
 			"source":                      view.SubscriptionSource,
 			"subscription_ref":            view.SubscriptionRef,

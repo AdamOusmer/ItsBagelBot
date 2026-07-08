@@ -1,0 +1,112 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import PageHero from '../../components/ui/PageHero.astro';
+import LegalShell from '../../components/legal/LegalShell.astro';
+
+const sections = [
+    { id: 'agreement', heading: 'Acceptation', plain: 'Ces conditions s’ajoutent aux Conditions d’utilisation et s’appliquent à quiconque détient ou utilise un code de créateur.' },
+    { id: 'program', heading: 'Le programme de codes de créateur', plain: 'Les créateurs approuvés reçoivent un code. Les achats faits avec ce code soutiennent le créateur, et certains codes offrent un rabais.' },
+    { id: 'eligibility', heading: 'Admissibilité et candidatures', plain: 'Vous soumettez une candidature, nous l’évaluons. L’approbation est à notre discrétion et votre compte doit rester en règle.' },
+    { id: 'codes', heading: 'Votre code', plain: 'Votre code est personnel et incessible. Nous pouvons le modifier ou le désactiver au besoin.' },
+    { id: 'revenue-share', heading: 'Partage des revenus et versements', plain: 'Votre part est fixée à l’approbation. Tebex en assure le suivi et le versement selon ses règles.' },
+    { id: 'discounts', heading: 'Rabais pour les acheteurs', plain: 'Certains codes donnent un rabais au paiement. Les codes n’ont aucune valeur en argent et ne sont pas cumulables.' },
+    { id: 'conduct', heading: 'Conduite du créateur', plain: 'Faites une promotion honnête, divulguez que votre code vous rapporte et ne trichez pas.' },
+    { id: 'adjustments', heading: 'Remboursements, rétrofacturations et ajustements', plain: 'Si un achat est remboursé ou rétrofacturé, la part correspondante est annulée.' },
+    { id: 'termination', heading: 'Résiliation', plain: 'Chacun peut mettre fin à la participation en tout temps. La fraude entraîne la perte des gains.' },
+    { id: 'relationship', heading: 'Relation', plain: 'Vous êtes un créateur indépendant, ni employé, ni mandataire, ni associé.' },
+    { id: 'changes', heading: 'Modifications', plain: 'Ces conditions peuvent changer; conserver un code actif signifie que vous acceptez les nouvelles conditions.' },
+    { id: 'contact', heading: 'Nous joindre', plain: 'Écrivez à support@itsbagelbot.com si vous avez des questions.' },
+];
+---
+
+<Layout title="Conditions des codes de créateur — ItsBagelBot" description="Conditions régissant le programme de codes de créateur d’ItsBagelBot : admissibilité, partage des revenus, versements et conduite des créateurs.">
+    <PageHero eyebrow="Juridique" title="Conditions des codes de créateur" description="Le texte intégral, accompagné d’une explication en clair pour chaque section." />
+
+    <LegalShell updated="juillet 2026" sections={sections}>
+        <Fragment slot="agreement">
+            <p>
+                Les présentes Conditions des codes de créateur complètent les <a href="/fr/terms">Conditions d’utilisation</a> d’ItsBagelBot et s’appliquent à quiconque soumet une candidature pour un code de créateur, en détient un ou en utilise un. En participant au programme, vous acceptez les présentes conditions en plus des Conditions d’utilisation et, lorsque des paiements sont en cause, des <a href="https://checkout.tebex.io/terms" target="_blank" rel="noopener noreferrer">conditions générales de Tebex</a>. En cas de conflit avec les Conditions d’utilisation sur une question relative aux codes de créateur, les présentes conditions ont préséance. Elles sont régies par le même droit applicable et les mêmes voies de communication que les Conditions d’utilisation.
+            </p>
+        </Fragment>
+
+        <Fragment slot="program">
+            <p>
+                Le programme de codes de créateur permet aux créateurs approuvés de partager un code personnel avec leur communauté. Lorsqu’une personne utilise ce code au moment du paiement, l’achat est attribué au créateur, qui reçoit une part des revenus. Certains codes appliquent également un rabais à l’achat; d’autres non. L’ensemble du programme fonctionne sur Tebex, notre plateforme de paiement et de monétisation et marchand officiel : Tebex émet les codes, en assure le suivi, enregistre les achats attribués et gère les versements aux créateurs.
+            </p>
+        </Fragment>
+
+        <Fragment slot="eligibility">
+            <p>Pour recevoir un code de créateur, vous devez soumettre une candidature et être approuvé. L’approbation, ainsi que les modalités rattachées à chaque code, relèvent de notre entière discrétion. Pour participer, vous devez :</p>
+            <ul>
+                <li>détenir un compte ItsBagelBot en règle et respecter les Conditions d’utilisation ainsi que les Conditions d’utilisation de Twitch;</li>
+                <li>avoir atteint l’âge de la majorité dans votre juridiction, puisque les versements exigent la capacité de contracter;</li>
+                <li>satisfaire aux exigences de compte ou de vérification imposées par Tebex pour recevoir des versements.</li>
+            </ul>
+            <p>Nous pouvons refuser toute candidature sans motif.</p>
+        </Fragment>
+
+        <Fragment slot="codes">
+            <p>
+                Votre code de créateur est personnel et incessible : vous ne pouvez ni le vendre, ni le prêter, ni laisser quelqu’un d’autre l’exploiter. Le fait qu’un code comporte ou non un rabais pour l’acheteur, et à quel taux, est établi code par code et peut varier d’un créateur à l’autre. Nous et Tebex pouvons modifier, suspendre ou désactiver tout code en tout temps, notamment pour corriger des erreurs, répondre à un abus ou faire évoluer le programme. Nous ferons des efforts raisonnables pour vous aviser des changements qui touchent votre code.
+            </p>
+        </Fragment>
+
+        <Fragment slot="revenue-share">
+            <p>
+                Votre taux de partage des revenus vous est communiqué à l’approbation de votre candidature et peut être mis à jour moyennant un préavis. L’attribution, le suivi et les versements sont gérés par Tebex à titre de marchand officiel, selon les calendriers de versement, seuils minimaux et conditions de Tebex. ItsBagelBot ne détient ni ne transfère directement les fonds des créateurs.
+            </p>
+            <p>
+                Vous êtes seul responsable des impôts, taxes et obligations de déclaration découlant des montants gagnés dans le cadre du programme. Rien dans les présentes conditions ne constitue un conseil fiscal.
+            </p>
+        </Fragment>
+
+        <Fragment slot="discounts">
+            <p>
+                Lorsqu’un code comporte un rabais pour l’acheteur, celui-ci est appliqué au paiement Tebex et affiché avant la conclusion de l’achat. Les codes n’ont aucune valeur en argent, ne peuvent être échangés contre de l’argent, ne peuvent être combinés à d’autres codes ou promotions sauf indication contraire de notre part, et ne s’appliquent qu’aux achats où le code est saisi au moment du paiement. Nous pouvons modifier un rabais ou y mettre fin pour l’avenir en tout temps; les achats déjà conclus ne sont pas touchés.
+            </p>
+        </Fragment>
+
+        <Fragment slot="conduct">
+            <p>À titre de créateur participant, vous ne devez pas :</p>
+            <ul>
+                <li>utiliser votre propre code, ou faire passer des achats par des intermédiaires, afin de toucher une part sur vos propres dépenses;</li>
+                <li>faire des déclarations fausses ou trompeuses au sujet d’ItsBagelBot, du rabais ou de votre relation avec nous;</li>
+                <li>promouvoir votre code par des pourriels, des messages non sollicités ou des publicités payantes portant sur notre nom ou nos marques;</li>
+                <li>encourager des achats dont vous savez qu’ils seront vraisemblablement remboursés ou rétrofacturés.</li>
+            </ul>
+            <p>
+                Vous devez divulguer clairement, partout où votre code est promu, que les achats effectués avec celui-ci vous rapportent, conformément aux règles applicables en matière de publicité et de protection du consommateur.
+            </p>
+        </Fragment>
+
+        <Fragment slot="adjustments">
+            <p>
+                Si un achat attribué à votre code est remboursé, annulé ou rétrofacturé, la part de revenus correspondante est annulée elle aussi et peut être déduite des versements en attente ou à venir, conformément aux processus de Tebex. Nous pouvons également retenir ou annuler des montants qui, selon notre évaluation raisonnable ou celle de Tebex, découlent d’une fraude, d’achats effectués pour soi-même ou d’un autre manquement aux présentes conditions.
+            </p>
+        </Fragment>
+
+        <Fragment slot="termination">
+            <p>
+                Vous pouvez quitter le programme en tout temps en nous demandant de désactiver votre code. Nous pouvons suspendre votre participation ou y mettre fin en tout temps, avec ou sans motif; dans la mesure du possible, nous vous en expliquerons la raison. Les montants légitimement gagnés et déjà exigibles sont versés selon les conditions de Tebex. Les montants découlant d’une fraude ou d’un manquement aux présentes conditions sont perdus. La fermeture de votre compte ItsBagelBot met automatiquement fin à votre participation.
+            </p>
+        </Fragment>
+
+        <Fragment slot="relationship">
+            <p>
+                La participation au programme ne crée aucune relation d’emploi, de mandat, de société de personnes ou de coentreprise entre vous et ItsBagelBot. Vous n’avez aucun pouvoir de nous engager et vous ne pouvez pas vous présenter comme notre employé ou représentant officiel.
+            </p>
+        </Fragment>
+
+        <Fragment slot="changes">
+            <p>
+                Nous pouvons mettre les présentes conditions à jour. Toute modification importante sera annoncée sur Discord et dans le tableau de bord. Le fait de conserver ou d’utiliser un code de créateur après l’entrée en vigueur des modifications constitue votre acceptation.
+            </p>
+        </Fragment>
+
+        <Fragment slot="contact">
+            <p>
+                Des questions sur le programme de codes de créateur? Écrivez à <a href="mailto:support@itsbagelbot.com">support@itsbagelbot.com</a>.
+            </p>
+        </Fragment>
+    </LegalShell>
+</Layout>

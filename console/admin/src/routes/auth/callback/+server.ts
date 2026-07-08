@@ -3,10 +3,8 @@ import { redirect } from '@sveltejs/kit';
 import { decodeIdToken, OAuth2RequestError } from 'arctic';
 import { twitch } from '$lib/server/oauth';
 import { adminCheck } from '$lib/server/services';
-import { COOKIE, seal } from '$lib/server/session';
+import { COOKIE, seal, SESSION_TTL_SECONDS } from '$lib/server/session';
 import { env } from '$env/dynamic/private';
-
-const SESSION_TTL = 7 * 24 * 3600;
 
 // Twitch redirects the operator's browser here (on the tailnet). The token
 // exchange below is a server-side outbound call to id.twitch.tv, so the private
@@ -49,12 +47,14 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
     const check = await adminCheck(userId, login, displayName);
     if (!check.admin) throw redirect(302, '/login?e=denied');
 
+    const now = Math.floor(Date.now() / 1000);
     const value = seal({
       user_id: userId,
       login,
       display_name: displayName,
       role: 'streamer',
-      expires_at: Math.floor(Date.now() / 1000) + SESSION_TTL
+      iat: now,
+      expires_at: now + SESSION_TTL_SECONDS
     });
 
     cookies.set(COOKIE, value, {
@@ -62,7 +62,7 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
       httpOnly: true,
       secure: url.protocol === 'https:',
       sameSite: 'lax',
-      maxAge: SESSION_TTL
+      maxAge: SESSION_TTL_SECONDS
     });
   } catch (e) {
     if (e instanceof OAuth2RequestError) throw redirect(302, '/login?e=oauth');

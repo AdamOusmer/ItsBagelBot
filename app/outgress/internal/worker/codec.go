@@ -23,6 +23,9 @@ type wireMessage struct {
 	Color         string                 `json:"color,omitempty"`
 	To            string                 `json:"to,omitempty"`
 	MsgID         string                 `json:"msg_id,omitempty"`
+	RewardID      string                 `json:"reward_id,omitempty"`
+	RedemptionID  string                 `json:"redemption_id,omitempty"`
+	Status        string                 `json:"status,omitempty"`
 }
 
 // PrepareJSON compiles Sonic's decoders during startup rather than on the first
@@ -44,6 +47,7 @@ func decodeMessage(data []byte, destination *outgress.Message) error {
 		Type: wire.Type, BroadcasterID: wire.BroadcasterID, SenderID: wire.SenderID,
 		Endpoint: wire.Endpoint, Method: wire.Method, Payload: json.RawMessage(wire.Payload),
 		As: wire.As, Color: wire.Color, To: wire.To, MsgID: wire.MsgID,
+		RewardID: wire.RewardID, RedemptionID: wire.RedemptionID, Status: wire.Status,
 	}
 	return nil
 }

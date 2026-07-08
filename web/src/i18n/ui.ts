@@ -34,6 +34,7 @@ const en = {
   'footer.note': 'No data sold · No trackers · No surprises',
   'footer.privacy': 'Privacy Policy',
   'footer.terms': 'Terms of Service',
+  'footer.creatorTerms': 'Creator Codes',
 
   // ── Home ────────────────────────────────────────────────────────
   'home.metaTitle': 'ItsBagelBot. Your Stream, Your Rules',
@@ -280,6 +281,7 @@ const fr: Partial<Record<UIKey, string>> = {
   'footer.note': 'Aucune donnée vendue · Aucun traceur · Aucune surprise',
   'footer.privacy': 'Politique de confidentialité',
   'footer.terms': "Conditions d'utilisation",
+  'footer.creatorTerms': 'Codes de créateur',
 
   'home.metaTitle': 'ItsBagelBot. Votre stream, vos règles',
   'home.metaDesc': 'Le compagnon Twitch tout-en-un, conçu pour l\'indépendance. Une modération qui tourne toute seule, des commandes sur mesure et des outils qui gardent le chat vivant.',

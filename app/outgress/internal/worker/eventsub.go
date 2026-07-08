@@ -61,6 +61,8 @@ func (w *Worker) processEventSub(ctx context.Context, payload outgress.Message) 
 		return w.disableChannel(ctx, e)
 	case outgress.ModeReconnect:
 		return w.reconnectEventSubs(ctx, e)
+	case outgress.ModeEnsureOptional:
+		return w.ensureOptionalEventSubs(ctx, e)
 	default:
 		w.log.Error("dropping eventsub job with unknown mode",
 			zap.String("mode", job.Mode),
@@ -297,6 +299,50 @@ func (w *Worker) createAllEventSubs(ctx context.Context, e enrollment) error {
 		}
 	}
 
+	// Optional subscriptions (channel-points redemptions) ride along on enable;
+	// a channel that has not consented to the channel-points scope simply skips
+	// them (see createOptionalEventSubs) instead of failing the whole enroll.
+	return w.createOptionalEventSubs(ctx, e)
+}
+
+// ensureOptionalEventSubs (re)creates only the optional subscriptions for a
+// channel (e.g. the channel-points redemption sub after the broadcaster grants
+// the channel:manage:redemptions scope), single-flighted on the enroll lock so
+// only one replica works it. Missing optional subs are best-effort: a channel
+// without the scope skips them cleanly.
+func (w *Worker) ensureOptionalEventSubs(ctx context.Context, e enrollment) error {
+	return w.underEnrollLock(ctx, "ensure-optional", e, func() error {
+		if err := w.createOptionalEventSubs(ctx, e); err != nil {
+			w.log.Warn("ensure-optional eventsubs failed, will retry",
+				zap.String("broadcaster_id", e.broadcasterID), zap.Error(err))
+			return err
+		}
+		w.log.Info("optional eventsubs ensured", zap.String("broadcaster_id", e.broadcasterID))
+		return nil
+	})
+}
+
+// createOptionalEventSubs creates each optional SubSpec, paying the reserved
+// system bucket per call. A permanent rejection (the channel has not granted
+// the required scope) is logged and skipped rather than failing the enroll;
+// only transient errors propagate for retry.
+func (w *Worker) createOptionalEventSubs(ctx context.Context, e enrollment) error {
+	for _, spec := range twitch.ChannelOptionalSubscriptions(e.broadcasterID) {
+		if err := w.takeSystemHelix(ctx); err != nil {
+			return err
+		}
+		if err := w.twitch.CreateEventSub(ctx, spec, e.conduitID); err != nil {
+			if isPermanent(err) {
+				w.log.Info("optional eventsub not available for channel, skipping",
+					zap.String("broadcaster_id", e.broadcasterID),
+					zap.String("subscription", spec.Type),
+					zap.Error(err))
+				continue
+			}
+			w.conduit.Invalidate()
+			return fmt.Errorf("create optional %s: %w", spec.Type, err)
+		}
+	}
 	return nil
 }
 

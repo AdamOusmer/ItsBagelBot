@@ -12,6 +12,7 @@
 package config
 
 import (
+	"strings"
 	"time"
 
 	"ItsBagelBot/pkg/env"
@@ -98,6 +99,11 @@ type Config struct {
 	// manage custom commands from chat (the !cmd module).
 	CommandsDashboardPrefix string
 
+	// PublicBaseURL is the origin of the public console pages. The !cmd module
+	// builds the channel command-page link from it as "<base>/user/<broadcaster
+	// id>". Stored without a trailing slash.
+	PublicBaseURL string
+
 	// GatewayRPCPrefix is the NATS subject prefix the gateway service (external
 	// API proxy + cache) subscribes to; the urchin/mcsr modules append
 	// ".<provider>.<endpoint>".
@@ -152,6 +158,8 @@ func Load() *Config {
 		CacheInvalidationPrefix: env.Get("NATS_CACHE_INVALIDATION_PREFIX", "bagel.cache.invalidate"),
 
 		CommandsDashboardPrefix: env.Get("NATS_COMMANDS_DASHBOARD_PREFIX", "bagel.rpc.commands"),
+
+		PublicBaseURL: strings.TrimRight(env.Get("SESAME_PUBLIC_BASE_URL", "https://dashboard.itsbagelbot.com"), "/"),
 
 		GatewayRPCPrefix: env.Get("NATS_GATEWAY_SUBJECT_PREFIX", "bagel.rpc.gateway"),
 

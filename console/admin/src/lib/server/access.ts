@@ -3,7 +3,10 @@
 // (served by the users service over NATS, auth.check). The tailnet is the
 // network boundary; this is the identity boundary on top of it. DEMO=1
 // synthesizes an allowed superadmin so the panel renders without auth wired up.
-import { env } from '$env/dynamic/private';
+// DEMO is read from process.env, NOT $env/dynamic/private: this module is in
+// the boot import graph (hooks.server.ts -> access), and even importing the
+// dynamic-env proxy there deadlocks server.init (exit 13). process.env carries
+// the same runtime value.
 import type { Session } from './session';
 import { adminCheck, type AdminRole } from './services';
 
@@ -19,11 +22,12 @@ export const demoSession: Session = {
   login: 'itsmavey',
   display_name: 'Mavey',
   role: 'streamer',
+  iat: Math.floor(Date.now() / 1000),
   expires_at: Math.floor(Date.now() / 1000) + 3600
 };
 
 export function isDemo(): boolean {
-  return env.DEMO === '1';
+  return process.env.DEMO === '1';
 }
 
 const RANK: Record<AdminRole, number> = { moderator: 1, admin: 2, owner: 3 };

@@ -1,0 +1,110 @@
+---
+/**
+ * View-transition-aware sidebar persistence.
+ *
+ * Starlight ships its own persistence (SidebarPersister.astro +
+ * SidebarPersistState.ts), but it assumes classic MPA navigation:
+ *   - the store listener + `customElements.define('sl-sidebar-restore')`
+ *     bind to the FIRST document, and
+ *   - restore only runs via a fresh inline script on a full page load.
+ *
+ * We add `<ClientRouter />` (Head.astro) for the SPA smooth-scroll feel,
+ * so navigations are client swaps: `pageHide` never fires, the persist
+ * element gets replaced, and the define-once restore closes over the
+ * first page's state. Result: collapsed groups spring back open on every
+ * navigation.
+ *
+ * This component re-owns persistence with document-level listeners that
+ * survive swaps. It reuses Starlight's storage key, `data-hash`, and
+ * `<sl-sidebar-restore data-index>` markers so a plain full reload (where
+ * Starlight's own restore still runs) stays consistent.
+ */
+---
+
+<script>
+    interface SidebarState {
+        hash: string;
+        open: Array<boolean | null>;
+        scroll: number;
+    }
+
+    const KEY = "sl-sidebar-state";
+
+    const persistEl = () =>
+        document.querySelector<HTMLElement>("sl-sidebar-state-persist");
+    const scroller = () => document.getElementById("starlight__sidebar");
+    const currentHash = () => persistEl()?.dataset.hash || "";
+
+    function read(): SidebarState | null {
+        try {
+            const raw = sessionStorage.getItem(KEY);
+            const s = raw ? (JSON.parse(raw) as SidebarState) : null;
+            return s && Array.isArray(s.open) ? s : null;
+        } catch {
+            return null;
+        }
+    }
+
+    function write(state: SidebarState) {
+        try {
+            sessionStorage.setItem(KEY, JSON.stringify(state));
+        } catch {}
+    }
+
+    /** Read the live sidebar into storage (open state per group + scroll). */
+    function snapshot() {
+        const target = persistEl();
+        if (!target) return;
+        const open: SidebarState["open"] = [];
+        document
+            .querySelectorAll<HTMLElement>("sl-sidebar-restore")
+            .forEach((r) => {
+                const idx = parseInt(r.dataset.index || "");
+                const details = r.closest("details");
+                if (!isNaN(idx) && details) open[idx] = details.open;
+            });
+        write({ hash: currentHash(), open, scroll: scroller()?.scrollTop || 0 });
+    }
+
+    /** Apply stored state back onto the freshly-swapped sidebar DOM. */
+    function restore() {
+        const state = read();
+        if (!state || state.hash !== currentHash()) return;
+        document
+            .querySelectorAll<HTMLElement>("sl-sidebar-restore")
+            .forEach((r) => {
+                const idx = parseInt(r.dataset.index || "");
+                const details = r.closest("details");
+                if (details && typeof state.open[idx] === "boolean") {
+                    details.open = state.open[idx] as boolean;
+                }
+            });
+        // Scroll restore only where the sidebar is a persistent rail; on the
+        // mobile menu it lives in a transformed overlay where it's moot.
+        if (matchMedia("(min-width: 50em)").matches) {
+            const s = scroller();
+            if (s && typeof state.scroll === "number") s.scrollTop = state.scroll;
+        }
+    }
+
+    // `toggle` doesn't bubble, so listen in the capture phase and filter to
+    // sidebar groups. Fires after the <details> open state has flipped.
+    document.addEventListener(
+        "toggle",
+        (event) => {
+            const el = event.target;
+            if (
+                el instanceof HTMLDetailsElement &&
+                el.closest("sl-sidebar-state-persist")
+            ) {
+                snapshot();
+            }
+        },
+        true
+    );
+
+    // Capture the final state (incl. scroll) right before the DOM is swapped,
+    // then re-apply once the new page's sidebar is in place.
+    document.addEventListener("astro:before-preparation", snapshot);
+    document.addEventListener("astro:page-load", restore);
+</script>

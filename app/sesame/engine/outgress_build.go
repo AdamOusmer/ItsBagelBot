@@ -39,15 +39,16 @@ func buildOutgress(o *module.Output) ([]byte, error) {
 // outgressBuilders maps each intent to its wire-message construction; types
 // absent here (generic passthroughs) carry only type + broadcaster.
 var outgressBuilders = map[string]func(*module.Output) (outgress.Message, error){
-	outgress.TypeChat:       chatOutgress,
-	outgress.TypeAnnounce:   announceOutgress,
-	outgress.TypeShoutout:   shoutoutOutgress,
-	outgress.TypeClip:       clipOutgress,
-	outgress.TypeBan:        banOutgress,
-	outgress.TypeTimeout:    banOutgress,
-	outgress.TypeShieldMode: shieldOutgress,
-	outgress.TypeDelete:     deleteOutgress,
-	outgress.TypeWarn:       warnOutgress,
+	outgress.TypeChat:             chatOutgress,
+	outgress.TypeAnnounce:         announceOutgress,
+	outgress.TypeShoutout:         shoutoutOutgress,
+	outgress.TypeClip:             clipOutgress,
+	outgress.TypeBan:              banOutgress,
+	outgress.TypeTimeout:          banOutgress,
+	outgress.TypeShieldMode:       shieldOutgress,
+	outgress.TypeDelete:           deleteOutgress,
+	outgress.TypeWarn:             warnOutgress,
+	outgress.TypeRedemptionUpdate: redemptionUpdateOutgress,
 }
 
 // payloadMessage marshals one typed payload and wraps it in the wire message.
@@ -143,4 +144,17 @@ func warnOutgress(o *module.Output) (outgress.Message, error) {
 	return payloadMessage(outgress.TypeWarn, o.BroadcasterID, struct {
 		Data banData `json:"data"`
 	}{banData{UserID: o.TargetUserID, Reason: o.Reason}})
+}
+
+// redemptionUpdateOutgress builds the Update Redemption Status job. Everything
+// rides dedicated Message fields (reward id, redemption id, target status) that
+// outgress puts on the query string / a small body; there is no payload here.
+func redemptionUpdateOutgress(o *module.Output) (outgress.Message, error) {
+	return outgress.Message{
+		Type:          outgress.TypeRedemptionUpdate,
+		BroadcasterID: o.BroadcasterID,
+		RewardID:      o.RewardID,
+		RedemptionID:  o.RedemptionID,
+		Status:        o.Status,
+	}, nil
 }
