@@ -117,7 +117,10 @@ func (p *Pipeline) runCustom(ctx context.Context, c *module.Context, name, args 
 // backstop so an expanded token can never fan out further. Reports whether at
 // least one line was actually emitted.
 func (p *Pipeline) emitResponse(c *module.Context, response, args string, emit module.Emit) bool {
-	sender := c.Env.ChatterUserLogin
+	// {user}/{sender}/{channel} render the display name (login fallback); {touser}
+	// defaults to the sender's display name and is otherwise the @mention the
+	// chatter typed, taken verbatim.
+	sender := c.Env.ChatterName()
 	touser := sender
 	if args != "" {
 		firstWord, _, _ := strings.Cut(args, " ")
@@ -138,7 +141,7 @@ func (p *Pipeline) emitResponse(c *module.Context, response, args string, emit m
 		sender:  sender,
 		args:    args,
 		touser:  touser,
-		channel: c.Env.BroadcasterUserLogin,
+		channel: c.Env.BroadcasterName(),
 	})
 	expanded := string(buf)
 	PutBuf(buf)

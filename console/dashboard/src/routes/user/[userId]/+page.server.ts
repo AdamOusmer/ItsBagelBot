@@ -72,7 +72,10 @@ const demoModules: PublicModule[] = [
 ];
 
 function cleanChannel(raw: string | null): string {
-  return (raw ?? '').replace(/^@+/, '').replace(/[^\w]/g, '').slice(0, 32);
+  // The bot passes the broadcaster's Twitch display name here, which may carry
+  // non-ASCII letters (localized/CJK handles). Keep unicode letters, numbers and
+  // underscore; drop spaces, punctuation and anything HTML-dangerous, then cap.
+  return (raw ?? '').replace(/^@+/, '').replace(/[^\p{L}\p{N}_]/gu, '').slice(0, 32);
 }
 
 function asConfig(raw: unknown): Record<string, string> {

@@ -69,6 +69,28 @@ func TestCustomAnnounceAllowedForEveryone(t *testing.T) {
 	assert.Equal(t, "alice says: @bob raid incoming; target=bob", got[0].Text)
 }
 
+// TestCustomTokensUseDisplayName proves {user}/{sender}/{channel} render the
+// chatter's and broadcaster's Twitch display name when the event carries one,
+// not the lowercase login.
+func TestCustomTokensUseDisplayName(t *testing.T) {
+	p := customPipeline("{channel}: {user}/{sender}", "everyone")
+	c := chatCtx("!so", "")
+	c.Env.ChatterUserName = "Alice"
+	c.Env.BroadcasterUserName = "StreamerName"
+	got := collectDispatch(p, c)
+	require.Len(t, got, 1)
+	assert.Equal(t, "StreamerName: Alice/Alice", got[0].Text)
+}
+
+// TestCustomTokensFallBackToLogin proves the tokens fall back to the login when
+// the event carried no display name.
+func TestCustomTokensFallBackToLogin(t *testing.T) {
+	p := customPipeline("{user}", "everyone")
+	got := collectDispatch(p, chatCtx("!so", ""))
+	require.Len(t, got, 1)
+	assert.Equal(t, "alice", got[0].Text)
+}
+
 func TestCustomAnnounceEmptySkipped(t *testing.T) {
 	p := customPipeline("/announce", "everyone")
 	assert.Empty(t, collectDispatch(p, chatCtx("!so", "moderator")))

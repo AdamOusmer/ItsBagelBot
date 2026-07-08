@@ -74,14 +74,14 @@ func cmdAdd(ctx context.Context, c *module.Context, d engine.Deps, args string, 
 		return
 	}
 	if response == "" {
-		reply(c, emit, i18n.T(c.Locale, "cmd.err.missing_resp"), c.Env.ChatterUserLogin, "")
+		reply(c, emit, i18n.T(c.Locale, "cmd.err.missing_resp"), c.Env.ChatterName(), "")
 		return
 	}
 
 	// Guard: reject if the command already exists.
 	name = strings.TrimPrefix(strings.ToLower(name), "!")
 	if _, found, _ := d.Proj.Command(ctx, c.BroadcasterID, name); found {
-		reply(c, emit, i18n.T(c.Locale, "cmd.err.exists"), c.Env.ChatterUserLogin, name)
+		reply(c, emit, i18n.T(c.Locale, "cmd.err.exists"), c.Env.ChatterName(), name)
 		return
 	}
 
@@ -89,7 +89,7 @@ func cmdAdd(ctx context.Context, c *module.Context, d engine.Deps, args string, 
 		log.Warn("cmd: add failed", zap.String("name", name), zap.Uint64("broadcaster_id", c.BroadcasterID), zap.Error(err))
 		return
 	}
-	reply(c, emit, i18n.T(c.Locale, "cmd.added"), c.Env.ChatterUserLogin, name)
+	reply(c, emit, i18n.T(c.Locale, "cmd.added"), c.Env.ChatterName(), name)
 }
 
 // cmdEdit updates an existing custom command's response. It verifies the command
@@ -101,14 +101,14 @@ func cmdEdit(ctx context.Context, c *module.Context, d engine.Deps, args string,
 		return
 	}
 	if response == "" {
-		reply(c, emit, i18n.T(c.Locale, "cmd.err.missing_resp"), c.Env.ChatterUserLogin, "")
+		reply(c, emit, i18n.T(c.Locale, "cmd.err.missing_resp"), c.Env.ChatterName(), "")
 		return
 	}
 
 	// Guard: reject if the command does not exist.
 	name = strings.TrimPrefix(strings.ToLower(name), "!")
 	if _, found, _ := d.Proj.Command(ctx, c.BroadcasterID, name); !found {
-		reply(c, emit, i18n.T(c.Locale, "cmd.err.not_found"), c.Env.ChatterUserLogin, name)
+		reply(c, emit, i18n.T(c.Locale, "cmd.err.not_found"), c.Env.ChatterName(), name)
 		return
 	}
 
@@ -116,7 +116,7 @@ func cmdEdit(ctx context.Context, c *module.Context, d engine.Deps, args string,
 		log.Warn("cmd: edit failed", zap.String("name", name), zap.Uint64("broadcaster_id", c.BroadcasterID), zap.Error(err))
 		return
 	}
-	reply(c, emit, i18n.T(c.Locale, "cmd.modified"), c.Env.ChatterUserLogin, name)
+	reply(c, emit, i18n.T(c.Locale, "cmd.modified"), c.Env.ChatterName(), name)
 }
 
 // cmdRemove deletes a custom command.
@@ -132,25 +132,26 @@ func cmdRemove(ctx context.Context, c *module.Context, d engine.Deps, args strin
 		log.Warn("cmd: remove failed", zap.String("name", name), zap.Uint64("broadcaster_id", c.BroadcasterID), zap.Error(err))
 		return
 	}
-	reply(c, emit, i18n.T(c.Locale, "cmd.removed"), c.Env.ChatterUserLogin, name)
+	reply(c, emit, i18n.T(c.Locale, "cmd.removed"), c.Env.ChatterName(), name)
 }
 
 // cmdLink emits the channel's public command-page link. Any viewer can trigger
 // it, so it is the everyone-facing half of the module. The URL is
-// "<base>/user/<broadcaster id>?channel=<login>"; the channel query is a display
-// hint the page falls back to a numeric label without.
+// "<base>/user/<broadcaster id>?channel=<display name>"; the path is keyed by the
+// immutable broadcaster id, and the channel query is a display hint (the current
+// display name) the page falls back to a numeric label without.
 func cmdLink(c *module.Context, d engine.Deps, emit module.Emit) {
 	base := d.PublicBaseURL
 	if base == "" {
 		base = "https://dashboard.itsbagelbot.com"
 	}
-	channel := c.Env.BroadcasterUserLogin
+	channel := c.Env.BroadcasterName()
 	link := fmt.Sprintf("%s/user/%s", strings.TrimRight(base, "/"), c.Env.BroadcasterUserID)
 	if channel != "" {
 		link += "?channel=" + url.QueryEscape(channel)
 	}
 	text := strings.NewReplacer(
-		"{user}", c.Env.ChatterUserLogin,
+		"{user}", c.Env.ChatterName(),
 		"{channel}", channel,
 		"{url}", link,
 	).Replace(i18n.T(c.Locale, "cmd.link"))
