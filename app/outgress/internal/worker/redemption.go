@@ -17,17 +17,7 @@ import (
 // redemption still in the UNFULFILLED state, so a redemption already resolved
 // (by a mod, or a skip-queue reward) returns a 4xx that is dropped, not retried.
 func (w *Worker) processRedemptionUpdate(ctx context.Context, payload outgress.Message) error {
-	if payload.BroadcasterID == "" || payload.RewardID == "" || payload.RedemptionID == "" {
-		w.log.Error("dropping redemption update: missing ids",
-			zap.String("broadcaster_id", payload.BroadcasterID),
-			zap.String("reward_id", payload.RewardID))
-		return nil
-	}
-	status := payload.Status
-	if status != outgress.RedemptionFulfilled && status != outgress.RedemptionCanceled {
-		w.log.Error("dropping redemption update: bad status",
-			zap.String("broadcaster_id", payload.BroadcasterID),
-			zap.String("status", status))
+	if !w.validRedemption(payload) {
 		return nil
 	}
 
@@ -36,11 +26,11 @@ func (w *Worker) processRedemptionUpdate(ctx context.Context, payload outgress.M
 		return err
 	}
 
-	err := w.twitch.UpdateRedemptionStatus(ctx, payload.BroadcasterID, payload.RewardID, payload.RedemptionID, status)
+	err := w.twitch.UpdateRedemptionStatus(ctx, payload.BroadcasterID, payload.RewardID, payload.RedemptionID, payload.Status)
 	if err == nil {
 		return nil
 	}
-	if isPermanent(err) || errors.Is(err, twitch.ErrMissingScope) || errors.Is(err, twitch.ErrNoUserToken) {
+	if redemptionPermanent(err) {
 		w.log.Warn("dropping redemption update: permanent rejection",
 			zap.String("broadcaster_id", payload.BroadcasterID),
 			zap.String("reward_id", payload.RewardID),
@@ -51,4 +41,37 @@ func (w *Worker) processRedemptionUpdate(ctx context.Context, payload outgress.M
 	w.log.Warn("redemption update failed, will retry",
 		zap.String("broadcaster_id", payload.BroadcasterID), zap.Error(err))
 	return err
+}
+
+// validRedemption reports whether a redemption job carries the ids and a target
+// status Twitch accepts; a malformed job is logged and dropped (returns false).
+func (w *Worker) validRedemption(payload outgress.Message) bool {
+	if missingRedemptionIDs(payload) {
+		w.log.Error("dropping redemption update: missing ids",
+			zap.String("broadcaster_id", payload.BroadcasterID),
+			zap.String("reward_id", payload.RewardID))
+		return false
+	}
+	if !validRedemptionStatus(payload.Status) {
+		w.log.Error("dropping redemption update: bad status",
+			zap.String("broadcaster_id", payload.BroadcasterID),
+			zap.String("status", payload.Status))
+		return false
+	}
+	return true
+}
+
+func missingRedemptionIDs(payload outgress.Message) bool {
+	return payload.BroadcasterID == "" || payload.RewardID == "" || payload.RedemptionID == ""
+}
+
+func validRedemptionStatus(status string) bool {
+	return status == outgress.RedemptionFulfilled || status == outgress.RedemptionCanceled
+}
+
+// redemptionPermanent reports whether a redemption error can never succeed on
+// retry: a permanent Twitch 4xx (e.g. the redemption was already resolved), a
+// missing channel-points scope, or no broadcaster token.
+func redemptionPermanent(err error) bool {
+	return isPermanent(err) || errors.Is(err, twitch.ErrMissingScope) || errors.Is(err, twitch.ErrNoUserToken)
 }
