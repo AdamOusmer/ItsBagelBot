@@ -56,6 +56,18 @@
             lerp: 0.1,
             smoothWheel: true,
             syncTouch: false,
+            // Lenis hijacks wheel/touch at the document level and
+            // preventDefaults it, which kills native overflow scrolling
+            // inside any nested pane. Exempt Starlight's own scroll
+            // containers (left sidebar / TOC / mobile menu) and modals so
+            // the menu scrolls normally. Called per node up the event's
+            // composed path — return true to hand the gesture back to the
+            // browser. `data-lenis-prevent` stays supported for one-offs.
+            prevent: (node) =>
+                typeof node.closest === "function" &&
+                node.closest(
+                    "#starlight__sidebar, .right-sidebar, mobile-starlight-toc, dialog, [data-lenis-prevent]"
+                ) !== null,
         });
 
         window.lenis = lenis;
