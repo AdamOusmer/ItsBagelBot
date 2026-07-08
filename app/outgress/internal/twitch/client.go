@@ -70,7 +70,7 @@ func NewClient(clientID string, app, user *Source, broadcasters *BroadcasterToke
 // before queue consumers become ready. The read-only request is deliberately
 // tiny; its response is drained so HTTP/1.1 transports can reuse the socket.
 func (c *Client) Warmup(ctx context.Context) error {
-	res, err := c.request(ctx, c.app, http.MethodGet, "/helix/streams?first=1", nil)
+	res, err := c.request(ctx, c.app, getCall("/helix/streams?first=1"))
 	if err != nil {
 		return err
 	}
@@ -139,10 +139,23 @@ func ResolveIdentity(id Identity, endpoint string) Identity {
 	return IdentityApp
 }
 
+// HelixCall is one Helix HTTP request: the method, the endpoint (path plus
+// query string), and an optional JSON body.
+type HelixCall struct {
+	Method   string
+	Endpoint string
+	Body     []byte
+}
+
+// getCall builds a bodyless GET for one endpoint.
+func getCall(endpoint string) HelixCall {
+	return HelixCall{Method: http.MethodGet, Endpoint: endpoint}
+}
+
 // Do executes one Helix request under the app token (chat sends, conduit
 // EventSub management, general reads). The caller owns the response body.
 func (c *Client) Do(ctx context.Context, method, endpoint string, body []byte) (*http.Response, error) {
-	return c.request(ctx, c.app, method, endpoint, body)
+	return c.request(ctx, c.app, HelixCall{Method: method, Endpoint: endpoint, Body: body})
 }
 
 // userScopedPrefixes are Helix path prefixes that must run under the bot's USER
@@ -188,19 +201,19 @@ func (c *Client) sourceForIdentity(id Identity, broadcasterID, endpoint string) 
 // Execute runs a generic enqueued Helix job under the token its endpoint
 // requires (endpoint-based routing). Equivalent to ExecuteAs with IdentityAuto.
 func (c *Client) Execute(ctx context.Context, method, endpoint string, body []byte) (*http.Response, error) {
-	return c.ExecuteAs(ctx, IdentityAuto, "", method, endpoint, body)
+	return c.ExecuteAs(ctx, IdentityAuto, "", HelixCall{Method: method, Endpoint: endpoint, Body: body})
 }
 
 // ExecuteAs runs a generic enqueued Helix job under the requested identity (or
 // endpoint-based routing for IdentityAuto), with the same retry-once-on-401
 // dance as Do. A user/broadcaster identity with no token available returns
 // ErrNoUserToken so the caller surfaces it instead of 401-looping.
-func (c *Client) ExecuteAs(ctx context.Context, id Identity, broadcasterID, method, endpoint string, body []byte) (*http.Response, error) {
-	src := c.sourceForIdentity(id, broadcasterID, endpoint)
+func (c *Client) ExecuteAs(ctx context.Context, id Identity, broadcasterID string, call HelixCall) (*http.Response, error) {
+	src := c.sourceForIdentity(id, broadcasterID, call.Endpoint)
 	if src == nil {
 		return nil, ErrNoUserToken
 	}
-	return c.request(ctx, src, method, endpoint, body)
+	return c.request(ctx, src, call)
 }
 
 // IsStreamLive reports whether broadcasterID is currently live, via Helix Get
@@ -208,7 +221,7 @@ func (c *Client) ExecuteAs(ctx context.Context, id Identity, broadcasterID, meth
 // channels, so a non-empty data array means live. The caller does not own a
 // response body (it is consumed here).
 func (c *Client) IsStreamLive(ctx context.Context, broadcasterID string) (bool, error) {
-	res, err := c.request(ctx, c.app, http.MethodGet, "/helix/streams?user_id="+url.QueryEscape(broadcasterID), nil)
+	res, err := c.request(ctx, c.app, getCall("/helix/streams?user_id="+url.QueryEscape(broadcasterID)))
 	if err != nil {
 		return false, err
 	}
@@ -238,7 +251,7 @@ func (c *Client) IsStreamLive(ctx context.Context, broadcasterID string) (bool, 
 // UserIDByLogin resolves a Twitch login to its numeric user id via Helix Get
 // Users under the app token. Returns ("", nil) when no such user exists.
 func (c *Client) UserIDByLogin(ctx context.Context, login string) (string, error) {
-	res, err := c.request(ctx, c.app, http.MethodGet, "/helix/users?login="+url.QueryEscape(login), nil)
+	res, err := c.request(ctx, c.app, getCall("/helix/users?login="+url.QueryEscape(login)))
 	if err != nil {
 		return "", err
 	}
@@ -279,7 +292,7 @@ func (c *Client) IsModerator(ctx context.Context, botID, broadcasterID string) (
 			endpoint += "&after=" + url.QueryEscape(after)
 		}
 
-		res, err := c.request(ctx, c.user, http.MethodGet, endpoint, nil)
+		res, err := c.request(ctx, c.user, getCall(endpoint))
 		if err != nil {
 			return false, err
 		}
@@ -312,9 +325,9 @@ func (c *Client) HasUserToken() bool {
 // request retries exactly once on 401 with a freshly minted token: a 401
 // under a cached token usually means Twitch revoked it early, while a 401
 // on the retry is a real credentials problem the caller has to surface.
-func (c *Client) request(ctx context.Context, src *Source, method, endpoint string, body []byte) (*http.Response, error) {
+func (c *Client) request(ctx context.Context, src *Source, call HelixCall) (*http.Response, error) {
 
-	res, err := c.do(ctx, src, method, endpoint, body)
+	res, err := c.do(ctx, src, call)
 	if err != nil {
 		return nil, err
 	}
@@ -338,14 +351,14 @@ func (c *Client) request(ctx context.Context, src *Source, method, endpoint stri
 
 	src.Invalidate()
 
-	return c.do(ctx, src, method, endpoint, body)
+	return c.do(ctx, src, call)
 }
 
 func isMissingScope(body []byte) bool {
 	return bytes.Contains(bytes.ToLower(body), []byte("missing scope"))
 }
 
-func (c *Client) do(ctx context.Context, src *Source, method, endpoint string, body []byte) (*http.Response, error) {
+func (c *Client) do(ctx context.Context, src *Source, call HelixCall) (*http.Response, error) {
 
 	token, err := src.Token(ctx)
 	if err != nil {
@@ -353,18 +366,18 @@ func (c *Client) do(ctx context.Context, src *Source, method, endpoint string, b
 	}
 
 	var reader io.Reader
-	if len(body) > 0 {
-		reader = bytes.NewReader(body)
+	if len(call.Body) > 0 {
+		reader = bytes.NewReader(call.Body)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, apiBase+endpoint, reader)
+	req, err := http.NewRequestWithContext(ctx, call.Method, apiBase+call.Endpoint, reader)
 	if err != nil {
 		return nil, err
 	}
 
 	req.Header.Set("Client-Id", c.clientID)
 	req.Header.Set("Authorization", "Bearer "+token)
-	if len(body) > 0 {
+	if len(call.Body) > 0 {
 		req.Header.Set("Content-Type", "application/json")
 	}
 

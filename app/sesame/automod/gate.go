@@ -103,29 +103,10 @@ func (g *Gate) Assess(role module.Role, text string, cfg *Config) (Verdict, Sign
 	// per-section toggles applied. A disabled module row resolves to floor-only,
 	// never to "everything off" - the floor is what keeps the account safe.
 	sec := cfg.resolved()
-
 	sig := scan(text)
-	// Zero-width injection is an evasion signal, not a style preference: it is
-	// checked under every level. Caps/symbol/repeat are the toggleable style
-	// section.
-	zeroWidth := sig.zeroWidth > 0
-	repeat := sec.style && sig.maxRepeat >= repeatRun
-	caps := sec.style && sig.runes >= capsMinLen && sig.capsRatio() >= sec.capsThresh
-	symbol := sec.style && sig.symbolRatio() >= symbolRatioHi
-	heuristic := zeroWidth || repeat || caps || symbol
+	flags := resolveStyle(sig, sec)
 
-	// A channel block-term needs the skeleton, so its presence forces the deep
-	// path even for an otherwise-clean short line.
-	hasBlockTerms := cfg.hasBlockTerms()
-
-	// Clean-path bail: a short ascii line with no heuristic and no channel
-	// block-terms never allocates (preserves the zero-alloc hot path when no
-	// per-broadcaster config is in play). The floor must hold even here - a bare
-	// short slur would otherwise slip the bail - so a zero-alloc folded pre-scan
-	// of the hate list routes a hit onto the deep path, where the authoritative
-	// skeleton scan decides.
-	if !heuristic && !sig.hasNonASCII && sig.runes <= shortLen && !hasBlockTerms &&
-		!g.lexicon.Load().FloorPrescan(text) {
+	if g.cleanPathBail(sig, flags, cfg, text) {
 		return Verdict{}, Signals{}
 	}
 
@@ -135,38 +116,13 @@ func (g *Gate) Assess(role module.Role, text string, cfg *Config) (Verdict, Sign
 	*pb = skel
 	defer g.buf.Put(pb)
 
-	// The links toggle gates the campaign juror's counting signal.
-	out := Signals{Deep: true, Linkish: sec.links && linkish(skel), SimHash: simHash(skel)}
+	out := deepSignals(sec, skel)
 
-	// Immovable floor, part 1: abusive infrastructure (IP-logger domains, scam
-	// bait). Substring semantics: a domain hits inside any URL shape. Enforced
-	// under every profile, never suppressed by allow.
-	for _, c := range g.cats {
-		for _, term := range c.terms {
-			if bytes.Contains(skel, term) {
-				return Verdict{Action: c.action, Seconds: c.seconds, Rule: c.name}, out
-			}
-		}
+	if v, hit := g.floorInfra(skel); hit {
+		return v, out
 	}
 
-	// Language juror: reliably non-latin text is never judged by the English
-	// word lists (the confusable fold makes genuine Cyrillic/Greek prose fold
-	// into latin soup that could contain a lexicon term by accident). The
-	// ascii floor above still applies; the word-bounded scan below is
-	// restricted to the hate floor, which obfuscators write in folded latin.
-	// Detect is consulted only when non-ascii LETTERS dominate the line, so an
-	// english line full of emoji never pays for it and an obfuscated latin line
-	// (one lookalike letter) is still scanned in full.
-	floorOnly := sig.foreignLeaning() && isNonLatin(text)
-
-	// Lexicon juror over the space-padded skeleton (word-bounded, one
-	// Aho-Corasick pass per category, severity-ordered). The small copy is fine:
-	// the deep path already allocates for the skeleton itself.
-	padded := make([]byte, 0, len(skel)+2)
-	padded = append(padded, ' ')
-	padded = append(padded, skel...)
-	padded = append(padded, ' ')
-	cat, term := g.lexicon.Load().Scan(padded, floorOnly)
+	cat, term := g.lexiconScan(sig, text, skel)
 
 	// Immovable floor, part 2: the hate lexicon acts under every profile and is
 	// never suppressed by an allow-term.
@@ -177,33 +133,133 @@ func (g *Gate) Assess(role module.Role, text string, cfg *Config) (Verdict, Sign
 	// Non-floor signals below are suppressed when the line carries a channel
 	// allow-term (broadcaster owns that risk); the floor above already returned.
 	allowed := cfg.allows(skel)
-
 	if !allowed {
 		if v, ok := lexVerdict(cat, term, sec); ok {
 			return v, out
 		}
-		if hasBlockTerms {
-			for _, bt := range cfg.blockTerms {
-				if bytes.Contains(skel, bt) {
-					return Verdict{Action: ActionDelete, Rule: "block_term"}, out
-				}
-			}
+		if v, ok := cfg.blockTermVerdict(skel); ok {
+			return v, out
 		}
 	}
 
-	if heuristic {
-		// Emote false positive: a line whose ONLY flag is caps and which is
-		// dominated by known third-party emote codes ("KEKW KEKW LUL") is communal
-		// spam, not abuse. zero-width, repeat and symbol flags are never suppressed.
-		if caps && !zeroWidth && !repeat && !symbol && g.emoteDominant(text) {
-			return Verdict{}, out
-		}
-		if allowed {
-			return Verdict{}, out
-		}
-		return Verdict{Action: ActionDelete, Rule: "heuristic"}, out
+	return g.heuristicVerdict(flags, allowed, text), out
+}
+
+// styleFlags are the per-line heuristic signals, resolved under the channel's
+// sections. Zero-width injection is an evasion signal, not a style preference:
+// it is checked under every level. Caps/symbol/repeat are the toggleable style
+// section.
+type styleFlags struct {
+	zeroWidth bool
+	repeat    bool
+	caps      bool
+	symbol    bool
+}
+
+func (f styleFlags) any() bool { return f.zeroWidth || f.repeat || f.caps || f.symbol }
+
+// onlyCaps is the emote false-positive shape: caps is the sole flag raised.
+func (f styleFlags) onlyCaps() bool { return f.caps && !f.zeroWidth && !f.repeat && !f.symbol }
+
+func resolveStyle(sig signals, sec sections) styleFlags {
+	return styleFlags{
+		zeroWidth: sig.zeroWidth > 0,
+		repeat:    sec.style && sig.maxRepeat >= repeatRun,
+		caps:      sec.style && sig.runes >= capsMinLen && sig.capsRatio() >= sec.capsThresh,
+		symbol:    sec.style && sig.symbolRatio() >= symbolRatioHi,
 	}
-	return Verdict{}, out
+}
+
+// cleanPathBail reports whether a line skips the deep path entirely: a short
+// ascii line with no heuristic and no channel block-terms never allocates
+// (preserving the zero-alloc hot path when no per-broadcaster config is in
+// play). A channel block-term needs the skeleton, so its presence forces the
+// deep path even for an otherwise-clean short line. The floor must hold even
+// here - a bare short slur would otherwise slip the bail - so a zero-alloc
+// folded pre-scan of the hate list routes a hit onto the deep path, where the
+// authoritative skeleton scan decides.
+func (g *Gate) cleanPathBail(sig signals, flags styleFlags, cfg *Config, text string) bool {
+	if flags.any() || cfg.hasBlockTerms() {
+		return false
+	}
+	if sig.hasNonASCII || sig.runes > shortLen {
+		return false
+	}
+	return !g.lexicon.Load().FloorPrescan(text)
+}
+
+// floorInfra scans the immovable floor, part 1: abusive infrastructure
+// (IP-logger domains, scam bait). Substring semantics: a domain hits inside
+// any URL shape. Enforced under every profile, never suppressed by allow.
+func (g *Gate) floorInfra(skel []byte) (Verdict, bool) {
+	for _, c := range g.cats {
+		for _, term := range c.terms {
+			if bytes.Contains(skel, term) {
+				return Verdict{Action: c.action, Seconds: c.seconds, Rule: c.name}, true
+			}
+		}
+	}
+	return Verdict{}, false
+}
+
+// deepSignals gathers the council evidence for a deep-path line. The links
+// toggle gates the campaign juror's counting signal.
+func deepSignals(sec sections, skel []byte) Signals {
+	return Signals{Deep: true, Linkish: sec.links && linkish(skel), SimHash: simHash(skel)}
+}
+
+// lexiconScan runs the lexicon juror over the space-padded skeleton
+// (word-bounded, one Aho-Corasick pass per category, severity-ordered). The
+// small copy is fine: the deep path already allocates for the skeleton itself.
+//
+// Language juror: reliably non-latin text is never judged by the English word
+// lists (the confusable fold makes genuine Cyrillic/Greek prose fold into
+// latin soup that could contain a lexicon term by accident). The ascii floor
+// still applies; the word-bounded scan is then restricted to the hate floor,
+// which obfuscators write in folded latin. Detect is consulted only when
+// non-ascii LETTERS dominate the line, so an english line full of emoji never
+// pays for it and an obfuscated latin line (one lookalike letter) is still
+// scanned in full.
+func (g *Gate) lexiconScan(sig signals, text string, skel []byte) (moderation.Category, string) {
+	floorOnly := sig.foreignLeaning() && isNonLatin(text)
+	padded := make([]byte, 0, len(skel)+2)
+	padded = append(padded, ' ')
+	padded = append(padded, skel...)
+	padded = append(padded, ' ')
+	return g.lexicon.Load().Scan(padded, floorOnly)
+}
+
+// heuristicVerdict resolves the style flags once every list-based juror has
+// passed. Emote false positive: a line whose ONLY flag is caps and which is
+// dominated by known third-party emote codes ("KEKW KEKW LUL") is communal
+// spam, not abuse; zero-width, repeat and symbol flags are never suppressed.
+// An allow-term suppresses heuristics too.
+func (g *Gate) heuristicVerdict(flags styleFlags, allowed bool, text string) Verdict {
+	if !flags.any() {
+		return Verdict{}
+	}
+	if flags.onlyCaps() && g.emoteDominant(text) {
+		return Verdict{}
+	}
+	if allowed {
+		return Verdict{}
+	}
+	return Verdict{Action: ActionDelete, Rule: "heuristic"}
+}
+
+// blockTermVerdict scans the channel's own block-terms (skeleton space); a hit
+// is the mildest action (delete). A nil or disabled config carries no active
+// terms.
+func (c *Config) blockTermVerdict(skel []byte) (Verdict, bool) {
+	if !c.hasBlockTerms() {
+		return Verdict{}, false
+	}
+	for _, bt := range c.blockTerms {
+		if bytes.Contains(skel, bt) {
+			return Verdict{Action: ActionDelete, Rule: "block_term"}, true
+		}
+	}
+	return Verdict{}, false
 }
 
 // lexVerdict maps a non-floor lexicon category to its action under the resolved

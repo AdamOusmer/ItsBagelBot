@@ -14,18 +14,27 @@ import (
 // linked account the same way, chat upstream reply errors the same way, and
 // format the same kinds of numbers.
 
+// accountSources is the fallback chain resolveAccount picks from, highest
+// priority first: the argument the viewer typed, the module's linked account,
+// and the broadcaster's own Twitch login.
+type accountSources struct {
+	Arg              string
+	Linked           string
+	BroadcasterLogin string
+}
+
 // resolveAccount picks the account a stats command targets, in priority order:
 // an explicit argument typed after the command (first word, '@' stripped), the
 // module's configured linked account, then the broadcaster's own Twitch login
 // (the "default linked account per user" — most streamers use the same handle).
-func resolveAccount(args, linked, broadcasterLogin string) string {
-	if first, _, _ := strings.Cut(strings.TrimSpace(args), " "); first != "" {
+func resolveAccount(s accountSources) string {
+	if first, _, _ := strings.Cut(strings.TrimSpace(s.Arg), " "); first != "" {
 		return strings.TrimPrefix(first, "@")
 	}
-	if linked = strings.TrimSpace(linked); linked != "" {
+	if linked := strings.TrimSpace(s.Linked); linked != "" {
 		return linked
 	}
-	return broadcasterLogin
+	return s.BroadcasterLogin
 }
 
 // chatReplyError turns a gateway failure into a chat line so the viewer gets an

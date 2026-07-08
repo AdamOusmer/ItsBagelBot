@@ -36,6 +36,10 @@ defmodule Ingress.Application do
 
   alias Ingress.Config
 
+  # Shared queue group for the admin-plane request-reply endpoints: exactly one
+  # replica answers each request; any replica can, via the Horde registry.
+  @admin_queue "twitch-ingress-admin"
+
   @impl true
   def start(_type, _args) do
     children =
@@ -62,127 +66,54 @@ defmodule Ingress.Application do
          # of the default hash ring, which clusters them (4/1 observed).
          distribution_strategy: Ingress.ShardDistribution
        ]},
-      nats_connection(),
-      nats_bus_connection(),
+      # RPC plane (:gnat): the twitch_ingress account. Carries the admin/scale/
+      # autoscale/conduit RPC endpoints, the cache-invalidation consumer and the
+      # broadcaster-status request. Leaf-first server list comes from config.
+      connection_child(:nats_connection, :gnat, Config.nats()),
+      # BUS plane (:gnat_bus): the shared BUS account. Carries only the
+      # twitch.ingress.* firehose publishes (Ingress.Nats), which the JetStream
+      # streams capture. Kept separate so ingress holds no JetStream/event-plane
+      # rights on its RPC account.
+      connection_child(:nats_bus_connection, :gnat_bus, Config.nats_bus()),
       Ingress.NatsFailback,
       {Task.Supervisor, name: Ingress.BroadcasterCache.TaskSupervisor},
       Ingress.BroadcasterCache,
       Ingress.Squash,
       Ingress.Dispatcher.Supervisor,
       Ingress.Twitch.AppToken,
-      invalidation_consumer(),
-      admin_consumer(),
-      scale_consumer(),
-      autoscale_consumer(),
-      conduit_consumer(),
+      consumer_child(:invalidation_consumer, Ingress.CacheInvalidator, Config.invalidation_subject()),
+      # Request-reply endpoint for the admin tool.
+      consumer_child(:admin_consumer, Ingress.AdminRpc, Config.admin_subject(), queue_group: @admin_queue),
+      # Manual shard scaling: {"count": N}.
+      consumer_child(:scale_consumer, Ingress.ScaleRpc, Config.scale_subject(), queue_group: @admin_queue),
+      # Toggle the load-based autoscaler: {"enabled": bool}.
+      consumer_child(:autoscale_consumer, Ingress.AutoscaleRpc, Config.autoscale_subject(), queue_group: @admin_queue),
+      # Live conduit id: body {}, replies {"conduit_id": "<uuid>"}.
+      consumer_child(:conduit_consumer, Ingress.ConduitRpc, Config.conduit_subject(), queue_group: @admin_queue),
       Ingress.Bootstrapper
     ]
   end
 
-  # RPC plane: the twitch_ingress account connection (:gnat). Carries the admin/
-  # scale/autoscale/conduit RPC endpoints, the cache-invalidation consumer and
-  # the broadcaster-status request. Leaf-first server list comes from config.
-  defp nats_connection do
-    settings = %{
-      name: :gnat,
-      backoff_period: 4_000,
-      connection_settings: Config.nats()
-    }
-
+  # connection_child builds a Gnat.ConnectionSupervisor child spec for one NATS
+  # plane (RPC or BUS), keyed by id and registered under name.
+  defp connection_child(id, name, connection_settings) do
     Supervisor.child_spec(
-      {Gnat.ConnectionSupervisor, settings},
-      id: :nats_connection
+      {Gnat.ConnectionSupervisor,
+       %{name: name, backoff_period: 4_000, connection_settings: connection_settings}},
+      id: id
     )
   end
 
-  # BUS plane: the shared BUS account connection (:gnat_bus). Carries only the
-  # twitch.ingress.* firehose publishes (Ingress.Nats), which the JetStream
-  # streams capture. Kept separate so ingress holds no JetStream/event-plane
-  # rights on its RPC account.
-  defp nats_bus_connection do
-    settings = %{
-      name: :gnat_bus,
-      backoff_period: 4_000,
-      connection_settings: Config.nats_bus()
-    }
+  # consumer_child builds a Gnat.ConsumerSupervisor child spec subscribing module
+  # to topic on the RPC connection. opts may carry :queue_group for the admin-
+  # plane endpoints; the plain invalidation consumer passes none.
+  defp consumer_child(id, module, topic, opts \\ []) do
+    subscription = Enum.into(opts, %{topic: topic})
 
     Supervisor.child_spec(
-      {Gnat.ConnectionSupervisor, settings},
-      id: :nats_bus_connection
-    )
-  end
-
-  defp invalidation_consumer do
-    settings = %{
-      connection_name: :gnat,
-      module: Ingress.CacheInvalidator,
-      subscription_topics: [%{topic: Config.invalidation_subject()}]
-    }
-
-    Supervisor.child_spec(
-      {Gnat.ConsumerSupervisor, settings},
-      id: :invalidation_consumer
-    )
-  end
-
-  # Request-reply endpoint for the admin tool. Queue group so exactly one
-  # replica answers each request; any replica can, via the Horde registry.
-  defp admin_consumer do
-    settings = %{
-      connection_name: :gnat,
-      module: Ingress.AdminRpc,
-      subscription_topics: [%{topic: Config.admin_subject(), queue_group: "twitch-ingress-admin"}]
-    }
-
-    Supervisor.child_spec(
-      {Gnat.ConsumerSupervisor, settings},
-      id: :admin_consumer
-    )
-  end
-
-  # Request-reply endpoint for manual shard scaling: {"count": N}.
-  defp scale_consumer do
-    settings = %{
-      connection_name: :gnat,
-      module: Ingress.ScaleRpc,
-      subscription_topics: [%{topic: Config.scale_subject(), queue_group: "twitch-ingress-admin"}]
-    }
-
-    Supervisor.child_spec(
-      {Gnat.ConsumerSupervisor, settings},
-      id: :scale_consumer
-    )
-  end
-
-  # Request-reply endpoint for live conduit id: body {}, replies {"conduit_id": "<uuid>"}.
-  defp conduit_consumer do
-    settings = %{
-      connection_name: :gnat,
-      module: Ingress.ConduitRpc,
-      subscription_topics: [
-        %{topic: Config.conduit_subject(), queue_group: "twitch-ingress-admin"}
-      ]
-    }
-
-    Supervisor.child_spec(
-      {Gnat.ConsumerSupervisor, settings},
-      id: :conduit_consumer
-    )
-  end
-
-  # Request-reply endpoint for toggling the load-based autoscaler: {"enabled": bool}.
-  defp autoscale_consumer do
-    settings = %{
-      connection_name: :gnat,
-      module: Ingress.AutoscaleRpc,
-      subscription_topics: [
-        %{topic: Config.autoscale_subject(), queue_group: "twitch-ingress-admin"}
-      ]
-    }
-
-    Supervisor.child_spec(
-      {Gnat.ConsumerSupervisor, settings},
-      id: :autoscale_consumer
+      {Gnat.ConsumerSupervisor,
+       %{connection_name: :gnat, module: module, subscription_topics: [subscription]}},
+      id: id
     )
   end
 end

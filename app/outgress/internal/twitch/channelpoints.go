@@ -167,7 +167,7 @@ func (c *Client) UpdateCustomReward(ctx context.Context, broadcasterID, rewardID
 // success so a re-run converges.
 func (c *Client) DeleteCustomReward(ctx context.Context, broadcasterID, rewardID string) error {
 	endpoint := customRewardsPath + "?broadcaster_id=" + url.QueryEscape(broadcasterID) + "&id=" + url.QueryEscape(rewardID)
-	res, err := c.ExecuteAs(ctx, IdentityBroadcaster, broadcasterID, http.MethodDelete, endpoint, nil)
+	res, err := c.ExecuteAs(ctx, IdentityBroadcaster, broadcasterID, HelixCall{Method: http.MethodDelete, Endpoint: endpoint})
 	if err != nil {
 		return err
 	}
@@ -189,7 +189,7 @@ func (c *Client) UpdateRedemptionStatus(ctx context.Context, broadcasterID, rewa
 	body, _ := json.Marshal(struct {
 		Status string `json:"status"`
 	}{status})
-	res, err := c.ExecuteAs(ctx, IdentityBroadcaster, broadcasterID, http.MethodPatch, endpoint, body)
+	res, err := c.ExecuteAs(ctx, IdentityBroadcaster, broadcasterID, HelixCall{Method: http.MethodPatch, Endpoint: endpoint, Body: body})
 	if err != nil {
 		return err
 	}
@@ -216,7 +216,7 @@ func (c *Client) rewardMutate(ctx context.Context, broadcasterID, method, endpoi
 // decodes the {"data":[...]} envelope. A missing-scope 401 maps to
 // ErrMissingScope; any other non-2xx maps to a StatusError.
 func (c *Client) rewardCall(ctx context.Context, broadcasterID, method, endpoint string, body []byte) ([]helixReward, error) {
-	res, err := c.ExecuteAs(ctx, IdentityBroadcaster, broadcasterID, method, endpoint, body)
+	res, err := c.ExecuteAs(ctx, IdentityBroadcaster, broadcasterID, HelixCall{Method: method, Endpoint: endpoint, Body: body})
 	if err != nil {
 		return nil, err
 	}

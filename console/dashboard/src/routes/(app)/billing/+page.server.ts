@@ -127,7 +127,12 @@ export const actions: Actions = {
     try {
       // Entitlement is attributed to the owner (actor.id); Tebex collects payment
       // from whoever completes checkout.
-      const basket = await checkoutBasketCreate(actor.id, actor.login, undefined, getClientAddress(), packageType);
+      const basket = await checkoutBasketCreate({
+        userId: actor.id,
+        username: actor.login,
+        ipAddress: getClientAddress(),
+        packageType
+      });
       checkoutUrl = optionalHttpsURL(basket.checkoutUrl ?? undefined);
     } catch (err) {
       console.error('[billing] basket create failed:', err);
@@ -170,7 +175,13 @@ export const actions: Actions = {
 
     let checkoutUrl: string | null = null;
     try {
-      const basket = await checkoutBasketCreate(s.user_id, s.login, recipient, getClientAddress(), undefined, message);
+      const basket = await checkoutBasketCreate({
+        userId: s.user_id,
+        username: s.login,
+        recipientUsername: recipient,
+        ipAddress: getClientAddress(),
+        giftMessage: message
+      });
       checkoutUrl = optionalHttpsURL(basket.checkoutUrl ?? undefined);
     } catch (err) {
       if (err instanceof RpcError) {

@@ -7,8 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nats-io/nats.go"
-	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
 
 	"ItsBagelBot/app/users/ent"
@@ -46,8 +44,8 @@ const (
 // "bagel.rpc.admin.user.auth", auditPrefix to "bagel.rpc.admin.user.audit" so
 // they ride the console admin user's existing "bagel.rpc.admin.user.>" NATS
 // publish permission (no broker ACL change needed).
-func SubscribeAdminAuth(nc *nats.Conn, db *ent.Client, authPrefix, auditPrefix, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
-	a := &adminAuthRPC{db: db, log: log}
+func SubscribeAdminAuth(w Wiring, db *ent.Client, authPrefix, auditPrefix string) error {
+	a := &adminAuthRPC{db: db, log: w.Log}
 
 	routes := map[string]func(context.Context, usersrpc.AuthRequest) usersrpc.AuthReply{
 		authPrefix + ".check":   a.check,
@@ -58,7 +56,7 @@ func SubscribeAdminAuth(nc *nats.Conn, db *ent.Client, authPrefix, auditPrefix, 
 		auditPrefix + ".list":   a.auditList,
 	}
 	for subject, handle := range routes {
-		if err := bus.QueueSubscribeJSON[usersrpc.AuthRequest, usersrpc.AuthReply](nc, subject, queueGroup, 3*time.Second, app, log, handle); err != nil {
+		if err := bus.QueueSubscribeJSON[usersrpc.AuthRequest, usersrpc.AuthReply](w.NC, subject, w.Queue, 3*time.Second, w.App, w.Log, handle); err != nil {
 			return err
 		}
 	}
@@ -81,45 +79,72 @@ func rank(r adminuser.Role) int {
 
 func isManager(r adminuser.Role) bool { return r == adminuser.RoleAdmin || r == adminuser.RoleOwner }
 
+func authError(msg string) usersrpc.AuthReply { return usersrpc.AuthReply{Error: msg} }
+
 // check resolves whether the Twitch subject is active staff. When login/
 // display_name are supplied (sign-in path), it refreshes them so the allowlist
 // stays current after a Twitch rename.
 func (a *adminAuthRPC) check(ctx context.Context, req usersrpc.AuthRequest) usersrpc.AuthReply {
 	id, err := parseID(req.UserID)
 	if err != nil {
-		return usersrpc.AuthReply{Error: err.Error()}
+		return authError(err.Error())
 	}
-	row, err := dbgate.WithQuery(ctx, func(ctx context.Context) (*ent.AdminUser, error) {
-		return a.db.AdminUser.Query().Where(adminuser.IDEQ(id)).Only(ctx)
-	})
+	row, err := a.findStaff(ctx, id)
 	if ent.IsNotFound(err) {
 		return usersrpc.AuthReply{Admin: false}
 	}
 	if err != nil {
-		return usersrpc.AuthReply{Error: err.Error()}
+		return authError(err.Error())
 	}
 	if !row.Active {
 		return usersrpc.AuthReply{Admin: false}
 	}
 
-	if req.Login != "" && (req.Login != row.Login || (req.DisplayName != "" && req.DisplayName != row.DisplayName)) {
-		upd := a.db.AdminUser.UpdateOneID(id).SetLogin(req.Login)
-		if req.DisplayName != "" {
-			upd = upd.SetDisplayName(req.DisplayName)
-		}
-		if saved, err := dbgate.WithQuery(ctx, func(ctx context.Context) (*ent.AdminUser, error) {
-			return upd.Save(ctx)
-		}); err == nil {
-			row = saved
-		}
-	}
-
+	row = a.refreshIdentity(ctx, row, req)
 	return usersrpc.AuthReply{
 		Admin:       true,
 		Role:        string(row.Role),
 		Login:       row.Login,
 		DisplayName: row.DisplayName,
 	}
+}
+
+// staleIdentity reports whether the sign-in carries a fresh login or display
+// name the stored row does not yet reflect (a Twitch rename).
+func staleIdentity(row *ent.AdminUser, req usersrpc.AuthRequest) bool {
+	if req.Login == "" {
+		return false
+	}
+	if req.Login != row.Login {
+		return true
+	}
+	return req.DisplayName != "" && req.DisplayName != row.DisplayName
+}
+
+// refreshIdentity persists the sign-in's login/display name when they have
+// drifted, returning the saved row (or the original on a write failure — a
+// stale label must never fail an auth check).
+func (a *adminAuthRPC) refreshIdentity(ctx context.Context, row *ent.AdminUser, req usersrpc.AuthRequest) *ent.AdminUser {
+	if !staleIdentity(row, req) {
+		return row
+	}
+	upd := a.db.AdminUser.UpdateOneID(row.ID).SetLogin(req.Login)
+	if req.DisplayName != "" {
+		upd = upd.SetDisplayName(req.DisplayName)
+	}
+	saved, err := dbgate.WithQuery(ctx, func(ctx context.Context) (*ent.AdminUser, error) {
+		return upd.Save(ctx)
+	})
+	if err != nil {
+		return row
+	}
+	return saved
+}
+
+func (a *adminAuthRPC) findStaff(ctx context.Context, id uint64) (*ent.AdminUser, error) {
+	return dbgate.WithQuery(ctx, func(ctx context.Context) (*ent.AdminUser, error) {
+		return a.db.AdminUser.Query().Where(adminuser.IDEQ(id)).Only(ctx)
+	})
 }
 
 func (a *adminAuthRPC) listStaff(ctx context.Context, _ usersrpc.AuthRequest) usersrpc.AuthReply {
@@ -129,7 +154,7 @@ func (a *adminAuthRPC) listStaff(ctx context.Context, _ usersrpc.AuthRequest) us
 			All(ctx)
 	})
 	if err != nil {
-		return usersrpc.AuthReply{Error: err.Error()}
+		return authError(err.Error())
 	}
 	out := make([]usersrpc.AdminAcctView, 0, len(rows))
 	for _, r := range rows {
@@ -143,50 +168,9 @@ func (a *adminAuthRPC) listStaff(ctx context.Context, _ usersrpc.AuthRequest) us
 //   - only an owner may set a target's role to owner;
 //   - only an owner may modify an existing owner.
 func (a *adminAuthRPC) upsertStaff(ctx context.Context, req usersrpc.AuthRequest) usersrpc.AuthReply {
-	actorRole := adminuser.Role(req.ActorRole)
-	if !isManager(actorRole) {
-		return usersrpc.AuthReply{Error: "forbidden: managers only"}
-	}
-	id, err := parseID(req.UserID)
-	if err != nil {
-		return usersrpc.AuthReply{Error: err.Error()}
-	}
-	if req.Login == "" {
-		return usersrpc.AuthReply{Error: "login required"}
-	}
-	newRole := adminuser.Role(req.Role)
-	if req.Role == "" {
-		newRole = adminuser.RoleModerator
-	}
-	if err := adminuser.RoleValidator(newRole); err != nil {
-		return usersrpc.AuthReply{Error: "role must be moderator, admin or owner"}
-	}
-
-	// Only an owner may grant the owner role.
-	if newRole == adminuser.RoleOwner && actorRole != adminuser.RoleOwner {
-		return usersrpc.AuthReply{Error: "forbidden: only an owner can grant owner"}
-	}
-
-	// No self-modification: staff cannot change their own role.
-	if actorID, _ := parseID(req.ActorID); actorID == id {
-		return usersrpc.AuthReply{Error: "forbidden: cannot change your own role"}
-	}
-
-	// Existing-target guards.
-	existing, err := dbgate.WithQuery(ctx, func(ctx context.Context) (*ent.AdminUser, error) {
-		return a.db.AdminUser.Query().Where(adminuser.IDEQ(id)).Only(ctx)
-	})
-	if err == nil {
-		// An owner's role is immutable (cannot be changed by anyone).
-		if existing.Role == adminuser.RoleOwner {
-			return usersrpc.AuthReply{Error: "forbidden: an owner's role cannot be changed"}
-		}
-		// An admin cannot modify another admin; only an owner manages admins.
-		if actorRole == adminuser.RoleAdmin && existing.Role == adminuser.RoleAdmin {
-			return usersrpc.AuthReply{Error: "forbidden: admins cannot change another admin"}
-		}
-	} else if !ent.IsNotFound(err) {
-		return usersrpc.AuthReply{Error: err.Error()}
+	id, newRole, errMsg := a.validateUpsert(ctx, req)
+	if errMsg != "" {
+		return authError(errMsg)
 	}
 
 	addedBy, _ := parseID(req.ActorID)
@@ -194,78 +178,162 @@ func (a *adminAuthRPC) upsertStaff(ctx context.Context, req usersrpc.AuthRequest
 	if display == "" {
 		display = req.Login
 	}
-	if err := upsertStaffRow(ctx, a.db, id, req.Login, display, newRole, addedBy); err != nil {
-		return usersrpc.AuthReply{Error: err.Error()}
+	row := staffRow{id: id, login: req.Login, display: display, role: newRole, addedBy: addedBy}
+	if err := upsertStaffRow(ctx, a.db, row); err != nil {
+		return authError(err.Error())
 	}
 	a.log.Info("staff upsert", zap.Uint64("id", id), zap.String("role", string(newRole)), zap.Uint64("by", addedBy))
 	return a.listStaff(ctx, usersrpc.AuthRequest{})
+}
+
+// validateUpsert runs every role-ladder guard for an upsert and resolves the
+// effective new role. A non-empty errMsg means the request is rejected.
+func (a *adminAuthRPC) validateUpsert(ctx context.Context, req usersrpc.AuthRequest) (id uint64, newRole adminuser.Role, errMsg string) {
+	actorRole := adminuser.Role(req.ActorRole)
+	if !isManager(actorRole) {
+		return 0, "", "forbidden: managers only"
+	}
+	id, err := parseID(req.UserID)
+	if err != nil {
+		return 0, "", err.Error()
+	}
+	if req.Login == "" {
+		return 0, "", "login required"
+	}
+
+	newRole, errMsg = resolveNewRole(req.Role, actorRole)
+	if errMsg != "" {
+		return 0, "", errMsg
+	}
+	// No self-modification: staff cannot change their own role.
+	if actorID, _ := parseID(req.ActorID); actorID == id {
+		return 0, "", "forbidden: cannot change your own role"
+	}
+	if errMsg := a.guardExistingTarget(ctx, id, actorRole); errMsg != "" {
+		return 0, "", errMsg
+	}
+	return id, newRole, ""
+}
+
+// resolveNewRole resolves the effective role for an upsert (empty defaults to
+// moderator), validates it, and enforces that only an owner may grant owner.
+func resolveNewRole(raw string, actorRole adminuser.Role) (adminuser.Role, string) {
+	newRole := adminuser.Role(raw)
+	if raw == "" {
+		newRole = adminuser.RoleModerator
+	}
+	if err := adminuser.RoleValidator(newRole); err != nil {
+		return "", "role must be moderator, admin or owner"
+	}
+	if newRole == adminuser.RoleOwner && actorRole != adminuser.RoleOwner {
+		return "", "forbidden: only an owner can grant owner"
+	}
+	return newRole, ""
+}
+
+// guardExistingTarget applies the guards that depend on the target's current
+// role: an owner's role is immutable, and an admin cannot modify another admin.
+// A missing target is fine (this is a create).
+func (a *adminAuthRPC) guardExistingTarget(ctx context.Context, id uint64, actorRole adminuser.Role) string {
+	existing, err := a.findStaff(ctx, id)
+	if ent.IsNotFound(err) {
+		return ""
+	}
+	if err != nil {
+		return err.Error()
+	}
+	if existing.Role == adminuser.RoleOwner {
+		return "forbidden: an owner's role cannot be changed"
+	}
+	if actorRole == adminuser.RoleAdmin && existing.Role == adminuser.RoleAdmin {
+		return "forbidden: admins cannot change another admin"
+	}
+	return ""
 }
 
 // removeStaff soft-disables a staff member (active=false) so historical audit
 // rows keep resolving the actor. Owners may only be removed by owners, and the
 // last active owner can never be removed (lockout guard).
 func (a *adminAuthRPC) removeStaff(ctx context.Context, req usersrpc.AuthRequest) usersrpc.AuthReply {
-	actorRole := adminuser.Role(req.ActorRole)
-	if !isManager(actorRole) {
-		return usersrpc.AuthReply{Error: "forbidden: managers only"}
-	}
-	id, err := parseID(req.UserID)
-	if err != nil {
-		return usersrpc.AuthReply{Error: err.Error()}
-	}
-	// No self-removal.
-	if actorID, _ := parseID(req.ActorID); actorID == id {
-		return usersrpc.AuthReply{Error: "forbidden: cannot remove yourself"}
-	}
-
-	target, err := dbgate.WithQuery(ctx, func(ctx context.Context) (*ent.AdminUser, error) {
-		return a.db.AdminUser.Query().Where(adminuser.IDEQ(id)).Only(ctx)
-	})
-	if ent.IsNotFound(err) {
-		return usersrpc.AuthReply{Error: "staff not found"}
-	}
-	if err != nil {
-		return usersrpc.AuthReply{Error: err.Error()}
-	}
-
-	// An admin manages only moderators; only an owner may remove an admin.
-	if actorRole == adminuser.RoleAdmin && target.Role == adminuser.RoleAdmin {
-		return usersrpc.AuthReply{Error: "forbidden: admins cannot remove another admin"}
-	}
-
-	if target.Role == adminuser.RoleOwner {
-		if actorRole != adminuser.RoleOwner {
-			return usersrpc.AuthReply{Error: "forbidden: cannot remove an owner"}
-		}
-		owners, err := dbgate.WithQuery(ctx, func(ctx context.Context) (int, error) {
-			return a.db.AdminUser.Query().
-				Where(adminuser.RoleEQ(adminuser.RoleOwner), adminuser.ActiveEQ(true)).
-				Count(ctx)
-		})
-		if err != nil {
-			return usersrpc.AuthReply{Error: err.Error()}
-		}
-		if owners <= 1 {
-			return usersrpc.AuthReply{Error: "cannot remove the last owner"}
-		}
+	id, errMsg := a.validateRemove(ctx, req)
+	if errMsg != "" {
+		return authError(errMsg)
 	}
 
 	if err := dbgate.WithExec(ctx, func(ctx context.Context) error {
 		return a.db.AdminUser.UpdateOneID(id).SetActive(false).Exec(ctx)
 	}); err != nil {
-		return usersrpc.AuthReply{Error: err.Error()}
+		return authError(err.Error())
 	}
 	a.log.Info("staff removed", zap.Uint64("id", id), zap.String("by_role", req.ActorRole))
 	return a.listStaff(ctx, usersrpc.AuthRequest{})
 }
 
+// validateRemove runs the removal guards and returns the target id. A non-empty
+// errMsg means the request is rejected.
+func (a *adminAuthRPC) validateRemove(ctx context.Context, req usersrpc.AuthRequest) (uint64, string) {
+	actorRole := adminuser.Role(req.ActorRole)
+	if !isManager(actorRole) {
+		return 0, "forbidden: managers only"
+	}
+	id, err := parseID(req.UserID)
+	if err != nil {
+		return 0, err.Error()
+	}
+	if actorID, _ := parseID(req.ActorID); actorID == id {
+		return 0, "forbidden: cannot remove yourself"
+	}
+
+	target, err := a.findStaff(ctx, id)
+	if ent.IsNotFound(err) {
+		return 0, "staff not found"
+	}
+	if err != nil {
+		return 0, err.Error()
+	}
+	return id, a.guardTargetRemoval(ctx, actorRole, target)
+}
+
+// guardTargetRemoval applies the guards that depend on the target's role: an
+// admin cannot remove another admin, and an owner may only be removed under the
+// stricter owner rule (see guardOwnerRemoval).
+func (a *adminAuthRPC) guardTargetRemoval(ctx context.Context, actorRole adminuser.Role, target *ent.AdminUser) string {
+	if actorRole == adminuser.RoleAdmin && target.Role == adminuser.RoleAdmin {
+		return "forbidden: admins cannot remove another admin"
+	}
+	if target.Role == adminuser.RoleOwner {
+		return a.guardOwnerRemoval(ctx, actorRole)
+	}
+	return ""
+}
+
+// guardOwnerRemoval blocks removing an owner unless the actor is an owner and
+// at least one other active owner would remain.
+func (a *adminAuthRPC) guardOwnerRemoval(ctx context.Context, actorRole adminuser.Role) string {
+	if actorRole != adminuser.RoleOwner {
+		return "forbidden: cannot remove an owner"
+	}
+	owners, err := dbgate.WithQuery(ctx, func(ctx context.Context) (int, error) {
+		return a.db.AdminUser.Query().
+			Where(adminuser.RoleEQ(adminuser.RoleOwner), adminuser.ActiveEQ(true)).
+			Count(ctx)
+	})
+	if err != nil {
+		return err.Error()
+	}
+	if owners <= 1 {
+		return "cannot remove the last owner"
+	}
+	return ""
+}
+
 func (a *adminAuthRPC) auditAppend(ctx context.Context, req usersrpc.AuthRequest) usersrpc.AuthReply {
 	actorID, err := parseID(req.ActorID)
 	if err != nil {
-		return usersrpc.AuthReply{Error: "actor_id: " + err.Error()}
+		return authError("actor_id: " + err.Error())
 	}
 	if req.ActorLogin == "" || req.Action == "" {
-		return usersrpc.AuthReply{Error: "actor_login and action required"}
+		return authError("actor_login and action required")
 	}
 	_, err = dbgate.WithQuery(ctx, func(ctx context.Context) (*ent.AdminAudit, error) {
 		return a.db.AdminAudit.Create().
@@ -279,73 +347,87 @@ func (a *adminAuthRPC) auditAppend(ctx context.Context, req usersrpc.AuthRequest
 			Save(ctx)
 	})
 	if err != nil {
-		return usersrpc.AuthReply{Error: err.Error()}
+		return authError(err.Error())
 	}
 	return usersrpc.AuthReply{}
 }
 
 func (a *adminAuthRPC) auditList(ctx context.Context, req usersrpc.AuthRequest) usersrpc.AuthReply {
-	limit := req.Limit
-	if limit <= 0 || limit > 200 {
-		limit = 50
-	}
 	q := a.db.AdminAudit.Query().Order(ent.Desc(adminaudit.FieldCreatedAt), ent.Desc(adminaudit.FieldID))
 	// Optional actor filter: lazy-load a single operator's own history without
 	// shipping the whole log (actor_filter = their Twitch id).
 	if req.ActorFilter != "" {
 		aid, err := parseID(req.ActorFilter)
 		if err != nil {
-			return usersrpc.AuthReply{Error: "actor_filter: " + err.Error()}
+			return authError("actor_filter: " + err.Error())
 		}
 		q = q.Where(adminaudit.ActorIDEQ(aid))
 	}
-
 	if search := normalizeAuditSearch(req.Search); search != "" {
 		q = q.Where(auditSearchPredicate(search))
 	}
 
 	if req.Page > 0 {
-		page := req.Page
-		if page < 1 {
-			page = 1
-		}
-		if page > auditMaxPages {
-			page = auditMaxPages
-		}
-		pageSize := limit
-		if pageSize <= 0 || pageSize > auditPageSize {
-			pageSize = auditPageSize
-		}
-		fetchLimit := pageSize
-		if page < auditMaxPages {
-			fetchLimit++
-		}
-		rows, err := dbgate.WithQuery(ctx, func(ctx context.Context) ([]*ent.AdminAudit, error) {
-			return q.Offset((page - 1) * pageSize).Limit(fetchLimit).All(ctx)
-		})
-		if err != nil {
-			return usersrpc.AuthReply{Error: err.Error()}
-		}
-		hasMore := page < auditMaxPages && len(rows) > pageSize
-		if hasMore {
-			rows = rows[:pageSize]
-		}
-		return usersrpc.AuthReply{
-			Entries:  auditViewsOf(rows),
-			Page:     page,
-			PageSize: pageSize,
-			MaxPages: auditMaxPages,
-			HasMore:  hasMore,
-		}
+		return a.auditListPage(ctx, q, req.Page, req.Limit)
 	}
+	return a.auditListAll(ctx, q, req.Limit)
+}
 
+func auditListLimit(limit int) int {
+	if limit <= 0 || limit > 200 {
+		return 50
+	}
+	return limit
+}
+
+// auditListAll returns the newest rows up to a bounded limit (no pagination).
+func (a *adminAuthRPC) auditListAll(ctx context.Context, q *ent.AdminAuditQuery, limit int) usersrpc.AuthReply {
 	rows, err := dbgate.WithQuery(ctx, func(ctx context.Context) ([]*ent.AdminAudit, error) {
-		return q.Limit(limit).All(ctx)
+		return q.Limit(auditListLimit(limit)).All(ctx)
 	})
 	if err != nil {
-		return usersrpc.AuthReply{Error: err.Error()}
+		return authError(err.Error())
 	}
 	return usersrpc.AuthReply{Entries: auditViewsOf(rows)}
+}
+
+// auditListPage returns one clamped page, fetching one extra row (except on the
+// last page) to compute has-more without a count query.
+func (a *adminAuthRPC) auditListPage(ctx context.Context, q *ent.AdminAuditQuery, page, limit int) usersrpc.AuthReply {
+	page = clamp(page, 1, auditMaxPages)
+	pageSize := clamp(auditListLimit(limit), 1, auditPageSize)
+	fetchLimit := pageSize
+	if page < auditMaxPages {
+		fetchLimit++
+	}
+	rows, err := dbgate.WithQuery(ctx, func(ctx context.Context) ([]*ent.AdminAudit, error) {
+		return q.Offset((page - 1) * pageSize).Limit(fetchLimit).All(ctx)
+	})
+	if err != nil {
+		return authError(err.Error())
+	}
+	hasMore := page < auditMaxPages && len(rows) > pageSize
+	if hasMore {
+		rows = rows[:pageSize]
+	}
+	return usersrpc.AuthReply{
+		Entries:  auditViewsOf(rows),
+		Page:     page,
+		PageSize: pageSize,
+		MaxPages: auditMaxPages,
+		HasMore:  hasMore,
+	}
+}
+
+// clamp constrains v to [lo, hi].
+func clamp(v, lo, hi int) int {
+	if v < lo {
+		return lo
+	}
+	if v > hi {
+		return hi
+	}
+	return v
 }
 
 func normalizeAuditSearch(s string) string {
@@ -389,84 +471,107 @@ func auditViewsOf(rows []*ent.AdminAudit) []usersrpc.AuditView {
 	return out
 }
 
-// SeedStaff bootstraps owners and admins from id lists (OWNER_BOOTSTRAP_IDS /
-// ADMIN_BOOTSTRAP_IDS). Existing rows are re-activated and promoted to at least
-// the seeded role, so a redeploy can never lock out or demote a bootstrap
-// operator.
-func SeedStaff(ctx context.Context, db *ent.Client, owners, admins []uint64, log *zap.Logger) error {
-	if err := seedRole(ctx, db, owners, adminuser.RoleOwner, log); err != nil {
-		return err
-	}
-	return seedRole(ctx, db, admins, adminuser.RoleAdmin, log)
+// StaffSeed lists the bootstrap operators to guarantee on startup
+// (OWNER_BOOTSTRAP_IDS / ADMIN_BOOTSTRAP_IDS).
+type StaffSeed struct {
+	Owners []uint64
+	Admins []uint64
 }
 
-func seedRole(ctx context.Context, db *ent.Client, ids []uint64, role adminuser.Role, log *zap.Logger) error {
+// SeedStaff bootstraps owners and admins from the seed lists. Existing rows are
+// re-activated and promoted to at least the seeded role, so a redeploy can
+// never lock out or demote a bootstrap operator.
+func SeedStaff(ctx context.Context, db *ent.Client, seed StaffSeed, log *zap.Logger) error {
+	s := staffSeeder{db: db, log: log}
+	if err := s.seedRole(ctx, seed.Owners, adminuser.RoleOwner); err != nil {
+		return err
+	}
+	return s.seedRole(ctx, seed.Admins, adminuser.RoleAdmin)
+}
+
+type staffSeeder struct {
+	db  *ent.Client
+	log *zap.Logger
+}
+
+func (s staffSeeder) seedRole(ctx context.Context, ids []uint64, role adminuser.Role) error {
 	for _, id := range ids {
-		existing, err := dbgate.WithQuery(ctx, func(ctx context.Context) (*ent.AdminUser, error) {
-			return db.AdminUser.Query().Where(adminuser.IDEQ(id)).Only(ctx)
-		})
-		if err == nil {
-			upd := db.AdminUser.UpdateOneID(id).SetActive(true)
-			// Only ever promote via seed; never demote a manually-elevated row.
-			if rank(role) > rank(existing.Role) {
-				upd = upd.SetRole(role)
-			}
-			if err := dbgate.WithExec(ctx, func(ctx context.Context) error {
-				return upd.Exec(ctx)
-			}); err != nil {
-				return err
-			}
-			continue
-		}
-		if !ent.IsNotFound(err) {
+		if err := s.seedOne(ctx, id, role); err != nil {
 			return err
 		}
-		login := fmt.Sprintf("bootstrap-%d", id)
-		if err := upsertStaffRow(ctx, db, id, login, login, role, 0); err != nil {
-			return err
-		}
-		log.Info("seeded bootstrap staff", zap.Uint64("id", id), zap.String("role", string(role)))
 	}
 	return nil
 }
 
-func upsertStaffRow(ctx context.Context, db *ent.Client, id uint64, login, display string, role adminuser.Role, addedBy uint64) error {
-	_, err := dbgate.WithQuery(ctx, func(ctx context.Context) (*ent.AdminUser, error) {
-		return db.AdminUser.Query().Where(adminuser.IDEQ(id)).Only(ctx)
+func (s staffSeeder) seedOne(ctx context.Context, id uint64, role adminuser.Role) error {
+	existing, err := dbgate.WithQuery(ctx, func(ctx context.Context) (*ent.AdminUser, error) {
+		return s.db.AdminUser.Query().Where(adminuser.IDEQ(id)).Only(ctx)
 	})
 	if err == nil {
+		upd := s.db.AdminUser.UpdateOneID(id).SetActive(true)
+		// Only ever promote via seed; never demote a manually-elevated row.
+		if rank(role) > rank(existing.Role) {
+			upd = upd.SetRole(role)
+		}
 		return dbgate.WithExec(ctx, func(ctx context.Context) error {
-			return db.AdminUser.UpdateOneID(id).
-				SetLogin(login).
-				SetDisplayName(display).
-				SetRole(role).
-				SetActive(true).
-				Exec(ctx)
+			return upd.Exec(ctx)
 		})
 	}
 	if !ent.IsNotFound(err) {
 		return err
 	}
+	login := fmt.Sprintf("bootstrap-%d", id)
+	if err := upsertStaffRow(ctx, s.db, staffRow{id: id, login: login, display: login, role: role}); err != nil {
+		return err
+	}
+	s.log.Info("seeded bootstrap staff", zap.Uint64("id", id), zap.String("role", string(role)))
+	return nil
+}
+
+// staffRow is the persisted shape of one staff member (create or update).
+type staffRow struct {
+	id      uint64
+	login   string
+	display string
+	role    adminuser.Role
+	addedBy uint64
+}
+
+func upsertStaffRow(ctx context.Context, db *ent.Client, row staffRow) error {
+	_, err := dbgate.WithQuery(ctx, func(ctx context.Context) (*ent.AdminUser, error) {
+		return db.AdminUser.Query().Where(adminuser.IDEQ(row.id)).Only(ctx)
+	})
+	if err == nil {
+		return updateStaffRow(ctx, db, row)
+	}
+	if !ent.IsNotFound(err) {
+		return err
+	}
 	return dbgate.WithExec(ctx, func(ctx context.Context) error {
-		if err := db.AdminUser.Create().
-			SetID(id).
-			SetLogin(login).
-			SetDisplayName(display).
-			SetRole(role).
-			SetAddedBy(addedBy).
+		err := db.AdminUser.Create().
+			SetID(row.id).
+			SetLogin(row.login).
+			SetDisplayName(row.display).
+			SetRole(row.role).
+			SetAddedBy(row.addedBy).
 			SetActive(true).
-			Exec(ctx); err != nil {
-			if ent.IsConstraintError(err) {
-				return db.AdminUser.UpdateOneID(id).
-					SetLogin(login).
-					SetDisplayName(display).
-					SetRole(role).
-					SetActive(true).
-					Exec(ctx)
-			}
-			return err
+			Exec(ctx)
+		// A concurrent create wins the race: fall back to updating the row it made.
+		if ent.IsConstraintError(err) {
+			return updateStaffRow(ctx, db, row)
 		}
-		return nil
+		return err
+	})
+}
+
+func updateStaffRow(ctx context.Context, db *ent.Client, row staffRow) error {
+	return dbgate.WithExec(ctx, func(ctx context.Context) error {
+		return db.AdminUser.UpdateOneID(row.id).
+			SetLogin(row.login).
+			SetDisplayName(row.display).
+			SetRole(row.role).
+			SetActive(true).
+			Exec(ctx)
 	})
 }
 

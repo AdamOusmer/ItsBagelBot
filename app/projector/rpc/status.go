@@ -119,7 +119,12 @@ func (s *statusRPC) tierOf(ctx context.Context, id uint64) statusEntry {
 		}
 
 		// Populate cache (seeds locale too when the users service returned one).
-		_ = s.valkey.SetUser(ctx, id, reply.Status, reply.IsActive, reply.Banned, reply.Locale)
+		_ = s.valkey.SetUser(ctx, id, projection.UserProjection{
+			Status:   reply.Status,
+			IsActive: reply.IsActive,
+			Banned:   reply.Banned,
+			Locale:   reply.Locale,
+		})
 
 		if !reply.IsActive {
 			return statusEntry{Tier: "standard", Banned: reply.Banned}, nil
