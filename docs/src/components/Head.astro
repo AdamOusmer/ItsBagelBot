@@ -2,6 +2,7 @@
 import Default from '@astrojs/starlight/components/Head.astro';
 import { ClientRouter } from 'astro:transitions';
 import SmoothScroll from './SmoothScroll.astro';
+import SidebarState from './SidebarState.astro';
 import MermaidStyles from './MermaidStyles.astro';
 import MermaidInteractive from './MermaidInteractive.astro';
 
@@ -50,5 +51,6 @@ const pageDescription = entry?.data.description
 
 <ClientRouter />
 <SmoothScroll />
+<SidebarState />
 <MermaidStyles />
 <MermaidInteractive />
