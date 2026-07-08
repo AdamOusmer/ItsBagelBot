@@ -5,13 +5,13 @@ import LegalShell from '../components/legal/LegalShell.astro';
 
 const sections = [
     { id: 'overview', heading: 'Overview', plain: 'What we collect, why, and what you can do about it.' },
-    { id: 'data-collected', heading: 'Data We Collect', plain: 'Your Twitch handle, chat processed in the moment, and aggregated usage stats.' },
+    { id: 'data-collected', heading: 'Data We Collect', plain: 'Your Twitch handle, chat processed in the moment, aggregated usage stats, and an optional contact email.' },
     { id: 'data-not-collected', heading: "Data We Don't Collect", plain: 'No personal browsing profiles, ad data, or IP-based tracking by us.' },
     { id: 'cookies', heading: 'Cloudflare, Cookies & Analytics', plain: 'Cloudflare protects and delivers the service. Analytics are cookie-free; security cookies may be used when needed.' },
     { id: 'data-use', heading: 'How We Use Your Data & Legal Basis', plain: 'We use data to provide and secure the service. We never sell or rent it.' },
-    { id: 'payment-processing', heading: 'Other Third-Party Processors', plain: 'We use Tebex to securely handle checkout and payments. They act as the merchant of record.' },
+    { id: 'payment-processing', heading: 'Other Third-Party Processors', plain: 'Tebex handles checkout and payments as the merchant of record. Resend delivers our transactional emails.' },
     { id: 'storage', heading: 'Data Storage & Transfers', plain: 'Chat is processed live, not kept. Settings stay encrypted in Canada; Cloudflare processes traffic globally.' },
-    { id: 'rights', heading: 'Your Rights (GDPR, PIPEDA, Law 25)', plain: 'Ask for your data, portability, or its deletion any time.' },
+    { id: 'rights', heading: 'Your Rights (GDPR, PIPEDA, Law 25)', plain: 'Ask for your data, portability, or its deletion any time. You can also complain to a privacy regulator.' },
     { id: 'changes', heading: 'Changes', plain: "If this policy changes meaningfully, you'll hear about it." },
     { id: 'contact', heading: 'Contact & Data Protection Officer', plain: 'Privacy questions go to support@itsbagelbot.com.' },
 ];
@@ -34,6 +34,7 @@ const sections = [
                 <li>Twitch account information (username, channel ID) provided during OAuth connection</li>
                 <li>Chat messages processed in real-time for moderation (not stored permanently)</li>
                 <li>Usage analytics (aggregated, anonymized, no PII)</li>
+                <li>An optional contact email address, if you choose to provide one, used for purchase receipts, gift notifications, and account-related messages. It is encrypted at rest and never used for marketing without your consent</li>
                 <li>Technical request and security data processed by Cloudflare, such as IP address, routing data, browser or device information, requested URL, and security events</li>
             </ul>
         </Fragment>
@@ -71,6 +72,9 @@ const sections = [
             <p>
                 To offer premium subscriptions, we integrate with Tebex. Tebex acts as the merchant of record for all transactions. When you initiate a checkout, we create a secure basket and redirect you to Tebex to complete the purchase. We do not process, collect, or store any payment details (like credit card numbers). We only receive the transaction ID and order status to fulfill your subscription. Tebex processes your payment data subject to their own Privacy Policy.
             </p>
+            <p>
+                We use Resend, Inc. to deliver transactional emails, such as purchase receipts and gift notifications. When we send you an email, Resend processes your email address and the message content for delivery purposes only, subject to Resend's own Privacy Policy. We do not share your email address with any other third party.
+            </p>
         </Fragment>
 
         <Fragment slot="storage">
@@ -82,10 +86,13 @@ const sections = [
 
         <Fragment slot="rights">
             <p>
-                Under GDPR, Law 25, and PIPEDA, you have the right to access, rectify, port, or erase your personal data. 
+                Under GDPR, Law 25, and PIPEDA, you have the right to access, rectify, port, or erase your personal data.
                 You can request data export or deletion at any time by contacting
                 <a href="mailto:support@itsbagelbot.com">support@itsbagelbot.com</a>. Deleting your account
-                removes all associated data immediately.
+                removes all associated data immediately, except for minimal records we are legally required to keep, such as transaction audit logs.
+            </p>
+            <p>
+                If you believe we have not handled your personal data properly, you also have the right to lodge a complaint with a supervisory authority: the Commission d'accès à l'information in Quebec, the Office of the Privacy Commissioner of Canada, or your local data protection authority in the EU/EEA.
             </p>
         </Fragment>
 

@@ -5,13 +5,13 @@ import LegalShell from '../../components/legal/LegalShell.astro';
 
 const sections = [
     { id: 'overview', heading: 'Aperçu', plain: 'Ce que nous recueillons, pourquoi nous le faisons et les choix qui vous sont offerts.' },
-    { id: 'data-collected', heading: 'Renseignements recueillis', plain: 'Votre identifiant Twitch, le clavardage traité sur le moment et des statistiques d’utilisation agrégées.' },
+    { id: 'data-collected', heading: 'Renseignements recueillis', plain: 'Votre identifiant Twitch, le clavardage traité sur le moment, des statistiques d’utilisation agrégées et un courriel de contact facultatif.' },
     { id: 'data-not-collected', heading: 'Renseignements non recueillis', plain: 'Aucun profil de navigation personnel, aucune donnée publicitaire et aucun suivi par adresse IP de notre part.' },
     { id: 'cookies', heading: 'Cloudflare, témoins et analytique', plain: 'Cloudflare protège et achemine le service. L’analytique est sans témoin; des témoins de sécurité peuvent être utilisés au besoin.' },
     { id: 'data-use', heading: 'Utilisation et fondements juridiques', plain: 'Nous utilisons les renseignements pour fournir et sécuriser le service. Nous ne les vendons ni ne les louons.' },
-    { id: 'payment-processing', heading: 'Autres fournisseurs tiers', plain: 'Tebex traite le paiement de façon sécurisée et agit comme marchand officiel.' },
+    { id: 'payment-processing', heading: 'Autres fournisseurs tiers', plain: 'Tebex traite le paiement de façon sécurisée et agit comme marchand officiel. Resend livre nos courriels transactionnels.' },
     { id: 'storage', heading: 'Stockage et transferts', plain: 'Le clavardage est traité en direct, sans être conservé. Les réglages sont chiffrés au Canada; Cloudflare traite le trafic mondialement.' },
-    { id: 'rights', heading: 'Vos droits (RGPD, LPRPDE, Loi 25)', plain: 'Vous pouvez demander l’accès, la rectification, la portabilité ou la suppression de vos renseignements.' },
+    { id: 'rights', heading: 'Vos droits (RGPD, LPRPDE, Loi 25)', plain: 'Vous pouvez demander l’accès, la rectification, la portabilité ou la suppression de vos renseignements, ou porter plainte auprès d’un organisme de protection de la vie privée.' },
     { id: 'changes', heading: 'Modifications', plain: 'Nous vous aviserons si cette politique change de façon importante.' },
     { id: 'contact', heading: 'Nous joindre et responsable de la protection des renseignements personnels', plain: 'Écrivez à support@itsbagelbot.com pour toute question relative à la vie privée.' },
 ];
@@ -33,6 +33,7 @@ const sections = [
                 <li>les renseignements de votre compte Twitch (nom d’utilisateur et identifiant de chaîne) transmis lors de la connexion OAuth;</li>
                 <li>les messages de clavardage traités en temps réel aux fins de modération, sans conservation permanente;</li>
                 <li>des données d’utilisation agrégées et anonymisées, sans renseignements personnels;</li>
+                <li>une adresse courriel de contact facultative, si vous choisissez de la fournir, utilisée pour les reçus d’achat, les avis de cadeau et les messages liés à votre compte. Elle est chiffrée au repos et n’est jamais utilisée à des fins de marketing sans votre consentement;</li>
                 <li>les données techniques de requête et de sécurité traitées par Cloudflare, comme l’adresse IP, les données d’acheminement, les renseignements sur le navigateur ou l’appareil, l’URL demandée et les événements de sécurité.</li>
             </ul>
         </Fragment>
@@ -69,6 +70,9 @@ const sections = [
             <p>
                 Pour offrir les abonnements Premium, nous intégrons Tebex, qui agit comme marchand officiel pour toutes les transactions. Lorsque vous commencez un paiement, nous créons un panier sécurisé et vous redirigeons vers Tebex pour conclure l’achat. Nous ne traitons, ne recueillons et ne conservons aucun renseignement de paiement, comme un numéro de carte de crédit. Nous recevons uniquement l’identifiant de transaction et l’état de la commande afin d’activer votre abonnement. Tebex traite vos renseignements de paiement conformément à sa propre politique de confidentialité.
             </p>
+            <p>
+                Nous faisons appel à Resend, Inc. pour livrer nos courriels transactionnels, comme les reçus d’achat et les avis de cadeau. Lorsque nous vous envoyons un courriel, Resend traite votre adresse courriel et le contenu du message uniquement aux fins de livraison, conformément à sa propre politique de confidentialité. Nous ne communiquons votre adresse courriel à aucun autre tiers.
+            </p>
         </Fragment>
 
         <Fragment slot="storage">
@@ -79,7 +83,10 @@ const sections = [
 
         <Fragment slot="rights">
             <p>
-                En vertu du RGPD, de la Loi 25 et de la LPRPDE, vous pouvez demander l’accès à vos renseignements personnels, leur rectification, leur portabilité ou leur suppression. Vous pouvez demander une copie ou la suppression de vos données en tout temps en écrivant à <a href="mailto:support@itsbagelbot.com">support@itsbagelbot.com</a>. La suppression de votre compte efface immédiatement toutes les données qui y sont associées.
+                En vertu du RGPD, de la Loi 25 et de la LPRPDE, vous pouvez demander l’accès à vos renseignements personnels, leur rectification, leur portabilité ou leur suppression. Vous pouvez demander une copie ou la suppression de vos données en tout temps en écrivant à <a href="mailto:support@itsbagelbot.com">support@itsbagelbot.com</a>. La suppression de votre compte efface immédiatement toutes les données qui y sont associées, à l’exception des registres minimaux que la loi nous oblige à conserver, comme les journaux d’audit des transactions.
+            </p>
+            <p>
+                Si vous estimez que nous n’avons pas traité vos renseignements personnels correctement, vous avez également le droit de porter plainte auprès d’une autorité de contrôle : la Commission d’accès à l’information au Québec, le Commissariat à la protection de la vie privée du Canada, ou votre autorité locale de protection des données dans l’UE ou l’EEE.
             </p>
         </Fragment>
 
