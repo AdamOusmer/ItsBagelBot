@@ -315,13 +315,22 @@ func (d *deps) newLaneWorkers(tw *twitch.Client, limiter ratelimit.Manager, regi
 // rate-limit nacks from spinning.
 func (d *deps) laneSubscribers() (premiumSub, standardSub, systemSub message.Subscriber, closeAll func()) {
 	var err error
-	premiumSub, err = bus.NewLaneSubscriber(d.cfg.NATSURL, bus.OutgressStream.Name, d.cfg.PremiumSubject, "outgress-premium", nakDelay, maxRedeliveries, d.log)
+	premiumSub, err = bus.NewLaneSubscriber(bus.LaneConfig{
+		URL: d.cfg.NATSURL, Stream: bus.OutgressStream.Name, Subject: d.cfg.PremiumSubject,
+		Group: "outgress-premium", NakDelay: nakDelay, MaxRedeliveries: maxRedeliveries,
+	}, d.log)
 	fatalIf(d.log, err, "failed to connect premium subscriber")
 
-	standardSub, err = bus.NewLaneSubscriber(d.cfg.NATSURL, bus.OutgressStream.Name, d.cfg.StandardSubject, "outgress-standard", nakDelay, maxRedeliveries, d.log)
+	standardSub, err = bus.NewLaneSubscriber(bus.LaneConfig{
+		URL: d.cfg.NATSURL, Stream: bus.OutgressStream.Name, Subject: d.cfg.StandardSubject,
+		Group: "outgress-standard", NakDelay: nakDelay, MaxRedeliveries: maxRedeliveries,
+	}, d.log)
 	fatalIf(d.log, err, "failed to connect standard subscriber")
 
-	systemSub, err = bus.NewLaneSubscriber(d.cfg.NATSURL, bus.OutgressSystemStream.Name, d.cfg.SystemSubject, "outgress-system", systemNakDelay, systemMaxRedeliveries, d.log)
+	systemSub, err = bus.NewLaneSubscriber(bus.LaneConfig{
+		URL: d.cfg.NATSURL, Stream: bus.OutgressSystemStream.Name, Subject: d.cfg.SystemSubject,
+		Group: "outgress-system", NakDelay: systemNakDelay, MaxRedeliveries: systemMaxRedeliveries,
+	}, d.log)
 	fatalIf(d.log, err, "failed to connect system subscriber")
 
 	return premiumSub, standardSub, systemSub, func() {
