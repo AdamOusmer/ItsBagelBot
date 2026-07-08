@@ -221,6 +221,20 @@ export async function publishEventSubReconnect(broadcasterId: string): Promise<v
   });
 }
 
+// Enqueue an ensure-optional job: outgress (re)creates only the optional
+// subscriptions (the channel-points redemption sub) without touching the
+// mandatory set. Idempotent (409) and non-affiliate-tolerant, so it is safe to
+// fire after every reward create/enable — it is how a channel that just gained
+// channel points (or just re-consented with the redemption scope) starts
+// receiving redemption events without a full reconnect.
+export async function publishEventSubEnsureOptional(broadcasterId: string): Promise<void> {
+  await publish(SUB.outgress, {
+    type: 'eventsub',
+    broadcaster_id: broadcasterId,
+    payload: { mode: 'ensure_optional' }
+  });
+}
+
 export type ChannelSubState = {
   state: 'ok' | 'pending' | 'failing' | 'unknown';
   error: string;

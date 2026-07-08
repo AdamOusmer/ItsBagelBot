@@ -21,7 +21,7 @@ import { env } from '$env/dynamic/private';
 
 // Dashboard sections an owner can delegate. Billing is view-only for a delegate
 // (the money actions stay owner-only — see billing/+page.server.ts).
-const SECTIONS = ['commands', 'modules', 'billing'] as const;
+const SECTIONS = ['commands', 'modules', 'channelpoints', 'billing'] as const;
 
 function tokenLabel(token: string): string {
   return token.length <= 8 ? 'token=redacted' : `token=${token.slice(0, 8)}...`;
