@@ -95,8 +95,34 @@ func (r *Registry) StartInvalidationListener(nc *nats.Conn, prefix string, log *
 	r.invalidatePrefix = prefix
 	r.log = log
 
-	subject := prefix + "." + cacheInvalidateScope
-	sub, err := nc.Subscribe(subject, func(msg *nats.Msg) {
+	sub, err := r.subscribeChannelInvalidation(prefix, log)
+	if err != nil {
+		return err
+	}
+
+	pauseSub, err := r.subscribePauseInvalidation(prefix, log)
+	if err != nil {
+		_ = sub.Unsubscribe()
+		return err
+	}
+
+	if err := r.seedPauseSnapshot(); err != nil {
+		_ = sub.Unsubscribe()
+		_ = pauseSub.Unsubscribe()
+		return err
+	}
+
+	r.invalidateSub = sub
+	r.pauseSub = pauseSub
+	pollCtx, cancel := context.WithCancel(context.Background())
+	r.pauseCancel = cancel
+	r.pauseWG.Add(1)
+	go r.reconcilePause(pollCtx)
+	return nil
+}
+
+func (r *Registry) subscribeChannelInvalidation(prefix string, log *zap.Logger) (*nats.Subscription, error) {
+	return r.nc.Subscribe(prefix+"."+cacheInvalidateScope, func(msg *nats.Msg) {
 		var payload invalidate.DTO
 		if err := json.Unmarshal(msg.Data, &payload); err != nil {
 			log.Debug("channel cache invalidation: bad payload", zap.Error(err))
@@ -107,11 +133,10 @@ func (r *Registry) StartInvalidationListener(nc *nats.Conn, prefix string, log *
 		}
 		r.cache.Invalidate(payload.BroadcasterID)
 	})
-	if err != nil {
-		return err
-	}
+}
 
-	pauseSub, err := nc.Subscribe(prefix+"."+pauseInvalidateScope, func(msg *nats.Msg) {
+func (r *Registry) subscribePauseInvalidation(prefix string, log *zap.Logger) (*nats.Subscription, error) {
+	return r.nc.Subscribe(prefix+"."+pauseInvalidateScope, func(msg *nats.Msg) {
 		var event pauseEvent
 		if err := json.Unmarshal(msg.Data, &event); err != nil || event.Version < 1 {
 			log.Debug("pause cache invalidation: bad payload", zap.Error(err))
@@ -123,34 +148,23 @@ func (r *Registry) StartInvalidationListener(nc *nats.Conn, prefix string, log *
 			observedAt: time.Now(),
 		})
 	})
-	if err != nil {
-		_ = sub.Unsubscribe()
-		return err
-	}
-	if err := nc.Flush(); err != nil {
-		_ = sub.Unsubscribe()
-		_ = pauseSub.Unsubscribe()
-		return err
-	}
+}
 
-	// Subscribe before loading. If a concurrent pause arrives between these
-	// operations, version comparison prevents the initial read from reverting it.
+// seedPauseSnapshot flushes the just-created subscriptions and performs the
+// initial pause read. Subscribing before loading means a concurrent pause
+// arriving between the two cannot be lost: version comparison prevents the
+// initial read from reverting it.
+func (r *Registry) seedPauseSnapshot() error {
+	if err := r.nc.Flush(); err != nil {
+		return err
+	}
 	initialCtx, initialCancel := context.WithTimeout(context.Background(), pauseReadTimeout)
 	initial, err := r.loadPauseSnapshot(initialCtx)
 	initialCancel()
 	if err != nil {
-		_ = sub.Unsubscribe()
-		_ = pauseSub.Unsubscribe()
 		return err
 	}
 	r.applyPauseSnapshot(initial)
-
-	r.invalidateSub = sub
-	r.pauseSub = pauseSub
-	pollCtx, cancel := context.WithCancel(context.Background())
-	r.pauseCancel = cancel
-	r.pauseWG.Add(1)
-	go r.reconcilePause(pollCtx)
 	return nil
 }
 
@@ -257,11 +271,10 @@ func (r *Registry) Save(ctx context.Context, ch manage.Channel) error {
 // SetMod records a verified mod status without touching the enabled flag;
 // a channel first seen through verification starts out enabled.
 func (r *Registry) SetMod(ctx context.Context, broadcasterID string, isMod bool) error {
-
 	key := keyPrefix + broadcasterID
 	now := strconv.FormatInt(time.Now().Unix(), 10)
 
-	for _, res := range r.client.DoMulti(ctx,
+	return r.applyChannelUpdate(ctx, broadcasterID,
 		r.client.B().Hsetnx().Key(key).Field("enabled").Value("1").Build(),
 		r.client.B().Hset().Key(key).FieldValue().
 			FieldValue("is_mod", utils.BoolField(isMod)).
@@ -269,27 +282,17 @@ func (r *Registry) SetMod(ctx context.Context, broadcasterID string, isMod bool)
 			FieldValue("updated_at", now).
 			Build(),
 		r.client.B().Sadd().Key(indexKey).Member(broadcasterID).Build(),
-	) {
-		if err := res.Error(); err != nil {
-			return err
-		}
-	}
-
-	r.cache.Invalidate(broadcasterID)
-	r.publishInvalidation(broadcasterID)
-
-	return nil
+	)
 }
 
 // SetSubState records the current eventsub enrollment state for a broadcaster
 // without touching enabled/is_mod. It also updates updated_at so listeners
 // polling the registry see a freshness bump.
 func (r *Registry) SetSubState(ctx context.Context, broadcasterID, state, errMsg string) error {
-
 	key := keyPrefix + broadcasterID
 	now := strconv.FormatInt(time.Now().Unix(), 10)
 
-	for _, res := range r.client.DoMulti(ctx,
+	return r.applyChannelUpdate(ctx, broadcasterID,
 		r.client.B().Hset().Key(key).FieldValue().
 			FieldValue("sub_state", state).
 			FieldValue("sub_error", errMsg).
@@ -297,7 +300,13 @@ func (r *Registry) SetSubState(ctx context.Context, broadcasterID, state, errMsg
 			FieldValue("updated_at", now).
 			Build(),
 		r.client.B().Sadd().Key(indexKey).Member(broadcasterID).Build(),
-	) {
+	)
+}
+
+// applyChannelUpdate runs one channel's update pipeline, then drops the local
+// cache entry and broadcasts the invalidation to the other replicas.
+func (r *Registry) applyChannelUpdate(ctx context.Context, broadcasterID string, commands ...valkey.Completed) error {
+	for _, res := range r.client.DoMulti(ctx, commands...) {
 		if err := res.Error(); err != nil {
 			return err
 		}
@@ -389,38 +398,9 @@ func (r *Registry) List(ctx context.Context) ([]manage.Channel, error) {
 func (r *Registry) SetPaused(ctx context.Context, paused bool) error {
 	var version int64
 	err := r.client.Dedicated(func(client valkey.DedicatedClient) error {
-		stateCommand := client.B().Del().Key(pausedKey).Build()
-		if paused {
-			stateCommand = client.B().Set().Key(pausedKey).Value("1").Build()
-		}
-		results := client.DoMulti(ctx,
-			client.B().Multi().Build(),
-			stateCommand,
-			client.B().Incr().Key(pausedVersionKey).Build(),
-			client.B().Exec().Build(),
-		)
-		if len(results) != 4 {
-			return errors.New("pause transaction returned an invalid pipeline result")
-		}
-		for i := 0; i < len(results)-1; i++ {
-			if err := results[i].Error(); err != nil {
-				return err
-			}
-		}
-		executed, err := results[len(results)-1].ToArray()
-		if err != nil {
-			return err
-		}
-		if len(executed) != 2 {
-			return errors.New("pause transaction returned an invalid result")
-		}
-		for _, result := range executed {
-			if err := result.Error(); err != nil {
-				return err
-			}
-		}
-		version, err = executed[1].AsInt64()
-		return err
+		var txnErr error
+		version, txnErr = runPauseTxn(ctx, client, paused)
+		return txnErr
 	})
 	if err != nil {
 		return err
@@ -428,6 +408,66 @@ func (r *Registry) SetPaused(ctx context.Context, paused bool) error {
 
 	r.applyPauseSnapshot(pauseSnapshot{paused: paused, version: version, observedAt: time.Now()})
 	r.publishPause(paused, version)
+	return nil
+}
+
+// runPauseTxn flips the pause key and bumps its version inside one MULTI/EXEC,
+// returning the new version.
+func runPauseTxn(ctx context.Context, client valkey.DedicatedClient, paused bool) (int64, error) {
+	stateCommand := client.B().Del().Key(pausedKey).Build()
+	if paused {
+		stateCommand = client.B().Set().Key(pausedKey).Value("1").Build()
+	}
+	results := client.DoMulti(ctx,
+		client.B().Multi().Build(),
+		stateCommand,
+		client.B().Incr().Key(pausedVersionKey).Build(),
+		client.B().Exec().Build(),
+	)
+	executed, err := pauseTxnResults(results)
+	if err != nil {
+		return 0, err
+	}
+	return executed[1].AsInt64()
+}
+
+// pauseTxnResults validates the pause MULTI/EXEC pipeline (every command
+// queued, both transaction steps executed) and returns the EXEC array.
+func pauseTxnResults(results []valkey.ValkeyResult) ([]valkey.ValkeyMessage, error) {
+	if len(results) != 4 {
+		return nil, errors.New("pause transaction returned an invalid pipeline result")
+	}
+	if err := firstResultError(results[:len(results)-1]); err != nil {
+		return nil, err
+	}
+	executed, err := results[len(results)-1].ToArray()
+	if err != nil {
+		return nil, err
+	}
+	if len(executed) != 2 {
+		return nil, errors.New("pause transaction returned an invalid result")
+	}
+	if err := firstMessageError(executed); err != nil {
+		return nil, err
+	}
+	return executed, nil
+}
+
+func firstResultError(results []valkey.ValkeyResult) error {
+	for _, result := range results {
+		if err := result.Error(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func firstMessageError(messages []valkey.ValkeyMessage) error {
+	for _, message := range messages {
+		if err := message.Error(); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -463,24 +503,42 @@ func (r *Registry) loadPauseSnapshot(ctx context.Context) (pauseSnapshot, error)
 		return pauseSnapshot{}, errors.New("pause lookup returned an invalid result")
 	}
 
-	paused := false
-	if state, err := values[0].ToString(); err == nil {
-		paused = state == "1"
-	} else if !valkey.IsValkeyNil(err) {
+	paused, err := pausedFlagField(values[0])
+	if err != nil {
 		return pauseSnapshot{}, err
 	}
-
-	version := int64(0)
-	if raw, err := values[1].ToString(); err == nil {
-		version, err = strconv.ParseInt(raw, 10, 64)
-		if err != nil {
-			return pauseSnapshot{}, err
-		}
-	} else if !valkey.IsValkeyNil(err) {
+	version, err := pauseVersionField(values[1])
+	if err != nil {
 		return pauseSnapshot{}, err
 	}
 
 	return pauseSnapshot{paused: paused, version: version, observedAt: time.Now()}, nil
+}
+
+// pausedFlagField parses the paused key's MGET value; a nil key means not
+// paused.
+func pausedFlagField(value valkey.ValkeyMessage) (bool, error) {
+	state, err := stringOrNil(value)
+	return state == "1", err
+}
+
+// pauseVersionField parses the pause version's MGET value; a nil key means
+// version zero (never paused/resumed yet).
+func pauseVersionField(value valkey.ValkeyMessage) (int64, error) {
+	raw, err := stringOrNil(value)
+	if err != nil || raw == "" {
+		return 0, err
+	}
+	return strconv.ParseInt(raw, 10, 64)
+}
+
+// stringOrNil reads one MGET value, mapping an unset (nil) key to "".
+func stringOrNil(value valkey.ValkeyMessage) (string, error) {
+	raw, err := value.ToString()
+	if valkey.IsValkeyNil(err) {
+		return "", nil
+	}
+	return raw, err
 }
 
 func (r *Registry) applyPauseSnapshot(next pauseSnapshot) {
