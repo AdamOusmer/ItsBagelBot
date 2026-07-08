@@ -55,3 +55,58 @@ type SystemPauseReply struct {
 	Paused bool   `json:"paused"`
 	Error  string `json:"error,omitempty"`
 }
+
+// Reward is the canonical wire shape for one Twitch custom channel-points reward
+// the dashboard manages, for the channelpoints.{list,create,update,delete} verbs.
+// It mirrors the subset of the Helix Custom Reward object outgress reads/writes.
+// The bot ACTION a redemption triggers (chat line, announce, shoutout, auto
+// fulfill) is NOT here: that mapping is stored by the dashboard in the modules
+// service (the hidden "channelpoints" module blob) and read by sesame. This type
+// is only the Twitch-side reward outgress owns via the broadcaster token.
+type Reward struct {
+	ID              string `json:"id,omitempty"`
+	Title           string `json:"title"`
+	Cost            int    `json:"cost"`
+	Prompt          string `json:"prompt,omitempty"`
+	BackgroundColor string `json:"background_color,omitempty"`
+	IsEnabled       bool   `json:"is_enabled"`
+	IsPaused        bool   `json:"is_paused"`
+	// IsUserInputRequired makes the viewer type text with the redeem, exposed to
+	// the reward's chat action as {input}.
+	IsUserInputRequired bool `json:"is_user_input_required"`
+	// ShouldSkipQueue auto-marks redemptions FULFILLED on Twitch's side. The
+	// dashboard sets it false whenever the reward has a bot action that must
+	// resolve the redemption (auto fulfill/cancel), since a skipped redemption
+	// cannot be updated.
+	ShouldSkipQueue bool `json:"should_skip_queue"`
+	// Limit controls ("claimable once and so on"). Each *Enabled gates its value;
+	// a disabled limit ignores the value.
+	MaxPerStreamEnabled        bool `json:"max_per_stream_enabled"`
+	MaxPerStream               int  `json:"max_per_stream"`
+	MaxPerUserPerStreamEnabled bool `json:"max_per_user_per_stream_enabled"`
+	MaxPerUserPerStream        int  `json:"max_per_user_per_stream"`
+	GlobalCooldownEnabled      bool `json:"global_cooldown_enabled"`
+	GlobalCooldownSeconds      int  `json:"global_cooldown_seconds"`
+}
+
+// RewardRequest is the input for the channelpoints verbs. RewardID targets an
+// update/delete; Reward carries the desired state for create/update. list needs
+// only the broadcaster id.
+type RewardRequest struct {
+	BroadcasterID string  `json:"broadcaster_id"`
+	RewardID      string  `json:"reward_id,omitempty"`
+	Reward        *Reward `json:"reward,omitempty"`
+}
+
+// RewardReply is the reply for the channelpoints verbs. create/update echo the
+// resulting Reward (with its Twitch-assigned id); list returns Rewards.
+type RewardReply struct {
+	Reward  *Reward  `json:"reward,omitempty"`
+	Rewards []Reward `json:"rewards,omitempty"`
+	// MissingScope is set when Twitch rejected the call for a missing OAuth scope:
+	// the broadcaster's stored grant predates channel:manage:redemptions, so they
+	// must re-consent. The dashboard shows a reconnect CTA on this flag rather than
+	// treating it as a generic failure.
+	MissingScope bool   `json:"missing_scope,omitempty"`
+	Error        string `json:"error,omitempty"`
+}
