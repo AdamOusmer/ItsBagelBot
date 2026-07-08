@@ -26,36 +26,68 @@ import (
 	"ItsBagelBot/pkg/monitor"
 
 	"github.com/ThreeDotsLabs/watermill/message"
+	"github.com/nats-io/nats.go"
 
 	"go.uber.org/zap"
 )
 
 const serviceName = "users"
 
-func main() {
+// fatalIf aborts startup on err: the users service cannot run degraded without
+// any of its core dependencies, so a failed step must crash the pod.
+func fatalIf(log *zap.Logger, err error, msg string) {
+	if err != nil {
+		log.Fatal(msg, zap.Error(err))
+	}
+}
 
+func main() {
 	log := logger.New(env.Get("APP_ENV", "development")).Named(serviceName)
 	defer func() { _ = log.Sync() }()
 
 	nrApp, err := monitor.New(serviceName, log)
-	if err != nil {
-		log.Fatal("failed to start new relic", zap.Error(err))
-	}
+	fatalIf(log, err, "failed to start new relic")
 	log = monitor.WrapLogger(log, nrApp)
 	defer monitor.Shutdown(nrApp)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	client, packer := openStore(ctx, log)
+	defer func() { _ = client.Close() }()
+
+	natsURL := env.Get("NATS_URL", "nats://127.0.0.1:4222")
+	nc, pub := connectBus(ctx, natsURL, log)
+	defer nc.Close()
+	defer func() { _ = pub.Close() }()
+
+	repo := repository.NewUsers(client, packer, pub)
+	defer repo.Close()
+
+	closeConsumers := startConsumers(ctx, natsURL, repo, log)
+	defer closeConsumers()
+
+	go expireSubscriptions(ctx, repo, log)
+
+	wiring := rpc.Wiring{NC: nc, Repo: repo, App: nrApp, Queue: "users-rpc", Log: log}
+	subjects := subscribeRPCs(ctx, wiring, client, log)
+
+	health.Serve(env.Get("LISTEN_ADDR", ":8080"), nc.IsConnected)
+	subjects.logReady(log)
+
+	<-ctx.Done()
+
+	log.Info("users service shutting down")
+}
+
+// openStore reads the encryption keyset, opens the database, runs migrations,
+// and returns the ent client and the field-crypto packer.
+func openStore(ctx context.Context, log *zap.Logger) (*ent.Client, *crypto.Crypto) {
 	keysetJSON, err := os.ReadFile(env.MustGet("TINK_KEYSET_PATH"))
-	if err != nil {
-		log.Fatal("failed to read tink keyset", zap.Error(err))
-	}
+	fatalIf(log, err, "failed to read tink keyset")
 
 	packer, err := crypto.NewCrypto(keysetJSON)
-	if err != nil {
-		log.Fatal("failed to initialize crypto", zap.Error(err))
-	}
+	fatalIf(log, err, "failed to initialize crypto")
 
 	driver, err := db.NewDriver(db.Config{
 		Address:  env.Get("DB_ADDR", "127.0.0.1:3306"),
@@ -63,146 +95,125 @@ func main() {
 		Password: env.MustGet("DB_PASS"),
 		Schema:   env.Get("DB_SCHEMA", "bagel_users"),
 	})
-	if err != nil {
-		log.Fatal("failed to open database", zap.Error(err))
-	}
+	fatalIf(log, err, "failed to open database")
 
 	client := ent.NewClient(ent.Driver(driver))
-	defer func() { _ = client.Close() }()
-
 	if env.GetBool("DB_AUTO_MIGRATE", true) {
-		if err := client.Schema.Create(ctx); err != nil {
-			log.Fatal("failed to run migrations", zap.Error(err))
-		}
+		fatalIf(log, client.Schema.Create(ctx), "failed to run migrations")
 	}
+	return client, packer
+}
 
-	natsURL := env.Get("NATS_URL", "nats://127.0.0.1:4222")
-	rpcURL := bus.RPCURL(natsURL)
+// connectBus provisions the JetStream streams, opens the RPC connection, and
+// builds the bus publisher.
+func connectBus(ctx context.Context, natsURL string, log *zap.Logger) (*nats.Conn, message.Publisher) {
+	fatalIf(log, bus.EnsureStreams(ctx, natsURL, bus.DataStreams, log), "failed to provision jetstream streams")
 
-	if err := bus.EnsureStreams(ctx, natsURL, bus.DataStreams, log); err != nil {
-		log.Fatal("failed to provision jetstream streams", zap.Error(err))
-	}
-
-	nc, err := bus.Connect(rpcURL, serviceName)
-	if err != nil {
-		log.Fatal("failed to connect to nats", zap.Error(err))
-	}
-	defer nc.Close()
+	nc, err := bus.Connect(bus.RPCURL(natsURL), serviceName)
+	fatalIf(log, err, "failed to connect to nats")
 
 	pub, err := bus.NewPublisher(natsURL, log)
-	if err != nil {
-		log.Fatal("failed to connect publisher", zap.Error(err))
-	}
-	defer func() { _ = pub.Close() }()
+	fatalIf(log, err, "failed to connect publisher")
 
-	repo := repository.NewUsers(client, packer, pub)
-	defer repo.Close()
+	return nc, pub
+}
 
-	// Broadcast subscription: every instance must drop its cached view when
-	// any instance changes a user, so no queue group here.
+// startConsumers wires the two event-plane consumers: a groupless broadcast
+// subscriber that drops each instance's cached view on any user change, and a
+// durable-group subscriber where exactly one instance answers a reproject by
+// replaying the table. The returned cleanup closes both subscribers.
+func startConsumers(ctx context.Context, natsURL string, repo *repository.Users, log *zap.Logger) func() {
 	broadcast, err := bus.NewSubscriber(natsURL, "", log)
-	if err != nil {
-		log.Fatal("failed to connect broadcast subscriber", zap.Error(err))
+	fatalIf(log, err, "failed to connect broadcast subscriber")
+	fatalIf(log, bus.Consume(ctx, nil, broadcast, data.SubjectUserChanged, invalidateOnUserChange(repo), log),
+		"failed to subscribe to user changes")
+
+	grouped, err := bus.NewSubscriber(natsURL, serviceName, log)
+	fatalIf(log, err, "failed to connect group subscriber")
+	fatalIf(log, bus.Consume(ctx, nil, grouped, data.SubjectReprojectRequest, func(*message.Message) error {
+		return repo.Reproject(ctx)
+	}, log), "failed to subscribe to reproject requests")
+
+	return func() {
+		_ = grouped.Close()
+		_ = broadcast.Close()
 	}
-	defer func() { _ = broadcast.Close() }()
+}
 
-	if err := bus.Consume(ctx, nil, broadcast, data.SubjectUserChanged, func(msg *message.Message) error {
-
+// invalidateOnUserChange drops the local cached view for a changed user.
+func invalidateOnUserChange(repo *repository.Users) func(*message.Message) error {
+	return func(msg *message.Message) error {
 		var dto data.UserChangedDTO
 		if err := json.Unmarshal(msg.Payload, &dto); err != nil {
 			return err
 		}
-
 		repo.Invalidate(dto.UserID)
 		return nil
-	}, log); err != nil {
-		log.Fatal("failed to subscribe to user changes", zap.Error(err))
 	}
+}
 
-	// Durable group subscription: exactly one instance answers a reproject
-	// request by replaying the table as change events.
-	grouped, err := bus.NewSubscriber(natsURL, serviceName, log)
-	if err != nil {
-		log.Fatal("failed to connect group subscriber", zap.Error(err))
-	}
-	defer func() { _ = grouped.Close() }()
+// rpcSubjects records the subjects the RPC surfaces bound to, for the ready log.
+type rpcSubjects struct {
+	dashboard  string
+	admin      string
+	billing    string
+	projection string
+}
 
-	if err := bus.Consume(ctx, nil, grouped, data.SubjectReprojectRequest, func(*message.Message) error {
-		return repo.Reproject(ctx)
-	}, log); err != nil {
-		log.Fatal("failed to subscribe to reproject requests", zap.Error(err))
-	}
+func (s rpcSubjects) logReady(log *zap.Logger) {
+	log.Info("users service ready",
+		zap.String("dashboard_prefix", s.dashboard),
+		zap.String("admin_prefix", s.admin),
+		zap.String("billing_subject", s.billing),
+		zap.String("projection_subject", s.projection))
+}
 
+// subscribeRPCs binds every RPC surface the users service serves and seeds the
+// bootstrap staff, returning the subjects for the ready log.
+func subscribeRPCs(ctx context.Context, wiring rpc.Wiring, client *ent.Client, log *zap.Logger) rpcSubjects {
 	invalidationPrefix := env.Get("NATS_CACHE_INVALIDATION_PREFIX", "bagel.cache.invalidate")
-	wiring := rpc.Wiring{NC: nc, Repo: repo, App: nrApp, Queue: "users-rpc", Log: log}
 
-	dashPrefix := env.Get("NATS_DASHBOARD_SUBJECT_PREFIX", "bagel.rpc.dashboard")
-	if err := rpc.SubscribeDashboard(wiring, dashPrefix, invalidationPrefix); err != nil {
-		log.Fatal("failed to subscribe dashboard rpc", zap.Error(err))
+	s := rpcSubjects{
+		dashboard:  env.Get("NATS_DASHBOARD_SUBJECT_PREFIX", "bagel.rpc.dashboard"),
+		admin:      env.Get("NATS_ADMIN_USER_SUBJECT_PREFIX", "bagel.rpc.admin.user"),
+		billing:    env.Get("NATS_INTERNAL_BILLING_SUBJECT", "bagel.rpc.internal.billing.apply"),
+		projection: env.Get("NATS_INTERNAL_PROJECTION_USERS_SUBJECT", "bagel.rpc.internal.projection.users.get"),
 	}
 
-	adminPrefix := env.Get("NATS_ADMIN_USER_SUBJECT_PREFIX", "bagel.rpc.admin.user")
-	if err := rpc.SubscribeAdmin(wiring, adminPrefix, invalidationPrefix); err != nil {
-		log.Fatal("failed to subscribe admin rpc", zap.Error(err))
-	}
-
-	billingSubject := env.Get("NATS_INTERNAL_BILLING_SUBJECT", "bagel.rpc.internal.billing.apply")
-	if err := rpc.SubscribeBilling(wiring, billingSubject, invalidationPrefix); err != nil {
-		log.Fatal("failed to subscribe billing rpc", zap.Error(err))
-	}
-
-	go expireSubscriptions(ctx, repo, log)
-
-	// Lane (JetStream consumer) telemetry for the admin console. Served under
+	fatalIf(log, rpc.SubscribeDashboard(wiring, s.dashboard, invalidationPrefix), "failed to subscribe dashboard rpc")
+	fatalIf(log, rpc.SubscribeAdmin(wiring, s.admin, invalidationPrefix), "failed to subscribe admin rpc")
+	fatalIf(log, rpc.SubscribeBilling(wiring, s.billing, invalidationPrefix), "failed to subscribe billing rpc")
 
 	// Admin authorization + audit. Seed the bootstrap owners/admins so a fresh
 	// DB is never locked out, then serve the auth.check / auth.* / audit.*
-	// surface the console uses in place of the old static env allowlist. The
-	// owner default is itsmavey's Twitch id; override via OWNER_BOOTSTRAP_IDS.
-	owners := parseIDs(env.Get("OWNER_BOOTSTRAP_IDS", "804932984"))
-	admins := parseIDs(env.Get("ADMIN_BOOTSTRAP_IDS", ""))
-	if len(owners) > 0 || len(admins) > 0 {
-		if err := rpc.SeedStaff(ctx, client, rpc.StaffSeed{Owners: owners, Admins: admins}, log); err != nil {
-			log.Fatal("failed to seed bootstrap staff", zap.Error(err))
-		}
-	}
+	// surface the console uses in place of the old static env allowlist.
+	seedBootstrapStaff(ctx, client, log)
 	authPrefix := env.Get("NATS_ADMIN_AUTH_SUBJECT_PREFIX", "bagel.rpc.admin.user.auth")
 	auditPrefix := env.Get("NATS_ADMIN_AUDIT_SUBJECT_PREFIX", "bagel.rpc.admin.user.audit")
-	if err := rpc.SubscribeAdminAuth(wiring, client, authPrefix, auditPrefix); err != nil {
-		log.Fatal("failed to subscribe admin auth rpc", zap.Error(err))
+	fatalIf(log, rpc.SubscribeAdminAuth(wiring, client, authPrefix, auditPrefix), "failed to subscribe admin auth rpc")
+
+	fatalIf(log, rpc.SubscribeProjection(wiring, s.projection), "failed to subscribe projection rpc")
+	fatalIf(log, rpc.SubscribeEmail(wiring, env.Get("NATS_INTERNAL_USERS_EMAIL_SUBJECT", "bagel.rpc.internal.users.email.get")),
+		"failed to subscribe email rpc")
+	fatalIf(log, rpc.SubscribeTokens(wiring, env.Get("NATS_INTERNAL_TOKENS_SUBJECT_PREFIX", "bagel.rpc.internal.tokens")),
+		"failed to subscribe tokens rpc")
+	fatalIf(log, rpc.SubscribeDelegation(wiring, env.Get("NATS_DELEGATION_SUBJECT_PREFIX", "bagel.rpc.delegation"), invalidationPrefix),
+		"failed to subscribe delegation rpc")
+
+	return s
+}
+
+// seedBootstrapStaff guarantees the configured owners/admins exist so a fresh
+// DB is never locked out. The owner default is itsmavey's Twitch id; override
+// via OWNER_BOOTSTRAP_IDS.
+func seedBootstrapStaff(ctx context.Context, client *ent.Client, log *zap.Logger) {
+	owners := parseIDs(env.Get("OWNER_BOOTSTRAP_IDS", "804932984"))
+	admins := parseIDs(env.Get("ADMIN_BOOTSTRAP_IDS", ""))
+	if len(owners) == 0 && len(admins) == 0 {
+		return
 	}
-
-	projectionSubject := env.Get("NATS_INTERNAL_PROJECTION_USERS_SUBJECT", "bagel.rpc.internal.projection.users.get")
-	if err := rpc.SubscribeProjection(wiring, projectionSubject); err != nil {
-		log.Fatal("failed to subscribe projection rpc", zap.Error(err))
-	}
-
-	emailSubject := env.Get("NATS_INTERNAL_USERS_EMAIL_SUBJECT", "bagel.rpc.internal.users.email.get")
-	if err := rpc.SubscribeEmail(wiring, emailSubject); err != nil {
-		log.Fatal("failed to subscribe email rpc", zap.Error(err))
-	}
-
-	tokensPrefix := env.Get("NATS_INTERNAL_TOKENS_SUBJECT_PREFIX", "bagel.rpc.internal.tokens")
-	if err := rpc.SubscribeTokens(wiring, tokensPrefix); err != nil {
-		log.Fatal("failed to subscribe tokens rpc", zap.Error(err))
-	}
-
-	delegationPrefix := env.Get("NATS_DELEGATION_SUBJECT_PREFIX", "bagel.rpc.delegation")
-	if err := rpc.SubscribeDelegation(wiring, delegationPrefix, invalidationPrefix); err != nil {
-		log.Fatal("failed to subscribe delegation rpc", zap.Error(err))
-	}
-
-	health.Serve(env.Get("LISTEN_ADDR", ":8080"), nc.IsConnected)
-
-	log.Info("users service ready",
-		zap.String("dashboard_prefix", dashPrefix),
-		zap.String("admin_prefix", adminPrefix),
-		zap.String("billing_subject", billingSubject),
-		zap.String("projection_subject", projectionSubject))
-
-	<-ctx.Done()
-
-	log.Info("users service shutting down")
+	fatalIf(log, rpc.SeedStaff(ctx, client, rpc.StaffSeed{Owners: owners, Admins: admins}, log),
+		"failed to seed bootstrap staff")
 }
 
 func expireSubscriptions(ctx context.Context, repo *repository.Users, log *zap.Logger) {
