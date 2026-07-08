@@ -137,7 +137,7 @@ func runUrchinCommand[R any](d engine.Deps, cmd gatewayCommand, tokens map[strin
 			return nil
 		}
 
-		account := resolveAccount(args, cfg.Account, c.Env.BroadcasterUserLogin)
+		account := resolveAccount(accountSources{Arg: args, Linked: cfg.Account, BroadcasterLogin: c.Env.BroadcasterUserLogin})
 		var reply R
 		if err := d.Gateway.Call(ctx, cmd.provider, cmd.endpoint, gatewayrpc.Request{Account: account, IsPremium: c.Regress.IsPremium()}, &reply); err != nil {
 			if chatReplyError(c, emit, account, err) {

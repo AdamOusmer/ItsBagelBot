@@ -74,7 +74,7 @@ func Mcsr(d engine.Deps) module.Module {
 		}
 		var cfg mcsrConfig
 		_ = c.Decode(&cfg)
-		account := resolveAccount("", cfg.Account, c.Env.BroadcasterUserLogin)
+		account := resolveAccount(accountSources{Linked: cfg.Account, BroadcasterLogin: c.Env.BroadcasterUserLogin})
 		channelID := strconv.FormatUint(c.BroadcasterID, 10)
 		go func() {
 			wctx, cancel := context.WithTimeout(context.Background(), mcsrSnapshotTimeout)
@@ -104,7 +104,7 @@ func mcsrEloRun(d engine.Deps) module.RunFunc {
 			return nil
 		}
 
-		account := resolveAccount(args, cfg.Account, c.Env.BroadcasterUserLogin)
+		account := resolveAccount(accountSources{Arg: args, Linked: cfg.Account, BroadcasterLogin: c.Env.BroadcasterUserLogin})
 		var reply gatewayrpc.McsrUserReply
 		if err := d.Gateway.Call(ctx, "mcsr", "user", gatewayrpc.Request{Account: account, IsPremium: c.Regress.IsPremium()}, &reply); err != nil {
 			if chatReplyError(c, emit, account, err) {
@@ -155,7 +155,7 @@ func mcsrSessionRun(d engine.Deps) module.RunFunc {
 		// baseline snapshot is stored per channel and keyed to the linked
 		// account, so honoring an arbitrary player would clobber the streamer's
 		// stream-start baseline. Per-player lookups go through !elo instead.
-		account := resolveAccount("", cfg.Account, c.Env.BroadcasterUserLogin)
+		account := resolveAccount(accountSources{Linked: cfg.Account, BroadcasterLogin: c.Env.BroadcasterUserLogin})
 		req := gatewayrpc.Request{Account: account, ChannelID: strconv.FormatUint(c.BroadcasterID, 10), IsPremium: c.Regress.IsPremium()}
 		var reply gatewayrpc.McsrSessionReply
 		if err := d.Gateway.Call(ctx, "mcsr", "session", req, &reply); err != nil {

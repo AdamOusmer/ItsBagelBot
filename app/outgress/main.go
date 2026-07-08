@@ -172,10 +172,15 @@ func podIdentity(log *zap.Logger) string {
 	return host
 }
 
+// creds is the Twitch app client id + secret every token grant presents.
+func (d *deps) creds() twitch.ClientCredentials {
+	return twitch.ClientCredentials{ID: d.cfg.TwitchClientID, Secret: d.cfg.TwitchClientSecret}
+}
+
 // newTwitchClient assembles the Helix client over the three token sources: the
 // app token, the bot account's user token, and the per-broadcaster grants.
 func (d *deps) newTwitchClient() *twitch.Client {
-	appTokens := twitch.NewAppTokenSource(d.cfg.TwitchClientID, d.cfg.TwitchClientSecret)
+	appTokens := twitch.NewAppTokenSource(d.creds())
 	return twitch.NewClient(d.cfg.TwitchClientID, appTokens, d.botTokenSource(), d.broadcasterTokens())
 }
 
@@ -188,7 +193,7 @@ func (d *deps) botTokenSource() *twitch.Source {
 	case d.cfg.TwitchBotUserID != "":
 		return d.storedTokenSource(d.cfg.TwitchBotUserID, d.cfg.TwitchBotRefreshToken)
 	case d.cfg.TwitchBotRefreshToken != "":
-		return twitch.NewUserTokenSource(d.cfg.TwitchClientID, d.cfg.TwitchClientSecret, d.cfg.TwitchBotRefreshToken)
+		return twitch.NewUserTokenSource(d.creds(), d.cfg.TwitchBotRefreshToken)
 	default:
 		d.log.Warn("no bot user id or refresh token configured, mod status verification disabled")
 		return nil
@@ -211,9 +216,8 @@ func (d *deps) broadcasterTokens() *twitch.BroadcasterTokens {
 func (d *deps) storedTokenSource(accountID, seedRefresh string) *twitch.Source {
 	store := tokenstore.New(d.nc, d.cfg.TokensSubjectPrefix, accountID)
 	log := d.log
-	return twitch.NewStoredUserTokenSource(
-		d.cfg.TwitchClientID, d.cfg.TwitchClientSecret, seedRefresh,
-		func(ctx context.Context) string {
+	return twitch.NewStoredUserTokenSource(d.creds(), seedRefresh, twitch.StoredTokenIO{
+		Load: func(ctx context.Context) string {
 			refresh, err := store.Load(ctx)
 			if err != nil {
 				log.Debug("stored token unavailable", zap.String("account_id", accountID), zap.Error(err))
@@ -221,12 +225,12 @@ func (d *deps) storedTokenSource(accountID, seedRefresh string) *twitch.Source {
 			}
 			return refresh
 		},
-		func(ctx context.Context, access, refresh string) {
+		Persist: func(ctx context.Context, access, refresh string) {
 			if err := store.Save(ctx, access, refresh); err != nil {
 				log.Warn("token persist failed", zap.String("account_id", accountID), zap.Error(err))
 			}
 		},
-	)
+	})
 }
 
 // warmupTwitch pays the cold-start cost (token minting, DNS/TLS and the first
