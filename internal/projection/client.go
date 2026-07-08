@@ -109,18 +109,26 @@ type Client struct {
 	invalidationSub *nats.Subscription
 }
 
-// NewClient wires a Client. ttl is the in-process cache lifetime; keep it
-// short (tens of seconds) so module/command edits propagate quickly while
-// still absorbing per-message bursts.
-func NewClient(store *Store, nc *nats.Conn, subjects Subjects, ttl time.Duration, log *zap.Logger) *Client {
+// Config wires a Client. TTL is the in-process cache lifetime; keep it short
+// (tens of seconds) so module/command edits propagate quickly while still
+// absorbing per-message bursts.
+type Config struct {
+	Store    *Store
+	NC       *nats.Conn
+	Subjects Subjects
+	TTL      time.Duration
+	Log      *zap.Logger
+}
+
+func NewClient(cfg Config) *Client {
 	return &Client{
-		store:      store,
-		nc:         nc,
-		subjects:   subjects,
-		log:        log,
-		users:      cache.New[User](cache.DefaultCapacity, ttl),
-		modules:    cache.New[[]ModuleView](cache.DefaultCapacity, ttl),
-		commands:   cache.New[commandEntry](cache.DefaultCapacity, ttl),
+		store:      cfg.Store,
+		nc:         cfg.NC,
+		subjects:   cfg.Subjects,
+		log:        cfg.Log,
+		users:      cache.New[User](cache.DefaultCapacity, cfg.TTL),
+		modules:    cache.New[[]ModuleView](cache.DefaultCapacity, cfg.TTL),
+		commands:   cache.New[commandEntry](cache.DefaultCapacity, cfg.TTL),
 		rpcTimeout: 1500 * time.Millisecond,
 	}
 }
@@ -154,48 +162,53 @@ func (c *Client) Close() {
 //   - "delegation"                  -> ignored (worker does not cache delegations)
 func (c *Client) StartInvalidationListener(prefix string) {
 	subject := prefix + ".>"
-	sub, err := c.nc.Subscribe(subject, func(msg *nats.Msg) {
-		var payload invalidate.DTO
-		if err := json.Unmarshal(msg.Data, &payload); err != nil {
-			c.log.Debug("projection: cache invalidation: bad payload", zap.Error(err), zap.String("subject", msg.Subject))
-			return
-		}
-		id, err := strconv.ParseUint(payload.BroadcasterID, 10, 64)
-		if err != nil || id == 0 {
-			c.log.Warn("projection: cache invalidation: bad broadcaster_id", zap.String("raw", payload.BroadcasterID))
-			return
-		}
-
-		// Scope = last token of the subject.
-		parts := strings.Split(msg.Subject, ".")
-		scope := parts[len(parts)-1]
-
-		switch scope {
-		case "commands":
-			// Drop the custom command entry for every key carried by the event.
-			for _, name := range payload.Keys {
-				c.commands.Invalidate(cmdKey(id, strings.ToLower(name)))
-			}
-		case "modules":
-			c.modules.Invalidate(key("modules", id))
-		case "status", "grant", "live", "locale":
-			// Tier/ban (status/grant), the legacy live field and the UI locale
-			// all live on the projected User, so drop it. The dedicated live
-			// store keeps its own listener for the live key; this only keeps
-			// User coherent.
-			c.users.Invalidate(key("user", id))
-		case "delegation":
-			// Worker does not cache delegations; nothing to evict.
-		default:
-			c.log.Debug("projection: cache invalidation: unknown scope", zap.String("scope", scope))
-		}
-	})
+	sub, err := c.nc.Subscribe(subject, c.onInvalidation)
 	if err != nil {
 		c.log.Error("projection: failed to subscribe to cache invalidation", zap.String("subject", subject), zap.Error(err))
 		return
 	}
 	c.invalidationSub = sub
 	c.log.Info("projection: cache invalidation listener started", zap.String("subject", subject))
+}
+
+// onInvalidation decodes one push-invalidation message and evicts the caches
+// its scope (the subject's last token) names.
+func (c *Client) onInvalidation(msg *nats.Msg) {
+	var payload invalidate.DTO
+	if err := json.Unmarshal(msg.Data, &payload); err != nil {
+		c.log.Debug("projection: cache invalidation: bad payload", zap.Error(err), zap.String("subject", msg.Subject))
+		return
+	}
+	id, err := strconv.ParseUint(payload.BroadcasterID, 10, 64)
+	if err != nil || id == 0 {
+		c.log.Warn("projection: cache invalidation: bad broadcaster_id", zap.String("raw", payload.BroadcasterID))
+		return
+	}
+
+	parts := strings.Split(msg.Subject, ".")
+	c.evictScope(parts[len(parts)-1], id, payload.Keys)
+}
+
+// evictScope drops the cache entries a scope names for one broadcaster.
+func (c *Client) evictScope(scope string, id uint64, keys []string) {
+	switch scope {
+	case "commands":
+		// Drop the custom command entry for every key carried by the event.
+		for _, name := range keys {
+			c.commands.Invalidate(cmdKey(id, strings.ToLower(name)))
+		}
+	case "modules":
+		c.modules.Invalidate(key("modules", id))
+	case "status", "grant", "live", "locale":
+		// Tier/ban (status/grant), the legacy live field and the UI locale all
+		// live on the projected User, so drop it. The dedicated live store keeps
+		// its own listener for the live key; this only keeps User coherent.
+		c.users.Invalidate(key("user", id))
+	case "delegation":
+		// Worker does not cache delegations; nothing to evict.
+	default:
+		c.log.Debug("projection: cache invalidation: unknown scope", zap.String("scope", scope))
+	}
 }
 
 func (c *Client) User(ctx context.Context, userID uint64) (User, error) {
@@ -243,38 +256,57 @@ func (c *Client) Command(ctx context.Context, userID uint64, name string) (Comma
 	lname := strings.ToLower(name)
 
 	entry, err := c.commands.GetOrLoad(ctx, cmdKey(userID, lname), func(ctx context.Context) (commandEntry, error) {
-		// Tier 2: single-command HGET against the Valkey projection.
-		if view, found, projected, err := c.store.GetCommand(ctx, userID, lname); err == nil && projected {
-			if !found {
-				return commandEntry{found: false}, nil
-			}
-			return commandEntry{cmd: commandFromView(view), found: true}, nil
-		}
-
-		// Tier 3: cold user, fall back to the projector RPC (whole list) and
-		// pick out the one command (or alias) we were asked for.
-		reply, err := bus.RequestJSONTimeout[struct {
-			Commands []Command `json:"commands"`
-		}](ctx, c.nc, c.subjects.Commands, projectionRequest(userID), c.rpcTimeout)
-		if err != nil {
-			return commandEntry{found: false}, nil
-		}
-		for _, cmd := range reply.Commands {
-			if strings.ToLower(cmd.Name) == lname {
-				return commandEntry{cmd: cmd, found: true}, nil
-			}
-			for _, alias := range cmd.Aliases {
-				if strings.ToLower(alias) == lname {
-					return commandEntry{cmd: cmd, found: true}, nil
-				}
-			}
-		}
-		return commandEntry{found: false}, nil
+		return c.loadCommand(ctx, userID, lname)
 	})
 	if err != nil {
 		return Command{}, false, err
 	}
 	return entry.cmd, entry.found, nil
+}
+
+// loadCommand resolves one command from the Valkey projection (tier 2), falling
+// back to the projector RPC's whole list for a cold, not-yet-projected user
+// (tier 3). A negative result is a valid cached entry, not an error.
+func (c *Client) loadCommand(ctx context.Context, userID uint64, lname string) (commandEntry, error) {
+	if view, found, projected, err := c.store.GetCommand(ctx, userID, lname); err == nil && projected {
+		if !found {
+			return commandEntry{found: false}, nil
+		}
+		return commandEntry{cmd: commandFromView(view), found: true}, nil
+	}
+
+	reply, err := bus.RequestJSONTimeout[struct {
+		Commands []Command `json:"commands"`
+	}](ctx, c.nc, c.subjects.Commands, projectionRequest(userID), c.rpcTimeout)
+	if err != nil {
+		return commandEntry{found: false}, nil
+	}
+	return findCommand(reply.Commands, lname), nil
+}
+
+// findCommand picks the command whose name or an alias matches lname (already
+// lower-cased), or a negative entry when none match.
+func findCommand(commands []Command, lname string) commandEntry {
+	for _, cmd := range commands {
+		if commandMatches(cmd, lname) {
+			return commandEntry{cmd: cmd, found: true}
+		}
+	}
+	return commandEntry{found: false}
+}
+
+// commandMatches reports whether cmd is triggered by lname (its name or any
+// alias, case-insensitively).
+func commandMatches(cmd Command, lname string) bool {
+	if strings.ToLower(cmd.Name) == lname {
+		return true
+	}
+	for _, alias := range cmd.Aliases {
+		if strings.ToLower(alias) == lname {
+			return true
+		}
+	}
+	return false
 }
 
 func commandFromView(v CommandView) Command {

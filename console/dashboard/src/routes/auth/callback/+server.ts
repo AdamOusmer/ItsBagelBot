@@ -40,23 +40,38 @@ function isBotAccount(sub: string): boolean {
   return botId !== '' && sub === botId;
 }
 
-// verifyClaims rejects a forged or substituted id_token. Throws a redirect on
-// any failed guard.
-function verifyClaims(claims: IdTokenClaims, storedNonce: string | undefined): void {
-  if (!audIssuerOk(claims)) throw redirect(302, '/login?e=state');
+// nonceMismatch is the replay / token-swap guard: the stored nonce must equal
+// the claim. arctic's Twitch.createAuthorizationURL does not accept a nonce
+// param, so the login route appended it manually and we verify it here. A
+// missing stored nonce skips the check.
+function nonceMismatch(claims: IdTokenClaims, storedNonce: string | undefined): boolean {
+  return !!storedNonce && claims.nonce !== storedNonce;
+}
 
-  // Nonce check: stored nonce must match claim (replay / token-swap guard).
-  // arctic's Twitch.createAuthorizationURL does not accept a nonce param, so
-  // the login route appended it manually and we verify it here.
-  if (storedNonce && claims.nonce !== storedNonce) throw redirect(302, '/login?e=state');
+// missingOpenidScope is the best-effort scope guard: when Twitch echoes the
+// granted scope, openid must be present. An absent scope field is not a hard
+// failure.
+function missingOpenidScope(claims: IdTokenClaims): boolean {
+  return !!claims.scope && !claims.scope.includes('openid');
+}
 
+// claimRejection returns the /login error slug for the first failed id_token
+// guard, or null when every guard passes.
+function claimRejection(claims: IdTokenClaims, storedNonce: string | undefined): string | null {
+  if (!audIssuerOk(claims)) return 'state';
+  if (nonceMismatch(claims, storedNonce)) return 'state';
   // A bot account landing here must not mint a streamer session (which would
   // drop it onto the user dashboard) or save a grant.
-  if (isBotAccount(claims.sub)) throw redirect(302, '/login?e=bot');
+  if (isBotAccount(claims.sub)) return 'bot';
+  if (missingOpenidScope(claims)) return 'scope';
+  return null;
+}
 
-  // Best-effort scope check: if Twitch echoes the granted scope, ensure
-  // openid is present. Don't hard-fail on absent scope field.
-  if (claims.scope && !claims.scope.includes('openid')) throw redirect(302, '/login?e=scope');
+// verifyClaims rejects a forged or substituted id_token, throwing the matching
+// login redirect on the first failed guard.
+function verifyClaims(claims: IdTokenClaims, storedNonce: string | undefined): void {
+  const rejected = claimRejection(claims, storedNonce);
+  if (rejected) throw redirect(302, `/login?e=${rejected}`);
 }
 
 function setSessionCookie(cookies: Cookies, url: URL, session: Parameters<typeof seal>[0]): void {
