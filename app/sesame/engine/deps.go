@@ -46,6 +46,10 @@ type Deps struct {
 	Commands CommandManager
 	Gateway  GatewayCaller
 	Log      *zap.Logger
+	// Timers arms/disarms a broadcaster's repeating chat-message timers for the
+	// length of one stream; ValkeyTimerStore is the default. nil disables it (the
+	// live module's stream.online/offline hooks skip the calls).
+	Timers TimersStore
 	// Automod is the inline chat guard. nil disables it; when set it inspects
 	// each chat line and the engine acts on or shadow-logs the verdict.
 	Automod *automod.Gate
@@ -96,6 +100,16 @@ type CooldownStore interface {
 type DedupStore interface {
 	Claim(ctx context.Context, key string) (bool, error)
 	Release(ctx context.Context, key string) error
+}
+
+// TimersStore arms and disarms a broadcaster's repeating chat-message timers
+// for the length of one stream. Both calls are fire-and-forget from the
+// caller's perspective (no error to act on): a failure is logged by the store
+// itself and, at worst, delays a timer starting or stopping until the next
+// stream event or expiry.
+type TimersStore interface {
+	ArmAll(ctx context.Context, broadcasterID uint64)
+	DisarmAll(ctx context.Context, broadcasterID uint64)
 }
 
 // NoopCooldown never gates: every call is allowed. Used in tests and when no

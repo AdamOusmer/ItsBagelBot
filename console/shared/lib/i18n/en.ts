@@ -38,6 +38,7 @@ export const en = {
     commands: 'Commands',
     modules: 'Modules',
     channelpoints: 'Channel Points',
+    timers: 'Timers',
     billing: 'Billing',
     settings: 'Settings'
   },
@@ -372,6 +373,46 @@ export const en = {
     toastSaveFailed: 'Could not save the reward.',
     toastDeleteFailed: 'Could not delete the reward.',
     toastToggleFailed: 'Could not update the reward.'
+  },
+
+  timers: {
+    eyebrow: 'Manage',
+    titlePre: 'Chat ',
+    titleEm: 'timers',
+    description: 'Messages the bot repeats on a schedule while you’re live — announcements, socials, reminders.',
+    degraded: 'Timers are temporarily unavailable. Try again shortly.',
+    botOn: 'Timers active',
+    botOnHint: 'Master switch: timers only run while this is on, and only while you’re live.',
+    newTimer: 'New timer',
+    inspector: 'Timer inspector',
+    inspectorIdle: 'Select a timer to edit it here, or create a new one.',
+    editing: 'Editing timer',
+    emptyTitle: 'No timers yet',
+    emptySub: 'Create one — it starts repeating the moment your stream goes live.',
+    chipInterval: 'every {n}',
+    hiddenTag: 'paused',
+    toggleAria: 'Pause or resume this timer',
+    deleteAria: 'Delete this timer',
+    // editor
+    fieldMessage: 'Message',
+    fieldMessagePh: 'e.g. Follow on socials: {link}',
+    fieldInterval: 'Repeat every',
+    fieldIntervalHint: 'Minimum 1 minute, maximum 24 hours.',
+    unitMinutes: 'minutes',
+    active: 'Active',
+    // actions + toasts
+    create: 'Create timer',
+    saveChanges: 'Save changes',
+    saving: 'Saving…',
+    deleteTitle: 'Delete this timer?',
+    deleteBody: 'This timer stops repeating immediately. This cannot be undone.',
+    del: 'Delete',
+    toastCreated: 'Timer created.',
+    toastSaved: 'Timer saved.',
+    toastDeleted: 'Timer deleted.',
+    toastSaveFailed: 'Could not save the timer.',
+    toastDeleteFailed: 'Could not delete the timer.',
+    toastToggleFailed: 'Could not update the timer.'
   },
 
   modules: {
