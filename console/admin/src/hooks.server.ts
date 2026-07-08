@@ -1,6 +1,8 @@
 import type { Handle, HandleServerError, ServerInit } from '@sveltejs/kit';
+import { redirect } from '@sveltejs/kit';
 import newrelic from 'newrelic';
 import { COOKIE, open } from '$lib/server/session';
+import { requireAdmin, isDemo } from '$lib/server/access';
 import { warm } from '@bagel/shared/server/nats';
 import { registerServerConfig } from '@bagel/shared/server/config';
 import { rumTransform } from '@bagel/shared/server/rum';
@@ -45,10 +47,38 @@ export const init: ServerInit = async () => {
   startInvalidationListener();
 };
 
-// Session + the security headers SvelteKit's CSP config does not own.
+// Login/OAuth flow and probes stay reachable without a staff session; every
+// other route is gated below.
+const PUBLIC_PREFIXES = ['/auth', '/login', '/healthz', '/readyz'];
+
+function isPublic(pathname: string): boolean {
+  return PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + '/'));
+}
+
+// Session + staff gate + the security headers SvelteKit's CSP config does not
+// own.
 export const handle: Handle = async ({ event, resolve }) => {
   const cookie = event.cookies.get(COOKIE);
   event.locals.session = cookie ? open(cookie) : null;
+  // Expired/invalid cookie: drop it eagerly so the browser stops replaying it.
+  if (cookie && !event.locals.session) {
+    event.cookies.delete(COOKIE, { path: '/', secure: event.url.protocol === 'https:' });
+  }
+
+  // Staff gate for every non-public request — form actions and +server.ts
+  // endpoints included, which layout loads never cover. The per-route
+  // requireAdmin checks stay as defense in depth; this hook makes "session
+  // exists but is no longer active staff" die at the door (adminCheck is
+  // fabric-cached and push-invalidated on the staff scope, so a roster change
+  // revokes access on every replica within one request). requireAdmin fails
+  // closed on an auth-service outage, matching the per-route posture.
+  if (!isDemo() && !isPublic(event.url.pathname)) {
+    if (event.locals.session && !(await requireAdmin(event.locals.session))) {
+      event.cookies.delete(COOKIE, { path: '/', secure: event.url.protocol === 'https:' });
+      event.locals.session = null;
+      throw redirect(303, '/login?e=denied');
+    }
+  }
 
   // New Relic: name the web transaction by SvelteKit route (not the raw URL, so
   // per-id paths group), and tag it with request/session context for faceting.
