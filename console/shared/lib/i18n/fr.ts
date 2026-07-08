@@ -76,6 +76,7 @@ export const fr = {
     noticeBanned: 'Ce compte ne peut plus utiliser la console.',
     noticeLink: 'Ce lien de partage n\'est plus valide. Demandez un nouveau lien au diffuseur.',
     noticeRetry: 'La connexion n\'a pas abouti. Rien n\'a été sauvegardé. Veuillez réessayer.',
+    noticeImpersonation: 'Ce lien d\'aperçu n\'est plus valide ou a déjà été utilisé. Générez-en un nouveau depuis la console d\'administration.',
     back: 'Retour à itsbagelbot.com',
     consent: 'J\'accepte les <a href="https://itsbagelbot.com/terms" target="_blank">Conditions</a> et la <a href="https://itsbagelbot.com/privacy" target="_blank">Politique de confidentialité</a>'
   },
