@@ -750,6 +750,17 @@ func buildOutgress(o *module.Output) ([]byte, error) {
 			BroadcasterID: o.BroadcasterID,
 			Payload:       payload,
 		}
+	case outgress.TypeRedemptionUpdate:
+		// Update Redemption Status takes everything on the query string / a small
+		// body outgress builds; reward id, redemption id and target status ride
+		// dedicated Message fields.
+		msg = outgress.Message{
+			Type:          outgress.TypeRedemptionUpdate,
+			BroadcasterID: o.BroadcasterID,
+			RewardID:      o.RewardID,
+			RedemptionID:  o.RedemptionID,
+			Status:        o.Status,
+		}
 	default:
 		msg = outgress.Message{
 			Type:          o.Type,

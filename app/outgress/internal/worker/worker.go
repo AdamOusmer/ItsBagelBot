@@ -231,6 +231,9 @@ type wireMessage struct {
 	Color         string                 `json:"color,omitempty"`
 	To            string                 `json:"to,omitempty"`
 	MsgID         string                 `json:"msg_id,omitempty"`
+	RewardID      string                 `json:"reward_id,omitempty"`
+	RedemptionID  string                 `json:"redemption_id,omitempty"`
+	Status        string                 `json:"status,omitempty"`
 }
 
 // PrepareJSON compiles Sonic's decoders during startup rather than on the first
@@ -252,6 +255,7 @@ func decodeMessage(data []byte, destination *outgress.Message) error {
 		Type: wire.Type, BroadcasterID: wire.BroadcasterID, SenderID: wire.SenderID,
 		Endpoint: wire.Endpoint, Method: wire.Method, Payload: json.RawMessage(wire.Payload),
 		As: wire.As, Color: wire.Color, To: wire.To, MsgID: wire.MsgID,
+		RewardID: wire.RewardID, RedemptionID: wire.RedemptionID, Status: wire.Status,
 	}
 	return nil
 }
@@ -305,6 +309,13 @@ func (w *Worker) Process(msg *message.Message) error {
 
 	if payload.Type == outgress.TypeStreamStatus {
 		return w.processStreamStatus(ctx, payload)
+	}
+
+	// Channel-points redemption resolution runs under the broadcaster token and
+	// pays the general Helix budget, so it is handled before the endpoint-routed
+	// path (it carries no endpoint of its own).
+	if payload.Type == outgress.TypeRedemptionUpdate {
+		return w.processRedemptionUpdate(ctx, payload)
 	}
 
 	// Helix path: "chat", "api", and the mapped intents (ban, unban, ad, clip…).
@@ -797,6 +808,8 @@ func (w *Worker) processEventSub(ctx context.Context, payload outgress.Message) 
 		return w.disableChannel(ctx, payload.BroadcasterID, conduitID)
 	case outgress.ModeReconnect:
 		return w.reconnectEventSubs(ctx, payload.BroadcasterID, conduitID)
+	case outgress.ModeEnsureOptional:
+		return w.ensureOptionalEventSubs(ctx, payload.BroadcasterID, conduitID)
 	default:
 		w.log.Error("dropping eventsub job with unknown mode",
 			zap.String("mode", mode),
@@ -852,6 +865,51 @@ func (w *Worker) processStreamStatus(ctx context.Context, payload outgress.Messa
 	w.log.Debug("stream_status resolved",
 		zap.String("broadcaster_id", payload.BroadcasterID), zap.Bool("live", isLive))
 	return nil
+}
+
+// processRedemptionUpdate resolves one channel-points redemption (Helix Update
+// Redemption Status) as the broadcaster: it marks the redemption FULFILLED or
+// CANCELED after sesame ran the reward's action. It pays the general Helix budget
+// under the broadcaster's own user bucket. Twitch only allows updating a redemption
+// still in the UNFULFILLED state, so a redemption already resolved (by a mod, or a
+// skip-queue reward) returns a 4xx that is dropped, not retried.
+func (w *Worker) processRedemptionUpdate(ctx context.Context, payload outgress.Message) error {
+	if payload.BroadcasterID == "" || payload.RewardID == "" || payload.RedemptionID == "" {
+		w.log.Error("dropping redemption update: missing ids",
+			zap.String("broadcaster_id", payload.BroadcasterID),
+			zap.String("reward_id", payload.RewardID))
+		return nil
+	}
+	status := payload.Status
+	if status != outgress.RedemptionFulfilled && status != outgress.RedemptionCanceled {
+		w.log.Error("dropping redemption update: bad status",
+			zap.String("broadcaster_id", payload.BroadcasterID),
+			zap.String("status", status))
+		return nil
+	}
+
+	payload.As = outgress.AsBroadcaster
+	if err := w.takeGeneralHelix(ctx, payload); err != nil {
+		return err
+	}
+
+	err := w.twitch.UpdateRedemptionStatus(ctx, payload.BroadcasterID, payload.RewardID, payload.RedemptionID, status)
+	if err == nil {
+		return nil
+	}
+	if isPermanent(err) || errors.Is(err, twitch.ErrMissingScope) || errors.Is(err, twitch.ErrNoUserToken) {
+		w.log.Warn("dropping redemption update: permanent rejection",
+			zap.String("broadcaster_id", payload.BroadcasterID),
+			zap.String("reward_id", payload.RewardID),
+			zap.Error(err))
+		if txn := newrelic.FromContext(ctx); txn != nil {
+			txn.NoticeError(err)
+		}
+		return nil
+	}
+	w.log.Warn("redemption update failed, will retry",
+		zap.String("broadcaster_id", payload.BroadcasterID), zap.Error(err))
+	return err
 }
 
 // HandleStreamEvent reacts to a real Twitch stream.online / stream.offline
@@ -1140,6 +1198,61 @@ func (w *Worker) createAllEventSubs(ctx context.Context, broadcasterID, conduitI
 		}
 	}
 
+	// Optional subs (channel-points redemption) are best-effort: a non-affiliate
+	// or an unconsented channel makes them permanently fail, which must not fail
+	// the mandatory enroll. A transient error IS returned so the enroll retries.
+	return w.createOptionalEventSubs(ctx, broadcasterID, conduitID)
+}
+
+// createOptionalEventSubs creates the optional subscriptions, tolerating a
+// permanent rejection (403 non-affiliate, 401 unconsented) by logging and moving
+// on. A transient error is returned so the caller retries. Returns nil once every
+// optional sub is either created (202/409) or permanently rejected.
+func (w *Worker) createOptionalEventSubs(ctx context.Context, broadcasterID, conduitID string) error {
+	for _, spec := range twitch.ChannelOptionalSubscriptions(broadcasterID) {
+		if err := w.takeSystemHelix(ctx); err != nil {
+			return err
+		}
+		if err := w.twitch.CreateEventSub(ctx, spec, conduitID); err != nil {
+			if isPermanent(err) {
+				w.log.Info("optional eventsub not available for channel, skipping",
+					zap.String("broadcaster_id", broadcasterID),
+					zap.String("subscription", spec.Type),
+					zap.Error(err))
+				continue
+			}
+			w.conduit.Invalidate()
+			return fmt.Errorf("create optional %s: %w", spec.Type, err)
+		}
+	}
+	return nil
+}
+
+// ensureOptionalEventSubs creates only the optional subscriptions for a channel
+// that is already enrolled, so a broadcaster who re-consents with the redemption
+// scope picks up the redemption sub without a full drop-and-recreate. It takes
+// the enroll lock (single-flight with any concurrent enroll/reconnect) and leaves
+// the persisted sub_state untouched — the mandatory enroll owns that health
+// signal. Best-effort: a permanent failure is tolerated inside
+// createOptionalEventSubs, a transient one is retried by lane redelivery.
+func (w *Worker) ensureOptionalEventSubs(ctx context.Context, broadcasterID, conduitID string) error {
+	got, err := w.registry.AcquireEnrollLock(ctx, broadcasterID, w.owner, 60*time.Second)
+	if err != nil {
+		return err
+	}
+	if !got {
+		w.log.Info("ensure-optional skipped: enroll in progress on another replica",
+			zap.String("broadcaster_id", broadcasterID))
+		return nil
+	}
+	defer func() { _ = w.registry.ReleaseEnrollLock(ctx, broadcasterID, w.owner) }()
+
+	if err := w.createOptionalEventSubs(ctx, broadcasterID, conduitID); err != nil {
+		w.log.Warn("ensure-optional eventsubs failed, will retry",
+			zap.String("broadcaster_id", broadcasterID), zap.Error(err))
+		return err
+	}
+	w.log.Info("optional eventsubs ensured", zap.String("broadcaster_id", broadcasterID))
 	return nil
 }
 
