@@ -56,53 +56,27 @@ type goveeConfig struct {
 // name like "blue" or a hex like "#00ccff"), drives the light through the
 // gateway's govee provider, and resolves the redemption in Twitch's queue.
 func Govee(d engine.Deps) module.Module {
-	log := d.Log
-	if log == nil {
-		log = zap.NewNop()
-	}
 	m := module.NewModule(goveeModuleName, module.KindOptIn)
-	m.On(redemptionAddType, goveeRedemption(d, log))
+	m.On(redemptionAddType, goveeRedemption(d))
 	return m.Build()
 }
 
 // goveeRedemption builds the redemption handler. It short-circuits to nil for
 // anything that is not this module's configured reward, so an unconfigured or
 // unrelated redemption costs one decode and nothing else.
-func goveeRedemption(d engine.Deps, log *zap.Logger) module.EventHandler {
+func goveeRedemption(d engine.Deps) module.EventHandler {
 	return func(ctx context.Context, c *module.Context, emit module.Emit) error {
 		if d.Gateway == nil || d.Live == nil {
 			return nil
 		}
-
-		var cfg goveeConfig
-		_ = c.Decode(&cfg)
-		if cfg.RewardID == "" || cfg.Device == "" || cfg.SKU == "" || len(c.Env.Event) == 0 {
+		cfg, ev, ok := decodeGoveeRedemption(c)
+		if !ok {
 			return nil
 		}
-
-		var ev redemptionEvent
-		if err := json.Unmarshal(c.Env.Event, &ev); err != nil {
-			return err
-		}
-		if ev.Reward.ID != cfg.RewardID || ev.BroadcasterUserID == "" {
+		if !goveeLivePermits(ctx, d, cfg, c.BroadcasterID) {
+			goveeRefund(emit, ev, "the lights only change while live, your points were refunded")
 			return nil
 		}
-
-		// Live-only is the default and safe posture; a broadcaster can opt out
-		// (allowOffline, gated behind a dashboard warning) to test off-stream.
-		// When enforced, a live-check error counts as "not confirmably live" so a
-		// transient projector hiccup refunds rather than driving lights off-stream.
-		if !cfg.AllowOffline {
-			live, err := d.Live.IsLive(ctx, c.BroadcasterID)
-			if err != nil || !live {
-				if err != nil {
-					log.Warn("govee: live check failed, refunding", zap.Uint64("broadcaster_id", c.BroadcasterID), zap.Error(err))
-				}
-				goveeRefund(emit, ev, "the lights only change while live, your points were refunded")
-				return nil
-			}
-		}
-
 		rgb, ok := parseColor(ev.UserInput)
 		if !ok {
 			goveeRefund(emit, ev, "didn't recognize that colour, your points were refunded (try a name like blue, or a hex like #00ccff)")
@@ -110,13 +84,12 @@ func goveeRedemption(d engine.Deps, log *zap.Logger) module.EventHandler {
 		}
 
 		var reply gatewayrpc.GoveeControlReply
-		err := d.Gateway.Call(ctx, "govee", "control", gatewayrpc.Request{
+		if err := d.Gateway.Call(ctx, "govee", "control", gatewayrpc.Request{
 			ChannelID: ev.BroadcasterUserID,
 			Device:    cfg.Device,
 			SKU:       cfg.SKU,
 			ColorRGB:  rgb,
-		}, &reply)
-		if err != nil {
+		}, &reply); err != nil {
 			goveeRefund(emit, ev, goveeFailureMessage(err))
 			return nil
 		}
@@ -125,6 +98,57 @@ func goveeRedemption(d engine.Deps, log *zap.Logger) module.EventHandler {
 		emitRedemptionStatus(emit, ev, goveeSuccessStatus(cfg.OnRedeem))
 		return nil
 	}
+}
+
+// decodeGoveeRedemption decodes the module config and the redemption event, and
+// reports ok=false for anything that is not this module's configured reward: an
+// unconfigured module, a non-redemption envelope, or a different reward id. The
+// checks are kept as separate single conditions for readability.
+func decodeGoveeRedemption(c *module.Context) (goveeConfig, redemptionEvent, bool) {
+	var cfg goveeConfig
+	_ = c.Decode(&cfg)
+	if !goveeConfigured(cfg) || len(c.Env.Event) == 0 {
+		return cfg, redemptionEvent{}, false
+	}
+	var ev redemptionEvent
+	if err := json.Unmarshal(c.Env.Event, &ev); err != nil {
+		return cfg, ev, false
+	}
+	if ev.Reward.ID != cfg.RewardID || ev.BroadcasterUserID == "" {
+		return cfg, ev, false
+	}
+	return cfg, ev, true
+}
+
+// goveeConfigured reports whether the module has a complete binding (reward +
+// device). Written as sequential checks to avoid a compound conditional.
+func goveeConfigured(cfg goveeConfig) bool {
+	if cfg.RewardID == "" {
+		return false
+	}
+	if cfg.Device == "" {
+		return false
+	}
+	return cfg.SKU != ""
+}
+
+// goveeLivePermits reports whether the redemption may drive the lights now.
+// Live-only is the default, safe posture; a broadcaster can opt out
+// (allowOffline, gated behind a dashboard warning) to test off-stream. When
+// enforced, a live-check error counts as "not confirmably live" so a transient
+// projector hiccup refunds rather than driving lights off-stream.
+func goveeLivePermits(ctx context.Context, d engine.Deps, cfg goveeConfig, broadcasterID uint64) bool {
+	if cfg.AllowOffline {
+		return true
+	}
+	live, err := d.Live.IsLive(ctx, broadcasterID)
+	if err != nil {
+		if d.Log != nil {
+			d.Log.Warn("govee: live check failed, refunding", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
+		}
+		return false
+	}
+	return live
 }
 
 // goveeFailureMessage turns a gateway failure into a chat-safe reason. A

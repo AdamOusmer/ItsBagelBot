@@ -15,6 +15,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"strings"
 	"time"
 
@@ -44,6 +45,9 @@ const (
 	defaultRateLimit  = 8.0
 
 	apiKeyHeader = "Govee-API-Key"
+
+	devicesPath = "/router/api/v1/user/devices"
+	controlPath = "/router/api/v1/device/control"
 
 	powerCapabilityType = "devices.capabilities.on_off"
 	powerInstance       = "powerSwitch"
@@ -151,11 +155,12 @@ func (p *Provider) devices(ctx context.Context, req gatewayrpc.Request) any {
 		return core.BuildReply(ctx, devicesTTL, negativeTTL,
 			func(ctx context.Context) (any, error) {
 				var resp deviceListResponse
-				if err := p.http.GetJSONWithHeaders(ctx, "/router/api/v1/user/devices", nil, map[string]string{apiKeyHeader: key}, &resp); err != nil {
+				req := core.Request{Method: http.MethodGet, Path: devicesPath, Headers: authHeader(key)}
+				if err := p.http.Do(ctx, req, &resp); err != nil {
 					return nil, err
 				}
-				if resp.Code != 0 && resp.Code != 200 {
-					return nil, &core.UpstreamError{Status: resp.Code, Message: resp.Message}
+				if err := goveeCodeError(resp.Code, resp.Message); err != nil {
+					return nil, err
 				}
 				return buildDevicesReply(resp), nil
 			},
@@ -219,52 +224,99 @@ type controlResponse struct {
 }
 
 func (p *Provider) control(ctx context.Context, req gatewayrpc.Request) any {
+	if msg := validateControlInput(req); msg != "" {
+		return gatewayrpc.GoveeControlReply{Error: msg}
+	}
 	broadcaster := strings.TrimSpace(req.ChannelID)
-	device := strings.TrimSpace(req.Device)
-	sku := strings.TrimSpace(req.SKU)
-	if broadcaster == "" || device == "" || sku == "" {
-		return gatewayrpc.GoveeControlReply{Error: "missing device"}
-	}
-	if req.ColorRGB < 0 || req.ColorRGB > 0xFFFFFF {
-		return gatewayrpc.GoveeControlReply{Error: "colour out of range"}
-	}
 
-	key, err := p.resolveKey(ctx, broadcaster)
-	if err != nil {
-		p.log.Warn("govee key resolve failed", zap.String("broadcaster", broadcaster), zap.Error(err))
-		return gatewayrpc.GoveeControlReply{Error: "could not read your Govee key"}
+	key, msg := p.controlKey(ctx, broadcaster)
+	if msg != "" {
+		return gatewayrpc.GoveeControlReply{Error: msg}
 	}
-	if key == "" {
-		return gatewayrpc.GoveeControlReply{Error: "no Govee API key on file"}
-	}
-
-	// One redemption is one action against the broadcaster's own key budget,
-	// even though it costs two upstream calls; enforce once, per broadcaster.
-	buckets := core.NewBuckets("ratelimit:gateway:govee:"+broadcaster, p.rateLimit, rateWindowSeconds)
-	if err := buckets.Enforce(ctx, p.deps.Limiter, true); err != nil {
+	if err := p.enforceRate(ctx, broadcaster); err != nil {
 		return gatewayrpc.GoveeControlReply{Error: friendlyControlError(err)}
 	}
 
-	headers := map[string]string{apiKeyHeader: key}
-	if err := p.sendCapability(ctx, headers, sku, device, powerCapabilityType, powerInstance, 1); err != nil {
-		p.log.Warn("govee power on failed", zap.String("broadcaster", broadcaster), zap.Error(err))
-		return gatewayrpc.GoveeControlReply{Error: friendlyControlError(err)}
-	}
-	if err := p.sendCapability(ctx, headers, sku, device, colorCapabilityType, colorInstance, req.ColorRGB); err != nil {
-		p.log.Warn("govee set colour failed", zap.String("broadcaster", broadcaster), zap.Error(err))
-		return gatewayrpc.GoveeControlReply{Error: friendlyControlError(err)}
+	target := goveeTarget{http: p.http, headers: authHeader(key), sku: strings.TrimSpace(req.SKU), device: strings.TrimSpace(req.Device)}
+	for _, step := range controlSteps(req.ColorRGB) {
+		if err := target.set(ctx, step.capType, step.instance, step.value); err != nil {
+			p.log.Warn("govee control step failed", zap.String("broadcaster", broadcaster), zap.String("capability", step.capType), zap.Error(err))
+			return gatewayrpc.GoveeControlReply{Error: friendlyControlError(err)}
+		}
 	}
 	return gatewayrpc.GoveeControlReply{OK: true}
 }
 
-// sendCapability posts one Govee capability set (power, colour) and verifies
-// both the HTTP status (via core) and the API-level code in the body.
-func (p *Provider) sendCapability(ctx context.Context, headers map[string]string, sku, device, capType, instance string, value any) error {
+// validateControlInput returns a reply error message for a malformed control
+// request, or "" when it is well-formed. Splitting the checks keeps any single
+// condition simple.
+func validateControlInput(req gatewayrpc.Request) string {
+	if strings.TrimSpace(req.ChannelID) == "" {
+		return "missing channel"
+	}
+	if strings.TrimSpace(req.Device) == "" || strings.TrimSpace(req.SKU) == "" {
+		return "missing device"
+	}
+	if req.ColorRGB < 0 || req.ColorRGB > 0xFFFFFF {
+		return "colour out of range"
+	}
+	return ""
+}
+
+// controlKey resolves the broadcaster's key, returning ("", msg) with a
+// chat-safe reason when it cannot be used.
+func (p *Provider) controlKey(ctx context.Context, broadcaster string) (key, msg string) {
+	key, err := p.resolveKey(ctx, broadcaster)
+	if err != nil {
+		p.log.Warn("govee key resolve failed", zap.String("broadcaster", broadcaster), zap.Error(err))
+		return "", "could not read your Govee key"
+	}
+	if key == "" {
+		return "", "no Govee API key on file"
+	}
+	return key, ""
+}
+
+// enforceRate spends one action from the broadcaster's own key budget. One
+// redemption is one action even though control costs two upstream calls.
+func (p *Provider) enforceRate(ctx context.Context, broadcaster string) error {
+	buckets := core.NewBuckets("ratelimit:gateway:govee:"+broadcaster, p.rateLimit, rateWindowSeconds)
+	return buckets.Enforce(ctx, p.deps.Limiter, true)
+}
+
+// controlStep is one capability set in a control sequence.
+type controlStep struct {
+	capType  string
+	instance string
+	value    any
+}
+
+// controlSteps is the ordered capability sequence one redemption runs: power on,
+// then set the colour.
+func controlSteps(rgb int) []controlStep {
+	return []controlStep{
+		{powerCapabilityType, powerInstance, 1},
+		{colorCapabilityType, colorInstance, rgb},
+	}
+}
+
+// goveeTarget is one device to drive under one broadcaster's key, so setting a
+// capability needs only the capability itself.
+type goveeTarget struct {
+	http    *core.HTTPClient
+	headers map[string]string
+	sku     string
+	device  string
+}
+
+// set posts one Govee capability and verifies both the HTTP status (via core)
+// and the API-level code in the body.
+func (t goveeTarget) set(ctx context.Context, capType, instance string, value any) error {
 	body, err := json.Marshal(controlRequest{
 		RequestID: uuid.NewString(),
 		Payload: controlPayload{
-			SKU:        sku,
-			Device:     device,
+			SKU:        t.sku,
+			Device:     t.device,
 			Capability: controlCapability{Type: capType, Instance: instance, Value: value},
 		},
 	})
@@ -272,13 +324,25 @@ func (p *Provider) sendCapability(ctx context.Context, headers map[string]string
 		return err
 	}
 	var resp controlResponse
-	if err := p.http.PostJSON(ctx, "/router/api/v1/device/control", headers, body, &resp); err != nil {
+	req := core.Request{Method: http.MethodPost, Path: controlPath, Headers: t.headers, Body: body}
+	if err := t.http.Do(ctx, req, &resp); err != nil {
 		return err
 	}
-	if resp.Code != 0 && resp.Code != 200 {
-		return &core.UpstreamError{Status: resp.Code, Message: resp.Message}
+	return goveeCodeError(resp.Code, resp.Message)
+}
+
+// goveeCodeError maps Govee's API-level status code (which can report failure
+// even on an HTTP 200) to an *UpstreamError; 0 and 200 are success.
+func goveeCodeError(code int, message string) error {
+	if code != 0 && code != 200 {
+		return &core.UpstreamError{Status: code, Message: message}
 	}
 	return nil
+}
+
+// authHeader is the per-request Govee key header.
+func authHeader(key string) map[string]string {
+	return map[string]string{apiKeyHeader: key}
 }
 
 // friendlyControlError maps an upstream failure to a short chat-safe message.

@@ -46,30 +46,40 @@ func parseColor(input string) (rgb int, ok bool) {
 	return parseHexColor(strings.TrimPrefix(s, "#"))
 }
 
-// parseHexColor reads a 6- or 3-digit hex colour (no leading '#'). The 3-digit
-// form doubles each nibble ("f80" -> "ff8800"), matching CSS.
+// parseHexColor reads a 6- or 3-digit hex colour (no leading '#'). Each length
+// has its own parser so this stays a flat dispatch.
 func parseHexColor(hex string) (int, bool) {
 	switch len(hex) {
 	case 6:
-		v, err := strconv.ParseInt(hex, 16, 32)
-		if err != nil {
-			return 0, false
-		}
-		return int(v), true
+		return parseHex6(hex)
 	case 3:
-		var v int
-		for _, r := range hex {
-			d, err := strconv.ParseInt(string(r), 16, 16)
-			if err != nil {
-				return 0, false
-			}
-			// Double the nibble into a full byte, then shift the value up.
-			v = v<<8 | int(d)<<4 | int(d)
-		}
-		return v, true
+		return parseHex3(hex)
 	default:
 		return 0, false
 	}
+}
+
+// parseHex6 reads a full "rrggbb" hex colour.
+func parseHex6(hex string) (int, bool) {
+	v, err := strconv.ParseInt(hex, 16, 32)
+	if err != nil {
+		return 0, false
+	}
+	return int(v), true
+}
+
+// parseHex3 reads the "rgb" short form, doubling each nibble into a full byte
+// ("f80" -> "ff8800"), matching CSS.
+func parseHex3(hex string) (int, bool) {
+	var v int
+	for _, r := range hex {
+		d, err := strconv.ParseInt(string(r), 16, 16)
+		if err != nil {
+			return 0, false
+		}
+		v = v<<8 | int(d)<<4 | int(d)
+	}
+	return v, true
 }
 
 // colorNames returns the named colours a viewer may type, for the reward prompt

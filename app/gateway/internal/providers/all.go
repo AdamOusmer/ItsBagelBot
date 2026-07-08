@@ -14,9 +14,10 @@ import (
 	"go.uber.org/zap"
 )
 
-// All builds every configured provider, in registration order. A provider
-// missing its credentials is skipped with a warning: its subjects then simply
-// time out at the caller, the same failure mode as the upstream being down.
+// All builds every configured provider, in registration order. Each append*
+// helper adds its provider when configured or logs why it is skipped; a skipped
+// provider's subjects simply time out at the caller, the same failure mode as
+// the upstream being down.
 func All(cfg *config.Config, d provider.Deps) []provider.Provider {
 	log := d.Log
 	if log == nil {
@@ -24,50 +25,61 @@ func All(cfg *config.Config, d provider.Deps) []provider.Provider {
 	}
 
 	var out []provider.Provider
-
-	if cfg.UrchinAPIKey != "" {
-		out = append(out, urchin.New(urchin.Config{
-			BaseURL:   cfg.UrchinBaseURL,
-			APIKey:    cfg.UrchinAPIKey,
-			RateLimit: cfg.UrchinRateLimit,
-		}, d))
-	} else {
-		log.Warn("urchin provider disabled: URCHIN_API_KEY not set")
-	}
-
-	if cfg.HypixelAPIKey != "" {
-		out = append(out, hypixel.New(hypixel.Config{
-			BaseURL:       cfg.HypixelBaseURL,
-			MojangBaseURL: cfg.MojangBaseURL,
-			APIKey:        cfg.HypixelAPIKey,
-			RateLimit:     cfg.HypixelRateLimit,
-		}, d))
-	} else {
-		log.Warn("hypixel provider disabled: HYPIXEL_API_KEY not set (!bwstats will not answer)")
-	}
-
-	if cfg.McsrEnabled {
-		out = append(out, mcsr.New(mcsr.Config{
-			BaseURL:   cfg.McsrBaseURL,
-			APIKey:    cfg.McsrAPIKey,
-			RateLimit: cfg.McsrRateLimit,
-		}, d))
-	} else {
-		log.Warn("mcsr provider disabled: MCSR_ENABLED=false")
-	}
-
-	// The govee provider needs no service key — each broadcaster brings their
-	// own — but it does need the key resolver to fetch them. Without it (the
-	// modules internal key RPC unwired) there is nothing to authenticate with,
-	// so it is skipped like any credential-less provider.
-	if d.GoveeKeys != nil {
-		out = append(out, govee.New(govee.Config{
-			BaseURL:   cfg.GoveeBaseURL,
-			RateLimit: cfg.GoveeRateLimit,
-		}, d))
-	} else {
-		log.Warn("govee provider disabled: no key resolver (modules govee RPC unwired)")
-	}
-
+	out = appendUrchin(out, cfg, d, log)
+	out = appendHypixel(out, cfg, d, log)
+	out = appendMcsr(out, cfg, d, log)
+	out = appendGovee(out, cfg, d, log)
 	return out
+}
+
+func appendUrchin(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {
+	if cfg.UrchinAPIKey == "" {
+		log.Warn("urchin provider disabled: URCHIN_API_KEY not set")
+		return out
+	}
+	return append(out, urchin.New(urchin.Config{
+		BaseURL:   cfg.UrchinBaseURL,
+		APIKey:    cfg.UrchinAPIKey,
+		RateLimit: cfg.UrchinRateLimit,
+	}, d))
+}
+
+func appendHypixel(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {
+	if cfg.HypixelAPIKey == "" {
+		log.Warn("hypixel provider disabled: HYPIXEL_API_KEY not set (!bwstats will not answer)")
+		return out
+	}
+	return append(out, hypixel.New(hypixel.Config{
+		BaseURL:       cfg.HypixelBaseURL,
+		MojangBaseURL: cfg.MojangBaseURL,
+		APIKey:        cfg.HypixelAPIKey,
+		RateLimit:     cfg.HypixelRateLimit,
+	}, d))
+}
+
+func appendMcsr(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {
+	if !cfg.McsrEnabled {
+		log.Warn("mcsr provider disabled: MCSR_ENABLED=false")
+		return out
+	}
+	return append(out, mcsr.New(mcsr.Config{
+		BaseURL:   cfg.McsrBaseURL,
+		APIKey:    cfg.McsrAPIKey,
+		RateLimit: cfg.McsrRateLimit,
+	}, d))
+}
+
+// appendGovee adds the govee provider. It needs no service key — each
+// broadcaster brings their own — but it does need the key resolver to fetch
+// them; without it (the modules internal key RPC unwired) there is nothing to
+// authenticate with, so it is skipped like any credential-less provider.
+func appendGovee(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {
+	if d.GoveeKeys == nil {
+		log.Warn("govee provider disabled: no key resolver (modules govee RPC unwired)")
+		return out
+	}
+	return append(out, govee.New(govee.Config{
+		BaseURL:   cfg.GoveeBaseURL,
+		RateLimit: cfg.GoveeRateLimit,
+	}, d))
 }

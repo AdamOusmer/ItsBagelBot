@@ -13,30 +13,51 @@ import (
 	"ItsBagelBot/app/modules/repository"
 	goveerpc "ItsBagelBot/internal/domain/rpc/govee"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/env"
 )
 
-// SubscribeGovee wires the Govee API-key custody RPCs. The dashboard verbs
-// (set/clear/status) run under dashPrefix and never echo the key; the internal
-// decrypt verb runs at internalPrefix+".get" and is account-scoped to the
-// gateway, the one service that dials Govee — the same split the users service
-// uses for tokens and contact email.
-func SubscribeGovee(nc *nats.Conn, creds *repository.GoveeCreds, dashPrefix, internalPrefix, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
-	g := &goveeRPC{creds: creds, log: log}
+// goveeWiring bundles what wireGovee needs beyond the subject prefixes (which it
+// reads from the environment itself): the RPC connection, the credential store,
+// the shared queue group, and the New Relic app + logger.
+type goveeWiring struct {
+	nc         *nats.Conn
+	creds      *repository.GoveeCreds
+	queueGroup string
+	app        *newrelic.Application
+	log        *zap.Logger
+}
+
+// wireGovee subscribes the Govee API-key custody RPCs. The dashboard verbs
+// (set/clear/status) never echo the key; the internal decrypt verb is
+// account-scoped to the gateway, the one service that dials Govee — the same
+// split the users service uses for tokens and contact email. It is a no-op when
+// key custody is disabled (nil store).
+func wireGovee(w goveeWiring) error {
+	if w.creds == nil {
+		return nil
+	}
+	dash := env.Get("NATS_MODULES_GOVEE_SUBJECT_PREFIX", "bagel.rpc.modules.govee")
+	internal := env.Get("NATS_INTERNAL_GOVEE_KEY_SUBJECT_PREFIX", "bagel.rpc.internal.govee.key")
+	g := &goveeRPC{creds: w.creds, log: w.log}
 
 	if err := bus.QueueSubscribeJSON[goveerpc.KeySetRequest, goveerpc.KeyMutateReply](
-		nc, dashPrefix+".set", queueGroup, 3*time.Second, app, log, g.handleSet); err != nil {
+		w.nc, dash+".set", w.queueGroup, 3*time.Second, w.app, w.log, g.handleSet); err != nil {
 		return err
 	}
 	if err := bus.QueueSubscribeJSON[goveerpc.KeyClearRequest, goveerpc.KeyMutateReply](
-		nc, dashPrefix+".clear", queueGroup, 3*time.Second, app, log, g.handleClear); err != nil {
+		w.nc, dash+".clear", w.queueGroup, 3*time.Second, w.app, w.log, g.handleClear); err != nil {
 		return err
 	}
 	if err := bus.QueueSubscribeJSON[goveerpc.KeyStatusRequest, goveerpc.KeyStatusReply](
-		nc, dashPrefix+".status", queueGroup, 3*time.Second, app, log, g.handleStatus); err != nil {
+		w.nc, dash+".status", w.queueGroup, 3*time.Second, w.app, w.log, g.handleStatus); err != nil {
 		return err
 	}
-	return bus.QueueSubscribeJSON[goveerpc.KeyGetRequest, goveerpc.KeyGetReply](
-		nc, internalPrefix+".get", queueGroup, 3*time.Second, app, log, g.handleGet)
+	if err := bus.QueueSubscribeJSON[goveerpc.KeyGetRequest, goveerpc.KeyGetReply](
+		w.nc, internal+".get", w.queueGroup, 3*time.Second, w.app, w.log, g.handleGet); err != nil {
+		return err
+	}
+	w.log.Info("govee key custody enabled", zap.String("dashboard_prefix", dash))
+	return nil
 }
 
 type goveeRPC struct {

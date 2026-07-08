@@ -14,8 +14,9 @@
 //     binding (device + reward id + success policy) stored in the "govee" module
 //     blob and read by sesame's govee module.
 //
-// A redemption is driven by sesame: it live-gates, parses the colour and calls
-// the gateway. This store only sets things up.
+// The per-broadcaster operations are bound to a broadcaster by `goveeStore(id)`,
+// which returns them as methods closing over the id, so no operation repeats it
+// as an argument. A redemption is driven by sesame; this store only sets up.
 import { rpc } from '@bagel/shared/server/nats';
 import { SUB, publishEventSubEnsureOptional } from './services';
 import { listModules, upsertModule } from './commands-store';
@@ -45,8 +46,8 @@ export interface GoveeReward {
   cost: number;
 }
 
-// GoveeBinding is the module blob shape. device/sku/onRedeem/rewardId are the
-// fields sesame reads; reward is the dashboard-only display mirror.
+// GoveeBinding is the module blob shape. device/sku/onRedeem/rewardId/allowOffline
+// are the fields sesame reads; reward is the dashboard-only display mirror.
 export interface GoveeBinding {
   device: string;
   sku: string;
@@ -65,6 +66,13 @@ export interface GoveeView {
   binding: GoveeBinding;
 }
 
+// RewardDraft is the reward's editable shape, bundled so a save is one argument.
+export interface RewardDraft {
+  title: string;
+  cost: number;
+  onRedeem: GoveeOnRedeem;
+}
+
 export type GoveeResult = { ok: true } | { ok: false; missingScope?: boolean; error?: string };
 
 function blankBinding(): GoveeBinding {
@@ -75,7 +83,7 @@ function coerceOnRedeem(v: unknown): GoveeOnRedeem {
   return v === 'cancel' || v === 'leave' ? v : 'fulfill';
 }
 
-// readBinding pulls the "govee" module row and normalizes its blob.
+// readBinding coerces a stored "govee" module blob into a normalized binding.
 function readBinding(configs: unknown): GoveeBinding {
   const c = (configs ?? {}) as Partial<GoveeBinding>;
   const reward = c.reward && typeof c.reward === 'object' ? (c.reward as GoveeReward) : null;
@@ -85,90 +93,12 @@ function readBinding(configs: unknown): GoveeBinding {
     deviceName: String(c.deviceName ?? ''),
     onRedeem: coerceOnRedeem(c.onRedeem),
     rewardId: String(c.rewardId ?? ''),
-    reward: reward ? { rewardId: String(reward.rewardId ?? ''), title: String(reward.title ?? ''), cost: Number(reward.cost ?? 0) } : null,
+    reward: reward
+      ? { rewardId: String(reward.rewardId ?? ''), title: String(reward.title ?? ''), cost: Number(reward.cost ?? 0) }
+      : null,
     allowOffline: c.allowOffline === true
   };
 }
-
-// readGovee loads the whole setup view: module enable flag, whether a key is on
-// file, and the current binding.
-export async function readGovee(userId: string): Promise<GoveeView> {
-  const rows = await listModules(userId);
-  const row = rows.find((r) => r.name === GOVEE_MODULE);
-  const keyPresent = await goveeKeyPresent(userId);
-  return {
-    enabled: row ? row.is_enabled : false,
-    keyPresent,
-    binding: row ? readBinding(row.configs) : blankBinding()
-  };
-}
-
-async function writeBinding(userId: string, enabled: boolean, binding: GoveeBinding): Promise<void> {
-  await upsertModule(userId, GOVEE_MODULE, enabled, binding as unknown as Record<string, unknown>);
-}
-
-// --- API key custody (modules service, sealed at rest) ---------------------
-
-async function goveeKeyPresent(userId: string): Promise<boolean> {
-  try {
-    const r = await rpc<{ present?: boolean; error?: string }>(`${SUB.goveeKey}.status`, { user_id: userId }, 3000);
-    return !!r.present;
-  } catch {
-    return false;
-  }
-}
-
-export async function setGoveeKey(userId: string, key: string): Promise<GoveeResult> {
-  const r = await rpc<{ error?: string }>(`${SUB.goveeKey}.set`, { user_id: userId, key }, 3000);
-  if (r.error) return { ok: false, error: r.error };
-  return { ok: true };
-}
-
-export async function clearGoveeKey(userId: string): Promise<GoveeResult> {
-  const r = await rpc<{ error?: string }>(`${SUB.goveeKey}.clear`, { user_id: userId }, 3000);
-  if (r.error) return { ok: false, error: r.error };
-  return { ok: true };
-}
-
-// --- device list (via the gateway, using the stored key) -------------------
-
-export async function listGoveeDevices(userId: string): Promise<{ devices: GoveeDevice[]; error?: string }> {
-  const r = await rpc<{ devices?: GoveeDevice[]; error?: string }>(
-    `${SUB.gateway}.govee.devices`,
-    { channel_id: userId },
-    8000
-  );
-  if (r.error) return { devices: [], error: r.error };
-  return { devices: Array.isArray(r.devices) ? r.devices : [] };
-}
-
-// --- binding writes --------------------------------------------------------
-
-// setDevice records which light the reward drives, preserving the rest of the
-// binding.
-export async function setGoveeDevice(userId: string, device: string, sku: string, deviceName: string): Promise<GoveeResult> {
-  const cur = await readGovee(userId);
-  await writeBinding(userId, cur.enabled, { ...cur.binding, device, sku, deviceName });
-  return { ok: true };
-}
-
-// setEnabled flips whether sesame acts on redemptions at all.
-export async function setGoveeEnabled(userId: string, enabled: boolean): Promise<GoveeResult> {
-  const cur = await readGovee(userId);
-  await writeBinding(userId, enabled, cur.binding);
-  return { ok: true };
-}
-
-// setAllowOffline flips the live-only gate. true lets redemptions drive the
-// lights while the stream is offline; the dashboard guards enabling it (true)
-// behind a warning, since anyone with the reward can then control the lights.
-export async function setGoveeAllowOffline(userId: string, allowOffline: boolean): Promise<GoveeResult> {
-  const cur = await readGovee(userId);
-  await writeBinding(userId, cur.enabled, { ...cur.binding, allowOffline });
-  return { ok: true };
-}
-
-// --- reward (Twitch side + blob mirror) ------------------------------------
 
 interface RewardWire {
   id?: string;
@@ -193,16 +123,17 @@ interface RewardReplyWire {
   error?: string;
 }
 
-function rewardWire(title: string, cost: number, id?: string): RewardWire {
+// rewardWire maps a draft to the outgress reward contract. The reward always
+// requires input (the colour) and rides the request queue so sesame can resolve
+// it.
+function rewardWire(draft: RewardDraft, id: string): RewardWire {
   return {
     id: id || undefined,
-    title,
-    cost,
+    title: draft.title,
+    cost: draft.cost,
     prompt: REWARD_PROMPT,
     is_enabled: true,
     is_paused: false,
-    // The viewer types the colour, so input is mandatory; and the reward must
-    // ride the request queue so sesame can fulfil or refund it.
     is_user_input_required: true,
     should_skip_queue: false,
     max_per_stream_enabled: false,
@@ -214,51 +145,121 @@ function rewardWire(title: string, cost: number, id?: string): RewardWire {
   };
 }
 
-async function callReward(verb: string, req: Record<string, unknown>): Promise<RewardReplyWire> {
-  return rpc<RewardReplyWire>(`${SUB.outgressRpc}.channelpoints.${verb}`, req, 8000);
+function callReward(userId: string, verb: string, req: Record<string, unknown>): Promise<RewardReplyWire> {
+  return rpc<RewardReplyWire>(`${SUB.outgressRpc}.channelpoints.${verb}`, { broadcaster_id: userId, ...req }, 8000);
 }
 
-// saveGoveeReward creates or updates the one Govee reward on Twitch, then stores
-// its id + display mirror + the success policy in the binding. It mirrors the
-// Channel Points store: Twitch first (must succeed), then the blob, so the two
-// never diverge; a create also (re)ensures the redemption EventSub sub.
-export async function saveGoveeReward(
-  userId: string,
-  title: string,
-  cost: number,
-  onRedeem: GoveeOnRedeem
-): Promise<GoveeResult> {
-  const cur = await readGovee(userId);
-  const existingId = cur.binding.rewardId;
-
-  const verb = existingId ? 'update' : 'create';
-  const req: Record<string, unknown> = { broadcaster_id: userId, reward: rewardWire(title, cost, existingId) };
-  if (existingId) req.reward_id = existingId;
-
-  const reply = await callReward(verb, req);
-  if (reply.missing_scope) return { ok: false, missingScope: true };
-  if (reply.error || !reply.reward) return { ok: false, error: reply.error ?? `${verb} failed` };
-
-  const rewardId = reply.reward.id ?? existingId;
-  await writeBinding(userId, cur.enabled, {
-    ...cur.binding,
-    onRedeem,
-    rewardId,
-    reward: { rewardId, title: reply.reward.title, cost: reply.reward.cost }
-  });
-  if (!existingId) await publishEventSubEnsureOptional(userId);
-  return { ok: true };
+// GoveeStore is the per-broadcaster operation set returned by goveeStore.
+export interface GoveeStore {
+  read(): Promise<GoveeView>;
+  setKey(key: string): Promise<GoveeResult>;
+  clearKey(): Promise<GoveeResult>;
+  listDevices(): Promise<{ devices: GoveeDevice[]; error?: string }>;
+  setDevice(device: GoveeDevice): Promise<GoveeResult>;
+  setEnabled(enabled: boolean): Promise<GoveeResult>;
+  setAllowOffline(allowOffline: boolean): Promise<GoveeResult>;
+  saveReward(draft: RewardDraft): Promise<GoveeResult>;
+  deleteReward(): Promise<GoveeResult>;
 }
 
-// deleteGoveeReward removes the Twitch reward and clears it from the binding.
-export async function deleteGoveeReward(userId: string): Promise<GoveeResult> {
-  const cur = await readGovee(userId);
-  if (!cur.binding.rewardId) return { ok: true };
+// goveeStore binds every per-broadcaster operation to one broadcaster id.
+export function goveeStore(userId: string): GoveeStore {
+  async function keyPresent(): Promise<boolean> {
+    try {
+      const r = await rpc<{ present?: boolean }>(`${SUB.goveeKey}.status`, { user_id: userId }, 3000);
+      return !!r.present;
+    } catch {
+      return false;
+    }
+  }
 
-  const reply = await callReward('delete', { broadcaster_id: userId, reward_id: cur.binding.rewardId });
-  if (reply.missing_scope) return { ok: false, missingScope: true };
-  if (reply.error) return { ok: false, error: reply.error };
+  async function read(): Promise<GoveeView> {
+    const rows = await listModules(userId);
+    const row = rows.find((r) => r.name === GOVEE_MODULE);
+    return {
+      enabled: row ? row.is_enabled : false,
+      keyPresent: await keyPresent(),
+      binding: row ? readBinding(row.configs) : blankBinding()
+    };
+  }
 
-  await writeBinding(userId, cur.enabled, { ...cur.binding, rewardId: '', reward: null });
-  return { ok: true };
+  async function writeBinding(enabled: boolean, binding: GoveeBinding): Promise<void> {
+    await upsertModule(userId, GOVEE_MODULE, enabled, binding as unknown as Record<string, unknown>);
+  }
+
+  // patchBinding merges a partial change into the current binding, preserving the
+  // module enable flag.
+  async function patchBinding(patch: Partial<GoveeBinding>): Promise<GoveeResult> {
+    const cur = await read();
+    await writeBinding(cur.enabled, { ...cur.binding, ...patch });
+    return { ok: true };
+  }
+
+  async function setKey(key: string): Promise<GoveeResult> {
+    const r = await rpc<{ error?: string }>(`${SUB.goveeKey}.set`, { user_id: userId, key }, 3000);
+    return r.error ? { ok: false, error: r.error } : { ok: true };
+  }
+
+  async function clearKey(): Promise<GoveeResult> {
+    const r = await rpc<{ error?: string }>(`${SUB.goveeKey}.clear`, { user_id: userId }, 3000);
+    return r.error ? { ok: false, error: r.error } : { ok: true };
+  }
+
+  async function listDevices(): Promise<{ devices: GoveeDevice[]; error?: string }> {
+    const r = await rpc<{ devices?: GoveeDevice[]; error?: string }>(
+      `${SUB.gateway}.govee.devices`,
+      { channel_id: userId },
+      8000
+    );
+    if (r.error) return { devices: [], error: r.error };
+    return { devices: Array.isArray(r.devices) ? r.devices : [] };
+  }
+
+  async function saveReward(draft: RewardDraft): Promise<GoveeResult> {
+    const cur = await read();
+    const existingId = cur.binding.rewardId;
+    const verb = existingId ? 'update' : 'create';
+    const req: Record<string, unknown> = { reward: rewardWire(draft, existingId) };
+    if (existingId) req.reward_id = existingId;
+
+    const reply = await callReward(userId, verb, req);
+    if (reply.missing_scope) return { ok: false, missingScope: true };
+    if (reply.error || !reply.reward) return { ok: false, error: reply.error ?? `${verb} failed` };
+
+    const rewardId = reply.reward.id ?? existingId;
+    await writeBinding(cur.enabled, {
+      ...cur.binding,
+      onRedeem: draft.onRedeem,
+      rewardId,
+      reward: { rewardId, title: reply.reward.title, cost: reply.reward.cost }
+    });
+    if (!existingId) await publishEventSubEnsureOptional(userId);
+    return { ok: true };
+  }
+
+  async function deleteReward(): Promise<GoveeResult> {
+    const cur = await read();
+    if (!cur.binding.rewardId) return { ok: true };
+    const reply = await callReward(userId, 'delete', { reward_id: cur.binding.rewardId });
+    if (reply.missing_scope) return { ok: false, missingScope: true };
+    if (reply.error) return { ok: false, error: reply.error };
+    await writeBinding(cur.enabled, { ...cur.binding, rewardId: '', reward: null });
+    return { ok: true };
+  }
+
+  return {
+    read,
+    setKey,
+    clearKey,
+    listDevices,
+    setDevice: (device: GoveeDevice) => patchBinding({ device: device.device, sku: device.sku, deviceName: device.name }),
+    setEnabled: async (enabled: boolean) => {
+      const cur = await read();
+      await writeBinding(enabled, cur.binding);
+      return { ok: true };
+    },
+    setAllowOffline: (allowOffline: boolean) => patchBinding({ allowOffline }),
+    saveReward,
+    deleteReward
+  };
 }
