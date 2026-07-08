@@ -7,10 +7,11 @@ const sections = [
     { id: 'overview', heading: 'Overview', plain: 'What we collect, why, and what you can do about it.' },
     { id: 'data-collected', heading: 'Data We Collect', plain: 'Your Twitch handle, chat processed in the moment, aggregated usage stats, and an optional contact email.' },
     { id: 'data-not-collected', heading: "Data We Don't Collect", plain: 'No personal browsing profiles, ad data, or IP-based tracking by us.' },
-    { id: 'cookies', heading: 'Cloudflare, Cookies & Analytics', plain: 'Cloudflare protects and delivers the service. Analytics are cookie-free; security cookies may be used when needed.' },
+    { id: 'cookies', heading: 'Cloudflare, Cookies & Analytics', plain: 'Cloudflare hosts, protects, and delivers the service. Analytics are cookie-free; security cookies may be used when needed.' },
     { id: 'data-use', heading: 'How We Use Your Data & Legal Basis', plain: 'We use data to provide and secure the service. We never sell or rent it.' },
-    { id: 'payment-processing', heading: 'Other Third-Party Processors', plain: 'Tebex handles checkout and payments as the merchant of record. Resend delivers our automated emails; Zoho handles our direct correspondence.' },
-    { id: 'storage', heading: 'Data Storage & Transfers', plain: 'Chat is processed live, not kept. Settings stay encrypted in Canada; Cloudflare processes traffic globally.' },
+    { id: 'payment-processing', heading: 'Third-Party Services', plain: 'Tebex handles payments, Resend our automated emails, Zoho our correspondence, and support also runs on Discord.' },
+    { id: 'storage', heading: 'Data Storage, Retention & Transfers', plain: 'Chat is processed live, not kept. Settings stay encrypted in Canada for as long as your account exists.' },
+    { id: 'children', heading: "Children's Privacy", plain: 'The service is not for children under 13, and we do not knowingly collect their data.' },
     { id: 'rights', heading: 'Your Rights (GDPR, PIPEDA, Law 25, CCPA)', plain: 'Ask for your data, portability, or its deletion any time. California residents get CCPA rights too. You can also complain to a privacy regulator.' },
     { id: 'changes', heading: 'Changes', plain: "If this policy changes meaningfully, you'll hear about it." },
     { id: 'contact', heading: 'Contact & Data Protection Officer', plain: 'Privacy questions go to support@itsbagelbot.com.' },
@@ -51,7 +52,7 @@ const sections = [
 
         <Fragment slot="cookies">
             <p>
-                We use Cloudflare, Inc. to deliver and protect our websites and services. Cloudflare operates as our reverse proxy, content delivery network, DNS provider, DDoS and bot protection provider, and secure Tunnel provider. Because requests pass through Cloudflare before reaching our infrastructure, Cloudflare necessarily processes technical data such as your IP address, traffic-routing data, system and browser information, requested URLs, and security signals. We use this processing to deliver content, prevent abuse, investigate security incidents, and keep the service reliable.
+                We use Cloudflare, Inc. to host, deliver, and protect our websites and services. Our website and documentation are hosted on Cloudflare Pages, and Cloudflare also provides content delivery, DNS, and protection against attacks and abusive traffic. Because requests pass through Cloudflare's network, Cloudflare necessarily processes technical data such as your IP address, traffic-routing data, system and browser information, requested URLs, and security signals. We use this processing to deliver content, prevent abuse, investigate security incidents, and keep the service reliable.
             </p>
             <p>
                 We also use Cloudflare Web Analytics to measure traffic and page performance in aggregate. Its browser beacon does <strong>not use cookies or browser storage</strong> and is not used to follow individuals across websites. The beacon receives an IP address as part of the network request, but Cloudflare states that it discards that address at the nearest data centre rather than storing it in Web Analytics logs.
@@ -66,6 +67,9 @@ const sections = [
                 Solely to provide the ItsBagelBot service: moderate chat, execute commands, and run engagement
                 features. Our legal basis for processing this data is the fulfillment of our contract with you (Terms of Service) and our legitimate interest in securing and improving our service. We do not sell or rent your personal data. We disclose it only to service providers described in this policy, when needed to provide the service, or when required by law.
             </p>
+            <p>
+                Chat moderation is automated and follows the rules each broadcaster configures. Automated actions are limited to chat itself, such as removing a message or timing out a user, and have no legal or similarly significant effect on you.
+            </p>
         </Fragment>
 
         <Fragment slot="payment-processing">
@@ -78,12 +82,21 @@ const sections = [
             <p>
                 We use Zoho Corporation's email services for non-automated correspondence, such as replies from our support team. When you email us, or we write to you directly, Zoho processes your email address and the content of the exchange to deliver and host that correspondence, subject to Zoho's own Privacy Policy. Aside from the processors described in this policy, we do not share your email address with anyone.
             </p>
+            <p>
+                We also offer support through our Discord server. If you contact us there, Discord Inc. processes your Discord account information and messages under <a href="https://discord.com/privacy" target="_blank" rel="noopener noreferrer">Discord's own Privacy Policy</a>, which we do not control. Avoid posting sensitive information in public channels.
+            </p>
         </Fragment>
 
         <Fragment slot="storage">
             <p>
                 Chat messages are processed in real-time and not permanently stored. Configuration data is
-                encrypted at rest. Data in transit is encrypted using TLS. Our application data is hosted in Canada, which benefits from an adequacy decision by the European Commission under the GDPR. Because Cloudflare operates a global network, technical request, security, and cookie data may be processed outside Canada, including in the United States and other countries where Cloudflare operates. Cloudflare handles those transfers under the safeguards described in its Privacy Policy and Data Processing Addendum.
+                encrypted at rest, and data in transit is encrypted using TLS. Account and configuration data is retained only for as long as your account exists and is deleted when you delete your account. Our application data is hosted in Canada, which benefits from an adequacy decision by the European Commission under the GDPR. Because Cloudflare operates a global network, technical request, security, and cookie data may be processed outside Canada, including in the United States and other countries where Cloudflare operates. Cloudflare handles those transfers under the safeguards described in its Privacy Policy and Data Processing Addendum.
+            </p>
+        </Fragment>
+
+        <Fragment slot="children">
+            <p>
+                ItsBagelBot is not directed at children under 13 (or 16 in the EU/EEA), and we do not knowingly collect personal data from them. If you believe a child has provided us with personal data, contact <a href="mailto:support@itsbagelbot.com">support@itsbagelbot.com</a> and we will delete it.
             </p>
         </Fragment>
 
