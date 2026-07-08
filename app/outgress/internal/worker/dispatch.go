@@ -93,6 +93,11 @@ func (w *Worker) Process(msg *message.Message) error {
 		return w.processEventSub(ctx, payload)
 	case outgress.TypeStreamStatus:
 		return w.processStreamStatus(ctx, payload)
+	case outgress.TypeRedemptionUpdate:
+		// Channel-points redemption resolution runs under the broadcaster token
+		// and pays the general Helix budget, so it is handled before the
+		// endpoint-routed path (it carries no endpoint of its own).
+		return w.processRedemptionUpdate(ctx, payload)
 	}
 
 	if !w.resolveHelixRoute(&payload) {

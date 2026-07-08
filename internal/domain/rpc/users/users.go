@@ -17,6 +17,7 @@ type AdminRequest struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
 	ExpiresAt    string `json:"expires_at,omitempty"`
+	CreatorCode  string `json:"creator_code,omitempty"`
 }
 
 // AdminUserView is a single user row in an admin reply.
@@ -26,6 +27,7 @@ type AdminUserView struct {
 	IsActive                  bool       `json:"is_active"`
 	Status                    string     `json:"status"`
 	Banned                    bool       `json:"banned"`
+	CreatorCode               *string    `json:"creator_code,omitempty"`
 	SubscriptionExpiresAt     *time.Time `json:"subscription_expires_at,omitempty"`
 	SubscriptionSource        string     `json:"subscription_source,omitempty"`
 	SubscriptionRef           *string    `json:"subscription_ref,omitempty"`

@@ -260,6 +260,32 @@ export async function rateLimiterReady(): Promise<boolean> {
 }
 
 /**
+ * Claim a single-use id (SET NX EX on the Sentinel master), sharing the
+ * rate limiter's write client + breaker: it is the same fleet-wide Valkey
+ * write path and a second connection buys nothing. Used to make signed
+ * one-shot tokens (e.g. admin "view as" links) non-replayable.
+ *
+ *   'claimed'      — first redemption; proceed.
+ *   'replayed'     — the id was redeemed before; reject.
+ *   'unconfigured' — no Valkey configured (dev/tests); caller decides.
+ *   'unavailable'  — backend configured but unreachable; caller decides.
+ */
+export type ClaimResult = 'claimed' | 'replayed' | 'unconfigured' | 'unavailable';
+
+export async function claimOnce(key: string, ttlSec: number): Promise<ClaimResult> {
+  const client = getWriteClient();
+  if (!client) return 'unconfigured';
+  try {
+    const r = await writeBreaker.run(() =>
+      withTimeout(client.set(key, '1', 'EX', ttlSec, 'NX'), OP_TIMEOUT_MS, 'valkey claim-once')
+    );
+    return r === 'OK' ? 'claimed' : 'replayed';
+  } catch {
+    return 'unavailable';
+  }
+}
+
+/**
  * Drop the cached write client and its disabled latch so a test can re-run
  * client resolution against fresh config. Test-only; never call in app code.
  */

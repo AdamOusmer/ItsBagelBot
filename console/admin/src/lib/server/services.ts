@@ -83,6 +83,7 @@ export interface AdminUserWire {
   is_active: boolean;
   status: string; // "free" | "paid" | "vip"
   banned: boolean;
+  creator_code?: string | null;
   subscription_expires_at?: string;
   subscription_source?: string;
   subscription_ref?: string;
@@ -268,6 +269,19 @@ export async function userDelete(userId: string): Promise<void> {
 export const userSetActive = defineWrite({
   subject: `${SUB.user}.set_active`,
   request: (userId: string, active: boolean) => ({ user_id: userId, active }),
+  map: (reply: { user: AdminUserWire }) => reply.user,
+  after: (user, userId) => {
+    invalidateUser(userId);
+    setCached(`user:${user.id}`, user, POLICY.adminRead);
+  }
+});
+
+export const userSetCreatorCode = defineWrite({
+  subject: `${SUB.user}.set_creator_code`,
+  request: (userId: string, creatorCode: string) => ({
+    user_id: userId,
+    creator_code: creatorCode
+  }),
   map: (reply: { user: AdminUserWire }) => reply.user,
   after: (user, userId) => {
     invalidateUser(userId);

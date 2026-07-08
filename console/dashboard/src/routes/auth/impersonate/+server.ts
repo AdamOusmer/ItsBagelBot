@@ -1,26 +1,43 @@
-// Redeem an admin "view as" link: verify the signed token, then seal a short
-// (1h) dashboard session for the target user that also carries the acting
-// admin (impersonator_*). hooks.server.ts opens it like any session; the write
+// Redeem an admin "view as" link: verify the signed token, burn its jti (a
+// link is single-use), then seal a short (1h) dashboard session for the target
+// user that also carries the acting admin (impersonator_*). hooks.server.ts
+// opens it like any session — with a hard 1h cap from iat — and the write
 // actions audit back to the admin while these fields are present.
 import type { RequestHandler } from './$types';
 import { redirect } from '@sveltejs/kit';
+import newrelic from 'newrelic';
 import { verifyViewAs } from '@bagel/shared/server/impersonation';
-import { COOKIE, seal } from '$lib/server/session';
+import { claimOnce } from '@bagel/shared/server/rate-limit';
+import { COOKIE, seal, IMPERSONATION_TTL_SECONDS } from '$lib/server/session';
 import { LOCALE_COOKIE } from '@bagel/shared/i18n';
 
-const SESSION_TTL = 3600; // 1h — shorter than a normal login.
+// jti claims only need to outlive the token's own 5-minute validity window
+// (plus clock skew); after that verifyViewAs rejects the token anyway.
+const JTI_TTL_SECONDS = 6 * 60;
 
-export const GET: RequestHandler = ({ url, cookies }) => {
+export const GET: RequestHandler = async ({ url, cookies }) => {
   const token = url.searchParams.get('t') ?? '';
   const p = verifyViewAs(token);
   if (!p) throw redirect(302, '/login?e=imp');
 
+  // Single-use gate. Fail closed when Valkey is configured but unreachable:
+  // impersonation is an admin surface, and a retry in a minute beats leaving a
+  // replayable admin-grade link in browser history. 'unconfigured' (dev, no
+  // Valkey) passes so local flows still work.
+  const claim = await claimOnce(`viewas:jti:${p.jti}`, JTI_TTL_SECONDS);
+  if (claim === 'replayed' || claim === 'unavailable') {
+    newrelic.addCustomAttributes({ 'viewas.claim': claim, 'viewas.by': p.by_id });
+    throw redirect(302, '/login?e=imp');
+  }
+
+  const now = Math.floor(Date.now() / 1000);
   const value = seal({
     user_id: p.sub,
     login: p.login,
     display_name: p.display_name,
     role: 'streamer',
-    expires_at: Math.floor(Date.now() / 1000) + SESSION_TTL,
+    iat: now,
+    expires_at: now + IMPERSONATION_TTL_SECONDS,
     impersonator_id: p.by_id,
     impersonator_login: p.by_login
   });
@@ -30,7 +47,7 @@ export const GET: RequestHandler = ({ url, cookies }) => {
     httpOnly: true,
     secure: url.protocol === 'https:',
     sameSite: 'lax',
-    maxAge: SESSION_TTL
+    maxAge: IMPERSONATION_TTL_SECONDS
   });
 
   // Impersonation is an admin surface: keep its chrome in English regardless

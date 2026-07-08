@@ -97,6 +97,20 @@ func (_c *UserCreate) SetNillableLocale(v *string) *UserCreate {
 	return _c
 }
 
+// SetCreatorCode sets the "creator_code" field.
+func (_c *UserCreate) SetCreatorCode(v string) *UserCreate {
+	_c.mutation.SetCreatorCode(v)
+	return _c
+}
+
+// SetNillableCreatorCode sets the "creator_code" field if the given value is not nil.
+func (_c *UserCreate) SetNillableCreatorCode(v *string) *UserCreate {
+	if v != nil {
+		_c.SetCreatorCode(*v)
+	}
+	return _c
+}
+
 // SetSubscriptionSource sets the "subscription_source" field.
 func (_c *UserCreate) SetSubscriptionSource(v string) *UserCreate {
 	_c.mutation.SetSubscriptionSource(v)
@@ -375,6 +389,11 @@ func (_c *UserCreate) check() error {
 			return &ValidationError{Name: "locale", err: fmt.Errorf(`ent: validator failed for field "User.locale": %w`, err)}
 		}
 	}
+	if v, ok := _c.mutation.CreatorCode(); ok {
+		if err := user.CreatorCodeValidator(v); err != nil {
+			return &ValidationError{Name: "creator_code", err: fmt.Errorf(`ent: validator failed for field "User.creator_code": %w`, err)}
+		}
+	}
 	if _, ok := _c.mutation.SubscriptionSource(); !ok {
 		return &ValidationError{Name: "subscription_source", err: errors.New(`ent: missing required field "User.subscription_source"`)}
 	}
@@ -453,6 +472,10 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Locale(); ok {
 		_spec.SetField(user.FieldLocale, field.TypeString, value)
 		_node.Locale = value
+	}
+	if value, ok := _c.mutation.CreatorCode(); ok {
+		_spec.SetField(user.FieldCreatorCode, field.TypeString, value)
+		_node.CreatorCode = &value
 	}
 	if value, ok := _c.mutation.SubscriptionSource(); ok {
 		_spec.SetField(user.FieldSubscriptionSource, field.TypeString, value)
@@ -649,6 +672,24 @@ func (u *UserUpsert) SetLocale(v string) *UserUpsert {
 // UpdateLocale sets the "locale" field to the value that was provided on create.
 func (u *UserUpsert) UpdateLocale() *UserUpsert {
 	u.SetExcluded(user.FieldLocale)
+	return u
+}
+
+// SetCreatorCode sets the "creator_code" field.
+func (u *UserUpsert) SetCreatorCode(v string) *UserUpsert {
+	u.Set(user.FieldCreatorCode, v)
+	return u
+}
+
+// UpdateCreatorCode sets the "creator_code" field to the value that was provided on create.
+func (u *UserUpsert) UpdateCreatorCode() *UserUpsert {
+	u.SetExcluded(user.FieldCreatorCode)
+	return u
+}
+
+// ClearCreatorCode clears the value of the "creator_code" field.
+func (u *UserUpsert) ClearCreatorCode() *UserUpsert {
+	u.SetNull(user.FieldCreatorCode)
 	return u
 }
 
@@ -952,6 +993,27 @@ func (u *UserUpsertOne) SetLocale(v string) *UserUpsertOne {
 func (u *UserUpsertOne) UpdateLocale() *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateLocale()
+	})
+}
+
+// SetCreatorCode sets the "creator_code" field.
+func (u *UserUpsertOne) SetCreatorCode(v string) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetCreatorCode(v)
+	})
+}
+
+// UpdateCreatorCode sets the "creator_code" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateCreatorCode() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateCreatorCode()
+	})
+}
+
+// ClearCreatorCode clears the value of the "creator_code" field.
+func (u *UserUpsertOne) ClearCreatorCode() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearCreatorCode()
 	})
 }
 
@@ -1446,6 +1508,27 @@ func (u *UserUpsertBulk) SetLocale(v string) *UserUpsertBulk {
 func (u *UserUpsertBulk) UpdateLocale() *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateLocale()
+	})
+}
+
+// SetCreatorCode sets the "creator_code" field.
+func (u *UserUpsertBulk) SetCreatorCode(v string) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetCreatorCode(v)
+	})
+}
+
+// UpdateCreatorCode sets the "creator_code" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateCreatorCode() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateCreatorCode()
+	})
+}
+
+// ClearCreatorCode clears the value of the "creator_code" field.
+func (u *UserUpsertBulk) ClearCreatorCode() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearCreatorCode()
 	})
 }
 

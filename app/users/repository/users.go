@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"ItsBagelBot/app/users/ent"
 	"ItsBagelBot/app/users/ent/tokens"
@@ -34,6 +36,7 @@ type UserView struct {
 	Status                    string     `json:"status"`
 	Banned                    bool       `json:"banned"`
 	Locale                    string     `json:"locale"`
+	CreatorCode               *string    `json:"creator_code,omitempty"`
 	SubscriptionSource        string     `json:"subscription_source"`
 	SubscriptionExpiresAt     *time.Time `json:"subscription_expires_at,omitempty"`
 	SubscriptionRef           *string    `json:"subscription_ref,omitempty"`
@@ -128,6 +131,7 @@ func (r *Users) Get(ctx context.Context, id uint64) (UserView, error) {
 				Status:                    string(u.Status),
 				Banned:                    u.Banned,
 				Locale:                    u.Locale,
+				CreatorCode:               u.CreatorCode,
 				SubscriptionSource:        u.SubscriptionSource,
 				SubscriptionExpiresAt:     u.SubscriptionExpiresAt,
 				SubscriptionRef:           u.SubscriptionRef,
@@ -153,6 +157,40 @@ func (r *Users) updateAndPublish(ctx context.Context, id uint64, apply func(*ent
 		return err
 	}
 	return r.publishChanged(ctx, id)
+}
+
+const CreatorCodeMaxLen = 64
+
+func normalizeCreatorCode(raw string) (*string, error) {
+	code := strings.TrimSpace(raw)
+	if code == "" {
+		return nil, nil
+	}
+	if utf8.RuneCountInString(code) > CreatorCodeMaxLen {
+		return nil, fmt.Errorf("creator_code must be %d characters or fewer", CreatorCodeMaxLen)
+	}
+	for _, r := range code {
+		if r < 0x20 || r == 0x7f {
+			return nil, fmt.Errorf("creator_code cannot contain control characters")
+		}
+	}
+	return &code, nil
+}
+
+// SetCreatorCode stores or clears the user's public creator code. An empty
+// value clears the nullable column.
+func (r *Users) SetCreatorCode(ctx context.Context, id uint64, raw string) error {
+	code, err := normalizeCreatorCode(raw)
+	if err != nil {
+		return err
+	}
+	return r.updateAndPublish(ctx, id, func(u *ent.UserUpdateOne) {
+		if code == nil {
+			u.ClearCreatorCode()
+		} else {
+			u.SetCreatorCode(*code)
+		}
+	})
 }
 
 // SetStatus moves the user between the free, paid and vip tiers. This is on

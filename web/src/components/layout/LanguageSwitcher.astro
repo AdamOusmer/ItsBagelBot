@@ -6,7 +6,7 @@
  */
 import { getLangFromUrl, type Lang } from '../../i18n/ui';
 
-const LOCALIZED = new Set(['/', '/pricing', '/contact', '/privacy', '/terms']);
+const LOCALIZED = new Set(['/', '/pricing', '/contact', '/privacy', '/terms', '/creator-terms']);
 const current = getLangFromUrl(Astro.url);
 
 function localePath(url: URL, target: Lang): string {

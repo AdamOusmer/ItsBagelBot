@@ -40,19 +40,20 @@ func SubscribeAdmin(w Wiring, prefix, invalidationPrefix string) error {
 	}
 
 	verbs := map[string]func(context.Context, usersrpc.AdminRequest) usersrpc.AdminReply{
-		"get":          a.get,
-		"list":         a.list,
-		"stats":        a.stats,
-		"overview":     a.overview,
-		"set_status":   a.setStatus,
-		"set_active":   a.setActive,
-		"ban":          a.ban,
-		"unban":        a.unban,
-		"reset":        a.reset,
-		"token_set":    a.tokenSet,
-		"token_status": a.tokenStatus,
-		"token_clear":  a.tokenClear,
-		"delete":       a.delete,
+		"get":              a.get,
+		"list":             a.list,
+		"stats":            a.stats,
+		"overview":         a.overview,
+		"set_status":       a.setStatus,
+		"set_active":       a.setActive,
+		"set_creator_code": a.setCreatorCode,
+		"ban":              a.ban,
+		"unban":            a.unban,
+		"reset":            a.reset,
+		"token_set":        a.tokenSet,
+		"token_status":     a.tokenStatus,
+		"token_clear":      a.tokenClear,
+		"delete":           a.delete,
 	}
 	for verb, handle := range verbs {
 		subject := prefix + "." + verb
@@ -243,6 +244,21 @@ func (a *adminRPC) setActive(ctx context.Context, req usersrpc.AdminRequest) use
 	})
 }
 
+func (a *adminRPC) setCreatorCode(ctx context.Context, req usersrpc.AdminRequest) usersrpc.AdminReply {
+	u, err := a.findUser(ctx, req)
+	if err != nil {
+		return usersrpc.AdminReply{Error: err.Error()}
+	}
+
+	if err := a.repo.SetCreatorCode(ctx, u.ID, req.CreatorCode); err != nil {
+		return usersrpc.AdminReply{Error: err.Error()}
+	}
+
+	a.invalidate(u.ID)
+	a.log.Info("admin set creator code", zap.Uint64("user", u.ID), zap.Bool("cleared", req.CreatorCode == ""))
+	return a.get(ctx, usersrpc.AdminRequest{UserID: fmt.Sprint(u.ID)})
+}
+
 // ban blocks the user from the service entirely. The ingress drops banned
 // users, so their traffic never reaches a worker.
 func (a *adminRPC) ban(ctx context.Context, req usersrpc.AdminRequest) usersrpc.AdminReply {
@@ -374,6 +390,7 @@ func viewOf(u *ent.User) usersrpc.AdminUserView {
 		IsActive:                  u.IsActive,
 		Status:                    string(u.Status),
 		Banned:                    u.Banned,
+		CreatorCode:               u.CreatorCode,
 		SubscriptionExpiresAt:     u.SubscriptionExpiresAt,
 		SubscriptionSource:        u.SubscriptionSource,
 		SubscriptionRef:           u.SubscriptionRef,

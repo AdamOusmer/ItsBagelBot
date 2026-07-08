@@ -221,6 +221,20 @@ export async function publishEventSubReconnect(broadcasterId: string): Promise<v
   });
 }
 
+// Enqueue an ensure-optional job: outgress (re)creates only the optional
+// subscriptions (the channel-points redemption sub) without touching the
+// mandatory set. Idempotent (409) and non-affiliate-tolerant, so it is safe to
+// fire after every reward create/enable — it is how a channel that just gained
+// channel points (or just re-consented with the redemption scope) starts
+// receiving redemption events without a full reconnect.
+export async function publishEventSubEnsureOptional(broadcasterId: string): Promise<void> {
+  await publish(SUB.outgress, {
+    type: 'eventsub',
+    broadcaster_id: broadcasterId,
+    payload: { mode: 'ensure_optional' }
+  });
+}
+
 export type ChannelSubState = {
   state: 'ok' | 'pending' | 'failing' | 'unknown';
   error: string;
@@ -369,7 +383,7 @@ export const hasGrant = defineRead({
 });
 
 export type AccountStatus = 'free' | 'paid' | 'vip';
-export type AccountState = { active: boolean; status: AccountStatus; onboarded: boolean };
+export type AccountState = { active: boolean; status: AccountStatus; onboarded: boolean; creatorCode: string | null };
 
 function normalizeStatus(raw: string | undefined): AccountStatus {
   const s = (raw ?? 'free').toLowerCase();
@@ -382,10 +396,11 @@ function normalizeStatus(raw: string | undefined): AccountStatus {
 export const accountState = defineRead({
   subject: `${SUB.dashboard}.state_get`,
   request: (userId: string) => ({ broadcaster_user_id: userId }),
-  map: (r: { active: boolean; status: string; onboarded?: boolean }): AccountState => ({
+  map: (r: { active: boolean; status: string; onboarded?: boolean; creator_code?: string | null }): AccountState => ({
     active: !!r.active,
     status: normalizeStatus(r.status),
-    onboarded: !!r.onboarded
+    onboarded: !!r.onboarded,
+    creatorCode: r.creator_code?.trim() ? r.creator_code : null
   }),
   timeoutMs: READ_TIMEOUT_MS,
   cache: {
@@ -394,15 +409,15 @@ export const accountState = defineRead({
     policy: POLICY.entity,
     l2: async (userId: string) => {
       const u = await valkey.getUser(userId);
-      if (!u.known) return { hit: false, value: { active: false, status: 'free' as AccountStatus, onboarded: false } };
-      // Valkey L2 does not cache onboarded, so we fail the hit if we care about it, 
+      if (!u.known) return { hit: false, value: { active: false, status: 'free' as AccountStatus, onboarded: false, creatorCode: null } };
+      // Valkey L2 does not cache onboarded or creator codes, so we fail the hit if we care about it,
       // but since it's just projected data, we'll let it pass or say hit: false if we must have onboarded.
       // Actually, since we need onboarded reliably on first load, and L2 is used for fast SSR, 
       // missing it in L2 means we should probably miss the cache to fetch it from L1/RPC.
       // For now, let's just return false and let SWR correct it if it was true, but this might flash.
       // Since it's only critical when false (to show modal), assuming true here would hide the modal until SWR finishes.
       // We will assume hit: false to force an RPC call to get the authoritative onboarded state.
-      return { hit: false, value: { active: u.active, status: normalizeStatus(u.status), onboarded: false } };
+      return { hit: false, value: { active: u.active, status: normalizeStatus(u.status), onboarded: false, creatorCode: null } };
     }
   }
 });

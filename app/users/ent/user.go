@@ -31,6 +31,8 @@ type User struct {
 	Status user.Status `json:"status,omitempty"`
 	// Locale holds the value of the "locale" field.
 	Locale string `json:"locale,omitempty"`
+	// CreatorCode holds the value of the "creator_code" field.
+	CreatorCode *string `json:"creator_code,omitempty"`
 	// SubscriptionSource holds the value of the "subscription_source" field.
 	SubscriptionSource string `json:"subscription_source,omitempty"`
 	// SubscriptionExpiresAt holds the value of the "subscription_expires_at" field.
@@ -86,7 +88,7 @@ func (*User) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullBool)
 		case user.FieldID, user.FieldGiftsSent:
 			values[i] = new(sql.NullInt64)
-		case user.FieldUsername, user.FieldEmail, user.FieldStatus, user.FieldLocale, user.FieldSubscriptionSource, user.FieldSubscriptionRef, user.FieldBillingEventID:
+		case user.FieldUsername, user.FieldEmail, user.FieldStatus, user.FieldLocale, user.FieldCreatorCode, user.FieldSubscriptionSource, user.FieldSubscriptionRef, user.FieldBillingEventID:
 			values[i] = new(sql.NullString)
 		case user.FieldSubscriptionExpiresAt, user.FieldBillingEventAt, user.FieldCreatedAt, user.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -152,6 +154,13 @@ func (_m *User) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field locale", values[i])
 			} else if value.Valid {
 				_m.Locale = value.String
+			}
+		case user.FieldCreatorCode:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field creator_code", values[i])
+			} else if value.Valid {
+				_m.CreatorCode = new(string)
+				*_m.CreatorCode = value.String
 			}
 		case user.FieldSubscriptionSource:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -276,6 +285,11 @@ func (_m *User) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("locale=")
 	builder.WriteString(_m.Locale)
+	builder.WriteString(", ")
+	if v := _m.CreatorCode; v != nil {
+		builder.WriteString("creator_code=")
+		builder.WriteString(*v)
+	}
 	builder.WriteString(", ")
 	builder.WriteString("subscription_source=")
 	builder.WriteString(_m.SubscriptionSource)

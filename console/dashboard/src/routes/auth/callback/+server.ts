@@ -5,12 +5,11 @@ import { decodeIdToken, OAuth2RequestError } from 'arctic';
 import { twitch, safeNextPath, fetchAccountEmail } from '$lib/server/oauth';
 import { rpc } from '@bagel/shared/server/nats';
 import { saveGrant, isBanned, delegationConsume, userLocale, setLocale } from '$lib/server/services';
-import { COOKIE, seal } from '$lib/server/session';
+import { COOKIE, seal, SESSION_TTL_SECONDS } from '$lib/server/session';
 import { isLocale, LOCALE_COOKIE } from '@bagel/shared/i18n';
 import { env } from '$env/dynamic/private';
 
 const DASHBOARD = env.NATS_DASHBOARD_SUBJECT_PREFIX ?? 'bagel.rpc.dashboard';
-const SESSION_TTL = 7 * 24 * 3600;
 
 type IdTokenClaims = {
   sub: string;
@@ -80,17 +79,19 @@ function setSessionCookie(cookies: Cookies, url: URL, session: Parameters<typeof
     httpOnly: true,
     secure: url.protocol === 'https:',
     sameSite: 'lax',
-    maxAge: SESSION_TTL
+    maxAge: SESSION_TTL_SECONDS
   });
 }
 
 function streamerSession(id: Identity) {
+  const now = Math.floor(Date.now() / 1000);
   return {
     user_id: id.userId,
     login: id.login,
     display_name: id.displayName,
     role: 'streamer' as const,
-    expires_at: Math.floor(Date.now() / 1000) + SESSION_TTL
+    iat: now,
+    expires_at: now + SESSION_TTL_SECONDS
   };
 }
 
