@@ -245,6 +245,26 @@ func TestCmdNoSubcommand(t *testing.T) {
 	assert.Empty(t, cmds.upsertCalls)
 }
 
+// The ?channel= label is the broadcaster's Twitch display name when the event
+// carries one, so a renamed channel shows its current cased/localized name and
+// not the lowercase login. The path stays keyed by the immutable id.
+func TestCmdLinkUsesDisplayName(t *testing.T) {
+	cmds := &fakeCommandManager{}
+	proj := &fakeProj{commands: map[string]projection.Command{}}
+	m := Cmd(cmdDeps(proj, cmds))
+	cmd := findCmd(t, m, "cmd")
+
+	c := cmdCtx("alice", "!cmd")
+	c.Env.BroadcasterUserName = "StreamerName"
+
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), c, "", col.emit))
+
+	require.Len(t, col.out, 1)
+	assert.Contains(t, col.out[0].Text, "/user/100")
+	assert.Contains(t, col.out[0].Text, "channel=StreamerName")
+}
+
 // An unknown subcommand also falls through to the public link.
 func TestCmdInvalidSubcommand(t *testing.T) {
 	cmds := &fakeCommandManager{}
