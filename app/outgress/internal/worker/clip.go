@@ -64,8 +64,8 @@ func (w *Worker) processClip(ctx context.Context, payload outgress.Message) erro
 		return err // no clip created yet: safe to redeliver
 	}
 
-	res, err := w.twitch.ExecuteAs(ctx, twitch.ParseIdentity(outgress.AsBroadcaster),
-		payload.BroadcasterID, http.MethodPost, clipEndpoint(payload.BroadcasterID, meta), nil)
+	res, err := w.twitch.ExecuteAs(ctx, twitch.ParseIdentity(outgress.AsBroadcaster), payload.BroadcasterID,
+		twitch.HelixCall{Method: http.MethodPost, Endpoint: clipEndpoint(payload.BroadcasterID, meta)})
 	if err != nil {
 		w.log.Error("clip create failed",
 			zap.String("broadcaster_id", payload.BroadcasterID), zap.Error(err))
