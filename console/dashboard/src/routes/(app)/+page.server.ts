@@ -87,51 +87,74 @@ export type ModuleDigest = { on: number; total: number };
 // Who can reach this dashboard: consumed delegation grants.
 export type ShareDigest = { people: number; pending: number };
 
+// demoOr streams either the demo fixture or the real RPC as an unawaited
+// promise so SvelteKit streams it: the page shell flushes immediately and each
+// section hydrates when its round trip lands, instead of blocking SSR (and the
+// post-login redirect) on NATS.
+function demoOr<T>(demo: T, real: () => Promise<T>): Promise<T> {
+  return env.DEMO === '1' ? Promise.resolve(demo) : real();
+}
+
+// commandDigest feeds the stat cards + top strip. Cache-backed (same fabric
+// entry as the commands page) and optional: a failure just hides the strip.
+function commandDigest(uid: string): Promise<CommandDigest> {
+  return listCommands(uid)
+    .then(digest)
+    .catch(() => ({ top: [], active: 0, total: 0, uses: 0 }));
+}
+
+function moduleDigest(uid: string): Promise<ModuleDigest> {
+  const catalogIds = new Set(MODULE_CATALOG.map((m) => m.id));
+  return listModules(uid)
+    .then((rows) => ({
+      on: rows.filter((r) => catalogIds.has(r.name) && r.is_enabled).length,
+      total: MODULE_CATALOG.length
+    }))
+    .catch(() => ({ on: 0, total: MODULE_CATALOG.length }));
+}
+
+// Delegation shares only exist for owners; a delegate browsing the owner's
+// board doesn't own grants, so show zero rather than erroring.
+function shareDigest(uid: string): Promise<ShareDigest> {
+  return delegationList(uid)
+    .then((grants) => ({
+      people: grants.filter((g) => g.consumed).length,
+      pending: grants.filter((g) => !g.consumed).length
+    }))
+    .catch(() => ({ people: 0, pending: 0 }));
+}
+
 export const load: PageServerLoad = ({ locals }) => {
   const uid = locals.session?.user_id ?? 'demo';
-
-  // Return the RPCs as unawaited promises so SvelteKit streams them: the page
-  // shell flushes immediately and each section hydrates when its round trip
-  // lands, instead of blocking SSR (and the post-login redirect) on NATS.
-  const conn: Promise<ConnState> =
-    env.DEMO === '1'
-      ? Promise.resolve({ enabled: true, receiving: true, status: 'vip', subState: 'ok', subError: '' })
-      : connState(uid);
-
-  // Command digest for the stat cards + top strip. Cache-backed (same fabric
-  // entry as the commands page) and optional: a failure just hides the strip.
-  const commands: Promise<CommandDigest> =
-    env.DEMO === '1'
-      ? Promise.resolve(demoDigest)
-      : listCommands(uid)
-          .then(digest)
-          .catch(() => ({ top: [], active: 0, total: 0, uses: 0 }) as CommandDigest);
-
-  const catalogIds = new Set(MODULE_CATALOG.map((m) => m.id));
-  const modules: Promise<ModuleDigest> =
-    env.DEMO === '1'
-      ? Promise.resolve({ on: 1, total: MODULE_CATALOG.length })
-      : listModules(uid)
-          .then((rows) => ({
-            on: rows.filter((r) => catalogIds.has(r.name) && r.is_enabled).length,
-            total: MODULE_CATALOG.length
-          }))
-          .catch(() => ({ on: 0, total: MODULE_CATALOG.length }));
-
-  // Delegation shares only exist for owners; a delegate browsing the owner's
-  // board doesn't own grants, so show zero rather than erroring.
-  const shares: Promise<ShareDigest> =
-    env.DEMO === '1'
-      ? Promise.resolve({ people: 1, pending: 1 })
-      : delegationList(uid)
-          .then((grants) => ({
-            people: grants.filter((g) => g.consumed).length,
-            pending: grants.filter((g) => !g.consumed).length
-          }))
-          .catch(() => ({ people: 0, pending: 0 }));
-
-  return { conn, commands, modules, shares };
+  return {
+    conn: demoOr<ConnState>(
+      { enabled: true, receiving: true, status: 'vip', subState: 'ok', subError: '' },
+      () => connState(uid)
+    ),
+    commands: demoOr(demoDigest, () => commandDigest(uid)),
+    modules: demoOr({ on: 1, total: MODULE_CATALOG.length }, () => moduleDigest(uid)),
+    shares: demoOr({ people: 1, pending: 1 }, () => shareDigest(uid))
+  };
 };
+
+// ownerAction wraps the shared shape of every home-page action: owners only (a
+// delegate browsing the owner's board cannot flip the connection), then the
+// RPC sequence, then the audit trail; any failure maps to a 502 the client
+// toasts. onboarded skips the audit (it is not an impersonatable act).
+function ownerAction(name: string, audit: boolean, run: (uid: string) => Promise<unknown>) {
+  return async ({ locals }: { locals: App.Locals }) => {
+    if (locals.session?.delegate_of) return fail(403);
+    const uid = locals.session?.user_id;
+    if (!uid) return fail(401);
+    try {
+      await run(uid);
+      if (audit) auditDashboardImpersonation(locals.session, name);
+      return { ok: true, action: name };
+    } catch {
+      return fail(502, { error: `${name} failed` });
+    }
+  };
+}
 
 export const actions: Actions = {
   // Enable: mark the channel active and create the EventSub subs. This is a
@@ -140,56 +163,17 @@ export const actions: Actions = {
   // would only add a needless delete pass and reset Twitch's conduit routing
   // propagation for the fresh channel.chat.message sub. Use restart (below) for
   // an intentional drop+recreate of an already-connected channel.
-  enable: async ({ locals }) => {
-    if (locals.session?.delegate_of) return fail(403);
-    const uid = locals.session?.user_id;
-    if (!uid) return fail(401);
-    try {
-      await setActive(uid, true);
-      await publishEventSub(uid, true);
-      auditDashboardImpersonation(locals.session, 'enable');
-      return { ok: true, action: 'enable' };
-    } catch {
-      return fail(502, { error: 'enable failed' });
-    }
-  },
+  enable: ownerAction('enable', true, async (uid) => {
+    await setActive(uid, true);
+    await publishEventSub(uid, true);
+  }),
   // Restart: atomic drop + recreate of EventSub subscriptions (stays active).
-  restart: async ({ locals }) => {
-    if (locals.session?.delegate_of) return fail(403);
-    const uid = locals.session?.user_id;
-    if (!uid) return fail(401);
-    try {
-      await publishEventSubReconnect(uid);
-      auditDashboardImpersonation(locals.session, 'restart');
-      return { ok: true, action: 'restart' };
-    } catch {
-      return fail(502, { error: 'restart failed' });
-    }
-  },
+  restart: ownerAction('restart', true, (uid) => publishEventSubReconnect(uid)),
   // Disconnect: delete the subscriptions and mark inactive (grant kept).
-  disconnect: async ({ locals }) => {
-    if (locals.session?.delegate_of) return fail(403);
-    const uid = locals.session?.user_id;
-    if (!uid) return fail(401);
-    try {
-      await publishEventSub(uid, false);
-      await setActive(uid, false);
-      auditDashboardImpersonation(locals.session, 'disconnect');
-      return { ok: true, action: 'disconnect' };
-    } catch {
-      return fail(502, { error: 'disconnect failed' });
-    }
-  },
+  disconnect: ownerAction('disconnect', true, async (uid) => {
+    await publishEventSub(uid, false);
+    await setActive(uid, false);
+  }),
   // Onboarded: mark the user as having completed the onboarding flow.
-  onboarded: async ({ locals }) => {
-    if (locals.session?.delegate_of) return fail(403);
-    const uid = locals.session?.user_id;
-    if (!uid) return fail(401);
-    try {
-      await setOnboarded(uid, true);
-      return { ok: true, action: 'onboarded' };
-    } catch {
-      return fail(502, { error: 'onboarded failed' });
-    }
-  }
+  onboarded: ownerAction('onboarded', false, (uid) => setOnboarded(uid, true))
 };
