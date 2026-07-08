@@ -80,6 +80,8 @@ export async function guardSession(event: RequestEvent, s: Session): Promise<Ses
     // (the per-page gates remain as defense in depth).
     if (event.route.id?.startsWith('/(app)')) {
       const allowed = (s.sections ?? []).map((sec) => `/${sec}`);
+      // Timers has no standalone scope: the commands grant covers /timers too.
+      if (s.sections?.includes('commands')) allowed.push('/timers');
       const ok = allowed.some((p) => event.url.pathname === p || event.url.pathname.startsWith(p + '/'));
       if (!ok) throw redirect(303, allowed[0] ?? '/delegate/exit');
     }

@@ -20,8 +20,9 @@ import { demoNotifications } from '$lib/server/demo-notifications';
 import { env } from '$env/dynamic/private';
 
 // Dashboard sections an owner can delegate. Billing is view-only for a delegate
-// (the money actions stay owner-only — see billing/+page.server.ts).
-const SECTIONS = ['commands', 'modules', 'channelpoints', 'timers', 'billing'] as const;
+// (the money actions stay owner-only — see billing/+page.server.ts). Timers has
+// no standalone scope: it rides under 'commands' (see guard.ts + timers gate).
+const SECTIONS = ['commands', 'modules', 'channelpoints', 'billing'] as const;
 
 function tokenLabel(token: string): string {
   return token.length <= 8 ? 'token=redacted' : `token=${token.slice(0, 8)}...`;

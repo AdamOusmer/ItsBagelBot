@@ -27,7 +27,7 @@
 
   // Sections an owner can grant (from the server so it stays in one place).
   const grantable = $derived(
-    (data.grantableSections ?? ['commands', 'modules', 'channelpoints', 'timers', 'billing']) as string[]
+    (data.grantableSections ?? ['commands', 'modules', 'channelpoints', 'billing']) as string[]
   );
   function sectionLabel(sec: string): string {
     switch (sec) {
