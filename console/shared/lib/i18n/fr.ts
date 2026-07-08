@@ -37,6 +37,7 @@ export const fr = {
     commands: 'Commandes',
     modules: 'Modules',
     channelpoints: 'Points de chaîne',
+    timers: 'Minuteries',
     billing: 'Facturation',
     settings: 'Paramètres'
   },
@@ -371,6 +372,46 @@ export const fr = {
     toastSaveFailed: 'Impossible d’enregistrer la récompense.',
     toastDeleteFailed: 'Impossible de supprimer la récompense.',
     toastToggleFailed: 'Impossible de mettre à jour la récompense.'
+  },
+
+  timers: {
+    eyebrow: 'Gérer',
+    titlePre: 'Minuteries de ',
+    titleEm: 'chat',
+    description: 'Messages que le bot répète selon un intervalle pendant que vous êtes en live — annonces, réseaux sociaux, rappels.',
+    degraded: 'Les minuteries sont momentanément indisponibles. Réessayez bientôt.',
+    botOn: 'Minuteries actives',
+    botOnHint: 'Interrupteur général : les minuteries ne tournent que lorsqu’il est activé, et uniquement en live.',
+    newTimer: 'Nouvelle minuterie',
+    inspector: 'Inspecteur',
+    inspectorIdle: 'Sélectionnez une minuterie pour la modifier ici, ou créez-en une nouvelle.',
+    editing: 'Modification de la minuterie',
+    emptyTitle: 'Aucune minuterie',
+    emptySub: 'Créez-en une — elle commence à se répéter dès que votre live démarre.',
+    chipInterval: 'toutes les {n}',
+    hiddenTag: 'en pause',
+    toggleAria: 'Mettre en pause ou reprendre cette minuterie',
+    deleteAria: 'Supprimer cette minuterie',
+    // editor
+    fieldMessage: 'Message',
+    fieldMessagePh: 'ex. Suivez-moi sur les réseaux : {link}',
+    fieldInterval: 'Répéter toutes les',
+    fieldIntervalHint: 'Minimum 1 minute, maximum 24 heures.',
+    unitMinutes: 'minutes',
+    active: 'Active',
+    // actions + toasts
+    create: 'Créer la minuterie',
+    saveChanges: 'Enregistrer',
+    saving: 'Enregistrement…',
+    deleteTitle: 'Supprimer cette minuterie ?',
+    deleteBody: 'Cette minuterie cesse de se répéter immédiatement. Action irréversible.',
+    del: 'Supprimer',
+    toastCreated: 'Minuterie créée.',
+    toastSaved: 'Minuterie enregistrée.',
+    toastDeleted: 'Minuterie supprimée.',
+    toastSaveFailed: 'Impossible d’enregistrer la minuterie.',
+    toastDeleteFailed: 'Impossible de supprimer la minuterie.',
+    toastToggleFailed: 'Impossible de mettre à jour la minuterie.'
   },
 
   modules: {
