@@ -36,7 +36,7 @@
     Because a monolith wasn't complicated enough.
     <br />
     <br />
-    <a href="https://github.com/AdamOusmer/ItsBagelBot"><strong>Explore the docs »</strong></a>
+    <a href="https://docs.itsbagelbot.com"><strong>Explore the docs »</strong></a>
     <br />
     <a href="https://github.com/AdamOusmer/ItsBagelBot/issues/new?labels=bug&template=bug-report---.md">Report Bug</a>
     &middot;
