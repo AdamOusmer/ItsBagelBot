@@ -120,6 +120,20 @@ func TestGoveeSuccessDrivesLightsAndFulfills(t *testing.T) {
 	assert.Equal(t, outgress.RedemptionFulfilled, upd.Status)
 }
 
+func TestGoveeAllowOfflineDrivesLightsWhileOffline(t *testing.T) {
+	var col collector
+	gw := okGateway()
+	// Stream offline, but the broadcaster opted out of live-only.
+	d := engine.Deps{Live: &fakeLive{live: false}, Gateway: gw}
+	cfg := `{"rewardId":"rw-1","device":"AB:CD:EF","sku":"H6159","allowOffline":true}`
+	require.NoError(t, goveeHandler(t, d)(context.Background(), goveeCtx(goveeRedeemJSON, cfg), col.emit))
+
+	call := gw.lastCall(t)
+	assert.Equal(t, "control", call.endpoint, "allowOffline must reach the gateway even when offline")
+	require.Len(t, col.out, 2)
+	assert.Equal(t, outgress.RedemptionFulfilled, col.out[1].Status)
+}
+
 func TestGoveeGatewayFailureRefunds(t *testing.T) {
 	var col collector
 	gw := okGateway()

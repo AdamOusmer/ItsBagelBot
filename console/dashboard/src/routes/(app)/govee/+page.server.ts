@@ -7,6 +7,7 @@ import {
   clearGoveeKey,
   setGoveeDevice,
   setGoveeEnabled,
+  setGoveeAllowOffline,
   saveGoveeReward,
   deleteGoveeReward,
   type GoveeDevice,
@@ -41,7 +42,8 @@ function demoView(): GoveeView {
       deviceName: 'Desk strip',
       onRedeem: 'fulfill',
       rewardId: 'demo-reward',
-      reward: { rewardId: 'demo-reward', title: 'Colour my lights', cost: 500 }
+      reward: { rewardId: 'demo-reward', title: 'Colour my lights', cost: 500 },
+      allowOffline: false
     }
   };
 }
@@ -79,7 +81,7 @@ export const load: PageServerLoad = async ({ locals }) => {
     return {
       enabled: false,
       keyPresent: false,
-      binding: { device: '', sku: '', deviceName: '', onRedeem: 'fulfill' as GoveeOnRedeem, rewardId: '', reward: null },
+      binding: { device: '', sku: '', deviceName: '', onRedeem: 'fulfill' as GoveeOnRedeem, rewardId: '', reward: null, allowOffline: false },
       devices: [] as GoveeDevice[],
       colors,
       degraded: true
@@ -220,5 +222,27 @@ export const actions: Actions = {
     }
     auditDashboardImpersonation(locals.session, 'govee:toggle', String(enabled));
     return { ok: true, enabled };
+  },
+
+  // liveOnly flips the live-only gate. allow_offline='on' disables it (viewers can
+  // drive the lights while offline); the page guards that direction with a
+  // warning modal before posting here.
+  liveOnly: async ({ request, locals }) => {
+    gate(locals.session);
+    const uid = requireSession(locals);
+    if (uid === null) return fail(401, { ok: false, error: 'Not signed in.' });
+
+    const allowOffline = (await request.formData()).get('allow_offline') === 'on';
+    if (env.DEMO === '1') return { ok: true, allowOffline };
+
+    try {
+      const res = await setGoveeAllowOffline(uid, allowOffline);
+      if (!res.ok) return resultFail(res);
+    } catch (e) {
+      console.error('[govee] liveOnly failed:', e instanceof Error ? (e.stack ?? e.message) : e);
+      return fail(400, { ok: false });
+    }
+    auditDashboardImpersonation(locals.session, 'govee:live_only', allowOffline ? 'off' : 'on');
+    return { ok: true, allowOffline };
   }
 };

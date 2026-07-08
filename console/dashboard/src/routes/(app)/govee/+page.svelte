@@ -1,8 +1,9 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
+  import { tick } from 'svelte';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { Icon, Card, PageHead, toast } from '@bagel/shared';
+  import { Icon, Card, PageHead, ConfirmDialog, toast } from '@bagel/shared';
 
   let { data } = $props();
 
@@ -12,6 +13,9 @@
   let enabled = $state<boolean>(data.enabled ?? false);
   // svelte-ignore state_referenced_locally
   let selectedDevice = $state<string>(data.binding?.device ?? '');
+  // Live-only reflects the inverse of the stored allowOffline flag; on by default.
+  // svelte-ignore state_referenced_locally
+  let liveOnly = $state<boolean>(!(data.binding?.allowOffline));
   // svelte-ignore state_referenced_locally
   let seed = data;
   $effect(() => {
@@ -19,6 +23,7 @@
       seed = data;
       enabled = data.enabled ?? false;
       selectedDevice = data.binding?.device ?? '';
+      liveOnly = !(data.binding?.allowOffline);
     }
   });
 
@@ -58,6 +63,42 @@
         enabled = was;
         toast('err', 'Could not toggle Govee lights.');
       }
+    };
+  };
+
+  // --- Live-only gate (default on; turning it OFF needs a warning) -----------
+  let confirmOff = $state(false);
+  let liveOnlyBusy = $state(false);
+  let pendingAllowOffline = $state(false);
+  let liveOnlyForm = $state<HTMLFormElement | null>(null);
+
+  // submitLiveOnly posts the desired allowOffline state. tick() flushes the
+  // bound hidden input before requestSubmit so the form carries the new value.
+  async function submitLiveOnly(allowOffline: boolean) {
+    pendingAllowOffline = allowOffline;
+    await tick();
+    liveOnlyForm?.requestSubmit();
+  }
+
+  // Turning live-only OFF (allowOffline true) opens the warning; turning it back
+  // ON is safe and saves immediately.
+  function onToggleLiveOnly() {
+    if (liveOnly) confirmOff = true;
+    else submitLiveOnly(false);
+  }
+
+  const liveOnlySubmit: SubmitFunction = () => {
+    liveOnlyBusy = true;
+    return async ({ result }) => {
+      liveOnlyBusy = false;
+      const payload = payloadOf(result);
+      if (result.type === 'success' && payload?.ok !== false) {
+        liveOnly = !pendingAllowOffline;
+        toast('ok', liveOnly ? 'Live only is on.' : 'Live only is off — offline redemptions allowed.');
+        await invalidateAll();
+        return;
+      }
+      toast('err', 'Could not change the live-only setting.');
     };
   };
 
@@ -195,11 +236,43 @@
               <button class="btn danger ghost" type="submit">Delete reward</button>
             </form>
           {/if}
+
+          <div class="liveonly {liveOnly ? '' : 'warn'}">
+            <div class="liveonly-text">
+              <span class="liveonly-label">Live only</span>
+              <span class="muted">
+                {liveOnly
+                  ? 'Redemptions only work while your stream is live (recommended).'
+                  : 'Off: viewers can change your lights even when you are offline.'}
+              </span>
+            </div>
+            <button type="button" class="toggle {liveOnly ? 'on' : ''}" aria-label="Toggle live only" onclick={onToggleLiveOnly}></button>
+          </div>
         {/if}
       </div>
     </div>
   </Card>
 </section>
+
+<!-- Hidden form the toggle submits; the value is set before requestSubmit. -->
+<form method="POST" action="?/liveOnly" use:enhance={liveOnlySubmit} bind:this={liveOnlyForm} hidden>
+  <input type="hidden" name="allow_offline" value={pendingAllowOffline ? 'on' : ''} />
+</form>
+
+<ConfirmDialog
+  open={confirmOff}
+  title="Turn off Live only?"
+  body="With Live only off, anyone who redeems this reward can change your Govee lights even while you are offline or away from your setup. Only turn this off to test — you can turn it back on any time."
+  confirmLabel="Turn it off"
+  cancelLabel="Keep it on"
+  danger
+  busy={liveOnlyBusy}
+  onCancel={() => (confirmOff = false)}
+  onConfirm={() => {
+    confirmOff = false;
+    submitLiveOnly(true);
+  }}
+/>
 
 <style>
   .toolbar {
@@ -381,6 +454,30 @@
     gap: 0.3rem;
     color: #48c78e;
     font-size: 0.82rem;
+  }
+  .liveonly {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 1rem;
+    padding-top: 0.9rem;
+    border-top: 1px solid var(--border, #3a3d44);
+  }
+  .liveonly-text {
+    display: grid;
+    gap: 0.15rem;
+    flex: 1;
+    min-width: 0;
+  }
+  .liveonly-label {
+    font-weight: 600;
+    font-size: 0.9rem;
+  }
+  .liveonly.warn .liveonly-label {
+    color: #ffb454;
+  }
+  .liveonly .toggle {
+    flex: none;
   }
   code {
     font-size: 0.82em;

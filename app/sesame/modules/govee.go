@@ -33,9 +33,14 @@ type goveeConfig struct {
 	Device string `json:"device"`
 	SKU    string `json:"sku"`
 	// OnRedeem is the resolution on a successful colour change: fulfill (default),
-	// cancel (refund anyway), or leave (for a human mod). A rejection (offline,
-	// bad colour, upstream failure) always refunds regardless.
+	// cancel (refund anyway), or leave (for a human mod). A rejection (bad colour,
+	// upstream failure, or offline while live-only) always refunds regardless.
 	OnRedeem string `json:"onRedeem"`
+	// AllowOffline opts out of the live-only gate so redemptions drive the lights
+	// even when the stream is offline. It defaults to false (live-only enforced)
+	// so the safe posture is the zero value; the dashboard only sets it true
+	// behind a warning, since it lets viewers control the lights any time.
+	AllowOffline bool `json:"allowOffline"`
 }
 
 // Govee turns a channel-points redemption into a smart-light colour change. It
@@ -83,15 +88,19 @@ func goveeRedemption(d engine.Deps, log *zap.Logger) module.EventHandler {
 			return nil
 		}
 
-		// Live only: a live-check error is treated as "not confirmably live" so a
+		// Live-only is the default and safe posture; a broadcaster can opt out
+		// (allowOffline, gated behind a dashboard warning) to test off-stream.
+		// When enforced, a live-check error counts as "not confirmably live" so a
 		// transient projector hiccup refunds rather than driving lights off-stream.
-		live, err := d.Live.IsLive(ctx, c.BroadcasterID)
-		if err != nil || !live {
-			if err != nil {
-				log.Warn("govee: live check failed, refunding", zap.Uint64("broadcaster_id", c.BroadcasterID), zap.Error(err))
+		if !cfg.AllowOffline {
+			live, err := d.Live.IsLive(ctx, c.BroadcasterID)
+			if err != nil || !live {
+				if err != nil {
+					log.Warn("govee: live check failed, refunding", zap.Uint64("broadcaster_id", c.BroadcasterID), zap.Error(err))
+				}
+				goveeRefund(emit, ev, "the lights only change while live, your points were refunded")
+				return nil
 			}
-			goveeRefund(emit, ev, "the lights only change while live, your points were refunded")
-			return nil
 		}
 
 		rgb, ok := parseColor(ev.UserInput)
@@ -101,7 +110,7 @@ func goveeRedemption(d engine.Deps, log *zap.Logger) module.EventHandler {
 		}
 
 		var reply gatewayrpc.GoveeControlReply
-		err = d.Gateway.Call(ctx, "govee", "control", gatewayrpc.Request{
+		err := d.Gateway.Call(ctx, "govee", "control", gatewayrpc.Request{
 			ChannelID: ev.BroadcasterUserID,
 			Device:    cfg.Device,
 			SKU:       cfg.SKU,

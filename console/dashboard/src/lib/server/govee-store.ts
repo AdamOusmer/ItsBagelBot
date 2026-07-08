@@ -54,6 +54,9 @@ export interface GoveeBinding {
   onRedeem: GoveeOnRedeem;
   rewardId: string;
   reward: GoveeReward | null;
+  // allowOffline opts out of the live-only gate (default false = live only).
+  // sesame reads this same flag; the dashboard only sets it true behind a warning.
+  allowOffline: boolean;
 }
 
 export interface GoveeView {
@@ -65,7 +68,7 @@ export interface GoveeView {
 export type GoveeResult = { ok: true } | { ok: false; missingScope?: boolean; error?: string };
 
 function blankBinding(): GoveeBinding {
-  return { device: '', sku: '', deviceName: '', onRedeem: 'fulfill', rewardId: '', reward: null };
+  return { device: '', sku: '', deviceName: '', onRedeem: 'fulfill', rewardId: '', reward: null, allowOffline: false };
 }
 
 function coerceOnRedeem(v: unknown): GoveeOnRedeem {
@@ -82,7 +85,8 @@ function readBinding(configs: unknown): GoveeBinding {
     deviceName: String(c.deviceName ?? ''),
     onRedeem: coerceOnRedeem(c.onRedeem),
     rewardId: String(c.rewardId ?? ''),
-    reward: reward ? { rewardId: String(reward.rewardId ?? ''), title: String(reward.title ?? ''), cost: Number(reward.cost ?? 0) } : null
+    reward: reward ? { rewardId: String(reward.rewardId ?? ''), title: String(reward.title ?? ''), cost: Number(reward.cost ?? 0) } : null,
+    allowOffline: c.allowOffline === true
   };
 }
 
@@ -152,6 +156,15 @@ export async function setGoveeDevice(userId: string, device: string, sku: string
 export async function setGoveeEnabled(userId: string, enabled: boolean): Promise<GoveeResult> {
   const cur = await readGovee(userId);
   await writeBinding(userId, enabled, cur.binding);
+  return { ok: true };
+}
+
+// setAllowOffline flips the live-only gate. true lets redemptions drive the
+// lights while the stream is offline; the dashboard guards enabling it (true)
+// behind a warning, since anyone with the reward can then control the lights.
+export async function setGoveeAllowOffline(userId: string, allowOffline: boolean): Promise<GoveeResult> {
+  const cur = await readGovee(userId);
+  await writeBinding(userId, cur.enabled, { ...cur.binding, allowOffline });
   return { ok: true };
 }
 
