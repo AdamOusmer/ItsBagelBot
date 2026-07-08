@@ -77,6 +77,7 @@ export const en = {
     noticeBanned: 'This account can no longer use the console.',
     noticeLink: 'That share link is no longer valid. Ask the broadcaster for a new one.',
     noticeRetry: 'Sign-in did not finish on our side. Nothing was saved. Please try again.',
+    noticeImpersonation: 'That view-as link is invalid or has already been used. Mint a new one from the admin console.',
     consent: 'I agree to the <a href="https://itsbagelbot.com/terms" target="_blank">Terms</a> and <a href="https://itsbagelbot.com/privacy" target="_blank">Privacy Policy</a>',
     back: 'Back to itsbagelbot.com'
   },

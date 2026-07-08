@@ -201,7 +201,11 @@ function getWriteClient(): RateLimitClient | null {
     const [host, portStr] = cfg.sentinelAddr.split(':');
     client = new Redis({
       sentinels: [{ host: host || '127.0.0.1', port: portStr ? Number(portStr) : 26379 }],
-      name: cfg.sentinelMaster ?? 'myprimary',
+      // `||` not `??`: an empty VALKEY_MASTER_SET (unset in Doppler comes
+      // through as "") must fall back to the sentinel's monitored name, not be
+      // used verbatim — a blank master name never resolves, so every write
+      // (rate-limit AND single-use claimOnce) would silently time out.
+      name: cfg.sentinelMaster || 'myprimary',
       password: cfg.password || undefined,
       // Fail fast, never queue: an unreachable master must degrade to the
       // per-pod fallback immediately, not grow an unbounded command queue.
