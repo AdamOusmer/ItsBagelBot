@@ -104,7 +104,14 @@ func main() {
 		Modules:  modulesTopic,
 		Commands: commandsTopic,
 	}, queryHydrationTTL, liveHydrationTTL, hydrationConcurrency, log)
-	projector := NewProjector(valkeyStore, nc, invalidateSubject, cacheInvalidatePrefix, hydrator, log)
+	projector := NewProjector(Deps{
+		Store:                 valkeyStore,
+		NC:                    nc,
+		InvalidateSubject:     invalidateSubject,
+		CacheInvalidatePrefix: cacheInvalidatePrefix,
+		Hydrator:              hydrator,
+		Log:                   log,
+	})
 
 	if err := bus.Consume(ctx, nrApp, sub, data.SubjectUserChanged, projector.HandleUserChanged, log); err != nil {
 		log.Fatal("failed to subscribe to user changes", zap.Error(err))
