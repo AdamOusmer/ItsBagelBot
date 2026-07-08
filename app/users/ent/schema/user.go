@@ -46,6 +46,8 @@ func (User) Fields() []ent.Field {
 		// migration; the console validates the value against its locale set.
 		field.String("locale").Default("en").MaxLen(8),
 
+		field.String("creator_code").Optional().Nillable().MaxLen(64),
+
 		// Billing ownership is deliberately stored with the user tier. This lets
 		// webhook retries apply idempotently and prevents a Tebex cancellation
 		// from revoking a staff grant or permanent VIP status.

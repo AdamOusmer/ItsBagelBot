@@ -7,6 +7,7 @@ import {
   userLookup,
   userSetStatus,
   userSetActive,
+  userSetCreatorCode,
   userBan,
   userUnban,
   userReset,
@@ -25,6 +26,7 @@ import { env } from '$env/dynamic/private';
 import { sampleStats, sampleUsers } from '$lib/server/sample';
 
 const MAX_SEARCH_LENGTH = 200;
+const CREATOR_CODE_MAX_LENGTH = 64;
 
 function parsePage(raw: string | null): number {
   const page = Number(raw ?? '1');
@@ -231,6 +233,38 @@ export const actions: Actions = {
       return { action: { ok: true, notice: `active=${user.is_active}` }, lookup: { user } };
     } catch (e) {
       audit(admin, 'set_active', userId, String(active), false, (e as Error).message);
+      return { action: { ok: false, notice: (e as Error).message } };
+    }
+  },
+
+  setCreatorCode: async ({ request, locals }) => {
+    const admin = await requireAdmin(locals.session);
+    if (!admin) return fail(403, { error: 'forbidden' });
+    const f = await request.formData();
+    const userId = String(f.get('user_id') ?? '').trim();
+    const creatorCode = String(f.get('creator_code') ?? '').trim();
+    if (!userId) return fail(400, { error: 'user_id required' });
+    if (creatorCode.length > CREATOR_CODE_MAX_LENGTH) {
+      return { action: { ok: false, notice: `creator code must be ${CREATOR_CODE_MAX_LENGTH} characters or fewer` } };
+    }
+
+    const detail = creatorCode ? `creator_code=${creatorCode}` : 'creator_code=cleared';
+    if (isDemo()) {
+      const user = sampleUsers.find((u) => String(u.id) === userId);
+      return {
+        action: { ok: true, notice: creatorCode ? `creator code set to ${creatorCode} (demo)` : 'creator code cleared (demo)' },
+        lookup: user ? { user: { ...user, creator_code: creatorCode || null } } : undefined
+      };
+    }
+    try {
+      const user: AdminUserWire = await userSetCreatorCode(userId, creatorCode);
+      audit(admin, 'set_creator_code', userId, detail, true);
+      return {
+        action: { ok: true, notice: user.creator_code ? `creator code set to ${user.creator_code}` : 'creator code cleared' },
+        lookup: { user }
+      };
+    } catch (e) {
+      audit(admin, 'set_creator_code', userId, detail, false, (e as Error).message);
       return { action: { ok: false, notice: (e as Error).message } };
     }
   },

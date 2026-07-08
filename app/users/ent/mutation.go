@@ -3040,6 +3040,7 @@ type UserMutation struct {
 	banned                      *bool
 	status                      *user.Status
 	locale                      *string
+	creator_code                *string
 	subscription_source         *string
 	subscription_expires_at     *time.Time
 	subscription_ref            *string
@@ -3427,6 +3428,55 @@ func (m *UserMutation) OldLocale(ctx context.Context) (v string, err error) {
 // ResetLocale resets all changes to the "locale" field.
 func (m *UserMutation) ResetLocale() {
 	m.locale = nil
+}
+
+// SetCreatorCode sets the "creator_code" field.
+func (m *UserMutation) SetCreatorCode(s string) {
+	m.creator_code = &s
+}
+
+// CreatorCode returns the value of the "creator_code" field in the mutation.
+func (m *UserMutation) CreatorCode() (r string, exists bool) {
+	v := m.creator_code
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatorCode returns the old "creator_code" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldCreatorCode(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatorCode is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatorCode requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatorCode: %w", err)
+	}
+	return oldValue.CreatorCode, nil
+}
+
+// ClearCreatorCode clears the value of the "creator_code" field.
+func (m *UserMutation) ClearCreatorCode() {
+	m.creator_code = nil
+	m.clearedFields[user.FieldCreatorCode] = struct{}{}
+}
+
+// CreatorCodeCleared returns if the "creator_code" field was cleared in this mutation.
+func (m *UserMutation) CreatorCodeCleared() bool {
+	_, ok := m.clearedFields[user.FieldCreatorCode]
+	return ok
+}
+
+// ResetCreatorCode resets all changes to the "creator_code" field.
+func (m *UserMutation) ResetCreatorCode() {
+	m.creator_code = nil
+	delete(m.clearedFields, user.FieldCreatorCode)
 }
 
 // SetSubscriptionSource sets the "subscription_source" field.
@@ -3949,7 +3999,7 @@ func (m *UserMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UserMutation) Fields() []string {
-	fields := make([]string, 0, 17)
+	fields := make([]string, 0, 18)
 	if m.username != nil {
 		fields = append(fields, user.FieldUsername)
 	}
@@ -3970,6 +4020,9 @@ func (m *UserMutation) Fields() []string {
 	}
 	if m.locale != nil {
 		fields = append(fields, user.FieldLocale)
+	}
+	if m.creator_code != nil {
+		fields = append(fields, user.FieldCreatorCode)
 	}
 	if m.subscription_source != nil {
 		fields = append(fields, user.FieldSubscriptionSource)
@@ -4023,6 +4076,8 @@ func (m *UserMutation) Field(name string) (ent.Value, bool) {
 		return m.Status()
 	case user.FieldLocale:
 		return m.Locale()
+	case user.FieldCreatorCode:
+		return m.CreatorCode()
 	case user.FieldSubscriptionSource:
 		return m.SubscriptionSource()
 	case user.FieldSubscriptionExpiresAt:
@@ -4066,6 +4121,8 @@ func (m *UserMutation) OldField(ctx context.Context, name string) (ent.Value, er
 		return m.OldStatus(ctx)
 	case user.FieldLocale:
 		return m.OldLocale(ctx)
+	case user.FieldCreatorCode:
+		return m.OldCreatorCode(ctx)
 	case user.FieldSubscriptionSource:
 		return m.OldSubscriptionSource(ctx)
 	case user.FieldSubscriptionExpiresAt:
@@ -4143,6 +4200,13 @@ func (m *UserMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetLocale(v)
+		return nil
+	case user.FieldCreatorCode:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatorCode(v)
 		return nil
 	case user.FieldSubscriptionSource:
 		v, ok := value.(string)
@@ -4262,6 +4326,9 @@ func (m *UserMutation) ClearedFields() []string {
 	if m.FieldCleared(user.FieldEmailEnc) {
 		fields = append(fields, user.FieldEmailEnc)
 	}
+	if m.FieldCleared(user.FieldCreatorCode) {
+		fields = append(fields, user.FieldCreatorCode)
+	}
 	if m.FieldCleared(user.FieldSubscriptionExpiresAt) {
 		fields = append(fields, user.FieldSubscriptionExpiresAt)
 	}
@@ -4290,6 +4357,9 @@ func (m *UserMutation) ClearField(name string) error {
 	switch name {
 	case user.FieldEmailEnc:
 		m.ClearEmailEnc()
+		return nil
+	case user.FieldCreatorCode:
+		m.ClearCreatorCode()
 		return nil
 	case user.FieldSubscriptionExpiresAt:
 		m.ClearSubscriptionExpiresAt()
@@ -4331,6 +4401,9 @@ func (m *UserMutation) ResetField(name string) error {
 		return nil
 	case user.FieldLocale:
 		m.ResetLocale()
+		return nil
+	case user.FieldCreatorCode:
+		m.ResetCreatorCode()
 		return nil
 	case user.FieldSubscriptionSource:
 		m.ResetSubscriptionSource()

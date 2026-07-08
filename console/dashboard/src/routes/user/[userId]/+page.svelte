@@ -6,6 +6,7 @@
 
   const commandLabel = $derived(data.commands.length === 1 ? 'command' : 'commands');
   const moduleLabel = $derived(data.modules.length === 1 ? 'module' : 'modules');
+  const creatorCode = $derived(String(data.creatorCode ?? '').trim());
 
   // Links point at the live marketing site so the public page shares one nav +
   // footer with web/ (same buttons, routed to the original web).
@@ -177,6 +178,14 @@
       </p>
     </div>
   </header>
+
+  {#if creatorCode}
+    <section class="creator-strip" aria-label="Creator code">
+      <span class="creator-strip__signal" aria-hidden="true"></span>
+      <span class="creator-strip__label">Creator code</span>
+      <strong>{creatorCode}</strong>
+    </section>
+  {/if}
 
   {#if data.degraded}
     <section class="notice" role="status">
@@ -589,7 +598,58 @@
   }
 
   /* ── content blocks ── */
-  .block, .notice { max-width: var(--bb-content-max, 1200px); margin: 0 auto; }
+  .block, .notice, .creator-strip { max-width: var(--bb-content-max, 1200px); margin: 0 auto; }
+  .creator-strip {
+    position: sticky;
+    top: calc(76px + env(safe-area-inset-top, 0px) + 14px);
+    z-index: 35;
+    width: max-content;
+    max-width: min(100%, 560px);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    border: 1px solid rgba(82,183,136,0.34);
+    border-radius: 100px;
+    background:
+      radial-gradient(420px circle at 20% 50%, rgba(201,168,124,0.16), transparent 58%),
+      linear-gradient(180deg, rgba(240,236,228,0.07), rgba(240,236,228,0.025)),
+      rgba(17,17,16,0.9);
+    color: var(--bb-white);
+    box-shadow:
+      0 18px 42px rgba(0,0,0,0.34),
+      0 0 28px rgba(82,183,136,0.08);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+  .creator-strip__signal {
+    width: 8px;
+    height: 8px;
+    flex: none;
+    border-radius: 999px;
+    background: var(--bb-green-glow);
+    box-shadow: 0 0 16px rgba(82,183,136,0.82);
+  }
+  .creator-strip__label {
+    font-family: var(--bb-font-mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--bb-green-glow);
+    white-space: nowrap;
+  }
+  .creator-strip strong {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--bb-font-mono);
+    font-size: 0.82rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    color: var(--bb-tan-pale);
+    text-shadow: 0 0 18px rgba(201,168,124,0.22);
+  }
   .notice {
     margin-bottom: 24px;
     padding: 14px 18px;
@@ -832,6 +892,14 @@
   @media (max-width: 760px) {
     .page { padding-inline: 18px; }
     .phero { min-height: 60vh; padding-top: calc(76px + 40px); padding-bottom: 54px; }
+    .creator-strip {
+      width: 100%;
+      justify-content: center;
+      gap: 9px;
+      padding-inline: 12px;
+    }
+    .creator-strip__label { font-size: 0.62rem; letter-spacing: 0.12em; }
+    .creator-strip strong { font-size: 0.75rem; }
     .detail-row { grid-template-columns: 18px 1fr; gap: 4px 12px; }
     .detail-row > span { grid-column: 2; }
   }
