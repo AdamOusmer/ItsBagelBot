@@ -134,20 +134,20 @@ func main() {
 	}
 
 	invalidationPrefix := env.Get("NATS_CACHE_INVALIDATION_PREFIX", "bagel.cache.invalidate")
-	queueGroup := "users-rpc"
+	wiring := rpc.Wiring{NC: nc, Repo: repo, App: nrApp, Queue: "users-rpc", Log: log}
 
 	dashPrefix := env.Get("NATS_DASHBOARD_SUBJECT_PREFIX", "bagel.rpc.dashboard")
-	if err := rpc.SubscribeDashboard(nc, repo, dashPrefix, invalidationPrefix, queueGroup, nrApp, log); err != nil {
+	if err := rpc.SubscribeDashboard(wiring, dashPrefix, invalidationPrefix); err != nil {
 		log.Fatal("failed to subscribe dashboard rpc", zap.Error(err))
 	}
 
 	adminPrefix := env.Get("NATS_ADMIN_USER_SUBJECT_PREFIX", "bagel.rpc.admin.user")
-	if err := rpc.SubscribeAdmin(nc, repo, adminPrefix, invalidationPrefix, queueGroup, nrApp, log); err != nil {
+	if err := rpc.SubscribeAdmin(wiring, adminPrefix, invalidationPrefix); err != nil {
 		log.Fatal("failed to subscribe admin rpc", zap.Error(err))
 	}
 
 	billingSubject := env.Get("NATS_INTERNAL_BILLING_SUBJECT", "bagel.rpc.internal.billing.apply")
-	if err := rpc.SubscribeBilling(nc, repo, billingSubject, invalidationPrefix, queueGroup, nrApp, log); err != nil {
+	if err := rpc.SubscribeBilling(wiring, billingSubject, invalidationPrefix); err != nil {
 		log.Fatal("failed to subscribe billing rpc", zap.Error(err))
 	}
 
@@ -162,33 +162,33 @@ func main() {
 	owners := parseIDs(env.Get("OWNER_BOOTSTRAP_IDS", "804932984"))
 	admins := parseIDs(env.Get("ADMIN_BOOTSTRAP_IDS", ""))
 	if len(owners) > 0 || len(admins) > 0 {
-		if err := rpc.SeedStaff(ctx, client, owners, admins, log); err != nil {
+		if err := rpc.SeedStaff(ctx, client, rpc.StaffSeed{Owners: owners, Admins: admins}, log); err != nil {
 			log.Fatal("failed to seed bootstrap staff", zap.Error(err))
 		}
 	}
 	authPrefix := env.Get("NATS_ADMIN_AUTH_SUBJECT_PREFIX", "bagel.rpc.admin.user.auth")
 	auditPrefix := env.Get("NATS_ADMIN_AUDIT_SUBJECT_PREFIX", "bagel.rpc.admin.user.audit")
-	if err := rpc.SubscribeAdminAuth(nc, client, authPrefix, auditPrefix, queueGroup, nrApp, log); err != nil {
+	if err := rpc.SubscribeAdminAuth(wiring, client, authPrefix, auditPrefix); err != nil {
 		log.Fatal("failed to subscribe admin auth rpc", zap.Error(err))
 	}
 
 	projectionSubject := env.Get("NATS_INTERNAL_PROJECTION_USERS_SUBJECT", "bagel.rpc.internal.projection.users.get")
-	if err := rpc.SubscribeProjection(nc, repo, projectionSubject, queueGroup, nrApp, log); err != nil {
+	if err := rpc.SubscribeProjection(wiring, projectionSubject); err != nil {
 		log.Fatal("failed to subscribe projection rpc", zap.Error(err))
 	}
 
 	emailSubject := env.Get("NATS_INTERNAL_USERS_EMAIL_SUBJECT", "bagel.rpc.internal.users.email.get")
-	if err := rpc.SubscribeEmail(nc, repo, emailSubject, queueGroup, nrApp, log); err != nil {
+	if err := rpc.SubscribeEmail(wiring, emailSubject); err != nil {
 		log.Fatal("failed to subscribe email rpc", zap.Error(err))
 	}
 
 	tokensPrefix := env.Get("NATS_INTERNAL_TOKENS_SUBJECT_PREFIX", "bagel.rpc.internal.tokens")
-	if err := rpc.SubscribeTokens(nc, repo, tokensPrefix, queueGroup, nrApp, log); err != nil {
+	if err := rpc.SubscribeTokens(wiring, tokensPrefix); err != nil {
 		log.Fatal("failed to subscribe tokens rpc", zap.Error(err))
 	}
 
 	delegationPrefix := env.Get("NATS_DELEGATION_SUBJECT_PREFIX", "bagel.rpc.delegation")
-	if err := rpc.SubscribeDelegation(nc, repo, delegationPrefix, invalidationPrefix, queueGroup, nrApp, log); err != nil {
+	if err := rpc.SubscribeDelegation(wiring, delegationPrefix, invalidationPrefix); err != nil {
 		log.Fatal("failed to subscribe delegation rpc", zap.Error(err))
 	}
 
