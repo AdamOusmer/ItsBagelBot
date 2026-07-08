@@ -9,9 +9,9 @@ const sections = [
     { id: 'data-not-collected', heading: "Data We Don't Collect", plain: 'No personal browsing profiles, ad data, or IP-based tracking by us.' },
     { id: 'cookies', heading: 'Cloudflare, Cookies & Analytics', plain: 'Cloudflare protects and delivers the service. Analytics are cookie-free; security cookies may be used when needed.' },
     { id: 'data-use', heading: 'How We Use Your Data & Legal Basis', plain: 'We use data to provide and secure the service. We never sell or rent it.' },
-    { id: 'payment-processing', heading: 'Other Third-Party Processors', plain: 'Tebex handles checkout and payments as the merchant of record. Resend delivers our transactional emails.' },
+    { id: 'payment-processing', heading: 'Other Third-Party Processors', plain: 'Tebex handles checkout and payments as the merchant of record. Resend delivers our automated emails; Zoho handles our direct correspondence.' },
     { id: 'storage', heading: 'Data Storage & Transfers', plain: 'Chat is processed live, not kept. Settings stay encrypted in Canada; Cloudflare processes traffic globally.' },
-    { id: 'rights', heading: 'Your Rights (GDPR, PIPEDA, Law 25)', plain: 'Ask for your data, portability, or its deletion any time. You can also complain to a privacy regulator.' },
+    { id: 'rights', heading: 'Your Rights (GDPR, PIPEDA, Law 25, CCPA)', plain: 'Ask for your data, portability, or its deletion any time. California residents get CCPA rights too. You can also complain to a privacy regulator.' },
     { id: 'changes', heading: 'Changes', plain: "If this policy changes meaningfully, you'll hear about it." },
     { id: 'contact', heading: 'Contact & Data Protection Officer', plain: 'Privacy questions go to support@itsbagelbot.com.' },
 ];
@@ -23,7 +23,7 @@ const sections = [
     <LegalShell updated="July 2026" sections={sections}>
         <Fragment slot="overview">
             <p>
-                ItsBagelBot is committed to protecting your privacy in accordance with GDPR (Europe), PIPEDA (Canada), and Law 25 (Quebec). This policy explains what data we collect,
+                ItsBagelBot is committed to protecting your privacy in accordance with GDPR (Europe), PIPEDA (Canada), Law 25 (Quebec), and the CCPA (California). This policy explains what data we collect,
                 how we use it, and your rights.
             </p>
         </Fragment>
@@ -73,7 +73,10 @@ const sections = [
                 To offer premium subscriptions, we integrate with Tebex. Tebex acts as the merchant of record for all transactions. When you initiate a checkout, we create a secure basket and redirect you to Tebex to complete the purchase. We do not process, collect, or store any payment details (like credit card numbers). We only receive the transaction ID and order status to fulfill your subscription. Tebex processes your payment data subject to their own Privacy Policy.
             </p>
             <p>
-                We use Resend, Inc. to deliver transactional emails, such as purchase receipts and gift notifications. When we send you an email, Resend processes your email address and the message content for delivery purposes only, subject to Resend's own Privacy Policy. We do not share your email address with any other third party.
+                We use Resend, Inc. to deliver automated transactional emails, such as purchase receipts and gift notifications. When we send you such an email, Resend processes your email address and the message content for delivery purposes only, subject to Resend's own Privacy Policy.
+            </p>
+            <p>
+                We use Zoho Corporation's email services for non-automated correspondence, such as replies from our support team. When you email us, or we write to you directly, Zoho processes your email address and the content of the exchange to deliver and host that correspondence, subject to Zoho's own Privacy Policy. Aside from the processors described in this policy, we do not share your email address with anyone.
             </p>
         </Fragment>
 
@@ -92,7 +95,10 @@ const sections = [
                 removes all associated data immediately, except for minimal records we are legally required to keep, such as transaction audit logs.
             </p>
             <p>
-                If you believe we have not handled your personal data properly, you also have the right to lodge a complaint with a supervisory authority: the Commission d'accès à l'information in Quebec, the Office of the Privacy Commissioner of Canada, or your local data protection authority in the EU/EEA.
+                <strong>California residents:</strong> under the California Consumer Privacy Act (CCPA, as amended by the CPRA), you have the right to know what personal information we collect, to access it, to correct it, to delete it, and to not be discriminated against for exercising these rights. We do not sell your personal information and do not share it for cross-context behavioural advertising, so there is nothing to opt out of. You can exercise these rights, yourself or through an authorized agent, by contacting <a href="mailto:support@itsbagelbot.com">support@itsbagelbot.com</a>; we will verify your request and respond within the timelines the CCPA requires.
+            </p>
+            <p>
+                If you believe we have not handled your personal data properly, you also have the right to lodge a complaint with a supervisory authority: the Commission d'accès à l'information in Quebec, the Office of the Privacy Commissioner of Canada, your local data protection authority in the EU/EEA, or the California Privacy Protection Agency.
             </p>
         </Fragment>
 
