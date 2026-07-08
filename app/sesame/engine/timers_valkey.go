@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"encoding/json"
+	"math/rand/v2"
 	"strconv"
 	"strings"
 	"time"
@@ -41,6 +42,15 @@ const timerClaimTTL = 5 * time.Second
 // to 60s; this only guards a hand-crafted RPC call from arming a tight
 // expire/fire/re-arm loop.
 const minTimerInterval = 30 * time.Second
+
+// timerFirstFireJitter caps the random phase offset added to a timer's FIRST
+// interval at arm time. It desynchronizes timers armed in the same instant
+// (every timer at stream.online, or a freshly added same-interval one) so they
+// don't all expire together and post as one wall of chat. Only the first fire
+// is offset; re-arms use the exact interval, so the configured cadence holds.
+// The offset is floored at the smaller of this cap and the interval itself, so
+// a 30s timer never gets a 60s first wait.
+const timerFirstFireJitter = 30 * time.Second
 
 // rearmTimeout bounds one mid-stream rearm (IsLive read + ArmAll) triggered off
 // a modules cache-invalidation, so a stalled Valkey/projector never pins the
@@ -136,15 +146,18 @@ func timerKey(broadcasterID uint64, timerID string) string {
 }
 
 // ArmAll SETs one Valkey key per enabled timer of an enabled "timers" module,
-// each EX'd to its own interval — the broadcaster's stream just went online,
-// so every timer starts its countdown fresh.
+// each EX'd to its interval plus a small random phase offset (armJittered) so
+// timers armed together here don't all fire in the same instant. NX means a
+// timer already counting down is left alone, so this only starts the ones not
+// yet armed — the freshly added timer on a mid-stream rearm, or every timer on
+// a fresh stream.online.
 func (s *ValkeyTimerStore) ArmAll(ctx context.Context, broadcasterID uint64) {
 	cfg, ok := s.config(ctx, broadcasterID)
 	if !ok {
 		return
 	}
 	for _, td := range cfg.Timers {
-		s.arm(ctx, broadcasterID, td)
+		s.armJittered(ctx, broadcasterID, td)
 	}
 }
 
@@ -171,19 +184,47 @@ func (s *ValkeyTimerStore) RearmIfLive(ctx context.Context, broadcasterID uint64
 	s.ArmAll(ctx, broadcasterID)
 }
 
-// arm SETs one timer's schedule key. NX leaves an already-counting-down key
-// alone: ArmAll must not reset the clock on a redelivered stream.online, and
-// onExpired's re-arm must not clobber a fresh key a concurrent ArmAll just set
-// (the narrow race of a stream ending and restarting within the same instant).
+// clampInterval turns a configured interval (seconds) into a Duration floored
+// at minTimerInterval, the single place the floor is applied.
+func clampInterval(seconds int) time.Duration {
+	d := time.Duration(seconds) * time.Second
+	if d < minTimerInterval {
+		d = minTimerInterval
+	}
+	return d
+}
+
+// arm re-arms a timer at exactly its interval — the onExpired path, which must
+// preserve the cadence set by the first (jittered) fire.
 func (s *ValkeyTimerStore) arm(ctx context.Context, broadcasterID uint64, td timerDef) {
+	s.armAfter(ctx, broadcasterID, td, clampInterval(td.Interval))
+}
+
+// armJittered arms a timer's first schedule key at its interval plus a random
+// phase offset (see timerFirstFireJitter), so timers armed in the same instant
+// don't all expire together. It is the ArmAll (stream.online + mid-stream
+// rearm) path; onExpired re-arms via arm() at the exact interval, so the offset
+// shifts only when the timer first fires this session, not its cadence after.
+func (s *ValkeyTimerStore) armJittered(ctx context.Context, broadcasterID uint64, td timerDef) {
+	interval := clampInterval(td.Interval)
+	spread := interval
+	if spread > timerFirstFireJitter {
+		spread = timerFirstFireJitter
+	}
+	offset := time.Duration(rand.Int64N(int64(spread.Seconds())+1)) * time.Second
+	s.armAfter(ctx, broadcasterID, td, interval+offset)
+}
+
+// armAfter SETs one timer's schedule key EX'd to ex. NX leaves an
+// already-counting-down key alone: ArmAll must not reset the clock on a
+// redelivered stream.online (or a mid-stream rearm), and onExpired's re-arm
+// must not clobber a fresh key a concurrent ArmAll just set (the narrow race of
+// a stream ending and restarting within the same instant).
+func (s *ValkeyTimerStore) armAfter(ctx context.Context, broadcasterID uint64, td timerDef, ex time.Duration) {
 	if !td.Enabled || td.ID == "" {
 		return
 	}
-	interval := time.Duration(td.Interval) * time.Second
-	if interval < minTimerInterval {
-		interval = minTimerInterval
-	}
-	err := s.client.Do(ctx, s.client.B().Set().Key(timerKey(broadcasterID, td.ID)).Value("1").Nx().ExSeconds(int64(interval.Seconds())).Build()).Error()
+	err := s.client.Do(ctx, s.client.B().Set().Key(timerKey(broadcasterID, td.ID)).Value("1").Nx().ExSeconds(int64(ex.Seconds())).Build()).Error()
 	if err != nil && !valkey.IsValkeyNil(err) {
 		s.log.Warn("timers: failed to arm", zap.Uint64("broadcaster_id", broadcasterID), zap.String("timer_id", td.ID), zap.Error(err))
 	}
