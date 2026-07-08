@@ -1,6 +1,7 @@
 import type { Handle, HandleServerError, ServerInit } from '@sveltejs/kit';
 import newrelic from 'newrelic';
 import { COOKIE, open } from '$lib/server/session';
+import { guardSession } from '$lib/server/guard';
 import { warm } from '@bagel/shared/server/nats';
 import { warm as warmValkey } from '@bagel/shared/server/valkey-store';
 import { registerServerConfig } from '@bagel/shared/server/config';
@@ -82,10 +83,15 @@ function pickLimiter(pathname: string, method: string): ValkeyRateLimiter {
   return readLimiter;
 }
 
-// Session + the security headers SvelteKit's CSP config does not own.
+// Session + account gates + the security headers SvelteKit's CSP config does
+// not own.
 export const handle: Handle = async ({ event, resolve }) => {
   const cookie = event.cookies.get(COOKIE);
   event.locals.session = cookie ? open(cookie) : null;
+  // Expired/invalid cookie: drop it eagerly so the browser stops replaying it.
+  if (cookie && !event.locals.session) {
+    event.cookies.delete(COOKIE, { path: '/', secure: event.url.protocol === 'https:' });
+  }
 
   if (!RATE_EXEMPT.has(event.url.pathname)) {
     const key = event.locals.session?.user_id
@@ -103,6 +109,14 @@ export const handle: Handle = async ({ event, resolve }) => {
         }
       });
     }
+  }
+
+  // Account gates (ban / deleted account / delegation revoke / delegate scope)
+  // for every authenticated request — actions and API endpoints included, which
+  // layout loads never cover. Throws kit-native redirects; runs after the rate
+  // limiter so the gate RPCs sit behind the same request budget.
+  if (event.locals.session) {
+    event.locals.session = await guardSession(event, event.locals.session);
   }
 
   let queryLang = event.url.searchParams.get('lang');
