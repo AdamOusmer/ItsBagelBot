@@ -8,12 +8,14 @@ import (
 	"time"
 
 	"ItsBagelBot/app/sesame/module"
+	"ItsBagelBot/internal/domain/invalidate"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/moderation"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 
 	"github.com/ThreeDotsLabs/watermill/message"
+	"github.com/nats-io/nats.go"
 	"github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
 )
@@ -39,6 +41,11 @@ const timerClaimTTL = 5 * time.Second
 // to 60s; this only guards a hand-crafted RPC call from arming a tight
 // expire/fire/re-arm loop.
 const minTimerInterval = 30 * time.Second
+
+// rearmTimeout bounds one mid-stream rearm (IsLive read + ArmAll) triggered off
+// a modules cache-invalidation, so a stalled Valkey/projector never pins the
+// goroutine the rearm watcher spawns per message.
+const rearmTimeout = 5 * time.Second
 
 // timerDef is one broadcaster-authored repeating chat message.
 type timerDef struct {
@@ -70,6 +77,14 @@ type ValkeyTimerStore struct {
 	proj   projection.Reader
 	live   IsLiveChecker
 
+	// nc + rearmSubject drive the mid-stream arm-on-save path: a subscription to
+	// the modules cache-invalidation subject that re-arms a live broadcaster's
+	// timers the moment their dashboard save lands (StartRearmWatcher). nil nc or
+	// empty subject leaves the watcher disabled — timers still arm on
+	// stream.online, just not mid-stream.
+	nc           *nats.Conn
+	rearmSubject string
+
 	outgressPremium  string
 	outgressStandard string
 
@@ -83,6 +98,13 @@ type TimersConfig struct {
 	OutgressStandardSubject string
 	// KeyspaceDB is the Valkey db the expiry watcher listens on (default 0).
 	KeyspaceDB int
+	// NC is the core NATS connection the rearm watcher subscribes on. nil leaves
+	// the watcher disabled.
+	NC *nats.Conn
+	// ModulesInvalidateSubject is the modules-scope cache-invalidation subject
+	// (e.g. "bagel.cache.invalidate.modules") the rearm watcher listens on. Empty
+	// leaves the watcher disabled.
+	ModulesInvalidateSubject string
 	// Log is the store's logger; a nil Log defaults to a no-op.
 	Log *zap.Logger
 }
@@ -100,6 +122,8 @@ func NewValkeyTimerStore(client valkey.Client, pub message.Publisher, proj proje
 		pub:              pub,
 		proj:             proj,
 		live:             live,
+		nc:               cfg.NC,
+		rearmSubject:     cfg.ModulesInvalidateSubject,
 		outgressPremium:  cfg.OutgressPremiumSubject,
 		outgressStandard: cfg.OutgressStandardSubject,
 		keyspaceDB:       cfg.KeyspaceDB,
@@ -122,6 +146,29 @@ func (s *ValkeyTimerStore) ArmAll(ctx context.Context, broadcasterID uint64) {
 	for _, td := range cfg.Timers {
 		s.arm(ctx, broadcasterID, td)
 	}
+}
+
+// RearmIfLive arms a broadcaster's enabled timers mid-stream, but only while the
+// broadcaster is actually live. It backs the arm-on-save path: adding, enabling
+// or editing a timer from the dashboard changes the broadcaster's modules blob,
+// which is what StartRearmWatcher turns into this call — so a timer created
+// after stream.online still starts counting down this session instead of
+// sitting idle until the next stream.
+//
+// ArmAll's NX SET makes repeated calls safe: a timer already counting down keeps
+// its clock, only a not-yet-armed one (the freshly added timer) gets a key. When
+// the broadcaster is offline this is a no-op — the next stream.online arms
+// everything fresh, and arming an offline broadcaster's keys would only set keys
+// onExpired drops unfired on their first expiry.
+func (s *ValkeyTimerStore) RearmIfLive(ctx context.Context, broadcasterID uint64) {
+	if broadcasterID == 0 {
+		return
+	}
+	live, err := s.live.IsLive(ctx, broadcasterID)
+	if err != nil || !live {
+		return
+	}
+	s.ArmAll(ctx, broadcasterID)
 }
 
 // arm SETs one timer's schedule key. NX leaves an already-counting-down key
@@ -184,6 +231,49 @@ func (s *ValkeyTimerStore) config(ctx context.Context, broadcasterID uint64) (ti
 		return cfg, true
 	}
 	return timersConfig{}, false
+}
+
+// StartRearmWatcher subscribes to the modules cache-invalidation subject and
+// arms a broadcaster's timers the moment a dashboard save changes their modules
+// blob (RearmIfLive gates it to a live broadcaster). This is the arm-on-save
+// path: without it, arming happens only on stream.online, so a timer added
+// after the broadcaster went live would sit idle until their next stream.
+//
+// It rides the same "modules" invalidation event sesame's projection cache
+// already consumes, so it needs no new NATS subject or account grant. A missed
+// message (subscription drop) is self-correcting: the timer still arms on the
+// next stream.online, matching the store's best-effort posture. The
+// subscription is async — each message spawns a bounded goroutine so a slow
+// IsLive/ArmAll never stalls delivery of the next invalidation. It runs until
+// ctx is cancelled.
+func (s *ValkeyTimerStore) StartRearmWatcher(ctx context.Context) {
+	if s.nc == nil || s.rearmSubject == "" {
+		return
+	}
+	sub, err := s.nc.Subscribe(s.rearmSubject, func(msg *nats.Msg) {
+		var dto invalidate.DTO
+		if err := json.Unmarshal(msg.Data, &dto); err != nil {
+			return
+		}
+		id, err := strconv.ParseUint(dto.BroadcasterID, 10, 64)
+		if err != nil || id == 0 {
+			return
+		}
+		go func() {
+			rctx, cancel := context.WithTimeout(context.Background(), rearmTimeout)
+			defer cancel()
+			s.RearmIfLive(rctx, id)
+		}()
+	})
+	if err != nil {
+		s.log.Error("timers: failed to start rearm watcher", zap.String("subject", s.rearmSubject), zap.Error(err))
+		return
+	}
+	s.log.Info("timers: rearm watcher starting", zap.String("subject", s.rearmSubject))
+	go func() {
+		<-ctx.Done()
+		_ = sub.Unsubscribe()
+	}()
 }
 
 // StartExpiryWatcher subscribes to Valkey key-expiry notifications and fires
