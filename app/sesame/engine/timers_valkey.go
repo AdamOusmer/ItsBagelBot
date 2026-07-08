@@ -3,12 +3,14 @@ package engine
 import (
 	"context"
 	"encoding/json"
+	"math/rand/v2"
 	"strconv"
 	"strings"
 	"time"
 
 	"ItsBagelBot/app/sesame/module"
 	"ItsBagelBot/internal/domain/invalidate"
+	livekey "ItsBagelBot/internal/domain/live"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/moderation"
 	"ItsBagelBot/internal/projection"
@@ -42,10 +44,33 @@ const timerClaimTTL = 5 * time.Second
 // expire/fire/re-arm loop.
 const minTimerInterval = 30 * time.Second
 
+// timerFirstFireJitter caps the random phase offset added to a timer's FIRST
+// interval at arm time. It desynchronizes timers armed in the same instant
+// (every timer at stream.online, or a freshly added same-interval one) so they
+// don't all expire together and post as one wall of chat. Only the first fire
+// is offset; re-arms use the exact interval, so the configured cadence holds.
+// The offset is floored at the smaller of this cap and the interval itself, so
+// a 30s timer never gets a 60s first wait.
+const timerFirstFireJitter = 30 * time.Second
+
 // rearmTimeout bounds one mid-stream rearm (IsLive read + ArmAll) triggered off
 // a modules cache-invalidation, so a stalled Valkey/projector never pins the
 // goroutine the rearm watcher spawns per message.
 const rearmTimeout = 5 * time.Second
+
+// reconcileInterval is how often the reconciler re-arms live broadcasters'
+// timers, recovering any that silently stalled (a missed expiry notification).
+// A stalled timer comes back within one interval, no stream restart needed.
+const reconcileInterval = time.Minute
+
+// reconcileClaimKey serializes the sweep to one replica per tick. It sorts
+// under timerClaimPrefix so onExpired ignores its own expiry, and its short TTL
+// only has to cover the skew between replicas' independent tickers — a rare
+// double-sweep is harmless (NX arming dedups it), so this is efficiency, not
+// correctness.
+const reconcileClaimKey = timerClaimPrefix + "reconcile"
+
+const reconcileClaimTTL = 30 * time.Second
 
 // timerDef is one broadcaster-authored repeating chat message.
 type timerDef struct {
@@ -136,15 +161,18 @@ func timerKey(broadcasterID uint64, timerID string) string {
 }
 
 // ArmAll SETs one Valkey key per enabled timer of an enabled "timers" module,
-// each EX'd to its own interval — the broadcaster's stream just went online,
-// so every timer starts its countdown fresh.
+// each EX'd to its interval plus a small random phase offset (armJittered) so
+// timers armed together here don't all fire in the same instant. NX means a
+// timer already counting down is left alone, so this only starts the ones not
+// yet armed — the freshly added timer on a mid-stream rearm, or every timer on
+// a fresh stream.online.
 func (s *ValkeyTimerStore) ArmAll(ctx context.Context, broadcasterID uint64) {
 	cfg, ok := s.config(ctx, broadcasterID)
 	if !ok {
 		return
 	}
 	for _, td := range cfg.Timers {
-		s.arm(ctx, broadcasterID, td)
+		s.armJittered(ctx, broadcasterID, td)
 	}
 }
 
@@ -171,19 +199,112 @@ func (s *ValkeyTimerStore) RearmIfLive(ctx context.Context, broadcasterID uint64
 	s.ArmAll(ctx, broadcasterID)
 }
 
-// arm SETs one timer's schedule key. NX leaves an already-counting-down key
-// alone: ArmAll must not reset the clock on a redelivered stream.online, and
-// onExpired's re-arm must not clobber a fresh key a concurrent ArmAll just set
-// (the narrow race of a stream ending and restarting within the same instant).
+// StartReconciler periodically re-arms every live broadcaster's timers, so a
+// timer that silently stalled comes back mid-stream without a stream restart.
+// A stall happens when an expiry notification is lost — Valkey pub/sub is
+// fire-and-forget with no replay, so a Sentinel failover, a watcher reconnect,
+// or an onExpired that hit a transient error and returned without re-arming can
+// leave a timer's key expired and never re-set. The expiry watcher alone never
+// recovers that until the next stream.online; this sweep does.
+//
+// ArmAll's NX SET keeps it cheap and safe: a still-armed timer is untouched,
+// only a missing (stalled) one is re-armed. One replica sweeps per tick (a
+// fleet-wide NX claim), so the scan isn't multiplied across the pool. Runs
+// until ctx is cancelled.
+func (s *ValkeyTimerStore) StartReconciler(ctx context.Context) {
+	ticker := time.NewTicker(reconcileInterval)
+	defer ticker.Stop()
+	s.log.Info("timers: reconciler starting", zap.Duration("interval", reconcileInterval))
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			s.reconcile(ctx)
+		}
+	}
+}
+
+// reconcile claims the sweep for this tick, then re-arms every live
+// broadcaster's timers. RearmIfLive re-checks live state and NX-arms, so an
+// already-armed timer is left counting down and only a stalled one restarts.
+func (s *ValkeyTimerStore) reconcile(ctx context.Context) {
+	got, err := s.client.Do(ctx, s.client.B().Set().Key(reconcileClaimKey).Value("1").Nx().ExSeconds(int64(reconcileClaimTTL.Seconds())).Build()).ToString()
+	if err != nil || got != "OK" {
+		return // another replica owns this tick, or the claim write failed
+	}
+	for _, id := range s.liveBroadcasters(ctx) {
+		s.RearmIfLive(ctx, id)
+	}
+}
+
+// liveBroadcasters SCANs the live-key set and returns the broadcaster ids
+// currently live, skipping the recheck guard keys that share the live: prefix.
+func (s *ValkeyTimerStore) liveBroadcasters(ctx context.Context) []uint64 {
+	var ids []uint64
+	cursor := uint64(0)
+	for {
+		entry, err := s.client.Do(ctx, s.client.B().Scan().Cursor(cursor).Match(livekey.KeyPrefix+"*").Count(200).Build()).AsScanEntry()
+		if err != nil {
+			s.log.Warn("timers: reconcile scan failed", zap.Error(err))
+			return ids
+		}
+		for _, k := range entry.Elements {
+			if strings.HasPrefix(k, recheckKeyPrefix) {
+				continue
+			}
+			if id, err := strconv.ParseUint(strings.TrimPrefix(k, livekey.KeyPrefix), 10, 64); err == nil && id != 0 {
+				ids = append(ids, id)
+			}
+		}
+		cursor = entry.Cursor
+		if cursor == 0 {
+			return ids
+		}
+	}
+}
+
+// clampInterval turns a configured interval (seconds) into a Duration floored
+// at minTimerInterval, the single place the floor is applied.
+func clampInterval(seconds int) time.Duration {
+	d := time.Duration(seconds) * time.Second
+	if d < minTimerInterval {
+		d = minTimerInterval
+	}
+	return d
+}
+
+// arm re-arms a timer at exactly its interval — the onExpired path, which must
+// preserve the cadence set by the first (jittered) fire.
 func (s *ValkeyTimerStore) arm(ctx context.Context, broadcasterID uint64, td timerDef) {
+	s.armAfter(ctx, broadcasterID, td, clampInterval(td.Interval))
+}
+
+// armJittered arms a timer's first schedule key at its interval plus a random
+// phase offset (see timerFirstFireJitter), so timers armed in the same instant
+// don't all expire together. It is the ArmAll (stream.online + mid-stream
+// rearm) path; onExpired re-arms via arm() at the exact interval, so the offset
+// shifts only when the timer first fires this session, not its cadence after.
+func (s *ValkeyTimerStore) armJittered(ctx context.Context, broadcasterID uint64, td timerDef) {
+	interval := clampInterval(td.Interval)
+	spread := interval
+	if spread > timerFirstFireJitter {
+		spread = timerFirstFireJitter
+	}
+	offset := time.Duration(rand.Int64N(int64(spread.Seconds())+1)) * time.Second
+	s.armAfter(ctx, broadcasterID, td, interval+offset)
+}
+
+// armAfter SETs one timer's schedule key EX'd to ex. NX leaves an
+// already-counting-down key alone: ArmAll must not reset the clock on a
+// redelivered stream.online (or a mid-stream rearm), and onExpired's re-arm
+// must not clobber a fresh key a concurrent ArmAll just set (the narrow race of
+// a stream ending and restarting within the same instant).
+func (s *ValkeyTimerStore) armAfter(ctx context.Context, broadcasterID uint64, td timerDef, ex time.Duration) {
 	if !td.Enabled || td.ID == "" {
 		return
 	}
-	interval := time.Duration(td.Interval) * time.Second
-	if interval < minTimerInterval {
-		interval = minTimerInterval
-	}
-	err := s.client.Do(ctx, s.client.B().Set().Key(timerKey(broadcasterID, td.ID)).Value("1").Nx().ExSeconds(int64(interval.Seconds())).Build()).Error()
+	err := s.client.Do(ctx, s.client.B().Set().Key(timerKey(broadcasterID, td.ID)).Value("1").Nx().ExSeconds(int64(ex.Seconds())).Build()).Error()
 	if err != nil && !valkey.IsValkeyNil(err) {
 		s.log.Warn("timers: failed to arm", zap.Uint64("broadcaster_id", broadcasterID), zap.String("timer_id", td.ID), zap.Error(err))
 	}
