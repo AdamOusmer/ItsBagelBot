@@ -234,6 +234,33 @@ func TestTagsParsing(t *testing.T) {
 	assert.Equal(t, gatewayrpc.UrchinTag{Type: "sniper"}, reply.Tags[1])
 }
 
+// !tag and !sniper both need /v3/player/tags — !tag for the blacklist tags,
+// !sniper only for the uuid it feeds cubelify. The shared cache must collapse
+// them onto ONE upstream fetch regardless of which command runs first.
+func TestTagsAndSniperShareUpstreamFetch(t *testing.T) {
+	run := func(t *testing.T, first, second string) {
+		var tagsHits, cubelifyHits int
+		p := newTestProvider(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/v3/player/tags":
+				tagsHits++
+				_, _ = w.Write([]byte(`{"uuid":"deadbeef","displayname":"Aim","tags":[]}`))
+			case "/v3/cubelify":
+				cubelifyHits++
+				_, _ = w.Write([]byte(`{"score":{"value":3,"mode":"ok"},"tags":[]}`))
+			default:
+				t.Errorf("unexpected path %s", r.URL.Path)
+			}
+		}))
+		_ = endpoint(t, p, first)(context.Background(), gatewayrpc.Request{Account: "Aim"})
+		_ = endpoint(t, p, second)(context.Background(), gatewayrpc.Request{Account: "Aim"})
+		assert.Equal(t, 1, tagsHits, "the /v3/player/tags fetch must be shared, not repeated")
+		assert.Equal(t, 1, cubelifyHits)
+	}
+	t.Run("tag then sniper", func(t *testing.T) { run(t, "tags", "sniper") })
+	t.Run("sniper then tag", func(t *testing.T) { run(t, "sniper", "tags") })
+}
+
 func TestMissingAccount(t *testing.T) {
 	p := newTestProvider(t, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		t.Error("no upstream call expected")
