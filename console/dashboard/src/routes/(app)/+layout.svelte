@@ -59,7 +59,7 @@
   const section = $derived(
     path.startsWith('/commands')
       ? 'commands'
-      : path.startsWith('/modules')
+      : path.startsWith('/modules') || path.startsWith('/govee')
         ? 'modules'
         : path.startsWith('/channelpoints')
           ? 'channelpoints'

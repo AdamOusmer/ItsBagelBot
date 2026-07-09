@@ -56,22 +56,27 @@ export const load: PageServerLoad = async ({ locals }) => {
   const colors = [...GOVEE_COLOR_NAMES];
 
   if (env.DEMO === '1') {
-    return { ...demoView(), devices: demoDevices(), colors };
+    return { ...demoView(), devices: { devices: demoDevices(), error: undefined }, colors };
   }
 
   try {
     const store = goveeStore(uid);
     const view = await store.read();
-    // Only list devices once a key is on file; a lookup failure degrades to an
-    // empty list plus a flag, never a broken page.
-    const { devices, error: deviceError } = view.keyPresent ? await store.listDevices() : { devices: [], error: undefined };
-    return { ...view, devices, deviceError, colors };
+    // The device list is the one slow read (a Govee cloud round trip). Stream it
+    // as an unresolved promise so SSR emits the shell + the key/reward steps
+    // instantly and the picker fills in when it lands. Only fetch once a key is
+    // on file; a lookup failure degrades to an empty list plus a flag on the
+    // resolved value, never a broken page.
+    const devices = view.keyPresent
+      ? store.listDevices()
+      : Promise.resolve({ devices: [] as GoveeDevice[], error: undefined });
+    return { ...view, devices, colors };
   } catch {
     return {
       enabled: false,
       keyPresent: false,
       binding: { device: '', sku: '', deviceName: '', onRedeem: 'fulfill' as GoveeOnRedeem, rewardId: '', reward: null, allowOffline: false },
-      devices: [] as GoveeDevice[],
+      devices: { devices: [] as GoveeDevice[], error: undefined },
       colors,
       degraded: true
     };

@@ -33,7 +33,7 @@ export const SUB = {
 };
 
 function userPrefixes(id: string): string[] {
-  return [`grant:${id}`, `account:${id}`, `tier:${id}`, `billing-state:${id}`, `commands:${id}`, `modules:${id}`, `delegations:${id}`, `locale:${id}`];
+  return [`grant:${id}`, `account:${id}`, `tier:${id}`, `billing-state:${id}`, `commands:${id}`, `modules:${id}`, `delegations:${id}`, `locale:${id}`, `govee-devices:${id}`];
 }
 
 // Scope -> cache key routing for the invalidation bus, declared as data. The
