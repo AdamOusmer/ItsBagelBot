@@ -146,11 +146,6 @@ func main() {
 		WriteTimeout: 15 * time.Second,
 	}
 
-	serverErr := make(chan error, 1)
-	go func() {
-		serverErr <- httpServer.ListenAndServe()
-	}()
-
 	log.Info("transactions service ready",
 		zap.String("listen_addr", listenAddr),
 		zap.Bool("tebex_webhook_configured", env.Get("TEBEX_WEBHOOK_SECRET", "") != ""),
@@ -158,6 +153,18 @@ func main() {
 		zap.Bool("tebex_checkout_auth_configured", privateKey != ""),
 		zap.Bool("tebex_checkout_username_configured", env.GetBool("TEBEX_INCLUDE_USERNAME", false)),
 	)
+
+	serveHTTP(ctx, httpServer, log)
+}
+
+// serveHTTP runs the server until ctx is cancelled or the listener fails,
+// then drains in-flight requests before returning.
+func serveHTTP(ctx context.Context, srv *http.Server, log *zap.Logger) {
+
+	serverErr := make(chan error, 1)
+	go func() {
+		serverErr <- srv.ListenAndServe()
+	}()
 
 	select {
 	case <-ctx.Done():
@@ -171,7 +178,7 @@ func main() {
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	if err := httpServer.Shutdown(shutdownCtx); err != nil {
+	if err := srv.Shutdown(shutdownCtx); err != nil {
 		log.Warn("transactions http server shutdown failed", zap.Error(err))
 	}
 }
