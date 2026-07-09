@@ -155,6 +155,44 @@ func TestGoveeSuccessLeavePolicyEmitsNoUpdate(t *testing.T) {
 	assert.Equal(t, outgress.TypeChat, col.out[0].Type)
 }
 
+func TestGoveeOffActionPowersOffWhenAllowed(t *testing.T) {
+	var col collector
+	gw := okGateway()
+	d := engine.Deps{Live: &fakeLive{live: true}, Gateway: gw}
+	cfg := `{"rewardId":"rw-1","device":"AB:CD:EF","sku":"H6159","allowOff":true}`
+	payload := `{"id":"redeem-2","broadcaster_user_id":"2","user_name":"CoolViewer","user_login":"coolviewer","user_input":"off","reward":{"id":"rw-1","title":"x","cost":1}}`
+	require.NoError(t, goveeHandler(t, d)(context.Background(), goveeCtx(payload, cfg), col.emit))
+
+	call := gw.lastCall(t)
+	assert.Equal(t, "control", call.endpoint)
+	assert.True(t, call.req.PowerOff, "off input must power the light off")
+	assert.Equal(t, 0, call.req.ColorRGB, "an off action carries no colour")
+	require.Len(t, col.out, 2)
+	assert.Equal(t, outgress.RedemptionFulfilled, col.out[1].Status)
+}
+
+func TestGoveeOffInputRefundsWhenNotAllowed(t *testing.T) {
+	var col collector
+	gw := okGateway()
+	d := engine.Deps{Live: &fakeLive{live: true}, Gateway: gw}
+	// Default config: the off action is not enabled, so "off" is just an
+	// unrecognized colour and refunds before the gateway.
+	payload := `{"id":"redeem-3","broadcaster_user_id":"2","user_name":"CoolViewer","user_login":"coolviewer","user_input":"off","reward":{"id":"rw-1","title":"x","cost":1}}`
+	require.NoError(t, goveeHandler(t, d)(context.Background(), goveeCtx(payload, goveeCfg), col.emit))
+	assert.Empty(t, gw.calls, "off must not reach the gateway when the action is disabled")
+	assertRefund(t, col.out)
+}
+
+func TestGoveeCustomReplyTemplate(t *testing.T) {
+	var col collector
+	gw := okGateway()
+	d := engine.Deps{Live: &fakeLive{live: true}, Gateway: gw}
+	cfg := `{"rewardId":"rw-1","device":"AB:CD:EF","sku":"H6159","replyMessage":"{user} painted the room {color}"}`
+	require.NoError(t, goveeHandler(t, d)(context.Background(), goveeCtx(goveeRedeemJSON, cfg), col.emit))
+	require.Len(t, col.out, 2)
+	assert.Equal(t, "CoolViewer painted the room blue", col.out[0].Text, "template tokens fill from the redemption")
+}
+
 // assertRefund asserts the two-output refund shape: a chat reason then a
 // CANCELED redemption update.
 func assertRefund(t *testing.T, out []module.Output) {

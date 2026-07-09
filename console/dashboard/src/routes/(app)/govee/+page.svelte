@@ -4,8 +4,19 @@
   import { tick } from 'svelte';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { Icon, Card, PageHead, ConfirmDialog, toast } from '@bagel/shared';
+  import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
+  import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
 
   let { data } = $props();
+
+  // Default chat reply when the template is blank (mirrors sesame's default).
+  const DEFAULT_REPLY = '@{user} set the lights to {color}!';
+  // Reply template palette + rehearsal samples: only {user} and {color} apply.
+  const REPLY_TOKENS = [
+    { token: '{user}', label: '{user} → the viewer' },
+    { token: '{color}', label: '{color} → what they typed' }
+  ];
+  const replySamples: Record<string, string> = { user: 'sesame_sam', color: 'blue' };
 
   // Local mirrors, reseeded on each SSR load (the /events invalidation stream
   // re-runs the loader after every confirmed write).
@@ -18,6 +29,15 @@
   // Live-only reflects the inverse of the stored allowOffline flag; on by default.
   // svelte-ignore state_referenced_locally
   let liveOnly = $state<boolean>(!(data.binding?.allowOffline));
+  // Reward editor draft mirrors (colour, cooldown, reply template, off action).
+  // svelte-ignore state_referenced_locally
+  let rewardColor = $state<string>(data.binding?.reward?.color || '#9147ff');
+  // svelte-ignore state_referenced_locally
+  let cooldown = $state<number>(data.binding?.reward?.cooldown ?? 0);
+  // svelte-ignore state_referenced_locally
+  let replyMessage = $state<string>(data.binding?.replyMessage ?? '');
+  // svelte-ignore state_referenced_locally
+  let allowOff = $state<boolean>(data.binding?.allowOff ?? false);
   // svelte-ignore state_referenced_locally
   let seed = data;
   $effect(() => {
@@ -27,6 +47,10 @@
       keyPresent = data.keyPresent ?? false;
       selectedDevice = data.binding?.device ?? '';
       liveOnly = !(data.binding?.allowOffline);
+      rewardColor = data.binding?.reward?.color || '#9147ff';
+      cooldown = data.binding?.reward?.cooldown ?? 0;
+      replyMessage = data.binding?.replyMessage ?? '';
+      allowOff = data.binding?.allowOff ?? false;
     }
   });
 
@@ -230,10 +254,27 @@
                 <span>Title</span>
                 <input class="input" type="text" name="title" maxlength="45" value={boundReward?.title ?? 'Colour my lights'} required />
               </label>
+              <div class="field-row">
+                <label class="field">
+                  <span>Cost (points)</span>
+                  <input class="input" type="number" name="cost" min="1" max="10000000" value={boundReward?.cost ?? 500} required />
+                </label>
+                <label class="field color-field">
+                  <span>Tile colour</span>
+                  <input class="color-in" type="color" name="color" bind:value={rewardColor} aria-label="Reward tile colour" />
+                </label>
+              </div>
               <label class="field">
-                <span>Cost (points)</span>
-                <input class="input" type="number" name="cost" min="1" max="10000000" value={boundReward?.cost ?? 500} required />
+                <span>Cooldown <small>seconds between redemptions, 0 = none</small></span>
+                <input class="input" type="number" name="cooldown" min="0" max="604800" bind:value={cooldown} />
               </label>
+
+              <label class="field">
+                <span>Chat reply <small>optional, {'{user}'} and {'{color}'}</small></span>
+                <ResponseEditor bind:value={replyMessage} name="replyMessage" tokens={REPLY_TOKENS} placeholder={DEFAULT_REPLY} />
+              </label>
+              <ChatPreview response={replyMessage || DEFAULT_REPLY} showViewer={false} tag="on redemption" samplesOnly samples={replySamples} />
+
               <label class="field">
                 <span>After it runs</span>
                 <select class="input" name="onRedeem" value={data.binding?.onRedeem ?? 'fulfill'}>
@@ -242,6 +283,19 @@
                   <option value="leave">Leave for a mod</option>
                 </select>
               </label>
+
+              <!-- Opt-in off action. It is a toggle, not a force: with it on, a
+                   viewer typing "off" turns the light off; with it off, "off" is
+                   just an unrecognized colour and refunds. -->
+              <div class="offrow {allowOff ? 'on' : ''}">
+                <div class="offrow-text">
+                  <span class="offrow-label">Let viewers turn the lights off</span>
+                  <span class="muted-text">A viewer can type <code>off</code> to turn the light off instead of setting a colour.</span>
+                </div>
+                <button type="button" class="toggle {allowOff ? 'on' : ''}" aria-label="Let viewers turn the lights off" onclick={() => (allowOff = !allowOff)}></button>
+              </div>
+              <input type="hidden" name="allow_off" value={allowOff ? 'on' : ''} />
+
               <div class="reward-actions">
                 <button class="btn primary" type="submit">{boundReward ? 'Update reward' : 'Create reward'}</button>
                 {#if boundReward}
@@ -459,7 +513,7 @@
   .device-name { font-family: var(--bb-font-body); font-weight: 600; font-size: 13px; color: var(--bb-white); }
   .device-sku { color: var(--bb-muted); font-family: var(--bb-font-mono, monospace); font-size: 11.5px; margin-left: auto; }
 
-  .reward-form { display: grid; gap: 12px; max-width: 22rem; }
+  .reward-form { display: grid; gap: 12px; max-width: 30rem; }
   .field { display: grid; gap: 5px; }
   .field > span {
     font-family: var(--bb-font-body);
@@ -467,6 +521,42 @@
     font-weight: 600;
     color: var(--bb-muted);
   }
+  .field > span small { font-weight: 400; opacity: 0.7; }
+
+  /* Cost + colour side by side, like the channel-points reward editor. */
+  .field-row { display: flex; gap: 12px; }
+  .field-row .field { flex: 1; min-width: 0; }
+  .color-field { flex: none; width: 96px; }
+  .color-in {
+    width: 100%;
+    height: 38px;
+    padding: 3px;
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    background: rgba(240, 236, 228, 0.04);
+    cursor: pointer;
+  }
+
+  /* Opt-in off-action row (styled like the live-only row). */
+  .offrow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+  }
+  .offrow.on { border-color: var(--rule-tan); background: rgba(201, 168, 124, 0.06); }
+  .offrow-text { display: grid; gap: 3px; flex: 1; min-width: 0; }
+  .offrow-label { font-family: var(--bb-font-display); font-weight: 700; font-size: 13px; color: var(--bb-white); }
+  .offrow-text .muted-text { margin: 0; }
+  .offrow .toggle { flex: none; }
+
+  @media (max-width: 480px) {
+    .field-row { flex-direction: column; gap: 12px; }
+    .color-field { width: 100%; }
+  }
+
   .reward-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
   .reward-live {
     display: inline-flex;
