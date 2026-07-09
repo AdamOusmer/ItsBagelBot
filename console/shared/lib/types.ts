@@ -328,6 +328,50 @@ const BW_SESSION_SAMPLES: Record<string, string> = {
 };
 
 export const MODULE_CATALOG: readonly ModuleDef[] = [
+  // Chat Tools: the bot's viewer-facing chat features, surfaced first. Channel
+  // Points and Timers own bespoke pages (opened via href); Trigger Words uses
+  // the generic reply inspector with its rule editor.
+  {
+    id: 'channelpoints',
+    label: 'Channel Points',
+    tagline: 'Turn channel-point redemptions into bot actions.',
+    description:
+      'Create the custom rewards viewers redeem with channel points (made under the bot on Twitch, styled natively) and bind each one to a bot action, like posting a chat line. Choose whether each redemption is fulfilled, refunded, or left for a mod. Manage the rewards on this page.',
+    icon: 'gem',
+    category: 'Chat Tools',
+    defaultEnabled: false,
+    href: '/channelpoints',
+    replies: []
+  },
+  {
+    id: 'timers',
+    label: 'Timers',
+    tagline: 'Post repeating chat messages on a schedule while you are live.',
+    description:
+      'Set messages the bot repeats on a schedule while you are live: announcements, socials, reminders. Each timer keeps its own interval and only fires during the stream. Add, edit and arm them on this page.',
+    icon: 'clock',
+    category: 'Chat Tools',
+    defaultEnabled: false,
+    href: '/timers',
+    replies: []
+  },
+  {
+    id: 'triggers',
+    label: 'Trigger Words',
+    tagline: 'Auto-reply when a word shows up in chat — no "!" needed.',
+    description:
+      'Give the bot a list of words or phrases and the line to post when it sees one in ordinary chat — no command prefix required. Write one rule per line as "phrase => response". Prefix the phrase with contains:, exact: or prefix: to change how it matches (the default matches the whole word, so "hi" will not fire inside "this"). Responses support {user}, {random} and {choice:a,b,c}. The first matching rule wins, so one message gets at most one reply.',
+    icon: 'caps',
+    category: 'Chat Tools',
+    defaultEnabled: false,
+    // Trigger rules are a free-form list of phrase→response pairs the author grows,
+    // so the module page renders them as add/removable ReplyRows with a bespoke
+    // rule inspector (see the def.id === 'triggers' branch in the module page).
+    // The whole list is persisted as one "rules" string the sesame module parses
+    // line by line (a disabled rule is stored as a "#" comment, which the parser
+    // skips). See app/sesame/modules/triggers.go.
+    replies: []
+  },
   {
     id: 'automod',
     label: 'AutoMod',
@@ -771,52 +815,6 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
     // The generic reply page cannot express key custody + a device picker, so
     // the tile opens a bespoke inspector instead.
     href: '/govee',
-    replies: []
-  },
-  {
-    id: 'triggers',
-    label: 'Trigger Words',
-    tagline: 'Auto-reply when a word shows up in chat — no "!" needed.',
-    description:
-      'Give the bot a list of words or phrases and the line to post when it sees one in ordinary chat — no command prefix required. Write one rule per line as "phrase => response". Prefix the phrase with contains:, exact: or prefix: to change how it matches (the default matches the whole word, so "hi" will not fire inside "this"). Responses support {user}, {random} and {choice:a,b,c}. The first matching rule wins, so one message gets at most one reply.',
-    icon: 'caps',
-    category: 'Community',
-    defaultEnabled: false,
-    // Trigger rules are a free-form list of phrase→response pairs the author grows,
-    // so the module page renders them as add/removable ReplyRows with a bespoke
-    // rule inspector (see the def.id === 'triggers' branch in the module page).
-    // The whole list is persisted as one "rules" string the sesame module parses
-    // line by line (a disabled rule is stored as a "#" comment, which the parser
-    // skips). See app/sesame/modules/triggers.go.
-    replies: []
-  },
-  // Channel Points and Timers are full modules (their own enable flag + config
-  // blob in the modules service, read by sesame), but their setup cannot be
-  // expressed as reply rows: channel points needs the reward CRUD surface and
-  // timers the schedule editor. Each tile therefore opens its bespoke page via
-  // href instead of the generic /modules/[id] inspector.
-  {
-    id: 'channelpoints',
-    label: 'Channel Points',
-    tagline: 'Turn channel-point redemptions into bot actions.',
-    description:
-      'Create the custom rewards viewers redeem with channel points (made under the bot on Twitch, styled natively) and bind each one to a bot action, like posting a chat line. Choose whether each redemption is fulfilled, refunded, or left for a mod. Manage the rewards on this page.',
-    icon: 'gem',
-    category: 'Stream Engagement',
-    defaultEnabled: false,
-    href: '/channelpoints',
-    replies: []
-  },
-  {
-    id: 'timers',
-    label: 'Timers',
-    tagline: 'Post repeating chat messages on a schedule while you are live.',
-    description:
-      'Set messages the bot repeats on a schedule while you are live: announcements, socials, reminders. Each timer keeps its own interval and only fires during the stream. Add, edit and arm them on this page.',
-    icon: 'clock',
-    category: 'Stream Engagement',
-    defaultEnabled: false,
-    href: '/timers',
     replies: []
   }
 ];
