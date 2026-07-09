@@ -238,7 +238,7 @@ export async function publishEventSubEnsureOptional(broadcasterId: string): Prom
 }
 
 export type ChannelSubState = {
-  state: 'ok' | 'pending' | 'failing' | 'unknown';
+  state: 'ok' | 'pending' | 'failing' | 'unenrolled' | 'unknown';
   error: string;
   checkedAt: string | null;
 };
@@ -251,10 +251,13 @@ function isKnownSubState(s: string): s is 'ok' | 'pending' | 'failing' {
   return s === 'ok' || s === 'pending' || s === 'failing';
 }
 
-// Read the persisted EventSub enroll state for a channel. Fails safe: returns
-// 'unknown' on RPC error so a transient outage never blocks page render. The
-// fail-open catch doesn't fit defineRead cleanly (no cache involved either), so
-// this stays hand-written.
+// Read the persisted EventSub enroll state for a channel. Two distinct
+// negatives: 'unenrolled' means outgress answered and holds no enrollment for
+// this channel (never enrolled, or cleared by a disconnect) — callers may
+// safely (re)enroll on it. 'unknown' is reserved for transport failure and
+// fails safe: a transient outage never blocks page render and must never
+// trigger writes. The fail-open catch doesn't fit defineRead cleanly (no cache
+// involved either), so this stays hand-written.
 export async function channelSubState(broadcasterId: string): Promise<ChannelSubState> {
   try {
     const r = await rpc<{
@@ -262,9 +265,11 @@ export async function channelSubState(broadcasterId: string): Promise<ChannelSub
       channel?: { sub_state: string; sub_error: string; sub_checked_at: string };
     }>(`${SUB.outgressRpc}.channel.get`, { broadcaster_id: broadcasterId }, 2000);
     const c = r.channel;
-    if (!r.found || !c) return unknownSubState();
+    if (!r.found || !c || !isKnownSubState(c.sub_state)) {
+      return { state: 'unenrolled', error: '', checkedAt: null };
+    }
     return {
-      state: isKnownSubState(c.sub_state) ? c.sub_state : 'unknown',
+      state: c.sub_state,
       error: c.sub_error || '',
       checkedAt: c.sub_checked_at || null
     };

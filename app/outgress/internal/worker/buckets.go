@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"ItsBagelBot/app/outgress/internal/twitch"
@@ -102,11 +103,21 @@ func (w *Worker) takeGeneralHelix(ctx context.Context, payload outgress.Message)
 	return w.take(ctx, shared)
 }
 
-// takeSystemHelix consumes one token from the reserved system partition.
-// Only the system lane pays here, so dashboard EventSub jobs always have
-// their reserved capacity and can never spend the general api budget.
+// takeSystemHelix consumes one token for a system-lane Helix call. The
+// reserved partition is tried first, so EventSub enroll jobs always keep
+// their guaranteed floor no matter how busy chat/api traffic is. When the
+// reserve is momentarily drained (an onboarding burst, back-to-back
+// reconnects) the call spills over into the general app partition instead of
+// blocking the channel's enrollment. The reverse never happens — chat/api
+// traffic still cannot touch the reserve — and every spilled token is one the
+// general partition would have spent anyway, so the fleet stays within the
+// real 800/min Helix limit.
 func (w *Worker) takeSystemHelix(ctx context.Context) error {
-	return w.take(ctx, helixSystemSpec.ForKey("ratelimit:helix:system"))
+	err := w.take(ctx, helixSystemSpec.ForKey("ratelimit:helix:system"))
+	if !errors.Is(err, errRateLimitShared) {
+		return err
+	}
+	return w.take(ctx, helixGeneralSpec.ForKey("ratelimit:helix:app"))
 }
 
 // take consumes one token or returns an error that nacks the message, so the

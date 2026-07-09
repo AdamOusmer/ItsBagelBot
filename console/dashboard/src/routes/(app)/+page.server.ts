@@ -29,6 +29,11 @@ export type ConnState = {
 // Resolve the bot connection state in one round trip (grant presence + the
 // coalesced active/tier state_get + channel enroll state). allSettled keeps a
 // slow or down responder from failing the whole render.
+//
+// "Receiving" is grounded in outgress's own enroll state, not just the users
+// service's active flag: is_active defaults to true at signup, so trusting it
+// alone showed brand-new channels as connected while they had zero EventSub
+// subscriptions (and hid the only button that would have created them).
 async function connState(uid: string): Promise<ConnState> {
   const [grant, state, sub] = await Promise.allSettled([
     hasGrant(uid),
@@ -36,10 +41,24 @@ async function connState(uid: string): Promise<ConnState> {
     channelSubState(uid)
   ]);
   const enabled = grant.status === 'fulfilled' && grant.value;
-  const receiving = enabled && state.status === 'fulfilled' && state.value.active;
+  const active = enabled && state.status === 'fulfilled' && state.value.active;
   const status: AccountStatus = state.status === 'fulfilled' ? state.value.status : 'free';
-  const subState: ChannelSubState['state'] = sub.status === 'fulfilled' ? sub.value.state : 'unknown';
+  let subState: ChannelSubState['state'] = sub.status === 'fulfilled' ? sub.value.state : 'unknown';
   const subError: string = sub.status === 'fulfilled' ? sub.value.error : '';
+
+  // Self-heal: a channel the users service says is active but outgress has no
+  // enrollment for (fresh signup, or one predating auto-enroll) gets its
+  // EventSub enable job published right here on page load. Safe to repeat:
+  // outgress single-flights the enroll and creates are 409-idempotent. Only
+  // 'unenrolled' triggers this — 'unknown' (outgress RPC down) must not spam
+  // enables. Report 'pending' so the UI shows the enroll in flight; the
+  // substate poll takes over with the real outcome.
+  if (active && subState === 'unenrolled' && uid !== 'demo') {
+    publishEventSub(uid, true).catch(() => {});
+    subState = 'pending';
+  }
+
+  const receiving = active && subState !== 'unenrolled';
   return { enabled, receiving, status, subState, subError };
 }
 
