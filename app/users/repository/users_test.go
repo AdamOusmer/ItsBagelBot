@@ -369,3 +369,44 @@ func TestDelegateOptOutIgnoresPendingLinks(t *testing.T) {
 
 	require.Error(t, repo.OptOutDelegation(ctx, 1001, 2002), "pending invite should remain owner-managed")
 }
+
+func TestConsumeReclaimsInsteadOfDuplicatingForSameBoard(t *testing.T) {
+	_, _, repo := setup(t)
+	ctx := context.Background()
+
+	require.NoError(t, repo.CreateDelegation(ctx, "link-one", 1001, "owner", []string{"commands"}, nil))
+	require.NoError(t, repo.CreateDelegation(ctx, "link-two", 1001, "owner", []string{"timers"}, nil))
+
+	first, err := repo.ConsumeDelegation(ctx, "link-one", 2002, "delegate")
+	require.NoError(t, err)
+
+	// Second link for a board the invitee already manages: reclaim returns the
+	// grant they already hold and never mints a duplicate.
+	second, err := repo.ConsumeDelegation(ctx, "link-two", 2002, "delegate")
+	require.NoError(t, err)
+	assert.Equal(t, first.Sections, second.Sections, "reclaim returns the existing grant, not the new link")
+
+	access, err := repo.ListAccessByDelegate(ctx, 2002)
+	require.NoError(t, err)
+	require.Len(t, access, 1, "no duplicate grant for the same board")
+
+	_, err = repo.GetDelegation(ctx, "link-two")
+	require.Error(t, err, "the redundant link is discarded from the db")
+}
+
+func TestConsumeStillBindsDistinctBoards(t *testing.T) {
+	_, _, repo := setup(t)
+	ctx := context.Background()
+
+	require.NoError(t, repo.CreateDelegation(ctx, "board-a", 1001, "alpha", []string{"commands"}, nil))
+	require.NoError(t, repo.CreateDelegation(ctx, "board-b", 3003, "beta", []string{"timers"}, nil))
+
+	_, err := repo.ConsumeDelegation(ctx, "board-a", 2002, "delegate")
+	require.NoError(t, err)
+	_, err = repo.ConsumeDelegation(ctx, "board-b", 2002, "delegate")
+	require.NoError(t, err)
+
+	access, err := repo.ListAccessByDelegate(ctx, 2002)
+	require.NoError(t, err)
+	assert.Len(t, access, 2, "different owners are separate grants, not a reclaim")
+}
