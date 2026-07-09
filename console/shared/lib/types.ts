@@ -782,19 +782,13 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
     icon: 'caps',
     category: 'Community',
     defaultEnabled: false,
-    // Trigger rules are a free-form list, which the fixed reply/settings schema
-    // cannot express as rows; the whole list rides in one textarea the sesame
-    // module parses line by line (see app/sesame/modules/triggers.go).
-    replies: [],
-    settings: [
-      {
-        key: 'rules',
-        label: 'Trigger rules',
-        type: 'textarea',
-        placeholder: 'hello => hi {user}!\ncontains: lol => lmao\nexact: gg => good game',
-        help: 'One rule per line: phrase => response. Prefix the phrase with contains:, exact: or prefix: to change matching (default is whole-word). Tokens: {user}, {random}, {choice:a,b,c}. Lines starting with # are ignored.'
-      }
-    ]
+    // Trigger rules are a free-form list of phrase→response pairs the author grows,
+    // so the module page renders them as add/removable ReplyRows with a bespoke
+    // rule inspector (see the def.id === 'triggers' branch in the module page).
+    // The whole list is persisted as one "rules" string the sesame module parses
+    // line by line (a disabled rule is stored as a "#" comment, which the parser
+    // skips). See app/sesame/modules/triggers.go.
+    replies: []
   },
   // Channel Points and Timers are full modules (their own enable flag + config
   // blob in the modules service, read by sesame), but their setup cannot be

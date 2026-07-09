@@ -25,6 +25,7 @@
     response = '',
     args = '',
     showViewer = true,
+    viewerText = undefined as string | undefined,
     tag = undefined as string | undefined,
     samples = undefined as Record<string, string> | undefined,
     samplesOnly = false
@@ -33,6 +34,10 @@
     response?: string;
     args?: string;
     showViewer?: boolean;
+    // viewerText renders the viewer line verbatim (a plain chat message, no "!"
+    // trigger) — used by trigger-word rehearsals where a normal message fires the
+    // reply. When unset the viewer types the "!command" trigger.
+    viewerText?: string;
     tag?: string;
     samples?: Record<string, string>;
     // samplesOnly drops the default command samples entirely: gateway module
@@ -186,7 +191,7 @@
   {#if showViewer}
     <div class="line viewer">
       <span class="who viewer-name">{viewerName}</span>
-      <span class="msg">{trigger}</span>
+      <span class="msg" class:plain={viewerText !== undefined}>{viewerText ?? trigger}</span>
     </div>
   {/if}
   {#if typing}
@@ -329,6 +334,8 @@
     min-width: 0;
   }
   .line.viewer .msg { font-family: var(--bb-font-mono); color: var(--bb-tan-light); font-size: 12.5px; }
+  /* A plain viewer message (trigger-word rehearsal) reads like normal chat. */
+  .line.viewer .msg.plain { font-family: var(--bb-font-body); color: var(--bb-white); font-size: 13px; }
 
   .reply { animation: reply-in 240ms var(--bb-ease-out-back, ease-out) both; animation-delay: var(--reply-delay, 0ms); }
   @keyframes reply-in {

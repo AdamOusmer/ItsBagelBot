@@ -68,6 +68,10 @@ function buildConfig(def: ModuleDef, f: FormData): Record<string, string> {
   for (const field of (def.settings ?? []).filter((s) => get(s.key))) {
     config[field.key] = get(field.key);
   }
+  // Triggers persists its whole rule list as one "rules" string (one rule per
+  // line); the sesame module parses it (app/sesame/modules/triggers.go).
+  const rules = def.id === 'triggers' ? get('rules') : '';
+  if (rules) config.rules = rules;
   return config;
 }
 
