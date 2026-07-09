@@ -95,8 +95,15 @@ config :ingress,
   # bounded task dispatcher. Dropping here is better than letting socket
   # mailboxes grow until Twitch keepalives/reconnects are delayed.
   dispatcher_max_running:
-    String.to_integer(System.get_env("INGRESS_DISPATCHER_MAX_RUNNING", "64")),
-  dispatcher_max_queue: String.to_integer(System.get_env("INGRESS_DISPATCHER_MAX_QUEUE", "2000"))
+    String.to_integer(System.get_env("INGRESS_DISPATCHER_MAX_RUNNING", "512")),
+  dispatcher_max_queue:
+    String.to_integer(System.get_env("INGRESS_DISPATCHER_MAX_QUEUE", "20000")),
+  # Caps one broadcaster's share of the dispatcher budget above, so a hot
+  # channel can't starve every other broadcaster sharing the pod.
+  dispatcher_max_per_broadcaster:
+    String.to_integer(System.get_env("INGRESS_DISPATCHER_MAX_PER_BROADCASTER", "2048")),
+  dispatcher_broadcaster_sweep_ms:
+    String.to_integer(System.get_env("INGRESS_DISPATCHER_BROADCASTER_SWEEP_MS", "60000"))
 
 # Credentials are optional so local development can run against an open
 # server; the production broker requires them and Gnat only sends them when

@@ -35,7 +35,7 @@ defmodule Ingress.ShardScaler do
   use GenServer
   require Logger
 
-  alias Ingress.Config
+  alias Ingress.{Config, Metrics}
   # --- tunables ---------------------------------------------------------------
 
   # How often the autoscaler evaluates load.
@@ -134,6 +134,8 @@ defmodule Ingress.ShardScaler do
   def handle_call(:status, _from, state) do
     min_s = min_shards()
     load = if state.last_sample, do: state.last_sample.aggregate_load, else: 0
+    max_load = if state.last_sample, do: state.last_sample.max_load, else: 0
+    max_load_shard_id = if state.last_sample, do: state.last_sample.max_load_shard_id, else: nil
 
     {:reply,
      %{
@@ -142,6 +144,8 @@ defmodule Ingress.ShardScaler do
        min_shards: min_s,
        desired: compute_desired(state),
        load: load,
+       max_load: max_load,
+       max_load_shard_id: max_load_shard_id,
        last_sample: state.last_sample
      }, state}
   end
@@ -201,6 +205,7 @@ defmodule Ingress.ShardScaler do
   defp evaluate_autoscale(state) do
     sample = sample_shards(state)
     state = %{state | last_sample: sample}
+    check_concentration(sample)
 
     min_s = min_shards()
 
@@ -244,14 +249,34 @@ defmodule Ingress.ShardScaler do
     %{state | target: new_target, ticks: ticks}
   end
 
+  # Independent of the scaling decision above: flags a single shard carrying a
+  # disproportionate share of load (a hot broadcaster). More shards can't fix
+  # this — Twitch owns broadcaster→shard placement — so this only surfaces it.
+  defp check_concentration(sample) do
+    if Ingress.ShardScaler.Policy.concentrated?(sample) do
+      Logger.warning(
+        "shard_scaler: shard #{sample.max_load_shard_id} concentrated at load=#{sample.max_load}/window vs avg=#{sample.avg_load}/window"
+      )
+
+      Metrics.event("ShardLoadConcentration", %{
+        shard_id: sample.max_load_shard_id,
+        max_load: sample.max_load,
+        avg_load: sample.avg_load,
+        responsive_count: sample.responsive_count
+      })
+    end
+  end
+
   defp sample_shards(state) do
     expected = compute_desired(state)
 
     if expected == 0 do
-      %{expected_count: 0, responsive_count: 0, missing_count: 0, aggregate_load: 0, avg_load: 0}
+      Ingress.ShardScaler.Policy.summarize_sample(0, [])
     else
-      results =
-        0..(expected - 1)
+      shard_ids = 0..(expected - 1)
+
+      per_shard_results =
+        shard_ids
         |> Task.async_stream(
           fn shard_id ->
             case Horde.Registry.lookup(Ingress.Registry, {:shard, shard_id}) do
@@ -271,24 +296,13 @@ defmodule Ingress.ShardScaler do
           timeout: 1_500,
           on_timeout: :kill_task
         )
-        |> Enum.to_list()
-
-      {responsive, total_load} =
-        Enum.reduce(results, {0, 0}, fn
-          {:ok, {:ok, load}}, {r, l} -> {r + 1, l + load}
-          _, {r, l} -> {r, l}
+        |> Enum.zip(shard_ids)
+        |> Enum.map(fn
+          {{:ok, result}, shard_id} -> {shard_id, result}
+          {{:exit, _reason}, shard_id} -> {shard_id, :error}
         end)
 
-      missing = expected - responsive
-      avg = if responsive > 0, do: div(total_load, responsive), else: 0
-
-      %{
-        expected_count: expected,
-        responsive_count: responsive,
-        missing_count: missing,
-        aggregate_load: total_load,
-        avg_load: avg
-      }
+      Ingress.ShardScaler.Policy.summarize_sample(expected, per_shard_results)
     end
   end
 
@@ -307,6 +321,8 @@ defmodule Ingress.ShardScaler do
       min_shards: min_shards(),
       desired: Config.conduit_shard_count(),
       load: 0,
+      max_load: 0,
+      max_load_shard_id: nil,
       last_sample: nil
     }
   end
