@@ -44,9 +44,7 @@ const (
 // keys remain per-broadcaster, but their numeric Lua arguments do not.
 var (
 	chatSpec              = ratelimit.NewSpec(chatCapacity, chatCapacity/chatWindow)
-	chatStandardSpec      = ratelimit.NewSpec(chatCapacity/2, chatCapacity/chatWindow/2)
 	chatModSpec           = ratelimit.NewSpec(chatModCapacity, chatModCapacity/chatWindow)
-	chatModStandardSpec   = ratelimit.NewSpec(chatModCapacity/2, chatModCapacity/chatWindow/2)
 	helixGeneralSpec      = ratelimit.NewSpec(helixGeneralCapacity, helixGeneralCapacity/helixWindow)
 	helixStandardSpec     = ratelimit.NewSpec(helixGeneralCapacity/2, helixGeneralCapacity/helixWindow/2)
 	helixSystemSpec       = ratelimit.NewSpec(helixSystemReserve, helixSystemReserve/helixWindow)
@@ -73,22 +71,22 @@ func generalHelixRequests(payload outgress.Message) (standard, shared ratelimit.
 	return standard, shared
 }
 
-// takeChat pays the per-broadcaster chat buckets, at mod capacity when the bot
-// moderates the channel. The standard lane is constrained by BOTH a restricted
-// standard bucket and the shared bucket, consumed atomically via takeOrdered:
-// a denial on either bucket leaves both untouched, avoiding token waste during
-// retry storms.
+// takeChat pays the per-broadcaster chat bucket, at mod capacity when the bot
+// moderates the channel. This bucket IS the real Twitch per-channel chat limit
+// (20/30s, or 100/30s when the bot moderates), keyed per broadcaster, so it is
+// not a pool the premium and standard lanes contend over: a standard channel
+// spending its own Twitch budget takes nothing a premium channel could have
+// used. The lane therefore does not restrict this bucket. Premium priority for
+// chat is enforced upstream at processing time, by the sesame consumer's
+// reserved routine share (premium commands get handled first under load), not by
+// throttling a standard channel's own send rate. The standard-lane half-reserve
+// stays only on the genuinely shared Helix app budget (see takeGeneralHelix).
 func (w *Worker) takeChat(ctx context.Context, broadcasterID string, isMod bool) error {
-	sharedSpec, standardSpec := chatSpec, chatStandardSpec
+	spec := chatSpec
 	if isMod {
-		sharedSpec, standardSpec = chatModSpec, chatModStandardSpec
+		spec = chatModSpec
 	}
-	shared := sharedSpec.ForDynamicKey("ratelimit:chat:", "chat", broadcasterID)
-	if w.lane != LaneStandard {
-		return w.take(ctx, shared)
-	}
-	standard := standardSpec.ForDynamicKey("ratelimit:chat:standard:", "chat:standard", broadcasterID)
-	return w.takeOrdered(ctx, standard, shared)
+	return w.take(ctx, spec.ForDynamicKey("ratelimit:chat:", "chat", broadcasterID))
 }
 
 // takeGeneralHelix consumes one token from the Helix budget backing the
