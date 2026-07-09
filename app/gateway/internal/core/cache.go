@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/bytedance/sonic"
@@ -66,6 +67,9 @@ func (s *ValkeyStore) Del(ctx context.Context, key string) error {
 type Cache struct {
 	store Store
 	sf    singleflight.Group
+	// refreshing dedups background SWR revalidations: one per key at a time
+	// (see refreshBytes). Keys are cleared as each refresh finishes.
+	refreshing sync.Map
 }
 
 func NewCache(store Store) *Cache { return &Cache{store: store} }
