@@ -26,6 +26,28 @@ export type ConnState = {
   subError: string;
 };
 
+function settled<T>(r: PromiseSettledResult<T>): T | undefined {
+  return r.status === 'fulfilled' ? r.value : undefined;
+}
+
+// Self-heal: a channel the users service says is active but outgress has no
+// enrollment for (fresh signup, or one predating auto-enroll) gets its
+// EventSub enable job published right here on page load. Safe to repeat:
+// outgress single-flights the enroll and creates are 409-idempotent. Only
+// 'unenrolled' triggers this — 'unknown' (outgress RPC down) must not spam
+// enables. Reports 'pending' so the UI shows the enroll in flight; the
+// substate poll takes over with the real outcome.
+function healSubState(
+  uid: string,
+  active: boolean,
+  subState: ChannelSubState['state']
+): ChannelSubState['state'] {
+  if (subState !== 'unenrolled' || uid === 'demo') return subState;
+  if (!active) return subState;
+  publishEventSub(uid, true).catch(() => {});
+  return 'pending';
+}
+
 // Resolve the bot connection state in one round trip (grant presence + the
 // coalesced active/tier state_get + channel enroll state). allSettled keeps a
 // slow or down responder from failing the whole render.
@@ -40,26 +62,18 @@ async function connState(uid: string): Promise<ConnState> {
     accountState(uid),
     channelSubState(uid)
   ]);
-  const enabled = grant.status === 'fulfilled' && grant.value;
-  const active = enabled && state.status === 'fulfilled' && state.value.active;
-  const status: AccountStatus = state.status === 'fulfilled' ? state.value.status : 'free';
-  let subState: ChannelSubState['state'] = sub.status === 'fulfilled' ? sub.value.state : 'unknown';
-  const subError: string = sub.status === 'fulfilled' ? sub.value.error : '';
-
-  // Self-heal: a channel the users service says is active but outgress has no
-  // enrollment for (fresh signup, or one predating auto-enroll) gets its
-  // EventSub enable job published right here on page load. Safe to repeat:
-  // outgress single-flights the enroll and creates are 409-idempotent. Only
-  // 'unenrolled' triggers this — 'unknown' (outgress RPC down) must not spam
-  // enables. Report 'pending' so the UI shows the enroll in flight; the
-  // substate poll takes over with the real outcome.
-  if (active && subState === 'unenrolled' && uid !== 'demo') {
-    publishEventSub(uid, true).catch(() => {});
-    subState = 'pending';
-  }
-
-  const receiving = active && subState !== 'unenrolled';
-  return { enabled, receiving, status, subState, subError };
+  const account = settled(state);
+  const subHealth = settled(sub);
+  const enabled = settled(grant) === true;
+  const active = enabled && account?.active === true;
+  const subState = healSubState(uid, active, subHealth?.state ?? 'unknown');
+  return {
+    enabled,
+    receiving: active && subState !== 'unenrolled',
+    status: account?.status ?? 'free',
+    subState,
+    subError: subHealth?.error ?? ''
+  };
 }
 
 // Parse the uses counter for ranking: the backend sends a plain number, while

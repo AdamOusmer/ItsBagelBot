@@ -264,8 +264,8 @@ export async function channelSubState(broadcasterId: string): Promise<ChannelSub
       found: boolean;
       channel?: { sub_state: string; sub_error: string; sub_checked_at: string };
     }>(`${SUB.outgressRpc}.channel.get`, { broadcaster_id: broadcasterId }, 2000);
-    const c = r.channel;
-    if (!r.found || !c || !isKnownSubState(c.sub_state)) {
+    const c = r.found ? r.channel : undefined;
+    if (!c || !isKnownSubState(c.sub_state)) {
       return { state: 'unenrolled', error: '', checkedAt: null };
     }
     return {

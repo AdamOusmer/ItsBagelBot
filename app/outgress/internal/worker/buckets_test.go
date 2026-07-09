@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 
 	"ItsBagelBot/pkg/ratelimit"
@@ -42,7 +43,7 @@ func TestTakeSystemHelixPrefersReserve(t *testing.T) {
 	if err := w.takeSystemHelix(context.Background()); err != nil {
 		t.Fatalf("takeSystemHelix() = %v, want nil", err)
 	}
-	if len(limiter.calls) != 1 || limiter.calls[0] != "ratelimit:helix:system" {
+	if !slices.Equal(limiter.calls, []string{"ratelimit:helix:system"}) {
 		t.Fatalf("calls = %v, want only the system reserve", limiter.calls)
 	}
 }
@@ -55,7 +56,7 @@ func TestTakeSystemHelixSpillsToGeneralWhenReserveDrained(t *testing.T) {
 		t.Fatalf("takeSystemHelix() = %v, want nil via general spillover", err)
 	}
 	want := []string{"ratelimit:helix:system", "ratelimit:helix:app"}
-	if len(limiter.calls) != 2 || limiter.calls[0] != want[0] || limiter.calls[1] != want[1] {
+	if !slices.Equal(limiter.calls, want) {
 		t.Fatalf("calls = %v, want %v", limiter.calls, want)
 	}
 }
