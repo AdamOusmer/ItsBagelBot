@@ -1,0 +1,11 @@
+# The HelmRelease in release.yaml lives in namespace "keda", and
+# kustomize-controller cannot apply an object into a namespace that does not
+# exist — install.createNamespace only covers the RELEASE namespace at
+# helm-install time, never the HelmRelease object's own. Without this manifest
+# the keda Kustomization fails ("namespaces \"keda\" not found") and the apps
+# Kustomization (dependsOn: keda) freezes the whole production deploy train
+# with it.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: keda
