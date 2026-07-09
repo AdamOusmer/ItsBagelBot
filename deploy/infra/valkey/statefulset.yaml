@@ -97,8 +97,16 @@ spec:
           # replica under whatever pod-0 happens to be — on worker1 that is the
           # fenced priority-0 replica — creating a sub-replica that Sentinel
           # neither discovers nor manages (hit live on the 2026-07-09 scale-out).
-          MASTER_IP=$(cat /shared/master_ip)
-          LIVE_MASTER=$(REDISCLI_AUTH="${CORE}" valkey-cli -h valkey.valkey.svc.cluster.local -p 26379 --no-auth-warning sentinel get-master-addr-by-name myprimary 2>/dev/null | head -n 1)
+          #
+          # Every step here must tolerate absence under `sh -e`: a pod rejoining
+          # with retained /data has both conf files, so fetch-master-ip exits
+          # early WITHOUT writing /shared/master_ip and the seeds below are
+          # never used — resolution failing must not fail the init.
+          MASTER_IP=""
+          if [ -f /shared/master_ip ]; then
+            MASTER_IP=$(cat /shared/master_ip)
+          fi
+          LIVE_MASTER=$( { REDISCLI_AUTH="${CORE}" valkey-cli -h valkey.valkey.svc.cluster.local -p 26379 --no-auth-warning sentinel get-master-addr-by-name myprimary 2>/dev/null || true; } | head -n 1)
           case "${LIVE_MASTER}" in *.*.*.*) MASTER_IP="${LIVE_MASTER}";; esac
           if [ ! -f /data/valkey.conf ]; then
             cp /config/valkey.conf /data/valkey.conf
@@ -109,9 +117,10 @@ spec:
             } >> /data/valkey.conf
             # First-boot seed only: every pod but the master's begins as its
             # replica; Sentinel owns all failovers afterwards. Skipped once
-            # valkey has rewritten its own replication state.
+            # valkey has rewritten its own replication state. Empty MASTER_IP
+            # (resolution failed on a true cold start) falls back to pod-0.
             if [ "${POD_INDEX}" != "0" ]; then
-              echo "replicaof ${MASTER_IP} 6379" >> /data/valkey.conf
+              echo "replicaof ${MASTER_IP:-valkey-node-0.valkey-headless.valkey.svc.cluster.local} 6379" >> /data/valkey.conf
             fi
             # The home node (worker1, flaky wifi) keeps a read replica but must never
             # be promoted: Sentinel never elects a priority-0 replica. Keyed on the
