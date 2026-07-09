@@ -3,6 +3,7 @@ package modules
 import (
 	"context"
 	"testing"
+	"time"
 
 	"ItsBagelBot/app/sesame/engine"
 	"ItsBagelBot/app/sesame/module"
@@ -334,6 +335,42 @@ func TestQueueJoinAndListViaSubcommand(t *testing.T) {
 	out := runQueue(t, m, "queue", queueCtx("bob", ""), "list")
 	require.Len(t, out, 1)
 	assert.Contains(t, out[0].Text, "1. alice")
+}
+
+// fakeCooldown scripts CooldownStore.Allow: it records the claimed keys and
+// answers from the allow queue (defaulting to true when exhausted).
+type fakeCooldown struct {
+	keys  []string
+	allow []bool
+}
+
+func (f *fakeCooldown) Allow(_ context.Context, key string, _ time.Duration) (bool, error) {
+	f.keys = append(f.keys, key)
+	if len(f.allow) == 0 {
+		return true, nil
+	}
+	ok := f.allow[0]
+	f.allow = f.allow[1:]
+	return ok, nil
+}
+
+// !queue list must claim the same per-channel window as the standalone !list,
+// so the subcommand spelling cannot sidestep the roster throttle.
+func TestQueueListSubcommandSharesCooldown(t *testing.T) {
+	q := &fakeQueue{open: true, line: []string{"alice"}}
+	cd := &fakeCooldown{allow: []bool{true, false}}
+	d := queueDeps(q)
+	d.Cooldown = cd
+	m := Queue(d)
+
+	// Window free: the roster is shown and the shared "list" key was claimed.
+	out := runQueue(t, m, "queue", queueCtx("alice", ""), "list")
+	require.Len(t, out, 1)
+	require.Equal(t, []string{engine.CommandCooldownKey(100, "list")}, cd.keys)
+
+	// Window held (e.g. a standalone !list just ran): silent, matching the gate.
+	out = runQueue(t, m, "queue", queueCtx("bob", ""), "list")
+	assert.Empty(t, out)
 }
 
 // --- customizable reply templates ---

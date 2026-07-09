@@ -238,6 +238,13 @@ func (p *Pipeline) cooldownOK(ctx context.Context, broadcasterID uint64, name st
 	return p.cooldown.Allow(ctx, cooldownKey(broadcasterID, name), cooldown)
 }
 
+// CommandCooldownKey exposes the gate's cooldown key for a module that routes a
+// subcommand to the same reply as a standalone command (e.g. !queue list vs
+// !list) and must share that command's throttle window rather than sidestep it.
+func CommandCooldownKey(broadcasterID uint64, name string) string {
+	return cooldownKey(broadcasterID, name)
+}
+
 // cooldownKey builds "cooldown:cmd:<broadcasterID>:<name>" into a pooled scratch
 // buffer, appending the id with strconv so the hot path does no fmt-style
 // allocation. The buffer is returned to the pool before the string is handed off.
