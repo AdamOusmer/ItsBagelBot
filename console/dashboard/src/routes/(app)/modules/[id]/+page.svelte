@@ -4,11 +4,15 @@
   import type { SaveState } from '@bagel/shared/components/SaveStatus.svelte';
   import ReplyRow from '$lib/components/modules/ReplyRow.svelte';
   import ReplyEditor from '$lib/components/modules/ReplyEditor.svelte';
+  import ModuleCommandRow from '$lib/components/modules/ModuleCommandRow.svelte';
 
   let { data } = $props();
 
   const { t } = getI18n();
   const def = $derived(data.def);
+  // A module with no editable replies (its lines are fixed system text, e.g. the
+  // play queue) shows only its read-only command list — no builder inspector.
+  const hasReplies = $derived(def.replies.length > 0);
 
   // Draft: module enable + the flat config map. Seeded from the load and reseeded
   // when navigating to a different module (component reuse across [id] routes).
@@ -233,25 +237,42 @@
     {/each}
   </Card>
 
-  <!-- The deck: reply ledger + docked builder inspector (same as commands). -->
-  <div class="deck {expanded ? 'inspecting' : ''} {enabled ? '' : 'muted'}">
+  <!-- The deck: reply ledger + docked builder inspector (same as commands). A
+       commands-only module (no editable replies) drops the inspector column and
+       lists its chat commands read-only instead. -->
+  <div class="deck {expanded ? 'inspecting' : ''} {enabled ? '' : 'muted'} {hasReplies ? '' : 'commands-only'}">
     <Card style="padding:6px 0 0" class="deck-list">
-      <div class="list">
-        {#each def.replies as reply, i (reply.key)}
-          <ReplyRow
-            {reply}
-            message={config[reply.messageKey] ?? ''}
-            index={i + 1}
-            status={modStatus[reply.key] ?? 'idle'}
-            expanded={expanded === reply.key}
-            enabled={reply.enableKey ? config[reply.enableKey] !== 'off' : undefined}
-            onExpand={() => openReply(reply)}
-            onToggle={() => toggleReply(reply)}
-          />
-        {/each}
-      </div>
+      {#if hasReplies}
+        <div class="list">
+          {#each def.replies as reply, i (reply.key)}
+            <ReplyRow
+              {reply}
+              message={config[reply.messageKey] ?? ''}
+              index={i + 1}
+              status={modStatus[reply.key] ?? 'idle'}
+              expanded={expanded === reply.key}
+              enabled={reply.enableKey ? config[reply.enableKey] !== 'off' : undefined}
+              onExpand={() => openReply(reply)}
+              onToggle={() => toggleReply(reply)}
+            />
+          {/each}
+        </div>
+      {/if}
+
+      {#if def.commands?.length}
+        <div class="cmd-head">
+          <span class="cmd-head-title">{t('modules.commandsTitle')}</span>
+          <span class="cmd-head-hint">{t('modules.commandsHint')}</span>
+        </div>
+        <div class="list">
+          {#each def.commands as command, i (command.trigger)}
+            <ModuleCommandRow {command} index={i + 1} />
+          {/each}
+        </div>
+      {/if}
     </Card>
 
+    {#if hasReplies}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
       class="inspector-backdrop"
@@ -282,6 +303,7 @@
         </div>
       {/if}
     </aside>
+    {/if}
   </div>
 </section>
 
@@ -361,9 +383,28 @@
   @media (min-width: 1080px) {
     .deck.inspecting { grid-template-columns: minmax(0, 1fr) 420px; }
     .deck { grid-template-columns: minmax(0, 1fr) 300px; }
+    /* Commands-only modules have no inspector: reclaim the full width. */
+    .deck.commands-only { grid-template-columns: minmax(0, 1fr); }
   }
 
   .list :global(.row-shell:last-child) { border-bottom: none; }
+
+  /* Read-only command list header (commands-only modules, e.g. the queue). */
+  .cmd-head {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 10px 14px 8px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .cmd-head-title {
+    font-family: var(--bb-font-display);
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: 0.02em;
+    color: var(--bb-tan);
+  }
+  .cmd-head-hint { font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
 
   .inspector {
     position: sticky;
