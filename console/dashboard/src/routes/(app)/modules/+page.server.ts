@@ -70,17 +70,16 @@ export const actions: Actions = {
     if (!moduleDef(name)) return fail(400, { ok: false, error: 'Unknown module.' });
     const enabled = f.get('is_enabled') === 'on';
 
-    let config: Record<string, string> | undefined;
-    try {
-      const raw = String(f.get('config') ?? '');
-      config = raw ? (JSON.parse(raw) as Record<string, string>) : undefined;
-    } catch {
-      config = undefined;
-    }
-
     if (env.DEMO === '1') return { ok: true, name, enabled };
 
     try {
+      // The tile only flips enabled: re-read the stored config and write it back
+      // untouched. Never rebuild it from the tile form — the page flattens every
+      // config value to a string for its reply inputs, which would corrupt the
+      // nested blobs some modules own (channel-points rewards, timers) into
+      // "[object Object]" and wipe them on a toggle.
+      const rows = await listModules(uid);
+      const config = rows.find((r) => r.name === name)?.configs;
       await upsertModule(uid, name, enabled, config);
     } catch (e) {
       console.error(`[modules] toggle ${name} failed:`, e instanceof Error ? (e.stack ?? e.message) : e);

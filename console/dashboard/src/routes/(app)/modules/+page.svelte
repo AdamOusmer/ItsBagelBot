@@ -195,7 +195,6 @@
                   <SaveStatus state={modStatus[m.def.id] ?? 'idle'} />
                   <form method="POST" action="?/toggle" use:enhance={toggleSubmit(m)}>
                     <input type="hidden" name="name" value={m.def.id} />
-                    <input type="hidden" name="config" value={JSON.stringify(m.config)} />
                     <input type="hidden" name="is_enabled" value={m.enabled ? '' : 'on'} />
                     <button
                       class="toggle {m.enabled ? 'on' : ''}"
