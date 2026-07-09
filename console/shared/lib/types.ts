@@ -258,6 +258,18 @@ export interface ModuleReply {
   tokens?: string[];
 }
 
+// A chat command a module exposes, listed read-only on the module page so a
+// broadcaster can see what turning the module on unlocks. Unlike a ModuleReply
+// these are not editable or toggleable: modules whose replies are fixed system
+// lines (the queue) have nothing to configure per command, so the rows are
+// informational only — never clickable.
+export interface ModuleCommandInfo {
+  trigger: string; // the chat trigger with '!' (e.g. '!join', '!queue next')
+  summary: string; // one-line description of what it does
+  // perm names the minimum role, shown as a small tag. Omit for everyone.
+  perm?: 'mod';
+}
+
 export interface ModuleDef {
   // id is the ModuleView.name key in the modules service.
   id: string;
@@ -269,6 +281,10 @@ export interface ModuleDef {
   defaultEnabled: boolean;
   // The module's configurable chat lines (the "commands" of the module page).
   replies: ModuleReply[];
+  // Read-only chat commands to list on the module page. For modules that expose
+  // commands with fixed (non-customizable) replies, e.g. the play queue. Shown
+  // as static rows, never clickable. Optional.
+  commands?: ModuleCommandInfo[];
   // Plain non-reply settings (rendered in the settings strip). Optional; the
   // current modules have none beyond their master enable + per-reply toggles.
   settings?: ModuleField[];
@@ -649,6 +665,32 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
         placeholder: 'Your Minecraft username',
         help: 'Default player for every command. Leave blank to use your Twitch username.'
       }
+    ]
+  },
+  {
+    id: 'queue',
+    label: 'Play Queue',
+    tagline: 'Let viewers line up to play with you, first come first served.',
+    description:
+      'Viewers type !join to get in line and !list to see who is next (the first 10). You (and your mods) run the line from chat: !queue open and !queue close accept or stop new joins, !queue next pulls up the next player, !queue remove <user> takes someone out, and !queue clear empties it. Viewers can step out any time with !leave. Turn the module on to enable the commands; the line survives closing so you can play through everyone already waiting.',
+    icon: 'list',
+    category: 'Community',
+    defaultEnabled: false,
+    // The queue posts fixed system lines (join confirmations, the roster, next-up
+    // calls), not customizable templates, so there are no editable reply rows or
+    // settings — just the master enable and a read-only list of the commands it
+    // unlocks (see app/sesame/modules/queue.go).
+    replies: [],
+    commands: [
+      { trigger: '!join', summary: 'Get in line to play (also !queue join).' },
+      { trigger: '!leave', summary: 'Step out of the line (also !queue leave).' },
+      { trigger: '!list', summary: 'Show the next 10 players waiting (also !queue list).' },
+      { trigger: '!queue', summary: 'Show whether the queue is open and how many are waiting.' },
+      { trigger: '!queue open', summary: 'Start accepting joins.', perm: 'mod' },
+      { trigger: '!queue close', summary: 'Stop accepting joins; the line is kept.', perm: 'mod' },
+      { trigger: '!queue next', summary: 'Pull up the next player and announce them.', perm: 'mod' },
+      { trigger: '!queue remove <user>', summary: 'Take someone out of the line.', perm: 'mod' },
+      { trigger: '!queue clear', summary: 'Empty the line.', perm: 'mod' }
     ]
   },
   {

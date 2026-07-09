@@ -59,6 +59,9 @@ type Deps struct {
 	// Campaign is the council's cross-sender juror: distinct-sender counts per
 	// near-duplicate template (SimHash bands in valkey). nil disables it.
 	Campaign Campaign
+	// Queue is the per-broadcaster play queue behind the queue module. nil
+	// leaves the module's commands inert.
+	Queue QueueStore
 	// PublicBaseURL is the origin of the public console pages; the !cmd module
 	// builds the channel command-page link from it. Empty falls back to the
 	// production dashboard origin.
