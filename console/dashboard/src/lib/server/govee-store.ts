@@ -48,15 +48,21 @@ export interface GoveeDevice {
 }
 
 // GoveeReward is the dashboard mirror of the Twitch reward, kept in the blob so
-// the page renders without a Twitch round trip.
+// the page renders without a Twitch round trip. color + cooldown are display
+// mirrors of Twitch reward settings so the editor re-populates them.
 export interface GoveeReward {
   rewardId: string;
   title: string;
   cost: number;
+  // color is the Twitch reward tile background ("#rrggbb"); cooldown is the
+  // reward's global cooldown in seconds (0 = disabled).
+  color: string;
+  cooldown: number;
 }
 
-// GoveeBinding is the module blob shape. device/sku/onRedeem/rewardId/allowOffline
-// are the fields sesame reads; reward is the dashboard-only display mirror.
+// GoveeBinding is the module blob shape. device/sku/onRedeem/rewardId/allowOffline/
+// allowOff/replyMessage are the fields sesame reads; reward is the dashboard-only
+// display mirror.
 export interface GoveeBinding {
   device: string;
   sku: string;
@@ -67,6 +73,12 @@ export interface GoveeBinding {
   // allowOffline opts out of the live-only gate (default false = live only).
   // sesame reads this same flag; the dashboard only sets it true behind a warning.
   allowOffline: boolean;
+  // allowOff opts into the "off" action: a viewer typing "off" turns the light
+  // off. Default false. sesame reads this flag.
+  allowOff: boolean;
+  // replyMessage is the chat reply template ({user}, {color}) sesame posts on a
+  // successful change. Blank uses sesame's built-in default.
+  replyMessage: string;
 }
 
 export interface GoveeView {
@@ -76,16 +88,24 @@ export interface GoveeView {
 }
 
 // RewardDraft is the reward's editable shape, bundled so a save is one argument.
+// title/cost/color/cooldown are Twitch reward settings; onRedeem/replyMessage/
+// allowOff are the binding behaviour sesame reads.
 export interface RewardDraft {
   title: string;
   cost: number;
   onRedeem: GoveeOnRedeem;
+  // color is the reward tile background ("#rrggbb"); '' leaves Twitch's default.
+  color: string;
+  // cooldown is the global cooldown in seconds; 0 disables it.
+  cooldown: number;
+  replyMessage: string;
+  allowOff: boolean;
 }
 
 export type GoveeResult = { ok: true } | { ok: false; missingScope?: boolean; error?: string };
 
 function blankBinding(): GoveeBinding {
-  return { device: '', sku: '', deviceName: '', onRedeem: 'fulfill', rewardId: '', reward: null, allowOffline: false };
+  return { device: '', sku: '', deviceName: '', onRedeem: 'fulfill', rewardId: '', reward: null, allowOffline: false, allowOff: false, replyMessage: '' };
 }
 
 function coerceOnRedeem(v: unknown): GoveeOnRedeem {
@@ -95,7 +115,7 @@ function coerceOnRedeem(v: unknown): GoveeOnRedeem {
 // readBinding coerces a stored "govee" module blob into a normalized binding.
 function readBinding(configs: unknown): GoveeBinding {
   const c = (configs ?? {}) as Partial<GoveeBinding>;
-  const reward = c.reward && typeof c.reward === 'object' ? (c.reward as GoveeReward) : null;
+  const reward = c.reward && typeof c.reward === 'object' ? (c.reward as Partial<GoveeReward>) : null;
   return {
     device: String(c.device ?? ''),
     sku: String(c.sku ?? ''),
@@ -103,9 +123,17 @@ function readBinding(configs: unknown): GoveeBinding {
     onRedeem: coerceOnRedeem(c.onRedeem),
     rewardId: String(c.rewardId ?? ''),
     reward: reward
-      ? { rewardId: String(reward.rewardId ?? ''), title: String(reward.title ?? ''), cost: Number(reward.cost ?? 0) }
+      ? {
+          rewardId: String(reward.rewardId ?? ''),
+          title: String(reward.title ?? ''),
+          cost: Number(reward.cost ?? 0),
+          color: String(reward.color ?? ''),
+          cooldown: Number(reward.cooldown ?? 0)
+        }
       : null,
-    allowOffline: c.allowOffline === true
+    allowOffline: c.allowOffline === true,
+    allowOff: c.allowOff === true,
+    replyMessage: String(c.replyMessage ?? '')
   };
 }
 
@@ -114,6 +142,7 @@ interface RewardWire {
   title: string;
   cost: number;
   prompt?: string;
+  background_color?: string;
   is_enabled: boolean;
   is_paused: boolean;
   is_user_input_required: boolean;
@@ -136,11 +165,14 @@ interface RewardReplyWire {
 // requires input (the colour) and rides the request queue so sesame can resolve
 // it.
 function rewardWire(draft: RewardDraft, id: string): RewardWire {
+  const cooldown = Number.isFinite(draft.cooldown) && draft.cooldown > 0 ? Math.trunc(draft.cooldown) : 0;
   return {
     id: id || undefined,
     title: draft.title,
     cost: draft.cost,
     prompt: REWARD_PROMPT,
+    // Empty leaves Twitch's default tile colour rather than sending "".
+    background_color: draft.color || undefined,
     is_enabled: true,
     is_paused: false,
     is_user_input_required: true,
@@ -149,8 +181,8 @@ function rewardWire(draft: RewardDraft, id: string): RewardWire {
     max_per_stream: 1,
     max_per_user_per_stream_enabled: false,
     max_per_user_per_stream: 1,
-    global_cooldown_enabled: false,
-    global_cooldown_seconds: 5
+    global_cooldown_enabled: cooldown > 0,
+    global_cooldown_seconds: cooldown
   };
 }
 
@@ -260,11 +292,17 @@ export function goveeStore(userId: string): GoveeStore {
     if (reply.error || !reply.reward) return { ok: false, error: reply.error ?? `${verb} failed` };
 
     const rewardId = reply.reward.id ?? existingId;
+    // Mirror the settings Twitch echoed back (falling back to the draft) so the
+    // editor re-populates the colour + cooldown exactly as stored.
+    const color = reply.reward.background_color ?? draft.color;
+    const cooldown = reply.reward.global_cooldown_enabled ? reply.reward.global_cooldown_seconds : 0;
     await writeBinding(cur.enabled, {
       ...cur.binding,
       onRedeem: draft.onRedeem,
+      allowOff: draft.allowOff,
+      replyMessage: draft.replyMessage,
       rewardId,
-      reward: { rewardId, title: reply.reward.title, cost: reply.reward.cost }
+      reward: { rewardId, title: reply.reward.title, cost: reply.reward.cost, color, cooldown }
     });
     if (!existingId) await publishEventSubEnsureOptional(userId);
     return { ok: true };

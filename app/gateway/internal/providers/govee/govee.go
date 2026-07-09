@@ -247,7 +247,7 @@ func (p *Provider) control(ctx context.Context, req gatewayrpc.Request) any {
 	}
 
 	target := goveeTarget{http: p.http, headers: authHeader(key), sku: strings.TrimSpace(req.SKU), device: strings.TrimSpace(req.Device)}
-	for _, step := range controlSteps(req.ColorRGB) {
+	for _, step := range controlSteps(req) {
 		if err := target.set(ctx, step.capType, step.instance, step.value); err != nil {
 			p.log.Warn("govee control step failed", zap.String("broadcaster", broadcaster), zap.String("capability", step.capType), zap.Error(err))
 			return gatewayrpc.GoveeControlReply{Error: friendlyControlError(err)}
@@ -266,7 +266,8 @@ func validateControlInput(req gatewayrpc.Request) string {
 	if strings.TrimSpace(req.Device) == "" || strings.TrimSpace(req.SKU) == "" {
 		return "missing device"
 	}
-	if req.ColorRGB < 0 || req.ColorRGB > 0xFFFFFF {
+	// A power-off carries no colour; only validate the colour on a colour set.
+	if !req.PowerOff && (req.ColorRGB < 0 || req.ColorRGB > 0xFFFFFF) {
 		return "colour out of range"
 	}
 	return ""
@@ -300,12 +301,16 @@ type controlStep struct {
 	value    any
 }
 
-// controlSteps is the ordered capability sequence one redemption runs: power on,
-// then set the colour.
-func controlSteps(rgb int) []controlStep {
+// controlSteps is the ordered capability sequence one redemption runs. A colour
+// set powers the device on then sets the colour; a power-off is the single
+// off step (Govee's power capability with value 0).
+func controlSteps(req gatewayrpc.Request) []controlStep {
+	if req.PowerOff {
+		return []controlStep{{powerCapabilityType, powerInstance, 0}}
+	}
 	return []controlStep{
 		{powerCapabilityType, powerInstance, 1},
-		{colorCapabilityType, colorInstance, rgb},
+		{colorCapabilityType, colorInstance, req.ColorRGB},
 	}
 }
 
