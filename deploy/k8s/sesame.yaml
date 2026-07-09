@@ -26,7 +26,10 @@ metadata:
   annotations:
     secrets.doppler.com/reload: "true"
 spec:
-  replicas: 4 # one per node; 4 schedulable nodes incl worker1 (tolerates worker-pool)
+  # replicas intentionally omitted: the sesame ScaledObject below owns this
+  # field via its generated HPA (floor 4, matching the old static count).
+  # kustomize-controller stops setting it, so SSA hands ownership to the HPA
+  # instead of fighting it every reconcile.
   revisionHistoryLimit: 3
   minReadySeconds: 10
   strategy:
@@ -63,7 +66,8 @@ spec:
           effect: NoExecute
           tolerationSeconds: 60
       # node1 is the 2-core ARM node reserved for stateful/frontend + infra; keep
-      # the hot-path worker off it. KEDA (later) scales onto node2/worker1.
+      # the hot-path worker off it. KEDA (see the ScaledObject below) scales
+      # onto node2/worker1.
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -179,3 +183,60 @@ spec:
   selector:
     matchLabels:
       app: sesame
+---
+# Sesame is the CPU-bound half (decode/dedup/module-dispatch/templating), so
+# unlike outgress this is real throughput headroom, not just resilience -
+# hence the wider maxReplicaCount. minReplicaCount 4 matches the old static
+# replicas. Consumer names are bus.durableName("worker", subject) - sesame
+# shares the worker's pre-existing durable via fleetSubscriber (app/sesame/main.go
+# bus.NewSubscriber(cfg.NATSURL, cfg.ConsumerName, log), ConsumerName=worker),
+# not per-lane groups like outgress. lag = num_pending + num_ack_pending on
+# that durable (see pkg/bus/bus.go laneConsumerConfig). Tune thresholds from
+# the admin lane-telemetry view (reads $JS.hub.API.CONSUMER.INFO.> live).
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: sesame
+  namespace: production
+spec:
+  scaleTargetRef:
+    name: sesame
+  pollingInterval: 15
+  cooldownPeriod: 300
+  minReplicaCount: 4
+  maxReplicaCount: 10
+  fallback:
+    failureThreshold: 3
+    replicas: 4
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleUp:
+          stabilizationWindowSeconds: 0
+          policies:
+            - {type: Pods, value: 2, periodSeconds: 60}
+        scaleDown:
+          stabilizationWindowSeconds: 300
+          policies:
+            - {type: Pods, value: 1, periodSeconds: 120}
+  triggers:
+    - type: cpu
+      metricType: Utilization
+      metadata:
+        value: "75"
+    - type: nats-jetstream
+      metadata:
+        natsServerMonitoringEndpoint: nats.production.svc.cluster.local:8222
+        account: BUS
+        stream: TWITCH_INGRESS
+        consumer: worker_twitch_ingress_event_premium
+        lagThreshold: "30"
+        activationLagThreshold: "5"
+    - type: nats-jetstream
+      metadata:
+        natsServerMonitoringEndpoint: nats.production.svc.cluster.local:8222
+        account: BUS
+        stream: TWITCH_INGRESS
+        consumer: worker_twitch_ingress_event_standard
+        lagThreshold: "150"
+        activationLagThreshold: "20"

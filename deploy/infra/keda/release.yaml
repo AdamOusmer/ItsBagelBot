@@ -1,0 +1,86 @@
+# KEDA: greenfield install (no prior out-of-band release to migrate, unlike
+# newrelic.yaml). Drives horizontal scaling for outgress and sesame off
+# JetStream consumer lag (see their ScaledObjects in deploy/k8s/outgress.yaml
+# and deploy/k8s/sesame.yaml) plus a CPU floor.
+#
+# Namespace "keda" does not pre-exist, so install.createNamespace is true
+# (contrast newrelic, whose namespace was created out-of-band).
+#
+# This lives in its own Kustomization (deploy/flux/clusters/production/keda.yaml)
+# rather than inline like newrelic.yaml, because the `apps` Kustomization
+# (deploy/k8s/) now contains ScaledObject resources that require KEDA's CRDs to
+# already be registered. Flux's Kustomization.dependsOn can only reference
+# another Kustomization, not a bare HelmRelease, so KEDA needed a Kustomization
+# of its own for `apps` to depend on (see apps.yaml's dependsOn).
+#
+# CHART VERSION
+# -------------
+# keda 2.20.1 (matches appVersion 2.20.1), exact pin per deploy/flux/README.md's
+# digest-immutability rationale. Bump deliberately; ScaledObject's CRD schema
+# can gain fields between versions.
+#
+# RESOURCES
+# ---------
+# Chart defaults are 100m/100Mi request, 1/1000Mi limit for EACH of
+# operator/metricsServer/webhooks (up to ~3 CPU, 3Gi limit ceiling). Trimmed
+# down for this 3-node fleet the same way newrelic's kubelet integration and
+# the flux controllers were (see newrelic.yaml, flux-system/kustomization.yaml
+# patches): these are a low-throughput personal-scale cluster with a handful of
+# ScaledObjects, not a metric being polled fleet-wide every second. Re-widen if
+# metrics-server or operator gets OOMKilled or throttled in practice.
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: kedacore
+  namespace: flux-system
+spec:
+  interval: 1h
+  url: https://kedacore.github.io/charts
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: keda
+  namespace: keda
+spec:
+  interval: 1h
+  timeout: 10m
+  releaseName: keda
+  chart:
+    spec:
+      chart: keda
+      version: 2.20.1 # exact pin
+      sourceRef:
+        kind: HelmRepository
+        name: kedacore
+        namespace: flux-system
+      interval: 1h
+  install:
+    createNamespace: true
+    crds: Create
+    remediation:
+      retries: 3
+  upgrade:
+    # CreateReplace (not the install-time default Create): lets a future chart
+    # bump patch an existing ScaledObject/TriggerAuthentication CRD in place,
+    # instead of silently keeping the schema this cluster was bootstrapped with.
+    crds: CreateReplace
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+    cleanupOnFail: true
+  values:
+    watchNamespace: "" # all namespaces; only production uses it today, but the fleet is single-tenant
+    operator:
+      resources:
+        requests: {cpu: 50m, memory: 64Mi}
+        limits: {cpu: 500m, memory: 256Mi}
+    metricsServer:
+      resources:
+        requests: {cpu: 50m, memory: 64Mi}
+        limits: {cpu: 500m, memory: 256Mi}
+    webhooks:
+      resources:
+        requests: {cpu: 25m, memory: 32Mi}
+        limits: {cpu: 250m, memory: 128Mi}
