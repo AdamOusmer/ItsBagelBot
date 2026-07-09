@@ -197,7 +197,7 @@
       ></button>
     </div>
     {#each def.settings ?? [] as field (field.key)}
-      <div class="setting-row">
+      <div class="setting-row {field.type === 'textarea' ? 'stacked' : ''}">
         <label class="tr-text" for="mod-setting-{field.key}">
           <span class="tr-label">{field.label}</span>
           {#if field.help}<span class="tr-help">{field.help}</span>{/if}
@@ -222,6 +222,14 @@
               <option value={opt.value}>{opt.label}</option>
             {/each}
           </select>
+        {:else if field.type === 'textarea'}
+          <textarea
+            id="mod-setting-{field.key}"
+            class="setting-input setting-textarea"
+            placeholder={field.placeholder ?? ''}
+            value={config[field.key] ?? ''}
+            onchange={(e) => saveSetting(field, e.currentTarget.value)}
+          ></textarea>
         {:else}
           <input
             id="mod-setting-{field.key}"
@@ -366,6 +374,19 @@
     border-color: var(--bb-tan, #c9a87c);
   }
   .setting-input::placeholder { color: var(--bb-muted); opacity: 0.7; }
+
+  /* A textarea setting (e.g. trigger rules) stacks full-width under its label. */
+  .setting-row.stacked { flex-direction: column; align-items: stretch; }
+  .setting-row.stacked .tr-text { margin-right: 0; }
+  .setting-textarea {
+    width: 100%;
+    min-height: 132px;
+    padding: 10px 12px;
+    line-height: 1.55;
+    resize: vertical;
+    white-space: pre;
+    overflow-wrap: normal;
+  }
   @media (max-width: 560px) {
     .setting-row { flex-wrap: wrap; }
     .setting-input { width: 100%; }

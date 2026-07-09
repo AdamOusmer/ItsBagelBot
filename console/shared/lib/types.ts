@@ -772,6 +772,29 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
     // the tile opens a bespoke inspector instead.
     href: '/govee',
     replies: []
+  },
+  {
+    id: 'triggers',
+    label: 'Trigger Words',
+    tagline: 'Auto-reply when a word shows up in chat — no "!" needed.',
+    description:
+      'Give the bot a list of words or phrases and the line to post when it sees one in ordinary chat — no command prefix required. Write one rule per line as "phrase => response". Prefix the phrase with contains:, exact: or prefix: to change how it matches (the default matches the whole word, so "hi" will not fire inside "this"). Responses support {user}, {random} and {choice:a,b,c}. The first matching rule wins, so one message gets at most one reply.',
+    icon: 'caps',
+    category: 'Community',
+    defaultEnabled: false,
+    // Trigger rules are a free-form list, which the fixed reply/settings schema
+    // cannot express as rows; the whole list rides in one textarea the sesame
+    // module parses line by line (see app/sesame/modules/triggers.go).
+    replies: [],
+    settings: [
+      {
+        key: 'rules',
+        label: 'Trigger rules',
+        type: 'textarea',
+        placeholder: 'hello => hi {user}!\ncontains: lol => lmao\nexact: gg => good game',
+        help: 'One rule per line: phrase => response. Prefix the phrase with contains:, exact: or prefix: to change matching (default is whole-word). Tokens: {user}, {random}, {choice:a,b,c}. Lines starting with # are ignored.'
+      }
+    ]
   }
 ];
 
