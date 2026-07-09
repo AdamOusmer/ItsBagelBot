@@ -12,7 +12,7 @@ spec:
     whenDeleted: Retain
     whenScaled: Retain
   podManagementPolicy: OrderedReady
-  replicas: 3 # one valkey+sentinel pod per node incl worker1 (hostPort + one-per-node spread); node3 decommissioned
+  replicas: 4 # one valkey+sentinel pod per node (hostPort + one-per-node spread): worker1, node2, node1, node3
   revisionHistoryLimit: 10
   selector:
     matchLabels:
@@ -90,6 +90,16 @@ spec:
         - /bin/sh
         - -ec
         - |
+          # Resolve the CURRENT master: ask a live Sentinel first (the fleet may
+          # have failed over any number of times since pod-0 was master), falling
+          # back to the /shared pod-0 seed only for a full cold start where no
+          # Sentinel answers. Blindly seeding replicaof from pod-0 chains a new
+          # replica under whatever pod-0 happens to be — on worker1 that is the
+          # fenced priority-0 replica — creating a sub-replica that Sentinel
+          # neither discovers nor manages (hit live on the 2026-07-09 scale-out).
+          MASTER_IP=$(cat /shared/master_ip)
+          LIVE_MASTER=$(REDISCLI_AUTH="${CORE}" valkey-cli -h valkey.valkey.svc.cluster.local -p 26379 --no-auth-warning sentinel get-master-addr-by-name myprimary 2>/dev/null | head -n 1)
+          case "${LIVE_MASTER}" in *.*.*.*) MASTER_IP="${LIVE_MASTER}";; esac
           if [ ! -f /data/valkey.conf ]; then
             cp /config/valkey.conf /data/valkey.conf
             {
@@ -97,16 +107,29 @@ spec:
               echo "replica-announce-ip ${HOST_IP}"
               echo "replica-announce-port 6379"
             } >> /data/valkey.conf
-            # Cold-start seed only: every node but pod-0 begins as its replica;
-            # Sentinel owns all failovers afterwards. Skipped once valkey has
-            # rewritten its own replication state.
+            # First-boot seed only: every pod but the master's begins as its
+            # replica; Sentinel owns all failovers afterwards. Skipped once
+            # valkey has rewritten its own replication state.
             if [ "${POD_INDEX}" != "0" ]; then
-              echo "replicaof valkey-node-0.valkey-headless.valkey.svc.cluster.local 6379" >> /data/valkey.conf
+              echo "replicaof ${MASTER_IP} 6379" >> /data/valkey.conf
+            fi
+            # The home node (worker1, flaky wifi) keeps a read replica but must never
+            # be promoted: Sentinel never elects a priority-0 replica. Keyed on the
+            # node, not the ordinal, so whichever pod lands on worker1 is fenced. The
+            # live cluster was set the same way via CONFIG SET + REWRITE; this only
+            # re-seeds it after a fresh-PVC disaster rebuild.
+            if [ "${NODE_NAME}" = "worker1" ]; then
+              echo "replica-priority 0" >> /data/valkey.conf
+            fi
+            # node1 (2-core, future DB node) is the last-resort master: higher
+            # number = less preferred, so failovers pick node3/node2 (100) first.
+            # Mirrors the live CONFIG SET applied 2026-07-09.
+            if [ "${NODE_NAME}" = "node1" ]; then
+              echo "replica-priority 200" >> /data/valkey.conf
             fi
             chmod 600 /data/valkey.conf
           fi
           if [ ! -f /data/sentinel.conf ]; then
-            MASTER_IP=$(cat /shared/master_ip)
             cp /config/sentinel.conf /data/sentinel.conf
             {
               echo "requirepass ${CORE}"
@@ -122,6 +145,10 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: status.hostIP
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
         - name: POD_INDEX
           valueFrom:
             fieldRef:
