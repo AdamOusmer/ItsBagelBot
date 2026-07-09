@@ -1,0 +1,9 @@
+# KEDA (operator + metrics-server + admission webhooks), reconciled by the Flux
+# "keda" Kustomization (deploy/flux/clusters/production/keda.yaml). No
+# `namespace:` field: targetNamespace stays unset so the HelmRepository (in
+# flux-system) and the HelmRelease (in keda, chart-created) keep their own
+# scoping.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - release.yaml

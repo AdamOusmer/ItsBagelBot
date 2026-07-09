@@ -1,0 +1,22 @@
+# KEDA HelmRepository + HelmRelease (deploy/infra/keda/). Separate Kustomization,
+# same reason as cluster.yaml/valkey.yaml/tailscale.yaml: targetNamespace stays
+# unset here so the HelmRepository (flux-system) and HelmRelease (keda) keep
+# their own namespaces, unlike `apps` which pins everything to production.
+# wait is on: the `apps` Kustomization dependsOn this one and needs KEDA's
+# ScaledObject CRD registered (and the admission webhook up) before it applies
+# the outgress/sesame ScaledObjects.
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: keda
+  namespace: flux-system
+spec:
+  interval: 1h
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  path: ./deploy/infra/keda
+  prune: true
+  wait: true
+  timeout: 5m

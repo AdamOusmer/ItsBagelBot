@@ -21,7 +21,10 @@ metadata:
   annotations:
     secrets.doppler.com/reload: "true"
 spec:
-  replicas: 3 # one per node; 3 schedulable nodes incl worker1 (tolerates worker-pool); node3 decommissioned
+  # replicas intentionally omitted: the outgress ScaledObject below owns this
+  # field via its generated HPA (floor 3, matching the old static count).
+  # kustomize-controller stops setting it, so SSA hands ownership to the HPA
+  # instead of fighting it every reconcile.
   revisionHistoryLimit: 3
   minReadySeconds: 10
   strategy:
@@ -192,3 +195,69 @@ spec:
   selector:
     matchLabels:
       app: outgress
+---
+# Scales on whichever of the three lanes backs up worst (HPA takes the max
+# recommended replicas across triggers), plus a CPU floor for load that isn't
+# lane-shaped. minReplicaCount 3 matches the old static replicas; outgress is
+# ultimately Twitch-rate-limited (quota is tracked fleet-wide in Valkey, not
+# per-pod - see docs/microservices/outgress.md), so maxReplicaCount stays
+# modest: this buys resilience and headroom under sustained backlog, not more
+# Twitch throughput. Consumer names are bus.durableName(group, subject) from
+# app/outgress/main.go's three LaneConfigs; lag = num_pending + num_ack_pending
+# on that durable (see pkg/bus/bus.go laneConsumerConfig). Tune thresholds from
+# the admin lane-telemetry view (reads $JS.hub.API.CONSUMER.INFO.> live).
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: outgress
+  namespace: production
+spec:
+  scaleTargetRef:
+    name: outgress
+  pollingInterval: 15
+  cooldownPeriod: 300
+  minReplicaCount: 3
+  maxReplicaCount: 6
+  fallback:
+    failureThreshold: 3
+    replicas: 3
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleUp:
+          stabilizationWindowSeconds: 0
+          policies:
+            - {type: Pods, value: 2, periodSeconds: 60}
+        scaleDown:
+          stabilizationWindowSeconds: 300
+          policies:
+            - {type: Pods, value: 1, periodSeconds: 120}
+  triggers:
+    - type: cpu
+      metricType: Utilization
+      metadata:
+        value: "75"
+    - type: nats-jetstream
+      metadata:
+        natsServerMonitoringEndpoint: nats.production.svc.cluster.local:8222
+        account: BUS
+        stream: TWITCH_OUTGRESS
+        consumer: outgress-premium_twitch_outgress_premium
+        lagThreshold: "30"
+        activationLagThreshold: "5"
+    - type: nats-jetstream
+      metadata:
+        natsServerMonitoringEndpoint: nats.production.svc.cluster.local:8222
+        account: BUS
+        stream: TWITCH_OUTGRESS
+        consumer: outgress-standard_twitch_outgress_standard
+        lagThreshold: "150"
+        activationLagThreshold: "20"
+    - type: nats-jetstream
+      metadata:
+        natsServerMonitoringEndpoint: nats.production.svc.cluster.local:8222
+        account: BUS
+        stream: TWITCH_OUTGRESS_SYSTEM
+        consumer: outgress-system_twitch_outgress_system
+        lagThreshold: "20"
+        activationLagThreshold: "5"
