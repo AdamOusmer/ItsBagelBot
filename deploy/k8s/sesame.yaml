@@ -148,7 +148,13 @@ spec:
             - containerPort: 8080
           resources:
             requests:
-              cpu: 50m
+              # The KEDA cpu trigger below is Utilization, which the HPA
+              # computes against this request. At the old 50m the 75% threshold
+              # fired at 37m — background noise for a CPU-bound consumer — so
+              # the CPU trigger alone pinned sesame at maxReplicaCount. 200m
+              # puts the trigger at 150m/pod: real sustained load, while lag
+              # stays the primary scale signal.
+              cpu: 200m
               memory: 128Mi
             limits:
               cpu: "2"

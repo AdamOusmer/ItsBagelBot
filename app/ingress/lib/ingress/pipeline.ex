@@ -74,8 +74,16 @@ defmodule Ingress.Pipeline do
 
   defp publish_one(subject, message) do
     Metrics.count("Published/#{message.lane}")
-    Nats.publish(subject, message)
+    Nats.publish_acked(subject, message, dedup_id(message))
   end
+
+  # Broker-side dedup id. Twitch's message id is unique per notification and
+  # stable across EventSub redeliveries, so a shard reconnect replaying recent
+  # notifications collapses to one stored copy per lane. The lane suffix keeps
+  # the dual-published live events (event lane + stream lane land on the same
+  # JetStream stream) from deduping each other away.
+  defp dedup_id(%{msg_id: msg_id, lane: lane}) when is_binary(msg_id), do: "#{msg_id}:#{lane}"
+  defp dedup_id(_message), do: nil
 
   @doc """
   Pure-ish routing (the only side effect is the broadcaster cache read).
