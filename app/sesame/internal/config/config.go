@@ -84,8 +84,12 @@ type Config struct {
 	// LiveTTL bounds how long a live key survives without a refresh.
 	LiveTTL time.Duration
 
-	// Projection RPC subjects: the contracts sesame uses to resolve the user,
-	// modules and commands for the broadcaster an event belongs to.
+	// Projection RPC subjects: the cold-key fallbacks behind the Valkey
+	// settings projection. Modules and commands ask the PROJECTOR's dashboard
+	// get verbs — the projector owns Valkey, so its miss path hydrates the
+	// projection and the next read is a plain Valkey hit; sesame never asks
+	// the modules/commands services directly. Users still asks the users
+	// service's projection verb (the projector exposes no user-shaped read).
 	ProjectionUsersSubject    string
 	ProjectionModulesSubject  string
 	ProjectionCommandsSubject string
@@ -152,8 +156,8 @@ func Load() *Config {
 		LiveTTL: env.GetDuration("SESAME_LIVE_TTL", 12*time.Hour),
 
 		ProjectionUsersSubject:    env.Get("NATS_INTERNAL_PROJECTION_USERS_SUBJECT", "bagel.rpc.internal.projection.users.get"),
-		ProjectionModulesSubject:  env.Get("NATS_INTERNAL_PROJECTION_MODULES_SUBJECT", "bagel.rpc.internal.projection.modules.get"),
-		ProjectionCommandsSubject: env.Get("NATS_INTERNAL_PROJECTION_COMMANDS_SUBJECT", "bagel.rpc.internal.projection.commands.get"),
+		ProjectionModulesSubject:  env.Get("NATS_INTERNAL_PROJECTION_MODULES_SUBJECT", "bagel.rpc.projector.dashboard.modules.get"),
+		ProjectionCommandsSubject: env.Get("NATS_INTERNAL_PROJECTION_COMMANDS_SUBJECT", "bagel.rpc.projector.dashboard.commands.get"),
 
 		CacheInvalidationPrefix: env.Get("NATS_CACHE_INVALIDATION_PREFIX", "bagel.cache.invalidate"),
 
