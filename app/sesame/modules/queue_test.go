@@ -335,3 +335,41 @@ func TestQueueJoinAndListViaSubcommand(t *testing.T) {
 	require.Len(t, out, 1)
 	assert.Contains(t, out[0].Text, "1. alice")
 }
+
+// --- customizable reply templates ---
+
+func TestQueueJoinCustomTemplate(t *testing.T) {
+	q := &fakeQueue{open: true}
+	m := Queue(queueDeps(q))
+
+	c := queueCtx("alice", "")
+	c.Config = []byte(`{"joinMessage":"welcome {user}! spot {pos}"}`)
+	out := runQueue(t, m, "join", c, "")
+	require.Len(t, out, 1)
+	assert.Equal(t, "welcome alice! spot 1", out[0].Text)
+}
+
+func TestQueueNextCustomTemplate(t *testing.T) {
+	q := &fakeQueue{open: true, line: []string{"alice", "bob"}}
+	m := Queue(queueDeps(q))
+
+	c := queueCtx("mod", "moderator")
+	c.Config = []byte(`{"nextMessage":"{target} is up, {count} left"}`)
+	out := runQueue(t, m, "queue", c, "next")
+	require.Len(t, out, 1)
+	assert.Equal(t, "alice is up, 1 left", out[0].Text)
+}
+
+// A blank custom template falls back to the localized default; the roster is
+// never customizable, so a stray config key cannot alter it.
+func TestQueueListIgnoresConfig(t *testing.T) {
+	q := &fakeQueue{open: true, line: []string{"a", "b"}}
+	m := Queue(queueDeps(q))
+
+	c := queueCtx("alice", "")
+	c.Config = []byte(`{"joinMessage":"custom"}`)
+	out := runQueue(t, m, "list", c, "")
+	require.Len(t, out, 1)
+	assert.Contains(t, out[0].Text, "1. a")
+	assert.Contains(t, out[0].Text, "2. b")
+}
