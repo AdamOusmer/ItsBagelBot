@@ -676,11 +676,77 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
     icon: 'list',
     category: 'Community',
     defaultEnabled: false,
-    // The queue posts fixed system lines (join confirmations, the roster, next-up
-    // calls), not customizable templates, so there are no editable reply rows or
-    // settings — just the master enable and a read-only list of the commands it
-    // unlocks (see app/sesame/modules/queue.go).
-    replies: [],
+    // The conversational replies are customizable per broadcaster; the roster
+    // (!list), the status readout and the system/error lines stay fixed (see
+    // app/sesame/modules/queue.go). The command list below is read-only. Each
+    // reply rehearses as its command (a viewer types the trigger, the bot
+    // answers) with this reply's own sample values.
+    replies: [
+      {
+        key: 'join',
+        label: 'Join confirmation',
+        tagline: 'When a viewer joins the line.',
+        event: '!join',
+        command: 'join',
+        messageKey: 'joinMessage',
+        defaultMessage: '@{user} you joined the queue at position #{pos}.',
+        tokens: ['user', 'pos'],
+        previewSamples: { user: 'sesame_sam', pos: '3' }
+      },
+      {
+        key: 'already',
+        label: 'Already in queue',
+        tagline: 'When a viewer who is already in line types !join again.',
+        event: '!join',
+        command: 'join',
+        messageKey: 'alreadyMessage',
+        defaultMessage: '@{user} you are already in the queue at position #{pos}.',
+        tokens: ['user', 'pos'],
+        previewSamples: { user: 'sesame_sam', pos: '2' }
+      },
+      {
+        key: 'leave',
+        label: 'Leave confirmation',
+        tagline: 'When a viewer steps out of the line.',
+        event: '!leave',
+        command: 'leave',
+        messageKey: 'leaveMessage',
+        defaultMessage: '@{user} you left the queue.',
+        tokens: ['user'],
+        previewSamples: { user: 'sesame_sam' }
+      },
+      {
+        key: 'next',
+        label: 'Next player up',
+        tagline: 'When you pull up the next player.',
+        event: '!queue next',
+        command: 'queue next',
+        messageKey: 'nextMessage',
+        defaultMessage: '@{target} you are up next! ({count} still waiting)',
+        tokens: ['target', 'count'],
+        previewSamples: { target: 'ferret_king', count: '2' }
+      },
+      {
+        key: 'opened',
+        label: 'Queue opened',
+        tagline: 'Announced when you open the queue.',
+        event: '!queue open',
+        command: 'queue open',
+        messageKey: 'openedMessage',
+        defaultMessage: 'The queue is now open! Type !join to get in line.',
+        previewSamples: {}
+      },
+      {
+        key: 'closed',
+        label: 'Queue closed',
+        tagline: 'Announced when you close the queue.',
+        event: '!queue close',
+        command: 'queue close',
+        messageKey: 'closedMessage',
+        defaultMessage: 'The queue is now closed to new joins.',
+        previewSamples: {}
+      }
+    ],
     commands: [
       { trigger: '!join', summary: 'Get in line to play (also !queue join).' },
       { trigger: '!leave', summary: 'Step out of the line (also !queue leave).' },
