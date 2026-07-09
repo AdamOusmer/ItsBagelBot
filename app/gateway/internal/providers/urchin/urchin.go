@@ -26,13 +26,12 @@ import (
 )
 
 // Cache TTLs. Session deltas move while the player is online, so they stay
-// short; blacklist state can lag a little. The uuid resolution never changes
-// for a username short of a Mojang rename, so it is cached long.
+// short; blacklist state can lag a little. The tags fetch (tagsTTL) doubles as
+// the sniper endpoint's uuid source, so the two share one window.
 const (
 	sessionTTL  = 2 * time.Minute
 	sniperTTL   = 10 * time.Minute
 	tagsTTL     = 10 * time.Minute
-	uuidTTL     = 24 * time.Hour
 	negativeTTL = 5 * time.Minute
 
 	httpTimeout = 10 * time.Second
@@ -230,6 +229,22 @@ func (p *Provider) fetchTags(ctx context.Context, acct account) (tagsResponse, e
 	return resp, p.http.GetJSON(ctx, "/v3/player/tags", url.Values{"player": {acct.String()}}, &resp)
 }
 
+// playerTags fetches the Coral tags response for acct behind a shared cache.
+// Both the tags command and the sniper endpoint's uuid resolution read through
+// it, so a player queried by either costs one /v3/player/tags call rather than
+// two, and a missing player negative-caches once and satisfies both. It spends
+// one rate-limit token only on a real upstream fetch (the enforce lives inside
+// the cache's fill, so a hit costs nothing).
+func (p *Provider) playerTags(ctx context.Context, acct account, isPremium bool) (tagsResponse, error) {
+	key := core.Key(p.Name(), "playertags", acct.cacheKey())
+	return core.Cached(ctx, p.cache, key, tagsTTL, negativeTTL, func(ctx context.Context) (tagsResponse, error) {
+		if err := p.buckets.Enforce(ctx, p.deps.Limiter, isPremium); err != nil {
+			return tagsResponse{}, err
+		}
+		return p.fetchTags(ctx, acct)
+	})
+}
+
 func (p *Provider) tags(ctx context.Context, req gatewayrpc.Request) any {
 	acct := account(strings.TrimSpace(req.Account))
 	if acct.empty() {
@@ -239,10 +254,7 @@ func (p *Provider) tags(ctx context.Context, req gatewayrpc.Request) any {
 	b, err := core.CachedBytes(ctx, p.cache, key, func(ctx context.Context) ([]byte, time.Duration, error) {
 		return core.BuildReply(ctx, tagsTTL, negativeTTL,
 			func(ctx context.Context) (any, error) {
-				if err := p.buckets.Enforce(ctx, p.deps.Limiter, req.IsPremium); err != nil {
-					return nil, err
-				}
-				resp, err := p.fetchTags(ctx, acct)
+				resp, err := p.playerTags(ctx, acct, req.IsPremium)
 				if err != nil {
 					return nil, err
 				}
@@ -274,25 +286,20 @@ type cubelifyResponse struct {
 	Tags []json.RawMessage `json:"tags"`
 }
 
-// resolveUUID turns a username into the canonical uuid via the tags endpoint,
-// cached for a day. An empty uuid on a 200 is shaped like a 404 so it negative
-// caches instead of being stored as a "successful" blank that would poison the
-// downstream cubelify call.
+// resolveUUID turns a username into the canonical uuid, reading through the
+// shared tags cache (playerTags) so it reuses a lookup the tags command may
+// already have made instead of dialing Coral again. An empty uuid on a 200 is
+// shaped like a 404 so the downstream cubelify call is never made with a blank
+// id.
 func (p *Provider) resolveUUID(ctx context.Context, acct account, isPremium bool) (string, error) {
-	key := core.Key(p.Name(), "uuid", acct.cacheKey())
-	return core.Cached(ctx, p.cache, key, uuidTTL, negativeTTL, func(ctx context.Context) (string, error) {
-		if err := p.buckets.Enforce(ctx, p.deps.Limiter, isPremium); err != nil {
-			return "", err
-		}
-		resp, err := p.fetchTags(ctx, acct)
-		if err != nil {
-			return "", err
-		}
-		if strings.TrimSpace(resp.UUID) == "" {
-			return "", &core.UpstreamError{Status: 404, Message: "player not found"}
-		}
-		return resp.UUID, nil
-	})
+	resp, err := p.playerTags(ctx, acct, isPremium)
+	if err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(resp.UUID) == "" {
+		return "", &core.UpstreamError{Status: 404, Message: "player not found"}
+	}
+	return resp.UUID, nil
 }
 
 func (p *Provider) sniper(ctx context.Context, req gatewayrpc.Request) any {
