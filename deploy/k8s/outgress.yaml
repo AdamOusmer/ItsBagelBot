@@ -151,8 +151,17 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
-                  # Remaining lease tuning (minimum members, replicas, epoch, etc.)
-                  # may be supplied by outgress-env via Doppler.
+                  # Remaining lease tuning (replicas, epoch, etc.) may be supplied
+                  # by outgress-env via Doppler.
+            # Reject a quota plan that does not reflect a real multi-pod fleet.
+            # Two is the safe floor: a lone member borrows from nobody and would
+            # claim the full Twitch quota (fail open -> 429s), whereas any plan of
+            # 2+ divides the leased share so the fleet total stays <= 100%. Below
+            # this floor the coordinator defers and every pod runs on the shared,
+            # serialized emergency partition (fail closed). 2 (not 3) still forms a
+            # valid plan during a maxUnavailable:1 rollout, when only 2 pods are up.
+            - name: OUTGRESS_LEASE_MIN_MEMBERS
+              value: "2"
           envFrom:
             - secretRef:
                 name: outgress-env

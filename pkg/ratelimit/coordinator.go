@@ -7,20 +7,16 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bytedance/sonic"
-	"github.com/nats-io/nats.go"
-	"github.com/nats-io/nats.go/micro"
 	"github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
 )
 
 type CoordinatorConfig struct {
-	Epoch           time.Duration
-	Guard           time.Duration
-	DiscoveryWindow time.Duration
-	MinMembers      int
-	Replicas        int
-	ReplicaTimeout  time.Duration
+	Epoch          time.Duration
+	Guard          time.Duration
+	MinMembers     int
+	Replicas       int
+	ReplicaTimeout time.Duration
 }
 
 func (c CoordinatorConfig) withDefaults() CoordinatorConfig {
@@ -29,9 +25,6 @@ func (c CoordinatorConfig) withDefaults() CoordinatorConfig {
 	}
 	if c.Guard <= 0 {
 		c.Guard = 250 * time.Millisecond
-	}
-	if c.DiscoveryWindow <= 0 {
-		c.DiscoveryWindow = 250 * time.Millisecond
 	}
 	if c.MinMembers <= 0 {
 		c.MinMembers = 1
@@ -43,13 +36,14 @@ func (c CoordinatorConfig) withDefaults() CoordinatorConfig {
 }
 
 type LeaseCoordinator struct {
-	nc      *nats.Conn
 	client  *LeaseClient
 	manager *LeaseManager
-	region  string
-	podID   string
+	self    Member
 	config  CoordinatorConfig
 	log     *zap.Logger
+
+	heartbeatEvery time.Duration
+	memberTTL      time.Duration
 
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
@@ -59,30 +53,53 @@ const (
 	leaseReconcileInterval = 2 * time.Second
 	leaseMissingPlanRetry  = 250 * time.Millisecond
 	leaseMinimumWake       = 10 * time.Millisecond
+	membershipWriteTimeout = 2 * time.Second
 )
 
-func NewLeaseCoordinator(nc *nats.Conn, client valkey.Client, manager *LeaseManager, region, podID string, config CoordinatorConfig, log *zap.Logger) *LeaseCoordinator {
+func NewLeaseCoordinator(client valkey.Client, manager *LeaseManager, region, podID string, config CoordinatorConfig, log *zap.Logger) *LeaseCoordinator {
 	if log == nil {
 		log = zap.NewNop()
 	}
+	config = config.withDefaults()
+	heartbeatEvery, memberTTL := membershipCadence(config.Epoch)
 	return &LeaseCoordinator{
-		nc: nc, client: NewLeaseClient(client), manager: manager,
-		region: region, podID: podID,
-		config: config.withDefaults(), log: log,
+		client: NewLeaseClient(client), manager: manager,
+		self:   Member{PodID: podID, Region: region},
+		config: config, log: log,
+		heartbeatEvery: heartbeatEvery, memberTTL: memberTTL,
 	}
+}
+
+// membershipCadence derives the heartbeat interval and presence ttl from the
+// epoch. The interval is a bounded fraction of the epoch (neither chatty nor
+// sluggish); the ttl spans three intervals, so a live pod survives two missed
+// refreshes while a crashed one is pruned within the ttl.
+func membershipCadence(epoch time.Duration) (every, ttl time.Duration) {
+	every = epoch / 6
+	if every < 3*time.Second {
+		every = 3 * time.Second
+	}
+	if every > 10*time.Second {
+		every = 10 * time.Second
+	}
+	return every, 3 * every
 }
 
 func (c *LeaseCoordinator) Start(parent context.Context) error {
 	ctx, cancel := context.WithCancel(parent)
 	c.cancel = cancel
+	// Register self before the first reconcile so this pod counts itself in any
+	// plan it proposes on the very first pass.
+	c.heartbeat(ctx)
 	var activated, proposed uint64
 	next, err := c.reconcile(ctx, &activated, &proposed)
 	if err != nil {
 		cancel()
 		return err
 	}
-	c.wg.Add(1)
+	c.wg.Add(2)
 	go c.loop(ctx, activated, proposed, next)
+	go c.heartbeatLoop(ctx)
 	return nil
 }
 
@@ -91,6 +108,35 @@ func (c *LeaseCoordinator) Close() {
 		c.cancel()
 	}
 	c.wg.Wait()
+	// Deregister only after the loops stop, so no in-flight heartbeat can re-add
+	// self. Best-effort on a fresh context because the parent is already cancelled.
+	ctx, cancel := context.WithTimeout(context.Background(), membershipWriteTimeout)
+	defer cancel()
+	if err := c.client.RemoveMember(ctx, c.self); err != nil {
+		c.log.Debug("membership deregister failed", zap.Error(err))
+	}
+}
+
+func (c *LeaseCoordinator) heartbeat(ctx context.Context) {
+	hbCtx, cancel := context.WithTimeout(ctx, membershipWriteTimeout)
+	defer cancel()
+	if err := c.client.Heartbeat(hbCtx, c.self, time.Now(), c.memberTTL); err != nil {
+		c.log.Debug("membership heartbeat failed", zap.Error(err))
+	}
+}
+
+func (c *LeaseCoordinator) heartbeatLoop(ctx context.Context) {
+	defer c.wg.Done()
+	ticker := time.NewTicker(c.heartbeatEvery)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			c.heartbeat(ctx)
+		}
+	}
 }
 
 func (c *LeaseCoordinator) loop(ctx context.Context, activated, proposed uint64, next time.Duration) {
@@ -153,12 +199,21 @@ func (c *LeaseCoordinator) reconcile(ctx context.Context, activated, proposed *u
 	if *proposed == nextEpoch || serverNow.UnixMilli() < nextBoundary-10_000 {
 		return next, nil
 	}
-	members, err := c.discoverMembers(ctx)
+	members, err := c.listMembers(ctx)
 	if err != nil {
 		return leaseReconcileInterval, err
 	}
 	if len(members) < c.config.MinMembers {
-		return leaseReconcileInterval, errors.New("ratelimit: insufficient permit-service members")
+		// Membership under-counted the fleet. Committing a plan now would hand the
+		// known members a full local share (a lone member borrows from nobody and
+		// claims the whole Twitch quota) -- fail open. Defer instead: with no fresh
+		// plan every pod stays on the globally serialized emergency partition (fail
+		// closed, no over-send). Return nil, not an error, so this expected degraded
+		// state neither crashes startup through Start's Fatal nor hides at Debug
+		// like a transient fault.
+		c.log.Warn("insufficient permit-service members; deferring lease proposal",
+			zap.Int("discovered", len(members)), zap.Int("min_members", c.config.MinMembers))
+		return leaseReconcileInterval, nil
 	}
 	plan, err := BuildPlan(nextEpoch, nextBoundary, nextBoundary+epochMS, members)
 	if err != nil {
@@ -195,65 +250,22 @@ func nextLeaseReconcileDelay(serverNow time.Time, nextBoundaryMS int64, uncertai
 	return delay
 }
 
-func (c *LeaseCoordinator) discoverMembers(ctx context.Context) ([]Member, error) {
-	// NATS FlushWithContext rejects a context without a deadline. The
-	// coordinator is driven by the service's long-lived root context, so bound
-	// the discovery exchange explicitly to the same window used to collect
-	// replies. A stalled NATS connection then defers this reconciliation instead
-	// of crashing startup or preventing every epoch proposal.
-	discoveryCtx, cancel := context.WithTimeout(ctx, c.config.DiscoveryWindow)
-	defer cancel()
-
-	subject, err := micro.ControlSubject(micro.InfoVerb, permitServiceName, "")
+// listMembers reads the live fleet from the Valkey presence registry and
+// guarantees self is included. Deriving membership from the same store that owns
+// the quota plans means every pod sees the identical fleet without relying on
+// NATS discovery fan-out, and a stale replica or a just-missed heartbeat can
+// never make a pod disown itself.
+func (c *LeaseCoordinator) listMembers(ctx context.Context) ([]Member, error) {
+	members, err := c.client.ListMembers(ctx, time.Now())
 	if err != nil {
 		return nil, err
 	}
-	inbox := c.nc.NewInbox()
-	subscription, err := c.nc.SubscribeSync(inbox)
-	if err != nil {
-		return nil, err
-	}
-	defer subscription.Unsubscribe()
-	if err := subscription.AutoUnsubscribe(1024); err != nil {
-		return nil, err
-	}
-	if err := c.nc.PublishRequest(subject, inbox, nil); err != nil {
-		return nil, err
-	}
-	if err := c.nc.FlushWithContext(discoveryCtx); err != nil {
-		return nil, err
-	}
-
-	deadline := time.Now().Add(c.config.DiscoveryWindow)
-	byPod := make(map[string]Member, c.config.MinMembers)
-	for {
-		remaining := time.Until(deadline)
-		if remaining <= 0 {
-			break
-		}
-		message, err := subscription.NextMsg(remaining)
-		if err != nil {
-			if errors.Is(err, nats.ErrTimeout) {
-				break
-			}
-			return nil, err
-		}
-		var info micro.Info
-		if sonic.Unmarshal(message.Data, &info) != nil {
-			continue
-		}
-		member := Member{PodID: info.Metadata["pod_id"], Region: info.Metadata["region"]}
-		if member.PodID != "" && member.Region != "" {
-			byPod[member.PodID] = member
+	for i := range members {
+		if members[i].PodID == c.self.PodID {
+			return members, nil
 		}
 	}
-	if _, exists := byPod[c.podID]; !exists {
-		byPod[c.podID] = Member{PodID: c.podID, Region: c.region}
-	}
-	members := make([]Member, 0, len(byPod))
-	for _, member := range byPod {
-		members = append(members, member)
-	}
+	members = append(members, c.self)
 	sort.Slice(members, func(i, j int) bool { return members[i].PodID < members[j].PodID })
 	return members, nil
 }
