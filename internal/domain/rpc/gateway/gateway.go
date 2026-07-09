@@ -42,6 +42,10 @@ type Request struct {
 	// Range 0..0xFFFFFF; the caller rejects an unparseable colour before the
 	// call, so 0 (sent as omitted) only reaches control as a deliberate black.
 	ColorRGB int `json:"color_rgb,omitempty"`
+	// PowerOff, when true, makes govee.control turn the device OFF instead of
+	// powering it on and setting a colour; ColorRGB is ignored. This backs the
+	// opt-in "a viewer types off to turn the lights off" reward behaviour.
+	PowerOff bool `json:"power_off,omitempty"`
 }
 
 // Subject builds the NATS subject for one provider endpoint under prefix.
