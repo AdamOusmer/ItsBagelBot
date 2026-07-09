@@ -233,12 +233,18 @@ async function completeLogin(cookies: Cookies, url: URL, code: string, storedNon
   // every login; the admin panel re-bans authoritatively.
   if (await isBanned(identity.userId)) throw redirect(302, '/login?e=banned');
 
-  await acceptPendingDelegation(cookies, url, identity);
-
+  // Register BEFORE the delegation accept can seal a delegate session and
+  // redirect: a brand-new invitee whose first ever login is a share link still
+  // needs their own user row, or the ghost-session gate reads it as a deleted
+  // account, wipes the delegate session on the very next request, and bounces
+  // them to /login. A returning owner just no-ops through the accept below.
+  //
   // Real account email (user:read:email consent). Null on any failure —
   // capture is best-effort and the users service stores it encrypted.
   const email = await fetchAccountEmail(tokens.accessToken());
   await registerUser(identity, email);
+
+  await acceptPendingDelegation(cookies, url, identity);
 
   setSessionCookie(cookies, url, streamerSession(identity));
   await seedLocaleCookie(cookies, url, identity.userId);
