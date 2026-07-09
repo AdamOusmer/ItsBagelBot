@@ -93,12 +93,17 @@ func (s *ValkeyQueueStore) IsOpen(ctx context.Context, broadcasterID uint64) (bo
 func (s *ValkeyQueueStore) Join(ctx context.Context, broadcasterID uint64, login string) (pos, size int64, joined bool, err error) {
 	key := queueLineKey(broadcasterID)
 	// One round trip: claim the spot (NX keeps an existing one and its score),
-	// read the resulting rank and size, re-arm the safety expiry.
+	// read the resulting rank and size, re-arm the safety expiries. The open
+	// flag is re-armed alongside the line: joins prove the queue is in active
+	// use, so a stream running past the TTL never has its open queue silently
+	// close mid-session. (EXPIRE on an absent flag is a harmless no-op.)
+	seconds := int64(s.ttl.Seconds())
 	resps := s.client.DoMulti(ctx,
 		s.client.B().Zadd().Key(key).Nx().ScoreMember().ScoreMember(float64(time.Now().UnixMilli()), login).Build(),
 		s.client.B().Zrank().Key(key).Member(login).Build(),
 		s.client.B().Zcard().Key(key).Build(),
-		s.client.B().Expire().Key(key).Seconds(int64(s.ttl.Seconds())).Build(),
+		s.client.B().Expire().Key(key).Seconds(seconds).Build(),
+		s.client.B().Expire().Key(queueOpenKey(broadcasterID)).Seconds(seconds).Build(),
 	)
 	added, err := resps[0].AsInt64()
 	if err != nil {

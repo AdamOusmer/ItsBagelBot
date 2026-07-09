@@ -156,7 +156,7 @@ func queueDispatch(d engine.Deps, log *zap.Logger) module.RunFunc {
 		case "leave":
 			return qc.leave(ctx, emit)
 		case "list":
-			return qc.list(ctx, emit)
+			return qc.listCooled(ctx, d.Cooldown, emit)
 		default:
 			qc.reply(emit, "", "queue.err.usage")
 			return nil
@@ -290,6 +290,21 @@ func (qc queueCmd) clear(ctx context.Context, emit module.Emit) error {
 	}
 	qc.reply(emit, "", "queue.cleared")
 	return nil
+}
+
+// listCooled applies the standalone !list's per-channel throttle to the
+// !queue list route: both claim the engine's "list" cooldown key, so the two
+// spellings share one queueListCooldown window instead of the subcommand
+// sidestepping it. A nil store (tests) runs the roster unthrottled; a throttled
+// or errored claim stays silent, matching the engine gate.
+func (qc queueCmd) listCooled(ctx context.Context, cd engine.CooldownStore, emit module.Emit) error {
+	if cd != nil {
+		ok, err := cd.Allow(ctx, engine.CommandCooldownKey(qc.c.BroadcasterID, "list"), queueListCooldown)
+		if err != nil || !ok {
+			return err
+		}
+	}
+	return qc.list(ctx, emit)
 }
 
 // list shows the next queueListLen players in order, with a "+N more" tail when
