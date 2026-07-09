@@ -182,7 +182,11 @@ jobs:
               .containerignore|go.mod|go.sum|pkg/*)
                 add_root_go_services
                 ;;
-              internal/domain/*|internal/utils/*)
+              # Any shared internal package rebuilds every root Go service: a
+              # narrower list already missed internal/projection (imported by
+              # projector, sesame and the data services), which shipped a
+              # sesame image without its matching projector.
+              internal/*)
                 add_root_go_services
                 ;;
               app/commands/*)
