@@ -18,20 +18,27 @@ const t = useTranslations(lang);
     <SectionHeading eyebrow={t('qw.eyebrow')} title={t('qw.title')} />
 
     <div class="qw__grid">
-        <!-- Moderation: spam line gets redacted on loop -->
+        <!-- Govee: bulb lights up and washes the stage in chat's colour -->
         <Card class="qw__card qw__card--wide" data-reveal>
-            <div class="qw__demo qw__demo--mod" aria-hidden="true">
-                <span class="qw-mod__line">
-                    <span class="qw-mod__text">FREE F0LLOWERS &gt;&gt; sketchy.link</span>
-                    <span class="qw-mod__sweep"></span>
+            <div class="qw__demo qw__demo--govee" aria-hidden="true">
+                <span class="qw-govee__glow"></span>
+                <span class="qw-govee__bulb">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M15 14c.2-1 .7-1.7 1.5-2.5C17.5 10.6 18 9.3 18 8A6 6 0 0 0 6 8c0 1.3.5 2.6 1.5 3.5.8.8 1.3 1.5 1.5 2.5" />
+                        <path d="M9 18h6" />
+                        <path d="M10 22h4" />
+                        <path class="qw-govee__sprout" d="M12 15V9" />
+                        <path class="qw-govee__sprout" d="M12 11c1.6 0 2.8-1.2 2.8-2.9-1.7 0-2.8 1.2-2.8 2.9Z" />
+                        <path class="qw-govee__sprout" d="M12 12c-1.6 0-2.8-1.2-2.8-2.9 1.7 0 2.8 1.2 2.8 2.9Z" />
+                    </svg>
                 </span>
-                <span class="qw-mod__verdict">{t('qw.modVerdict')}</span>
+                <span class="qw-govee__redeem">
+                    <span class="qw-govee__dot"></span>
+                    {t('qw.goveeReward')}
+                </span>
             </div>
-            <h3 class="qw__title">
-                {t('qw.modTitle')}
-                <IncomingBadge label={t('badge.incoming')} />
-            </h3>
-            <p class="qw__desc">{t('qw.modDesc')}</p>
+            <h3 class="qw__title">{t('qw.goveeTitle')}</h3>
+            <p class="qw__desc">{t('qw.goveeDesc')}</p>
         </Card>
 
         <!-- Commands: typewriter call + response -->
@@ -148,47 +155,86 @@ const t = useTranslations(lang);
         font-size: 0.74rem;
     }
 
-    /* ── Moderation: sweep + verdict loop ── */
+    /* ── Govee: bulb wakes on redeem, light washes the stage ── */
 
-    .qw-mod__line {
+    .qw__demo--govee {
         position: relative;
-        display: inline-block;
-        width: fit-content;
-        max-width: 100%;
-        color: rgba(217, 138, 138, 0.85);
-        animation: qwModLine 6s ease-in-out infinite;
-    }
-
-    .qw-mod__sweep {
-        position: absolute;
-        inset: -2px -4px;
-        border-radius: 4px;
-        background: linear-gradient(90deg, transparent, rgba(82, 183, 136, 0.35), transparent);
-        transform: translateX(-110%);
-        animation: qwModSweep 6s ease-in-out infinite;
-    }
-
-    .qw-mod__verdict {
+        flex-direction: row;
+        align-items: center;
+        gap: 16px;
         color: var(--green-glow, #52b788);
+        animation: qwGoveeHue 9s ease-in-out infinite;
+    }
+
+    /* ambient spill from the bulb across the stage */
+    .qw-govee__glow {
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(circle at 38px 50%, currentColor, transparent 72%);
+        opacity: 0.05;
+        transform-origin: 38px 50%;
+        animation: qwGoveeBloom 9s ease-in-out infinite;
+        pointer-events: none;
+    }
+
+    .qw-govee__bulb {
+        flex: none;
+        display: grid;
+        place-items: center;
+        animation: qwGoveeLit 9s ease-in-out infinite;
+    }
+
+    .qw-govee__bulb svg { width: 44px; height: 44px; }
+
+    /* the sprout stays green: efficient light, always alive */
+    .qw-govee__sprout { stroke: var(--green-glow, #52b788); }
+
+    .qw-govee__redeem {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--muted, #888077);
         opacity: 0;
-        animation: qwModVerdict 6s ease-in-out infinite;
+        animation: qwGoveeRedeem 9s ease-in-out infinite;
     }
 
-    @keyframes qwModLine {
-        0%, 28% { opacity: 1; filter: none; }
-        38%, 78% { opacity: 0.28; filter: blur(1.5px); }
-        88%, 100% { opacity: 1; filter: none; }
+    .qw-govee__dot {
+        flex: none;
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: currentColor;
+        box-shadow: 0 0 8px currentColor;
+        color: var(--green-glow, #52b788);
+        animation: qwGoveeHue 9s ease-in-out infinite;
     }
 
-    @keyframes qwModSweep {
-        0%, 24% { transform: translateX(-110%); }
-        36%, 100% { transform: translateX(110%); }
+    /* off → redeem lands → warm sunset wash → eases back to dark */
+    @keyframes qwGoveeHue {
+        0%, 28%  { color: #5c665f; }
+        40%, 50% { color: #52b788; }
+        62%, 72% { color: #e0c49a; }
+        82%      { color: #d98a8a; }
+        100%     { color: #5c665f; }
     }
 
-    @keyframes qwModVerdict {
-        0%, 34% { opacity: 0; transform: translateY(4px); }
-        44%, 76% { opacity: 1; transform: none; }
-        86%, 100% { opacity: 0; }
+    @keyframes qwGoveeBloom {
+        0%, 28%   { opacity: 0.05; transform: scale(0.85); }
+        44%, 82%  { opacity: 0.3;  transform: scale(1); }
+        100%      { opacity: 0.05; transform: scale(0.85); }
+    }
+
+    @keyframes qwGoveeLit {
+        0%, 28%  { opacity: 0.5; filter: drop-shadow(0 0 0 transparent) drop-shadow(0 0 0 transparent); }
+        44%, 82% { opacity: 1;   filter: drop-shadow(0 0 5px currentColor) drop-shadow(0 0 16px currentColor); }
+        100%     { opacity: 0.5; filter: drop-shadow(0 0 0 transparent) drop-shadow(0 0 0 transparent); }
+    }
+
+    @keyframes qwGoveeRedeem {
+        0%, 26%  { opacity: 0; transform: translateY(4px); }
+        34%, 84% { opacity: 1; transform: none; }
+        94%, 100% { opacity: 0; }
     }
 
     /* ── Commands: typewriter in, reply out ── */
@@ -292,13 +338,14 @@ const t = useTranslations(lang);
     }
 
     @media (prefers-reduced-motion: reduce) {
-        .qw-mod__line, .qw-mod__sweep, .qw-mod__verdict,
+        .qw__demo--govee, .qw-govee__glow, .qw-govee__bulb, .qw-govee__dot, .qw-govee__redeem,
         .qw-cmd__in, .qw-cmd__out,
         .qw-beat__path {
             animation: none;
         }
-        .qw-mod__sweep { display: none; }
-        .qw-mod__verdict { opacity: 1; }
+        .qw-govee__glow { opacity: 0.22; transform: none; }
+        .qw-govee__bulb { opacity: 1; filter: drop-shadow(0 0 5px currentColor) drop-shadow(0 0 16px currentColor); }
+        .qw-govee__redeem { opacity: 1; }
         .qw-cmd__in { width: 18ch; border-right: none; }
         .qw-cmd__out { opacity: 1; }
         .qw-beat__path { stroke-dashoffset: 0; }
