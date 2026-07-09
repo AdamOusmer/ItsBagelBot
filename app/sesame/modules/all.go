@@ -23,5 +23,6 @@ func All(d engine.Deps) []module.Module {
 		Automod(d),
 		ChannelPoints(d),
 		Govee(d),
+		Triggers(d),
 	}
 }
