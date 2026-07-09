@@ -141,6 +141,10 @@ func (w *Worker) enableEventSubs(ctx context.Context, e enrollment) error {
 		if err == nil {
 			_ = w.registry.SetSubState(ctx, e.broadcasterID, "ok", "")
 			w.log.Info("eventsub subscriptions created", zap.String("broadcaster_id", e.broadcasterID))
+			// A channel enrolled mid-stream gets no stream.online for the session
+			// already running, so resolve the live state now instead of leaving
+			// live-gated commands offline until the next stream.
+			w.seedLiveStatus(ctx, e.broadcasterID)
 			return nil
 		}
 
@@ -202,6 +206,9 @@ func (w *Worker) reconnectEventSubs(ctx context.Context, e enrollment) error {
 			_ = w.registry.SetSubState(ctx, e.broadcasterID, "ok", "")
 			w.log.Info("reconnect: all eventsubs accepted",
 				zap.String("broadcaster_id", e.broadcasterID))
+			// The rebuilt subscriptions missed any go-live that happened while the
+			// channel was between sub sets; re-resolve the live state directly.
+			w.seedLiveStatus(ctx, e.broadcasterID)
 			return nil
 		}
 
