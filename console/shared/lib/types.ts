@@ -851,6 +851,43 @@ export const GOVEE_COLOR_NAMES: readonly string[] = [
   'gold'
 ];
 
+// Govee module shapes, shared by the server store and the dashboard components.
+// The module binds channel-points rewards to smart lights: a viewer redeems a
+// reward, types a colour (or "off"), and the bot drives that reward's light.
+// One reward per light. The Twitch reward is owned by outgress; the bindings
+// live in the "govee" module blob and are read by sesame's govee module.
+export type GoveeOnRedeem = 'fulfill' | 'cancel' | 'leave';
+
+// GoveeDevice is one controllable light on the broadcaster's Govee account.
+export interface GoveeDevice {
+  device: string;
+  sku: string;
+  name: string;
+  color: boolean;
+}
+
+// GoveeReward mirrors the Twitch reward settings the dashboard shows for a light.
+export interface GoveeReward {
+  rewardId: string;
+  title: string;
+  cost: number;
+  color: string;
+  cooldown: number;
+}
+
+// GoveeBinding ties one reward to one light plus the behaviour sesame reads.
+export interface GoveeBinding {
+  device: string;
+  sku: string;
+  deviceName: string;
+  onRedeem: GoveeOnRedeem;
+  rewardId: string;
+  reward: GoveeReward | null;
+  allowOffline: boolean;
+  allowOff: boolean;
+  replyMessage: string;
+}
+
 export function moduleDef(id: string): ModuleDef | undefined {
   return MODULE_CATALOG.find((m) => m.id === id);
 }
