@@ -50,6 +50,41 @@ func (w *Worker) processStreamStatus(ctx context.Context, payload outgress.Messa
 	return nil
 }
 
+// seedLiveStatus resolves the broadcaster's current live state right after an
+// EventSub enroll. Twitch only delivers stream.online for sessions that start
+// after the subscription exists, so a channel enrolled (or re-enrolled) while
+// its stream is already running never receives the go-live event for the
+// session in progress; without this seed the live projection stays cold and
+// every live-gated command reads offline until the next stream. Best-effort:
+// the enroll itself already succeeded, and the worker's cold-miss escalation
+// remains the safety net when the seed fails.
+func (w *Worker) seedLiveStatus(ctx context.Context, broadcasterID string) {
+	if w.live == nil {
+		return
+	}
+	if err := w.takeSystemHelix(ctx); err != nil {
+		w.log.Warn("live seed: no system budget, skipping",
+			zap.String("broadcaster_id", broadcasterID), zap.Error(err))
+		return
+	}
+	isLive, err := w.twitch.IsStreamLive(ctx, broadcasterID)
+	if err != nil {
+		w.log.Warn("live seed: stream check failed",
+			zap.String("broadcaster_id", broadcasterID), zap.Error(err))
+		return
+	}
+	if err := w.live.Write(ctx, broadcasterID, isLive); err != nil {
+		w.log.Warn("live seed: projection write failed",
+			zap.String("broadcaster_id", broadcasterID), zap.Error(err))
+		return
+	}
+	if isLive {
+		w.scheduleModStatus(broadcasterID, "")
+	}
+	w.log.Info("live state seeded after enroll",
+		zap.String("broadcaster_id", broadcasterID), zap.Bool("live", isLive))
+}
+
 // streamStatusFailure drops permanent Twitch rejections (retrying can never
 // fix them) and nacks the rest so the paced redelivery retries.
 func (w *Worker) streamStatusFailure(ctx context.Context, broadcasterID string, err error) error {
