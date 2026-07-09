@@ -795,6 +795,35 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
         help: 'One rule per line: phrase => response. Prefix the phrase with contains:, exact: or prefix: to change matching (default is whole-word). Tokens: {user}, {random}, {choice:a,b,c}. Lines starting with # are ignored.'
       }
     ]
+  },
+  // Channel Points and Timers are full modules (their own enable flag + config
+  // blob in the modules service, read by sesame), but their setup cannot be
+  // expressed as reply rows: channel points needs the reward CRUD surface and
+  // timers the schedule editor. Each tile therefore opens its bespoke page via
+  // href instead of the generic /modules/[id] inspector.
+  {
+    id: 'channelpoints',
+    label: 'Channel Points',
+    tagline: 'Turn channel-point redemptions into bot actions.',
+    description:
+      'Create the custom rewards viewers redeem with channel points (made under the bot on Twitch, styled natively) and bind each one to a bot action, like posting a chat line. Choose whether each redemption is fulfilled, refunded, or left for a mod. Manage the rewards on this page.',
+    icon: 'gem',
+    category: 'Stream Engagement',
+    defaultEnabled: false,
+    href: '/channelpoints',
+    replies: []
+  },
+  {
+    id: 'timers',
+    label: 'Timers',
+    tagline: 'Post repeating chat messages on a schedule while you are live.',
+    description:
+      'Set messages the bot repeats on a schedule while you are live: announcements, socials, reminders. Each timer keeps its own interval and only fires during the stream. Add, edit and arm them on this page.',
+    icon: 'clock',
+    category: 'Stream Engagement',
+    defaultEnabled: false,
+    href: '/timers',
+    replies: []
   }
 ];
 
