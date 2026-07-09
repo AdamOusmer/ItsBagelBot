@@ -158,9 +158,14 @@ spec:
             - name: NEW_RELIC_LOGS_IN_CONTEXT
               value: "forwarder"
             - name: INGRESS_DISPATCHER_MAX_RUNNING
-              value: "64"
+              value: "512"
             - name: INGRESS_DISPATCHER_MAX_QUEUE
-              value: "2000"
+              value: "20000"
+            # Shipped inert (above max_running+max_queue's realistic reach) for
+            # burn-in; tighten to "2048" once the new broadcaster_cap drop
+            # metric shows real per-broadcaster admission patterns in prod.
+            - name: INGRESS_DISPATCHER_MAX_PER_BROADCASTER
+              value: "16000"
             # The BEAM sizes schedulers from the host's logical CPUs, not the
             # cgroup quota. Cap schedulers to the CPU limit below and disable
             # scheduler busy-waiting so idle spinning never eats host cores.

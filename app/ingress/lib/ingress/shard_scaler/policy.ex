@@ -35,11 +35,21 @@ defmodule Ingress.ShardScaler.Policy do
   @scale_up_ticks 2
   # Consecutive ticks of overcapacity required before scaling down.
   @scale_down_ticks 3
+  # A shard is "concentrated" (one hot broadcaster, not routine unevenness)
+  # when its load is at least this many times the fleet average...
+  @concentration_ratio 3
+  # ...AND at least this percent of one shard's own rated budget. The ratio
+  # alone is noisy on a small/lightly loaded fleet (e.g. one idle shard makes
+  # any nonzero shard "infinitely" above average); the absolute floor keeps
+  # that case from alerting on routine traffic.
+  @concentration_min_pct 25
 
   def shard_rated_eps, do: @shard_rated_eps
   def target_utilization_pct, do: @target_utilization_pct
   def scale_up_ticks, do: @scale_up_ticks
   def scale_down_ticks, do: @scale_down_ticks
+  def concentration_ratio, do: @concentration_ratio
+  def concentration_min_pct, do: @concentration_min_pct
 
   @doc """
   Events per window one shard is rated for (100% utilization).
@@ -58,6 +68,64 @@ defmodule Ingress.ShardScaler.Policy do
   """
   def shards_needed(aggregate_load) do
     max(ceil(aggregate_load / budget_per_window()), 1)
+  end
+
+  @doc """
+  Reduces per-shard `{shard_id, {:ok, load} | :error}` results into the sample
+  map the rest of this module consumes, tracking which shard carried the
+  highest load alongside the existing aggregate/average.
+
+  `expected` is the shard count the caller asked for (independent of how many
+  actually responded), preserved so the returned shape is always the same
+  regardless of how many results came back.
+  """
+  @spec summarize_sample(non_neg_integer(), [{term(), {:ok, non_neg_integer()} | :error}]) ::
+          map()
+  def summarize_sample(expected, per_shard_results) do
+    {responsive, total_load, max_load, max_load_shard_id} =
+      Enum.reduce(per_shard_results, {0, 0, 0, nil}, fn
+        {shard_id, {:ok, load}}, {r, l, max_l, max_id} ->
+          if load > max_l do
+            {r + 1, l + load, load, shard_id}
+          else
+            {r + 1, l + load, max_l, max_id}
+          end
+
+        {_shard_id, :error}, acc ->
+          acc
+      end)
+
+    missing = expected - responsive
+    avg = if responsive > 0, do: div(total_load, responsive), else: 0
+
+    %{
+      expected_count: expected,
+      responsive_count: responsive,
+      missing_count: missing,
+      aggregate_load: total_load,
+      avg_load: avg,
+      max_load: max_load,
+      max_load_shard_id: max_load_shard_id
+    }
+  end
+
+  @doc """
+  True when one shard's load looks like a hot broadcaster concentrated on it
+  rather than routine unevenness: at least `@concentration_ratio`× the fleet
+  average, AND at least `@concentration_min_pct` of one shard's own rated
+  budget. Requires more than one responsive shard — "average" is meaningless
+  with just one data point, and a lone shard being the max is not
+  concentration, it's the whole fleet.
+
+  This never changes a scaling decision (see `evaluate/5`): more shards can't
+  move an already-placed hot broadcaster off the shard Twitch assigned it to.
+  It only flags that the situation exists so it can be surfaced.
+  """
+  @spec concentrated?(map()) :: boolean()
+  def concentrated?(sample) do
+    sample.responsive_count > 1 and
+      sample.max_load > sample.avg_load * @concentration_ratio and
+      sample.max_load > div(budget_per_window() * @concentration_min_pct, 100)
   end
 
   @doc """

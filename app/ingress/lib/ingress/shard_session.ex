@@ -462,7 +462,8 @@ defmodule Ingress.ShardSession do
     Ingress.Dispatcher.dispatch(payload, %{
       shard_id: state.shard_id,
       msg_id: meta["message_id"],
-      ts: meta["message_timestamp"]
+      ts: meta["message_timestamp"],
+      broadcaster_id: Ingress.Pipeline.broadcaster_id(payload["event"] || %{})
     })
 
     {:noreply, state |> count_notification() |> pet_watchdog()}
