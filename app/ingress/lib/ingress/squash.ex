@@ -95,7 +95,7 @@ defmodule Ingress.Squash do
       cohorts: %{},
       max_senders: Keyword.get(opts, :max_senders) || Config.squash_max_senders(),
       sweep_ms: Keyword.get(opts, :sweep_ms) || Config.squash_sweep_ms(),
-      publish: Keyword.get(opts, :publish, &Nats.publish/2)
+      publish: Keyword.get(opts, :publish, &__MODULE__.publish_cohort/2)
     }
 
     Process.send_after(self(), :sweep, state.sweep_ms)
@@ -147,9 +147,12 @@ defmodule Ingress.Squash do
   # Build and publish the cohort event onto the broadcaster's lane. It carries
   # only the DUPLICATE senders; the first occurrence already rode a normal
   # channel.chat.message, so the worker aggregates the two by text (and dedups
-  # by msg_id) with no double count.
+  # by msg_id) with no double count. The cohort's own msg_id is the earliest
+  # buffered duplicate's — never published individually, so it is free to
+  # anchor the cohort's broker-side dedup id.
   defp emit(%{base: base, senders: senders, count: count}, state) do
     distinct = senders |> Enum.map(& &1.chatter_user_id) |> Enum.uniq() |> length()
+    ordered = Enum.reverse(senders)
 
     message = %{
       type: "channel.chat.message",
@@ -157,7 +160,8 @@ defmodule Ingress.Squash do
       broadcaster_user_id: base.broadcaster_user_id,
       broadcaster_user_login: base.broadcaster_user_login,
       text: base.text,
-      senders: Enum.reverse(senders),
+      msg_id: List.first(ordered).msg_id,
+      senders: ordered,
       count: count,
       distinct_users: distinct
     }
@@ -167,6 +171,20 @@ defmodule Ingress.Squash do
     state.publish.(Config.lane_subject(base.lane), message)
     true
   end
+
+  @doc false
+  # Default cohort publisher: JetStream-acked with a cohort-scoped dedup id,
+  # run on a supervised task so the squash sweep never blocks on the broker's
+  # PubAck (a cohort carries many senders — losing one silently would blind
+  # the automod's campaign signal, so fire-and-forget is not acceptable here).
+  def publish_cohort(subject, message) do
+    Task.Supervisor.start_child(Ingress.PublishSupervisor, fn ->
+      Nats.publish_acked(subject, message, cohort_dedup_id(message))
+    end)
+  end
+
+  defp cohort_dedup_id(%{msg_id: msg_id}) when is_binary(msg_id), do: "#{msg_id}:cohort"
+  defp cohort_dedup_id(_message), do: nil
 
   defp window_ms, do: :persistent_term.get({__MODULE__, :window_ms}, 2_000)
   defp now_ms, do: System.monotonic_time(:millisecond)

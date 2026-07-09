@@ -30,6 +30,11 @@ type StreamSpec struct {
 	MaxAge     time.Duration        // hard lifetime limit for stored messages
 	MaxBytes   int64                // hard cap so one stream cannot exhaust the instance
 	MaxMsgsPer int64                // per-subject cap (0 = unlimited); lane isolation on shared streams
+	// Duplicates overrides the Nats-Msg-Id dedup window (0 = the 2m default,
+	// clamped to MaxAge). The broker tracks one id per message inside the
+	// window, so a high-rate stream wants it as short as its producers' retry
+	// horizon, not the default.
+	Duplicates time.Duration
 }
 
 // OutgressStream carries the perishable chat lanes (premium/standard). It is
@@ -90,6 +95,12 @@ var DataStreams = []StreamSpec{
 		// could still catch up on before MaxAge) makes a flooded lane wrap itself
 		// while the other lanes keep their full retention.
 		MaxMsgsPer: 50_000,
+		// Ingress publishes carry Nats-Msg-Id (derived from Twitch's message id)
+		// so publish retries and Twitch's own EventSub redeliveries collapse at
+		// the broker. Both happen within seconds; 30s covers them while keeping
+		// the broker's dedup-id state bounded on the firehose (the 2m default
+		// would track minutes of chat ids on the small hub).
+		Duplicates: 30 * time.Second,
 	},
 }
 
@@ -226,6 +237,9 @@ func reconcileStream(js nats.JetStreamManager, spec StreamSpec, log *zap.Logger)
 
 func streamConfig(spec StreamSpec) *nats.StreamConfig {
 	duplicateWindow := 2 * time.Minute
+	if spec.Duplicates > 0 {
+		duplicateWindow = spec.Duplicates
+	}
 	if spec.MaxAge > 0 && spec.MaxAge < duplicateWindow {
 		// NATS rejects a duplicate window longer than the stream's MaxAge.
 		duplicateWindow = spec.MaxAge
@@ -249,7 +263,8 @@ func streamMatches(got, want nats.StreamConfig) bool {
 		got.Retention == want.Retention &&
 		got.MaxAge == want.MaxAge &&
 		got.MaxBytes == want.MaxBytes &&
-		got.MaxMsgsPerSubject == want.MaxMsgsPerSubject
+		got.MaxMsgsPerSubject == want.MaxMsgsPerSubject &&
+		got.Duplicates == want.Duplicates
 }
 
 func sameSubjects(a, b []string) bool {

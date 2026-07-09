@@ -77,19 +77,34 @@ defmodule Ingress.Application do
       connection_child(:nats_bus_connection, :gnat_bus, Config.nats_bus()),
       Ingress.NatsFailback,
       {Task.Supervisor, name: Ingress.BroadcasterCache.TaskSupervisor},
+      # Runs squash-cohort publishes (JetStream-acked) off the Squash process,
+      # so a slow broker never stalls the sweep.
+      {Task.Supervisor, name: Ingress.PublishSupervisor},
       Ingress.BroadcasterCache,
       Ingress.Squash,
       Ingress.Dispatcher.Supervisor,
       Ingress.Twitch.AppToken,
-      consumer_child(:invalidation_consumer, Ingress.CacheInvalidator, Config.invalidation_subject()),
+      consumer_child(
+        :invalidation_consumer,
+        Ingress.CacheInvalidator,
+        Config.invalidation_subject()
+      ),
       # Request-reply endpoint for the admin tool.
-      consumer_child(:admin_consumer, Ingress.AdminRpc, Config.admin_subject(), queue_group: @admin_queue),
+      consumer_child(:admin_consumer, Ingress.AdminRpc, Config.admin_subject(),
+        queue_group: @admin_queue
+      ),
       # Manual shard scaling: {"count": N}.
-      consumer_child(:scale_consumer, Ingress.ScaleRpc, Config.scale_subject(), queue_group: @admin_queue),
+      consumer_child(:scale_consumer, Ingress.ScaleRpc, Config.scale_subject(),
+        queue_group: @admin_queue
+      ),
       # Toggle the load-based autoscaler: {"enabled": bool}.
-      consumer_child(:autoscale_consumer, Ingress.AutoscaleRpc, Config.autoscale_subject(), queue_group: @admin_queue),
+      consumer_child(:autoscale_consumer, Ingress.AutoscaleRpc, Config.autoscale_subject(),
+        queue_group: @admin_queue
+      ),
       # Live conduit id: body {}, replies {"conduit_id": "<uuid>"}.
-      consumer_child(:conduit_consumer, Ingress.ConduitRpc, Config.conduit_subject(), queue_group: @admin_queue),
+      consumer_child(:conduit_consumer, Ingress.ConduitRpc, Config.conduit_subject(),
+        queue_group: @admin_queue
+      ),
       Ingress.Bootstrapper
     ]
   end

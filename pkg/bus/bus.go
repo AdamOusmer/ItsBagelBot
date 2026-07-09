@@ -161,10 +161,14 @@ func ensureConsumer(js nats.JetStreamManager, stream string, desired *nats.Consu
 	}
 
 	// Update mutable parameters, keeping the deliver subject replicas are
-	// already bound to.
+	// already bound to and the creation-time delivery position (a consumer
+	// recreated at an ack-floor start sequence must not be forced back to
+	// DeliverAll, which is not updatable and would trip a replace every boot).
 	desired.DeliverSubject = info.Config.DeliverSubject
+	desired.DeliverPolicy = info.Config.DeliverPolicy
+	desired.OptStartSeq = info.Config.OptStartSeq
 	if _, err := js.UpdateConsumer(stream, desired); err != nil {
-		return replaceConsumer(js, stream, desired, err)
+		return replaceConsumer(js, stream, desired, info, err)
 	}
 	return nil
 }
@@ -172,9 +176,16 @@ func ensureConsumer(js nats.JetStreamManager, stream string, desired *nats.Consu
 // replaceConsumer falls back to delete + recreate for transitions that are not
 // updatable in place (notably clearing a legacy BackOff schedule on older
 // servers). The deliver subject and group are deterministic, so replicas
-// already bound keep receiving from the recreated consumer, and the lanes are
-// perishable work queues with no replay to preserve.
-func replaceConsumer(js nats.JetStreamManager, stream string, desired *nats.ConsumerConfig, cause error) error {
+// already bound keep receiving from the recreated consumer.
+//
+// The successor starts at the predecessor's ack floor, not DeliverAll: on a
+// retained (limits) stream like TWITCH_INGRESS a DeliverAll recreation would
+// replay everything MaxAge still holds — up to five minutes of already-handled
+// chat — to the whole group. Everything at or below the floor is acked and
+// stays skipped; in-flight messages above it are redelivered, which is the
+// ordinary at-least-once contract.
+func replaceConsumer(js nats.JetStreamManager, stream string, desired *nats.ConsumerConfig, info *nats.ConsumerInfo, cause error) error {
+	carryAckFloor(desired, info)
 	if derr := js.DeleteConsumer(stream, desired.Name); derr != nil && !errors.Is(derr, nats.ErrConsumerNotFound) {
 		return fmt.Errorf("bus: update consumer %q: %w (replace failed: %v)", desired.Name, cause, derr)
 	}
@@ -182,6 +193,17 @@ func replaceConsumer(js nats.JetStreamManager, stream string, desired *nats.Cons
 		return fmt.Errorf("bus: recreate consumer %q: %w", desired.Name, aerr)
 	}
 	return nil
+}
+
+// carryAckFloor rewrites desired's delivery position to resume just past what
+// the predecessor consumer had fully acknowledged. A floor of zero means
+// nothing was ever acked, where starting from the beginning is correct.
+func carryAckFloor(desired *nats.ConsumerConfig, info *nats.ConsumerInfo) {
+	if info == nil || info.AckFloor.Stream == 0 {
+		return
+	}
+	desired.DeliverPolicy = nats.DeliverByStartSequencePolicy
+	desired.OptStartSeq = info.AckFloor.Stream + 1
 }
 
 // laneConsumerConfig deliberately sets no BackOff: the server clamps AckWait to

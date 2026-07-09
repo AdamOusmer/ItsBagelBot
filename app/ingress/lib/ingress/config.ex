@@ -82,6 +82,15 @@ defmodule Ingress.Config do
   def dispatcher_broadcaster_sweep_ms,
     do: Application.get_env(:ingress, :dispatcher_broadcaster_sweep_ms, 60_000)
 
+  # How long one JetStream lane publish waits for its PubAck before retrying.
+  def publish_ack_timeout_ms,
+    do: Application.get_env(:ingress, :publish_ack_timeout_ms, 2_000)
+
+  # Total delivery attempts (first try + retries) for one lane publish. The
+  # Nats-Msg-Id dedup header makes retries safe.
+  def publish_attempts,
+    do: Application.get_env(:ingress, :publish_attempts, 3)
+
   # Gnat connection_settings (a leaf-first list of server maps) for the two
   # planes: :nats is the twitch_ingress RPC account, :nats_bus the shared BUS
   # account that carries the twitch.ingress.* firehose.

@@ -341,6 +341,8 @@ defmodule Ingress.SquashTest do
     assert cohort.count == 2
     assert cohort.distinct_users == 2
     assert Enum.map(cohort.senders, & &1.chatter_user_id) == ["2", "3"]
+    # The earliest buffered duplicate anchors the cohort's broker-side dedup id.
+    assert cohort.msg_id == "m2"
   end
 
   test "a cohort at the size cap flushes early without waiting for the window" do
