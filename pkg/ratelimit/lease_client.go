@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/valkey-io/valkey-go"
@@ -17,6 +19,65 @@ type LeaseClient struct {
 
 func NewLeaseClient(client valkey.Client) *LeaseClient {
 	return &LeaseClient{client: client}
+}
+
+const (
+	// memberSetKey is the Valkey sorted set that is the fleet's membership
+	// authority: score is each pod's presence expiry (unix millis), member is its
+	// encoded identity. It lives in the same store as the quota plans so every pod
+	// derives an identical fleet view without depending on NATS discovery fan-out.
+	memberSetKey    = "outgress:members:v2"
+	memberSeparator = "|"
+)
+
+// encodeMember packs a pod's stable identity into one sorted-set member. Pod IDs
+// and regions are Kubernetes object names (a pod name and a node name), so the
+// separator can never occur inside either half.
+func encodeMember(m Member) string { return m.PodID + memberSeparator + m.Region }
+
+func decodeMember(entry string) (Member, bool) {
+	podID, region, ok := strings.Cut(entry, memberSeparator)
+	if !ok || podID == "" || region == "" {
+		return Member{}, false
+	}
+	return Member{PodID: podID, Region: region}, true
+}
+
+// Heartbeat records self as a live member whose presence expires ttl in the
+// future. The coordinator refreshes it on an interval well under ttl; a crashed
+// pod stops refreshing and is pruned once its score falls into the past, which
+// is the self-healing property.
+func (c *LeaseClient) Heartbeat(ctx context.Context, self Member, now time.Time, ttl time.Duration) error {
+	score := float64(now.Add(ttl).UnixMilli())
+	return c.client.Do(ctx, c.client.B().Zadd().Key(memberSetKey).ScoreMember().ScoreMember(score, encodeMember(self)).Build()).Error()
+}
+
+// ListMembers returns the pods whose presence has not expired as of now and
+// prunes the rest. A live member's score sits a full ttl ahead, so a read served
+// by a lagging replica still sees it; only genuinely dead pods fall out.
+func (c *LeaseClient) ListMembers(ctx context.Context, now time.Time) ([]Member, error) {
+	nowMS := strconv.FormatInt(now.UnixMilli(), 10)
+	// Best-effort housekeeping: the score filter below already ignores expired
+	// rows, so a prune failure only leaves them to be pruned on a later pass.
+	_ = c.client.Do(ctx, c.client.B().Zremrangebyscore().Key(memberSetKey).Min("-inf").Max("("+nowMS).Build()).Error()
+	entries, err := c.client.Do(ctx, c.client.B().Zrangebyscore().Key(memberSetKey).Min(nowMS).Max("+inf").Build()).AsStrSlice()
+	if err != nil {
+		return nil, err
+	}
+	members := make([]Member, 0, len(entries))
+	for _, entry := range entries {
+		if member, ok := decodeMember(entry); ok {
+			members = append(members, member)
+		}
+	}
+	sort.Slice(members, func(i, j int) bool { return members[i].PodID < members[j].PodID })
+	return members, nil
+}
+
+// RemoveMember drops self from the registry on graceful shutdown so the fleet
+// re-divides quota at the next epoch rather than waiting out the presence ttl.
+func (c *LeaseClient) RemoveMember(ctx context.Context, self Member) error {
+	return c.client.Do(ctx, c.client.B().Zrem().Key(memberSetKey).Member(encodeMember(self)).Build()).Error()
 }
 
 // ProposePlan attempts to publish a new plan for the epoch.

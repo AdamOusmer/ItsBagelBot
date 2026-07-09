@@ -273,7 +273,7 @@ func (d *deps) newLeaseLimiter(ctx context.Context) (ratelimit.Manager, func()) 
 		ratelimit.WithLeaseIdentity(d.cfg.RateRegion, d.host))
 	permitSvc.SetGrantor(limiter)
 
-	coordinator := ratelimit.NewLeaseCoordinator(d.nc, d.valkey, limiter, d.cfg.RateRegion, d.host,
+	coordinator := ratelimit.NewLeaseCoordinator(d.valkey, limiter, d.cfg.RateRegion, d.host,
 		ratelimit.CoordinatorConfig{
 			Epoch: d.cfg.LeaseEpoch, Guard: d.cfg.LeaseGuard, MinMembers: d.cfg.LeaseMinMembers,
 			Replicas: d.cfg.LeaseReplicas, ReplicaTimeout: d.cfg.LeaseReplicaTimeout,
