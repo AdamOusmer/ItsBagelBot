@@ -75,6 +75,77 @@ func TestOutgressStreamHasSingleReconciler(t *testing.T) {
 	}
 }
 
+func TestIngressStreamIsolatesLanesPerSubject(t *testing.T) {
+	var ingress *StreamSpec
+	for i := range DataStreams {
+		if DataStreams[i].Name == "TWITCH_INGRESS" {
+			ingress = &DataStreams[i]
+		}
+	}
+	if ingress == nil {
+		t.Fatal("TWITCH_INGRESS stream spec missing")
+	}
+
+	cfg := streamConfig(*ingress)
+	// The premium/standard/stream lanes are distinct literal subjects on one
+	// stream; MaxBytes eviction alone is oldest-first stream-wide, letting a
+	// standard flood evict premium. The per-subject cap makes a flooded lane
+	// wrap itself instead.
+	if cfg.MaxMsgsPerSubject <= 0 {
+		t.Fatal("ingress lanes need a per-subject cap so one lane cannot evict the others")
+	}
+	if cfg.MaxBytes <= 0 {
+		t.Fatal("ingress stream still needs its global byte backstop")
+	}
+	// Ingress publishes set Nats-Msg-Id so broker dedup collapses publish
+	// retries and Twitch EventSub redeliveries; both happen within seconds,
+	// and the window bounds the broker's per-id tracking state.
+	if cfg.Duplicates <= 0 || cfg.Duplicates > time.Minute {
+		t.Fatalf("duplicate window = %v, want a short non-zero dedup window", cfg.Duplicates)
+	}
+}
+
+func TestReplaceConsumerCarriesAckFloor(t *testing.T) {
+	desired := laneConsumerConfig(
+		"twitch.ingress.event.premium",
+		"worker",
+		"worker_twitch_ingress_event_premium",
+		6,
+	)
+
+	// A predecessor that acked through stream seq 41 must hand the successor a
+	// start at 42: DeliverAll here would replay every retained message (up to
+	// MaxAge) to the whole group.
+	carryAckFloor(desired, &nats.ConsumerInfo{
+		AckFloor: nats.SequenceInfo{Stream: 41},
+	})
+	if desired.DeliverPolicy != nats.DeliverByStartSequencePolicy {
+		t.Fatalf("deliver policy = %v, want by-start-sequence", desired.DeliverPolicy)
+	}
+	if desired.OptStartSeq != 42 {
+		t.Fatalf("start seq = %d, want ack floor + 1", desired.OptStartSeq)
+	}
+
+	// No acks yet: starting from the beginning is the correct resume point.
+	fresh := laneConsumerConfig("twitch.ingress.event.standard", "worker", "w", 6)
+	carryAckFloor(fresh, &nats.ConsumerInfo{})
+	if fresh.DeliverPolicy != nats.DeliverAllPolicy || fresh.OptStartSeq != 0 {
+		t.Fatal("zero ack floor must keep the original delivery policy")
+	}
+}
+
+func TestFleetSubscriberHasBoundedPacedRedelivery(t *testing.T) {
+	// A plain NACK redelivers immediately; with a four-digit budget a poison
+	// message used to grind the whole fleet. The budget must stay small and the
+	// pacing non-zero.
+	if fleetMaxRedeliveries == 0 || fleetMaxRedeliveries > 10 {
+		t.Fatalf("fleet redeliveries = %d, want a small bounded budget", fleetMaxRedeliveries)
+	}
+	if fleetNakDelay <= 0 {
+		t.Fatalf("fleet nak delay = %v, want paced redelivery", fleetNakDelay)
+	}
+}
+
 func TestLaneConsumerHasBoundedDeliveryBudget(t *testing.T) {
 	cfg := laneConsumerConfig(
 		"twitch.outgress.premium",

@@ -31,7 +31,8 @@ defmodule Ingress.ConduitManager do
 
   @impl true
   def init(_) do
-    {:ok, %{conduit_id: nil, applied_shard_count: nil}, {:continue, :reconcile}}
+    {:ok, %{conduit_id: nil, applied_shard_count: nil, adopted_scaler: nil},
+     {:continue, :reconcile}}
   end
 
   @impl true
@@ -46,15 +47,10 @@ defmodule Ingress.ConduitManager do
   def handle_info(:reconcile, state), do: {:noreply, reconcile(state)}
 
   defp reconcile(state) do
-    first_sync = is_nil(state.conduit_id)
-
     case ensure_conduit(state) do
       {:ok, conduit_id, applied_shard_count} ->
-        if first_sync, do: adopt_applied_count(applied_shard_count)
-        desired = ShardScaler.desired()
-        applied_shard_count = converge_shards(conduit_id, desired, applied_shard_count)
-        Process.send_after(self(), :reconcile, @reconcile_interval_ms)
-        %{state | conduit_id: conduit_id, applied_shard_count: applied_shard_count}
+        state = %{state | conduit_id: conduit_id, applied_shard_count: applied_shard_count}
+        converge_with_scaler(state)
 
       {:error, reason} ->
         Logger.error("conduit reconcile failed: #{inspect(reason)}")
@@ -66,18 +62,63 @@ defmodule Ingress.ConduitManager do
   defp ensure_conduit(%{conduit_id: nil}), do: Api.ensure_conduit()
   defp ensure_conduit(%{conduit_id: id, applied_shard_count: count}), do: {:ok, id, count}
 
+  # Convergence acts only on a live answer from the scaler singleton:
+  # `ShardScaler.desired/0`'s fallback is the config floor, and resizing the
+  # conduit down to that while the scaler is between homes (failover, deploy)
+  # would drop autoscaled shard bindings. Holding for a retry interval is
+  # always safe — the running shards keep serving.
+  #
+  # A scaler answering under a pid we have not adopted yet is fresh (first boot
+  # or a restart that forgot the autoscaled target), so Twitch's recorded count
+  # is adopted before its answer is allowed to converge anything.
+  defp converge_with_scaler(state) do
+    case ShardScaler.fetch_desired() do
+      {:ok, _desired, scaler} when scaler != state.adopted_scaler ->
+        adopt_then_converge(state, scaler)
+
+      {:ok, desired, _scaler} ->
+        applied = converge_shards(state.conduit_id, desired, state.applied_shard_count)
+        Process.send_after(self(), :reconcile, @reconcile_interval_ms)
+        %{state | applied_shard_count: applied}
+
+      :error ->
+        hold_convergence(state, "shard scaler unreachable")
+    end
+  end
+
+  defp adopt_then_converge(state, scaler) do
+    case adopt_applied_count(state.applied_shard_count) do
+      :ok -> converge_with_scaler(%{state | adopted_scaler: scaler})
+      :error -> hold_convergence(state, "shard target adoption failed")
+    end
+  end
+
+  defp hold_convergence(state, reason) do
+    Logger.warning("#{reason}; holding shard convergence")
+    Process.send_after(self(), :reconcile, @retry_interval_ms)
+    state
+  end
+
   # Twitch's recorded shard count is the only survivor of a singleton failover
   # or deploy: the scaler restarts at the config floor, so without adoption the
-  # first reconcile would shrink an autoscaled conduit and drop shard bindings
+  # next converge would shrink an autoscaled conduit and drop shard bindings
   # until the autoscaler climbed back. Only raises the target (set_target
   # clamps to max_shards); a count at or below the current desired changes
-  # nothing. Best-effort: an unreachable scaler just keeps its floor.
+  # nothing.
   defp adopt_applied_count(applied) do
-    if applied > ShardScaler.desired() do
-      _ = ShardScaler.set_target(applied)
-    end
+    case ShardScaler.fetch_desired() do
+      {:ok, desired, _scaler} when applied > desired ->
+        case ShardScaler.set_target(applied) do
+          :ok -> :ok
+          {:error, _} -> :error
+        end
 
-    :ok
+      {:ok, _desired, _scaler} ->
+        :ok
+
+      :error ->
+        :error
+    end
   end
 
   # Converge the Conduit (Twitch side) and local ShardSession processes to

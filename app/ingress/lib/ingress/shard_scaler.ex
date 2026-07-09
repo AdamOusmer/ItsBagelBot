@@ -58,16 +58,31 @@ defmodule Ingress.ShardScaler do
   """
   @spec desired() :: non_neg_integer()
   def desired do
+    case fetch_desired() do
+      {:ok, count, _pid} -> count
+      :error -> Config.conduit_shard_count()
+    end
+  end
+
+  @doc """
+  Like `desired/0` but distinguishes an answer from an unreachable singleton,
+  so `Ingress.ConduitManager` can hold convergence instead of acting on the
+  config-floor fallback and shrinking an autoscaled conduit mid-failover. The
+  answering pid is included so the manager can spot a scaler restart (a fresh
+  scaler forgets the autoscaled target and must re-adopt Twitch's count).
+  """
+  @spec fetch_desired() :: {:ok, non_neg_integer(), pid()} | :error
+  def fetch_desired do
     case Horde.Registry.lookup(Ingress.Registry, :shard_scaler) do
       [{pid, _}] ->
         try do
-          GenServer.call(pid, :desired, 2_000)
+          {:ok, GenServer.call(pid, :desired, 2_000), pid}
         catch
-          :exit, _ -> Config.conduit_shard_count()
+          :exit, _ -> :error
         end
 
       [] ->
-        Config.conduit_shard_count()
+        :error
     end
   end
 
