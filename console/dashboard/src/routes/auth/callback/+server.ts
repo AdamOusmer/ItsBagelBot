@@ -144,12 +144,17 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
     // every login; the admin panel re-bans authoritatively.
     if (await isBanned(identity.userId)) throw redirect(302, '/login?e=banned');
 
-    await acceptPendingDelegation(cookies, url, identity);
-
-    // Real account email (user:read:email consent). Null on any failure —
+    // Register BEFORE the delegation accept can seal a delegate session and
+    // redirect: a brand-new invitee whose first ever login is a share link still
+    // needs their own user row, or the ghost-session gate reads it as a deleted
+    // account and wipes the delegate session on the very next request.
+    //
+    // Real account email (user:read:email consent). Null on any failure -
     // capture is best-effort and the users service stores it encrypted.
     const email = await fetchAccountEmail(tokens.accessToken());
     await registerUser(identity, email);
+
+    await acceptPendingDelegation(cookies, url, identity);
 
     setSessionCookie(cookies, url, streamerSession(identity));
 

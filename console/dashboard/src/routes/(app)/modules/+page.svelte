@@ -85,6 +85,10 @@
     })).filter(c => c.modules.length > 0)
   );
 
+  function moduleHref(m: ModuleState): string {
+    return m.def.href ?? `/modules/${m.def.id}`;
+  }
+
   // Scrollspy logic
   let root = $state<HTMLElement | null>(null);
   let currentCategoryId = $state('');
@@ -177,7 +181,7 @@
           <div class="grid">
             {#each cat.modules as m (m.def.id)}
               <div class="tile {m.enabled ? 'on' : 'off'}">
-                <a class="tile-main" href={`/modules/${m.def.id}`}>
+                <a class="tile-main" href={moduleHref(m)}>
                   <span class="tile-icon"><Icon name={m.def.icon} size={20} /></span>
                   <span class="tile-text">
                     <span class="tile-label">{m.def.label}</span>
@@ -185,7 +189,7 @@
                   </span>
                 </a>
                 <div class="tile-foot">
-                  <a class="open" href={`/modules/${m.def.id}`}><Icon name="settings" size={13} /> {t('modules.configure')}</a>
+                  <a class="open" href={moduleHref(m)}><Icon name="settings" size={13} /> {t('modules.configure')}</a>
                   <span class="grow"></span>
                   <SaveStatus state={modStatus[m.def.id] ?? 'idle'} />
                   <form method="POST" action="?/toggle" use:enhance={toggleSubmit(m)}>
@@ -427,4 +431,3 @@
 
   .empty { text-align: center; color: var(--bb-muted); font-family: var(--bb-font-body); font-size: 13px; }
 </style>
-

@@ -272,6 +272,9 @@ export interface ModuleDef {
   // Plain non-reply settings (rendered in the settings strip). Optional; the
   // current modules have none beyond their master enable + per-reply toggles.
   settings?: ModuleField[];
+  // href overrides the tile's link when a module needs a bespoke inspector
+  // instead of the generic /modules/[id] reply page.
+  href?: string;
 }
 
 // A module's current state as shown on the dashboard: catalog metadata merged
@@ -308,6 +311,46 @@ const BW_SESSION_SAMPLES: Record<string, string> = {
 };
 
 export const MODULE_CATALOG: readonly ModuleDef[] = [
+  // Chat Tools: the bot's viewer-facing chat features, surfaced first. Channel
+  // Points and Timers own bespoke pages (opened via href); Trigger Words uses
+  // the generic reply inspector with its rule editor.
+  {
+    id: 'channelpoints',
+    label: 'Channel Points',
+    tagline: 'Turn channel-point redemptions into bot actions.',
+    description:
+      'Create the custom rewards viewers redeem with channel points and bind each one to a bot action, like posting a chat line. Choose whether each redemption is fulfilled, refunded, or left for a mod.',
+    icon: 'activity',
+    category: 'Chat Tools',
+    defaultEnabled: false,
+    href: '/channelpoints',
+    replies: []
+  },
+  {
+    id: 'timers',
+    label: 'Timers',
+    tagline: 'Post repeating chat messages on a schedule while you are live.',
+    description:
+      'Set messages the bot repeats on a schedule while you are live: announcements, socials, reminders. Each timer keeps its own interval and only fires during the stream.',
+    icon: 'clock',
+    category: 'Chat Tools',
+    defaultEnabled: false,
+    href: '/timers',
+    replies: []
+  },
+  {
+    id: 'triggers',
+    label: 'Trigger Words',
+    tagline: 'Auto-reply when a word shows up in chat - no "!" needed.',
+    description:
+      'Give the bot a list of words or phrases and the line to post when it sees one in ordinary chat - no command prefix required. Write one rule per line as "phrase => response". Prefix the phrase with contains:, exact: or prefix: to change how it matches. Responses support {user}, {random} and {choice:a,b,c}.',
+    icon: 'caps',
+    category: 'Chat Tools',
+    defaultEnabled: false,
+    // Trigger rules are a free-form list of phrase=>response pairs the author
+    // grows, stored as one "rules" string parsed by sesame's triggers module.
+    replies: []
+  },
   {
     id: 'automod',
     label: 'AutoMod',
