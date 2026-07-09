@@ -19,8 +19,13 @@
 // as an argument. A redemption is driven by sesame; this store only sets up.
 import { rpc } from '@bagel/shared/server/nats';
 import { POLICY } from '@bagel/shared/server/cache-keys';
+import type { GoveeOnRedeem, GoveeDevice, GoveeReward, GoveeBinding } from '@bagel/shared';
 import { SUB, fabric, invalidate, publishEventSubEnsureOptional } from './services';
 import { listModules, upsertModule } from './commands-store';
+
+// Re-export the shared govee shapes so existing importers of this store keep
+// working; the definitions live in @bagel/shared for the client components too.
+export type { GoveeOnRedeem, GoveeDevice, GoveeReward, GoveeBinding };
 
 const GOVEE_MODULE = 'govee';
 
@@ -37,59 +42,18 @@ const devicesCacheKey = (userId: string) => `govee-devices:${userId}`;
 // colour formats.
 const REWARD_PROMPT = 'Type a colour: a name like blue, or a hex code like #00ccff';
 
-export type GoveeOnRedeem = 'fulfill' | 'cancel' | 'leave';
-
-// GoveeDevice mirrors gatewayrpc.GoveeDevice (snake/camel already aligned).
-export interface GoveeDevice {
-  device: string;
-  sku: string;
-  name: string;
-  color: boolean;
-}
-
-// GoveeReward is the dashboard mirror of the Twitch reward, kept in the blob so
-// the page renders without a Twitch round trip. color + cooldown are display
-// mirrors of Twitch reward settings so the editor re-populates them.
-export interface GoveeReward {
-  rewardId: string;
-  title: string;
-  cost: number;
-  // color is the Twitch reward tile background ("#rrggbb"); cooldown is the
-  // reward's global cooldown in seconds (0 = disabled).
-  color: string;
-  cooldown: number;
-}
-
-// GoveeBinding is the module blob shape. device/sku/onRedeem/rewardId/allowOffline/
-// allowOff/replyMessage are the fields sesame reads; reward is the dashboard-only
-// display mirror.
-export interface GoveeBinding {
-  device: string;
-  sku: string;
-  deviceName: string;
-  onRedeem: GoveeOnRedeem;
-  rewardId: string;
-  reward: GoveeReward | null;
-  // allowOffline opts out of the live-only gate (default false = live only).
-  // sesame reads this same flag; the dashboard only sets it true behind a warning.
-  allowOffline: boolean;
-  // allowOff opts into the "off" action: a viewer typing "off" turns the light
-  // off. Default false. sesame reads this flag.
-  allowOff: boolean;
-  // replyMessage is the chat reply template ({user}, {color}) sesame posts on a
-  // successful change. Blank uses sesame's built-in default.
-  replyMessage: string;
-}
-
 export interface GoveeView {
   enabled: boolean;
   keyPresent: boolean;
-  binding: GoveeBinding;
+  // bindings is the list of reward->light bindings, one per configured light.
+  // The dashboard enforces one reward per light.
+  bindings: GoveeBinding[];
 }
 
-// RewardDraft is the reward's editable shape, bundled so a save is one argument.
-// title/cost/color/cooldown are Twitch reward settings; onRedeem/replyMessage/
-// allowOff are the binding behaviour sesame reads.
+// RewardDraft is one light's reward + behaviour, bundled so a save is one
+// argument. title/cost/color/cooldown are Twitch reward settings; onRedeem/
+// replyMessage/allowOff/allowOffline are the binding behaviour sesame reads. The
+// light itself (device/sku/name) is passed alongside the draft.
 export interface RewardDraft {
   title: string;
   cost: number;
@@ -100,13 +64,11 @@ export interface RewardDraft {
   cooldown: number;
   replyMessage: string;
   allowOff: boolean;
+  // allowOffline lifts the live-only gate for this reward (default false).
+  allowOffline: boolean;
 }
 
 export type GoveeResult = { ok: true } | { ok: false; missingScope?: boolean; error?: string };
-
-function blankBinding(): GoveeBinding {
-  return { device: '', sku: '', deviceName: '', onRedeem: 'fulfill', rewardId: '', reward: null, allowOffline: false, allowOff: false, replyMessage: '' };
-}
 
 function coerceOnRedeem(v: unknown): GoveeOnRedeem {
   return v === 'cancel' || v === 'leave' ? v : 'fulfill';
@@ -135,6 +97,18 @@ function readBinding(configs: unknown): GoveeBinding {
     allowOff: c.allowOff === true,
     replyMessage: String(c.replyMessage ?? '')
   };
+}
+
+// readBindings coerces the stored blob into the list of reward->light bindings,
+// tolerating the legacy single-binding blob (top-level rewardId/device) as a
+// one-element list so pre-multi-light configs keep rendering.
+function readBindings(configs: unknown): GoveeBinding[] {
+  const c = (configs ?? {}) as { bindings?: unknown };
+  if (Array.isArray(c.bindings)) {
+    return c.bindings.map(readBinding).filter((b) => b.device);
+  }
+  const single = readBinding(configs);
+  return single.device ? [single] : [];
 }
 
 interface RewardWire {
@@ -190,17 +164,41 @@ function callReward(userId: string, verb: string, req: Record<string, unknown>):
   return rpc<RewardReplyWire>(`${SUB.outgressRpc}.channelpoints.${verb}`, { broadcaster_id: userId, ...req }, 8000);
 }
 
+// bindingFromReply builds a light's binding from the saved-reward reply,
+// mirroring the colour + cooldown Twitch echoed back so the editor re-populates.
+function bindingFromReply(
+  device: GoveeDevice,
+  draft: RewardDraft,
+  reply: NonNullable<RewardReplyWire['reward']>,
+  existingId: string
+): GoveeBinding {
+  const rewardId = reply.id ?? existingId;
+  const color = reply.background_color ?? draft.color;
+  const cooldown = reply.global_cooldown_enabled ? reply.global_cooldown_seconds : 0;
+  return {
+    device: device.device,
+    sku: device.sku,
+    deviceName: device.name,
+    onRedeem: draft.onRedeem,
+    rewardId,
+    reward: { rewardId, title: reply.title, cost: reply.cost, color, cooldown },
+    allowOffline: draft.allowOffline,
+    allowOff: draft.allowOff,
+    replyMessage: draft.replyMessage
+  };
+}
+
 // GoveeStore is the per-broadcaster operation set returned by goveeStore.
 export interface GoveeStore {
   read(): Promise<GoveeView>;
   setKey(key: string): Promise<GoveeResult>;
   clearKey(): Promise<GoveeResult>;
   listDevices(): Promise<{ devices: GoveeDevice[]; error?: string }>;
-  setDevice(device: GoveeDevice): Promise<GoveeResult>;
   setEnabled(enabled: boolean): Promise<GoveeResult>;
-  setAllowOffline(allowOffline: boolean): Promise<GoveeResult>;
-  saveReward(draft: RewardDraft): Promise<GoveeResult>;
-  deleteReward(): Promise<GoveeResult>;
+  // saveReward creates or updates the reward bound to one light.
+  saveReward(device: GoveeDevice, draft: RewardDraft): Promise<GoveeResult>;
+  // deleteReward removes the reward + binding for one light (by device id).
+  deleteReward(deviceId: string): Promise<GoveeResult>;
 }
 
 // goveeStore binds every per-broadcaster operation to one broadcaster id.
@@ -225,20 +223,14 @@ export function goveeStore(userId: string): GoveeStore {
     return {
       enabled: row ? row.is_enabled : false,
       keyPresent: present,
-      binding: row ? readBinding(row.configs) : blankBinding()
+      bindings: row ? readBindings(row.configs) : []
     };
   }
 
-  async function writeBinding(enabled: boolean, binding: GoveeBinding): Promise<void> {
-    await upsertModule(userId, GOVEE_MODULE, enabled, binding as unknown as Record<string, unknown>);
-  }
-
-  // patchBinding merges a partial change into the current binding, preserving the
-  // module enable flag.
-  async function patchBinding(patch: Partial<GoveeBinding>): Promise<GoveeResult> {
-    const cur = await read();
-    await writeBinding(cur.enabled, { ...cur.binding, ...patch });
-    return { ok: true };
+  // writeBindings persists the whole binding list under the module blob's
+  // "bindings" key, preserving the module enable flag.
+  async function writeBindings(enabled: boolean, bindings: GoveeBinding[]): Promise<void> {
+    await upsertModule(userId, GOVEE_MODULE, enabled, { bindings } as unknown as Record<string, unknown>);
   }
 
   async function setKey(key: string): Promise<GoveeResult> {
@@ -280,9 +272,9 @@ export function goveeStore(userId: string): GoveeStore {
     }
   }
 
-  async function saveReward(draft: RewardDraft): Promise<GoveeResult> {
+  async function saveReward(device: GoveeDevice, draft: RewardDraft): Promise<GoveeResult> {
     const cur = await read();
-    const existingId = cur.binding.rewardId;
+    const existingId = cur.bindings.find((b) => b.device === device.device)?.rewardId ?? '';
     const verb = existingId ? 'update' : 'create';
     const req: Record<string, unknown> = { reward: rewardWire(draft, existingId) };
     if (existingId) req.reward_id = existingId;
@@ -291,30 +283,24 @@ export function goveeStore(userId: string): GoveeStore {
     if (reply.missing_scope) return { ok: false, missingScope: true };
     if (reply.error || !reply.reward) return { ok: false, error: reply.error ?? `${verb} failed` };
 
-    const rewardId = reply.reward.id ?? existingId;
-    // Mirror the settings Twitch echoed back (falling back to the draft) so the
-    // editor re-populates the colour + cooldown exactly as stored.
-    const color = reply.reward.background_color ?? draft.color;
-    const cooldown = reply.reward.global_cooldown_enabled ? reply.reward.global_cooldown_seconds : 0;
-    await writeBinding(cur.enabled, {
-      ...cur.binding,
-      onRedeem: draft.onRedeem,
-      allowOff: draft.allowOff,
-      replyMessage: draft.replyMessage,
-      rewardId,
-      reward: { rewardId, title: reply.reward.title, cost: reply.reward.cost, color, cooldown }
-    });
+    // One reward per light: replace any existing binding for this device.
+    const binding = bindingFromReply(device, draft, reply.reward, existingId);
+    await writeBindings(cur.enabled, [...cur.bindings.filter((b) => b.device !== device.device), binding]);
     if (!existingId) await publishEventSubEnsureOptional(userId);
     return { ok: true };
   }
 
-  async function deleteReward(): Promise<GoveeResult> {
+  async function deleteReward(deviceId: string): Promise<GoveeResult> {
     const cur = await read();
-    if (!cur.binding.rewardId) return { ok: true };
-    const reply = await callReward(userId, 'delete', { reward_id: cur.binding.rewardId });
-    if (reply.missing_scope) return { ok: false, missingScope: true };
-    if (reply.error) return { ok: false, error: reply.error };
-    await writeBinding(cur.enabled, { ...cur.binding, rewardId: '', reward: null });
+    const target = cur.bindings.find((b) => b.device === deviceId);
+    if (!target) return { ok: true };
+    if (target.rewardId) {
+      const reply = await callReward(userId, 'delete', { reward_id: target.rewardId });
+      if (reply.missing_scope) return { ok: false, missingScope: true };
+      if (reply.error) return { ok: false, error: reply.error };
+    }
+    const bindings = cur.bindings.filter((b) => b.device !== deviceId);
+    await writeBindings(cur.enabled, bindings);
     return { ok: true };
   }
 
@@ -323,13 +309,11 @@ export function goveeStore(userId: string): GoveeStore {
     setKey,
     clearKey,
     listDevices,
-    setDevice: (device: GoveeDevice) => patchBinding({ device: device.device, sku: device.sku, deviceName: device.name }),
     setEnabled: async (enabled: boolean) => {
       const cur = await read();
-      await writeBinding(enabled, cur.binding);
+      await writeBindings(enabled, cur.bindings);
       return { ok: true };
     },
-    setAllowOffline: (allowOffline: boolean) => patchBinding({ allowOffline }),
     saveReward,
     deleteReward
   };

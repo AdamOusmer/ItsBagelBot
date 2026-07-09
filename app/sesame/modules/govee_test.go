@@ -193,6 +193,33 @@ func TestGoveeCustomReplyTemplate(t *testing.T) {
 	assert.Equal(t, "CoolViewer painted the room blue", col.out[0].Text, "template tokens fill from the redemption")
 }
 
+func TestGoveeMultiBindingDrivesMatchingLight(t *testing.T) {
+	var col collector
+	gw := okGateway()
+	d := engine.Deps{Live: &fakeLive{live: true}, Gateway: gw}
+	cfg := `{"bindings":[{"rewardId":"rw-1","device":"AA:AA:AA","sku":"H1"},{"rewardId":"rw-2","device":"BB:BB:BB","sku":"H2"}]}`
+	// Redeeming the second reward must drive the second light, not the first.
+	payload := `{"id":"redeem-9","broadcaster_user_id":"2","user_name":"CoolViewer","user_login":"coolviewer","user_input":"red","reward":{"id":"rw-2","title":"x","cost":1}}`
+	require.NoError(t, goveeHandler(t, d)(context.Background(), goveeCtx(payload, cfg), col.emit))
+
+	call := gw.lastCall(t)
+	assert.Equal(t, "BB:BB:BB", call.req.Device, "the redeemed reward's light must be driven")
+	assert.Equal(t, "H2", call.req.SKU)
+	require.Len(t, col.out, 2)
+	assert.Equal(t, outgress.RedemptionFulfilled, col.out[1].Status)
+}
+
+func TestGoveeMultiBindingUnmatchedRewardNoop(t *testing.T) {
+	var col collector
+	gw := okGateway()
+	d := engine.Deps{Live: &fakeLive{live: true}, Gateway: gw}
+	cfg := `{"bindings":[{"rewardId":"rw-1","device":"AA:AA:AA","sku":"H1"}]}`
+	payload := `{"id":"redeem-x","broadcaster_user_id":"2","user_name":"V","user_login":"v","user_input":"red","reward":{"id":"other","title":"x","cost":1}}`
+	require.NoError(t, goveeHandler(t, d)(context.Background(), goveeCtx(payload, cfg), col.emit))
+	assert.Empty(t, gw.calls, "a reward bound to no light must no-op")
+	assert.Empty(t, col.out)
+}
+
 // assertRefund asserts the two-output refund shape: a chat reason then a
 // CANCELED redemption update.
 func assertRefund(t *testing.T, out []module.Output) {
