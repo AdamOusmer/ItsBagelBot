@@ -51,6 +51,31 @@ type goveeConfig struct {
 	ReplyMessage string `json:"replyMessage"`
 }
 
+// goveeConfigs is the module blob shape: a list of reward->light bindings, so a
+// broadcaster can drive several lights, one per channel-points reward. The
+// dashboard enforces one reward per light. The legacy blob was a single binding
+// at the top level; bindingsOf reads either shape.
+type goveeConfigs struct {
+	Bindings []goveeConfig `json:"bindings"`
+}
+
+// bindingsOf returns the module's reward bindings, tolerating the legacy
+// single-binding blob (top-level rewardId/device) as a one-element list so
+// broadcasters configured before the multi-light change keep working.
+func bindingsOf(c *module.Context) []goveeConfig {
+	var wrap goveeConfigs
+	_ = c.Decode(&wrap)
+	if len(wrap.Bindings) > 0 {
+		return wrap.Bindings
+	}
+	var single goveeConfig
+	_ = c.Decode(&single)
+	if goveeConfigured(single) {
+		return []goveeConfig{single}
+	}
+	return nil
+}
+
 // Govee turns a channel-points redemption into a smart-light colour change. It
 // is a named, opt-in module (KindOptIn): off by default, configured on its own
 // dashboard inspector page where the broadcaster stores their Govee API key,
@@ -172,19 +197,24 @@ func renderGoveeReply(tmpl string, ev redemptionEvent, color string) string {
 // unconfigured module, a non-redemption envelope, or a different reward id. The
 // checks are kept as separate single conditions for readability.
 func decodeGoveeRedemption(c *module.Context) (goveeConfig, redemptionEvent, bool) {
-	var cfg goveeConfig
-	_ = c.Decode(&cfg)
-	if !goveeConfigured(cfg) || len(c.Env.Event) == 0 {
-		return cfg, redemptionEvent{}, false
+	bindings := bindingsOf(c)
+	if len(bindings) == 0 || len(c.Env.Event) == 0 {
+		return goveeConfig{}, redemptionEvent{}, false
 	}
 	var ev redemptionEvent
 	if err := json.Unmarshal(c.Env.Event, &ev); err != nil {
-		return cfg, ev, false
+		return goveeConfig{}, ev, false
 	}
-	if ev.Reward.ID != cfg.RewardID || ev.BroadcasterUserID == "" {
-		return cfg, ev, false
+	if ev.BroadcasterUserID == "" {
+		return goveeConfig{}, ev, false
 	}
-	return cfg, ev, true
+	// Drive the binding whose reward was redeemed; unrelated rewards no-op.
+	for _, b := range bindings {
+		if goveeConfigured(b) && b.RewardID == ev.Reward.ID {
+			return b, ev, true
+		}
+	}
+	return goveeConfig{}, ev, false
 }
 
 // goveeConfigured reports whether the module has a complete binding (reward +
