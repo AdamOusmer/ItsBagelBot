@@ -75,6 +75,42 @@ func TestOutgressStreamHasSingleReconciler(t *testing.T) {
 	}
 }
 
+func TestIngressStreamIsolatesLanesPerSubject(t *testing.T) {
+	var ingress *StreamSpec
+	for i := range DataStreams {
+		if DataStreams[i].Name == "TWITCH_INGRESS" {
+			ingress = &DataStreams[i]
+		}
+	}
+	if ingress == nil {
+		t.Fatal("TWITCH_INGRESS stream spec missing")
+	}
+
+	cfg := streamConfig(*ingress)
+	// The premium/standard/stream lanes are distinct literal subjects on one
+	// stream; MaxBytes eviction alone is oldest-first stream-wide, letting a
+	// standard flood evict premium. The per-subject cap makes a flooded lane
+	// wrap itself instead.
+	if cfg.MaxMsgsPerSubject <= 0 {
+		t.Fatal("ingress lanes need a per-subject cap so one lane cannot evict the others")
+	}
+	if cfg.MaxBytes <= 0 {
+		t.Fatal("ingress stream still needs its global byte backstop")
+	}
+}
+
+func TestFleetSubscriberHasBoundedPacedRedelivery(t *testing.T) {
+	// A plain NACK redelivers immediately; with a four-digit budget a poison
+	// message used to grind the whole fleet. The budget must stay small and the
+	// pacing non-zero.
+	if fleetMaxRedeliveries == 0 || fleetMaxRedeliveries > 10 {
+		t.Fatalf("fleet redeliveries = %d, want a small bounded budget", fleetMaxRedeliveries)
+	}
+	if fleetNakDelay <= 0 {
+		t.Fatalf("fleet nak delay = %v, want paced redelivery", fleetNakDelay)
+	}
+}
+
 func TestLaneConsumerHasBoundedDeliveryBudget(t *testing.T) {
 	cfg := laneConsumerConfig(
 		"twitch.outgress.premium",

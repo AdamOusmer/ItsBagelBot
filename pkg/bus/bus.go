@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -54,8 +55,20 @@ func NewPublisher(url string, log *zap.Logger) (message.Publisher, error) {
 // All instances passing the same group share one durable consumer, so a
 // message is processed by exactly one instance and survives restarts.
 func NewSubscriber(url string, group string, log *zap.Logger) (message.Subscriber, error) {
-	return newSubscriber(url, group, nil, log)
+	return newSubscriber(url, group, log)
 }
+
+// Redelivery budget for the durable consumers behind NewSubscriber (the
+// ingress lanes, the data.> event folds, the stream lane). Retries are paced
+// per message by NakWithDelay — a plain NACK redelivers immediately, so a
+// message whose handler fails deterministically would otherwise grind through
+// its whole budget in seconds, fleet-wide, at full pipeline cost. The pacing
+// also gives a transient dependency blip (~15s) time to clear; after the
+// budget the message is TERMed and ages out of the stream.
+const (
+	fleetMaxRedeliveries uint64 = 5
+	fleetNakDelay               = 3 * time.Second
+)
 
 // LaneConfig describes one bounded work-queue subscription: the stream it
 // binds to, the subject filter, the durable group that shares the consumer,
@@ -181,7 +194,7 @@ func laneConsumerConfig(subject, group, name string, maxDeliveries int) *nats.Co
 	return &nats.ConsumerConfig{
 		Durable:        name,
 		Name:           name,
-		Description:    "ItsBagelBot bounded outgress work queue",
+		Description:    "ItsBagelBot bounded work-queue lane consumer",
 		DeliverPolicy:  nats.DeliverAllPolicy,
 		AckPolicy:      nats.AckExplicitPolicy,
 		AckWait:        30 * time.Second,
@@ -227,10 +240,9 @@ func streamForTopic(topic string) (string, error) {
 }
 
 type fleetSubscriber struct {
-	url      string
-	group    string
-	nakDelay wmnats.Delay
-	log      *zap.Logger
+	url   string
+	group string
+	log   *zap.Logger
 
 	mu    sync.Mutex
 	subs  []message.Subscriber
@@ -248,6 +260,12 @@ func (s *fleetSubscriber) Subscribe(ctx context.Context, topic string) (<-chan *
 		return nil, err
 	}
 
+	messages, err := sub.Subscribe(ctx, topic)
+	if err != nil {
+		closeSubscription(sub, conn)
+		return nil, err
+	}
+
 	s.mu.Lock()
 	s.subs = append(s.subs, sub)
 	if conn != nil {
@@ -255,19 +273,49 @@ func (s *fleetSubscriber) Subscribe(ctx context.Context, topic string) (<-chan *
 	}
 	s.mu.Unlock()
 
-	return sub.Subscribe(ctx, topic)
+	// A subscription's resources live exactly as long as its ctx. The weighted
+	// consumer adds and retires units with load, each unit subscribing under
+	// its own ctx; without this a retired unit's NATS connection would sit open
+	// until process shutdown, one more per scale cycle.
+	go func() {
+		<-ctx.Done()
+		s.forget(sub, conn)
+		closeSubscription(sub, conn)
+	}()
+
+	return messages, nil
+}
+
+// forget drops a subscription's entries from the shutdown bookkeeping once its
+// own ctx has released them, so Close does not double-close.
+func (s *fleetSubscriber) forget(sub message.Subscriber, conn *nats.Conn) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.subs = slices.DeleteFunc(s.subs, func(x message.Subscriber) bool { return x == sub })
+	if conn != nil {
+		s.conns = slices.DeleteFunc(s.conns, func(x *nats.Conn) bool { return x == conn })
+	}
+}
+
+func closeSubscription(sub message.Subscriber, conn *nats.Conn) {
+	_ = sub.Close()
+	if conn != nil {
+		conn.Close()
+	}
 }
 
 // subscriberFor builds the topic's subscriber: a broadcast ephemeral consumer
 // when the group is empty, else a durable queue-group consumer bound to a
-// provisioned server-owned durable (so it survives pod disconnects).
+// provisioned server-owned durable (so it survives pod disconnects), with the
+// shared fleet redelivery budget (see fleetMaxRedeliveries).
 func (s *fleetSubscriber) subscriberFor(stream, topic string) (message.Subscriber, *nats.Conn, error) {
 	if s.group == "" {
 		sub, err := s.broadcastSubscriber()
 		return sub, nil, err
 	}
 	binding := LaneConfig{URL: s.url, Stream: stream, Subject: topic, Group: s.group}
-	return bindDurable(binding, 1000, s.nakDelay, s.log)
+	maxDeliveries := fleetMaxRedeliveries + 1
+	return bindDurable(binding, int(maxDeliveries), wmnats.NewMaxRetryDelay(fleetNakDelay, maxDeliveries), s.log)
 }
 
 // broadcastSubscriber uses an ephemeral consumer with DeliverNew to avoid
@@ -308,12 +356,11 @@ func (s *fleetSubscriber) Close() error {
 	return nil
 }
 
-func newSubscriber(url string, group string, nakDelay wmnats.Delay, log *zap.Logger) (message.Subscriber, error) {
+func newSubscriber(url string, group string, log *zap.Logger) (message.Subscriber, error) {
 	return &fleetSubscriber{
-		url:      url,
-		group:    group,
-		nakDelay: nakDelay,
-		log:      log,
+		url:   url,
+		group: group,
+		log:   log,
 	}, nil
 }
 

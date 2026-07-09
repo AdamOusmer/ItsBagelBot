@@ -24,11 +24,12 @@ import (
 // broker (retention window and a hard size cap) are explicit, the rest take
 // safe defaults in reconcileStream.
 type StreamSpec struct {
-	Name      string               // valid JetStream stream name (no dots/spaces/wildcards)
-	Subjects  []string             // subjects captured by the stream
-	Retention nats.RetentionPolicy // zero value is the ordinary limits policy
-	MaxAge    time.Duration        // hard lifetime limit for stored messages
-	MaxBytes  int64                // hard cap so one stream cannot exhaust the instance
+	Name       string               // valid JetStream stream name (no dots/spaces/wildcards)
+	Subjects   []string             // subjects captured by the stream
+	Retention  nats.RetentionPolicy // zero value is the ordinary limits policy
+	MaxAge     time.Duration        // hard lifetime limit for stored messages
+	MaxBytes   int64                // hard cap so one stream cannot exhaust the instance
+	MaxMsgsPer int64                // per-subject cap (0 = unlimited); lane isolation on shared streams
 }
 
 // OutgressStream carries the perishable chat lanes (premium/standard). It is
@@ -81,6 +82,14 @@ var DataStreams = []StreamSpec{
 		Subjects: []string{"twitch.ingress.event.>", "twitch.ingress.status.>"},
 		MaxAge:   5 * time.Minute,
 		MaxBytes: 256 << 20, // 256 MiB
+		// The premium, standard and stream lanes are distinct literal subjects
+		// sharing this stream, and MaxBytes eviction is stream-wide oldest-first:
+		// without a per-subject cap a standard-lane flood fills the stream and
+		// evicts retained premium and stream.online events. 50k messages per lane
+		// (≈100 MiB at typical event size, well past any backlog the consumers
+		// could still catch up on before MaxAge) makes a flooded lane wrap itself
+		// while the other lanes keep their full retention.
+		MaxMsgsPer: 50_000,
 	},
 }
 
@@ -222,15 +231,16 @@ func streamConfig(spec StreamSpec) *nats.StreamConfig {
 		duplicateWindow = spec.MaxAge
 	}
 	return &nats.StreamConfig{
-		Name:       spec.Name,
-		Subjects:   spec.Subjects,
-		Storage:    nats.FileStorage,
-		Retention:  spec.Retention,
-		Discard:    nats.DiscardOld,
-		MaxAge:     spec.MaxAge,
-		MaxBytes:   spec.MaxBytes,
-		Replicas:   1,
-		Duplicates: duplicateWindow,
+		Name:              spec.Name,
+		Subjects:          spec.Subjects,
+		Storage:           nats.FileStorage,
+		Retention:         spec.Retention,
+		Discard:           nats.DiscardOld,
+		MaxAge:            spec.MaxAge,
+		MaxBytes:          spec.MaxBytes,
+		MaxMsgsPerSubject: spec.MaxMsgsPer,
+		Replicas:          1,
+		Duplicates:        duplicateWindow,
 	}
 }
 
@@ -238,7 +248,8 @@ func streamMatches(got, want nats.StreamConfig) bool {
 	return sameSubjects(got.Subjects, want.Subjects) &&
 		got.Retention == want.Retention &&
 		got.MaxAge == want.MaxAge &&
-		got.MaxBytes == want.MaxBytes
+		got.MaxBytes == want.MaxBytes &&
+		got.MaxMsgsPerSubject == want.MaxMsgsPerSubject
 }
 
 func sameSubjects(a, b []string) bool {
