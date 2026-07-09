@@ -36,8 +36,10 @@ function demoView(): GoveeView {
       deviceName: 'Desk strip',
       onRedeem: 'fulfill',
       rewardId: 'demo-reward',
-      reward: { rewardId: 'demo-reward', title: 'Colour my lights', cost: 500 },
-      allowOffline: false
+      reward: { rewardId: 'demo-reward', title: 'Colour my lights', cost: 500, color: '#9147ff', cooldown: 0 },
+      allowOffline: false,
+      allowOff: true,
+      replyMessage: '@{user} set the lights to {color}!'
     }
   };
 }
@@ -75,7 +77,7 @@ export const load: PageServerLoad = async ({ locals }) => {
     return {
       enabled: false,
       keyPresent: false,
-      binding: { device: '', sku: '', deviceName: '', onRedeem: 'fulfill' as GoveeOnRedeem, rewardId: '', reward: null, allowOffline: false },
+      binding: { device: '', sku: '', deviceName: '', onRedeem: 'fulfill' as GoveeOnRedeem, rewardId: '', reward: null, allowOffline: false, allowOff: false, replyMessage: '' },
       devices: { devices: [] as GoveeDevice[], error: undefined },
       colors,
       degraded: true
@@ -153,7 +155,21 @@ export const actions: Actions = {
     if (!title || title.length > 45) return fail(400, { ok: false, error: 'Title is required (max 45 characters).' });
     if (!Number.isFinite(cost)) return fail(400, { ok: false, error: 'Enter a valid point cost.' });
     if (cost < 1 || cost > 10_000_000) return fail(400, { ok: false, error: 'Enter a valid point cost.' });
-    const draft: RewardDraft = { title, cost, onRedeem: asOnRedeem(f.get('onRedeem')) };
+
+    // Reward tile colour: a "#rrggbb" hex, or blank for Twitch's default.
+    const color = String(f.get('color') ?? '').trim();
+    if (color && !/^#[0-9a-fA-F]{6}$/.test(color)) return fail(400, { ok: false, error: 'Pick a valid colour.' });
+
+    // Global cooldown in seconds; 0 disables. Twitch caps a reward cooldown at
+    // 604800s (one week).
+    const rawCooldown = Math.trunc(Number(f.get('cooldown') ?? 0));
+    const cooldown = Number.isFinite(rawCooldown) ? Math.min(Math.max(rawCooldown, 0), 604_800) : 0;
+
+    const replyMessage = String(f.get('replyMessage') ?? '').trim();
+    if (replyMessage.length > 200) return fail(400, { ok: false, error: 'Reply is too long (max 200 characters).' });
+    const allowOff = f.get('allow_off') === 'on';
+
+    const draft: RewardDraft = { title, cost, onRedeem: asOnRedeem(f.get('onRedeem')), color, cooldown, replyMessage, allowOff };
     return run(locals, { action: 'govee:reward', detail: title }, (s) => s.saveReward(draft));
   },
 
