@@ -30,17 +30,20 @@ function demoView(): GoveeView {
   return {
     enabled: true,
     keyPresent: true,
-    binding: {
-      device: 'AB:CD:EF:12:34:56',
-      sku: 'H6159',
-      deviceName: 'Desk strip',
-      onRedeem: 'fulfill',
-      rewardId: 'demo-reward',
-      reward: { rewardId: 'demo-reward', title: 'Colour my lights', cost: 500, color: '#9147ff', cooldown: 0 },
-      allowOffline: false,
-      allowOff: true,
-      replyMessage: '@{user} set the lights to {color}!'
-    }
+    // One light configured, one left open, so the deck shows both states.
+    bindings: [
+      {
+        device: 'AB:CD:EF:12:34:56',
+        sku: 'H6159',
+        deviceName: 'Desk strip',
+        onRedeem: 'fulfill',
+        rewardId: 'demo-reward',
+        reward: { rewardId: 'demo-reward', title: 'Colour the desk strip', cost: 500, color: '#9147ff', cooldown: 0 },
+        allowOffline: false,
+        allowOff: true,
+        replyMessage: '@{user} set the lights to {color}!'
+      }
+    ]
   };
 }
 
@@ -77,7 +80,7 @@ export const load: PageServerLoad = async ({ locals }) => {
     return {
       enabled: false,
       keyPresent: false,
-      binding: { device: '', sku: '', deviceName: '', onRedeem: 'fulfill' as GoveeOnRedeem, rewardId: '', reward: null, allowOffline: false, allowOff: false, replyMessage: '' },
+      bindings: [] as GoveeView['bindings'],
       devices: { devices: [] as GoveeDevice[], error: undefined },
       colors,
       degraded: true
@@ -101,10 +104,9 @@ function asOnRedeem(v: FormDataEntryValue | null): GoveeOnRedeem {
   return v === 'cancel' || v === 'leave' ? v : 'fulfill';
 }
 
-// parseRewardForm validates the reward editor's fields and returns the draft, or
-// a user-facing error message. Kept out of the action so the action stays a thin
-// parse-then-run.
-function parseRewardForm(f: FormData): { draft: RewardDraft } | { error: string } {
+// parseRewardDraft validates the reward + behaviour fields into a draft, or a
+// user-facing error message.
+function parseRewardDraft(f: FormData): { draft: RewardDraft } | { error: string } {
   const title = String(f.get('title') ?? '').trim();
   if (!title || title.length > 45) return { error: 'Title is required (max 45 characters).' };
 
@@ -124,8 +126,29 @@ function parseRewardForm(f: FormData): { draft: RewardDraft } | { error: string 
   const cooldown = Number.isFinite(rawCooldown) ? Math.min(Math.max(rawCooldown, 0), 604_800) : 0;
 
   return {
-    draft: { title, cost, onRedeem: asOnRedeem(f.get('onRedeem')), color, cooldown, replyMessage, allowOff: f.get('allow_off') === 'on' }
+    draft: {
+      title,
+      cost,
+      onRedeem: asOnRedeem(f.get('onRedeem')),
+      color,
+      cooldown,
+      replyMessage,
+      allowOff: f.get('allow_off') === 'on',
+      allowOffline: f.get('allow_offline') === 'on'
+    }
   };
+}
+
+// parseRewardForm resolves the target light and its reward draft, or an error.
+// Kept out of the action so the action stays a thin parse-then-run.
+function parseRewardForm(f: FormData): { device: GoveeDevice; draft: RewardDraft } | { error: string } {
+  const device = String(f.get('device') ?? '').trim();
+  const sku = String(f.get('sku') ?? '').trim();
+  if (!device || !sku) return { error: 'Pick a light first.' };
+
+  const parsed = parseRewardDraft(f);
+  if ('error' in parsed) return parsed;
+  return { device: { device, sku, name: String(f.get('deviceName') ?? '').trim(), color: true }, draft: parsed.draft };
 }
 
 // run is the shared action skeleton: gate, resolve the session, short-circuit in
@@ -163,36 +186,20 @@ export const actions: Actions = {
 
   clearKey: ({ locals }) => run(locals, { action: 'govee:key_clear', detail: '' }, (s) => s.clearKey()),
 
-  pickDevice: async ({ request, locals }) => {
-    const f = await request.formData();
-    const device: GoveeDevice = {
-      device: String(f.get('device') ?? '').trim(),
-      sku: String(f.get('sku') ?? '').trim(),
-      name: String(f.get('deviceName') ?? '').trim(),
-      color: true
-    };
-    if (!device.device || !device.sku) return fail(400, { ok: false, error: 'Pick a device.' });
-    return run(locals, { action: 'govee:device', detail: device.name || device.device }, (s) => s.setDevice(device));
-  },
-
   saveReward: async ({ request, locals }) => {
     const parsed = parseRewardForm(await request.formData());
     if ('error' in parsed) return fail(400, { ok: false, error: parsed.error });
-    return run(locals, { action: 'govee:reward', detail: parsed.draft.title }, (s) => s.saveReward(parsed.draft));
+    return run(locals, { action: 'govee:reward', detail: parsed.draft.title }, (s) => s.saveReward(parsed.device, parsed.draft));
   },
 
-  deleteReward: ({ locals }) => run(locals, { action: 'govee:reward_delete', detail: '' }, (s) => s.deleteReward()),
+  deleteReward: async ({ request, locals }) => {
+    const deviceId = String((await request.formData()).get('device') ?? '').trim();
+    if (!deviceId) return fail(400, { ok: false, error: 'Pick a light first.' });
+    return run(locals, { action: 'govee:reward_delete', detail: deviceId }, (s) => s.deleteReward(deviceId));
+  },
 
   toggle: async ({ request, locals }) => {
     const enabled = (await request.formData()).get('is_enabled') === 'on';
     return run(locals, { action: 'govee:toggle', detail: String(enabled) }, (s) => s.setEnabled(enabled));
-  },
-
-  // liveOnly flips the live-only gate. allow_offline='on' disables it (viewers can
-  // drive the lights while offline); the page guards that direction with a
-  // warning modal before posting here.
-  liveOnly: async ({ request, locals }) => {
-    const allowOffline = (await request.formData()).get('allow_offline') === 'on';
-    return run(locals, { action: 'govee:live_only', detail: allowOffline ? 'off' : 'on' }, (s) => s.setAllowOffline(allowOffline));
   }
 };
