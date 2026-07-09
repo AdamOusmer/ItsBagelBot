@@ -258,6 +258,18 @@ export interface ModuleReply {
   tokens?: string[];
 }
 
+// A chat command a module exposes, listed read-only on the module page so a
+// broadcaster can see what turning the module on unlocks. Unlike a ModuleReply
+// these are not editable or toggleable: modules whose replies are fixed system
+// lines (the queue) have nothing to configure per command, so the rows are
+// informational only — never clickable.
+export interface ModuleCommandInfo {
+  trigger: string; // the chat trigger with '!' (e.g. '!join', '!queue next')
+  summary: string; // one-line description of what it does
+  // perm names the minimum role, shown as a small tag. Omit for everyone.
+  perm?: 'mod';
+}
+
 export interface ModuleDef {
   // id is the ModuleView.name key in the modules service.
   id: string;
@@ -268,6 +280,10 @@ export interface ModuleDef {
   defaultEnabled: boolean;
   // The module's configurable chat lines (the "commands" of the module page).
   replies: ModuleReply[];
+  // Read-only chat commands to list on the module page. For modules that expose
+  // commands with fixed (non-customizable) replies, e.g. the play queue. Shown
+  // as static rows, never clickable. Optional.
+  commands?: ModuleCommandInfo[];
   // Plain non-reply settings (rendered in the settings strip). Optional; the
   // current modules have none beyond their master enable + per-reply toggles.
   settings?: ModuleField[];
@@ -642,9 +658,21 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
     icon: 'list',
     defaultEnabled: false,
     // The queue posts fixed system lines (join confirmations, the roster, next-up
-    // calls), not customizable templates, so there are no reply rows or settings —
-    // just the master enable.
-    replies: []
+    // calls), not customizable templates, so there are no editable reply rows or
+    // settings — just the master enable and a read-only list of the commands it
+    // unlocks (see app/sesame/modules/queue.go).
+    replies: [],
+    commands: [
+      { trigger: '!join', summary: 'Get in line to play (also !queue join).' },
+      { trigger: '!leave', summary: 'Step out of the line (also !queue leave).' },
+      { trigger: '!list', summary: 'Show the next 10 players waiting (also !queue list).' },
+      { trigger: '!queue', summary: 'Show whether the queue is open and how many are waiting.' },
+      { trigger: '!queue open', summary: 'Start accepting joins.', perm: 'mod' },
+      { trigger: '!queue close', summary: 'Stop accepting joins; the line is kept.', perm: 'mod' },
+      { trigger: '!queue next', summary: 'Pull up the next player and announce them.', perm: 'mod' },
+      { trigger: '!queue remove <user>', summary: 'Take someone out of the line.', perm: 'mod' },
+      { trigger: '!queue clear', summary: 'Empty the line.', perm: 'mod' }
+    ]
   }
 ];
 
