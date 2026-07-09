@@ -101,6 +101,33 @@ function asOnRedeem(v: FormDataEntryValue | null): GoveeOnRedeem {
   return v === 'cancel' || v === 'leave' ? v : 'fulfill';
 }
 
+// parseRewardForm validates the reward editor's fields and returns the draft, or
+// a user-facing error message. Kept out of the action so the action stays a thin
+// parse-then-run.
+function parseRewardForm(f: FormData): { draft: RewardDraft } | { error: string } {
+  const title = String(f.get('title') ?? '').trim();
+  if (!title || title.length > 45) return { error: 'Title is required (max 45 characters).' };
+
+  const cost = Math.trunc(Number(f.get('cost')));
+  if (!Number.isFinite(cost)) return { error: 'Enter a valid point cost.' };
+  if (cost < 1 || cost > 10_000_000) return { error: 'Enter a valid point cost.' };
+
+  // Reward tile colour: a "#rrggbb" hex, or blank for Twitch's default.
+  const color = String(f.get('color') ?? '').trim();
+  if (color && !/^#[0-9a-fA-F]{6}$/.test(color)) return { error: 'Pick a valid colour.' };
+
+  const replyMessage = String(f.get('replyMessage') ?? '').trim();
+  if (replyMessage.length > 200) return { error: 'Reply is too long (max 200 characters).' };
+
+  // Global cooldown in seconds; 0 disables. Twitch caps it at 604800s (one week).
+  const rawCooldown = Math.trunc(Number(f.get('cooldown') ?? 0));
+  const cooldown = Number.isFinite(rawCooldown) ? Math.min(Math.max(rawCooldown, 0), 604_800) : 0;
+
+  return {
+    draft: { title, cost, onRedeem: asOnRedeem(f.get('onRedeem')), color, cooldown, replyMessage, allowOff: f.get('allow_off') === 'on' }
+  };
+}
+
 // run is the shared action skeleton: gate, resolve the session, short-circuit in
 // demo, then run the store operation with uniform error handling + audit. Each
 // action only parses its own form and calls run, so there is one copy of the
@@ -149,28 +176,9 @@ export const actions: Actions = {
   },
 
   saveReward: async ({ request, locals }) => {
-    const f = await request.formData();
-    const title = String(f.get('title') ?? '').trim();
-    const cost = Math.trunc(Number(f.get('cost')));
-    if (!title || title.length > 45) return fail(400, { ok: false, error: 'Title is required (max 45 characters).' });
-    if (!Number.isFinite(cost)) return fail(400, { ok: false, error: 'Enter a valid point cost.' });
-    if (cost < 1 || cost > 10_000_000) return fail(400, { ok: false, error: 'Enter a valid point cost.' });
-
-    // Reward tile colour: a "#rrggbb" hex, or blank for Twitch's default.
-    const color = String(f.get('color') ?? '').trim();
-    if (color && !/^#[0-9a-fA-F]{6}$/.test(color)) return fail(400, { ok: false, error: 'Pick a valid colour.' });
-
-    // Global cooldown in seconds; 0 disables. Twitch caps a reward cooldown at
-    // 604800s (one week).
-    const rawCooldown = Math.trunc(Number(f.get('cooldown') ?? 0));
-    const cooldown = Number.isFinite(rawCooldown) ? Math.min(Math.max(rawCooldown, 0), 604_800) : 0;
-
-    const replyMessage = String(f.get('replyMessage') ?? '').trim();
-    if (replyMessage.length > 200) return fail(400, { ok: false, error: 'Reply is too long (max 200 characters).' });
-    const allowOff = f.get('allow_off') === 'on';
-
-    const draft: RewardDraft = { title, cost, onRedeem: asOnRedeem(f.get('onRedeem')), color, cooldown, replyMessage, allowOff };
-    return run(locals, { action: 'govee:reward', detail: title }, (s) => s.saveReward(draft));
+    const parsed = parseRewardForm(await request.formData());
+    if ('error' in parsed) return fail(400, { ok: false, error: parsed.error });
+    return run(locals, { action: 'govee:reward', detail: parsed.draft.title }, (s) => s.saveReward(parsed.draft));
   },
 
   deleteReward: ({ locals }) => run(locals, { action: 'govee:reward_delete', detail: '' }, (s) => s.deleteReward()),
