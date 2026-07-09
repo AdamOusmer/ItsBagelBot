@@ -109,7 +109,8 @@ function parseRewardForm(f: FormData): { draft: RewardDraft } | { error: string 
   if (!title || title.length > 45) return { error: 'Title is required (max 45 characters).' };
 
   const cost = Math.trunc(Number(f.get('cost')));
-  if (!Number.isFinite(cost) || cost < 1 || cost > 10_000_000) return { error: 'Enter a valid point cost.' };
+  if (!Number.isFinite(cost)) return { error: 'Enter a valid point cost.' };
+  if (cost < 1 || cost > 10_000_000) return { error: 'Enter a valid point cost.' };
 
   // Reward tile colour: a "#rrggbb" hex, or blank for Twitch's default.
   const color = String(f.get('color') ?? '').trim();
