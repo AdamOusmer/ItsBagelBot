@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"errors"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -129,16 +131,20 @@ func main() {
 	billing := rpc.NewBillingApplier(nc, billingSubject)
 
 	listenAddr := env.Get("LISTEN_ADDR", ":8080")
-	httpApp := web.New(repo, web.Config{
+	handler := web.New(repo, web.Config{
 		WebhookSecret: env.Get("TEBEX_WEBHOOK_SECRET", ""),
 		NotifyGift:    notifier.Notify,
 		ApplyBilling:  billing.Apply,
 	}, log.Named("http"))
 
-	serverErr := make(chan error, 1)
-	go func() {
-		serverErr <- httpApp.Listen(listenAddr)
-	}()
+	httpServer := &http.Server{
+		Addr:        listenAddr,
+		Handler:     handler,
+		ReadTimeout: 5 * time.Second,
+		// net/http arms the write deadline when the request is read, not when
+		// the handler returns, so this must outlast /drain's 10s sleep.
+		WriteTimeout: 15 * time.Second,
+	}
 
 	log.Info("transactions service ready",
 		zap.String("listen_addr", listenAddr),
@@ -148,17 +154,31 @@ func main() {
 		zap.Bool("tebex_checkout_username_configured", env.GetBool("TEBEX_INCLUDE_USERNAME", false)),
 	)
 
+	serveHTTP(ctx, httpServer, log)
+}
+
+// serveHTTP runs the server until ctx is cancelled or the listener fails,
+// then drains in-flight requests before returning.
+func serveHTTP(ctx context.Context, srv *http.Server, log *zap.Logger) {
+
+	serverErr := make(chan error, 1)
+	go func() {
+		serverErr <- srv.ListenAndServe()
+	}()
+
 	select {
 	case <-ctx.Done():
 	case err := <-serverErr:
-		log.Fatal("transactions http server stopped", zap.Error(err))
+		if !errors.Is(err, http.ErrServerClosed) {
+			log.Fatal("transactions http server stopped", zap.Error(err))
+		}
 	}
 
 	log.Info("transactions service shutting down")
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	if err := httpApp.ShutdownWithContext(shutdownCtx); err != nil {
+	if err := srv.Shutdown(shutdownCtx); err != nil {
 		log.Warn("transactions http server shutdown failed", zap.Error(err))
 	}
 }

@@ -5,13 +5,13 @@ import (
 	"encoding/hex"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"ItsBagelBot/app/transactions/repository"
 	billingrpc "ItsBagelBot/internal/domain/rpc/billing"
 
-	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -50,11 +50,11 @@ func TestWebhookAliasesExposeReachability(t *testing.T) {
 	app := newTestApp(store)
 
 	for _, path := range []string{"/tebex", "/tebex/", "/webhooks/tebex", "/webhooks/tebex/"} {
-		req, err := http.NewRequest(http.MethodGet, path, nil)
-		require.NoError(t, err)
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		rec := httptest.NewRecorder()
+		app.ServeHTTP(rec, req)
 
-		resp, err := app.Test(req)
-		require.NoError(t, err)
+		resp := rec.Result()
 		defer resp.Body.Close()
 
 		assert.Equal(t, http.StatusOK, resp.StatusCode, path)
@@ -287,7 +287,7 @@ func TestInformationalEventsAreAuditedAsIgnored(t *testing.T) {
 
 const testSecret = "webhook-secret"
 
-func newTestApp(store *fakeStore) *fiber.App {
+func newTestApp(store *fakeStore) http.Handler {
 	return New(store, Config{WebhookSecret: testSecret, ApplyBilling: applyFor(store)}, nil)
 }
 
@@ -298,11 +298,10 @@ func applyFor(store *fakeStore) func(context.Context, billingrpc.ApplyRequest) e
 	}
 }
 
-func doWebhook(t *testing.T, app *fiber.App, body string, secret string, validSignature bool) *http.Response {
+func doWebhook(t *testing.T, app http.Handler, body string, secret string, validSignature bool) *http.Response {
 
 	t.Helper()
-	req, err := http.NewRequest(http.MethodPost, "/webhooks/tebex", strings.NewReader(body))
-	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/webhooks/tebex", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	if validSignature {
 		req.Header.Set("X-Signature", hex.EncodeToString(tebexSignature([]byte(body), secret)))
@@ -310,9 +309,9 @@ func doWebhook(t *testing.T, app *fiber.App, body string, secret string, validSi
 		req.Header.Set("X-Signature", strings.Repeat("0", 64))
 	}
 
-	resp, err := app.Test(req)
-	require.NoError(t, err)
-	return resp
+	rec := httptest.NewRecorder()
+	app.ServeHTTP(rec, req)
+	return rec.Result()
 }
 
 func TestGiftedPaymentNotifiesRecipientOnce(t *testing.T) {

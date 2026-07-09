@@ -5,15 +5,20 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"strings"
 	"time"
 
 	"ItsBagelBot/app/transactions/repository"
 	billingrpc "ItsBagelBot/internal/domain/rpc/billing"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
 )
+
+// maxBodyBytes caps the webhook request body; Tebex payloads are far smaller.
+const maxBodyBytes = 256 * 1024
 
 type Store interface {
 	SaveWebhookEvent(ctx context.Context, event repository.WebhookEvent) error
@@ -51,7 +56,7 @@ type Server struct {
 	log   *zap.Logger
 }
 
-func New(store Store, cfg Config, log *zap.Logger) *fiber.App {
+func New(store Store, cfg Config, log *zap.Logger) http.Handler {
 
 	if log == nil {
 		log = zap.NewNop()
@@ -63,88 +68,110 @@ func New(store Store, cfg Config, log *zap.Logger) *fiber.App {
 		log:   log,
 	}
 
-	app := fiber.New(fiber.Config{
-		BodyLimit:             256 * 1024,
-		DisableStartupMessage: true,
-		ReadTimeout:           5 * time.Second,
-		WriteTimeout:          10 * time.Second,
-	})
+	r := chi.NewRouter()
 
-	app.Get("/healthz", s.health)
-	app.Get("/readyz", s.ready)
-	app.Get("/drain", s.drain)
-	app.Get("/tebex", s.tebexReachable)
-	app.Get("/tebex/", s.tebexReachable)
-	app.Get("/webhooks/tebex", s.tebexReachable)
-	app.Get("/webhooks/tebex/", s.tebexReachable)
-	app.Post("/tebex", s.tebexWebhook)
-	app.Post("/tebex/", s.tebexWebhook)
-	app.Post("/webhooks/tebex", s.tebexWebhook)
-	app.Post("/webhooks/tebex/", s.tebexWebhook)
+	r.Get("/healthz", s.health)
+	r.Get("/readyz", s.ready)
+	r.Get("/drain", s.drain)
+	r.Get("/tebex", s.tebexReachable)
+	r.Get("/tebex/", s.tebexReachable)
+	r.Get("/webhooks/tebex", s.tebexReachable)
+	r.Get("/webhooks/tebex/", s.tebexReachable)
+	r.Post("/tebex", s.tebexWebhook)
+	r.Post("/tebex/", s.tebexWebhook)
+	r.Post("/webhooks/tebex", s.tebexWebhook)
+	r.Post("/webhooks/tebex/", s.tebexWebhook)
 
-	return app
+	return r
 }
 
-func (s *Server) health(c *fiber.Ctx) error {
-	return c.SendString("ok\n")
+func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
+	sendOK(w)
 }
 
-func (s *Server) ready(c *fiber.Ctx) error {
+func (s *Server) ready(w http.ResponseWriter, _ *http.Request) {
 	if s.cfg.Ready != nil && !s.cfg.Ready() {
-		return c.Status(fiber.StatusServiceUnavailable).SendString("not ready\n")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_, _ = io.WriteString(w, "not ready\n")
+		return
 	}
-	return c.SendString("ok\n")
+	sendOK(w)
 }
 
-func (s *Server) drain(c *fiber.Ctx) error {
+func (s *Server) drain(w http.ResponseWriter, _ *http.Request) {
 	time.Sleep(10 * time.Second)
-	return c.SendString("ok\n")
+	sendOK(w)
 }
 
-func (s *Server) tebexReachable(c *fiber.Ctx) error {
-	return c.SendString("ok\n")
+func (s *Server) tebexReachable(w http.ResponseWriter, _ *http.Request) {
+	sendOK(w)
 }
 
 // tebexWebhook owns only the HTTP-and-verification concern: authenticate the
 // request, then route the event to its handler. Event classification lives in
 // tebexevent.go; the per-outcome work lives in the dispatch helpers below.
-func (s *Server) tebexWebhook(c *fiber.Ctx) error {
+func (s *Server) tebexWebhook(w http.ResponseWriter, r *http.Request) {
 
-	if s.cfg.WebhookSecret == "" {
-		s.log.Warn("tebex webhook secret not configured")
-		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "webhook not configured"})
-	}
-
-	body := c.BodyRaw()
-	if !verifyTebexSignature(body, c.Get("X-Signature"), s.cfg.WebhookSecret) {
-		s.log.Warn("tebex webhook signature rejected", zap.String("remote", c.IP()))
-		return c.SendStatus(fiber.StatusUnauthorized)
+	body, ok := s.verifiedBody(w, r)
+	if !ok {
+		return
 	}
 
 	var event tebexEvent
 	if err := json.Unmarshal(body, &event); err != nil {
 		s.log.Warn("tebex webhook json rejected", zap.Error(err))
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "bad json"})
+		sendJSON(w, http.StatusBadRequest, errorBody{Error: "bad json"})
+		return
 	}
 	if event.ID == "" || event.Type == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "webhook id and type are required"})
+		sendJSON(w, http.StatusBadRequest, errorBody{Error: "webhook id and type are required"})
+		return
 	}
 
+	ctx := r.Context()
 	if event.Type == "validation.webhook" {
-		return s.handleValidation(c, event)
+		s.handleValidation(ctx, w, event)
+		return
 	}
 	if spec, ok := billingEventActions[event.Type]; ok {
-		return s.processBillingEvent(c, event, spec.action, spec.notify)
+		s.processBillingEvent(ctx, w, event, spec.action, spec.notify)
+		return
 	}
 	// Trial webhooks exist in the Tebex panel but not (yet) in their docs, so
 	// match by prefix rather than exact strings.
 	if strings.HasPrefix(event.Type, "recurring-payment.trial") {
-		return s.trialLifecycle(c, event)
+		s.trialLifecycle(ctx, w, event)
+		return
 	}
 	// Everything else changes no entitlement and is audited as ignored:
 	// payment.declined (nothing was granted), payment.dispute.closed (won/lost
 	// carry the outcome), status changes, and any future types.
-	return s.auditIgnored(c, event)
+	s.auditIgnored(ctx, w, event)
+}
+
+// verifiedBody reads the capped request body and checks the Tebex signature.
+// On failure it writes the rejection response and returns ok=false.
+func (s *Server) verifiedBody(w http.ResponseWriter, r *http.Request) ([]byte, bool) {
+
+	if s.cfg.WebhookSecret == "" {
+		s.log.Warn("tebex webhook secret not configured")
+		sendJSON(w, http.StatusServiceUnavailable, errorBody{Error: "webhook not configured"})
+		return nil, false
+	}
+
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBodyBytes))
+	if err != nil {
+		s.log.Warn("tebex webhook body rejected", zap.Error(err))
+		sendJSON(w, http.StatusRequestEntityTooLarge, errorBody{Error: "body too large"})
+		return nil, false
+	}
+
+	if !verifyTebexSignature(body, r.Header.Get("X-Signature"), s.cfg.WebhookSecret) {
+		s.log.Warn("tebex webhook signature rejected", zap.String("remote", r.RemoteAddr))
+		w.WriteHeader(http.StatusUnauthorized)
+		return nil, false
+	}
+	return body, true
 }
 
 // processBillingEvent is the single path every entitlement-changing event
@@ -152,46 +179,50 @@ func (s *Server) tebexWebhook(c *fiber.Ctx) error {
 // audit row, and (for activations) notify the gift recipient. A parse or apply
 // failure is recorded and surfaced so Tebex retries; a persist failure alone
 // returns 500.
-func (s *Server) processBillingEvent(c *fiber.Ctx, event tebexEvent, action billingrpc.Action, notify bool) error {
-	ctx := c.UserContext()
+func (s *Server) processBillingEvent(ctx context.Context, w http.ResponseWriter, event tebexEvent, action billingrpc.Action, notify bool) {
 
 	payment, err := recordableFromEvent(event)
 	if err != nil {
-		return s.failEvent(c, event, payment, fiber.StatusUnprocessableEntity, err)
+		s.failEvent(ctx, w, event, payment, http.StatusUnprocessableEntity, err)
+		return
 	}
 	if err := s.applyBilling(ctx, event, payment, action); err != nil {
-		return s.failEvent(c, event, payment, fiber.StatusInternalServerError, err)
+		s.failEvent(ctx, w, event, payment, http.StatusInternalServerError, err)
+		return
 	}
 	if err := s.saveEvent(ctx, event, repository.WebhookProcessed, payment, ""); err != nil {
-		return s.saveError(c)
+		s.saveError(w)
+		return
 	}
 	if notify {
 		s.notifyGift(ctx, event, payment)
 	}
-	return c.SendStatus(fiber.StatusNoContent)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // handleValidation acknowledges Tebex's endpoint-validation ping: record it and
 // echo the id back.
-func (s *Server) handleValidation(c *fiber.Ctx, event tebexEvent) error {
-	if err := s.saveEvent(c.UserContext(), event, repository.WebhookValidation, recordablePayment{}, ""); err != nil {
-		return s.saveError(c)
+func (s *Server) handleValidation(ctx context.Context, w http.ResponseWriter, event tebexEvent) {
+	if err := s.saveEvent(ctx, event, repository.WebhookValidation, recordablePayment{}, ""); err != nil {
+		s.saveError(w)
+		return
 	}
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{"id": event.ID})
+	sendJSON(w, http.StatusOK, map[string]string{"id": event.ID})
 }
 
 // auditIgnored records an event that changes no entitlement and acknowledges it.
-func (s *Server) auditIgnored(c *fiber.Ctx, event tebexEvent) error {
-	if err := s.saveEvent(c.UserContext(), event, repository.WebhookIgnored, recordablePayment{}, ""); err != nil {
-		return s.saveError(c)
+func (s *Server) auditIgnored(ctx context.Context, w http.ResponseWriter, event tebexEvent) {
+	if err := s.saveEvent(ctx, event, repository.WebhookIgnored, recordablePayment{}, ""); err != nil {
+		s.saveError(w)
+		return
 	}
-	return c.SendStatus(fiber.StatusNoContent)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // saveError is the one response for a failed audit-log write, which makes Tebex
 // retry the delivery.
-func (s *Server) saveError(c *fiber.Ctx) error {
-	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to save webhook state"})
+func (s *Server) saveError(w http.ResponseWriter) {
+	sendJSON(w, http.StatusInternalServerError, errorBody{Error: "failed to save webhook state"})
 }
 
 // trialLifecycle maps trial webhooks onto the billing actions: a started trial
@@ -200,11 +231,12 @@ func (s *Server) saveError(c *fiber.Ctx) error {
 // net or a recurring-payment.ended does the actual revoke at trial end), and
 // the rest (ending-soon reminder, trial ended) change nothing — a conversion
 // to paid arrives as payment.completed / recurring-payment.renewed.
-func (s *Server) trialLifecycle(c *fiber.Ctx, event tebexEvent) error {
+func (s *Server) trialLifecycle(ctx context.Context, w http.ResponseWriter, event tebexEvent) {
 
 	action, ok := trialAction(event.Type)
 	if !ok {
-		return s.auditIgnored(c, event)
+		s.auditIgnored(ctx, w, event)
+		return
 	}
 
 	payment, err := recordableFromEvent(event)
@@ -218,21 +250,26 @@ func (s *Server) trialLifecycle(c *fiber.Ctx, event tebexEvent) error {
 				zap.String("webhook_type", event.Type),
 				zap.Error(err),
 			)
-			if err := s.saveEvent(c.UserContext(), event, repository.WebhookIgnored, payment, err.Error()); err != nil {
-				return s.saveError(c)
+			if err := s.saveEvent(ctx, event, repository.WebhookIgnored, payment, err.Error()); err != nil {
+				s.saveError(w)
+				return
 			}
-			return c.SendStatus(fiber.StatusNoContent)
+			w.WriteHeader(http.StatusNoContent)
+			return
 		}
-		return s.failEvent(c, event, payment, fiber.StatusUnprocessableEntity, err)
+		s.failEvent(ctx, w, event, payment, http.StatusUnprocessableEntity, err)
+		return
 	}
 
-	if err := s.applyBilling(c.UserContext(), event, payment, action); err != nil {
-		return s.failEvent(c, event, payment, fiber.StatusInternalServerError, err)
+	if err := s.applyBilling(ctx, event, payment, action); err != nil {
+		s.failEvent(ctx, w, event, payment, http.StatusInternalServerError, err)
+		return
 	}
-	if err := s.saveEvent(c.UserContext(), event, repository.WebhookProcessed, payment, ""); err != nil {
-		return s.saveError(c)
+	if err := s.saveEvent(ctx, event, repository.WebhookProcessed, payment, ""); err != nil {
+		s.saveError(w)
+		return
 	}
-	return c.SendStatus(fiber.StatusNoContent)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Server) applyBilling(ctx context.Context, event tebexEvent, payment recordablePayment, action billingrpc.Action) error {
@@ -266,15 +303,16 @@ func (s *Server) applyBilling(ctx context.Context, event tebexEvent, payment rec
 	})
 }
 
-func (s *Server) failEvent(c *fiber.Ctx, event tebexEvent, payment recordablePayment, status int, cause error) error {
+func (s *Server) failEvent(ctx context.Context, w http.ResponseWriter, event tebexEvent, payment recordablePayment, status int, cause error) {
 
-	if err := s.saveEvent(c.UserContext(), event, repository.WebhookFailed, payment, cause.Error()); err != nil {
+	if err := s.saveEvent(ctx, event, repository.WebhookFailed, payment, cause.Error()); err != nil {
 		s.log.Error("failed to persist tebex webhook failure",
 			zap.String("webhook_id", event.ID),
 			zap.String("webhook_type", event.Type),
 			zap.Error(err),
 		)
-		return s.saveError(c)
+		s.saveError(w)
+		return
 	}
 
 	s.log.Warn("tebex webhook failed",
@@ -284,7 +322,7 @@ func (s *Server) failEvent(c *fiber.Ctx, event tebexEvent, payment recordablePay
 		zap.Uint64("user_id", payment.UserID),
 		zap.Error(cause),
 	)
-	return c.Status(status).JSON(fiber.Map{"error": cause.Error()})
+	sendJSON(w, status, errorBody{Error: cause.Error()})
 }
 
 // notifyGift tells the recipient their gifted premium landed. Initial payments
@@ -326,4 +364,18 @@ func (s *Server) saveEvent(ctx context.Context, event tebexEvent, status reposit
 		UserID:        payment.UserID,
 		Error:         message,
 	})
+}
+
+type errorBody struct {
+	Error string `json:"error"`
+}
+
+func sendOK(w http.ResponseWriter) {
+	_, _ = io.WriteString(w, "ok\n")
+}
+
+func sendJSON(w http.ResponseWriter, status int, payload any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(payload)
 }
