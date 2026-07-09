@@ -99,14 +99,49 @@ func TestCachedBytesSharedAcrossInstances(t *testing.T) {
 }
 
 func TestUnwrapEntry(t *testing.T) {
-	payload, ok := unwrapEntry([]byte(`{"gw1":{"a":1}}`))
+	fresh, payload, ok := unwrapEntry([]byte(`{"gw2":123,"p":{"a":1}}`))
 	require.True(t, ok)
+	assert.Equal(t, int64(123), fresh)
 	assert.Equal(t, `{"a":1}`, string(payload))
 
-	for _, bad := range []string{"", "{}", `{"gw1":`, `{"player":"x"}`, `{"gw2":{"a":1}}`} {
-		_, ok := unwrapEntry([]byte(bad))
+	// Rejected: empty, non-entry JSON, truncations, a missing/empty fresh stamp,
+	// an empty payload, and the legacy {"gw1":…} marker (format bump = poison).
+	for _, bad := range []string{
+		"", "{}", `{"gw2":`, `{"gw2":123}`, `{"gw2":,"p":{}}`, `{"gw2":123,"p":}`,
+		`{"player":"x"}`, `{"gw1":{"a":1}}`,
+	} {
+		_, _, ok := unwrapEntry([]byte(bad))
 		assert.False(t, ok, "must reject %q", bad)
 	}
+}
+
+// A stale entry is served immediately and revalidated in the background, so the
+// slow upstream stays off the caller's path after the first cold fill.
+func TestCachedBytesStaleServedThenRevalidated(t *testing.T) {
+	c := NewCache(newMemStore())
+	var builds atomic.Int32
+	ctx := context.Background()
+
+	// Cold fill, fresh for 20ms.
+	b, err := CachedBytes(ctx, c, "k", buildStatic(`{"n":1}`, 20*time.Millisecond, &builds))
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"n":1}`, string(b))
+	require.Equal(t, int32(1), builds.Load())
+
+	// Let the fresh window lapse. memStore keeps the bytes; SWR is driven by the
+	// embedded fresh-until stamp, not physical expiry.
+	time.Sleep(40 * time.Millisecond)
+
+	// Stale hit: returns the OLD bytes at once and kicks one background rebuild.
+	b, err = CachedBytes(ctx, c, "k", buildStatic(`{"n":2}`, time.Minute, &builds))
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"n":1}`, string(b), "stale hit must serve the old bytes")
+
+	// The revalidation lands the new value; once fresh, later reads serve it.
+	require.Eventually(t, func() bool {
+		got, gerr := CachedBytes(ctx, c, "k", buildStatic(`{"n":2}`, time.Minute, &builds))
+		return gerr == nil && string(got) == `{"n":2}`
+	}, time.Second, 10*time.Millisecond)
 }
 
 // The reply-bytes hit path is the gateway's hot path: after the store read it

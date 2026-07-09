@@ -34,8 +34,17 @@ const (
 	devicesTTL  = 60 * time.Second
 	negativeTTL = 10 * time.Second
 
-	httpTimeout    = 10 * time.Second
-	handlerTimeout = 12 * time.Second
+	// httpTimeout bounds one Govee call. Trimmed from 10s: Govee answers a
+	// healthy request in ~1-2s, and the byte-flow cache now serves the device
+	// list stale-while-revalidate, so a caller almost never waits on the wire.
+	httpTimeout = 6 * time.Second
+	// devicesTimeout bounds the whole devices handler (key resolve + one HTTP
+	// call). Kept under the dashboard's 9s RPC budget so the caller always
+	// outlasts the handler instead of abandoning a fetch it is still running.
+	devicesTimeout = 8 * time.Second
+	// controlTimeout is looser: a redemption fires two sequential Govee calls
+	// (power, then colour) plus the key resolve.
+	controlTimeout = 12 * time.Second
 
 	// Govee's per-key budget window and a conservative per-broadcaster ceiling.
 	// Govee documents ~10 requests/minute for device control; control spends two
@@ -104,8 +113,8 @@ func (p *Provider) Name() string { return "govee" }
 
 func (p *Provider) Endpoints() []provider.Endpoint {
 	return []provider.Endpoint{
-		{Name: "devices", Timeout: handlerTimeout, Handle: p.devices},
-		{Name: "control", Timeout: handlerTimeout, Handle: p.control},
+		{Name: "devices", Timeout: devicesTimeout, Handle: p.devices},
+		{Name: "control", Timeout: controlTimeout, Handle: p.control},
 	}
 }
 
