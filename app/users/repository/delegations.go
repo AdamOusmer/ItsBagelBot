@@ -67,6 +67,11 @@ func (r *Users) GetDelegation(ctx context.Context, token string) (DelegationView
 // gated on consumed_at IS NULL so two concurrent racers cannot both win: at most
 // one UPDATE flips the row, the loser sees zero affected rows and errors out.
 // Expiry is checked first (an expired link is dead even if never consumed).
+//
+// Reclaim: if the invitee already manages this owner's board, a second link is
+// redundant. Rather than mint a duplicate grant, the redundant link is
+// discarded and the grant they already hold is returned, so re-opening a fresh
+// share link for the same dashboard just lands them back on it.
 func (r *Users) ConsumeDelegation(ctx context.Context, token string, delegateID uint64, delegateLogin string) (DelegationView, error) {
 	now := time.Now()
 
@@ -85,11 +90,46 @@ func (r *Users) ConsumeDelegation(ctx context.Context, token string, delegateID 
 		return DelegationView{}, errors.New("link already used")
 	}
 
-	// Atomic single-use: only succeeds while consumed_at is still NULL.
+	if grant := r.reclaimExisting(ctx, d.OwnerID, delegateID, token); grant != nil {
+		return toDelegationView(grant), nil
+	}
+
+	return r.bindDelegation(ctx, d, delegateID, delegateLogin, now)
+}
+
+// reclaimExisting returns the invitee's current consumed grant for ownerID when
+// they already hold one, after discarding the now-redundant link `token`. It
+// returns nil when the invitee has no access yet (a first, real claim the
+// caller must bind). The discard is best-effort: a failed delete only leaves a
+// dead row to sweep later, never a duplicate live grant.
+func (r *Users) reclaimExisting(ctx context.Context, ownerID, delegateID uint64, token string) *ent.Delegation {
+	grant, err := db.WithQuery(ctx, func(ctx context.Context) (*ent.Delegation, error) {
+		return r.client.Delegation.Query().
+			Where(
+				delegation.OwnerIDEQ(ownerID),
+				delegation.DelegateIDEQ(delegateID),
+				delegation.ConsumedAtNotNil(),
+			).
+			First(ctx)
+	})
+	if err != nil || grant == nil {
+		return nil
+	}
+	_ = db.WithExec(ctx, func(ctx context.Context) error {
+		_, derr := r.client.Delegation.Delete().Where(delegation.TokenEQ(token)).Exec(ctx)
+		return derr
+	})
+	return grant
+}
+
+// bindDelegation performs the atomic single-use bind on the unconsumed row d,
+// succeeding only while consumed_at is still NULL so concurrent racers cannot
+// both win. The caller has already ruled out expiry and prior consumption.
+func (r *Users) bindDelegation(ctx context.Context, d *ent.Delegation, delegateID uint64, delegateLogin string, now time.Time) (DelegationView, error) {
 	n, err := db.WithQuery(ctx, func(ctx context.Context) (int, error) {
 		return r.client.Delegation.Update().
 			Where(
-				delegation.TokenEQ(token),
+				delegation.TokenEQ(d.Token),
 				delegation.ConsumedAtIsNil(),
 			).
 			SetDelegateID(delegateID).
