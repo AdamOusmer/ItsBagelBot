@@ -7,8 +7,11 @@
 //
 //  1. in-process cache (theine, short TTL) - the hot path, no I/O;
 //  2. Valkey settings:<user_id> hash - the shared projection (read only);
-//  3. NATS RPC to the projector - the authority that owns Valkey, asked on a
-//     cold key. The worker never writes Valkey; the projector populates it.
+//  3. NATS RPC on a cold key. Modules and commands ask the projector's
+//     dashboard get verbs - the projector owns Valkey, so its miss path
+//     hydrates the projection and the next read is a Valkey hit. Users ask
+//     the users service's projection verb. The worker never writes Valkey;
+//     the projector populates it.
 //
 // Commands are cached per command (key command:<id>:<name>), loaded with a
 // single HGET against the projection, so editing one command never forces a
@@ -86,7 +89,9 @@ type Reader interface {
 	Command(ctx context.Context, userID uint64, name string) (Command, bool, error)
 }
 
-// Subjects names the projector RPC each read falls through to on a Valkey miss.
+// Subjects names the RPC each read falls through to on a Valkey miss:
+// Modules and Commands are the projector's dashboard get verbs, Users is the
+// users service's projection verb.
 type Subjects struct {
 	Users    string
 	Modules  string
