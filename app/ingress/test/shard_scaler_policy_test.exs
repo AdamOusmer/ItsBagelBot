@@ -38,17 +38,23 @@ defmodule Ingress.ShardScaler.PolicyTest do
       # The original bug: 240 events/window aggregate on a 4-shard fleet
       # must not add capacity.
       s = sample(240)
-      assert {4, %{low: 1, high: 0}, :hold} = Policy.evaluate(s, 4, Policy.reset_ticks(), @min, @max)
+
+      assert {4, %{low: 1, high: 0}, :hold} =
+               Policy.evaluate(s, 4, Policy.reset_ticks(), @min, @max)
     end
 
     test "load within the current fleet's budget holds" do
       s = sample(Policy.budget_per_window() * 4)
-      assert {4, %{low: 0, high: 0}, :hold} = Policy.evaluate(s, 4, Policy.reset_ticks(), @min, @max)
+
+      assert {4, %{low: 0, high: 0}, :hold} =
+               Policy.evaluate(s, 4, Policy.reset_ticks(), @min, @max)
     end
 
     test "a single undercapacity tick does not scale up" do
       s = sample(Policy.budget_per_window() * 4 + 1)
-      assert {4, %{high: 1, low: 0}, :hold} = Policy.evaluate(s, 4, Policy.reset_ticks(), @min, @max)
+
+      assert {4, %{high: 1, low: 0}, :hold} =
+               Policy.evaluate(s, 4, Policy.reset_ticks(), @min, @max)
     end
 
     test "sustained undercapacity jumps straight to the needed count" do
@@ -117,6 +123,78 @@ defmodule Ingress.ShardScaler.PolicyTest do
 
       assert {5, %{low: 0, high: 0}, :hold} =
                Policy.evaluate(s, 5, %{low: 2, high: 0}, @min, @max)
+    end
+  end
+
+  describe "summarize_sample/2" do
+    test "even distribution attributes the max to the actual highest shard" do
+      results = [{0, {:ok, 10}}, {1, {:ok, 20}}, {2, {:ok, 15}}]
+
+      assert Policy.summarize_sample(3, results) == %{
+               expected_count: 3,
+               responsive_count: 3,
+               missing_count: 0,
+               aggregate_load: 45,
+               avg_load: 15,
+               max_load: 20,
+               max_load_shard_id: 1
+             }
+    end
+
+    test "one hot shard among idle ones is attributed to its own shard_id, not enumeration order" do
+      results = [{0, {:ok, 5}}, {1, {:ok, 5}}, {2, {:ok, 500}}, {3, {:ok, 5}}]
+
+      summary = Policy.summarize_sample(4, results)
+      assert summary.max_load == 500
+      assert summary.max_load_shard_id == 2
+      assert summary.aggregate_load == 515
+      assert summary.responsive_count == 4
+    end
+
+    test "all-erroring input yields a zeroed, nil-shard shape" do
+      results = [{0, :error}, {1, :error}]
+
+      assert Policy.summarize_sample(2, results) == %{
+               expected_count: 2,
+               responsive_count: 0,
+               missing_count: 2,
+               aggregate_load: 0,
+               avg_load: 0,
+               max_load: 0,
+               max_load_shard_id: nil
+             }
+    end
+
+    test "expected: 0 with no results is a consistent, zeroed shape" do
+      assert Policy.summarize_sample(0, []) == %{
+               expected_count: 0,
+               responsive_count: 0,
+               missing_count: 0,
+               aggregate_load: 0,
+               avg_load: 0,
+               max_load: 0,
+               max_load_shard_id: nil
+             }
+    end
+  end
+
+  describe "concentrated?/1" do
+    test "below both the ratio and the absolute floor is not concentrated" do
+      refute Policy.concentrated?(%{responsive_count: 4, avg_load: 1_000, max_load: 2_000})
+    end
+
+    test "above the ratio but below the absolute floor is not concentrated (small-fleet false positive guard)" do
+      # 500 is 5x a tiny average, but nowhere near a real shard's rated
+      # budget - routine unevenness on a lightly loaded fleet, not a raid.
+      refute Policy.concentrated?(%{responsive_count: 4, avg_load: 100, max_load: 500})
+    end
+
+    test "above both the ratio and the absolute floor is concentrated" do
+      assert Policy.concentrated?(%{responsive_count: 4, avg_load: 1_000, max_load: 15_000})
+    end
+
+    test "a single responsive shard is never concentrated, regardless of ratio" do
+      refute Policy.concentrated?(%{responsive_count: 1, avg_load: 100, max_load: 1_000_000})
     end
   end
 end

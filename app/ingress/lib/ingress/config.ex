@@ -65,10 +65,22 @@ defmodule Ingress.Config do
     do: Application.get_env(:ingress, :max_chat_text_bytes, 4_096)
 
   def dispatcher_max_running,
-    do: Application.get_env(:ingress, :dispatcher_max_running, 64)
+    do: Application.get_env(:ingress, :dispatcher_max_running, 512)
 
   def dispatcher_max_queue,
-    do: Application.get_env(:ingress, :dispatcher_max_queue, 2_000)
+    do: Application.get_env(:ingress, :dispatcher_max_queue, 20_000)
+
+  # Caps how much of the pod-wide dispatcher budget (max_running + max_queue) a
+  # single broadcaster can occupy at once, so a hot/raiding channel can't starve
+  # every other broadcaster sharing the pod's shared worker pool.
+  def dispatcher_max_per_broadcaster,
+    do: Application.get_env(:ingress, :dispatcher_max_per_broadcaster, 2_048)
+
+  # How often dead (zeroed) per-broadcaster counters are swept from the
+  # dispatcher's ETS table, so a long-lived pod doesn't accumulate one entry per
+  # distinct broadcaster ever seen.
+  def dispatcher_broadcaster_sweep_ms,
+    do: Application.get_env(:ingress, :dispatcher_broadcaster_sweep_ms, 60_000)
 
   # Gnat connection_settings (a leaf-first list of server maps) for the two
   # planes: :nats is the twitch_ingress RPC account, :nats_bus the shared BUS

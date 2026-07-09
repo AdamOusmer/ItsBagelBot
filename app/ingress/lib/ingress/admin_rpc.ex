@@ -14,7 +14,9 @@ defmodule Ingress.AdminRpc do
   `Ingress.ShardScaler`, not the static config value. Additional top-level
   fields (`desired_count`, `target`, `min_shards`, `autoscale`) expose the
   scaler's view so the admin console can show the full picture without a
-  separate RPC call.
+  separate RPC call. `max_load`/`max_load_shard_id` identify the single
+  hottest shard from the scaler's last autoscale sample, for spotting a
+  broadcaster concentrated on one shard even when aggregate load looks fine.
   """
 
   use Gnat.Server
@@ -75,6 +77,8 @@ defmodule Ingress.AdminRpc do
       target: scaler.target,
       min_shards: scaler.min_shards,
       autoscale: scaler.autoscale,
+      max_load: scaler.max_load,
+      max_load_shard_id: scaler.max_load_shard_id,
       conduit_manager: manager_status(),
       shards: shards
     }
