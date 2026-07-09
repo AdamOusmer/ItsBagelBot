@@ -34,7 +34,14 @@ export const POLICY = {
   adminPage: { freshMs: 3_000, swrMs: 30_000 },
   entity: { freshMs: 120_000, swrMs: 600_000, staleIfErrorMs: 600_000 },
   security: { freshMs: 60_000, swrMs: 120_000, staleIfErrorMs: 300_000 },
-  projected: { freshMs: 600_000, swrMs: 1_800_000 }
+  projected: { freshMs: 600_000, swrMs: 1_800_000 },
+  // govee: the third-party device list + key-presence flag. Both are read on
+  // every govee page load (and every /events invalidation), but the underlying
+  // Govee cloud call is slow and rate-limited, so a short fresh window plus a
+  // long SWR/stale-if-error tail renders the picker instantly and refreshes in
+  // the background. Not bus-scoped: freshness comes from the clock plus an
+  // explicit flush on key set/clear (see govee-store).
+  govee: { freshMs: 60_000, swrMs: 600_000, staleIfErrorMs: 600_000 }
 } as const satisfies Record<string, CachePolicy>;
 
 export type PolicyName = keyof typeof POLICY;

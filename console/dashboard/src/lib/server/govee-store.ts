@@ -18,15 +18,24 @@
 // which returns them as methods closing over the id, so no operation repeats it
 // as an argument. A redemption is driven by sesame; this store only sets up.
 import { rpc } from '@bagel/shared/server/nats';
-import { SUB, publishEventSubEnsureOptional } from './services';
+import { POLICY } from '@bagel/shared/server/cache-keys';
+import { SUB, fabric, invalidate, publishEventSubEnsureOptional } from './services';
 import { listModules, upsertModule } from './commands-store';
 
 const GOVEE_MODULE = 'govee';
 
+// Cache key for the one slow govee read: the third-party device list. Flushed
+// when the broadcaster's key changes (a new key can front a different Govee
+// account) and rides the coarse per-user flush via userPrefixes() as a bus-gap
+// safety net. The key-presence flag is deliberately NOT cached: it is a cheap
+// indexed DB read and its write path is off the invalidation bus, so caching it
+// per replica could strand a "no key" view on another pod right after a save.
+const devicesCacheKey = (userId: string) => `govee-devices:${userId}`;
+
 // The reward always requires input (the colour), always rides Twitch's request
 // queue (so sesame can fulfil/refund it), and is prompted with the accepted
 // colour formats.
-const REWARD_PROMPT = 'Type a colour — a name like blue, or a hex code like #00ccff';
+const REWARD_PROMPT = 'Type a colour: a name like blue, or a hex code like #00ccff';
 
 export type GoveeOnRedeem = 'fulfill' | 'cancel' | 'leave';
 
@@ -164,6 +173,8 @@ export interface GoveeStore {
 
 // goveeStore binds every per-broadcaster operation to one broadcaster id.
 export function goveeStore(userId: string): GoveeStore {
+  // keyPresent is a direct (uncached) status read: cheap, always authoritative,
+  // and safe to run on every load. A blip degrades to false, exactly as before.
   async function keyPresent(): Promise<boolean> {
     try {
       const r = await rpc<{ present?: boolean }>(`${SUB.goveeKey}.status`, { user_id: userId }, 3000);
@@ -174,11 +185,14 @@ export function goveeStore(userId: string): GoveeStore {
   }
 
   async function read(): Promise<GoveeView> {
-    const rows = await listModules(userId);
+    // The module blob (listModules) and the key-presence flag are independent
+    // reads; run them together so the page's server load is one round trip deep,
+    // not two.
+    const [rows, present] = await Promise.all([listModules(userId), keyPresent()]);
     const row = rows.find((r) => r.name === GOVEE_MODULE);
     return {
       enabled: row ? row.is_enabled : false,
-      keyPresent: await keyPresent(),
+      keyPresent: present,
       binding: row ? readBinding(row.configs) : blankBinding()
     };
   }
@@ -197,22 +211,41 @@ export function goveeStore(userId: string): GoveeStore {
 
   async function setKey(key: string): Promise<GoveeResult> {
     const r = await rpc<{ error?: string }>(`${SUB.goveeKey}.set`, { user_id: userId, key }, 3000);
-    return r.error ? { ok: false, error: r.error } : { ok: true };
+    if (r.error) return { ok: false, error: r.error };
+    // A new key can front a different Govee account: drop the cached device list
+    // so the next read reflects the new account immediately.
+    invalidate(devicesCacheKey(userId));
+    return { ok: true };
   }
 
   async function clearKey(): Promise<GoveeResult> {
     const r = await rpc<{ error?: string }>(`${SUB.goveeKey}.clear`, { user_id: userId }, 3000);
-    return r.error ? { ok: false, error: r.error } : { ok: true };
+    if (r.error) return { ok: false, error: r.error };
+    invalidate(devicesCacheKey(userId));
+    return { ok: true };
   }
 
+  // listDevices is SWR-cached (POLICY.govee). Only a successful device list is
+  // cached; on any error the loader throws so the fabric caches nothing and, if
+  // a recent list exists, serves it stale instead of flashing an error. A cold
+  // error surfaces as { devices: [], error }, same shape as before.
   async function listDevices(): Promise<{ devices: GoveeDevice[]; error?: string }> {
-    const r = await rpc<{ devices?: GoveeDevice[]; error?: string }>(
-      `${SUB.gateway}.govee.devices`,
-      { channel_id: userId },
-      8000
-    );
-    if (r.error) return { devices: [], error: r.error };
-    return { devices: Array.isArray(r.devices) ? r.devices : [] };
+    try {
+      const devices = await fabric.readKey(devicesCacheKey(userId), POLICY.govee, async () => {
+        const r = await rpc<{ devices?: GoveeDevice[]; error?: string }>(
+          `${SUB.gateway}.govee.devices`,
+          { channel_id: userId },
+          // Just over the gateway's devices handler budget (8s) so this RPC
+          // never abandons a fetch the gateway is still completing.
+          9000
+        );
+        if (r.error) throw new Error(r.error);
+        return Array.isArray(r.devices) ? r.devices : [];
+      });
+      return { devices };
+    } catch (e) {
+      return { devices: [], error: e instanceof Error ? e.message : 'device lookup failed' };
+    }
   }
 
   async function saveReward(draft: RewardDraft): Promise<GoveeResult> {
