@@ -104,6 +104,12 @@
   const showBanner = $derived(isDelegate || !!data.impersonatorLogin);
 </script>
 
+<!-- Authed app surface: never index a signed-in user's board (defense-in-depth
+     on top of robots.txt, which already disallows these paths). -->
+<svelte:head>
+  <meta name="robots" content="noindex, nofollow" />
+</svelte:head>
+
 <AppShell
   brandSub={t('common.console')}
   crumbRoot="ItsBagelBot"

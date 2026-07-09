@@ -10,9 +10,12 @@ import SafetyLayers from '../components/home/SafetyLayers.astro'
 import Steps from '../components/home/Steps.astro'
 import Letter from '../components/home/Letter.astro'
 import Finale from '../components/home/Finale.astro'
+import { getLangFromUrl, useTranslations } from '../i18n/ui';
+
+const t = useTranslations(getLangFromUrl(Astro.url));
 ---
 
-<Layout>
+<Layout title={t('home.metaTitle')} description={t('home.metaDesc')}>
     <Header />
     <Encryption />
     <Playground />

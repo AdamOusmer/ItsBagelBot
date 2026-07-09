@@ -1,14 +1,14 @@
 {
-  "name": "ItsBagelBot Docs",
-  "short_name": "BagelBot",
-  "description": "Guides, architecture, and reference for the all-in-one Twitch companion.",
+  "name": "ItsBagelBot Dashboard",
+  "short_name": "ItsBagelBot",
+  "description": "Configure moderation, commands, timers, and channel points for your Twitch channel.",
   "id": "/",
   "start_url": "/",
   "display": "standalone",
   "theme_color": "#0a0a0a",
   "background_color": "#0a0a0a",
   "lang": "en",
-  "categories": ["developer", "productivity", "reference"],
+  "categories": ["productivity", "utilities"],
   "icons": [
     { "src": "/android-chrome-192x192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "/android-chrome-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },

@@ -3,7 +3,31 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <link rel="icon" href="%sveltekit.assets%/logo.png" />
+
+  <!-- Browser-chrome tint matches the dark app background. -->
+  <meta name="theme-color" content="#0a0a0a" />
+  <meta name="color-scheme" content="dark" />
+
+  <!-- Favicons + installable-app icons (shared brand set). -->
+  <link rel="icon" href="%sveltekit.assets%/favicon.svg" type="image/svg+xml" />
+  <link rel="icon" type="image/png" sizes="32x32" href="%sveltekit.assets%/favicon-32x32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="%sveltekit.assets%/favicon-16x16.png" />
+  <link rel="icon" href="%sveltekit.assets%/favicon.ico" sizes="any" />
+  <link rel="apple-touch-icon" sizes="180x180" href="%sveltekit.assets%/apple-touch-icon.png" />
+  <link rel="manifest" href="%sveltekit.assets%/site.webmanifest" />
+  <meta name="application-name" content="ItsBagelBot" />
+  <meta name="apple-mobile-web-app-title" content="ItsBagelBot" />
+
+  <!-- Constant share-card bits; per-app title/description live in the root layout. -->
+  <meta property="og:site_name" content="ItsBagelBot" />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="https://dashboard.itsbagelbot.com/og-image.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="ItsBagelBot Dashboard" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="https://dashboard.itsbagelbot.com/og-image.png" />
+
   %sveltekit.head%
 </head>
 <body data-role="streamer" data-sveltekit-preload-data="hover">

@@ -21,6 +21,18 @@ const faqs: FaqItem[] = [
     { question: t('faq.q4'), answer: t('faq.a4') },
     { question: t('faq.q5'), answer: t('faq.a5') },
 ];
+
+// FAQPage structured data — surfaces these Q&As as rich results in search and
+// gives LLM answer engines clean, quotable answers about pricing and licensing.
+const faqLd = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: faqs.map((f) => ({
+        '@type': 'Question',
+        name: f.question,
+        acceptedAnswer: { '@type': 'Answer', text: f.answer },
+    })),
+};
 ---
 
 <section class="faq">
@@ -42,6 +54,8 @@ const faqs: FaqItem[] = [
             </details>
         ))}
     </div>
+
+    <script type="application/ld+json" set:html={JSON.stringify(faqLd)} is:inline />
 </section>
 
 <style>
