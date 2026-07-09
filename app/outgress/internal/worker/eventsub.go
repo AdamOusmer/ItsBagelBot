@@ -9,11 +9,20 @@ import (
 
 	"ItsBagelBot/app/outgress/internal/twitch"
 	"ItsBagelBot/internal/domain/outgress"
+	"ItsBagelBot/internal/domain/rpc/manage"
 
 	"github.com/bytedance/sonic"
 
 	"go.uber.org/zap"
 )
+
+// enrollCooldownTTL bounds how often a channel's full enroll may re-run while
+// its subscriptions are verified healthy. A dashboard user spamming restart
+// (or double-submitting enable) otherwise costs ~13-24 reserved Helix calls
+// per click; within this window the redundant job is acknowledged without
+// touching Twitch. Repair paths are unaffected: the skip requires sub_state
+// "ok", so a failing, pending, or cleared channel always gets its enroll.
+const enrollCooldownTTL = 2 * time.Minute
 
 // enrollment identifies one channel's EventSub enrollment on our conduit: the
 // broadcaster whose subscriptions are managed and the conduit they route to.
@@ -101,6 +110,39 @@ func (w *Worker) underEnrollLock(ctx context.Context, op string, e enrollment, f
 	return fn()
 }
 
+// skipFreshEnroll acknowledges a redundant enroll: the channel completed a
+// full enroll inside the cooldown window and the registry still reports it
+// healthy, so re-running would only spend Helix budget re-creating (409) what
+// already exists — the signature of a user spamming the dashboard's restart
+// button. Any read error fails open and runs the enroll; wrongly skipping a
+// repair is worse than wrongly spending budget.
+func (w *Worker) skipFreshEnroll(ctx context.Context, e enrollment, op string) bool {
+	active, err := w.registry.EnrollCooldownActive(ctx, e.broadcasterID)
+	if err != nil || !active {
+		return false
+	}
+	ch, found, err := w.registry.Get(ctx, e.broadcasterID)
+	if err != nil || !redundantEnroll(ch, found) {
+		return false
+	}
+	w.log.Info(op+" skipped: subscriptions freshly enrolled and healthy",
+		zap.String("broadcaster_id", e.broadcasterID))
+	return true
+}
+
+// redundantEnroll trusts the cooldown only while the registry still reports
+// the enrollment healthy; any other state means there is real work to do.
+func redundantEnroll(ch manage.Channel, found bool) bool {
+	return found && ch.SubState == "ok"
+}
+
+// recordEnrollSuccess persists the healthy outcome and arms the cooldown that
+// lets an immediately repeated enable/reconnect be skipped.
+func (w *Worker) recordEnrollSuccess(ctx context.Context, e enrollment) {
+	_ = w.registry.SetSubState(ctx, e.broadcasterID, "ok", "")
+	_ = w.registry.ArmEnrollCooldown(ctx, e.broadcasterID, enrollCooldownTTL)
+}
+
 // retryTransient runs fn up to three times with a growing back-off, stopping
 // early on success, a permanent rejection, or context cancellation.
 func retryTransient(ctx context.Context, fn func() error) error {
@@ -133,13 +175,16 @@ func retryTransient(ctx context.Context, fn func() error) error {
 // with a persisted "failing" state surfaces the problem to the dashboard instead.
 func (w *Worker) enableEventSubs(ctx context.Context, e enrollment) error {
 	return w.underEnrollLock(ctx, "enable", e, func() error {
+		if w.skipFreshEnroll(ctx, e, "enable") {
+			return nil
+		}
 		_ = w.registry.SetSubState(ctx, e.broadcasterID, "pending", "")
 
 		err := retryTransient(ctx, func() error {
 			return w.createAllEventSubs(ctx, e)
 		})
 		if err == nil {
-			_ = w.registry.SetSubState(ctx, e.broadcasterID, "ok", "")
+			w.recordEnrollSuccess(ctx, e)
 			w.log.Info("eventsub subscriptions created", zap.String("broadcaster_id", e.broadcasterID))
 			return nil
 		}
@@ -185,6 +230,9 @@ func (w *Worker) disableChannel(ctx context.Context, e enrollment) error {
 // polling Twitch.
 func (w *Worker) reconnectEventSubs(ctx context.Context, e enrollment) error {
 	return w.underEnrollLock(ctx, "reconnect", e, func() error {
+		if w.skipFreshEnroll(ctx, e, "reconnect") {
+			return nil
+		}
 		_ = w.registry.SetSubState(ctx, e.broadcasterID, "pending", "")
 
 		// Best-effort drop: if listing/deleting fails we still try to recreate;
@@ -199,7 +247,7 @@ func (w *Worker) reconnectEventSubs(ctx context.Context, e enrollment) error {
 			return w.createAllEventSubs(ctx, e)
 		})
 		if err == nil {
-			_ = w.registry.SetSubState(ctx, e.broadcasterID, "ok", "")
+			w.recordEnrollSuccess(ctx, e)
 			w.log.Info("reconnect: all eventsubs accepted",
 				zap.String("broadcaster_id", e.broadcasterID))
 			return nil
