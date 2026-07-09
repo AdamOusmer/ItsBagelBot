@@ -152,7 +152,12 @@ func (v *Store) SetStreamLive(ctx context.Context, userID uint64, live bool) err
 	)
 }
 
-// SetModule projects one module row of one user.
+// SetModule projects one module row of one user. It deliberately does NOT set
+// the modules:projected marker: a single-row event landing on a cold hash must
+// not make a partial module list read as complete. Only the full-section
+// writes (SetModules / SetModulesWithTTL) mark the section projected; until
+// one runs, readers fall through to the projector RPC, whose miss path
+// hydrates the full list.
 func (v *Store) SetModule(ctx context.Context, userID uint64, mod ModuleView) error {
 
 	defer segment(ctx, "HSET")()
@@ -162,7 +167,6 @@ func (v *Store) SetModule(ctx context.Context, userID uint64, mod ModuleView) er
 	fields := v.client.B().Hset().
 		Key(key).
 		FieldValue().
-		FieldValue("modules:projected", "1").
 		FieldValue("module:"+mod.Name+":enabled", utils.BoolField(mod.IsEnabled))
 
 	if len(mod.Configs) > 0 {
@@ -243,10 +247,7 @@ func (v *Store) SetCommand(ctx context.Context, dto data.CommandChangedDTO) erro
 	cmds := v.retireStaleAliases(ctx, key, field)
 
 	if dto.Deleted {
-		cmds = append(cmds,
-			v.client.B().Hdel().Key(key).Field(field).Build(),
-			v.client.B().Hset().Key(key).FieldValue().FieldValue("commands:projected", "1").Build(),
-		)
+		cmds = append(cmds, v.client.B().Hdel().Key(key).Field(field).Build())
 		cmds = append(cmds, v.expiryCommands(key, DefaultTTL)...)
 		return v.pipeline(ctx, cmds...)
 	}
@@ -280,7 +281,9 @@ func (v *Store) retireStaleAliases(ctx context.Context, key, field string) []val
 }
 
 // commandSetCommand builds the HSET writing the command body plus its alias
-// pointers.
+// pointers. Like SetModule, it never sets commands:projected: a single event
+// row on a cold hash must not make the command section read as complete —
+// only SetCommands / SetCommandsWithTTL (full-list writes) set the marker.
 func (v *Store) commandSetCommand(key, field, name string, dto data.CommandChangedDTO) (valkey.Completed, error) {
 	view := commandViewFromEvent(dto)
 	body, err := json.Marshal(view)
@@ -288,7 +291,6 @@ func (v *Store) commandSetCommand(key, field, name string, dto data.CommandChang
 		return valkey.Completed{}, err
 	}
 	set := v.client.B().Hset().Key(key).FieldValue().
-		FieldValue("commands:projected", "1").
 		FieldValue(field, string(body))
 	for _, a := range view.Aliases {
 		set = set.FieldValue(aliasFieldPrefix+strings.ToLower(a), name)
@@ -466,6 +468,9 @@ func (v *Store) GetModules(ctx context.Context, userID uint64) ([]ModuleView, bo
 		return nil, false, err
 	}
 
+	// projected trusts the marker alone: module rows written by single-module
+	// events (SetModule) never set it, so a partial hash correctly reads as
+	// not-yet-projected and the caller falls through to the full hydration.
 	projected := fields["modules:projected"] == "1"
 	byName := map[string]ModuleView{}
 	for field, value := range fields {
@@ -478,10 +483,8 @@ func (v *Store) GetModules(ctx context.Context, userID uint64) ([]ModuleView, bo
 		switch suffix {
 		case "enabled":
 			mod.IsEnabled = value == "1"
-			projected = true
 		case "config":
 			mod.Configs = json.RawMessage(value)
-			projected = true
 		}
 		byName[name] = mod
 	}
@@ -502,6 +505,8 @@ func (v *Store) GetCommands(ctx context.Context, userID uint64) ([]CommandView, 
 		return nil, false, err
 	}
 
+	// projected trusts the marker alone (see GetModules): per-command event
+	// rows never set it, so a partial hash falls through to full hydration.
 	projected := fields["commands:projected"] == "1"
 	out := make([]CommandView, 0)
 	for field, value := range fields {
@@ -514,7 +519,6 @@ func (v *Store) GetCommands(ctx context.Context, userID uint64) ([]CommandView, 
 			continue
 		}
 		out = append(out, cmd)
-		projected = true
 	}
 	return out, projected, nil
 }
