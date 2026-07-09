@@ -1,0 +1,8 @@
+# ItsBagelBot Dashboard — https://dashboard.itsbagelbot.com
+# A private, auth-gated app. Only the public sign-in landing should be indexed;
+# everything else sits behind login and must not be crawled or indexed.
+
+User-agent: *
+Allow: /$
+Allow: /login
+Disallow: /

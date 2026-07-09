@@ -12,14 +12,99 @@ import { getLangFromUrl } from '../i18n/ui';
 interface Props {
     title?: string;
     description?: string;
+    /** Share-card image: absolute URL or site-root path. Defaults to /og-image.png. */
+    image?: string;
+    /** Open Graph object type. 'website' for landing pages, 'article' for legal/docs. */
+    ogType?: string;
+    /** Keep the page out of search indexes (still crawlable for link discovery). */
+    noindex?: boolean;
 }
 
 const {
     title = 'ItsBagelBot. Your Stream, Your Rules',
-    description = 'The all-in-one Twitch companion baked for independence. Automated moderation, custom commands, and engagement tools.'
+    description = 'The all-in-one Twitch companion baked for independence. Automated moderation, custom commands, and engagement tools.',
+    image = '/og-image.png',
+    ogType = 'website',
+    noindex = false,
 } = Astro.props;
 
 const lang = getLangFromUrl(Astro.url);
+
+// Absolute URLs for canonical + social cards. Astro.site is the production
+// origin (astro.config); resolving against it turns page-relative paths into
+// the fully-qualified URLs crawlers and share-card scrapers require.
+const canonicalURL = new URL(Astro.url.pathname, Astro.site).href;
+const ogImageURL = new URL(image, Astro.site).href;
+const siteName = 'ItsBagelBot';
+const ogLocale = lang === 'fr' ? 'fr_FR' : 'en_US';
+const altOgLocale = lang === 'fr' ? 'en_US' : 'fr_FR';
+
+// Let AI answer-engines and search bots pull the biggest preview + full
+// snippet; noindex pages still allow link-following for discovery.
+const robotsContent = noindex
+    ? 'noindex, follow'
+    : 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1';
+
+// Structured data (@graph): who publishes the site, the site itself, and the
+// product. Search engines and LLMs read this to describe ItsBagelBot precisely
+// (name, free pricing, feature list, official links). type="application/ld+json"
+// is a non-executable data island, so the strict script-src CSP doesn't gate it.
+const ORIGIN = new URL(Astro.site!).origin;
+const structuredData = {
+    '@context': 'https://schema.org',
+    '@graph': [
+        {
+            '@type': 'Organization',
+            '@id': `${ORIGIN}/#organization`,
+            name: siteName,
+            url: `${ORIGIN}/`,
+            logo: `${ORIGIN}/android-chrome-512x512.png`,
+            description,
+            sameAs: [
+                'https://twitch.tv/itsbagelbot',
+                'https://discord.gg/SZ2remwSDv',
+                'https://github.com/AdamOusmer/ItsBagelBot',
+            ],
+        },
+        {
+            '@type': 'WebSite',
+            '@id': `${ORIGIN}/#website`,
+            url: `${ORIGIN}/`,
+            name: siteName,
+            description,
+            inLanguage: ['en', 'fr'],
+            publisher: { '@id': `${ORIGIN}/#organization` },
+        },
+        {
+            '@type': 'SoftwareApplication',
+            '@id': `${ORIGIN}/#software`,
+            name: siteName,
+            applicationCategory: 'UtilitiesApplication',
+            applicationSubCategory: 'Twitch chat bot',
+            operatingSystem: 'Web',
+            url: `${ORIGIN}/`,
+            image: `${ORIGIN}/og-image.png`,
+            description,
+            publisher: { '@id': `${ORIGIN}/#organization` },
+            offers: {
+                '@type': 'Offer',
+                price: '0',
+                priceCurrency: 'USD',
+                availability: 'https://schema.org/InStock',
+            },
+            featureList: [
+                'Automated chat moderation',
+                'Custom commands and variables',
+                'Timers',
+                'Channel Points rewards',
+                'Giveaways',
+                'Song requests',
+                'Polls',
+                'Game stat integrations (Hypixel Bedwars, MCSR Ranked)',
+            ],
+        },
+    ],
+};
 
 // hreflang alternates for the routes that exist in both locales, so search
 // engines pair the English and French versions instead of treating them as
@@ -63,6 +148,16 @@ const contentSecurityPolicy = [
         content={contentSecurityPolicy}
     />
     <meta name="referrer" content="strict-origin-when-cross-origin"/>
+
+    <link rel="canonical" href={canonicalURL}/>
+    <meta name="robots" content={robotsContent}/>
+
+    <!-- Browser-chrome tint: matches the dark page bg so the mobile address
+         bar blends instead of clashing. -->
+    <meta name="theme-color" content="#0a0a0a"/>
+    <meta name="color-scheme" content="dark"/>
+
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
     <link rel="icon" type="image/png" href={logoImage.src}/>
     <meta name="generator" content={Astro.generator}/>
 
@@ -77,6 +172,28 @@ const contentSecurityPolicy = [
     <link rel="manifest" href="/site.webmanifest">
 
     <meta name="description" content={description} />
+    <meta name="application-name" content={siteName} />
+    <meta name="apple-mobile-web-app-title" content={siteName} />
+
+    <!-- Open Graph: link previews on Discord, Facebook, LinkedIn, iMessage. -->
+    <meta property="og:type" content={ogType} />
+    <meta property="og:site_name" content={siteName} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonicalURL} />
+    <meta property="og:image" content={ogImageURL} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={`${siteName} — ${description}`} />
+    <meta property="og:locale" content={ogLocale} />
+    <meta property="og:locale:alternate" content={altOgLocale} />
+
+    <!-- Twitter/X large summary card. -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImageURL} />
+    <meta name="twitter:image:alt" content={`${siteName} — ${description}`} />
 
     {hasAlternates && (
         <Fragment>
@@ -94,6 +211,9 @@ const contentSecurityPolicy = [
          animation). The router script is bundled (assetsInlineLimit:0 keeps it
          external) so it stays within the strict script-src 'self' CSP. -->
     <ClientRouter />
+
+    <!-- Structured data for search engines + LLM answer engines. -->
+    <script type="application/ld+json" set:html={JSON.stringify(structuredData)} is:inline />
 </head>
 
 <body>

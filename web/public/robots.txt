@@ -1,49 +1,42 @@
+# ItsBagelBot — https://itsbagelbot.com
+# Search engines and AI answer engines are welcome. We want to be found,
+# indexed, and cited. See /llms.txt for a structured overview.
+
 User-agent: *
 Allow: /
 
-# Don't waste crawl budget on the search index and its workers.
-Disallow: /pagefind/
-
-# AI crawlers / answer engines — explicitly permitted so the docs can be cited.
+# AI crawlers / answer engines — explicitly permitted (retrieval + training).
 User-agent: GPTBot
 Allow: /
-Disallow: /pagefind/
 
 User-agent: OAI-SearchBot
 Allow: /
-Disallow: /pagefind/
 
 User-agent: ChatGPT-User
 Allow: /
 
 User-agent: ClaudeBot
 Allow: /
-Disallow: /pagefind/
 
 User-agent: Claude-User
 Allow: /
 
 User-agent: anthropic-ai
 Allow: /
-Disallow: /pagefind/
 
 User-agent: PerplexityBot
 Allow: /
-Disallow: /pagefind/
 
 User-agent: Perplexity-User
 Allow: /
 
 User-agent: Google-Extended
 Allow: /
-Disallow: /pagefind/
 
 User-agent: Applebot-Extended
 Allow: /
-Disallow: /pagefind/
 
 User-agent: CCBot
 Allow: /
-Disallow: /pagefind/
 
-Sitemap: https://docs.itsbagelbot.com/sitemap-index.xml
+Sitemap: https://itsbagelbot.com/sitemap-index.xml

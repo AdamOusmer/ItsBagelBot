@@ -1,0 +1,44 @@
+# ItsBagelBot
+
+> ItsBagelBot is an all-in-one Twitch companion bot for streamers: automated chat
+> moderation, custom commands, timers, giveaways, polls, song requests, channel-points
+> rewards, and game-stat integrations. Every feature is free forever, with no feature
+> gates, no trials, and no card required. It is privacy-first (no trackers, no data sold)
+> and source-available.
+
+## What it is
+
+- ItsBagelBot connects to a Twitch channel in one click and handles moderation and engagement so the streamer can focus on streaming.
+- The entire toolkit is free. A paid Premium tier ($ CAD/month) only adds message priority and faster responses to keep the servers funded; it unlocks no exclusive features. An Enterprise tier serves organizations running many channels.
+- Privacy-first: no third-party trackers, no data sold, chat content is not stored for resale.
+- Source-available (not open source): the code can be read and audited on GitHub, but the license limits redistribution and commercial use.
+- Runs on sustainable hydro-electric power; the site and dashboard rank cleaner than ~92% and ~95% of pages tested by Website Carbon.
+
+## Key features
+
+- Automated chat moderation: a multi-layer system (static rule gates + a classifier "jury" + a cross-channel raid-signature network) removes spam, slurs, and scam links, usually before viewers see them.
+- Custom commands and variables with cooldowns and shout-outs.
+- Timers, polls, giveaways (verifiably random draws), and self-managing song-request queues.
+- Channel Points rewards, including a Govee smart-light integration (viewers redeem to drive stream lights).
+- Game-stat integrations: Hypixel Bedwars stats and MCSR Ranked (Minecraft speedrun) Elo, pulled straight into chat.
+- Setup takes about two minutes; rules read like sentences, not code. Uninstall anytime.
+
+## Pages
+
+- [Home](https://itsbagelbot.com/): product overview, features, and how it works.
+- [Pricing](https://itsbagelbot.com/pricing): Free / Premium / Enterprise tiers and FAQ.
+- [Contact](https://itsbagelbot.com/contact): Discord, support and enterprise email, GitHub.
+- [Privacy Policy](https://itsbagelbot.com/privacy)
+- [Terms of Service](https://itsbagelbot.com/terms)
+- [Creator Code Terms](https://itsbagelbot.com/creator-terms): revenue-share program for creators.
+
+## Product and resources
+
+- [Dashboard](https://dashboard.itsbagelbot.com): sign in with Twitch to configure the bot.
+- [Documentation](https://docs.itsbagelbot.com): guides, architecture, and reference.
+- [Discord community](https://discord.gg/SZ2remwSDv): fastest support channel.
+- [GitHub](https://github.com/AdamOusmer/ItsBagelBot): source code and issue tracker.
+
+## Also available in
+
+- [French / Français](https://itsbagelbot.com/fr/)
