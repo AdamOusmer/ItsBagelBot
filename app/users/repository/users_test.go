@@ -3,6 +3,7 @@ package repository_test
 import (
 	"bytes"
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -131,6 +132,42 @@ func TestSetStatusRefreshesViewAndPublishes(t *testing.T) {
 	assert.Equal(t, "vip", view.Status, "status change must be visible immediately, not after TTL")
 
 	assert.Len(t, pub.On(data.SubjectUserChanged), 2, "register and status change must both announce state")
+}
+
+func TestSetCreatorCodeStoresTrimsClearsAndPublishes(t *testing.T) {
+	client, pub, repo := setup(t)
+	ctx := context.Background()
+
+	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "mavey@concordia.ca"))
+
+	require.NoError(t, repo.SetCreatorCode(ctx, 1001, "  MAVEY10  "))
+	view, err := repo.Get(ctx, 1001)
+	require.NoError(t, err)
+	require.NotNil(t, view.CreatorCode)
+	assert.Equal(t, "MAVEY10", *view.CreatorCode)
+	require.NotNil(t, client.User.GetX(ctx, 1001).CreatorCode)
+	assert.Equal(t, "MAVEY10", *client.User.GetX(ctx, 1001).CreatorCode)
+
+	require.NoError(t, repo.SetCreatorCode(ctx, 1001, ""))
+	view, err = repo.Get(ctx, 1001)
+	require.NoError(t, err)
+	assert.Nil(t, view.CreatorCode)
+	assert.Nil(t, client.User.GetX(ctx, 1001).CreatorCode)
+	assert.Len(t, pub.On(data.SubjectUserChanged), 3, "register, set and clear must announce state")
+}
+
+func TestSetCreatorCodeRejectsTooLongValue(t *testing.T) {
+	_, _, repo := setup(t)
+	ctx := context.Background()
+
+	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "mavey@concordia.ca"))
+
+	err := repo.SetCreatorCode(ctx, 1001, strings.Repeat("A", repository.CreatorCodeMaxLen+1))
+	require.Error(t, err)
+
+	view, getErr := repo.Get(ctx, 1001)
+	require.NoError(t, getErr)
+	assert.Nil(t, view.CreatorCode)
 }
 
 func TestApplyBillingLifecycleIsMonotonicAndProtectsAdminGrants(t *testing.T) {

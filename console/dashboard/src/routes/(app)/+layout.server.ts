@@ -1,9 +1,8 @@
-import { redirect, type Cookies } from '@sveltejs/kit';
+import { redirect } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
 import type { LayoutServerLoad } from './$types';
-import { COOKIE, type Session } from '$lib/server/session';
-import { accountState, isBanned, notificationsForUser, delegationAccess, type NotificationWire } from '$lib/server/services';
-import { RpcError } from '@bagel/shared/server/nats';
+import type { Session } from '$lib/server/session';
+import { accountState, notificationsForUser, delegationAccess, type NotificationWire } from '$lib/server/services';
 import { demoNotifications } from '$lib/server/demo-notifications';
 
 const BELL_PEEK = 5;
@@ -15,42 +14,9 @@ const demo: Session = {
   login: 'itsmavey',
   display_name: 'Mavey',
   role: 'streamer',
+  iat: Math.floor(Date.now() / 1000),
   expires_at: Math.floor(Date.now() / 1000) + 3600
 };
-
-// enforceAccountGates bounces a session whose account was banned or deleted
-// after sign-in. Both checks fail open on a transport blip so an RPC outage
-// never locks the whole app out; only an authoritative "no such user"
-// (RpcError) wipes the cookie.
-async function enforceAccountGates(s: Session, url: URL, cookies: Cookies): Promise<void> {
-  // Defense in depth: bounce a session whose user was banned after sign-in.
-  if (await isBanned(s.user_id)) throw redirect(302, '/login?e=banned');
-
-  // Ghost-session gate: a session cookie stays cryptographically valid until
-  // it expires, so a browser that still holds one for a DELETED account (or
-  // one deleted from another device) could keep acting on the app — and its
-  // stale deletion cookies could bounce it through /goodbye on any action.
-  // accountState is fabric-cached, so this costs ~0 on the hot path.
-  try {
-    await accountState(s.user_id);
-  } catch (err) {
-    if (err instanceof RpcError) {
-      cookies.delete(COOKIE, { path: '/', secure: url.protocol === 'https:' });
-      throw redirect(302, '/login?e=signedout');
-    }
-    // Transient transport problem: keep the session, pages degrade instead.
-  }
-}
-
-// enforceDelegateScope keeps a delegate inside the sections they were granted.
-// Home, account (overview actions) and the share-management page are
-// owner-only; an out-of-scope path bounces to the first allowed section.
-function enforceDelegateScope(s: Session, url: URL): void {
-  if (!s.delegate_of) return;
-  const allowed = (s.sections ?? []).map((sec) => `/${sec}`);
-  const onAllowed = allowed.some((p) => url.pathname === p || url.pathname.startsWith(p + '/'));
-  if (!onAllowed) throw redirect(302, allowed[0] ?? '/login?e=link');
-}
 
 // loadBellPeek fetches the owner's notification bell, best-effort: an RPC blip
 // must never block the shell, so a failed fetch just shows an empty peek.
@@ -95,7 +61,11 @@ async function loadAuthorizedDashboards(s: Session): Promise<{ href: string; nam
   }
 }
 
-export const load: LayoutServerLoad = async ({ locals, url, cookies }) => {
+// Account gates (ban / deleted account / delegation revoke / delegate scope)
+// run in hooks.server.ts for every request — including form actions and API
+// endpoints, which this load never covers. This load only owns the
+// login-redirect UX and the shell data.
+export const load: LayoutServerLoad = async ({ locals, url }) => {
   let s = locals.session;
   if (!s && env.DEMO === '1') s = demo;
   // Keep the requested path through the login flow (e.g. the pricing page
@@ -106,13 +76,12 @@ export const load: LayoutServerLoad = async ({ locals, url, cookies }) => {
     throw redirect(302, next === '/' ? '/login' : `/login?next=${encodeURIComponent(next)}`);
   }
 
-  if (env.DEMO !== '1') await enforceAccountGates(s, url, cookies);
-  enforceDelegateScope(s, url);
-
   const [{ unreadCount, notifications }, authorizedDashboards, acc] = await Promise.all([
     loadBellPeek(s),
     loadAuthorizedDashboards(s),
-    env.DEMO === '1' ? Promise.resolve({ active: true, status: 'vip', onboarded: true }) : accountState(s.user_id).catch(() => null)
+    env.DEMO === '1'
+      ? Promise.resolve({ active: true, status: 'vip', onboarded: true, creatorCode: null })
+      : accountState(s.user_id).catch(() => null)
   ]);
 
   const isPremium = acc ? acc.status === 'vip' || acc.status === 'paid' : false;

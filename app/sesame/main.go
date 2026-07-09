@@ -72,6 +72,8 @@ func main() {
 	live := newLive(ctx, in, cfg, log)
 	defer live.Close()
 
+	timers := newTimers(ctx, in, proj, live, cfg, log)
+
 	// Deps is the bundle every module fn captures; main builds it once. modules.All
 	// returns the built modules (core commands + bagel, live tracker, opt-in
 	// shoutout), which the engine registry indexes. Adding a feature is a new file
@@ -95,6 +97,9 @@ func main() {
 		Reputation: engine.NewValkeyReputation(valkeyClient, 6*time.Hour, log),
 		Campaign:   engine.NewValkeyCampaign(valkeyClient, log),
 		Queue:      engine.NewValkeyQueueStore(valkeyClient, 24*time.Hour, log),
+		Timers:     timers,
+
+		PublicBaseURL: cfg.PublicBaseURL,
 	}
 	registry := engine.NewRegistry(log, modules.All(deps)...)
 
@@ -239,11 +244,17 @@ func dialNATS(cfg *config.Config, log *zap.Logger) (*nats.Conn, message.Publishe
 // Valkey, with a projector RPC fallback) and starts its cache invalidation
 // listener.
 func newProjection(in infra, cfg *config.Config, log *zap.Logger) *projection.Client {
-	proj := projection.NewClient(projection.NewStore(in.vc), in.nc, projection.Subjects{
-		Users:    cfg.ProjectionUsersSubject,
-		Modules:  cfg.ProjectionModulesSubject,
-		Commands: cfg.ProjectionCommandsSubject,
-	}, projectionCacheTTL, log)
+	proj := projection.NewClient(projection.Config{
+		Store: projection.NewStore(in.vc),
+		NC:    in.nc,
+		Subjects: projection.Subjects{
+			Users:    cfg.ProjectionUsersSubject,
+			Modules:  cfg.ProjectionModulesSubject,
+			Commands: cfg.ProjectionCommandsSubject,
+		},
+		TTL: projectionCacheTTL,
+		Log: log,
+	})
 	proj.StartInvalidationListener(cfg.CacheInvalidationPrefix)
 	return proj
 }
@@ -265,6 +276,28 @@ func newLive(ctx context.Context, in infra, cfg *config.Config, log *zap.Logger)
 	live.StartInvalidationListener()
 	go live.StartExpiryWatcher(ctx)
 	return live
+}
+
+// newTimers builds the Valkey-backed timer store — one schedule key per
+// enabled repeating message, armed on stream.online and fired off key expiry
+// (see live_valkey.go's key-expiry idiom, which this shares the deployment's
+// notify-keyspace-events config with) — and starts its expiry watcher plus the
+// rearm watcher that arms a live broadcaster's timers mid-stream when a
+// dashboard save changes their modules blob (so a timer added while already live
+// starts this session, not next stream).
+func newTimers(ctx context.Context, in infra, proj *projection.Client, live *engine.ValkeyLiveStore, cfg *config.Config, log *zap.Logger) *engine.ValkeyTimerStore {
+	timers := engine.NewValkeyTimerStore(in.vc, in.pub, proj, live, engine.TimersConfig{
+		OutgressPremiumSubject:   cfg.OutgressPremiumSubject,
+		OutgressStandardSubject:  cfg.OutgressStandardSubject,
+		KeyspaceDB:               0,
+		NC:                       in.nc,
+		ModulesInvalidateSubject: cfg.CacheInvalidationPrefix + ".modules",
+		Log:                      log,
+	})
+	go timers.StartExpiryWatcher(ctx)
+	go timers.StartRearmWatcher(ctx)
+	go timers.StartReconciler(ctx)
+	return timers
 }
 
 // newConsumer builds the one autoscaling consumer that drains the premium and

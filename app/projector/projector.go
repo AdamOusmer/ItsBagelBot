@@ -43,14 +43,26 @@ type Projector struct {
 	log                   *zap.Logger
 }
 
-func NewProjector(store *projection.Store, nc *nats.Conn, invalidateSubject string, cacheInvalidatePrefix string, hydrator *hydration.Hydrator, log *zap.Logger) *Projector {
+// Deps carries the projector's collaborators. invalidateSubject is the
+// core-NATS tier-cache fan-out subject; cacheInvalidatePrefix is the
+// section-scoped console cache-bus prefix.
+type Deps struct {
+	Store                 *projection.Store
+	NC                    *nats.Conn
+	InvalidateSubject     string
+	CacheInvalidatePrefix string
+	Hydrator              *hydration.Hydrator
+	Log                   *zap.Logger
+}
+
+func NewProjector(d Deps) *Projector {
 	return &Projector{
-		store:                 store,
-		nc:                    nc,
-		invalidateSubject:     invalidateSubject,
-		cacheInvalidatePrefix: cacheInvalidatePrefix,
-		hydrator:              hydrator,
-		log:                   log,
+		store:                 d.Store,
+		nc:                    d.NC,
+		invalidateSubject:     d.InvalidateSubject,
+		cacheInvalidatePrefix: d.CacheInvalidatePrefix,
+		hydrator:              d.Hydrator,
+		log:                   d.Log,
 	}
 }
 
@@ -71,7 +83,12 @@ func (p *Projector) HandleUserChanged(msg *message.Message) error {
 		return nil
 	}
 
-	if err := p.store.SetUser(msg.Context(), dto.UserID, dto.Status, dto.IsActive, dto.Banned, dto.Locale); err != nil {
+	if err := p.store.SetUser(msg.Context(), dto.UserID, projection.UserProjection{
+		Status:   dto.Status,
+		IsActive: dto.IsActive,
+		Banned:   dto.Banned,
+		Locale:   dto.Locale,
+	}); err != nil {
 		return err
 	}
 	p.broadcastInvalidate(dto.UserID)
@@ -150,7 +167,11 @@ func (p *Projector) HandleModuleChanged(msg *message.Message) error {
 		return nil
 	}
 
-	if err := p.store.SetModule(msg.Context(), dto.UserID, dto.Name, dto.IsEnabled, dto.Configs); err != nil {
+	if err := p.store.SetModule(msg.Context(), dto.UserID, projection.ModuleView{
+		Name:      dto.Name,
+		IsEnabled: dto.IsEnabled,
+		Configs:   dto.Configs,
+	}); err != nil {
 		return err
 	}
 	p.broadcastCacheInvalidate(dto.UserID, "modules")
@@ -164,33 +185,9 @@ func (p *Projector) HandleCommandChanged(msg *message.Message) error {
 		return nil
 	}
 
-	if err := validate.UserID(dto.UserID); err != nil {
+	if err := validateCommandChanged(dto); err != nil {
 		p.drop(msg, data.SubjectCommandChanged, err)
 		return nil
-	}
-	if err := validate.CommandName(dto.Name); err != nil {
-		p.drop(msg, data.SubjectCommandChanged, err)
-		return nil
-	}
-	if !dto.Deleted {
-		if err := validate.CommandResponse(dto.Response); err != nil {
-			p.drop(msg, data.SubjectCommandChanged, err)
-			return nil
-		}
-		if err := validate.Perm(dto.Perm); err != nil {
-			p.drop(msg, data.SubjectCommandChanged, err)
-			return nil
-		}
-		if err := validate.Cooldown(dto.Cooldown); err != nil {
-			p.drop(msg, data.SubjectCommandChanged, err)
-			return nil
-		}
-		if dto.AllowedUserID != 0 {
-			if err := validate.UserID(dto.AllowedUserID); err != nil {
-				p.drop(msg, data.SubjectCommandChanged, err)
-				return nil
-			}
-		}
 	}
 
 	if err := p.store.SetCommand(msg.Context(), dto); err != nil {
@@ -200,6 +197,35 @@ func (p *Projector) HandleCommandChanged(msg *message.Message) error {
 	// per-command entries that changed, never a whole dictionary.
 	keys := append([]string{dto.Name}, dto.Aliases...)
 	p.broadcastCacheInvalidate(dto.UserID, "commands", keys...)
+	return nil
+}
+
+// validateCommandChanged runs every field guard a command-changed event must
+// pass. A delete event carries only identity, so the response/perm/cooldown
+// fields are validated only on an upsert. The first failing guard's error is
+// returned so the caller can drop the event.
+func validateCommandChanged(dto data.CommandChangedDTO) error {
+	if err := validate.UserID(dto.UserID); err != nil {
+		return err
+	}
+	if err := validate.CommandName(dto.Name); err != nil {
+		return err
+	}
+	if dto.Deleted {
+		return nil
+	}
+	if err := validate.CommandResponse(dto.Response); err != nil {
+		return err
+	}
+	if err := validate.Perm(dto.Perm); err != nil {
+		return err
+	}
+	if err := validate.Cooldown(dto.Cooldown); err != nil {
+		return err
+	}
+	if dto.AllowedUserID != 0 {
+		return validate.UserID(dto.AllowedUserID)
+	}
 	return nil
 }
 

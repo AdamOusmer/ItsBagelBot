@@ -1,6 +1,7 @@
 import type { Handle, HandleServerError, ServerInit } from '@sveltejs/kit';
 import newrelic from 'newrelic';
 import { COOKIE, open } from '$lib/server/session';
+import { guardSession } from '$lib/server/guard';
 import { warm } from '@bagel/shared/server/nats';
 import { warm as warmValkey } from '@bagel/shared/server/valkey-store';
 import { registerServerConfig } from '@bagel/shared/server/config';
@@ -82,50 +83,55 @@ function pickLimiter(pathname: string, method: string): ValkeyRateLimiter {
   return readLimiter;
 }
 
-// Session + the security headers SvelteKit's CSP config does not own.
-export const handle: Handle = async ({ event, resolve }) => {
-  const cookie = event.cookies.get(COOKIE);
-  event.locals.session = cookie ? open(cookie) : null;
-
-  if (!RATE_EXEMPT.has(event.url.pathname)) {
-    const key = event.locals.session?.user_id
-      ? `u:${event.locals.session.user_id}`
-      : `ip:${clientIp(event.request.headers, event.getClientAddress)}`;
-    const decision = await pickLimiter(event.url.pathname, event.request.method).check(key);
-    if (!decision.allowed) {
-      newrelic.addCustomAttributes({ 'ratelimit.limited': true, 'route.id': event.route.id ?? 'unmatched' });
-      return new Response('Too many requests', {
-        status: 429,
-        headers: {
-          'Retry-After': String(decision.retryAfterSec),
-          'Cache-Control': 'no-store',
-          'Content-Type': 'text/plain; charset=utf-8'
-        }
-      });
-    }
+// enforceRateLimit checks the request against its tier's fleet-wide bucket,
+// keyed by session user id (stable across CGNAT/mobile IP churn) or client IP.
+// It returns a 429 Response when the budget is spent, else null to proceed.
+// Exempt paths (kubelet probes) skip the check entirely.
+async function enforceRateLimit(event: Parameters<Handle>[0]['event']): Promise<Response | null> {
+  if (RATE_EXEMPT.has(event.url.pathname)) {
+    return null;
   }
+  const key = event.locals.session?.user_id
+    ? `u:${event.locals.session.user_id}`
+    : `ip:${clientIp(event.request.headers, event.getClientAddress)}`;
+  const decision = await pickLimiter(event.url.pathname, event.request.method).check(key);
+  if (decision.allowed) {
+    return null;
+  }
+  newrelic.addCustomAttributes({ 'ratelimit.limited': true, 'route.id': event.route.id ?? 'unmatched' });
+  return new Response('Too many requests', {
+    status: 429,
+    headers: {
+      'Retry-After': String(decision.retryAfterSec),
+      'Cache-Control': 'no-store',
+      'Content-Type': 'text/plain; charset=utf-8'
+    }
+  });
+}
 
-  let queryLang = event.url.searchParams.get('lang');
+// resolveLocale resolves the UI locale once per request: a valid ?lang override
+// wins (and is pinned to the switcher cookie), else the cookie, else the
+// browser's Accept-Language, else English. Admin view-as sessions always render
+// in English — their language control edits the target account preference, not
+// the administrative UI itself.
+function resolveLocale(event: Parameters<Handle>[0]['event']): ReturnType<typeof detectLocale> {
+  const queryLang = event.url.searchParams.get('lang');
   if (queryLang === 'fr' || queryLang === 'en') {
-    // If the url contains a valid lang override (e.g. from the marketing site), pin it.
     event.cookies.set(LOCALE_COOKIE, queryLang, { path: '/', maxAge: 31536000, secure: true, sameSite: 'lax' });
   }
+  if (event.locals.session?.impersonator_id) {
+    return 'en';
+  }
+  return detectLocale({
+    cookie: queryLang || event.cookies.get(LOCALE_COOKIE),
+    accept: event.request.headers.get('accept-language')
+  });
+}
 
-  // Resolve the UI locale once per request: query parameter wins (if just set), else
-  // the explicit switcher cookie, else the browser's Accept-Language, else English.
-  // Admin view-as sessions are always rendered in English. Their language
-  // control edits the target account preference; it must not translate the
-  // administrative UI itself.
-  const locale = event.locals.session?.impersonator_id
-    ? 'en'
-    : detectLocale({
-        cookie: queryLang || event.cookies.get(LOCALE_COOKIE),
-        accept: event.request.headers.get('accept-language')
-      });
-  event.locals.locale = locale;
-
-  // New Relic: name the web transaction by SvelteKit route (not the raw URL, so
-  // per-id paths group), and tag it with request/session context for faceting.
+// tagTransaction names the New Relic web transaction by SvelteKit route (so
+// per-id paths group instead of exploding by raw URL) and tags request/session
+// context for faceting.
+function tagTransaction(event: Parameters<Handle>[0]['event']): void {
   const session = event.locals.session;
   newrelic.setTransactionName(`${event.request.method} ${event.route.id ?? event.url.pathname}`);
   newrelic.addCustomAttributes({
@@ -134,6 +140,56 @@ export const handle: Handle = async ({ event, resolve }) => {
     'enduser.authenticated': !!session
   });
   if (session?.user_id) newrelic.setUserID(String(session.user_id));
+}
+
+// harden sets the security headers SvelteKit's CSP config does not own, then
+// makes HTML pages AND navigation redirects uncacheable. A SvelteKit redirect
+// carries no content-type or Cache-Control, so the text/html check alone would
+// leave 30x responses cacheable: the CF edge could then pin a stale "go here"
+// (e.g. /login or a post-action target) and replay it to the wrong
+// user/session after a deploy. __data.json is already `private, no-store` and
+// hashed /_app assets are served by sirv with their own immutable caching.
+function harden(res: Response): void {
+  res.headers.set('X-Content-Type-Options', 'nosniff');
+  res.headers.set('X-Frame-Options', 'DENY');
+  res.headers.set('Referrer-Policy', 'same-origin');
+  res.headers.set(
+    'Permissions-Policy',
+    'camera=(), microphone=(), geolocation=(), payment=(), join-ad-interest-group=(), run-ad-auction=(), shared-storage=(), browsing-topics=()'
+  );
+  res.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+
+  const ct = res.headers.get('content-type') ?? '';
+  const isRedirect = res.status >= 300 && res.status < 400;
+  if (isRedirect || ct.includes('text/html')) res.headers.set('Cache-Control', 'no-store');
+}
+
+// Session + account gates + the security headers SvelteKit's CSP config does
+// not own.
+export const handle: Handle = async ({ event, resolve }) => {
+  const cookie = event.cookies.get(COOKIE);
+  event.locals.session = cookie ? open(cookie) : null;
+  // Expired/invalid cookie: drop it eagerly so the browser stops replaying it.
+  if (cookie && !event.locals.session) {
+    event.cookies.delete(COOKIE, { path: '/', secure: event.url.protocol === 'https:' });
+  }
+
+  const limited = await enforceRateLimit(event);
+  if (limited) {
+    return limited;
+  }
+
+  // Account gates (ban / deleted account / delegation revoke / delegate scope)
+  // for every authenticated request — actions and API endpoints included, which
+  // layout loads never cover. Throws kit-native redirects; runs after the rate
+  // limiter so the gate RPCs sit behind the same request budget.
+  if (event.locals.session) {
+    event.locals.session = await guardSession(event, event.locals.session);
+  }
+
+  const locale = resolveLocale(event);
+  event.locals.locale = locale;
+  tagTransaction(event);
 
   // Compose the RUM injector with a one-shot <html lang> rewrite: the shell's
   // opening tag ships lang="en" (app.html), so patch it to the resolved locale
@@ -156,27 +212,7 @@ export const handle: Handle = async ({ event, resolve }) => {
     }
   });
 
-  res.headers.set('X-Content-Type-Options', 'nosniff');
-  res.headers.set('X-Frame-Options', 'DENY');
-  res.headers.set('Referrer-Policy', 'same-origin');
-  res.headers.set(
-    'Permissions-Policy',
-    'camera=(), microphone=(), geolocation=(), payment=(), join-ad-interest-group=(), run-ad-auction=(), shared-storage=(), browsing-topics=()'
-  );
-  res.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
-
-  // HTML pages AND navigation redirects are session-bound; never let the browser
-  // or the CF edge cache them. A SvelteKit redirect carries no content-type and
-  // no Cache-Control, so the text/html check alone leaves 30x responses
-  // cacheable: the edge can then pin a stale "go here" (e.g. /login, or a
-  // post-action target) and replay it to the wrong user/session after a deploy.
-  // SvelteKit already marks __data.json `private, no-store`; hashed /_app assets
-  // are served by sirv with their own immutable caching, so this never touches
-  // them.
-  const ct = res.headers.get('content-type') ?? '';
-  const isRedirect = res.status >= 300 && res.status < 400;
-  if (isRedirect || ct.includes('text/html')) res.headers.set('Cache-Control', 'no-store');
-
+  harden(res);
   return res;
 };
 

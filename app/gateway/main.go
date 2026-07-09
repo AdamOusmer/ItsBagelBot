@@ -68,10 +68,18 @@ func main() {
 	// providers.All returns the configured providers, which the engine
 	// subscribes. Adding an external system is a new package under
 	// internal/providers plus one line in all.go — no wiring here.
+	//
+	// GoveeKeys is the one provider dependency that needs the RPC connection:
+	// the govee provider authenticates with each broadcaster's own key, fetched
+	// just-in-time from the modules service. An empty subject prefix leaves it
+	// nil, which disables the govee provider.
 	deps := provider.Deps{
 		Cache:   core.NewCache(core.NewValkeyStore(valkeyClient)),
 		Limiter: ratelimit.New(valkeyClient),
 		Log:     log,
+	}
+	if cfg.GoveeKeySubjectPrefix != "" {
+		deps.GoveeKeys = core.NewGoveeKeyClient(nc, cfg.GoveeKeySubjectPrefix)
 	}
 
 	active := providers.All(cfg, deps)

@@ -5,8 +5,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/nats-io/nats.go"
-	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
 
 	"ItsBagelBot/app/users/repository"
@@ -19,7 +17,8 @@ type projectionRPC struct {
 	log  *zap.Logger
 }
 
-func SubscribeProjection(nc *nats.Conn, repo *repository.Users, subject, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
+func SubscribeProjection(w Wiring, subject string) error {
+	nc, repo, app, log, queueGroup := w.NC, w.Repo, w.App, w.Log, w.Queue
 	p := &projectionRPC{
 		repo: repo,
 		log:  log,

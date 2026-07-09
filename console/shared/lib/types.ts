@@ -277,6 +277,7 @@ export interface ModuleDef {
   tagline: string; // one-liner for the tile
   description: string; // longer copy for the module page
   icon: IconName;
+  category: string;
   defaultEnabled: boolean;
   // The module's configurable chat lines (the "commands" of the module page).
   replies: ModuleReply[];
@@ -287,6 +288,10 @@ export interface ModuleDef {
   // Plain non-reply settings (rendered in the settings strip). Optional; the
   // current modules have none beyond their master enable + per-reply toggles.
   settings?: ModuleField[];
+  // href overrides the tile's link when a module needs a bespoke inspector
+  // instead of the generic /modules/[id] reply page (govee's device + reward
+  // setup). Absent for the ordinary reply-configured modules.
+  href?: string;
 }
 
 // A module's current state as shown on the dashboard: catalog metadata merged
@@ -297,7 +302,7 @@ export interface ModuleState {
   config: Record<string, string>;
 }
 
-// Shared token palette + preview samples for the Bed Wars session commands
+// Shared token palette + preview samples for the Bedwars session commands
 // (!daily / !weekly / !monthly) — same template surface, one source of truth.
 const BW_SESSION_TOKENS = [
   'player',
@@ -330,6 +335,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
     description:
       'The bot screens every chat line for harmful content and coordinated raid floods, and warns, deletes, times out or bans the sender. Trusted chatters (VIPs, mods, the broadcaster) are always exempt, and anything borderline is left to your human mods. Pick a level from None to All, then fine-tune each check below. The safety floor (hate slurs and IP-grabber links) is always enforced, on every level and even with the module off: hosting those risks your channel and the bot account platform-wide. Everything else is your call.',
     icon: 'moderation',
+    category: 'Moderation',
     defaultEnabled: true,
     // AutoMod is pure configuration: no chat reply lines, only the settings strip.
     replies: [],
@@ -405,6 +411,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
     description:
       'When another channel raids in, the bot posts a shoutout pointing your chat at the raider. Turn the module on and customize the shoutout line.',
     icon: 'send',
+    category: 'Community',
     defaultEnabled: false,
     replies: [
       {
@@ -416,6 +423,14 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
         defaultMessage:
           'Massive shoutout to {raider} for the raid with {viewers} viewers! Check them out at twitch.tv/{raider.login}'
       }
+    ],
+    settings: [
+      {
+        key: 'native_shoutout',
+        label: 'Also send Twitch shoutout',
+        type: 'toggle',
+        help: "Fires Twitch's own /shoutout on the raider alongside the chat line, which shows their current category and profile card natively. Off by default."
+      }
     ]
   },
   {
@@ -425,6 +440,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
     description:
       'The bot posts a chat line when someone follows, subscribes, cheers, or raids. Turn each alert on or off and customize its message. New alerts default on.',
     icon: 'bell',
+    category: 'Community',
     defaultEnabled: true,
     replies: [
       {
@@ -470,17 +486,18 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
   // structs (app/sesame/modules/urchin.go, mcsr.go).
   {
     id: 'urchin',
-    label: 'Bed Wars Stats',
-    tagline: 'Hypixel Bed Wars stats, urchin score and blacklist tags in chat.',
+    label: 'Bedwars Stats',
+    tagline: 'Hypixel Bedwars stats, urchin score and blacklist tags in chat.',
     description:
-      'Viewer commands backed by urchin.gg: daily, weekly and monthly Bed Wars sessions, lifetime stats, the Urchin sniper score and active blacklist tags. Commands default to your linked Minecraft account; viewers can also name any player, e.g. "!daily Technoblade".',
+      'Viewer commands backed by urchin.gg: daily, weekly and monthly Bedwars sessions, lifetime stats, the Urchin sniper score and active blacklist tags. Commands default to your linked Minecraft account; viewers can also name any player, e.g. "!daily Technoblade".',
     icon: 'pulse',
+    category: 'Games',
     defaultEnabled: false,
     replies: [
       {
         key: 'daily',
         label: '!daily',
-        tagline: 'Bed Wars session since the daily reset.',
+        tagline: 'Bedwars session since the daily reset.',
         event: '!daily',
         command: 'daily',
         enableKey: 'dailyEnabled',
@@ -492,7 +509,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
       {
         key: 'weekly',
         label: '!weekly',
-        tagline: 'Bed Wars session since the weekly reset.',
+        tagline: 'Bedwars session since the weekly reset.',
         event: '!weekly',
         command: 'weekly',
         enableKey: 'weeklyEnabled',
@@ -504,7 +521,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
       {
         key: 'monthly',
         label: '!monthly',
-        tagline: 'Bed Wars session since the monthly reset.',
+        tagline: 'Bedwars session since the monthly reset.',
         event: '!monthly',
         command: 'monthly',
         enableKey: 'monthlyEnabled',
@@ -516,7 +533,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
       {
         key: 'stats',
         label: '!bwstats',
-        tagline: 'Lifetime Bed Wars stats.',
+        tagline: 'Lifetime Bedwars stats.',
         event: '!bwstats',
         command: 'bwstats',
         enableKey: 'statsEnabled',
@@ -597,6 +614,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
     description:
       'Viewer commands backed by the MCSR Ranked API: !elo shows the current rating and season record; !session shows elo and wins/losses since the stream started, snapshotting your standing the moment you go live. !elo can name any player (e.g. "!elo Feinberg"); !session always tracks your linked account.',
     icon: 'clock',
+    category: 'Games',
     defaultEnabled: false,
     replies: [
       {
@@ -656,6 +674,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
     description:
       'Viewers type !join to get in line and !list to see who is next (the first 10). You (and your mods) run the line from chat: !queue open and !queue close accept or stop new joins, !queue next pulls up the next player, !queue remove <user> takes someone out, and !queue clear empties it. Viewers can step out any time with !leave. Turn the module on to enable the commands; the line survives closing so you can play through everyone already waiting.',
     icon: 'list',
+    category: 'Community',
     defaultEnabled: false,
     // The queue posts fixed system lines (join confirmations, the roster, next-up
     // calls), not customizable templates, so there are no editable reply rows or
@@ -673,9 +692,129 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
       { trigger: '!queue remove <user>', summary: 'Take someone out of the line.', perm: 'mod' },
       { trigger: '!queue clear', summary: 'Empty the line.', perm: 'mod' }
     ]
+  },
+  {
+    id: 'govee',
+    label: 'Govee Lights',
+    tagline: 'Let viewers recolour your Govee lights with channel points.',
+    description:
+      'Viewers redeem a channel-points reward, type a colour (a name like "blue" or a hex like #00ccff), and the bot turns your Govee light on and sets it. Live only: redemptions off-stream are refunded automatically. To get your Govee API key: open the Govee Home app, tap Profile (bottom right), tap the settings gear (top right), tap "Apply for API Key", fill in the short form, and Govee emails you a key within a few minutes. Then on this page: paste the key (we store it encrypted and never show it back), pick the light to control, and create the reward.',
+    icon: 'power',
+    category: 'Community',
+    defaultEnabled: false,
+    // The generic reply page cannot express key custody + a device picker, so
+    // the tile opens a bespoke inspector instead.
+    href: '/govee',
+    replies: []
   }
+];
+
+// GOVEE_COLOR_NAMES are the colour words a viewer may type in the Govee reward
+// input. It mirrors the sesame colour parser's named palette
+// (app/sesame/modules/color.go) so the dashboard prompt/help never advertises a
+// name the bot would then refuse; viewers can always give a hex code instead.
+export const GOVEE_COLOR_NAMES: readonly string[] = [
+  'red',
+  'orange',
+  'yellow',
+  'green',
+  'lime',
+  'teal',
+  'cyan',
+  'blue',
+  'navy',
+  'purple',
+  'violet',
+  'indigo',
+  'pink',
+  'magenta',
+  'white',
+  'warm',
+  'gold'
 ];
 
 export function moduleDef(id: string): ModuleDef | undefined {
   return MODULE_CATALOG.find((m) => m.id === id);
+}
+
+// --- Channel points -------------------------------------------------------
+// The Channel Points tab (its own dashboard section, NOT a module tile) lets a
+// broadcaster create Twitch custom rewards (created under the bot's client id,
+// styled natively on Twitch) and bind each one to a bot action that runs when a
+// viewer redeems it. The Twitch-side reward is owned by outgress (broadcaster
+// token); the action binding is stored in the hidden "channelpoints" module blob
+// and read by sesame's channelpoints module.
+
+// The bot action a redemption triggers. 'chat' posts the reward's message;
+// 'none' manages the reward only, leaving just the resolution policy to act.
+export type RewardActionKind = 'chat' | 'none';
+// What to do with the redemption in Twitch's request queue after the action:
+// mark it fulfilled, cancel (refund the points), or leave it for a human mod.
+export type RewardOnRedeem = 'fulfill' | 'cancel' | 'leave';
+
+export const REWARD_ACTIONS: readonly RewardActionKind[] = ['chat', 'none'];
+export const REWARD_ON_REDEEM: readonly RewardOnRedeem[] = ['fulfill', 'cancel', 'leave'];
+
+// One channel-points reward as the dashboard works with it: the Twitch reward
+// fields plus the local action binding, merged into a single row.
+export interface ChannelPointReward {
+  // id is the Twitch-assigned custom reward id; empty only on an unsaved draft.
+  id: string;
+  title: string;
+  cost: number;
+  prompt: string;
+  backgroundColor: string;
+  isEnabled: boolean;
+  isPaused: boolean;
+  isUserInputRequired: boolean;
+  // Limit controls ("claimable once and so on").
+  maxPerStreamEnabled: boolean;
+  maxPerStream: number;
+  maxPerUserPerStreamEnabled: boolean;
+  maxPerUserPerStream: number;
+  globalCooldownEnabled: boolean;
+  globalCooldownSeconds: number;
+  // Local action binding (stored in the channelpoints module blob, read by sesame).
+  action: RewardActionKind;
+  message: string;
+  onRedeem: RewardOnRedeem;
+}
+
+// blankReward is the default draft for the "new reward" form.
+export function blankReward(): ChannelPointReward {
+  return {
+    id: '',
+    title: '',
+    cost: 100,
+    prompt: '',
+    backgroundColor: '',
+    isEnabled: true,
+    isPaused: false,
+    isUserInputRequired: false,
+    maxPerStreamEnabled: false,
+    maxPerStream: 1,
+    maxPerUserPerStreamEnabled: false,
+    maxPerUserPerStream: 1,
+    globalCooldownEnabled: false,
+    globalCooldownSeconds: 60,
+    action: 'chat',
+    message: '',
+    onRedeem: 'fulfill'
+  };
+}
+
+// One repeating chat message: stream-only (armed on stream.online, stopped on
+// stream.offline; see sesame's ValkeyTimerStore). No Twitch-side entity, so
+// unlike ChannelPointReward there is nothing to CRUD but this blob's own id.
+export interface TimerDef {
+  // id is a dashboard-generated id; empty only on an unsaved draft.
+  id: string;
+  message: string;
+  intervalSeconds: number;
+  enabled: boolean;
+}
+
+// blankTimer is the default draft for the "new timer" form.
+export function blankTimer(): TimerDef {
+  return { id: '', message: '', intervalSeconds: 600, enabled: true };
 }

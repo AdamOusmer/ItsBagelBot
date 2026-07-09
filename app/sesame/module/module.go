@@ -85,6 +85,13 @@ type Output struct {
 	TargetUserID string
 	Reason       string
 	MsgID        string
+	// Channel-points redemption-resolution fields, set only for a
+	// redemption_update Output (outgress.TypeRedemptionUpdate): RewardID is the
+	// custom reward, RedemptionID the specific redemption to resolve, and Status
+	// the new state ("FULFILLED" / "CANCELED").
+	RewardID     string
+	RedemptionID string
+	Status       string
 }
 
 // Emit publishes one Output. The callee must not retain o past the call: the

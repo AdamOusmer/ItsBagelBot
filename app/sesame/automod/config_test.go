@@ -2,10 +2,44 @@ package automod
 
 import (
 	"encoding/json"
+	"slices"
+	"strings"
 	"testing"
 
 	"ItsBagelBot/app/sesame/module"
 )
+
+// termStrings flattens normalized term bytes for one-shot comparisons.
+func termStrings(terms [][]byte) []string {
+	out := make([]string, len(terms))
+	for i, term := range terms {
+		out[i] = string(term)
+	}
+	return out
+}
+
+// sectionsOn lists which toggleable sections a resolved config enables, in a
+// stable order, so tests compare one string instead of five booleans.
+func sectionsOn(s sections) string {
+	var on []string
+	for _, f := range []struct {
+		name    string
+		enabled bool
+	}{
+		{"harassment", s.harassment},
+		{"sexual", s.sexual},
+		{"profanity", s.profanity},
+		{"style", s.style},
+		{"links", s.links},
+	} {
+		if f.enabled {
+			on = append(on, f.name)
+		}
+	}
+	return strings.Join(on, " ")
+}
+
+const allSections = "harassment sexual profanity style links"
 
 const ipLoggerLine = "claim your prize at https://grabify.link/abcd right now friends"
 
@@ -23,14 +57,17 @@ func TestParseConfig(t *testing.T) {
 	}
 	// The dashboard form writes flat strings; terms split on commas and newlines.
 	c := ParseConfig(json.RawMessage(`{"level":"all","block_terms":"BadWord, other thing\nthird","allow_terms":" okThing "}`))
-	if c == nil || c.Disabled || c.Level != LevelStrict {
+	if c == nil {
+		t.Fatal("config must parse")
+	}
+	if c.Disabled || c.Level != LevelStrict {
 		t.Fatalf("parsed config wrong: %+v", c)
 	}
-	if len(c.blockTerms) != 3 || string(c.blockTerms[0]) != "badword" || string(c.blockTerms[1]) != "other thing" || string(c.blockTerms[2]) != "third" {
-		t.Fatalf("block terms not split+normalized: %q", c.blockTerms)
+	if got := termStrings(c.blockTerms); !slices.Equal(got, []string{"badword", "other thing", "third"}) {
+		t.Fatalf("block terms not split+normalized: %q", got)
 	}
-	if len(c.allowTerms) != 1 || string(c.allowTerms[0]) != "okthing" {
-		t.Fatalf("allow term not normalized: %q", c.allowTerms)
+	if got := termStrings(c.allowTerms); !slices.Equal(got, []string{"okthing"}) {
+		t.Fatalf("allow term not normalized: %q", got)
 	}
 }
 
@@ -43,8 +80,7 @@ func TestParseConfigLegacyProfileAlias(t *testing.T) {
 }
 
 func TestSplitTerms(t *testing.T) {
-	got := splitTerms("a, b\n c ,,\n")
-	if len(got) != 3 || got[0] != "a" || got[1] != "b" || got[2] != "c" {
+	if got := splitTerms("a, b\n c ,,\n"); !slices.Equal(got, []string{"a", "b", "c"}) {
 		t.Fatalf("splitTerms = %q", got)
 	}
 	if splitTerms("") != nil {
@@ -67,18 +103,15 @@ func TestParseLevel(t *testing.T) {
 
 // resolved(): the full "none -> all" span, plus per-section override.
 func TestResolvedSections(t *testing.T) {
-	none := (&Config{Level: LevelNone}).resolved()
-	if none.harassment || none.sexual || none.profanity || none.style || none.links {
-		t.Fatalf("none must be floor-only: %+v", none)
+	if got := sectionsOn((&Config{Level: LevelNone}).resolved()); got != "" {
+		t.Fatalf("none must be floor-only, enabled: %s", got)
 	}
-	all := (&Config{Level: LevelStrict}).resolved()
-	if !(all.harassment && all.sexual && all.profanity && all.style && all.links) {
-		t.Fatalf("strict must enable every section: %+v", all)
+	if got := sectionsOn((&Config{Level: LevelStrict}).resolved()); got != allSections {
+		t.Fatalf("strict must enable every section, got: %s", got)
 	}
 	// A disabled row collapses to floor-only regardless of its level.
-	dis := (&Config{Level: LevelStrict, Disabled: true}).resolved()
-	if dis.harassment || dis.style {
-		t.Fatalf("disabled row must be floor-only: %+v", dis)
+	if got := sectionsOn((&Config{Level: LevelStrict, Disabled: true}).resolved()); got != "" {
+		t.Fatalf("disabled row must be floor-only, enabled: %s", got)
 	}
 	// Per-section override on top of a level: moderate has profanity off; turn it on.
 	over := (&Config{Level: LevelModerate, profanity: triOn}).resolved()

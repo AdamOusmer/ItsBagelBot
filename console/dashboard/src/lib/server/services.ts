@@ -24,6 +24,8 @@ export const SUB = {
   projector: process.env.NATS_PROJECTOR_DASHBOARD_SUBJECT_PREFIX ?? 'bagel.rpc.projector.dashboard',
   outgress: process.env.NATS_OUTGRESS_SYSTEM_SUBJECT ?? 'twitch.outgress.system',
   outgressRpc: process.env.NATS_OUTGRESS_RPC_PREFIX ?? 'bagel.rpc.outgress',
+  gateway: process.env.NATS_GATEWAY_SUBJECT_PREFIX ?? 'bagel.rpc.gateway',
+  goveeKey: process.env.NATS_MODULES_GOVEE_SUBJECT_PREFIX ?? 'bagel.rpc.modules.govee',
   audit: process.env.NATS_ADMIN_AUDIT_SUBJECT_PREFIX ?? 'bagel.rpc.admin.user.audit',
   delegation: process.env.NATS_DELEGATION_SUBJECT_PREFIX ?? 'bagel.rpc.delegation',
   notifications: process.env.NATS_NOTIFICATIONS_SUBJECT_PREFIX ?? 'bagel.rpc.notifications',
@@ -31,7 +33,7 @@ export const SUB = {
 };
 
 function userPrefixes(id: string): string[] {
-  return [`grant:${id}`, `account:${id}`, `tier:${id}`, `billing-state:${id}`, `commands:${id}`, `modules:${id}`, `delegations:${id}`, `locale:${id}`];
+  return [`grant:${id}`, `account:${id}`, `tier:${id}`, `billing-state:${id}`, `commands:${id}`, `modules:${id}`, `delegations:${id}`, `locale:${id}`, `govee-devices:${id}`];
 }
 
 // Scope -> cache key routing for the invalidation bus, declared as data. The
@@ -221,11 +223,33 @@ export async function publishEventSubReconnect(broadcasterId: string): Promise<v
   });
 }
 
+// Enqueue an ensure-optional job: outgress (re)creates only the optional
+// subscriptions (the channel-points redemption sub) without touching the
+// mandatory set. Idempotent (409) and non-affiliate-tolerant, so it is safe to
+// fire after every reward create/enable — it is how a channel that just gained
+// channel points (or just re-consented with the redemption scope) starts
+// receiving redemption events without a full reconnect.
+export async function publishEventSubEnsureOptional(broadcasterId: string): Promise<void> {
+  await publish(SUB.outgress, {
+    type: 'eventsub',
+    broadcaster_id: broadcasterId,
+    payload: { mode: 'ensure_optional' }
+  });
+}
+
 export type ChannelSubState = {
   state: 'ok' | 'pending' | 'failing' | 'unknown';
   error: string;
   checkedAt: string | null;
 };
+
+function unknownSubState(): ChannelSubState {
+  return { state: 'unknown', error: '', checkedAt: null };
+}
+
+function isKnownSubState(s: string): s is 'ok' | 'pending' | 'failing' {
+  return s === 'ok' || s === 'pending' || s === 'failing';
+}
 
 // Read the persisted EventSub enroll state for a channel. Fails safe: returns
 // 'unknown' on RPC error so a transient outage never blocks page render. The
@@ -238,12 +262,14 @@ export async function channelSubState(broadcasterId: string): Promise<ChannelSub
       channel?: { sub_state: string; sub_error: string; sub_checked_at: string };
     }>(`${SUB.outgressRpc}.channel.get`, { broadcaster_id: broadcasterId }, 2000);
     const c = r.channel;
-    if (!r.found || !c) return { state: 'unknown', error: '', checkedAt: null };
-    const s = (c.sub_state || '') as string;
-    const state = (s === 'ok' || s === 'pending' || s === 'failing') ? s : 'unknown';
-    return { state, error: c.sub_error || '', checkedAt: c.sub_checked_at || null };
+    if (!r.found || !c) return unknownSubState();
+    return {
+      state: isKnownSubState(c.sub_state) ? c.sub_state : 'unknown',
+      error: c.sub_error || '',
+      checkedAt: c.sub_checked_at || null
+    };
   } catch {
-    return { state: 'unknown', error: '', checkedAt: null };
+    return unknownSubState();
   }
 }
 
@@ -302,23 +328,25 @@ export async function isBanned(userId: string): Promise<boolean> {
   }
 }
 
+export type AuditEntry = {
+  actorId: string;
+  actorLogin: string;
+  action: string;
+  target: string;
+  detail: string;
+};
+
 // auditImpersonation records a dashboard write performed while an admin is
 // viewing as the user. Best-effort: a logging failure must never block the
 // action it describes, so callers fire-and-forget and we swallow errors here.
-export async function auditImpersonation(
-  actorId: string,
-  actorLogin: string,
-  action: string,
-  target: string,
-  detail: string
-): Promise<void> {
+export async function auditImpersonation(entry: AuditEntry): Promise<void> {
   try {
     await rpc(`${SUB.audit}.append`, {
-      actor_id: actorId,
-      actor_login: actorLogin,
-      action,
-      target,
-      detail,
+      actor_id: entry.actorId,
+      actor_login: entry.actorLogin,
+      action: entry.action,
+      target: entry.target,
+      detail: entry.detail,
       ok: true,
       error: ''
     });
@@ -335,13 +363,13 @@ export function auditDashboardImpersonation(
   detail = ''
 ): void {
   if (!session?.impersonator_id) return;
-  auditImpersonation(
-    session.impersonator_id,
-    session.impersonator_login ?? '',
-    `dashboard:${action}`,
-    session.user_id,
+  auditImpersonation({
+    actorId: session.impersonator_id,
+    actorLogin: session.impersonator_login ?? '',
+    action: `dashboard:${action}`,
+    target: session.user_id,
     detail
-  );
+  });
 }
 
 export const hasGrant = defineRead({
@@ -357,7 +385,7 @@ export const hasGrant = defineRead({
 });
 
 export type AccountStatus = 'free' | 'paid' | 'vip';
-export type AccountState = { active: boolean; status: AccountStatus; onboarded: boolean };
+export type AccountState = { active: boolean; status: AccountStatus; onboarded: boolean; creatorCode: string | null };
 
 function normalizeStatus(raw: string | undefined): AccountStatus {
   const s = (raw ?? 'free').toLowerCase();
@@ -370,10 +398,11 @@ function normalizeStatus(raw: string | undefined): AccountStatus {
 export const accountState = defineRead({
   subject: `${SUB.dashboard}.state_get`,
   request: (userId: string) => ({ broadcaster_user_id: userId }),
-  map: (r: { active: boolean; status: string; onboarded?: boolean }): AccountState => ({
+  map: (r: { active: boolean; status: string; onboarded?: boolean; creator_code?: string | null }): AccountState => ({
     active: !!r.active,
     status: normalizeStatus(r.status),
-    onboarded: !!r.onboarded
+    onboarded: !!r.onboarded,
+    creatorCode: r.creator_code?.trim() ? r.creator_code : null
   }),
   timeoutMs: READ_TIMEOUT_MS,
   cache: {
@@ -382,15 +411,15 @@ export const accountState = defineRead({
     policy: POLICY.entity,
     l2: async (userId: string) => {
       const u = await valkey.getUser(userId);
-      if (!u.known) return { hit: false, value: { active: false, status: 'free' as AccountStatus, onboarded: false } };
-      // Valkey L2 does not cache onboarded, so we fail the hit if we care about it, 
+      if (!u.known) return { hit: false, value: { active: false, status: 'free' as AccountStatus, onboarded: false, creatorCode: null } };
+      // Valkey L2 does not cache onboarded or creator codes, so we fail the hit if we care about it,
       // but since it's just projected data, we'll let it pass or say hit: false if we must have onboarded.
       // Actually, since we need onboarded reliably on first load, and L2 is used for fast SSR, 
       // missing it in L2 means we should probably miss the cache to fetch it from L1/RPC.
       // For now, let's just return false and let SWR correct it if it was true, but this might flash.
       // Since it's only critical when false (to show modal), assuming true here would hide the modal until SWR finishes.
       // We will assume hit: false to force an RPC call to get the authoritative onboarded state.
-      return { hit: false, value: { active: u.active, status: normalizeStatus(u.status), onboarded: false } };
+      return { hit: false, value: { active: u.active, status: normalizeStatus(u.status), onboarded: false, creatorCode: null } };
     }
   }
 });
@@ -499,23 +528,25 @@ export type CheckoutBasket = { ident: string; checkoutUrl: string | null; recipi
 
 export type CheckoutPackageType = 'single' | 'subscription';
 
-export async function checkoutBasketCreate(
-  userId: string,
-  username: string,
-  recipientUsername?: string,
-  ipAddress?: string,
-  packageType?: CheckoutPackageType,
-  giftMessage?: string
-): Promise<CheckoutBasket> {
+export type CheckoutRequest = {
+  userId: string;
+  username: string;
+  recipientUsername?: string;
+  ipAddress?: string;
+  packageType?: CheckoutPackageType;
+  giftMessage?: string;
+};
+
+export async function checkoutBasketCreate(req: CheckoutRequest): Promise<CheckoutBasket> {
   const r = await rpc<{ ident?: string; checkout_url?: string; recipient_login?: string }>(
     `${SUB.transactions}.basket_create`,
     {
-      user_id: userId,
-      username,
-      recipient_username: recipientUsername || undefined,
-      ip_address: ipAddress || undefined,
-      package_type: packageType || undefined,
-      gift_message: giftMessage || undefined
+      user_id: req.userId,
+      username: req.username,
+      recipient_username: req.recipientUsername || undefined,
+      ip_address: req.ipAddress || undefined,
+      package_type: req.packageType || undefined,
+      gift_message: req.giftMessage || undefined
     },
     16000
   );

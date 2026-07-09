@@ -1,0 +1,133 @@
+---
+import Layout from '../layouts/Layout.astro';
+import PageHero from '../components/ui/PageHero.astro';
+import LegalShell from '../components/legal/LegalShell.astro';
+
+const sections = [
+    { id: 'agreement', heading: 'Agreement', plain: 'These terms add to the main Terms of Service and apply to anyone who holds or uses a creator code.' },
+    { id: 'program', heading: 'The Creator Code Program', plain: 'Approved creators get a code. Purchases made with it support the creator, and some codes include a discount.' },
+    { id: 'eligibility', heading: 'Eligibility & Applications', plain: 'You apply, we review. Approval is at our discretion and you must stay in good standing.' },
+    { id: 'codes', heading: 'Your Code', plain: "Your code is personal and non-transferable. We can change or deactivate codes when we need to." },
+    { id: 'revenue-share', heading: 'Revenue Share & Payouts', plain: 'Your share is set when you are approved. Tebex tracks it and pays it out under their rules.' },
+    { id: 'discounts', heading: 'Buyer Discounts', plain: 'Some codes give buyers a discount at checkout. Codes have no cash value and cannot be combined.' },
+    { id: 'conduct', heading: 'Creator Conduct', plain: "Promote honestly, disclose that you earn from your code, and don't game the system." },
+    { id: 'adjustments', heading: 'Refunds, Chargebacks & Adjustments', plain: 'If a purchase is refunded or charged back, the matching share is reversed.' },
+    { id: 'termination', heading: 'Termination', plain: 'Either of us can end participation at any time. Fraud forfeits earnings.' },
+    { id: 'relationship', heading: 'Relationship', plain: "You're an independent creator, not our employee, agent, or partner." },
+    { id: 'changes', heading: 'Changes', plain: 'These terms can change; keeping your code active means you accept the new ones.' },
+    { id: 'contact', heading: 'Contact', plain: 'Questions go to support@itsbagelbot.com.' },
+];
+---
+
+<Layout title="Creator Code Terms — ItsBagelBot" description="Terms governing the ItsBagelBot creator code program: eligibility, revenue share, payouts, and creator conduct.">
+    <PageHero eyebrow="Legal" title="Creator Code Terms" description="The full text, with a plain-words note on every section." />
+
+    <LegalShell updated="July 2026" sections={sections}>
+        <Fragment slot="agreement">
+            <p>
+                These Creator Code Terms supplement the ItsBagelBot <a href="/terms">Terms of Service</a> and apply to anyone who applies for, holds, or uses a
+                creator code. By participating in the program, you agree to these terms in addition to the Terms of Service, and, where payments are involved, to
+                <a href="https://checkout.tebex.io/terms" target="_blank" rel="noopener noreferrer">Tebex's Terms and Conditions</a>. If these terms conflict with
+                the Terms of Service on a creator code matter, these terms prevail. They are governed by the same law and contact channels as the Terms of Service.
+            </p>
+        </Fragment>
+
+        <Fragment slot="program">
+            <p>
+                The creator code program lets approved creators share a personal code with their community. When a supporter uses the code at checkout, the purchase
+                is attributed to the creator, who receives a revenue share. Some codes also apply a discount to the supporter's purchase; others do not. The entire
+                program runs on Tebex, our payment and monetization platform and merchant of record: Tebex issues and tracks codes, records attributed purchases, and
+                handles creator payouts.
+            </p>
+        </Fragment>
+
+        <Fragment slot="eligibility">
+            <p>To receive a creator code, you must apply and be approved. Approval, and the terms attached to any individual code, are at our sole discretion. To participate you must:</p>
+            <ul>
+                <li>Have an ItsBagelBot account in good standing and comply with the Terms of Service and Twitch's Terms of Service</li>
+                <li>Be of the age of majority in your jurisdiction, since payouts require the capacity to enter a contract</li>
+                <li>Meet any account or verification requirements Tebex imposes for receiving payouts</li>
+            </ul>
+            <p>We may decline any application without giving a reason.</p>
+        </Fragment>
+
+        <Fragment slot="codes">
+            <p>
+                Your creator code is personal to you and non-transferable: you may not sell it, lend it, or let anyone else operate it. Whether a code carries a buyer
+                discount, and at what rate, is set per code and may differ between creators. We and Tebex may modify, suspend, or deactivate any code at any time,
+                including to correct errors, respond to abuse, or change the program. We will make reasonable efforts to notify you of changes that affect your code.
+            </p>
+        </Fragment>
+
+        <Fragment slot="revenue-share">
+            <p>
+                Your revenue share rate is communicated to you when your application is approved and may be updated with notice. Attribution, tracking, and payouts are
+                handled by Tebex as merchant of record, under Tebex's payout schedules, minimum thresholds, and terms. ItsBagelBot does not hold or transfer creator
+                funds directly.
+            </p>
+            <p>
+                You are solely responsible for any taxes, duties, or reporting obligations arising from amounts you earn through the program. Nothing in these terms
+                constitutes tax advice.
+            </p>
+        </Fragment>
+
+        <Fragment slot="discounts">
+            <p>
+                Where a code includes a buyer discount, the discount is applied at Tebex checkout and shown before payment. Codes have no cash value, cannot be
+                exchanged for money, cannot be combined with other codes or promotions unless we say otherwise, and only apply to purchases where the code is entered
+                at checkout. We may change or end a discount prospectively at any time; completed purchases are not affected.
+            </p>
+        </Fragment>
+
+        <Fragment slot="conduct">
+            <p>As a participating creator, you must not:</p>
+            <ul>
+                <li>Use your own code, or arrange purchases through intermediaries, to earn a share on your own spending</li>
+                <li>Make false or misleading claims about ItsBagelBot, the discount, or your relationship with us</li>
+                <li>Promote your code through spam, unsolicited messages, or paid ads on our name or trademarks</li>
+                <li>Encourage purchases you know are likely to be refunded or charged back</li>
+            </ul>
+            <p>
+                You must clearly disclose, where your code is promoted, that you earn from purchases made with it, as required by applicable advertising and consumer
+                protection rules.
+            </p>
+        </Fragment>
+
+        <Fragment slot="adjustments">
+            <p>
+                If a purchase attributed to your code is refunded, reversed, or charged back, the corresponding revenue share is reversed as well, and may be deducted
+                from pending or future payouts in accordance with Tebex's processes. We may also withhold or reverse amounts that we or Tebex reasonably determine
+                result from fraud, self-purchasing, or other breaches of these terms.
+            </p>
+        </Fragment>
+
+        <Fragment slot="termination">
+            <p>
+                You may leave the program at any time by asking us to deactivate your code. We may suspend or remove you from the program at any time, with or without
+                cause; where practical, we will tell you why. Legitimately earned amounts that are already payable are paid out per Tebex's terms. Amounts arising from
+                fraud or breach of these terms are forfeited. Termination of your ItsBagelBot account ends your participation automatically.
+            </p>
+        </Fragment>
+
+        <Fragment slot="relationship">
+            <p>
+                Participation in the program does not create an employment, agency, partnership, or joint venture relationship between you and ItsBagelBot. You have no
+                authority to make commitments on our behalf, and you may not present yourself as our employee or official representative.
+            </p>
+        </Fragment>
+
+        <Fragment slot="changes">
+            <p>
+                We may update these terms. Significant changes will be communicated via Discord and dashboard notifications. Continuing to hold or use a creator code
+                after changes take effect constitutes acceptance.
+            </p>
+        </Fragment>
+
+        <Fragment slot="contact">
+            <p>
+                Questions about the creator code program? Email
+                <a href="mailto:support@itsbagelbot.com">support@itsbagelbot.com</a>.
+            </p>
+        </Fragment>
+    </LegalShell>
+</Layout>

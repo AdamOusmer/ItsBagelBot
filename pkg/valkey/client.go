@@ -22,6 +22,19 @@ const localReadPort = "6379"
 //
 // Exported for testing.
 func BuildClientOption(address, password string) valkey_go.ClientOption {
+	return buildOption(address, password, true)
+}
+
+// buildOption builds a Valkey client option. replicaReads enables the
+// SendToReplicas read-offload for a Sentinel deployment.
+//
+// It MUST stay off for the pub/sub client: keyspace notifications (the expired
+// events the timer + live-recheck watchers subscribe to) are published only by
+// the master, so SendToReplicas — which routes the pub/sub SUBSCRIBE to a
+// replica — pins the subscription to a node that never emits them, silently
+// dropping every expiry. Reads still offload via the node-local client (Do),
+// so the pub/sub client losing replica-reads costs nothing.
+func buildOption(address, password string, replicaReads bool) valkey_go.ClientOption {
 	opts := valkey_go.ClientOption{
 		InitAddress:  []string{address},
 		Password:     password,
@@ -33,10 +46,12 @@ func BuildClientOption(address, password string) valkey_go.ClientOption {
 			MasterSet: "myprimary",
 			Password:  password,
 		}
-		// Without a node-local read client, fall back to sending read-only
-		// commands to a Sentinel replica. Writes still go to the master.
-		opts.SendToReplicas = func(cmd valkey_go.Completed) bool {
-			return cmd.IsReadOnly()
+		if replicaReads {
+			// Without a node-local read client, fall back to sending read-only
+			// commands to a Sentinel replica. Writes still go to the master.
+			opts.SendToReplicas = func(cmd valkey_go.Completed) bool {
+				return cmd.IsReadOnly()
+			}
 		}
 	}
 	return opts
@@ -50,10 +65,13 @@ func BuildClientOption(address, password string) valkey_go.ClientOption {
 // primary node, a replica everywhere else) it is always the lowest-latency
 // instance for pods on that node. So:
 //
-//   - writes, topology and pub/sub  -> the embedded Sentinel client, which
-//     always tracks the current master and fails over automatically;
-//   - read-only commands            -> a direct connection to NODE_IP:6379,
-//     the local instance, with no cross-node hop.
+//   - writes and topology  -> the embedded Sentinel client, which always tracks
+//     the current master and fails over automatically;
+//   - pub/sub (Receive)     -> a dedicated master-pinned Sentinel client with no
+//     replica-read offload, so expiry notifications (master-only) are actually
+//     received;
+//   - read-only commands    -> a direct connection to NODE_IP:6379, the local
+//     instance, with no cross-node hop.
 //
 // valkey-go's Sentinel client cannot prefer a local replica on its own:
 // ReadNodeSelector is cluster-mode only, and the Sentinel path picks a replica
@@ -61,6 +79,7 @@ func BuildClientOption(address, password string) valkey_go.ClientOption {
 type Client struct {
 	valkey_go.Client                  // master/write path plus everything not overridden
 	local            valkey_go.Client // node-local read path; nil when unavailable
+	pubsub           valkey_go.Client // master-pinned pub/sub path; nil for standalone
 }
 
 // Do sends read-only commands to the local instance and everything else to the
@@ -81,10 +100,25 @@ func (c *Client) DoMulti(ctx context.Context, multi ...valkey_go.Completed) []va
 	return c.Client.DoMulti(ctx, multi...)
 }
 
-// Close releases both the master/write client and the local read client.
+// Receive routes pub/sub to the master-pinned client. Keyspace notifications
+// (the expired events the timer + live-recheck watchers subscribe to) are
+// emitted only by the master; the default client's SendToReplicas read-offload
+// would otherwise pin the subscription to a replica that never delivers them.
+func (c *Client) Receive(ctx context.Context, subscribe valkey_go.Completed, fn func(msg valkey_go.PubSubMessage)) error {
+	if c.pubsub != nil {
+		return c.pubsub.Receive(ctx, subscribe, fn)
+	}
+	return c.Client.Receive(ctx, subscribe, fn)
+}
+
+// Close releases the master/write client, the local read client and the
+// master-pinned pub/sub client.
 func (c *Client) Close() {
 	if c.local != nil {
 		c.local.Close()
+	}
+	if c.pubsub != nil {
+		c.pubsub.Close()
 	}
 	c.Client.Close()
 }
@@ -111,11 +145,26 @@ func NewClient(address, password string) (valkey_go.Client, error) {
 		return nil, err
 	}
 
-	// The node-local read path only applies to a Sentinel deployment where
-	// every node hosts a Valkey instance on NODE_IP:6379.
-	nodeIP := os.Getenv("NODE_IP")
-	if nodeIP == "" || !strings.HasSuffix(address, ":26379") {
+	// Standalone (dev / single instance): that one node is the master, so its
+	// own Do/Receive already land on the right place. No wrapper needed.
+	if !strings.HasSuffix(address, ":26379") {
 		return master, nil
+	}
+
+	// Sentinel: pub/sub must be pinned to the master (no SendToReplicas) or the
+	// expiry watchers subscribe to a replica that never emits expired events.
+	pubsub, err := valkey_go.NewClient(buildOption(address, password, false))
+	if err != nil {
+		master.Close()
+		return nil, err
+	}
+	wrapped := &Client{Client: master, pubsub: pubsub}
+
+	// Node-local read path: a Sentinel deployment where every node hosts a
+	// Valkey instance on NODE_IP:6379.
+	nodeIP := os.Getenv("NODE_IP")
+	if nodeIP == "" {
+		return wrapped, nil
 	}
 
 	local, err := valkey_go.NewClient(valkey_go.ClientOption{
@@ -128,9 +177,10 @@ func NewClient(address, password string) (valkey_go.Client, error) {
 		// rather than fail the service. Reads go to a Sentinel replica;
 		// correctness is unaffected, only locality is lost.
 		log.Printf("valkey: node-local read client unavailable (%v); reading via Sentinel", err)
-		return master, nil
+		return wrapped, nil
 	}
 
 	log.Printf("valkey: reading from node-local instance %s:%s", nodeIP, localReadPort)
-	return &Client{Client: master, local: local}, nil
+	wrapped.local = local
+	return wrapped, nil
 }

@@ -54,6 +54,9 @@ type Modules struct {
 	batcher *batch.Batcher[moduleKey, data.ModuleChangedDTO]
 	app     *newrelic.Application
 	log     *zap.Logger
+	// govee is this service's per-broadcaster Govee API-key sub-store (sealed at
+	// rest). nil when no keyset is provisioned; every use is nil-safe.
+	govee *GoveeCreds
 }
 
 func NewModules(client *ent.Client, pub message.Publisher, app *newrelic.Application, log *zap.Logger) *Modules {
@@ -64,6 +67,7 @@ func NewModules(client *ent.Client, pub message.Publisher, app *newrelic.Applica
 		pub:    pub,
 		app:    app,
 		log:    log,
+		govee:  NewGoveeCredsFromEnv(client, log),
 	}
 
 	r.batcher = batch.New[moduleKey, data.ModuleChangedDTO](flushInterval, flushMaxSize, r.flush, log)
@@ -176,8 +180,28 @@ func (r *Modules) DeleteAllForUser(ctx context.Context, userID uint64) error {
 		return err
 	}
 
+	// The govee key lives outside the module rows (sealed in its own table), so
+	// it is swept here too; nil-safe and best-effort.
+	r.sweepGovee(ctx, userID)
+
 	r.Invalidate(userID)
 	return nil
+}
+
+// Govee exposes the key sub-store so the RPC layer can wire its custody verbs.
+// nil when govee key custody is disabled.
+func (r *Modules) Govee() *GoveeCreds { return r.govee }
+
+// sweepGovee removes a deleted user's stored Govee key. nil-safe (custody
+// disabled) and best-effort: a failure is logged, never propagated, since the
+// module rows are already gone and the key is unreadable without its keyset.
+func (r *Modules) sweepGovee(ctx context.Context, userID uint64) {
+	if r.govee == nil {
+		return
+	}
+	if err := r.govee.ClearKey(ctx, userID); err != nil {
+		r.log.Warn("modules: failed to clear govee key on user delete", zap.Uint64("user_id", userID), zap.Error(err))
+	}
 }
 
 // Invalidate drops the cached view of one user; called when a change event

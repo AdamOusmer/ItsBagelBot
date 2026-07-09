@@ -6,5 +6,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 )
 
+// GoveeCredential is the predicate function for goveecredential builders.
+type GoveeCredential func(*sql.Selector)
+
 // Modules is the predicate function for modules builders.
 type Modules func(*sql.Selector)

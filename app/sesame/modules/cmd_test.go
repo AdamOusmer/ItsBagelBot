@@ -63,6 +63,8 @@ func cmdDeps(proj projection.Reader, cmds engine.CommandManager) engine.Deps {
 	}
 }
 
+// cmdCtx builds a moderator chatter context: command management is mod-gated, so
+// the add/edit/remove tests run as a mod.
 func cmdCtx(chatterLogin, text string) *module.Context {
 	return &module.Context{
 		Env: lane.Envelope{
@@ -72,11 +74,20 @@ func cmdCtx(chatterLogin, text string) *module.Context {
 			ChatterUserID:        "42",
 			ChatterUserLogin:     chatterLogin,
 			Text:                 text,
+			Badges:               []lane.Badge{{SetID: "moderator"}},
 		},
 		Regress:       module.RegressPremium,
 		BroadcasterID: 100,
 		Log:           zap.NewNop(),
 	}
+}
+
+// viewerCtx is a plain (non-mod) chatter: it may fetch the public link but must
+// not manage commands.
+func viewerCtx(chatterLogin, text string) *module.Context {
+	c := cmdCtx(chatterLogin, text)
+	c.Env.Badges = nil
+	return c
 }
 
 // --- !cmd add ---
@@ -86,8 +97,6 @@ func TestCmdAddSuccess(t *testing.T) {
 	proj := &fakeProj{commands: map[string]projection.Command{}}
 	m := Cmd(cmdDeps(proj, cmds))
 	cmd := findCmd(t, m, "cmd")
-
-	assert.Equal(t, module.RoleModerator, cmd.Perm)
 
 	var col collector
 	require.NoError(t, cmd.Run(context.Background(), cmdCtx("alice", "!cmd add hello Hello world!"), "add hello Hello world!", col.emit))
@@ -220,6 +229,7 @@ func TestCmdRemoveAcceptsDeleteAlias(t *testing.T) {
 
 // --- error paths ---
 
+// A bare invocation is the public link, not a usage error.
 func TestCmdNoSubcommand(t *testing.T) {
 	cmds := &fakeCommandManager{}
 	proj := &fakeProj{commands: map[string]projection.Command{}}
@@ -230,9 +240,32 @@ func TestCmdNoSubcommand(t *testing.T) {
 	require.NoError(t, cmd.Run(context.Background(), cmdCtx("alice", "!cmd"), "", col.emit))
 
 	require.Len(t, col.out, 1)
-	assert.Contains(t, col.out[0].Text, "Usage")
+	assert.Contains(t, col.out[0].Text, "/user/100")
+	assert.Contains(t, col.out[0].Text, "channel=streamer")
+	assert.Empty(t, cmds.upsertCalls)
 }
 
+// The ?channel= label is the broadcaster's Twitch display name when the event
+// carries one, so a renamed channel shows its current cased/localized name and
+// not the lowercase login. The path stays keyed by the immutable id.
+func TestCmdLinkUsesDisplayName(t *testing.T) {
+	cmds := &fakeCommandManager{}
+	proj := &fakeProj{commands: map[string]projection.Command{}}
+	m := Cmd(cmdDeps(proj, cmds))
+	cmd := findCmd(t, m, "cmd")
+
+	c := cmdCtx("alice", "!cmd")
+	c.Env.BroadcasterUserName = "StreamerName"
+
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), c, "", col.emit))
+
+	require.Len(t, col.out, 1)
+	assert.Contains(t, col.out[0].Text, "/user/100")
+	assert.Contains(t, col.out[0].Text, "channel=StreamerName")
+}
+
+// An unknown subcommand also falls through to the public link.
 func TestCmdInvalidSubcommand(t *testing.T) {
 	cmds := &fakeCommandManager{}
 	proj := &fakeProj{commands: map[string]projection.Command{}}
@@ -243,7 +276,66 @@ func TestCmdInvalidSubcommand(t *testing.T) {
 	require.NoError(t, cmd.Run(context.Background(), cmdCtx("alice", "!cmd foobar"), "foobar", col.emit))
 
 	require.Len(t, col.out, 1)
-	assert.Contains(t, col.out[0].Text, "Usage")
+	assert.Contains(t, col.out[0].Text, "/user/100")
+}
+
+// --- public link + permission gate ---
+
+func TestCmdEveryonePermAndAliases(t *testing.T) {
+	m := Cmd(cmdDeps(&fakeProj{}, &fakeCommandManager{}))
+	cmd := findCmd(t, m, "cmd")
+
+	assert.Equal(t, module.RoleEveryone, cmd.Perm)
+	assert.ElementsMatch(t, []string{"cmds", "command", "commands"}, cmd.Aliases)
+}
+
+func TestCmdLinkForViewer(t *testing.T) {
+	cmds := &fakeCommandManager{}
+	proj := &fakeProj{commands: map[string]projection.Command{}}
+	m := Cmd(cmdDeps(proj, cmds))
+	cmd := findCmd(t, m, "cmd")
+
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), viewerCtx("vic", "!cmds"), "", col.emit))
+
+	require.Len(t, col.out, 1)
+	assert.Contains(t, col.out[0].Text, "@vic")
+	assert.Contains(t, col.out[0].Text, "/user/100")
+	assert.Contains(t, col.out[0].Text, "channel=streamer")
+	assert.Empty(t, cmds.upsertCalls)
+}
+
+// A viewer who tries a management subcommand is denied the mutation and handed
+// the link instead.
+func TestCmdManageDeniedForViewer(t *testing.T) {
+	cmds := &fakeCommandManager{}
+	proj := &fakeProj{commands: map[string]projection.Command{}}
+	m := Cmd(cmdDeps(proj, cmds))
+	cmd := findCmd(t, m, "cmd")
+
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), viewerCtx("vic", "!cmd add hi yo"), "add hi yo", col.emit))
+
+	assert.Empty(t, cmds.upsertCalls, "viewer must not manage commands")
+	require.Len(t, col.out, 1)
+	assert.Contains(t, col.out[0].Text, "/user/100")
+}
+
+// A configured PublicBaseURL is used verbatim, minus any trailing slash.
+func TestCmdLinkUsesConfiguredBase(t *testing.T) {
+	cmds := &fakeCommandManager{}
+	proj := &fakeProj{commands: map[string]projection.Command{}}
+	d := cmdDeps(proj, cmds)
+	d.PublicBaseURL = "https://staging.example.com/"
+	m := Cmd(d)
+	cmd := findCmd(t, m, "cmd")
+
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), viewerCtx("vic", "!command"), "", col.emit))
+
+	require.Len(t, col.out, 1)
+	assert.Contains(t, col.out[0].Text, "https://staging.example.com/user/100")
+	assert.NotContains(t, col.out[0].Text, "example.com//user")
 }
 
 func TestCmdAddRPCError(t *testing.T) {

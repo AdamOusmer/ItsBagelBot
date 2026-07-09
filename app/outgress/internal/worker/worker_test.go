@@ -108,22 +108,38 @@ func TestGeneralHelixRequestsUseTokenSpecificBuckets(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			_, shared := generalHelixRequests(tc.message)
-			if shared.Key != tc.sharedKey || shared.DynamicPrefix != tc.sharedPref ||
-				shared.Bucket.Scope != tc.scope || shared.Bucket.Value != tc.value {
-				t.Fatalf("shared request = %+v", shared)
+			got := [4]string{shared.Key, shared.DynamicPrefix, shared.Bucket.Scope, shared.Bucket.Value}
+			want := [4]string{tc.sharedKey, tc.sharedPref, tc.scope, tc.value}
+			if got != want {
+				t.Fatalf("shared request (key/prefix/scope/value) = %v, want %v", got, want)
 			}
 		})
 	}
 }
 
-func TestWithField(t *testing.T) {
-	tests := []struct {
-		name  string
-		body  []byte
-		field string
-		value string
-		want  string
-	}{
+type withFieldCase struct {
+	name  string
+	body  []byte
+	field string
+	value string
+	want  string
+}
+
+func runWithFieldCases(t *testing.T, cases []withFieldCase) {
+	t.Helper()
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := string(withField(tc.body, tc.field, tc.value))
+			if got != tc.want {
+				t.Fatalf("withField(%q, %q, %q) = %q, want %q",
+					tc.body, tc.field, tc.value, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestWithFieldObjectBodies(t *testing.T) {
+	runWithFieldCases(t, []withFieldCase{
 		{
 			name:  "empty object gets bare field",
 			body:  []byte(`{}`),
@@ -160,18 +176,23 @@ func TestWithField(t *testing.T) {
 			want:  `{   "color":"primary"}`,
 		},
 		{
-			name:  "nil body produces minimal object",
-			body:  nil,
-			field: "sender_id",
-			value: "x",
-			want:  `{"sender_id":"x"}`,
-		},
-		{
 			name:  "color merges into message body",
 			body:  []byte(`{"message":"hello"}`),
 			field: "color",
 			value: "blue",
 			want:  `{"message":"hello","color":"blue"}`,
+		},
+	})
+}
+
+func TestWithFieldNonObjectBodies(t *testing.T) {
+	runWithFieldCases(t, []withFieldCase{
+		{
+			name:  "nil body produces minimal object",
+			body:  nil,
+			field: "sender_id",
+			value: "x",
+			want:  `{"sender_id":"x"}`,
 		},
 		{
 			name:  "top-level array body returned unchanged",
@@ -201,17 +222,7 @@ func TestWithField(t *testing.T) {
 			value: "x",
 			want:  `{"sender_id":"x"}`,
 		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			got := string(withField(tc.body, tc.field, tc.value))
-			if got != tc.want {
-				t.Fatalf("withField(%q, %q, %q) = %q, want %q",
-					tc.body, tc.field, tc.value, got, tc.want)
-			}
-		})
-	}
+	})
 }
 
 func TestWithSenderIDWrapsWithField(t *testing.T) {
@@ -262,23 +273,25 @@ func TestShoutoutEndpoint(t *testing.T) {
 	}
 }
 
+// assertRoute pins one type's Helix routing: method, endpoint, and token
+// identity.
+func assertRoute(t *testing.T, typ string, want helixRoute) {
+	t.Helper()
+	route, ok := typeRoutes[typ]
+	if !ok {
+		t.Fatalf("%s has no type route", typ)
+	}
+	if route != want {
+		t.Fatalf("%s route = %+v, want %+v", typ, route, want)
+	}
+}
+
 // TestShieldModeRoute pins the Shield Mode routing: a PUT to the moderation
 // shield_mode endpoint under the bot's moderator token, so the automod's
 // mass-raid escalation lands as a moderator action, not an app call.
 func TestShieldModeRoute(t *testing.T) {
-	route, ok := typeRoutes[outgress.TypeShieldMode]
-	if !ok {
-		t.Fatal("shield_mode has no type route")
-	}
-	if route.method != http.MethodPut {
-		t.Fatalf("shield_mode method = %q, want PUT", route.method)
-	}
-	if route.endpoint != "/helix/moderation/shield_mode" {
-		t.Fatalf("shield_mode endpoint = %q", route.endpoint)
-	}
-	if route.as != outgress.AsBot {
-		t.Fatalf("shield_mode identity = %q, want %q", route.as, outgress.AsBot)
-	}
+	assertRoute(t, outgress.TypeShieldMode,
+		helixRoute{http.MethodPut, "/helix/moderation/shield_mode", outgress.AsBot})
 }
 
 // TestShieldModeEndpoint mirrors the query-param assembly processShieldMode uses:
@@ -295,14 +308,10 @@ func TestShieldModeEndpoint(t *testing.T) {
 // TestDeleteAndWarnRoutes pins the moderator-action routing for the automod's
 // delete (Delete Chat Messages) and warn (Warn Chat User) intents.
 func TestDeleteAndWarnRoutes(t *testing.T) {
-	del, ok := typeRoutes[outgress.TypeDelete]
-	if !ok || del.method != http.MethodDelete || del.endpoint != "/helix/moderation/chat" || del.as != outgress.AsBot {
-		t.Fatalf("delete route = %+v", del)
-	}
-	warn, ok := typeRoutes[outgress.TypeWarn]
-	if !ok || warn.method != http.MethodPost || warn.endpoint != "/helix/moderation/warnings" || warn.as != outgress.AsBot {
-		t.Fatalf("warn route = %+v", warn)
-	}
+	assertRoute(t, outgress.TypeDelete,
+		helixRoute{http.MethodDelete, "/helix/moderation/chat", outgress.AsBot})
+	assertRoute(t, outgress.TypeWarn,
+		helixRoute{http.MethodPost, "/helix/moderation/warnings", outgress.AsBot})
 }
 
 // TestDeleteEndpoint pins the query assembly processDelete uses: all three ids

@@ -43,6 +43,16 @@ type Provider interface {
 	Endpoints() []Endpoint
 }
 
+// GoveeKeyResolver hands the govee provider the decrypted Govee API key for one
+// broadcaster, resolved from the modules service over an internal RPC. It is
+// the gateway's twin of outgress's tokenstore: the service that dials the
+// upstream fetches the sealed credential just-in-time instead of holding a
+// copy. An empty key with a nil error means the broadcaster has none on file
+// (govee not set up), which the provider reports as a friendly reply error.
+type GoveeKeyResolver interface {
+	Key(ctx context.Context, broadcasterID string) (string, error)
+}
+
 // Deps is the bundle of runtime services a provider captures when it is built,
 // mirroring sesame's engine.Deps: main constructs it once and hands it to
 // providers.All. Not every provider uses every field; unused ones are harmless.
@@ -50,4 +60,8 @@ type Deps struct {
 	Cache   *core.Cache
 	Limiter *ratelimit.Limiter
 	Log     *zap.Logger
+	// GoveeKeys resolves per-broadcaster Govee API keys for the govee provider.
+	// nil disables that provider (providers.All skips it), the same degrade as a
+	// missing service API key.
+	GoveeKeys GoveeKeyResolver
 }

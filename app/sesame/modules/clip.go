@@ -74,7 +74,7 @@ func clipRun(d engine.Deps, log *zap.Logger) module.RunFunc {
 			Type:          outgress.TypeClip,
 			BroadcasterID: c.Env.BroadcasterUserID,
 			Text:          strings.TrimSpace(args), // clip title, sent to Twitch and echoed
-			To:            c.Env.ChatterUserLogin,  // the clipper, named in the reply
+			To:            c.Env.ChatterName(),     // the clipper's display name, in the reply
 			Duration:      clipDuration(c.Num),     // inline !clipN, clamped to Twitch's 5–60
 			Template:      reply,                   // custom reply template; empty = default
 		})

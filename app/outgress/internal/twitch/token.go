@@ -33,17 +33,40 @@ type Source struct {
 	group   singleflight.Group
 }
 
+// ClientCredentials is the Twitch application's client id + secret, presented
+// on every OAuth token grant (client-credentials and refresh-token alike).
+type ClientCredentials struct {
+	ID     string
+	Secret string
+}
+
+// appGrant builds the client-credentials form (app access token).
+func (c ClientCredentials) appGrant() url.Values {
+	return url.Values{
+		"client_id":     {c.ID},
+		"client_secret": {c.Secret},
+		"grant_type":    {"client_credentials"},
+	}
+}
+
+// refreshGrant builds the refresh-token form (user access token) for one
+// refresh token.
+func (c ClientCredentials) refreshGrant(refreshToken string) url.Values {
+	return url.Values{
+		"client_id":     {c.ID},
+		"client_secret": {c.Secret},
+		"grant_type":    {"refresh_token"},
+		"refresh_token": {refreshToken},
+	}
+}
+
 // NewAppTokenSource mints app access tokens through the client credentials
 // grant. App tokens authorize most Helix endpoints the bot calls.
-func NewAppTokenSource(clientID, clientSecret string) *Source {
+func NewAppTokenSource(creds ClientCredentials) *Source {
 
 	return &Source{refresh: func(ctx context.Context) (string, time.Duration, error) {
 
-		res, err := postToken(ctx, url.Values{
-			"client_id":     {clientID},
-			"client_secret": {clientSecret},
-			"grant_type":    {"client_credentials"},
-		})
+		res, err := postToken(ctx, creds.appGrant())
 		if err != nil {
 			return "", 0, err
 		}
@@ -55,18 +78,13 @@ func NewAppTokenSource(clientID, clientSecret string) *Source {
 // NewUserTokenSource mints user access tokens for the bot account through
 // the refresh token grant. Twitch may rotate the refresh token on every
 // renewal, so the latest one is kept in memory.
-func NewUserTokenSource(clientID, clientSecret, refreshToken string) *Source {
+func NewUserTokenSource(creds ClientCredentials, refreshToken string) *Source {
 
 	current := refreshToken
 
 	return &Source{refresh: func(ctx context.Context) (string, time.Duration, error) {
 
-		res, err := postToken(ctx, url.Values{
-			"client_id":     {clientID},
-			"client_secret": {clientSecret},
-			"grant_type":    {"refresh_token"},
-			"refresh_token": {current},
-		})
+		res, err := postToken(ctx, creds.refreshGrant(current))
 		if err != nil {
 			return "", 0, err
 		}
@@ -79,34 +97,33 @@ func NewUserTokenSource(clientID, clientSecret, refreshToken string) *Source {
 	}}
 }
 
+// StoredTokenIO wires a stored user token to the users service: load runs
+// before every renewal (so a token the operator installs through the admin
+// panel takes effect without a restart), and persist runs after every rotation
+// (so a restart never resurrects a stale refresh token). load returning "" means
+// "keep what you have".
+type StoredTokenIO struct {
+	Load    func(ctx context.Context) string
+	Persist func(ctx context.Context, accessToken, refreshToken string)
+}
+
 // NewStoredUserTokenSource works like NewUserTokenSource but sources the
-// refresh token from the users service instead of the environment: load runs
-// before every renewal, so a token the operator installs through the admin
-// panel takes effect without a restart, and persist runs after every
-// rotation, so a restart never resurrects a stale refresh token.
-// fallbackRefresh seeds the chain while the store is empty; load returning
-// "" means "keep what you have".
-func NewStoredUserTokenSource(clientID, clientSecret, fallbackRefresh string,
-	load func(ctx context.Context) string,
-	persist func(ctx context.Context, accessToken, refreshToken string)) *Source {
+// refresh token from the users service instead of the environment.
+// fallbackRefresh seeds the chain while the store is empty.
+func NewStoredUserTokenSource(creds ClientCredentials, fallbackRefresh string, io StoredTokenIO) *Source {
 
 	current := fallbackRefresh
 
 	return &Source{refresh: func(ctx context.Context) (string, time.Duration, error) {
 
-		if stored := load(ctx); stored != "" {
+		if stored := io.Load(ctx); stored != "" {
 			current = stored
 		}
 		if current == "" {
 			return "", 0, errors.New("no bot refresh token available")
 		}
 
-		res, err := postToken(ctx, url.Values{
-			"client_id":     {clientID},
-			"client_secret": {clientSecret},
-			"grant_type":    {"refresh_token"},
-			"refresh_token": {current},
-		})
+		res, err := postToken(ctx, creds.refreshGrant(current))
 		if err != nil {
 			return "", 0, err
 		}
@@ -114,7 +131,7 @@ func NewStoredUserTokenSource(clientID, clientSecret, fallbackRefresh string,
 		if res.RefreshToken != "" {
 			current = res.RefreshToken
 		}
-		persist(ctx, res.AccessToken, current)
+		io.Persist(ctx, res.AccessToken, current)
 
 		return res.AccessToken, time.Duration(res.ExpiresIn) * time.Second, nil
 	}}

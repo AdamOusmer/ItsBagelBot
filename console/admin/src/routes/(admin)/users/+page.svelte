@@ -263,7 +263,11 @@
             onclick={() => openUser(u)}
             onkeydown={(e) => handleRowKey(e, u)}
           >
-            <span class="cmd">@{u.username}{#if u.banned}<span class="badge banned">banned</span>{/if}</span>
+            <span class="cmd">
+              @{u.username}
+              {#if u.creator_code}<span class="badge creator-mini">{u.creator_code}</span>{/if}
+              {#if u.banned}<span class="badge banned">banned</span>{/if}
+            </span>
             <span class="resp">{u.id}</span>
             <span class="perm-cell"><span class="badge {tier(u.status) === 'premium' ? 'sub' : 'everyone'}">{tier(u.status)}</span></span>
             <span class="cd">{u.status}</span>
@@ -328,6 +332,9 @@
         {/if}
         <div class="meta-line"><span class="meta-k">State</span><span class="meta-v">{drawerUser.is_active ? 'active' : 'inactive'}</span></div>
         <div class="meta-line"><span class="meta-k">Ban</span><span class="meta-v">{drawerUser.banned ? 'banned' : 'allowed'}</span></div>
+        {#if drawerUser.creator_code}
+          <div class="meta-line"><span class="meta-k">Creator</span><span class="creator-code">{drawerUser.creator_code}</span></div>
+        {/if}
         <div class="meta-line">
           <span class="meta-k">Token</span>
           <span class="meta-v">{drawerToken === undefined ? 'unknown' : drawerToken ? 'present' : 'absent'}</span>
@@ -341,6 +348,33 @@
       {#if action}
         <p class="notice-{action.ok ? 'ok' : 'err'}">{action.notice}</p>
       {/if}
+
+      <!-- Creator code -->
+      <div class="field">
+        <span class="field-label">Creator code</span>
+        <form method="POST" action="?/setCreatorCode" use:enhance={refresh} class="creator-form">
+          <input type="hidden" name="user_id" value={drawerUser.id} />
+          <label class="creator-input">
+            <Icon name="card" size={14} />
+            <input
+              name="creator_code"
+              type="text"
+              maxlength="64"
+              value={drawerUser.creator_code ?? ''}
+              placeholder="MAVEY10"
+              autocomplete="off"
+            />
+          </label>
+          <button class="btn ghost creator-save" type="submit"><Icon name="check" size={13} /> Save</button>
+        </form>
+        {#if drawerUser.creator_code}
+          <form method="POST" action="?/setCreatorCode" use:enhance={refresh} class="creator-clear-form">
+            <input type="hidden" name="user_id" value={drawerUser.id} />
+            <input type="hidden" name="creator_code" value="" />
+            <button class="btn ghost block creator-clear" type="submit"><Icon name="x" size={13} /> Clear creator code</button>
+          </form>
+        {/if}
+      </div>
 
       <!-- Tier segment -->
       <div class="field">
@@ -563,6 +597,28 @@
     background: rgba(176, 90, 70, 0.18); color: #cf8a78;
     border: 1px solid rgba(176, 90, 70, 0.4);
   }
+  .badge.creator-mini,
+  .creator-code {
+    display: inline-flex;
+    align-items: center;
+    max-width: 18ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--bb-font-mono);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    color: var(--bb-tan-pale);
+    background: rgba(201, 168, 124, 0.1);
+    border: 1px solid rgba(201, 168, 124, 0.28);
+    border-radius: var(--bb-radius-pill, 999px);
+    padding: 3px 8px;
+  }
+  .badge.creator-mini { margin-left: .4rem; }
+  .creator-code {
+    max-width: 22ch;
+    justify-content: flex-end;
+  }
 
   /* sub-state row + badges */
   .sub-state-row {
@@ -782,6 +838,37 @@
     color: var(--bb-muted); margin-bottom: .55rem;
   }
   .field form { display: block; }
+  .creator-form {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: .5rem;
+    align-items: center;
+  }
+  .creator-input {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    min-width: 0;
+    padding: 9px 11px;
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    background: rgba(255,255,255,0.025);
+    color: var(--bb-tan-light);
+  }
+  .creator-input input {
+    min-width: 0;
+    width: 100%;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--bb-white);
+    font: 500 13px var(--bb-font-mono);
+    letter-spacing: 0.02em;
+  }
+  .creator-input input::placeholder { color: rgba(255,255,255,.28); }
+  .creator-save { height: 40px; }
+  .creator-clear-form { margin-top: .5rem; }
+  .creator-clear { color: var(--bb-muted); }
   .action-stack { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; }
 
   /* tier segment */
@@ -878,6 +965,9 @@
       grid-template-columns: 1fr;
     }
     .action-stack {
+      grid-template-columns: 1fr;
+    }
+    .creator-form {
       grid-template-columns: 1fr;
     }
     @keyframes sheet-in { to { transform: translateY(0); } }

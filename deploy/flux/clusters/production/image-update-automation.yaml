@@ -4,6 +4,16 @@
 # No build loop: deploy/k8s/* changes do NOT match the publish-images.yml path filter
 # (which only matches app/<svc>/*, pkg/*, .containerignore, go.mod, go.sum, and the
 # workflow file itself), so Flux commits here never trigger a new CI image build.
+#
+# interval is a BACKSTOP, not the hot path. The image pipeline is event-driven:
+# GHCR publish -> GitHub `package` webhook -> github-image-receiver reconciles the
+# ImageRepository -> image-reflector re-evaluates the ImagePolicy (it watches its
+# ImageRepository) -> image-automation-controller reconciles THIS automation (it
+# watches ImagePolicy) -> pin commit. So a new image is pinned within seconds of
+# publish without waiting out any interval. 1h only bounds recovery if a webhook
+# is missed (delivery failure / controller restart); do NOT drop it back to
+# minutes to "speed up deploys" — the webhook chain already does that. Same
+# rationale applies to the ImageRepository/ImagePolicy intervals in ./images.
 ---
 apiVersion: image.toolkit.fluxcd.io/v1beta2
 kind: ImageUpdateAutomation
@@ -11,7 +21,7 @@ metadata:
   name: bagelbot-apps
   namespace: flux-system
 spec:
-  interval: 5m
+  interval: 1h
   sourceRef:
     kind: GitRepository
     name: flux-system

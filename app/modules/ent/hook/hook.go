@@ -8,6 +8,18 @@ import (
 	"fmt"
 )
 
+// The GoveeCredentialFunc type is an adapter to allow the use of ordinary
+// function as GoveeCredential mutator.
+type GoveeCredentialFunc func(context.Context, *ent.GoveeCredentialMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f GoveeCredentialFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.GoveeCredentialMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.GoveeCredentialMutation", m)
+}
+
 // The ModulesFunc type is an adapter to allow the use of ordinary
 // function as Modules mutator.
 type ModulesFunc func(context.Context, *ent.ModulesMutation) (ent.Value, error)

@@ -31,7 +31,7 @@ export const sampleSnapshot: ShardSnapshot = {
 };
 
 export const sampleUsers: AdminUserWire[] = [
-  { id: 44322190, username: 'itsmavey', is_active: true, status: 'vip', banned: false, updated_at: new Date().toISOString() },
+  { id: 44322190, username: 'itsmavey', is_active: true, status: 'vip', banned: false, creator_code: 'MAVEY10', updated_at: new Date().toISOString() },
   { id: 81002934, username: 'ferret_king', is_active: true, status: 'paid', banned: false, updated_at: new Date().toISOString() },
   { id: 23910044, username: 'bagel_enjoyer', is_active: true, status: 'free', banned: false, updated_at: new Date().toISOString() },
   { id: 70113355, username: 'kettle', is_active: false, status: 'free', banned: true, updated_at: new Date().toISOString() },

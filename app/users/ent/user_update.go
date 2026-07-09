@@ -125,6 +125,26 @@ func (_u *UserUpdate) SetNillableLocale(v *string) *UserUpdate {
 	return _u
 }
 
+// SetCreatorCode sets the "creator_code" field.
+func (_u *UserUpdate) SetCreatorCode(v string) *UserUpdate {
+	_u.mutation.SetCreatorCode(v)
+	return _u
+}
+
+// SetNillableCreatorCode sets the "creator_code" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableCreatorCode(v *string) *UserUpdate {
+	if v != nil {
+		_u.SetCreatorCode(*v)
+	}
+	return _u
+}
+
+// ClearCreatorCode clears the value of the "creator_code" field.
+func (_u *UserUpdate) ClearCreatorCode() *UserUpdate {
+	_u.mutation.ClearCreatorCode()
+	return _u
+}
+
 // SetSubscriptionSource sets the "subscription_source" field.
 func (_u *UserUpdate) SetSubscriptionSource(v string) *UserUpdate {
 	_u.mutation.SetSubscriptionSource(v)
@@ -387,6 +407,11 @@ func (_u *UserUpdate) check() error {
 			return &ValidationError{Name: "locale", err: fmt.Errorf(`ent: validator failed for field "User.locale": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.CreatorCode(); ok {
+		if err := user.CreatorCodeValidator(v); err != nil {
+			return &ValidationError{Name: "creator_code", err: fmt.Errorf(`ent: validator failed for field "User.creator_code": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -425,6 +450,12 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.Locale(); ok {
 		_spec.SetField(user.FieldLocale, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.CreatorCode(); ok {
+		_spec.SetField(user.FieldCreatorCode, field.TypeString, value)
+	}
+	if _u.mutation.CreatorCodeCleared() {
+		_spec.ClearField(user.FieldCreatorCode, field.TypeString)
 	}
 	if value, ok := _u.mutation.SubscriptionSource(); ok {
 		_spec.SetField(user.FieldSubscriptionSource, field.TypeString, value)
@@ -629,6 +660,26 @@ func (_u *UserUpdateOne) SetNillableLocale(v *string) *UserUpdateOne {
 	if v != nil {
 		_u.SetLocale(*v)
 	}
+	return _u
+}
+
+// SetCreatorCode sets the "creator_code" field.
+func (_u *UserUpdateOne) SetCreatorCode(v string) *UserUpdateOne {
+	_u.mutation.SetCreatorCode(v)
+	return _u
+}
+
+// SetNillableCreatorCode sets the "creator_code" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableCreatorCode(v *string) *UserUpdateOne {
+	if v != nil {
+		_u.SetCreatorCode(*v)
+	}
+	return _u
+}
+
+// ClearCreatorCode clears the value of the "creator_code" field.
+func (_u *UserUpdateOne) ClearCreatorCode() *UserUpdateOne {
+	_u.mutation.ClearCreatorCode()
 	return _u
 }
 
@@ -907,6 +958,11 @@ func (_u *UserUpdateOne) check() error {
 			return &ValidationError{Name: "locale", err: fmt.Errorf(`ent: validator failed for field "User.locale": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.CreatorCode(); ok {
+		if err := user.CreatorCodeValidator(v); err != nil {
+			return &ValidationError{Name: "creator_code", err: fmt.Errorf(`ent: validator failed for field "User.creator_code": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -962,6 +1018,12 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	}
 	if value, ok := _u.mutation.Locale(); ok {
 		_spec.SetField(user.FieldLocale, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.CreatorCode(); ok {
+		_spec.SetField(user.FieldCreatorCode, field.TypeString, value)
+	}
+	if _u.mutation.CreatorCodeCleared() {
+		_spec.ClearField(user.FieldCreatorCode, field.TypeString)
 	}
 	if value, ok := _u.mutation.SubscriptionSource(); ok {
 		_spec.SetField(user.FieldSubscriptionSource, field.TypeString, value)

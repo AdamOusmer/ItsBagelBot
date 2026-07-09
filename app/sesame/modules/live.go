@@ -47,6 +47,10 @@ func Live(d engine.Deps) module.Module {
 			if err := d.Greet.ResetGreets(wctx, id); err != nil {
 				log.Warn("live: failed to reset greets", zap.Uint64("broadcaster_id", id), zap.Error(err))
 			}
+			// New session: every repeating timer starts its countdown fresh.
+			if d.Timers != nil {
+				d.Timers.ArmAll(wctx, id)
+			}
 		}()
 		
 		emit(&module.Output{
@@ -66,6 +70,11 @@ func Live(d engine.Deps) module.Module {
 			defer cancel()
 			if err := d.Live.ClearLive(wctx, id); err != nil {
 				log.Warn("live: failed to clear live", zap.Uint64("broadcaster_id", id), zap.Error(err))
+			}
+			// Stream ended: stop every repeating timer immediately rather than
+			// waiting out its longest-running interval.
+			if d.Timers != nil {
+				d.Timers.DisarmAll(wctx, id)
 			}
 		}()
 		log.Debug("stream offline", zap.Uint64("broadcaster_id", id))
