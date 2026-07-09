@@ -19,16 +19,15 @@
     "svelte": "^5.56.4",
     "svelte-check": "^4.7.1",
     "typescript": "^5.9.3",
-    "vite": "^6.4.3"
+    "vite": "^8.0.0"
   },
   "dependencies": {
     "mysql2": "^3.22.5",
     "sirv": "^3.0.2"
   },
   "overrides": {
-    "uuid": "^11.1.1",
+    "uuid": "^14.0.0",
     "@opentelemetry/core": "^2.8.0",
-    "cookie": "^0.7.0",
-    "esbuild": "^0.25.0"
+    "cookie": "^0.7.0"
   }
 }
