@@ -267,10 +267,15 @@ func validateControlInput(req gatewayrpc.Request) string {
 		return "missing device"
 	}
 	// A power-off carries no colour; only validate the colour on a colour set.
-	if !req.PowerOff && (req.ColorRGB < 0 || req.ColorRGB > 0xFFFFFF) {
+	if !req.PowerOff && !validColorRGB(req.ColorRGB) {
 		return "colour out of range"
 	}
 	return ""
+}
+
+// validColorRGB reports whether rgb is a packed 24-bit colour (0..0xFFFFFF).
+func validColorRGB(rgb int) bool {
+	return rgb >= 0 && rgb <= 0xFFFFFF
 }
 
 // controlKey resolves the broadcaster's key, returning ("", msg) with a
