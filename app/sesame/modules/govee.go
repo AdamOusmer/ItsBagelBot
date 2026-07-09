@@ -81,50 +81,65 @@ func goveeRedemption(d engine.Deps) module.EventHandler {
 		if !ok {
 			return nil
 		}
+		r := goveeRun{d: d, emit: emit, ev: ev, cfg: cfg}
 		if !goveeLivePermits(ctx, d, cfg, c.BroadcasterID) {
-			goveeRefund(emit, ev, "the lights only change while live, your points were refunded")
+			r.refund("the lights only change while live, your points were refunded")
 			return nil
 		}
-
-		input := strings.TrimSpace(ev.UserInput)
-
-		// Opt-in off action: a viewer typing "off" turns the light off. Only when
-		// the broadcaster enabled it; otherwise "off" falls through to parseColor
-		// and refunds as an unrecognized colour.
-		if cfg.AllowOff && isOffInput(input) {
-			if err := goveeControl(ctx, d, ev, cfg, gatewayrpc.Request{PowerOff: true}); err != nil {
-				goveeRefund(emit, ev, goveeFailureMessage(err))
-				return nil
-			}
-			goveeChat(emit, ev, renderGoveeReply(cfg.ReplyMessage, ev, "off"))
-			emitRedemptionStatus(emit, ev, goveeSuccessStatus(cfg.OnRedeem))
-			return nil
-		}
-
-		rgb, ok := parseColor(input)
-		if !ok {
-			goveeRefund(emit, ev, "didn't recognize that colour, your points were refunded (try a name like blue, or a hex like #00ccff)")
-			return nil
-		}
-		if err := goveeControl(ctx, d, ev, cfg, gatewayrpc.Request{ColorRGB: rgb}); err != nil {
-			goveeRefund(emit, ev, goveeFailureMessage(err))
-			return nil
-		}
-
-		goveeChat(emit, ev, renderGoveeReply(cfg.ReplyMessage, ev, input))
-		emitRedemptionStatus(emit, ev, goveeSuccessStatus(cfg.OnRedeem))
+		r.apply(ctx)
 		return nil
 	}
 }
 
-// goveeControl issues one gateway control call for this redemption, filling the
+// goveeRun is one redemption in flight: the deps plus the decoded event and
+// binding. The action helpers hang off it so they pass state through the
+// receiver instead of a long argument list.
+type goveeRun struct {
+	d    engine.Deps
+	emit module.Emit
+	ev   redemptionEvent
+	cfg  goveeConfig
+}
+
+// apply resolves the viewer's input to an off action or a colour, drives the
+// light, and resolves the redemption — refunding on an unrecognized colour or a
+// gateway failure.
+func (r goveeRun) apply(ctx context.Context) {
+	req, label, ok := goveeIntent(r.cfg, strings.TrimSpace(r.ev.UserInput))
+	if !ok {
+		r.refund("didn't recognize that colour, your points were refunded (try a name like blue, or a hex like #00ccff)")
+		return
+	}
+	if err := r.control(ctx, req); err != nil {
+		r.refund(goveeFailureMessage(err))
+		return
+	}
+	r.chat(renderGoveeReply(r.cfg.ReplyMessage, r.ev, label))
+	emitRedemptionStatus(r.emit, r.ev, goveeSuccessStatus(r.cfg.OnRedeem))
+}
+
+// control issues one gateway control call for this redemption, filling the
 // broadcaster + device fields around the caller's colour/off intent.
-func goveeControl(ctx context.Context, d engine.Deps, ev redemptionEvent, cfg goveeConfig, req gatewayrpc.Request) error {
-	req.ChannelID = ev.BroadcasterUserID
-	req.Device = cfg.Device
-	req.SKU = cfg.SKU
+func (r goveeRun) control(ctx context.Context, req gatewayrpc.Request) error {
+	req.ChannelID = r.ev.BroadcasterUserID
+	req.Device = r.cfg.Device
+	req.SKU = r.cfg.SKU
 	var reply gatewayrpc.GoveeControlReply
-	return d.Gateway.Call(ctx, "govee", "control", req, &reply)
+	return r.d.Gateway.Call(ctx, "govee", "control", req, &reply)
+}
+
+// goveeIntent maps the viewer's input to a control request and its colour label:
+// an off action when the broadcaster enabled it, otherwise a parsed colour. ok
+// is false for an unrecognized colour, which the caller refunds.
+func goveeIntent(cfg goveeConfig, input string) (gatewayrpc.Request, string, bool) {
+	if cfg.AllowOff && isOffInput(input) {
+		return gatewayrpc.Request{PowerOff: true}, "off", true
+	}
+	rgb, ok := parseColor(input)
+	if !ok {
+		return gatewayrpc.Request{}, "", false
+	}
+	return gatewayrpc.Request{ColorRGB: rgb}, input, true
 }
 
 // isOffInput reports whether the viewer's input asks to turn the light off. The
@@ -214,23 +229,22 @@ func goveeFailureMessage(err error) string {
 	return "couldn't reach your lights, your points were refunded"
 }
 
-// goveeRefund tells the viewer why and cancels the redemption (refunding the
-// points) in one place, so every rejection path stays consistent. Its reasons
-// are fixed notices (not the broadcaster's template), so it addresses the
-// redeemer itself.
-func goveeRefund(emit module.Emit, ev redemptionEvent, reason string) {
-	user := strings.TrimPrefix(displayName(ev.UserName, ev.UserLogin), "@")
-	goveeChat(emit, ev, "@"+user+" "+reason)
-	emitRedemptionStatus(emit, ev, outgress.RedemptionCanceled)
+// refund tells the viewer why and cancels the redemption (refunding the points)
+// in one place, so every rejection path stays consistent. Its reasons are fixed
+// notices (not the broadcaster's template), so it addresses the redeemer itself.
+func (r goveeRun) refund(reason string) {
+	user := strings.TrimPrefix(displayName(r.ev.UserName, r.ev.UserLogin), "@")
+	r.chat("@" + user + " " + reason)
+	emitRedemptionStatus(r.emit, r.ev, outgress.RedemptionCanceled)
 }
 
-// goveeChat posts a raw chat line for this redemption. Success replies come from
+// chat posts a raw chat line for this redemption. Success replies come from
 // renderGoveeReply (which places {user} itself); refund notices are addressed by
-// goveeRefund. So this stays a plain emitter.
-func goveeChat(emit module.Emit, ev redemptionEvent, text string) {
-	emit(&module.Output{
+// refund. So this stays a plain emitter.
+func (r goveeRun) chat(text string) {
+	r.emit(&module.Output{
 		Type:          outgress.TypeChat,
-		BroadcasterID: ev.BroadcasterUserID,
+		BroadcasterID: r.ev.BroadcasterUserID,
 		Text:          text,
 	})
 }
