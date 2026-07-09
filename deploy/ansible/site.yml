@@ -34,7 +34,11 @@
   roles:
     - role: base
     - role: selinux
+    # Tagged so the firewall policy can be re-applied to an already-provisioned
+    # node in isolation (e.g. to roll out the CNI trusted-zone binder):
+    #   doppler run -- ansible-playbook site.yml --tags firewall -e target_host=<tailnet-ip>
     - role: firewall
+      tags: [firewall]
     - role: tailscale
     - role: k3s_agent
     - role: ssh_removal

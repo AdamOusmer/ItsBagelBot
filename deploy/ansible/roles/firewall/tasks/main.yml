@@ -73,3 +73,37 @@
   loop:
     - cockpit
     - dhcpv6-client
+
+# --- Keep the flannel/CNI interfaces trusted across reboots ------------------
+# The pod/service CIDR sources above are trusted for INPUT, but firewalld starts
+# before k3s creates cni0/flannel.1, so on every boot those interfaces land in
+# the default (public) zone until something re-binds them, and firewalld does not
+# retro-apply a permanent binding to an interface that appears later. A missed
+# bind drops the cross-node pod traffic that rides them -- including the NATS
+# leaf-to-leaf cluster on 6222 that carries the outgress rate-limit permit borrow
+# -- which silently fails the fleet's quota sharing open. A boot-time oneshot
+# waits for the interfaces and binds them; installing it here is why this belongs
+# in the firewall role rather than k3s_agent.
+- name: Install the CNI trusted-zone binder script
+  ansible.builtin.copy:
+    src: fleet-cni-trust.sh
+    dest: /usr/local/sbin/fleet-cni-trust.sh
+    owner: root
+    group: root
+    mode: "0755"
+  notify: apply cni trust
+
+- name: Install the CNI trusted-zone binder unit
+  ansible.builtin.copy:
+    src: fleet-cni-trust.service
+    dest: /etc/systemd/system/fleet-cni-trust.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: apply cni trust
+
+- name: Enable the CNI trusted-zone binder on boot
+  ansible.builtin.systemd:
+    name: fleet-cni-trust.service
+    enabled: true
+    daemon_reload: true

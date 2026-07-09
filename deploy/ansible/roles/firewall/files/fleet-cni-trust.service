@@ -1,0 +1,23 @@
+[Unit]
+Description=Bind flannel/CNI interfaces to the firewalld trusted zone
+# Needs firewalld running to issue firewall-cmd, and k3s up to have created the
+# interfaces. k3s.service / k3s-agent.service: whichever this node runs (the
+# other is simply ignored). The script also waits for the interfaces, so this
+# ordering is a hint, not a hard dependency.
+Wants=firewalld.service
+After=firewalld.service k3s.service k3s-agent.service
+# Retry indefinitely (below) until the CNI interfaces exist; never rate-limit it
+# out of ever binding them.
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/fleet-cni-trust.sh
+# A slow CNI bring-up must not permanently strand the interfaces in the public
+# zone; keep retrying until the bind succeeds.
+Restart=on-failure
+RestartSec=15
+
+[Install]
+WantedBy=multi-user.target
