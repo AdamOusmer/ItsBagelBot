@@ -33,8 +33,27 @@ func (e *UpstreamError) Error() string {
 	return fmt.Sprintf("upstream status %d", e.Status)
 }
 
+// sharedTransport is the one outbound transport every provider's HTTPClient
+// runs on. Pooling connections (and their TLS sessions) here — instead of each
+// client falling back to http.DefaultTransport with its stingy
+// 2-idle-conns-per-host default — lets repeated calls to an upstream (a burst of
+// Govee control redemptions, a chat spike of stats lookups) reuse a warm
+// connection instead of paying a fresh TLS handshake each time. Per-call
+// timeouts still live on the individual clients.
+var sharedTransport = newSharedTransport()
+
+func newSharedTransport() *http.Transport {
+	t := http.DefaultTransport.(*http.Transport).Clone()
+	t.MaxIdleConns = 200
+	t.MaxIdleConnsPerHost = 32
+	t.IdleConnTimeout = 90 * time.Second
+	t.ForceAttemptHTTP2 = true
+	return t
+}
+
 // HTTPClient is the outbound fetcher a provider dials its API with: one base
-// URL, a fixed header set (API keys), and a bounded per-request timeout.
+// URL, a fixed header set (API keys), and a bounded per-request timeout. All
+// clients share sharedTransport, so connection reuse spans providers.
 type HTTPClient struct {
 	base    string
 	headers map[string]string
@@ -47,7 +66,7 @@ func NewHTTPClient(base string, headers map[string]string, timeout time.Duration
 	if timeout <= 0 {
 		timeout = 10 * time.Second
 	}
-	return &HTTPClient{base: base, headers: headers, hc: &http.Client{Timeout: timeout}}
+	return &HTTPClient{base: base, headers: headers, hc: &http.Client{Timeout: timeout, Transport: sharedTransport}}
 }
 
 // Request is one outbound call: the HTTP method, a path appended to the base
