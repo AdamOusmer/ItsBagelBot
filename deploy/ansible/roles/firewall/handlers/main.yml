@@ -1,0 +1,10 @@
+---
+# Flushed at the end of the play, after k3s_agent has brought flannel up, so the
+# binder trusts cni0/flannel.1 during this run too, not only on the next boot.
+# On an existing node (a --tags firewall re-run) k3s is already up, so it binds
+# immediately.
+- name: apply cni trust
+  ansible.builtin.systemd:
+    name: fleet-cni-trust.service
+    state: restarted
+    daemon_reload: true
