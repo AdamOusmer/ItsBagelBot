@@ -68,110 +68,110 @@ func Queue(d engine.Deps) module.Module {
 	}
 
 	m := module.NewModule(queueModuleName, module.KindOptIn)
-	m.Command("queue").Everyone().Run(queueRun(d, log))
-	m.Command("join").Everyone().Run(queueJoinRun(d, log))
-	m.Command("leave").Everyone().Run(queueLeaveRun(d, log))
-	m.Command("list").Everyone().Cooldown(queueListCooldown).Aliases("queuelist").Run(queueListRun(d, log))
+	m.Command("queue").Everyone().Run(queueDispatch(d, log))
+	m.Command("join").Everyone().Run(queueStandalone(d, log, queueCmd.join))
+	m.Command("leave").Everyone().Run(queueStandalone(d, log, queueCmd.leave))
+	m.Command("list").Everyone().Cooldown(queueListCooldown).Aliases("queuelist").Run(queueStandalone(d, log, queueCmd.list))
 	return m.Build()
 }
 
-// queueRun dispatches the !queue subcommands. The engine's command gate runs
-// it for everyone; the moderator-only subcommands re-check the role here.
-func queueRun(d engine.Deps, log *zap.Logger) module.RunFunc {
-	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
-		if d.Queue == nil {
+// queueCmd bundles the per-invocation state every queue handler shares (the
+// store, the message context, the decoded config, the logger) so each handler
+// is a method taking only its own arguments instead of threading the same five
+// values through every call. It is built once per command by newQueueCmd.
+type queueCmd struct {
+	q   engine.QueueStore
+	c   *module.Context
+	cfg queueConfig
+	log *zap.Logger
+}
+
+// newQueueCmd assembles the shared state for one invocation, decoding the
+// broadcaster's reply-template overrides. ok is false when the queue store is
+// absent (the module is inert), so callers return without acting.
+func newQueueCmd(d engine.Deps, c *module.Context, log *zap.Logger) (qc queueCmd, ok bool) {
+	if d.Queue == nil {
+		return queueCmd{}, false
+	}
+	qc = queueCmd{q: d.Queue, c: c, log: log}
+	_ = c.Decode(&qc.cfg)
+	return qc, true
+}
+
+// queueStandalone adapts a queueCmd method into a RunFunc for the argument-less
+// commands (!join, !leave, !list): it builds the shared state, then delegates.
+// It is the one place the "inert when the store is nil, else decode + run"
+// boilerplate lives, so the three commands do not each repeat it.
+func queueStandalone(d engine.Deps, log *zap.Logger, fn func(queueCmd, context.Context, module.Emit) error) module.RunFunc {
+	return func(ctx context.Context, c *module.Context, _ string, emit module.Emit) error {
+		qc, ok := newQueueCmd(d, c, log)
+		if !ok {
 			return nil
 		}
-		var cfg queueConfig
-		_ = c.Decode(&cfg)
+		return fn(qc, ctx, emit)
+	}
+}
+
+// queueDispatch handles !queue and routes its subcommands. The engine's command
+// gate runs it for everyone; the moderator-only subcommands re-check the role.
+func queueDispatch(d engine.Deps, log *zap.Logger) module.RunFunc {
+	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
+		qc, ok := newQueueCmd(d, c, log)
+		if !ok {
+			return nil
+		}
 		sub, rest := splitFirst(args)
 		isMod := c.Chatter().Allows(module.RoleModerator)
 
 		switch strings.ToLower(sub) {
 		case "":
-			return queueStatus(ctx, c, d, emit)
+			return qc.status(ctx, emit)
 		case "open":
 			if !isMod {
 				return nil
 			}
-			return queueSetOpen(ctx, c, d, cfg, emit, log, true)
+			return qc.setOpen(ctx, emit, true)
 		case "close":
 			if !isMod {
 				return nil
 			}
-			return queueSetOpen(ctx, c, d, cfg, emit, log, false)
+			return qc.setOpen(ctx, emit, false)
 		case "next":
 			if !isMod {
 				return nil
 			}
-			return queueNext(ctx, c, d, cfg, emit, log)
+			return qc.next(ctx, emit)
 		case "remove":
 			if !isMod {
 				return nil
 			}
-			return queueRemove(ctx, c, d, rest, emit, log)
+			return qc.remove(ctx, rest, emit)
 		case "clear":
 			if !isMod {
 				return nil
 			}
-			if err := d.Queue.Clear(ctx, c.BroadcasterID); err != nil {
-				log.Warn("queue: clear failed", zap.Uint64("broadcaster_id", c.BroadcasterID), zap.Error(err))
-				return err
-			}
-			queueReply(c, emit, "", "queue.cleared")
-			return nil
+			return qc.clear(ctx, emit)
 		case "join":
-			return queueJoin(ctx, c, d, cfg, emit, log)
+			return qc.join(ctx, emit)
 		case "leave":
-			return queueLeave(ctx, c, d, cfg, emit, log)
+			return qc.leave(ctx, emit)
 		case "list":
-			return queueList(ctx, c, d, emit, log)
+			return qc.list(ctx, emit)
 		default:
-			queueReply(c, emit, "", "queue.err.usage")
+			qc.reply(emit, "", "queue.err.usage")
 			return nil
 		}
 	}
 }
 
-func queueJoinRun(d engine.Deps, log *zap.Logger) module.RunFunc {
-	return func(ctx context.Context, c *module.Context, _ string, emit module.Emit) error {
-		if d.Queue == nil {
-			return nil
-		}
-		var cfg queueConfig
-		_ = c.Decode(&cfg)
-		return queueJoin(ctx, c, d, cfg, emit, log)
-	}
-}
-
-func queueLeaveRun(d engine.Deps, log *zap.Logger) module.RunFunc {
-	return func(ctx context.Context, c *module.Context, _ string, emit module.Emit) error {
-		if d.Queue == nil {
-			return nil
-		}
-		var cfg queueConfig
-		_ = c.Decode(&cfg)
-		return queueLeave(ctx, c, d, cfg, emit, log)
-	}
-}
-
-func queueListRun(d engine.Deps, log *zap.Logger) module.RunFunc {
-	return func(ctx context.Context, c *module.Context, _ string, emit module.Emit) error {
-		if d.Queue == nil {
-			return nil
-		}
-		return queueList(ctx, c, d, emit, log)
-	}
-}
-
-// queueStatus answers a bare !queue with the open/closed state and line size.
-// The status readout is fixed system text (not customizable).
-func queueStatus(ctx context.Context, c *module.Context, d engine.Deps, emit module.Emit) error {
-	open, err := d.Queue.IsOpen(ctx, c.BroadcasterID)
+// status answers a bare !queue with the open/closed state and line size. The
+// status readout is fixed system text (not customizable).
+func (qc queueCmd) status(ctx context.Context, emit module.Emit) error {
+	open, err := qc.q.IsOpen(ctx, qc.c.BroadcasterID)
 	if err != nil {
 		return err
 	}
-	_, total, err := d.Queue.List(ctx, c.BroadcasterID, 1)
+	_, total, err := qc.q.List(ctx, qc.c.BroadcasterID, 1)
 	if err != nil {
 		return err
 	}
@@ -179,121 +179,130 @@ func queueStatus(ctx context.Context, c *module.Context, d engine.Deps, emit mod
 	if open {
 		key = "queue.status.open"
 	}
-	queueReply(c, emit, "", key, "count", strconv.FormatInt(total, 10))
+	qc.reply(emit, "", key, "count", strconv.FormatInt(total, 10))
 	return nil
 }
 
-func queueSetOpen(ctx context.Context, c *module.Context, d engine.Deps, cfg queueConfig, emit module.Emit, log *zap.Logger, open bool) error {
-	if err := d.Queue.SetOpen(ctx, c.BroadcasterID, open); err != nil {
-		log.Warn("queue: set-open failed", zap.Bool("open", open), zap.Uint64("broadcaster_id", c.BroadcasterID), zap.Error(err))
+func (qc queueCmd) setOpen(ctx context.Context, emit module.Emit, open bool) error {
+	if err := qc.q.SetOpen(ctx, qc.c.BroadcasterID, open); err != nil {
+		qc.log.Warn("queue: set-open failed", zap.Bool("open", open), qc.bid(), zap.Error(err))
 		return err
 	}
 	if open {
-		queueReply(c, emit, cfg.OpenedMessage, "queue.opened")
+		qc.reply(emit, qc.cfg.OpenedMessage, "queue.opened")
 	} else {
-		queueReply(c, emit, cfg.ClosedMessage, "queue.closed")
+		qc.reply(emit, qc.cfg.ClosedMessage, "queue.closed")
 	}
 	return nil
 }
 
-// queueJoin puts the chatter in line when the queue is open. Joining twice
-// keeps the original spot and answers with it.
-func queueJoin(ctx context.Context, c *module.Context, d engine.Deps, cfg queueConfig, emit module.Emit, log *zap.Logger) error {
-	login := strings.ToLower(c.Env.ChatterUserLogin)
+// join puts the chatter in line when the queue is open. Joining twice keeps the
+// original spot and answers with it.
+func (qc queueCmd) join(ctx context.Context, emit module.Emit) error {
+	login := strings.ToLower(qc.c.Env.ChatterUserLogin)
 	if login == "" {
 		return nil
 	}
-	open, err := d.Queue.IsOpen(ctx, c.BroadcasterID)
+	open, err := qc.q.IsOpen(ctx, qc.c.BroadcasterID)
 	if err != nil {
-		log.Warn("queue: open check failed", zap.Uint64("broadcaster_id", c.BroadcasterID), zap.Error(err))
+		qc.log.Warn("queue: open check failed", qc.bid(), zap.Error(err))
 		return err
 	}
 	if !open {
 		// The "queue is closed" line is a fixed system message.
-		queueReply(c, emit, "", "queue.join.closed")
+		qc.reply(emit, "", "queue.join.closed")
 		return nil
 	}
-	pos, _, joined, err := d.Queue.Join(ctx, c.BroadcasterID, login)
+	pos, _, joined, err := qc.q.Join(ctx, qc.c.BroadcasterID, login)
 	if err != nil {
-		log.Warn("queue: join failed", zap.Uint64("broadcaster_id", c.BroadcasterID), zap.Error(err))
+		qc.log.Warn("queue: join failed", qc.bid(), zap.Error(err))
 		return err
 	}
 	posStr := strconv.FormatInt(pos, 10)
 	if joined {
-		queueReply(c, emit, cfg.JoinMessage, "queue.join.ok", "pos", posStr)
+		qc.reply(emit, qc.cfg.JoinMessage, "queue.join.ok", "pos", posStr)
 	} else {
-		queueReply(c, emit, cfg.AlreadyMessage, "queue.join.already", "pos", posStr)
+		qc.reply(emit, qc.cfg.AlreadyMessage, "queue.join.already", "pos", posStr)
 	}
 	return nil
 }
 
-func queueLeave(ctx context.Context, c *module.Context, d engine.Deps, cfg queueConfig, emit module.Emit, log *zap.Logger) error {
-	login := strings.ToLower(c.Env.ChatterUserLogin)
+func (qc queueCmd) leave(ctx context.Context, emit module.Emit) error {
+	login := strings.ToLower(qc.c.Env.ChatterUserLogin)
 	if login == "" {
 		return nil
 	}
-	removed, err := d.Queue.Remove(ctx, c.BroadcasterID, login)
+	removed, err := qc.q.Remove(ctx, qc.c.BroadcasterID, login)
 	if err != nil {
-		log.Warn("queue: leave failed", zap.Uint64("broadcaster_id", c.BroadcasterID), zap.Error(err))
+		qc.log.Warn("queue: leave failed", qc.bid(), zap.Error(err))
 		return err
 	}
 	if removed {
-		queueReply(c, emit, cfg.LeaveMessage, "queue.leave.ok")
+		qc.reply(emit, qc.cfg.LeaveMessage, "queue.leave.ok")
 	} else {
 		// The "you are not in the queue" line is a fixed system message.
-		queueReply(c, emit, "", "queue.leave.not_in")
+		qc.reply(emit, "", "queue.leave.not_in")
 	}
 	return nil
 }
 
-// queueNext pulls the front of the line and announces them to chat.
-func queueNext(ctx context.Context, c *module.Context, d engine.Deps, cfg queueConfig, emit module.Emit, log *zap.Logger) error {
-	login, remaining, err := d.Queue.Pop(ctx, c.BroadcasterID)
+// next pulls the front of the line and announces them to chat.
+func (qc queueCmd) next(ctx context.Context, emit module.Emit) error {
+	login, remaining, err := qc.q.Pop(ctx, qc.c.BroadcasterID)
 	if err != nil {
-		log.Warn("queue: next failed", zap.Uint64("broadcaster_id", c.BroadcasterID), zap.Error(err))
+		qc.log.Warn("queue: next failed", qc.bid(), zap.Error(err))
 		return err
 	}
 	if login == "" {
-		queueReply(c, emit, "", "queue.next.empty")
+		qc.reply(emit, "", "queue.next.empty")
 		return nil
 	}
-	queueReply(c, emit, cfg.NextMessage, "queue.next", "target", login, "count", strconv.FormatInt(remaining, 10))
+	qc.reply(emit, qc.cfg.NextMessage, "queue.next", "target", login, "count", strconv.FormatInt(remaining, 10))
 	return nil
 }
 
-// queueRemove takes a named viewer out of the line ("!queue remove @user"). The
+// remove takes a named viewer out of the line ("!queue remove @user"). The
 // confirmation is fixed system text.
-func queueRemove(ctx context.Context, c *module.Context, d engine.Deps, args string, emit module.Emit, log *zap.Logger) error {
+func (qc queueCmd) remove(ctx context.Context, args string, emit module.Emit) error {
 	target, _ := splitFirst(args)
 	target = strings.ToLower(strings.TrimPrefix(target, "@"))
 	if target == "" {
-		queueReply(c, emit, "", "queue.remove.usage")
+		qc.reply(emit, "", "queue.remove.usage")
 		return nil
 	}
-	removed, err := d.Queue.Remove(ctx, c.BroadcasterID, target)
+	removed, err := qc.q.Remove(ctx, qc.c.BroadcasterID, target)
 	if err != nil {
-		log.Warn("queue: remove failed", zap.String("target", target), zap.Uint64("broadcaster_id", c.BroadcasterID), zap.Error(err))
+		qc.log.Warn("queue: remove failed", zap.String("target", target), qc.bid(), zap.Error(err))
 		return err
 	}
 	if removed {
-		queueReply(c, emit, "", "queue.remove.ok", "target", target)
+		qc.reply(emit, "", "queue.remove.ok", "target", target)
 	} else {
-		queueReply(c, emit, "", "queue.remove.not_found", "target", target)
+		qc.reply(emit, "", "queue.remove.not_found", "target", target)
 	}
 	return nil
 }
 
-// queueList shows the next queueListLen players in order, with a "+N more"
-// tail when the line is longer. The roster is fixed system text: it is a
-// structured list, not a free-form template.
-func queueList(ctx context.Context, c *module.Context, d engine.Deps, emit module.Emit, log *zap.Logger) error {
-	entries, total, err := d.Queue.List(ctx, c.BroadcasterID, queueListLen)
+func (qc queueCmd) clear(ctx context.Context, emit module.Emit) error {
+	if err := qc.q.Clear(ctx, qc.c.BroadcasterID); err != nil {
+		qc.log.Warn("queue: clear failed", qc.bid(), zap.Error(err))
+		return err
+	}
+	qc.reply(emit, "", "queue.cleared")
+	return nil
+}
+
+// list shows the next queueListLen players in order, with a "+N more" tail when
+// the line is longer. The roster is fixed system text: it is a structured list,
+// not a free-form template.
+func (qc queueCmd) list(ctx context.Context, emit module.Emit) error {
+	entries, total, err := qc.q.List(ctx, qc.c.BroadcasterID, queueListLen)
 	if err != nil {
-		log.Warn("queue: list failed", zap.Uint64("broadcaster_id", c.BroadcasterID), zap.Error(err))
+		qc.log.Warn("queue: list failed", qc.bid(), zap.Error(err))
 		return err
 	}
 	if total == 0 {
-		queueReply(c, emit, "", "queue.list.empty")
+		qc.reply(emit, "", "queue.list.empty")
 		return nil
 	}
 
@@ -308,23 +317,23 @@ func queueList(ctx context.Context, c *module.Context, d engine.Deps, emit modul
 	}
 
 	if more := total - int64(len(entries)); more > 0 {
-		queueReply(c, emit, "", "queue.list.more", "list", b.String(), "count", strconv.FormatInt(more, 10))
+		qc.reply(emit, "", "queue.list.more", "list", b.String(), "count", strconv.FormatInt(more, 10))
 	} else {
-		queueReply(c, emit, "", "queue.list", "list", b.String())
+		qc.reply(emit, "", "queue.list", "list", b.String())
 	}
 	return nil
 }
 
-// queueReply emits one chat line. override is the broadcaster's customized
-// template for this reply ("" for the fixed system lines, or an uncustomized
+// reply emits one chat line. override is the broadcaster's customized template
+// for this reply ("" for the fixed system lines, or an uncustomized
 // customizable one); when empty the localized default for key is used. kv are
 // {token},value pairs (token names without braces); {user} (the invoking
 // chatter) and the generic dynamic vars ({random}, {choice:…}) are always
 // available, so a customized template can use them too.
-func queueReply(c *module.Context, emit module.Emit, override, key string, kv ...string) {
+func (qc queueCmd) reply(emit module.Emit, override, key string, kv ...string) {
 	tmpl := override
 	if tmpl == "" {
-		tmpl = i18n.T(c.Locale, key)
+		tmpl = i18n.T(qc.c.Locale, key)
 	}
 	text := module.ExpandString(tmpl, func(k string) (string, bool) {
 		for i := 0; i+1 < len(kv); i += 2 {
@@ -333,13 +342,16 @@ func queueReply(c *module.Context, emit module.Emit, override, key string, kv ..
 			}
 		}
 		if k == "user" {
-			return c.Env.ChatterUserLogin, true
+			return qc.c.Env.ChatterUserLogin, true
 		}
 		return module.ParseDynamic(k)
 	})
 	emit(&module.Output{
 		Type:          outgress.TypeChat,
-		BroadcasterID: c.Env.BroadcasterUserID,
+		BroadcasterID: qc.c.Env.BroadcasterUserID,
 		Text:          text,
 	})
 }
+
+// bid is the broadcaster-id log field, shared by every handler's warn path.
+func (qc queueCmd) bid() zap.Field { return zap.Uint64("broadcaster_id", qc.c.BroadcasterID) }
