@@ -37,7 +37,10 @@ func encodeMember(m Member) string { return m.PodID + memberSeparator + m.Region
 
 func decodeMember(entry string) (Member, bool) {
 	podID, region, ok := strings.Cut(entry, memberSeparator)
-	if !ok || podID == "" || region == "" {
+	if !ok {
+		return Member{}, false
+	}
+	if podID == "" || region == "" {
 		return Member{}, false
 	}
 	return Member{PodID: podID, Region: region}, true

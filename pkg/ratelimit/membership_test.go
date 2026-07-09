@@ -49,6 +49,33 @@ func TestEncodeDecodeMember(t *testing.T) {
 // This test is opt-in because presence expiry and pruning need a real Valkey
 // sorted set, not a command mock. Run with VALKEY_TEST_ADDR.
 func TestMembershipRegistryIntegration(t *testing.T) {
+	registry := newMembershipRegistryTest(t)
+
+	now := time.Now()
+	alive := []Member{{PodID: "pod-a", Region: "node2"}, {PodID: "pod-b", Region: "worker1"}}
+	registry.heartbeat(now, time.Minute, alive...)
+
+	// A pod that stopped refreshing: its presence already lies in the past.
+	stale := Member{PodID: "pod-dead", Region: "node2"}
+	registry.heartbeat(now.Add(-time.Hour), time.Minute, stale)
+
+	registry.assertMembers(now, alive, "stale pod must be excluded")
+	registry.assertCardinality(2)
+
+	// Graceful shutdown deregisters immediately instead of waiting out the ttl.
+	registry.remove(alive[0])
+	registry.assertMembers(now, alive[1:], "after remove")
+}
+
+type membershipRegistryTest struct {
+	t      *testing.T
+	ctx    context.Context
+	client valkey.Client
+	lc     *LeaseClient
+}
+
+func newMembershipRegistryTest(t *testing.T) *membershipRegistryTest {
+	t.Helper()
 	address := os.Getenv("VALKEY_TEST_ADDR")
 	if address == "" {
 		t.Skip("VALKEY_TEST_ADDR is not set")
@@ -60,56 +87,63 @@ func TestMembershipRegistryIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer client.Close()
+	t.Cleanup(client.Close)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+	t.Cleanup(cancel)
 
-	lc := NewLeaseClient(client)
-	// The registry key is fixed, so isolate this test by clearing it around the run.
-	clear := func() { client.Do(context.Background(), client.B().Del().Key(memberSetKey).Build()) }
-	clear()
-	defer clear()
+	registry := &membershipRegistryTest{t: t, ctx: ctx, client: client, lc: NewLeaseClient(client)}
+	registry.clear()
+	return registry
+}
 
-	now := time.Now()
-	alive := []Member{{PodID: "pod-a", Region: "node2"}, {PodID: "pod-b", Region: "worker1"}}
-	for _, m := range alive {
-		if err := lc.Heartbeat(ctx, m, now, time.Minute); err != nil {
-			t.Fatalf("heartbeat %s: %v", m.PodID, err)
+func (r *membershipRegistryTest) clear() {
+	r.t.Helper()
+	r.mustClear()
+	r.t.Cleanup(r.mustClear)
+}
+
+func (r *membershipRegistryTest) mustClear() {
+	r.t.Helper()
+	if err := r.client.Do(context.Background(), r.client.B().Del().Key(memberSetKey).Build()).Error(); err != nil {
+		r.t.Fatalf("clear membership registry: %v", err)
+	}
+}
+
+func (r *membershipRegistryTest) heartbeat(now time.Time, ttl time.Duration, members ...Member) {
+	r.t.Helper()
+	for _, m := range members {
+		if err := r.lc.Heartbeat(r.ctx, m, now, ttl); err != nil {
+			r.t.Fatalf("heartbeat %s: %v", m.PodID, err)
 		}
 	}
-	// A pod that stopped refreshing: its presence already lies in the past.
-	stale := Member{PodID: "pod-dead", Region: "node2"}
-	if err := lc.Heartbeat(ctx, stale, now.Add(-time.Hour), time.Minute); err != nil {
-		t.Fatal(err)
-	}
+}
 
-	got, err := lc.ListMembers(ctx, now)
+func (r *membershipRegistryTest) assertMembers(now time.Time, want []Member, reason string) {
+	r.t.Helper()
+	got, err := r.lc.ListMembers(r.ctx, now)
 	if err != nil {
-		t.Fatal(err)
+		r.t.Fatal(err)
 	}
-	if !reflect.DeepEqual(got, alive) {
-		t.Fatalf("members = %v, want %v (stale pod must be excluded)", got, alive)
+	if !reflect.DeepEqual(got, want) {
+		r.t.Fatalf("members = %v, want %v (%s)", got, want, reason)
 	}
+}
 
-	// The stale entry must have been pruned from the set, not merely filtered out.
-	remaining, err := client.Do(ctx, client.B().Zcard().Key(memberSetKey).Build()).AsInt64()
+func (r *membershipRegistryTest) assertCardinality(want int64) {
+	r.t.Helper()
+	got, err := r.client.Do(r.ctx, r.client.B().Zcard().Key(memberSetKey).Build()).AsInt64()
 	if err != nil {
-		t.Fatal(err)
+		r.t.Fatal(err)
 	}
-	if remaining != 2 {
-		t.Fatalf("set cardinality = %d, want 2 after prune", remaining)
+	if got != want {
+		r.t.Fatalf("set cardinality = %d, want %d after prune", got, want)
 	}
+}
 
-	// Graceful shutdown deregisters immediately instead of waiting out the ttl.
-	if err := lc.RemoveMember(ctx, alive[0]); err != nil {
-		t.Fatal(err)
-	}
-	got, err = lc.ListMembers(ctx, now)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(got) != 1 || got[0] != alive[1] {
-		t.Fatalf("after remove members = %v, want [%v]", got, alive[1])
+func (r *membershipRegistryTest) remove(member Member) {
+	r.t.Helper()
+	if err := r.lc.RemoveMember(r.ctx, member); err != nil {
+		r.t.Fatal(err)
 	}
 }
