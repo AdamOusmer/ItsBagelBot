@@ -104,14 +104,9 @@ function asOnRedeem(v: FormDataEntryValue | null): GoveeOnRedeem {
   return v === 'cancel' || v === 'leave' ? v : 'fulfill';
 }
 
-// parseRewardForm validates the inspector's fields and returns the target light
-// plus the reward draft, or a user-facing error message. Kept out of the action
-// so the action stays a thin parse-then-run.
-function parseRewardForm(f: FormData): { device: GoveeDevice; draft: RewardDraft } | { error: string } {
-  const device = String(f.get('device') ?? '').trim();
-  const sku = String(f.get('sku') ?? '').trim();
-  if (!device || !sku) return { error: 'Pick a light first.' };
-
+// parseRewardDraft validates the reward + behaviour fields into a draft, or a
+// user-facing error message.
+function parseRewardDraft(f: FormData): { draft: RewardDraft } | { error: string } {
   const title = String(f.get('title') ?? '').trim();
   if (!title || title.length > 45) return { error: 'Title is required (max 45 characters).' };
 
@@ -131,7 +126,6 @@ function parseRewardForm(f: FormData): { device: GoveeDevice; draft: RewardDraft
   const cooldown = Number.isFinite(rawCooldown) ? Math.min(Math.max(rawCooldown, 0), 604_800) : 0;
 
   return {
-    device: { device, sku, name: String(f.get('deviceName') ?? '').trim(), color: true },
     draft: {
       title,
       cost,
@@ -143,6 +137,18 @@ function parseRewardForm(f: FormData): { device: GoveeDevice; draft: RewardDraft
       allowOffline: f.get('allow_offline') === 'on'
     }
   };
+}
+
+// parseRewardForm resolves the target light and its reward draft, or an error.
+// Kept out of the action so the action stays a thin parse-then-run.
+function parseRewardForm(f: FormData): { device: GoveeDevice; draft: RewardDraft } | { error: string } {
+  const device = String(f.get('device') ?? '').trim();
+  const sku = String(f.get('sku') ?? '').trim();
+  if (!device || !sku) return { error: 'Pick a light first.' };
+
+  const parsed = parseRewardDraft(f);
+  if ('error' in parsed) return parsed;
+  return { device: { device, sku, name: String(f.get('deviceName') ?? '').trim(), color: true }, draft: parsed.draft };
 }
 
 // run is the shared action skeleton: gate, resolve the session, short-circuit in

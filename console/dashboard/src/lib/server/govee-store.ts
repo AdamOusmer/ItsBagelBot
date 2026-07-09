@@ -164,6 +164,30 @@ function callReward(userId: string, verb: string, req: Record<string, unknown>):
   return rpc<RewardReplyWire>(`${SUB.outgressRpc}.channelpoints.${verb}`, { broadcaster_id: userId, ...req }, 8000);
 }
 
+// bindingFromReply builds a light's binding from the saved-reward reply,
+// mirroring the colour + cooldown Twitch echoed back so the editor re-populates.
+function bindingFromReply(
+  device: GoveeDevice,
+  draft: RewardDraft,
+  reply: NonNullable<RewardReplyWire['reward']>,
+  existingId: string
+): GoveeBinding {
+  const rewardId = reply.id ?? existingId;
+  const color = reply.background_color ?? draft.color;
+  const cooldown = reply.global_cooldown_enabled ? reply.global_cooldown_seconds : 0;
+  return {
+    device: device.device,
+    sku: device.sku,
+    deviceName: device.name,
+    onRedeem: draft.onRedeem,
+    rewardId,
+    reward: { rewardId, title: reply.title, cost: reply.cost, color, cooldown },
+    allowOffline: draft.allowOffline,
+    allowOff: draft.allowOff,
+    replyMessage: draft.replyMessage
+  };
+}
+
 // GoveeStore is the per-broadcaster operation set returned by goveeStore.
 export interface GoveeStore {
   read(): Promise<GoveeView>;
@@ -250,8 +274,7 @@ export function goveeStore(userId: string): GoveeStore {
 
   async function saveReward(device: GoveeDevice, draft: RewardDraft): Promise<GoveeResult> {
     const cur = await read();
-    const existing = cur.bindings.find((b) => b.device === device.device);
-    const existingId = existing?.rewardId ?? '';
+    const existingId = cur.bindings.find((b) => b.device === device.device)?.rewardId ?? '';
     const verb = existingId ? 'update' : 'create';
     const req: Record<string, unknown> = { reward: rewardWire(draft, existingId) };
     if (existingId) req.reward_id = existingId;
@@ -260,25 +283,9 @@ export function goveeStore(userId: string): GoveeStore {
     if (reply.missing_scope) return { ok: false, missingScope: true };
     if (reply.error || !reply.reward) return { ok: false, error: reply.error ?? `${verb} failed` };
 
-    const rewardId = reply.reward.id ?? existingId;
-    // Mirror the settings Twitch echoed back (falling back to the draft) so the
-    // editor re-populates the colour + cooldown exactly as stored.
-    const color = reply.reward.background_color ?? draft.color;
-    const cooldown = reply.reward.global_cooldown_enabled ? reply.reward.global_cooldown_seconds : 0;
-    const binding: GoveeBinding = {
-      device: device.device,
-      sku: device.sku,
-      deviceName: device.name,
-      onRedeem: draft.onRedeem,
-      rewardId,
-      reward: { rewardId, title: reply.reward.title, cost: reply.reward.cost, color, cooldown },
-      allowOffline: draft.allowOffline,
-      allowOff: draft.allowOff,
-      replyMessage: draft.replyMessage
-    };
     // One reward per light: replace any existing binding for this device.
-    const bindings = [...cur.bindings.filter((b) => b.device !== device.device), binding];
-    await writeBindings(cur.enabled, bindings);
+    const binding = bindingFromReply(device, draft, reply.reward, existingId);
+    await writeBindings(cur.enabled, [...cur.bindings.filter((b) => b.device !== device.device), binding]);
     if (!existingId) await publishEventSubEnsureOptional(userId);
     return { ok: true };
   }
