@@ -21,7 +21,7 @@ func TestModel_Property(t *testing.T) {
 	var successfulAdmissions int
 
 	// First initialization
-	b.Update(now, 1, 1, "pod-a", now, now.Add(time.Hour), rate.Limit(10), 10, rate.Limit(5), 5)
+	b.Update(now, BucketConfig{Epoch: 1, Generation: 1, Holder: "pod-a", NotBefore: now, NotAfter: now.Add(time.Hour), SharedRate: rate.Limit(10), SharedBurst: 10, StandardRate: rate.Limit(5), StandardBurst: 5})
 
 	rng := rand.New(rand.NewSource(42))
 
@@ -37,10 +37,10 @@ func TestModel_Property(t *testing.T) {
 			b.Renew(b.Epoch()+1, now, now.Add(time.Hour))
 		} else if action < 15 {
 			// 5% chance to resize (same holder)
-			b.Update(now, b.Epoch()+1, 1, "pod-a", now, now.Add(time.Hour), rate.Limit(10), 10, rate.Limit(5), 5)
+			b.Update(now, BucketConfig{Epoch: b.Epoch() + 1, Generation: 1, Holder: "pod-a", NotBefore: now, NotAfter: now.Add(time.Hour), SharedRate: rate.Limit(10), SharedBurst: 10, StandardRate: rate.Limit(5), StandardBurst: 5})
 		} else if action < 20 {
 			// 5% chance of a membership generation change / pod restart.
-			b.Update(now, b.Epoch()+1, 2, "pod-b", now, now.Add(time.Hour), rate.Limit(10), 10, rate.Limit(5), 5)
+			b.Update(now, BucketConfig{Epoch: b.Epoch() + 1, Generation: 2, Holder: "pod-b", NotBefore: now, NotAfter: now.Add(time.Hour), SharedRate: rate.Limit(10), SharedBurst: 10, StandardRate: rate.Limit(5), StandardBurst: 5})
 		} else if action < 60 {
 			// 40% chance of premium try
 			if b.TryPremium(now) {

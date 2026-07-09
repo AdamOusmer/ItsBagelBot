@@ -201,7 +201,11 @@ function getWriteClient(): RateLimitClient | null {
     const [host, portStr] = cfg.sentinelAddr.split(':');
     client = new Redis({
       sentinels: [{ host: host || '127.0.0.1', port: portStr ? Number(portStr) : 26379 }],
-      name: cfg.sentinelMaster ?? 'myprimary',
+      // `||` not `??`: an empty VALKEY_MASTER_SET (unset in Doppler comes
+      // through as "") must fall back to the sentinel's monitored name, not be
+      // used verbatim — a blank master name never resolves, so every write
+      // (rate-limit AND single-use claimOnce) would silently time out.
+      name: cfg.sentinelMaster || 'myprimary',
       password: cfg.password || undefined,
       // Fail fast, never queue: an unreachable master must degrade to the
       // per-pod fallback immediately, not grow an unbounded command queue.
@@ -256,6 +260,32 @@ export async function rateLimiterReady(): Promise<boolean> {
     return true;
   } catch {
     return false;
+  }
+}
+
+/**
+ * Claim a single-use id (SET NX EX on the Sentinel master), sharing the
+ * rate limiter's write client + breaker: it is the same fleet-wide Valkey
+ * write path and a second connection buys nothing. Used to make signed
+ * one-shot tokens (e.g. admin "view as" links) non-replayable.
+ *
+ *   'claimed'      — first redemption; proceed.
+ *   'replayed'     — the id was redeemed before; reject.
+ *   'unconfigured' — no Valkey configured (dev/tests); caller decides.
+ *   'unavailable'  — backend configured but unreachable; caller decides.
+ */
+export type ClaimResult = 'claimed' | 'replayed' | 'unconfigured' | 'unavailable';
+
+export async function claimOnce(key: string, ttlSec: number): Promise<ClaimResult> {
+  const client = getWriteClient();
+  if (!client) return 'unconfigured';
+  try {
+    const r = await writeBreaker.run(() =>
+      withTimeout(client.set(key, '1', 'EX', ttlSec, 'NX'), OP_TIMEOUT_MS, 'valkey claim-once')
+    );
+    return r === 'OK' ? 'claimed' : 'replayed';
+  } catch {
+    return 'unavailable';
   }
 }
 

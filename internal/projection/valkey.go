@@ -54,18 +54,27 @@ func NewStore(client valkey.Client) *Store {
 	return &Store{client: client}
 }
 
+// UserProjection is the projected account state of one user: tier status, the
+// receive/ban flags, and the UI locale.
+type UserProjection struct {
+	Status   string
+	IsActive bool
+	Banned   bool
+	Locale   string
+}
+
 // SetUser projects the tier status, active flag, ban flag and UI locale of one
 // user. An empty locale leaves the projected locale untouched (see
 // SetUserWithTTL).
-func (v *Store) SetUser(ctx context.Context, userID uint64, status string, isActive bool, banned bool, locale string) error {
-	return v.SetUserWithTTL(ctx, userID, status, isActive, banned, locale, DefaultTTL)
+func (v *Store) SetUser(ctx context.Context, userID uint64, u UserProjection) error {
+	return v.SetUserWithTTL(ctx, userID, u, DefaultTTL)
 }
 
 // SetUserWithTTL projects the user fields and keeps the hash for at least ttl.
 // locale is written only when non-empty: cold-read write-backs (the status RPC)
 // and older events that carry no locale must not overwrite a locale the full
 // user projection already set.
-func (v *Store) SetUserWithTTL(ctx context.Context, userID uint64, status string, isActive bool, banned bool, locale string, ttl time.Duration) error {
+func (v *Store) SetUserWithTTL(ctx context.Context, userID uint64, u UserProjection, ttl time.Duration) error {
 
 	defer segment(ctx, "HSET")()
 
@@ -74,11 +83,11 @@ func (v *Store) SetUserWithTTL(ctx context.Context, userID uint64, status string
 	fields := v.client.B().Hset().
 		Key(key).
 		FieldValue().
-		FieldValue("status", status).
-		FieldValue("active", utils.BoolField(isActive)).
-		FieldValue("banned", utils.BoolField(banned))
-	if locale != "" {
-		fields = fields.FieldValue("locale", locale)
+		FieldValue("status", u.Status).
+		FieldValue("active", utils.BoolField(u.IsActive)).
+		FieldValue("banned", utils.BoolField(u.Banned))
+	if u.Locale != "" {
+		fields = fields.FieldValue("locale", u.Locale)
 	}
 
 	return v.pipelineWithTTL(ctx, key, ttl, fields.Build())
@@ -144,7 +153,7 @@ func (v *Store) SetStreamLive(ctx context.Context, userID uint64, live bool) err
 }
 
 // SetModule projects one module row of one user.
-func (v *Store) SetModule(ctx context.Context, userID uint64, name string, isEnabled bool, configs []byte) error {
+func (v *Store) SetModule(ctx context.Context, userID uint64, mod ModuleView) error {
 
 	defer segment(ctx, "HSET")()
 
@@ -154,10 +163,10 @@ func (v *Store) SetModule(ctx context.Context, userID uint64, name string, isEna
 		Key(key).
 		FieldValue().
 		FieldValue("modules:projected", "1").
-		FieldValue("module:"+name+":enabled", utils.BoolField(isEnabled))
+		FieldValue("module:"+mod.Name+":enabled", utils.BoolField(mod.IsEnabled))
 
-	if len(configs) > 0 {
-		fields = fields.FieldValue("module:"+name+":config", string(configs))
+	if len(mod.Configs) > 0 {
+		fields = fields.FieldValue("module:"+mod.Name+":config", string(mod.Configs))
 	}
 
 	return v.pipelineWithTTL(ctx, key, DefaultTTL, fields.Build())
@@ -228,23 +237,10 @@ func (v *Store) SetCommand(ctx context.Context, dto data.CommandChangedDTO) erro
 	name := strings.ToLower(dto.Name)
 	field := commandFieldPrefix + name
 
-	old, _ := v.client.Do(ctx, v.client.B().Hget().Key(key).Field(field).Build()).ToString()
-	var oldAliases []string
-	if old != "" {
-		var prev CommandView
-		if json.Unmarshal([]byte(old), &prev) == nil {
-			oldAliases = prev.Aliases
-		}
-	}
-
-	cmds := make([]valkey.Completed, 0, 4)
-	if len(oldAliases) > 0 {
-		stale := make([]string, 0, len(oldAliases))
-		for _, a := range oldAliases {
-			stale = append(stale, aliasFieldPrefix+strings.ToLower(a))
-		}
-		cmds = append(cmds, v.client.B().Hdel().Key(key).Field(stale...).Build())
-	}
+	// The event carries only the new aliases, so retire the previous row's
+	// alias pointers (rename, reword, delete) first. That extra HGET is on the
+	// rare write path; the hot read path stays a single HGET.
+	cmds := v.retireStaleAliases(ctx, key, field)
 
 	if dto.Deleted {
 		cmds = append(cmds,
@@ -255,21 +251,49 @@ func (v *Store) SetCommand(ctx context.Context, dto data.CommandChangedDTO) erro
 		return v.pipeline(ctx, cmds...)
 	}
 
-	view := commandViewFromEvent(dto)
-	body, err := json.Marshal(view)
+	set, err := v.commandSetCommand(key, field, name, dto)
 	if err != nil {
 		return err
 	}
+	cmds = append(cmds, set)
+	cmds = append(cmds, v.expiryCommands(key, DefaultTTL)...)
+	return v.pipeline(ctx, cmds...)
+}
 
+// retireStaleAliases reads the command's previous row and returns the HDEL (if
+// any) that removes the alias pointers it no longer carries.
+func (v *Store) retireStaleAliases(ctx context.Context, key, field string) []valkey.Completed {
+	cmds := make([]valkey.Completed, 0, 4)
+	old, _ := v.client.Do(ctx, v.client.B().Hget().Key(key).Field(field).Build()).ToString()
+	if old == "" {
+		return cmds
+	}
+	var prev CommandView
+	if json.Unmarshal([]byte(old), &prev) != nil || len(prev.Aliases) == 0 {
+		return cmds
+	}
+	stale := make([]string, 0, len(prev.Aliases))
+	for _, a := range prev.Aliases {
+		stale = append(stale, aliasFieldPrefix+strings.ToLower(a))
+	}
+	return append(cmds, v.client.B().Hdel().Key(key).Field(stale...).Build())
+}
+
+// commandSetCommand builds the HSET writing the command body plus its alias
+// pointers.
+func (v *Store) commandSetCommand(key, field, name string, dto data.CommandChangedDTO) (valkey.Completed, error) {
+	view := commandViewFromEvent(dto)
+	body, err := json.Marshal(view)
+	if err != nil {
+		return valkey.Completed{}, err
+	}
 	set := v.client.B().Hset().Key(key).FieldValue().
 		FieldValue("commands:projected", "1").
 		FieldValue(field, string(body))
 	for _, a := range view.Aliases {
 		set = set.FieldValue(aliasFieldPrefix+strings.ToLower(a), name)
 	}
-	cmds = append(cmds, set.Build())
-	cmds = append(cmds, v.expiryCommands(key, DefaultTTL)...)
-	return v.pipeline(ctx, cmds...)
+	return set.Build(), nil
 }
 
 // GetCommand reads one command by the name (or alias) a viewer typed, in a
@@ -289,34 +313,74 @@ func (v *Store) GetCommand(ctx context.Context, userID uint64, name string) (vie
 		v.client.B().Hget().Key(key).Field("commands:projected").Build(),
 	)
 
-	pj, perr := res[2].ToString()
-	if perr != nil && !valkey.IsValkeyNil(perr) {
-		return CommandView{}, false, false, perr
+	projected, err = commandsProjected(res[2])
+	if err != nil {
+		return CommandView{}, false, false, err
 	}
-	projected = pj == "1"
 
-	body, berr := res[0].ToString()
-	if berr != nil && !valkey.IsValkeyNil(berr) {
-		return CommandView{}, false, projected, berr
+	// Direct hit: the typed name is a command's own field.
+	view, found, err = decodeCommandField(res[0])
+	if err != nil {
+		return CommandView{}, false, projected, err
 	}
-	if berr == nil {
-		if json.Unmarshal([]byte(body), &view) == nil {
-			return view, true, true, nil
+	if found {
+		return view, true, true, nil
+	}
+
+	// Alias hit: the typed name points at another command's field, read next.
+	return v.resolveAlias(ctx, key, res[1], projected)
+}
+
+// commandsProjected reads the commands:projected marker (nil = not projected).
+func commandsProjected(res valkey.ValkeyResult) (bool, error) {
+	pj, err := res.ToString()
+	if err != nil {
+		if valkey.IsValkeyNil(err) {
+			return false, nil
 		}
+		return false, err
 	}
+	return pj == "1", nil
+}
 
-	primary, aerr := res[1].ToString()
-	if aerr != nil && !valkey.IsValkeyNil(aerr) {
-		return CommandView{}, false, projected, aerr
-	}
-	if aerr == nil && primary != "" {
-		aliasBody, err := v.client.Do(ctx, v.client.B().Hget().Key(key).Field(commandFieldPrefix+primary).Build()).ToString()
-		if err == nil && json.Unmarshal([]byte(aliasBody), &view) == nil {
-			return view, true, true, nil
+// decodeCommandField decodes a command body straight off an HGET result. A nil
+// field or an unparseable body is a clean miss (found=false, err=nil); only a
+// real Valkey error propagates.
+func decodeCommandField(res valkey.ValkeyResult) (CommandView, bool, error) {
+	body, err := res.ToString()
+	if err != nil {
+		if valkey.IsValkeyNil(err) {
+			return CommandView{}, false, nil
 		}
+		return CommandView{}, false, err
+	}
+	var view CommandView
+	if json.Unmarshal([]byte(body), &view) != nil {
+		return CommandView{}, false, nil
+	}
+	return view, true, nil
+}
+
+// resolveAlias follows an alias pointer to the command it names and reads that
+// command's body in one more round trip. A missing or dangling alias is a clean
+// miss.
+func (v *Store) resolveAlias(ctx context.Context, key string, aliasRes valkey.ValkeyResult, projected bool) (CommandView, bool, bool, error) {
+	primary, err := aliasRes.ToString()
+	if err != nil {
+		if valkey.IsValkeyNil(err) {
+			return CommandView{}, false, projected, nil
+		}
+		return CommandView{}, false, projected, err
+	}
+	if primary == "" {
+		return CommandView{}, false, projected, nil
 	}
 
-	return CommandView{}, false, projected, nil
+	view, found, err := decodeCommandField(v.client.Do(ctx, v.client.B().Hget().Key(key).Field(commandFieldPrefix+primary).Build()))
+	if err != nil || !found {
+		return CommandView{}, false, projected, err
+	}
+	return view, true, true, nil
 }
 
 // SetCommands projects a complete command list and records that an empty list is

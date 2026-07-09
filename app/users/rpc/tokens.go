@@ -6,8 +6,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/nats-io/nats.go"
-	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
 
 	"ItsBagelBot/app/users/repository"
@@ -27,7 +25,8 @@ type tokensRPC struct {
 	log  *zap.Logger
 }
 
-func SubscribeTokens(nc *nats.Conn, repo *repository.Users, prefix, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
+func SubscribeTokens(w Wiring, prefix string) error {
+	nc, repo, app, log, queueGroup := w.NC, w.Repo, w.App, w.Log, w.Queue
 	t := &tokensRPC{repo: repo, log: log}
 
 	verbs := map[string]func(context.Context, usersrpc.TokensRequest) usersrpc.TokensReply{

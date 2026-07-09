@@ -3,14 +3,18 @@ import { redirect } from '@sveltejs/kit';
 import { delegationAccess } from '$lib/server/services';
 import { COOKIE, seal } from '$lib/server/session';
 
-const SESSION_TTL = 7 * 24 * 3600;
-
 // Open a dashboard that was shared with the signed-in user. Requires a NORMAL
-// (non-delegate) session, verifies the grant still exists, then swaps the cookie
-// for a section-limited delegate session over the owner's board.
+// (non-delegate, non-impersonated) session, verifies the grant still exists,
+// then swaps the cookie for a section-limited delegate session over the
+// owner's board. An admin "view as" session is refused: swapping it here would
+// launder the 1h impersonation into a session without the impersonator_*
+// fields, losing both the short cap and the audit trail.
+//
+// The re-seal keeps the original iat/expires_at: switching boards must never
+// extend a session's lifetime — only a fresh OAuth login does that.
 export const GET: RequestHandler = async ({ url, locals, cookies }) => {
   const s = locals.session;
-  if (!s || s.delegate_of) throw redirect(302, '/login');
+  if (!s || s.delegate_of || s.impersonator_id) throw redirect(302, '/login');
 
   const owner = url.searchParams.get('owner');
   if (!owner) throw redirect(302, '/settings?e=access');
@@ -30,7 +34,8 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
     login: s.login,
     display_name: s.display_name,
     role: 'streamer',
-    expires_at: Math.floor(Date.now() / 1000) + SESSION_TTL,
+    iat: s.iat,
+    expires_at: s.expires_at,
     delegate_of: owner,
     delegate_login: grant.owner_login,
     sections: grant.sections
@@ -40,7 +45,7 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
     httpOnly: true,
     secure: url.protocol === 'https:',
     sameSite: 'lax',
-    maxAge: SESSION_TTL
+    maxAge: Math.max(1, s.expires_at - Math.floor(Date.now() / 1000))
   });
 
   throw redirect(302, grant.sections[0] ? `/${grant.sections[0]}` : '/');

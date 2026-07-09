@@ -9,10 +9,6 @@ import (
 	"ItsBagelBot/app/users/repository"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/pkg/bus"
-
-	"github.com/nats-io/nats.go"
-	"github.com/newrelic/go-agent/v3/newrelic"
-	"go.uber.org/zap"
 )
 
 // SubscribeEmail exposes the decrypted contact email to the internal callers
@@ -20,7 +16,8 @@ import (
 // NATS account level, so this stays as private as the token RPCs. A user with
 // no captured email replies with an empty Email, not an error: the caller
 // treats that as "skip the email channel".
-func SubscribeEmail(nc *nats.Conn, repo *repository.Users, subject, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
+func SubscribeEmail(w Wiring, subject string) error {
+	nc, repo, app, log, queueGroup := w.NC, w.Repo, w.App, w.Log, w.Queue
 	return bus.QueueSubscribeJSON[usersrpc.EmailGetRequest, usersrpc.EmailGetReply](
 		nc, subject, queueGroup, 3*time.Second, app, log,
 		func(ctx context.Context, req usersrpc.EmailGetRequest) usersrpc.EmailGetReply {

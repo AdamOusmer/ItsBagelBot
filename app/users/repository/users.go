@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"ItsBagelBot/app/users/ent"
 	"ItsBagelBot/app/users/ent/tokens"
@@ -34,6 +36,7 @@ type UserView struct {
 	Status                    string     `json:"status"`
 	Banned                    bool       `json:"banned"`
 	Locale                    string     `json:"locale"`
+	CreatorCode               *string    `json:"creator_code,omitempty"`
 	SubscriptionSource        string     `json:"subscription_source"`
 	SubscriptionExpiresAt     *time.Time `json:"subscription_expires_at,omitempty"`
 	SubscriptionRef           *string    `json:"subscription_ref,omitempty"`
@@ -128,6 +131,7 @@ func (r *Users) Get(ctx context.Context, id uint64) (UserView, error) {
 				Status:                    string(u.Status),
 				Banned:                    u.Banned,
 				Locale:                    u.Locale,
+				CreatorCode:               u.CreatorCode,
 				SubscriptionSource:        u.SubscriptionSource,
 				SubscriptionExpiresAt:     u.SubscriptionExpiresAt,
 				SubscriptionRef:           u.SubscriptionRef,
@@ -138,26 +142,64 @@ func (r *Users) Get(ctx context.Context, id uint64) (UserView, error) {
 	})
 }
 
-// SetStatus moves the user between the free, paid and vip tiers. This is on
-// the money path, so it writes through immediately, never via the batcher.
-func (r *Users) SetStatus(ctx context.Context, id uint64, status user.Status) error {
-
+// updateAndPublish validates the id, applies a single-field update inside the
+// write-through exec, and announces the change so the projector folds it into
+// the Valkey user projection. It backs the SetX write-through mutators.
+func (r *Users) updateAndPublish(ctx context.Context, id uint64, apply func(*ent.UserUpdateOne)) error {
 	if err := validate.UserID(id); err != nil {
 		return err
 	}
-	if err := validate.Status(string(status)); err != nil {
-		return err
-	}
-
 	if err := db.WithExec(ctx, func(ctx context.Context) error {
-		return r.client.User.UpdateOneID(id).
-			SetStatus(status).
-			Exec(ctx)
+		update := r.client.User.UpdateOneID(id)
+		apply(update)
+		return update.Exec(ctx)
 	}); err != nil {
 		return err
 	}
-
 	return r.publishChanged(ctx, id)
+}
+
+const CreatorCodeMaxLen = 64
+
+func normalizeCreatorCode(raw string) (*string, error) {
+	code := strings.TrimSpace(raw)
+	if code == "" {
+		return nil, nil
+	}
+	if utf8.RuneCountInString(code) > CreatorCodeMaxLen {
+		return nil, fmt.Errorf("creator_code must be %d characters or fewer", CreatorCodeMaxLen)
+	}
+	for _, r := range code {
+		if r < 0x20 || r == 0x7f {
+			return nil, fmt.Errorf("creator_code cannot contain control characters")
+		}
+	}
+	return &code, nil
+}
+
+// SetCreatorCode stores or clears the user's public creator code. An empty
+// value clears the nullable column.
+func (r *Users) SetCreatorCode(ctx context.Context, id uint64, raw string) error {
+	code, err := normalizeCreatorCode(raw)
+	if err != nil {
+		return err
+	}
+	return r.updateAndPublish(ctx, id, func(u *ent.UserUpdateOne) {
+		if code == nil {
+			u.ClearCreatorCode()
+		} else {
+			u.SetCreatorCode(*code)
+		}
+	})
+}
+
+// SetStatus moves the user between the free, paid and vip tiers. This is on
+// the money path, so it writes through immediately, never via the batcher.
+func (r *Users) SetStatus(ctx context.Context, id uint64, status user.Status) error {
+	if err := validate.Status(string(status)); err != nil {
+		return err
+	}
+	return r.updateAndPublish(ctx, id, func(u *ent.UserUpdateOne) { u.SetStatus(status) })
 }
 
 // SetActive flips whether the bot serves this broadcaster. The dashboard
@@ -165,20 +207,7 @@ func (r *Users) SetStatus(ctx context.Context, id uint64, status user.Status) er
 // drops their traffic, so flipping it off silences the channel even before
 // the EventSub subscriptions are gone.
 func (r *Users) SetActive(ctx context.Context, id uint64, active bool) error {
-
-	if err := validate.UserID(id); err != nil {
-		return err
-	}
-
-	if err := db.WithExec(ctx, func(ctx context.Context) error {
-		return r.client.User.UpdateOneID(id).
-			SetIsActive(active).
-			Exec(ctx)
-	}); err != nil {
-		return err
-	}
-
-	return r.publishChanged(ctx, id)
+	return r.updateAndPublish(ctx, id, func(u *ent.UserUpdateOne) { u.SetIsActive(active) })
 }
 
 // SetLocale stores the user's console UI language and announces the change so
@@ -187,40 +216,14 @@ func (r *Users) SetActive(ctx context.Context, id uint64, active bool) error {
 // console's own locale cache is dropped separately via the RPC handler's
 // invalidation ping.
 func (r *Users) SetLocale(ctx context.Context, id uint64, locale string) error {
-
-	if err := validate.UserID(id); err != nil {
-		return err
-	}
-
-	if err := db.WithExec(ctx, func(ctx context.Context) error {
-		return r.client.User.UpdateOneID(id).
-			SetLocale(locale).
-			Exec(ctx)
-	}); err != nil {
-		return err
-	}
-
-	return r.publishChanged(ctx, id)
+	return r.updateAndPublish(ctx, id, func(u *ent.UserUpdateOne) { u.SetLocale(locale) })
 }
 
 // SetBanned blocks or unblocks the user from the service. A banned user is
 // dropped at the ingress, so their traffic never reaches a worker even if the
 // channel is otherwise active.
 func (r *Users) SetBanned(ctx context.Context, id uint64, banned bool) error {
-
-	if err := validate.UserID(id); err != nil {
-		return err
-	}
-
-	if err := db.WithExec(ctx, func(ctx context.Context) error {
-		return r.client.User.UpdateOneID(id).
-			SetBanned(banned).
-			Exec(ctx)
-	}); err != nil {
-		return err
-	}
-
-	return r.publishChanged(ctx, id)
+	return r.updateAndPublish(ctx, id, func(u *ent.UserUpdateOne) { u.SetBanned(banned) })
 }
 
 // SetOnboarded marks the user as having finished the onboarding flow.

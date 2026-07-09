@@ -15,7 +15,10 @@ export function scopes(): string[] {
   // so the bot may act in the channel. Adds channel:read:subscriptions and bits:read
   // for EventSub access, and clips:edit so !clip can create clips on the channel
   // (Create Clip runs on the broadcaster's own token, not the bot's).
-  const bot = 'channel:bot moderator:read:followers user:read:chat user:write:chat channel:read:subscriptions bits:read user:read:moderated_channels clips:edit'
+  // channel:manage:redemptions covers the whole Channel Points surface: creating,
+  // editing and deleting custom rewards, subscribing to redemption events, and
+  // resolving redemptions (fulfill/refund) — all on the broadcaster's own token.
+  const bot = 'channel:bot moderator:read:followers user:read:chat user:write:chat channel:read:subscriptions bits:read user:read:moderated_channels clips:edit channel:manage:redemptions'
     .split(/\s+/)
     .filter(Boolean);
   return ['openid', 'user:read:email', ...bot];

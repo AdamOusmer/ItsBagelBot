@@ -22,7 +22,7 @@ const operationTimeout = 5 * time.Second
 
 type store interface {
 	GetHydrationState(context.Context, uint64) (projection.HydrationState, error)
-	SetUserWithTTL(context.Context, uint64, string, bool, bool, string, time.Duration) error
+	SetUserWithTTL(context.Context, uint64, projection.UserProjection, time.Duration) error
 	SetModulesWithTTL(context.Context, uint64, []projection.ModuleView, time.Duration) error
 	SetCommandsWithTTL(context.Context, uint64, []projection.CommandView, time.Duration) error
 }
@@ -261,7 +261,12 @@ func (h *Hydrator) fill(ctx context.Context, j job, state projection.HydrationSt
 	if !state.User {
 		if userErr != nil {
 			h.logFailure("users", j.userID, userErr)
-		} else if err := h.store.SetUserWithTTL(ctx, j.userID, userReply.Status, userReply.IsActive, userReply.Banned, userReply.Locale, j.ttl); err != nil {
+		} else if err := h.store.SetUserWithTTL(ctx, j.userID, projection.UserProjection{
+			Status:   userReply.Status,
+			IsActive: userReply.IsActive,
+			Banned:   userReply.Banned,
+			Locale:   userReply.Locale,
+		}, j.ttl); err != nil {
 			h.logFailure("users write", j.userID, err)
 		}
 	}

@@ -18,6 +18,9 @@ import (
 	"ItsBagelBot/pkg/bus"
 )
 
+// dashboardTimeout bounds each dashboard RPC handler's repo work.
+const dashboardTimeout = 3 * time.Second
+
 type dashboardRPC struct {
 	repo               *repository.Users
 	nc                 *nats.Conn
@@ -25,59 +28,112 @@ type dashboardRPC struct {
 	log                *zap.Logger
 }
 
-func SubscribeDashboard(nc *nats.Conn, repo *repository.Users, prefix, invalidationPrefix, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
+func SubscribeDashboard(w Wiring, prefix, invalidationPrefix string) error {
 	d := &dashboardRPC{
-		repo:               repo,
-		nc:                 nc,
+		repo:               w.Repo,
+		nc:                 w.NC,
 		invalidationPrefix: invalidationPrefix,
-		log:                log,
+		log:                w.Log,
 	}
 
-	type handler struct {
-		verb string
-		fn   func(context.Context, *nats.Msg)
+	verbs := map[string]func(context.Context, *nats.Msg){
+		"upsert_user":   d.handleUpsertUser,
+		"grant_save":    d.handleGrantSave,
+		"grant_has":     d.handleGrantHas,
+		"active_set":    d.handleActiveSet,
+		"active_get":    d.handleActiveGet,
+		"status_get":    d.handleStatusGet,
+		"state_get":     d.handleStateGet,
+		"onboarded_set": d.handleOnboardedSet,
+		"locale_set":    d.handleLocaleSet,
+		"delete_self":   d.handleDeleteSelf,
 	}
-	verbs := []handler{
-		{"upsert_user", d.handleUpsertUser},
-		{"grant_save", d.handleGrantSave},
-		{"grant_has", d.handleGrantHas},
-		{"active_set", d.handleActiveSet},
-		{"active_get", d.handleActiveGet},
-		{"status_get", d.handleStatusGet},
-		{"state_get", d.handleStateGet},
-		{"onboarded_set", d.handleOnboardedSet},
-		{"locale_set", d.handleLocaleSet},
-		{"delete_self", d.handleDeleteSelf},
-	}
-	for _, h := range verbs {
-		subject := prefix + "." + h.verb
-		fn := h.fn
-		if _, err := nc.QueueSubscribe(subject, queueGroup, func(msg *nats.Msg) {
-			txn := app.StartTransaction("rpc " + subject)
-			defer txn.End()
-			ctx := newrelic.NewContext(context.Background(), txn)
-			fn(ctx, msg)
-		}); err != nil {
+	for verb, fn := range verbs {
+		subject := prefix + "." + verb
+		fn := fn
+		if _, err := w.NC.QueueSubscribe(subject, w.Queue, tracedHandler(w.App, subject, fn)); err != nil {
 			return fmt.Errorf("subscribe %s: %w", subject, err)
 		}
 	}
 	return nil
 }
 
-func (d *dashboardRPC) handleUpsertUser(ctx context.Context, msg *nats.Msg) {
-	var req usersrpc.UpsertUserRequest
+// tracedHandler wraps a raw NATS handler in a New Relic transaction named after
+// its subject, so every dashboard RPC shows up as its own transaction.
+func tracedHandler(app *newrelic.Application, subject string, fn func(context.Context, *nats.Msg)) nats.MsgHandler {
+	return func(msg *nats.Msg) {
+		txn := app.StartTransaction("rpc " + subject)
+		defer txn.End()
+		fn(newrelic.NewContext(context.Background(), txn), msg)
+	}
+}
+
+func respondErr(msg *nats.Msg, text string) { bus.Respond(msg, map[string]any{"error": text}) }
+func respondOK(msg *nats.Msg)               { bus.Respond(msg, map[string]any{"ok": true}) }
+
+// decodeRequest unmarshals the message body into T, responding "bad request"
+// and returning ok=false on a malformed payload.
+func decodeRequest[T any](msg *nats.Msg) (req T, ok bool) {
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
-		bus.Respond(msg, map[string]any{"error": "bad request"})
-		return
+		respondErr(msg, "bad request")
+		return req, false
 	}
+	return req, true
+}
 
-	id, err := strconv.ParseUint(req.UserID, 10, 64)
+// parseWireID parses a decimal id, responding "<field> must be numeric" and
+// returning ok=false when it is not. field is the wire field name for the
+// error text.
+func parseWireID(msg *nats.Msg, raw, field string) (uint64, bool) {
+	id, err := strconv.ParseUint(raw, 10, 64)
 	if err != nil {
-		bus.Respond(msg, map[string]any{"error": "user_id must be numeric"})
+		respondErr(msg, field+" must be numeric")
+		return 0, false
+	}
+	return id, true
+}
+
+// timeout derives the per-handler repo deadline.
+func timeout(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(ctx, dashboardTimeout)
+}
+
+// publishInvalidate pushes a cache invalidation and logs (never fails the RPC)
+// on error. op labels the log line.
+func (d *dashboardRPC) publishInvalidate(scope, id, op string) {
+	if err := invalidate.Publish(d.nc, d.invalidationPrefix, scope, id); err != nil {
+		d.log.Warn(op+" invalidation publish failed", zap.Error(err))
+	}
+}
+
+// writeThenInvalidate is the shared write path for the "set" verbs: run the
+// repo write under the handler deadline, drop the broadcaster's cached view on
+// success, and respond ok. op labels both the error log and the invalidation
+// warning; scope is the invalidation scope; broadcasterID is the raw wire id.
+func (d *dashboardRPC) writeThenInvalidate(ctx context.Context, msg *nats.Msg, scope, broadcasterID, op string, write func(context.Context) error) {
+	ctx, cancel := timeout(ctx)
+	defer cancel()
+
+	if err := write(ctx); err != nil {
+		d.log.Error(op, zap.Error(err))
+		respondErr(msg, err.Error())
+		return
+	}
+	d.publishInvalidate(scope, broadcasterID, op)
+	respondOK(msg)
+}
+
+func (d *dashboardRPC) handleUpsertUser(ctx context.Context, msg *nats.Msg) {
+	req, ok := decodeRequest[usersrpc.UpsertUserRequest](msg)
+	if !ok {
+		return
+	}
+	id, ok := parseWireID(msg, req.UserID, "user_id")
+	if !ok {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	ctx, cancel := timeout(ctx)
 	defer cancel()
 
 	// Ensure email is generated uniquely since we don't fetch it from Twitch by default
@@ -85,7 +141,7 @@ func (d *dashboardRPC) handleUpsertUser(ctx context.Context, msg *nats.Msg) {
 
 	if err := d.repo.Register(ctx, id, req.Username, email); err != nil {
 		d.log.Error("upsert_user register", zap.Error(err))
-		bus.Respond(msg, map[string]any{"error": err.Error()})
+		respondErr(msg, err.Error())
 		return
 	}
 
@@ -102,63 +158,41 @@ func (d *dashboardRPC) handleUpsertUser(ctx context.Context, msg *nats.Msg) {
 	// Push-drop cached account state on every console replica: a recreated
 	// account must not keep serving another pod's deleted-era view for the
 	// rest of that pod's SWR window.
-	if err := invalidate.Publish(d.nc, d.invalidationPrefix, "status", req.UserID); err != nil {
-		d.log.Warn("upsert_user invalidation publish failed", zap.Error(err))
-	}
-
-	bus.Respond(msg, map[string]any{"ok": true})
+	d.publishInvalidate("status", req.UserID, "upsert_user")
+	respondOK(msg)
 }
 
 func (d *dashboardRPC) handleGrantSave(ctx context.Context, msg *nats.Msg) {
-	var req usersrpc.GrantSaveRequest
-	if err := json.Unmarshal(msg.Data, &req); err != nil {
-		bus.Respond(msg, map[string]any{"error": "bad request"})
+	req, ok := decodeRequest[usersrpc.GrantSaveRequest](msg)
+	if !ok {
+		return
+	}
+	id, ok := parseWireID(msg, req.BroadcasterUserID, "broadcaster_user_id")
+	if !ok {
 		return
 	}
 
-	id, err := strconv.ParseUint(req.BroadcasterUserID, 10, 64)
-	if err != nil {
-		bus.Respond(msg, map[string]any{"error": "broadcaster_user_id must be numeric"})
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
-	defer cancel()
-
-	if err := d.repo.UpsertToken(ctx, id, tokens.TypeUserToken, tokens.PlatformTwitch, []byte(req.AccessToken), []byte(req.RefreshToken)); err != nil {
-		d.log.Error("grant_save upsert token", zap.Error(err))
-		bus.Respond(msg, map[string]any{"error": err.Error()})
-		return
-	}
-
-	// Invalidate cached state for this broadcaster.
-	if err := invalidate.Publish(d.nc, d.invalidationPrefix, "grant", req.BroadcasterUserID); err != nil {
-		d.log.Warn("grant_save invalidation publish failed", zap.Error(err))
-	}
-
-	bus.Respond(msg, map[string]any{"ok": true})
+	d.writeThenInvalidate(ctx, msg, "grant", req.BroadcasterUserID, "grant_save",
+		func(ctx context.Context) error {
+			return d.repo.UpsertToken(ctx, id, tokens.TypeUserToken, tokens.PlatformTwitch, []byte(req.AccessToken), []byte(req.RefreshToken))
+		})
 }
 
 func (d *dashboardRPC) handleGrantHas(ctx context.Context, msg *nats.Msg) {
-	var req usersrpc.GrantHasRequest
-	if err := json.Unmarshal(msg.Data, &req); err != nil {
-		bus.Respond(msg, map[string]any{"error": "bad request"})
+	req, ok := decodeRequest[usersrpc.GrantHasRequest](msg)
+	if !ok {
+		return
+	}
+	id, ok := parseWireID(msg, req.BroadcasterUserID, "broadcaster_user_id")
+	if !ok {
 		return
 	}
 
-	id, err := strconv.ParseUint(req.BroadcasterUserID, 10, 64)
-	if err != nil {
-		bus.Respond(msg, map[string]any{"error": "broadcaster_user_id must be numeric"})
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	ctx, cancel := timeout(ctx)
 	defer cancel()
 
 	accessToken, _, err := d.repo.Token(ctx, id, tokens.TypeUserToken, tokens.PlatformTwitch)
-
 	hasGrant := err == nil && len(accessToken) > 0
-
 	bus.Respond(msg, map[string]any{"has_grant": hasGrant})
 }
 
@@ -166,85 +200,30 @@ func (d *dashboardRPC) handleGrantHas(ctx context.Context, msg *nats.Msg) {
 // change event, so the projector and ingress converge without extra work;
 // the explicit invalidation below covers the dashboard's own grant cache.
 func (d *dashboardRPC) handleActiveSet(ctx context.Context, msg *nats.Msg) {
-	var req usersrpc.ActiveSetRequest
-	if err := json.Unmarshal(msg.Data, &req); err != nil {
-		bus.Respond(msg, map[string]any{"error": "bad request"})
+	req, ok := decodeRequest[usersrpc.ActiveSetRequest](msg)
+	if !ok {
+		return
+	}
+	id, ok := parseWireID(msg, req.BroadcasterUserID, "broadcaster_user_id")
+	if !ok {
 		return
 	}
 
-	id, err := strconv.ParseUint(req.BroadcasterUserID, 10, 64)
-	if err != nil {
-		bus.Respond(msg, map[string]any{"error": "broadcaster_user_id must be numeric"})
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
-	defer cancel()
-
-	if err := d.repo.SetActive(ctx, id, req.Active); err != nil {
-		d.log.Error("active_set", zap.Error(err))
-		bus.Respond(msg, map[string]any{"error": err.Error()})
-		return
-	}
-
-	if err := invalidate.Publish(d.nc, d.invalidationPrefix, "status", req.BroadcasterUserID); err != nil {
-		d.log.Warn("active_set invalidation publish failed", zap.Error(err))
-	}
-
-	bus.Respond(msg, map[string]any{"ok": true})
+	d.writeThenInvalidate(ctx, msg, "status", req.BroadcasterUserID, "active_set",
+		func(ctx context.Context) error { return d.repo.SetActive(ctx, id, req.Active) })
 }
 
 func (d *dashboardRPC) handleActiveGet(ctx context.Context, msg *nats.Msg) {
-	var req usersrpc.GrantHasRequest
-	if err := json.Unmarshal(msg.Data, &req); err != nil {
-		bus.Respond(msg, map[string]any{"error": "bad request"})
-		return
-	}
-
-	id, err := strconv.ParseUint(req.BroadcasterUserID, 10, 64)
-	if err != nil {
-		bus.Respond(msg, map[string]any{"error": "broadcaster_user_id must be numeric"})
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
-	defer cancel()
-
-	view, err := d.repo.Get(ctx, id)
-	if err != nil {
-		bus.Respond(msg, map[string]any{"error": err.Error()})
-		return
-	}
-
-	bus.Respond(msg, map[string]any{"active": view.IsActive})
+	d.readView(ctx, msg, func(view repository.UserView) map[string]any {
+		return map[string]any{"active": view.IsActive}
+	})
 }
 
 // handleStatusGet returns the broadcaster's billing tier (free/paid/vip) so the
 // dashboard can show the account status to the user themselves.
 func (d *dashboardRPC) handleStatusGet(ctx context.Context, msg *nats.Msg) {
-	var req usersrpc.GrantHasRequest
-	if err := json.Unmarshal(msg.Data, &req); err != nil {
-		bus.Respond(msg, map[string]any{"error": "bad request"})
-		return
-	}
-
-	id, err := strconv.ParseUint(req.BroadcasterUserID, 10, 64)
-	if err != nil {
-		bus.Respond(msg, map[string]any{"error": "broadcaster_user_id must be numeric"})
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
-	defer cancel()
-
-	view, err := d.repo.Get(ctx, id)
-	if err != nil {
-		bus.Respond(msg, map[string]any{"error": err.Error()})
-		return
-	}
-	bus.Respond(msg, map[string]any{
-		"status":    view.Status,
-		"onboarded": view.Onboarded,
+	d.readView(ctx, msg, func(view repository.UserView) map[string]any {
+		return map[string]any{"status": view.Status, "onboarded": view.Onboarded}
 	})
 }
 
@@ -253,67 +232,58 @@ func (d *dashboardRPC) handleStatusGet(ctx context.Context, msg *nats.Msg) {
 // page render coalesces them here to spend one round trip and one repo.Get
 // instead of two.
 func (d *dashboardRPC) handleStateGet(ctx context.Context, msg *nats.Msg) {
-	var req usersrpc.GrantHasRequest
-	if err := json.Unmarshal(msg.Data, &req); err != nil {
-		bus.Respond(msg, map[string]any{"error": "bad request"})
+	d.readView(ctx, msg, func(view repository.UserView) map[string]any {
+		return map[string]any{
+			"active":                      view.IsActive,
+			"status":                      view.Status,
+			"onboarded":                   view.Onboarded,
+			"locale":                      view.Locale,
+			"creator_code":                view.CreatorCode,
+			"expires_at":                  view.SubscriptionExpiresAt,
+			"source":                      view.SubscriptionSource,
+			"subscription_ref":            view.SubscriptionRef,
+			"subscription_cancel_pending": view.SubscriptionCancelPending,
+		}
+	})
+}
+
+// readView is the shared read path for active_get / status_get / state_get:
+// decode the broadcaster id, load the user view once, then project the reply
+// with render.
+func (d *dashboardRPC) readView(ctx context.Context, msg *nats.Msg, render func(repository.UserView) map[string]any) {
+	req, ok := decodeRequest[usersrpc.GrantHasRequest](msg)
+	if !ok {
+		return
+	}
+	id, ok := parseWireID(msg, req.BroadcasterUserID, "broadcaster_user_id")
+	if !ok {
 		return
 	}
 
-	id, err := strconv.ParseUint(req.BroadcasterUserID, 10, 64)
-	if err != nil {
-		bus.Respond(msg, map[string]any{"error": "broadcaster_user_id must be numeric"})
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	ctx, cancel := timeout(ctx)
 	defer cancel()
 
 	view, err := d.repo.Get(ctx, id)
 	if err != nil {
-		bus.Respond(msg, map[string]any{"error": err.Error()})
+		respondErr(msg, err.Error())
 		return
 	}
-
-	bus.Respond(msg, map[string]any{
-		"active":                      view.IsActive,
-		"status":                      view.Status,
-		"onboarded":                   view.Onboarded,
-		"locale":                      view.Locale,
-		"expires_at":                  view.SubscriptionExpiresAt,
-		"source":                      view.SubscriptionSource,
-		"subscription_ref":            view.SubscriptionRef,
-		"subscription_cancel_pending": view.SubscriptionCancelPending,
-	})
+	bus.Respond(msg, render(view))
 }
 
 // handleOnboardedSet saves the user's completion of the onboarding flow.
 func (d *dashboardRPC) handleOnboardedSet(ctx context.Context, msg *nats.Msg) {
-	var req usersrpc.OnboardedSetRequest
-	if err := json.Unmarshal(msg.Data, &req); err != nil {
-		bus.Respond(msg, map[string]any{"error": "bad request"})
+	req, ok := decodeRequest[usersrpc.OnboardedSetRequest](msg)
+	if !ok {
+		return
+	}
+	id, ok := parseWireID(msg, req.BroadcasterUserID, "broadcaster_user_id")
+	if !ok {
 		return
 	}
 
-	id, err := strconv.ParseUint(req.BroadcasterUserID, 10, 64)
-	if err != nil {
-		bus.Respond(msg, map[string]any{"error": "broadcaster_user_id must be numeric"})
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
-	defer cancel()
-
-	if err := d.repo.SetOnboarded(ctx, id, req.Onboarded); err != nil {
-		d.log.Error("onboarded_set", zap.Error(err))
-		bus.Respond(msg, map[string]any{"error": err.Error()})
-		return
-	}
-
-	if err := invalidate.Publish(d.nc, d.invalidationPrefix, "status", req.BroadcasterUserID); err != nil {
-		d.log.Warn("onboarded_set invalidation publish failed", zap.Error(err))
-	}
-
-	bus.Respond(msg, map[string]any{"ok": true})
+	d.writeThenInvalidate(ctx, msg, "status", req.BroadcasterUserID, "onboarded_set",
+		func(ctx context.Context) error { return d.repo.SetOnboarded(ctx, id, req.Onboarded) })
 }
 
 // supportedLocales is the console's UI language set. Kept here so the service
@@ -325,66 +295,49 @@ var supportedLocales = map[string]bool{"en": true, "fr": true}
 // validated against the supported set so a stray write can't poison the column;
 // the console mirrors the same choice into a cookie for fast SSR.
 func (d *dashboardRPC) handleLocaleSet(ctx context.Context, msg *nats.Msg) {
-	var req usersrpc.LocaleSetRequest
-	if err := json.Unmarshal(msg.Data, &req); err != nil {
-		bus.Respond(msg, map[string]any{"error": "bad request"})
+	req, ok := decodeRequest[usersrpc.LocaleSetRequest](msg)
+	if !ok {
 		return
 	}
-
-	id, err := strconv.ParseUint(req.BroadcasterUserID, 10, 64)
-	if err != nil {
-		bus.Respond(msg, map[string]any{"error": "broadcaster_user_id must be numeric"})
+	id, ok := parseWireID(msg, req.BroadcasterUserID, "broadcaster_user_id")
+	if !ok {
 		return
 	}
 	if !supportedLocales[req.Locale] {
-		bus.Respond(msg, map[string]any{"error": "unsupported locale"})
+		respondErr(msg, "unsupported locale")
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
-	defer cancel()
-
-	if err := d.repo.SetLocale(ctx, id, req.Locale); err != nil {
-		d.log.Error("locale_set", zap.Error(err))
-		bus.Respond(msg, map[string]any{"error": err.Error()})
-		return
-	}
-
-	// Drop the console's cached locale view on every replica so a change is
-	// visible on the next login/render instead of riding out the SWR window.
-	if err := invalidate.Publish(d.nc, d.invalidationPrefix, "locale", req.BroadcasterUserID); err != nil {
-		d.log.Warn("locale_set invalidation publish failed", zap.Error(err))
-	}
-
-	bus.Respond(msg, map[string]any{"ok": true})
+	// Invalidate the "locale" scope so the console's cached locale view drops on
+	// every replica: a change is then visible on the next login/render instead
+	// of riding out the SWR window.
+	d.writeThenInvalidate(ctx, msg, "locale", req.BroadcasterUserID, "locale_set",
+		func(ctx context.Context) error { return d.repo.SetLocale(ctx, id, req.Locale) })
 }
 
 // handleDeleteSelf removes the user and every delegation they own. Delegations
 // are cleared first so no dangling links survive the deleted user row.
 func (d *dashboardRPC) handleDeleteSelf(ctx context.Context, msg *nats.Msg) {
-	var req usersrpc.DeleteSelfRequest
-	if err := json.Unmarshal(msg.Data, &req); err != nil {
-		bus.Respond(msg, map[string]any{"error": "bad request"})
+	req, ok := decodeRequest[usersrpc.DeleteSelfRequest](msg)
+	if !ok {
+		return
+	}
+	id, ok := parseWireID(msg, req.UserID, "user_id")
+	if !ok {
 		return
 	}
 
-	id, err := strconv.ParseUint(req.UserID, 10, 64)
-	if err != nil {
-		bus.Respond(msg, map[string]any{"error": "user_id must be numeric"})
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	ctx, cancel := timeout(ctx)
 	defer cancel()
 
 	if err := d.repo.DeleteDelegationsByOwner(ctx, id); err != nil {
 		d.log.Error("delete_self delegations", zap.Error(err))
-		bus.Respond(msg, map[string]any{"error": err.Error()})
+		respondErr(msg, err.Error())
 		return
 	}
 	if err := d.repo.Delete(ctx, id); err != nil {
 		d.log.Error("delete_self user", zap.Error(err))
-		bus.Respond(msg, map[string]any{"error": err.Error()})
+		respondErr(msg, err.Error())
 		return
 	}
 
@@ -393,9 +346,6 @@ func (d *dashboardRPC) handleDeleteSelf(ctx context.Context, msg *nats.Msg) {
 	// exactly right for deletion — no replica may keep any view of this user,
 	// and without this ping other pods would serve stale state for the rest of
 	// their SWR windows (the deleting pod only drops its own L1).
-	if err := invalidate.Publish(d.nc, d.invalidationPrefix, "user", req.UserID); err != nil {
-		d.log.Warn("delete_self invalidation publish failed", zap.Error(err))
-	}
-
-	bus.Respond(msg, map[string]any{"ok": true})
+	d.publishInvalidate("user", req.UserID, "delete_self")
+	respondOK(msg)
 }

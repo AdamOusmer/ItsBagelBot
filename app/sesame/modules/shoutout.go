@@ -15,7 +15,18 @@ const defaultShoutoutTemplate = "Massive shoutout to {raider} for the raid with 
 
 type shoutoutConfig struct {
 	Message string `json:"message"`
+	// NativeShoutout is a dashboard toggle stored as "on"/"off"; only an
+	// explicit "on" enables it, so a freshly opted-in module posts just the
+	// custom chat line until the broadcaster turns this on. When on, the raid
+	// also fires Twitch's own Send a Shoutout (the same call /shoutout makes),
+	// which renders the raider's current category in Twitch's native card — no
+	// template token can do that without a live Helix lookup.
+	NativeShoutout string `json:"native_shoutout"`
 }
+
+// nativeShoutoutOn reports whether the native-shoutout toggle is on. Unlike
+// alertOn, this one defaults off: only an explicit "on" counts.
+func nativeShoutoutOn(v string) bool { return v == "on" }
 
 // raidEvent is the subset of the channel.raid EventSub payload we use.
 type raidEvent struct {
@@ -44,9 +55,10 @@ func Shoutout(_ engine.Deps) module.Module {
 			return nil
 		}
 
-		tmpl := defaultShoutoutTemplate
 		var cfg shoutoutConfig
-		if err := c.Decode(&cfg); err == nil && cfg.Message != "" {
+		_ = c.Decode(&cfg)
+		tmpl := defaultShoutoutTemplate
+		if cfg.Message != "" {
 			tmpl = cfg.Message
 		}
 
@@ -73,6 +85,19 @@ func Shoutout(_ engine.Deps) module.Module {
 			BroadcasterID: ev.ToBroadcasterUserID,
 			Text:          msg,
 		})
+
+		// Also fire Twitch's native /shoutout on the raider when the broadcaster
+		// opted in: outgress resolves To (a login) and calls Helix Send a
+		// Shoutout, which Twitch renders with the raider's live category — the
+		// custom chat line above can never show that without a live Helix call
+		// of our own.
+		if nativeShoutoutOn(cfg.NativeShoutout) {
+			emit(&module.Output{
+				Type:          outgress.TypeShoutout,
+				BroadcasterID: ev.ToBroadcasterUserID,
+				To:            strings.TrimPrefix(ev.FromBroadcasterUserLogin, "@"),
+			})
+		}
 		return nil
 	})
 

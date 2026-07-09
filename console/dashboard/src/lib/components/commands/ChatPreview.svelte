@@ -45,6 +45,7 @@
 
   const DEFAULT_SAMPLES: Record<string, string> = {
     user: 'sesame_sam',
+    args: 'aaaa',
     target: 'ferret_king',
     uptime: '3h 24m',
     followage: '8 months',

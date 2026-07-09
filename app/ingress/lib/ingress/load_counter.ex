@@ -3,17 +3,22 @@ defmodule Ingress.LoadCounter do
   A constant-time aggregate load counter for a rolling window of seconds.
   Instead of recording individual event timestamps, this tracks load in
   per-second buckets. The hot path for same-second increments is O(1).
+
+  Timestamps are raw `System.monotonic_time(:millisecond)` values, which on
+  the BEAM are negative. The counter carries no epoch of its own: it adopts
+  the first timestamp it is given, so it works for any monotonic clock
+  regardless of sign or origin.
   """
 
   defstruct window_seconds: 60,
-            current_second: 0,
+            current_second: nil,
             current_count: 0,
             completed_buckets: [],
             completed_total: 0
 
   @type t :: %__MODULE__{
           window_seconds: pos_integer(),
-          current_second: integer(),
+          current_second: integer() | nil,
           current_count: non_neg_integer(),
           completed_buckets: [{integer(), non_neg_integer()}],
           completed_total: non_neg_integer()
@@ -26,7 +31,7 @@ defmodule Ingress.LoadCounter do
   def new(window_seconds \\ 60) do
     %__MODULE__{
       window_seconds: window_seconds,
-      current_second: 0,
+      current_second: nil,
       current_count: 0,
       completed_buckets: [],
       completed_total: 0
@@ -39,7 +44,7 @@ defmodule Ingress.LoadCounter do
   """
   @spec increment(t(), integer()) :: t()
   def increment(counter, monotonic_ms) do
-    sec = div(monotonic_ms, 1000)
+    sec = Integer.floor_div(monotonic_ms, 1000)
 
     if sec == counter.current_second do
       %{counter | current_count: counter.current_count + 1}
@@ -56,9 +61,19 @@ defmodule Ingress.LoadCounter do
   """
   @spec value(t(), integer()) :: {non_neg_integer(), t()}
   def value(counter, monotonic_ms) do
-    sec = div(monotonic_ms, 1000)
+    sec = Integer.floor_div(monotonic_ms, 1000)
     counter = roll_to(counter, sec)
     {counter.completed_total + counter.current_count, counter}
+  end
+
+  # First timestamp ever seen: adopt it as the epoch. The struct default
+  # cannot pre-fill one — BEAM monotonic time is negative, so any fixed
+  # default (e.g. 0) sits permanently "in the future", every real timestamp
+  # reads as a clock regression, and the window never expires. This clause
+  # must stay above the regression guard: integers compare below `nil` in
+  # Erlang term order, so `target_sec <= nil` is always true.
+  defp roll_to(%{current_second: nil} = counter, target_sec) do
+    %{counter | current_second: target_sec}
   end
 
   defp roll_to(counter, target_sec) when target_sec <= counter.current_second do

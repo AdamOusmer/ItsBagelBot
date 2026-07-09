@@ -26,9 +26,22 @@
   const origin = $derived(page.url.origin);
 
   // Sections an owner can grant (from the server so it stays in one place).
-  const grantable = $derived((data.grantableSections ?? ['commands', 'modules', 'billing']) as string[]);
+  const grantable = $derived(
+    (data.grantableSections ?? ['commands', 'modules', 'channelpoints', 'billing']) as string[]
+  );
   function sectionLabel(sec: string): string {
-    return sec === 'modules' ? t('settings.modules') : sec === 'billing' ? t('settings.billing') : t('settings.commands');
+    switch (sec) {
+      case 'modules':
+        return t('settings.modules');
+      case 'channelpoints':
+        return t('nav.channelpoints');
+      case 'timers':
+        return t('nav.timers');
+      case 'billing':
+        return t('settings.billing');
+      default:
+        return t('settings.commands');
+    }
   }
 
   // Which grant's access is being edited inline (add/remove sections).

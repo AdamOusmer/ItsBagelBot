@@ -26,6 +26,13 @@ type Message struct {
 	// MsgID is the Twitch chat message id a "delete" targets; outgress puts it
 	// on the query string.
 	MsgID string `json:"msg_id,omitempty"`
+	// Channel-points redemption fields, set only for a "redemption_update" message
+	// (see TypeRedemptionUpdate): RewardID is the custom reward, RedemptionID the
+	// specific redemption to resolve, and Status the new state ("FULFILLED" or
+	// "CANCELED"). All three ride the query string, no body.
+	RewardID     string `json:"reward_id,omitempty"`
+	RedemptionID string `json:"redemption_id,omitempty"`
+	Status       string `json:"status,omitempty"`
 }
 
 // StreamStatusJob is the payload of a "stream_status" message: a request for
@@ -76,6 +83,18 @@ const (
 	// TypeWarn issues a Twitch chat warning the target must acknowledge before
 	// chatting again (Helix Warn Chat User); body {"data":{"user_id","reason"}}.
 	TypeWarn = "warn"
+	// TypeRedemptionUpdate resolves one channel-points redemption in the reward's
+	// request queue (Helix Update Redemption Status): the bot marks it FULFILLED
+	// or CANCELED (a refund) after running the reward's action. Runs under the
+	// broadcaster token (channel:manage:redemptions); RewardID + RedemptionID +
+	// Status ride the query string / body.
+	TypeRedemptionUpdate = "redemption_update"
+)
+
+// Redemption status values for a TypeRedemptionUpdate Message.Status.
+const (
+	RedemptionFulfilled = "FULFILLED"
+	RedemptionCanceled  = "CANCELED"
 )
 
 // EventSubJob mode values for the Mode field.
@@ -83,6 +102,13 @@ const (
 	ModeEnable    = "enable"
 	ModeDisable   = "disable"
 	ModeReconnect = "reconnect"
+	// ModeEnsureOptional (re)creates only the optional subscriptions (e.g. the
+	// channel-points redemption sub) without touching the mandatory set. It is
+	// how a broadcaster who re-consents with channel:read:redemptions after
+	// already being enrolled picks up the redemption sub, without paying a full
+	// drop-and-recreate. Creates are 409-idempotent, and a permanent rejection
+	// (a non-affiliate with no channel points) is tolerated, not marked failing.
+	ModeEnsureOptional = "ensure_optional"
 )
 
 // As field values recognized by ParseIdentity in the Twitch client.

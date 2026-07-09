@@ -8,8 +8,8 @@ import (
 
 	"ItsBagelBot/app/sesame/engine"
 	"ItsBagelBot/app/sesame/module"
-	gatewayrpc "ItsBagelBot/internal/domain/rpc/gateway"
 	"ItsBagelBot/internal/domain/outgress"
+	gatewayrpc "ItsBagelBot/internal/domain/rpc/gateway"
 
 	"go.uber.org/zap"
 )
@@ -25,13 +25,13 @@ const urchinCooldown = 10 * time.Second
 // Default reply templates. The broadcaster customizes them per command on the
 // module page; blank falls back to these.
 const (
-	defaultUrchinDailyTemplate   = "{player} today: {wins}W {losses}L · {finals} finals · {beds} beds · {fkdr} FKDR"
-	defaultUrchinWeeklyTemplate  = "{player} this week: {wins}W {losses}L · {finals} finals · {beds} beds · {fkdr} FKDR"
-	defaultUrchinMonthlyTemplate = "{player} this month: {wins}W {losses}L · {finals} finals · {beds} beds · {fkdr} FKDR"
-	defaultUrchinStatsTemplate   = "{player}: {stars} stars · {wins} wins · {finals} finals · {fkdr} FKDR · {beds} beds broken"
-	defaultUrchinSniperTemplate  = "{player} urchin score: {score}"
-	defaultUrchinTagsTemplate            = "{player}: {tags}"
-	defaultUrchinTagDescriptionTemplate  = "{player}: {tags}"
+	defaultUrchinDailyTemplate          = "{player} today: {wins}W {losses}L · {finals} finals · {beds} beds · {fkdr} FKDR"
+	defaultUrchinWeeklyTemplate         = "{player} this week: {wins}W {losses}L · {finals} finals · {beds} beds · {fkdr} FKDR"
+	defaultUrchinMonthlyTemplate        = "{player} this month: {wins}W {losses}L · {finals} finals · {beds} beds · {fkdr} FKDR"
+	defaultUrchinStatsTemplate          = "{player}: {stars} stars · {wins} wins · {finals} finals · {fkdr} FKDR · {beds} beds broken"
+	defaultUrchinSniperTemplate         = "{player} urchin score: {score}"
+	defaultUrchinTagsTemplate           = "{player}: {tags}"
+	defaultUrchinTagDescriptionTemplate = "{player}: {tags}"
 )
 
 // urchinConfig is the module's dashboard configuration. Account is the linked
@@ -42,20 +42,20 @@ const (
 type urchinConfig struct {
 	Account string `json:"account"`
 
-	DailyEnabled   string `json:"dailyEnabled"`
-	DailyMessage   string `json:"dailyMessage"`
-	WeeklyEnabled  string `json:"weeklyEnabled"`
-	WeeklyMessage  string `json:"weeklyMessage"`
-	MonthlyEnabled string `json:"monthlyEnabled"`
-	MonthlyMessage string `json:"monthlyMessage"`
-	StatsEnabled   string `json:"statsEnabled"`
-	StatsMessage   string `json:"statsMessage"`
-	SniperEnabled  string `json:"sniperEnabled"`
-	SniperMessage  string `json:"sniperMessage"`
-	TagsEnabled              string `json:"tagsEnabled"`
-	TagsMessage              string `json:"tagsMessage"`
-	TagDescriptionEnabled    string `json:"tagDescriptionEnabled"`
-	TagDescriptionMessage    string `json:"tagDescriptionMessage"`
+	DailyEnabled          string `json:"dailyEnabled"`
+	DailyMessage          string `json:"dailyMessage"`
+	WeeklyEnabled         string `json:"weeklyEnabled"`
+	WeeklyMessage         string `json:"weeklyMessage"`
+	MonthlyEnabled        string `json:"monthlyEnabled"`
+	MonthlyMessage        string `json:"monthlyMessage"`
+	StatsEnabled          string `json:"statsEnabled"`
+	StatsMessage          string `json:"statsMessage"`
+	SniperEnabled         string `json:"sniperEnabled"`
+	SniperMessage         string `json:"sniperMessage"`
+	TagsEnabled           string `json:"tagsEnabled"`
+	TagsMessage           string `json:"tagsMessage"`
+	TagDescriptionEnabled string `json:"tagDescriptionEnabled"`
+	TagDescriptionMessage string `json:"tagDescriptionMessage"`
 }
 
 // Urchin owns the Hypixel Bed Wars stats commands backed by the urchin.gg
@@ -115,21 +115,31 @@ func urchinToggle(cfg urchinConfig, endpoint string) (enabled bool, tmpl string)
 	}
 }
 
-// urchinSessionRun answers !daily / !weekly / !monthly with the period's Bed
-// Wars delta. Template tokens: {player} {wins} {losses} {finals} {finaldeaths}
-// {beds} {games} {levels} {fkdr}.
-func urchinSessionRun(d engine.Deps, endpoint string) module.RunFunc {
+// gatewayCommand names one urchin command's wiring: the config toggle key and
+// the gateway provider/endpoint it calls.
+type gatewayCommand struct {
+	toggle   string
+	provider string
+	endpoint string
+}
+
+// runUrchinCommand is the shared skeleton every urchin command runs: decode
+// the channel config, check the command's toggle, resolve the target account,
+// call the gateway, then expand the reply's tokens into the template. tokens
+// maps a template key to its reply field; unknown keys fall through to the
+// dynamic palette.
+func runUrchinCommand[R any](d engine.Deps, cmd gatewayCommand, tokens map[string]func(*R) string) module.RunFunc {
 	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
 		var cfg urchinConfig
 		_ = c.Decode(&cfg)
-		enabled, tmpl := urchinToggle(cfg, endpoint)
+		enabled, tmpl := urchinToggle(cfg, cmd.toggle)
 		if !enabled || d.Gateway == nil {
 			return nil
 		}
 
-		account := resolveAccount(args, cfg.Account, c.Env.BroadcasterUserLogin)
-		var reply gatewayrpc.UrchinSessionReply
-		if err := d.Gateway.Call(ctx, "urchin", endpoint, gatewayrpc.Request{Account: account, IsPremium: c.Regress.IsPremium()}, &reply); err != nil {
+		account := resolveAccount(accountSources{Arg: args, Linked: cfg.Account, BroadcasterLogin: c.Env.BroadcasterUserLogin})
+		var reply R
+		if err := d.Gateway.Call(ctx, cmd.provider, cmd.endpoint, gatewayrpc.Request{Account: account, IsPremium: c.Regress.IsPremium()}, &reply); err != nil {
 			if chatReplyError(c, emit, account, err) {
 				return nil
 			}
@@ -137,32 +147,32 @@ func urchinSessionRun(d engine.Deps, endpoint string) module.RunFunc {
 		}
 
 		msg := module.ExpandString(tmpl, func(key string) (string, bool) {
-			switch key {
-			case "player":
-				return reply.Player, true
-			case "wins":
-				return i64(reply.Wins), true
-			case "losses":
-				return i64(reply.Losses), true
-			case "finals":
-				return i64(reply.FinalKills), true
-			case "finaldeaths":
-				return i64(reply.FinalDeaths), true
-			case "beds":
-				return i64(reply.BedsBroken), true
-			case "games":
-				return i64(reply.GamesPlayed), true
-			case "levels":
-				return i64(reply.Levels), true
-			case "fkdr":
-				return ratio(reply.FinalKills, reply.FinalDeaths), true
-			default:
-				return module.ParseDynamic(key)
+			if field, ok := tokens[key]; ok {
+				return field(&reply), true
 			}
+			return module.ParseDynamic(key)
 		})
 		emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: msg})
 		return nil
 	}
+}
+
+// urchinSessionRun answers !daily / !weekly / !monthly with the period's Bed
+// Wars delta. Template tokens: {player} {wins} {losses} {finals} {finaldeaths}
+// {beds} {games} {levels} {fkdr}.
+func urchinSessionRun(d engine.Deps, endpoint string) module.RunFunc {
+	type reply = gatewayrpc.UrchinSessionReply
+	return runUrchinCommand(d, gatewayCommand{endpoint, "urchin", endpoint}, map[string]func(*reply) string{
+		"player":      func(r *reply) string { return r.Player },
+		"wins":        func(r *reply) string { return i64(r.Wins) },
+		"losses":      func(r *reply) string { return i64(r.Losses) },
+		"finals":      func(r *reply) string { return i64(r.FinalKills) },
+		"finaldeaths": func(r *reply) string { return i64(r.FinalDeaths) },
+		"beds":        func(r *reply) string { return i64(r.BedsBroken) },
+		"games":       func(r *reply) string { return i64(r.GamesPlayed) },
+		"levels":      func(r *reply) string { return i64(r.Levels) },
+		"fkdr":        func(r *reply) string { return ratio(r.FinalKills, r.FinalDeaths) },
+	})
 }
 
 // urchinStatsRun answers !bwstats with lifetime Bed Wars stats. Template
@@ -174,163 +184,53 @@ func urchinSessionRun(d engine.Deps, endpoint string) module.RunFunc {
 // but the command stays on the one urchin module page: gateway provider layout
 // is not a dashboard concern.
 func urchinStatsRun(d engine.Deps) module.RunFunc {
-	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
-		var cfg urchinConfig
-		_ = c.Decode(&cfg)
-		enabled, tmpl := urchinToggle(cfg, "stats")
-		if !enabled || d.Gateway == nil {
-			return nil
-		}
-
-		account := resolveAccount(args, cfg.Account, c.Env.BroadcasterUserLogin)
-		var reply gatewayrpc.HypixelStatsReply
-		if err := d.Gateway.Call(ctx, "hypixel", "stats", gatewayrpc.Request{Account: account, IsPremium: c.Regress.IsPremium()}, &reply); err != nil {
-			if chatReplyError(c, emit, account, err) {
-				return nil
-			}
-			return err
-		}
-
-		msg := module.ExpandString(tmpl, func(key string) (string, bool) {
-			switch key {
-			case "player":
-				return reply.Player, true
-			case "stars":
-				return i64(reply.Stars), true
-			case "wins":
-				return i64(reply.Wins), true
-			case "losses":
-				return i64(reply.Losses), true
-			case "finals":
-				return i64(reply.FinalKills), true
-			case "finaldeaths":
-				return i64(reply.FinalDeaths), true
-			case "beds":
-				return i64(reply.BedsBroken), true
-			case "fkdr":
-				return ratio(reply.FinalKills, reply.FinalDeaths), true
-			case "wlr":
-				return ratio(reply.Wins, reply.Losses), true
-			default:
-				return module.ParseDynamic(key)
-			}
-		})
-		emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: msg})
-		return nil
-	}
+	type reply = gatewayrpc.HypixelStatsReply
+	return runUrchinCommand(d, gatewayCommand{"stats", "hypixel", "stats"}, map[string]func(*reply) string{
+		"player":      func(r *reply) string { return r.Player },
+		"stars":       func(r *reply) string { return i64(r.Stars) },
+		"wins":        func(r *reply) string { return i64(r.Wins) },
+		"losses":      func(r *reply) string { return i64(r.Losses) },
+		"finals":      func(r *reply) string { return i64(r.FinalKills) },
+		"finaldeaths": func(r *reply) string { return i64(r.FinalDeaths) },
+		"beds":        func(r *reply) string { return i64(r.BedsBroken) },
+		"fkdr":        func(r *reply) string { return ratio(r.FinalKills, r.FinalDeaths) },
+		"wlr":         func(r *reply) string { return ratio(r.Wins, r.Losses) },
+	})
 }
 
 // urchinSniperRun answers !sniper with the Urchin (Cubelify overlay) score.
 // Template tokens: {player} {score} {mode} {tagcount}.
 func urchinSniperRun(d engine.Deps) module.RunFunc {
-	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
-		var cfg urchinConfig
-		_ = c.Decode(&cfg)
-		enabled, tmpl := urchinToggle(cfg, "sniper")
-		if !enabled || d.Gateway == nil {
-			return nil
-		}
-
-		account := resolveAccount(args, cfg.Account, c.Env.BroadcasterUserLogin)
-		var reply gatewayrpc.UrchinSniperReply
-		if err := d.Gateway.Call(ctx, "urchin", "sniper", gatewayrpc.Request{Account: account, IsPremium: c.Regress.IsPremium()}, &reply); err != nil {
-			if chatReplyError(c, emit, account, err) {
-				return nil
-			}
-			return err
-		}
-
-		msg := module.ExpandString(tmpl, func(key string) (string, bool) {
-			switch key {
-			case "player":
-				return reply.Player, true
-			case "score":
-				return trimScore(reply.Score), true
-			case "mode":
-				return reply.Mode, true
-			case "tagcount":
-				return i64(int64(reply.TagCount)), true
-			default:
-				return module.ParseDynamic(key)
-			}
-		})
-		emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: msg})
-		return nil
-	}
+	type reply = gatewayrpc.UrchinSniperReply
+	return runUrchinCommand(d, gatewayCommand{"sniper", "urchin", "sniper"}, map[string]func(*reply) string{
+		"player":   func(r *reply) string { return r.Player },
+		"score":    func(r *reply) string { return trimScore(r.Score) },
+		"mode":     func(r *reply) string { return r.Mode },
+		"tagcount": func(r *reply) string { return i64(int64(r.TagCount)) },
+	})
 }
 
 // urchinTagsRun answers !tag with the player's active blacklist tags (display
 // names only, no reason). Template tokens: {player} {tags} {tagcount}.
 func urchinTagsRun(d engine.Deps) module.RunFunc {
-	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
-		var cfg urchinConfig
-		_ = c.Decode(&cfg)
-		enabled, tmpl := urchinToggle(cfg, "tags")
-		if !enabled || d.Gateway == nil {
-			return nil
-		}
-
-		account := resolveAccount(args, cfg.Account, c.Env.BroadcasterUserLogin)
-		var reply gatewayrpc.UrchinTagsReply
-		if err := d.Gateway.Call(ctx, "urchin", "tags", gatewayrpc.Request{Account: account, IsPremium: c.Regress.IsPremium()}, &reply); err != nil {
-			if chatReplyError(c, emit, account, err) {
-				return nil
-			}
-			return err
-		}
-
-		msg := module.ExpandString(tmpl, func(key string) (string, bool) {
-			switch key {
-			case "player":
-				return reply.Player, true
-			case "tags":
-				return formatUrchinTags(reply.Tags), true
-			case "tagcount":
-				return i64(int64(len(reply.Tags))), true
-			default:
-				return module.ParseDynamic(key)
-			}
-		})
-		emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: msg})
-		return nil
-	}
+	return runUrchinCommand(d, gatewayCommand{"tags", "urchin", "tags"}, tagTokens(formatUrchinTags))
 }
 
 // urchinTagDescriptionRun answers !tagdescription with the player's active
 // blacklist tags including the reason (the cleanup version).
 // Template tokens: {player} {tags} {tagcount}.
 func urchinTagDescriptionRun(d engine.Deps) module.RunFunc {
-	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
-		var cfg urchinConfig
-		_ = c.Decode(&cfg)
-		enabled, tmpl := urchinToggle(cfg, "tagdescription")
-		if !enabled || d.Gateway == nil {
-			return nil
-		}
+	return runUrchinCommand(d, gatewayCommand{"tagdescription", "urchin", "tags"}, tagTokens(formatUrchinTagDescriptions))
+}
 
-		account := resolveAccount(args, cfg.Account, c.Env.BroadcasterUserLogin)
-		var reply gatewayrpc.UrchinTagsReply
-		if err := d.Gateway.Call(ctx, "urchin", "tags", gatewayrpc.Request{Account: account, IsPremium: c.Regress.IsPremium()}, &reply); err != nil {
-			if chatReplyError(c, emit, account, err) {
-				return nil
-			}
-			return err
-		}
-
-		msg := module.ExpandString(tmpl, func(key string) (string, bool) {
-			switch key {
-			case "player":
-				return reply.Player, true
-			case "tags":
-				return formatUrchinTagDescriptions(reply.Tags), true
-			case "tagcount":
-				return i64(int64(len(reply.Tags))), true
-			default:
-				return module.ParseDynamic(key)
-			}
-		})
-		emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: msg})
-		return nil
+// tagTokens builds the token set both tag commands share; format renders the
+// tag list (with or without reasons).
+func tagTokens(format func([]gatewayrpc.UrchinTag) string) map[string]func(*gatewayrpc.UrchinTagsReply) string {
+	type reply = gatewayrpc.UrchinTagsReply
+	return map[string]func(*reply) string{
+		"player":   func(r *reply) string { return r.Player },
+		"tags":     func(r *reply) string { return format(r.Tags) },
+		"tagcount": func(r *reply) string { return i64(int64(len(r.Tags))) },
 	}
 }
 
