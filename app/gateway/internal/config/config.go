@@ -44,6 +44,14 @@ type Config struct {
 	McsrEnabled   bool
 	McsrRateLimit float64
 
+	// Fortnite provider (fortnite-api.com: !fnstats + !store). Off by default —
+	// FORTNITE_ENABLED=true AND an API key turn it on — so it stays dark until
+	// tested against a real key.
+	FortniteBaseURL   string
+	FortniteAPIKey    string
+	FortniteEnabled   bool
+	FortniteRateLimit float64
+
 	// Govee smart-light provider. It holds no service key (each broadcaster
 	// brings their own, fetched from the modules service). GoveeKeySubjectPrefix
 	// is that internal RPC's subject prefix; empty disables the provider.
@@ -79,6 +87,12 @@ func Load() *Config {
 		McsrAPIKey:    env.Get("MCSR_API_KEY", ""),
 		McsrEnabled:   env.GetBool("MCSR_ENABLED", true),
 		McsrRateLimit: env.GetFloat("MCSR_RATE_LIMIT", 500.0),
+
+		FortniteBaseURL: env.Get("FORTNITE_BASE_URL", "https://fortnite-api.com"),
+		FortniteAPIKey:  env.Get("FORTNITE_API_KEY", ""),
+		FortniteEnabled: env.GetBool("FORTNITE_ENABLED", false),
+		// fortnite-api.com publishes no hard per-key budget; requests per minute.
+		FortniteRateLimit: env.GetFloat("FORTNITE_RATE_LIMIT", 120.0),
 
 		GoveeBaseURL:          env.Get("GOVEE_BASE_URL", "https://openapi.api.govee.com"),
 		GoveeRateLimit:        env.GetFloat("GOVEE_RATE_LIMIT", 8.0),

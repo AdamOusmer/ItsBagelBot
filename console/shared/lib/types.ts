@@ -712,6 +712,113 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
     ]
   },
   {
+    id: 'fortnite',
+    label: 'Fortnite Stats',
+    tagline: 'Fortnite BR stats and the daily item shop in chat.',
+    description:
+      'Viewer commands backed by fortnite-api.com: !fnstats shows wins, matches, kills, K/D and win rate with a solo/duo/squad breakdown; !store lists what is in today\'s item shop. Link your account name below, pick the platform it lives on (Epic, PlayStation or Xbox) and whether stats cover your lifetime or the current season. Viewers can also name any player, e.g. "!fnstats Ninja".',
+    icon: 'activity',
+    category: 'Games',
+    defaultEnabled: false,
+    replies: [
+      {
+        key: 'stats',
+        label: '!fnstats',
+        tagline: 'Battle Royale stats for the linked or named player.',
+        event: '!fnstats',
+        command: 'fnstats',
+        enableKey: 'statsEnabled',
+        messageKey: 'statsMessage',
+        defaultMessage:
+          '{player} ({window}): {wins} wins in {matches} matches · {winrate}% WR · {kills} kills · {kd} K/D · solo {solowins}W / duo {duowins}W / squad {squadwins}W',
+        tokens: [
+          'player',
+          'window',
+          'wins',
+          'matches',
+          'kills',
+          'kd',
+          'winrate',
+          'solowins',
+          'solomatches',
+          'solokd',
+          'duowins',
+          'duomatches',
+          'duokd',
+          'squadwins',
+          'squadmatches',
+          'squadkd'
+        ],
+        previewSamples: {
+          player: 'Ninja',
+          window: 'lifetime',
+          wins: '301',
+          matches: '6232',
+          kills: '21679',
+          kd: '3.66',
+          winrate: '4.83',
+          solowins: '120',
+          solomatches: '2400',
+          solokd: '3.2',
+          duowins: '90',
+          duomatches: '1900',
+          duokd: '3.8',
+          squadwins: '91',
+          squadmatches: '1932',
+          squadkd: '4.1'
+        }
+      },
+      {
+        key: 'store',
+        label: '!store',
+        tagline: "Today's item-shop rotation.",
+        event: '!store',
+        command: 'store',
+        enableKey: 'storeEnabled',
+        messageKey: 'storeMessage',
+        defaultMessage: 'Item Shop {date}: {items}',
+        tokens: ['date', 'count', 'items'],
+        previewSamples: {
+          date: '2026-07-09',
+          count: '38',
+          items: 'Peely Bundle (2800), Renegade Raider (1200), Floss (500) +35 more'
+        }
+      }
+    ],
+    settings: [
+      {
+        key: 'account',
+        label: 'Linked account name',
+        type: 'text',
+        placeholder: 'Your Epic / PSN / Xbox name',
+        help: 'Default player for !fnstats. Leave blank to use your Twitch username.'
+      },
+      {
+        key: 'accountType',
+        label: 'Account platform',
+        type: 'select',
+        placeholder: 'epic',
+        options: [
+          { value: 'epic', label: 'Epic Games' },
+          { value: 'psn', label: 'PlayStation' },
+          { value: 'xbl', label: 'Xbox Live' }
+        ],
+        help: 'Which platform the linked name lives on. Epic covers most players.'
+      },
+      {
+        key: 'timeWindow',
+        label: 'Stats window',
+        type: 'select',
+        placeholder: 'lifetime',
+        options: [
+          { value: 'lifetime', label: 'Lifetime' },
+          { value: 'season', label: 'Current season' }
+        ],
+        help: 'Whether !fnstats reports all-time stats or the current season only.'
+      }
+    ]
+  },
+  {
     id: 'queue',
     label: 'Play Queue',
     tagline: 'Let viewers line up to play with you, first come first served.',
