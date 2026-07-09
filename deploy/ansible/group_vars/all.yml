@@ -8,8 +8,8 @@
 #                 generated on first run and persisted to /etc/fleet/node-name.
 # ─────────────────────────────────────────────────────────────────────────────
 
-# --- k3s control plane (node1) -----------------------------------------------
-k3s_server_ip: "100.98.67.104"          # node1 Tailscale IPv4
+# --- k3s control plane (node2) -----------------------------------------------
+k3s_server_ip: "100.95.95.9"            # node2 Tailscale IPv4 (CP migrated node1->node2 2026-07-01)
 k3s_url: "https://{{ k3s_server_ip }}:6443"
 k3s_version: "v1.35.5+k3s1"             # pinned to running fleet; bump deliberately
 flannel_iface: "tailscale0"            # all cluster traffic stays on the tailnet
@@ -27,6 +27,7 @@ tailscale_port: 41641                   # UDP listen port
 tailscale_direct_peers:
   - node1
   - node2
+  - node3
   - worker1
 
 # --- Node identity -----------------------------------------------------------

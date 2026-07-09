@@ -228,6 +228,16 @@ func (c *Client) User(ctx context.Context, userID uint64) (User, error) {
 	})
 }
 
+// Modules returns the broadcaster's enabled ModuleView set from the in-process
+// cache, filling a cold entry from the Valkey projection (tier 2) or the
+// projector RPC (tier 3). A genuine empty answer (projected, no modules) is
+// cached like any other; a LOAD FAILURE is not. GetOrLoad only stores the value
+// when the loader returns nil, so surfacing the RPC error here keeps a transient
+// projector blip from caching an empty set for the whole TTL, which would mask
+// automod and every per-channel module toggle until it expired. The error is
+// cheap to return: every caller already fails open or nacks on it (the pipeline
+// nacks for redelivery, clip/timers fall open per-call), and none of them cache
+// it, so each keeps its own policy instead of inheriting a poisoned entry.
 func (c *Client) Modules(ctx context.Context, userID uint64) ([]ModuleView, error) {
 	return c.modules.GetOrLoad(ctx, key("modules", userID), func(ctx context.Context) ([]ModuleView, error) {
 		if mods, projected, err := c.store.GetModules(ctx, userID); err == nil && projected {
@@ -238,7 +248,7 @@ func (c *Client) Modules(ctx context.Context, userID uint64) ([]ModuleView, erro
 			Modules []ModuleView `json:"modules"`
 		}](ctx, c.nc, c.subjects.Modules, projectionRequest(userID), c.rpcTimeout)
 		if err != nil {
-			return []ModuleView{}, nil
+			return nil, err
 		}
 		return reply.Modules, nil
 	})
