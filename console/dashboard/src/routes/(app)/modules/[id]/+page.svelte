@@ -5,6 +5,7 @@
   import ReplyRow from '$lib/components/modules/ReplyRow.svelte';
   import ReplyEditor from '$lib/components/modules/ReplyEditor.svelte';
   import ModuleCommandRow from '$lib/components/modules/ModuleCommandRow.svelte';
+  import TriggerRuleEditor from '$lib/components/modules/TriggerRuleEditor.svelte';
 
   let { data } = $props();
 
@@ -20,6 +21,18 @@
   let enabled = $state(data.enabled);
   // svelte-ignore state_referenced_locally
   let config = $state<Record<string, string>>({ ...data.config });
+
+  // Trigger words is the one module whose "replies" are a free-form list the
+  // author grows: it renders trigger rules as add/removable ReplyRows and reads
+  // the whole list out of one "rules" config string (see the trigger block
+  // below). Every other module keeps its fixed def.replies.
+  const isTriggers = $derived(def.id === 'triggers');
+  // svelte-ignore state_referenced_locally
+  let rules = $state<Rule[]>(parseRules(data.config.rules ?? ''));
+  // The inspector column exists for any module that has an editable ledger —
+  // fixed replies or the dynamic trigger list.
+  const hasInspector = $derived(isTriggers || hasReplies);
+
   // svelte-ignore state_referenced_locally
   let seedId = data.def.id;
   $effect(() => {
@@ -27,6 +40,8 @@
       seedId = data.def.id;
       enabled = data.enabled;
       config = { ...data.config };
+      rules = parseRules(data.config.rules ?? '');
+      ruleIndex = null;
       expanded = null;
     }
   });
@@ -60,6 +75,8 @@
       if (reply.enableKey) body.set(`cfg.${reply.enableKey}`, cfg[reply.enableKey] === 'off' ? 'off' : 'on');
     }
     for (const field of def.settings ?? []) body.set(`cfg.${field.key}`, cfg[field.key] ?? '');
+    // Triggers persists its whole rule list as one config string.
+    if (def.id === 'triggers') body.set('cfg.rules', cfg.rules ?? '');
     return body;
   }
 
@@ -165,6 +182,157 @@
     }
   }
 
+  // --- Trigger words: dynamic rule list ---------------------------------------
+  // A rule is one "phrase => response" line. The list persists as one config
+  // string (config.rules); a disabled rule is stored as a "#" comment the sesame
+  // parser skips. parse/serialize mirror app/sesame/modules/triggers.go.
+  type Match = 'word' | 'contains' | 'exact' | 'prefix';
+  type Rule = { phrase: string; response: string; match: Match; enabled: boolean };
+
+  const MODE_LABEL: Record<Match, string> = {
+    word: 'Whole word',
+    contains: 'Contains',
+    exact: 'Exact message',
+    prefix: 'Starts with'
+  };
+
+  function splitMode(left: string): [Match, string] {
+    const c = left.indexOf(':');
+    if (c < 0) return ['word', left];
+    const pre = left.slice(0, c).trim().toLowerCase();
+    if (pre === 'word' || pre === 'contains' || pre === 'exact' || pre === 'prefix') return [pre, left.slice(c + 1).trim()];
+    return ['word', left];
+  }
+  function parseRules(raw: string): Rule[] {
+    const out: Rule[] = [];
+    for (const line of raw.split('\n')) {
+      let ln = line.trim();
+      if (!ln) continue;
+      let on = true;
+      if (ln.startsWith('#')) {
+        const rest = ln.slice(1).trim();
+        if (!rest.includes('=>')) continue; // a plain comment, not a disabled rule
+        on = false;
+        ln = rest;
+      }
+      const sep = ln.indexOf('=>');
+      if (sep < 0) continue;
+      const [match, phrase] = splitMode(ln.slice(0, sep).trim());
+      const response = ln.slice(sep + 2).trim();
+      if (!phrase || !response) continue;
+      out.push({ phrase, response, match, enabled: on });
+    }
+    return out;
+  }
+  function serializeRules(list: Rule[]): string {
+    return list
+      .filter((r) => r.phrase.trim() && r.response.trim())
+      .map((r) => {
+        const mode = r.match === 'word' ? '' : r.match + ': ';
+        const body = `${mode}${r.phrase.trim()} => ${r.response.replace(/\s*\n\s*/g, ' ').trim()}`;
+        return r.enabled ? body : `# ${body}`;
+      })
+      .join('\n');
+  }
+
+  // Rules rendered as ReplyRow-shaped rows (label = phrase, preview = response).
+  const ruleRows: ModuleReply[] = $derived(
+    rules.map((r, i) => ({
+      key: `rule:${i}`,
+      label: r.phrase || 'New rule',
+      tagline: MODE_LABEL[r.match],
+      event: `on "${r.phrase || '…'}"`,
+      messageKey: `rule:${i}`,
+      enableKey: `rule:${i}`,
+      defaultMessage: r.response
+    }))
+  );
+
+  // Inspector draft. ruleIndex is the row being edited, -1 for a new unsaved rule,
+  // or null when no rule is open. The response reuses editMessage (shared with the
+  // reply editor's bound message).
+  let ruleIndex = $state<number | null>(null);
+  let draftPhrase = $state('');
+  let draftMatch = $state<Match>('word');
+
+  // persistRules writes the serialized list into config.rules and posts the whole
+  // draft, so the module enable and the rules save together. config is committed
+  // only on success (the caller commits `rules` too).
+  async function persistRules(next: Rule[]): Promise<boolean> {
+    const cfg = { ...config, rules: serializeRules(next) };
+    const ok = await persist(enabled, cfg);
+    if (ok) config = cfg;
+    return ok;
+  }
+
+  function openRule(i: number) {
+    if (expanded === `rule:${i}`) return closeInspector();
+    const r = rules[i];
+    ruleIndex = i;
+    draftPhrase = r.phrase;
+    draftMatch = r.match;
+    editMessage = r.response;
+    expanded = `rule:${i}`;
+  }
+  function addRule() {
+    ruleIndex = -1;
+    draftPhrase = '';
+    draftMatch = 'word';
+    editMessage = '';
+    expanded = 'rule:new';
+  }
+
+  async function saveRule() {
+    if (ruleIndex === null) return;
+    const keepOn = ruleIndex === -1 ? true : (rules[ruleIndex]?.enabled ?? true);
+    const draft: Rule = { phrase: draftPhrase.trim(), response: editMessage, match: draftMatch, enabled: keepOn };
+    const next = ruleIndex === -1 ? [...rules, draft] : rules.map((r, i) => (i === ruleIndex ? draft : r));
+    const key = expanded ?? 'rule';
+    busy = true;
+    setStatus(key, 'saving');
+    const ok = await persistRules(next);
+    busy = false;
+    if (ok) {
+      rules = next;
+      closeInspector();
+      toast('ok', t('modules.saved', { label: def.label }));
+    } else {
+      flagError(key);
+      toast('err', t('modules.saveFailed'));
+    }
+  }
+
+  async function deleteRule(i: number) {
+    const next = rules.filter((_, idx) => idx !== i);
+    setStatus(`rule:${i}`, 'saving');
+    if (await persistRules(next)) {
+      rules = next;
+      if (expanded === `rule:${i}`) closeInspector();
+      toast('ok', t('modules.saved', { label: def.label }));
+    } else {
+      flagError(`rule:${i}`);
+      toast('err', t('modules.saveFailed'));
+    }
+  }
+
+  async function toggleRule(i: number) {
+    const next = rules.map((r, idx) => (idx === i ? { ...r, enabled: !r.enabled } : r));
+    setStatus(`rule:${i}`, 'saving');
+    if (await persistRules(next)) {
+      rules = next;
+      ackSaved(`rule:${i}`);
+    } else {
+      flagError(`rule:${i}`);
+      toast('err', t('modules.couldNotToggle', { label: rules[i].phrase }));
+    }
+  }
+
+  // The inspector is open whenever a row (reply or rule) is expanded.
+  const editing = $derived(!!expanded);
+  const inspectorTitle = $derived(
+    isTriggers ? (ruleIndex === -1 ? 'New trigger' : 'Edit trigger') : selectedReply ? selectedReply.label : t('modules.inspector')
+  );
+
   function onKey(e: KeyboardEvent) {
     if (e.key !== 'Escape' || !expanded) return;
     const el = e.target as HTMLElement | null;
@@ -248,9 +416,38 @@
   <!-- The deck: reply ledger + docked builder inspector (same as commands). A
        commands-only module (no editable replies) drops the inspector column and
        lists its chat commands read-only instead. -->
-  <div class="deck {expanded ? 'inspecting' : ''} {enabled ? '' : 'muted'} {hasReplies ? '' : 'commands-only'}">
+  <div class="deck {editing ? 'inspecting' : ''} {enabled ? '' : 'muted'} {hasInspector ? '' : 'commands-only'}">
     <Card style="padding:6px 0 0" class="deck-list">
-      {#if hasReplies}
+      {#if isTriggers}
+        <div class="rules-head">
+          <div class="rh-text">
+            <span class="rh-title">Trigger rules</span>
+            <span class="rh-hint">Reply when a message matches a phrase — no "!" needed. First match wins.</span>
+          </div>
+          <button class="add-rule" type="button" onclick={addRule}><Icon name="plus" size={13} /> Add rule</button>
+        </div>
+        {#if ruleRows.length}
+          <div class="list">
+            {#each ruleRows as reply, i (reply.key)}
+              <ReplyRow
+                {reply}
+                message={rules[i].response}
+                index={i + 1}
+                status={modStatus[reply.key] ?? 'idle'}
+                expanded={expanded === reply.key}
+                enabled={rules[i].enabled}
+                onExpand={() => openRule(i)}
+                onToggle={() => toggleRule(i)}
+              />
+            {/each}
+          </div>
+        {:else}
+          <div class="rules-empty">
+            <span class="re-glyph"><Icon name="caps" size={18} /></span>
+            <p>No trigger words yet. Add a rule to reply automatically when a word shows up in chat.</p>
+          </div>
+        {/if}
+      {:else if hasReplies}
         <div class="list">
           {#each def.replies as reply, i (reply.key)}
             <ReplyRow
@@ -280,25 +477,46 @@
       {/if}
     </Card>
 
-    {#if hasReplies}
+    {#if hasInspector}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
       class="inspector-backdrop"
-      class:open={!!expanded}
+      class:open={editing}
       role="presentation"
       onclick={closeInspector}
       onkeydown={(e) => { if (e.key === 'Enter') closeInspector(); }}
     ></div>
-    <aside class="inspector" class:open={!!expanded} aria-label="Reply builder">
+    <aside class="inspector" class:open={editing} aria-label="Reply builder">
       <div class="inspector-head">
-        <span class="inspector-tag">{selectedReply ? selectedReply.label : t('modules.inspector')}</span>
-        {#if selectedReply}
+        <span class="inspector-tag">{inspectorTitle}</span>
+        {#if editing}
           <button class="mini" type="button" aria-label={t('modules.closeEditor')} onclick={closeInspector}>
             <Icon name="x" size={14} />
           </button>
         {/if}
       </div>
-      {#if selectedReply}
+      {#if isTriggers}
+        {#if editing}
+          <Scroller fill padding="16px" data-lenis-prevent>
+            {#key expanded}
+              <TriggerRuleEditor
+                bind:phrase={draftPhrase}
+                bind:match={draftMatch}
+                bind:message={editMessage}
+                {busy}
+                onSave={saveRule}
+                onCancel={closeInspector}
+                onDelete={() => (ruleIndex !== null && ruleIndex >= 0 ? deleteRule(ruleIndex) : closeInspector())}
+              />
+            {/key}
+          </Scroller>
+        {:else}
+          <div class="inspector-idle">
+            <span class="idle-glyph"><Icon name="caps" size={18} /></span>
+            <p>Pick a trigger to edit it, or add a new one.</p>
+          </div>
+        {/if}
+      {:else if selectedReply}
         <Scroller fill padding="16px" data-lenis-prevent>
           {#key selectedReply.key}
             <ReplyEditor reply={selectedReply} bind:message={editMessage} {busy} onCancel={closeInspector} onSave={saveReply} />
@@ -426,6 +644,63 @@
     color: var(--bb-tan);
   }
   .cmd-head-hint { font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
+
+  /* Trigger rules: a header with an add button above the add/removable rows. */
+  .rules-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px 10px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .rh-text { display: flex; flex-direction: column; gap: 2px; margin-right: auto; min-width: 0; }
+  .rh-title {
+    font-family: var(--bb-font-display);
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: 0.02em;
+    color: var(--bb-tan);
+  }
+  .rh-hint { font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
+  .add-rule {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--bb-font-body);
+    font-size: 12px;
+    color: var(--bb-green-glow, #52b788);
+    background: rgba(82, 183, 136, 0.06);
+    border: 1px dashed rgba(82, 183, 136, 0.4);
+    border-radius: 999px;
+    padding: 5px 12px;
+    cursor: pointer;
+    transition: background var(--bb-dur-fast, 140ms) ease;
+  }
+  .add-rule:hover { background: rgba(82, 183, 136, 0.14); }
+
+  .rules-empty {
+    padding: 30px 20px;
+    text-align: center;
+    color: var(--bb-muted);
+    font-family: var(--bb-font-body);
+    font-size: 13px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+  .re-glyph {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border: 1px solid var(--rule-tan);
+    border-radius: 8px;
+    color: var(--bb-tan-light);
+  }
+  .rules-empty p { margin: 0; max-width: 34ch; line-height: 1.5; }
 
   .inspector {
     position: sticky;
