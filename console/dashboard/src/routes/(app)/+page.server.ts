@@ -26,21 +26,54 @@ export type ConnState = {
   subError: string;
 };
 
+function settled<T>(r: PromiseSettledResult<T>): T | undefined {
+  return r.status === 'fulfilled' ? r.value : undefined;
+}
+
+// Self-heal: a channel the users service says is active but outgress has no
+// enrollment for (fresh signup, or one predating auto-enroll) gets its
+// EventSub enable job published right here on page load. Safe to repeat:
+// outgress single-flights the enroll and creates are 409-idempotent. Only
+// 'unenrolled' triggers this — 'unknown' (outgress RPC down) must not spam
+// enables. Reports 'pending' so the UI shows the enroll in flight; the
+// substate poll takes over with the real outcome.
+function healSubState(
+  uid: string,
+  active: boolean,
+  subState: ChannelSubState['state']
+): ChannelSubState['state'] {
+  if (subState !== 'unenrolled' || uid === 'demo') return subState;
+  if (!active) return subState;
+  publishEventSub(uid, true).catch(() => {});
+  return 'pending';
+}
+
 // Resolve the bot connection state in one round trip (grant presence + the
 // coalesced active/tier state_get + channel enroll state). allSettled keeps a
 // slow or down responder from failing the whole render.
+//
+// "Receiving" is grounded in outgress's own enroll state, not just the users
+// service's active flag: is_active defaults to true at signup, so trusting it
+// alone showed brand-new channels as connected while they had zero EventSub
+// subscriptions (and hid the only button that would have created them).
 async function connState(uid: string): Promise<ConnState> {
   const [grant, state, sub] = await Promise.allSettled([
     hasGrant(uid),
     accountState(uid),
     channelSubState(uid)
   ]);
-  const enabled = grant.status === 'fulfilled' && grant.value;
-  const receiving = enabled && state.status === 'fulfilled' && state.value.active;
-  const status: AccountStatus = state.status === 'fulfilled' ? state.value.status : 'free';
-  const subState: ChannelSubState['state'] = sub.status === 'fulfilled' ? sub.value.state : 'unknown';
-  const subError: string = sub.status === 'fulfilled' ? sub.value.error : '';
-  return { enabled, receiving, status, subState, subError };
+  const account = settled(state);
+  const subHealth = settled(sub);
+  const enabled = settled(grant) === true;
+  const active = enabled && account?.active === true;
+  const subState = healSubState(uid, active, subHealth?.state ?? 'unknown');
+  return {
+    enabled,
+    receiving: active && subState !== 'unenrolled',
+    status: account?.status ?? 'free',
+    subState,
+    subError: subHealth?.error ?? ''
+  };
 }
 
 // Parse the uses counter for ranking: the backend sends a plain number, while

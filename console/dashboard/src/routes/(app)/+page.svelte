@@ -108,14 +108,17 @@
     return 'unknown';
   }
 
-  // Poll while pending, backstopped at ~30s so a stuck job stops spinning.
+  // Poll while the enroll is unsettled, backstopped at ~30s so a stuck job
+  // stops spinning. 'unenrolled' counts as unsettled here: a just-published
+  // enroll job reads as 'unenrolled' until outgress picks it up and writes
+  // 'pending', and stopping in that gap would freeze the pill mid-flight.
   function startPolling() {
     stopPolling();
     let ticks = 0;
     pollTimer = setInterval(async () => {
       ticks += 1;
       const state = await refreshSub();
-      if (state !== 'pending' || ticks >= 12) stopPolling();
+      if ((state !== 'pending' && state !== 'unenrolled') || ticks >= 12) stopPolling();
     }, 2500);
   }
 
@@ -126,8 +129,12 @@
   }
 
   onMount(() => {
-    refreshSub().then((state) => {
-      if (state === 'pending') startPolling();
+    refreshSub().then(async (state) => {
+      if (state === 'pending') return startPolling();
+      // The load-time self-heal reports 'pending' before outgress has written
+      // anything, so a fresh poll can still read 'unenrolled'. Poll through
+      // that gap only when the server said an enroll is actually in flight.
+      if (state === 'unenrolled' && (await data.conn).subState === 'pending') startPolling();
     });
     return stopPolling;
   });

@@ -322,6 +322,27 @@ const enrollLockPrefix = "outgress:enroll:lock:"
 
 const modCheckLockPrefix = "outgress:mod-check:lock:"
 
+const enrollCooldownPrefix = "outgress:enroll:cooldown:"
+
+// ArmEnrollCooldown records that a full enroll (enable or reconnect) just
+// completed for the broadcaster. While the key lives, an identical incoming
+// job is redundant — everything it would create already exists on the conduit
+// — so the workers can acknowledge it without spending Helix budget.
+func (r *Registry) ArmEnrollCooldown(ctx context.Context, broadcasterID string, ttl time.Duration) error {
+	return r.client.Do(ctx,
+		r.client.B().Set().Key(enrollCooldownPrefix+broadcasterID).Value("1").PxMilliseconds(ttl.Milliseconds()).Build(),
+	).Error()
+}
+
+// EnrollCooldownActive reports whether ArmEnrollCooldown ran within its ttl.
+func (r *Registry) EnrollCooldownActive(ctx context.Context, broadcasterID string) (bool, error) {
+	n, err := r.client.Do(ctx, r.client.B().Exists().Key(enrollCooldownPrefix+broadcasterID).Build()).AsInt64()
+	if err != nil {
+		return false, err
+	}
+	return n > 0, nil
+}
+
 // AcquireEnrollLock tries to set a Valkey NX key as a distributed lock.
 // Returns true if this caller owns the lock, false if another replica holds it.
 func (r *Registry) AcquireEnrollLock(ctx context.Context, broadcasterID, owner string, ttl time.Duration) (bool, error) {
