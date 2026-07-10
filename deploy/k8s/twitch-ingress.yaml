@@ -45,7 +45,7 @@ metadata:
   annotations:
     secrets.doppler.com/reload: "true"
 spec:
-  replicas: 6 # node1 excluded via hot-path anti-affinity; soft spread lands 2 per node over node2/node3/worker1
+  replicas: 5 # node1 excluded via hot-path anti-affinity; target shape node3=2, worker1=2, node2=1 (see affinity)
   revisionHistoryLimit: 3
   strategy:
     type: RollingUpdate
@@ -89,16 +89,19 @@ spec:
       # off it via nodeAffinity. Eligible nodes are node2/node3/worker1, and the
       # spread is SOFT (ScheduleAnyway): a worker1 outage (home node) must not
       # strand ingress with a hard maxSkew it cannot satisfy on fewer nodes.
-      # With 4 replicas over 3 nodes one node carries 2; the preference below
-      # biases that double onto node3 (fresh 6-core, no stateful load) so the
-      # normal shape is node3=2, node2=1, worker1=1 — soft only, so a node3
-      # outage still lets the spread fall back to node2/worker1.
+      # Baseline shape: node3=2, worker1=2, node2=1. node2 already carries the
+      # control plane + valkey master, so the doubles belong on the big-CPU
+      # pair (node3 6c, worker1 8c) and node2 keeps the single. The soft skew
+      # allows any 2/2/1 split; the two graded preferences below pick WHICH
+      # nodes take the doubles (node3 first, worker1 second, node2 never
+      # preferred). Soft only — a node outage re-packs onto the survivors.
       #
-      # Weight is deliberately LOW: the scheduler scores soft topology spread at
-      # 2x plugin weight vs 1x for node preference, so 25 is enough to break the
-      # tie toward node3 while a skew already >=1 outscores it. Weight 100
-      # proved to overpower the spread during a maxSurge=0 roll (old pods still
-      # count in the skew), piling 3 replicas onto node3 and none on node2.
+      # Weights are deliberately LOW: a skew >= 1 must outscore them so the
+      # spread still wins against pile-ups. Weight 100 proved to overpower the
+      # spread during a maxSurge=0 roll (old pods still count in the skew),
+      # piling 3 replicas onto node3 and none on node2. Empty-node resource
+      # scoring can still stack with these during bulk scheduling; if the shape
+      # drifts, deleting the surplus pod once re-lands it correctly.
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -114,6 +117,12 @@ spec:
                   - key: kubernetes.io/hostname
                     operator: In
                     values: [node3]
+            - weight: 20
+              preference:
+                matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values: [worker1]
       topologySpreadConstraints:
         # matchLabelKeys scopes the skew to the CURRENT ReplicaSet: during a
         # maxSurge=0 roll the outgoing pods no longer count, so every rollout
