@@ -45,7 +45,7 @@ metadata:
   annotations:
     secrets.doppler.com/reload: "true"
 spec:
-  replicas: 4 # node1 excluded via hot-path anti-affinity; soft spread over node2/node3/worker1, double biased to node3 (2,1,1)
+  replicas: 6 # node1 excluded via hot-path anti-affinity; soft spread lands 2 per node over node2/node3/worker1
   revisionHistoryLimit: 3
   strategy:
     type: RollingUpdate
