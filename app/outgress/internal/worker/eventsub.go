@@ -92,18 +92,28 @@ func effectiveMode(job outgress.EventSubJob) string {
 	return outgress.ModeDisable
 }
 
+// errEnrollLockBusy naks a job that lost the enroll-lock race so paced
+// redelivery re-applies it after the holder finishes.
+var errEnrollLockBusy = errors.New("enroll lock busy: another operation in progress for this channel")
+
 // underEnrollLock runs fn only when this replica wins the channel's enroll
-// lock, so exactly one replica works an enable/disable/reconnect; losing the
-// race acks (the owning replica reports the outcome).
+// lock, so exactly one replica works an enable/disable/reconnect at a time.
+// Losing the race naks instead of acking: the holder may be running a
+// DIFFERENT operation (back-to-back dashboard disconnect → enable lands the
+// enable while the disable still holds the lock), so dropping the loser
+// silently discards the newer intent — the disconnect/reconnect that "needed
+// two clicks". Redelivery re-runs the job once the lock frees; a job made
+// redundant by then (a true duplicate of the same op) is absorbed by the
+// enroll cooldown / idempotent Helix calls instead of costing real budget.
 func (w *Worker) underEnrollLock(ctx context.Context, op string, e enrollment, fn func() error) error {
 	got, err := w.registry.AcquireEnrollLock(ctx, e.broadcasterID, w.owner, 60*time.Second)
 	if err != nil {
 		return err // transient valkey error: nak, let paced redelivery retry
 	}
 	if !got {
-		w.log.Info(op+" already in progress on another replica",
+		w.log.Info(op+" waiting on enroll lock, nak for paced redelivery",
 			zap.String("broadcaster_id", e.broadcasterID))
-		return nil // ack: another replica owns it
+		return errEnrollLockBusy
 	}
 	defer func() { _ = w.registry.ReleaseEnrollLock(ctx, e.broadcasterID, w.owner) }()
 
