@@ -61,7 +61,7 @@ func TestSeasonDefaultTemplate(t *testing.T) {
 	reply := fortniteStatsReply()
 	reply.Window = "season"
 	gw := &fakeGateway{replies: map[string]any{"fortnite.stats": reply}}
-	cmd := fortniteCmd(t, gw, "season")
+	cmd := fortniteCmd(t, gw, "fnseason")
 
 	var col collector
 	require.NoError(t, cmd.Run(context.Background(), urchinCtx(""), "", col.emit))
@@ -97,9 +97,10 @@ func TestFnstatsConfigPassthrough(t *testing.T) {
 // gateway call, for both fortnite commands.
 func TestFortniteDisabledStaysSilent(t *testing.T) {
 	cases := []struct{ name, config string }{
+		{"fn", `{"statsEnabled":"off"}`},
 		{"fnstats", `{"statsEnabled":"off"}`},
-		{"season", `{"seasonEnabled":"off"}`},
-		{"store", `{"storeEnabled":"off"}`},
+		{"fnseason", `{"seasonEnabled":"off"}`},
+		{"fnstore", `{"storeEnabled":"off"}`},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -112,6 +113,44 @@ func TestFortniteDisabledStaysSilent(t *testing.T) {
 			gw.mu.Lock()
 			assert.Empty(t, gw.calls)
 			gw.mu.Unlock()
+		})
+	}
+}
+
+// The !fn root routes its first argument word: bare/player → all-time stats,
+// season/store select the subcommand, and the remainder is the player arg.
+func TestFnDispatch(t *testing.T) {
+	seasonReply := fortniteStatsReply()
+	seasonReply.Window = "season"
+
+	cases := []struct {
+		name, args      string
+		endpoint        string // gateway endpoint expected
+		window, account string // stats requests only
+		replyValue      any
+	}{
+		{"bare is all-time stats", "", "stats", "lifetime", "streamer", fortniteStatsReply()},
+		{"player arg is stats", "@SomePlayer extra", "stats", "lifetime", "SomePlayer", fortniteStatsReply()},
+		{"season subcommand", "season", "stats", "season", "streamer", seasonReply},
+		{"season with player", "season OtherGuy", "stats", "season", "OtherGuy", seasonReply},
+		{"store subcommand", "store", "shop", "", "", gatewayrpc.FortniteShopReply{Date: "2026-07-10"}},
+		{"shop alias, any case", "SHOP", "shop", "", "", gatewayrpc.FortniteShopReply{Date: "2026-07-10"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			gw := &fakeGateway{replies: map[string]any{"fortnite." + tc.endpoint: tc.replyValue}}
+			cmd := fortniteCmd(t, gw, "fn")
+
+			var col collector
+			require.NoError(t, cmd.Run(context.Background(), urchinCtx(""), tc.args, col.emit))
+			require.Len(t, col.out, 1)
+
+			call := gw.lastCall(t)
+			assert.Equal(t, tc.endpoint, call.endpoint)
+			if tc.endpoint == "stats" {
+				assert.Equal(t, tc.window, call.req.TimeWindow)
+				assert.Equal(t, tc.account, call.req.Account)
+			}
 		})
 	}
 }
@@ -136,7 +175,7 @@ func TestStoreDefaultTemplate(t *testing.T) {
 			{Name: "Free Hat"},
 		},
 	}}}
-	cmd := fortniteCmd(t, gw, "store")
+	cmd := fortniteCmd(t, gw, "fnstore")
 
 	var col collector
 	require.NoError(t, cmd.Run(context.Background(), urchinCtx(""), "", col.emit))
