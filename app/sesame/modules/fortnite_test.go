@@ -78,16 +78,26 @@ func TestFnstatsConfigPassthrough(t *testing.T) {
 	assert.Equal(t, "psn", call.req.AccountType)
 }
 
-func TestFnstatsDisabledStaysSilent(t *testing.T) {
-	gw := &fakeGateway{replies: map[string]any{"fortnite.stats": fortniteStatsReply()}}
-	cmd := fortniteCmd(t, gw, "fnstats")
+// A per-command "off" toggle keeps that command silent: no chat line and no
+// gateway call, for both fortnite commands.
+func TestFortniteDisabledStaysSilent(t *testing.T) {
+	cases := []struct{ name, config string }{
+		{"fnstats", `{"statsEnabled":"off"}`},
+		{"store", `{"storeEnabled":"off"}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			gw := &fakeGateway{}
+			cmd := fortniteCmd(t, gw, tc.name)
 
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), urchinCtx(`{"statsEnabled":"off"}`), "", col.emit))
-	assert.Empty(t, col.out)
-	gw.mu.Lock()
-	assert.Empty(t, gw.calls)
-	gw.mu.Unlock()
+			var col collector
+			require.NoError(t, cmd.Run(context.Background(), urchinCtx(tc.config), "", col.emit))
+			assert.Empty(t, col.out)
+			gw.mu.Lock()
+			assert.Empty(t, gw.calls)
+			gw.mu.Unlock()
+		})
+	}
 }
 
 func TestFnstatsReplyErrorChats(t *testing.T) {
@@ -118,15 +128,6 @@ func TestStoreDefaultTemplate(t *testing.T) {
 	assert.Equal(t,
 		"Item Shop 2026-07-09: Peely Bundle (2800), Renegade Raider (1200), Free Hat",
 		col.out[0].Text)
-}
-
-func TestStoreDisabledStaysSilent(t *testing.T) {
-	gw := &fakeGateway{replies: map[string]any{"fortnite.shop": gatewayrpc.FortniteShopReply{}}}
-	cmd := fortniteCmd(t, gw, "store")
-
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), urchinCtx(`{"storeEnabled":"off"}`), "", col.emit))
-	assert.Empty(t, col.out)
 }
 
 func TestFormatShopEntriesBudget(t *testing.T) {

@@ -64,31 +64,24 @@ func handle(t *testing.T, p *Provider, name string) func(context.Context, gatewa
 	return nil
 }
 
-// asStats decodes one stats handler result (raw wire bytes or typed guard reply).
-func asStats(t *testing.T, res any) gatewayrpc.FortniteStatsReply {
+// asReply decodes one handler result (raw wire bytes or typed guard reply).
+func asReply[T any](t *testing.T, res any) T {
 	t.Helper()
-	if v, ok := res.(gatewayrpc.FortniteStatsReply); ok {
+	if v, ok := res.(T); ok {
 		return v
 	}
 	raw, ok := res.(json.RawMessage)
 	require.True(t, ok, "unexpected handler result type %T", res)
-	var v gatewayrpc.FortniteStatsReply
+	var v T
 	require.NoError(t, json.Unmarshal(raw, &v))
 	return v
 }
 
-// asShop decodes one shop handler result.
-func asShop(t *testing.T, res any) gatewayrpc.FortniteShopReply {
-	t.Helper()
-	if v, ok := res.(gatewayrpc.FortniteShopReply); ok {
-		return v
-	}
-	raw, ok := res.(json.RawMessage)
-	require.True(t, ok, "unexpected handler result type %T", res)
-	var v gatewayrpc.FortniteShopReply
-	require.NoError(t, json.Unmarshal(raw, &v))
-	return v
-}
+// asStats / asShop are the endpoint-typed instantiations the tests read with.
+var (
+	asStats = asReply[gatewayrpc.FortniteStatsReply]
+	asShop  = asReply[gatewayrpc.FortniteShopReply]
+)
 
 const statsBody = `{
 	"status": 200,
