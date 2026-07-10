@@ -86,11 +86,13 @@ spec:
           effect: NoExecute
           tolerationSeconds: 60
       # node1 (2-core ARM) is reserved for stateful/frontend + infra; keep ingress
-      # off it via nodeAffinity. That leaves node2 + worker1 as the only eligible
-      # nodes, so the spread is SOFT (ScheduleAnyway): a worker1 outage (home node)
-      # must not strand ingress with a hard maxSkew it cannot satisfy on one node.
-      # The worker-pool preference was already removed, so soft maxSkew 1 still
-      # lands 2,2 in normal operation without piling onto worker1.
+      # off it via nodeAffinity. Eligible nodes are node2/node3/worker1, and the
+      # spread is SOFT (ScheduleAnyway): a worker1 outage (home node) must not
+      # strand ingress with a hard maxSkew it cannot satisfy on fewer nodes.
+      # With 4 replicas over 3 nodes one node carries 2; the preference below
+      # biases that double onto node3 (fresh 6-core, no stateful load) so the
+      # normal shape is node3=2, node2=1, worker1=1 — soft only, so a node3
+      # outage still lets the spread fall back to node2/worker1.
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -99,6 +101,13 @@ spec:
                   - key: kubernetes.io/hostname
                     operator: NotIn
                     values: [node1]
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values: [node3]
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
