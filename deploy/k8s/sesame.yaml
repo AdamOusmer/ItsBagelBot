@@ -67,7 +67,14 @@ spec:
           tolerationSeconds: 60
       # node1 is the 2-core ARM node reserved for stateful/frontend + infra; keep
       # the hot-path worker off it. KEDA (see the ScaledObject below) scales
-      # onto node2/worker1.
+      # onto node2/node3/worker1.
+      # Baseline shape at the KEDA floor of 5: node3=2, worker1=2, node2=1.
+      # node2 already carries the control plane + valkey master, so the doubles
+      # belong on the big-CPU pair; the graded preferences below pick which
+      # nodes take them (node3 first, worker1 second) while the soft skew keeps
+      # any node from being emptied. Low weights on purpose: a skew >= 1 must
+      # outscore the preference (see twitch-ingress.yaml for the pile-up this
+      # prevents). Burst pods above the floor inherit the same bias.
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -76,6 +83,19 @@ spec:
                   - key: kubernetes.io/hostname
                     operator: NotIn
                     values: [node1]
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 25
+              preference:
+                matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values: [node3]
+            - weight: 20
+              preference:
+                matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values: [worker1]
       topologySpreadConstraints:
         # matchLabelKeys scopes the skew to the CURRENT ReplicaSet: during a
         # maxSurge=0 roll the outgoing pods no longer count, so every rollout
@@ -201,9 +221,9 @@ spec:
 ---
 # Sesame is the CPU-bound half (decode/dedup/module-dispatch/templating), so
 # unlike outgress this is real throughput headroom, not just resilience -
-# hence the wider maxReplicaCount. minReplicaCount 6 keeps a 2-per-node
-# baseline across the three hot-path nodes (soft spread lands 2/2/2), sized
-# for the big-CPU pair (node3 6c, worker1 8c) without waiting on a scale-up.
+# hence the wider maxReplicaCount. minReplicaCount 5 keeps the baseline shape
+# node3=2, worker1=2, node2=1 (see the Deployment's graded node preferences)
+# without waiting on a scale-up; node2 stays light on purpose.
 # Consumer names are bus.durableName("worker", subject) - sesame
 # shares the worker's pre-existing durable via fleetSubscriber (app/sesame/main.go
 # bus.NewSubscriber(cfg.NATSURL, cfg.ConsumerName, log), ConsumerName=worker),
@@ -220,11 +240,11 @@ spec:
     name: sesame
   pollingInterval: 15
   cooldownPeriod: 300
-  minReplicaCount: 6
+  minReplicaCount: 5
   maxReplicaCount: 10
   fallback:
     failureThreshold: 3
-    replicas: 6
+    replicas: 5
   advanced:
     horizontalPodAutoscalerConfig:
       behavior:
