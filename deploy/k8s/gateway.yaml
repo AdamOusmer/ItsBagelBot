@@ -7,7 +7,10 @@
 # without it), optional MCSR_API_KEY, NEW_RELIC_*, and the NATS_RPC_USER /
 # NATS_RPC_PASSWORD pair for the GATEWAY_RPC account. The fortnite provider
 # stays dark until FORTNITE_ENABLED=true is set there; keyless it runs
-# shop-only (!store works), and FORTNITE_API_KEY additionally lights !fnstats.
+# shop-only (!store via fortnite-api.com's public shop), and FORTNITE_API_KEY
+# (an api-fortnite.com key) additionally lights !fnstats. Optional
+# FORTNITE_SEASON_START_UNIX (the current season's start epoch) backs the
+# "season" stats window; unset, season degrades to lifetime.
 apiVersion: secrets.doppler.com/v1alpha1
 kind: DopplerSecret
 metadata:

@@ -72,9 +72,9 @@ func appendMcsr(out []provider.Provider, cfg *config.Config, d provider.Deps, lo
 }
 
 // appendFortnite adds the fortnite provider behind the FORTNITE_ENABLED flag
-// (dark until tested). The API key gates only the stats endpoint: the shop is
-// public upstream, so a keyless provider still answers !store and merely skips
-// !fnstats (shop-only mode).
+// (dark until tested). The api-fortnite.com key gates only the stats
+// endpoint: the shop upstream (fortnite-api.com) is public, so a keyless
+// provider still answers !store and merely skips !fnstats (shop-only mode).
 func appendFortnite(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {
 	if !cfg.FortniteEnabled {
 		log.Warn("fortnite provider disabled: FORTNITE_ENABLED=false")
@@ -84,9 +84,12 @@ func appendFortnite(out []provider.Provider, cfg *config.Config, d provider.Deps
 		log.Warn("fortnite provider running shop-only: FORTNITE_API_KEY not set (!fnstats will not answer)")
 	}
 	return append(out, fortnite.New(fortnite.Config{
-		BaseURL:   cfg.FortniteBaseURL,
-		APIKey:    cfg.FortniteAPIKey,
-		RateLimit: cfg.FortniteRateLimit,
+		ShopBaseURL:     cfg.FortniteBaseURL,
+		StatsBaseURL:    cfg.FortniteStatsBaseURL,
+		APIKey:          cfg.FortniteAPIKey,
+		ShopRateLimit:   cfg.FortniteRateLimit,
+		StatsRateLimit:  cfg.FortniteStatsRateLimit,
+		SeasonStartUnix: cfg.FortniteSeasonStart,
 	}, d))
 }
 
