@@ -4,6 +4,15 @@
 #
 # This avoids copying Linkerd's generated manifests into this repo while still
 # making the installed control plane resilient to a node loss or rolling restart.
+#
+# LIVE PATCH NOT CAPTURED HERE (re-apply after every `linkerd upgrade`): the
+# three control-plane Deployments carry a nodeAffinity keeping them OFF worker1
+# (home node) so the HA trio always sits on the stable cloud nodes:
+#   for d in linkerd-destination linkerd-identity linkerd-proxy-injector; do
+#     kubectl -n linkerd patch deploy "$d" --type=strategic -p '{"spec":{"template":{"spec":{"affinity":{"nodeAffinity":{"requiredDuringSchedulingIgnoredDuringExecution":{"nodeSelectorTerms":[{"matchExpressions":[{"key":"kubernetes.io/hostname","operator":"NotIn","values":["worker1"]}]}]}}}}}}}'
+#   done
+# The Deployments are managed by the linkerd CLI (no Helm release), so this
+# cannot live in Flux without forking upstream manifests.
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:

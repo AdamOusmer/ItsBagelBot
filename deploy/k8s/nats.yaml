@@ -35,10 +35,6 @@ spec:
         app: nats
     spec:
       tolerations:
-        - key: itsbagelbot.dev/pool
-          operator: Equal
-          value: worker-pool
-          effect: NoSchedule
         - key: node.kubernetes.io/unreachable
           operator: Exists
           effect: NoExecute
@@ -47,6 +43,21 @@ spec:
           operator: Exists
           effect: NoExecute
           tolerationSeconds: 60
+      # The JetStream hub is a 3-member RAFT quorum: every member must sit on a
+      # stable cloud node. worker1 (home wifi, bandwidth-capped) blinking must
+      # never cost quorum tolerance, so it is excluded outright (the worker-pool
+      # toleration is gone for the same reason). Members land on
+      # node1/node2/node3 via the one-per-node spread below. Note the JetStream
+      # PVCs are local-path (node-bound): moving a member means deleting its PVC
+      # + pod so it reprovisions on an eligible node and RAFT re-syncs it.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values: [worker1]
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
