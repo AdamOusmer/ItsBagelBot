@@ -226,7 +226,9 @@ spec:
   pollingInterval: 15
   cooldownPeriod: 300
   minReplicaCount: 3
-  maxReplicaCount: 6
+  # 3 per hot-path node (node2/node3/worker1). Outgress is Twitch-rate-limited,
+  # so headroom here is for lag-driven burst drain, not sustained throughput.
+  maxReplicaCount: 9
   fallback:
     failureThreshold: 3
     replicas: 3
