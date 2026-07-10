@@ -23,8 +23,9 @@ const fortniteCooldown = 10 * time.Second
 // Default reply templates. The broadcaster customizes them per command on the
 // module page; blank falls back to these.
 const (
-	defaultFortniteStatsTemplate = "{player} ({window}): {wins} wins in {matches} matches · {winrate}% WR · {kills} kills · {kd} K/D · solo {solowins}W / duo {duowins}W / squad {squadwins}W"
-	defaultFortniteStoreTemplate = "Item Shop {date}: {items}"
+	defaultFortniteStatsTemplate  = "{player} all time: {wins} wins in {matches} matches · {winrate}% WR · {kills} kills · {kd} K/D · solo {solowins}W / duo {duowins}W / squad {squadwins}W"
+	defaultFortniteSeasonTemplate = "{player} this season: {wins} wins in {matches} matches · {winrate}% WR · {kills} kills · {kd} K/D · solo {solowins}W / duo {duowins}W / squad {squadwins}W"
+	defaultFortniteStoreTemplate  = "Item Shop {date}: {items}"
 )
 
 // fortniteShopBudget caps the rendered {items} list so the chat line stays
@@ -32,38 +33,61 @@ const (
 const fortniteShopBudget = 380
 
 // fortniteConfig is the module's dashboard configuration. Account is the
-// linked account name (blank = the broadcaster's own Twitch login),
-// AccountType the platform namespace it lives in (epic/psn/xbl) and TimeWindow
-// the stats window (lifetime/season) — the gateway defaults blanks to
-// epic/lifetime. The *Enabled toggles are stored "on"/"off" — empty means on,
-// matching the alerts module's semantics — and each *Message is a customized
-// template (blank = default).
+// linked account name (blank = the broadcaster's own Twitch login) and
+// AccountType the platform namespace it lives in (epic/psn/xbl). The window
+// is not configuration: !fnstats is always all-time and !season always the
+// current season. The *Enabled toggles are stored "on"/"off" — empty means
+// on, matching the alerts module's semantics — and each *Message is a
+// customized template (blank = default).
 type fortniteConfig struct {
 	Account     string `json:"account"`
 	AccountType string `json:"accountType"`
-	TimeWindow  string `json:"timeWindow"`
 
-	StatsEnabled string `json:"statsEnabled"`
-	StatsMessage string `json:"statsMessage"`
-	StoreEnabled string `json:"storeEnabled"`
-	StoreMessage string `json:"storeMessage"`
+	StatsEnabled  string `json:"statsEnabled"`
+	StatsMessage  string `json:"statsMessage"`
+	SeasonEnabled string `json:"seasonEnabled"`
+	SeasonMessage string `json:"seasonMessage"`
+	StoreEnabled  string `json:"storeEnabled"`
+	StoreMessage  string `json:"storeMessage"`
 }
 
-// Fortnite owns the Fortnite chat commands backed by fortnite-api.com through
-// the gateway service. It is a named, opt-in module (KindOptIn): off by
-// default, enabled on the dashboard, where the broadcaster links a default
-// account (name + platform) and picks the stats window. Viewers can always
-// target another player explicitly: "!fnstats Ninja".
+// Fortnite owns the Fortnite chat commands backed by the gateway service. It
+// is a named, opt-in module (KindOptIn): off by default, enabled on the
+// dashboard, where the broadcaster links a default account. Viewers can
+// always target another player explicitly: "!fnstats Ninja".
 //
-// Commands: !fnstats (Battle Royale stats with the solo/duo/squad breakdown),
-// !store (the current item-shop rotation).
+// Commands: !fnstats (all-time Battle Royale stats), !season (the current
+// season's stats — the gateway resolves the season window itself), !store
+// (the current item-shop rotation). All stats replies carry the
+// solo/duo/squad breakdown.
 func Fortnite(d engine.Deps) module.Module {
 	m := module.NewModule(fortniteModuleName, module.KindOptIn)
 	m.Command("fnstats").Everyone().Cooldown(fortniteCooldown).Aliases("fortnitestats").
-		Run(fortniteStatsRun(d))
+		Run(fortniteStatsRun(d, fortniteStatsCommand{
+			window:   "lifetime",
+			enabled:  func(c fortniteConfig) string { return c.StatsEnabled },
+			message:  func(c fortniteConfig) string { return c.StatsMessage },
+			fallback: defaultFortniteStatsTemplate,
+		}))
+	m.Command("season").Everyone().Cooldown(fortniteCooldown).Aliases("fnseason").
+		Run(fortniteStatsRun(d, fortniteStatsCommand{
+			window:   "season",
+			enabled:  func(c fortniteConfig) string { return c.SeasonEnabled },
+			message:  func(c fortniteConfig) string { return c.SeasonMessage },
+			fallback: defaultFortniteSeasonTemplate,
+		}))
 	m.Command("store").Everyone().Cooldown(fortniteCooldown).Aliases("itemshop", "fnshop").
 		Run(fortniteStoreRun(d))
 	return m.Build()
+}
+
+// fortniteStatsCommand names one stats command's wiring: the fixed window it
+// queries and where its toggle and template live in the config blob.
+type fortniteStatsCommand struct {
+	window   string
+	enabled  func(fortniteConfig) string
+	message  func(fortniteConfig) string
+	fallback string
 }
 
 // fortniteStatsTokens is the !fnstats template palette over the gateway reply.
@@ -89,16 +113,17 @@ func fortniteStatsTokens() map[string]func(*gatewayrpc.FortniteStatsReply) strin
 	}
 }
 
-// fortniteStatsRun answers !fnstats with the player's Battle Royale stats over
-// the configured window. Template tokens: {player} {window} {wins} {matches}
-// {kills} {kd} {winrate} plus the per-mode {solowins} {solomatches} {solokd}
-// {duowins} {duomatches} {duokd} {squadwins} {squadmatches} {squadkd}.
-func fortniteStatsRun(d engine.Deps) module.RunFunc {
+// fortniteStatsRun answers one stats command (!fnstats all-time, !season the
+// current season) with the player's Battle Royale stats over cmd's fixed
+// window. Template tokens: {player} {window} {wins} {matches} {kills} {kd}
+// {winrate} plus the per-mode {solowins} {solomatches} {solokd} {duowins}
+// {duomatches} {duokd} {squadwins} {squadmatches} {squadkd}.
+func fortniteStatsRun(d engine.Deps, cmd fortniteStatsCommand) module.RunFunc {
 	tokens := fortniteStatsTokens()
 	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
 		var cfg fortniteConfig
 		_ = c.Decode(&cfg)
-		if !alertOn(cfg.StatsEnabled) || d.Gateway == nil {
+		if !alertOn(cmd.enabled(cfg)) || d.Gateway == nil {
 			return nil
 		}
 
@@ -106,7 +131,7 @@ func fortniteStatsRun(d engine.Deps) module.RunFunc {
 		req := gatewayrpc.Request{
 			Account:     account,
 			AccountType: cfg.AccountType,
-			TimeWindow:  cfg.TimeWindow,
+			TimeWindow:  cmd.window,
 			IsPremium:   c.Regress.IsPremium(),
 		}
 		var reply gatewayrpc.FortniteStatsReply
@@ -117,7 +142,7 @@ func fortniteStatsRun(d engine.Deps) module.RunFunc {
 			return err
 		}
 
-		msg := module.ExpandString(orDefault(cfg.StatsMessage, defaultFortniteStatsTemplate), func(key string) (string, bool) {
+		msg := module.ExpandString(orDefault(cmd.message(cfg), cmd.fallback), func(key string) (string, bool) {
 			if field, ok := tokens[key]; ok {
 				return field(&reply), true
 			}

@@ -46,15 +46,30 @@ func TestFnstatsDefaultTemplate(t *testing.T) {
 	assert.Equal(t, outgress.TypeChat, col.out[0].Type)
 	assert.Equal(t, "2", col.out[0].BroadcasterID)
 	assert.Equal(t,
-		"Ninja (lifetime): 301 wins in 6232 matches · 4.83% WR · 21679 kills · 3.66 K/D · solo 120W / duo 90W / squad 91W",
+		"Ninja all time: 301 wins in 6232 matches · 4.83% WR · 21679 kills · 3.66 K/D · solo 120W / duo 90W / squad 91W",
 		col.out[0].Text)
 
-	// No linked account and no arg: falls back to the broadcaster's login, and
-	// blank platform/window ride to the gateway (which defaults them).
+	// No linked account and no arg: falls back to the broadcaster's login. The
+	// window is the command's, never configuration.
 	call := gw.lastCall(t)
 	assert.Equal(t, "streamer", call.req.Account)
 	assert.Empty(t, call.req.AccountType)
-	assert.Empty(t, call.req.TimeWindow)
+	assert.Equal(t, "lifetime", call.req.TimeWindow)
+}
+
+func TestSeasonDefaultTemplate(t *testing.T) {
+	reply := fortniteStatsReply()
+	reply.Window = "season"
+	gw := &fakeGateway{replies: map[string]any{"fortnite.stats": reply}}
+	cmd := fortniteCmd(t, gw, "season")
+
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), urchinCtx(""), "", col.emit))
+	require.Len(t, col.out, 1)
+	assert.Equal(t,
+		"Ninja this season: 301 wins in 6232 matches · 4.83% WR · 21679 kills · 3.66 K/D · solo 120W / duo 90W / squad 91W",
+		col.out[0].Text)
+	assert.Equal(t, "season", gw.lastCall(t).req.TimeWindow)
 }
 
 func TestFnstatsConfigPassthrough(t *testing.T) {
@@ -62,16 +77,16 @@ func TestFnstatsConfigPassthrough(t *testing.T) {
 	cmd := fortniteCmd(t, gw, "fnstats")
 
 	var col collector
-	cfg := `{"account":"LinkedAcc","accountType":"psn","timeWindow":"season"}`
+	cfg := `{"account":"LinkedAcc","accountType":"psn"}`
 	require.NoError(t, cmd.Run(context.Background(), urchinCtx(cfg), "", col.emit))
 
 	call := gw.lastCall(t)
 	assert.Equal(t, "LinkedAcc", call.req.Account)
 	assert.Equal(t, "psn", call.req.AccountType)
-	assert.Equal(t, "season", call.req.TimeWindow)
+	assert.Equal(t, "lifetime", call.req.TimeWindow)
 
-	// An explicit argument still beats the linked account; platform and window
-	// stay the configured ones.
+	// An explicit argument still beats the linked account; the platform stays
+	// the configured one.
 	require.NoError(t, cmd.Run(context.Background(), urchinCtx(cfg), "@SomePlayer extra", col.emit))
 	call = gw.lastCall(t)
 	assert.Equal(t, "SomePlayer", call.req.Account)
@@ -83,6 +98,7 @@ func TestFnstatsConfigPassthrough(t *testing.T) {
 func TestFortniteDisabledStaysSilent(t *testing.T) {
 	cases := []struct{ name, config string }{
 		{"fnstats", `{"statsEnabled":"off"}`},
+		{"season", `{"seasonEnabled":"off"}`},
 		{"store", `{"storeEnabled":"off"}`},
 	}
 	for _, tc := range cases {
