@@ -1,11 +1,13 @@
 # gateway: the fleet's external-API gateway. Sesame requests third-party data
-# (urchin.gg Coral, MCSR Ranked) over NATS RPC (bagel.rpc.gateway.>); the
-# gateway fetches, normalizes, and caches replies in Valkey. It is the only
-# app that dials those external hosts.
+# (urchin.gg Coral, MCSR Ranked, fortnite-api.com) over NATS RPC
+# (bagel.rpc.gateway.>); the gateway fetches, normalizes, and caches replies in
+# Valkey. It is the only app that dials those external hosts.
 #
 # gateway-env (Doppler) carries VALKEY_*, URCHIN_API_KEY (provider disabled
 # without it), optional MCSR_API_KEY, NEW_RELIC_*, and the NATS_RPC_USER /
-# NATS_RPC_PASSWORD pair for the GATEWAY_RPC account.
+# NATS_RPC_PASSWORD pair for the GATEWAY_RPC account. The fortnite provider
+# stays dark until FORTNITE_ENABLED=true AND FORTNITE_API_KEY are both set
+# there (untested-key guard).
 apiVersion: secrets.doppler.com/v1alpha1
 kind: DopplerSecret
 metadata:

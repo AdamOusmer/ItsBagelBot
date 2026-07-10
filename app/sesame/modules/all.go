@@ -19,6 +19,7 @@ func All(d engine.Deps) []module.Module {
 		Clip(d),
 		Urchin(d),
 		Mcsr(d),
+		Fortnite(d),
 		Queue(d),
 		Automod(d),
 		ChannelPoints(d),

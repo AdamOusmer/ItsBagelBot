@@ -6,6 +6,7 @@ package providers
 import (
 	"ItsBagelBot/app/gateway/internal/config"
 	"ItsBagelBot/app/gateway/internal/provider"
+	"ItsBagelBot/app/gateway/internal/providers/fortnite"
 	"ItsBagelBot/app/gateway/internal/providers/govee"
 	"ItsBagelBot/app/gateway/internal/providers/hypixel"
 	"ItsBagelBot/app/gateway/internal/providers/mcsr"
@@ -28,6 +29,7 @@ func All(cfg *config.Config, d provider.Deps) []provider.Provider {
 	out = appendUrchin(out, cfg, d, log)
 	out = appendHypixel(out, cfg, d, log)
 	out = appendMcsr(out, cfg, d, log)
+	out = appendFortnite(out, cfg, d, log)
 	out = appendGovee(out, cfg, d, log)
 	return out
 }
@@ -66,6 +68,25 @@ func appendMcsr(out []provider.Provider, cfg *config.Config, d provider.Deps, lo
 		BaseURL:   cfg.McsrBaseURL,
 		APIKey:    cfg.McsrAPIKey,
 		RateLimit: cfg.McsrRateLimit,
+	}, d))
+}
+
+// appendFortnite adds the fortnite provider. It is double-gated: the
+// FORTNITE_ENABLED flag keeps it dark until tested against a real key, and the
+// key itself is required for the stats endpoint's Authorization header.
+func appendFortnite(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {
+	if !cfg.FortniteEnabled {
+		log.Warn("fortnite provider disabled: FORTNITE_ENABLED=false")
+		return out
+	}
+	if cfg.FortniteAPIKey == "" {
+		log.Warn("fortnite provider disabled: FORTNITE_API_KEY not set (!fnstats and !store will not answer)")
+		return out
+	}
+	return append(out, fortnite.New(fortnite.Config{
+		BaseURL:   cfg.FortniteBaseURL,
+		APIKey:    cfg.FortniteAPIKey,
+		RateLimit: cfg.FortniteRateLimit,
 	}, d))
 }
 
