@@ -46,6 +46,15 @@ type Request struct {
 	// powering it on and setting a colour; ColorRGB is ignored. This backs the
 	// opt-in "a viewer types off to turn the lights off" reward behaviour.
 	PowerOff bool `json:"power_off,omitempty"`
+
+	// --- fortnite (fortnite-api.com stats lookups) ---------------------------
+
+	// AccountType is the platform namespace Account lives in for fortnite.stats:
+	// "epic" (default), "psn" or "xbl". Zero on every non-fortnite request.
+	AccountType string `json:"account_type,omitempty"`
+	// TimeWindow selects the fortnite.stats window: "lifetime" (default) or
+	// "season" (the current season only).
+	TimeWindow string `json:"time_window,omitempty"`
 }
 
 // Subject builds the NATS subject for one provider endpoint under prefix.
@@ -155,6 +164,51 @@ type McsrSnapshotReply struct {
 	Nickname string `json:"nickname"`
 	Elo      int    `json:"elo"`
 	Error    string `json:"error,omitempty"`
+}
+
+// --- fortnite (fortnite-api.com) ---------------------------------------------
+
+// FortniteModeStats is one queue's normalized Battle Royale counters inside
+// FortniteStatsReply: the bot-needed subset (wins, matches, kills, K/D, win
+// rate) of the much larger upstream stat block. KD and WinRate come from the
+// upstream pre-computed; WinRate is a percentage (4.83 = 4.83%).
+type FortniteModeStats struct {
+	Wins    int64   `json:"wins"`
+	Matches int64   `json:"matches"`
+	Kills   int64   `json:"kills"`
+	KD      float64 `json:"kd"`
+	WinRate float64 `json:"win_rate"`
+}
+
+// FortniteStatsReply is the answer to fortnite.stats (sesame's !fnstats): a
+// player's Battle Royale stats over the requested window, overall plus the
+// solo/duo/squad mode breakdown. Window echoes the normalized window the
+// gateway actually queried ("lifetime" or "season").
+type FortniteStatsReply struct {
+	Player  string            `json:"player"`
+	Window  string            `json:"window"`
+	Overall FortniteModeStats `json:"overall"`
+	Solo    FortniteModeStats `json:"solo"`
+	Duo     FortniteModeStats `json:"duo"`
+	Squad   FortniteModeStats `json:"squad"`
+	Error   string            `json:"error,omitempty"`
+}
+
+// FortniteShopEntry is one item-shop offer reduced to what a chat line can
+// carry: a display name (the bundle name, or the lead item's) and the final
+// price in V-Bucks.
+type FortniteShopEntry struct {
+	Name  string `json:"name"`
+	Price int64  `json:"price"`
+}
+
+// FortniteShopReply is the answer to fortnite.shop (sesame's !store): the
+// current item-shop rotation. Date is the rotation day (YYYY-MM-DD).
+type FortniteShopReply struct {
+	Date    string              `json:"date"`
+	Count   int                 `json:"count"`
+	Entries []FortniteShopEntry `json:"entries"`
+	Error   string              `json:"error,omitempty"`
 }
 
 // --- govee (smart-light control over the broadcaster's own key) -------------
