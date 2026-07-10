@@ -6,8 +6,11 @@
 # gateway-env (Doppler) carries VALKEY_*, URCHIN_API_KEY (provider disabled
 # without it), optional MCSR_API_KEY, NEW_RELIC_*, and the NATS_RPC_USER /
 # NATS_RPC_PASSWORD pair for the GATEWAY_RPC account. The fortnite provider
-# stays dark until FORTNITE_ENABLED=true AND FORTNITE_API_KEY are both set
-# there (untested-key guard).
+# stays dark until FORTNITE_ENABLED=true is set there; keyless it runs
+# shop-only (!store via fortnite-api.com's public shop), and FORTNITE_API_KEY
+# (an api-fortnite.com key) additionally lights !fnstats. The "season" stats
+# window auto-resolves the season start from the stats upstream hourly;
+# FORTNITE_SEASON_START_UNIX optionally overrides it manually.
 apiVersion: secrets.doppler.com/v1alpha1
 kind: DopplerSecret
 metadata:

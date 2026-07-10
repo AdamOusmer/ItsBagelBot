@@ -716,7 +716,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
     label: 'Fortnite Stats',
     tagline: 'Fortnite BR stats and the daily item shop in chat.',
     description:
-      'Viewer commands backed by fortnite-api.com: !fnstats shows wins, matches, kills, K/D and win rate with a solo/duo/squad breakdown; !store lists what is in today\'s item shop. Link your account name below, pick the platform it lives on (Epic, PlayStation or Xbox) and whether stats cover your lifetime or the current season. Viewers can also name any player, e.g. "!fnstats Ninja".',
+      '!fnstats shows a player\'s wins, matches, kills, K/D and win rate with a solo/duo/squad breakdown; !store lists what is in today\'s item shop. Link your Epic display name below and choose whether stats cover your lifetime or the current season. Viewers can also name any player, e.g. "!fnstats Ninja". PlayStation and Xbox name lookups are not supported yet.',
     icon: 'activity',
     category: 'Games',
     defaultEnabled: false,
@@ -790,7 +790,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
         key: 'account',
         label: 'Linked account name',
         type: 'text',
-        placeholder: 'Your Epic / PSN / Xbox name',
+        placeholder: 'Your Epic display name',
         help: 'Default player for !fnstats. Leave blank to use your Twitch username.'
       },
       {
@@ -800,10 +800,10 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
         placeholder: 'epic',
         options: [
           { value: 'epic', label: 'Epic Games' },
-          { value: 'psn', label: 'PlayStation' },
-          { value: 'xbl', label: 'Xbox Live' }
+          { value: 'psn', label: 'PlayStation (coming later)' },
+          { value: 'xbl', label: 'Xbox Live (coming later)' }
         ],
-        help: 'Which platform the linked name lives on. Epic covers most players.'
+        help: 'Only Epic display names resolve right now; PlayStation and Xbox lookups come later. Console players: your Epic display name works.'
       },
       {
         key: 'timeWindow',
