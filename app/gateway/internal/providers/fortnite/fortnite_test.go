@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -100,7 +101,9 @@ var (
 )
 
 // statsUpstream fakes api-fortnite.com: the display-name lookup answers
-// account, the stats path answers body. Requests are recorded onto reqs.
+// account, the stats path answers body, the season endpoint answers a fixed
+// 2026-05-30T13:00:00Z begin (epoch 1780146000). Requests are recorded onto
+// reqs.
 func statsUpstream(t *testing.T, account, body string, reqs *[]*http.Request) http.Handler {
 	t.Helper()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -111,6 +114,8 @@ func statsUpstream(t *testing.T, account, body string, reqs *[]*http.Request) ht
 			_, _ = w.Write([]byte(`{"id":"deadbeef","displayName":"` + account + `"}`))
 		case r.URL.Path == "/api/v2/stats/deadbeef":
 			_, _ = w.Write([]byte(body))
+		case r.URL.Path == "/api/v1/season":
+			_, _ = w.Write([]byte(`{"seasonDateBegin":"2026-05-30T13:00:00Z","seasonDateEnd":"2026-08-21T13:00:00Z","seasonNumber":41}`))
 		default:
 			t.Errorf("unexpected stats-upstream path %s", r.URL.Path)
 			w.WriteHeader(http.StatusNotFound)
@@ -194,13 +199,21 @@ func TestStatsRealBlobAggregation(t *testing.T) {
 	assert.Equal(t, modeAgg{wins: 2954, matches: 7350, kills: 47051}, modes[2])
 }
 
-// With a season start configured, timeWindow=season filters the stats call
-// via startTime and echoes "season"; the account lookup is reused across
-// windows (one lookup, two stats fetches).
-func TestStatsSeasonWindow(t *testing.T) {
+// requestPaths projects the recorded upstream requests to their paths.
+func requestPaths(reqs []*http.Request) []string {
+	out := make([]string, 0, len(reqs))
+	for _, r := range reqs {
+		out = append(out, r.URL.Path)
+	}
+	return out
+}
+
+// The season window auto-resolves its start from the upstream's own season
+// endpoint (cached, so a second season lookup hits nothing new) and filters
+// the stats call via startTime; lifetime never touches the season endpoint.
+func TestStatsSeasonAutoResolved(t *testing.T) {
 	var reqs []*http.Request
-	p := newTestProvider(t, statsUpstream(t, "Ninja", syntheticBlob, &reqs), noUpstream(t, "shop"),
-		func(cfg *Config) { cfg.SeasonStartUnix = 1746000000 })
+	p := newTestProvider(t, statsUpstream(t, "Ninja", syntheticBlob, &reqs), noUpstream(t, "shop"), nil)
 	h := handle(t, p, "stats")
 
 	reply := asStats(t, h(context.Background(), gatewayrpc.Request{Account: "Ninja", TimeWindow: "season"}))
@@ -211,22 +224,52 @@ func TestStatsSeasonWindow(t *testing.T) {
 	require.Empty(t, reply.Error)
 	assert.Equal(t, "lifetime", reply.Window)
 
-	require.Len(t, reqs, 3, "one lookup + two window-scoped stats fetches")
-	assert.Equal(t, "1746000000", reqs[1].URL.Query().Get("startTime"))
-	assert.Empty(t, reqs[2].URL.Query().Get("startTime"))
+	// lookup + season + season-scoped stats, then just the lifetime stats.
+	require.Len(t, reqs, 4, "paths: %v", requestPaths(reqs))
+	wantStart := time.Date(2026, 5, 30, 13, 0, 0, 0, time.UTC).Unix()
+	assert.Equal(t, "/api/v1/season", reqs[1].URL.Path)
+	assert.Equal(t, strconv.FormatInt(wantStart, 10), reqs[2].URL.Query().Get("startTime"))
+	assert.Empty(t, reqs[3].URL.Query().Get("startTime"))
 }
 
-// Without a configured season start the season window degrades to lifetime.
-func TestStatsSeasonUnconfiguredFallsBack(t *testing.T) {
+// A manual season-start override skips the upstream season endpoint entirely.
+func TestStatsSeasonManualOverride(t *testing.T) {
 	var reqs []*http.Request
-	p := newTestProvider(t, statsUpstream(t, "Ninja", syntheticBlob, &reqs), noUpstream(t, "shop"), nil)
+	p := newTestProvider(t, statsUpstream(t, "Ninja", syntheticBlob, &reqs), noUpstream(t, "shop"),
+		func(cfg *Config) { cfg.SeasonStartUnix = 1746000000 })
+
+	reply := asStats(t, handle(t, p, "stats")(context.Background(),
+		gatewayrpc.Request{Account: "Ninja", TimeWindow: "season"}))
+	require.Empty(t, reply.Error)
+	assert.Equal(t, "season", reply.Window)
+
+	require.Len(t, reqs, 2, "paths: %v", requestPaths(reqs))
+	assert.Equal(t, "1746000000", reqs[1].URL.Query().Get("startTime"))
+}
+
+// With the season endpoint down the season window degrades to lifetime (and
+// says so) instead of failing the command.
+func TestStatsSeasonResolveFailureFallsBack(t *testing.T) {
+	var reqs []*http.Request
+	p := newTestProvider(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		reqs = append(reqs, r.Clone(context.Background()))
+		switch {
+		case strings.HasPrefix(r.URL.Path, "/api/v1/account/displayName/"):
+			_, _ = w.Write([]byte(`{"id":"deadbeef","displayName":"Ninja"}`))
+		case r.URL.Path == "/api/v2/stats/deadbeef":
+			_, _ = w.Write([]byte(syntheticBlob))
+		case r.URL.Path == "/api/v1/season":
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte(`{"status":500,"error":"An unexpected error occurred"}`))
+		}
+	}), noUpstream(t, "shop"), nil)
 
 	reply := asStats(t, handle(t, p, "stats")(context.Background(),
 		gatewayrpc.Request{Account: "Ninja", TimeWindow: "season"}))
 	require.Empty(t, reply.Error)
 	assert.Equal(t, "lifetime", reply.Window)
-	require.Len(t, reqs, 2)
-	assert.Empty(t, reqs[1].URL.Query().Get("startTime"))
+	require.Len(t, reqs, 3, "paths: %v", requestPaths(reqs))
+	assert.Empty(t, reqs[2].URL.Query().Get("startTime"))
 }
 
 // PSN/Xbox lookups are Pro-plan upstream features: friendly error, no

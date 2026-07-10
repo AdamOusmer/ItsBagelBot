@@ -48,8 +48,9 @@ type Config struct {
 	// FORTNITE_ENABLED. Two upstreams: the shop rides fortnite-api.com's
 	// public /v2/shop, stats ride api-fortnite.com (x-api-key). The key gates
 	// only the stats endpoint, so a keyless provider runs shop-only (!store
-	// works, !fnstats stays dark). SeasonStart is the current season's start
-	// epoch backing the "season" stats window; 0 degrades season to lifetime.
+	// works, !fnstats stays dark). SeasonStart manually overrides the "season"
+	// stats window's start epoch; 0 (default) auto-resolves it hourly from the
+	// stats upstream's own season endpoint.
 	FortniteBaseURL        string
 	FortniteStatsBaseURL   string
 	FortniteAPIKey         string

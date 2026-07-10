@@ -10,11 +10,13 @@
 //     counter — which the gateway aggregates down to the bot-needed values:
 //     wins, matches, kills, K/D, win rate, and the solo/duo/squad breakdown.
 //
-// The season window rides the stats endpoint's startTime filter, so it needs
-// the current season's start epoch (FORTNITE_SEASON_START_UNIX); unset, a
-// season request degrades to lifetime and says so in the reply's window.
-// Platform lookups (PSN/Xbox) are Pro-plan features upstream and answer a
-// friendly error for now. All endpoints are byte-flow: the reply is shaped
+// The season window rides the stats endpoint's startTime filter. The current
+// season's start epoch comes from the upstream's own /api/v1/season (cached
+// an hour, so a season rollover is picked up automatically);
+// FORTNITE_SEASON_START_UNIX overrides it manually, and if neither yields a
+// start the season request degrades to lifetime and says so in the reply's
+// window. Platform lookups (PSN/Xbox) are Pro-plan features upstream and
+// answer a friendly error for now. All endpoints are byte-flow: the reply is shaped
 // and marshaled once on fetch, and a cache hit answers with the stored wire
 // bytes untouched.
 package fortnite
@@ -43,6 +45,9 @@ const (
 	// accountTTL: an Epic display-name -> account-id binding only changes on a
 	// rename.
 	accountTTL = 24 * time.Hour
+	// seasonTTL bounds how stale the auto-fetched season start may run; a
+	// season rollover (4x a year) is picked up within the hour.
+	seasonTTL = time.Hour
 	// shopTTL: the shop rotates once a day (00:00 UTC), so a 15-minute lag on
 	// rotation day is invisible against a 24h cycle.
 	shopTTL = 15 * time.Minute
@@ -76,8 +81,8 @@ type Config struct {
 	// StatsRateLimit is stats-upstream requests per day (the free plan allows
 	// 10k; the default leaves headroom).
 	StatsRateLimit float64
-	// SeasonStartUnix is the current season's start epoch, driving the
-	// "season" stats window; 0 degrades season requests to lifetime.
+	// SeasonStartUnix manually overrides the season window's start epoch. 0
+	// (the default) auto-resolves it from the upstream's /api/v1/season.
 	SeasonStartUnix int64
 }
 
@@ -146,14 +151,45 @@ func (p *Provider) Endpoints() []provider.Endpoint {
 	return eps
 }
 
-// normalizeWindow maps the dashboard's window setting onto the window the
-// provider can actually serve: "season" only when the season start epoch is
-// configured, otherwise lifetime.
-func (p *Provider) normalizeWindow(w string) string {
-	if strings.ToLower(strings.TrimSpace(w)) == "season" && p.seasonStart > 0 {
+// normalizeWindow maps the dashboard's window setting onto the requested
+// window; whether "season" can actually be served is decided at fetch time
+// (seasonStartTime), where it may degrade to lifetime.
+func normalizeWindow(w string) string {
+	if strings.ToLower(strings.TrimSpace(w)) == "season" {
 		return "season"
 	}
 	return "lifetime"
+}
+
+// seasonResponse is the /api/v1/season body subset the gateway reads.
+type seasonResponse struct {
+	SeasonDateBegin time.Time `json:"seasonDateBegin"`
+}
+
+// seasonStartTime resolves the season window's start epoch: the manual
+// override when configured, otherwise the upstream's own current-season
+// begin date, cached an hour so a rollover is picked up automatically. 0
+// means no start could be resolved (the caller degrades to lifetime).
+func (p *Provider) seasonStartTime(ctx context.Context, isPremium bool) int64 {
+	if p.seasonStart > 0 {
+		return p.seasonStart
+	}
+	key := core.Key(p.Name(), "season", "start")
+	start, err := core.Cached(ctx, p.cache, key, seasonTTL, negativeTTL, func(ctx context.Context) (int64, error) {
+		if err := p.statsBucket.Enforce(ctx, p.deps.Limiter, isPremium); err != nil {
+			return 0, err
+		}
+		var resp seasonResponse
+		if err := p.stats.GetJSON(ctx, "/api/v1/season", nil, &resp); err != nil {
+			return 0, err
+		}
+		return resp.SeasonDateBegin.Unix(), nil
+	})
+	if err != nil || start <= 0 {
+		p.log.Warn("fortnite season start resolve failed, serving lifetime", zap.Error(err))
+		return 0
+	}
+	return start
 }
 
 // epicOnly answers the friendly error for platform lookups the upstream's
@@ -301,7 +337,7 @@ func (p *Provider) statsEndpoint(ctx context.Context, req gatewayrpc.Request) an
 	if msg := epicOnly(req.AccountType); msg != "" {
 		return gatewayrpc.FortniteStatsReply{Player: account, Error: msg}
 	}
-	q := statsQuery{account: account, window: p.normalizeWindow(req.TimeWindow)}
+	q := statsQuery{account: account, window: normalizeWindow(req.TimeWindow)}
 
 	key := core.Key(p.Name(), "stats", q.window+":"+strings.ToLower(account))
 	b, err := core.CachedBytes(ctx, p.cache, key, func(ctx context.Context) ([]byte, time.Duration, error) {
@@ -331,7 +367,12 @@ func (p *Provider) fetchStats(ctx context.Context, q statsQuery, isPremium bool)
 
 	var query url.Values
 	if q.window == "season" {
-		query = url.Values{"startTime": {strconv.FormatInt(p.seasonStart, 10)}}
+		if start := p.seasonStartTime(ctx, isPremium); start > 0 {
+			query = url.Values{"startTime": {strconv.FormatInt(start, 10)}}
+		} else {
+			// No season start resolvable: serve lifetime and say so.
+			q.window = "lifetime"
+		}
 	}
 	var resp rawStatsResponse
 	if err := p.stats.GetJSON(ctx, "/api/v2/stats/"+url.PathEscape(ref.ID), query, &resp); err != nil {
