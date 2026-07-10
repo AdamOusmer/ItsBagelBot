@@ -44,13 +44,20 @@ type Config struct {
 	McsrEnabled   bool
 	McsrRateLimit float64
 
-	// Fortnite provider (fortnite-api.com: !fnstats + !store). Off by default —
-	// FORTNITE_ENABLED=true AND an API key turn it on — so it stays dark until
-	// tested against a real key.
-	FortniteBaseURL   string
-	FortniteAPIKey    string
-	FortniteEnabled   bool
-	FortniteRateLimit float64
+	// Fortnite provider (!fnstats + !store), off by default behind
+	// FORTNITE_ENABLED. Two upstreams: the shop rides fortnite-api.com's
+	// public /v2/shop, stats ride api-fortnite.com (x-api-key). The key gates
+	// only the stats endpoint, so a keyless provider runs shop-only (!store
+	// works, !fnstats stays dark). SeasonStart manually overrides the "season"
+	// stats window's start epoch; 0 (default) auto-resolves it hourly from the
+	// stats upstream's own season endpoint.
+	FortniteBaseURL        string
+	FortniteStatsBaseURL   string
+	FortniteAPIKey         string
+	FortniteEnabled        bool
+	FortniteRateLimit      float64
+	FortniteStatsRateLimit float64
+	FortniteSeasonStart    int64
 
 	// Govee smart-light provider. It holds no service key (each broadcaster
 	// brings their own, fetched from the modules service). GoveeKeySubjectPrefix
@@ -88,11 +95,17 @@ func Load() *Config {
 		McsrEnabled:   env.GetBool("MCSR_ENABLED", true),
 		McsrRateLimit: env.GetFloat("MCSR_RATE_LIMIT", 500.0),
 
-		FortniteBaseURL: env.Get("FORTNITE_BASE_URL", "https://fortnite-api.com"),
-		FortniteAPIKey:  env.Get("FORTNITE_API_KEY", ""),
-		FortniteEnabled: env.GetBool("FORTNITE_ENABLED", false),
-		// fortnite-api.com publishes no hard per-key budget; requests per minute.
+		FortniteBaseURL:      env.Get("FORTNITE_BASE_URL", "https://fortnite-api.com"),
+		FortniteStatsBaseURL: env.Get("FORTNITE_STATS_BASE_URL", "https://prod.api-fortnite.com"),
+		FortniteAPIKey:       env.Get("FORTNITE_API_KEY", ""),
+		FortniteEnabled:      env.GetBool("FORTNITE_ENABLED", false),
+		// Shop budget: fortnite-api.com publishes no hard per-key budget;
+		// requests per minute.
 		FortniteRateLimit: env.GetFloat("FORTNITE_RATE_LIMIT", 120.0),
+		// Stats budget: api-fortnite.com's free plan allows 10k requests per
+		// day; the default leaves headroom.
+		FortniteStatsRateLimit: env.GetFloat("FORTNITE_STATS_RATE_LIMIT", 9000.0),
+		FortniteSeasonStart:    int64(env.GetInt("FORTNITE_SEASON_START_UNIX", 0)),
 
 		GoveeBaseURL:          env.Get("GOVEE_BASE_URL", "https://openapi.api.govee.com"),
 		GoveeRateLimit:        env.GetFloat("GOVEE_RATE_LIMIT", 8.0),
