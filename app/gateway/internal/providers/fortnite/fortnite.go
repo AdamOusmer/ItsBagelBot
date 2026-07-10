@@ -157,6 +157,10 @@ func toReplyStats(m *modeStats) gatewayrpc.FortniteModeStats {
 	}
 }
 
+// privateStatsKeywords mark a 403 body as the player's own stats-privacy
+// toggle ("public game stats disabled") rather than an API-key problem.
+var privateStatsKeywords = []string{"public", "private", "stats"}
+
 // privateStatsError reshapes the upstream 403 for an account whose "Public
 // Game Stats" toggle is off into a player-level 404-class failure: it chats a
 // specific message and negative-caches (private stays private for a while).
@@ -167,11 +171,20 @@ func privateStatsError(err error) error {
 	if !errors.As(err, &ue) || ue.Status != 403 {
 		return err
 	}
-	msg := strings.ToLower(ue.Message)
-	if strings.Contains(msg, "public") || strings.Contains(msg, "private") || strings.Contains(msg, "stats") {
+	if containsAny(strings.ToLower(ue.Message), privateStatsKeywords) {
 		return &core.UpstreamError{Status: 404, Message: "this player's game stats are private"}
 	}
 	return err
+}
+
+// containsAny reports whether s contains at least one of subs.
+func containsAny(s string, subs []string) bool {
+	for _, sub := range subs {
+		if strings.Contains(s, sub) {
+			return true
+		}
+	}
+	return false
 }
 
 // stats answers fortnite.stats (sesame's !fnstats) with the player's
@@ -181,15 +194,16 @@ func (p *Provider) stats(ctx context.Context, req gatewayrpc.Request) any {
 	if account == "" {
 		return gatewayrpc.FortniteStatsReply{Error: "missing account"}
 	}
-	accountType := normalizeAccountType(req.AccountType)
-	window := normalizeTimeWindow(req.TimeWindow)
+	q := statsQuery{
+		account:     account,
+		accountType: normalizeAccountType(req.AccountType),
+		window:      normalizeTimeWindow(req.TimeWindow),
+	}
 
-	key := core.Key(p.Name(), "stats", accountType+":"+window+":"+strings.ToLower(account))
+	key := core.Key(p.Name(), "stats", q.accountType+":"+q.window+":"+strings.ToLower(account))
 	b, err := core.CachedBytes(ctx, p.cache, key, func(ctx context.Context) ([]byte, time.Duration, error) {
 		return core.BuildReply(ctx, statsTTL, negativeTTL,
-			func(ctx context.Context) (any, error) {
-				return p.fetchStats(ctx, account, accountType, window, req.IsPremium)
-			},
+			func(ctx context.Context) (any, error) { return p.fetchStats(ctx, q, req.IsPremium) },
 			func(msg string) any { return gatewayrpc.FortniteStatsReply{Player: account, Error: msg} },
 		)
 	})
@@ -201,17 +215,25 @@ func (p *Provider) stats(ctx context.Context, req gatewayrpc.Request) any {
 	return json.RawMessage(b)
 }
 
+// statsQuery is one normalized stats lookup: the player name plus the
+// platform namespace and window the upstream call carries.
+type statsQuery struct {
+	account     string
+	accountType string
+	window      string
+}
+
 // fetchStats spends the budget, queries /v2/stats/br/v2 and shapes the
 // success reply.
-func (p *Provider) fetchStats(ctx context.Context, account, accountType, window string, isPremium bool) (gatewayrpc.FortniteStatsReply, error) {
+func (p *Provider) fetchStats(ctx context.Context, q statsQuery, isPremium bool) (gatewayrpc.FortniteStatsReply, error) {
 	if err := p.buckets.Enforce(ctx, p.deps.Limiter, isPremium); err != nil {
 		return gatewayrpc.FortniteStatsReply{}, err
 	}
 
 	query := url.Values{
-		"name":        {account},
-		"accountType": {accountType},
-		"timeWindow":  {window},
+		"name":        {q.account},
+		"accountType": {q.accountType},
+		"timeWindow":  {q.window},
 		"image":       {"none"},
 	}
 	var resp statsResponse
@@ -221,12 +243,12 @@ func (p *Provider) fetchStats(ctx context.Context, account, accountType, window 
 
 	name := resp.Data.Account.Name
 	if name == "" {
-		name = account
+		name = q.account
 	}
 	all := resp.Data.Stats.All
 	return gatewayrpc.FortniteStatsReply{
 		Player:  name,
-		Window:  window,
+		Window:  q.window,
 		Overall: toReplyStats(all.Overall),
 		Solo:    toReplyStats(all.Solo),
 		Duo:     toReplyStats(all.Duo),
