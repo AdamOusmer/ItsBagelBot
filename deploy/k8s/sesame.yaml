@@ -201,8 +201,10 @@ spec:
 ---
 # Sesame is the CPU-bound half (decode/dedup/module-dispatch/templating), so
 # unlike outgress this is real throughput headroom, not just resilience -
-# hence the wider maxReplicaCount. minReplicaCount 4 matches the old static
-# replicas. Consumer names are bus.durableName("worker", subject) - sesame
+# hence the wider maxReplicaCount. minReplicaCount 6 keeps a 2-per-node
+# baseline across the three hot-path nodes (soft spread lands 2/2/2), sized
+# for the big-CPU pair (node3 6c, worker1 8c) without waiting on a scale-up.
+# Consumer names are bus.durableName("worker", subject) - sesame
 # shares the worker's pre-existing durable via fleetSubscriber (app/sesame/main.go
 # bus.NewSubscriber(cfg.NATSURL, cfg.ConsumerName, log), ConsumerName=worker),
 # not per-lane groups like outgress. lag = num_pending + num_ack_pending on
@@ -218,11 +220,11 @@ spec:
     name: sesame
   pollingInterval: 15
   cooldownPeriod: 300
-  minReplicaCount: 4
+  minReplicaCount: 6
   maxReplicaCount: 10
   fallback:
     failureThreshold: 3
-    replicas: 4
+    replicas: 6
   advanced:
     horizontalPodAutoscalerConfig:
       behavior:
