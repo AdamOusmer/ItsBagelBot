@@ -30,6 +30,23 @@ function settled<T>(r: PromiseSettledResult<T>): T | undefined {
   return r.status === 'fulfilled' ? r.value : undefined;
 }
 
+// One enable publish per user per window, per replica. The enable action and
+// the self-heal below both publish the same job, and right after a connect
+// click the registry still reads 'unenrolled' until the worker flips it to
+// 'pending' — without this guard every page load and substate poll in that
+// window fires another full enroll (each worth ~13-24 reserved Helix calls;
+// two back-to-back full enrolls observed 2026-07-10). Per-replica memory is
+// enough: the worker-side enroll cooldown is the fleet-wide guard, this only
+// stops one replica re-publishing what it just sent.
+const ENABLE_PUBLISH_WINDOW_MS = 120_000;
+const recentEnables = new Map<string, number>();
+
+function pruneEnableStamps(now: number): void {
+  for (const [k, t] of recentEnables) {
+    if (now - t >= ENABLE_PUBLISH_WINDOW_MS) recentEnables.delete(k);
+  }
+}
+
 // Self-heal: a channel the users service says is active but outgress has no
 // enrollment for (fresh signup, or one predating auto-enroll) gets its
 // EventSub enable job published right here on page load. Safe to repeat:
@@ -37,14 +54,26 @@ function settled<T>(r: PromiseSettledResult<T>): T | undefined {
 // 'unenrolled' triggers this — 'unknown' (outgress RPC down) must not spam
 // enables. Reports 'pending' so the UI shows the enroll in flight; the
 // substate poll takes over with the real outcome.
-function healSubState(
-  uid: string,
-  active: boolean,
-  subState: ChannelSubState['state']
-): ChannelSubState['state'] {
-  if (subState !== 'unenrolled' || uid === 'demo') return subState;
-  if (!active) return subState;
-  publishEventSub(uid, true).catch(() => {});
+function healSubState(conn: {
+  uid: string;
+  active: boolean;
+  state: ChannelSubState['state'];
+}): ChannelSubState['state'] {
+  const { uid, active, state } = conn;
+  if (state !== 'unenrolled' || uid === 'demo') return state;
+  if (!active) return state;
+
+  // One publish per window (see recentEnables above): right after a connect
+  // click the registry still reads 'unenrolled', so without the stamp every
+  // load and poll here would fire another full enroll.
+  const now = Date.now();
+  const stamped = recentEnables.get(uid);
+  if (stamped !== undefined && now - stamped < ENABLE_PUBLISH_WINDOW_MS) return 'pending';
+  recentEnables.set(uid, now);
+  if (recentEnables.size > 1024) pruneEnableStamps(now);
+
+  // A failed publish must not suppress the next heal for the whole window.
+  publishEventSub(uid, true).catch(() => recentEnables.delete(uid));
   return 'pending';
 }
 
@@ -66,7 +95,7 @@ async function connState(uid: string): Promise<ConnState> {
   const subHealth = settled(sub);
   const enabled = settled(grant) === true;
   const active = enabled && account?.active === true;
-  const subState = healSubState(uid, active, subHealth?.state ?? 'unknown');
+  const subState = healSubState({ uid, active, state: subHealth?.state ?? 'unknown' });
   return {
     enabled,
     receiving: active && subState !== 'unenrolled',
@@ -199,6 +228,10 @@ export const actions: Actions = {
   enable: ownerAction('enable', true, async (uid) => {
     await setActive(uid, true);
     await publishEventSub(uid, true);
+    // The loads/polls that follow this action still read 'unenrolled' until
+    // the worker picks the job up; stamp the publish so the self-heal doesn't
+    // immediately fire a duplicate enroll.
+    recentEnables.set(uid, Date.now());
   }),
   // Restart: atomic drop + recreate of EventSub subscriptions (stays active).
   restart: ownerAction('restart', true, (uid) => publishEventSubReconnect(uid)),
