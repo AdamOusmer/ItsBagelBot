@@ -174,9 +174,23 @@ func (d *Dashboard) writeCommandsAsync(userID uint64, commands []projection.Comm
 			d.log.Warn("projector command valkey write failed", zap.Uint64("user_id", userID), zap.Error(err))
 		}
 		if d.cacheInvalidatePrefix != "" {
-			_ = invalidate.PublishKeys(d.nc, d.cacheInvalidatePrefix, "commands", strconv.FormatUint(userID, 10))
+			// Workers evict per-command cache entries, so the broadcast must carry
+			// every name and alias the replace may have changed — an empty key list
+			// evicts nothing and the write stays invisible until the TTL expires.
+			_ = invalidate.PublishKeys(d.nc, d.cacheInvalidatePrefix, "commands", strconv.FormatUint(userID, 10), commandKeys(commands)...)
 		}
 	}()
+}
+
+// commandKeys flattens a command list into the granular invalidation key set
+// (every name plus every alias), matching what the change-event path publishes.
+func commandKeys(commands []projection.CommandView) []string {
+	keys := make([]string, 0, len(commands))
+	for _, c := range commands {
+		keys = append(keys, c.Name)
+		keys = append(keys, c.Aliases...)
+	}
+	return keys
 }
 
 func (d *Dashboard) writeModulesAsync(userID uint64, modules []projection.ModuleView) {
