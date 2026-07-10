@@ -45,7 +45,7 @@ metadata:
   annotations:
     secrets.doppler.com/reload: "true"
 spec:
-  replicas: 4 # node1 excluded via hot-path anti-affinity; soft even spread across node2/worker1 (2,2)
+  replicas: 4 # node1 excluded via hot-path anti-affinity; soft spread over node2/node3/worker1, double biased to node3 (2,1,1)
   revisionHistoryLimit: 3
   strategy:
     type: RollingUpdate
@@ -115,9 +115,18 @@ spec:
                     operator: In
                     values: [node3]
       topologySpreadConstraints:
+        # matchLabelKeys scopes the skew to the CURRENT ReplicaSet: during a
+        # maxSurge=0 roll the outgoing pods no longer count, so every rollout
+        # re-spreads one-per-node instead of piling onto whichever node freed
+        # capacity first (bit the ingress on 2026-07-10: 3/0/1). Soft constraint
+        # stays soft, so a node outage never wedges scheduling; the KEDA floor
+        # (>= one per hot-path node) plus the ReplicaSet downscaler's
+        # remove-co-located-duplicates-first ranking keep steady state at
+        # >= 1 per node.
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
           whenUnsatisfiable: ScheduleAnyway
+          matchLabelKeys: [pod-template-hash]
           labelSelector:
             matchLabels:
               app: twitch-ingress
