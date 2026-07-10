@@ -54,31 +54,62 @@ type fortniteConfig struct {
 // Fortnite owns the Fortnite chat commands backed by the gateway service. It
 // is a named, opt-in module (KindOptIn): off by default, enabled on the
 // dashboard, where the broadcaster links a default account. Viewers can
-// always target another player explicitly: "!fnstats Ninja".
+// always target another player explicitly: "!fn Ninja".
 //
-// Commands: !fnstats (all-time Battle Royale stats), !season (the current
-// season's stats — the gateway resolves the season window itself), !store
-// (the current item-shop rotation). All stats replies carry the
-// solo/duo/squad breakdown.
+// The command surface is one root with subcommands, plus the squashed forms
+// as direct triggers:
+//
+//	!fn [player]         all-time Battle Royale stats (also !fn stats, !fnstats)
+//	!fn season [player]  the current season's stats (also !fnseason)
+//	!fn store            the current item-shop rotation (also !fnstore)
+//
+// All stats replies carry the solo/duo/squad breakdown; the gateway resolves
+// the season window itself.
 func Fortnite(d engine.Deps) module.Module {
+	statsRun := fortniteStatsRun(d, fortniteStatsCommand{
+		window:   "lifetime",
+		enabled:  func(c fortniteConfig) string { return c.StatsEnabled },
+		message:  func(c fortniteConfig) string { return c.StatsMessage },
+		fallback: defaultFortniteStatsTemplate,
+	})
+	seasonRun := fortniteStatsRun(d, fortniteStatsCommand{
+		window:   "season",
+		enabled:  func(c fortniteConfig) string { return c.SeasonEnabled },
+		message:  func(c fortniteConfig) string { return c.SeasonMessage },
+		fallback: defaultFortniteSeasonTemplate,
+	})
+	storeRun := fortniteStoreRun(d)
+
 	m := module.NewModule(fortniteModuleName, module.KindOptIn)
+	m.Command("fn").Everyone().Cooldown(fortniteCooldown).
+		Run(fortniteDispatchRun(statsRun, seasonRun, storeRun))
 	m.Command("fnstats").Everyone().Cooldown(fortniteCooldown).Aliases("fortnitestats").
-		Run(fortniteStatsRun(d, fortniteStatsCommand{
-			window:   "lifetime",
-			enabled:  func(c fortniteConfig) string { return c.StatsEnabled },
-			message:  func(c fortniteConfig) string { return c.StatsMessage },
-			fallback: defaultFortniteStatsTemplate,
-		}))
-	m.Command("season").Everyone().Cooldown(fortniteCooldown).Aliases("fnseason").
-		Run(fortniteStatsRun(d, fortniteStatsCommand{
-			window:   "season",
-			enabled:  func(c fortniteConfig) string { return c.SeasonEnabled },
-			message:  func(c fortniteConfig) string { return c.SeasonMessage },
-			fallback: defaultFortniteSeasonTemplate,
-		}))
-	m.Command("store").Everyone().Cooldown(fortniteCooldown).Aliases("itemshop", "fnshop").
-		Run(fortniteStoreRun(d))
+		Run(statsRun)
+	m.Command("fnseason").Everyone().Cooldown(fortniteCooldown).
+		Run(seasonRun)
+	m.Command("fnstore").Everyone().Cooldown(fortniteCooldown).Aliases("itemshop", "fnshop").
+		Run(storeRun)
 	return m.Build()
+}
+
+// fortniteDispatchRun routes !fn's first argument word onto the subcommand
+// runners: "stats"/"season"/"store" (and "shop") select one explicitly, and
+// anything else — nothing, or a player name — is an all-time stats lookup, so
+// "!fn Ninja" reads naturally.
+func fortniteDispatchRun(statsRun, seasonRun, storeRun module.RunFunc) module.RunFunc {
+	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
+		sub, rest, _ := strings.Cut(strings.TrimSpace(args), " ")
+		switch strings.ToLower(sub) {
+		case "stats":
+			return statsRun(ctx, c, rest, emit)
+		case "season":
+			return seasonRun(ctx, c, rest, emit)
+		case "store", "shop":
+			return storeRun(ctx, c, rest, emit)
+		default:
+			return statsRun(ctx, c, args, emit)
+		}
+	}
 }
 
 // fortniteStatsCommand names one stats command's wiring: the fixed window it
@@ -113,9 +144,10 @@ func fortniteStatsTokens() map[string]func(*gatewayrpc.FortniteStatsReply) strin
 	}
 }
 
-// fortniteStatsRun answers one stats command (!fnstats all-time, !season the
-// current season) with the player's Battle Royale stats over cmd's fixed
-// window. Template tokens: {player} {window} {wins} {matches} {kills} {kd}
+// fortniteStatsRun answers one stats command (!fn / !fnstats all-time,
+// !fn season / !fnseason the current season) with the player's Battle Royale
+// stats over cmd's fixed window. Template tokens: {player} {window} {wins}
+// {matches} {kills} {kd}
 // {winrate} plus the per-mode {solowins} {solomatches} {solokd} {duowins}
 // {duomatches} {duokd} {squadwins} {squadmatches} {squadkd}.
 func fortniteStatsRun(d engine.Deps, cmd fortniteStatsCommand) module.RunFunc {

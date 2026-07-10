@@ -758,17 +758,17 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
     label: 'Fortnite Stats',
     tagline: 'Fortnite BR stats and the daily item shop in chat.',
     description:
-      '!fnstats shows a player\'s all-time wins, matches, kills, K/D and win rate with a solo/duo/squad breakdown; !season shows the same for the current season (the bot tracks season rollovers automatically); !store lists what is in today\'s item shop. Link your Epic display name below. Viewers can also name any player, e.g. "!fnstats Ninja". PlayStation and Xbox name lookups are not supported yet.',
+      'One command, three looks: !fn shows a player\'s all-time wins, matches, kills, K/D and win rate with a solo/duo/squad breakdown; !fn season shows the same for the current season (the bot tracks season rollovers automatically); !fn store lists what is in today\'s item shop. The squashed forms !fnstats, !fnseason and !fnstore work too. Link your Epic display name below. Viewers can also name any player, e.g. "!fn Ninja". PlayStation and Xbox name lookups are not supported yet.',
     icon: 'activity',
     category: 'Games',
     defaultEnabled: false,
     replies: [
       {
         key: 'stats',
-        label: '!fnstats',
-        tagline: 'All-time Battle Royale stats for the linked or named player.',
-        event: '!fnstats',
-        command: 'fnstats',
+        label: '!fn',
+        tagline: 'All-time Battle Royale stats — !fn, !fn stats or !fnstats.',
+        event: '!fn',
+        command: 'fn',
         enableKey: 'statsEnabled',
         messageKey: 'statsMessage',
         defaultMessage:
@@ -778,10 +778,10 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
       },
       {
         key: 'season',
-        label: '!season',
-        tagline: "Current-season stats; the bot tracks season rollovers automatically.",
-        event: '!season',
-        command: 'season',
+        label: '!fn season',
+        tagline: 'Current-season stats (also !fnseason); season rollovers are tracked automatically.',
+        event: '!fn season',
+        command: 'fn season',
         enableKey: 'seasonEnabled',
         messageKey: 'seasonMessage',
         defaultMessage:
@@ -808,10 +808,10 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
       },
       {
         key: 'store',
-        label: '!store',
-        tagline: "Today's item-shop rotation.",
-        event: '!store',
-        command: 'store',
+        label: '!fn store',
+        tagline: "Today's item-shop rotation (also !fnstore).",
+        event: '!fn store',
+        command: 'fn store',
         enableKey: 'storeEnabled',
         messageKey: 'storeMessage',
         defaultMessage: 'Item Shop {date}: {items}',
@@ -829,7 +829,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
         label: 'Linked account name',
         type: 'text',
         placeholder: 'Your Epic display name',
-        help: 'Default player for !fnstats and !season. Leave blank to use your Twitch username.'
+        help: 'Default player for the stats commands. Leave blank to use your Twitch username.'
       },
       {
         key: 'accountType',
