@@ -47,6 +47,14 @@ metadata:
 spec:
   replicas: 6 # node1 excluded via hot-path anti-affinity; soft spread lands 2 per node over node2/node3/worker1
   revisionHistoryLimit: 3
+  # Each pod death forces its EventSub conduit shards to rebind on a peer (new
+  # websocket session + transport update), and Twitch drops a shard's events
+  # until the rebind lands. Hold each replacement pod Ready for a full minute
+  # before killing the next old pod so the Horde registry converges and the
+  # displaced shards re-bind between swaps — the 2026-07-10 mid-stream incident
+  # was pods cycling within a minute of each other, stacking shard gaps and
+  # registry races ("registry pick unreachable") into a ~5 min chat outage.
+  minReadySeconds: 60
   strategy:
     type: RollingUpdate
     rollingUpdate:
