@@ -44,9 +44,10 @@ type Config struct {
 	McsrEnabled   bool
 	McsrRateLimit float64
 
-	// Fortnite provider (fortnite-api.com: !fnstats + !store). Off by default —
-	// FORTNITE_ENABLED=true AND an API key turn it on — so it stays dark until
-	// tested against a real key.
+	// Fortnite provider (fortnite-api.com: !fnstats + !store). Off by default
+	// behind FORTNITE_ENABLED. The API key gates only the stats endpoint; the
+	// shop is public upstream, so a keyless provider runs shop-only (!store
+	// works, !fnstats stays dark).
 	FortniteBaseURL   string
 	FortniteAPIKey    string
 	FortniteEnabled   bool

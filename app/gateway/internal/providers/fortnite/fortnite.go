@@ -43,9 +43,11 @@ const (
 	rateWindowSeconds = 60.0
 )
 
-// Config carries the provider's environment. The stats endpoint requires the
-// API key (sent as the Authorization header); main skips the provider without
-// one. RateLimit is requests per minute.
+// Config carries the provider's environment. The shop endpoint is public —
+// fortnite-api.com serves /v2/shop without a key — so the provider runs with
+// an empty APIKey in shop-only mode: the stats endpoint (which the upstream
+// 401s keyless) is simply not registered, and !fnstats times out at the
+// caller like any disabled provider. RateLimit is requests per minute.
 type Config struct {
 	BaseURL   string
 	APIKey    string
@@ -60,6 +62,9 @@ type Provider struct {
 
 	deps    provider.Deps
 	buckets core.Buckets
+	// keyed reports whether an API key is configured; without one the stats
+	// endpoint is not served (shop-only mode).
+	keyed bool
 }
 
 // New builds the fortnite provider.
@@ -75,22 +80,30 @@ func New(cfg Config, d provider.Deps) *Provider {
 	if log == nil {
 		log = zap.NewNop()
 	}
+	var headers map[string]string
+	if cfg.APIKey != "" {
+		headers = map[string]string{"Authorization": cfg.APIKey}
+	}
 	return &Provider{
-		http:    core.NewHTTPClient(base, map[string]string{"Authorization": cfg.APIKey}, httpTimeout),
+		http:    core.NewHTTPClient(base, headers, httpTimeout),
 		cache:   d.Cache,
 		log:     log,
 		deps:    d,
 		buckets: core.NewBuckets("ratelimit:gateway:fortnite", cfg.RateLimit, rateWindowSeconds),
+		keyed:   cfg.APIKey != "",
 	}
 }
 
 func (p *Provider) Name() string { return "fortnite" }
 
 func (p *Provider) Endpoints() []provider.Endpoint {
-	return []provider.Endpoint{
-		{Name: "stats", Timeout: handlerTimeout, Handle: p.stats},
+	eps := []provider.Endpoint{
 		{Name: "shop", Timeout: handlerTimeout, Handle: p.shop},
 	}
+	if p.keyed {
+		eps = append(eps, provider.Endpoint{Name: "stats", Timeout: handlerTimeout, Handle: p.stats})
+	}
+	return eps
 }
 
 // normalizeAccountType maps the dashboard's account-type setting onto the

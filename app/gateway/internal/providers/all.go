@@ -71,17 +71,17 @@ func appendMcsr(out []provider.Provider, cfg *config.Config, d provider.Deps, lo
 	}, d))
 }
 
-// appendFortnite adds the fortnite provider. It is double-gated: the
-// FORTNITE_ENABLED flag keeps it dark until tested against a real key, and the
-// key itself is required for the stats endpoint's Authorization header.
+// appendFortnite adds the fortnite provider behind the FORTNITE_ENABLED flag
+// (dark until tested). The API key gates only the stats endpoint: the shop is
+// public upstream, so a keyless provider still answers !store and merely skips
+// !fnstats (shop-only mode).
 func appendFortnite(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {
 	if !cfg.FortniteEnabled {
 		log.Warn("fortnite provider disabled: FORTNITE_ENABLED=false")
 		return out
 	}
 	if cfg.FortniteAPIKey == "" {
-		log.Warn("fortnite provider disabled: FORTNITE_API_KEY not set (!fnstats and !store will not answer)")
-		return out
+		log.Warn("fortnite provider running shop-only: FORTNITE_API_KEY not set (!fnstats will not answer)")
 	}
 	return append(out, fortnite.New(fortnite.Config{
 		BaseURL:   cfg.FortniteBaseURL,

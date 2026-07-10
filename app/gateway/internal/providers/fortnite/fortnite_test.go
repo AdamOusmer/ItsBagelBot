@@ -244,6 +244,42 @@ func TestShopNormalizesAndCaches(t *testing.T) {
 	assert.Equal(t, 1, hits)
 }
 
+// Keyless (shop-only mode): the stats endpoint is not registered, the shop
+// still answers, and no Authorization header is sent upstream.
+func TestKeylessServesShopOnly(t *testing.T) {
+	var gotAuth *string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		auth := r.Header.Get("Authorization")
+		gotAuth = &auth
+		_, _ = w.Write([]byte(shopBody))
+	}))
+	t.Cleanup(srv.Close)
+	p := New(Config{BaseURL: srv.URL},
+		provider.Deps{Cache: core.NewCache(newMemStore()), Log: zap.NewNop()})
+
+	names := make([]string, 0, len(p.Endpoints()))
+	for _, ep := range p.Endpoints() {
+		names = append(names, ep.Name)
+	}
+	assert.Equal(t, []string{"shop"}, names)
+
+	reply := asShop(t, handle(t, p, "shop")(context.Background(), gatewayrpc.Request{}))
+	require.Empty(t, reply.Error)
+	assert.Equal(t, 3, reply.Count)
+	require.NotNil(t, gotAuth)
+	assert.Empty(t, *gotAuth)
+}
+
+func TestKeyedServesBothEndpoints(t *testing.T) {
+	p := New(Config{APIKey: "k"},
+		provider.Deps{Cache: core.NewCache(newMemStore()), Log: zap.NewNop()})
+	names := make([]string, 0, len(p.Endpoints()))
+	for _, ep := range p.Endpoints() {
+		names = append(names, ep.Name)
+	}
+	assert.ElementsMatch(t, []string{"shop", "stats"}, names)
+}
+
 func TestOddRateLimitDoesNotPanic(t *testing.T) {
 	assert.NotPanics(t, func() {
 		New(Config{APIKey: "k", RateLimit: 100.3},
