@@ -35,6 +35,17 @@ type Message struct {
 	Status       string `json:"status,omitempty"`
 }
 
+// Batch is the shared producer/consumer contract for an ordered, at-most-once
+// group. ID keys ownership and progress; Items execute in slice order.
+type Batch struct {
+	ID    string    `json:"id"`
+	Items []Message `json:"items"`
+}
+
+func (b *Batch) Valid() bool {
+	return b != nil && b.ID != "" && len(b.Items) > 0
+}
+
 // StreamStatusJob is the payload of a "stream_status" message: a request for
 // outgress to resolve one broadcaster's current live state from Twitch (Helix
 // Get Streams) and write it back into the shared live projection. It carries no
@@ -62,6 +73,7 @@ type EventSubJob struct {
 // Message type values. Producers set Message.Type to one of these.
 const (
 	TypeChat         = "chat"
+	TypeBatch        = "batch"
 	TypeAPI          = "api"
 	TypeEventSub     = "eventsub"
 	TypeStreamStatus = "stream_status"

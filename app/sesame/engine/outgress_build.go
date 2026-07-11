@@ -22,18 +22,38 @@ type banData struct {
 // correctly. This runs only when a handler actually emits, so the allocation it
 // costs never touches the no-output plain-chat path.
 func buildOutgress(o *module.Output) ([]byte, error) {
-	build, ok := outgressBuilders[o.Type]
-	if !ok {
-		return sonic.Marshal(outgress.Message{
-			Type:          o.Type,
-			BroadcasterID: o.BroadcasterID,
-		})
-	}
-	msg, err := build(o)
+	msg, err := buildOutgressMessage(o)
 	if err != nil {
 		return nil, err
 	}
 	return sonic.Marshal(msg)
+}
+
+func buildOutgressMessage(o *module.Output) (outgress.Message, error) {
+	if o.Type == outgress.TypeBatch {
+		items := make([]outgress.Message, 0, len(o.Items))
+		for i := range o.Items {
+			item, err := buildOutgressMessage(&o.Items[i])
+			if err != nil {
+				return outgress.Message{}, err
+			}
+			items = append(items, item)
+		}
+		return payloadMessage(outgress.TypeBatch, o.BroadcasterID, outgress.Batch{ID: o.BatchID, Items: items})
+	}
+
+	build, ok := outgressBuilders[o.Type]
+	if !ok {
+		return outgress.Message{
+			Type:          o.Type,
+			BroadcasterID: o.BroadcasterID,
+		}, nil
+	}
+	msg, err := build(o)
+	if err != nil {
+		return outgress.Message{}, err
+	}
+	return msg, nil
 }
 
 // outgressBuilders maps each intent to its wire-message construction; types

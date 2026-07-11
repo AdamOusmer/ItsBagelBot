@@ -71,6 +71,7 @@ type Worker struct {
 	owner    string // pod identity for the enroll lock (os.Hostname)
 	conduit  *conduit.Resolver
 	lane     Lane
+	batch    BatchStore
 	// userIDs caches login->id resolutions (shoutout targets) so a repeated
 	// /shoutout to the same channel does not re-hit Helix Get Users each time.
 	userIDs *cache.Cache[string]
@@ -92,6 +93,7 @@ type Config struct {
 	Owner    string // pod identity for the enroll lock (os.Hostname)
 	Conduit  *conduit.Resolver
 	Lane     Lane
+	Batch    BatchStore
 }
 
 func New(cfg Config) *Worker {
@@ -104,6 +106,7 @@ func New(cfg Config) *Worker {
 		owner:    cfg.Owner,
 		conduit:  cfg.Conduit,
 		lane:     cfg.Lane,
+		batch:    cfg.Batch,
 		userIDs:  userIDCache(),
 	}
 }

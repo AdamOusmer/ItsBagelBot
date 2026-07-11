@@ -300,6 +300,7 @@ func (d *deps) newLeaseLimiter(ctx context.Context) (ratelimit.Manager, func()) 
 // (stream_status jobs) and writes the result back into the live projection for
 // the worker fleet.
 func (d *deps) newLaneWorkers(tw *twitch.Client, limiter ratelimit.Manager, registry *channels.Registry) (premium, standard, system *worker.Worker, cleanup func()) {
+	batch := worker.NewValkeyBatchStore(d.valkey)
 	base := worker.Config{
 		Limiter:  limiter,
 		Registry: registry,
@@ -307,6 +308,7 @@ func (d *deps) newLaneWorkers(tw *twitch.Client, limiter ratelimit.Manager, regi
 		BotID:    d.cfg.TwitchBotUserID,
 		Owner:    d.host,
 		Conduit:  conduit.New(d.nc, d.cfg.ConduitSubject, d.cfg.TwitchConduitID, 60*time.Second, d.log.Named("conduit")),
+		Batch:    batch,
 	}
 	build := func(name string, lane worker.Lane) *worker.Worker {
 		cfg := base

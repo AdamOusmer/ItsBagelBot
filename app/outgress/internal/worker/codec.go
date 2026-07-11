@@ -33,6 +33,7 @@ type wireMessage struct {
 func PrepareJSON() error {
 	return sonic.PretouchMany([]reflect.Type{
 		reflect.TypeOf(wireMessage{}),
+		reflect.TypeOf(outgress.Batch{}),
 		reflect.TypeOf(outgress.EventSubJob{}),
 		reflect.TypeOf(outgress.StreamStatusJob{}),
 	})
@@ -50,6 +51,10 @@ func decodeMessage(data []byte, destination *outgress.Message) error {
 		RewardID: wire.RewardID, RedemptionID: wire.RedemptionID, Status: wire.Status,
 	}
 	return nil
+}
+
+func decodeBatch(data []byte, destination *outgress.Batch) error {
+	return sonic.ConfigFastest.Unmarshal(data, destination)
 }
 
 // withSenderID ensures the chat body carries sender_id without disturbing the

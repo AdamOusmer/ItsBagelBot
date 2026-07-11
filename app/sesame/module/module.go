@@ -68,12 +68,16 @@ func (k Kind) String() string {
 //     expansion (e.g. the clip reply's {clip} token, expanded by outgress once
 //     the clip URL exists). Empty means use the default reply. Only Type clip
 //     reads it.
+//   - BatchID/Items carry a multi-message response as one outgress queue job.
+//     Items are already translated actions and execute in slice order.
 type Output struct {
 	Type          string
 	BroadcasterID string
 	Text          string
 	Color         string
 	To            string
+	BatchID       string
+	Items         []Output
 	// Duration is shared: the clip length (fractional seconds) for a clip
 	// Output, the timeout length in whole seconds for a timeout (0 = permanent
 	// ban). Template is the clip reply template.
