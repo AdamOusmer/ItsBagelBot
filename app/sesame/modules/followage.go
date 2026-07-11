@@ -27,9 +27,15 @@ func Followage(d engine.Deps) module.Module {
 	if log == nil {
 		log = zap.NewNop()
 	}
+	runtime := followageRuntime{lookup: d.Followage, log: log}
 	m := module.NewModule("", module.KindCore)
-	m.Command("followage").Everyone().Cooldown(followageCooldown).Run(followageRun(d, log))
+	m.Command("followage").Everyone().Cooldown(followageCooldown).Run(followageRun(d, runtime))
 	return m.Build()
+}
+
+type followageRuntime struct {
+	lookup engine.FollowageLookup
+	log    *zap.Logger
 }
 
 type followageTarget struct {
@@ -38,13 +44,13 @@ type followageTarget struct {
 	id    string
 }
 
-func followageRun(d engine.Deps, log *zap.Logger) module.RunFunc {
+func followageRun(d engine.Deps, runtime followageRuntime) module.RunFunc {
 	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
-		if !followageEnabled(ctx, d, c.BroadcasterID, log) {
+		if !followageEnabled(ctx, d, c.BroadcasterID, runtime.log) {
 			return nil
 		}
 		target := parseFollowageTarget(args, c)
-		emitFollowage(c, followageText(ctx, d.Followage, target, c.Env.BroadcasterUserID, log), emit)
+		emitFollowage(c, runtime.text(ctx, target, c.Env.BroadcasterUserID), emit)
 		return nil
 	}
 }
@@ -60,13 +66,13 @@ func parseFollowageTarget(args string, c *module.Context) followageTarget {
 	return followageTarget{login: c.Env.ChatterUserLogin, name: c.Env.ChatterName(), id: c.Env.ChatterUserID}
 }
 
-func followageText(ctx context.Context, lookup engine.FollowageLookup, target followageTarget, broadcasterID string, log *zap.Logger) string {
-	if lookup == nil {
+func (r followageRuntime) text(ctx context.Context, target followageTarget, broadcasterID string) string {
+	if r.lookup == nil {
 		return "Followage is unavailable right now."
 	}
-	result, err := lookup.Lookup(ctx, broadcasterID, target.id, target.login)
+	result, err := r.lookup.Lookup(ctx, broadcasterID, target.id, target.login)
 	if err != nil {
-		log.Warn("followage: lookup failed", zap.Error(err))
+		r.log.Warn("followage: lookup failed", zap.Error(err))
 		return "Followage is unavailable right now."
 	}
 	return formatFollowageResult(target.name, broadcasterID, result)

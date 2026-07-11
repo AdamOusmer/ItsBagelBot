@@ -123,14 +123,7 @@ func main() {
 		go reloadLexicon(ctx, dir, guard, log)
 	}
 
-	pipe := engine.NewPipeline(deps, registry, engine.Config{
-		BotID:            cfg.BotUserID,
-		OutgressPremium:  cfg.OutgressPremiumSubject,
-		OutgressStandard: cfg.OutgressStandardSubject,
-		CountUses:        true,
-		AutomodEnforce:   cfg.AutomodEnforce,
-		ShieldEnabled:    cfg.ShieldEnabled,
-	})
+	pipe := newPipeline(deps, registry, cfg)
 	defer pipe.Close() // flushes pending use-counter ticks on shutdown
 
 	if err := newConsumer(sub, nrApp, cfg, log).Start(ctx, pipe.Process); err != nil {
@@ -154,6 +147,17 @@ func main() {
 	<-ctx.Done()
 
 	log.Info("sesame shutting down")
+}
+
+func newPipeline(deps engine.Deps, registry *engine.Registry, cfg *config.Config) *engine.Pipeline {
+	return engine.NewPipeline(deps, registry, engine.Config{
+		BotID:            cfg.BotUserID,
+		OutgressPremium:  cfg.OutgressPremiumSubject,
+		OutgressStandard: cfg.OutgressStandardSubject,
+		CountUses:        true,
+		AutomodEnforce:   cfg.AutomodEnforce,
+		ShieldEnabled:    cfg.ShieldEnabled,
+	})
 }
 
 // emoteRefreshInterval is how often the global third-party emote sets are
