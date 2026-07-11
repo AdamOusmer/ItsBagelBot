@@ -360,26 +360,28 @@ func (d *deps) laneSubscribers() (premiumSub, standardSub, systemSub message.Sub
 // single routine budget partitioned by weight so premium drains ahead without
 // starving standard.
 func (d *deps) startChatLanes(ctx context.Context, lanes []bus.WeightedLane) {
-	fatalIf(d.log, bus.ConsumeWeighted(ctx, d.nrApp, lanes, bus.ScalePolicy{
+	_, err := bus.ConsumeWeighted(ctx, d.nrApp, lanes, bus.ScalePolicy{
 		MinRoutines:    d.cfg.MinRoutines,
 		MaxRoutines:    d.cfg.MaxRoutines,
 		MaxConsumers:   d.cfg.MaxConsumers,
 		ScaleUpAfter:   d.cfg.ScaleUpAfter,
 		ScaleDownAfter: d.cfg.ScaleDownAfter,
-	}, d.log), "failed to consume premium/standard lanes")
+	}, d.log)
+	fatalIf(d.log, err, "failed to consume premium/standard lanes")
 }
 
 // startSystemLane keeps the system lane on its own independent consumer, off
 // the weighted budget, so onboarding bursts never compete for the chat/api
 // routines. It runs a fixed pool (min == max, single consumer), no autoscaling.
 func (d *deps) startSystemLane(ctx context.Context, sub message.Subscriber, system *worker.Worker) {
-	fatalIf(d.log, bus.ConsumeWeighted(ctx, d.nrApp, []bus.WeightedLane{
+	_, err := bus.ConsumeWeighted(ctx, d.nrApp, []bus.WeightedLane{
 		{Sub: sub, Subject: d.cfg.SystemSubject, Handle: system.Process},
 	}, bus.ScalePolicy{
 		MinRoutines:  d.cfg.SystemWorkers,
 		MaxRoutines:  d.cfg.SystemWorkers,
 		MaxConsumers: 1,
-	}, d.log), "failed to consume system lane")
+	}, d.log)
+	fatalIf(d.log, err, "failed to consume system lane")
 }
 
 // startStreamLane binds a durable consumer for the real Twitch stream.online /

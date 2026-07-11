@@ -41,7 +41,9 @@ import (
 // retry budget is preserved. Handlers must be safe for concurrent use.
 //
 // ConsumeWeighted returns once the first unit is running; the units and the
-// supervisor stop when ctx is cancelled.
+// supervisor stop when ctx is cancelled. The returned *Weighted lets a graceful
+// shutdown wait for handlers already dispatched to finish (Drain) before the
+// publishers they emit onto are closed.
 type WeightedLane struct {
 	Sub     message.Subscriber
 	Subject string
@@ -61,7 +63,7 @@ type ScalePolicy struct {
 	ScaleDownAfter time.Duration // sustained calm before shrinking a step
 }
 
-func ConsumeWeighted(ctx context.Context, app *newrelic.Application, lanes []WeightedLane, policy ScalePolicy, log *zap.Logger) error {
+func ConsumeWeighted(ctx context.Context, app *newrelic.Application, lanes []WeightedLane, policy ScalePolicy, log *zap.Logger) (*Weighted, error) {
 
 	policy = policy.normalized()
 
@@ -71,24 +73,58 @@ func ConsumeWeighted(ctx context.Context, app *newrelic.Application, lanes []Wei
 	}
 
 	s := &supervisor{
-		ctx:      ctx,
-		app:      app,
-		lanes:    lanes,
-		reserves: reserves,
-		policy:   policy,
-		log:      log,
+		ctx:        ctx,
+		app:        app,
+		lanes:      lanes,
+		reserves:   reserves,
+		policy:     policy,
+		log:        log,
+		dispatched: &sync.WaitGroup{},
 	}
 
 	// The first unit starts synchronously so a Subscribe error surfaces here.
 	first, err := s.startUnit()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	s.units = []*consumerUnit{first}
 
 	go s.run()
 
-	return nil
+	return &Weighted{dispatched: s.dispatched}, nil
+}
+
+// Weighted is the handle ConsumeWeighted returns; Drain is its only method.
+type Weighted struct {
+	// dispatched counts every reader loop and every dispatched handler goroutine
+	// across all units. It starts positive (the first unit's readers are added
+	// before ConsumeWeighted returns, so before any Drain) and stays positive
+	// while any reader is alive, so a handler's Add never races Drain's Wait: the
+	// counter only reaches zero once every reader has exited and every handler has
+	// returned.
+	dispatched *sync.WaitGroup
+}
+
+// Drain blocks until every reader loop has exited and every handler goroutine
+// already dispatched has returned, or until ctx is done, whichever comes first.
+//
+// Call it only after the context passed to ConsumeWeighted has been cancelled,
+// so the readers have stopped pulling new messages; Drain then converges as the
+// last in-flight handlers run to completion and ack. It returns nil when
+// everything drained, or ctx.Err() when the deadline hit first (in which case
+// some handlers may still be running and their events will be redelivered).
+func (w *Weighted) Drain(ctx context.Context) error {
+	done := make(chan struct{})
+	go func() {
+		w.dispatched.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // supervisor owns the set of consumer units and scales their count between 1
@@ -100,6 +136,11 @@ type supervisor struct {
 	reserves []int
 	policy   ScalePolicy
 	log      *zap.Logger
+
+	// dispatched counts every reader loop and every dispatched handler across all
+	// units (including retired ones), so Drain can wait for in-flight work on
+	// shutdown. See Weighted for why the counting is race-free.
+	dispatched *sync.WaitGroup
 
 	units []*consumerUnit
 }
@@ -184,7 +225,7 @@ func (s *supervisor) startUnit() (*consumerUnit, error) {
 		pool.close()
 	}()
 
-	wg, err := startReaders(uctx, s.app, s.lanes, pool, s.log)
+	wg, err := startReaders(uctx, s.app, s.lanes, pool, s.dispatched, s.log)
 	if err != nil {
 		cancel()
 		return nil, err
@@ -276,7 +317,12 @@ func (p ScalePolicy) normalized() ScalePolicy {
 // WaitGroup is done when every reader loop has exited (ctx cancelled, channels
 // closed); messages already dispatched keep running and release their slot on
 // completion. A Subscribe failure aborts: ctx is left to the caller to cancel.
-func startReaders(ctx context.Context, app *newrelic.Application, lanes []WeightedLane, pool *routinePool, log *zap.Logger) (*sync.WaitGroup, error) {
+//
+// dispatched counts both the reader loops and the dispatched handlers so a
+// graceful shutdown can wait for in-flight work (see Weighted.Drain). Counting
+// the reader in the same group keeps the count positive while the reader can
+// still add handlers, so a handler's Add never races the Wait.
+func startReaders(ctx context.Context, app *newrelic.Application, lanes []WeightedLane, pool *routinePool, dispatched *sync.WaitGroup, log *zap.Logger) (*sync.WaitGroup, error) {
 
 	var wg sync.WaitGroup
 
@@ -287,15 +333,19 @@ func startReaders(ctx context.Context, app *newrelic.Application, lanes []Weight
 		}
 
 		wg.Add(1)
+		dispatched.Add(1)
 		go func(lane int, subject string, handle func(*message.Message) error, msgs <-chan *message.Message) {
 			defer wg.Done()
+			defer dispatched.Done()
 			for msg := range msgs {
 				if !pool.acquire(lane) {
 					// Pool is shutting down: hand the message back unprocessed.
 					msg.Nack()
 					return
 				}
+				dispatched.Add(1)
 				go func(m *message.Message) {
+					defer dispatched.Done()
 					defer pool.release(lane)
 					process(app, subject, m, handle, log)
 				}(msg)
