@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"slices"
 	"strings"
 
 	"ItsBagelBot/app/sesame/module"
@@ -70,17 +71,7 @@ func counterTokenNames(tmpl string) []string {
 		}
 		name := NormalizeCounterName(rest[:end])
 		rest = rest[end+1:]
-		if name == "" {
-			continue
-		}
-		dup := false
-		for _, n := range names {
-			if n == name {
-				dup = true
-				break
-			}
-		}
-		if !dup {
+		if name != "" && !slices.Contains(names, name) {
 			names = append(names, name)
 		}
 	}
