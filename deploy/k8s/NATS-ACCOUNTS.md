@@ -16,6 +16,7 @@ service's Doppler project.
 |---|---|---|---|
 | users | `users_bus` | `users_rpc` | USERS_RPC |
 | commands | `commands_bus` | `commands_rpc` | COMMANDS_RPC |
+| loyalty | `loyalty_bus` | `loyalty_rpc` | LOYALTY_RPC |
 | modules | `modules_bus` | `modules_rpc` | MODULES_RPC |
 | projector | `projector_bus` | `projector_rpc` | PROJECTOR_RPC |
 | outgress | `outgress_bus` | `outgress_rpc` | OUTGRESS_RPC |
@@ -31,15 +32,15 @@ service's Doppler project.
 
 All values are **bcrypt hashes** except the `*_REMOTE_URL_*` entries.
 
-**BUS user hashes (10):**
+**BUS user hashes (11):**
 `NATS_BCRYPT_USERS_BUS`, `NATS_BCRYPT_COMMANDS_BUS`, `NATS_BCRYPT_MODULES_BUS`,
 `NATS_BCRYPT_TRANSACTIONS_BUS`, `NATS_BCRYPT_PROJECTOR_BUS`,
-`NATS_BCRYPT_WORKER_BUS`, `NATS_BCRYPT_OUTGRESS_BUS`,
+`NATS_BCRYPT_LOYALTY_BUS`, `NATS_BCRYPT_WORKER_BUS`, `NATS_BCRYPT_OUTGRESS_BUS`,
 `NATS_BCRYPT_TWITCH_INGRESS_BUS`, `NATS_BCRYPT_DASHBOARD_BUS`,
 `NATS_BCRYPT_ADMIN_BUS`
 
-**RPC user hashes (11):**
-`NATS_BCRYPT_USERS_RPC`, `NATS_BCRYPT_COMMANDS_RPC`, `NATS_BCRYPT_MODULES_RPC`,
+**RPC user hashes (12):**
+`NATS_BCRYPT_USERS_RPC`, `NATS_BCRYPT_COMMANDS_RPC`, `NATS_BCRYPT_LOYALTY_RPC`, `NATS_BCRYPT_MODULES_RPC`,
 `NATS_BCRYPT_PROJECTOR_RPC`, `NATS_BCRYPT_OUTGRESS_RPC`,
 `NATS_BCRYPT_WORKER_RPC`, `NATS_BCRYPT_DASHBOARD_RPC`, `NATS_BCRYPT_ADMIN_RPC`,
 `NATS_BCRYPT_TWITCH_INGRESS_RPC`, `NATS_BCRYPT_TRANSACTIONS_RPC`,
@@ -49,6 +50,7 @@ All values are **bcrypt hashes** except the `*_REMOTE_URL_*` entries.
 
 **Leaf link hashes — hub authorization, one per account (12):**
 `NATS_BCRYPT_LEAF_BUS`, `NATS_BCRYPT_LEAF_USERS`, `NATS_BCRYPT_LEAF_COMMANDS`,
+`NATS_BCRYPT_LEAF_LOYALTY`,
 `NATS_BCRYPT_LEAF_MODULES`, `NATS_BCRYPT_LEAF_PROJECTOR`,
 `NATS_BCRYPT_LEAF_OUTGRESS`, `NATS_BCRYPT_LEAF_WORKER`,
 `NATS_BCRYPT_LEAF_DASHBOARD`, `NATS_BCRYPT_LEAF_ADMIN`,
@@ -58,7 +60,7 @@ All values are **bcrypt hashes** except the `*_REMOTE_URL_*` entries.
 **Leaf remote URLs — leaf side, one per account (12):** each embeds the
 *plaintext* leaf password matching the hash above:
 `NATS_LEAF_REMOTE_URL_BUS`, `NATS_LEAF_REMOTE_URL_USERS`,
-`NATS_LEAF_REMOTE_URL_COMMANDS`, `NATS_LEAF_REMOTE_URL_MODULES`,
+`NATS_LEAF_REMOTE_URL_COMMANDS`, `NATS_LEAF_REMOTE_URL_LOYALTY`, `NATS_LEAF_REMOTE_URL_MODULES`,
 `NATS_LEAF_REMOTE_URL_PROJECTOR`, `NATS_LEAF_REMOTE_URL_OUTGRESS`,
 `NATS_LEAF_REMOTE_URL_WORKER`, `NATS_LEAF_REMOTE_URL_DASHBOARD`,
 `NATS_LEAF_REMOTE_URL_ADMIN`, `NATS_LEAF_REMOTE_URL_TWITCH_INGRESS`,

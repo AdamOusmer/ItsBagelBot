@@ -36,6 +36,7 @@ HUB_LEAFNODE = "nats.production.svc.cluster.local:7422"
 SERVICES = {
     "users": "users",
     "commands": "commands",
+    "loyalty": "loyalty",
     "modules": "modules",
     "projector": "projector",
     "outgress": "outgress",
@@ -53,7 +54,7 @@ NO_BUS: set[str] = {"gateway"}
 
 # One leaf link per account: the BUS account plus every *_RPC account.
 LEAF_ACCOUNTS = [
-    "bus", "users", "commands", "modules", "projector",
+    "bus", "users", "commands", "loyalty", "modules", "projector",
     "outgress", "worker", "dashboard", "admin", "twitch_ingress",
     "notifications", "transactions", "gateway",
 ]

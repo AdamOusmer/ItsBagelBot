@@ -1,0 +1,236 @@
+package engine
+
+import (
+	"context"
+	"sync"
+	"time"
+
+	"ItsBagelBot/internal/domain/event/data"
+	"ItsBagelBot/pkg/bus"
+
+	"github.com/ThreeDotsLabs/watermill/message"
+
+	"go.uber.org/zap"
+)
+
+const (
+	// loyaltyFlushInterval bounds the bus rate: a gift bomb, a cheer train or
+	// a watch tick over a big channel costs one summed event per broadcaster
+	// per window instead of one per accrual.
+	loyaltyFlushInterval = 5 * time.Second
+
+	// loyaltyMaxKeys triggers an early flush when either pending map grows
+	// past it. Entries are never dropped (unlike the use reporter's newest-key
+	// drop): a watch tick legitimately adds thousands of keys in one call, and
+	// dropping them would silently unfairly skip viewers. The maps stay
+	// bounded because the flush drains them.
+	loyaltyMaxKeys = 8192
+
+	// loyaltyChunk bounds one published event's entry list, keeping a big
+	// channel's watch tick far under the broker's payload ceiling.
+	loyaltyChunk = 1000
+)
+
+type earnKey struct {
+	broadcasterID uint64
+	viewerID      uint64
+}
+
+type earnAgg struct {
+	points       int64
+	watchSeconds uint64
+	login        string
+	name         string
+}
+
+type counterAgg struct {
+	broadcasterID uint64
+	name          string
+	scope         string
+	viewerID      uint64
+	command       string
+}
+
+// LoyaltyReporter aggregates point accruals and counter bumps per flush window
+// and publishes summed data.loyalty.* events, chunked per broadcaster. It is
+// the worker-side rate limiter for the loyalty pipeline, the same role the
+// useReporter plays for command uses.
+type LoyaltyReporter struct {
+	pub  message.Publisher
+	log  *zap.Logger
+	done chan struct{}
+	wake chan struct{}
+
+	mu    sync.Mutex
+	earn  map[earnKey]*earnAgg
+	bumps map[counterAgg]int64
+}
+
+func NewLoyaltyReporter(pub message.Publisher, log *zap.Logger) *LoyaltyReporter {
+	r := &LoyaltyReporter{
+		pub:   pub,
+		log:   log,
+		done:  make(chan struct{}),
+		wake:  make(chan struct{}, 1),
+		earn:  map[earnKey]*earnAgg{},
+		bumps: map[counterAgg]int64{},
+	}
+	go func() {
+		ticker := time.NewTicker(loyaltyFlushInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				r.flush(context.Background())
+			case <-r.wake:
+				r.flush(context.Background())
+			case <-r.done:
+				return
+			}
+		}
+	}()
+	return r
+}
+
+// Earn records one viewer's accrual. Never blocks the hot path: it takes a
+// short mutex and, past the key cap, nudges the flusher instead of publishing
+// inline.
+func (r *LoyaltyReporter) Earn(broadcasterID, viewerID uint64, login, name string, points int64, watchSeconds uint64) {
+	if broadcasterID == 0 || viewerID == 0 || (points == 0 && watchSeconds == 0) {
+		return
+	}
+	key := earnKey{broadcasterID: broadcasterID, viewerID: viewerID}
+
+	r.mu.Lock()
+	agg := r.earn[key]
+	if agg == nil {
+		agg = &earnAgg{}
+		r.earn[key] = agg
+	}
+	agg.points += points
+	agg.watchSeconds += watchSeconds
+	if login != "" {
+		agg.login = login
+	}
+	if name != "" {
+		agg.name = name
+	}
+	overflow := len(r.earn) >= loyaltyMaxKeys
+	r.mu.Unlock()
+
+	if overflow {
+		r.nudge()
+	}
+}
+
+// Bump records one counter delta. command keys the bucket of a viewer+command
+// bump ("" everywhere else).
+func (r *LoyaltyReporter) Bump(broadcasterID uint64, name, scope string, viewerID uint64, command string, delta int64) {
+	if broadcasterID == 0 || name == "" || delta == 0 {
+		return
+	}
+	key := counterAgg{broadcasterID: broadcasterID, name: name, scope: scope, viewerID: viewerID, command: command}
+
+	r.mu.Lock()
+	r.bumps[key] += delta
+	overflow := len(r.bumps) >= loyaltyMaxKeys
+	r.mu.Unlock()
+
+	if overflow {
+		r.nudge()
+	}
+}
+
+// nudge asks the flusher goroutine for an early pass; a full channel means one
+// is already queued.
+func (r *LoyaltyReporter) nudge() {
+	select {
+	case r.wake <- struct{}{}:
+	default:
+	}
+}
+
+// flush drains both maps and publishes summed events, grouped per broadcaster
+// and chunked.
+func (r *LoyaltyReporter) flush(ctx context.Context) {
+	r.mu.Lock()
+	earn, bumps := r.earn, r.bumps
+	if len(earn) > 0 {
+		r.earn = map[earnKey]*earnAgg{}
+	}
+	if len(bumps) > 0 {
+		r.bumps = map[counterAgg]int64{}
+	}
+	r.mu.Unlock()
+
+	r.publishEarned(ctx, earn)
+	r.publishBumps(ctx, bumps)
+}
+
+func (r *LoyaltyReporter) publishEarned(ctx context.Context, earn map[earnKey]*earnAgg) {
+	if len(earn) == 0 {
+		return
+	}
+	perUser := map[uint64][]data.LoyaltyEarnEntry{}
+	for key, agg := range earn {
+		perUser[key.broadcasterID] = append(perUser[key.broadcasterID], data.LoyaltyEarnEntry{
+			ViewerID:     key.viewerID,
+			ViewerLogin:  agg.login,
+			ViewerName:   agg.name,
+			Points:       agg.points,
+			WatchSeconds: agg.watchSeconds,
+		})
+	}
+	for userID, entries := range perUser {
+		for start := 0; start < len(entries); start += loyaltyChunk {
+			chunk := entries[start:min(start+loyaltyChunk, len(entries))]
+			if err := bus.PublishJSON(ctx, r.pub, data.SubjectLoyaltyEarned, data.LoyaltyEarnedDTO{
+				UserID:  userID,
+				Entries: chunk,
+			}); err != nil {
+				r.log.Debug("failed to publish loyalty earned",
+					zap.Uint64("broadcaster_id", userID),
+					zap.Int("entries", len(chunk)),
+					zap.Error(err),
+				)
+			}
+		}
+	}
+}
+
+func (r *LoyaltyReporter) publishBumps(ctx context.Context, bumps map[counterAgg]int64) {
+	if len(bumps) == 0 {
+		return
+	}
+	perUser := map[uint64][]data.CounterBumpEntry{}
+	for key, delta := range bumps {
+		perUser[key.broadcasterID] = append(perUser[key.broadcasterID], data.CounterBumpEntry{
+			Name:     key.name,
+			Scope:    key.scope,
+			ViewerID: key.viewerID,
+			Command:  key.command,
+			Delta:    delta,
+		})
+	}
+	for userID, entries := range perUser {
+		for start := 0; start < len(entries); start += loyaltyChunk {
+			chunk := entries[start:min(start+loyaltyChunk, len(entries))]
+			if err := bus.PublishJSON(ctx, r.pub, data.SubjectLoyaltyCounters, data.CounterBumpedDTO{
+				UserID: userID,
+				Bumps:  chunk,
+			}); err != nil {
+				r.log.Debug("failed to publish counter bumps",
+					zap.Uint64("broadcaster_id", userID),
+					zap.Int("bumps", len(chunk)),
+					zap.Error(err),
+				)
+			}
+		}
+	}
+}
+
+// Close stops the ticker and flushes what is pending.
+func (r *LoyaltyReporter) Close() {
+	close(r.done)
+	r.flush(context.Background())
+}

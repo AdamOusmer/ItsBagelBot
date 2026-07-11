@@ -145,6 +145,12 @@ func main() {
 		log.Fatal("failed to subscribe channel-points rpc", zap.Error(err))
 	}
 
+	// Chatter listing (Helix Get Chatters under the bot's user token), driven by
+	// sesame's loyalty watch tick: one call per live channel per tick.
+	if err := rpc.SubscribeChatters(nc, tw, cfg.TwitchBotUserID, cfg.RPCPrefix, "outgress-rpc", nrApp, log.Named("rpc")); err != nil {
+		log.Fatal("failed to subscribe chatters rpc", zap.Error(err))
+	}
+
 	health.Serve(env.Get("LISTEN_ADDR", ":8080"), nc.IsConnected)
 
 	d.logReady(tw)

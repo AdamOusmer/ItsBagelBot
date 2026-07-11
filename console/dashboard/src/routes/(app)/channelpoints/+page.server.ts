@@ -101,7 +101,11 @@ function parseReward(raw: string): ChannelPointReward | null {
     globalCooldownSeconds: clampInt(obj.globalCooldownSeconds, 1, 604_800, 60),
     action,
     message: String(obj.message ?? '').slice(0, 400),
-    onRedeem
+    onRedeem,
+    // Loyalty hooks. The counter name mirrors sesame's normalization (bare
+    // key, lower-cased); points are clamped to the same ceiling as a mod grant.
+    counter: String(obj.counter ?? '').trim().replace(/^!/, '').toLowerCase().slice(0, 64),
+    points: clampInt(obj.points, 0, 100_000_000, 0)
   };
 }
 
