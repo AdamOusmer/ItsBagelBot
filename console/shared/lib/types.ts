@@ -1075,7 +1075,18 @@ export interface ChannelPointReward {
   // (the reward title keys a per-user+command counter's bucket); points, when
   // positive, awards that many loyalty points to the redeemer.
   counter: string;
+  // counterScope is the scope to CREATE the counter with when it doesn't exist
+  // yet, so a broadcaster can make the counter straight from the reward editor
+  // instead of the Counters page. Ignored when counter is empty, or when the
+  // counter already exists (create is idempotent — it never changes a stored
+  // scope). Defaults to per user + reward, the scope a reward-linked counter
+  // almost always wants.
+  counterScope: CounterScope;
   points: number;
+  // liveOnly gates the loyalty writes (counter bump + points award) to when
+  // the broadcaster is live, so channel points redeemed offline can't farm
+  // currency or inflate a counter. The chat reply always runs.
+  liveOnly: boolean;
 }
 
 // blankReward is the default draft for the "new reward" form.
@@ -1099,7 +1110,9 @@ export function blankReward(): ChannelPointReward {
     message: '',
     onRedeem: 'fulfill',
     counter: '',
-    points: 0
+    counterScope: 'viewer_command',
+    points: 0,
+    liveOnly: false
   };
 }
 

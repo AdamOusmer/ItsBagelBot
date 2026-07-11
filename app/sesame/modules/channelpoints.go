@@ -69,6 +69,11 @@ type rewardBinding struct {
 	// per redemption — channel points buying channel currency. Exposed to
 	// Message as {points}.
 	Points int64 `json:"points"`
+	// LiveOnly gates the loyalty writes (counter bump + points award) to when
+	// the broadcaster is live, so channel points redeemed offline cannot farm
+	// currency or inflate a counter. The chat reply and queue resolution still
+	// run either way.
+	LiveOnly bool `json:"liveOnly"`
 }
 
 // redemptionEvent is the subset of the redemption.add EventSub payload we use.
@@ -119,14 +124,34 @@ func ChannelPoints(d engine.Deps) module.Module {
 			return nil
 		}
 
-		awardRewardPoints(d, c, binding, ev)
-		counterValue := bumpRewardCounter(ctx, d, c, binding, ev)
+		// Loyalty writes are the only live-gated part; the chat reply and queue
+		// resolution always run. Skipping the counter bump also skips its
+		// {counter} value, so the template renders without the token — the same
+		// as an unbound counter.
+		var counterValue string
+		if loyaltyLive(ctx, d, c.BroadcasterID, binding.LiveOnly) {
+			awardRewardPoints(d, c, binding, ev)
+			counterValue = bumpRewardCounter(ctx, d, c, binding, ev)
+		}
 		emitRewardAction(binding, ev, counterValue, emit)
 		emitRedemptionResolution(binding, ev, emit)
 		return nil
 	})
 
 	return m.Build()
+}
+
+// loyaltyLive reports whether the binding's loyalty writes may run: always
+// when the binding is not live-gated, otherwise only while the broadcaster is
+// live. A live-check error fails closed (skip the writes) so an offline redeem
+// is never credited on a transient read failure. A nil live store passes (the
+// gate has nothing to consult).
+func loyaltyLive(ctx context.Context, d engine.Deps, broadcasterID uint64, liveOnly bool) bool {
+	if !liveOnly || d.Live == nil {
+		return true
+	}
+	live, err := d.Live.IsLive(ctx, broadcasterID)
+	return err == nil && live
 }
 
 // awardRewardPoints hands the binding's loyalty-point award (if any) to the

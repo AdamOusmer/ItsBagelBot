@@ -81,6 +81,8 @@
         <span class="master-hint">{t('loyalty.botOnHint')}</span>
       </span>
     </form>
+    <div class="grow"></div>
+    <a class="btn ghost" href="/counters"><Icon name="modules" size={14} /> {t('loyalty.countersLink')}</a>
   </div>
 
   <div class="grid">
