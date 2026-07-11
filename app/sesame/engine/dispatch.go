@@ -10,6 +10,7 @@ import (
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/internal/projection"
+	"ItsBagelBot/internal/utils"
 
 	"go.uber.org/zap"
 )
@@ -94,7 +95,10 @@ func (p *Pipeline) runCustom(ctx context.Context, c *module.Context, name, args 
 	// "/announce" with no text, a "/shoutout" with no target) is dropped; the
 	// run counts once if anything was emitted.
 	counters := p.bumpCounterTokens(ctx, c, cc.Name, cc.Response)
-	emitted := p.emitResponse(c, cc.Response, args, counters, emit)
+	emitted, err := p.emitResponse(c, cc.Response, args, counters, emit)
+	if err != nil {
+		return err
+	}
 	if !emitted {
 		return nil
 	}
@@ -110,14 +114,12 @@ func (p *Pipeline) runCustom(ctx context.Context, c *module.Context, name, args 
 	return nil
 }
 
-// emitResponse expands a custom command's response template once, then emits
-// one chat output per non-empty line through the post-processing middleware
-// (each line gets its own slash-verb translation, so "/announce hi\nplain"
-// mixes an announcement and a chat line). The line count is capped at
-// validate.MaxResponseLines — the write path enforces it, this is the emit-side
-// backstop so an expanded token can never fan out further. Reports whether at
-// least one line was actually emitted.
-func (p *Pipeline) emitResponse(c *module.Context, response, args string, counters map[string]string, emit module.Emit) bool {
+// emitResponse expands a custom command once and prepares one action per
+// non-empty line. Multiple actions are packed into one outgress batch so one
+// worker owns their execution order; a single action keeps the ordinary wire
+// shape. Each line gets its own slash-verb translation. The line count is
+// capped at validate.MaxResponseLines as an emit-side backstop.
+func (p *Pipeline) emitResponse(c *module.Context, response, args string, counters map[string]string, emit module.Emit) (bool, error) {
 	// {user}/{sender}/{channel} render the display name (login fallback); {touser}
 	// defaults to the sender's display name and is otherwise the @mention the
 	// chatter typed, taken verbatim.
@@ -148,7 +150,7 @@ func (p *Pipeline) emitResponse(c *module.Context, response, args string, counte
 	expanded := string(buf)
 	PutBuf(buf)
 
-	emitted := false
+	outputs := make([]module.Output, 0, validate.MaxResponseLines)
 	lines := 0
 	for line := range strings.SplitSeq(expanded, "\n") {
 		if line == "" {
@@ -162,12 +164,55 @@ func (p *Pipeline) emitResponse(c *module.Context, response, args string, counte
 		out.Type = outgress.TypeChat
 		out.BroadcasterID = c.Env.BroadcasterUserID
 		out.Text = line
-		if p.emitCommand(out, emit) {
-			emitted = true
+		if p.prepareCommand(out) {
+			outputs = append(outputs, *out)
 		}
 		PutOutput(out)
 	}
-	return emitted
+	return p.emitPreparedResponse(c, outputs, emit)
+}
+
+func (p *Pipeline) emitPreparedResponse(c *module.Context, outputs []module.Output, emit module.Emit) (bool, error) {
+	switch len(outputs) {
+	case 0:
+		return false, nil
+	case 1:
+		emit(&outputs[0])
+		return true, nil
+	}
+
+	batchID := c.Env.MsgID
+	if batchID == "" {
+		id, err := utils.NewID()
+		if err != nil {
+			return false, err
+		}
+		batchID = id.String()
+	}
+	batch := GetOutput()
+	batch.Type = outgress.TypeBatch
+	batch.BroadcasterID = c.Env.BroadcasterUserID
+	batch.BatchID = batchID
+	batch.Items = outputs
+	emit(batch)
+	PutOutput(batch)
+	return true, nil
+}
+
+func (p *Pipeline) prepareCommand(o *module.Output) bool {
+	Translate(o)
+	return !isEmptyAction(o) && !p.floorSuppressed(o)
+}
+
+// emitCommand prepares and publishes one baked-command output. Custom
+// responses prepare all lines first so multiple actions can be packed into one
+// ordered batch job.
+func (p *Pipeline) emitCommand(o *module.Output, emit module.Emit) bool {
+	if !p.prepareCommand(o) {
+		return false
+	}
+	emit(o)
+	return true
 }
 
 // bumpCounterTokens resolves a response's {counter:<name>} tokens: each
@@ -202,24 +247,6 @@ func (p *Pipeline) bumpCounterTokens(ctx context.Context, c *module.Context, com
 		counters[name] = strconv.FormatInt(value, 10)
 	}
 	return counters
-}
-
-// emitCommand is the command-output post-processing middleware. Every output a
-// command produces (baked or custom) passes through it before publish: Translate
-// routes a leading slash-verb to the right outgress action (/announce -> announce
-// with color, /shoutout -> shoutout; a plain line or /me stays chat), and an
-// action left empty (an /announce with no text, a /shoutout with no target) is
-// dropped so Twitch is never sent a call it would reject. It is deliberately not
-// gated: routing an output is not a privilege, so permission is the job of the
-// command that produced the output, not of the announce/shoutout verb. It
-// reports whether the output was actually emitted.
-func (p *Pipeline) emitCommand(o *module.Output, emit module.Emit) bool {
-	Translate(o)
-	if isEmptyAction(o) {
-		return false
-	}
-	emit(o)
-	return true
 }
 
 // gateRule is the set of checks one command is gated by, so the gate takes a
