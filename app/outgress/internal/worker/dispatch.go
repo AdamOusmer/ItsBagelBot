@@ -87,7 +87,21 @@ func (w *Worker) Process(msg *message.Message) error {
 	if err := w.checkPaused(ctx); err != nil {
 		return err
 	}
+	if payload.Type == outgress.TypeBatch {
+		var batch outgress.Batch
+		if err := decodeBatch(payload.Payload, &batch); err != nil {
+			w.log.Error("dropping malformed outgress batch", zap.Error(err))
+			noticeError(ctx, err)
+			return nil
+		}
+		return w.processBatch(ctx, &batch, payload.BroadcasterID, msg.UUID)
+	}
+	return w.processPayload(ctx, payload)
+}
 
+// processPayload dispatches one decoded, admitted action. Batch jobs call it
+// serially for each child; ordinary jobs call it once.
+func (w *Worker) processPayload(ctx context.Context, payload outgress.Message) error {
 	switch payload.Type {
 	case outgress.TypeEventSub:
 		return w.processEventSub(ctx, payload)

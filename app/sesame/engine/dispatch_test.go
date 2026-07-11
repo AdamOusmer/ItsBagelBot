@@ -108,14 +108,19 @@ func TestCustomPlainChatStillEmits(t *testing.T) {
 // line and each line getting its own slash-verb translation.
 func TestCustomMultiLineEmitsOnePerLine(t *testing.T) {
 	p := customPipeline("first {user}\nsecond line\n/announce third", "everyone")
-	got := collectDispatch(p, chatCtx("!so", ""))
-	require.Len(t, got, 3)
-	assert.Equal(t, outgress.TypeChat, got[0].Type)
-	assert.Equal(t, "first alice", got[0].Text)
-	assert.Equal(t, outgress.TypeChat, got[1].Type)
-	assert.Equal(t, "second line", got[1].Text)
-	assert.Equal(t, outgress.TypeAnnounce, got[2].Type)
-	assert.Equal(t, "third", got[2].Text)
+	c := chatCtx("!so", "")
+	c.Env.MsgID = "event-message-1"
+	got := collectDispatch(p, c)
+	require.Len(t, got, 1)
+	assert.Equal(t, outgress.TypeBatch, got[0].Type)
+	assert.Equal(t, "event-message-1", got[0].BatchID)
+	require.Len(t, got[0].Items, 3)
+	assert.Equal(t, outgress.TypeChat, got[0].Items[0].Type)
+	assert.Equal(t, "first alice", got[0].Items[0].Text)
+	assert.Equal(t, outgress.TypeChat, got[0].Items[1].Type)
+	assert.Equal(t, "second line", got[0].Items[1].Text)
+	assert.Equal(t, outgress.TypeAnnounce, got[0].Items[2].Type)
+	assert.Equal(t, "third", got[0].Items[2].Text)
 }
 
 // TestCustomMultiLineCappedAtMax proves the emit-side backstop: a response
@@ -124,8 +129,9 @@ func TestCustomMultiLineEmitsOnePerLine(t *testing.T) {
 func TestCustomMultiLineCappedAtMax(t *testing.T) {
 	p := customPipeline("1\n2\n3\n4\n5\n6\n7", "everyone")
 	got := collectDispatch(p, chatCtx("!so", ""))
-	require.Len(t, got, 5)
-	assert.Equal(t, "5", got[4].Text)
+	require.Len(t, got, 1)
+	require.Len(t, got[0].Items, 5)
+	assert.Equal(t, "5", got[0].Items[4].Text)
 }
 
 // TestCustomMultiLineSkipsEmptyLines proves blank lines never become empty
@@ -133,10 +139,44 @@ func TestCustomMultiLineCappedAtMax(t *testing.T) {
 // suppressing its siblings.
 func TestCustomMultiLineSkipsEmptyLines(t *testing.T) {
 	p := customPipeline("one\n\n/announce\ntwo", "everyone")
-	got := collectDispatch(p, chatCtx("!so", ""))
-	require.Len(t, got, 2)
-	assert.Equal(t, "one", got[0].Text)
-	assert.Equal(t, "two", got[1].Text)
+	c := chatCtx("!so", "")
+	c.Env.MsgID = "event-message-2"
+	got := collectDispatch(p, c)
+	require.Len(t, got, 1)
+	require.Len(t, got[0].Items, 2)
+	assert.Equal(t, "one", got[0].Items[0].Text)
+	assert.Equal(t, "two", got[0].Items[1].Text)
+}
+
+func TestCustomMultiLineSuppressionDoesNotLeaveSequenceGap(t *testing.T) {
+	p := customPipeline("grabify.link/bad\nsafe line", "everyone")
+	c := chatCtx("!so", "")
+	c.Env.MsgID = "event-message-3"
+	got := collectDispatch(p, c)
+	require.Len(t, got, 1)
+	assert.Equal(t, "safe line", got[0].Text)
+	assert.Equal(t, outgress.TypeChat, got[0].Type, "one surviving line does not need a batch")
+}
+
+// TestCustomMultiLineBatchSurvivesPublish proves all lines cross the queue in
+// one job, retaining their order and action types.
+func TestCustomMultiLineBatchSurvivesPublish(t *testing.T) {
+	pub := &fakePublisher{}
+	reader := fakeReader{
+		cmd:      projection.Command{Name: "raid", Response: "line one\nline two", IsActive: true, Perm: "everyone"},
+		cmdFound: true,
+	}
+	p := newPipelineWith(pub, reader)
+
+	require.NoError(t, p.Process(chatMsg(t, "standard", "!raid")))
+	require.Len(t, pub.got, 1)
+	assert.Equal(t, outgress.TypeBatch, pub.got[0].msg.Type)
+	var batch outgress.Batch
+	require.NoError(t, sonic.Unmarshal(pub.got[0].msg.Payload, &batch))
+	assert.NotEmpty(t, batch.ID)
+	require.Len(t, batch.Items, 2)
+	assert.Equal(t, outgress.TypeChat, batch.Items[0].Type)
+	assert.Equal(t, outgress.TypeChat, batch.Items[1].Type)
 }
 
 // --- baked command dispatch + gate ---
@@ -167,7 +207,7 @@ func TestBakedCommandPermGate(t *testing.T) {
 	})
 	p := newPipelineWith(&fakePublisher{}, fakeReader{}, b.Build())
 
-	assert.Empty(t, collectDispatch(p, chatCtx("!clear", "")))             // everyone -> gated
+	assert.Empty(t, collectDispatch(p, chatCtx("!clear", "")))            // everyone -> gated
 	require.Len(t, collectDispatch(p, chatCtx("!clear", "moderator")), 1) // mod -> runs
 }
 
