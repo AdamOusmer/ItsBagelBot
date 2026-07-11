@@ -34,20 +34,31 @@ var quoteOpeners = [...]string{`"`, "“", "'"}
 // broadcaster typed a matching pair.
 var quoteCloser = map[string]string{`"`: `"`, "“": "”", "'": "'"}
 
+// quotesConfig is the broadcaster's customizable quotes settings, decoded from
+// the module's ModuleView blob.
+type quotesConfig struct {
+	// AddPerm is the minimum role allowed to save a quote: one of the perm
+	// strings module.ParsePerm understands ("everyone", "sub", "vip", "mod").
+	// Empty keeps the historical moderator-only default. Removing a quote is
+	// always moderator-only and is not configurable.
+	AddPerm string `json:"addPerm"`
+}
+
 // Quotes owns the channel quote book. It is a named, opt-in module
 // (KindOptIn): off by default, enabled on the dashboard. The rows live in the
 // modules service; sesame talks to them over the quote RPC verbs.
 //
 //	!quote                → a random saved quote
 //	!quote 12             → quote #12
-//	!quote "text"         → mod: save a new quote (also !quote add <text>)
+//	!quote "text"         → save a new quote (also !quote add <text>)
 //	!quote remove 12      → mod: delete quote #12 (also !quote delete 12)
 //
 // A readout is "Quote #N: text (YYYY-MM-DD)" — the save date rides at the end.
 // Numbers are per channel and assigned in order; removing a quote leaves a
-// hole so old numbers never point at different text. Moderator verbs typed by
-// a non-mod are silently ignored, matching the engine gate's silence on an
-// insufficient role.
+// hole so old numbers never point at different text. Saving is gated on the
+// broadcaster's configured AddPerm (moderator by default); removing is always
+// moderator-only. A gated verb typed by an insufficient role is silently
+// ignored, matching the engine gate.
 func Quotes(d engine.Deps) module.Module {
 	log := d.Log
 	if log == nil {
@@ -60,25 +71,37 @@ func Quotes(d engine.Deps) module.Module {
 }
 
 // quoteDispatch handles !quote and routes its forms. The engine's command gate
-// runs it for everyone; the moderator-only mutations re-check the role.
+// runs it for everyone; the mutating forms re-check the chatter's role against
+// the broadcaster's config (save) or the fixed moderator floor (remove).
 func quoteDispatch(d engine.Deps, log *zap.Logger) module.RunFunc {
 	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
 		if d.Quotes == nil {
 			return nil
 		}
-		qc := quotesCmd{q: d.Quotes, c: c, cd: d.Cooldown, log: log}
-		return qc.route(ctx, strings.TrimSpace(args), c.Chatter().Allows(module.RoleModerator), emit)
+		var cfg quotesConfig
+		_ = c.Decode(&cfg)
+		qc := quotesCmd{q: d.Quotes, c: c, cd: d.Cooldown, addRole: quoteAddRole(cfg.AddPerm), log: log}
+		return qc.route(ctx, strings.TrimSpace(args), c.Chatter(), emit)
 	}
 }
 
-// route dispatches one !quote invocation. Each moderator-only form is wrapped
-// in runIfMod so the switch stays a flat list of one-line routes (a non-mod is
-// silently ignored, matching the engine gate).
-func (qc quotesCmd) route(ctx context.Context, args string, isMod bool, emit module.Emit) error {
+// quoteAddRole resolves the configured minimum role for saving a quote. Empty
+// (unconfigured) keeps the historical moderator default.
+func quoteAddRole(perm string) module.Role {
+	if perm == "" {
+		return module.RoleModerator
+	}
+	return module.ParsePerm(perm)
+}
+
+// route dispatches one !quote invocation. Each gated form is wrapped in runIf
+// against the role it requires, so the switch stays a flat list of one-line
+// routes (an insufficient role is silently ignored, matching the engine gate).
+func (qc quotesCmd) route(ctx context.Context, args string, chatter module.Role, emit module.Emit) error {
 	// A quoted body is the save form, checked before the subcommand split so a
 	// quote that happens to start with "add ..." or a number is kept whole.
 	if body, ok := unquote(args); ok {
-		return qc.runIfMod(isMod, func() error { return qc.add(ctx, body, emit) })
+		return qc.runIf(chatter.Allows(qc.addRole), func() error { return qc.add(ctx, body, emit) })
 	}
 
 	sub, rest := splitFirst(args)
@@ -87,9 +110,9 @@ func (qc quotesCmd) route(ctx context.Context, args string, isMod bool, emit mod
 		return qc.random(ctx, emit)
 	case "add":
 		body, _ := unquote(rest)
-		return qc.runIfMod(isMod, func() error { return qc.add(ctx, body, emit) })
+		return qc.runIf(chatter.Allows(qc.addRole), func() error { return qc.add(ctx, body, emit) })
 	case "remove", "delete":
-		return qc.runIfMod(isMod, func() error { return qc.remove(ctx, rest, emit) })
+		return qc.runIf(chatter.Allows(module.RoleModerator), func() error { return qc.remove(ctx, rest, emit) })
 	default:
 		if n, err := strconv.ParseUint(sub, 10, 64); err == nil && rest == "" {
 			return qc.get(ctx, n, emit)
@@ -99,9 +122,9 @@ func (qc quotesCmd) route(ctx context.Context, args string, isMod bool, emit mod
 	}
 }
 
-// runIfMod runs fn only for a moderator; a non-mod call is a silent no-op.
-func (qc quotesCmd) runIfMod(isMod bool, fn func() error) error {
-	if !isMod {
+// runIf runs fn only when allowed; otherwise it is a silent no-op.
+func (qc quotesCmd) runIf(allowed bool, fn func() error) error {
+	if !allowed {
 		return nil
 	}
 	return fn()
@@ -125,10 +148,11 @@ func unquote(s string) (body string, ok bool) {
 
 // quotesCmd bundles the per-invocation state the handlers share.
 type quotesCmd struct {
-	q   engine.QuotesStore
-	c   *module.Context
-	cd  engine.CooldownStore
-	log *zap.Logger
+	q       engine.QuotesStore
+	c       *module.Context
+	cd      engine.CooldownStore
+	addRole module.Role
+	log     *zap.Logger
 }
 
 // add saves the quote and confirms with its assigned number.

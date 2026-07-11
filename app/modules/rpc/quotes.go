@@ -47,6 +47,7 @@ func SubscribeQuotes(w QuotesWiring) error {
 		{"get", q.handleGet},
 		{"random", q.handleRandom},
 		{"remove", q.handleRemove},
+		{"list", q.handleList},
 	}
 
 	for _, v := range verbs {
@@ -58,58 +59,57 @@ func SubscribeQuotes(w QuotesWiring) error {
 	return nil
 }
 
-func (q *quotesRPC) parseUserID(req modulesrpc.QuoteRequest) (uint64, bool, modulesrpc.QuoteReply) {
+// withUserID parses the broadcaster id and runs fn, or returns an
+// "invalid user_id" reply. It removes the parse-and-guard prologue every verb
+// would otherwise repeat.
+func (q *quotesRPC) withUserID(req modulesrpc.QuoteRequest, fn func(uint64) modulesrpc.QuoteReply) modulesrpc.QuoteReply {
 	id, err := strconv.ParseUint(req.UserID, 10, 64)
 	if err != nil {
-		return 0, false, modulesrpc.QuoteReply{Error: "invalid user_id"}
+		return modulesrpc.QuoteReply{Error: "invalid user_id"}
 	}
-	return id, true, modulesrpc.QuoteReply{}
+	return fn(id)
+}
+
+// errReply maps a repository error onto the reply's error envelope, or falls
+// back to ok when there was none.
+func errReply(err error, ok modulesrpc.QuoteReply) modulesrpc.QuoteReply {
+	if err != nil {
+		return modulesrpc.QuoteReply{Error: err.Error()}
+	}
+	return ok
 }
 
 func (q *quotesRPC) handleAdd(ctx context.Context, req modulesrpc.QuoteRequest) modulesrpc.QuoteReply {
-	id, ok, reply := q.parseUserID(req)
-	if !ok {
-		return reply
-	}
-	view, err := q.repo.Add(ctx, id, req.Text, req.AddedBy)
-	if err != nil {
-		return modulesrpc.QuoteReply{Error: err.Error()}
-	}
-	return modulesrpc.QuoteReply{Quote: view, Found: true}
+	return q.withUserID(req, func(id uint64) modulesrpc.QuoteReply {
+		view, err := q.repo.Add(ctx, id, req.Text, req.AddedBy)
+		return errReply(err, modulesrpc.QuoteReply{Quote: view, Found: true})
+	})
 }
 
 func (q *quotesRPC) handleGet(ctx context.Context, req modulesrpc.QuoteRequest) modulesrpc.QuoteReply {
-	id, ok, reply := q.parseUserID(req)
-	if !ok {
-		return reply
-	}
-	view, found, err := q.repo.Get(ctx, id, req.Number)
-	if err != nil {
-		return modulesrpc.QuoteReply{Error: err.Error()}
-	}
-	return modulesrpc.QuoteReply{Quote: view, Found: found}
+	return q.withUserID(req, func(id uint64) modulesrpc.QuoteReply {
+		view, found, err := q.repo.Get(ctx, id, req.Number)
+		return errReply(err, modulesrpc.QuoteReply{Quote: view, Found: found})
+	})
 }
 
 func (q *quotesRPC) handleRandom(ctx context.Context, req modulesrpc.QuoteRequest) modulesrpc.QuoteReply {
-	id, ok, reply := q.parseUserID(req)
-	if !ok {
-		return reply
-	}
-	view, found, err := q.repo.Random(ctx, id)
-	if err != nil {
-		return modulesrpc.QuoteReply{Error: err.Error()}
-	}
-	return modulesrpc.QuoteReply{Quote: view, Found: found}
+	return q.withUserID(req, func(id uint64) modulesrpc.QuoteReply {
+		view, found, err := q.repo.Random(ctx, id)
+		return errReply(err, modulesrpc.QuoteReply{Quote: view, Found: found})
+	})
 }
 
 func (q *quotesRPC) handleRemove(ctx context.Context, req modulesrpc.QuoteRequest) modulesrpc.QuoteReply {
-	id, ok, reply := q.parseUserID(req)
-	if !ok {
-		return reply
-	}
-	found, err := q.repo.Remove(ctx, id, req.Number)
-	if err != nil {
-		return modulesrpc.QuoteReply{Error: err.Error()}
-	}
-	return modulesrpc.QuoteReply{Found: found}
+	return q.withUserID(req, func(id uint64) modulesrpc.QuoteReply {
+		found, err := q.repo.Remove(ctx, id, req.Number)
+		return errReply(err, modulesrpc.QuoteReply{Found: found})
+	})
+}
+
+func (q *quotesRPC) handleList(ctx context.Context, req modulesrpc.QuoteRequest) modulesrpc.QuoteReply {
+	return q.withUserID(req, func(id uint64) modulesrpc.QuoteReply {
+		quotes, err := q.repo.List(ctx, id)
+		return errReply(err, modulesrpc.QuoteReply{Quotes: quotes})
+	})
 }

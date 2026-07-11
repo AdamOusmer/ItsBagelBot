@@ -112,6 +112,13 @@ func runQuotes(t *testing.T, d engine.Deps, c *module.Context, args string) []mo
 	return col.out
 }
 
+// withAddPerm sets the module's addPerm config on a context, as the engine
+// would from the broadcaster's ModuleView.
+func withAddPerm(c *module.Context, perm string) *module.Context {
+	c.Config = []byte(`{"addPerm":"` + perm + `"}`)
+	return c
+}
+
 func TestQuoteRandomReadout(t *testing.T) {
 	f := newFakeQuotes("never trust a ferret")
 	out := runQuotes(t, engine.Deps{Quotes: f}, quotesCtx("alice", ""), "")
@@ -180,6 +187,46 @@ func TestQuoteAddByViewerIsSilent(t *testing.T) {
 
 	assert.Empty(t, out)
 	assert.Empty(t, f.quotes)
+}
+
+func TestQuoteAddPermSubscriberAllowsSub(t *testing.T) {
+	f := newFakeQuotes()
+	ctx := withAddPerm(quotesCtx("subby", "subscriber"), "sub")
+	out := runQuotes(t, engine.Deps{Quotes: f}, ctx, `"subs can save now"`)
+
+	require.Len(t, out, 1)
+	assert.Contains(t, out[0].Text, "added")
+	assert.Equal(t, "subs can save now", f.quotes[1].Text)
+}
+
+func TestQuoteAddPermSubscriberBlocksViewer(t *testing.T) {
+	f := newFakeQuotes()
+	ctx := withAddPerm(quotesCtx("alice", ""), "sub")
+	out := runQuotes(t, engine.Deps{Quotes: f}, ctx, `"no badge here"`)
+
+	assert.Empty(t, out)
+	assert.Empty(t, f.quotes)
+}
+
+func TestQuoteAddPermEveryoneAllowsViewer(t *testing.T) {
+	f := newFakeQuotes()
+	ctx := withAddPerm(quotesCtx("alice", ""), "everyone")
+	out := runQuotes(t, engine.Deps{Quotes: f}, ctx, `"anyone can save"`)
+
+	require.Len(t, out, 1)
+	assert.Contains(t, out[0].Text, "added")
+	assert.Equal(t, "anyone can save", f.quotes[1].Text)
+}
+
+// Remove stays moderator-only even when saving is opened to everyone.
+func TestQuoteRemoveIgnoresAddPerm(t *testing.T) {
+	f := newFakeQuotes("one")
+	ctx := withAddPerm(quotesCtx("alice", ""), "everyone")
+	out := runQuotes(t, engine.Deps{Quotes: f}, ctx, "remove 1")
+
+	assert.Empty(t, out)
+	_, ok := f.quotes[1]
+	assert.True(t, ok)
 }
 
 func TestQuoteRemoveByMod(t *testing.T) {

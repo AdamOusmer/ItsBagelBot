@@ -21,9 +21,11 @@ type QuoteRequest struct {
 
 // QuoteReply is the reply shape for every quote verb. A missing quote is not
 // an error: get/random/remove set Found=false so the caller can answer chat
-// with "no such quote" instead of failing.
+// with "no such quote" instead of failing. Quotes carries the full book for
+// the list verb (the dashboard management page).
 type QuoteReply struct {
-	Quote *Quote `json:"quote,omitempty"`
-	Found bool   `json:"found,omitempty"`
-	Error string `json:"error,omitempty"`
+	Quote  *Quote  `json:"quote,omitempty"`
+	Quotes []Quote `json:"quotes,omitempty"`
+	Found  bool    `json:"found,omitempty"`
+	Error  string  `json:"error,omitempty"`
 }
