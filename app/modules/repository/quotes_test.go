@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"ItsBagelBot/app/modules/ent/enttest"
 	"ItsBagelBot/app/modules/repository"
@@ -22,6 +23,21 @@ func setupQuotes(t *testing.T) *repository.Quotes {
 	t.Cleanup(func() { _ = client.Close() })
 
 	return repository.NewQuotes(client, zap.NewNop())
+}
+
+func TestQuoteAddAtUsesChosenDate(t *testing.T) {
+	repo := setupQuotes(t)
+	ctx := context.Background()
+	chosen := time.Date(2024, time.February, 29, 12, 0, 0, 0, time.UTC)
+
+	saved, err := repo.AddAt(ctx, 1001, "a leap-day quote", "dashboard", chosen)
+	require.NoError(t, err)
+	assert.Equal(t, "2024-02-29T12:00:00Z", saved.CreatedAt)
+
+	got, found, err := repo.Get(ctx, 1001, saved.Number)
+	require.NoError(t, err)
+	require.True(t, found)
+	assert.Equal(t, saved.CreatedAt, got.CreatedAt)
 }
 
 func TestQuoteAddNumbersSequentially(t *testing.T) {
