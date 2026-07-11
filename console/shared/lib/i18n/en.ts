@@ -606,7 +606,13 @@ export const en = {
     saveChanges: 'Save changes',
     loading: 'Loading…',
     saved: '{label} saved.',
-    saveFailed: 'Save failed.'
+    saveFailed: 'Save failed.',
+    offConfigurable: 'This module is off. You can configure it now; changes take effect when you enable it.',
+    triggerReserved: 'That phrase uses reserved syntax (=>, a leading #, or a mode: prefix). Please rephrase it.',
+    discardTitle: 'Discard changes?',
+    discardBody: 'You have unsaved changes here. Discard them?',
+    discard: 'Discard',
+    keepEditing: 'Keep editing'
   },
 
   onboarding: {

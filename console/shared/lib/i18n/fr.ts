@@ -605,7 +605,13 @@ export const fr = {
     saveChanges: 'Enregistrer les modifications',
     loading: 'Chargement…',
     saved: '{label} enregistré.',
-    saveFailed: 'Échec de l\'enregistrement.'
+    saveFailed: 'Échec de l\'enregistrement.',
+    offConfigurable: 'Ce module est désactivé. Vous pouvez le configurer maintenant ; les changements prendront effet une fois activé.',
+    triggerReserved: 'Cette phrase utilise une syntaxe réservée (=>, un # au début, ou un préfixe mode:). Reformulez-la.',
+    discardTitle: 'Abandonner les modifications ?',
+    discardBody: 'Vous avez des modifications non enregistrées ici. Les abandonner ?',
+    discard: 'Abandonner',
+    keepEditing: 'Continuer l’édition'
   },
 
   onboarding: {
