@@ -162,8 +162,9 @@ test.describe('ItsBagelBot site', () => {
     test('production assets referenced by the document are emitted', async ({ page, request }) => {
         await page.goto('/');
 
-        const favicon = await page.locator('link[rel="icon"][type="image/png"]').first().getAttribute('href');
-        expect(favicon).toBeTruthy();
+        await expect(page.locator('link[rel="icon"][type="image/svg+xml"]')).toHaveCount(0);
+        const favicon = await page.locator('link[rel="icon"][sizes="32x32"]').getAttribute('href');
+        expect(favicon).toBe('/favicon-32x32.png?v=bot-1');
         const response = await request.get(favicon);
         expect(response.ok()).toBeTruthy();
     });
