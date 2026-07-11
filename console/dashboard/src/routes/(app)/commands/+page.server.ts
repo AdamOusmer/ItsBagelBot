@@ -1,6 +1,16 @@
 import type { Actions, PageServerLoad } from './$types';
 import type { CommandView, Perm } from '@bagel/shared';
-import { PERMS, RESPONSE_MAX, normName, validateCommand, firstError, BUILTIN_COMMANDS, BUILTIN_NAMES, builtinDef } from '@bagel/shared';
+import {
+  PERMS,
+  RESPONSE_MAX,
+  normName,
+  normalizeCommandResponse,
+  validateCommand,
+  firstError,
+  BUILTIN_COMMANDS,
+  BUILTIN_NAMES,
+  builtinDef
+} from '@bagel/shared';
 import { listCommands, upsertCommand, deleteCommand, listModules, upsertModule, type ModuleView } from '$lib/server/commands-store';
 import { auditDashboardImpersonation } from '$lib/server/services';
 import type { Session } from '$lib/server/session';
@@ -112,11 +122,10 @@ function parseCommand(f: FormData) {
     aliases.push(a);
   }
 
-  // Twitch chat is single-line: a textarea lets users press Enter, but the
-  // shared validator rejects any control character (CR/LF/tab). Fold control
-  // characters to spaces and trim so a pasted multi-line note saves cleanly
-  // instead of failing validation.
-  const response = String(f.get('response') ?? '').replace(/[\u0000-\u001F]+/g, ' ').trim();
+  // The editor posts one LF-delimited response line per chat message. Preserve
+  // those separators and canonicalize the value exactly as the commands
+  // service does, so Sesame can fan the stored response out one line at a time.
+  const response = normalizeCommandResponse(String(f.get('response') ?? ''));
   const permRaw = String(f.get('perm') ?? 'everyone');
   const perm: Perm = (PERMS as readonly string[]).includes(permRaw) ? (permRaw as Perm) : 'everyone';
 
