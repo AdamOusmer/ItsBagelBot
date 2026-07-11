@@ -87,6 +87,29 @@ func TestGetOrLoadDoesNotCacheErrors(t *testing.T) {
 	assert.Equal(t, int32(2), calls.Load(), "errors must not be cached")
 }
 
+func TestGetOrLoadTTLUsesLoaderTTL(t *testing.T) {
+	c := New[string](1000, time.Minute)
+	defer c.Close()
+
+	var calls atomic.Int32
+	loader := func(context.Context) (string, time.Duration, error) {
+		calls.Add(1)
+		return "value", 20 * time.Millisecond, nil
+	}
+
+	for range 2 {
+		value, err := c.GetOrLoadTTL(context.Background(), "key", loader)
+		require.NoError(t, err)
+		require.Equal(t, "value", value)
+	}
+	require.Equal(t, int32(1), calls.Load())
+
+	time.Sleep(30 * time.Millisecond) // past selected TTL plus maximum jitter
+	_, err := c.GetOrLoadTTL(context.Background(), "key", loader)
+	require.NoError(t, err)
+	assert.Equal(t, int32(2), calls.Load())
+}
+
 func TestEntriesExpire(t *testing.T) {
 	c := New[string](1000, 20*time.Millisecond)
 	defer c.Close()

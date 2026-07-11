@@ -85,6 +85,21 @@ export interface BuiltinCommandDef {
 
 export const BUILTIN_COMMANDS: readonly BuiltinCommandDef[] = [
   {
+    id: 'followage',
+    label: 'Followage',
+    summary: 'Built-in · shows how long a viewer has followed the channel.',
+    description:
+      'Shows how long you or another Twitch user has followed the channel. Add a username to look up someone else.',
+    usage: ['!followage', '!followage <user>'],
+    preview: '@{target} has followed for 8 months.',
+    previewArgs: 'viewer',
+    previewSamples: { target: 'viewer' },
+    defaultActive: true,
+    defaultPerm: 'everyone',
+    defaultCooldown: 15,
+    liveOnly: false
+  },
+  {
     id: 'clip',
     label: 'Clip',
     summary: 'Built-in · clips the last moments of the stream and posts the link.',

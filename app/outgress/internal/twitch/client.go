@@ -276,6 +276,36 @@ func (c *Client) UserIDByLogin(ctx context.Context, login string) (string, error
 	return payload.Data[0].ID, nil
 }
 
+// FollowedAt returns when targetID followed broadcasterID. found is false when
+// the Twitch user exists but does not currently follow the channel. The call
+// uses the bot's moderator-scoped user token.
+func (c *Client) FollowedAt(ctx context.Context, broadcasterID, targetID string) (time.Time, bool, error) {
+	q := url.Values{}
+	q.Set("broadcaster_id", broadcasterID)
+	q.Set("user_id", targetID)
+	res, err := c.ExecuteAs(ctx, IdentityBot, broadcasterID, getCall("/helix/channels/followers?"+q.Encode()))
+	if err != nil {
+		return time.Time{}, false, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(res.Body, 2048))
+		return time.Time{}, false, &StatusError{Status: res.StatusCode, Body: string(body)}
+	}
+	var payload struct {
+		Data []struct {
+			FollowedAt time.Time `json:"followed_at"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&payload); err != nil {
+		return time.Time{}, false, err
+	}
+	if len(payload.Data) == 0 {
+		return time.Time{}, false, nil
+	}
+	return payload.Data[0].FollowedAt, true, nil
+}
+
 // IsModerator reports whether the bot account moderates broadcasterID,
 // paging through the channels the bot's user token can see. Requires the
 // user:read:moderated_channels scope.

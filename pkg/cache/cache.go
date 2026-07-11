@@ -45,30 +45,34 @@ func New[V any](capacity int64, ttl time.Duration) *Cache[V] {
 // Only one loader runs per key at a time, regardless of how many goroutines
 // miss concurrently; the others wait and share the same result.
 func (c *Cache[V]) GetOrLoad(ctx context.Context, key string, loader func(context.Context) (V, error)) (V, error) {
+	return c.GetOrLoadTTL(ctx, key, func(ctx context.Context) (V, time.Duration, error) {
+		value, err := loader(ctx)
+		return value, c.ttl, err
+	})
+}
+
+// GetOrLoadTTL is GetOrLoad with a loader-selected TTL. It is useful when
+// positive and negative results need different freshness windows. Failed loads
+// are never cached, and concurrent misses remain singleflight-collapsed.
+func (c *Cache[V]) GetOrLoadTTL(ctx context.Context, key string, loader func(context.Context) (V, time.Duration, error)) (V, error) {
 	if value, ok := c.client.Get(key); ok {
 		return value, nil
 	}
-
 	result, err, _ := c.group.Do(key, func() (any, error) {
-		// A previous flight may have filled the key while we queued.
 		if value, ok := c.client.Get(key); ok {
 			return value, nil
 		}
-
-		value, err := loader(ctx)
+		value, ttl, err := loader(ctx)
 		if err != nil {
 			return value, err
 		}
-
-		c.Set(key, value)
+		c.SetFor(key, value, ttl)
 		return value, nil
 	})
-
 	if err != nil {
 		var zero V
 		return zero, err
 	}
-
 	return result.(V), nil
 }
 
@@ -76,6 +80,13 @@ func (c *Cache[V]) GetOrLoad(ctx context.Context, key string, loader func(contex
 func (c *Cache[V]) Set(key string, value V) {
 	jitteredTTL := c.ttl + rand.N(c.jitter+1)
 	c.client.SetWithTTL(key, value, 1, jitteredTTL)
+}
+
+// SetFor stores value with a caller-selected TTL and the same 0–10% expiry
+// jitter as Set.
+func (c *Cache[V]) SetFor(key string, value V, ttl time.Duration) {
+	jitter := ttl / 10
+	c.client.SetWithTTL(key, value, 1, ttl+rand.N(jitter+1))
 }
 
 // Invalidate drops key from the cache and forgets any in-flight load for it,

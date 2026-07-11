@@ -11,6 +11,7 @@ import (
 	"ItsBagelBot/app/outgress/internal/channels"
 	"ItsBagelBot/app/outgress/internal/twitch"
 	"ItsBagelBot/internal/domain/rpc/manage"
+	outgressrpc "ItsBagelBot/internal/domain/rpc/outgress"
 	"ItsBagelBot/pkg/bus"
 
 	"github.com/newrelic/go-agent/v3/newrelic"
@@ -21,6 +22,7 @@ import (
 )
 
 const handleTimeout = 1500 * time.Millisecond
+const followageHandleTimeout = 4 * time.Second
 
 type Manage struct {
 	registry *channels.Registry
@@ -51,11 +53,64 @@ func SubscribeManage(nc *nats.Conn, registry *channels.Registry, tw *twitch.Clie
 	if err := bus.QueueSubscribeJSON[struct{}, manage.SystemStatusReply](nc, prefix+".system.status", queueGroup, handleTimeout, app, log, m.handleSystemStatus); err != nil {
 		return err
 	}
+	if err := bus.QueueSubscribeJSON[outgressrpc.FollowageRequest, outgressrpc.FollowageReply](nc, prefix+".followage.get", queueGroup, followageHandleTimeout, app, log, m.handleFollowage); err != nil {
+		return err
+	}
 	if err := bus.QueueSubscribeJSON[manage.SystemPauseRequest, manage.SystemPauseReply](nc, prefix+".system.pause", queueGroup, handleTimeout, app, log, m.handleSystemPause); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func (m *Manage) handleFollowage(ctx context.Context, req outgressrpc.FollowageRequest) outgressrpc.FollowageReply {
+	if !validFollowageRequest(req) {
+		return outgressrpc.FollowageReply{Error: "bad request"}
+	}
+	targetID, err := m.resolveFollowageTarget(ctx, req)
+	if err != nil {
+		return outgressrpc.FollowageReply{Error: "lookup failed"}
+	}
+	return m.readFollowage(ctx, req.BroadcasterID, targetID)
+}
+
+func validFollowageRequest(req outgressrpc.FollowageRequest) bool {
+	if req.BroadcasterID == "" {
+		return false
+	}
+	return req.TargetID != "" || req.TargetLogin != ""
+}
+
+func (m *Manage) resolveFollowageTarget(ctx context.Context, req outgressrpc.FollowageRequest) (string, error) {
+	if req.TargetID != "" {
+		return req.TargetID, nil
+	}
+	targetID, err := m.twitch.UserIDByLogin(ctx, req.TargetLogin)
+	if err != nil {
+		m.log.Warn("followage target resolve failed", zap.Error(err))
+	}
+	return targetID, err
+}
+
+func (m *Manage) readFollowage(ctx context.Context, broadcasterID, targetID string) outgressrpc.FollowageReply {
+	if targetID == "" {
+		return outgressrpc.FollowageReply{UserFound: false}
+	}
+	if targetID == broadcasterID {
+		return outgressrpc.FollowageReply{TargetID: targetID, UserFound: true}
+	}
+	return m.fetchFollowage(ctx, broadcasterID, targetID)
+}
+
+func (m *Manage) fetchFollowage(ctx context.Context, broadcasterID, targetID string) outgressrpc.FollowageReply {
+	followedAt, following, err := m.twitch.FollowedAt(ctx, broadcasterID, targetID)
+	if err != nil {
+		m.log.Warn("followage lookup failed", zap.Error(err))
+		return outgressrpc.FollowageReply{TargetID: targetID, UserFound: true, Error: "lookup failed"}
+	}
+	return outgressrpc.FollowageReply{
+		TargetID: targetID, UserFound: true, Following: following, FollowedAt: followedAt,
+	}
 }
 
 func (m *Manage) handleChannelGet(ctx context.Context, req manage.ChannelRequest) manage.ChannelReply {
