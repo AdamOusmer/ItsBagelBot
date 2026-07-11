@@ -50,10 +50,33 @@ var (
 			},
 		},
 	}
+	// QuotesColumns holds the columns for the "quotes" table.
+	QuotesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "user_id", Type: field.TypeUint64},
+		{Name: "number", Type: field.TypeUint64},
+		{Name: "text", Type: field.TypeString, Size: 450},
+		{Name: "added_by", Type: field.TypeString, Size: 64, Default: ""},
+		{Name: "created_at", Type: field.TypeTime},
+	}
+	// QuotesTable holds the schema information for the "quotes" table.
+	QuotesTable = &schema.Table{
+		Name:       "quotes",
+		Columns:    QuotesColumns,
+		PrimaryKey: []*schema.Column{QuotesColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "quote_user_id_number",
+				Unique:  true,
+				Columns: []*schema.Column{QuotesColumns[1], QuotesColumns[2]},
+			},
+		},
+	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
 		GoveeCredentialsTable,
 		ModulesTable,
+		QuotesTable,
 	}
 )
 

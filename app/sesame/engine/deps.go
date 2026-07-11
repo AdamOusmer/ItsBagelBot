@@ -17,6 +17,7 @@ import (
 
 	"ItsBagelBot/app/sesame/automod"
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
+	modulesrpc "ItsBagelBot/internal/domain/rpc/modules"
 	"ItsBagelBot/internal/projection"
 
 	"github.com/ThreeDotsLabs/watermill/message"
@@ -31,6 +32,17 @@ import (
 type CommandManager interface {
 	Upsert(ctx context.Context, userID string, name, response string) error
 	Delete(ctx context.Context, userID string, name string) error
+}
+
+// QuotesStore is the channel-quotes surface behind the quotes module. The
+// modules service owns the rows (bagel.rpc.modules.quote.*); QuotesRPC
+// implements it. found=false on Get/Random means no such quote / none saved,
+// on Remove that the number did not exist.
+type QuotesStore interface {
+	QuoteAdd(ctx context.Context, broadcasterID uint64, text, addedBy string) (modulesrpc.Quote, error)
+	QuoteGet(ctx context.Context, broadcasterID, number uint64) (modulesrpc.Quote, bool, error)
+	QuoteRandom(ctx context.Context, broadcasterID uint64) (modulesrpc.Quote, bool, error)
+	QuoteRemove(ctx context.Context, broadcasterID, number uint64) (bool, error)
 }
 
 // Deps is the bundle of runtime services a module fn captures by closure when it
@@ -63,6 +75,9 @@ type Deps struct {
 	// Queue is the per-broadcaster play queue behind the queue module. nil
 	// leaves the module's commands inert.
 	Queue QueueStore
+	// Quotes is the channel-quotes store behind the quotes module. nil leaves
+	// the module's commands inert.
+	Quotes QuotesStore
 	// Loyalty is the points-and-counters surface behind the loyalty module,
 	// the channel-points counter bindings and the {counter:...} response
 	// token. nil disables all of them.

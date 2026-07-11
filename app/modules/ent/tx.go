@@ -16,6 +16,8 @@ type Tx struct {
 	GoveeCredential *GoveeCredentialClient
 	// Modules is the client for interacting with the Modules builders.
 	Modules *ModulesClient
+	// Quote is the client for interacting with the Quote builders.
+	Quote *QuoteClient
 
 	// lazily loaded.
 	client     *Client
@@ -149,6 +151,7 @@ func (tx *Tx) Client() *Client {
 func (tx *Tx) init() {
 	tx.GoveeCredential = NewGoveeCredentialClient(tx.config)
 	tx.Modules = NewModulesClient(tx.config)
+	tx.Quote = NewQuoteClient(tx.config)
 }
 
 // txDriver wraps the given dialect.Tx with a nop dialect.Driver implementation.

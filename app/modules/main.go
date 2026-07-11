@@ -81,6 +81,8 @@ func main() {
 	repo := repository.NewModules(client, pub, nrApp, log)
 	defer repo.Close(context.Background()) // flushes pending writes on shutdown
 
+	quotes := repository.NewQuotes(client, log)
+
 	nc, err := bus.Connect(rpcURL, serviceName)
 	if err != nil {
 		log.Fatal("failed to connect to nats", zap.Error(err))
@@ -139,6 +141,10 @@ func main() {
 			return err
 		}
 
+		if err := quotes.DeleteAllForUser(msg.Context(), dto.UserID); err != nil {
+			return err
+		}
+
 		log.Info("modules: deleted all for user", zap.Uint64("user_id", dto.UserID))
 		return nil
 	}, log); err != nil {
@@ -155,6 +161,11 @@ func main() {
 	dashboardSubject := env.Get("NATS_MODULES_SUBJECT_PREFIX", "bagel.rpc.modules")
 	if err := rpc.SubscribeDashboard(nc, repo, dashboardSubject, "modules-rpc", nrApp, log); err != nil {
 		log.Fatal("failed to subscribe dashboard rpc", zap.Error(err))
+	}
+
+	// Channel-quotes verbs (the sesame quotes module's store).
+	if err := rpc.SubscribeQuotes(nc, quotes, dashboardSubject+".quote", "modules-rpc", nrApp, log); err != nil {
+		log.Fatal("failed to subscribe quotes rpc", zap.Error(err))
 	}
 
 	health.Serve(env.Get("LISTEN_ADDR", ":8080"), nc.IsConnected)

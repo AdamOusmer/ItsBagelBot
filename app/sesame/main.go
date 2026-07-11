@@ -99,6 +99,7 @@ func main() {
 		Special:    engine.NewSpecialSet(cfg.SpecialUserIDs),
 		Pub:        pub,
 		Commands:   engine.NewCommandsRPC(nc, cfg.CommandsDashboardPrefix),
+		Quotes:     engine.NewQuotesRPC(nc, cfg.ModulesRPCPrefix),
 		Gateway:    engine.NewGatewayRPC(nc, cfg.GatewayRPCPrefix),
 		Log:        log,
 		Automod:    guard,
