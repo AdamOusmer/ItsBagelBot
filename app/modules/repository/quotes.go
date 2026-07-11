@@ -150,6 +150,24 @@ func (q *Quotes) Random(ctx context.Context, userID uint64) (*modulesrpc.Quote, 
 	return quoteView(row), true, nil
 }
 
+// List returns the channel's whole quote book, lowest number first, for the
+// dashboard management page. A channel's book is small (a handful to a few
+// hundred), so returning it whole is fine.
+func (q *Quotes) List(ctx context.Context, userID uint64) ([]modulesrpc.Quote, error) {
+	rows, err := q.client.Quote.Query().
+		Where(quote.UserID(userID)).
+		Order(ent.Asc(quote.FieldNumber)).
+		All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]modulesrpc.Quote, len(rows))
+	for i, row := range rows {
+		out[i] = *quoteView(row)
+	}
+	return out, nil
+}
+
 // Remove deletes quote #number; found=false when it did not exist.
 func (q *Quotes) Remove(ctx context.Context, userID, number uint64) (bool, error) {
 	n, err := q.client.Quote.Delete().

@@ -502,6 +502,36 @@ export const fr = {
     toastToggleFailed: 'Impossible de mettre à jour la minuterie.'
   },
 
+  quotes: {
+    eyebrow: 'Gérer',
+    titlePre: 'Citations de ',
+    titleEm: 'la chaîne',
+    description: 'Le carnet de citations : les meilleures phrases sauvegardées du chat, rejouées avec !quote.',
+    degraded: 'Les citations sont momentanément indisponibles. Réessayez bientôt.',
+    botOn: 'Citations actives',
+    botOnHint: 'Interrupteur principal : !quote ne fonctionne dans le chat que lorsque ceci est activé.',
+    permLabel: 'Qui peut enregistrer',
+    permMod: 'Modérateurs (par défaut)',
+    permVip: 'VIP et plus',
+    permSub: 'Abonnés et plus',
+    permEveryone: 'Tout le monde',
+    addPlaceholder: 'Enregistrer une nouvelle citation…',
+    addBtn: 'Ajouter',
+    addHint: 'Le bot numérote chaque citation et inscrit la date du jour. Les numéros ne sont jamais réutilisés.',
+    deleteAria: 'Supprimer cette citation',
+    emptyTitle: 'Aucune citation pour le moment',
+    emptySub: 'Ajoutez-en une ci-dessus, ou depuis le chat avec !quote « le texte ».',
+    deleteTitle: 'Supprimer cette citation ?',
+    deleteBody: 'La citation est supprimée définitivement. Son numéro est retiré et jamais réutilisé.',
+    del: 'Supprimer',
+    toastAdded: 'Citation ajoutée.',
+    toastDeleted: 'Citation supprimée.',
+    toastAddFailed: 'Impossible d’enregistrer la citation.',
+    toastDeleteFailed: 'Impossible de supprimer la citation.',
+    toastToggleFailed: 'Impossible de mettre à jour le module.',
+    toastPermFailed: 'Impossible de changer la permission.'
+  },
+
   modules: {
     eyebrow: 'Gérer',
     titlePre: 'Modules de ',

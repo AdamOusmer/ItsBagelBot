@@ -958,22 +958,10 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
     icon: 'quote',
     category: 'Community',
     defaultEnabled: false,
+    // Bespoke page: the quote book (list + add/remove) plus the enable and
+    // save-permission settings live on /quotes, not the generic reply page.
+    href: '/quotes',
     replies: [],
-    settings: [
-      {
-        key: 'addPerm',
-        label: 'Who can save quotes',
-        type: 'select',
-        placeholder: 'mod',
-        options: [
-          { value: 'mod', label: 'Moderators (default)' },
-          { value: 'vip', label: 'VIPs and up' },
-          { value: 'sub', label: 'Subscribers and up' },
-          { value: 'everyone', label: 'Everyone' }
-        ],
-        help: 'The minimum role allowed to save a quote with !quote "text". Removing a quote is always moderator-only.'
-      }
-    ],
     commands: [
       { trigger: '!quote', summary: 'Post a random saved quote (also !quotes).' },
       { trigger: '!quote <number>', summary: 'Post that exact quote.' },

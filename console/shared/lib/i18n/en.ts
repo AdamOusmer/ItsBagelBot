@@ -503,6 +503,36 @@ export const en = {
     toastToggleFailed: 'Could not update the timer.'
   },
 
+  quotes: {
+    eyebrow: 'Manage',
+    titlePre: 'Channel ',
+    titleEm: 'quotes',
+    description: 'The channel quote book: memorable lines saved from chat, replayed with !quote.',
+    degraded: 'Quotes are temporarily unavailable. Try again shortly.',
+    botOn: 'Quotes active',
+    botOnHint: 'Master switch: !quote only works in chat while this is on.',
+    permLabel: 'Who can save',
+    permMod: 'Moderators (default)',
+    permVip: 'VIPs and up',
+    permSub: 'Subscribers and up',
+    permEveryone: 'Everyone',
+    addPlaceholder: 'Save a new quote…',
+    addBtn: 'Add quote',
+    addHint: 'The bot numbers each quote and stamps today’s date. Numbers are never reused.',
+    deleteAria: 'Delete this quote',
+    emptyTitle: 'No quotes yet',
+    emptySub: 'Add one above, or save from chat with !quote "the text".',
+    deleteTitle: 'Delete this quote?',
+    deleteBody: 'This removes the quote for good. Its number is retired and never reused.',
+    del: 'Delete',
+    toastAdded: 'Quote added.',
+    toastDeleted: 'Quote deleted.',
+    toastAddFailed: 'Could not save the quote.',
+    toastDeleteFailed: 'Could not delete the quote.',
+    toastToggleFailed: 'Could not update the module.',
+    toastPermFailed: 'Could not change the permission.'
+  },
+
   modules: {
     eyebrow: 'Manage',
     titlePre: 'Channel ',

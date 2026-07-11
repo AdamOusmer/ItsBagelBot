@@ -47,6 +47,7 @@ func SubscribeQuotes(w QuotesWiring) error {
 		{"get", q.handleGet},
 		{"random", q.handleRandom},
 		{"remove", q.handleRemove},
+		{"list", q.handleList},
 	}
 
 	for _, v := range verbs {
@@ -112,4 +113,16 @@ func (q *quotesRPC) handleRemove(ctx context.Context, req modulesrpc.QuoteReques
 		return modulesrpc.QuoteReply{Error: err.Error()}
 	}
 	return modulesrpc.QuoteReply{Found: found}
+}
+
+func (q *quotesRPC) handleList(ctx context.Context, req modulesrpc.QuoteRequest) modulesrpc.QuoteReply {
+	id, ok, reply := q.parseUserID(req)
+	if !ok {
+		return reply
+	}
+	quotes, err := q.repo.List(ctx, id)
+	if err != nil {
+		return modulesrpc.QuoteReply{Error: err.Error()}
+	}
+	return modulesrpc.QuoteReply{Quotes: quotes}
 }

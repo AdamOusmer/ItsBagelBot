@@ -77,6 +77,44 @@ func TestQuoteGet(t *testing.T) {
 	assert.False(t, found)
 }
 
+func TestQuoteList(t *testing.T) {
+	repo := setupQuotes(t)
+	ctx := context.Background()
+
+	list, err := repo.List(ctx, 1001)
+	require.NoError(t, err)
+	assert.Empty(t, list)
+
+	_, err = repo.Add(ctx, 1001, "one", "m")
+	require.NoError(t, err)
+	_, err = repo.Add(ctx, 1001, "two", "m")
+	require.NoError(t, err)
+	_, err = repo.Add(ctx, 1001, "three", "m")
+	require.NoError(t, err)
+	require.NoError(t, mustRemove(t, repo, ctx, 1001, 2))
+
+	// Lowest number first, with the removed #2 absent (its hole preserved).
+	list, err = repo.List(ctx, 1001)
+	require.NoError(t, err)
+	require.Len(t, list, 2)
+	assert.Equal(t, uint64(1), list[0].Number)
+	assert.Equal(t, "one", list[0].Text)
+	assert.Equal(t, uint64(3), list[1].Number)
+
+	// Scoped per channel.
+	other, err := repo.List(ctx, 2002)
+	require.NoError(t, err)
+	assert.Empty(t, other)
+}
+
+func mustRemove(t *testing.T, repo *repository.Quotes, ctx context.Context, userID, number uint64) error {
+	t.Helper()
+	found, err := repo.Remove(ctx, userID, number)
+	require.NoError(t, err)
+	require.True(t, found)
+	return nil
+}
+
 func TestQuoteRandom(t *testing.T) {
 	repo := setupQuotes(t)
 	ctx := context.Background()
