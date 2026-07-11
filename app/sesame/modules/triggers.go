@@ -2,6 +2,7 @@ package modules
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -95,18 +96,35 @@ func triggerCandidate(c *module.Context) (string, bool) {
 	}
 }
 
-// rules turns the dashboard textarea into trigger rules, one per line:
+// triggerRuleJSON is the structured on-disk form of a rule. The dashboard now
+// writes config.rules as a JSON array of these, which — unlike the legacy
+// "[mode:] phrase => response" line format — can carry a phrase containing "=>",
+// a leading "#", or a "mode:" prefix without corrupting the round trip. rules()
+// still reads the legacy line format for any config saved before the migration.
+type triggerRuleJSON struct {
+	Phrase   string `json:"phrase"`
+	Response string `json:"response"`
+	Match    string `json:"match"`
+	// Pointer so an absent flag defaults to enabled (older writers omitted it).
+	Enabled *bool `json:"enabled"`
+}
+
+// rules turns the stored config.rules into trigger rules. A value beginning with
+// "[" is the structured JSON array; anything else is the legacy line format:
 //
 //	hello => hi {user}!
 //	contains: lol => lmao
 //
-// A line is "[mode:] phrase => response". The optional mode is word (default),
-// contains, exact, or prefix. Blank lines, "#" comments, lines without "=>", and
-// lines with an empty phrase or response are skipped. At most maxTriggers rules
-// are returned.
+// A legacy line is "[mode:] phrase => response". Blank lines, "#" comments, lines
+// without "=>", and lines with an empty phrase or response are skipped. At most
+// maxTriggers rules are returned in either format.
 func (cfg triggersConfig) rules() []triggerWord {
-	if cfg.Rules == "" {
+	s := strings.TrimSpace(cfg.Rules)
+	if s == "" {
 		return nil
+	}
+	if s[0] == '[' {
+		return jsonRules(s)
 	}
 	var out []triggerWord
 	for _, ln := range strings.Split(cfg.Rules, "\n") {
@@ -120,6 +138,43 @@ func (cfg triggersConfig) rules() []triggerWord {
 		}
 	}
 	return out
+}
+
+// jsonRules decodes the structured rule array. Malformed JSON yields no rules
+// (fail closed, same as an empty config). Disabled rules and rules with an empty
+// phrase or response are skipped; the match mode is normalised to a known value.
+func jsonRules(s string) []triggerWord {
+	var raw []triggerRuleJSON
+	if err := json.Unmarshal([]byte(s), &raw); err != nil {
+		return nil
+	}
+	var out []triggerWord
+	for _, r := range raw {
+		if r.Enabled != nil && !*r.Enabled {
+			continue
+		}
+		phrase := strings.TrimSpace(r.Phrase)
+		response := strings.TrimSpace(r.Response)
+		if phrase == "" || response == "" {
+			continue
+		}
+		out = append(out, triggerWord{Phrase: phrase, Response: response, Match: normalizeMatch(r.Match)})
+		if len(out) >= maxTriggers {
+			break
+		}
+	}
+	return out
+}
+
+// normalizeMatch coerces a stored match mode into one the matchers understand,
+// defaulting unknown/blank to "word".
+func normalizeMatch(m string) string {
+	switch strings.ToLower(strings.TrimSpace(m)) {
+	case "contains", "exact", "prefix":
+		return strings.ToLower(strings.TrimSpace(m))
+	default:
+		return "word"
+	}
 }
 
 // parseRuleLine parses one textarea line into a rule, reporting ok=false for a

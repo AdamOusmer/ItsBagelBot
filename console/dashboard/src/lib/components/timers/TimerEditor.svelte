@@ -1,25 +1,14 @@
 <script lang="ts">
-  // Inline timer editor (create + edit share it), rendered in the page's
-  // docked inspector — the same surface as the reward/command editors. The
-  // whole draft travels as one JSON field; the server validates and
-  // normalizes it.
-  import { enhance } from '$app/forms';
-  import type { SubmitFunction } from '@sveltejs/kit';
-  import { Icon, getI18n, type TimerDef } from '@bagel/shared';
+  // Timer editor fields (create + edit share it), rendered in the page's docked
+  // inspector. Fields only: the page owns the <form> and the sticky EditorFooter
+  // so Save/Cancel stay visible below a long form and the save is stale-safe.
+  import { getI18n, type TimerDef } from '@bagel/shared';
   import CheckButton from '$lib/components/CheckButton.svelte';
 
   let {
-    draft = $bindable<TimerDef>(),
-    isNew,
-    busy = false,
-    onCancel,
-    onSubmit
+    draft = $bindable<TimerDef>()
   }: {
     draft: TimerDef;
-    isNew: boolean;
-    busy?: boolean;
-    onCancel: () => void;
-    onSubmit: SubmitFunction;
   } = $props();
 
   const { t } = getI18n();
@@ -30,13 +19,9 @@
   $effect(() => {
     draft.intervalSeconds = minutes * 60;
   });
-
-  const payload = $derived(JSON.stringify(draft));
 </script>
 
-<form method="POST" action={isNew ? '?/create' : '?/update'} class="editor" novalidate use:enhance={onSubmit}>
-  <input type="hidden" name="timer" value={payload} />
-
+<div class="editor">
   <label class="field">
     <span>{t('timers.fieldMessage')}</span>
     <textarea
@@ -61,15 +46,7 @@
   <div class="check">
     <CheckButton bind:checked={draft.enabled} label={t('timers.active')} />
   </div>
-
-  <div class="actions">
-    <button type="button" class="btn ghost" onclick={onCancel} disabled={busy}>{t('common.cancel')}</button>
-    <button type="submit" class="btn primary" disabled={busy || !draft.message.trim()}>
-      <Icon name="check" size={14} />
-      {busy ? t('timers.saving') : isNew ? t('timers.create') : t('timers.saveChanges')}
-    </button>
-  </div>
-</form>
+</div>
 
 <style>
   .editor { padding: 4px 2px 2px; }
@@ -102,11 +79,4 @@
 
   .check { margin: 4px 0 14px; }
   .check :global(.cb) { align-items: center; }
-
-  .actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 6px; }
-
-  @media (max-width: 480px) {
-    .actions { flex-direction: column-reverse; }
-    .actions .btn { width: 100%; justify-content: center; min-height: 44px; }
-  }
 </style>

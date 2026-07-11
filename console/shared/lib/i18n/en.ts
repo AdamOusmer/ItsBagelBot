@@ -103,6 +103,15 @@ export const en = {
     notConnected: 'Not connected',
     reconnectNeeded: 'Reconnect needed',
     reconnecting: 'Reconnecting…',
+    connecting: 'Connecting…',
+    unavailable: 'Connection status unavailable',
+    subUnknown: 'Chat status unknown',
+    planUnknown: 'Unknown',
+    dataUnavailable: 'unavailable',
+    retry: 'Retry',
+    actionFailed: "That didn't go through. Try again.",
+    commandsUnavailable: "Couldn't load your commands",
+    commandsUnavailableDesc: 'The service is unreachable right now.',
     subFixPre: 'The bot lost its chat connection. Fix it in ',
     subFixStrong: 'Settings → Reconnect',
     restart: 'Restart',
@@ -305,7 +314,13 @@ export const en = {
     toastSaveFailed: 'Save failed. Network error.',
     toastToggleFailed: 'Toggle failed.',
     toastCouldNotRestore: 'Could not restore !{name}. Recreate it manually.',
-    toastDeleteFailed: 'Delete of !{name} failed.'
+    toastDeleteFailed: 'Delete of !{name} failed.',
+    saved: 'Saved',
+    unsavedChanges: 'Unsaved changes',
+    discardTitle: 'Discard changes?',
+    discardBody: 'You have unsaved changes to this command. Discard them?',
+    discard: 'Discard',
+    keepEditing: 'Keep editing'
   },
 
   channelpoints: {
@@ -378,6 +393,10 @@ export const en = {
     deleteTitle: 'Delete this reward?',
     deleteBody: '“{name}” is removed from Twitch and the bot stops reacting to it. This cannot be undone.',
     del: 'Delete',
+    discardTitle: 'Discard changes?',
+    discardBody: 'You have unsaved changes to this reward. Discard them?',
+    discard: 'Discard',
+    keepEditing: 'Keep editing',
     toastCreated: 'Reward “{name}” created.',
     toastSaved: 'Reward “{name}” saved.',
     toastDeleted: 'Reward “{name}” deleted.',
@@ -501,8 +520,8 @@ export const en = {
     emptySub: 'Create one — it starts repeating the moment your stream goes live.',
     chipInterval: 'every {n}',
     hiddenTag: 'paused',
-    toggleAria: 'Pause or resume this timer',
-    deleteAria: 'Delete this timer',
+    toggleAria: 'Pause or resume the timer: {name}',
+    deleteAria: 'Delete the timer: {name}',
     // editor
     fieldMessage: 'Message',
     fieldMessagePh: 'e.g. Follow on socials: {link}',
@@ -522,7 +541,14 @@ export const en = {
     toastDeleted: 'Timer deleted.',
     toastSaveFailed: 'Could not save the timer.',
     toastDeleteFailed: 'Could not delete the timer.',
-    toastToggleFailed: 'Could not update the timer.'
+    toastToggleFailed: 'Could not update the timer.',
+    undo: 'Undo',
+    unsavedChanges: 'Unsaved changes',
+    saved: 'Saved',
+    discardTitle: 'Discard changes?',
+    discardBody: 'You have unsaved changes to this timer. Discard them?',
+    discard: 'Discard',
+    keepEditing: 'Keep editing'
   },
 
   quotes: {
@@ -592,7 +618,14 @@ export const en = {
     saveChanges: 'Save changes',
     loading: 'Loading…',
     saved: '{label} saved.',
-    saveFailed: 'Save failed.'
+    saveFailed: 'Save failed.',
+    patchConflict: 'Someone else changed this module. Reloaded the latest — redo your change.',
+    offConfigurable: 'This module is off. You can configure it now; changes take effect when you enable it.',
+    triggerReserved: 'That phrase uses reserved syntax (=>, a leading #, or a mode: prefix). Please rephrase it.',
+    discardTitle: 'Discard changes?',
+    discardBody: 'You have unsaved changes here. Discard them?',
+    discard: 'Discard',
+    keepEditing: 'Keep editing'
   },
 
   onboarding: {

@@ -2,6 +2,7 @@ package rpc
 
 import (
 	"context"
+	"encoding/json"
 	"strconv"
 	"time"
 
@@ -32,6 +33,7 @@ func SubscribeDashboard(nc *nats.Conn, repo *repository.Modules, prefix, queueGr
 	}{
 		{"list", d.handleList},
 		{"upsert", d.handleUpsert},
+		{"patch", d.handlePatch},
 	}
 
 	for _, v := range verbs {
@@ -79,4 +81,28 @@ func (d *dashboardRPC) handleUpsert(ctx context.Context, req modulesrpc.Dashboar
 	}
 
 	return modulesrpc.DashboardReply{}
+}
+
+// handlePatch merges a subset of config keys into a module under optimistic
+// concurrency: Configs carries only the keys to change, and ExpectedRev (when
+// set) must match the stored revision or the write is reported as a conflict for
+// the client to refetch and retry.
+func (d *dashboardRPC) handlePatch(ctx context.Context, req modulesrpc.DashboardRequest) modulesrpc.DashboardReply {
+	id, ok, reply := d.parseUserID(req)
+	if !ok {
+		return reply
+	}
+
+	partial := map[string]json.RawMessage{}
+	if len(req.Configs) > 0 {
+		if err := json.Unmarshal(req.Configs, &partial); err != nil {
+			return modulesrpc.DashboardReply{Error: "invalid configs"}
+		}
+	}
+
+	res, err := d.repo.Patch(ctx, id, req.Name, req.IsEnabled, partial, req.ExpectedRev)
+	if err != nil {
+		return modulesrpc.DashboardReply{Error: err.Error()}
+	}
+	return modulesrpc.DashboardReply{Rev: res.Rev, Conflict: res.Conflict}
 }
