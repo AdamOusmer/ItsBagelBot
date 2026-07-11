@@ -1,6 +1,7 @@
 <script lang="ts">
   import { deserialize } from '$app/forms';
-  import { Icon, Card, PageHead, Scroller, SaveStatus, AlertBanner, DeckList, EmptyState, toast, getI18n, automodToggleDefault, type ModuleField, type ModuleReply } from '@bagel/shared';
+  import { invalidateAll } from '$app/navigation';
+  import { Icon, Card, PageHead, Scroller, SaveStatus, Switch, InspectorSurface, ConfirmDialog, AlertBanner, DeckList, EmptyState, toast, getI18n, automodToggleDefault, type ModuleField, type ModuleReply } from '@bagel/shared';
   import type { SaveState } from '@bagel/shared/components/SaveStatus.svelte';
   import ReplyRow from '$lib/components/modules/ReplyRow.svelte';
   import ReplyEditor from '$lib/components/modules/ReplyEditor.svelte';
@@ -21,6 +22,9 @@
   let enabled = $state(data.enabled);
   // svelte-ignore state_referenced_locally
   let config = $state<Record<string, string>>({ ...data.config });
+  // Optimistic-concurrency token echoed on every patch; updated from each reply.
+  // svelte-ignore state_referenced_locally
+  let rev = $state<number>(data.revision ?? 0);
 
   // Trigger words is the one module whose "replies" are a free-form list the
   // author grows: it renders trigger rules as add/removable ReplyRows and reads
@@ -32,6 +36,9 @@
   // The inspector column exists for any module that has an editable ledger —
   // fixed replies or the dynamic trigger list.
   const hasInspector = $derived(isTriggers || hasReplies);
+  // Whether there is any deck at all (replies, triggers, or a read-only command
+  // list). A settings-only module (AutoMod) has none, so it renders no empty deck.
+  const hasDeck = $derived(hasInspector || (def.commands?.length ?? 0) > 0);
 
   // svelte-ignore state_referenced_locally
   let seedId = data.def.id;
@@ -40,6 +47,7 @@
       seedId = data.def.id;
       enabled = data.enabled;
       config = { ...data.config };
+      rev = data.revision ?? 0;
       rules = parseRules(data.config.rules ?? '');
       ruleIndex = null;
       expanded = null;
@@ -55,40 +63,54 @@
     modStatus = { ...modStatus, [key]: s };
   }
   function ackSaved(key: string) {
+    // saved -> idle only: no timer-driven "live"/synced claim (no delivery ack).
     setStatus(key, 'saved');
-    timers.set(key, [
-      setTimeout(() => (modStatus = { ...modStatus, [key]: 'live' }), 2500),
-      setTimeout(() => (modStatus = { ...modStatus, [key]: 'idle' }), 7000)
-    ]);
+    timers.set(key, [setTimeout(() => (modStatus = { ...modStatus, [key]: 'idle' }), 3000)]);
   }
   function flagError(key: string) {
     setStatus(key, 'error');
     timers.set(key, [setTimeout(() => (modStatus = { ...modStatus, [key]: 'idle' }), 4000)]);
   }
 
-  // The whole config is one blob, so every write posts the full current draft.
-  function buildBody(en: boolean, cfg: Record<string, string>): FormData {
+  // Config writes are field-level patches (only the changed keys) under optimistic
+  // concurrency. Writes are serialised so the revision stays consistent between
+  // rapid edits; each write echoes the current rev and adopts the reply's. A
+  // conflict means another writer moved the revision on: reload the latest state
+  // and let the user redo, rather than silently clobbering their change.
+  let writeChain: Promise<unknown> = Promise.resolve();
+
+  async function runPatch(partial: Record<string, string>, en: boolean): Promise<boolean> {
     const body = new FormData();
     body.set('is_enabled', en ? 'on' : '');
-    for (const reply of def.replies) {
-      body.set(`cfg.${reply.messageKey}`, cfg[reply.messageKey] ?? '');
-      if (reply.enableKey) body.set(`cfg.${reply.enableKey}`, cfg[reply.enableKey] === 'off' ? 'off' : 'on');
-    }
-    for (const field of def.settings ?? []) body.set(`cfg.${field.key}`, cfg[field.key] ?? '');
-    // Triggers persists its whole rule list as one config string.
-    if (def.id === 'triggers') body.set('cfg.rules', cfg.rules ?? '');
-    return body;
-  }
-
-  async function persist(en: boolean, cfg: Record<string, string>): Promise<boolean> {
-    const res = await fetch('?/save', { method: 'POST', body: buildBody(en, cfg) }).catch(() => null);
+    body.set('expected_rev', String(rev));
+    body.set('partial', JSON.stringify(partial));
+    const res = await fetch('?/patch', { method: 'POST', body }).catch(() => null);
     if (!res) return false;
     const result = deserialize(await res.text());
     const payload =
       result.type === 'success' || result.type === 'failure'
-        ? (result.data as { ok?: boolean } | undefined)
+        ? (result.data as { ok?: boolean; rev?: number; conflict?: boolean } | undefined)
         : undefined;
-    return !!(result.type === 'success' && payload?.ok);
+    if (result.type === 'success' && payload?.ok) {
+      if (typeof payload.rev === 'number') rev = payload.rev;
+      return true;
+    }
+    if (payload?.conflict) {
+      await invalidateAll();
+      // The reseed effect only fires on module navigation, so refresh in place.
+      enabled = data.enabled;
+      config = { ...data.config };
+      rev = data.revision ?? 0;
+      rules = parseRules(data.config.rules ?? '');
+      toast('err', t('modules.patchConflict'));
+    }
+    return false;
+  }
+
+  function patch(partial: Record<string, string>, en: boolean): Promise<boolean> {
+    const result = writeChain.then(() => runPatch(partial, en));
+    writeChain = result.catch(() => {});
+    return result;
   }
 
   // --- Module master toggle (optimistic) -------------------------------------
@@ -96,7 +118,7 @@
     const before = enabled;
     enabled = !enabled;
     setStatus('module', 'saving');
-    if (await persist(enabled, config)) ackSaved('module');
+    if (await patch({}, enabled)) ackSaved('module');
     else {
       enabled = before;
       flagError('module');
@@ -111,7 +133,7 @@
     if (value.trim() === before.trim()) return;
     config = { ...config, [key]: value.trim() };
     setStatus(`setting:${key}`, 'saving');
-    if (await persist(enabled, config)) ackSaved(`setting:${key}`);
+    if (await patch({ [key]: value.trim() }, enabled)) ackSaved(`setting:${key}`);
     else {
       config = { ...config, [key]: before };
       flagError(`setting:${key}`);
@@ -136,7 +158,7 @@
     const was = config[key] !== 'off';
     config = { ...config, [key]: was ? 'off' : 'on' };
     setStatus(reply.key, 'saving');
-    if (await persist(enabled, config)) ackSaved(reply.key);
+    if (await patch({ [key]: was ? 'off' : 'on' }, enabled)) ackSaved(reply.key);
     else {
       config = { ...config, [key]: was ? 'on' : 'off' };
       flagError(reply.key);
@@ -150,16 +172,46 @@
   let busy = $state(false);
   const selectedReply = $derived(expanded ? def.replies.find((r) => r.key === expanded) : undefined);
 
+  // Dirty guard: close / row-switch / add all route through one confirmation so
+  // an in-progress reply or trigger edit is never silently dropped.
+  let discardOpen = $state(false);
+  let afterDiscard: (() => void) | null = null;
+  function guarded(action: () => void) {
+    if (inspectorDirty) {
+      afterDiscard = action;
+      discardOpen = true;
+    } else {
+      action();
+    }
+  }
+  function confirmDiscard() {
+    discardOpen = false;
+    const a = afterDiscard;
+    afterDiscard = null;
+    a?.();
+  }
+  function cancelDiscard() {
+    discardOpen = false;
+    afterDiscard = null;
+  }
+  // Unguarded close (after a save or delete, when there is nothing to lose).
+  function doClose() {
+    expanded = null;
+    ruleIndex = null;
+  }
+
   function openReply(reply: ModuleReply) {
     if (expanded === reply.key) {
       closeInspector();
       return;
     }
-    editMessage = config[reply.messageKey] ?? '';
-    expanded = reply.key;
+    guarded(() => {
+      editMessage = config[reply.messageKey] ?? '';
+      expanded = reply.key;
+    });
   }
   function closeInspector() {
-    expanded = null;
+    guarded(doClose);
   }
 
   async function saveReply() {
@@ -169,11 +221,11 @@
     config = { ...config, [r.messageKey]: editMessage };
     busy = true;
     setStatus(r.key, 'saving');
-    const ok = await persist(enabled, config);
+    const ok = await patch({ [r.messageKey]: editMessage }, enabled);
     busy = false;
     if (ok) {
       ackSaved(r.key);
-      closeInspector();
+      // Save keeps the inspector open on the saved reply (now clean); no close.
       toast('ok', t('modules.saved', { label: def.label }));
     } else {
       config = { ...config, [r.messageKey]: prev ?? '' };
@@ -203,7 +255,13 @@
     if (pre === 'word' || pre === 'contains' || pre === 'exact' || pre === 'prefix') return [pre, left.slice(c + 1).trim()];
     return ['word', left];
   }
+  // parseRules reads config.rules in either format: a value starting with "["
+  // is the structured JSON array (written now); anything else is the legacy
+  // "[mode:] phrase => response" line format (configs saved before the migration).
   function parseRules(raw: string): Rule[] {
+    const s = raw.trim();
+    if (!s) return [];
+    if (s[0] === '[') return parseJSONRules(s);
     const out: Rule[] = [];
     for (const line of raw.split('\n')) {
       let ln = line.trim();
@@ -224,15 +282,37 @@
     }
     return out;
   }
+  function parseJSONRules(s: string): Rule[] {
+    const modes: Match[] = ['word', 'contains', 'exact', 'prefix'];
+    try {
+      const arr = JSON.parse(s);
+      if (!Array.isArray(arr)) return [];
+      return (arr as Array<Record<string, unknown>>)
+        .map((r) => ({
+          phrase: String(r.phrase ?? ''),
+          response: String(r.response ?? ''),
+          match: (modes.includes(r.match as Match) ? (r.match as Match) : 'word'),
+          enabled: r.enabled !== false
+        }))
+        .filter((r) => r.phrase.trim() && r.response.trim());
+    } catch {
+      return [];
+    }
+  }
+  // Structured JSON: sesame's parser reads this (and still reads the legacy line
+  // format). JSON encodes any phrase safely, so "=>", a leading "#", or a "mode:"
+  // prefix no longer corrupt the round trip.
   function serializeRules(list: Rule[]): string {
-    return list
-      .filter((r) => r.phrase.trim() && r.response.trim())
-      .map((r) => {
-        const mode = r.match === 'word' ? '' : r.match + ': ';
-        const body = `${mode}${r.phrase.trim()} => ${r.response.replace(/\s*\n\s*/g, ' ').trim()}`;
-        return r.enabled ? body : `# ${body}`;
-      })
-      .join('\n');
+    return JSON.stringify(
+      list
+        .filter((r) => r.phrase.trim() && r.response.trim())
+        .map((r) => ({
+          phrase: r.phrase.trim(),
+          response: r.response.replace(/\s*\n\s*/g, ' ').trim(),
+          match: r.match,
+          enabled: r.enabled
+        }))
+    );
   }
 
   // Rules rendered as ReplyRow-shaped rows (label = phrase, preview = response).
@@ -259,31 +339,37 @@
   // draft, so the module enable and the rules save together. config is committed
   // only on success (the caller commits `rules` too).
   async function persistRules(next: Rule[]): Promise<boolean> {
-    const cfg = { ...config, rules: serializeRules(next) };
-    const ok = await persist(enabled, cfg);
-    if (ok) config = cfg;
+    const rulesStr = serializeRules(next);
+    const ok = await patch({ rules: rulesStr }, enabled);
+    if (ok) config = { ...config, rules: rulesStr };
     return ok;
   }
 
   function openRule(i: number) {
     if (expanded === `rule:${i}`) return closeInspector();
-    const r = rules[i];
-    ruleIndex = i;
-    draftPhrase = r.phrase;
-    draftMatch = r.match;
-    editMessage = r.response;
-    expanded = `rule:${i}`;
+    guarded(() => {
+      const r = rules[i];
+      ruleIndex = i;
+      draftPhrase = r.phrase;
+      draftMatch = r.match;
+      editMessage = r.response;
+      expanded = `rule:${i}`;
+    });
   }
   function addRule() {
-    ruleIndex = -1;
-    draftPhrase = '';
-    draftMatch = 'word';
-    editMessage = '';
-    expanded = 'rule:new';
+    guarded(() => {
+      ruleIndex = -1;
+      draftPhrase = '';
+      draftMatch = 'word';
+      editMessage = '';
+      expanded = 'rule:new';
+    });
   }
 
   async function saveRule() {
     if (ruleIndex === null) return;
+    // Phrases are stored as structured JSON now, so any characters are safe —
+    // no reserved-syntax restriction.
     const keepOn = ruleIndex === -1 ? true : (rules[ruleIndex]?.enabled ?? true);
     const draft: Rule = { phrase: draftPhrase.trim(), response: editMessage, match: draftMatch, enabled: keepOn };
     const next = ruleIndex === -1 ? [...rules, draft] : rules.map((r, i) => (i === ruleIndex ? draft : r));
@@ -294,7 +380,12 @@
     busy = false;
     if (ok) {
       rules = next;
-      closeInspector();
+      // Keep the inspector open on the saved rule (a new rule becomes the last
+      // row); it now reads clean.
+      if (ruleIndex === -1) {
+        ruleIndex = next.length - 1;
+        expanded = `rule:${next.length - 1}`;
+      }
       toast('ok', t('modules.saved', { label: def.label }));
     } else {
       flagError(key);
@@ -307,7 +398,7 @@
     setStatus(`rule:${i}`, 'saving');
     if (await persistRules(next)) {
       rules = next;
-      if (expanded === `rule:${i}`) closeInspector();
+      if (expanded === `rule:${i}`) doClose();
       toast('ok', t('modules.saved', { label: def.label }));
     } else {
       flagError(`rule:${i}`);
@@ -327,18 +418,25 @@
     }
   }
 
+  // Whether the open reply/trigger editor has unsaved edits (drives the guard).
+  const inspectorDirty = $derived.by(() => {
+    if (!expanded) return false;
+    if (isTriggers) {
+      if (ruleIndex === null) return false;
+      if (ruleIndex === -1) return draftPhrase.trim() !== '' || editMessage.trim() !== '';
+      const r = rules[ruleIndex];
+      return !r || draftPhrase !== r.phrase || draftMatch !== r.match || editMessage !== r.response;
+    }
+    if (selectedReply) return editMessage !== (config[selectedReply.messageKey] ?? '');
+    return false;
+  });
+
   // The inspector is open whenever a row (reply or rule) is expanded.
   const editing = $derived(!!expanded);
   const inspectorTitle = $derived(
     isTriggers ? (ruleIndex === -1 ? 'New trigger' : 'Edit trigger') : selectedReply ? selectedReply.label : t('modules.inspector')
   );
 
-  function onKey(e: KeyboardEvent) {
-    if (e.key !== 'Escape' || !expanded) return;
-    const el = e.target as HTMLElement | null;
-    if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return;
-    closeInspector();
-  }
 </script>
 
 <section class="screen active">
@@ -357,12 +455,7 @@
         <span class="tr-help">{t('modules.enabledHelp')}</span>
       </div>
       <SaveStatus state={modStatus['module'] ?? 'idle'} />
-      <button
-        class="toggle {enabled ? 'on' : ''}"
-        type="button"
-        aria-label={t('modules.toggleAria', { label: def.label })}
-        onclick={toggleModule}
-      ></button>
+      <Switch checked={enabled} label={t('modules.toggleAria', { label: def.label })} onchange={toggleModule} />
     </div>
     {#each def.settings ?? [] as field (field.key)}
       <div class="setting-row {field.type === 'textarea' ? 'stacked' : ''}">
@@ -372,13 +465,11 @@
         </label>
         <SaveStatus state={modStatus[`setting:${field.key}`] ?? 'idle'} />
         {#if field.type === 'toggle'}
-          <button
-            id="mod-setting-{field.key}"
-            class="toggle {settingToggleOn(field) ? 'on' : ''}"
-            type="button"
-            aria-label="Toggle {field.label}"
-            onclick={() => saveSetting(field, settingToggleOn(field) ? 'off' : 'on')}
-          ></button>
+          <Switch
+            checked={settingToggleOn(field)}
+            label={`Toggle ${field.label}`}
+            onchange={(v) => saveSetting(field, v ? 'on' : 'off')}
+          />
         {:else if field.type === 'select'}
           <select
             id="mod-setting-{field.key}"
@@ -413,10 +504,17 @@
     {/each}
   </Card>
 
+  {#if !enabled && hasDeck}
+    <!-- Off but configurable: state it plainly rather than dimming the surface. -->
+    <AlertBanner>{t('modules.offConfigurable')}</AlertBanner>
+  {/if}
+
   <!-- The deck: reply ledger + docked builder inspector (same as commands). A
        commands-only module (no editable replies) drops the inspector column and
-       lists its chat commands read-only instead. -->
-  <div class="deck {editing ? 'inspecting' : ''} {enabled ? '' : 'muted'} {hasInspector ? '' : 'commands-only'}">
+       lists its chat commands read-only instead. Settings-only modules render no
+       deck at all. -->
+  {#if hasDeck}
+  <div class="deck {editing ? 'inspecting' : ''} {hasInspector ? '' : 'commands-only'}">
     <DeckList>
       {#if isTriggers}
         <div class="rules-head">
@@ -474,26 +572,15 @@
       {/if}
     </DeckList>
 
-    {#if hasInspector}
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div
-      class="inspector-backdrop"
-      class:open={editing}
-      role="presentation"
-      onclick={closeInspector}
-      onkeydown={(e) => { if (e.key === 'Enter') closeInspector(); }}
-    ></div>
-    <aside class="inspector" class:open={editing} aria-label="Reply builder">
-      <div class="inspector-head">
-        <span class="inspector-tag">{inspectorTitle}</span>
-        {#if editing}
-          <button class="mini" type="button" aria-label={t('modules.closeEditor')} onclick={closeInspector}>
-            <Icon name="x" size={14} />
-          </button>
-        {/if}
-      </div>
-      {#if isTriggers}
-        {#if editing}
+    {#if hasInspector && editing}
+      <InspectorSurface
+        open
+        title={inspectorTitle}
+        controls="module-editor"
+        closeLabel={t('modules.closeEditor')}
+        onClose={closeInspector}
+      >
+        {#if isTriggers}
           <Scroller fill padding="16px" data-lenis-prevent>
             {#key expanded}
               <TriggerRuleEditor
@@ -501,36 +588,36 @@
                 bind:match={draftMatch}
                 bind:message={editMessage}
                 {busy}
+                isNew={ruleIndex === -1}
                 onSave={saveRule}
                 onCancel={closeInspector}
                 onDelete={() => (ruleIndex !== null && ruleIndex >= 0 ? deleteRule(ruleIndex) : closeInspector())}
               />
             {/key}
           </Scroller>
-        {:else}
-          <div class="inspector-idle">
-            <span class="idle-glyph"><Icon name="caps" size={18} /></span>
-            <p>Pick a trigger to edit it, or add a new one.</p>
-          </div>
+        {:else if selectedReply}
+          <Scroller fill padding="16px" data-lenis-prevent>
+            {#key selectedReply.key}
+              <ReplyEditor reply={selectedReply} bind:message={editMessage} {busy} onCancel={closeInspector} onSave={saveReply} />
+            {/key}
+          </Scroller>
         {/if}
-      {:else if selectedReply}
-        <Scroller fill padding="16px" data-lenis-prevent>
-          {#key selectedReply.key}
-            <ReplyEditor reply={selectedReply} bind:message={editMessage} {busy} onCancel={closeInspector} onSave={saveReply} />
-          {/key}
-        </Scroller>
-      {:else}
-        <div class="inspector-idle">
-          <span class="idle-glyph"><Icon name="modules" size={18} /></span>
-          <p>{t('modules.replyIdle')}</p>
-        </div>
-      {/if}
-    </aside>
+      </InspectorSurface>
     {/if}
   </div>
+  {/if}
 </section>
 
-<svelte:window onkeydown={onKey} />
+<ConfirmDialog
+  open={discardOpen}
+  title={t('modules.discardTitle')}
+  body={t('modules.discardBody')}
+  confirmLabel={t('modules.discard')}
+  cancelLabel={t('modules.keepEditing')}
+  danger
+  onCancel={cancelDiscard}
+  onConfirm={confirmDiscard}
+/>
 
 <style>
   .back {
@@ -599,14 +686,9 @@
     grid-template-columns: minmax(0, 1fr);
     gap: 16px;
     align-items: start;
-    transition: opacity var(--bb-dur-fast, 140ms) ease;
   }
-  .deck.muted { opacity: 0.72; }
   @media (min-width: 1080px) {
     .deck.inspecting { grid-template-columns: minmax(0, 1fr) 420px; }
-    .deck { grid-template-columns: minmax(0, 1fr) 300px; }
-    /* Commands-only modules have no inspector: reclaim the full width. */
-    .deck.commands-only { grid-template-columns: minmax(0, 1fr); }
   }
 
   .list :global(.row-shell:last-child) { border-bottom: none; }
@@ -661,77 +743,4 @@
     transition: background var(--bb-dur-fast, 140ms) ease;
   }
   .add-rule:hover { background: rgba(82, 183, 136, 0.14); }
-
-  .inspector {
-    position: sticky;
-    top: 62px;
-    border: 1px solid var(--rule);
-    border-top-color: var(--rule-strong);
-    border-radius: 8px;
-    background: linear-gradient(180deg, rgba(240, 236, 228, 0.03), rgba(240, 236, 228, 0.012));
-    display: flex;
-    flex-direction: column;
-    max-height: calc(100vh - 62px - 108px);
-  }
-  .inspector-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--rule);
-  }
-  .inspector-tag {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 12px;
-    letter-spacing: 0.02em;
-    color: var(--bb-tan);
-  }
-
-  .inspector-idle {
-    padding: 34px 20px;
-    text-align: center;
-    color: var(--bb-muted);
-    font-family: var(--bb-font-body);
-    font-size: 13px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 12px;
-  }
-  .idle-glyph {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 40px;
-    height: 40px;
-    border: 1px solid var(--rule-tan);
-    border-radius: 8px;
-    color: var(--bb-tan-light);
-  }
-  .inspector-idle p { margin: 0; max-width: 26ch; line-height: 1.5; }
-
-  .inspector-backdrop { display: none; }
-
-  @media (max-width: 1079px) {
-    .inspector { display: none; }
-    .inspector.open {
-      display: flex;
-      position: fixed;
-      left: 0; right: 0; bottom: 0;
-      top: auto;
-      z-index: 220;
-      max-height: 88vh;
-      border-radius: 8px 8px 0 0;
-      background: var(--bb-bg-1, #111);
-      animation: sheet-in var(--bb-dur-base, 320ms) var(--bb-ease-out-expo, cubic-bezier(.16,1,.3,1)) both;
-    }
-    .inspector-backdrop.open {
-      display: block;
-      position: fixed; inset: 0; z-index: 219;
-      background: rgba(0, 0, 0, 0.55);
-    }
-    @keyframes sheet-in { from { transform: translateY(100%); } to { transform: translateY(0); } }
-  }
 </style>

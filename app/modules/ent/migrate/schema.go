@@ -35,6 +35,7 @@ var (
 		{Name: "name", Type: field.TypeString},
 		{Name: "is_enabled", Type: field.TypeBool, Default: false},
 		{Name: "configs", Type: field.TypeJSON, Nullable: true},
+		{Name: "revision", Type: field.TypeInt, Default: 0},
 		{Name: "updated_at", Type: field.TypeTime},
 	}
 	// ModulesTable holds the schema information for the "modules" table.

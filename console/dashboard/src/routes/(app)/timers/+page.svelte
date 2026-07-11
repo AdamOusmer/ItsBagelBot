@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { enhance } from '$app/forms';
+  import { enhance, deserialize } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
   import type { SubmitFunction } from '@sveltejs/kit';
   import {
@@ -7,6 +7,8 @@
     PageHead,
     Scroller,
     ConfirmDialog,
+    EditorFooter,
+    InspectorSurface,
     toast,
     getI18n,
     blankTimer,
@@ -17,14 +19,16 @@
     DeckList,
     EmptyState
   } from '@bagel/shared';
+  import { untrack } from 'svelte';
+  import { createInspector } from '$lib/inspector/inspector.svelte';
   import TimerRow from '$lib/components/timers/TimerRow.svelte';
   import TimerEditor from '$lib/components/timers/TimerEditor.svelte';
 
   let { data } = $props();
   const { t } = getI18n();
 
-  // Local source of truth, reseeded when a fresh SSR load lands (the /events
-  // invalidation stream re-runs the loader after every confirmed write).
+  // Local list, reseeded when a fresh SSR load lands (the /events invalidation
+  // stream re-runs the loader after every confirmed write).
   // svelte-ignore state_referenced_locally
   let timers = $state<TimerDef[]>(data.timers ?? []);
   // svelte-ignore state_referenced_locally
@@ -41,56 +45,119 @@
 
   const rows = $derived(timers.toSorted((a, b) => a.intervalSeconds - b.intervalSeconds));
 
-  // --- Inspector -------------------------------------------------------------
+  // --- Inspector (shared controller over the pure state machine) --------------
   const NEW = '__new__';
-  let expanded = $state<string | null>(null);
-  let editorDraft = $state<TimerDef | null>(null);
+  const inspector = createInspector<TimerDef>();
+  // The editor binds this draft; edits flow into the machine for dirty tracking.
+  let draft = $state<TimerDef | null>(null);
   let busy = $state(false);
 
+  // Push editor changes into the machine for dirty tracking. The spread reads
+  // each field so the effect re-runs on any field mutation; the edit itself is
+  // untracked because it both reads and writes the machine's state, which would
+  // otherwise make the effect depend on state it also mutates (an unsafe cycle).
+  $effect(() => {
+    const snap = draft ? { ...draft } : null;
+    if (snap) untrack(() => inspector.edit(snap));
+  });
+
+  const creating = $derived(inspector.selectedId === NEW);
+  // Enforce the server's clamp range (60s–24h) before submitting, so the saved
+  // snapshot equals what the server stores and "Saved" is never shown for a
+  // value the server silently normalized. Mirrors clampInt in +page.server.ts.
+  const canSave = $derived(
+    inspector.dirty &&
+      !!draft &&
+      draft.message.trim().length > 0 &&
+      Number.isFinite(draft.intervalSeconds) &&
+      draft.intervalSeconds >= 60 &&
+      draft.intervalSeconds <= 86_400
+  );
+
+  // --- Dirty guard: every close/switch/new routes through one confirmation ----
+  let discardOpen = $state(false);
+  let afterDiscard: (() => void) | null = null;
+
+  function guarded(action: () => void) {
+    if (inspector.dirty) {
+      afterDiscard = action;
+      discardOpen = true;
+    } else {
+      action();
+    }
+  }
+  function confirmDiscard() {
+    discardOpen = false;
+    inspector.reset();
+    draft = null;
+    const a = afterDiscard;
+    afterDiscard = null;
+    a?.();
+  }
+  function cancelDiscard() {
+    discardOpen = false;
+    afterDiscard = null;
+  }
+
   function openNew() {
-    editorDraft = blankTimer();
-    expanded = NEW;
+    guarded(() => {
+      const b = blankTimer();
+      inspector.open(NEW, b);
+      draft = { ...b };
+    });
   }
   function openEdit(tmr: TimerDef) {
-    if (expanded === tmr.id) {
-      closeEditor();
+    if (inspector.selectedId === tmr.id) {
+      closeInspector();
       return;
     }
-    editorDraft = { ...tmr };
-    expanded = tmr.id;
+    guarded(() => {
+      inspector.open(tmr.id, { ...tmr });
+      draft = { ...tmr };
+    });
   }
-  function closeEditor() {
-    expanded = null;
-    editorDraft = null;
+  function closeInspector() {
+    guarded(() => {
+      inspector.reset();
+      draft = null;
+    });
   }
 
   type ActionResult = { ok?: boolean; error?: string };
-
   function payloadOf(result: unknown): ActionResult | undefined {
     const r = result as { type: string; data?: ActionResult };
     return r.type === 'success' || r.type === 'failure' ? r.data : undefined;
   }
-
   function failed(payload: ActionResult | undefined, fallbackKey: string) {
     toast('err', payload?.error ?? t(fallbackKey));
   }
 
-  // --- Save (create or update from the inspector) -----------------------------
+  // --- Save: immutable snapshot + request id; a late response can't cross rows -
   const saveSubmit: SubmitFunction = () => {
-    const d = editorDraft;
-    if (!d) return;
-    const creating = expanded === NEW;
+    const started = inspector.beginSave();
+    const requestId = started?.requestId;
+    const wasCreating = creating;
     busy = true;
     return async ({ result }) => {
       busy = false;
       const payload = payloadOf(result);
-      if (result.type === 'success' && payload?.ok) {
-        toast('ok', t(creating ? 'timers.toastCreated' : 'timers.toastSaved'));
-        closeEditor();
+      const ok = result.type === 'success' && payload?.ok === true;
+      // applied is false when the selection moved on during the request, so a
+      // late response for one timer never mutates another's editor.
+      const applied = requestId ? inspector.resolved(requestId, { type: ok ? 'success' : 'error' }) : false;
+      if (ok) {
+        toast('ok', t(wasCreating ? 'timers.toastCreated' : 'timers.toastSaved'));
+        // A create has no client-side id to keep editing, so it closes — but only
+        // if this response still owns the open editor. An update stays open and
+        // clean (Save does not close the inspector).
+        if (wasCreating && applied) {
+          inspector.reset();
+          draft = null;
+        }
         await invalidateAll();
-        return;
+      } else {
+        failed(payload, 'timers.toastSaveFailed');
       }
-      failed(payload, 'timers.toastSaveFailed');
     };
   };
 
@@ -108,33 +175,43 @@
       };
     };
 
-  // --- Delete (confirm dialog) -------------------------------------------------
-  let deleteTarget = $state<TimerDef | null>(null);
-  let deleting = $state(false);
-  let deleteForm = $state<HTMLFormElement | null>(null);
+  // --- Delete: optimistic remove + Undo (timers are locally recreatable) ------
+  function postAction(action: string, body: FormData): Promise<ActionResult | null> {
+    return fetch(`?/${action}`, { method: 'POST', body })
+      .then(async (res) => {
+        const result = deserialize(await res.text());
+        return result.type === 'success' || result.type === 'failure'
+          ? ((result.data as ActionResult | undefined) ?? null)
+          : null;
+      })
+      .catch(() => null);
+  }
 
-  const deleteSubmit: SubmitFunction = () => {
-    deleting = true;
-    return async ({ result }) => {
-      deleting = false;
-      const target = deleteTarget;
-      deleteTarget = null;
-      const payload = payloadOf(result);
-      if (result.type === 'success' && payload?.ok) {
-        if (target) {
-          timers = timers.filter((x) => x.id !== target.id);
-          if (expanded === target.id) closeEditor();
-          toast('ok', t('timers.toastDeleted'));
-        }
-        await invalidateAll();
-        return;
-      }
-      failed(payload, 'timers.toastDeleteFailed');
-    };
-  };
-
-  function onKey(e: KeyboardEvent) {
-    if (e.key === 'Escape' && editorDraft) closeEditor();
+  async function onDelete(tmr: TimerDef) {
+    timers = timers.filter((x) => x.id !== tmr.id);
+    if (inspector.selectedId === tmr.id) {
+      inspector.reset();
+      draft = null;
+    }
+    const fd = new FormData();
+    fd.set('id', tmr.id);
+    const res = await postAction('delete', fd);
+    if (!res?.ok) {
+      timers = [...timers, tmr];
+      failed(res ?? undefined, 'timers.toastDeleteFailed');
+      return;
+    }
+    toast('ok', t('timers.toastDeleted'), {
+      undoLabel: t('timers.undo'),
+      onUndo: () => undoDelete(tmr)
+    });
+  }
+  async function undoDelete(tmr: TimerDef) {
+    const fd = new FormData();
+    fd.set('timer', JSON.stringify(tmr));
+    const res = await postAction('create', fd);
+    if (res?.ok) await invalidateAll();
+    else failed(res ?? undefined, 'timers.toastDeleteFailed');
   }
 </script>
 
@@ -159,24 +236,24 @@
       />
     {/snippet}
     {#snippet trail()}
-      <button class="btn primary" onclick={openNew} disabled={expanded === NEW}>
+      <button class="btn primary" onclick={openNew} disabled={creating}>
         <Icon name="plus" size={14} /> {t('timers.newTimer')}
       </button>
     {/snippet}
   </PageToolbar>
 
-  <!-- The deck: ledger list left, docked inspector right — same layout as
-       channelpoints/commands, so every management screen reads as one system. -->
-  <div class="deck {editorDraft ? 'inspecting' : ''}">
+  <!-- The deck: full-width ledger list until a selection opens the docked
+       inspector (no idle panel reserving a third of the row). -->
+  <div class="deck {inspector.isOpen ? 'inspecting' : ''}">
     <DeckList>
       <div class="list">
         {#each rows as tmr, i (tmr.id)}
           <TimerRow
             timer={tmr}
             index={i + 1}
-            expanded={expanded === tmr.id}
+            expanded={inspector.selectedId === tmr.id}
             onExpand={() => openEdit(tmr)}
-            onDelete={() => (deleteTarget = tmr)}
+            onDelete={() => onDelete(tmr)}
             toggleSubmit={toggleSubmit(tmr)}
           />
         {/each}
@@ -188,67 +265,57 @@
       </div>
     </DeckList>
 
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div
-      class="inspector-backdrop"
-      class:open={!!editorDraft}
-      role="presentation"
-      onclick={closeEditor}
-      onkeydown={(e) => {
-        if (e.key === 'Enter') closeEditor();
-      }}
-    ></div>
-    <aside class="inspector" class:open={!!editorDraft} aria-label={t('timers.inspector')}>
-      <div class="inspector-head">
-        <span class="inspector-tag">
-          {#if editorDraft}
-            {expanded === NEW ? t('timers.newTimer') : t('timers.editing')}
-          {:else}
-            {t('timers.inspector')}
-          {/if}
-        </span>
-        {#if editorDraft}
-          <button class="mini" type="button" aria-label={t('common.cancel')} onclick={closeEditor}>
-            <Icon name="x" size={14} />
-          </button>
-        {/if}
-      </div>
-      {#if editorDraft}
-        <Scroller fill padding="16px" data-lenis-prevent>
-          {#key expanded}
-            <TimerEditor bind:draft={editorDraft} isNew={expanded === NEW} {busy} onCancel={closeEditor} onSubmit={saveSubmit} />
-          {/key}
-        </Scroller>
-      {:else}
-        <div class="inspector-idle">
-          <span class="idle-glyph"><Icon name="clock" size={18} /></span>
-          <p>{t('timers.inspectorIdle')}</p>
-          <button class="btn ghost" onclick={openNew}><Icon name="plus" size={13} /> {t('timers.newTimer')}</button>
-        </div>
-      {/if}
-    </aside>
+    {#if inspector.isOpen && draft}
+      <InspectorSurface
+        open
+        title={creating ? t('timers.newTimer') : t('timers.editing')}
+        controls="timer-editor"
+        closeLabel={t('common.cancel')}
+        onClose={closeInspector}
+      >
+        <form method="POST" action={creating ? '?/create' : '?/update'} novalidate use:enhance={saveSubmit} class="inspector-form">
+          <input type="hidden" name="timer" value={JSON.stringify(draft)} />
+          <Scroller fill padding="16px" data-lenis-prevent>
+            <!-- Keyed on the selection so switching timers mounts a FRESH editor;
+                 TimerEditor snapshots minutes from the draft at mount, and reusing
+                 one instance would write the previous timer's interval into the
+                 new draft. -->
+            {#key inspector.selectedId}
+              <TimerEditor bind:draft />
+            {/key}
+          </Scroller>
+          <EditorFooter
+            status={inspector.status}
+            dirty={inspector.dirty}
+            {canSave}
+            saveLabel={creating ? t('timers.create') : t('timers.saveChanges')}
+            cancelLabel={t('common.cancel')}
+            savingLabel={t('timers.saving')}
+            savedLabel={t('timers.saved')}
+            errorLabel={t('timers.toastSaveFailed')}
+            dirtyLabel={t('timers.unsavedChanges')}
+            onCancel={closeInspector}
+          />
+        </form>
+      </InspectorSurface>
+    {/if}
   </div>
 </section>
 
-<svelte:window onkeydown={onKey} />
-
+<!-- Dirty guard: one confirmation for close / row-switch / new / cancel. -->
 <ConfirmDialog
-  open={deleteTarget !== null}
-  title={t('timers.deleteTitle')}
-  body={t('timers.deleteBody')}
-  confirmLabel={t('timers.del')}
-  cancelLabel={t('common.cancel')}
+  open={discardOpen}
+  title={t('timers.discardTitle')}
+  body={t('timers.discardBody')}
+  confirmLabel={t('timers.discard')}
+  cancelLabel={t('timers.keepEditing')}
   danger
-  busy={deleting}
-  onCancel={() => (deleteTarget = null)}
-  onConfirm={() => deleteForm?.requestSubmit()}
+  onCancel={cancelDiscard}
+  onConfirm={confirmDiscard}
 />
-<form method="POST" action="?/delete" use:enhance={deleteSubmit} bind:this={deleteForm} hidden>
-  <input type="hidden" name="id" value={deleteTarget?.id ?? ''} />
-</form>
 
 <style>
-  /* ── the deck: list + docked inspector (mirrors channelpoints/commands) ── */
+  /* the deck: full-width list, docked inspector only when a row is open. */
   .deck {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
@@ -257,85 +324,11 @@
   }
   @media (min-width: 1080px) {
     .deck.inspecting { grid-template-columns: minmax(0, 1fr) 420px; }
-    .deck { grid-template-columns: minmax(0, 1fr) 300px; }
   }
 
   .list :global(.row-shell:last-child) { border-bottom: none; }
 
-  .inspector {
-    position: sticky;
-    top: 62px;
-    border: 1px solid var(--rule);
-    border-top-color: var(--rule-strong);
-    border-radius: 8px;
-    background: linear-gradient(180deg, rgba(240, 236, 228, 0.03), rgba(240, 236, 228, 0.012));
-    display: flex;
-    flex-direction: column;
-    max-height: calc(100vh - 62px - 108px);
-  }
-  .inspector-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--rule);
-  }
-  .inspector-tag {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 12px;
-    letter-spacing: 0.02em;
-    color: var(--bb-tan);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .inspector-idle {
-    padding: 34px 20px;
-    text-align: center;
-    color: var(--bb-muted);
-    font-family: var(--bb-font-body);
-    font-size: 13px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 12px;
-  }
-  .idle-glyph {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 40px;
-    height: 40px;
-    border: 1px solid var(--rule-tan);
-    border-radius: 8px;
-    color: var(--bb-tan-light);
-  }
-  .inspector-idle p { margin: 0; max-width: 26ch; line-height: 1.5; }
-
-  .inspector-backdrop { display: none; }
-
-  /* Mobile / narrow: the inspector docks as a bottom sheet over the list. */
-  @media (max-width: 1079px) {
-    .inspector { display: none; }
-    .inspector.open {
-      display: flex;
-      position: fixed;
-      left: 0; right: 0; bottom: 0;
-      top: auto;
-      z-index: 220;
-      max-height: 88vh;
-      border-radius: 8px 8px 0 0;
-      background: var(--bb-bg-1, #111);
-      animation: sheet-in var(--bb-dur-base, 320ms) var(--bb-ease-out-expo, cubic-bezier(.16,1,.3,1)) both;
-    }
-    .inspector-backdrop.open {
-      display: block;
-      position: fixed; inset: 0; z-index: 219;
-      background: rgba(0, 0, 0, 0.55);
-    }
-    @keyframes sheet-in { from { transform: translateY(100%); } to { transform: translateY(0); } }
-  }
+  /* The editor form fills the inspector surface below its head; the Scroller
+     scrolls and the EditorFooter stays pinned at the bottom. */
+  .inspector-form { display: flex; flex-direction: column; min-height: 0; flex: 1; }
 </style>

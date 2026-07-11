@@ -26,6 +26,12 @@ func (Modules) Fields() []ent.Field {
 
 		field.JSON("configs", []byte{}).Optional(),
 
+		// revision is the optimistic-concurrency token for config writes. Patch
+		// bumps it on every successful write and rejects a write whose expected
+		// revision no longer matches, so two clients editing the same module can't
+		// silently clobber each other. Additive: every existing row defaults to 0.
+		field.Int("revision").Default(0),
+
 		field.Time("updated_at").Default(time.Now).UpdateDefault(time.Now),
 	}
 }

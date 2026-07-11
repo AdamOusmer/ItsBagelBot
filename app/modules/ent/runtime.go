@@ -32,8 +32,12 @@ func init() {
 	modulesDescIsEnabled := modulesFields[2].Descriptor()
 	// modules.DefaultIsEnabled holds the default value on creation for the is_enabled field.
 	modules.DefaultIsEnabled = modulesDescIsEnabled.Default.(bool)
+	// modulesDescRevision is the schema descriptor for revision field.
+	modulesDescRevision := modulesFields[4].Descriptor()
+	// modules.DefaultRevision holds the default value on creation for the revision field.
+	modules.DefaultRevision = modulesDescRevision.Default.(int)
 	// modulesDescUpdatedAt is the schema descriptor for updated_at field.
-	modulesDescUpdatedAt := modulesFields[4].Descriptor()
+	modulesDescUpdatedAt := modulesFields[5].Descriptor()
 	// modules.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	modules.DefaultUpdatedAt = modulesDescUpdatedAt.Default.(func() time.Time)
 	// modules.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.

@@ -20,6 +20,7 @@
     match = $bindable('word' as Match),
     message = $bindable(''),
     busy = false,
+    isNew = false,
     onSave,
     onCancel,
     onDelete
@@ -28,6 +29,7 @@
     match: Match;
     message: string;
     busy?: boolean;
+    isNew?: boolean;
     onSave: () => void;
     onCancel: () => void;
     onDelete: () => void;
@@ -98,9 +100,12 @@
   />
 
   <div class="actions">
-    <button type="button" class="btn danger" onclick={onDelete} disabled={busy}>
-      <Icon name="trash" size={14} /> Delete
-    </button>
+    {#if !isNew}
+      <!-- Only an existing rule can be deleted; a new one is cancelled, not deleted. -->
+      <button type="button" class="btn danger" onclick={onDelete} disabled={busy}>
+        <Icon name="trash" size={14} /> Delete
+      </button>
+    {/if}
     <span class="spacer"></span>
     <button type="button" class="btn ghost" onclick={onCancel} disabled={busy}>{t('common.cancel')}</button>
     <button type="button" class="btn primary" onclick={onSave} disabled={busy || !canSave}>

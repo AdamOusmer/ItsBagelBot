@@ -75,6 +75,27 @@ func (_u *ModulesUpdate) ClearConfigs() *ModulesUpdate {
 	return _u
 }
 
+// SetRevision sets the "revision" field.
+func (_u *ModulesUpdate) SetRevision(v int) *ModulesUpdate {
+	_u.mutation.ResetRevision()
+	_u.mutation.SetRevision(v)
+	return _u
+}
+
+// SetNillableRevision sets the "revision" field if the given value is not nil.
+func (_u *ModulesUpdate) SetNillableRevision(v *int) *ModulesUpdate {
+	if v != nil {
+		_u.SetRevision(*v)
+	}
+	return _u
+}
+
+// AddRevision adds value to the "revision" field.
+func (_u *ModulesUpdate) AddRevision(v int) *ModulesUpdate {
+	_u.mutation.AddRevision(v)
+	return _u
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (_u *ModulesUpdate) SetUpdatedAt(v time.Time) *ModulesUpdate {
 	_u.mutation.SetUpdatedAt(v)
@@ -161,6 +182,12 @@ func (_u *ModulesUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if _u.mutation.ConfigsCleared() {
 		_spec.ClearField(modules.FieldConfigs, field.TypeJSON)
 	}
+	if value, ok := _u.mutation.Revision(); ok {
+		_spec.SetField(modules.FieldRevision, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedRevision(); ok {
+		_spec.AddField(modules.FieldRevision, field.TypeInt, value)
+	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(modules.FieldUpdatedAt, field.TypeTime, value)
 	}
@@ -227,6 +254,27 @@ func (_u *ModulesUpdateOne) AppendConfigs(v []uint8) *ModulesUpdateOne {
 // ClearConfigs clears the value of the "configs" field.
 func (_u *ModulesUpdateOne) ClearConfigs() *ModulesUpdateOne {
 	_u.mutation.ClearConfigs()
+	return _u
+}
+
+// SetRevision sets the "revision" field.
+func (_u *ModulesUpdateOne) SetRevision(v int) *ModulesUpdateOne {
+	_u.mutation.ResetRevision()
+	_u.mutation.SetRevision(v)
+	return _u
+}
+
+// SetNillableRevision sets the "revision" field if the given value is not nil.
+func (_u *ModulesUpdateOne) SetNillableRevision(v *int) *ModulesUpdateOne {
+	if v != nil {
+		_u.SetRevision(*v)
+	}
+	return _u
+}
+
+// AddRevision adds value to the "revision" field.
+func (_u *ModulesUpdateOne) AddRevision(v int) *ModulesUpdateOne {
+	_u.mutation.AddRevision(v)
 	return _u
 }
 
@@ -345,6 +393,12 @@ func (_u *ModulesUpdateOne) sqlSave(ctx context.Context) (_node *Modules, err er
 	}
 	if _u.mutation.ConfigsCleared() {
 		_spec.ClearField(modules.FieldConfigs, field.TypeJSON)
+	}
+	if value, ok := _u.mutation.Revision(); ok {
+		_spec.SetField(modules.FieldRevision, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedRevision(); ok {
+		_spec.AddField(modules.FieldRevision, field.TypeInt, value)
 	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(modules.FieldUpdatedAt, field.TypeTime, value)

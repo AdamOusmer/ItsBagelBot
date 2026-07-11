@@ -7,6 +7,7 @@
     PageHead,
     Scroller,
     ConfirmDialog,
+    InspectorSurface,
     toast,
     getI18n,
     blankReward,
@@ -51,21 +52,61 @@
   let editorDraft = $state<ChannelPointReward | null>(null);
   let busy = $state(false);
 
+  // Dirty guard: close / row-switch / new confirm before dropping an in-progress
+  // reward edit.
+  const committed = $derived.by<ChannelPointReward | null>(() => {
+    if (!editorDraft) return null;
+    if (expanded === NEW) return blankReward();
+    return rewards.find((r) => r.id === expanded) ?? null;
+  });
+  const isDirty = $derived(
+    !!editorDraft && committed !== null ? JSON.stringify(editorDraft) !== JSON.stringify(committed) : false
+  );
+
+  let discardOpen = $state(false);
+  let afterDiscard: (() => void) | null = null;
+  function guarded(action: () => void) {
+    if (isDirty) {
+      afterDiscard = action;
+      discardOpen = true;
+    } else {
+      action();
+    }
+  }
+  function confirmDiscard() {
+    discardOpen = false;
+    const a = afterDiscard;
+    afterDiscard = null;
+    a?.();
+  }
+  function cancelDiscard() {
+    discardOpen = false;
+    afterDiscard = null;
+  }
+  // Unguarded close (after a save / delete, or a scope error).
+  function doClose() {
+    expanded = null;
+    editorDraft = null;
+  }
+
   function openNew() {
-    editorDraft = blankReward();
-    expanded = NEW;
+    guarded(() => {
+      editorDraft = blankReward();
+      expanded = NEW;
+    });
   }
   function openEdit(r: ChannelPointReward) {
     if (expanded === r.id) {
       closeEditor();
       return;
     }
-    editorDraft = { ...r };
-    expanded = r.id;
+    guarded(() => {
+      editorDraft = { ...r };
+      expanded = r.id;
+    });
   }
   function closeEditor() {
-    expanded = null;
-    editorDraft = null;
+    guarded(doClose);
   }
 
   type ActionResult = { ok?: boolean; missingScope?: boolean; error?: string };
@@ -78,7 +119,7 @@
   function failed(payload: ActionResult | undefined, fallbackKey: string) {
     if (payload?.missingScope) {
       missingScope = true;
-      closeEditor();
+      doClose();
       return;
     }
     toast('err', payload?.error ?? t(fallbackKey));
@@ -95,7 +136,9 @@
       const payload = payloadOf(result);
       if (result.type === 'success' && payload?.ok) {
         toast('ok', t(creating ? 'channelpoints.toastCreated' : 'channelpoints.toastSaved', { name: d.title }));
-        closeEditor();
+        // A create closes (no client id to keep editing); an update keeps the
+        // inspector open. invalidateAll reseeds rewards so the draft reads clean.
+        if (creating) doClose();
         await invalidateAll();
         return;
       }
@@ -132,7 +175,7 @@
       if (result.type === 'success' && payload?.ok) {
         if (target) {
           rewards = rewards.filter((x) => x.id !== target.id);
-          if (expanded === target.id) closeEditor();
+          if (expanded === target.id) doClose();
           toast('ok', t('channelpoints.toastDeleted', { name: target.title }));
         }
         await invalidateAll();
@@ -143,10 +186,6 @@
   };
 
   const selected = $derived(expanded && expanded !== NEW ? rewards.find((r) => r.id === expanded) : undefined);
-
-  function onKey(e: KeyboardEvent) {
-    if (e.key === 'Escape' && editorDraft) closeEditor();
-  }
 </script>
 
 <section class="screen active">
@@ -208,47 +247,34 @@
       </div>
     </DeckList>
 
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div
-      class="inspector-backdrop"
-      class:open={!!editorDraft}
-      role="presentation"
-      onclick={closeEditor}
-      onkeydown={(e) => { if (e.key === 'Enter') closeEditor(); }}
-    ></div>
-    <aside class="inspector" class:open={!!editorDraft} aria-label={t('channelpoints.inspector')}>
-      <div class="inspector-head">
-        <span class="inspector-tag">
-          {#if editorDraft}
-            {expanded === NEW ? t('channelpoints.newReward') : t('channelpoints.editing', { name: selected?.title ?? '' })}
-          {:else}
-            {t('channelpoints.inspector')}
-          {/if}
-        </span>
-        {#if editorDraft}
-          <button class="mini" type="button" aria-label={t('common.cancel')} onclick={closeEditor}>
-            <Icon name="x" size={14} />
-          </button>
-        {/if}
-      </div>
-      {#if editorDraft}
+    {#if editorDraft}
+      <InspectorSurface
+        open
+        title={expanded === NEW ? t('channelpoints.newReward') : t('channelpoints.editing', { name: selected?.title ?? '' })}
+        controls="reward-editor"
+        closeLabel={t('common.cancel')}
+        onClose={closeEditor}
+      >
         <Scroller fill padding="16px" data-lenis-prevent>
           {#key expanded}
             <RewardEditor bind:draft={editorDraft} isNew={expanded === NEW} {busy} onCancel={closeEditor} onSubmit={saveSubmit} />
           {/key}
         </Scroller>
-      {:else}
-        <div class="inspector-idle">
-          <span class="idle-glyph"><Icon name="gem" size={18} /></span>
-          <p>{t('channelpoints.inspectorIdle')}</p>
-          <button class="btn ghost" onclick={openNew}><Icon name="plus" size={13} /> {t('channelpoints.newReward')}</button>
-        </div>
-      {/if}
-    </aside>
+      </InspectorSurface>
+    {/if}
   </div>
 </section>
 
-<svelte:window onkeydown={onKey} />
+<ConfirmDialog
+  open={discardOpen}
+  title={t('channelpoints.discardTitle')}
+  body={t('channelpoints.discardBody')}
+  confirmLabel={t('channelpoints.discard')}
+  cancelLabel={t('channelpoints.keepEditing')}
+  danger
+  onCancel={cancelDiscard}
+  onConfirm={confirmDiscard}
+/>
 
 <ConfirmDialog
   open={deleteTarget !== null}
@@ -266,7 +292,7 @@
 </form>
 
 <style>
-  /* ── the deck: list + docked inspector (mirrors the commands page) ── */
+  /* the deck: full-width list until a selection opens the docked inspector. */
   .deck {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
@@ -275,85 +301,7 @@
   }
   @media (min-width: 1080px) {
     .deck.inspecting { grid-template-columns: minmax(0, 1fr) 420px; }
-    .deck { grid-template-columns: minmax(0, 1fr) 300px; }
   }
 
   .list :global(.row-shell:last-child) { border-bottom: none; }
-
-  .inspector {
-    position: sticky;
-    top: 62px;
-    border: 1px solid var(--rule);
-    border-top-color: var(--rule-strong);
-    border-radius: 8px;
-    background: linear-gradient(180deg, rgba(240, 236, 228, 0.03), rgba(240, 236, 228, 0.012));
-    display: flex;
-    flex-direction: column;
-    max-height: calc(100vh - 62px - 108px);
-  }
-  .inspector-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--rule);
-  }
-  .inspector-tag {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 12px;
-    letter-spacing: 0.02em;
-    color: var(--bb-tan);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .inspector-idle {
-    padding: 34px 20px;
-    text-align: center;
-    color: var(--bb-muted);
-    font-family: var(--bb-font-body);
-    font-size: 13px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 12px;
-  }
-  .idle-glyph {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 40px;
-    height: 40px;
-    border: 1px solid var(--rule-tan);
-    border-radius: 8px;
-    color: var(--bb-tan-light);
-  }
-  .inspector-idle p { margin: 0; max-width: 26ch; line-height: 1.5; }
-
-  .inspector-backdrop { display: none; }
-
-  /* Mobile / narrow: the inspector docks as a bottom sheet over the list. */
-  @media (max-width: 1079px) {
-    .inspector { display: none; }
-    .inspector.open {
-      display: flex;
-      position: fixed;
-      left: 0; right: 0; bottom: 0;
-      top: auto;
-      z-index: 220;
-      max-height: 88vh;
-      border-radius: 8px 8px 0 0;
-      background: var(--bb-bg-1, #111);
-      animation: sheet-in var(--bb-dur-base, 320ms) var(--bb-ease-out-expo, cubic-bezier(.16,1,.3,1)) both;
-    }
-    .inspector-backdrop.open {
-      display: block;
-      position: fixed; inset: 0; z-index: 219;
-      background: rgba(0, 0, 0, 0.55);
-    }
-    @keyframes sheet-in { from { transform: translateY(100%); } to { transform: translateY(0); } }
-  }
 </style>

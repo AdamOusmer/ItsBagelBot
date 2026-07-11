@@ -149,6 +149,33 @@ export async function upsertModule(
   }
 }
 
+// patchModule merges a subset of config keys into one module under optimistic
+// concurrency. `partial` carries only the keys to change (an explicit "" clears a
+// key); `expectedRev` is the revision the client last read. The service reports a
+// conflict when the stored revision has moved on, so the caller reloads and
+// retries rather than clobbering a concurrent edit. Returns the new revision.
+export interface ModulePatch {
+  userId: string;
+  name: string;
+  isEnabled: boolean;
+  partial: Record<string, string>;
+  expectedRev: number;
+}
+
+export async function patchModule(p: ModulePatch): Promise<{ rev: number; conflict: boolean }> {
+  const reply = await rpc<{ rev?: number; conflict?: boolean }>(`${SUB.modules}.patch`, {
+    user_id: p.userId,
+    name: p.name,
+    is_enabled: p.isEnabled,
+    configs: p.partial,
+    expected_rev: p.expectedRev
+  });
+  if (reply.conflict) return { rev: reply.rev ?? p.expectedRev, conflict: true };
+  // Landed: drop the cached projection so the next read reflects the merged blob.
+  invalidate(cacheKey('modules', p.userId));
+  return { rev: reply.rev ?? p.expectedRev + 1, conflict: false };
+}
+
 export interface CommandInput {
   name: string;
   aliases: string[];
