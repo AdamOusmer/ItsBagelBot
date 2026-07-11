@@ -9,6 +9,8 @@
     AlertBanner,
     DeckList,
     EmptyState,
+    InspectorSurface,
+    ConfirmDialog,
     toast,
     normName,
     getI18n,
@@ -86,8 +88,8 @@
   }
 
   // --- Per-row save-state machine ------------------------------------------
-  // saving -> saved (server ack) -> live (~2.5s later: the write-behind flush +
-  // projector hop have realistically landed) -> idle. Error short-circuits.
+  // saving -> saved (server ack) -> idle. There is no timer-driven "live"/"synced"
+  // claim: the dashboard has no delivery ack, so it must not assert one.
   let rowStatus = $state<Record<string, SaveState>>({});
   const statusTimers = new Map<string, ReturnType<typeof setTimeout>[]>();
 
@@ -103,10 +105,7 @@
 
   function ackSaved(name: string) {
     setStatus(name, 'saved');
-    statusTimers.set(name, [
-      setTimeout(() => (rowStatus = { ...rowStatus, [name]: 'live' }), 2500),
-      setTimeout(() => (rowStatus = { ...rowStatus, [name]: 'idle' }), 7000)
-    ]);
+    statusTimers.set(name, [setTimeout(() => (rowStatus = { ...rowStatus, [name]: 'idle' }), 3000)]);
   }
 
   function flagError(name: string) {
@@ -198,55 +197,92 @@
     };
   }
 
-  // Leaving a command — switching rows, starting a new one, or closing — is a
-  // deliberate act: drop the open command's in-progress sessionStorage draft so
-  // reopening shows the real command, not a silent "restore". The mirror only
-  // exists so a forced browser reload can recover work that was never left.
-  function discardOpenDraft() {
-    if (editorDraft && !editorDraft.builtin) {
-      clearDraft(editorDraft.edit ? editorDraft.originalName : '', editorDraft.edit);
+  // Bumped to remount the editor with a fresh baseline (after save, or on open).
+  let editorGen = $state(0);
+
+  // The committed baseline for the open draft (what "saved" looks like), used to
+  // tell whether the editor is dirty. Built-ins are read-only (never dirty).
+  const committedDraft = $derived.by<CommandDraft | null>(() => {
+    if (!editorDraft || editorDraft.builtin) return null;
+    if (editorDraft.edit) {
+      const cmd = items.find((c) => c.name === editorDraft!.originalName);
+      return cmd ? fromView(cmd) : null;
     }
+    return blankDraft();
+  });
+  const isDirty = $derived(
+    !!editorDraft && !editorDraft.builtin && committedDraft !== null
+      ? JSON.stringify(editorDraft) !== JSON.stringify(committedDraft)
+      : false
+  );
+
+  // Dirty guard: close / row-switch / new all route through one confirmation
+  // rather than silently dropping in-progress edits. The sessionStorage mirror
+  // still backs a forced browser reload; a deliberate discard clears it.
+  let discardOpen = $state(false);
+  let afterDiscard: (() => void) | null = null;
+  function guarded(action: () => void) {
+    if (isDirty) {
+      afterDiscard = action;
+      discardOpen = true;
+    } else {
+      action();
+    }
+  }
+  function confirmDiscard() {
+    discardOpen = false;
+    if (editorDraft && !editorDraft.builtin) clearDraft(editorDraft.edit ? editorDraft.originalName : '', editorDraft.edit);
+    draftVersion++;
+    const a = afterDiscard;
+    afterDiscard = null;
+    a?.();
+  }
+  function cancelDiscard() {
+    discardOpen = false;
+    afterDiscard = null;
+  }
+
+  function doOpenNew() {
+    serverErrors = null;
+    // A draft under the "new" key only survives a forced reload; restore quietly.
+    editorDraft = loadDraft('', false) ?? blankDraft();
+    expanded = NEW;
+    editorGen++;
+  }
+  function doOpenEdit(c: CommandView) {
+    serverErrors = null;
+    // Built-ins have no editable draft: read-only preview + toggle.
+    if (c.builtin) {
+      editorDraft = { ...blankDraft(), edit: true, name: c.name, originalName: c.name, is_active: c.is_active, builtin: true };
+      expanded = c.name;
+      editorGen++;
+      return;
+    }
+    // loadDraft only returns something after a forced reload; restore quietly.
+    editorDraft = loadDraft(c.name, true) ?? fromView(c);
+    expanded = c.name;
+    editorGen++;
+  }
+  // Unguarded close for the delete path (the command is already gone).
+  function doCloseEditor() {
+    expanded = null;
+    editorDraft = null;
+    serverErrors = null;
     draftVersion++;
   }
 
   function openNew() {
-    serverErrors = null;
-    discardOpenDraft();
-    // A draft under the "new" key only survives a forced reload now; restore it
-    // quietly (no toast) when it does.
-    editorDraft = loadDraft('', false) ?? blankDraft();
-    expanded = NEW;
+    guarded(doOpenNew);
   }
-
   function openEdit(c: CommandView) {
     if (expanded === c.name) {
       closeEditor();
       return;
     }
-    serverErrors = null;
-    discardOpenDraft();
-    // Built-ins have no editable draft: the inspector is a read-only preview +
-    // toggle, so skip the sessionStorage draft machinery entirely.
-    if (c.builtin) {
-      editorDraft = { ...blankDraft(), edit: true, name: c.name, originalName: c.name, is_active: c.is_active, builtin: true };
-      expanded = c.name;
-      return;
-    }
-    // loadDraft only returns something after a forced reload (deliberate exits
-    // clear it above); restore it quietly, no toast.
-    editorDraft = loadDraft(c.name, true) ?? fromView(c);
-    expanded = c.name;
+    guarded(() => doOpenEdit(c));
   }
-
-  // Explicit close (cancel / X / backdrop / Escape / collapse) drops the draft:
-  // the sessionStorage mirror exists only to survive a reload, so any deliberate
-  // exit discards work-in-progress. Save clears its own draft before landing here.
   function closeEditor() {
-    if (editorDraft) clearDraft(editorDraft.edit ? editorDraft.originalName : '', editorDraft.edit);
-    expanded = null;
-    editorDraft = null;
-    serverErrors = null;
-    draftVersion++;
+    guarded(doCloseEditor);
   }
 
   const rowHasDraft = (name: string) => {
@@ -290,7 +326,18 @@
         applyResult({ ...payload, silent: true });
         clearDraft(d.edit ? d.originalName : '', d.edit);
         ackSaved(key);
-        closeEditor();
+        // Save keeps the inspector open on the saved command (renamed or not),
+        // re-seeded so it reads clean; editorGen++ remounts the editor with a
+        // fresh baseline so it is no longer dirty.
+        const saved = items.find((c) => c.name === key);
+        if (saved) {
+          editorDraft = fromView(saved);
+          expanded = key;
+          serverErrors = null;
+          editorGen++;
+        } else {
+          doCloseEditor();
+        }
         return;
       }
 
@@ -398,7 +445,7 @@
   async function requestDelete(c: CommandView) {
     const snapshot = { ...c, aliases: [...(c.aliases ?? [])] };
     items = items.filter((x) => x.name !== c.name);
-    if (expanded === c.name) closeEditor();
+    if (expanded === c.name) doCloseEditor();
     clearDraft(c.name, true);
     draftVersion++;
 
@@ -429,6 +476,15 @@
     expanded && expanded !== NEW ? items.find((c) => c.name === expanded) : undefined
   );
 
+  // The open editor's footer status. Maps the legacy 'live' row state (no longer
+  // produced) to 'saved' so it fits the footer's state set.
+  type FooterStatus = 'idle' | 'saving' | 'saved' | 'error' | 'conflict';
+  function footerStatus(): FooterStatus {
+    if (busy) return 'saving';
+    const s = rowStatus[expanded ?? ''] ?? 'idle';
+    return s === 'live' ? 'saved' : (s as FooterStatus);
+  }
+
   // --- Keyboard control: "/" jumps to search, "n" starts a new command,
   // Escape closes the inspector. Ignored while typing in any field. ---
   let searchInput = $state<HTMLInputElement | null>(null);
@@ -438,11 +494,9 @@
     return !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
   }
 
+  // Escape is owned by the InspectorSurface (it yields to the discard dialog);
+  // the page only handles the search / new shortcuts.
   function onKey(e: KeyboardEvent) {
-    if (e.key === 'Escape') {
-      if (editorDraft) closeEditor();
-      return;
-    }
     if (isTyping(e) || e.metaKey || e.ctrlKey || e.altKey) return;
     if (e.key === '/') {
       e.preventDefault();
@@ -519,37 +573,22 @@
       </div>
     </DeckList>
 
-    <!-- Backdrop for the mobile bottom-sheet; Escape (svelte:window below) is
-         the keyboard path. A full-screen <button> would hijack the custom
-         cursor's interactive morph, hence the div. -->
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div
-      class="inspector-backdrop"
-      class:open={!!editorDraft}
-      role="presentation"
-      onclick={closeEditor}
-      onkeydown={(e) => { if (e.key === 'Enter') closeEditor(); }}
-    ></div>
-    <aside class="inspector" class:open={!!editorDraft} aria-label="Command inspector">
-      <div class="inspector-head">
-        <span class="inspector-tag">
-          {#if editorDraft}
-            {editorDraft.edit ? t('commands.editing', { name: editorDraft.originalName }) : t('commands.newCommand')}
-          {:else}
-            {t('commands.inspector')}
-          {/if}
-        </span>
-        {#if editorDraft}
-          <button class="mini" type="button" aria-label={t('commands.closeEditor')} onclick={closeEditor}>
-            <Icon name="x" size={14} />
-          </button>
-        {/if}
-      </div>
-      {#if editorDraft}
-        <Scroller fill padding="16px" data-lenis-prevent>
-          {#if editorDraft.builtin && selectedCmd}
-            {@const def = builtinDef(selectedCmd.name)}
-            {#if def}
+    {#if editorDraft}
+      <InspectorSurface
+        open
+        title={editorDraft.builtin
+          ? `!${editorDraft.name}`
+          : editorDraft.edit
+            ? t('commands.editing', { name: editorDraft.originalName })
+            : t('commands.newCommand')}
+        controls="command-editor"
+        closeLabel={t('commands.closeEditor')}
+        onClose={closeEditor}
+      >
+        {#if editorDraft.builtin && selectedCmd}
+          {@const def = builtinDef(selectedCmd.name)}
+          {#if def}
+            <Scroller fill padding="16px" data-lenis-prevent>
               <BuiltinInspector
                 command={selectedCmd}
                 {def}
@@ -557,28 +596,40 @@
                 replySubmit={replySubmit(selectedCmd)}
                 {busy}
               />
-            {/if}
-          {:else}
-            <!-- Keyed on the selected command so switching rows mounts a FRESH
-                 editor. The editor snapshots its draft key + initial value at
-                 mount; reusing one instance across commands froze those to the
-                 first row, mirroring later edits into the wrong command's
-                 draft. -->
-            {#key expanded}
-              <CommandEditor bind:draft={editorDraft} {serverErrors} {busy} onCancel={closeEditor} onSubmit={saveSubmit} />
-            {/key}
+            </Scroller>
           {/if}
-        </Scroller>
-      {:else}
-        <div class="inspector-idle">
-          <span class="idle-glyph"><Icon name="commands" size={18} /></span>
-          <p>{t('commands.inspectorIdle')}</p>
-          <button class="btn ghost" onclick={openNew}><Icon name="plus" size={13} /> {t('commands.newCommand')}</button>
-        </div>
-      {/if}
-    </aside>
+        {:else}
+          <!-- Keyed on selection + generation so switching rows (or a save)
+               mounts a FRESH editor: it snapshots its draft key + initial value
+               at mount, so reusing one instance across commands would freeze
+               those to the first row. -->
+          {#key expanded + '#' + editorGen}
+            <CommandEditor
+              bind:draft={editorDraft}
+              {serverErrors}
+              status={footerStatus()}
+              dirty={isDirty}
+              canSave={isDirty && editorDraft.name.trim().length > 0}
+              onCancel={closeEditor}
+              onSubmit={saveSubmit}
+            />
+          {/key}
+        {/if}
+      </InspectorSurface>
+    {/if}
   </div>
 </section>
+
+<ConfirmDialog
+  open={discardOpen}
+  title={t('commands.discardTitle')}
+  body={t('commands.discardBody')}
+  confirmLabel={t('commands.discard')}
+  cancelLabel={t('commands.keepEditing')}
+  danger
+  onCancel={cancelDiscard}
+  onConfirm={confirmDiscard}
+/>
 
 <svelte:window onkeydown={onKey} />
 
@@ -599,7 +650,7 @@
     .keys { display: inline-flex; }
   }
 
-  /* ── the deck: list + docked inspector ── */
+  /* the deck: full-width list until a selection opens the docked inspector. */
   .deck {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
@@ -608,85 +659,9 @@
   }
   @media (min-width: 1080px) {
     .deck.inspecting { grid-template-columns: minmax(0, 1fr) 420px; }
-    .deck { grid-template-columns: minmax(0, 1fr) 300px; }
   }
 
   .list :global(.row-shell:last-child) { border-bottom: none; }
-
-  .inspector {
-    position: sticky;
-    /* below the call-sign strip; leave clearance for the floating dock */
-    top: 62px;
-    border: 1px solid var(--rule);
-    border-top-color: var(--rule-strong);
-    border-radius: 8px;
-    background: linear-gradient(180deg, rgba(240, 236, 228, 0.03), rgba(240, 236, 228, 0.012));
-    display: flex;
-    flex-direction: column;
-    max-height: calc(100vh - 62px - 108px);
-  }
-  .inspector-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--rule);
-  }
-  .inspector-tag {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 12px;
-    letter-spacing: 0.02em;
-    color: var(--bb-tan);
-  }
-
-  .inspector-idle {
-    padding: 34px 20px;
-    text-align: center;
-    color: var(--bb-muted);
-    font-family: var(--bb-font-body);
-    font-size: 13px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 12px;
-  }
-  .idle-glyph {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 40px;
-    height: 40px;
-    border: 1px solid var(--rule-tan);
-    border-radius: 8px;
-    color: var(--bb-tan-light);
-  }
-  .inspector-idle p { margin: 0; max-width: 26ch; line-height: 1.5; }
-
-  .inspector-backdrop { display: none; }
-
-  /* Mobile / narrow: the inspector docks as a bottom sheet over the list. */
-  @media (max-width: 1079px) {
-    .inspector { display: none; }
-    .inspector.open {
-      display: flex;
-      position: fixed;
-      left: 0; right: 0; bottom: 0;
-      top: auto;
-      z-index: 220;
-      max-height: 88vh;
-      border-radius: 8px 8px 0 0;
-      background: var(--bb-bg-1, #111);
-      animation: sheet-in var(--bb-dur-base, 320ms) var(--bb-ease-out-expo, cubic-bezier(.16,1,.3,1)) both;
-    }
-    .inspector-backdrop.open {
-      display: block;
-      position: fixed; inset: 0; z-index: 219;
-      background: rgba(0, 0, 0, 0.55);
-    }
-    @keyframes sheet-in { from { transform: translateY(100%); } to { transform: translateY(0); } }
-  }
 
   @media (max-width: 760px) {
     .toolbar-search { width: 100%; order: 3; }

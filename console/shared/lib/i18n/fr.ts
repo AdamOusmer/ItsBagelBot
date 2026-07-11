@@ -313,7 +313,13 @@ export const fr = {
     toastSaveFailed: 'Échec de l\'enregistrement. Erreur réseau.',
     toastToggleFailed: 'Échec du basculement.',
     toastCouldNotRestore: 'Impossible de restaurer !{name}. Recréez-la manuellement.',
-    toastDeleteFailed: 'Échec de la suppression de !{name}.'
+    toastDeleteFailed: 'Échec de la suppression de !{name}.',
+    saved: 'Enregistré',
+    unsavedChanges: 'Modifications non enregistrées',
+    discardTitle: 'Abandonner les modifications ?',
+    discardBody: 'Vous avez des modifications non enregistrées sur cette commande. Les abandonner ?',
+    discard: 'Abandonner',
+    keepEditing: 'Continuer l’édition'
   },
 
   channelpoints: {

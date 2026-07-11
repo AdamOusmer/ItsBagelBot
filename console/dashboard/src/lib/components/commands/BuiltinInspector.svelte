@@ -12,6 +12,7 @@
   import type { SubmitFunction } from '@sveltejs/kit';
   import {
     Icon,
+    Switch,
     getI18n,
     PERM_LABELS,
     type CommandView,
@@ -79,11 +80,7 @@
     <form method="POST" action="?/toggleBuiltin" use:enhance={toggleSubmit}>
       <input type="hidden" name="name" value={c.name} />
       <input type="hidden" name="is_active" value={c.is_active ? '' : 'on'} />
-      <button
-        class="toggle {c.is_active ? 'on' : ''}"
-        type="submit"
-        aria-label={t('commandRow.toggleAria', { name: c.name })}
-      ></button>
+      <Switch type="submit" checked={c.is_active} label={t('commandRow.toggleAria', { name: c.name })} />
     </form>
   </div>
 

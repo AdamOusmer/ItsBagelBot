@@ -314,7 +314,13 @@ export const en = {
     toastSaveFailed: 'Save failed. Network error.',
     toastToggleFailed: 'Toggle failed.',
     toastCouldNotRestore: 'Could not restore !{name}. Recreate it manually.',
-    toastDeleteFailed: 'Delete of !{name} failed.'
+    toastDeleteFailed: 'Delete of !{name} failed.',
+    saved: 'Saved',
+    unsavedChanges: 'Unsaved changes',
+    discardTitle: 'Discard changes?',
+    discardBody: 'You have unsaved changes to this command. Discard them?',
+    discard: 'Discard',
+    keepEditing: 'Keep editing'
   },
 
   channelpoints: {
