@@ -69,17 +69,11 @@ func (r *Loyalty) BalanceGet(ctx context.Context, userID, viewerID uint64) (*ent
 
 // Top returns the channel's top standings by points.
 func (r *Loyalty) Top(ctx context.Context, userID uint64, limit int) ([]*ent.Balance, error) {
-	if limit <= 0 {
-		limit = defaultTopLimit
-	}
-	if limit > maxTopLimit {
-		limit = maxTopLimit
-	}
 	return db.WithQuery(ctx, func(ctx context.Context) ([]*ent.Balance, error) {
 		return r.client.Balance.Query().
 			Where(balance.UserIDEQ(userID)).
 			Order(balance.ByPoints(entsql.OrderDesc()), balance.ByViewerID()).
-			Limit(limit).
+			Limit(clampLimit(limit)).
 			All(ctx)
 	})
 }
@@ -117,6 +111,14 @@ func (r *Loyalty) BalanceAdjust(ctx context.Context, userID uint64, viewerLogin 
 	})
 }
 
+// clampLimit bounds a caller-provided page size, defaulting a missing one.
+func clampLimit(limit int) int {
+	if limit <= 0 {
+		return defaultTopLimit
+	}
+	return min(limit, maxTopLimit)
+}
+
 // CounterEntries lists an entry-scoped counter's stored buckets, highest
 // value first, with each viewer's login resolved from their balance row (the
 // dashboard's per-counter leaderboard).
@@ -125,31 +127,32 @@ func (r *Loyalty) CounterEntries(ctx context.Context, userID uint64, name string
 	if err != nil {
 		return nil, nil, err
 	}
-	if limit <= 0 {
-		limit = defaultTopLimit
-	}
-	if limit > maxTopLimit {
-		limit = maxTopLimit
-	}
 	rows, err := db.WithQuery(ctx, func(ctx context.Context) ([]*ent.CounterEntry, error) {
 		return r.client.CounterEntry.Query().
 			Where(counterentry.UserIDEQ(userID), counterentry.NameEQ(n)).
 			Order(counterentry.ByValue(entsql.OrderDesc()), counterentry.ByViewerID()).
-			Limit(limit).
+			Limit(clampLimit(limit)).
 			All(ctx)
 	})
 	if err != nil || len(rows) == 0 {
 		return rows, nil, err
 	}
+	return rows, r.viewerLogins(ctx, userID, rows), nil
+}
 
-	ids := make([]uint64, 0, len(rows))
+// viewerLogins resolves the display login for each distinct viewer in rows
+// from their balance row. Best-effort: logins are cosmetic, the entries
+// themselves are the answer, so a read failure returns an empty map.
+func (r *Loyalty) viewerLogins(ctx context.Context, userID uint64, rows []*ent.CounterEntry) map[uint64]string {
 	seen := map[uint64]struct{}{}
+	ids := make([]uint64, 0, len(rows))
 	for _, e := range rows {
 		if _, dup := seen[e.ViewerID]; !dup {
 			seen[e.ViewerID] = struct{}{}
 			ids = append(ids, e.ViewerID)
 		}
 	}
+
 	logins := map[uint64]string{}
 	bals, err := db.WithQuery(ctx, func(ctx context.Context) ([]*ent.Balance, error) {
 		return r.client.Balance.Query().
@@ -157,15 +160,14 @@ func (r *Loyalty) CounterEntries(ctx context.Context, userID uint64, name string
 			All(ctx)
 	})
 	if err != nil {
-		// Logins are cosmetic; the entries themselves are the answer.
-		return rows, logins, nil
+		return logins
 	}
 	for _, b := range bals {
 		if b.ViewerLogin != "" {
 			logins[b.ViewerID] = b.ViewerLogin
 		}
 	}
-	return rows, logins, nil
+	return logins
 }
 
 // CounterGet resolves one counter: the definition, plus the effective value —
