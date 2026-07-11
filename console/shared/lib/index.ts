@@ -62,5 +62,6 @@ export * from './types';
 export * from './toast';
 export * from './connection-state';
 export * from './overlay-stack';
+export * from './inspector-machine';
 export * from './commands-validate';
 export * from './validation';
