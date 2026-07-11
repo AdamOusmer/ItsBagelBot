@@ -46,6 +46,13 @@ type Config struct {
 	ScaleDownAfter time.Duration
 	PremiumReserve int
 
+	// DrainTimeout bounds how long shutdown waits for handlers already dispatched
+	// to finish after SIGTERM stops the consumer pulling. Keep it below the pod's
+	// terminationGracePeriodSeconds so the drain completes before the kubelet
+	// SIGKILLs the process. A handler that outlives the deadline is abandoned and
+	// its event redelivered (the dedup claim is released on the nack path).
+	DrainTimeout time.Duration
+
 	// Outgress lane subjects the pipeline publishes onto, chosen from the event's
 	// regress status (premium vs standard).
 	OutgressPremiumSubject  string
@@ -151,6 +158,8 @@ func Load() *Config {
 		ScaleUpAfter:   env.GetDuration("SESAME_SCALE_UP_AFTER", 5*time.Second),
 		ScaleDownAfter: env.GetDuration("SESAME_SCALE_DOWN_AFTER", 30*time.Second),
 		PremiumReserve: env.GetInt("SESAME_PREMIUM_RESERVE_PERCENT", 25),
+
+		DrainTimeout: env.GetDuration("SESAME_DRAIN_TIMEOUT", 25*time.Second),
 
 		OutgressPremiumSubject:  env.Get("NATS_OUTGRESS_PREMIUM_SUBJECT", "twitch.outgress.premium"),
 		OutgressStandardSubject: env.Get("NATS_OUTGRESS_STANDARD_SUBJECT", "twitch.outgress.standard"),
