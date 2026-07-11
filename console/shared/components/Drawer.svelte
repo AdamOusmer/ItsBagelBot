@@ -1,64 +1,81 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import Icon from './Icon.svelte';
+  import { pushOverlay, removeOverlay, isTopmost, overlayIndex, portal, trapFocus } from '../lib/overlay-stack';
 
   let {
     open = false,
     title,
     subtitle,
+    busy = false,
     closeDrawer,
     children
   }: {
     open: boolean;
     title?: string;
     subtitle?: string;
+    busy?: boolean;
     closeDrawer: () => void;
     children: Snippet;
   } = $props();
 
+  const uid = $props.id();
+  const titleId = `drawer-title-${uid}`;
+  let overlayId = 0;
+  let zIndex = $state(190);
+
   $effect(() => {
-    const lenis = (window as any).__lenis;
-    if (open) {
-      document.body.style.overflow = 'hidden';
-      if (lenis) lenis.stop();
-    } else {
-      document.body.style.overflow = '';
-      if (lenis) lenis.start();
-    }
-    return () => {
-      document.body.style.overflow = '';
-      if (lenis) lenis.start();
-    };
+    if (!open) return;
+    const id = pushOverlay();
+    overlayId = id;
+    zIndex = 190 + overlayIndex(id) * 10;
+    return () => removeOverlay(id);
   });
+
+  function tryClose() {
+    if (!busy) closeDrawer();
+  }
 </script>
+
+<svelte:window
+  onkeydown={(e) => {
+    if (open && e.key === 'Escape' && isTopmost(overlayId)) {
+      e.preventDefault();
+      tryClose();
+    }
+  }}
+/>
 
 {#if open}
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div class="drawer-backdrop" role="button" tabindex="-1" aria-label="Close drawer" onclick={closeDrawer}></div>
-  <div class="drawer open" role="dialog" aria-modal="true" aria-labelledby="drawer-title">
-    <header class="drawer-head">
-      <div class="drawer-id">
-        {#if title}
-          <h2 id="drawer-title">{title}</h2>
-        {/if}
-        {#if subtitle}
-          <span class="drawer-sub">{subtitle}</span>
-        {/if}
-      </div>
-      <button class="drawer-close" type="button" onclick={closeDrawer} aria-label="Close">
-        <Icon name="x" size={16} />
-      </button>
-    </header>
+  <div class="drawer-shell" data-overlay style="z-index: {zIndex}" use:portal>
+    <button class="drawer-backdrop" type="button" aria-label="Close" onclick={tryClose}></button>
+    <div class="drawer open" role="dialog" aria-modal="true" tabindex="-1" aria-labelledby={title ? titleId : undefined} use:trapFocus>
+      <header class="drawer-head">
+        <div class="drawer-id">
+          {#if title}
+            <h2 id={titleId}>{title}</h2>
+          {/if}
+          {#if subtitle}
+            <span class="drawer-sub">{subtitle}</span>
+          {/if}
+        </div>
+        <button class="drawer-close" type="button" onclick={tryClose} aria-label="Close">
+          <Icon name="x" size={16} />
+        </button>
+      </header>
 
-    <div class="drawer-body" data-lenis-prevent>
-      {@render children()}
+      <div class="drawer-body" data-lenis-prevent>
+        {@render children()}
+      </div>
     </div>
   </div>
 {/if}
 
 <style>
+  .drawer-shell { position: fixed; inset: 0; }
   .drawer-backdrop {
-    position: fixed; inset: 0; z-index: 190;
+    position: absolute; inset: 0;
     padding: 0; border: 0; cursor: pointer;
     background: rgba(0, 0, 0, 0.5);
     backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
@@ -67,8 +84,8 @@
   @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
 
   .drawer {
-    position: fixed; top: 0; right: 0; z-index: 191;
-    height: 100vh; width: min(620px, 92vw);
+    position: absolute; top: 0; right: 0;
+    height: 100dvh; width: min(620px, 92vw);
     display: flex; flex-direction: column;
     background:
       linear-gradient(var(--glass-fill), var(--glass-fill)),
@@ -80,6 +97,17 @@
     animation: slide-in var(--bb-dur-med, 320ms) var(--bb-ease-out-expo, cubic-bezier(.16,1,.3,1)) forwards;
   }
   @keyframes slide-in { to { transform: translateX(0); } }
+
+  .drawer :global(:focus-visible),
+  .drawer-close:focus-visible {
+    outline: 2px solid var(--bb-green-glow, #52b788);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .drawer-backdrop { animation: none; }
+    .drawer { animation: none; transform: none; }
+  }
 
   .drawer-head {
     display: flex; align-items: flex-start; justify-content: space-between;

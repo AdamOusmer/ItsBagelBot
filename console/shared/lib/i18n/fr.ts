@@ -102,6 +102,15 @@ export const fr = {
     notConnected: 'Non connecté',
     reconnectNeeded: 'Reconnexion nécessaire',
     reconnecting: 'Reconnexion…',
+    connecting: 'Connexion…',
+    unavailable: 'État de connexion indisponible',
+    subUnknown: 'État du chat inconnu',
+    planUnknown: 'Inconnu',
+    dataUnavailable: 'indisponible',
+    retry: 'Réessayer',
+    actionFailed: 'L\'action a échoué. Réessayez.',
+    commandsUnavailable: 'Impossible de charger vos commandes',
+    commandsUnavailableDesc: 'Le service est injoignable pour le moment.',
     subFixPre: 'Le bot a perdu sa connexion au chat. Corrigez dans ',
     subFixStrong: 'Paramètres → Reconnecter',
     restart: 'Redémarrer',
@@ -304,7 +313,13 @@ export const fr = {
     toastSaveFailed: 'Échec de l\'enregistrement. Erreur réseau.',
     toastToggleFailed: 'Échec du basculement.',
     toastCouldNotRestore: 'Impossible de restaurer !{name}. Recréez-la manuellement.',
-    toastDeleteFailed: 'Échec de la suppression de !{name}.'
+    toastDeleteFailed: 'Échec de la suppression de !{name}.',
+    saved: 'Enregistré',
+    unsavedChanges: 'Modifications non enregistrées',
+    discardTitle: 'Abandonner les modifications ?',
+    discardBody: 'Vous avez des modifications non enregistrées sur cette commande. Les abandonner ?',
+    discard: 'Abandonner',
+    keepEditing: 'Continuer l’édition'
   },
 
   channelpoints: {
@@ -377,6 +392,10 @@ export const fr = {
     deleteTitle: 'Supprimer cette récompense ?',
     deleteBody: '« {name} » est retirée de Twitch et le bot cesse d’y réagir. Action irréversible.',
     del: 'Supprimer',
+    discardTitle: 'Abandonner les modifications ?',
+    discardBody: 'Vous avez des modifications non enregistrées sur cette récompense. Les abandonner ?',
+    discard: 'Abandonner',
+    keepEditing: 'Continuer l’édition',
     toastCreated: 'Récompense « {name} » créée.',
     toastSaved: 'Récompense « {name} » enregistrée.',
     toastDeleted: 'Récompense « {name} » supprimée.',
@@ -500,8 +519,8 @@ export const fr = {
     emptySub: 'Créez-en une — elle commence à se répéter dès que votre live démarre.',
     chipInterval: 'toutes les {n}',
     hiddenTag: 'en pause',
-    toggleAria: 'Mettre en pause ou reprendre cette minuterie',
-    deleteAria: 'Supprimer cette minuterie',
+    toggleAria: 'Mettre en pause ou reprendre la minuterie : {name}',
+    deleteAria: 'Supprimer la minuterie : {name}',
     // editor
     fieldMessage: 'Message',
     fieldMessagePh: 'ex. Suivez-moi sur les réseaux : {link}',
@@ -521,7 +540,14 @@ export const fr = {
     toastDeleted: 'Minuterie supprimée.',
     toastSaveFailed: 'Impossible d’enregistrer la minuterie.',
     toastDeleteFailed: 'Impossible de supprimer la minuterie.',
-    toastToggleFailed: 'Impossible de mettre à jour la minuterie.'
+    toastToggleFailed: 'Impossible de mettre à jour la minuterie.',
+    undo: 'Annuler',
+    unsavedChanges: 'Modifications non enregistrées',
+    saved: 'Enregistré',
+    discardTitle: 'Abandonner les modifications ?',
+    discardBody: 'Vous avez des modifications non enregistrées sur cette minuterie. Les abandonner ?',
+    discard: 'Abandonner',
+    keepEditing: 'Continuer l’édition'
   },
 
   quotes: {
@@ -591,7 +617,14 @@ export const fr = {
     saveChanges: 'Enregistrer les modifications',
     loading: 'Chargement…',
     saved: '{label} enregistré.',
-    saveFailed: 'Échec de l\'enregistrement.'
+    saveFailed: 'Échec de l\'enregistrement.',
+    patchConflict: 'Quelqu\'un d\'autre a modifié ce module. La dernière version a été rechargée — refaites votre modification.',
+    offConfigurable: 'Ce module est désactivé. Vous pouvez le configurer maintenant ; les changements prendront effet une fois activé.',
+    triggerReserved: 'Cette phrase utilise une syntaxe réservée (=>, un # au début, ou un préfixe mode:). Reformulez-la.',
+    discardTitle: 'Abandonner les modifications ?',
+    discardBody: 'Vous avez des modifications non enregistrées ici. Les abandonner ?',
+    discard: 'Abandonner',
+    keepEditing: 'Continuer l’édition'
   },
 
   onboarding: {

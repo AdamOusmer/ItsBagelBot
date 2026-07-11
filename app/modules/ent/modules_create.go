@@ -54,6 +54,20 @@ func (_c *ModulesCreate) SetConfigs(v []uint8) *ModulesCreate {
 	return _c
 }
 
+// SetRevision sets the "revision" field.
+func (_c *ModulesCreate) SetRevision(v int) *ModulesCreate {
+	_c.mutation.SetRevision(v)
+	return _c
+}
+
+// SetNillableRevision sets the "revision" field if the given value is not nil.
+func (_c *ModulesCreate) SetNillableRevision(v *int) *ModulesCreate {
+	if v != nil {
+		_c.SetRevision(*v)
+	}
+	return _c
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (_c *ModulesCreate) SetUpdatedAt(v time.Time) *ModulesCreate {
 	_c.mutation.SetUpdatedAt(v)
@@ -107,6 +121,10 @@ func (_c *ModulesCreate) defaults() {
 		v := modules.DefaultIsEnabled
 		_c.mutation.SetIsEnabled(v)
 	}
+	if _, ok := _c.mutation.Revision(); !ok {
+		v := modules.DefaultRevision
+		_c.mutation.SetRevision(v)
+	}
 	if _, ok := _c.mutation.UpdatedAt(); !ok {
 		v := modules.DefaultUpdatedAt()
 		_c.mutation.SetUpdatedAt(v)
@@ -128,6 +146,9 @@ func (_c *ModulesCreate) check() error {
 	}
 	if _, ok := _c.mutation.IsEnabled(); !ok {
 		return &ValidationError{Name: "is_enabled", err: errors.New(`ent: missing required field "Modules.is_enabled"`)}
+	}
+	if _, ok := _c.mutation.Revision(); !ok {
+		return &ValidationError{Name: "revision", err: errors.New(`ent: missing required field "Modules.revision"`)}
 	}
 	if _, ok := _c.mutation.UpdatedAt(); !ok {
 		return &ValidationError{Name: "updated_at", err: errors.New(`ent: missing required field "Modules.updated_at"`)}
@@ -174,6 +195,10 @@ func (_c *ModulesCreate) createSpec() (*Modules, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Configs(); ok {
 		_spec.SetField(modules.FieldConfigs, field.TypeJSON, value)
 		_node.Configs = value
+	}
+	if value, ok := _c.mutation.Revision(); ok {
+		_spec.SetField(modules.FieldRevision, field.TypeInt, value)
+		_node.Revision = value
 	}
 	if value, ok := _c.mutation.UpdatedAt(); ok {
 		_spec.SetField(modules.FieldUpdatedAt, field.TypeTime, value)
@@ -270,6 +295,24 @@ func (u *ModulesUpsert) UpdateConfigs() *ModulesUpsert {
 // ClearConfigs clears the value of the "configs" field.
 func (u *ModulesUpsert) ClearConfigs() *ModulesUpsert {
 	u.SetNull(modules.FieldConfigs)
+	return u
+}
+
+// SetRevision sets the "revision" field.
+func (u *ModulesUpsert) SetRevision(v int) *ModulesUpsert {
+	u.Set(modules.FieldRevision, v)
+	return u
+}
+
+// UpdateRevision sets the "revision" field to the value that was provided on create.
+func (u *ModulesUpsert) UpdateRevision() *ModulesUpsert {
+	u.SetExcluded(modules.FieldRevision)
+	return u
+}
+
+// AddRevision adds v to the "revision" field.
+func (u *ModulesUpsert) AddRevision(v int) *ModulesUpsert {
+	u.Add(modules.FieldRevision, v)
 	return u
 }
 
@@ -376,6 +419,27 @@ func (u *ModulesUpsertOne) UpdateConfigs() *ModulesUpsertOne {
 func (u *ModulesUpsertOne) ClearConfigs() *ModulesUpsertOne {
 	return u.Update(func(s *ModulesUpsert) {
 		s.ClearConfigs()
+	})
+}
+
+// SetRevision sets the "revision" field.
+func (u *ModulesUpsertOne) SetRevision(v int) *ModulesUpsertOne {
+	return u.Update(func(s *ModulesUpsert) {
+		s.SetRevision(v)
+	})
+}
+
+// AddRevision adds v to the "revision" field.
+func (u *ModulesUpsertOne) AddRevision(v int) *ModulesUpsertOne {
+	return u.Update(func(s *ModulesUpsert) {
+		s.AddRevision(v)
+	})
+}
+
+// UpdateRevision sets the "revision" field to the value that was provided on create.
+func (u *ModulesUpsertOne) UpdateRevision() *ModulesUpsertOne {
+	return u.Update(func(s *ModulesUpsert) {
+		s.UpdateRevision()
 	})
 }
 
@@ -650,6 +714,27 @@ func (u *ModulesUpsertBulk) UpdateConfigs() *ModulesUpsertBulk {
 func (u *ModulesUpsertBulk) ClearConfigs() *ModulesUpsertBulk {
 	return u.Update(func(s *ModulesUpsert) {
 		s.ClearConfigs()
+	})
+}
+
+// SetRevision sets the "revision" field.
+func (u *ModulesUpsertBulk) SetRevision(v int) *ModulesUpsertBulk {
+	return u.Update(func(s *ModulesUpsert) {
+		s.SetRevision(v)
+	})
+}
+
+// AddRevision adds v to the "revision" field.
+func (u *ModulesUpsertBulk) AddRevision(v int) *ModulesUpsertBulk {
+	return u.Update(func(s *ModulesUpsert) {
+		s.AddRevision(v)
+	})
+}
+
+// UpdateRevision sets the "revision" field to the value that was provided on create.
+func (u *ModulesUpsertBulk) UpdateRevision() *ModulesUpsertBulk {
+	return u.Update(func(s *ModulesUpsert) {
+		s.UpdateRevision()
 	})
 }
 

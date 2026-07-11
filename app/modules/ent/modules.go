@@ -26,6 +26,8 @@ type Modules struct {
 	IsEnabled bool `json:"is_enabled,omitempty"`
 	// Configs holds the value of the "configs" field.
 	Configs []uint8 `json:"configs,omitempty"`
+	// Revision holds the value of the "revision" field.
+	Revision int `json:"revision,omitempty"`
 	// UpdatedAt holds the value of the "updated_at" field.
 	UpdatedAt    time.Time `json:"updated_at,omitempty"`
 	selectValues sql.SelectValues
@@ -40,7 +42,7 @@ func (*Modules) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case modules.FieldIsEnabled:
 			values[i] = new(sql.NullBool)
-		case modules.FieldID, modules.FieldUserID:
+		case modules.FieldID, modules.FieldUserID, modules.FieldRevision:
 			values[i] = new(sql.NullInt64)
 		case modules.FieldName:
 			values[i] = new(sql.NullString)
@@ -92,6 +94,12 @@ func (_m *Modules) assignValues(columns []string, values []any) error {
 				if err := json.Unmarshal(*value, &_m.Configs); err != nil {
 					return fmt.Errorf("unmarshal field configs: %w", err)
 				}
+			}
+		case modules.FieldRevision:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field revision", values[i])
+			} else if value.Valid {
+				_m.Revision = int(value.Int64)
 			}
 		case modules.FieldUpdatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -146,6 +154,9 @@ func (_m *Modules) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("configs=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Configs))
+	builder.WriteString(", ")
+	builder.WriteString("revision=")
+	builder.WriteString(fmt.Sprintf("%v", _m.Revision))
 	builder.WriteString(", ")
 	builder.WriteString("updated_at=")
 	builder.WriteString(_m.UpdatedAt.Format(time.ANSIC))

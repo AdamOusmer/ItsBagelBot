@@ -417,7 +417,17 @@
 </Modal>
 
 <!-- ────── CELEBRATORY PURCHASE-COMPLETE MODAL ────── -->
-<Modal open={celebrateOpen} closeModal={closeCelebrate}>
+<Modal
+  open={celebrateOpen}
+  closeModal={closeCelebrate}
+  ariaLabel={celebrateKind === 'gift'
+    ? t('billing.giftSent')
+    : isPaid
+      ? t('billing.premiumActivated')
+      : activationSlow
+        ? t('billing.paymentReceived')
+        : t('billing.paymentReceivedTitle')}
+>
   <div class="celebrate">
     <div class="celebrate-badge" class:celebrate-badge--gift={celebrateKind === 'gift'}>
       <Icon name="heart" size={30} />

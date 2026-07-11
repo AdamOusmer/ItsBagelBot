@@ -69,6 +69,11 @@ func IsEnabled(v bool) predicate.Modules {
 	return predicate.Modules(sql.FieldEQ(FieldIsEnabled, v))
 }
 
+// Revision applies equality check predicate on the "revision" field. It's identical to RevisionEQ.
+func Revision(v int) predicate.Modules {
+	return predicate.Modules(sql.FieldEQ(FieldRevision, v))
+}
+
 // UpdatedAt applies equality check predicate on the "updated_at" field. It's identical to UpdatedAtEQ.
 func UpdatedAt(v time.Time) predicate.Modules {
 	return predicate.Modules(sql.FieldEQ(FieldUpdatedAt, v))
@@ -197,6 +202,46 @@ func ConfigsIsNil() predicate.Modules {
 // ConfigsNotNil applies the NotNil predicate on the "configs" field.
 func ConfigsNotNil() predicate.Modules {
 	return predicate.Modules(sql.FieldNotNull(FieldConfigs))
+}
+
+// RevisionEQ applies the EQ predicate on the "revision" field.
+func RevisionEQ(v int) predicate.Modules {
+	return predicate.Modules(sql.FieldEQ(FieldRevision, v))
+}
+
+// RevisionNEQ applies the NEQ predicate on the "revision" field.
+func RevisionNEQ(v int) predicate.Modules {
+	return predicate.Modules(sql.FieldNEQ(FieldRevision, v))
+}
+
+// RevisionIn applies the In predicate on the "revision" field.
+func RevisionIn(vs ...int) predicate.Modules {
+	return predicate.Modules(sql.FieldIn(FieldRevision, vs...))
+}
+
+// RevisionNotIn applies the NotIn predicate on the "revision" field.
+func RevisionNotIn(vs ...int) predicate.Modules {
+	return predicate.Modules(sql.FieldNotIn(FieldRevision, vs...))
+}
+
+// RevisionGT applies the GT predicate on the "revision" field.
+func RevisionGT(v int) predicate.Modules {
+	return predicate.Modules(sql.FieldGT(FieldRevision, v))
+}
+
+// RevisionGTE applies the GTE predicate on the "revision" field.
+func RevisionGTE(v int) predicate.Modules {
+	return predicate.Modules(sql.FieldGTE(FieldRevision, v))
+}
+
+// RevisionLT applies the LT predicate on the "revision" field.
+func RevisionLT(v int) predicate.Modules {
+	return predicate.Modules(sql.FieldLT(FieldRevision, v))
+}
+
+// RevisionLTE applies the LTE predicate on the "revision" field.
+func RevisionLTE(v int) predicate.Modules {
+	return predicate.Modules(sql.FieldLTE(FieldRevision, v))
 }
 
 // UpdatedAtEQ applies the EQ predicate on the "updated_at" field.
