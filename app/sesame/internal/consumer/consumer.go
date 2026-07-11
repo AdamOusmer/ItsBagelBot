@@ -52,8 +52,9 @@ func New(sub message.Subscriber, nrApp *newrelic.Application, cfg Config, log *z
 }
 
 // Start binds both lanes to handle and begins draining. It returns once the first
-// consumer is running; the pool and autoscaler stop when ctx is cancelled.
-func (c *Consumer) Start(ctx context.Context, handle Handler) error {
+// consumer is running; the pool and autoscaler stop when ctx is cancelled. The
+// returned *bus.Weighted lets the caller drain in-flight handlers on shutdown.
+func (c *Consumer) Start(ctx context.Context, handle Handler) (*bus.Weighted, error) {
 	return bus.ConsumeWeighted(ctx, c.nrApp, []bus.WeightedLane{
 		{Sub: c.sub, Subject: c.cfg.Lanes.PremiumSubject, Handle: handle, Reserve: c.cfg.PremiumReserve},
 		{Sub: c.sub, Subject: c.cfg.Lanes.StandardSubject, Handle: handle},
