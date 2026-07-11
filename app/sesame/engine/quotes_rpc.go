@@ -79,10 +79,13 @@ func (c *QuotesRPC) QuoteRandom(ctx context.Context, broadcasterID uint64) (modu
 // foundQuote unwraps a get/random reply: an error, an absent row, or a nil
 // payload all collapse to (zero, false, err); a present row is (quote, true).
 func foundQuote(reply modulesrpc.QuoteReply, err error) (modulesrpc.Quote, bool, error) {
-	if err != nil || !reply.Found || reply.Quote == nil {
+	if err != nil {
 		return modulesrpc.Quote{}, false, err
 	}
-	return *reply.Quote, true, nil
+	if reply.Quote == nil {
+		return modulesrpc.Quote{}, false, nil
+	}
+	return *reply.Quote, reply.Found, nil
 }
 
 // QuoteRemove deletes quote #number; found=false when it did not exist.
