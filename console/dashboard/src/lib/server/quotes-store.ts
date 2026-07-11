@@ -66,6 +66,7 @@ export async function readQuotes(userId: string): Promise<QuotesView> {
 export interface QuoteDraft {
   text: string;
   addedBy: string;
+  createdAt: string;
 }
 
 // addQuote saves a new quote and returns it with its assigned number. A thrown
@@ -74,7 +75,7 @@ export interface QuoteDraft {
 export async function addQuote(userId: string, draft: QuoteDraft): Promise<QuoteView> {
   const r = await rpc<{ quote?: QuoteView }>(
     quoteSubject('add'),
-    { user_id: userId, text: draft.text, added_by: draft.addedBy },
+    { user_id: userId, text: draft.text, added_by: draft.addedBy, created_at: draft.createdAt },
     RPC_TIMEOUT_MS
   );
   if (!r.quote) throw new Error('quote add returned no row');
