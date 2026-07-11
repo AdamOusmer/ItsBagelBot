@@ -6,8 +6,9 @@
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import {
-    Icon,
     FieldError,
+    Scroller,
+    EditorFooter,
     PERMS,
     PERM_LABELS,
     validateCommand,
@@ -26,16 +27,22 @@
   let {
     draft = $bindable<CommandDraft>(),
     serverErrors = null as CommandErrors | null,
-    busy = false,
+    status = 'idle' as 'idle' | 'saving' | 'saved' | 'error' | 'conflict',
+    dirty = false,
+    canSave = true,
     onCancel,
     onSubmit
   }: {
     draft: CommandDraft;
     serverErrors?: CommandErrors | null;
-    busy?: boolean;
+    status?: 'idle' | 'saving' | 'saved' | 'error' | 'conflict';
+    dirty?: boolean;
+    canSave?: boolean;
     onCancel: () => void;
     onSubmit: SubmitFunction;
   } = $props();
+
+  const busy = $derived(status === 'saving');
 
   const { t } = getI18n();
 
@@ -78,8 +85,12 @@
 </script>
 
 <!-- novalidate: the shared validator owns validation (inline FieldError copy),
-     not the browser's native tooltips — enhance must always run. -->
-<form method="POST" action="?/save" class="editor" novalidate use:enhance={submit}>
+     not the browser's native tooltips — enhance must always run. The fields
+     scroll; the EditorFooter stays pinned so Save/Cancel never fall below the
+     fold. -->
+<form method="POST" action="?/save" class="editor-form" novalidate use:enhance={submit}>
+  <Scroller fill padding="16px" data-lenis-prevent>
+   <div class="editor">
   {#if draft.edit}
     <input type="hidden" name="edit" value="1" />
     <input type="hidden" name="original_name" value={draft.originalName} />
@@ -145,17 +156,25 @@
   <div class="check">
     <CheckButton name="stream_online_only" bind:checked={draft.stream_online_only} label={t('commandEditor.onlyWhileLive')} />
   </div>
+   </div>
+  </Scroller>
 
-  <div class="actions">
-    <button type="button" class="btn ghost" onclick={onCancel} disabled={busy}>{t('common.cancel')}</button>
-    <button type="submit" class="btn primary" disabled={busy}>
-      <Icon name="check" size={14} />
-      {busy ? t('commandEditor.saving') : draft.edit ? t('commandEditor.saveChanges') : t('commandEditor.create')}
-    </button>
-  </div>
+  <EditorFooter
+    {status}
+    {dirty}
+    {canSave}
+    saveLabel={draft.edit ? t('commandEditor.saveChanges') : t('commandEditor.create')}
+    cancelLabel={t('common.cancel')}
+    savingLabel={t('commandEditor.saving')}
+    savedLabel={t('commands.saved')}
+    errorLabel={t('commands.toastSaveFailed')}
+    dirtyLabel={t('commands.unsavedChanges')}
+    {onCancel}
+  />
 </form>
 
 <style>
+  .editor-form { display: flex; flex-direction: column; min-height: 0; flex: 1; }
   .editor { padding: 4px 2px 2px; }
 
   .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
@@ -174,11 +193,7 @@
   .check { margin: 4px 0 14px; }
   .check :global(.cb) { align-items: center; }
 
-  .actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 6px; }
-
   @media (max-width: 480px) {
     .field-row { flex-direction: column; gap: 0; }
-    .actions { flex-direction: column-reverse; }
-    .actions .btn { width: 100%; justify-content: center; min-height: 44px; }
   }
 </style>
