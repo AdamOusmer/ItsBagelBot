@@ -13,10 +13,11 @@ type Quote struct {
 // QuoteRequest covers every quote verb (bagel.rpc.modules.quote.*); unused
 // fields are zero-valued.
 type QuoteRequest struct {
-	UserID  string `json:"user_id"`            // broadcaster Twitch id
-	Number  uint64 `json:"number,omitempty"`   // get/remove target
-	Text    string `json:"text,omitempty"`     // add body
-	AddedBy string `json:"added_by,omitempty"` // login of the mod who saved it
+	UserID    string `json:"user_id"`              // broadcaster Twitch id
+	Number    uint64 `json:"number,omitempty"`     // get/remove target
+	Text      string `json:"text,omitempty"`       // add body
+	AddedBy   string `json:"added_by,omitempty"`   // login of the mod who saved it
+	CreatedAt string `json:"created_at,omitempty"` // optional RFC 3339 date chosen by the dashboard
 }
 
 // QuoteReply is the reply shape for every quote verb. A missing quote is not

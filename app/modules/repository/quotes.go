@@ -62,6 +62,17 @@ func quoteView(q *ent.Quote) *modulesrpc.Quote {
 // never reassigned to different text — except the top number, which max+1
 // reuses after a remove.
 func (q *Quotes) Add(ctx context.Context, userID uint64, text, addedBy string) (*modulesrpc.Quote, error) {
+	return q.add(ctx, userID, text, addedBy, time.Now())
+}
+
+// AddAt is the dashboard variant of Add. Chat saves still use Add and get the
+// current timestamp; the dashboard may supply the day on which the quote was
+// originally said.
+func (q *Quotes) AddAt(ctx context.Context, userID uint64, text, addedBy string, createdAt time.Time) (*modulesrpc.Quote, error) {
+	return q.add(ctx, userID, text, addedBy, createdAt)
+}
+
+func (q *Quotes) add(ctx context.Context, userID uint64, text, addedBy string, createdAt time.Time) (*modulesrpc.Quote, error) {
 	text = strings.TrimSpace(text)
 	if text == "" {
 		return nil, ErrQuoteEmpty
@@ -81,6 +92,7 @@ func (q *Quotes) Add(ctx context.Context, userID uint64, text, addedBy string) (
 			SetNumber(next).
 			SetText(text).
 			SetAddedBy(addedBy).
+			SetCreatedAt(createdAt.UTC()).
 			Save(ctx)
 		if err == nil {
 			return quoteView(row), nil
