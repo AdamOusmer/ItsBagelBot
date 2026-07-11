@@ -520,8 +520,8 @@ export const en = {
     emptySub: 'Create one — it starts repeating the moment your stream goes live.',
     chipInterval: 'every {n}',
     hiddenTag: 'paused',
-    toggleAria: 'Pause or resume this timer',
-    deleteAria: 'Delete this timer',
+    toggleAria: 'Pause or resume the timer: {name}',
+    deleteAria: 'Delete the timer: {name}',
     // editor
     fieldMessage: 'Message',
     fieldMessagePh: 'e.g. Follow on socials: {link}',

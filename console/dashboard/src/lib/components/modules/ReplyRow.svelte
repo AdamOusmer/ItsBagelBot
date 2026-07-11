@@ -37,7 +37,6 @@
   <ManagementRow
     selected={expanded}
     {expanded}
-    ariaLabel={reply.label}
     disabled={enabled === false}
     onselect={onExpand}
   >

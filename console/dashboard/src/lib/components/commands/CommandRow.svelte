@@ -39,7 +39,6 @@
   <ManagementRow
     selected={expanded}
     {expanded}
-    ariaLabel={`!${c.name}`}
     disabled={!c.is_active}
     onselect={onExpand}
   >

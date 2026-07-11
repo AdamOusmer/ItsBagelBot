@@ -25,7 +25,6 @@
   <ManagementRow
     selected={expanded}
     {expanded}
-    ariaLabel={device.name || device.device}
     onselect={onExpand}
   >
     {#snippet primary()}
