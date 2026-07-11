@@ -126,7 +126,8 @@ func main() {
 	pipe := newPipeline(deps, registry, cfg)
 	defer pipe.Close() // flushes pending use-counter ticks on shutdown
 
-	if err := newConsumer(sub, nrApp, cfg, log).Start(ctx, pipe.Process); err != nil {
+	weighted, err := newConsumer(sub, nrApp, cfg, log).Start(ctx, pipe.Process)
+	if err != nil {
 		log.Fatal("failed to start consumer", zap.Error(err))
 	}
 
@@ -145,8 +146,24 @@ func main() {
 	)
 
 	<-ctx.Done()
+	drainInflight(weighted, cfg.DrainTimeout, log)
+}
 
-	log.Info("sesame shutting down")
+// drainInflight waits for the handlers the consumer already dispatched to run to
+// completion before main returns and its deferred Close calls flush the reporters
+// and shut the publishers. SIGTERM cancelled the consumer's context, so no new
+// work is being pulled; a handler killed mid-flight would leave its dedup claim
+// written (released only on the error path) while its event is acked, so partial
+// multi-output work would be dropped on the floor instead of redelivered.
+func drainInflight(weighted *bus.Weighted, timeout time.Duration, log *zap.Logger) {
+	log.Info("sesame shutting down, draining in-flight events", zap.Duration("timeout", timeout))
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	if err := weighted.Drain(ctx); err != nil {
+		log.Warn("drain deadline exceeded; in-flight events left for redelivery", zap.Error(err))
+		return
+	}
+	log.Info("in-flight events drained")
 }
 
 func newPipeline(deps engine.Deps, registry *engine.Registry, cfg *config.Config) *engine.Pipeline {

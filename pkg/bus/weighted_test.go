@@ -133,7 +133,7 @@ func TestConsumeWeightedProcessesAndScales(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	err := ConsumeWeighted(ctx, nil, []WeightedLane{
+	_, err := ConsumeWeighted(ctx, nil, []WeightedLane{
 		{Sub: sub, Subject: "premium", Handle: handle, Reserve: 25},
 		{Sub: sub, Subject: "standard", Handle: handle},
 	}, ScalePolicy{
@@ -166,4 +166,96 @@ func TestConsumeWeightedProcessesAndScales(t *testing.T) {
 		case <-time.After(5 * time.Millisecond):
 		}
 	}
+}
+
+// TestConsumeWeightedDrainWaitsForInflight pins the shutdown contract P1 depends
+// on: after the consumer's context is cancelled (SIGTERM), Drain must not return
+// until a handler that was already dispatched has run to completion, so main can
+// flush reporters and close publishers without abandoning in-flight work.
+func TestConsumeWeightedDrainWaitsForInflight(t *testing.T) {
+	sub := &fakeSub{ch: make(chan *message.Message)}
+
+	started := make(chan struct{})
+	release := make(chan struct{})
+	var finished int64
+	handle := func(m *message.Message) error {
+		close(started) // exactly one message is sent, so handle runs once
+		<-release
+		atomic.AddInt64(&finished, 1)
+		return nil
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	w, err := ConsumeWeighted(ctx, nil, []WeightedLane{
+		{Sub: sub, Subject: "premium", Handle: handle, Reserve: 25},
+		{Sub: sub, Subject: "standard", Handle: handle},
+	}, ScalePolicy{MinRoutines: 1, MaxRoutines: 2, MaxConsumers: 1}, zap.NewNop())
+	if err != nil {
+		t.Fatalf("ConsumeWeighted: %v", err)
+	}
+
+	sub.ch <- message.NewMessage("id", nil)
+	<-started // the handler is in-flight, blocked on release
+
+	cancel() // stop pulling, as SIGTERM does
+
+	drained := make(chan error, 1)
+	go func() { drained <- w.Drain(context.Background()) }()
+
+	// Drain must block while the handler is still running.
+	select {
+	case <-drained:
+		t.Fatal("Drain returned before the in-flight handler finished")
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	close(release) // let the handler complete
+
+	select {
+	case err := <-drained:
+		if err != nil {
+			t.Fatalf("Drain: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Drain did not return after the handler finished")
+	}
+	if got := atomic.LoadInt64(&finished); got != 1 {
+		t.Fatalf("finished = %d, want 1", got)
+	}
+}
+
+// TestConsumeWeightedDrainDeadline pins the other half: a handler that outlives
+// the drain deadline does not hang shutdown forever; Drain returns the context
+// error so main can log and exit, leaving the event for redelivery.
+func TestConsumeWeightedDrainDeadline(t *testing.T) {
+	sub := &fakeSub{ch: make(chan *message.Message)}
+
+	started := make(chan struct{})
+	release := make(chan struct{})
+	handle := func(m *message.Message) error {
+		close(started)
+		<-release // never released before the deadline
+		return nil
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	w, err := ConsumeWeighted(ctx, nil, []WeightedLane{
+		{Sub: sub, Subject: "premium", Handle: handle},
+	}, ScalePolicy{MinRoutines: 1, MaxRoutines: 1, MaxConsumers: 1}, zap.NewNop())
+	if err != nil {
+		t.Fatalf("ConsumeWeighted: %v", err)
+	}
+
+	sub.ch <- message.NewMessage("id", nil)
+	<-started
+	cancel()
+
+	dctx, dcancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer dcancel()
+	if err := w.Drain(dctx); err == nil {
+		t.Fatal("Drain returned nil, want a deadline error")
+	}
+
+	close(release) // unblock the handler so the goroutine does not leak
 }
