@@ -103,6 +103,11 @@ type Config struct {
 	// manage custom commands from chat (the !cmd module).
 	CommandsDashboardPrefix string
 
+	// ModulesRPCPrefix is the NATS subject prefix the modules service RPC
+	// subscribes to; the quotes module appends ".quote.<verb>" to read and
+	// write the channel quote book.
+	ModulesRPCPrefix string
+
 	// PublicBaseURL is the origin of the public console pages. The !cmd module
 	// builds the channel command-page link from it as "<base>/user/<broadcaster
 	// id>". Stored without a trailing slash.
@@ -170,6 +175,8 @@ func Load() *Config {
 		CacheInvalidationPrefix: env.Get("NATS_CACHE_INVALIDATION_PREFIX", "bagel.cache.invalidate"),
 
 		CommandsDashboardPrefix: env.Get("NATS_COMMANDS_DASHBOARD_PREFIX", "bagel.rpc.commands"),
+
+		ModulesRPCPrefix: env.Get("NATS_MODULES_SUBJECT_PREFIX", "bagel.rpc.modules"),
 
 		PublicBaseURL: strings.TrimRight(env.Get("SESAME_PUBLIC_BASE_URL", "https://dashboard.itsbagelbot.com"), "/"),
 

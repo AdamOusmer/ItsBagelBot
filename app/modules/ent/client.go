@@ -13,6 +13,7 @@ import (
 
 	"ItsBagelBot/app/modules/ent/goveecredential"
 	"ItsBagelBot/app/modules/ent/modules"
+	"ItsBagelBot/app/modules/ent/quote"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect"
@@ -28,6 +29,8 @@ type Client struct {
 	GoveeCredential *GoveeCredentialClient
 	// Modules is the client for interacting with the Modules builders.
 	Modules *ModulesClient
+	// Quote is the client for interacting with the Quote builders.
+	Quote *QuoteClient
 }
 
 // NewClient creates a new client configured with the given options.
@@ -41,6 +44,7 @@ func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
 	c.GoveeCredential = NewGoveeCredentialClient(c.config)
 	c.Modules = NewModulesClient(c.config)
+	c.Quote = NewQuoteClient(c.config)
 }
 
 type (
@@ -135,6 +139,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		config:          cfg,
 		GoveeCredential: NewGoveeCredentialClient(cfg),
 		Modules:         NewModulesClient(cfg),
+		Quote:           NewQuoteClient(cfg),
 	}, nil
 }
 
@@ -156,6 +161,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		config:          cfg,
 		GoveeCredential: NewGoveeCredentialClient(cfg),
 		Modules:         NewModulesClient(cfg),
+		Quote:           NewQuoteClient(cfg),
 	}, nil
 }
 
@@ -186,6 +192,7 @@ func (c *Client) Close() error {
 func (c *Client) Use(hooks ...Hook) {
 	c.GoveeCredential.Use(hooks...)
 	c.Modules.Use(hooks...)
+	c.Quote.Use(hooks...)
 }
 
 // Intercept adds the query interceptors to all the entity clients.
@@ -193,6 +200,7 @@ func (c *Client) Use(hooks ...Hook) {
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	c.GoveeCredential.Intercept(interceptors...)
 	c.Modules.Intercept(interceptors...)
+	c.Quote.Intercept(interceptors...)
 }
 
 // Mutate implements the ent.Mutator interface.
@@ -202,6 +210,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.GoveeCredential.mutate(ctx, m)
 	case *ModulesMutation:
 		return c.Modules.mutate(ctx, m)
+	case *QuoteMutation:
+		return c.Quote.mutate(ctx, m)
 	default:
 		return nil, fmt.Errorf("ent: unknown mutation type %T", m)
 	}
@@ -473,12 +483,145 @@ func (c *ModulesClient) mutate(ctx context.Context, m *ModulesMutation) (Value, 
 	}
 }
 
+// QuoteClient is a client for the Quote schema.
+type QuoteClient struct {
+	config
+}
+
+// NewQuoteClient returns a client for the Quote from the given config.
+func NewQuoteClient(c config) *QuoteClient {
+	return &QuoteClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `quote.Hooks(f(g(h())))`.
+func (c *QuoteClient) Use(hooks ...Hook) {
+	c.hooks.Quote = append(c.hooks.Quote, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `quote.Intercept(f(g(h())))`.
+func (c *QuoteClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Quote = append(c.inters.Quote, interceptors...)
+}
+
+// Create returns a builder for creating a Quote entity.
+func (c *QuoteClient) Create() *QuoteCreate {
+	mutation := newQuoteMutation(c.config, OpCreate)
+	return &QuoteCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Quote entities.
+func (c *QuoteClient) CreateBulk(builders ...*QuoteCreate) *QuoteCreateBulk {
+	return &QuoteCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *QuoteClient) MapCreateBulk(slice any, setFunc func(*QuoteCreate, int)) *QuoteCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &QuoteCreateBulk{err: fmt.Errorf("calling to QuoteClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*QuoteCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &QuoteCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Quote.
+func (c *QuoteClient) Update() *QuoteUpdate {
+	mutation := newQuoteMutation(c.config, OpUpdate)
+	return &QuoteUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *QuoteClient) UpdateOne(_m *Quote) *QuoteUpdateOne {
+	mutation := newQuoteMutation(c.config, OpUpdateOne, withQuote(_m))
+	return &QuoteUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *QuoteClient) UpdateOneID(id int) *QuoteUpdateOne {
+	mutation := newQuoteMutation(c.config, OpUpdateOne, withQuoteID(id))
+	return &QuoteUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Quote.
+func (c *QuoteClient) Delete() *QuoteDelete {
+	mutation := newQuoteMutation(c.config, OpDelete)
+	return &QuoteDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *QuoteClient) DeleteOne(_m *Quote) *QuoteDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *QuoteClient) DeleteOneID(id int) *QuoteDeleteOne {
+	builder := c.Delete().Where(quote.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &QuoteDeleteOne{builder}
+}
+
+// Query returns a query builder for Quote.
+func (c *QuoteClient) Query() *QuoteQuery {
+	return &QuoteQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeQuote},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Quote entity by its id.
+func (c *QuoteClient) Get(ctx context.Context, id int) (*Quote, error) {
+	return c.Query().Where(quote.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *QuoteClient) GetX(ctx context.Context, id int) *Quote {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *QuoteClient) Hooks() []Hook {
+	return c.hooks.Quote
+}
+
+// Interceptors returns the client interceptors.
+func (c *QuoteClient) Interceptors() []Interceptor {
+	return c.inters.Quote
+}
+
+func (c *QuoteClient) mutate(ctx context.Context, m *QuoteMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&QuoteCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&QuoteUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&QuoteUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&QuoteDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Quote mutation op: %q", m.Op())
+	}
+}
+
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		GoveeCredential, Modules []ent.Hook
+		GoveeCredential, Modules, Quote []ent.Hook
 	}
 	inters struct {
-		GoveeCredential, Modules []ent.Interceptor
+		GoveeCredential, Modules, Quote []ent.Interceptor
 	}
 )

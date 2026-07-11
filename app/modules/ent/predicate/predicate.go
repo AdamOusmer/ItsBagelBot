@@ -11,3 +11,6 @@ type GoveeCredential func(*sql.Selector)
 
 // Modules is the predicate function for modules builders.
 type Modules func(*sql.Selector)
+
+// Quote is the predicate function for quote builders.
+type Quote func(*sql.Selector)
