@@ -74,54 +74,18 @@ func main() {
 
 	timers := newTimers(ctx, in, proj, live, cfg, log)
 
-	// Loyalty: the reporter batches every accrual/bump into data.loyalty.*
-	// events; the store fronts the loyalty service with a Valkey live view; the
-	// clock drives the per-channel watch tick while live.
 	loyaltyReporter := engine.NewLoyaltyReporter(pub, log)
 	defer loyaltyReporter.Close() // flushes pending accruals on shutdown
-	loyalty := engine.NewValkeyLoyaltyStore(valkeyClient, engine.NewLoyaltyRPC(nc, cfg.LoyaltyRPCPrefix), loyaltyReporter, log)
-	loyaltyTick := newLoyaltyClock(ctx, in, proj, live, loyaltyReporter, cfg, log)
+	loyalty, loyaltyTick := newLoyalty(ctx, in, proj, live, loyaltyReporter, cfg, log)
 
-	// Deps is the bundle every module fn captures; main builds it once. modules.All
-	// returns the built modules (core commands + bagel, live tracker, opt-in
-	// shoutout), which the engine registry indexes. Adding a feature is a new file
-	// in app/sesame/modules plus one line in all.go — no wiring here.
-	// guard is the inline automod gate; hoisted so the emote refresher can install
-	// its false-positive-suppression sets onto the same instance.
+	// guard is the inline automod gate; hoisted so the emote/lexicon refreshers can
+	// install their false-positive-suppression sets onto the same instance.
 	guard := automod.New()
-
-	deps := engine.Deps{
-		Proj:       proj,
-		Live:       live,
-		Greet:      engine.NewValkeyGreetStore(valkeyClient, cfg.LiveTTL, log),
-		Cooldown:   engine.NewValkeyCooldown(valkeyClient),
-		Dedup:      engine.NewValkeyDedup(valkeyClient, 10*time.Minute),
-		Special:    engine.NewSpecialSet(cfg.SpecialUserIDs),
-		Pub:        pub,
-		Commands:   engine.NewCommandsRPC(nc, cfg.CommandsDashboardPrefix),
-		Quotes:     engine.NewQuotesRPC(nc, cfg.ModulesRPCPrefix),
-		Gateway:    engine.NewGatewayRPC(nc, cfg.GatewayRPCPrefix),
-		Followage:  engine.NewFollowageRPC(nc, cfg.OutgressRPCPrefix),
-		Log:        log,
-		Automod:    guard,
-		Reputation: engine.NewValkeyReputation(valkeyClient, 6*time.Hour, log),
-		Campaign:   engine.NewValkeyCampaign(valkeyClient, log),
-		Queue:      engine.NewValkeyQueueStore(valkeyClient, 24*time.Hour, log),
-		Timers:     timers,
-
-		Loyalty:     loyalty,
-		LoyaltyTick: loyaltyTick,
-
-		PublicBaseURL: cfg.PublicBaseURL,
-	}
+	deps := buildDeps(in, cfg, log, engineRuntime{
+		proj: proj, live: live, timers: timers, guard: guard, loyalty: loyalty, tick: loyaltyTick,
+	})
 	registry := engine.NewRegistry(log, modules.All(deps)...)
-
-	if cfg.EmotesEnabled {
-		go refreshEmotes(ctx, guard, log)
-	}
-	if dir := env.Get("SESAME_AUTOMOD_LEXICON_DIR", ""); dir != "" {
-		go reloadLexicon(ctx, dir, guard, log)
-	}
+	startRefreshers(ctx, guard, cfg, log)
 
 	pipe := newPipeline(deps, registry, cfg)
 	defer pipe.Close() // flushes pending use-counter ticks on shutdown
@@ -132,7 +96,78 @@ func main() {
 	}
 
 	health.Serve(cfg.ListenAddr, nc.IsConnected)
+	logReady(cfg, deps.Special.Len(), log)
 
+	<-ctx.Done()
+	drainInflight(weighted, cfg.DrainTimeout, log)
+}
+
+// engineRuntime bundles the per-broadcaster stores main builds before assembling
+// engine.Deps, so buildDeps takes one value instead of a long argument list.
+type engineRuntime struct {
+	proj    *projection.Client
+	live    *engine.ValkeyLiveStore
+	timers  *engine.ValkeyTimerStore
+	guard   *automod.Gate
+	loyalty engine.LoyaltyStore
+	tick    *engine.ValkeyLoyaltyClock
+}
+
+// buildDeps assembles the engine.Deps every module fn captures. modules.All turns
+// it into the built modules (core commands + bagel, live tracker, opt-in shoutout)
+// the engine registry indexes; adding a feature is a new file in app/sesame/modules
+// plus one line in all.go, no wiring here. The Valkey/RPC-backed stores are built
+// from the process's shared clients (in) and the config.
+func buildDeps(in infra, cfg *config.Config, log *zap.Logger, rt engineRuntime) engine.Deps {
+	return engine.Deps{
+		Proj:       rt.proj,
+		Live:       rt.live,
+		Greet:      engine.NewValkeyGreetStore(in.vc, cfg.LiveTTL, log),
+		Cooldown:   engine.NewValkeyCooldown(in.vc),
+		Dedup:      engine.NewValkeyDedup(in.vc, 10*time.Minute),
+		Special:    engine.NewSpecialSet(cfg.SpecialUserIDs),
+		Pub:        in.pub,
+		Commands:   engine.NewCommandsRPC(in.nc, cfg.CommandsDashboardPrefix),
+		Quotes:     engine.NewQuotesRPC(in.nc, cfg.ModulesRPCPrefix),
+		Gateway:    engine.NewGatewayRPC(in.nc, cfg.GatewayRPCPrefix),
+		Followage:  engine.NewFollowageRPC(in.nc, cfg.OutgressRPCPrefix),
+		Log:        log,
+		Automod:    rt.guard,
+		Reputation: engine.NewValkeyReputation(in.vc, 6*time.Hour, log),
+		Campaign:   engine.NewValkeyCampaign(in.vc, log),
+		Queue:      engine.NewValkeyQueueStore(in.vc, 24*time.Hour, log),
+		Timers:     rt.timers,
+
+		Loyalty:     rt.loyalty,
+		LoyaltyTick: rt.tick,
+
+		PublicBaseURL: cfg.PublicBaseURL,
+	}
+}
+
+// newLoyalty builds the loyalty store (a Valkey live view fronting the loyalty
+// service) and its watch clock, both fed by the shared reporter that batches
+// accruals/bumps onto data.loyalty.*.
+func newLoyalty(ctx context.Context, in infra, proj *projection.Client, live *engine.ValkeyLiveStore, reporter *engine.LoyaltyReporter, cfg *config.Config, log *zap.Logger) (engine.LoyaltyStore, *engine.ValkeyLoyaltyClock) {
+	store := engine.NewValkeyLoyaltyStore(in.vc, engine.NewLoyaltyRPC(in.nc, cfg.LoyaltyRPCPrefix), reporter, log)
+	tick := newLoyaltyClock(ctx, in, proj, live, reporter, cfg, log)
+	return store, tick
+}
+
+// startRefreshers launches the background automod refreshers that feed the shared
+// gate: the third-party emote sets (caps false-positive suppression) and the
+// optional lexicon override directory.
+func startRefreshers(ctx context.Context, guard *automod.Gate, cfg *config.Config, log *zap.Logger) {
+	if cfg.EmotesEnabled {
+		go refreshEmotes(ctx, guard, log)
+	}
+	if dir := env.Get("SESAME_AUTOMOD_LEXICON_DIR", ""); dir != "" {
+		go reloadLexicon(ctx, dir, guard, log)
+	}
+}
+
+// logReady emits the one-line startup banner with the effective consumer tuning.
+func logReady(cfg *config.Config, specialUsers int, log *zap.Logger) {
 	log.Info("sesame ready",
 		zap.String("consumer_name", cfg.ConsumerName),
 		zap.String("premium_subject", cfg.PremiumSubject),
@@ -141,12 +176,9 @@ func main() {
 		zap.Int("max_routines", cfg.MaxRoutines),
 		zap.Int("max_consumers", cfg.MaxConsumers),
 		zap.Int("premium_reserve_percent", cfg.PremiumReserve),
-		zap.Int("special_users", deps.Special.Len()),
+		zap.Int("special_users", specialUsers),
 		zap.Duration("live_ttl", cfg.LiveTTL),
 	)
-
-	<-ctx.Done()
-	drainInflight(weighted, cfg.DrainTimeout, log)
 }
 
 // drainInflight waits for the handlers the consumer already dispatched to run to
