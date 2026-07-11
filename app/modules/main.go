@@ -164,7 +164,14 @@ func main() {
 	}
 
 	// Channel-quotes verbs (the sesame quotes module's store).
-	if err := rpc.SubscribeQuotes(nc, quotes, dashboardSubject+".quote", "modules-rpc", nrApp, log); err != nil {
+	if err := rpc.SubscribeQuotes(rpc.QuotesWiring{
+		NC:         nc,
+		Repo:       quotes,
+		Prefix:     dashboardSubject + ".quote",
+		QueueGroup: "modules-rpc",
+		App:        nrApp,
+		Log:        log,
+	}); err != nil {
 		log.Fatal("failed to subscribe quotes rpc", zap.Error(err))
 	}
 

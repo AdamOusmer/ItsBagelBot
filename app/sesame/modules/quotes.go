@@ -36,7 +36,7 @@ var quoteCloser = map[string]string{`"`: `"`, "“": "”", "'": "'"}
 
 // Quotes owns the channel quote book. It is a named, opt-in module
 // (KindOptIn): off by default, enabled on the dashboard. The rows live in the
-// commands service; sesame talks to them over the quote RPC verbs.
+// modules service; sesame talks to them over the quote RPC verbs.
 //
 //	!quote                → a random saved quote
 //	!quote 12             → quote #12
@@ -66,44 +66,45 @@ func quoteDispatch(d engine.Deps, log *zap.Logger) module.RunFunc {
 		if d.Quotes == nil {
 			return nil
 		}
-		qc := quotesCmd{q: d.Quotes, c: c, log: log}
-		args = strings.TrimSpace(args)
-		isMod := c.Chatter().Allows(module.RoleModerator)
-
-		// A quoted body is the save form, checked before the subcommand split so
-		// a quote that happens to start with "add ..." or a number is kept whole.
-		if body, ok := unquote(args); ok {
-			if !isMod {
-				return nil
-			}
-			return qc.add(ctx, body, emit)
-		}
-
-		sub, rest := splitFirst(args)
-		switch strings.ToLower(sub) {
-		case "":
-			return qc.random(ctx, d.Cooldown, emit)
-		case "random":
-			return qc.random(ctx, d.Cooldown, emit)
-		case "add":
-			if !isMod {
-				return nil
-			}
-			body, _ := unquote(rest)
-			return qc.add(ctx, body, emit)
-		case "remove", "delete":
-			if !isMod {
-				return nil
-			}
-			return qc.remove(ctx, rest, emit)
-		default:
-			if n, err := strconv.ParseUint(sub, 10, 64); err == nil && rest == "" {
-				return qc.get(ctx, n, d.Cooldown, emit)
-			}
-			qc.reply(emit, "quote.err.usage")
-			return nil
-		}
+		qc := quotesCmd{q: d.Quotes, c: c, cd: d.Cooldown, log: log}
+		return qc.route(ctx, strings.TrimSpace(args), c.Chatter().Allows(module.RoleModerator), emit)
 	}
+}
+
+// route dispatches one !quote invocation. Each moderator-only form is wrapped
+// in runIfMod so the switch stays a flat list of one-line routes (a non-mod is
+// silently ignored, matching the engine gate).
+func (qc quotesCmd) route(ctx context.Context, args string, isMod bool, emit module.Emit) error {
+	// A quoted body is the save form, checked before the subcommand split so a
+	// quote that happens to start with "add ..." or a number is kept whole.
+	if body, ok := unquote(args); ok {
+		return qc.runIfMod(isMod, func() error { return qc.add(ctx, body, emit) })
+	}
+
+	sub, rest := splitFirst(args)
+	switch strings.ToLower(sub) {
+	case "", "random":
+		return qc.random(ctx, emit)
+	case "add":
+		body, _ := unquote(rest)
+		return qc.runIfMod(isMod, func() error { return qc.add(ctx, body, emit) })
+	case "remove", "delete":
+		return qc.runIfMod(isMod, func() error { return qc.remove(ctx, rest, emit) })
+	default:
+		if n, err := strconv.ParseUint(sub, 10, 64); err == nil && rest == "" {
+			return qc.get(ctx, n, emit)
+		}
+		qc.reply(emit, "quote.err.usage")
+		return nil
+	}
+}
+
+// runIfMod runs fn only for a moderator; a non-mod call is a silent no-op.
+func (qc quotesCmd) runIfMod(isMod bool, fn func() error) error {
+	if !isMod {
+		return nil
+	}
+	return fn()
 }
 
 // unquote reports whether s is a quoted body ("text", “text”, 'text') and
@@ -126,6 +127,7 @@ func unquote(s string) (body string, ok bool) {
 type quotesCmd struct {
 	q   engine.QuotesStore
 	c   *module.Context
+	cd  engine.CooldownStore
 	log *zap.Logger
 }
 
@@ -144,36 +146,51 @@ func (qc quotesCmd) add(ctx context.Context, body string, emit module.Emit) erro
 	return nil
 }
 
+// quoteRead is one cooled read: how to fetch the quote, the reply for a miss,
+// and a label for the failure log. get and random differ only in these.
+type quoteRead struct {
+	fetch   func(context.Context) (modulesrpc.Quote, bool, error)
+	missKey string
+	missKV  []string
+	label   string
+}
+
 // get shows one numbered quote, behind the shared read cooldown.
-func (qc quotesCmd) get(ctx context.Context, number uint64, cd engine.CooldownStore, emit module.Emit) error {
-	if ok, err := qc.allowRead(ctx, cd); err != nil || !ok {
-		return err
-	}
-	quote, found, err := qc.q.QuoteGet(ctx, qc.c.BroadcasterID, number)
-	if err != nil {
-		qc.log.Warn("quotes: get failed", zap.Uint64("number", number), qc.bid(), zap.Error(err))
-		return err
-	}
-	if !found {
-		qc.reply(emit, "quote.not_found", "num", strconv.FormatUint(number, 10))
-		return nil
-	}
-	qc.show(emit, quote)
-	return nil
+func (qc quotesCmd) get(ctx context.Context, number uint64, emit module.Emit) error {
+	return qc.readAndShow(ctx, emit, quoteRead{
+		fetch: func(ctx context.Context) (modulesrpc.Quote, bool, error) {
+			return qc.q.QuoteGet(ctx, qc.c.BroadcasterID, number)
+		},
+		missKey: "quote.not_found",
+		missKV:  []string{"num", strconv.FormatUint(number, 10)},
+		label:   "get",
+	})
 }
 
 // random shows a random quote, behind the shared read cooldown.
-func (qc quotesCmd) random(ctx context.Context, cd engine.CooldownStore, emit module.Emit) error {
-	if ok, err := qc.allowRead(ctx, cd); err != nil || !ok {
+func (qc quotesCmd) random(ctx context.Context, emit module.Emit) error {
+	return qc.readAndShow(ctx, emit, quoteRead{
+		fetch: func(ctx context.Context) (modulesrpc.Quote, bool, error) {
+			return qc.q.QuoteRandom(ctx, qc.c.BroadcasterID)
+		},
+		missKey: "quote.none",
+		label:   "random",
+	})
+}
+
+// readAndShow gates on the shared read cooldown, runs r.fetch, and emits either
+// the readout or r's miss reply. A nil/throttled cooldown stays silent.
+func (qc quotesCmd) readAndShow(ctx context.Context, emit module.Emit, r quoteRead) error {
+	if ok, err := qc.allowRead(ctx); err != nil || !ok {
 		return err
 	}
-	quote, found, err := qc.q.QuoteRandom(ctx, qc.c.BroadcasterID)
+	quote, found, err := r.fetch(ctx)
 	if err != nil {
-		qc.log.Warn("quotes: random failed", qc.bid(), zap.Error(err))
+		qc.log.Warn("quotes: "+r.label+" failed", qc.bid(), zap.Error(err))
 		return err
 	}
 	if !found {
-		qc.reply(emit, "quote.none")
+		qc.reply(emit, r.missKey, r.missKV...)
 		return nil
 	}
 	qc.show(emit, quote)
@@ -204,11 +221,11 @@ func (qc quotesCmd) remove(ctx context.Context, args string, emit module.Emit) e
 // allowRead claims the shared per-channel read window. A nil store (tests)
 // runs unthrottled; a throttled or errored claim stays silent, matching the
 // engine gate.
-func (qc quotesCmd) allowRead(ctx context.Context, cd engine.CooldownStore) (bool, error) {
-	if cd == nil {
+func (qc quotesCmd) allowRead(ctx context.Context) (bool, error) {
+	if qc.cd == nil {
 		return true, nil
 	}
-	return cd.Allow(ctx, engine.CommandCooldownKey(qc.c.BroadcasterID, "quote"), quotesReadCooldown)
+	return qc.cd.Allow(ctx, engine.CommandCooldownKey(qc.c.BroadcasterID, "quote"), quotesReadCooldown)
 }
 
 // show emits the readout: the text followed by the save date. The date is the

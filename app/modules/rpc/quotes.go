@@ -20,12 +20,24 @@ type quotesRPC struct {
 	log  *zap.Logger
 }
 
-// SubscribeQuotes answers the channel-quotes verbs under prefix (default
+// QuotesWiring bundles what SubscribeQuotes needs, mirroring the govee wiring
+// so the subscribe entry point stays a single argument instead of a long
+// parameter list.
+type QuotesWiring struct {
+	NC         *nats.Conn
+	Repo       *repository.Quotes
+	Prefix     string // subject prefix, e.g. "bagel.rpc.modules.quote"
+	QueueGroup string
+	App        *newrelic.Application
+	Log        *zap.Logger
+}
+
+// SubscribeQuotes answers the channel-quotes verbs under w.Prefix (default
 // "bagel.rpc.modules.quote"): add, get, random, remove. They ride the same
 // MODULES_RPC account export as the dashboard verbs, so no ACL change is
 // needed for sesame to call them.
-func SubscribeQuotes(nc *nats.Conn, repo *repository.Quotes, prefix, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
-	q := &quotesRPC{repo: repo, log: log}
+func SubscribeQuotes(w QuotesWiring) error {
+	q := &quotesRPC{repo: w.Repo, log: w.Log}
 
 	verbs := []struct {
 		verb    string
@@ -38,8 +50,8 @@ func SubscribeQuotes(nc *nats.Conn, repo *repository.Quotes, prefix, queueGroup 
 	}
 
 	for _, v := range verbs {
-		subject := prefix + "." + v.verb
-		if err := bus.QueueSubscribeJSON[modulesrpc.QuoteRequest, modulesrpc.QuoteReply](nc, subject, queueGroup, 2*time.Second, app, log, v.handler); err != nil {
+		subject := w.Prefix + "." + v.verb
+		if err := bus.QueueSubscribeJSON[modulesrpc.QuoteRequest, modulesrpc.QuoteReply](w.NC, subject, w.QueueGroup, 2*time.Second, w.App, w.Log, v.handler); err != nil {
 			return err
 		}
 	}

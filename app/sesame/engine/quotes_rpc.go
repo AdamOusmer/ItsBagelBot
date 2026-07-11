@@ -65,10 +65,7 @@ func (c *QuotesRPC) QuoteGet(ctx context.Context, broadcasterID, number uint64) 
 		UserID: strconv.FormatUint(broadcasterID, 10),
 		Number: number,
 	})
-	if err != nil || !reply.Found || reply.Quote == nil {
-		return modulesrpc.Quote{}, false, err
-	}
-	return *reply.Quote, true, nil
+	return foundQuote(reply, err)
 }
 
 // QuoteRandom returns a random quote; found=false when none are saved.
@@ -76,6 +73,12 @@ func (c *QuotesRPC) QuoteRandom(ctx context.Context, broadcasterID uint64) (modu
 	reply, err := c.call(ctx, "random", modulesrpc.QuoteRequest{
 		UserID: strconv.FormatUint(broadcasterID, 10),
 	})
+	return foundQuote(reply, err)
+}
+
+// foundQuote unwraps a get/random reply: an error, an absent row, or a nil
+// payload all collapse to (zero, false, err); a present row is (quote, true).
+func foundQuote(reply modulesrpc.QuoteReply, err error) (modulesrpc.Quote, bool, error) {
 	if err != nil || !reply.Found || reply.Quote == nil {
 		return modulesrpc.Quote{}, false, err
 	}
