@@ -60,6 +60,7 @@
     path.startsWith('/commands')
       ? 'commands'
       : path.startsWith('/modules') ||
+          path.startsWith('/quotes') ||
           path.startsWith('/govee') ||
           path.startsWith('/channelpoints') ||
           path.startsWith('/timers') ||
