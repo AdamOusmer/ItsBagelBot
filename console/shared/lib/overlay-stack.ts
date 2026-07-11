@@ -38,6 +38,12 @@ export function overlayIndex(id: number): number {
   return i < 0 ? 0 : i;
 }
 
+// True while any modal overlay is open. A non-modal docked surface uses this to
+// yield Escape to a confirmation stacked on top of it.
+export function hasOpenOverlay(): boolean {
+  return stack.length > 0;
+}
+
 // --- Scroll lock + background inert, reference-counted across the whole stack ---
 let locked = false;
 let prevOverflow = '';
@@ -93,13 +99,16 @@ export function trapFocus(node: HTMLElement) {
   const visible = (el: HTMLElement) => el.offsetParent !== null || el === document.activeElement;
   const items = () => Array.from(node.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(visible);
 
-  // Focus after the current mount flush: the surface is portaled to <body> and
-  // laid out by the next frame, so offsetParent is set and moving the node no
-  // longer blurs the focus we just placed.
+  // Focus after mount settles. Two frames, because the surface may portal to
+  // <body> and (for the responsive inspector) swap from a docked render to a
+  // sheet render first; focusing too early gets blurred by the DOM move.
+  let raf2 = 0;
   const raf = requestAnimationFrame(() => {
-    const first = items()[0];
-    if (first) first.focus();
-    else node.focus();
+    raf2 = requestAnimationFrame(() => {
+      const first = items()[0];
+      if (first) first.focus();
+      else node.focus();
+    });
   });
 
   function onKeydown(e: KeyboardEvent) {
@@ -125,6 +134,7 @@ export function trapFocus(node: HTMLElement) {
   return {
     destroy() {
       cancelAnimationFrame(raf);
+      cancelAnimationFrame(raf2);
       node.removeEventListener('keydown', onKeydown);
       if (opener && document.contains(opener)) opener.focus();
     }

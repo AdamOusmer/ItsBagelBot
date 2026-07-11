@@ -8,6 +8,7 @@
     Scroller,
     ConfirmDialog,
     EditorFooter,
+    InspectorSurface,
     toast,
     getI18n,
     blankTimer,
@@ -252,14 +253,13 @@
     </DeckList>
 
     {#if inspector.isOpen && draft}
-      <button class="sheet-scrim" type="button" aria-label={t('common.cancel')} onclick={closeInspector}></button>
-      <aside class="inspector" aria-label={t('timers.inspector')}>
-        <div class="inspector-head">
-          <span class="inspector-tag">{creating ? t('timers.newTimer') : t('timers.editing')}</span>
-          <button class="mini" type="button" aria-label={t('common.cancel')} onclick={closeInspector}>
-            <Icon name="x" size={14} />
-          </button>
-        </div>
+      <InspectorSurface
+        open
+        title={creating ? t('timers.newTimer') : t('timers.editing')}
+        controls="timer-editor"
+        closeLabel={t('common.cancel')}
+        onClose={closeInspector}
+      >
         <form method="POST" action={creating ? '?/create' : '?/update'} novalidate use:enhance={saveSubmit} class="inspector-form">
           <input type="hidden" name="timer" value={JSON.stringify(draft)} />
           <Scroller fill padding="16px" data-lenis-prevent>
@@ -278,19 +278,10 @@
             onCancel={closeInspector}
           />
         </form>
-      </aside>
+      </InspectorSurface>
     {/if}
   </div>
 </section>
-
-<svelte:window
-  onkeydown={(e) => {
-    if (e.key === 'Escape' && inspector.isOpen && !discardOpen) {
-      e.preventDefault();
-      closeInspector();
-    }
-  }}
-/>
 
 <!-- Dirty guard: one confirmation for close / row-switch / new / cancel. -->
 <ConfirmDialog
@@ -318,61 +309,7 @@
 
   .list :global(.row-shell:last-child) { border-bottom: none; }
 
-  .inspector {
-    position: sticky;
-    top: 62px;
-    border: 1px solid var(--rule);
-    border-top-color: var(--rule-strong);
-    border-radius: 8px;
-    background: linear-gradient(180deg, rgba(240, 236, 228, 0.03), rgba(240, 236, 228, 0.012));
-    display: flex;
-    flex-direction: column;
-    max-height: calc(100dvh - 62px - 108px);
-    overflow: hidden;
-  }
-  .inspector-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--rule);
-  }
-  .inspector-tag {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 12px;
-    letter-spacing: 0.02em;
-    color: var(--bb-tan);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
+  /* The editor form fills the inspector surface below its head; the Scroller
+     scrolls and the EditorFooter stays pinned at the bottom. */
   .inspector-form { display: flex; flex-direction: column; min-height: 0; flex: 1; }
-
-  .sheet-scrim { display: none; }
-
-  /* Mobile / narrow: the inspector docks as a bottom sheet over the list. */
-  @media (max-width: 1079px) {
-    .sheet-scrim {
-      display: block;
-      position: fixed; inset: 0; z-index: 219;
-      border: 0; padding: 0;
-      background: rgba(0, 0, 0, 0.55);
-    }
-    .inspector {
-      position: fixed;
-      left: 0; right: 0; bottom: 0;
-      top: auto;
-      z-index: 220;
-      max-height: 88dvh;
-      border-radius: 8px 8px 0 0;
-      background: var(--bb-bg-1, #111);
-      animation: sheet-in var(--bb-dur-base, 320ms) var(--bb-ease-out-expo, cubic-bezier(.16,1,.3,1)) both;
-    }
-    @keyframes sheet-in { from { transform: translateY(100%); } to { transform: translateY(0); } }
-    @media (prefers-reduced-motion: reduce) {
-      .inspector { animation: none; }
-    }
-  }
 </style>
