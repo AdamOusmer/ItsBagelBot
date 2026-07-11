@@ -46,6 +46,14 @@ var catalog = map[string]map[string]string{
 		"queue.list.empty":       "The queue is empty.",
 		"queue.err.usage":        "Usage: !queue <open|close|next|list|remove|clear> — or !join / !leave / !list",
 
+		"quote.show":         "Quote #{num}: {text} ({date})",
+		"quote.added":        "@{user} quote #{num} added.",
+		"quote.removed":      "Quote #{num} removed.",
+		"quote.not_found":    "Quote #{num} doesn't exist.",
+		"quote.none":         "No quotes saved yet. Mods can add one with !quote \"text\".",
+		"quote.remove.usage": "Usage: !quote remove <number>",
+		"quote.err.usage":    "Usage: !quote — !quote <number> — !quote \"text\" — !quote remove <number>",
+
 		"loyalty.points":              "@{user} you have {points} {name} and {hours} hours watched.",
 		"loyalty.points.adjusted":     "@{target} now has {points} {name}.",
 		"loyalty.points.unknown":      "@{user} I haven't seen {target} in this channel yet.",
@@ -94,6 +102,14 @@ var catalog = map[string]map[string]string{
 		"queue.list.more":        "À suivre : {list} (+{count} autres)",
 		"queue.list.empty":       "La file est vide.",
 		"queue.err.usage":        "Utilisation : !queue <open|close|next|list|remove|clear> — ou !join / !leave / !list",
+
+		"quote.show":         "Citation n°{num} : {text} ({date})",
+		"quote.added":        "@{user} citation n°{num} ajoutée.",
+		"quote.removed":      "Citation n°{num} supprimée.",
+		"quote.not_found":    "La citation n°{num} n'existe pas.",
+		"quote.none":         "Aucune citation pour le moment. Les modos peuvent en ajouter une avec !quote \"texte\".",
+		"quote.remove.usage": "Utilisation : !quote remove <numéro>",
+		"quote.err.usage":    "Utilisation : !quote — !quote <numéro> — !quote \"texte\" — !quote remove <numéro>",
 
 		"loyalty.points":              "@{user} vous avez {points} {name} et {hours} heures de visionnage.",
 		"loyalty.points.adjusted":     "@{target} a maintenant {points} {name}.",

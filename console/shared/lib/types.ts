@@ -950,6 +950,23 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
     ]
   },
   {
+    id: 'quotes',
+    label: 'Quotes',
+    tagline: 'Save the best things said on stream and replay them in chat.',
+    description:
+      'Keep a channel quote book. Mods save a line with !quote "the text" and the bot numbers it and stamps the save date. Anyone replays one with !quote for a random pick or !quote 12 for a specific number — the bot answers "Quote #12: the text (2026-07-11)". Mods remove a mistake with !quote remove 12; numbers are never reused, so an old number keeps pointing at the same quote. The replies are fixed system text (localized to your console language).',
+    icon: 'quote',
+    category: 'Community',
+    defaultEnabled: false,
+    replies: [],
+    commands: [
+      { trigger: '!quote', summary: 'Post a random saved quote (also !quotes).' },
+      { trigger: '!quote <number>', summary: 'Post that exact quote.' },
+      { trigger: '!quote "text"', summary: 'Save a new quote; the save date is kept with it.', perm: 'mod' },
+      { trigger: '!quote remove <number>', summary: 'Delete a quote; its number is retired.', perm: 'mod' }
+    ]
+  },
+  {
     id: 'govee',
     label: 'Govee Lights',
     tagline: 'Let viewers recolour your Govee lights with channel points.',

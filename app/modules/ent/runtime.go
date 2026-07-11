@@ -5,6 +5,7 @@ package ent
 import (
 	"ItsBagelBot/app/modules/ent/goveecredential"
 	"ItsBagelBot/app/modules/ent/modules"
+	"ItsBagelBot/app/modules/ent/quote"
 	"ItsBagelBot/app/modules/ent/schema"
 	"time"
 )
@@ -37,4 +38,34 @@ func init() {
 	modules.DefaultUpdatedAt = modulesDescUpdatedAt.Default.(func() time.Time)
 	// modules.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
 	modules.UpdateDefaultUpdatedAt = modulesDescUpdatedAt.UpdateDefault.(func() time.Time)
+	quoteFields := schema.Quote{}.Fields()
+	_ = quoteFields
+	// quoteDescText is the schema descriptor for text field.
+	quoteDescText := quoteFields[2].Descriptor()
+	// quote.TextValidator is a validator for the "text" field. It is called by the builders before save.
+	quote.TextValidator = func() func(string) error {
+		validators := quoteDescText.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(text string) error {
+			for _, fn := range fns {
+				if err := fn(text); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// quoteDescAddedBy is the schema descriptor for added_by field.
+	quoteDescAddedBy := quoteFields[3].Descriptor()
+	// quote.DefaultAddedBy holds the default value on creation for the added_by field.
+	quote.DefaultAddedBy = quoteDescAddedBy.Default.(string)
+	// quote.AddedByValidator is a validator for the "added_by" field. It is called by the builders before save.
+	quote.AddedByValidator = quoteDescAddedBy.Validators[0].(func(string) error)
+	// quoteDescCreatedAt is the schema descriptor for created_at field.
+	quoteDescCreatedAt := quoteFields[4].Descriptor()
+	// quote.DefaultCreatedAt holds the default value on creation for the created_at field.
+	quote.DefaultCreatedAt = quoteDescCreatedAt.Default.(func() time.Time)
 }

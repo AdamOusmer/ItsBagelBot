@@ -21,6 +21,7 @@ func All(d engine.Deps) []module.Module {
 		Mcsr(d),
 		Fortnite(d),
 		Queue(d),
+		Quotes(d),
 		Automod(d),
 		ChannelPoints(d),
 		Loyalty(d),

@@ -32,6 +32,18 @@ func (f ModulesFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, err
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ModulesMutation", m)
 }
 
+// The QuoteFunc type is an adapter to allow the use of ordinary
+// function as Quote mutator.
+type QuoteFunc func(context.Context, *ent.QuoteMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f QuoteFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.QuoteMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.QuoteMutation", m)
+}
+
 // Condition is a hook condition function.
 type Condition func(context.Context, ent.Mutation) bool
 
