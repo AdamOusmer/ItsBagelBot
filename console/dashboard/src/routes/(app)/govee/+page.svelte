@@ -2,7 +2,7 @@
   import { enhance } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { Icon, Card, PageHead, Scroller, ConfirmDialog, MasterToggle, AlertBanner, DeckList, EmptyState, toast, type GoveeDevice } from '@bagel/shared';
+  import { Icon, Card, PageHead, Scroller, ConfirmDialog, InspectorSurface, MasterToggle, AlertBanner, DeckList, EmptyState, toast, type GoveeDevice } from '@bagel/shared';
   import GoveeLightRow from '$lib/components/govee/GoveeLightRow.svelte';
   import GoveeRewardEditor from '$lib/components/govee/GoveeRewardEditor.svelte';
 
@@ -75,13 +75,14 @@
       const payload = payloadOf(result);
       if (result.type === 'success' && payload?.ok !== false) {
         toast('ok', 'Reward saved.');
-        closeInspector();
+        // Save keeps the inspector open on the bound light; invalidateAll
+        // reseeds the binding so it reads current.
         await invalidateAll();
         return;
       }
       if (payload?.missingScope) {
         missingScope = true;
-        closeInspector();
+        // Keep the inspector open so the draft survives the reconnect prompt.
         return;
       }
       toast('err', payload?.error ?? 'Could not save the reward.');
@@ -113,13 +114,6 @@
       toast('err', payload?.error ?? 'Could not delete the reward.');
     };
   };
-
-  function onKey(e: KeyboardEvent) {
-    if (e.key !== 'Escape' || !selected) return;
-    const el = e.target as HTMLElement | null;
-    if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return;
-    closeInspector();
-  }
 
   const colorDevices = (devices: GoveeDevice[]) => devices.filter((d) => d.color);
 </script>
@@ -183,9 +177,13 @@
   </Card>
 
   {#if keyPresent}
+    {#if !enabled}
+      <!-- Off but configurable: state it plainly rather than dimming the deck. -->
+      <AlertBanner>This module is off. You can set up your lights now; redemptions take effect once you enable it.</AlertBanner>
+    {/if}
     <!-- The deck: lights left, docked reward inspector right (same layout as the
          channel-points + commands decks). -->
-    <div class="deck {selected ? 'inspecting' : ''}" class:muted={!enabled}>
+    <div class="deck {selected ? 'inspecting' : ''}">
       <DeckList>
         {#await data.devices}
           <p class="loading"><span class="spinner" aria-hidden="true"></span> Loading your Govee lights…</p>
@@ -211,22 +209,14 @@
         {/await}
       </DeckList>
 
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div
-        class="inspector-backdrop"
-        class:open={!!selected}
-        role="presentation"
-        onclick={closeInspector}
-        onkeydown={(e) => { if (e.key === 'Enter') closeInspector(); }}
-      ></div>
-      <aside class="inspector" class:open={!!selected} aria-label="Reward editor">
-        <div class="inspector-head">
-          <span class="inspector-tag">{selected ? (selected.name || 'Light') : 'Reward editor'}</span>
-          {#if selected}
-            <button class="mini" type="button" aria-label="Close" onclick={closeInspector}><Icon name="x" size={14} /></button>
-          {/if}
-        </div>
-        {#if selected}
+      {#if selected}
+        <InspectorSurface
+          open
+          title={selected.name || 'Light'}
+          controls="govee-editor"
+          closeLabel="Close"
+          onClose={closeInspector}
+        >
           <Scroller fill padding="16px" data-lenis-prevent>
             {#key selected.device}
               <GoveeRewardEditor
@@ -240,18 +230,11 @@
               />
             {/key}
           </Scroller>
-        {:else}
-          <div class="inspector-idle">
-            <span class="idle-glyph"><Icon name="power" size={18} /></span>
-            <p>Pick a light to bind a channel-points reward to it.</p>
-          </div>
-        {/if}
-      </aside>
+        </InspectorSurface>
+      {/if}
     </div>
   {/if}
 </section>
-
-<svelte:window onkeydown={onKey} />
 
 <ConfirmDialog
   open={deleteTarget !== null}
@@ -318,12 +301,10 @@
   .btn.danger { color: #cf8a78; }
   .ok-pill { display: inline-flex; align-items: center; gap: 6px; color: var(--bb-green-glow); font-family: var(--bb-font-body); font-size: 13px; font-weight: 600; }
 
-  /* Deck (list + docked inspector), mirroring the channel-points page. */
-  .deck { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; margin-top: 16px; transition: opacity var(--bb-dur-fast, 140ms) ease; }
-  .deck.muted { opacity: 0.72; }
+  /* Deck: full-width light list until a selection opens the docked inspector. */
+  .deck { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; margin-top: 16px; }
   @media (min-width: 1080px) {
     .deck.inspecting { grid-template-columns: minmax(0, 1fr) 440px; }
-    .deck { grid-template-columns: minmax(0, 1fr) 320px; }
   }
   .list :global(.row-shell:last-child) { border-bottom: none; }
 
@@ -336,40 +317,4 @@
     animation: spin 0.7s linear infinite;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
-
-  .inspector {
-    position: sticky;
-    top: 62px;
-    border: 1px solid var(--rule);
-    border-top-color: var(--rule-strong);
-    border-radius: 8px;
-    background: linear-gradient(180deg, rgba(240, 236, 228, 0.03), rgba(240, 236, 228, 0.012));
-    display: flex;
-    flex-direction: column;
-    max-height: calc(100vh - 62px - 108px);
-  }
-  .inspector-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--rule); }
-  .inspector-tag { font-family: var(--bb-font-display); font-weight: 700; font-size: 12px; letter-spacing: 0.02em; color: var(--bb-tan); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-  .inspector-idle { padding: 34px 20px; text-align: center; color: var(--bb-muted); font-family: var(--bb-font-body); font-size: 13px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
-  .idle-glyph { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border: 1px solid var(--rule-tan); border-radius: 8px; color: var(--bb-tan-light); }
-  .inspector-idle p { margin: 0; max-width: 26ch; line-height: 1.5; }
-
-  .inspector-backdrop { display: none; }
-  @media (max-width: 1079px) {
-    .inspector { display: none; }
-    .inspector.open {
-      display: flex;
-      position: fixed;
-      left: 0; right: 0; bottom: 0;
-      top: auto;
-      z-index: 220;
-      max-height: 88vh;
-      border-radius: 8px 8px 0 0;
-      background: var(--bb-bg-1, #111);
-      animation: sheet-in var(--bb-dur-base, 320ms) var(--bb-ease-out-expo, cubic-bezier(.16,1,.3,1)) both;
-    }
-    .inspector-backdrop.open { display: block; position: fixed; inset: 0; z-index: 219; background: rgba(0, 0, 0, 0.55); }
-    @keyframes sheet-in { from { transform: translateY(100%); } to { transform: translateY(0); } }
-  }
 </style>
