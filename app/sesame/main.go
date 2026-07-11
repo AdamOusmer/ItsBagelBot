@@ -146,21 +146,24 @@ func main() {
 	)
 
 	<-ctx.Done()
+	drainInflight(weighted, cfg.DrainTimeout, log)
+}
 
-	// SIGTERM cancelled ctx, so the consumer has stopped pulling from the lanes.
-	// Wait for the handlers it already dispatched to run to completion before the
-	// deferred Close calls below flush the reporters and shut the publishers: a
-	// handler killed mid-flight would leave its dedup claim written (released only
-	// on the error path) while its event is acked, so partial multi-output work
-	// would be dropped on the floor instead of redelivered.
-	log.Info("sesame shutting down, draining in-flight events", zap.Duration("timeout", cfg.DrainTimeout))
-	drainCtx, cancelDrain := context.WithTimeout(context.Background(), cfg.DrainTimeout)
-	defer cancelDrain()
-	if err := weighted.Drain(drainCtx); err != nil {
+// drainInflight waits for the handlers the consumer already dispatched to run to
+// completion before main returns and its deferred Close calls flush the reporters
+// and shut the publishers. SIGTERM cancelled the consumer's context, so no new
+// work is being pulled; a handler killed mid-flight would leave its dedup claim
+// written (released only on the error path) while its event is acked, so partial
+// multi-output work would be dropped on the floor instead of redelivered.
+func drainInflight(weighted *bus.Weighted, timeout time.Duration, log *zap.Logger) {
+	log.Info("sesame shutting down, draining in-flight events", zap.Duration("timeout", timeout))
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	if err := weighted.Drain(ctx); err != nil {
 		log.Warn("drain deadline exceeded; in-flight events left for redelivery", zap.Error(err))
-	} else {
-		log.Info("in-flight events drained")
+		return
 	}
+	log.Info("in-flight events drained")
 }
 
 func newPipeline(deps engine.Deps, registry *engine.Registry, cfg *config.Config) *engine.Pipeline {
