@@ -1,5 +1,6 @@
 <script lang="ts">
   import { deserialize } from '$app/forms';
+  import { invalidateAll } from '$app/navigation';
   import { Icon, Card, PageHead, Scroller, SaveStatus, Switch, InspectorSurface, ConfirmDialog, AlertBanner, DeckList, EmptyState, toast, getI18n, automodToggleDefault, type ModuleField, type ModuleReply } from '@bagel/shared';
   import type { SaveState } from '@bagel/shared/components/SaveStatus.svelte';
   import ReplyRow from '$lib/components/modules/ReplyRow.svelte';
@@ -21,6 +22,9 @@
   let enabled = $state(data.enabled);
   // svelte-ignore state_referenced_locally
   let config = $state<Record<string, string>>({ ...data.config });
+  // Optimistic-concurrency token echoed on every patch; updated from each reply.
+  // svelte-ignore state_referenced_locally
+  let rev = $state<number>(data.revision ?? 0);
 
   // Trigger words is the one module whose "replies" are a free-form list the
   // author grows: it renders trigger rules as add/removable ReplyRows and reads
@@ -43,6 +47,7 @@
       seedId = data.def.id;
       enabled = data.enabled;
       config = { ...data.config };
+      rev = data.revision ?? 0;
       rules = parseRules(data.config.rules ?? '');
       ruleIndex = null;
       expanded = null;
@@ -67,29 +72,45 @@
     timers.set(key, [setTimeout(() => (modStatus = { ...modStatus, [key]: 'idle' }), 4000)]);
   }
 
-  // The whole config is one blob, so every write posts the full current draft.
-  function buildBody(en: boolean, cfg: Record<string, string>): FormData {
+  // Config writes are field-level patches (only the changed keys) under optimistic
+  // concurrency. Writes are serialised so the revision stays consistent between
+  // rapid edits; each write echoes the current rev and adopts the reply's. A
+  // conflict means another writer moved the revision on: reload the latest state
+  // and let the user redo, rather than silently clobbering their change.
+  let writeChain: Promise<unknown> = Promise.resolve();
+
+  async function runPatch(partial: Record<string, string>, en: boolean): Promise<boolean> {
     const body = new FormData();
     body.set('is_enabled', en ? 'on' : '');
-    for (const reply of def.replies) {
-      body.set(`cfg.${reply.messageKey}`, cfg[reply.messageKey] ?? '');
-      if (reply.enableKey) body.set(`cfg.${reply.enableKey}`, cfg[reply.enableKey] === 'off' ? 'off' : 'on');
-    }
-    for (const field of def.settings ?? []) body.set(`cfg.${field.key}`, cfg[field.key] ?? '');
-    // Triggers persists its whole rule list as one config string.
-    if (def.id === 'triggers') body.set('cfg.rules', cfg.rules ?? '');
-    return body;
-  }
-
-  async function persist(en: boolean, cfg: Record<string, string>): Promise<boolean> {
-    const res = await fetch('?/save', { method: 'POST', body: buildBody(en, cfg) }).catch(() => null);
+    body.set('expected_rev', String(rev));
+    body.set('partial', JSON.stringify(partial));
+    const res = await fetch('?/patch', { method: 'POST', body }).catch(() => null);
     if (!res) return false;
     const result = deserialize(await res.text());
     const payload =
       result.type === 'success' || result.type === 'failure'
-        ? (result.data as { ok?: boolean } | undefined)
+        ? (result.data as { ok?: boolean; rev?: number; conflict?: boolean } | undefined)
         : undefined;
-    return !!(result.type === 'success' && payload?.ok);
+    if (result.type === 'success' && payload?.ok) {
+      if (typeof payload.rev === 'number') rev = payload.rev;
+      return true;
+    }
+    if (payload?.conflict) {
+      await invalidateAll();
+      // The reseed effect only fires on module navigation, so refresh in place.
+      enabled = data.enabled;
+      config = { ...data.config };
+      rev = data.revision ?? 0;
+      rules = parseRules(data.config.rules ?? '');
+      toast('err', t('modules.patchConflict'));
+    }
+    return false;
+  }
+
+  function patch(partial: Record<string, string>, en: boolean): Promise<boolean> {
+    const result = writeChain.then(() => runPatch(partial, en));
+    writeChain = result.catch(() => {});
+    return result;
   }
 
   // --- Module master toggle (optimistic) -------------------------------------
@@ -97,7 +118,7 @@
     const before = enabled;
     enabled = !enabled;
     setStatus('module', 'saving');
-    if (await persist(enabled, config)) ackSaved('module');
+    if (await patch({}, enabled)) ackSaved('module');
     else {
       enabled = before;
       flagError('module');
@@ -112,7 +133,7 @@
     if (value.trim() === before.trim()) return;
     config = { ...config, [key]: value.trim() };
     setStatus(`setting:${key}`, 'saving');
-    if (await persist(enabled, config)) ackSaved(`setting:${key}`);
+    if (await patch({ [key]: value.trim() }, enabled)) ackSaved(`setting:${key}`);
     else {
       config = { ...config, [key]: before };
       flagError(`setting:${key}`);
@@ -137,7 +158,7 @@
     const was = config[key] !== 'off';
     config = { ...config, [key]: was ? 'off' : 'on' };
     setStatus(reply.key, 'saving');
-    if (await persist(enabled, config)) ackSaved(reply.key);
+    if (await patch({ [key]: was ? 'off' : 'on' }, enabled)) ackSaved(reply.key);
     else {
       config = { ...config, [key]: was ? 'on' : 'off' };
       flagError(reply.key);
@@ -200,7 +221,7 @@
     config = { ...config, [r.messageKey]: editMessage };
     busy = true;
     setStatus(r.key, 'saving');
-    const ok = await persist(enabled, config);
+    const ok = await patch({ [r.messageKey]: editMessage }, enabled);
     busy = false;
     if (ok) {
       ackSaved(r.key);
@@ -290,9 +311,9 @@
   // draft, so the module enable and the rules save together. config is committed
   // only on success (the caller commits `rules` too).
   async function persistRules(next: Rule[]): Promise<boolean> {
-    const cfg = { ...config, rules: serializeRules(next) };
-    const ok = await persist(enabled, cfg);
-    if (ok) config = cfg;
+    const rulesStr = serializeRules(next);
+    const ok = await patch({ rules: rulesStr }, enabled);
+    if (ok) config = { ...config, rules: rulesStr };
     return ok;
   }
 

@@ -513,6 +513,8 @@ type ModulesMutation struct {
 	is_enabled    *bool
 	configs       *[]uint8
 	appendconfigs []uint8
+	revision      *int
+	addrevision   *int
 	updated_at    *time.Time
 	clearedFields map[string]struct{}
 	done          bool
@@ -811,6 +813,62 @@ func (m *ModulesMutation) ResetConfigs() {
 	delete(m.clearedFields, modules.FieldConfigs)
 }
 
+// SetRevision sets the "revision" field.
+func (m *ModulesMutation) SetRevision(i int) {
+	m.revision = &i
+	m.addrevision = nil
+}
+
+// Revision returns the value of the "revision" field in the mutation.
+func (m *ModulesMutation) Revision() (r int, exists bool) {
+	v := m.revision
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRevision returns the old "revision" field's value of the Modules entity.
+// If the Modules object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ModulesMutation) OldRevision(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRevision is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRevision requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRevision: %w", err)
+	}
+	return oldValue.Revision, nil
+}
+
+// AddRevision adds i to the "revision" field.
+func (m *ModulesMutation) AddRevision(i int) {
+	if m.addrevision != nil {
+		*m.addrevision += i
+	} else {
+		m.addrevision = &i
+	}
+}
+
+// AddedRevision returns the value that was added to the "revision" field in this mutation.
+func (m *ModulesMutation) AddedRevision() (r int, exists bool) {
+	v := m.addrevision
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetRevision resets all changes to the "revision" field.
+func (m *ModulesMutation) ResetRevision() {
+	m.revision = nil
+	m.addrevision = nil
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (m *ModulesMutation) SetUpdatedAt(t time.Time) {
 	m.updated_at = &t
@@ -881,7 +939,7 @@ func (m *ModulesMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *ModulesMutation) Fields() []string {
-	fields := make([]string, 0, 5)
+	fields := make([]string, 0, 6)
 	if m.user_id != nil {
 		fields = append(fields, modules.FieldUserID)
 	}
@@ -893,6 +951,9 @@ func (m *ModulesMutation) Fields() []string {
 	}
 	if m.configs != nil {
 		fields = append(fields, modules.FieldConfigs)
+	}
+	if m.revision != nil {
+		fields = append(fields, modules.FieldRevision)
 	}
 	if m.updated_at != nil {
 		fields = append(fields, modules.FieldUpdatedAt)
@@ -913,6 +974,8 @@ func (m *ModulesMutation) Field(name string) (ent.Value, bool) {
 		return m.IsEnabled()
 	case modules.FieldConfigs:
 		return m.Configs()
+	case modules.FieldRevision:
+		return m.Revision()
 	case modules.FieldUpdatedAt:
 		return m.UpdatedAt()
 	}
@@ -932,6 +995,8 @@ func (m *ModulesMutation) OldField(ctx context.Context, name string) (ent.Value,
 		return m.OldIsEnabled(ctx)
 	case modules.FieldConfigs:
 		return m.OldConfigs(ctx)
+	case modules.FieldRevision:
+		return m.OldRevision(ctx)
 	case modules.FieldUpdatedAt:
 		return m.OldUpdatedAt(ctx)
 	}
@@ -971,6 +1036,13 @@ func (m *ModulesMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetConfigs(v)
 		return nil
+	case modules.FieldRevision:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRevision(v)
+		return nil
 	case modules.FieldUpdatedAt:
 		v, ok := value.(time.Time)
 		if !ok {
@@ -989,6 +1061,9 @@ func (m *ModulesMutation) AddedFields() []string {
 	if m.adduser_id != nil {
 		fields = append(fields, modules.FieldUserID)
 	}
+	if m.addrevision != nil {
+		fields = append(fields, modules.FieldRevision)
+	}
 	return fields
 }
 
@@ -999,6 +1074,8 @@ func (m *ModulesMutation) AddedField(name string) (ent.Value, bool) {
 	switch name {
 	case modules.FieldUserID:
 		return m.AddedUserID()
+	case modules.FieldRevision:
+		return m.AddedRevision()
 	}
 	return nil, false
 }
@@ -1014,6 +1091,13 @@ func (m *ModulesMutation) AddField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddUserID(v)
+		return nil
+	case modules.FieldRevision:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddRevision(v)
 		return nil
 	}
 	return fmt.Errorf("unknown Modules numeric field %s", name)
@@ -1062,6 +1146,9 @@ func (m *ModulesMutation) ResetField(name string) error {
 		return nil
 	case modules.FieldConfigs:
 		m.ResetConfigs()
+		return nil
+	case modules.FieldRevision:
+		m.ResetRevision()
 		return nil
 	case modules.FieldUpdatedAt:
 		m.ResetUpdatedAt()

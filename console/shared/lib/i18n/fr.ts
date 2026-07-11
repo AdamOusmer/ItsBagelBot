@@ -610,6 +610,7 @@ export const fr = {
     loading: 'Chargement…',
     saved: '{label} enregistré.',
     saveFailed: 'Échec de l\'enregistrement.',
+    patchConflict: 'Quelqu\'un d\'autre a modifié ce module. La dernière version a été rechargée — refaites votre modification.',
     offConfigurable: 'Ce module est désactivé. Vous pouvez le configurer maintenant ; les changements prendront effet une fois activé.',
     triggerReserved: 'Cette phrase utilise une syntaxe réservée (=>, un # au début, ou un préfixe mode:). Reformulez-la.',
     discardTitle: 'Abandonner les modifications ?',

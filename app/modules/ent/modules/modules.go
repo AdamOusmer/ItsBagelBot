@@ -21,6 +21,8 @@ const (
 	FieldIsEnabled = "is_enabled"
 	// FieldConfigs holds the string denoting the configs field in the database.
 	FieldConfigs = "configs"
+	// FieldRevision holds the string denoting the revision field in the database.
+	FieldRevision = "revision"
 	// FieldUpdatedAt holds the string denoting the updated_at field in the database.
 	FieldUpdatedAt = "updated_at"
 	// Table holds the table name of the modules in the database.
@@ -34,6 +36,7 @@ var Columns = []string{
 	FieldName,
 	FieldIsEnabled,
 	FieldConfigs,
+	FieldRevision,
 	FieldUpdatedAt,
 }
 
@@ -52,6 +55,8 @@ var (
 	NameValidator func(string) error
 	// DefaultIsEnabled holds the default value on creation for the "is_enabled" field.
 	DefaultIsEnabled bool
+	// DefaultRevision holds the default value on creation for the "revision" field.
+	DefaultRevision int
 	// DefaultUpdatedAt holds the default value on creation for the "updated_at" field.
 	DefaultUpdatedAt func() time.Time
 	// UpdateDefaultUpdatedAt holds the default value on update for the "updated_at" field.
@@ -79,6 +84,11 @@ func ByName(opts ...sql.OrderTermOption) OrderOption {
 // ByIsEnabled orders the results by the is_enabled field.
 func ByIsEnabled(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldIsEnabled, opts...).ToFunc()
+}
+
+// ByRevision orders the results by the revision field.
+func ByRevision(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldRevision, opts...).ToFunc()
 }
 
 // ByUpdatedAt orders the results by the updated_at field.
