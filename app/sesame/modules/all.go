@@ -17,6 +17,7 @@ func All(d engine.Deps) []module.Module {
 		Shoutout(d),
 		Alerts(d),
 		Clip(d),
+		Followage(d),
 		Urchin(d),
 		Mcsr(d),
 		Fortnite(d),
