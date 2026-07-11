@@ -22,6 +22,8 @@ defmodule Ingress.ConduitManager do
 
   @reconcile_interval_ms 30_000
   @retry_interval_ms 5_000
+  # How long a direct stop of an unsupervised (orphan) shard may take.
+  @orphan_stop_timeout_ms 5_000
 
   def start_link(_opts) do
     GenServer.start_link(__MODULE__, [], name: via())
@@ -172,6 +174,9 @@ defmodule Ingress.ConduitManager do
             :ok ->
               :ok
 
+            {:error, :not_found} ->
+              stop_orphan_shard(shard_id, pid)
+
             {:error, reason} ->
               Logger.warning("stop shard #{shard_id} failed: #{inspect(reason)}")
           end
@@ -179,6 +184,24 @@ defmodule Ingress.ConduitManager do
         [] ->
           :ok
       end
+    end
+  end
+
+  # `terminate_child` answers :not_found for a shard the supervisor does not
+  # track: duplicate-shard takeover re-registers the surviving process directly
+  # in the registry, so the supervisor CRDT never learns its pid and the shard
+  # would otherwise outlive every scale-down, bind-looping against a conduit
+  # that has no slot for it. Stop the process itself. GenServer.stop rather
+  # than an exit signal: the session traps exits and would absorb a :shutdown
+  # signal as an info message.
+  defp stop_orphan_shard(shard_id, pid) do
+    Logger.warning("stopping orphan shard #{shard_id} (registered but unsupervised)")
+
+    try do
+      GenServer.stop(pid, :normal, @orphan_stop_timeout_ms)
+    catch
+      :exit, reason ->
+        Logger.warning("orphan shard #{shard_id} stop failed: #{inspect(reason)}")
     end
   end
 

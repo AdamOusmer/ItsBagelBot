@@ -426,8 +426,16 @@ defmodule Ingress.ShardSession do
         {:noreply, pet_watchdog(state)}
 
       {:error, reason} ->
-        Logger.error("shard bind failed: #{inspect(reason)}; reconnecting")
-        {:noreply, reconnect(state)}
+        if permanent_bind_error?(reason) do
+          Logger.warning(
+            "shard bind rejected as permanent: #{inspect(reason)}; stopping (reconciler restarts the shard only while it fits the conduit)"
+          )
+
+          {:stop, :normal, stand_down(state)}
+        else
+          Logger.error("shard bind failed: #{inspect(reason)}; reconnecting")
+          {:noreply, reconnect(state)}
+        end
     end
   end
 
@@ -478,6 +486,19 @@ defmodule Ingress.ShardSession do
     Logger.debug("unhandled eventsub message_type #{type}")
     {:noreply, pet_watchdog(state)}
   end
+
+  # A bind rejected with `invalid_parameter` cannot succeed by retrying: the
+  # shard id lies outside the conduit's current shard_count, i.e. this shard is
+  # excess after a scale-down. Other shard errors (websocket_disconnected,
+  # failed ping-pong) are transient session problems a fresh reconnect fixes.
+  # Stopping :normal removes the registry entry and, with :transient restart,
+  # keeps the supervisor from bringing the shard back on its own.
+  @doc false
+  def permanent_bind_error?({:shard_errors, errors}) when is_list(errors) do
+    Enum.any?(errors, &(&1["code"] == "invalid_parameter"))
+  end
+
+  def permanent_bind_error?(_reason), do: false
 
   # Announce that this shard (re)established its binding: "fresh" after a
   # full connect + Helix bind, "moved" after a session_reconnect handshake
