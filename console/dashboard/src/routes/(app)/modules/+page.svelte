@@ -2,7 +2,7 @@
   import { enhance } from '$app/forms';
   import { onMount } from 'svelte';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { Icon, Card, PageHead, SaveStatus, toast, getI18n, type ModuleState } from '@bagel/shared';
+  import { Icon, Card, PageHead, SaveStatus, AlertBanner, EmptyState, toast, getI18n, type ModuleState } from '@bagel/shared';
   import type { SaveState } from '@bagel/shared/components/SaveStatus.svelte';
   let { data } = $props();
 
@@ -136,7 +136,7 @@
   >{t('modules.titlePre')}<em>{t('modules.titleEm')}</em></PageHead>
 
   {#if data.degraded}
-    <div class="degraded" role="alert"><Icon name="ban" size={13} /> {t('modules.degraded')}</div>
+    <AlertBanner>{t('modules.degraded')}</AlertBanner>
   {/if}
 
   <div class="search-bar">
@@ -210,27 +210,13 @@
       {/each}
 
       {#if itemsByCategory.length === 0}
-        <Card style="padding:28px 18px"><div class="empty">No modules match your search.</div></Card>
+        <Card style="padding:0"><EmptyState icon="search" title="No modules match your search." /></Card>
       {/if}
     </div>
   </div>
 </section>
 
 <style>
-  .degraded {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 14px;
-    padding: 10px 14px;
-    border: 1px solid rgba(176, 90, 70, 0.4);
-    border-radius: 8px 8px;
-    background: rgba(176, 90, 70, 0.08);
-    color: #cf8a78;
-    font-family: var(--bb-font-body);
-    font-size: 13px;
-  }
-
   .search-bar {
     position: relative;
     margin-bottom: 32px;
@@ -449,7 +435,5 @@
     transition: color var(--bb-dur-fast, 140ms) ease;
   }
   .open:hover { color: var(--bb-white); }
-
-  .empty { text-align: center; color: var(--bb-muted); font-family: var(--bb-font-body); font-size: 13px; }
 </style>
 

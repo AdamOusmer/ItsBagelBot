@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Icon, PageHead, Card, Modal, toast, getI18n, containsLink } from '@bagel/shared';
+  import { Icon, PageHead, Card, Modal, AlertBanner, toast, getI18n, containsLink } from '@bagel/shared';
   import { page } from '$app/state';
   import { replaceState } from '$app/navigation';
   import { onMount } from 'svelte';
@@ -234,9 +234,7 @@
   </PageHead>
 
   {#if data.degraded}
-    <Card class="billing-card">
-      <p class="hint">{t('billing.degraded')}</p>
-    </Card>
+    <AlertBanner>{t('billing.degraded')}</AlertBanner>
   {/if}
 
   {#if !isPaid}
