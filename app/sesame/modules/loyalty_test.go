@@ -296,6 +296,28 @@ func TestChannelPointsPointsAward(t *testing.T) {
 	assert.Equal(t, "CoolViewer bought 250 points!", col.out[0].Text)
 }
 
+func TestChannelPointsLoyaltyLiveOnly(t *testing.T) {
+	cfg := `{"rewards":[{"id":"r1","action":"chat","message":"{user} +1","counter":"deaths","points":50,"liveOnly":true}]}`
+	ev := `{"id":"red1","broadcaster_user_id":"2","user_id":"7","user_name":"CoolViewer","user_login":"coolviewer","reward":{"id":"r1","title":"+1 death","cost":100}}`
+
+	// Offline: the chat reply still fires, but no counter bump and no points.
+	offline := &fakeLoyalty{}
+	m := ChannelPoints(engine.Deps{Loyalty: offline, Live: &fakeLive{live: false}, Log: zap.NewNop()})
+	var col collector
+	require.NoError(t, m.Events[redemptionAddType](context.Background(), loyaltyCtx(redemptionAddType, ev, cfg), col.emit))
+	assert.Empty(t, offline.bumps, "offline redeem must not bump the counter")
+	assert.Empty(t, offline.earns, "offline redeem must not award points")
+	require.Len(t, col.out, 1, "chat reply still runs offline")
+
+	// Live: both loyalty writes happen.
+	online := &fakeLoyalty{}
+	m = ChannelPoints(engine.Deps{Loyalty: online, Live: &fakeLive{live: true}, Log: zap.NewNop()})
+	col = collector{}
+	require.NoError(t, m.Events[redemptionAddType](context.Background(), loyaltyCtx(redemptionAddType, ev, cfg), col.emit))
+	assert.Len(t, online.bumps, 1, "live redeem bumps the counter")
+	assert.Len(t, online.earns, 1, "live redeem awards points")
+}
+
 func TestChannelPointsCounterBinding(t *testing.T) {
 	fake := &fakeLoyalty{}
 	m := ChannelPoints(engine.Deps{Loyalty: fake, Log: zap.NewNop()})

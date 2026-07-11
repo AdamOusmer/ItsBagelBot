@@ -18,6 +18,7 @@ import { rpc } from '@bagel/shared/server/nats';
 import type { ChannelPointReward } from '@bagel/shared';
 import { SUB, publishEventSubEnsureOptional } from './services';
 import { listModules, upsertModule } from './commands-store';
+import { createCounter } from './loyalty-store';
 
 const CP_MODULE = 'channelpoints';
 
@@ -104,8 +105,24 @@ function mergeTwitch(tw: RewardWire, local: ChannelPointReward): ChannelPointRew
     message: local.message,
     onRedeem: local.onRedeem,
     counter: local.counter,
-    points: local.points
+    counterScope: local.counterScope,
+    points: local.points,
+    liveOnly: local.liveOnly
   };
+}
+
+// ensureRewardCounter creates the reward's bound counter with the chosen scope
+// if it doesn't exist yet, so a broadcaster can make the counter straight from
+// the reward editor. Best-effort: the reward binding is the authoritative save,
+// so a loyalty-service blip (or the service not yet deployed) must not fail the
+// reward write. Create is idempotent — an existing counter keeps its scope.
+async function ensureRewardCounter(userId: string, reward: ChannelPointReward): Promise<void> {
+  if (!reward.counter) return;
+  try {
+    await createCounter(userId, reward.counter, reward.counterScope);
+  } catch (e) {
+    console.error('[channelpoints] ensure counter failed:', e instanceof Error ? (e.stack ?? e.message) : e);
+  }
 }
 
 // readRewards loads the current bindings blob (enable flag + reward records).
@@ -136,6 +153,7 @@ export async function createReward(userId: string, draft: ChannelPointReward): P
   // later adds preserve whatever enable state the broadcaster set.
   const enabled = cur.rewards.length === 0 ? true : cur.enabled;
   await writeRewards(userId, enabled, [...cur.rewards, created]);
+  await ensureRewardCounter(userId, created);
   await publishEventSubEnsureOptional(userId);
   return { ok: true, reward: created };
 }
@@ -150,6 +168,7 @@ export async function updateReward(userId: string, draft: ChannelPointReward): P
   const cur = await readRewards(userId);
   const rewards = cur.rewards.map((r) => (r.id === draft.id ? updated : r));
   await writeRewards(userId, cur.enabled, rewards);
+  await ensureRewardCounter(userId, updated);
   return { ok: true, reward: updated };
 }
 

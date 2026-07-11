@@ -366,6 +366,8 @@ export const fr = {
     fieldCounter: 'Incrémenter un compteur',
     fieldCounterPh: 'ex. morts',
     fieldCounterHint: 'Chaque échange ajoute 1 à ce compteur (créez-le sur la page Compteurs).',
+    fieldCounterScope: 'Compter la récompense par…',
+    fieldCounterScopeHint: 'Utilisé seulement à la création. Le titre de la récompense sépare le décompte par utilisateur de chaque récompense.',
     fieldPoints: 'Attribuer des points de fidélité',
     fieldPointsHint: 'Points gagnés par le viewer à chaque échange. 0 n’attribue rien.',
     // actions + toasts
@@ -416,9 +418,29 @@ export const fr = {
     chatTitle: 'Commandes de chat',
     chatPoints: 'Les viewers consultent leur solde et leur temps de visionnage.',
     chatPointsMod: 'Les modérateurs définissent ou accordent des points à un viewer.',
-    chatCounter: 'Les modérateurs gèrent les compteurs (aussi sur la page Compteurs).'
+    chatCounter: 'Les modérateurs gèrent les compteurs (aussi sur la page Compteurs).',
+    countersLink: 'Gérer les compteurs',
   },
 
+
+  rewardCounter: {
+    enable: 'Tenir un compteur',
+    nameLabel: 'Nom du compteur',
+    nameHint: 'Tapez un nouveau nom pour le créer ici, ou un compteur existant pour l’incrémenter.',
+    scopeLabel: 'Ce que compte chaque échange',
+    scopeViewerReward: 'Par viewer, par récompense',
+    scopeViewerRewardDesc: 'Chaque viewer a son propre décompte pour cette récompense. Idéal dans la plupart des cas.',
+    scopeViewer: 'Par viewer',
+    scopeViewerDesc: 'Chaque viewer a un décompte, partagé entre toutes les récompenses liées à ce compteur.',
+    scopeChannel: 'Toute la chaîne',
+    scopeChannelDesc: 'Un total unique pour toute la chaîne.',
+    tokenNote: 'Utilisez {counter} dans la réponse pour afficher le nouveau total.',
+    pointsEnable: 'Donner des points de fidélité',
+    pointsLabel: 'Points par échange',
+    pointsHint: 'Utilisez {points} dans la réponse pour afficher le montant.',
+    liveOnly: 'Seulement quand je suis en live',
+    liveOnlyHint: 'Les échanges hors ligne répondent dans le chat, mais ne comptent pas et n’accordent pas de points.',
+  },
   counters: {
     eyebrow: 'Gérer',
     titlePre: 'Compteurs de ',
