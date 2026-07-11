@@ -4,7 +4,7 @@
   // travels as one JSON field; the server validates and normalizes it.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { Icon, getI18n, type ChannelPointReward } from '@bagel/shared';
+  import { Icon, RadioGroup, getI18n, type ChannelPointReward, type CounterScope } from '@bagel/shared';
   import CheckButton from '$lib/components/CheckButton.svelte';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
@@ -60,6 +60,27 @@
     counter: '42',
     points: String(draft.points || 0)
   });
+
+  // Loyalty hooks are opt-in per reward: two toggles gate the counter and the
+  // points award, so an ordinary reward's editor stays clean. Toggling off
+  // clears the underlying value, so a hidden field never saves a stale binding.
+  let counterOn = $state(!!draft.counter.trim());
+  let pointsOn = $state(draft.points > 0);
+  $effect(() => {
+    if (!counterOn && draft.counter) draft.counter = '';
+  });
+  $effect(() => {
+    if (!pointsOn && draft.points) draft.points = 0;
+  });
+
+  // Scope choices for a NEW counter, in the order a reward usually wants them.
+  const SCOPES: readonly { value: CounterScope; label: string; desc: string }[] = [
+    { value: 'viewer_command', label: t('rewardCounter.scopeViewerReward'), desc: t('rewardCounter.scopeViewerRewardDesc') },
+    { value: 'viewer', label: t('rewardCounter.scopeViewer'), desc: t('rewardCounter.scopeViewerDesc') },
+    { value: 'channel', label: t('rewardCounter.scopeChannel'), desc: t('rewardCounter.scopeChannelDesc') }
+  ];
+  const scopeOptions = SCOPES.map((s) => ({ value: s.value, label: s.label }));
+  const scopeDesc = $derived(SCOPES.find((s) => s.value === draft.counterScope)?.desc ?? '');
 </script>
 
 <form method="POST" action={isNew ? '?/create' : '?/update'} class="editor" novalidate use:enhance={onSubmit}>
@@ -118,20 +139,61 @@
     <small>{t('channelpoints.queueHint')}</small>
   </label>
 
-  <!-- Loyalty hooks: bump a counter and/or award channel currency per redemption. -->
-  <div class="limits">
-    <span class="limits-title">{t('channelpoints.loyaltyTitle')}</span>
-    <label class="field" style="margin-bottom:0">
-      <span>{t('channelpoints.fieldCounter')} <small>{t('common.optional')}</small></span>
-      <input class="search" placeholder={t('channelpoints.fieldCounterPh')} maxlength="64" bind:value={draft.counter} />
-      <small>{t('channelpoints.fieldCounterHint')}</small>
-    </label>
-    <label class="field" style="margin-bottom:0">
-      <span>{t('channelpoints.fieldPoints')} <small>{t('common.optional')}</small></span>
-      <input class="search num" type="number" min="0" bind:value={draft.points} />
-      <small>{t('channelpoints.fieldPointsHint')}</small>
-    </label>
-  </div>
+  <!-- Loyalty hooks: an opt-in counter and/or a points award per redemption.
+       Each is a toggle that reveals its own controls, so a plain reward's
+       editor never shows loyalty plumbing it isn't using. -->
+  <section class="hooks">
+    <header class="hooks-head">
+      <Icon name="gem" size={13} />
+      <span>{t('channelpoints.loyaltyTitle')}</span>
+    </header>
+
+    <div class="hook">
+      <CheckButton bind:checked={counterOn} label={t('rewardCounter.enable')} />
+      {#if counterOn}
+        <div class="hook-body">
+          <label class="field">
+            <span>{t('rewardCounter.nameLabel')}</span>
+            <input class="search" placeholder={t('channelpoints.fieldCounterPh')} maxlength="64" bind:value={draft.counter} />
+            <small>{t('rewardCounter.nameHint')}</small>
+          </label>
+
+          <div class="field">
+            <span class="field-label">{t('rewardCounter.scopeLabel')}</span>
+            <RadioGroup name="counterScope" bind:value={draft.counterScope} options={scopeOptions} label={t('rewardCounter.scopeLabel')} />
+            <small>{scopeDesc}</small>
+          </div>
+
+          <p class="token-note">{t('rewardCounter.tokenNote')}</p>
+        </div>
+      {/if}
+    </div>
+
+    <div class="hook">
+      <CheckButton bind:checked={pointsOn} label={t('rewardCounter.pointsEnable')} />
+      {#if pointsOn}
+        <div class="hook-body">
+          <label class="field points-field">
+            <span>{t('rewardCounter.pointsLabel')}</span>
+            <div class="points-input">
+              <span class="plus">+</span>
+              <input class="search num" type="number" min="1" bind:value={draft.points} />
+            </div>
+            <small>{t('rewardCounter.pointsHint')}</small>
+          </label>
+        </div>
+      {/if}
+    </div>
+
+    {#if counterOn || pointsOn}
+      <!-- Live-only gate: offline redeems still reply in chat, but don't touch
+           the counter or grant points. Only meaningful when a hook is on. -->
+      <div class="hook live-gate">
+        <CheckButton bind:checked={draft.liveOnly} label={t('rewardCounter.liveOnly')} />
+        <small class="live-hint">{t('rewardCounter.liveOnlyHint')}</small>
+      </div>
+    {/if}
+  </section>
 
   <div class="limits">
     <span class="limits-title">{t('channelpoints.limits')}</span>
@@ -202,6 +264,79 @@
 
   .check { margin: 4px 0 14px; }
   .check :global(.cb) { align-items: center; }
+
+  /* ── Loyalty hooks: two toggle-gated blocks ───────────────────────────── */
+  .hooks {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    border: 1px solid var(--rule, rgba(240, 236, 228, 0.08));
+    border-radius: 10px;
+    padding: 14px;
+    margin-bottom: 14px;
+  }
+  .hooks-head {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-family: var(--bb-font-body);
+    font-size: 12.5px;
+    letter-spacing: 0.02em;
+    color: var(--bb-muted);
+    margin-bottom: 4px;
+  }
+  .hook { display: flex; flex-direction: column; }
+  .hook + .hook { border-top: 1px solid rgba(240, 236, 228, 0.06); padding-top: 12px; margin-top: 6px; }
+  .hook :global(.cb) { align-items: center; }
+
+  /* Revealed controls sit indented under their toggle, with a soft rail so the
+     grouping reads at a glance. */
+  .hook-body {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin: 12px 0 4px;
+    padding-left: 14px;
+    border-left: 2px solid var(--ui-accent-soft, rgba(240, 236, 228, 0.1));
+  }
+  .hook-body .field { margin-bottom: 0; }
+  .field-label {
+    font-family: var(--bb-font-body);
+    font-size: 12.5px;
+    color: var(--bb-muted);
+    letter-spacing: 0.01em;
+  }
+
+  .token-note {
+    margin: 0;
+    font-family: var(--bb-font-mono);
+    font-size: 11.5px;
+    color: var(--bb-muted);
+    background: rgba(0, 0, 0, 0.28);
+    border: 1px solid var(--bb-border);
+    border-radius: 7px;
+    padding: 8px 10px;
+    line-height: 1.5;
+  }
+
+  .live-gate { gap: 4px; }
+  .live-hint {
+    color: var(--bb-muted);
+    opacity: 0.75;
+    font-size: 11px;
+    font-family: var(--bb-font-body);
+    margin: 2px 0 0 26px;
+  }
+
+  .points-field { max-width: 220px; }
+  .points-input { display: flex; align-items: center; gap: 8px; }
+  .points-input .plus {
+    font-family: var(--bb-font-display);
+    font-size: 17px;
+    color: var(--bb-muted);
+    line-height: 1;
+  }
+  .points-input .num { width: 120px; }
 
   .limits {
     display: flex;

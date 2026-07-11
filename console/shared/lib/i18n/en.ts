@@ -367,6 +367,8 @@ export const en = {
     fieldCounter: 'Bump a counter',
     fieldCounterPh: 'e.g. deaths',
     fieldCounterHint: 'Each redemption adds 1 to this counter (create it on the Counters page).',
+    fieldCounterScope: 'Count the reward per…',
+    fieldCounterScopeHint: 'Only used when creating the counter here. Reward title separates each reward’s per-user tally.',
     fieldPoints: 'Award loyalty points',
     fieldPointsHint: 'Points the redeemer earns per redemption. 0 awards nothing.',
     // actions + toasts
@@ -417,9 +419,29 @@ export const en = {
     chatTitle: 'Chat commands',
     chatPoints: 'Viewers check their balance and watch time.',
     chatPointsMod: 'Mods set or grant points to a viewer.',
-    chatCounter: 'Mods manage counters (also on the Counters page).'
+    chatCounter: 'Mods manage counters (also on the Counters page).',
+    countersLink: 'Manage counters',
   },
 
+
+  rewardCounter: {
+    enable: 'Keep a counter',
+    nameLabel: 'Counter name',
+    nameHint: 'Type a new name to create it here, or an existing counter to add to it.',
+    scopeLabel: 'What each redemption counts toward',
+    scopeViewerReward: 'Per viewer, per reward',
+    scopeViewerRewardDesc: 'Each viewer gets their own tally for this reward. Best for most rewards.',
+    scopeViewer: 'Per viewer',
+    scopeViewerDesc: 'Each viewer gets one tally, shared across every reward that uses this counter.',
+    scopeChannel: 'Whole channel',
+    scopeChannelDesc: 'One running total for the whole channel.',
+    tokenNote: 'Use {counter} in the chat reply to show the new total.',
+    pointsEnable: 'Give loyalty points',
+    pointsLabel: 'Points per redemption',
+    pointsHint: 'Use {points} in the chat reply to show the amount.',
+    liveOnly: 'Only while I’m live',
+    liveOnlyHint: 'Offline redeems still reply in chat, but don’t count or grant points.',
+  },
   counters: {
     eyebrow: 'Manage',
     titlePre: 'Channel ',

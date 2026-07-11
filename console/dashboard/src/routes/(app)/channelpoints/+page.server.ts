@@ -1,6 +1,6 @@
 import type { Actions, PageServerLoad } from './$types';
-import type { ChannelPointReward, RewardActionKind, RewardOnRedeem } from '@bagel/shared';
-import { REWARD_ACTIONS, REWARD_ON_REDEEM, blankReward } from '@bagel/shared';
+import type { ChannelPointReward, CounterScope, RewardActionKind, RewardOnRedeem } from '@bagel/shared';
+import { COUNTER_SCOPES, REWARD_ACTIONS, REWARD_ON_REDEEM, blankReward } from '@bagel/shared';
 import {
   readRewards,
   createReward,
@@ -105,7 +105,11 @@ function parseReward(raw: string): ChannelPointReward | null {
     // Loyalty hooks. The counter name mirrors sesame's normalization (bare
     // key, lower-cased); points are clamped to the same ceiling as a mod grant.
     counter: String(obj.counter ?? '').trim().replace(/^!/, '').toLowerCase().slice(0, 64),
-    points: clampInt(obj.points, 0, 100_000_000, 0)
+    counterScope: COUNTER_SCOPES.includes(obj.counterScope as CounterScope)
+      ? (obj.counterScope as CounterScope)
+      : 'viewer_command',
+    points: clampInt(obj.points, 0, 100_000_000, 0),
+    liveOnly: obj.liveOnly === true
   };
 }
 
