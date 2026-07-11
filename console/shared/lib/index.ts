@@ -60,5 +60,6 @@ export {
 export * from './types';
 export * from './toast';
 export * from './connection-state';
+export * from './overlay-stack';
 export * from './commands-validate';
 export * from './validation';
