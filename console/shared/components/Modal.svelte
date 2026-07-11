@@ -8,6 +8,7 @@
     closeModal,
     busy = false,
     closeLabel = 'Close',
+    ariaLabel,
     children
   }: {
     open: boolean;
@@ -18,6 +19,9 @@
     busy?: boolean;
     // Accessible name for the backdrop dismiss control (localise at call sites).
     closeLabel?: string;
+    // Accessible name for the dialog itself when there is no visible `title`
+    // (e.g. a purely visual celebration modal). Pass one whenever title is omitted.
+    ariaLabel?: string;
     children: Snippet;
   } = $props();
 
@@ -63,6 +67,7 @@
       aria-modal="true"
       tabindex="-1"
       aria-labelledby={title ? titleId : undefined}
+      aria-label={title ? undefined : ariaLabel}
       data-lenis-prevent
       use:trapFocus
     >

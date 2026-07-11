@@ -10,7 +10,6 @@
     selected = false,
     expanded = false,
     controls,
-    ariaLabel,
     disabled = false,
     onselect,
     primary,
@@ -19,7 +18,6 @@
     selected?: boolean;
     expanded?: boolean;
     controls?: string;
-    ariaLabel: string;
     disabled?: boolean;
     onselect: () => void;
     primary: Snippet;
@@ -27,6 +25,9 @@
   } = $props();
 </script>
 
+<!-- No aria-label on the button: its accessible name comes from the visible
+     content of the `primary` snippet (name + response + metadata), so assistive
+     tech announces everything a sighted user sees, not just the title. -->
 <div class="mrow row-shell" class:selected class:off={disabled}>
   <button
     class="mrow-primary"
@@ -34,7 +35,6 @@
     aria-expanded={expanded}
     aria-controls={controls}
     aria-current={selected ? 'true' : undefined}
-    aria-label={ariaLabel}
     onclick={onselect}
   >
     {@render primary()}

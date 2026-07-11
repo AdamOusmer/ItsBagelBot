@@ -39,7 +39,6 @@
 <ManagementRow
   selected={expanded}
   {expanded}
-  ariaLabel={r.message}
   disabled={!r.enabled}
   onselect={onExpand}
 >
@@ -59,9 +58,9 @@
   {#snippet actions()}
     <form method="POST" action="?/update" use:enhance={toggleSubmit}>
       <input type="hidden" name="timer" value={togglePayload} />
-      <Switch type="submit" checked={r.enabled} label={t('timers.toggleAria')} />
+      <Switch type="submit" checked={r.enabled} label={t('timers.toggleAria', { name: r.message })} />
     </form>
-    <button class="mini" type="button" aria-label={t('timers.deleteAria')} onclick={onDelete}>
+    <button class="mini" type="button" aria-label={t('timers.deleteAria', { name: r.message })} onclick={onDelete}>
       <Icon name="trash" size={15} />
     </button>
   {/snippet}

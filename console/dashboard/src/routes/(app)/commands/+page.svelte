@@ -296,6 +296,11 @@
     if (!d) return;
     const key = normName(d.name);
     const orig = d.edit ? normName(d.originalName) : undefined;
+    // The selection at submit time. The row-keyed list reconciliation (applyResult)
+    // is order-independent, but the editor re-seed and inline serverErrors target
+    // whatever is open — so a late response must only touch the editor if the user
+    // is still on the command it was submitted for.
+    const submittedExpanded = expanded;
 
     // Row-level snapshot: rollback restores only the affected row(s), so a
     // concurrent toggle on another row can't be clobbered.
@@ -322,21 +327,27 @@
           ? (result.data as ActionResult | undefined)
           : undefined;
 
+      // Did the user leave the command this response was submitted for?
+      const stillOpen = expanded === submittedExpanded;
+
       if (result.type === 'success' && payload?.ok) {
         applyResult({ ...payload, silent: true });
         clearDraft(d.edit ? d.originalName : '', d.edit);
         ackSaved(key);
         // Save keeps the inspector open on the saved command (renamed or not),
-        // re-seeded so it reads clean; editorGen++ remounts the editor with a
-        // fresh baseline so it is no longer dirty.
-        const saved = items.find((c) => c.name === key);
-        if (saved) {
-          editorDraft = fromView(saved);
-          expanded = key;
-          serverErrors = null;
-          editorGen++;
-        } else {
-          doCloseEditor();
+        // re-seeded so it reads clean — but only if it is still the open editor;
+        // otherwise the list is reconciled silently and the current selection is
+        // left untouched.
+        if (stillOpen) {
+          const saved = items.find((c) => c.name === key);
+          if (saved) {
+            editorDraft = fromView(saved);
+            expanded = key;
+            serverErrors = null;
+            editorGen++;
+          } else {
+            doCloseEditor();
+          }
         }
         return;
       }
@@ -344,7 +355,8 @@
       // Rollback the affected rows; keep the editor open with the draft intact.
       items = [...items.filter((c) => c.name !== key && c.name !== orig), ...prevRows];
       flagError(orig ?? key);
-      serverErrors = payload?.errors ?? null;
+      // Attach validation errors only to the editor they belong to.
+      if (stillOpen) serverErrors = payload?.errors ?? null;
       // Field-level validation shows inline; anything else (RPC failure, missing
       // payload) falls back to the localized generic toast so the failure is
       // never silent. The server logs the real reason.

@@ -62,7 +62,17 @@
   });
 
   const creating = $derived(inspector.selectedId === NEW);
-  const canSave = $derived(inspector.dirty && !!draft && draft.message.trim().length > 0);
+  // Enforce the server's clamp range (60s–24h) before submitting, so the saved
+  // snapshot equals what the server stores and "Saved" is never shown for a
+  // value the server silently normalized. Mirrors clampInt in +page.server.ts.
+  const canSave = $derived(
+    inspector.dirty &&
+      !!draft &&
+      draft.message.trim().length > 0 &&
+      Number.isFinite(draft.intervalSeconds) &&
+      draft.intervalSeconds >= 60 &&
+      draft.intervalSeconds <= 86_400
+  );
 
   // --- Dirty guard: every close/switch/new routes through one confirmation ----
   let discardOpen = $state(false);
@@ -132,12 +142,15 @@
       busy = false;
       const payload = payloadOf(result);
       const ok = result.type === 'success' && payload?.ok === true;
-      if (requestId) inspector.resolved(requestId, { type: ok ? 'success' : 'error' });
+      // applied is false when the selection moved on during the request, so a
+      // late response for one timer never mutates another's editor.
+      const applied = requestId ? inspector.resolved(requestId, { type: ok ? 'success' : 'error' }) : false;
       if (ok) {
         toast('ok', t(wasCreating ? 'timers.toastCreated' : 'timers.toastSaved'));
-        // A create has no client-side id to keep editing; close it. An update
-        // stays open and clean (Save does not close the inspector).
-        if (wasCreating) {
+        // A create has no client-side id to keep editing, so it closes — but only
+        // if this response still owns the open editor. An update stays open and
+        // clean (Save does not close the inspector).
+        if (wasCreating && applied) {
           inspector.reset();
           draft = null;
         }
@@ -263,7 +276,13 @@
         <form method="POST" action={creating ? '?/create' : '?/update'} novalidate use:enhance={saveSubmit} class="inspector-form">
           <input type="hidden" name="timer" value={JSON.stringify(draft)} />
           <Scroller fill padding="16px" data-lenis-prevent>
-            <TimerEditor bind:draft />
+            <!-- Keyed on the selection so switching timers mounts a FRESH editor;
+                 TimerEditor snapshots minutes from the draft at mount, and reusing
+                 one instance would write the previous timer's interval into the
+                 new draft. -->
+            {#key inspector.selectedId}
+              <TimerEditor bind:draft />
+            {/key}
           </Scroller>
           <EditorFooter
             status={inspector.status}

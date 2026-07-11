@@ -86,9 +86,13 @@ export function createInspector<T>() {
       return { requestId, snapshot: state.submitted!.snapshot };
     },
     // Apply a response. A no-op if the selection has since moved on (the machine
-    // matches on requestId), so a late response for A can never mutate B.
-    resolved(requestId: string, outcome: SaveOutcome<T>) {
+    // matches on requestId), so a late response for A can never mutate B. Returns
+    // whether it actually applied, so callers can gate side effects (e.g. closing
+    // the inspector after a create) on the response still being relevant.
+    resolved(requestId: string, outcome: SaveOutcome<T>): boolean {
+      const before = state;
       state = resolveSave(state, requestId, outcome);
+      return state !== before;
     },
     externalUpdate(id: string, committed: T) {
       state = externalUpdate(state, id, committed);

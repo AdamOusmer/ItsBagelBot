@@ -519,8 +519,8 @@ export const fr = {
     emptySub: 'Créez-en une — elle commence à se répéter dès que votre live démarre.',
     chipInterval: 'toutes les {n}',
     hiddenTag: 'en pause',
-    toggleAria: 'Mettre en pause ou reprendre cette minuterie',
-    deleteAria: 'Supprimer cette minuterie',
+    toggleAria: 'Mettre en pause ou reprendre la minuterie : {name}',
+    deleteAria: 'Supprimer la minuterie : {name}',
     // editor
     fieldMessage: 'Message',
     fieldMessagePh: 'ex. Suivez-moi sur les réseaux : {link}',
