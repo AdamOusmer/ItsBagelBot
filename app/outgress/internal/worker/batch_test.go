@@ -5,44 +5,43 @@ import (
 	"testing"
 
 	"ItsBagelBot/internal/domain/outgress"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+var errAmbiguousTwitchFailure = errors.New("ambiguous twitch failure")
+
+type batchAttempt struct {
+	next     int
+	executed []string
+	failOn   string
+}
+
+func (a *batchAttempt) save(next int) error {
+	a.next = next
+	return nil
+}
+
+func (a *batchAttempt) execute(item outgress.Message) error {
+	a.executed = append(a.executed, item.Type)
+	if item.Type == a.failOn {
+		return errAmbiguousTwitchFailure
+	}
+	return nil
+}
 
 func TestBatchRetryNeverRepeatsClaimedItems(t *testing.T) {
 	items := []outgress.Message{{Type: "one"}, {Type: "two"}, {Type: "three"}}
-	next := 0
-	var firstRun []string
-	wantFailure := errors.New("ambiguous twitch failure")
+	first := &batchAttempt{failOn: "two"}
+	err := runBatchItems(items, 0, first.save, first.execute)
+	require.ErrorIs(t, err, errAmbiguousTwitchFailure)
+	assert.Equal(t, 2, first.next)
+	assert.Equal(t, []string{"one", "two"}, first.executed)
 
-	err := runBatchItems(items, next,
-		func(value int) error { next = value; return nil },
-		func(item outgress.Message) error {
-			firstRun = append(firstRun, item.Type)
-			if item.Type == "two" {
-				return wantFailure
-			}
-			return nil
-		},
-	)
-	if !errors.Is(err, wantFailure) {
-		t.Fatalf("first run error = %v, want %v", err, wantFailure)
-	}
-	if next != 2 {
-		t.Fatalf("checkpoint = %d, want 2", next)
-	}
-	if len(firstRun) != 2 || firstRun[0] != "one" || firstRun[1] != "two" {
-		t.Fatalf("first run executed %v, want [one two] in order", firstRun)
-	}
-
-	var retry []string
-	if err := runBatchItems(items, next,
-		func(value int) error { next = value; return nil },
-		func(item outgress.Message) error { retry = append(retry, item.Type); return nil },
-	); err != nil {
-		t.Fatal(err)
-	}
-	if len(retry) != 1 || retry[0] != "three" {
-		t.Fatalf("retry executed %v, want only [three]", retry)
-	}
+	retry := &batchAttempt{next: first.next}
+	require.NoError(t, runBatchItems(items, retry.next, retry.save, retry.execute))
+	assert.Equal(t, []string{"three"}, retry.executed)
 }
 
 func TestBatchCheckpointFailureDoesNotSendItem(t *testing.T) {

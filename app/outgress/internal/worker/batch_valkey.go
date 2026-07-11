@@ -21,8 +21,8 @@ func NewValkeyBatchStore(client valkey.Client) *ValkeyBatchStore {
 	return &ValkeyBatchStore{client: client}
 }
 
-func (s *ValkeyBatchStore) Acquire(ctx context.Context, batchID, owner string, ttl time.Duration) (bool, error) {
-	res := s.client.Do(ctx, s.client.B().Set().Key(batchLockKey(batchID)).Value(owner).Nx().Px(ttl).Build())
+func (s *ValkeyBatchStore) Acquire(ctx context.Context, lease BatchLease, ttl time.Duration) (bool, error) {
+	res := s.client.Do(ctx, s.client.B().Set().Key(batchLockKey(lease.ID)).Value(lease.Owner).Nx().Px(ttl).Build())
 	value, err := res.ToString()
 	if err != nil {
 		if valkey.IsValkeyNil(err) {
@@ -49,10 +49,10 @@ func (s *ValkeyBatchStore) SaveNext(ctx context.Context, batchID string, next in
 		Value(strconv.Itoa(next)).Px(ttl).Build()).Error()
 }
 
-func (s *ValkeyBatchStore) Release(ctx context.Context, batchID, owner string) error {
+func (s *ValkeyBatchStore) Release(ctx context.Context, lease BatchLease) error {
 	const releaseIfOwner = `if redis.call('get',KEYS[1])==ARGV[1] then return redis.call('del',KEYS[1]) else return 0 end`
 	return s.client.Do(ctx, s.client.B().Eval().Script(releaseIfOwner).
-		Numkeys(1).Key(batchLockKey(batchID)).Arg(owner).Build()).Error()
+		Numkeys(1).Key(batchLockKey(lease.ID)).Arg(lease.Owner).Build()).Error()
 }
 
 func batchLockKey(batchID string) string     { return batchKeyPrefix + batchID + ":lock" }
