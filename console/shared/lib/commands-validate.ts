@@ -30,6 +30,11 @@ export function responseLines(response: string): string[] {
     .filter((l) => l !== '');
 }
 
+/** Canonical wire/storage form: one non-empty chat message per LF-delimited line. */
+export function normalizeCommandResponse(response: string): string {
+  return responseLines(response).join('\n');
+}
+
 // Linear-time right-trim of spaces/tabs (mirrors Go's TrimRight(" \t")); a
 // trailing-whitespace regex backtracks polynomially on adversarial input.
 function trimLineEnd(line: string): string {
@@ -92,6 +97,8 @@ export function validateCommand(f: CommandFields): CommandErrors {
     errors.response = `Response can be at most ${RESPONSE_MAX_LINES} lines — each line is sent as its own chat message.`;
   } else if (lines.some((l) => l.length > RESPONSE_MAX)) {
     errors.response = `Each line must be at most ${RESPONSE_MAX} characters.`;
+  } else if (lines.some(hasControlCharacter)) {
+    errors.response = 'Response cannot contain control characters.';
   }
 
   if (!Number.isFinite(f.cooldown) || f.cooldown < 0 || f.cooldown > COOLDOWN_MAX) {
@@ -105,6 +112,13 @@ export function validateCommand(f: CommandFields): CommandErrors {
   }
 
   return errors;
+}
+
+function hasControlCharacter(line: string): boolean {
+  for (const char of line) {
+    if (char.codePointAt(0)! < 0x20) return true;
+  }
+  return false;
 }
 
 /** Convenience: the first message of an error map, for single-line surfaces. */
