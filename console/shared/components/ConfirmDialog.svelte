@@ -30,7 +30,7 @@
   } = $props();
 </script>
 
-<Modal {open} {title} closeModal={onCancel}>
+<Modal {open} {title} {busy} closeModal={onCancel}>
   {#if body}<p class="modal-body">{body}</p>{/if}
   {#if children}{@render children()}{/if}
   <div class="modal-actions">
