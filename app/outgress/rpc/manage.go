@@ -64,25 +64,46 @@ func SubscribeManage(nc *nats.Conn, registry *channels.Registry, tw *twitch.Clie
 }
 
 func (m *Manage) handleFollowage(ctx context.Context, req outgressrpc.FollowageRequest) outgressrpc.FollowageReply {
-	if req.BroadcasterID == "" || (req.TargetID == "" && req.TargetLogin == "") {
+	if !validFollowageRequest(req) {
 		return outgressrpc.FollowageReply{Error: "bad request"}
 	}
-	targetID := req.TargetID
-	if targetID == "" {
-		var err error
-		targetID, err = m.twitch.UserIDByLogin(ctx, req.TargetLogin)
-		if err != nil {
-			m.log.Warn("followage target resolve failed", zap.Error(err))
-			return outgressrpc.FollowageReply{Error: "lookup failed"}
-		}
+	targetID, err := m.resolveFollowageTarget(ctx, req)
+	if err != nil {
+		return outgressrpc.FollowageReply{Error: "lookup failed"}
 	}
+	return m.readFollowage(ctx, req.BroadcasterID, targetID)
+}
+
+func validFollowageRequest(req outgressrpc.FollowageRequest) bool {
+	if req.BroadcasterID == "" {
+		return false
+	}
+	return req.TargetID != "" || req.TargetLogin != ""
+}
+
+func (m *Manage) resolveFollowageTarget(ctx context.Context, req outgressrpc.FollowageRequest) (string, error) {
+	if req.TargetID != "" {
+		return req.TargetID, nil
+	}
+	targetID, err := m.twitch.UserIDByLogin(ctx, req.TargetLogin)
+	if err != nil {
+		m.log.Warn("followage target resolve failed", zap.Error(err))
+	}
+	return targetID, err
+}
+
+func (m *Manage) readFollowage(ctx context.Context, broadcasterID, targetID string) outgressrpc.FollowageReply {
 	if targetID == "" {
 		return outgressrpc.FollowageReply{UserFound: false}
 	}
-	if targetID == req.BroadcasterID {
+	if targetID == broadcasterID {
 		return outgressrpc.FollowageReply{TargetID: targetID, UserFound: true}
 	}
-	followedAt, following, err := m.twitch.FollowedAt(ctx, req.BroadcasterID, targetID)
+	return m.fetchFollowage(ctx, broadcasterID, targetID)
+}
+
+func (m *Manage) fetchFollowage(ctx context.Context, broadcasterID, targetID string) outgressrpc.FollowageReply {
+	followedAt, following, err := m.twitch.FollowedAt(ctx, broadcasterID, targetID)
 	if err != nil {
 		m.log.Warn("followage lookup failed", zap.Error(err))
 		return outgressrpc.FollowageReply{TargetID: targetID, UserFound: true, Error: "lookup failed"}

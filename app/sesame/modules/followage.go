@@ -28,48 +28,61 @@ func Followage(d engine.Deps) module.Module {
 		log = zap.NewNop()
 	}
 	m := module.NewModule("", module.KindCore)
-	m.Command("followage").Everyone().Cooldown(followageCooldown).Run(func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
+	m.Command("followage").Everyone().Cooldown(followageCooldown).Run(followageRun(d, log))
+	return m.Build()
+}
+
+type followageTarget struct {
+	login string
+	name  string
+	id    string
+}
+
+func followageRun(d engine.Deps, log *zap.Logger) module.RunFunc {
+	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
 		if !followageEnabled(ctx, d, c.BroadcasterID, log) {
 			return nil
 		}
-		targetLogin := ""
-		if fields := strings.Fields(args); len(fields) > 0 {
-			targetLogin = strings.TrimPrefix(fields[0], "@")
-		}
-		targetName, targetID := targetLogin, ""
-		if targetLogin == "" {
-			targetLogin = c.Env.ChatterUserLogin
-			targetName = c.Env.ChatterName()
-			targetID = c.Env.ChatterUserID
-		}
-		if targetName == "" {
-			targetName = targetLogin
-		}
-		if d.Followage == nil {
-			emitFollowage(c, "Followage is unavailable right now.", emit)
-			return nil
-		}
-		result, err := d.Followage.Lookup(ctx, c.Env.BroadcasterUserID, targetID, targetLogin)
-		if err != nil {
-			log.Warn("followage: lookup failed", zap.Error(err))
-			emitFollowage(c, "Followage is unavailable right now.", emit)
-			return nil
-		}
-		var reply string
-		switch {
-		case !result.UserFound:
-			reply = fmt.Sprintf("@%s is not a Twitch user.", targetName)
-		case result.TargetID == c.Env.BroadcasterUserID:
-			reply = fmt.Sprintf("@%s is the broadcaster.", targetName)
-		case !result.Following:
-			reply = fmt.Sprintf("@%s is not following this channel.", targetName)
-		default:
-			reply = fmt.Sprintf("@%s has followed for %s.", targetName, humanizeFollowage(time.Since(result.FollowedAt)))
-		}
-		emitFollowage(c, reply, emit)
+		target := parseFollowageTarget(args, c)
+		emitFollowage(c, followageText(ctx, d.Followage, target, c.Env.BroadcasterUserID, log), emit)
 		return nil
-	})
-	return m.Build()
+	}
+}
+
+func parseFollowageTarget(args string, c *module.Context) followageTarget {
+	fields := strings.Fields(args)
+	if len(fields) > 0 {
+		login := strings.TrimPrefix(fields[0], "@")
+		if login != "" {
+			return followageTarget{login: login, name: login}
+		}
+	}
+	return followageTarget{login: c.Env.ChatterUserLogin, name: c.Env.ChatterName(), id: c.Env.ChatterUserID}
+}
+
+func followageText(ctx context.Context, lookup engine.FollowageLookup, target followageTarget, broadcasterID string, log *zap.Logger) string {
+	if lookup == nil {
+		return "Followage is unavailable right now."
+	}
+	result, err := lookup.Lookup(ctx, broadcasterID, target.id, target.login)
+	if err != nil {
+		log.Warn("followage: lookup failed", zap.Error(err))
+		return "Followage is unavailable right now."
+	}
+	return formatFollowageResult(target.name, broadcasterID, result)
+}
+
+func formatFollowageResult(targetName, broadcasterID string, result engine.FollowageResult) string {
+	if !result.UserFound {
+		return fmt.Sprintf("@%s is not a Twitch user.", targetName)
+	}
+	if result.TargetID == broadcasterID {
+		return fmt.Sprintf("@%s is the broadcaster.", targetName)
+	}
+	if !result.Following {
+		return fmt.Sprintf("@%s is not following this channel.", targetName)
+	}
+	return fmt.Sprintf("@%s has followed for %s.", targetName, humanizeFollowage(time.Since(result.FollowedAt)))
 }
 
 func emitFollowage(c *module.Context, text string, emit module.Emit) {

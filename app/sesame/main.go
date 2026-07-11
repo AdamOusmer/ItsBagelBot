@@ -89,8 +89,6 @@ func main() {
 	// guard is the inline automod gate; hoisted so the emote refresher can install
 	// its false-positive-suppression sets onto the same instance.
 	guard := automod.New()
-	followage := engine.NewFollowageRPC(nc, cfg.OutgressRPCPrefix)
-	defer followage.Close()
 
 	deps := engine.Deps{
 		Proj:       proj,
@@ -103,7 +101,7 @@ func main() {
 		Commands:   engine.NewCommandsRPC(nc, cfg.CommandsDashboardPrefix),
 		Quotes:     engine.NewQuotesRPC(nc, cfg.ModulesRPCPrefix),
 		Gateway:    engine.NewGatewayRPC(nc, cfg.GatewayRPCPrefix),
-		Followage:  followage,
+		Followage:  engine.NewFollowageRPC(nc, cfg.OutgressRPCPrefix),
 		Log:        log,
 		Automod:    guard,
 		Reputation: engine.NewValkeyReputation(valkeyClient, 6*time.Hour, log),

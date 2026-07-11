@@ -24,7 +24,7 @@ func TestFollowageLookupCachesInSesame(t *testing.T) {
 			}, nil
 		},
 	}
-	defer f.Close()
+	defer f.cache.Close()
 
 	for range 2 {
 		result, err := f.Lookup(context.Background(), "channel", "viewer", "")

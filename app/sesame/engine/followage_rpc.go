@@ -48,8 +48,6 @@ func NewFollowageRPC(nc *nats.Conn, prefix string) *FollowageRPC {
 	}
 }
 
-func (f *FollowageRPC) Close() { f.cache.Close() }
-
 func (f *FollowageRPC) Lookup(ctx context.Context, broadcasterID, targetID, targetLogin string) (FollowageResult, error) {
 	keyTarget := targetID
 	if keyTarget == "" {
