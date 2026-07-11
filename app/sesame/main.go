@@ -74,6 +74,14 @@ func main() {
 
 	timers := newTimers(ctx, in, proj, live, cfg, log)
 
+	// Loyalty: the reporter batches every accrual/bump into data.loyalty.*
+	// events; the store fronts the loyalty service with a Valkey live view; the
+	// clock drives the per-channel watch tick while live.
+	loyaltyReporter := engine.NewLoyaltyReporter(pub, log)
+	defer loyaltyReporter.Close() // flushes pending accruals on shutdown
+	loyalty := engine.NewValkeyLoyaltyStore(valkeyClient, engine.NewLoyaltyRPC(nc, cfg.LoyaltyRPCPrefix), loyaltyReporter, log)
+	loyaltyTick := newLoyaltyClock(ctx, in, proj, live, loyaltyReporter, cfg, log)
+
 	// Deps is the bundle every module fn captures; main builds it once. modules.All
 	// returns the built modules (core commands + bagel, live tracker, opt-in
 	// shoutout), which the engine registry indexes. Adding a feature is a new file
@@ -98,6 +106,9 @@ func main() {
 		Campaign:   engine.NewValkeyCampaign(valkeyClient, log),
 		Queue:      engine.NewValkeyQueueStore(valkeyClient, 24*time.Hour, log),
 		Timers:     timers,
+
+		Loyalty:     loyalty,
+		LoyaltyTick: loyaltyTick,
 
 		PublicBaseURL: cfg.PublicBaseURL,
 	}
@@ -298,6 +309,24 @@ func newTimers(ctx context.Context, in infra, proj *projection.Client, live *eng
 	go timers.StartRearmWatcher(ctx)
 	go timers.StartReconciler(ctx)
 	return timers
+}
+
+// newLoyaltyClock builds the Valkey-backed watch tick — one schedule key per
+// live broadcaster with an enabled loyalty module, armed on stream.online and
+// fired off key expiry (the timers idiom) into a chatters fetch + accrual —
+// and starts its expiry, rearm and reconciler watchers.
+func newLoyaltyClock(ctx context.Context, in infra, proj *projection.Client, live *engine.ValkeyLiveStore, reporter *engine.LoyaltyReporter, cfg *config.Config, log *zap.Logger) *engine.ValkeyLoyaltyClock {
+	clock := engine.NewValkeyLoyaltyClock(in.vc, in.nc, proj, live, reporter, engine.LoyaltyClockConfig{
+		OutgressRPCPrefix:        cfg.OutgressRPCPrefix,
+		ModulesInvalidateSubject: cfg.CacheInvalidationPrefix + ".modules",
+		BotUserID:                cfg.BotUserID,
+		KeyspaceDB:               0,
+		Log:                      log,
+	})
+	go clock.StartExpiryWatcher(ctx)
+	go clock.StartRearmWatcher(ctx)
+	go clock.StartReconciler(ctx)
+	return clock
 }
 
 // newConsumer builds the one autoscaling consumer that drains the premium and

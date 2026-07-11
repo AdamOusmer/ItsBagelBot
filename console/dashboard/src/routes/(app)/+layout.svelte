@@ -62,7 +62,9 @@
       : path.startsWith('/modules') ||
           path.startsWith('/govee') ||
           path.startsWith('/channelpoints') ||
-          path.startsWith('/timers')
+          path.startsWith('/timers') ||
+          path.startsWith('/loyalty') ||
+          path.startsWith('/counters')
         ? 'modules'
         : path.startsWith('/billing')
           ? 'billing'

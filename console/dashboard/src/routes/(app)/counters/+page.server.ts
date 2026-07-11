@@ -1,0 +1,128 @@
+import type { Actions, PageServerLoad } from './$types';
+import type { CounterDef, CounterEntryView, CounterScope } from '@bagel/shared';
+import { COUNTER_SCOPES } from '@bagel/shared';
+import { listCounters, createCounter, setCounter, deleteCounter, counterEntries } from '$lib/server/loyalty-store';
+import { auditDashboardImpersonation } from '$lib/server/services';
+import type { Session } from '$lib/server/session';
+import { env } from '$env/dynamic/private';
+import { fail, redirect } from '@sveltejs/kit';
+
+function effectiveId(session: Session | null | undefined): string {
+  return session?.delegate_of ?? session?.user_id ?? 'demo';
+}
+
+// A delegate needs the 'modules' section; a normal login always may. Counters
+// belong to the loyalty module even though they live on their own page.
+function gate(session: Session | null | undefined): void {
+  if (session?.delegate_of && !(session.sections ?? []).includes('modules')) {
+    throw redirect(302, '/');
+  }
+}
+
+function demoCounters(): CounterDef[] {
+  return [
+    { name: 'deaths', scope: 'channel', value: 137 },
+    { name: 'hugs', scope: 'viewer', value: 0 },
+    { name: 'redeems', scope: 'viewer_command', value: 0 }
+  ];
+}
+
+// normalizeName mirrors the loyalty service: bare key, lower-cased, no "!".
+function normalizeName(raw: unknown): string {
+  return String(raw ?? '')
+    .trim()
+    .replace(/^!/, '')
+    .toLowerCase()
+    .slice(0, 64);
+}
+
+// The optional ?c=<name> selects one entry-scoped counter whose stored values
+// (the per-viewer buckets) are loaded alongside the list.
+export const load: PageServerLoad = async ({ locals, url }) => {
+  gate(locals.session);
+  const uid = effectiveId(locals.session);
+  const selected = normalizeName(url.searchParams.get('c'));
+  if (env.DEMO === '1') return { counters: demoCounters(), selected: '', entries: [] as CounterEntryView[] };
+
+  try {
+    const counters = await listCounters(uid);
+    let entries: CounterEntryView[] = [];
+    if (selected && counters.some((c) => c.name === selected && c.scope !== 'channel')) {
+      try {
+        entries = await counterEntries(uid, selected, 25);
+      } catch {
+        /* entries are decorative next to the list */
+      }
+    }
+    return { counters, selected, entries };
+  } catch {
+    return { counters: [] as CounterDef[], selected: '', entries: [] as CounterEntryView[], degraded: true };
+  }
+};
+
+export const actions: Actions = {
+  create: async ({ request, locals }) => {
+    gate(locals.session);
+    const uid = effectiveId(locals.session);
+    if (env.DEMO !== '1' && !locals.session) return fail(401, { ok: false, error: 'Not signed in.' });
+
+    const f = await request.formData();
+    const name = normalizeName(f.get('name'));
+    const scope = String(f.get('scope') ?? 'channel') as CounterScope;
+    if (!name || !COUNTER_SCOPES.includes(scope)) return fail(400, { ok: false, error: 'Invalid counter.' });
+    if (env.DEMO === '1') return { ok: true };
+
+    try {
+      await createCounter(uid, name, scope);
+    } catch (e) {
+      console.error('[counters] create failed:', e instanceof Error ? (e.stack ?? e.message) : e);
+      return fail(400, { ok: false, error: 'create failed' });
+    }
+    auditDashboardImpersonation(locals.session, 'counters:create', `${name} (${scope})`);
+    return { ok: true };
+  },
+
+  // Absolute value for a channel counter; on entry scopes value 0 doubles as
+  // the reset (the service deletes every stored bucket).
+  set: async ({ request, locals }) => {
+    gate(locals.session);
+    const uid = effectiveId(locals.session);
+    if (env.DEMO !== '1' && !locals.session) return fail(401, { ok: false, error: 'Not signed in.' });
+
+    const f = await request.formData();
+    const name = normalizeName(f.get('name'));
+    const value = Math.trunc(Number(f.get('value')));
+    if (!name || !Number.isFinite(value)) return fail(400, { ok: false, error: 'Invalid value.' });
+    if (env.DEMO === '1') return { ok: true };
+
+    try {
+      const found = await setCounter(uid, name, value);
+      if (!found) return fail(404, { ok: false, error: 'unknown counter' });
+    } catch (e) {
+      console.error('[counters] set failed:', e instanceof Error ? (e.stack ?? e.message) : e);
+      return fail(400, { ok: false, error: 'set failed' });
+    }
+    auditDashboardImpersonation(locals.session, 'counters:set', `${name}=${value}`);
+    return { ok: true };
+  },
+
+  delete: async ({ request, locals }) => {
+    gate(locals.session);
+    const uid = effectiveId(locals.session);
+    if (env.DEMO !== '1' && !locals.session) return fail(401, { ok: false, error: 'Not signed in.' });
+
+    const f = await request.formData();
+    const name = normalizeName(f.get('name'));
+    if (!name) return fail(400, { ok: false, error: 'Missing counter name.' });
+    if (env.DEMO === '1') return { ok: true };
+
+    try {
+      await deleteCounter(uid, name);
+    } catch (e) {
+      console.error('[counters] delete failed:', e instanceof Error ? (e.stack ?? e.message) : e);
+      return fail(400, { ok: false, error: 'delete failed' });
+    }
+    auditDashboardImpersonation(locals.session, 'counters:delete', name);
+    return { ok: true };
+  }
+};

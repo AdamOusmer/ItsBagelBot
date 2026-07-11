@@ -13,7 +13,16 @@ type tokens struct {
 	args    string
 	touser  string
 	channel string
+	// counters holds the pre-resolved {counter:<name>} values for this run,
+	// keyed by normalized name. runCustom bumps each referenced counter once
+	// (with ctx) before expansion, so the sync callback only looks values up.
+	counters map[string]string
 }
+
+// counterTokenPrefix marks the counter substitution inside a response
+// template: {counter:deaths} bumps the broadcaster's "deaths" counter by one
+// and renders the new value.
+const counterTokenPrefix = "counter:"
 
 // expandCommand expands a custom-command response, supporting the {user},
 // {sender}, {args} and {touser} tokens. It is expand specialized for the command
@@ -34,9 +43,47 @@ func expandCommand(dst []byte, tmpl string, t tokens) []byte {
 		case "channel":
 			return t.channel, true
 		default:
+			if name, ok := strings.CutPrefix(key, counterTokenPrefix); ok {
+				v, ok := t.counters[NormalizeCounterName(name)]
+				return v, ok // unresolved (no loyalty store): leave the token visible
+			}
 			return module.ParseDynamic(key)
 		}
 	})
+}
+
+// counterTokenNames scans a response template for {counter:<name>} tokens and
+// returns the distinct normalized names, in first-appearance order. nil when
+// the template references none — the fast path for every ordinary command.
+func counterTokenNames(tmpl string) []string {
+	var names []string
+	rest := tmpl
+	for {
+		i := strings.Index(rest, "{"+counterTokenPrefix)
+		if i < 0 {
+			return names
+		}
+		rest = rest[i+len(counterTokenPrefix)+1:]
+		end := strings.IndexByte(rest, '}')
+		if end < 0 {
+			return names
+		}
+		name := NormalizeCounterName(rest[:end])
+		rest = rest[end+1:]
+		if name == "" {
+			continue
+		}
+		dup := false
+		for _, n := range names {
+			if n == name {
+				dup = true
+				break
+			}
+		}
+		if !dup {
+			names = append(names, name)
+		}
+	}
 }
 
 // sanitizeVar neutralizes a user-supplied command variable so it cannot inject a

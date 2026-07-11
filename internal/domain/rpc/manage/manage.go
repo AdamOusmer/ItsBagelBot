@@ -110,3 +110,27 @@ type RewardReply struct {
 	MissingScope bool   `json:"missing_scope,omitempty"`
 	Error        string `json:"error,omitempty"`
 }
+
+// Chatter is one connected chat user, as Helix Get Chatters reports them.
+// Only the stable id and login travel: the loyalty watch tick needs an
+// identity to accrue against, not a display name, and dropping the name keeps
+// a big channel's reply well under the broker payload ceiling.
+type Chatter struct {
+	ID    string `json:"id"`
+	Login string `json:"login"`
+}
+
+// ChattersRequest is the input for the chatters.get verb.
+type ChattersRequest struct {
+	BroadcasterID string `json:"broadcaster_id"`
+}
+
+// ChattersReply is the reply for the chatters.get verb. MissingScope mirrors
+// the reward verbs: the bot's token lacks moderator:read:chatters or the bot
+// is not a moderator of the channel, so the caller should skip rather than
+// retry.
+type ChattersReply struct {
+	Chatters     []Chatter `json:"chatters,omitempty"`
+	MissingScope bool      `json:"missing_scope,omitempty"`
+	Error        string    `json:"error,omitempty"`
+}

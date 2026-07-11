@@ -113,6 +113,14 @@ type Config struct {
 	// ".<provider>.<endpoint>".
 	GatewayRPCPrefix string
 
+	// LoyaltyRPCPrefix is the NATS subject prefix the loyalty service
+	// subscribes to; the loyalty store appends its balance/counter verbs.
+	LoyaltyRPCPrefix string
+
+	// OutgressRPCPrefix is the outgress management RPC prefix; the loyalty
+	// watch tick appends ".chatters.get" to list a live channel's chatters.
+	OutgressRPCPrefix string
+
 	// Valkey holds the settings projection (user tier + modules) sesame reads on
 	// the hot path.
 	ValkeyAddr     string
@@ -166,6 +174,10 @@ func Load() *Config {
 		PublicBaseURL: strings.TrimRight(env.Get("SESAME_PUBLIC_BASE_URL", "https://dashboard.itsbagelbot.com"), "/"),
 
 		GatewayRPCPrefix: env.Get("NATS_GATEWAY_SUBJECT_PREFIX", "bagel.rpc.gateway"),
+
+		LoyaltyRPCPrefix: env.Get("NATS_LOYALTY_SUBJECT_PREFIX", "bagel.rpc.loyalty"),
+
+		OutgressRPCPrefix: env.Get("NATS_OUTGRESS_RPC_PREFIX", "bagel.rpc.outgress"),
 
 		ValkeyAddr:     env.Get("VALKEY_ADDR", "127.0.0.1:6379"),
 		ValkeyPassword: env.Get("VALKEY_PASSWORD", ""),

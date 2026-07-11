@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"ItsBagelBot/app/sesame/automod"
+	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 	"ItsBagelBot/internal/projection"
 
 	"github.com/ThreeDotsLabs/watermill/message"
@@ -62,6 +63,14 @@ type Deps struct {
 	// Queue is the per-broadcaster play queue behind the queue module. nil
 	// leaves the module's commands inert.
 	Queue QueueStore
+	// Loyalty is the points-and-counters surface behind the loyalty module,
+	// the channel-points counter bindings and the {counter:...} response
+	// token. nil disables all of them.
+	Loyalty LoyaltyStore
+	// LoyaltyTick arms/disarms a broadcaster's watch tick for the length of one
+	// stream (the loyalty module's viewtime clock); ValkeyLoyaltyClock is the
+	// default. nil disables it.
+	LoyaltyTick LoyaltyTicker
 	// PublicBaseURL is the origin of the public console pages; the !cmd module
 	// builds the channel command-page link from it. Empty falls back to the
 	// production dashboard origin.
@@ -103,6 +112,42 @@ type CooldownStore interface {
 type DedupStore interface {
 	Claim(ctx context.Context, key string) (bool, error)
 	Release(ctx context.Context, key string) error
+}
+
+// LoyaltyStore is the loyalty surface modules and the pipeline depend on:
+// point accrual (fire-and-forget through the worker-side reporter), counter
+// bumps/reads over the Valkey live view, cached balance peeks and the
+// authoritative counter management verbs. ValkeyLoyaltyStore is the default.
+type LoyaltyStore interface {
+	// Earn records one viewer's point/watch accrual; batched and loss-tolerant.
+	Earn(broadcasterID, viewerID uint64, login, name string, points int64, watchSeconds uint64)
+	// CounterBump increments a counter by delta and returns the new value.
+	// viewerID is the acting chatter and command the triggering source's name
+	// (a command's canonical trigger, or a channel-point reward's title); each
+	// is used only when the counter's scope needs it (viewer, or
+	// viewer+command — the three modes, all per channel).
+	CounterBump(ctx context.Context, broadcasterID uint64, name string, viewerID uint64, command string, delta int64) (int64, error)
+	// CounterPeek reads a counter without bumping it; found=false means it
+	// does not exist.
+	CounterPeek(ctx context.Context, broadcasterID uint64, name string, viewerID uint64, command string) (loyaltyrpc.Counter, bool, error)
+	// BalanceGet returns one viewer's standing (zero-valued when unseen).
+	BalanceGet(ctx context.Context, broadcasterID, viewerID uint64) (loyaltyrpc.Balance, error)
+	// BalanceAdjust writes a viewer's points by login (mod grants): absolute
+	// sets, otherwise value is a delta. found=false = login never seen here.
+	BalanceAdjust(ctx context.Context, broadcasterID uint64, viewerLogin string, value int64, absolute bool) (loyaltyrpc.Balance, bool, error)
+	// CounterCreate/CounterSet/CounterDelete/CounterList are the authoritative
+	// management verbs behind !counter (and the future dashboard).
+	CounterCreate(ctx context.Context, broadcasterID uint64, name, scope string) (loyaltyrpc.Counter, error)
+	CounterSet(ctx context.Context, broadcasterID uint64, name string, viewerID uint64, command string, value int64) (bool, error)
+	CounterDelete(ctx context.Context, broadcasterID uint64, name string) error
+	CounterList(ctx context.Context, broadcasterID uint64) ([]loyaltyrpc.Counter, error)
+}
+
+// LoyaltyTicker arms and disarms a broadcaster's watch tick for the length of
+// one stream. Both calls are fire-and-forget, mirroring TimersStore.
+type LoyaltyTicker interface {
+	Arm(ctx context.Context, broadcasterID uint64)
+	Disarm(ctx context.Context, broadcasterID uint64)
 }
 
 // TimersStore arms and disarms a broadcaster's repeating chat-message timers

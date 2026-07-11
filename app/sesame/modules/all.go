@@ -23,6 +23,7 @@ func All(d engine.Deps) []module.Module {
 		Queue(d),
 		Automod(d),
 		ChannelPoints(d),
+		Loyalty(d),
 		Govee(d),
 		Triggers(d),
 	}

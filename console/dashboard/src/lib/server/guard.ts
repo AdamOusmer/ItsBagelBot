@@ -82,6 +82,8 @@ export async function guardSession(event: RequestEvent, s: Session): Promise<Ses
       const allowed = (s.sections ?? []).map((sec) => `/${sec}`);
       // Timers has no standalone scope: the commands grant covers /timers too.
       if (s.sections?.includes('commands')) allowed.push('/timers');
+      // Loyalty and its counters ride the modules grant (same as their gates).
+      if (s.sections?.includes('modules')) allowed.push('/loyalty', '/counters');
       const ok = allowed.some((p) => event.url.pathname === p || event.url.pathname.startsWith(p + '/'));
       if (!ok) throw redirect(303, allowed[0] ?? '/delegate/exit');
     }

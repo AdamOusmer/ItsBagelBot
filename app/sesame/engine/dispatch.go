@@ -93,7 +93,8 @@ func (p *Pipeline) runCustom(ctx context.Context, c *module.Context, name, args 
 	// each with its own slash-verb translation. A line left with no payload (an
 	// "/announce" with no text, a "/shoutout" with no target) is dropped; the
 	// run counts once if anything was emitted.
-	emitted := p.emitResponse(c, cc.Response, args, emit)
+	counters := p.bumpCounterTokens(ctx, c, cc.Name, cc.Response)
+	emitted := p.emitResponse(c, cc.Response, args, counters, emit)
 	if !emitted {
 		return nil
 	}
@@ -116,7 +117,7 @@ func (p *Pipeline) runCustom(ctx context.Context, c *module.Context, name, args 
 // validate.MaxResponseLines — the write path enforces it, this is the emit-side
 // backstop so an expanded token can never fan out further. Reports whether at
 // least one line was actually emitted.
-func (p *Pipeline) emitResponse(c *module.Context, response, args string, emit module.Emit) bool {
+func (p *Pipeline) emitResponse(c *module.Context, response, args string, counters map[string]string, emit module.Emit) bool {
 	// {user}/{sender}/{channel} render the display name (login fallback); {touser}
 	// defaults to the sender's display name and is otherwise the @mention the
 	// chatter typed, taken verbatim.
@@ -137,11 +138,12 @@ func (p *Pipeline) emitResponse(c *module.Context, response, args string, emit m
 
 	buf := GetBuf()
 	buf = expandCommand(buf, response, tokens{
-		user:    sender,
-		sender:  sender,
-		args:    args,
-		touser:  touser,
-		channel: c.Env.BroadcasterName(),
+		user:     sender,
+		sender:   sender,
+		args:     args,
+		touser:   touser,
+		channel:  c.Env.BroadcasterName(),
+		counters: counters,
 	})
 	expanded := string(buf)
 	PutBuf(buf)
@@ -166,6 +168,40 @@ func (p *Pipeline) emitResponse(c *module.Context, response, args string, emit m
 		PutOutput(out)
 	}
 	return emitted
+}
+
+// bumpCounterTokens resolves a response's {counter:<name>} tokens: each
+// distinct counter is bumped by one — against the channel value, the sender,
+// or the (sender, command) bucket, per the counter's own scope — and its new
+// value is returned for expansion. command is the canonical name of the
+// custom command being run, which keys a viewer+command counter's bucket. nil
+// when the response references no counter or no loyalty store is wired —
+// expandCommand then leaves the token visible, matching every other unknown
+// token. A bump failure renders the counter without a value rather than
+// blocking the reply.
+func (p *Pipeline) bumpCounterTokens(ctx context.Context, c *module.Context, command, response string) map[string]string {
+	if p.loyalty == nil || !strings.Contains(response, "{"+counterTokenPrefix) {
+		return nil
+	}
+	names := counterTokenNames(response)
+	if len(names) == 0 {
+		return nil
+	}
+	viewerID, _ := strconv.ParseUint(c.Env.ChatterUserID, 10, 64)
+	counters := make(map[string]string, len(names))
+	for _, name := range names {
+		value, err := p.loyalty.CounterBump(ctx, c.BroadcasterID, name, viewerID, command, 1)
+		if err != nil {
+			p.log.Warn("counter token bump failed",
+				zap.Uint64("broadcaster_id", c.BroadcasterID),
+				zap.String("counter", name),
+				zap.Error(err),
+			)
+			continue
+		}
+		counters[name] = strconv.FormatInt(value, 10)
+	}
+	return counters
 }
 
 // emitCommand is the command-output post-processing middleware. Every output a

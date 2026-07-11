@@ -45,7 +45,9 @@
     { token: '{user}', label: t('channelpoints.tokUser') },
     { token: '{input}', label: t('channelpoints.tokInput') },
     { token: '{reward}', label: t('channelpoints.tokReward') },
-    { token: '{cost}', label: t('channelpoints.tokCost') }
+    { token: '{cost}', label: t('channelpoints.tokCost') },
+    { token: '{counter}', label: t('channelpoints.tokCounter') },
+    { token: '{points}', label: t('channelpoints.tokPoints') }
   ];
 
   // Rehearsal samples: substitute ONLY the reward tokens (samplesOnly) with the
@@ -54,7 +56,9 @@
     user: 'sesame_sam',
     input: draft.isUserInputRequired ? 'good luck!' : '',
     reward: draft.title || t('channelpoints.fieldTitle'),
-    cost: String(draft.cost || 0)
+    cost: String(draft.cost || 0),
+    counter: '42',
+    points: String(draft.points || 0)
   });
 </script>
 
@@ -113,6 +117,21 @@
     </select>
     <small>{t('channelpoints.queueHint')}</small>
   </label>
+
+  <!-- Loyalty hooks: bump a counter and/or award channel currency per redemption. -->
+  <div class="limits">
+    <span class="limits-title">{t('channelpoints.loyaltyTitle')}</span>
+    <label class="field" style="margin-bottom:0">
+      <span>{t('channelpoints.fieldCounter')} <small>{t('common.optional')}</small></span>
+      <input class="search" placeholder={t('channelpoints.fieldCounterPh')} maxlength="64" bind:value={draft.counter} />
+      <small>{t('channelpoints.fieldCounterHint')}</small>
+    </label>
+    <label class="field" style="margin-bottom:0">
+      <span>{t('channelpoints.fieldPoints')} <small>{t('common.optional')}</small></span>
+      <input class="search num" type="number" min="0" bind:value={draft.points} />
+      <small>{t('channelpoints.fieldPointsHint')}</small>
+    </label>
+  </div>
 
   <div class="limits">
     <span class="limits-title">{t('channelpoints.limits')}</span>

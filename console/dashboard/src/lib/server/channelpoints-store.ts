@@ -102,7 +102,9 @@ function mergeTwitch(tw: RewardWire, local: ChannelPointReward): ChannelPointRew
     globalCooldownSeconds: tw.global_cooldown_seconds,
     action: local.action,
     message: local.message,
-    onRedeem: local.onRedeem
+    onRedeem: local.onRedeem,
+    counter: local.counter,
+    points: local.points
   };
 }
 
