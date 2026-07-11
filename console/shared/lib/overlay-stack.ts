@@ -49,30 +49,34 @@ let locked = false;
 let prevOverflow = '';
 const inerted: Element[] = [];
 
+// acquireLock freezes body scroll and makes everything that is not an overlay
+// portal inert, so assistive tech and Tab cannot reach the page behind the stack.
+function acquireLock(): void {
+  prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  (window as unknown as { __lenis?: { stop(): void } }).__lenis?.stop();
+  for (const child of Array.from(document.body.children)) {
+    if (child.hasAttribute('data-overlay')) continue;
+    child.setAttribute('inert', '');
+    inerted.push(child);
+  }
+  locked = true;
+}
+
+// releaseLock reverses acquireLock once the last overlay closes.
+function releaseLock(): void {
+  document.body.style.overflow = prevOverflow;
+  (window as unknown as { __lenis?: { start(): void } }).__lenis?.start();
+  for (const el of inerted) el.removeAttribute('inert');
+  inerted.length = 0;
+  locked = false;
+}
+
 function applyLock(): void {
   if (typeof document === 'undefined') return;
   const shouldLock = stack.length > 0;
-  if (shouldLock && !locked) {
-    prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    const lenis = (window as unknown as { __lenis?: { stop(): void } }).__lenis;
-    lenis?.stop();
-    // Everything that is not an overlay portal becomes inert, so assistive tech
-    // and Tab cannot reach the page behind the stack.
-    for (const child of Array.from(document.body.children)) {
-      if (child.hasAttribute('data-overlay')) continue;
-      child.setAttribute('inert', '');
-      inerted.push(child);
-    }
-    locked = true;
-  } else if (!shouldLock && locked) {
-    document.body.style.overflow = prevOverflow;
-    const lenis = (window as unknown as { __lenis?: { start(): void } }).__lenis;
-    lenis?.start();
-    for (const el of inerted) el.removeAttribute('inert');
-    inerted.length = 0;
-    locked = false;
-  }
+  if (shouldLock && !locked) acquireLock();
+  else if (!shouldLock && locked) releaseLock();
 }
 
 // portal moves a node to <body> so fixed-position overlays escape any clipping /
