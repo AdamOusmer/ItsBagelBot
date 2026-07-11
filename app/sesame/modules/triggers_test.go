@@ -164,3 +164,60 @@ func TestParseRulesCap(t *testing.T) {
 	}
 	assert.Len(t, triggersConfig{Rules: b.String()}.rules(), maxTriggers)
 }
+
+// TestRulesJSONStructured covers the structured JSON format the dashboard now
+// writes: it parses like the legacy lines, but a phrase containing the legacy
+// delimiters ("=>", a leading "#", a "mode:" prefix) survives the round trip
+// instead of being corrupted.
+func TestRulesJSONStructured(t *testing.T) {
+	raw := `[
+		{"phrase":"hello","response":"hi {user}!","match":"word","enabled":true},
+		{"phrase":"lol","response":"lmao","match":"contains","enabled":true},
+		{"phrase":"muted","response":"x","match":"word","enabled":false}
+	]`
+	rules := triggersConfig{Rules: raw}.rules()
+	require.Len(t, rules, 2, "disabled rule is skipped")
+	assert.Equal(t, "hello", rules[0].Phrase)
+	assert.Equal(t, "hi {user}!", rules[0].Response)
+	assert.Equal(t, "word", rules[0].Match)
+	assert.Equal(t, "contains", rules[1].Match)
+}
+
+func TestRulesJSONPreservesReservedCharacters(t *testing.T) {
+	// Each of these phrases is unrepresentable in the legacy line format.
+	cases := []struct{ phrase, match string }{
+		{"a => b", "word"},          // contains the "=>" delimiter
+		{"#hashtag", "contains"},    // leading "#" (a legacy disabled marker)
+		{"word: literal", "prefix"}, // a legacy "mode:" prefix
+	}
+	for _, tc := range cases {
+		raw := `[{"phrase":` + quote(tc.phrase) + `,"response":"ok","match":"` + tc.match + `"}]`
+		rules := triggersConfig{Rules: raw}.rules()
+		require.Len(t, rules, 1, "phrase %q must round-trip", tc.phrase)
+		assert.Equal(t, tc.phrase, rules[0].Phrase, "phrase preserved verbatim")
+		assert.Equal(t, "ok", rules[0].Response)
+		assert.Equal(t, tc.match, rules[0].Match)
+	}
+}
+
+func TestRulesJSONDefaults(t *testing.T) {
+	// enabled omitted -> enabled; unknown match -> "word".
+	rules := triggersConfig{Rules: `[{"phrase":"hi","response":"yo","match":"bogus"}]`}.rules()
+	require.Len(t, rules, 1)
+	assert.Equal(t, "word", rules[0].Match)
+
+	// malformed JSON fails closed (no rules), like an empty config.
+	assert.Nil(t, triggersConfig{Rules: `[{"phrase":`}.rules())
+
+	// a legacy line config still parses (backward compatibility).
+	legacy := triggersConfig{Rules: "hello => hi {user}!\ncontains: lol => lmao"}.rules()
+	require.Len(t, legacy, 2)
+	assert.Equal(t, "contains", legacy[1].Match)
+}
+
+// quote JSON-encodes a string (with surrounding quotes) for embedding in a rule
+// array literal.
+func quote(s string) string {
+	b, _ := json.Marshal(s)
+	return string(b)
+}

@@ -255,7 +255,13 @@
     if (pre === 'word' || pre === 'contains' || pre === 'exact' || pre === 'prefix') return [pre, left.slice(c + 1).trim()];
     return ['word', left];
   }
+  // parseRules reads config.rules in either format: a value starting with "["
+  // is the structured JSON array (written now); anything else is the legacy
+  // "[mode:] phrase => response" line format (configs saved before the migration).
   function parseRules(raw: string): Rule[] {
+    const s = raw.trim();
+    if (!s) return [];
+    if (s[0] === '[') return parseJSONRules(s);
     const out: Rule[] = [];
     for (const line of raw.split('\n')) {
       let ln = line.trim();
@@ -276,15 +282,37 @@
     }
     return out;
   }
+  function parseJSONRules(s: string): Rule[] {
+    const modes: Match[] = ['word', 'contains', 'exact', 'prefix'];
+    try {
+      const arr = JSON.parse(s);
+      if (!Array.isArray(arr)) return [];
+      return (arr as Array<Record<string, unknown>>)
+        .map((r) => ({
+          phrase: String(r.phrase ?? ''),
+          response: String(r.response ?? ''),
+          match: (modes.includes(r.match as Match) ? (r.match as Match) : 'word'),
+          enabled: r.enabled !== false
+        }))
+        .filter((r) => r.phrase.trim() && r.response.trim());
+    } catch {
+      return [];
+    }
+  }
+  // Structured JSON: sesame's parser reads this (and still reads the legacy line
+  // format). JSON encodes any phrase safely, so "=>", a leading "#", or a "mode:"
+  // prefix no longer corrupt the round trip.
   function serializeRules(list: Rule[]): string {
-    return list
-      .filter((r) => r.phrase.trim() && r.response.trim())
-      .map((r) => {
-        const mode = r.match === 'word' ? '' : r.match + ': ';
-        const body = `${mode}${r.phrase.trim()} => ${r.response.replace(/\s*\n\s*/g, ' ').trim()}`;
-        return r.enabled ? body : `# ${body}`;
-      })
-      .join('\n');
+    return JSON.stringify(
+      list
+        .filter((r) => r.phrase.trim() && r.response.trim())
+        .map((r) => ({
+          phrase: r.phrase.trim(),
+          response: r.response.replace(/\s*\n\s*/g, ' ').trim(),
+          match: r.match,
+          enabled: r.enabled
+        }))
+    );
   }
 
   // Rules rendered as ReplyRow-shaped rows (label = phrase, preview = response).
@@ -338,20 +366,10 @@
     });
   }
 
-  // Reject phrases that would corrupt the "[mode:] phrase => response" wire
-  // format on the round trip (a late structured-record migration removes this
-  // limit). Blocks the exact vectors: an embedded "=>", a leading "#" (parsed as
-  // a disabled rule), and a reserved mode: prefix.
-  function reservedPhrase(phrase: string): boolean {
-    return phrase.includes('=>') || phrase.startsWith('#') || /^(word|contains|exact|prefix)\s*:/i.test(phrase);
-  }
-
   async function saveRule() {
     if (ruleIndex === null) return;
-    if (reservedPhrase(draftPhrase.trim())) {
-      toast('err', t('modules.triggerReserved'));
-      return;
-    }
+    // Phrases are stored as structured JSON now, so any characters are safe —
+    // no reserved-syntax restriction.
     const keepOn = ruleIndex === -1 ? true : (rules[ruleIndex]?.enabled ?? true);
     const draft: Rule = { phrase: draftPhrase.trim(), response: editMessage, match: draftMatch, enabled: keepOn };
     const next = ruleIndex === -1 ? [...rules, draft] : rules.map((r, i) => (i === ruleIndex ? draft : r));
