@@ -31,6 +31,7 @@ export { default as LightField } from '../components/LightField.svelte';
 export { default as Field } from '../components/Field.svelte';
 export { default as ToastHost } from '../components/ToastHost.svelte';
 export { default as SaveStatus } from '../components/SaveStatus.svelte';
+export { default as EditorFooter } from '../components/EditorFooter.svelte';
 export { default as FieldError } from '../components/FieldError.svelte';
 export { default as ConfirmDialog } from '../components/ConfirmDialog.svelte';
 export { default as Skeleton } from '../components/Skeleton.svelte';
