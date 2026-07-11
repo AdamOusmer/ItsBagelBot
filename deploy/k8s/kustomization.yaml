@@ -11,14 +11,10 @@ resources:
   - gateway.yaml
   # loyalty is the points/watchtime/counters data service behind sesame's
   # loyalty module (bagel.rpc.loyalty.> + the data.loyalty.* consumers).
-  # DEPLOY-GATED — uncomment once (1) the bagel_loyalty MySQL schema + user
-  # exist, (2) the Doppler project `loyalty` (DB + NATS creds) and its
-  # loyalty-doppler-token secret are provisioned, (3) nats-secrets.py has
-  # minted loyalty_bus/loyalty_rpc and the brokers picked up the new auth
-  # conf, and (4) the first loyalty image is published so the digest pin
-  # resolves. Applying earlier stalls the apps Kustomization (wait: true) on
-  # an unfillable secret/image.
-  # - loyalty.yaml
+  # Onboarded 2026-07-11: bagel_loyalty schema + loyalty_svc user, Doppler
+  # project `loyalty` (+ loyalty-doppler-token), loyalty_bus/loyalty_rpc auth,
+  # and the digest-pinned image are all in place.
+  - loyalty.yaml
   - modules.yaml
   - notifications.yaml
   - outgress.yaml
