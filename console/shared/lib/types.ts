@@ -954,15 +954,30 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
     label: 'Quotes',
     tagline: 'Save the best things said on stream and replay them in chat.',
     description:
-      'Keep a channel quote book. Mods save a line with !quote "the text" and the bot numbers it and stamps the save date. Anyone replays one with !quote for a random pick or !quote 12 for a specific number — the bot answers "Quote #12: the text (2026-07-11)". Mods remove a mistake with !quote remove 12; numbers are never reused, so an old number keeps pointing at the same quote. The replies are fixed system text (localized to your console language).',
+      'Keep a channel quote book. Someone saves a line with !quote "the text" and the bot numbers it and stamps the save date. Anyone replays one with !quote for a random pick or !quote 12 for a specific number — the bot answers "Quote #12: the text (2026-07-11)". Choose who is allowed to save below (moderators by default). Mods remove a mistake with !quote remove 12; numbers are never reused, so an old number keeps pointing at the same quote. The replies are fixed system text (localized to your console language).',
     icon: 'quote',
     category: 'Community',
     defaultEnabled: false,
     replies: [],
+    settings: [
+      {
+        key: 'addPerm',
+        label: 'Who can save quotes',
+        type: 'select',
+        placeholder: 'mod',
+        options: [
+          { value: 'mod', label: 'Moderators (default)' },
+          { value: 'vip', label: 'VIPs and up' },
+          { value: 'sub', label: 'Subscribers and up' },
+          { value: 'everyone', label: 'Everyone' }
+        ],
+        help: 'The minimum role allowed to save a quote with !quote "text". Removing a quote is always moderator-only.'
+      }
+    ],
     commands: [
       { trigger: '!quote', summary: 'Post a random saved quote (also !quotes).' },
       { trigger: '!quote <number>', summary: 'Post that exact quote.' },
-      { trigger: '!quote "text"', summary: 'Save a new quote; the save date is kept with it.', perm: 'mod' },
+      { trigger: '!quote "text"', summary: 'Save a new quote (who can save is set above); the save date is kept with it.' },
       { trigger: '!quote remove <number>', summary: 'Delete a quote; its number is retired.', perm: 'mod' }
     ]
   },
