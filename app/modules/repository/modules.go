@@ -94,6 +94,7 @@ func (r *Modules) List(ctx context.Context, userID uint64) ([]ModuleView, error)
 					Name:      row.Name,
 					IsEnabled: row.IsEnabled,
 					Configs:   row.Configs,
+					Revision:  row.Revision,
 				}
 			}
 
@@ -202,6 +203,159 @@ func (r *Modules) sweepGovee(ctx context.Context, userID uint64) {
 	if err := r.govee.ClearKey(ctx, userID); err != nil {
 		r.log.Warn("modules: failed to clear govee key on user delete", zap.Uint64("user_id", userID), zap.Error(err))
 	}
+}
+
+// PatchResult reports a Patch outcome: the row's revision after the attempt, and
+// whether the write was rejected because the caller's expected revision was stale.
+type PatchResult struct {
+	Rev      int
+	Conflict bool
+}
+
+// Patch merges partial config keys into a module's stored config under optimistic
+// concurrency. When expectedRev is non-nil it must equal the row's current
+// revision, or the write is rejected as a conflict (no mutation) so the caller can
+// refetch and retry; nil skips the check (last-write-wins). On success the
+// revision is bumped and the change is announced like any other write. A missing
+// row is created at revision 1. Unlike Set, Patch is synchronous and does not go
+// through the write-behind batcher: config edits are low-frequency, and the
+// compare-and-swap needs the current row, so batching would defeat the check.
+func (r *Modules) Patch(ctx context.Context, userID uint64, name string, enabled bool, partial map[string]json.RawMessage, expectedRev *int) (PatchResult, error) {
+	if err := validate.UserID(userID); err != nil {
+		return PatchResult{}, err
+	}
+	if err := validate.ModuleName(name); err != nil {
+		return PatchResult{}, err
+	}
+
+	var (
+		res     PatchResult
+		blobOut []byte
+	)
+	err := db.WithExec(ctx, func(ctx context.Context) error {
+		row, qerr := r.client.Modules.Query().
+			Where(modules.UserIDEQ(userID), modules.NameEQ(name)).
+			Only(ctx)
+
+		switch {
+		case ent.IsNotFound(qerr):
+			// A non-zero expected revision on a missing row is a conflict (the row
+			// the caller thought it was editing is gone).
+			if expectedRev != nil && *expectedRev != 0 {
+				res.Conflict = true
+				return nil
+			}
+			cfg := map[string]json.RawMessage{}
+			mergeConfig(cfg, partial)
+			setRev(cfg, 1)
+			blob, merr := json.Marshal(cfg)
+			if merr != nil {
+				return merr
+			}
+			if verr := validate.ConfigsJSON(blob); verr != nil {
+				return verr
+			}
+			created, cerr := r.client.Modules.Create().
+				SetUserID(userID).SetName(name).SetIsEnabled(enabled).
+				SetConfigs(blob).SetRevision(1).
+				Save(ctx)
+			if cerr != nil {
+				return cerr
+			}
+			res.Rev = created.Revision
+			blobOut = blob
+			return nil
+
+		case qerr != nil:
+			return qerr
+		}
+
+		if expectedRev != nil && *expectedRev != row.Revision {
+			res.Conflict = true
+			res.Rev = row.Revision
+			return nil
+		}
+
+		cfg := decodeConfig(row.Configs)
+		mergeConfig(cfg, partial)
+		setRev(cfg, row.Revision+1)
+		blob, merr := json.Marshal(cfg)
+		if merr != nil {
+			return merr
+		}
+		if verr := validate.ConfigsJSON(blob); verr != nil {
+			return verr
+		}
+
+		// Compare-and-swap: write only if the revision is still what we read, so a
+		// concurrent patch that landed in between loses the race and its caller
+		// retries. Portable and lock-free (a conditional UPDATE, no FOR UPDATE).
+		affected, uerr := r.client.Modules.Update().
+			Where(modules.UserIDEQ(userID), modules.NameEQ(name), modules.RevisionEQ(row.Revision)).
+			SetIsEnabled(enabled).SetConfigs(blob).AddRevision(1).
+			Save(ctx)
+		if uerr != nil {
+			return uerr
+		}
+		if affected == 0 {
+			res.Conflict = true
+			res.Rev = row.Revision
+			return nil
+		}
+		res.Rev = row.Revision + 1
+		blobOut = blob
+		return nil
+	})
+	if err != nil {
+		return PatchResult{}, err
+	}
+	if res.Conflict {
+		return res, nil
+	}
+
+	// Post-write: invalidate the cache and announce, mirroring flush so the
+	// projection converges.
+	r.Invalidate(userID)
+	if pubErr := bus.PublishJSON(ctx, r.pub, data.SubjectModuleChanged, data.ModuleChangedDTO{
+		UserID: userID, Name: name, IsEnabled: enabled, Configs: blobOut,
+	}); pubErr != nil {
+		r.log.Error("failed to publish module patch",
+			zap.Uint64("user_id", userID), zap.String("module", name), zap.Error(pubErr))
+	}
+	return res, nil
+}
+
+// decodeConfig parses a stored config blob into a mutable key map; a nil or
+// corrupt blob yields an empty map so a patch can still proceed.
+func decodeConfig(raw []byte) map[string]json.RawMessage {
+	out := map[string]json.RawMessage{}
+	if len(raw) == 0 {
+		return out
+	}
+	_ = json.Unmarshal(raw, &out)
+	return out
+}
+
+// revKey mirrors the row's revision inside the config blob so it flows to the
+// dashboard through the existing config projection (the client strips it). The
+// authoritative revision for the compare-and-swap is the column, not this mirror.
+const revKey = "__rev"
+
+// mergeConfig overlays partial's keys onto cfg (partial wins), ignoring any
+// client-sent revision mirror — the server owns it.
+func mergeConfig(cfg, partial map[string]json.RawMessage) {
+	for k, v := range partial {
+		if k == revKey {
+			continue
+		}
+		cfg[k] = v
+	}
+}
+
+// setRev writes the revision mirror into the config blob.
+func setRev(cfg map[string]json.RawMessage, rev int) {
+	b, _ := json.Marshal(rev)
+	cfg[revKey] = b
 }
 
 // Invalidate drops the cached view of one user; called when a change event

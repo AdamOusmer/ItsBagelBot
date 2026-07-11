@@ -11,20 +11,18 @@ import {
   channelSubState,
   auditDashboardImpersonation,
   delegationList,
-  type AccountStatus,
   type ChannelSubState
 } from '$lib/server/services';
 import { listCommands, listModules } from '$lib/server/commands-store';
 import { env } from '$env/dynamic/private';
+import { connectionUiState, type ConnSignals, type ConnUi } from '@bagel/shared';
 import { fail } from '@sveltejs/kit';
 
-export type ConnState = {
-  enabled: boolean;
-  receiving: boolean;
-  status: AccountStatus;
-  subState: ChannelSubState['state'];
-  subError: string;
-};
+// The home page consumes honest per-read signals plus the derived UI state.
+// connState keeps each read's failure visible (as 'unknown') rather than folding
+// it into one boolean, so the client can recompute the same state from the
+// /substate poll and a down/pending/failing connection never renders as online.
+export type ConnData = { signals: ConnSignals; ui: ConnUi };
 
 function settled<T>(r: PromiseSettledResult<T>): T | undefined {
   return r.status === 'fulfilled' ? r.value : undefined;
@@ -85,7 +83,7 @@ function healSubState(conn: {
 // service's active flag: is_active defaults to true at signup, so trusting it
 // alone showed brand-new channels as connected while they had zero EventSub
 // subscriptions (and hid the only button that would have created them).
-async function connState(uid: string): Promise<ConnState> {
+async function connState(uid: string): Promise<ConnData> {
   const [grant, state, sub] = await Promise.allSettled([
     hasGrant(uid),
     accountState(uid),
@@ -93,16 +91,25 @@ async function connState(uid: string): Promise<ConnState> {
   ]);
   const account = settled(state);
   const subHealth = settled(sub);
-  const enabled = settled(grant) === true;
-  const active = enabled && account?.active === true;
-  const subState = healSubState({ uid, active, state: subHealth?.state ?? 'unknown' });
-  return {
-    enabled,
-    receiving: active && subState !== 'unenrolled',
-    status: account?.status ?? 'free',
-    subState,
-    subError: subHealth?.error ?? ''
+
+  // Each read keeps its own failure visible. A rejected grant/account read is
+  // 'unknown' (→ unavailable), never a silent false/'free' that would show a
+  // paid, connected channel as unauthorized or free during an outage.
+  const grantOk: boolean | 'unknown' = grant.status === 'fulfilled' ? grant.value === true : 'unknown';
+  const active: boolean | 'unknown' =
+    grantOk === 'unknown' ? 'unknown' : grantOk === false ? false : account ? account.active === true : 'unknown';
+
+  // Self-heal (publish a fresh enroll) fires only on a definite active channel;
+  // 'unknown' must not spam enables.
+  const subState = healSubState({ uid, active: active === true, state: subHealth?.state ?? 'unknown' });
+
+  const signals: ConnSignals = {
+    grant: grantOk,
+    active,
+    status: account?.status ?? 'unknown',
+    sub: subState
   };
+  return { signals, ui: connectionUiState(signals) };
 }
 
 // Parse the uses counter for ranking: the backend sends a plain number, while
@@ -123,9 +130,14 @@ export type CommandDigest = {
   active: number;
   total: number;
   uses: number;
+  // false = the read failed; total/active/uses are not real and must not drive
+  // onboarding or "0" stats (an outage is not an empty account).
+  ok: boolean;
 };
 
-function digest(cmds: CommandView[]): CommandDigest {
+// digest counts; the read-availability flag (`ok`) is added at the boundary
+// (commandDigest / demoDigest), so a failed read can be told from an empty one.
+function digest(cmds: CommandView[]): Omit<CommandDigest, 'ok'> {
   const active = cmds.filter((c) => c.is_active);
   return {
     top: [...active].toSorted((a, b) => usesCount(b.uses) - usesCount(a.uses)).slice(0, 3),
@@ -135,19 +147,19 @@ function digest(cmds: CommandView[]): CommandDigest {
   };
 }
 
-const demoDigest: CommandDigest = digest([
+const demoDigest: CommandDigest = { ...digest([
   { name: 'bagel', response: '{user} tosses a warm bagel to {target}. Toasty.', is_active: true, uses: '1.2k' },
   { name: 'lurk', response: '{user} fades into the shadows. Thanks for the lurk.', is_active: true, uses: '521' },
   { name: 'uptime', response: '{user} the stream has been live for {uptime}', is_active: true, uses: '412' },
   { name: 'socials', response: 'Follow along → twitch.tv/itsmavey', is_active: true, uses: '288' },
   { name: 'uptime-debug', response: 'node={node}', is_active: false, uses: '14' }
-]);
+]), ok: true };
 
 // Modules at a glance: enabled count over the user-facing catalog.
-export type ModuleDigest = { on: number; total: number };
+export type ModuleDigest = { on: number; total: number; ok: boolean };
 
 // Who can reach this dashboard: consumed delegation grants.
-export type ShareDigest = { people: number; pending: number };
+export type ShareDigest = { people: number; pending: number; ok: boolean };
 
 // demoOr streams either the demo fixture or the real RPC as an unawaited
 // promise so SvelteKit streams it: the page shell flushes immediately and each
@@ -161,8 +173,8 @@ function demoOr<T>(demo: T, real: () => Promise<T>): Promise<T> {
 // entry as the commands page) and optional: a failure just hides the strip.
 function commandDigest(uid: string): Promise<CommandDigest> {
   return listCommands(uid)
-    .then(digest)
-    .catch(() => ({ top: [], active: 0, total: 0, uses: 0 }));
+    .then((c) => ({ ...digest(c), ok: true }))
+    .catch(() => ({ top: [], active: 0, total: 0, uses: 0, ok: false }));
 }
 
 function moduleDigest(uid: string): Promise<ModuleDigest> {
@@ -170,9 +182,10 @@ function moduleDigest(uid: string): Promise<ModuleDigest> {
   return listModules(uid)
     .then((rows) => ({
       on: rows.filter((r) => catalogIds.has(r.name) && r.is_enabled).length,
-      total: MODULE_CATALOG.length
+      total: MODULE_CATALOG.length,
+      ok: true
     }))
-    .catch(() => ({ on: 0, total: MODULE_CATALOG.length }));
+    .catch(() => ({ on: 0, total: MODULE_CATALOG.length, ok: false }));
 }
 
 // Delegation shares only exist for owners; a delegate browsing the owner's
@@ -181,21 +194,24 @@ function shareDigest(uid: string): Promise<ShareDigest> {
   return delegationList(uid)
     .then((grants) => ({
       people: grants.filter((g) => g.consumed).length,
-      pending: grants.filter((g) => !g.consumed).length
+      pending: grants.filter((g) => !g.consumed).length,
+      ok: true
     }))
-    .catch(() => ({ people: 0, pending: 0 }));
+    .catch(() => ({ people: 0, pending: 0, ok: false }));
 }
+
+const demoConn: ConnData = (() => {
+  const signals: ConnSignals = { grant: true, active: true, status: 'vip', sub: 'ok' };
+  return { signals, ui: connectionUiState(signals) };
+})();
 
 export const load: PageServerLoad = ({ locals }) => {
   const uid = locals.session?.user_id ?? 'demo';
   return {
-    conn: demoOr<ConnState>(
-      { enabled: true, receiving: true, status: 'vip', subState: 'ok', subError: '' },
-      () => connState(uid)
-    ),
+    conn: demoOr<ConnData>(demoConn, () => connState(uid)),
     commands: demoOr(demoDigest, () => commandDigest(uid)),
-    modules: demoOr({ on: 1, total: MODULE_CATALOG.length }, () => moduleDigest(uid)),
-    shares: demoOr({ people: 1, pending: 1 }, () => shareDigest(uid))
+    modules: demoOr<ModuleDigest>({ on: 1, total: MODULE_CATALOG.length, ok: true }, () => moduleDigest(uid)),
+    shares: demoOr<ShareDigest>({ people: 1, pending: 1, ok: true }, () => shareDigest(uid))
   };
 };
 

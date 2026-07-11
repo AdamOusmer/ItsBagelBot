@@ -2,7 +2,8 @@
   import { enhance } from '$app/forms';
   import { onMount } from 'svelte';
   import { page } from '$app/state';
-  import { Button, Card, CardHead, Icon, PageHead, StatTile, Modal, Skeleton, getI18n, type IconName } from '@bagel/shared';
+  import { Button, Card, CardHead, Icon, PageHead, StatTile, Modal, Skeleton, getI18n, connectionUiState, toast, type IconName, type ConnSignals, type ConnUi } from '@bagel/shared';
+  import type { ActionResult } from '@sveltejs/kit';
   import OnboardingModal from '$lib/components/OnboardingModal.svelte';
   let { data } = $props();
 
@@ -19,10 +20,12 @@
       return;
     }
     if (data.onboarded) return;
-    
-    // Only open the modal if the user actually has no commands (and isn't onboarded yet)
+
+    // Open only for a CONFIRMED-empty account (read succeeded, zero commands).
+    // A failed read reports total 0 too; onboarding an existing user mid-outage
+    // is the bug this guards against.
     data.commands.then((cd) => {
-      if (cd.total === 0) onboardOpen = true;
+      if (cd.ok && cd.total === 0) onboardOpen = true;
     });
   });
 
@@ -31,23 +34,44 @@
     onboardForm?.requestSubmit();
   }
 
-  // Real problems only, each with its fix. Empty array = healthy.
+  // The awaited home connection: honest per-read signals + derived UI state.
+  type Conn = { signals: ConnSignals; ui: ConnUi };
+
+  // Fold the live /substate poll (`sub`, when set) over the SSR signals and
+  // re-derive the same honest UI state the server computed. One mapping, one
+  // source of truth — the poll can't invent a state the server can't.
+  function liveUi(c: Conn): ConnUi {
+    return sub ? connectionUiState({ ...c.signals, sub: sub.state as ConnSignals['sub'] }) : c.ui;
+  }
+
+  function headline(kind: ConnUi['kind']): string {
+    switch (kind) {
+      case 'online': return t('overview.onlineInChat');
+      case 'connecting': return t('overview.connecting');
+      case 'degraded':
+      case 'sub_unknown': return t('overview.connectedIdle');
+      case 'disabled':
+      case 'auth_required': return t('overview.notConnected');
+      case 'unavailable': return t('overview.unavailable');
+    }
+  }
+
+  // Real problems only, each with its fix. Empty array = nothing to surface here
+  // (the hero already carries connecting / unavailable / disabled states).
   type Issue = { icon: IconName; text: string; cta: string; href: string | null };
-  function issuesFor(
-    c: { enabled: boolean; receiving: boolean },
-    ss: string,
-    commandTotal: number
-  ): Issue[] {
+  function issuesFor(u: ConnUi, cd: { ok: boolean; total: number }): Issue[] {
     const out: Issue[] = [];
-    if (!c.enabled) out.push({ icon: 'power', text: t('overview.issueNoAuth'), cta: t('overview.issueNoAuthCta'), href: '/settings' });
-    if (c.enabled && !c.receiving) out.push({ icon: 'activity', text: t('overview.issueIdle'), cta: t('overview.issueIdleCta'), href: null });
-    if (ss === 'failing') out.push({ icon: 'ban', text: t('overview.issueSubs'), cta: t('overview.issueSubsCta'), href: '/settings' });
-    if (commandTotal === 0) out.push({ icon: 'commands', text: t('overview.issueNoCommands'), cta: t('overview.issueNoCommandsCta'), href: '/commands' });
+    if (u.kind === 'auth_required') out.push({ icon: 'power', text: t('overview.issueNoAuth'), cta: t('overview.issueNoAuthCta'), href: '/settings' });
+    if (u.kind === 'degraded') out.push({ icon: 'ban', text: t('overview.issueSubs'), cta: t('overview.issueSubsCta'), href: '/settings' });
+    // Only a CONFIRMED-empty read is "no commands"; an outage (ok:false) is not.
+    if (cd.ok && cd.total === 0) out.push({ icon: 'commands', text: t('overview.issueNoCommands'), cta: t('overview.issueNoCommandsCta'), href: '/commands' });
     return out;
   }
 
   const statusLabel = (s: string) =>
-    t(`planLabel.${(['free', 'paid', 'vip'].includes(s) ? s : 'free')}`);
+    s === 'unknown'
+      ? t('overview.planUnknown')
+      : t(`planLabel.${(['free', 'paid', 'vip'].includes(s) ? s : 'free')}`);
 
   let greeting = $state(t('overview.greetingEvening'));
 
@@ -73,11 +97,17 @@
   );
   const modalAction = $derived(pending === 'restart' ? '?/restart' : '?/disconnect');
 
+  // Inline error surfaced inside the confirm modal when an action fails, so the
+  // modal stays open instead of closing on a rejected request.
+  let actionError = $state('');
+
   function openModal(action: PendingAction) {
+    actionError = '';
     pending = action;
   }
 
   function closeModal() {
+    actionError = '';
     pending = null;
   }
 
@@ -134,25 +164,43 @@
       // The load-time self-heal reports 'pending' before outgress has written
       // anything, so a fresh poll can still read 'unenrolled'. Poll through
       // that gap only when the server said an enroll is actually in flight.
-      if (state === 'unenrolled' && (await data.conn).subState === 'pending') startPolling();
+      if (state === 'unenrolled' && (await data.conn).signals.sub === 'pending') startPolling();
     });
     return stopPolling;
   });
 
+  // A failed action must never look successful. Inspect the ActionResult:
+  // only `success` closes the modal and starts reconnect tracking; a failure
+  // keeps the modal open with an inline error (the RPC did not land).
+  type Enhanced = {
+    result: ActionResult;
+    update: (opts?: { reset?: boolean; invalidateAll?: boolean }) => Promise<void>;
+  };
+
   function closeAfterSubmit() {
     const wasRestart = pending === 'restart';
-    return async ({ update }: { update: (opts?: { invalidateAll?: boolean }) => Promise<void> }) => {
-      await update();
-      closeModal();
-      // Only a restart re-enrolls; disconnect just tears down.
-      if (wasRestart) trackReconnect();
+    return async ({ result, update }: Enhanced) => {
+      if (result.type === 'success') {
+        await update();
+        closeModal();
+        // Only a restart re-enrolls; disconnect just tears down.
+        if (wasRestart) trackReconnect();
+      } else {
+        await update({ reset: false });
+        actionError = t('overview.actionFailed');
+      }
     };
   }
 
   function enableSubmit() {
-    return async ({ update }: { update: (opts?: { invalidateAll?: boolean }) => Promise<void> }) => {
-      await update();
-      trackReconnect();
+    return async ({ result, update }: Enhanced) => {
+      if (result.type === 'success') {
+        await update();
+        trackReconnect();
+      } else {
+        await update({ reset: false });
+        toast('err', t('overview.actionFailed'));
+      }
     };
   }
 </script>
@@ -173,31 +221,39 @@
       </div>
       <div class="actions"></div>
     {:then c}
-      {@const ss = sub?.state ?? c.subState}
+      {@const u = liveUi(c)}
       <div>
-        <div class="live {c.receiving ? '' : 'off'}">
-          <span class="dot"></span> {c.receiving ? t('overview.onlineInChat') : c.enabled ? t('overview.connectedIdle') : t('overview.notConnected')}
+        <div class="live {u.live ? '' : 'off'}">
+          <span class="dot"></span> {headline(u.kind)}
         </div>
         <div class="meta">
-          <span class="status-tag {c.status !== 'free' ? 'premium' : ''}">{statusLabel(c.status)}</span>
-          {#if ss === 'failing'}
+          {#if u.kind !== 'unavailable'}
+            <span class="status-tag {c.signals.status !== 'free' && c.signals.status !== 'unknown' ? 'premium' : ''}">{statusLabel(c.signals.status)}</span>
+          {/if}
+          {#if u.kind === 'degraded'}
             <span class="status-tag sub-state err">{t('overview.reconnectNeeded')}</span>
-          {:else if ss === 'pending'}
+          {:else if u.kind === 'connecting'}
             <span class="status-tag sub-state warn">{t('overview.reconnecting')}</span>
+          {:else if u.kind === 'sub_unknown'}
+            <span class="status-tag sub-state warn">{t('overview.subUnknown')}</span>
           {/if}
         </div>
-        {#if ss === 'failing'}
+        {#if u.kind === 'degraded'}
           <p class="sub-fix">{t('overview.subFixPre')}<strong>{t('overview.subFixStrong')}</strong>.</p>
         {/if}
       </div>
       <div class="actions">
-        {#if c.receiving}
+        {#if u.canManage}
           <Button variant="ghost" icon="activity" type="button" onclick={() => openModal('restart')}>{t('overview.restart')}</Button>
           <Button variant="tan" icon="power" type="button" onclick={() => openModal('disconnect')}>{t('overview.disconnect')}</Button>
-        {:else}
+        {:else if u.showEnable}
           <form method="POST" action="?/enable" use:enhance={enableSubmit}>
             <Button variant="primary" icon="power" type="submit">{t('overview.enable')}</Button>
           </form>
+        {:else if u.showConnect}
+          <a class="btn primary" href="/settings"><Icon name="power" size={14} /> {t('overview.issueNoAuthCta')}</a>
+        {:else if u.canRetry}
+          <a class="btn ghost" href="/"><Icon name="activity" size={14} /> {t('overview.retry')}</a>
         {/if}
       </div>
     {/await}
@@ -214,9 +270,9 @@
        line when everything is healthy. The hero already says "connected", so
        nothing here repeats it. -->
   {#await data.conn then c}
-    {@const ss = sub?.state ?? c.subState}
+    {@const u = liveUi(c)}
     {#await data.commands then cd}
-      {@const issues = issuesFor(c, ss, cd.total)}
+      {@const issues = issuesFor(u, cd)}
       {#if issues.length}
         <div class="attention">
           {#each issues as issue (issue.text)}
@@ -228,7 +284,9 @@
             </div>
           {/each}
         </div>
-      {:else}
+      {:else if u.kind === 'online' && cd.ok}
+        <!-- "All good" shows only when genuinely online AND the reads landed;
+             an outage must not read as healthy. -->
         <p class="all-good"><Icon name="check" size={13} /> {t('overview.allGood')}</p>
       {/if}
     {/await}
@@ -239,37 +297,49 @@
     {#await data.commands}
       <StatTile icon="commands" label={t('overview.statActiveCommands')} value="—" delta={t('overview.counting')} flat />
     {:then cd}
-      <StatTile
-        icon="commands"
-        label={t('overview.statActiveCommands')}
-        value={String(cd.active)}
-        unit={t('overview.ofN', { n: cd.total })}
-        delta={cd.uses > 0 ? t('overview.usesAllTime', { n: cd.uses.toLocaleString() }) : t('overview.createFirstResponse')}
-      />
+      {#if cd.ok}
+        <StatTile
+          icon="commands"
+          label={t('overview.statActiveCommands')}
+          value={String(cd.active)}
+          unit={t('overview.ofN', { n: cd.total })}
+          delta={cd.uses > 0 ? t('overview.usesAllTime', { n: cd.uses.toLocaleString() }) : t('overview.createFirstResponse')}
+        />
+      {:else}
+        <StatTile icon="commands" label={t('overview.statActiveCommands')} value="—" delta={t('overview.dataUnavailable')} flat />
+      {/if}
     {/await}
     {#await data.modules}
       <StatTile icon="modules" tan label={t('overview.statModulesOn')} value="—" delta={t('overview.checkingShort')} flat />
     {:then md}
-      <StatTile
-        icon="modules"
-        tan
-        label={t('overview.statModulesOn')}
-        value={String(md.on)}
-        unit={t('overview.ofN', { n: md.total })}
-        delta={md.on > 0 ? t('overview.runningForChannel') : t('overview.browseCatalog')}
-      />
+      {#if md.ok}
+        <StatTile
+          icon="modules"
+          tan
+          label={t('overview.statModulesOn')}
+          value={String(md.on)}
+          unit={t('overview.ofN', { n: md.total })}
+          delta={md.on > 0 ? t('overview.runningForChannel') : t('overview.browseCatalog')}
+        />
+      {:else}
+        <StatTile icon="modules" tan label={t('overview.statModulesOn')} value="—" delta={t('overview.dataUnavailable')} flat />
+      {/if}
     {/await}
     {#await data.shares}
       <StatTile icon="users" label={t('overview.statSharedAccess')} value="—" delta={t('overview.checkingShort')} flat />
     {:then sh}
-      <StatTile
-        icon="users"
-        label={t('overview.statSharedAccess')}
-        value={String(sh.people)}
-        unit={sh.people === 1 ? t('overview.person') : t('overview.people')}
-        delta={sh.pending > 0 ? t('overview.invitesPending', { n: sh.pending }) : t('overview.manageInSettings')}
-        flat={sh.pending === 0}
-      />
+      {#if sh.ok}
+        <StatTile
+          icon="users"
+          label={t('overview.statSharedAccess')}
+          value={String(sh.people)}
+          unit={sh.people === 1 ? t('overview.person') : t('overview.people')}
+          delta={sh.pending > 0 ? t('overview.invitesPending', { n: sh.pending }) : t('overview.manageInSettings')}
+          flat={sh.pending === 0}
+        />
+      {:else}
+        <StatTile icon="users" label={t('overview.statSharedAccess')} value="—" delta={t('overview.dataUnavailable')} flat />
+      {/if}
     {/await}
     {#await data.conn}
       <StatTile icon="pulse" tan label={t('overview.statPlan')} value="—" delta={t('overview.loadingAccount')} flat />
@@ -278,8 +348,8 @@
         icon="pulse"
         tan
         label={t('overview.statPlan')}
-        value={statusLabel(c.status)}
-        delta={c.status === 'free' ? t('overview.standardAccess') : t('overview.premiumAccess')}
+        value={statusLabel(c.signals.status)}
+        delta={c.signals.status === 'unknown' ? t('overview.dataUnavailable') : c.signals.status === 'free' ? t('overview.standardAccess') : t('overview.premiumAccess')}
         flat
       />
     {/await}
@@ -299,7 +369,18 @@
         </div>
       {:then cd}
         {@const top = cd.top}
-        {#if top.length}
+        {#if !cd.ok}
+          <div class="feed">
+            <div class="feed-row">
+              <div class="fi"><Icon name="activity" size={15} /></div>
+              <div class="ft">
+                <b>{t('overview.commandsUnavailable')}</b>
+                <span>{t('overview.commandsUnavailableDesc')}</span>
+              </div>
+              <a class="fw overview-link" href="/">{t('overview.retry')}</a>
+            </div>
+          </div>
+        {:else if top.length}
           <div class="feed">
             {#each top as c (c.name)}
               <div class="feed-row">
@@ -355,6 +436,7 @@
 <Modal open={pending !== null} title={modalTitle} closeModal={closeModal}>
   {#if pending !== null}
     <p class="modal-body">{modalBody}</p>
+    {#if actionError}<p class="modal-error" role="alert">{actionError}</p>{/if}
     <form method="POST" action={modalAction} use:enhance={closeAfterSubmit} class="modal-actions">
       <Button variant="ghost" type="button" onclick={closeModal}>{t('common.cancel')}</Button>
       <Button
@@ -425,6 +507,17 @@
     color: #cf8a78;
     font-weight: 600;
     white-space: nowrap;
+  }
+  .modal-error {
+    margin: -8px 0 16px;
+    padding: 10px 12px;
+    font-family: var(--bb-font-body);
+    font-size: 13px;
+    line-height: 1.4;
+    color: #cf8a78;
+    background: rgba(176, 90, 70, 0.12);
+    border: 1px solid rgba(176, 90, 70, 0.35);
+    border-radius: 8px;
   }
   .overview-stats {
     margin-bottom: var(--row-gap);
