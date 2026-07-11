@@ -611,6 +611,7 @@ export const en = {
     loading: 'Loading…',
     saved: '{label} saved.',
     saveFailed: 'Save failed.',
+    patchConflict: 'Someone else changed this module. Reloaded the latest — redo your change.',
     offConfigurable: 'This module is off. You can configure it now; changes take effect when you enable it.',
     triggerReserved: 'That phrase uses reserved syntax (=>, a leading #, or a mode: prefix). Please rephrase it.',
     discardTitle: 'Discard changes?',

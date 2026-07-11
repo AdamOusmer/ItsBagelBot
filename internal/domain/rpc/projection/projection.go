@@ -33,6 +33,9 @@ type ModuleView struct {
 	Name      string          `json:"name"`
 	IsEnabled bool            `json:"is_enabled"`
 	Configs   json.RawMessage `json:"configs,omitempty"`
+	// Revision is the optimistic-concurrency token a client echoes back on a
+	// patch; a stale value is rejected. Omitted (0) for legacy rows.
+	Revision int `json:"revision,omitempty"`
 }
 
 // UserReply is the reply shape for the users projection subject.

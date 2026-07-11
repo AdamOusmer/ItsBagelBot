@@ -99,3 +99,67 @@ func TestListServedFromCacheUntilInvalidated(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, views[0].IsEnabled, "invalidation must expose the new state")
 }
+
+func intptr(i int) *int { return &i }
+
+// Patch creates a row at revision 1, then merges a second key without clobbering
+// the first and bumps the revision.
+func TestPatchCreatesAndMerges(t *testing.T) {
+	client, pub, repo := setup(t)
+	ctx := context.Background()
+
+	res, err := repo.Patch(ctx, 2001, "triggers", true, map[string]json.RawMessage{"a": json.RawMessage(`"1"`)}, nil)
+	require.NoError(t, err)
+	assert.False(t, res.Conflict)
+	assert.Equal(t, 1, res.Rev)
+
+	res, err = repo.Patch(ctx, 2001, "triggers", true, map[string]json.RawMessage{"b": json.RawMessage(`"2"`)}, intptr(1))
+	require.NoError(t, err)
+	assert.Equal(t, 2, res.Rev)
+
+	rows := client.Modules.Query().AllX(ctx)
+	require.Len(t, rows, 1, "merge must not create a second row")
+	var cfg map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(rows[0].Configs, &cfg))
+	assert.JSONEq(t, `"1"`, string(cfg["a"]), "existing key survives the merge")
+	assert.JSONEq(t, `"2"`, string(cfg["b"]))
+	assert.JSONEq(t, `2`, string(cfg["__rev"]), "revision mirrored into the blob")
+	assert.Equal(t, 2, rows[0].Revision)
+
+	assert.Len(t, pub.On(data.SubjectModuleChanged), 2, "each landed patch announces once")
+}
+
+// A patch built on a now-stale revision is rejected as a conflict and writes
+// nothing, so a concurrent edit can't be clobbered.
+func TestPatchRejectsStaleRevision(t *testing.T) {
+	client, _, repo := setup(t)
+	ctx := context.Background()
+
+	_, err := repo.Patch(ctx, 2001, "triggers", true, map[string]json.RawMessage{"a": json.RawMessage(`"1"`)}, nil) // -> rev 1
+	require.NoError(t, err)
+	_, err = repo.Patch(ctx, 2001, "triggers", true, map[string]json.RawMessage{"b": json.RawMessage(`"2"`)}, intptr(1)) // -> rev 2
+	require.NoError(t, err)
+
+	res, err := repo.Patch(ctx, 2001, "triggers", true, map[string]json.RawMessage{"c": json.RawMessage(`"3"`)}, intptr(1)) // stale
+	require.NoError(t, err)
+	assert.True(t, res.Conflict)
+	assert.Equal(t, 2, res.Rev)
+
+	rows := client.Modules.Query().AllX(ctx)
+	var cfg map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(rows[0].Configs, &cfg))
+	_, hasC := cfg["c"]
+	assert.False(t, hasC, "a conflicting patch must not write")
+	assert.Equal(t, 2, rows[0].Revision)
+}
+
+// A non-zero expected revision against a missing row is a conflict, not a create.
+func TestPatchMissingRowNonZeroExpectedConflicts(t *testing.T) {
+	client, _, repo := setup(t)
+	ctx := context.Background()
+
+	res, err := repo.Patch(ctx, 2001, "triggers", true, map[string]json.RawMessage{"a": json.RawMessage(`"1"`)}, intptr(3))
+	require.NoError(t, err)
+	assert.True(t, res.Conflict)
+	assert.Empty(t, client.Modules.Query().AllX(ctx))
+}
