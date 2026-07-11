@@ -6,6 +6,7 @@
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { toast } from '../lib/toast';
+  import Switch from './Switch.svelte';
 
   let {
     action,
@@ -25,6 +26,9 @@
     failMessage?: string;
   } = $props();
 
+  const uid = $props.id();
+  const hintId = `master-hint-${uid}`;
+
   const submit: SubmitFunction = () => {
     const was = enabled;
     enabled = !was;
@@ -39,23 +43,15 @@
 
 <form method="POST" {action} use:enhance={submit} class="master">
   <input type="hidden" {name} value={enabled ? '' : 'on'} />
-  <button class="toggle {enabled ? 'on' : ''}" type="submit" aria-label={ariaLabel ?? label}></button>
+  <Switch type="submit" checked={enabled} label={ariaLabel ?? label} describedby={hint ? hintId : undefined} />
   <span class="txt">
     <span class="lbl">{label}</span>
-    {#if hint}<span class="hint">{hint}</span>{/if}
+    {#if hint}<span class="hint" id={hintId}>{hint}</span>{/if}
   </span>
 </form>
 
 <style>
   .master { display: inline-flex; align-items: center; gap: 12px; }
-
-  /* switch — copied verbatim from Toggle.svelte so the pill reads identically */
-  .toggle { width: 38px; height: 22px; display: inline-block; border-radius: 999px; background: rgba(255,255,255,0.06); border: 1px solid var(--glass-border); position: relative; cursor: pointer; flex-shrink: 0;
-    transition: all var(--bb-dur-base) var(--bb-ease-out-back); }
-  .toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--bb-muted);
-    transition: all var(--bb-dur-base) var(--bb-ease-out-back); }
-  .toggle.on { background: var(--ui-accent-soft); border-color: rgba(82,183,136,0.4); }
-  .toggle.on::after { left: 18px; background: var(--bb-green-glow); box-shadow: 0 0 8px var(--bb-green-glow); }
 
   .txt { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
   .lbl {
