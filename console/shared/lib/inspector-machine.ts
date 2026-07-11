@@ -69,19 +69,28 @@ export function edit<T>(state: InspectorState<T>, draft: T): InspectorState<T> {
   return { ...state, draft, dirty, status: state.status === 'saving' ? 'saving' : 'idle' };
 }
 
+// submittable is true when there is a dirty selection with a draft and no save
+// already in flight.
+function submittable<T>(state: InspectorState<T>): boolean {
+  return state.selectedId !== null && state.draft !== null && state.dirty && state.status !== 'saving';
+}
+
 // Begin a save. No-op unless there is a dirty selection. Captures the immutable
 // (resourceId, requestId, snapshot) so the response can be matched later.
 export function requestSave<T>(
   state: InspectorState<T>,
   requestId: string
 ): InspectorState<T> {
-  if (!state.selectedId || state.draft === null || !state.dirty || state.status === 'saving') {
+  if (!submittable(state)) {
     return state;
   }
+  // submittable guarantees selectedId and draft are set.
+  const selectedId = state.selectedId as string;
+  const draft = state.draft as T;
   return {
     ...state,
     status: 'saving',
-    submitted: { resourceId: state.selectedId, requestId, snapshot: clone(state.draft) }
+    submitted: { resourceId: selectedId, requestId, snapshot: clone(draft) }
   };
 }
 

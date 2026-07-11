@@ -51,17 +51,21 @@ export function connectionUiState(s: ConnSignals): ConnUi {
   if (!s.grant) return ui('auth_required');
   if (!s.active) return ui('disabled');
   // Active from here on; the enroll state decides whether chat is actually served.
-  switch (s.sub) {
+  return ui(activeKind(s.sub));
+}
+
+// activeKind maps an active channel's enroll state to its UI kind.
+function activeKind(sub: SubState): ConnKind {
+  switch (sub) {
     case 'ok':
-      return ui('online');
+      return 'online';
     case 'failing':
-      return ui('degraded');
+      return 'degraded';
     case 'pending':
     case 'unenrolled':
-      return ui('connecting');
-    case 'unknown':
+      return 'connecting';
     default:
-      return ui('sub_unknown');
+      return 'sub_unknown';
   }
 }
 

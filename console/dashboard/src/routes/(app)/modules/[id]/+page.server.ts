@@ -131,22 +131,13 @@ export const actions: Actions = {
     const f = await request.formData();
     const enabled = f.get('is_enabled') === 'on';
     const expectedRev = Number(f.get('expected_rev') ?? '0') || 0;
-    const partial: Record<string, string> = {};
-    try {
-      const obj = JSON.parse(String(f.get('partial') ?? '{}'));
-      if (obj && typeof obj === 'object') {
-        for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
-          partial[k] = v == null ? '' : String(v);
-        }
-      }
-    } catch {
-      return fail(400, { ok: false, error: 'Invalid patch.' });
-    }
+    const partial = parsePartial(f.get('partial'));
+    if (!partial) return fail(400, { ok: false, error: 'Invalid patch.' });
 
     if (env.DEMO === '1') return { ok: true, rev: expectedRev + 1, conflict: false };
 
     try {
-      const res = await patchModule(uid, def.id, enabled, partial, expectedRev);
+      const res = await patchModule({ userId: uid, name: def.id, isEnabled: enabled, partial, expectedRev });
       if (res.conflict) return { ok: false, conflict: true, rev: res.rev };
       auditDashboardImpersonation(locals.session, 'module:patch', `${def.id}=${enabled}`);
       return { ok: true, rev: res.rev, conflict: false };
@@ -156,3 +147,19 @@ export const actions: Actions = {
     }
   }
 };
+
+// parsePartial coerces the posted patch JSON into a flat string map, or null when
+// it is not a valid object.
+function parsePartial(raw: FormDataEntryValue | null): Record<string, string> | null {
+  try {
+    const obj = JSON.parse(String(raw ?? '{}'));
+    if (!obj || typeof obj !== 'object') return {};
+    const partial: Record<string, string> = {};
+    for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+      partial[k] = v == null ? '' : String(v);
+    }
+    return partial;
+  } catch {
+    return null;
+  }
+}
