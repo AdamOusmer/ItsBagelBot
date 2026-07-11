@@ -530,7 +530,14 @@ export const fr = {
     toastDeleted: 'Minuterie supprimée.',
     toastSaveFailed: 'Impossible d’enregistrer la minuterie.',
     toastDeleteFailed: 'Impossible de supprimer la minuterie.',
-    toastToggleFailed: 'Impossible de mettre à jour la minuterie.'
+    toastToggleFailed: 'Impossible de mettre à jour la minuterie.',
+    undo: 'Annuler',
+    unsavedChanges: 'Modifications non enregistrées',
+    saved: 'Enregistré',
+    discardTitle: 'Abandonner les modifications ?',
+    discardBody: 'Vous avez des modifications non enregistrées sur cette minuterie. Les abandonner ?',
+    discard: 'Abandonner',
+    keepEditing: 'Continuer l’édition'
   },
 
   quotes: {

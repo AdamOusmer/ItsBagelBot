@@ -531,7 +531,14 @@ export const en = {
     toastDeleted: 'Timer deleted.',
     toastSaveFailed: 'Could not save the timer.',
     toastDeleteFailed: 'Could not delete the timer.',
-    toastToggleFailed: 'Could not update the timer.'
+    toastToggleFailed: 'Could not update the timer.',
+    undo: 'Undo',
+    unsavedChanges: 'Unsaved changes',
+    saved: 'Saved',
+    discardTitle: 'Discard changes?',
+    discardBody: 'You have unsaved changes to this timer. Discard them?',
+    discard: 'Discard',
+    keepEditing: 'Keep editing'
   },
 
   quotes: {
