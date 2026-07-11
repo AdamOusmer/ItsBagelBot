@@ -3,9 +3,12 @@
   import type { SubmitFunction } from '@sveltejs/kit';
   import {
     Icon,
-    Card,
     PageHead,
     Scroller,
+    PageToolbar,
+    AlertBanner,
+    DeckList,
+    EmptyState,
     toast,
     normName,
     getI18n,
@@ -460,33 +463,33 @@
   </PageHead>
 
   {#if data.degraded}
-    <div class="degraded" role="alert">
-      <Icon name="ban" size={13} />
-      {t('commands.degraded')}
-    </div>
+    <AlertBanner>{t('commands.degraded')}</AlertBanner>
   {/if}
 
-  <div class="toolbar">
-    <div class="chip-row">
-      {#each filters as f}
-        <button class="chip {active === f ? 'on' : ''}" onclick={() => (active = f)}>{filterLabel(f)}</button>
-      {/each}
-    </div>
-    <div class="grow"></div>
-    <span class="keys" aria-hidden="true"><kbd class="hint">/</kbd> {t('commands.keysSearch')} <kbd class="hint">N</kbd> {t('commands.keysNew')}</span>
-    <label class="search toolbar-search">
-      <Icon name="search" size={15} />
-      <input type="text" placeholder={t('commands.searchPlaceholder')} bind:value={search} bind:this={searchInput} />
-    </label>
-    <button class="btn primary" onclick={openNew} disabled={expanded === NEW}>
-      <Icon name="plus" size={14} /> {t('commands.newCommand')}
-    </button>
-  </div>
+  <PageToolbar>
+    {#snippet lead()}
+      <div class="chip-row">
+        {#each filters as f}
+          <button class="chip {active === f ? 'on' : ''}" onclick={() => (active = f)}>{filterLabel(f)}</button>
+        {/each}
+      </div>
+    {/snippet}
+    {#snippet trail()}
+      <span class="keys" aria-hidden="true"><kbd class="hint">/</kbd> {t('commands.keysSearch')} <kbd class="hint">N</kbd> {t('commands.keysNew')}</span>
+      <label class="search toolbar-search">
+        <Icon name="search" size={15} />
+        <input type="text" placeholder={t('commands.searchPlaceholder')} bind:value={search} bind:this={searchInput} />
+      </label>
+      <button class="btn primary" onclick={openNew} disabled={expanded === NEW}>
+        <Icon name="plus" size={14} /> {t('commands.newCommand')}
+      </button>
+    {/snippet}
+  </PageToolbar>
 
   <!-- The deck: ledger list left, docked inspector right. The list never
        disappears — selecting a row (or "new") loads it into the inspector. -->
   <div class="deck {editorDraft ? 'inspecting' : ''}">
-    <Card style="padding:6px 0 0" class="deck-list">
+    <DeckList>
       <div class="list">
         {#each rows as c, i (c.name)}
           <CommandRow
@@ -501,18 +504,20 @@
           />
         {/each}
         {#if rows.length === 0}
-          <div class="empty">
-            {#if items.length === 0}
-              <p class="empty-title">{t('commands.noneYet')}</p>
-              <p class="empty-sub">{t('commands.noneYetSub')} <code>!name</code> {t('commands.inChat')}</p>
+          {#if items.length === 0}
+            <EmptyState
+              icon="commands"
+              title={t('commands.noneYet')}
+              body={`${t('commands.noneYetSub')} !name ${t('commands.inChat')}`}
+            >
               <button class="btn primary" onclick={openNew}><Icon name="plus" size={14} /> {t('commands.newCommand')}</button>
-            {:else}
-              {t('commands.noneMatch')}
-            {/if}
-          </div>
+            </EmptyState>
+          {:else}
+            <EmptyState title={t('commands.noneMatch')} />
+          {/if}
         {/if}
       </div>
-    </Card>
+    </DeckList>
 
     <!-- Backdrop for the mobile bottom-sheet; Escape (svelte:window below) is
          the keyboard path. A full-screen <button> would hijack the custom
@@ -592,20 +597,6 @@
   }
   @media (min-width: 1080px) and (pointer: fine) {
     .keys { display: inline-flex; }
-  }
-
-  .degraded {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 14px;
-    padding: 10px 14px;
-    border: 1px solid rgba(176, 90, 70, 0.4);
-    border-radius: 8px 8px;
-    background: rgba(176, 90, 70, 0.08);
-    color: #cf8a78;
-    font-family: var(--bb-font-body);
-    font-size: 13px;
   }
 
   /* ── the deck: list + docked inspector ── */
@@ -697,31 +688,7 @@
     @keyframes sheet-in { from { transform: translateY(100%); } to { transform: translateY(0); } }
   }
 
-  .empty {
-    padding: 34px 18px;
-    text-align: center;
-    color: var(--bb-muted);
-    font-family: var(--bb-font-body);
-    font-size: 13px;
-  }
-  .empty-title {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 17px;
-    color: var(--bb-white);
-    margin: 0 0 6px;
-  }
-  .empty-sub { margin: 0 0 16px; }
-  .empty code {
-    font-family: var(--bb-font-mono);
-    color: var(--bb-tan-light);
-    background: rgba(201, 168, 124, 0.1);
-    border-radius: 8px;
-    padding: 0 5px;
-  }
-
   @media (max-width: 760px) {
-    .toolbar { gap: 8px; }
     .toolbar-search { width: 100%; order: 3; }
     .chip-row {
       overflow-x: auto;

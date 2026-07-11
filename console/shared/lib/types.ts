@@ -415,7 +415,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
     tagline: 'Viewers earn channel currency for subs, cheers and watch time.',
     description:
       'Give your community its own currency: viewers earn points for subscribing, resubscribing, gifting subs, cheering bits, and simply watching (everyone in chat earns on a 5-minute tick while you are live). Name the currency, tune every rate, and let mods grant points with !points set/add. Viewers check their standing with !points. Pairs with Counters and channel-point rewards that award points.',
-    icon: 'gem',
+    icon: 'coin',
     category: 'Community',
     defaultEnabled: false,
     href: '/loyalty',
@@ -600,7 +600,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
     tagline: 'Hypixel Bedwars stats, urchin score and blacklist tags in chat.',
     description:
       'Viewer commands backed by urchin.gg: daily, weekly and monthly Bedwars sessions, lifetime stats, the Urchin sniper score and active blacklist tags. Commands default to your linked Minecraft account; viewers can also name any player, e.g. "!daily Technoblade".',
-    icon: 'pulse',
+    icon: 'gamepad',
     category: 'Games',
     defaultEnabled: false,
     replies: [
@@ -723,7 +723,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
     tagline: 'Ranked elo and per-stream session stats for MCSR runners.',
     description:
       'Viewer commands backed by the MCSR Ranked API: !elo shows the current rating and season record; !session shows elo and wins/losses since the stream started, snapshotting your standing the moment you go live. !elo can name any player (e.g. "!elo Feinberg"); !session always tracks your linked account.',
-    icon: 'clock',
+    icon: 'gamepad',
     category: 'Games',
     defaultEnabled: false,
     replies: [
@@ -786,7 +786,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
     tagline: 'Fortnite BR stats and the daily item shop in chat.',
     description:
       'One command, three looks: !fn shows a player\'s all-time wins, matches, kills, K/D and win rate with a solo/duo/squad breakdown; !fn season shows the same for the current season (the bot tracks season rollovers automatically); !fn store lists what is in today\'s item shop. The squashed forms !fnstats, !fnseason and !fnstore work too. Link your Epic display name below. Viewers can also name any player, e.g. "!fn Ninja". PlayStation and Xbox name lookups are not supported yet.',
-    icon: 'activity',
+    icon: 'gamepad',
     category: 'Games',
     defaultEnabled: false,
     replies: [

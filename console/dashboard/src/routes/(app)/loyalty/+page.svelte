@@ -2,7 +2,20 @@
   import { enhance } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { Icon, Card, PageHead, toast, getI18n, LOYALTY_DEFAULTS, type LoyaltyConfig } from '@bagel/shared';
+  import {
+    Icon,
+    Card,
+    PageHead,
+    MasterToggle,
+    AlertBanner,
+    CardHead,
+    Field,
+    EmptyState,
+    toast,
+    getI18n,
+    LOYALTY_DEFAULTS,
+    type LoyaltyConfig
+  } from '@bagel/shared';
 
   let { data } = $props();
   const { t } = getI18n();
@@ -24,17 +37,6 @@
   });
 
   const payload = $derived(JSON.stringify(config));
-
-  const masterSubmit: SubmitFunction = () => {
-    const was = enabled;
-    enabled = !was;
-    return async ({ result }) => {
-      if (result.type !== 'success') {
-        enabled = was;
-        toast('err', t('loyalty.toastToggleFailed'));
-      }
-    };
-  };
 
   const saveSubmit: SubmitFunction = () => {
     busy = true;
@@ -69,40 +71,38 @@
   </PageHead>
 
   {#if data.degraded}
-    <div class="degraded" role="alert"><Icon name="ban" size={13} /> {t('loyalty.degraded')}</div>
+    <AlertBanner>{t('loyalty.degraded')}</AlertBanner>
   {/if}
 
   <div class="toolbar">
-    <form method="POST" action="?/toggle" use:enhance={masterSubmit} class="master">
-      <input type="hidden" name="is_enabled" value={enabled ? '' : 'on'} />
-      <button class="toggle {enabled ? 'on' : ''}" type="submit" aria-label={t('loyalty.botOn')}></button>
-      <span class="master-text">
-        <span class="master-label">{t('loyalty.botOn')}</span>
-        <span class="master-hint">{t('loyalty.botOnHint')}</span>
-      </span>
-    </form>
+    <MasterToggle
+      action="?/toggle"
+      bind:enabled
+      label={t('loyalty.botOn')}
+      hint={t('loyalty.botOnHint')}
+      ariaLabel={t('loyalty.botOn')}
+      failMessage={t('loyalty.toastToggleFailed')}
+    />
     <div class="grow"></div>
     <a class="btn ghost" href="/counters"><Icon name="modules" size={14} /> {t('loyalty.countersLink')}</a>
   </div>
 
   <div class="grid">
     <Card style="padding:18px">
-      <h3 class="card-title">{t('loyalty.ratesTitle')}</h3>
+      <CardHead title={t('loyalty.ratesTitle')} />
       <p class="hint">{t('loyalty.ratesHint')}</p>
 
-      <form method="POST" action="?/save" use:enhance={saveSubmit} novalidate>
+      <form method="POST" action="?/save" use:enhance={saveSubmit} class="rates" novalidate>
         <input type="hidden" name="config" value={payload} />
 
-        <label class="field">
-          <span>{t('loyalty.fieldName')}</span>
+        <Field label={t('loyalty.fieldName')}>
           <input class="search" placeholder={t('loyalty.fieldNamePh')} maxlength="32" bind:value={config.pointsName} />
-        </label>
+        </Field>
 
         {#each rateFields as rf (rf.key)}
-          <label class="field rate">
-            <span>{rf.label} <small class="dflt">{t('loyalty.defaultTag', { n: String(rf.dflt) })}</small></span>
+          <Field label={rf.label} tag={t('loyalty.defaultTag', { n: String(rf.dflt) })}>
             <input class="search num" type="number" min="-1" max="1000000" bind:value={config[rf.key]} />
-          </label>
+          </Field>
         {/each}
 
         <p class="hint">{t('loyalty.tierHint')}</p>
@@ -118,9 +118,9 @@
 
     <div class="side">
       <Card style="padding:18px">
-        <h3 class="card-title">{t('loyalty.topTitle')}</h3>
+        <CardHead title={t('loyalty.topTitle')} />
         {#if (data.top ?? []).length === 0}
-          <p class="hint">{t('loyalty.topEmpty')}</p>
+          <EmptyState icon="coin" title={t('loyalty.topEmpty')} />
         {:else}
           <table class="tbl">
             <thead>
@@ -141,7 +141,7 @@
       </Card>
 
       <Card style="padding:18px">
-        <h3 class="card-title">{t('loyalty.chatTitle')}</h3>
+        <CardHead title={t('loyalty.chatTitle')} />
         <ul class="cmds">
           <li><code>!points</code><span>{t('loyalty.chatPoints')}</span></li>
           <li><code>!points set/add @user 500</code><span>{t('loyalty.chatPointsMod')}</span></li>
@@ -153,30 +153,6 @@
 </section>
 
 <style>
-  .degraded {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 14px;
-    padding: 10px 14px;
-    border: 1px solid rgba(176, 90, 70, 0.4);
-    border-radius: 8px;
-    background: rgba(176, 90, 70, 0.08);
-    color: #cf8a78;
-    font-family: var(--bb-font-body);
-    font-size: 13px;
-  }
-
-  .master { display: inline-flex; align-items: center; gap: 12px; }
-  .master-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-  .master-label {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 13px;
-    color: var(--bb-white);
-  }
-  .master-hint { font-family: var(--bb-font-body); font-size: 11.5px; color: var(--bb-muted); }
-
   .grid {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
@@ -188,19 +164,9 @@
   }
   .side { display: flex; flex-direction: column; gap: 16px; }
 
-  .card-title {
-    margin: 0 0 6px;
-    font-family: var(--bb-font-display);
-    font-size: 15px;
-    color: var(--bb-white);
-  }
   .hint { margin: 0 0 14px; font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
 
-  .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
-  .field > span { font-family: var(--bb-font-body); font-size: 12.5px; color: var(--bb-muted); }
-  .field :global(.search) { width: 100%; box-sizing: border-box; }
-  .rate .num { max-width: 160px; }
-  .dflt { opacity: 0.65; font-size: 11px; }
+  .rates :global(.num) { max-width: 160px; }
 
   .actions { display: flex; justify-content: flex-end; margin-top: 4px; }
 

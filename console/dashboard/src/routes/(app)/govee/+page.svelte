@@ -2,7 +2,7 @@
   import { enhance } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { Icon, Card, PageHead, Scroller, ConfirmDialog, toast, type GoveeDevice } from '@bagel/shared';
+  import { Icon, Card, PageHead, Scroller, ConfirmDialog, MasterToggle, AlertBanner, DeckList, EmptyState, toast, type GoveeDevice } from '@bagel/shared';
   import GoveeLightRow from '$lib/components/govee/GoveeLightRow.svelte';
   import GoveeRewardEditor from '$lib/components/govee/GoveeRewardEditor.svelte';
 
@@ -56,17 +56,6 @@
         toast('err', payload?.error ?? failMsg);
       };
   }
-
-  const masterSubmit: SubmitFunction = () => {
-    const was = enabled;
-    enabled = !was;
-    return async ({ result }) => {
-      if (result.type !== 'success') {
-        enabled = was;
-        toast('err', 'Could not toggle Govee lights.');
-      }
-    };
-  };
 
   // --- Inspector -------------------------------------------------------------
   let selected = $state<GoveeDevice | null>(null);
@@ -142,29 +131,29 @@
   </PageHead>
 
   {#if data.degraded}
-    <div class="note err" role="alert"><Icon name="ban" size={13} /> Couldn't reach the backend. Try again in a moment.</div>
+    <AlertBanner>Couldn't reach the backend. Try again in a moment.</AlertBanner>
   {/if}
 
   {#if missingScope}
-    <div class="note reconnect" role="alert">
-      <span class="note-text"><Icon name="lock" size={13} /> Reconnect to grant channel-points access.</span>
-      <a class="btn primary" href="/login?next=/govee" data-sveltekit-reload>Reconnect</a>
-    </div>
+    <AlertBanner variant="warn" icon="power">
+      Reconnect to grant channel-points access.
+      {#snippet action()}
+        <a class="btn primary" href="/login?next=/govee" data-sveltekit-reload>Reconnect</a>
+      {/snippet}
+    </AlertBanner>
   {/if}
 
   <!-- Master switch -->
-  <Card style="padding:0" class="master-card">
-    <div class="toggle-row">
-      <div class="tr-text">
-        <span class="tr-label">Enable Govee lights</span>
-        <span class="tr-help">{enabled ? 'Redemptions drive your lights' : 'Turned off, redemptions are ignored'}</span>
-      </div>
-      <form method="POST" action="?/toggle" use:enhance={masterSubmit} class="master">
-        <input type="hidden" name="is_enabled" value={enabled ? '' : 'on'} />
-        <button class="toggle {enabled ? 'on' : ''}" type="submit" aria-label="Toggle Govee lights"></button>
-      </form>
-    </div>
-  </Card>
+  <div class="toolbar">
+    <MasterToggle
+      action="?/toggle"
+      bind:enabled
+      label="Enable Govee lights"
+      hint={enabled ? 'Redemptions drive your lights' : 'Turned off, redemptions are ignored'}
+      ariaLabel="Toggle Govee lights"
+      failMessage="Could not toggle Govee lights."
+    />
+  </div>
 
   <!-- API key -->
   <Card>
@@ -197,7 +186,7 @@
     <!-- The deck: lights left, docked reward inspector right (same layout as the
          channel-points + commands decks). -->
     <div class="deck {selected ? 'inspecting' : ''}" class:muted={!enabled}>
-      <Card style="padding:6px 0 0" class="deck-list">
+      <DeckList>
         {#await data.devices}
           <p class="loading"><span class="spinner" aria-hidden="true"></span> Loading your Govee lights…</p>
         {:then dr}
@@ -205,7 +194,7 @@
           {#if dr.error}
             <p class="err-text"><Icon name="ban" size={13} /> {dr.error}</p>
           {:else if lights.length === 0}
-            <p class="empty">No colour-capable Govee lights found on this account.</p>
+            <EmptyState icon="power" title="No colour-capable Govee lights found on this account." />
           {:else}
             <div class="list">
               {#each lights as d (d.device)}
@@ -220,7 +209,7 @@
             </div>
           {/if}
         {/await}
-      </Card>
+      </DeckList>
 
       <!-- svelte-ignore a11y_no_static_element_interactions -->
       <div
@@ -292,27 +281,6 @@
   }
   .back:hover { color: var(--bb-white); }
 
-  .note {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 14px;
-    border-radius: 8px;
-    margin-bottom: 14px;
-    font-family: var(--bb-font-body);
-    font-size: 13px;
-  }
-  .note.err { border: 1px solid rgba(176, 90, 70, 0.4); background: rgba(176, 90, 70, 0.08); color: #cf8a78; }
-  .note.reconnect { justify-content: space-between; flex-wrap: wrap; border: 1px solid var(--rule-strong); background: var(--glass-fill); color: var(--bb-white); }
-  .note-text { display: inline-flex; align-items: center; gap: 8px; }
-
-  :global(.master-card) { margin-bottom: 16px; }
-  .toggle-row { display: flex; align-items: center; gap: 12px; padding: 16px 18px; }
-  .tr-text { display: flex; flex-direction: column; gap: 3px; margin-right: auto; }
-  .tr-label { font-family: var(--bb-font-display); font-weight: 700; font-size: 14px; color: var(--bb-white); }
-  .tr-help { font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
-  .master { display: inline-flex; }
-
   .step { display: flex; gap: 14px; align-items: flex-start; }
   .step-index {
     flex: none;
@@ -359,10 +327,9 @@
   }
   .list :global(.row-shell:last-child) { border-bottom: none; }
 
-  .loading, .err-text, .empty { display: flex; align-items: center; gap: 10px; padding: 16px 16px; margin: 0; font-family: var(--bb-font-body); font-size: 13px; }
+  .loading, .err-text { display: flex; align-items: center; gap: 10px; padding: 16px 16px; margin: 0; font-family: var(--bb-font-body); font-size: 13px; }
   .loading { color: var(--bb-muted); }
   .err-text { color: #cf8a78; gap: 6px; }
-  .empty { color: var(--bb-muted); }
   .spinner {
     width: 14px; height: 14px; border-radius: 50%;
     border: 2px solid var(--rule-strong); border-top-color: var(--bb-tan-light);
