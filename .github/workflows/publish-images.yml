@@ -16,6 +16,7 @@ on:
         options:
           - all
           - commands
+          - loyalty
           - modules
           - notifications
           - outgress
@@ -70,6 +71,12 @@ jobs:
               "context": ".",
               "containerfile": "app/commands/Containerfile",
               "description": "ItsBagelBot commands data service"
+            },
+            {
+              "image": "loyalty",
+              "context": ".",
+              "containerfile": "app/loyalty/Containerfile",
+              "description": "ItsBagelBot loyalty data service"
             },
             {
               "image": "modules",
@@ -147,6 +154,7 @@ jobs:
 
           add_root_go_services() {
             add "commands"
+            add "loyalty"
             add "modules"
             add "notifications"
             add "outgress"
@@ -159,6 +167,7 @@ jobs:
 
           add_all_services() {
             add "commands"
+            add "loyalty"
             add "modules"
             add "notifications"
             add "outgress"
@@ -194,6 +203,9 @@ jobs:
                 ;;
               app/ingress/*)
                 add "twitch-ingress"
+                ;;
+              app/loyalty/*)
+                add "loyalty"
                 ;;
               app/modules/*)
                 add "modules"
