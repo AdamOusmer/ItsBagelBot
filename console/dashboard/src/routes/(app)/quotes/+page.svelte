@@ -2,13 +2,26 @@
   import { enhance } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { Icon, Card, PageHead, ConfirmDialog, toast, getI18n } from '@bagel/shared';
+  import {
+    Icon,
+    PageHead,
+    Scroller,
+    ConfirmDialog,
+    toast,
+    getI18n,
+    MasterToggle,
+    PageToolbar,
+    AlertBanner,
+    DeckList,
+    EmptyState
+  } from '@bagel/shared';
   import type { QuoteView } from '$lib/server/quotes-store';
+  import QuoteRow from '$lib/components/quotes/QuoteRow.svelte';
+  import QuoteEditor from '$lib/components/quotes/QuoteEditor.svelte';
 
   let { data } = $props();
   const { t } = getI18n();
 
-  // Local source of truth, reseeded when a fresh SSR load lands.
   // svelte-ignore state_referenced_locally
   let quotes = $state<QuoteView[]>(data.quotes ?? []);
   // svelte-ignore state_referenced_locally
@@ -26,9 +39,7 @@
     }
   });
 
-  // Newest number first: the most recently added quote sits at the top.
   const rows = $derived(quotes.toSorted((a, b) => b.number - a.number));
-
   const permOptions = [
     { value: 'mod', label: t('quotes.permMod') },
     { value: 'vip', label: t('quotes.permVip') },
@@ -37,32 +48,70 @@
   ];
 
   type ActionResult = { ok?: boolean; error?: string; quote?: QuoteView; number?: number };
+  type QuoteDraft = { text: string; quoteDate: string };
+
   function payloadOf(result: unknown): ActionResult | undefined {
     const r = result as { type: string; data?: ActionResult };
     return r.type === 'success' || r.type === 'failure' ? r.data : undefined;
   }
+
   function failed(payload: ActionResult | undefined, fallbackKey: string) {
     toast('err', payload?.error ?? t(fallbackKey));
   }
 
-  function fmtDate(iso: string): string {
-    const d = new Date(iso);
-    return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString();
+  function todayInput(): string {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 
-  // --- Add -------------------------------------------------------------------
-  let draft = $state('');
+  function formatDate(iso: string): string {
+    const parts = iso.slice(0, 10).split('-').map(Number);
+    if (parts.length !== 3 || parts.some((part) => !Number.isFinite(part))) return '';
+    return new Date(parts[0], parts[1] - 1, parts[2]).toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  }
+
+  const NEW = '__new__';
+  let expanded = $state<string | null>(null);
+  let quoteDraft = $state<QuoteDraft | null>(null);
   let adding = $state(false);
-  const MAX = 450;
+  const selectedQuote = $derived(
+    expanded && expanded !== NEW ? (quotes.find((quote) => String(quote.number) === expanded) ?? null) : null
+  );
+
+  function openNew() {
+    quoteDraft = { text: '', quoteDate: todayInput() };
+    expanded = NEW;
+  }
+
+  function openQuote(quote: QuoteView) {
+    if (expanded === String(quote.number)) {
+      closeInspector();
+      return;
+    }
+    quoteDraft = null;
+    expanded = String(quote.number);
+  }
+
+  function closeInspector() {
+    expanded = null;
+    quoteDraft = null;
+  }
 
   const addSubmit: SubmitFunction = () => {
-    if (!draft.trim()) return;
+    if (!quoteDraft?.text.trim() || !quoteDraft.quoteDate) return;
     adding = true;
     return async ({ result }) => {
       adding = false;
       const payload = payloadOf(result);
       if (result.type === 'success' && payload?.ok) {
-        draft = '';
+        closeInspector();
         toast('ok', t('quotes.toastAdded'));
         await invalidateAll();
         return;
@@ -71,19 +120,6 @@
     };
   };
 
-  // --- Master toggle (optimistic) --------------------------------------------
-  const masterSubmit: SubmitFunction = () => {
-    const was = enabled;
-    enabled = !was;
-    return async ({ result }) => {
-      if (result.type !== 'success') {
-        enabled = was;
-        toast('err', t('quotes.toastToggleFailed'));
-      }
-    };
-  };
-
-  // --- Permission select (optimistic) ----------------------------------------
   let permForm = $state<HTMLFormElement | null>(null);
   const permSubmit: SubmitFunction = () => {
     const was = addPerm;
@@ -99,11 +135,9 @@
     permForm?.requestSubmit();
   }
 
-  // --- Delete (confirm) ------------------------------------------------------
   let deleteTarget = $state<QuoteView | null>(null);
   let deleting = $state(false);
   let deleteForm = $state<HTMLFormElement | null>(null);
-
   const deleteSubmit: SubmitFunction = () => {
     deleting = true;
     return async ({ result }) => {
@@ -113,7 +147,8 @@
       const payload = payloadOf(result);
       if (result.type === 'success' && payload?.ok) {
         if (target) {
-          quotes = quotes.filter((q) => q.number !== target.number);
+          quotes = quotes.filter((quote) => quote.number !== target.number);
+          if (expanded === String(target.number)) closeInspector();
           toast('ok', t('quotes.toastDeleted'));
         }
         await invalidateAll();
@@ -122,6 +157,10 @@
       failed(payload, 'quotes.toastDeleteFailed');
     };
   };
+
+  function onKey(e: KeyboardEvent) {
+    if (e.key === 'Escape' && expanded) closeInspector();
+  }
 </script>
 
 <section class="screen active">
@@ -130,72 +169,116 @@
   </PageHead>
 
   {#if data.degraded}
-    <div class="degraded" role="alert"><Icon name="ban" size={13} /> {t('quotes.degraded')}</div>
+    <AlertBanner>{t('quotes.degraded')}</AlertBanner>
   {/if}
 
-  <div class="toolbar">
-    <form method="POST" action="?/toggle" use:enhance={masterSubmit} class="master">
-      <input type="hidden" name="is_enabled" value={enabled ? '' : 'on'} />
-      <button class="toggle {enabled ? 'on' : ''}" type="submit" aria-label={t('quotes.botOn')}></button>
-      <span class="master-text">
-        <span class="master-label">{t('quotes.botOn')}</span>
-        <span class="master-hint">{t('quotes.botOnHint')}</span>
-      </span>
-    </form>
-    <div class="grow"></div>
-    <form method="POST" action="?/perm" use:enhance={permSubmit} bind:this={permForm} class="perm">
-      <label for="add-perm">{t('quotes.permLabel')}</label>
-      <select id="add-perm" name="add_perm" value={addPerm} onchange={onPermChange}>
-        {#each permOptions as opt (opt.value)}
-          <option value={opt.value}>{opt.label}</option>
-        {/each}
-      </select>
-    </form>
-  </div>
-
-  <Card style="padding:16px">
-    <form method="POST" action="?/add" use:enhance={addSubmit} class="add">
-      <input
-        type="text"
-        name="text"
-        bind:value={draft}
-        maxlength={MAX}
-        placeholder={t('quotes.addPlaceholder')}
-        aria-label={t('quotes.addPlaceholder')}
+  <PageToolbar>
+    {#snippet lead()}
+      <MasterToggle
+        action="?/toggle"
+        bind:enabled
+        label={t('quotes.botOn')}
+        hint={t('quotes.botOnHint')}
+        ariaLabel={t('quotes.botOn')}
+        failMessage={t('quotes.toastToggleFailed')}
       />
-      <button class="btn primary" type="submit" disabled={adding || !draft.trim()}>
-        <Icon name="plus" size={14} /> {t('quotes.addBtn')}
-      </button>
-    </form>
-    <p class="add-hint">{t('quotes.addHint')}</p>
-  </Card>
+    {/snippet}
+    {#snippet trail()}
+      <div class="toolbar-actions">
+        <form method="POST" action="?/perm" use:enhance={permSubmit} bind:this={permForm} class="perm">
+          <label for="add-perm">{t('quotes.permLabel')}</label>
+          <select id="add-perm" name="add_perm" value={addPerm} onchange={onPermChange}>
+            {#each permOptions as option (option.value)}
+              <option value={option.value}>{option.label}</option>
+            {/each}
+          </select>
+        </form>
+        <button class="btn primary" type="button" onclick={openNew} disabled={expanded === NEW}>
+          <Icon name="plus" size={14} /> {t('quotes.newQuote')}
+        </button>
+      </div>
+    {/snippet}
+  </PageToolbar>
 
-  <Card style="padding:6px 0 0; margin-top:16px">
-    <div class="list">
-      {#each rows as q (q.number)}
-        <div class="row">
-          <span class="num">#{q.number}</span>
-          <span class="text">{q.text}</span>
-          <span class="date">{fmtDate(q.created_at)}</span>
-          <button
-            class="mini danger"
-            type="button"
-            aria-label={t('quotes.deleteAria')}
-            onclick={() => (deleteTarget = q)}
-          >
-            <Icon name="trash" size={14} />
+  <div class="deck {expanded === NEW ? 'inspecting' : ''}">
+    <DeckList>
+      <div class="list">
+        {#each rows as quote (quote.number)}
+          <QuoteRow
+            {quote}
+            expanded={expanded === String(quote.number)}
+            onExpand={() => openQuote(quote)}
+            onDelete={() => (deleteTarget = quote)}
+          />
+        {/each}
+        {#if rows.length === 0}
+          <EmptyState icon="quote" title={t('quotes.emptyTitle')} body={t('quotes.emptySub')}>
+            <button class="btn primary" onclick={openNew}><Icon name="plus" size={14} /> {t('quotes.newQuote')}</button>
+          </EmptyState>
+        {/if}
+      </div>
+    </DeckList>
+
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="inspector-backdrop"
+      class:open={expanded !== null}
+      role="presentation"
+      onclick={closeInspector}
+      onkeydown={(e) => {
+        if (e.key === 'Enter') closeInspector();
+      }}
+    ></div>
+    <aside class="inspector" class:open={expanded !== null} aria-label={t('quotes.inspector')}>
+      <div class="inspector-head">
+        <span class="inspector-tag">
+          {expanded === NEW ? t('quotes.newQuote') : selectedQuote ? t('quotes.quoteDetails') : t('quotes.inspector')}
+        </span>
+        {#if expanded}
+          <button class="mini" type="button" aria-label={t('common.cancel')} onclick={closeInspector}>
+            <Icon name="x" size={14} />
           </button>
-        </div>
-      {/each}
-      {#if rows.length === 0}
-        <div class="empty">
-          <p class="empty-title">{t('quotes.emptyTitle')}</p>
-          <p class="empty-sub">{t('quotes.emptySub')}</p>
+        {/if}
+      </div>
+
+      {#if quoteDraft}
+        <Scroller fill padding="16px" data-lenis-prevent>
+          <QuoteEditor bind:draft={quoteDraft} busy={adding} onCancel={closeInspector} onSubmit={addSubmit} />
+        </Scroller>
+      {:else if selectedQuote}
+        <Scroller fill padding="18px" data-lenis-prevent>
+          <div class="quote-detail">
+            <div class="quote-number">#{selectedQuote.number}</div>
+            <blockquote>{selectedQuote.text}</blockquote>
+            <dl>
+              <div>
+                <dt>{t('quotes.fieldDay')}</dt>
+                <dd>{formatDate(selectedQuote.created_at)}</dd>
+              </div>
+              {#if selectedQuote.added_by}
+                <div>
+                  <dt>{t('quotes.addedBy')}</dt>
+                  <dd>@{selectedQuote.added_by}</dd>
+                </div>
+              {/if}
+            </dl>
+            <button class="btn danger detail-delete" type="button" onclick={() => (deleteTarget = selectedQuote)}>
+              <Icon name="trash" size={14} /> {t('quotes.del')}
+            </button>
+          </div>
+        </Scroller>
+      {:else}
+        <div class="inspector-idle">
+          <span class="idle-glyph"><Icon name="quote" size={18} /></span>
+          <p>{t('quotes.inspectorIdle')}</p>
+          <button class="btn ghost" onclick={openNew}><Icon name="plus" size={13} /> {t('quotes.newQuote')}</button>
         </div>
       {/if}
-    </div>
-  </Card>
+    </aside>
+  </div>
 </section>
+
+<svelte:window onkeydown={onKey} />
 
 <ConfirmDialog
   open={deleteTarget !== null}
@@ -213,25 +296,7 @@
 </form>
 
 <style>
-  .degraded {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 14px;
-    padding: 10px 14px;
-    border: 1px solid rgba(176, 90, 70, 0.4);
-    border-radius: 8px;
-    background: rgba(176, 90, 70, 0.08);
-    color: #cf8a78;
-    font-family: var(--bb-font-body);
-    font-size: 13px;
-  }
-
-  .master { display: inline-flex; align-items: center; gap: 12px; }
-  .master-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-  .master-label { font-family: var(--bb-font-display); font-weight: 700; font-size: 13px; color: var(--bb-white); }
-  .master-hint { font-family: var(--bb-font-body); font-size: 11.5px; color: var(--bb-muted); }
-
+  .toolbar-actions { display: flex; align-items: center; gap: 12px; }
   .perm { display: inline-flex; align-items: center; gap: 8px; }
   .perm label { font-family: var(--bb-font-body); font-size: 12.5px; color: var(--bb-muted); }
   .perm select {
@@ -244,72 +309,122 @@
     padding: 7px 10px;
   }
 
-  .add { display: flex; gap: 10px; align-items: stretch; }
-  .add input {
-    flex: 1;
-    min-width: 0;
-    font-family: var(--bb-font-body);
-    font-size: 14px;
-    color: var(--bb-white);
-    background: var(--bb-bg-1, #16130f);
-    border: 1px solid var(--rule);
-    border-radius: 7px;
-    padding: 10px 12px;
-  }
-  .add input:focus { outline: none; border-color: var(--rule-strong); }
-  .add-hint { margin: 8px 2px 0; font-family: var(--bb-font-body); font-size: 11.5px; color: var(--bb-muted); }
-
-  .list { display: flex; flex-direction: column; }
-  .row {
+  .deck {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    align-items: start;
+  }
+  @media (min-width: 1080px) {
+    .deck { grid-template-columns: minmax(0, 1fr) 300px; }
+    .deck.inspecting { grid-template-columns: minmax(0, 1fr) 420px; }
+  }
+  .list :global(.row-shell:last-child) { border-bottom: none; }
+
+  .inspector {
+    position: sticky;
+    top: 62px;
+    border: 1px solid var(--rule);
+    border-top-color: var(--rule-strong);
+    border-radius: 8px;
+    background: linear-gradient(180deg, rgba(240, 236, 228, 0.03), rgba(240, 236, 228, 0.012));
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 62px - 108px);
+  }
+  .inspector-head {
+    display: flex;
     align-items: center;
-    gap: 14px;
+    justify-content: space-between;
+    gap: 10px;
     padding: 12px 16px;
     border-bottom: 1px solid var(--rule);
   }
-  .row:last-child { border-bottom: none; }
-  .num {
+  .inspector-tag {
     font-family: var(--bb-font-display);
     font-weight: 700;
-    font-size: 13px;
-    color: var(--bb-tan);
-    white-space: nowrap;
-  }
-  .text {
-    font-family: var(--bb-font-body);
-    font-size: 14px;
-    color: var(--bb-white);
-    line-height: 1.4;
-    overflow-wrap: anywhere;
-  }
-  .date {
-    font-family: var(--bb-font-body);
     font-size: 12px;
-    color: var(--bb-muted);
+    letter-spacing: 0.02em;
+    color: var(--bb-tan);
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .mini {
+
+  .inspector-idle {
+    padding: 34px 20px;
+    text-align: center;
+    color: var(--bb-muted);
+    font-family: var(--bb-font-body);
+    font-size: 13px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+  .idle-glyph {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 30px;
-    height: 30px;
-    border: 1px solid var(--rule);
-    border-radius: 7px;
-    background: transparent;
-    color: var(--bb-muted);
-    cursor: pointer;
+    width: 40px;
+    height: 40px;
+    border: 1px solid var(--rule-tan);
+    border-radius: 8px;
+    color: var(--bb-tan-light);
   }
-  .mini.danger:hover { color: #cf8a78; border-color: rgba(176, 90, 70, 0.5); }
+  .inspector-idle p { margin: 0; max-width: 26ch; line-height: 1.5; }
 
-  .empty { padding: 34px 18px; text-align: center; color: var(--bb-muted); font-family: var(--bb-font-body); font-size: 13px; }
-  .empty-title { font-family: var(--bb-font-display); font-weight: 700; font-size: 17px; color: var(--bb-white); margin: 0 0 6px; }
-  .empty-sub { margin: 0 auto; max-width: 44ch; }
+  .quote-detail { display: flex; flex-direction: column; gap: 18px; }
+  .quote-number {
+    font-family: var(--bb-font-mono);
+    font-size: 12px;
+    color: var(--bb-tan);
+  }
+  blockquote {
+    margin: 0;
+    padding: 0 0 0 14px;
+    border-left: 2px solid var(--bb-tan);
+    font-family: var(--bb-font-body);
+    font-size: 15px;
+    line-height: 1.6;
+    color: var(--bb-white);
+    overflow-wrap: anywhere;
+  }
+  dl { display: flex; flex-direction: column; gap: 12px; margin: 0; }
+  dl div { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; }
+  dt { font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
+  dd { margin: 0; font-family: var(--bb-font-mono); font-size: 12px; color: var(--bb-tan-light); text-align: right; }
+  .detail-delete { align-self: flex-start; margin-top: 4px; }
+  .inspector-backdrop { display: none; }
 
-  @media (max-width: 760px) {
-    .master-hint { display: none; }
-    .row { grid-template-columns: auto minmax(0, 1fr) auto; }
-    .date { display: none; }
+  @media (max-width: 1079px) {
+    .inspector { display: none; }
+    .inspector.open {
+      display: flex;
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      top: auto;
+      z-index: 220;
+      max-height: 88vh;
+      border-radius: 8px 8px 0 0;
+      background: var(--bb-bg-1, #111);
+      animation: sheet-in var(--bb-dur-base, 320ms) var(--bb-ease-out-expo, cubic-bezier(.16,1,.3,1)) both;
+    }
+    .inspector-backdrop.open {
+      display: block;
+      position: fixed;
+      inset: 0;
+      z-index: 219;
+      background: rgba(0, 0, 0, 0.55);
+    }
+    @keyframes sheet-in { from { transform: translateY(100%); } to { transform: translateY(0); } }
+  }
+
+  @media (max-width: 680px) {
+    .toolbar-actions { width: 100%; flex-wrap: wrap; }
+    .perm { flex: 1; }
+    .perm select { flex: 1; min-width: 0; }
   }
 </style>
