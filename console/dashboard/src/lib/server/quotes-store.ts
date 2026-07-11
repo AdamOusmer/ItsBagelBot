@@ -60,13 +60,21 @@ export async function readQuotes(userId: string): Promise<QuotesView> {
   return { enabled: state.enabled, addPerm: state.addPerm, quotes };
 }
 
+// QuoteDraft is a new quote's content: the body plus the login stamped as its
+// audit added_by. Bundled so addQuote takes one domain value, not a row of
+// bare strings.
+export interface QuoteDraft {
+  text: string;
+  addedBy: string;
+}
+
 // addQuote saves a new quote and returns it with its assigned number. A thrown
 // RpcError (validation, e.g. too long/empty) propagates so the action reports
 // the real reason.
-export async function addQuote(userId: string, text: string, addedBy: string): Promise<QuoteView> {
+export async function addQuote(userId: string, draft: QuoteDraft): Promise<QuoteView> {
   const r = await rpc<{ quote?: QuoteView }>(
     quoteSubject('add'),
-    { user_id: userId, text, added_by: addedBy },
+    { user_id: userId, text: draft.text, added_by: draft.addedBy },
     RPC_TIMEOUT_MS
   );
   if (!r.quote) throw new Error('quote add returned no row');
