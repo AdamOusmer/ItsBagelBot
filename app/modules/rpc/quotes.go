@@ -81,15 +81,15 @@ func errReply(err error, ok modulesrpc.QuoteReply) modulesrpc.QuoteReply {
 
 func (q *quotesRPC) handleAdd(ctx context.Context, req modulesrpc.QuoteRequest) modulesrpc.QuoteReply {
 	return q.withUserID(req, func(id uint64) modulesrpc.QuoteReply {
-		if req.CreatedAt == "" {
-			view, err := q.repo.Add(ctx, id, req.Text, req.AddedBy)
-			return errReply(err, modulesrpc.QuoteReply{Quote: view, Found: true})
+		draft := repository.QuoteDraft{Text: req.Text, AddedBy: req.AddedBy}
+		if req.CreatedAt != "" {
+			createdAt, err := time.Parse(time.RFC3339, req.CreatedAt)
+			if err != nil {
+				return modulesrpc.QuoteReply{Error: "invalid quote date"}
+			}
+			draft.CreatedAt = createdAt
 		}
-		createdAt, err := time.Parse(time.RFC3339, req.CreatedAt)
-		if err != nil {
-			return modulesrpc.QuoteReply{Error: "invalid quote date"}
-		}
-		view, err := q.repo.AddAt(ctx, id, req.Text, req.AddedBy, createdAt)
+		view, err := q.repo.Add(ctx, id, draft)
 		return errReply(err, modulesrpc.QuoteReply{Quote: view, Found: true})
 	})
 }

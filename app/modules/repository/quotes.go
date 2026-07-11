@@ -57,28 +57,29 @@ func quoteView(q *ent.Quote) *modulesrpc.Quote {
 	}
 }
 
+// QuoteDraft is the complete input for a new quote. CreatedAt is optional:
+// chat saves leave it zero to use the current time, while the dashboard can
+// preserve the day on which the quote was originally said.
+type QuoteDraft struct {
+	Text      string
+	AddedBy   string
+	CreatedAt time.Time
+}
+
 // Add saves a new quote under the channel's next number (max+1) and returns
 // it. Removing a quote leaves a hole, so a number chat has already seen is
 // never reassigned to different text — except the top number, which max+1
 // reuses after a remove.
-func (q *Quotes) Add(ctx context.Context, userID uint64, text, addedBy string) (*modulesrpc.Quote, error) {
-	return q.add(ctx, userID, text, addedBy, time.Now())
-}
-
-// AddAt is the dashboard variant of Add. Chat saves still use Add and get the
-// current timestamp; the dashboard may supply the day on which the quote was
-// originally said.
-func (q *Quotes) AddAt(ctx context.Context, userID uint64, text, addedBy string, createdAt time.Time) (*modulesrpc.Quote, error) {
-	return q.add(ctx, userID, text, addedBy, createdAt)
-}
-
-func (q *Quotes) add(ctx context.Context, userID uint64, text, addedBy string, createdAt time.Time) (*modulesrpc.Quote, error) {
-	text = strings.TrimSpace(text)
-	if text == "" {
+func (q *Quotes) Add(ctx context.Context, userID uint64, draft QuoteDraft) (*modulesrpc.Quote, error) {
+	draft.Text = strings.TrimSpace(draft.Text)
+	if draft.Text == "" {
 		return nil, ErrQuoteEmpty
 	}
-	if len(text) > QuoteTextMaxLen {
+	if len(draft.Text) > QuoteTextMaxLen {
 		return nil, ErrQuoteTooLong
+	}
+	if draft.CreatedAt.IsZero() {
+		draft.CreatedAt = time.Now()
 	}
 
 	var lastErr error
@@ -90,9 +91,9 @@ func (q *Quotes) add(ctx context.Context, userID uint64, text, addedBy string, c
 		row, err := q.client.Quote.Create().
 			SetUserID(userID).
 			SetNumber(next).
-			SetText(text).
-			SetAddedBy(addedBy).
-			SetCreatedAt(createdAt.UTC()).
+			SetText(draft.Text).
+			SetAddedBy(draft.AddedBy).
+			SetCreatedAt(draft.CreatedAt.UTC()).
 			Save(ctx)
 		if err == nil {
 			return quoteView(row), nil
