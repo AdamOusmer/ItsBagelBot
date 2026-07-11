@@ -168,9 +168,6 @@ func (r *LoyaltyReporter) flush(ctx context.Context) {
 }
 
 func (r *LoyaltyReporter) publishEarned(ctx context.Context, earn map[earnKey]*earnAgg) {
-	if len(earn) == 0 {
-		return
-	}
 	perUser := map[uint64][]data.LoyaltyEarnEntry{}
 	for key, agg := range earn {
 		perUser[key.broadcasterID] = append(perUser[key.broadcasterID], data.LoyaltyEarnEntry{
@@ -181,27 +178,12 @@ func (r *LoyaltyReporter) publishEarned(ctx context.Context, earn map[earnKey]*e
 			WatchSeconds: agg.watchSeconds,
 		})
 	}
-	for userID, entries := range perUser {
-		for start := 0; start < len(entries); start += loyaltyChunk {
-			chunk := entries[start:min(start+loyaltyChunk, len(entries))]
-			if err := bus.PublishJSON(ctx, r.pub, data.SubjectLoyaltyEarned, data.LoyaltyEarnedDTO{
-				UserID:  userID,
-				Entries: chunk,
-			}); err != nil {
-				r.log.Debug("failed to publish loyalty earned",
-					zap.Uint64("broadcaster_id", userID),
-					zap.Int("entries", len(chunk)),
-					zap.Error(err),
-				)
-			}
-		}
-	}
+	publishPerUser(ctx, r, perUser, data.SubjectLoyaltyEarned, func(userID uint64, chunk []data.LoyaltyEarnEntry) any {
+		return data.LoyaltyEarnedDTO{UserID: userID, Entries: chunk}
+	})
 }
 
 func (r *LoyaltyReporter) publishBumps(ctx context.Context, bumps map[counterAgg]int64) {
-	if len(bumps) == 0 {
-		return
-	}
 	perUser := map[uint64][]data.CounterBumpEntry{}
 	for key, delta := range bumps {
 		perUser[key.broadcasterID] = append(perUser[key.broadcasterID], data.CounterBumpEntry{
@@ -212,16 +194,23 @@ func (r *LoyaltyReporter) publishBumps(ctx context.Context, bumps map[counterAgg
 			Delta:    delta,
 		})
 	}
+	publishPerUser(ctx, r, perUser, data.SubjectLoyaltyCounters, func(userID uint64, chunk []data.CounterBumpEntry) any {
+		return data.CounterBumpedDTO{UserID: userID, Bumps: chunk}
+	})
+}
+
+// publishPerUser publishes one window's aggregates: per broadcaster, chunked
+// so a big channel's watch tick never approaches the broker payload ceiling.
+// A failed publish is logged and dropped (loss-tolerant deltas).
+func publishPerUser[E any](ctx context.Context, r *LoyaltyReporter, perUser map[uint64][]E, subject string, wrap func(uint64, []E) any) {
 	for userID, entries := range perUser {
 		for start := 0; start < len(entries); start += loyaltyChunk {
 			chunk := entries[start:min(start+loyaltyChunk, len(entries))]
-			if err := bus.PublishJSON(ctx, r.pub, data.SubjectLoyaltyCounters, data.CounterBumpedDTO{
-				UserID: userID,
-				Bumps:  chunk,
-			}); err != nil {
-				r.log.Debug("failed to publish counter bumps",
+			if err := bus.PublishJSON(ctx, r.pub, subject, wrap(userID, chunk)); err != nil {
+				r.log.Debug("failed to publish loyalty window",
+					zap.String("subject", subject),
 					zap.Uint64("broadcaster_id", userID),
-					zap.Int("bumps", len(chunk)),
+					zap.Int("entries", len(chunk)),
 					zap.Error(err),
 				)
 			}

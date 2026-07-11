@@ -251,10 +251,7 @@ func (s *ValkeyLoyaltyClock) liveBroadcasters(ctx context.Context) []uint64 {
 			return ids
 		}
 		for _, k := range entry.Elements {
-			if strings.HasPrefix(k, recheckKeyPrefix) {
-				continue
-			}
-			if id, err := strconv.ParseUint(strings.TrimPrefix(k, livekey.KeyPrefix), 10, 64); err == nil && id != 0 {
+			if id, ok := parseLiveKey(k); ok {
 				ids = append(ids, id)
 			}
 		}
@@ -263,6 +260,16 @@ func (s *ValkeyLoyaltyClock) liveBroadcasters(ctx context.Context) []uint64 {
 			return ids
 		}
 	}
+}
+
+// parseLiveKey extracts the broadcaster id from one live:<id> key, rejecting
+// the live:recheck: guard keys that share the prefix.
+func parseLiveKey(key string) (uint64, bool) {
+	if strings.HasPrefix(key, recheckKeyPrefix) {
+		return 0, false
+	}
+	id, err := strconv.ParseUint(strings.TrimPrefix(key, livekey.KeyPrefix), 10, 64)
+	return id, err == nil && id != 0
 }
 
 // onExpired handles one expired key. The real work runs on its own goroutine:
@@ -324,17 +331,22 @@ func (s *ValkeyLoyaltyClock) accrue(ctx context.Context, broadcasterID uint64, c
 	points := cfg.EffectiveWatchPointsPerTick()
 	seconds := uint64(watchTickInterval.Seconds())
 	for _, ch := range chatters {
-		if ch.ID == s.botID {
-			continue
+		if viewerID, ok := s.chatterViewerID(ch.ID); ok {
+			s.reporter.Earn(broadcasterID, viewerID, ch.Login, "", points, seconds)
 		}
-		viewerID, err := strconv.ParseUint(ch.ID, 10, 64)
-		if err != nil || viewerID == 0 {
-			continue
-		}
-		s.reporter.Earn(broadcasterID, viewerID, ch.Login, "", points, seconds)
 	}
 	s.log.Debug("loyalty: watch tick accrued",
 		zap.Uint64("broadcaster_id", broadcasterID), zap.Int("chatters", len(chatters)))
+}
+
+// chatterViewerID parses one chatter's id, dropping the bot's own account (it
+// sits in every chat it serves and must not farm points).
+func (s *ValkeyLoyaltyClock) chatterViewerID(id string) (uint64, bool) {
+	if id == s.botID {
+		return 0, false
+	}
+	viewerID, err := strconv.ParseUint(id, 10, 64)
+	return viewerID, err == nil && viewerID != 0
 }
 
 // fetchChatters asks outgress for the current chatter list. A missing-scope

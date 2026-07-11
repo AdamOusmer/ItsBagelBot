@@ -252,6 +252,33 @@ func (r *Loyalty) drain() (map[balKey]*earnSum, map[bumpKey]*bumpSum) {
 	return earn, bumps
 }
 
+// upsertRows lands one logical bulk write: rows are chunked, each chunk is
+// rendered as "INSERT ... VALUES (...),(...) <suffix>" and executed. A failed
+// chunk is logged and dropped (loss-tolerant deltas; retrying would
+// double-apply the successful chunks around it).
+func (r *Loyalty) upsertRows(ctx context.Context, txn *newrelic.Transaction, label, insert, placeholder, suffix string, rows [][]any) {
+	for start := 0; start < len(rows); start += upsertChunk {
+		chunk := rows[start:min(start+upsertChunk, len(rows))]
+
+		var sb strings.Builder
+		sb.WriteString(insert)
+		args := make([]any, 0, len(chunk)*len(chunk[0]))
+		for i, row := range chunk {
+			if i > 0 {
+				sb.WriteByte(',')
+			}
+			sb.WriteString(placeholder)
+			args = append(args, row...)
+		}
+		sb.WriteString(suffix)
+
+		if _, err := r.sqldb.ExecContext(ctx, sb.String(), args...); err != nil {
+			txn.NoticeError(err)
+			r.log.Warn("loyalty: failed to flush "+label, zap.Int("rows", len(chunk)), zap.Error(err))
+		}
+	}
+}
+
 // flushEarned lands the balance deltas: one multi-row upsert per chunk with
 // additive points/watch columns. Identity columns only overwrite when the
 // window actually carried a value (IF(VALUES(col) = empty, keep, new)).
@@ -259,137 +286,104 @@ func (r *Loyalty) flushEarned(ctx context.Context, txn *newrelic.Transaction, ea
 	if len(earn) == 0 {
 		return
 	}
-	const cols = 8
 	now := time.Now()
-
-	keys := make([]balKey, 0, len(earn))
-	for k := range earn {
-		keys = append(keys, k)
+	rows := make([][]any, 0, len(earn))
+	for k, s := range earn {
+		rows = append(rows, []any{k.userID, k.viewerID, s.login, s.name, s.points, s.watchSeconds, now, now})
 	}
-	for start := 0; start < len(keys); start += upsertChunk {
-		chunk := keys[start:min(start+upsertChunk, len(keys))]
-
-		var sb strings.Builder
-		sb.WriteString("INSERT INTO balances (user_id, viewer_id, viewer_login, viewer_name, points, watch_seconds, created_at, updated_at) VALUES ")
-		args := make([]any, 0, len(chunk)*cols)
-		for i, k := range chunk {
-			if i > 0 {
-				sb.WriteByte(',')
-			}
-			sb.WriteString("(?, ?, ?, ?, ?, ?, ?, ?)")
-			s := earn[k]
-			args = append(args, k.userID, k.viewerID, s.login, s.name, s.points, s.watchSeconds, now, now)
-		}
-		sb.WriteString(" ON DUPLICATE KEY UPDATE" +
-			" points = points + VALUES(points)," +
-			" watch_seconds = watch_seconds + VALUES(watch_seconds)," +
-			" viewer_login = IF(VALUES(viewer_login) = '', viewer_login, VALUES(viewer_login))," +
-			" viewer_name = IF(VALUES(viewer_name) = '', viewer_name, VALUES(viewer_name))," +
-			" updated_at = VALUES(updated_at)")
-
-		if _, err := r.sqldb.ExecContext(ctx, sb.String(), args...); err != nil {
-			txn.NoticeError(err)
-			r.log.Warn("loyalty: failed to flush balance chunk", zap.Int("rows", len(chunk)), zap.Error(err))
-		}
-	}
+	r.upsertRows(ctx, txn, "balances",
+		"INSERT INTO balances (user_id, viewer_id, viewer_login, viewer_name, points, watch_seconds, created_at, updated_at) VALUES ",
+		"(?, ?, ?, ?, ?, ?, ?, ?)",
+		" ON DUPLICATE KEY UPDATE"+
+			" points = points + VALUES(points),"+
+			" watch_seconds = watch_seconds + VALUES(watch_seconds),"+
+			" viewer_login = IF(VALUES(viewer_login) = '', viewer_login, VALUES(viewer_login)),"+
+			" viewer_name = IF(VALUES(viewer_name) = '', viewer_name, VALUES(viewer_name)),"+
+			" updated_at = VALUES(updated_at)",
+		rows)
 }
 
 // flushBumps lands the counter deltas. Channel-scope bumps upsert the counter
 // row itself (auto-creating it on first use; an existing row keeps its stored
-// scope). Viewer-scope bumps first ensure the definition row exists, then
-// upsert the per-viewer entries.
+// scope). Entry-scope bumps first ensure the definition row exists, then
+// upsert the per-viewer buckets.
 func (r *Loyalty) flushBumps(ctx context.Context, txn *newrelic.Transaction, bumps map[bumpKey]*bumpSum) {
-	if len(bumps) == 0 {
-		return
+	channel, entries := splitBumps(bumps)
+	r.flushChannelBumps(ctx, txn, channel, bumps)
+	if len(entries) > 0 {
+		r.ensureEntryDefs(ctx, txn, entries, bumps)
+		r.flushEntryBumps(ctx, txn, entries, bumps)
 	}
-	now := time.Now()
+}
 
-	var channel, viewer []bumpKey
+// splitBumps separates the window's bumps by where their value lives: the
+// counter row (channel scope) or a counter_entries bucket (the entry scopes).
+func splitBumps(bumps map[bumpKey]*bumpSum) (channel, entries []bumpKey) {
 	for k, s := range bumps {
 		switch s.scope {
 		case data.CounterScopeViewer, data.CounterScopeViewerCommand:
-			viewer = append(viewer, k)
+			entries = append(entries, k)
 		default:
 			channel = append(channel, k)
 		}
 	}
+	return channel, entries
+}
 
-	for start := 0; start < len(channel); start += upsertChunk {
-		chunk := channel[start:min(start+upsertChunk, len(channel))]
-		var sb strings.Builder
-		sb.WriteString("INSERT INTO counters (user_id, name, scope, value, created_at, updated_at) VALUES ")
-		args := make([]any, 0, len(chunk)*6)
-		for i, k := range chunk {
-			if i > 0 {
-				sb.WriteByte(',')
-			}
-			sb.WriteString("(?, ?, ?, ?, ?, ?)")
-			args = append(args, k.userID, k.name, data.CounterScopeChannel, bumps[k].delta, now, now)
-		}
-		sb.WriteString(" ON DUPLICATE KEY UPDATE value = value + VALUES(value), updated_at = VALUES(updated_at)")
-		if _, err := r.sqldb.ExecContext(ctx, sb.String(), args...); err != nil {
-			txn.NoticeError(err)
-			r.log.Warn("loyalty: failed to flush counter chunk", zap.Int("rows", len(chunk)), zap.Error(err))
-		}
-	}
-
-	if len(viewer) == 0 {
+func (r *Loyalty) flushChannelBumps(ctx context.Context, txn *newrelic.Transaction, keys []bumpKey, bumps map[bumpKey]*bumpSum) {
+	if len(keys) == 0 {
 		return
 	}
+	now := time.Now()
+	rows := make([][]any, 0, len(keys))
+	for _, k := range keys {
+		rows = append(rows, []any{k.userID, k.name, data.CounterScopeChannel, bumps[k].delta, now, now})
+	}
+	r.upsertRows(ctx, txn, "counters",
+		"INSERT INTO counters (user_id, name, scope, value, created_at, updated_at) VALUES ",
+		"(?, ?, ?, ?, ?, ?)",
+		" ON DUPLICATE KEY UPDATE value = value + VALUES(value), updated_at = VALUES(updated_at)",
+		rows)
+}
 
-	// Definition rows first: one INSERT IGNORE per distinct (user, name), so a
-	// counter bumped straight from a command template exists for list/get. The
-	// bump's own scope (viewer vs viewer+command) seeds the definition.
+// ensureEntryDefs writes one INSERT IGNORE definition row per distinct
+// (user, name), so a counter bumped straight from a command template exists
+// for list/get. The bump's own scope seeds the definition; an existing row
+// keeps its stored scope.
+func (r *Loyalty) ensureEntryDefs(ctx context.Context, txn *newrelic.Transaction, keys []bumpKey, bumps map[bumpKey]*bumpSum) {
 	type defKey struct {
 		userID uint64
 		name   string
 	}
+	now := time.Now()
 	defs := map[defKey]string{}
-	for _, k := range viewer {
+	for _, k := range keys {
 		if _, seen := defs[defKey{k.userID, k.name}]; !seen {
 			defs[defKey{k.userID, k.name}] = bumps[k].scope
 		}
 	}
-	defList := make([]defKey, 0, len(defs))
-	for d := range defs {
-		defList = append(defList, d)
+	rows := make([][]any, 0, len(defs))
+	for d, scope := range defs {
+		rows = append(rows, []any{d.userID, d.name, scope, now, now})
 	}
-	for start := 0; start < len(defList); start += upsertChunk {
-		chunk := defList[start:min(start+upsertChunk, len(defList))]
-		var sb strings.Builder
-		sb.WriteString("INSERT IGNORE INTO counters (user_id, name, scope, value, created_at, updated_at) VALUES ")
-		args := make([]any, 0, len(chunk)*6)
-		for i, d := range chunk {
-			if i > 0 {
-				sb.WriteByte(',')
-			}
-			sb.WriteString("(?, ?, ?, 0, ?, ?)")
-			args = append(args, d.userID, d.name, defs[d], now, now)
-		}
-		if _, err := r.sqldb.ExecContext(ctx, sb.String(), args...); err != nil {
-			txn.NoticeError(err)
-			r.log.Warn("loyalty: failed to ensure counter defs", zap.Int("rows", len(chunk)), zap.Error(err))
-		}
-	}
+	r.upsertRows(ctx, txn, "counter defs",
+		"INSERT IGNORE INTO counters (user_id, name, scope, value, created_at, updated_at) VALUES ",
+		"(?, ?, ?, 0, ?, ?)",
+		"",
+		rows)
+}
 
-	for start := 0; start < len(viewer); start += upsertChunk {
-		chunk := viewer[start:min(start+upsertChunk, len(viewer))]
-		var sb strings.Builder
-		sb.WriteString("INSERT INTO counter_entries (user_id, name, command, viewer_id, value, updated_at) VALUES ")
-		args := make([]any, 0, len(chunk)*6)
-		for i, k := range chunk {
-			if i > 0 {
-				sb.WriteByte(',')
-			}
-			sb.WriteString("(?, ?, ?, ?, ?, ?)")
-			args = append(args, k.userID, k.name, k.command, k.viewerID, bumps[k].delta, now)
-		}
-		sb.WriteString(" ON DUPLICATE KEY UPDATE value = value + VALUES(value), updated_at = VALUES(updated_at)")
-		if _, err := r.sqldb.ExecContext(ctx, sb.String(), args...); err != nil {
-			txn.NoticeError(err)
-			r.log.Warn("loyalty: failed to flush counter entries", zap.Int("rows", len(chunk)), zap.Error(err))
-		}
+func (r *Loyalty) flushEntryBumps(ctx context.Context, txn *newrelic.Transaction, keys []bumpKey, bumps map[bumpKey]*bumpSum) {
+	now := time.Now()
+	rows := make([][]any, 0, len(keys))
+	for _, k := range keys {
+		rows = append(rows, []any{k.userID, k.name, k.command, k.viewerID, bumps[k].delta, now})
 	}
+	r.upsertRows(ctx, txn, "counter entries",
+		"INSERT INTO counter_entries (user_id, name, command, viewer_id, value, updated_at) VALUES ",
+		"(?, ?, ?, ?, ?, ?)",
+		" ON DUPLICATE KEY UPDATE value = value + VALUES(value), updated_at = VALUES(updated_at)",
+		rows)
 }
 
 // Close stops the ticker and flushes what is pending.

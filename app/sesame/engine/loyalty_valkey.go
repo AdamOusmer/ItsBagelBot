@@ -234,25 +234,34 @@ func (s *ValkeyLoyaltyStore) CounterPeek(ctx context.Context, broadcasterID uint
 	scope := s.scope(ctx, broadcasterID, name)
 	command = NormalizeCounterName(command)
 
-	if scope != data.CounterScopeChannel && viewerID != 0 {
-		field := entryField(scope, viewerID, command)
-		v, err := s.client.Do(ctx, s.client.B().Hget().Key(counterViewerKey(broadcasterID, name)).Field(field).Build()).AsInt64()
-		if err == nil {
-			return loyaltyrpc.Counter{Name: name, Scope: scope, Value: v}, true, nil
-		}
-		if !valkey.IsValkeyNil(err) {
-			s.log.Debug("loyalty: counter hash read failed", zap.String("counter", name), zap.Error(err))
-		}
-	} else {
-		v, err := s.client.Do(ctx, s.client.B().Get().Key(counterChannelKey(broadcasterID, name)).Build()).AsInt64()
-		if err == nil {
-			return loyaltyrpc.Counter{Name: name, Scope: scope, Value: v}, true, nil
-		}
-		if !valkey.IsValkeyNil(err) {
-			s.log.Debug("loyalty: counter read failed", zap.String("counter", name), zap.Error(err))
-		}
+	if v, ok := s.peekView(ctx, broadcasterID, name, scope, viewerID, command); ok {
+		return loyaltyrpc.Counter{Name: name, Scope: scope, Value: v}, true, nil
 	}
 	return s.rpc.CounterGet(ctx, broadcasterID, name, viewerID, command)
+}
+
+// peekView reads the live Valkey view of one counter value: the entry hash
+// field for the entry scopes (when a viewer is known), the plain string
+// otherwise. ok=false means the view is cold (or unreadable) and the caller
+// should fall back to the service.
+func (s *ValkeyLoyaltyStore) peekView(ctx context.Context, broadcasterID uint64, name, scope string, viewerID uint64, command string) (int64, bool) {
+	var (
+		v   int64
+		err error
+	)
+	if scope != data.CounterScopeChannel && viewerID != 0 {
+		field := entryField(scope, viewerID, command)
+		v, err = s.client.Do(ctx, s.client.B().Hget().Key(counterViewerKey(broadcasterID, name)).Field(field).Build()).AsInt64()
+	} else {
+		v, err = s.client.Do(ctx, s.client.B().Get().Key(counterChannelKey(broadcasterID, name)).Build()).AsInt64()
+	}
+	if err != nil {
+		if !valkey.IsValkeyNil(err) {
+			s.log.Debug("loyalty: counter view read failed", zap.String("counter", name), zap.Error(err))
+		}
+		return 0, false
+	}
+	return v, true
 }
 
 // CounterInvalidate drops a counter's live view (both shapes) and the local

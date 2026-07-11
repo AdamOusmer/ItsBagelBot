@@ -60,69 +60,56 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   }
 };
 
-export const actions: Actions = {
-  create: async ({ request, locals }) => {
+// mutate wraps one POST action with the shared boilerplate: gate, session,
+// demo short-circuit, error mapping and the impersonation audit line. run
+// returns the audit detail, or null for a validation failure.
+type Mutation = (uid: string, f: FormData) => Promise<string | null>;
+
+function mutate(op: string, run: Mutation) {
+  return async ({ request, locals }: Parameters<NonNullable<Actions[string]>>[0]) => {
     gate(locals.session);
     const uid = effectiveId(locals.session);
     if (env.DEMO !== '1' && !locals.session) return fail(401, { ok: false, error: 'Not signed in.' });
 
     const f = await request.formData();
+    if (env.DEMO === '1') return { ok: true };
+    let detail: string | null;
+    try {
+      detail = await run(uid, f);
+    } catch (e) {
+      console.error(`[counters] ${op} failed:`, e instanceof Error ? (e.stack ?? e.message) : e);
+      return fail(400, { ok: false, error: `${op} failed` });
+    }
+    if (detail === null) return fail(400, { ok: false, error: 'Invalid counter.' });
+    auditDashboardImpersonation(locals.session, `counters:${op}`, detail);
+    return { ok: true };
+  };
+}
+
+export const actions: Actions = {
+  create: mutate('create', async (uid, f) => {
     const name = normalizeName(f.get('name'));
     const scope = String(f.get('scope') ?? 'channel') as CounterScope;
-    if (!name || !COUNTER_SCOPES.includes(scope)) return fail(400, { ok: false, error: 'Invalid counter.' });
-    if (env.DEMO === '1') return { ok: true };
-
-    try {
-      await createCounter(uid, name, scope);
-    } catch (e) {
-      console.error('[counters] create failed:', e instanceof Error ? (e.stack ?? e.message) : e);
-      return fail(400, { ok: false, error: 'create failed' });
-    }
-    auditDashboardImpersonation(locals.session, 'counters:create', `${name} (${scope})`);
-    return { ok: true };
-  },
+    if (!name || !COUNTER_SCOPES.includes(scope)) return null;
+    await createCounter(uid, name, scope);
+    return `${name} (${scope})`;
+  }),
 
   // Absolute value for a channel counter; on entry scopes value 0 doubles as
   // the reset (the service deletes every stored bucket).
-  set: async ({ request, locals }) => {
-    gate(locals.session);
-    const uid = effectiveId(locals.session);
-    if (env.DEMO !== '1' && !locals.session) return fail(401, { ok: false, error: 'Not signed in.' });
-
-    const f = await request.formData();
+  set: mutate('set', async (uid, f) => {
     const name = normalizeName(f.get('name'));
     const value = Math.trunc(Number(f.get('value')));
-    if (!name || !Number.isFinite(value)) return fail(400, { ok: false, error: 'Invalid value.' });
-    if (env.DEMO === '1') return { ok: true };
+    if (!name || !Number.isFinite(value)) return null;
+    const found = await setCounter(uid, name, value);
+    if (!found) throw new Error('unknown counter');
+    return `${name}=${value}`;
+  }),
 
-    try {
-      const found = await setCounter(uid, name, value);
-      if (!found) return fail(404, { ok: false, error: 'unknown counter' });
-    } catch (e) {
-      console.error('[counters] set failed:', e instanceof Error ? (e.stack ?? e.message) : e);
-      return fail(400, { ok: false, error: 'set failed' });
-    }
-    auditDashboardImpersonation(locals.session, 'counters:set', `${name}=${value}`);
-    return { ok: true };
-  },
-
-  delete: async ({ request, locals }) => {
-    gate(locals.session);
-    const uid = effectiveId(locals.session);
-    if (env.DEMO !== '1' && !locals.session) return fail(401, { ok: false, error: 'Not signed in.' });
-
-    const f = await request.formData();
+  delete: mutate('delete', async (uid, f) => {
     const name = normalizeName(f.get('name'));
-    if (!name) return fail(400, { ok: false, error: 'Missing counter name.' });
-    if (env.DEMO === '1') return { ok: true };
-
-    try {
-      await deleteCounter(uid, name);
-    } catch (e) {
-      console.error('[counters] delete failed:', e instanceof Error ? (e.stack ?? e.message) : e);
-      return fail(400, { ok: false, error: 'delete failed' });
-    }
-    auditDashboardImpersonation(locals.session, 'counters:delete', name);
-    return { ok: true };
-  }
+    if (!name) return null;
+    await deleteCounter(uid, name);
+    return name;
+  })
 };
