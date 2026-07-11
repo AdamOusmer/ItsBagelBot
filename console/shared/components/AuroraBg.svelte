@@ -8,7 +8,6 @@
   <span class="orb o1"></span>
   <span class="orb o2"></span>
   <span class="orb o3"></span>
-  <div class="grain"></div>
 </div>
 
 <style>
@@ -53,12 +52,7 @@
     opacity: 0.4;
     animation: drift3 26s ease-in-out infinite;
   }
-  .grain {
-    position: absolute;
-    inset: 0;
-    opacity: 0.05;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
-  }
+
   @keyframes drift1 { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(4%, 5%) scale(1.08); } }
   @keyframes drift2 { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(-5%, -3%) scale(1.1); } }
   @keyframes drift3 { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(-6%, 7%); } }
