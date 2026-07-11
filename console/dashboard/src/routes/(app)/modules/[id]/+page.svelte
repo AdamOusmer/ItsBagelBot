@@ -1,6 +1,6 @@
 <script lang="ts">
   import { deserialize } from '$app/forms';
-  import { Icon, Card, PageHead, Scroller, SaveStatus, toast, getI18n, automodToggleDefault, type ModuleField, type ModuleReply } from '@bagel/shared';
+  import { Icon, Card, PageHead, Scroller, SaveStatus, AlertBanner, DeckList, EmptyState, toast, getI18n, automodToggleDefault, type ModuleField, type ModuleReply } from '@bagel/shared';
   import type { SaveState } from '@bagel/shared/components/SaveStatus.svelte';
   import ReplyRow from '$lib/components/modules/ReplyRow.svelte';
   import ReplyEditor from '$lib/components/modules/ReplyEditor.svelte';
@@ -346,7 +346,7 @@
   <PageHead eyebrow={t('modules.detailEyebrow')} description={def.description}>{def.label}</PageHead>
 
   {#if data.degraded}
-    <div class="degraded" role="alert"><Icon name="ban" size={13} /> {t('modules.degraded')}</div>
+    <AlertBanner>{t('modules.degraded')}</AlertBanner>
   {/if}
 
   <!-- Settings strip: the module master switch (and any non-reply settings). -->
@@ -417,7 +417,7 @@
        commands-only module (no editable replies) drops the inspector column and
        lists its chat commands read-only instead. -->
   <div class="deck {editing ? 'inspecting' : ''} {enabled ? '' : 'muted'} {hasInspector ? '' : 'commands-only'}">
-    <Card style="padding:6px 0 0" class="deck-list">
+    <DeckList>
       {#if isTriggers}
         <div class="rules-head">
           <div class="rh-text">
@@ -442,10 +442,7 @@
             {/each}
           </div>
         {:else}
-          <div class="rules-empty">
-            <span class="re-glyph"><Icon name="caps" size={18} /></span>
-            <p>No trigger words yet. Add a rule to reply automatically when a word shows up in chat.</p>
-          </div>
+          <EmptyState icon="caps" title="No trigger words yet." body="Add a rule to reply automatically when a word shows up in chat." />
         {/if}
       {:else if hasReplies}
         <div class="list">
@@ -475,7 +472,7 @@
           {/each}
         </div>
       {/if}
-    </Card>
+    </DeckList>
 
     {#if hasInspector}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -547,20 +544,6 @@
     margin-bottom: 10px;
   }
   .back:hover { color: var(--bb-white); }
-
-  .degraded {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 14px;
-    padding: 10px 14px;
-    border: 1px solid rgba(176, 90, 70, 0.4);
-    border-radius: 8px 8px;
-    background: rgba(176, 90, 70, 0.08);
-    color: #cf8a78;
-    font-family: var(--bb-font-body);
-    font-size: 13px;
-  }
 
   :global(.settings-card) { margin-bottom: 16px; }
   .toggle-row { display: flex; align-items: center; gap: 12px; padding: 16px 18px; }
@@ -678,29 +661,6 @@
     transition: background var(--bb-dur-fast, 140ms) ease;
   }
   .add-rule:hover { background: rgba(82, 183, 136, 0.14); }
-
-  .rules-empty {
-    padding: 30px 20px;
-    text-align: center;
-    color: var(--bb-muted);
-    font-family: var(--bb-font-body);
-    font-size: 13px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 12px;
-  }
-  .re-glyph {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 40px;
-    height: 40px;
-    border: 1px solid var(--rule-tan);
-    border-radius: 8px;
-    color: var(--bb-tan-light);
-  }
-  .rules-empty p { margin: 0; max-width: 34ch; line-height: 1.5; }
 
   .inspector {
     position: sticky;

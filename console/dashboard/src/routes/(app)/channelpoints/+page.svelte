@@ -4,14 +4,18 @@
   import type { SubmitFunction } from '@sveltejs/kit';
   import {
     Icon,
-    Card,
     PageHead,
     Scroller,
     ConfirmDialog,
     toast,
     getI18n,
     blankReward,
-    type ChannelPointReward
+    type ChannelPointReward,
+    MasterToggle,
+    PageToolbar,
+    AlertBanner,
+    DeckList,
+    EmptyState
   } from '@bagel/shared';
   import RewardRow from '$lib/components/channelpoints/RewardRow.svelte';
   import RewardEditor from '$lib/components/channelpoints/RewardEditor.svelte';
@@ -113,18 +117,6 @@
       };
     };
 
-  // --- Master toggle (whether the bot reacts at all, optimistic) --------------
-  const masterSubmit: SubmitFunction = () => {
-    const was = enabled;
-    enabled = !was;
-    return async ({ result }) => {
-      if (result.type !== 'success') {
-        enabled = was;
-        toast('err', t('channelpoints.toastToggleFailed'));
-      }
-    };
-  };
-
   // --- Delete (confirm dialog; Twitch deletion is not undoable) ---------------
   let deleteTarget = $state<ChannelPointReward | null>(null);
   let deleting = $state(false);
@@ -163,35 +155,40 @@
   </PageHead>
 
   {#if data.degraded}
-    <div class="degraded" role="alert"><Icon name="ban" size={13} /> {t('channelpoints.degraded')}</div>
+    <AlertBanner>{t('channelpoints.degraded')}</AlertBanner>
   {/if}
 
   {#if missingScope}
-    <div class="reconnect" role="alert">
-      <span class="reconnect-text"><Icon name="lock" size={13} /> {t('channelpoints.reconnect')}</span>
-      <a class="btn primary" href="/login?next=/channelpoints" data-sveltekit-reload>{t('channelpoints.reconnectCta')}</a>
-    </div>
+    <AlertBanner variant="warn" icon="power">
+      {t('channelpoints.reconnect')}
+      {#snippet action()}
+        <a class="btn primary" href="/login?next=/channelpoints" data-sveltekit-reload>{t('channelpoints.reconnectCta')}</a>
+      {/snippet}
+    </AlertBanner>
   {/if}
 
-  <div class="toolbar">
-    <form method="POST" action="?/toggle" use:enhance={masterSubmit} class="master">
-      <input type="hidden" name="is_enabled" value={enabled ? '' : 'on'} />
-      <button class="toggle {enabled ? 'on' : ''}" type="submit" aria-label={t('channelpoints.botOn')}></button>
-      <span class="master-text">
-        <span class="master-label">{t('channelpoints.botOn')}</span>
-        <span class="master-hint">{t('channelpoints.botOnHint')}</span>
-      </span>
-    </form>
-    <div class="grow"></div>
-    <button class="btn primary" onclick={openNew} disabled={expanded === NEW}>
-      <Icon name="plus" size={14} /> {t('channelpoints.newReward')}
-    </button>
-  </div>
+  <PageToolbar>
+    {#snippet lead()}
+      <MasterToggle
+        action="?/toggle"
+        bind:enabled
+        label={t('channelpoints.botOn')}
+        hint={t('channelpoints.botOnHint')}
+        ariaLabel={t('channelpoints.botOn')}
+        failMessage={t('channelpoints.toastToggleFailed')}
+      />
+    {/snippet}
+    {#snippet trail()}
+      <button class="btn primary" onclick={openNew} disabled={expanded === NEW}>
+        <Icon name="plus" size={14} /> {t('channelpoints.newReward')}
+      </button>
+    {/snippet}
+  </PageToolbar>
 
   <!-- The deck: ledger list left, docked inspector right — same layout as the
        commands page, so the two management screens read as one system. -->
   <div class="deck {editorDraft ? 'inspecting' : ''}">
-    <Card style="padding:6px 0 0" class="deck-list">
+    <DeckList>
       <div class="list">
         {#each rows as r, i (r.id)}
           <RewardRow
@@ -204,14 +201,12 @@
           />
         {/each}
         {#if rows.length === 0}
-          <div class="empty">
-            <p class="empty-title">{t('channelpoints.emptyTitle')}</p>
-            <p class="empty-sub">{t('channelpoints.emptySub')}</p>
+          <EmptyState icon="gem" title={t('channelpoints.emptyTitle')} body={t('channelpoints.emptySub')}>
             <button class="btn primary" onclick={openNew}><Icon name="plus" size={14} /> {t('channelpoints.newReward')}</button>
-          </div>
+          </EmptyState>
         {/if}
       </div>
-    </Card>
+    </DeckList>
 
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
@@ -271,52 +266,6 @@
 </form>
 
 <style>
-  .degraded {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 14px;
-    padding: 10px 14px;
-    border: 1px solid rgba(176, 90, 70, 0.4);
-    border-radius: 8px;
-    background: rgba(176, 90, 70, 0.08);
-    color: #cf8a78;
-    font-family: var(--bb-font-body);
-    font-size: 13px;
-  }
-
-  .reconnect {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 14px;
-    flex-wrap: wrap;
-    margin-bottom: 14px;
-    padding: 12px 14px;
-    border: 1px solid var(--bb-border-strong, rgba(201, 168, 124, 0.35));
-    border-radius: 8px;
-    background: rgba(201, 168, 124, 0.07);
-  }
-  .reconnect-text {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    font-family: var(--bb-font-body);
-    font-size: 13px;
-    color: var(--bb-tan-pale);
-  }
-
-  /* Master switch, worn like a toolbar control. */
-  .master { display: inline-flex; align-items: center; gap: 12px; }
-  .master-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-  .master-label {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 13px;
-    color: var(--bb-white);
-  }
-  .master-hint { font-family: var(--bb-font-body); font-size: 11.5px; color: var(--bb-muted); }
-
   /* ── the deck: list + docked inspector (mirrors the commands page) ── */
   .deck {
     display: grid;
@@ -406,26 +355,5 @@
       background: rgba(0, 0, 0, 0.55);
     }
     @keyframes sheet-in { from { transform: translateY(100%); } to { transform: translateY(0); } }
-  }
-
-  .empty {
-    padding: 34px 18px;
-    text-align: center;
-    color: var(--bb-muted);
-    font-family: var(--bb-font-body);
-    font-size: 13px;
-  }
-  .empty-title {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 17px;
-    color: var(--bb-white);
-    margin: 0 0 6px;
-  }
-  .empty-sub { margin: 0 auto 16px; max-width: 44ch; }
-
-  @media (max-width: 760px) {
-    .toolbar { gap: 10px; }
-    .master-hint { display: none; }
   }
 </style>

@@ -2,7 +2,20 @@
   import { enhance } from '$app/forms';
   import { goto, invalidateAll } from '$app/navigation';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { Icon, Card, PageHead, ConfirmDialog, toast, getI18n, type CounterDef, type CounterScope } from '@bagel/shared';
+  import {
+    Icon,
+    Card,
+    PageHead,
+    ConfirmDialog,
+    CardHead,
+    AlertBanner,
+    Field,
+    EmptyState,
+    toast,
+    getI18n,
+    type CounterDef,
+    type CounterScope
+  } from '@bagel/shared';
 
   let { data } = $props();
   const { t } = getI18n();
@@ -98,26 +111,24 @@
   </PageHead>
 
   {#if data.degraded}
-    <div class="degraded" role="alert"><Icon name="ban" size={13} /> {t('counters.degraded')}</div>
+    <AlertBanner>{t('counters.degraded')}</AlertBanner>
   {/if}
 
   <div class="grid">
     <div class="main">
       <Card style="padding:18px">
-        <h3 class="card-title">{t('counters.newTitle')}</h3>
+        <CardHead title={t('counters.newTitle')} />
         <form method="POST" action="?/create" use:enhance={createSubmit} class="create" novalidate>
-          <label class="field">
-            <span>{t('counters.fieldName')}</span>
+          <Field label={t('counters.fieldName')}>
             <input class="search" name="name" placeholder={t('counters.fieldNamePh')} maxlength="64" required bind:value={newName} />
-          </label>
-          <label class="field">
-            <span>{t('counters.fieldScope')}</span>
+          </Field>
+          <Field label={t('counters.fieldScope')}>
             <select class="search" name="scope" bind:value={newScope}>
               <option value="channel">{t('counters.scopeChannel')}</option>
               <option value="viewer">{t('counters.scopeViewer')}</option>
               <option value="viewer_command">{t('counters.scopeViewerCommand')}</option>
             </select>
-          </label>
+          </Field>
           <button type="submit" class="btn primary" disabled={creating || !newName.trim()}>
             <Icon name="plus" size={14} />
             {creating ? t('counters.creating') : t('counters.create')}
@@ -165,10 +176,7 @@
             </div>
           {/each}
           {#if (data.counters ?? []).length === 0}
-            <div class="empty">
-              <p class="empty-title">{t('counters.emptyTitle')}</p>
-              <p class="empty-sub">{t('counters.emptySub')}</p>
-            </div>
+            <EmptyState icon="list" title={t('counters.emptyTitle')} body={t('counters.emptySub')} />
           {/if}
         </div>
       </Card>
@@ -176,7 +184,7 @@
 
     {#if data.selected}
       <Card style="padding:18px">
-        <h3 class="card-title">{t('counters.entriesTitle', { name: data.selected })}</h3>
+        <CardHead title={t('counters.entriesTitle', { name: data.selected })} />
         {#if (data.entries ?? []).length === 0}
           <p class="hint">{t('counters.entriesEmpty')}</p>
         {:else}
@@ -220,33 +228,16 @@
 </form>
 
 <style>
-  .degraded {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 14px;
-    padding: 10px 14px;
-    border: 1px solid rgba(176, 90, 70, 0.4);
-    border-radius: 8px;
-    background: rgba(176, 90, 70, 0.08);
-    color: #cf8a78;
-    font-family: var(--bb-font-body);
-    font-size: 13px;
-  }
-
   .grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
   @media (min-width: 980px) {
     .grid { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); }
   }
   .main { display: flex; flex-direction: column; gap: 16px; }
 
-  .card-title { margin: 0 0 10px; font-family: var(--bb-font-display); font-size: 15px; color: var(--bb-white); }
   .hint { margin: 10px 0 0; font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
 
   .create { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; }
-  .create .field { flex: 1; min-width: 160px; display: flex; flex-direction: column; gap: 6px; }
-  .create .field > span { font-family: var(--bb-font-body); font-size: 12.5px; color: var(--bb-muted); }
-  .create :global(.search) { width: 100%; box-sizing: border-box; }
+  .create :global(.field) { flex: 1; min-width: 160px; }
 
   .list { display: flex; flex-direction: column; }
   .row {
@@ -287,10 +278,6 @@
   .set-form { display: flex; align-items: center; gap: 10px; width: 100%; padding-top: 4px; }
   .set-form .num { width: 140px; }
   .btn.sm { padding: 6px 12px; font-size: 12px; }
-
-  .empty { padding: 28px 16px 34px; text-align: center; }
-  .empty-title { margin: 0 0 4px; font-family: var(--bb-font-display); font-weight: 700; color: var(--bb-white); }
-  .empty-sub { margin: 0; font-family: var(--bb-font-body); font-size: 12.5px; color: var(--bb-muted); }
 
   .tbl { width: 100%; border-collapse: collapse; font-family: var(--bb-font-body); font-size: 13px; }
   .tbl th {
