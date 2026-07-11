@@ -5,8 +5,7 @@
  * cards — the page is one continuous dark canvas structured by hairline
  * rules, indexed mono labels, oversized numerals sitting directly on
  * baselines, and a corner-bracket motif on everything interactive. Sharp
- * rectangles, editorial density, the brand's evergreen + tan warmth and the
- * film grain carried over untouched.
+ * rectangles, editorial density, and the brand's evergreen + tan warmth.
  */
 
 :root {
@@ -78,7 +77,7 @@ body {
   min-height: 100vh;
 }
 
-/* ── ambient: a faint evergreen field low in the frame + the film grain.
+/* ── ambient: a faint evergreen field low in the frame.
    Restrained on purpose — the rules and type do the talking. ── */
 .bg-orb {
   position: fixed; pointer-events: none; z-index: 0;
@@ -92,12 +91,6 @@ body {
   background: radial-gradient(circle at 50% 50%, rgba(201,168,124,0.28), transparent 60%);
   opacity: 0.1;
 }
-body::after {
-  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 100;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
-  opacity: 0.05;
-}
-
 /* ── the corner-bracket motif: the console's signature focus mark.
    Apply `.bracket` to any interactive rectangle; brackets draw in on hover. ── */
 .bracket { position: relative; }
