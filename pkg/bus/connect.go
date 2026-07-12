@@ -1,6 +1,8 @@
 package bus
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -15,50 +17,45 @@ import (
 //   - the durable JetStream event plane, authenticated with the shared BUS
 //     account via NATS_USER / NATS_PASSWORD.
 //
-// Both planes prefer the node-local leaf and fall back to the hub. Leaf
-// priority is enforced in code (ordered server list + DontRandomize), not just
-// by which URL a manifest happens to set, so a reconnect always retries the
-// leaf first before spilling to the hub.
+// The RPC + cache plane stays on the leaf cluster. The nats-leaf Service prefers
+// the same-node endpoint and falls back to another leaf when needed; it never
+// spills RPC onto the stream hub. The JetStream plane dials the hub directly (busURL reads
+// NATS_HUB_URL): the durable streams live on the hub, so routing JetStream
+// through the leaf is only an extra forwarding hop (the leaf runs no JetStream).
+// This mirrors the console lib's rpc/bus split in
+// console/shared/lib/server/nats.ts.
 
 // JSDomain is the JetStream domain the fleet's streams live in. Clients dial the
 // leaf (whose own JetStream domain is "leaf"), so every JetStream context must be
 // domain-qualified to reach the authoritative hub streams.
 func JSDomain() string { return env.Get("NATS_JS_DOMAIN", "hub") }
 
-// serverList returns the ordered NATS endpoint list, leaf first then hub, as the
-// comma-joined string nats.Connect parses into an ordered server pool. override
-// (the url a caller passes through, e.g. NATS_URL / NATS_RPC_URL) is used as the
-// leaf endpoint when the explicit NATS_LEAF_URL/NATS_HUB_URL split is absent, so
-// local development and pre-migration manifests keep working against a single
-// server.
+// serverList returns the RPC endpoint. In split-plane production the leaf
+// Service itself supplies same-node preference and cross-node leaf failover;
+// adding the hub here would violate the RPC-only leaf / streams-only hub split.
+// With no split configured, override keeps local development on one server.
 func serverList(override string) string {
 	leaf := env.Get("NATS_LEAF_URL", "")
-	hub := env.Get("NATS_HUB_URL", "")
-
-	// No leaf/hub split configured: honor whatever single endpoint the caller
-	// passed (local dev points this at 127.0.0.1).
-	if leaf == "" && hub == "" {
-		return override
-	}
-	if leaf == "" {
-		leaf = override
-	}
-	if hub == "" || hub == leaf {
+	if leaf != "" {
 		return leaf
 	}
-	return leaf + "," + hub
+	return override
 }
 
 // baseOptions are shared by every connection the fleet opens, core or
-// JetStream: endless reconnects, an ordered (leaf-first) server pool that is
-// never shuffled, a client name for monitoring, and the supplied credentials.
+// JetStream: endless reconnects, a stable endpoint that is never shuffled, a
+// client name for monitoring, and the supplied credentials.
 // Local development runs against an open server, so empty credentials are fine;
 // the broker is the one enforcing them.
 func baseOptions(name, user, pass string) []nats.Option {
 	opts := []nats.Option{
 		nats.MaxReconnects(-1),
 		nats.ReconnectWait(2 * time.Second),
-		nats.ReconnectBufSize(8 * 1024 * 1024), // 8 MB buffer so publishes during a reconnect are not lost
+		// 32 MB buffer so publishes during a reconnect are not lost. Raised from
+		// 8 MB for the 150k firehose: a hub roll (R1 memory stream) can briefly
+		// disconnect the async publisher, and at 150k/s an 8 MB buffer fills in
+		// well under a second, dropping events the dedup window can't recover.
+		nats.ReconnectBufSize(32 * 1024 * 1024),
 		nats.PingInterval(20 * time.Second),
 		nats.MaxPingsOutstanding(3),
 		nats.Timeout(15 * time.Second),
@@ -74,6 +71,13 @@ func baseOptions(name, user, pass string) []nats.Option {
 		nats.IgnoreAuthErrorAbort(),
 	}
 
+	// Verify the broker's TLS server cert against the fleet CA when one is
+	// configured (see tlsSecureOption), the wire encryption now that NATS is out of
+	// the Linkerd mesh.
+	if option := tlsSecureOption(); option != nil {
+		opts = append(opts, option)
+	}
+
 	if name != "" {
 		opts = append(opts, nats.Name(name))
 	}
@@ -82,14 +86,24 @@ func baseOptions(name, user, pass string) []nats.Option {
 		opts = append(opts, nats.UserInfo(user, pass))
 	}
 
-	// Kubernetes may temporarily place this connection on a fallback leaf. Once
-	// the same-node leaf is stably healthy, recycle only that displaced
-	// connection so topology-aware Service routing can return it locally.
-	if option := leafFailbackOption(); option != nil {
-		opts = append(opts, option)
-	}
-
 	return opts
+}
+
+// tlsSecureOption returns a nats.Secure option that verifies the broker's server
+// cert against the fleet CA (NATS_CA_PEM, distributed by trust-manager as the
+// fleet-ca ConfigMap), or nil when no CA is configured — local dev against a
+// plaintext server stays plaintext. Server-auth only: the client still
+// authenticates with its bcrypt user/password, not a client cert.
+func tlsSecureOption() nats.Option {
+	caPEM := env.Get("NATS_CA_PEM", "")
+	if caPEM == "" {
+		return nil
+	}
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM([]byte(caPEM)) {
+		return nil
+	}
+	return nats.Secure(&tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12})
 }
 
 // rpcOptions authenticate the per-service account on the RPC plane. The creds
@@ -98,7 +112,18 @@ func baseOptions(name, user, pass string) []nats.Option {
 func rpcOptions(name string) []nats.Option {
 	user := env.Get("NATS_RPC_USER", env.Get("NATS_USER", ""))
 	pass := env.Get("NATS_RPC_PASSWORD", env.Get("NATS_PASSWORD", ""))
-	return baseOptions(name, user, pass)
+	opts := baseOptions(name, user, pass)
+	// Leaf failback applies ONLY to the RPC plane, which is leaf-first: recycle a
+	// connection displaced onto a fallback leaf back to the node-local leaf once it
+	// recovers. The BUS plane (busOptions) dials the hub directly (NATS_HUB_URL),
+	// whose server_name is "nats-N", never "<node>--…" — failback would treat it as
+	// permanently displaced and ForceReconnect it every interval (~90s), churning
+	// the JetStream consumers. That is what broke outgress -> Twitch delivery after
+	// the BUS plane moved hub-direct.
+	if option := leafFailbackOption(); option != nil {
+		opts = append(opts, option)
+	}
+	return opts
 }
 
 // busOptions authenticate the shared BUS account on the JetStream plane.
@@ -107,14 +132,14 @@ func busOptions(name string) []nats.Option {
 }
 
 // Connect opens a core NATS connection for request-reply RPC and ephemeral
-// subscriptions on the per-service account, leaf-first. name identifies the
+// subscriptions on the per-service account through the leaf tier. name identifies the
 // service in NATS monitoring.
 func Connect(url string, name string) (*nats.Conn, error) {
 	return nats.Connect(serverList(url), rpcOptions(name)...)
 }
 
-// jsDomainOption is the JetStream connect option that targets the hub domain
-// over the leaf link. Exposed as a slice so callers can splice it into a
+// jsDomainOption is the JetStream connect option that targets the hub domain.
+// Exposed as a slice so callers can splice it into a
 // JetStreamConfig.ConnectOptions / nc.JetStream call.
 func jsDomainOption() []nats.JSOpt {
 	return []nats.JSOpt{nats.Domain(JSDomain())}
@@ -128,8 +153,15 @@ func RPCURL(busURL string) string {
 	return env.Get("NATS_RPC_URL", busURL)
 }
 
-// busURL resolves the JetStream-plane endpoint list (leaf-first) from the url a
-// caller threads through (typically NATS_URL).
+// busURL resolves the JetStream-plane endpoint. The durable streams live on the
+// hub, so for JetStream the node-local leaf is only an extra forwarding hop:
+// dial the hub directly when NATS_HUB_URL is set (mirroring busServerList in
+// console/shared/lib/server/nats.ts). Falls back to the configured endpoint
+// when no hub is configured (local dev / single-endpoint deploys). RPC stays
+// on the leaf via RPCURL/serverList.
 func busURL(url string) string {
+	if hub := env.Get("NATS_HUB_URL", ""); hub != "" {
+		return hub
+	}
 	return serverList(url)
 }

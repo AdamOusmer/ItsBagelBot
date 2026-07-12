@@ -6,6 +6,11 @@
 # ScaledObjects. Without this, a from-scratch bootstrap can apply them before
 # KEDA's CRD/webhook exist and fail until the next retry converges it anyway;
 # dependsOn makes that ordering explicit instead of relying on self-heal.
+#
+# dependsOn pki: the NATS and console pods mount cert-manager-issued cert secrets
+# (nats-hub-tls / nats-leaf-tls / console-*-tls) and read the trust-manager
+# fleet-ca ConfigMap (NATS_CA_PEM). The `pki` Kustomization provisions those, so
+# it must reconcile before `apps`, or the pods block on missing secrets/configmap.
 ---
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
@@ -15,6 +20,7 @@ metadata:
 spec:
   dependsOn:
     - name: keda
+    - name: pki
   interval: 1h
   sourceRef:
     kind: GitRepository

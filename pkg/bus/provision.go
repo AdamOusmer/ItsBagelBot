@@ -48,6 +48,15 @@ type StreamSpec struct {
 	// every pkg/bus publisher benefits; RPC subjects are Core NATS and never
 	// enter these streams.
 	BatchPublish bool
+	// Replicas is the RAFT replication factor (0 defaults to 1). Unlike Storage,
+	// replica count IS updatable in place, so reconcileStream converges a drifted
+	// stream via UpdateStream — this is the field streamMatches must compare, or a
+	// live stream hand-edited to R3 sticks at R3 forever while the spec says R1.
+	// R1 is the throughput choice for the perishable firehose: R3 makes every
+	// publish wait on a RAFT quorum before its PubAck, which is pure ack-latency
+	// inflation on an ack-bound producer. Reserve R3 for control/data streams
+	// whose loss on a single broker restart actually matters.
+	Replicas int
 }
 
 // OutgressStream carries the perishable chat lanes (premium/standard). It is
@@ -70,6 +79,9 @@ var OutgressStream = StreamSpec{
 	// 256 MiB MaxBytes caps the memory it can hold.
 	Storage:      nats.MemoryStorage,
 	BatchPublish: true,
+	// R1: perishable 5s chat work. A dropped in-flight send is re-driven by the
+	// pipeline; RAFT replication would only add ack latency to the send path.
+	Replicas: 1,
 }
 
 // OutgressSystemStream carries the outgress control lane: EventSub enroll
@@ -89,6 +101,11 @@ var OutgressSystemStream = StreamSpec{
 	MaxAge:       5 * time.Minute,
 	MaxBytes:     64 << 20, // 64 MiB: control jobs are small and low-volume
 	BatchPublish: true,
+	// R3, unlike the chat lanes: an EventSub enroll/disable or stream re-check
+	// silently lost on a broker restart leaves a channel un-ingested with nobody
+	// the wiser. This lane is low-volume, so the RAFT cost is negligible and the
+	// durability is worth it. This is the one stream that stays replicated.
+	Replicas: 3,
 }
 
 // DataStreams backs the replayable event bus: user, command, module and
@@ -101,6 +118,10 @@ var DataStreams = []StreamSpec{
 		MaxAge:       5 * time.Minute,
 		MaxBytes:     512 << 20, // 512 MiB
 		BatchPublish: true,
+		// R1: a low-rate, 5-minute replay buffer. A broker restart drops at most a
+		// few minutes of change events, which the projector re-derives from the
+		// data services' RPC projections — not worth a per-publish RAFT quorum.
+		Replicas: 1,
 	},
 	{
 		Name:     "TWITCH_INGRESS",
@@ -109,18 +130,20 @@ var DataStreams = []StreamSpec{
 		// Memory-backed: the stream is perishable (a replay window that never
 		// needs to survive a restart), so memory storage drops the per-event disk
 		// write that capped synchronous PubAck throughput to a few thousand
-		// events/second. Keep it R1: R3 RAFT consensus is leader-bound and, with a
-		// replica on the 2-core node1, that voter would gate the whole cluster; a
-		// lost leader drops only in-flight perishable chat. Requires the server
-		// max_mem headroom in nats-server.conf.
-		//
-		// MaxBytes is 1 GiB so the memory-backed stream fits the broker's 2GB
-		// max_mem (capped by node1) alongside TWITCH_OUTGRESS and dedup state.
-		// MaxAge is moot under load: MaxBytes (stream-wide, oldest-first) evicts
-		// first, and 1 GiB is the consumer lag budget in bytes (~6 s at 100k/s).
-		// Raising toward the 150-200k target means larger MaxBytes, which needs
-		// the broker off node1 and on >=8GiB nodes first.
-		Storage:  nats.MemoryStorage,
+		// events/second. Requires the server max_mem headroom in nats-server.conf.
+		Storage: nats.MemoryStorage,
+		// R1 (explicit, and now enforced by streamMatches). The firehose producer
+		// is async PubAck-bound — its ceiling is max_pending / ack_latency — so R3
+		// RAFT consensus per publish is pure ack-latency inflation. A lost leader
+		// drops only in-flight perishable chat (5s/5m retention), the accepted
+		// trade for the throughput. Every hub node (node2/node3/worker1) is
+		// capable, so replication buys nothing here that offsets the latency cost.
+		Replicas: 1,
+		// MaxBytes is 1 GiB so the memory-backed stream fits the broker's 4GB
+		// max_mem alongside TWITCH_OUTGRESS and dedup state. MaxAge is moot under
+		// load: MaxBytes (stream-wide, oldest-first) evicts first, and 1 GiB is the
+		// consumer lag budget in bytes (~6s at 100k/s, ~4s at 150k/s). Raising
+		// toward the 150-200k target means larger MaxBytes + more max_mem.
 		MaxBytes: 1 << 30, // 1 GiB
 		// The premium, standard and stream lanes are distinct literal subjects
 		// sharing this stream, and MaxBytes eviction is stream-wide oldest-first:
@@ -350,6 +373,12 @@ func streamConfig(spec StreamSpec) *nats.StreamConfig {
 	if spec.Storage != 0 {
 		storage = spec.Storage
 	}
+	// Zero replicas means the safe single-copy default; a spec opts into RAFT
+	// replication explicitly.
+	replicas := spec.Replicas
+	if replicas <= 0 {
+		replicas = 1
+	}
 	return &nats.StreamConfig{
 		Name:              spec.Name,
 		Subjects:          spec.Subjects,
@@ -359,7 +388,7 @@ func streamConfig(spec StreamSpec) *nats.StreamConfig {
 		MaxAge:            spec.MaxAge,
 		MaxBytes:          spec.MaxBytes,
 		MaxMsgsPerSubject: spec.MaxMsgsPer,
-		Replicas:          1,
+		Replicas:          replicas,
 		Duplicates:        duplicateWindow,
 	}
 }
@@ -370,6 +399,10 @@ func streamMatches(got, want nats.StreamConfig) bool {
 		got.MaxAge == want.MaxAge &&
 		got.MaxBytes == want.MaxBytes &&
 		got.MaxMsgsPerSubject == want.MaxMsgsPerSubject &&
+		// Replicas is updatable in place, so a drift here must trigger a reconcile
+		// (UpdateStream scales the stream); omitting it lets a live R3 stream stay
+		// R3 while the spec declares R1.
+		got.Replicas == want.Replicas &&
 		got.Duplicates == want.Duplicates
 }
 

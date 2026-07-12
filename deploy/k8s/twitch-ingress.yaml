@@ -68,7 +68,7 @@ spec:
       labels:
         app: twitch-ingress
       annotations:
-        linkerd.io/inject: enabled
+        linkerd.io/inject: disabled
         config.linkerd.io/proxy-cpu-request: 5m
         config.linkerd.io/proxy-cpu-limit: 750m
         config.linkerd.io/proxy-memory-request: 16Mi
@@ -76,9 +76,10 @@ spec:
         # Opaque ports for EPMD (4369) and Erlang distribution (9100-9110)
         # to prevent Linkerd protocol detection timeouts on server-speaks-first.
         config.linkerd.io/opaque-ports: "4369,9100-9110"
-        # Skip outbound port 443 to prevent mesh interference with the
-        # server-speaks-first Twitch EventSub wss:// sockets.
-        config.linkerd.io/skip-outbound-ports: "443"
+        # Skip outbound: 443 for the server-speaks-first Twitch EventSub wss://
+        # sockets, and 4222 for NATS — now out of the mesh, so NATS-native TLS
+        # provides the encryption and the proxy would otherwise tax every event.
+        config.linkerd.io/skip-outbound-ports: "443,4222"
     spec:
       tolerations:
         - key: itsbagelbot.dev/pool
@@ -163,7 +164,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: ingress
-          image: ghcr.io/adamousmer/itsbagelbot/twitch-ingress:main-1783849498-8298d8dd36f2@sha256:c358be962d30e86b2dedc6b5f96c17da41d1164ea9f6a7d8001d1dc0844951e7 # {"$imagepolicy": "flux-system:twitch-ingress"}
+          image: ghcr.io/adamousmer/itsbagelbot/twitch-ingress:main-1783884786-acf2ff51b709@sha256:f6b15f7f1333ab61e9081c86af2bf02939ede64a1dc1a6903cd6077e2f921aed # {"$imagepolicy": "flux-system:twitch-ingress"}
           imagePullPolicy: IfNotPresent
           envFrom:
             - secretRef:
@@ -180,6 +181,15 @@ spec:
               value: nats-leaf
             - name: NATS_HUB_HOST
               value: nats
+            # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS server
+            # TLS cert now that NATS is out of the Linkerd mesh; decoded to ssl_opts
+            # cacerts in config/runtime.exs. Both :gnat (leaf) and :gnat_bus (hub)
+            # verify against it.
+            - name: NATS_CA_PEM
+              valueFrom:
+                configMapKeyRef:
+                  name: fleet-ca
+                  key: ca.pem
             - name: POD_IP
               valueFrom:
                 fieldRef:

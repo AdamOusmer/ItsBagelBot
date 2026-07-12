@@ -40,7 +40,7 @@ spec:
       labels:
         app: outgress
       annotations:
-        linkerd.io/inject: enabled
+        linkerd.io/inject: disabled
         config.linkerd.io/proxy-cpu-request: 5m
         config.linkerd.io/proxy-cpu-limit: 1000m
         config.linkerd.io/proxy-memory-request: 16Mi
@@ -49,8 +49,9 @@ spec:
         # Outgress's hot path is a synchronous POST to api.twitch.tv; routing it
         # through the linkerd sidecar adds a proxy hop per send for an external,
         # already-TLS destination the mesh cannot mTLS anyway. twitch-ingress
-        # skips 443 for the same reason.
-        config.linkerd.io/skip-outbound-ports: 6379,26379,443
+        # skips 443 for the same reason. 4222 is NATS — now out of the mesh, so its
+        # own TLS encrypts the wire and the proxy would only tax it.
+        config.linkerd.io/skip-outbound-ports: 6379,26379,443,4222
     spec:
       tolerations:
         - key: itsbagelbot.dev/pool
@@ -111,16 +112,27 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: outgress
-          image: ghcr.io/adamousmer/itsbagelbot/outgress:main-1783849498-8298d8dd36f2@sha256:190f3ae04edbd230134c91acb3fa891b5b3cb5bb5b897d7ccb842aa6f69add5f # {"$imagepolicy": "flux-system:outgress"}
+          image: ghcr.io/adamousmer/itsbagelbot/outgress:main-1783887960-fe5f1258cb84@sha256:57812d245d9dc5b00c8de85bf8af5f5cf9d6c8f55b5622eae8f93a10d5b81ea2 # {"$imagepolicy": "flux-system:outgress"}
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST
               value: nats
-            # Apps connect only to the node-local leaf cluster (4-node HA); the
-            # hub is reached over the leafnode link for JetStream. No hub in the
-            # server list, so a leaf roll can never pin a client to the hub.
+            # Split planes: the BUS / JetStream connection dials the hub directly
+            # (NATS_HUB_URL) so stream traffic never pays a leaf forwarding hop;
+            # the RPC + cache plane (NATS_RPC_URL / NATS_LEAF_URL) stays on the
+            # node-local leaf. NATS_URL is the local-dev fallback only.
             - name: NATS_URL
               value: nats://nats-leaf:4222
+            - name: NATS_HUB_URL
+              value: nats://nats:4222
+            # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS server
+            # TLS cert now that NATS is out of the Linkerd mesh; read as RootCAs by
+            # pkg/bus (Go services) and the console nats lib (TS).
+            - name: NATS_CA_PEM
+              valueFrom:
+                configMapKeyRef:
+                  name: fleet-ca
+                  key: ca.pem
             - name: NATS_RPC_URL
               value: nats://nats-leaf:4222
             - name: NATS_LEAF_URL

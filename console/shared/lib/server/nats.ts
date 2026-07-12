@@ -133,11 +133,7 @@ function fallbackServer(override: string | undefined): string {
 // Ordered RPC pool. Legacy NATS_LEAF_URL values are intentionally ignored so
 // a stale secret cannot override the strict local-only NATS_RPC_URL.
 function rpcServerList(override: string | undefined): string[] {
-  const leaf = fallbackServer(override);
-  const hub = process.env.NATS_HUB_URL;
-  const list = [leaf];
-  if (hub && hub !== leaf) list.push(hub);
-  return list;
+  return [fallbackServer(override)];
 }
 
 function busServerList(override: string | undefined): string[] {
@@ -150,7 +146,7 @@ function options(role: Role): ConnectionOptions {
     servers: isRpc
       ? rpcServerList(process.env.NATS_RPC_URL)
       : busServerList(process.env.NATS_URL),
-    // Honor local-leaf-first RPC order on the initial dial and reconnect.
+    // RPC stays on the leaf tier; the Service handles cross-node leaf failover.
     noRandomize: true,
     name: `${process.env.NATS_CLIENT_NAME ?? 'console'}-${role}`,
     maxReconnectAttempts: -1,
@@ -168,6 +164,12 @@ function options(role: Role): ConnectionOptions {
   if (user) opts.user = user;
   if (pass) opts.pass = pass;
   if (process.env.NATS_TOKEN) opts.token = process.env.NATS_TOKEN;
+  // Verify the NATS server's TLS cert against the fleet CA now that NATS is out of
+  // the Linkerd mesh (NATS_CA_PEM = the trust-manager fleet-ca ConfigMap). Setting
+  // tls upgrades the connection; server-auth only, auth stays user/password. No CA
+  // (local dev against a plaintext server) keeps the connection plaintext.
+  const caPem = process.env.NATS_CA_PEM;
+  if (caPem) opts.tls = { ca: caPem };
   return opts;
 }
 

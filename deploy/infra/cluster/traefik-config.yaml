@@ -31,7 +31,11 @@ spec:
     deployment:
       kind: DaemonSet
       podAnnotations:
-        linkerd.io/inject: ingress
+        # De-meshed as part of removing Linkerd. cloudflared->traefik:443 is
+        # already TLS + un-meshed; traefik->console-dashboard is HTTPS via the
+        # ServersTransport; console-admin is the tailscale operator. No hop here
+        # still depends on the mesh.
+        linkerd.io/inject: disabled
     service:
       type: ClusterIP
       spec:
