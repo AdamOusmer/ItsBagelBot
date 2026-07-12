@@ -38,6 +38,10 @@ spec:
         app: transactions
       annotations:
         linkerd.io/inject: enabled
+        # NATS is out of the Linkerd mesh: bypass the app-side proxy for the NATS
+        # client port so the firehose / RPC traffic goes direct (NATS-native TLS
+        # provides the encryption). Without this the proxy still taxes every event.
+        config.linkerd.io/skip-outbound-ports: "4222"
         config.linkerd.io/proxy-cpu-request: 5m
         config.linkerd.io/proxy-cpu-limit: 750m
         config.linkerd.io/proxy-memory-request: 16Mi
@@ -76,13 +80,23 @@ spec:
           env:
             - name: NATS_HOST
               value: nats
-            # Both planes (BUS JetStream publisher + TRANSACTIONS_RPC checkout
-            # responder) connect to the node-local leaf cluster; the hub is
-            # reached over the leafnode link. RPC creds (NATS_RPC_USER/PASSWORD)
-            # and the Tebex Headless secrets (TEBEX_WEBSTORE_TOKEN,
-            # TEBEX_PACKAGE_ID) ride in via envFrom from Doppler.
+            # Split planes: the BUS JetStream publisher dials the hub directly
+            # (NATS_HUB_URL) so it never pays a leaf forwarding hop; the
+            # TRANSACTIONS_RPC checkout responder stays on the node-local leaf.
+            # RPC creds (NATS_RPC_USER/PASSWORD) and the Tebex Headless secrets
+            # (TEBEX_WEBSTORE_TOKEN, TEBEX_PACKAGE_ID) ride in via envFrom from Doppler.
             - name: NATS_URL
               value: nats://nats-leaf:4222
+            - name: NATS_HUB_URL
+              value: nats://nats:4222
+            # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS server
+            # TLS cert now that NATS is out of the Linkerd mesh; read as RootCAs by
+            # pkg/bus (Go services) and the console nats lib (TS).
+            - name: NATS_CA_PEM
+              valueFrom:
+                configMapKeyRef:
+                  name: fleet-ca
+                  key: ca.pem
             - name: NATS_LEAF_URL
               value: nats://nats-leaf:4222
             - name: NODE_NAME

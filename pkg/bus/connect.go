@@ -1,6 +1,8 @@
 package bus
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -15,10 +17,13 @@ import (
 //   - the durable JetStream event plane, authenticated with the shared BUS
 //     account via NATS_USER / NATS_PASSWORD.
 //
-// Both planes prefer the node-local leaf and fall back to the hub. Leaf
-// priority is enforced in code (ordered server list + DontRandomize), not just
-// by which URL a manifest happens to set, so a reconnect always retries the
-// leaf first before spilling to the hub.
+// The RPC + cache plane prefers the node-local leaf: an ordered server list plus
+// DontRandomize means a reconnect always retries the leaf first before spilling
+// to the hub. The JetStream plane instead dials the hub directly (busURL reads
+// NATS_HUB_URL): the durable streams live on the hub, so routing JetStream
+// through the leaf is only an extra forwarding hop (the leaf runs no JetStream).
+// This mirrors the console lib's rpc/bus split in
+// console/shared/lib/server/nats.ts.
 
 // JSDomain is the JetStream domain the fleet's streams live in. Clients dial the
 // leaf (whose own JetStream domain is "leaf"), so every JetStream context must be
@@ -58,7 +63,11 @@ func baseOptions(name, user, pass string) []nats.Option {
 	opts := []nats.Option{
 		nats.MaxReconnects(-1),
 		nats.ReconnectWait(2 * time.Second),
-		nats.ReconnectBufSize(8 * 1024 * 1024), // 8 MB buffer so publishes during a reconnect are not lost
+		// 32 MB buffer so publishes during a reconnect are not lost. Raised from
+		// 8 MB for the 150k firehose: a hub roll (R1 memory stream) can briefly
+		// disconnect the async publisher, and at 150k/s an 8 MB buffer fills in
+		// well under a second, dropping events the dedup window can't recover.
+		nats.ReconnectBufSize(32 * 1024 * 1024),
 		nats.PingInterval(20 * time.Second),
 		nats.MaxPingsOutstanding(3),
 		nats.Timeout(15 * time.Second),
@@ -72,6 +81,13 @@ func baseOptions(name, user, pass string) []nats.Option {
 		// env lags a credential rotation (readyz stays 503 but healthz keeps the
 		// container alive, so it never restarts on its own).
 		nats.IgnoreAuthErrorAbort(),
+	}
+
+	// Verify the broker's TLS server cert against the fleet CA when one is
+	// configured (see tlsSecureOption), the wire encryption now that NATS is out of
+	// the Linkerd mesh.
+	if option := tlsSecureOption(); option != nil {
+		opts = append(opts, option)
 	}
 
 	if name != "" {
@@ -90,6 +106,23 @@ func baseOptions(name, user, pass string) []nats.Option {
 	}
 
 	return opts
+}
+
+// tlsSecureOption returns a nats.Secure option that verifies the broker's server
+// cert against the fleet CA (NATS_CA_PEM, distributed by trust-manager as the
+// fleet-ca ConfigMap), or nil when no CA is configured — local dev against a
+// plaintext server stays plaintext. Server-auth only: the client still
+// authenticates with its bcrypt user/password, not a client cert.
+func tlsSecureOption() nats.Option {
+	caPEM := env.Get("NATS_CA_PEM", "")
+	if caPEM == "" {
+		return nil
+	}
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM([]byte(caPEM)) {
+		return nil
+	}
+	return nats.Secure(&tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12})
 }
 
 // rpcOptions authenticate the per-service account on the RPC plane. The creds
@@ -128,8 +161,15 @@ func RPCURL(busURL string) string {
 	return env.Get("NATS_RPC_URL", busURL)
 }
 
-// busURL resolves the JetStream-plane endpoint list (leaf-first) from the url a
-// caller threads through (typically NATS_URL).
+// busURL resolves the JetStream-plane endpoint. The durable streams live on the
+// hub, so for JetStream the node-local leaf is only an extra forwarding hop:
+// dial the hub directly when NATS_HUB_URL is set (mirroring busServerList in
+// console/shared/lib/server/nats.ts). Falls back to the leaf-first serverList
+// when no hub is configured (local dev / single-endpoint deploys). RPC stays
+// leaf-first via RPCURL/serverList.
 func busURL(url string) string {
+	if hub := env.Get("NATS_HUB_URL", ""); hub != "" {
+		return hub
+	}
 	return serverList(url)
 }

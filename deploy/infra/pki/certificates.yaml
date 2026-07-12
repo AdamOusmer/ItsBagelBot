@@ -1,0 +1,104 @@
+# Server certs issued from the fleet CA. Each writes a tls.crt/tls.key/ca.crt
+# Secret in production; the NATS and console pods mount it as their server cert.
+# Clients verify the server against the CA (distributed as the fleet-ca ConfigMap,
+# see trust.yaml) — no per-client certs.
+#
+# SANs must cover every name a peer dials: the Service name, its FQDN, and (for
+# the hub) the per-pod headless names used by the cluster routes.
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: nats-hub-tls
+  namespace: production
+spec:
+  secretName: nats-hub-tls
+  duration: 2160h # 90d
+  renewBefore: 360h # 15d
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: fleet-ca-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+  dnsNames:
+    - nats
+    - nats.production
+    - nats.production.svc
+    - nats.production.svc.cluster.local
+    - nats-headless
+    - nats-headless.production.svc.cluster.local
+    - nats-0.nats-headless.production.svc.cluster.local
+    - nats-1.nats-headless.production.svc.cluster.local
+    - nats-2.nats-headless.production.svc.cluster.local
+    - localhost
+  ipAddresses:
+    - 127.0.0.1
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: nats-leaf-tls
+  namespace: production
+spec:
+  secretName: nats-leaf-tls
+  duration: 2160h # 90d
+  renewBefore: 360h # 15d
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: fleet-ca-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+  dnsNames:
+    - nats-leaf
+    - nats-leaf.production.svc.cluster.local
+    - nats-leaf-local
+    - nats-leaf-local.production.svc.cluster.local
+    - nats-leaf-peers
+    - nats-leaf-peers.production.svc.cluster.local
+    - localhost
+  ipAddresses:
+    - 127.0.0.1
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: console-dashboard-tls
+  namespace: production
+spec:
+  secretName: console-dashboard-tls
+  duration: 2160h # 90d
+  renewBefore: 360h # 15d
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: fleet-ca-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+  dnsNames:
+    - console-dashboard
+    - console-dashboard.production.svc.cluster.local
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: console-admin-tls
+  namespace: production
+spec:
+  secretName: console-admin-tls
+  duration: 2160h # 90d
+  renewBefore: 360h # 15d
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: fleet-ca-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+  dnsNames:
+    - console-admin
+    - console-admin.production.svc.cluster.local

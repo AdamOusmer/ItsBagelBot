@@ -38,6 +38,10 @@ spec:
         app: notifications
       annotations:
         linkerd.io/inject: enabled
+        # NATS is out of the Linkerd mesh: bypass the app-side proxy for the NATS
+        # client port so the firehose / RPC traffic goes direct (NATS-native TLS
+        # provides the encryption). Without this the proxy still taxes every event.
+        config.linkerd.io/skip-outbound-ports: "4222"
         config.linkerd.io/proxy-cpu-request: 5m
         config.linkerd.io/proxy-cpu-limit: 750m
         config.linkerd.io/proxy-memory-request: 16Mi
@@ -93,6 +97,14 @@ spec:
               value: nats://nats-leaf-local:4222
             - name: NATS_HUB_URL
               value: nats://nats:4222
+            # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS server
+            # TLS cert now that NATS is out of the Linkerd mesh; read as RootCAs by
+            # pkg/bus (Go services) and the console nats lib (TS).
+            - name: NATS_CA_PEM
+              valueFrom:
+                configMapKeyRef:
+                  name: fleet-ca
+                  key: ca.pem
             - name: NODE_NAME
               valueFrom:
                 fieldRef:
@@ -203,6 +215,12 @@ spec:
                   value: nats://nats-leaf-local:4222
                 - name: NATS_HUB_URL
                   value: nats://nats:4222
+                # Fleet CA to verify the NATS server TLS cert (NATS out of the mesh).
+                - name: NATS_CA_PEM
+                  valueFrom:
+                    configMapKeyRef:
+                      name: fleet-ca
+                      key: ca.pem
               envFrom:
                 - secretRef:
                     name: notifications-env

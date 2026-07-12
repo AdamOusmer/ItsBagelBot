@@ -150,8 +150,37 @@ nats_leaf_host = System.get_env("NATS_LEAF_HOST") || System.get_env("NATS_HOST",
 nats_hub_host = System.get_env("NATS_HUB_HOST") || nats_leaf_host
 nats_port = String.to_integer(System.get_env("NATS_PORT", "4222"))
 
+# Verify the NATS server TLS cert against the fleet CA now that NATS is out of the
+# Linkerd mesh. NATS_CA_PEM is the trust-manager fleet-ca ConfigMap (PEM). Decode
+# it to the DER list :ssl expects. Server-auth only — auth stays user/password. No
+# CA (dev against a plaintext server) leaves the connection plaintext.
+nats_cacerts =
+  case System.get_env("NATS_CA_PEM") do
+    pem when is_binary(pem) and pem != "" ->
+      pem |> :public_key.pem_decode() |> Enum.map(fn {_type, der, _info} -> der end)
+
+    _ ->
+      nil
+  end
+
 nats_server = fn host, user, pass ->
   base = %{host: host, port: nats_port}
+
+  base =
+    if nats_cacerts do
+      # SNI must match a cert SAN — the Service name (nats / nats-leaf).
+      Map.merge(base, %{
+        tls: true,
+        ssl_opts: [
+          verify: :verify_peer,
+          cacerts: nats_cacerts,
+          server_name_indication: String.to_charlist(host),
+          depth: 3
+        ]
+      })
+    else
+      base
+    end
 
   if is_binary(user) and is_binary(pass) do
     Map.merge(base, %{username: user, password: pass})

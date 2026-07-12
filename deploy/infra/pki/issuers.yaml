@@ -1,0 +1,40 @@
+# Fleet internal PKI root. A self-signed bootstrap issuer signs one long-lived CA,
+# and a CA ClusterIssuer issues every server cert from it. cert-manager renews the
+# leaf certs automatically, so there is no hand-rolled rotation.
+#
+# ClusterIssuers read their signing secret from cert-manager's own namespace (the
+# cluster resource namespace), which is why the CA key pair lives there.
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: fleet-selfsigned
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: fleet-ca
+  namespace: cert-manager
+spec:
+  isCA: true
+  commonName: ItsBagelBot Fleet CA
+  secretName: fleet-ca-key-pair
+  duration: 87600h # 10y root
+  renewBefore: 720h # 30d
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: fleet-selfsigned
+    kind: ClusterIssuer
+    group: cert-manager.io
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: fleet-ca-issuer
+spec:
+  ca:
+    secretName: fleet-ca-key-pair
