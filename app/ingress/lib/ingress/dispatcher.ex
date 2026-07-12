@@ -1,34 +1,34 @@
 defmodule Ingress.Dispatcher do
   @moduledoc """
-  Bounded async notification dispatcher.
+  Scheduler-local, bounded notification dispatch.
 
-  ShardSession owns the websocket socket, so it should only decode enough to
-  enqueue work. Filtering, broadcaster cache misses, JSON encoding, and NATS
-  publish happen in supervised tasks behind this process.
+  The websocket process performs admission directly in a public ETS table and
+  sends accepted work straight to one of a fixed set of supervised workers.
+  There is deliberately no central queue process on the event path: worker
+  mailboxes are the queues, and a caller-local round-robin cursor
+  spreads calls across them without forcing every shard through one mailbox.
 
-  Capacity (`max_running` + `max_queue`) is one shared pool per pod, not per
-  shard — a node can host more than one `ShardSession`. A second, per-broadcaster
-  ETS counter (`max_per_broadcaster`) caps how much of that shared pool one
-  broadcaster can consume at once, so a hot channel can't starve every other
-  broadcaster sharing the pod. Dead per-broadcaster counters are swept
-  periodically. `:name` is overridable for test isolation.
+  The GenServer that owns the table only performs cold-path housekeeping:
+  monitoring workers so admission slots can be reclaimed after a crash and
+  deleting zeroed counters. Pod-wide admission uses atomics, and workers fold
+  completion bookkeeping into small bounded batches. Per-broadcaster limits
+  and worker-crash reclamation remain exact.
   """
 
   use GenServer
 
-  require Logger
-
   alias Ingress.{Config, Metrics}
 
-  defstruct [
-    :name,
-    :max_running,
-    :max_queue,
-    :sweep_ms,
-    idle_workers: :queue.new(),
-    busy_workers: %{},
-    queue: :queue.new()
-  ]
+  defstruct [:name, :table, :admitted, :sweep_ms, worker_refs: %{}]
+
+  @type context :: %{
+          table: atom(),
+          admitted: reference(),
+          capacity: pos_integer(),
+          max_per_broadcaster: pos_integer(),
+          workers: tuple(),
+          worker_count: pos_integer()
+        }
 
   @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts) do
@@ -37,32 +37,74 @@ defmodule Ingress.Dispatcher do
 
   @spec dispatch(map(), map(), GenServer.server()) :: :ok
   def dispatch(payload, meta, server \\ __MODULE__) do
-    case Process.whereis(server) do
+    case context(server) do
       nil ->
-        Logger.warning("ingress dispatcher unavailable; dropping notification")
         drop(meta, "unavailable")
 
-      pid ->
-        admit(pid, server, payload, meta)
+      ctx ->
+        admit_and_send(ctx, payload, meta)
     end
 
     :ok
   end
 
-  defp admit(pid, server, payload, meta) do
+  @doc false
+  @spec complete(GenServer.server(), pid(), String.t() | nil) :: :ok
+  def complete(server, worker, broadcaster_id) do
+    complete_batch(server, worker, %{broadcaster_id => 1}, 1)
+  end
+
+  @doc false
+  @spec complete_batch(GenServer.server(), pid(), map(), pos_integer()) :: :ok
+  def complete_batch(server, worker, completed_by_broadcaster, total) do
+    case context(server) do
+      nil ->
+        :ok
+
+      ctx ->
+        Enum.each(completed_by_broadcaster, fn {broadcaster_id, count} ->
+          :ets.update_counter(ctx.table, {:worker, worker, broadcaster_id}, {2, -count})
+          release_broadcaster_slot(ctx.table, broadcaster_id, count)
+        end)
+
+        :atomics.sub(ctx.admitted, 1, total)
+        :ok
+    end
+  rescue
+    ArgumentError -> :ok
+  end
+
+  @doc false
+  def admitted_count(server \\ __MODULE__) do
+    case context(server) do
+      nil -> 0
+      ctx -> :atomics.get(ctx.admitted, 1)
+    end
+  end
+
+  @doc false
+  def worker_names(server) do
+    case context(server) do
+      nil -> {}
+      %{workers: workers} -> workers
+    end
+  end
+
+  defp context(server), do: :persistent_term.get({__MODULE__, :ctx, server}, nil)
+
+  defp admit_and_send(ctx, payload, meta) do
     broadcaster_id = Map.get(meta, :broadcaster_id)
 
     try do
-      if broadcaster_admitted?(server, broadcaster_id, meta) do
-        count = :ets.update_counter(server, :admitted_count, {2, 1})
-        capacity = :ets.lookup_element(server, :capacity, 2)
+      if broadcaster_admitted?(ctx, broadcaster_id, meta) do
+        count = :atomics.add_get(ctx.admitted, 1, 1)
 
-        if count > capacity do
-          :ets.update_counter(server, :admitted_count, {2, -1})
-          release_broadcaster_slot(server, broadcaster_id)
+        if count > ctx.capacity do
+          :atomics.sub(ctx.admitted, 1, 1)
+          release_broadcaster_slot(ctx.table, broadcaster_id, 1)
           drop(meta, "capacity")
         else
-          send(pid, {:dispatch, payload, meta})
+          send_to_worker(ctx, payload, meta, broadcaster_id)
         end
       end
     catch
@@ -70,18 +112,56 @@ defmodule Ingress.Dispatcher do
     end
   end
 
-  # No broadcaster to attribute (malformed/unrecognized event shape): fail open,
-  # only the pod-wide capacity check applies.
-  defp broadcaster_admitted?(_server, nil, _meta), do: true
+  defp send_to_worker(ctx, payload, meta, broadcaster_id) do
+    scheduler = max(:erlang.system_info(:scheduler_id), 1)
+    cursor_key = {__MODULE__, :cursor, ctx.table}
+    ticket = Process.get(cursor_key, scheduler - 1)
+    Process.put(cursor_key, ticket + 1)
 
-  defp broadcaster_admitted?(server, broadcaster_id, meta) do
+    # Each websocket producer owns its cursor, so choosing a worker requires no
+    # shared counter at all and remains balanced if the process migrates between
+    # schedulers. The scheduler id only offsets each producer's starting point.
+    index = rem(ticket, ctx.worker_count)
+    worker_name = elem(ctx.workers, index)
+
+    case Process.whereis(worker_name) do
+      nil ->
+        release(ctx, nil, broadcaster_id, 1)
+        drop(meta, "unavailable")
+
+      worker ->
+        :ets.update_counter(
+          ctx.table,
+          {:worker, worker, broadcaster_id},
+          {2, 1},
+          {{:worker, worker, broadcaster_id}, 0}
+        )
+
+        # Close the only meaningful death race: if the worker went down after
+        # whereis/1 but before attribution was recorded, its DOWN cleanup may
+        # already have run. In that case reclaim this event here.
+        if Process.alive?(worker) do
+          send(worker, {:process, payload, meta})
+        else
+          release(ctx, worker, broadcaster_id, 1)
+          drop(meta, "unavailable")
+        end
+    end
+  end
+
+  defp broadcaster_admitted?(_ctx, nil, _meta), do: true
+
+  defp broadcaster_admitted?(ctx, broadcaster_id, meta) do
     count =
-      :ets.update_counter(server, {:bc, broadcaster_id}, {2, 1}, {{:bc, broadcaster_id}, 0})
+      :ets.update_counter(
+        ctx.table,
+        {:bc, broadcaster_id},
+        {2, 1},
+        {{:bc, broadcaster_id}, 0}
+      )
 
-    max_per_bc = :ets.lookup_element(server, :max_per_broadcaster, 2)
-
-    if count > max_per_bc do
-      :ets.update_counter(server, {:bc, broadcaster_id}, {2, -1})
+    if count > ctx.max_per_broadcaster do
+      :ets.update_counter(ctx.table, {:bc, broadcaster_id}, {2, -1})
       drop(meta, "broadcaster_cap")
       false
     else
@@ -89,139 +169,117 @@ defmodule Ingress.Dispatcher do
     end
   end
 
-  defp release_broadcaster_slot(_server, nil), do: :ok
+  defp release(ctx, worker, broadcaster_id, count) do
+    if worker do
+      :ets.update_counter(ctx.table, {:worker, worker, broadcaster_id}, {2, -count})
+    end
 
-  defp release_broadcaster_slot(server, broadcaster_id) do
-    :ets.update_counter(server, {:bc, broadcaster_id}, {2, -1})
+    :atomics.sub(ctx.admitted, 1, count)
+    release_broadcaster_slot(ctx.table, broadcaster_id, count)
+    :ok
+  rescue
+    ArgumentError -> :ok
   end
 
-  defp drop(meta, reason) do
-    Metrics.count("Dispatcher/Dropped")
+  defp release_broadcaster_slot(_table, nil, _count), do: :ok
 
-    Metrics.event("Dispatcher/Dropped", %{
-      reason: reason,
-      shard_id: Map.get(meta, :shard_id),
-      broadcaster_id: Map.get(meta, :broadcaster_id)
-    })
+  defp release_broadcaster_slot(table, broadcaster_id, count) do
+    :ets.update_counter(table, {:bc, broadcaster_id}, {2, -count})
+  end
+
+  defp drop(_meta, reason) do
+    Metrics.count("Dispatcher/Dropped")
+    Metrics.count("Dispatcher/Dropped/#{reason}")
   end
 
   @impl true
   def init(opts) do
     name = Keyword.get(opts, :name, __MODULE__)
-    max_running = Keyword.get(opts, :max_running, Config.dispatcher_max_running())
+    table = Keyword.get(opts, :table, name)
+    worker_count = Keyword.get(opts, :max_running, Config.dispatcher_max_running())
     max_queue = Keyword.get(opts, :max_queue, Config.dispatcher_max_queue())
 
     max_per_broadcaster =
       Keyword.get(opts, :max_per_broadcaster, Config.dispatcher_max_per_broadcaster())
 
     sweep_ms = Keyword.get(opts, :sweep_ms, Config.dispatcher_broadcaster_sweep_ms())
-    capacity = max_running + max_queue
+    capacity = worker_count + max_queue
+    workers = worker_names_tuple(name, worker_count)
+    admitted = :atomics.new(1, signed: true)
 
-    :ets.new(name, [
+    :ets.new(table, [
       :named_table,
       :public,
       :set,
       read_concurrency: true,
-      write_concurrency: true
+      write_concurrency: true,
+      decentralized_counters: true
     ])
 
-    :ets.insert(name, {:admitted_count, 0})
-    :ets.insert(name, {:capacity, capacity})
-    :ets.insert(name, {:max_per_broadcaster, max_per_broadcaster})
+    :persistent_term.put(
+      {__MODULE__, :ctx, name},
+      %{
+        table: table,
+        admitted: admitted,
+        capacity: capacity,
+        max_per_broadcaster: max_per_broadcaster,
+        workers: workers,
+        worker_count: worker_count
+      }
+    )
 
     schedule_sweep(sweep_ms)
-
-    {:ok,
-     %__MODULE__{
-       name: name,
-       max_running: max_running,
-       max_queue: max_queue,
-       sweep_ms: sweep_ms
-     }}
+    {:ok, %__MODULE__{name: name, table: table, admitted: admitted, sweep_ms: sweep_ms}}
   end
 
   @impl true
-  def handle_info({:dispatch, payload, meta}, state) do
-    case :queue.out(state.idle_workers) do
-      {{:value, worker_pid}, idle_workers} ->
-        Metrics.count("Dispatcher/Started")
-        GenServer.cast(worker_pid, {:process, payload, meta})
-
-        state = %{
-          state
-          | idle_workers: idle_workers,
-            busy_workers: Map.put(state.busy_workers, worker_pid, meta)
-        }
-
-        {:noreply, state}
-
-      {:empty, _} ->
-        Metrics.count("Dispatcher/Queued")
-        {:noreply, %{state | queue: :queue.in({payload, meta}, state.queue)}}
-    end
+  def handle_info({:worker_up, index, pid}, state) do
+    ref = Process.monitor(pid)
+    {:noreply, %{state | worker_refs: Map.put(state.worker_refs, ref, {index, pid})}}
   end
 
-  def handle_info({:worker_ready, worker_pid}, state) do
-    state =
-      case Map.pop(state.busy_workers, worker_pid) do
-        {nil, busy_workers} ->
-          Process.monitor(worker_pid)
-          %{state | busy_workers: busy_workers}
-
-        {meta, busy_workers} ->
-          :ets.update_counter(state.name, :admitted_count, {2, -1})
-          release_broadcaster_slot(state.name, Map.get(meta, :broadcaster_id))
-          %{state | busy_workers: busy_workers}
-      end
-
-    case :queue.out(state.queue) do
-      {{:value, {payload, meta}}, queue} ->
-        Metrics.count("Dispatcher/Started")
-        GenServer.cast(worker_pid, {:process, payload, meta})
-
-        state = %{
-          state
-          | queue: queue,
-            busy_workers: Map.put(state.busy_workers, worker_pid, meta)
-        }
-
-        {:noreply, state}
-
-      {:empty, _} ->
-        {:noreply, %{state | idle_workers: :queue.in(worker_pid, state.idle_workers)}}
-    end
-  end
-
-  def handle_info({:DOWN, _ref, :process, pid, _reason}, state) do
-    state =
-      case Map.pop(state.busy_workers, pid) do
-        {nil, busy_workers} ->
-          %{state | busy_workers: busy_workers}
-
-        {meta, busy_workers} ->
-          :ets.update_counter(state.name, :admitted_count, {2, -1})
-          release_broadcaster_slot(state.name, Map.get(meta, :broadcaster_id))
-
-          Metrics.count("Dispatcher/TaskFailed")
-
-          Metrics.event("Dispatcher/TaskFailed", %{
-            shard_id: Map.get(meta, :shard_id),
-            broadcaster_id: Map.get(meta, :broadcaster_id)
-          })
-
-          %{state | busy_workers: busy_workers}
-      end
-
-    idle_list = :queue.to_list(state.idle_workers) |> Enum.reject(&(&1 == pid))
-    state = %{state | idle_workers: :queue.from_list(idle_list)}
-
-    {:noreply, state}
+  def handle_info({:DOWN, ref, :process, pid, _reason}, state) do
+    {_worker, worker_refs} = Map.pop(state.worker_refs, ref)
+    reclaim_worker(state.table, pid, state.admitted)
+    {:noreply, %{state | worker_refs: worker_refs}}
   end
 
   def handle_info(:sweep, state) do
-    :ets.select_delete(state.name, [{{{:bc, :"$1"}, 0}, [], [true]}])
+    :ets.select_delete(state.table, [{{{:bc, :_}, 0}, [], [true]}])
+    :ets.select_delete(state.table, [{{{:worker, :_, :_}, 0}, [], [true]}])
     schedule_sweep(state.sweep_ms)
     {:noreply, state}
+  end
+
+  @impl true
+  def terminate(_reason, state) do
+    :persistent_term.erase({__MODULE__, :ctx, state.name})
+    :ok
+  end
+
+  defp reclaim_worker(table, pid, admitted) do
+    match = [{{{:worker, pid, :"$1"}, :"$2"}, [{:>, :"$2", 0}], [:"$1"]}]
+
+    for broadcaster_id <- :ets.select(table, match) do
+      key = {:worker, pid, broadcaster_id}
+
+      case :ets.take(table, key) do
+        [{^key, count}] when count > 0 ->
+          :atomics.sub(admitted, 1, count)
+          release_broadcaster_slot(table, broadcaster_id, count)
+
+        _ ->
+          :ok
+      end
+    end
+  rescue
+    ArgumentError -> :ok
+  end
+
+  defp worker_names_tuple(server, count) do
+    0..(count - 1)
+    |> Enum.map(fn index -> String.to_atom("#{server}.Worker.#{index}") end)
+    |> List.to_tuple()
   end
 
   defp schedule_sweep(sweep_ms), do: Process.send_after(self(), :sweep, sweep_ms)

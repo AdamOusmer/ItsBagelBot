@@ -329,6 +329,52 @@ defmodule Ingress.SquashTest do
     assert Squash.observe(base("bbb"), sender("1")) == :first
   end
 
+  test "unique production chat retains only its compact squash generation" do
+    start_squash(window_ms: 10_000, sweep_ms: 10_000)
+
+    event = %{
+      "broadcaster_user_id" => "77",
+      "broadcaster_user_login" => "channel",
+      "chatter_user_id" => "1",
+      "chatter_user_login" => "sender-only-marker",
+      "badges" => [%{"set_id" => "marker"}]
+    }
+
+    meta = %{msg_id: "sender-message", ts: 0}
+
+    assert Squash.observe_chat(:standard, event, "unique", meta) == :first
+
+    assert [{{"77", "unique"}, expires_at, generation}] =
+             :ets.tab2list(Ingress.Squash.Keys)
+
+    assert is_integer(expires_at)
+    assert is_reference(generation)
+    assert :sys.get_state(Squash).cohorts == %{}
+  end
+
+  test "production chat allocates and emits sender details only for duplicates" do
+    start_squash(window_ms: 20, sweep_ms: 10)
+
+    event = fn id ->
+      %{
+        "broadcaster_user_id" => "77",
+        "broadcaster_user_login" => "channel",
+        "chatter_user_id" => id,
+        "chatter_user_login" => "user#{id}",
+        "badges" => []
+      }
+    end
+
+    assert Squash.observe_chat(:standard, event.("1"), "same", %{msg_id: "m1", ts: 0}) ==
+             :first
+
+    assert Squash.observe_chat(:standard, event.("2"), "same", %{msg_id: "m2", ts: 0}) ==
+             :buffered
+
+    assert_receive {:published, _subject, cohort}, 500
+    assert Enum.map(cohort.senders, & &1.chatter_user_login) == ["user2"]
+  end
+
   test "the window flushes one cohort carrying every duplicate sender in order" do
     start_squash(window_ms: 20, sweep_ms: 10)
     assert Squash.observe(base("spam", :premium), sender("1")) == :first
@@ -353,6 +399,23 @@ defmodule Ingress.SquashTest do
 
     assert_receive {:published, _subject, cohort}, 500
     assert cohort.count == 2
+  end
+
+  test "opening a new window flushes an expired cohort instead of orphaning it" do
+    start_squash(window_ms: 5, sweep_ms: 60_000)
+
+    assert Squash.observe(base("race"), sender("1")) == :first
+    assert Squash.observe(base("race"), sender("2")) == :buffered
+    Process.sleep(10)
+
+    # A caller can reach the expired row before the periodic sweep. Rotation is
+    # serialized through the cohort owner so the old senders are emitted before
+    # the new generation opens.
+    assert Squash.observe(base("race"), sender("3")) == :first
+
+    assert_receive {:published, _subject, cohort}, 500
+    assert cohort.count == 1
+    assert Enum.map(cohort.senders, & &1.chatter_user_id) == ["2"]
   end
 
   test "observe fails open to :first when the table is absent" do

@@ -10,11 +10,12 @@ defmodule Ingress.Application do
       them to surviving nodes when a node leaves.
     * `Ingress.BroadcasterCache` - in-process ETS cache over the broadcaster
       status NATS RPC (the ingress never reads the database directly).
-    * `Ingress.Squash` - coalesces identical non-command chat into one folded
-      `channel.chat.message` carrying every sender, so duplicates keep their
-      reputation/campaign signal without one bus event each.
-    * `Ingress.Dispatcher` - bounded async notification filtering and NATS
-      publish workers so shard socket processes never do that work inline.
+    * `Ingress.Squash.Pool` - scheduler-sharded duplicate cohort owners. A
+      cohort stays ordered on one owner while unrelated chat folds in parallel.
+    * `Ingress.Dispatcher` - direct, bounded dispatch from websocket processes
+      into supervised worker mailboxes, with no central event queue.
+    * `Ingress.Metrics` - scheduler-friendly ETS counter aggregation; New Relic
+      is called once per counter per flush rather than once per event.
     * `Ingress.Twitch.AppToken` - cached app access token for Helix calls.
     * `Gnat.ConnectionSupervisor` - RPC-plane NATS connection (twitch_ingress
       account), registered as `:gnat`.
@@ -49,12 +50,19 @@ defmodule Ingress.Application do
   def start(_type, _args) do
     children =
       if Application.get_env(:ingress, :server, true) do
+        Config.install_hot_path()
         server_children()
       else
         []
       end
 
     Supervisor.start_link(children, strategy: :one_for_one, name: Ingress.Supervisor)
+  end
+
+  @impl true
+  def stop(_state) do
+    Config.uninstall_hot_path()
+    :ok
   end
 
   defp server_children do
@@ -83,17 +91,17 @@ defmodule Ingress.Application do
       # the acked firehose; this one carries the fire-and-forget status publishes.
       connection_child(:nats_bus_connection, :gnat_bus, Config.nats_bus()),
       Ingress.NatsFailback,
+      # Counter instrumentation is batched through scheduler-friendly ETS so
+      # New Relic never receives one call per ingress event.
+      Ingress.Metrics,
       # Sharded asynchronous ack multiplexer for lane publishes
       # (Ingress.Nats.publish_acked): a pool of BUS connections + collectors so
       # publish throughput scales past a single connection's process ceiling.
       # Must start before the Dispatcher and Squash, which publish through it.
       Ingress.Nats.PublisherPool,
       {Task.Supervisor, name: Ingress.BroadcasterCache.TaskSupervisor},
-      # Runs squash-cohort publishes (JetStream-acked) off the Squash process,
-      # so a slow broker never stalls the sweep.
-      {Task.Supervisor, name: Ingress.PublishSupervisor},
       Ingress.BroadcasterCache,
-      Ingress.Squash,
+      Ingress.Squash.Pool,
       Ingress.Dispatcher.Supervisor,
       Ingress.Twitch.AppToken,
       consumer_child(
