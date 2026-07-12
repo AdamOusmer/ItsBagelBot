@@ -4,10 +4,9 @@ metadata:
   name: valkey
   namespace: valkey
 spec:
-  # Quorum protection: 4 in-cluster sentinels + the external witness1 = 5 total,
-  # so a Sentinel failover needs a majority of 3 alive. Allowing only ONE
-  # voluntary disruption at a time keeps >=3 in-cluster + the witness reachable,
-  # so a careless drain of two nodes can never strand the quorum.
+  # Quorum protection: four in-cluster Sentinels require three votes to
+  # authorize a failover. Allowing only ONE voluntary disruption at a time
+  # keeps that majority reachable.
   maxUnavailable: 1
   # Don't let the budget wedge a node drain when a valkey pod is already
   # unhealthy (e.g. crashlooping on flaky worker1): such pods are evictable

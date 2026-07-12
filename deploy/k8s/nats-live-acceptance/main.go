@@ -37,8 +37,6 @@ type config struct {
 	latencySamples int
 	ackTimeout     time.Duration
 	maxP95         time.Duration
-	mode           string
-	batchSize      int
 	minRate        float64
 	cleanup        bool
 	createStream   bool
@@ -192,8 +190,6 @@ func parseFlags() config {
 	flag.IntVar(&cfg.latencySamples, "latency-samples", 500, "synchronous PubAck RTT samples per endpoint")
 	flag.DurationVar(&cfg.ackTimeout, "ack-timeout", 5*time.Second, "maximum wait for one PubAck")
 	flag.DurationVar(&cfg.maxP95, "max-p95", 20*time.Millisecond, "maximum accepted synchronous PubAck p95")
-	flag.StringVar(&cfg.mode, "mode", "atomic", "publish mode: async or atomic")
-	flag.IntVar(&cfg.batchSize, "batch-size", 128, "messages per atomic commit")
 	flag.Float64Var(&cfg.minRate, "min-rate", 0, "minimum accepted messages/second per endpoint (0 disables)")
 	flag.BoolVar(&cfg.cleanup, "cleanup", true, "delete the temporary stream on exit")
 	flag.BoolVar(&cfg.createStream, "create-stream", true, "create the isolated stream before benchmarking")
@@ -218,17 +214,6 @@ func validateConfig(cfg config) {
 	requirePositive(cfg.publishers, "publishers")
 	requirePositive(cfg.window, "window")
 	requirePositive(cfg.payloadBytes, "payload-bytes")
-	if cfg.batchSize < 2 {
-		log.Fatal("batch-size must be at least 2")
-	}
-	if cfg.batchSize > 1000 {
-		log.Fatal("batch-size must not exceed 1000")
-	}
-	switch cfg.mode {
-	case "async", "atomic":
-	default:
-		log.Fatal("mode must be async or atomic")
-	}
 }
 
 func requireCredentials(cfg config) {
@@ -306,7 +291,7 @@ func connect(cfg config, ep endpoint, tlsConfig *tls.Config, name string) (clien
 }
 
 func benchmark(cfg config, ep endpoint, tlsConfig *tls.Config) (result, error) {
-	r := result{Endpoint: ep.label, Producer: cfg.producerID, Mode: cfg.mode, Messages: cfg.messages}
+	r := result{Endpoint: ep.label, Producer: cfg.producerID, Mode: "nats.go-async-puback", Messages: cfg.messages}
 	clients, err := benchmarkClients(cfg, ep, tlsConfig)
 	if err != nil {
 		return r, err
@@ -377,7 +362,7 @@ func runPublishers(cfg config, clients []client, payload []byte) (*benchmarkCoun
 		go func(publisher int, c client, count int) {
 			defer wg.Done()
 			job := publishJob{cfg: cfg, client: c, publisher: publisher, count: count, payload: payload, counters: counters}
-			err := publishByMode(job)
+			err := publishWindows(job)
 			if err != nil {
 				msg := err.Error()
 				counters.firstErr.CompareAndSwap(nil, &msg)
@@ -437,110 +422,6 @@ type publishJob struct {
 	count     int
 	payload   []byte
 	counters  *benchmarkCounters
-}
-
-func publishByMode(job publishJob) error {
-	if job.cfg.mode == "atomic" {
-		return publishAtomicWindows(job)
-	}
-	return publishWindows(job)
-}
-
-func publishAtomicWindows(job publishJob) error {
-	inbox := nats.NewInbox()
-	replies, err := job.client.nc.SubscribeSync(inbox + ".>")
-	if err != nil {
-		return err
-	}
-	defer replies.Unsubscribe() //nolint:errcheck -- connection close is authoritative
-
-	for offset := 0; offset < job.count; offset += job.cfg.batchSize {
-		size := min(job.cfg.batchSize, job.count-offset)
-		batchID := fmt.Sprintf("%s-%d-%d-%d", job.cfg.producerID, job.publisher, offset, time.Now().UnixNano())
-		window := atomicWindow{job: job, offset: offset, size: size, batchID: batchID, reply: inbox + "." + batchID}
-		if err := sendAcceptanceBatch(window); err != nil {
-			job.counters.failures.Add(int64(size))
-			return err
-		}
-		if err := awaitAcceptanceBatch(window, replies); err != nil {
-			job.counters.failures.Add(int64(size))
-			return err
-		}
-		job.counters.acked.Add(int64(size))
-	}
-	return nil
-}
-
-type atomicWindow struct {
-	job     publishJob
-	offset  int
-	size    int
-	batchID string
-	reply   string
-}
-
-func sendAcceptanceBatch(window atomicWindow) error {
-	for i := 0; i < window.size; i++ {
-		msg := acceptanceBatchMessage(window, i)
-		if err := window.job.client.nc.PublishMsg(msg); err != nil {
-			return fmt.Errorf("publisher %d atomic batch %d member %d: %w", window.job.publisher, window.offset/window.job.cfg.batchSize, i, err)
-		}
-	}
-	return nil
-}
-
-func acceptanceBatchMessage(window atomicWindow, index int) *nats.Msg {
-	job := window.job
-	msg := nats.NewMsg(job.cfg.subject)
-	msg.Data = job.payload
-	msg.Header.Set(nats.MsgIdHdr, fmt.Sprintf("live-%s-%d-%d", job.cfg.producerID, job.publisher, window.offset+index))
-	msg.Header.Set("Nats-Batch-Id", window.batchID)
-	msg.Header.Set("Nats-Batch-Sequence", fmt.Sprint(index+1))
-	msg.Header.Set("Nats-Required-Api-Level", "2")
-	if index == window.size-1 {
-		msg.Header.Set("Nats-Batch-Commit", "1")
-		msg.Reply = window.reply
-	}
-	return msg
-}
-
-func awaitAcceptanceBatch(window atomicWindow, replies *nats.Subscription) error {
-	job := window.job
-	ackMsg, err := replies.NextMsg(job.cfg.ackTimeout)
-	if err != nil {
-		return fmt.Errorf("publisher %d atomic batch %d ack: %w", job.publisher, window.offset/job.cfg.batchSize, err)
-	}
-	var ack jetStreamBatchAck
-	if err := json.Unmarshal(ackMsg.Data, &ack); err != nil {
-		return err
-	}
-	if err := validateBatchAck(ack, window.batchID, window.size); err != nil {
-		return fmt.Errorf("publisher %d: %w", job.publisher, err)
-	}
-	return nil
-}
-
-func validateBatchAck(ack jetStreamBatchAck, batchID string, size int) error {
-	if ack.Error != nil {
-		return fmt.Errorf("batch ack error: %s", ack.Error)
-	}
-	if ack.Batch != batchID {
-		return fmt.Errorf("invalid batch ack id %q", ack.Batch)
-	}
-	if ack.Count != size {
-		return fmt.Errorf("invalid batch ack count %d", ack.Count)
-	}
-	if ack.Sequence == 0 {
-		return errors.New("invalid batch ack sequence 0")
-	}
-	return nil
-}
-
-type jetStreamBatchAck struct {
-	Sequence uint64          `json:"seq"`
-	Batch    string          `json:"batch"`
-	Count    int             `json:"count"`
-	Error    json.RawMessage `json:"error,omitempty"`
 }
 
 func publishWindows(job publishJob) error {

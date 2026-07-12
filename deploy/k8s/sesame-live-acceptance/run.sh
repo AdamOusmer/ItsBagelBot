@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # Isolated production Sesame capacity test. The temporary stream, consumer,
-# Valkey dedup keys (2 minute TTL), pod and local binary are self-cleaning.
+# The temporary stream, consumer, pod and local binary are self-cleaning.
 set -euo pipefail
 
 namespace=${NAMESPACE:-production}
 node=${NODE:-node3}
 messages=${MESSAGES:-50000}
-dedup=${DEDUP:-valkey}
-min_routines=${MIN_ROUTINES:-50}
-max_routines=${MAX_ROUTINES:-200}
+channels=${CHANNELS:-1}
+min_routines=${MIN_ROUTINES:-100}
+max_routines=${MAX_ROUTINES:-100}
 min_consumers=${MIN_CONSUMERS:-1}
 max_consumers=${MAX_CONSUMERS:-4}
 output_mode=${OUTPUT_MODE:-nats}
@@ -54,7 +54,7 @@ kubectl -n "$namespace" cp "$binary" "$pod:/tmp/sesame-live-acceptance"
 
 kubectl -n "$namespace" exec "$pod" -- /tmp/sesame-live-acceptance \
   -url "$nats_url" -output-url "$output_nats_url" \
-  -messages "$messages" -dedup "$dedup" \
+  -messages "$messages" -channels "$channels" \
   -output "$output_mode" \
   -min-routines "$min_routines" -max-routines "$max_routines" \
   -min-consumers "$min_consumers" -max-consumers "$max_consumers" >"$result_file" &

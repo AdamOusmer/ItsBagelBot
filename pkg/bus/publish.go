@@ -2,10 +2,28 @@ package bus
 
 import (
 	"context"
+	"errors"
 
 	"github.com/bytedance/sonic"
 	"go.uber.org/zap"
 )
+
+type publishPartitionKey struct{}
+
+// WithPublishPartition preserves ordering for one logical aggregate while
+// allowing unrelated aggregates to use separate pooled connections. A channel
+// or tenant ID is a good key; callers that omit it retain stream-wide ordering.
+func WithPublishPartition(ctx context.Context, partition string) context.Context {
+	if partition == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, publishPartitionKey{}, partition)
+}
+
+func publishPartition(ctx context.Context) string {
+	partition, _ := ctx.Value(publishPartitionKey{}).(string)
+	return partition
+}
 
 // Publisher is the fleet-owned durable asynchronous publish contract. Service
 // code owns payload semantics while pkg/bus owns payload lifetime, IDs, trace
@@ -15,6 +33,10 @@ type Publisher interface {
 	// of its backing bytes on success. Prefer PublishJSON or PublishRaw at call
 	// sites so ownership is explicit and safe.
 	PublishOwned(ctx context.Context, subject string, payload []byte) error
+	// PublishOwnedWithID publishes one logical output under a stable identity and
+	// waits for its cohort's final PubAck. Replaying the same ID inside the
+	// stream's duplicate window succeeds without storing a second copy.
+	PublishOwnedWithID(ctx context.Context, subject, id string, payload []byte) error
 	// Flush waits until every message admitted before the call has a final PubAck
 	// (including individual dedup reconciliation after an ambiguous batch ack).
 	Flush(ctx context.Context) error
@@ -26,6 +48,14 @@ type Publisher interface {
 // streams can publish in parallel.
 func NewPublisher(url string, log *zap.Logger) (Publisher, error) {
 	return newPublisherPool(url, log)
+}
+
+// NewPublisherForStream builds the same fleet publisher for a dynamically
+// provisioned stream whose subjects are not part of the static fleet catalog.
+// It is used by isolated acceptance tests and keeps all transport behavior in
+// this package instead of reimplementing a benchmark-only publisher.
+func NewPublisherForStream(url, stream string, log *zap.Logger) (Publisher, error) {
+	return newPublisherPoolForStream(url, stream, log)
 }
 
 // PublishJSON gives Sonic's result buffer directly to the asynchronous
@@ -44,4 +74,22 @@ func PublishJSON(ctx context.Context, pub Publisher, subject string, payload any
 func PublishRaw(ctx context.Context, pub Publisher, subject string, payload []byte) error {
 	body := append([]byte(nil), payload...)
 	return pub.PublishOwned(ctx, subject, body)
+}
+
+// Publication is one caller-owned payload and its stable broker identity.
+type Publication struct {
+	Subject string
+	ID      string
+	Payload []byte
+}
+
+// PublishConfirmed copies caller-owned bytes and publishes them under a stable
+// replay identity. Rejecting an empty ID prevents callers from silently losing
+// idempotency on a path that explicitly requested it.
+func PublishConfirmed(ctx context.Context, pub Publisher, publication Publication) error {
+	if publication.ID == "" {
+		return errors.New("bus: idempotent publish requires an ID")
+	}
+	body := append([]byte(nil), publication.Payload...)
+	return pub.PublishOwnedWithID(ctx, publication.Subject, publication.ID, body)
 }

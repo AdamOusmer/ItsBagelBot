@@ -165,16 +165,20 @@ spec:
               value: worker
             # Production acceptance found one Watermill subscription serialized
             # the pod at 20/s through the leaf. The fleet-owned concurrent hub
-            # subscriber sustains four queue subscriptions with 50 handler slots
-            # each. Keep this measured connection floor resident before KEDA
-            # polls; increasing per-connection routines beyond 50 worsened p95.
+            # subscriber sustains four queue subscriptions with 100 handler slots
+            # each. This fills one confirmed PubAck cohort per publisher connection;
+            # 200 slots added only ~2% throughput while more than doubling p95.
             - name: SESAME_MIN_ROUTINES
-              value: "50"
+              value: "100"
             - name: SESAME_MAX_ROUTINES
-              value: "50"
+              value: "100"
             - name: SESAME_MIN_CONSUMERS
               value: "4"
             - name: SESAME_MAX_CONSUMERS
+              value: "4"
+            # Four ordered publishers hash by broadcaster: one channel remains
+            # ordered while unrelated channels can overlap confirmation cohorts.
+            - name: NATS_PUBLISH_CONNECTIONS
               value: "4"
             - name: SESAME_SCALE_UP_AFTER
               value: 2s
@@ -248,9 +252,8 @@ spec:
     matchLabels:
       app: sesame
 ---
-# Sesame is the CPU-bound half (decode/dedup/module-dispatch/templating), so
-# unlike outgress this is real throughput headroom, not just resilience -
-# hence the wider maxReplicaCount. minReplicaCount 5 keeps the baseline shape
+# Sesame's engine is sub-100us p95; confirmed NATS input/output is the measured
+# capacity boundary. minReplicaCount 5 keeps the baseline shape
 # node3=2, worker1=2, node2=1 (see the Deployment's graded node preferences)
 # without waiting on a scale-up; node2 stays light on purpose.
 # Consumer names are bus.durableName("worker", subject) - sesame
@@ -296,9 +299,9 @@ spec:
         account: BUS
         stream: TWITCH_INGRESS
         consumer: worker_twitch_ingress_event_premium
-        # Four resident connections measured >=8k commands/s per pod under the
-        # shared dependency load. Premium owns 25% of that capacity.
-        lagThreshold: "2000"
+        # The slowest node measured 6.68k commands/s under simultaneous
+        # three-node load. Premium reserves 25% of that conservative capacity.
+        lagThreshold: "1500"
         activationLagThreshold: "500"
     - type: nats-jetstream
       metadata:
@@ -307,7 +310,7 @@ spec:
         stream: TWITCH_INGRESS
         consumer: worker_twitch_ingress_event_standard
         # Do not add a whole pod for breadcrumbs: at the five-pod floor this
-        # scales only beyond ~40k queued standard events (about one second of
-        # conservative measured drain capacity).
-        lagThreshold: "8000"
+        # scales only beyond ~30k queued standard events at the five-pod floor,
+        # not a few hundred events of ordinary jitter.
+        lagThreshold: "6000"
         activationLagThreshold: "2000"

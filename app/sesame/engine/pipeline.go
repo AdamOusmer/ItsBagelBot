@@ -2,7 +2,9 @@ package engine
 
 import (
 	"context"
-	"fmt"
+	"crypto/sha256"
+	"encoding/hex"
+	"strconv"
 
 	"ItsBagelBot/app/sesame/automod"
 	"ItsBagelBot/app/sesame/module"
@@ -65,7 +67,6 @@ type Pipeline struct {
 
 	live     IsLiveChecker
 	cooldown CooldownStore
-	dedup    DedupStore
 	uses     *useReporter
 	loyalty  LoyaltyStore
 
@@ -95,7 +96,6 @@ func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 		registry:         registry,
 		live:             d.Live,
 		cooldown:         d.Cooldown,
-		dedup:            d.Dedup,
 		loyalty:          d.Loyalty,
 		botID:            cfg.BotID,
 		outgressPremium:  cfg.OutgressPremium,
@@ -106,9 +106,6 @@ func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 		campaign:         d.Campaign,
 		shieldEnabled:    cfg.ShieldEnabled,
 		raidGate:         newRaidCooldown(raidCooldownTTL),
-	}
-	if p.dedup == nil {
-		p.dedup = NoopDedup{}
 	}
 	if cfg.CountUses && d.Pub != nil {
 		p.uses = newUseReporter(d.Pub, d.Log)
@@ -150,14 +147,6 @@ func (p *Pipeline) Process(msg *message.Message) (err error) {
 	}
 	traceEvent(ctx, env.Type, broadcasterID)
 
-	release, proceed := p.claimDedup(ctx, env, broadcasterID)
-	if !proceed {
-		return nil
-	}
-	if release != nil {
-		defer func() { release(err) }()
-	}
-
 	views, err := p.moduleViews(ctx, env.Type, broadcasterID)
 	if err != nil {
 		return err // infrastructure failure: nack
@@ -166,12 +155,20 @@ func (p *Pipeline) Process(msg *message.Message) (err error) {
 	mctx := p.leaseContext(env, broadcasterID)
 	defer PutContext(mctx)
 
-	var emitErr error
-	emit := p.newEmit(ctx, p.laneSubject(mctx.Regress), &emitErr)
+	emission := emitState{
+		subject:    p.laneSubject(mctx.Regress),
+		replayBase: outputReplayBase(env),
+	}
+	emit := p.newEmit(ctx, env.BroadcasterUserID, &emission)
 	p.runStages(ctx, mctx, views, emit)
+	if emission.err == nil && emission.needsFlush {
+		// Legacy envelopes without EventID cannot use a stable confirmed publish;
+		// flush their asynchronous admission before confirming the input ack.
+		emission.err = p.pub.Flush(ctx)
+	}
 
 	// nil = ack; a publish/marshal failure on the emit path = nack.
-	return emitErr
+	return emission.err
 }
 
 // eligible reports whether this envelope needs any work: the bot's own chat is
@@ -196,13 +193,22 @@ func (p *Pipeline) leaseContext(env *lane.Envelope, broadcasterID uint64) *modul
 	return mctx
 }
 
+type emitState struct {
+	subject    string
+	replayBase string
+	ordinal    int
+	needsFlush bool
+	err        error
+}
+
 // newEmit builds the sink command Run and event handlers hand their Outputs
-// to. The first publish or marshal failure is captured in *emitErr (which
+// to. The first publish or marshal failure is captured in state (which
 // nacks) and short-circuits the rest. The sink only builds an outgress message
 // when a handler actually emits, so the no-output hot path stays free.
-func (p *Pipeline) newEmit(ctx context.Context, subject string, emitErr *error) module.Emit {
+func (p *Pipeline) newEmit(ctx context.Context, partition string, state *emitState) module.Emit {
+	ctx = bus.WithPublishPartition(ctx, partition)
 	return func(o *module.Output) {
-		if *emitErr != nil {
+		if state.err != nil {
 			return
 		}
 		if o == nil || o.Type == "" {
@@ -211,8 +217,14 @@ func (p *Pipeline) newEmit(ctx context.Context, subject string, emitErr *error) 
 		if p.floorSuppressed(o) {
 			return
 		}
-		if perr := p.publishOutput(ctx, subject, o); perr != nil {
-			*emitErr = perr
+		state.ordinal++
+		replayID := replayOutputID(state.replayBase, state.ordinal)
+		if err := p.publishOutput(ctx, state.subject, replayID, o); err != nil {
+			state.err = err
+			return
+		}
+		if replayID == "" {
+			state.needsFlush = true
 		}
 	}
 }
@@ -236,39 +248,6 @@ func (p *Pipeline) runStages(ctx context.Context, mctx *module.Context, views ma
 		p.ensureLocale(ctx, mctx)
 		p.runHandlers(ctx, views, mctx, emit)
 	}
-}
-
-// claimDedup claims the event's dedup key when it carries an EventID. proceed
-// reports whether processing should continue: false means another replica
-// already claimed this event. The returned release (nil when nothing was
-// claimed) puts the claim back when processing ended in an error, so
-// redelivery can retry the event. A claim-store error fails open: the event
-// processes anyway.
-func (p *Pipeline) claimDedup(ctx context.Context, env *lane.Envelope, broadcasterID uint64) (release func(error), proceed bool) {
-	if env.EventID == "" {
-		return nil, true
-	}
-
-	dedupKey := fmt.Sprintf("sesame:dedup:%d:%s", broadcasterID, env.EventID)
-	claimed, err := p.dedup.Claim(ctx, dedupKey)
-	if err != nil {
-		p.log.Warn("dedup claim failed; processing event", zap.String("dedup_key", dedupKey), zap.Error(err))
-		notice(ctx, err)
-		return nil, true
-	}
-	if !claimed {
-		return nil, false
-	}
-
-	return func(procErr error) {
-		if procErr == nil {
-			return
-		}
-		if relErr := p.dedup.Release(ctx, dedupKey); relErr != nil {
-			p.log.Warn("dedup release failed", zap.String("dedup_key", dedupKey), zap.Error(relErr))
-			notice(ctx, relErr)
-		}
-	}, true
 }
 
 // laneSubject picks the outgress lane a message's emissions ride: premium vs
@@ -305,12 +284,34 @@ func (p *Pipeline) floorSuppressed(o *module.Output) bool {
 
 // publishOutput translates one Output to the outgress wire contract and
 // publishes it on the lane subject.
-func (p *Pipeline) publishOutput(ctx context.Context, subject string, o *module.Output) error {
+func (p *Pipeline) publishOutput(ctx context.Context, subject, replayID string, o *module.Output) error {
 	body, err := buildOutgress(o)
 	if err != nil {
 		return err
 	}
-	return bus.PublishRaw(ctx, p.pub, subject, body)
+	if replayID == "" {
+		return bus.PublishRaw(ctx, p.pub, subject, body)
+	}
+	return bus.PublishConfirmed(ctx, p.pub, bus.Publication{Subject: subject, ID: replayID, Payload: body})
+}
+
+// outputReplayBase turns the EventSub identity into a fixed, header-safe NATS
+// publication namespace. Ingress already uses EventID as Nats-Msg-Id; carrying
+// that logical identity through Sesame lets JetStream fold outputs when an
+// input is replayed after an uncertain consumer acknowledgement.
+func outputReplayBase(env *lane.Envelope) string {
+	if env == nil || env.EventID == "" {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(env.BroadcasterUserID + "\x00" + env.EventID))
+	return "sesame:" + hex.EncodeToString(sum[:16])
+}
+
+func replayOutputID(base string, ordinal int) string {
+	if base == "" {
+		return ""
+	}
+	return base + ":" + strconv.Itoa(ordinal)
 }
 
 // ensureLocale loads the broadcaster's locale for handler-emitted system text,

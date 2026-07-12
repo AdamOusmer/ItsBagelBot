@@ -22,6 +22,7 @@ import (
 // captured is one published outgress message with the subject it rode.
 type captured struct {
 	subject string
+	id      string
 	msg     outgress.Message
 }
 
@@ -31,12 +32,16 @@ type fakePublisher struct {
 }
 
 func (p *fakePublisher) PublishOwned(_ context.Context, subject string, payload []byte) error {
+	return p.PublishOwnedWithID(context.Background(), subject, "", payload)
+}
+
+func (p *fakePublisher) PublishOwnedWithID(_ context.Context, subject, id string, payload []byte) error {
 	if p.failErr != nil {
 		return p.failErr
 	}
 	var om outgress.Message
 	_ = sonic.Unmarshal(payload, &om)
-	p.got = append(p.got, captured{subject: subject, msg: om})
+	p.got = append(p.got, captured{subject: subject, id: id, msg: om})
 	return nil
 }
 
