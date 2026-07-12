@@ -54,6 +54,12 @@ type publisherPool struct {
 	router  StreamRouter
 }
 
+type publisherConnectionConfig struct {
+	url   string
+	index int
+	log   *zap.Logger
+}
+
 // batchPublisher is one pooled connection with one active-object batcher per
 // JetStream stream assigned by StreamRouter.
 type batchPublisher struct {
@@ -117,7 +123,7 @@ func newPublisherPool(url string, log *zap.Logger) (Publisher, error) {
 	}
 	pool := &publisherPool{members: make([]*batchPublisher, 0, poolSize), router: hashStreamRouter{}}
 	for i := 0; i < poolSize; i++ {
-		member, err := newBatchPublisherConnection(url, i, log)
+		member, err := newBatchPublisherConnection(publisherConnectionConfig{url: url, index: i, log: log})
 		if err != nil {
 			_ = pool.Close()
 			return nil, err
@@ -127,8 +133,8 @@ func newPublisherPool(url string, log *zap.Logger) (Publisher, error) {
 	return pool, nil
 }
 
-func newBatchPublisherConnection(url string, index int, log *zap.Logger) (*batchPublisher, error) {
-	nc, err := nats.Connect(busURL(url), busOptions(fmt.Sprintf("batch-publisher-%d", index))...)
+func newBatchPublisherConnection(cfg publisherConnectionConfig) (*batchPublisher, error) {
+	nc, err := nats.Connect(busURL(cfg.url), busOptions(fmt.Sprintf("batch-publisher-%d", cfg.index))...)
 	if err != nil {
 		return nil, fmt.Errorf("bus: connect batch publisher: %w", err)
 	}
@@ -138,7 +144,7 @@ func newBatchPublisherConnection(url string, index int, log *zap.Logger) (*batch
 		return nil, fmt.Errorf("bus: jetstream batch publisher: %w", err)
 	}
 	return &batchPublisher{
-		nc: nc, js: js, log: log,
+		nc: nc, js: js, log: cfg.log,
 		workers: make(map[string]*publishBatchWorker),
 		changed: make(chan struct{}),
 	}, nil
@@ -150,7 +156,7 @@ func (p *publisherPool) PublishOwned(ctx context.Context, topic string, payload 
 		return err
 	}
 	member := p.members[p.router.Connection(stream, len(p.members))]
-	return member.publish(ctx, stream, topic, payload)
+	return member.publish(ownedPublish{ctx: ctx, stream: stream, topic: topic, payload: payload})
 }
 
 func (p *publisherPool) Flush(ctx context.Context) error {
@@ -175,15 +181,22 @@ func (p *publisherPool) Close() error {
 	return nil
 }
 
-func (p *batchPublisher) publish(ctx context.Context, stream, topic string, payload []byte) error {
+type ownedPublish struct {
+	ctx     context.Context
+	stream  string
+	topic   string
+	payload []byte
+}
+
+func (p *batchPublisher) publish(req ownedPublish) error {
 	// JetStream deduplication requires a unique token, not UUID formatting.
 	// NUID avoids UUIDv7's wall-clock/random-source coordination on this hot path.
 	msgID := nuid.Next()
-	wire := nats.NewMsg(topic)
-	wire.Data = payload
+	wire := nats.NewMsg(req.topic)
+	wire.Data = req.payload
 	wire.Header.Set(nats.MsgIdHdr, msgID)
 	wire.Header.Set(watermillUUIDHeader, msgID)
-	if txn := newrelic.FromContext(ctx); txn != nil {
+	if txn := newrelic.FromContext(req.ctx); txn != nil {
 		headers := http.Header{}
 		txn.InsertDistributedTraceHeaders(headers)
 		for key := range headers {
@@ -196,7 +209,7 @@ func (p *batchPublisher) publish(ctx context.Context, stream, topic string, payl
 	if p.closed {
 		return errors.New("bus: publisher is closed")
 	}
-	worker, err := p.workerLocked(stream)
+	worker, err := p.workerLocked(req.stream)
 	if err != nil {
 		return err
 	}
@@ -206,8 +219,8 @@ func (p *batchPublisher) publish(ctx context.Context, stream, topic string, payl
 	case worker.requests <- request:
 		p.markAccepted()
 		return nil
-	case <-ctx.Done():
-		return ctx.Err()
+	case <-req.ctx.Done():
+		return req.ctx.Err()
 	}
 }
 
@@ -273,16 +286,21 @@ func (p *batchPublisher) markAccepted() {
 	p.stateMu.Unlock()
 }
 
-func (p *batchPublisher) complete(count int, err error) {
+type publishCompletion struct {
+	count int
+	err   error
+}
+
+func (p *batchPublisher) complete(completion publishCompletion) {
 	p.stateMu.Lock()
-	p.completed += uint64(count)
-	if err != nil && p.firstErr == nil {
-		p.firstErr = err
+	p.completed += uint64(completion.count)
+	if completion.err != nil && p.firstErr == nil {
+		p.firstErr = completion.err
 	}
 	p.notifyLocked()
 	p.stateMu.Unlock()
-	if err != nil {
-		p.log.Error("asynchronous NATS publish failed", zap.Int("messages", count), zap.Error(err))
+	if completion.err != nil {
+		p.log.Error("asynchronous NATS publish failed", zap.Int("messages", completion.count), zap.Error(completion.err))
 	}
 }
 
@@ -356,11 +374,11 @@ func stopAndDrainTimer(timer *time.Timer) {
 
 func (w *publishBatchWorker) publish(batch []publishRequest) {
 	if len(batch) == 1 {
-		w.owner.complete(1, w.publishOne(batch[0]))
+		w.owner.complete(publishCompletion{count: 1, err: w.publishOne(batch[0])})
 		return
 	}
 	if err := w.publishAtomic(batch); err == nil {
-		w.owner.complete(len(batch), nil)
+		w.owner.complete(publishCompletion{count: len(batch)})
 		return
 	} else {
 		// The final PubAck can be lost after a successful commit, and a batch can
@@ -376,21 +394,27 @@ func (w *publishBatchWorker) publish(batch []publishRequest) {
 			firstErr = err
 		}
 	}
-	w.owner.complete(len(batch), firstErr)
+	w.owner.complete(publishCompletion{count: len(batch), err: firstErr})
 }
 
 func (w *publishBatchWorker) publishAtomic(batch []publishRequest) error {
-	batchID := nuid.Next()
-	reply := w.inbox + "." + batchID
-	if err := w.sendAtomicBatch(batch, batchID, reply); err != nil {
+	atomic := atomicBatch{requests: batch, id: nuid.Next()}
+	atomic.reply = w.inbox + "." + atomic.id
+	if err := w.sendAtomicBatch(atomic); err != nil {
 		return err
 	}
-	return w.awaitAtomicAck(batchID, len(batch))
+	return w.awaitAtomicAck(atomic)
 }
 
-func (w *publishBatchWorker) sendAtomicBatch(batch []publishRequest, batchID, reply string) error {
-	for i := range batch {
-		msg := atomicBatchMessage(batch[i].msg, batchID, i, len(batch), reply)
+type atomicBatch struct {
+	requests []publishRequest
+	id       string
+	reply    string
+}
+
+func (w *publishBatchWorker) sendAtomicBatch(batch atomicBatch) error {
+	for i := range batch.requests {
+		msg := atomicBatchMessage(batch, i)
 		if err := w.nc.PublishMsg(msg); err != nil {
 			return fmt.Errorf("send atomic batch member %d: %w", i+1, err)
 		}
@@ -398,18 +422,19 @@ func (w *publishBatchWorker) sendAtomicBatch(batch []publishRequest, batchID, re
 	return nil
 }
 
-func atomicBatchMessage(msg *nats.Msg, batchID string, index, count int, reply string) *nats.Msg {
-	msg.Header.Set(batchIDHeader, batchID)
+func atomicBatchMessage(batch atomicBatch, index int) *nats.Msg {
+	msg := batch.requests[index].msg
+	msg.Header.Set(batchIDHeader, batch.id)
 	msg.Header.Set(batchSequenceHeader, fmt.Sprint(index+1))
 	msg.Header.Set(requiredAPIHeader, "2")
-	if index == count-1 {
+	if index == len(batch.requests)-1 {
 		msg.Header.Set(batchCommitHeader, "1")
-		msg.Reply = reply
+		msg.Reply = batch.reply
 	}
 	return msg
 }
 
-func (w *publishBatchWorker) awaitAtomicAck(batchID string, count int) error {
+func (w *publishBatchWorker) awaitAtomicAck(batch atomicBatch) error {
 	ackMsg, err := w.replies.NextMsg(defaultPublishAckWait)
 	if err != nil {
 		return fmt.Errorf("wait atomic batch ack: %w", err)
@@ -425,10 +450,10 @@ func (w *publishBatchWorker) awaitAtomicAck(batchID string, count int) error {
 	if ack.Sequence == 0 {
 		return fmt.Errorf("invalid atomic batch ack: missing sequence")
 	}
-	if ack.Batch != batchID {
-		return fmt.Errorf("invalid atomic batch ack: batch=%q want=%q", ack.Batch, batchID)
+	if ack.Batch != batch.id {
+		return fmt.Errorf("invalid atomic batch ack: batch=%q want=%q", ack.Batch, batch.id)
 	}
-	if ack.Count != count {
+	if ack.Count != len(batch.requests) {
 		return fmt.Errorf("invalid atomic batch ack: seq=%d batch=%q count=%d",
 			ack.Sequence, ack.Batch, ack.Count)
 	}
@@ -457,5 +482,5 @@ func cloneWithoutBatchHeaders(src *nats.Msg) *nats.Msg {
 }
 
 func (w *publishBatchWorker) fail(batch []publishRequest, err error) {
-	w.owner.complete(len(batch), err)
+	w.owner.complete(publishCompletion{count: len(batch), err: err})
 }

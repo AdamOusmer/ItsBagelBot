@@ -277,48 +277,58 @@ func applyConfigEnvironment(cfg *config) {
 }
 
 func validateConfig(cfg config) {
-	validateChoice(cfg.outputMode, "output", "nats", "memory")
-	validateChoice(cfg.dedup, "dedup", "valkey", "noop")
-	requirePositive(cfg.messages, "messages")
-	requirePositive(cfg.minRoutines, "min-routines")
-	requireAtLeast(cfg.maxRoutines, cfg.minRoutines, "max-routines")
-	requirePositive(cfg.minConsumers, "min-consumers")
-	requireAtLeast(cfg.maxConsumers, cfg.minConsumers, "max-consumers")
-	requireText(cfg.user, "NATS_USER")
-	requireText(cfg.password, "NATS_PASSWORD")
-	requireText(cfg.subUser, "NATS_SUB_USER")
-	requireText(cfg.subPassword, "NATS_SUB_PASSWORD")
+	choice{value: cfg.outputMode, name: "output", allowed: []string{"nats", "memory"}}.validate()
+	choice{value: cfg.dedup, name: "dedup", allowed: []string{"valkey", "noop"}}.validate()
+	bound{value: cfg.messages, minimum: 1, name: "messages"}.validate()
+	bound{value: cfg.minRoutines, minimum: 1, name: "min-routines"}.validate()
+	bound{value: cfg.maxRoutines, minimum: cfg.minRoutines, name: "max-routines"}.validate()
+	bound{value: cfg.minConsumers, minimum: 1, name: "min-consumers"}.validate()
+	bound{value: cfg.maxConsumers, minimum: cfg.minConsumers, name: "max-consumers"}.validate()
+	requiredText{value: cfg.user, name: "NATS_USER"}.validate()
+	requiredText{value: cfg.password, name: "NATS_PASSWORD"}.validate()
+	requiredText{value: cfg.subUser, name: "NATS_SUB_USER"}.validate()
+	requiredText{value: cfg.subPassword, name: "NATS_SUB_PASSWORD"}.validate()
 	if cfg.dedup == "valkey" {
-		requireText(cfg.valkeyAddr, "VALKEY_ADDR")
-		requireText(cfg.valkeyPass, "VALKEY_PASSWORD")
+		requiredText{value: cfg.valkeyAddr, name: "VALKEY_ADDR"}.validate()
+		requiredText{value: cfg.valkeyPass, name: "VALKEY_PASSWORD"}.validate()
 	}
 }
 
-func validateChoice(value, name, first, second string) {
-	if value == first {
-		return
-	}
-	if value == second {
-		return
-	}
-	panic(name + " must be " + first + " or " + second)
+type choice struct {
+	value   string
+	name    string
+	allowed []string
 }
 
-func requirePositive(value int, name string) {
-	if value < 1 {
-		panic(name + " must be positive")
+func (c choice) validate() {
+	for _, allowed := range c.allowed {
+		if c.value == allowed {
+			return
+		}
+	}
+	panic(c.name + " has an unsupported value")
+}
+
+type bound struct {
+	value   int
+	minimum int
+	name    string
+}
+
+func (b bound) validate() {
+	if b.value < b.minimum {
+		panic(b.name + " is below its minimum")
 	}
 }
 
-func requireAtLeast(value, minimum int, name string) {
-	if value < minimum {
-		panic(name + " is below its minimum")
-	}
+type requiredText struct {
+	value string
+	name  string
 }
 
-func requireText(value, name string) {
-	if value == "" {
-		panic(name + " is required")
+func (r requiredText) validate() {
+	if r.value == "" {
+		panic(r.name + " is required")
 	}
 }
 
@@ -338,35 +348,56 @@ func run(cfg config) (r result, returnErr error) {
 	if err := prefill(cfg, fixture.js); err != nil {
 		return r, err
 	}
-	output, err := newMeasuredPublisher(cfg)
+	resources, err := newEngineFixture(cfg, log)
 	if err != nil {
 		return r, err
 	}
-	defer output.Close() //nolint:errcheck -- explicit flush below reports failures
-	dedup, err := newDedupFixture(cfg)
-	if err != nil {
-		return r, err
-	}
-	defer dedup.Close()
-	pipe := engine.NewPipeline(engine.Deps{
-		Proj: benchReader{}, Live: liveAlways{}, Cooldown: engine.NoopCooldown{}, Dedup: dedup.store,
-		Pub: output, Log: log, Automod: automod.New(),
-	}, engine.NewRegistry(log), engine.Config{
-		OutgressPremium: cfg.output, OutgressStandard: cfg.output,
-	})
-	defer pipe.Close()
-	sub, err := newBenchmarkSubscriber(cfg, log)
-	if err != nil {
-		return r, err
-	}
-	defer sub.Close() //nolint:errcheck
-	execution := pipelineExecution{cfg: cfg, pipe: pipe, sub: sub, output: output, log: log}
+	defer resources.Close()
+	execution := pipelineExecution{cfg: cfg, pipe: resources.pipe, sub: resources.sub, output: resources.output, log: log}
 	metrics, err := executePipeline(execution)
 	metrics.apply(&r)
 	if err != nil {
 		return r, err
 	}
 	return r, validateResult(cfg, r)
+}
+
+type engineFixture struct {
+	output measuredPublisher
+	dedup  dedupFixture
+	pipe   *engine.Pipeline
+	sub    message.Subscriber
+}
+
+func newEngineFixture(cfg config, log *zap.Logger) (*engineFixture, error) {
+	output, err := newMeasuredPublisher(cfg)
+	if err != nil {
+		return nil, err
+	}
+	dedup, err := newDedupFixture(cfg)
+	if err != nil {
+		_ = output.Close()
+		return nil, err
+	}
+	pipe := engine.NewPipeline(engine.Deps{
+		Proj: benchReader{}, Live: liveAlways{}, Cooldown: engine.NoopCooldown{}, Dedup: dedup.store,
+		Pub: output, Log: log, Automod: automod.New(),
+	}, engine.NewRegistry(log), engine.Config{OutgressPremium: cfg.output, OutgressStandard: cfg.output})
+	sub, err := newBenchmarkSubscriber(cfg, log)
+	if err != nil {
+		pipe.Close()
+		dedup.Close()
+		_ = output.Close()
+		return nil, err
+	}
+	return &engineFixture{output: output, dedup: dedup, pipe: pipe, sub: sub}, nil
+}
+
+func (f *engineFixture) Close() {
+	_ = f.sub.Close()
+	f.pipe.Close()
+	f.dedup.Close()
+	_ = f.output.Close()
 }
 
 func initialResult(cfg config) result {

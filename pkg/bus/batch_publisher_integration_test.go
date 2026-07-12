@@ -79,15 +79,31 @@ func publishIntegrationBurst(t *testing.T, pub Publisher, messages int) {
 
 func assertIntegrationStream(t *testing.T, url string, messages uint64) {
 	t.Helper()
+	nc, js := integrationJetStream(t, url)
+	defer nc.Close()
+	assertStoredCount(t, js, messages)
+	assertBatchFeatures(t, nc)
+	if batched := countBatchedMessages(t, js, messages); batched < 2 {
+		t.Fatalf("only %d/%d writes used a batch", batched, messages)
+	}
+}
+
+func integrationJetStream(t *testing.T, url string) (*nats.Conn, nats.JetStreamContext) {
+	t.Helper()
 	nc, err := nats.Connect(url)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer nc.Close()
 	js, err := nc.JetStream(nats.Domain("hub"), nats.MaxWait(2*time.Second))
 	if err != nil {
+		nc.Close()
 		t.Fatal(err)
 	}
+	return nc, js
+}
+
+func assertStoredCount(t *testing.T, js nats.JetStreamContext, messages uint64) {
+	t.Helper()
 	info, err := js.StreamInfo("BAGEL_DATA")
 	if err != nil {
 		t.Fatal(err)
@@ -95,6 +111,10 @@ func assertIntegrationStream(t *testing.T, url string, messages uint64) {
 	if info.State.Msgs != messages {
 		t.Fatalf("stored %d messages, want %d", info.State.Msgs, messages)
 	}
+}
+
+func assertBatchFeatures(t *testing.T, nc *nats.Conn) {
+	t.Helper()
 	modern, err := jsapi.NewWithDomain(nc, "hub")
 	if err != nil {
 		t.Fatal(err)
@@ -110,7 +130,10 @@ func assertIntegrationStream(t *testing.T, url string, messages uint64) {
 	if !config.AllowBatchPublish {
 		t.Fatal("stream did not retain NATS 2.14 batch feature flags")
 	}
+}
 
+func countBatchedMessages(t *testing.T, js nats.JetStreamContext, messages uint64) int {
+	t.Helper()
 	batched := 0
 	for seq := uint64(1); seq <= messages; seq++ {
 		msg, err := js.GetMsg("BAGEL_DATA", seq)
@@ -121,10 +144,7 @@ func assertIntegrationStream(t *testing.T, url string, messages uint64) {
 			batched++
 		}
 	}
-	if batched < 2 {
-		t.Fatalf("only %d/%d writes used a batch", batched, messages)
-	}
-
+	return batched
 }
 
 // BenchmarkBatchPublisherIntegration measures the exact fleet Publisher
