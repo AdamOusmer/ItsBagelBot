@@ -49,17 +49,18 @@ type QuotesStore interface {
 // builds its Module. main constructs it once and hands it to modules.All. Not
 // every module uses every field; unused ones are harmless.
 type Deps struct {
-	Proj      projection.Reader
-	Live      LiveStore
-	Greet     GreetStore
-	Cooldown  CooldownStore
-	Dedup     DedupStore
-	Special   *SpecialSet
-	Pub       message.Publisher
-	Commands  CommandManager
-	Gateway   GatewayCaller
-	Followage FollowageLookup
-	Log       *zap.Logger
+	Proj       projection.Reader
+	Live       LiveStore
+	Greet      GreetStore
+	Cooldown   CooldownStore
+	Dedup      DedupStore
+	Special    *SpecialSet
+	Pub        message.Publisher
+	Commands   CommandManager
+	Gateway    GatewayCaller
+	Followage  FollowageLookup
+	AccountAge AccountAgeLookup
+	Log        *zap.Logger
 	// Timers arms/disarms a broadcaster's repeating chat-message timers for the
 	// length of one stream; ValkeyTimerStore is the default. nil disables it (the
 	// live module's stream.online/offline hooks skip the calls).

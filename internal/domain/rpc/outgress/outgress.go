@@ -17,3 +17,15 @@ type FollowageReply struct {
 	FollowedAt time.Time `json:"followed_at,omitempty"`
 	Error      string    `json:"error,omitempty"`
 }
+
+type AccountAgeRequest struct {
+	TargetID    string `json:"target_id,omitempty"`
+	TargetLogin string `json:"target_login,omitempty"`
+}
+
+type AccountAgeReply struct {
+	TargetID  string    `json:"target_id,omitempty"`
+	UserFound bool      `json:"user_found"`
+	CreatedAt time.Time `json:"created_at,omitempty"`
+	Error     string    `json:"error,omitempty"`
+}

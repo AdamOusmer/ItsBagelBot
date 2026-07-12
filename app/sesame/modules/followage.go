@@ -14,68 +14,119 @@ import (
 )
 
 const (
-	followageModuleName = "followage"
-	followageCooldown   = 15 * time.Second
+	followageModuleName  = "followage"
+	followageCooldown    = 15 * time.Second
+	accountAgeModuleName = "accountage"
+	accountAgeCooldown   = 15 * time.Second
 )
 
-// Followage owns the complete built-in !followage [user] command: target
-// normalization, cached lookup through Sesame's Followage service, result
-// formatting, and the chat reply. Outgress only performs the authenticated
-// Twitch read behind that request/reply boundary.
+// Followage owns the built-in viewer-lookup commands that read Twitch through
+// outgress: !followage [user] and !accountage [user]. Each does target
+// normalization, a cached lookup through the matching Sesame service, result
+// formatting, and the chat reply; outgress only performs the authenticated
+// Twitch read behind that request/reply boundary. Both commands are toggleable
+// per broadcaster under their own module key, checked lazily on use.
+//
+// Their replies are wired here as closures over a shared lookupCall so the
+// nil-service, error and formatting handling lives in exactly one place.
 func Followage(d engine.Deps) module.Module {
-	log := d.Log
-	if log == nil {
-		log = zap.NewNop()
+	log := moduleLog(d)
+
+	followage := func(ctx context.Context, c *module.Context, target lookupTarget) string {
+		bid := c.Env.BroadcasterUserID
+		return lookupCall[engine.FollowageResult]{
+			log: log, logKey: followageModuleName, unavailable: "Followage is unavailable right now.",
+			read:   readIf(d.Followage != nil, func() (engine.FollowageResult, error) { return d.Followage.Lookup(ctx, bid, target.id, target.login) }),
+			format: func(res engine.FollowageResult) string { return formatFollowageResult(target.name, bid, res) },
+		}.run()
 	}
-	runtime := followageRuntime{lookup: d.Followage, log: log}
+
+	accountAge := func(ctx context.Context, _ *module.Context, target lookupTarget) string {
+		return lookupCall[engine.AccountAgeResult]{
+			log: log, logKey: accountAgeModuleName, unavailable: "Account age is unavailable right now.",
+			read:   readIf(d.AccountAge != nil, func() (engine.AccountAgeResult, error) { return d.AccountAge.Lookup(ctx, target.id, target.login) }),
+			format: func(res engine.AccountAgeResult) string { return formatAccountAgeResult(target.name, res) },
+		}.run()
+	}
+
 	m := module.NewModule("", module.KindCore)
-	m.Command("followage").Everyone().Cooldown(followageCooldown).Run(followageRun(d, runtime))
+	m.Command("followage").Everyone().Cooldown(followageCooldown).Run(lookupRun(d, followageModuleName, followage))
+	m.Command("accountage").Everyone().Cooldown(accountAgeCooldown).Run(lookupRun(d, accountAgeModuleName, accountAge))
 	return m.Build()
 }
 
-type followageRuntime struct {
-	lookup engine.FollowageLookup
-	log    *zap.Logger
+// replyFunc renders one built-in lookup command's chat reply for a resolved
+// target.
+type replyFunc func(ctx context.Context, c *module.Context, target lookupTarget) string
+
+// lookupRun is the shared body of the built-in lookup commands: honor the
+// per-broadcaster toggle, resolve the target, then emit the command's reply.
+func lookupRun(d engine.Deps, moduleName string, reply replyFunc) module.RunFunc {
+	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
+		if !moduleEnabled(ctx, d, c.BroadcasterID, moduleName) {
+			return nil
+		}
+		emitLookup(c, reply(ctx, c, parseLookupTarget(args, c)), emit)
+		return nil
+	}
 }
 
-type followageTarget struct {
+// lookupCall is one built-in command's cached read plus how to present it. run()
+// is the single place the shared nil-service, error and format handling lives,
+// so !followage and !accountage don't each repeat it.
+type lookupCall[T any] struct {
+	log         *zap.Logger
+	logKey      string
+	unavailable string
+	read        func() (T, error) // nil when the backing service is not wired
+	format      func(T) string
+}
+
+func (lc lookupCall[T]) run() string {
+	if lc.read == nil {
+		return lc.unavailable
+	}
+	result, err := lc.read()
+	if err != nil {
+		lc.log.Warn(lc.logKey+": lookup failed", zap.Error(err))
+		return lc.unavailable
+	}
+	return lc.format(result)
+}
+
+// readIf returns read when ok, else nil, letting a caller drop a read whose
+// backing service is absent without an inline conditional at the call site.
+func readIf[T any](ok bool, read func() (T, error)) func() (T, error) {
+	if !ok {
+		return nil
+	}
+	return read
+}
+
+// lookupTarget is the normalized subject of a viewer-lookup command: an
+// explicit "@user" argument (login/name, no id yet) or, absent one, the chatter
+// themselves (login, display name and id straight off the envelope).
+type lookupTarget struct {
 	login string
 	name  string
 	id    string
 }
 
-func followageRun(d engine.Deps, runtime followageRuntime) module.RunFunc {
-	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
-		if !followageEnabled(ctx, d, c.BroadcasterID, runtime.log) {
-			return nil
-		}
-		target := parseFollowageTarget(args, c)
-		emitFollowage(c, runtime.text(ctx, target, c.Env.BroadcasterUserID), emit)
-		return nil
-	}
-}
-
-func parseFollowageTarget(args string, c *module.Context) followageTarget {
+// parseLookupTarget reads the optional first "@user" argument, falling back to
+// the chatter. Shared by !followage and !accountage.
+func parseLookupTarget(args string, c *module.Context) lookupTarget {
 	fields := strings.Fields(args)
 	if len(fields) > 0 {
 		login := strings.TrimPrefix(fields[0], "@")
 		if login != "" {
-			return followageTarget{login: login, name: login}
+			return lookupTarget{login: login, name: login}
 		}
 	}
-	return followageTarget{login: c.Env.ChatterUserLogin, name: c.Env.ChatterName(), id: c.Env.ChatterUserID}
+	return lookupTarget{login: c.Env.ChatterUserLogin, name: c.Env.ChatterName(), id: c.Env.ChatterUserID}
 }
 
-func (r followageRuntime) text(ctx context.Context, target followageTarget, broadcasterID string) string {
-	if r.lookup == nil {
-		return "Followage is unavailable right now."
-	}
-	result, err := r.lookup.Lookup(ctx, broadcasterID, target.id, target.login)
-	if err != nil {
-		r.log.Warn("followage: lookup failed", zap.Error(err))
-		return "Followage is unavailable right now."
-	}
-	return formatFollowageResult(target.name, broadcasterID, result)
+func emitLookup(c *module.Context, text string, emit module.Emit) {
+	emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: text})
 }
 
 func formatFollowageResult(targetName, broadcasterID string, result engine.FollowageResult) string {
@@ -88,14 +139,19 @@ func formatFollowageResult(targetName, broadcasterID string, result engine.Follo
 	if !result.Following {
 		return fmt.Sprintf("@%s is not following this channel.", targetName)
 	}
-	return fmt.Sprintf("@%s has followed for %s.", targetName, humanizeFollowage(time.Since(result.FollowedAt)))
+	return fmt.Sprintf("@%s has followed for %s.", targetName, humanizeDuration(time.Since(result.FollowedAt)))
 }
 
-func emitFollowage(c *module.Context, text string, emit module.Emit) {
-	emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: text})
+func formatAccountAgeResult(targetName string, result engine.AccountAgeResult) string {
+	if !result.UserFound {
+		return fmt.Sprintf("@%s is not a Twitch user.", targetName)
+	}
+	return fmt.Sprintf("@%s's account is %s old.", targetName, humanizeDuration(time.Since(result.CreatedAt)))
 }
 
-func humanizeFollowage(d time.Duration) string {
+// humanizeDuration renders a span as the two largest non-zero units (e.g.
+// "2 years, 3 months"), used by both !followage and !accountage.
+func humanizeDuration(d time.Duration) string {
 	if d < 0 {
 		d = 0
 	}
@@ -124,17 +180,28 @@ func humanizeFollowage(d time.Duration) string {
 	return strings.Join(parts, ", ")
 }
 
-func followageEnabled(ctx context.Context, d engine.Deps, broadcasterID uint64, log *zap.Logger) bool {
+// moduleLog returns the module logger, or a no-op when Deps carries none.
+func moduleLog(d engine.Deps) *zap.Logger {
+	if d.Log == nil {
+		return zap.NewNop()
+	}
+	return d.Log
+}
+
+// moduleEnabled reports whether a built-in command's per-broadcaster toggle is
+// on. A missing row (or a projection read error, or no projection at all) fails
+// open: a transient blip must not silently swallow the command.
+func moduleEnabled(ctx context.Context, d engine.Deps, broadcasterID uint64, moduleName string) bool {
 	if d.Proj == nil {
 		return true
 	}
 	views, err := d.Proj.Modules(ctx, broadcasterID)
 	if err != nil {
-		log.Warn("followage: module state read failed, allowing", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
+		moduleLog(d).Warn(moduleName+": module state read failed, allowing", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
 		return true
 	}
 	for _, v := range views {
-		if v.Name == followageModuleName {
+		if v.Name == moduleName {
 			return v.IsEnabled
 		}
 	}

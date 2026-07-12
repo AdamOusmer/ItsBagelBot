@@ -248,32 +248,59 @@ func (c *Client) IsStreamLive(ctx context.Context, broadcasterID string) (bool, 
 	return false, nil
 }
 
-// UserIDByLogin resolves a Twitch login to its numeric user id via Helix Get
-// Users under the app token. Returns ("", nil) when no such user exists.
-func (c *Client) UserIDByLogin(ctx context.Context, login string) (string, error) {
-	res, err := c.request(ctx, c.app, getCall("/helix/users?login="+url.QueryEscape(login)))
+// helixUser is the slice of Helix Get Users the workers read: the account's
+// numeric id and its creation time.
+type helixUser struct {
+	ID        string    `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// getUser runs one Get Users query ("id=..." or "login=...") under the app
+// token and returns the first match. found is false when Twitch returns no
+// user; the caller decides whether that is an error for its purpose.
+func (c *Client) getUser(ctx context.Context, query string) (helixUser, bool, error) {
+	res, err := c.request(ctx, c.app, getCall("/helix/users?"+query))
 	if err != nil {
-		return "", err
+		return helixUser{}, false, err
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(res.Body, 2048))
-		return "", &StatusError{Status: res.StatusCode, Body: string(body)}
+		return helixUser{}, false, &StatusError{Status: res.StatusCode, Body: string(body)}
 	}
 
 	var payload struct {
-		Data []struct {
-			ID string `json:"id"`
-		} `json:"data"`
+		Data []helixUser `json:"data"`
 	}
 	if err := json.NewDecoder(res.Body).Decode(&payload); err != nil {
-		return "", err
+		return helixUser{}, false, err
 	}
 	if len(payload.Data) == 0 {
-		return "", nil
+		return helixUser{}, false, nil
 	}
-	return payload.Data[0].ID, nil
+	return payload.Data[0], true, nil
+}
+
+// UserIDByLogin resolves a Twitch login to its numeric user id via Helix Get
+// Users under the app token. Returns ("", nil) when no such user exists.
+func (c *Client) UserIDByLogin(ctx context.Context, login string) (string, error) {
+	user, _, err := c.getUser(ctx, "login="+url.QueryEscape(login))
+	return user.ID, err
+}
+
+// UserCreatedAt returns a Twitch user's id and account creation time, looked up
+// by id when provided, otherwise by login. found is false when no such user
+// exists. It rides the app token, like every other general Helix read.
+func (c *Client) UserCreatedAt(ctx context.Context, targetID, targetLogin string) (id string, createdAt time.Time, found bool, err error) {
+	q := url.Values{}
+	if targetID != "" {
+		q.Set("id", targetID)
+	} else {
+		q.Set("login", targetLogin)
+	}
+	user, found, err := c.getUser(ctx, q.Encode())
+	return user.ID, user.CreatedAt, found, err
 }
 
 // FollowedAt returns when targetID followed broadcasterID. found is false when

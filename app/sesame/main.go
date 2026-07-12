@@ -131,6 +131,7 @@ func buildDeps(in infra, cfg *config.Config, log *zap.Logger, rt engineRuntime) 
 		Quotes:     engine.NewQuotesRPC(in.nc, cfg.ModulesRPCPrefix),
 		Gateway:    engine.NewGatewayRPC(in.nc, cfg.GatewayRPCPrefix),
 		Followage:  engine.NewFollowageRPC(in.nc, cfg.OutgressRPCPrefix),
+		AccountAge: engine.NewAccountAgeRPC(in.nc, cfg.OutgressRPCPrefix),
 		Log:        log,
 		Automod:    rt.guard,
 		Reputation: engine.NewValkeyReputation(in.vc, 6*time.Hour, log),
