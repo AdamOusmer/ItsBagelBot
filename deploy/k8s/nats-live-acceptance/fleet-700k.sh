@@ -82,7 +82,7 @@ for i in "${!nodes[@]}"; do
   kubectl -n "$namespace" exec "${pods[$i]}" -- env NATS_CA=/etc/nats-ca/ca.pem \
     /tmp/nats-live-acceptance \
     -stream "$stream" -subject "$subject" -create-stream=false -cleanup=false \
-    -endpoints=hub -mode=atomic -producer-id="${nodes[$i]}" \
+    -mode=atomic -producer-id="${nodes[$i]}" \
     -messages="${messages[$i]}" -publishers="${publishers[$i]}" \
     -batch-size="$batch_size" -payload-bytes="$payload_bytes" \
     -latency-samples=0 -max-p95=1h \

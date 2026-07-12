@@ -1,5 +1,5 @@
-// Command nats-live-acceptance compares the production JetStream PubAck path
-// through the hub and the node-local leaf. It creates an isolated, memory-backed
+// Command nats-live-acceptance measures the production JetStream PubAck path
+// directly through the TLS hub. Leaves are RPC-only. It creates an isolated, memory-backed
 // stream on a unique subject and removes it before exiting, so no production
 // consumer can observe benchmark payloads.
 package main
@@ -27,7 +27,6 @@ import (
 
 type config struct {
 	hubURL         string
-	leafURL        string
 	domain         string
 	stream         string
 	subject        string
@@ -39,7 +38,6 @@ type config struct {
 	ackTimeout     time.Duration
 	maxP95         time.Duration
 	mode           string
-	endpoints      string
 	batchSize      int
 	minRate        float64
 	cleanup        bool
@@ -97,96 +95,94 @@ func run() error {
 	if err != nil {
 		return err
 	}
-
-	hub := endpoint{label: "hub", url: cfg.hubURL}
-	leaf := endpoint{label: "leaf", url: cfg.leafURL, domain: cfg.domain}
-
-	setup, err := connect(cfg, hub, tlsConfig, "live-acceptance-setup")
+	hub := endpoint{label: "hub", url: cfg.hubURL, domain: cfg.domain}
+	setup, err := prepareStream(cfg, hub, tlsConfig)
 	if err != nil {
-		return fmt.Errorf("connect to hub for setup: %w", err)
+		return err
 	}
+	defer closeSetup(cfg, setup)
 
-	var streamManager jsapi.JetStream
-	if cfg.domain == "" {
-		streamManager, err = jsapi.New(setup.nc)
-	} else {
-		streamManager, err = jsapi.NewWithDomain(setup.nc, cfg.domain)
-	}
-	if err != nil {
-		setup.nc.Close()
-		return fmt.Errorf("create JetStream manager: %w", err)
-	}
-	if cfg.createStream {
-		if _, err := streamManager.CreateStream(context.Background(), jsapi.StreamConfig{
-			Name:               cfg.stream,
-			Subjects:           []string{cfg.subject},
-			Storage:            jsapi.MemoryStorage,
-			Replicas:           1,
-			MaxBytes:           512 << 20,
-			MaxAge:             10 * time.Minute,
-			Retention:          jsapi.LimitsPolicy,
-			Discard:            jsapi.DiscardOld,
-			AllowAtomicPublish: true,
-			AllowBatchPublish:  true,
-		}); err != nil {
-			setup.nc.Close()
-			return fmt.Errorf("create isolated stream %s: %w", cfg.stream, err)
-		}
-	}
-
-	if cfg.cleanup {
-		defer func() {
-			if err := setup.js.DeleteStream(cfg.stream); err != nil {
-				log.Printf("cleanup stream %s failed: %v", cfg.stream, err)
-			}
-			setup.nc.Close()
-		}()
-	} else {
-		defer setup.nc.Close()
-	}
 	if cfg.setupOnly {
 		fmt.Printf("{\"stream\":%q,\"subject\":%q,\"created\":%t,\"deleted\":%t}\n",
 			cfg.stream, cfg.subject, cfg.createStream, cfg.cleanup)
 		return nil
 	}
 
-	endpoints := selectedEndpoints(cfg, hub, leaf)
-	results := make([]result, 0, len(endpoints))
-	failed := false
-	for _, ep := range endpoints {
-		r, err := benchmark(cfg, ep, tlsConfig)
-		if err != nil {
-			log.Printf("%s benchmark failed: %v", ep.label, err)
-			r.Failure = err.Error()
-			failed = true
-		} else {
-			r.Passed = true
-		}
-		results = append(results, r)
+	r, benchmarkErr := benchmark(cfg, hub, tlsConfig)
+	if benchmarkErr != nil {
+		log.Printf("hub benchmark failed: %v", benchmarkErr)
+		r.Failure = benchmarkErr.Error()
+	} else {
+		r.Passed = true
 	}
-
 	out, err := json.MarshalIndent(map[string]any{
 		"stream":  cfg.stream,
 		"subject": cfg.subject,
-		"results": results,
+		"results": []result{r},
 	}, "", "  ")
 	if err != nil {
 		return err
 	}
 	fmt.Println(string(out))
 
-	if failed {
+	if benchmarkErr != nil {
 		return errors.New("one or more NATS acceptance gates failed")
 	}
 	return nil
+}
+
+func prepareStream(cfg config, hub endpoint, tlsConfig *tls.Config) (client, error) {
+	setup, err := connect(cfg, hub, tlsConfig, "live-acceptance-setup")
+	if err != nil {
+		return client{}, fmt.Errorf("connect to hub for setup: %w", err)
+	}
+	streamManager, err := modernJetStream(setup.nc, cfg.domain)
+	if err != nil {
+		setup.nc.Close()
+		return client{}, fmt.Errorf("create JetStream manager: %w", err)
+	}
+	if !cfg.createStream {
+		return setup, nil
+	}
+	_, err = streamManager.CreateStream(context.Background(), temporaryStreamConfig(cfg))
+	if err != nil {
+		setup.nc.Close()
+		return client{}, fmt.Errorf("create isolated stream %s: %w", cfg.stream, err)
+	}
+	return setup, nil
+}
+
+func modernJetStream(nc *nats.Conn, domain string) (jsapi.JetStream, error) {
+	if domain == "" {
+		return jsapi.New(nc)
+	}
+	return jsapi.NewWithDomain(nc, domain)
+}
+
+func temporaryStreamConfig(cfg config) jsapi.StreamConfig {
+	return jsapi.StreamConfig{
+		Name: cfg.stream, Subjects: []string{cfg.subject}, Storage: jsapi.MemoryStorage,
+		Replicas: 1, MaxBytes: 512 << 20, MaxAge: 10 * time.Minute,
+		Retention: jsapi.LimitsPolicy, Discard: jsapi.DiscardOld,
+		AllowAtomicPublish: true, AllowBatchPublish: true,
+	}
+}
+
+func closeSetup(cfg config, setup client) {
+	defer setup.nc.Close()
+	if !cfg.cleanup {
+		return
+	}
+	if err := setup.js.DeleteStream(cfg.stream); err != nil {
+		log.Printf("cleanup stream %s failed: %v", cfg.stream, err)
+	}
 }
 
 func parseFlags() config {
 	runID := time.Now().UTC().Format("20060102T150405")
 	cfg := config{}
 	flag.StringVar(&cfg.hubURL, "hub-url", "tls://nats:4222", "direct hub URL")
-	flag.StringVar(&cfg.leafURL, "leaf-url", "tls://nats-leaf:4222", "node-local leaf URL")
-	flag.StringVar(&cfg.domain, "domain", "hub", "JetStream domain used through the leaf")
+	flag.StringVar(&cfg.domain, "domain", "hub", "hub JetStream domain")
 	flag.StringVar(&cfg.stream, "stream", "LIVE_NATS_ACCEPTANCE_"+runID, "temporary stream name")
 	flag.StringVar(&cfg.subject, "subject", "twitch.outgress.bench."+strings.ToLower(runID), "isolated benchmark subject")
 	flag.IntVar(&cfg.messages, "messages", 200_000, "messages published per endpoint")
@@ -197,7 +193,6 @@ func parseFlags() config {
 	flag.DurationVar(&cfg.ackTimeout, "ack-timeout", 5*time.Second, "maximum wait for one PubAck")
 	flag.DurationVar(&cfg.maxP95, "max-p95", 20*time.Millisecond, "maximum accepted synchronous PubAck p95")
 	flag.StringVar(&cfg.mode, "mode", "atomic", "publish mode: async or atomic")
-	flag.StringVar(&cfg.endpoints, "endpoints", "both", "endpoints to test: hub, leaf, or both")
 	flag.IntVar(&cfg.batchSize, "batch-size", 128, "messages per atomic commit")
 	flag.Float64Var(&cfg.minRate, "min-rate", 0, "minimum accepted messages/second per endpoint (0 disables)")
 	flag.BoolVar(&cfg.cleanup, "cleanup", true, "delete the temporary stream on exit")
@@ -211,19 +206,47 @@ func parseFlags() config {
 	cfg.password = os.Getenv("NATS_PASSWORD")
 	cfg.caFile = os.Getenv("NATS_CA")
 
-	if !cfg.insecureLocal && (cfg.user == "" || cfg.password == "" || cfg.caFile == "") {
-		log.Fatal("NATS_USER, NATS_PASSWORD and NATS_CA are required")
+	validateConfig(cfg)
+	return cfg
+}
+
+func validateConfig(cfg config) {
+	if !cfg.insecureLocal {
+		requireCredentials(cfg)
 	}
-	if cfg.messages < 1 || cfg.publishers < 1 || cfg.window < 1 || cfg.payloadBytes < 1 || cfg.batchSize < 2 || cfg.batchSize > 1000 {
-		log.Fatal("messages, publishers, window and payload-bytes must be positive")
+	requirePositive(cfg.messages, "messages")
+	requirePositive(cfg.publishers, "publishers")
+	requirePositive(cfg.window, "window")
+	requirePositive(cfg.payloadBytes, "payload-bytes")
+	if cfg.batchSize < 2 {
+		log.Fatal("batch-size must be at least 2")
 	}
-	if cfg.mode != "async" && cfg.mode != "atomic" {
+	if cfg.batchSize > 1000 {
+		log.Fatal("batch-size must not exceed 1000")
+	}
+	switch cfg.mode {
+	case "async", "atomic":
+	default:
 		log.Fatal("mode must be async or atomic")
 	}
-	if cfg.endpoints != "both" && cfg.endpoints != "hub" && cfg.endpoints != "leaf" {
-		log.Fatal("endpoints must be hub, leaf, or both")
+}
+
+func requireCredentials(cfg config) {
+	if cfg.user == "" {
+		log.Fatal("NATS_USER is required")
 	}
-	return cfg
+	if cfg.password == "" {
+		log.Fatal("NATS_PASSWORD is required")
+	}
+	if cfg.caFile == "" {
+		log.Fatal("NATS_CA is required")
+	}
+}
+
+func requirePositive(value int, name string) {
+	if value < 1 {
+		log.Fatalf("%s must be positive", name)
+	}
 }
 
 func hostname() string {
@@ -232,17 +255,6 @@ func hostname() string {
 		return "unknown"
 	}
 	return host
-}
-
-func selectedEndpoints(cfg config, hub, leaf endpoint) []endpoint {
-	switch cfg.endpoints {
-	case "hub":
-		return []endpoint{hub}
-	case "leaf":
-		return []endpoint{leaf}
-	default:
-		return []endpoint{hub, leaf}
-	}
 }
 
 func clientTLS(caFile string) (*tls.Config, error) {
@@ -295,37 +307,65 @@ func connect(cfg config, ep endpoint, tlsConfig *tls.Config, name string) (clien
 
 func benchmark(cfg config, ep endpoint, tlsConfig *tls.Config) (result, error) {
 	r := result{Endpoint: ep.label, Producer: cfg.producerID, Mode: cfg.mode, Messages: cfg.messages}
+	clients, err := benchmarkClients(cfg, ep, tlsConfig)
+	if err != nil {
+		return r, err
+	}
+	defer closeClients(clients)
+	if err := describeConnection(&r, clients[0], tlsConfig != nil); err != nil {
+		return r, err
+	}
+	payload := benchmarkPayload(cfg.payloadBytes)
+	counters, elapsed := runPublishers(cfg, clients, payload)
+	applyThroughput(&r, cfg, counters, elapsed)
+	applyLatency(&r, cfg, clients[0].js, payload)
+	return r, validateBenchmark(cfg, r, counters.firstErr.Load())
+}
+
+func benchmarkClients(cfg config, ep endpoint, tlsConfig *tls.Config) ([]client, error) {
 	clients := make([]client, 0, cfg.publishers)
 	for i := 0; i < cfg.publishers; i++ {
 		c, err := connect(cfg, ep, tlsConfig, fmt.Sprintf("live-%s-bench-%d", ep.label, i))
 		if err != nil {
 			closeClients(clients)
-			return r, fmt.Errorf("connect publisher %d: %w", i, err)
+			return nil, fmt.Errorf("connect publisher %d: %w", i, err)
 		}
 		clients = append(clients, c)
 	}
-	defer closeClients(clients)
+	return clients, nil
+}
 
-	if tlsConfig != nil {
-		tlsState, err := clients[0].nc.TLSConnectionState()
+func describeConnection(r *result, c client, secure bool) error {
+	if secure {
+		tlsState, err := c.nc.TLSConnectionState()
 		if err != nil {
-			return r, fmt.Errorf("connection is not using verified TLS: %w", err)
+			return fmt.Errorf("connection is not using verified TLS: %w", err)
 		}
 		r.TLSVersion = tlsVersion(tlsState.Version)
 		r.TLSCipher = tls.CipherSuiteName(tlsState.CipherSuite)
 	} else {
 		r.TLSVersion = "plaintext-local"
 	}
-	r.Server = clients[0].nc.ConnectedServerName()
+	r.Server = c.nc.ConnectedServerName()
+	return nil
+}
 
-	payload := make([]byte, cfg.payloadBytes)
+func benchmarkPayload(size int) []byte {
+	payload := make([]byte, size)
 	for i := range payload {
 		payload[i] = byte('a' + i%26)
 	}
+	return payload
+}
 
-	var acked atomic.Int64
-	var failures atomic.Int64
-	var firstErr atomic.Pointer[string]
+type benchmarkCounters struct {
+	acked    atomic.Int64
+	failures atomic.Int64
+	firstErr atomic.Pointer[string]
+}
+
+func runPublishers(cfg config, clients []client, payload []byte) (*benchmarkCounters, time.Duration) {
+	counters := &benchmarkCounters{}
 	started := time.Now()
 	var wg sync.WaitGroup
 	for publisher, c := range clients {
@@ -336,28 +376,28 @@ func benchmark(cfg config, ep endpoint, tlsConfig *tls.Config) (result, error) {
 		wg.Add(1)
 		go func(publisher int, c client, count int) {
 			defer wg.Done()
-			var err error
-			if cfg.mode == "atomic" {
-				err = publishAtomicWindows(cfg, ep, c, publisher, count, payload, &acked, &failures)
-			} else {
-				err = publishWindows(cfg, ep, c.js, publisher, count, payload, &acked, &failures)
-			}
+			job := publishJob{cfg: cfg, client: c, publisher: publisher, count: count, payload: payload, counters: counters}
+			err := publishByMode(job)
 			if err != nil {
 				msg := err.Error()
-				firstErr.CompareAndSwap(nil, &msg)
+				counters.firstErr.CompareAndSwap(nil, &msg)
 			}
 		}(publisher, c, count)
 	}
 	wg.Wait()
-	elapsed := time.Since(started)
+	return counters, time.Since(started)
+}
 
-	r.Acknowledged = acked.Load()
-	r.Errors = failures.Load()
+func applyThroughput(r *result, cfg config, counters *benchmarkCounters, elapsed time.Duration) {
+	r.Acknowledged = counters.acked.Load()
+	r.Errors = counters.failures.Load()
 	r.DurationMS = elapsed.Milliseconds()
 	r.MessagesPerSec = float64(r.Acknowledged) / elapsed.Seconds()
 	r.MiBPerSec = r.MessagesPerSec * float64(cfg.payloadBytes) / (1024 * 1024)
+}
 
-	latencies, latencyErrs := latencyProbe(cfg, ep, clients[0].js, payload)
+func applyLatency(r *result, cfg config, js nats.JetStreamContext, payload []byte) {
+	latencies, latencyErrs := latencyProbe(cfg, js, payload)
 	r.Errors += int64(latencyErrs)
 	if len(latencies) > 0 {
 		sort.Slice(latencies, func(i, j int) bool { return latencies[i] < latencies[j] })
@@ -366,78 +406,132 @@ func benchmark(cfg config, ep endpoint, tlsConfig *tls.Config) (result, error) {
 		r.PubAckP99MS = durationMS(percentile(latencies, 0.99))
 		r.PubAckMaxMS = durationMS(latencies[len(latencies)-1])
 	}
-
-	if p := firstErr.Load(); p != nil {
-		return r, errors.New(*p)
-	}
-	if r.Errors > 0 || r.Acknowledged != int64(cfg.messages) {
-		return r, fmt.Errorf("acknowledged %d/%d with %d errors", r.Acknowledged, cfg.messages, r.Errors)
-	}
-	if time.Duration(r.PubAckP95MS*float64(time.Millisecond)) > cfg.maxP95 {
-		return r, fmt.Errorf("PubAck p95 %.3fms exceeds %s gate", r.PubAckP95MS, cfg.maxP95)
-	}
-	if cfg.minRate > 0 && r.MessagesPerSec < cfg.minRate {
-		return r, fmt.Errorf("throughput %.0f/s is below %.0f/s gate", r.MessagesPerSec, cfg.minRate)
-	}
-	return r, nil
 }
 
-func publishAtomicWindows(
-	cfg config,
-	ep endpoint,
-	c client,
-	publisher int,
-	count int,
-	payload []byte,
-	acked *atomic.Int64,
-	failures *atomic.Int64,
-) error {
+func validateBenchmark(cfg config, r result, firstErr *string) error {
+	if firstErr != nil {
+		return errors.New(*firstErr)
+	}
+	if r.Errors > 0 {
+		return fmt.Errorf("acknowledged %d/%d with %d errors", r.Acknowledged, cfg.messages, r.Errors)
+	}
+	if r.Acknowledged != int64(cfg.messages) {
+		return fmt.Errorf("acknowledged %d/%d", r.Acknowledged, cfg.messages)
+	}
+	if time.Duration(r.PubAckP95MS*float64(time.Millisecond)) > cfg.maxP95 {
+		return fmt.Errorf("PubAck p95 %.3fms exceeds %s gate", r.PubAckP95MS, cfg.maxP95)
+	}
+	if cfg.minRate <= 0 {
+		return nil
+	}
+	if r.MessagesPerSec < cfg.minRate {
+		return fmt.Errorf("throughput %.0f/s is below %.0f/s gate", r.MessagesPerSec, cfg.minRate)
+	}
+	return nil
+}
+
+type publishJob struct {
+	cfg       config
+	client    client
+	publisher int
+	count     int
+	payload   []byte
+	counters  *benchmarkCounters
+}
+
+func publishByMode(job publishJob) error {
+	if job.cfg.mode == "atomic" {
+		return publishAtomicWindows(job)
+	}
+	return publishWindows(job)
+}
+
+func publishAtomicWindows(job publishJob) error {
 	inbox := nats.NewInbox()
-	replies, err := c.nc.SubscribeSync(inbox + ".>")
+	replies, err := job.client.nc.SubscribeSync(inbox + ".>")
 	if err != nil {
 		return err
 	}
 	defer replies.Unsubscribe() //nolint:errcheck -- connection close is authoritative
 
-	for offset := 0; offset < count; offset += cfg.batchSize {
-		size := min(cfg.batchSize, count-offset)
-		batchID := fmt.Sprintf("%s-%d-%d-%d", cfg.producerID, publisher, offset, time.Now().UnixNano())
-		reply := inbox + "." + batchID
-
-		for i := 0; i < size; i++ {
-			sequence := offset + i
-			msg := nats.NewMsg(cfg.subject)
-			msg.Data = payload
-			msg.Header.Set(nats.MsgIdHdr, fmt.Sprintf("live-%s-%d-%d", cfg.producerID, publisher, sequence))
-			msg.Header.Set("Nats-Batch-Id", batchID)
-			msg.Header.Set("Nats-Batch-Sequence", fmt.Sprint(i+1))
-			msg.Header.Set("Nats-Required-Api-Level", "2")
-			if i == size-1 {
-				msg.Header.Set("Nats-Batch-Commit", "1")
-				msg.Reply = reply
-			}
-			if err := c.nc.PublishMsg(msg); err != nil {
-				failures.Add(int64(size))
-				return fmt.Errorf("publisher %d atomic batch %d member %d: %w", publisher, offset/cfg.batchSize, i, err)
-			}
-		}
-
-		ackMsg, err := replies.NextMsg(cfg.ackTimeout)
-		if err != nil {
-			failures.Add(int64(size))
-			return fmt.Errorf("publisher %d atomic batch %d ack: %w", publisher, offset/cfg.batchSize, err)
-		}
-		var ack jetStreamBatchAck
-		if err := json.Unmarshal(ackMsg.Data, &ack); err != nil {
-			failures.Add(int64(size))
+	for offset := 0; offset < job.count; offset += job.cfg.batchSize {
+		size := min(job.cfg.batchSize, job.count-offset)
+		batchID := fmt.Sprintf("%s-%d-%d-%d", job.cfg.producerID, job.publisher, offset, time.Now().UnixNano())
+		window := atomicWindow{job: job, offset: offset, size: size, batchID: batchID, reply: inbox + "." + batchID}
+		if err := sendAcceptanceBatch(window); err != nil {
+			job.counters.failures.Add(int64(size))
 			return err
 		}
-		if ack.Error != nil || ack.Batch != batchID || ack.Count != size || ack.Sequence == 0 {
-			failures.Add(int64(size))
-			return fmt.Errorf("publisher %d invalid batch ack: batch=%q count=%d seq=%d error=%v",
-				publisher, ack.Batch, ack.Count, ack.Sequence, ack.Error)
+		if err := awaitAcceptanceBatch(window, replies); err != nil {
+			job.counters.failures.Add(int64(size))
+			return err
 		}
-		acked.Add(int64(size))
+		job.counters.acked.Add(int64(size))
+	}
+	return nil
+}
+
+type atomicWindow struct {
+	job     publishJob
+	offset  int
+	size    int
+	batchID string
+	reply   string
+}
+
+func sendAcceptanceBatch(window atomicWindow) error {
+	for i := 0; i < window.size; i++ {
+		msg := acceptanceBatchMessage(window, i)
+		if err := window.job.client.nc.PublishMsg(msg); err != nil {
+			return fmt.Errorf("publisher %d atomic batch %d member %d: %w", window.job.publisher, window.offset/window.job.cfg.batchSize, i, err)
+		}
+	}
+	return nil
+}
+
+func acceptanceBatchMessage(window atomicWindow, index int) *nats.Msg {
+	job := window.job
+	msg := nats.NewMsg(job.cfg.subject)
+	msg.Data = job.payload
+	msg.Header.Set(nats.MsgIdHdr, fmt.Sprintf("live-%s-%d-%d", job.cfg.producerID, job.publisher, window.offset+index))
+	msg.Header.Set("Nats-Batch-Id", window.batchID)
+	msg.Header.Set("Nats-Batch-Sequence", fmt.Sprint(index+1))
+	msg.Header.Set("Nats-Required-Api-Level", "2")
+	if index == window.size-1 {
+		msg.Header.Set("Nats-Batch-Commit", "1")
+		msg.Reply = window.reply
+	}
+	return msg
+}
+
+func awaitAcceptanceBatch(window atomicWindow, replies *nats.Subscription) error {
+	job := window.job
+	ackMsg, err := replies.NextMsg(job.cfg.ackTimeout)
+	if err != nil {
+		return fmt.Errorf("publisher %d atomic batch %d ack: %w", job.publisher, window.offset/job.cfg.batchSize, err)
+	}
+	var ack jetStreamBatchAck
+	if err := json.Unmarshal(ackMsg.Data, &ack); err != nil {
+		return err
+	}
+	if err := validateBatchAck(ack, window.batchID, window.size); err != nil {
+		return fmt.Errorf("publisher %d: %w", job.publisher, err)
+	}
+	return nil
+}
+
+func validateBatchAck(ack jetStreamBatchAck, batchID string, size int) error {
+	if ack.Error != nil {
+		return fmt.Errorf("batch ack error: %s", ack.Error)
+	}
+	if ack.Batch != batchID {
+		return fmt.Errorf("invalid batch ack id %q", ack.Batch)
+	}
+	if ack.Count != size {
+		return fmt.Errorf("invalid batch ack count %d", ack.Count)
+	}
+	if ack.Sequence == 0 {
+		return errors.New("invalid batch ack sequence 0")
 	}
 	return nil
 }
@@ -449,61 +543,76 @@ type jetStreamBatchAck struct {
 	Error    json.RawMessage `json:"error,omitempty"`
 }
 
-func publishWindows(
-	cfg config,
-	ep endpoint,
-	js nats.JetStreamContext,
-	publisher int,
-	count int,
-	payload []byte,
-	acked *atomic.Int64,
-	failures *atomic.Int64,
-) error {
-	type pending struct {
-		future nats.PubAckFuture
-	}
-
-	for offset := 0; offset < count; offset += cfg.window {
-		size := min(cfg.window, count-offset)
-		batch := make([]pending, 0, size)
-		for i := 0; i < size; i++ {
-			sequence := offset + i
-			msg := nats.NewMsg(cfg.subject)
-			msg.Data = payload
-			msg.Header.Set(nats.MsgIdHdr, fmt.Sprintf("live-%s-%d-%d", cfg.producerID, publisher, sequence))
-			future, err := js.PublishMsgAsync(msg)
-			if err != nil {
-				failures.Add(1)
-				return fmt.Errorf("publisher %d sequence %d enqueue: %w", publisher, sequence, err)
-			}
-			batch = append(batch, pending{future: future})
+func publishWindows(job publishJob) error {
+	for offset := 0; offset < job.count; offset += job.cfg.window {
+		size := min(job.cfg.window, job.count-offset)
+		batch, err := enqueueWindow(job, offset, size)
+		if err != nil {
+			return err
 		}
-
-		deadline := time.NewTimer(cfg.ackTimeout)
-		for i, item := range batch {
-			select {
-			case <-item.future.Ok():
-				acked.Add(1)
-			case err := <-item.future.Err():
-				failures.Add(1)
-				deadline.Stop()
-				return fmt.Errorf("publisher %d PubAck %d: %w", publisher, offset+i, err)
-			case <-deadline.C:
-				failures.Add(int64(len(batch) - i))
-				return fmt.Errorf("publisher %d timed out with %d PubAcks pending", publisher, len(batch)-i)
-			}
-		}
-		if !deadline.Stop() {
-			select {
-			case <-deadline.C:
-			default:
-			}
+		if err := awaitWindow(job, offset, batch); err != nil {
+			return err
 		}
 	}
 	return nil
 }
 
-func latencyProbe(cfg config, ep endpoint, js nats.JetStreamContext, payload []byte) ([]time.Duration, int) {
+type pendingPublish struct {
+	future nats.PubAckFuture
+}
+
+func enqueueWindow(job publishJob, offset, size int) ([]pendingPublish, error) {
+	batch := make([]pendingPublish, 0, size)
+	for i := 0; i < size; i++ {
+		sequence := offset + i
+		msg := nats.NewMsg(job.cfg.subject)
+		msg.Data = job.payload
+		msg.Header.Set(nats.MsgIdHdr, fmt.Sprintf("live-%s-%d-%d", job.cfg.producerID, job.publisher, sequence))
+		future, err := job.client.js.PublishMsgAsync(msg)
+		if err != nil {
+			job.counters.failures.Add(1)
+			return nil, fmt.Errorf("publisher %d sequence %d enqueue: %w", job.publisher, sequence, err)
+		}
+		batch = append(batch, pendingPublish{future: future})
+	}
+	return batch, nil
+}
+
+func awaitWindow(job publishJob, offset int, batch []pendingPublish) error {
+	deadline := time.NewTimer(job.cfg.ackTimeout)
+	defer stopAndDrain(deadline)
+	for i, item := range batch {
+		if err := awaitFuture(item.future, deadline.C); err != nil {
+			job.counters.failures.Add(int64(len(batch) - i))
+			return fmt.Errorf("publisher %d PubAck %d: %w", job.publisher, offset+i, err)
+		}
+		job.counters.acked.Add(1)
+	}
+	return nil
+}
+
+func awaitFuture(future nats.PubAckFuture, timeout <-chan time.Time) error {
+	select {
+	case <-future.Ok():
+		return nil
+	case err := <-future.Err():
+		return err
+	case <-timeout:
+		return errors.New("timed out")
+	}
+}
+
+func stopAndDrain(timer *time.Timer) {
+	if timer.Stop() {
+		return
+	}
+	select {
+	case <-timer.C:
+	default:
+	}
+}
+
+func latencyProbe(cfg config, js nats.JetStreamContext, payload []byte) ([]time.Duration, int) {
 	latencies := make([]time.Duration, 0, cfg.latencySamples)
 	errors := 0
 	for i := 0; i < cfg.latencySamples; i++ {

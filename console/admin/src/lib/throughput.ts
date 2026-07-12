@@ -44,7 +44,9 @@ export function resolveCapacity(snapshot: ShardSnapshot): IngressCapacity {
 }
 
 export function eventsPerSecond(load: number | undefined, windowSeconds: number): number {
-  if (load == null || load <= 0 || windowSeconds <= 0) return 0;
+  if (load == null) return 0;
+  if (load <= 0) return 0;
+  if (windowSeconds <= 0) return 0;
   return load / windowSeconds;
 }
 

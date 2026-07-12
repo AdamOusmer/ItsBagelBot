@@ -317,34 +317,40 @@ func (w *publishBatchWorker) run() {
 		case <-w.stop:
 			return
 		case first := <-w.requests:
-			batch := []publishRequest{first}
-			timer := time.NewTimer(defaultPublishBatchWait)
-		collect:
-			for len(batch) < defaultPublishBatchSize {
-				select {
-				case req := <-w.requests:
-					batch = append(batch, req)
-				case <-timer.C:
-					break collect
-				case <-w.stop:
-					if !timer.Stop() {
-						select {
-						case <-timer.C:
-						default:
-						}
-					}
-					w.fail(batch, errors.New("bus: publisher closed"))
-					return
-				}
-			}
-			if !timer.Stop() {
-				select {
-				case <-timer.C:
-				default:
-				}
+			batch, stopped := w.collectBatch(first)
+			if stopped {
+				w.fail(batch, errors.New("bus: publisher closed"))
+				return
 			}
 			w.publish(batch)
 		}
+	}
+}
+
+func (w *publishBatchWorker) collectBatch(first publishRequest) ([]publishRequest, bool) {
+	batch := []publishRequest{first}
+	timer := time.NewTimer(defaultPublishBatchWait)
+	defer stopAndDrainTimer(timer)
+	for len(batch) < defaultPublishBatchSize {
+		select {
+		case req := <-w.requests:
+			batch = append(batch, req)
+		case <-timer.C:
+			return batch, false
+		case <-w.stop:
+			return batch, true
+		}
+	}
+	return batch, false
+}
+
+func stopAndDrainTimer(timer *time.Timer) {
+	if timer.Stop() {
+		return
+	}
+	select {
+	case <-timer.C:
+	default:
 	}
 }
 
@@ -376,20 +382,34 @@ func (w *publishBatchWorker) publish(batch []publishRequest) {
 func (w *publishBatchWorker) publishAtomic(batch []publishRequest) error {
 	batchID := nuid.Next()
 	reply := w.inbox + "." + batchID
+	if err := w.sendAtomicBatch(batch, batchID, reply); err != nil {
+		return err
+	}
+	return w.awaitAtomicAck(batchID, len(batch))
+}
+
+func (w *publishBatchWorker) sendAtomicBatch(batch []publishRequest, batchID, reply string) error {
 	for i := range batch {
-		msg := batch[i].msg
-		msg.Header.Set(batchIDHeader, batchID)
-		msg.Header.Set(batchSequenceHeader, fmt.Sprint(i+1))
-		msg.Header.Set(requiredAPIHeader, "2")
-		if i == len(batch)-1 {
-			msg.Header.Set(batchCommitHeader, "1")
-			msg.Reply = reply
-		}
+		msg := atomicBatchMessage(batch[i].msg, batchID, i, len(batch), reply)
 		if err := w.nc.PublishMsg(msg); err != nil {
 			return fmt.Errorf("send atomic batch member %d: %w", i+1, err)
 		}
 	}
+	return nil
+}
 
+func atomicBatchMessage(msg *nats.Msg, batchID string, index, count int, reply string) *nats.Msg {
+	msg.Header.Set(batchIDHeader, batchID)
+	msg.Header.Set(batchSequenceHeader, fmt.Sprint(index+1))
+	msg.Header.Set(requiredAPIHeader, "2")
+	if index == count-1 {
+		msg.Header.Set(batchCommitHeader, "1")
+		msg.Reply = reply
+	}
+	return msg
+}
+
+func (w *publishBatchWorker) awaitAtomicAck(batchID string, count int) error {
 	ackMsg, err := w.replies.NextMsg(defaultPublishAckWait)
 	if err != nil {
 		return fmt.Errorf("wait atomic batch ack: %w", err)
@@ -402,7 +422,13 @@ func (w *publishBatchWorker) publishAtomic(batch []publishRequest) error {
 		return fmt.Errorf("atomic batch rejected: code=%d err_code=%d %s",
 			ack.Error.Code, ack.Error.ErrorCode, ack.Error.Description)
 	}
-	if ack.Sequence == 0 || ack.Batch != batchID || ack.Count != len(batch) {
+	if ack.Sequence == 0 {
+		return fmt.Errorf("invalid atomic batch ack: missing sequence")
+	}
+	if ack.Batch != batchID {
+		return fmt.Errorf("invalid atomic batch ack: batch=%q want=%q", ack.Batch, batchID)
+	}
+	if ack.Count != count {
 		return fmt.Errorf("invalid atomic batch ack: seq=%d batch=%q count=%d",
 			ack.Sequence, ack.Batch, ack.Count)
 	}
