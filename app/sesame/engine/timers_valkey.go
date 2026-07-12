@@ -16,7 +16,6 @@ import (
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 
-	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/nats-io/nats.go"
 	"github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
@@ -98,7 +97,7 @@ type timersConfig struct {
 // alongside this one.
 type ValkeyTimerStore struct {
 	client valkey.Client
-	pub    message.Publisher
+	pub    bus.Publisher
 	proj   projection.Reader
 	live   IsLiveChecker
 
@@ -137,7 +136,7 @@ type TimersConfig struct {
 // NewValkeyTimerStore builds a timer store. proj resolves a broadcaster's
 // "timers" ModuleView and tier (for the outgress lane); live gates every fire
 // and re-arm to the broadcaster's current live state.
-func NewValkeyTimerStore(client valkey.Client, pub message.Publisher, proj projection.Reader, live IsLiveChecker, cfg TimersConfig) *ValkeyTimerStore {
+func NewValkeyTimerStore(client valkey.Client, pub bus.Publisher, proj projection.Reader, live IsLiveChecker, cfg TimersConfig) *ValkeyTimerStore {
 	log := cfg.Log
 	if log == nil {
 		log = zap.NewNop()

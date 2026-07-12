@@ -8,8 +8,6 @@ import (
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/pkg/bus"
 
-	"github.com/ThreeDotsLabs/watermill/message"
-
 	"go.uber.org/zap"
 )
 
@@ -33,7 +31,7 @@ type useKey struct {
 // publishes summed data.commands.used events on a flush window. It is the
 // worker-side rate limiter for the counter pipeline.
 type useReporter struct {
-	pub  message.Publisher
+	pub  bus.Publisher
 	log  *zap.Logger
 	done chan struct{}
 
@@ -41,7 +39,7 @@ type useReporter struct {
 	pend map[useKey]uint64
 }
 
-func newUseReporter(pub message.Publisher, log *zap.Logger) *useReporter {
+func newUseReporter(pub bus.Publisher, log *zap.Logger) *useReporter {
 	r := &useReporter{
 		pub:  pub,
 		log:  log,

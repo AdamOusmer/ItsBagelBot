@@ -17,8 +17,6 @@ import (
 
 	entsql "entgo.io/ent/dialect/sql"
 
-	"github.com/ThreeDotsLabs/watermill/message"
-
 	"github.com/newrelic/go-agent/v3/newrelic"
 
 	"go.uber.org/zap"
@@ -56,7 +54,7 @@ type moduleKey struct {
 type Modules struct {
 	client  *ent.Client
 	views   *cache.Cache[[]ModuleView]
-	pub     message.Publisher
+	pub     bus.Publisher
 	batcher *batch.Batcher[moduleKey, data.ModuleChangedDTO]
 	app     *newrelic.Application
 	log     *zap.Logger
@@ -65,7 +63,7 @@ type Modules struct {
 	govee *GoveeCreds
 }
 
-func NewModules(client *ent.Client, pub message.Publisher, app *newrelic.Application, log *zap.Logger) *Modules {
+func NewModules(client *ent.Client, pub bus.Publisher, app *newrelic.Application, log *zap.Logger) *Modules {
 
 	r := &Modules{
 		client: client,

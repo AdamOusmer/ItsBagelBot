@@ -5,7 +5,7 @@ This is the single source of truth for rotating NATS auth. NATS stores bcrypt
 hashes while services use the matching plaintext, and Doppler cannot compute
 bcrypt — so plaintext and hash must be generated together. Re-running this script
 IS a rotation: it regenerates every password, writes the plaintext to each
-service's Doppler project and the bcrypt hashes + leaf-link URLs to the `nats`
+service's Doppler project and the bcrypt hashes to the `nats`
 Doppler project (which the operator syncs into the `nats-auth-env` secret the
 broker reads).
 
@@ -29,9 +29,6 @@ import bcrypt
 DRY = "--dry-run" in sys.argv
 CONFIG = "prd"
 
-# Leaf link target (hub leafnode port) embedded in the leaf remote URLs.
-HUB_LEAFNODE = "nats.production.svc.cluster.local:7422"
-
 # service name (account stem) -> Doppler project
 SERVICES = {
     "users": "users",
@@ -51,14 +48,6 @@ SERVICES = {
 NO_RPC: set[str] = set()
 # gateway is RPC-only (no JetStream/event plane), so it gets no BUS user.
 NO_BUS: set[str] = {"gateway"}
-
-# One leaf link per account: the BUS account plus every *_RPC account.
-LEAF_ACCOUNTS = [
-    "bus", "users", "commands", "loyalty", "modules", "projector",
-    "outgress", "worker", "dashboard", "admin", "twitch_ingress",
-    "notifications", "transactions", "gateway",
-]
-
 
 def gen() -> str:
     # URL-safe (hex) so the plaintext is valid inside the leaf nats-leaf:// URLs.
@@ -101,15 +90,6 @@ def main() -> None:
 
     # System account (server monitoring; no fleet service uses it).
     broker["NATS_BCRYPT_SYS"] = bcrypt_hash(gen())
-
-    # Leaf links: one hash (hub-side authorization) + one remote URL (leaf-side,
-    # embeds the plaintext) per account.
-    for acct in LEAF_ACCOUNTS:
-        leaf_pw = gen()
-        broker[f"NATS_BCRYPT_LEAF_{acct.upper()}"] = bcrypt_hash(leaf_pw)
-        broker[f"NATS_LEAF_REMOTE_URL_{acct.upper()}"] = (
-            f"nats-leaf://leaf_{acct}:{leaf_pw}@{HUB_LEAFNODE}"
-        )
 
     print("== broker hashes (nats-auth-env via the 'nats' Doppler project) ==")
     doppler_set("nats", broker)

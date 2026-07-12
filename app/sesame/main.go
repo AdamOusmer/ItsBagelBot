@@ -86,8 +86,10 @@ func main() {
 	// guard is the inline automod gate; hoisted so the emote/lexicon refreshers can
 	// install their false-positive-suppression sets onto the same instance.
 	guard := automod.New()
+	dedup := engine.NewBatchedValkeyDedup(in.vc, 10*time.Minute, 128, 200*time.Microsecond)
+	defer dedup.Close()
 	deps := buildDeps(in, cfg, log, engineRuntime{
-		proj: proj, live: live, timers: timers, guard: guard, loyalty: loyalty, tick: loyaltyTick,
+		proj: proj, live: live, timers: timers, guard: guard, loyalty: loyalty, tick: loyaltyTick, dedup: dedup,
 	})
 	registry := engine.NewRegistry(log, modules.All(deps)...)
 	startRefreshers(ctx, guard, cfg, log)
@@ -116,6 +118,7 @@ type engineRuntime struct {
 	guard   *automod.Gate
 	loyalty engine.LoyaltyStore
 	tick    *engine.ValkeyLoyaltyClock
+	dedup   engine.DedupStore
 }
 
 // buildDeps assembles the engine.Deps every module fn captures. modules.All turns
@@ -129,7 +132,7 @@ func buildDeps(in infra, cfg *config.Config, log *zap.Logger, rt engineRuntime) 
 		Live:       rt.live,
 		Greet:      engine.NewValkeyGreetStore(in.vc, cfg.LiveTTL, log),
 		Cooldown:   engine.NewValkeyCooldown(in.vc),
-		Dedup:      engine.NewValkeyDedup(in.vc, 10*time.Minute),
+		Dedup:      rt.dedup,
 		Special:    engine.NewSpecialSet(cfg.SpecialUserIDs),
 		Pub:        in.pub,
 		Commands:   engine.NewCommandsRPC(in.nc, cfg.CommandsDashboardPrefix),
@@ -180,6 +183,7 @@ func logReady(cfg *config.Config, specialUsers int, log *zap.Logger) {
 		zap.String("standard_subject", cfg.StandardSubject),
 		zap.Int("min_routines", cfg.MinRoutines),
 		zap.Int("max_routines", cfg.MaxRoutines),
+		zap.Int("min_consumers", cfg.MinConsumers),
 		zap.Int("max_consumers", cfg.MaxConsumers),
 		zap.Int("premium_reserve_percent", cfg.PremiumReserve),
 		zap.Int("special_users", specialUsers),
@@ -286,14 +290,14 @@ func refreshEmotes(ctx context.Context, guard *automod.Gate, log *zap.Logger) {
 // value instead of a long argument list.
 type infra struct {
 	nc  *nats.Conn
-	pub message.Publisher
+	pub bus.Publisher
 	sub message.Subscriber
 	vc  valkey.Client
 }
 
 // dialNATS opens the core RPC connection (projector fallback) and the JetStream
 // publisher/subscriber that drive the lanes. Any failure is fatal.
-func dialNATS(cfg *config.Config, log *zap.Logger) (*nats.Conn, message.Publisher, message.Subscriber) {
+func dialNATS(cfg *config.Config, log *zap.Logger) (*nats.Conn, bus.Publisher, message.Subscriber) {
 	nc, err := bus.Connect(cfg.NATSRPCURL, serviceName)
 	if err != nil {
 		log.Fatal("failed to connect to nats", zap.Error(err))
@@ -401,6 +405,7 @@ func newConsumer(sub message.Subscriber, nrApp *newrelic.Application, cfg *confi
 		Policy: bus.ScalePolicy{
 			MinRoutines:    cfg.MinRoutines,
 			MaxRoutines:    cfg.MaxRoutines,
+			MinConsumers:   cfg.MinConsumers,
 			MaxConsumers:   cfg.MaxConsumers,
 			ScaleUpAfter:   cfg.ScaleUpAfter,
 			ScaleDownAfter: cfg.ScaleDownAfter,

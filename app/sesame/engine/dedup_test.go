@@ -8,6 +8,7 @@ import (
 
 	"ItsBagelBot/app/sesame/module"
 	"ItsBagelBot/internal/projection"
+	"ItsBagelBot/pkg/bus"
 
 	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/bytedance/sonic"
@@ -53,7 +54,7 @@ func (d *fakeDedup) Release(_ context.Context, key string) error {
 	return nil
 }
 
-func newPipelineWithDedup(pub message.Publisher, reader projection.Reader, dedup DedupStore, mods ...module.Module) *Pipeline {
+func newPipelineWithDedup(pub bus.Publisher, reader projection.Reader, dedup DedupStore, mods ...module.Module) *Pipeline {
 	reg := NewRegistry(zap.NewNop(), mods...)
 	d := Deps{Proj: reader, Live: liveAlways{}, Cooldown: NoopCooldown{}, Dedup: dedup, Pub: pub, Log: zap.NewNop()}
 	return NewPipeline(d, reg, Config{OutgressPremium: premiumSubj, OutgressStandard: standardSubj})

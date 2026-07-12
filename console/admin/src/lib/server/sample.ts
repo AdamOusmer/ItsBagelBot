@@ -27,7 +27,25 @@ export const sampleSnapshot: ShardSnapshot = {
   desired_count: 4,
   target: 4,
   min_shards: 2,
-  autoscale: false
+  autoscale: false,
+  capacity: {
+    benchmark: 'cached_chat_full_path_in_vm_puback',
+    nats_benchmark: 'live_direct_hub_puback',
+    load_window_seconds: 60,
+    target_utilization_pct: 75,
+    pod_rated_eps: 140_000,
+    pod_target_eps: 105_000,
+    fleet_nodes: 2,
+    fleet_rated_eps: 280_000,
+    fleet_target_eps: 210_000,
+    nats_rated_eps: 44_000,
+    nats_target_eps: 33_000,
+    effective_rated_eps: 44_000,
+    effective_target_eps: 33_000,
+    bottleneck: 'nats',
+    websocket_rated_eps: 12_500,
+    websocket_target_eps: 9_375
+  }
 };
 
 export const sampleUsers: AdminUserWire[] = [

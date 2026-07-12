@@ -108,6 +108,16 @@ func TestIngressStreamIsolatesLanesPerSubject(t *testing.T) {
 	}
 }
 
+func TestEveryFleetStreamEnablesBatchPublishing(t *testing.T) {
+	specs := append([]StreamSpec{}, DataStreams...)
+	specs = append(specs, OutgressStream, OutgressSystemStream)
+	for _, spec := range specs {
+		if !spec.BatchPublish {
+			t.Fatalf("stream %s does not enable shared batch publishing", spec.Name)
+		}
+	}
+}
+
 func TestStreamReplicasAreExplicitAndEnforced(t *testing.T) {
 	ingress := ingressStreamSpec(t)
 

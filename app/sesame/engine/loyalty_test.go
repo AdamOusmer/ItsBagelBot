@@ -1,12 +1,12 @@
 package engine
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
 	"ItsBagelBot/internal/domain/event/data"
 
-	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -64,17 +64,16 @@ type rawPublisher struct {
 	payloads map[string][][]byte
 }
 
-func (p *rawPublisher) Publish(subject string, msgs ...*message.Message) error {
+func (p *rawPublisher) PublishOwned(_ context.Context, subject string, payload []byte) error {
 	if p.payloads == nil {
 		p.payloads = map[string][][]byte{}
 	}
-	for _, m := range msgs {
-		p.payloads[subject] = append(p.payloads[subject], m.Payload)
-	}
+	p.payloads[subject] = append(p.payloads[subject], append([]byte(nil), payload...))
 	return nil
 }
 
-func (p *rawPublisher) Close() error { return nil }
+func (p *rawPublisher) Flush(context.Context) error { return nil }
+func (p *rawPublisher) Close() error                { return nil }
 
 func TestLoyaltyReporterAggregatesAndChunks(t *testing.T) {
 	pub := &rawPublisher{}

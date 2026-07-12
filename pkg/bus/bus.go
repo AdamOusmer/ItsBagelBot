@@ -2,22 +2,16 @@ package bus
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
 	"slices"
 	"strings"
 	"sync"
 	"time"
 
-	"ItsBagelBot/internal/utils"
-
 	wmnats "github.com/ThreeDotsLabs/watermill-nats/v2/pkg/nats"
 	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/nats-io/nats.go"
-
-	"github.com/newrelic/go-agent/v3/newrelic"
 
 	"go.uber.org/zap"
 )
@@ -32,24 +26,6 @@ import (
 // only ever work for single-token topics. The fleet provisions its streams
 // explicitly through EnsureStreams (see provision.go) and the publisher and
 // subscriber here simply bind to those existing streams by subject.
-
-// NewPublisher connects to NATS and returns a JetStream-backed publisher. The
-// target stream must already exist (see EnsureStreams); the publisher binds to
-// it by subject.
-func NewPublisher(url string, log *zap.Logger) (message.Publisher, error) {
-
-	return wmnats.NewPublisher(wmnats.PublisherConfig{
-		URL:         busURL(url),
-		NatsOptions: busOptions(""),
-		Marshaler:   &wmnats.NATSMarshaler{},
-		JetStream: wmnats.JetStreamConfig{
-			AutoProvision: false,
-			// Dialed at the leaf, so target the authoritative hub JetStream
-			// domain rather than the leaf's own.
-			ConnectOptions: jsDomainOption(),
-		},
-	}, newZapAdapter(log))
-}
 
 // NewSubscriber connects to NATS and returns a durable JetStream subscriber.
 // All instances passing the same group share one durable consumer, so a
@@ -124,27 +100,10 @@ func bindDurable(cfg LaneConfig, maxDeliveries int, nakDelay wmnats.Delay, log *
 		return nil, nil, err
 	}
 
-	sub, err := wmnats.NewSubscriberWithNatsConn(nc, wmnats.SubscriberSubscriptionConfig{
-		QueueGroupPrefix: cfg.Group,
-		SubscribersCount: 1,
-		AckWaitTimeout:   30 * time.Second,
-		NakDelay:         nakDelay,
-		Unmarshaler:      &wmnats.NATSMarshaler{},
-		JetStream: wmnats.JetStreamConfig{
-			AutoProvision:     false,
-			DurablePrefix:     cfg.Group,
-			DurableCalculator: durableName,
-			ConnectOptions:    jsDomainOption(),
-			SubscribeOptions: []nats.SubOpt{
-				nats.Bind(cfg.Stream, consumer),
-			},
-		},
-	}, newZapAdapter(log))
-	if err != nil {
-		nc.Close()
-		return nil, nil, err
-	}
-
+	sub := newConcurrentDurableSubscriber(concurrentSubscriberConfig{
+		nc: nc, js: js, stream: cfg.Stream, consumer: consumer,
+		group: cfg.Group, delay: nakDelay, log: log,
+	})
 	return sub, nc, nil
 }
 
@@ -408,47 +367,4 @@ func durableName(group, topic string) string {
 // consumer name, which may not contain dots or wildcards.
 func subjectToken(subject string) string {
 	return strings.NewReplacer(".", "_", "*", "_", ">", "_").Replace(subject)
-}
-
-// tracedMessage builds the wire message with a fresh UUIDv7 id (which
-// JetStream also uses for deduplication) and, when ctx carries a New Relic
-// transaction, its distributed trace headers in the message metadata so the
-// consumer side links to the same trace.
-func tracedMessage(ctx context.Context, body []byte) (*message.Message, error) {
-	id, err := utils.NewID()
-	if err != nil {
-		return nil, err
-	}
-
-	msg := message.NewMessage(id.String(), body)
-
-	if txn := newrelic.FromContext(ctx); txn != nil {
-		headers := http.Header{}
-		txn.InsertDistributedTraceHeaders(headers)
-		for key := range headers {
-			msg.Metadata.Set(key, headers.Get(key))
-		}
-	}
-	return msg, nil
-}
-
-// PublishJSON marshals payload and publishes it on subject with a fresh
-// UUIDv7 message ID and the caller's distributed trace headers (see
-// tracedMessage).
-func PublishJSON(ctx context.Context, pub message.Publisher, subject string, payload any) error {
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return err
-	}
-	return PublishRaw(ctx, pub, subject, body)
-}
-
-// PublishRaw is like PublishJSON but takes already-marshaled bytes and skips
-// json.Marshal, for hot-path callers that marshal once into a pooled buffer.
-func PublishRaw(ctx context.Context, pub message.Publisher, subject string, body []byte) error {
-	msg, err := tracedMessage(ctx, body)
-	if err != nil {
-		return err
-	}
-	return pub.Publish(subject, msg)
 }

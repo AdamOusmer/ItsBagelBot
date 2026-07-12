@@ -4,15 +4,12 @@ defmodule Ingress.Nats do
   disciplines:
 
     * `publish_acked/3` — lane events (the traffic that must not be silently
-      lost). An asynchronous, pipelined JetStream publish (see
-      `Ingress.Nats.Publisher`): the event goes on the wire immediately carrying
-      a private reply subject and a `Nats-Msg-Id`, and its PubAck is reconciled
-      later by that publisher shard's ack collector. Up to `publish_max_pending` publishes
-      are outstanding at once, so a slow broker no longer parks a worker per
-      event; instead the window fills and further publishes are shed at that
-      bound. The `Nats-Msg-Id` collapses retries and Twitch's own EventSub
-      redeliveries into one stored copy, so re-publishing a missing/errored ack
-      is safe.
+      lost). A scheduler-local JetStream microbatch (see
+      `Ingress.Nats.Publisher`): concurrent events share one atomic commit
+      PubAck while every member retains its own `Nats-Msg-Id`. An ambiguous or
+      rejected batch is reconciled with individual deduplicated PubAcks. Up to
+      `publish_max_pending` events may be outstanding; the explicit bound sheds
+      overload instead of growing memory without limit.
 
     * `publish/2` — status/telemetry events. Fire-and-forget core publish; if
       the connection is down the message is dropped into batched counters. We
@@ -64,7 +61,7 @@ defmodule Ingress.Nats do
   end
 
   @doc """
-  Asynchronous JetStream publish with broker-side dedup.
+  Bounded, microbatched JetStream publish with broker-side dedup.
 
   `dedup_id` becomes the message's `Nats-Msg-Id`: within the stream's
   duplicate window the broker stores the first copy and acks the rest as

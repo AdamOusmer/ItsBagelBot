@@ -26,7 +26,8 @@ defmodule Ingress.NatsFailback do
 
     state = %{
       node: System.get_env("NODE_NAME", ""),
-      address: System.get_env("NATS_LOCAL_LEAF_ADDR", "nats-leaf-local:4222"),
+      health_url:
+        System.get_env("NATS_LOCAL_LEAF_HEALTH_URL", "http://nats-leaf-local:8222/healthz"),
       interval: interval,
       required: positive_env("NATS_FAILBACK_SUCCESSES", 3),
       timeout: positive_env("NATS_FAILBACK_PROBE_TIMEOUT_MS", 1_000),
@@ -43,7 +44,7 @@ defmodule Ingress.NatsFailback do
   end
 
   def handle_info(:check, state) do
-    local_ready = local_leaf_ready?(state.address, state.timeout)
+    local_ready = local_leaf_ready?(state.health_url, state.timeout)
 
     {successes, candidate} =
       Enum.reduce(@connections, {state.successes, nil}, fn name, {counts, candidate} ->
@@ -103,13 +104,33 @@ defmodule Ingress.NatsFailback do
     end
   end
 
-  defp local_leaf_ready?(address, timeout) do
-    with [host, port_string] <- String.split(address, ":", parts: 2),
-         {port, ""} <- Integer.parse(port_string),
+  @doc false
+  def local_leaf_ready?(health_url, timeout) do
+    with %URI{scheme: "http", host: host, port: port, path: path} when is_binary(host) <-
+           URI.parse(health_url),
          {:ok, socket} <-
            :gen_tcp.connect(String.to_charlist(host), port, [:binary, active: false], timeout) do
+      request = [
+        "GET ",
+        if(path in [nil, ""], do: "/healthz", else: path),
+        " HTTP/1.1\r\nHost: ",
+        host,
+        "\r\nConnection: close\r\n\r\n"
+      ]
+
+      result =
+        with :ok <- :gen_tcp.send(socket, request),
+             {:ok, response} <- :gen_tcp.recv(socket, 0, timeout) do
+          response
+          |> :binary.split("\r\n", [:global])
+          |> List.first()
+          |> then(&(&1 in ["HTTP/1.1 200 OK", "HTTP/1.0 200 OK"]))
+        else
+          _ -> false
+        end
+
       :gen_tcp.close(socket)
-      true
+      result
     else
       _ -> false
     end

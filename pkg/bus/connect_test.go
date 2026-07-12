@@ -32,13 +32,13 @@ func TestBusURLFallsBackWhenNoHub(t *testing.T) {
 	}
 }
 
-// RPC stays leaf-first even once NATS_HUB_URL is set: the hub is only a reconnect
-// fallback after the node-local leaf, so request/reply keeps its node locality.
-func TestRPCServerListStaysLeafFirst(t *testing.T) {
+// RPC stays leaf-only even once NATS_HUB_URL is set. The leaf Service handles
+// cross-node failover, while the hub is reserved for streams.
+func TestRPCServerListStaysOnLeaf(t *testing.T) {
 	t.Setenv("NATS_LEAF_URL", "nats://nats-leaf:4222")
 	t.Setenv("NATS_HUB_URL", "nats://nats:4222")
 
-	if got := serverList("nats://nats-rpc:4222"); got != "nats://nats-leaf:4222,nats://nats:4222" {
-		t.Fatalf("serverList = %q, want leaf-first with hub fallback", got)
+	if got := serverList("nats://nats-rpc:4222"); got != "nats://nats-leaf:4222" {
+		t.Fatalf("serverList = %q, want leaf-only RPC endpoint", got)
 	}
 }

@@ -222,6 +222,12 @@ spec:
             # metric shows real per-broadcaster admission patterns in prod.
             - name: INGRESS_DISPATCHER_MAX_PER_BROADCASTER
               value: "16000"
+            # One atomic JetStream commit per scheduler-local cohort. The 1ms
+            # tail bound avoids adding visible latency when traffic is quiet.
+            - name: INGRESS_PUBLISH_BATCH_SIZE
+              value: "128"
+            - name: INGRESS_PUBLISH_BATCH_WAIT_MS
+              value: "1"
             # Match normal and dirty schedulers to the two-CPU cgroup below.
             # `short` normal-scheduler busy-wait was modestly faster than
             # `none` across repeated direct-dispatch runs, while dirty

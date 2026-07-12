@@ -20,7 +20,7 @@ defmodule Ingress.ShardScaler do
   `Ingress.ShardSession.status/2`) and sizes the fleet from capacity:
   Twitch conduits load-balance notifications across all enabled shards, so
   the needed count is `ceil(aggregate / per-shard budget)` where the budget
-  is the shard rating × target utilization (≥20% kept as burst cushion).
+  is the shard rating × target utilization (75%, leaving 25% burst cushion).
 
     * needed > target for consecutive ticks → jump target to needed
       (immediately when aggregate exceeds the fleet's full rating)
