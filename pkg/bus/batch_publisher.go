@@ -164,20 +164,27 @@ func (p *publisherPool) PublishOwnedWithID(ctx context.Context, topic, msgID str
 }
 
 func (p *publisherPool) publish(command publishCommand) error {
-	command.stream = p.fixedStream
-	if command.stream == "" {
-		var err error
-		command.stream, err = streamForTopic(command.topic)
-		if err != nil {
-			return err
-		}
+	stream, err := p.streamFor(command.topic)
+	if err != nil {
+		return err
 	}
+	command.stream = stream
+	return p.connectionFor(command).publish(command)
+}
+
+func (p *publisherPool) streamFor(topic string) (string, error) {
+	if p.fixedStream != "" {
+		return p.fixedStream, nil
+	}
+	return streamForTopic(topic)
+}
+
+func (p *publisherPool) connectionFor(command publishCommand) *batchPublisher {
 	routeKey := command.stream
 	if partition := publishPartition(command.ctx); partition != "" {
 		routeKey += "\x00" + partition
 	}
-	member := p.members[p.router.Connection(routeKey, len(p.members))]
-	return member.publish(command)
+	return p.members[p.router.Connection(routeKey, len(p.members))]
 }
 
 func (p *publisherPool) Flush(ctx context.Context) error {
@@ -203,6 +210,19 @@ func (p *publisherPool) Close() error {
 }
 
 func (p *batchPublisher) publish(command publishCommand) error {
+	wire := publishMessage(command)
+	worker, err := p.acceptingWorker(command.stream)
+	if err != nil {
+		return err
+	}
+	request := newPublishRequest(command, wire)
+	if err := p.admit(command.ctx, worker, request); err != nil {
+		return err
+	}
+	return awaitPublishConfirmation(command.ctx, request)
+}
+
+func publishMessage(command publishCommand) *nats.Msg {
 	wire := nats.NewMsg(command.topic)
 	wire.Data = command.payload
 	wire.Header.Set(nats.MsgIdHdr, command.msgID)
@@ -214,38 +234,56 @@ func (p *batchPublisher) publish(command publishCommand) error {
 			wire.Header.Set(key, headers.Get(key))
 		}
 	}
+	return wire
+}
 
+func (p *batchPublisher) acceptingWorker(stream string) (*publishBatchWorker, error) {
 	p.mu.RLock()
 	if p.closed {
 		p.mu.RUnlock()
-		return errors.New("bus: publisher is closed")
+		return nil, errors.New("bus: publisher is closed")
 	}
-	worker, err := p.workerLocked(command.stream)
+	worker, err := p.workerLocked(stream)
 	if err != nil {
 		p.mu.RUnlock()
-		return err
+		return nil, err
 	}
+	p.mu.RUnlock()
+	return worker, nil
+}
 
+func newPublishRequest(command publishCommand, wire *nats.Msg) publishRequest {
 	request := publishRequest{msg: wire, msgID: command.msgID}
 	if command.confirmed {
 		request.confirmed = make(chan error, 1)
 	}
+	return request
+}
+
+func (p *batchPublisher) admit(ctx context.Context, worker *publishBatchWorker, request publishRequest) error {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	if p.closed {
+		return errors.New("bus: publisher is closed")
+	}
 	select {
 	case worker.requests <- request:
 		p.markAccepted()
-		p.mu.RUnlock()
-	case <-command.ctx.Done():
-		p.mu.RUnlock()
-		return command.ctx.Err()
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
 	}
+}
+
+func awaitPublishConfirmation(ctx context.Context, request publishRequest) error {
 	if request.confirmed == nil {
 		return nil
 	}
 	select {
 	case err := <-request.confirmed:
 		return err
-	case <-command.ctx.Done():
-		return command.ctx.Err()
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 }
 

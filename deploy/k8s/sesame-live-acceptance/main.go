@@ -195,8 +195,16 @@ func main() {
 }
 
 func parseFlags() config {
-	runID := strings.ToLower(time.Now().UTC().Format("20060102t150405"))
 	cfg := config{}
+	bindFlags(&cfg)
+	flag.Parse()
+	if err := finalizeConfig(&cfg); err != nil {
+		panic(err)
+	}
+	return cfg
+}
+
+func bindFlags(cfg *config) {
 	flag.StringVar(&cfg.url, "url", "tls://nats:4222", "production NATS URL")
 	flag.StringVar(&cfg.outputURL, "output-url", "", "output JetStream URL (defaults to -url)")
 	flag.StringVar(&cfg.outputMode, "output", "nats", "output sink: nats or memory")
@@ -208,21 +216,56 @@ func parseFlags() config {
 	flag.IntVar(&cfg.minConsumers, "min-consumers", 1, "initial consumer units")
 	flag.IntVar(&cfg.maxConsumers, "max-consumers", 4, "maximum consumer units")
 	flag.DurationVar(&cfg.timeout, "timeout", 2*time.Minute, "test deadline")
-	flag.Parse()
+}
+
+func finalizeConfig(cfg *config) error {
 	if cfg.outputURL == "" {
 		cfg.outputURL = cfg.url
 	}
-	if cfg.outputMode != "nats" && cfg.outputMode != "memory" {
-		panic("output must be nats or memory")
+	switch cfg.outputMode {
+	case "nats", "memory":
+	default:
+		return errors.New("output must be nats or memory")
 	}
-	if cfg.messages < 1 || cfg.channels < 1 || cfg.minRoutines < 1 || cfg.maxRoutines < cfg.minRoutines || cfg.minConsumers < 1 || cfg.maxConsumers < cfg.minConsumers {
-		panic("invalid message or routine limits")
+	if err := validateLimits(*cfg); err != nil {
+		return err
 	}
+	setRunIdentity(cfg)
+	return loadCredentials(cfg)
+}
+
+func validateLimits(cfg config) error {
+	if cfg.messages < 1 {
+		return errors.New("messages must be positive")
+	}
+	if cfg.channels < 1 {
+		return errors.New("channels must be positive")
+	}
+	if cfg.minRoutines < 1 {
+		return errors.New("minimum routines must be positive")
+	}
+	if cfg.maxRoutines < cfg.minRoutines {
+		return errors.New("invalid routine limits")
+	}
+	if cfg.minConsumers < 1 {
+		return errors.New("minimum consumers must be positive")
+	}
+	if cfg.maxConsumers < cfg.minConsumers {
+		return errors.New("invalid consumer limits")
+	}
+	return nil
+}
+
+func setRunIdentity(cfg *config) {
+	runID := strings.ToLower(time.Now().UTC().Format("20060102t150405"))
 	cfg.stream = "SESAME_BENCH_" + strings.ToUpper(strings.ReplaceAll(runID, "-", "_")) + "_" + strings.ToUpper(nuid.Next()[:6])
 	prefix := "twitch.outgress.bench.sesame." + runID + "." + strings.ToLower(nuid.Next()[:6])
 	cfg.input = prefix + ".input"
 	cfg.output = prefix + ".output"
 	cfg.group = "sesame_bench_" + runID + "_" + strings.ToLower(nuid.Next()[:6])
+}
+
+func loadCredentials(cfg *config) error {
 	cfg.user = os.Getenv("NATS_USER")
 	cfg.password = os.Getenv("NATS_PASSWORD")
 	cfg.subUser = os.Getenv("NATS_SUB_USER")
@@ -232,10 +275,19 @@ func parseFlags() config {
 		cfg.subPassword = cfg.password
 	}
 	cfg.caFile = os.Getenv("NATS_CA")
-	if cfg.user == "" || cfg.password == "" || cfg.subUser == "" || cfg.subPassword == "" {
-		panic("publisher and subscriber NATS credentials are required")
+	if cfg.user == "" {
+		return errors.New("publisher NATS user is required")
 	}
-	return cfg
+	if cfg.password == "" {
+		return errors.New("publisher NATS password is required")
+	}
+	if cfg.subUser == "" {
+		return errors.New("subscriber NATS user is required")
+	}
+	if cfg.subPassword == "" {
+		return errors.New("subscriber NATS password is required")
+	}
+	return nil
 }
 
 func run(cfg config) (r result, returnErr error) {
@@ -500,9 +552,23 @@ func inspectStoredMessages(cfg config, js nats.JetStreamContext, r *result) erro
 }
 
 func validateResult(cfg config, r result) error {
-	storedMismatch := cfg.outputMode == "nats" && r.OutputStored != uint64(cfg.messages)
-	if r.ProcessErrors != 0 || r.OutputErrors != 0 || r.UniqueProcessed != int64(cfg.messages) || r.OutputAccepted < int64(cfg.messages) || storedMismatch {
-		return errors.New("message, processing, or output count mismatch")
+	if r.ProcessErrors != 0 {
+		return errors.New("engine processing errors")
+	}
+	if r.OutputErrors != 0 {
+		return errors.New("output publishing errors")
+	}
+	if r.UniqueProcessed != int64(cfg.messages) {
+		return errors.New("unique input count mismatch")
+	}
+	if r.OutputAccepted < int64(cfg.messages) {
+		return errors.New("accepted output count mismatch")
+	}
+	if cfg.outputMode != "nats" {
+		return nil
+	}
+	if r.OutputStored != uint64(cfg.messages) {
+		return errors.New("stored output count mismatch")
 	}
 	return nil
 }
