@@ -1,0 +1,126 @@
+# cert-manager + trust-manager (deploy/infra/cert-manager/). Separate
+# Kustomization (deploy/flux/clusters/production/cert-manager.yaml), same shape as
+# keda.yaml: targetNamespace stays unset so the HelmRepository (flux-system) and
+# the HelmReleases (cert-manager namespace) keep their own namespaces, unlike
+# `apps` which pins everything to production.
+#
+# WHY
+# ---
+# The fleet is de-meshing NATS off Linkerd (see nats.yaml / nats-leaf.yaml), so
+# NATS provides its own wire encryption via NATS-native TLS instead of the
+# Linkerd sidecar. cert-manager is the battle-tested, CNCF-graduated PKI that
+# issues + auto-renews the server certs; trust-manager distributes the public CA
+# to a ConfigMap the apps read (fleet-ca). The PKI custom resources (Issuer, CA,
+# Certificates, Bundle) live in deploy/infra/pki/, applied by the `pki`
+# Kustomization which dependsOn this one.
+#
+# CHART VERSIONS
+# --------------
+# Exact pins per deploy/flux/README.md's immutability rationale. CONFIRM the
+# current stable tags before first apply and bump deliberately (CRD schemas can
+# change between minors): cert-manager releases and trust-manager releases track
+# separately in the jetstack chart repo.
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: jetstack
+  namespace: flux-system
+spec:
+  interval: 1h
+  url: https://charts.jetstack.io
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: cert-manager
+  namespace: cert-manager
+spec:
+  interval: 1h
+  timeout: 10m
+  releaseName: cert-manager
+  chart:
+    spec:
+      chart: cert-manager
+      version: v1.17.4 # exact pin — latest stable, validated vs this k8s 1.35 fleet; bump deliberately
+      sourceRef:
+        kind: HelmRepository
+        name: jetstack
+        namespace: flux-system
+      interval: 1h
+  install:
+    createNamespace: true
+    crds: Create
+    remediation:
+      retries: 3
+  upgrade:
+    # CreateReplace lets a future chart bump patch the cert-manager CRDs in place
+    # instead of keeping the schema this cluster was bootstrapped with (same
+    # rationale as keda.yaml).
+    crds: CreateReplace
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+    cleanupOnFail: true
+  values:
+    # crds.enabled installs the CRDs via the chart (paired with install.crds
+    # above). Keep true so Flux owns them.
+    crds:
+      enabled: true
+      keep: true
+    # Trimmed for this small fleet, same as keda/newrelic. Re-widen if the
+    # controller/webhook/cainjector is throttled or OOMKilled in practice.
+    resources:
+      requests: {cpu: 25m, memory: 64Mi}
+      limits: {cpu: 250m, memory: 256Mi}
+    webhook:
+      resources:
+        requests: {cpu: 10m, memory: 32Mi}
+        limits: {cpu: 200m, memory: 128Mi}
+    cainjector:
+      resources:
+        requests: {cpu: 10m, memory: 64Mi}
+        limits: {cpu: 200m, memory: 256Mi}
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: trust-manager
+  namespace: cert-manager
+spec:
+  interval: 1h
+  timeout: 10m
+  releaseName: trust-manager
+  # trust-manager's webhook depends on cert-manager being up to issue its own
+  # serving cert, so install it after.
+  dependsOn:
+    - name: cert-manager
+  chart:
+    spec:
+      chart: trust-manager
+      version: v0.24.0 # exact pin — latest stable; bump deliberately
+      sourceRef:
+        kind: HelmRepository
+        name: jetstack
+        namespace: flux-system
+      interval: 1h
+  install:
+    crds: Create
+    remediation:
+      retries: 3
+  upgrade:
+    crds: CreateReplace
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+    cleanupOnFail: true
+  values:
+    # trust-manager watches this namespace for Bundle source secrets. The CA lives
+    # in cert-manager (where the fleet-ca Certificate writes fleet-ca-key-pair).
+    # Matches the chart default; set explicitly for clarity.
+    app:
+      trust:
+        namespace: cert-manager
+    resources:
+      requests: {cpu: 10m, memory: 32Mi}
+      limits: {cpu: 200m, memory: 128Mi}

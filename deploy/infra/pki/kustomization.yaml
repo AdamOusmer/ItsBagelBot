@@ -1,0 +1,12 @@
+# Fleet PKI: the cert-manager issuers, the server Certificates, and the
+# trust-manager Bundle that publishes the CA to apps. Applied by the `pki`
+# Kustomization (deploy/flux/clusters/production/pki.yaml), which dependsOn
+# cert-manager so the CRDs and webhooks exist first. `apps` in turn dependsOn
+# `pki`, so the cert secrets and the fleet-ca ConfigMap exist before the NATS and
+# console pods that consume them are applied.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - issuers.yaml
+  - certificates.yaml
+  - trust.yaml

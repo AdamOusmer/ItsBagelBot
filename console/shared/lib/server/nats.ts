@@ -174,6 +174,12 @@ function options(role: Role): ConnectionOptions {
   if (user) opts.user = user;
   if (pass) opts.pass = pass;
   if (process.env.NATS_TOKEN) opts.token = process.env.NATS_TOKEN;
+  // Verify the NATS server's TLS cert against the fleet CA now that NATS is out of
+  // the Linkerd mesh (NATS_CA_PEM = the trust-manager fleet-ca ConfigMap). Setting
+  // tls upgrades the connection; server-auth only, auth stays user/password. No CA
+  // (local dev against a plaintext server) keeps the connection plaintext.
+  const caPem = process.env.NATS_CA_PEM;
+  if (caPem) opts.tls = { ca: caPem };
   return opts;
 }
 

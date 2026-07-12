@@ -76,9 +76,10 @@ spec:
         # Opaque ports for EPMD (4369) and Erlang distribution (9100-9110)
         # to prevent Linkerd protocol detection timeouts on server-speaks-first.
         config.linkerd.io/opaque-ports: "4369,9100-9110"
-        # Skip outbound port 443 to prevent mesh interference with the
-        # server-speaks-first Twitch EventSub wss:// sockets.
-        config.linkerd.io/skip-outbound-ports: "443"
+        # Skip outbound: 443 for the server-speaks-first Twitch EventSub wss://
+        # sockets, and 4222 for NATS — now out of the mesh, so NATS-native TLS
+        # provides the encryption and the proxy would otherwise tax every event.
+        config.linkerd.io/skip-outbound-ports: "443,4222"
     spec:
       tolerations:
         - key: itsbagelbot.dev/pool
@@ -180,6 +181,15 @@ spec:
               value: nats-leaf
             - name: NATS_HUB_HOST
               value: nats
+            # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS server
+            # TLS cert now that NATS is out of the Linkerd mesh; decoded to ssl_opts
+            # cacerts in config/runtime.exs. Both :gnat (leaf) and :gnat_bus (hub)
+            # verify against it.
+            - name: NATS_CA_PEM
+              valueFrom:
+                configMapKeyRef:
+                  name: fleet-ca
+                  key: ca.pem
             - name: POD_IP
               valueFrom:
                 fieldRef:
