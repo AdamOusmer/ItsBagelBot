@@ -19,6 +19,8 @@ import (
 //     /announce is "primary"); the verb is stripped from Text.
 //   - /shoutout <target> -> TypeShoutout; the first token (leading '@' stripped)
 //     becomes To and is removed from Text.
+//   - /pin <message> -> TypePin; the verb is stripped from Text. Outgress sends
+//     the message first, then pins it until the current stream ends.
 //   - /me -> left as a plain chat line; the verb is NOT stripped (Twitch chat
 //     interprets the leading "/me" itself).
 //
@@ -46,6 +48,13 @@ func Translate(out *module.Output) {
 		return
 	}
 
+	// /pin <message>
+	if rest, ok := cutVerb(text, "/pin"); ok {
+		out.Type = outgress.TypePin
+		out.Text = rest
+		return
+	}
+
 	// /me is a plain passthrough: leave Type=chat and keep the verb in Text.
 }
 
@@ -54,7 +63,7 @@ func Translate(out *module.Output) {
 // message, a /shoutout with no target, or an empty chat line.
 func isEmptyAction(out *module.Output) bool {
 	switch out.Type {
-	case outgress.TypeAnnounce, outgress.TypeChat:
+	case outgress.TypeAnnounce, outgress.TypePin, outgress.TypeChat:
 		return out.Text == ""
 	case outgress.TypeShoutout:
 		return out.To == ""

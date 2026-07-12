@@ -781,6 +781,7 @@ export const fr = {
     addMessageAfter: '…ajoutez un message après {verb}',
     shoutsOut: 'Fait un shoutout à',
     nameChannel: '…nommez une chaîne après /shoutout',
+    pinnedForStream: 'Épinglé jusqu’à la fin du stream',
     addActionAfterMe: '…ajoutez une action après /me',
     nothingToSay: '…le bot n\'a rien à dire pour le moment',
     unknownVar: 'Variable inconnue'
