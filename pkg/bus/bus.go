@@ -100,7 +100,10 @@ func bindDurable(cfg LaneConfig, maxDeliveries int, nakDelay wmnats.Delay, log *
 		return nil, nil, err
 	}
 
-	sub := newConcurrentDurableSubscriber(nc, js, cfg.Stream, consumer, cfg.Group, nakDelay, log)
+	sub := newConcurrentDurableSubscriber(concurrentSubscriberConfig{
+		nc: nc, js: js, stream: cfg.Stream, consumer: consumer,
+		group: cfg.Group, delay: nakDelay, log: log,
+	})
 	return sub, nc, nil
 }
 

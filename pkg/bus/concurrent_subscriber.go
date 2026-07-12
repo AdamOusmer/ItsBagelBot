@@ -35,19 +35,23 @@ type concurrentDurableSubscriber struct {
 	acks    sync.WaitGroup
 }
 
-func newConcurrentDurableSubscriber(
-	nc *nats.Conn,
-	js nats.JetStreamContext,
-	stream, consumer, group string,
-	delay wmnats.Delay,
-	log *zap.Logger,
-) *concurrentDurableSubscriber {
-	if log == nil {
-		log = zap.NewNop()
+type concurrentSubscriberConfig struct {
+	nc       *nats.Conn
+	js       nats.JetStreamContext
+	stream   string
+	consumer string
+	group    string
+	delay    wmnats.Delay
+	log      *zap.Logger
+}
+
+func newConcurrentDurableSubscriber(cfg concurrentSubscriberConfig) *concurrentDurableSubscriber {
+	if cfg.log == nil {
+		cfg.log = zap.NewNop()
 	}
 	s := &concurrentDurableSubscriber{
-		nc: nc, js: js, stream: stream, consumer: consumer, group: group,
-		delay: delay, ackWait: 30 * time.Second, log: log,
+		nc: cfg.nc, js: cfg.js, stream: cfg.stream, consumer: cfg.consumer, group: cfg.group,
+		delay: cfg.delay, ackWait: 30 * time.Second, log: cfg.log,
 		subs: make(map[*nats.Subscription]struct{}), closeCh: make(chan struct{}),
 	}
 	// Keep the WaitGroup positive until Close has unsubscribed every callback;
@@ -68,24 +72,8 @@ func (s *concurrentDurableSubscriber) Subscribe(ctx context.Context, subject str
 	}
 	s.mu.Unlock()
 
-	unmarshaler := &wmnats.NATSMarshaler{}
-	sub, err := s.js.QueueSubscribe(subject, s.group, func(natsMsg *nats.Msg) {
-		deliveries.Add(1)
-		defer deliveries.Done()
-
-		msg, err := unmarshaler.Unmarshal(natsMsg)
-		if err != nil {
-			s.log.Warn("cannot decode durable NATS message", zap.String("subject", subject), zap.Error(err))
-			return
-		}
-		select {
-		case output <- msg:
-			s.acks.Add(1)
-			go s.awaitResult(natsMsg, msg)
-		case <-ctx.Done():
-		case <-s.closeCh:
-		}
-	}, nats.Bind(s.stream, s.consumer), nats.ManualAck())
+	callback := s.deliveryCallback(ctx, subject, output, &deliveries)
+	sub, err := s.js.QueueSubscribe(subject, s.group, callback, nats.Bind(s.stream, s.consumer), nats.ManualAck())
 	if err != nil {
 		deliveries.Done()
 		return nil, err
@@ -116,6 +104,32 @@ func (s *concurrentDurableSubscriber) Subscribe(ctx context.Context, subject str
 	}()
 
 	return output, nil
+}
+
+func (s *concurrentDurableSubscriber) deliveryCallback(
+	ctx context.Context,
+	subject string,
+	output chan<- *message.Message,
+	deliveries *sync.WaitGroup,
+) nats.MsgHandler {
+	unmarshaler := &wmnats.NATSMarshaler{}
+	return func(natsMsg *nats.Msg) {
+		deliveries.Add(1)
+		defer deliveries.Done()
+
+		msg, err := unmarshaler.Unmarshal(natsMsg)
+		if err != nil {
+			s.log.Warn("cannot decode durable NATS message", zap.String("subject", subject), zap.Error(err))
+			return
+		}
+		select {
+		case output <- msg:
+			s.acks.Add(1)
+			go s.awaitResult(natsMsg, msg)
+		case <-ctx.Done():
+		case <-s.closeCh:
+		}
+	}
 }
 
 func (s *concurrentDurableSubscriber) awaitResult(natsMsg *nats.Msg, msg *message.Message) {

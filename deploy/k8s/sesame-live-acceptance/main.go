@@ -227,6 +227,20 @@ func main() {
 
 func parseFlags() config {
 	runID := strings.ToLower(time.Now().UTC().Format("20060102t150405"))
+	cfg := bindFlags()
+	flag.Parse()
+	applyConfigDefaults(&cfg)
+	applyConfigEnvironment(&cfg)
+	validateConfig(cfg)
+	cfg.stream = "SESAME_BENCH_" + strings.ToUpper(strings.ReplaceAll(runID, "-", "_")) + "_" + strings.ToUpper(nuid.Next()[:6])
+	prefix := "twitch.outgress.bench.sesame." + runID + "." + strings.ToLower(nuid.Next()[:6])
+	cfg.input = prefix + ".input"
+	cfg.output = prefix + ".output"
+	cfg.group = "sesame_bench_" + runID + "_" + strings.ToLower(nuid.Next()[:6])
+	return cfg
+}
+
+func bindFlags() config {
 	cfg := config{}
 	flag.StringVar(&cfg.url, "url", "tls://nats:4222", "production NATS URL")
 	flag.StringVar(&cfg.outputURL, "output-url", "", "output JetStream URL (defaults to -url)")
@@ -239,24 +253,16 @@ func parseFlags() config {
 	flag.IntVar(&cfg.maxConsumers, "max-consumers", 4, "maximum consumer units")
 	flag.StringVar(&cfg.dedup, "dedup", "valkey", "dedup backend: valkey or noop")
 	flag.DurationVar(&cfg.timeout, "timeout", 2*time.Minute, "test deadline")
-	flag.Parse()
+	return cfg
+}
+
+func applyConfigDefaults(cfg *config) {
 	if cfg.outputURL == "" {
 		cfg.outputURL = cfg.url
 	}
-	if cfg.outputMode != "nats" && cfg.outputMode != "memory" {
-		panic("output must be nats or memory")
-	}
-	if cfg.messages < 1 || cfg.minRoutines < 1 || cfg.maxRoutines < cfg.minRoutines || cfg.minConsumers < 1 || cfg.maxConsumers < cfg.minConsumers {
-		panic("invalid message or routine limits")
-	}
-	if cfg.dedup != "valkey" && cfg.dedup != "noop" {
-		panic("dedup must be valkey or noop")
-	}
-	cfg.stream = "SESAME_BENCH_" + strings.ToUpper(strings.ReplaceAll(runID, "-", "_")) + "_" + strings.ToUpper(nuid.Next()[:6])
-	prefix := "twitch.outgress.bench.sesame." + runID + "." + strings.ToLower(nuid.Next()[:6])
-	cfg.input = prefix + ".input"
-	cfg.output = prefix + ".output"
-	cfg.group = "sesame_bench_" + runID + "_" + strings.ToLower(nuid.Next()[:6])
+}
+
+func applyConfigEnvironment(cfg *config) {
 	cfg.user = os.Getenv("NATS_USER")
 	cfg.password = os.Getenv("NATS_PASSWORD")
 	cfg.subUser = os.Getenv("NATS_SUB_USER")
@@ -268,182 +274,343 @@ func parseFlags() config {
 	cfg.caFile = os.Getenv("NATS_CA")
 	cfg.valkeyAddr = os.Getenv("VALKEY_ADDR")
 	cfg.valkeyPass = os.Getenv("VALKEY_PASSWORD")
-	if cfg.user == "" || cfg.password == "" || cfg.subUser == "" || cfg.subPassword == "" {
-		panic("publisher and subscriber NATS credentials are required")
+}
+
+func validateConfig(cfg config) {
+	validateChoice(cfg.outputMode, "output", "nats", "memory")
+	validateChoice(cfg.dedup, "dedup", "valkey", "noop")
+	requirePositive(cfg.messages, "messages")
+	requirePositive(cfg.minRoutines, "min-routines")
+	requireAtLeast(cfg.maxRoutines, cfg.minRoutines, "max-routines")
+	requirePositive(cfg.minConsumers, "min-consumers")
+	requireAtLeast(cfg.maxConsumers, cfg.minConsumers, "max-consumers")
+	requireText(cfg.user, "NATS_USER")
+	requireText(cfg.password, "NATS_PASSWORD")
+	requireText(cfg.subUser, "NATS_SUB_USER")
+	requireText(cfg.subPassword, "NATS_SUB_PASSWORD")
+	if cfg.dedup == "valkey" {
+		requireText(cfg.valkeyAddr, "VALKEY_ADDR")
+		requireText(cfg.valkeyPass, "VALKEY_PASSWORD")
 	}
-	if cfg.dedup == "valkey" && (cfg.valkeyAddr == "" || cfg.valkeyPass == "") {
-		panic("VALKEY_ADDR and VALKEY_PASSWORD are required for valkey dedup")
+}
+
+func validateChoice(value, name, first, second string) {
+	if value == first {
+		return
 	}
-	return cfg
+	if value == second {
+		return
+	}
+	panic(name + " must be " + first + " or " + second)
+}
+
+func requirePositive(value int, name string) {
+	if value < 1 {
+		panic(name + " must be positive")
+	}
+}
+
+func requireAtLeast(value, minimum int, name string) {
+	if value < minimum {
+		panic(name + " is below its minimum")
+	}
+}
+
+func requireText(value, name string) {
+	if value == "" {
+		panic(name + " is required")
+	}
 }
 
 func run(cfg config) (r result, returnErr error) {
-	r = result{
-		Node: os.Getenv("NODE_NAME"), Messages: cfg.messages, GOMAXPROCS: runtime.GOMAXPROCS(0),
-		Dedup: cfg.dedup, MinRoutines: cfg.minRoutines, MaxRoutines: cfg.maxRoutines,
-		MinConsumers: cfg.minConsumers, MaxConsumers: cfg.maxConsumers,
-	}
+	r = initialResult(cfg)
 	log := zap.NewNop()
-	setup, err := connect(cfg, "sesame-bench-setup")
+	fixture, err := newStreamFixture(cfg)
 	if err != nil {
 		return r, err
 	}
-	defer setup.Close()
-	r.Server = setup.ConnectedServerName()
-	js, err := setup.JetStream(nats.Domain(cfg.domain), nats.MaxWait(5*time.Second), nats.PublishAsyncMaxPending(65_536))
-	if err != nil {
-		return r, err
-	}
-	if _, err := js.AddStream(&nats.StreamConfig{
-		Name: cfg.stream, Subjects: []string{cfg.input, cfg.output}, Storage: nats.MemoryStorage,
-		Replicas: 1, MaxAge: 5 * time.Minute, MaxMsgs: int64(cfg.messages*3 + 1000), Discard: nats.DiscardOld,
-	}); err != nil {
-		return r, fmt.Errorf("create isolated stream: %w", err)
-	}
+	r.Server = fixture.nc.ConnectedServerName()
 	defer func() {
-		if err := js.DeleteStream(cfg.stream); err != nil && returnErr == nil {
-			returnErr = fmt.Errorf("delete isolated stream: %w", err)
+		if err := fixture.Close(); err != nil && returnErr == nil {
+			returnErr = err
 		}
 	}()
-
-	if err := prefill(cfg, js); err != nil {
+	if err := prefill(cfg, fixture.js); err != nil {
 		return r, err
 	}
-
-	var output measuredPublisher
-	if cfg.outputMode == "memory" {
-		output = &memoryPublisher{}
-	} else {
-		output, err = newJSPublisher(cfg)
-		if err != nil {
-			return r, fmt.Errorf("open output publisher: %w", err)
-		}
+	output, err := newMeasuredPublisher(cfg)
+	if err != nil {
+		return r, err
 	}
 	defer output.Close() //nolint:errcheck -- explicit flush below reports failures
-
-	var valkeyClient interface{ Close() }
-	var dedup engine.DedupStore = engine.NoopDedup{}
-	var batchedDedup *engine.BatchedValkeyDedup
-	if cfg.dedup == "valkey" {
-		vc, err := pkgvalkey.NewClient(cfg.valkeyAddr, cfg.valkeyPass)
-		if err != nil {
-			return r, fmt.Errorf("connect valkey: %w", err)
-		}
-		valkeyClient = vc
-		defer valkeyClient.Close()
-		batchedDedup = engine.NewBatchedValkeyDedup(vc, 2*time.Minute, 128, 200*time.Microsecond)
-		defer batchedDedup.Close()
-		dedup = batchedDedup
+	dedup, err := newDedupFixture(cfg)
+	if err != nil {
+		return r, err
 	}
-
+	defer dedup.Close()
 	pipe := engine.NewPipeline(engine.Deps{
-		Proj: benchReader{}, Live: liveAlways{}, Cooldown: engine.NoopCooldown{}, Dedup: dedup,
+		Proj: benchReader{}, Live: liveAlways{}, Cooldown: engine.NoopCooldown{}, Dedup: dedup.store,
 		Pub: output, Log: log, Automod: automod.New(),
 	}, engine.NewRegistry(log), engine.Config{
 		OutgressPremium: cfg.output, OutgressStandard: cfg.output,
 	})
 	defer pipe.Close()
+	sub, err := newBenchmarkSubscriber(cfg, log)
+	if err != nil {
+		return r, err
+	}
+	defer sub.Close() //nolint:errcheck
+	execution := pipelineExecution{cfg: cfg, pipe: pipe, sub: sub, output: output, log: log}
+	metrics, err := executePipeline(execution)
+	metrics.apply(&r)
+	if err != nil {
+		return r, err
+	}
+	return r, validateResult(cfg, r)
+}
 
-	// bus.NewLaneSubscriber intentionally reads the fleet credential contract
-	// from the environment. Switch only for this synchronous connection setup:
-	// worker_bus publishes the isolated outgress subject while outgress_bus has
-	// least-privilege subscribe rights to it. Existing connections are unaffected.
+func initialResult(cfg config) result {
+	return result{
+		Node: os.Getenv("NODE_NAME"), Messages: cfg.messages, GOMAXPROCS: runtime.GOMAXPROCS(0),
+		Dedup: cfg.dedup, MinRoutines: cfg.minRoutines, MaxRoutines: cfg.maxRoutines,
+		MinConsumers: cfg.minConsumers, MaxConsumers: cfg.maxConsumers,
+	}
+}
+
+type streamFixture struct {
+	cfg config
+	nc  *nats.Conn
+	js  nats.JetStreamContext
+}
+
+func newStreamFixture(cfg config) (*streamFixture, error) {
+	nc, err := connect(cfg, "sesame-bench-setup")
+	if err != nil {
+		return nil, err
+	}
+	js, err := nc.JetStream(nats.Domain(cfg.domain), nats.MaxWait(5*time.Second), nats.PublishAsyncMaxPending(65_536))
+	if err != nil {
+		nc.Close()
+		return nil, err
+	}
+	_, err = js.AddStream(&nats.StreamConfig{
+		Name: cfg.stream, Subjects: []string{cfg.input, cfg.output}, Storage: nats.MemoryStorage,
+		Replicas: 1, MaxAge: 5 * time.Minute, MaxMsgs: int64(cfg.messages*3 + 1000), Discard: nats.DiscardOld,
+	})
+	if err != nil {
+		nc.Close()
+		return nil, fmt.Errorf("create isolated stream: %w", err)
+	}
+	return &streamFixture{cfg: cfg, nc: nc, js: js}, nil
+}
+
+func (f *streamFixture) Close() error {
+	defer f.nc.Close()
+	if err := f.js.DeleteStream(f.cfg.stream); err != nil {
+		return fmt.Errorf("delete isolated stream: %w", err)
+	}
+	return nil
+}
+
+func newMeasuredPublisher(cfg config) (measuredPublisher, error) {
+	if cfg.outputMode == "memory" {
+		return &memoryPublisher{}, nil
+	}
+	output, err := newJSPublisher(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("open output publisher: %w", err)
+	}
+	return output, nil
+}
+
+type dedupFixture struct {
+	store engine.DedupStore
+	close func()
+}
+
+func newDedupFixture(cfg config) (dedupFixture, error) {
+	if cfg.dedup == "noop" {
+		return dedupFixture{store: engine.NoopDedup{}, close: func() {}}, nil
+	}
+	vc, err := pkgvalkey.NewClient(cfg.valkeyAddr, cfg.valkeyPass)
+	if err != nil {
+		return dedupFixture{}, fmt.Errorf("connect valkey: %w", err)
+	}
+	store := engine.NewBatchedValkeyDedup(vc, 2*time.Minute, 128, 200*time.Microsecond)
+	return dedupFixture{store: store, close: func() { store.Close(); vc.Close() }}, nil
+}
+
+func (d dedupFixture) Close() { d.close() }
+
+func newBenchmarkSubscriber(cfg config, log *zap.Logger) (message.Subscriber, error) {
+	// NewLaneSubscriber reads the fleet credential contract from the environment.
 	publishUser, publishPassword := os.Getenv("NATS_USER"), os.Getenv("NATS_PASSWORD")
+	defer func() {
+		_ = os.Setenv("NATS_USER", publishUser)
+		_ = os.Setenv("NATS_PASSWORD", publishPassword)
+	}()
 	_ = os.Setenv("NATS_USER", cfg.subUser)
 	_ = os.Setenv("NATS_PASSWORD", cfg.subPassword)
 	sub, err := bus.NewLaneSubscriber(bus.LaneConfig{
 		URL: cfg.url, Stream: cfg.stream, Subject: cfg.input, Group: cfg.group,
 		NakDelay: time.Second, MaxRedeliveries: 2,
 	}, log)
-	_ = os.Setenv("NATS_USER", publishUser)
-	_ = os.Setenv("NATS_PASSWORD", publishPassword)
 	if err != nil {
-		return r, fmt.Errorf("open isolated subscriber: %w", err)
+		return nil, fmt.Errorf("open isolated subscriber: %w", err)
 	}
-	defer sub.Close() //nolint:errcheck
+	return sub, nil
+}
 
+type pipelineMetrics struct {
+	processed, processErrors, outputAccepted, outputErrors int64
+	engineElapsed, elapsed                                 time.Duration
+	maxInflight                                            int64
+	latencies                                              []time.Duration
+}
+
+func (m pipelineMetrics) apply(r *result) {
+	r.Processed, r.ProcessErrors = m.processed, m.processErrors
+	r.OutputAccepted, r.OutputErrors = m.outputAccepted, m.outputErrors
+	r.EngineDurationMS = m.engineElapsed.Milliseconds()
+	r.EnginePerSecond = float64(m.processed) / m.engineElapsed.Seconds()
+	r.DurationMS = m.elapsed.Milliseconds()
+	r.MessagesPerSecond = float64(m.processed) / m.elapsed.Seconds()
+	r.MaxInflight = m.maxInflight
+	r.ProcessP50US, r.ProcessP95US, r.ProcessP99US = percentiles(m.latencies)
+}
+
+type processor struct {
+	pipe                                            *engine.Pipeline
+	gate                                            chan struct{}
+	processed, processErrors, inflight, maxInflight atomic.Int64
+	latencies                                       *latencySamples
+}
+
+func (p *processor) handle(msg *message.Message) error {
+	<-p.gate
+	current := p.inflight.Add(1)
+	p.observeInflight(current)
+	started := time.Now()
+	err := p.pipe.Process(msg)
+	p.inflight.Add(-1)
+	if err != nil {
+		p.processErrors.Add(1)
+		return err
+	}
+	sequence := p.processed.Add(1)
+	p.latencies.add(sequence, time.Since(started))
+	return nil
+}
+
+func (p *processor) observeInflight(current int64) {
+	for maximum := p.maxInflight.Load(); current > maximum; maximum = p.maxInflight.Load() {
+		if p.maxInflight.CompareAndSwap(maximum, current) {
+			return
+		}
+	}
+}
+
+type pipelineExecution struct {
+	cfg    config
+	pipe   *engine.Pipeline
+	sub    message.Subscriber
+	output measuredPublisher
+	log    *zap.Logger
+}
+
+func executePipeline(execution pipelineExecution) (pipelineMetrics, error) {
+	cfg := execution.cfg
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	gate := make(chan struct{})
-	var processed, processErrors, inflight, maxInflight atomic.Int64
-	latencies := &latencySamples{values: make([]time.Duration, 0, cfg.messages/100+1)}
-	handle := func(msg *message.Message) error {
-		<-gate
-		current := inflight.Add(1)
-		for maximum := maxInflight.Load(); current > maximum && !maxInflight.CompareAndSwap(maximum, current); maximum = maxInflight.Load() {
-		}
-		started := time.Now()
-		err := pipe.Process(msg)
-		inflight.Add(-1)
-		if err != nil {
-			processErrors.Add(1)
-			return err
-		}
-		sequence := processed.Add(1)
-		latencies.add(sequence, time.Since(started))
-		return nil
+	p := &processor{pipe: execution.pipe, gate: make(chan struct{}), latencies: &latencySamples{values: make([]time.Duration, 0, cfg.messages/100+1)}}
+	weighted, err := startWeighted(execution, ctx, p.handle)
+	if err != nil {
+		return pipelineMetrics{}, err
 	}
-	weighted, err := bus.ConsumeWeighted(ctx, nil, []bus.WeightedLane{{
-		Sub: sub, Subject: cfg.input, Handle: handle,
-	}}, bus.ScalePolicy{
+	time.Sleep(250 * time.Millisecond)
+	started := time.Now()
+	close(p.gate)
+	if err := waitUntilProcessed(cfg, &p.processed); err != nil {
+		return pipelineMetrics{}, err
+	}
+	engineElapsed := time.Since(started)
+	accepted, outputErrors := execution.output.counts()
+	cancel()
+	if err := drainWeighted(weighted); err != nil {
+		return pipelineMetrics{}, err
+	}
+	if err := flushOutput(execution.output); err != nil {
+		return pipelineMetrics{}, err
+	}
+	_, outputErrors = execution.output.counts()
+	return pipelineMetrics{
+		processed: p.processed.Load(), processErrors: p.processErrors.Load(),
+		outputAccepted: accepted, outputErrors: outputErrors,
+		engineElapsed: engineElapsed, elapsed: time.Since(started),
+		maxInflight: p.maxInflight.Load(), latencies: p.latencies.values,
+	}, nil
+}
+
+func startWeighted(execution pipelineExecution, ctx context.Context, handle func(*message.Message) error) (*bus.Weighted, error) {
+	cfg := execution.cfg
+	weighted, err := bus.ConsumeWeighted(ctx, nil, []bus.WeightedLane{{Sub: execution.sub, Subject: cfg.input, Handle: handle}}, bus.ScalePolicy{
 		MinRoutines: cfg.minRoutines, MaxRoutines: cfg.maxRoutines,
 		MinConsumers: cfg.minConsumers, MaxConsumers: cfg.maxConsumers,
 		ScaleUpAfter: 2 * time.Second, ScaleDownAfter: 45 * time.Second,
-	}, log)
+	}, execution.log)
 	if err != nil {
-		return r, fmt.Errorf("start weighted consumer: %w", err)
+		return nil, fmt.Errorf("start weighted consumer: %w", err)
 	}
+	return weighted, nil
+}
 
-	time.Sleep(250 * time.Millisecond)
-	started := time.Now()
-	close(gate)
+func waitUntilProcessed(cfg config, processed *atomic.Int64) error {
 	deadline := time.NewTimer(cfg.timeout)
+	defer deadline.Stop()
 	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
 	for processed.Load() < int64(cfg.messages) {
 		select {
 		case <-deadline.C:
-			return r, fmt.Errorf("timeout after processing %d/%d", processed.Load(), cfg.messages)
+			return fmt.Errorf("timeout after processing %d/%d", processed.Load(), cfg.messages)
 		case <-ticker.C:
 		}
 	}
-	engineElapsed := time.Since(started)
-	r.Processed = processed.Load()
-	r.ProcessErrors = processErrors.Load()
-	r.OutputAccepted, r.OutputErrors = output.counts()
-	r.EngineDurationMS = engineElapsed.Milliseconds()
-	r.EnginePerSecond = float64(r.Processed) / engineElapsed.Seconds()
-	r.MaxInflight = maxInflight.Load()
-	r.ProcessP50US, r.ProcessP95US, r.ProcessP99US = percentiles(latencies.values)
-	if !deadline.Stop() {
-		select {
-		case <-deadline.C:
-		default:
-		}
-	}
-	ticker.Stop()
-	cancel()
-	drainCtx, drainCancel := context.WithTimeout(context.Background(), 15*time.Second)
-	if err := weighted.Drain(drainCtx); err != nil {
-		drainCancel()
-		return r, fmt.Errorf("drain input: %w", err)
-	}
-	drainCancel()
-	flushCtx, flushCancel := context.WithTimeout(context.Background(), 30*time.Second)
-	if err := output.Flush(flushCtx); err != nil {
-		flushCancel()
-		r.DurationMS = time.Since(started).Milliseconds()
-		return r, fmt.Errorf("flush output: %w", err)
-	}
-	flushCancel()
-	elapsed := time.Since(started)
+	return nil
+}
 
-	_, r.OutputErrors = output.counts()
-	r.DurationMS = elapsed.Milliseconds()
-	r.MessagesPerSecond = float64(r.Processed) / elapsed.Seconds()
-	if r.ProcessErrors != 0 || r.OutputErrors != 0 || r.Processed != int64(cfg.messages) || r.OutputAccepted != int64(cfg.messages) {
-		return r, errors.New("message, processing, or output count mismatch")
+func drainWeighted(weighted *bus.Weighted) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	if err := weighted.Drain(ctx); err != nil {
+		return fmt.Errorf("drain input: %w", err)
 	}
-	return r, nil
+	return nil
+}
+
+func flushOutput(output measuredPublisher) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if err := output.Flush(ctx); err != nil {
+		return fmt.Errorf("flush output: %w", err)
+	}
+	return nil
+}
+
+func validateResult(cfg config, r result) error {
+	if r.ProcessErrors != 0 {
+		return errors.New("processing error count mismatch")
+	}
+	if r.OutputErrors != 0 {
+		return errors.New("output error count mismatch")
+	}
+	if r.Processed != int64(cfg.messages) {
+		return errors.New("processed message count mismatch")
+	}
+	if r.OutputAccepted != int64(cfg.messages) {
+		return errors.New("accepted output count mismatch")
+	}
+	return nil
 }
 
 func connect(cfg config, name string) (*nats.Conn, error) {

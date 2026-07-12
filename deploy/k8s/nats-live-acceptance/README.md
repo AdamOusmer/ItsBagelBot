@@ -1,7 +1,7 @@
 # Live NATS acceptance test
 
-This test compares the production-shaped JetStream publish/PubAck path through
-the native-TLS hub and through a node-local native-TLS leaf. It creates a unique
+This test measures the production-shaped JetStream publish/PubAck path directly
+through the native-TLS hub. Leaves are RPC-only. It creates a unique
 memory-backed stream on `twitch.outgress.bench.*`, a subject no production
 stream or consumer owns, and deletes it on exit.
 
@@ -11,7 +11,7 @@ scope. The test requires `NATS_USER`, `NATS_PASSWORD`, and `NATS_CA` and refuses
 to run without CA verification.
 
 The defaults mirror one ingress pod: two publisher connections, 128-message
-atomic commits, 200,000 messages per endpoint, and 256-byte payloads. Use
+atomic commits, 200,000 messages, and 256-byte payloads. Use
 `-mode=async` for the old per-message PubAck comparison. The temporary stream
 enables both `AllowAtomicPublish` and NATS 2.14 `AllowBatchPublish`.
 
@@ -30,13 +30,12 @@ kubectl -n production exec <benchmark-pod> -- sh -c \
 
 Acceptance gates:
 
-- both endpoints negotiate verified TLS 1.2 or newer;
+- the hub endpoint negotiates verified TLS 1.2 or newer;
 - all messages receive PubAcks and the error count is zero;
 - PubAck p95 remains below 20 ms;
-- the leaf result does not stall at the production pending window;
 - no slow-consumer or quorum-loss messages appear in NATS logs.
 
-The command prints machine-readable JSON and returns non-zero if either endpoint
+The command prints machine-readable JSON and returns non-zero if the hub
 loses or times out a PubAck, or exceeds the configurable `-max-p95` gate (20 ms
 by default). Stream cleanup is enabled by default, including on benchmark
 failure.

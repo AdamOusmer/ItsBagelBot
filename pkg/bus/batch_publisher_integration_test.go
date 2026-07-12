@@ -16,6 +16,18 @@ import (
 // Run with NATS_INTEGRATION_URL against NATS 2.14+ (testdata/nats-2.14.conf).
 // The ordinary suite skips it so CI does not need an external broker.
 func TestBatchPublisherIntegration(t *testing.T) {
+	url, pub, cancel := integrationPublisher(t)
+	defer cancel()
+	defer pub.Close() //nolint:errcheck
+
+	const messages = 64
+	publishIntegrationBurst(t, pub, messages)
+	assertIntegrationStream(t, url, messages)
+	deleteIntegrationStreams(url)
+}
+
+func integrationPublisher(t testing.TB) (string, Publisher, context.CancelFunc) {
+	t.Helper()
 	url := os.Getenv("NATS_INTEGRATION_URL")
 	if url == "" {
 		t.Skip("NATS_INTEGRATION_URL is not set")
@@ -23,20 +35,22 @@ func TestBatchPublisherIntegration(t *testing.T) {
 	t.Setenv("NATS_JS_DOMAIN", "hub")
 	t.Setenv("NATS_LEAF_URL", "")
 	t.Setenv("NATS_HUB_URL", "")
-
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 	log := zap.NewNop()
 	if err := EnsureStreams(ctx, url, DataStreams, log); err != nil {
+		cancel()
 		t.Fatal(err)
 	}
 	pub, err := NewPublisher(url, log)
 	if err != nil {
+		cancel()
 		t.Fatal(err)
 	}
-	defer pub.Close() //nolint:errcheck
+	return url, pub, cancel
+}
 
-	const messages = 64
+func publishIntegrationBurst(t *testing.T, pub Publisher, messages int) {
+	t.Helper()
 	start := make(chan struct{})
 	errs := make(chan error, messages)
 	var wg sync.WaitGroup
@@ -61,7 +75,10 @@ func TestBatchPublisherIntegration(t *testing.T) {
 	if err := pub.Flush(flushCtx); err != nil {
 		t.Fatal(err)
 	}
+}
 
+func assertIntegrationStream(t *testing.T, url string, messages uint64) {
+	t.Helper()
 	nc, err := nats.Connect(url)
 	if err != nil {
 		t.Fatal(err)
@@ -87,7 +104,10 @@ func TestBatchPublisherIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	config := stream.CachedInfo().Config
-	if !config.AllowAtomicPublish || !config.AllowBatchPublish {
+	if !config.AllowAtomicPublish {
+		t.Fatal("stream did not retain NATS 2.14 atomic publish flag")
+	}
+	if !config.AllowBatchPublish {
 		t.Fatal("stream did not retain NATS 2.14 batch feature flags")
 	}
 
@@ -105,8 +125,6 @@ func TestBatchPublisherIntegration(t *testing.T) {
 		t.Fatalf("only %d/%d writes used a batch", batched, messages)
 	}
 
-	_ = js.DeleteStream("TWITCH_INGRESS")
-	_ = js.DeleteStream("BAGEL_DATA")
 }
 
 // BenchmarkBatchPublisherIntegration measures the exact fleet Publisher
@@ -117,23 +135,9 @@ func TestBatchPublisherIntegration(t *testing.T) {
 //	NATS_INTEGRATION_URL=nats://127.0.0.1:14222 \
 //	go test ./pkg/bus -run '^$' -bench BenchmarkBatchPublisherIntegration -benchmem
 func BenchmarkBatchPublisherIntegration(b *testing.B) {
-	url := os.Getenv("NATS_INTEGRATION_URL")
-	if url == "" {
-		b.Skip("NATS_INTEGRATION_URL is not set")
-	}
-	b.Setenv("NATS_JS_DOMAIN", "hub")
-	b.Setenv("NATS_LEAF_URL", "")
-	b.Setenv("NATS_HUB_URL", "")
-
+	url, pub, cancel := integrationPublisher(b)
+	defer cancel()
 	ctx := context.Background()
-	log := zap.NewNop()
-	if err := EnsureStreams(ctx, url, DataStreams, log); err != nil {
-		b.Fatal(err)
-	}
-	pub, err := NewPublisher(url, log)
-	if err != nil {
-		b.Fatal(err)
-	}
 	payload := make([]byte, 256)
 	for i := range payload {
 		payload[i] = byte('a' + i%26)
@@ -164,11 +168,19 @@ func BenchmarkBatchPublisherIntegration(b *testing.B) {
 		b.Error(err)
 	}
 
+	deleteIntegrationStreams(url)
+}
+
+func deleteIntegrationStreams(url string) {
 	nc, err := nats.Connect(url)
-	if err == nil {
-		if js, jsErr := nc.JetStream(nats.Domain("hub")); jsErr == nil {
-			_ = js.DeleteStream("BAGEL_DATA")
-		}
-		nc.Close()
+	if err != nil {
+		return
 	}
+	defer nc.Close()
+	js, err := nc.JetStream(nats.Domain("hub"))
+	if err != nil {
+		return
+	}
+	_ = js.DeleteStream("TWITCH_INGRESS")
+	_ = js.DeleteStream("BAGEL_DATA")
 }
