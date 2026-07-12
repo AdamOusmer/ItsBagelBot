@@ -1,7 +1,7 @@
 <script lang="ts">
   import { deserialize } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
-  import { Icon, Card, PageHead, Scroller, SaveStatus, Switch, InspectorSurface, ConfirmDialog, AlertBanner, DeckList, EmptyState, toast, getI18n, automodToggleDefault, type ModuleField, type ModuleReply } from '@bagel/shared';
+  import { Card, PageHead, Scroller, SaveStatus, Switch, Button, InspectorSurface, ConfirmDialog, AlertBanner, DeckList, EmptyState, toast, getI18n, automodToggleDefault, type ModuleField, type ModuleReply } from '@bagel/shared';
   import type { SaveState } from '@bagel/shared/components/SaveStatus.svelte';
   import ReplyRow from '$lib/components/modules/ReplyRow.svelte';
   import ReplyEditor from '$lib/components/modules/ReplyEditor.svelte';
@@ -241,12 +241,12 @@
   type Match = 'word' | 'contains' | 'exact' | 'prefix';
   type Rule = { phrase: string; response: string; match: Match; enabled: boolean };
 
-  const MODE_LABEL: Record<Match, string> = {
-    word: 'Whole word',
-    contains: 'Contains',
-    exact: 'Exact message',
-    prefix: 'Starts with'
-  };
+  const MODE_LABEL = $derived<Record<Match, string>>({
+    word: t('modules.matchWord'),
+    contains: t('modules.matchContains'),
+    exact: t('modules.matchExact'),
+    prefix: t('modules.matchPrefix')
+  });
 
   function splitMode(left: string): [Match, string] {
     const c = left.indexOf(':');
@@ -434,177 +434,238 @@
   // The inspector is open whenever a row (reply or rule) is expanded.
   const editing = $derived(!!expanded);
   const inspectorTitle = $derived(
-    isTriggers ? (ruleIndex === -1 ? 'New trigger' : 'Edit trigger') : selectedReply ? selectedReply.label : t('modules.inspector')
+    isTriggers ? (ruleIndex === -1 ? t('modules.newTrigger') : t('modules.editTrigger')) : selectedReply ? selectedReply.label : t('modules.inspector')
   );
 
 </script>
 
 <section class="screen active">
-  <a class="back" href="/modules"><Icon name="x" size={13} /> {t('modules.allModules')}</a>
+  <!-- Breadcrumb: back ARROW to /modules; the current module marks aria-current. -->
+  <nav class="crumbs" aria-label={t('modules.breadcrumbLabel')}>
+    <ol>
+      <li>
+        <a class="crumb-back" href="/modules">
+          <svg
+            class="crumb-arrow"
+            viewBox="0 0 24 24"
+            width="14"
+            height="14"
+            aria-hidden="true"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <line x1="19" y1="12" x2="5" y2="12" />
+            <polyline points="12 19 5 12 12 5" />
+          </svg>
+          {t('modules.allModules')}
+        </a>
+      </li>
+      <li class="crumb-sep" aria-hidden="true">/</li>
+      <li><span aria-current="page">{def.label}</span></li>
+    </ol>
+  </nav>
+
+  <!-- PageHead: the module name is the page h1 (tabindex=-1 for route focus). -->
   <PageHead eyebrow={t('modules.detailEyebrow')} description={def.description}>{def.label}</PageHead>
 
   {#if data.degraded}
     <AlertBanner>{t('modules.degraded')}</AlertBanner>
   {/if}
 
-  <!-- Settings strip: the module master switch (and any non-reply settings). -->
+  <!-- Module status + master switch. The state is spelled out (On/Off) beside the
+       switch, never colour alone. Toggling keeps main's optimistic field-level
+       patch, so this stays the page's own Switch. -->
   <Card style="padding:0" class="settings-card">
-    <div class="toggle-row">
+    <div class="master-row">
       <div class="tr-text">
-        <span class="tr-label">{t('modules.enabled')}</span>
+        <h2 class="tr-label">{t('modules.moduleStatus')}</h2>
         <span class="tr-help">{t('modules.enabledHelp')}</span>
       </div>
+      <span class="status-text" class:on={enabled}>{enabled ? t('modules.statusOn') : t('modules.statusOff')}</span>
       <SaveStatus state={modStatus['module'] ?? 'idle'} />
-      <Switch checked={enabled} label={t('modules.toggleAria', { label: def.label })} onchange={toggleModule} />
+      <Switch
+        checked={enabled}
+        label={t('modules.toggleAria', { label: def.label })}
+        pending={modStatus['module'] === 'saving'}
+        onchange={toggleModule}
+      />
     </div>
-    {#each def.settings ?? [] as field (field.key)}
-      <div class="setting-row {field.type === 'textarea' ? 'stacked' : ''}">
-        <label class="tr-text" for="mod-setting-{field.key}">
-          <span class="tr-label">{field.label}</span>
-          {#if field.help}<span class="tr-help">{field.help}</span>{/if}
-        </label>
-        <SaveStatus state={modStatus[`setting:${field.key}`] ?? 'idle'} />
-        {#if field.type === 'toggle'}
-          <Switch
-            checked={settingToggleOn(field)}
-            label={`Toggle ${field.label}`}
-            onchange={(v) => saveSetting(field, v ? 'on' : 'off')}
-          />
-        {:else if field.type === 'select'}
-          <select
-            id="mod-setting-{field.key}"
-            class="setting-input"
-            value={config[field.key] || field.placeholder || field.options?.[0]?.value || ''}
-            onchange={(e) => saveSetting(field, e.currentTarget.value)}
-          >
-            {#each field.options ?? [] as opt (opt.value)}
-              <option value={opt.value}>{opt.label}</option>
-            {/each}
-          </select>
-        {:else if field.type === 'textarea'}
-          <textarea
-            id="mod-setting-{field.key}"
-            class="setting-input setting-textarea"
-            placeholder={field.placeholder ?? ''}
-            value={config[field.key] ?? ''}
-            onchange={(e) => saveSetting(field, e.currentTarget.value)}
-          ></textarea>
-        {:else}
-          <input
-            id="mod-setting-{field.key}"
-            class="setting-input"
-            type={field.type === 'number' ? 'number' : 'text'}
-            placeholder={field.placeholder ?? ''}
-            value={config[field.key] ?? ''}
-            onchange={(e) => saveSetting(field, e.currentTarget.value)}
-            onkeydown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
-          />
-        {/if}
-      </div>
-    {/each}
+    {#if !enabled}
+      <!-- Off but configurable: explain in TEXT that the lists stay editable and
+           go live once turned on, rather than dimming the whole surface. -->
+      <p class="disabled-note">{t('modules.disabledNote')}</p>
+    {/if}
   </Card>
 
-  {#if !enabled && hasDeck}
-    <!-- Off but configurable: state it plainly rather than dimming the surface. -->
-    <AlertBanner>{t('modules.offConfigurable')}</AlertBanner>
+  <!-- General settings. Each field auto-saves on change through main's field-level
+       patch (only the changed key posts under optimistic concurrency). -->
+  {#if (def.settings ?? []).length}
+    <Card style="padding:0" class="settings-card">
+      <div class="section-head">
+        <h2 class="section-title">{t('modules.settingsTitle')}</h2>
+      </div>
+      {#each def.settings ?? [] as field (field.key)}
+        {#if field.type === 'toggle'}
+          <div class="setting-row">
+            <div class="tr-text">
+              <span class="tr-label" id="sl-{field.key}">{field.label}</span>
+              {#if field.help}<span class="tr-help" id="sh-{field.key}">{field.help}</span>{/if}
+            </div>
+            <SaveStatus state={modStatus[`setting:${field.key}`] ?? 'idle'} />
+            <Switch
+              checked={settingToggleOn(field)}
+              label={field.label}
+              describedby={field.help ? `sh-${field.key}` : undefined}
+              pending={modStatus[`setting:${field.key}`] === 'saving'}
+              onchange={(v) => saveSetting(field, v ? 'on' : 'off')}
+            />
+          </div>
+        {:else}
+          <div class="setting-row {field.type === 'textarea' ? 'stacked' : ''}">
+            <label class="tr-text" for="mod-setting-{field.key}">
+              <span class="tr-label">{field.label}</span>
+              {#if field.help}<span class="tr-help">{field.help}</span>{/if}
+            </label>
+            <SaveStatus state={modStatus[`setting:${field.key}`] ?? 'idle'} />
+            {#if field.type === 'select'}
+              <select
+                id="mod-setting-{field.key}"
+                class="setting-input"
+                value={config[field.key] || field.placeholder || field.options?.[0]?.value || ''}
+                onchange={(e) => saveSetting(field, e.currentTarget.value)}
+              >
+                {#each field.options ?? [] as opt (opt.value)}
+                  <option value={opt.value}>{opt.label}</option>
+                {/each}
+              </select>
+            {:else if field.type === 'textarea'}
+              <textarea
+                id="mod-setting-{field.key}"
+                class="setting-input setting-textarea"
+                placeholder={field.placeholder ?? ''}
+                value={config[field.key] ?? ''}
+                onchange={(e) => saveSetting(field, e.currentTarget.value)}
+              ></textarea>
+            {:else}
+              <input
+                id="mod-setting-{field.key}"
+                class="setting-input"
+                type={field.type === 'number' ? 'number' : 'text'}
+                placeholder={field.placeholder ?? ''}
+                value={config[field.key] ?? ''}
+                onchange={(e) => saveSetting(field, e.currentTarget.value)}
+                onkeydown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+              />
+            {/if}
+          </div>
+        {/if}
+      {/each}
+    </Card>
   {/if}
 
-  <!-- The deck: reply ledger + docked builder inspector (same as commands). A
-       commands-only module (no editable replies) drops the inspector column and
+  <!-- The deck: reply/trigger ledger + docked builder inspector (same as commands).
+       A commands-only module (no editable replies) drops the inspector column and
        lists its chat commands read-only instead. Settings-only modules render no
        deck at all. -->
   {#if hasDeck}
-  <div class="deck {editing ? 'inspecting' : ''} {hasInspector ? '' : 'commands-only'}">
-    <DeckList>
-      {#if isTriggers}
-        <div class="rules-head">
-          <div class="rh-text">
-            <span class="rh-title">Trigger rules</span>
-            <span class="rh-hint">Reply when a message matches a phrase — no "!" needed. First match wins.</span>
-          </div>
-          <button class="add-rule" type="button" onclick={addRule}><Icon name="plus" size={13} /> Add rule</button>
-        </div>
-        {#if ruleRows.length}
-          <div class="list">
-            {#each ruleRows as reply, i (reply.key)}
-              <ReplyRow
-                {reply}
-                message={rules[i].response}
-                index={i + 1}
-                status={modStatus[reply.key] ?? 'idle'}
-                expanded={expanded === reply.key}
-                enabled={rules[i].enabled}
-                onExpand={() => openRule(i)}
-                onToggle={() => toggleRule(i)}
-              />
-            {/each}
-          </div>
-        {:else}
-          <EmptyState icon="caps" title="No trigger words yet." body="Add a rule to reply automatically when a word shows up in chat." />
-        {/if}
-      {:else if hasReplies}
-        <div class="list">
-          {#each def.replies as reply, i (reply.key)}
-            <ReplyRow
-              {reply}
-              message={config[reply.messageKey] ?? ''}
-              index={i + 1}
-              status={modStatus[reply.key] ?? 'idle'}
-              expanded={expanded === reply.key}
-              enabled={reply.enableKey ? config[reply.enableKey] !== 'off' : undefined}
-              onExpand={() => openReply(reply)}
-              onToggle={() => toggleReply(reply)}
-            />
-          {/each}
-        </div>
-      {/if}
-
-      {#if def.commands?.length}
-        <div class="cmd-head">
-          <span class="cmd-head-title">{t('modules.commandsTitle')}</span>
-          <span class="cmd-head-hint">{t('modules.commandsHint')}</span>
-        </div>
-        <div class="list">
-          {#each def.commands as command, i (command.trigger)}
-            <ModuleCommandRow {command} index={i + 1} />
-          {/each}
-        </div>
-      {/if}
-    </DeckList>
-
-    {#if hasInspector && editing}
-      <InspectorSurface
-        open
-        title={inspectorTitle}
-        controls="module-editor"
-        closeLabel={t('modules.closeEditor')}
-        onClose={closeInspector}
-      >
+    <div class="deck" class:inspecting={editing && hasInspector}>
+      <DeckList>
         {#if isTriggers}
-          <Scroller fill padding="16px" data-lenis-prevent>
-            {#key expanded}
-              <TriggerRuleEditor
-                bind:phrase={draftPhrase}
-                bind:match={draftMatch}
-                bind:message={editMessage}
-                {busy}
-                isNew={ruleIndex === -1}
-                onSave={saveRule}
-                onCancel={closeInspector}
-                onDelete={() => (ruleIndex !== null && ruleIndex >= 0 ? deleteRule(ruleIndex) : closeInspector())}
-              />
-            {/key}
-          </Scroller>
-        {:else if selectedReply}
-          <Scroller fill padding="16px" data-lenis-prevent>
-            {#key selectedReply.key}
-              <ReplyEditor reply={selectedReply} bind:message={editMessage} {busy} onCancel={closeInspector} onSave={saveReply} />
-            {/key}
-          </Scroller>
+          <div class="section-head rules-head">
+            <div class="rh-text">
+              <h2 class="section-title">{t('modules.triggerRulesTitle')}</h2>
+              <span class="rh-hint">{t('modules.triggerRulesHint')}</span>
+            </div>
+            <Button variant="ghost" icon="plus" onclick={addRule}>{t('modules.addTrigger')}</Button>
+          </div>
+          {#if ruleRows.length}
+            <ul class="list" aria-label={t('modules.triggerRulesTitle')}>
+              {#each ruleRows as reply, i (reply.key)}
+                <li>
+                  <ReplyRow
+                    {reply}
+                    message={rules[i].response}
+                    index={i + 1}
+                    status={modStatus[reply.key] ?? 'idle'}
+                    expanded={expanded === reply.key}
+                    enabled={rules[i].enabled}
+                    onExpand={() => openRule(i)}
+                    onToggle={() => toggleRule(i)}
+                  />
+                </li>
+              {/each}
+            </ul>
+          {:else}
+            <EmptyState icon="caps" title={t('modules.noTriggersTitle')} body={t('modules.noTriggersBody')} />
+          {/if}
+        {:else if hasReplies}
+          <ul class="list" aria-label={t('modules.repliesLabel')}>
+            {#each def.replies as reply, i (reply.key)}
+              <li>
+                <ReplyRow
+                  {reply}
+                  message={config[reply.messageKey] ?? ''}
+                  index={i + 1}
+                  status={modStatus[reply.key] ?? 'idle'}
+                  expanded={expanded === reply.key}
+                  enabled={reply.enableKey ? config[reply.enableKey] !== 'off' : undefined}
+                  onExpand={() => openReply(reply)}
+                  onToggle={() => toggleReply(reply)}
+                />
+              </li>
+            {/each}
+          </ul>
         {/if}
-      </InspectorSurface>
-    {/if}
-  </div>
+
+        {#if def.commands?.length}
+          <div class="section-head cmd-head">
+            <h2 class="section-title">{t('modules.commandsTitle')}</h2>
+            <span class="cmd-head-hint">{t('modules.commandsHint')}</span>
+          </div>
+          <ul class="list" aria-label={t('modules.commandsTitle')}>
+            {#each def.commands as command, i (command.trigger)}
+              <li><ModuleCommandRow {command} index={i + 1} /></li>
+            {/each}
+          </ul>
+        {/if}
+      </DeckList>
+
+      {#if hasInspector && editing}
+        <InspectorSurface
+          open
+          title={inspectorTitle}
+          controls="module-editor"
+          closeLabel={t('modules.closeEditor')}
+          onClose={closeInspector}
+        >
+          {#if isTriggers}
+            <Scroller fill padding="16px" data-lenis-prevent>
+              {#key expanded}
+                <TriggerRuleEditor
+                  bind:phrase={draftPhrase}
+                  bind:match={draftMatch}
+                  bind:message={editMessage}
+                  {busy}
+                  isNew={ruleIndex === -1}
+                  onSave={saveRule}
+                  onCancel={closeInspector}
+                  onDelete={() => (ruleIndex !== null && ruleIndex >= 0 ? deleteRule(ruleIndex) : closeInspector())}
+                />
+              {/key}
+            </Scroller>
+          {:else if selectedReply}
+            <Scroller fill padding="16px" data-lenis-prevent>
+              {#key selectedReply.key}
+                <ReplyEditor reply={selectedReply} bind:message={editMessage} {busy} onCancel={closeInspector} onSave={saveReply} />
+              {/key}
+            </Scroller>
+          {/if}
+        </InspectorSurface>
+      {/if}
+    </div>
   {/if}
 </section>
 
@@ -620,25 +681,82 @@
 />
 
 <style>
-  .back {
-    display: inline-flex;
+  /* ── breadcrumb ── */
+  .crumbs { margin-bottom: 10px; }
+  .crumbs ol {
+    display: flex;
     align-items: center;
-    gap: 6px;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
     font-family: var(--bb-font-body);
     font-size: 12.5px;
     color: var(--bb-muted);
-    text-decoration: none;
-    margin-bottom: 10px;
   }
-  .back:hover { color: var(--bb-white); }
+  .crumb-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 44px;
+    margin: -8px 0;
+    color: var(--bb-muted);
+    text-decoration: none;
+  }
+  .crumb-back:hover { color: var(--bb-white); }
+  .crumb-back:focus-visible { outline: 1px solid var(--bb-tan, #c9a87c); outline-offset: 2px; border-radius: 4px; }
+  .crumb-arrow { flex: none; }
+  .crumb-sep { opacity: 0.5; }
+  .crumbs [aria-current='page'] { color: var(--bb-tan-light); }
 
+  /* ── settings cards ── */
   :global(.settings-card) { margin-bottom: 16px; }
-  .toggle-row { display: flex; align-items: center; gap: 12px; padding: 16px 18px; }
-  .tr-text { display: flex; flex-direction: column; gap: 3px; margin-right: auto; }
-  .tr-label { font-family: var(--bb-font-display); font-weight: 700; font-size: 14px; color: var(--bb-white); }
+  .master-row { display: flex; align-items: center; gap: 12px; padding: 16px 18px; }
+  .tr-text { display: flex; flex-direction: column; gap: 3px; margin-right: auto; min-width: 0; }
+  .tr-label { margin: 0; font-family: var(--bb-font-display); font-weight: 700; font-size: 14px; color: var(--bb-white); }
   .tr-help { font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
 
-  /* Plain settings fields under the master switch (e.g. linked account). */
+  /* Status word — never colour alone: the text says On/Off, colour only tints. */
+  .status-text {
+    font-family: var(--bb-font-mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--bb-muted);
+  }
+  .status-text.on { color: var(--bb-green-glow, #52b788); }
+
+  /* A disabled module stays fully readable: no page-wide dimming, just a note
+     spelling out that the lists below are inactive until it is turned on. */
+  .disabled-note {
+    margin: 0;
+    padding: 12px 18px 16px;
+    font-family: var(--bb-font-body);
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--bb-muted);
+    border-top: 1px solid var(--rule);
+  }
+
+  /* Section header (Settings, Trigger rules, Commands): a small tan caption. */
+  .section-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .section-title {
+    margin: 0;
+    font-family: var(--bb-font-display);
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: 0.02em;
+    color: var(--bb-tan);
+  }
+
+  /* Plain settings fields under the section head (e.g. linked account). */
   .setting-row {
     display: flex;
     align-items: center;
@@ -663,7 +781,7 @@
   }
   .setting-input::placeholder { color: var(--bb-muted); opacity: 0.7; }
 
-  /* A textarea setting (e.g. trigger rules) stacks full-width under its label. */
+  /* A textarea setting (e.g. blocked terms) stacks full-width under its label. */
   .setting-row.stacked { flex-direction: column; align-items: stretch; }
   .setting-row.stacked .tr-text { margin-right: 0; }
   .setting-textarea {
@@ -691,56 +809,15 @@
     .deck.inspecting { grid-template-columns: minmax(0, 1fr) 420px; }
   }
 
-  .list :global(.row-shell:last-child) { border-bottom: none; }
+  /* Semantic list of rows; the last row drops its divider inside the card. */
+  .list { list-style: none; margin: 0; padding: 0; }
+  .list > li:last-child :global(.row-shell) { border-bottom: none; }
 
-  /* Read-only command list header (commands-only modules, e.g. the queue). */
-  .cmd-head {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    padding: 10px 14px 8px;
-    border-bottom: 1px solid var(--rule);
-  }
-  .cmd-head-title {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 12px;
-    letter-spacing: 0.02em;
-    color: var(--bb-tan);
-  }
-  .cmd-head-hint { font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
-
-  /* Trigger rules: a header with an add button above the add/removable rows. */
-  .rules-head {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 10px 14px 10px;
-    border-bottom: 1px solid var(--rule);
-  }
+  /* Trigger-rules header: title + hint on the left, add button pushed right. */
   .rh-text { display: flex; flex-direction: column; gap: 2px; margin-right: auto; min-width: 0; }
-  .rh-title {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 12px;
-    letter-spacing: 0.02em;
-    color: var(--bb-tan);
-  }
   .rh-hint { font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
-  .add-rule {
-    flex: none;
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    font-family: var(--bb-font-body);
-    font-size: 12px;
-    color: var(--bb-green-glow, #52b788);
-    background: rgba(82, 183, 136, 0.06);
-    border: 1px dashed rgba(82, 183, 136, 0.4);
-    border-radius: 999px;
-    padding: 5px 12px;
-    cursor: pointer;
-    transition: background var(--bb-dur-fast, 140ms) ease;
-  }
-  .add-rule:hover { background: rgba(82, 183, 136, 0.14); }
+
+  /* Read-only command list header stacks its title and hint. */
+  .cmd-head { flex-direction: column; align-items: flex-start; gap: 2px; }
+  .cmd-head-hint { font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
 </style>

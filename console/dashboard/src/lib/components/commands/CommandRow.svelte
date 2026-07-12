@@ -69,9 +69,15 @@
         </span>
         <span class="resp">{c.response}</span>
         <span class="meta">
-          <Badge perm={(c.perm ?? 'everyone') as Perm} />
-          <span class="cd" title={t('commandRow.cooldown')}>{cd}</span>
-          <span class="uses" title={t('commandRow.uses')}>{c.uses ?? '0'}</span>
+          <span class="m-perm"><Badge perm={(c.perm ?? 'everyone') as Perm} /></span>
+          <span class="m-item">
+            <span class="m-lbl">{t('commandRow.cooldown')}</span>
+            <span class="m-val">{cd}</span>
+          </span>
+          <span class="m-item">
+            <span class="m-lbl">{t('commandRow.uses')}</span>
+            <span class="m-val uses">{c.uses ?? '0'}</span>
+          </span>
         </span>
         <span class="state"><SaveStatus state={status} /></span>
       </span>
@@ -102,7 +108,11 @@
 <style>
   .prow {
     display: grid;
-    grid-template-columns: 28px minmax(130px, 1fr) minmax(0, 1.8fr) auto auto;
+    /* Fixed name column so command names align and end at the same x on every
+       row; the response takes the flexible remainder and the metadata block is
+       a fixed-width grid, so permission / cooldown / uses line up column to
+       column across rows. */
+    grid-template-columns: 28px 190px minmax(0, 1fr) auto auto;
     align-items: center;
     gap: 14px;
   }
@@ -161,15 +171,34 @@
     min-width: 0;
   }
 
-  .meta { display: inline-flex; align-items: center; gap: 10px; }
-  .cd, .uses {
+  /* Fixed column tracks so the permission, cooldown and uses line up across
+     every row instead of shifting with content. */
+  .meta {
+    display: grid;
+    grid-template-columns: 104px 92px 64px;
+    align-items: center;
+    gap: 12px;
+  }
+  .meta > * { min-width: 0; }
+  .m-perm { display: inline-flex; align-items: center; min-width: 0; }
+  .m-item { display: inline-flex; align-items: baseline; gap: 5px; }
+  .m-lbl {
+    font-family: var(--bb-font-body);
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--bb-muted);
+    opacity: 0.7;
+    white-space: nowrap;
+  }
+  .m-val {
     font-family: var(--bb-font-mono);
     font-size: 11.5px;
     color: var(--bb-muted);
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
   }
-  .uses { color: var(--bb-white); }
+  .m-val.uses { color: var(--bb-white); }
   .state { min-width: 0; }
 
   .mini {
@@ -200,7 +229,7 @@
     .idx { display: none; }
     .cmd { grid-area: cmd; }
     .resp { grid-area: resp; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-    .meta { grid-area: meta; }
+    .meta { grid-area: meta; display: flex; flex-wrap: wrap; gap: 8px 12px; }
     .state { display: none; }
     .mini, .mini-spacer { min-width: 44px; min-height: 44px; }
   }
