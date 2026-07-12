@@ -4,12 +4,15 @@ defmodule Ingress.Nats do
   disciplines:
 
     * `publish_acked/3` — lane events (the traffic that must not be silently
-      lost). A JetStream publish: the request blocks on the broker's PubAck,
-      retries a bounded number of times, and carries a `Nats-Msg-Id` so the
-      stream's duplicate window collapses retries and Twitch's own EventSub
-      redeliveries into one stored copy. Callers are dispatcher workers, so a
-      slow broker occupies pool slots and the dispatcher sheds at its bound —
-      the intended backpressure — instead of a fast, invisible black hole.
+      lost). An asynchronous, pipelined JetStream publish (see
+      `Ingress.Nats.Publisher`): the event goes on the wire immediately carrying
+      a private reply subject and a `Nats-Msg-Id`, and its PubAck is reconciled
+      later by a single ack multiplexer. Up to `publish_max_pending` publishes
+      are outstanding at once, so a slow broker no longer parks a worker per
+      event; instead the window fills and further publishes are shed at that
+      bound. The `Nats-Msg-Id` collapses retries and Twitch's own EventSub
+      redeliveries into one stored copy, so re-publishing a missing/errored ack
+      is safe.
 
     * `publish/2` — status/telemetry events. Fire-and-forget core publish; if
       the connection is down the message is dropped with a warning. We prefer
@@ -23,12 +26,9 @@ defmodule Ingress.Nats do
 
   require Logger
 
-  alias Ingress.{Config, Metrics}
+  alias Ingress.{Metrics, Nats.Publisher}
 
   @connection :gnat_bus
-  # Pause between PubAck retry attempts: long enough to ride out a broker
-  # hiccup, short enough that a dispatcher worker slot is never parked long.
-  @retry_backoff_ms 250
 
   @spec publish(String.t(), map()) :: :ok | {:error, term()}
   def publish(subject, payload) do
@@ -46,65 +46,41 @@ defmodule Ingress.Nats do
   end
 
   @doc """
-  JetStream-acked publish with broker-side dedup.
+  Asynchronous JetStream publish with broker-side dedup.
 
   `dedup_id` becomes the message's `Nats-Msg-Id`: within the stream's
   duplicate window the broker stores the first copy and acks the rest as
-  duplicates, which makes retrying on a missing PubAck safe and absorbs
+  duplicates, which makes re-publishing on a missing PubAck safe and absorbs
   Twitch's at-least-once EventSub redeliveries without any consumer work.
-  `nil` skips the header (no dedup) but still waits for the ack.
+  `nil` skips the header (no dedup) but the publish is still ack-tracked.
 
-  A connection that is down drops immediately — the connection supervisor's
-  reconnect backoff is longer than the whole retry budget, so spinning here
-  could never succeed and would only park the worker.
+  Returns `:ok` once the event is on the wire (its PubAck is now awaited
+  asynchronously by `Ingress.Nats.Publisher`), or `{:error, reason}` when the
+  event was dropped at admission — `:overloaded` when the in-flight window is
+  full, `:not_connected` when the publisher or its BUS connection is down.
   """
   @spec publish_acked(String.t(), map(), String.t() | nil) :: :ok | {:error, term()}
   def publish_acked(subject, payload, dedup_id) do
     json = Jason.encode!(payload)
-    attempt(subject, json, request_opts(dedup_id), 1)
-  end
 
-  defp request_opts(nil), do: [receive_timeout: Config.publish_ack_timeout_ms()]
-
-  defp request_opts(dedup_id) do
-    [
-      receive_timeout: Config.publish_ack_timeout_ms(),
-      headers: [{"Nats-Msg-Id", dedup_id}]
-    ]
-  end
-
-  defp attempt(subject, json, opts, n) do
-    case request_ack(subject, json, opts) do
+    case Publisher.enqueue(subject, json, dedup_id) do
       :ok ->
         :ok
 
+      {:error, :overloaded} = error ->
+        Metrics.count("Nats/PublishDropped")
+        Metrics.count("Nats/PublishOverloaded")
+        error
+
       {:error, :not_connected} = error ->
-        Logger.warning("NATS connection down; dropping message on #{subject}")
+        Logger.warning("NATS publisher unavailable; dropping message on #{subject}")
         Metrics.count("Nats/PublishDropped")
         error
 
-      {:error, reason} = error ->
-        if n < Config.publish_attempts() do
-          Metrics.count("Nats/PublishRetried")
-          Process.sleep(@retry_backoff_ms)
-          attempt(subject, json, opts, n + 1)
-        else
-          Logger.warning("publish on #{subject} failed after #{n} attempts: #{inspect(reason)}")
-          Metrics.count("Nats/PublishFailed")
-          error
-        end
+      {:error, _reason} = error ->
+        Metrics.count("Nats/PublishDropped")
+        error
     end
-  end
-
-  defp request_ack(subject, json, opts) do
-    case Gnat.request(@connection, subject, json, opts) do
-      {:ok, %{body: body}} -> parse_pub_ack(body)
-      {:error, reason} -> {:error, reason}
-    end
-  catch
-    # The connection process is gone (registered name unbound, or it died
-    # mid-call). Its supervisor is already reconnecting on its own backoff.
-    :exit, _ -> {:error, :not_connected}
   end
 
   @doc false

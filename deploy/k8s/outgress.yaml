@@ -135,10 +135,13 @@ spec:
                   fieldPath: status.hostIP
             - name: GOMEMLIMIT
               value: 512MiB
+            # Sized for the 50-100k firehose (see sesame.yaml). A high MIN keeps
+            # send concurrency resident so throughput does not wait on the slow
+            # +1-per-tick autoscaler to climb from a cold floor under a burst.
             - name: OUTGRESS_MIN_ROUTINES
-              value: "8"
+              value: "50"
             - name: OUTGRESS_MAX_ROUTINES
-              value: "48"
+              value: "250"
             - name: OUTGRESS_MAX_CONSUMERS
               value: "3"
             - name: OUTGRESS_SCALE_UP_AFTER

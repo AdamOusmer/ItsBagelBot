@@ -171,10 +171,15 @@ spec:
           env:
             - name: NATS_HOST
               value: nats
-            # Apps connect only to the node-local leaf cluster; the hub is reached
-            # over the leafnode link. No hub host, so a leaf roll can't pin to hub.
+            # The RPC plane (:gnat) stays on the node-local leaf. The BUS firehose
+            # plane (:gnat_bus) connects DIRECT to the hub (NATS_HUB_HOST) instead:
+            # the leaf runs no JetStream, so for the firehose it is only a
+            # forwarding hop to the same hub streams. A hub roll re-pins the BUS
+            # connection (Gnat reconnect); the RPC path is unaffected.
             - name: NATS_LEAF_HOST
               value: nats-leaf
+            - name: NATS_HUB_HOST
+              value: nats
             - name: POD_IP
               valueFrom:
                 fieldRef:
