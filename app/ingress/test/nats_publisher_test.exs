@@ -137,7 +137,7 @@ defmodule Ingress.Nats.PublisherTest do
     end
   end
 
-  describe "atomic microbatching" do
+  describe "official per-message PubAck cohorts" do
     setup do
       conn = :gnat_bus_pub_batch_test
       previous_size = Application.get_env(:ingress, :publish_batch_size)
@@ -158,7 +158,9 @@ defmodule Ingress.Nats.PublisherTest do
       %{publisher: Publisher.process_name(0)}
     end
 
-    test "two concurrent events receive one commit PubAck", %{publisher: publisher} do
+    test "two concurrent events retain individual PubAcks without atomic headers", %{
+      publisher: publisher
+    } do
       one =
         Task.async(fn ->
           Publisher.enqueue("twitch.ingress.event.standard", ~s({"n":1}), "msg-1")
@@ -175,29 +177,27 @@ defmodule Ingress.Nats.PublisherTest do
       assert_receive {:pub, _, _, first_opts}, 500
       assert_receive {:pub, _, _, second_opts}, 500
 
-      first_headers = prepared_headers(first_opts)
-      second_headers = prepared_headers(second_opts)
-      batch_id = first_headers["nats-batch-id"]
+      opts = [first_opts, second_opts]
+      headers = Enum.map(opts, &prepared_headers/1)
 
-      assert is_binary(batch_id)
-      assert second_headers["nats-batch-id"] == batch_id
+      assert headers |> Enum.map(& &1["nats-msg-id"]) |> Enum.sort() == ["msg-1", "msg-2"]
 
-      assert {first_headers["nats-batch-sequence"], second_headers["nats-batch-sequence"]} ==
-               {"1", "2"}
+      Enum.each(headers, fn item ->
+        refute Map.has_key?(item, "nats-batch-id")
+        refute Map.has_key?(item, "nats-batch-sequence")
+        refute Map.has_key?(item, "nats-batch-commit")
+        refute Map.has_key?(item, "nats-required-api-level")
+      end)
 
-      assert first_headers["nats-msg-id"] == "msg-1"
-      assert second_headers["nats-msg-id"] == "msg-2"
-      refute Keyword.has_key?(first_opts, :reply_to)
-      reply = Keyword.fetch!(second_opts, :reply_to)
-      assert second_headers["nats-batch-commit"] == "1"
-
-      send(publisher, {
-        :msg,
-        %{
-          topic: reply,
-          body: ~s({"stream":"TWITCH_INGRESS","seq":2,"batch":"#{batch_id}","count":2})
-        }
-      })
+      opts
+      |> Enum.map(&Keyword.fetch!(&1, :reply_to))
+      |> Enum.with_index(1)
+      |> Enum.each(fn {reply, sequence} ->
+        send(publisher, {
+          :msg,
+          %{topic: reply, body: ~s({"stream":"TWITCH_INGRESS","seq":#{sequence}})}
+        })
+      end)
 
       _state = :sys.get_state(publisher)
       ctx = :persistent_term.get({Publisher, :ctx, 0})

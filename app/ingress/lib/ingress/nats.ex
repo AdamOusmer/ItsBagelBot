@@ -4,12 +4,10 @@ defmodule Ingress.Nats do
   disciplines:
 
     * `publish_acked/3` — lane events (the traffic that must not be silently
-      lost). A scheduler-local JetStream microbatch (see
-      `Ingress.Nats.Publisher`): concurrent events share one atomic commit
-      PubAck while every member retains its own `Nats-Msg-Id`. An ambiguous or
-      rejected batch is reconciled with individual deduplicated PubAcks. Up to
-      `publish_max_pending` events may be outstanding; the explicit bound sheds
-      overload instead of growing memory without limit.
+      lost). Scheduler-local cohorts publish through Gnat with one ordinary
+      JetStream PubAck per event and retain each `Nats-Msg-Id` for safe retry.
+      Up to `publish_max_pending` events may be outstanding; the explicit bound
+      sheds overload instead of growing memory without limit.
 
     * `publish/2` — status/telemetry events. Fire-and-forget core publish; if
       the connection is down the message is dropped into batched counters. We
@@ -61,7 +59,7 @@ defmodule Ingress.Nats do
   end
 
   @doc """
-  Bounded, microbatched JetStream publish with broker-side dedup.
+  Bounded JetStream publish cohorts with broker-side dedup.
 
   `dedup_id` becomes the message's `Nats-Msg-Id`: within the stream's
   duplicate window the broker stores the first copy and acks the rest as

@@ -127,15 +127,14 @@ config :ingress,
     String.to_integer(
       System.get_env("INGRESS_SQUASH_PARTITIONS", Integer.to_string(System.schedulers_online()))
     ),
-  # JetStream microbatching uses one connection/batcher per online BEAM
+  # JetStream PubAck cohorts use one connection/collector per online BEAM
   # scheduler. Keeping these equal gives every event the same scheduler-local
   # path without idle connections or fallback routing.
   publish_connections:
     String.to_integer(
       System.get_env("INGRESS_PUBLISH_CONNECTIONS", Integer.to_string(System.schedulers_online()))
     ),
-  # Per-connection queued + in-flight event bound. Batch commit PubAcks keep
-  # normal utilization far below it while broker stalls remain memory-bounded.
+  # Per-connection queued + in-flight event bound; broker stalls remain bounded.
   publish_max_pending: String.to_integer(System.get_env("INGRESS_PUBLISH_MAX_PENDING", "16384")),
   publish_batch_size: String.to_integer(System.get_env("INGRESS_PUBLISH_BATCH_SIZE", "128")),
   publish_batch_wait_ms: String.to_integer(System.get_env("INGRESS_PUBLISH_BATCH_WAIT_MS", "1")),

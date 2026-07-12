@@ -242,8 +242,8 @@ defmodule Ingress.Squash do
   end
 
   @doc false
-  # Default cohort publisher: the batcher returns after the socket writes and
-  # reconciles the commit PubAck separately, so spawning one Task per cohort
+  # Default cohort publisher: admission returns after Gnat accepts the writes
+  # and reconciles each PubAck separately, so spawning one Task per cohort
   # would only add process churn. A cohort carries many senders, so it retains a
   # cohort-scoped broker dedup id and is never fire-and-forget.
   def publish_cohort(subject, message) do
