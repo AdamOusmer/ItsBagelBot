@@ -2,12 +2,13 @@
   import { page } from '$app/state';
   import { enhance } from '$app/forms';
   import { onMount } from 'svelte';
-  import { invalidateAll } from '$app/navigation';
+  import { invalidateAll, afterNavigate } from '$app/navigation';
   import { AppShell, ImpersonationBanner, NotificationBell, ToastHost, getI18n } from '@bagel/shared';
   import type { NavGroupDef, NavLink } from '@bagel/shared';
   let { data, children } = $props();
 
-  const { t } = getI18n();
+  const i18n = getI18n();
+  const { t } = i18n;
 
   // Live refresh: one EventSource to /events, fed by the same cache-invalidation
   // bus every Go write publishes. On any event for this user's board — and on
@@ -74,6 +75,32 @@
             : 'overview'
   );
   const crumb = $derived(t(`nav.${section}`));
+
+  // A client route change (unlike a full load) neither moves focus nor updates
+  // the title on its own. Keep the title in sync every time; move focus only on
+  // real navigations (skip the initial SSR hydration, type 'enter', which is
+  // already parked correctly). A hash targets a section heading; otherwise the
+  // page <h1> (tabindex=-1, so no persistent ring appears).
+  afterNavigate(({ type }) => {
+    document.title = `${crumb} · ItsBagelBot`;
+    if (type === 'enter') return;
+    const id = page.url.hash.slice(1);
+    // Wait a frame so the new page has rendered before reaching for its heading.
+    requestAnimationFrame(() => {
+      const target = id ? document.getElementById(id) : null;
+      if (target) {
+        target.focus();
+        if (document.activeElement === target) return;
+      }
+      document.querySelector<HTMLElement>('#main-content h1')?.focus();
+    });
+  });
+
+  // app.html hard-codes lang="en"; mirror the live locale onto <html lang> so an
+  // EN/FR switch is reflected client-side (the SSR side is the integrator's).
+  $effect(() => {
+    document.documentElement.lang = i18n.locale;
+  });
 
   // Delegate view: nav and routes are limited to the granted sections, and the
   // owner-only Overview/Settings entries are hidden.

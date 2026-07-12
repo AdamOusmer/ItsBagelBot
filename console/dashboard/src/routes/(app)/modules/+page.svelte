@@ -2,7 +2,7 @@
   import { enhance } from '$app/forms';
   import { onMount } from 'svelte';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { Icon, Card, PageHead, SaveStatus, AlertBanner, EmptyState, toast, getI18n, type ModuleState } from '@bagel/shared';
+  import { Icon, Card, Switch, PageHead, SaveStatus, AlertBanner, EmptyState, toast, getI18n, type ModuleState } from '@bagel/shared';
   import type { SaveState } from '@bagel/shared/components/SaveStatus.svelte';
   let { data } = $props();
 
@@ -182,25 +182,30 @@
           <div class="grid">
             {#each cat.modules as m (m.def.id)}
               <div class="tile {m.enabled ? 'on' : 'off'}">
-                <a class="tile-main" href={m.def.href ?? `/modules/${m.def.id}`}>
+                <div class="tile-head">
                   <span class="tile-icon"><Icon name={m.def.icon} size={20} /></span>
-                  <span class="tile-text">
-                    <span class="tile-label">{m.def.label}</span>
-                    <span class="tile-tag">{m.def.tagline}</span>
+                  <div class="tile-heading">
+                    <h3 class="tile-label">{m.def.label}</h3>
+                    <p class="tile-cat">{m.def.category}</p>
+                  </div>
+                  <span class="tile-status" data-on={m.enabled}>
+                    {m.enabled ? t('modules.stateEnabled') : t('modules.stateDisabled')}
                   </span>
-                </a>
+                </div>
+                <p class="tile-purpose">{m.def.tagline}</p>
                 <div class="tile-foot">
-                  <a class="open" href={m.def.href ?? `/modules/${m.def.id}`}><Icon name="settings" size={13} /> {t('modules.configure')}</a>
+                  <a class="configure" href={m.def.href ?? `/modules/${m.def.id}`}><Icon name="settings" size={13} /> {t('modules.configure')}</a>
                   <span class="grow"></span>
                   <SaveStatus state={modStatus[m.def.id] ?? 'idle'} />
                   <form method="POST" action="?/toggle" use:enhance={toggleSubmit(m)}>
                     <input type="hidden" name="name" value={m.def.id} />
                     <input type="hidden" name="is_enabled" value={m.enabled ? '' : 'on'} />
-                    <button
-                      class="toggle {m.enabled ? 'on' : ''}"
+                    <Switch
                       type="submit"
-                      aria-label={t('modules.toggleAria', { label: m.def.label })}
-                    ></button>
+                      checked={m.enabled}
+                      label={m.enabled ? t('modules.disableAria', { label: m.def.label }) : t('modules.enableAria', { label: m.def.label })}
+                      pending={(modStatus[m.def.id] ?? 'idle') === 'saving'}
+                    />
                   </form>
                 </div>
               </div>
@@ -380,25 +385,16 @@
   .tile {
     display: flex;
     flex-direction: column;
+    gap: 12px;
+    padding: 18px;
     border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.08));
-    border-radius: 8px 8px;
+    border-radius: 8px;
     background: linear-gradient(180deg, rgba(240, 236, 228, 0.03), rgba(240, 236, 228, 0.012));
-    transition: border-color var(--bb-dur-fast, 140ms) ease, background var(--bb-dur-fast, 140ms) ease;
+    transition: border-color var(--bb-dur-fast, 140ms) ease;
   }
   .tile:hover { border-color: var(--bb-border-strong, rgba(201, 168, 124, 0.35)); }
-  .tile.off .tile-main { opacity: 0.6; }
 
-  .tile-main {
-    display: flex;
-    gap: 12px;
-    align-items: flex-start;
-    padding: 18px 18px 14px;
-    text-decoration: none;
-    color: inherit;
-    transition: opacity var(--bb-dur-fast, 140ms) ease;
-  }
-  .tile-main:focus-visible { outline: 1px solid var(--bb-tan, #c9a87c); outline-offset: -2px; }
-
+  .tile-head { display: flex; align-items: flex-start; gap: 12px; }
   .tile-icon {
     display: inline-flex;
     align-items: center;
@@ -406,34 +402,62 @@
     width: 40px;
     height: 40px;
     flex: none;
-    border-radius: 8px 8px;
+    border-radius: 8px;
     background: rgba(201, 168, 124, 0.12);
     border: 1px solid var(--glass-border);
     color: var(--bb-tan-light);
   }
-  .tile-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-  .tile-label { font-family: var(--bb-font-display); font-weight: 700; font-size: 16px; color: var(--bb-white); }
-  .tile-tag { font-family: var(--bb-font-body); font-size: 12.5px; color: var(--bb-muted); line-height: 1.5; }
+  .tile-heading { display: flex; flex-direction: column; gap: 2px; min-width: 0; margin-right: auto; }
+  .tile-label { font-family: var(--bb-font-display); font-weight: 700; font-size: 16px; color: var(--bb-white); margin: 0; }
+  .tile-cat { font-family: var(--bb-font-mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--bb-muted); margin: 0; }
 
-  .tile-foot {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 16px 14px;
-    margin-top: auto;
-    border-top: 1px solid var(--glass-border);
+  /* Enabled/disabled shown as a text badge, not by dimming the card (keeps the
+     card text above 4.5:1 contrast). */
+  .tile-status {
+    flex: none;
+    font-family: var(--bb-font-mono);
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--glass-border);
+    color: var(--bb-muted);
   }
+  .tile-status[data-on='true'] {
+    color: var(--bb-status-success, #52b788);
+    border-color: var(--bb-status-success-border, rgba(82, 183, 136, 0.4));
+    background: var(--bb-status-success-bg, rgba(82, 183, 136, 0.1));
+  }
+
+  .tile-purpose {
+    font-family: var(--bb-font-body);
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--bb-muted);
+    margin: 0;
+    flex: 1;
+  }
+
+  .tile-foot { display: flex; align-items: center; gap: 10px; margin-top: auto; }
   .grow { flex: 1; }
-  .open {
+  .configure {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    font-family: var(--bb-font-body);
-    font-size: 12.5px;
-    color: var(--bb-muted);
+    padding: 8px 14px;
+    font-family: var(--bb-font-mono);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--bb-tan-light);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--bb-radius-pill, 999px);
+    background: rgba(255, 255, 255, 0.03);
     text-decoration: none;
-    transition: color var(--bb-dur-fast, 140ms) ease;
+    transition: color var(--bb-dur-fast, 140ms) ease, border-color var(--bb-dur-fast, 140ms) ease, background var(--bb-dur-fast, 140ms) ease;
   }
-  .open:hover { color: var(--bb-white); }
+  .configure:hover { color: var(--bb-tan-pale); border-color: var(--bb-border-strong, rgba(201, 168, 124, 0.35)); background: rgba(201, 168, 124, 0.08); }
+  .configure :global(svg) { stroke: currentColor; fill: none; }
 </style>
 

@@ -1,8 +1,11 @@
 <script lang="ts">
   // One light in the govee deck, on the shared ManagementRow: the clickable
-  // primary is a real button; the remove-reward action is its sibling. Selecting
-  // it loads the reward into the page's inspector. One reward per light.
-  import { Icon, ManagementRow, type GoveeDevice, type GoveeBinding } from '@bagel/shared';
+  // primary is a real button (aria-controls the reward inspector); the
+  // remove-reward action is its sibling, never nested inside it. Selecting a row
+  // loads its reward into the page's inspector. One reward per light.
+  import { Icon, ManagementRow, MiniButton, getI18n, type GoveeDevice, type GoveeBinding } from '@bagel/shared';
+
+  const { t } = getI18n();
 
   let {
     device,
@@ -19,29 +22,32 @@
   } = $props();
 
   const reward = $derived(binding?.reward ?? null);
+  const lightName = $derived(device.name || device.device);
 </script>
 
 <div class="row-wrap" class:unset={!binding}>
   <ManagementRow
     selected={expanded}
     {expanded}
+    controls="govee-editor"
     onselect={onExpand}
   >
     {#snippet primary()}
       <span class="prow">
         <span class="light">
-          <span class="swatch" style="--sw: {reward?.color || '#6b7079'}"><Icon name="power" size={12} /></span>
+          <span class="swatch" style="--sw: {reward?.color || '#6b7079'}" aria-hidden="true"><Icon name="power" size={12} /></span>
           <span class="light-text">
-            <span class="light-name">{device.name || device.device}</span>
+            <span class="light-name">{lightName}</span>
             <span class="light-sku">{device.sku}</span>
           </span>
         </span>
+        <!-- Reward + unset states are spelled out in TEXT, not by colour alone. -->
         <span class="status">
           {#if reward}
             <span class="reward-title">{reward.title}</span>
-            <span class="reward-cost">{reward.cost.toLocaleString()} pts</span>
+            <span class="reward-cost">{t('govee.costPts', { n: reward.cost.toLocaleString() })}</span>
           {:else}
-            <span class="unset-tag">Not set up</span>
+            <span class="unset-tag">{t('govee.notSetUp')}</span>
           {/if}
         </span>
         <span class="chev" class:open={expanded} aria-hidden="true"><Icon name="settings" size={13} /></span>
@@ -49,9 +55,7 @@
     {/snippet}
     {#snippet actions()}
       {#if binding}
-        <button class="mini" type="button" aria-label="Remove the reward for {device.name || device.device}" onclick={onDelete}>
-          <Icon name="trash" size={15} />
-        </button>
+        <MiniButton icon="trash" class="row-del" aria-label={t('govee.removeAria', { name: lightName })} onclick={onDelete} />
       {/if}
     {/snippet}
   </ManagementRow>
@@ -113,26 +117,15 @@
   .chev { display: inline-flex; color: var(--bb-muted); transition: color var(--bb-dur-fast, 140ms) ease; }
   .chev.open { color: var(--bb-tan); }
 
-  .mini {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    border: 1px solid transparent;
-    border-radius: 8px;
-    background: none;
-    color: var(--bb-muted);
-    cursor: pointer;
-  }
-  .mini:hover { color: #cf8a78; border-color: rgba(176, 90, 70, 0.4); }
-  .mini:focus-visible { outline: 2px solid var(--bb-green-glow, #52b788); outline-offset: 2px; }
+  /* Give the borderless mini delete a >=44px hit target (WCAG 2.2). */
+  :global(.mini.row-del) { width: 44px; height: 44px; border-radius: 8px; }
+  :global(.mini.row-del:hover) { color: #cf8a78; }
+  :global(.mini.row-del:focus-visible) { outline: 2px solid var(--bb-green-glow, #52b788); outline-offset: 2px; }
 
   @media (max-width: 620px) {
     .prow { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'light chev' 'status chev'; row-gap: 4px; }
     .light { grid-area: light; }
     .status { grid-area: status; }
     .chev { grid-area: chev; }
-    .mini { min-width: 44px; min-height: 44px; }
   }
 </style>

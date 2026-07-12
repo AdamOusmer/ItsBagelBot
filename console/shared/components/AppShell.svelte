@@ -5,7 +5,10 @@
   import type { Snippet } from 'svelte';
   import Topbar from './Topbar.svelte';
   import Dock from './Dock.svelte';
+  import { getI18n } from '../lib/i18n/context';
   import type { NavGroupDef, NavLink, DashboardLink } from '../lib/types';
+
+  const { t } = getI18n();
   let {
     brandTitle = 'ItsBagelBot', brandSub, crumbRoot, crumb,
     accountName, accountRole, dashboards = [], groups, mobileItems,
@@ -25,7 +28,22 @@
   const dockItems = $derived(
     mobileItems.length ? mobileItems : groups.flatMap((g) => g.items)
   );
+
+  // The reading column. The skip link and the Dock both point keyboard users
+  // here; tabindex=-1 makes it a programmatic focus target without adding it to
+  // the normal tab order.
+  let mainEl = $state<HTMLElement | null>(null);
+  function skipToMain(e: MouseEvent) {
+    // Move focus explicitly (not just scroll) so the next Tab continues from the
+    // content, regardless of how the client router treats the hash.
+    e.preventDefault();
+    mainEl?.focus();
+    mainEl?.scrollIntoView();
+  }
 </script>
+
+<!-- First focusable element in the whole shell: jump straight past the chrome. -->
+<a class="skip-link" href="#main-content" onclick={skipToMain}>{t('common.skipToContent')}</a>
 
 {#if banner}{@render banner()}{/if}
 
@@ -45,7 +63,7 @@
     {delegateExitHref}
     {delegateExitLabel}
   />
-  <main class="main">
+  <main class="main" id="main-content" tabindex="-1" bind:this={mainEl}>
     <div class="canvas">{@render children()}</div>
   </main>
   <Dock items={dockItems} {groups} />
@@ -54,6 +72,11 @@
 <style>
   .app { position: relative; z-index: 1; min-height: 100vh; display: flex; flex-direction: column; }
   .main { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+  /* main is a landmark skip-target, not a control: focus lands here from the
+     skip link / dock so the next Tab starts in the content, but a full-width
+     ring around the whole page reads as a bug. The link/dock that sent focus
+     here already showed their own ring. */
+  .main:focus { outline: none; }
 
   /* One centered reading column; the dock floats over the bottom padding. */
   .canvas {

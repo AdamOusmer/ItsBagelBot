@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Icon, PageHead, Card, Modal, AlertBanner, toast, getI18n, containsLink } from '@bagel/shared';
+  import { Icon, PageHead, Card, Modal, AlertBanner, Button, ConfirmDialog, FieldError, toast, getI18n, containsLink } from '@bagel/shared';
   import { page } from '$app/state';
   import { replaceState } from '$app/navigation';
   import { onMount } from 'svelte';
@@ -45,6 +45,14 @@
   let launching = $state(false);
   let subscribeForm = $state<HTMLFormElement | null>(null);
 
+  // Manage/cancel both POST ?/cancel (the server gates the session, verifies the
+  // plan, then redirects to Tebex-hosted management). Cancel routes through a
+  // ConfirmDialog first; the hidden form below is what it submits.
+  let managing = $state(false);
+  let cancelDialogOpen = $state(false);
+  let cancelling = $state(false);
+  let cancelForm = $state<HTMLFormElement | null>(null);
+
   // Gift modal state.
   let giftModalOpen = $state(false);
   let giftLaunching = $state(false);
@@ -55,6 +63,9 @@
   // for instant feedback, again in the server action, and a third time in the
   // transactions service (@bagel/shared/validation mirrors the Go detector).
   const giftMessageHasLink = $derived(giftMessage.trim().length > 0 && containsLink(giftMessage));
+  // The gift submit is disabled until there is a recipient; the reason is
+  // surfaced via aria-describedby so the block is never silent.
+  const giftNeedsRecipient = $derived(giftRecipient.trim().length === 0);
 
   // Celebratory purchase-complete modal (replaces the old top ribbon).
   let celebrateOpen = $state(false);
@@ -143,6 +154,20 @@
     confetti = [];
   }
 
+  // Cancellation: confirm the consequence first, then submit the hidden ?/cancel
+  // form (which redirects to Tebex-hosted management).
+  function openCancel() {
+    cancelDialogOpen = true;
+  }
+  function closeCancel() {
+    if (cancelling) return;
+    cancelDialogOpen = false;
+  }
+  function confirmCancel() {
+    cancelling = true;
+    cancelForm?.requestSubmit();
+  }
+
   // Auto-open checkout when the pricing page sent the visitor here with
   // ?subscribe=1 (possibly via the login flow). One shot: the param is stripped
   // so a refresh does not re-launch.
@@ -211,9 +236,13 @@
     lastForm = form;
     if (!form) return;
     // A form result means the action did not redirect to Tebex — re-enable the
-    // buttons instead of leaving them stuck on "Opening checkout…".
+    // buttons instead of leaving them stuck on the loading state, and drop the
+    // cancel confirmation so its error surfaces as a toast.
     launching = false;
     giftLaunching = false;
+    managing = false;
+    cancelling = false;
+    cancelDialogOpen = false;
     if (form.error) toast('err', String(form.error));
     // A gift error re-renders the whole page (plain POST), losing the modal —
     // reopen it and repopulate the fields the action echoed back.
@@ -233,83 +262,110 @@
     {isPaid ? t('billing.managePre') : t('billing.choosePre')}<em>{t('billing.planEm')}</em>
   </PageHead>
 
+  <!-- 6. Error / unavailable state — announced (AlertBanner is role="alert"). -->
   {#if data.degraded}
     <AlertBanner>{t('billing.degraded')}</AlertBanner>
   {/if}
 
   {#if !isPaid}
     <!-- ────── SELECTION VIEW (free plan) ────── -->
+
+    <!-- 1. Current plan + status — TEXT, announced on change. -->
+    <p class="plan-status" role="status">
+      <span class="ps-label">{t('billing.currentPlan')}</span>
+      <span class="ps-value">{statusLabel}</span>
+    </p>
+
+    <!-- 3. Plan comparison. Heading kept for structure, hidden visually. -->
+    <h2 class="sr-only">{t('billing.comparePlans')}</h2>
     <div class="plans">
       <!-- Free: the whole product -->
       <Card class="plan-card">
         <span class="plan-eyebrow">{t('billing.currentPlan')}</span>
-        <div class="plan-headline">{t('billing.free')}</div>
-        <div class="plan-price">
+        <h3 class="plan-headline">{t('billing.free')}</h3>
+        <p class="plan-price">
           <span class="plan-amt">$0</span>
           <span class="plan-per">{t('billing.priceForever')}</span>
-        </div>
+        </p>
         <p class="plan-desc">{t('billing.freeDesc')}</p>
+        <!-- 4. Features — semantic list. -->
         <ul class="plan-feats">
           {#each freeFeatures as feature}
             <li><Icon name="check" size={15} />{feature}</li>
           {/each}
         </ul>
-        <div class="plan-current">{t('billing.onThisPlan')}</div>
+        <p class="plan-current">{t('billing.onThisPlan')}</p>
       </Card>
 
       <!-- Premium: the upgrade -->
       <Card class="plan-card plan-card--premium">
         <span class="plan-badge">{t('billing.priorityLane')}</span>
         <span class="plan-eyebrow">{t('billing.upgrade')}</span>
-        <div class="plan-headline">{t('billing.premium')}</div>
-        <div class="plan-price">
-          <span class="plan-amt">7$</span>
+        <h3 class="plan-headline">{t('billing.premium')}</h3>
+        <p class="plan-price">
+          <span class="plan-amt">$7</span>
           <span class="plan-per">{t('billing.perMonth')}</span>
-        </div>
+        </p>
         <p class="plan-desc">{t('billing.premiumDesc')}</p>
+        <!-- 4. Features — semantic list. -->
         <ul class="plan-feats">
           {#each premiumFeatures as feature}
             <li><Icon name="check" size={15} />{feature}</li>
           {/each}
         </ul>
+        <!-- 2. Primary billing action — the ONE primary on the page. -->
         <div class="plan-buttons">
           <form method="POST" action="?/subscribe" bind:this={subscribeForm} onsubmit={onSubscribeSubmit}>
             <input type="hidden" name="plan" value="monthly" />
-            <button class="btn primary" type="submit" disabled={launching}>
-              <Icon name="heart" size={14} />
-              {launching ? t('billing.openingCheckout') : t('billing.subscribeMonthly')}
-            </button>
+            <Button
+              type="submit"
+              variant="primary"
+              icon="heart"
+              loading={launching}
+              aria-describedby="premium-fine"
+            >
+              {t('billing.subscribeMonthly')}
+            </Button>
           </form>
           <form method="POST" action="?/subscribe" onsubmit={onSubscribeSubmit}>
             <input type="hidden" name="plan" value="once" />
-            <button class="btn ghost" type="submit" disabled={launching}>
-              {launching ? t('billing.openingCheckout') : t('billing.buyOneMonth')}
-            </button>
+            <Button type="submit" variant="secondary" loading={launching} aria-describedby="premium-fine">
+              {t('billing.buyOneMonth')}
+            </Button>
           </form>
         </div>
-        <p class="plan-fine">{t('billing.premiumFine')} &middot; {t('billing.tebexNote')}</p>
+        <p class="plan-fine" id="premium-fine">{t('billing.premiumFine')} &middot; {t('billing.tebexNote')}</p>
       </Card>
     </div>
 
     <p class="oath">{t('billing.oath')}</p>
 
+    <!-- 5. Billing-management action: gift Premium to someone else. -->
     <div class="gift-link-row">
       <button type="button" class="gift-link" onclick={openGift}>{t('billing.giftLink')}</button>
     </div>
     {#if form?.error && !form?.gift}
-      <p class="form-error center">{form.error}</p>
+      <p class="form-error center" role="alert">{form.error}</p>
     {/if}
   {:else}
     <!-- ────── MANAGEMENT VIEW (premium / vip) ────── -->
     <div class="premium-dashboard-hero">
       <div class="premium-hero-content">
         <div class="premium-hero-badge">
-          <img src="/premium-logo.png" alt="Premium" />
+          <img src="/premium-logo.png" alt="" />
         </div>
-        <div class="premium-hero-text">
-          <span class="premium-eyebrow">Current Plan</span>
+        <!-- 1. Current plan + status — TEXT, announced on change. -->
+        <div class="premium-hero-text" role="status">
+          <span class="premium-eyebrow">{t('billing.currentPlan')}</span>
           <h2 class="premium-title">{statusLabel}</h2>
-          
+
+          {#if tebexPaid}
+            <p class="premium-price">
+              <span class="plan-amt">$7</span>
+              <span class="plan-per">{t('billing.perMonth')}</span>
+            </p>
+          {/if}
+
           {#if isVip}
             <p class="premium-hint">{t('billing.vipHint')}</p>
           {:else if staffGrant}
@@ -332,38 +388,68 @@
       <div class="premium-hero-actions">
         {#if canManage}
           <div class="premium-actions-row">
-            <form method="POST" action="?/cancel">
-              <button type="submit" class="btn premium-btn">{t('billing.manageSubscription')}</button>
+            <!-- 2. Primary billing action — the ONE primary. -->
+            <form method="POST" action="?/cancel" onsubmit={() => (managing = true)}>
+              <Button type="submit" variant="primary" loading={managing} aria-describedby="manage-note">
+                {t('billing.manageSubscription')}
+              </Button>
             </form>
-            <form method="POST" action="?/cancel">
-              <button type="submit" class="btn ghost danger">{t('billing.cancelSubscription')}</button>
-            </form>
+            <!-- 5. Cancellation — confirmed first via ConfirmDialog. -->
+            <Button variant="destructive" onclick={openCancel}>
+              {t('billing.cancelSubscription')}
+            </Button>
           </div>
-          <p class="premium-tiny-hint">{t('billing.manageTiny')}</p>
+          <p class="premium-tiny-hint" id="manage-note">{t('billing.manageTiny')}</p>
         {/if}
         {#if form?.error && !form?.gift}
-          <p class="form-error center">{form.error}</p>
+          <p class="form-error center" role="alert">{form.error}</p>
         {/if}
       </div>
     </div>
+
+    <!-- 4. Features — what the current plan includes. -->
+    <section class="premium-includes">
+      <h3 class="includes-h">{t('billing.premiumIncludes')}</h3>
+      <ul class="plan-feats plan-feats--flow">
+        {#each premiumFeatures as feature}
+          <li><Icon name="check" size={15} />{feature}</li>
+        {/each}
+      </ul>
+    </section>
 
     <!-- Gift: available whatever your own plan is. -->
     <Card class="billing-card premium-gift-card">
       <div class="gift-cta">
         <div>
-          <h2>{t('billing.giftPremium')}</h2>
+          <h2 class="gift-h">{t('billing.giftPremium')}</h2>
           <p class="hint">
             {t('billing.giftCtaHint')}
           </p>
         </div>
-        <button type="button" class="btn premium-btn" onclick={openGift}>
-          <Icon name="heart" size={14} />
+        <Button variant="secondary" icon="heart" onclick={openGift}>
           {t('billing.giftPremium')}
-        </button>
+        </Button>
       </div>
     </Card>
   {/if}
 </section>
+
+<!-- ────── CANCEL CONFIRMATION ────── -->
+<ConfirmDialog
+  open={cancelDialogOpen}
+  title={t('billing.cancelConfirmTitle')}
+  body={paidUntil
+    ? t('billing.cancelConfirmBody', { date: fmtDate(paidUntil) })
+    : t('billing.cancelConfirmBodyNoDate')}
+  confirmLabel={t('billing.cancelConfirmLabel')}
+  cancelLabel={t('billing.keepSubscription')}
+  danger
+  busy={cancelling}
+  onConfirm={confirmCancel}
+  onCancel={closeCancel}
+/>
+<!-- Submitted programmatically by the confirmation above. -->
+<form method="POST" action="?/cancel" bind:this={cancelForm} hidden></form>
 
 <!-- ────── GIFT MODAL (both views) ────── -->
 <Modal open={giftModalOpen} title={t('billing.giftPremium')} closeModal={closeGift}>
@@ -396,38 +482,40 @@
         maxlength="280"
         rows="3"
         bind:value={giftMessage}
+        aria-describedby="gift-msg-counter{giftMessageHasLink ? ' gift-msg-error' : ''}"
         readonly={giftLaunching}
       ></textarea>
-      <span class="counter" class:counter--full={giftMessage.length >= 280}>{giftMessage.length}/280</span>
+      <span id="gift-msg-counter" class="counter" class:counter--full={giftMessage.length >= 280}>{giftMessage.length}/280</span>
       {#if giftMessageHasLink}
-        <p class="form-error">{t('billing.giftNoteLink')}</p>
+        <!-- Wrapped so the textarea's aria-describedby target resolves; the shared
+             FieldError takes only `message`. -->
+        <span id="gift-msg-error"><FieldError message={t('billing.giftNoteLink')} /></span>
       {/if}
     </label>
     {#if form?.gift && form?.error}
-      <p class="form-error">{form.error}</p>
+      <FieldError message={form.error} />
+    {/if}
+    {#if giftNeedsRecipient && !giftLaunching}
+      <p class="hint tiny" id="gift-need-recipient">{t('billing.giftNeedRecipient')}</p>
     {/if}
     <div class="modal-actions">
-      <button type="button" class="btn ghost" onclick={closeGift} disabled={giftLaunching}>{t('common.cancel')}</button>
-      <button class="btn primary" type="submit" disabled={giftLaunching || !giftRecipient.trim() || giftMessageHasLink}>
-        <Icon name="heart" size={14} />
-        {giftLaunching ? t('billing.openingCheckout') : t('billing.giftPremium')}
-      </button>
+      <Button variant="ghost" onclick={closeGift} disabled={giftLaunching}>{t('common.cancel')}</Button>
+      <Button
+        type="submit"
+        variant="primary"
+        icon="heart"
+        loading={giftLaunching}
+        disabled={giftNeedsRecipient || giftMessageHasLink}
+        aria-describedby={giftNeedsRecipient ? 'gift-need-recipient' : undefined}
+      >
+        {t('billing.giftPremium')}
+      </Button>
     </div>
   </form>
 </Modal>
 
 <!-- ────── CELEBRATORY PURCHASE-COMPLETE MODAL ────── -->
-<Modal
-  open={celebrateOpen}
-  closeModal={closeCelebrate}
-  ariaLabel={celebrateKind === 'gift'
-    ? t('billing.giftSent')
-    : isPaid
-      ? t('billing.premiumActivated')
-      : activationSlow
-        ? t('billing.paymentReceived')
-        : t('billing.paymentReceivedTitle')}
->
+<Modal open={celebrateOpen} closeModal={closeCelebrate}>
   <div class="celebrate">
     <div class="celebrate-badge" class:celebrate-badge--gift={celebrateKind === 'gift'}>
       <Icon name="heart" size={30} />
@@ -461,9 +549,9 @@
     {/if}
 
     <div class="modal-actions celebrate-actions">
-      <button type="button" class="btn primary" onclick={closeCelebrate}>
+      <Button variant="primary" onclick={closeCelebrate}>
         {celebrateKind === 'gift' ? t('common.done') : isPaid ? t('billing.explorePremium') : t('common.gotIt')}
-      </button>
+      </Button>
     </div>
   </div>
 </Modal>
@@ -483,9 +571,12 @@
   :global(.billing-card) {
     margin-top: 18px;
   }
-  h2 {
+  .gift-h {
     margin: 0 0 6px;
     font-size: 16px;
+    font-family: var(--bb-font-display);
+    font-weight: 700;
+    color: var(--bb-white);
   }
   .hint {
     color: var(--bb-muted, #998f82);
@@ -495,6 +586,28 @@
   }
   .hint.tiny {
     font-size: 12px;
+  }
+
+  /* ── Current-plan status strip (selection view) ── */
+  .plan-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 4px;
+    padding: 8px 16px;
+    border: 1px solid var(--bb-border);
+    border-radius: var(--bb-radius-pill, 100px);
+    font-family: var(--bb-font-mono);
+    font-size: 11px;
+  }
+  .ps-label {
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--bb-muted);
+  }
+  .ps-value {
+    color: var(--bb-green-light, #74c69d);
+    font-weight: 600;
   }
 
   /* ── Selection view: plan cards ── */
@@ -557,7 +670,7 @@
     display: flex;
     align-items: baseline;
     gap: 3px;
-    margin-bottom: 12px;
+    margin: 0 0 12px;
   }
   .plan-amt {
     font-family: var(--bb-font-display);
@@ -606,7 +719,7 @@
     margin-top: 1px;
   }
   .plan-current {
-    margin-top: auto;
+    margin: auto 0 0;
     font-family: var(--bb-font-mono);
     font-size: 11px;
     letter-spacing: 0.08em;
@@ -625,7 +738,7 @@
   .plan-buttons form {
     flex: 1;
   }
-  .plan-buttons .btn {
+  .plan-buttons :global(.btn) {
     width: 100%;
     justify-content: center;
   }
@@ -662,6 +775,10 @@
     font-family: var(--bb-font-body);
     font-size: 13.5px;
     color: var(--bb-tan-light);
+    /* >=44px hit target while staying a text-style link. */
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
     padding: 8px 4px;
     transition: color var(--bb-dur-fast, 160ms) ease;
   }
@@ -692,13 +809,13 @@
       justify-content: space-between;
     }
   }
-  
+
   .premium-hero-content {
     display: flex;
     align-items: flex-start;
     gap: 24px;
   }
-  
+
   .premium-hero-badge {
     width: 64px;
     height: 64px;
@@ -738,7 +855,17 @@
     margin: 0 0 8px;
     background: linear-gradient(135deg, var(--bb-white) 0%, var(--bb-tan-pale) 100%);
     -webkit-background-clip: text;
+    background-clip: text;
     -webkit-text-fill-color: transparent;
+  }
+  .premium-price {
+    display: flex;
+    align-items: baseline;
+    gap: 3px;
+    margin: 0 0 10px;
+  }
+  .premium-price .plan-amt {
+    font-size: 1.6rem;
   }
   .premium-hint {
     font-family: var(--bb-font-body);
@@ -760,30 +887,47 @@
       align-items: flex-end;
     }
   }
-  
+
   .premium-actions-row {
     display: flex;
+    flex-wrap: wrap;
     gap: 12px;
   }
 
   .premium-tiny-hint {
     font-size: 12px;
-    color: rgba(240, 236, 228, 0.4);
+    color: rgba(240, 236, 228, 0.55);
     margin: 0;
+    max-width: 40ch;
+  }
+  @media (min-width: 720px) {
+    .premium-tiny-hint {
+      text-align: right;
+    }
   }
 
-  /* Premium Buttons */
-  :global(.btn.premium-btn) {
-    background: linear-gradient(180deg, var(--bb-tan-light, #dcb98a) 0%, var(--bb-tan, #c9a87c) 100%);
-    color: #0a0a0a !important;
-    border: 1px solid rgba(255,255,255,0.2);
-    box-shadow: 0 2px 12px rgba(201, 168, 124, 0.25);
-    font-weight: 700;
+  /* ── Premium "includes" list ── */
+  .premium-includes {
+    margin-top: 22px;
   }
-  :global(.btn.premium-btn:hover) {
-    background: linear-gradient(180deg, #e8d8c0 0%, var(--bb-tan-light, #dcb98a) 100%);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 16px rgba(201, 168, 124, 0.35);
+  .includes-h {
+    font-family: var(--bb-font-mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--bb-muted);
+    margin: 0 0 4px;
+  }
+  .plan-feats--flow {
+    border-top: none;
+    padding-top: 8px;
+  }
+  @media (min-width: 620px) {
+    .plan-feats--flow {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px 24px;
+    }
   }
 
   /* ── Premium Gift Card ── */
@@ -797,13 +941,8 @@
     justify-content: space-between;
     gap: 18px;
   }
-  .gift-cta .btn {
+  .gift-cta :global(.btn) {
     flex-shrink: 0;
-  }
-
-  .btn.danger {
-    color: #e5484d;
-    border-color: rgba(229, 72, 77, 0.4);
   }
 
   .form-error {
@@ -1002,20 +1141,10 @@
   }
 
   @media (max-width: 760px) {
-    .mgmt-top {
-      flex-direction: column;
-    }
-    .mgmt-actions {
-      align-items: stretch;
-      width: 100%;
-    }
-    .mgmt-actions .hint {
-      text-align: left;
-    }
     .gift-cta {
       flex-direction: column;
     }
-    .gift-cta .btn {
+    .gift-cta :global(.btn) {
       width: 100%;
       justify-content: center;
     }

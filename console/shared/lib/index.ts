@@ -1,6 +1,7 @@
 export { default as Icon } from '../components/Icon.svelte';
 export { default as Card } from '../components/Card.svelte';
 export { default as Button } from '../components/Button.svelte';
+export { default as ButtonLink } from '../components/ButtonLink.svelte';
 export { default as Toggle } from '../components/Toggle.svelte';
 export { default as Switch } from '../components/Switch.svelte';
 export { default as MasterToggle } from '../components/MasterToggle.svelte';
