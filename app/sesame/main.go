@@ -33,6 +33,11 @@ const serviceName = "sesame"
 // in sesame before the next read re-checks Valkey and the projector.
 const projectionCacheTTL = 30 * time.Second
 
+// cacheOccupancyInterval is how often sesame logs how full its projection caches
+// run, so their capacities can be tuned to the observed working set. Slow enough
+// to be noise-free at info level (one line per pod per interval).
+const cacheOccupancyInterval = 5 * time.Minute
+
 func main() {
 	log := logger.New(env.Get("APP_ENV", "development")).Named(serviceName)
 	defer func() { _ = log.Sync() }()
@@ -66,7 +71,7 @@ func main() {
 
 	in := infra{nc: nc, pub: pub, sub: sub, vc: valkeyClient}
 
-	proj := newProjection(in, cfg, log)
+	proj := newProjection(ctx, in, cfg, log)
 	defer proj.Close()
 
 	live := newLive(ctx, in, cfg, log)
@@ -310,7 +315,7 @@ func dialNATS(cfg *config.Config, log *zap.Logger) (*nats.Conn, message.Publishe
 // newProjection builds the settings-projection reader (in-process cache fronting
 // Valkey, with a projector RPC fallback) and starts its cache invalidation
 // listener.
-func newProjection(in infra, cfg *config.Config, log *zap.Logger) *projection.Client {
+func newProjection(ctx context.Context, in infra, cfg *config.Config, log *zap.Logger) *projection.Client {
 	proj := projection.NewClient(projection.Config{
 		Store: projection.NewStore(in.vc),
 		NC:    in.nc,
@@ -323,6 +328,7 @@ func newProjection(in infra, cfg *config.Config, log *zap.Logger) *projection.Cl
 		Log: log,
 	})
 	proj.StartInvalidationListener(cfg.CacheInvalidationPrefix)
+	proj.StartOccupancyLogger(ctx, cacheOccupancyInterval)
 	return proj
 }
 

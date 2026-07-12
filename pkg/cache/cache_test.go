@@ -140,6 +140,21 @@ func TestInvalidate(t *testing.T) {
 	assert.Equal(t, "fresh", value)
 }
 
+func TestLenAndCapacity(t *testing.T) {
+	c := New[int](128, time.Minute)
+	defer c.Close()
+
+	assert.Equal(t, int64(128), c.Capacity(), "Capacity reports the configured ceiling")
+	assert.Equal(t, 0, c.Len(), "a fresh cache is empty")
+
+	c.Set("a", 1)
+	c.Set("b", 2)
+	c.client.Wait() // let theine's async write buffer drain before counting
+
+	assert.Equal(t, 2, c.Len(), "Len reports live entries")
+	assert.Equal(t, int64(128), c.Capacity(), "Capacity is unaffected by occupancy")
+}
+
 func TestUserKey(t *testing.T) {
 	assert.Equal(t, "user:0", UserKey("user:", 0))
 	assert.Equal(t, "modules:123456", UserKey("modules:", 123456))

@@ -23,8 +23,9 @@ type Keyed[K comparable, V any] struct {
 	group  singleflight.Group
 	keyFn  func(K) string
 
-	ttl    time.Duration
-	jitter time.Duration
+	capacity int64
+	ttl      time.Duration
+	jitter   time.Duration
 }
 
 // NewKeyed creates a K-keyed cache. keyFn maps a key to the stable string
@@ -36,12 +37,21 @@ func NewKeyed[K comparable, V any](capacity int64, ttl time.Duration, keyFn func
 		panic("failed to build theine cache: " + err.Error())
 	}
 	return &Keyed[K, V]{
-		client: client,
-		keyFn:  keyFn,
-		ttl:    ttl,
-		jitter: ttl / 10,
+		client:   client,
+		keyFn:    keyFn,
+		capacity: capacity,
+		ttl:      ttl,
+		jitter:   ttl / 10,
 	}
 }
+
+// Len returns the current number of live entries in the cache, a point-in-time
+// occupancy reading for logging how full the cache runs against its capacity.
+func (c *Keyed[K, V]) Len() int { return c.client.Len() }
+
+// Capacity returns the configured maximum number of entries (the ceiling passed
+// to NewKeyed), the denominator for an occupancy ratio.
+func (c *Keyed[K, V]) Capacity() int64 { return c.capacity }
 
 // GetOrLoad returns the cached value for key, or runs loader to fill it. A hit
 // touches only theine's Get (no allocation, no keyFn). Only one loader runs per
