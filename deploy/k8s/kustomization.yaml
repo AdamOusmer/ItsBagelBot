@@ -27,7 +27,6 @@ resources:
   - sesame.yaml
   - twitch-ingress.yaml
   - network-policies.yaml
-  - linkerd-auth.yaml
   - nats.yaml
   - nats-leaf.yaml
   - nats-auth-dopplersecret.yaml
