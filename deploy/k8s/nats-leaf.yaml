@@ -64,7 +64,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: nats
-          image: nats:2.11-alpine
+          image: nats:2.14.3-alpine
           imagePullPolicy: IfNotPresent
           # --pid writes a pidfile the reloader reads to signal this process.
           command: ["/bin/sh", "-c"]
@@ -80,11 +80,11 @@ spec:
                 fieldRef:
                   fieldPath: spec.nodeName
             # Leaves are JS-disabled local RPC relays; without a heap target the
-            # Go GC let RSS drift to 130-180Mi per node. 96MiB keeps the GC
+            # Go GC let RSS drift to 130-180Mi per node. 192MiB keeps the GC
             # honest while staying above the leaf's real working set (client
             # buffers + leaf mesh routes).
             - name: GOMEMLIMIT
-              value: 96MiB
+              value: 192MiB
           envFrom:
             - secretRef:
                 name: nats-auth-env
@@ -99,10 +99,10 @@ spec:
           resources:
             # Leaves are encrypted local relays, not durable stores; keep burst
             # headroom but avoid reserving hub-sized memory on every node.
-            # Sized against GOMEMLIMIT=96MiB above: ~110-120Mi steady RSS
-            # (heap target + goroutine stacks + mmap), 256Mi hard cap.
+            # Sized against GOMEMLIMIT=192MiB above: ~210-220Mi steady RSS
+            # (heap target + goroutine stacks + mmap), 512Mi hard cap.
             requests: {cpu: 50m, memory: 96Mi}
-            limits: {cpu: 1500m, memory: 256Mi}
+            limits: {cpu: 2000m, memory: 512Mi}
           securityContext:
             allowPrivilegeEscalation: false
             capabilities: {drop: ["ALL"]}
@@ -218,12 +218,15 @@ metadata:
 spec:
   # Health/failback probe only. With no local endpoint this Service is
   # unreachable, so clients never mistake a remote leaf for the recovered
-  # same-node leaf.
+  # same-node leaf. Probe the HTTP monitor port rather than opening a plaintext
+  # TCP connection to the native-TLS client listener (which polluted NATS logs
+  # with handshake failures every failback interval).
   internalTrafficPolicy: Local
   selector:
     app: nats-leaf
   ports:
     - {name: client, port: 4222, targetPort: client}
+    - {name: monitor, port: 8222, targetPort: monitor}
 ---
 apiVersion: v1
 kind: Service

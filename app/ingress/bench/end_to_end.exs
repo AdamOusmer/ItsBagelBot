@@ -1,5 +1,5 @@
 # Exercises the complete cached chat path: dispatcher admission, lane routing,
-# duplicate-window insert, JSON encoding, Gnat header preparation, async publish
+# duplicate-window insert, JSON encoding, Gnat header preparation, batch publish
 # tracking and PubAck reconciliation. Only the kernel socket and broker storage
 # are replaced by an immediate in-VM PubAck.
 #
@@ -18,8 +18,49 @@ defmodule EndToEndBenchGnat do
   end
 
   def handle_call({:pub, _topic, _message, opts}, _from, state) do
-    send(state.receiver, {:msg, %{topic: Keyword.fetch!(opts, :reply_to), body: ~s({"seq":1})}})
+    if reply = Keyword.get(opts, :reply_to) do
+      headers =
+        for [key, ": ", value, "\r\n"] <- Keyword.get(opts, :headers, []), into: %{} do
+          {String.downcase(key), IO.iodata_to_binary(value)}
+        end
+
+      body =
+        case headers do
+          %{"nats-batch-id" => batch, "nats-batch-sequence" => count} ->
+            ~s({"seq":#{count},"batch":"#{batch}","count":#{count}})
+
+          _ ->
+            ~s({"seq":1})
+        end
+
+      send(state.receiver, {:msg, %{topic: reply, body: body}})
+    end
+
     {:reply, :ok, state}
+  end
+
+  def write_many(publishes) do
+    commands =
+      Enum.map(publishes, fn {subject, json, reply, headers} ->
+        opts = [headers: :cow_http.headers(headers)]
+        opts = if reply, do: opts ++ [reply_to: reply], else: opts
+        Gnat.Command.build(:pub, subject, json, opts)
+      end)
+
+    # Force construction of the complete iodata tree that the production path
+    # hands to one :ssl.send/2, while replacing only the kernel write + broker.
+    _bytes = IO.iodata_length(commands)
+    {_subject, _json, reply, headers} = List.last(publishes)
+    headers = Map.new(headers)
+    batch = headers["Nats-Batch-Id"]
+    count = headers["Nats-Batch-Sequence"]
+
+    send(
+      self(),
+      {:msg, %{topic: reply, body: ~s({"seq":#{count},"batch":"#{batch}","count":#{count}})}}
+    )
+
+    :ok
   end
 end
 
@@ -49,7 +90,10 @@ contexts =
   for index <- 0..(connections - 1) do
     conn = String.to_atom("end_to_end_bench_gnat_#{index}")
     {:ok, _conn} = EndToEndBenchGnat.start_link(conn)
-    {:ok, _publisher} = Publisher.start_link(index: index, conn: conn)
+
+    {:ok, _publisher} =
+      Publisher.start_link(index: index, conn: conn, write_many: &EndToEndBenchGnat.write_many/1)
+
     :persistent_term.get({Publisher, :ctx, index})
   end
 

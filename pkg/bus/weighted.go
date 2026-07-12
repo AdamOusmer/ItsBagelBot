@@ -58,6 +58,7 @@ type WeightedLane struct {
 type ScalePolicy struct {
 	MinRoutines    int           // floor for routines per consumer (>= 1)
 	MaxRoutines    int           // ceiling for routines per consumer
+	MinConsumers   int           // connection/subscription floor (>= 1)
 	MaxConsumers   int           // ceiling on the number of consumers (>= 1)
 	ScaleUpAfter   time.Duration // sustained saturation before growing a step
 	ScaleDownAfter time.Duration // sustained calm before shrinking a step
@@ -82,12 +83,18 @@ func ConsumeWeighted(ctx context.Context, app *newrelic.Application, lanes []Wei
 		dispatched: &sync.WaitGroup{},
 	}
 
-	// The first unit starts synchronously so a Subscribe error surfaces here.
-	first, err := s.startUnit()
-	if err != nil {
-		return nil, err
+	// Start the subscription floor synchronously so short bursts have their
+	// intended connection parallelism before this scaler or KEDA polls.
+	for len(s.units) < policy.MinConsumers {
+		unit, err := s.startUnit()
+		if err != nil {
+			for _, started := range s.units {
+				go started.stop()
+			}
+			return nil, err
+		}
+		s.units = append(s.units, unit)
 	}
-	s.units = []*consumerUnit{first}
 
 	go s.run()
 
@@ -180,7 +187,7 @@ func (s *supervisor) run() {
 					s.addUnit()
 					saturatedSince = now // wait a full window before the next
 				}
-			case len(s.units) > 1 && allCalm:
+			case len(s.units) > s.policy.MinConsumers && allCalm:
 				saturatedSince = time.Time{}
 				if calmSince.IsZero() {
 					calmSince = now
@@ -301,6 +308,12 @@ func (p ScalePolicy) normalized() ScalePolicy {
 	}
 	if p.MaxConsumers < 1 {
 		p.MaxConsumers = 1
+	}
+	if p.MinConsumers < 1 {
+		p.MinConsumers = 1
+	}
+	if p.MaxConsumers < p.MinConsumers {
+		p.MaxConsumers = p.MinConsumers
 	}
 	if p.ScaleUpAfter <= 0 {
 		p.ScaleUpAfter = 5 * time.Second

@@ -20,8 +20,10 @@ defmodule Ingress.ShardScaler.PolicyTest do
   end
 
   describe "capacity model" do
-    test "budget keeps at least 20% cushion below the rating" do
-      assert Policy.budget_per_window() <= div(Policy.rated_per_window() * 80, 100)
+    test "uses the measured socket rating and keeps a 25% burst cushion" do
+      assert Policy.shard_rated_eps() == 12_500
+      assert Policy.target_utilization_pct() == 75
+      assert Policy.budget_per_window() == div(Policy.rated_per_window() * 75, 100)
     end
 
     test "shards_needed sizes from aggregate at target utilization" do
@@ -48,6 +50,13 @@ defmodule Ingress.ShardScaler.PolicyTest do
 
       assert {4, %{low: 0, high: 0}, :hold} =
                Policy.evaluate(s, 4, Policy.reset_ticks(), @min, @max)
+    end
+
+    test "half-utilized sockets do not trigger another breadcrumb shard" do
+      half_rated_fleet = div(Policy.rated_per_window() * 4, 2)
+
+      assert {4, %{low: 1, high: 0}, :hold} =
+               Policy.evaluate(sample(half_rated_fleet), 4, Policy.reset_ticks(), @min, @max)
     end
 
     test "a single undercapacity tick does not scale up" do
@@ -190,7 +199,7 @@ defmodule Ingress.ShardScaler.PolicyTest do
     end
 
     test "above both the ratio and the absolute floor is concentrated" do
-      assert Policy.concentrated?(%{responsive_count: 4, avg_load: 1_000, max_load: 15_000})
+      assert Policy.concentrated?(%{responsive_count: 4, avg_load: 1_000, max_load: 150_000})
     end
 
     test "a single responsive shard is never concentrated, regardless of ratio" do

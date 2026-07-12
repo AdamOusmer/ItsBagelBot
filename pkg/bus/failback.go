@@ -2,7 +2,7 @@ package bus
 
 import (
 	"math/rand/v2"
-	"net"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -20,7 +20,7 @@ const (
 
 type failbackConfig struct {
 	nodeName  string
-	localAddr string
+	healthURL string
 	interval  time.Duration
 	successes int
 	timeout   time.Duration
@@ -39,7 +39,7 @@ func leafFailbackOption() nats.Option {
 func loadFailbackConfig() failbackConfig {
 	return failbackConfig{
 		nodeName:  env.Get("NODE_NAME", ""),
-		localAddr: env.Get("NATS_LOCAL_LEAF_ADDR", "nats-leaf-local:4222"),
+		healthURL: env.Get("NATS_LOCAL_LEAF_HEALTH_URL", "http://nats-leaf-local:8222/healthz"),
 		interval:  durationEnv("NATS_FAILBACK_INTERVAL", defaultFailbackInterval),
 		successes: positiveIntEnv("NATS_FAILBACK_SUCCESSES", defaultFailbackSuccesses),
 		timeout:   durationEnv("NATS_FAILBACK_PROBE_TIMEOUT", defaultFailbackTimeout),
@@ -65,7 +65,7 @@ func runLeafFailback(nc *nats.Conn, cfg failbackConfig) {
 			continue
 		}
 
-		if !localLeafReady(cfg.localAddr, cfg.timeout) {
+		if !localLeafReady(cfg.healthURL, cfg.timeout) {
 			consecutive = 0
 			continue
 		}
@@ -86,13 +86,17 @@ func isLocalLeaf(serverName, nodeName string) bool {
 	return nodeName != "" && strings.HasPrefix(serverName, nodeName+"--")
 }
 
-func localLeafReady(addr string, timeout time.Duration) bool {
-	conn, err := net.DialTimeout("tcp", addr, timeout)
+func localLeafReady(healthURL string, timeout time.Duration) bool {
+	req, err := http.NewRequest(http.MethodGet, healthURL, nil)
 	if err != nil {
 		return false
 	}
-	_ = conn.Close()
-	return true
+	resp, err := (&http.Client{Timeout: timeout}).Do(req)
+	if err != nil {
+		return false
+	}
+	_ = resp.Body.Close()
+	return resp.StatusCode == http.StatusOK
 }
 
 func durationEnv(key string, fallback time.Duration) time.Duration {

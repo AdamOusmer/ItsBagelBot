@@ -141,8 +141,8 @@ defmodule Ingress.Config do
   def dispatcher_completion_flush_ms,
     do: Application.get_env(:ingress, :dispatcher_completion_flush_ms, 25)
 
-  # How long an outstanding async lane publish waits for its PubAck before the
-  # collector re-publishes it (see Ingress.Nats.Publisher).
+  # How long an outstanding batch/single publish waits for its PubAck before
+  # the collector reconciles it (see Ingress.Nats.Publisher).
   def publish_ack_timeout_ms,
     do: Application.get_env(:ingress, :publish_ack_timeout_ms, 2_000)
 
@@ -151,7 +151,7 @@ defmodule Ingress.Config do
   def publish_attempts,
     do: Application.get_env(:ingress, :publish_attempts, 3)
 
-  # Ceiling on outstanding (un-acked) async lane publishes per publisher shard.
+  # Ceiling on outstanding (queued or un-acked) lane events per publisher shard.
   # This is the publisher's backpressure valve: at the measured PubAck latency
   # it sets peak publish throughput (publish_connections × max_pending /
   # ack_latency), and it bounds the memory held for in-flight events when the
@@ -159,6 +159,14 @@ defmodule Ingress.Config do
   # as overloaded rather than buffered without limit.
   def publish_max_pending,
     do: Application.get_env(:ingress, :publish_max_pending, 16_384)
+
+  # Scheduler-local atomic microbatch shape. At 140k events/s per pod and two
+  # publishers, 128 fills in under 2ms; the 1ms timer keeps quiet lanes prompt.
+  def publish_batch_size,
+    do: Application.get_env(:ingress, :publish_batch_size, 128)
+
+  def publish_batch_wait_ms,
+    do: Application.get_env(:ingress, :publish_batch_wait_ms, 1)
 
   # Number of independent BUS connections (each with its own ack collector) the
   # lane firehose is sharded across. Every publish is a GenServer.call into one

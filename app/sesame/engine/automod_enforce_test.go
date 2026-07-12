@@ -6,6 +6,7 @@ import (
 	"ItsBagelBot/app/sesame/automod"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/projection"
+	"ItsBagelBot/pkg/bus"
 
 	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/bytedance/sonic"
@@ -14,7 +15,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func newAutomodPipeline(pub message.Publisher, reader projection.Reader, enforce bool) *Pipeline {
+func newAutomodPipeline(pub bus.Publisher, reader projection.Reader, enforce bool) *Pipeline {
 	d := Deps{
 		Proj: reader, Live: liveAlways{}, Cooldown: NoopCooldown{},
 		Pub: pub, Log: zap.NewNop(), Automod: automod.New(),

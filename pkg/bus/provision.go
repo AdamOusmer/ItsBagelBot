@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
+	jsapi "github.com/nats-io/nats.go/jetstream"
 
 	"go.uber.org/zap"
 )
@@ -42,6 +43,11 @@ type StreamSpec struct {
 	// perishable firehose that never needs to survive a broker restart is far
 	// cheaper in memory. Storage is fixed at creation — see reconcileStream.
 	Storage nats.StorageType
+	// BatchPublish enables both reliable atomic microbatches and NATS 2.14
+	// flow-controlled fast-ingest batches. All fleet-owned streams opt in so
+	// every pkg/bus publisher benefits; RPC subjects are Core NATS and never
+	// enter these streams.
+	BatchPublish bool
 }
 
 // OutgressStream carries the perishable chat lanes (premium/standard). It is
@@ -62,7 +68,8 @@ var OutgressStream = StreamSpec{
 	// A 5s work queue never outlives a broker restart, so paying disk I/O per
 	// send is pure overhead. Memory-backed removes the write bottleneck; the
 	// 256 MiB MaxBytes caps the memory it can hold.
-	Storage: nats.MemoryStorage,
+	Storage:      nats.MemoryStorage,
+	BatchPublish: true,
 }
 
 // OutgressSystemStream carries the outgress control lane: EventSub enroll
@@ -76,11 +83,12 @@ var OutgressStream = StreamSpec{
 // chat lanes, so producers and the NATS ACLs are unchanged; only the stream that
 // captures twitch.outgress.system differs.
 var OutgressSystemStream = StreamSpec{
-	Name:      "TWITCH_OUTGRESS_SYSTEM",
-	Subjects:  []string{"twitch.outgress.system"},
-	Retention: nats.WorkQueuePolicy,
-	MaxAge:    5 * time.Minute,
-	MaxBytes:  64 << 20, // 64 MiB: control jobs are small and low-volume
+	Name:         "TWITCH_OUTGRESS_SYSTEM",
+	Subjects:     []string{"twitch.outgress.system"},
+	Retention:    nats.WorkQueuePolicy,
+	MaxAge:       5 * time.Minute,
+	MaxBytes:     64 << 20, // 64 MiB: control jobs are small and low-volume
+	BatchPublish: true,
 }
 
 // DataStreams backs the replayable event bus: user, command, module and
@@ -88,10 +96,11 @@ var OutgressSystemStream = StreamSpec{
 // deliberately excluded because they are perishable work, not event history.
 var DataStreams = []StreamSpec{
 	{
-		Name:     "BAGEL_DATA",
-		Subjects: []string{"data.>"},
-		MaxAge:   5 * time.Minute,
-		MaxBytes: 512 << 20, // 512 MiB
+		Name:         "BAGEL_DATA",
+		Subjects:     []string{"data.>"},
+		MaxAge:       5 * time.Minute,
+		MaxBytes:     512 << 20, // 512 MiB
+		BatchPublish: true,
 	},
 	{
 		Name:     "TWITCH_INGRESS",
@@ -125,7 +134,8 @@ var DataStreams = []StreamSpec{
 		// the broker. Both happen within seconds; 10s covers them while bounding
 		// the broker's dedup-id state on the firehose — at 200k/s a 30s window
 		// would track ~6M ids, a 10s window ~2M.
-		Duplicates: 10 * time.Second,
+		Duplicates:   10 * time.Second,
+		BatchPublish: true,
 	},
 }
 
@@ -144,11 +154,17 @@ var DataStreams = []StreamSpec{
 // creation races resolve to success.
 func EnsureStreams(ctx context.Context, url string, specs []StreamSpec, log *zap.Logger) error {
 	var js nats.JetStreamManager
+	var batchJS jsapi.JetStream
 
 	reconcileAll := func() {
 		for _, spec := range specs {
 			if err := reconcileStream(js, spec, log); err != nil {
 				log.Warn("jetstream stream reconcile failed; will retry on next reconnect",
+					zap.String("stream", spec.Name), zap.Error(err))
+				continue
+			}
+			if err := reconcileBatchFeatures(batchJS, spec); err != nil {
+				log.Warn("jetstream batch feature reconcile failed; will retry on next reconnect",
 					zap.String("stream", spec.Name), zap.Error(err))
 			}
 		}
@@ -172,6 +188,11 @@ func EnsureStreams(ctx context.Context, url string, specs []StreamSpec, log *zap
 		nc.Close()
 		return fmt.Errorf("bus: jetstream context: %w", err)
 	}
+	batchJS, err = jsapi.NewWithDomain(nc, JSDomain())
+	if err != nil {
+		nc.Close()
+		return fmt.Errorf("bus: modern jetstream context: %w", err)
+	}
 
 	// Initial provisioning is synchronous and fatal: the service must not start
 	// serving if its streams could not be established.
@@ -179,6 +200,10 @@ func EnsureStreams(ctx context.Context, url string, specs []StreamSpec, log *zap
 		if err := reconcileStream(js, spec, log); err != nil {
 			nc.Close()
 			return err
+		}
+		if err := reconcileBatchFeatures(batchJS, spec); err != nil {
+			nc.Close()
+			return fmt.Errorf("bus: enable batch publishing on %q: %w", spec.Name, err)
 		}
 	}
 
@@ -190,6 +215,35 @@ func EnsureStreams(ctx context.Context, url string, specs []StreamSpec, log *zap
 	}()
 
 	return nil
+}
+
+// reconcileBatchFeatures uses nats.go's current JetStream API because the
+// legacy JetStreamManager StreamConfig intentionally stopped growing before
+// AllowAtomicPublish/AllowBatchPublish were added. Keeping the ordinary stream
+// reconciler in place avoids a risky consumer/provisioning migration while this
+// narrow second pass makes the NATS 2.14 capability authoritative.
+func reconcileBatchFeatures(js jsapi.JetStream, spec StreamSpec) error {
+	if !spec.BatchPublish {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	stream, err := js.Stream(ctx, spec.Name)
+	if err != nil {
+		return err
+	}
+	info := stream.CachedInfo()
+	if info == nil {
+		return errors.New("stream info was not cached")
+	}
+	config := info.Config
+	if config.AllowAtomicPublish && config.AllowBatchPublish {
+		return nil
+	}
+	config.AllowAtomicPublish = true
+	config.AllowBatchPublish = true
+	_, err = js.UpdateStream(ctx, config)
+	return err
 }
 
 func reconcileStream(js nats.JetStreamManager, spec StreamSpec, log *zap.Logger) error {

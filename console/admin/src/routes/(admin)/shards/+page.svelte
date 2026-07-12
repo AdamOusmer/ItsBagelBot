@@ -2,6 +2,13 @@
   import { enhance } from '$app/forms';
   import { onMount, untrack } from 'svelte';
   import { Icon } from '@bagel/shared';
+  import {
+    barWidth,
+    eventsPerSecond,
+    resolveCapacity,
+    utilizationPct,
+    utilizationTone
+  } from '$lib/throughput';
   import type { ActionData } from './$types';
 
   let { data, form }: { data: any; form: ActionData } = $props();
@@ -106,6 +113,7 @@
 
   const minShards = $derived(snap.min_shards ?? 1);
   const autoscaleOn = $derived(snap.autoscale ?? false);
+  const capacity = $derived(resolveCapacity(snap));
 
   function keepalive(ms?: number): string {
     if (!ms || ms <= 0) return '—';
@@ -119,44 +127,16 @@
     return { label: 'degraded', tone: 'err' };
   }
 
-  // `s.load` from ingress is a RAW count of notifications in the last 60s
-  // window per shard (ShardSession event_times length), not a 0..1 fraction.
-  // Treating it as a fraction made any real traffic read as 100%/red. We
-  // normalise against a generous nominal shard capacity for the bar, and show
-  // the honest absolute throughput (events/sec) alongside it.
-  //
-  // Two INDEPENDENT capacity ceilings gate the pipeline; they are not one
-  // number, so each gets its own gauge (per-shard socket below, fleet-wide NATS
-  // budget in the overview). Values mirror Ingress.ShardScaler.Policy.
-  //
-  // LOAD_WINDOW_S mirrors ingress @load_window_seconds (60s).
-  const LOAD_WINDOW_S = 60;
-
-  // Per-shard websocket read/decode/enqueue ceiling. Benchmarked ~12,500 ev/s;
-  // 10,000 is the 80% operational target. Real per-shard rates sit far below
-  // this, so the bar stays green — which is correct: the socket is not the
-  // bottleneck. (This is the true rating; the autoscaler still sizes shards
-  // against a deliberately conservative rating, see the Policy moduledoc.)
-  const SHARD_RATED_EPS = 12_500;
-  const SHARD_TARGET_EPS = 10_000;
-
-  // Shared JetStream publish budget for the WHOLE fleet (aggregate, not per
-  // shard): every shard and pod converges on the same broker, so this ceiling
-  // does NOT grow with shard count. Sized to the current deployment's safe
-  // aggregate; warn/saturation bracket it.
-  const NATS_SAFE_EPS = 3_000;
-  const NATS_WARN_EPS = 2_400;
-  const NATS_SATURATION_EPS = 4_200;
-
   function evRate(load?: number): number {
-    if (load == null || load <= 0) return 0;
-    return load / LOAD_WINDOW_S;
+    return eventsPerSecond(load, capacity.load_window_seconds);
   }
 
   function loadBar(load?: number): number {
-    const rate = evRate(load);
-    if (rate <= 0) return 0;
-    return Math.min(100, Math.round((rate / SHARD_RATED_EPS) * 100));
+    return barWidth(utilizationPct(evRate(load), capacity.websocket_rated_eps));
+  }
+
+  function loadUtilization(load?: number): number {
+    return utilizationPct(evRate(load), capacity.websocket_rated_eps);
   }
 
   function loadLabel(load?: number): string {
@@ -168,10 +148,7 @@
 
   function loadTone(load?: number): string {
     if (load == null) return 'muted';
-    const rate = evRate(load);
-    if (rate >= SHARD_TARGET_EPS) return 'err';
-    if (rate >= SHARD_TARGET_EPS * 0.5) return 'warn';
-    return 'green';
+    return utilizationTone(loadUtilization(load), capacity.target_utilization_pct);
   }
 
   // Fleet-aggregate offered rate = the load NATS actually sees, summed across
@@ -181,18 +158,19 @@
     (snap.shards ?? []).reduce((sum: number, s: any) => sum + evRate(s.load), 0)
   );
 
-  function natsBar(eps: number): number {
-    if (eps <= 0) return 0;
-    return Math.min(100, Math.round((eps / NATS_SATURATION_EPS) * 100));
+  const aggregateUtilization = $derived(
+    utilizationPct(aggregateEps, capacity.effective_rated_eps)
+  );
+
+  function processingBar(): number {
+    return barWidth(aggregateUtilization);
   }
 
-  function natsTone(eps: number): string {
-    if (eps >= NATS_SAFE_EPS) return 'err';
-    if (eps >= NATS_WARN_EPS) return 'warn';
-    return 'green';
+  function processingTone(): string {
+    return utilizationTone(aggregateUtilization, capacity.target_utilization_pct);
   }
 
-  function natsLabel(eps: number): string {
+  function rateLabel(eps: number): string {
     if (eps <= 0) return '0 ev/s';
     if (eps < 1) return `${eps.toFixed(2)} ev/s`;
     return `${eps.toFixed(eps < 10 ? 1 : 0)} ev/s`;
@@ -234,26 +212,26 @@
     </div>
   </div>
 
-  <!-- Shared NATS publish budget: fleet-aggregate offered rate against the
-       broker's shared JetStream ceiling. Distinct from per-shard socket load —
-       this ceiling does not grow with shard count, so it is gauged separately. -->
+  <!-- Fleet processing capacity grows with live ingress nodes. This is kept
+       separate from per-shard socket utilization because adding a conduit
+       shard does not add schedulers or publisher connections. -->
   <div class="card conduit-card">
     <div class="card-head">
-      <h3>NATS publish budget</h3>
-      <span class="more">shared JetStream ceiling</span>
+      <h3>Effective ingress capacity</h3>
+      <span class="more">limited by {capacity.bottleneck === 'nats' ? 'live NATS PubAck' : 'ingress compute'}</span>
     </div>
     <div class="load-row">
       <div class="load-bar-track">
-        <div class="load-bar-fill {natsTone(aggregateEps)}" style="width:{natsBar(aggregateEps)}%"></div>
+        <div class="load-bar-fill {processingTone()}" style="width:{processingBar()}%"></div>
       </div>
-      <span class="load-pct {natsTone(aggregateEps)}">
-        {natsLabel(aggregateEps)} · {natsBar(aggregateEps)}% of {NATS_SAFE_EPS.toLocaleString()} ev/s safe budget
+      <span class="load-pct {processingTone()}">
+        {rateLabel(aggregateEps)} · {aggregateUtilization.toFixed(1)}% of measured capacity
       </span>
     </div>
     <div class="shard-meta">
-      <span>warn {NATS_WARN_EPS.toLocaleString()} ev/s</span>
-      <span>critical {NATS_SAFE_EPS.toLocaleString()} ev/s</span>
-      <span>saturation ≈ {NATS_SATURATION_EPS.toLocaleString()} ev/s</span>
+      <span>target {capacity.effective_target_eps.toLocaleString()} ev/s ({capacity.target_utilization_pct}%)</span>
+      <span>rated {capacity.effective_rated_eps.toLocaleString()} ev/s</span>
+      <span>NATS {capacity.nats_rated_eps.toLocaleString()} · compute {capacity.fleet_rated_eps.toLocaleString()} ev/s</span>
     </div>
   </div>
 
@@ -374,6 +352,7 @@
     {#each snap.shards as s (s.shard_id)}
       {@const sb = stateBadge(s.state)}
       {@const pct = loadBar(s.load)}
+      {@const utilization = loadUtilization(s.load)}
       {@const ltone = loadTone(s.load)}
       <div class="card shard-card">
         <div class="shard-head">
@@ -397,7 +376,7 @@
             <div class="load-bar-track">
               <div class="load-bar-fill {ltone}" style="width:{pct}%"></div>
             </div>
-            <span class="load-pct {ltone}">{loadLabel(s.load)} · {pct}%</span>
+            <span class="load-pct {ltone}">{loadLabel(s.load)} · {utilization.toFixed(1)}% of socket</span>
             {#if sparkPoints(sparks[s.shard_id] ?? [])}
               <svg class="spark {ltone}" viewBox="0 0 72 20" aria-hidden="true">
                 <polyline points={sparkPoints(sparks[s.shard_id] ?? [])} />
@@ -405,6 +384,10 @@
             {/if}
           </div>
         {/if}
+        <div class="shard-meta">
+          <span>autoscale at {capacity.websocket_target_eps.toLocaleString()} ev/s ({capacity.target_utilization_pct}%)</span>
+          <span>rated {capacity.websocket_rated_eps.toLocaleString()} ev/s</span>
+        </div>
         <div class="shard-session">session {s.session_id ?? '—'}</div>
       </div>
     {/each}
