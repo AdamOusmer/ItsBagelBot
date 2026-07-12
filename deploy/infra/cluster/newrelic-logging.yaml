@@ -25,7 +25,7 @@ data:
         Alias             pod-logs-tailer
         Tag               kube.*
         Path              ${PATH}
-        Exclude_Path      /var/log/containers/coredns*_kube-system_*.log,/var/log/containers/host-research*_kube-system_*.log,/var/log/containers/hey_kube-system_*.log,/var/log/containers/my-shell_kube-system_*.log,/var/log/containers/helm-install-*_kube-system_*.log,/var/log/containers/nri-bundle-newrelic-logging*_newrelic_*.log
+        Exclude_Path      /var/log/containers/coredns*_kube-system_*.log,/var/log/containers/host-research*_kube-system_*.log,/var/log/containers/hey_kube-system_*.log,/var/log/containers/my-shell_kube-system_*.log,/var/log/containers/helm-install-*_kube-system_*.log,/var/log/containers/*_doppler-operator_*.log,/var/log/containers/nri-bundle-newrelic-logging*_newrelic_*.log
         multiline.parser  ${LOG_PARSER}
         DB                ${FB_DB}
         Mem_Buf_Limit     7MB
