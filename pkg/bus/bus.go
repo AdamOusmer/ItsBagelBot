@@ -210,16 +210,22 @@ func carryAckFloor(desired *nats.ConsumerConfig, info *nats.ConsumerInfo) {
 // leaves AckWait as the sole in-flight redelivery clock.
 func laneConsumerConfig(subject, group, name string, maxDeliveries int) *nats.ConsumerConfig {
 	return &nats.ConsumerConfig{
-		Durable:        name,
-		Name:           name,
-		Description:    "ItsBagelBot bounded work-queue lane consumer",
-		DeliverPolicy:  nats.DeliverAllPolicy,
-		AckPolicy:      nats.AckExplicitPolicy,
-		AckWait:        30 * time.Second,
-		MaxDeliver:     maxDeliveries,
-		FilterSubject:  subject,
-		ReplayPolicy:   nats.ReplayInstantPolicy,
-		MaxAckPending:  1000,
+		Durable:       name,
+		Name:          name,
+		Description:   "ItsBagelBot bounded work-queue lane consumer",
+		DeliverPolicy: nats.DeliverAllPolicy,
+		AckPolicy:     nats.AckExplicitPolicy,
+		AckWait:       30 * time.Second,
+		MaxDeliver:    maxDeliveries,
+		FilterSubject: subject,
+		ReplayPolicy:  nats.ReplayInstantPolicy,
+		// Ceiling on unacked messages the server will push to this queue group at
+		// once. It must exceed the group's aggregate in-flight concurrency
+		// (routines × replicas × per-message latency × target rate) or the server
+		// stops delivering and the pipeline stalls below that rate. At ~15 ms/event
+		// a 100k/s target needs ~1,500 in flight; 20,000 leaves headroom for
+		// latency spikes and burst scale-up without re-tuning per deploy.
+		MaxAckPending:  20000,
 		DeliverSubject: "_INBOX.BAGEL." + subjectToken(name),
 		DeliverGroup:   group,
 		Metadata:       map[string]string{managedConsumerMetadata: "true"},

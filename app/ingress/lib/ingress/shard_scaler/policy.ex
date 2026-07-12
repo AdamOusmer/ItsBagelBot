@@ -19,6 +19,28 @@ defmodule Ingress.ShardScaler.Policy do
 
   Hysteresis state is a `%{low: n, high: n}` map of consecutive ticks spent
   needing more/fewer shards; at most one side is non-zero at any time.
+
+  ## Socket rating vs. the shared NATS budget
+
+  Two capacities gate the pipeline and they are NOT the same number, so the
+  dashboard shows them independently:
+
+    * The websocket read+decode+enqueue path is rated far above
+      `@shard_rated_eps` — benchmarks put one shard's decode/dispatch near
+      12,500 ev/s, with a 10,000 ev/s (80%) operational target. That is a
+      *per-shard* ceiling that grows with shard count.
+    * JetStream publish is a *shared* ceiling: every shard and pod converges on
+      the same broker, so adding shards does not add publish capacity. Its safe
+      aggregate is measured per deployment.
+
+  `@shard_rated_eps` stays deliberately low here. Raising it to the 12,500
+  socket ceiling would make the autoscaler run fewer, hotter shards on the
+  assumption that shard count buys end-to-end capacity — false while NATS is the
+  bottleneck. It is only safe to raise after a sustained 50k/60s acceptance test
+  passes (0 publish errors, PubAck p95 < 20 ms, consumer lag < 1 s), once the
+  async publisher (`Ingress.Nats.Publisher`) and memory-backed streams have
+  lifted the shared ceiling. Until then the socket rating and the NATS budget
+  are surfaced for observability only, not fed into the shard-count math.
   """
 
   # Sustained events/second one shard is rated for. Conservative ~5-10% of
