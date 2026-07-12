@@ -71,6 +71,12 @@ spec:
         # client port so the firehose / RPC traffic goes direct (NATS-native TLS
         # provides the encryption). Without this the proxy still taxes every event.
         config.linkerd.io/skip-outbound-ports: "4222"
+        # serve-node.js terminates TLS on 3000 (see the console HTTPS change), so
+        # linkerd must treat 3000 as an opaque stream and pass the TLS through
+        # rather than HTTP-parsing it — otherwise the proxy answers the kubelet's
+        # HTTPS probe with an HTTP response ("server gave HTTP response to HTTPS
+        # client") and Traefik's re-encrypt fails the same way.
+        config.linkerd.io/opaque-ports: "3000"
         config.linkerd.io/proxy-cpu-request: 5m
         config.linkerd.io/proxy-cpu-limit: 750m
         config.linkerd.io/proxy-memory-request: 16Mi
