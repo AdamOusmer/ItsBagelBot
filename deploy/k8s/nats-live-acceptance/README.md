@@ -10,10 +10,9 @@ The credential must be allowed to manage JetStream and publish
 scope. The test requires `NATS_USER`, `NATS_PASSWORD`, and `NATS_CA` and refuses
 to run without CA verification.
 
-The defaults mirror one ingress pod: two publisher connections, 128-message
-atomic commits, 200,000 messages, and 256-byte payloads. Use
-`-mode=async` for the old per-message PubAck comparison. The temporary stream
-enables both `AllowAtomicPublish` and NATS 2.14 `AllowBatchPublish`.
+The defaults mirror one ingress pod: two publisher connections, bounded
+official `nats.go` asynchronous PubAck windows, 200,000 messages, and 256-byte
+payloads. The harness does not implement Fast-Ingest or atomic wire headers.
 
 Build the static Linux binary, copy it into a temporary in-cluster pod holding
 the scoped credential and fleet CA, and run:

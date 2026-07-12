@@ -1,12 +1,11 @@
 defmodule Ingress.Nats.PublisherPool do
   @moduledoc """
-  Supervises the scheduler-local batch lane publisher: `publish_connections`
+  Supervises the scheduler-local cohort lane publisher: `publish_connections`
   independent BUS connections, each paired with one
-  `Ingress.Nats.Publisher` batcher/collector.
+  `Ingress.Nats.Publisher` cohort collector.
 
   Every `Gnat.pub` is serialized by one connection process, so the pool spreads
-  writes across online schedulers. Within each shard, concurrent events share
-  an atomic commit PubAck, removing the one-ack-per-event collector bottleneck.
+  writes and ordinary per-message PubAck collection across online schedulers.
 
   The pool records the shard count in `:persistent_term` before any collector
   starts, so `Ingress.Nats.Publisher.enqueue/3` — invoked from dispatcher and

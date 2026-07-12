@@ -1,5 +1,5 @@
 # Measures the BEAM-side publish + PubAck path without a network or broker.
-# Gnat still prepares headers, batches calls and emits telemetry exactly as it
+# Gnat still prepares headers, publishes cohorts and emits telemetry exactly as it
 # does in production; the fake connection immediately returns JetStream acks.
 #
 #   export ERL_FLAGS='+S 2:2 +SDcpu 2:2 +SDio 2 +sbwt short +sbwtdcpu none +sbwtdio none'

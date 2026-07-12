@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Production-shaped, three-node aggregate JetStream batch acceptance.
+# Production-shaped, three-node aggregate JetStream PubAck acceptance.
 # It does not change node networking or the worker1 internet plan.
 set -euo pipefail
 
@@ -7,7 +7,6 @@ namespace=${NAMESPACE:-production}
 target_eps=${TARGET_EPS:-700000}
 total_messages=${MESSAGES:-7000000}
 payload_bytes=${PAYLOAD_BYTES:-256}
-batch_size=${BATCH_SIZE:-128}
 image=${BENCH_IMAGE:-alpine:3.22}
 run_id=$(date -u +%Y%m%d%H%M%S)
 stream="FLEET_700K_${run_id}"
@@ -82,9 +81,9 @@ for i in "${!nodes[@]}"; do
   kubectl -n "$namespace" exec "${pods[$i]}" -- env NATS_CA=/etc/nats-ca/ca.pem \
     /tmp/nats-live-acceptance \
     -stream "$stream" -subject "$subject" -create-stream=false -cleanup=false \
-    -mode=atomic -producer-id="${nodes[$i]}" \
+    -producer-id="${nodes[$i]}" \
     -messages="${messages[$i]}" -publishers="${publishers[$i]}" \
-    -batch-size="$batch_size" -payload-bytes="$payload_bytes" \
+    -payload-bytes="$payload_bytes" \
     -latency-samples=0 -max-p95=1h \
     >"$results_dir/${nodes[$i]}.json" 2>"$results_dir/${nodes[$i]}.err" &
   pids+=("$!")

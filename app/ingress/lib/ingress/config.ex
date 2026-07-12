@@ -141,7 +141,7 @@ defmodule Ingress.Config do
   def dispatcher_completion_flush_ms,
     do: Application.get_env(:ingress, :dispatcher_completion_flush_ms, 25)
 
-  # How long an outstanding batch/single publish waits for its PubAck before
+  # How long an outstanding publish waits for its PubAck before
   # the collector reconciles it (see Ingress.Nats.Publisher).
   def publish_ack_timeout_ms,
     do: Application.get_env(:ingress, :publish_ack_timeout_ms, 2_000)
@@ -160,8 +160,8 @@ defmodule Ingress.Config do
   def publish_max_pending,
     do: Application.get_env(:ingress, :publish_max_pending, 16_384)
 
-  # Scheduler-local atomic microbatch shape. At 140k events/s per pod and two
-  # publishers, 128 fills in under 2ms; the 1ms timer keeps quiet lanes prompt.
+  # Scheduler-local cohort shape. Each member still receives an official
+  # per-message PubAck; the cohort only amortizes publisher scheduling.
   def publish_batch_size,
     do: Application.get_env(:ingress, :publish_batch_size, 128)
 
