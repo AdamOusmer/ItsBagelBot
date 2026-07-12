@@ -16,6 +16,12 @@ import (
 	"ItsBagelBot/pkg/cache"
 )
 
+// statusCacheCapacity ceilings the resolved-status cache. It is keyed one entry
+// per broadcaster with a 30s TTL, so a few thousand covers the distinct
+// broadcasters a projector pod answers for within the window without holding the
+// generic cache.DefaultCapacity ten thousand at rest.
+const statusCacheCapacity int64 = 4096
+
 // statusEntry is the cached per-broadcaster decision: the resolved tier plus
 // whether the broadcaster is banned from the service.
 type statusEntry struct {
@@ -34,7 +40,7 @@ type statusRPC struct {
 func SubscribeStatus(nc *nats.Conn, valkey *projection.Store, subject, usersTopic, invalidateSubject, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
 	s := &statusRPC{
 		valkey:     valkey,
-		views:      cache.New[statusEntry](cache.DefaultCapacity, 30*time.Second), // short lived in-process cache
+		views:      cache.New[statusEntry](statusCacheCapacity, 30*time.Second), // short lived in-process cache
 		nc:         nc,
 		usersTopic: usersTopic,
 		log:        log,

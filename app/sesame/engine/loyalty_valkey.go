@@ -46,6 +46,11 @@ const balanceTTL = time.Minute
 // OTHER replicas is acceptable; the acting replica invalidates its own.
 const scopeCacheTTL = 5 * time.Minute
 
+// scopeCacheCapacity ceilings that cache. It is keyed per (broadcaster, counter),
+// a handful per broadcaster, so a few thousand covers the working set within the
+// TTL without holding the generic cache.DefaultCapacity ten thousand at rest.
+const scopeCacheCapacity int64 = 4096
+
 // ValkeyLoyaltyStore is the worker-side loyalty surface: counter bumps/reads
 // with a Valkey live view over the loyalty service, cached balance peeks, and
 // pass-through management verbs. It implements LoyaltyStore.
@@ -67,7 +72,7 @@ func NewValkeyLoyaltyStore(client valkey.Client, rpc *LoyaltyRPC, reporter *Loya
 		client:   client,
 		rpc:      rpc,
 		reporter: reporter,
-		scopes:   cache.New[string](cache.DefaultCapacity, scopeCacheTTL),
+		scopes:   cache.New[string](scopeCacheCapacity, scopeCacheTTL),
 		log:      log,
 	}
 }

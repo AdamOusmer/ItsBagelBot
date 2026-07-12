@@ -29,6 +29,12 @@ const (
 
 	modulesCacheTTL = 5 * time.Minute
 
+	// modulesCacheCapacity ceilings the view cache. It is keyed one entry per
+	// user (the whole module list), so a few thousand covers the users read
+	// within the 5m TTL without holding the generic cache.DefaultCapacity ten
+	// thousand resident at rest.
+	modulesCacheCapacity int64 = 4096
+
 	flushInterval = 2 * time.Second
 	flushMaxSize  = 256
 )
@@ -63,7 +69,7 @@ func NewModules(client *ent.Client, pub message.Publisher, app *newrelic.Applica
 
 	r := &Modules{
 		client: client,
-		views:  cache.New[[]ModuleView](cache.DefaultCapacity, modulesCacheTTL),
+		views:  cache.New[[]ModuleView](modulesCacheCapacity, modulesCacheTTL),
 		pub:    pub,
 		app:    app,
 		log:    log,

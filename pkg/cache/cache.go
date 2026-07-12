@@ -9,8 +9,14 @@ import (
 	"golang.org/x/sync/singleflight"
 )
 
-// DefaultCapacity is the default maximum number of entries for a cache, used
-// when a caller has no reason to size the cache differently.
+// DefaultCapacity is the fallback maximum number of entries for a cache, used
+// when a caller has no reason to size the cache differently (tests, cold paths,
+// development). It is deliberately generous so it is always safe; hot, always-on
+// services should size their caches to their working set instead (see the
+// per-cache capacity constants next to each cache's TTL) so a spam- or
+// churn-driven fill cannot pin this many resident entries. theine allocates in
+// proportion to live occupancy, so capacity is a ceiling on resident entries,
+// not an up-front reservation.
 const DefaultCapacity int64 = 10000
 
 // Cache is an in-process TTL cache wrapper around theine-go. Concurrent misses
@@ -21,8 +27,9 @@ type Cache[V any] struct {
 	client *theine.Cache[string, V]
 	group  singleflight.Group
 
-	ttl    time.Duration
-	jitter time.Duration
+	capacity int64
+	ttl      time.Duration
+	jitter   time.Duration
 }
 
 // New creates a cache with a maximum capacity whose entries live for ttl plus
@@ -35,11 +42,21 @@ func New[V any](capacity int64, ttl time.Duration) *Cache[V] {
 	}
 
 	return &Cache[V]{
-		client: client,
-		ttl:    ttl,
-		jitter: ttl / 10,
+		client:   client,
+		capacity: capacity,
+		ttl:      ttl,
+		jitter:   ttl / 10,
 	}
 }
+
+// Len returns the current number of live entries in the cache. It is a
+// point-in-time occupancy reading, useful for logging how full a cache runs
+// against its capacity so the capacity can be tuned to the observed working set.
+func (c *Cache[V]) Len() int { return c.client.Len() }
+
+// Capacity returns the configured maximum number of entries (the ceiling passed
+// to New), the denominator for an occupancy ratio.
+func (c *Cache[V]) Capacity() int64 { return c.capacity }
 
 // GetOrLoad returns the cached value for key, or runs loader to fill it.
 // Only one loader runs per key at a time, regardless of how many goroutines

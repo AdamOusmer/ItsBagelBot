@@ -34,6 +34,21 @@ import (
 	"go.uber.org/zap"
 )
 
+// Cache capacities are ceilings on resident entries, sized to each cache's
+// working set rather than the generic cache.DefaultCapacity so an always-on
+// worker pod does not hold ten thousand entries per cache at rest.
+//
+//   - users/modules are keyed one entry per broadcaster, so a few thousand
+//     covers the distinct broadcasters a pod serves within the short TTL.
+//   - commands is keyed per command name AND caches negative "no such command"
+//     entries, so unknown "!word" spam grows it fastest; it gets the larger
+//     ceiling to keep legitimate commands from being evicted by that churn.
+const (
+	usersCacheCapacity    int64 = 4096
+	modulesCacheCapacity  int64 = 4096
+	commandsCacheCapacity int64 = 8192
+)
+
 // User is the projected tier state of one broadcaster. Live state is NOT here:
 // the worker reads it from the dedicated live:<id> store (module.IsLiveChecker),
 // never from this projection.
@@ -131,9 +146,9 @@ func NewClient(cfg Config) *Client {
 		nc:         cfg.NC,
 		subjects:   cfg.Subjects,
 		log:        cfg.Log,
-		users:      cache.New[User](cache.DefaultCapacity, cfg.TTL),
-		modules:    cache.New[[]ModuleView](cache.DefaultCapacity, cfg.TTL),
-		commands:   cache.New[commandEntry](cache.DefaultCapacity, cfg.TTL),
+		users:      cache.New[User](usersCacheCapacity, cfg.TTL),
+		modules:    cache.New[[]ModuleView](modulesCacheCapacity, cfg.TTL),
+		commands:   cache.New[commandEntry](commandsCacheCapacity, cfg.TTL),
 		rpcTimeout: 1500 * time.Millisecond,
 	}
 }
@@ -146,6 +161,17 @@ func (c *Client) Close() {
 	c.users.Close()
 	c.modules.Close()
 	c.commands.Close()
+}
+
+// StartOccupancyLogger logs how full the three projection caches run every
+// interval until ctx is cancelled, so their capacities can be tuned to the
+// observed working set. A non-positive interval disables it.
+func (c *Client) StartOccupancyLogger(ctx context.Context, interval time.Duration) {
+	cache.StartOccupancyLogger(ctx, c.log, interval, map[string]cache.OccupancySource{
+		"projection_users":    c.users,
+		"projection_modules":  c.modules,
+		"projection_commands": c.commands,
+	})
 }
 
 // StartInvalidationListener subscribes to push invalidation messages on
