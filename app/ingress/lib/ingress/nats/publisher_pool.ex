@@ -10,8 +10,8 @@ defmodule Ingress.Nats.PublisherPool do
   publish `call`s and the ack handling across N processes (and cores).
 
   The pool records the shard count in `:persistent_term` before any collector
-  starts, so `Ingress.Nats.Publisher.enqueue/3` — invoked from dispatcher
-  workers and squash tasks the moment they come up — can route to a shard even
+  starts, so `Ingress.Nats.Publisher.enqueue/3` — invoked from dispatcher and
+  squash workers the moment they come up — can route to a shard even
   during a partial pool restart (a shard whose context is not yet present just
   reports `:not_connected`, and the caller drops that one event).
 

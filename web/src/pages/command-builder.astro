@@ -1,0 +1,161 @@
+---
+import Layout from '../layouts/Layout.astro';
+
+const surfaces = [
+  ['custom','Custom command'], ['triggers','Trigger Words reply'], ['clip','!clip reply'],
+  ['shoutout','Auto Shoutout'], ['follow','Follow alert'], ['subscribe','Subscription alert'],
+  ['cheer','Cheer alert'], ['raid','Raid alert'], ['daily','!daily / !weekly / !monthly'],
+  ['bwstats','!bwstats'], ['sniper','!sniper'], ['tags','!tag / !tagdescription'],
+  ['elo','!elo'], ['session','!session']
+];
+---
+
+<Layout title="Twitch Command Builder — ItsBagelBot" description="Build advanced ItsBagelBot commands with every supported variable, live examples, module-specific variables, and one-click copy.">
+  <div class="builder" data-builder>
+    <header class="hero">
+      <p class="eyebrow"><b>01</b> Command builder</p>
+      <h1>Powerful commands.<br><em>No syntax degree required.</em></h1>
+      <p>Choose what you are editing, write the message normally, then click variables to add the smart parts. The rehearsal shows what chat will actually see.</p>
+      <div class="proof"><span>All supported variables</span><span>Live chat preview</span><span>One-click copy</span></div>
+    </header>
+
+    <div class="layout">
+      <main class="steps">
+        <section class="card">
+          <header class="step"><b>1</b><div><h2>What are you building?</h2><p>Variables change depending on where the message is used.</p></div></header>
+          <div class="mode" role="group" aria-label="Builder type">
+            <button class="active" type="button" data-mode="custom" aria-pressed="true"><i>!</i><span>Custom command<small>Build a new chat command</small></span></button>
+            <button type="button" data-mode="module" aria-pressed="false"><i>&#123; &#125;</i><span>Module message<small>Customize an existing reply</small></span></button>
+          </div>
+          <label class="module-pick" hidden data-module-pick>Exact module message
+            <select data-surface>{surfaces.slice(1).map(([id,label]) => <option value={id}>{label}</option>)}</select>
+            <small data-hint>Used only in a Trigger Words response.</small>
+          </label>
+        </section>
+
+        <section class="card">
+          <header class="step"><b>2</b><div><h2>Shape the response</h2><p>Start simple. Add variables when the wording feels right.</p></div></header>
+          <div class="fields" data-command-fields>
+            <label>Command name <span class="prefix">!</span><input value="welcome" maxlength="64" data-name><small>One word, no spaces. The ! is added for you.</small></label>
+            <label>When copied<select data-action><option value="add">Create new</option><option value="edit">Replace existing</option></select></label>
+            <label>Message style<select data-style><option value="">Normal message</option><option value="/me ">Action (/me)</option><option value="/announce ">Announcement</option><option value="/announceblue ">Blue announcement</option><option value="/announcegreen ">Green announcement</option><option value="/announceorange ">Orange announcement</option><option value="/announcepurple ">Purple announcement</option><option value="/shoutout ">Twitch shoutout</option></select></label>
+          </div>
+          <div class="recipes" data-recipes><span>Quick starts</span><button data-recipe="Welcome in, {user}! Grab a seat 🥯">Welcome someone</button><button data-recipe="{user} rolled {random:1-100} out of 100.">Roll a number</button><button data-recipe="Tonight's vibe: {choice:cozy,chaotic,competitive}.">Pick an option</button></div>
+          <label class="response">Bot response <small><b data-count>39</b>/500</small><textarea rows="5" maxlength="500" data-template>Welcome in, &#123;user&#125;! Grab a seat 🥯</textarea></label>
+          <p class="note">Text inside <code>&#123;braces&#125;</code> changes when the bot replies.</p>
+        </section>
+
+        <section class="card">
+          <header class="step"><b>3</b><div><h2>Make it dynamic</h2><p>Click a variable to insert it at your cursor. Only variables supported here are shown.</p></div></header>
+          <div class="scope"><span>● Available here</span><b data-scope>Custom command</b></div>
+          <div class="vars" data-vars aria-live="polite"></div>
+          <details><summary>What do the braces mean?</summary><p>A variable is a placeholder. Write <code>Hello &#123;user&#125;</code>, and if Maya uses it, the bot sends <code>Hello Maya</code>. Keep both braces exactly as shown.</p></details>
+        </section>
+      </main>
+
+      <aside>
+        <section class="preview card">
+          <header><b><i></i> Live rehearsal</b><span data-context>!welcome</span></header>
+          <div class="chat"><p><time>9:41</time><b class="maya">maya_live</b><span data-trigger>!welcome</span></p><p><time>9:41</time><b class="bot">ItsBagelBot</b><span data-preview>Welcome in, maya_live! Grab a seat 🥯</span></p></div>
+          <small data-preview-note>Sample names and numbers are used only here.</small>
+        </section>
+        <section class="copy card">
+          <header><span data-copy-title>Ready-to-paste chat command</span><b data-valid>Ready</b></header>
+          <pre data-output>!cmd add welcome Welcome in, &#123;user&#125;! Grab a seat 🥯</pre>
+          <button type="button" data-copy><span>Copy command</span><kbd>⌘ C</kbd></button>
+          <p data-copy-help>Paste this in Twitch chat as the broadcaster or a moderator.</p>
+        </section>
+        <section class="then card"><b>Then what?</b><ol data-next><li><i>1</i>Copy the finished command.</li><li><i>2</i>Paste it into Twitch chat.</li><li><i>3</i>Try <strong>!welcome</strong> to test it.</li></ol></section>
+      </aside>
+    </div>
+  </div>
+
+  <script>
+    type V={t:string,n:string,d:string,s:string}; type S={n:string,h:string,x:string,p:string,v:V[]};
+    const v=(t:string,n:string,d:string,s:string):V=>({t,n,d,s});
+    const dyn=[v('{random}','Random 1–100','Picks a whole number from 1 through 100.','42'),v('{random:1-100}','Random range','Picks between the two numbers you choose.','73'),v('{choice:hype,cozy,chaos}','Random choice','Picks one comma-separated option. Replace these words.','cozy')];
+    const D:Record<string,S>={
+      custom:{n:'Custom command',h:'A response viewers trigger with !yourcommand.',x:'Welcome in, {user}! Grab a seat 🥯',p:'!welcome',v:[v('{user}','Viewer name','The person who used the command.','maya_live'),v('{sender}','Viewer name (alias)','An older alias for {user}.','maya_live'),v('{args}','Everything after it','All text typed after the command.','hello world'),v('{target}','First named person','First word after the command; viewer if blank.','alex'),v('{touser}','Target (alias)','An older alias for {target}.','alex'),v('{channel}','Channel name','The Twitch channel name.','bagel_streams'),...dyn]},
+      triggers:{n:'Trigger Words',h:'Used only in a Trigger Words response.',x:'Hey {user}! {choice:Welcome in,Good to see you}',p:'hello chat',v:[v('{user}','Chatter name','The person whose message matched.','maya_live'),...dyn]},
+      clip:{n:'Clip',h:'Used only in the built-in !clip reply.',x:'{user} clipped: {target} → {clip}',p:'!clip That clutch',v:[v('{clip}','Clip link','The new public Twitch clip link.','clips.twitch.tv/FreshBagel'),v('{user}','Clip creator','The viewer who used !clip.','maya_live'),v('{clipper}','Clip creator (alias)','Another name for {user}.','maya_live'),v('{target}','Clip title','The title typed after !clip.','That clutch'),v('{title}','Clip title (alias)','Another name for {target}.','That clutch')]},
+      shoutout:{n:'Auto Shoutout',h:'Used only for an incoming raid shoutout.',x:'Show {raider} some love! twitch.tv/{raider.login} — {viewers} friends arrived.',p:'Raid received',v:[v('{raider}','Raider display name','Friendly channel name.','CoolStreamer'),v('{raider.login}','Raider login','URL-safe Twitch login.','coolstreamer'),v('{viewers}','Raid viewers','Viewers who arrived.','42'),...dyn]},
+      follow:{n:'Follow alert',h:'Used only in the follow alert.',x:'Thank you for following, {user}!',p:'New follow',v:[v('{user}','Follower name','The new follower.','maya_live'),...dyn]},
+      subscribe:{n:'Subscription alert',h:'Used only in the subscription alert.',x:'Welcome, {user}! Thanks for the tier {tier} sub.',p:'New subscription',v:[v('{user}','Subscriber name','The new subscriber.','maya_live'),v('{tier}','Subscription tier','Twitch tier value.','1000'),...dyn]},
+      cheer:{n:'Cheer alert',h:'Used only in the cheer alert.',x:'Thank you for the {bits} bits, {user}!',p:'New cheer',v:[v('{user}','Cheerer name','Viewer or anonymous cheerer.','maya_live'),v('{bits}','Bits amount','Number of Bits cheered.','250'),...dyn]},
+      raid:{n:'Raid alert',h:'Used only in the raid welcome alert.',x:'{user} raided with {viewers} viewers! Welcome!',p:'Raid received',v:[v('{user}','Raider name','Raiding channel display name.','CoolStreamer'),v('{viewers}','Raid viewers','Viewers who arrived.','42'),...dyn]},
+      daily:{n:'Bedwars session stats',h:'Used by !daily, !weekly and !monthly.',x:'{player}: {wins}W {losses}L · {finals} finals · {beds} beds · {fkdr} FKDR',p:'!daily Technoblade',v:[v('{player}','Player','Resolved Minecraft name.','Technoblade'),v('{wins}','Wins','Period wins.','5'),v('{losses}','Losses','Period losses.','2'),v('{finals}','Final kills','Period final kills.','21'),v('{finaldeaths}','Final deaths','Period final deaths.','3'),v('{beds}','Beds broken','Period beds.','9'),v('{games}','Games played','Period games.','8'),v('{levels}','Levels gained','Period levels.','1'),v('{fkdr}','Final K/D ratio','Finals divided by deaths.','7.00'),...dyn]},
+      bwstats:{n:'Lifetime Bedwars stats',h:'Used only by !bwstats.',x:'{player}: {stars} stars · {wins} wins · {fkdr} FKDR',p:'!bwstats Technoblade',v:[v('{player}','Player','Resolved Minecraft name.','Technoblade'),v('{stars}','Stars','Bedwars star level.','402'),v('{wins}','Wins','Lifetime wins.','1000'),v('{losses}','Losses','Lifetime losses.','100'),v('{finals}','Final kills','Lifetime finals.','5000'),v('{finaldeaths}','Final deaths','Lifetime final deaths.','500'),v('{beds}','Beds broken','Lifetime beds.','2000'),v('{fkdr}','Final K/D ratio','Lifetime FKDR.','10.00'),v('{wlr}','Win/loss ratio','Lifetime WLR.','10.00'),...dyn]},
+      sniper:{n:'Urchin score',h:'Used only by !sniper.',x:'{player} urchin score: {score}',p:'!sniper Technoblade',v:[v('{player}','Player','Resolved player.','Technoblade'),v('{score}','Urchin score','Current overlay score.','7.5'),v('{mode}','Mode','Current warning mode.','warn'),v('{tagcount}','Tag count','Active blacklist tags.','1'),...dyn]},
+      tags:{n:'Urchin tags',h:'Used by !tag and !tagdescription.',x:'{player}: {tags}',p:'!tag Technoblade',v:[v('{player}','Player','Resolved player.','Technoblade'),v('{tags}','Tags','Formatted tags; descriptions may include reasons.','Blatant Cheater (added Jul 3, 2024)'),v('{tagcount}','Tag count','Active tags.','1'),...dyn]},
+      elo:{n:'MCSR current standing',h:'Used only by !elo.',x:'{player}: {elo} elo · rank #{rank} · {wins}W {losses}L',p:'!elo Feinberg',v:[v('{player}','Player','Resolved player.','Feinberg'),v('{elo}','Elo','Current rating.','1650'),v('{rank}','Rank','Leaderboard rank.','12'),v('{wins}','Wins','Season wins.','40'),v('{losses}','Losses','Season losses.','20'),v('{matches}','Matches','Season matches.','60'),v('{country}','Country','Country code.','us'),...dyn]},
+      session:{n:'MCSR stream session',h:'Used only by !session.',x:'{player}: {elochange} elo ({elo} now) · {wins}W {losses}L in {matches} matches',p:'!session',v:[v('{player}','Player','Linked player.','Feinberg'),v('{elo}','Current Elo','Rating now.','1660'),v('{elochange}','Elo change','Change since stream start.','+24'),v('{wins}','Wins','Stream wins.','3'),v('{losses}','Losses','Stream losses.','1'),v('{matches}','Matches','Stream matches.','4'),...dyn]}
+    };
+    const init=()=>{const r=document.querySelector<HTMLElement>('[data-builder]');if(!r||r.dataset.ready)return;r.dataset.ready='1';const $=<T extends Element>(q:string)=>r.querySelector<T>(q)!;const ta=$<HTMLTextAreaElement>('[data-template]'),nm=$<HTMLInputElement>('[data-name]'),act=$<HTMLSelectElement>('[data-action]'),sty=$<HTMLSelectElement>('[data-style]'),sel=$<HTMLSelectElement>('[data-surface]');let mode='custom',id='custom';
+      const cur=()=>D[id],clean=()=>nm.value.trim().replace(/^!+/,'').replace(/\s+/g,'').toLowerCase()||'yourcommand';
+      const insert=(t:string)=>{const a=ta.selectionStart,b=ta.selectionEnd;ta.value=ta.value.slice(0,a)+t+ta.value.slice(b);ta.focus();ta.setSelectionRange(a+t.length,a+t.length);update()};
+      const render=()=>{const box=$<HTMLElement>('[data-vars]');box.replaceChildren();cur().v.forEach(x=>{const b=document.createElement('button');b.type='button';b.className='var';b.innerHTML='<code></code><span><b></b><small></small></span><i>+</i>';b.querySelector('code')!.textContent=x.t;b.querySelector('b')!.textContent=x.n;b.querySelector('small')!.textContent=x.d;b.onclick=()=>insert(x.t);box.append(b)})};
+      const update=()=>{const n=clean(),body=sty.value+ta.value,out=mode==='custom'?`!cmd ${act.value} ${n} ${body}`.trim():ta.value,bad=mode==='custom'&&(!nm.value.trim()||/\s/.test(nm.value.trim()));let pre=body;cur().v.forEach(x=>pre=pre.split(x.t).join(x.s));$('[data-count]').textContent=String(ta.value.length);$('[data-context]').textContent=mode==='custom'?`!${n}`:cur().n;$('[data-trigger]').textContent=mode==='custom'?`!${n}`:cur().p;$('[data-preview]').textContent=pre||'Your reply appears here.';$('[data-output]').textContent=out;$('[data-valid]').textContent=bad?'Check name':'Ready';$<HTMLButtonElement>('[data-copy]').disabled=bad||!ta.value.trim();if(mode==='custom')$('[data-next] strong').textContent=`!${n}`};
+      const setMode=(m:string)=>{mode=m;id=m==='custom'?'custom':sel.value;r.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach(b=>{const on=b.dataset.mode===m;b.classList.toggle('active',on);b.setAttribute('aria-pressed',String(on))});$('[data-module-pick]').toggleAttribute('hidden',m!=='module');$('[data-command-fields]').toggleAttribute('hidden',m!=='custom');$('[data-recipes]').toggleAttribute('hidden',m!=='custom');$('[data-copy-title]').textContent=m==='custom'?'Ready-to-paste chat command':'Ready-to-paste message template';$('[data-copy] span').textContent=m==='custom'?'Copy command':'Copy template';$('[data-copy-help]').textContent=m==='custom'?'Paste this in Twitch chat as the broadcaster or a moderator.':'Paste this into the matching module message field in your dashboard.';$('[data-scope]').textContent=cur().n;$('[data-preview-note]').textContent=cur().h;ta.value=cur().x;render();update()};
+      r.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach(b=>b.onclick=()=>setMode(b.dataset.mode!));sel.onchange=()=>{id=sel.value;$('[data-hint]').textContent=cur().h;$('[data-scope]').textContent=cur().n;$('[data-preview-note]').textContent=cur().h;ta.value=cur().x;render();update()};r.querySelectorAll<HTMLButtonElement>('[data-recipe]').forEach(b=>b.onclick=()=>{ta.value=b.dataset.recipe!;update()});[ta,nm,act,sty].forEach(e=>e.addEventListener('input',update));$<HTMLButtonElement>('[data-copy]').onclick=async()=>{const l=$('[data-copy] span');try{await navigator.clipboard.writeText($('[data-output]').textContent!);l.textContent='Copied!'}catch{l.textContent='Select and copy the text above'}setTimeout(()=>l.textContent=mode==='custom'?'Copy command':'Copy template',1800)};render();update()};document.addEventListener('astro:page-load',init);init();
+  </script>
+</Layout>
+
+<style>
+  .builder{width:min(1320px,calc(100% - 48px));margin:auto;padding:calc(var(--nav-offset) + 65px) 0 110px}.hero{max-width:950px;padding:45px 0 70px}.eyebrow{color:var(--tan-light);font:12px var(--font-mono);letter-spacing:.13em;text-transform:uppercase}.eyebrow b,.step>b{display:inline-grid;place-items:center;width:31px;height:31px;margin-right:10px;border:1px solid #52b78844;border-radius:50%;color:var(--green-glow)}h1{margin-top:20px;font:800 clamp(2.7rem,6vw,5.4rem)/.98 var(--font-display);letter-spacing:-.055em}h1 em{color:var(--tan);font-style:normal}.hero>p:not(.eyebrow){max-width:720px;margin-top:26px;color:#aaa299;font-size:1.1rem;line-height:1.7}.proof{display:flex;gap:22px;margin-top:24px;color:var(--muted);font:11px var(--font-mono)}.proof span:before{content:'✓';color:var(--green-glow);margin-right:7px}.layout{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(330px,.72fr);gap:25px;align-items:start}.steps,aside{display:grid;gap:16px}.card{padding:clamp(22px,3vw,36px);border:1px solid var(--border);border-radius:16px;background:#111110d9}.step{display:flex;margin-bottom:25px}.step>b{flex:none;border-radius:9px;background:#52b78812}.step h2{font:700 1.5rem var(--font-display)}.step p{margin-top:5px;color:var(--muted)}.mode{display:grid;grid-template-columns:1fr 1fr;gap:11px}.mode button{display:flex;gap:13px;align-items:center;padding:16px;text-align:left;color:var(--white);border:1px solid var(--border);border-radius:10px}.mode button.active{border-color:#52b78877;background:#52b78810}.mode i{display:grid;place-items:center;width:37px;height:37px;border-radius:8px;background:#ffffff08;color:var(--tan-light);font:normal 12px var(--font-mono)}.mode span{font:700 14px var(--font-display)}.mode small{display:block;margin-top:4px;color:var(--muted);font:400 11px var(--font-body)}label{display:block;color:var(--tan-light);font:11px var(--font-mono);letter-spacing:.05em;text-transform:uppercase}.module-pick{margin-top:16px;padding:16px;background:#ffffff05;border-radius:9px}.module-pick small,label>small{display:block;margin-top:7px;color:var(--muted);font:11px var(--font-body);letter-spacing:0;text-transform:none}.fields{display:grid;grid-template-columns:1.15fr .85fr 1fr;gap:12px}.fields label{position:relative}.prefix{position:absolute;top:38px;left:12px;color:var(--green-glow)}.prefix+input{padding-left:30px}input,select,textarea{width:100%;margin-top:8px;color:var(--white);background:#0d0d0c;border:1px solid #c9a87c33;border-radius:8px;outline:0}input,select{height:44px;padding:0 12px}textarea{padding:15px;resize:vertical;line-height:1.6}input:focus,select:focus,textarea:focus{border-color:#52b78899;box-shadow:0 0 0 3px #52b78818}.recipes{display:flex;flex-wrap:wrap;gap:7px;align-items:center;margin:23px 0 15px}.recipes span{color:var(--muted);font:10px var(--font-mono);text-transform:uppercase}.recipes button{padding:7px 10px;color:#bbb2a9;border:1px solid var(--border);border-radius:99px;font-size:11px}.response{position:relative}.response>small{position:absolute;right:0;top:0}.note{padding:9px 13px;color:var(--muted);border:1px solid var(--border);border-top:0;border-radius:0 0 8px 8px;font-size:11px}.note code,details code{color:var(--tan-light);font-family:var(--font-mono)}.response textarea{border-radius:8px 8px 0 0}.scope{display:flex;justify-content:space-between;margin-bottom:11px;color:var(--muted);font:10px var(--font-mono);text-transform:uppercase}.scope span{color:var(--green-glow)}.vars{display:grid;grid-template-columns:1fr 1fr;gap:8px}.var{display:grid;grid-template-columns:auto 1fr 21px;gap:10px;align-items:center;padding:12px;text-align:left;color:var(--white);border:1px solid var(--border);border-radius:8px}.var:hover{border-color:#52b78877;background:#52b7880b}.var code{padding:6px;color:var(--tan-light);background:#c9a87c12;border-radius:5px;font:10px var(--font-mono)}.var span{display:grid;gap:3px}.var b{font:700 12px var(--font-display)}.var small{color:var(--muted);font-size:10px;line-height:1.35}.var i{display:grid;place-items:center;width:21px;height:21px;color:var(--green-glow);border:1px solid #52b78855;border-radius:50%;font-style:normal}details{margin-top:17px;padding-top:16px;border-top:1px solid var(--border);color:var(--muted);font-size:12px}details summary{color:var(--tan-light);cursor:pointer}details p{margin-top:9px;line-height:1.5}aside{position:sticky;top:calc(var(--nav-offset) + 18px)}.preview header,.copy header{display:flex;justify-content:space-between;margin-bottom:16px;color:var(--muted);font:10px var(--font-mono)}.preview header b{color:var(--white)}.preview header i{display:inline-block;width:7px;height:7px;margin-right:6px;border-radius:50%;background:#e06262}.chat{display:grid;gap:11px;padding:18px;background:#0b0b0a;border-radius:9px}.chat p{display:grid;grid-template-columns:auto auto 1fr;gap:7px;font-size:12px;line-height:1.45}.chat time{color:#5f5b56;font:9px var(--font-mono)}.maya{color:#bd8ff2}.bot{color:var(--green-glow)}.preview>small{display:block;margin-top:11px;color:var(--muted);line-height:1.4}.copy header b{padding:4px 7px;color:var(--green-glow);background:#52b78812;border-radius:99px}.copy pre{max-height:180px;overflow:auto;padding:14px;background:#0b0b0a;border-radius:8px;color:var(--tan-pale);white-space:pre-wrap;overflow-wrap:anywhere;font:11px/1.55 var(--font-mono)}.copy>button{display:flex;justify-content:center;gap:10px;width:100%;margin-top:12px;padding:13px;color:#07120d;background:var(--green-glow);border-radius:8px;font:700 13px var(--font-display)}.copy>button:disabled{opacity:.45}.copy kbd{font:9px var(--font-mono)}.copy>p{margin-top:10px;color:var(--muted);font-size:10px;text-align:center;line-height:1.4}.then>b{color:var(--tan-light);font:10px var(--font-mono);text-transform:uppercase}.then ol{display:grid;gap:11px;margin-top:13px}.then li{display:flex;gap:9px;align-items:center;color:#aaa299;font-size:11px}.then i{display:grid;place-items:center;width:21px;height:21px;border:1px solid var(--border);border-radius:50%;color:var(--tan-light);font:normal 9px var(--font-mono)}[hidden]{display:none!important}@media(max-width:1000px){.layout{grid-template-columns:1fr}aside{position:static;grid-template-columns:1fr 1fr}.then{grid-column:1/-1}}@media(max-width:700px){.builder{width:calc(100% - 28px);padding-top:calc(var(--nav-offset) + 25px)}.hero{padding-bottom:50px}.proof{flex-wrap:wrap}.mode,.fields,.vars,aside{grid-template-columns:1fr}.then{grid-column:auto}.card{padding:20px 16px}.var{grid-template-columns:1fr 21px}.var code{grid-column:1/-1;width:max-content}}
+</style>
+
+<!-- Variable cards are created client-side, so their selectors must be global
+     instead of relying on Astro's compile-time scope attributes. -->
+<style is:global>
+  [data-vars] .var {
+    display: grid;
+    grid-template-columns: minmax(108px, auto) 1fr 25px;
+    gap: 12px;
+    align-items: center;
+    min-height: 76px;
+    padding: 13px;
+    text-align: left;
+    color: var(--white);
+    background: linear-gradient(135deg, rgba(255,255,255,.025), rgba(255,255,255,.01));
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: inset 0 1px rgba(255,255,255,.025);
+    transition: border-color .2s, background .2s, transform .2s;
+  }
+  [data-vars] .var:hover {
+    border-color: rgba(82,183,136,.47);
+    background: linear-gradient(135deg, rgba(82,183,136,.07), rgba(82,183,136,.025));
+    transform: translateY(-1px);
+  }
+  [data-vars] .var code {
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 7px 9px;
+    color: var(--tan-light);
+    background: rgba(201,168,124,.07);
+    border: 1px solid rgba(201,168,124,.12);
+    border-radius: 6px;
+    font: 10px var(--font-mono);
+    white-space: nowrap;
+  }
+  [data-vars] .var span { display: grid; gap: 4px; min-width: 0; color: var(--white); }
+  [data-vars] .var b { color: var(--white); font: 700 12px var(--font-display); }
+  [data-vars] .var small { color: var(--muted); font: 10px/1.4 var(--font-body); }
+  [data-vars] .var i {
+    display: grid;
+    place-items: center;
+    width: 25px;
+    height: 25px;
+    color: var(--green-glow);
+    border: 1px solid rgba(82,183,136,.33);
+    border-radius: 50%;
+    font-style: normal;
+    transition: background .2s, color .2s;
+  }
+  [data-vars] .var:hover i { color: #07120d; background: var(--green-glow); }
+  @media (max-width: 700px) {
+    [data-vars] .var { grid-template-columns: 1fr 25px; }
+    [data-vars] .var code { grid-column: 1 / -1; width: max-content; max-width: 100%; }
+  }
+</style>

@@ -23,9 +23,10 @@ defmodule Ingress.Nats.Publisher do
   connection process, and every PubAck through one collector process — one BEAM
   process tops out well below a 150-200k/s target. So the pool shards the load
   across N independent connections, each with its own collector, pending table
-  and inbox namespace. `enqueue/3` keeps every path scheduler-local without a
-  shared round-robin hotspot. Production runs one connection per online BEAM
-  scheduler, so every configured connection carries the same direct path.
+  and inbox namespace. `enqueue/3` picks the caller's current scheduler shard
+  without a shared round-robin hotspot. Production runs one connection per
+  online BEAM scheduler, so every configured connection carries the same direct
+  path.
 
   ## Backpressure and reliability
 
@@ -39,7 +40,7 @@ defmodule Ingress.Nats.Publisher do
 
   ## Per-shard shape
 
-    * a public `:ordered_set` ETS table, one row per outstanding publish, owned
+    * a public `:set` ETS table, one row per outstanding publish, owned
       by the collector so it is torn down if the collector dies.
     * an `:atomics` array holding the outstanding count, monotonic id allocator
       and batched metric counters, so neither publishes nor PubAcks need a
@@ -80,28 +81,53 @@ defmodule Ingress.Nats.Publisher do
   @doc """
   Admit one publish into a shard's in-flight window, or refuse it.
 
-  The shard is chosen by scheduler id, keeping the caller on its scheduler-local
-  connection and avoiding a shared counter, per-message hash or fallback probe.
-  `publish_connections` is kept equal to the online scheduler count, so all
-  shards use this same direct path.
+  The shard is chosen by scheduler id, keeping the normal path on a local
+  connection without a shared counter or per-message hash. Only saturation or
+  a disconnected shard triggers a bounded probe for spare sibling capacity.
+  `publish_connections` normally equals the online scheduler count.
 
   Returns `:ok` once the event is on the wire (its PubAck is now awaited
   asynchronously), `{:error, :overloaded}` when its shard is full, or
   `{:error, :not_connected}` when its connection cannot publish.
   """
-  @spec enqueue(String.t(), binary(), String.t() | nil) :: :ok | {:error, term()}
+  @spec enqueue(String.t(), iodata(), String.t() | nil) :: :ok | {:error, term()}
   def enqueue(subject, json, dedup_id) do
     case :persistent_term.get({__MODULE__, :n}, 0) do
       0 ->
         {:error, :not_connected}
 
       n ->
-        index = rem(:erlang.system_info(:scheduler_id) - 1, n)
+        index = rem(max(:erlang.system_info(:scheduler_id), 1) - 1, n)
+        enqueue_from(index, n, subject, json, dedup_id, nil)
+    end
+  end
 
-        case :persistent_term.get({__MODULE__, :ctx, index}, nil) do
-          nil -> {:error, :not_connected}
-          ctx -> admit(ctx, subject, json, dedup_id)
-        end
+  # The scheduler-local shard is always attempted first. Only an unavailable or
+  # saturated shard probes siblings, so the normal path remains contention-free
+  # while spare connections absorb imbalance instead of producing false drops.
+  defp enqueue_from(_index, 0, _subject, _json, _dedup_id, nil),
+    do: {:error, :not_connected}
+
+  defp enqueue_from(_index, 0, _subject, _json, _dedup_id, last_error), do: last_error
+
+  defp enqueue_from(index, remaining, subject, json, dedup_id, _last_error) do
+    n = :persistent_term.get({__MODULE__, :n})
+
+    result =
+      case :persistent_term.get({__MODULE__, :ctx, index}, nil) do
+        nil -> {:error, :not_connected}
+        ctx -> admit(ctx, subject, json, dedup_id)
+      end
+
+    case result do
+      :ok ->
+        :ok
+
+      {:error, reason} = error when reason in [:overloaded, :not_connected] ->
+        enqueue_from(rem(index + 1, n), remaining - 1, subject, json, dedup_id, error)
+
+      error ->
+        error
     end
   end
 
@@ -194,7 +220,7 @@ defmodule Ingress.Nats.Publisher do
     :ets.new(table, [
       :named_table,
       :public,
-      :ordered_set,
+      :set,
       read_concurrency: true,
       write_concurrency: true
     ])
@@ -342,7 +368,7 @@ defmodule Ingress.Nats.Publisher do
   # Re-publish under the same reply id and `Nats-Msg-Id` (dedup makes the retry
   # a no-op at the broker if the first copy did land) until the attempt budget
   # is spent, then drop with a metric so the outstanding count stays honest.
-  defp retry_or_drop(id, subject, json, dedup_id, attempts, reason, state) do
+  defp retry_or_drop(id, subject, json, dedup_id, attempts, _reason, state) do
     if attempts < state.max_attempts do
       :ets.insert(state.table, {id, subject, json, dedup_id, attempts + 1, now_ms()})
       :atomics.add(state.counter, @idx_retried, 1)
@@ -352,10 +378,6 @@ defmodule Ingress.Nats.Publisher do
       :ets.delete(state.table, id)
       :atomics.sub(state.counter, @idx_pending, 1)
       :atomics.add(state.counter, @idx_failed, 1)
-
-      Logger.warning(
-        "publish on #{subject} dropped after #{attempts} attempts: #{inspect(reason)}"
-      )
 
       :ok
     end
@@ -368,6 +390,12 @@ defmodule Ingress.Nats.Publisher do
       0 -> :ok
       count -> Metrics.count(name, count)
     end
+  end
+
+  @impl true
+  def terminate(_reason, state) do
+    :persistent_term.erase({__MODULE__, :ctx, state.index})
+    :ok
   end
 
   defp schedule(msg, ms), do: Process.send_after(self(), msg, ms)
