@@ -198,6 +198,8 @@ export const en = {
     sectionsLegend: "Sections to share",
     pickSectionError: "Pick at least one section.",
     leaveDashboardAria: "Leave {login}’s dashboard",
+    leaveTitle: "Leave {login}’s dashboard?",
+    leaveBody: "You will lose access to this dashboard. The owner will need to share it with you again if you want to return.",
     eyebrow: 'Account',
     titlePre: 'Your ',
     titleEm: 'settings',
