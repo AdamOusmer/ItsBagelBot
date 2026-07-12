@@ -188,9 +188,6 @@
                     <h3 class="tile-label">{m.def.label}</h3>
                     <p class="tile-cat">{m.def.category}</p>
                   </div>
-                  <span class="tile-status" data-on={m.enabled}>
-                    {m.enabled ? t('modules.stateEnabled') : t('modules.stateDisabled')}
-                  </span>
                 </div>
                 <p class="tile-purpose">{m.def.tagline}</p>
                 <div class="tile-foot">
@@ -410,25 +407,6 @@
   .tile-heading { display: flex; flex-direction: column; gap: 2px; min-width: 0; margin-right: auto; }
   .tile-label { font-family: var(--bb-font-display); font-weight: 700; font-size: 16px; color: var(--bb-white); margin: 0; }
   .tile-cat { font-family: var(--bb-font-mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--bb-muted); margin: 0; }
-
-  /* Enabled/disabled shown as a text badge, not by dimming the card (keeps the
-     card text above 4.5:1 contrast). */
-  .tile-status {
-    flex: none;
-    font-family: var(--bb-font-mono);
-    font-size: 10px;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    padding: 4px 8px;
-    border-radius: 4px;
-    border: 1px solid var(--glass-border);
-    color: var(--bb-muted);
-  }
-  .tile-status[data-on='true'] {
-    color: var(--bb-status-success, #52b788);
-    border-color: var(--bb-status-success-border, rgba(82, 183, 136, 0.4));
-    background: var(--bb-status-success-bg, rgba(82, 183, 136, 0.1));
-  }
 
   .tile-purpose {
     font-family: var(--bb-font-body);
