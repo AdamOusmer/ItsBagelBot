@@ -4,11 +4,12 @@
   // sample values substituted into the tokens. Re-runs (debounced) as the
   // response is edited, so authors see the real thing, not a template string.
   //
-  // When the response leads with a Twitch slash-verb (/announce…, /shoutout,
+  // When the response leads with a Twitch slash-verb (/announce…, /shoutout, /pin,
   // /me) the worker turns it into that native action instead of a plain chat
-  // line (see app/worker/module/slash.go). The rehearsal mirrors that parse so
+  // line (see app/sesame/engine/slash.go). The rehearsal mirrors that parse so
   // authors can see they're driving a Twitch command — an announcement callout,
-  // a shoutout card, or an italic /me action — with a badge naming the verb.
+  // a shoutout card, a stream-long pin, or an italic /me action — with a badge
+  // naming the verb.
   // A multi-line response (newline-delimited, up to 5 lines) is acted out as
   // the bot sending one chat message per line, in order — the same fan-out the
   // worker performs — so authors see exactly how many messages they're minting.
@@ -70,10 +71,10 @@
   const trigger = $derived('!' + (normName(name) || 'command') + (args ? ' ' + args : ''));
 
   // --- Slash-verb parse, mirrored from app/worker/module/slash.go ---------
-  // The worker recognizes a leading verb, rewrites the outgress Type, and
+  // Sesame recognizes a leading verb, rewrites the outgress Type, and
   // strips the verb from the text. We reproduce the same matching (whole-verb
   // or "verb " prefix) so the rehearsal renders the same action the bot sends.
-  type Mode = 'chat' | 'announce' | 'shoutout' | 'me';
+  type Mode = 'chat' | 'announce' | 'shoutout' | 'pin' | 'me';
   type Parsed = {
     mode: Mode;
     body: string; // text with the verb stripped (what actually gets shown)
@@ -121,6 +122,8 @@
       const remainder = sp === -1 ? '' : trimmed.slice(sp + 1).replace(/^ +/, '');
       return { mode: 'shoutout', body: remainder, verb: '/shoutout', target: rawTarget.replace(/^@/, '') };
     }
+    const pin = cutVerb(text, '/pin');
+    if (pin !== null) return { mode: 'pin', body: pin, verb: '/pin' };
     // /me is a plain passthrough on the wire (verb kept in Text), but Twitch
     // renders it as an italic action — strip the verb for display.
     const me = cutVerb(text, '/me');
@@ -265,6 +268,24 @@
           {:else}
             <span class="msg empty">{t('chatPreview.addActionAfterMe')}</span>
           {/if}
+        {:else if v.mode === 'pin'}
+          <div class="pin">
+            <span class="pin-head">
+              <span class="via" title={t('chatPreview.runsVerb', { verb: '/pin' })}>Twitch /pin</span>
+              {t('chatPreview.pinnedForStream')}
+            </span>
+            {#if v.segments.length}
+              <span class="msg reply">
+                {#each v.segments as seg, i (i)}
+                  {#if seg.kind === 'sample'}<mark>{seg.text}</mark>
+                  {:else if seg.kind === 'unknown'}<mark class="unknown" title={t('chatPreview.unknownVar')}>{seg.text}</mark>
+                  {:else}{seg.text}{/if}
+                {/each}
+              </span>
+            {:else}
+              <span class="msg empty">{t('chatPreview.addMessageAfter', { verb: '/pin' })}</span>
+            {/if}
+          </div>
         {:else}
           <span class="msg reply">
             {#each v.segments as seg, i (i)}
@@ -413,6 +434,29 @@
   }
   .shoutout .reply strong { color: var(--bb-green-glow); }
 
+  /* /pin sends a real bot message and anchors it for the current stream. */
+  .pin {
+    width: 100%;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(199, 125, 255, 0.35);
+    background: rgba(199, 125, 255, 0.07);
+    animation: reply-in 240ms var(--bb-ease-out-back, ease-out) both;
+    animation-delay: var(--reply-delay, 0ms);
+  }
+  .pin-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--bb-muted);
+    font-family: var(--bb-font-display);
+    font-size: 10.5px;
+  }
+
   /* /me action: italic, tinted like the bot's name (no colon before it). */
   .msg.action { font-style: italic; color: var(--bb-green-glow); }
 
@@ -430,7 +474,7 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .reply, .announce, .shoutout { animation: none; }
+    .reply, .announce, .shoutout, .pin { animation: none; }
     .tdot { animation: none; }
   }
 </style>

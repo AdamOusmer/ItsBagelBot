@@ -289,7 +289,9 @@ func (p *Pipeline) floorSuppressed(o *module.Output) bool {
 	if o.Text == "" {
 		return false
 	}
-	if o.Type != outgress.TypeChat && o.Type != outgress.TypeAnnounce {
+	switch o.Type {
+	case outgress.TypeChat, outgress.TypeAnnounce, outgress.TypePin:
+	default:
 		return false
 	}
 	term, hit := moderation.CheckFloor(o.Text)

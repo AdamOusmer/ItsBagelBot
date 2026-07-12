@@ -66,7 +66,7 @@ func TestDrainResponseIsBounded(t *testing.T) {
 }
 
 func TestCloudBotChatActionsUseAppToken(t *testing.T) {
-	for _, typ := range []string{outgress.TypeChat, outgress.TypeAnnounce, outgress.TypeShoutout} {
+	for _, typ := range []string{outgress.TypeChat, outgress.TypeAnnounce, outgress.TypeShoutout, outgress.TypePin} {
 		route := typeRoutes[typ]
 		if route.as != outgress.AsApp {
 			t.Fatalf("%s route identity = %q, want %q", typ, route.as, outgress.AsApp)
@@ -270,6 +270,54 @@ func TestShoutoutEndpoint(t *testing.T) {
 	wantEsc := "/helix/chat/shoutouts?from_broadcaster_id=a+b&to_broadcaster_id=c%26d&moderator_id=e%3Ff"
 	if got != wantEsc {
 		t.Fatalf("shoutout endpoint (escaped) = %q, want %q", got, wantEsc)
+	}
+}
+
+func TestPinRouteAndStreamLifetimeEndpoint(t *testing.T) {
+	assertRoute(t, outgress.TypePin,
+		helixRoute{http.MethodPut, "/helix/chat/pins", outgress.AsApp})
+
+	got := pinEndpoint("44322889", "987654", "abc-123")
+	want := "/helix/chat/pins?broadcaster_id=44322889&moderator_id=987654&message_id=abc-123"
+	if got != want {
+		t.Fatalf("pin endpoint = %q, want %q", got, want)
+	}
+	if strings.Contains(got, "duration_seconds") {
+		t.Fatalf("pin endpoint unexpectedly limits pin lifetime: %q", got)
+	}
+
+	escaped := pinEndpoint("a b", "c&d", "e?f")
+	wantEscaped := "/helix/chat/pins?broadcaster_id=a+b&moderator_id=c%26d&message_id=e%3Ff"
+	if escaped != wantEscaped {
+		t.Fatalf("pin endpoint (escaped) = %q, want %q", escaped, wantEscaped)
+	}
+}
+
+func TestSentChatMessageID(t *testing.T) {
+	tests := []struct {
+		name     string
+		body     string
+		wantID   string
+		wantSent bool
+		wantErr  bool
+	}{
+		{"sent", `{"data":[{"message_id":"abc-123","is_sent":true}]}`, "abc-123", true, false},
+		{"twitch dropped message", `{"data":[{"message_id":"","is_sent":false,"drop_reason":{"code":"msg_rejected"}}]}`, "", false, false},
+		{"empty data", `{"data":[]}`, "", false, false},
+		{"malformed", `{`, "", false, true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			gotID, gotSent, err := sentChatMessageID(strings.NewReader(tc.body))
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("sentChatMessageID error = %v, wantErr %v", err, tc.wantErr)
+			}
+			if gotID != tc.wantID || gotSent != tc.wantSent {
+				t.Fatalf("sentChatMessageID = (%q, %v), want (%q, %v)",
+					gotID, gotSent, tc.wantID, tc.wantSent)
+			}
+		})
 	}
 }
 

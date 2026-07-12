@@ -62,6 +62,7 @@ var outgressBuilders = map[string]func(*module.Output) (outgress.Message, error)
 	outgress.TypeChat:             chatOutgress,
 	outgress.TypeAnnounce:         announceOutgress,
 	outgress.TypeShoutout:         shoutoutOutgress,
+	outgress.TypePin:              pinOutgress,
 	outgress.TypeClip:             clipOutgress,
 	outgress.TypeBan:              banOutgress,
 	outgress.TypeTimeout:          banOutgress,
@@ -85,7 +86,18 @@ func payloadMessage(msgType, broadcasterID string, payload any) (outgress.Messag
 }
 
 func chatOutgress(o *module.Output) (outgress.Message, error) {
-	return payloadMessage(outgress.TypeChat, o.BroadcasterID, struct {
+	return textOutgress(outgress.TypeChat, o)
+}
+
+func pinOutgress(o *module.Output) (outgress.Message, error) {
+	return textOutgress(outgress.TypePin, o)
+}
+
+// textOutgress builds the Send Chat Message body shared by ordinary chat and
+// /pin. The pin worker sends this body first, then uses Twitch's returned
+// message id for the pin endpoint.
+func textOutgress(msgType string, o *module.Output) (outgress.Message, error) {
+	return payloadMessage(msgType, o.BroadcasterID, struct {
 		BroadcasterID string `json:"broadcaster_id"`
 		Message       string `json:"message"`
 	}{o.BroadcasterID, o.Text})
