@@ -85,6 +85,21 @@ export interface BuiltinCommandDef {
 
 export const BUILTIN_COMMANDS: readonly BuiltinCommandDef[] = [
   {
+    id: 'accountage',
+    label: 'Account age',
+    summary: 'Built-in · shows how long a Twitch account has existed.',
+    description:
+      'Shows how old your Twitch account is, or the age of another Twitch user\'s account when you add their username.',
+    usage: ['!accountage', '!accountage <user>'],
+    preview: "@{target}'s account is 4 years, 2 months old.",
+    previewArgs: 'viewer',
+    previewSamples: { target: 'viewer' },
+    defaultActive: true,
+    defaultPerm: 'everyone',
+    defaultCooldown: 15,
+    liveOnly: false
+  },
+  {
     id: 'followage',
     label: 'Followage',
     summary: 'Built-in · shows how long a viewer has followed the channel.',
