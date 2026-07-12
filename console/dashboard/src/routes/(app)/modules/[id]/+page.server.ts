@@ -37,7 +37,7 @@ function asConfig(raw: unknown): { config: Record<string, string>; revision: num
 export const load: PageServerLoad = async ({ params, locals }) => {
   gateModules(locals.session);
   const def = moduleDef(params.id);
-  if (!def) throw error(404, 'Unknown module');
+  if (!def || def.hidden) throw error(404, 'Unknown module');
   // href modules (channel points, timers, govee) own a bespoke page; the generic
   // reply inspector cannot render them, so send any direct hit there.
   if (def.href) throw redirect(302, def.href);

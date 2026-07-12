@@ -117,7 +117,7 @@ function publicCommands(rows: CommandView[]): PublicCommand[] {
 function publicModules(rows: ModuleView[]): PublicModule[] {
   const byName = new Map(rows.map((row) => [row.name, row]));
 
-  const catalogModules = MODULE_CATALOG.flatMap((def): PublicModule[] => {
+  const catalogModules = MODULE_CATALOG.filter((def) => !def.hidden).flatMap((def): PublicModule[] => {
     const row = byName.get(def.id);
     const active = row ? row.is_enabled : def.defaultEnabled;
     if (!active) return [];

@@ -178,14 +178,15 @@ function commandDigest(uid: string): Promise<CommandDigest> {
 }
 
 function moduleDigest(uid: string): Promise<ModuleDigest> {
-  const catalogIds = new Set(MODULE_CATALOG.map((m) => m.id));
+  const visibleCatalog = MODULE_CATALOG.filter((m) => !m.hidden);
+  const catalogIds = new Set(visibleCatalog.map((m) => m.id));
   return listModules(uid)
     .then((rows) => ({
       on: rows.filter((r) => catalogIds.has(r.name) && r.is_enabled).length,
-      total: MODULE_CATALOG.length,
+      total: visibleCatalog.length,
       ok: true
     }))
-    .catch(() => ({ on: 0, total: MODULE_CATALOG.length, ok: false }));
+    .catch(() => ({ on: 0, total: visibleCatalog.length, ok: false }));
 }
 
 // Delegation shares only exist for owners; a delegate browsing the owner's
@@ -210,7 +211,7 @@ export const load: PageServerLoad = ({ locals }) => {
   return {
     conn: demoOr<ConnData>(demoConn, () => connState(uid)),
     commands: demoOr(demoDigest, () => commandDigest(uid)),
-    modules: demoOr<ModuleDigest>({ on: 1, total: MODULE_CATALOG.length, ok: true }, () => moduleDigest(uid)),
+    modules: demoOr<ModuleDigest>({ on: 1, total: MODULE_CATALOG.filter((m) => !m.hidden).length, ok: true }, () => moduleDigest(uid)),
     shares: demoOr<ShareDigest>({ people: 1, pending: 1, ok: true }, () => shareDigest(uid))
   };
 };
