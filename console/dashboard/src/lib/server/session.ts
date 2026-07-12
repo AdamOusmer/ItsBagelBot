@@ -51,3 +51,9 @@ export const open = (value: string): Session | null => {
 
 export const COOKIE = 'bagel_session';
 export const ACCOUNT_DELETED_COOKIE = 'bagel_account_deleted';
+
+// Custom-cursor preference cookie. Like the locale cookie it is a UI preference
+// that must resolve fast at SSR without an RPC round-trip and must work
+// pre-login, so it rides its own plain cookie. Absent = the default (on); the
+// value is '1' (on) or '0' (off).
+export const CURSOR_COOKIE = 'bagel_cursor';

@@ -29,6 +29,8 @@ const (
 	FieldStatus = "status"
 	// FieldLocale holds the string denoting the locale field in the database.
 	FieldLocale = "locale"
+	// FieldCustomCursor holds the string denoting the custom_cursor field in the database.
+	FieldCustomCursor = "custom_cursor"
 	// FieldCreatorCode holds the string denoting the creator_code field in the database.
 	FieldCreatorCode = "creator_code"
 	// FieldSubscriptionSource holds the string denoting the subscription_source field in the database.
@@ -74,6 +76,7 @@ var Columns = []string{
 	FieldBanned,
 	FieldStatus,
 	FieldLocale,
+	FieldCustomCursor,
 	FieldCreatorCode,
 	FieldSubscriptionSource,
 	FieldSubscriptionExpiresAt,
@@ -110,6 +113,8 @@ var (
 	DefaultLocale string
 	// LocaleValidator is a validator for the "locale" field. It is called by the builders before save.
 	LocaleValidator func(string) error
+	// DefaultCustomCursor holds the default value on creation for the "custom_cursor" field.
+	DefaultCustomCursor bool
 	// CreatorCodeValidator is a validator for the "creator_code" field. It is called by the builders before save.
 	CreatorCodeValidator func(string) error
 	// DefaultSubscriptionSource holds the default value on creation for the "subscription_source" field.
@@ -191,6 +196,11 @@ func ByStatus(opts ...sql.OrderTermOption) OrderOption {
 // ByLocale orders the results by the locale field.
 func ByLocale(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldLocale, opts...).ToFunc()
+}
+
+// ByCustomCursor orders the results by the custom_cursor field.
+func ByCustomCursor(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldCustomCursor, opts...).ToFunc()
 }
 
 // ByCreatorCode orders the results by the creator_code field.

@@ -4,8 +4,8 @@ import { redirect } from '@sveltejs/kit';
 import { decodeIdToken, OAuth2RequestError } from 'arctic';
 import { twitch, safeNextPath, fetchAccountEmail } from '$lib/server/oauth';
 import { rpc } from '@bagel/shared/server/nats';
-import { saveGrant, isBanned, delegationConsume, userLocale, setLocale } from '$lib/server/services';
-import { COOKIE, seal, SESSION_TTL_SECONDS } from '$lib/server/session';
+import { saveGrant, isBanned, delegationConsume, userLocale, setLocale, userCursor } from '$lib/server/services';
+import { COOKIE, CURSOR_COOKIE, seal, SESSION_TTL_SECONDS } from '$lib/server/session';
 import { isLocale, LOCALE_COOKIE } from '@bagel/shared/i18n';
 import { env } from '$env/dynamic/private';
 
@@ -175,6 +175,26 @@ async function seedLocaleCookie(cookies: Cookies, url: URL, userId: string): Pro
   }
 }
 
+// seedCursorCookie seeds the custom-cursor cookie from the account's saved
+// preference so the choice follows the user to a new browser/device. The pref
+// has no pre-login control (it is toggled in settings/onboarding), so the
+// account is authoritative here. Best-effort: a failure leaves the cookie
+// absent, and hooks.server.ts then defaults the cursor to on.
+async function seedCursorCookie(cookies: Cookies, url: URL, userId: string): Promise<void> {
+  try {
+    const on = await userCursor(userId);
+    cookies.set(CURSOR_COOKIE, on ? '1' : '0', {
+      path: '/',
+      httpOnly: true,
+      secure: url.protocol === 'https:',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 365
+    });
+  } catch {
+    /* best-effort */
+  }
+}
+
 // persistGrant stores the OAuth grant (access + refresh) after the user row
 // exists — the token row references it. Grant failure stays non-fatal: the
 // session is still valid (the row exists), the bot just has no channel token
@@ -248,5 +268,6 @@ async function completeLogin(cookies: Cookies, url: URL, code: string, storedNon
 
   setSessionCookie(cookies, url, streamerSession(identity));
   await seedLocaleCookie(cookies, url, identity.userId);
+  await seedCursorCookie(cookies, url, identity.userId);
   await persistGrant(identity.userId, tokens);
 }

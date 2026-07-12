@@ -97,6 +97,20 @@ func (_c *UserCreate) SetNillableLocale(v *string) *UserCreate {
 	return _c
 }
 
+// SetCustomCursor sets the "custom_cursor" field.
+func (_c *UserCreate) SetCustomCursor(v bool) *UserCreate {
+	_c.mutation.SetCustomCursor(v)
+	return _c
+}
+
+// SetNillableCustomCursor sets the "custom_cursor" field if the given value is not nil.
+func (_c *UserCreate) SetNillableCustomCursor(v *bool) *UserCreate {
+	if v != nil {
+		_c.SetCustomCursor(*v)
+	}
+	return _c
+}
+
 // SetCreatorCode sets the "creator_code" field.
 func (_c *UserCreate) SetCreatorCode(v string) *UserCreate {
 	_c.mutation.SetCreatorCode(v)
@@ -323,6 +337,10 @@ func (_c *UserCreate) defaults() {
 		v := user.DefaultLocale
 		_c.mutation.SetLocale(v)
 	}
+	if _, ok := _c.mutation.CustomCursor(); !ok {
+		v := user.DefaultCustomCursor
+		_c.mutation.SetCustomCursor(v)
+	}
 	if _, ok := _c.mutation.SubscriptionSource(); !ok {
 		v := user.DefaultSubscriptionSource
 		_c.mutation.SetSubscriptionSource(v)
@@ -388,6 +406,9 @@ func (_c *UserCreate) check() error {
 		if err := user.LocaleValidator(v); err != nil {
 			return &ValidationError{Name: "locale", err: fmt.Errorf(`ent: validator failed for field "User.locale": %w`, err)}
 		}
+	}
+	if _, ok := _c.mutation.CustomCursor(); !ok {
+		return &ValidationError{Name: "custom_cursor", err: errors.New(`ent: missing required field "User.custom_cursor"`)}
 	}
 	if v, ok := _c.mutation.CreatorCode(); ok {
 		if err := user.CreatorCodeValidator(v); err != nil {
@@ -472,6 +493,10 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Locale(); ok {
 		_spec.SetField(user.FieldLocale, field.TypeString, value)
 		_node.Locale = value
+	}
+	if value, ok := _c.mutation.CustomCursor(); ok {
+		_spec.SetField(user.FieldCustomCursor, field.TypeBool, value)
+		_node.CustomCursor = value
 	}
 	if value, ok := _c.mutation.CreatorCode(); ok {
 		_spec.SetField(user.FieldCreatorCode, field.TypeString, value)
@@ -672,6 +697,18 @@ func (u *UserUpsert) SetLocale(v string) *UserUpsert {
 // UpdateLocale sets the "locale" field to the value that was provided on create.
 func (u *UserUpsert) UpdateLocale() *UserUpsert {
 	u.SetExcluded(user.FieldLocale)
+	return u
+}
+
+// SetCustomCursor sets the "custom_cursor" field.
+func (u *UserUpsert) SetCustomCursor(v bool) *UserUpsert {
+	u.Set(user.FieldCustomCursor, v)
+	return u
+}
+
+// UpdateCustomCursor sets the "custom_cursor" field to the value that was provided on create.
+func (u *UserUpsert) UpdateCustomCursor() *UserUpsert {
+	u.SetExcluded(user.FieldCustomCursor)
 	return u
 }
 
@@ -993,6 +1030,20 @@ func (u *UserUpsertOne) SetLocale(v string) *UserUpsertOne {
 func (u *UserUpsertOne) UpdateLocale() *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateLocale()
+	})
+}
+
+// SetCustomCursor sets the "custom_cursor" field.
+func (u *UserUpsertOne) SetCustomCursor(v bool) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetCustomCursor(v)
+	})
+}
+
+// UpdateCustomCursor sets the "custom_cursor" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateCustomCursor() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateCustomCursor()
 	})
 }
 
@@ -1508,6 +1559,20 @@ func (u *UserUpsertBulk) SetLocale(v string) *UserUpsertBulk {
 func (u *UserUpsertBulk) UpdateLocale() *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateLocale()
+	})
+}
+
+// SetCustomCursor sets the "custom_cursor" field.
+func (u *UserUpsertBulk) SetCustomCursor(v bool) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetCustomCursor(v)
+	})
+}
+
+// UpdateCustomCursor sets the "custom_cursor" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateCustomCursor() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateCustomCursor()
 	})
 }
 

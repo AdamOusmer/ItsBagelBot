@@ -4,14 +4,27 @@
   // element's box (rounded rect matching its bounds) — the cursor becomes the
   // button highlight — while the dot fades. Native pointer hidden (cursor:none)
   // on fine pointers. Coarse/touch keep the native cursor.
-  import { onMount } from 'svelte';
+  //
+  // Gated by the `customCursor` preference store: when the user turns it off the
+  // effect tears down (listeners + the cursor:none class removed) and the native
+  // pointer returns; turning it back on re-arms it live, with no reload.
+  import { customCursor } from '../lib/cursor';
 
-  let dot: HTMLDivElement;
-  let ring: HTMLDivElement;
+  let dot = $state<HTMLDivElement>();
+  let ring = $state<HTMLDivElement>();
 
-  onMount(() => {
+  $effect(() => {
+    if (!$customCursor) return;
+
     const fine = window.matchMedia('(min-width: 901px) and (pointer: fine)');
     if (!fine.matches) return;
+
+    // Bound in the same render flush that enables the cursor; effects run after
+    // the DOM is patched, so both nodes exist here. Guard anyway for the types,
+    // then alias to non-null locals the nested tick closure can use directly.
+    if (!dot || !ring) return;
+    const dotEl = dot;
+    const ringEl = ring;
 
     let mx = innerWidth / 2,
       my = innerHeight / 2,
@@ -35,8 +48,8 @@
     function tick(now: number) {
       const hovering = !!target && target.isConnected;
       // dot: follows 1:1, fades out while morphed onto a target
-      dot.style.transform = `translate(${mx}px, ${my}px)`;
-      dot.style.opacity = hovering ? '0' : '1';
+      dotEl.style.transform = `translate(${mx}px, ${my}px)`;
+      dotEl.style.opacity = hovering ? '0' : '1';
 
       let tx: number, ty: number, tw: number, th: number, tr: number;
       if (hovering) {
@@ -60,11 +73,11 @@
       w = lerp(w, tw, e);
       h = lerp(h, th, e);
       r = lerp(r, tr, e);
-      ring.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
-      ring.style.width = `${w.toFixed(1)}px`;
-      ring.style.height = `${h.toFixed(1)}px`;
-      ring.style.borderRadius = `${r.toFixed(1)}px`;
-      ring.classList.toggle('morph', hovering);
+      ringEl.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
+      ringEl.style.width = `${w.toFixed(1)}px`;
+      ringEl.style.height = `${h.toFixed(1)}px`;
+      ringEl.style.borderRadius = `${r.toFixed(1)}px`;
+      ringEl.classList.toggle('morph', hovering);
 
       const settled = !hovering && Math.abs(x - tx) < 0.3 && Math.abs(y - ty) < 0.3;
       if (!can() || (settled && now - lastMove > 500)) {
@@ -112,8 +125,10 @@
   });
 </script>
 
-<div class="cursor" bind:this={dot}></div>
-<div class="cursor-ring" bind:this={ring}></div>
+{#if $customCursor}
+  <div class="cursor" bind:this={dot}></div>
+  <div class="cursor-ring" bind:this={ring}></div>
+{/if}
 
 <style>
   .cursor {
