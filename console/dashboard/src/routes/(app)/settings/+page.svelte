@@ -114,6 +114,11 @@
   let revokeTarget = $state<DelegationGrant | null>(null);
   let revokeForm = $state<HTMLFormElement | null>(null);
 
+  // Leaving a shared dashboard removes this user's access. Confirm the choice
+  // before submitting the existing opt-out action.
+  let leaveTarget = $state<{ owner_user_id: string; owner_login: string } | null>(null);
+  let leaveForm = $state<HTMLFormElement | null>(null);
+
   // Delete: a destructive ConfirmDialog that spells out the consequence and
   // opens with Cancel focused. It submits a hidden form to ?/delete (the server
   // contract is unchanged; the action redirects to /goodbye on success).
@@ -258,10 +263,13 @@
               <span class="owner"><Icon name="overview" size={14} /> {r.owner_login}</span>
               <span class="actions">
                 <ButtonLink href={`/delegate/enter?owner=${r.owner_user_id}`} variant="ghost" class="sm">{t('common.open')}</ButtonLink>
-                <form method="POST" action="?/optOut" use:enhance>
-                  <input type="hidden" name="owner_user_id" value={r.owner_user_id} />
-                  <Button type="submit" variant="destructive" class="sm" aria-label={t('settings.leaveDashboardAria', { login: r.owner_login })}>{t('common.leave')}</Button>
-                </form>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  class="sm"
+                  aria-label={t('settings.leaveDashboardAria', { login: r.owner_login })}
+                  onclick={() => (leaveTarget = r)}
+                >{t('common.leave')}</Button>
               </span>
             </div>
             <div class="grant-sections">
@@ -352,6 +360,26 @@
 {#if revokeTarget}
   <form method="POST" action="?/revoke" use:enhance bind:this={revokeForm} hidden>
     <input type="hidden" name="token" value={revokeTarget.token} />
+  </form>
+{/if}
+
+<!-- Leave shared dashboard confirm -->
+<ConfirmDialog
+  open={leaveTarget !== null}
+  title={t('settings.leaveTitle', { login: leaveTarget?.owner_login ?? '' })}
+  body={t('settings.leaveBody')}
+  confirmLabel={t('common.leave')}
+  cancelLabel={t('common.cancel')}
+  danger
+  onCancel={() => (leaveTarget = null)}
+  onConfirm={() => {
+    leaveForm?.requestSubmit();
+    leaveTarget = null;
+  }}
+/>
+{#if leaveTarget}
+  <form method="POST" action="?/optOut" use:enhance bind:this={leaveForm} hidden>
+    <input type="hidden" name="owner_user_id" value={leaveTarget.owner_user_id} />
   </form>
 {/if}
 
@@ -471,8 +499,7 @@
   }
   .grant-link code { font-size: 12px; word-break: break-all; flex: 1; min-width: 0; color: var(--bb-muted); }
 
-  .actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-  .actions form { margin: 0; }
+  .actions { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
   /* Standalone actions get a full 44px target; the dense inline "sm" buttons stay
      compact but keep a 36px target (well above the 24px AA floor) and 8px+ gaps. */
   :global(.settings-section .btn) { min-height: 44px; }

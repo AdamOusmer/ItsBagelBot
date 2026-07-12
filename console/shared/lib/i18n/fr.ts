@@ -197,6 +197,8 @@ export const fr = {
     sectionsLegend: "Sections à partager",
     pickSectionError: "Choisissez au moins une section.",
     leaveDashboardAria: "Quitter le tableau de bord de {login}",
+    leaveTitle: "Quitter le tableau de bord de {login} ?",
+    leaveBody: "Vous perdrez l’accès à ce tableau de bord. Son propriétaire devra le partager à nouveau avec vous si vous souhaitez y revenir.",
     eyebrow: 'Compte',
     titlePre: 'Vos ',
     titleEm: 'paramètres',
