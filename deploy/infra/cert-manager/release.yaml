@@ -20,6 +20,15 @@
 # current stable tags before first apply and bump deliberately (CRD schemas can
 # change between minors): cert-manager releases and trust-manager releases track
 # separately in the jetstack chart repo.
+# The HelmReleases below live in the cert-manager namespace, so it must exist
+# before the Kustomization applies them (a HelmRelease cannot be created into a
+# missing namespace — the KEDA deploy-train lesson). Helm's own createNamespace
+# only covers the chart install, not the placement of the HelmRelease object.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cert-manager
 ---
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: HelmRepository
