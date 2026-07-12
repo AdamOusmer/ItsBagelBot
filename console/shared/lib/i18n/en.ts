@@ -782,6 +782,7 @@ export const en = {
     addMessageAfter: '…add a message after {verb}',
     shoutsOut: 'Shouts out',
     nameChannel: '…name a channel after /shoutout',
+    pinnedForStream: 'Pinned until the stream ends',
     addActionAfterMe: '…add an action after /me',
     nothingToSay: '…the bot has nothing to say yet',
     unknownVar: 'Unknown variable'

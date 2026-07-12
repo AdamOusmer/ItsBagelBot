@@ -27,6 +27,8 @@ func TestTranslate(t *testing.T) {
 		{"announce purple", "/announcepurple royal", outgress.TypeAnnounce, "royal", "purple", ""},
 		{"shoutout strips target and at", "/shoutout @cooldude check them out", outgress.TypeShoutout, "check them out", "", "cooldude"},
 		{"shoutout target only", "/shoutout cooldude", outgress.TypeShoutout, "", "", "cooldude"},
+		{"pin strips verb", "/pin speedrun rules: no glitches", outgress.TypePin, "speedrun rules: no glitches", "", ""},
+		{"pin bare verb only", "/pin", outgress.TypePin, "", "", ""},
 		{"me is plain passthrough not stripped", "/me waves", outgress.TypeChat, "/me waves", "", ""},
 		{"unknown slash unchanged", "/unknown thing", outgress.TypeChat, "/unknown thing", "", ""},
 	}
@@ -47,6 +49,8 @@ func TestIsEmptyAction(t *testing.T) {
 	assert.False(t, isEmptyAction(&module.Output{Type: outgress.TypeAnnounce, Text: "hi"}))
 	assert.True(t, isEmptyAction(&module.Output{Type: outgress.TypeShoutout, To: ""}))
 	assert.False(t, isEmptyAction(&module.Output{Type: outgress.TypeShoutout, To: "bob"}))
+	assert.True(t, isEmptyAction(&module.Output{Type: outgress.TypePin, Text: ""}))
+	assert.False(t, isEmptyAction(&module.Output{Type: outgress.TypePin, Text: "speedrun rules"}))
 	assert.True(t, isEmptyAction(&module.Output{Type: outgress.TypeChat, Text: ""}))
 	assert.False(t, isEmptyAction(&module.Output{Type: outgress.TypeChat, Text: "hi"}))
 }

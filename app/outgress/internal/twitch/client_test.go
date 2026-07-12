@@ -113,6 +113,7 @@ func TestCloudBotChatAutoRoutingUsesAppToken(t *testing.T) {
 		"/helix/chat/messages",
 		"/helix/chat/announcements?broadcaster_id=1&moderator_id=2",
 		"/helix/chat/shoutouts?from_broadcaster_id=1&to_broadcaster_id=2&moderator_id=3",
+		"/helix/chat/pins?broadcaster_id=1&moderator_id=2&message_id=abc",
 	} {
 		if got := client.sourceFor(endpoint); got != app {
 			t.Errorf("sourceFor(%q) = user token, want app token", endpoint)
