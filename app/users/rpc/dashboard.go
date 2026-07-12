@@ -124,6 +124,26 @@ func (d *dashboardRPC) writeThenInvalidate(ctx context.Context, msg *nats.Msg, s
 	respondOK(msg)
 }
 
+// setBoolPref is the shared body for the single-boolean setter verbs
+// (active_set, onboarded_set, cursor_set): decode the typed request, parse its
+// broadcaster id, then run the standard write-through + invalidation. broadcaster
+// pulls the wire id out of the concrete request type and write applies the flag;
+// keeping the boilerplate here stops the three setters drifting. (A free
+// function, not a method, since Go methods cannot take type parameters.)
+func setBoolPref[T any](d *dashboardRPC, ctx context.Context, msg *nats.Msg, scope, op string,
+	broadcaster func(T) string, write func(context.Context, uint64, T) error) {
+	req, ok := decodeRequest[T](msg)
+	if !ok {
+		return
+	}
+	id, ok := parseWireID(msg, broadcaster(req), "broadcaster_user_id")
+	if !ok {
+		return
+	}
+	d.writeThenInvalidate(ctx, msg, scope, broadcaster(req), op,
+		func(ctx context.Context) error { return write(ctx, id, req) })
+}
+
 func (d *dashboardRPC) handleUpsertUser(ctx context.Context, msg *nats.Msg) {
 	req, ok := decodeRequest[usersrpc.UpsertUserRequest](msg)
 	if !ok {
@@ -201,17 +221,11 @@ func (d *dashboardRPC) handleGrantHas(ctx context.Context, msg *nats.Msg) {
 // change event, so the projector and ingress converge without extra work;
 // the explicit invalidation below covers the dashboard's own grant cache.
 func (d *dashboardRPC) handleActiveSet(ctx context.Context, msg *nats.Msg) {
-	req, ok := decodeRequest[usersrpc.ActiveSetRequest](msg)
-	if !ok {
-		return
-	}
-	id, ok := parseWireID(msg, req.BroadcasterUserID, "broadcaster_user_id")
-	if !ok {
-		return
-	}
-
-	d.writeThenInvalidate(ctx, msg, "status", req.BroadcasterUserID, "active_set",
-		func(ctx context.Context) error { return d.repo.SetActive(ctx, id, req.Active) })
+	setBoolPref(d, ctx, msg, "status", "active_set",
+		func(r usersrpc.ActiveSetRequest) string { return r.BroadcasterUserID },
+		func(ctx context.Context, id uint64, r usersrpc.ActiveSetRequest) error {
+			return d.repo.SetActive(ctx, id, r.Active)
+		})
 }
 
 func (d *dashboardRPC) handleActiveGet(ctx context.Context, msg *nats.Msg) {
@@ -275,17 +289,11 @@ func (d *dashboardRPC) readView(ctx context.Context, msg *nats.Msg, render func(
 
 // handleOnboardedSet saves the user's completion of the onboarding flow.
 func (d *dashboardRPC) handleOnboardedSet(ctx context.Context, msg *nats.Msg) {
-	req, ok := decodeRequest[usersrpc.OnboardedSetRequest](msg)
-	if !ok {
-		return
-	}
-	id, ok := parseWireID(msg, req.BroadcasterUserID, "broadcaster_user_id")
-	if !ok {
-		return
-	}
-
-	d.writeThenInvalidate(ctx, msg, "status", req.BroadcasterUserID, "onboarded_set",
-		func(ctx context.Context) error { return d.repo.SetOnboarded(ctx, id, req.Onboarded) })
+	setBoolPref(d, ctx, msg, "status", "onboarded_set",
+		func(r usersrpc.OnboardedSetRequest) string { return r.BroadcasterUserID },
+		func(ctx context.Context, id uint64, r usersrpc.OnboardedSetRequest) error {
+			return d.repo.SetOnboarded(ctx, id, r.Onboarded)
+		})
 }
 
 // supportedLocales is the console's UI language set. Kept here so the service
@@ -322,17 +330,11 @@ func (d *dashboardRPC) handleLocaleSet(ctx context.Context, msg *nats.Msg) {
 // every replica so a change is visible on the next render instead of riding out
 // the SWR window.
 func (d *dashboardRPC) handleCursorSet(ctx context.Context, msg *nats.Msg) {
-	req, ok := decodeRequest[usersrpc.CursorSetRequest](msg)
-	if !ok {
-		return
-	}
-	id, ok := parseWireID(msg, req.BroadcasterUserID, "broadcaster_user_id")
-	if !ok {
-		return
-	}
-
-	d.writeThenInvalidate(ctx, msg, "cursor", req.BroadcasterUserID, "cursor_set",
-		func(ctx context.Context) error { return d.repo.SetCustomCursor(ctx, id, req.CustomCursor) })
+	setBoolPref(d, ctx, msg, "cursor", "cursor_set",
+		func(r usersrpc.CursorSetRequest) string { return r.BroadcasterUserID },
+		func(ctx context.Context, id uint64, r usersrpc.CursorSetRequest) error {
+			return d.repo.SetCustomCursor(ctx, id, r.CustomCursor)
+		})
 }
 
 // handleDeleteSelf removes the user and every delegation they own. Delegations
