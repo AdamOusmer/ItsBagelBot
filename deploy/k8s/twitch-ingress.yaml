@@ -163,7 +163,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: ingress
-          image: ghcr.io/adamousmer/itsbagelbot/twitch-ingress:main-1783849498-8298d8dd36f2@sha256:c358be962d30e86b2dedc6b5f96c17da41d1164ea9f6a7d8001d1dc0844951e7 # {"$imagepolicy": "flux-system:twitch-ingress"}
+          image: ghcr.io/adamousmer/itsbagelbot/twitch-ingress:main-1783874766-90fd6b2ff528@sha256:4c2ce8adc88237306ed785b0cf08aa661da37a3f41bd3e22f991e89d553bb959 # {"$imagepolicy": "flux-system:twitch-ingress"}
           imagePullPolicy: IfNotPresent
           envFrom:
             - secretRef:
