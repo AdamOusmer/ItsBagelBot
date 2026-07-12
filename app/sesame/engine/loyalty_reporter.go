@@ -8,8 +8,6 @@ import (
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/pkg/bus"
 
-	"github.com/ThreeDotsLabs/watermill/message"
-
 	"go.uber.org/zap"
 )
 
@@ -56,7 +54,7 @@ type counterAgg struct {
 // the worker-side rate limiter for the loyalty pipeline, the same role the
 // useReporter plays for command uses.
 type LoyaltyReporter struct {
-	pub  message.Publisher
+	pub  bus.Publisher
 	log  *zap.Logger
 	done chan struct{}
 	wake chan struct{}
@@ -66,7 +64,7 @@ type LoyaltyReporter struct {
 	bumps map[counterAgg]int64
 }
 
-func NewLoyaltyReporter(pub message.Publisher, log *zap.Logger) *LoyaltyReporter {
+func NewLoyaltyReporter(pub bus.Publisher, log *zap.Logger) *LoyaltyReporter {
 	r := &LoyaltyReporter{
 		pub:   pub,
 		log:   log,

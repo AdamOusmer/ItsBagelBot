@@ -87,7 +87,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: nats
-          image: nats:2.11-alpine
+          image: nats:2.14.3-alpine
           imagePullPolicy: IfNotPresent
           # --pid writes a pidfile the reloader reads to signal this process.
           args: ["--config", "/etc/nats/nats.conf", "--pid", "/var/run/nats/nats.pid"]
@@ -102,7 +102,6 @@ spec:
           ports:
             - {containerPort: 4222, name: client}
             - {containerPort: 8222, name: monitor}
-            - {containerPort: 7422, name: leafnodes}
             - {containerPort: 6222, name: cluster}
           volumeMounts:
             - {name: config, mountPath: /etc/nats, readOnly: true}
@@ -112,10 +111,12 @@ spec:
           resources:
             # R1 memory-backed ingress needs enough headroom above JetStream's
             # 4GB max_mem for dedup indexes, connections and the Go runtime.
-            # Keep CPU/memory requests modest; the limits provide burst CPU and
-            # retention headroom without reserving idle capacity cluster-wide.
-            requests: {cpu: 500m, memory: 2Gi}
-            limits: {cpu: 2000m, memory: 6Gi}
+            # node2/node3 each have 6 cores and worker1 has 8. Live usage before
+            # this bump was 9%/17%/9%; a 2-core request fits every node while a
+            # 4-core ceiling lets whichever R1 member owns TWITCH_INGRESS absorb
+            # batch commits without CPU throttling. Memory remains unchanged.
+            requests: {cpu: "2", memory: 2Gi}
+            limits: {cpu: "4", memory: 6Gi}
           securityContext:
             allowPrivilegeEscalation: false
             capabilities: {drop: ["ALL"]}
@@ -214,14 +215,16 @@ metadata:
   name: nats
   namespace: production
   annotations:
-    config.linkerd.io/opaque-ports: "4222,7422,6222"
+    config.linkerd.io/opaque-ports: "4222,6222"
 spec:
+  # JetStream clients dial this Service directly. Prefer the hub on the same
+  # node so node2/node3/worker1 avoid an unnecessary cross-node or home-WAN hop.
+  trafficDistribution: PreferSameNode
   selector:
     app: nats
   ports:
     - {name: client, port: 4222, targetPort: client}
     - {name: monitor, port: 8222, targetPort: monitor}
-    - {name: leafnodes, port: 7422, targetPort: leafnodes}
 ---
 apiVersion: v1
 kind: Service
@@ -231,7 +234,7 @@ metadata:
   name: nats-headless
   namespace: production
   annotations:
-    config.linkerd.io/opaque-ports: "4222,7422,6222"
+    config.linkerd.io/opaque-ports: "4222,6222"
 spec:
   clusterIP: None
   publishNotReadyAddresses: true

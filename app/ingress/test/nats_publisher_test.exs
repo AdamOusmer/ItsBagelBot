@@ -18,9 +18,26 @@ defmodule Ingress.Nats.PublisherTest do
       {:reply, {:ok, state.sid + 1}, %{state | sid: state.sid + 1}}
     end
 
-    def handle_call({:pub, topic, message, opts}, _from, state) do
-      send(state.test, {:pub, topic, message, opts})
-      {:reply, :ok, state}
+    def handle_call({:pub, topic, message, opts}, from, state) do
+      {publishes, callers} = receive_publishes([{topic, message, opts}], [from], 10)
+      Enum.each(publishes, fn {t, m, o} -> send(state.test, {:pub, t, m, o}) end)
+      Enum.each(callers, &GenServer.reply(&1, :ok))
+      {:noreply, state}
+    end
+
+    defp receive_publishes(publishes, callers, 0), do: {publishes, callers}
+
+    defp receive_publishes(publishes, callers, remaining) do
+      receive do
+        {:"$gen_call", from, {:pub, topic, message, opts}} ->
+          receive_publishes(
+            [{topic, message, opts} | publishes],
+            [from | callers],
+            remaining - 1
+          )
+      after
+        0 -> {publishes, callers}
+      end
     end
   end
 
@@ -117,6 +134,84 @@ defmodule Ingress.Nats.PublisherTest do
       assert Publisher.enqueue("twitch.ingress.event.standard", "{}", "msg-1") == :ok
       assert_receive {:pub, "twitch.ingress.event.standard", "{}", _opts}, 500
       assert :atomics.get(ctx.counter, 1) == 2
+    end
+  end
+
+  describe "atomic microbatching" do
+    setup do
+      conn = :gnat_bus_pub_batch_test
+      previous_size = Application.get_env(:ingress, :publish_batch_size)
+      previous_wait = Application.get_env(:ingress, :publish_batch_wait_ms)
+      Application.put_env(:ingress, :publish_batch_size, 2)
+      Application.put_env(:ingress, :publish_batch_wait_ms, 100)
+
+      start_supervised!({FakeGnat, [name: conn, test: self()]})
+      start_supervised!({Publisher, [index: 0, conn: conn]})
+      :persistent_term.put({Publisher, :n}, 1)
+
+      on_exit(fn ->
+        :persistent_term.erase({Publisher, :n})
+        restore_env(:publish_batch_size, previous_size)
+        restore_env(:publish_batch_wait_ms, previous_wait)
+      end)
+
+      %{publisher: Publisher.process_name(0)}
+    end
+
+    test "two concurrent events receive one commit PubAck", %{publisher: publisher} do
+      one =
+        Task.async(fn ->
+          Publisher.enqueue("twitch.ingress.event.standard", ~s({"n":1}), "msg-1")
+        end)
+
+      two =
+        Task.async(fn ->
+          Publisher.enqueue("twitch.ingress.event.standard", ~s({"n":2}), "msg-2")
+        end)
+
+      assert Task.await(one) == :ok
+      assert Task.await(two) == :ok
+
+      assert_receive {:pub, _, _, first_opts}, 500
+      assert_receive {:pub, _, _, second_opts}, 500
+
+      first_headers = prepared_headers(first_opts)
+      second_headers = prepared_headers(second_opts)
+      batch_id = first_headers["nats-batch-id"]
+
+      assert is_binary(batch_id)
+      assert second_headers["nats-batch-id"] == batch_id
+
+      assert {first_headers["nats-batch-sequence"], second_headers["nats-batch-sequence"]} ==
+               {"1", "2"}
+
+      assert first_headers["nats-msg-id"] == "msg-1"
+      assert second_headers["nats-msg-id"] == "msg-2"
+      refute Keyword.has_key?(first_opts, :reply_to)
+      reply = Keyword.fetch!(second_opts, :reply_to)
+      assert second_headers["nats-batch-commit"] == "1"
+
+      send(publisher, {
+        :msg,
+        %{
+          topic: reply,
+          body: ~s({"stream":"TWITCH_INGRESS","seq":2,"batch":"#{batch_id}","count":2})
+        }
+      })
+
+      _state = :sys.get_state(publisher)
+      ctx = :persistent_term.get({Publisher, :ctx, 0})
+      assert :atomics.get(ctx.counter, 1) == 0
+      assert :ets.info(ctx.table, :size) == 0
+    end
+  end
+
+  defp restore_env(key, nil), do: Application.delete_env(:ingress, key)
+  defp restore_env(key, value), do: Application.put_env(:ingress, key, value)
+
+  defp prepared_headers(opts) do
+    for [key, ": ", value, "\r\n"] <- Keyword.fetch!(opts, :headers), into: %{} do
+      {String.downcase(key), IO.iodata_to_binary(value)}
     end
   end
 end

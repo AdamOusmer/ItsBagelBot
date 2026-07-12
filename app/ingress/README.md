@@ -56,6 +56,13 @@ to standard.
 | `TWITCH_CLIENT_ID` / `TWITCH_CLIENT_SECRET` | App credentials for Helix.                             | (required)                                    |
 | `TWITCH_CONDUIT_ID`                 | Conduit to own; empty: reuse first existing or create.         | (empty)                                       |
 | `TWITCH_CONDUIT_SHARD_COUNT`        | Desired shard count.                                           | `2`                                           |
+| `TWITCH_CONDUIT_MAX_SHARDS`         | Hard ceiling for manual and automatic shard counts.            | `20`                                          |
+| `INGRESS_CAPACITY_POD_RATED_EPS`    | Measured cached-path capacity per live ingress pod.             | `140000`                                      |
+| `INGRESS_CAPACITY_NATS_RATED_EPS`   | Live-cluster direct-hub PubAck capacity shared by the fleet.     | `44000`                                       |
+| `INGRESS_CAPACITY_WEBSOCKET_RATED_EPS` | Rated read/decode capacity per conduit WebSocket.            | `12500`                                       |
+| `INGRESS_CAPACITY_TARGET_UTILIZATION_PCT` | Autoscale and dashboard operating target.                  | `75`                                          |
+| `INGRESS_PUBLISH_BATCH_SIZE`          | Scheduler-local atomic JetStream cohort size.                  | `128`                                         |
+| `INGRESS_PUBLISH_BATCH_WAIT_MS`       | Maximum wait for a partially full publish cohort.               | `1`                                           |
 | `TWITCH_EVENTSUB_WSS_URL`           | EventSub WebSocket endpoint.                                   | `wss://eventsub.wss.twitch.tv/ws?...`         |
 | `TWITCH_SPECIAL_USER_IDS`           | Comma-separated chatter IDs that always go premium.            | (empty)                                       |
 | `NATS_HOST` / `NATS_PORT`           | NATS connection.                                               | `127.0.0.1` / `4222`                          |

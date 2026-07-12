@@ -17,9 +17,9 @@ import (
 //   - the durable JetStream event plane, authenticated with the shared BUS
 //     account via NATS_USER / NATS_PASSWORD.
 //
-// The RPC + cache plane prefers the node-local leaf: an ordered server list plus
-// DontRandomize means a reconnect always retries the leaf first before spilling
-// to the hub. The JetStream plane instead dials the hub directly (busURL reads
+// The RPC + cache plane stays on the leaf cluster. The nats-leaf Service prefers
+// the same-node endpoint and falls back to another leaf when needed; it never
+// spills RPC onto the stream hub. The JetStream plane dials the hub directly (busURL reads
 // NATS_HUB_URL): the durable streams live on the hub, so routing JetStream
 // through the leaf is only an extra forwarding hop (the leaf runs no JetStream).
 // This mirrors the console lib's rpc/bus split in
@@ -30,33 +30,21 @@ import (
 // domain-qualified to reach the authoritative hub streams.
 func JSDomain() string { return env.Get("NATS_JS_DOMAIN", "hub") }
 
-// serverList returns the ordered NATS endpoint list, leaf first then hub, as the
-// comma-joined string nats.Connect parses into an ordered server pool. override
-// (the url a caller passes through, e.g. NATS_URL / NATS_RPC_URL) is used as the
-// leaf endpoint when the explicit NATS_LEAF_URL/NATS_HUB_URL split is absent, so
-// local development and pre-migration manifests keep working against a single
-// server.
+// serverList returns the RPC endpoint. In split-plane production the leaf
+// Service itself supplies same-node preference and cross-node leaf failover;
+// adding the hub here would violate the RPC-only leaf / streams-only hub split.
+// With no split configured, override keeps local development on one server.
 func serverList(override string) string {
 	leaf := env.Get("NATS_LEAF_URL", "")
-	hub := env.Get("NATS_HUB_URL", "")
-
-	// No leaf/hub split configured: honor whatever single endpoint the caller
-	// passed (local dev points this at 127.0.0.1).
-	if leaf == "" && hub == "" {
-		return override
-	}
-	if leaf == "" {
-		leaf = override
-	}
-	if hub == "" || hub == leaf {
+	if leaf != "" {
 		return leaf
 	}
-	return leaf + "," + hub
+	return override
 }
 
 // baseOptions are shared by every connection the fleet opens, core or
-// JetStream: endless reconnects, an ordered (leaf-first) server pool that is
-// never shuffled, a client name for monitoring, and the supplied credentials.
+// JetStream: endless reconnects, a stable endpoint that is never shuffled, a
+// client name for monitoring, and the supplied credentials.
 // Local development runs against an open server, so empty credentials are fine;
 // the broker is the one enforcing them.
 func baseOptions(name, user, pass string) []nats.Option {
@@ -144,14 +132,14 @@ func busOptions(name string) []nats.Option {
 }
 
 // Connect opens a core NATS connection for request-reply RPC and ephemeral
-// subscriptions on the per-service account, leaf-first. name identifies the
+// subscriptions on the per-service account through the leaf tier. name identifies the
 // service in NATS monitoring.
 func Connect(url string, name string) (*nats.Conn, error) {
 	return nats.Connect(serverList(url), rpcOptions(name)...)
 }
 
-// jsDomainOption is the JetStream connect option that targets the hub domain
-// over the leaf link. Exposed as a slice so callers can splice it into a
+// jsDomainOption is the JetStream connect option that targets the hub domain.
+// Exposed as a slice so callers can splice it into a
 // JetStreamConfig.ConnectOptions / nc.JetStream call.
 func jsDomainOption() []nats.JSOpt {
 	return []nats.JSOpt{nats.Domain(JSDomain())}
@@ -168,9 +156,9 @@ func RPCURL(busURL string) string {
 // busURL resolves the JetStream-plane endpoint. The durable streams live on the
 // hub, so for JetStream the node-local leaf is only an extra forwarding hop:
 // dial the hub directly when NATS_HUB_URL is set (mirroring busServerList in
-// console/shared/lib/server/nats.ts). Falls back to the leaf-first serverList
+// console/shared/lib/server/nats.ts). Falls back to the configured endpoint
 // when no hub is configured (local dev / single-endpoint deploys). RPC stays
-// leaf-first via RPCURL/serverList.
+// on the leaf via RPCURL/serverList.
 func busURL(url string) string {
 	if hub := env.Get("NATS_HUB_URL", ""); hub != "" {
 		return hub

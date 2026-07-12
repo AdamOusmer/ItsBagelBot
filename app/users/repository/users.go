@@ -17,8 +17,6 @@ import (
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/cache"
 	"ItsBagelBot/pkg/db"
-
-	"github.com/ThreeDotsLabs/watermill/message"
 )
 
 const (
@@ -58,10 +56,10 @@ type Users struct {
 	client *ent.Client
 	views  *cache.Cache[UserView]
 	packer domaincrypto.Packer
-	pub    message.Publisher
+	pub    bus.Publisher
 }
 
-func NewUsers(client *ent.Client, packer domaincrypto.Packer, pub message.Publisher) *Users {
+func NewUsers(client *ent.Client, packer domaincrypto.Packer, pub bus.Publisher) *Users {
 	return &Users{
 		client: client,
 		views:  cache.New[UserView](userCacheCapacity, userCacheTTL),

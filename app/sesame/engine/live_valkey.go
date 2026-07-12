@@ -14,7 +14,6 @@ import (
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/cache"
 
-	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/nats-io/nats.go"
 	"github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
@@ -58,7 +57,7 @@ type LiveConfig struct {
 type ValkeyLiveStore struct {
 	client valkey.Client
 	nc     *nats.Conn
-	pub    message.Publisher
+	pub    bus.Publisher
 	cfg    LiveConfig
 	log    *zap.Logger
 
@@ -73,7 +72,7 @@ type ValkeyLiveStore struct {
 
 // NewValkeyLiveStore builds a live store. pub publishes the re-check job onto the
 // outgress system lane; nc carries the projector RPC and the invalidation fan-out.
-func NewValkeyLiveStore(client valkey.Client, nc *nats.Conn, pub message.Publisher, cfg LiveConfig) *ValkeyLiveStore {
+func NewValkeyLiveStore(client valkey.Client, nc *nats.Conn, pub bus.Publisher, cfg LiveConfig) *ValkeyLiveStore {
 	if cfg.CacheTTL <= 0 {
 		cfg.CacheTTL = 30 * time.Second
 	}

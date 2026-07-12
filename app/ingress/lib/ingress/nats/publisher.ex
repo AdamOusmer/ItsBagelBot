@@ -1,55 +1,21 @@
 defmodule Ingress.Nats.Publisher do
   @moduledoc """
-  One shard of the asynchronous, pipelined JetStream publisher for the lane
-  firehose. `Ingress.Nats.PublisherPool` runs `publish_connections` of these,
-  each bound to its own BUS connection.
+  One scheduler-local, bounded JetStream microbatch publisher.
 
-  ## Why async, and why sharded
+  Calls arriving within `publish_batch_wait_ms` are staged into one NATS atomic
+  batch and receive one commit PubAck for the whole cohort. A quiet lane is sent
+  individually rather than paying batch setup overhead. The caller returns once
+  its message is on the wire; PubAcks are reconciled asynchronously.
 
-  The synchronous `Gnat.request/4` path capped in-flight publishes at the
-  dispatcher's worker-pool size: each worker blocked on one broker PubAck, so
-  peak throughput was `pool_size / ack_latency` — at ~100 ms PubAck only a few
-  thousand events/second, no matter how many shards or pods, because every
-  connection converged on the same shared JetStream ceiling.
+  Every event retains its `Nats-Msg-Id`. If a batch is rejected (including one
+  containing a duplicate ID), its final PubAck is lost, or the batch times out,
+  the collector republishes every member individually under the same IDs. That
+  turns an ambiguous commit into deterministic per-message PubAcks: already
+  committed members ack as duplicates and missing members are stored now.
 
-  Async publishing decouples in-flight count from the worker pool: each publish
-  is a core NATS `pub` carrying a private reply subject and a `Nats-Msg-Id`
-  dedup header, and the broker's PubAck lands asynchronously on that reply
-  subject. `max_pending` publishes ride the wire at once, so ack latency no
-  longer throttles throughput — it only sets how many acks are outstanding
-  (`max_pending / ack_latency` events/second).
-
-  But a single async publisher still funnels every `Gnat.pub` through one Gnat
-  connection process, and every PubAck through one collector process — one BEAM
-  process tops out well below a 150-200k/s target. So the pool shards the load
-  across N independent connections, each with its own collector, pending table
-  and inbox namespace. `enqueue/3` picks the caller's current scheduler shard
-  without a shared round-robin hotspot. Production runs one connection per
-  online BEAM scheduler, so every configured connection carries the same direct
-  path.
-
-  ## Backpressure and reliability
-
-  Backpressure is an explicit per-shard bound: once `max_pending` publishes are
-  outstanding on a shard, further publishes routed there are refused
-  (`{:error, :overloaded}`) and the caller drops, so memory stays bounded under
-  a broker stall instead of buffering without limit. The `Nats-Msg-Id` still
-  collapses retries and Twitch redeliveries at the broker, so a PubAck that
-  errors or never arrives within `ack_timeout_ms` is safely re-published (up to
-  `publish_attempts`) before the event is dropped with a metric.
-
-  ## Per-shard shape
-
-    * a public `:set` ETS table, one row per outstanding publish, owned
-      by the collector so it is torn down if the collector dies.
-    * an `:atomics` array holding the outstanding count, monotonic id allocator
-      and batched metric counters, so neither publishes nor PubAcks need a
-      telemetry-process round-trip per event.
-    * a `:persistent_term` context (`{__MODULE__, :ctx, index}`) so `enqueue/3`,
-      called from many workers concurrently, reads the counter, prefix, table
-      and connection without copying.
-    * the collector `GenServer` owns the reply-subject subscription, applies
-      acks, and runs the timeout sweep.
+  `Ingress.Nats.PublisherPool` runs one publisher and BUS connection per online
+  BEAM scheduler. Admission and batching are serialized only inside that local
+  shard, with bounded fallback probing when a shard is full or disconnected.
   """
 
   use GenServer
@@ -58,38 +24,20 @@ defmodule Ingress.Nats.Publisher do
 
   alias Ingress.{Config, Metrics, Nats}
 
-  # `:atomics` indexes: outstanding publishes, the monotonic reply-id allocator,
-  # and counters flushed to New Relic on the periodic gauge tick. Sending one
-  # New Relic cast per PubAck makes telemetry itself a firehose at production
-  # rates; atomics preserve the exact totals with constant mailbox traffic.
   @idx_pending 1
   @idx_next_id 2
   @idx_acked 3
   @idx_retried 4
   @idx_failed 5
+  @idx_batches 6
+  @idx_batch_fallbacks 7
 
-  # Reply subjects live under `_INBOX.>`, which the BUS account already permits
-  # (the old `Gnat.request` path used the same namespace); the random token
-  # keeps one shard's acks from landing on another shard's or pod's collector.
   @inbox_prefix "_INBOX.ingresspub."
-
   @sweep_interval_ms 500
   @gauge_interval_ms 5_000
 
-  ## Hot path (runs in the caller — dispatcher workers, squash tasks)
+  ## Scheduler-local admission
 
-  @doc """
-  Admit one publish into a shard's in-flight window, or refuse it.
-
-  The shard is chosen by scheduler id, keeping the normal path on a local
-  connection without a shared counter or per-message hash. Only saturation or
-  a disconnected shard triggers a bounded probe for spare sibling capacity.
-  `publish_connections` normally equals the online scheduler count.
-
-  Returns `:ok` once the event is on the wire (its PubAck is now awaited
-  asynchronously), `{:error, :overloaded}` when its shard is full, or
-  `{:error, :not_connected}` when its connection cannot publish.
-  """
   @spec enqueue(String.t(), iodata(), String.t() | nil) :: :ok | {:error, term()}
   def enqueue(subject, json, dedup_id) do
     case :persistent_term.get({__MODULE__, :n}, 0) do
@@ -102,9 +50,6 @@ defmodule Ingress.Nats.Publisher do
     end
   end
 
-  # The scheduler-local shard is always attempted first. Only an unavailable or
-  # saturated shard probes siblings, so the normal path remains contention-free
-  # while spare connections absorb imbalance instead of producing false drops.
   defp enqueue_from(_index, 0, _subject, _json, _dedup_id, nil),
     do: {:error, :not_connected}
 
@@ -131,76 +76,28 @@ defmodule Ingress.Nats.Publisher do
     end
   end
 
-  defp admit(%{counter: counter, max_pending: max_pending} = ctx, subject, json, dedup_id) do
-    if :atomics.add_get(counter, @idx_pending, 1) > max_pending do
-      :atomics.sub(counter, @idx_pending, 1)
-      {:error, :overloaded}
-    else
-      do_publish(ctx, subject, json, dedup_id)
-    end
-  end
-
-  defp do_publish(
-         %{counter: counter, prefix: prefix, table: table, conn: conn},
+  defp admit(
+         %{pid: pid, conn: conn, counter: counter, max_pending: max_pending},
          subject,
          json,
          dedup_id
        ) do
-    id = :atomics.add_get(counter, @idx_next_id, 1)
-    now = System.monotonic_time(:millisecond)
-    :ets.insert(table, {id, subject, json, dedup_id, 1, now})
-
-    case pub(conn, subject, json, reply_subject(prefix, id), dedup_id) do
-      :ok ->
-        :ok
-
-      {:error, reason} ->
-        :ets.delete(table, id)
+    cond do
+      :atomics.add_get(counter, @idx_pending, 1) > max_pending ->
         :atomics.sub(counter, @idx_pending, 1)
-        {:error, reason}
-    end
-  rescue
-    # The collector died and took its ETS table with it (or a stale context is
-    # briefly live during its restart). Treat as a transient outage and undo the
-    # admission on the same counter the hot path incremented.
-    ArgumentError ->
-      :atomics.sub(counter, @idx_pending, 1)
-      {:error, :not_connected}
-  end
+        {:error, :overloaded}
 
-  defp pub(conn, subject, json, reply, dedup_id) do
-    Gnat.pub(conn, subject, json, [reply_to: reply] ++ dedup_headers(dedup_id))
-  catch
-    # The BUS connection process is gone; its supervisor reconnects on its own
-    # backoff and the sweep will retry this id.
-    :exit, _ -> {:error, :not_connected}
-  end
+      not Process.alive?(pid) or is_nil(Process.whereis(conn)) ->
+        :atomics.sub(counter, @idx_pending, 1)
+        {:error, :not_connected}
 
-  defp dedup_headers(nil), do: []
-  defp dedup_headers(dedup_id), do: [headers: [{"Nats-Msg-Id", dedup_id}]]
-
-  defp reply_subject(prefix, id), do: prefix <> Integer.to_string(id)
-
-  @doc false
-  # Parse the reply id back out of a PubAck's topic, or nil if it does not
-  # belong to this collector's inbox namespace.
-  @spec id_from_topic(String.t(), String.t()) :: non_neg_integer() | nil
-  def id_from_topic(topic, prefix) do
-    plen = byte_size(prefix)
-
-    case topic do
-      <<^prefix::binary-size(plen), rest::binary>> ->
-        case Integer.parse(rest) do
-          {id, ""} -> id
-          _ -> nil
-        end
-
-      _ ->
-        nil
+      true ->
+        GenServer.cast(pid, {:enqueue, subject, json, dedup_id})
+        :ok
     end
   end
 
-  ## Collector
+  ## Collector lifecycle
 
   @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts) do
@@ -225,14 +122,21 @@ defmodule Ingress.Nats.Publisher do
       write_concurrency: true
     ])
 
-    counter = :atomics.new(5, signed: false)
+    counter = :atomics.new(7, signed: false)
     token = :crypto.strong_rand_bytes(9) |> Base.url_encode64(padding: false)
     prefix = @inbox_prefix <> token <> "."
     max_pending = Config.publish_max_pending()
 
     :persistent_term.put(
       {__MODULE__, :ctx, index},
-      %{counter: counter, prefix: prefix, table: table, conn: conn, max_pending: max_pending}
+      %{
+        pid: self(),
+        counter: counter,
+        prefix: prefix,
+        table: table,
+        conn: conn,
+        max_pending: max_pending
+      }
     )
 
     state = %{
@@ -241,12 +145,20 @@ defmodule Ingress.Nats.Publisher do
       table: table,
       counter: counter,
       prefix: prefix,
-      sub_topic: prefix <> "*",
+      sub_topic: prefix <> ">",
       sid: nil,
       conn_ref: nil,
+      socket: nil,
+      tls: false,
       max_pending: max_pending,
       ack_timeout_ms: Config.publish_ack_timeout_ms(),
-      max_attempts: Config.publish_attempts()
+      max_attempts: Config.publish_attempts(),
+      batch_size: Config.publish_batch_size(),
+      batch_wait_ms: Config.publish_batch_wait_ms(),
+      write_many: Keyword.get(opts, :write_many),
+      queue: [],
+      queue_count: 0,
+      flush_token: nil
     }
 
     send(self(), :connect)
@@ -256,35 +168,57 @@ defmodule Ingress.Nats.Publisher do
   end
 
   @impl true
+  def handle_cast({:enqueue, subject, json, dedup_id}, state) do
+    state = %{
+      state
+      | queue: [{subject, json, dedup_id, nil} | state.queue],
+        queue_count: state.queue_count + 1
+    }
+
+    if state.queue_count >= state.batch_size do
+      {:noreply, flush_queue(state)}
+    else
+      {:noreply, ensure_flush_scheduled(state)}
+    end
+  end
+
+  @impl true
+  def handle_info({:flush_batch, token}, %{flush_token: token} = state),
+    do: {:noreply, flush_queue(state)}
+
+  def handle_info({:flush_batch, _stale_token}, state), do: {:noreply, state}
+
+  @impl true
   def handle_info(:connect, state), do: {:noreply, ensure_subscribed(state)}
 
-  # The BUS connection died: our reply-subject subscription went with it. Drop
-  # the stale sid and resubscribe once the connection supervisor reconnects.
   def handle_info({:DOWN, ref, :process, _pid, _reason}, %{conn_ref: ref} = state) do
     send(self(), :connect)
-    {:noreply, %{state | sid: nil, conn_ref: nil}}
+    {:noreply, %{state | sid: nil, conn_ref: nil, socket: nil}}
   end
 
   def handle_info({:DOWN, _ref, :process, _pid, _reason}, state), do: {:noreply, state}
 
-  # A PubAck (or JetStream error) for one outstanding publish.
   def handle_info({:msg, %{topic: topic, body: body}}, state) do
-    case id_from_topic(topic, state.prefix) do
+    case ack_key(topic, state.prefix) do
       nil -> {:noreply, state}
-      id -> {:noreply, apply_ack(id, body, state)}
+      key -> {:noreply, apply_ack(key, body, state)}
     end
   end
 
   def handle_info(:sweep, state) do
-    deadline = System.monotonic_time(:millisecond) - state.ack_timeout_ms
+    deadline = now_ms() - state.ack_timeout_ms
 
-    match = [
-      {{:"$1", :"$2", :"$3", :"$4", :"$5", :"$6"}, [{:"=<", :"$6", deadline}],
-       [{{:"$1", :"$2", :"$3", :"$4", :"$5"}}]}
-    ]
+    for row <- :ets.tab2list(state.table) do
+      case row do
+        {id, :single, subject, json, dedup_id, attempts, timestamp} when timestamp <= deadline ->
+          retry_or_drop(id, subject, json, dedup_id, attempts, :ack_timeout, state)
 
-    for {id, subject, json, dedup_id, attempts} <- :ets.select(state.table, match) do
-      retry_or_drop(id, subject, json, dedup_id, attempts, :ack_timeout, state)
+        {batch_id, :batch, entries, timestamp} when timestamp <= deadline ->
+          fallback_batch(batch_id, entries, :ack_timeout, state)
+
+        _ ->
+          :ok
+      end
     end
 
     schedule(:sweep, @sweep_interval_ms)
@@ -297,17 +231,295 @@ defmodule Ingress.Nats.Publisher do
     flush_metric(state.counter, @idx_acked, "Nats/PublishAcked")
     flush_metric(state.counter, @idx_retried, "Nats/PublishRetried")
     flush_metric(state.counter, @idx_failed, "Nats/PublishFailed")
+    flush_metric(state.counter, @idx_batches, "Nats/PublishBatches")
+    flush_metric(state.counter, @idx_batch_fallbacks, "Nats/PublishBatchFallbacks")
 
     Metrics.event("Nats/PublishInflight", %{
       shard: state.index,
       pending: pending,
       max_pending: state.max_pending,
-      utilization_pct: round(pending * 100 / state.max_pending)
+      utilization_pct: round(pending * 100 / state.max_pending),
+      queued: state.queue_count,
+      batch_size: state.batch_size
     })
 
     schedule(:gauge, @gauge_interval_ms)
     {:noreply, state}
   end
+
+  ## Batch assembly and wire writes
+
+  defp ensure_flush_scheduled(%{flush_token: token} = state) when not is_nil(token), do: state
+
+  defp ensure_flush_scheduled(state) do
+    token = make_ref()
+    schedule({:flush_batch, token}, state.batch_wait_ms)
+    %{state | flush_token: token}
+  end
+
+  defp flush_queue(%{queue_count: 0} = state), do: %{state | flush_token: nil}
+
+  defp flush_queue(state) do
+    entries = Enum.reverse(state.queue)
+    state = %{state | queue: [], queue_count: 0, flush_token: nil}
+
+    case entries do
+      [entry] -> send_individual_entries([entry], state)
+      _ -> send_atomic_batch(entries, state)
+    end
+  end
+
+  defp send_atomic_batch(entries, state) do
+    batch_id = :crypto.strong_rand_bytes(12) |> Base.url_encode64(padding: false)
+    count = length(entries)
+
+    publishes =
+      entries
+      |> Enum.with_index(1)
+      |> Enum.map(fn {{subject, json, dedup_id, _from}, sequence} ->
+        headers = batch_headers(batch_id, sequence, sequence == count, dedup_id)
+        reply = if sequence == count, do: batch_reply_subject(state.prefix, batch_id), else: nil
+        {subject, json, reply, headers}
+      end)
+
+    result = pub_many(state, publishes)
+
+    case result do
+      :ok ->
+        wire_entries =
+          Enum.map(entries, fn {subject, json, dedup_id, _from} -> {subject, json, dedup_id} end)
+
+        :ets.insert(state.table, {batch_id, :batch, wire_entries, now_ms()})
+        :atomics.add(state.counter, @idx_batches, 1)
+        reply_entries(entries, :ok)
+        state
+
+      {:error, _reason} ->
+        # The staged prefix was never committed (or its final send was
+        # ambiguous). Individual MsgId publishes reconcile it safely.
+        send_individual_entries(entries, state)
+    end
+  end
+
+  defp send_individual_entries(entries, state) do
+    Enum.each(entries, fn {subject, json, dedup_id, from} ->
+      id = :atomics.add_get(state.counter, @idx_next_id, 1)
+      :ets.insert(state.table, {id, :single, subject, json, dedup_id, 1, now_ms()})
+
+      case pub(
+             state.conn,
+             subject,
+             json,
+             single_reply_subject(state.prefix, id),
+             dedup_headers(dedup_id)
+           ) do
+        :ok ->
+          reply_entry(from, :ok)
+
+        {:error, reason} ->
+          :ets.delete(state.table, id)
+          :atomics.sub(state.counter, @idx_pending, 1)
+          :atomics.add(state.counter, @idx_failed, 1)
+          reply_entry(from, {:error, reason})
+      end
+    end)
+
+    state
+  end
+
+  defp batch_headers(batch_id, sequence, commit?, dedup_id) do
+    [
+      {"Nats-Batch-Id", batch_id},
+      {"Nats-Batch-Sequence", Integer.to_string(sequence)},
+      {"Nats-Required-Api-Level", "2"}
+    ]
+    |> maybe_add_header("Nats-Batch-Commit", if(commit?, do: "1", else: nil))
+    |> maybe_add_header("Nats-Msg-Id", dedup_id)
+  end
+
+  defp dedup_headers(nil), do: []
+  defp dedup_headers(dedup_id), do: [{"Nats-Msg-Id", dedup_id}]
+
+  defp maybe_add_header(headers, _key, nil), do: headers
+  defp maybe_add_header(headers, key, value), do: [{key, value} | headers]
+
+  defp pub(conn, subject, json, nil, headers), do: safe_pub(conn, subject, json, headers: headers)
+
+  defp pub(conn, subject, json, reply, headers),
+    do: safe_pub(conn, subject, json, reply_to: reply, headers: headers)
+
+  defp safe_pub(conn, subject, json, opts) do
+    Gnat.pub(conn, subject, json, opts)
+  catch
+    :exit, _ -> {:error, :not_connected}
+  end
+
+  # Gnat owns TLS negotiation, reconnects, subscriptions and inbound parsing.
+  # PublisherPool connections are otherwise dedicated to this batcher, so one
+  # ordered socket send can carry the entire cohort without 128 GenServer calls.
+  defp pub_many(%{write_many: writer}, publishes) when is_function(writer, 1),
+    do: writer.(publishes)
+
+  defp pub_many(%{socket: nil, conn: conn}, publishes) do
+    Enum.reduce_while(publishes, :ok, fn {subject, json, reply, headers}, :ok ->
+      case pub(conn, subject, json, reply, headers) do
+        :ok -> {:cont, :ok}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
+  end
+
+  defp pub_many(state, publishes) do
+    commands =
+      Enum.map(publishes, fn {subject, json, reply, headers} ->
+        Gnat.Command.build(:pub, subject, json, prepared_pub_opts(reply, headers))
+      end)
+
+    if state.tls do
+      :ssl.send(state.socket, commands)
+    else
+      :gen_tcp.send(state.socket, commands)
+    end
+  catch
+    :exit, _ -> {:error, :not_connected}
+  end
+
+  defp prepared_pub_opts(nil, headers), do: [headers: :cow_http.headers(headers)]
+
+  defp prepared_pub_opts(reply, headers),
+    do: [headers: :cow_http.headers(headers), reply_to: reply]
+
+  defp reply_entries(entries, result) do
+    Enum.each(entries, fn {_subject, _json, _dedup_id, from} -> reply_entry(from, result) end)
+  end
+
+  defp reply_entry(nil, _result), do: :ok
+  defp reply_entry(from, result), do: GenServer.reply(from, result)
+
+  ## PubAck reconciliation
+
+  defp apply_ack({:batch, batch_id}, body, state) do
+    case :ets.lookup(state.table, batch_id) do
+      [{^batch_id, :batch, entries, _timestamp}] ->
+        case Nats.parse_pub_ack(body) do
+          :ok -> resolve_batch(batch_id, length(entries), state)
+          {:error, reason} -> fallback_batch(batch_id, entries, reason, state)
+        end
+
+      [] ->
+        state
+    end
+  end
+
+  defp apply_ack({:single, id}, body, state) do
+    case :ets.lookup(state.table, id) do
+      [{^id, :single, subject, json, dedup_id, attempts, _timestamp}] ->
+        case Nats.parse_pub_ack(body) do
+          :ok -> resolve_single(id, state)
+          {:error, reason} -> retry_or_drop(id, subject, json, dedup_id, attempts, reason, state)
+        end
+
+      [] ->
+        state
+    end
+  end
+
+  defp resolve_batch(batch_id, count, state) do
+    :ets.delete(state.table, batch_id)
+    :atomics.sub(state.counter, @idx_pending, count)
+    :atomics.add(state.counter, @idx_acked, count)
+    state
+  end
+
+  defp resolve_single(id, state) do
+    :ets.delete(state.table, id)
+    :atomics.sub(state.counter, @idx_pending, 1)
+    :atomics.add(state.counter, @idx_acked, 1)
+    state
+  end
+
+  defp fallback_batch(batch_id, entries, _reason, state) do
+    case :ets.take(state.table, batch_id) do
+      [] ->
+        state
+
+      [_row] ->
+        :atomics.add(state.counter, @idx_batch_fallbacks, 1)
+        :atomics.add(state.counter, @idx_retried, length(entries))
+
+        entries
+        |> Enum.map(fn {subject, json, dedup_id} -> {subject, json, dedup_id, nil} end)
+        |> send_individual_entries(state)
+    end
+  end
+
+  defp retry_or_drop(id, subject, json, dedup_id, attempts, _reason, state) do
+    if attempts < state.max_attempts do
+      :ets.insert(
+        state.table,
+        {id, :single, subject, json, dedup_id, attempts + 1, now_ms()}
+      )
+
+      :atomics.add(state.counter, @idx_retried, 1)
+
+      _ =
+        pub(
+          state.conn,
+          subject,
+          json,
+          single_reply_subject(state.prefix, id),
+          dedup_headers(dedup_id)
+        )
+
+      :ok
+    else
+      :ets.delete(state.table, id)
+      :atomics.sub(state.counter, @idx_pending, 1)
+      :atomics.add(state.counter, @idx_failed, 1)
+      :ok
+    end
+  end
+
+  defp ack_key(topic, prefix) do
+    plen = byte_size(prefix)
+
+    case topic do
+      <<^prefix::binary-size(plen), "b.", batch_id::binary>> when batch_id != "" ->
+        {:batch, batch_id}
+
+      <<^prefix::binary-size(plen), "s.", id::binary>> ->
+        parse_single_id(id)
+
+      <<^prefix::binary-size(plen), id::binary>> ->
+        # Backwards-compatible parser for in-flight replies across a rolling
+        # upgrade and for the public id_from_topic/2 contract.
+        parse_single_id(id)
+
+      _ ->
+        nil
+    end
+  end
+
+  defp parse_single_id(id) do
+    case Integer.parse(id) do
+      {value, ""} -> {:single, value}
+      _ -> nil
+    end
+  end
+
+  @doc false
+  @spec id_from_topic(String.t(), String.t()) :: non_neg_integer() | nil
+  def id_from_topic(topic, prefix) do
+    case ack_key(topic, prefix) do
+      {:single, id} -> id
+      _ -> nil
+    end
+  end
+
+  defp single_reply_subject(prefix, id), do: prefix <> "s." <> Integer.to_string(id)
+  defp batch_reply_subject(prefix, batch_id), do: prefix <> "b." <> batch_id
+
+  ## Connection and metrics
 
   defp ensure_subscribed(state) do
     case Process.whereis(state.conn) do
@@ -320,14 +532,15 @@ defmodule Ingress.Nats.Publisher do
 
         case Gnat.sub(state.conn, self(), state.sub_topic) do
           {:ok, sid} ->
-            Logger.info("nats async publisher #{state.index} awaiting acks on #{state.sub_topic}")
-            %{state | sid: sid, conn_ref: ref}
+            {socket, tls?} = connection_writer(pid)
+            Logger.info("nats batch publisher #{state.index} awaiting acks on #{state.sub_topic}")
+            %{state | sid: sid, conn_ref: ref, socket: socket, tls: tls?}
 
           other ->
             Process.demonitor(ref, [:flush])
 
             Logger.warning(
-              "nats async publisher #{state.index} subscribe failed: #{inspect(other)}"
+              "nats batch publisher #{state.index} subscribe failed: #{inspect(other)}"
             )
 
             schedule(:connect, 500)
@@ -340,47 +553,14 @@ defmodule Ingress.Nats.Publisher do
       state
   end
 
-  defp apply_ack(id, body, state) do
-    case :ets.lookup(state.table, id) do
-      # Already resolved — a timeout retry raced this ack, or it is a stray.
-      [] ->
-        state
-
-      [{^id, subject, json, dedup_id, attempts, _ts}] ->
-        case Nats.parse_pub_ack(body) do
-          :ok ->
-            resolve(id, state)
-
-          {:error, reason} ->
-            retry_or_drop(id, subject, json, dedup_id, attempts, reason, state)
-        end
-
-        state
+  defp connection_writer(pid) do
+    case :sys.get_state(pid) do
+      %{socket: socket, connection_settings: %{tls: true}} -> {socket, true}
+      %{socket: socket} -> {socket, false}
+      _ -> {nil, false}
     end
-  end
-
-  defp resolve(id, state) do
-    :ets.delete(state.table, id)
-    :atomics.sub(state.counter, @idx_pending, 1)
-    :atomics.add(state.counter, @idx_acked, 1)
-  end
-
-  # Re-publish under the same reply id and `Nats-Msg-Id` (dedup makes the retry
-  # a no-op at the broker if the first copy did land) until the attempt budget
-  # is spent, then drop with a metric so the outstanding count stays honest.
-  defp retry_or_drop(id, subject, json, dedup_id, attempts, _reason, state) do
-    if attempts < state.max_attempts do
-      :ets.insert(state.table, {id, subject, json, dedup_id, attempts + 1, now_ms()})
-      :atomics.add(state.counter, @idx_retried, 1)
-      _ = pub(state.conn, subject, json, reply_subject(state.prefix, id), dedup_id)
-      :ok
-    else
-      :ets.delete(state.table, id)
-      :atomics.sub(state.counter, @idx_pending, 1)
-      :atomics.add(state.counter, @idx_failed, 1)
-
-      :ok
-    end
+  catch
+    :exit, _ -> {nil, false}
   end
 
   defp now_ms, do: System.monotonic_time(:millisecond)

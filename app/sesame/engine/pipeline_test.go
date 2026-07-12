@@ -8,6 +8,7 @@ import (
 	"ItsBagelBot/app/sesame/module"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/projection"
+	"ItsBagelBot/pkg/bus"
 
 	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/bytedance/sonic"
@@ -29,19 +30,18 @@ type fakePublisher struct {
 	failErr error
 }
 
-func (p *fakePublisher) Publish(subject string, msgs ...*message.Message) error {
+func (p *fakePublisher) PublishOwned(_ context.Context, subject string, payload []byte) error {
 	if p.failErr != nil {
 		return p.failErr
 	}
-	for _, m := range msgs {
-		var om outgress.Message
-		_ = sonic.Unmarshal(m.Payload, &om)
-		p.got = append(p.got, captured{subject: subject, msg: om})
-	}
+	var om outgress.Message
+	_ = sonic.Unmarshal(payload, &om)
+	p.got = append(p.got, captured{subject: subject, msg: om})
 	return nil
 }
 
-func (p *fakePublisher) Close() error { return nil }
+func (p *fakePublisher) Flush(context.Context) error { return nil }
+func (p *fakePublisher) Close() error                { return nil }
 
 // fakeReader is a configurable projection.Reader.
 type fakeReader struct {
@@ -72,7 +72,7 @@ const (
 	standardSubj = "outgress.standard"
 )
 
-func newPipelineWith(pub message.Publisher, reader projection.Reader, mods ...module.Module) *Pipeline {
+func newPipelineWith(pub bus.Publisher, reader projection.Reader, mods ...module.Module) *Pipeline {
 	reg := NewRegistry(zap.NewNop(), mods...)
 	d := Deps{Proj: reader, Live: liveAlways{}, Cooldown: NoopCooldown{}, Pub: pub, Log: zap.NewNop()}
 	return NewPipeline(d, reg, Config{OutgressPremium: premiumSubj, OutgressStandard: standardSubj})

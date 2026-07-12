@@ -22,7 +22,7 @@ defmodule Ingress.AdminRpc do
   use Gnat.Server
   require Logger
 
-  alias Ingress.ShardScaler
+  alias Ingress.{Capacity, ShardScaler}
 
   @call_timeout_ms 2_000
 
@@ -40,6 +40,7 @@ defmodule Ingress.AdminRpc do
   def snapshot do
     scaler = ShardScaler.status()
     desired = scaler.desired
+    nodes = [node() | Node.list()] |> Enum.uniq()
 
     # Enumerate all currently-registered shards (not just 0..desired-1); during
     # a shrink a shard may still be stopping, and the snapshot should include it
@@ -69,7 +70,8 @@ defmodule Ingress.AdminRpc do
     %{
       generated_at: DateTime.utc_now(),
       reporter: node(),
-      nodes: [node() | Node.list()],
+      nodes: nodes,
+      capacity: Capacity.snapshot(length(nodes)),
       # shard_count mirrors desired_count for backwards compatibility with
       # any console code that reads the old field name.
       shard_count: desired,

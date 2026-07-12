@@ -2,7 +2,6 @@
 // reused across requests (connection setup is the expensive part; a warm conn
 // keeps request/reply in the low-ms range, which is what the p99 budget needs).
 import newrelic from 'newrelic';
-import { createConnection } from 'node:net';
 import {
   connect,
   JSONCodec,
@@ -52,23 +51,17 @@ function positiveNumber(value: string | undefined, fallback: number): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-function localLeafReady(address: string, timeoutMs: number): Promise<boolean> {
-  const separator = address.lastIndexOf(':');
-  const host = separator > 0 ? address.slice(0, separator) : address;
-  const port = separator > 0 ? Number(address.slice(separator + 1)) : 4222;
-  return new Promise((resolve) => {
-    const socket = createConnection({ host, port });
-    let settled = false;
-    const finish = (ready: boolean) => {
-      if (settled) return;
-      settled = true;
-      socket.destroy();
-      resolve(ready);
-    };
-    socket.setTimeout(timeoutMs, () => finish(false));
-    socket.once('connect', () => finish(true));
-    socket.once('error', () => finish(false));
-  });
+export async function localLeafReady(healthURL: string, timeoutMs: number): Promise<boolean> {
+  try {
+    const response = await fetch(healthURL, {
+      signal: AbortSignal.timeout(timeoutMs),
+      cache: 'no-store'
+    });
+    await response.body?.cancel();
+    return response.ok;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -84,7 +77,8 @@ export function enableLeafFailback(nc: NatsConnection): void {
   const intervalMs = positiveNumber(process.env.NATS_FAILBACK_INTERVAL_MS, 30_000);
   const required = positiveNumber(process.env.NATS_FAILBACK_SUCCESSES, 3);
   const timeoutMs = positiveNumber(process.env.NATS_FAILBACK_PROBE_TIMEOUT_MS, 1_000);
-  const localAddress = process.env.NATS_LOCAL_LEAF_ADDR ?? 'nats-leaf-local:4222';
+  const healthURL =
+    process.env.NATS_LOCAL_LEAF_HEALTH_URL ?? 'http://nats-leaf-local:8222/healthz';
   let consecutive = 0;
   let running = false;
 
@@ -97,7 +91,7 @@ export function enableLeafFailback(nc: NatsConnection): void {
         consecutive = 0;
         return;
       }
-      if (!(await localLeafReady(localAddress, timeoutMs))) {
+      if (!(await localLeafReady(healthURL, timeoutMs))) {
         consecutive = 0;
         return;
       }
@@ -139,11 +133,7 @@ function fallbackServer(override: string | undefined): string {
 // Ordered RPC pool. Legacy NATS_LEAF_URL values are intentionally ignored so
 // a stale secret cannot override the strict local-only NATS_RPC_URL.
 function rpcServerList(override: string | undefined): string[] {
-  const leaf = fallbackServer(override);
-  const hub = process.env.NATS_HUB_URL;
-  const list = [leaf];
-  if (hub && hub !== leaf) list.push(hub);
-  return list;
+  return [fallbackServer(override)];
 }
 
 function busServerList(override: string | undefined): string[] {
@@ -156,7 +146,7 @@ function options(role: Role): ConnectionOptions {
     servers: isRpc
       ? rpcServerList(process.env.NATS_RPC_URL)
       : busServerList(process.env.NATS_URL),
-    // Honor local-leaf-first RPC order on the initial dial and reconnect.
+    // RPC stays on the leaf tier; the Service handles cross-node leaf failover.
     noRandomize: true,
     name: `${process.env.NATS_CLIENT_NAME ?? 'console'}-${role}`,
     maxReconnectAttempts: -1,

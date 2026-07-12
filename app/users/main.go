@@ -106,7 +106,7 @@ func openStore(ctx context.Context, log *zap.Logger) (*ent.Client, *crypto.Crypt
 
 // connectBus provisions the JetStream streams, opens the RPC connection, and
 // builds the bus publisher.
-func connectBus(ctx context.Context, natsURL string, log *zap.Logger) (*nats.Conn, message.Publisher) {
+func connectBus(ctx context.Context, natsURL string, log *zap.Logger) (*nats.Conn, bus.Publisher) {
 	fatalIf(log, bus.EnsureStreams(ctx, natsURL, bus.DataStreams, log), "failed to provision jetstream streams")
 
 	nc, err := bus.Connect(bus.RPCURL(natsURL), serviceName)

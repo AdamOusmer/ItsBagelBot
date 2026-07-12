@@ -126,15 +126,14 @@ spec:
           env:
             - name: NATS_HOST
               value: nats
-            # Split planes: the BUS / JetStream connection (the twitch.ingress
-            # firehose consumer) dials the hub directly (NATS_HUB_URL) so it never
-            # pays a leaf forwarding hop; the RPC + cache plane (NATS_RPC_URL /
-            # NATS_LEAF_URL) stays on the node-local leaf. NATS_URL is the
-            # local-dev fallback only.
+            # Durable BUS/JetStream traffic goes directly to the hub. The leaf
+            # cluster is the independent Core NATS RPC tier only; sending stream
+            # PubAcks through it adds a cross-leaf round trip and stalls large
+            # windows.
             - name: NATS_URL
-              value: nats://nats-leaf:4222
+              value: tls://nats:4222
             - name: NATS_HUB_URL
-              value: nats://nats:4222
+              value: tls://nats:4222
             # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS server
             # TLS cert now that NATS is out of the Linkerd mesh; read as RootCAs by
             # pkg/bus (Go services) and the console nats lib (TS).
@@ -144,9 +143,11 @@ spec:
                   name: fleet-ca
                   key: ca.pem
             - name: NATS_RPC_URL
-              value: nats://nats-leaf:4222
+              value: tls://nats-leaf:4222
             - name: NATS_LEAF_URL
-              value: nats://nats-leaf:4222
+              value: tls://nats-leaf:4222
+            - name: SSL_CERT_FILE
+              value: /etc/nats-ca/ca.pem
             - name: NODE_NAME
               valueFrom:
                 fieldRef:
@@ -162,15 +163,17 @@ spec:
             # double-processing.
             - name: SESAME_CONSUMER_NAME
               value: worker
-            # Sized for the 50-100k firehose: the per-message path (Valkey
-            # lookups, automod, outgress publish) is ~5-20ms, so sustaining tens
-            # of thousands of events/second needs thousands of in-flight
-            # routines. A high MIN keeps that concurrency resident instead of
-            # waiting on the +1-per-tick autoscaler to climb from a cold floor.
+            # Production acceptance found one Watermill subscription serialized
+            # the pod at 20/s through the leaf. The fleet-owned concurrent hub
+            # subscriber sustains four queue subscriptions with 50 handler slots
+            # each. Keep this measured connection floor resident before KEDA
+            # polls; increasing per-connection routines beyond 50 worsened p95.
             - name: SESAME_MIN_ROUTINES
               value: "50"
             - name: SESAME_MAX_ROUTINES
-              value: "200"
+              value: "50"
+            - name: SESAME_MIN_CONSUMERS
+              value: "4"
             - name: SESAME_MAX_CONSUMERS
               value: "4"
             - name: SESAME_SCALE_UP_AFTER
@@ -193,17 +196,19 @@ spec:
             # and TWITCH_SPECIAL_USER_IDS — the same values the worker read.
             - secretRef:
                 name: sesame-env
+          volumeMounts:
+            - name: fleet-ca
+              mountPath: /etc/nats-ca
+              readOnly: true
           ports:
             - containerPort: 8080
           resources:
             requests:
-              # The KEDA cpu trigger below is Utilization, which the HPA
-              # computes against this request. At the old 50m the 75% threshold
-              # fired at 37m — background noise for a CPU-bound consumer — so
-              # the CPU trigger alone pinned sesame at maxReplicaCount. 200m
-              # puts the trigger at 150m/pod: real sustained load, while lag
-              # stays the primary scale signal.
-              cpu: 200m
+              # Full-path production tests used 220-339m while waiting on shared
+              # NATS/Valkey, whereas the pure engine reached ~450m. A 500m
+              # request makes the 75% trigger fire on actual engine CPU
+              # saturation (~375m), not on I/O wait; lag remains primary.
+              cpu: 500m
               memory: 128Mi
             limits:
               cpu: "2"
@@ -226,6 +231,10 @@ spec:
             httpGet: {path: /healthz, port: 8080}
             failureThreshold: 18
             periodSeconds: 5
+      volumes:
+        - name: fleet-ca
+          configMap:
+            name: fleet-ca
       terminationGracePeriodSeconds: 45
 ---
 apiVersion: policy/v1
@@ -271,7 +280,7 @@ spec:
         scaleUp:
           stabilizationWindowSeconds: 0
           policies:
-            - {type: Pods, value: 2, periodSeconds: 60}
+            - {type: Pods, value: 2, periodSeconds: 30}
         scaleDown:
           stabilizationWindowSeconds: 300
           policies:
@@ -287,13 +296,18 @@ spec:
         account: BUS
         stream: TWITCH_INGRESS
         consumer: worker_twitch_ingress_event_premium
-        lagThreshold: "30"
-        activationLagThreshold: "5"
+        # Four resident connections measured >=8k commands/s per pod under the
+        # shared dependency load. Premium owns 25% of that capacity.
+        lagThreshold: "2000"
+        activationLagThreshold: "500"
     - type: nats-jetstream
       metadata:
         natsServerMonitoringEndpoint: nats.production.svc.cluster.local:8222
         account: BUS
         stream: TWITCH_INGRESS
         consumer: worker_twitch_ingress_event_standard
-        lagThreshold: "150"
-        activationLagThreshold: "20"
+        # Do not add a whole pod for breadcrumbs: at the five-pod floor this
+        # scales only beyond ~40k queued standard events (about one second of
+        # conservative measured drain capacity).
+        lagThreshold: "8000"
+        activationLagThreshold: "2000"

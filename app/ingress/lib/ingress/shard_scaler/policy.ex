@@ -7,51 +7,38 @@ defmodule Ingress.ShardScaler.Policy do
   Twitch conduits load-balance notifications across all enabled shards, so
   aggregate load — not any single shard's — is the signal that matters: the
   target is `ceil(aggregate / usable capacity per shard)`, sized so shards
-  run at `@target_utilization_pct` of their rating and keep the rest as
-  burst cushion.
+  run at `Ingress.Capacity.target_utilization_pct/0` of their measured rating
+  and keep the rest as burst cushion.
 
   A shard's per-event work is deliberately thin: JSON-decode the frame and
   enqueue into `Ingress.Dispatcher` (filtering, re-encode, and NATS publish
-  happen in the dispatcher's worker pool). That is tens of microseconds per
-  event, >10k ev/s on paper. `@shard_rated_eps` is rated far below that so
-  the websocket read loop never falls behind Twitch even with GC, sidecars,
-  and noisy neighbours on the small fleet cores.
+  happen in the dispatcher's worker pool). The socket rating is 12,500 ev/s
+  and the scaler does not add another shard until the current sockets would
+  exceed the 75% target (9,375 ev/s each). This keeps sockets dense instead of
+  opening giant WebSockets for breadcrumb traffic.
 
   Hysteresis state is a `%{low: n, high: n}` map of consecutive ticks spent
   needing more/fewer shards; at most one side is non-zero at any time.
 
-  ## Socket rating vs. the shared NATS budget
+  ## Socket rating vs. pod processing capacity
 
   Two capacities gate the pipeline and they are NOT the same number, so the
   dashboard shows them independently:
 
-    * The websocket read+decode+enqueue path is rated far above
-      `@shard_rated_eps` — benchmarks put one shard's decode/dispatch near
-      12,500 ev/s, with a 10,000 ev/s (80%) operational target. That is a
-      *per-shard* ceiling that grows with shard count.
-    * JetStream publish is a *shared* ceiling: every shard and pod converges on
-      the same broker, so adding shards does not add publish capacity. Its safe
-      aggregate is measured per deployment.
+    * The websocket read+decode+enqueue rating is a *per-shard* ceiling that
+      grows with shard count and is the only capacity used to choose a conduit
+      shard count.
+    * The cached-chat full-path rating is a *per-pod* ceiling that grows with
+      live ingress nodes. Adding a WebSocket does not add schedulers or NATS
+      publisher connections, so it must not be treated as pod capacity.
 
-  `@shard_rated_eps` stays deliberately low here. Raising it to the 12,500
-  socket ceiling would make the autoscaler run fewer, hotter shards on the
-  assumption that shard count buys end-to-end capacity — false while NATS is the
-  bottleneck. It is only safe to raise after a sustained 50k/60s acceptance test
-  passes (0 publish errors, PubAck p95 < 20 ms, consumer lag < 1 s), once the
-  async publisher (`Ingress.Nats.Publisher`) and memory-backed streams have
-  lifted the shared ceiling. Until then the socket rating and the NATS budget
-  are surfaced for observability only, not fed into the shard-count math.
+  Both values and the 75% target come from `Ingress.Capacity`, which is also
+  serialized into the admin snapshot. The scaler and dashboard therefore use
+  the same limits without duplicating constants.
   """
 
-  # Sustained events/second one shard is rated for. Conservative ~5-10% of
-  # the theoretical decode+enqueue throughput.
-  @shard_rated_eps 1_000
-  # Fraction of the rating we aim to use; the remainder (≥20%) is standing
-  # cushion for spam bursts between autoscale ticks.
-  @target_utilization_pct 80
-  # Load samples count notifications over this rolling window (must match
-  # the `Ingress.LoadCounter` default used by `Ingress.ShardSession`).
-  @load_window_seconds 60
+  alias Ingress.Capacity
+
   # Consecutive ticks of undercapacity required before scaling up — unless
   # aggregate load exceeds the fleet's full rating, which scales immediately.
   @scale_up_ticks 2
@@ -66,8 +53,8 @@ defmodule Ingress.ShardScaler.Policy do
   # that case from alerting on routine traffic.
   @concentration_min_pct 25
 
-  def shard_rated_eps, do: @shard_rated_eps
-  def target_utilization_pct, do: @target_utilization_pct
+  def shard_rated_eps, do: Capacity.websocket_rated_eps()
+  def target_utilization_pct, do: Capacity.target_utilization_pct()
   def scale_up_ticks, do: @scale_up_ticks
   def scale_down_ticks, do: @scale_down_ticks
   def concentration_ratio, do: @concentration_ratio
@@ -76,13 +63,13 @@ defmodule Ingress.ShardScaler.Policy do
   @doc """
   Events per window one shard is rated for (100% utilization).
   """
-  def rated_per_window, do: @shard_rated_eps * @load_window_seconds
+  def rated_per_window, do: shard_rated_eps() * Capacity.load_window_seconds()
 
   @doc """
   Events per window we budget per shard when sizing the fleet
   (rating × target utilization).
   """
-  def budget_per_window, do: div(rated_per_window() * @target_utilization_pct, 100)
+  def budget_per_window, do: div(rated_per_window() * target_utilization_pct(), 100)
 
   @doc """
   Shards needed to serve `aggregate_load` (events/window) at the target

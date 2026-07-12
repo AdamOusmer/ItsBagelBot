@@ -3,7 +3,8 @@
 The fleet runs per-account isolation (see [nats-auth.conf](nats-auth.conf)): a
 shared **BUS** account for the JetStream/event plane and one **`<SERVICE>_RPC`**
 account per service for the request/reply + cache plane. Every runtime holds two
-connections (BUS creds + per-service RPC creds) and prefers the node-local leaf.
+connections: BUS credentials connect directly to the TLS hub, while per-service
+RPC credentials connect to the node-local leaf tier.
 
 This file is the operator checklist for the secrets that live **outside** the
 repo. The bcrypt hashes are consumed by the `nats` and `nats-leaf` containers
@@ -30,7 +31,7 @@ service's Doppler project.
 
 ## 2. `nats-auth-env` secret keys (broker side)
 
-All values are **bcrypt hashes** except the `*_REMOTE_URL_*` entries.
+All values are **bcrypt hashes**.
 
 **BUS user hashes (11):**
 `NATS_BCRYPT_USERS_BUS`, `NATS_BCRYPT_COMMANDS_BUS`, `NATS_BCRYPT_MODULES_BUS`,
@@ -48,26 +49,8 @@ All values are **bcrypt hashes** except the `*_REMOTE_URL_*` entries.
 
 **System account (1):** `NATS_BCRYPT_SYS`
 
-**Leaf link hashes — hub authorization, one per account (12):**
-`NATS_BCRYPT_LEAF_BUS`, `NATS_BCRYPT_LEAF_USERS`, `NATS_BCRYPT_LEAF_COMMANDS`,
-`NATS_BCRYPT_LEAF_LOYALTY`,
-`NATS_BCRYPT_LEAF_MODULES`, `NATS_BCRYPT_LEAF_PROJECTOR`,
-`NATS_BCRYPT_LEAF_OUTGRESS`, `NATS_BCRYPT_LEAF_WORKER`,
-`NATS_BCRYPT_LEAF_DASHBOARD`, `NATS_BCRYPT_LEAF_ADMIN`,
-`NATS_BCRYPT_LEAF_TWITCH_INGRESS`, `NATS_BCRYPT_LEAF_TRANSACTIONS`,
-`NATS_BCRYPT_LEAF_GATEWAY`
-
-**Leaf remote URLs — leaf side, one per account (12):** each embeds the
-*plaintext* leaf password matching the hash above:
-`NATS_LEAF_REMOTE_URL_BUS`, `NATS_LEAF_REMOTE_URL_USERS`,
-`NATS_LEAF_REMOTE_URL_COMMANDS`, `NATS_LEAF_REMOTE_URL_LOYALTY`, `NATS_LEAF_REMOTE_URL_MODULES`,
-`NATS_LEAF_REMOTE_URL_PROJECTOR`, `NATS_LEAF_REMOTE_URL_OUTGRESS`,
-`NATS_LEAF_REMOTE_URL_WORKER`, `NATS_LEAF_REMOTE_URL_DASHBOARD`,
-`NATS_LEAF_REMOTE_URL_ADMIN`, `NATS_LEAF_REMOTE_URL_TWITCH_INGRESS`,
-`NATS_LEAF_REMOTE_URL_TRANSACTIONS`, `NATS_LEAF_REMOTE_URL_GATEWAY`
-
-Form: `nats-leaf://leaf_<account>:<plaintext>@nats.production.svc.cluster.local:7422`
-e.g. `NATS_LEAF_REMOTE_URL_USERS=nats-leaf://leaf_users:<pw>@nats.production.svc.cluster.local:7422`
+There are no leaf-link credentials. Leaves are the standalone RPC cluster and
+all BUS/JetStream clients connect directly to the hub.
 
 ## 3. Per-service Doppler keys (app side)
 
@@ -100,8 +83,8 @@ htpasswd -bnBC 11 "" "$PLAINTEXT" | tr -d ':\n' | sed 's/^\$2y/\$2a/'
 `nats-auth.conf` hot-reloads via the config-reloader SIGHUP, so accounts can be
 staged before clients cut over.
 
-1. Add all keys above to `nats-auth-env`; push config (Flux) → SIGHUP reload.
-   The leaf opens one remote per account; verify all 10 links come up.
+1. Push the broker and leaf account config (Flux) and verify `leafz` reports no
+   hub remotes; cross-node RPC uses leaf cluster routes only.
 2. Ship the app code (already in this branch); `NATS_RPC_*` falls back to
    `NATS_USER`/`PASSWORD`, so apps keep working on their BUS user until RPC creds
    exist.

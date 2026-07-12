@@ -8,6 +8,7 @@ import (
 	"ItsBagelBot/app/sesame/module"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/projection"
+	"ItsBagelBot/pkg/bus"
 
 	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/bytedance/sonic"
@@ -35,7 +36,7 @@ func hostileCohort(t *testing.T, n int, text string) *message.Message {
 	return message.NewMessage("cohort", body)
 }
 
-func raidPipeline(t *testing.T, pub message.Publisher, enforce, shield bool) *Pipeline {
+func raidPipeline(t *testing.T, pub bus.Publisher, enforce, shield bool) *Pipeline {
 	t.Helper()
 	d := Deps{
 		Proj: fakeReader{}, Live: liveAlways{}, Cooldown: NoopCooldown{},
