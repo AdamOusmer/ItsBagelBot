@@ -96,6 +96,19 @@ func TestCustomAnnounceEmptySkipped(t *testing.T) {
 	assert.Empty(t, collectDispatch(p, chatCtx("!so", "moderator")))
 }
 
+func TestCustomPinUntilStreamEnds(t *testing.T) {
+	p := customPipeline("/pin Current speed: {args}", "everyone")
+	got := collectDispatch(p, chatCtx("!speed 42 km/h", ""))
+	require.Len(t, got, 1)
+	assert.Equal(t, outgress.TypePin, got[0].Type)
+	assert.Equal(t, "Current speed: 42 km/h", got[0].Text)
+
+	msg, err := buildOutgressMessage(&got[0])
+	require.NoError(t, err)
+	assert.Equal(t, outgress.TypePin, msg.Type)
+	assert.Equal(t, "Current speed: 42 km/h", chatMessageText(t, msg))
+}
+
 func TestCustomPlainChatStillEmits(t *testing.T) {
 	p := customPipeline("hello {sender}", "everyone")
 	got := collectDispatch(p, chatCtx("!so", ""))

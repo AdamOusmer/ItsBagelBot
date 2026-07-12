@@ -22,6 +22,19 @@ func (w *Worker) processAPI(ctx context.Context, payload outgress.Message) error
 }
 
 func (w *Worker) execute(ctx context.Context, payload outgress.Message) error {
+	res, err := w.executeRequest(ctx, payload)
+	if err != nil {
+		return err
+	}
+	defer drainResponse(res)
+
+	return w.helixResult(ctx, payload, res)
+}
+
+// executeRequest performs one Twitch call and returns the still-open response.
+// Most actions use execute, which consumes status and drains it immediately;
+// compound actions such as /pin need to decode a successful response first.
+func (w *Worker) executeRequest(ctx context.Context, payload outgress.Message) (*http.Response, error) {
 	started := time.Now()
 	defer recordStageDuration(ctx, "outgress.twitch_ms", started)
 
@@ -29,11 +42,9 @@ func (w *Worker) execute(ctx context.Context, payload outgress.Message) error {
 		twitch.HelixCall{Method: payload.Method, Endpoint: payload.Endpoint, Body: payload.Payload})
 	if err != nil {
 		w.log.Error("twitch request failed", zap.Error(err))
-		return err
+		return nil, err
 	}
-	defer drainResponse(res)
-
-	return w.helixResult(ctx, payload, res)
+	return res, nil
 }
 
 // helixResult maps the Helix response status to the lane's ack/nack decision:

@@ -46,6 +46,9 @@ var typeRoutes = map[string]helixRoute{
 	// the bot's user:bot/action grants and the broadcaster's channel:bot grant.
 	outgress.TypeAnnounce: {http.MethodPost, "/helix/chat/announcements", outgress.AsApp},
 	outgress.TypeShoutout: {http.MethodPost, "/helix/chat/shoutouts", outgress.AsApp},
+	// Pin is a two-call action handled by processPin: send the chat message, then
+	// PUT its returned message id here. Both calls use the cloud-bot app token.
+	outgress.TypePin: {http.MethodPut, "/helix/chat/pins", outgress.AsApp},
 	// Shield Mode is a moderator action (PUT /helix/moderation/shield_mode → bot
 	// user token, moderator:manage:shield_mode). Like ban it needs broadcaster_id +
 	// moderator_id on the query string, handled in processShieldMode.
@@ -65,6 +68,7 @@ var helixHandlers = map[string]func(*Worker, context.Context, outgress.Message) 
 	outgress.TypeChat:       (*Worker).processChat,
 	outgress.TypeAnnounce:   (*Worker).processAnnounce,
 	outgress.TypeShoutout:   (*Worker).processShoutout,
+	outgress.TypePin:        (*Worker).processPin,
 	outgress.TypeClip:       (*Worker).processClip,
 	outgress.TypeBan:        (*Worker).processBan,
 	outgress.TypeTimeout:    (*Worker).processBan,
