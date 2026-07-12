@@ -30,6 +30,10 @@ func (p *Publisher) PublishOwned(_ context.Context, topic string, payload []byte
 	return nil
 }
 
+func (p *Publisher) PublishOwnedWithID(ctx context.Context, topic, _ string, payload []byte) error {
+	return p.PublishOwned(ctx, topic, payload)
+}
+
 func (p *Publisher) Flush(context.Context) error { return nil }
 func (p *Publisher) Close() error                { return nil }
 

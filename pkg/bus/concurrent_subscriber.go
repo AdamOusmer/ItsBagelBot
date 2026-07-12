@@ -26,6 +26,7 @@ type concurrentDurableSubscriber struct {
 	group    string
 	delay    wmnats.Delay
 	ackWait  time.Duration
+	progress time.Duration
 	log      *zap.Logger
 
 	mu      sync.Mutex
@@ -51,7 +52,7 @@ func newConcurrentDurableSubscriber(cfg concurrentSubscriberConfig) *concurrentD
 	}
 	s := &concurrentDurableSubscriber{
 		nc: cfg.nc, js: cfg.js, stream: cfg.stream, consumer: cfg.consumer, group: cfg.group,
-		delay: cfg.delay, ackWait: 30 * time.Second, log: cfg.log,
+		delay: cfg.delay, ackWait: 30 * time.Second, progress: time.Second, log: cfg.log,
 		subs: make(map[*nats.Subscription]struct{}), closeCh: make(chan struct{}),
 	}
 	// Keep the WaitGroup positive until Close has unsubscribed every callback;
@@ -136,23 +137,36 @@ func (s *concurrentDurableSubscriber) awaitResult(natsMsg *nats.Msg, msg *messag
 	defer s.acks.Done()
 	timer := time.NewTimer(s.ackWait)
 	defer timer.Stop()
+	progress := time.NewTicker(s.progress)
+	defer progress.Stop()
 
-	select {
-	case <-msg.Acked():
-		// Ack is deliberately asynchronous. The handler has completed, and the
-		// consumer contract is at-least-once: a disconnect that loses this Core
-		// NATS ack correctly causes redelivery, where broker/output dedup folds it.
-		// AckSync adds one JetStream round trip to every event and was the measured
-		// delivery ceiling despite idle CPU.
-		if err := natsMsg.Ack(); err != nil {
-			s.log.Warn("durable message ack failed", zap.String("subject", natsMsg.Subject), zap.Error(err))
+	for {
+		select {
+		case <-msg.Acked():
+			// Double-ack so a successful return proves the consumer cursor advanced.
+			// The callback itself remains concurrent, so this network wait does not
+			// serialize delivery as Watermill's old callback did.
+			if err := natsMsg.AckSync(nats.AckWait(2 * time.Second)); err != nil {
+				s.log.Warn("durable message confirmed ack failed; requesting replay", zap.String("subject", natsMsg.Subject), zap.Error(err))
+				s.nack(natsMsg)
+			}
+			return
+		case <-msg.Nacked():
+			s.nack(natsMsg)
+			return
+		case <-timer.C:
+			// The server's AckWait owns redelivery. Do not emit another NAK after the
+			// deadline because it may already have redelivered to another replica.
+			return
+		case <-s.closeCh:
+			return
+		case <-progress.C:
+			// Slow RPC-backed commands retain ownership instead of being delivered to
+			// another pod. For the normal sub-millisecond path this ticker never fires.
+			if err := natsMsg.InProgress(); err != nil {
+				s.log.Warn("durable message progress ack failed", zap.String("subject", natsMsg.Subject), zap.Error(err))
+			}
 		}
-	case <-msg.Nacked():
-		s.nack(natsMsg)
-	case <-timer.C:
-		// The server's AckWait owns redelivery. Do not emit another NAK after the
-		// deadline because it may already have redelivered to another replica.
-	case <-s.closeCh:
 	}
 }
 

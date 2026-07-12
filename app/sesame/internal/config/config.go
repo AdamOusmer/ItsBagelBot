@@ -51,7 +51,8 @@ type Config struct {
 	// to finish after SIGTERM stops the consumer pulling. Keep it below the pod's
 	// terminationGracePeriodSeconds so the drain completes before the kubelet
 	// SIGKILLs the process. A handler that outlives the deadline is abandoned and
-	// its event redelivered (the dedup claim is released on the nack path).
+	// its event redelivered; outputs already stored retain deterministic NATS IDs
+	// and are folded by the broker.
 	DrainTimeout time.Duration
 
 	// Outgress lane subjects the pipeline publishes onto, chosen from the event's

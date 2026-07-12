@@ -72,6 +72,10 @@ func (p *rawPublisher) PublishOwned(_ context.Context, subject string, payload [
 	return nil
 }
 
+func (p *rawPublisher) PublishOwnedWithID(ctx context.Context, subject, _ string, payload []byte) error {
+	return p.PublishOwned(ctx, subject, payload)
+}
+
 func (p *rawPublisher) Flush(context.Context) error { return nil }
 func (p *rawPublisher) Close() error                { return nil }
 

@@ -174,7 +174,10 @@ func laneConsumerConfig(subject, group, name string, maxDeliveries int) *nats.Co
 		Description:   "ItsBagelBot bounded work-queue lane consumer",
 		DeliverPolicy: nats.DeliverAllPolicy,
 		AckPolicy:     nats.AckExplicitPolicy,
-		AckWait:       30 * time.Second,
+		// Handlers send InProgress once per second, so a short AckWait bounds the
+		// replay gap after a disconnect without duplicating genuinely slow work.
+		// It also stays inside the perishable outgress stream's 5s dedup window.
+		AckWait:       4 * time.Second,
 		MaxDeliver:    maxDeliveries,
 		FilterSubject: subject,
 		ReplayPolicy:  nats.ReplayInstantPolicy,
