@@ -57,6 +57,8 @@ export interface CacheFabricOptions {
   scopes: ScopeMap;
   /** Injectable for tests/DEMO. Defaults to New Relic; pass null to disable. */
   metrics?: CacheMetrics | null;
+  /** Maximum live L1 entries. Defaults to SwrCache's general-purpose 5,000;
+   *  process-level app fabrics should set an app-specific bound. */
   capacity?: number;
   /** Tap fired for every applied invalidation (scope + broadcaster id) AFTER the
    *  local cache is evicted. The dashboard forwards it to connected browsers over

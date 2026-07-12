@@ -121,6 +121,11 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            # Operator traffic has a much smaller working set than dashboard
+            # traffic. The default is also 250; declaring it here makes the
+            # production memory/retention tradeoff explicit and tunable.
+            - name: ADMIN_L1_CACHE_CAPACITY
+              value: "250"
             - name: NATS_ADMIN_SUBJECT
               value: twitch.ingress.admin.shards.get
             - name: NATS_STATUS_SUBJECT_PREFIX

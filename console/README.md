@@ -117,6 +117,21 @@ The whole production topology is intentionally not reproduced by a single local 
 
 Some integration tests detect optional environment variables such as `NATS_URL` or `VALKEY_TEST_ADDR` and skip when their dependency is unavailable. Never commit credentials: production secrets are injected at runtime rather than stored in the repository.
 
+### Server-side L1 cache capacity
+
+The dashboard and admin each own a process-local `SwrCache`. Their limits are
+configured independently so the smaller admin working set does not retain the
+same warmed-at-rest footprint as the public dashboard.
+
+| Application | Environment variable | Default | Rationale |
+| --- | --- | ---: | --- |
+| Dashboard | `DASHBOARD_L1_CACHE_CAPACITY` | 1,000 | Allows roughly a dozen key families per active board while bounding per-replica RSS. |
+| Admin | `ADMIN_L1_CACHE_CAPACITY` | 250 | Covers operator snapshots and short-lived user/page reads without using the shared 5,000-entry default. |
+
+Both values must be positive decimal integers. Changing a capacity only changes
+LRU retention; push invalidation, stale-while-revalidate, single-flight, and
+stale-if-error behavior are unchanged.
+
 ***
 
 ## Documentation
