@@ -82,7 +82,8 @@ defmodule Ingress.Config do
   def dispatcher_broadcaster_sweep_ms,
     do: Application.get_env(:ingress, :dispatcher_broadcaster_sweep_ms, 60_000)
 
-  # How long one JetStream lane publish waits for its PubAck before retrying.
+  # How long an outstanding async lane publish waits for its PubAck before the
+  # collector re-publishes it (see Ingress.Nats.Publisher).
   def publish_ack_timeout_ms,
     do: Application.get_env(:ingress, :publish_ack_timeout_ms, 2_000)
 
@@ -90,6 +91,23 @@ defmodule Ingress.Config do
   # Nats-Msg-Id dedup header makes retries safe.
   def publish_attempts,
     do: Application.get_env(:ingress, :publish_attempts, 3)
+
+  # Ceiling on outstanding (un-acked) async lane publishes per publisher shard.
+  # This is the publisher's backpressure valve: at the measured PubAck latency
+  # it sets peak publish throughput (publish_connections × max_pending /
+  # ack_latency), and it bounds the memory held for in-flight events when the
+  # broker stalls. Once reached, further publishes routed to that shard are shed
+  # as overloaded rather than buffered without limit.
+  def publish_max_pending,
+    do: Application.get_env(:ingress, :publish_max_pending, 8_192)
+
+  # Number of independent BUS connections (each with its own ack collector) the
+  # lane firehose is sharded across. Every publish is a GenServer.call into one
+  # Gnat connection process and every PubAck is handled by one collector, so a
+  # single connection tops out well below a 150-200k/s target; sharding spreads
+  # both across N processes and cores. Publishes are routed by scheduler id.
+  def publish_connections,
+    do: Application.get_env(:ingress, :publish_connections, 4)
 
   # Gnat connection_settings (a leaf-first list of server maps) for the two
   # planes: :nats is the twitch_ingress RPC account, :nats_bus the shared BUS

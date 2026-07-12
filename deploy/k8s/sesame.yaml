@@ -147,10 +147,15 @@ spec:
             # double-processing.
             - name: SESAME_CONSUMER_NAME
               value: worker
+            # Sized for the 50-100k firehose: the per-message path (Valkey
+            # lookups, automod, outgress publish) is ~5-20ms, so sustaining tens
+            # of thousands of events/second needs thousands of in-flight
+            # routines. A high MIN keeps that concurrency resident instead of
+            # waiting on the +1-per-tick autoscaler to climb from a cold floor.
             - name: SESAME_MIN_ROUTINES
-              value: "4"
+              value: "50"
             - name: SESAME_MAX_ROUTINES
-              value: "25"
+              value: "200"
             - name: SESAME_MAX_CONSUMERS
               value: "4"
             - name: SESAME_SCALE_UP_AFTER

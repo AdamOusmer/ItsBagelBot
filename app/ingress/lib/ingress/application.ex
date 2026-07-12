@@ -20,6 +20,11 @@ defmodule Ingress.Application do
       account), registered as `:gnat`.
     * `Gnat.ConnectionSupervisor` - BUS-plane NATS connection (shared BUS
       account), registered as `:gnat_bus`; carries the twitch.ingress.* firehose.
+    * `Ingress.Nats.PublisherPool` - a pool of asynchronous, pipelined JetStream
+      publishers + ack multiplexers for the lane firehose, sharded across N BUS
+      connections so publish throughput scales past one connection's process
+      ceiling and is bounded by the in-flight window, not one blocked worker per
+      PubAck.
     * `Gnat.ConsumerSupervisor` (invalidation) - subscription to cache
       invalidation subject.
     * `Gnat.ConsumerSupervisor` (admin) - request-reply read endpoint for
@@ -66,16 +71,23 @@ defmodule Ingress.Application do
          # of the default hash ring, which clusters them (4/1 observed).
          distribution_strategy: Ingress.ShardDistribution
        ]},
-      # RPC plane (:gnat): the twitch_ingress account. Carries the admin/scale/
-      # autoscale/conduit RPC endpoints, the cache-invalidation consumer and the
-      # broadcaster-status request. Leaf-first server list comes from config.
+      # RPC plane (:gnat): the twitch_ingress account, on the node-local leaf.
+      # Carries the admin/scale/autoscale/conduit RPC endpoints, the
+      # cache-invalidation consumer and the broadcaster-status request.
       connection_child(:nats_connection, :gnat, Config.nats()),
-      # BUS plane (:gnat_bus): the shared BUS account. Carries only the
-      # twitch.ingress.* firehose publishes (Ingress.Nats), which the JetStream
-      # streams capture. Kept separate so ingress holds no JetStream/event-plane
-      # rights on its RPC account.
+      # BUS plane (:gnat_bus): the shared BUS account, connected DIRECT to the hub
+      # (not the leaf) since it carries only the twitch.ingress.* firehose
+      # publishes (Ingress.Nats) captured by the hub's JetStream streams. Kept a
+      # separate account so ingress holds no JetStream/event-plane rights on its
+      # RPC account. Ingress.Nats.PublisherPool opens further hub connections for
+      # the acked firehose; this one carries the fire-and-forget status publishes.
       connection_child(:nats_bus_connection, :gnat_bus, Config.nats_bus()),
       Ingress.NatsFailback,
+      # Sharded asynchronous ack multiplexer for lane publishes
+      # (Ingress.Nats.publish_acked): a pool of BUS connections + collectors so
+      # publish throughput scales past a single connection's process ceiling.
+      # Must start before the Dispatcher and Squash, which publish through it.
+      Ingress.Nats.PublisherPool,
       {Task.Supervisor, name: Ingress.BroadcasterCache.TaskSupervisor},
       # Runs squash-cohort publishes (JetStream-acked) off the Squash process,
       # so a slow broker never stalls the sweep.
