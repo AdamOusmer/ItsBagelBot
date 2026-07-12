@@ -9,7 +9,12 @@ defmodule Ingress.NatsFailback do
 
   use GenServer
 
-  @connections [:gnat, :gnat_bus]
+  # Only the RPC plane (:gnat) is failed back to the node-local leaf. The BUS
+  # plane (:gnat_bus) dials the hub directly (hub-direct firehose), whose
+  # server_name is "nats-N", never "<node>--…", so local_connection?/2 would
+  # always treat it as displaced and recycle it every 3 checks (~90s) forever.
+  # It has no local-leaf to fail back to — leave it pinned to the hub.
+  @connections [:gnat]
 
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
