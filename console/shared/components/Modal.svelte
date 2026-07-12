@@ -60,7 +60,13 @@
   <div class="modal-shell" data-overlay style="z-index: {zIndex}" use:portal>
     <!-- Backdrop is a real button so dismissal is native (no static-role / key
          warnings); dialog semantics live on the card, its sibling. -->
-    <button class="modal-backdrop" type="button" aria-label={closeLabel} onclick={tryClose}></button>
+    <button
+      class="modal-backdrop"
+      type="button"
+      aria-label={closeLabel}
+      data-cursor="off"
+      onclick={tryClose}
+    ></button>
     <div
       class="modal-card"
       role="dialog"
