@@ -1,6 +1,6 @@
 <script lang="ts">
   import { page } from '$app/state';
-  import { AuroraBg, Icon, getI18n } from '@bagel/shared';
+  import { AuroraBg, LightField, Icon, getI18n } from '@bagel/shared';
   import LangSwitch from '$lib/components/LangSwitch.svelte';
 
   const { t } = getI18n();
@@ -24,6 +24,7 @@
 </script>
 
 <AuroraBg />
+<div class="starfield" aria-hidden="true"><LightField /></div>
 
 <div class="lang-corner"><LangSwitch /></div>
 
@@ -69,6 +70,15 @@
 </main>
 
 <style>
+  /* Mote field sits above the aurora (z-index 0) but below content (z-index 1).
+     Own stacking context so LightField's z-index:-1 canvas stays contained. */
+  .starfield {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+  }
+
   .lang-corner {
     position: fixed;
     top: max(16px, env(safe-area-inset-top, 0px));
