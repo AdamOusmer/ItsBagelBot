@@ -7,7 +7,7 @@ defmodule Ingress.Nats do
       lost). An asynchronous, pipelined JetStream publish (see
       `Ingress.Nats.Publisher`): the event goes on the wire immediately carrying
       a private reply subject and a `Nats-Msg-Id`, and its PubAck is reconciled
-      later by a single ack multiplexer. Up to `publish_max_pending` publishes
+      later by that publisher shard's ack collector. Up to `publish_max_pending` publishes
       are outstanding at once, so a slow broker no longer parks a worker per
       event; instead the window fills and further publishes are shed at that
       bound. The `Nats-Msg-Id` collapses retries and Twitch's own EventSub
@@ -15,8 +15,9 @@ defmodule Ingress.Nats do
       is safe.
 
     * `publish/2` — status/telemetry events. Fire-and-forget core publish; if
-      the connection is down the message is dropped with a warning. We prefer
-      drop over unbounded buffering.
+      the connection is down the message is dropped into batched counters. We
+      prefer drop over unbounded buffering and never produce one log per event
+      during an outage.
 
   Publishes ride the BUS-account connection (`:gnat_bus`) because the
   twitch.ingress.event/status.* subjects are captured by the JetStream streams,
@@ -24,20 +25,18 @@ defmodule Ingress.Nats do
   the twitch_ingress account's request/reply traffic.
   """
 
-  require Logger
-
-  alias Ingress.{Metrics, Nats.Publisher}
+  alias Ingress.{JSON, Metrics, Nats.Publisher}
 
   @connection :gnat_bus
 
   @spec publish(String.t(), map()) :: :ok | {:error, term()}
   def publish(subject, payload) do
-    json = Jason.encode!(payload)
+    json = JSON.encode(payload)
 
     case Process.whereis(@connection) do
       nil ->
-        Logger.warning("NATS connection down; dropping message on #{subject}")
         Metrics.count("Nats/PublishDropped")
+        Metrics.count("Nats/PublishNotConnected")
         {:error, :not_connected}
 
       _pid ->
@@ -61,7 +60,9 @@ defmodule Ingress.Nats do
   """
   @spec publish_acked(String.t(), map(), String.t() | nil) :: :ok | {:error, term()}
   def publish_acked(subject, payload, dedup_id) do
-    json = Jason.encode!(payload)
+    # OTP JSON, Gnat and the TCP/SSL transports all keep this as iodata, so no
+    # flattened copy is made before the socket write or PubAck retry storage.
+    json = JSON.encode(payload)
 
     case Publisher.enqueue(subject, json, dedup_id) do
       :ok ->
@@ -73,8 +74,8 @@ defmodule Ingress.Nats do
         error
 
       {:error, :not_connected} = error ->
-        Logger.warning("NATS publisher unavailable; dropping message on #{subject}")
         Metrics.count("Nats/PublishDropped")
+        Metrics.count("Nats/PublishNotConnected")
         error
 
       {:error, _reason} = error ->
@@ -90,19 +91,25 @@ defmodule Ingress.Nats do
   # once), or {"error": {...}} when storage refused the message.
   @spec parse_pub_ack(binary()) :: :ok | {:error, term()}
   def parse_pub_ack(body) do
-    case Jason.decode(body) do
-      {:ok, %{"error" => error}} ->
-        {:error, {:pub_ack, error}}
+    cond do
+      # Successful JetStream PubAcks are compact JSON emitted by nats-server.
+      # Recognizing their stable fields avoids allocating a map and decoding
+      # JSON for every event on the ack collector's hottest path.
+      :binary.match(body, ~s("error")) != :nomatch ->
+        case JSON.decode(body) do
+          {:ok, %{"error" => error}} -> {:error, {:pub_ack, error}}
+          _ -> {:error, :bad_pub_ack}
+        end
 
-      {:ok, %{"duplicate" => true}} ->
+      :binary.match(body, ~s("seq":)) == :nomatch ->
+        {:error, :bad_pub_ack}
+
+      :binary.match(body, ~s("duplicate":true)) != :nomatch ->
         Metrics.count("Nats/PublishDeduped")
         :ok
 
-      {:ok, %{"seq" => _seq}} ->
+      true ->
         :ok
-
-      _other ->
-        {:error, :bad_pub_ack}
     end
   end
 end

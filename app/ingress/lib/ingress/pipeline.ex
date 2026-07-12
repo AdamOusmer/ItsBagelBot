@@ -91,8 +91,10 @@ defmodule Ingress.Pipeline do
   """
   @spec route(map(), map()) ::
           {:publish, String.t(), map()} | {:publish_many, [{String.t(), map()}]} | :drop
-  def route(%{"subscription" => %{"type" => type}, "event" => event}, meta)
-      when type in @stream_types do
+  def route(payload, meta), do: do_route(payload, meta, Config.hot_path())
+
+  defp do_route(%{"subscription" => %{"type" => type}, "event" => event}, meta, hot)
+       when type in @stream_types do
     # A live event rides two lanes at once: the dedicated stream (live) lane,
     # and the broadcaster's own event lane (premium/standard) so consumers
     # watching chat/follows/subs/cheers also see the channel go live without
@@ -108,34 +110,38 @@ defmodule Ingress.Pipeline do
     # added only when they are not dropped (banned): a banned broadcaster's
     # live event still rides the stream lane but never their event lane.
     publishes =
-      [{Config.lane_subject(:stream), stream_message(:stream, type, event, meta)}] ++
+      [{hot.lane_subjects.stream, stream_message(:stream, type, event, meta)}] ++
         case event_lane do
           :drop -> []
-          lane -> [{Config.lane_subject(lane), stream_message(lane, type, event, meta)}]
+          lane -> [{Map.fetch!(hot.lane_subjects, lane), stream_message(lane, type, event, meta)}]
         end
 
     {:publish_many, publishes}
   end
 
-  def route(%{"subscription" => %{"type" => "channel.chat.message"}, "event" => event}, meta) do
+  defp do_route(
+         %{"subscription" => %{"type" => "channel.chat.message"}, "event" => event},
+         meta,
+         hot
+       ) do
     text = get_in(event, ["message", "text"]) || ""
 
     cond do
       # Size guard: a well-formed Twitch chat line is <= 500 chars; anything far
       # past that is malformed or abuse and is dropped before any further work.
-      oversized?(text) ->
+      byte_size(text) > hot.max_chat_text_bytes ->
         :oversized
 
       true ->
-        case decide(text, event["chatter_user_id"], Config.special_user_ids()) do
-          :special -> chat_message(:premium, event, text, meta)
-          :command -> broadcaster_lane_publish(event, text, meta)
-          :chat -> plain_chat(event, text, meta)
+        case decide(text, event["chatter_user_id"], hot.special_user_ids) do
+          :special -> chat_message(:premium, event, text, meta, hot)
+          :command -> broadcaster_lane_publish(event, text, meta, hot)
+          :chat -> plain_chat(event, text, meta, hot)
         end
     end
   end
 
-  def route(%{"subscription" => %{"type" => type}, "event" => event}, meta) do
+  defp do_route(%{"subscription" => %{"type" => type}, "event" => event}, meta, hot) do
     lane =
       case broadcaster_id(event) do
         nil -> :standard
@@ -147,7 +153,7 @@ defmodule Ingress.Pipeline do
         :drop
 
       lane ->
-        {:publish, Config.lane_subject(lane),
+        {:publish, Map.fetch!(hot.lane_subjects, lane),
          %{
            type: type,
            lane: lane,
@@ -159,7 +165,7 @@ defmodule Ingress.Pipeline do
     end
   end
 
-  def route(payload, _meta) do
+  defp do_route(payload, _meta, _hot) do
     Logger.warning("notification without subscription/event: #{inspect(payload)}")
     :drop
   end
@@ -201,52 +207,31 @@ defmodule Ingress.Pipeline do
   # Commands (and their like): publish to the broadcaster's own lane, unless the
   # broadcaster is dropped (banned). Never squashed or shed, so a legitimate
   # repeated command still runs (the worker gates abuse by cooldown).
-  defp broadcaster_lane_publish(event, text, meta) do
+  defp broadcaster_lane_publish(event, text, meta, hot) do
     case BroadcasterCache.lane(event["broadcaster_user_id"]) do
       :drop -> :drop
-      lane -> chat_message(lane, event, text, meta)
+      lane -> chat_message(lane, event, text, meta, hot)
     end
   end
 
   # Plain (non-command) chat now flows to the worker for the automod. Identical
   # lines are coalesced by Ingress.Squash: the first publishes immediately, the
   # rest fold into one channel.chat.message carrying every sender.
-  defp plain_chat(event, text, meta) do
+  defp plain_chat(event, text, meta, hot) do
     case BroadcasterCache.lane(event["broadcaster_user_id"]) do
       :drop ->
         :drop
 
       lane ->
-        case Squash.observe(cohort_base(lane, event, text), sender_entry(event, meta)) do
+        case Squash.observe_chat(lane, event, text, meta) do
           :buffered -> :squash
-          :first -> chat_message(lane, event, text, meta)
+          :first -> chat_message(lane, event, text, meta, hot)
         end
     end
   end
 
-  defp oversized?(text), do: byte_size(text) > Config.max_chat_text_bytes()
-
-  defp cohort_base(lane, event, text) do
-    %{
-      broadcaster_user_id: event["broadcaster_user_id"],
-      broadcaster_user_login: event["broadcaster_user_login"],
-      lane: lane,
-      text: text
-    }
-  end
-
-  defp sender_entry(event, meta) do
-    %{
-      chatter_user_id: event["chatter_user_id"],
-      chatter_user_login: event["chatter_user_login"],
-      msg_id: meta.msg_id,
-      ts: meta.ts,
-      badges: event["badges"]
-    }
-  end
-
-  defp chat_message(lane, event, text, meta) do
-    {:publish, Config.lane_subject(lane),
+  defp chat_message(lane, event, text, meta, hot) do
+    {:publish, Map.fetch!(hot.lane_subjects, lane),
      %{
        type: "channel.chat.message",
        lane: lane,

@@ -212,14 +212,17 @@ spec:
             # metric shows real per-broadcaster admission patterns in prod.
             - name: INGRESS_DISPATCHER_MAX_PER_BROADCASTER
               value: "16000"
-            # The BEAM sizes schedulers from the host's logical CPUs, not the
-            # cgroup quota. Cap schedulers to the CPU limit below and disable
-            # scheduler busy-waiting so idle spinning never eats host cores.
+            # Match normal and dirty schedulers to the two-CPU cgroup below.
+            # `short` normal-scheduler busy-wait was modestly faster than
+            # `none` across repeated direct-dispatch runs, while dirty
+            # schedulers stay at `none` because ingress does no sustained dirty
+            # NIF work. More than two schedulers only creates cgroup contention
+            # on this five-replica deployment.
             - name: ERL_FLAGS
               # Range, not a single port: probe/remote-shell hidden nodes
               # need their own listen port besides the main VM's.
               value: >-
-                +S 2:2 +SDio 4 +sbwt none +sbwtdcpu none +sbwtdio none -kernel inet_dist_listen_min 9100 -kernel inet_dist_listen_max 9110
+                +S 2:2 +SDcpu 2:2 +SDio 2 +sbwt short +sbwtdcpu none +sbwtdio none -kernel inet_dist_listen_min 9100 -kernel inet_dist_listen_max 9110
           resources:
             requests:
               cpu: 150m
