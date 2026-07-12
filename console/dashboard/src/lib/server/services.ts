@@ -443,55 +443,38 @@ export const setOnboarded = defineWrite({
   after: (_result: unknown, userId: string) => invalidate(`account:${userId}`)
 });
 
-// Persisted console UI language. state_get carries it back; own cache key with
-// no Valkey L2 (the projected user hash has no locale), and it is only read at
-// login to seed the preference cookie, so a little staleness is harmless.
-export const userLocale = defineRead({
-  subject: `${SUB.dashboard}.state_get`,
-  request: (userId: string) => ({ broadcaster_user_id: userId }),
-  map: (r: { locale?: string }): string => r.locale || 'en',
-  timeoutMs: READ_TIMEOUT_MS,
-  cache: {
-    fabric,
-    key: (userId: string) => `locale:${userId}`,
-    policy: POLICY.entity
-  }
-});
+// Single-user console preferences (locale, custom cursor). Each carries back on
+// state_get and owns its own cache key with no Valkey L2 (the projected user
+// hash has neither field); both are only read at login to seed a preference
+// cookie, so a little staleness is harmless. prefRead/prefWrite capture the one
+// shape both share so a new preference is a two-line declaration, not a copy.
+function prefRead<T>(scope: string, map: (r: Record<string, unknown>) => T) {
+  return defineRead<[string], Record<string, unknown>, T>({
+    subject: `${SUB.dashboard}.state_get`,
+    request: (userId: string) => ({ broadcaster_user_id: userId }),
+    map,
+    timeoutMs: READ_TIMEOUT_MS,
+    cache: { fabric, key: (userId: string) => `${scope}:${userId}`, policy: POLICY.entity }
+  });
+}
 
-// Write the user's language choice through to the users service. The switcher
-// also sets the cookie so the current render flips immediately; this is what
-// makes the choice follow the account to another browser/device.
-export const setLocale = defineWrite({
-  subject: `${SUB.dashboard}.locale_set`,
-  request: (userId: string, locale: string) => ({ broadcaster_user_id: userId, locale }),
-  after: (_result: unknown, userId: string) => invalidate(`locale:${userId}`)
-});
+// The console mirrors each choice into a cookie for an immediate flip; the
+// write-through here is what makes it follow the account to another
+// browser/device, and the `after` drop keeps this replica's cache honest.
+function prefWrite<V>(verb: string, field: string, scope: string) {
+  return defineWrite<[string, V], unknown>({
+    subject: `${SUB.dashboard}.${verb}`,
+    request: (userId: string, value: V) => ({ broadcaster_user_id: userId, [field]: value }),
+    after: (_result: unknown, userId: string) => invalidate(`${scope}:${userId}`)
+  });
+}
 
-// Persisted custom-cursor preference. Like the locale it carries back on
-// state_get, owns its own cache key with no Valkey L2 (the projected user hash
-// has no cursor flag), and is only read at login to seed the preference cookie,
-// so a little staleness is harmless. Defaults to on when the field is absent.
-export const userCursor = defineRead({
-  subject: `${SUB.dashboard}.state_get`,
-  request: (userId: string) => ({ broadcaster_user_id: userId }),
-  map: (r: { custom_cursor?: boolean }): boolean => r.custom_cursor !== false,
-  timeoutMs: READ_TIMEOUT_MS,
-  cache: {
-    fabric,
-    key: (userId: string) => `cursor:${userId}`,
-    policy: POLICY.entity
-  }
-});
+export const userLocale = prefRead('locale', (r) => (typeof r.locale === 'string' && r.locale ? r.locale : 'en'));
+export const setLocale = prefWrite<string>('locale_set', 'locale', 'locale');
 
-// Write the user's custom-cursor choice through to the users service. The
-// /cursor endpoint also sets the preference cookie so the next SSR render is
-// authoritative; this is what makes the choice follow the account across
-// browsers/devices.
-export const setCursor = defineWrite({
-  subject: `${SUB.dashboard}.cursor_set`,
-  request: (userId: string, on: boolean) => ({ broadcaster_user_id: userId, custom_cursor: on }),
-  after: (_result: unknown, userId: string) => invalidate(`cursor:${userId}`)
-});
+// Cursor defaults to on when the field is absent (older accounts, failed read).
+export const userCursor = prefRead('cursor', (r) => r.custom_cursor !== false);
+export const setCursor = prefWrite<boolean>('cursor_set', 'custom_cursor', 'cursor');
 
 // Persist the broadcaster's Twitch OAuth grant (the per-channel bot token the
 // dashboard consent mints). Called once on login: without it the user row exists
