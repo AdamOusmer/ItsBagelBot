@@ -1,5 +1,6 @@
 <script lang="ts">
   import { page } from '$app/state';
+  import { AuroraBg, LightField } from '@bagel/shared';
 
   const err = $derived(page.url.searchParams.get('e'));
   const messages: Record<string, string> = {
@@ -10,6 +11,9 @@
   };
   const notice = $derived(err ? messages[err] : undefined);
 </script>
+
+<AuroraBg />
+<div class="starfield" aria-hidden="true"><LightField /></div>
 
 <main class="login">
   <div class="panel">
@@ -31,7 +35,18 @@
 </main>
 
 <style>
+  /* Mote field sits above the aurora (z-index 0) but below the panel (z-index 1).
+     Own stacking context so LightField's z-index:-1 canvas stays contained. */
+  .starfield {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+  }
+
   .login {
+    position: relative;
+    z-index: 1;
     min-height: 100vh;
     display: flex;
     align-items: center;
