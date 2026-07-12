@@ -31,6 +31,8 @@ type User struct {
 	Status user.Status `json:"status,omitempty"`
 	// Locale holds the value of the "locale" field.
 	Locale string `json:"locale,omitempty"`
+	// CustomCursor holds the value of the "custom_cursor" field.
+	CustomCursor bool `json:"custom_cursor,omitempty"`
 	// CreatorCode holds the value of the "creator_code" field.
 	CreatorCode *string `json:"creator_code,omitempty"`
 	// SubscriptionSource holds the value of the "subscription_source" field.
@@ -84,7 +86,7 @@ func (*User) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case user.FieldEmailEnc:
 			values[i] = new([]byte)
-		case user.FieldIsActive, user.FieldBanned, user.FieldSubscriptionCancelPending, user.FieldOnboarded:
+		case user.FieldIsActive, user.FieldBanned, user.FieldCustomCursor, user.FieldSubscriptionCancelPending, user.FieldOnboarded:
 			values[i] = new(sql.NullBool)
 		case user.FieldID, user.FieldGiftsSent:
 			values[i] = new(sql.NullInt64)
@@ -154,6 +156,12 @@ func (_m *User) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field locale", values[i])
 			} else if value.Valid {
 				_m.Locale = value.String
+			}
+		case user.FieldCustomCursor:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field custom_cursor", values[i])
+			} else if value.Valid {
+				_m.CustomCursor = value.Bool
 			}
 		case user.FieldCreatorCode:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -285,6 +293,9 @@ func (_m *User) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("locale=")
 	builder.WriteString(_m.Locale)
+	builder.WriteString(", ")
+	builder.WriteString("custom_cursor=")
+	builder.WriteString(fmt.Sprintf("%v", _m.CustomCursor))
 	builder.WriteString(", ")
 	if v := _m.CreatorCode; v != nil {
 		builder.WriteString("creator_code=")

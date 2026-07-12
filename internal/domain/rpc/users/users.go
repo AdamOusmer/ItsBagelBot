@@ -189,6 +189,12 @@ type OnboardedSetRequest struct {
 	Onboarded         bool   `json:"onboarded"`
 }
 
+// CursorSetRequest is the payload for the dashboard cursor_set verb.
+type CursorSetRequest struct {
+	BroadcasterUserID string `json:"broadcaster_user_id"`
+	CustomCursor      bool   `json:"custom_cursor"`
+}
+
 // CreateDelegationRequest is the payload for the delegation create verb.
 type CreateDelegationRequest struct {
 	OwnerUserID string   `json:"owner_user_id"`
