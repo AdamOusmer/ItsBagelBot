@@ -309,6 +309,8 @@ export interface ModuleDef {
   icon: IconName;
   category: string;
   defaultEnabled: boolean;
+  // If true, the module is hidden from the dashboard and unreachable.
+  hidden?: boolean;
   // The module's configurable chat lines (the "commands" of the module page).
   replies: ModuleReply[];
   // Read-only chat commands to list on the module page. For modules that expose
@@ -462,6 +464,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
     icon: 'moderation',
     category: 'Moderation',
     defaultEnabled: true,
+    hidden: true,
     // AutoMod is pure configuration: no chat reply lines, only the settings strip.
     replies: [],
     settings: [
