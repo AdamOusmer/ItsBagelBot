@@ -155,18 +155,20 @@ func (p *Pipeline) Process(msg *message.Message) (err error) {
 	mctx := p.leaseContext(env, broadcasterID)
 	defer PutContext(mctx)
 
-	var emitErr error
-	needsFlush := false
-	emit := p.newEmit(ctx, p.laneSubject(mctx.Regress), env, &needsFlush, &emitErr)
+	emission := emitState{
+		subject:    p.laneSubject(mctx.Regress),
+		replayBase: outputReplayBase(env),
+	}
+	emit := p.newEmit(ctx, env.BroadcasterUserID, &emission)
 	p.runStages(ctx, mctx, views, emit)
-	if emitErr == nil && needsFlush {
+	if emission.err == nil && emission.needsFlush {
 		// Legacy envelopes without EventID cannot use a stable confirmed publish;
 		// flush their asynchronous admission before confirming the input ack.
-		emitErr = p.pub.Flush(ctx)
+		emission.err = p.pub.Flush(ctx)
 	}
 
 	// nil = ack; a publish/marshal failure on the emit path = nack.
-	return emitErr
+	return emission.err
 }
 
 // eligible reports whether this envelope needs any work: the bot's own chat is
@@ -191,16 +193,22 @@ func (p *Pipeline) leaseContext(env *lane.Envelope, broadcasterID uint64) *modul
 	return mctx
 }
 
+type emitState struct {
+	subject    string
+	replayBase string
+	ordinal    int
+	needsFlush bool
+	err        error
+}
+
 // newEmit builds the sink command Run and event handlers hand their Outputs
-// to. The first publish or marshal failure is captured in *emitErr (which
+// to. The first publish or marshal failure is captured in state (which
 // nacks) and short-circuits the rest. The sink only builds an outgress message
 // when a handler actually emits, so the no-output hot path stays free.
-func (p *Pipeline) newEmit(ctx context.Context, subject string, env *lane.Envelope, needsFlush *bool, emitErr *error) module.Emit {
-	replayBase := outputReplayBase(env)
-	ctx = bus.WithPublishPartition(ctx, env.BroadcasterUserID)
-	ordinal := 0
+func (p *Pipeline) newEmit(ctx context.Context, partition string, state *emitState) module.Emit {
+	ctx = bus.WithPublishPartition(ctx, partition)
 	return func(o *module.Output) {
-		if *emitErr != nil {
+		if state.err != nil {
 			return
 		}
 		if o == nil || o.Type == "" {
@@ -209,14 +217,14 @@ func (p *Pipeline) newEmit(ctx context.Context, subject string, env *lane.Envelo
 		if p.floorSuppressed(o) {
 			return
 		}
-		ordinal++
-		replayID := replayOutputID(replayBase, ordinal)
-		if perr := p.publishOutput(ctx, subject, replayID, o); perr != nil {
-			*emitErr = perr
+		state.ordinal++
+		replayID := replayOutputID(state.replayBase, state.ordinal)
+		if err := p.publishOutput(ctx, state.subject, replayID, o); err != nil {
+			state.err = err
 			return
 		}
 		if replayID == "" {
-			*needsFlush = true
+			state.needsFlush = true
 		}
 	}
 }
@@ -284,7 +292,7 @@ func (p *Pipeline) publishOutput(ctx context.Context, subject, replayID string, 
 	if replayID == "" {
 		return bus.PublishRaw(ctx, p.pub, subject, body)
 	}
-	return bus.PublishRawWithID(ctx, p.pub, subject, replayID, body)
+	return bus.PublishConfirmed(ctx, p.pub, bus.Publication{Subject: subject, ID: replayID, Payload: body})
 }
 
 // outputReplayBase turns the EventSub identity into a fixed, header-safe NATS

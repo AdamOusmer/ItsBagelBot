@@ -76,13 +76,20 @@ func PublishRaw(ctx context.Context, pub Publisher, subject string, payload []by
 	return pub.PublishOwned(ctx, subject, body)
 }
 
-// PublishRawWithID copies caller-owned bytes and publishes them under a stable
+// Publication is one caller-owned payload and its stable broker identity.
+type Publication struct {
+	Subject string
+	ID      string
+	Payload []byte
+}
+
+// PublishConfirmed copies caller-owned bytes and publishes them under a stable
 // replay identity. Rejecting an empty ID prevents callers from silently losing
 // idempotency on a path that explicitly requested it.
-func PublishRawWithID(ctx context.Context, pub Publisher, subject, id string, payload []byte) error {
-	if id == "" {
+func PublishConfirmed(ctx context.Context, pub Publisher, publication Publication) error {
+	if publication.ID == "" {
 		return errors.New("bus: idempotent publish requires an ID")
 	}
-	body := append([]byte(nil), payload...)
-	return pub.PublishOwnedWithID(ctx, subject, id, body)
+	body := append([]byte(nil), publication.Payload...)
+	return pub.PublishOwnedWithID(ctx, publication.Subject, publication.ID, body)
 }
