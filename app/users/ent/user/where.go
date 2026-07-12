@@ -85,6 +85,11 @@ func Locale(v string) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldLocale, v))
 }
 
+// CustomCursor applies equality check predicate on the "custom_cursor" field. It's identical to CustomCursorEQ.
+func CustomCursor(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldCustomCursor, v))
+}
+
 // CreatorCode applies equality check predicate on the "creator_code" field. It's identical to CreatorCodeEQ.
 func CreatorCode(v string) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldCreatorCode, v))
@@ -423,6 +428,16 @@ func LocaleEqualFold(v string) predicate.User {
 // LocaleContainsFold applies the ContainsFold predicate on the "locale" field.
 func LocaleContainsFold(v string) predicate.User {
 	return predicate.User(sql.FieldContainsFold(FieldLocale, v))
+}
+
+// CustomCursorEQ applies the EQ predicate on the "custom_cursor" field.
+func CustomCursorEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldCustomCursor, v))
+}
+
+// CustomCursorNEQ applies the NEQ predicate on the "custom_cursor" field.
+func CustomCursorNEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldCustomCursor, v))
 }
 
 // CreatorCodeEQ applies the EQ predicate on the "creator_code" field.

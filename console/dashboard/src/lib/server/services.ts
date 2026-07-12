@@ -34,7 +34,7 @@ export const SUB = {
 };
 
 function userPrefixes(id: string): string[] {
-  return [`grant:${id}`, `account:${id}`, `tier:${id}`, `billing-state:${id}`, `commands:${id}`, `modules:${id}`, `delegations:${id}`, `locale:${id}`, `govee-devices:${id}`];
+  return [`grant:${id}`, `account:${id}`, `tier:${id}`, `billing-state:${id}`, `commands:${id}`, `modules:${id}`, `delegations:${id}`, `locale:${id}`, `cursor:${id}`, `govee-devices:${id}`];
 }
 
 // Scope -> cache key routing for the invalidation bus, declared as data. The
@@ -49,6 +49,7 @@ const SCOPES: ScopeMap = {
   delegation: (id) => [`delegations:${id}`],
   notifications: (id) => [`notifications:${id}`, 'notifications:all'],
   locale: (id) => [`locale:${id}`],
+  cursor: (id) => [`cursor:${id}`],
   '*': (id) => [...userPrefixes(id), `ban:${id}`]
 };
 
@@ -464,6 +465,32 @@ export const setLocale = defineWrite({
   subject: `${SUB.dashboard}.locale_set`,
   request: (userId: string, locale: string) => ({ broadcaster_user_id: userId, locale }),
   after: (_result: unknown, userId: string) => invalidate(`locale:${userId}`)
+});
+
+// Persisted custom-cursor preference. Like the locale it carries back on
+// state_get, owns its own cache key with no Valkey L2 (the projected user hash
+// has no cursor flag), and is only read at login to seed the preference cookie,
+// so a little staleness is harmless. Defaults to on when the field is absent.
+export const userCursor = defineRead({
+  subject: `${SUB.dashboard}.state_get`,
+  request: (userId: string) => ({ broadcaster_user_id: userId }),
+  map: (r: { custom_cursor?: boolean }): boolean => r.custom_cursor !== false,
+  timeoutMs: READ_TIMEOUT_MS,
+  cache: {
+    fabric,
+    key: (userId: string) => `cursor:${userId}`,
+    policy: POLICY.entity
+  }
+});
+
+// Write the user's custom-cursor choice through to the users service. The
+// /cursor endpoint also sets the preference cookie so the next SSR render is
+// authoritative; this is what makes the choice follow the account across
+// browsers/devices.
+export const setCursor = defineWrite({
+  subject: `${SUB.dashboard}.cursor_set`,
+  request: (userId: string, on: boolean) => ({ broadcaster_user_id: userId, custom_cursor: on }),
+  after: (_result: unknown, userId: string) => invalidate(`cursor:${userId}`)
 });
 
 // Persist the broadcaster's Twitch OAuth grant (the per-channel bot token the

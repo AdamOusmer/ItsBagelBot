@@ -3,6 +3,7 @@
   import { page } from '$app/state';
   import { enhance } from '$app/forms';
   import LangSwitch from '$lib/components/LangSwitch.svelte';
+  import CursorSwitch from '$lib/components/CursorSwitch.svelte';
   import SettingsNav from '$lib/components/settings/SettingsNav.svelte';
   import SectionPicker from '$lib/components/settings/SectionPicker.svelte';
   import type { DelegationGrant, NotificationWire } from '$lib/server/services';
@@ -308,6 +309,13 @@
         <p class="hint">{t('settings.languageHint')}</p>
       </div>
       <LangSwitch selected={savedLocale} />
+    </div>
+    <div class="row">
+      <div>
+        <span class="pref-label" id="cursor-label">{t('settings.customCursor')}</span>
+        <p class="hint" id="cursor-hint">{t('settings.customCursorHint')}</p>
+      </div>
+      <CursorSwitch describedby="cursor-hint" />
     </div>
   </section>
 

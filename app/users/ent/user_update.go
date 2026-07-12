@@ -125,6 +125,20 @@ func (_u *UserUpdate) SetNillableLocale(v *string) *UserUpdate {
 	return _u
 }
 
+// SetCustomCursor sets the "custom_cursor" field.
+func (_u *UserUpdate) SetCustomCursor(v bool) *UserUpdate {
+	_u.mutation.SetCustomCursor(v)
+	return _u
+}
+
+// SetNillableCustomCursor sets the "custom_cursor" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableCustomCursor(v *bool) *UserUpdate {
+	if v != nil {
+		_u.SetCustomCursor(*v)
+	}
+	return _u
+}
+
 // SetCreatorCode sets the "creator_code" field.
 func (_u *UserUpdate) SetCreatorCode(v string) *UserUpdate {
 	_u.mutation.SetCreatorCode(v)
@@ -451,6 +465,9 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.Locale(); ok {
 		_spec.SetField(user.FieldLocale, field.TypeString, value)
 	}
+	if value, ok := _u.mutation.CustomCursor(); ok {
+		_spec.SetField(user.FieldCustomCursor, field.TypeBool, value)
+	}
 	if value, ok := _u.mutation.CreatorCode(); ok {
 		_spec.SetField(user.FieldCreatorCode, field.TypeString, value)
 	}
@@ -659,6 +676,20 @@ func (_u *UserUpdateOne) SetLocale(v string) *UserUpdateOne {
 func (_u *UserUpdateOne) SetNillableLocale(v *string) *UserUpdateOne {
 	if v != nil {
 		_u.SetLocale(*v)
+	}
+	return _u
+}
+
+// SetCustomCursor sets the "custom_cursor" field.
+func (_u *UserUpdateOne) SetCustomCursor(v bool) *UserUpdateOne {
+	_u.mutation.SetCustomCursor(v)
+	return _u
+}
+
+// SetNillableCustomCursor sets the "custom_cursor" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableCustomCursor(v *bool) *UserUpdateOne {
+	if v != nil {
+		_u.SetCustomCursor(*v)
 	}
 	return _u
 }
@@ -1018,6 +1049,9 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	}
 	if value, ok := _u.mutation.Locale(); ok {
 		_spec.SetField(user.FieldLocale, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.CustomCursor(); ok {
+		_spec.SetField(user.FieldCustomCursor, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.CreatorCode(); ok {
 		_spec.SetField(user.FieldCreatorCode, field.TypeString, value)

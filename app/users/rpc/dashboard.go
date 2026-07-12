@@ -46,6 +46,7 @@ func SubscribeDashboard(w Wiring, prefix, invalidationPrefix string) error {
 		"state_get":     d.handleStateGet,
 		"onboarded_set": d.handleOnboardedSet,
 		"locale_set":    d.handleLocaleSet,
+		"cursor_set":    d.handleCursorSet,
 		"delete_self":   d.handleDeleteSelf,
 	}
 	for verb, fn := range verbs {
@@ -238,6 +239,7 @@ func (d *dashboardRPC) handleStateGet(ctx context.Context, msg *nats.Msg) {
 			"status":                      view.Status,
 			"onboarded":                   view.Onboarded,
 			"locale":                      view.Locale,
+			"custom_cursor":               view.CustomCursor,
 			"creator_code":                view.CreatorCode,
 			"expires_at":                  view.SubscriptionExpiresAt,
 			"source":                      view.SubscriptionSource,
@@ -313,6 +315,24 @@ func (d *dashboardRPC) handleLocaleSet(ctx context.Context, msg *nats.Msg) {
 	// of riding out the SWR window.
 	d.writeThenInvalidate(ctx, msg, "locale", req.BroadcasterUserID, "locale_set",
 		func(ctx context.Context) error { return d.repo.SetLocale(ctx, id, req.Locale) })
+}
+
+// handleCursorSet persists whether the console shows the animated custom cursor.
+// The "cursor" invalidation scope drops the console's cached cursor view on
+// every replica so a change is visible on the next render instead of riding out
+// the SWR window.
+func (d *dashboardRPC) handleCursorSet(ctx context.Context, msg *nats.Msg) {
+	req, ok := decodeRequest[usersrpc.CursorSetRequest](msg)
+	if !ok {
+		return
+	}
+	id, ok := parseWireID(msg, req.BroadcasterUserID, "broadcaster_user_id")
+	if !ok {
+		return
+	}
+
+	d.writeThenInvalidate(ctx, msg, "cursor", req.BroadcasterUserID, "cursor_set",
+		func(ctx context.Context) error { return d.repo.SetCustomCursor(ctx, id, req.CustomCursor) })
 }
 
 // handleDeleteSelf removes the user and every delegation they own. Delegations

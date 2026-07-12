@@ -49,6 +49,7 @@ export { default as Scroller } from '../components/Scroller.svelte';
 
 export { initLenis, magnetic, countUp } from './actions';
 export { icons, type IconName } from './icons';
+export { customCursor } from './cursor';
 
 // i18n: context helpers for components + the pure runtime/detection surface.
 export { setI18n, getI18n, type I18n } from './i18n/context';

@@ -17,4 +17,4 @@
   <meta name="twitter:description" content={DEFAULT_DESC} />
 </svelte:head>
 
-<RootShell locale={data.locale}>{@render children()}</RootShell>
+<RootShell locale={data.locale} cursorEnabled={data.cursorEnabled}>{@render children()}</RootShell>

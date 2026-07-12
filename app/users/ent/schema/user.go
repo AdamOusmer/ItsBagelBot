@@ -46,6 +46,12 @@ func (User) Fields() []ent.Field {
 		// migration; the console validates the value against its locale set.
 		field.String("locale").Default("en").MaxLen(8),
 
+		// Console UI preference: whether the animated custom cursor is shown. Off
+		// falls back to the native pointer. Console-only (the worker never reads
+		// it); mirrored into a cookie for fast SSR. Existing rows migrate to true,
+		// preserving the current behaviour.
+		field.Bool("custom_cursor").Default(true),
+
 		field.String("creator_code").Optional().Nillable().MaxLen(64),
 
 		// Billing ownership is deliberately stored with the user tier. This lets

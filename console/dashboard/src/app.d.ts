@@ -6,11 +6,13 @@ declare global {
     interface Locals {
       session: Session | null;
       locale: Locale;
+      cursorEnabled: boolean;
     }
     interface PageData {
       role?: 'streamer' | 'mod';
       displayName?: string;
       locale?: Locale;
+      cursorEnabled?: boolean;
     }
   }
 }
