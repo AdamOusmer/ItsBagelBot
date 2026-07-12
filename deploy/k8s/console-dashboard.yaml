@@ -66,21 +66,11 @@ spec:
       labels:
         app: console-dashboard
       annotations:
-        linkerd.io/inject: enabled
-        # NATS is out of the Linkerd mesh: bypass the app-side proxy for the NATS
-        # client port so the firehose / RPC traffic goes direct (NATS-native TLS
-        # provides the encryption). Without this the proxy still taxes every event.
-        config.linkerd.io/skip-outbound-ports: "4222"
-        # serve-node.js terminates TLS on 3000 (see the console HTTPS change), so
-        # linkerd must treat 3000 as an opaque stream and pass the TLS through
-        # rather than HTTP-parsing it — otherwise the proxy answers the kubelet's
-        # HTTPS probe with an HTTP response ("server gave HTTP response to HTTPS
-        # client") and Traefik's re-encrypt fails the same way.
-        config.linkerd.io/opaque-ports: "3000"
-        config.linkerd.io/proxy-cpu-request: 5m
-        config.linkerd.io/proxy-cpu-limit: 750m
-        config.linkerd.io/proxy-memory-request: 16Mi
-        config.linkerd.io/proxy-memory-limit: 96Mi
+        # De-meshed. The dashboard serves its own TLS (serve-node.js HTTPS,
+        # Traefik re-encrypts via the ServersTransport), and NATS has native TLS,
+        # so it no longer needs the Linkerd proxy — which HTTP-parsed the app's
+        # HTTPS on 3000 and failed the kubelet probes / Traefik re-encrypt.
+        linkerd.io/inject: disabled
     spec:
       # Hard guard: the dashboard must NEVER run on the worker pool. The taint
       # already repels it (no toleration here), this required nodeAffinity makes
