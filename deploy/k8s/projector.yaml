@@ -37,7 +37,7 @@ spec:
       labels:
         app: projector
       annotations:
-        linkerd.io/inject: enabled
+        linkerd.io/inject: disabled
         config.linkerd.io/proxy-cpu-request: 5m
         config.linkerd.io/proxy-cpu-limit: 750m
         config.linkerd.io/proxy-memory-request: 16Mi
