@@ -48,15 +48,28 @@ func publishIntegrationMessages(t *testing.T, pub Publisher, messages int) {
 
 func assertIntegrationStream(t *testing.T, url string, messages uint64) {
 	t.Helper()
+	nc, js := openIntegrationJetStream(t, url)
+	defer nc.Close()
+	assertStoredMessages(t, js, messages)
+	assertBatchFeatures(t, nc)
+}
+
+func openIntegrationJetStream(t *testing.T, url string) (*nats.Conn, nats.JetStreamContext) {
+	t.Helper()
 	nc, err := nats.Connect(url)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer nc.Close()
 	js, err := nc.JetStream(nats.Domain("hub"), nats.MaxWait(2*time.Second))
 	if err != nil {
+		nc.Close()
 		t.Fatal(err)
 	}
+	return nc, js
+}
+
+func assertStoredMessages(t *testing.T, js nats.JetStreamContext, messages uint64) {
+	t.Helper()
 	info, err := js.StreamInfo("BAGEL_DATA")
 	if err != nil {
 		t.Fatal(err)
@@ -64,6 +77,10 @@ func assertIntegrationStream(t *testing.T, url string, messages uint64) {
 	if info.State.Msgs != messages {
 		t.Fatalf("stored %d messages, want %d", info.State.Msgs, messages)
 	}
+}
+
+func assertBatchFeatures(t *testing.T, nc *nats.Conn) {
+	t.Helper()
 	modern, err := jsapi.NewWithDomain(nc, "hub")
 	if err != nil {
 		t.Fatal(err)
@@ -73,8 +90,11 @@ func assertIntegrationStream(t *testing.T, url string, messages uint64) {
 		t.Fatal(err)
 	}
 	config := stream.CachedInfo().Config
-	if !config.AllowAtomicPublish || !config.AllowBatchPublish {
-		t.Fatal("stream did not retain NATS 2.14 batch feature flags")
+	if !config.AllowAtomicPublish {
+		t.Fatal("stream did not retain NATS 2.14 atomic publish flag")
+	}
+	if !config.AllowBatchPublish {
+		t.Fatal("stream did not retain NATS 2.14 batch publish flag")
 	}
 }
 
