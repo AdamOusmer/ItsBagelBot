@@ -112,7 +112,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: outgress
-          image: ghcr.io/adamousmer/itsbagelbot/outgress:main-1783897523-746b5927f4b9@sha256:a9b5c59c6edddfc000540ae134b42f9cc6c8b0a40db8aaabf993789307d37452 # {"$imagepolicy": "flux-system:outgress"}
+          image: ghcr.io/adamousmer/itsbagelbot/outgress:main-1783899979-1f19773ef393@sha256:6e657178360789559f8c3b897968fbce697d94cd2261594f2e2e0eff5186ae76 # {"$imagepolicy": "flux-system:outgress"}
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST
