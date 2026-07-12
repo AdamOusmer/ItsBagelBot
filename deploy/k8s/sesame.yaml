@@ -45,12 +45,14 @@ spec:
       labels:
         app: sesame
       annotations:
-        linkerd.io/inject: enabled
+        linkerd.io/inject: disabled
         config.linkerd.io/proxy-cpu-request: 5m
         config.linkerd.io/proxy-cpu-limit: 1000m
         config.linkerd.io/proxy-memory-request: 16Mi
         config.linkerd.io/proxy-memory-limit: 128Mi
-        config.linkerd.io/skip-outbound-ports: 6379,26379
+        # Valkey (6379/26379) and NATS (4222 — now out of the mesh, its own TLS
+        # encrypts the wire) skip the proxy.
+        config.linkerd.io/skip-outbound-ports: 6379,26379,4222
     spec:
       tolerations:
         - key: itsbagelbot.dev/pool
@@ -119,7 +121,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: sesame
-          image: ghcr.io/adamousmer/itsbagelbot/sesame:main-1783849498-8298d8dd36f2@sha256:c6225aadb905d6b66eed4490977494c78cb1d580494abc4bb47b9ac4e3c8b45d # {"$imagepolicy": "flux-system:sesame"}
+          image: ghcr.io/adamousmer/itsbagelbot/sesame:main-1783887960-fe5f1258cb84@sha256:a398929ed46147079764db083b03e8ce552f82389154c1571982b26d06d8c91b # {"$imagepolicy": "flux-system:sesame"}
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST
@@ -132,10 +134,18 @@ spec:
               value: tls://nats:4222
             - name: NATS_HUB_URL
               value: tls://nats:4222
+            # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS server
+            # TLS cert now that NATS is out of the Linkerd mesh; read as RootCAs by
+            # pkg/bus (Go services) and the console nats lib (TS).
+            - name: NATS_CA_PEM
+              valueFrom:
+                configMapKeyRef:
+                  name: fleet-ca
+                  key: ca.pem
             - name: NATS_RPC_URL
-              value: nats://nats-leaf:4222
+              value: tls://nats-leaf:4222
             - name: NATS_LEAF_URL
-              value: nats://nats-leaf:4222
+              value: tls://nats-leaf:4222
             - name: SSL_CERT_FILE
               value: /etc/nats-ca/ca.pem
             - name: NODE_NAME

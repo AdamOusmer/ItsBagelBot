@@ -1,0 +1,25 @@
+# cert-manager + trust-manager HelmReleases (deploy/infra/cert-manager/).
+# Separate Kustomization, same reasoning as keda.yaml: targetNamespace stays
+# unset so the HelmRepository (flux-system) and HelmReleases (cert-manager) keep
+# their own namespaces, unlike `apps` which pins everything to production.
+#
+# The `pki` Kustomization dependsOn this one (it needs cert-manager's Issuer /
+# Certificate / ClusterIssuer CRDs and trust-manager's Bundle CRD registered and
+# their webhooks up before it applies the fleet PKI). Flux's dependsOn can only
+# reference another Kustomization, not a bare HelmRelease, so cert-manager needs
+# its own Kustomization for `pki` (and transitively `apps`) to depend on.
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: cert-manager
+  namespace: flux-system
+spec:
+  interval: 1h
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  path: ./deploy/infra/cert-manager
+  prune: true
+  wait: true
+  timeout: 10m

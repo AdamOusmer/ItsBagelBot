@@ -1,0 +1,24 @@
+# trust-manager distributes the public CA (no private key) as a ConfigMap named
+# fleet-ca into the production namespace. Apps read it as NATS_CA_PEM
+# (configMapKeyRef fleet-ca/ca.pem) and Traefik reads it as a ServersTransport
+# rootCAs, so every client can verify the NATS and console server certs without
+# shipping a private key around.
+#
+# The source is the CA cert inside the fleet-ca-key-pair secret, which lives in
+# cert-manager (trust-manager's configured trust namespace).
+---
+apiVersion: trust.cert-manager.io/v1alpha1
+kind: Bundle
+metadata:
+  name: fleet-ca
+spec:
+  sources:
+    - secret:
+        name: fleet-ca-key-pair
+        key: tls.crt
+  target:
+    configMap:
+      key: ca.pem
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: production

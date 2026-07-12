@@ -1,0 +1,178 @@
+# Self-heal a wedged NATS hub cluster roll.
+#
+# WHY
+# ---
+# The hub StatefulSet updates one pod at a time (RollingUpdate, by ordinal). A
+# change that alters the *cluster route protocol* — notably toggling cluster TLS
+# (`cluster { tls {} }`) — creates a mixed state during the roll: the first pod on
+# the new config cannot complete a RAFT route handshake to peers still on the old
+# config ("TLS route handshake error: first record does not look like a TLS
+# handshake"), so it never becomes Ready and the StatefulSet stops rolling. During
+# the 2026-07-12 TLS cutover this was fixed by hand (delete the not-yet-rolled
+# peers so every member reforms on the new config at once). This job automates
+# that recovery.
+#
+# It is deliberately narrow + guarded, so it only ever fires on that exact wedge:
+#   * a roll is genuinely in progress (updateRevision != currentRevision);
+#   * a pod already on the NEW revision is Running but NotReady (a cluster-join
+#     wedge, not Pending/ImagePull);
+#   * that pod is NOT crashlooping (restarts <= 3) — a bad config that crashes the
+#     new pod is a deploy problem, and nuking the healthy old pods would only make
+#     it a full outage, so we bail;
+#   * the condition persists across 2 runs (~10 min) — never on a transient
+#     mid-roll blip.
+# Remediation deletes only the OLD-revision pods; the StatefulSet recreates them
+# at the new revision and (with podManagementPolicy: Parallel) they reform
+# together, so the routes handshake new-to-new and JetStream re-establishes a meta
+# leader. Steady-state rolls (all-TLS) complete in well under 10 min and never
+# trip this.
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nats-selfheal
+  namespace: production
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: nats-selfheal
+  namespace: production
+rules:
+  - apiGroups: ["apps"]
+    resources: ["statefulsets"]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "delete"]
+  # A tiny ConfigMap persists "how many consecutive runs has this revision been
+  # wedged" so remediation only fires when it is sustained, not transient.
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["nats-selfheal-state"]
+    verbs: ["get", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: nats-selfheal
+  namespace: production
+subjects:
+  - kind: ServiceAccount
+    name: nats-selfheal
+    namespace: production
+roleRef:
+  kind: Role
+  name: nats-selfheal
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nats-selfheal-state
+  namespace: production
+  annotations:
+    # Flux creates this once and then never corrects drift, so the CronJob's own
+    # counter updates are not reset mid-wedge on the next reconcile.
+    kustomize.toolkit.fluxcd.io/ssa: IfNotPresent
+data:
+  stuckRev: ""
+  stuckCount: "0"
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: nats-selfheal
+  namespace: production
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 120
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 120
+      template:
+        metadata:
+          labels: {app: nats-selfheal}
+        spec:
+          serviceAccountName: nats-selfheal
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            seccompProfile: {type: RuntimeDefault}
+          containers:
+            - name: heal
+              # kubectl + POSIX sh. Pin/confirm the tag; skew vs the API server is
+              # fine for get/list/delete.
+              image: alpine/k8s:1.31.1
+              imagePullPolicy: IfNotPresent
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: {drop: ["ALL"]}
+              resources:
+                requests: {cpu: 10m, memory: 32Mi}
+                limits: {cpu: 200m, memory: 96Mi}
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  NS=production; STS=nats; STATE=nats-selfheal-state
+                  jp() { kubectl get "$1" "$2" -n "$NS" -o jsonpath="$3" 2>/dev/null || true; }
+
+                  updRev=$(kubectl get sts "$STS" -n "$NS" -o jsonpath='{.status.updateRevision}')
+                  curRev=$(kubectl get sts "$STS" -n "$NS" -o jsonpath='{.status.currentRevision}')
+
+                  # No roll in progress -> healthy. Clear state and exit.
+                  if [ -z "$updRev" ] || [ "$updRev" = "$curRev" ]; then
+                    kubectl -n "$NS" patch configmap "$STATE" --type merge \
+                      -p '{"data":{"stuckRev":"","stuckCount":"0"}}' >/dev/null 2>&1 || true
+                    echo "no roll in progress (updateRevision=currentRevision); ok"
+                    exit 0
+                  fi
+
+                  # Roll in progress. Is a NEW-revision pod Running-but-NotReady and
+                  # not crashlooping? That is the cluster-join wedge.
+                  wedgePod=""
+                  for p in $(kubectl get pods -n "$NS" -l app="$STS" -o jsonpath='{.items[*].metadata.name}'); do
+                    rev=$(jp pod "$p" '{.metadata.labels.controller-revision-hash}')
+                    [ "$rev" = "$updRev" ] || continue
+                    phase=$(jp pod "$p" '{.status.phase}')
+                    ready=$(jp pod "$p" '{range .status.conditions[?(@.type=="Ready")]}{.status}{end}')
+                    restarts=$(jp pod "$p" '{.status.containerStatuses[0].restartCount}')
+                    if [ "$phase" = "Running" ] && [ "$ready" != "True" ] && [ "${restarts:-0}" -le 3 ]; then
+                      wedgePod="$p"
+                    fi
+                  done
+
+                  if [ -z "$wedgePod" ]; then
+                    echo "roll in progress but no Running/NotReady new-rev pod (normal or crashloop); no action"
+                    exit 0
+                  fi
+
+                  # Sustained across runs?
+                  prevRev=$(jp configmap "$STATE" '{.data.stuckRev}')
+                  prevCount=$(jp configmap "$STATE" '{.data.stuckCount}')
+                  if [ "$prevRev" = "$updRev" ]; then count=$(( ${prevCount:-0} + 1 )); else count=1; fi
+                  kubectl -n "$NS" patch configmap "$STATE" --type merge \
+                    -p "{\"data\":{\"stuckRev\":\"$updRev\",\"stuckCount\":\"$count\"}}" >/dev/null 2>&1 || true
+
+                  if [ "$count" -lt 2 ]; then
+                    echo "wedge candidate ($wedgePod, rev $updRev) seen $count time(s); waiting for confirmation"
+                    exit 0
+                  fi
+
+                  echo "WEDGE confirmed ($count runs): $wedgePod on new rev $updRev Running+NotReady. Deleting old-rev pods to reform."
+                  for p in $(kubectl get pods -n "$NS" -l app="$STS" -o jsonpath='{.items[*].metadata.name}'); do
+                    rev=$(jp pod "$p" '{.metadata.labels.controller-revision-hash}')
+                    if [ -n "$rev" ] && [ "$rev" != "$updRev" ]; then
+                      echo "deleting old-rev pod $p (rev $rev)"
+                      kubectl delete pod "$p" -n "$NS" --wait=false || true
+                    fi
+                  done
+                  kubectl -n "$NS" patch configmap "$STATE" --type merge \
+                    -p '{"data":{"stuckRev":"","stuckCount":"0"}}' >/dev/null 2>&1 || true

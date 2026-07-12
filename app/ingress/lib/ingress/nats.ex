@@ -28,17 +28,36 @@ defmodule Ingress.Nats do
 
   @spec publish(String.t(), map()) :: :ok | {:error, term()}
   def publish(subject, payload) do
-    json = JSON.encode(payload)
+    case safe_encode(payload) do
+      {:ok, json} ->
+        case Process.whereis(@connection) do
+          nil ->
+            Metrics.count("Nats/PublishDropped")
+            Metrics.count("Nats/PublishNotConnected")
+            {:error, :not_connected}
 
-    case Process.whereis(@connection) do
-      nil ->
+          _pid ->
+            Gnat.pub(@connection, subject, json)
+        end
+
+      {:error, reason} ->
+        # Status/telemetry is fire-and-forget: an unencodable payload must never
+        # crash the shard that emitted it. A DateTime tuple field once raised here
+        # and cascaded into a shard restart storm that wedged the whole rollout.
         Metrics.count("Nats/PublishDropped")
-        Metrics.count("Nats/PublishNotConnected")
-        {:error, :not_connected}
-
-      _pid ->
-        Gnat.pub(@connection, subject, json)
+        Metrics.count("Nats/PublishEncodeError")
+        {:error, {:encode, reason}}
     end
+  end
+
+  # Encoding must not propagate as an exit from the caller (see publish/2). Lane
+  # events (publish_acked) stay strict — their payloads are decoded Twitch maps.
+  defp safe_encode(payload) do
+    {:ok, JSON.encode(payload)}
+  rescue
+    error -> {:error, error}
+  catch
+    kind, reason -> {:error, {kind, reason}}
   end
 
   @doc """

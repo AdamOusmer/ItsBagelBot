@@ -66,11 +66,11 @@ spec:
       labels:
         app: console-dashboard
       annotations:
-        linkerd.io/inject: enabled
-        config.linkerd.io/proxy-cpu-request: 5m
-        config.linkerd.io/proxy-cpu-limit: 750m
-        config.linkerd.io/proxy-memory-request: 16Mi
-        config.linkerd.io/proxy-memory-limit: 96Mi
+        # De-meshed. The dashboard serves its own TLS (serve-node.js HTTPS,
+        # Traefik re-encrypts via the ServersTransport), and NATS has native TLS,
+        # so it no longer needs the Linkerd proxy — which HTTP-parsed the app's
+        # HTTPS on 3000 and failed the kubelet probes / Traefik re-encrypt.
+        linkerd.io/inject: disabled
     spec:
       # Hard guard: the dashboard must NEVER run on the worker pool. The taint
       # already repels it (no toleration here), this required nodeAffinity makes
@@ -108,11 +108,19 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: console-dashboard
-          image: ghcr.io/adamousmer/itsbagelbot/console-dashboard:main-1783842568-9aa50781274c@sha256:63d5f743eec244d3a26823c95d36f1f483c1360ce1b222cd8ff9888d36685d35 # {"$imagepolicy": "flux-system:console-dashboard"}
+          image: ghcr.io/adamousmer/itsbagelbot/console-dashboard:main-1783882234-b2d752d03a93@sha256:95191c1da34d3c51a7cee33b4774e2b4e6edec57df8ba666adec0d3a628a4b79 # {"$imagepolicy": "flux-system:console-dashboard"}
           imagePullPolicy: IfNotPresent
           env:
             - name: PORT
               value: "3000"
+            # Serve HTTPS from adapter-node (serve-node.js) using the cert-manager
+            # console-dashboard-tls cert, so the traefik->console hop is TLS and no
+            # longer depends on the Linkerd mesh (the de-mesh gate). Traefik
+            # re-encrypts via the console-dashboard-transport ServersTransport.
+            - name: TLS_CERT_FILE
+              value: /etc/console/tls/tls.crt
+            - name: TLS_KEY_FILE
+              value: /etc/console/tls/tls.key
             - name: NODE_ENV
               value: production
             # adapter-node sits behind cloudflared+traefik; ORIGIN lets SvelteKit
@@ -123,11 +131,22 @@ spec:
             # a stale cross-namespace FQDN (nats.bagelbot...) that does not
             # resolve here; NATS_URL overrides it. Auth (NATS_USER/PASSWORD) still
             # comes from the secret.
-            # Apps connect only to the node-local leaf cluster (4-node HA); the
-            # hub is reached over the leafnode link for JetStream. No hub in the
-            # server list, so a leaf roll can never pin a client to the hub.
+            # Split planes: the BUS / JetStream connection dials the hub directly
+            # (NATS_HUB_URL) so stream traffic never pays a leaf forwarding hop;
+            # the RPC + cache plane (NATS_RPC_URL / NATS_LEAF_URL) stays on the
+            # node-local leaf. NATS_URL is the local-dev fallback only.
             - name: NATS_URL
               value: nats://nats-leaf:4222
+            - name: NATS_HUB_URL
+              value: nats://nats:4222
+            # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS server
+            # TLS cert now that NATS is out of the Linkerd mesh; read as RootCAs by
+            # pkg/bus (Go services) and the console nats lib (TS).
+            - name: NATS_CA_PEM
+              valueFrom:
+                configMapKeyRef:
+                  name: fleet-ca
+                  key: ca.pem
             - name: NATS_RPC_URL
               value: nats://nats-leaf:4222
             - name: NATS_LEAF_URL
@@ -203,6 +222,8 @@ spec:
                 name: dashboard-env
           ports:
             - containerPort: 3000
+          volumeMounts:
+            - {name: tls, mountPath: /etc/console/tls, readOnly: true}
           resources:
             requests:
               cpu: 25m
@@ -220,11 +241,12 @@ spec:
                 # Give kube-proxy / Linkerd / traefik time to drain this endpoint
                 # before SIGTERM fires. Prevents connection-refused 500s during rolls.
                 command: ["/bin/sh", "-c", "sleep 10"]
+          # scheme HTTPS: the server now terminates TLS on 3000 (see serve-node.js).
           livenessProbe:
-            httpGet: {path: /healthz, port: 3000}
+            httpGet: {path: /healthz, port: 3000, scheme: HTTPS}
             periodSeconds: 30
           readinessProbe:
-            httpGet: {path: /readyz, port: 3000}
+            httpGet: {path: /readyz, port: 3000, scheme: HTTPS}
             periodSeconds: 10
       terminationGracePeriodSeconds: 45
       tolerations:
@@ -236,6 +258,10 @@ spec:
           operator: Exists
           effect: NoExecute
           tolerationSeconds: 60
+      volumes:
+        - name: tls
+          secret:
+            secretName: console-dashboard-tls
 ---
 apiVersion: v1
 kind: Service
@@ -266,11 +292,30 @@ spec:
       services:
         - name: console-dashboard
           port: 80
+          # HTTPS to the backend: serve-node.js now terminates TLS, so traefik
+          # re-encrypts via the ServersTransport below (rootCAs = the cert's own
+          # fleet-CA ca.crt). This makes the traefik->console hop TLS end-to-end,
+          # the gate for removing NATS from the Linkerd mesh.
+          scheme: https
+          serversTransport: console-dashboard-transport
           # Route to the Service ClusterIP (not pod endpoints) so traefik
           # inherits the Service's PreferClose region routing. No sticky cookie:
           # sessions are stateless, so any in-region pod is interchangeable.
           nativeLB: true
   tls: {}
+---
+apiVersion: traefik.io/v1alpha1
+kind: ServersTransport
+metadata:
+  name: console-dashboard-transport
+  namespace: production
+spec:
+  # Verify the console pod's serve-node.js cert against the fleet CA. serverName
+  # matches the cert SAN (the Service name). rootCAsSecrets reads the CA from the
+  # cert-manager secret's ca.crt key (Traefik v3). No InsecureSkipVerify.
+  serverName: console-dashboard
+  rootCAsSecrets:
+    - console-dashboard-tls
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget

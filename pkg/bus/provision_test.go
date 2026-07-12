@@ -75,18 +75,21 @@ func TestOutgressStreamHasSingleReconciler(t *testing.T) {
 	}
 }
 
-func TestIngressStreamIsolatesLanesPerSubject(t *testing.T) {
-	var ingress *StreamSpec
+// ingressStreamSpec returns the TWITCH_INGRESS spec from DataStreams, failing the
+// test if it is missing. Shared by the tests that assert on the firehose spec.
+func ingressStreamSpec(t *testing.T) StreamSpec {
+	t.Helper()
 	for i := range DataStreams {
 		if DataStreams[i].Name == "TWITCH_INGRESS" {
-			ingress = &DataStreams[i]
+			return DataStreams[i]
 		}
 	}
-	if ingress == nil {
-		t.Fatal("TWITCH_INGRESS stream spec missing")
-	}
+	t.Fatal("TWITCH_INGRESS stream spec missing")
+	return StreamSpec{}
+}
 
-	cfg := streamConfig(*ingress)
+func TestIngressStreamIsolatesLanesPerSubject(t *testing.T) {
+	cfg := streamConfig(ingressStreamSpec(t))
 	// The premium/standard/stream lanes are distinct literal subjects on one
 	// stream; MaxBytes eviction alone is oldest-first stream-wide, letting a
 	// standard flood evict premium. The per-subject cap makes a flooded lane
@@ -112,6 +115,33 @@ func TestEveryFleetStreamEnablesBatchPublishing(t *testing.T) {
 		if !spec.BatchPublish {
 			t.Fatalf("stream %s does not enable shared batch publishing", spec.Name)
 		}
+	}
+}
+
+func TestStreamReplicasAreExplicitAndEnforced(t *testing.T) {
+	ingress := ingressStreamSpec(t)
+
+	// The firehose is R1: its async PubAck-bound producer must not pay a per-publish
+	// RAFT quorum. The control lane stays R3 because a lost enroll job is invisible.
+	if got := streamConfig(ingress).Replicas; got != 1 {
+		t.Fatalf("TWITCH_INGRESS replicas = %d, want 1 (R1 firehose)", got)
+	}
+	if got := streamConfig(OutgressSystemStream).Replicas; got != 3 {
+		t.Fatalf("TWITCH_OUTGRESS_SYSTEM replicas = %d, want 3 (durable control lane)", got)
+	}
+
+	// A zero-value Replicas defaults to a single copy, never 0 (which NATS rejects).
+	if got := streamConfig(StreamSpec{Name: "X", Subjects: []string{"x.>"}}).Replicas; got != 1 {
+		t.Fatalf("default replicas = %d, want 1", got)
+	}
+
+	// streamMatches must be replica-sensitive, or a live stream hand-edited to R3
+	// stays R3 while the spec declares R1 — the invisible drift this change fixes.
+	want := *streamConfig(ingress) // R1
+	drifted := want
+	drifted.Replicas = 3
+	if streamMatches(drifted, want) {
+		t.Fatal("streamMatches ignored a replica drift; live R3 would never converge to R1")
 	}
 }
 

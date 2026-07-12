@@ -1,5 +1,6 @@
-import { createServer } from 'node:http';
-import { existsSync } from 'node:fs';
+import { createServer as createHttpServer } from 'node:http';
+import { createServer as createHttpsServer } from 'node:https';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import sirv from 'sirv';
@@ -54,7 +55,7 @@ const prerendered = existsSync(prerenderedDir)
     })
   : undefined;
 
-const server = createServer((req, res) => {
+const requestListener = (req, res) => {
   client(req, res, () => {
     const next = () => {
       // A static asset under /_app that sirv could not find: it does not exist on
@@ -74,7 +75,19 @@ const server = createServer((req, res) => {
       next();
     }
   });
-});
+};
+
+// Serve HTTPS when a cert is provided (TLS_CERT_FILE/TLS_KEY_FILE, mounted from the
+// cert-manager console-*-tls secret). Traefik re-encrypts to this backend via a
+// ServersTransport, so the traefik->console hop is TLS end-to-end and no longer
+// depends on the Linkerd mesh — the gate for de-meshing NATS. Plain HTTP fallback
+// keeps local dev (no cert) unchanged.
+const tlsCert = process.env.TLS_CERT_FILE;
+const tlsKey = process.env.TLS_KEY_FILE;
+const server =
+  tlsCert && tlsKey
+    ? createHttpsServer({ cert: readFileSync(tlsCert), key: readFileSync(tlsKey) }, requestListener)
+    : createHttpServer(requestListener);
 
 function shutdown(signal) {
   console.log(`Received ${signal}; closing HTTP server`);
@@ -97,6 +110,6 @@ if (socketPath) {
   });
 } else {
   server.listen({ host, port }, () => {
-    console.log(`Listening on http://${host}:${port}`);
+    console.log(`Listening on ${tlsCert && tlsKey ? 'https' : 'http'}://${host}:${port}`);
   });
 }

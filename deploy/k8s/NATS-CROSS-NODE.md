@@ -21,15 +21,15 @@ emergency partition. Fix this to *recover the burst headroom*, not to stop 429s.
 Confirmed wiring (leave as-is unless a step below proves otherwise):
 
 - Leaf cluster: `cluster{ name: nats-leaf, port: 6222, routes: nats-leaf-peers:6222, no_advertise }` ([nats-leaf-server.conf](nats-leaf-server.conf)); `nats-leaf-peers` is headless + `publishNotReadyAddresses` ([nats-leaf.yaml](nats-leaf.yaml)).
-- Hub cluster: 3-replica StatefulSet, routes on `nats-headless:6222`; per-account leafnode listener on `7422` ([nats.yaml](nats.yaml), [nats-server.conf](nats-server.conf)).
+- Hub cluster: 3-replica StatefulSet, routes on `nats-headless:6222`; BUS and JetStream clients connect directly to its TLS client listener ([nats.yaml](nats.yaml), [nats-server.conf](nats-server.conf)).
 - `OUTGRESS_RPC` has no per-user subject ACL (default-allow **within** the account), so `bagel.outgress.permit.v2.>` and `$SRV.>` are unrestricted account-internal subjects.
 - `network-policies.yaml` `default-deny-apps` selects only app pods, **not**
   `nats`/`nats-leaf`, so NATS pods are NetworkPolicy-unrestricted. NATS and its
-  leaves are out of Linkerd; native TLS protects 4222/6222/7422.
+  leaves are out of Linkerd; native TLS protects 4222/6222.
 
 RPC is deliberately hub-independent. A break is therefore runtime on the
 leaf↔leaf routes (6222), account import/export mapping, or host networking — not
-on the hub leafnode listener.
+on the stream hub.
 
 ## Diagnose (live cluster)
 
@@ -44,11 +44,11 @@ Run from the operator context (`k8s-operator.tail451e6d.ts.net`).
    ```
    Prometheus equivalent: `gnatsd_varz_routes{app="nats-leaf"}`.
 
-2. **Only the BUS bridge is up?** Each leaf should expose exactly one hub
-   leafnode remote, for `BUS`. RPC accounts must not appear here.
+2. **No hub bridge is up?** Leaves are RPC-only, so they should expose no hub
+   leafnode remotes at all.
    ```sh
    kubectl -n production exec <a-leaf-pod> -c nats -- \
-     wget -qO- localhost:8222/leafz | grep -E '"leafnodes"|BUS|_RPC'
+     wget -qO- localhost:8222/leafz | grep -E '"num_leafnodes"|BUS|_RPC'
    ```
 
 3. **Does interest actually cross?** Sub on one node's leaf, pub from another's,
@@ -83,9 +83,9 @@ Run from the operator context (`k8s-operator.tail451e6d.ts.net`).
   (`kubectl -n production get endpoints nats-leaf-peers`) and that the peer
   certificates validate on native-TLS port 6222.
 
-- **Step 2 shows any `*_RPC` remote:** the old hub bridge is still loaded.
-  Confirm the generated `nats-leaf-config` contains only
-  `NATS_LEAF_REMOTE_URL_BUS`, then reload/restart that leaf.
+- **Step 2 shows any remote:** stale bridge configuration is still loaded.
+  Confirm `nats-leaf-config` has no `leafnodes.remotes`, then reload/restart
+  that leaf.
 
 - **Step 1 healthy but step 3 is silent:** inspect the account's service
   imports/exports in `nats-auth.conf`, then revisit `no_advertise` if a

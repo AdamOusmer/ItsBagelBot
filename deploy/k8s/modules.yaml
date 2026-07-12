@@ -37,7 +37,11 @@ spec:
       labels:
         app: modules
       annotations:
-        linkerd.io/inject: enabled
+        linkerd.io/inject: disabled
+        # NATS is out of the Linkerd mesh: bypass the app-side proxy for the NATS
+        # client port so the firehose / RPC traffic goes direct (NATS-native TLS
+        # provides the encryption). Without this the proxy still taxes every event.
+        config.linkerd.io/skip-outbound-ports: "4222"
         config.linkerd.io/proxy-cpu-request: 5m
         config.linkerd.io/proxy-cpu-limit: 750m
         config.linkerd.io/proxy-memory-request: 16Mi
@@ -71,16 +75,27 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: modules
-          image: ghcr.io/adamousmer/itsbagelbot/modules:main-1783849498-8298d8dd36f2@sha256:c0bbae71242b030926d452527b95e9012dcf8a3015366989919661766a63a40e # {"$imagepolicy": "flux-system:modules"}
+          image: ghcr.io/adamousmer/itsbagelbot/modules:main-1783887960-fe5f1258cb84@sha256:672beae0a2c03f2791b3c99826483fb9c53e4bc099f6425d39ad11c73d69c674 # {"$imagepolicy": "flux-system:modules"}
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST
               value: nats
-            # Apps connect only to the node-local leaf cluster (4-node HA); the
-            # hub is reached over the leafnode link for JetStream. No hub in the
-            # server list, so a leaf roll can never pin a client to the hub.
+            # Split planes: the BUS / JetStream connection dials the hub directly
+            # (NATS_HUB_URL) so stream traffic never pays a leaf forwarding hop;
+            # the RPC + cache plane (NATS_RPC_URL / NATS_LEAF_URL) stays on the
+            # node-local leaf. NATS_URL is the local-dev fallback only.
             - name: NATS_URL
               value: nats://nats-leaf:4222
+            - name: NATS_HUB_URL
+              value: nats://nats:4222
+            # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS server
+            # TLS cert now that NATS is out of the Linkerd mesh; read as RootCAs by
+            # pkg/bus (Go services) and the console nats lib (TS).
+            - name: NATS_CA_PEM
+              valueFrom:
+                configMapKeyRef:
+                  name: fleet-ca
+                  key: ca.pem
             - name: NATS_RPC_URL
               value: nats://nats-leaf:4222
             - name: NATS_LEAF_URL

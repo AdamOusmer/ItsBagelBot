@@ -5,9 +5,9 @@ import LegalShell from '../components/legal/LegalShell.astro';
 
 const sections = [
     { id: 'agreement', heading: 'Agreement', plain: 'Using the bot means you accept these rules.' },
-    { id: 'service', heading: 'The Service', plain: 'A Twitch bot: moderation, commands, engagement. Provided as-is.' },
+    { id: 'service', heading: 'The Service', plain: 'A Twitch bot: moderation, commands, engagement. Provided as-is. Organizations require Enterprise or a Creator Code.' },
     { id: 'account', heading: 'Your Account', plain: 'Your channel, your connection, your responsibility.' },
-    { id: 'acceptable-use', heading: 'Acceptable Use', plain: "Don't be a jerk, don't break Twitch's rules, don't abuse the service." },
+    { id: 'acceptable-use', heading: 'Acceptable Use', plain: "Don't be a jerk, don't break Twitch's rules, don't abuse the service, no self-hosting." },
     { id: 'license', heading: 'Source Available License', plain: 'You can read the code. You cannot resell it.' },
     { id: 'payments', heading: 'Payments, Refunds & Chargebacks', plain: 'Purchases are handled by Tebex. All sales are final. Chargebacks result in an immediate ban.' },
     { id: 'liability', heading: 'Limitation of Liability', plain: "If something breaks, we fix it, but we can't owe you damages." },
@@ -29,7 +29,7 @@ const sections = [
         <Fragment slot="service">
             <p>
                 ItsBagelBot provides automated chat moderation, commands, and engagement tools for Twitch
-                streamers. The service is provided as-is.
+                streamers. The service is provided as-is. Normal users are welcome to use the hosted service on their streams to any extent without abuse. Streamers representing organizations, brands, or teams must use the Enterprise tier, unless they hold a valid ItsBagelBot creator code.
             </p>
         </Fragment>
 
@@ -47,7 +47,7 @@ const sections = [
                 <li>Harass or harm others</li>
                 <li>Spam or abuse the service</li>
                 <li>Attempt to disrupt, overload, or gain unauthorized access to the service</li>
-                <li>Redistribute the software or use it outside the terms of its source-available license</li>
+                <li>Redistribute the software, self-host the service, or run your own instance of the bot in any environment</li>
             </ul>
         </Fragment>
 

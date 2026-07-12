@@ -5,9 +5,9 @@ import LegalShell from '../../components/legal/LegalShell.astro';
 
 const sections = [
     { id: 'agreement', heading: 'Acceptation', plain: 'En utilisant le bot, vous acceptez les présentes conditions.' },
-    { id: 'service', heading: 'Le service', plain: 'Un bot Twitch de modération, de commandes et de participation, fourni tel quel.' },
+    { id: 'service', heading: 'Le service', plain: 'Un bot Twitch de modération, de commandes et de participation, fourni tel quel. Les organisations doivent utiliser le forfait Entreprise ou un code de créateur.' },
     { id: 'account', heading: 'Votre compte', plain: 'Votre chaîne, votre connexion et votre responsabilité.' },
-    { id: 'acceptable-use', heading: 'Utilisation acceptable', plain: 'Respectez les autres, les règles de Twitch et le service.' },
+    { id: 'acceptable-use', heading: 'Utilisation acceptable', plain: "Respectez les autres, les règles de Twitch, pas d'auto-hébergement et respectez le service." },
     { id: 'license', heading: 'Licence à code source disponible', plain: 'Vous pouvez consulter le code, mais pas le revendre.' },
     { id: 'payments', heading: 'Paiements, remboursements et rétrofacturations', plain: 'Tebex traite les achats. Les ventes sont définitives; une rétrofacturation entraîne l’exclusion immédiate.' },
     { id: 'liability', heading: 'Limitation de responsabilité', plain: 'Nous corrigerons les problèmes, mais ne pouvons être tenus responsables des dommages.' },
@@ -27,7 +27,7 @@ const sections = [
         </Fragment>
 
         <Fragment slot="service">
-            <p>ItsBagelBot fournit aux diffuseurs Twitch des outils automatisés de modération du clavardage, de commandes et de participation. Le service est fourni tel quel.</p>
+            <p>ItsBagelBot fournit aux diffuseurs Twitch des outils automatisés de modération du clavardage, de commandes et de participation. Le service est fourni tel quel. Les utilisateurs individuels peuvent utiliser le service hébergé sur leurs diffusions dans la mesure souhaitée sans abus. Les diffuseurs représentant des organisations, des marques ou des équipes doivent utiliser le forfait Entreprise, à moins de détenir un code de créateur ItsBagelBot valide.</p>
         </Fragment>
 
         <Fragment slot="account">
@@ -41,7 +41,7 @@ const sections = [
                 <li>harceler autrui ou lui causer du tort;</li>
                 <li>diffuser des pourriels ou utiliser le service de façon abusive;</li>
                 <li>tenter de perturber ou de surcharger le service, ou d’y accéder sans autorisation;</li>
-                <li>redistribuer le logiciel ou l’utiliser en dehors des conditions de sa licence à code source disponible.</li>
+                <li>redistribuer le logiciel, l'auto-héberger ou exécuter votre propre instance du bot dans n'importe quel environnement.</li>
             </ul>
         </Fragment>
 

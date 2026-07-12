@@ -20,14 +20,12 @@ spec:
   template:
     metadata:
       annotations:
-        linkerd.io/inject: enabled
-        # NATS speaks first on the wire, so protocol detection would stall;
-        # opaque keeps Linkerd mTLS without the detection timeout.
-        config.linkerd.io/opaque-ports: "4222,7422"
-        config.linkerd.io/proxy-cpu-request: 5m
-        config.linkerd.io/proxy-cpu-limit: 1000m
-        config.linkerd.io/proxy-memory-limit: 128Mi
-        config.linkerd.io/proxy-memory-request: 16Mi
+        # NATS is intentionally OUT of the Linkerd mesh: at 150k ev/s the sidecar
+        # proxy is the dominant tax on the firehose (every message crossed a proxy
+        # on publish, on the hub, and on each consumer). Wire encryption is now
+        # NATS-native TLS (nats-server.conf) over the tailnet; meshed apps bypass
+        # the proxy for the NATS port via config.linkerd.io/skip-outbound-ports.
+        linkerd.io/inject: disabled
         prometheus.io/path: /metrics
         prometheus.io/port: "7777"
         prometheus.io/scrape: "true"
@@ -104,10 +102,10 @@ spec:
           ports:
             - {containerPort: 4222, name: client}
             - {containerPort: 8222, name: monitor}
-            - {containerPort: 7422, name: leafnodes}
             - {containerPort: 6222, name: cluster}
           volumeMounts:
             - {name: config, mountPath: /etc/nats, readOnly: true}
+            - {name: certs, mountPath: /etc/nats/certs, readOnly: true}
             - {name: jetstream-data, mountPath: /data/jetstream}
             - {name: pid, mountPath: /var/run/nats}
           resources:
@@ -161,8 +159,13 @@ spec:
             - "/etc/nats/nats.conf"
             - "-config"
             - "/etc/nats/auth.conf"
+            # Watch the TLS cert so a cert-manager renewal SIGHUPs nats to reload
+            # the new cert without a pod restart.
+            - "-config"
+            - "/etc/nats/certs/tls.crt"
           volumeMounts:
             - {name: config, mountPath: /etc/nats, readOnly: true}
+            - {name: certs, mountPath: /etc/nats/certs, readOnly: true}
             - {name: pid, mountPath: /var/run/nats}
           resources:
             requests: {cpu: 5m, memory: 16Mi}
@@ -187,6 +190,9 @@ spec:
         - name: config
           configMap:
             name: nats-config
+        - name: certs
+          secret:
+            secretName: nats-hub-tls
         - name: pid
           emptyDir: {}
   volumeClaimTemplates:
@@ -209,18 +215,16 @@ metadata:
   name: nats
   namespace: production
   annotations:
-    config.linkerd.io/opaque-ports: "4222,7422,6222"
+    config.linkerd.io/opaque-ports: "4222,6222"
 spec:
-  # Leaf remotes dial this Service once per account. Prefer the hub on the same
-  # node so node2/node3/worker1 avoid an unnecessary cross-node or home-WAN hop;
-  # node1 still falls back cluster-wide because it intentionally has no hub.
+  # JetStream clients dial this Service directly. Prefer the hub on the same
+  # node so node2/node3/worker1 avoid an unnecessary cross-node or home-WAN hop.
   trafficDistribution: PreferSameNode
   selector:
     app: nats
   ports:
     - {name: client, port: 4222, targetPort: client}
     - {name: monitor, port: 8222, targetPort: monitor}
-    - {name: leafnodes, port: 7422, targetPort: leafnodes}
 ---
 apiVersion: v1
 kind: Service
@@ -230,7 +234,7 @@ metadata:
   name: nats-headless
   namespace: production
   annotations:
-    config.linkerd.io/opaque-ports: "4222,7422,6222"
+    config.linkerd.io/opaque-ports: "4222,6222"
 spec:
   clusterIP: None
   publishNotReadyAddresses: true

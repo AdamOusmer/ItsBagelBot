@@ -27,9 +27,9 @@ resources:
   - sesame.yaml
   - twitch-ingress.yaml
   - network-policies.yaml
-  - linkerd-auth.yaml
   - nats.yaml
   - nats-leaf.yaml
+  - nats-selfheal.yaml
   - nats-auth-dopplersecret.yaml
 # NATS broker config, formerly created by apply-nats.sh. The configmaps hold
 # only the server conf + the auth conf ($ENV placeholders expanded at runtime

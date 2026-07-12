@@ -3,7 +3,8 @@
 The fleet runs per-account isolation (see [nats-auth.conf](nats-auth.conf)): a
 shared **BUS** account for the JetStream/event plane and one **`<SERVICE>_RPC`**
 account per service for the request/reply + cache plane. Every runtime holds two
-connections (BUS creds + per-service RPC creds) and prefers the node-local leaf.
+connections: BUS credentials connect directly to the TLS hub, while per-service
+RPC credentials connect to the node-local leaf tier.
 
 This file is the operator checklist for the secrets that live **outside** the
 repo. The bcrypt hashes are consumed by the `nats` and `nats-leaf` containers
@@ -30,7 +31,7 @@ service's Doppler project.
 
 ## 2. `nats-auth-env` secret keys (broker side)
 
-All values are **bcrypt hashes** except the `*_REMOTE_URL_*` entries.
+All values are **bcrypt hashes**.
 
 **BUS user hashes (11):**
 `NATS_BCRYPT_USERS_BUS`, `NATS_BCRYPT_COMMANDS_BUS`, `NATS_BCRYPT_MODULES_BUS`,
@@ -48,11 +49,8 @@ All values are **bcrypt hashes** except the `*_REMOTE_URL_*` entries.
 
 **System account (1):** `NATS_BCRYPT_SYS`
 
-**Leaf link hash — BUS bridge only:** `NATS_BCRYPT_LEAF_BUS`.
-
-**Leaf remote URL — BUS bridge only:** `NATS_LEAF_REMOTE_URL_BUS`, embedding
-the plaintext matching the hash above. RPC accounts are local to the standalone
-leaf cluster and deliberately have no hub leafnode credentials or remotes.
+There are no leaf-link credentials. Leaves are the standalone RPC cluster and
+all BUS/JetStream clients connect directly to the hub.
 
 ## 3. Per-service Doppler keys (app side)
 
@@ -85,9 +83,8 @@ htpasswd -bnBC 11 "" "$PLAINTEXT" | tr -d ':\n' | sed 's/^\$2y/\$2a/'
 `nats-auth.conf` hot-reloads via the config-reloader SIGHUP, so accounts can be
 staged before clients cut over.
 
-1. Add the BUS bridge keys above to `nats-auth-env`; push config (Flux) → SIGHUP
-   reload. Verify each leaf reports exactly one hub remote (`BUS`) and that no
-   `*_RPC` account appears in `leafz`.
+1. Push the broker and leaf account config (Flux) and verify `leafz` reports no
+   hub remotes; cross-node RPC uses leaf cluster routes only.
 2. Ship the app code (already in this branch); `NATS_RPC_*` falls back to
    `NATS_USER`/`PASSWORD`, so apps keep working on their BUS user until RPC creds
    exist.
