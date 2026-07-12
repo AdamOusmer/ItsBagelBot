@@ -86,10 +86,8 @@ func main() {
 	// guard is the inline automod gate; hoisted so the emote/lexicon refreshers can
 	// install their false-positive-suppression sets onto the same instance.
 	guard := automod.New()
-	dedup := engine.NewBatchedValkeyDedup(in.vc, 10*time.Minute, 128, 200*time.Microsecond)
-	defer dedup.Close()
 	deps := buildDeps(in, cfg, log, engineRuntime{
-		proj: proj, live: live, timers: timers, guard: guard, loyalty: loyalty, tick: loyaltyTick, dedup: dedup,
+		proj: proj, live: live, timers: timers, guard: guard, loyalty: loyalty, tick: loyaltyTick,
 	})
 	registry := engine.NewRegistry(log, modules.All(deps)...)
 	startRefreshers(ctx, guard, cfg, log)
@@ -118,7 +116,6 @@ type engineRuntime struct {
 	guard   *automod.Gate
 	loyalty engine.LoyaltyStore
 	tick    *engine.ValkeyLoyaltyClock
-	dedup   engine.DedupStore
 }
 
 // buildDeps assembles the engine.Deps every module fn captures. modules.All turns
@@ -132,7 +129,6 @@ func buildDeps(in infra, cfg *config.Config, log *zap.Logger, rt engineRuntime) 
 		Live:       rt.live,
 		Greet:      engine.NewValkeyGreetStore(in.vc, cfg.LiveTTL, log),
 		Cooldown:   engine.NewValkeyCooldown(in.vc),
-		Dedup:      rt.dedup,
 		Special:    engine.NewSpecialSet(cfg.SpecialUserIDs),
 		Pub:        in.pub,
 		Commands:   engine.NewCommandsRPC(in.nc, cfg.CommandsDashboardPrefix),
@@ -194,9 +190,8 @@ func logReady(cfg *config.Config, specialUsers int, log *zap.Logger) {
 // drainInflight waits for the handlers the consumer already dispatched to run to
 // completion before main returns and its deferred Close calls flush the reporters
 // and shut the publishers. SIGTERM cancelled the consumer's context, so no new
-// work is being pulled; a handler killed mid-flight would leave its dedup claim
-// written (released only on the error path) while its event is acked, so partial
-// multi-output work would be dropped on the floor instead of redelivered.
+// work is being pulled. A handler killed mid-flight remains unacknowledged and
+// is redelivered; deterministic output IDs collapse outputs already stored.
 func drainInflight(weighted *bus.Weighted, timeout time.Duration, log *zap.Logger) {
 	log.Info("sesame shutting down, draining in-flight events", zap.Duration("timeout", timeout))
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)

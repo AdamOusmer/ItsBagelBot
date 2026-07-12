@@ -1,11 +1,11 @@
-defmodule Ingress.NatsBatchIntegrationTest do
+defmodule Ingress.NatsCohortIntegrationTest do
   use ExUnit.Case, async: false
 
   alias Ingress.Nats.Publisher
 
   @moduletag :integration
 
-  test "Gnat-managed connection writes one atomic batch directly to NATS 2.14" do
+  test "Gnat-managed connection receives individual PubAcks from NATS" do
     port = System.get_env("NATS_INTEGRATION_PORT")
 
     if is_nil(port) do

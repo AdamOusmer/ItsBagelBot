@@ -2,12 +2,11 @@ package bus
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
-	"runtime"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"ItsBagelBot/pkg/env"
@@ -23,17 +22,15 @@ const (
 	defaultPublishBatchWait = time.Millisecond
 	defaultPublishAckWait   = 2 * time.Second
 	defaultPublishQueueSize = 16_384
+	maxInflightCohorts      = 4
 
-	batchIDHeader       = "Nats-Batch-Id"
-	batchSequenceHeader = "Nats-Batch-Sequence"
-	batchCommitHeader   = "Nats-Batch-Commit"
-	requiredAPIHeader   = "Nats-Required-Api-Level"
 	watermillUUIDHeader = "_watermill_message_uuid" // wire compatibility until subscribers migrate
 )
 
 // StreamRouter is the strategy used to select a pooled connection. The default
-// hashes the stream name, preserving order for one stream while allowing
-// BAGEL_DATA, TWITCH_OUTGRESS and control streams to write in parallel.
+// hashes the stream plus optional aggregate partition. Calls without a
+// partition preserve stream-wide order; partitioned calls preserve order for
+// that channel/tenant while allowing unrelated aggregates to publish in parallel.
 type StreamRouter interface {
 	Connection(stream string, poolSize int) int
 }
@@ -50,14 +47,9 @@ func (hashStreamRouter) Connection(stream string, poolSize int) int {
 }
 
 type publisherPool struct {
-	members []*batchPublisher
-	router  StreamRouter
-}
-
-type publisherConnectionConfig struct {
-	url   string
-	index int
-	log   *zap.Logger
+	members     []*batchPublisher
+	router      StreamRouter
+	fixedStream string
 }
 
 // batchPublisher is one pooled connection with one active-object batcher per
@@ -72,58 +64,67 @@ type batchPublisher struct {
 	closed   bool
 	workers  map[string]*publishBatchWorker
 
-	stateMu   sync.Mutex
-	accepted  uint64
-	completed uint64
-	firstErr  error
-	changed   chan struct{}
+	stateMu    sync.Mutex
+	accepted   uint64
+	completed  uint64
+	firstErr   error
+	changed    chan struct{}
+	duplicates atomic.Uint64
 }
 
 type publishRequest struct {
-	msg   *nats.Msg
-	msgID string
+	msg       *nats.Msg
+	msgID     string
+	confirmed chan error
+}
+
+type publishCommand struct {
+	ctx       context.Context
+	stream    string
+	topic     string
+	msgID     string
+	payload   []byte
+	confirmed bool
 }
 
 type publishBatchWorker struct {
-	stream   string
-	nc       *nats.Conn
 	js       nats.JetStreamContext
-	inbox    string
-	replies  *nats.Subscription
 	requests chan publishRequest
 	stop     chan struct{}
 	done     chan struct{}
-	log      *zap.Logger
 	owner    *batchPublisher
+	slots    chan struct{}
+	acks     sync.WaitGroup
 }
 
-type jetStreamPubAck struct {
-	Stream    string `json:"stream"`
-	Sequence  uint64 `json:"seq"`
-	Duplicate bool   `json:"duplicate,omitempty"`
-	Batch     string `json:"batch,omitempty"`
-	Count     int    `json:"count,omitempty"`
-	Error     *struct {
-		Code        int    `json:"code"`
-		ErrorCode   int    `json:"err_code"`
-		Description string `json:"description"`
-	} `json:"error,omitempty"`
+// DuplicateCount reports broker-folded publications for acceptance telemetry.
+// It is intentionally outside Publisher's service-facing contract.
+func (p *publisherPool) DuplicateCount() uint64 {
+	var total uint64
+	for _, member := range p.members {
+		total += member.duplicates.Load()
+	}
+	return total
 }
 
 func newPublisherPool(url string, log *zap.Logger) (Publisher, error) {
+	return newPublisherPoolForStream(url, "", log)
+}
+
+func newPublisherPoolForStream(url, fixedStream string, log *zap.Logger) (Publisher, error) {
 	if log == nil {
 		log = zap.NewNop()
 	}
-	poolSize := env.GetInt("NATS_PUBLISH_CONNECTIONS", min(runtime.GOMAXPROCS(0), 4))
+	poolSize := env.GetInt("NATS_PUBLISH_CONNECTIONS", 4)
 	if poolSize < 1 {
 		poolSize = 1
 	}
 	if poolSize > 32 {
 		poolSize = 32
 	}
-	pool := &publisherPool{members: make([]*batchPublisher, 0, poolSize), router: hashStreamRouter{}}
+	pool := &publisherPool{members: make([]*batchPublisher, 0, poolSize), router: hashStreamRouter{}, fixedStream: fixedStream}
 	for i := 0; i < poolSize; i++ {
-		member, err := newBatchPublisherConnection(publisherConnectionConfig{url: url, index: i, log: log})
+		member, err := newBatchPublisherConnection(url, i, log)
 		if err != nil {
 			_ = pool.Close()
 			return nil, err
@@ -133,8 +134,8 @@ func newPublisherPool(url string, log *zap.Logger) (Publisher, error) {
 	return pool, nil
 }
 
-func newBatchPublisherConnection(cfg publisherConnectionConfig) (*batchPublisher, error) {
-	nc, err := nats.Connect(busURL(cfg.url), busOptions(fmt.Sprintf("batch-publisher-%d", cfg.index))...)
+func newBatchPublisherConnection(url string, index int, log *zap.Logger) (*batchPublisher, error) {
+	nc, err := nats.Connect(busURL(url), busOptions(fmt.Sprintf("batch-publisher-%d", index))...)
 	if err != nil {
 		return nil, fmt.Errorf("bus: connect batch publisher: %w", err)
 	}
@@ -144,19 +145,46 @@ func newBatchPublisherConnection(cfg publisherConnectionConfig) (*batchPublisher
 		return nil, fmt.Errorf("bus: jetstream batch publisher: %w", err)
 	}
 	return &batchPublisher{
-		nc: nc, js: js, log: cfg.log,
+		nc: nc, js: js, log: log,
 		workers: make(map[string]*publishBatchWorker),
 		changed: make(chan struct{}),
 	}, nil
 }
 
 func (p *publisherPool) PublishOwned(ctx context.Context, topic string, payload []byte) error {
-	stream, err := streamForTopic(topic)
+	// NUID avoids UUIDv7's wall-clock/random-source coordination on the hot path.
+	return p.publish(publishCommand{ctx: ctx, topic: topic, msgID: nuid.Next(), payload: payload})
+}
+
+func (p *publisherPool) PublishOwnedWithID(ctx context.Context, topic, msgID string, payload []byte) error {
+	if msgID == "" {
+		return errors.New("bus: idempotent publish requires an ID")
+	}
+	return p.publish(publishCommand{ctx: ctx, topic: topic, msgID: msgID, payload: payload, confirmed: true})
+}
+
+func (p *publisherPool) publish(command publishCommand) error {
+	stream, err := p.streamFor(command.topic)
 	if err != nil {
 		return err
 	}
-	member := p.members[p.router.Connection(stream, len(p.members))]
-	return member.publish(ownedPublish{ctx: ctx, stream: stream, topic: topic, payload: payload})
+	command.stream = stream
+	return p.connectionFor(command).publish(command)
+}
+
+func (p *publisherPool) streamFor(topic string) (string, error) {
+	if p.fixedStream != "" {
+		return p.fixedStream, nil
+	}
+	return streamForTopic(topic)
+}
+
+func (p *publisherPool) connectionFor(command publishCommand) *batchPublisher {
+	routeKey := command.stream
+	if partition := publishPartition(command.ctx); partition != "" {
+		routeKey += "\x00" + partition
+	}
+	return p.members[p.router.Connection(routeKey, len(p.members))]
 }
 
 func (p *publisherPool) Flush(ctx context.Context) error {
@@ -181,46 +209,81 @@ func (p *publisherPool) Close() error {
 	return nil
 }
 
-type ownedPublish struct {
-	ctx     context.Context
-	stream  string
-	topic   string
-	payload []byte
+func (p *batchPublisher) publish(command publishCommand) error {
+	wire := publishMessage(command)
+	worker, err := p.acceptingWorker(command.stream)
+	if err != nil {
+		return err
+	}
+	request := newPublishRequest(command, wire)
+	if err := p.admit(command.ctx, worker, request); err != nil {
+		return err
+	}
+	return awaitPublishConfirmation(command.ctx, request)
 }
 
-func (p *batchPublisher) publish(req ownedPublish) error {
-	// JetStream deduplication requires a unique token, not UUID formatting.
-	// NUID avoids UUIDv7's wall-clock/random-source coordination on this hot path.
-	msgID := nuid.Next()
-	wire := nats.NewMsg(req.topic)
-	wire.Data = req.payload
-	wire.Header.Set(nats.MsgIdHdr, msgID)
-	wire.Header.Set(watermillUUIDHeader, msgID)
-	if txn := newrelic.FromContext(req.ctx); txn != nil {
+func publishMessage(command publishCommand) *nats.Msg {
+	wire := nats.NewMsg(command.topic)
+	wire.Data = command.payload
+	wire.Header.Set(nats.MsgIdHdr, command.msgID)
+	wire.Header.Set(watermillUUIDHeader, command.msgID)
+	if txn := newrelic.FromContext(command.ctx); txn != nil {
 		headers := http.Header{}
 		txn.InsertDistributedTraceHeaders(headers)
 		for key := range headers {
 			wire.Header.Set(key, headers.Get(key))
 		}
 	}
+	return wire
+}
 
+func (p *batchPublisher) acceptingWorker(stream string) (*publishBatchWorker, error) {
+	p.mu.RLock()
+	if p.closed {
+		p.mu.RUnlock()
+		return nil, errors.New("bus: publisher is closed")
+	}
+	worker, err := p.workerLocked(stream)
+	if err != nil {
+		p.mu.RUnlock()
+		return nil, err
+	}
+	p.mu.RUnlock()
+	return worker, nil
+}
+
+func newPublishRequest(command publishCommand, wire *nats.Msg) publishRequest {
+	request := publishRequest{msg: wire, msgID: command.msgID}
+	if command.confirmed {
+		request.confirmed = make(chan error, 1)
+	}
+	return request
+}
+
+func (p *batchPublisher) admit(ctx context.Context, worker *publishBatchWorker, request publishRequest) error {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	if p.closed {
 		return errors.New("bus: publisher is closed")
 	}
-	worker, err := p.workerLocked(req.stream)
-	if err != nil {
-		return err
-	}
-
-	request := publishRequest{msg: wire, msgID: msgID}
 	select {
 	case worker.requests <- request:
 		p.markAccepted()
 		return nil
-	case <-req.ctx.Done():
-		return req.ctx.Err()
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func awaitPublishConfirmation(ctx context.Context, request publishRequest) error {
+	if request.confirmed == nil {
+		return nil
+	}
+	select {
+	case err := <-request.confirmed:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 }
 
@@ -235,15 +298,11 @@ func (p *batchPublisher) workerLocked(stream string) (*publishBatchWorker, error
 	if worker := p.workers[stream]; worker != nil {
 		return worker, nil
 	}
-	inbox := nats.NewInbox()
-	replies, err := p.nc.SubscribeSync(inbox + ".>")
-	if err != nil {
-		return nil, fmt.Errorf("bus: subscribe batch replies for %s: %w", stream, err)
-	}
 	worker := &publishBatchWorker{
-		stream: stream, nc: p.nc, js: p.js, inbox: inbox, replies: replies,
+		js:       p.js,
 		requests: make(chan publishRequest, defaultPublishQueueSize),
-		stop:     make(chan struct{}), done: make(chan struct{}), log: p.log, owner: p,
+		stop:     make(chan struct{}), done: make(chan struct{}), owner: p,
+		slots: make(chan struct{}, maxInflightCohorts),
 	}
 	p.workers[stream] = worker
 	go worker.run()
@@ -286,21 +345,16 @@ func (p *batchPublisher) markAccepted() {
 	p.stateMu.Unlock()
 }
 
-type publishCompletion struct {
-	count int
-	err   error
-}
-
-func (p *batchPublisher) complete(completion publishCompletion) {
+func (p *batchPublisher) complete(count int, err error) {
 	p.stateMu.Lock()
-	p.completed += uint64(completion.count)
-	if completion.err != nil && p.firstErr == nil {
-		p.firstErr = completion.err
+	p.completed += uint64(count)
+	if err != nil && p.firstErr == nil {
+		p.firstErr = err
 	}
 	p.notifyLocked()
 	p.stateMu.Unlock()
-	if completion.err != nil {
-		p.log.Error("asynchronous NATS publish failed", zap.Int("messages", completion.count), zap.Error(completion.err))
+	if err != nil {
+		p.log.Error("asynchronous NATS publish failed", zap.Int("messages", count), zap.Error(err))
 	}
 }
 
@@ -328,20 +382,25 @@ func (p *batchPublisher) Flush(ctx context.Context) error {
 }
 
 func (w *publishBatchWorker) run() {
-	defer close(w.done)
-	defer w.replies.Unsubscribe() //nolint:errcheck -- connection shutdown is authoritative
+	defer func() {
+		w.acks.Wait()
+		close(w.done)
+	}()
 	for {
-		select {
-		case <-w.stop:
+		batch, ok := w.nextBatch()
+		if !ok {
 			return
-		case first := <-w.requests:
-			batch, stopped := w.collectBatch(first)
-			if stopped {
-				w.fail(batch, errors.New("bus: publisher closed"))
-				return
-			}
-			w.publish(batch)
 		}
+		w.publish(batch)
+	}
+}
+
+func (w *publishBatchWorker) nextBatch() ([]publishRequest, bool) {
+	select {
+	case <-w.stop:
+		return nil, false
+	case first := <-w.requests:
+		return w.collectBatch(first)
 	}
 }
 
@@ -351,15 +410,16 @@ func (w *publishBatchWorker) collectBatch(first publishRequest) ([]publishReques
 	defer stopAndDrainTimer(timer)
 	for len(batch) < defaultPublishBatchSize {
 		select {
-		case req := <-w.requests:
-			batch = append(batch, req)
+		case request := <-w.requests:
+			batch = append(batch, request)
 		case <-timer.C:
-			return batch, false
-		case <-w.stop:
 			return batch, true
+		case <-w.stop:
+			w.fail(batch, errors.New("bus: publisher closed"))
+			return nil, false
 		}
 	}
-	return batch, false
+	return batch, true
 }
 
 func stopAndDrainTimer(timer *time.Timer) {
@@ -373,114 +433,65 @@ func stopAndDrainTimer(timer *time.Timer) {
 }
 
 func (w *publishBatchWorker) publish(batch []publishRequest) {
-	if len(batch) == 1 {
-		w.owner.complete(publishCompletion{count: 1, err: w.publishOne(batch[0])})
+	w.slots <- struct{}{}
+	futures, err := w.startAsync(batch)
+	if err != nil {
+		<-w.slots
+		w.finish(batch, err)
 		return
 	}
-	if err := w.publishAtomic(batch); err == nil {
-		w.owner.complete(publishCompletion{count: len(batch)})
-		return
-	} else {
-		// The final PubAck can be lost after a successful commit, and a batch can
-		// be rejected because just one MsgId is already present. Reconcile every
-		// member individually under the same MsgId. A stored member returns a
-		// duplicate-success ack; a missing member is stored now.
-		w.log.Debug("atomic publish batch fell back to individual reconciliation",
-			zap.String("stream", w.stream), zap.Int("messages", len(batch)), zap.Error(err))
-	}
-	var firstErr error
+	w.acks.Add(1)
+	go func() {
+		defer w.acks.Done()
+		defer func() { <-w.slots }()
+		w.finish(batch, w.awaitAsync(futures))
+	}()
+}
+
+// startAsync sends cohorts serially from the active object, preserving wire
+// order, while awaitAsync lets up to maxInflightCohorts overlap their PubAck
+// waits. It uses only nats.go APIs and bounds the client's future set.
+func (w *publishBatchWorker) startAsync(batch []publishRequest) ([]nats.PubAckFuture, error) {
+	futures := make([]nats.PubAckFuture, 0, len(batch))
 	for _, req := range batch {
-		if err := w.publishOne(req); err != nil && firstErr == nil {
-			firstErr = err
+		future, err := w.js.PublishMsgAsync(req.msg, nats.MsgId(req.msgID))
+		if err != nil {
+			return nil, fmt.Errorf("bus: async publish %s: %w", req.msg.Subject, err)
 		}
+		futures = append(futures, future)
 	}
-	w.owner.complete(publishCompletion{count: len(batch), err: firstErr})
+	return futures, nil
 }
 
-func (w *publishBatchWorker) publishAtomic(batch []publishRequest) error {
-	atomic := atomicBatch{requests: batch, id: nuid.Next()}
-	atomic.reply = w.inbox + "." + atomic.id
-	if err := w.sendAtomicBatch(atomic); err != nil {
-		return err
-	}
-	return w.awaitAtomicAck(atomic)
-}
-
-type atomicBatch struct {
-	requests []publishRequest
-	id       string
-	reply    string
-}
-
-func (w *publishBatchWorker) sendAtomicBatch(batch atomicBatch) error {
-	for i := range batch.requests {
-		msg := atomicBatchMessage(batch, i)
-		if err := w.nc.PublishMsg(msg); err != nil {
-			return fmt.Errorf("send atomic batch member %d: %w", i+1, err)
+// awaitAsync is the strategy seam to replace only when nats.go exposes NATS
+// 2.14 Fast-Ingest; no server wire protocol is reimplemented here.
+func (w *publishBatchWorker) awaitAsync(futures []nats.PubAckFuture) error {
+	timer := time.NewTimer(defaultPublishAckWait)
+	defer timer.Stop()
+	for _, future := range futures {
+		select {
+		case ack := <-future.Ok():
+			if ack != nil && ack.Duplicate {
+				w.owner.duplicates.Add(1)
+			}
+		case err := <-future.Err():
+			return err
+		case <-timer.C:
+			return errors.New("bus: asynchronous publish cohort PubAck timeout")
 		}
 	}
 	return nil
-}
-
-func atomicBatchMessage(batch atomicBatch, index int) *nats.Msg {
-	msg := batch.requests[index].msg
-	msg.Header.Set(batchIDHeader, batch.id)
-	msg.Header.Set(batchSequenceHeader, fmt.Sprint(index+1))
-	msg.Header.Set(requiredAPIHeader, "2")
-	if index == len(batch.requests)-1 {
-		msg.Header.Set(batchCommitHeader, "1")
-		msg.Reply = batch.reply
-	}
-	return msg
-}
-
-func (w *publishBatchWorker) awaitAtomicAck(batch atomicBatch) error {
-	ackMsg, err := w.replies.NextMsg(defaultPublishAckWait)
-	if err != nil {
-		return fmt.Errorf("wait atomic batch ack: %w", err)
-	}
-	var ack jetStreamPubAck
-	if err := json.Unmarshal(ackMsg.Data, &ack); err != nil {
-		return fmt.Errorf("decode atomic batch ack: %w", err)
-	}
-	if ack.Error != nil {
-		return fmt.Errorf("atomic batch rejected: code=%d err_code=%d %s",
-			ack.Error.Code, ack.Error.ErrorCode, ack.Error.Description)
-	}
-	if ack.Sequence == 0 {
-		return fmt.Errorf("invalid atomic batch ack: missing sequence")
-	}
-	if ack.Batch != batch.id {
-		return fmt.Errorf("invalid atomic batch ack: batch=%q want=%q", ack.Batch, batch.id)
-	}
-	if ack.Count != len(batch.requests) {
-		return fmt.Errorf("invalid atomic batch ack: seq=%d batch=%q count=%d",
-			ack.Sequence, ack.Batch, ack.Count)
-	}
-	return nil
-}
-
-func (w *publishBatchWorker) publishOne(req publishRequest) error {
-	msg := cloneWithoutBatchHeaders(req.msg)
-	_, err := w.js.PublishMsg(msg, nats.MsgId(req.msgID))
-	if err != nil {
-		return fmt.Errorf("bus: publish %s: %w", msg.Subject, err)
-	}
-	return nil
-}
-
-func cloneWithoutBatchHeaders(src *nats.Msg) *nats.Msg {
-	msg := &nats.Msg{Subject: src.Subject, Data: src.Data, Header: make(nats.Header)}
-	for key, values := range src.Header {
-		switch key {
-		case batchIDHeader, batchSequenceHeader, batchCommitHeader, requiredAPIHeader:
-			continue
-		}
-		msg.Header[key] = append([]string(nil), values...)
-	}
-	return msg
 }
 
 func (w *publishBatchWorker) fail(batch []publishRequest, err error) {
-	w.owner.complete(publishCompletion{count: len(batch), err: err})
+	w.finish(batch, err)
+}
+
+func (w *publishBatchWorker) finish(batch []publishRequest, err error) {
+	w.owner.complete(len(batch), err)
+	for i := range batch {
+		if batch[i].confirmed != nil {
+			batch[i].confirmed <- err
+		}
+	}
 }

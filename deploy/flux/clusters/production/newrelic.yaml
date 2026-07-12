@@ -217,7 +217,7 @@ spec:
     # =======================================================================
     # newrelic-prometheus-agent
     # Custom scrape config reconstructed from the LIVE config.yaml:
-    #  - witness1 static targets (node-exporter :9100, sentinel-exporter :9121)
+    #  - external static targets
     #  - drop noisy kube_/container_/machine_/cadvisor_ series before remote-write
     #  - metric-type relabels for timeseries_write_* and sql_byte*
     # The rest (kubernetes jobs, integrations_filter, self-metrics) is chart
@@ -257,13 +257,7 @@ spec:
                 - 100.123.173.52:9100
               labels:
                 host: witness1
-                role: sentinel-witness
-            - job_name: witness-sentinel-exporter
-              targets:
-                - 100.123.173.52:9121
-              labels:
-                host: witness1
-                role: sentinel-witness
+                role: subnet-router
 
     # =======================================================================
     # newrelic-logging (fluent-bit DaemonSet)
