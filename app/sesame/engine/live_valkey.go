@@ -25,6 +25,12 @@ import (
 // deliberately sorts under the shared live: prefix; onExpired skips it.
 const recheckKeyPrefix = "live:recheck:"
 
+// liveCacheCapacity ceilings the resolved-live cache. It is keyed one entry per
+// broadcaster with a short TTL, so a few thousand covers the live broadcasters a
+// pod tracks in the window without holding the generic cache.DefaultCapacity ten
+// thousand at rest.
+const liveCacheCapacity int64 = 4096
+
 // LiveConfig wires the Valkey-backed live store.
 type LiveConfig struct {
 	// TTL bounds how long a live key survives without a refresh; on expiry the
@@ -81,7 +87,7 @@ func NewValkeyLiveStore(client valkey.Client, nc *nats.Conn, pub message.Publish
 		pub:        pub,
 		cfg:        cfg,
 		log:        log,
-		cache:      cache.NewKeyed[uint64, bool](cache.DefaultCapacity, cfg.CacheTTL, livekey.Key),
+		cache:      cache.NewKeyed[uint64, bool](liveCacheCapacity, cfg.CacheTTL, livekey.Key),
 		rpcTimeout: 1500 * time.Millisecond,
 	}
 }

@@ -81,6 +81,12 @@ const (
 
 	commandsCacheTTL = 5 * time.Minute
 
+	// commandsCacheCapacity ceilings the view cache. It is keyed one entry per
+	// user (the whole command list), so a few thousand covers the users read
+	// within the 5m TTL without holding the generic cache.DefaultCapacity ten
+	// thousand resident at rest.
+	commandsCacheCapacity int64 = 4096
+
 	flushInterval = 2 * time.Second
 	flushMaxSize  = 256
 
@@ -129,7 +135,7 @@ func NewCommands(client *ent.Client, pub message.Publisher, app *newrelic.Applic
 
 	r := &Commands{
 		client:   client,
-		views:    cache.New[[]CommandView](cache.DefaultCapacity, commandsCacheTTL),
+		views:    cache.New[[]CommandView](commandsCacheCapacity, commandsCacheTTL),
 		pub:      pub,
 		app:      app,
 		log:      log,

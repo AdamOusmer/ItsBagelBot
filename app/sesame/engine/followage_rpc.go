@@ -17,6 +17,13 @@ const (
 	followageRPCTimeout  = 3500 * time.Millisecond
 	followagePositiveTTL = 15 * time.Minute
 	followageNegativeTTL = time.Minute
+
+	// followageCacheCapacity ceilings the followage cache. It is keyed per
+	// (broadcaster, viewer), so it grows with distinct viewers who run
+	// !followage, not just broadcasters; it gets a larger ceiling than the
+	// per-broadcaster caches but still well under the generic
+	// cache.DefaultCapacity so viewer churn cannot pin ten thousand entries.
+	followageCacheCapacity int64 = 8192
 )
 
 type FollowageResult struct {
@@ -41,7 +48,7 @@ type FollowageRPC struct {
 func NewFollowageRPC(nc *nats.Conn, prefix string) *FollowageRPC {
 	subject := strings.TrimSuffix(prefix, ".") + ".followage.get"
 	return &FollowageRPC{
-		cache: cache.New[FollowageResult](cache.DefaultCapacity, followageNegativeTTL),
+		cache: cache.New[FollowageResult](followageCacheCapacity, followageNegativeTTL),
 		request: func(ctx context.Context, req outgressrpc.FollowageRequest) (outgressrpc.FollowageReply, error) {
 			return bus.RequestJSONTimeout[outgressrpc.FollowageReply](ctx, nc, subject, req, followageRPCTimeout)
 		},

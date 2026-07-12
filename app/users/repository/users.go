@@ -25,6 +25,11 @@ const (
 	userKeyPrefix = "user:"
 
 	userCacheTTL = 5 * time.Minute
+
+	// userCacheCapacity ceilings the view cache. It is keyed one entry per user,
+	// so a few thousand covers the users read within the 5m TTL without holding
+	// the generic cache.DefaultCapacity ten thousand resident at rest.
+	userCacheCapacity int64 = 4096
 )
 
 // UserView is the read model served from the in-process cache. It carries no
@@ -59,7 +64,7 @@ type Users struct {
 func NewUsers(client *ent.Client, packer domaincrypto.Packer, pub message.Publisher) *Users {
 	return &Users{
 		client: client,
-		views:  cache.New[UserView](cache.DefaultCapacity, userCacheTTL),
+		views:  cache.New[UserView](userCacheCapacity, userCacheTTL),
 		packer: packer,
 		pub:    pub,
 	}
