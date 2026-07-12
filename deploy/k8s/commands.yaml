@@ -37,7 +37,7 @@ spec:
       labels:
         app: commands
       annotations:
-        linkerd.io/inject: enabled
+        linkerd.io/inject: disabled
         # NATS is out of the Linkerd mesh: bypass the app-side proxy for the NATS
         # client port so the firehose / RPC traffic goes direct (NATS-native TLS
         # provides the encryption). Without this the proxy still taxes every event.
