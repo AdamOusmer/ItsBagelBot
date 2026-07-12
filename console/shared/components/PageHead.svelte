@@ -6,7 +6,9 @@
 
 <div class="page-head">
   {#if eyebrow}<span class="eyebrow">{eyebrow}</span>{/if}
-  <h1>{#if children}{@render children()}{:else}{title}{/if}</h1>
+  <!-- tabindex=-1 so SPA route-change focus can land on the page title; a
+       programmatic .focus() does not trigger :focus-visible, so no ring shows. -->
+  <h1 tabindex="-1">{#if children}{@render children()}{:else}{title}{/if}</h1>
   {#if description}<p>{description}</p>{/if}
 </div>
 

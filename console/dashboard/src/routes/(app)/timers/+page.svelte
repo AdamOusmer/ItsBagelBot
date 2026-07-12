@@ -3,7 +3,7 @@
   import { invalidateAll } from '$app/navigation';
   import type { SubmitFunction } from '@sveltejs/kit';
   import {
-    Icon,
+    Button,
     PageHead,
     Scroller,
     ConfirmDialog,
@@ -236,9 +236,9 @@
       />
     {/snippet}
     {#snippet trail()}
-      <button class="btn primary" onclick={openNew} disabled={creating}>
-        <Icon name="plus" size={14} /> {t('timers.newTimer')}
-      </button>
+      <Button variant="primary" icon="plus" onclick={openNew} disabled={creating}>
+        {t('timers.newTimer')}
+      </Button>
     {/snippet}
   </PageToolbar>
 
@@ -259,7 +259,7 @@
         {/each}
         {#if rows.length === 0}
           <EmptyState icon="clock" title={t('timers.emptyTitle')} body={t('timers.emptySub')}>
-            <button class="btn primary" onclick={openNew}><Icon name="plus" size={14} /> {t('timers.newTimer')}</button>
+            <Button variant="primary" icon="plus" onclick={openNew}>{t('timers.newTimer')}</Button>
           </EmptyState>
         {/if}
       </div>
