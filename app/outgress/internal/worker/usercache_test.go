@@ -9,12 +9,15 @@ func TestLaneWorkersShareInjectedUserIDCache(t *testing.T) {
 	shared := NewUserIDCache()
 	base := Config{UserIDs: shared}
 
-	premium := New(base)
-	standard := New(base)
-	system := New(base)
-
-	if premium.userIDs != shared || standard.userIDs != shared || system.userIDs != shared {
-		t.Fatalf("lane workers did not share the injected login->id cache")
+	lanes := map[string]*Worker{
+		"premium":  New(base),
+		"standard": New(base),
+		"system":   New(base),
+	}
+	for lane, w := range lanes {
+		if w.userIDs != shared {
+			t.Fatalf("%s worker did not reuse the injected login->id cache", lane)
+		}
 	}
 }
 
