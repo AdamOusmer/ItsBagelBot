@@ -35,7 +35,8 @@ For `channel.chat.message` notifications there are exactly three outcomes (`Ingr
 1. Chatter is one of the **special user IDs** (`TWITCH_SPECIAL_USER_IDS`, from the secret store): publish to the
    **premium** lane, always, even when the broadcaster is on the free tier.
 2. Message text starts with `!`: publish to the lane matching the **broadcaster's** status.
-3. Anything else: dropped.
+3. Plain chat: publish the first line immediately and fold identical lines into
+   sender cohorts through the scheduler-sharded `Ingress.Squash.Pool`.
 
 Broadcaster status is never read from MySQL directly (per the data-and-state ownership rules). It is fetched over
 **NATS request-reply** from the owning Go service (`NATS_BROADCASTER_STATUS_SUBJECT`), through an in-process ETS
@@ -67,6 +68,13 @@ to standard.
 | `BROADCASTER_STATUS_TIMEOUT_MS`     | RPC timeout.                                                   | `2000`                                        |
 | `NATS_CACHE_INVALIDATION_SUBJECT`   | Cache invalidation subject the ingress subscribes to.          | `bagel.cache.invalidate.broadcaster`          |
 | `BROADCASTER_CACHE_TTL_SECONDS`     | Status cache TTL.                                              | `300`                                         |
+| `INGRESS_SQUASH_PARTITIONS`         | Independent duplicate-cohort owners.                           | Online scheduler count                        |
+| `INGRESS_DISPATCHER_MAX_RUNNING`    | Fixed direct-dispatch worker count.                             | `512`                                         |
+| `INGRESS_DISPATCHER_MAX_QUEUE`      | Total bounded worker-mailbox allowance.                         | `20000`                                       |
+| `INGRESS_DISPATCHER_COMPLETION_BATCH_SIZE` | Worker-local completion batch bound.                     | `4`                                           |
+| `INGRESS_DISPATCHER_COMPLETION_FLUSH_MS` | Maximum wait for a partial completion batch.                | `25`                                          |
+| `INGRESS_PUBLISH_CONNECTIONS`       | Independent NATS writers and PubAck collectors.                 | Online scheduler count                        |
+| `INGRESS_PUBLISH_MAX_PENDING`       | In-flight PubAck window per NATS writer.                        | `16384`                                       |
 | `LOG_LEVEL`                         | Logger level.                                                  | (inherited)                                   |
 
 ## Monitoring
@@ -88,6 +96,20 @@ iex --sname ingress-a -S mix   # start a node; start a second one and Gossip wil
 
 To exercise the keepalive/reconnect flows locally, run the Twitch CLI mock EventSub server
 (`twitch event websocket start-server`) and point `TWITCH_EVENTSUB_WSS_URL` at it.
+
+The ingress hot paths have dependency-free benchmarks. Use the production VM's
+two-CPU scheduler configuration when comparing changes:
+
+```sh
+export ERL_FLAGS='+S 2:2 +SDcpu 2:2 +SDio 2 +sbwt short +sbwtdcpu none +sbwtdio none'
+MIX_ENV=test mix run bench/hot_path.exs
+MIX_ENV=test mix run bench/nats_publisher.exs
+MIX_ENV=test mix run bench/end_to_end.exs
+```
+
+The release builds on OTP 27 and uses its native `:json` codec for Twitch frame
+decoding and NATS event encoding. Control-plane RPCs retain Jason where protocol
+implementations such as `DateTime` are useful and are not on the firehose.
 
 Production runs as a Mix release (`MIX_ENV=prod mix release`), one BEAM node per container, distribution bound to
 the tailnet only.

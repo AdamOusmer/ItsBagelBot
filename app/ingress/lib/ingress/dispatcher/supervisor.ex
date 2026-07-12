@@ -2,7 +2,11 @@ defmodule Ingress.Dispatcher.Supervisor do
   use Supervisor
 
   def start_link(opts) do
-    Supervisor.start_link(__MODULE__, opts, name: __MODULE__)
+    Supervisor.start_link(
+      __MODULE__,
+      opts,
+      name: Keyword.get(opts, :supervisor_name, __MODULE__)
+    )
   end
 
   @impl true

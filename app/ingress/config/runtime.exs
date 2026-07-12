@@ -104,10 +104,24 @@ config :ingress,
     String.to_integer(System.get_env("INGRESS_DISPATCHER_MAX_PER_BROADCASTER", "2048")),
   dispatcher_broadcaster_sweep_ms:
     String.to_integer(System.get_env("INGRESS_DISPATCHER_BROADCASTER_SWEEP_MS", "60000")),
+  dispatcher_completion_batch_size:
+    String.to_integer(System.get_env("INGRESS_DISPATCHER_COMPLETION_BATCH_SIZE", "4")),
+  dispatcher_completion_flush_ms:
+    String.to_integer(System.get_env("INGRESS_DISPATCHER_COMPLETION_FLUSH_MS", "25")),
+  squash_partitions:
+    String.to_integer(
+      System.get_env("INGRESS_SQUASH_PARTITIONS", Integer.to_string(System.schedulers_online()))
+    ),
   # Async JetStream publishing uses one connection/collector per online BEAM
   # scheduler. Keeping these equal gives every event the same scheduler-local
   # path without idle connections or fallback routing.
-  publish_connections: String.to_integer(System.get_env("INGRESS_PUBLISH_CONNECTIONS", "2")),
+  publish_connections:
+    String.to_integer(
+      System.get_env("INGRESS_PUBLISH_CONNECTIONS", Integer.to_string(System.schedulers_online()))
+    ),
+  # Per-connection in-flight PubAck window. At two connections this sustains
+  # >300k/s even with 100ms broker acks while bounding retained payload memory.
+  publish_max_pending: String.to_integer(System.get_env("INGRESS_PUBLISH_MAX_PENDING", "16384")),
   # Per-attempt PubAck wait and total attempt budget. Retries are deduplicated
   # broker-side by Nats-Msg-Id, so they can never store an event twice.
   publish_ack_timeout_ms:

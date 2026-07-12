@@ -6,6 +6,24 @@ defmodule Ingress.Nats.PublisherTest do
 
   alias Ingress.Nats.Publisher
 
+  defmodule FakeGnat do
+    use GenServer
+
+    def start_link(opts),
+      do: GenServer.start_link(__MODULE__, opts, name: Keyword.fetch!(opts, :name))
+
+    def init(opts), do: {:ok, %{test: Keyword.fetch!(opts, :test), sid: 0}}
+
+    def handle_call({:sub, _receiver, _topic, _opts}, _from, state) do
+      {:reply, {:ok, state.sid + 1}, %{state | sid: state.sid + 1}}
+    end
+
+    def handle_call({:pub, topic, message, opts}, _from, state) do
+      send(state.test, {:pub, topic, message, opts})
+      {:reply, :ok, state}
+    end
+  end
+
   describe "id_from_topic/2" do
     @prefix "_INBOX.ingresspub.abc123."
 
@@ -58,6 +76,10 @@ defmodule Ingress.Nats.PublisherTest do
       assert :atomics.get(ctx.counter, 1) == 2
     end
 
+    test "uses a constant-time hash set for pending publishes", %{ctx: ctx} do
+      assert :ets.info(ctx.table, :type) == :set
+    end
+
     test "drops to :not_connected when the shard's BUS connection is absent", %{ctx: ctx} do
       # The shard's connection is not registered, so the underlying pub exits and
       # the publish is undone rather than left outstanding.
@@ -78,6 +100,23 @@ defmodule Ingress.Nats.PublisherTest do
       assert :atomics.get(ctx.counter, 3) == 0
       assert :atomics.get(ctx.counter, 4) == 0
       assert :atomics.get(ctx.counter, 5) == 0
+    end
+
+    test "a saturated local shard falls through to spare publisher capacity", %{ctx: ctx} do
+      conn = :gnat_bus_pub_fallback_test
+      start_supervised!({FakeGnat, [name: conn, test: self()]})
+
+      start_supervised!(
+        Supervisor.child_spec({Publisher, [index: 1, conn: conn]}, id: :fallback_publisher)
+      )
+
+      :persistent_term.put({Publisher, :n}, 2)
+
+      :atomics.put(ctx.counter, 1, 2)
+
+      assert Publisher.enqueue("twitch.ingress.event.standard", "{}", "msg-1") == :ok
+      assert_receive {:pub, "twitch.ingress.event.standard", "{}", _opts}, 500
+      assert :atomics.get(ctx.counter, 1) == 2
     end
   end
 end

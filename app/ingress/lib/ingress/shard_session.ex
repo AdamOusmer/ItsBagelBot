@@ -318,7 +318,7 @@ defmodule Ingress.ShardSession do
   defp handle_event(_which, :upgraded, state), do: {:noreply, state}
 
   defp handle_event(which, {:frame, {:text, data}}, state) do
-    case Jason.decode(data) do
+    case Ingress.JSON.decode(data) do
       {:ok, message} ->
         handle_twitch(which, message, state)
 
