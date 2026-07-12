@@ -4,6 +4,7 @@
   import type { SubmitFunction } from '@sveltejs/kit';
   import {
     Icon,
+    Button,
     PageHead,
     Scroller,
     ConfirmDialog,
@@ -39,13 +40,29 @@
     }
   });
 
-  const rows = $derived(quotes.toSorted((a, b) => b.number - a.number));
   const permOptions = [
     { value: 'mod', label: t('quotes.permMod') },
     { value: 'vip', label: t('quotes.permVip') },
     { value: 'sub', label: t('quotes.permSub') },
     { value: 'everyone', label: t('quotes.permEveryone') }
   ];
+
+  // --- Search over number / text / author, newest number first --------------
+  let search = $state('');
+  const searching = $derived(search.trim().length > 0);
+  const rows = $derived(
+    quotes
+      .filter((q) => {
+        const needle = search.trim().toLowerCase();
+        if (!needle) return true;
+        return (
+          String(q.number).includes(needle) ||
+          q.text.toLowerCase().includes(needle) ||
+          (q.added_by ?? '').toLowerCase().includes(needle)
+        );
+      })
+      .toSorted((a, b) => b.number - a.number)
+  );
 
   type ActionResult = { ok?: boolean; error?: string; quote?: QuoteView; number?: number };
   type QuoteDraft = { text: string; quoteDate: string };
@@ -75,6 +92,13 @@
       month: 'long',
       day: 'numeric'
     });
+  }
+
+  // Short snippet of a quote for the delete confirmation, so it names what it
+  // removes rather than an anonymous "this quote".
+  function snippet(text: string): string {
+    const clean = text.trim();
+    return clean.length > 48 ? `${clean.slice(0, 48).trimEnd()}…` : clean;
   }
 
   const NEW = '__new__';
@@ -158,8 +182,29 @@
     };
   };
 
+  // Keyboard: Escape closes the inspector (owned here). Alt+/ focuses search and
+  // Alt+N adds a quote; neither fires while typing, and Alt keeps clear of the
+  // browser's single-key shortcuts.
+  function isTyping(e: KeyboardEvent): boolean {
+    const el = e.target as HTMLElement | null;
+    return (
+      !!el &&
+      (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)
+    );
+  }
   function onKey(e: KeyboardEvent) {
-    if (e.key === 'Escape' && expanded) closeInspector();
+    if (e.key === 'Escape' && expanded) {
+      closeInspector();
+      return;
+    }
+    if (isTyping(e) || e.ctrlKey || e.metaKey || !e.altKey) return;
+    if (e.key === '/') {
+      e.preventDefault();
+      document.getElementById('quotes-search')?.focus();
+    } else if (e.key === 'n' || e.key === 'N') {
+      e.preventDefault();
+      openNew();
+    }
   }
 </script>
 
@@ -193,30 +238,58 @@
             {/each}
           </select>
         </form>
-        <button class="btn primary" type="button" onclick={openNew} disabled={expanded === NEW}>
-          <Icon name="plus" size={14} /> {t('quotes.newQuote')}
-        </button>
+
+        <div class="toolbar-search">
+          <label for="quotes-search" class="sr-only">{t('quotes.searchLabel')}</label>
+          <div class="search">
+            <Icon name="search" size={15} />
+            <input
+              id="quotes-search"
+              type="text"
+              autocomplete="off"
+              placeholder={t('quotes.searchLabel')}
+              bind:value={search}
+            />
+            {#if search}
+              <button type="button" class="search-clear" aria-label={t('quotes.searchClear')} onclick={() => (search = '')}>
+                <Icon name="x" size={12} />
+              </button>
+            {/if}
+          </div>
+        </div>
+
+        <Button variant="primary" icon="plus" onclick={openNew} disabled={expanded === NEW}>
+          {t('quotes.newQuote')}
+        </Button>
       </div>
     {/snippet}
   </PageToolbar>
 
-  <div class="deck {expanded === NEW ? 'inspecting' : ''}">
+  <!-- Polite live region: announces the match count as the search narrows. -->
+  <p class="sr-only" role="status" aria-live="polite">
+    {searching ? t('quotes.resultsCount', { n: rows.length }) : ''}
+  </p>
+
+  <div class="deck" class:inspecting={expanded === NEW}>
     <DeckList>
-      <div class="list">
-        {#each rows as quote (quote.number)}
-          <QuoteRow
-            {quote}
-            expanded={expanded === String(quote.number)}
-            onExpand={() => openQuote(quote)}
-            onDelete={() => (deleteTarget = quote)}
-          />
-        {/each}
-        {#if rows.length === 0}
-          <EmptyState icon="quote" title={t('quotes.emptyTitle')} body={t('quotes.emptySub')}>
-            <button class="btn primary" onclick={openNew}><Icon name="plus" size={14} /> {t('quotes.newQuote')}</button>
-          </EmptyState>
-        {/if}
-      </div>
+      {#if rows.length}
+        <ul class="list" aria-label={t('quotes.listLabel')}>
+          {#each rows as quote (quote.number)}
+            <QuoteRow
+              {quote}
+              expanded={expanded === String(quote.number)}
+              onExpand={() => openQuote(quote)}
+              onDelete={() => (deleteTarget = quote)}
+            />
+          {/each}
+        </ul>
+      {:else if quotes.length === 0}
+        <EmptyState icon="quote" title={t('quotes.emptyTitle')} body={t('quotes.emptySub')}>
+          <Button variant="primary" icon="plus" onclick={openNew}>{t('quotes.newQuote')}</Button>
+        </EmptyState>
+      {:else}
+        <EmptyState icon="search" title={t('quotes.noneMatch')} />
+      {/if}
     </DeckList>
 
     <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -229,7 +302,7 @@
         if (e.key === 'Enter') closeInspector();
       }}
     ></div>
-    <aside class="inspector" class:open={expanded !== null} aria-label={t('quotes.inspector')}>
+    <aside id="quote-inspector" class="inspector" class:open={expanded !== null} aria-label={t('quotes.inspector')}>
       <div class="inspector-head">
         <span class="inspector-tag">
           {expanded === NEW ? t('quotes.newQuote') : selectedQuote ? t('quotes.quoteDetails') : t('quotes.inspector')}
@@ -262,16 +335,21 @@
                 </div>
               {/if}
             </dl>
-            <button class="btn danger detail-delete" type="button" onclick={() => (deleteTarget = selectedQuote)}>
-              <Icon name="trash" size={14} /> {t('quotes.del')}
-            </button>
+            <Button
+              variant="destructive"
+              icon="trash"
+              class="detail-delete"
+              onclick={() => (deleteTarget = selectedQuote)}
+            >
+              {t('quotes.del')}
+            </Button>
           </div>
         </Scroller>
       {:else}
         <div class="inspector-idle">
           <span class="idle-glyph"><Icon name="quote" size={18} /></span>
           <p>{t('quotes.inspectorIdle')}</p>
-          <button class="btn ghost" onclick={openNew}><Icon name="plus" size={13} /> {t('quotes.newQuote')}</button>
+          <Button variant="ghost" icon="plus" onclick={openNew}>{t('quotes.newQuote')}</Button>
         </div>
       {/if}
     </aside>
@@ -283,7 +361,7 @@
 <ConfirmDialog
   open={deleteTarget !== null}
   title={t('quotes.deleteTitle')}
-  body={t('quotes.deleteBody')}
+  body={deleteTarget ? t('quotes.deleteBodyNamed', { snippet: snippet(deleteTarget.text) }) : undefined}
   confirmLabel={t('quotes.del')}
   cancelLabel={t('common.cancel')}
   danger
@@ -309,6 +387,23 @@
     padding: 7px 10px;
   }
 
+  .toolbar-search { width: 220px; }
+  .toolbar-search .search { width: 100%; }
+  .search-clear {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    flex: none;
+    border: none;
+    background: transparent;
+    color: var(--bb-muted);
+    cursor: pointer;
+    border-radius: 8px;
+  }
+  .search-clear:hover { color: var(--bb-white); }
+
   .deck {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
@@ -319,6 +414,7 @@
     .deck { grid-template-columns: minmax(0, 1fr) 300px; }
     .deck.inspecting { grid-template-columns: minmax(0, 1fr) 420px; }
   }
+  .list { list-style: none; margin: 0; padding: 0; }
   .list :global(.row-shell:last-child) { border-bottom: none; }
 
   .inspector {
@@ -394,7 +490,7 @@
   dl div { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; }
   dt { font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
   dd { margin: 0; font-family: var(--bb-font-mono); font-size: 12px; color: var(--bb-tan-light); text-align: right; }
-  .detail-delete { align-self: flex-start; margin-top: 4px; }
+  .quote-detail :global(.detail-delete) { align-self: flex-start; margin-top: 4px; }
   .inspector-backdrop { display: none; }
 
   @media (max-width: 1079px) {
@@ -426,5 +522,6 @@
     .toolbar-actions { width: 100%; flex-wrap: wrap; }
     .perm { flex: 1; }
     .perm select { flex: 1; min-width: 0; }
+    .toolbar-search { width: 100%; order: 3; }
   }
 </style>

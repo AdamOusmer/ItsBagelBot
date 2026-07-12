@@ -1,7 +1,11 @@
 <script lang="ts">
+  // Inline "add quote" editor, rendered inside the page inspector. Each control
+  // is wrapped in the shared <Field> (a real <label>, so the input is labelled),
+  // and the Save/Cancel actions live in the form so the editor stays
+  // self-contained within the page's docked inspector.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { Icon, getI18n } from '@bagel/shared';
+  import { Field, Button, getI18n } from '@bagel/shared';
 
   let {
     draft = $bindable<{ text: string; quoteDate: string }>(),
@@ -17,11 +21,12 @@
 
   const { t } = getI18n();
   const MAX = 450;
+
+  const valid = $derived(draft.text.trim().length > 0 && /^\d{4}-\d{2}-\d{2}$/.test(draft.quoteDate));
 </script>
 
 <form method="POST" action="?/add" class="editor" novalidate use:enhance={onSubmit}>
-  <label class="field">
-    <span>{t('quotes.fieldQuote')}</span>
+  <Field label={t('quotes.fieldQuote')}>
     <textarea
       class="search quote-area"
       name="text"
@@ -31,36 +36,26 @@
       rows="4"
       bind:value={draft.text}
     ></textarea>
-    <small>{draft.text.length}/{MAX}</small>
-  </label>
+    <small class="counter">{draft.text.length}/{MAX}</small>
+  </Field>
 
-  <label class="field">
-    <span>{t('quotes.fieldDay')}</span>
+  <Field label={t('quotes.fieldDay')}>
     <input class="search date-input" type="date" name="quote_date" required bind:value={draft.quoteDate} />
-    <small>{t('quotes.fieldDayHint')}</small>
-  </label>
+    <small class="hint">{t('quotes.fieldDayHint')}</small>
+  </Field>
 
   <div class="actions">
-    <button type="button" class="btn ghost" onclick={onCancel} disabled={busy}>{t('common.cancel')}</button>
-    <button type="submit" class="btn primary" disabled={busy || !draft.text.trim() || !draft.quoteDate}>
-      <Icon name="check" size={14} />
-      {busy ? t('quotes.saving') : t('quotes.addBtn')}
-    </button>
+    <Button variant="ghost" onclick={onCancel} disabled={busy}>{t('common.cancel')}</Button>
+    <Button variant="primary" type="submit" icon="check" loading={busy} disabled={!valid}>
+      {t('quotes.addBtn')}
+    </Button>
   </div>
 </form>
 
 <style>
   .editor { padding: 4px 2px 2px; }
-  .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
-  .field > span {
-    font-family: var(--bb-font-body);
-    font-size: 12.5px;
-    color: var(--bb-muted);
-    letter-spacing: 0.01em;
-  }
-  .field small { color: var(--bb-muted); opacity: 0.7; font-size: 11px; }
-  .field :global(.search) { width: 100%; box-sizing: border-box; }
-  .field:first-child small { text-align: right; }
+  .counter { display: block; text-align: right; color: var(--bb-muted); opacity: 0.7; font-size: 11px; margin-top: 4px; }
+  .hint { display: block; color: var(--bb-muted); opacity: 0.7; font-size: 11px; margin-top: 4px; }
 
   .quote-area,
   .date-input {
@@ -78,6 +73,6 @@
   .actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 6px; }
   @media (max-width: 480px) {
     .actions { flex-direction: column-reverse; }
-    .actions .btn { width: 100%; justify-content: center; min-height: 44px; }
+    .actions :global(.btn) { width: 100%; justify-content: center; min-height: 44px; }
   }
 </style>

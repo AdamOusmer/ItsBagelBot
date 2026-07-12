@@ -3,11 +3,12 @@
   import { invalidateAll } from '$app/navigation';
   import type { SubmitFunction } from '@sveltejs/kit';
   import {
-    Icon,
     PageHead,
     Scroller,
     ConfirmDialog,
     InspectorSurface,
+    Button,
+    ButtonLink,
     toast,
     getI18n,
     blankReward,
@@ -201,7 +202,7 @@
     <AlertBanner variant="warn" icon="power">
       {t('channelpoints.reconnect')}
       {#snippet action()}
-        <a class="btn primary" href="/login?next=/channelpoints" data-sveltekit-reload>{t('channelpoints.reconnectCta')}</a>
+        <ButtonLink variant="primary" href="/login?next=/channelpoints" data-sveltekit-reload>{t('channelpoints.reconnectCta')}</ButtonLink>
       {/snippet}
     </AlertBanner>
   {/if}
@@ -218,9 +219,9 @@
       />
     {/snippet}
     {#snippet trail()}
-      <button class="btn primary" onclick={openNew} disabled={expanded === NEW}>
-        <Icon name="plus" size={14} /> {t('channelpoints.newReward')}
-      </button>
+      <Button variant="primary" icon="plus" onclick={openNew} disabled={expanded === NEW}>
+        {t('channelpoints.newReward')}
+      </Button>
     {/snippet}
   </PageToolbar>
 
@@ -228,23 +229,24 @@
        commands page, so the two management screens read as one system. -->
   <div class="deck {editorDraft ? 'inspecting' : ''}">
     <DeckList>
-      <div class="list">
-        {#each rows as r, i (r.id)}
-          <RewardRow
-            reward={r}
-            index={i + 1}
-            expanded={expanded === r.id}
-            onExpand={() => openEdit(r)}
-            onDelete={() => (deleteTarget = r)}
-            toggleSubmit={toggleSubmit(r)}
-          />
-        {/each}
-        {#if rows.length === 0}
-          <EmptyState icon="gem" title={t('channelpoints.emptyTitle')} body={t('channelpoints.emptySub')}>
-            <button class="btn primary" onclick={openNew}><Icon name="plus" size={14} /> {t('channelpoints.newReward')}</button>
-          </EmptyState>
-        {/if}
-      </div>
+      {#if rows.length}
+        <ul class="list" aria-label={t('channelpoints.listLabel')}>
+          {#each rows as r, i (r.id)}
+            <RewardRow
+              reward={r}
+              index={i + 1}
+              expanded={expanded === r.id}
+              onExpand={() => openEdit(r)}
+              onDelete={() => (deleteTarget = r)}
+              toggleSubmit={toggleSubmit(r)}
+            />
+          {/each}
+        </ul>
+      {:else}
+        <EmptyState icon="gem" title={t('channelpoints.emptyTitle')} body={t('channelpoints.emptySub')}>
+          <Button variant="primary" icon="plus" onclick={openNew}>{t('channelpoints.newReward')}</Button>
+        </EmptyState>
+      {/if}
     </DeckList>
 
     {#if editorDraft}
@@ -303,5 +305,6 @@
     .deck.inspecting { grid-template-columns: minmax(0, 1fr) 420px; }
   }
 
-  .list :global(.row-shell:last-child) { border-bottom: none; }
+  .list { list-style: none; margin: 0; padding: 0; }
+  .list :global(li:last-child .row-shell) { border-bottom: none; }
 </style>

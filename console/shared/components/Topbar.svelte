@@ -78,9 +78,12 @@
     </span>
   </a>
 
-  <div class="crumb">
-    <span class="root">{root}</span><span class="sep">/</span><span class="here">{crumb}</span>
-  </div>
+  <nav class="crumb" aria-label={t('common.breadcrumb')}>
+    <ol>
+      <li class="root"><a href="/">{root}</a></li>
+      <li class="here"><span aria-current="page">{crumb}</span></li>
+    </ol>
+  </nav>
 
   <div class="grow"></div>
 
@@ -92,6 +95,7 @@
         class="operator"
         class:open={menuOpen}
         title="{accountName} · {accountRole}"
+        aria-label="{accountName} · {accountRole}"
         aria-expanded={menuOpen}
         aria-haspopup="menu"
         onclick={() => (menuOpen = !menuOpen)}
@@ -156,7 +160,7 @@
   {#if actions}
     {@render actions()}
   {:else}
-    <button class="icon-btn" aria-label="Notifications"><Icon name="bell" size={16} /></button>
+    <button class="icon-btn" aria-label={t('topbar.notifications')}><Icon name="bell" size={16} /></button>
   {/if}
 </header>
 
@@ -175,17 +179,21 @@
   }
 
   .station { display: flex; align-items: center; gap: 9px; text-decoration: none; flex: none; padding: 4px 12px 4px 4px; border-radius: var(--bb-radius-pill, 100px); border: none; background: transparent; transition: all var(--bb-dur-base) ease; }
-  .station--premium { }
   .station img { width: 26px; height: 26px; border-radius: 8px 8px; }
   .station--premium img { border-radius: 50%; }
   .station-id { display: flex; flex-direction: column; line-height: 1; }
   .station-id b { font-family: var(--bb-font-display); font-weight: 800; font-size: 13.5px; letter-spacing: -0.01em; color: var(--bb-white); }
   .station-id i { font-style: normal; font-family: var(--bb-font-display); font-weight: 700; font-size: 9.5px; letter-spacing: 0.04em; color: var(--bb-tan); margin-top: 3px; }
 
-  .crumb { font-family: var(--bb-font-body); font-weight: 500; font-size: 13px; color: var(--bb-muted); display: flex; align-items: center; gap: 8px; min-width: 0; }
-  .crumb .sep { opacity: 0.45; }
-  .crumb .here { color: var(--bb-tan-light); white-space: nowrap; font-weight: 600; }
-  .crumb .root { white-space: nowrap; }
+  .crumb { font-family: var(--bb-font-body); font-weight: 500; font-size: 13px; color: var(--bb-muted); min-width: 0; }
+  .crumb ol { list-style: none; margin: 0; padding: 0; display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .crumb li { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  /* Separator is decorative pseudo-content, not a real text node, so AT never
+     reads a spurious "slash" between the crumbs. */
+  .crumb .here::before { content: "/"; opacity: 0.45; }
+  .crumb a { color: inherit; text-decoration: none; white-space: nowrap; transition: color var(--bb-dur-fast, 180ms) ease; }
+  .crumb a:hover { color: var(--bb-tan-pale); }
+  .crumb .here span { color: var(--bb-tan-light); white-space: nowrap; font-weight: 600; }
 
   .grow { flex: 1; }
 
@@ -283,9 +291,11 @@
   @media (prefers-reduced-motion: reduce) {
     .op-menu { animation: none; }
   }
-  /* On phones the station id doubles as the crumb root, so hide the root. */
+  /* On phones the station id doubles as the crumb root, so hide the root li and
+     drop the leading separator; the <ol> stays valid with just the current page. */
   @media (max-width: 480px) {
-    .crumb .root, .crumb .sep { display: none; }
+    .crumb .root { display: none; }
+    .crumb .here::before { content: none; }
   }
 
   .icon-btn { width: 34px; height: 34px; border-radius: 8px 8px; display: flex; align-items: center; justify-content: center;

@@ -1,9 +1,10 @@
 <script lang="ts">
-  import { Icon, Modal, PageHead, Card, ConfirmDialog, EmptyState, toast, getI18n, type Locale } from '@bagel/shared';
+  import { Icon, Button, ButtonLink, PageHead, ConfirmDialog, EmptyState, toast, getI18n, type Locale } from '@bagel/shared';
   import { page } from '$app/state';
   import { enhance } from '$app/forms';
-  import CheckButton from '$lib/components/CheckButton.svelte';
   import LangSwitch from '$lib/components/LangSwitch.svelte';
+  import SettingsNav from '$lib/components/settings/SettingsNav.svelte';
+  import SectionPicker from '$lib/components/settings/SectionPicker.svelte';
   import type { DelegationGrant, NotificationWire } from '$lib/server/services';
 
   let { data, form } = $props();
@@ -43,9 +44,37 @@
         return t('settings.commands');
     }
   }
+  const pickerOptions = (checkedFor: (sec: string) => boolean) =>
+    grantable.map((sec) => ({ value: sec, label: sectionLabel(sec), checked: checkedFor(sec) }));
+
+  // The in-page section nav. Anchors, not ARIA tabs — each targets a
+  // <section tabindex=-1> below.
+  const navItems = $derived([
+    { href: '#account', label: t('settings.account') },
+    { href: '#access', label: t('settings.sharedAccess') },
+    { href: '#notifications', label: t('settings.notifications') },
+    { href: '#preferences', label: t('settings.preferences') },
+    { href: '#danger-zone', label: t('settings.dangerZone') }
+  ]);
 
   // Which grant's access is being edited inline (add/remove sections).
   let editingToken = $state<string | null>(null);
+  function openEdit(token: string) {
+    editError = '';
+    editingToken = token;
+  }
+  function closeEdit() {
+    editingToken = null;
+  }
+
+  // Client-side "pick at least one section" guard for the share-link forms. The
+  // server validates the same thing; this just surfaces it as inline text before
+  // the round-trip. Both messages name the affected control (the section group).
+  let createError = $state('');
+  let editError = $state('');
+  function hasSelection(formData: FormData): boolean {
+    return grantable.some((sec) => formData.get(sec) === 'on');
+  }
 
   function linkFor(token: string): string {
     return `${origin}/delegate/accept?t=${token}`;
@@ -84,134 +113,174 @@
   let revokeTarget = $state<DelegationGrant | null>(null);
   let revokeForm = $state<HTMLFormElement | null>(null);
 
-  // Delete confirm modal: the box must be checked before Delete enables.
+  // Delete: a destructive ConfirmDialog that spells out the consequence and
+  // opens with Cancel focused. It submits a hidden form to ?/delete (the server
+  // contract is unchanged; the action redirects to /goodbye on success).
   let deleteOpen = $state(false);
-  let ack = $state(false);
-  const openDelete = () => {
-    ack = false;
-    deleteOpen = true;
-  };
-  const closeDelete = () => (deleteOpen = false);
+  let deleting = $state(false);
+  let deleteForm = $state<HTMLFormElement | null>(null);
 </script>
 
 <section class="screen active">
   <PageHead eyebrow={t('settings.eyebrow')} description={t('settings.description')}>{t('settings.titlePre')}<em>{t('settings.titleEm')}</em></PageHead>
 
+  <SettingsNav label={t('settings.navSections')} items={navItems} />
+
   <!-- ACCOUNT -->
-  <Card class="settings-card">
-    <h2>{t('settings.account')}</h2>
-    <div class="row">
-      <div>
-        <b>{t('settings.language')}</b>
-        <p class="hint">{t('settings.languageHint')}</p>
-      </div>
-      <LangSwitch selected={savedLocale} />
-    </div>
+  <section id="account" class="settings-section" tabindex="-1" aria-labelledby="h-account">
+    <h2 id="h-account">{t('settings.account')}</h2>
     <div class="row">
       <div>
         <b>{t('settings.reconnectTwitch')}</b>
         <p class="hint">{t('settings.reconnectTwitchHint')}</p>
       </div>
-      <a class="btn ghost" href="/auth/login"><Icon name="power" size={14} /> {t('common.reconnect')}</a>
+      <ButtonLink href="/auth/login" variant="ghost" icon="power">{t('common.reconnect')}</ButtonLink>
     </div>
-    <div class="row">
-      <div>
-        <b>{t('settings.deleteAccount')}</b>
-        <p class="hint">{t('settings.deleteAccountHint')}</p>
-      </div>
-      <button type="button" class="btn ghost danger" onclick={openDelete}>{t('settings.deleteAccount')}</button>
-    </div>
-  </Card>
+  </section>
 
-  <!-- ACCESS YOU GRANTED -->
-  <Card class="settings-card">
-    <h2>{t('settings.accessGranted')}</h2>
-    <p class="hint">
-      {t('settings.accessGrantedHint')}
-    </p>
+  <!-- SHARED ACCESS: links you granted + dashboards shared with you. -->
+  <section id="access" class="settings-section" tabindex="-1" aria-labelledby="h-access">
+    <h2 id="h-access">{t('settings.sharedAccess')}</h2>
+
+    <h3>{t('settings.accessGranted')}</h3>
+    <p class="hint">{t('settings.accessGrantedHint')}</p>
 
     {#if given.length === 0}
       <EmptyState icon="link" title={t('settings.noShareLinks')} body={t('settings.noShareLinksBody')} />
     {:else}
-      <div class="grants">
+      <ul class="grants">
         {#each given as g (g.token)}
-          <div class="grant {g.consumed ? 'consumed' : 'pending'}">
+          <li class="grant {g.consumed ? 'consumed' : 'pending'}">
             <div class="grant-top">
               <span class="lifecycle">
                 <span class="stage done">{t('settings.stageCreated')}</span>
-                <span class="sep">→</span>
+                <span class="sep" aria-hidden="true">→</span>
                 <span class="stage {g.consumed || copied[g.token] ? 'done' : ''}">{t('settings.stageLinkShared')}</span>
-                <span class="sep">→</span>
+                <span class="sep" aria-hidden="true">→</span>
                 <span class="stage {g.consumed ? 'done live' : ''}">
                   {g.consumed ? t('settings.stageInUse', { login: g.delegate_login || t('settings.unknown') }) : t('settings.stageWaiting')}
                 </span>
               </span>
-              <button type="button" class="btn ghost sm danger" onclick={() => (revokeTarget = g)}>{t('common.revoke')}</button>
+              <Button variant="destructive" class="sm" onclick={() => (revokeTarget = g)}>{t('common.revoke')}</Button>
             </div>
             {#if editingToken === g.token}
               <form
                 method="POST"
                 action="?/updateSections"
                 class="grant-edit"
-                use:enhance={() =>
-                  async ({ result, update }) => {
+                use:enhance={({ formData, cancel }) => {
+                  if (!hasSelection(formData)) {
+                    editError = t('settings.pickSectionError');
+                    cancel();
+                    return;
+                  }
+                  editError = '';
+                  return async ({ result, update }) => {
                     await update();
-                    if (result.type === 'success') editingToken = null;
-                  }}
+                    if (result.type === 'success') closeEdit();
+                  };
+                }}
               >
                 <input type="hidden" name="token" value={g.token} />
-                <div class="section-picks compact">
-                  {#each grantable as sec (sec)}
-                    <CheckButton name={sec} checked={g.sections.includes(sec)} label={sectionLabel(sec)} />
-                  {/each}
-                </div>
+                <SectionPicker
+                  legend={t('settings.sectionsLegend')}
+                  options={pickerOptions((sec) => g.sections.includes(sec))}
+                  error={editError}
+                  errorId={`edit-error-${g.token}`}
+                  compact
+                />
                 <div class="grant-edit-actions">
-                  <button type="button" class="btn ghost sm" onclick={() => (editingToken = null)}>{t('common.cancel')}</button>
-                  <button type="submit" class="btn primary sm"><Icon name="check" size={12} /> {t('common.save')}</button>
+                  <Button variant="ghost" class="sm" onclick={closeEdit}>{t('common.cancel')}</Button>
+                  <Button type="submit" variant="primary" class="sm" icon="check">{t('common.save')}</Button>
                 </div>
               </form>
             {:else}
               <div class="grant-sections">
                 {#each g.sections as s (s)}<span class="section-chip">{sectionLabel(s)}</span>{/each}
-                <button type="button" class="btn ghost sm edit-access" onclick={() => (editingToken = g.token)}>{t('settings.editAccess')}</button>
+                <Button variant="ghost" class="sm" onclick={() => openEdit(g.token)}>{t('settings.editAccess')}</Button>
               </div>
             {/if}
             {#if !g.consumed}
               <div class="grant-link">
                 <code>{linkFor(g.token)}</code>
-                <button type="button" class="btn ghost sm" onclick={() => copy(g.token)} aria-label={t('settings.copyLinkAria')}>
-                  <Icon name={copied[g.token] ? 'check' : 'link'} size={12} />
+                <Button
+                  variant="ghost"
+                  class="sm"
+                  icon={copied[g.token] ? 'check' : 'link'}
+                  onclick={() => copy(g.token)}
+                  aria-label={t('settings.copyLinkAria')}
+                >
                   {copied[g.token] ? t('common.copied') : t('common.copy')}
-                </button>
+                </Button>
               </div>
             {/if}
-          </div>
+          </li>
         {/each}
-      </div>
+      </ul>
     {/if}
 
-    <form method="POST" action="?/create" class="create" use:enhance>
+    <form
+      method="POST"
+      action="?/create"
+      class="create"
+      use:enhance={({ formData, cancel }) => {
+        if (!hasSelection(formData)) {
+          createError = t('settings.pickSectionError');
+          cancel();
+          return;
+        }
+        createError = '';
+        return async ({ update }) => {
+          await update();
+        };
+      }}
+    >
       <h3>{t('settings.newShareLink')}</h3>
       <p class="hint">{t('settings.newShareLinkHint')}</p>
-      <div class="section-picks">
-        {#each grantable as sec (sec)}
-          <CheckButton name={sec} checked={sec === 'commands'} label={sectionLabel(sec)} />
-        {/each}
-      </div>
-      <button class="btn primary" type="submit"><Icon name="link" size={14} /> {t('common.generate')}</button>
+      <SectionPicker
+        legend={t('settings.sectionsLegend')}
+        options={pickerOptions((sec) => sec === 'commands')}
+        error={createError}
+        errorId="create-error"
+      />
+      <Button type="submit" variant="primary" icon="link">{t('common.generate')}</Button>
     </form>
-  </Card>
 
-  <!-- NOTIFICATIONS: the bell dropdown's "view all" target — a compact history
-       section rather than a dedicated page. -->
-  <Card class="settings-card" id="notifications">
-    <h2>{t('settings.notifications')}</h2>
+    <h3 class="sub">{t('settings.sharedWithYou')}</h3>
+    {#if received.length === 0}
+      <EmptyState icon="overview" title={t('settings.nothingShared')} body={t('settings.nothingSharedBody')} />
+    {:else}
+      <ul class="grants">
+        {#each received as r (r.owner_user_id)}
+          <li class="grant consumed">
+            <div class="grant-top">
+              <span class="owner"><Icon name="overview" size={14} /> {r.owner_login}</span>
+              <span class="actions">
+                <ButtonLink href={`/delegate/enter?owner=${r.owner_user_id}`} variant="ghost" class="sm">{t('common.open')}</ButtonLink>
+                <form method="POST" action="?/optOut" use:enhance>
+                  <input type="hidden" name="owner_user_id" value={r.owner_user_id} />
+                  <Button type="submit" variant="destructive" class="sm" aria-label={t('settings.leaveDashboardAria', { login: r.owner_login })}>{t('common.leave')}</Button>
+                </form>
+              </span>
+            </div>
+            <div class="grant-sections">
+              {#each r.sections as s (s)}<span class="section-chip">{sectionLabel(s)}</span>{/each}
+            </div>
+          </li>
+        {/each}
+      </ul>
+    {/if}
+  </section>
+
+  <!-- NOTIFICATIONS: the bell dropdown's "view all" target (/settings#notifications). -->
+  <section id="notifications" class="settings-section" tabindex="-1" aria-labelledby="h-notifications">
+    <h2 id="h-notifications">{t('settings.notifications')}</h2>
     {#if notifications.length === 0}
       <p class="hint">{t('settings.notificationsEmpty')}</p>
     {:else}
-      <div class="notif-list">
+      <ul class="notif-list">
         {#each notifications as n (n.id)}
-          <div class="notif-item" class:unread={!n.read}>
+          <li class="notif-item" class:unread={!n.read}>
             <span class="level {n.level}">{levelLabel(n.level)}</span>
             <div class="notif-text">
               <b>{n.title}</b>
@@ -221,42 +290,39 @@
             {#if !n.read}
               <form method="POST" action="?/markRead" use:enhance>
                 <input type="hidden" name="id" value={n.id} />
-                <button type="submit" class="btn ghost sm"><Icon name="check" size={12} /> {t('common.read')}</button>
+                <Button type="submit" variant="ghost" class="sm" icon="check">{t('common.read')}</Button>
               </form>
             {/if}
-          </div>
+          </li>
         {/each}
-      </div>
+      </ul>
     {/if}
-  </Card>
+  </section>
 
-  <!-- SHARED WITH YOU -->
-  <Card class="settings-card">
-    <h2>{t('settings.sharedWithYou')}</h2>
-    {#if received.length === 0}
-      <EmptyState icon="overview" title={t('settings.nothingShared')} body={t('settings.nothingSharedBody')} />
-    {:else}
-      <div class="grants">
-        {#each received as r (r.owner_user_id)}
-          <div class="grant consumed">
-            <div class="grant-top">
-              <span class="owner"><Icon name="overview" size={14} /> {r.owner_login}</span>
-              <span class="actions">
-                <a class="btn ghost sm" href={`/delegate/enter?owner=${r.owner_user_id}`}>{t('common.open')}</a>
-                <form method="POST" action="?/optOut" use:enhance>
-                  <input type="hidden" name="owner_user_id" value={r.owner_user_id} />
-                  <button type="submit" class="btn ghost sm danger">{t('common.leave')}</button>
-                </form>
-              </span>
-            </div>
-            <div class="grant-sections">
-              {#each r.sections as s (s)}<span class="section-chip">{sectionLabel(s)}</span>{/each}
-            </div>
-          </div>
-        {/each}
+  <!-- PREFERENCES -->
+  <section id="preferences" class="settings-section" tabindex="-1" aria-labelledby="h-preferences">
+    <h2 id="h-preferences">{t('settings.preferences')}</h2>
+    <div class="row">
+      <div>
+        <span class="pref-label" id="lang-label">{t('settings.language')}</span>
+        <p class="hint">{t('settings.languageHint')}</p>
       </div>
-    {/if}
-  </Card>
+      <LangSwitch selected={savedLocale} />
+    </div>
+  </section>
+
+  <!-- DANGER ZONE: visually separated, last. -->
+  <section id="danger-zone" class="settings-section danger-section" tabindex="-1" aria-labelledby="h-danger">
+    <h2 id="h-danger">{t('settings.dangerZone')}</h2>
+    <p class="hint">{t('settings.dangerZoneHint')}</p>
+    <div class="row">
+      <div>
+        <b>{t('settings.deleteAccount')}</b>
+        <p class="hint">{t('settings.deleteAccountHint')}</p>
+      </div>
+      <Button variant="destructive" onclick={() => (deleteOpen = true)}>{t('settings.deleteAccount')}</Button>
+    </div>
+  </section>
 </section>
 
 <!-- Revoke confirm -->
@@ -281,52 +347,70 @@
   </form>
 {/if}
 
-<!-- Delete confirm modal -->
-<Modal open={deleteOpen} title={t('settings.deleteTitle')} closeModal={closeDelete}>
-  <p class="modal-body">{t('settings.deleteBody')}</p>
-  <div class="ack">
-    <CheckButton bind:checked={ack} label={t('settings.deleteAck')} />
-  </div>
-  <form method="POST" action="?/delete" use:enhance class="modal-actions">
-    <button type="button" class="btn ghost" onclick={closeDelete}>{t('common.cancel')}</button>
-    <button type="submit" class="btn delete-btn" disabled={!ack}>{t('settings.deleteAccount')}</button>
-  </form>
-</Modal>
+<!-- Delete confirm: destructive, names the consequence, Cancel focused. -->
+<ConfirmDialog
+  open={deleteOpen}
+  title={t('settings.deleteTitle')}
+  body={t('settings.deleteBody')}
+  confirmLabel={t('settings.deleteAccount')}
+  cancelLabel={t('common.cancel')}
+  danger
+  busy={deleting}
+  onCancel={() => (deleteOpen = false)}
+  onConfirm={() => {
+    deleting = true;
+    deleteForm?.requestSubmit();
+  }}
+/>
+{#if deleteOpen}
+  <form method="POST" action="?/delete" use:enhance bind:this={deleteForm} hidden></form>
+{/if}
 
 <style>
-  :global(.settings-card) {
+  .settings-section {
     margin-top: 18px;
+    padding: var(--card-pad, 22px);
+    background: var(--bb-card-bg);
+    border: 1px solid var(--bb-border);
+    border-radius: 8px;
+    /* Anchor + programmatic focus land below the sticky topbar. */
+    scroll-margin-top: calc(80px + env(safe-area-inset-top, 0px));
   }
+  .settings-section:focus { outline: none; }
+
   h2 { margin: 0 0 6px; font-size: 16px; }
-  h3 { margin: 0 0 6px; font-size: 14px; }
+  h3 { margin: 18px 0 6px; font-size: 14px; }
+  h3:first-of-type { margin-top: 6px; }
+  h3.sub {
+    margin-top: 26px;
+    padding-top: 18px;
+    border-top: 1px solid var(--bb-line, rgba(255, 255, 255, 0.06));
+  }
   .hint { color: var(--bb-muted, #998f82); font-size: 13px; margin: 0 0 12px; }
   .row {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 16px;
-    padding: 12px 0;
-    border-top: 1px solid var(--bb-line, rgba(255, 255, 255, 0.06));
+    padding: 12px 0 0;
   }
-  .row:first-of-type { border-top: none; }
-  .row b { font-size: 14px; }
+  .row b, .pref-label { font-size: 14px; color: var(--bb-white); font-family: var(--bb-font-body); }
   .row .hint { margin: 4px 0 0; }
-  .create { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--bb-line, rgba(255, 255, 255, 0.06)); }
-  .create .btn { margin-top: 14px; }
-  .section-picks { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; }
+  .create { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--bb-line, rgba(255, 255, 255, 0.06)); }
+  .create :global(.btn) { margin-top: 14px; }
 
   /* --- Grant lifecycle cards --- */
-  .grants { display: flex; flex-direction: column; gap: 10px; }
+  .grants { display: flex; flex-direction: column; gap: 10px; list-style: none; margin: 0; padding: 0; }
   .grant {
     border: 1px solid var(--glass-border);
-    border-radius: 8px 8px;
+    border-radius: 8px;
     padding: 12px 14px;
     background: rgba(255, 255, 255, 0.02);
   }
   .grant.pending { border-color: rgba(201, 168, 124, 0.3); }
   .grant.consumed { border-color: rgba(82, 183, 136, 0.25); }
 
-  .grant-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .grant-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
   .lifecycle {
     display: inline-flex;
     align-items: center;
@@ -354,11 +438,9 @@
     color: var(--bb-white);
   }
 
-  .grant-sections { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
-  .edit-access { margin-left: 2px; }
-  .grant-edit { margin-top: 10px; display: flex; flex-direction: column; gap: 10px; }
-  .grant-edit .section-picks.compact { display: flex; flex-direction: row; flex-wrap: wrap; gap: 8px 16px; }
-  .grant-edit-actions { display: flex; gap: 8px; justify-content: flex-end; }
+  .grant-sections { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+  .grant-edit { margin-top: 12px; display: flex; flex-direction: column; gap: 12px; }
+  .grant-edit-actions { display: flex; gap: 10px; justify-content: flex-end; }
   .section-chip {
     font-family: var(--bb-font-mono);
     font-size: 11px;
@@ -372,24 +454,27 @@
   .grant-link {
     display: flex;
     align-items: center;
-    gap: 10px;
-    margin-top: 10px;
+    gap: 12px;
+    margin-top: 12px;
     padding: 8px 10px;
     border: 1px dashed var(--glass-border);
-    border-radius: 8px 8px;
+    border-radius: 8px;
     background: rgba(255, 255, 255, 0.02);
   }
-  .grant-link code { font-size: 12px; word-break: break-all; flex: 1; color: var(--bb-muted); }
+  .grant-link code { font-size: 12px; word-break: break-all; flex: 1; min-width: 0; color: var(--bb-muted); }
 
-  .actions { display: flex; gap: 8px; align-items: center; }
+  .actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   .actions form { margin: 0; }
-  .btn.sm { padding: 4px 10px; font-size: 12px; }
+  /* Standalone actions get a full 44px target; the dense inline "sm" buttons stay
+     compact but keep a 36px target (well above the 24px AA floor) and 8px+ gaps. */
+  :global(.settings-section .btn) { min-height: 44px; }
+  :global(.settings-section .btn.sm) { min-height: 36px; padding: 8px 14px; }
 
   /* --- notifications section --- */
-  .notif-list { display: flex; flex-direction: column; gap: 10px; }
+  .notif-list { display: flex; flex-direction: column; gap: 10px; list-style: none; margin: 0; padding: 0; }
   .notif-item {
     display: flex; align-items: flex-start; gap: 12px;
-    border: 1px solid var(--bb-border); border-radius: 8px 8px;
+    border: 1px solid var(--bb-border); border-radius: 8px;
     padding: 12px 14px; background: rgba(255, 255, 255, 0.02);
   }
   .notif-item.unread { border-color: rgba(201, 168, 124, 0.3); background: rgba(201, 168, 124, 0.05); }
@@ -405,21 +490,18 @@
   .level.success { background: rgba(82,183,136,0.12); color: var(--bb-green-glow); border-color: rgba(82,183,136,0.3); }
   .level.warning { background: rgba(201,168,124,0.12); color: var(--bb-tan-light); border-color: rgba(201,168,124,0.3); }
   .level.critical { background: rgba(176,90,70,0.15); color: #cf8a78; border-color: rgba(176,90,70,0.4); }
-  .btn.danger { color: #e08f8f; }
 
-  .delete-btn {
-    background: rgba(220, 120, 120, 0.16);
-    color: #e08f8f;
-    border: 1px solid rgba(220, 120, 120, 0.4);
+  /* --- danger zone --- */
+  .danger-section {
+    margin-top: 28px;
+    border-color: var(--bb-status-error-border, rgba(176, 90, 70, 0.4));
+    background: var(--bb-status-error-bg, rgba(176, 90, 70, 0.06));
   }
-  .delete-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
   @media (max-width: 760px) {
     .row { flex-direction: column; align-items: stretch; }
     .grant-top { flex-direction: column; align-items: flex-start; }
     .grant-link { flex-direction: column; align-items: stretch; }
-    .grant-link .btn { justify-content: center; min-height: 40px; }
-    .notif-item { flex-direction: column; align-items: flex-start; gap: 8px; }
-    .modal-actions { flex-direction: column-reverse; }
+    .grant-link :global(.btn) { justify-content: center; min-height: 44px; }
   }
 </style>

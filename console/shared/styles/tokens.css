@@ -40,6 +40,41 @@
   --bb-accent-glow: var(--bb-green-glow);
   --bb-warm: var(--bb-tan);
 
+  /* ────────────────────────── focus ────────────────────────────── */
+  /* Single shared focus-ring colour. Warm tan reads as brand and clears 3:1
+     against every surface: vs canvas #0a0a0a = 11.81:1, vs card #111110 =
+     11.27:1 (WCAG 2.2 SC 1.4.11 needs 3:1). One token so every :focus-visible
+     rule agrees. */
+  --bb-focus: #e0c49a;
+
+  /* ────────────────────────── status system ────────────────────── */
+  /* Brand-coherent semantic states. Each triad is meant to be composed as:
+       background: var(--bb-status-X-bg);   (subtle dark tint)
+       color:      var(--bb-status-X-fg);   (body text, >=4.5:1 on -bg)
+       border:     var(--bb-status-X-border); (>=3:1 vs the dark canvas)
+     and the base --bb-status-X is the icon/accent (>=3:1 on -bg). Ratios are
+     computed, not guessed — see the numbers beside each value.
+     green = success, warm amber = warning, muted red = error, cool = info. */
+  --bb-status-success: #52b788;         /* icon 8.00:1 canvas / 6.78:1 on -bg */
+  --bb-status-success-fg: #8fe0b4;      /* text 10.78:1 on -bg */
+  --bb-status-success-bg: #0f2118;      /* subtle fill on the dark canvas */
+  --bb-status-success-border: #2f7355;  /* 3.49:1 vs canvas / 3.33:1 vs card */
+
+  --bb-status-warning: #e0c49a;         /* icon 11.81:1 canvas / 10.04:1 on -bg */
+  --bb-status-warning-fg: #eccfa3;      /* text 11.23:1 on -bg */
+  --bb-status-warning-bg: #241c10;
+  --bb-status-warning-border: #8a6f43;  /* 4.18:1 vs canvas / 3.99:1 vs card */
+
+  --bb-status-error: #cf8a78;           /* icon 7.13:1 canvas / 6.30:1 on -bg */
+  --bb-status-error-fg: #f0b0a4;        /* text 9.55:1 on -bg */
+  --bb-status-error-bg: #2a1310;
+  --bb-status-error-border: #b05a46;    /* 4.15:1 vs canvas / 3.96:1 vs card */
+
+  --bb-status-info: #7bb5d9;            /* icon 8.91:1 canvas / 7.64:1 on -bg */
+  --bb-status-info-fg: #a9d0e8;        /* text 10.41:1 on -bg */
+  --bb-status-info-bg: #0f1e28;
+  --bb-status-info-border: #3f6d86;    /* 3.53:1 vs canvas / 3.37:1 vs card */
+
   /* ────────────────────────── typography ───────────────────────── */
   --bb-font-display: "Syne", "Inter Tight", sans-serif;
   --bb-font-body:    "DM Sans", "Inter", system-ui, sans-serif;

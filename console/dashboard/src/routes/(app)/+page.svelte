@@ -2,12 +2,26 @@
   import { enhance } from '$app/forms';
   import { onMount } from 'svelte';
   import { page } from '$app/state';
-  import { Button, Card, CardHead, Icon, PageHead, StatTile, Modal, Skeleton, getI18n, connectionUiState, toast, type IconName, type ConnSignals, type ConnUi } from '@bagel/shared';
+  import { Button, Card, ButtonLink, Modal, Skeleton, getI18n, connectionUiState, toast, type ConnSignals, type ConnUi } from '@bagel/shared';
   import type { ActionResult } from '@sveltejs/kit';
   import OnboardingModal from '$lib/components/OnboardingModal.svelte';
+  import OverviewHead from '$lib/components/overview/OverviewHead.svelte';
+  import BotStatusPanel from '$lib/components/overview/BotStatusPanel.svelte';
+  import NeedsAttention from '$lib/components/overview/NeedsAttention.svelte';
+  import QuickActions from '$lib/components/overview/QuickActions.svelte';
+  import LinkedSummary from '$lib/components/overview/LinkedSummary.svelte';
+  import TopCommands from '$lib/components/overview/TopCommands.svelte';
+  import SetupProgress from '$lib/components/overview/SetupProgress.svelte';
   let { data } = $props();
 
   const { t } = getI18n();
+
+  // Decorative bot avatar; premium swaps the mark. The status text beside it
+  // already names the state, so its alt stays empty (set in BotStatusPanel).
+  const logo = $derived(data.isPremium ? '/premium-logo.png' : '/logo.png');
+  // A delegate browsing the owner's board sees the connection read-only: every
+  // enable/restart/disconnect action 403s for a delegate session server-side.
+  const isDelegate = $derived(!!data.delegateOf);
 
   // First-visit onboarding: opens once for genuinely new users (nothing
   // created yet, never dismissed) or on demand via ?welcome=1.
@@ -42,30 +56,6 @@
   // source of truth — the poll can't invent a state the server can't.
   function liveUi(c: Conn): ConnUi {
     return sub ? connectionUiState({ ...c.signals, sub: sub.state as ConnSignals['sub'] }) : c.ui;
-  }
-
-  function headline(kind: ConnUi['kind']): string {
-    switch (kind) {
-      case 'online': return t('overview.onlineInChat');
-      case 'connecting': return t('overview.connecting');
-      case 'degraded':
-      case 'sub_unknown': return t('overview.connectedIdle');
-      case 'disabled':
-      case 'auth_required': return t('overview.notConnected');
-      case 'unavailable': return t('overview.unavailable');
-    }
-  }
-
-  // Real problems only, each with its fix. Empty array = nothing to surface here
-  // (the hero already carries connecting / unavailable / disabled states).
-  type Issue = { icon: IconName; text: string; cta: string; href: string | null };
-  function issuesFor(u: ConnUi, cd: { ok: boolean; total: number }): Issue[] {
-    const out: Issue[] = [];
-    if (u.kind === 'auth_required') out.push({ icon: 'power', text: t('overview.issueNoAuth'), cta: t('overview.issueNoAuthCta'), href: '/settings' });
-    if (u.kind === 'degraded') out.push({ icon: 'ban', text: t('overview.issueSubs'), cta: t('overview.issueSubsCta'), href: '/settings' });
-    // Only a CONFIRMED-empty read is "no commands"; an outage (ok:false) is not.
-    if (cd.ok && cd.total === 0) out.push({ icon: 'commands', text: t('overview.issueNoCommands'), cta: t('overview.issueNoCommandsCta'), href: '/commands' });
-    return out;
   }
 
   const statusLabel = (s: string) =>
@@ -206,225 +196,103 @@
 </script>
 
 <section class="screen active">
-  <PageHead eyebrow={t('overview.eyebrow')} description={t('overview.description')}>{greeting}, <em>{data.displayName ?? data.login}</em></PageHead>
+  <!-- 1. Compact head: the one <h1> (focus target) with greeting + channel. -->
+  <OverviewHead
+    eyebrow={t('overview.eyebrow')}
+    greeting={greeting}
+    channel={data.displayName ?? data.login}
+    description={t('overview.description')}
+  />
 
-  <!-- status-hero keeps page-scoped descendant styles (.live.off/.meta/.botmark),
-       so it stays a raw glass card rather than the <Card> component. -->
-  <div class="card sheen status-hero" class:status-hero--premium={data.isPremium}>
-    <div class="botmark"><img src={data.isPremium ? '/premium-logo.png' : '/logo.png'} alt="" /></div>
-    <!-- Connection state streams in after the shell renders; show a neutral
-         placeholder until the RPC lands so navigation stays instant. -->
-    {#await data.conn}
-      <div>
-        <div class="live off"><span class="dot"></span> {t('overview.checking')}</div>
-        <div class="meta"><Skeleton variant="pill" /></div>
-      </div>
-      <div class="actions"></div>
-    {:then c}
-      {@const u = liveUi(c)}
-      <div>
-        <div class="live {u.live ? '' : 'off'}">
-          <span class="dot"></span> {headline(u.kind)}
-        </div>
-        <div class="meta">
-          {#if u.kind !== 'unavailable'}
-            <span class="status-tag {c.signals.status !== 'free' && c.signals.status !== 'unknown' ? 'premium' : ''}">{statusLabel(c.signals.status)}</span>
-          {/if}
-          {#if u.kind === 'degraded'}
-            <span class="status-tag sub-state err">{t('overview.reconnectNeeded')}</span>
-          {:else if u.kind === 'connecting'}
-            <span class="status-tag sub-state warn">{t('overview.reconnecting')}</span>
-          {:else if u.kind === 'sub_unknown'}
-            <span class="status-tag sub-state warn">{t('overview.subUnknown')}</span>
-          {/if}
-        </div>
-        {#if u.kind === 'degraded'}
-          <p class="sub-fix">{t('overview.subFixPre')}<strong>{t('overview.subFixStrong')}</strong>.</p>
-        {/if}
-      </div>
-      <div class="actions">
-        {#if u.canManage}
-          <Button variant="ghost" icon="activity" type="button" onclick={() => openModal('restart')}>{t('overview.restart')}</Button>
-          <Button variant="tan" icon="power" type="button" onclick={() => openModal('disconnect')}>{t('overview.disconnect')}</Button>
-        {:else if u.showEnable}
-          <form method="POST" action="?/enable" use:enhance={enableSubmit}>
-            <Button variant="primary" icon="power" type="submit">{t('overview.enable')}</Button>
-          </form>
-        {:else if u.showConnect}
-          <a class="btn primary" href="/settings"><Icon name="power" size={14} /> {t('overview.issueNoAuthCta')}</a>
-        {:else if u.canRetry}
-          <a class="btn ghost" href="/"><Icon name="activity" size={14} /> {t('overview.retry')}</a>
-        {/if}
-      </div>
-    {/await}
-  </div>
-
-  <!-- Quick actions: the three things a streamer actually comes here to do. -->
-  <div class="quick-row">
-    <a class="btn primary" href="/commands"><Icon name="plus" size={14} /> {t('overview.quickNewCommand')}</a>
-    <a class="btn ghost" href="/modules"><Icon name="modules" size={14} /> {t('overview.quickModules')}</a>
-    <a class="btn ghost" href="/settings"><Icon name="settings" size={14} /> {t('overview.quickSettings')}</a>
-  </div>
-
-  <!-- Needs-attention strip: shows ONLY real problems with their fix; one quiet
-       line when everything is healthy. The hero already says "connected", so
-       nothing here repeats it. -->
-  {#await data.conn then c}
+  <!-- 2. Bot status: the page anchor. Textual state (main's honest ConnUi) plus
+       the one recovery action that state needs. -->
+  {#await data.conn}
+    <BotStatusPanel loading logoSrc={logo} checkingText={t('overview.checking')} />
+  {:then c}
     {@const u = liveUi(c)}
-    {#await data.commands then cd}
-      {@const issues = issuesFor(u, cd)}
-      {#if issues.length}
-        <div class="attention">
-          {#each issues as issue (issue.text)}
-            <div class="attn-row">
-              <span class="attn-ico"><Icon name={issue.icon} size={14} /></span>
-              <span class="attn-text">{issue.text}</span>
-              {#if issue.href}<a class="btn ghost sm-btn" href={issue.href}>{issue.cta}</a>
-              {:else}<span class="attn-hint">{issue.cta}</span>{/if}
-            </div>
-          {/each}
-        </div>
-      {:else if u.kind === 'online' && cd.ok}
-        <!-- "All good" shows only when genuinely online AND the reads landed;
-             an outage must not read as healthy. -->
-        <p class="all-good"><Icon name="check" size={13} /> {t('overview.allGood')}</p>
-      {/if}
-    {/await}
+    <BotStatusPanel
+      ui={u}
+      checkingText={t('overview.checking')}
+      {isDelegate}
+      isPremium={data.isPremium}
+      logoSrc={logo}
+      planLabel={c.signals.status === 'unknown' ? undefined : statusLabel(c.signals.status)}
+      onRestart={() => openModal('restart')}
+      onDisconnect={() => openModal('disconnect')}
+      enableSubmit={enableSubmit}
+    />
   {/await}
 
-  <!-- At a glance: your bot's actual numbers, each linking to its page. -->
-  <div class="stat-grid overview-stats">
-    {#await data.commands}
-      <StatTile icon="commands" label={t('overview.statActiveCommands')} value="—" delta={t('overview.counting')} flat />
-    {:then cd}
-      {#if cd.ok}
-        <StatTile
-          icon="commands"
-          label={t('overview.statActiveCommands')}
-          value={String(cd.active)}
-          unit={t('overview.ofN', { n: cd.total })}
-          delta={cd.uses > 0 ? t('overview.usesAllTime', { n: cd.uses.toLocaleString() }) : t('overview.createFirstResponse')}
-        />
-      {:else}
-        <StatTile icon="commands" label={t('overview.statActiveCommands')} value="—" delta={t('overview.dataUnavailable')} flat />
-      {/if}
-    {/await}
-    {#await data.modules}
-      <StatTile icon="modules" tan label={t('overview.statModulesOn')} value="—" delta={t('overview.checkingShort')} flat />
-    {:then md}
-      {#if md.ok}
-        <StatTile
-          icon="modules"
-          tan
-          label={t('overview.statModulesOn')}
-          value={String(md.on)}
-          unit={t('overview.ofN', { n: md.total })}
-          delta={md.on > 0 ? t('overview.runningForChannel') : t('overview.browseCatalog')}
-        />
-      {:else}
-        <StatTile icon="modules" tan label={t('overview.statModulesOn')} value="—" delta={t('overview.dataUnavailable')} flat />
-      {/if}
-    {/await}
-    {#await data.shares}
-      <StatTile icon="users" label={t('overview.statSharedAccess')} value="—" delta={t('overview.checkingShort')} flat />
-    {:then sh}
-      {#if sh.ok}
-        <StatTile
-          icon="users"
-          label={t('overview.statSharedAccess')}
-          value={String(sh.people)}
-          unit={sh.people === 1 ? t('overview.person') : t('overview.people')}
-          delta={sh.pending > 0 ? t('overview.invitesPending', { n: sh.pending }) : t('overview.manageInSettings')}
-          flat={sh.pending === 0}
-        />
-      {:else}
-        <StatTile icon="users" label={t('overview.statSharedAccess')} value="—" delta={t('overview.dataUnavailable')} flat />
-      {/if}
-    {/await}
-    {#await data.conn}
-      <StatTile icon="pulse" tan label={t('overview.statPlan')} value="—" delta={t('overview.loadingAccount')} flat />
-    {:then c}
-      <StatTile
-        icon="pulse"
-        tan
-        label={t('overview.statPlan')}
-        value={statusLabel(c.signals.status)}
-        delta={c.signals.status === 'unknown' ? t('overview.dataUnavailable') : c.signals.status === 'free' ? t('overview.standardAccess') : t('overview.premiumAccess')}
-        flat
-      />
-    {/await}
-  </div>
+  <!-- 3. Needs attention: only real, non-connection issues (guarded on the read
+       having landed); the connection story stays in the status panel. -->
+  {#await Promise.all([data.commands, data.shares]) then [cd, sh]}
+    <NeedsAttention
+      active={cd.active}
+      total={cd.total}
+      commandsOk={cd.ok}
+      pendingShares={sh.pending}
+      sharesOk={sh.ok}
+    />
+  {/await}
 
-  <div class="overview-grid">
-    <Card>
-      <CardHead title={t('overview.topCommands')}>{#snippet action()}<a class="more" href="/commands">{t('overview.allCommands')}</a>{/snippet}</CardHead>
-      {#await data.commands}
-        <div class="feed">
-          {#each [0, 1, 2] as i (i)}
-            <div class="feed-row">
-              <div class="fi green"><Icon name="commands" size={15} /></div>
-              <div class="ft"><Skeleton variant="text" lines={2} width="80%" /></div>
-            </div>
-          {/each}
-        </div>
-      {:then cd}
-        {@const top = cd.top}
-        {#if !cd.ok}
-          <div class="feed">
-            <div class="feed-row">
-              <div class="fi"><Icon name="activity" size={15} /></div>
-              <div class="ft">
-                <b>{t('overview.commandsUnavailable')}</b>
-                <span>{t('overview.commandsUnavailableDesc')}</span>
-              </div>
-              <a class="fw overview-link" href="/">{t('overview.retry')}</a>
-            </div>
-          </div>
-        {:else if top.length}
-          <div class="feed">
-            {#each top as c (c.name)}
-              <div class="feed-row">
-                <div class="fi green"><Icon name="commands" size={15} /></div>
-                <div class="ft">
-                  <b class="mono">!{c.name}</b>
-                  <span class="clip">{c.response}</span>
-                </div>
-                <span class="fw uses">{t('overview.usesN', { n: c.uses ?? '0' })}</span>
-              </div>
-            {/each}
-            <div class="feed-row">
-              <div class="fi"><Icon name="plus" size={15} /></div>
-              <div class="ft">
-                <b>{t('overview.addAnother')}</b>
-                <span>{t('overview.addAnotherDesc')}</span>
-              </div>
-              <a class="fw overview-link" href="/commands">{t('common.open')}</a>
-            </div>
-          </div>
-        {:else}
-          <div class="feed">
-            <div class="feed-row">
-              <div class="fi green"><Icon name="commands" size={15} /></div>
-              <div class="ft">
-                <b>{t('overview.createFirstCommand')}</b>
-                <span>{t('overview.createFirstCommandDesc')}</span>
-              </div>
-              <a class="fw overview-link" href="/commands">{t('common.open')}</a>
-            </div>
-            <div class="feed-row">
-              <div class="fi"><Icon name="settings" size={15} /></div>
-              <div class="ft">
-                <b>{t('overview.checkAccess')}</b>
-                <span>{t('overview.checkAccessDesc')}</span>
-              </div>
-              <a class="fw overview-link" href="/settings">{t('common.open')}</a>
-            </div>
-          </div>
-        {/if}
-      {/await}
-    </Card>
+  <!-- 4. Quick actions: New command is the page's single primary CTA. -->
+  {#await data.conn}
+    <QuickActions />
+  {:then c}
+    <QuickActions needsAttention={liveUi(c).kind !== 'online'} />
+  {/await}
 
-  </div>
+  <!-- 5. Linked summary: each item a real link naming its count + destination. -->
+  {#await Promise.all([data.commands, data.modules, data.conn, data.shares])}
+    <section class="ov-loading" aria-busy="true" aria-label={t('overview.checking')}>
+      <span class="sr-only">{t('overview.checking')}</span>
+      <div class="ov-loading__grid" aria-hidden="true">
+        {#each [0, 1, 2, 3] as i (i)}<Skeleton variant="block" height="56px" />{/each}
+      </div>
+    </section>
+  {:then [cd, md, c, sh]}
+    <LinkedSummary
+      active={cd.active}
+      commandsOk={cd.ok}
+      modulesOn={md.on}
+      modulesOk={md.ok}
+      planLabel={statusLabel(c.signals.status)}
+      people={sh.people}
+      sharesOk={sh.ok}
+    />
+  {/await}
+
+  <!-- 6. Established -> top commands; unreachable -> honest notice; incomplete ->
+       setup guidance. -->
+  {#await Promise.all([data.commands, data.conn, data.modules])}
+    <section class="ov-loading" aria-busy="true" aria-label={t('overview.checking')}>
+      <span class="sr-only">{t('overview.checking')}</span>
+      <div class="ov-loading__stack" aria-hidden="true">
+        {#each [0, 1, 2] as i (i)}<Skeleton variant="block" height="52px" />{/each}
+      </div>
+    </section>
+  {:then [cd, c, md]}
+    {#if !cd.ok}
+      <!-- A failed read is not an empty account: surface the outage with a retry
+           rather than a misleading "create your first command". -->
+      <section class="ov-top" aria-labelledby="ov-cmd-h">
+        <h2 id="ov-cmd-h" class="ov-section-h">{t('overview.topCommands')}</h2>
+        <Card>
+          <div class="ov-unavail">
+            <p class="ov-unavail__text">
+              <b>{t('overview.commandsUnavailable')}</b>
+              <span>{t('overview.commandsUnavailableDesc')}</span>
+            </p>
+            <ButtonLink href="/" variant="ghost" class="ov-cta">{t('overview.retry')}</ButtonLink>
+          </div>
+        </Card>
+      </section>
+    {:else if cd.top.length}
+      <TopCommands top={cd.top} />
+    {:else}
+      <SetupProgress receiving={liveUi(c).live} hasCommands={cd.total > 0} modulesOn={md.on > 0} />
+    {/if}
+  {/await}
 </section>
 
 <!-- First-visit setup stepper -->
@@ -450,177 +318,64 @@
 </Modal>
 
 <style>
-  /* With the #login heading gone, the connection status is the hero's headline:
-     promote it from a small mono pill to a display-weight line that fills the row. */
-  .status-hero .live {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 22px;
-    letter-spacing: -0.01em;
-    text-transform: none;
-    color: var(--bb-white);
-    gap: 12px;
-    margin-bottom: 12px;
-  }
-  
-  :global(.status-hero--premium .botmark) {
-    border-color: rgba(201, 168, 124, 0.4) !important;
-    background: rgba(201, 168, 124, 0.05) !important;
-  }
-  .status-hero .live .dot { width: 9px; height: 9px; }
-  .status-hero .live.off { color: var(--bb-muted); }
-  .status-hero .live.off .dot { background: var(--bb-muted); box-shadow: none; animation: none; }
-  .status-tag {
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    padding: 5px 12px;
-    border-radius: var(--bb-radius-pill);
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid var(--bb-border);
-    color: var(--bb-muted);
-  }
-  .status-tag.premium {
-    background: rgba(82, 183, 136, 0.12);
-    border-color: rgba(82, 183, 136, 0.35);
-    color: var(--bb-green-glow);
-  }
-  .status-tag.sub-state.err {
-    background: rgba(176, 90, 70, 0.15);
-    border-color: rgba(176, 90, 70, 0.4);
-    color: #cf8a78;
-  }
-  .status-tag.sub-state.warn {
-    background: rgba(200, 160, 80, 0.12);
-    border-color: rgba(200, 160, 80, 0.35);
-    color: var(--bb-tan-light, #c8a050);
-  }
-  .sub-fix {
-    margin: 8px 0 0;
-    max-width: 36ch;
-    font-size: 12px;
-    line-height: 1.4;
-    color: var(--bb-muted);
-  }
-  .sub-fix strong {
-    color: #cf8a78;
-    font-weight: 600;
-    white-space: nowrap;
-  }
-  .modal-error {
-    margin: -8px 0 16px;
-    padding: 10px 12px;
-    font-family: var(--bb-font-body);
-    font-size: 13px;
-    line-height: 1.4;
-    color: #cf8a78;
-    background: rgba(176, 90, 70, 0.12);
-    border: 1px solid rgba(176, 90, 70, 0.35);
-    border-radius: 8px;
-  }
-  .overview-stats {
+  .ov-loading {
     margin-bottom: var(--row-gap);
   }
-  .quick-row {
-    display: flex;
+  .ov-loading__grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
     gap: 10px;
-    flex-wrap: wrap;
-    margin-bottom: var(--row-gap);
   }
-  .quick-row .btn { text-decoration: none; }
-  @media (max-width: 480px) {
-    .quick-row .btn { flex: 1; justify-content: center; }
-  }
-
-  /* needs-attention strip */
-  .attention {
+  .ov-loading__stack {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
+  }
+  @media (max-width: 560px) {
+    .ov-loading__grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /* Commands-unavailable notice shares the section heading rhythm with the
+     TopCommands / SetupProgress components it stands in for. */
+  .ov-top {
     margin-bottom: var(--row-gap);
   }
-  .attn-row {
+  .ov-section-h {
+    font-family: var(--bb-font-display);
+    font-weight: 700;
+    font-size: 16px;
+    letter-spacing: -0.01em;
+    color: var(--bb-white);
+    margin: 0 0 12px;
+  }
+  .ov-unavail {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 12px 16px;
-    background: rgba(201, 168, 124, 0.07);
-    border: 1px solid rgba(201, 168, 124, 0.3);
-    border-radius: 8px 8px;
+    gap: 16px;
+    flex-wrap: wrap;
   }
-  .attn-ico {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-    flex: none;
-    border-radius: 8px 8px;
-    background: rgba(201, 168, 124, 0.14);
-    color: var(--bb-tan-light);
-  }
-  .attn-ico :global(svg) { stroke: currentColor; fill: none; stroke-width: 1.7; }
-  .attn-text {
+  .ov-unavail__text {
     flex: 1;
     min-width: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .ov-unavail__text b {
     font-family: var(--bb-font-body);
-    font-size: 13.5px;
+    font-size: 14px;
     color: var(--bb-white);
   }
-  .attn-hint { font-family: var(--bb-font-body); font-weight: 600; font-size: 12.5px; color: var(--bb-tan-light); white-space: nowrap; }
-  .sm-btn { padding: 7px 14px; font-size: 12px; }
-
-  .all-good {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    margin: 0 0 var(--row-gap);
+  .ov-unavail__text span {
     font-family: var(--bb-font-body);
     font-size: 13px;
-    color: var(--bb-green-glow);
-  }
-  .all-good :global(svg) { stroke: currentColor; fill: none; stroke-width: 2; }
-  .overview-grid {
-    align-items: stretch;
-  }
-  .overview-link {
-    color: var(--bb-tan);
-    text-decoration: none;
-  }
-  .overview-link:hover {
-    color: var(--bb-tan-pale);
-  }
-  .mono { font-family: var(--bb-font-mono); }
-  .uses {
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
     color: var(--bb-muted);
-    white-space: nowrap;
   }
-  .clip {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    display: block;
-    max-width: 100%;
+  .ov-unavail :global(.ov-cta) {
+    flex: none;
+    min-height: 44px;
   }
-
-  /* Mobile: stack botmark above text, actions full-width buttons */
-  @media (max-width: 760px) {
-    :global(.status-hero .actions) {
-      flex-direction: column;
-    }
-    /* Buttons from the shared Button component need full width too */
-    :global(.status-hero .actions button),
-    :global(.status-hero .actions > button) {
-      width: 100%;
-      justify-content: center;
-      min-height: 44px;
-    }
-  }
-
-
-
-
 </style>

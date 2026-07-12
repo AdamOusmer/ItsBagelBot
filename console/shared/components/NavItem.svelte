@@ -1,6 +1,10 @@
 <script lang="ts">
   import Icon from './Icon.svelte';
   import type { IconName } from '../lib/icons';
+  import { getI18n } from '../lib/i18n/context';
+
+  const { t } = getI18n();
+
   let {
     href,
     icon,
@@ -23,10 +27,13 @@
 </script>
 
 {#if locked}
-  <span class="nav-item locked" title="Broadcaster only">
+  <!-- Locked (broadcaster-only) entry: non-interactive, and the meaning is
+       carried by real .sr-only text, not a hover-only title tooltip. -->
+  <span class="nav-item locked">
     {#if idx}<span class="idx">{idx}</span>{/if}
     <Icon name={icon} /> {label}
     <Icon name="lock" size={13} />
+    <span class="sr-only">{t('nav.lockedBroadcaster')}</span>
   </span>
 {:else}
   <a class="nav-item {active ? 'active' : ''}" {href} aria-current={active ? 'page' : undefined}>
