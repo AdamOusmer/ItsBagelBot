@@ -43,13 +43,24 @@ spec:
           operator: Exists
           effect: NoExecute
           tolerationSeconds: 60
-      # The JetStream hub is a 3-member RAFT quorum: every member must sit on a
-      # stable cloud node. worker1 (home wifi, bandwidth-capped) blinking must
-      # never cost quorum tolerance, so it is excluded outright (the worker-pool
-      # toleration is gone for the same reason). Members land on
-      # node1/node2/node3 via the one-per-node spread below. Note the JetStream
-      # PVCs are local-path (node-bound): moving a member means deleting its PVC
-      # + pod so it reprovisions on an eligible node and RAFT re-syncs it.
+        # Tolerate worker1's worker-pool taint so the hub can run there (see the
+        # affinity note): worker1 is the 8-core/15GiB node that replaces node1 in
+        # the quorum.
+        - key: itsbagelbot.dev/pool
+          operator: Equal
+          value: worker-pool
+          effect: NoSchedule
+      # The JetStream hub is a 3-member RAFT quorum. node1 (a 2-core, infra-loaded
+      # ARM host) gated the whole StatefulSet's resources, since all three members
+      # share one pod template, so members now land on node2/node3/worker1
+      # instead. worker1 rides a home-wifi link, but with three voters a worker1
+      # blip still leaves node2+node3 as a 2/3 quorum. Trade-off: an R1 stream
+      # whose single replica lands on worker1 stalls while that link blips, so the
+      # hot firehose must stay replicated or have its placement watched — validate
+      # on the prod topology test before bumping resources (see the runbook).
+      # JetStream PVCs are local-path (node-bound): moving the node1 member means
+      # deleting jetstream-data-nats-2 + its pod so it reprovisions on worker1 and
+      # RAFT re-syncs it.
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -57,7 +68,7 @@ spec:
               - matchExpressions:
                   - key: kubernetes.io/hostname
                     operator: NotIn
-                    values: [worker1]
+                    values: [node1]
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
@@ -100,13 +111,17 @@ spec:
             - {name: jetstream-data, mountPath: /data/jetstream}
             - {name: pid, mountPath: /var/run/nats}
           resources:
-            # Headroom for JetStream: the container limit must exceed the
-            # jetstream max_mem (256MB) in nats-server.conf, otherwise the
-            # broker is OOMKilled the moment a stream uses its memory budget.
-            # CPU limit preserves burst headroom for low-p99 local RPC paths
-            # on JetStream flushes or GC bursts; this node carries the whole bus.
-            requests: {cpu: 150m, memory: 384Mi}
-            limits: {cpu: 2000m, memory: 768Mi}
+            # Kept deliberately MODEST for the topology migration: members now sit
+            # on node2/node3 (6-core) and worker1 (8-core), so node1 no longer
+            # caps the spec, but nothing is bumped until the prod topology test
+            # confirms the new placement is healthy (worker1 link stability, RAFT,
+            # PubAck latency, consumer lag). The memory limit sits just above the
+            # jetstream max_mem (2GB) in nats-server.conf so a full memory stream
+            # never OOMKills the pod. After the test passes, raise max_mem +
+            # MaxBytes + these requests toward the throughput target (the runbook
+            # has the sequence); the eligible nodes have the CPU/RAM headroom.
+            requests: {cpu: 500m, memory: 2Gi}
+            limits: {cpu: 2000m, memory: 2.5Gi}
           securityContext:
             allowPrivilegeEscalation: false
             capabilities: {drop: ["ALL"]}
