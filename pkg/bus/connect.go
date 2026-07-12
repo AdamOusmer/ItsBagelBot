@@ -98,13 +98,6 @@ func baseOptions(name, user, pass string) []nats.Option {
 		opts = append(opts, nats.UserInfo(user, pass))
 	}
 
-	// Kubernetes may temporarily place this connection on a fallback leaf. Once
-	// the same-node leaf is stably healthy, recycle only that displaced
-	// connection so topology-aware Service routing can return it locally.
-	if option := leafFailbackOption(); option != nil {
-		opts = append(opts, option)
-	}
-
 	return opts
 }
 
@@ -131,7 +124,18 @@ func tlsSecureOption() nats.Option {
 func rpcOptions(name string) []nats.Option {
 	user := env.Get("NATS_RPC_USER", env.Get("NATS_USER", ""))
 	pass := env.Get("NATS_RPC_PASSWORD", env.Get("NATS_PASSWORD", ""))
-	return baseOptions(name, user, pass)
+	opts := baseOptions(name, user, pass)
+	// Leaf failback applies ONLY to the RPC plane, which is leaf-first: recycle a
+	// connection displaced onto a fallback leaf back to the node-local leaf once it
+	// recovers. The BUS plane (busOptions) dials the hub directly (NATS_HUB_URL),
+	// whose server_name is "nats-N", never "<node>--…" — failback would treat it as
+	// permanently displaced and ForceReconnect it every interval (~90s), churning
+	// the JetStream consumers. That is what broke outgress -> Twitch delivery after
+	// the BUS plane moved hub-direct.
+	if option := leafFailbackOption(); option != nil {
+		opts = append(opts, option)
+	}
+	return opts
 }
 
 // busOptions authenticate the shared BUS account on the JetStream plane.
