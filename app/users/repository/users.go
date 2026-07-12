@@ -36,6 +36,7 @@ type UserView struct {
 	Status                    string     `json:"status"`
 	Banned                    bool       `json:"banned"`
 	Locale                    string     `json:"locale"`
+	CustomCursor              bool       `json:"custom_cursor"`
 	CreatorCode               *string    `json:"creator_code,omitempty"`
 	SubscriptionSource        string     `json:"subscription_source"`
 	SubscriptionExpiresAt     *time.Time `json:"subscription_expires_at,omitempty"`
@@ -131,6 +132,7 @@ func (r *Users) Get(ctx context.Context, id uint64) (UserView, error) {
 				Status:                    string(u.Status),
 				Banned:                    u.Banned,
 				Locale:                    u.Locale,
+				CustomCursor:              u.CustomCursor,
 				CreatorCode:               u.CreatorCode,
 				SubscriptionSource:        u.SubscriptionSource,
 				SubscriptionExpiresAt:     u.SubscriptionExpiresAt,
@@ -217,6 +219,13 @@ func (r *Users) SetActive(ctx context.Context, id uint64, active bool) error {
 // invalidation ping.
 func (r *Users) SetLocale(ctx context.Context, id uint64, locale string) error {
 	return r.updateAndPublish(ctx, id, func(u *ent.UserUpdateOne) { u.SetLocale(locale) })
+}
+
+// SetCustomCursor stores whether the console shows the animated custom cursor.
+// Console-only UI state, but it rides the same write-through + publish path as
+// the other preferences so the in-process view cache stays consistent.
+func (r *Users) SetCustomCursor(ctx context.Context, id uint64, on bool) error {
+	return r.updateAndPublish(ctx, id, func(u *ent.UserUpdateOne) { u.SetCustomCursor(on) })
 }
 
 // SetBanned blocks or unblocks the user from the service. A banned user is

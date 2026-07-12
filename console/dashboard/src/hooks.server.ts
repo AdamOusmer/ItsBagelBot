@@ -1,6 +1,6 @@
 import type { Handle, HandleServerError, ServerInit } from '@sveltejs/kit';
 import newrelic from 'newrelic';
-import { COOKIE, open } from '$lib/server/session';
+import { COOKIE, CURSOR_COOKIE, open } from '$lib/server/session';
 import { guardSession } from '$lib/server/guard';
 import { warm } from '@bagel/shared/server/nats';
 import { warm as warmValkey } from '@bagel/shared/server/valkey-store';
@@ -189,6 +189,9 @@ export const handle: Handle = async ({ event, resolve }) => {
 
   const locale = resolveLocale(event);
   event.locals.locale = locale;
+  // Custom-cursor preference: only an explicit '0' cookie turns it off, so a
+  // fresh visitor (no cookie) keeps the default animated cursor.
+  event.locals.cursorEnabled = event.cookies.get(CURSOR_COOKIE) !== '0';
   tagTransaction(event);
 
   // Compose the RUM injector with a one-shot <html lang> rewrite: the shell's

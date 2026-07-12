@@ -5,6 +5,7 @@
   // localStorage; `?welcome=1` re-opens it for a refresher.
   import { Icon, Modal, Toggle, getI18n, type IconName } from '@bagel/shared';
   import LangSwitch from './LangSwitch.svelte';
+  import CursorSwitch from './CursorSwitch.svelte';
 
   type Step = {
     icon: IconName;
@@ -106,6 +107,13 @@
       {/if}
       {#if steps[step].lang}
         <div class="lang-row"><LangSwitch /></div>
+        <div class="pref-row">
+          <div>
+            <span class="pref-name">{t('settings.customCursor')}</span>
+            <p class="pref-hint" id="onb-cursor-hint">{t('settings.customCursorHint')}</p>
+          </div>
+          <CursorSwitch describedby="onb-cursor-hint" />
+        </div>
       {/if}
       {#if steps[step].mod}
         <button type="button" class="mod-cmd" onclick={copyMod} title={t('common.copy')}>
@@ -217,6 +225,19 @@
   .consent-check :global(a:hover) { text-decoration: underline; }
 
   .lang-row { margin-top: 14px; display: flex; }
+
+  .pref-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--bb-border);
+  }
+  .pref-name {
+    font-family: var(--bb-font-body); font-weight: 600; font-size: 13.5px;
+    color: var(--bb-white);
+  }
+  .pref-hint {
+    font-family: var(--bb-font-body); font-size: 12px; line-height: 1.5;
+    color: var(--bb-muted); margin: 4px 0 0;
+  }
 
   .foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .dots { display: flex; gap: 7px; }
