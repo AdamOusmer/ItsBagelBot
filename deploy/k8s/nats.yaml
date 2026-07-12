@@ -111,17 +111,12 @@ spec:
             - {name: jetstream-data, mountPath: /data/jetstream}
             - {name: pid, mountPath: /var/run/nats}
           resources:
-            # Kept deliberately MODEST for the topology migration: members now sit
-            # on node2/node3 (6-core) and worker1 (8-core), so node1 no longer
-            # caps the spec, but nothing is bumped until the prod topology test
-            # confirms the new placement is healthy (worker1 link stability, RAFT,
-            # PubAck latency, consumer lag). The memory limit sits just above the
-            # jetstream max_mem (2GB) in nats-server.conf so a full memory stream
-            # never OOMKills the pod. After the test passes, raise max_mem +
-            # MaxBytes + these requests toward the throughput target (the runbook
-            # has the sequence); the eligible nodes have the CPU/RAM headroom.
+            # R1 memory-backed ingress needs enough headroom above JetStream's
+            # 4GB max_mem for dedup indexes, connections and the Go runtime.
+            # Keep CPU/memory requests modest; the limits provide burst CPU and
+            # retention headroom without reserving idle capacity cluster-wide.
             requests: {cpu: 500m, memory: 2Gi}
-            limits: {cpu: 2000m, memory: 2.5Gi}
+            limits: {cpu: 2000m, memory: 6Gi}
           securityContext:
             allowPrivilegeEscalation: false
             capabilities: {drop: ["ALL"]}

@@ -9,8 +9,9 @@ non-degrading bus under real load, not a specific number.
 
 - `deploy/k8s/nats.yaml`: hub affinity `NotIn worker1` -> `NotIn node1`, plus a
   toleration for `itsbagelbot.dev/pool=worker-pool`. Members move to
-  node2 / node3 / worker1. Resources stay modest (cpu 500m/2000m, mem 2Gi/2.5Gi)
-  until the test passes.
+  node2 / node3 / worker1. The post-migration R1 sizing keeps modest requests
+  (cpu 500m, memory 2Gi) with burst/retention limits of 2 cores and 6Gi;
+  JetStream itself is capped at 4GB.
 - `deploy/flux/clusters/production/flux-system/kustomization.yaml`: nodeAffinity
   `NotIn node1` on every Flux controller.
 - `pkg/bus/provision.go`: TWITCH_INGRESS + TWITCH_OUTGRESS memory-backed
@@ -123,10 +124,11 @@ the firehose off the leafnode hop.
 
 ## Phase F — bump resources (only after Phase E passes)
 
-12. Raise, still modestly (not 4 cores): `nats.yaml` requests/limits, `max_mem`
-    in nats-server.conf, and TWITCH_INGRESS `MaxBytes`/`MaxMsgsPer`. MaxBytes is
-    updatable in place (reconcile handles it); `max_mem` and pod limits need a
-    NATS roll. Re-run the Phase E soak after each step.
+12. The first resource bump sets requests to cpu 500m / memory 2Gi, limits to
+    2 cores / 6Gi, and `max_mem` to 4GB. Raise TWITCH_INGRESS
+    `MaxBytes`/`MaxMsgsPer` separately if the retention target needs it.
+    MaxBytes is updatable in place (reconcile handles it); `max_mem` and pod
+    limits need a NATS roll. Re-run the Phase E soak after each step.
 
 ## Rollback
 
