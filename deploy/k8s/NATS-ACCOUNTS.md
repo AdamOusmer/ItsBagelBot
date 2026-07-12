@@ -48,26 +48,11 @@ All values are **bcrypt hashes** except the `*_REMOTE_URL_*` entries.
 
 **System account (1):** `NATS_BCRYPT_SYS`
 
-**Leaf link hashes — hub authorization, one per account (12):**
-`NATS_BCRYPT_LEAF_BUS`, `NATS_BCRYPT_LEAF_USERS`, `NATS_BCRYPT_LEAF_COMMANDS`,
-`NATS_BCRYPT_LEAF_LOYALTY`,
-`NATS_BCRYPT_LEAF_MODULES`, `NATS_BCRYPT_LEAF_PROJECTOR`,
-`NATS_BCRYPT_LEAF_OUTGRESS`, `NATS_BCRYPT_LEAF_WORKER`,
-`NATS_BCRYPT_LEAF_DASHBOARD`, `NATS_BCRYPT_LEAF_ADMIN`,
-`NATS_BCRYPT_LEAF_TWITCH_INGRESS`, `NATS_BCRYPT_LEAF_TRANSACTIONS`,
-`NATS_BCRYPT_LEAF_GATEWAY`
+**Leaf link hash — BUS bridge only:** `NATS_BCRYPT_LEAF_BUS`.
 
-**Leaf remote URLs — leaf side, one per account (12):** each embeds the
-*plaintext* leaf password matching the hash above:
-`NATS_LEAF_REMOTE_URL_BUS`, `NATS_LEAF_REMOTE_URL_USERS`,
-`NATS_LEAF_REMOTE_URL_COMMANDS`, `NATS_LEAF_REMOTE_URL_LOYALTY`, `NATS_LEAF_REMOTE_URL_MODULES`,
-`NATS_LEAF_REMOTE_URL_PROJECTOR`, `NATS_LEAF_REMOTE_URL_OUTGRESS`,
-`NATS_LEAF_REMOTE_URL_WORKER`, `NATS_LEAF_REMOTE_URL_DASHBOARD`,
-`NATS_LEAF_REMOTE_URL_ADMIN`, `NATS_LEAF_REMOTE_URL_TWITCH_INGRESS`,
-`NATS_LEAF_REMOTE_URL_TRANSACTIONS`, `NATS_LEAF_REMOTE_URL_GATEWAY`
-
-Form: `nats-leaf://leaf_<account>:<plaintext>@nats.production.svc.cluster.local:7422`
-e.g. `NATS_LEAF_REMOTE_URL_USERS=nats-leaf://leaf_users:<pw>@nats.production.svc.cluster.local:7422`
+**Leaf remote URL — BUS bridge only:** `NATS_LEAF_REMOTE_URL_BUS`, embedding
+the plaintext matching the hash above. RPC accounts are local to the standalone
+leaf cluster and deliberately have no hub leafnode credentials or remotes.
 
 ## 3. Per-service Doppler keys (app side)
 
@@ -100,8 +85,9 @@ htpasswd -bnBC 11 "" "$PLAINTEXT" | tr -d ':\n' | sed 's/^\$2y/\$2a/'
 `nats-auth.conf` hot-reloads via the config-reloader SIGHUP, so accounts can be
 staged before clients cut over.
 
-1. Add all keys above to `nats-auth-env`; push config (Flux) → SIGHUP reload.
-   The leaf opens one remote per account; verify all 10 links come up.
+1. Add the BUS bridge keys above to `nats-auth-env`; push config (Flux) → SIGHUP
+   reload. Verify each leaf reports exactly one hub remote (`BUS`) and that no
+   `*_RPC` account appears in `leafz`.
 2. Ship the app code (already in this branch); `NATS_RPC_*` falls back to
    `NATS_USER`/`PASSWORD`, so apps keep working on their BUS user until RPC creds
    exist.

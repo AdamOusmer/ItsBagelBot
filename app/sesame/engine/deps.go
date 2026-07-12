@@ -19,8 +19,7 @@ import (
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 	modulesrpc "ItsBagelBot/internal/domain/rpc/modules"
 	"ItsBagelBot/internal/projection"
-
-	"github.com/ThreeDotsLabs/watermill/message"
+	"ItsBagelBot/pkg/bus"
 
 	"go.uber.org/zap"
 )
@@ -55,7 +54,7 @@ type Deps struct {
 	Cooldown   CooldownStore
 	Dedup      DedupStore
 	Special    *SpecialSet
-	Pub        message.Publisher
+	Pub        bus.Publisher
 	Commands   CommandManager
 	Gateway    GatewayCaller
 	Followage  FollowageLookup

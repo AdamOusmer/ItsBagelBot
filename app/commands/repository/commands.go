@@ -21,8 +21,6 @@ import (
 
 	entsql "entgo.io/ent/dialect/sql"
 
-	"github.com/ThreeDotsLabs/watermill/message"
-
 	"github.com/newrelic/go-agent/v3/newrelic"
 
 	"go.uber.org/zap"
@@ -113,7 +111,7 @@ type commandKey struct {
 type Commands struct {
 	client  *ent.Client
 	views   *cache.Cache[[]CommandView]
-	pub     message.Publisher
+	pub     bus.Publisher
 	batcher *batch.Batcher[commandKey, data.CommandChangedDTO]
 	app     *newrelic.Application
 	log     *zap.Logger
@@ -131,7 +129,7 @@ type Commands struct {
 	usesFlushing atomic.Bool
 }
 
-func NewCommands(client *ent.Client, pub message.Publisher, app *newrelic.Application, log *zap.Logger) *Commands {
+func NewCommands(client *ent.Client, pub bus.Publisher, app *newrelic.Application, log *zap.Logger) *Commands {
 
 	r := &Commands{
 		client:   client,

@@ -52,12 +52,11 @@ NO_RPC: set[str] = set()
 # gateway is RPC-only (no JetStream/event plane), so it gets no BUS user.
 NO_BUS: set[str] = {"gateway"}
 
-# One leaf link per account: the BUS account plus every *_RPC account.
-LEAF_ACCOUNTS = [
-    "bus", "users", "commands", "loyalty", "modules", "projector",
-    "outgress", "worker", "dashboard", "admin", "twitch_ingress",
-    "notifications", "transactions", "gateway",
-]
+# Only BUS bridges the standalone leaf cluster to the JetStream hub. RPC
+# accounts route directly over the leaf cluster and intentionally have no hub
+# remotes, so hub loss cannot interrupt RPC and cross-node requests are not
+# duplicated onto two paths.
+LEAF_ACCOUNTS = ["bus"]
 
 
 def gen() -> str:
@@ -102,8 +101,8 @@ def main() -> None:
     # System account (server monitoring; no fleet service uses it).
     broker["NATS_BCRYPT_SYS"] = bcrypt_hash(gen())
 
-    # Leaf links: one hash (hub-side authorization) + one remote URL (leaf-side,
-    # embeds the plaintext) per account.
+    # The single BUS bridge: hub-side authorization hash plus the leaf-side
+    # remote URL containing its matching plaintext.
     for acct in LEAF_ACCOUNTS:
         leaf_pw = gen()
         broker[f"NATS_BCRYPT_LEAF_{acct.upper()}"] = bcrypt_hash(leaf_pw)

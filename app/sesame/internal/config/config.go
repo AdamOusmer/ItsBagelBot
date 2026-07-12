@@ -41,6 +41,7 @@ type Config struct {
 	// standard flood never starves premium broadcasters.
 	MinRoutines    int
 	MaxRoutines    int
+	MinConsumers   int
 	MaxConsumers   int
 	ScaleUpAfter   time.Duration
 	ScaleDownAfter time.Duration
@@ -154,6 +155,7 @@ func Load() *Config {
 
 		MinRoutines:    env.GetInt("SESAME_MIN_ROUTINES", 2),
 		MaxRoutines:    env.GetInt("SESAME_MAX_ROUTINES", 8),
+		MinConsumers:   env.GetInt("SESAME_MIN_CONSUMERS", 1),
 		MaxConsumers:   env.GetInt("SESAME_MAX_CONSUMERS", 3),
 		ScaleUpAfter:   env.GetDuration("SESAME_SCALE_UP_AFTER", 5*time.Second),
 		ScaleDownAfter: env.GetDuration("SESAME_SCALE_DOWN_AFTER", 30*time.Second),

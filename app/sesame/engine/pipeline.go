@@ -59,7 +59,7 @@ type Config struct {
 // the emit sink only builds an outgress message when a handler actually emits.
 type Pipeline struct {
 	log      *zap.Logger
-	pub      message.Publisher
+	pub      bus.Publisher
 	proj     projection.Reader
 	registry *Registry
 

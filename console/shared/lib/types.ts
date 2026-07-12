@@ -187,6 +187,30 @@ export interface ShardSnapshot {
   target: number;
   min_shards: number;
   autoscale: boolean;
+  max_load?: number;
+  max_load_shard_id?: number | null;
+  // Optional during a rolling deployment so a new console can still render a
+  // snapshot returned by an older ingress pod.
+  capacity?: IngressCapacity;
+}
+
+export interface IngressCapacity {
+  benchmark: string;
+  nats_benchmark: string;
+  load_window_seconds: number;
+  target_utilization_pct: number;
+  pod_rated_eps: number;
+  pod_target_eps: number;
+  fleet_nodes: number;
+  fleet_rated_eps: number;
+  fleet_target_eps: number;
+  nats_rated_eps: number;
+  nats_target_eps: number;
+  effective_rated_eps: number;
+  effective_target_eps: number;
+  bottleneck: 'nats' | 'ingress_compute';
+  websocket_rated_eps: number;
+  websocket_target_eps: number;
 }
 
 export interface NavLink {

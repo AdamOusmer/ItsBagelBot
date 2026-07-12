@@ -83,6 +83,21 @@ config :ingress,
   conduit_subject: System.get_env("NATS_CONDUIT_SUBJECT", "bagel.rpc.ingress.conduit.get"),
   # Hard ceiling applied to both manual targets and the autoscaler estimate.
   max_shards: String.to_integer(System.get_env("TWITCH_CONDUIT_MAX_SHARDS", "20")),
+  # Capacity values are reported to the admin console and drive shard scaling.
+  # The pod rating is the rounded-down production-shaped full-path benchmark;
+  # the websocket rating is kept separate because adding a conduit shard adds
+  # a socket read loop, not another pod's end-to-end processing capacity.
+  capacity_pod_rated_eps:
+    String.to_integer(System.get_env("INGRESS_CAPACITY_POD_RATED_EPS", "140000")),
+  # Rounded down from the native-TLS live-cluster direct-hub PubAck acceptance
+  # result (44,327/s). This shared broker limit, not pod compute, currently sets
+  # effective fleet throughput.
+  capacity_nats_rated_eps:
+    String.to_integer(System.get_env("INGRESS_CAPACITY_NATS_RATED_EPS", "44000")),
+  capacity_websocket_rated_eps:
+    String.to_integer(System.get_env("INGRESS_CAPACITY_WEBSOCKET_RATED_EPS", "12500")),
+  capacity_target_utilization_pct:
+    String.to_integer(System.get_env("INGRESS_CAPACITY_TARGET_UTILIZATION_PCT", "75")),
   # NATS RPC endpoint exposed by the Go service that owns broadcaster data.
   # The ingress never queries the database directly (data-and-state rules).
   broadcaster_status_subject:
@@ -112,16 +127,18 @@ config :ingress,
     String.to_integer(
       System.get_env("INGRESS_SQUASH_PARTITIONS", Integer.to_string(System.schedulers_online()))
     ),
-  # Async JetStream publishing uses one connection/collector per online BEAM
+  # JetStream microbatching uses one connection/batcher per online BEAM
   # scheduler. Keeping these equal gives every event the same scheduler-local
   # path without idle connections or fallback routing.
   publish_connections:
     String.to_integer(
       System.get_env("INGRESS_PUBLISH_CONNECTIONS", Integer.to_string(System.schedulers_online()))
     ),
-  # Per-connection in-flight PubAck window. At two connections this sustains
-  # >300k/s even with 100ms broker acks while bounding retained payload memory.
+  # Per-connection queued + in-flight event bound. Batch commit PubAcks keep
+  # normal utilization far below it while broker stalls remain memory-bounded.
   publish_max_pending: String.to_integer(System.get_env("INGRESS_PUBLISH_MAX_PENDING", "16384")),
+  publish_batch_size: String.to_integer(System.get_env("INGRESS_PUBLISH_BATCH_SIZE", "128")),
+  publish_batch_wait_ms: String.to_integer(System.get_env("INGRESS_PUBLISH_BATCH_WAIT_MS", "1")),
   # Per-attempt PubAck wait and total attempt budget. Retries are deduplicated
   # broker-side by Nats-Msg-Id, so they can never store an event twice.
   publish_ack_timeout_ms:

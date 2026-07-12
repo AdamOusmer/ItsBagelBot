@@ -23,9 +23,13 @@ Confirmed wiring (leave as-is unless a step below proves otherwise):
 - Leaf cluster: `cluster{ name: nats-leaf, port: 6222, routes: nats-leaf-peers:6222, no_advertise }` ([nats-leaf-server.conf](nats-leaf-server.conf)); `nats-leaf-peers` is headless + `publishNotReadyAddresses` ([nats-leaf.yaml](nats-leaf.yaml)).
 - Hub cluster: 3-replica StatefulSet, routes on `nats-headless:6222`; per-account leafnode listener on `7422` ([nats.yaml](nats.yaml), [nats-server.conf](nats-server.conf)).
 - `OUTGRESS_RPC` has no per-user subject ACL (default-allow **within** the account), so `bagel.outgress.permit.v2.>` and `$SRV.>` are unrestricted account-internal subjects.
-- `network-policies.yaml` `default-deny-apps` selects only app pods, **not** `nats`/`nats-leaf`, so NATS pods are NetworkPolicy-unrestricted. `linkerd-auth.yaml` defines no `Server` for NATS, so its ports are not locked to default-deny. `opaque-ports` covers `4222,6222,7422`.
+- `network-policies.yaml` `default-deny-apps` selects only app pods, **not**
+  `nats`/`nats-leaf`, so NATS pods are NetworkPolicy-unrestricted. NATS and its
+  leaves are out of Linkerd; native TLS protects 4222/6222/7422.
 
-So the break is **runtime**, on one of: leaf↔leaf routes (6222), leaf→hub leafnode (7422), or hub↔hub interest relay.
+RPC is deliberately hub-independent. A break is therefore runtime on the
+leaf↔leaf routes (6222), account import/export mapping, or host networking — not
+on the hub leafnode listener.
 
 ## Diagnose (live cluster)
 
@@ -40,10 +44,11 @@ Run from the operator context (`k8s-operator.tail451e6d.ts.net`).
    ```
    Prometheus equivalent: `gnatsd_varz_routes{app="nats-leaf"}`.
 
-2. **Leafnode links up?** Each leaf opens one remote per account (13).
+2. **Only the BUS bridge is up?** Each leaf should expose exactly one hub
+   leafnode remote, for `BUS`. RPC accounts must not appear here.
    ```sh
    kubectl -n production exec <a-leaf-pod> -c nats -- \
-     wget -qO- localhost:8222/leafz | grep -E '"leafnodes"|OUTGRESS'
+     wget -qO- localhost:8222/leafz | grep -E '"leafnodes"|BUS|_RPC'
    ```
 
 3. **Does interest actually cross?** Sub on one node's leaf, pub from another's,
@@ -75,18 +80,17 @@ Run from the operator context (`k8s-operator.tail451e6d.ts.net`).
   firewall-cmd --reload
   ```
   Also confirm `nats-leaf-peers` resolves every leaf pod IP
-  (`kubectl -n production get endpoints nats-leaf-peers`) and that Linkerd keeps
-  `6222` opaque (a proxy that protocol-detects `6222` would stall the route).
+  (`kubectl -n production get endpoints nats-leaf-peers`) and that the peer
+  certificates validate on native-TLS port 6222.
 
-- **Step 2 shows the OUTGRESS leaf remote missing/flapping:** `7422` to
-  `nats:7422` is blocked or the `leaf_outgress` cred is wrong — check
-  `nats-auth-env` and the leafnode authorization user in [nats-server.conf](nats-server.conf).
+- **Step 2 shows any `*_RPC` remote:** the old hub bridge is still loaded.
+  Confirm the generated `nats-leaf-config` contains only
+  `NATS_LEAF_REMOTE_URL_BUS`, then reload/restart that leaf.
 
-- **Steps 1–2 healthy but step 3 is silent:** genuine NATS leaf+cluster hybrid
-  interest gap. Validate the hub relay in isolation by pointing the probe sub/pub
-  at the **hub** (`nats:4222`) instead of the leaves; if that works but leaf↔leaf
-  does not, prefer the hub path for this account, or revisit `no_advertise` on the
-  leaf cluster so a post-rollout leaf is re-dialed into the mesh.
+- **Step 1 healthy but step 3 is silent:** inspect the account's service
+  imports/exports in `nats-auth.conf`, then revisit `no_advertise` if a
+  post-rollout leaf was not re-dialed into the mesh. Do not mask the failure by
+  restoring an RPC hub remote.
 
 ## Why not just re-route borrow through the hub in code
 

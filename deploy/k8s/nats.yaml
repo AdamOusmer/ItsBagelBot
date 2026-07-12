@@ -89,7 +89,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: nats
-          image: nats:2.11-alpine
+          image: nats:2.14.3-alpine
           imagePullPolicy: IfNotPresent
           # --pid writes a pidfile the reloader reads to signal this process.
           args: ["--config", "/etc/nats/nats.conf", "--pid", "/var/run/nats/nats.pid"]
@@ -113,10 +113,12 @@ spec:
           resources:
             # R1 memory-backed ingress needs enough headroom above JetStream's
             # 4GB max_mem for dedup indexes, connections and the Go runtime.
-            # Keep CPU/memory requests modest; the limits provide burst CPU and
-            # retention headroom without reserving idle capacity cluster-wide.
-            requests: {cpu: 500m, memory: 2Gi}
-            limits: {cpu: 2000m, memory: 6Gi}
+            # node2/node3 each have 6 cores and worker1 has 8. Live usage before
+            # this bump was 9%/17%/9%; a 2-core request fits every node while a
+            # 4-core ceiling lets whichever R1 member owns TWITCH_INGRESS absorb
+            # batch commits without CPU throttling. Memory remains unchanged.
+            requests: {cpu: "2", memory: 2Gi}
+            limits: {cpu: "4", memory: 6Gi}
           securityContext:
             allowPrivilegeEscalation: false
             capabilities: {drop: ["ALL"]}
@@ -209,6 +211,10 @@ metadata:
   annotations:
     config.linkerd.io/opaque-ports: "4222,7422,6222"
 spec:
+  # Leaf remotes dial this Service once per account. Prefer the hub on the same
+  # node so node2/node3/worker1 avoid an unnecessary cross-node or home-WAN hop;
+  # node1 still falls back cluster-wide because it intentionally has no hub.
+  trafficDistribution: PreferSameNode
   selector:
     app: nats
   ports:

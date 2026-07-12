@@ -11,7 +11,6 @@ import (
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 
-	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/nats-io/nats.go"
 	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
@@ -24,14 +23,14 @@ import (
 // the live key.
 type liveRPC struct {
 	store         *projection.Store
-	pub           message.Publisher
+	pub           bus.Publisher
 	systemSubject string
 	log           *zap.Logger
 }
 
 // SubscribeLive registers the projector live verb on subject. systemSubject is
 // the outgress system lane the escalation job rides; pub is a JetStream publisher.
-func SubscribeLive(nc *nats.Conn, store *projection.Store, pub message.Publisher, subject, systemSubject, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
+func SubscribeLive(nc *nats.Conn, store *projection.Store, pub bus.Publisher, subject, systemSubject, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
 	l := &liveRPC{store: store, pub: pub, systemSubject: systemSubject, log: log}
 	return bus.QueueSubscribeJSON[projectorrpc.LiveRequest, projectorrpc.LiveReply](nc, subject, queueGroup, 1500*time.Millisecond, app, log, l.handleGet)
 }
