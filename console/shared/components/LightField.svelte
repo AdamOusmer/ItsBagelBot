@@ -1,6 +1,10 @@
 <script lang="ts">
   import { onMount } from 'svelte';
 
+  // `warmth` is the share of gold (vs green) motes, matching the web field's
+  // data-warmth. 0.7 is the pricing-header value.
+  let { warmth = 0.7 }: { warmth?: number } = $props();
+
   let canvas: HTMLCanvasElement;
 
   onMount(() => {
@@ -33,7 +37,7 @@
         vy: -(0.05 + Math.random() * 0.2),
         vx: (Math.random() - 0.5) * 0.1,
         alpha: 0.12 + Math.random() * 0.45,
-        warm: Math.random() < 0.7
+        warm: Math.random() < warmth
       }));
     }
 
