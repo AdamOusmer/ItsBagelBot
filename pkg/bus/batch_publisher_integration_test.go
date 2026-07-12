@@ -15,27 +15,16 @@ import (
 // Run with NATS_INTEGRATION_URL against NATS 2.14+ (testdata/nats-2.14.conf).
 // The ordinary suite skips it so CI does not need an external broker.
 func TestBatchPublisherIntegration(t *testing.T) {
-	url := os.Getenv("NATS_INTEGRATION_URL")
-	if url == "" {
-		t.Skip("NATS_INTEGRATION_URL is not set")
-	}
-	t.Setenv("NATS_JS_DOMAIN", "hub")
-	t.Setenv("NATS_LEAF_URL", "")
-	t.Setenv("NATS_HUB_URL", "")
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	log := zap.NewNop()
-	if err := EnsureStreams(ctx, url, DataStreams, log); err != nil {
-		t.Fatal(err)
-	}
-	pub, err := NewPublisher(url, log)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer pub.Close() //nolint:errcheck
-
+	url, pub := openIntegrationPublisher(t)
+	defer closeIntegrationPublisher(t, url, pub)
 	const messages = 64
+	publishIntegrationMessages(t, pub, messages)
+	flushIntegrationPublisher(t, pub, 5*time.Second)
+	assertIntegrationStream(t, url, messages)
+}
+
+func publishIntegrationMessages(t *testing.T, pub Publisher, messages int) {
+	t.Helper()
 	start := make(chan struct{})
 	errs := make(chan error, messages)
 	var wg sync.WaitGroup
@@ -55,12 +44,10 @@ func TestBatchPublisherIntegration(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	flushCtx, flushCancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer flushCancel()
-	if err := pub.Flush(flushCtx); err != nil {
-		t.Fatal(err)
-	}
+}
 
+func assertIntegrationStream(t *testing.T, url string, messages uint64) {
+	t.Helper()
 	nc, err := nats.Connect(url)
 	if err != nil {
 		t.Fatal(err)
@@ -89,9 +76,6 @@ func TestBatchPublisherIntegration(t *testing.T) {
 	if !config.AllowAtomicPublish || !config.AllowBatchPublish {
 		t.Fatal("stream did not retain NATS 2.14 batch feature flags")
 	}
-
-	_ = js.DeleteStream("TWITCH_INGRESS")
-	_ = js.DeleteStream("BAGEL_DATA")
 }
 
 // BenchmarkBatchPublisherIntegration measures the exact fleet Publisher
@@ -102,57 +86,85 @@ func TestBatchPublisherIntegration(t *testing.T) {
 //	NATS_INTEGRATION_URL=nats://127.0.0.1:14222 \
 //	go test ./pkg/bus -run '^$' -bench BenchmarkBatchPublisherIntegration -benchmem
 func BenchmarkBatchPublisherIntegration(b *testing.B) {
+	url, pub := openIntegrationPublisher(b)
+	defer closeIntegrationPublisher(b, url, pub)
+	payload := integrationPayload(256)
+	configureIntegrationBenchmark(b, len(payload))
+	// Keep enough calls in flight to fill the 128-message connection-local PubAck
+	// cohorts; this measures saturated capacity, not the 1 ms collection timer.
+	b.ResetTimer()
+	runIntegrationBenchmark(b, pub, payload)
+	flushIntegrationPublisher(b, pub, 30*time.Second)
+	b.StopTimer()
+}
+
+func openIntegrationPublisher(tb testing.TB) (string, Publisher) {
+	tb.Helper()
 	url := os.Getenv("NATS_INTEGRATION_URL")
 	if url == "" {
-		b.Skip("NATS_INTEGRATION_URL is not set")
+		tb.Skip("NATS_INTEGRATION_URL is not set")
 	}
-	b.Setenv("NATS_JS_DOMAIN", "hub")
-	b.Setenv("NATS_LEAF_URL", "")
-	b.Setenv("NATS_HUB_URL", "")
-
-	ctx := context.Background()
-	log := zap.NewNop()
-	if err := EnsureStreams(ctx, url, DataStreams, log); err != nil {
-		b.Fatal(err)
+	tb.Setenv("NATS_JS_DOMAIN", "hub")
+	tb.Setenv("NATS_LEAF_URL", "")
+	tb.Setenv("NATS_HUB_URL", "")
+	if err := EnsureStreams(context.Background(), url, DataStreams, zap.NewNop()); err != nil {
+		tb.Fatal(err)
 	}
-	pub, err := NewPublisher(url, log)
+	pub, err := NewPublisher(url, zap.NewNop())
 	if err != nil {
-		b.Fatal(err)
+		tb.Fatal(err)
 	}
-	payload := make([]byte, 256)
+	return url, pub
+}
+
+func closeIntegrationPublisher(tb testing.TB, url string, pub Publisher) {
+	tb.Helper()
+	if err := pub.Close(); err != nil {
+		tb.Error(err)
+	}
+	nc, err := nats.Connect(url)
+	if err != nil {
+		return
+	}
+	defer nc.Close()
+	js, err := nc.JetStream(nats.Domain("hub"))
+	if err != nil {
+		return
+	}
+	_ = js.DeleteStream("TWITCH_INGRESS")
+	_ = js.DeleteStream("BAGEL_DATA")
+}
+
+func flushIntegrationPublisher(tb testing.TB, pub Publisher, timeout time.Duration) {
+	tb.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	if err := pub.Flush(ctx); err != nil {
+		tb.Error(err)
+	}
+}
+
+func integrationPayload(size int) []byte {
+	payload := make([]byte, size)
 	for i := range payload {
 		payload[i] = byte('a' + i%26)
 	}
+	return payload
+}
 
-	b.SetBytes(int64(len(payload)))
+func configureIntegrationBenchmark(b *testing.B, payloadSize int) {
+	b.SetBytes(int64(payloadSize))
 	b.ReportAllocs()
-	// Keep enough calls in flight to fill the 128-message connection-local PubAck
-	// cohorts; this measures saturated capacity, not the 1 ms collection timer.
 	b.SetParallelism(256)
-	b.ResetTimer()
+}
+
+func runIntegrationBenchmark(b *testing.B, pub Publisher, payload []byte) {
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			if err := PublishRaw(ctx, pub, "data.test.batch", payload); err != nil {
+			if err := PublishRaw(context.Background(), pub, "data.test.batch", payload); err != nil {
 				b.Error(err)
 				return
 			}
 		}
 	})
-	flushCtx, flushCancel := context.WithTimeout(context.Background(), 30*time.Second)
-	if err := pub.Flush(flushCtx); err != nil {
-		b.Error(err)
-	}
-	flushCancel()
-	b.StopTimer()
-	if err := pub.Close(); err != nil {
-		b.Error(err)
-	}
-
-	nc, err := nats.Connect(url)
-	if err == nil {
-		if js, jsErr := nc.JetStream(nats.Domain("hub")); jsErr == nil {
-			_ = js.DeleteStream("BAGEL_DATA")
-		}
-		nc.Close()
-	}
 }

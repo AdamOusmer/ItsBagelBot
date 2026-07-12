@@ -143,13 +143,7 @@ func (s *concurrentDurableSubscriber) awaitResult(natsMsg *nats.Msg, msg *messag
 	for {
 		select {
 		case <-msg.Acked():
-			// Double-ack so a successful return proves the consumer cursor advanced.
-			// The callback itself remains concurrent, so this network wait does not
-			// serialize delivery as Watermill's old callback did.
-			if err := natsMsg.AckSync(nats.AckWait(2 * time.Second)); err != nil {
-				s.log.Warn("durable message confirmed ack failed; requesting replay", zap.String("subject", natsMsg.Subject), zap.Error(err))
-				s.nack(natsMsg)
-			}
+			s.confirmAck(natsMsg)
 			return
 		case <-msg.Nacked():
 			s.nack(natsMsg)
@@ -161,12 +155,25 @@ func (s *concurrentDurableSubscriber) awaitResult(natsMsg *nats.Msg, msg *messag
 		case <-s.closeCh:
 			return
 		case <-progress.C:
-			// Slow RPC-backed commands retain ownership instead of being delivered to
-			// another pod. For the normal sub-millisecond path this ticker never fires.
-			if err := natsMsg.InProgress(); err != nil {
-				s.log.Warn("durable message progress ack failed", zap.String("subject", natsMsg.Subject), zap.Error(err))
-			}
+			s.reportProgress(natsMsg)
 		}
+	}
+}
+
+func (s *concurrentDurableSubscriber) confirmAck(msg *nats.Msg) {
+	// Double-ack so a successful return proves the consumer cursor advanced.
+	// This network wait remains outside the serial subscription callback.
+	if err := msg.AckSync(nats.AckWait(2 * time.Second)); err != nil {
+		s.log.Warn("durable message confirmed ack failed; requesting replay", zap.String("subject", msg.Subject), zap.Error(err))
+		s.nack(msg)
+	}
+}
+
+func (s *concurrentDurableSubscriber) reportProgress(msg *nats.Msg) {
+	// Slow RPC-backed commands retain ownership. The normal path never reaches
+	// this ticker because processing finishes in well under one second.
+	if err := msg.InProgress(); err != nil {
+		s.log.Warn("durable message progress ack failed", zap.String("subject", msg.Subject), zap.Error(err))
 	}
 }
 

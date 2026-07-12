@@ -78,6 +78,15 @@ type publishRequest struct {
 	confirmed chan error
 }
 
+type publishCommand struct {
+	ctx       context.Context
+	stream    string
+	topic     string
+	msgID     string
+	payload   []byte
+	confirmed bool
+}
+
 type publishBatchWorker struct {
 	js       nats.JetStreamContext
 	requests chan publishRequest
@@ -144,31 +153,31 @@ func newBatchPublisherConnection(url string, index int, log *zap.Logger) (*batch
 
 func (p *publisherPool) PublishOwned(ctx context.Context, topic string, payload []byte) error {
 	// NUID avoids UUIDv7's wall-clock/random-source coordination on the hot path.
-	return p.publish(ctx, topic, nuid.Next(), payload, false)
+	return p.publish(publishCommand{ctx: ctx, topic: topic, msgID: nuid.Next(), payload: payload})
 }
 
 func (p *publisherPool) PublishOwnedWithID(ctx context.Context, topic, msgID string, payload []byte) error {
 	if msgID == "" {
 		return errors.New("bus: idempotent publish requires an ID")
 	}
-	return p.publish(ctx, topic, msgID, payload, true)
+	return p.publish(publishCommand{ctx: ctx, topic: topic, msgID: msgID, payload: payload, confirmed: true})
 }
 
-func (p *publisherPool) publish(ctx context.Context, topic, msgID string, payload []byte, confirmed bool) error {
-	stream := p.fixedStream
-	if stream == "" {
+func (p *publisherPool) publish(command publishCommand) error {
+	command.stream = p.fixedStream
+	if command.stream == "" {
 		var err error
-		stream, err = streamForTopic(topic)
+		command.stream, err = streamForTopic(command.topic)
 		if err != nil {
 			return err
 		}
 	}
-	routeKey := stream
-	if partition := publishPartition(ctx); partition != "" {
+	routeKey := command.stream
+	if partition := publishPartition(command.ctx); partition != "" {
 		routeKey += "\x00" + partition
 	}
 	member := p.members[p.router.Connection(routeKey, len(p.members))]
-	return member.publish(ctx, stream, topic, msgID, payload, confirmed)
+	return member.publish(command)
 }
 
 func (p *publisherPool) Flush(ctx context.Context) error {
@@ -193,12 +202,12 @@ func (p *publisherPool) Close() error {
 	return nil
 }
 
-func (p *batchPublisher) publish(ctx context.Context, stream, topic, msgID string, payload []byte, confirmed bool) error {
-	wire := nats.NewMsg(topic)
-	wire.Data = payload
-	wire.Header.Set(nats.MsgIdHdr, msgID)
-	wire.Header.Set(watermillUUIDHeader, msgID)
-	if txn := newrelic.FromContext(ctx); txn != nil {
+func (p *batchPublisher) publish(command publishCommand) error {
+	wire := nats.NewMsg(command.topic)
+	wire.Data = command.payload
+	wire.Header.Set(nats.MsgIdHdr, command.msgID)
+	wire.Header.Set(watermillUUIDHeader, command.msgID)
+	if txn := newrelic.FromContext(command.ctx); txn != nil {
 		headers := http.Header{}
 		txn.InsertDistributedTraceHeaders(headers)
 		for key := range headers {
@@ -211,23 +220,23 @@ func (p *batchPublisher) publish(ctx context.Context, stream, topic, msgID strin
 		p.mu.RUnlock()
 		return errors.New("bus: publisher is closed")
 	}
-	worker, err := p.workerLocked(stream)
+	worker, err := p.workerLocked(command.stream)
 	if err != nil {
 		p.mu.RUnlock()
 		return err
 	}
 
-	request := publishRequest{msg: wire, msgID: msgID}
-	if confirmed {
+	request := publishRequest{msg: wire, msgID: command.msgID}
+	if command.confirmed {
 		request.confirmed = make(chan error, 1)
 	}
 	select {
 	case worker.requests <- request:
 		p.markAccepted()
 		p.mu.RUnlock()
-	case <-ctx.Done():
+	case <-command.ctx.Done():
 		p.mu.RUnlock()
-		return ctx.Err()
+		return command.ctx.Err()
 	}
 	if request.confirmed == nil {
 		return nil
@@ -235,8 +244,8 @@ func (p *batchPublisher) publish(ctx context.Context, stream, topic, msgID strin
 	select {
 	case err := <-request.confirmed:
 		return err
-	case <-ctx.Done():
-		return ctx.Err()
+	case <-command.ctx.Done():
+		return command.ctx.Err()
 	}
 }
 
@@ -340,38 +349,48 @@ func (w *publishBatchWorker) run() {
 		close(w.done)
 	}()
 	for {
-		select {
-		case <-w.stop:
+		batch, ok := w.nextBatch()
+		if !ok {
 			return
-		case first := <-w.requests:
-			batch := []publishRequest{first}
-			timer := time.NewTimer(defaultPublishBatchWait)
-		collect:
-			for len(batch) < defaultPublishBatchSize {
-				select {
-				case req := <-w.requests:
-					batch = append(batch, req)
-				case <-timer.C:
-					break collect
-				case <-w.stop:
-					if !timer.Stop() {
-						select {
-						case <-timer.C:
-						default:
-						}
-					}
-					w.fail(batch, errors.New("bus: publisher closed"))
-					return
-				}
-			}
-			if !timer.Stop() {
-				select {
-				case <-timer.C:
-				default:
-				}
-			}
-			w.publish(batch)
 		}
+		w.publish(batch)
+	}
+}
+
+func (w *publishBatchWorker) nextBatch() ([]publishRequest, bool) {
+	select {
+	case <-w.stop:
+		return nil, false
+	case first := <-w.requests:
+		return w.collectBatch(first)
+	}
+}
+
+func (w *publishBatchWorker) collectBatch(first publishRequest) ([]publishRequest, bool) {
+	batch := []publishRequest{first}
+	timer := time.NewTimer(defaultPublishBatchWait)
+	defer stopAndDrainTimer(timer)
+	for len(batch) < defaultPublishBatchSize {
+		select {
+		case request := <-w.requests:
+			batch = append(batch, request)
+		case <-timer.C:
+			return batch, true
+		case <-w.stop:
+			w.fail(batch, errors.New("bus: publisher closed"))
+			return nil, false
+		}
+	}
+	return batch, true
+}
+
+func stopAndDrainTimer(timer *time.Timer) {
+	if timer.Stop() {
+		return
+	}
+	select {
+	case <-timer.C:
+	default:
 	}
 }
 
