@@ -24,18 +24,13 @@ spec:
   template:
     metadata:
       annotations:
-        linkerd.io/inject: enabled
-        # Cluster listener/routes cannot be introduced by a config reload;
-        # force a rolling restart when the leaf cluster topology changes.
-        itsbagelbot.dev/config-revision: "leaf-cluster-v1"
-        # NATS speaks first on the wire, so protocol detection would stall;
-        # opaque keeps Linkerd mTLS without the detection timeout. 6222 is the
-        # leaf-to-leaf cluster route port.
-        config.linkerd.io/opaque-ports: "4222,6222"
-        config.linkerd.io/proxy-cpu-request: 5m
-        config.linkerd.io/proxy-cpu-limit: 1000m
-        config.linkerd.io/proxy-memory-limit: 128Mi
-        config.linkerd.io/proxy-memory-request: 16Mi
+        # NATS (leaf tier) is out of the Linkerd mesh — see nats.yaml for the
+        # rationale. Wire encryption is NATS-native TLS (client + cluster + the
+        # leaf->hub remotes; nats-leaf-server.conf) over the tailnet.
+        linkerd.io/inject: disabled
+        # Cluster listener/routes and TLS blocks cannot be introduced by a config
+        # reload; bump this to force a rolling restart when the topology changes.
+        itsbagelbot.dev/config-revision: "leaf-cluster-v2-tls-demesh"
         prometheus.io/path: /metrics
         prometheus.io/port: "7777"
         prometheus.io/scrape: "true"
@@ -94,6 +89,7 @@ spec:
             - {containerPort: 6222, name: cluster}
           volumeMounts:
             - {name: config, mountPath: /etc/nats, readOnly: true}
+            - {name: certs, mountPath: /etc/nats/certs, readOnly: true}
             - {name: jetstream, mountPath: /data/jetstream}
             - {name: pid, mountPath: /var/run/nats}
           resources:
@@ -149,8 +145,13 @@ spec:
             - "/etc/nats/nats.conf"
             - "-config"
             - "/etc/nats/auth.conf"
+            # Watch the TLS cert so a cert-manager renewal SIGHUPs nats to reload
+            # the new cert without a pod restart.
+            - "-config"
+            - "/etc/nats/certs/tls.crt"
           volumeMounts:
             - {name: config, mountPath: /etc/nats, readOnly: true}
+            - {name: certs, mountPath: /etc/nats/certs, readOnly: true}
             - {name: pid, mountPath: /var/run/nats}
           resources:
             requests: {cpu: 5m, memory: 16Mi}
@@ -175,6 +176,9 @@ spec:
         - name: config
           configMap:
             name: nats-leaf-config
+        - name: certs
+          secret:
+            secretName: nats-leaf-tls
         - name: pid
           emptyDir: {}
         - name: jetstream
