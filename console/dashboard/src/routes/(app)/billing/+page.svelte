@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Icon, PageHead, Card, Modal, AlertBanner, Button, ConfirmDialog, FieldError, toast, getI18n, containsLink } from '@bagel/shared';
+  import { Icon, PageHead, Card, Modal, AlertBanner, Button, ConfirmDialog, FieldError, AuroraBg, LightField, toast, getI18n, containsLink } from '@bagel/shared';
   import { page } from '$app/state';
   import { replaceState } from '$app/navigation';
   import { onMount } from 'svelte';
@@ -253,6 +253,12 @@
     }
   });
 </script>
+
+<!-- Aurora + drifting light motes, the same premium backdrop the login page
+     uses. Decorative, sits behind the content, and LightField bails out under
+     prefers-reduced-motion. -->
+<AuroraBg />
+<div class="starfield" aria-hidden="true"><LightField warmth={0.7} /></div>
 
 <section class="screen active">
   <PageHead
@@ -568,6 +574,21 @@
 {/if}
 
 <style>
+  /* Mote field sits above the aurora but below the page content. Fixed to the
+     viewport so it backs the whole billing screen, like the login page. */
+  .starfield {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+  }
+  /* Lift the content above the decorative backdrop. Scoped to this page, so it
+     does not affect .screen elsewhere. */
+  .screen {
+    position: relative;
+    z-index: 1;
+  }
+
   :global(.billing-card) {
     margin-top: 18px;
   }
