@@ -33,7 +33,7 @@ function asConfig(raw: unknown): Record<string, string> {
 // Modules absent from the catalog (system, bagel, ...) are never surfaced.
 function merge(rows: ModuleView[]): ModuleState[] {
   const byName = new Map(rows.map((r) => [r.name, r]));
-  return MODULE_CATALOG.map((def) => {
+  return MODULE_CATALOG.filter((def) => !def.hidden).map((def) => {
     const row = byName.get(def.id);
     return {
       def,
