@@ -96,7 +96,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: console-admin
-          image: ghcr.io/adamousmer/itsbagelbot/console-admin:main-1783836423-56fdc9486584@sha256:000f12194cd7c6a1ad50efd037bd1393759e7a1aebc979c80c5a1219cf54f5c1 # {"$imagepolicy": "flux-system:console-admin"}
+          image: ghcr.io/adamousmer/itsbagelbot/console-admin:main-1783839382-d7ab97a77e1d@sha256:7712fcc5f029127426437dca844eeb1b83e9536a9eaf14a31a01880cf990e25c # {"$imagepolicy": "flux-system:console-admin"}
           imagePullPolicy: IfNotPresent
           env:
             - name: PORT
