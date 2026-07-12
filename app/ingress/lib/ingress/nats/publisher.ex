@@ -23,8 +23,9 @@ defmodule Ingress.Nats.Publisher do
   connection process, and every PubAck through one collector process — one BEAM
   process tops out well below a 150-200k/s target. So the pool shards the load
   across N independent connections, each with its own collector, pending table
-  and inbox namespace. `enqueue/3` picks a shard by scheduler id, spreading
-  publishes across cores without a shared round-robin hotspot.
+  and inbox namespace. `enqueue/3` keeps every path scheduler-local without a
+  shared round-robin hotspot. Production runs one connection per online BEAM
+  scheduler, so every configured connection carries the same direct path.
 
   ## Backpressure and reliability
 
@@ -40,9 +41,9 @@ defmodule Ingress.Nats.Publisher do
 
     * a public `:ordered_set` ETS table, one row per outstanding publish, owned
       by the collector so it is torn down if the collector dies.
-    * an `:atomics` array holding the outstanding count and a monotonic id
-      allocator, so the hot `enqueue/3` path admits/refuses without a message
-      round-trip to the collector.
+    * an `:atomics` array holding the outstanding count, monotonic id allocator
+      and batched metric counters, so neither publishes nor PubAcks need a
+      telemetry-process round-trip per event.
     * a `:persistent_term` context (`{__MODULE__, :ctx, index}`) so `enqueue/3`,
       called from many workers concurrently, reads the counter, prefix, table
       and connection without copying.
@@ -56,10 +57,15 @@ defmodule Ingress.Nats.Publisher do
 
   alias Ingress.{Config, Metrics, Nats}
 
-  # `:atomics` indexes: outstanding publishes, and the monotonic reply-id
-  # allocator.
+  # `:atomics` indexes: outstanding publishes, the monotonic reply-id allocator,
+  # and counters flushed to New Relic on the periodic gauge tick. Sending one
+  # New Relic cast per PubAck makes telemetry itself a firehose at production
+  # rates; atomics preserve the exact totals with constant mailbox traffic.
   @idx_pending 1
   @idx_next_id 2
+  @idx_acked 3
+  @idx_retried 4
+  @idx_failed 5
 
   # Reply subjects live under `_INBOX.>`, which the BUS account already permits
   # (the old `Gnat.request` path used the same namespace); the random token
@@ -74,11 +80,14 @@ defmodule Ingress.Nats.Publisher do
   @doc """
   Admit one publish into a shard's in-flight window, or refuse it.
 
-  The shard is chosen by scheduler id, so publishes spread across the pool's
-  connections without a shared counter. Returns `:ok` once the event is on the
-  wire (its PubAck is now awaited asynchronously), `{:error, :overloaded}` when
-  the chosen shard's window is full, or `{:error, :not_connected}` when the pool
-  or the chosen shard's BUS connection is unavailable.
+  The shard is chosen by scheduler id, keeping the caller on its scheduler-local
+  connection and avoiding a shared counter, per-message hash or fallback probe.
+  `publish_connections` is kept equal to the online scheduler count, so all
+  shards use this same direct path.
+
+  Returns `:ok` once the event is on the wire (its PubAck is now awaited
+  asynchronously), `{:error, :overloaded}` when its shard is full, or
+  `{:error, :not_connected}` when its connection cannot publish.
   """
   @spec enqueue(String.t(), binary(), String.t() | nil) :: :ok | {:error, term()}
   def enqueue(subject, json, dedup_id) do
@@ -105,7 +114,12 @@ defmodule Ingress.Nats.Publisher do
     end
   end
 
-  defp do_publish(%{counter: counter, prefix: prefix, table: table, conn: conn}, subject, json, dedup_id) do
+  defp do_publish(
+         %{counter: counter, prefix: prefix, table: table, conn: conn},
+         subject,
+         json,
+         dedup_id
+       ) do
     id = :atomics.add_get(counter, @idx_next_id, 1)
     now = System.monotonic_time(:millisecond)
     :ets.insert(table, {id, subject, json, dedup_id, 1, now})
@@ -185,7 +199,7 @@ defmodule Ingress.Nats.Publisher do
       write_concurrency: true
     ])
 
-    counter = :atomics.new(2, signed: false)
+    counter = :atomics.new(5, signed: false)
     token = :crypto.strong_rand_bytes(9) |> Base.url_encode64(padding: false)
     prefix = @inbox_prefix <> token <> "."
     max_pending = Config.publish_max_pending()
@@ -254,6 +268,10 @@ defmodule Ingress.Nats.Publisher do
   def handle_info(:gauge, state) do
     pending = :atomics.get(state.counter, @idx_pending)
 
+    flush_metric(state.counter, @idx_acked, "Nats/PublishAcked")
+    flush_metric(state.counter, @idx_retried, "Nats/PublishRetried")
+    flush_metric(state.counter, @idx_failed, "Nats/PublishFailed")
+
     Metrics.event("Nats/PublishInflight", %{
       shard: state.index,
       pending: pending,
@@ -281,7 +299,11 @@ defmodule Ingress.Nats.Publisher do
 
           other ->
             Process.demonitor(ref, [:flush])
-            Logger.warning("nats async publisher #{state.index} subscribe failed: #{inspect(other)}")
+
+            Logger.warning(
+              "nats async publisher #{state.index} subscribe failed: #{inspect(other)}"
+            )
+
             schedule(:connect, 500)
             state
         end
@@ -314,7 +336,7 @@ defmodule Ingress.Nats.Publisher do
   defp resolve(id, state) do
     :ets.delete(state.table, id)
     :atomics.sub(state.counter, @idx_pending, 1)
-    Metrics.count("Nats/PublishAcked")
+    :atomics.add(state.counter, @idx_acked, 1)
   end
 
   # Re-publish under the same reply id and `Nats-Msg-Id` (dedup makes the retry
@@ -323,19 +345,30 @@ defmodule Ingress.Nats.Publisher do
   defp retry_or_drop(id, subject, json, dedup_id, attempts, reason, state) do
     if attempts < state.max_attempts do
       :ets.insert(state.table, {id, subject, json, dedup_id, attempts + 1, now_ms()})
-      Metrics.count("Nats/PublishRetried")
+      :atomics.add(state.counter, @idx_retried, 1)
       _ = pub(state.conn, subject, json, reply_subject(state.prefix, id), dedup_id)
       :ok
     else
       :ets.delete(state.table, id)
       :atomics.sub(state.counter, @idx_pending, 1)
-      Metrics.count("Nats/PublishFailed")
-      Logger.warning("publish on #{subject} dropped after #{attempts} attempts: #{inspect(reason)}")
+      :atomics.add(state.counter, @idx_failed, 1)
+
+      Logger.warning(
+        "publish on #{subject} dropped after #{attempts} attempts: #{inspect(reason)}"
+      )
+
       :ok
     end
   end
 
   defp now_ms, do: System.monotonic_time(:millisecond)
+
+  defp flush_metric(counter, index, name) do
+    case :atomics.exchange(counter, index, 0) do
+      0 -> :ok
+      count -> Metrics.count(name, count)
+    end
+  end
 
   defp schedule(msg, ms), do: Process.send_after(self(), msg, ms)
 end

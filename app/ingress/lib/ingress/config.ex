@@ -105,9 +105,10 @@ defmodule Ingress.Config do
   # lane firehose is sharded across. Every publish is a GenServer.call into one
   # Gnat connection process and every PubAck is handled by one collector, so a
   # single connection tops out well below a 150-200k/s target; sharding spreads
-  # both across N processes and cores. Publishes are routed by scheduler id.
+  # both across N processes and cores. Keep this equal to the online scheduler
+  # count so every connection carries one identical scheduler-local path.
   def publish_connections,
-    do: Application.get_env(:ingress, :publish_connections, 4)
+    do: Application.get_env(:ingress, :publish_connections, 2)
 
   # Gnat connection_settings (a leaf-first list of server maps) for the two
   # planes: :nats is the twitch_ingress RPC account, :nats_bus the shared BUS

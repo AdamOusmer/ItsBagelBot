@@ -104,10 +104,12 @@ config :ingress,
     String.to_integer(System.get_env("INGRESS_DISPATCHER_MAX_PER_BROADCASTER", "2048")),
   dispatcher_broadcaster_sweep_ms:
     String.to_integer(System.get_env("INGRESS_DISPATCHER_BROADCASTER_SWEEP_MS", "60000")),
-  # JetStream lane publishes block on the broker's PubAck (from a dispatcher
-  # worker, so backpressure sheds at the dispatcher): per-attempt ack wait and
-  # the total attempt budget. Retries are deduplicated broker-side by
-  # Nats-Msg-Id, so they can never store an event twice.
+  # Async JetStream publishing uses one connection/collector per online BEAM
+  # scheduler. Keeping these equal gives every event the same scheduler-local
+  # path without idle connections or fallback routing.
+  publish_connections: String.to_integer(System.get_env("INGRESS_PUBLISH_CONNECTIONS", "2")),
+  # Per-attempt PubAck wait and total attempt budget. Retries are deduplicated
+  # broker-side by Nats-Msg-Id, so they can never store an event twice.
   publish_ack_timeout_ms:
     String.to_integer(System.get_env("INGRESS_PUBLISH_ACK_TIMEOUT_MS", "2000")),
   publish_attempts: String.to_integer(System.get_env("INGRESS_PUBLISH_ATTEMPTS", "3"))
