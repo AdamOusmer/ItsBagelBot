@@ -23,9 +23,12 @@ spec:
   template:
     metadata:
       annotations:
-        config.linkerd.io/skip-inbound-ports: 6379,26379
-        config.linkerd.io/skip-outbound-ports: 6379,26379
-        linkerd.io/inject: enabled
+        # De-meshed. Valkey/sentinel traffic already bypassed the proxy
+        # (skip-inbound/outbound on 6379,26379) and rides the tailnet — nodes
+        # announce their Tailscale IP and sentinel tracks the master by node
+        # address — so removing the proxy changes nothing on the wire (traffic
+        # stays WireGuard-encrypted). Native Valkey TLS is a follow-up.
+        linkerd.io/inject: disabled
         secrets.doppler.com/reload: 'true'
       labels:
         app.kubernetes.io/component: node
