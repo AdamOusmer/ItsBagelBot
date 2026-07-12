@@ -13,6 +13,14 @@ defmodule Ingress.Metrics do
   def count(name, value \\ 1) do
     NewRelic.increment_custom_metric("Custom/Ingress/" <> name, value)
     :ok
+  rescue
+    # Metrics must never become part of the service's availability contract.
+    # The New Relic API raises while its application/config is unavailable
+    # (including a disabled local agent); publishing continues without that
+    # sample and the next aggregate flush retries normally.
+    _exception -> :ok
+  catch
+    _kind, _reason -> :ok
   end
 
   @doc "Reports a lifecycle event with attributes, e.g. shard up/down."
@@ -24,5 +32,9 @@ defmodule Ingress.Metrics do
     )
 
     :ok
+  rescue
+    _exception -> :ok
+  catch
+    _kind, _reason -> :ok
   end
 end

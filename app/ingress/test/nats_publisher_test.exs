@@ -66,5 +66,18 @@ defmodule Ingress.Nats.PublisherTest do
 
       assert :atomics.get(ctx.counter, 1) == 0
     end
+
+    test "flushes aggregate outcome counters instead of emitting per-event metrics", %{ctx: ctx} do
+      :atomics.put(ctx.counter, 3, 12_000)
+      :atomics.put(ctx.counter, 4, 7)
+      :atomics.put(ctx.counter, 5, 2)
+
+      send(Publisher.process_name(0), :gauge)
+      _state = :sys.get_state(Publisher.process_name(0))
+
+      assert :atomics.get(ctx.counter, 3) == 0
+      assert :atomics.get(ctx.counter, 4) == 0
+      assert :atomics.get(ctx.counter, 5) == 0
+    end
   end
 end
