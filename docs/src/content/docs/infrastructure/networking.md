@@ -49,7 +49,7 @@ flowchart LR
 | Member | Purpose | ACL tag |
 | --- | --- | --- |
 | `node1`, `node2` (k3s nodes) | Node-to-node (k3s control plane, CNI), SSH target | `tag:itsbagelbot` |
-| `witness1` (OCI micro VM) | Valkey Sentinel quorum witness; OCI VCN subnet router | `tag:witness` |
+| `witness1` (OCI micro VM) | OCI VCN subnet router for the database route | `tag:witness` |
 | Operator devices | SSH, admin UI, `kubectl` via the operator proxy | `tag:Macbook` |
 | `k8s-operator` (in-cluster) | Tailscale Kubernetes operator; Kubernetes API server proxy | `tag:k8s-operator` |
 | `ts-ingress-*` proxies (in-cluster) | Advertise Tailscale Services (`svc:admin`) | `tag:k8s` |
@@ -64,8 +64,8 @@ SSH from operator devices; everything Kubernetes-hosted is reached through Tails
 - Operator devices → `svc:admin:443` (the admin UI) and → `tag:k8s-operator:443` with the
   `tailscale.com/cap/kubernetes` capability (`kubectl` impersonating `system:masters`).
 - Nodes ↔ nodes: unrestricted (k3s control plane and CNI ride the tailnet).
-- Witness ↔ nodes: exactly the Sentinel quorum ports (`6379`, `26379` toward the nodes;
-  `26379` plus the exporter ports `9100`/`9121` toward the witness).
+- Witness ↔ nodes: only the private database/subnet-routing traffic required by
+  the OCI VCN route; Sentinel quorum is entirely in-cluster.
 - Tailscale SSH gates on operator identity with an explicit user list.
 
 Break-glass with the operator down: SSH to `node1`, `sudo k3s kubectl`.

@@ -204,8 +204,8 @@ func TestLaneConsumerHasBoundedDeliveryBudget(t *testing.T) {
 	if len(cfg.BackOff) != 0 {
 		t.Fatalf("backoff = %v, want none: it would clamp ack wait to its first step", cfg.BackOff)
 	}
-	if cfg.AckWait != 30*time.Second {
-		t.Fatalf("ack wait = %v, want 30s of in-flight tolerance", cfg.AckWait)
+	if cfg.AckWait != 4*time.Second {
+		t.Fatalf("ack wait = %v, want 4s bounded by the output dedup window", cfg.AckWait)
 	}
 	if cfg.AckPolicy != nats.AckExplicitPolicy {
 		t.Fatalf("ack policy = %v, want explicit", cfg.AckPolicy)
