@@ -35,6 +35,13 @@ type StreamSpec struct {
 	// window, so a high-rate stream wants it as short as its producers' retry
 	// horizon, not the default.
 	Duplicates time.Duration
+	// Storage selects the backing store. The zero value is nats.FileStorage
+	// (on disk). A transient, size-capped, short-retention stream should use
+	// nats.MemoryStorage: the per-message disk write (and, for replicas, the
+	// synchronous consensus flush) is the dominant publish-side cost, so a
+	// perishable firehose that never needs to survive a broker restart is far
+	// cheaper in memory. Storage is fixed at creation — see reconcileStream.
+	Storage nats.StorageType
 }
 
 // OutgressStream carries the perishable chat lanes (premium/standard). It is
@@ -52,6 +59,10 @@ var OutgressStream = StreamSpec{
 	// late) and removes an orphan if no consumer is available during a rollout.
 	MaxAge:   5 * time.Second,
 	MaxBytes: 256 << 20, // 256 MiB
+	// A 5s work queue never outlives a broker restart, so paying disk I/O per
+	// send is pure overhead. Memory-backed removes the write bottleneck; the
+	// 256 MiB MaxBytes caps the memory it can hold.
+	Storage: nats.MemoryStorage,
 }
 
 // OutgressSystemStream carries the outgress control lane: EventSub enroll
@@ -86,21 +97,35 @@ var DataStreams = []StreamSpec{
 		Name:     "TWITCH_INGRESS",
 		Subjects: []string{"twitch.ingress.event.>", "twitch.ingress.status.>"},
 		MaxAge:   5 * time.Minute,
-		MaxBytes: 256 << 20, // 256 MiB
+		// Memory-backed: the stream is perishable (a replay window that never
+		// needs to survive a restart), so memory storage drops the per-event disk
+		// write that capped synchronous PubAck throughput to a few thousand
+		// events/second. Keep it R1: R3 RAFT consensus is leader-bound and, with a
+		// replica on the 2-core node1, that voter would gate the whole cluster; a
+		// lost leader drops only in-flight perishable chat. Requires the server
+		// max_mem headroom in nats-server.conf.
+		//
+		// MaxBytes is 1 GiB so the memory-backed stream fits the broker's 2GB
+		// max_mem (capped by node1) alongside TWITCH_OUTGRESS and dedup state.
+		// MaxAge is moot under load: MaxBytes (stream-wide, oldest-first) evicts
+		// first, and 1 GiB is the consumer lag budget in bytes (~6 s at 100k/s).
+		// Raising toward the 150-200k target means larger MaxBytes, which needs
+		// the broker off node1 and on >=8GiB nodes first.
+		Storage:  nats.MemoryStorage,
+		MaxBytes: 1 << 30, // 1 GiB
 		// The premium, standard and stream lanes are distinct literal subjects
 		// sharing this stream, and MaxBytes eviction is stream-wide oldest-first:
 		// without a per-subject cap a standard-lane flood fills the stream and
-		// evicts retained premium and stream.online events. 50k messages per lane
-		// (≈100 MiB at typical event size, well past any backlog the consumers
-		// could still catch up on before MaxAge) makes a flooded lane wrap itself
-		// while the other lanes keep their full retention.
-		MaxMsgsPer: 50_000,
+		// evicts retained premium and stream.online events. 400k messages per
+		// lane makes a flooded lane wrap itself while the other lanes keep their
+		// retention (and stays within the 1 GiB stream cap).
+		MaxMsgsPer: 400_000,
 		// Ingress publishes carry Nats-Msg-Id (derived from Twitch's message id)
 		// so publish retries and Twitch's own EventSub redeliveries collapse at
-		// the broker. Both happen within seconds; 30s covers them while keeping
-		// the broker's dedup-id state bounded on the firehose (the 2m default
-		// would track minutes of chat ids on the small hub).
-		Duplicates: 30 * time.Second,
+		// the broker. Both happen within seconds; 10s covers them while bounding
+		// the broker's dedup-id state on the firehose — at 200k/s a 30s window
+		// would track ~6M ids, a 10s window ~2M.
+		Duplicates: 10 * time.Second,
 	},
 }
 
@@ -189,6 +214,21 @@ func reconcileStream(js nats.JetStreamManager, spec StreamSpec, log *zap.Logger)
 	info, err := js.StreamInfo(spec.Name)
 	switch {
 	case err == nil:
+		if info.Config.Storage != desired.Storage {
+			// Storage type is fixed at creation; NATS rejects changing it via
+			// UpdateStream. Converting a live stream (e.g. one created before its
+			// spec moved to memory) means a delete+recreate in a maintenance
+			// window, which drops whatever it currently holds — safe for these
+			// perishable streams but disruptive enough that it is a deliberate
+			// operator step, not something the guardian does under traffic. Warn
+			// so the drift is visible; keep serving the existing stream.
+			log.Warn("jetstream stream storage differs from spec; manual recreate required to converge",
+				zap.String("stream", spec.Name),
+				zap.String("current", info.Config.Storage.String()),
+				zap.String("desired", desired.Storage.String()),
+			)
+		}
+
 		if streamMatches(info.Config, *desired) {
 			return nil
 		}
@@ -204,7 +244,14 @@ func reconcileStream(js nats.JetStreamManager, spec StreamSpec, log *zap.Logger)
 			return add()
 		}
 
-		if _, err := js.UpdateStream(desired); err != nil {
+		// Never attempt to flip storage in place — NATS rejects it, which would
+		// wedge this reconcile on every reconnect. Converge every other drifted
+		// field against the stream's existing storage; the drift warning above
+		// covers the storage difference until it is recreated by hand.
+		update := *desired
+		update.Storage = info.Config.Storage
+
+		if _, err := js.UpdateStream(&update); err != nil {
 			// A work-queue stream is perishable, so replacing it is safe when an
 			// in-place update is rejected — notably narrowing subjects out from
 			// under an existing consumer's filter (the one-time migration that
@@ -244,10 +291,15 @@ func streamConfig(spec StreamSpec) *nats.StreamConfig {
 		// NATS rejects a duplicate window longer than the stream's MaxAge.
 		duplicateWindow = spec.MaxAge
 	}
+	// Zero value is nats.FileStorage; a spec opts into memory explicitly.
+	storage := nats.FileStorage
+	if spec.Storage != 0 {
+		storage = spec.Storage
+	}
 	return &nats.StreamConfig{
 		Name:              spec.Name,
 		Subjects:          spec.Subjects,
-		Storage:           nats.FileStorage,
+		Storage:           storage,
 		Retention:         spec.Retention,
 		Discard:           nats.DiscardOld,
 		MaxAge:            spec.MaxAge,

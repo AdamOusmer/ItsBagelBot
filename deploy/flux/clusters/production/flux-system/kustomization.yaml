@@ -4,6 +4,22 @@ resources:
 - gotk-components.yaml
 - gotk-sync.yaml
 patches:
+# Keep every Flux controller off node1. node1 is a 2-core, infra-loaded ARM host
+# being freed for its DB role (see node1-to-db-RUNBOOK.md); the controllers are
+# stateless (caches self-rebuild) so node2/node3 host them without a data move.
+- target:
+    kind: Deployment
+  patch: |-
+    - op: add
+      path: /spec/template/spec/affinity
+      value:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values: [node1]
 # Memory-limit trims. Upstream gotk-components ships every controller with
 # limits.memory: 1Gi, and GOMEMLIMIT is wired to limits.memory via
 # resourceFieldRef, so the Go GC happily lets the heap coast toward 1Gi.

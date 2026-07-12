@@ -125,12 +125,28 @@
   // normalise against a generous nominal shard capacity for the bar, and show
   // the honest absolute throughput (events/sec) alongside it.
   //
-  // LOAD_WINDOW_S mirrors ingress @load_window_ms (60s). SHARD_CAPACITY_EPS is
-  // a display-only ceiling: a single shard handles far more than the
-  // autoscaler's scale-up trigger (~0.83 ev/s), so we size the "full" bar at
-  // 100 ev/s. This is for human gauge only; it does not drive autoscaling.
+  // Two INDEPENDENT capacity ceilings gate the pipeline; they are not one
+  // number, so each gets its own gauge (per-shard socket below, fleet-wide NATS
+  // budget in the overview). Values mirror Ingress.ShardScaler.Policy.
+  //
+  // LOAD_WINDOW_S mirrors ingress @load_window_seconds (60s).
   const LOAD_WINDOW_S = 60;
-  const SHARD_CAPACITY_EPS = 100; // events/sec considered a full bar
+
+  // Per-shard websocket read/decode/enqueue ceiling. Benchmarked ~12,500 ev/s;
+  // 10,000 is the 80% operational target. Real per-shard rates sit far below
+  // this, so the bar stays green — which is correct: the socket is not the
+  // bottleneck. (This is the true rating; the autoscaler still sizes shards
+  // against a deliberately conservative rating, see the Policy moduledoc.)
+  const SHARD_RATED_EPS = 12_500;
+  const SHARD_TARGET_EPS = 10_000;
+
+  // Shared JetStream publish budget for the WHOLE fleet (aggregate, not per
+  // shard): every shard and pod converges on the same broker, so this ceiling
+  // does NOT grow with shard count. Sized to the current deployment's safe
+  // aggregate; warn/saturation bracket it.
+  const NATS_SAFE_EPS = 3_000;
+  const NATS_WARN_EPS = 2_400;
+  const NATS_SATURATION_EPS = 4_200;
 
   function evRate(load?: number): number {
     if (load == null || load <= 0) return 0;
@@ -140,7 +156,7 @@
   function loadBar(load?: number): number {
     const rate = evRate(load);
     if (rate <= 0) return 0;
-    return Math.min(100, Math.round((rate / SHARD_CAPACITY_EPS) * 100));
+    return Math.min(100, Math.round((rate / SHARD_RATED_EPS) * 100));
   }
 
   function loadLabel(load?: number): string {
@@ -152,10 +168,34 @@
 
   function loadTone(load?: number): string {
     if (load == null) return 'muted';
-    const frac = evRate(load) / SHARD_CAPACITY_EPS;
-    if (frac >= 0.75) return 'err';
-    if (frac >= 0.5) return 'warn';
+    const rate = evRate(load);
+    if (rate >= SHARD_TARGET_EPS) return 'err';
+    if (rate >= SHARD_TARGET_EPS * 0.5) return 'warn';
     return 'green';
+  }
+
+  // Fleet-aggregate offered rate = the load NATS actually sees, summed across
+  // shards (Twitch load-balances events, so the sum is the firehose into the
+  // shared broker).
+  const aggregateEps = $derived(
+    (snap.shards ?? []).reduce((sum: number, s: any) => sum + evRate(s.load), 0)
+  );
+
+  function natsBar(eps: number): number {
+    if (eps <= 0) return 0;
+    return Math.min(100, Math.round((eps / NATS_SATURATION_EPS) * 100));
+  }
+
+  function natsTone(eps: number): string {
+    if (eps >= NATS_SAFE_EPS) return 'err';
+    if (eps >= NATS_WARN_EPS) return 'warn';
+    return 'green';
+  }
+
+  function natsLabel(eps: number): string {
+    if (eps <= 0) return '0 ev/s';
+    if (eps < 1) return `${eps.toFixed(2)} ev/s`;
+    return `${eps.toFixed(eps < 10 ? 1 : 0)} ev/s`;
   }
 
   function podIndex(raw?: string): string {
@@ -191,6 +231,29 @@
           <span>conduit {cm?.conduit_id ?? '—'}</span>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- Shared NATS publish budget: fleet-aggregate offered rate against the
+       broker's shared JetStream ceiling. Distinct from per-shard socket load —
+       this ceiling does not grow with shard count, so it is gauged separately. -->
+  <div class="card conduit-card">
+    <div class="card-head">
+      <h3>NATS publish budget</h3>
+      <span class="more">shared JetStream ceiling</span>
+    </div>
+    <div class="load-row">
+      <div class="load-bar-track">
+        <div class="load-bar-fill {natsTone(aggregateEps)}" style="width:{natsBar(aggregateEps)}%"></div>
+      </div>
+      <span class="load-pct {natsTone(aggregateEps)}">
+        {natsLabel(aggregateEps)} · {natsBar(aggregateEps)}% of {NATS_SAFE_EPS.toLocaleString()} ev/s safe budget
+      </span>
+    </div>
+    <div class="shard-meta">
+      <span>warn {NATS_WARN_EPS.toLocaleString()} ev/s</span>
+      <span>critical {NATS_SAFE_EPS.toLocaleString()} ev/s</span>
+      <span>saturation ≈ {NATS_SATURATION_EPS.toLocaleString()} ev/s</span>
     </div>
   </div>
 

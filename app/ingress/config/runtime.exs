@@ -116,41 +116,51 @@ config :ingress,
 # server; the production broker requires them and Gnat only sends them when
 # the server asks (auth_required in the INFO handshake).
 #
-# Two planes on two accounts (per-account isolation):
+# Two planes on two accounts (per-account isolation), and they connect to
+# DIFFERENT servers:
 #   * :nats     — the twitch_ingress RPC account (NATS_RPC_USER/PASSWORD): admin
 #     shard control, conduit RPC, broadcaster-status request, cache invalidation.
+#     Stays on the node-local leaf — low-latency request/reply, and the per-service
+#     RPC accounts are presented by the leaf.
 #   * :nats_bus — the shared BUS account (NATS_USER/PASSWORD): the twitch.ingress.*
-#     firehose publishes captured by the JetStream streams.
-#
-# Both are leaf-first: each is a list of servers (leaf, then hub) that Gnat tries
-# in order, so the node-local leaf is the priority path with the hub as fallback.
+#     firehose captured by the JetStream streams. Connects DIRECT to the hub,
+#     bypassing the leaf. The leaf runs no JetStream, so for the firehose it is
+#     only a forwarding hop to the same hub streams; at the firehose rate that hop
+#     is pure overhead, and the PubAcks come straight from the hub. Trade-off: a
+#     hub roll re-pins this connection (Gnat reconnects); the RPC path is
+#     untouched. In dev NATS_HUB_HOST is unset and falls back to the leaf host, so
+#     both planes collapse onto one local server.
 nats_leaf_host = System.get_env("NATS_LEAF_HOST") || System.get_env("NATS_HOST", "127.0.0.1")
-nats_hub_host = System.get_env("NATS_HUB_HOST", nats_leaf_host)
+nats_hub_host = System.get_env("NATS_HUB_HOST") || nats_leaf_host
 nats_port = String.to_integer(System.get_env("NATS_PORT", "4222"))
 
-nats_servers = fn user, pass ->
-  for host <- Enum.uniq([nats_leaf_host, nats_hub_host]) do
-    base = %{host: host, port: nats_port}
+nats_server = fn host, user, pass ->
+  base = %{host: host, port: nats_port}
 
-    if is_binary(user) and is_binary(pass) do
-      Map.merge(base, %{username: user, password: pass})
-    else
-      base
-    end
+  if is_binary(user) and is_binary(pass) do
+    Map.merge(base, %{username: user, password: pass})
+  else
+    base
   end
 end
 
 config :ingress,
-  nats:
-    nats_servers.(
+  # RPC: leaf only.
+  nats: [
+    nats_server.(
+      nats_leaf_host,
       System.get_env("NATS_RPC_USER") || System.get_env("NATS_USER"),
       System.get_env("NATS_RPC_PASSWORD") || System.get_env("NATS_PASSWORD")
-    ),
-  nats_bus:
-    nats_servers.(
+    )
+  ],
+  # BUS firehose: hub only.
+  nats_bus: [
+    nats_server.(
+      nats_hub_host,
       System.get_env("NATS_USER"),
       System.get_env("NATS_PASSWORD")
     )
+  ]
 
 if level = System.get_env("LOG_LEVEL") do
   config :logger, level: String.to_existing_atom(level)
