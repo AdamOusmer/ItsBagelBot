@@ -84,7 +84,11 @@
     const sel = 'a, button, .search, [data-cursor]';
     const over = (e: PointerEvent) => {
       const el = (e.target as Element | null)?.closest<HTMLElement>(sel);
-      if (el) {
+      // `data-cursor="off"` opts an element out of the box morph: the ring keeps
+      // its small dot instead of stamping the whole element. Used on big list
+      // rows, where filling the row with a tan box read ambiguously against the
+      // nav dock.
+      if (el && !el.closest('[data-cursor="off"]')) {
         target = el;
         start();
       }
