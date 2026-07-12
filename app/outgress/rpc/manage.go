@@ -35,6 +35,7 @@ type Manage struct {
 //	<prefix>.channel.get     {broadcaster_id}                  -> {channel, found}
 //	<prefix>.channel.set     {broadcaster_id, enabled?, is_mod?} -> {channel, found}
 //	<prefix>.channel.list    {}                                -> {channels}
+//	<prefix>.accountage.get  {target_id?, target_login?}       -> {created_at, user_found}
 //	<prefix>.system.status   {}                                -> {paused, token health}
 //	<prefix>.system.pause    {paused}                          -> {paused}
 func SubscribeManage(nc *nats.Conn, registry *channels.Registry, tw *twitch.Client, prefix, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
@@ -54,6 +55,9 @@ func SubscribeManage(nc *nats.Conn, registry *channels.Registry, tw *twitch.Clie
 		return err
 	}
 	if err := bus.QueueSubscribeJSON[outgressrpc.FollowageRequest, outgressrpc.FollowageReply](nc, prefix+".followage.get", queueGroup, followageHandleTimeout, app, log, m.handleFollowage); err != nil {
+		return err
+	}
+	if err := bus.QueueSubscribeJSON[outgressrpc.AccountAgeRequest, outgressrpc.AccountAgeReply](nc, prefix+".accountage.get", queueGroup, handleTimeout, app, log, m.handleAccountAge); err != nil {
 		return err
 	}
 	if err := bus.QueueSubscribeJSON[manage.SystemPauseRequest, manage.SystemPauseReply](nc, prefix+".system.pause", queueGroup, handleTimeout, app, log, m.handleSystemPause); err != nil {
@@ -111,6 +115,21 @@ func (m *Manage) fetchFollowage(ctx context.Context, broadcasterID, targetID str
 	return outgressrpc.FollowageReply{
 		TargetID: targetID, UserFound: true, Following: following, FollowedAt: followedAt,
 	}
+}
+
+func (m *Manage) handleAccountAge(ctx context.Context, req outgressrpc.AccountAgeRequest) outgressrpc.AccountAgeReply {
+	if req.TargetID == "" && req.TargetLogin == "" {
+		return outgressrpc.AccountAgeReply{Error: "bad request"}
+	}
+	id, createdAt, found, err := m.twitch.UserCreatedAt(ctx, req.TargetID, req.TargetLogin)
+	if err != nil {
+		m.log.Warn("accountage lookup failed", zap.Error(err))
+		return outgressrpc.AccountAgeReply{Error: "lookup failed"}
+	}
+	if !found {
+		return outgressrpc.AccountAgeReply{UserFound: false}
+	}
+	return outgressrpc.AccountAgeReply{TargetID: id, UserFound: true, CreatedAt: createdAt}
 }
 
 func (m *Manage) handleChannelGet(ctx context.Context, req manage.ChannelRequest) manage.ChannelReply {
