@@ -136,6 +136,11 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            # Per-process L1 cache bound. The default is also 1,000; keep it
+            # explicit here so production tuning is visible and independent of
+            # the admin console's smaller working set.
+            - name: DASHBOARD_L1_CACHE_CAPACITY
+              value: "1000"
             - name: NATS_PROJECTOR_DASHBOARD_SUBJECT_PREFIX
               value: bagel.rpc.projector.dashboard
             - name: NATS_NOTIFICATIONS_SUBJECT_PREFIX

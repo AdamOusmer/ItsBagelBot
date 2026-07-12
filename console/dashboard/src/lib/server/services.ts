@@ -10,6 +10,7 @@ import * as valkey from '@bagel/shared/server/valkey-store';
 import type { Tier } from '@bagel/shared';
 import type { Session } from './session';
 import * as liveHub from './live-hub';
+import { dashboardL1CacheCapacity } from './config-sanity';
 
 // Subjects come from process.env, NOT $env/dynamic/private. This module is
 // imported at boot (hooks.server.ts -> startInvalidationListener), and reading
@@ -62,6 +63,7 @@ const SCOPES: ScopeMap = {
 export const fabric = createCacheFabric({
   app: 'dashboard',
   scopes: SCOPES,
+  capacity: dashboardL1CacheCapacity(process.env),
   onInvalidation: (scope, id) => liveHub.publish(id, scope)
 });
 

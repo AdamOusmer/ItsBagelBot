@@ -8,6 +8,7 @@ import { POLICY, type CachePolicy } from '@bagel/shared/server/cache-keys';
 import { getServerConfig } from '@bagel/shared/server/config';
 import type { ScopeMap } from '@bagel/shared/server/invalidation';
 import type { ShardSnapshot, UserStats } from '@bagel/shared';
+import { adminL1CacheCapacity } from './config-sanity';
 
 // Subjects come from process.env, NOT $env/dynamic/private. This module is
 // imported at boot (hooks.server.ts -> startInvalidationListener), and reading
@@ -48,7 +49,11 @@ const SCOPES: ScopeMap = {
 // Hybrid read path facade: L1 SwrCache with push invalidation + SWR. Admin data
 // has no Valkey projection, so reads are L1 -> RPC. Policies from the shared
 // table keep the operator view ≤5s/≤3s stale while SWR makes repeat loads instant.
-const fabric = createCacheFabric({ app: 'admin', scopes: SCOPES });
+const fabric = createCacheFabric({
+  app: 'admin',
+  scopes: SCOPES,
+  capacity: adminL1CacheCapacity(process.env)
+});
 
 function cached<T>(key: string, policy: CachePolicy, load: () => Promise<T>): Promise<T> {
   return fabric.readKey(key, policy, load);
