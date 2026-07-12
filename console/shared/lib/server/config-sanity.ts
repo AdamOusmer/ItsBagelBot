@@ -34,3 +34,19 @@ export function assertCallback(name: string, value: string | undefined, expected
   if (parsed.search || parsed.hash) throw new Error(`${name} must not include query/hash`);
   return parsed;
 }
+
+/** Read an optional positive-integer setting, falling back only when it is
+ *  absent. Reject malformed values at boot instead of silently disabling a
+ *  bound or accepting a capacity that JavaScript cannot represent exactly. */
+export function positiveIntegerSetting(
+  name: string,
+  value: string | undefined,
+  fallback: number
+): number {
+  if (value === undefined) return fallback;
+  if (!/^[1-9]\d*$/.test(value)) throw new Error(`${name} must be a positive integer`);
+
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed)) throw new Error(`${name} must be a safe integer`);
+  return parsed;
+}
