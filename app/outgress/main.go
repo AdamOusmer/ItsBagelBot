@@ -309,6 +309,7 @@ func (d *deps) newLaneWorkers(tw *twitch.Client, limiter ratelimit.Manager, regi
 		Owner:    d.host,
 		Conduit:  conduit.New(d.nc, d.cfg.ConduitSubject, d.cfg.TwitchConduitID, 60*time.Second, d.log.Named("conduit")),
 		Batch:    batch,
+		UserIDs:  worker.NewUserIDCache(),
 	}
 	build := func(name string, lane worker.Lane) *worker.Worker {
 		cfg := base
