@@ -7,7 +7,6 @@ package worker
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	"ItsBagelBot/app/outgress/internal/channels"
@@ -74,6 +73,9 @@ type Worker struct {
 	batch    BatchStore
 	// userIDs caches login->id resolutions (shoutout targets) so a repeated
 	// /shoutout to the same channel does not re-hit Helix Get Users each time.
+	// Wiring injects one instance shared by all three lane workers via
+	// Config.UserIDs; it is a small, fleet-shared keyspace that is not
+	// lane-specific, so a per-worker copy would only duplicate resident memory.
 	userIDs *cache.Cache[string]
 	// modVerifier resolves stale moderator state asynchronously so chat sends
 	// never wait for a paginated Twitch lookup or OAuth refresh.
@@ -94,9 +96,18 @@ type Config struct {
 	Conduit  *conduit.Resolver
 	Lane     Lane
 	Batch    BatchStore
+	// UserIDs is the shared login->id cache. Wiring builds one via NewUserIDCache
+	// and passes it to every lane worker so they share a single resident copy. A
+	// nil value makes New fall back to a private cache, which keeps a standalone
+	// worker (tests) usable but forfeits the sharing.
+	UserIDs *cache.Cache[string]
 }
 
 func New(cfg Config) *Worker {
+	userIDs := cfg.UserIDs
+	if userIDs == nil {
+		userIDs = NewUserIDCache()
+	}
 	return &Worker{
 		log:      cfg.Log,
 		limiter:  cfg.Limiter,
@@ -107,7 +118,7 @@ func New(cfg Config) *Worker {
 		conduit:  cfg.Conduit,
 		lane:     cfg.Lane,
 		batch:    cfg.Batch,
-		userIDs:  userIDCache(),
+		userIDs:  userIDs,
 	}
 }
 
@@ -117,19 +128,19 @@ func (w *Worker) SetLiveWriter(lw *LiveWriter) { w.live = lw }
 
 func (w *Worker) SetModVerifier(v *ModVerifier) { w.modVerifier = v }
 
-// Shoutout targets are a small, fleet-shared keyspace, so the three lane
-// workers share one bounded cache instead of each holding a default-capacity
-// copy. Built lazily so importing the package does not spin cache machinery.
-var (
-	sharedUserIDs     *cache.Cache[string]
-	sharedUserIDsOnce sync.Once
+// Login->id resolutions (shoutout targets) are a small, fleet-shared keyspace,
+// so wiring builds one bounded cache and injects it into every lane worker
+// instead of each holding a default-capacity copy. Capacity and TTL are kept
+// explicit here.
+const (
+	UserIDCacheCapacity = 1024
+	UserIDCacheTTL      = 10 * time.Minute
 )
 
-func userIDCache() *cache.Cache[string] {
-	sharedUserIDsOnce.Do(func() {
-		sharedUserIDs = cache.New[string](1024, 10*time.Minute)
-	})
-	return sharedUserIDs
+// NewUserIDCache builds the shared shoutout login->id cache. Wiring calls it
+// once and passes the result to every lane worker via Config.UserIDs.
+func NewUserIDCache() *cache.Cache[string] {
+	return cache.New[string](UserIDCacheCapacity, UserIDCacheTTL)
 }
 
 func recordStageDuration(ctx context.Context, attribute string, started time.Time) {
