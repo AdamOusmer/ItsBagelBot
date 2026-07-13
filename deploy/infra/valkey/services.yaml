@@ -27,6 +27,31 @@ apiVersion: v1
 kind: Service
 metadata:
   labels:
+    app.kubernetes.io/component: node
+    app.kubernetes.io/instance: valkey
+    app.kubernetes.io/name: valkey
+  name: valkey-local
+  namespace: valkey
+spec:
+  # kube-proxy selects only the endpoint on the caller's node. This keeps
+  # node-local reads on the pod network instead of looping through the node's
+  # Tailnet address and hostPort.
+  internalTrafficPolicy: Local
+  ports:
+  - name: tls-redis
+    port: 6380
+    protocol: TCP
+    targetPort: redis-tls
+  selector:
+    app.kubernetes.io/component: node
+    app.kubernetes.io/instance: valkey
+    app.kubernetes.io/name: valkey
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
     app.kubernetes.io/instance: valkey
     app.kubernetes.io/name: valkey
   name: valkey-headless

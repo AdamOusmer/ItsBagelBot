@@ -152,6 +152,8 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: status.hostIP
+            - name: VALKEY_LOCAL_ADDR
+              value: valkey-local.valkey.svc.cluster.local:6380
             - name: GOMEMLIMIT
               value: 512MiB
             # Sized for the 50-100k firehose (see sesame.yaml). A high MIN keeps
