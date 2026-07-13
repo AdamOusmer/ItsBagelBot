@@ -418,6 +418,29 @@
     }
   }
 
+  // --- Timezone setting field (Local Time module) -----------------------------
+  // The suggestion and the zone list come from the visitor's own browser
+  // (Intl.DateTimeFormat / Intl.supportedValuesOf), computed client-side in an
+  // effect so SSR never sees them: nothing is read from storage, no cookie is
+  // set, and the suggested zone is only persisted when the user applies it.
+  let browserZone = $state('');
+  let tzZones = $state<string[]>([]);
+  $effect(() => {
+    try {
+      browserZone = new Intl.DateTimeFormat().resolvedOptions().timeZone ?? '';
+      const list: string[] = Intl.supportedValuesOf?.('timeZone') ?? [];
+      tzZones = browserZone && !list.includes(browserZone) ? [...list, browserZone].sort() : list;
+    } catch {
+      tzZones = browserZone ? [browserZone] : [];
+    }
+  });
+  // Until the effect fills the list (SSR, first paint), the select still needs
+  // the saved zone as an option so it never renders blank.
+  function tzOptions(current: string): string[] {
+    if (tzZones.length) return tzZones;
+    return current ? [current] : [];
+  }
+
   // Whether the open reply/trigger editor has unsaved edits (drives the guard).
   const inspectorDirty = $derived.by(() => {
     if (!expanded) return false;
@@ -523,6 +546,31 @@
               onchange={(v) => saveSetting(field, v ? 'on' : 'off')}
             />
           </div>
+        {:else if field.type === 'timezone'}
+          <div class="setting-row">
+            <label class="tr-text" for="mod-setting-{field.key}">
+              <span class="tr-label">{field.label}</span>
+              {#if field.help}<span class="tr-help">{field.help}</span>{/if}
+            </label>
+            <SaveStatus state={modStatus[`setting:${field.key}`] ?? 'idle'} />
+            <select
+              id="mod-setting-{field.key}"
+              class="setting-input"
+              value={config[field.key] ?? ''}
+              onchange={(e) => saveSetting(field, e.currentTarget.value)}
+            >
+              <option value="">{t('modules.tzUnset')}</option>
+              {#each tzOptions(config[field.key] ?? '') as tz (tz)}
+                <option value={tz}>{tz}</option>
+              {/each}
+            </select>
+          </div>
+          {#if browserZone && (config[field.key] ?? '') !== browserZone}
+            <div class="setting-row tz-suggest">
+              <span class="tr-help">{t('modules.tzSuggested', { tz: browserZone })}</span>
+              <Button variant="ghost" onclick={() => saveSetting(field, browserZone)}>{t('modules.tzApply')}</Button>
+            </div>
+          {/if}
         {:else}
           <div class="setting-row {field.type === 'textarea' ? 'stacked' : ''}">
             <label class="tr-text" for="mod-setting-{field.key}">
@@ -797,6 +845,11 @@
     .setting-row { flex-wrap: wrap; }
     .setting-input { width: 100%; }
   }
+
+  /* Browser-timezone suggestion strip under the timezone select: the hint text
+     pushes the apply button right; no divider, it belongs to the row above. */
+  .tz-suggest { border-top: none; padding-top: 0; }
+  .tz-suggest .tr-help { margin-right: auto; }
 
   /* ── the deck: list + docked inspector (identical to the commands deck) ── */
   .deck {

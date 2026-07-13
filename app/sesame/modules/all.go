@@ -27,6 +27,7 @@ func All(d engine.Deps) []module.Module {
 		ChannelPoints(d),
 		Loyalty(d),
 		Govee(d),
+		TimeOfDay(d),
 		Triggers(d),
 	}
 }
