@@ -96,9 +96,30 @@ func asReply[T any](t *testing.T, res any) T {
 
 // asStats / asShop are the endpoint-typed instantiations the tests read with.
 var (
-	asStats = asReply[gatewayrpc.FortniteStatsReply]
-	asShop  = asReply[gatewayrpc.FortniteShopReply]
+	asStats    = asReply[gatewayrpc.FortniteStatsReply]
+	asShop     = asReply[gatewayrpc.FortniteShopReply]
+	asSnapshot = asReply[gatewayrpc.FortniteSnapshotReply]
+	asSession  = asReply[gatewayrpc.FortniteSessionReply]
 )
+
+// mutableStatsUpstream is statsUpstream with a stats body the test can change
+// between calls (to simulate games played between the snapshot and the session
+// read); it serves lifetime only, so the season endpoint is never touched.
+func mutableStatsUpstream(t *testing.T, account string, body *string, reqs *[]*http.Request) http.Handler {
+	t.Helper()
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		*reqs = append(*reqs, r.Clone(context.Background()))
+		switch {
+		case strings.EqualFold(r.URL.Path, "/api/v1/account/displayName/"+account):
+			_, _ = w.Write([]byte(`{"id":"deadbeef","displayName":"` + account + `"}`))
+		case r.URL.Path == "/api/v2/stats/deadbeef":
+			_, _ = w.Write([]byte(*body))
+		default:
+			t.Errorf("unexpected stats-upstream path %s", r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+		}
+	})
+}
 
 // statsUpstream fakes api-fortnite.com: the display-name lookup answers
 // account, the stats path answers body, the season endpoint answers a fixed
@@ -309,6 +330,97 @@ func TestStatsMissingAccount(t *testing.T) {
 	assert.Equal(t, "missing account", reply.Error)
 }
 
+// A stream-start snapshot records the baseline; after games are played the
+// session endpoint reports the lifetime delta with K/D and win rate derived
+// over the session's own games.
+func TestSessionStartThenDelta(t *testing.T) {
+	body := syntheticBlob // overall wins=20, matches=150, kills=450
+	var reqs []*http.Request
+	p := newTestProvider(t, mutableStatsUpstream(t, "Ninja", &body, &reqs), noUpstream(t, "shop"), nil)
+
+	snap := asSnapshot(t, handle(t, p, "session_start")(context.Background(),
+		gatewayrpc.Request{Account: "Ninja", ChannelID: "42"}))
+	require.Empty(t, snap.Error)
+	assert.Equal(t, "Ninja", snap.Player)
+
+	// Games played: overall climbs +5 wins, +20 matches, +150 kills.
+	body = `{"accountId":"deadbeef","stats":{
+		"br_placetop1_keyboardmouse_m0_playlist_defaultsolo": 25,
+		"br_matchesplayed_keyboardmouse_m0_playlist_defaultsolo": 170,
+		"br_kills_keyboardmouse_m0_playlist_defaultsolo": 600
+	}}`
+
+	sess := asSession(t, handle(t, p, "session")(context.Background(),
+		gatewayrpc.Request{Account: "Ninja", ChannelID: "42"}))
+	require.Empty(t, sess.Error)
+	assert.True(t, sess.HasSnapshot)
+	assert.Equal(t, "Ninja", sess.Player)
+	assert.Equal(t, int64(5), sess.Wins)
+	assert.Equal(t, int64(20), sess.Matches)
+	assert.Equal(t, int64(150), sess.Kills)
+	// deaths = 20 - 5 = 15; K/D = 150/15 = 10; win rate = 5*100/20 = 25.
+	assert.InDelta(t, 10.0, sess.KD, 1e-9)
+	assert.InDelta(t, 25.0, sess.WinRate, 1e-9)
+	assert.Positive(t, sess.SinceUnix)
+}
+
+// Without a snapshot (module enabled mid-stream) the first session call starts
+// tracking and says so; the snapshot it writes gives the next call a baseline.
+func TestSessionNoSnapshotStartsTracking(t *testing.T) {
+	body := syntheticBlob
+	var reqs []*http.Request
+	p := newTestProvider(t, mutableStatsUpstream(t, "Ninja", &body, &reqs), noUpstream(t, "shop"), nil)
+	h := handle(t, p, "session")
+
+	sess := asSession(t, h(context.Background(), gatewayrpc.Request{Account: "Ninja", ChannelID: "77"}))
+	require.Empty(t, sess.Error)
+	assert.False(t, sess.HasSnapshot)
+	assert.Equal(t, "Ninja", sess.Player)
+
+	// The baseline now exists: a follow-up reports a zero delta, not "tracking".
+	sess = asSession(t, h(context.Background(), gatewayrpc.Request{Account: "Ninja", ChannelID: "77"}))
+	assert.True(t, sess.HasSnapshot)
+	assert.Zero(t, sess.Wins)
+	assert.Zero(t, sess.Matches)
+	assert.Zero(t, sess.Kills)
+}
+
+// A snapshot keyed to a different account is not diffed against: the endpoint
+// re-snapshots for the new account instead of reporting a bogus delta.
+func TestSessionAccountMismatchResnapshots(t *testing.T) {
+	body := syntheticBlob
+	var reqs []*http.Request
+	p := newTestProvider(t, mutableStatsUpstream(t, "Ninja", &body, &reqs), noUpstream(t, "shop"), nil)
+
+	// Seed a snapshot for a different account on this channel.
+	require.NoError(t, p.writeSnapshot(context.Background(), "42", "someoneelse", gatewayrpc.FortniteStatsReply{Player: "SomeoneElse"}))
+
+	sess := asSession(t, handle(t, p, "session")(context.Background(),
+		gatewayrpc.Request{Account: "Ninja", ChannelID: "42"}))
+	require.Empty(t, sess.Error)
+	assert.False(t, sess.HasSnapshot, "a foreign-account snapshot must not be diffed against")
+}
+
+func TestSessionMissingArgs(t *testing.T) {
+	p := newTestProvider(t, noUpstream(t, "stats"), noUpstream(t, "shop"), nil)
+	assert.Equal(t, "missing account or channel",
+		asSnapshot(t, handle(t, p, "session_start")(context.Background(), gatewayrpc.Request{Account: "Ninja"})).Error)
+	assert.Equal(t, "missing account or channel",
+		asSession(t, handle(t, p, "session")(context.Background(), gatewayrpc.Request{ChannelID: "1"})).Error)
+}
+
+// Platform lookups the free plan cannot do answer a friendly error on the
+// session endpoints too, with no upstream call.
+func TestSessionPlatformNotSupported(t *testing.T) {
+	p := newTestProvider(t, noUpstream(t, "stats"), noUpstream(t, "shop"), nil)
+	assert.Equal(t, "only Epic display names are supported right now",
+		asSnapshot(t, handle(t, p, "session_start")(context.Background(),
+			gatewayrpc.Request{Account: "Ninja", ChannelID: "42", AccountType: "psn"})).Error)
+	assert.Equal(t, "only Epic display names are supported right now",
+		asSession(t, handle(t, p, "session")(context.Background(),
+			gatewayrpc.Request{Account: "Ninja", ChannelID: "42", AccountType: "xbl"})).Error)
+}
+
 const shopBody = `{
 	"status": 200,
 	"data": {
@@ -368,14 +480,14 @@ func TestKeylessServesShopOnly(t *testing.T) {
 	assert.Equal(t, 3, reply.Count)
 }
 
-func TestKeyedServesBothEndpoints(t *testing.T) {
+func TestKeyedServesAllEndpoints(t *testing.T) {
 	p := New(Config{APIKey: "k"},
 		provider.Deps{Cache: core.NewCache(newMemStore()), Log: zap.NewNop()})
 	names := make([]string, 0, len(p.Endpoints()))
 	for _, ep := range p.Endpoints() {
 		names = append(names, ep.Name)
 	}
-	assert.ElementsMatch(t, []string{"shop", "stats"}, names)
+	assert.ElementsMatch(t, []string{"shop", "stats", "session_start", "session"}, names)
 }
 
 func TestOddRateLimitDoesNotPanic(t *testing.T) {

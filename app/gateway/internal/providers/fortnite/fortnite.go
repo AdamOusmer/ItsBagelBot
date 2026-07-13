@@ -51,6 +51,9 @@ const (
 	// shopTTL: the shop rotates once a day (00:00 UTC), so a 15-minute lag on
 	// rotation day is invisible against a 24h cycle.
 	shopTTL = 15 * time.Minute
+	// sessionSnapshotTTL outlives any plausible single stream; Twitch caps
+	// broadcasts at 48h.
+	sessionSnapshotTTL = 49 * time.Hour
 
 	httpTimeout    = 10 * time.Second
 	handlerTimeout = 15 * time.Second
@@ -146,7 +149,11 @@ func (p *Provider) Endpoints() []provider.Endpoint {
 		{Name: "shop", Timeout: handlerTimeout, Handle: p.shopEndpoint},
 	}
 	if p.keyed {
-		eps = append(eps, provider.Endpoint{Name: "stats", Timeout: handlerTimeout, Handle: p.statsEndpoint})
+		eps = append(eps,
+			provider.Endpoint{Name: "stats", Timeout: handlerTimeout, Handle: p.statsEndpoint},
+			provider.Endpoint{Name: "session_start", Timeout: handlerTimeout, Handle: p.sessionStart},
+			provider.Endpoint{Name: "session", Timeout: handlerTimeout, Handle: p.session},
+		)
 	}
 	return eps
 }
@@ -388,6 +395,129 @@ func (p *Provider) fetchStats(ctx context.Context, q statsQuery, isPremium bool)
 		Duo:     modes[1].reply(),
 		Squad:   modes[2].reply(),
 	}, nil
+}
+
+// --- session -------------------------------------------------------------------
+
+// snapshot is the stream-start standing stored per channel: the lifetime
+// overall counters the session delta is diffed against. Session always tracks
+// lifetime, never the season window — a season rollover mid-stream would
+// corrupt a delta taken across it.
+type snapshot struct {
+	Account string `json:"account"`
+	Player  string `json:"player"`
+	Wins    int64  `json:"wins"`
+	Matches int64  `json:"matches"`
+	Kills   int64  `json:"kills"`
+	AtUnix  int64  `json:"at_unix"`
+}
+
+func snapshotKey(channelID string) string { return core.Key("fortnite", "session", channelID) }
+
+// cachedLifetimeStats reads a player's live lifetime stats behind the shared
+// staleness budget. It is keyed apart from the byte-flow !fnstats path (that
+// path stores pre-marshaled wire bytes, not the envelope core.Cached needs),
+// so repeated !fn session calls within the window cost one upstream hit.
+func (p *Provider) cachedLifetimeStats(ctx context.Context, account string, isPremium bool) (gatewayrpc.FortniteStatsReply, error) {
+	key := core.Key(p.Name(), "session-live", strings.ToLower(strings.TrimSpace(account)))
+	return core.Cached(ctx, p.cache, key, statsTTL, negativeTTL, func(ctx context.Context) (gatewayrpc.FortniteStatsReply, error) {
+		return p.fetchStats(ctx, statsQuery{account: account, window: "lifetime"}, isPremium)
+	})
+}
+
+// writeSnapshot stores the channel's stream-start standing under the snapshot
+// key for sessionSnapshotTTL.
+func (p *Provider) writeSnapshot(ctx context.Context, channelID, account string, stats gatewayrpc.FortniteStatsReply) error {
+	return p.cache.SetJSON(ctx, snapshotKey(channelID), snapshot{
+		Account: strings.ToLower(account),
+		Player:  stats.Player,
+		Wins:    stats.Overall.Wins,
+		Matches: stats.Overall.Matches,
+		Kills:   stats.Overall.Kills,
+		AtUnix:  time.Now().Unix(),
+	}, sessionSnapshotTTL)
+}
+
+// sessionError maps an upstream failure to a friendly reply message, logging
+// (as op) the infrastructure failures the friendly mapper does not name.
+func (p *Provider) sessionError(op, account string, err error) string {
+	if msg, _ := core.FriendlyUpstream(err); msg != "" {
+		return msg
+	}
+	p.log.Warn("fortnite "+op+" fetch failed", zap.String("account", account), zap.Error(err))
+	return "stats lookup failed"
+}
+
+// sessionStart snapshots the player's live lifetime standing for the channel.
+// It fetches fresh (not through cachedLifetimeStats): the snapshot is the
+// session baseline, so it must not predate the stream by a stale cache window.
+func (p *Provider) sessionStart(ctx context.Context, req gatewayrpc.Request) any {
+	account := strings.TrimSpace(req.Account)
+	if account == "" || req.ChannelID == "" {
+		return gatewayrpc.FortniteSnapshotReply{Error: "missing account or channel"}
+	}
+	if msg := epicOnly(req.AccountType); msg != "" {
+		return gatewayrpc.FortniteSnapshotReply{Player: account, Error: msg}
+	}
+	stats, err := p.fetchStats(ctx, statsQuery{account: account, window: "lifetime"}, req.IsPremium)
+	if err != nil {
+		return gatewayrpc.FortniteSnapshotReply{Player: account, Error: p.sessionError("snapshot", account, err)}
+	}
+	if err := p.writeSnapshot(ctx, req.ChannelID, account, stats); err != nil {
+		p.log.Warn("fortnite snapshot write failed", zap.String("channel_id", req.ChannelID), zap.Error(err))
+		return gatewayrpc.FortniteSnapshotReply{Player: stats.Player, Error: "snapshot store failed"}
+	}
+	return gatewayrpc.FortniteSnapshotReply{Player: stats.Player}
+}
+
+// session answers the delta since the channel's stream-start snapshot. Without
+// a usable snapshot (none stored, or it tracks a different account) it takes
+// one now and reports HasSnapshot=false so the caller can say "tracking from
+// now".
+func (p *Provider) session(ctx context.Context, req gatewayrpc.Request) any {
+	account := strings.TrimSpace(req.Account)
+	if account == "" || req.ChannelID == "" {
+		return gatewayrpc.FortniteSessionReply{Error: "missing account or channel"}
+	}
+	if msg := epicOnly(req.AccountType); msg != "" {
+		return gatewayrpc.FortniteSessionReply{Player: account, Error: msg}
+	}
+	live, err := p.cachedLifetimeStats(ctx, account, req.IsPremium)
+	if err != nil {
+		return gatewayrpc.FortniteSessionReply{Player: account, Error: p.sessionError("session", account, err)}
+	}
+
+	var snap snapshot
+	ok, err := p.cache.GetJSON(ctx, snapshotKey(req.ChannelID), &snap)
+	if err != nil {
+		p.log.Warn("fortnite snapshot read failed", zap.String("channel_id", req.ChannelID), zap.Error(err))
+	}
+	if !ok || snap.Account != strings.ToLower(account) {
+		if werr := p.writeSnapshot(ctx, req.ChannelID, account, live); werr != nil {
+			p.log.Warn("fortnite snapshot write failed", zap.String("channel_id", req.ChannelID), zap.Error(werr))
+		}
+		return gatewayrpc.FortniteSessionReply{Player: live.Player, HasSnapshot: false, SinceUnix: time.Now().Unix()}
+	}
+
+	// Lifetime counters only grow, but clamp defensively so an upstream
+	// correction can never render a negative "this stream" line. modeAgg.reply
+	// derives K/D and win rate exactly as the stats path does.
+	delta := modeAgg{
+		wins:    max(0, live.Overall.Wins-snap.Wins),
+		matches: max(0, live.Overall.Matches-snap.Matches),
+		kills:   max(0, live.Overall.Kills-snap.Kills),
+	}
+	ms := delta.reply()
+	return gatewayrpc.FortniteSessionReply{
+		Player:      live.Player,
+		Wins:        ms.Wins,
+		Matches:     ms.Matches,
+		Kills:       ms.Kills,
+		KD:          ms.KD,
+		WinRate:     ms.WinRate,
+		SinceUnix:   snap.AtUnix,
+		HasSnapshot: true,
+	}
 }
 
 // --- item shop -------------------------------------------------------------------

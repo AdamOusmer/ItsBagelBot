@@ -211,6 +211,33 @@ type FortniteShopReply struct {
 	Error   string              `json:"error,omitempty"`
 }
 
+// FortniteSnapshotReply is the answer to fortnite.session_start: acknowledges
+// the stream-start snapshot the session delta is later computed against.
+type FortniteSnapshotReply struct {
+	Player string `json:"player"`
+	Error  string `json:"error,omitempty"`
+}
+
+// FortniteSessionReply is the answer to fortnite.session (sesame's !fn
+// session): the change in a player's Battle Royale stats since the
+// stream-start snapshot for this channel. Wins/Matches/Kills are deltas over
+// the live session; KD and WinRate are derived from those session games alone.
+//
+// HasSnapshot is false when no snapshot existed for the channel (the module
+// was enabled mid-stream, or the gateway lost it); the gateway then takes one,
+// so the next call has a baseline.
+type FortniteSessionReply struct {
+	Player      string  `json:"player"`
+	Wins        int64   `json:"wins"`
+	Matches     int64   `json:"matches"`
+	Kills       int64   `json:"kills"`
+	KD          float64 `json:"kd"`
+	WinRate     float64 `json:"win_rate"`
+	SinceUnix   int64   `json:"since_unix"`
+	HasSnapshot bool    `json:"has_snapshot"`
+	Error       string  `json:"error,omitempty"`
+}
+
 // --- govee (smart-light control over the broadcaster's own key) -------------
 
 // GoveeDevice is one controllable device on a broadcaster's Govee account, as
