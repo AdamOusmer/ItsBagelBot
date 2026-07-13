@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -57,6 +56,12 @@ type StreamSpec struct {
 	// inflation on an ack-bound producer. Reserve R3 for control/data streams
 	// whose loss on a single broker restart actually matters.
 	Replicas int
+	// PlacementTags constrain JetStream replicas to servers carrying every tag.
+	// We use the stable StatefulSet ordinal tag for R1 streams so the hot
+	// firehoses never land on worker1's WAN-connected peer after a restart.
+	// R3 streams cannot use an ordinal placement tag because all three peers are
+	// required; their preferred leader is managed operationally.
+	PlacementTags []string
 }
 
 // OutgressStream carries the perishable chat lanes (premium/standard). It is
@@ -81,7 +86,8 @@ var OutgressStream = StreamSpec{
 	BatchPublish: true,
 	// R1: perishable 5s chat work. A dropped in-flight send is re-driven by the
 	// pipeline; RAFT replication would only add ack latency to the send path.
-	Replicas: 1,
+	Replicas:      1,
+	PlacementTags: []string{"nats-1"},
 }
 
 // OutgressSystemStream carries the outgress control lane: EventSub enroll
@@ -121,7 +127,8 @@ var DataStreams = []StreamSpec{
 		// R1: a low-rate, 5-minute replay buffer. A broker restart drops at most a
 		// few minutes of change events, which the projector re-derives from the
 		// data services' RPC projections — not worth a per-publish RAFT quorum.
-		Replicas: 1,
+		Replicas:      1,
+		PlacementTags: []string{"nats-1"},
 	},
 	{
 		Name:     "TWITCH_INGRESS",
@@ -138,7 +145,8 @@ var DataStreams = []StreamSpec{
 		// drops only in-flight perishable chat (5s/5m retention), the accepted
 		// trade for the throughput. Every hub node (node2/node3/worker1) is
 		// capable, so replication buys nothing here that offsets the latency cost.
-		Replicas: 1,
+		Replicas:      1,
+		PlacementTags: []string{"nats-0"},
 		// MaxBytes is 1 GiB so the memory-backed stream fits the broker's 4GB
 		// max_mem alongside TWITCH_OUTGRESS and dedup state. MaxAge is moot under
 		// load: MaxBytes (stream-wide, oldest-first) evicts first, and 1 GiB is the
@@ -357,58 +365,4 @@ func reconcileStream(js nats.JetStreamManager, spec StreamSpec, log *zap.Logger)
 	default:
 		return fmt.Errorf("bus: inspect stream %q: %w", spec.Name, err)
 	}
-}
-
-func streamConfig(spec StreamSpec) *nats.StreamConfig {
-	duplicateWindow := 2 * time.Minute
-	if spec.Duplicates > 0 {
-		duplicateWindow = spec.Duplicates
-	}
-	if spec.MaxAge > 0 && spec.MaxAge < duplicateWindow {
-		// NATS rejects a duplicate window longer than the stream's MaxAge.
-		duplicateWindow = spec.MaxAge
-	}
-	// Zero value is nats.FileStorage; a spec opts into memory explicitly.
-	storage := nats.FileStorage
-	if spec.Storage != 0 {
-		storage = spec.Storage
-	}
-	// Zero replicas means the safe single-copy default; a spec opts into RAFT
-	// replication explicitly.
-	replicas := spec.Replicas
-	if replicas <= 0 {
-		replicas = 1
-	}
-	return &nats.StreamConfig{
-		Name:              spec.Name,
-		Subjects:          spec.Subjects,
-		Storage:           storage,
-		Retention:         spec.Retention,
-		Discard:           nats.DiscardOld,
-		MaxAge:            spec.MaxAge,
-		MaxBytes:          spec.MaxBytes,
-		MaxMsgsPerSubject: spec.MaxMsgsPer,
-		Replicas:          replicas,
-		Duplicates:        duplicateWindow,
-	}
-}
-
-func streamMatches(got, want nats.StreamConfig) bool {
-	return sameSubjects(got.Subjects, want.Subjects) &&
-		got.Retention == want.Retention &&
-		got.MaxAge == want.MaxAge &&
-		got.MaxBytes == want.MaxBytes &&
-		got.MaxMsgsPerSubject == want.MaxMsgsPerSubject &&
-		// Replicas is updatable in place, so a drift here must trigger a reconcile
-		// (UpdateStream scales the stream); omitting it lets a live R3 stream stay
-		// R3 while the spec declares R1.
-		got.Replicas == want.Replicas &&
-		got.Duplicates == want.Duplicates
-}
-
-func sameSubjects(a, b []string) bool {
-	x, y := slices.Clone(a), slices.Clone(b)
-	slices.Sort(x)
-	slices.Sort(y)
-	return slices.Equal(x, y)
 }

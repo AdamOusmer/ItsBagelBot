@@ -31,6 +31,7 @@ cleanup() {
   if [[ "$stream_created" == true ]]; then
     kubectl -n "$namespace" exec "${pods[1]}" -- env NATS_CA=/etc/nats-ca/ca.pem \
       /tmp/nats-live-acceptance \
+      -domain= \
       -stream "$stream" -subject "$subject" -create-stream=false -cleanup=true \
       -setup-only=true >/dev/null 2>&1 || true
   fi
@@ -47,11 +48,11 @@ create_pod() {
     '{spec:{nodeName:$node,restartPolicy:"Never",containers:[{
       name:$pod,image:$image,command:["sleep","1800"],
       env:[
-        {name:"NATS_USER",valueFrom:{secretKeyRef:{name:"twitch-ingress-env",key:"NATS_USER"}}},
-        {name:"NATS_PASSWORD",valueFrom:{secretKeyRef:{name:"twitch-ingress-env",key:"NATS_PASSWORD"}}}
+        {name:"NATS_USER",valueFrom:{secretKeyRef:{name:"worker-env",key:"NATS_USER"}}},
+        {name:"NATS_PASSWORD",valueFrom:{secretKeyRef:{name:"worker-env",key:"NATS_PASSWORD"}}}
       ],
       volumeMounts:[{name:"fleet-ca",mountPath:"/etc/nats-ca",readOnly:true}],
-      resources:{requests:{cpu:"1",memory:"256Mi"},limits:{cpu:"4",memory:"1Gi"}},
+      resources:{requests:{cpu:"100m",memory:"256Mi"},limits:{cpu:"4",memory:"1Gi"}},
       securityContext:{runAsUser:1000,runAsGroup:1000,allowPrivilegeEscalation:false,capabilities:{drop:["ALL"]}}
     }],volumes:[{name:"fleet-ca",configMap:{name:"fleet-ca"}}],
     securityContext:{runAsNonRoot:true,runAsUser:1000,runAsGroup:1000,seccompProfile:{type:"RuntimeDefault"}}}}')
@@ -72,6 +73,7 @@ done
 
 kubectl -n "$namespace" exec "${pods[1]}" -- env NATS_CA=/etc/nats-ca/ca.pem \
   /tmp/nats-live-acceptance \
+  -domain= -placement-tag=nats-0 \
   -stream "$stream" -subject "$subject" -setup-only=true -cleanup=false >/dev/null
 stream_created=true
 
@@ -80,6 +82,7 @@ pids=()
 for i in "${!nodes[@]}"; do
   kubectl -n "$namespace" exec "${pods[$i]}" -- env NATS_CA=/etc/nats-ca/ca.pem \
     /tmp/nats-live-acceptance \
+    -domain= \
     -stream "$stream" -subject "$subject" -create-stream=false -cleanup=false \
     -producer-id="${nodes[$i]}" \
     -messages="${messages[$i]}" -publishers="${publishers[$i]}" \

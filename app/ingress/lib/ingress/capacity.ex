@@ -17,7 +17,7 @@ defmodule Ingress.Capacity do
 
   @load_window_seconds 60
   @default_pod_rated_eps 140_000
-  @default_nats_rated_eps 44_000
+  @default_nats_rated_eps 86_000
   @default_websocket_rated_eps 12_500
   @default_target_utilization_pct 75
 

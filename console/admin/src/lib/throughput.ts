@@ -2,7 +2,7 @@ import type { IngressCapacity, ShardSnapshot } from '@bagel/shared';
 
 const FALLBACK_POD_RATED_EPS = 140_000;
 const FALLBACK_WEBSOCKET_RATED_EPS = 12_500;
-const FALLBACK_NATS_RATED_EPS = 44_000;
+const FALLBACK_NATS_RATED_EPS = 86_000;
 const FALLBACK_TARGET_PCT = 75;
 const FALLBACK_WINDOW_SECONDS = 60;
 

@@ -28,6 +28,7 @@ import (
 type config struct {
 	hubURL         string
 	domain         string
+	placementTag   string
 	stream         string
 	subject        string
 	messages       int
@@ -158,12 +159,20 @@ func modernJetStream(nc *nats.Conn, domain string) (jsapi.JetStream, error) {
 }
 
 func temporaryStreamConfig(cfg config) jsapi.StreamConfig {
-	return jsapi.StreamConfig{
+	stream := jsapi.StreamConfig{
 		Name: cfg.stream, Subjects: []string{cfg.subject}, Storage: jsapi.MemoryStorage,
 		Replicas: 1, MaxBytes: 512 << 20, MaxAge: 10 * time.Minute,
 		Retention: jsapi.LimitsPolicy, Discard: jsapi.DiscardOld,
+		// Match TWITCH_INGRESS. The server default is two minutes, which keeps a
+		// huge synthetic-ID index and benchmarks dedup memory rather than the
+		// production stream's ten-second retry horizon.
+		Duplicates:         10 * time.Second,
 		AllowAtomicPublish: true, AllowBatchPublish: true,
 	}
+	if cfg.placementTag != "" {
+		stream.Placement = &jsapi.Placement{Tags: []string{cfg.placementTag}}
+	}
+	return stream
 }
 
 func closeSetup(cfg config, setup client) {
@@ -181,6 +190,7 @@ func parseFlags() config {
 	cfg := config{}
 	flag.StringVar(&cfg.hubURL, "hub-url", "tls://nats:4222", "direct hub URL")
 	flag.StringVar(&cfg.domain, "domain", "hub", "hub JetStream domain")
+	flag.StringVar(&cfg.placementTag, "placement-tag", "", "required server tag for the temporary R1 stream")
 	flag.StringVar(&cfg.stream, "stream", "LIVE_NATS_ACCEPTANCE_"+runID, "temporary stream name")
 	flag.StringVar(&cfg.subject, "subject", "twitch.outgress.bench."+strings.ToLower(runID), "isolated benchmark subject")
 	flag.IntVar(&cfg.messages, "messages", 200_000, "messages published per endpoint")
