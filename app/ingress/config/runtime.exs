@@ -90,10 +90,11 @@ config :ingress,
   capacity_pod_rated_eps:
     String.to_integer(System.get_env("INGRESS_CAPACITY_POD_RATED_EPS", "140000")),
   # Rounded down from the sustained three-node native-TLS direct-hub PubAck
-  # result (86,016/s after the NATS 2.14 ingest-buffer tune). This shared broker
-  # limit, not pod compute, currently sets effective fleet throughput.
+  # result (123,834/s on 2026-07-13, with lane dedup off and leader-direct
+  # dialing). This shared broker limit, not pod compute, currently sets
+  # effective fleet throughput.
   capacity_nats_rated_eps:
-    String.to_integer(System.get_env("INGRESS_CAPACITY_NATS_RATED_EPS", "86000")),
+    String.to_integer(System.get_env("INGRESS_CAPACITY_NATS_RATED_EPS", "123000")),
   capacity_websocket_rated_eps:
     String.to_integer(System.get_env("INGRESS_CAPACITY_WEBSOCKET_RATED_EPS", "12500")),
   capacity_target_utilization_pct:
