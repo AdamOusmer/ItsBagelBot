@@ -175,6 +175,20 @@ spec:
             -e 's/^(sentinel known-replica myprimary [^ ]+) 6379$/\1 6380/' \
             -e 's/^(sentinel known-sentinel myprimary [^ ]+) 26379 (.+)$/\1 26380 \2/' \
             /data/sentinel.conf
+          # A mixed-listener rollout can leave both the old endpoint and the
+          # newly auto-discovered TLS endpoint in Sentinel's persisted state.
+          # Port migration collapses those into the same address, which 9.1
+          # correctly rejects as a duplicate. Keep the first stable identity;
+          # Sentinel refreshes run IDs and topology through hello messages.
+          awk '
+            $1 == "sentinel" && ($2 == "known-replica" || $2 == "known-sentinel") && $3 == "myprimary" {
+              endpoint = $2 FS $4 FS $5
+              if (seen[endpoint]++) next
+            }
+            { print }
+          ' /data/sentinel.conf > /data/sentinel.conf.dedup
+          mv /data/sentinel.conf.dedup /data/sentinel.conf
+          chmod 600 /data/sentinel.conf
         env:
         - name: HOST_IP
           valueFrom:
