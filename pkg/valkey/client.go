@@ -6,8 +6,21 @@ import (
 	"log"
 	"net"
 	"os"
+	"time"
 
 	valkey_go "github.com/valkey-io/valkey-go"
+)
+
+const (
+	// Writes always cross the network to the elected primary. A bounded
+	// dedicated pool avoids large automatic pipeline batches under bursts.
+	// Production-path tests at concurrency 50 improved write p95, p99 and
+	// throughput; smaller pools produced long acquisition tails. Small buffers
+	// keep the maximum per-process connection footprint predictable.
+	writePoolSize       = 64
+	writePoolMinSize    = 4
+	writePoolBufferSize = 32 << 10
+	writePoolIdleTime   = 30 * time.Second
 )
 
 // BuildClientOption constructs the Valkey client option for the master/write
@@ -18,7 +31,17 @@ import (
 //
 // Exported for testing.
 func BuildClientOption(address, password string) valkey_go.ClientOption {
-	return buildOption(address, password, true, nil)
+	return withWritePool(buildOption(address, password, true, nil))
+}
+
+func withWritePool(opts valkey_go.ClientOption) valkey_go.ClientOption {
+	opts.DisableAutoPipelining = true
+	opts.BlockingPoolSize = writePoolSize
+	opts.BlockingPoolCleanup = writePoolIdleTime
+	opts.BlockingPoolMinSize = writePoolMinSize
+	opts.ReadBufferEachConn = writePoolBufferSize
+	opts.WriteBufferEachConn = writePoolBufferSize
+	return opts
 }
 
 // buildOption builds a Valkey client option. replicaReads enables the
@@ -149,7 +172,7 @@ func NewClient(address, password string) (valkey_go.Client, error) {
 		return nil, err
 	}
 	address = secureAddress(address, tlsConfig != nil)
-	master, err := valkey_go.NewClient(buildOption(address, password, true, tlsConfig))
+	master, err := valkey_go.NewClient(withWritePool(buildOption(address, password, true, tlsConfig)))
 	if err != nil {
 		return nil, err
 	}

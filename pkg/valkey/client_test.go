@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	valkey_go "github.com/valkey-io/valkey-go"
 )
 
 // TestReadScaling verifies that the Valkey client option configuration correctly
@@ -14,6 +15,7 @@ func TestReadScaling_IsReadOnly(t *testing.T) {
 	t.Run("Standard Address", func(t *testing.T) {
 		opts := BuildClientOption("valkey:6379", "password")
 		assert.Nil(t, opts.SendToReplicas, "SendToReplicas should be nil for standard connections")
+		assertWritePool(t, opts)
 	})
 
 	t.Run("Sentinel Address", func(t *testing.T) {
@@ -24,7 +26,18 @@ func TestReadScaling_IsReadOnly(t *testing.T) {
 		// but we can assert the option was configured and the master set logic applied.
 		assert.Equal(t, "myprimary", opts.Sentinel.MasterSet)
 		assert.Equal(t, "password", opts.Sentinel.Password)
+		assertWritePool(t, opts)
 	})
+}
+
+func assertWritePool(t *testing.T, opts valkey_go.ClientOption) {
+	t.Helper()
+	assert.True(t, opts.DisableAutoPipelining)
+	assert.Equal(t, writePoolSize, opts.BlockingPoolSize)
+	assert.Equal(t, writePoolMinSize, opts.BlockingPoolMinSize)
+	assert.Equal(t, writePoolIdleTime, opts.BlockingPoolCleanup)
+	assert.Equal(t, writePoolBufferSize, opts.ReadBufferEachConn)
+	assert.Equal(t, writePoolBufferSize, opts.WriteBufferEachConn)
 }
 
 func TestTLSOptionSecuresSentinelAndDataConnections(t *testing.T) {
