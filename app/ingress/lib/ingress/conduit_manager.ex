@@ -293,34 +293,35 @@ defmodule Ingress.ConduitManager do
 
   # Heals every Twitch-unhealthy shard, threading the consecutive-unhealthy
   # counts and the rescue table. Shards Twitch reports healthy drop out of the
-  # counts map, so a heal that works resets the escalation clock.
+  # counts map, so a heal that works resets the escalation clock. A slot is
+  # `{conduit_id, shard_id}` throughout the heal path.
   defp heal_all(state, unhealthy) do
     Enum.reduce(unhealthy, {%{}, state.rescues}, fn shard_id, {counts, rescues} ->
       seen = Map.get(state.unhealthy_counts, shard_id, 0) + 1
-      {count, rescues} = heal_shard(state.conduit_id, shard_id, seen, rescues)
+      {count, rescues} = heal_shard({state.conduit_id, shard_id}, seen, rescues)
       {Map.put(counts, shard_id, count), rescues}
     end)
   end
 
-  defp heal_shard(conduit_id, shard_id, seen, rescues) do
+  defp heal_shard({_conduit_id, shard_id} = slot, seen, rescues) do
     case Horde.Registry.lookup(Ingress.Registry, {:shard, shard_id}) do
-      [] -> heal_unregistered(conduit_id, shard_id, seen, rescues)
-      [{pid, _}] -> heal_registered(conduit_id, shard_id, pid, seen, rescues)
+      [] -> heal_unregistered(slot, seen, rescues)
+      [{pid, _}] -> heal_registered(slot, pid, seen, rescues)
     end
   end
 
   # Nothing registered: normally this tick's start_missing_shards pass covers
   # it. If the shard is still unhealthy after that had its chance, starting is
   # blocked (supervisor wedge, placement failure) — bring up a rescue.
-  defp heal_unregistered(conduit_id, shard_id, seen, rescues) do
+  defp heal_unregistered(slot, seen, rescues) do
     if ShardHealth.escalate?(seen) do
-      ensure_rescue(conduit_id, shard_id, seen, rescues)
+      ensure_rescue(slot, seen, rescues)
     else
       {seen, rescues}
     end
   end
 
-  defp heal_registered(conduit_id, shard_id, pid, seen, rescues) do
+  defp heal_registered({_conduit_id, shard_id} = slot, pid, seen, rescues) do
     case ShardHealth.heal_action(probe_shard(pid), seen) do
       :skip ->
         {seen, rescues}
@@ -332,7 +333,7 @@ defmodule Ingress.ConduitManager do
         {seen, rescues}
 
       :restart ->
-        restart_registered(conduit_id, shard_id, pid, seen, rescues)
+        restart_registered(slot, pid, seen, rescues)
     end
   end
 
@@ -340,17 +341,17 @@ defmodule Ingress.ConduitManager do
   # gets the full backstop window before it can be judged wedged. A blocked
   # restart (the registration or supervision is wedged on a pid nothing can
   # remove) escalates to a rescue session, which needs no name at all.
-  defp restart_registered(conduit_id, shard_id, pid, seen, rescues) do
+  defp restart_registered({_conduit_id, shard_id} = slot, pid, seen, rescues) do
     Logger.warning("shard #{shard_id} unhealthy on Twitch (#{seen} ticks); replacing session")
     Metrics.count("Conduit/ShardRestarts")
 
-    case restart_shard(conduit_id, shard_id, pid) do
+    case restart_shard(slot, pid) do
       :started -> {0, rescues}
-      :blocked -> ensure_rescue(conduit_id, shard_id, seen, rescues)
+      :blocked -> ensure_rescue(slot, seen, rescues)
     end
   end
 
-  defp restart_shard(conduit_id, shard_id, pid) do
+  defp restart_shard({conduit_id, shard_id}, pid) do
     case Horde.DynamicSupervisor.terminate_child(Ingress.ShardSupervisor, pid) do
       :ok -> :ok
       {:error, :not_found} -> stop_orphan_shard(shard_id, pid)
@@ -376,14 +377,14 @@ defmodule Ingress.ConduitManager do
   # says. Once Twitch reports the slot healthy and a live named session holds
   # a binding, the named session re-asserts and the rescue is stopped.
 
-  defp ensure_rescue(conduit_id, shard_id, seen, rescues) do
+  defp ensure_rescue({_conduit_id, shard_id} = slot, seen, rescues) do
     case Map.get(rescues, shard_id) do
-      nil -> {seen, spawn_rescue(conduit_id, shard_id, seen, rescues)}
-      {pid, spawned_seen} -> heal_rescue(conduit_id, shard_id, pid, seen, spawned_seen, rescues)
+      nil -> {seen, spawn_rescue(slot, seen, rescues)}
+      entry -> heal_rescue(slot, entry, seen, rescues)
     end
   end
 
-  defp spawn_rescue(conduit_id, shard_id, seen, rescues) do
+  defp spawn_rescue({conduit_id, shard_id}, seen, rescues) do
     Logger.warning("shard #{shard_id} cannot be replaced in place; starting rescue session")
     Metrics.count("Conduit/ShardRescues")
 
@@ -410,7 +411,7 @@ defmodule Ingress.ConduitManager do
   # A rescue is judged by the same rules as a named session, on its own clock
   # (ticks since it was spawned): give it the settle window, force a re-bind
   # if it claims a binding Twitch says is dead, replace it if it stays stuck.
-  defp heal_rescue(conduit_id, shard_id, pid, seen, spawned_seen, rescues) do
+  defp heal_rescue({_conduit_id, shard_id} = slot, {pid, spawned_seen}, seen, rescues) do
     case ShardHealth.heal_action(probe_shard(pid), seen - spawned_seen) do
       :skip ->
         {seen, rescues}
@@ -421,7 +422,7 @@ defmodule Ingress.ConduitManager do
 
       :restart ->
         stop_rescue(shard_id, pid)
-        {seen, spawn_rescue(conduit_id, shard_id, seen, Map.delete(rescues, shard_id))}
+        {seen, spawn_rescue(slot, seen, Map.delete(rescues, shard_id))}
     end
   end
 
