@@ -229,6 +229,14 @@ spec:
               value: "16000"
             # One atomic JetStream commit per scheduler-local cohort. The 1ms
             # tail bound avoids adding visible latency when traffic is quiet.
+            # Lane publishes carry no Nats-Msg-Id: EventSub websockets never
+            # redeliver, and the 2026-07-13 live A/B measured the broker's
+            # per-message dedup insert at ~27% of single-stream ingest capacity
+            # (86k/s with, 117k/s without). Without the header an ambiguous ack
+            # timeout drops instead of retrying (at-most-once); definite
+            # failures still retry. Applies to premium + standard identically.
+            - name: INGRESS_PUBLISH_DEDUP
+              value: "off"
             - name: INGRESS_PUBLISH_BATCH_SIZE
               value: "128"
             - name: INGRESS_PUBLISH_BATCH_WAIT_MS

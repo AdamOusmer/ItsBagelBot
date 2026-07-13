@@ -177,6 +177,17 @@ defmodule Ingress.Config do
   def publish_wire,
     do: Application.get_env(:ingress, :publish_wire, :single)
 
+  # Whether lane publishes carry their Nats-Msg-Id dedup header. The 2026-07-13
+  # live A/B measured the broker's per-message dedup-index insert at ~27% of
+  # the single stream's serialized ingest capacity (86k/s with, 117k/s
+  # without). Twitch EventSub's websocket transport never redelivers, so the
+  # header only ever folded this publisher's own ack-timeout retries; with
+  # dedup off those retries become drops instead (see Publisher.retry?/4) and
+  # the lanes are at-most-once on an ambiguous ack. Applies to premium and
+  # standard identically — lane processing must not diverge.
+  def publish_dedup,
+    do: Application.get_env(:ingress, :publish_dedup, true)
+
   # Ceiling on unresolved atomic batches per shard. The broker allows 50
   # in-flight batches per stream across ALL publishers, so the fleet budget is
   # shards × pods × this cap; overflow cohorts fall back to per-message

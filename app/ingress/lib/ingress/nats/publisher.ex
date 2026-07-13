@@ -5,9 +5,13 @@ defmodule Ingress.Nats.Publisher do
   Calls arriving within `publish_batch_wait_ms` are staged as a local cohort,
   then published through Gnat on one of two wires (`Config.publish_wire/0`):
 
-    * `:single` (default) — one ordinary JetStream PubAck per event. Each event
-      retains its `Nats-Msg-Id`, so a missing PubAck is retried safely and the
-      broker folds the replay.
+    * `:single` (default) — one ordinary JetStream PubAck per event. With
+      `Config.publish_dedup/0` on, each event retains its `Nats-Msg-Id`, so a
+      missing PubAck is retried safely and the broker folds the replay. With
+      dedup off (the production setting — the dedup insert costs ~27% of
+      single-stream ingest capacity and EventSub websockets never redeliver),
+      ids are stripped at admission and an ambiguous ack timeout drops the
+      event instead of retrying; only definite failures retry.
     * `:atomic` — the cohort is written as one ADR-050 atomic batch (NATS
       2.14): sequenced `Nats-Batch-*` headers, one commit PubAck for the whole
       cohort. Events keep their `Nats-Msg-Id` (deduplication is enforced inside
@@ -82,7 +86,7 @@ defmodule Ingress.Nats.Publisher do
   end
 
   defp admit(
-         %{pid: pid, conn: conn, counter: counter, max_pending: max_pending},
+         %{pid: pid, conn: conn, counter: counter, max_pending: max_pending} = ctx,
          subject,
          json,
          dedup_id
@@ -97,10 +101,16 @@ defmodule Ingress.Nats.Publisher do
         {:error, :not_connected}
 
       true ->
-        GenServer.cast(pid, {:enqueue, subject, json, dedup_id})
+        GenServer.cast(pid, {:enqueue, subject, json, admitted_dedup_id(ctx, dedup_id)})
         :ok
     end
   end
+
+  # With dedup disabled the id is stripped at admission, so everything
+  # downstream — wire headers, retry policy, batch fallback — sees the event
+  # as unprotected and behaves at-most-once on ambiguity.
+  defp admitted_dedup_id(%{dedup: false}, _dedup_id), do: nil
+  defp admitted_dedup_id(_ctx, dedup_id), do: dedup_id
 
   ## Collector lifecycle
 
@@ -140,7 +150,8 @@ defmodule Ingress.Nats.Publisher do
         prefix: prefix,
         table: table,
         conn: conn,
-        max_pending: max_pending
+        max_pending: max_pending,
+        dedup: Config.publish_dedup()
       }
     )
 
@@ -219,7 +230,7 @@ defmodule Ingress.Nats.Publisher do
           retry_or_drop(id, subject, json, dedup_id, attempts, :ack_timeout, state)
 
         {id, :batch, entries, timestamp} when timestamp <= deadline ->
-          fallback_batch(id, entries, state)
+          expire_batch(id, entries, state)
 
         _ ->
           :ok
@@ -372,6 +383,22 @@ defmodule Ingress.Nats.Publisher do
     send_individual_entries(entries, state)
   end
 
+  # A swept batch is the cohort-shaped ack timeout: the commit may have landed
+  # with only its ack lost. Protected entries re-drive and the broker folds
+  # duplicates; unprotected entries (dedup off) are dropped whole rather than
+  # risking a double-stored cohort. Error replies never come here — they are
+  # definite rejections and take fallback_batch directly.
+  defp expire_batch(id, [{_subject, _json, nil, _from} | _] = entries, state) do
+    :ets.delete(state.table, id)
+    count = length(entries)
+    :atomics.sub(state.counter, @idx_pending, count)
+    :atomics.add(state.counter, @idx_failed, count)
+    :atomics.sub(state.counter, @idx_batch_inflight, 1)
+    state
+  end
+
+  defp expire_batch(id, entries, state), do: fallback_batch(id, entries, state)
+
   defp resolve_batch(id, entries, state) do
     :ets.delete(state.table, id)
     count = length(entries)
@@ -444,8 +471,8 @@ defmodule Ingress.Nats.Publisher do
     state
   end
 
-  defp retry_or_drop(id, subject, json, dedup_id, attempts, _reason, state) do
-    if attempts < state.max_attempts do
+  defp retry_or_drop(id, subject, json, dedup_id, attempts, reason, state) do
+    if retry?(dedup_id, attempts, reason, state) do
       :ets.insert(
         state.table,
         {id, :single, subject, json, dedup_id, attempts + 1, now_ms()}
@@ -470,6 +497,14 @@ defmodule Ingress.Nats.Publisher do
       :ok
     end
   end
+
+  # An ack timeout is ambiguous: the broker may have stored the event and only
+  # the ack was lost. Without a Nats-Msg-Id nothing folds a re-publish, so an
+  # unprotected event is dropped rather than risking a duplicate (at-most-once
+  # on ambiguity). Definite failures — error PubAcks, socket errors — mean
+  # nothing was stored, so they stay retried with or without dedup.
+  defp retry?(nil, _attempts, :ack_timeout, _state), do: false
+  defp retry?(_dedup_id, attempts, _reason, state), do: attempts < state.max_attempts
 
   defp ack_key(topic, prefix) do
     plen = byte_size(prefix)
