@@ -61,14 +61,18 @@ func TestSecureAddressUsesNativeTLSPorts(t *testing.T) {
 func TestLocalReadAddressPrefersLocalService(t *testing.T) {
 	assert.Equal(t,
 		"valkey-local.valkey.svc.cluster.local:6380",
-		localReadAddress("100.95.95.9", "valkey-local.valkey.svc.cluster.local:6379", true),
+		(localEndpoint{nodeIP: "100.95.95.9", configured: "valkey-local.valkey.svc.cluster.local:6379", tlsEnabled: true}).address(),
 	)
-	assert.Equal(t, "100.95.95.9:6380", localReadAddress("100.95.95.9", "", true))
-	assert.Equal(t, "100.95.95.9:6379", localReadAddress("100.95.95.9", "", false))
+	assert.Equal(t, "100.95.95.9:6380", (localEndpoint{nodeIP: "100.95.95.9", tlsEnabled: true}).address())
+	assert.Equal(t, "100.95.95.9:6379", (localEndpoint{nodeIP: "100.95.95.9"}).address())
 }
 
 func TestLocalReadOptionUsesSmallMultiplexedConnections(t *testing.T) {
-	opts := localReadOption("valkey-local:6380", "password", &tls.Config{MinVersion: tls.VersionTLS12})
+	opts := (localReadConfig{
+		address:   "valkey-local:6380",
+		password:  "password",
+		tlsConfig: &tls.Config{MinVersion: tls.VersionTLS12},
+	}).option()
 	assert.Equal(t, []string{"valkey-local:6380"}, opts.InitAddress)
 	assert.False(t, opts.DisableAutoPipelining)
 	assert.Equal(t, localPipelineMultiplex, opts.PipelineMultiplex)

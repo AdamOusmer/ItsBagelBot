@@ -205,8 +205,16 @@ func NewClient(address, password string) (valkey_go.Client, error) {
 		return wrapped, nil
 	}
 
-	localAddress := localReadAddress(nodeIP, os.Getenv("VALKEY_LOCAL_ADDR"), tlsConfig != nil)
-	local, err := valkey_go.NewClient(localReadOption(localAddress, password, tlsConfig))
+	localAddress := (localEndpoint{
+		nodeIP:     nodeIP,
+		configured: os.Getenv("VALKEY_LOCAL_ADDR"),
+		tlsEnabled: tlsConfig != nil,
+	}).address()
+	local, err := valkey_go.NewClient((localReadConfig{
+		address:   localAddress,
+		password:  password,
+		tlsConfig: tlsConfig,
+	}).option())
 	if err != nil {
 		// Local instance unreachable at startup: degrade to Sentinel-only
 		// rather than fail the service. Reads go to a Sentinel replica;
@@ -220,25 +228,37 @@ func NewClient(address, password string) (valkey_go.Client, error) {
 	return wrapped, nil
 }
 
-func localReadOption(address, password string, tlsConfig *tls.Config) valkey_go.ClientOption {
+type localReadConfig struct {
+	address   string
+	password  string
+	tlsConfig *tls.Config
+}
+
+func (c localReadConfig) option() valkey_go.ClientOption {
 	return valkey_go.ClientOption{
-		InitAddress:         []string{address},
-		Password:            password,
+		InitAddress:         []string{c.address},
+		Password:            c.password,
 		DisableCache:        true,
-		TLSConfig:           cloneTLSConfig(tlsConfig),
+		TLSConfig:           cloneTLSConfig(c.tlsConfig),
 		PipelineMultiplex:   localPipelineMultiplex,
 		ReadBufferEachConn:  localBufferSize,
 		WriteBufferEachConn: localBufferSize,
 	}
 }
 
-func localReadAddress(nodeIP, configured string, tlsEnabled bool) string {
-	if configured != "" {
-		return secureAddress(configured, tlsEnabled)
+type localEndpoint struct {
+	nodeIP     string
+	configured string
+	tlsEnabled bool
+}
+
+func (e localEndpoint) address() string {
+	if e.configured != "" {
+		return secureAddress(e.configured, e.tlsEnabled)
 	}
 	port := plainDataPort
-	if tlsEnabled {
+	if e.tlsEnabled {
 		port = tlsDataPort
 	}
-	return net.JoinHostPort(nodeIP, port)
+	return net.JoinHostPort(e.nodeIP, port)
 }
