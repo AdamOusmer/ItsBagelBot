@@ -1,6 +1,10 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
+  annotations:
+    # One logical keyspace with one Sentinel-elected writable primary.
+    itsbagelbot.dev/valkey-partitioning: disabled
+    itsbagelbot.dev/valkey-topology: sentinel-single-primary
   labels:
     app.kubernetes.io/component: node
     app.kubernetes.io/instance: valkey
@@ -12,7 +16,9 @@ spec:
     whenDeleted: Retain
     whenScaled: Retain
   podManagementPolicy: OrderedReady
-  replicas: 4 # one valkey+sentinel pod per node (hostPort + one-per-node spread): worker1, node2, node1, node3
+  # Four colocated Valkey+Sentinel voters produce one writable primary and
+  # three replicas. This count is a CI-enforced configuration invariant.
+  replicas: 4
   revisionHistoryLimit: 10
   selector:
     matchLabels:
@@ -240,6 +246,13 @@ spec:
         - "6380"
         - --masterauth
         - $(CORE)
+        # Keep the fleet unpartitioned and replicas read-only. These flags are
+        # authoritative over retained /data/valkey.conf files that Valkey may
+        # have rewritten before the policy was committed to the repository.
+        - --cluster-enabled
+        - "no"
+        - --replica-read-only
+        - "yes"
         # Command-line policy is authoritative even for retained PVC configs
         # written before these limits existed. This fixes failover replicas
         # that were still maxmemory=0/noeviction while preserving their role.
