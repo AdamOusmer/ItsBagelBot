@@ -169,16 +169,21 @@ func TestFnstatsReplyErrorChats(t *testing.T) {
 	assert.Equal(t, "Ghosty: player not found", col.out[0].Text)
 }
 
-func TestFnSessionDefaultTemplate(t *testing.T) {
-	gw := &fakeGateway{replies: map[string]any{
-		"fortnite.session": gatewayrpc.FortniteSessionReply{
-			Player: "Ninja", Wins: 3, Matches: 12, Kills: 48, KD: 5.33, WinRate: 25.0, HasSnapshot: true,
-		},
-	}}
-	cmd := fortniteCmd(t, gw, "fnsession")
-
+// runFnSession runs !fnsession against a gateway stubbed with reply, under the
+// given module config and command argument, returning the gateway and collected
+// output for assertion.
+func runFnSession(t *testing.T, reply gatewayrpc.FortniteSessionReply, cfg, arg string) (*fakeGateway, collector) {
+	t.Helper()
+	gw := &fakeGateway{replies: map[string]any{"fortnite.session": reply}}
 	var col collector
-	require.NoError(t, cmd.Run(context.Background(), urchinCtx(`{"account":"Ninja"}`), "", col.emit))
+	require.NoError(t, fortniteCmd(t, gw, "fnsession").Run(context.Background(), urchinCtx(cfg), arg, col.emit))
+	return gw, col
+}
+
+func TestFnSessionDefaultTemplate(t *testing.T) {
+	gw, col := runFnSession(t, gatewayrpc.FortniteSessionReply{
+		Player: "Ninja", Wins: 3, Matches: 12, Kills: 48, KD: 5.33, WinRate: 25.0, HasSnapshot: true,
+	}, `{"account":"Ninja"}`, "")
 	require.Len(t, col.out, 1)
 	assert.Equal(t, "Ninja this stream: 3 wins in 12 matches · 25% WR · 48 kills · 5.33 K/D", col.out[0].Text)
 
@@ -193,26 +198,33 @@ func TestFnSessionDefaultTemplate(t *testing.T) {
 // clobber) the streamer's per-channel baseline; it always uses the linked
 // account.
 func TestFnSessionIgnoresArgument(t *testing.T) {
-	gw := &fakeGateway{replies: map[string]any{
-		"fortnite.session": gatewayrpc.FortniteSessionReply{Player: "Ninja", HasSnapshot: true},
-	}}
-	cmd := fortniteCmd(t, gw, "fnsession")
-
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), urchinCtx(`{"account":"Ninja"}`), "SomeoneElse", col.emit))
+	gw, _ := runFnSession(t,
+		gatewayrpc.FortniteSessionReply{Player: "Ninja", HasSnapshot: true}, `{"account":"Ninja"}`, "SomeoneElse")
 	assert.Equal(t, "Ninja", gw.lastCall(t).req.Account)
 }
 
 func TestFnSessionWithoutSnapshot(t *testing.T) {
-	gw := &fakeGateway{replies: map[string]any{
-		"fortnite.session": gatewayrpc.FortniteSessionReply{Player: "Ninja", HasSnapshot: false},
-	}}
-	cmd := fortniteCmd(t, gw, "fnsession")
-
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), urchinCtx(""), "", col.emit))
+	_, col := runFnSession(t, gatewayrpc.FortniteSessionReply{Player: "Ninja", HasSnapshot: false}, "", "")
 	require.Len(t, col.out, 1)
 	assert.Contains(t, col.out[0].Text, "session tracking just started")
+}
+
+// fortniteOnlineHandler builds the module and returns its stream.online handler.
+func fortniteOnlineHandler(t *testing.T, gw engine.GatewayCaller) module.EventHandler {
+	t.Helper()
+	h := Fortnite(engine.Deps{Gateway: gw, Log: zap.NewNop()}).Events["stream.online"]
+	require.NotNil(t, h, "fortnite must handle stream.online")
+	return h
+}
+
+// fortniteOnlineCtx builds a stream.online Context for broadcaster 2 with cfg.
+func fortniteOnlineCtx(cfg string) *module.Context {
+	return &module.Context{
+		Env:           lane.Envelope{Type: "stream.online", BroadcasterUserID: "2", BroadcasterUserLogin: "streamer"},
+		BroadcasterID: 2,
+		Log:           zap.NewNop(),
+		Config:        []byte(cfg),
+	}
 }
 
 // stream.online snapshots the linked account so !fn session has a baseline. The
@@ -223,22 +235,10 @@ func TestFnStreamOnlineSnapshots(t *testing.T) {
 		replies: map[string]any{"fortnite.session_start": gatewayrpc.FortniteSnapshotReply{Player: "Ninja"}},
 		done:    done,
 	}
-	m := Fortnite(engine.Deps{Gateway: gw, Log: zap.NewNop()})
-	h := m.Events["stream.online"]
-	require.NotNil(t, h, "fortnite must handle stream.online")
+	h := fortniteOnlineHandler(t, gw)
 
-	c := &module.Context{
-		Env: lane.Envelope{
-			Type:                 "stream.online",
-			BroadcasterUserID:    "2",
-			BroadcasterUserLogin: "streamer",
-		},
-		BroadcasterID: 2,
-		Log:           zap.NewNop(),
-		Config:        []byte(`{"account":"Ninja","accountType":"epic"}`),
-	}
 	var col collector
-	require.NoError(t, h(context.Background(), c, col.emit))
+	require.NoError(t, h(context.Background(), fortniteOnlineCtx(`{"account":"Ninja","accountType":"epic"}`), col.emit))
 	assert.Empty(t, col.out, "snapshot handler must not chat")
 
 	select {
@@ -258,18 +258,10 @@ func TestFnStreamOnlineSnapshots(t *testing.T) {
 // stats budget on a snapshot: the handler returns before spawning the call.
 func TestFnStreamOnlineSkipsWhenSessionOff(t *testing.T) {
 	gw := &fakeGateway{}
-	m := Fortnite(engine.Deps{Gateway: gw, Log: zap.NewNop()})
-	h := m.Events["stream.online"]
-	require.NotNil(t, h)
+	h := fortniteOnlineHandler(t, gw)
 
-	c := &module.Context{
-		Env:           lane.Envelope{Type: "stream.online", BroadcasterUserID: "2", BroadcasterUserLogin: "streamer"},
-		BroadcasterID: 2,
-		Log:           zap.NewNop(),
-		Config:        []byte(`{"account":"Ninja","sessionEnabled":"off"}`),
-	}
 	var col collector
-	require.NoError(t, h(context.Background(), c, col.emit))
+	require.NoError(t, h(context.Background(), fortniteOnlineCtx(`{"account":"Ninja","sessionEnabled":"off"}`), col.emit))
 	gw.mu.Lock()
 	assert.Empty(t, gw.calls)
 	gw.mu.Unlock()
