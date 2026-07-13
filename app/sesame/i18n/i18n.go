@@ -69,6 +69,34 @@ var catalog = map[string]map[string]string{
 		"loyalty.counter.list.empty":  "No counters yet. Create one with !counter create <name>.",
 		"loyalty.counter.not_found":   "@{user} counter {counter} was not found.",
 		"loyalty.counter.err":         "@{user} that didn't work, please try again.",
+
+		"lookup.not_user":         "@%s is not a Twitch user.",
+		"followage.unavailable":   "Followage is unavailable right now.",
+		"followage.broadcaster":   "@%s is the broadcaster.",
+		"followage.not_following": "@%s is not following this channel.",
+		"followage.followed":      "@%s has followed for %s.",
+		"accountage.unavailable":  "Account age is unavailable right now.",
+		"accountage.age":          "@%s's account is %s old.",
+
+		"time.less_than_minute": "less than a minute",
+		"time.year":             "year",
+		"time.years":            "years",
+		"time.month":            "month",
+		"time.months":           "months",
+		"time.day":              "day",
+		"time.days":             "days",
+		"time.hour":             "hour",
+		"time.hours":            "hours",
+		"time.minute":           "minute",
+		"time.minutes":          "minutes",
+
+		"external.retry": "still looking that up, try again in a moment",
+
+		"mcsr.session.started": "session tracking just started (%s elo), ask again after a match!",
+		"mcsr.unrated":         "unrated",
+
+		"fortnite.shop.empty": "empty today",
+		"fortnite.shop.more":  "+%d more",
 	},
 	"fr": {
 		"ping":         "Pong ! ItsBagelBot est actif depuis %s",
@@ -126,6 +154,34 @@ var catalog = map[string]map[string]string{
 		"loyalty.counter.list.empty":  "Aucun compteur pour le moment. Créez-en un avec !counter create <nom>.",
 		"loyalty.counter.not_found":   "@{user} le compteur {counter} n'a pas été trouvé.",
 		"loyalty.counter.err":         "@{user} ça n'a pas fonctionné, veuillez réessayer.",
+
+		"lookup.not_user":         "@%s n'est pas un utilisateur Twitch.",
+		"followage.unavailable":   "Le suivi n'est pas disponible pour le moment.",
+		"followage.broadcaster":   "@%s est le diffuseur.",
+		"followage.not_following": "@%s ne suit pas cette chaîne.",
+		"followage.followed":      "@%s suit la chaîne depuis %s.",
+		"accountage.unavailable":  "L'âge du compte n'est pas disponible pour le moment.",
+		"accountage.age":          "Le compte de @%s existe depuis %s.",
+
+		"time.less_than_minute": "moins d'une minute",
+		"time.year":             "an",
+		"time.years":            "ans",
+		"time.month":            "mois",
+		"time.months":           "mois",
+		"time.day":              "jour",
+		"time.days":             "jours",
+		"time.hour":             "heure",
+		"time.hours":            "heures",
+		"time.minute":           "minute",
+		"time.minutes":          "minutes",
+
+		"external.retry": "recherche en cours, réessayez dans un instant",
+
+		"mcsr.session.started": "le suivi de session vient de démarrer (%s elo), redemandez après une partie !",
+		"mcsr.unrated":         "non classé",
+
+		"fortnite.shop.empty": "vide aujourd'hui",
+		"fortnite.shop.more":  "+%d de plus",
 	},
 }
 

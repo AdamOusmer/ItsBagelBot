@@ -296,7 +296,7 @@ func TestStoreDefaultTemplate(t *testing.T) {
 }
 
 func TestFormatShopEntriesBudget(t *testing.T) {
-	assert.Equal(t, "empty today", formatShopEntries(nil))
+	assert.Equal(t, "empty today", formatShopEntries("en", nil))
 
 	// A long shop truncates within the budget and reports the remainder.
 	var entries []gatewayrpc.FortniteShopEntry
@@ -305,14 +305,14 @@ func TestFormatShopEntriesBudget(t *testing.T) {
 			Name: "Some Cosmetic Item " + strconv.Itoa(i), Price: 1200,
 		})
 	}
-	got := formatShopEntries(entries)
+	got := formatShopEntries("en", entries)
 	assert.LessOrEqual(t, len(got), fortniteShopBudget+len(" +99 more"))
 	assert.Contains(t, got, " more")
 	assert.True(t, strings.HasPrefix(got, "Some Cosmetic Item 0 (1200), "))
 
 	// The first entry always renders, even when it alone blows the budget.
 	huge := gatewayrpc.FortniteShopEntry{Name: strings.Repeat("x", fortniteShopBudget+50), Price: 100}
-	got = formatShopEntries([]gatewayrpc.FortniteShopEntry{huge, {Name: "Next", Price: 1}})
+	got = formatShopEntries("en", []gatewayrpc.FortniteShopEntry{huge, {Name: "Next", Price: 1}})
 	assert.True(t, strings.HasPrefix(got, huge.Name))
 	assert.Contains(t, got, "+1 more")
 }
