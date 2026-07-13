@@ -17,7 +17,11 @@ defmodule Ingress.Capacity do
 
   @load_window_seconds 60
   @default_pod_rated_eps 140_000
-  @default_nats_rated_eps 86_000
+  # Rounded down from the 2026-07-13 post-rollout fleet acceptance (123,834/s
+  # sustained, 3M acked, zero errors) with lane dedup off and leader-direct
+  # dialing live. Up from 86,000 — the per-message dedup insert was ~27% of the
+  # single stream's serialized ingest capacity.
+  @default_nats_rated_eps 123_000
   @default_websocket_rated_eps 12_500
   @default_target_utilization_pct 75
 

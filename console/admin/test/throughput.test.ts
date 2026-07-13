@@ -30,8 +30,8 @@ describe('throughput capacity', () => {
 
     expect(capacity.fleet_rated_eps).toBe(280_000);
     expect(capacity.fleet_target_eps).toBe(210_000);
-    expect(capacity.effective_rated_eps).toBe(86_000);
-    expect(capacity.effective_target_eps).toBe(64_500);
+    expect(capacity.effective_rated_eps).toBe(123_000);
+    expect(capacity.effective_target_eps).toBe(92_250);
     expect(capacity.bottleneck).toBe('nats');
     expect(capacity.websocket_target_eps).toBe(9_375);
     expect(capacity.target_utilization_pct).toBe(75);
