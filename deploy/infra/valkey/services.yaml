@@ -17,6 +17,14 @@ spec:
     port: 26379
     protocol: TCP
     targetPort: valkey-sentinel
+  - name: tls-redis
+    port: 6380
+    protocol: TCP
+    targetPort: redis-tls
+  - name: tls-sentinel
+    port: 26380
+    protocol: TCP
+    targetPort: sentinel-tls
   selector:
     app.kubernetes.io/component: node
     app.kubernetes.io/instance: valkey
@@ -41,6 +49,14 @@ spec:
     port: 26379
     protocol: TCP
     targetPort: valkey-sentinel
+  - name: redis-tls
+    port: 6380
+    protocol: TCP
+    targetPort: redis-tls
+  - name: sentinel-tls
+    port: 26380
+    protocol: TCP
+    targetPort: sentinel-tls
   publishNotReadyAddresses: true
   selector:
     app.kubernetes.io/component: node

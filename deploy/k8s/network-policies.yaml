@@ -52,10 +52,10 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: valkey
-    # Valkey sentinel and replicas announce their node's Tailscale IP (so the
-    # external witness can reach them), so the valkey-go client must dial those
-    # tailnet addresses (CGNAT 100.64.0.0/10) for replica reads and sentinel
-    # monitoring. The namespaceSelector above only covers valkey pod IPs.
+    # Valkey Sentinel and replicas announce stable node Tailscale IPs. The Go
+    # client dials those addresses for node-local reads and the elected master;
+    # the namespaceSelector above only covers Valkey pod IPs. Keep both legacy
+    # and guarded-cutover TLS ports until plaintext is removed after validation.
     - to:
         - ipBlock:
             cidr: 100.64.0.0/10
@@ -63,6 +63,10 @@ spec:
         - port: 6379
           protocol: TCP
         - port: 26379
+          protocol: TCP
+        - port: 6380
+          protocol: TCP
+        - port: 26380
           protocol: TCP
     # Allow outbound HTTPS for Twitch OAuth
     - ports:

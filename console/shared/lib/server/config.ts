@@ -29,6 +29,10 @@ export interface ValkeyConfig {
   sentinelAddr?: string;
   /** Sentinel master set name. Defaults to "myprimary" (the fleet's set). */
   sentinelMaster?: string;
+  /** Fleet CA PEM enables verified native TLS for data and Sentinel sockets. */
+  tlsCa?: string;
+  /** Expected server identity; defaults to the stable in-cluster Service DNS. */
+  tlsServerName?: string;
 }
 
 export interface ServerConfig {
