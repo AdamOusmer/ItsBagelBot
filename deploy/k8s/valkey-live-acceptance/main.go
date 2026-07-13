@@ -65,40 +65,69 @@ type operationRunner struct {
 	op     operation
 }
 
+type application struct {
+	cfg    config
+	client valkey.Client
+	ctx    context.Context
+	cancel context.CancelFunc
+	key    string
+}
+
 func main() {
 	cfg := parseFlags()
-	if err := installCA(cfg.caFile); err != nil {
-		fatal(err)
-	}
+	app := newApplication(cfg)
+	code := app.exitCode()
+	app.close()
+	os.Exit(code)
+}
 
+func newApplication(cfg config) *application {
+	installCAMust(cfg.caFile)
 	client, err := shared.NewClient(cfg.address, os.Getenv("REDISCLI_AUTH"))
 	if err != nil {
 		fatal(err)
 	}
-	defer client.Close()
-
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.timeout)
-	defer cancel()
-	key := fmt.Sprintf("acceptance:valkey:p99:%s:%d", cfg.node, time.Now().UnixNano())
-	if err := seed(ctx, client, key); err != nil {
+	return &application{
+		cfg: cfg, client: client, ctx: ctx, cancel: cancel,
+		key: fmt.Sprintf("acceptance:valkey:p99:%s:%d", cfg.node, time.Now().UnixNano()),
+	}
+}
+
+func (app *application) exitCode() int {
+	if err := seed(app.ctx, app.client, app.key); err != nil {
 		fatal(err)
 	}
-	defer client.Do(context.Background(), client.B().Del().Key(key).Build())
+	failed := app.reportOperations()
+	if app.cfg.requireTarget && failed {
+		return 1
+	}
+	return 0
+}
 
+func (app *application) reportOperations() bool {
 	failed := false
-	for _, op := range cfg.operations(key) {
-		runner := operationRunner{ctx: ctx, client: client, cfg: cfg, op: op}
-		runner.run(cfg.warmup)
-		measured := runner.run(cfg.requests)
-		report := summarize(cfg, op, measured)
-		if err := json.NewEncoder(os.Stdout).Encode(report); err != nil {
-			fatal(err)
-		}
+	for _, op := range app.cfg.operations(app.key) {
+		runner := operationRunner{ctx: app.ctx, client: app.client, cfg: app.cfg, op: op}
+		runner.run(app.cfg.warmup)
+		measured := runner.run(app.cfg.requests)
+		report := summarize(app.cfg, op, measured)
+		emit(report)
 		failed = failed || !report.Passed
 	}
-	if cfg.requireTarget && failed {
-		os.Exit(1)
+	return failed
+}
+
+func emit(report result) {
+	if err := json.NewEncoder(os.Stdout).Encode(report); err != nil {
+		fatal(err)
 	}
+}
+
+func (app *application) close() {
+	app.client.Do(context.Background(), app.client.B().Del().Key(app.key).Build())
+	app.client.Close()
+	app.cancel()
 }
 
 func parseFlags() config {
@@ -168,6 +197,12 @@ func installCA(path string) error {
 		return fmt.Errorf("read CA: %w", err)
 	}
 	return os.Setenv("VALKEY_TLS_CA_PEM", string(pem))
+}
+
+func installCAMust(path string) {
+	if err := installCA(path); err != nil {
+		fatal(err)
+	}
 }
 
 func (cfg config) operations(key string) []operation {
