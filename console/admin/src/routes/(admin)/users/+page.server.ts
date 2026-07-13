@@ -61,13 +61,17 @@ function demoPage(page: number, search: string) {
   };
 }
 
-export const load: PageServerLoad = async ({ url }) => {
-  const page = parsePage(url.searchParams.get('page'));
-  const search = normalizeSearch(url.searchParams.get('q'));
+export type UserDirectory = {
+  recent: AdminUserWire[];
+  stats: typeof sampleStats;
+  page: number;
+  pageSize: number;
+  maxPages: number;
+  hasMore: boolean;
+  degraded: boolean;
+};
 
-  if (isDemo()) {
-    return demoPage(page, search);
-  }
+async function loadDirectory(page: number, search: string): Promise<UserDirectory> {
   try {
     const overview = await userOverview(page, search);
     return {
@@ -77,7 +81,6 @@ export const load: PageServerLoad = async ({ url }) => {
       pageSize: overview.page_size,
       maxPages: overview.max_pages,
       hasMore: overview.has_more,
-      search,
       degraded: false
     };
   } catch {
@@ -88,10 +91,22 @@ export const load: PageServerLoad = async ({ url }) => {
       pageSize: USER_PAGE_SIZE,
       maxPages: USER_MAX_PAGES,
       hasMore: false,
-      search,
       degraded: true
     };
   }
+}
+
+// Streamed: the shell (toolbar, headers) renders immediately; the directory
+// hydrates when the users RPC lands instead of blocking SSR on NATS.
+export const load: PageServerLoad = ({ url }) => {
+  const page = parsePage(url.searchParams.get('page'));
+  const search = normalizeSearch(url.searchParams.get('q'));
+
+  const directory: Promise<UserDirectory> = isDemo()
+    ? Promise.resolve({ ...demoPage(page, search), degraded: false })
+    : loadDirectory(page, search);
+
+  return { directory, page, search };
 };
 
 // Status values the users service accepts (raw DB enum).

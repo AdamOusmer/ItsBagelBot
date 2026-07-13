@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+	"time"
 
 	"ItsBagelBot/app/users/ent"
 	"ItsBagelBot/app/users/ent/predicate"
@@ -87,6 +88,39 @@ func (r *Users) UserStats(ctx context.Context) (total, active, paid, vip int, er
 		return r.client.User.Query().Where(user.StatusEQ(user.StatusVip)).Count(ctx)
 	})
 	return
+}
+
+// EnrollmentDay is one UTC day's signup count.
+type EnrollmentDay struct {
+	Date  string // YYYY-MM-DD
+	Count int
+}
+
+// EnrollmentSeries buckets user signups per UTC day over the trailing `days`
+// window, today included. Every day in the window is present, zero-filled, so
+// callers can chart the series without gap handling.
+func (r *Users) EnrollmentSeries(ctx context.Context, days int) ([]EnrollmentDay, error) {
+	since := time.Now().UTC().AddDate(0, 0, -(days - 1)).Truncate(24 * time.Hour)
+	rows, err := db.WithQuery(ctx, func(ctx context.Context) ([]*ent.User, error) {
+		return r.client.User.Query().
+			Where(user.CreatedAtGTE(since)).
+			Select(user.FieldCreatedAt).
+			All(ctx)
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	counts := make(map[string]int, days)
+	for _, row := range rows {
+		counts[row.CreatedAt.UTC().Format(time.DateOnly)]++
+	}
+	series := make([]EnrollmentDay, 0, days)
+	for d := 0; d < days; d++ {
+		date := since.AddDate(0, 0, d).Format(time.DateOnly)
+		series = append(series, EnrollmentDay{Date: date, Count: counts[date]})
+	}
+	return series, nil
 }
 
 // HasToken reports whether the user currently has a stored token of the given

@@ -2,7 +2,7 @@
 // responder is briefly unreachable. Nothing here is live; it mirrors the wire
 // shapes only so the screens have something to paint.
 import type { ShardSnapshot, UserStats } from '@bagel/shared';
-import type { AdminUserWire, NotificationWire } from './services';
+import type { AdminUserWire, AuditEntry, EnrollmentWire, NotificationWire } from './services';
 
 export const sampleStats: UserStats = {
   total_users: 1842,
@@ -48,12 +48,30 @@ export const sampleSnapshot: ShardSnapshot = {
   }
 };
 
+// Deterministic 30-day signup curve (gentle growth + weekend bumps), so the
+// demo histogram looks plausible without pretending to be live.
+export const sampleEnrollment: EnrollmentWire = {
+  days: Array.from({ length: 30 }, (_, i) => {
+    const d = new Date(Date.now() - (29 - i) * 864e5);
+    const wave = Math.round(6 + 4 * Math.sin(i / 4) + (d.getUTCDay() % 6 === 0 ? 5 : 0));
+    return { date: d.toISOString().slice(0, 10), count: Math.max(0, wave + (i % 7 === 3 ? 3 : 0)) };
+  }),
+  stats: sampleStats
+};
+
 export const sampleUsers: AdminUserWire[] = [
   { id: 44322190, username: 'itsmavey', is_active: true, status: 'vip', banned: false, creator_code: 'MAVEY10', updated_at: new Date().toISOString() },
   { id: 81002934, username: 'ferret_king', is_active: true, status: 'paid', banned: false, updated_at: new Date().toISOString() },
   { id: 23910044, username: 'bagel_enjoyer', is_active: true, status: 'free', banned: false, updated_at: new Date().toISOString() },
   { id: 70113355, username: 'kettle', is_active: false, status: 'free', banned: true, updated_at: new Date().toISOString() },
   { id: 99884412, username: 'loudguy99', is_active: true, status: 'paid', banned: false, updated_at: new Date().toISOString() }
+];
+
+export const sampleAudit: AuditEntry[] = [
+  { id: 41, actor_id: 804932984, actor_login: 'itsmavey', action: 'set_status', target: '81002934', detail: 'status=paid end=2026-08-01', ok: true, created_at: new Date(Date.now() - 40 * 60e3).toISOString() },
+  { id: 40, actor_id: 111111111, actor_login: 'an_admin', action: 'restart', target: '23910044', ok: true, created_at: new Date(Date.now() - 3 * 3600e3).toISOString() },
+  { id: 39, actor_id: 804932984, actor_login: 'itsmavey', action: 'ban', target: '70113355', ok: true, created_at: new Date(Date.now() - 8 * 3600e3).toISOString() },
+  { id: 38, actor_id: 111111111, actor_login: 'an_admin', action: 'db_credential_rotate', target: 'modules', detail: 'modules_svc_r1x9k2', ok: false, error: 'Doppler request failed (403)', created_at: new Date(Date.now() - 26 * 3600e3).toISOString() }
 ];
 
 export const sampleNotifications: NotificationWire[] = [

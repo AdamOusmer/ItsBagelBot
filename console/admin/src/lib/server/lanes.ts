@@ -205,14 +205,24 @@ async function collectLanesOnce() {
     const now = Date.now();
     const rows: any[] = [];
     const seen = new Set<string>();
-    let streamsSeen = 0;
 
+    // One consumer-list round trip per stream, all in flight at once. The old
+    // serial walk paid streams x consumers sequential JS API hops, which is
+    // what made the lanes page feel stuck. allSettled keeps partial data when
+    // a single stream's listing fails; the failure is surfaced, not hidden.
     const streams = await manager.streams.list().next();
-    for (const stream of streams) {
-      streamsSeen++;
-      const streamName = stream.config.name;
-      
-      const consumers = await manager.consumers.list(streamName).next();
+    const streamsSeen = streams.length;
+    const listed = await Promise.allSettled(
+      streams.map(async (stream) => ({
+        streamName: stream.config.name,
+        consumers: await manager.consumers.list(stream.config.name).next()
+      }))
+    );
+    const failures = listed.filter((r) => r.status === 'rejected').length;
+
+    for (const result of listed) {
+      if (result.status !== 'fulfilled') continue;
+      const { streamName, consumers } = result.value;
       for (const ci of consumers) {
         const key = laneKey(streamName, ci.name);
         seen.add(key);
@@ -258,8 +268,12 @@ async function collectLanesOnce() {
       return;
     }
 
-    for (const key of prevSamples.keys()) {
-      if (!seen.has(key)) prevSamples.delete(key);
+    // Only prune rate baselines on a complete listing: after a partial one, a
+    // missing key means "stream unreadable this pass", not "consumer gone".
+    if (failures === 0) {
+      for (const key of prevSamples.keys()) {
+        if (!seen.has(key)) prevSamples.delete(key);
+      }
     }
 
     rows.sort((a, b) => {
@@ -285,7 +299,7 @@ async function collectLanesOnce() {
       rate: rateText(r.rate, r.hasRate),
       redelivered: r.redelivered
     }));
-    lastError = '';
+    lastError = failures > 0 ? `partial listing: ${failures} of ${streamsSeen} streams unreadable` : '';
   } catch (err: any) {
     lastError = err.message || String(err);
   }
@@ -302,7 +316,6 @@ function ensureSampler() {
     }
     collectLanes();
   }, SAMPLE_INTERVAL_MS);
-  collectLanes();
 }
 
 export async function loadLanes(): Promise<LanesResult> {
@@ -310,6 +323,11 @@ export async function loadLanes(): Promise<LanesResult> {
     return { lanes: sampleLanes, degraded: false, notice: '' };
   }
   ensureSampler();
+  // Cold cache: wait for the in-flight collection instead of returning an
+  // empty list that pretends to be the fleet. Warm cache serves instantly and
+  // refreshes in the background.
+  const pending = collectLanes();
+  if (currentLanes.length === 0) await pending;
   if (lastError) {
     return {
       lanes: currentLanes,

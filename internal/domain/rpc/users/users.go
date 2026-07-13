@@ -18,6 +18,9 @@ type AdminRequest struct {
 	RefreshToken string `json:"refresh_token"`
 	ExpiresAt    string `json:"expires_at,omitempty"`
 	CreatorCode  string `json:"creator_code,omitempty"`
+	// Days is the trailing window size for the enrollment verb (UTC days,
+	// today included). Zero means the server default.
+	Days int `json:"days,omitempty"`
 }
 
 // AdminUserView is a single user row in an admin reply.
@@ -44,6 +47,19 @@ type AdminStats struct {
 	PaidUsers    int `json:"paid_users"`
 }
 
+// AdminEnrollmentDay is one UTC day's signup count.
+type AdminEnrollmentDay struct {
+	Date  string `json:"date"` // YYYY-MM-DD
+	Count int    `json:"count"`
+}
+
+// AdminEnrollmentView carries the daily signup histogram plus the current
+// user totals, so consoles can chart signups against the registered base.
+type AdminEnrollmentView struct {
+	Days  []AdminEnrollmentDay `json:"days"`
+	Stats AdminStats           `json:"stats"`
+}
+
 // AdminTokenView reports whether a token row is present.
 type AdminTokenView struct {
 	Present bool `json:"present"`
@@ -51,15 +67,16 @@ type AdminTokenView struct {
 
 // AdminReply is the reply shape for all admin verbs.
 type AdminReply struct {
-	User     *AdminUserView  `json:"user,omitempty"`
-	Users    []AdminUserView `json:"users,omitempty"`
-	Stats    *AdminStats     `json:"stats,omitempty"`
-	Token    *AdminTokenView `json:"token,omitempty"`
-	Page     int             `json:"page,omitempty"`
-	PageSize int             `json:"page_size,omitempty"`
-	MaxPages int             `json:"max_pages,omitempty"`
-	HasMore  bool            `json:"has_more,omitempty"`
-	Error    string          `json:"error,omitempty"`
+	User       *AdminUserView       `json:"user,omitempty"`
+	Users      []AdminUserView      `json:"users,omitempty"`
+	Stats      *AdminStats          `json:"stats,omitempty"`
+	Enrollment *AdminEnrollmentView `json:"enrollment,omitempty"`
+	Token      *AdminTokenView      `json:"token,omitempty"`
+	Page       int                  `json:"page,omitempty"`
+	PageSize   int                  `json:"page_size,omitempty"`
+	MaxPages   int                  `json:"max_pages,omitempty"`
+	HasMore    bool                 `json:"has_more,omitempty"`
+	Error      string               `json:"error,omitempty"`
 }
 
 // AuthRequest covers all adminauth verbs.

@@ -179,6 +179,31 @@ export const userStats = defineRead({
   }
 });
 
+// EnrollmentWire mirrors the users service's admin enrollment reply: one
+// zero-filled bucket per UTC day plus the current user totals.
+export interface EnrollmentDayWire {
+  date: string; // YYYY-MM-DD
+  count: number;
+}
+
+export interface EnrollmentWire {
+  days: EnrollmentDayWire[];
+  stats: UserStats;
+}
+
+export const ENROLLMENT_WINDOW_DAYS = 30;
+
+export const userEnrollment = defineRead({
+  subject: `${SUB.user}.enrollment`,
+  request: (days = ENROLLMENT_WINDOW_DAYS) => ({ days }),
+  map: (reply: { enrollment: EnrollmentWire }) => reply.enrollment,
+  cache: {
+    fabric,
+    key: (days = ENROLLMENT_WINDOW_DAYS) => `users:enrollment:${days}`,
+    policy: POLICY.adminPage
+  }
+});
+
 export const USER_PAGE_SIZE = 15;
 export const USER_MAX_PAGES = 25;
 
