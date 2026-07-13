@@ -9,9 +9,13 @@ defmodule Ingress.ConduitManager do
   `Ingress.ShardScaler`), then converges the running `Ingress.ShardSession`
   processes to match — starting missing shards and stopping excess ones.
 
-  Reconciliation repeats periodically to heal local shards whose supervisor
-  gave up. Twitch is updated only when the internally-owned desired shard count
-  changes; stable reconciliation ticks never spend Helix quota.
+  Reconciliation repeats periodically. Each tick reads Twitch's per-shard
+  snapshot once and uses it twice: to gate shard starts (never start into a
+  slot Twitch says is being served — that is how rolling deploys used to
+  spawn duplicate copies) and to heal any slot Twitch reports unhealthy
+  (dead binding, wedged session, blocked replacement — see the rescue
+  section below). Conduit writes still happen only when the desired shard
+  count changes.
   """
 
   use GenServer
@@ -92,8 +96,9 @@ defmodule Ingress.ConduitManager do
         adopt_then_converge(state, scaler)
 
       {:ok, desired, _scaler} ->
-        applied = converge_shards(state.conduit_id, desired, state.applied_shard_count)
-        state = run_health_pass(%{state | applied_shard_count: applied}, desired)
+        snapshot = shard_snapshot(state.conduit_id)
+        applied = converge_shards(state.conduit_id, desired, state.applied_shard_count, snapshot)
+        state = run_health_pass(%{state | applied_shard_count: applied}, desired, snapshot)
         Process.send_after(self(), :reconcile, @reconcile_interval_ms)
         state
 
@@ -147,11 +152,24 @@ defmodule Ingress.ConduitManager do
   #      slots for them; stopping is safe because :transient restart means a
   #      deliberate shutdown will not restart the session).
   #   3. Start any missing sessions for shard IDs 0..(desired-1).
-  defp converge_shards(conduit_id, desired, applied) when desired > 0 do
+  # Twitch's per-shard snapshot backing both the duplicate-start gate and the
+  # health pass; fetched once per tick.
+  defp shard_snapshot(conduit_id) do
+    case Api.get_shards(conduit_id) do
+      {:ok, shards} ->
+        {:ok, shards}
+
+      {:error, reason} ->
+        Logger.warning("shard snapshot failed: #{inspect(reason)}")
+        :error
+    end
+  end
+
+  defp converge_shards(conduit_id, desired, applied, snapshot) when desired > 0 do
     applied = maybe_resize_conduit(conduit_id, desired, applied)
 
     stop_excess_shards(desired)
-    start_missing_shards(conduit_id, desired)
+    start_missing_shards(conduit_id, desired, snapshot)
     applied
   end
 
@@ -219,9 +237,18 @@ defmodule Ingress.ConduitManager do
     end
   end
 
-  defp start_missing_shards(conduit_id, desired) do
-    for shard_id <- 0..(desired - 1), do: start_shard(conduit_id, shard_id)
+  # A shard is only started when Twitch does not report its slot enabled: an
+  # enabled slot has a live serving socket somewhere even if the registry
+  # shows a hole (registry state lags membership changes during a rolling
+  # deploy — starting into the hole is how duplicate copies used to spawn
+  # and race the serving one). Without a snapshot, fall back to starting
+  # every slot; the registry still deduplicates the common case.
+  defp start_missing_shards(conduit_id, desired, snapshot) do
+    for shard_id <- startable_ids(snapshot, desired), do: start_shard(conduit_id, shard_id)
   end
+
+  defp startable_ids({:ok, shards}, desired), do: ShardHealth.startable_ids(shards, desired)
+  defp startable_ids(:error, desired), do: Enum.to_list(0..(desired - 1))
 
   # :started only when a fresh session actually spawned. :already_started is
   # normal during converge (the shard runs), but right after a terminate it
@@ -253,19 +280,16 @@ defmodule Ingress.ConduitManager do
   # receiving keepalives after the binding moved or died with another copy).
   # So reconciliation asks Twitch for its per-shard view and repairs every
   # slot it reports unhealthy. Decisions live in `Ingress.ShardHealth`.
-  defp run_health_pass(state, desired) do
-    case Api.get_shards(state.conduit_id) do
-      {:ok, shards} ->
-        unhealthy = ShardHealth.unhealthy_ids(shards, desired)
-        {counts, rescues} = heal_all(state, unhealthy)
-        rescues = reap_rescues(unhealthy, rescues)
-        %{state | unhealthy_counts: counts, rescues: rescues}
-
-      {:error, reason} ->
-        Logger.warning("shard health poll failed: #{inspect(reason)}")
-        state
-    end
+  defp run_health_pass(state, desired, {:ok, shards}) do
+    unhealthy = ShardHealth.unhealthy_ids(shards, desired)
+    {counts, rescues} = heal_all(state, unhealthy)
+    rescues = reap_rescues(unhealthy, rescues)
+    %{state | unhealthy_counts: counts, rescues: rescues}
   end
+
+  # No snapshot, no verdicts: carry the counts unchanged rather than treating
+  # a Helix hiccup as five healthy shards.
+  defp run_health_pass(state, _desired, :error), do: state
 
   # Heals every Twitch-unhealthy shard, threading the consecutive-unhealthy
   # counts and the rescue table. Shards Twitch reports healthy drop out of the

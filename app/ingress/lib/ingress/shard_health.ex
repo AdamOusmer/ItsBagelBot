@@ -67,6 +67,26 @@ defmodule Ingress.ShardHealth do
   """
   def escalate?(seen), do: seen >= @max_unhealthy_observations
 
+  @doc """
+  Shard ids in `0..desired-1` safe to start a session for, given Twitch's
+  snapshot. A slot whose transport is `"enabled"` is served by a live socket
+  somewhere right now — starting another session for it creates a duplicate
+  that races the serving copy (the registry lags cluster membership changes
+  during a rolling deploy, so an empty registry slot does not mean an
+  unserved shard). Slots missing from the snapshot (fresh conduit,
+  just-resized) or in any non-enabled state are startable; a dead socket
+  flips off `"enabled"` within Twitch's own keepalive window.
+  """
+  def startable_ids(shards, desired) when is_list(shards) do
+    enabled =
+      for %{"id" => id, "status" => "enabled"} <- shards,
+          {int_id, ""} <- [Integer.parse(to_string(id))],
+          into: MapSet.new(),
+          do: int_id
+
+    Enum.reject(0..(desired - 1), &(&1 in enabled))
+  end
+
   defp settled?(%DateTime{} = bound_at, now),
     do: DateTime.diff(now, bound_at, :millisecond) >= @rebind_grace_ms
 

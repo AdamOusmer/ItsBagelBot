@@ -85,4 +85,32 @@ defmodule Ingress.ShardHealthTest do
       assert ShardHealth.escalate?(3)
     end
   end
+
+  describe "startable_ids/2" do
+    test "never starts into a slot Twitch says is served" do
+      shards = [
+        shard(0, "enabled"),
+        shard(1, "websocket_disconnected"),
+        shard(2, "enabled")
+      ]
+
+      assert ShardHealth.startable_ids(shards, 5) == [1, 3, 4]
+    end
+
+    test "a fresh or just-resized conduit reports no shards; all startable" do
+      assert ShardHealth.startable_ids([], 3) == [0, 1, 2]
+    end
+
+    test "enabled slots beyond desired do not mask startable ones" do
+      shards = [shard(0, "enabled"), shard(5, "enabled")]
+
+      assert ShardHealth.startable_ids(shards, 3) == [1, 2]
+    end
+
+    test "malformed entries are ignored" do
+      shards = [%{"id" => "zero", "status" => "enabled"}, %{}]
+
+      assert ShardHealth.startable_ids(shards, 2) == [0, 1]
+    end
+  end
 end

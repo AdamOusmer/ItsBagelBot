@@ -125,6 +125,18 @@ defmodule Ingress.ShardSession do
     {:reply, status_map(state, load), state}
   end
 
+  # Planned-shutdown handoff (`Ingress.Drain`): give up the cluster-wide
+  # registration but keep the socket serving. The successor the drain starts
+  # takes the name without a conflict, binds, and only then is this copy
+  # stopped — the slot never goes dark. Unregistering also means no
+  # name-conflict signal can reach us afterwards, so nothing can order this
+  # copy to stand down while it is the one still serving.
+  @impl true
+  def handle_call(:release_name, _from, state) do
+    Horde.Registry.unregister(Ingress.Registry, {:shard, state.shard_id})
+    {:reply, :ok, state}
+  end
+
   # The other copy of this shard is bound but lost the registry merge; it is
   # taking the registration over and asks us to stand down. If we bound
   # concurrently (race between the merge and this message), keep serving:
