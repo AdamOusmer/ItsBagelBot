@@ -37,16 +37,25 @@ func Followage(d engine.Deps) module.Module {
 		bid := c.Env.BroadcasterUserID
 		return lookupCall[engine.FollowageResult]{
 			log: log, logKey: followageModuleName, unavailable: i18n.T(c.Locale, "followage.unavailable"),
-			read:   readIf(d.Followage != nil, func() (engine.FollowageResult, error) { return d.Followage.Lookup(ctx, bid, target.id, target.login) }),
-			format: func(res engine.FollowageResult) string { return formatFollowageResult(c.Locale, target.name, bid, res) },
+			read: readIf(d.Followage != nil, func() (engine.FollowageResult, error) { return d.Followage.Lookup(ctx, bid, target.id, target.login) }),
+			// The broadcaster case is resolved here, where bid is in scope.
+			format: func(res engine.FollowageResult) string {
+				r := lookupReply{locale: c.Locale, targetName: target.name}
+				if res.UserFound && res.TargetID == bid {
+					return r.broadcaster()
+				}
+				return r.followage(res)
+			},
 		}.run()
 	}
 
 	accountAge := func(ctx context.Context, c *module.Context, target lookupTarget) string {
 		return lookupCall[engine.AccountAgeResult]{
 			log: log, logKey: accountAgeModuleName, unavailable: i18n.T(c.Locale, "accountage.unavailable"),
-			read:   readIf(d.AccountAge != nil, func() (engine.AccountAgeResult, error) { return d.AccountAge.Lookup(ctx, target.id, target.login) }),
-			format: func(res engine.AccountAgeResult) string { return formatAccountAgeResult(c.Locale, target.name, res) },
+			read: readIf(d.AccountAge != nil, func() (engine.AccountAgeResult, error) { return d.AccountAge.Lookup(ctx, target.id, target.login) }),
+			format: func(res engine.AccountAgeResult) string {
+				return lookupReply{locale: c.Locale, targetName: target.name}.accountAge(res)
+			},
 		}.run()
 	}
 
@@ -130,24 +139,36 @@ func emitLookup(c *module.Context, text string, emit module.Emit) {
 	emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: text})
 }
 
-func formatFollowageResult(locale, targetName, broadcasterID string, result engine.FollowageResult) string {
-	if !result.UserFound {
-		return fmt.Sprintf(i18n.T(locale, "lookup.not_user"), targetName)
-	}
-	if result.TargetID == broadcasterID {
-		return fmt.Sprintf(i18n.T(locale, "followage.broadcaster"), targetName)
-	}
-	if !result.Following {
-		return fmt.Sprintf(i18n.T(locale, "followage.not_following"), targetName)
-	}
-	return fmt.Sprintf(i18n.T(locale, "followage.followed"), targetName, humanizeDuration(locale, time.Since(result.FollowedAt)))
+// lookupReply renders a viewer-lookup command's chat text in the broadcaster
+// locale. Bundling the locale and resolved target name onto the receiver keeps
+// the per-result formatters off a string-heavy argument list.
+type lookupReply struct {
+	locale     string
+	targetName string
 }
 
-func formatAccountAgeResult(locale, targetName string, result engine.AccountAgeResult) string {
+// broadcaster is the reply when the looked-up user is the broadcaster.
+func (r lookupReply) broadcaster() string {
+	return fmt.Sprintf(i18n.T(r.locale, "followage.broadcaster"), r.targetName)
+}
+
+// followage renders the !followage result (broadcaster case handled upstream).
+func (r lookupReply) followage(result engine.FollowageResult) string {
 	if !result.UserFound {
-		return fmt.Sprintf(i18n.T(locale, "lookup.not_user"), targetName)
+		return fmt.Sprintf(i18n.T(r.locale, "lookup.not_user"), r.targetName)
 	}
-	return fmt.Sprintf(i18n.T(locale, "accountage.age"), targetName, humanizeDuration(locale, time.Since(result.CreatedAt)))
+	if !result.Following {
+		return fmt.Sprintf(i18n.T(r.locale, "followage.not_following"), r.targetName)
+	}
+	return fmt.Sprintf(i18n.T(r.locale, "followage.followed"), r.targetName, humanizeDuration(r.locale, time.Since(result.FollowedAt)))
+}
+
+// accountAge renders the !accountage result.
+func (r lookupReply) accountAge(result engine.AccountAgeResult) string {
+	if !result.UserFound {
+		return fmt.Sprintf(i18n.T(r.locale, "lookup.not_user"), r.targetName)
+	}
+	return fmt.Sprintf(i18n.T(r.locale, "accountage.age"), r.targetName, humanizeDuration(r.locale, time.Since(result.CreatedAt)))
 }
 
 // humanizeDuration renders a span as the two largest non-zero units (e.g.
