@@ -138,6 +138,15 @@ config :ingress,
   publish_max_pending: String.to_integer(System.get_env("INGRESS_PUBLISH_MAX_PENDING", "16384")),
   publish_batch_size: String.to_integer(System.get_env("INGRESS_PUBLISH_BATCH_SIZE", "128")),
   publish_batch_wait_ms: String.to_integer(System.get_env("INGRESS_PUBLISH_BATCH_WAIT_MS", "1")),
+  # Cohort wire: "single" (per-event PubAck, default) or "atomic" (one ADR-050
+  # batch commit ack per cohort; NATS 2.14). Anything unrecognized stays single.
+  publish_wire:
+    (case System.get_env("INGRESS_PUBLISH_WIRE", "single") do
+       "atomic" -> :atomic
+       _ -> :single
+     end),
+  publish_batch_inflight:
+    String.to_integer(System.get_env("INGRESS_PUBLISH_BATCH_INFLIGHT", "4")),
   # Per-attempt PubAck wait and total attempt budget. Retries are deduplicated
   # broker-side by Nats-Msg-Id, so they can never store an event twice.
   publish_ack_timeout_ms:

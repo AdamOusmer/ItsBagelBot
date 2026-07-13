@@ -7,6 +7,10 @@ namespace=${NAMESPACE:-production}
 target_eps=${TARGET_EPS:-700000}
 total_messages=${MESSAGES:-7000000}
 payload_bytes=${PAYLOAD_BYTES:-256}
+# MSG_ID=off publishes without Nats-Msg-Id headers. Run back-to-back with the
+# default to isolate what per-message dedup costs inside the stream's
+# serialized ingest path at production rate.
+msg_id=${MSG_ID:-on}
 image=${BENCH_IMAGE:-alpine:3.22}
 run_id=$(date -u +%Y%m%d%H%M%S)
 stream="FLEET_700K_${run_id}"
@@ -77,7 +81,12 @@ kubectl -n "$namespace" exec "${pods[1]}" -- env NATS_CA=/etc/nats-ca/ca.pem \
   -stream "$stream" -subject "$subject" -setup-only=true -cleanup=false >/dev/null
 stream_created=true
 
-echo "running ${total_messages} messages across node2/node3/worker1; target ${target_eps}/s"
+msg_id_flag="-msg-id=true"
+if [[ "$msg_id" == "off" ]]; then
+  msg_id_flag="-msg-id=false"
+fi
+
+echo "running ${total_messages} messages across node2/node3/worker1; target ${target_eps}/s (msg-id ${msg_id})"
 pids=()
 for i in "${!nodes[@]}"; do
   kubectl -n "$namespace" exec "${pods[$i]}" -- env NATS_CA=/etc/nats-ca/ca.pem \
@@ -86,7 +95,7 @@ for i in "${!nodes[@]}"; do
     -stream "$stream" -subject "$subject" -create-stream=false -cleanup=false \
     -producer-id="${nodes[$i]}" \
     -messages="${messages[$i]}" -publishers="${publishers[$i]}" \
-    -payload-bytes="$payload_bytes" \
+    -payload-bytes="$payload_bytes" "$msg_id_flag" \
     -latency-samples=0 -max-p95=1h \
     >"$results_dir/${nodes[$i]}.json" 2>"$results_dir/${nodes[$i]}.err" &
   pids+=("$!")

@@ -2,6 +2,7 @@ package bus
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"sync"
 	"testing"
@@ -21,6 +22,68 @@ func TestBatchPublisherIntegration(t *testing.T) {
 	publishIntegrationMessages(t, pub, messages)
 	flushIntegrationPublisher(t, pub, 5*time.Second)
 	assertIntegrationStream(t, url, messages)
+}
+
+// TestAtomicBatchPublisherIntegration exercises the ADR-050 atomic wire
+// end-to-end: cohorts must land whole with one commit PubAck each.
+func TestAtomicBatchPublisherIntegration(t *testing.T) {
+	t.Setenv("NATS_PUBLISH_WIRE", "atomic")
+	url, pub := openIntegrationPublisher(t)
+	defer closeIntegrationPublisher(t, url, pub)
+	const messages = 64
+	publishIntegrationMessages(t, pub, messages)
+	flushIntegrationPublisher(t, pub, 5*time.Second)
+	assertIntegrationStream(t, url, messages)
+}
+
+// TestAtomicBatchDedupIntegration proves the safety property the fallback
+// relies on: a cohort whose ids were already stored must not store twice.
+// The broker rejects an atomic batch containing already-seen Nats-Msg-Ids
+// (err 10201), the publisher falls back to per-message publishes, and the
+// dedup window folds every one of them.
+func TestAtomicBatchDedupIntegration(t *testing.T) {
+	t.Setenv("NATS_PUBLISH_WIRE", "atomic")
+	url, pub := openIntegrationPublisher(t)
+	defer closeIntegrationPublisher(t, url, pub)
+
+	const messages = 8
+	publishIdentifiedIntegrationMessages(t, pub, messages)
+	flushIntegrationPublisher(t, pub, 5*time.Second)
+	assertIntegrationStream(t, url, messages)
+
+	// Same ids again: whichever path the broker takes (batch rejection +
+	// individual fallback, or batch-level dedup), the stream must not grow
+	// and the publisher must report success.
+	publishIdentifiedIntegrationMessages(t, pub, messages)
+	flushIntegrationPublisher(t, pub, 5*time.Second)
+	assertIntegrationStream(t, url, messages)
+}
+
+func publishIdentifiedIntegrationMessages(t *testing.T, pub Publisher, messages int) {
+	t.Helper()
+	start := make(chan struct{})
+	errs := make(chan error, messages)
+	var wg sync.WaitGroup
+	for i := 0; i < messages; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			<-start
+			errs <- PublishConfirmed(context.Background(), pub, Publication{
+				Subject: "data.test.batch",
+				ID:      fmt.Sprintf("atomic-dedup-%d", i),
+				Payload: []byte(`{"n":1}`),
+			})
+		}(i)
+	}
+	close(start)
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
 }
 
 func publishIntegrationMessages(t *testing.T, pub Publisher, messages int) {
@@ -127,6 +190,7 @@ func openIntegrationPublisher(tb testing.TB) (string, Publisher) {
 	tb.Setenv("NATS_JS_DOMAIN", "hub")
 	tb.Setenv("NATS_LEAF_URL", "")
 	tb.Setenv("NATS_HUB_URL", "")
+	tb.Setenv("NATS_HUB_PUBLISH_URL", "")
 	if err := EnsureStreams(context.Background(), url, DataStreams, zap.NewNop()); err != nil {
 		tb.Fatal(err)
 	}

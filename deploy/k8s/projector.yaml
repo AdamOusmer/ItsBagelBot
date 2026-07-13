@@ -82,10 +82,14 @@ spec:
             # (NATS_HUB_URL) so stream traffic never pays a leaf forwarding hop;
             # the RPC + cache plane (NATS_RPC_URL / NATS_LEAF_URL) stays on the
             # node-local leaf. NATS_URL is the local-dev fallback only.
+            # BAGEL_DATA (both the folds it consumes and the events it
+            # publishes) is placement-pinned to nats-1 (pkg/bus/provision.go);
+            # dialing that ordinal directly skips the intra-hub route hop the
+            # PreferSameNode `nats` Service would add from a non-leader member.
             - name: NATS_URL
               value: nats://nats-leaf:4222
             - name: NATS_HUB_URL
-              value: nats://nats:4222
+              value: nats://nats-1.nats-headless.production.svc.cluster.local:4222
             # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS server
             # TLS cert now that NATS is out of the Linkerd mesh; read as RootCAs by
             # pkg/bus (Go services) and the console nats lib (TS).

@@ -173,14 +173,19 @@ spec:
             - name: NATS_HOST
               value: nats
             # The RPC plane (:gnat) stays on the node-local leaf. The BUS firehose
-            # plane (:gnat_bus) connects DIRECT to the hub (NATS_HUB_HOST) instead:
-            # the leaf runs no JetStream, so for the firehose it is only a
-            # forwarding hop to the same hub streams. A hub roll re-pins the BUS
-            # connection (Gnat reconnect); the RPC path is unaffected.
+            # plane (:gnat_bus) connects DIRECT to the hub member leading
+            # TWITCH_INGRESS (placement-pinned to nats-0 by the stream contract):
+            # the leaf runs no JetStream, and the PreferSameNode `nats` Service
+            # would land pods on a non-leader member, paying an intra-hub route
+            # hop per publish and PubAck. The per-pod headless name is a hub cert
+            # SAN, follows the pod across nodes, and loses no availability — an
+            # R1 stream is down with its pinned peer no matter which member the
+            # client dialed. A hub roll re-pins the BUS connection (Gnat
+            # reconnect); the RPC path is unaffected.
             - name: NATS_LEAF_HOST
               value: nats-leaf
             - name: NATS_HUB_HOST
-              value: nats
+              value: nats-0.nats-headless.production.svc.cluster.local
             # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS server
             # TLS cert now that NATS is out of the Linkerd mesh; decoded to ssl_opts
             # cacerts in config/runtime.exs. Both :gnat (leaf) and :gnat_bus (hub)

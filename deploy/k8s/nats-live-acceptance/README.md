@@ -79,3 +79,14 @@ deploy/k8s/nats-live-acceptance/fleet-700k.sh
 
 Override `TARGET_EPS`, `MESSAGES`, or `PAYLOAD_BYTES` as needed.
 The stream and all temporary pods are removed on success, failure, or interrupt.
+
+## Measuring the dedup cost
+
+Every production lane event carries a `Nats-Msg-Id`, and the broker pays a
+dedup-index insert per message inside the stream's serialized ingest path.
+`MSG_ID=off deploy/k8s/nats-live-acceptance/fleet-700k.sh` (or `-msg-id=false`
+on the binary) publishes without the header; the delta against a default run
+is the price of per-message deduplication at rate. The result JSON tags such
+runs with `"mode": "...+no-msg-id"`. Lane processing must stay identical
+between the standard and premium lanes, so any policy change this measurement
+motivates applies to both lanes together.
