@@ -2,13 +2,15 @@ package modules
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"time"
 
 	"ItsBagelBot/app/sesame/engine"
+	"ItsBagelBot/app/sesame/i18n"
 	"ItsBagelBot/app/sesame/module"
-	gatewayrpc "ItsBagelBot/internal/domain/rpc/gateway"
 	"ItsBagelBot/internal/domain/outgress"
+	gatewayrpc "ItsBagelBot/internal/domain/rpc/gateway"
 
 	"go.uber.org/zap"
 )
@@ -119,7 +121,7 @@ func mcsrEloRun(d engine.Deps) module.RunFunc {
 			case "player":
 				return reply.Nickname, true
 			case "elo":
-				return mcsrElo(reply.Elo), true
+				return mcsrElo(c.Locale, reply.Elo), true
 			case "rank":
 				return mcsrRank(reply.Rank), true
 			case "wins":
@@ -169,7 +171,7 @@ func mcsrSessionRun(d engine.Deps) module.RunFunc {
 			emit(&module.Output{
 				Type:          outgress.TypeChat,
 				BroadcasterID: c.Env.BroadcasterUserID,
-				Text:          reply.Nickname + ": session tracking just started (" + mcsrElo(reply.Elo) + " elo), ask again after a match!",
+				Text:          reply.Nickname + ": " + fmt.Sprintf(i18n.T(c.Locale, "mcsr.session.started"), mcsrElo(c.Locale, reply.Elo)),
 			})
 			return nil
 		}
@@ -180,7 +182,7 @@ func mcsrSessionRun(d engine.Deps) module.RunFunc {
 			case "player":
 				return reply.Nickname, true
 			case "elo":
-				return mcsrElo(reply.Elo), true
+				return mcsrElo(c.Locale, reply.Elo), true
 			case "elochange":
 				return signed(reply.EloChange), true
 			case "wins":
@@ -199,9 +201,9 @@ func mcsrSessionRun(d engine.Deps) module.RunFunc {
 }
 
 // mcsrElo renders an elo value, naming the unrated sentinel.
-func mcsrElo(elo int) string {
+func mcsrElo(locale string, elo int) string {
 	if elo < 0 {
-		return "unrated"
+		return i18n.T(locale, "mcsr.unrated")
 	}
 	return strconv.Itoa(elo)
 }

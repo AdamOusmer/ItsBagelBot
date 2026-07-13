@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"ItsBagelBot/app/sesame/engine"
+	"ItsBagelBot/app/sesame/i18n"
 	"ItsBagelBot/app/sesame/module"
 	"ItsBagelBot/internal/domain/outgress"
 
@@ -35,17 +36,17 @@ func Followage(d engine.Deps) module.Module {
 	followage := func(ctx context.Context, c *module.Context, target lookupTarget) string {
 		bid := c.Env.BroadcasterUserID
 		return lookupCall[engine.FollowageResult]{
-			log: log, logKey: followageModuleName, unavailable: "Followage is unavailable right now.",
+			log: log, logKey: followageModuleName, unavailable: i18n.T(c.Locale, "followage.unavailable"),
 			read:   readIf(d.Followage != nil, func() (engine.FollowageResult, error) { return d.Followage.Lookup(ctx, bid, target.id, target.login) }),
-			format: func(res engine.FollowageResult) string { return formatFollowageResult(target.name, bid, res) },
+			format: func(res engine.FollowageResult) string { return formatFollowageResult(c.Locale, target.name, bid, res) },
 		}.run()
 	}
 
-	accountAge := func(ctx context.Context, _ *module.Context, target lookupTarget) string {
+	accountAge := func(ctx context.Context, c *module.Context, target lookupTarget) string {
 		return lookupCall[engine.AccountAgeResult]{
-			log: log, logKey: accountAgeModuleName, unavailable: "Account age is unavailable right now.",
+			log: log, logKey: accountAgeModuleName, unavailable: i18n.T(c.Locale, "accountage.unavailable"),
 			read:   readIf(d.AccountAge != nil, func() (engine.AccountAgeResult, error) { return d.AccountAge.Lookup(ctx, target.id, target.login) }),
-			format: func(res engine.AccountAgeResult) string { return formatAccountAgeResult(target.name, res) },
+			format: func(res engine.AccountAgeResult) string { return formatAccountAgeResult(c.Locale, target.name, res) },
 		}.run()
 	}
 
@@ -129,48 +130,49 @@ func emitLookup(c *module.Context, text string, emit module.Emit) {
 	emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: text})
 }
 
-func formatFollowageResult(targetName, broadcasterID string, result engine.FollowageResult) string {
+func formatFollowageResult(locale, targetName, broadcasterID string, result engine.FollowageResult) string {
 	if !result.UserFound {
-		return fmt.Sprintf("@%s is not a Twitch user.", targetName)
+		return fmt.Sprintf(i18n.T(locale, "lookup.not_user"), targetName)
 	}
 	if result.TargetID == broadcasterID {
-		return fmt.Sprintf("@%s is the broadcaster.", targetName)
+		return fmt.Sprintf(i18n.T(locale, "followage.broadcaster"), targetName)
 	}
 	if !result.Following {
-		return fmt.Sprintf("@%s is not following this channel.", targetName)
+		return fmt.Sprintf(i18n.T(locale, "followage.not_following"), targetName)
 	}
-	return fmt.Sprintf("@%s has followed for %s.", targetName, humanizeDuration(time.Since(result.FollowedAt)))
+	return fmt.Sprintf(i18n.T(locale, "followage.followed"), targetName, humanizeDuration(locale, time.Since(result.FollowedAt)))
 }
 
-func formatAccountAgeResult(targetName string, result engine.AccountAgeResult) string {
+func formatAccountAgeResult(locale, targetName string, result engine.AccountAgeResult) string {
 	if !result.UserFound {
-		return fmt.Sprintf("@%s is not a Twitch user.", targetName)
+		return fmt.Sprintf(i18n.T(locale, "lookup.not_user"), targetName)
 	}
-	return fmt.Sprintf("@%s's account is %s old.", targetName, humanizeDuration(time.Since(result.CreatedAt)))
+	return fmt.Sprintf(i18n.T(locale, "accountage.age"), targetName, humanizeDuration(locale, time.Since(result.CreatedAt)))
 }
 
 // humanizeDuration renders a span as the two largest non-zero units (e.g.
-// "2 years, 3 months"), used by both !followage and !accountage.
-func humanizeDuration(d time.Duration) string {
+// "2 years, 3 months"), used by both !followage and !accountage. Unit names are
+// localized; a plural count reads the "<unit>s" key ("time.year" -> "time.years").
+func humanizeDuration(locale string, d time.Duration) string {
 	if d < 0 {
 		d = 0
 	}
 	minutes := int64(d / time.Minute)
 	if minutes < 1 {
-		return "less than a minute"
+		return i18n.T(locale, "time.less_than_minute")
 	}
 	units := []struct {
 		minutes int64
-		name    string
-	}{{365 * 24 * 60, "year"}, {30 * 24 * 60, "month"}, {24 * 60, "day"}, {60, "hour"}, {1, "minute"}}
+		key     string
+	}{{365 * 24 * 60, "time.year"}, {30 * 24 * 60, "time.month"}, {24 * 60, "time.day"}, {60, "time.hour"}, {1, "time.minute"}}
 	parts := make([]string, 0, 2)
 	for _, unit := range units {
 		if n := minutes / unit.minutes; n > 0 {
-			name := unit.name
+			key := unit.key
 			if n != 1 {
-				name += "s"
+				key += "s"
 			}
-			parts = append(parts, fmt.Sprintf("%d %s", n, name))
+			parts = append(parts, fmt.Sprintf("%d %s", n, i18n.T(locale, key)))
 			minutes %= unit.minutes
 			if len(parts) == 2 {
 				break

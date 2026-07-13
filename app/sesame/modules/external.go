@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"ItsBagelBot/app/sesame/i18n"
 	"ItsBagelBot/app/sesame/module"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/pkg/bus"
@@ -57,7 +58,7 @@ func chatReplyError(c *module.Context, emit module.Emit, account string, err err
 	emit(&module.Output{
 		Type:          outgress.TypeChat,
 		BroadcasterID: c.Env.BroadcasterUserID,
-		Text:          account + ": still looking that up, try again in a moment",
+		Text:          account + ": " + i18n.T(c.Locale, "external.retry"),
 	})
 	return false
 }

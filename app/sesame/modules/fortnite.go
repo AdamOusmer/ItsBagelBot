@@ -2,11 +2,13 @@ package modules
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
 	"ItsBagelBot/app/sesame/engine"
+	"ItsBagelBot/app/sesame/i18n"
 	"ItsBagelBot/app/sesame/module"
 	"ItsBagelBot/internal/domain/outgress"
 	gatewayrpc "ItsBagelBot/internal/domain/rpc/gateway"
@@ -211,7 +213,7 @@ func fortniteStoreRun(d engine.Deps) module.RunFunc {
 			case "count":
 				return strconv.Itoa(reply.Count), true
 			case "items":
-				return formatShopEntries(reply.Entries), true
+				return formatShopEntries(c.Locale, reply.Entries), true
 			}
 			return module.ParseDynamic(key)
 		})
@@ -223,9 +225,9 @@ func fortniteStoreRun(d engine.Deps) module.RunFunc {
 // formatShopEntries renders the shop offers as "Name (price), ..." within the
 // chat budget; whatever does not fit collapses into "+N more". Prices are
 // V-Bucks; a zero price (a free or bugged offer) renders name-only.
-func formatShopEntries(entries []gatewayrpc.FortniteShopEntry) string {
+func formatShopEntries(locale string, entries []gatewayrpc.FortniteShopEntry) string {
 	if len(entries) == 0 {
-		return "empty today"
+		return i18n.T(locale, "fortnite.shop.empty")
 	}
 	var b strings.Builder
 	shown := 0
@@ -244,7 +246,7 @@ func formatShopEntries(entries []gatewayrpc.FortniteShopEntry) string {
 		shown++
 	}
 	if rest := len(entries) - shown; rest > 0 {
-		b.WriteString(" +" + strconv.Itoa(rest) + " more")
+		b.WriteString(" " + fmt.Sprintf(i18n.T(locale, "fortnite.shop.more"), rest))
 	}
 	return b.String()
 }
