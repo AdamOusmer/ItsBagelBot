@@ -47,7 +47,9 @@ export const icons = {
   quote:
     '<path d="M10 9H6.5A2.5 2.5 0 0 0 4 11.5V15h6z"/><path d="M10 15c0 2.5-1.5 4-4 4.5"/><path d="M20 9h-3.5A2.5 2.5 0 0 0 14 11.5V15h6z"/><path d="M20 15c0 2.5-1.5 4-4 4.5"/>',
   gamepad: '<rect x="2" y="8" width="20" height="9" rx="4.5"/><line x1="6" y1="11" x2="6" y2="14"/><line x1="4.5" y1="12.5" x2="7.5" y2="12.5"/><circle cx="16.5" cy="11.5" r="1.1"/><circle cx="18.5" cy="14" r="1.1"/>',
-  coin: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><line x1="12" y1="9.5" x2="12" y2="14.5"/>'
+  coin: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><line x1="12" y1="9.5" x2="12" y2="14.5"/>',
+  globe:
+    '<circle cx="12" cy="12" r="9"/><line x1="3" y1="12" x2="21" y2="12"/><path d="M12 3a13.8 13.8 0 0 1 3.6 9 13.8 13.8 0 0 1-3.6 9 13.8 13.8 0 0 1-3.6-9A13.8 13.8 0 0 1 12 3z"/>'
 } as const;
 
 export type IconName = keyof typeof icons;
