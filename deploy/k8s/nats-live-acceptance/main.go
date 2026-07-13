@@ -42,6 +42,7 @@ type config struct {
 	cleanup        bool
 	createStream   bool
 	setupOnly      bool
+	msgID          bool
 	producerID     string
 	insecureLocal  bool
 	user           string
@@ -204,6 +205,11 @@ func parseFlags() config {
 	flag.BoolVar(&cfg.cleanup, "cleanup", true, "delete the temporary stream on exit")
 	flag.BoolVar(&cfg.createStream, "create-stream", true, "create the isolated stream before benchmarking")
 	flag.BoolVar(&cfg.setupOnly, "setup-only", false, "perform create/cleanup actions without benchmarking")
+	// Production lane events all carry a Nats-Msg-Id, and the broker pays a
+	// dedup-index insert for each one inside the stream's serialized ingest
+	// path. -msg-id=false publishes without the header, isolating that cost:
+	// the delta between the two runs is what per-message dedup costs at rate.
+	flag.BoolVar(&cfg.msgID, "msg-id", true, "attach unique Nats-Msg-Id dedup headers (false measures the no-dedup ingest path)")
 	flag.StringVar(&cfg.producerID, "producer-id", hostname(), "unique producer label for multi-node runs")
 	flag.BoolVar(&cfg.insecureLocal, "insecure-local", false, "allow an open plaintext local test server")
 	flag.Parse()
@@ -301,7 +307,11 @@ func connect(cfg config, ep endpoint, tlsConfig *tls.Config, name string) (clien
 }
 
 func benchmark(cfg config, ep endpoint, tlsConfig *tls.Config) (result, error) {
-	r := result{Endpoint: ep.label, Producer: cfg.producerID, Mode: "nats.go-async-puback", Messages: cfg.messages}
+	mode := "nats.go-async-puback"
+	if !cfg.msgID {
+		mode += "+no-msg-id"
+	}
+	r := result{Endpoint: ep.label, Producer: cfg.producerID, Mode: mode, Messages: cfg.messages}
 	clients, err := benchmarkClients(cfg, ep, tlsConfig)
 	if err != nil {
 		return r, err
@@ -458,7 +468,9 @@ func enqueueWindow(job publishJob, offset, size int) ([]pendingPublish, error) {
 		sequence := offset + i
 		msg := nats.NewMsg(job.cfg.subject)
 		msg.Data = job.payload
-		msg.Header.Set(nats.MsgIdHdr, fmt.Sprintf("live-%s-%d-%d", job.cfg.producerID, job.publisher, sequence))
+		if job.cfg.msgID {
+			msg.Header.Set(nats.MsgIdHdr, fmt.Sprintf("live-%s-%d-%d", job.cfg.producerID, job.publisher, sequence))
+		}
 		future, err := job.client.js.PublishMsgAsync(msg)
 		if err != nil {
 			job.counters.failures.Add(1)
@@ -509,7 +521,9 @@ func latencyProbe(cfg config, js nats.JetStreamContext, payload []byte) ([]time.
 	for i := 0; i < cfg.latencySamples; i++ {
 		msg := nats.NewMsg(cfg.subject)
 		msg.Data = payload
-		msg.Header.Set(nats.MsgIdHdr, fmt.Sprintf("latency-%s-%d", cfg.producerID, i))
+		if cfg.msgID {
+			msg.Header.Set(nats.MsgIdHdr, fmt.Sprintf("latency-%s-%d", cfg.producerID, i))
+		}
 		started := time.Now()
 		if _, err := js.PublishMsg(msg); err != nil {
 			errors++

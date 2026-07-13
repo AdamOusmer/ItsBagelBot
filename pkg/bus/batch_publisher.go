@@ -59,6 +59,12 @@ type batchPublisher struct {
 	js  nats.JetStreamContext
 	log *zap.Logger
 
+	// wire selects the cohort protocol (per-message PubAcks or ADR-050 atomic
+	// batches); sender is the connection's shared batch-ack inbox, present only
+	// on the atomic wire.
+	wire   wireMode
+	sender *atomicSender
+
 	mu       sync.RWMutex
 	workerMu sync.Mutex
 	closed   bool
@@ -123,8 +129,9 @@ func newPublisherPoolForStream(url, fixedStream string, log *zap.Logger) (Publis
 		poolSize = 32
 	}
 	pool := &publisherPool{members: make([]*batchPublisher, 0, poolSize), router: hashStreamRouter{}, fixedStream: fixedStream}
+	wire := publishWireMode()
 	for i := 0; i < poolSize; i++ {
-		member, err := newBatchPublisherConnection(url, i, log)
+		member, err := newBatchPublisherConnection(url, i, wire, log)
 		if err != nil {
 			_ = pool.Close()
 			return nil, err
@@ -134,8 +141,8 @@ func newPublisherPoolForStream(url, fixedStream string, log *zap.Logger) (Publis
 	return pool, nil
 }
 
-func newBatchPublisherConnection(url string, index int, log *zap.Logger) (*batchPublisher, error) {
-	nc, err := nats.Connect(busURL(url), busOptions(fmt.Sprintf("batch-publisher-%d", index))...)
+func newBatchPublisherConnection(url string, index int, wire wireMode, log *zap.Logger) (*batchPublisher, error) {
+	nc, err := nats.Connect(busPublishURL(url), busOptions(fmt.Sprintf("batch-publisher-%d", index))...)
 	if err != nil {
 		return nil, fmt.Errorf("bus: connect batch publisher: %w", err)
 	}
@@ -144,11 +151,20 @@ func newBatchPublisherConnection(url string, index int, log *zap.Logger) (*batch
 		nc.Close()
 		return nil, fmt.Errorf("bus: jetstream batch publisher: %w", err)
 	}
-	return &batchPublisher{
-		nc: nc, js: js, log: log,
+	publisher := &batchPublisher{
+		nc: nc, js: js, log: log, wire: wire,
 		workers: make(map[string]*publishBatchWorker),
 		changed: make(chan struct{}),
-	}, nil
+	}
+	if wire == wireAtomic {
+		sender, err := newAtomicSender(nc)
+		if err != nil {
+			nc.Close()
+			return nil, err
+		}
+		publisher.sender = sender
+	}
+	return publisher, nil
 }
 
 func (p *publisherPool) PublishOwned(ctx context.Context, topic string, payload []byte) error {
@@ -433,6 +449,12 @@ func stopAndDrainTimer(timer *time.Timer) {
 }
 
 func (w *publishBatchWorker) publish(batch []publishRequest) {
+	// A single-message cohort gains nothing from batch framing; ADR-050 also
+	// shapes a lone commit as an ordinary PubAck, so the plain wire is simpler.
+	if w.owner.wire == wireAtomic && len(batch) > 1 {
+		w.publishAtomic(batch)
+		return
+	}
 	w.slots <- struct{}{}
 	futures, err := w.startAsync(batch)
 	if err != nil {

@@ -160,11 +160,13 @@ var DataStreams = []StreamSpec{
 		// lane makes a flooded lane wrap itself while the other lanes keep their
 		// retention (and stays within the 1 GiB stream cap).
 		MaxMsgsPer: 400_000,
-		// Ingress publishes carry Nats-Msg-Id (derived from Twitch's message id)
-		// so publish retries and Twitch's own EventSub redeliveries collapse at
-		// the broker. Both happen within seconds; 10s covers them while bounding
-		// the broker's dedup-id state on the firehose — at 200k/s a 30s window
-		// would track ~6M ids, a 10s window ~2M.
+		// The dedup window only applies to messages that carry a Nats-Msg-Id.
+		// Production ingress runs INGRESS_PUBLISH_DEDUP=off (the per-message
+		// dedup insert measured ~27% of single-stream ingest capacity, and
+		// EventSub websockets never redeliver), so lane events are unindexed
+		// and this window costs nothing for them. It stays at 10s to bound
+		// dedup state for any id-carrying publisher on these subjects — at
+		// 200k/s a 30s window would track ~6M ids, a 10s window ~2M.
 		Duplicates:   10 * time.Second,
 		BatchPublish: true,
 	},

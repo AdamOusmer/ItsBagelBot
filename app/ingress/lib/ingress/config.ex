@@ -168,6 +168,33 @@ defmodule Ingress.Config do
   def publish_batch_wait_ms,
     do: Application.get_env(:ingress, :publish_batch_wait_ms, 1)
 
+  # Wire protocol for one flushed cohort. :single publishes every event with
+  # its own JetStream PubAck (the long-standing path). :atomic writes the
+  # cohort as one ADR-050 atomic batch (NATS 2.14): a single commit PubAck
+  # per cohort instead of one per event, with per-event Nats-Msg-Id kept for
+  # broker dedup. Default stays :single so the mode ships dark and is enabled
+  # by INGRESS_PUBLISH_WIRE=atomic once the live measurements decide.
+  def publish_wire,
+    do: Application.get_env(:ingress, :publish_wire, :single)
+
+  # Whether lane publishes carry their Nats-Msg-Id dedup header. The 2026-07-13
+  # live A/B measured the broker's per-message dedup-index insert at ~27% of
+  # the single stream's serialized ingest capacity (86k/s with, 117k/s
+  # without). Twitch EventSub's websocket transport never redelivers, so the
+  # header only ever folded this publisher's own ack-timeout retries; with
+  # dedup off those retries become drops instead (see Publisher.retry?/4) and
+  # the lanes are at-most-once on an ambiguous ack. Applies to premium and
+  # standard identically — lane processing must not diverge.
+  def publish_dedup,
+    do: Application.get_env(:ingress, :publish_dedup, true)
+
+  # Ceiling on unresolved atomic batches per shard. The broker allows 50
+  # in-flight batches per stream across ALL publishers, so the fleet budget is
+  # shards × pods × this cap; overflow cohorts fall back to per-message
+  # publishes rather than risking broker-side batch rejection.
+  def publish_batch_inflight,
+    do: Application.get_env(:ingress, :publish_batch_inflight, 4)
+
   # Number of independent BUS connections (each with its own ack collector) the
   # lane firehose is sharded across. Every publish is a GenServer.call into one
   # Gnat connection process and every PubAck is handled by one collector, so a

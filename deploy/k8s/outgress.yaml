@@ -121,10 +121,15 @@ spec:
             # (NATS_HUB_URL) so stream traffic never pays a leaf forwarding hop;
             # the RPC + cache plane (NATS_RPC_URL / NATS_LEAF_URL) stays on the
             # node-local leaf. NATS_URL is the local-dev fallback only.
+            # The lane consumers dial nats-1 directly: TWITCH_OUTGRESS is
+            # placement-pinned there (pkg/bus/provision.go), so the
+            # PreferSameNode `nats` Service would route every delivery and ack
+            # through a non-leader member on other nodes. The per-pod headless
+            # name is a hub cert SAN and follows the pod across nodes.
             - name: NATS_URL
               value: nats://nats-leaf:4222
             - name: NATS_HUB_URL
-              value: nats://nats:4222
+              value: nats://nats-1.nats-headless.production.svc.cluster.local:4222
             # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS server
             # TLS cert now that NATS is out of the Linkerd mesh; read as RootCAs by
             # pkg/bus (Go services) and the console nats lib (TS).

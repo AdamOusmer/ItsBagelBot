@@ -129,10 +129,20 @@ spec:
             # cluster is the independent Core NATS RPC tier only; sending stream
             # PubAcks through it adds a cross-leaf round trip and stalls large
             # windows.
+            #
+            # The two JetStream planes dial the ordinal that leads their streams
+            # (R1 placement pins from pkg/bus/provision.go), skipping the
+            # intra-hub route hop the PreferSameNode `nats` Service would add on
+            # a non-leader member: consumers (NATS_HUB_URL) sit with
+            # TWITCH_INGRESS on nats-0, the publisher pool
+            # (NATS_HUB_PUBLISH_URL) with TWITCH_OUTGRESS + BAGEL_DATA on
+            # nats-1. Both per-pod headless names are hub cert SANs.
             - name: NATS_URL
               value: tls://nats:4222
             - name: NATS_HUB_URL
-              value: tls://nats:4222
+              value: tls://nats-0.nats-headless.production.svc.cluster.local:4222
+            - name: NATS_HUB_PUBLISH_URL
+              value: tls://nats-1.nats-headless.production.svc.cluster.local:4222
             # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS server
             # TLS cert now that NATS is out of the Linkerd mesh; read as RootCAs by
             # pkg/bus (Go services) and the console nats lib (TS).
