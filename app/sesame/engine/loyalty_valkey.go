@@ -195,11 +195,16 @@ func (s *ValkeyLoyaltyStore) bumpChannel(ctx context.Context, broadcasterID uint
 		_ = s.client.Do(ctx, s.client.B().Set().Key(key).Value(strconv.FormatInt(seed, 10)).Nx().ExSeconds(int64(counterTTL.Seconds())).Build()).Error()
 	}
 
-	value, err := s.client.Do(ctx, s.client.B().Incrby().Key(key).Increment(delta).Build()).AsInt64()
+	// One pipelined flush: the increment and its TTL refresh share a round
+	// trip to the master instead of paying two sequential cross-node RTTs.
+	resps := s.client.DoMulti(ctx,
+		s.client.B().Incrby().Key(key).Increment(delta).Build(),
+		s.client.B().Expire().Key(key).Seconds(int64(counterTTL.Seconds())).Build(),
+	)
+	value, err := resps[0].AsInt64()
 	if err != nil {
 		return 0, err
 	}
-	_ = s.client.Do(ctx, s.client.B().Expire().Key(key).Seconds(int64(counterTTL.Seconds())).Build()).Error()
 	return value, nil
 }
 
@@ -220,11 +225,16 @@ func (s *ValkeyLoyaltyStore) bumpEntry(ctx context.Context, broadcasterID uint64
 		_ = s.client.Do(ctx, s.client.B().Hsetnx().Key(key).Field(field).Value(strconv.FormatInt(seed, 10)).Build()).Error()
 	}
 
-	value, err := s.client.Do(ctx, s.client.B().Hincrby().Key(key).Field(field).Increment(delta).Build()).AsInt64()
+	// One pipelined flush, matching bumpChannel: increment + hash TTL refresh
+	// in a single master round trip.
+	resps := s.client.DoMulti(ctx,
+		s.client.B().Hincrby().Key(key).Field(field).Increment(delta).Build(),
+		s.client.B().Expire().Key(key).Seconds(int64(counterTTL.Seconds())).Build(),
+	)
+	value, err := resps[0].AsInt64()
 	if err != nil {
 		return 0, err
 	}
-	_ = s.client.Do(ctx, s.client.B().Expire().Key(key).Seconds(int64(counterTTL.Seconds())).Build()).Error()
 	return value, nil
 }
 
