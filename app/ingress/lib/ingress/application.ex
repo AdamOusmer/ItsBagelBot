@@ -59,6 +59,17 @@ defmodule Ingress.Application do
     Supervisor.start_link(children, strategy: :one_for_one, name: Ingress.Supervisor)
   end
 
+  # Runs on SIGTERM before the supervision tree stops: hand every local
+  # shard off to a surviving node (make-before-break — the successor binds
+  # before the local socket closes), so a rolling deploy never drops a
+  # slot's events. Unplanned deaths skip this; the ConduitManager health
+  # pass is the floor there.
+  @impl true
+  def prep_stop(state) do
+    if Application.get_env(:ingress, :server, true), do: Ingress.Drain.run()
+    state
+  end
+
   @impl true
   def stop(_state) do
     Config.uninstall_hot_path()
@@ -74,7 +85,13 @@ defmodule Ingress.Application do
          name: Ingress.ShardSupervisor,
          strategy: :one_for_one,
          members: :auto,
-         process_redistribution: :active,
+         # :passive — processes move only when their node dies, never to
+         # rebalance on a join. :active moved shards stop-then-start on
+         # every membership change, a 2-5s event gap per moved shard on
+         # every scale-up and a second mover racing the drain handoff
+         # (Ingress.Drain) during rollouts. Balance comes from deterministic
+         # round-robin placement at start time instead.
+         process_redistribution: :passive,
          # Round-robin shards across nodes (3/2 on a two-node fleet) instead
          # of the default hash ring, which clusters them (4/1 observed).
          distribution_strategy: Ingress.ShardDistribution

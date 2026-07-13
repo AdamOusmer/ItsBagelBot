@@ -68,9 +68,18 @@ defmodule Ingress.ShardSession do
             # Aggregate counter for notification load.
             load_counter: Ingress.LoadCounter.new()
 
+  # A rescue session (started by the reconciler when the named shard cannot
+  # be replaced — its registration or supervision is wedged on a dead pid)
+  # runs unnamed: it skips cluster-wide registration entirely, so no wedge
+  # can block it, and duplicate-shard resolution never signals it. It serves
+  # by binding the shard on Twitch, exactly like a named session, and the
+  # reconciler stops it once a named session is serving again.
   def start_link(opts) do
-    shard_id = Keyword.fetch!(opts, :shard_id)
-    GenServer.start_link(__MODULE__, opts, name: via(shard_id))
+    if Keyword.get(opts, :rescue?, false) do
+      GenServer.start_link(__MODULE__, opts)
+    else
+      GenServer.start_link(__MODULE__, opts, name: via(Keyword.fetch!(opts, :shard_id)))
+    end
   end
 
   def via(shard_id), do: {:via, Horde.Registry, {Ingress.Registry, {:shard, shard_id}}}
@@ -94,6 +103,7 @@ defmodule Ingress.ShardSession do
     Process.flag(:trap_exit, true)
     shard_id = Keyword.fetch!(opts, :shard_id)
     Logger.metadata(shard_id: shard_id)
+    if Keyword.get(opts, :rescue?, false), do: Logger.metadata(rescue: true)
 
     state = %__MODULE__{
       shard_id: shard_id,
@@ -115,13 +125,42 @@ defmodule Ingress.ShardSession do
     {:reply, status_map(state, load), state}
   end
 
+  # Planned-shutdown handoff (`Ingress.Drain`): give up the cluster-wide
+  # registration but keep the socket serving. The successor the drain starts
+  # takes the name without a conflict, binds, and only then is this copy
+  # stopped — the slot never goes dark. Unregistering also means no
+  # name-conflict signal can reach us afterwards, so nothing can order this
+  # copy to stand down while it is the one still serving.
+  @impl true
+  def handle_call(:release_name, _from, state) do
+    Horde.Registry.unregister(Ingress.Registry, {:shard, state.shard_id})
+    {:reply, :ok, state}
+  end
+
   # The other copy of this shard is bound but lost the registry merge; it is
   # taking the registration over and asks us to stand down. If we bound
   # concurrently (race between the merge and this message), keep serving:
-  # the requester's takeover deadline makes it yield instead.
+  # the requester's takeover deadline makes it yield instead. Re-assert the
+  # binding, since the requester may have bound after us.
   @impl true
-  def handle_cast(:stand_down_duplicate, %{bound?: true} = state), do: {:noreply, state}
+  def handle_cast(:stand_down_duplicate, %{bound?: true} = state), do: reassert_binding(state)
   def handle_cast(:stand_down_duplicate, state), do: {:stop, :normal, stand_down(state)}
+
+  # A duplicate-shard resolution just closed the other copy's socket. Twitch
+  # routes a shard's events to whichever session bound it last — possibly the
+  # copy that stood down — so the survivor re-binds its own session to pull
+  # the routing back. The PATCH is idempotent when we already own the binding.
+  def handle_cast(:reassert_binding, state), do: reassert_binding(state)
+
+  # Reconciler-ordered repair: Twitch reports this shard's transport dead even
+  # though we believe we are bound. Our socket may still be receiving
+  # keepalives (Twitch keeps superseded sockets alive), so the watchdog cannot
+  # notice; only a full fresh reconnect — new session, new Helix bind — heals.
+  def handle_cast(:force_rebind, state) do
+    Logger.warning("re-bind forced by reconciler; reconnecting with a fresh session")
+    Metrics.count("Shard/ForcedRebinds")
+    {:noreply, reconnect(state)}
+  end
 
   defp status_map(state, load) do
     last_frame_at =
@@ -232,6 +271,10 @@ defmodule Ingress.ShardSession do
           "duplicate shard resolved: copy on #{winner_status.node} is bound; standing down"
         )
 
+        # If we bound after the winner (rolling deploys race exactly this
+        # way), Twitch is routing to the socket we are about to close. The
+        # winner re-asserts its binding so the routing follows the survivor.
+        GenServer.cast(winner, :reassert_binding)
         {:stop, :normal, stand_down(state)}
 
       state.bound? ->
@@ -588,12 +631,41 @@ defmodule Ingress.ShardSession do
     case Horde.Registry.register(Ingress.Registry, {:shard, state.shard_id}, nil) do
       {:ok, _} ->
         Logger.info("duplicate shard resolved: registration reclaimed, we keep serving")
-        {:noreply, state}
+        # The loser may have bound after us before it exited; make Twitch's
+        # routing follow the copy that actually survived.
+        reassert_binding(state)
 
       {:error, {:already_registered, _pid}} ->
         # A third copy raced us to the name (fresh start by the reconciler).
         Logger.warning("duplicate shard: registration reclaimed by another copy; standing down")
         {:stop, :normal, stand_down(state)}
+    end
+  end
+
+  # Re-bind our current session to the shard. Twitch's conduit routes to the
+  # last session bound, so this is how a surviving copy pulls the routing back
+  # after a duplicate resolution. No-op unless we hold a bound session.
+  defp reassert_binding(%{bound?: true, session_id: session_id} = state)
+       when session_id != nil do
+    case Api.assign_shard(state.conduit_id, state.shard_id, session_id) do
+      :ok ->
+        Logger.info("shard binding re-asserted, session #{session_id}")
+        {:noreply, state}
+
+      {:error, reason} ->
+        reassert_failed(state, reason)
+    end
+  end
+
+  defp reassert_binding(state), do: {:noreply, state}
+
+  defp reassert_failed(state, reason) do
+    if permanent_bind_error?(reason) do
+      Logger.warning("binding re-assert rejected as permanent: #{inspect(reason)}; stopping")
+      {:stop, :normal, stand_down(state)}
+    else
+      Logger.warning("binding re-assert failed: #{inspect(reason)}; reconnecting")
+      {:noreply, reconnect(state)}
     end
   end
 

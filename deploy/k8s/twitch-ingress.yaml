@@ -47,13 +47,14 @@ metadata:
 spec:
   replicas: 5 # node1 excluded via hot-path anti-affinity; target shape node3=2, worker1=2, node2=1 (see affinity)
   revisionHistoryLimit: 3
-  # Each pod death forces its EventSub conduit shards to rebind on a peer (new
-  # websocket session + transport update), and Twitch drops a shard's events
-  # until the rebind lands. Hold each replacement pod Ready for a full minute
-  # before killing the next old pod so the Horde registry converges and the
-  # displaced shards re-bind between swaps — the 2026-07-10 mid-stream incident
-  # was pods cycling within a minute of each other, stacking shard gaps and
-  # registry races ("registry pick unreachable") into a ~5 min chat outage.
+  # On SIGTERM each pod hands its conduit shards off make-before-break
+  # (Ingress.Drain): the successor binds on a peer before the local socket
+  # closes, so a rollout drops no events. Still hold each replacement pod
+  # Ready for a full minute before killing the next old pod: the Horde
+  # registry converges between swaps, keeping one drain in flight at a time
+  # — the 2026-07-10 mid-stream incident was pods cycling within a minute of
+  # each other, stacking registry races ("registry pick unreachable") into a
+  # ~5 min chat outage.
   minReadySeconds: 60
   strategy:
     type: RollingUpdate
@@ -265,8 +266,11 @@ spec:
           lifecycle:
             preStop:
               exec:
-                # Grace period for Linkerd and kube-proxy to drain this endpoint
-                # before SIGTERM fires. Horde redistributes shards during this window.
+                # Delay SIGTERM so cluster membership settles before the BEAM
+                # starts its shard drain (Ingress.Drain runs in prep_stop on
+                # SIGTERM: successor binds on a peer, then the local socket
+                # closes). Drain (~12s worst case) + this sleep must stay
+                # inside terminationGracePeriodSeconds.
                 command: ["/bin/sh", "-c", "sleep 10"]
           livenessProbe:
             exec:
