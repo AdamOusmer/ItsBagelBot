@@ -22,39 +22,53 @@ func TestPublishWireModeDefaultsToSingle(t *testing.T) {
 	}
 }
 
-func TestAtomicSendStagesBatchFraming(t *testing.T) {
-	sender := &atomicSender{prefix: "_INBOX.test.", waits: make(map[string]chan *nats.Msg)}
+// framedBatch stages a 3-message cohort and frames it exactly as send does,
+// without a live connection.
+func framedBatch() []publishRequest {
 	batch := stagedBatch(3)
+	frameBatch("_INBOX.test.", batch, "B1")
+	return batch
+}
 
-	// Frame exactly as send does, without a live connection.
-	cohort := atomicCohort{id: "B1", ch: sender.begin("B1"), n: len(batch)}
-	frameBatch(sender.prefix, batch, cohort.id)
+func TestFrameBatchStampsHeadersAndReplies(t *testing.T) {
+	batch := framedBatch()
 
 	first, mid, last := batch[0].msg, batch[1].msg, batch[2].msg
-	for i, msg := range []*nats.Msg{first, mid, last} {
-		if msg.Header.Get(batchIDHdr) != "B1" {
+	for i, want := range []struct {
+		msg    *nats.Msg
+		seq    string
+		commit string
+		reply  string
+	}{
+		{first, "1", "", "_INBOX.test.s.B1"},
+		{mid, "2", "", ""},
+		{last, "3", "1", "_INBOX.test.c.B1"},
+	} {
+		if want.msg.Header.Get(batchIDHdr) != "B1" {
 			t.Fatalf("message %d lost its batch id", i)
 		}
+		if got := want.msg.Header.Get(batchSeqHdr); got != want.seq {
+			t.Fatalf("message %d sequence %q, want %q", i, got, want.seq)
+		}
+		if got := want.msg.Header.Get(batchCommitHdr); got != want.commit {
+			t.Fatalf("message %d commit header %q, want %q", i, got, want.commit)
+		}
+		if want.msg.Reply != want.reply {
+			t.Fatalf("message %d reply %q, want %q", i, want.msg.Reply, want.reply)
+		}
 	}
-	if first.Header.Get(batchSeqHdr) != "1" || mid.Header.Get(batchSeqHdr) != "2" || last.Header.Get(batchSeqHdr) != "3" {
-		t.Fatal("batch sequence numbering is wrong")
-	}
-	if first.Reply != "_INBOX.test.s.B1" {
-		t.Fatalf("batch-opening message must carry the start reply, got %q", first.Reply)
-	}
-	if mid.Reply != "" || mid.Header.Get(batchCommitHdr) != "" {
-		t.Fatal("intermediate message must travel without reply or commit header")
-	}
-	if last.Header.Get(batchCommitHdr) != "1" || last.Reply != "_INBOX.test.c.B1" {
-		t.Fatal("final message must commit the batch and carry the commit reply")
-	}
+}
 
+func TestStripBatchHeadersRevertsFramingKeepsDedup(t *testing.T) {
+	batch := framedBatch()
 	stripBatchHeaders(batch)
+
 	for i, req := range batch {
-		if req.msg.Reply != "" ||
+		framed := req.msg.Reply != "" ||
 			req.msg.Header.Get(batchIDHdr) != "" ||
 			req.msg.Header.Get(batchSeqHdr) != "" ||
-			req.msg.Header.Get(batchCommitHdr) != "" {
+			req.msg.Header.Get(batchCommitHdr) != ""
+		if framed {
 			t.Fatalf("message %d kept batch framing after strip", i)
 		}
 		if req.msg.Header.Get(nats.MsgIdHdr) == "" {

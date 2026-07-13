@@ -61,32 +61,25 @@ func TestAtomicBatchDedupIntegration(t *testing.T) {
 
 func publishIdentifiedIntegrationMessages(t *testing.T, pub Publisher, messages int) {
 	t.Helper()
-	start := make(chan struct{})
-	errs := make(chan error, messages)
-	var wg sync.WaitGroup
-	for i := 0; i < messages; i++ {
-		wg.Add(1)
-		go func(i int) {
-			defer wg.Done()
-			<-start
-			errs <- PublishConfirmed(context.Background(), pub, Publication{
-				Subject: "data.test.batch",
-				ID:      fmt.Sprintf("atomic-dedup-%d", i),
-				Payload: []byte(`{"n":1}`),
-			})
-		}(i)
-	}
-	close(start)
-	wg.Wait()
-	close(errs)
-	for err := range errs {
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
+	publishConcurrently(t, messages, func(i int) error {
+		return PublishConfirmed(context.Background(), pub, Publication{
+			Subject: "data.test.batch",
+			ID:      fmt.Sprintf("atomic-dedup-%d", i),
+			Payload: []byte(`{"n":1}`),
+		})
+	})
 }
 
 func publishIntegrationMessages(t *testing.T, pub Publisher, messages int) {
+	t.Helper()
+	publishConcurrently(t, messages, func(i int) error {
+		return PublishJSON(context.Background(), pub, "data.test.batch", map[string]int{"n": i})
+	})
+}
+
+// publishConcurrently releases `messages` simultaneous publishes so cohort
+// assembly is exercised, then fails on the first publish error.
+func publishConcurrently(t *testing.T, messages int, publish func(i int) error) {
 	t.Helper()
 	start := make(chan struct{})
 	errs := make(chan error, messages)
@@ -96,7 +89,7 @@ func publishIntegrationMessages(t *testing.T, pub Publisher, messages int) {
 		go func(i int) {
 			defer wg.Done()
 			<-start
-			errs <- PublishJSON(context.Background(), pub, "data.test.batch", map[string]int{"n": i})
+			errs <- publish(i)
 		}(i)
 	}
 	close(start)
