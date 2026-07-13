@@ -2,7 +2,7 @@
 // responder is briefly unreachable. Nothing here is live; it mirrors the wire
 // shapes only so the screens have something to paint.
 import type { ShardSnapshot, UserStats } from '@bagel/shared';
-import type { AdminUserWire, AuditEntry, EnrollmentWire, NotificationWire } from './services';
+import type { AdminUserWire, AuditEntry, EnrollmentWire, NotificationWire, ServiceHealth } from './services';
 
 export const sampleStats: UserStats = {
   total_users: 1842,
@@ -60,11 +60,18 @@ export const sampleEnrollment: EnrollmentWire = {
 };
 
 export const sampleUsers: AdminUserWire[] = [
-  { id: 44322190, username: 'itsmavey', is_active: true, status: 'vip', banned: false, creator_code: 'MAVEY10', updated_at: new Date().toISOString() },
-  { id: 81002934, username: 'ferret_king', is_active: true, status: 'paid', banned: false, updated_at: new Date().toISOString() },
-  { id: 23910044, username: 'bagel_enjoyer', is_active: true, status: 'free', banned: false, updated_at: new Date().toISOString() },
-  { id: 70113355, username: 'kettle', is_active: false, status: 'free', banned: true, updated_at: new Date().toISOString() },
-  { id: 99884412, username: 'loudguy99', is_active: true, status: 'paid', banned: false, updated_at: new Date().toISOString() }
+  { id: 44322190, username: 'itsmavey', is_active: true, status: 'vip', banned: false, creator_code: 'MAVEY10', created_at: new Date(Date.now() - 400 * 864e5).toISOString(), updated_at: new Date().toISOString() },
+  { id: 81002934, username: 'ferret_king', is_active: true, status: 'paid', banned: false, subscription_expires_at: new Date(Date.now() + 21 * 864e5).toISOString(), subscription_source: 'tebex', created_at: new Date(Date.now() - 90 * 864e5).toISOString(), updated_at: new Date().toISOString() },
+  { id: 23910044, username: 'bagel_enjoyer', is_active: true, status: 'free', banned: false, created_at: new Date(Date.now() - 30 * 864e5).toISOString(), updated_at: new Date().toISOString() },
+  { id: 70113355, username: 'kettle', is_active: false, status: 'free', banned: true, created_at: new Date(Date.now() - 200 * 864e5).toISOString(), updated_at: new Date().toISOString() },
+  { id: 99884412, username: 'loudguy99', is_active: false, status: 'paid', banned: false, created_at: new Date(Date.now() - 7 * 864e5).toISOString(), updated_at: new Date().toISOString() }
+];
+
+export const sampleHealth: ServiceHealth[] = [
+  { id: 'users', label: 'Users', ok: true, ms: 4 },
+  { id: 'ingress', label: 'Ingress', ok: true, ms: 11 },
+  { id: 'outgress', label: 'Outgress', ok: true, ms: 7 },
+  { id: 'notifications', label: 'Notifications', ok: false, ms: 2000, error: 'timeout' }
 ];
 
 export const sampleAudit: AuditEntry[] = [

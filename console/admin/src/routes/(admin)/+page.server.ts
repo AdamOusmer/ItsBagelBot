@@ -4,11 +4,13 @@ import {
   userEnrollment,
   tokenStatus,
   auditList,
+  serviceHealth,
   type EnrollmentWire,
-  type AuditEntry
+  type AuditEntry,
+  type ServiceHealth
 } from '$lib/server/services';
 import { isDemo, isManager } from '$lib/server/access';
-import { sampleAudit, sampleEnrollment, sampleSnapshot } from '$lib/server/sample';
+import { sampleAudit, sampleEnrollment, sampleHealth, sampleSnapshot } from '$lib/server/sample';
 import { env } from '$env/dynamic/private';
 import type { ShardSnapshot } from '@bagel/shared';
 
@@ -19,6 +21,7 @@ export type Overview = {
   snapshot: ShardSnapshot;
   botPresent: boolean;
   recentAudit: AuditEntry[];
+  health: ServiceHealth[];
   degraded: boolean;
 };
 
@@ -29,11 +32,13 @@ export type Overview = {
 // says so, the page never pretends the fallback is live.
 async function loadOverview(withAudit: boolean): Promise<Overview> {
   const botId = env.ADMIN_BOT_USER_ID ?? '';
-  const [enrollment, snapshot, token, audit] = await Promise.allSettled([
+  const [enrollment, snapshot, token, audit, health] = await Promise.allSettled([
     userEnrollment(),
     shardSnapshot(),
     botId ? tokenStatus(botId) : Promise.resolve({ present: false }),
-    withAudit ? auditList(AUDIT_PEEK) : Promise.resolve([])
+    withAudit ? auditList(AUDIT_PEEK) : Promise.resolve([]),
+    // Probe failures are the health panel's own signal, not a degraded page.
+    serviceHealth()
   ]);
 
   const degraded =
@@ -47,6 +52,7 @@ async function loadOverview(withAudit: boolean): Promise<Overview> {
     snapshot: snapshot.status === 'fulfilled' ? snapshot.value : sampleSnapshot,
     botPresent: token.status === 'fulfilled' && token.value.present,
     recentAudit: audit.status === 'fulfilled' ? audit.value : [],
+    health: health.status === 'fulfilled' ? health.value : [],
     degraded
   };
 }
@@ -64,6 +70,7 @@ export const load: PageServerLoad = async ({ parent }) => {
         snapshot: sampleSnapshot,
         botPresent: true,
         recentAudit: withAudit ? sampleAudit : [],
+        health: sampleHealth,
         degraded: false
       })
     : loadOverview(withAudit);

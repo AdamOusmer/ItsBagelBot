@@ -35,6 +35,7 @@ type AdminUserView struct {
 	SubscriptionSource        string     `json:"subscription_source,omitempty"`
 	SubscriptionRef           *string    `json:"subscription_ref,omitempty"`
 	SubscriptionCancelPending bool       `json:"subscription_cancel_pending"`
+	CreatedAt                 time.Time  `json:"created_at"`
 	UpdatedAt                 time.Time  `json:"updated_at"`
 }
 

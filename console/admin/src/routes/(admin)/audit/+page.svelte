@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import {
+    Button,
     PageHead,
     PageToolbar,
     SearchInput,
@@ -78,6 +79,35 @@
     if (hours < 48) return `${hours}h ago`;
     return `${Math.round(hours / 24)}d ago`;
   }
+
+  // CSV export of what's on screen (outcome filter applied).
+  function csvEscape(v: string): string {
+    return /[",\n]/.test(v) ? `"${v.replaceAll('"', '""')}"` : v;
+  }
+  function exportCsv() {
+    const header = 'id,actor_id,actor_login,action,target,detail,ok,error,created_at';
+    const lines = rows.map((e) =>
+      [
+        String(e.id),
+        String(e.actor_id),
+        e.actor_login,
+        e.action,
+        e.target ?? '',
+        e.detail ?? '',
+        String(e.ok),
+        e.error ?? '',
+        e.created_at
+      ]
+        .map(csvEscape)
+        .join(',')
+    );
+    const blob = new Blob([[header, ...lines].join('\n')], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `audit-page${page}${search ? `-${search.trim()}` : ''}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
 </script>
 
 <section class="screen active">
@@ -101,6 +131,7 @@
           oninput={submitSearch}
         />
       </div>
+      <Button variant="ghost" onclick={exportCsv} disabled={rows.length === 0}>Export CSV</Button>
     {/snippet}
   </PageToolbar>
 

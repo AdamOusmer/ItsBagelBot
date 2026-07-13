@@ -92,6 +92,8 @@ export interface AdminUserWire {
   subscription_expires_at?: string;
   subscription_source?: string;
   subscription_ref?: string;
+  subscription_cancel_pending?: boolean;
+  created_at?: string;
   updated_at?: string;
 }
 
@@ -368,6 +370,48 @@ export async function channelSubState(broadcasterId: string): Promise<ChannelSub
   } catch {
     return { state: 'unknown', error: '', checkedAt: null };
   }
+}
+
+// ── Service health ───────────────────────────────────────────────────────────
+// Latency probes over the RPC surfaces the admin NATS account may reach. Each
+// probe is a real request (no cache) so the number is the round trip an
+// operator action would actually pay.
+
+export interface ServiceHealth {
+  id: string;
+  label: string;
+  ok: boolean;
+  ms: number;
+  error?: string;
+}
+
+const HEALTH_TIMEOUT_MS = 2000;
+
+const HEALTH_PROBES: { id: string; label: string; subject: string; payload: unknown }[] = [
+  { id: 'users', label: 'Users', subject: `${SUB.user}.stats`, payload: {} },
+  { id: 'ingress', label: 'Ingress', subject: SUB.shards, payload: {} },
+  { id: 'outgress', label: 'Outgress', subject: `${SUB.outgressRpc}.channel.get`, payload: { broadcaster_id: '1' } },
+  { id: 'notifications', label: 'Notifications', subject: `${SUB.notifications}.list`, payload: { page: 1, limit: 1 } }
+];
+
+export async function serviceHealth(): Promise<ServiceHealth[]> {
+  return Promise.all(
+    HEALTH_PROBES.map(async (probe) => {
+      const started = performance.now();
+      try {
+        await rpc(probe.subject, probe.payload, HEALTH_TIMEOUT_MS);
+        return { id: probe.id, label: probe.label, ok: true, ms: Math.round(performance.now() - started) };
+      } catch (e) {
+        return {
+          id: probe.id,
+          label: probe.label,
+          ok: false,
+          ms: Math.round(performance.now() - started),
+          error: (e as Error).message
+        };
+      }
+    })
+  );
 }
 
 // ── Notifications ────────────────────────────────────────────────────────────

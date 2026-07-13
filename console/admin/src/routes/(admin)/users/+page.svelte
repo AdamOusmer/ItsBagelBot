@@ -8,6 +8,7 @@
     PageHead,
     PageToolbar,
     SearchInput,
+    SegmentedControl,
     AlertBanner,
     DeckList,
     EmptyState,
@@ -38,6 +39,91 @@
   });
 
   const rows = $derived(dir?.recent ?? []);
+
+  // ── State model: one effective state per user, five colors ────────────────
+  // Precedence: banned beats inactive beats tier. Tags still show every flag;
+  // the dot and filter use the effective state.
+  type UserState = 'banned' | 'inactive' | 'vip' | 'paid' | 'free';
+  function stateOf(u: AdminUserWire): UserState {
+    if (u.banned) return 'banned';
+    if (!u.is_active) return 'inactive';
+    return (u.status as UserState) ?? 'free';
+  }
+
+  const STATES = ['all', 'vip', 'paid', 'free', 'banned', 'inactive'] as const;
+  let stateFilter = $state<string>('all');
+
+  // ── Client-side sort over the loaded page ──────────────────────────────────
+  type SortKey = '' | 'user' | 'id' | 'tier' | 'joined' | 'updated';
+  let sortKey = $state<SortKey>('');
+  let sortDir = $state<1 | -1>(1);
+
+  function toggleSort(key: SortKey) {
+    if (sortKey === key) {
+      if (sortDir === 1) sortDir = -1;
+      else {
+        sortKey = ''; // third click restores the server order (updated desc)
+        sortDir = 1;
+      }
+      return;
+    }
+    sortKey = key;
+    sortDir = 1;
+  }
+
+  const TIER_RANK: Record<string, number> = { vip: 3, paid: 2, free: 1 };
+  function compare(a: AdminUserWire, b: AdminUserWire): number {
+    switch (sortKey) {
+      case 'user':
+        return a.username.localeCompare(b.username);
+      case 'id':
+        return a.id - b.id;
+      case 'tier':
+        return (TIER_RANK[b.status] ?? 0) - (TIER_RANK[a.status] ?? 0);
+      case 'joined':
+        return (a.created_at ?? '').localeCompare(b.created_at ?? '');
+      case 'updated':
+        return (a.updated_at ?? '').localeCompare(b.updated_at ?? '');
+      default:
+        return 0;
+    }
+  }
+
+  const visible = $derived.by(() => {
+    const filtered =
+      stateFilter === 'all' ? rows : rows.filter((u) => stateOf(u) === stateFilter);
+    if (!sortKey) return filtered;
+    return [...filtered].sort((a, b) => compare(a, b) * sortDir);
+  });
+
+  // ── CSV export of what's on screen (filter + sort applied) ────────────────
+  function csvEscape(v: string): string {
+    return /[",\n]/.test(v) ? `"${v.replaceAll('"', '""')}"` : v;
+  }
+  function exportCsv() {
+    const header = 'id,username,status,state,active,banned,creator_code,created_at,updated_at';
+    const lines = visible.map((u) =>
+      [
+        String(u.id),
+        u.username,
+        u.status,
+        stateOf(u),
+        String(u.is_active),
+        String(u.banned),
+        u.creator_code ?? '',
+        u.created_at ?? '',
+        u.updated_at ?? ''
+      ]
+        .map(csvEscape)
+        .join(',')
+    );
+    const blob = new Blob([[header, ...lines].join('\n')], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `users-page${dir?.page ?? 1}${data.search ? `-${data.search}` : ''}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
 
   // ── Selection + probe ──────────────────────────────────────────────────────
   let selectedId = $state<string | null>(null);
@@ -273,6 +359,15 @@
     return `${Math.round(hours / 24)}d ago`;
   }
 
+  function fmtDate(iso?: string): string {
+    if (!iso) return 'unknown';
+    return new Date(iso).toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  }
+
   const subTone = $derived(
     subState?.state === 'ok' ? 'green' : subState?.state === 'failing' ? 'err' : 'warn'
   );
@@ -319,15 +414,39 @@
     <AlertBanner>User directory is unreachable right now; nothing below is live.</AlertBanner>
   {/if}
 
+  <div class="filter-row">
+    <SegmentedControl options={STATES} bind:value={stateFilter} label="User state" />
+    <div class="filter-trail">
+      {#if stateFilter !== 'all' && dir}
+        <span class="filter-note">{visible.length} of {rows.length} on this page</span>
+      {/if}
+      <Button variant="ghost" onclick={exportCsv} disabled={visible.length === 0}>
+        <Icon name="audit" size={13} /> Export CSV
+      </Button>
+    </div>
+  </div>
+
   <div class="deck">
     <DeckList>
       {#if dir === null}
         <div class="row-skeletons">
           {#each [0, 1, 2, 3, 4, 5] as i (i)}<Skeleton variant="block" height="52px" />{/each}
         </div>
-      {:else if rows.length}
+      {:else if visible.length}
+        <div class="user-head" aria-hidden="true">
+          <span></span>
+          {#each [['user', 'user'], ['id', 'id'], ['tier', 'tier'], ['flags', ''], ['joined', 'joined'], ['updated', 'updated']] as [label, key] (label)}
+            {#if key}
+              <button type="button" class="sort-btn" class:on={sortKey === key} onclick={() => toggleSort(key as SortKey)}>
+                {label}{sortKey === key ? (sortDir === 1 ? ' ↑' : ' ↓') : ''}
+              </button>
+            {:else}
+              <span class="head-label">{label}</span>
+            {/if}
+          {/each}
+        </div>
         <ul class="list" aria-label="Users">
-          {#each rows as u (u.id)}
+          {#each visible as u (u.id)}
             <li>
               <button
                 type="button"
@@ -335,19 +454,23 @@
                 class:on={selectedId === String(u.id)}
                 onclick={() => openUser(u)}
               >
-                <span class="udot {u.banned ? 'err' : u.is_active ? '' : 'warn'}"></span>
+                <span class="udot state-{stateOf(u)}"></span>
                 <span class="uname">{u.username}</span>
                 <span class="uid">#{u.id}</span>
+                <span class="ucell"><span class="tag st-{u.status}">{u.status}</span></span>
                 <span class="utags">
-                  <span class="tag st-{u.status}">{u.status}</span>
-                  {#if u.banned}<span class="tag banned">banned</span>{/if}
-                  {#if !u.is_active}<span class="tag off">inactive</span>{/if}
+                  {#if u.banned}<span class="tag st-banned">banned</span>{/if}
+                  {#if !u.is_active}<span class="tag st-inactive">inactive</span>{/if}
+                  {#if u.creator_code}<span class="tag code">code</span>{/if}
                 </span>
+                <span class="uwhen">{ago(u.created_at)}</span>
                 <span class="uwhen">{ago(u.updated_at)}</span>
               </button>
             </li>
           {/each}
         </ul>
+      {:else if rows.length}
+        <EmptyState icon="search" title="No users in this state on this page" />
       {:else if data.search}
         <EmptyState icon="search" title="No users match" body="Try the exact login or the numeric Twitch id." />
       {:else}
@@ -394,7 +517,9 @@
               <span class="avatar">{selected.username.slice(0, 1).toUpperCase()}</span>
               <div>
                 <div class="ident-name">{selected.username}</div>
-                <div class="ident-meta">#{selected.id} · updated {ago(selected.updated_at)}</div>
+                <div class="ident-meta">
+                  #{selected.id} · joined {fmtDate(selected.created_at)} · updated {ago(selected.updated_at)}
+                </div>
               </div>
             </div>
 
@@ -404,7 +529,7 @@
                 {#each ['free', 'paid', 'vip'] as st (st)}
                   <button
                     type="button"
-                    class="chip"
+                    class="chip chip-{st}"
                     class:on={selected.status === st}
                     disabled={busyVerb !== null}
                     onclick={() => requestStatus(st)}
@@ -413,11 +538,21 @@
                   </button>
                 {/each}
               </div>
-              {#if selected.status === 'paid' && selected.subscription_expires_at}
-                <span class="block-note">
-                  paid until {selected.subscription_expires_at.slice(0, 10)}
-                  {#if selected.subscription_source}· via {selected.subscription_source}{/if}
-                </span>
+              {#if selected.subscription_expires_at || selected.subscription_source || selected.subscription_ref}
+                <dl class="subfacts">
+                  {#if selected.subscription_expires_at}
+                    <div><dt>Runs until</dt><dd>{fmtDate(selected.subscription_expires_at)}</dd></div>
+                  {/if}
+                  {#if selected.subscription_source}
+                    <div><dt>Source</dt><dd>{selected.subscription_source}</dd></div>
+                  {/if}
+                  {#if selected.subscription_ref}
+                    <div><dt>Reference</dt><dd>{selected.subscription_ref}</dd></div>
+                  {/if}
+                  {#if selected.subscription_cancel_pending}
+                    <div><dt>Renewal</dt><dd class="cancel">cancel pending</dd></div>
+                  {/if}
+                </dl>
               {/if}
             </div>
 
@@ -631,14 +766,39 @@
     .deck { grid-template-columns: minmax(0, 1fr) 340px; }
   }
 
+  .filter-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    flex-wrap: wrap; margin-bottom: 14px;
+  }
+  .filter-trail { display: flex; align-items: center; gap: 12px; }
+  .filter-note { font-family: var(--bb-font-mono); font-size: 11px; color: var(--bb-muted); }
+
+  /* ── Five state colors. VIP is silver, deliberately not purple. ─────────── */
   .list { list-style: none; margin: 0; padding: 0; }
-  .user-row {
+
+  /* Header and rows share one grid template so every column lines up. */
+  .user-head, .user-row {
     display: grid;
-    grid-template-columns: auto minmax(0, auto) auto 1fr auto;
+    grid-template-columns: 14px minmax(130px, 1.3fr) 100px 72px minmax(0, 1fr) 82px 82px;
     align-items: center;
     gap: 12px;
     width: 100%;
     padding: 13px 14px;
+  }
+  .user-head {
+    padding-top: 10px; padding-bottom: 8px;
+    border-bottom: 1px solid var(--rule-strong);
+  }
+  .sort-btn, .head-label {
+    font-family: var(--bb-font-mono); font-size: 10px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--bb-muted); text-align: left;
+    background: none; border: none; padding: 0;
+  }
+  .sort-btn { cursor: pointer; }
+  .sort-btn:hover { color: var(--bb-white); }
+  .sort-btn.on { color: var(--bb-tan-light); }
+
+  .user-row {
     background: none;
     border: none;
     border-bottom: 1px solid var(--rule);
@@ -651,22 +811,27 @@
   .user-row:hover { background: rgba(240, 236, 228, 0.03); }
   .user-row.on { background: rgba(201, 168, 124, 0.06); }
 
-  .udot { width: 8px; height: 8px; border-radius: 50%; background: var(--bb-green-glow); box-shadow: 0 0 8px var(--bb-green-glow); flex: none; }
-  .udot.warn { background: var(--bb-tan); box-shadow: 0 0 8px var(--bb-tan); }
-  .udot.err { background: #cf8a78; box-shadow: 0 0 8px rgba(176, 90, 70, 0.6); }
+  .udot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .udot.state-free { background: var(--bb-green-glow); box-shadow: 0 0 8px var(--bb-green-glow); }
+  .udot.state-paid { background: var(--bb-tan-light); box-shadow: 0 0 8px rgba(224, 196, 154, 0.6); }
+  .udot.state-vip { background: #d9dee4; box-shadow: 0 0 8px rgba(217, 222, 228, 0.55); }
+  .udot.state-banned { background: #cf8a78; box-shadow: 0 0 8px rgba(176, 90, 70, 0.6); }
+  .udot.state-inactive { background: #8fa8bf; box-shadow: 0 0 8px rgba(143, 168, 191, 0.5); }
 
   .uname { font-family: var(--bb-font-body); font-weight: 600; font-size: 13.5px; color: var(--bb-white); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .uid { font-family: var(--bb-font-mono); font-size: 11.5px; color: var(--bb-muted); }
+  .uid { font-family: var(--bb-font-mono); font-size: 11.5px; color: var(--bb-muted); white-space: nowrap; }
+  .ucell { display: flex; }
   .utags { display: flex; gap: 6px; flex-wrap: wrap; }
   .tag {
     font-family: var(--bb-font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
-    padding: 2px 8px; border-radius: var(--bb-radius-pill); border: 1px solid transparent;
+    padding: 2px 8px; border-radius: var(--bb-radius-pill); border: 1px solid transparent; white-space: nowrap;
   }
-  .tag.st-free { color: var(--bb-muted); background: rgba(255, 255, 255, 0.04); border-color: var(--glass-border); }
-  .tag.st-paid { color: var(--bb-tan-light); background: rgba(201, 168, 124, 0.1); border-color: rgba(201, 168, 124, 0.28); }
-  .tag.st-vip { color: #d9aaff; background: rgba(199, 125, 255, 0.1); border-color: rgba(199, 125, 255, 0.3); }
-  .tag.banned { color: #cf8a78; background: rgba(176, 90, 70, 0.1); border-color: rgba(176, 90, 70, 0.3); }
-  .tag.off { color: var(--bb-muted); background: rgba(255, 255, 255, 0.03); border-color: var(--glass-border); }
+  .tag.st-free { color: var(--bb-green-glow); background: rgba(82, 183, 136, 0.1); border-color: rgba(82, 183, 136, 0.28); }
+  .tag.st-paid { color: var(--bb-tan-light); background: rgba(201, 168, 124, 0.1); border-color: rgba(201, 168, 124, 0.3); }
+  .tag.st-vip { color: #dfe4e9; background: rgba(217, 222, 228, 0.1); border-color: rgba(217, 222, 228, 0.34); }
+  .tag.st-banned { color: #cf8a78; background: rgba(176, 90, 70, 0.1); border-color: rgba(176, 90, 70, 0.32); }
+  .tag.st-inactive { color: #a7bccd; background: rgba(143, 168, 191, 0.1); border-color: rgba(143, 168, 191, 0.3); }
+  .tag.code { color: var(--bb-muted); background: rgba(255, 255, 255, 0.03); border-color: var(--glass-border); }
   .uwhen { font-family: var(--bb-font-mono); font-size: 11px; color: var(--bb-muted); white-space: nowrap; }
 
   .pager { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 14px; }
@@ -735,6 +900,19 @@
   .chip:hover:not(:disabled) { color: var(--bb-white); border-color: var(--bb-border-strong); }
   .chip.on { color: var(--bb-white); background: var(--ui-accent-soft); border-color: var(--bb-border-strong); }
   .chip:disabled { opacity: 0.5; cursor: not-allowed; }
+  /* Active tier chip wears the tier's state color (VIP silver, not purple). */
+  .chip-free.on { color: var(--bb-green-glow); background: rgba(82, 183, 136, 0.12); border-color: rgba(82, 183, 136, 0.35); }
+  .chip-paid.on { color: var(--bb-tan-light); background: rgba(201, 168, 124, 0.12); border-color: rgba(201, 168, 124, 0.38); }
+  .chip-vip.on { color: #dfe4e9; background: rgba(217, 222, 228, 0.12); border-color: rgba(217, 222, 228, 0.4); }
+
+  .subfacts { display: flex; flex-direction: column; gap: 7px; margin: 2px 0 0; }
+  .subfacts div { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+  .subfacts dt { font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
+  .subfacts dd {
+    margin: 0; font-family: var(--bb-font-mono); font-size: 11.5px; color: var(--bb-tan-light);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .subfacts dd.cancel { color: #cf8a78; }
 
   .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
   .btn.danger { color: #cf8a78; border-color: rgba(176, 90, 70, 0.4); }
@@ -794,10 +972,14 @@
     }
   }
 
+  @media (max-width: 900px) {
+    .user-head { display: none; }
+    .user-row { grid-template-columns: 14px minmax(0, 1fr) auto auto; }
+    .uid, .utags, .uwhen:nth-last-child(2) { display: none; }
+  }
   @media (max-width: 680px) {
-    .user-row { grid-template-columns: auto minmax(0, 1fr) auto; }
-    .uid, .uwhen { display: none; }
     .search-form { width: 100%; }
     .search-form :global(.search) { flex: 1; }
+    .filter-trail { width: 100%; justify-content: space-between; }
   }
 </style>

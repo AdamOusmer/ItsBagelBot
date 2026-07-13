@@ -33,6 +33,18 @@
     return { connected, total, healthy: total - connected <= 0 };
   }
 
+  // Week-over-week signups from the enrollment buckets: last 7 days vs the 7
+  // before. Shown only when the window actually covers both weeks.
+  function weekDelta(days: { count: number }[]): string | null {
+    if (days.length < 14) return null;
+    const sum = (from: number, to: number) => days.slice(from, to).reduce((s, d) => s + d.count, 0);
+    const thisWeek = sum(days.length - 7, days.length);
+    const lastWeek = sum(days.length - 14, days.length - 7);
+    if (lastWeek === 0) return `+${thisWeek} this week`;
+    const pct = Math.round(((thisWeek - lastWeek) / lastWeek) * 100);
+    return `+${thisWeek} this week (${pct >= 0 ? '+' : ''}${pct}% wow)`;
+  }
+
   function ago(iso: string): string {
     const mins = Math.max(Math.round((Date.now() - new Date(iso).getTime()) / 60e3), 0);
     if (mins < 1) return 'now';
@@ -83,6 +95,7 @@
   {:then o}
     {@const sum = shardSummary(o.snapshot)}
     {@const stats = o.enrollment.stats}
+    {@const growth = weekDelta(o.enrollment.days)}
     {#if o.degraded}
       <AlertBanner>Some live data is unavailable; affected panels show last-known or sample values.</AlertBanner>
     {/if}
@@ -93,8 +106,8 @@
         label="Registered users"
         value={stats.total_users.toLocaleString()}
         unit="total"
-        delta={`${stats.active_users.toLocaleString()} active`}
-        flat
+        delta={growth ?? `${stats.active_users.toLocaleString()} active`}
+        flat={growth === null}
       />
       <StatTile
         icon="pulse"
@@ -184,6 +197,26 @@
       </Card>
     </div>
 
+    <div class="card health-card">
+      <div class="card-head">
+        <h3>Service health</h3>
+        <span class="more">round-trip over NATS RPC</span>
+      </div>
+      {#if o.health.length === 0}
+        <p class="audit-empty">Health probes unavailable.</p>
+      {:else}
+        <div class="health-grid">
+          {#each o.health as h (h.id)}
+            <div class="health-cell" class:down={!h.ok}>
+              <span class="health-dot {h.ok ? '' : 'err'}"></span>
+              <span class="health-name">{h.label}</span>
+              <span class="health-ms">{h.ok ? `${h.ms} ms` : (h.error?.includes('timeout') ? 'timeout' : 'down')}</span>
+            </div>
+          {/each}
+        </div>
+      {/if}
+    </div>
+
     {#if data.isManager}
       <div class="card audit-card">
         <div class="card-head">
@@ -219,6 +252,28 @@
   .node-row .nd.err { background: #cf8a78; box-shadow: 0 0 8px rgba(176, 90, 70, 0.6); }
 
   .audit-card { margin-top: var(--row-gap); }
+
+  .health-card { margin-top: var(--row-gap); }
+  .health-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px;
+  }
+  .health-cell {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 14px;
+    border: 1px solid var(--rule); border-radius: 8px;
+    background: rgba(240, 236, 228, 0.02);
+  }
+  .health-cell.down { border-color: rgba(176, 90, 70, 0.35); background: rgba(176, 90, 70, 0.05); }
+  .health-dot {
+    width: 8px; height: 8px; border-radius: 50%; flex: none;
+    background: var(--bb-green-glow); box-shadow: 0 0 8px var(--bb-green-glow);
+  }
+  .health-dot.err { background: #cf8a78; box-shadow: 0 0 8px rgba(176, 90, 70, 0.6); }
+  .health-name { font-family: var(--bb-font-body); font-weight: 600; font-size: 13px; color: var(--bb-white); }
+  .health-ms { margin-left: auto; font-family: var(--bb-font-mono); font-size: 11.5px; color: var(--bb-muted); }
+  .health-cell.down .health-ms { color: #cf8a78; }
   .audit-empty { font-family: var(--bb-font-body); font-size: 13px; color: var(--bb-muted); margin: 0; }
   .audit-err {
     font-family: var(--bb-font-mono); font-size: 10.5px; color: #cf8a78;
