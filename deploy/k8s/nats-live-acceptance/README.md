@@ -62,6 +62,9 @@ Temporary pods are deleted by a trap on success, failure, or interruption.
 `fleet-700k.sh` builds the static binary and creates one temporary publisher pod
 on node2, node3, and worker1. It opens 2/4/4 publisher connections, matching the
 intended 1/2/2 ingress-pod placement, and drives one unsharded R1 memory stream.
+The stream is pinned to `nats-0` on node3, matching the production ingress
+placement, and the scoped worker credential uses the direct hub `$JS.API`
+prefix; leaves and the hub domain import are intentionally bypassed.
 The conservative aggregate rate uses the slowest node duration and must reach
 700,000 acknowledged events/second with zero errors.
 
@@ -74,5 +77,5 @@ window; the temporary generators may each burst to four CPU cores.
 deploy/k8s/nats-live-acceptance/fleet-700k.sh
 ```
 
-Override `TARGET_EPS`, `MESSAGES`, `PAYLOAD_BYTES`, or `BATCH_SIZE` as needed.
+Override `TARGET_EPS`, `MESSAGES`, or `PAYLOAD_BYTES` as needed.
 The stream and all temporary pods are removed on success, failure, or interrupt.
