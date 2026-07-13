@@ -129,7 +129,7 @@ func TestBuiltinToggleSuppressesCommand(t *testing.T) {
 }
 
 func TestHumanizeDuration(t *testing.T) {
-	assert.Equal(t, "2 years, 3 months", humanizeDuration((2*365+3*30+4)*24*time.Hour))
+	assert.Equal(t, "2 years, 3 months", humanizeDuration("en", (2*365+3*30+4)*24*time.Hour))
 }
 
 type fakeAccountAge struct {

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"ItsBagelBot/app/sesame/engine"
+	"ItsBagelBot/app/sesame/i18n"
 	"ItsBagelBot/app/sesame/module"
 	"ItsBagelBot/internal/domain/outgress"
 
@@ -35,17 +36,26 @@ func Followage(d engine.Deps) module.Module {
 	followage := func(ctx context.Context, c *module.Context, target lookupTarget) string {
 		bid := c.Env.BroadcasterUserID
 		return lookupCall[engine.FollowageResult]{
-			log: log, logKey: followageModuleName, unavailable: "Followage is unavailable right now.",
-			read:   readIf(d.Followage != nil, func() (engine.FollowageResult, error) { return d.Followage.Lookup(ctx, bid, target.id, target.login) }),
-			format: func(res engine.FollowageResult) string { return formatFollowageResult(target.name, bid, res) },
+			log: log, logKey: followageModuleName, unavailable: i18n.T(c.Locale, "followage.unavailable"),
+			read: readIf(d.Followage != nil, func() (engine.FollowageResult, error) { return d.Followage.Lookup(ctx, bid, target.id, target.login) }),
+			// The broadcaster case is resolved here, where bid is in scope.
+			format: func(res engine.FollowageResult) string {
+				r := lookupReply{locale: c.Locale, targetName: target.name}
+				if res.UserFound && res.TargetID == bid {
+					return r.broadcaster()
+				}
+				return r.followage(res)
+			},
 		}.run()
 	}
 
-	accountAge := func(ctx context.Context, _ *module.Context, target lookupTarget) string {
+	accountAge := func(ctx context.Context, c *module.Context, target lookupTarget) string {
 		return lookupCall[engine.AccountAgeResult]{
-			log: log, logKey: accountAgeModuleName, unavailable: "Account age is unavailable right now.",
-			read:   readIf(d.AccountAge != nil, func() (engine.AccountAgeResult, error) { return d.AccountAge.Lookup(ctx, target.id, target.login) }),
-			format: func(res engine.AccountAgeResult) string { return formatAccountAgeResult(target.name, res) },
+			log: log, logKey: accountAgeModuleName, unavailable: i18n.T(c.Locale, "accountage.unavailable"),
+			read: readIf(d.AccountAge != nil, func() (engine.AccountAgeResult, error) { return d.AccountAge.Lookup(ctx, target.id, target.login) }),
+			format: func(res engine.AccountAgeResult) string {
+				return lookupReply{locale: c.Locale, targetName: target.name}.accountAge(res)
+			},
 		}.run()
 	}
 
@@ -129,48 +139,61 @@ func emitLookup(c *module.Context, text string, emit module.Emit) {
 	emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: text})
 }
 
-func formatFollowageResult(targetName, broadcasterID string, result engine.FollowageResult) string {
-	if !result.UserFound {
-		return fmt.Sprintf("@%s is not a Twitch user.", targetName)
-	}
-	if result.TargetID == broadcasterID {
-		return fmt.Sprintf("@%s is the broadcaster.", targetName)
-	}
-	if !result.Following {
-		return fmt.Sprintf("@%s is not following this channel.", targetName)
-	}
-	return fmt.Sprintf("@%s has followed for %s.", targetName, humanizeDuration(time.Since(result.FollowedAt)))
+// lookupReply renders a viewer-lookup command's chat text in the broadcaster
+// locale. Bundling the locale and resolved target name onto the receiver keeps
+// the per-result formatters off a string-heavy argument list.
+type lookupReply struct {
+	locale     string
+	targetName string
 }
 
-func formatAccountAgeResult(targetName string, result engine.AccountAgeResult) string {
+// broadcaster is the reply when the looked-up user is the broadcaster.
+func (r lookupReply) broadcaster() string {
+	return fmt.Sprintf(i18n.T(r.locale, "followage.broadcaster"), r.targetName)
+}
+
+// followage renders the !followage result (broadcaster case handled upstream).
+func (r lookupReply) followage(result engine.FollowageResult) string {
 	if !result.UserFound {
-		return fmt.Sprintf("@%s is not a Twitch user.", targetName)
+		return fmt.Sprintf(i18n.T(r.locale, "lookup.not_user"), r.targetName)
 	}
-	return fmt.Sprintf("@%s's account is %s old.", targetName, humanizeDuration(time.Since(result.CreatedAt)))
+	if !result.Following {
+		return fmt.Sprintf(i18n.T(r.locale, "followage.not_following"), r.targetName)
+	}
+	return fmt.Sprintf(i18n.T(r.locale, "followage.followed"), r.targetName, humanizeDuration(r.locale, time.Since(result.FollowedAt)))
+}
+
+// accountAge renders the !accountage result.
+func (r lookupReply) accountAge(result engine.AccountAgeResult) string {
+	if !result.UserFound {
+		return fmt.Sprintf(i18n.T(r.locale, "lookup.not_user"), r.targetName)
+	}
+	return fmt.Sprintf(i18n.T(r.locale, "accountage.age"), r.targetName, humanizeDuration(r.locale, time.Since(result.CreatedAt)))
 }
 
 // humanizeDuration renders a span as the two largest non-zero units (e.g.
-// "2 years, 3 months"), used by both !followage and !accountage.
-func humanizeDuration(d time.Duration) string {
+// "2 years, 3 months"), used by both !followage and !accountage. Unit names are
+// localized; a plural count reads the "<unit>s" key ("time.year" -> "time.years").
+func humanizeDuration(locale string, d time.Duration) string {
 	if d < 0 {
 		d = 0
 	}
 	minutes := int64(d / time.Minute)
 	if minutes < 1 {
-		return "less than a minute"
+		return i18n.T(locale, "time.less_than_minute")
 	}
 	units := []struct {
 		minutes int64
-		name    string
-	}{{365 * 24 * 60, "year"}, {30 * 24 * 60, "month"}, {24 * 60, "day"}, {60, "hour"}, {1, "minute"}}
+		key     string
+	}{{365 * 24 * 60, "time.year"}, {30 * 24 * 60, "time.month"}, {24 * 60, "time.day"}, {60, "time.hour"}, {1, "time.minute"}}
 	parts := make([]string, 0, 2)
 	for _, unit := range units {
 		if n := minutes / unit.minutes; n > 0 {
-			name := unit.name
+			key := unit.key
 			if n != 1 {
-				name += "s"
+				key += "s"
 			}
-			parts = append(parts, fmt.Sprintf("%d %s", n, name))
+			parts = append(parts, fmt.Sprintf("%d %s", n, i18n.T(locale, key)))
 			minutes %= unit.minutes
 			if len(parts) == 2 {
 				break
