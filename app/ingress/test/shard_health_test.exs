@@ -69,9 +69,20 @@ defmodule Ingress.ShardHealthTest do
     test "persistent unhealth escalates to a restart whatever the session claims" do
       recently_bound = %{bound: true, bound_at: @now}
 
-      assert ShardHealth.heal_action(%{bound: false}, 6, @now) == :restart
-      assert ShardHealth.heal_action(recently_bound, 6, @now) == :restart
-      assert ShardHealth.heal_action(%{bound: false}, 5, @now) == :skip
+      assert ShardHealth.heal_action(%{bound: false}, 2, @now) == :restart
+      assert ShardHealth.heal_action(recently_bound, 2, @now) == :restart
+      assert ShardHealth.heal_action(%{bound: false}, 1, @now) == :skip
+    end
+  end
+
+  describe "escalate?/1" do
+    test "one unhealthy tick is the shadow of an in-flight reconnect" do
+      refute ShardHealth.escalate?(1)
+    end
+
+    test "two consecutive unhealthy ticks exhaust self-healing" do
+      assert ShardHealth.escalate?(2)
+      assert ShardHealth.escalate?(3)
     end
   end
 end

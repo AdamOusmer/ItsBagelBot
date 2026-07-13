@@ -23,7 +23,9 @@ defmodule Ingress.ConduitManager do
   alias Ingress.ShardSession
   alias Ingress.Twitch.Api
 
-  @reconcile_interval_ms 30_000
+  # Also the shard-health poll cadence: worst-case blackhole detection is one
+  # interval, and escalation to a replacement/rescue is two.
+  @reconcile_interval_ms 15_000
   @retry_interval_ms 5_000
   # How long a direct stop of an unsupervised (orphan) shard may take.
   @orphan_stop_timeout_ms 5_000
@@ -37,8 +39,15 @@ defmodule Ingress.ConduitManager do
   @impl true
   def init(_) do
     {:ok,
-     %{conduit_id: nil, applied_shard_count: nil, adopted_scaler: nil, unhealthy_counts: %{}},
-     {:continue, :reconcile}}
+     %{
+       conduit_id: nil,
+       applied_shard_count: nil,
+       adopted_scaler: nil,
+       # shard_id => consecutive reconcile ticks observed unhealthy on Twitch
+       unhealthy_counts: %{},
+       # shard_id => {rescue pid, seen count when the rescue was spawned}
+       rescues: %{}
+     }, {:continue, :reconcile}}
   end
 
   @impl true
@@ -84,9 +93,9 @@ defmodule Ingress.ConduitManager do
 
       {:ok, desired, _scaler} ->
         applied = converge_shards(state.conduit_id, desired, state.applied_shard_count)
-        counts = heal_unhealthy_shards(state.conduit_id, desired, state.unhealthy_counts)
+        state = run_health_pass(%{state | applied_shard_count: applied}, desired)
         Process.send_after(self(), :reconcile, @reconcile_interval_ms)
-        %{state | applied_shard_count: applied, unhealthy_counts: counts}
+        state
 
       :error ->
         hold_convergence(state, "shard scaler unreachable")
@@ -214,14 +223,27 @@ defmodule Ingress.ConduitManager do
     for shard_id <- 0..(desired - 1), do: start_shard(conduit_id, shard_id)
   end
 
+  # :started only when a fresh session actually spawned. :already_started is
+  # normal during converge (the shard runs), but right after a terminate it
+  # means the registration is wedged on a pid nothing can remove — callers on
+  # the restart path treat :blocked as the cue to escalate to a rescue.
   defp start_shard(conduit_id, shard_id) do
     spec = {Ingress.ShardSession, shard_id: shard_id, conduit_id: conduit_id}
 
     case Horde.DynamicSupervisor.start_child(Ingress.ShardSupervisor, spec) do
-      {:ok, _pid} -> Logger.info("started shard #{shard_id}")
-      {:error, {:already_started, _pid}} -> :ok
-      :ignore -> :ok
-      {:error, reason} -> Logger.warning("shard #{shard_id} start failed: #{inspect(reason)}")
+      {:ok, _pid} ->
+        Logger.info("started shard #{shard_id}")
+        :started
+
+      {:error, {:already_started, _pid}} ->
+        :blocked
+
+      :ignore ->
+        :blocked
+
+      {:error, reason} ->
+        Logger.warning("shard #{shard_id} start failed: #{inspect(reason)}")
+        :blocked
     end
   end
 
@@ -231,64 +253,77 @@ defmodule Ingress.ConduitManager do
   # receiving keepalives after the binding moved or died with another copy).
   # So reconciliation asks Twitch for its per-shard view and repairs every
   # slot it reports unhealthy. Decisions live in `Ingress.ShardHealth`.
-  #
-  # Returns the consecutive-unhealthy-tick count per shard id, carried in the
-  # manager state so persistent unhealth escalates to a restart. Shards Twitch
-  # reports healthy drop out of the map.
-  defp heal_unhealthy_shards(conduit_id, desired, counts) do
-    case Api.get_shards(conduit_id) do
+  defp run_health_pass(state, desired) do
+    case Api.get_shards(state.conduit_id) do
       {:ok, shards} ->
-        shards
-        |> ShardHealth.unhealthy_ids(desired)
-        |> Map.new(fn shard_id ->
-          seen = Map.get(counts, shard_id, 0) + 1
-          {shard_id, heal_shard(conduit_id, shard_id, seen)}
-        end)
+        unhealthy = ShardHealth.unhealthy_ids(shards, desired)
+        {counts, rescues} = heal_all(state, unhealthy)
+        rescues = reap_rescues(unhealthy, rescues)
+        %{state | unhealthy_counts: counts, rescues: rescues}
 
       {:error, reason} ->
         Logger.warning("shard health poll failed: #{inspect(reason)}")
-        counts
+        state
     end
   end
 
-  defp heal_shard(conduit_id, shard_id, seen) do
+  # Heals every Twitch-unhealthy shard, threading the consecutive-unhealthy
+  # counts and the rescue table. Shards Twitch reports healthy drop out of the
+  # counts map, so a heal that works resets the escalation clock.
+  defp heal_all(state, unhealthy) do
+    Enum.reduce(unhealthy, {%{}, state.rescues}, fn shard_id, {counts, rescues} ->
+      seen = Map.get(state.unhealthy_counts, shard_id, 0) + 1
+      {count, rescues} = heal_shard(state.conduit_id, shard_id, seen, rescues)
+      {Map.put(counts, shard_id, count), rescues}
+    end)
+  end
+
+  defp heal_shard(conduit_id, shard_id, seen, rescues) do
     case Horde.Registry.lookup(Ingress.Registry, {:shard, shard_id}) do
-      # Nothing registered: this tick's start_missing_shards pass (or the next
-      # one) starts the shard; healing has nothing to act on yet.
-      [] ->
-        seen
-
-      [{pid, _}] ->
-        action = ShardHealth.heal_action(probe_shard(pid), seen)
-        apply_heal(action, conduit_id, shard_id, pid, seen)
+      [] -> heal_unregistered(conduit_id, shard_id, seen, rescues)
+      [{pid, _}] -> heal_registered(conduit_id, shard_id, pid, seen, rescues)
     end
   end
 
-  # A restart resets the observation count: the replacement session gets the
-  # full backstop window before it can be judged wedged.
-  defp apply_heal(:restart, conduit_id, shard_id, pid, seen) do
-    Logger.warning(
-      "shard #{shard_id} unhealthy on Twitch (#{seen} ticks); replacing local session"
-    )
+  # Nothing registered: normally this tick's start_missing_shards pass covers
+  # it. If the shard is still unhealthy after that had its chance, starting is
+  # blocked (supervisor wedge, placement failure) — bring up a rescue.
+  defp heal_unregistered(conduit_id, shard_id, seen, rescues) do
+    if ShardHealth.escalate?(seen) do
+      ensure_rescue(conduit_id, shard_id, seen, rescues)
+    else
+      {seen, rescues}
+    end
+  end
 
+  defp heal_registered(conduit_id, shard_id, pid, seen, rescues) do
+    case ShardHealth.heal_action(probe_shard(pid), seen) do
+      :skip ->
+        {seen, rescues}
+
+      :force_rebind ->
+        Logger.warning("shard #{shard_id} unhealthy on Twitch but bound locally; forcing re-bind")
+        Metrics.count("Conduit/ShardRebinds")
+        GenServer.cast(pid, :force_rebind)
+        {seen, rescues}
+
+      :restart ->
+        restart_registered(conduit_id, shard_id, pid, seen, rescues)
+    end
+  end
+
+  # A successful restart resets the observation count: the replacement session
+  # gets the full backstop window before it can be judged wedged. A blocked
+  # restart (the registration or supervision is wedged on a pid nothing can
+  # remove) escalates to a rescue session, which needs no name at all.
+  defp restart_registered(conduit_id, shard_id, pid, seen, rescues) do
+    Logger.warning("shard #{shard_id} unhealthy on Twitch (#{seen} ticks); replacing session")
     Metrics.count("Conduit/ShardRestarts")
-    restart_shard(conduit_id, shard_id, pid)
-    0
-  end
 
-  defp apply_heal(:force_rebind, _conduit_id, shard_id, pid, seen) do
-    Logger.warning("shard #{shard_id} unhealthy on Twitch but bound locally; forcing re-bind")
-    Metrics.count("Conduit/ShardRebinds")
-    GenServer.cast(pid, :force_rebind)
-    seen
-  end
-
-  defp apply_heal(:skip, _conduit_id, _shard_id, _pid, seen), do: seen
-
-  defp probe_shard(pid) do
-    ShardSession.status(pid)
-  catch
-    :exit, _ -> :unreachable
+    case restart_shard(conduit_id, shard_id, pid) do
+      :started -> {0, rescues}
+      :blocked -> ensure_rescue(conduit_id, shard_id, seen, rescues)
+    end
   end
 
   defp restart_shard(conduit_id, shard_id, pid) do
@@ -299,5 +334,114 @@ defmodule Ingress.ConduitManager do
     end
 
     start_shard(conduit_id, shard_id)
+  end
+
+  defp probe_shard(pid) do
+    ShardSession.status(pid)
+  catch
+    :exit, _ -> :unreachable
+  end
+
+  # --- rescue sessions --------------------------------------------------------
+  #
+  # Last line of defense: when a shard slot stays dead on Twitch and the named
+  # session cannot even be replaced (Horde registration or supervision wedged
+  # on a dead pid), an unnamed session is started instead. It binds the shard
+  # on Twitch — the binding PATCH, not the registry, decides who receives
+  # events — so the slot serves again no matter what the cluster metadata
+  # says. Once Twitch reports the slot healthy and a live named session holds
+  # a binding, the named session re-asserts and the rescue is stopped.
+
+  defp ensure_rescue(conduit_id, shard_id, seen, rescues) do
+    case Map.get(rescues, shard_id) do
+      nil -> {seen, spawn_rescue(conduit_id, shard_id, seen, rescues)}
+      {pid, spawned_seen} -> heal_rescue(conduit_id, shard_id, pid, seen, spawned_seen, rescues)
+    end
+  end
+
+  defp spawn_rescue(conduit_id, shard_id, seen, rescues) do
+    Logger.warning("shard #{shard_id} cannot be replaced in place; starting rescue session")
+    Metrics.count("Conduit/ShardRescues")
+
+    spec = %{
+      id: {:rescue, shard_id},
+      start:
+        {Ingress.ShardSession, :start_link,
+         [[shard_id: shard_id, conduit_id: conduit_id, rescue?: true]]},
+      # :temporary — a crashed rescue is not restarted blindly; the next
+      # health pass decides whether one is still needed.
+      restart: :temporary
+    }
+
+    case Horde.DynamicSupervisor.start_child(Ingress.ShardSupervisor, spec) do
+      {:ok, pid} ->
+        Map.put(rescues, shard_id, {pid, seen})
+
+      other ->
+        Logger.warning("rescue for shard #{shard_id} failed to start: #{inspect(other)}")
+        rescues
+    end
+  end
+
+  # A rescue is judged by the same rules as a named session, on its own clock
+  # (ticks since it was spawned): give it the settle window, force a re-bind
+  # if it claims a binding Twitch says is dead, replace it if it stays stuck.
+  defp heal_rescue(conduit_id, shard_id, pid, seen, spawned_seen, rescues) do
+    case ShardHealth.heal_action(probe_shard(pid), seen - spawned_seen) do
+      :skip ->
+        {seen, rescues}
+
+      :force_rebind ->
+        GenServer.cast(pid, :force_rebind)
+        {seen, rescues}
+
+      :restart ->
+        stop_rescue(shard_id, pid)
+        {seen, spawn_rescue(conduit_id, shard_id, seen, Map.delete(rescues, shard_id))}
+    end
+  end
+
+  # Twitch reports a rescued slot healthy again: hand it back to the named
+  # session when one is alive and bound (re-assert makes Twitch's routing
+  # follow it before the rescue socket closes). While no named session
+  # serves, the rescue IS the shard; keep it.
+  defp reap_rescues(unhealthy, rescues) do
+    Enum.reduce(rescues, %{}, fn {shard_id, entry}, acc ->
+      if shard_id in unhealthy do
+        Map.put(acc, shard_id, entry)
+      else
+        maybe_release_rescue(shard_id, entry, acc)
+      end
+    end)
+  end
+
+  defp maybe_release_rescue(shard_id, {pid, _spawned_seen} = entry, acc) do
+    case named_session_serving(shard_id) do
+      {:ok, named} ->
+        GenServer.cast(named, :reassert_binding)
+        stop_rescue(shard_id, pid)
+        acc
+
+      :not_serving ->
+        Map.put(acc, shard_id, entry)
+    end
+  end
+
+  defp named_session_serving(shard_id) do
+    with [{pid, _}] <- Horde.Registry.lookup(Ingress.Registry, {:shard, shard_id}),
+         %{bound: true} <- probe_shard(pid) do
+      {:ok, pid}
+    else
+      _ -> :not_serving
+    end
+  end
+
+  defp stop_rescue(shard_id, pid) do
+    Logger.info("stopping rescue session for shard #{shard_id}")
+
+    case Horde.DynamicSupervisor.terminate_child(Ingress.ShardSupervisor, pid) do
+      :ok -> :ok
+      {:error, _} -> stop_orphan_shard(shard_id, pid)
+    end
   end
 end

@@ -18,8 +18,11 @@ defmodule Ingress.ShardHealth do
   # A shard observed unhealthy this many consecutive reconcile ticks gets its
   # local session replaced outright, whatever state the session claims. This
   # is the backstop for sessions wedged in a state their own machinery never
-  # leaves (a takeover that never completes, a lost reconnect timer).
-  @max_unhealthy_observations 6
+  # leaves (a takeover that never completes, a lost reconnect timer). Two
+  # ticks: one tick of unhealth is the normal shadow of an in-flight
+  # reconnect (a healthy rebind lands well inside one tick interval); two
+  # consecutive ticks means nobody is fixing it.
+  @max_unhealthy_observations 2
 
   @doc """
   Shard ids (below `desired`) whose Twitch-side transport is not enabled.
@@ -56,6 +59,13 @@ defmodule Ingress.ShardHealth do
   def heal_action(%{bound: true, bound_at: bound_at}, _seen, now) do
     if settled?(bound_at, now), do: :force_rebind, else: :skip
   end
+
+  @doc """
+  True once `seen` consecutive unhealthy observations exhaust the session's
+  chance to heal itself; callers escalate (replace the session, or bring up
+  a rescue when no session can even be started).
+  """
+  def escalate?(seen), do: seen >= @max_unhealthy_observations
 
   defp settled?(%DateTime{} = bound_at, now),
     do: DateTime.diff(now, bound_at, :millisecond) >= @rebind_grace_ms

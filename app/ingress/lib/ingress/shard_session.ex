@@ -68,9 +68,18 @@ defmodule Ingress.ShardSession do
             # Aggregate counter for notification load.
             load_counter: Ingress.LoadCounter.new()
 
+  # A rescue session (started by the reconciler when the named shard cannot
+  # be replaced — its registration or supervision is wedged on a dead pid)
+  # runs unnamed: it skips cluster-wide registration entirely, so no wedge
+  # can block it, and duplicate-shard resolution never signals it. It serves
+  # by binding the shard on Twitch, exactly like a named session, and the
+  # reconciler stops it once a named session is serving again.
   def start_link(opts) do
-    shard_id = Keyword.fetch!(opts, :shard_id)
-    GenServer.start_link(__MODULE__, opts, name: via(shard_id))
+    if Keyword.get(opts, :rescue?, false) do
+      GenServer.start_link(__MODULE__, opts)
+    else
+      GenServer.start_link(__MODULE__, opts, name: via(Keyword.fetch!(opts, :shard_id)))
+    end
   end
 
   def via(shard_id), do: {:via, Horde.Registry, {Ingress.Registry, {:shard, shard_id}}}
@@ -94,6 +103,7 @@ defmodule Ingress.ShardSession do
     Process.flag(:trap_exit, true)
     shard_id = Keyword.fetch!(opts, :shard_id)
     Logger.metadata(shard_id: shard_id)
+    if Keyword.get(opts, :rescue?, false), do: Logger.metadata(rescue: true)
 
     state = %__MODULE__{
       shard_id: shard_id,
