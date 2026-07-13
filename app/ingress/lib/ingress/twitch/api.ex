@@ -87,6 +87,30 @@ defmodule Ingress.Twitch.Api do
   end
 
   @doc """
+  Lists the conduit's shards with Twitch's per-shard transport status. This is
+  Twitch's view of which shard slots actually receive events; a slot that is
+  not `"enabled"` gets its notifications dropped silently.
+  """
+  @spec get_shards(String.t()) :: {:ok, [map()]} | {:error, term()}
+  def get_shards(conduit_id), do: get_shards_page(conduit_id, nil, [])
+
+  defp get_shards_page(conduit_id, cursor, acc) do
+    path = "/eventsub/conduits/shards?conduit_id=" <> conduit_id <> cursor_param(cursor)
+
+    with {:ok, body} <- request(:get, path, nil) do
+      shards = acc ++ (body["data"] || [])
+
+      case get_in(body, ["pagination", "cursor"]) do
+        cursor when cursor in [nil, ""] -> {:ok, shards}
+        next -> get_shards_page(conduit_id, next, shards)
+      end
+    end
+  end
+
+  defp cursor_param(nil), do: ""
+  defp cursor_param(cursor), do: "&after=" <> URI.encode_www_form(cursor)
+
+  @doc """
   Binds a WebSocket `session_id` to `shard_id` on the conduit. This is the call
   a shard session makes after receiving `session_welcome` on a fresh socket.
   """
