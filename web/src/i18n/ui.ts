@@ -116,12 +116,14 @@ const en = {
   // ── Home: game integrations ──────────────────────────────────────
   'games.eyebrow': 'Game Integrations',
   'games.title': 'Stats in chat, no alt-tabbing.',
-  'games.bwTitle': 'Hypixel Bedwars Stats.',
-  'games.bwDesc': 'Pull your Hypixel Bedwars stats right into chat.',
-  'games.mcsrTitle': 'MCSR Ranked.',
-  'games.mcsrDesc': 'Show off your Minecraft Speedrunning Elo and ranked stats instantly.',
+  'games.mcTitle': 'Minecraft Stats.',
+  'games.mcDesc': 'Hypixel Bedwars stats and MCSR Ranked Elo, straight into chat.',
+  'games.fnTitle': 'Fortnite Stats & Shop.',
+  'games.fnDesc': 'Lifetime and season stats, plus the daily item shop, one command away.',
   'games.reqTitle': 'Want another game?',
   'games.reqDesc': 'We are adding more. Open an issue on GitHub and tell us what you play.',
+  'games.legal':
+    'ItsBagelBot is not an official Minecraft service and is not approved by or associated with Mojang or Microsoft. Not affiliated with or endorsed by Hypixel Inc. or MCSR Ranked. Portions of the materials used are trademarks and/or copyrighted works of Epic Games, Inc. Not endorsed by Epic Games.',
 
   // ── Home: quiet-work bento ──────────────────────────────────────
   'qw.eyebrow': 'The quiet work',
@@ -358,12 +360,14 @@ const fr: Partial<Record<UIKey, string>> = {
   // Home: game integrations
   'games.eyebrow': 'Intégrations de jeux',
   'games.title': 'Stats dans le chat, sans alt-tab.',
-  'games.bwTitle': 'Stats Hypixel Bedwars.',
-  'games.bwDesc': 'Affichez vos stats Hypixel Bedwars directement dans le chat.',
-  'games.mcsrTitle': 'MCSR Ranked.',
-  'games.mcsrDesc': 'Montrez instantanément votre Elo de speedrun Minecraft et vos stats classées.',
+  'games.mcTitle': 'Stats Minecraft.',
+  'games.mcDesc': 'Stats Hypixel Bedwars et Elo MCSR Ranked, directement dans le chat.',
+  'games.fnTitle': 'Stats et boutique Fortnite.',
+  'games.fnDesc': 'Stats de saison et à vie, plus la boutique du jour, en une seule commande.',
   'games.reqTitle': 'Vous voulez un autre jeu ?',
   'games.reqDesc': 'Nous en ajoutons d\'autres. Ouvrez une issue sur GitHub et dites-nous à quoi vous jouez.',
+  'games.legal':
+    'ItsBagelBot n\'est pas un service Minecraft officiel et n\'est ni approuvé par ni associé à Mojang ou Microsoft. Non affilié à ni approuvé par Hypixel Inc. ou MCSR Ranked. Certains éléments utilisés sont des marques et/ou des œuvres protégées d\'Epic Games, Inc. Non approuvé par Epic Games.',
 
   // Home: quiet-work bento
   'qw.eyebrow': 'Le travail discret',
