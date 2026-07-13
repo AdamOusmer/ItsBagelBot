@@ -9,14 +9,6 @@ metadata:
   namespace: valkey
 spec:
   ports:
-  - name: tcp-redis
-    port: 6379
-    protocol: TCP
-    targetPort: redis
-  - name: tcp-sentinel
-    port: 26379
-    protocol: TCP
-    targetPort: valkey-sentinel
   - name: tls-redis
     port: 6380
     protocol: TCP
@@ -41,14 +33,6 @@ metadata:
   namespace: valkey
 spec:
   ports:
-  - name: redis
-    port: 6379
-    protocol: TCP
-    targetPort: redis
-  - name: valkey-sentinel
-    port: 26379
-    protocol: TCP
-    targetPort: valkey-sentinel
   - name: redis-tls
     port: 6380
     protocol: TCP

@@ -42,9 +42,8 @@ spec:
         config.linkerd.io/proxy-cpu-limit: 750m
         config.linkerd.io/proxy-memory-request: 16Mi
         config.linkerd.io/proxy-memory-limit: 96Mi
-        # Valkey (6379/26379) and NATS (4222 — now out of the mesh, its own TLS
-        # encrypts the wire) skip the proxy.
-        config.linkerd.io/skip-outbound-ports: 6379,26379,4222
+        # NATS is out of the mesh and encrypts the wire with native TLS.
+        config.linkerd.io/skip-outbound-ports: "4222"
     spec:
       tolerations:
         - key: itsbagelbot.dev/pool

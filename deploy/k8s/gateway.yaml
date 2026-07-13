@@ -125,7 +125,7 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
-            # Node-local Valkey reads (NODE_IP:6379); writes ride Sentinel.
+            # Node-local Valkey TLS reads (NODE_IP:6380); writes ride Sentinel.
             - name: NODE_IP
               valueFrom:
                 fieldRef:
