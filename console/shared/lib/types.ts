@@ -422,6 +422,19 @@ const FN_STATS_SAMPLES: Record<string, string> = {
   squadkd: '4.1'
 };
 
+// Token palette + preview samples for !fn session: deltas since the
+// stream-start snapshot (no per-mode breakdown, no window — always this
+// stream, always the linked account).
+const FN_SESSION_TOKENS = ['player', 'wins', 'matches', 'kills', 'kd', 'winrate'];
+const FN_SESSION_SAMPLES: Record<string, string> = {
+  player: 'Ninja',
+  wins: '3',
+  matches: '12',
+  kills: '48',
+  kd: '5.33',
+  winrate: '25.0'
+};
+
 export const MODULE_CATALOG: readonly ModuleDef[] = [
   // Chat Tools: the bot's viewer-facing chat features, surfaced first. Channel
   // Points and Timers own bespoke pages (opened via href); Trigger Words uses
@@ -827,7 +840,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
     label: 'Fortnite Stats',
     tagline: 'Fortnite BR stats and the daily item shop in chat.',
     description:
-      'One command, three looks: !fn shows a player\'s all-time wins, matches, kills, K/D and win rate with a solo/duo/squad breakdown; !fn season shows the same for the current season (the bot tracks season rollovers automatically); !fn store lists what is in today\'s item shop. The squashed forms !fnstats, !fnseason and !fnstore work too. Link your Epic display name below. Viewers can also name any player, e.g. "!fn Ninja". PlayStation and Xbox name lookups are not supported yet.',
+      'One command, four looks: !fn shows a player\'s all-time wins, matches, kills, K/D and win rate with a solo/duo/squad breakdown; !fn season shows the same for the current season (the bot tracks season rollovers automatically); !fn session shows wins, kills and K/D since the stream started, snapshotting your standing the moment you go live; !fn store lists what is in today\'s item shop. The squashed forms !fnstats, !fnseason, !fnsession and !fnstore work too. Link your Epic display name below. Viewers can also name any player, e.g. "!fn Ninja"; !fn session always tracks your linked account. PlayStation and Xbox name lookups are not supported yet.',
     icon: 'gamepad',
     category: 'Games',
     defaultEnabled: false,
@@ -874,6 +887,19 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
           squadmatches: '5',
           squadkd: '21.5'
         }
+      },
+      {
+        key: 'session',
+        label: '!fn session',
+        tagline: 'Wins, kills and K/D since the stream started (also !fnsession).',
+        event: '!fn session',
+        command: 'fn session',
+        enableKey: 'sessionEnabled',
+        messageKey: 'sessionMessage',
+        defaultMessage:
+          '{player} this stream: {wins} wins in {matches} matches · {winrate}% WR · {kills} kills · {kd} K/D',
+        tokens: FN_SESSION_TOKENS,
+        previewSamples: FN_SESSION_SAMPLES
       },
       {
         key: 'store',
