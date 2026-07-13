@@ -21,6 +21,12 @@ const (
 	writePoolMinSize    = 4
 	writePoolBufferSize = 32 << 10
 	writePoolIdleTime   = 30 * time.Second
+
+	// Local reads stay auto-pipelined, but spread over 32 small-buffer
+	// connections. Production-path A/B tests improved throughput without the
+	// memory cost of valkey-go's default 512 KiB buffers per direction.
+	localPipelineMultiplex = 5
+	localBufferSize        = 8 << 10
 )
 
 // BuildClientOption constructs the Valkey client option for the master/write
@@ -87,9 +93,10 @@ func buildOption(address, password string, replicaReads bool, tlsConfig *tls.Con
 // Client routes writes to the Sentinel-elected master and read-only commands
 // to the node-local Valkey instance.
 //
-// Topology: each Kubernetes node runs one Valkey pod that binds TLS port 6380 on the
-// host (hostPort). Whatever role that local instance holds (master on the
-// primary node, a replica everywhere else) it is always the lowest-latency
+// Topology: each Kubernetes node runs one Valkey pod. The valkey-local Service
+// has internalTrafficPolicy=Local, so kube-proxy selects that node's endpoint
+// without a Tailnet or hostPort loop. Whatever role that local instance holds
+// (master on the primary node, a replica elsewhere) it is the lowest-latency
 // instance for pods on that node. So:
 //
 //   - writes and topology  -> the embedded Sentinel client, which always tracks
@@ -97,8 +104,7 @@ func buildOption(address, password string, replicaReads bool, tlsConfig *tls.Con
 //   - pub/sub (Receive)     -> a dedicated master-pinned Sentinel client with no
 //     replica-read offload, so expiry notifications (master-only) are actually
 //     received;
-//   - read-only commands    -> a direct TLS connection to NODE_IP:6380, the local
-//     instance, with no cross-node hop.
+//   - read-only commands    -> valkey-local over TLS, with no cross-node hop.
 //
 // valkey-go's Sentinel client cannot prefer a local replica on its own:
 // ReadNodeSelector is cluster-mode only, and the Sentinel path picks a replica
@@ -162,10 +168,10 @@ func allReadOnly(multi []valkey_go.Completed) bool {
 // NewClient initializes a Valkey client.
 //
 // Writes always go to the Sentinel-elected master. For a Sentinel deployment
-// with NODE_IP set, read-only commands go to the node-local instance
-// (NODE_IP:6380) so each node reads from its own Valkey without a cross-node
-// hop. Otherwise reads fall back to a Sentinel replica (or the single
-// instance, for a standalone address).
+// with NODE_IP set, read-only commands go to VALKEY_LOCAL_ADDR when configured,
+// otherwise to NODE_IP. The production Service uses internalTrafficPolicy=Local
+// so each node reads its own Valkey without a cross-node hop. Otherwise reads
+// fall back to a Sentinel replica (or the single instance, for standalone).
 func NewClient(address, password string) (valkey_go.Client, error) {
 	tlsConfig, err := clientTLSConfig()
 	if err != nil {
@@ -199,16 +205,8 @@ func NewClient(address, password string) (valkey_go.Client, error) {
 		return wrapped, nil
 	}
 
-	localPort := plainDataPort
-	if tlsConfig != nil {
-		localPort = tlsDataPort
-	}
-	local, err := valkey_go.NewClient(valkey_go.ClientOption{
-		InitAddress:  []string{net.JoinHostPort(nodeIP, localPort)},
-		Password:     password,
-		DisableCache: true,
-		TLSConfig:    cloneTLSConfig(tlsConfig),
-	})
+	localAddress := localReadAddress(nodeIP, os.Getenv("VALKEY_LOCAL_ADDR"), tlsConfig != nil)
+	local, err := valkey_go.NewClient(localReadOption(localAddress, password, tlsConfig))
 	if err != nil {
 		// Local instance unreachable at startup: degrade to Sentinel-only
 		// rather than fail the service. Reads go to a Sentinel replica;
@@ -217,7 +215,30 @@ func NewClient(address, password string) (valkey_go.Client, error) {
 		return wrapped, nil
 	}
 
-	log.Printf("valkey: reading from node-local instance %s:%s", nodeIP, localPort)
+	log.Printf("valkey: reading from node-local instance %s", localAddress)
 	wrapped.local = local
 	return wrapped, nil
+}
+
+func localReadOption(address, password string, tlsConfig *tls.Config) valkey_go.ClientOption {
+	return valkey_go.ClientOption{
+		InitAddress:         []string{address},
+		Password:            password,
+		DisableCache:        true,
+		TLSConfig:           cloneTLSConfig(tlsConfig),
+		PipelineMultiplex:   localPipelineMultiplex,
+		ReadBufferEachConn:  localBufferSize,
+		WriteBufferEachConn: localBufferSize,
+	}
+}
+
+func localReadAddress(nodeIP, configured string, tlsEnabled bool) string {
+	if configured != "" {
+		return secureAddress(configured, tlsEnabled)
+	}
+	port := plainDataPort
+	if tlsEnabled {
+		port = tlsDataPort
+	}
+	return net.JoinHostPort(nodeIP, port)
 }
