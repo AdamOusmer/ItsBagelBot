@@ -125,11 +125,13 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
-            # Node-local Valkey TLS reads (NODE_IP:6380); writes ride Sentinel.
+            # Node-local Valkey TLS reads stay on the pod network; writes ride Sentinel.
             - name: NODE_IP
               valueFrom:
                 fieldRef:
                   fieldPath: status.hostIP
+            - name: VALKEY_LOCAL_ADDR
+              value: valkey-local.valkey.svc.cluster.local:6380
             - name: GOMEMLIMIT
               value: 96MiB
           envFrom:
