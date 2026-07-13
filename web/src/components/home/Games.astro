@@ -1,7 +1,8 @@
 ---
 /**
- * Games — game integrations bento grid. 
- * Shows Bedwars, MCSR Ranked, and a call-to-action for requesting more games.
+ * Games — game integrations bento grid.
+ * Shows Minecraft (Hypixel Bedwars + MCSR Ranked), Fortnite, and a
+ * call-to-action for requesting more games.
  */
 import Card from '../ui/Card.astro';
 import SectionHeading from '../ui/SectionHeading.astro';
@@ -15,35 +16,71 @@ const t = useTranslations(lang);
     <SectionHeading eyebrow={t('games.eyebrow')} title={t('games.title')} />
 
     <div class="games__grid">
-        <!-- Bedwars Stats -->
+        <!-- Minecraft: Hypixel Bedwars + MCSR Ranked -->
         <Card class="games__card" data-reveal>
-            <div class="games__demo games__demo--bw" aria-hidden="true">
-                <span class="games-bw__line">!bwstats player123</span>
-                <div class="games-bw__stats">
-                    <span class="games-bw__stat"><b>Level</b> 402</span>
-                    <span class="games-bw__stat"><b>Wins</b> 2,541</span>
-                    <span class="games-bw__stat"><b>FKDR</b> 4.82</span>
+            <div class="games__demo games__demo--mc" aria-hidden="true">
+                <div class="games-mc__group games-mc__group--bw">
+                    <span class="games-mc__line games-mc__line--bw">!bwstats player123</span>
+                    <div class="games-mc__stats games-mc__stats--bw">
+                        <span class="games-mc__stat"><b>Level</b> 402</span>
+                        <span class="games-mc__stat"><b>Wins</b> 2,541</span>
+                        <span class="games-mc__stat"><b>FKDR</b> 4.82</span>
+                    </div>
+                </div>
+                <div class="games-mc__group games-mc__group--mcsr">
+                    <span class="games-mc__line games-mc__line--mcsr">!mcsr ranked</span>
+                    <div class="games-mc__stats games-mc__stats--mcsr">
+                        <span class="games-mc__stat"><b>Elo</b> 1520</span>
+                        <span class="games-mc__stat"><b>W/L</b> 142/98</span>
+                    </div>
                 </div>
             </div>
             <h3 class="games__title">
-                {t('games.bwTitle')}
+                {t('games.mcTitle')}
             </h3>
-            <p class="games__desc">{t('games.bwDesc')}</p>
+            <p class="games__desc">{t('games.mcDesc')}</p>
         </Card>
 
-        <!-- MCSR Ranked -->
+        <!-- Fortnite -->
         <Card class="games__card" data-reveal style="--reveal-i: 1">
-            <div class="games__demo games__demo--mcsr" aria-hidden="true">
-                <span class="games-mcsr__line">!mcsr ranked</span>
-                <div class="games-mcsr__stats">
-                    <span class="games-mcsr__stat"><b>Elo</b> 1520</span>
-                    <span class="games-mcsr__stat"><b>W/L</b> 142/98</span>
+            <div class="games__demo games__demo--fn" aria-hidden="true">
+                <svg class="games-fn__scar" viewBox="0 0 220 72" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg">
+                    <!-- stock -->
+                    <path d="M10 32 L30 29 L30 47 L14 50 Z" />
+                    <path d="M14 36 L27 34.5" stroke-width="1.5" />
+                    <!-- receiver -->
+                    <path d="M30 27 H134 V47 H30 Z" />
+                    <!-- top rail + ticks -->
+                    <path d="M34 27 V22 H128 V27" />
+                    <path d="M44 22 v3 M56 22 v3 M68 22 v3 M80 22 v3 M92 22 v3 M104 22 v3 M116 22 v3" stroke-width="1.5" />
+                    <!-- rear sight + charging handle -->
+                    <path d="M40 22 v-5 h7 v5" />
+                    <path d="M62 22 v-4" />
+                    <!-- ejection port -->
+                    <path d="M84 33 h20 v7 H84 Z" stroke-width="1.5" />
+                    <!-- trigger guard + grip -->
+                    <path d="M76 47 q1 9 10 9 h8" />
+                    <path d="M98 47 L94 64 L104 66 L109 47" />
+                    <!-- magazine -->
+                    <path d="M112 47 C110 57 114 64 123 66 L133 62 C128 56 128 51 129 47 Z" />
+                    <!-- barrel + front sight + muzzle -->
+                    <path d="M134 31 H184 M134 41 H184" />
+                    <path d="M152 31 v-8 h7 v8" />
+                    <path d="M184 28 h16 l4 4 v6 l-4 4 h-12 Z" />
+                    <path d="M190 32 v8 M196 32 v8" stroke-width="1.5" />
+                </svg>
+                <div class="games-fn__meta">
+                    <span class="games-fn__rarity">Legendary</span>
+                    <span class="games-fn__price">
+                        <svg viewBox="0 0 12 12" width="11" height="11" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><circle cx="6" cy="6" r="5" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="6" cy="6" r="2" fill="currentColor"/></svg>
+                        1,200
+                    </span>
                 </div>
             </div>
             <h3 class="games__title">
-                {t('games.mcsrTitle')}
+                {t('games.fnTitle')}
             </h3>
-            <p class="games__desc">{t('games.mcsrDesc')}</p>
+            <p class="games__desc">{t('games.fnDesc')}</p>
         </Card>
 
         <!-- Request more games -->
@@ -60,6 +97,8 @@ const t = useTranslations(lang);
             <p class="games__desc">{t('games.reqDesc')}</p>
         </Card>
     </div>
+
+    <p class="games__legal">{t('games.legal')}</p>
 </section>
 
 <style>
@@ -134,61 +173,97 @@ const t = useTranslations(lang);
         font-size: 0.74rem;
     }
 
-    /* ── Bedwars Stats ── */
+    /* ── Minecraft (Bedwars ⇄ MCSR alternating) ── */
 
-    .games-bw__line {
+    .games__demo--mc {
+        position: relative;
+    }
+
+    .games-mc__group {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 12px;
+        padding: 14px 16px;
+    }
+
+    .games-mc__line {
         color: var(--tan-light, #e0c49a);
         font-weight: 500;
         width: max-content;
         border-right: 1px solid rgba(224, 196, 154, 0.6);
         white-space: nowrap;
         overflow: hidden;
-        animation: gamesTypeBw 6s steps(17) infinite;
     }
 
-    .games-bw__stats {
+    .games-mc__line--bw {
+        animation: gamesTypeMcBw 12s steps(17) infinite;
+    }
+
+    .games-mc__line--mcsr {
+        opacity: 0;
+        animation: gamesTypeMcMcsr 12s steps(12) infinite;
+    }
+
+    .games-mc__stats {
         display: flex;
         gap: 12px;
         color: var(--green-glow, #52b788);
         opacity: 0;
         transform: translateY(4px);
-        animation: gamesFadeIn 6s ease-in-out infinite;
     }
 
-    .games-bw__stat b {
+    .games-mc__stats--bw {
+        animation: gamesFadeMcBw 12s ease-in-out infinite;
+    }
+
+    .games-mc__stats--mcsr {
+        animation: gamesFadeMcMcsr 12s ease-in-out infinite;
+    }
+
+    .games-mc__stat b {
         color: var(--muted, #888077);
         font-weight: 400;
         margin-right: 4px;
     }
 
-    /* ── MCSR Ranked ── */
+    /* ── Fortnite (item-shop tile, original line-art SCAR) ── */
 
-    .games-mcsr__line {
-        color: var(--tan-light, #e0c49a);
-        font-weight: 500;
-        width: max-content;
-        border-right: 1px solid rgba(224, 196, 154, 0.6);
-        white-space: nowrap;
-        overflow: hidden;
-        animation: gamesTypeMcsr 6s steps(12) infinite;
+    .games__demo--fn {
+        align-items: center;
+        gap: 8px;
+        padding: 12px 16px;
     }
 
-    .games-mcsr__stats {
+    .games-fn__scar {
+        width: 158px;
+        height: auto;
+        color: var(--tan-light, #e0c49a);
+        filter: drop-shadow(0 0 10px rgba(224, 196, 154, 0.22));
+        animation: gamesFnFloat 4.5s ease-in-out infinite;
+    }
+
+    .games-fn__meta {
         display: flex;
         align-items: center;
         gap: 12px;
-        color: var(--green-glow, #52b788);
-        opacity: 0;
-        transform: translateY(4px);
-        animation: gamesFadeIn 6s ease-in-out infinite;
     }
 
+    .games-fn__rarity {
+        color: var(--green-glow, #52b788);
+        font-size: 0.66rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+    }
 
-
-    .games-mcsr__stat b {
+    .games-fn__price {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
         color: var(--muted, #888077);
-        font-weight: 400;
-        margin-right: 4px;
+        font-size: 0.7rem;
     }
 
     /* ── Request ── */
@@ -222,40 +297,69 @@ const t = useTranslations(lang);
 
     /* ── Animations ── */
 
-    @keyframes gamesTypeBw {
-        0%, 10% { width: 0; }
-        25%, 85% { width: 17ch; }
-        95%, 100% { width: 0; }
+    /* Minecraft card: first half of the 12s cycle is Bedwars, second half MCSR. */
+    @keyframes gamesTypeMcBw {
+        0%, 4% { width: 0; opacity: 1; }
+        13%, 42% { width: 17ch; opacity: 1; }
+        47%, 100% { width: 17ch; opacity: 0; }
     }
 
-    @keyframes gamesTypeMcsr {
-        0%, 10% { width: 0; }
-        25%, 85% { width: 12ch; }
-        95%, 100% { width: 0; }
+    @keyframes gamesFadeMcBw {
+        0%, 14% { opacity: 0; transform: translateY(4px); }
+        20%, 42% { opacity: 1; transform: none; }
+        47%, 100% { opacity: 0; transform: translateY(4px); }
     }
 
-    @keyframes gamesFadeIn {
-        0%, 30% { opacity: 0; transform: translateY(4px); }
-        40%, 80% { opacity: 1; transform: none; }
-        90%, 100% { opacity: 0; }
+    @keyframes gamesTypeMcMcsr {
+        0%, 52% { width: 0; opacity: 0; }
+        54% { width: 0; opacity: 1; }
+        62%, 92% { width: 12ch; opacity: 1; }
+        97%, 100% { width: 12ch; opacity: 0; }
+    }
+
+    @keyframes gamesFadeMcMcsr {
+        0%, 63% { opacity: 0; transform: translateY(4px); }
+        69%, 92% { opacity: 1; transform: none; }
+        97%, 100% { opacity: 0; transform: translateY(4px); }
+    }
+
+    @keyframes gamesFnFloat {
+        0%, 100% { transform: translateY(1.5px); }
+        50% { transform: translateY(-1.5px); }
+    }
+
+    /* ── Legal ── */
+
+    .games__legal {
+        margin: 28px auto 0;
+        max-width: 720px;
+        text-align: center;
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.62rem;
+        letter-spacing: 0.02em;
+        line-height: 1.7;
+        color: var(--muted, #888077);
+        opacity: 0.75;
     }
 
     @media (prefers-reduced-motion: reduce) {
-        .games-bw__line, .games-mcsr__line {
+        .games-mc__line {
             animation: none;
             border-right: none;
         }
-        .games-bw__line { width: 17ch; }
-        .games-mcsr__line { width: 12ch; }
-        .games-bw__stats, .games-mcsr__stats {
+        .games-mc__line--bw { width: 17ch; opacity: 1; }
+        .games-mc__stats--bw {
             animation: none;
             opacity: 1;
             transform: none;
         }
+        /* Static fallback shows the Bedwars half only. */
+        .games-mc__group--mcsr { display: none; }
+        .games-fn__scar { animation: none; }
     }
 
     @media (max-width: 640px) {
         .games { padding: var(--space-section-sm, 72px) 20px; }
-        .games-bw__stats, .games-mcsr__stats { flex-wrap: wrap; gap: 8px; }
+        .games-mc__stats { flex-wrap: wrap; gap: 8px; }
     }
 </style>
