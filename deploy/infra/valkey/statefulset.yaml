@@ -108,21 +108,21 @@ spec:
           if [ -f /shared/master_ip ]; then
             MASTER_IP=$(cat /shared/master_ip)
           fi
-          LIVE_MASTER=$( { REDISCLI_AUTH="${CORE}" valkey-cli -h valkey.valkey.svc.cluster.local -p 26379 --no-auth-warning sentinel get-master-addr-by-name myprimary 2>/dev/null || true; } | head -n 1)
+          LIVE_MASTER=$( { REDISCLI_AUTH="${CORE}" valkey-cli -h valkey.valkey.svc.cluster.local -p 26380 --tls --cacert /etc/valkey/tls/ca.crt --sni valkey.valkey.svc.cluster.local --no-auth-warning sentinel get-master-addr-by-name myprimary 2>/dev/null || true; } | head -n 1)
           case "${LIVE_MASTER}" in *.*.*.*) MASTER_IP="${LIVE_MASTER}";; esac
           if [ ! -f /data/valkey.conf ]; then
             cp /config/valkey.conf /data/valkey.conf
             {
               echo "masterauth ${CORE}"
               echo "replica-announce-ip ${HOST_IP}"
-              echo "replica-announce-port 6379"
+              echo "replica-announce-port 6380"
             } >> /data/valkey.conf
             # First-boot seed only: every pod but the master's begins as its
             # replica; Sentinel owns all failovers afterwards. Skipped once
             # valkey has rewritten its own replication state. Empty MASTER_IP
             # (resolution failed on a true cold start) falls back to pod-0.
             if [ "${POD_INDEX}" != "0" ]; then
-              echo "replicaof ${MASTER_IP:-valkey-node-0.valkey-headless.valkey.svc.cluster.local} 6379" >> /data/valkey.conf
+              echo "replicaof ${MASTER_IP:-valkey-node-0.valkey-headless.valkey.svc.cluster.local} 6380" >> /data/valkey.conf
             fi
             # The home node (worker1, flaky wifi) keeps a read replica but must never
             # be promoted: Sentinel never elects a priority-0 replica. Keyed on the
@@ -151,17 +151,30 @@ spec:
           else
             echo "io-threads 2" >> /data/valkey.conf
           fi
+          # Retained PVCs carry Sentinel-rewritten topology. Move those live
+          # addresses to the TLS listeners before either process starts; doing
+          # this in config-init makes the migration repeatable after restores.
+          sed -i -E \
+            -e 's/^(replica-announce-port) 6379$/\1 6380/' \
+            -e 's/^(replicaof [^ ]+) 6379$/\1 6380/' \
+            /data/valkey.conf
           if [ ! -f /data/sentinel.conf ]; then
             cp /config/sentinel.conf /data/sentinel.conf
             {
               echo "requirepass ${CORE}"
               echo "sentinel auth-pass myprimary ${CORE}"
               echo "sentinel announce-ip ${HOST_IP}"
-              echo "sentinel announce-port 26379"
-              echo "sentinel monitor myprimary ${MASTER_IP} 6379 2"
+              echo "sentinel announce-port 26380"
+              echo "sentinel monitor myprimary ${MASTER_IP} 6380 2"
             } >> /data/sentinel.conf
             chmod 600 /data/sentinel.conf
           fi
+          sed -i -E \
+            -e 's/^(sentinel announce-port) 26379$/\1 26380/' \
+            -e 's/^(sentinel monitor myprimary [^ ]+) 6379 (.+)$/\1 6380 \2/' \
+            -e 's/^(sentinel known-replica myprimary [^ ]+) 6379$/\1 6380/' \
+            -e 's/^(sentinel known-sentinel myprimary [^ ]+) 26379 (.+)$/\1 26380 \2/' \
+            /data/sentinel.conf
         env:
         - name: HOST_IP
           valueFrom:
@@ -197,6 +210,9 @@ spec:
           readOnly: true
         - mountPath: /shared
           name: shared-tmp
+        - mountPath: /etc/valkey/tls
+          name: valkey-tls
+          readOnly: true
       containers:
       # valkey-server runs the seeded /data/valkey.conf directly. masterauth and
       # the Tailscale announce address come in as flags from the downward API /
@@ -207,7 +223,7 @@ spec:
         - --replica-announce-ip
         - $(HOST_IP)
         - --replica-announce-port
-        - "6379"
+        - "6380"
         - --masterauth
         - $(CORE)
         # Command-line policy is authoritative even for retained PVC configs
@@ -227,6 +243,8 @@ spec:
         - /etc/valkey/tls/ca.crt
         - --tls-auth-clients
         - "no"
+        - --tls-replication
+        - "yes"
         env:
         - name: HOST_IP
           valueFrom:
@@ -347,6 +365,8 @@ spec:
         - /etc/valkey/tls/ca.crt
         - --tls-auth-clients
         - "no"
+        - --tls-replication
+        - "yes"
         env:
         - name: REDISCLI_AUTH
           valueFrom:
