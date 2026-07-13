@@ -58,6 +58,13 @@ type measurement struct {
 	errors    int64
 }
 
+type operationRunner struct {
+	ctx    context.Context
+	client valkey.Client
+	cfg    config
+	op     operation
+}
+
 func main() {
 	cfg := parseFlags()
 	if err := installCA(cfg.caFile); err != nil {
@@ -80,8 +87,9 @@ func main() {
 
 	failed := false
 	for _, op := range cfg.operations(key) {
-		run(ctx, client, cfg, op, cfg.warmup)
-		measured := run(ctx, client, cfg, op, cfg.requests)
+		runner := operationRunner{ctx: ctx, client: client, cfg: cfg, op: op}
+		runner.run(cfg.warmup)
+		measured := runner.run(cfg.requests)
 		report := summarize(cfg, op, measured)
 		if err := json.NewEncoder(os.Stdout).Encode(report); err != nil {
 			fatal(err)
@@ -94,7 +102,30 @@ func main() {
 }
 
 func parseFlags() config {
-	var cfg config
+	cfg := defaultConfig()
+	bindFlags(&cfg)
+	flag.Parse()
+	if err := cfg.validate(); err != nil {
+		fatal(err)
+	}
+	return cfg
+}
+
+func defaultConfig() config {
+	return config{
+		address:     "valkey.valkey.svc.cluster.local:26380",
+		caFile:      "/etc/valkey/tls/ca.crt",
+		mode:        "both",
+		node:        os.Getenv("NODE_NAME"),
+		concurrency: 5,
+		requests:    100000,
+		warmup:      5000,
+		timeout:     5 * time.Minute,
+		target:      2 * time.Millisecond,
+	}
+}
+
+func bindFlags(cfg *config) {
 	flag.StringVar(&cfg.address, "address", "valkey.valkey.svc.cluster.local:26380", "Sentinel address")
 	flag.StringVar(&cfg.caFile, "ca-file", "/etc/valkey/tls/ca.crt", "fleet CA file")
 	flag.StringVar(&cfg.mode, "mode", "both", "read, write, or both")
@@ -105,14 +136,30 @@ func parseFlags() config {
 	flag.DurationVar(&cfg.timeout, "timeout", 5*time.Minute, "whole-run timeout")
 	flag.DurationVar(&cfg.target, "target", 2*time.Millisecond, "maximum accepted p99")
 	flag.BoolVar(&cfg.requireTarget, "require-target", false, "exit non-zero when any p99 misses target")
-	flag.Parse()
-	if cfg.node == "" || cfg.concurrency < 1 || cfg.requests < 1 || cfg.warmup < 0 || cfg.target <= 0 {
-		fatal(errors.New("invalid benchmark configuration"))
+}
+
+func (cfg config) validate() error {
+	if cfg.node == "" {
+		return errors.New("node is required")
 	}
-	if cfg.mode != "read" && cfg.mode != "write" && cfg.mode != "both" {
-		fatal(errors.New("mode must be read, write, or both"))
+	if cfg.concurrency < 1 {
+		return errors.New("concurrency must be positive")
 	}
-	return cfg
+	if cfg.requests < 1 {
+		return errors.New("requests must be positive")
+	}
+	if cfg.warmup < 0 {
+		return errors.New("warmup cannot be negative")
+	}
+	if cfg.target <= 0 {
+		return errors.New("target must be positive")
+	}
+	switch cfg.mode {
+	case "read", "write", "both":
+		return nil
+	default:
+		return errors.New("mode must be read, write, or both")
+	}
 }
 
 func installCA(path string) error {
@@ -148,15 +195,15 @@ func seed(ctx context.Context, client valkey.Client, key string) error {
 	return errors.New("seed did not reach node-local replica")
 }
 
-func run(ctx context.Context, client valkey.Client, cfg config, op operation, requests int) measurement {
+func (r operationRunner) run(requests int) measurement {
 	latencies := make([]time.Duration, requests)
 	var next atomic.Int64
 	var failures atomic.Int64
 	start := make(chan struct{})
 	var workers sync.WaitGroup
-	workers.Add(cfg.concurrency)
+	workers.Add(r.cfg.concurrency)
 	started := time.Now()
-	for range cfg.concurrency {
+	for range r.cfg.concurrency {
 		go func() {
 			defer workers.Done()
 			<-start
@@ -166,7 +213,7 @@ func run(ctx context.Context, client valkey.Client, cfg config, op operation, re
 					return
 				}
 				began := time.Now()
-				if execute(ctx, client, op).Error() != nil {
+				if r.execute().Error() != nil {
 					failures.Add(1)
 				}
 				latencies[i] = time.Since(began)
@@ -178,11 +225,12 @@ func run(ctx context.Context, client valkey.Client, cfg config, op operation, re
 	return measurement{latencies: latencies, elapsed: time.Since(started), errors: failures.Load()}
 }
 
-func execute(ctx context.Context, client valkey.Client, op operation) valkey.ValkeyResult {
-	if op.name == "read-local" {
-		return client.Do(ctx, client.B().Get().Key(op.key).Build())
+func (r operationRunner) execute() valkey.ValkeyResult {
+	if r.op.name == "read-local" {
+		return r.client.Do(r.ctx, r.client.B().Get().Key(r.op.key).Build())
 	}
-	return client.Do(ctx, client.B().Set().Key(op.key).Value("01234567890123456789012345678901").ExSeconds(300).Build())
+	cmd := r.client.B().Set().Key(r.op.key).Value("01234567890123456789012345678901").ExSeconds(300).Build()
+	return r.client.Do(r.ctx, cmd)
 }
 
 func summarize(cfg config, op operation, measured measurement) result {
