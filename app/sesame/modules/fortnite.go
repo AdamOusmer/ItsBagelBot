@@ -245,14 +245,39 @@ func fortniteStatsRun(d engine.Deps, cmd fortniteStatsCommand) module.RunFunc {
 	}
 }
 
+// fortniteSessionText renders the !fn session chat line: the delta line when a
+// baseline exists, otherwise a "tracking just started" note. Template tokens:
+// {player} {wins} {matches} {kills} {kd} {winrate}.
+func fortniteSessionText(cfg fortniteConfig, reply *gatewayrpc.FortniteSessionReply) string {
+	if !reply.HasSnapshot {
+		return reply.Player + ": session tracking just started, come back after a few games!"
+	}
+	return module.ExpandString(orDefault(cfg.SessionMessage, defaultFortniteSessionTemplate), func(key string) (string, bool) {
+		switch key {
+		case "player":
+			return reply.Player, true
+		case "wins":
+			return i64(reply.Wins), true
+		case "matches":
+			return i64(reply.Matches), true
+		case "kills":
+			return i64(reply.Kills), true
+		case "kd":
+			return trimScore(reply.KD), true
+		case "winrate":
+			return trimScore(reply.WinRate), true
+		}
+		return module.ParseDynamic(key)
+	})
+}
+
 // fortniteSessionRun answers !fn session / !fnsession with the delta since the
-// stream-start snapshot. Template tokens: {player} {wins} {matches} {kills}
-// {kd} {winrate}. Like the mcsr session command it always targets the linked
-// account, never a typed argument: the baseline is stored per channel and keyed
-// to the linked account, so honoring an arbitrary player would clobber the
-// streamer's stream-start baseline. Without a baseline (module enabled
-// mid-stream) the gateway starts tracking now and the reply says so instead of
-// faking a zero delta.
+// stream-start snapshot. Like the mcsr session command it always targets the
+// linked account, never a typed argument: the baseline is stored per channel
+// and keyed to the linked account, so honoring an arbitrary player would
+// clobber the streamer's stream-start baseline. Without a baseline (module
+// enabled mid-stream) the gateway starts tracking now and the reply says so
+// instead of faking a zero delta.
 func fortniteSessionRun(d engine.Deps) module.RunFunc {
 	return func(ctx context.Context, c *module.Context, _ string, emit module.Emit) error {
 		var cfg fortniteConfig
@@ -275,34 +300,7 @@ func fortniteSessionRun(d engine.Deps) module.RunFunc {
 			}
 			return err
 		}
-
-		if !reply.HasSnapshot {
-			emit(&module.Output{
-				Type:          outgress.TypeChat,
-				BroadcasterID: c.Env.BroadcasterUserID,
-				Text:          reply.Player + ": session tracking just started, come back after a few games!",
-			})
-			return nil
-		}
-
-		msg := module.ExpandString(orDefault(cfg.SessionMessage, defaultFortniteSessionTemplate), func(key string) (string, bool) {
-			switch key {
-			case "player":
-				return reply.Player, true
-			case "wins":
-				return i64(reply.Wins), true
-			case "matches":
-				return i64(reply.Matches), true
-			case "kills":
-				return i64(reply.Kills), true
-			case "kd":
-				return trimScore(reply.KD), true
-			case "winrate":
-				return trimScore(reply.WinRate), true
-			}
-			return module.ParseDynamic(key)
-		})
-		emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: msg})
+		emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: fortniteSessionText(cfg, &reply)})
 		return nil
 	}
 }

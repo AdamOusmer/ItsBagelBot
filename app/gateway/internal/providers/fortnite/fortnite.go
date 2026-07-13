@@ -470,6 +470,49 @@ func (p *Provider) sessionStart(ctx context.Context, req gatewayrpc.Request) any
 	return gatewayrpc.FortniteSnapshotReply{Player: stats.Player}
 }
 
+// loadSnapshot reads the channel's stream-start snapshot, reporting ok only
+// when one exists and tracks account — a snapshot keyed to a different account
+// must not be diffed against.
+func (p *Provider) loadSnapshot(ctx context.Context, channelID, account string) (snapshot, bool) {
+	var snap snapshot
+	ok, err := p.cache.GetJSON(ctx, snapshotKey(channelID), &snap)
+	if err != nil {
+		p.log.Warn("fortnite snapshot read failed", zap.String("channel_id", channelID), zap.Error(err))
+	}
+	return snap, ok && snap.Account == strings.ToLower(account)
+}
+
+// storeSnapshot writes the channel's baseline, logging the failure for callers
+// that cannot surface it (the session start-tracking path).
+func (p *Provider) storeSnapshot(ctx context.Context, channelID, account string, stats gatewayrpc.FortniteStatsReply) {
+	if err := p.writeSnapshot(ctx, channelID, account, stats); err != nil {
+		p.log.Warn("fortnite snapshot write failed", zap.String("channel_id", channelID), zap.Error(err))
+	}
+}
+
+// sessionDelta builds the session reply from the live standing and the
+// stream-start snapshot. Lifetime counters only grow, but clamp defensively so
+// an upstream correction can never render a negative "this stream" line;
+// modeAgg.reply derives K/D and win rate exactly as the stats path does.
+func sessionDelta(live gatewayrpc.FortniteStatsReply, snap snapshot) gatewayrpc.FortniteSessionReply {
+	delta := modeAgg{
+		wins:    max(0, live.Overall.Wins-snap.Wins),
+		matches: max(0, live.Overall.Matches-snap.Matches),
+		kills:   max(0, live.Overall.Kills-snap.Kills),
+	}
+	ms := delta.reply()
+	return gatewayrpc.FortniteSessionReply{
+		Player:      live.Player,
+		Wins:        ms.Wins,
+		Matches:     ms.Matches,
+		Kills:       ms.Kills,
+		KD:          ms.KD,
+		WinRate:     ms.WinRate,
+		SinceUnix:   snap.AtUnix,
+		HasSnapshot: true,
+	}
+}
+
 // session answers the delta since the channel's stream-start snapshot. Without
 // a usable snapshot (none stored, or it tracks a different account) it takes
 // one now and reports HasSnapshot=false so the caller can say "tracking from
@@ -487,37 +530,13 @@ func (p *Provider) session(ctx context.Context, req gatewayrpc.Request) any {
 		return gatewayrpc.FortniteSessionReply{Player: account, Error: p.sessionError("session", account, err)}
 	}
 
-	var snap snapshot
-	ok, err := p.cache.GetJSON(ctx, snapshotKey(req.ChannelID), &snap)
-	if err != nil {
-		p.log.Warn("fortnite snapshot read failed", zap.String("channel_id", req.ChannelID), zap.Error(err))
+	snap, ok := p.loadSnapshot(ctx, req.ChannelID, account)
+	if !ok {
+		// No baseline for this account yet: start one now so the next call diffs.
+		p.storeSnapshot(ctx, req.ChannelID, account, live)
+		return gatewayrpc.FortniteSessionReply{Player: live.Player, SinceUnix: time.Now().Unix()}
 	}
-	if !ok || snap.Account != strings.ToLower(account) {
-		if werr := p.writeSnapshot(ctx, req.ChannelID, account, live); werr != nil {
-			p.log.Warn("fortnite snapshot write failed", zap.String("channel_id", req.ChannelID), zap.Error(werr))
-		}
-		return gatewayrpc.FortniteSessionReply{Player: live.Player, HasSnapshot: false, SinceUnix: time.Now().Unix()}
-	}
-
-	// Lifetime counters only grow, but clamp defensively so an upstream
-	// correction can never render a negative "this stream" line. modeAgg.reply
-	// derives K/D and win rate exactly as the stats path does.
-	delta := modeAgg{
-		wins:    max(0, live.Overall.Wins-snap.Wins),
-		matches: max(0, live.Overall.Matches-snap.Matches),
-		kills:   max(0, live.Overall.Kills-snap.Kills),
-	}
-	ms := delta.reply()
-	return gatewayrpc.FortniteSessionReply{
-		Player:      live.Player,
-		Wins:        ms.Wins,
-		Matches:     ms.Matches,
-		Kills:       ms.Kills,
-		KD:          ms.KD,
-		WinRate:     ms.WinRate,
-		SinceUnix:   snap.AtUnix,
-		HasSnapshot: true,
-	}
+	return sessionDelta(live, snap)
 }
 
 // --- item shop -------------------------------------------------------------------
