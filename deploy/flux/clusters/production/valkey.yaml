@@ -11,6 +11,8 @@ metadata:
   namespace: flux-system
 spec:
   interval: 1h
+  dependsOn:
+    - name: pki
   sourceRef:
     kind: GitRepository
     name: flux-system

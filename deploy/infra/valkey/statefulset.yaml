@@ -23,11 +23,10 @@ spec:
   template:
     metadata:
       annotations:
-        # De-meshed. Valkey/sentinel traffic already bypassed the proxy
-        # (skip-inbound/outbound on 6379,26379) and rides the tailnet — nodes
-        # announce their Tailscale IP and sentinel tracks the master by node
-        # address — so removing the proxy changes nothing on the wire (traffic
-        # stays WireGuard-encrypted). Native Valkey TLS is a follow-up.
+        # De-meshed. Nodes still announce stable Tailscale IPs for Sentinel and
+        # node-local reads, while native Valkey TLS adds end-to-end identity and
+        # encryption independent of the transport. Dual listeners make the
+        # cutover reversible; TLS traffic uses 6380/26380.
         linkerd.io/inject: disabled
         secrets.doppler.com/reload: 'true'
       labels:
@@ -200,6 +199,23 @@ spec:
         - "6379"
         - --masterauth
         - $(CORE)
+        # Command-line policy is authoritative even for retained PVC configs
+        # written before these limits existed. This fixes failover replicas
+        # that were still maxmemory=0/noeviction while preserving their role.
+        - --maxmemory
+        - 512mb
+        - --maxmemory-policy
+        - volatile-lru
+        - --tls-port
+        - "6380"
+        - --tls-cert-file
+        - /etc/valkey/tls/tls.crt
+        - --tls-key-file
+        - /etc/valkey/tls/tls.key
+        - --tls-ca-cert-file
+        - /etc/valkey/tls/ca.crt
+        - --tls-auth-clients
+        - "no"
         env:
         - name: HOST_IP
           valueFrom:
@@ -222,7 +238,12 @@ spec:
             command:
             - valkey-cli
             - -p
-            - "6379"
+            - "6380"
+            - --tls
+            - --cacert
+            - /etc/valkey/tls/ca.crt
+            - --sni
+            - valkey.valkey.svc.cluster.local
             - ping
           failureThreshold: 3
           initialDelaySeconds: 20
@@ -235,12 +256,21 @@ spec:
           hostPort: 6379
           name: redis
           protocol: TCP
+        - containerPort: 6380
+          hostPort: 6380
+          name: redis-tls
+          protocol: TCP
         readinessProbe:
           exec:
             command:
             - valkey-cli
             - -p
-            - "6379"
+            - "6380"
+            - --tls
+            - --cacert
+            - /etc/valkey/tls/ca.crt
+            - --sni
+            - valkey.valkey.svc.cluster.local
             - ping
           failureThreshold: 3
           initialDelaySeconds: 10
@@ -274,10 +304,23 @@ spec:
         - mountPath: /config
           name: valkey-config
           readOnly: true
+        - mountPath: /etc/valkey/tls
+          name: valkey-tls
+          readOnly: true
       - command:
         - valkey-server
         - /data/sentinel.conf
         - --sentinel
+        - --tls-port
+        - "26380"
+        - --tls-cert-file
+        - /etc/valkey/tls/tls.crt
+        - --tls-key-file
+        - /etc/valkey/tls/tls.key
+        - --tls-ca-cert-file
+        - /etc/valkey/tls/ca.crt
+        - --tls-auth-clients
+        - "no"
         env:
         - name: REDISCLI_AUTH
           valueFrom:
@@ -291,7 +334,12 @@ spec:
             command:
             - valkey-cli
             - -p
-            - "26379"
+            - "26380"
+            - --tls
+            - --cacert
+            - /etc/valkey/tls/ca.crt
+            - --sni
+            - valkey.valkey.svc.cluster.local
             - ping
           failureThreshold: 3
           initialDelaySeconds: 20
@@ -304,12 +352,21 @@ spec:
           hostPort: 26379
           name: valkey-sentinel
           protocol: TCP
+        - containerPort: 26380
+          hostPort: 26380
+          name: sentinel-tls
+          protocol: TCP
         readinessProbe:
           exec:
             command:
             - valkey-cli
             - -p
-            - "26379"
+            - "26380"
+            - --tls
+            - --cacert
+            - /etc/valkey/tls/ca.crt
+            - --sni
+            - valkey.valkey.svc.cluster.local
             - ping
           failureThreshold: 3
           initialDelaySeconds: 15
@@ -337,6 +394,9 @@ spec:
         volumeMounts:
         - mountPath: /data
           name: valkey-data
+        - mountPath: /etc/valkey/tls
+          name: valkey-tls
+          readOnly: true
       dnsPolicy: ClusterFirst
       priorityClassName: infra-low
       restartPolicy: Always
@@ -375,6 +435,10 @@ spec:
         name: valkey-config
       - name: shared-tmp
         emptyDir: {}
+      - name: valkey-tls
+        secret:
+          defaultMode: 288
+          secretName: valkey-server-tls
   updateStrategy:
     type: RollingUpdate
   volumeClaimTemplates:

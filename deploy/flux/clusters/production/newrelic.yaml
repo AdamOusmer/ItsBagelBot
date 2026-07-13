@@ -167,9 +167,15 @@ spec:
                 - -c
                 - |
                   export PASSWORD="$(cat /secrets/valkey/VALKEY_CORE_PASSWORD)"
-                  export HOSTNAME="${discovery.ip}"
-                  export PORT="6379"
+                  # Node-local native TLS endpoint. nodeIP is the stable
+                  # Tailscale address present in the Valkey server cert SANs;
+                  # SSL_CERT_FILE extends Go's system roots with the fleet CA.
+                  export HOSTNAME="${discovery.nodeIP}"
+                  export PORT="6380"
+                  export USE_TLS="true"
+                  export SSL_CERT_FILE="/secrets/fleet-ca/ca.pem"
                   export METRICS="true"
+                  export REMOTE_MONITORING="true"
                   exec /var/db/newrelic-infra/newrelic-integrations/bin/nri-redis
 
       # The kubelet `agent` container needs the valkey password file mounted at
@@ -194,9 +200,15 @@ spec:
             secret:
               secretName: valkey-core-secret
               defaultMode: 0400
+          - name: fleet-ca
+            configMap:
+              name: fleet-ca
         extraVolumeMounts:
           - name: valkey-core-secret
             mountPath: /secrets/valkey
+            readOnly: true
+          - name: fleet-ca
+            mountPath: /secrets/fleet-ca
             readOnly: true
 
       # Control-plane scraping is OFF: k3s embeds etcd(kine)/scheduler/

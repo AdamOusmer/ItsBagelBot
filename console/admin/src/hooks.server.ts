@@ -29,7 +29,14 @@ export const init: ServerInit = async () => {
   // Register the caching-layer config (Valkey read tier + invalidation bus) so
   // shared infra resolves it without touching $env itself.
   registerServerConfig({
-    valkey: env.VALKEY_ADDR ? { addr: env.VALKEY_ADDR, password: env.VALKEY_PASSWORD } : undefined,
+    valkey: env.VALKEY_ADDR
+      ? {
+          addr: env.VALKEY_ADDR,
+          password: env.VALKEY_PASSWORD,
+          tlsCa: env.VALKEY_TLS_CA_PEM,
+          tlsServerName: env.VALKEY_TLS_SERVER_NAME
+        }
+      : undefined,
     cacheInvalidationPrefix: env.NATS_CACHE_INVALIDATION_PREFIX ?? 'bagel.cache.invalidate'
   });
 

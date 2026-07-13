@@ -38,7 +38,9 @@ export const init: ServerInit = async () => {
           // tracks the elected master across failovers instead of pinning a
           // node-local instance that may be a read-only replica.
           sentinelAddr: env.VALKEY_SENTINEL_ADDR,
-          sentinelMaster: env.VALKEY_MASTER_SET
+          sentinelMaster: env.VALKEY_MASTER_SET,
+          tlsCa: env.VALKEY_TLS_CA_PEM,
+          tlsServerName: env.VALKEY_TLS_SERVER_NAME
         }
       : undefined,
     cacheInvalidationPrefix: env.NATS_CACHE_INVALIDATION_PREFIX ?? 'bagel.cache.invalidate'

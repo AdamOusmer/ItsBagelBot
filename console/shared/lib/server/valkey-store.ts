@@ -23,6 +23,7 @@ import Redis from 'iovalkey';
 import type { CommandView } from '../types';
 import { getServerConfig } from './config';
 import { CircuitBreaker, withTimeout } from './resilience';
+import { VALKEY_TLS_DATA_PORT, valkeyEndpoint, valkeyTLSOptions } from './valkey-connection';
 
 const SETTINGS_PREFIX = 'settings:';
 const OP_TIMEOUT_MS = 200;
@@ -65,11 +66,13 @@ function get(): Redis | null {
     disabled = true;
     return null;
   }
-  const [host, portStr] = cfg.addr.split(':');
+  const tls = valkeyTLSOptions(cfg);
+  const endpoint = valkeyEndpoint(cfg.addr, Boolean(tls), VALKEY_TLS_DATA_PORT);
   client = new Redis({
-    host: host || '127.0.0.1',
-    port: portStr ? Number(portStr) : 6379,
+    host: endpoint.host,
+    port: endpoint.port,
     password: cfg.password || undefined,
+    tls,
     // No offline queue: while Valkey is unreachable, ops fail immediately and
     // readers fall through to RPC (op() returns the miss sentinel). Queueing
     // would buy nothing here — every op is already bounded by OP_TIMEOUT_MS —

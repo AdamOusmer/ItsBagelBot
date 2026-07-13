@@ -102,3 +102,42 @@ spec:
   dnsNames:
     - console-admin
     - console-admin.production.svc.cluster.local
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: valkey-server-tls
+  namespace: valkey
+spec:
+  secretName: valkey-server-tls
+  duration: 2160h # 90d
+  renewBefore: 360h # 15d
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: fleet-ca-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+  # Clients dial the Service name, a node's stable tailnet IP (node-local reads,
+  # replication and monitoring), or a StatefulSet peer name. One shared cert is
+  # intentional: the four servers form one trusted Valkey service and continue
+  # to authenticate users with ACL passwords rather than client certificates.
+  dnsNames:
+    - valkey
+    - valkey.valkey
+    - valkey.valkey.svc
+    - valkey.valkey.svc.cluster.local
+    - valkey-headless
+    - valkey-headless.valkey.svc.cluster.local
+    - valkey-node-0.valkey-headless.valkey.svc.cluster.local
+    - valkey-node-1.valkey-headless.valkey.svc.cluster.local
+    - valkey-node-2.valkey-headless.valkey.svc.cluster.local
+    - valkey-node-3.valkey-headless.valkey.svc.cluster.local
+    - localhost
+  ipAddresses:
+    - 127.0.0.1
+    - 100.98.67.104 # node1
+    - 100.95.95.9   # node2
+    - 100.99.41.21  # node3
+    - 100.104.223.54 # worker1

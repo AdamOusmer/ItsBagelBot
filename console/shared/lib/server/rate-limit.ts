@@ -18,6 +18,13 @@
 // failure mode is a looser (per-pod) limit for a few seconds.
 
 import Redis from 'iovalkey';
+import {
+  VALKEY_TLS_DATA_PORT,
+  VALKEY_TLS_SENTINEL_PORT,
+  valkeyEndpoint,
+  valkeySentinelNAT,
+  valkeyTLSOptions
+} from './valkey-connection';
 import { getServerConfig, hasServerConfig } from './config';
 import { CircuitBreaker, withTimeout } from './resilience';
 
@@ -196,17 +203,22 @@ function getWriteClient(): RateLimitClient | null {
     return null;
   }
 
+  const tls = valkeyTLSOptions(cfg);
   let client: Redis;
   if (cfg.sentinelAddr) {
-    const [host, portStr] = cfg.sentinelAddr.split(':');
+    const endpoint = valkeyEndpoint(cfg.sentinelAddr, Boolean(tls), VALKEY_TLS_SENTINEL_PORT);
     client = new Redis({
-      sentinels: [{ host: host || '127.0.0.1', port: portStr ? Number(portStr) : 26379 }],
+      sentinels: [endpoint],
       // `||` not `??`: an empty VALKEY_MASTER_SET (unset in Doppler comes
       // through as "") must fall back to the sentinel's monitored name, not be
       // used verbatim — a blank master name never resolves, so every write
       // (rate-limit AND single-use claimOnce) would silently time out.
       name: cfg.sentinelMaster || 'myprimary',
       password: cfg.password || undefined,
+      tls,
+      sentinelTLS: tls,
+      enableTLSForSentinelMode: Boolean(tls),
+      natMap: tls ? valkeySentinelNAT : undefined,
       // Fail fast, never queue: an unreachable master must degrade to the
       // per-pod fallback immediately, not grow an unbounded command queue.
       enableOfflineQueue: false,
@@ -216,11 +228,12 @@ function getWriteClient(): RateLimitClient | null {
       sentinelRetryStrategy: (times: number) => Math.min(times * 200, 2000)
     });
   } else {
-    const [host, portStr] = cfg.addr.split(':');
+    const endpoint = valkeyEndpoint(cfg.addr, Boolean(tls), VALKEY_TLS_DATA_PORT);
     client = new Redis({
-      host: host || '127.0.0.1',
-      port: portStr ? Number(portStr) : 6379,
+      host: endpoint.host,
+      port: endpoint.port,
       password: cfg.password || undefined,
+      tls,
       enableOfflineQueue: false,
       maxRetriesPerRequest: 1,
       connectTimeout: 1000,

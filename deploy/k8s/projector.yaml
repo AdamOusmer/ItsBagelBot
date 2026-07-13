@@ -95,6 +95,13 @@ spec:
                 configMapKeyRef:
                   name: fleet-ca
                   key: ca.pem
+            - name: VALKEY_TLS_CA_PEM
+              valueFrom:
+                configMapKeyRef:
+                  name: fleet-ca
+                  key: ca.pem
+            - name: VALKEY_TLS_SERVER_NAME
+              value: valkey.valkey.svc.cluster.local
             - name: NATS_RPC_URL
               value: nats://nats-leaf:4222
             - name: NATS_LEAF_URL

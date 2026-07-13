@@ -1,5 +1,7 @@
 # trust-manager distributes the public CA (no private key) as a ConfigMap named
-# fleet-ca into the production namespace. Apps read it as NATS_CA_PEM
+# fleet-ca into the application, Valkey, and New Relic namespaces. Apps read it
+# as NATS_CA_PEM/VALKEY_TLS_CA_PEM, Valkey uses it for server/replication TLS,
+# and nri-redis verifies each node certificate without disabling validation.
 # (configMapKeyRef fleet-ca/ca.pem) and Traefik reads it as a ServersTransport
 # rootCAs, so every client can verify the NATS and console server certs without
 # shipping a private key around.
@@ -20,5 +22,7 @@ spec:
     configMap:
       key: ca.pem
     namespaceSelector:
-      matchLabels:
-        kubernetes.io/metadata.name: production
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: In
+          values: [production, valkey, newrelic]

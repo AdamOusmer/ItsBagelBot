@@ -2,17 +2,13 @@ package valkey
 
 import (
 	"context"
+	"crypto/tls"
 	"log"
 	"net"
 	"os"
-	"strings"
 
 	valkey_go "github.com/valkey-io/valkey-go"
 )
-
-// localReadPort is the port every Valkey instance binds on its node's host
-// (hostPort 6379). Combined with NODE_IP it addresses the node-local instance.
-const localReadPort = "6379"
 
 // BuildClientOption constructs the Valkey client option for the master/write
 // path. For a Sentinel deployment (detected via the :26379 port) it configures
@@ -22,7 +18,7 @@ const localReadPort = "6379"
 //
 // Exported for testing.
 func BuildClientOption(address, password string) valkey_go.ClientOption {
-	return buildOption(address, password, true)
+	return buildOption(address, password, true, nil)
 }
 
 // buildOption builds a Valkey client option. replicaReads enables the
@@ -34,17 +30,25 @@ func BuildClientOption(address, password string) valkey_go.ClientOption {
 // replica — pins the subscription to a node that never emits them, silently
 // dropping every expiry. Reads still offload via the node-local client (Do),
 // so the pub/sub client losing replica-reads costs nothing.
-func buildOption(address, password string, replicaReads bool) valkey_go.ClientOption {
+func buildOption(address, password string, replicaReads bool, tlsConfig *tls.Config) valkey_go.ClientOption {
 	opts := valkey_go.ClientOption{
 		InitAddress:  []string{address},
 		Password:     password,
 		DisableCache: true,
+		TLSConfig:    cloneTLSConfig(tlsConfig),
+	}
+	if tlsConfig != nil {
+		// During the guarded rollout older Sentinels can briefly report 6379.
+		// Rewrite that discovered endpoint to the native TLS listener before
+		// dialing; current 6380/26380 addresses pass through unchanged.
+		opts.DialCtxFn = nativeTLSDial
 	}
 
-	if strings.HasSuffix(address, ":26379") {
+	if isSentinelAddress(address) {
 		opts.Sentinel = valkey_go.SentinelOption{
 			MasterSet: "myprimary",
 			Password:  password,
+			TLSConfig: cloneTLSConfig(tlsConfig),
 		}
 		if replicaReads {
 			// Without a node-local read client, fall back to sending read-only
@@ -140,20 +144,25 @@ func allReadOnly(multi []valkey_go.Completed) bool {
 // hop. Otherwise reads fall back to a Sentinel replica (or the single
 // instance, for a standalone address).
 func NewClient(address, password string) (valkey_go.Client, error) {
-	master, err := valkey_go.NewClient(BuildClientOption(address, password))
+	tlsConfig, err := clientTLSConfig()
+	if err != nil {
+		return nil, err
+	}
+	address = secureAddress(address, tlsConfig != nil)
+	master, err := valkey_go.NewClient(buildOption(address, password, true, tlsConfig))
 	if err != nil {
 		return nil, err
 	}
 
 	// Standalone (dev / single instance): that one node is the master, so its
 	// own Do/Receive already land on the right place. No wrapper needed.
-	if !strings.HasSuffix(address, ":26379") {
+	if !isSentinelAddress(address) {
 		return master, nil
 	}
 
 	// Sentinel: pub/sub must be pinned to the master (no SendToReplicas) or the
 	// expiry watchers subscribe to a replica that never emits expired events.
-	pubsub, err := valkey_go.NewClient(buildOption(address, password, false))
+	pubsub, err := valkey_go.NewClient(buildOption(address, password, false, tlsConfig))
 	if err != nil {
 		master.Close()
 		return nil, err
@@ -167,10 +176,15 @@ func NewClient(address, password string) (valkey_go.Client, error) {
 		return wrapped, nil
 	}
 
+	localPort := plainDataPort
+	if tlsConfig != nil {
+		localPort = tlsDataPort
+	}
 	local, err := valkey_go.NewClient(valkey_go.ClientOption{
-		InitAddress:  []string{net.JoinHostPort(nodeIP, localReadPort)},
+		InitAddress:  []string{net.JoinHostPort(nodeIP, localPort)},
 		Password:     password,
 		DisableCache: true,
+		TLSConfig:    cloneTLSConfig(tlsConfig),
 	})
 	if err != nil {
 		// Local instance unreachable at startup: degrade to Sentinel-only
@@ -180,7 +194,7 @@ func NewClient(address, password string) (valkey_go.Client, error) {
 		return wrapped, nil
 	}
 
-	log.Printf("valkey: reading from node-local instance %s:%s", nodeIP, localReadPort)
+	log.Printf("valkey: reading from node-local instance %s:%s", nodeIP, localPort)
 	wrapped.local = local
 	return wrapped, nil
 }
