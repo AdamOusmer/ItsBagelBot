@@ -67,7 +67,12 @@ func secureAddress(address string, enabled bool) string {
 }
 
 func nativeTLSDial(ctx context.Context, address string, dialer *net.Dialer, config *tls.Config) (net.Conn, error) {
-	connection, err := dialer.DialContext(ctx, "tcp", secureAddress(address, true))
+	target := (nativeDialTarget{
+		discovered:   address,
+		nodeIP:       os.Getenv("NODE_IP"),
+		localAddress: os.Getenv("VALKEY_LOCAL_ADDR"),
+	}).address()
+	connection, err := dialer.DialContext(ctx, "tcp", target)
 	if err != nil || config == nil {
 		return connection, err
 	}
@@ -77,4 +82,25 @@ func nativeTLSDial(ctx context.Context, address string, dialer *net.Dialer, conf
 		return nil, err
 	}
 	return tlsConnection, nil
+}
+
+// nativeDialTarget keeps Sentinel's elected-primary semantics while avoiding a
+// hostPort/Tailnet loop on whichever node currently owns the primary. Remote
+// primary addresses and Sentinel connections are left untouched.
+type nativeDialTarget struct {
+	discovered   string
+	nodeIP       string
+	localAddress string
+}
+
+func (t nativeDialTarget) address() string {
+	discovered := secureAddress(t.discovered, true)
+	host, port, err := net.SplitHostPort(discovered)
+	if err != nil || port != tlsDataPort {
+		return discovered
+	}
+	if t.localAddress == "" || host != t.nodeIP {
+		return discovered
+	}
+	return secureAddress(t.localAddress, true)
 }

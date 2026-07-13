@@ -80,3 +80,28 @@ func TestLocalReadOptionUsesSmallMultiplexedConnections(t *testing.T) {
 	assert.Equal(t, localBufferSize, opts.WriteBufferEachConn)
 	assert.NotNil(t, opts.TLSConfig)
 }
+
+func TestNativeDialTargetUsesLocalServiceForElectedPrimary(t *testing.T) {
+	target := nativeDialTarget{
+		discovered:   "100.95.95.9:6379",
+		nodeIP:       "100.95.95.9",
+		localAddress: "valkey-local.valkey.svc.cluster.local:6380",
+	}
+	assert.Equal(t, "valkey-local.valkey.svc.cluster.local:6380", target.address())
+}
+
+func TestNativeDialTargetPreservesRemoteAndSentinelAddresses(t *testing.T) {
+	remote := nativeDialTarget{
+		discovered:   "100.99.41.21:6379",
+		nodeIP:       "100.95.95.9",
+		localAddress: "valkey-local.valkey.svc.cluster.local:6380",
+	}
+	assert.Equal(t, "100.99.41.21:6380", remote.address())
+
+	sentinel := nativeDialTarget{
+		discovered:   "valkey.valkey.svc.cluster.local:26379",
+		nodeIP:       "100.95.95.9",
+		localAddress: "valkey-local.valkey.svc.cluster.local:6380",
+	}
+	assert.Equal(t, "valkey.valkey.svc.cluster.local:26380", sentinel.address())
+}
