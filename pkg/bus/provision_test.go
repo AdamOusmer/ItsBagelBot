@@ -145,6 +145,30 @@ func TestStreamReplicasAreExplicitAndEnforced(t *testing.T) {
 	}
 }
 
+func TestR1StreamsStayOffWorker1(t *testing.T) {
+	specs := append([]StreamSpec{}, DataStreams...)
+	specs = append(specs, OutgressStream)
+	for _, spec := range specs {
+		cfg := streamConfig(spec)
+		if cfg.Replicas != 1 {
+			continue
+		}
+		if cfg.Placement == nil || len(cfg.Placement.Tags) != 1 {
+			t.Fatalf("R1 stream %s has no ordinal placement", spec.Name)
+		}
+		if cfg.Placement.Tags[0] == "nats-2" {
+			t.Fatalf("R1 stream %s may place its sole leader on worker1", spec.Name)
+		}
+	}
+
+	want := *streamConfig(ingressStreamSpec(t))
+	drifted := want
+	drifted.Placement = &nats.Placement{Tags: []string{"nats-2"}}
+	if streamMatches(drifted, want) {
+		t.Fatal("streamMatches ignored placement drift")
+	}
+}
+
 func TestReplaceConsumerCarriesAckFloor(t *testing.T) {
 	desired := laneConsumerConfig(
 		"twitch.ingress.event.premium",
