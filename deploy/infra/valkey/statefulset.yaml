@@ -25,8 +25,8 @@ spec:
       annotations:
         # De-meshed. Nodes still announce stable Tailscale IPs for Sentinel and
         # node-local reads, while native Valkey TLS adds end-to-end identity and
-        # encryption independent of the transport. Dual listeners make the
-        # cutover reversible; TLS traffic uses 6380/26380.
+        # encryption independent of the transport. Only the native TLS
+        # listeners are exposed: data on 6380 and Sentinel on 26380.
         linkerd.io/inject: disabled
         secrets.doppler.com/reload: 'true'
       labels:
@@ -247,6 +247,10 @@ spec:
         - 512mb
         - --maxmemory-policy
         - volatile-lru
+        # Retained PVCs may contain an older plaintext port. Command-line
+        # policy is authoritative so a restore cannot reopen it.
+        - --port
+        - "0"
         - --tls-port
         - "6380"
         - --tls-cert-file
@@ -295,10 +299,6 @@ spec:
           timeoutSeconds: 5
         name: valkey
         ports:
-        - containerPort: 6379
-          hostPort: 6379
-          name: redis
-          protocol: TCP
         - containerPort: 6380
           hostPort: 6380
           name: redis-tls
@@ -369,6 +369,9 @@ spec:
         - valkey-server
         - /data/sentinel.conf
         - --sentinel
+        # Override Sentinel's rewritten PVC config as well as the ConfigMap.
+        - --port
+        - "0"
         - --tls-port
         - "26380"
         - --tls-cert-file
@@ -408,10 +411,6 @@ spec:
           timeoutSeconds: 5
         name: sentinel
         ports:
-        - containerPort: 26379
-          hostPort: 26379
-          name: valkey-sentinel
-          protocol: TCP
         - containerPort: 26380
           hostPort: 26380
           name: sentinel-tls

@@ -54,16 +54,12 @@ spec:
               kubernetes.io/metadata.name: valkey
     # Valkey Sentinel and replicas announce stable node Tailscale IPs. The Go
     # client dials those addresses for node-local reads and the elected master;
-    # the namespaceSelector above only covers Valkey pod IPs. Keep both legacy
-    # and guarded-cutover TLS ports until plaintext is removed after validation.
+    # the namespaceSelector above only covers Valkey pod IPs. Native TLS is
+    # mandatory on both data and Sentinel paths.
     - to:
         - ipBlock:
             cidr: 100.64.0.0/10
       ports:
-        - port: 6379
-          protocol: TCP
-        - port: 26379
-          protocol: TCP
         - port: 6380
           protocol: TCP
         - port: 26380

@@ -45,13 +45,13 @@ spec:
         config.linkerd.io/proxy-cpu-limit: 1000m
         config.linkerd.io/proxy-memory-request: 16Mi
         config.linkerd.io/proxy-memory-limit: 128Mi
-        # Valkey (6379/26379) and the Twitch Helix egress (443) skip the proxy.
+        # The Twitch Helix egress (443) skips the proxy.
         # Outgress's hot path is a synchronous POST to api.twitch.tv; routing it
         # through the linkerd sidecar adds a proxy hop per send for an external,
         # already-TLS destination the mesh cannot mTLS anyway. twitch-ingress
         # skips 443 for the same reason. 4222 is NATS — now out of the mesh, so its
         # own TLS encrypts the wire and the proxy would only tax it.
-        config.linkerd.io/skip-outbound-ports: 6379,26379,443,4222
+        config.linkerd.io/skip-outbound-ports: "443,4222"
     spec:
       tolerations:
         - key: itsbagelbot.dev/pool

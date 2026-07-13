@@ -87,7 +87,7 @@ func buildOption(address, password string, replicaReads bool, tlsConfig *tls.Con
 // Client routes writes to the Sentinel-elected master and read-only commands
 // to the node-local Valkey instance.
 //
-// Topology: each Kubernetes node runs one Valkey pod that binds 6379 on the
+// Topology: each Kubernetes node runs one Valkey pod that binds TLS port 6380 on the
 // host (hostPort). Whatever role that local instance holds (master on the
 // primary node, a replica everywhere else) it is always the lowest-latency
 // instance for pods on that node. So:
@@ -97,7 +97,7 @@ func buildOption(address, password string, replicaReads bool, tlsConfig *tls.Con
 //   - pub/sub (Receive)     -> a dedicated master-pinned Sentinel client with no
 //     replica-read offload, so expiry notifications (master-only) are actually
 //     received;
-//   - read-only commands    -> a direct connection to NODE_IP:6379, the local
+//   - read-only commands    -> a direct TLS connection to NODE_IP:6380, the local
 //     instance, with no cross-node hop.
 //
 // valkey-go's Sentinel client cannot prefer a local replica on its own:
@@ -163,7 +163,7 @@ func allReadOnly(multi []valkey_go.Completed) bool {
 //
 // Writes always go to the Sentinel-elected master. For a Sentinel deployment
 // with NODE_IP set, read-only commands go to the node-local instance
-// (NODE_IP:6379) so each node reads from its own Valkey without a cross-node
+// (NODE_IP:6380) so each node reads from its own Valkey without a cross-node
 // hop. Otherwise reads fall back to a Sentinel replica (or the single
 // instance, for a standalone address).
 func NewClient(address, password string) (valkey_go.Client, error) {
@@ -193,7 +193,7 @@ func NewClient(address, password string) (valkey_go.Client, error) {
 	wrapped := &Client{Client: master, pubsub: pubsub}
 
 	// Node-local read path: a Sentinel deployment where every node hosts a
-	// Valkey instance on NODE_IP:6379.
+	// Valkey instance on NODE_IP:6380 in production.
 	nodeIP := os.Getenv("NODE_IP")
 	if nodeIP == "" {
 		return wrapped, nil
