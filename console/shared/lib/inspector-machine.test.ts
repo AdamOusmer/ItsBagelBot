@@ -152,4 +152,14 @@ describe('inspector-machine', () => {
 		const s: InspectorState<Cmd> = openClean('a', A);
 		expect(requestSave(s, 'r')).toBe(s);
 	});
+
+	test('requestSave snapshots a proxied draft (structuredClone rejects proxies)', () => {
+		// At runtime the draft arrives wrapped in a Svelte 5 $state proxy, which
+		// structuredClone throws DataCloneError on; the clone must fall back.
+		let s = openClean('a', A);
+		s = edit(s, new Proxy({ ...A, response: 'changed' }, {}));
+		s = requestSave(s, 'req-p');
+		expect(s.status).toBe('saving');
+		expect(s.submitted?.snapshot).toEqual({ ...A, response: 'changed' });
+	});
 });
