@@ -10,19 +10,19 @@ import {
   type RewardResult
 } from '$lib/server/channelpoints-store';
 import { auditDashboardImpersonation } from '$lib/server/services';
+import { gateModulePage } from '$lib/server/module-gate';
 import type { Session } from '$lib/server/session';
 import { env } from '$env/dynamic/private';
-import { fail, redirect } from '@sveltejs/kit';
+import { fail } from '@sveltejs/kit';
 
 function effectiveId(session: Session | null | undefined): string {
   return session?.delegate_of ?? session?.user_id ?? 'demo';
 }
 
-// A delegate needs the 'channelpoints' section; a normal login always may.
+// Delegate scope comes from the channelpoints catalog def (its own grant, not
+// the blanket 'modules' one — see module-gate.ts).
 function gate(session: Session | null | undefined): void {
-  if (session?.delegate_of && !(session.sections ?? []).includes('channelpoints')) {
-    throw redirect(302, '/');
-  }
+  gateModulePage(session, 'channelpoints');
 }
 
 // Demo rewards so the tab renders without a live backend.

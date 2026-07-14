@@ -348,6 +348,18 @@ export interface ModuleDef {
   // instead of the generic /modules/[id] reply page (govee's device + reward
   // setup). Absent for the ordinary reply-configured modules.
   href?: string;
+  // delegateSections names the delegation grants that open the bespoke href
+  // page for a delegate. Defaults to ['modules'] (the tile lives on /modules),
+  // so it only needs setting when a page has its own grant (channel points) or
+  // additionally rides another one (timers/quotes under 'commands'). Read via
+  // moduleDelegateSections; the route guard, the per-page gates and the tile
+  // grid all derive from it, so a new bespoke page never touches those.
+  delegateSections?: readonly string[];
+}
+
+// moduleDelegateSections resolves a def's delegation scope (see the field doc).
+export function moduleDelegateSections(def: ModuleDef): readonly string[] {
+  return def.delegateSections ?? ['modules'];
 }
 
 // A module's current state as shown on the dashboard: catalog metadata merged
@@ -449,6 +461,9 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
     category: 'Chat Tools',
     defaultEnabled: false,
     href: '/channelpoints',
+    // Channel Points is its own delegation grant (see SECTIONS in the settings
+    // page), not part of the blanket 'modules' one.
+    delegateSections: ['channelpoints'],
     replies: []
   },
   {
@@ -461,6 +476,10 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
     category: 'Chat Tools',
     defaultEnabled: false,
     href: '/timers',
+    // Timers has no standalone grant: the 'commands' grant has always covered
+    // it too (see the settings page SECTIONS comment). 'timers' keeps legacy
+    // grants minted with a bare timers section working.
+    delegateSections: ['modules', 'commands', 'timers'],
     replies: []
   },
   {
@@ -1091,6 +1110,8 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
     // Bespoke page: the quote book (list + add/remove) plus the enable and
     // save-permission settings live on /quotes, not the generic reply page.
     href: '/quotes',
+    // Like timers, the quote book also rides the 'commands' grant.
+    delegateSections: ['modules', 'commands'],
     replies: [],
     commands: [
       { trigger: '!quote', summary: 'Post a random saved quote (also !quotes).' },

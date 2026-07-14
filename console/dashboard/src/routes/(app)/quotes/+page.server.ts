@@ -8,9 +8,10 @@ import {
   type QuoteView
 } from '$lib/server/quotes-store';
 import { auditDashboardImpersonation } from '$lib/server/services';
+import { gateModulePage } from '$lib/server/module-gate';
 import type { Session } from '$lib/server/session';
 import { env } from '$env/dynamic/private';
-import { fail, redirect } from '@sveltejs/kit';
+import { fail } from '@sveltejs/kit';
 
 // The longest quote the modules service will store (repository.QuoteTextMaxLen).
 const QUOTE_MAX = 450;
@@ -30,12 +31,9 @@ function effectiveId(session: Session | null | undefined): string {
   return session?.delegate_of ?? session?.user_id ?? 'demo';
 }
 
-// Quotes rides under the 'commands' scope, like timers — no standalone grant.
+// Delegate scope comes from the quotes catalog def (see module-gate.ts).
 function gate(session: Session | null | undefined): void {
-  const secs = session?.sections ?? [];
-  if (session?.delegate_of && !secs.includes('commands') && !secs.includes('quotes')) {
-    throw redirect(302, '/');
-  }
+  gateModulePage(session, 'quotes');
 }
 
 // actingLogin is the login stamped as a quote's added_by (audit only): the
