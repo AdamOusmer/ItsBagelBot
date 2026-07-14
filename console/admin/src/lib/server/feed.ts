@@ -8,8 +8,10 @@ import { enableLeafFailback } from '@bagel/shared/server/nats';
 let conn: NatsConnection | null = null;
 let dialing: Promise<NatsConnection> | null = null;
 
+// The status stream lives on the hub (like the shared client's bus role);
+// NATS_URL is the local-dev fallback only.
 function url(): string {
-  return process.env.NATS_URL ?? 'nats://127.0.0.1:4222';
+  return process.env.NATS_HUB_URL ?? process.env.NATS_URL ?? 'nats://127.0.0.1:4222';
 }
 
 async function get(): Promise<NatsConnection> {
@@ -25,6 +27,11 @@ async function get(): Promise<NatsConnection> {
   if (process.env.NATS_USER) opts.user = process.env.NATS_USER;
   if (process.env.NATS_PASSWORD) opts.pass = process.env.NATS_PASSWORD;
   if (process.env.NATS_TOKEN) opts.token = process.env.NATS_TOKEN;
+  // Verify the server's TLS cert against the fleet CA, exactly like the shared
+  // client: without it Node rejects the NATS-native TLS handshake ("unable to
+  // verify the first certificate") and the feed never connects. No CA (local
+  // dev against a plaintext server) keeps the connection plaintext.
+  if (process.env.NATS_CA_PEM) opts.tls = { ca: process.env.NATS_CA_PEM };
 
   dialing = connect(opts)
     .then((c) => {

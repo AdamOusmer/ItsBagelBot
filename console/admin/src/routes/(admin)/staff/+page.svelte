@@ -11,25 +11,30 @@
     EmptyState,
     ConfirmDialog,
     Scroller,
+    Skeleton,
     toast
   } from '@bagel/shared';
   import type { AdminAcct, AdminRole, AuditEntry } from '$lib/server/services';
 
   let { data } = $props();
 
-  // Roster is small; the load ships it resolved. Mutations reconcile against
-  // the authoritative roster echoed by the users service (never a local guess).
-  // svelte-ignore state_referenced_locally
-  let staff = $state<AdminAcct[]>(data.staff ?? []);
-  // Plain variable on purpose: it only marks which `data` seeded local state,
-  // so it must compare by raw identity (a $state proxy never equals `data`).
-  // svelte-ignore state_referenced_locally
-  let seed = data;
+  // Streamed roster -> local state, so mutations can reconcile against the
+  // authoritative roster echoed by the users service (never a local guess).
+  let staff = $state<AdminAcct[]>([]);
+  let rosterLoaded = $state(false);
+  let degraded = $state(false);
   $effect(() => {
-    if (data !== seed) {
-      seed = data;
-      staff = data.staff ?? [];
-    }
+    let alive = true;
+    rosterLoaded = false;
+    data.roster.then((r) => {
+      if (!alive) return;
+      staff = r.staff;
+      degraded = r.degraded;
+      rosterLoaded = true;
+    });
+    return () => {
+      alive = false;
+    };
   });
 
   const me = $derived(data.me);
@@ -145,13 +150,17 @@
     Staff <em>roster</em>
   </PageHead>
 
-  {#if data.degraded}
-    <AlertBanner>Roster service unreachable; the list below may be stale.</AlertBanner>
+  {#if degraded}
+    <AlertBanner>Roster service unreachable; nothing below is live.</AlertBanner>
   {/if}
 
   <PageToolbar>
     {#snippet lead()}
-      <span class="roster-count">{roster.length} member{roster.length === 1 ? '' : 's'}</span>
+      {#if rosterLoaded}
+        <span class="roster-count">{roster.length} member{roster.length === 1 ? '' : 's'}</span>
+      {:else}
+        <Skeleton variant="pill" width="110px" />
+      {/if}
     {/snippet}
     {#snippet trail()}
       <Button variant="primary" icon="plus" onclick={() => (addOpen = !addOpen)}>Add member</Button>
@@ -192,7 +201,11 @@
 
   <div class="deck">
     <DeckList>
-      {#if roster.length}
+      {#if !rosterLoaded}
+        <div class="row-skeletons">
+          {#each [0, 1, 2] as i (i)}<Skeleton variant="block" height="60px" />{/each}
+        </div>
+      {:else if roster.length}
         <ul class="list" aria-label="Staff">
           {#each roster as member (member.id)}
             <li class="staff-row">
@@ -336,6 +349,7 @@
   .roster-count { font-family: var(--bb-font-body); font-size: 12.5px; color: var(--bb-muted); }
 
   .add-card { margin-bottom: 16px; }
+  .row-skeletons { display: flex; flex-direction: column; gap: 8px; padding: 12px; }
   .add-form { display: grid; grid-template-columns: repeat(4, 1fr) auto; gap: 12px; align-items: end; }
   .add-form label {
     display: flex; flex-direction: column; gap: 6px;

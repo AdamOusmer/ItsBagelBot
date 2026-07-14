@@ -1,26 +1,34 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { Icon, PageHead, Card, CardHead, Button, EmptyState, ConfirmDialog, RadioGroup, toast } from '@bagel/shared';
+  import { Icon, PageHead, Card, CardHead, Button, EmptyState, ConfirmDialog, RadioGroup, Skeleton, toast } from '@bagel/shared';
   import type { NotificationWire } from '$lib/server/services';
   let { data, form } = $props();
 
-  // Local copy so a retract can apply optimistically and roll back on failure.
-  // svelte-ignore state_referenced_locally
-  let notifications = $state<NotificationWire[]>((data.notifications ?? []) as NotificationWire[]);
-  // Plain variable on purpose: it only marks which `data` seeded local state,
-  // so it must compare by raw identity (a $state proxy never equals `data`).
-  // svelte-ignore state_referenced_locally
-  let seed = data;
+  // Streamed history -> local state, so a retract can apply optimistically
+  // and roll back on failure.
+  let notifications = $state<NotificationWire[]>([]);
+  let historyLoaded = $state(false);
+  let degraded = $state(false);
+  let page = $state(1);
+  let maxPages = $state(25);
+  let hasMore = $state(false);
   $effect(() => {
-    if (data !== seed) {
-      seed = data;
-      notifications = (data.notifications ?? []) as NotificationWire[];
-    }
+    let alive = true;
+    historyLoaded = false;
+    data.history.then((h) => {
+      if (!alive) return;
+      notifications = h.notifications;
+      degraded = h.degraded;
+      page = h.page;
+      maxPages = h.maxPages;
+      hasMore = h.hasMore;
+      historyLoaded = true;
+    });
+    return () => {
+      alive = false;
+    };
   });
-  const page = $derived(Number(data.page ?? 1));
-  const maxPages = $derived(Number(data.maxPages ?? 25));
-  const hasMore = $derived(Boolean(data.hasMore));
 
   let scope = $state<'broadcast' | 'direct'>('broadcast');
   let level = $state('info');
@@ -136,7 +144,13 @@
 
   <Card class="notif-card">
     <CardHead title="Sent" />
-    {#if notifications.length === 0}
+    {#if !historyLoaded}
+      <div class="row-skeletons">
+        {#each [0, 1, 2] as i (i)}<Skeleton variant="block" height="72px" />{/each}
+      </div>
+    {:else if degraded}
+      <EmptyState icon="bell" title="History unavailable" body="The notifications service is unreachable; sent messages are not shown." />
+    {:else if notifications.length === 0}
       <EmptyState icon="bell" title="No notifications yet" body="Notifications you send appear here." />
     {:else}
       <div class="list">
@@ -194,6 +208,7 @@
   :global(.notif-card) { margin-top: 18px; }
 
   .compose { display: flex; flex-direction: column; gap: 14px; }
+  .row-skeletons { display: flex; flex-direction: column; gap: 10px; }
   .row { display: flex; gap: 14px; flex-wrap: wrap; }
   .row.two > label { flex: 1; min-width: 180px; }
 
