@@ -8,6 +8,7 @@
 
   // First path segment -> breadcrumb. Data-driven so adding a page is one row.
   const CRUMBS: [prefix: string, label: string][] = [
+    ['/analytics', 'Analytics'],
     ['/shards', 'Shards'],
     ['/lanes', 'Lanes'],
     ['/events', 'Events'],
@@ -40,7 +41,10 @@
     },
     {
       label: 'Accounts',
-      items: [{ href: '/users', icon: 'users', label: 'Users', active: crumb === 'Users' }]
+      items: [
+        { href: '/users', icon: 'users', label: 'Users', active: crumb === 'Users' },
+        { href: '/analytics', icon: 'activity', label: 'Analytics', active: crumb === 'Analytics' }
+      ]
     },
     ...(isManager
       ? [
@@ -64,6 +68,7 @@
     { href: '/lanes', icon: 'lanes', label: 'Lanes', active: crumb === 'Lanes' },
     { href: '/events', icon: 'pulse', label: 'Events', active: crumb === 'Events' },
     { href: '/users', icon: 'users', label: 'Users', active: crumb === 'Users' },
+    { href: '/analytics', icon: 'activity', label: 'Analytics', active: crumb === 'Analytics' },
     ...(isManager
       ? [
           { href: '/staff', icon: 'moderation', label: 'Staff', active: crumb === 'Staff' },

@@ -8,7 +8,6 @@
     PageHead,
     PageToolbar,
     SearchInput,
-    SegmentedControl,
     AlertBanner,
     DeckList,
     EmptyState,
@@ -17,7 +16,7 @@
     Skeleton,
     toast
   } from '@bagel/shared';
-  import type { AdminUserWire, ChannelSubState } from '$lib/server/services';
+  import type { AdminUserWire, AuditEntry, ChannelSubState } from '$lib/server/services';
   import type { UserDirectory } from './+page.server';
 
   let { data } = $props();
@@ -51,7 +50,20 @@
   }
 
   const STATES = ['all', 'vip', 'paid', 'free', 'banned', 'inactive'] as const;
-  let stateFilter = $state<string>('all');
+  // Server-side filter: the chip drives the ?state= param so it covers the
+  // whole directory, not just the loaded page.
+  // svelte-ignore state_referenced_locally
+  let stateFilter = $state<string>(data.state || 'all');
+  $effect(() => {
+    stateFilter = data.state || 'all';
+  });
+  function applyState(next: string) {
+    const params = new URLSearchParams();
+    if (data.search) params.set('q', data.search);
+    if (next !== 'all') params.set('state', next);
+    const qs = params.toString();
+    goto(qs ? `/users?${qs}` : '/users', { keepFocus: true });
+  }
 
   // ── Client-side sort over the loaded page ──────────────────────────────────
   type SortKey = '' | 'user' | 'id' | 'tier' | 'joined' | 'updated';
@@ -89,11 +101,10 @@
     }
   }
 
+  // The state filter is applied server-side; only the sort is local.
   const visible = $derived.by(() => {
-    const filtered =
-      stateFilter === 'all' ? rows : rows.filter((u) => stateOf(u) === stateFilter);
-    if (!sortKey) return filtered;
-    return [...filtered].sort((a, b) => compare(a, b) * sortDir);
+    if (!sortKey) return rows;
+    return [...rows].sort((a, b) => compare(a, b) * sortDir);
   });
 
   // ── CSV export of what's on screen (filter + sort applied) ────────────────
@@ -120,7 +131,7 @@
     const blob = new Blob([[header, ...lines].join('\n')], { type: 'text/csv' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `users-page${dir?.page ?? 1}${data.search ? `-${data.search}` : ''}.csv`;
+    a.download = `users-page${dir?.page ?? 1}${data.state ? `-${data.state}` : ''}${data.search ? `-${data.search}` : ''}.csv`;
     a.click();
     URL.revokeObjectURL(a.href);
   }
@@ -155,7 +166,58 @@
     viewAsUrl = '';
     lookupQ = String(u.id);
     queueMicrotask(() => lookupForm?.requestSubmit());
+    if (isManager) loadTargetHistory(String(u.id));
   }
+
+  // ── Support: operator actions on this user (managers only) ────────────────
+  const isManager = $derived(data.role === 'admin' || data.role === 'owner');
+  let targetHistory = $state<AuditEntry[] | null>(null);
+  let targetHistoryError = $state('');
+
+  async function loadTargetHistory(id: string) {
+    targetHistory = null;
+    targetHistoryError = '';
+    try {
+      const res = await fetch(`/audit/data?q=${encodeURIComponent(id)}`);
+      if (!res.ok) throw new Error(`history fetch failed (${res.status})`);
+      const body = (await res.json()) as { entries?: AuditEntry[]; error?: string };
+      if (body.error) throw new Error(body.error);
+      // The search matches target/detail broadly; keep only rows aimed at
+      // this exact user.
+      targetHistory = (body.entries ?? []).filter((e) => e.target === id).slice(0, 5);
+    } catch (e) {
+      targetHistoryError = (e as Error).message;
+      targetHistory = [];
+    }
+  }
+
+  // ── Support: direct notification from the inspector ───────────────────────
+  let msgOpen = $state(false);
+  let msgTitle = $state('');
+  let msgBody = $state('');
+  let msgLevel = $state('info');
+  let msgForm = $state<HTMLFormElement | null>(null);
+
+  function openMessage() {
+    msgTitle = '';
+    msgBody = '';
+    msgLevel = 'info';
+    msgOpen = true;
+  }
+
+  const msgSubmit: SubmitFunction = () => {
+    busyVerb = 'message';
+    return async ({ result }) => {
+      busyVerb = null;
+      msgOpen = false;
+      const p = payloadOf(result);
+      if (result.type === 'success' && p?.action?.ok) {
+        toast('ok', p.action.notice);
+        return;
+      }
+      toast('err', p?.action?.notice ?? p?.error ?? 'send failed');
+    };
+  };
 
   function closeInspector() {
     selectedId = null;
@@ -334,6 +396,7 @@
   function pageHref(p: number): string {
     const params = new URLSearchParams();
     if (data.search) params.set('q', data.search);
+    if (data.state) params.set('state', data.state);
     if (p > 1) params.set('page', String(p));
     const qs = params.toString();
     return qs ? `/users?${qs}` : '/users';
@@ -415,11 +478,21 @@
   {/if}
 
   <div class="filter-row">
-    <SegmentedControl options={STATES} bind:value={stateFilter} label="User state" />
+    <div class="seg" role="radiogroup" aria-label="User state">
+      {#each STATES as st (st)}
+        <button
+          type="button"
+          class="chip"
+          class:on={stateFilter === st}
+          role="radio"
+          aria-checked={stateFilter === st}
+          onclick={() => applyState(st)}
+        >
+          {st}
+        </button>
+      {/each}
+    </div>
     <div class="filter-trail">
-      {#if stateFilter !== 'all' && dir}
-        <span class="filter-note">{visible.length} of {rows.length} on this page</span>
-      {/if}
       <Button variant="ghost" onclick={exportCsv} disabled={visible.length === 0}>
         <Icon name="audit" size={13} /> Export CSV
       </Button>
@@ -448,9 +521,12 @@
         <ul class="list" aria-label="Users">
           {#each visible as u (u.id)}
             <li>
+              <!-- data-cursor="off": a row is a reading surface, not a control;
+                   the custom cursor must not morph into a row-sized box. -->
               <button
                 type="button"
                 class="user-row"
+                data-cursor="off"
                 class:on={selectedId === String(u.id)}
                 onclick={() => openUser(u)}
               >
@@ -635,6 +711,9 @@
                     <Icon name="link" size={13} /> Mint view-as link
                   </button>
                 </form>
+                <button class="btn ghost" type="button" disabled={busyVerb !== null} onclick={openMessage}>
+                  <Icon name="send" size={13} /> Message user
+                </button>
               </div>
               {#if viewAsUrl}
                 <div class="viewas">
@@ -646,6 +725,30 @@
                 <span class="block-note">valid 5 minutes; actions are attributed to you</span>
               {/if}
             </div>
+
+            {#if isManager}
+              <div class="block">
+                <span class="block-label">Operator actions on this user</span>
+                {#if targetHistory === null}
+                  <span class="block-note">Loading history…</span>
+                {:else if targetHistoryError}
+                  <span class="probe-err">{targetHistoryError}</span>
+                {:else if targetHistory.length === 0}
+                  <span class="block-note">None recorded.</span>
+                {:else}
+                  <ul class="thist">
+                    {#each targetHistory as e (e.id)}
+                      <li class="thist-row">
+                        <span class="probe-dot {e.ok ? 'green' : 'err'}"></span>
+                        <span class="thist-act">{e.action} · @{e.actor_login}</span>
+                        <span class="thist-when">{ago(e.created_at)}</span>
+                      </li>
+                    {/each}
+                  </ul>
+                  <a class="block-note thist-more" href={`/audit?q=${selected.id}`}>Full history in audit →</a>
+                {/if}
+              </div>
+            {/if}
 
             <div class="block danger-zone">
               <span class="block-label">Danger</span>
@@ -733,6 +836,45 @@
   </label>
 </ConfirmDialog>
 
+<!-- Direct notification: posts to the notifications route's send action so
+     delivery, audit, and idempotency stay in one place. -->
+<ConfirmDialog
+  open={msgOpen}
+  title={selected ? `Message @${selected.username}` : 'Message user'}
+  body="Lands in their dashboard notification bell."
+  confirmLabel="Send"
+  cancelLabel="Cancel"
+  busy={busyVerb === 'message'}
+  onCancel={() => (msgOpen = false)}
+  onConfirm={() => msgForm?.requestSubmit()}
+>
+  <div class="msg-fields">
+    <label>Title
+      <input class="text-input" type="text" maxlength="120" bind:value={msgTitle} />
+    </label>
+    <label>Message
+      <textarea class="text-input" rows="3" maxlength="2000" bind:value={msgBody}></textarea>
+    </label>
+    <label>Level
+      <select class="text-input" bind:value={msgLevel}>
+        <option value="info">Info</option>
+        <option value="success">Success</option>
+        <option value="warning">Warning</option>
+        <option value="critical">Critical</option>
+      </select>
+    </label>
+  </div>
+</ConfirmDialog>
+<form method="POST" action="/notifications?/send" use:enhance={msgSubmit} bind:this={msgForm} hidden>
+  <input type="hidden" name="scope" value="direct" />
+  <input type="hidden" name="target_user_id" value={selected?.id ?? ''} />
+  <input type="hidden" name="target_username" value="" />
+  <input type="hidden" name="title" value={msgTitle} />
+  <input type="hidden" name="body" value={msgBody} />
+  <input type="hidden" name="level" value={msgLevel} />
+  <input type="hidden" name="expires_at" value="" />
+</form>
+
 <ConfirmDialog
   open={deleteOpen}
   title="Delete user"
@@ -771,7 +913,24 @@
     flex-wrap: wrap; margin-bottom: 14px;
   }
   .filter-trail { display: flex; align-items: center; gap: 12px; }
-  .filter-note { font-family: var(--bb-font-mono); font-size: 11px; color: var(--bb-muted); }
+  .seg { display: flex; gap: 6px; flex-wrap: wrap; }
+
+  .thist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+  .thist-row { display: flex; align-items: center; gap: 9px; min-width: 0; }
+  .thist-act {
+    font-family: var(--bb-font-mono); font-size: 11.5px; color: var(--bb-white);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;
+  }
+  .thist-when { font-family: var(--bb-font-mono); font-size: 10px; color: var(--bb-muted); white-space: nowrap; }
+  .thist-more { text-decoration: none; color: var(--bb-tan); }
+  .thist-more:hover { color: var(--bb-tan-pale); }
+
+  .msg-fields { display: flex; flex-direction: column; gap: 12px; margin: 12px 0 4px; }
+  .msg-fields label {
+    display: flex; flex-direction: column; gap: 6px;
+    font-family: var(--bb-font-body); font-size: 12.5px; color: var(--bb-muted);
+  }
+  .msg-fields textarea { resize: vertical; font-family: var(--bb-font-body); }
 
   /* ── Five state colors. VIP is silver, deliberately not purple. ─────────── */
   .list { list-style: none; margin: 0; padding: 0; }

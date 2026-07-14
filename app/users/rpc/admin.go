@@ -126,7 +126,7 @@ func (a *adminRPC) list(ctx context.Context, req usersrpc.AdminRequest) usersrpc
 	if req.Page > 0 {
 		return a.listPage(ctx, req)
 	}
-	rows, err := a.repo.ListUsers(ctx, req.Search, adminListLimit(req.Limit), 0)
+	rows, err := a.repo.ListUsers(ctx, req.Search, req.State, adminListLimit(req.Limit), 0)
 	if err != nil {
 		return adminError(err.Error())
 	}
@@ -142,7 +142,7 @@ func (a *adminRPC) listPage(ctx context.Context, req usersrpc.AdminRequest) user
 	if page < adminUserMaxPages {
 		fetchLimit++
 	}
-	rows, err := a.repo.ListUsers(ctx, req.Search, fetchLimit, (page-1)*pageSize)
+	rows, err := a.repo.ListUsers(ctx, req.Search, req.State, fetchLimit, (page-1)*pageSize)
 	if err != nil {
 		return adminError(err.Error())
 	}

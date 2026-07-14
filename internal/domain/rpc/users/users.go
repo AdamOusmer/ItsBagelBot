@@ -21,6 +21,10 @@ type AdminRequest struct {
 	// Days is the trailing window size for the enrollment verb (UTC days,
 	// today included). Zero means the server default.
 	Days int `json:"days,omitempty"`
+	// State filters list/overview to one effective user state: vip, paid,
+	// free, banned, or inactive. Empty means no filter. Precedence matches
+	// the console: banned beats inactive beats tier.
+	State string `json:"state,omitempty"`
 }
 
 // AdminUserView is a single user row in an admin reply.

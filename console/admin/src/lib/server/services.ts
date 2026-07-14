@@ -212,8 +212,8 @@ export const USER_MAX_PAGES = 25;
 // Hand-written, not defineRead: the reply's page/page_size/max_pages fields
 // fall back to the request args (page, USER_PAGE_SIZE, USER_MAX_PAGES) when the
 // responder omits them, and defineRead's `map` only sees the reply, not args.
-export async function userOverview(page = 1, search = ''): Promise<UserPage> {
-  return cached(`users:overview:${page}:${search}`, POLICY.adminPage, async () => {
+export async function userOverview(page = 1, search = '', state = ''): Promise<UserPage> {
+  return cached(`users:overview:${page}:${search}:${state}`, POLICY.adminPage, async () => {
     const r = await rpc<{
       users?: AdminUserWire[];
       stats: UserStats;
@@ -224,7 +224,8 @@ export async function userOverview(page = 1, search = ''): Promise<UserPage> {
     }>(`${SUB.user}.overview`, {
       page,
       limit: USER_PAGE_SIZE,
-      search
+      search,
+      state
     });
     return {
       users: r.users ?? [],

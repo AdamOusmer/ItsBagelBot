@@ -51,16 +51,41 @@ func (r *Users) FindUserByUsername(ctx context.Context, username string) (*ent.U
 // ListUsers returns rows ordered by most-recently-updated then by descending
 // ID. When search is non-empty the results are filtered to rows whose username
 // contains the search string (case-insensitive) or whose numeric ID equals it
-// exactly. limit and offset control pagination; the caller is responsible for
-// computing the correct fetchLimit (pageSize+1 trick) before calling.
-func (r *Users) ListUsers(ctx context.Context, search string, limit, offset int) ([]*ent.User, error) {
+// exactly. state narrows to one effective user state (see AdminStatePredicate);
+// an empty or unknown state applies no filter. limit and offset control
+// pagination; the caller is responsible for computing the correct fetchLimit
+// (pageSize+1 trick) before calling.
+func (r *Users) ListUsers(ctx context.Context, search, state string, limit, offset int) ([]*ent.User, error) {
 	q := r.client.User.Query().Order(ent.Desc(user.FieldUpdatedAt), ent.Desc(user.FieldID))
 	if s := NormalizeAdminSearch(search); s != "" {
 		q = q.Where(AdminSearchPredicate(s))
 	}
+	if pred, ok := AdminStatePredicate(state); ok {
+		q = q.Where(pred)
+	}
 	return db.WithQuery(ctx, func(ctx context.Context) ([]*ent.User, error) {
 		return q.Offset(offset).Limit(limit).All(ctx)
 	})
+}
+
+// AdminStatePredicate maps one effective user state to a predicate. Precedence
+// mirrors the console's row color: banned beats inactive beats tier, so a
+// banned VIP shows under "banned", not "vip".
+func AdminStatePredicate(state string) (predicate.User, bool) {
+	switch state {
+	case "banned":
+		return user.BannedEQ(true), true
+	case "inactive":
+		return user.And(user.BannedEQ(false), user.IsActiveEQ(false)), true
+	case "vip", "paid", "free":
+		return user.And(
+			user.BannedEQ(false),
+			user.IsActiveEQ(true),
+			user.StatusEQ(user.Status(state)),
+		), true
+	default:
+		return nil, false
+	}
 }
 
 // UserStats returns the four counts the admin stats panel displays: total

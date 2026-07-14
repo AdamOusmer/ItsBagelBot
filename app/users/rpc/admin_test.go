@@ -145,3 +145,55 @@ func TestAdminEnrollmentDefaultsAndClampsWindow(t *testing.T) {
 	require.NotNil(t, clamped.Enrollment)
 	assert.Len(t, clamped.Enrollment.Days, enrollmentMaxDays)
 }
+
+func TestAdminUserListFiltersByState(t *testing.T) {
+	a, client := setupAdminRPCTest(t)
+	ctx := context.Background()
+	base := time.Date(2026, 7, 1, 12, 0, 0, 0, time.UTC)
+
+	seed := []struct {
+		id     uint64
+		status user.Status
+		active bool
+		banned bool
+	}{
+		{6001, user.StatusVip, true, false},
+		{6002, user.StatusPaid, true, false},
+		{6003, user.StatusFree, true, false},
+		{6004, user.StatusVip, false, false}, // inactive beats tier
+		{6005, user.StatusPaid, false, true}, // banned beats everything
+	}
+	for i, s := range seed {
+		client.User.Create().
+			SetID(s.id).
+			SetUsername(fmt.Sprintf("state-%02d", i)).
+			SetEmail(fmt.Sprintf("state-%02d@example.invalid", i)).
+			SetStatus(s.status).
+			SetIsActive(s.active).
+			SetBanned(s.banned).
+			SetUpdatedAt(base.Add(time.Duration(i) * time.Minute)).
+			ExecX(ctx)
+	}
+
+	cases := map[string][]uint64{
+		"vip":      {6001},
+		"paid":     {6002},
+		"free":     {6003},
+		"inactive": {6004},
+		"banned":   {6005},
+	}
+	for state, want := range cases {
+		reply := a.list(ctx, usersrpc.AdminRequest{Page: 1, Limit: adminUserPageSize, State: state})
+		require.Empty(t, reply.Error, state)
+		ids := make([]uint64, 0, len(reply.Users))
+		for _, u := range reply.Users {
+			ids = append(ids, u.ID)
+		}
+		assert.Equal(t, want, ids, state)
+	}
+
+	// Unknown state applies no filter.
+	all := a.list(ctx, usersrpc.AdminRequest{Page: 1, Limit: adminUserPageSize, State: "nope"})
+	require.Empty(t, all.Error)
+	assert.Len(t, all.Users, len(seed))
+}

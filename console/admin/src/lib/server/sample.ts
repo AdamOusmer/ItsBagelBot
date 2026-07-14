@@ -48,16 +48,20 @@ export const sampleSnapshot: ShardSnapshot = {
   }
 };
 
-// Deterministic 30-day signup curve (gentle growth + weekend bumps), so the
-// demo histogram looks plausible without pretending to be live.
-export const sampleEnrollment: EnrollmentWire = {
-  days: Array.from({ length: 30 }, (_, i) => {
-    const d = new Date(Date.now() - (29 - i) * 864e5);
-    const wave = Math.round(6 + 4 * Math.sin(i / 4) + (d.getUTCDay() % 6 === 0 ? 5 : 0));
-    return { date: d.toISOString().slice(0, 10), count: Math.max(0, wave + (i % 7 === 3 ? 3 : 0)) };
-  }),
-  stats: sampleStats
-};
+// Deterministic signup curve (gentle growth + weekend bumps), so the demo
+// histogram looks plausible without pretending to be live.
+export function demoEnrollment(days = 30): EnrollmentWire {
+  return {
+    days: Array.from({ length: days }, (_, i) => {
+      const d = new Date(Date.now() - (days - 1 - i) * 864e5);
+      const wave = Math.round(6 + 4 * Math.sin(i / 4) + (d.getUTCDay() % 6 === 0 ? 5 : 0));
+      return { date: d.toISOString().slice(0, 10), count: Math.max(0, wave + (i % 7 === 3 ? 3 : 0)) };
+    }),
+    stats: sampleStats
+  };
+}
+
+export const sampleEnrollment: EnrollmentWire = demoEnrollment(30);
 
 export const sampleUsers: AdminUserWire[] = [
   { id: 44322190, username: 'itsmavey', is_active: true, status: 'vip', banned: false, creator_code: 'MAVEY10', created_at: new Date(Date.now() - 400 * 864e5).toISOString(), updated_at: new Date().toISOString() },
