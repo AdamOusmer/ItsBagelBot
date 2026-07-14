@@ -53,8 +53,8 @@ function legacyToken(): string {
 
 // tokenFor picks the narrowest credential available for a service and reports
 // which tier it came from, so the UI can tell the truth about privilege.
-export function tokenFor(id: SecretServiceId): { token: string; source: TokenSource } {
-  const scoped = scopedToken(id);
+export function tokenFor(svc: ServiceDef): { token: string; source: TokenSource } {
+  const scoped = scopedToken(svc.id);
   if (scoped) return { token: scoped, source: 'scoped' };
   const legacy = legacyToken();
   if (legacy) return { token: legacy, source: 'legacy' };
@@ -116,7 +116,7 @@ async function visibleProjects(token: string): Promise<string[] | null> {
 
 export async function scopeReport(): Promise<ScopeReport> {
   const sources = Object.fromEntries(
-    serviceIds().map((id) => [id, tokenFor(id).source])
+    serviceIds().map((id) => [id, tokenFor(services[id]).source])
   ) as Record<SecretServiceId, TokenSource>;
 
   const legacyInUse = Object.values(sources).includes('legacy');
@@ -148,10 +148,9 @@ function configQuery(svc: ServiceDef): string {
   return `project=${encodeURIComponent(svc.project)}&config=${encodeURIComponent(svc.config)}`;
 }
 
-async function dopplerSecrets(id: SecretServiceId): Promise<Record<string, string>> {
-  const svc = services[id];
+async function dopplerSecrets(svc: ServiceDef): Promise<Record<string, string>> {
   const res = await dopplerFetch({
-    token: tokenFor(id).token,
+    token: tokenFor(svc).token,
     path: `/v3/configs/config/secrets?${configQuery(svc)}`
   });
   const body = (await res.json()) as {
@@ -164,10 +163,9 @@ async function dopplerSecrets(id: SecretServiceId): Promise<Record<string, strin
   return out;
 }
 
-async function updateDoppler(id: SecretServiceId, secrets: Record<string, string>): Promise<void> {
-  const svc = services[id];
+async function updateDoppler(svc: ServiceDef, secrets: Record<string, string>): Promise<void> {
   await dopplerFetch({
-    token: tokenFor(id).token,
+    token: tokenFor(svc).token,
     path: '/v3/configs/config/secrets',
     init: { method: 'POST', ...dopplerBody(svc, { secrets }) }
   });
@@ -177,9 +175,9 @@ export async function credentialStatuses(): Promise<DbCredentialStatus[]> {
   return Promise.all(
     serviceIds().map(async (id) => {
       const svc = services[id];
-      const source = tokenFor(id).source;
+      const source = tokenFor(svc).source;
       try {
-        const secrets = await dopplerSecrets(id);
+        const secrets = await dopplerSecrets(svc);
         return {
           ...svc,
           dbUser: String(secrets.DB_USER ?? ''),
@@ -225,7 +223,7 @@ function tokenViewOf(t: ServiceTokenWire): ServiceTokenView {
 export async function listServiceTokens(id: SecretServiceId): Promise<ServiceTokenView[]> {
   const svc = services[id];
   const res = await dopplerFetch({
-    token: tokenFor(id).token,
+    token: tokenFor(svc).token,
     path: `/v3/configs/config/tokens?${configQuery(svc)}`
   });
   const body = (await res.json()) as { tokens?: ServiceTokenWire[] };
@@ -256,7 +254,7 @@ export async function mintServiceToken(
   assertTokenName(input.name);
   const days = Math.min(Math.max(Math.trunc(input.expireDays), 0), 365);
   const res = await dopplerFetch({
-    token: tokenFor(id).token,
+    token: tokenFor(svc).token,
     path: '/v3/configs/config/tokens',
     init: {
       method: 'POST',
@@ -276,7 +274,7 @@ export async function revokeServiceToken(id: SecretServiceId, slug: string): Pro
   const svc = services[id];
   if (!/^[A-Za-z0-9_-]{4,64}$/.test(slug)) throw new Error('invalid token slug');
   await dopplerFetch({
-    token: tokenFor(id).token,
+    token: tokenFor(svc).token,
     path: '/v3/configs/config/tokens/token',
     init: { method: 'DELETE', ...dopplerBody(svc, { slug }) }
   });
@@ -310,7 +308,7 @@ export async function rotateCredential(id: SecretServiceId): Promise<{ dbUser: s
   };
   await provisionDbUser(cred, svc.schema);
   try {
-    await updateDoppler(id, dbEnvOf(cred, svc.schema, false));
+    await updateDoppler(svc, dbEnvOf(cred, svc.schema, false));
   } catch (e) {
     await dropDbUser(cred.dbUser).catch(() => {});
     throw e;
@@ -327,7 +325,7 @@ export async function setCredential(
   assertPassword(cred.dbPass);
   if (cred.dbUser === adminDbUser()) throw new Error('refusing to manage the admin database user');
   await provisionDbUser(cred, svc.schema);
-  await updateDoppler(id, dbEnvOf(cred, svc.schema, true));
+  await updateDoppler(svc, dbEnvOf(cred, svc.schema, true));
   return { dbUser: cred.dbUser };
 }
 
@@ -381,20 +379,30 @@ interface DbAdminTarget {
   ca: string;
 }
 
+// envFirst returns the first non-empty value among the named env keys.
+function envFirst(...keys: string[]): string {
+  for (const key of keys) {
+    const value = env[key];
+    if (value) return value;
+  }
+  return '';
+}
+
+const REQUIRED_TARGET_FIELDS = ['host', 'user', 'password'] as const;
+
 // adminDbTarget resolves the privileged MySQL endpoint from env, in one place,
 // and fails with one clear message when any required part is missing.
 function adminDbTarget(): DbAdminTarget {
-  const hostPort = env.DB_ADMIN_ADDR ?? env.DB_ADDR ?? '';
+  const [addrHost = '', addrPort = ''] = envFirst('DB_ADMIN_ADDR', 'DB_ADDR').split(':');
   const target: DbAdminTarget = {
-    host: env.DB_ADMIN_HOST ?? hostPort.split(':')[0] ?? '',
-    port: Number(env.DB_ADMIN_PORT ?? hostPort.split(':')[1] ?? 3306),
+    host: envFirst('DB_ADMIN_HOST') || addrHost,
+    port: Number(envFirst('DB_ADMIN_PORT') || addrPort || 3306),
     user: adminDbUser(),
-    password: env.DB_ADMIN_PASS ?? env.DB_ADMIN_PASSWORD ?? '',
-    ca: env.DB_ADMIN_CA_CERT ?? env.DB_CA_CERT ?? ''
+    password: envFirst('DB_ADMIN_PASS', 'DB_ADMIN_PASSWORD'),
+    ca: envFirst('DB_ADMIN_CA_CERT', 'DB_CA_CERT')
   };
-  if (!target.host || !target.user || !target.password) {
-    throw new Error('DB admin credential is not configured');
-  }
+  const missing = REQUIRED_TARGET_FIELDS.some((field) => !target[field]);
+  if (missing) throw new Error('DB admin credential is not configured');
   return target;
 }
 
