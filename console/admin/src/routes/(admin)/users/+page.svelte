@@ -1,979 +1,1144 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
-  import { untrack } from 'svelte';
-  import { Icon, StatTile, Button, Modal, Drawer } from '@bagel/shared';
-  import type { AdminUserWire, ChannelSubState } from '$lib/server/services';
-  let { data, form } = $props();
+  import { goto } from '$app/navigation';
+  import type { SubmitFunction } from '@sveltejs/kit';
+  import {
+    Icon,
+    Button,
+    PageHead,
+    PageToolbar,
+    SearchInput,
+    AlertBanner,
+    DeckList,
+    EmptyState,
+    ConfirmDialog,
+    Scroller,
+    Skeleton,
+    toast
+  } from '@bagel/shared';
+  import type { AdminUserWire, AuditEntry, ChannelSubState } from '$lib/server/services';
+  import type { UserDirectory } from './+page.server';
 
-  const lookup = $derived(form?.lookup as Record<string, unknown> | undefined);
-  const found = $derived(lookup?.user as AdminUserWire | undefined);
-  const lookupError = $derived(lookup?.error as string | undefined);
-  const tokenPresent = $derived(lookup?.tokenPresent === undefined ? undefined : Boolean(lookup?.tokenPresent));
-  const formAction = $derived(form?.action as { ok: boolean; notice: string } | undefined);
-  // Sub state: populated by lookup and restart actions; snapshot alongside action/found.
-  const formSubState = $derived((form as Record<string, unknown> | undefined)?.subState as ChannelSubState | undefined ?? (lookup?.subState as ChannelSubState | undefined));
+  let { data } = $props();
 
-  // Local, drawer-scoped copy of the action notice. The SvelteKit `form` prop
-  // survives drawer open/close and user switches, so reading it directly leaves
-  // a stale confirmation pinned across users. Instead we snapshot each fresh
-  // result into local state and clear it whenever the drawer closes or a
-  // different user is opened.
-  let action = $state<{ ok: boolean; notice: string } | undefined>(undefined);
-  let drawerSubState = $state<ChannelSubState | undefined>(undefined);
-  let lastForm: unknown = undefined;
+  // ── Streamed directory -> local optimistic state ───────────────────────────
+  // The load streams the directory promise; it resolves into local state so
+  // row mutations can apply optimistically and reconcile against the server
+  // echo (or roll back on failure) without refetching the page.
+  let dir = $state<UserDirectory | null>(null);
   $effect(() => {
-    const f = form;
-    untrack(() => {
-      if (f !== lastForm) {
-        lastForm = f;
-        action = formAction;
-        drawerSubState = formSubState;
-      }
+    let alive = true;
+    dir = null;
+    data.directory.then((d) => {
+      if (alive) dir = d;
     });
+    return () => {
+      alive = false;
+    };
   });
-  const viewAsUrl = $derived(form?.viewAsUrl as string | undefined);
-  const search = $derived(String(data.search ?? ''));
-  const page = $derived(Number(data.page ?? 1));
-  const pageSize = $derived(Number(data.pageSize ?? 15));
-  const maxPages = $derived(Number(data.maxPages ?? 25));
-  const hasMore = $derived(Boolean(data.hasMore));
 
-  // Copy the freshly-minted view-as link to the clipboard (mirrors the bot-link
-  // copy on the overview page).
-  let copied = $state(false);
-  async function copyViewAs() {
-    if (!viewAsUrl) return;
-    try {
-      await navigator.clipboard.writeText(viewAsUrl);
-      copied = true;
-      setTimeout(() => (copied = false), 1500);
-    } catch {
-      copied = false;
+  const rows = $derived(dir?.recent ?? []);
+
+  // ── State model: one effective state per user, five colors ────────────────
+  // Precedence: banned beats inactive beats tier. Tags still show every flag;
+  // the dot and filter use the effective state.
+  type UserState = 'banned' | 'inactive' | 'vip' | 'paid' | 'free';
+  function stateOf(u: AdminUserWire): UserState {
+    if (u.banned) return 'banned';
+    if (!u.is_active) return 'inactive';
+    return (u.status as UserState) ?? 'free';
+  }
+
+  const STATES = ['all', 'vip', 'paid', 'free', 'banned', 'inactive'] as const;
+  // Server-side filter: the chip drives the ?state= param so it covers the
+  // whole directory, not just the loaded page.
+  // svelte-ignore state_referenced_locally
+  let stateFilter = $state<string>(data.state || 'all');
+  $effect(() => {
+    stateFilter = data.state || 'all';
+  });
+  function applyState(next: string) {
+    const params = new URLSearchParams();
+    if (data.search) params.set('q', data.search);
+    if (next !== 'all') params.set('state', next);
+    const qs = params.toString();
+    goto(qs ? `/users?${qs}` : '/users', { keepFocus: true });
+  }
+
+  // ── Client-side sort over the loaded page ──────────────────────────────────
+  type SortKey = '' | 'user' | 'id' | 'tier' | 'joined' | 'updated';
+  let sortKey = $state<SortKey>('');
+  let sortDir = $state<1 | -1>(1);
+
+  function toggleSort(key: SortKey) {
+    if (sortKey === key) {
+      if (sortDir === 1) sortDir = -1;
+      else {
+        sortKey = ''; // third click restores the server order (updated desc)
+        sortDir = 1;
+      }
+      return;
+    }
+    sortKey = key;
+    sortDir = 1;
+  }
+
+  const TIER_RANK: Record<string, number> = { vip: 3, paid: 2, free: 1 };
+  function compare(a: AdminUserWire, b: AdminUserWire): number {
+    switch (sortKey) {
+      case 'user':
+        return a.username.localeCompare(b.username);
+      case 'id':
+        return a.id - b.id;
+      case 'tier':
+        return (TIER_RANK[b.status] ?? 0) - (TIER_RANK[a.status] ?? 0);
+      case 'joined':
+        return (a.created_at ?? '').localeCompare(b.created_at ?? '');
+      case 'updated':
+        return (a.updated_at ?? '').localeCompare(b.updated_at ?? '');
+      default:
+        return 0;
     }
   }
 
-  function tier(status: string): 'premium' | 'standard' {
-    return status === 'paid' || status === 'vip' ? 'premium' : 'standard';
+  // The state filter is applied server-side; only the sort is local.
+  const visible = $derived.by(() => {
+    if (!sortKey) return rows;
+    return [...rows].sort((a, b) => compare(a, b) * sortDir);
+  });
+
+  // ── CSV export of what's on screen (filter + sort applied) ────────────────
+  function csvEscape(v: string): string {
+    return /[",\n]/.test(v) ? `"${v.replaceAll('"', '""')}"` : v;
+  }
+  function exportCsv() {
+    const header = 'id,username,status,state,active,banned,creator_code,created_at,updated_at';
+    const lines = visible.map((u) =>
+      [
+        String(u.id),
+        u.username,
+        u.status,
+        stateOf(u),
+        String(u.is_active),
+        String(u.banned),
+        u.creator_code ?? '',
+        u.created_at ?? '',
+        u.updated_at ?? ''
+      ]
+        .map(csvEscape)
+        .join(',')
+    );
+    const blob = new Blob([[header, ...lines].join('\n')], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `users-page${dir?.page ?? 1}${data.state ? `-${data.state}` : ''}${data.search ? `-${data.search}` : ''}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
   }
 
-  function usersHref(pageNo: number, q: string): string {
-    const params = new URLSearchParams();
-    const clean = q.trim();
-    if (clean) params.set('q', clean);
-    if (pageNo > 1) params.set('page', String(pageNo));
-    const query = params.toString();
-    return query ? `/users?${query}` : '/users';
+  // ── Selection + probe ──────────────────────────────────────────────────────
+  let selectedId = $state<string | null>(null);
+  // A lookup echo that is not on the current page (e.g. row mutated off-page).
+  let detached = $state<AdminUserWire | null>(null);
+  const selected = $derived(
+    selectedId === null ? null : (rows.find((u) => String(u.id) === selectedId) ?? detached)
+  );
+
+  // Probe state is honest about being in flight: null = checking, then the
+  // real answer. Never rendered as a guess.
+  let tokenPresent = $state<boolean | null>(null);
+  let subState = $state<ChannelSubState | null>(null);
+  let viewAsUrl = $state('');
+  let viewAsCopied = $state(false);
+
+  let lookupForm = $state<HTMLFormElement | null>(null);
+  let lookupQ = $state('');
+
+  function openUser(u: AdminUserWire) {
+    if (selectedId === String(u.id)) {
+      closeInspector();
+      return;
+    }
+    detached = null;
+    selectedId = String(u.id);
+    tokenPresent = null;
+    subState = null;
+    viewAsUrl = '';
+    lookupQ = String(u.id);
+    queueMicrotask(() => lookupForm?.requestSubmit());
+    if (isManager) loadTargetHistory(String(u.id));
   }
 
-  // Apply the result without invalidateAll: mutations reply with the updated
-  // user (authoritative), so we reconcile that one row locally instead of
-  // re-running load. The old update()+invalidateAll both stalled the response
-  // and, under concurrent submits, raced a full refetch against the writes.
-  function refresh() {
-    return async ({ update }: { update: (opts?: { invalidateAll?: boolean }) => Promise<void> }) => {
-      await update({ invalidateAll: false });
+  // ── Support: operator actions on this user (managers only) ────────────────
+  const isManager = $derived(data.role === 'admin' || data.role === 'owner');
+  let targetHistory = $state<AuditEntry[] | null>(null);
+  let targetHistoryError = $state('');
+
+  async function loadTargetHistory(id: string) {
+    targetHistory = null;
+    targetHistoryError = '';
+    try {
+      const res = await fetch(`/audit/data?q=${encodeURIComponent(id)}`);
+      if (!res.ok) throw new Error(`history fetch failed (${res.status})`);
+      const body = (await res.json()) as { entries?: AuditEntry[]; error?: string };
+      if (body.error) throw new Error(body.error);
+      // The search matches target/detail broadly; keep only rows aimed at
+      // this exact user.
+      targetHistory = (body.entries ?? []).filter((e) => e.target === id).slice(0, 5);
+    } catch (e) {
+      targetHistoryError = (e as Error).message;
+      targetHistory = [];
+    }
+  }
+
+  // ── Support: direct notification from the inspector ───────────────────────
+  let msgOpen = $state(false);
+  let msgTitle = $state('');
+  let msgBody = $state('');
+  let msgLevel = $state('info');
+  let msgForm = $state<HTMLFormElement | null>(null);
+
+  function openMessage() {
+    msgTitle = '';
+    msgBody = '';
+    msgLevel = 'info';
+    msgOpen = true;
+  }
+
+  const msgSubmit: SubmitFunction = () => {
+    busyVerb = 'message';
+    return async ({ result }) => {
+      busyVerb = null;
+      msgOpen = false;
+      const p = payloadOf(result);
+      if (result.type === 'success' && p?.action?.ok) {
+        toast('ok', p.action.notice);
+        return;
+      }
+      toast('err', p?.action?.notice ?? p?.error ?? 'send failed');
+    };
+  };
+
+  function closeInspector() {
+    selectedId = null;
+    detached = null;
+    viewAsUrl = '';
+  }
+
+  type LookupResult = {
+    user?: AdminUserWire;
+    tokenPresent?: boolean;
+    subState?: ChannelSubState;
+    error?: string;
+  };
+  type ActionPayload = {
+    action?: { ok: boolean; notice: string };
+    lookup?: LookupResult;
+    subState?: ChannelSubState;
+    viewAsUrl?: string;
+    error?: string;
+  };
+
+  function payloadOf(result: unknown): ActionPayload | undefined {
+    const r = result as { type: string; data?: ActionPayload };
+    return r.type === 'success' || r.type === 'failure' ? r.data : undefined;
+  }
+
+  const lookupSubmit: SubmitFunction = () => {
+    return async ({ result }) => {
+      const p = payloadOf(result);
+      const lk = p?.lookup;
+      if (!lk || lk.error) {
+        // Selection stays; the probe failed and says so.
+        tokenPresent = null;
+        subState = { state: 'unknown', error: lk?.error ?? 'lookup failed', checkedAt: null };
+        return;
+      }
+      if (lk.user) reconcileUser(lk.user);
+      tokenPresent = lk.tokenPresent ?? null;
+      subState = lk.subState ?? null;
+    };
+  };
+
+  // Merge a server-echoed user row into the list (and detached selection).
+  function reconcileUser(u: AdminUserWire) {
+    if (!dir) return;
+    const i = dir.recent.findIndex((r) => r.id === u.id);
+    if (i >= 0) dir.recent[i] = u;
+    else if (selectedId === String(u.id)) detached = u;
+  }
+
+  // ── Optimistic mutation plumbing ───────────────────────────────────────────
+  // Apply the expected result instantly, keep a snapshot, then reconcile with
+  // the echoed row on success or roll back + toast the real error on failure.
+  let busyVerb = $state<string | null>(null);
+
+  function mutate(verb: string, optimistic?: (u: AdminUserWire) => AdminUserWire): SubmitFunction {
+    return () => {
+      busyVerb = verb;
+      const id = selectedId;
+      const before = dir ? dir.recent.map((r) => ({ ...r })) : [];
+      const beforeDetached = detached ? { ...detached } : null;
+      if (optimistic && id && dir) {
+        const i = dir.recent.findIndex((r) => String(r.id) === id);
+        if (i >= 0) dir.recent[i] = optimistic(dir.recent[i]);
+        if (detached) detached = optimistic(detached);
+      }
+      return async ({ result }) => {
+        busyVerb = null;
+        const p = payloadOf(result);
+        if (result.type === 'success' && p?.action?.ok) {
+          toast('ok', p.action.notice);
+          if (p.lookup?.user) reconcileUser(p.lookup.user);
+          if (p.subState) subState = p.subState;
+          if (p.viewAsUrl) viewAsUrl = p.viewAsUrl;
+          return;
+        }
+        // Roll back the optimistic apply — the UI must not keep a state the
+        // server refused.
+        if (dir) dir.recent = before;
+        detached = beforeDetached;
+        toast('err', p?.action?.notice ?? p?.error ?? `${verb} failed`);
+      };
     };
   }
 
-  // Local copy of the recent list, seeded from SSR. Reconciled per row from the
-  // freshest user the server returns, so badges/state update without a refetch.
-  // svelte-ignore state_referenced_locally
-  let recent = $state<AdminUserWire[]>(data.recent);
-  const showingStart = $derived(recent.length === 0 ? 0 : (page - 1) * pageSize + 1);
-  const showingEnd = $derived(showingStart === 0 ? 0 : showingStart + recent.length - 1);
-  // svelte-ignore state_referenced_locally
-  let seed = data.recent;
-  $effect(() => {
-    const nextSeed = data.recent;
-    untrack(() => {
-      if (nextSeed !== seed) {
-        seed = nextSeed;
-        recent = nextSeed;
+  const setActiveSubmit = mutate('set active', (u) => ({ ...u, is_active: !u.is_active }));
+  const banSubmit = mutate('ban', (u) => ({ ...u, banned: true }));
+  const unbanSubmit = mutate('unban', (u) => ({ ...u, banned: false }));
+  const statusSubmit = (status: string) => mutate('set status', (u) => ({ ...u, status }));
+  const creatorSubmit = mutate('creator code');
+  const impersonateSubmit = mutate('view as');
+
+  const restartSubmit: SubmitFunction = () => {
+    busyVerb = 'restart';
+    subState = null; // honest: state unknown while the reconnect queues
+    return async ({ result }) => {
+      busyVerb = null;
+      const p = payloadOf(result);
+      if (result.type === 'success' && p?.action?.ok) {
+        toast('ok', p.action.notice);
+        subState = p.subState ?? null;
+        return;
       }
-    });
-  });
+      toast('err', p?.action?.notice ?? p?.error ?? 'restart failed');
+    };
+  };
 
-  function upsertRecent(u: AdminUserWire) {
-    const i = recent.findIndex((r) => String(r.id) === String(u.id));
-    if (i >= 0) recent[i] = u;
-    // Not in the recent window: leave the list as-is (lookup may hit any user).
-  }
-
-  function removeRecent(id: number | string) {
-    recent = recent.filter((r) => String(r.id) !== String(id));
-  }
-
-  // --- Selected user (drawer) state -----------------------------------
-  let selected = $state<AdminUserWire | null>(null);
-
-  // When a lookup or a mutation returns a user, sync it into the drawer and the
-  // recent row so the displayed state always reflects the freshest server truth.
-  $effect(() => {
-    if (found) {
-      untrack(() => {
-        if (!selected || String(selected.id) !== String(found.id)) {
-          selected = found;
+  // Token wipes are destructive: no optimistic flip, the badge only turns off
+  // once the server confirms.
+  function tokenWipe(verb: string): SubmitFunction {
+    return () => {
+      busyVerb = verb;
+      return async ({ result }) => {
+        busyVerb = null;
+        const p = payloadOf(result);
+        if (result.type === 'success' && p?.action?.ok) {
+          toast('ok', p.action.notice);
+          tokenPresent = false;
+          if (p.lookup?.user) reconcileUser(p.lookup.user);
+          return;
         }
-        upsertRecent(found);
-      });
+        toast('err', p?.action?.notice ?? p?.error ?? `${verb} failed`);
+      };
+    };
+  }
+  const resetSubmit = tokenWipe('reset');
+  const clearTokenSubmit = tokenWipe('clear token');
+
+  // ── Status change (paid needs a grant end date) ────────────────────────────
+  let statusForms = $state<Record<string, HTMLFormElement | null>>({});
+  let grantOpen = $state(false);
+  let grantDate = $state('');
+  let grantForm = $state<HTMLFormElement | null>(null);
+
+  function requestStatus(status: string) {
+    if (!selected || selected.status === status) return;
+    if (status === 'paid') {
+      grantDate = new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10);
+      grantOpen = true;
+      return;
     }
-  });
+    statusForms[status]?.requestSubmit();
+  }
 
-  // The user shown in the drawer. Prefer the form-returned user when its id
-  // matches the selection (post-mutation truth), else the clicked row.
-  const drawerUser = $derived.by<AdminUserWire | null>(() => {
-    if (!selected) return null;
-    if (found && String(found.id) === String(selected.id)) return found;
-    return selected;
-  });
+  const grantSubmit = statusSubmit('paid');
 
-  const drawerToken = $derived(
-    found && drawerUser && String(found.id) === String(drawerUser.id) ? tokenPresent : undefined
+  // ── Delete ─────────────────────────────────────────────────────────────────
+  let deleteOpen = $state(false);
+  let deleteForm = $state<HTMLFormElement | null>(null);
+  const deleteSubmit: SubmitFunction = () => {
+    busyVerb = 'delete';
+    return async ({ result }) => {
+      busyVerb = null;
+      deleteOpen = false;
+      const p = payloadOf(result);
+      if (result.type === 'success' && p?.action?.ok) {
+        toast('ok', p.action.notice);
+        if (dir && selectedId) dir.recent = dir.recent.filter((r) => String(r.id) !== selectedId);
+        closeInspector();
+        return;
+      }
+      toast('err', p?.action?.notice ?? p?.error ?? 'delete failed');
+    };
+  };
+
+  // ── Search + pagination (server-driven) ────────────────────────────────────
+  // svelte-ignore state_referenced_locally
+  let search = $state(data.search);
+  $effect(() => {
+    search = data.search;
+  });
+  function submitSearch() {
+    const q = search.trim();
+    goto(q ? `/users?q=${encodeURIComponent(q)}` : '/users', { keepFocus: true });
+  }
+  function pageHref(p: number): string {
+    const params = new URLSearchParams();
+    if (data.search) params.set('q', data.search);
+    if (data.state) params.set('state', data.state);
+    if (p > 1) params.set('page', String(p));
+    const qs = params.toString();
+    return qs ? `/users?${qs}` : '/users';
+  }
+
+  async function copyViewAs() {
+    try {
+      await navigator.clipboard.writeText(viewAsUrl);
+      viewAsCopied = true;
+      setTimeout(() => (viewAsCopied = false), 1500);
+    } catch {
+      viewAsCopied = false;
+    }
+  }
+
+  function ago(iso?: string): string {
+    if (!iso) return '—';
+    const mins = Math.max(Math.round((Date.now() - new Date(iso).getTime()) / 60e3), 0);
+    if (mins < 1) return 'now';
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.round(mins / 60);
+    if (hours < 48) return `${hours}h ago`;
+    return `${Math.round(hours / 24)}d ago`;
+  }
+
+  function fmtDate(iso?: string): string {
+    if (!iso) return 'unknown';
+    return new Date(iso).toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  }
+
+  const subTone = $derived(
+    subState?.state === 'ok' ? 'green' : subState?.state === 'failing' ? 'err' : 'warn'
   );
 
-  function openUser(u: AdminUserWire) {
-    // Switching users: drop any confirmation left from the previous user.
-    if (!selected || String(selected.id) !== String(u.id)) { action = undefined; drawerSubState = undefined; }
-    selected = u;
+  function onKey(e: KeyboardEvent) {
+    if (e.key === 'Escape' && selectedId) closeInspector();
   }
-  function closeDrawer() {
-    selected = null;
-    action = undefined;
-    drawerSubState = undefined;
-  }
-  function handleRowKey(e: KeyboardEvent, u: AdminUserWire) {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      openUser(u);
-    }
-  }
-
-  // --- Confirm-delete modal state -------------------------------------
-  let deleteTarget = $state<{ id: number | string; username: string } | null>(null);
-
-  function openDelete(u: { id: number | string; username: string }) {
-    deleteTarget = u;
-  }
-  function closeDelete() {
-    deleteTarget = null;
-  }
-
-  // --- Paid-grant modal state ------------------------------------------
-  // Paid is never set blind: the modal fixes the start day (today) and asks
-  // for the end day the grant runs to; the expiry sweeper downgrades on it.
-  let grantTarget = $state<AdminUserWire | null>(null);
-  let grantEnd = $state('');
-
-  function dateOnly(d: Date): string {
-    return d.toISOString().slice(0, 10);
-  }
-  const grantToday = $derived(dateOnly(new Date()));
-  const grantMin = $derived(dateOnly(new Date(Date.now() + 864e5)));
-
-  function openGrant(u: AdminUserWire) {
-    grantTarget = u;
-    grantEnd = dateOnly(new Date(Date.now() + 30 * 864e5)); // default: one month
-  }
-  function closeGrant() {
-    grantTarget = null;
-  }
-
-  // Esc closes modal first, then drawer.
-  function handleKey(e: KeyboardEvent) {
-    if (e.key !== 'Escape') return;
-    if (deleteTarget) closeDelete();
-    else if (grantTarget) closeGrant();
-    else if (selected) closeDrawer();
-  }
-
-  const rows = $derived(recent);
-
-  const tiers: Array<{ key: string; label: string }> = [
-    { key: 'free', label: 'Free' },
-    { key: 'paid', label: 'Paid' },
-    { key: 'vip', label: 'VIP' }
-  ];
 </script>
 
-<svelte:window onkeydown={handleKey} />
+<section class="screen active">
+  <PageHead eyebrow="Accounts" description="Search, inspect, and manage every registered broadcaster.">
+    User <em>directory</em>
+  </PageHead>
 
-<section class="screen active users-screen">
-  <div class="page-head">
-    <span class="eyebrow">Broadcaster accounts</span>
-    <h1>User <em>management</em></h1>
-    <p>
-      Grants, resets, and paged user search.{#if data.degraded}
-        <em> Live user data unavailable; showing sample.</em>{/if}
-    </p>
-  </div>
-
-  <div class="stat-grid">
-    <StatTile icon="users" label="Registered" value={data.stats.total_users.toLocaleString()} unit="total" delta={`${data.stats.active_users} active`} flat />
-    <StatTile icon="pulse" tan label="Premium" value={data.stats.premium_users.toLocaleString()} unit="" delta="paid + vip" flat />
-    <StatTile icon="heart" label="VIP" value={data.stats.vip_users.toLocaleString()} unit="" delta="comped" flat />
-    <StatTile icon="commands" tan label="Paid" value={data.stats.paid_users.toLocaleString()} unit="" delta="subscribers" flat />
-  </div>
-
-  <!-- Prominent lookup bar -->
-  <div class="card lookup-card">
-    <form method="POST" action="?/lookup" use:enhance={refresh} class="lookup-form">
-      <label class="search lookup-input">
-        <Icon name="search" size={15} />
-        <input name="q" type="text" placeholder="Look up a Twitch user id or username" autocomplete="off" />
-      </label>
-      <Button variant="primary" icon="search" type="submit">Look up</Button>
-    </form>
-    {#if lookupError}
-      <p class="notice-muted">{lookupError}</p>
-    {/if}
-  </div>
-
-  <!-- MASTER: calm recent list -->
-  <div class="card recent-card">
-    <div class="card-head recent-head">
-      <h3>Users</h3>
-      <form method="GET" action="/users" class="users-controls">
-        <label class="search search-filter">
-          <Icon name="search" size={14} />
-          <input name="q" type="text" placeholder="Search by name or id" autocomplete="off" value={search} />
-        </label>
-        <button class="btn primary search-submit" type="submit">
-          <Icon name="search" size={14} />
-          <span>Search</span>
-        </button>
-        {#if search}
-          <a class="btn ghost clear-search" href="/users">Clear</a>
-        {/if}
-      </form>
-    </div>
-    <div class="table users-table">
-      <div class="thead">
-        <span>User</span><span>Id</span><span class="perm-cell">Tier</span><span>Status</span><span>Active</span><span></span>
-      </div>
-      <div class="trows">
-        {#if rows.length === 0}
-          <div class="trow"><span class="resp" style="grid-column:1/-1;opacity:.6">No matching users.</span></div>
-        {/if}
-        {#each rows as u (u.id)}
-          <div
-            class="trow trow-clickable"
-            class:selected={selected && String(selected.id) === String(u.id)}
-            role="button"
-            tabindex="0"
-            onclick={() => openUser(u)}
-            onkeydown={(e) => handleRowKey(e, u)}
-          >
-            <span class="cmd">
-              @{u.username}
-              {#if u.creator_code}<span class="badge creator-mini">{u.creator_code}</span>{/if}
-              {#if u.banned}<span class="badge banned">banned</span>{/if}
-            </span>
-            <span class="resp">{u.id}</span>
-            <span class="perm-cell"><span class="badge {tier(u.status) === 'premium' ? 'sub' : 'everyone'}">{tier(u.status)}</span></span>
-            <span class="cd">{u.status}</span>
-            <span class="uses">{u.is_active ? 'yes' : 'no'}</span>
-            <span class="row-act"><span class="chev" aria-hidden="true"></span></span>
-          </div>
-        {/each}
-      </div>
-    </div>
-
-    <div class="users-foot">
-      <span class="page-state">
-        {#if showingStart === 0}
-          Page {page}
-        {:else}
-          {showingStart}-{showingEnd} · page {page}
-        {/if}
-        <span class="muted">of {maxPages} max</span>
-      </span>
-      <div class="pager">
-        {#if page > 1}
-          <a class="pager-link" href={usersHref(page - 1, search)}>Previous</a>
-        {:else}
-          <span class="pager-link disabled" aria-disabled="true">Previous</span>
-        {/if}
-        {#if hasMore && page < maxPages}
-          <a class="pager-link" href={usersHref(page + 1, search)}>Next</a>
-        {:else}
-          <span class="pager-link disabled" aria-disabled="true">Next</span>
-        {/if}
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- DETAIL DRAWER -->
-{#if drawerUser}
-  <!-- A full-screen <button> would be matched by the custom cursor's interactive
-       selector and morph the tan ring over the entire page; use a div instead. -->
-  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div class="drawer-backdrop" role="button" tabindex="-1" aria-label="Close drawer" onclick={closeDrawer}></div>
-  <div class="drawer open" role="dialog" aria-modal="true" aria-labelledby="drawer-title">
-    <header class="drawer-head">
-      <div class="drawer-id">
-        <h2 id="drawer-title">@{drawerUser.username}</h2>
-        <span class="drawer-sub">id {drawerUser.id} · {tier(drawerUser.status)}</span>
-      </div>
-      <button class="drawer-close" type="button" onclick={closeDrawer} aria-label="Close">
-        <Icon name="x" size={16} />
-      </button>
-    </header>
-
-    <div class="drawer-body" data-lenis-prevent>
-      <!-- Profile meta -->
-      <div class="meta-block">
-        <div class="meta-line"><span class="meta-k">Status</span><span class="meta-v">{drawerUser.status}</span></div>
-        {#if drawerUser.subscription_expires_at}
-          <div class="meta-line">
-            <span class="meta-k">Paid until</span>
-            <span class="meta-v">{drawerUser.subscription_expires_at.slice(0, 10)}{drawerUser.subscription_source ? ` · ${drawerUser.subscription_source}` : ''}</span>
-          </div>
-        {/if}
-        <div class="meta-line"><span class="meta-k">State</span><span class="meta-v">{drawerUser.is_active ? 'active' : 'inactive'}</span></div>
-        <div class="meta-line"><span class="meta-k">Ban</span><span class="meta-v">{drawerUser.banned ? 'banned' : 'allowed'}</span></div>
-        {#if drawerUser.creator_code}
-          <div class="meta-line"><span class="meta-k">Creator</span><span class="creator-code">{drawerUser.creator_code}</span></div>
-        {/if}
-        <div class="meta-line">
-          <span class="meta-k">Token</span>
-          <span class="meta-v">{drawerToken === undefined ? 'unknown' : drawerToken ? 'present' : 'absent'}</span>
+  <PageToolbar>
+    {#snippet lead()}
+      {#if dir}
+        <div class="dir-stats">
+          <span><b>{dir.stats.total_users.toLocaleString()}</b> total</span>
+          <span class="mid">·</span>
+          <span><b>{dir.stats.active_users.toLocaleString()}</b> active</span>
+          <span class="mid">·</span>
+          <span><b>{dir.stats.premium_users.toLocaleString()}</b> premium</span>
         </div>
-        <div class="meta-line">
-          <span class="meta-k">Tier</span>
-          <span class="badge {tier(drawerUser.status) === 'premium' ? 'sub' : 'everyone'}">{tier(drawerUser.status)}</span>
-        </div>
-      </div>
-
-      {#if action}
-        <p class="notice-{action.ok ? 'ok' : 'err'}">{action.notice}</p>
+      {:else}
+        <Skeleton variant="pill" width="220px" />
       {/if}
+    {/snippet}
+    {#snippet trail()}
+      <form
+        class="search-form"
+        onsubmit={(e) => {
+          e.preventDefault();
+          submitSearch();
+        }}
+      >
+        <SearchInput bind:value={search} placeholder="Username or numeric id…" />
+        <Button variant="ghost" type="submit">Search</Button>
+      </form>
+    {/snippet}
+  </PageToolbar>
 
-      <!-- Creator code -->
-      <div class="field">
-        <span class="field-label">Creator code</span>
-        <form method="POST" action="?/setCreatorCode" use:enhance={refresh} class="creator-form">
-          <input type="hidden" name="user_id" value={drawerUser.id} />
-          <label class="creator-input">
-            <Icon name="card" size={14} />
-            <input
-              name="creator_code"
-              type="text"
-              maxlength="64"
-              value={drawerUser.creator_code ?? ''}
-              placeholder="MAVEY10"
-              autocomplete="off"
-            />
-          </label>
-          <button class="btn ghost creator-save" type="submit"><Icon name="check" size={13} /> Save</button>
-        </form>
-        {#if drawerUser.creator_code}
-          <form method="POST" action="?/setCreatorCode" use:enhance={refresh} class="creator-clear-form">
-            <input type="hidden" name="user_id" value={drawerUser.id} />
-            <input type="hidden" name="creator_code" value="" />
-            <button class="btn ghost block creator-clear" type="submit"><Icon name="x" size={13} /> Clear creator code</button>
-          </form>
-        {/if}
-      </div>
+  {#if dir?.degraded}
+    <AlertBanner>User directory is unreachable right now; nothing below is live.</AlertBanner>
+  {/if}
 
-      <!-- Tier segment -->
-      <div class="field">
-        <span class="field-label">Tier</span>
-        <div class="segment">
-          {#each tiers as t}
-            {#if t.key === 'paid'}
-              <!-- Paid goes through the grant modal: it needs an end date. -->
-              <button
-                class="seg-btn"
-                class:on={drawerUser.status === t.key}
-                type="button"
-                disabled={drawerUser.status === t.key}
-                aria-pressed={drawerUser.status === t.key}
-                onclick={() => openGrant(drawerUser)}
-              >{t.label}</button>
+  <div class="filter-row">
+    <div class="seg" role="radiogroup" aria-label="User state">
+      {#each STATES as st (st)}
+        <button
+          type="button"
+          class="chip"
+          class:on={stateFilter === st}
+          role="radio"
+          aria-checked={stateFilter === st}
+          onclick={() => applyState(st)}
+        >
+          {st}
+        </button>
+      {/each}
+    </div>
+    <div class="filter-trail">
+      <Button variant="ghost" onclick={exportCsv} disabled={visible.length === 0}>
+        <Icon name="audit" size={13} /> Export CSV
+      </Button>
+    </div>
+  </div>
+
+  <div class="deck">
+    <DeckList>
+      {#if dir === null}
+        <div class="row-skeletons">
+          {#each [0, 1, 2, 3, 4, 5] as i (i)}<Skeleton variant="block" height="52px" />{/each}
+        </div>
+      {:else if visible.length}
+        <div class="user-head" aria-hidden="true">
+          <span></span>
+          {#each [['user', 'user'], ['id', 'id'], ['tier', 'tier'], ['flags', ''], ['joined', 'joined'], ['updated', 'updated']] as [label, key] (label)}
+            {#if key}
+              <button type="button" class="sort-btn" class:on={sortKey === key} onclick={() => toggleSort(key as SortKey)}>
+                {label}{sortKey === key ? (sortDir === 1 ? ' ↑' : ' ↓') : ''}
+              </button>
             {:else}
-              <form method="POST" action="?/setStatus" use:enhance={refresh}>
-                <input type="hidden" name="user_id" value={drawerUser.id} />
-                <input type="hidden" name="status" value={t.key} />
-                <button
-                  class="seg-btn"
-                  class:on={drawerUser.status === t.key}
-                  type="submit"
-                  disabled={drawerUser.status === t.key}
-                  aria-pressed={drawerUser.status === t.key}
-                >{t.label}</button>
-              </form>
+              <span class="head-label">{label}</span>
             {/if}
           {/each}
         </div>
-        {#if drawerUser.status === 'paid' && drawerUser.subscription_expires_at}
-          <p class="notice-muted">
-            Paid until {drawerUser.subscription_expires_at.slice(0, 10)}
-            {drawerUser.subscription_source ? ` (${drawerUser.subscription_source})` : ''}
-          </p>
-        {/if}
-      </div>
+        <ul class="list" aria-label="Users">
+          {#each visible as u (u.id)}
+            <li>
+              <!-- data-cursor="off": a row is a reading surface, not a control;
+                   the custom cursor must not morph into a row-sized box. -->
+              <button
+                type="button"
+                class="user-row"
+                data-cursor="off"
+                class:on={selectedId === String(u.id)}
+                onclick={() => openUser(u)}
+              >
+                <span class="udot state-{stateOf(u)}"></span>
+                <span class="uname">{u.username}</span>
+                <span class="uid">#{u.id}</span>
+                <span class="ucell"><span class="tag st-{u.status}">{u.status}</span></span>
+                <span class="utags">
+                  {#if u.banned}<span class="tag st-banned">banned</span>{/if}
+                  {#if !u.is_active}<span class="tag st-inactive">inactive</span>{/if}
+                  {#if u.creator_code}<span class="tag code">code</span>{/if}
+                </span>
+                <span class="uwhen">{ago(u.created_at)}</span>
+                <span class="uwhen">{ago(u.updated_at)}</span>
+              </button>
+            </li>
+          {/each}
+        </ul>
+      {:else if rows.length}
+        <EmptyState icon="search" title="No users in this state on this page" />
+      {:else if data.search}
+        <EmptyState icon="search" title="No users match" body="Try the exact login or the numeric Twitch id." />
+      {:else}
+        <EmptyState icon="users" title="No users yet" />
+      {/if}
 
-      <!-- Active toggle -->
-      <div class="field">
-        <span class="field-label">Activation</span>
-        <form method="POST" action="?/setActive" use:enhance={refresh}>
-          <input type="hidden" name="user_id" value={drawerUser.id} />
-          <input type="hidden" name="active" value={String(!drawerUser.is_active)} />
-          <button class="btn ghost block" class:warn={drawerUser.is_active} type="submit">
-            {drawerUser.is_active ? 'Deactivate' : 'Activate'}
-          </button>
-        </form>
-      </div>
-
-      <!-- Service ban toggle -->
-      <div class="field">
-        <span class="field-label">Service access</span>
-        <form method="POST" action={drawerUser.banned ? '?/unban' : '?/ban'} use:enhance={refresh}>
-          <input type="hidden" name="user_id" value={drawerUser.id} />
-          <button class="btn ghost block" class:warn={!drawerUser.banned} type="submit">
-            {drawerUser.banned ? 'Unban from service' : 'Ban from service'}
-          </button>
-        </form>
-      </div>
-
-      <!-- View as (impersonate) -->
-      <div class="field">
-        <span class="field-label">View as</span>
-        <form method="POST" action="?/impersonate" use:enhance={refresh}>
-          <input type="hidden" name="user_id" value={drawerUser.id} />
-          <button class="btn ghost block" type="submit"><Icon name="users" size={13} /> View as this user</button>
-        </form>
-        {#if viewAsUrl}
-          <div class="viewas-row">
-            <input class="viewas-url" type="text" readonly value={viewAsUrl} />
-            <button class="btn ghost" type="button" onclick={copyViewAs}>
-              <Icon name="link" size={13} /> {copied ? 'Copied' : 'Copy'}
-            </button>
-          </div>
-          <p class="notice-muted">Open this link to load the broadcaster's dashboard. Expires in 5 minutes; every change is audited.</p>
-        {/if}
-      </div>
-
-      <!-- Maintenance actions -->
-      <div class="field">
-        <span class="field-label">Maintenance</span>
-        {#if drawerSubState}
-          <div class="sub-state-row">
-            {#if drawerSubState.state === 'failing'}
-              <span class="badge sub-badge err">EventSub failing</span>
-              {#if drawerSubState.error}<span class="sub-err">{drawerSubState.error.slice(0, 80)}</span>{/if}
-            {:else if drawerSubState.state === 'pending'}
-              <span class="badge sub-badge warn">reconnecting…</span>
-            {:else if drawerSubState.state === 'ok'}
-              <span class="badge sub-badge ok">subscriptions ok</span>
-            {:else}
-              <span class="badge sub-badge muted">enroll unknown</span>
-            {/if}
-          </div>
-        {/if}
-        <div class="action-stack">
-          <form method="POST" action="?/restart" use:enhance={refresh}>
-            <input type="hidden" name="user_id" value={drawerUser.id} />
-            <button class="btn ghost block" type="submit"><Icon name="pulse" size={13} /> Restart bot</button>
-          </form>
-          <form method="POST" action="?/reset" use:enhance={refresh}>
-            <input type="hidden" name="user_id" value={drawerUser.id} />
-            <button class="btn ghost block" type="submit">Reset</button>
-          </form>
-          <form method="POST" action="?/clearToken" use:enhance={refresh}>
-            <input type="hidden" name="user_id" value={drawerUser.id} />
-            <button class="btn ghost block" type="submit">Clear token</button>
-          </form>
+      {#if dir && (dir.page > 1 || dir.hasMore)}
+        <div class="pager">
+          <a class="btn ghost" class:disabled={dir.page <= 1} href={pageHref(dir.page - 1)} aria-disabled={dir.page <= 1}>
+            ← Prev
+          </a>
+          <span class="pager-label">page {dir.page} / {dir.maxPages}</span>
+          <a class="btn ghost" class:disabled={!dir.hasMore} href={pageHref(dir.page + 1)} aria-disabled={!dir.hasMore}>
+            Next →
+          </a>
         </div>
+      {/if}
+    </DeckList>
+
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="inspector-backdrop"
+      class:open={selected !== null}
+      role="presentation"
+      onclick={closeInspector}
+      onkeydown={(e) => {
+        if (e.key === 'Enter') closeInspector();
+      }}
+    ></div>
+    <aside class="inspector" class:open={selected !== null} aria-label="User inspector">
+      <div class="inspector-head">
+        <span class="inspector-tag">{selected ? `@${selected.username}` : 'Inspector'}</span>
+        {#if selected}
+          <button class="mini" type="button" aria-label="Close" onclick={closeInspector}>
+            <Icon name="x" size={14} />
+          </button>
+        {/if}
       </div>
 
-      <!-- Danger -->
-      <div class="field danger-zone">
-        <span class="field-label">Danger zone</span>
-        <button
-          class="btn danger block"
-          type="button"
-          onclick={() => openDelete({ id: drawerUser.id, username: drawerUser.username })}
-        >
-          <Icon name="trash" size={13} /> Delete user
-        </button>
-      </div>
-    </div>
+      {#if selected}
+        <Scroller fill padding="18px" data-lenis-prevent>
+          <div class="detail">
+            <div class="ident">
+              <span class="avatar">{selected.username.slice(0, 1).toUpperCase()}</span>
+              <div>
+                <div class="ident-name">{selected.username}</div>
+                <div class="ident-meta">
+                  #{selected.id} · joined {fmtDate(selected.created_at)} · updated {ago(selected.updated_at)}
+                </div>
+              </div>
+            </div>
+
+            <div class="block">
+              <span class="block-label">Tier</span>
+              <div class="chips">
+                {#each ['free', 'paid', 'vip'] as st (st)}
+                  <button
+                    type="button"
+                    class="chip chip-{st}"
+                    class:on={selected.status === st}
+                    disabled={busyVerb !== null}
+                    onclick={() => requestStatus(st)}
+                  >
+                    {st}
+                  </button>
+                {/each}
+              </div>
+              {#if selected.subscription_expires_at || selected.subscription_source || selected.subscription_ref}
+                <dl class="subfacts">
+                  {#if selected.subscription_expires_at}
+                    <div><dt>Runs until</dt><dd>{fmtDate(selected.subscription_expires_at)}</dd></div>
+                  {/if}
+                  {#if selected.subscription_source}
+                    <div><dt>Source</dt><dd>{selected.subscription_source}</dd></div>
+                  {/if}
+                  {#if selected.subscription_ref}
+                    <div><dt>Reference</dt><dd>{selected.subscription_ref}</dd></div>
+                  {/if}
+                  {#if selected.subscription_cancel_pending}
+                    <div><dt>Renewal</dt><dd class="cancel">cancel pending</dd></div>
+                  {/if}
+                </dl>
+              {/if}
+            </div>
+
+            <div class="block">
+              <span class="block-label">Service</span>
+              <div class="btn-row">
+                <form method="POST" action="?/setActive" use:enhance={setActiveSubmit}>
+                  <input type="hidden" name="user_id" value={selected.id} />
+                  <input type="hidden" name="active" value={selected.is_active ? 'false' : 'true'} />
+                  <button class="btn ghost" type="submit" disabled={busyVerb !== null}>
+                    {selected.is_active ? 'Deactivate' : 'Activate'}
+                  </button>
+                </form>
+                {#if selected.banned}
+                  <form method="POST" action="?/unban" use:enhance={unbanSubmit}>
+                    <input type="hidden" name="user_id" value={selected.id} />
+                    <button class="btn ghost" type="submit" disabled={busyVerb !== null}>Unban</button>
+                  </form>
+                {:else}
+                  <form method="POST" action="?/ban" use:enhance={banSubmit}>
+                    <input type="hidden" name="user_id" value={selected.id} />
+                    <button class="btn ghost danger" type="submit" disabled={busyVerb !== null}>Ban</button>
+                  </form>
+                {/if}
+              </div>
+            </div>
+
+            <!-- Bot health: token + EventSub, probed live on select -->
+            <div class="block">
+              <span class="block-label">Bot health</span>
+              <div class="probe-row">
+                <span class="probe-dot {tokenPresent === null ? 'warn' : tokenPresent ? 'green' : 'err'}"></span>
+                <span>{tokenPresent === null ? 'Checking token…' : tokenPresent ? 'OAuth token stored' : 'No token stored'}</span>
+              </div>
+              <div class="probe-row">
+                <span class="probe-dot {subState === null ? 'warn' : subTone}"></span>
+                <span>
+                  {#if subState === null}
+                    Checking EventSub…
+                  {:else}
+                    EventSub {subState.state}{subState.checkedAt ? ` · checked ${ago(subState.checkedAt)}` : ''}
+                  {/if}
+                </span>
+              </div>
+              {#if subState?.error}
+                <span class="probe-err">{subState.error}</span>
+              {/if}
+              <div class="btn-row">
+                <form method="POST" action="?/restart" use:enhance={restartSubmit}>
+                  <input type="hidden" name="user_id" value={selected.id} />
+                  <button class="btn ghost" type="submit" disabled={busyVerb !== null}>
+                    {busyVerb === 'restart' ? 'Restarting…' : 'Restart bot'}
+                  </button>
+                </form>
+              </div>
+            </div>
+
+            <div class="block">
+              <span class="block-label">Creator code</span>
+              <form class="creator" method="POST" action="?/setCreatorCode" use:enhance={creatorSubmit}>
+                <input type="hidden" name="user_id" value={selected.id} />
+                <input
+                  class="text-input"
+                  type="text"
+                  name="creator_code"
+                  maxlength="64"
+                  placeholder="none"
+                  value={selected.creator_code ?? ''}
+                />
+                <button class="btn ghost" type="submit" disabled={busyVerb !== null}>Save</button>
+              </form>
+            </div>
+
+            <div class="block">
+              <span class="block-label">Support</span>
+              <div class="btn-row">
+                <form method="POST" action="?/impersonate" use:enhance={impersonateSubmit}>
+                  <input type="hidden" name="user_id" value={selected.id} />
+                  <button class="btn ghost" type="submit" disabled={busyVerb !== null}>
+                    <Icon name="link" size={13} /> Mint view-as link
+                  </button>
+                </form>
+                <button class="btn ghost" type="button" disabled={busyVerb !== null} onclick={openMessage}>
+                  <Icon name="send" size={13} /> Message user
+                </button>
+              </div>
+              {#if viewAsUrl}
+                <div class="viewas">
+                  <input class="text-input" type="text" readonly value={viewAsUrl} />
+                  <button class="btn ghost" type="button" onclick={copyViewAs}>
+                    {viewAsCopied ? 'Copied' : 'Copy'}
+                  </button>
+                </div>
+                <span class="block-note">valid 5 minutes; actions are attributed to you</span>
+              {/if}
+            </div>
+
+            {#if isManager}
+              <div class="block">
+                <span class="block-label">Operator actions on this user</span>
+                {#if targetHistory === null}
+                  <span class="block-note">Loading history…</span>
+                {:else if targetHistoryError}
+                  <span class="probe-err">{targetHistoryError}</span>
+                {:else if targetHistory.length === 0}
+                  <span class="block-note">None recorded.</span>
+                {:else}
+                  <ul class="thist">
+                    {#each targetHistory as e (e.id)}
+                      <li class="thist-row">
+                        <span class="probe-dot {e.ok ? 'green' : 'err'}"></span>
+                        <span class="thist-act">{e.action} · @{e.actor_login}</span>
+                        <span class="thist-when">{ago(e.created_at)}</span>
+                      </li>
+                    {/each}
+                  </ul>
+                  <a class="block-note thist-more" href={`/audit?q=${selected.id}`}>Full history in audit →</a>
+                {/if}
+              </div>
+            {/if}
+
+            <div class="block danger-zone">
+              <span class="block-label">Danger</span>
+              <div class="btn-row">
+                <form method="POST" action="?/reset" use:enhance={resetSubmit}>
+                  <input type="hidden" name="user_id" value={selected.id} />
+                  <button class="btn ghost" type="submit" disabled={busyVerb !== null}>Reset tokens</button>
+                </form>
+                <form method="POST" action="?/clearToken" use:enhance={clearTokenSubmit}>
+                  <input type="hidden" name="user_id" value={selected.id} />
+                  <button class="btn ghost" type="submit" disabled={busyVerb !== null}>Clear token</button>
+                </form>
+                <button
+                  class="btn ghost danger"
+                  type="button"
+                  disabled={busyVerb !== null}
+                  onclick={() => (deleteOpen = true)}
+                >
+                  Delete user
+                </button>
+              </div>
+            </div>
+          </div>
+        </Scroller>
+      {:else}
+        <div class="inspector-idle">
+          <span class="idle-glyph"><Icon name="users" size={18} /></span>
+          <p>Select a user to inspect their account, bot health, and tier.</p>
+        </div>
+      {/if}
+    </aside>
   </div>
-{/if}
+</section>
 
-<!-- Delete confirm modal -->
-<Modal open={deleteTarget !== null} title={`Delete @${deleteTarget?.username}?`} closeModal={closeDelete}>
-  {#if deleteTarget}
-    <p class="modal-body">
-      This permanently removes the user and cascades to their commands and modules. This cannot be undone.
-    </p>
-    <form
-      method="POST"
-      action="?/delete"
-      use:enhance={() => async ({ formData, result, update }) => {
-        await update({ invalidateAll: false });
-        const ok = (result.type === 'success' &&
-          (result.data as { action?: { ok?: boolean } } | undefined)?.action?.ok) === true;
-        if (ok) {
-          const id = String(formData.get('user_id') ?? '');
-          removeRecent(id);
-          if (selected && String(selected.id) === id) closeDrawer();
-        }
-        closeDelete();
-      }}
-      class="modal-actions"
-    >
-      <input type="hidden" name="user_id" value={deleteTarget.id} />
-      <button class="btn ghost" type="button" onclick={closeDelete}>Cancel</button>
-      <button class="btn danger" type="submit">
-        <Icon name="trash" size={13} /> Delete permanently
-      </button>
-    </form>
-  {/if}
-</Modal>
+<svelte:window onkeydown={onKey} />
 
-<!-- Paid-grant modal: start day is fixed to today, the end day is the date the
-     expiry sweeper downgrades the user back to free. Both land in the audit
-     log (set_status detail: status=paid start=... end=...). -->
-<Modal open={grantTarget !== null} title={`Grant paid to @${grantTarget?.username}?`} closeModal={closeGrant}>
-  {#if grantTarget}
-    <p class="modal-body">
-      The user gets the premium tier immediately and is downgraded automatically when the grant ends.
-      While the grant is active they cannot be charged through Tebex.
-    </p>
-    <form
-      method="POST"
-      action="?/setStatus"
-      use:enhance={() => async ({ update }) => {
-        await update({ invalidateAll: false });
-        closeGrant();
-      }}
-    >
-      <input type="hidden" name="user_id" value={grantTarget.id} />
-      <input type="hidden" name="status" value="paid" />
-      <div class="grant-dates">
-        <label class="grant-date">
-          <span class="meta-k">Starts</span>
-          <input type="date" value={grantToday} disabled />
-        </label>
-        <label class="grant-date">
-          <span class="meta-k">Ends</span>
-          <input type="date" name="expires_at" bind:value={grantEnd} min={grantMin} required />
-        </label>
-      </div>
-      <div class="modal-actions">
-        <button class="btn ghost" type="button" onclick={closeGrant}>Cancel</button>
-        <button class="btn" type="submit" disabled={!grantEnd}>Grant paid until {grantEnd || '…'}</button>
-      </div>
-    </form>
-  {/if}
-</Modal>
+<!-- Hidden lookup probe: fired on row select to fetch token + EventSub state. -->
+<form method="POST" action="?/lookup" use:enhance={lookupSubmit} bind:this={lookupForm} hidden>
+  <input type="hidden" name="q" value={lookupQ} />
+</form>
+
+<!-- Hidden status forms (free/vip immediate; paid goes through the grant modal). -->
+{#each ['free', 'vip'] as st (st)}
+  <form
+    method="POST"
+    action="?/setStatus"
+    use:enhance={statusSubmit(st)}
+    bind:this={statusForms[st]}
+    hidden
+  >
+    <input type="hidden" name="user_id" value={selected?.id ?? ''} />
+    <input type="hidden" name="status" value={st} />
+  </form>
+{/each}
+
+<form method="POST" action="?/setStatus" use:enhance={grantSubmit} bind:this={grantForm} hidden>
+  <input type="hidden" name="user_id" value={selected?.id ?? ''} />
+  <input type="hidden" name="status" value="paid" />
+  <input type="hidden" name="expires_at" value={grantDate} />
+</form>
+
+<ConfirmDialog
+  open={grantOpen}
+  title="Grant paid tier"
+  body={selected
+    ? `Every paid grant carries the day it ends. @${selected.username} runs premium until end-of-day on the chosen date.`
+    : undefined}
+  confirmLabel="Grant paid"
+  cancelLabel="Cancel"
+  busy={busyVerb === 'set status'}
+  onCancel={() => (grantOpen = false)}
+  onConfirm={() => {
+    grantOpen = false;
+    grantForm?.requestSubmit();
+  }}
+>
+  <label class="grant-label">
+    Ends on
+    <input
+      class="text-input"
+      type="date"
+      bind:value={grantDate}
+      min={new Date(Date.now() + 864e5).toISOString().slice(0, 10)}
+    />
+  </label>
+</ConfirmDialog>
+
+<!-- Direct notification: posts to the notifications route's send action so
+     delivery, audit, and idempotency stay in one place. -->
+<ConfirmDialog
+  open={msgOpen}
+  title={selected ? `Message @${selected.username}` : 'Message user'}
+  body="Lands in their dashboard notification bell."
+  confirmLabel="Send"
+  cancelLabel="Cancel"
+  busy={busyVerb === 'message'}
+  onCancel={() => (msgOpen = false)}
+  onConfirm={() => msgForm?.requestSubmit()}
+>
+  <div class="msg-fields">
+    <label>Title
+      <input class="text-input" type="text" maxlength="120" bind:value={msgTitle} />
+    </label>
+    <label>Message
+      <textarea class="text-input" rows="3" maxlength="2000" bind:value={msgBody}></textarea>
+    </label>
+    <label>Level
+      <select class="text-input" bind:value={msgLevel}>
+        <option value="info">Info</option>
+        <option value="success">Success</option>
+        <option value="warning">Warning</option>
+        <option value="critical">Critical</option>
+      </select>
+    </label>
+  </div>
+</ConfirmDialog>
+<form method="POST" action="/notifications?/send" use:enhance={msgSubmit} bind:this={msgForm} hidden>
+  <input type="hidden" name="scope" value="direct" />
+  <input type="hidden" name="target_user_id" value={selected?.id ?? ''} />
+  <input type="hidden" name="target_username" value="" />
+  <input type="hidden" name="title" value={msgTitle} />
+  <input type="hidden" name="body" value={msgBody} />
+  <input type="hidden" name="level" value={msgLevel} />
+  <input type="hidden" name="expires_at" value="" />
+</form>
+
+<ConfirmDialog
+  open={deleteOpen}
+  title="Delete user"
+  body={selected
+    ? `This permanently removes @${selected.username} (#${selected.id}) and their stored tokens from the users service.`
+    : undefined}
+  confirmLabel="Delete"
+  cancelLabel="Cancel"
+  danger
+  busy={busyVerb === 'delete'}
+  onCancel={() => (deleteOpen = false)}
+  onConfirm={() => deleteForm?.requestSubmit()}
+/>
+<form method="POST" action="?/delete" use:enhance={deleteSubmit} bind:this={deleteForm} hidden>
+  <input type="hidden" name="user_id" value={selected?.id ?? ''} />
+</form>
 
 <style>
-  /* paid-grant modal date row */
-  .grant-dates { display: flex; gap: 12px; margin: 12px 0 4px; }
-  .grant-date { display: flex; flex-direction: column; gap: 6px; flex: 1; }
-  .grant-date input[type='date'] {
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
-    border-radius: 8px;
-    color: var(--bb-white, #fff);
-    padding: 8px 10px;
-    font: inherit;
-    color-scheme: dark;
+  .dir-stats {
+    display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap;
+    font-family: var(--bb-font-body); font-size: 12.5px; color: var(--bb-muted);
   }
-  .grant-date input[type='date']:disabled { opacity: 0.55; }
+  .dir-stats b { color: var(--bb-white); font-weight: 600; }
+  .dir-stats .mid { color: var(--rule-strong); }
+  .search-form { display: flex; gap: 8px; align-items: center; }
 
-  /* notice text variants */
-  .notice-muted { font-size: .85rem; color: var(--bb-muted); margin: .8rem 0 0; }
-  .notice-ok  { font-size: .82rem; color: var(--bb-green-glow); margin: 0 0 .2rem; }
-  .notice-err { font-size: .82rem; color: #cf8a78; margin: 0 0 .2rem; }
+  .row-skeletons { display: flex; flex-direction: column; gap: 8px; padding: 12px; }
 
-  /* banned badge */
-  .badge.banned {
-    margin-left: .4rem;
-    background: rgba(176, 90, 70, 0.18); color: #cf8a78;
-    border: 1px solid rgba(176, 90, 70, 0.4);
+  .deck { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
+  @media (min-width: 1080px) {
+    .deck { grid-template-columns: minmax(0, 1fr) 340px; }
   }
-  .badge.creator-mini,
-  .creator-code {
-    display: inline-flex;
+
+  .filter-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    flex-wrap: wrap; margin-bottom: 14px;
+  }
+  .filter-trail { display: flex; align-items: center; gap: 12px; }
+  .seg { display: flex; gap: 6px; flex-wrap: wrap; }
+
+  .thist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+  .thist-row { display: flex; align-items: center; gap: 9px; min-width: 0; }
+  .thist-act {
+    font-family: var(--bb-font-mono); font-size: 11.5px; color: var(--bb-white);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;
+  }
+  .thist-when { font-family: var(--bb-font-mono); font-size: 10px; color: var(--bb-muted); white-space: nowrap; }
+  .thist-more { text-decoration: none; color: var(--bb-tan); }
+  .thist-more:hover { color: var(--bb-tan-pale); }
+
+  .msg-fields { display: flex; flex-direction: column; gap: 12px; margin: 12px 0 4px; }
+  .msg-fields label {
+    display: flex; flex-direction: column; gap: 6px;
+    font-family: var(--bb-font-body); font-size: 12.5px; color: var(--bb-muted);
+  }
+  .msg-fields textarea { resize: vertical; font-family: var(--bb-font-body); }
+
+  /* ── Five state colors. VIP is silver, deliberately not purple. ─────────── */
+  .list { list-style: none; margin: 0; padding: 0; }
+
+  /* Header and rows share one grid template so every column lines up. */
+  .user-head, .user-row {
+    display: grid;
+    grid-template-columns: 14px minmax(130px, 1.3fr) 100px 72px minmax(0, 1fr) 82px 82px;
     align-items: center;
-    max-width: 18ch;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    letter-spacing: 0.04em;
-    color: var(--bb-tan-pale);
-    background: rgba(201, 168, 124, 0.1);
-    border: 1px solid rgba(201, 168, 124, 0.28);
-    border-radius: var(--bb-radius-pill, 999px);
-    padding: 3px 8px;
-  }
-  .badge.creator-mini { margin-left: .4rem; }
-  .creator-code {
-    max-width: 22ch;
-    justify-content: flex-end;
-  }
-
-  /* sub-state row + badges */
-  .sub-state-row {
-    display: flex; align-items: center; gap: .5rem; margin-bottom: .5rem; flex-wrap: wrap;
-  }
-  .badge.sub-badge {
-    font-family: var(--bb-font-mono); font-size: 11px; letter-spacing: .06em;
-    padding: 3px 8px; border-radius: var(--bb-radius-pill, 999px);
-  }
-  .badge.sub-badge.ok   { background: rgba(82,183,136,.12); border: 1px solid rgba(82,183,136,.35); color: var(--bb-green-glow); }
-  .badge.sub-badge.warn { background: rgba(200,160,80,.12); border: 1px solid rgba(200,160,80,.35); color: var(--bb-tan-light, #c8a050); }
-  .badge.sub-badge.err  { background: rgba(176,90,70,.15);  border: 1px solid rgba(176,90,70,.4);  color: #cf8a78; }
-  .badge.sub-badge.muted { background: rgba(255,255,255,.04); border: 1px solid var(--bb-border); color: var(--bb-muted); }
-  .sub-err { font-size: .8rem; color: #cf8a78; opacity: .85; }
-
-  /* view-as link row */
-  .viewas-row { display: flex; gap: .5rem; margin-top: .55rem; }
-  .viewas-url {
-    flex: 1; min-width: 0;
-    font-family: var(--bb-font-mono); font-size: 12px; color: var(--bb-tan-light);
-    background: rgba(255,255,255,0.025);
-    border: 1px solid var(--glass-border); border-radius: 8px 8px;
-    padding: 8px 10px;
-  }
-
-  /* lookup bar */
-  :global(.canvas:has(.users-screen)) {
-    max-width: 1480px;
-  }
-
-  .users-screen {
+    gap: 12px;
     width: 100%;
+    padding: 13px 14px;
+  }
+  .user-head {
+    padding-top: 10px; padding-bottom: 8px;
+    border-bottom: 1px solid var(--rule-strong);
+  }
+  .sort-btn, .head-label {
+    font-family: var(--bb-font-mono); font-size: 10px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--bb-muted); text-align: left;
+    background: none; border: none; padding: 0;
+  }
+  .sort-btn { cursor: pointer; }
+  .sort-btn:hover { color: var(--bb-white); }
+  .sort-btn.on { color: var(--bb-tan-light); }
+
+  .user-row {
+    background: none;
+    border: none;
+    border-bottom: 1px solid var(--rule);
+    color: inherit;
+    cursor: pointer;
+    text-align: left;
+    transition: background 120ms ease;
+  }
+  li:last-child .user-row { border-bottom: none; }
+  .user-row:hover { background: rgba(240, 236, 228, 0.03); }
+  .user-row.on { background: rgba(201, 168, 124, 0.06); }
+
+  .udot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .udot.state-free { background: var(--bb-green-glow); box-shadow: 0 0 8px var(--bb-green-glow); }
+  .udot.state-paid { background: var(--bb-tan-light); box-shadow: 0 0 8px rgba(224, 196, 154, 0.6); }
+  .udot.state-vip { background: #d9dee4; box-shadow: 0 0 8px rgba(217, 222, 228, 0.55); }
+  .udot.state-banned { background: #cf8a78; box-shadow: 0 0 8px rgba(176, 90, 70, 0.6); }
+  .udot.state-inactive { background: #8fa8bf; box-shadow: 0 0 8px rgba(143, 168, 191, 0.5); }
+
+  .uname { font-family: var(--bb-font-body); font-weight: 600; font-size: 13.5px; color: var(--bb-white); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .uid { font-family: var(--bb-font-mono); font-size: 11.5px; color: var(--bb-muted); white-space: nowrap; }
+  .ucell { display: flex; }
+  .utags { display: flex; gap: 6px; flex-wrap: wrap; }
+  .tag {
+    font-family: var(--bb-font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+    padding: 2px 8px; border-radius: var(--bb-radius-pill); border: 1px solid transparent; white-space: nowrap;
+  }
+  .tag.st-free { color: var(--bb-green-glow); background: rgba(82, 183, 136, 0.1); border-color: rgba(82, 183, 136, 0.28); }
+  .tag.st-paid { color: var(--bb-tan-light); background: rgba(201, 168, 124, 0.1); border-color: rgba(201, 168, 124, 0.3); }
+  .tag.st-vip { color: #dfe4e9; background: rgba(217, 222, 228, 0.1); border-color: rgba(217, 222, 228, 0.34); }
+  .tag.st-banned { color: #cf8a78; background: rgba(176, 90, 70, 0.1); border-color: rgba(176, 90, 70, 0.32); }
+  .tag.st-inactive { color: #a7bccd; background: rgba(143, 168, 191, 0.1); border-color: rgba(143, 168, 191, 0.3); }
+  .tag.code { color: var(--bb-muted); background: rgba(255, 255, 255, 0.03); border-color: var(--glass-border); }
+  .uwhen { font-family: var(--bb-font-mono); font-size: 11px; color: var(--bb-muted); white-space: nowrap; }
+
+  .pager { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 14px; }
+  .pager-label { font-family: var(--bb-font-mono); font-size: 11.5px; color: var(--bb-muted); }
+  .pager .btn.disabled { opacity: 0.35; pointer-events: none; }
+
+  /* ── Inspector ─────────────────────────────────────────────────────────── */
+  .inspector {
+    position: sticky;
+    top: 62px;
+    border: 1px solid var(--rule);
+    border-top-color: var(--rule-strong);
+    border-radius: 8px;
+    background: linear-gradient(180deg, rgba(240, 236, 228, 0.03), rgba(240, 236, 228, 0.012));
     display: flex;
     flex-direction: column;
-    gap: var(--row-gap, 20px);
+    max-height: calc(100vh - 62px - 108px);
   }
-
-  /* In flex layout margins don't collapse — cancel the global page-head
-     bottom margin so the flex gap alone drives the spacing. */
-  .users-screen .page-head {
-    margin-bottom: 0;
+  .inspector-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 12px 16px; border-bottom: 1px solid var(--rule);
   }
-
-  .lookup-card {
-    padding: 18px 20px;
+  .inspector-tag {
+    font-family: var(--bb-font-display); font-weight: 700; font-size: 12px;
+    letter-spacing: 0.02em; color: var(--bb-tan);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
-  .lookup-form { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; }
-  .lookup-input { flex: 1 1 420px; min-width: min(100%, 280px); }
-
-  .recent-card {
-    padding: 20px 10px;
+  .inspector-idle {
+    padding: 34px 20px; text-align: center; color: var(--bb-muted);
+    font-family: var(--bb-font-body); font-size: 13px;
+    display: flex; flex-direction: column; align-items: center; gap: 12px;
   }
-
-  /* card-head with filter input */
-  .card-head { align-items: center; }
-  .recent-head {
-    padding: 0 14px;
-    gap: .8rem;
-  }
-  .users-controls {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 8px;
-    flex: 1;
-    min-width: 0;
-    margin-left: auto;
-  }
-  .search-filter {
-    margin-left: auto;
-    max-width: 320px;
-    flex: 1 1 240px;
-    min-width: 180px;
-  }
-  .search-submit,
-  .clear-search {
-    padding: 10px 14px;
-    text-decoration: none;
-  }
-
-  .users-table .thead,
-  .users-table .trow {
-    grid-template-columns: minmax(180px, 1.6fr) minmax(150px, 1.1fr) minmax(110px, .7fr) minmax(110px, .7fr) minmax(90px, .55fr) 44px;
-  }
-
-  .users-table .trow {
-    min-height: 58px;
-  }
-
-  /* clickable table row */
-  .trow-clickable { cursor: pointer; user-select: none; transition: background var(--bb-dur-fast, 140ms) var(--bb-ease-out-expo, ease); }
-  .trow-clickable:hover { background: rgba(201, 168, 124, 0.06); }
-  .trow-clickable:focus-visible { outline: 2px solid var(--bb-tan, #c9a87c); outline-offset: -2px; }
-  .trow-clickable.selected { background: rgba(201, 168, 124, 0.12); }
-
-  /* chevron indicator */
-  .chev {
-    display: inline-block; width: 0; height: 0;
-    border-top: 4px solid transparent;
-    border-bottom: 4px solid transparent;
-    border-left: 5px solid var(--bb-muted, rgba(255,255,255,0.4));
-    vertical-align: middle;
-  }
-
-  .users-foot {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 14px 18px 0;
-    margin-top: 12px;
-    border-top: 1px solid var(--glass-border);
-  }
-  .page-state {
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--bb-tan-light);
-  }
-  .page-state .muted { color: var(--bb-muted); }
-  .pager { display: flex; align-items: center; gap: 8px; }
-  .pager-link {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 86px;
-    padding: 9px 13px;
-    border-radius: var(--bb-radius-pill);
-    border: 1px solid var(--glass-border);
-    background: rgba(255,255,255,0.03);
-    color: var(--bb-tan-light);
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    text-decoration: none;
-    transition: all var(--bb-dur-base) var(--bb-ease-out-expo);
-  }
-  .pager-link:hover {
-    background: rgba(201,168,124,0.08);
-    border-color: var(--bb-border-strong);
-    color: var(--bb-tan-pale);
-  }
-  .pager-link.disabled {
-    opacity: 0.42;
-    pointer-events: none;
-  }
-
-  /* ---- Detail drawer ---- */
-  .drawer-backdrop {
-    position: fixed; inset: 0; z-index: 190;
-    padding: 0; border: 0; cursor: pointer;
-    background: rgba(0, 0, 0, 0.5);
-    backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
-    animation: fade var(--bb-dur-fast, 160ms) var(--bb-ease-out-expo, ease) both;
-  }
-  @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
-
-  .drawer {
-    position: fixed; top: 0; right: 0; z-index: 191;
-    height: 100vh; width: min(620px, 92vw);
-    display: flex; flex-direction: column;
-    background:
-      linear-gradient(var(--glass-fill), var(--glass-fill)),
-      var(--bb-bg-1, #111);
-    border-left: 1px solid var(--glass-border);
-    backdrop-filter: blur(var(--glass-blur)); -webkit-backdrop-filter: blur(var(--glass-blur));
-    box-shadow: -16px 0 48px rgba(0, 0, 0, 0.45);
-    transform: translateX(100%);
-    animation: slide-in var(--bb-dur-med, 320ms) var(--bb-ease-out-expo, cubic-bezier(.16,1,.3,1)) forwards;
-  }
-  @keyframes slide-in { to { transform: translateX(0); } }
-
-  .drawer-head {
-    display: flex; align-items: flex-start; justify-content: space-between;
-    gap: 1rem; padding: 22px 22px 16px;
-    border-bottom: 1px solid var(--glass-border);
-  }
-  .drawer-id h2 {
-    font-family: var(--bb-font-display); font-weight: 700; font-size: 20px;
-    color: var(--bb-white); margin: 0 0 4px; letter-spacing: -0.01em;
-  }
-  .drawer-sub { font-family: var(--bb-font-mono); font-size: 12px; color: var(--bb-muted); }
-  .drawer-close {
+  .idle-glyph {
     display: inline-flex; align-items: center; justify-content: center;
-    width: 32px; height: 32px; flex: none;
-    border: 1px solid var(--glass-border); border-radius: 8px 8px;
-    background: transparent; color: var(--bb-muted); cursor: pointer;
-    transition: all var(--bb-dur-fast, 140ms) var(--bb-ease-out-expo, ease);
-  }
-  .drawer-close:hover { color: var(--bb-white); border-color: var(--bb-border-strong); background: rgba(255,255,255,0.04); }
-
-  /* min-height:0 lets this flex child actually scroll instead of overflowing. */
-  .drawer-body {
-    flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
-    -webkit-overflow-scrolling: touch;
-    padding: 20px 22px 32px;
-  }
-
-  .meta-block {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: .65rem 1rem;
-    padding: 14px 16px; margin-bottom: 18px;
-    background: rgba(255,255,255,0.025);
-    border: 1px solid var(--glass-border);
-    border-radius: 8px 8px;
-  }
-  .meta-line { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
-  .meta-k { font-size: 12px; color: var(--bb-muted); text-transform: uppercase; letter-spacing: .05em; }
-  .meta-v { font-family: var(--bb-font-mono); font-size: 13px; color: var(--bb-tan-light); }
-
-  .field { margin-bottom: 18px; }
-  .field-label {
-    display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
-    color: var(--bb-muted); margin-bottom: .55rem;
-  }
-  .field form { display: block; }
-  .creator-form {
-    display: grid !important;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: .5rem;
-    align-items: center;
-  }
-  .creator-input {
-    display: flex;
-    align-items: center;
-    gap: .45rem;
-    min-width: 0;
-    padding: 9px 11px;
-    border: 1px solid var(--glass-border);
-    border-radius: 8px;
-    background: rgba(255,255,255,0.025);
+    width: 40px; height: 40px; border: 1px solid var(--rule-tan); border-radius: 8px;
     color: var(--bb-tan-light);
   }
-  .creator-input input {
-    min-width: 0;
-    width: 100%;
-    border: 0;
-    outline: 0;
-    background: transparent;
-    color: var(--bb-white);
-    font: 500 13px var(--bb-font-mono);
-    letter-spacing: 0.02em;
+  .inspector-idle p { margin: 0; max-width: 26ch; line-height: 1.5; }
+
+  .detail { display: flex; flex-direction: column; gap: 20px; }
+  .ident { display: flex; align-items: center; gap: 12px; }
+  .avatar {
+    width: 42px; height: 42px; border-radius: 50%; flex: none;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-family: var(--bb-font-display); font-weight: 800; font-size: 17px;
+    color: var(--bb-tan-light);
+    background: rgba(201, 168, 124, 0.1); border: 1px solid rgba(201, 168, 124, 0.3);
   }
-  .creator-input input::placeholder { color: rgba(255,255,255,.28); }
-  .creator-save { height: 40px; }
-  .creator-clear-form { margin-top: .5rem; }
-  .creator-clear { color: var(--bb-muted); }
-  .action-stack { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; }
+  .ident-name { font-family: var(--bb-font-display); font-weight: 700; font-size: 16px; color: var(--bb-white); }
+  .ident-meta { font-family: var(--bb-font-mono); font-size: 11.5px; color: var(--bb-muted); margin-top: 2px; }
 
-  /* tier segment */
-  .segment {
-    display: grid; grid-template-columns: repeat(3, 1fr); gap: .4rem;
+  .block { display: flex; flex-direction: column; gap: 9px; }
+  .block-label {
+    font-family: var(--bb-font-mono); font-size: 10px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--bb-muted);
   }
-  .segment form { display: block; }
-  .seg-btn {
-    width: 100%; padding: 10px 8px; cursor: pointer;
-    font-family: var(--bb-font-body); font-size: 13px; font-weight: 600;
-    color: var(--bb-muted);
-    background: transparent;
-    border: 1px solid var(--glass-border);
-    border-radius: 8px 8px;
-    transition: all var(--bb-dur-fast, 140ms) var(--bb-ease-out-expo, ease);
+  .block-note { font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
+
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip {
+    font-family: var(--bb-font-mono); font-size: 11px; letter-spacing: 0.06em;
+    padding: 7px 14px; border-radius: var(--bb-radius-pill); white-space: nowrap;
+    background: rgba(255, 255, 255, 0.03); border: 1px solid var(--glass-border);
+    color: var(--bb-muted); cursor: pointer;
   }
-  .seg-btn:hover:not(:disabled) { color: var(--bb-white); border-color: var(--bb-border-strong); background: rgba(255,255,255,0.04); }
-  .seg-btn:active:not(:disabled) { transform: translateY(1px); }
-  .seg-btn.on {
-    color: var(--bb-bg-1, #111); font-weight: 700;
-    background: var(--bb-tan, #c9a87c);
-    border-color: var(--bb-tan, #c9a87c);
-    cursor: default;
+  .chip:hover:not(:disabled) { color: var(--bb-white); border-color: var(--bb-border-strong); }
+  .chip.on { color: var(--bb-white); background: var(--ui-accent-soft); border-color: var(--bb-border-strong); }
+  .chip:disabled { opacity: 0.5; cursor: not-allowed; }
+  /* Active tier chip wears the tier's state color (VIP silver, not purple). */
+  .chip-free.on { color: var(--bb-green-glow); background: rgba(82, 183, 136, 0.12); border-color: rgba(82, 183, 136, 0.35); }
+  .chip-paid.on { color: var(--bb-tan-light); background: rgba(201, 168, 124, 0.12); border-color: rgba(201, 168, 124, 0.38); }
+  .chip-vip.on { color: #dfe4e9; background: rgba(217, 222, 228, 0.12); border-color: rgba(217, 222, 228, 0.4); }
+
+  .subfacts { display: flex; flex-direction: column; gap: 7px; margin: 2px 0 0; }
+  .subfacts div { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+  .subfacts dt { font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
+  .subfacts dd {
+    margin: 0; font-family: var(--bb-font-mono); font-size: 11.5px; color: var(--bb-tan-light);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
-  .seg-btn:disabled:not(.on) { opacity: .5; cursor: not-allowed; }
+  .subfacts dd.cancel { color: #cf8a78; }
 
-  /* full-width buttons */
-  .btn.block { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: .4rem; }
-  .btn.ghost.warn { color: #cf8a78; border-color: rgba(176, 90, 70, 0.35); }
-  .btn.ghost.warn:hover { color: #e09e8a; border-color: rgba(176, 90, 70, 0.55); background: rgba(176, 90, 70, 0.12); }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .btn.danger { color: #cf8a78; border-color: rgba(176, 90, 70, 0.4); }
+  .btn.danger:hover { background: rgba(176, 90, 70, 0.12); color: #e0a293; }
 
-  .danger-zone { margin-top: 6px; padding-top: 16px; border-top: 1px solid var(--glass-border); }
-
-  /* danger button variant */
-  .btn.danger {
-    background: rgba(176, 90, 70, 0.12); color: #cf8a78;
-    border-color: rgba(176, 90, 70, 0.35);
+  .probe-row {
+    display: flex; align-items: center; gap: 9px;
+    font-family: var(--bb-font-body); font-size: 13px; color: var(--bb-white);
   }
-  .btn.danger:hover {
-    background: rgba(176, 90, 70, 0.22); color: #e09e8a;
-    border-color: rgba(176, 90, 70, 0.55);
-  }
-  .btn.danger:disabled { opacity: .45; cursor: not-allowed; }
-
-
-
-  /* mobile responsive */
-  @media (max-width: 760px) {
-    :global(.canvas:has(.users-screen)) {
-      max-width: 1180px;
-    }
-
-    .lookup-card {
-      margin-bottom: 14px;
-    }
-
-    .recent-card {
-      padding: 18px 6px;
-    }
-
-    .recent-head { align-items: stretch; flex-direction: column; }
-    .users-controls { width: 100%; margin-left: 0; justify-content: flex-start; flex-wrap: wrap; }
-    .search-filter { max-width: none; min-width: 100%; margin-left: 0; }
-    .search-submit, .clear-search { flex: 1; justify-content: center; }
-    :global(.stat-grid) { grid-template-columns: 1fr 1fr; }
-
-    /* The shared .trow mobile collapse is tuned for the commands table (hides
-       resp/cd/perm-cell, 1fr auto). For users those classes carry id/status/tier,
-       so the row squashes to 2 cols with no room. Give the users table its own
-       readable mobile row: @username · tier · status, with id/active/chevron
-       dropped. */
-    .users-table .thead { display: none; }
-    .users-table .trow {
-      grid-template-columns: 1fr auto auto;
-      gap: 12px;
-      align-items: center;
-    }
-    .users-table .trow .resp,
-    .users-table .trow .uses,
-    .users-table .trow .row-act { display: none; }
-    .users-table .trow .perm-cell,
-    .users-table .trow .cd { display: revert; }
-    .users-foot { align-items: stretch; flex-direction: column; padding-inline: 14px; }
-    .pager { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
-    .pager-link { min-width: 0; }
-    .drawer {
-      width: 100vw; height: 92vh; top: auto; bottom: 0; right: 0;
-      border-left: none; border-top: 1px solid var(--glass-border);
-      border-radius: 8px 8px 8px 8px 0 0;
-      transform: translateY(100%);
-      animation: sheet-in var(--bb-dur-med, 320ms) var(--bb-ease-out-expo, cubic-bezier(.16,1,.3,1)) forwards;
-    }
-    .meta-block {
-      grid-template-columns: 1fr;
-    }
-    .action-stack {
-      grid-template-columns: 1fr;
-    }
-    .creator-form {
-      grid-template-columns: 1fr;
-    }
-    @keyframes sheet-in { to { transform: translateY(0); } }
+  .probe-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .probe-dot.green { background: var(--bb-green-glow); box-shadow: 0 0 8px var(--bb-green-glow); }
+  .probe-dot.warn { background: var(--bb-tan); box-shadow: 0 0 8px var(--bb-tan); }
+  .probe-dot.err { background: #cf8a78; box-shadow: 0 0 8px rgba(176, 90, 70, 0.6); }
+  .probe-err {
+    font-family: var(--bb-font-mono); font-size: 11px; color: #cf8a78;
+    word-break: break-word;
   }
 
-  @media (max-width: 380px) {
-    .btn { font-size: 10px; padding: 10px 14px; }
+  .creator { display: flex; gap: 8px; }
+  .text-input {
+    flex: 1; min-width: 0; padding: 8px 11px;
+    font-family: var(--bb-font-mono); font-size: 12.5px;
+    border: 1px solid var(--rule); border-radius: 8px;
+    background: var(--bb-bg-1, #16130f); color: var(--bb-white);
+  }
+  .text-input:focus { outline: none; border-color: var(--bb-border-strong); }
+
+  .viewas { display: flex; gap: 8px; }
+
+  .danger-zone { padding-top: 14px; border-top: 1px solid var(--rule); }
+
+  .grant-label {
+    display: flex; flex-direction: column; gap: 8px; margin: 12px 0 4px;
+    font-family: var(--bb-font-body); font-size: 12.5px; color: var(--bb-muted);
+  }
+
+  .inspector-backdrop { display: none; }
+  @media (max-width: 1079px) {
+    .inspector { display: none; }
+    .inspector.open {
+      display: flex;
+      position: fixed;
+      left: 0; right: 0; bottom: 0; top: auto;
+      z-index: 220;
+      max-height: 88vh;
+      border-radius: 8px 8px 0 0;
+      background: var(--bb-bg-1, #111);
+      animation: sheet-in var(--bb-dur-base, 320ms) var(--bb-ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)) both;
+    }
+    .inspector-backdrop.open {
+      display: block; position: fixed; inset: 0; z-index: 219;
+      background: rgba(0, 0, 0, 0.55);
+    }
+    @keyframes sheet-in {
+      from { transform: translateY(100%); }
+      to { transform: translateY(0); }
+    }
+  }
+
+  @media (max-width: 900px) {
+    .user-head { display: none; }
+    .user-row { grid-template-columns: 14px minmax(0, 1fr) auto auto; }
+    .uid, .utags, .uwhen:nth-last-child(2) { display: none; }
+  }
+  @media (max-width: 680px) {
+    .search-form { width: 100%; }
+    .search-form :global(.search) { flex: 1; }
+    .filter-trail { width: 100%; justify-content: space-between; }
   }
 </style>

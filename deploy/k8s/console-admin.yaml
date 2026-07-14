@@ -224,11 +224,16 @@ spec:
           #   TWITCH_CLIENT_SECRET   — Twitch app client secret.
           #   IMPERSONATION_PRIVATE_KEY — Ed25519 private half that signs
           #                            short-lived view-as handoff tokens.
-          #   DOPPLER_MANAGEMENT_TOKEN — admin-scoped Doppler token used only by
-          #                            the credentials page to update service
-          #                            DB_USER/DB_PASS secrets.
+          #   DOPPLER_TOKEN_<SERVICE> — per-service Doppler tokens (USERS,
+          #                            COMMANDS, MODULES, TRANSACTIONS,
+          #                            NOTIFICATIONS), each scoped to that one
+          #                            project. Preferred by the secrets page.
+          #   DOPPLER_MANAGEMENT_TOKEN — legacy broad Doppler token; only a
+          #                            fallback for services without a scoped
+          #                            token, flagged as over-privileged in
+          #                            the secrets UI.
           #   DB_ADMIN_ADDR/DB_ADMIN_USER/DB_ADMIN_PASS — privileged MySQL
-          #                            credential used only by the credentials
+          #                            credential used only by the secrets
           #                            page to create schema-local runtime users.
           # The dashboard holds only the matching public key in its own Doppler
           # project/config.

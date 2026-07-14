@@ -4,13 +4,19 @@ import { shardSnapshot, shardScale, shardAutoscale } from '$lib/server/services'
 import { requireAdmin, isDemo } from '$lib/server/access';
 import { sampleSnapshot } from '$lib/server/sample';
 
-export const load: PageServerLoad = async () => {
-  if (isDemo()) return { snapshot: sampleSnapshot, degraded: false };
-  try {
-    return { snapshot: await shardSnapshot(), degraded: false };
-  } catch {
-    return { snapshot: sampleSnapshot, degraded: true };
-  }
+import type { ShardSnapshot } from '@bagel/shared';
+
+export type ShardsBundle = { snapshot: ShardSnapshot; degraded: boolean };
+
+// Streamed: the shell renders immediately; the snapshot hydrates when the
+// ingress RPC lands. A failure falls back to the sample and says so.
+export const load: PageServerLoad = () => {
+  const bundle: Promise<ShardsBundle> = isDemo()
+    ? Promise.resolve({ snapshot: sampleSnapshot, degraded: false })
+    : shardSnapshot()
+        .then((snapshot) => ({ snapshot, degraded: false }))
+        .catch(() => ({ snapshot: sampleSnapshot, degraded: true }));
+  return { bundle };
 };
 
 export const actions: Actions = {

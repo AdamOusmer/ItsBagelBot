@@ -197,95 +197,130 @@ async function collectLanes() {
   return sampling;
 }
 
+interface LaneRow {
+  stream: string;
+  consumer: string;
+  filter: string;
+  ephemeral: boolean;
+  orphan: boolean;
+  category: string;
+  group: string;
+  pending: number;
+  ackPending: number;
+  maxAckPend: number;
+  redelivered: number;
+  rate: number;
+  hasRate: boolean;
+}
+
+// One consumer-list round trip per stream, all in flight at once. The old
+// serial walk paid streams x consumers sequential JS API hops, which is what
+// made the lanes page feel stuck. allSettled keeps partial data when a single
+// stream's listing fails; the failure is surfaced, not hidden.
+async function listStreamConsumers(manager: Awaited<ReturnType<typeof jsm>>) {
+  const streams = await manager.streams.list().next();
+  const listed = await Promise.allSettled(
+    streams.map(async (stream) => ({
+      streamName: stream.config.name,
+      consumers: await manager.consumers.list(stream.config.name).next()
+    }))
+  );
+  return {
+    streamsSeen: streams.length,
+    failures: listed.filter((r) => r.status === 'rejected').length,
+    fulfilled: listed
+      .filter((r) => r.status === 'fulfilled')
+      .map((r) => (r as PromiseFulfilledResult<{ streamName: string; consumers: any[] }>).value)
+  };
+}
+
+// sampleRate derives msg/s from the delivered-sequence delta since the last
+// pass and stores the new baseline.
+function sampleRate(key: string, deliveredSeq: number, now: number): { rate: number; hasRate: boolean } {
+  const prev = prevSamples.get(key);
+  prevSamples.set(key, { delivered: deliveredSeq, at: now });
+  if (!prev) return { rate: 0, hasRate: false };
+  const secs = (now - prev.at) / 1000;
+  if (secs <= 0) return { rate: 0, hasRate: false };
+  return { rate: Math.max(deliveredSeq - prev.delivered, 0) / secs, hasRate: true };
+}
+
+function laneRowOf(streamName: string, ci: any, now: number): LaneRow {
+  const filter = ci.config.filter_subject || '';
+  const ephemeral = !ci.config.durable_name;
+  const { rate, hasRate } = sampleRate(laneKey(streamName, ci.name), ci.delivered.consumer_seq, now);
+  return {
+    stream: streamName,
+    consumer: ci.name,
+    filter,
+    ephemeral,
+    orphan: !ci.push_bound,
+    category: laneCategory(streamName, ephemeral),
+    group: laneGroup(ci.name, filter, ephemeral),
+    pending: ci.num_pending,
+    ackPending: ci.num_ack_pending,
+    maxAckPend: ci.config.max_ack_pending || 0,
+    redelivered: ci.num_redelivered,
+    rate,
+    hasRate
+  };
+}
+
+function compareLanes(a: LaneRow, b: LaneRow): number {
+  return (
+    categoryRank(a.category) - categoryRank(b.category) ||
+    a.stream.localeCompare(b.stream) ||
+    a.filter.localeCompare(b.filter) ||
+    a.consumer.localeCompare(b.consumer)
+  );
+}
+
+function laneViewOf(r: LaneRow, aliases: Map<string, string>): LaneView {
+  return {
+    stream: r.stream,
+    consumer: r.consumer,
+    display: displayName(aliases.get(laneAliasKey(r.stream, r.consumer)), r.group, r.consumer, r.ephemeral),
+    subject: r.filter,
+    category: r.category,
+    ephemeral: r.ephemeral,
+    orphan: r.orphan,
+    pending: r.pending,
+    inFlight: inFlightText(r.ackPending, r.maxAckPend),
+    rate: rateText(r.rate, r.hasRate),
+    redelivered: r.redelivered
+  };
+}
+
+// Only prune rate baselines on a complete listing: after a partial one, a
+// missing key means "stream unreadable this pass", not "consumer gone".
+function pruneStaleBaselines(seen: Set<string>) {
+  for (const key of prevSamples.keys()) {
+    if (!seen.has(key)) prevSamples.delete(key);
+  }
+}
+
 async function collectLanesOnce() {
   try {
     const manager = await jsm();
     const aliases = await loadAliases();
-
-    const now = Date.now();
-    const rows: any[] = [];
-    const seen = new Set<string>();
-    let streamsSeen = 0;
-
-    const streams = await manager.streams.list().next();
-    for (const stream of streams) {
-      streamsSeen++;
-      const streamName = stream.config.name;
-      
-      const consumers = await manager.consumers.list(streamName).next();
-      for (const ci of consumers) {
-        const key = laneKey(streamName, ci.name);
-        seen.add(key);
-
-        const filter = ci.config.filter_subject || '';
-        const ephemeral = !ci.config.durable_name;
-        
-        let rate = 0;
-        let hasRate = false;
-
-        const prev = prevSamples.get(key);
-        if (prev) {
-          const secs = (now - prev.at) / 1000;
-          if (secs > 0) {
-            let delta = ci.delivered.consumer_seq - prev.delivered;
-            if (delta < 0) delta = 0;
-            rate = delta / secs;
-            hasRate = true;
-          }
-        }
-        prevSamples.set(key, { delivered: ci.delivered.consumer_seq, at: now });
-
-        rows.push({
-          stream: streamName,
-          consumer: ci.name,
-          filter,
-          ephemeral,
-          orphan: !ci.push_bound,
-          category: laneCategory(streamName, ephemeral),
-          group: laneGroup(ci.name, filter, ephemeral),
-          pending: ci.num_pending,
-          ackPending: ci.num_ack_pending,
-          maxAckPend: ci.config.max_ack_pending || 0,
-          redelivered: ci.num_redelivered,
-          rate,
-          hasRate
-        });
-      }
-    }
+    const { streamsSeen, failures, fulfilled } = await listStreamConsumers(manager);
 
     if (streamsSeen === 0) {
       lastError = "JetStream API unreachable: no streams returned (broker unreachable or account lacks $JS.API access)";
       return;
     }
 
-    for (const key of prevSamples.keys()) {
-      if (!seen.has(key)) prevSamples.delete(key);
+    const now = Date.now();
+    const rows = fulfilled.flatMap(({ streamName, consumers }) =>
+      consumers.map((ci) => laneRowOf(streamName, ci, now))
+    );
+    if (failures === 0) {
+      pruneStaleBaselines(new Set(rows.map((r) => laneKey(r.stream, r.consumer))));
     }
 
-    rows.sort((a, b) => {
-      let c = categoryRank(a.category) - categoryRank(b.category);
-      if (c !== 0) return c;
-      c = a.stream.localeCompare(b.stream);
-      if (c !== 0) return c;
-      c = a.filter.localeCompare(b.filter);
-      if (c !== 0) return c;
-      return a.consumer.localeCompare(b.consumer);
-    });
-
-    currentLanes = rows.map(r => ({
-      stream: r.stream,
-      consumer: r.consumer,
-      display: displayName(aliases.get(laneAliasKey(r.stream, r.consumer)), r.group, r.consumer, r.ephemeral),
-      subject: r.filter,
-      category: r.category,
-      ephemeral: r.ephemeral,
-      orphan: r.orphan,
-      pending: r.pending,
-      inFlight: inFlightText(r.ackPending, r.maxAckPend),
-      rate: rateText(r.rate, r.hasRate),
-      redelivered: r.redelivered
-    }));
-    lastError = '';
+    rows.sort(compareLanes);
+    currentLanes = rows.map((r) => laneViewOf(r, aliases));
+    lastError = failures > 0 ? `partial listing: ${failures} of ${streamsSeen} streams unreadable` : '';
   } catch (err: any) {
     lastError = err.message || String(err);
   }
@@ -302,7 +337,6 @@ function ensureSampler() {
     }
     collectLanes();
   }, SAMPLE_INTERVAL_MS);
-  collectLanes();
 }
 
 export async function loadLanes(): Promise<LanesResult> {
@@ -310,6 +344,11 @@ export async function loadLanes(): Promise<LanesResult> {
     return { lanes: sampleLanes, degraded: false, notice: '' };
   }
   ensureSampler();
+  // Cold cache: wait for the in-flight collection instead of returning an
+  // empty list that pretends to be the fleet. Warm cache serves instantly and
+  // refreshes in the background.
+  const pending = collectLanes();
+  if (currentLanes.length === 0) await pending;
   if (lastError) {
     return {
       lanes: currentLanes,

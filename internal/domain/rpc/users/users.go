@@ -18,6 +18,13 @@ type AdminRequest struct {
 	RefreshToken string `json:"refresh_token"`
 	ExpiresAt    string `json:"expires_at,omitempty"`
 	CreatorCode  string `json:"creator_code,omitempty"`
+	// Days is the trailing window size for the enrollment verb (UTC days,
+	// today included). Zero means the server default.
+	Days int `json:"days,omitempty"`
+	// State filters list/overview to one effective user state: vip, paid,
+	// free, banned, or inactive. Empty means no filter. Precedence matches
+	// the console: banned beats inactive beats tier.
+	State string `json:"state,omitempty"`
 }
 
 // AdminUserView is a single user row in an admin reply.
@@ -32,6 +39,7 @@ type AdminUserView struct {
 	SubscriptionSource        string     `json:"subscription_source,omitempty"`
 	SubscriptionRef           *string    `json:"subscription_ref,omitempty"`
 	SubscriptionCancelPending bool       `json:"subscription_cancel_pending"`
+	CreatedAt                 time.Time  `json:"created_at"`
 	UpdatedAt                 time.Time  `json:"updated_at"`
 }
 
@@ -44,6 +52,19 @@ type AdminStats struct {
 	PaidUsers    int `json:"paid_users"`
 }
 
+// AdminEnrollmentDay is one UTC day's signup count.
+type AdminEnrollmentDay struct {
+	Date  string `json:"date"` // YYYY-MM-DD
+	Count int    `json:"count"`
+}
+
+// AdminEnrollmentView carries the daily signup histogram plus the current
+// user totals, so consoles can chart signups against the registered base.
+type AdminEnrollmentView struct {
+	Days  []AdminEnrollmentDay `json:"days"`
+	Stats AdminStats           `json:"stats"`
+}
+
 // AdminTokenView reports whether a token row is present.
 type AdminTokenView struct {
 	Present bool `json:"present"`
@@ -51,15 +72,16 @@ type AdminTokenView struct {
 
 // AdminReply is the reply shape for all admin verbs.
 type AdminReply struct {
-	User     *AdminUserView  `json:"user,omitempty"`
-	Users    []AdminUserView `json:"users,omitempty"`
-	Stats    *AdminStats     `json:"stats,omitempty"`
-	Token    *AdminTokenView `json:"token,omitempty"`
-	Page     int             `json:"page,omitempty"`
-	PageSize int             `json:"page_size,omitempty"`
-	MaxPages int             `json:"max_pages,omitempty"`
-	HasMore  bool            `json:"has_more,omitempty"`
-	Error    string          `json:"error,omitempty"`
+	User       *AdminUserView       `json:"user,omitempty"`
+	Users      []AdminUserView      `json:"users,omitempty"`
+	Stats      *AdminStats          `json:"stats,omitempty"`
+	Enrollment *AdminEnrollmentView `json:"enrollment,omitempty"`
+	Token      *AdminTokenView      `json:"token,omitempty"`
+	Page       int                  `json:"page,omitempty"`
+	PageSize   int                  `json:"page_size,omitempty"`
+	MaxPages   int                  `json:"max_pages,omitempty"`
+	HasMore    bool                 `json:"has_more,omitempty"`
+	Error      string               `json:"error,omitempty"`
 }
 
 // AuthRequest covers all adminauth verbs.

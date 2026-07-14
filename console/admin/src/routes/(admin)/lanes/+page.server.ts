@@ -3,8 +3,10 @@ import { fail } from '@sveltejs/kit';
 import { loadLanes, laneAlias, laneDurable, laneDelete } from '$lib/server/lanes';
 import { requireAdmin, isDemo } from '$lib/server/access';
 
-export const load: PageServerLoad = async () => {
-  return loadLanes();
+// Streamed: the shell renders immediately; the first collection (parallel
+// across streams) hydrates in. Subsequent views hit the warm sampler cache.
+export const load: PageServerLoad = () => {
+  return { lanes: loadLanes() };
 };
 
 // The three lane mutations are wired as form actions. Each is gated on an admin

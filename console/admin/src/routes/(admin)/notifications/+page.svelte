@@ -1,10 +1,23 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
+  import type { SubmitFunction } from '@sveltejs/kit';
   import { Icon, PageHead, Card, CardHead, Button, EmptyState, ConfirmDialog, RadioGroup, toast } from '@bagel/shared';
   import type { NotificationWire } from '$lib/server/services';
   let { data, form } = $props();
 
-  const notifications = $derived((data.notifications ?? []) as NotificationWire[]);
+  // Local copy so a retract can apply optimistically and roll back on failure.
+  // svelte-ignore state_referenced_locally
+  let notifications = $state<NotificationWire[]>((data.notifications ?? []) as NotificationWire[]);
+  // Plain variable on purpose: it only marks which `data` seeded local state,
+  // so it must compare by raw identity (a $state proxy never equals `data`).
+  // svelte-ignore state_referenced_locally
+  let seed = data;
+  $effect(() => {
+    if (data !== seed) {
+      seed = data;
+      notifications = (data.notifications ?? []) as NotificationWire[];
+    }
+  });
   const page = $derived(Number(data.page ?? 1));
   const maxPages = $derived(Number(data.maxPages ?? 25));
   const hasMore = $derived(Boolean(data.hasMore));
@@ -39,6 +52,25 @@
 
   let retractTarget = $state<NotificationWire | null>(null);
   let retractForm = $state<HTMLFormElement | null>(null);
+
+  // Optimistic retract: the row disappears immediately; a refused delete puts
+  // it back with the real error, so the list never lies about what recipients
+  // still see.
+  const retractSubmit: SubmitFunction = () => {
+    const target = retractTarget;
+    const before = notifications.map((n) => ({ ...n }));
+    if (target) notifications = notifications.filter((n) => n.id !== target.id);
+    return async ({ result }) => {
+      const p = (result as { type: string; data?: { action?: { ok: boolean; notice: string }; error?: string } });
+      const action = p.type === 'success' || p.type === 'failure' ? p.data?.action : undefined;
+      if (p.type === 'success' && action?.ok) {
+        toast('ok', action.notice);
+        return;
+      }
+      notifications = before;
+      toast('err', action?.notice ?? p.data?.error ?? 'retract failed');
+    };
+  };
 </script>
 
 <section class="screen active">
@@ -153,7 +185,7 @@
   }}
 />
 {#if retractTarget}
-  <form method="POST" action="?/delete" use:enhance bind:this={retractForm} hidden>
+  <form method="POST" action="?/delete" use:enhance={retractSubmit} bind:this={retractForm} hidden>
     <input type="hidden" name="id" value={retractTarget.id} />
   </form>
 {/if}

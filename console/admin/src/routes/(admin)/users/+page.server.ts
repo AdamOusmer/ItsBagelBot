@@ -44,8 +44,26 @@ function matchesSearch(user: AdminUserWire, search: string): boolean {
   return user.username.toLowerCase().includes(q) || String(user.id).includes(q);
 }
 
-function demoPage(page: number, search: string) {
-  const filtered = sampleUsers.filter((user) => matchesSearch(user, search));
+// Effective-state filter values the users service understands. Precedence
+// there mirrors the row color: banned beats inactive beats tier.
+const STATES = new Set(['vip', 'paid', 'free', 'banned', 'inactive']);
+
+function parseState(raw: string | null): string {
+  const state = (raw ?? '').trim();
+  return STATES.has(state) ? state : '';
+}
+
+function matchesState(user: AdminUserWire, state: string): boolean {
+  if (!state) return true;
+  if (user.banned) return state === 'banned';
+  if (!user.is_active) return state === 'inactive';
+  return user.status === state;
+}
+
+function demoPage(page: number, search: string, state: string) {
+  const filtered = sampleUsers.filter(
+    (user) => matchesSearch(user, search) && matchesState(user, state)
+  );
   const start = (page - 1) * USER_PAGE_SIZE;
   const users = filtered.slice(start, start + USER_PAGE_SIZE);
   const cappedTotal = Math.min(filtered.length, USER_PAGE_SIZE * USER_MAX_PAGES);
@@ -61,15 +79,19 @@ function demoPage(page: number, search: string) {
   };
 }
 
-export const load: PageServerLoad = async ({ url }) => {
-  const page = parsePage(url.searchParams.get('page'));
-  const search = normalizeSearch(url.searchParams.get('q'));
+export type UserDirectory = {
+  recent: AdminUserWire[];
+  stats: typeof sampleStats;
+  page: number;
+  pageSize: number;
+  maxPages: number;
+  hasMore: boolean;
+  degraded: boolean;
+};
 
-  if (isDemo()) {
-    return demoPage(page, search);
-  }
+async function loadDirectory(page: number, search: string, state: string): Promise<UserDirectory> {
   try {
-    const overview = await userOverview(page, search);
+    const overview = await userOverview(page, search, state);
     return {
       recent: overview.users,
       stats: overview.stats,
@@ -77,7 +99,6 @@ export const load: PageServerLoad = async ({ url }) => {
       pageSize: overview.page_size,
       maxPages: overview.max_pages,
       hasMore: overview.has_more,
-      search,
       degraded: false
     };
   } catch {
@@ -88,10 +109,23 @@ export const load: PageServerLoad = async ({ url }) => {
       pageSize: USER_PAGE_SIZE,
       maxPages: USER_MAX_PAGES,
       hasMore: false,
-      search,
       degraded: true
     };
   }
+}
+
+// Streamed: the shell (toolbar, headers) renders immediately; the directory
+// hydrates when the users RPC lands instead of blocking SSR on NATS.
+export const load: PageServerLoad = ({ url }) => {
+  const page = parsePage(url.searchParams.get('page'));
+  const search = normalizeSearch(url.searchParams.get('q'));
+  const state = parseState(url.searchParams.get('state'));
+
+  const directory: Promise<UserDirectory> = isDemo()
+    ? Promise.resolve({ ...demoPage(page, search, state), degraded: false })
+    : loadDirectory(page, search, state);
+
+  return { directory, page, search, state };
 };
 
 // Status values the users service accepts (raw DB enum).
