@@ -3,20 +3,18 @@ import type { LoyaltyConfig, LoyaltyStanding } from '@bagel/shared';
 import { blankLoyaltyConfig } from '@bagel/shared';
 import { readLoyalty, writeLoyalty, topStandings } from '$lib/server/loyalty-store';
 import { auditDashboardImpersonation } from '$lib/server/services';
+import { gateModulePage } from '$lib/server/module-gate';
 import type { Session } from '$lib/server/session';
 import { env } from '$env/dynamic/private';
-import { fail, redirect } from '@sveltejs/kit';
+import { fail } from '@sveltejs/kit';
 
 function effectiveId(session: Session | null | undefined): string {
   return session?.delegate_of ?? session?.user_id ?? 'demo';
 }
 
-// A delegate needs the 'modules' section; a normal login always may. Loyalty is
-// a module even though it lives on its own page.
+// Delegate scope comes from the loyalty catalog def (see module-gate.ts).
 function gate(session: Session | null | undefined): void {
-  if (session?.delegate_of && !(session.sections ?? []).includes('modules')) {
-    throw redirect(302, '/');
-  }
+  gateModulePage(session, 'loyalty');
 }
 
 function demoStandings(): LoyaltyStanding[] {

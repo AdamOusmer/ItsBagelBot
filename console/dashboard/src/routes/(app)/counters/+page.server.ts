@@ -3,20 +3,19 @@ import type { CounterDef, CounterEntryView, CounterScope } from '@bagel/shared';
 import { COUNTER_SCOPES } from '@bagel/shared';
 import { listCounters, createCounter, setCounter, deleteCounter, counterEntries } from '$lib/server/loyalty-store';
 import { auditDashboardImpersonation } from '$lib/server/services';
+import { gateModulePage } from '$lib/server/module-gate';
 import type { Session } from '$lib/server/session';
 import { env } from '$env/dynamic/private';
-import { fail, redirect } from '@sveltejs/kit';
+import { fail } from '@sveltejs/kit';
 
 function effectiveId(session: Session | null | undefined): string {
   return session?.delegate_of ?? session?.user_id ?? 'demo';
 }
 
-// A delegate needs the 'modules' section; a normal login always may. Counters
-// belong to the loyalty module even though they live on their own page.
+// Counters belong to the loyalty module even though they live on their own
+// page, so they share loyalty's delegate scope (see module-gate.ts).
 function gate(session: Session | null | undefined): void {
-  if (session?.delegate_of && !(session.sections ?? []).includes('modules')) {
-    throw redirect(302, '/');
-  }
+  gateModulePage(session, 'loyalty');
 }
 
 function demoCounters(): CounterDef[] {

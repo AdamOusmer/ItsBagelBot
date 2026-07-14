@@ -15,6 +15,7 @@
 // dynamic-env proxy there deadlocks server.init (exit 13). process.env carries
 // the same runtime value.
 import { redirect, type RequestEvent } from '@sveltejs/kit';
+import { MODULE_CATALOG, moduleDelegateSections } from '@bagel/shared';
 import { COOKIE, type Session } from '$lib/server/session';
 import { accountState, delegationAccess, isBanned } from '$lib/server/services';
 import { RpcError } from '@bagel/shared/server/nats';
@@ -30,6 +31,23 @@ function isPublic(pathname: string): boolean {
 
 function wipe(event: RequestEvent): void {
   event.cookies.delete(COOKIE, { path: '/', secure: event.url.protocol === 'https:' });
+}
+
+// delegateAllowedPaths lists the (app) path prefixes a delegate may open: each
+// granted section's own page, plus every bespoke module page whose catalog def
+// is opened by one of those grants (moduleDelegateSections — the same source
+// the per-page gates and the tile grid read, so the three can never drift and
+// a new module page needs no edit here). Counters is loyalty's companion page
+// without a tile of its own, so it rides the modules grant explicitly.
+function delegateAllowedPaths(sections: readonly string[]): string[] {
+  const allowed = sections.map((sec) => `/${sec}`);
+  for (const def of MODULE_CATALOG) {
+    if (def.href && moduleDelegateSections(def).some((sec) => sections.includes(sec))) {
+      allowed.push(def.href);
+    }
+  }
+  if (sections.includes('modules')) allowed.push('/counters');
+  return allowed;
 }
 
 // guardSession validates an already-opened session against authoritative
@@ -79,11 +97,7 @@ export async function guardSession(event: RequestEvent, s: Session): Promise<Ses
     // Section scope for everything under (app) — pages AND their actions
     // (the per-page gates remain as defense in depth).
     if (event.route.id?.startsWith('/(app)')) {
-      const allowed = (s.sections ?? []).map((sec) => `/${sec}`);
-      // Timers has no standalone scope: the commands grant covers /timers too.
-      if (s.sections?.includes('commands')) allowed.push('/timers');
-      // Loyalty and its counters ride the modules grant (same as their gates).
-      if (s.sections?.includes('modules')) allowed.push('/loyalty', '/counters');
+      const allowed = delegateAllowedPaths(s.sections ?? []);
       const ok = allowed.some((p) => event.url.pathname === p || event.url.pathname.startsWith(p + '/'));
       if (!ok) throw redirect(303, allowed[0] ?? '/delegate/exit');
     }

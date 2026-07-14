@@ -10,21 +10,18 @@ import {
   type TimerResult
 } from '$lib/server/timers-store';
 import { auditDashboardImpersonation } from '$lib/server/services';
+import { gateModulePage } from '$lib/server/module-gate';
 import type { Session } from '$lib/server/session';
 import { env } from '$env/dynamic/private';
-import { fail, redirect } from '@sveltejs/kit';
+import { fail } from '@sveltejs/kit';
 
 function effectiveId(session: Session | null | undefined): string {
   return session?.delegate_of ?? session?.user_id ?? 'demo';
 }
 
-// Timers rides under the 'commands' scope (no standalone timers grant). Legacy
-// links minted with a bare 'timers' section still pass. A normal login always may.
+// Delegate scope comes from the timers catalog def (see module-gate.ts).
 function gate(session: Session | null | undefined): void {
-  const secs = session?.sections ?? [];
-  if (session?.delegate_of && !secs.includes('commands') && !secs.includes('timers')) {
-    throw redirect(302, '/');
-  }
+  gateModulePage(session, 'timers');
 }
 
 // Demo timers so the tab renders without a live backend.

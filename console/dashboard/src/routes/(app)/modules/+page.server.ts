@@ -3,6 +3,7 @@ import type { ModuleState } from '@bagel/shared';
 import { MODULE_CATALOG, moduleDef } from '@bagel/shared';
 import { listModules, upsertModule, type ModuleView } from '$lib/server/commands-store';
 import { auditDashboardImpersonation } from '$lib/server/services';
+import { delegateCanOpen } from '$lib/server/module-gate';
 import type { Session } from '$lib/server/session';
 import { env } from '$env/dynamic/private';
 import { fail, redirect } from '@sveltejs/kit';
@@ -30,10 +31,12 @@ function asConfig(raw: unknown): Record<string, string> {
 }
 
 // Merge the catalog (the modules we expose) with the broadcaster's stored rows.
-// Modules absent from the catalog (system, bagel, ...) are never surfaced.
-function merge(rows: ModuleView[]): ModuleState[] {
+// Modules absent from the catalog (system, bagel, ...) are never surfaced, and
+// a delegate's grid drops tiles their grant cannot open (delegateCanOpen) —
+// such a tile would only bounce off the route guard. Owners see everything.
+function merge(rows: ModuleView[], session: Session | null | undefined): ModuleState[] {
   const byName = new Map(rows.map((r) => [r.name, r]));
-  return MODULE_CATALOG.filter((def) => !def.hidden).map((def) => {
+  return MODULE_CATALOG.filter((def) => !def.hidden && delegateCanOpen(def, session)).map((def) => {
     const row = byName.get(def.id);
     return {
       def,
@@ -48,11 +51,11 @@ function merge(rows: ModuleView[]): ModuleState[] {
 export const load: PageServerLoad = async ({ locals }) => {
   gateModules(locals.session);
   const uid = effectiveId(locals.session);
-  if (env.DEMO === '1') return { modules: merge([]) };
+  if (env.DEMO === '1') return { modules: merge([], locals.session) };
   try {
-    return { modules: merge(await listModules(uid)) };
+    return { modules: merge(await listModules(uid), locals.session) };
   } catch {
-    return { modules: merge([]), degraded: true };
+    return { modules: merge([], locals.session), degraded: true };
   }
 };
 
