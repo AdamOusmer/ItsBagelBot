@@ -48,23 +48,32 @@ func (r *Users) FindUserByUsername(ctx context.Context, username string) (*ent.U
 	return u, err
 }
 
-// ListUsers returns rows ordered by most-recently-updated then by descending
-// ID. When search is non-empty the results are filtered to rows whose username
-// contains the search string (case-insensitive) or whose numeric ID equals it
-// exactly. state narrows to one effective user state (see AdminStatePredicate);
-// an empty or unknown state applies no filter. limit and offset control
-// pagination; the caller is responsible for computing the correct fetchLimit
-// (pageSize+1 trick) before calling.
-func (r *Users) ListUsers(ctx context.Context, search, state string, limit, offset int) ([]*ent.User, error) {
+// AdminUserQuery bundles the admin list filters and pagination window so
+// callers pass one value instead of a row of positional primitives.
+type AdminUserQuery struct {
+	// Search filters to rows whose username contains it (case-insensitive)
+	// or whose numeric ID equals it exactly. Empty means no filter.
+	Search string
+	// State narrows to one effective user state (see AdminStatePredicate);
+	// empty or unknown applies no filter.
+	State string
+	// Limit and Offset control pagination; the caller is responsible for
+	// computing the correct fetch limit (pageSize+1 trick) before calling.
+	Limit  int
+	Offset int
+}
+
+// ListUsers returns rows ordered by most-recently-updated then by descending ID.
+func (r *Users) ListUsers(ctx context.Context, query AdminUserQuery) ([]*ent.User, error) {
 	q := r.client.User.Query().Order(ent.Desc(user.FieldUpdatedAt), ent.Desc(user.FieldID))
-	if s := NormalizeAdminSearch(search); s != "" {
+	if s := NormalizeAdminSearch(query.Search); s != "" {
 		q = q.Where(AdminSearchPredicate(s))
 	}
-	if pred, ok := AdminStatePredicate(state); ok {
+	if pred, ok := AdminStatePredicate(query.State); ok {
 		q = q.Where(pred)
 	}
 	return db.WithQuery(ctx, func(ctx context.Context) ([]*ent.User, error) {
-		return q.Offset(offset).Limit(limit).All(ctx)
+		return q.Offset(query.Offset).Limit(query.Limit).All(ctx)
 	})
 }
 

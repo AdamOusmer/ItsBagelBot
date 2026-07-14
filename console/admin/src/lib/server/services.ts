@@ -388,31 +388,37 @@ export interface ServiceHealth {
 
 const HEALTH_TIMEOUT_MS = 2000;
 
-const HEALTH_PROBES: { id: string; label: string; subject: string; payload: unknown }[] = [
+interface HealthProbe {
+  id: string;
+  label: string;
+  subject: string;
+  payload: unknown;
+}
+
+const HEALTH_PROBES: HealthProbe[] = [
   { id: 'users', label: 'Users', subject: `${SUB.user}.stats`, payload: {} },
   { id: 'ingress', label: 'Ingress', subject: SUB.shards, payload: {} },
   { id: 'outgress', label: 'Outgress', subject: `${SUB.outgressRpc}.channel.get`, payload: { broadcaster_id: '1' } },
   { id: 'notifications', label: 'Notifications', subject: `${SUB.notifications}.list`, payload: { page: 1, limit: 1 } }
 ];
 
-export async function serviceHealth(): Promise<ServiceHealth[]> {
-  return Promise.all(
-    HEALTH_PROBES.map(async (probe) => {
-      const started = performance.now();
-      try {
-        await rpc(probe.subject, probe.payload, HEALTH_TIMEOUT_MS);
-        return { id: probe.id, label: probe.label, ok: true, ms: Math.round(performance.now() - started) };
-      } catch (e) {
-        return {
-          id: probe.id,
-          label: probe.label,
-          ok: false,
-          ms: Math.round(performance.now() - started),
-          error: (e as Error).message
-        };
-      }
-    })
+async function probeOnce(probe: HealthProbe): Promise<ServiceHealth> {
+  const started = performance.now();
+  const failure = await rpc(probe.subject, probe.payload, HEALTH_TIMEOUT_MS).then(
+    () => undefined,
+    (e: Error) => e.message || 'unreachable'
   );
+  return {
+    id: probe.id,
+    label: probe.label,
+    ok: failure === undefined,
+    ms: Math.round(performance.now() - started),
+    ...(failure === undefined ? {} : { error: failure })
+  };
+}
+
+export async function serviceHealth(): Promise<ServiceHealth[]> {
+  return Promise.all(HEALTH_PROBES.map(probeOnce));
 }
 
 // ── Notifications ────────────────────────────────────────────────────────────

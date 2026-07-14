@@ -89,16 +89,25 @@ export const load: PageServerLoad = async ({ parent }) => {
   return { bundle };
 };
 
-function audit(admin: AdminIdentity, action: string, target: string, detail: string, ok: boolean, error = ''): void {
+type AuditOutcome = {
+  action: string;
+  target: string;
+  ok: boolean;
+  error?: string;
+};
+
+// audit records a mutating action best-effort: a logging failure must never
+// block the operator action it describes. Skipped in demo.
+function audit(admin: AdminIdentity, outcome: AuditOutcome): void {
   if (isDemo()) return;
   auditAppend({
     actor_id: admin.id,
     actor_login: admin.login,
-    action,
-    target,
-    detail,
-    ok,
-    error
+    action: outcome.action,
+    target: outcome.target,
+    detail: '',
+    ok: outcome.ok,
+    error: outcome.error ?? ''
   }).catch(() => {});
 }
 
@@ -143,14 +152,14 @@ function secretAction(spec: SecretSpec) {
       if (isDemo()) return { action: { ok: true, notice: spec.demoNotice } };
 
       const out = await spec.run(service, f);
-      audit(admin, spec.name, service, out.target ?? '', true);
+      audit(admin, { action: spec.name, target: `${service}:${out.target ?? ''}`, ok: true });
       return {
         action: { ok: true, notice: out.notice },
         ...(out.mintedKey ? { mintedKey: out.mintedKey } : {})
       };
     } catch (e) {
       const message = (e as Error).message;
-      audit(admin, spec.name, String(service ?? ''), '', false, message);
+      audit(admin, { action: spec.name, target: String(service ?? ''), ok: false, error: message });
       return fail(400, { error: message });
     }
   };
@@ -172,9 +181,10 @@ export const actions: Actions = {
     confirm: (s) => `set ${s}`,
     demoNotice: 'credential set (demo)',
     run: async (service, f) => {
-      const dbUser = String(f.get('db_user') ?? '').trim();
-      const dbPass = String(f.get('db_pass') ?? '');
-      const result = await setCredential(service, dbUser, dbPass);
+      const result = await setCredential(service, {
+        dbUser: String(f.get('db_user') ?? '').trim(),
+        dbPass: String(f.get('db_pass') ?? '')
+      });
       return { notice: `${service} credential set to ${result.dbUser}`, target: result.dbUser };
     }
   }),
@@ -195,9 +205,11 @@ export const actions: Actions = {
     confirm: (s) => `mint ${s}`,
     demoNotice: 'token minted (demo): dp.st.demo.notarealtoken',
     run: async (service, f) => {
-      const name = String(f.get('name') ?? '').trim();
       const expireDays = Number(f.get('expire_days') ?? '0');
-      const result = await mintServiceToken(service, name, Number.isFinite(expireDays) ? expireDays : 0);
+      const result = await mintServiceToken(service, {
+        name: String(f.get('name') ?? '').trim(),
+        expireDays: Number.isFinite(expireDays) ? expireDays : 0
+      });
       return {
         notice: `read-only token "${result.token.name}" minted for ${service}/prd`,
         mintedKey: result.key,

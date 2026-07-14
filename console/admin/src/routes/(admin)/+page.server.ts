@@ -26,35 +26,29 @@ export type Overview = {
 };
 
 // Resolve the independent reads in parallel rather than serial awaits, so the
-// page waits one round trip instead of four. allSettled keeps the page
-// rendering even if one responder is slow or down; each failure flips the
-// degraded flag and falls back to the last-known/sample value — the banner
-// says so, the page never pretends the fallback is live.
+// page waits one round trip instead of four. Every read falls back so the page
+// keeps rendering when a responder is down; a failed *critical* read flips the
+// degraded flag — the banner says so, the page never pretends the fallback is
+// live. Health probe failures are the health panel's own signal, not a
+// degraded page.
 async function loadOverview(withAudit: boolean): Promise<Overview> {
+  let degraded = false;
+  const orFallback = <T>(load: Promise<T>, fallback: T, critical = true): Promise<T> =>
+    load.catch(() => {
+      degraded = degraded || critical;
+      return fallback;
+    });
+
   const botId = env.ADMIN_BOT_USER_ID ?? '';
-  const [enrollment, snapshot, token, audit, health] = await Promise.allSettled([
-    userEnrollment(),
-    shardSnapshot(),
-    botId ? tokenStatus(botId) : Promise.resolve({ present: false }),
-    withAudit ? auditList(AUDIT_PEEK) : Promise.resolve([]),
-    // Probe failures are the health panel's own signal, not a degraded page.
-    serviceHealth()
+  const [enrollment, snapshot, token, recentAudit, health] = await Promise.all([
+    orFallback(userEnrollment(), sampleEnrollment),
+    orFallback(shardSnapshot(), sampleSnapshot),
+    orFallback(botId ? tokenStatus(botId) : Promise.resolve({ present: false }), { present: false }),
+    orFallback(withAudit ? auditList(AUDIT_PEEK) : Promise.resolve([]), []),
+    orFallback(serviceHealth(), [], false)
   ]);
 
-  const degraded =
-    enrollment.status === 'rejected' ||
-    snapshot.status === 'rejected' ||
-    (botId !== '' && token.status === 'rejected') ||
-    (withAudit && audit.status === 'rejected');
-
-  return {
-    enrollment: enrollment.status === 'fulfilled' ? enrollment.value : sampleEnrollment,
-    snapshot: snapshot.status === 'fulfilled' ? snapshot.value : sampleSnapshot,
-    botPresent: token.status === 'fulfilled' && token.value.present,
-    recentAudit: audit.status === 'fulfilled' ? audit.value : [],
-    health: health.status === 'fulfilled' ? health.value : [],
-    degraded
-  };
+  return { enrollment, snapshot, botPresent: token.present, recentAudit, health, degraded };
 }
 
 export const load: PageServerLoad = async ({ parent }) => {

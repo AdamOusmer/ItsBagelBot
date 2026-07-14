@@ -61,7 +61,13 @@ export function tokenFor(id: SecretServiceId): { token: string; source: TokenSou
   return { token: '', source: 'missing' };
 }
 
-async function dopplerFetch(token: string, path: string, init: RequestInit = {}): Promise<Response> {
+interface DopplerCall {
+  token: string;
+  path: string;
+  init?: RequestInit;
+}
+
+async function dopplerFetch({ token, path, init = {} }: DopplerCall): Promise<Response> {
   if (!token) throw new Error('no Doppler token configured for this service');
   const res = await fetch(`https://api.doppler.com${path}`, {
     ...init,
@@ -73,6 +79,15 @@ async function dopplerFetch(token: string, path: string, init: RequestInit = {})
   });
   if (!res.ok) throw new Error(`Doppler request failed (${res.status})`);
   return res;
+}
+
+// Doppler POST/DELETE bodies always carry the project/config pair; centralize
+// the JSON envelope so call sites stay declarative.
+function dopplerBody(svc: ServiceDef, extra: Record<string, unknown>): RequestInit {
+  return {
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ project: svc.project, config: svc.config, ...extra })
+  };
 }
 
 // ── Scope report ─────────────────────────────────────────────────────────────
@@ -89,7 +104,7 @@ export interface ScopeReport {
 
 async function visibleProjects(token: string): Promise<string[] | null> {
   try {
-    const res = await dopplerFetch(token, '/v3/projects?per_page=100');
+    const res = await dopplerFetch({ token, path: '/v3/projects?per_page=100' });
     const body = (await res.json()) as { projects?: { slug?: string; name?: string }[] };
     return (body.projects ?? []).map((p) => p.slug ?? p.name ?? '').filter(Boolean);
   } catch {
@@ -129,12 +144,16 @@ export interface DbCredentialStatus {
   tokenSource: TokenSource;
 }
 
+function configQuery(svc: ServiceDef): string {
+  return `project=${encodeURIComponent(svc.project)}&config=${encodeURIComponent(svc.config)}`;
+}
+
 async function dopplerSecrets(id: SecretServiceId): Promise<Record<string, string>> {
   const svc = services[id];
-  const res = await dopplerFetch(
-    tokenFor(id).token,
-    `/v3/configs/config/secrets?project=${encodeURIComponent(svc.project)}&config=${encodeURIComponent(svc.config)}`
-  );
+  const res = await dopplerFetch({
+    token: tokenFor(id).token,
+    path: `/v3/configs/config/secrets?${configQuery(svc)}`
+  });
   const body = (await res.json()) as {
     secrets?: Record<string, { computed?: string; raw?: string } | string>;
   };
@@ -147,10 +166,10 @@ async function dopplerSecrets(id: SecretServiceId): Promise<Record<string, strin
 
 async function updateDoppler(id: SecretServiceId, secrets: Record<string, string>): Promise<void> {
   const svc = services[id];
-  await dopplerFetch(tokenFor(id).token, '/v3/configs/config/secrets', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ project: svc.project, config: svc.config, secrets })
+  await dopplerFetch({
+    token: tokenFor(id).token,
+    path: '/v3/configs/config/secrets',
+    init: { method: 'POST', ...dopplerBody(svc, { secrets }) }
   });
 }
 
@@ -205,10 +224,10 @@ function tokenViewOf(t: ServiceTokenWire): ServiceTokenView {
 
 export async function listServiceTokens(id: SecretServiceId): Promise<ServiceTokenView[]> {
   const svc = services[id];
-  const res = await dopplerFetch(
-    tokenFor(id).token,
-    `/v3/configs/config/tokens?project=${encodeURIComponent(svc.project)}&config=${encodeURIComponent(svc.config)}`
-  );
+  const res = await dopplerFetch({
+    token: tokenFor(id).token,
+    path: `/v3/configs/config/tokens?${configQuery(svc)}`
+  });
   const body = (await res.json()) as { tokens?: ServiceTokenWire[] };
   return (body.tokens ?? []).map(tokenViewOf);
 }
@@ -221,27 +240,32 @@ export function assertTokenName(name: string): void {
   }
 }
 
+export interface MintTokenInput {
+  name: string;
+  expireDays: number;
+}
+
 // mintServiceToken issues a READ-ONLY token scoped to one service's config —
 // the least-privileged credential Doppler can hand out. The key is returned
 // exactly once; it is never stored server-side.
 export async function mintServiceToken(
   id: SecretServiceId,
-  name: string,
-  expireDays: number
+  input: MintTokenInput
 ): Promise<{ key: string; token: ServiceTokenView }> {
   const svc = services[id];
-  assertTokenName(name);
-  const days = Math.min(Math.max(Math.trunc(expireDays), 0), 365);
-  const res = await dopplerFetch(tokenFor(id).token, '/v3/configs/config/tokens', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      project: svc.project,
-      config: svc.config,
-      name,
-      access: 'read',
-      ...(days > 0 ? { expire_at: new Date(Date.now() + days * 864e5).toISOString() } : {})
-    })
+  assertTokenName(input.name);
+  const days = Math.min(Math.max(Math.trunc(input.expireDays), 0), 365);
+  const res = await dopplerFetch({
+    token: tokenFor(id).token,
+    path: '/v3/configs/config/tokens',
+    init: {
+      method: 'POST',
+      ...dopplerBody(svc, {
+        name: input.name,
+        access: 'read',
+        ...(days > 0 ? { expire_at: new Date(Date.now() + days * 864e5).toISOString() } : {})
+      })
+    }
   });
   const body = (await res.json()) as { token?: ServiceTokenWire & { key?: string } };
   if (!body.token?.key) throw new Error('Doppler did not return a token key');
@@ -251,55 +275,60 @@ export async function mintServiceToken(
 export async function revokeServiceToken(id: SecretServiceId, slug: string): Promise<void> {
   const svc = services[id];
   if (!/^[A-Za-z0-9_-]{4,64}$/.test(slug)) throw new Error('invalid token slug');
-  await dopplerFetch(tokenFor(id).token, '/v3/configs/config/tokens/token', {
-    method: 'DELETE',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ project: svc.project, config: svc.config, slug })
+  await dopplerFetch({
+    token: tokenFor(id).token,
+    path: '/v3/configs/config/tokens/token',
+    init: { method: 'DELETE', ...dopplerBody(svc, { slug }) }
   });
 }
 
 // ── MySQL runtime users ──────────────────────────────────────────────────────
 
+export interface DbCredentialInput {
+  dbUser: string;
+  dbPass: string;
+}
+
+// dbEnvOf builds the Doppler payload a service reads its database credential
+// from; autoMigrate differs between rotate (false) and manual set (true).
+function dbEnvOf(cred: DbCredentialInput, schema: string, autoMigrate: boolean): Record<string, string> {
+  return {
+    DB_USER: cred.dbUser,
+    DB_PASS: cred.dbPass,
+    DB_SCHEMA: schema,
+    DB_AUTO_MIGRATE: String(autoMigrate),
+    DB_MAX_OPEN_CONNS: '4',
+    DB_QUERY_CONCURRENCY: '4'
+  };
+}
+
 export async function rotateCredential(id: SecretServiceId): Promise<{ dbUser: string }> {
   const svc = services[id];
-  const dbUser = `${svc.expectedUserPrefix}_r${Date.now().toString(36).slice(-8)}`;
-  const dbPass = generatePassword();
-  await provisionDbUser(dbUser, dbPass, svc.schema);
+  const cred: DbCredentialInput = {
+    dbUser: `${svc.expectedUserPrefix}_r${Date.now().toString(36).slice(-8)}`,
+    dbPass: generatePassword()
+  };
+  await provisionDbUser(cred, svc.schema);
   try {
-    await updateDoppler(id, {
-      DB_USER: dbUser,
-      DB_PASS: dbPass,
-      DB_SCHEMA: svc.schema,
-      DB_AUTO_MIGRATE: 'false',
-      DB_MAX_OPEN_CONNS: '4',
-      DB_QUERY_CONCURRENCY: '4'
-    });
+    await updateDoppler(id, dbEnvOf(cred, svc.schema, false));
   } catch (e) {
-    await dropDbUser(dbUser).catch(() => {});
+    await dropDbUser(cred.dbUser).catch(() => {});
     throw e;
   }
-  return { dbUser };
+  return { dbUser: cred.dbUser };
 }
 
 export async function setCredential(
   id: SecretServiceId,
-  dbUser: string,
-  dbPass: string
+  cred: DbCredentialInput
 ): Promise<{ dbUser: string }> {
   const svc = services[id];
-  assertDbUser(dbUser);
-  assertPassword(dbPass);
-  if (dbUser === adminDbUser()) throw new Error('refusing to manage the admin database user');
-  await provisionDbUser(dbUser, dbPass, svc.schema);
-  await updateDoppler(id, {
-    DB_USER: dbUser,
-    DB_PASS: dbPass,
-    DB_SCHEMA: svc.schema,
-    DB_AUTO_MIGRATE: 'true',
-    DB_MAX_OPEN_CONNS: '4',
-    DB_QUERY_CONCURRENCY: '4'
-  });
-  return { dbUser };
+  assertDbUser(cred.dbUser);
+  assertPassword(cred.dbPass);
+  if (cred.dbUser === adminDbUser()) throw new Error('refusing to manage the admin database user');
+  await provisionDbUser(cred, svc.schema);
+  await updateDoppler(id, dbEnvOf(cred, svc.schema, true));
+  return { dbUser: cred.dbUser };
 }
 
 export async function revokeCredential(
@@ -331,36 +360,57 @@ async function dropDbUser(dbUser: string): Promise<void> {
   }
 }
 
-async function provisionDbUser(dbUser: string, dbPass: string, schema: string): Promise<void> {
+async function provisionDbUser(cred: DbCredentialInput, schema: string): Promise<void> {
+  const account = accountSql(cred.dbUser);
   const conn = await adminConnection();
   try {
-    await conn.query(`CREATE USER IF NOT EXISTS ${accountSql(dbUser)} IDENTIFIED BY ?`, [dbPass]);
-    await conn.query(`ALTER USER ${accountSql(dbUser)} IDENTIFIED BY ?`, [dbPass]);
-    await conn.query(`REVOKE ALL PRIVILEGES, GRANT OPTION FROM ${accountSql(dbUser)}`).catch(() => {});
-    await conn.query(
-      `GRANT SELECT, INSERT, UPDATE, DELETE ON ${schemaSql(schema)}.* TO ${accountSql(dbUser)}`
-    );
+    await conn.query(`CREATE USER IF NOT EXISTS ${account} IDENTIFIED BY ?`, [cred.dbPass]);
+    await conn.query(`ALTER USER ${account} IDENTIFIED BY ?`, [cred.dbPass]);
+    await conn.query(`REVOKE ALL PRIVILEGES, GRANT OPTION FROM ${account}`).catch(() => {});
+    await conn.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON ${schemaSql(schema)}.* TO ${account}`);
   } finally {
     await conn.end();
   }
 }
 
-async function adminConnection(): Promise<mysql.Connection> {
-  const hostPort = env.DB_ADMIN_ADDR ?? env.DB_ADDR;
-  const host = env.DB_ADMIN_HOST ?? hostPort?.split(':')[0];
-  const port = Number(env.DB_ADMIN_PORT ?? hostPort?.split(':')[1] ?? 3306);
-  const user = adminDbUser();
-  const password = env.DB_ADMIN_PASS ?? env.DB_ADMIN_PASSWORD;
-  if (!host || !user || !password) {
+interface DbAdminTarget {
+  host: string;
+  port: number;
+  user: string;
+  password: string;
+  ca: string;
+}
+
+// adminDbTarget resolves the privileged MySQL endpoint from env, in one place,
+// and fails with one clear message when any required part is missing.
+function adminDbTarget(): DbAdminTarget {
+  const hostPort = env.DB_ADMIN_ADDR ?? env.DB_ADDR ?? '';
+  const target: DbAdminTarget = {
+    host: env.DB_ADMIN_HOST ?? hostPort.split(':')[0] ?? '',
+    port: Number(env.DB_ADMIN_PORT ?? hostPort.split(':')[1] ?? 3306),
+    user: adminDbUser(),
+    password: env.DB_ADMIN_PASS ?? env.DB_ADMIN_PASSWORD ?? '',
+    ca: env.DB_ADMIN_CA_CERT ?? env.DB_CA_CERT ?? ''
+  };
+  if (!target.host || !target.user || !target.password) {
     throw new Error('DB admin credential is not configured');
   }
-  const ca = env.DB_ADMIN_CA_CERT ?? env.DB_CA_CERT;
+  return target;
+}
+
+function sslConfig(ca: string): mysql.ConnectionOptions['ssl'] {
+  if (ca) return { ca, minVersion: 'TLSv1.2' };
+  return { rejectUnauthorized: false, minVersion: 'TLSv1.2' };
+}
+
+async function adminConnection(): Promise<mysql.Connection> {
+  const target = adminDbTarget();
   return mysql.createConnection({
-    host,
-    port,
-    user,
-    password,
-    ssl: ca ? { ca, minVersion: 'TLSv1.2' } : { rejectUnauthorized: false, minVersion: 'TLSv1.2' },
+    host: target.host,
+    port: target.port,
+    user: target.user,
+    password: target.password,
+    ssl: sslConfig(target.ca),
     connectTimeout: 5000,
     multipleStatements: false
   });
