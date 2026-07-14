@@ -92,6 +92,8 @@ export interface AdminUserWire {
   subscription_expires_at?: string;
   subscription_source?: string;
   subscription_ref?: string;
+  subscription_cancel_pending?: boolean;
+  created_at?: string;
   updated_at?: string;
 }
 
@@ -179,33 +181,71 @@ export const userStats = defineRead({
   }
 });
 
+// EnrollmentWire mirrors the users service's admin enrollment reply: one
+// zero-filled bucket per UTC day plus the current user totals.
+export interface EnrollmentDayWire {
+  date: string; // YYYY-MM-DD
+  count: number;
+}
+
+export interface EnrollmentWire {
+  days: EnrollmentDayWire[];
+  stats: UserStats;
+}
+
+export const ENROLLMENT_WINDOW_DAYS = 30;
+
+export const userEnrollment = defineRead({
+  subject: `${SUB.user}.enrollment`,
+  request: (days = ENROLLMENT_WINDOW_DAYS) => ({ days }),
+  map: (reply: { enrollment: EnrollmentWire }) => reply.enrollment,
+  cache: {
+    fabric,
+    key: (days = ENROLLMENT_WINDOW_DAYS) => `users:enrollment:${days}`,
+    policy: POLICY.adminPage
+  }
+});
+
 export const USER_PAGE_SIZE = 15;
 export const USER_MAX_PAGES = 25;
 
-// Hand-written, not defineRead: the reply's page/page_size/max_pages fields
-// fall back to the request args (page, USER_PAGE_SIZE, USER_MAX_PAGES) when the
-// responder omits them, and defineRead's `map` only sees the reply, not args.
-export async function userOverview(page = 1, search = ''): Promise<UserPage> {
-  return cached(`users:overview:${page}:${search}`, POLICY.adminPage, async () => {
-    const r = await rpc<{
-      users?: AdminUserWire[];
-      stats: UserStats;
-      page?: number;
-      page_size?: number;
-      max_pages?: number;
-      has_more?: boolean;
-    }>(`${SUB.user}.overview`, {
-      page,
-      limit: USER_PAGE_SIZE,
-      search
-    });
+// Paged replies share one meta shape whose fields fall back to the request
+// args when the responder omits them (older service during a rolling deploy).
+interface PageMetaWire {
+  page?: number;
+  page_size?: number;
+  max_pages?: number;
+  has_more?: boolean;
+}
+
+interface PageMeta {
+  page: number;
+  page_size: number;
+  max_pages: number;
+  has_more: boolean;
+}
+
+function pageMetaOf(reply: PageMetaWire, page: number, pageSize: number, maxPages: number): PageMeta {
+  return {
+    page: reply.page ?? page,
+    page_size: reply.page_size ?? pageSize,
+    max_pages: reply.max_pages ?? maxPages,
+    has_more: Boolean(reply.has_more)
+  };
+}
+
+// Hand-written, not defineRead: the fallback needs the request args, and
+// defineRead's `map` only sees the reply.
+export async function userOverview(page = 1, search = '', state = ''): Promise<UserPage> {
+  return cached(`users:overview:${page}:${search}:${state}`, POLICY.adminPage, async () => {
+    const r = await rpc<PageMetaWire & { users?: AdminUserWire[]; stats: UserStats }>(
+      `${SUB.user}.overview`,
+      { page, limit: USER_PAGE_SIZE, search, state }
+    );
     return {
       users: r.users ?? [],
       stats: r.stats,
-      page: r.page ?? page,
-      page_size: r.page_size ?? USER_PAGE_SIZE,
-      max_pages: r.max_pages ?? USER_MAX_PAGES,
-      has_more: Boolean(r.has_more)
+      ...pageMetaOf(r, page, USER_PAGE_SIZE, USER_MAX_PAGES)
     };
   });
 }
@@ -345,6 +385,54 @@ export async function channelSubState(broadcasterId: string): Promise<ChannelSub
   }
 }
 
+// ── Service health ───────────────────────────────────────────────────────────
+// Latency probes over the RPC surfaces the admin NATS account may reach. Each
+// probe is a real request (no cache) so the number is the round trip an
+// operator action would actually pay.
+
+export interface ServiceHealth {
+  id: string;
+  label: string;
+  ok: boolean;
+  ms: number;
+  error?: string;
+}
+
+const HEALTH_TIMEOUT_MS = 2000;
+
+interface HealthProbe {
+  id: string;
+  label: string;
+  subject: string;
+  payload: unknown;
+}
+
+const HEALTH_PROBES: HealthProbe[] = [
+  { id: 'users', label: 'Users', subject: `${SUB.user}.stats`, payload: {} },
+  { id: 'ingress', label: 'Ingress', subject: SUB.shards, payload: {} },
+  { id: 'outgress', label: 'Outgress', subject: `${SUB.outgressRpc}.channel.get`, payload: { broadcaster_id: '1' } },
+  { id: 'notifications', label: 'Notifications', subject: `${SUB.notifications}.list`, payload: { page: 1, limit: 1 } }
+];
+
+async function probeOnce(probe: HealthProbe): Promise<ServiceHealth> {
+  const started = performance.now();
+  const failure = await rpc(probe.subject, probe.payload, HEALTH_TIMEOUT_MS).then(
+    () => undefined,
+    (e: Error) => e.message || 'unreachable'
+  );
+  return {
+    id: probe.id,
+    label: probe.label,
+    ok: failure === undefined,
+    ms: Math.round(performance.now() - started),
+    ...(failure === undefined ? {} : { error: failure })
+  };
+}
+
+export async function serviceHealth(): Promise<ServiceHealth[]> {
+  return Promise.all(HEALTH_PROBES.map(probeOnce));
+}
+
 // ── Notifications ────────────────────────────────────────────────────────────
 
 export interface NotificationWire {
@@ -374,18 +462,9 @@ export const NOTIFICATIONS_MAX_PAGES = 25;
 export const notificationsList = defineRead({
   subject: `${SUB.notifications}.list`,
   request: (page = 1) => ({ page, limit: NOTIFICATIONS_PAGE_SIZE }),
-  map: (reply: {
-    notifications?: NotificationWire[];
-    page?: number;
-    page_size?: number;
-    max_pages?: number;
-    has_more?: boolean;
-  }): NotificationPage => ({
+  map: (reply: PageMetaWire & { notifications?: NotificationWire[] }): NotificationPage => ({
     notifications: reply.notifications ?? [],
-    page: reply.page ?? 1,
-    page_size: reply.page_size ?? NOTIFICATIONS_PAGE_SIZE,
-    max_pages: reply.max_pages ?? NOTIFICATIONS_MAX_PAGES,
-    has_more: Boolean(reply.has_more)
+    ...pageMetaOf(reply, 1, NOTIFICATIONS_PAGE_SIZE, NOTIFICATIONS_MAX_PAGES)
   }),
   cache: {
     fabric,
@@ -598,28 +677,18 @@ export const auditList = defineRead({
 });
 
 // Hand-written, not defineRead: same reply-falls-back-to-args shape as
-// userOverview above (page/page_size/max_pages default from the call args).
+// userOverview above.
 export async function auditPage(page = 1, search = '', actorFilter = ''): Promise<AuditPage> {
   return cached(`audit:page:${page}:${search}:${actorFilter}`, POLICY.adminPage, async () => {
-    const r = await rpc<{
-      entries?: AuditEntry[];
-      page?: number;
-      page_size?: number;
-      max_pages?: number;
-      has_more?: boolean;
-    }>(`${SUB.audit}.list`, {
+    const r = await rpc<PageMetaWire & { entries?: AuditEntry[] }>(`${SUB.audit}.list`, {
       page,
       limit: AUDIT_PAGE_SIZE,
       search,
       actor_filter: actorFilter
     });
-
     return {
       entries: r.entries ?? [],
-      page: r.page ?? page,
-      page_size: r.page_size ?? AUDIT_PAGE_SIZE,
-      max_pages: r.max_pages ?? AUDIT_MAX_PAGES,
-      has_more: Boolean(r.has_more)
+      ...pageMetaOf(r, page, AUDIT_PAGE_SIZE, AUDIT_MAX_PAGES)
     };
   });
 }

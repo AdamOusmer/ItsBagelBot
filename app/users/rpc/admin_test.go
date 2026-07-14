@@ -91,3 +91,109 @@ func TestAdminUserListSearchesBeforePaging(t *testing.T) {
 	assert.Equal(t, uint64(424242), reply.Users[0].ID)
 	assert.False(t, reply.HasMore)
 }
+
+func TestAdminEnrollmentBucketsPerDay(t *testing.T) {
+	a, client := setupAdminRPCTest(t)
+	ctx := context.Background()
+
+	now := time.Now().UTC()
+	// Two signups today, one yesterday, one outside the 7-day window.
+	stamps := []time.Time{
+		now.Add(-1 * time.Hour),
+		now.Add(-2 * time.Hour),
+		now.AddDate(0, 0, -1),
+		now.AddDate(0, 0, -10),
+	}
+	for i, ts := range stamps {
+		client.User.Create().
+			SetID(uint64(7000 + i)).
+			SetUsername(fmt.Sprintf("enroll-%02d", i)).
+			SetEmail(fmt.Sprintf("enroll-%02d@example.invalid", i)).
+			SetStatus(user.StatusFree).
+			SetCreatedAt(ts).
+			SetUpdatedAt(ts).
+			ExecX(ctx)
+	}
+
+	reply := a.enrollment(ctx, usersrpc.AdminRequest{Days: 7})
+	require.Empty(t, reply.Error)
+	require.NotNil(t, reply.Enrollment)
+	require.Len(t, reply.Enrollment.Days, 7)
+
+	today := reply.Enrollment.Days[6]
+	yesterday := reply.Enrollment.Days[5]
+	assert.Equal(t, now.Format(time.DateOnly), today.Date)
+	assert.Equal(t, 2, today.Count)
+	assert.Equal(t, 1, yesterday.Count)
+	// Window days without signups are present and zero-filled.
+	assert.Equal(t, 0, reply.Enrollment.Days[0].Count)
+	// Totals cover the whole base, including rows outside the window.
+	assert.Equal(t, 4, reply.Enrollment.Stats.TotalUsers)
+}
+
+func TestAdminEnrollmentDefaultsAndClampsWindow(t *testing.T) {
+	a, _ := setupAdminRPCTest(t)
+	ctx := context.Background()
+
+	byDefault := a.enrollment(ctx, usersrpc.AdminRequest{})
+	require.Empty(t, byDefault.Error)
+	require.NotNil(t, byDefault.Enrollment)
+	assert.Len(t, byDefault.Enrollment.Days, enrollmentDefaultDays)
+
+	clamped := a.enrollment(ctx, usersrpc.AdminRequest{Days: 500})
+	require.Empty(t, clamped.Error)
+	require.NotNil(t, clamped.Enrollment)
+	assert.Len(t, clamped.Enrollment.Days, enrollmentMaxDays)
+}
+
+func TestAdminUserListFiltersByState(t *testing.T) {
+	a, client := setupAdminRPCTest(t)
+	ctx := context.Background()
+	base := time.Date(2026, 7, 1, 12, 0, 0, 0, time.UTC)
+
+	seed := []struct {
+		id     uint64
+		status user.Status
+		active bool
+		banned bool
+	}{
+		{6001, user.StatusVip, true, false},
+		{6002, user.StatusPaid, true, false},
+		{6003, user.StatusFree, true, false},
+		{6004, user.StatusVip, false, false}, // inactive beats tier
+		{6005, user.StatusPaid, false, true}, // banned beats everything
+	}
+	for i, s := range seed {
+		client.User.Create().
+			SetID(s.id).
+			SetUsername(fmt.Sprintf("state-%02d", i)).
+			SetEmail(fmt.Sprintf("state-%02d@example.invalid", i)).
+			SetStatus(s.status).
+			SetIsActive(s.active).
+			SetBanned(s.banned).
+			SetUpdatedAt(base.Add(time.Duration(i) * time.Minute)).
+			ExecX(ctx)
+	}
+
+	cases := map[string][]uint64{
+		"vip":      {6001},
+		"paid":     {6002},
+		"free":     {6003},
+		"inactive": {6004},
+		"banned":   {6005},
+	}
+	for state, want := range cases {
+		reply := a.list(ctx, usersrpc.AdminRequest{Page: 1, Limit: adminUserPageSize, State: state})
+		require.Empty(t, reply.Error, state)
+		ids := make([]uint64, 0, len(reply.Users))
+		for _, u := range reply.Users {
+			ids = append(ids, u.ID)
+		}
+		assert.Equal(t, want, ids, state)
+	}
+
+	// Unknown state applies no filter.
+	all := a.list(ctx, usersrpc.AdminRequest{Page: 1, Limit: adminUserPageSize, State: "nope"})
+	require.Empty(t, all.Error)
+	assert.Len(t, all.Users, len(seed))
+}

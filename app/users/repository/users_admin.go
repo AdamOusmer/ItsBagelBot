@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+	"time"
 
 	"ItsBagelBot/app/users/ent"
 	"ItsBagelBot/app/users/ent/predicate"
@@ -47,19 +48,53 @@ func (r *Users) FindUserByUsername(ctx context.Context, username string) (*ent.U
 	return u, err
 }
 
-// ListUsers returns rows ordered by most-recently-updated then by descending
-// ID. When search is non-empty the results are filtered to rows whose username
-// contains the search string (case-insensitive) or whose numeric ID equals it
-// exactly. limit and offset control pagination; the caller is responsible for
-// computing the correct fetchLimit (pageSize+1 trick) before calling.
-func (r *Users) ListUsers(ctx context.Context, search string, limit, offset int) ([]*ent.User, error) {
+// AdminUserQuery bundles the admin list filters and pagination window so
+// callers pass one value instead of a row of positional primitives.
+type AdminUserQuery struct {
+	// Search filters to rows whose username contains it (case-insensitive)
+	// or whose numeric ID equals it exactly. Empty means no filter.
+	Search string
+	// State narrows to one effective user state (see AdminStatePredicate);
+	// empty or unknown applies no filter.
+	State string
+	// Limit and Offset control pagination; the caller is responsible for
+	// computing the correct fetch limit (pageSize+1 trick) before calling.
+	Limit  int
+	Offset int
+}
+
+// ListUsers returns rows ordered by most-recently-updated then by descending ID.
+func (r *Users) ListUsers(ctx context.Context, query AdminUserQuery) ([]*ent.User, error) {
 	q := r.client.User.Query().Order(ent.Desc(user.FieldUpdatedAt), ent.Desc(user.FieldID))
-	if s := NormalizeAdminSearch(search); s != "" {
+	if s := NormalizeAdminSearch(query.Search); s != "" {
 		q = q.Where(AdminSearchPredicate(s))
 	}
+	if pred, ok := AdminStatePredicate(query.State); ok {
+		q = q.Where(pred)
+	}
 	return db.WithQuery(ctx, func(ctx context.Context) ([]*ent.User, error) {
-		return q.Offset(offset).Limit(limit).All(ctx)
+		return q.Offset(query.Offset).Limit(query.Limit).All(ctx)
 	})
+}
+
+// AdminStatePredicate maps one effective user state to a predicate. Precedence
+// mirrors the console's row color: banned beats inactive beats tier, so a
+// banned VIP shows under "banned", not "vip".
+func AdminStatePredicate(state string) (predicate.User, bool) {
+	switch state {
+	case "banned":
+		return user.BannedEQ(true), true
+	case "inactive":
+		return user.And(user.BannedEQ(false), user.IsActiveEQ(false)), true
+	case "vip", "paid", "free":
+		return user.And(
+			user.BannedEQ(false),
+			user.IsActiveEQ(true),
+			user.StatusEQ(user.Status(state)),
+		), true
+	default:
+		return nil, false
+	}
 }
 
 // UserStats returns the four counts the admin stats panel displays: total
@@ -87,6 +122,39 @@ func (r *Users) UserStats(ctx context.Context) (total, active, paid, vip int, er
 		return r.client.User.Query().Where(user.StatusEQ(user.StatusVip)).Count(ctx)
 	})
 	return
+}
+
+// EnrollmentDay is one UTC day's signup count.
+type EnrollmentDay struct {
+	Date  string // YYYY-MM-DD
+	Count int
+}
+
+// EnrollmentSeries buckets user signups per UTC day over the trailing `days`
+// window, today included. Every day in the window is present, zero-filled, so
+// callers can chart the series without gap handling.
+func (r *Users) EnrollmentSeries(ctx context.Context, days int) ([]EnrollmentDay, error) {
+	since := time.Now().UTC().AddDate(0, 0, -(days - 1)).Truncate(24 * time.Hour)
+	rows, err := db.WithQuery(ctx, func(ctx context.Context) ([]*ent.User, error) {
+		return r.client.User.Query().
+			Where(user.CreatedAtGTE(since)).
+			Select(user.FieldCreatedAt).
+			All(ctx)
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	counts := make(map[string]int, days)
+	for _, row := range rows {
+		counts[row.CreatedAt.UTC().Format(time.DateOnly)]++
+	}
+	series := make([]EnrollmentDay, 0, days)
+	for d := 0; d < days; d++ {
+		date := since.AddDate(0, 0, d).Format(time.DateOnly)
+		series = append(series, EnrollmentDay{Date: date, Count: counts[date]})
+	}
+	return series, nil
 }
 
 // HasToken reports whether the user currently has a stored token of the given

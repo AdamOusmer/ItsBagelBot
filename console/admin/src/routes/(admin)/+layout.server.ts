@@ -1,7 +1,7 @@
 import type { LayoutServerLoad } from './$types';
 import { redirect } from '@sveltejs/kit';
 import { requireAdmin, isDemo } from '$lib/server/access';
-import { notificationsList } from '$lib/server/services';
+import { notificationsList, type NotificationWire } from '$lib/server/services';
 import { sampleNotifications } from '$lib/server/sample';
 
 const BELL_PEEK = 5;
@@ -13,12 +13,12 @@ export const load: LayoutServerLoad = async ({ locals }) => {
   const admin = await requireAdmin(locals.session);
   if (!admin) throw redirect(302, '/login');
 
-  // Best-effort peek at the most recently sent notifications for the bell.
-  // There's no per-admin read state (that's a recipient concept, not an
-  // operator one) so this is just "what went out recently."
-  const recentNotifications = isDemo()
-    ? sampleNotifications.slice(0, BELL_PEEK)
-    : await notificationsList(1)
+  // Bell peek is streamed (unawaited promise): navigation never blocks on the
+  // notifications RPC. There's no per-admin read state (that's a recipient
+  // concept), so this is just "what went out recently."
+  const recentNotifications: Promise<NotificationWire[]> = isDemo()
+    ? Promise.resolve(sampleNotifications.slice(0, BELL_PEEK))
+    : notificationsList(1)
         .then((r) => r.notifications.slice(0, BELL_PEEK))
         .catch(() => []);
 

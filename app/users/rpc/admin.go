@@ -43,6 +43,7 @@ func SubscribeAdmin(w Wiring, prefix, invalidationPrefix string) error {
 		"get":              a.get,
 		"list":             a.list,
 		"stats":            a.stats,
+		"enrollment":       a.enrollment,
 		"overview":         a.overview,
 		"set_status":       a.setStatus,
 		"set_active":       a.setActive,
@@ -125,7 +126,11 @@ func (a *adminRPC) list(ctx context.Context, req usersrpc.AdminRequest) usersrpc
 	if req.Page > 0 {
 		return a.listPage(ctx, req)
 	}
-	rows, err := a.repo.ListUsers(ctx, req.Search, adminListLimit(req.Limit), 0)
+	rows, err := a.repo.ListUsers(ctx, repository.AdminUserQuery{
+		Search: req.Search,
+		State:  req.State,
+		Limit:  adminListLimit(req.Limit),
+	})
 	if err != nil {
 		return adminError(err.Error())
 	}
@@ -141,7 +146,12 @@ func (a *adminRPC) listPage(ctx context.Context, req usersrpc.AdminRequest) user
 	if page < adminUserMaxPages {
 		fetchLimit++
 	}
-	rows, err := a.repo.ListUsers(ctx, req.Search, fetchLimit, (page-1)*pageSize)
+	rows, err := a.repo.ListUsers(ctx, repository.AdminUserQuery{
+		Search: req.Search,
+		State:  req.State,
+		Limit:  fetchLimit,
+		Offset: (page - 1) * pageSize,
+	})
 	if err != nil {
 		return adminError(err.Error())
 	}
@@ -184,6 +194,39 @@ func (a *adminRPC) stats(ctx context.Context, _ usersrpc.AdminRequest) usersrpc.
 		PaidUsers:    paid,
 	}
 	return usersrpc.AdminReply{Stats: &stats}
+}
+
+const (
+	enrollmentDefaultDays = 30
+	enrollmentMaxDays     = 90
+)
+
+// enrollment returns the daily signup histogram over the requested trailing
+// window plus the current user totals, so the console can chart new signups
+// against the registered base in one round trip.
+func (a *adminRPC) enrollment(ctx context.Context, req usersrpc.AdminRequest) usersrpc.AdminReply {
+	days := req.Days
+	if days <= 0 {
+		days = enrollmentDefaultDays
+	}
+	series, err := a.repo.EnrollmentSeries(ctx, clamp(days, 1, enrollmentMaxDays))
+	if err != nil {
+		return adminError(err.Error())
+	}
+	stats := a.stats(ctx, req)
+	if stats.Error != "" {
+		return stats
+	}
+	view := usersrpc.AdminEnrollmentView{Days: enrollmentDaysOf(series), Stats: *stats.Stats}
+	return usersrpc.AdminReply{Enrollment: &view}
+}
+
+func enrollmentDaysOf(series []repository.EnrollmentDay) []usersrpc.AdminEnrollmentDay {
+	days := make([]usersrpc.AdminEnrollmentDay, 0, len(series))
+	for _, d := range series {
+		days = append(days, usersrpc.AdminEnrollmentDay{Date: d.Date, Count: d.Count})
+	}
+	return days
 }
 
 func (a *adminRPC) setStatus(ctx context.Context, req usersrpc.AdminRequest) usersrpc.AdminReply {
@@ -395,6 +438,7 @@ func viewOf(u *ent.User) usersrpc.AdminUserView {
 		SubscriptionSource:        u.SubscriptionSource,
 		SubscriptionRef:           u.SubscriptionRef,
 		SubscriptionCancelPending: u.SubscriptionCancelPending,
+		CreatedAt:                 u.CreatedAt,
 		UpdatedAt:                 u.UpdatedAt,
 	}
 }

@@ -1,303 +1,219 @@
 <script lang="ts">
-  import { Icon, Card, PageHead, Button, SegmentedControl, Skeleton } from '@bagel/shared';
+  import { onMount } from 'svelte';
+  import {
+    Button,
+    PageHead,
+    PageToolbar,
+    SearchInput,
+    SegmentedControl,
+    DeckList,
+    EmptyState,
+    Skeleton,
+    AlertBanner
+  } from '@bagel/shared';
   import type { AuditEntry } from '$lib/server/services';
+
   let { data } = $props();
 
-  // Client-side result filter over the loaded page (server search stays the
-  // heavy filter; this is a quick lens on what's visible).
-  const RESULT_FILTERS = ['All', 'OK', 'Failed'] as const;
-  let resultFilter = $state<string>('All');
-
-  const search = $derived(String(data.search ?? ''));
-  const page = $derived(Number(data.page ?? 1));
-  let entries = $state<AuditEntry[]>([]);
+  // Client-fetched pages from /audit/data so search + paging never re-run SSR.
+  let entries = $state<AuditEntry[] | null>(null);
   // svelte-ignore state_referenced_locally
-  let pageSize = $state(Number(data.pageSize ?? 15));
-  // svelte-ignore state_referenced_locally
-  let maxPages = $state(Number(data.maxPages ?? 25));
+  let page = $state(data.page);
   let hasMore = $state(false);
-  let degraded = $state(false);
-  let loading = $state(false);
-  let reqId = 0;
-  const showingStart = $derived(entries.length === 0 ? 0 : (page - 1) * pageSize + 1);
-  const showingEnd = $derived(showingStart === 0 ? 0 : showingStart + entries.length - 1);
+  let fetchError = $state('');
+  // svelte-ignore state_referenced_locally
+  let search = $state(data.search);
 
-  function auditHref(pageNo: number, q: string): string {
-    const params = new URLSearchParams();
-    const clean = q.trim();
-    if (clean) params.set('q', clean);
-    if (pageNo > 1) params.set('page', String(pageNo));
-    const query = params.toString();
-    return query ? `/audit?${query}` : '/audit';
-  }
-
-  async function loadAudit(pageNo: number, q: string) {
-    const req = ++reqId;
-    loading = true;
-    degraded = false;
-    entries = [];
-    const params = new URLSearchParams();
-    if (q.trim()) params.set('q', q.trim());
-    if (pageNo > 1) params.set('page', String(pageNo));
-    const query = params.toString();
+  let seq = 0;
+  async function fetchPage(p: number, q: string) {
+    const mySeq = ++seq;
+    entries = null;
+    fetchError = '';
     try {
-      const res = await fetch(query ? `/audit/data?${query}` : '/audit/data');
-      if (!res.ok) throw new Error(`request failed (${res.status})`);
+      const params = new URLSearchParams();
+      if (p > 1) params.set('page', String(p));
+      if (q) params.set('q', q);
+      const res = await fetch(`/audit/data?${params}`);
+      if (!res.ok) throw new Error(`audit fetch failed (${res.status})`);
       const body = (await res.json()) as {
         entries?: AuditEntry[];
-        page_size?: number;
-        max_pages?: number;
+        page?: number;
         has_more?: boolean;
         error?: string;
       };
-      if (req !== reqId) return;
+      if (mySeq !== seq) return; // a newer request superseded this one
+      if (body.error) fetchError = body.error;
       entries = body.entries ?? [];
-      pageSize = Number(body.page_size ?? pageSize);
-      maxPages = Number(body.max_pages ?? maxPages);
+      page = body.page ?? p;
       hasMore = Boolean(body.has_more);
-      degraded = Boolean(body.error);
-    } catch {
-      if (req !== reqId) return;
+    } catch (e) {
+      if (mySeq !== seq) return;
+      fetchError = (e as Error).message;
       entries = [];
-      hasMore = false;
-      degraded = true;
-    } finally {
-      if (req === reqId) loading = false;
     }
   }
 
-  $effect(() => {
-    loadAudit(page, search);
+  onMount(() => {
+    fetchPage(page, search);
   });
 
-  // --- Relative-time helper (seconds/minutes/hours/days ago) ----------
-  function relative(iso: string): string {
-    const then = new Date(iso).getTime();
-    if (Number.isNaN(then)) return '';
-    const s = Math.round((Date.now() - then) / 1000);
-    if (s < 0) return 'just now';
-    if (s < 60) return `${s}s ago`;
-    const m = Math.floor(s / 60);
-    if (m < 60) return `${m}m ago`;
-    const h = Math.floor(m / 60);
-    if (h < 24) return `${h}h ago`;
-    const d = Math.floor(h / 24);
-    return `${d}d ago`;
+  function submitSearch(q: string) {
+    search = q;
+    fetchPage(1, q.trim());
   }
 
-  function absolute(iso: string): string {
-    const d = new Date(iso);
-    return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
-  }
-
-  const visible = $derived(
-    resultFilter === 'All' ? entries : entries.filter((e) => (resultFilter === 'OK' ? e.ok : !e.ok))
+  // Quick outcome filter over the loaded page (server search stays the source
+  // for text; this just narrows what's on screen).
+  const OUTCOMES = ['all', 'ok', 'failed'] as const;
+  let outcome = $state<string>('all');
+  const rows = $derived(
+    (entries ?? []).filter((e) => (outcome === 'all' ? true : outcome === 'ok' ? e.ok : !e.ok))
   );
+  const failCount = $derived((entries ?? []).filter((e) => !e.ok).length);
+
+  function ago(iso: string): string {
+    const mins = Math.max(Math.round((Date.now() - new Date(iso).getTime()) / 60e3), 0);
+    if (mins < 1) return 'now';
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.round(mins / 60);
+    if (hours < 48) return `${hours}h ago`;
+    return `${Math.round(hours / 24)}d ago`;
+  }
+
+  // CSV export of what's on screen (outcome filter applied).
+  function csvEscape(v: string): string {
+    return /[",\n]/.test(v) ? `"${v.replaceAll('"', '""')}"` : v;
+  }
+  function exportCsv() {
+    const header = 'id,actor_id,actor_login,action,target,detail,ok,error,created_at';
+    const lines = rows.map((e) =>
+      [
+        String(e.id),
+        String(e.actor_id),
+        e.actor_login,
+        e.action,
+        e.target ?? '',
+        e.detail ?? '',
+        String(e.ok),
+        e.error ?? '',
+        e.created_at
+      ]
+        .map(csvEscape)
+        .join(',')
+    );
+    const blob = new Blob([[header, ...lines].join('\n')], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `audit-page${page}${search ? `-${search.trim()}` : ''}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
 </script>
 
 <section class="screen active">
-  <PageHead eyebrow="Accountability" description="Every operator action, attributed. Newest first.">Audit <em>log</em></PageHead>
-  {#if degraded}<p class="degraded-note"><em>Live audit data unavailable.</em></p>{/if}
+  <PageHead eyebrow="Access control" description="Every operator action, who ran it, and whether it worked.">
+    Audit <em>trail</em>
+  </PageHead>
 
-  <Card style="padding:18px 6px">
-    <div class="card-head" style="padding:0 12px;gap:.6rem">
-      <h3>Trail</h3>
-      <SegmentedControl options={RESULT_FILTERS} bind:value={resultFilter} label="Filter by result" />
-      <form method="GET" action="/audit" class="audit-controls">
-        <label class="search search-filter">
-          <Icon name="search" size={14} />
-          <input name="q" type="text" placeholder="Search actor, action, target, or detail" autocomplete="off" value={search} />
-        </label>
-        <Button variant="primary" class="search-submit" type="submit" icon="search">
-          <span>Search</span>
-        </Button>
-        {#if search}
-          <a class="btn ghost clear-search" href="/audit">Clear</a>
-        {/if}
-      </form>
-    </div>
-
-    <div class="table audit-table">
-      <div class="thead">
-        <span>When</span><span>Actor</span><span>Action</span><span class="col-target">Target</span><span class="col-detail">Detail</span><span>Result</span>
+  <PageToolbar>
+    {#snippet lead()}
+      <SegmentedControl options={OUTCOMES} bind:value={outcome} label="Outcome" />
+      {#if entries && failCount > 0}
+        <span class="fail-note">{failCount} failed on this page</span>
+      {/if}
+    {/snippet}
+    {#snippet trail()}
+      <div class="toolbar-search">
+        <SearchInput
+          bind:value={search}
+          placeholder="Actor, action, target…"
+          debounceMs={350}
+          oninput={submitSearch}
+        />
       </div>
-      <div class="trows">
-        {#if loading}
-          {#each [0, 1, 2, 3, 4] as i (i)}
-            <div class="trow"><span style="grid-column:1/-1"><Skeleton variant="block" height="18px" /></span></div>
-          {/each}
-        {:else if visible.length === 0}
-          <div class="trow"><span class="resp" style="grid-column:1/-1;opacity:.6">No matching entries.</span></div>
-        {/if}
-        {#each visible as e (e.id)}
-          <div class="trow">
-            <span class="when" title={absolute(e.created_at)}>
-              <span class="when-abs">{absolute(e.created_at)}</span>
-              <span class="when-rel">{relative(e.created_at)}</span>
-            </span>
-            <span class="cmd">@{e.actor_login}</span>
-            <span class="action">{e.action}</span>
-            <span class="resp col-target">{e.target ? e.target : '—'}</span>
-            <span class="resp col-detail">{e.detail ? e.detail : '—'}</span>
-            <span class="result-cell">
-              {#if e.ok}
-                <span class="badge mod">ok</span>
-              {:else}
-                <span class="badge fail" title={e.error ?? 'failed'}>fail</span>
-                {#if e.error}<span class="err-note">{e.error}</span>{/if}
-              {/if}
-            </span>
-          </div>
+      <Button variant="ghost" onclick={exportCsv} disabled={rows.length === 0}>Export CSV</Button>
+    {/snippet}
+  </PageToolbar>
+
+  {#if fetchError}
+    <AlertBanner>Audit log unreachable: {fetchError}</AlertBanner>
+  {/if}
+
+  <DeckList>
+    {#if entries === null}
+      <div class="row-skeletons">
+        {#each [0, 1, 2, 3, 4, 5] as i (i)}<Skeleton variant="block" height="48px" />{/each}
+      </div>
+    {:else if rows.length}
+      <ul class="list" aria-label="Audit entries">
+        {#each rows as e (e.id)}
+          <li class="audit-row">
+            <span class="adot {e.ok ? '' : 'err'}"></span>
+            <div class="abody">
+              <span class="aline">
+                <b>@{e.actor_login}</b>
+                <span class="aaction">{e.action}</span>
+                {#if e.target}<span class="atarget">→ {e.target}</span>{/if}
+              </span>
+              {#if e.detail}<span class="adetail">{e.detail}</span>{/if}
+              {#if !e.ok && e.error}<span class="adetail err">{e.error}</span>{/if}
+            </div>
+            <span class="awhen">{ago(e.created_at)}</span>
+          </li>
         {/each}
-      </div>
-    </div>
+      </ul>
+    {:else if (entries ?? []).length > 0}
+      <EmptyState icon="search" title="No entries match the outcome filter" />
+    {:else if search}
+      <EmptyState icon="search" title="No entries match" body="Search covers actor, action, target, detail, and error text." />
+    {:else}
+      <EmptyState icon="audit" title="No actions recorded yet" />
+    {/if}
 
-    <div class="audit-foot">
-      <span class="page-state">
-        {#if showingStart === 0}
-          Page {page}
-        {:else}
-          {showingStart}-{showingEnd} · page {page}
-        {/if}
-        <span class="muted">of {maxPages} max</span>
-      </span>
+    {#if entries && (page > 1 || hasMore)}
       <div class="pager">
-        {#if page > 1}
-          <a class="pager-link" href={auditHref(page - 1, search)}>Previous</a>
-        {:else}
-          <span class="pager-link disabled" aria-disabled="true">Previous</span>
-        {/if}
-        {#if hasMore && page < maxPages}
-          <a class="pager-link" href={auditHref(page + 1, search)}>Next</a>
-        {:else}
-          <span class="pager-link disabled" aria-disabled="true">Next</span>
-        {/if}
+        <button class="btn ghost" disabled={page <= 1} onclick={() => fetchPage(page - 1, search.trim())}>
+          ← Prev
+        </button>
+        <span class="pager-label">page {page}</span>
+        <button class="btn ghost" disabled={!hasMore} onclick={() => fetchPage(page + 1, search.trim())}>
+          Next →
+        </button>
       </div>
-    </div>
-  </Card>
+    {/if}
+  </DeckList>
 </section>
 
 <style>
-  .degraded-note { font-family: var(--bb-font-body); font-size: 15px; line-height: 1.55; color: var(--bb-muted); margin: -16px 0 20px; max-width: 560px; }
-  .degraded-note em { font-style: italic; }
+  .toolbar-search { width: 260px; }
+  .toolbar-search :global(.search) { width: 100%; }
+  .fail-note { font-family: var(--bb-font-mono); font-size: 11px; color: #cf8a78; margin-left: 10px; }
 
-  /* card-head with filter input */
-  .card-head { align-items: center; }
-  .audit-controls {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 8px;
-    flex: 1;
-    min-width: 0;
-    margin-left: auto;
-  }
-  .search-filter { max-width: 340px; flex: 1; min-width: 220px; width: auto; }
-  :global(.search-submit) { padding: 10px 14px; }
-  .clear-search { padding: 10px 14px; text-decoration: none; }
+  .row-skeletons { display: flex; flex-direction: column; gap: 8px; padding: 12px; }
 
-  /* 6-column audit grid: When | Actor | Action | Target | Detail | Result */
-  .audit-table .thead,
-  .audit-table .trow {
-    grid-template-columns: 1.4fr 1.1fr 1.1fr 1fr 1.6fr 0.8fr;
-    align-items: start;
+  .list { list-style: none; margin: 0; padding: 0; }
+  .audit-row {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 12px 14px; border-bottom: 1px solid var(--rule);
   }
+  .audit-row:last-child { border-bottom: none; }
 
-  .when { display: flex; flex-direction: column; gap: 2px; }
-  .when-abs { font-family: var(--bb-font-mono); font-size: 12.5px; color: var(--bb-white); white-space: nowrap; }
-  .when-rel { font-family: var(--bb-font-body); font-size: 11px; color: var(--bb-muted); }
+  .adot { width: 8px; height: 8px; border-radius: 50%; background: var(--bb-green-glow); box-shadow: 0 0 8px var(--bb-green-glow); margin-top: 5px; flex: none; }
+  .adot.err { background: #cf8a78; box-shadow: 0 0 8px rgba(176, 90, 70, 0.6); }
 
-  .action {
-    font-family: var(--bb-font-mono); font-size: 12.5px; color: var(--bb-tan-light);
-    word-break: break-word;
-  }
+  .abody { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+  .aline { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .aline b { font-family: var(--bb-font-body); font-weight: 600; font-size: 13px; color: var(--bb-white); }
+  .aaction { font-family: var(--bb-font-mono); font-size: 12px; color: var(--bb-tan-light); }
+  .atarget { font-family: var(--bb-font-mono); font-size: 12px; color: var(--bb-muted); }
+  .adetail { font-family: var(--bb-font-mono); font-size: 11px; color: var(--bb-muted); word-break: break-word; }
+  .adetail.err { color: #cf8a78; }
+  .awhen { font-family: var(--bb-font-mono); font-size: 10.5px; color: var(--bb-muted); white-space: nowrap; margin-top: 3px; }
 
-  .col-target, .col-detail {
-    white-space: normal; overflow: visible; text-overflow: clip; word-break: break-word;
-  }
+  .pager { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 14px; }
+  .pager-label { font-family: var(--bb-font-mono); font-size: 11.5px; color: var(--bb-muted); }
 
-  .result-cell { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
-  .err-note { font-family: var(--bb-font-body); font-size: 11px; color: var(--bb-muted); }
-
-  .audit-foot {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 14px 20px 2px;
-    margin-top: 12px;
-    border-top: 1px solid var(--glass-border);
-  }
-  .page-state {
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--bb-tan-light);
-  }
-  .page-state .muted { color: var(--bb-muted); }
-  .pager { display: flex; align-items: center; gap: 8px; }
-  .pager-link {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 86px;
-    padding: 9px 13px;
-    border-radius: var(--bb-radius-pill);
-    border: 1px solid var(--glass-border);
-    background: rgba(255,255,255,0.03);
-    color: var(--bb-tan-light);
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    text-decoration: none;
-    transition: all var(--bb-dur-base) var(--bb-ease-out-expo);
-  }
-  .pager-link:hover {
-    background: rgba(201,168,124,0.08);
-    border-color: var(--bb-border-strong);
-    color: var(--bb-tan-pale);
-  }
-  .pager-link.disabled {
-    opacity: 0.42;
-    pointer-events: none;
-  }
-
-  /* failure badge: red tint mirroring users-page danger styles */
-  .badge.fail {
-    background: rgba(176, 90, 70, 0.12);
-    color: #cf8a78;
-    border-color: rgba(176, 90, 70, 0.35);
-  }
-
-  /* mobile: hide Detail + Target, keep When/Actor/Action/Result */
-  @media (max-width: 760px) {
-    .card-head { align-items: stretch; flex-direction: column; }
-    .audit-controls { width: 100%; margin-left: 0; justify-content: flex-start; flex-wrap: wrap; }
-    .search-filter { max-width: none; min-width: 100%; }
-    :global(.search-submit) { flex: 1; justify-content: center; }
-    .clear-search { flex: 1; justify-content: center; }
-    /* Stack each entry as a card: when + actor + action flow vertically with
-       the result pinned right, instead of cramming 4 columns into ~400px
-       (which broke long action names letter-by-letter). */
-    .audit-table .thead { display: none; }
-    .audit-table .trow {
-      grid-template-columns: 1fr auto;
-      grid-template-areas:
-        'when result'
-        'actor result'
-        'action result';
-      row-gap: 3px;
-    }
-    .audit-table .when { grid-area: when; }
-    .audit-table .cmd { grid-area: actor; }
-    .audit-table .action { grid-area: action; }
-    .audit-table .result-cell { grid-area: result; align-items: flex-end; }
-    .audit-table .col-target,
-    .audit-table .col-detail { display: none; }
-    .audit-foot { align-items: stretch; flex-direction: column; padding-inline: 14px; }
-    .pager { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
-    .pager-link { min-width: 0; }
+  @media (max-width: 680px) {
+    .toolbar-search { width: 100%; }
   }
 </style>
