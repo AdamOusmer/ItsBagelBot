@@ -13,6 +13,8 @@ const sampleStaff: AdminAcct[] = [
   { id: 222222222, login: 'a_mod', display_name: 'A Mod', role: 'moderator', active: true, added_by: 804932984, created_at: new Date(Date.now() - 86400_000 * 2).toISOString() }
 ];
 
+export type RosterBundle = { staff: AdminAcct[]; degraded: boolean };
+
 export const load: PageServerLoad = async ({ parent }) => {
   const layout = await parent();
   const admin: AdminIdentity = {
@@ -24,19 +26,15 @@ export const load: PageServerLoad = async ({ parent }) => {
   // Staff roster is managers-only; moderators get bounced to the overview.
   if (!isManager(admin.role)) throw redirect(302, '/');
 
-  if (isDemo()) {
-    return { staff: sampleStaff, me: admin, degraded: false };
-  }
-  // Roster only — a member's action history is lazy-loaded from /staff/history
-  // when their drawer opens, so this page never ships the whole audit log.
-  let staff: AdminAcct[] = [];
-  let degraded = false;
-  try {
-    staff = await adminListAccts();
-  } catch {
-    degraded = true;
-  }
-  return { staff, me: admin, degraded };
+  // Streamed: the shell renders immediately; the roster hydrates when the RPC
+  // lands. A member's action history stays lazy-loaded from /staff/history.
+  const roster: Promise<RosterBundle> = isDemo()
+    ? Promise.resolve({ staff: sampleStaff, degraded: false })
+    : adminListAccts()
+        .then((staff) => ({ staff, degraded: false }))
+        .catch(() => ({ staff: [], degraded: true }));
+
+  return { roster, me: admin };
 };
 
 function audit(admin: AdminIdentity, action: string, target: string, detail: string, ok: boolean, error?: string): void {

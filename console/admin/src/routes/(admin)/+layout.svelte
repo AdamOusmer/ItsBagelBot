@@ -27,8 +27,6 @@
     data.role === 'owner' ? 'Owner' : data.role === 'admin' ? 'Admin' : 'Moderator'
   );
 
-  // Notifications (compose + history) has NO nav entry: the topbar bell is the
-  // only way in.
   const groups = $derived([
     {
       label: 'Operate',
@@ -43,7 +41,8 @@
       label: 'Accounts',
       items: [
         { href: '/users', icon: 'users', label: 'Users', active: crumb === 'Users' },
-        { href: '/analytics', icon: 'activity', label: 'Analytics', active: crumb === 'Analytics' }
+        { href: '/analytics', icon: 'activity', label: 'Analytics', active: crumb === 'Analytics' },
+        { href: '/notifications', icon: 'bell', label: 'Notifications', active: crumb === 'Notifications' }
       ]
     },
     ...(isManager
@@ -69,6 +68,7 @@
     { href: '/events', icon: 'pulse', label: 'Events', active: crumb === 'Events' },
     { href: '/users', icon: 'users', label: 'Users', active: crumb === 'Users' },
     { href: '/analytics', icon: 'activity', label: 'Analytics', active: crumb === 'Analytics' },
+    { href: '/notifications', icon: 'bell', label: 'Notifs', active: crumb === 'Notifications' },
     ...(isManager
       ? [
           { href: '/staff', icon: 'moderation', label: 'Staff', active: crumb === 'Staff' },

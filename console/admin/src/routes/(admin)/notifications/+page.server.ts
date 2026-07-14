@@ -22,7 +22,16 @@ function parsePage(raw: string | null): number {
   return Math.min(Math.max(Math.trunc(page), 1), NOTIFICATIONS_MAX_PAGES);
 }
 
-function demoPage(page: number) {
+export type HistoryBundle = {
+  notifications: NotificationWire[];
+  page: number;
+  pageSize: number;
+  maxPages: number;
+  hasMore: boolean;
+  degraded: boolean;
+};
+
+function demoPage(page: number): HistoryBundle {
   return {
     notifications: sampleNotifications,
     page,
@@ -33,11 +42,7 @@ function demoPage(page: number) {
   };
 }
 
-export const load: PageServerLoad = async ({ url }) => {
-  const page = parsePage(url.searchParams.get('page'));
-
-  if (isDemo()) return demoPage(page);
-
+async function loadHistory(page: number): Promise<HistoryBundle> {
   try {
     const result = await notificationsList(page);
     return {
@@ -50,7 +55,7 @@ export const load: PageServerLoad = async ({ url }) => {
     };
   } catch {
     return {
-      notifications: [] as NotificationWire[],
+      notifications: [],
       page,
       pageSize: NOTIFICATIONS_PAGE_SIZE,
       maxPages: NOTIFICATIONS_MAX_PAGES,
@@ -58,6 +63,16 @@ export const load: PageServerLoad = async ({ url }) => {
       degraded: true
     };
   }
+}
+
+// Streamed: compose renders immediately; the sent history hydrates when the
+// notifications RPC lands.
+export const load: PageServerLoad = ({ url }) => {
+  const page = parsePage(url.searchParams.get('page'));
+  const history: Promise<HistoryBundle> = isDemo()
+    ? Promise.resolve(demoPage(page))
+    : loadHistory(page);
+  return { history };
 };
 
 type SendForm = {
