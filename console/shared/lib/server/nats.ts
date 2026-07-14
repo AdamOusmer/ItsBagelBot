@@ -8,7 +8,8 @@ import {
   type ConnectionOptions,
   type NatsConnection,
   type JetStreamClient,
-  type JetStreamManager
+  type JetStreamManager,
+  type JetStreamManagerOptions
 } from 'nats';
 
 const jc = JSONCodec();
@@ -200,15 +201,23 @@ async function get(role: Role): Promise<NatsConnection> {
 let jsClient: JetStreamClient | null = null;
 let jsManager: JetStreamManager | null = null;
 
+// checkAPI:false is load-bearing: the enablement probe publishes the
+// domain-LESS `$JS.API.INFO`, which the per-account allow lists deliberately
+// do not grant (only `$JS.hub.API.>` subjects are). With the probe on, manager
+// creation times out on a permission violation and every JetStream view
+// (lanes, KV aliases) reports TIMEOUT. The option rides the client opts so KV
+// views inherit it when they derive their own manager.
+const JS_OPTS: JetStreamManagerOptions = { domain: 'hub', checkAPI: false };
+
 export async function js(): Promise<JetStreamClient> {
   const nc = await get('bus');
-  if (!jsClient) jsClient = nc.jetstream({ domain: 'hub' });
+  if (!jsClient) jsClient = nc.jetstream(JS_OPTS);
   return jsClient;
 }
 
 export async function jsm(): Promise<JetStreamManager> {
   const nc = await get('bus');
-  if (!jsManager) jsManager = await nc.jetstreamManager({ domain: 'hub' });
+  if (!jsManager) jsManager = await nc.jetstreamManager(JS_OPTS);
   return jsManager;
 }
 
