@@ -194,8 +194,9 @@ export const actions: Actions = {
     confirm: (_s, f) => `revoke ${String(f.get('db_user') ?? '').trim()}`,
     demoNotice: 'credential revoked (demo)',
     run: async (service, f) => {
-      const dbUser = String(f.get('db_user') ?? '').trim();
-      const result = await revokeCredential(service, dbUser);
+      const result = await revokeCredential(service, {
+        dbUser: String(f.get('db_user') ?? '').trim()
+      });
       return { notice: `${result.dbUser} revoked`, target: result.dbUser };
     }
   }),
@@ -224,7 +225,7 @@ export const actions: Actions = {
     demoNotice: 'token revoked (demo)',
     run: async (service, f) => {
       const slug = String(f.get('slug') ?? '').trim();
-      await revokeServiceToken(service, slug);
+      await revokeServiceToken(service, { slug });
       return { notice: 'service token revoked', target: slug };
     }
   })

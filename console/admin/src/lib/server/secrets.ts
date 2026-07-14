@@ -43,10 +43,6 @@ export function serviceOf(raw: string): SecretServiceId | null {
 
 export type TokenSource = 'scoped' | 'legacy' | 'missing';
 
-function scopedToken(id: SecretServiceId): string {
-  return (env[`DOPPLER_TOKEN_${id.toUpperCase()}`] ?? '').trim();
-}
-
 function legacyToken(): string {
   return (env.DOPPLER_MANAGEMENT_TOKEN ?? env.DOPPLER_TOKEN ?? '').trim();
 }
@@ -54,7 +50,7 @@ function legacyToken(): string {
 // tokenFor picks the narrowest credential available for a service and reports
 // which tier it came from, so the UI can tell the truth about privilege.
 export function tokenFor(svc: ServiceDef): { token: string; source: TokenSource } {
-  const scoped = scopedToken(svc.id);
+  const scoped = (env[`DOPPLER_TOKEN_${svc.id.toUpperCase()}`] ?? '').trim();
   if (scoped) return { token: scoped, source: 'scoped' };
   const legacy = legacyToken();
   if (legacy) return { token: legacy, source: 'legacy' };
@@ -230,12 +226,27 @@ export async function listServiceTokens(id: SecretServiceId): Promise<ServiceTok
   return (body.tokens ?? []).map(tokenViewOf);
 }
 
-const TOKEN_NAME_RE = /^[a-z0-9][a-z0-9-]{2,47}$/;
+// One validator over a rule table instead of a bespoke assert per field.
+interface FormatRule {
+  re: RegExp;
+  message: string;
+}
 
-export function assertTokenName(name: string): void {
-  if (!TOKEN_NAME_RE.test(name)) {
-    throw new Error('token name must be 3-48 chars: lowercase letters, digits, dashes');
-  }
+export const FORMATS = {
+  tokenName: {
+    re: /^[a-z0-9][a-z0-9-]{2,47}$/,
+    message: 'token name must be 3-48 chars: lowercase letters, digits, dashes'
+  },
+  tokenSlug: { re: /^[A-Za-z0-9_-]{4,64}$/, message: 'invalid token slug' },
+  dbUser: {
+    re: /^[A-Za-z0-9_]{3,32}$/,
+    message: 'database user must be 3-32 characters of letters, numbers, or underscore'
+  },
+  dbPassword: { re: /^[\s\S]{32,128}$/, message: 'password must be 32-128 characters' }
+} satisfies Record<string, FormatRule>;
+
+export function assertFormat(value: string, rule: FormatRule): void {
+  if (!rule.re.test(value)) throw new Error(rule.message);
 }
 
 export interface MintTokenInput {
@@ -251,7 +262,7 @@ export async function mintServiceToken(
   input: MintTokenInput
 ): Promise<{ key: string; token: ServiceTokenView }> {
   const svc = services[id];
-  assertTokenName(input.name);
+  assertFormat(input.name, FORMATS.tokenName);
   const days = Math.min(Math.max(Math.trunc(input.expireDays), 0), 365);
   const res = await dopplerFetch({
     token: tokenFor(svc).token,
@@ -270,13 +281,13 @@ export async function mintServiceToken(
   return { key: body.token.key, token: tokenViewOf(body.token) };
 }
 
-export async function revokeServiceToken(id: SecretServiceId, slug: string): Promise<void> {
+export async function revokeServiceToken(id: SecretServiceId, input: { slug: string }): Promise<void> {
   const svc = services[id];
-  if (!/^[A-Za-z0-9_-]{4,64}$/.test(slug)) throw new Error('invalid token slug');
+  assertFormat(input.slug, FORMATS.tokenSlug);
   await dopplerFetch({
     token: tokenFor(svc).token,
     path: '/v3/configs/config/tokens/token',
-    init: { method: 'DELETE', ...dopplerBody(svc, { slug }) }
+    init: { method: 'DELETE', ...dopplerBody(svc, { slug: input.slug }) }
   });
 }
 
@@ -289,15 +300,26 @@ export interface DbCredentialInput {
 
 // dbEnvOf builds the Doppler payload a service reads its database credential
 // from; autoMigrate differs between rotate (false) and manual set (true).
-function dbEnvOf(cred: DbCredentialInput, schema: string, autoMigrate: boolean): Record<string, string> {
+function dbEnvOf(cred: DbCredentialInput, svc: ServiceDef, autoMigrate: boolean): Record<string, string> {
   return {
     DB_USER: cred.dbUser,
     DB_PASS: cred.dbPass,
-    DB_SCHEMA: schema,
+    DB_SCHEMA: svc.schema,
     DB_AUTO_MIGRATE: String(autoMigrate),
     DB_MAX_OPEN_CONNS: '4',
     DB_QUERY_CONCURRENCY: '4'
   };
+}
+
+// assertManageable rejects credentials this console must never touch: the
+// privileged admin user itself, and (for revokes) users outside the service's
+// namespace.
+function assertManageable(cred: Pick<DbCredentialInput, 'dbUser'>, svc?: ServiceDef): void {
+  assertFormat(cred.dbUser, FORMATS.dbUser);
+  if (cred.dbUser === adminDbUser()) throw new Error('refusing to manage the admin database user');
+  if (svc && !cred.dbUser.startsWith(svc.expectedUserPrefix)) {
+    throw new Error(`user must start with ${svc.expectedUserPrefix}`);
+  }
 }
 
 export async function rotateCredential(id: SecretServiceId): Promise<{ dbUser: string }> {
@@ -306,11 +328,11 @@ export async function rotateCredential(id: SecretServiceId): Promise<{ dbUser: s
     dbUser: `${svc.expectedUserPrefix}_r${Date.now().toString(36).slice(-8)}`,
     dbPass: generatePassword()
   };
-  await provisionDbUser(cred, svc.schema);
+  await provisionDbUser(cred, svc);
   try {
-    await updateDoppler(svc, dbEnvOf(cred, svc.schema, false));
+    await updateDoppler(svc, dbEnvOf(cred, svc, false));
   } catch (e) {
-    await dropDbUser(cred.dbUser).catch(() => {});
+    await dropDbUser(cred).catch(() => {});
     throw e;
   }
   return { dbUser: cred.dbUser };
@@ -321,51 +343,47 @@ export async function setCredential(
   cred: DbCredentialInput
 ): Promise<{ dbUser: string }> {
   const svc = services[id];
-  assertDbUser(cred.dbUser);
-  assertPassword(cred.dbPass);
-  if (cred.dbUser === adminDbUser()) throw new Error('refusing to manage the admin database user');
-  await provisionDbUser(cred, svc.schema);
-  await updateDoppler(svc, dbEnvOf(cred, svc.schema, true));
+  assertManageable(cred);
+  assertFormat(cred.dbPass, FORMATS.dbPassword);
+  await provisionDbUser(cred, svc);
+  await updateDoppler(svc, dbEnvOf(cred, svc, true));
   return { dbUser: cred.dbUser };
 }
 
 export async function revokeCredential(
   id: SecretServiceId,
-  dbUser: string
+  input: Pick<DbCredentialInput, 'dbUser'>
 ): Promise<{ dbUser: string }> {
   const svc = services[id];
-  assertDbUser(dbUser);
-  if (dbUser === adminDbUser()) throw new Error('refusing to revoke the admin database user');
-  if (!dbUser.startsWith(svc.expectedUserPrefix)) {
-    throw new Error(`user must start with ${svc.expectedUserPrefix}`);
-  }
+  assertManageable(input, svc);
+  const account = accountSql(input);
   const conn = await adminConnection();
   try {
-    await conn.query(`REVOKE ALL PRIVILEGES, GRANT OPTION FROM ${accountSql(dbUser)}`);
-    await conn.query(`DROP USER IF EXISTS ${accountSql(dbUser)}`);
+    await conn.query(`REVOKE ALL PRIVILEGES, GRANT OPTION FROM ${account}`);
+    await conn.query(`DROP USER IF EXISTS ${account}`);
   } finally {
     await conn.end();
   }
-  return { dbUser };
+  return { dbUser: input.dbUser };
 }
 
-async function dropDbUser(dbUser: string): Promise<void> {
+async function dropDbUser(cred: Pick<DbCredentialInput, 'dbUser'>): Promise<void> {
   const conn = await adminConnection();
   try {
-    await conn.query(`DROP USER IF EXISTS ${accountSql(dbUser)}`);
+    await conn.query(`DROP USER IF EXISTS ${accountSql(cred)}`);
   } finally {
     await conn.end();
   }
 }
 
-async function provisionDbUser(cred: DbCredentialInput, schema: string): Promise<void> {
-  const account = accountSql(cred.dbUser);
+async function provisionDbUser(cred: DbCredentialInput, svc: ServiceDef): Promise<void> {
+  const account = accountSql(cred);
   const conn = await adminConnection();
   try {
     await conn.query(`CREATE USER IF NOT EXISTS ${account} IDENTIFIED BY ?`, [cred.dbPass]);
     await conn.query(`ALTER USER ${account} IDENTIFIED BY ?`, [cred.dbPass]);
     await conn.query(`REVOKE ALL PRIVILEGES, GRANT OPTION FROM ${account}`).catch(() => {});
-    await conn.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON ${schemaSql(schema)}.* TO ${account}`);
+    await conn.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON ${schemaSql(svc)}.* TO ${account}`);
   } finally {
     await conn.end();
   }
@@ -406,11 +424,6 @@ function adminDbTarget(): DbAdminTarget {
   return target;
 }
 
-function sslConfig(ca: string): mysql.ConnectionOptions['ssl'] {
-  if (ca) return { ca, minVersion: 'TLSv1.2' };
-  return { rejectUnauthorized: false, minVersion: 'TLSv1.2' };
-}
-
 async function adminConnection(): Promise<mysql.Connection> {
   const target = adminDbTarget();
   return mysql.createConnection({
@@ -418,7 +431,9 @@ async function adminConnection(): Promise<mysql.Connection> {
     port: target.port,
     user: target.user,
     password: target.password,
-    ssl: sslConfig(target.ca),
+    ssl: target.ca
+      ? { ca: target.ca, minVersion: 'TLSv1.2' }
+      : { rejectUnauthorized: false, minVersion: 'TLSv1.2' },
     connectTimeout: 5000,
     multipleStatements: false
   });
@@ -428,39 +443,23 @@ function adminDbUser(): string {
   return env.DB_ADMIN_USER ?? '';
 }
 
+// Every character class a strong password must hit at least once.
+const PASSWORD_CLASSES = [/[A-Z]/, /[a-z]/, /[0-9]/, /[^A-Za-z0-9]/];
+
 function generatePassword(): string {
-  let pass = '';
-  do {
-    pass = nanoid(40);
-  } while (
-    !/[A-Z]/.test(pass) ||
-    !/[a-z]/.test(pass) ||
-    !/[0-9]/.test(pass) ||
-    !/[^A-Za-z0-9]/.test(pass)
-  );
+  let pass = nanoid(40);
+  while (!PASSWORD_CLASSES.every((cls) => cls.test(pass))) pass = nanoid(40);
   return pass;
 }
 
-function assertDbUser(dbUser: string): void {
-  if (!/^[A-Za-z0-9_]{3,32}$/.test(dbUser)) {
-    throw new Error('database user must be 3-32 characters of letters, numbers, or underscore');
-  }
+function accountSql(cred: Pick<DbCredentialInput, 'dbUser'>): string {
+  assertFormat(cred.dbUser, FORMATS.dbUser);
+  return `'${cred.dbUser}'@'%'`;
 }
 
-function assertPassword(dbPass: string): void {
-  if (dbPass.length < 32 || dbPass.length > 128) {
-    throw new Error('password must be 32-128 characters');
-  }
-}
-
-function accountSql(dbUser: string): string {
-  assertDbUser(dbUser);
-  return `'${dbUser}'@'%'`;
-}
-
-function schemaSql(schema: string): string {
-  if (!/^bagel_(users|commands|modules|transactions|notifications)$/.test(schema)) {
+function schemaSql(svc: ServiceDef): string {
+  if (!/^bagel_(users|commands|modules|transactions|notifications)$/.test(svc.schema)) {
     throw new Error('invalid database schema');
   }
-  return `\`${schema}\``;
+  return `\`${svc.schema}\``;
 }
