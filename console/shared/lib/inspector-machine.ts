@@ -40,8 +40,19 @@ export type SaveOutcome<T> =
   | { type: 'error' }
   | { type: 'conflict'; committed?: T };
 
-const clone = <T>(v: T): T =>
-  typeof structuredClone === 'function' ? structuredClone(v) : (JSON.parse(JSON.stringify(v)) as T);
+// Drafts are plain JSON data, but at runtime they arrive wrapped in Svelte 5
+// $state proxies, which structuredClone rejects (DataCloneError: a Proxy has no
+// clonable internal slots). Fall back to JSON cloning for those.
+const clone = <T>(v: T): T => {
+  if (typeof structuredClone === 'function') {
+    try {
+      return structuredClone(v);
+    } catch {
+      // proxied state — clone via JSON below
+    }
+  }
+  return JSON.parse(JSON.stringify(v)) as T;
+};
 
 // Default dirtiness check: deep-equal by JSON. Drafts here are plain data;
 // unknown params so a possibly-null draft compares without generic friction.
