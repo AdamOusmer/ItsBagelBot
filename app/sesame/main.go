@@ -54,8 +54,10 @@ func main() {
 
 	cfg := config.Load()
 
-	if err := bus.EnsureStreams(ctx, cfg.NATSURL, bus.DataStreams, log); err != nil {
-		log.Fatal("failed to provision jetstream streams", zap.Error(err))
+	// Sesame owns TWITCH_INGRESS stream reconciliation. Other ingress consumers
+	// receive consumer-only ACLs and twitch-ingress itself is publish-only.
+	if err := bus.EnsureStreams(ctx, cfg.NATSURL, []bus.StreamSpec{bus.TwitchIngressStream}, log); err != nil {
+		log.Fatal("failed to provision TWITCH_INGRESS stream", zap.Error(err))
 	}
 
 	nc, pub, sub := dialNATS(cfg, log)

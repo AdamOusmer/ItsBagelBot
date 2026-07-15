@@ -417,10 +417,14 @@ function adminDbTarget(): DbAdminTarget {
     port: Number(envFirst('DB_ADMIN_PORT') || addrPort || 3306),
     user: adminDbUser(),
     password: envFirst('DB_ADMIN_PASS', 'DB_ADMIN_PASSWORD'),
+    // mysql2 verifies the chain but cannot verify identity for the endpoint's
+    // no-SAN certificate, so this must be its dedicated HeatWave CA rather than
+    // a broad/shared trust bundle such as the internal fleet CA.
     ca: envFirst('DB_ADMIN_CA_CERT', 'DB_CA_CERT')
   };
   const missing = REQUIRED_TARGET_FIELDS.some((field) => !target[field]);
   if (missing) throw new Error('DB admin credential is not configured');
+  if (!target.ca) throw new Error('DB admin CA certificate is not configured');
   return target;
 }
 
@@ -431,9 +435,7 @@ async function adminConnection(): Promise<mysql.Connection> {
     port: target.port,
     user: target.user,
     password: target.password,
-    ssl: target.ca
-      ? { ca: target.ca, minVersion: 'TLSv1.2' }
-      : { rejectUnauthorized: false, minVersion: 'TLSv1.2' },
+    ssl: { ca: target.ca, rejectUnauthorized: true, minVersion: 'TLSv1.2' },
     connectTimeout: 5000,
     multipleStatements: false
   });

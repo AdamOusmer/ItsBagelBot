@@ -105,10 +105,11 @@ func openStore(ctx context.Context, log *zap.Logger) (*ent.Client, *crypto.Crypt
 	return client, packer
 }
 
-// connectBus provisions the JetStream streams, opens the RPC connection, and
-// builds the bus publisher.
+// connectBus reconciles the BAGEL_DATA stream owned by users, opens the RPC
+// connection, and builds the bus publisher. TWITCH_INGRESS is owned by sesame;
+// keeping ownership separate is what lets NATS scope stream-management ACLs.
 func connectBus(ctx context.Context, natsURL string, log *zap.Logger) (*nats.Conn, bus.Publisher) {
-	fatalIf(log, bus.EnsureStreams(ctx, natsURL, bus.DataStreams, log), "failed to provision jetstream streams")
+	fatalIf(log, bus.EnsureStreams(ctx, natsURL, []bus.StreamSpec{bus.BagelDataStream}, log), "failed to provision BAGEL_DATA stream")
 
 	nc, err := bus.Connect(bus.RPCURL(natsURL), serviceName)
 	fatalIf(log, err, "failed to connect to nats")

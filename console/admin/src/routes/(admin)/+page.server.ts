@@ -7,12 +7,14 @@ import {
   type EnrollmentWire,
   type AuditEntry
 } from '$lib/server/services';
-import { isDemo, isManager } from '$lib/server/access';
-import { sampleAudit, sampleEnrollment, sampleSnapshot } from '$lib/server/sample';
+import { dev } from '$app/environment';
+import { isManager } from '$lib/server/access';
+import { emptyEnrollment, emptyShardSnapshot } from '$lib/server/fallback';
 import { env } from '$env/dynamic/private';
 import type { ShardSnapshot } from '@bagel/shared';
 
 const AUDIT_PEEK = 6;
+const DEMO = dev && process.env.DEMO === '1';
 
 export type Overview = {
   enrollment: EnrollmentWire;
@@ -23,10 +25,10 @@ export type Overview = {
 };
 
 // Resolve the independent reads in parallel rather than serial awaits, so the
-// page waits one round trip instead of four. Every read falls back so the page
-// keeps rendering when a responder is down; a failed *critical* read flips the
-// degraded flag — the banner says so, the page never pretends the fallback is
-// live. Fleet-wide RPC timing belongs to Analytics and is deliberately absent
+// page waits one round trip instead of four. Failed reads return neutral empty
+// shapes so the page keeps rendering without presenting fixture data as live;
+// a failed *critical* read flips the degraded flag. Fleet-wide RPC timing
+// belongs to Analytics and is deliberately absent
 // here, so a diagnostic timeout can never hold the operational overview on
 // skeletons.
 async function loadOverview(withAudit: boolean): Promise<Overview> {
@@ -39,8 +41,8 @@ async function loadOverview(withAudit: boolean): Promise<Overview> {
 
   const botId = env.ADMIN_BOT_USER_ID ?? '';
   const [enrollment, snapshot, token, recentAudit] = await Promise.all([
-    orFallback(userEnrollment(), sampleEnrollment),
-    orFallback(shardSnapshot(), sampleSnapshot),
+    orFallback(userEnrollment(), emptyEnrollment()),
+    orFallback(shardSnapshot(), emptyShardSnapshot()),
     orFallback(botId ? tokenStatus(botId) : Promise.resolve({ present: false }), { present: false }),
     orFallback(withAudit ? auditList(AUDIT_PEEK) : Promise.resolve([]), [])
   ]);
@@ -55,14 +57,14 @@ export const load: PageServerLoad = async ({ parent }) => {
   // Return the bundle as an unawaited promise so SvelteKit streams it: the page
   // shell renders immediately and the live data hydrates when the round trip
   // lands, instead of blocking SSR on NATS.
-  const overview: Promise<Overview> = isDemo()
-    ? Promise.resolve({
-        enrollment: sampleEnrollment,
-        snapshot: sampleSnapshot,
-        botPresent: true,
-        recentAudit: withAudit ? sampleAudit : [],
-        degraded: false
-      })
+  const overview: Promise<Overview> = DEMO
+    ? import('$lib/server/demo-data').then(({ sampleAudit, sampleEnrollment, sampleSnapshot }) => ({
+          enrollment: sampleEnrollment,
+          snapshot: sampleSnapshot,
+          botPresent: true,
+          recentAudit: withAudit ? sampleAudit : [],
+          degraded: false
+        }))
     : loadOverview(withAudit);
 
   return { overview, isManager: withAudit };

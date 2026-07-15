@@ -1,14 +1,16 @@
 // Admin access control. Authorization is DB-backed: a request must carry a
 // valid session whose Twitch user_id is an active row in the admin allowlist
 // (served by the users service over NATS, auth.check). The tailnet is the
-// network boundary; this is the identity boundary on top of it. DEMO=1
-// synthesizes an allowed superadmin so the panel renders without auth wired up.
+// network boundary; this is the identity boundary on top of it. Local Vite
+// development can synthesize an owner when DEMO=1 so the panel renders without
+// auth wired up; production builds compile that branch and fixture import out.
 // DEMO is read from process.env, NOT $env/dynamic/private: this module is in
 // the boot import graph (hooks.server.ts -> access), and even importing the
 // dynamic-env proxy there deadlocks server.init (exit 13). process.env carries
 // the same runtime value.
 import type { Session } from './session';
 import { adminCheck, type AdminRole } from './services';
+import { dev } from '$app/environment';
 
 export interface AdminIdentity {
   id: string;
@@ -17,18 +19,10 @@ export interface AdminIdentity {
   role: AdminRole;
 }
 
-export const demoSession: Session = {
-  user_id: 'demo-admin',
-  login: 'itsmavey',
-  display_name: 'Mavey',
-  role: 'streamer',
-  iat: Math.floor(Date.now() / 1000),
-  expires_at: Math.floor(Date.now() / 1000) + 3600
-};
-
-export function isDemo(): boolean {
-  return process.env.DEMO === '1';
-}
+// Keep the build-time constant in this module and branch on it directly. A
+// helper call is not folded across SvelteKit's split server entries; this form
+// removes the import edge before adapter-node assembles the final image graph.
+const DEMO = dev && process.env.DEMO === '1';
 
 const RANK: Record<AdminRole, number> = { moderator: 1, admin: 2, owner: 3 };
 
@@ -57,13 +51,9 @@ export function canManage(actor: AdminRole, target: AdminRole): boolean {
 // 'staff' invalidation scope, so staff changes revoke access on every replica
 // within one request.
 export async function requireAdmin(session: Session | null): Promise<AdminIdentity | null> {
-  if (isDemo()) {
-    return {
-      id: demoSession.user_id,
-      login: demoSession.login,
-      display_name: demoSession.display_name,
-      role: 'owner'
-    };
+  if (DEMO) {
+    const { demoAdminIdentity } = await import('./demo-data');
+    return demoAdminIdentity();
   }
   if (!session) return null;
 

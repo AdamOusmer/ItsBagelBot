@@ -1,17 +1,12 @@
 import type { Actions, PageServerLoad } from './$types';
 import { fail, redirect } from '@sveltejs/kit';
-import { requireAdmin, isManager, canManage, isDemo, type AdminIdentity } from '$lib/server/access';
+import { dev } from '$app/environment';
+import { requireAdmin, isManager, canManage, type AdminIdentity } from '$lib/server/access';
 import { staffUpsert, staffRemove, adminListAccts, auditAppend, type AdminRole } from '$lib/server/services';
 import type { AdminAcct } from '$lib/server/services';
 
 const ROLES = new Set<AdminRole>(['moderator', 'admin', 'owner']);
-
-// Sample roster so the page renders in demo without the users service.
-const sampleStaff: AdminAcct[] = [
-  { id: 804932984, login: 'itsmavey', display_name: 'itsmavey', role: 'owner', active: true, added_by: 0, created_at: new Date(Date.now() - 86400_000 * 30).toISOString() },
-  { id: 111111111, login: 'an_admin', display_name: 'An Admin', role: 'admin', active: true, added_by: 804932984, created_at: new Date(Date.now() - 86400_000 * 7).toISOString() },
-  { id: 222222222, login: 'a_mod', display_name: 'A Mod', role: 'moderator', active: true, added_by: 804932984, created_at: new Date(Date.now() - 86400_000 * 2).toISOString() }
-];
+const DEMO = dev && process.env.DEMO === '1';
 
 export type RosterBundle = { staff: AdminAcct[]; degraded: boolean };
 
@@ -28,8 +23,11 @@ export const load: PageServerLoad = async ({ parent }) => {
 
   // Streamed: the shell renders immediately; the roster hydrates when the RPC
   // lands. A member's action history stays lazy-loaded from /staff/history.
-  const roster: Promise<RosterBundle> = isDemo()
-    ? Promise.resolve({ staff: sampleStaff, degraded: false })
+  const roster: Promise<RosterBundle> = DEMO
+    ? import('$lib/server/demo-data').then(({ demoStaff }) => ({
+        staff: demoStaff(),
+        degraded: false
+      }))
     : adminListAccts()
         .then((staff) => ({ staff, degraded: false }))
         .catch(() => ({ staff: [], degraded: true }));
@@ -38,7 +36,7 @@ export const load: PageServerLoad = async ({ parent }) => {
 };
 
 function audit(admin: AdminIdentity, action: string, target: string, detail: string, ok: boolean, error?: string): void {
-  if (isDemo()) return;
+  if (DEMO) return;
   auditAppend({ actor_id: admin.id, actor_login: admin.login, action, target, detail, ok, error }).catch(() => {});
 }
 
@@ -60,9 +58,9 @@ export const actions: Actions = {
     // Client-side mirror of the server ladder: block before the round-trip.
     if (!canManage(admin.role, role)) return fail(403, { error: `cannot grant ${role}` });
 
-    if (isDemo()) return { action: { ok: true, notice: `${login} → ${role} (demo)` } };
+    if (DEMO) return { action: { ok: true, notice: `${login} → ${role} (demo)` } };
     try {
-      const staff = await staffUpsert({ id: admin.id, role: admin.role }, { userId, login, displayName, role });
+      const staff = await staffUpsert({ id: admin.id }, { userId, login, displayName, role });
       audit(admin, 'staff_upsert', userId, `${login}:${role}`, true);
       // Return the authoritative roster so the client reconciles in place
       // without a follow-up invalidateAll refetch.
@@ -84,9 +82,9 @@ export const actions: Actions = {
     if (!/^[0-9]+$/.test(userId)) return fail(400, { error: 'numeric user id required' });
     if (targetRole && !canManage(admin.role, targetRole)) return fail(403, { error: 'cannot remove this member' });
 
-    if (isDemo()) return { action: { ok: true, notice: 'staff removed (demo)' } };
+    if (DEMO) return { action: { ok: true, notice: 'staff removed (demo)' } };
     try {
-      const staff = await staffRemove({ id: admin.id, role: admin.role }, userId);
+      const staff = await staffRemove({ id: admin.id }, userId);
       audit(admin, 'staff_remove', userId, targetRole, true);
       return { action: { ok: true, notice: 'staff member removed' }, staff };
     } catch (e) {

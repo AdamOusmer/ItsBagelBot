@@ -1,6 +1,6 @@
 module ItsBagelBot
 
-go 1.26.0
+go 1.26.5
 
 require (
 	entgo.io/ent v0.14.5

@@ -1,6 +1,6 @@
 # loyalty (Go, root module) - build from the REPO ROOT:
 #   podman build -t itsbagelbot/loyalty -f app/loyalty/Containerfile .
-FROM docker.io/library/golang:1.26-bookworm AS build
+FROM docker.io/library/golang:1.26.5-bookworm AS build
 
 WORKDIR /src
 COPY go.mod go.sum ./

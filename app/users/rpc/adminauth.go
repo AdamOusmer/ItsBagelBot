@@ -189,7 +189,11 @@ func (a *adminAuthRPC) upsertStaff(ctx context.Context, req usersrpc.AuthRequest
 // validateUpsert runs every role-ladder guard for an upsert and resolves the
 // effective new role. A non-empty errMsg means the request is rejected.
 func (a *adminAuthRPC) validateUpsert(ctx context.Context, req usersrpc.AuthRequest) (id uint64, newRole adminuser.Role, errMsg string) {
-	actorRole := adminuser.Role(req.ActorRole)
+	actor, errMsg := a.resolveActiveActor(ctx, req.ActorID)
+	if errMsg != "" {
+		return 0, "", errMsg
+	}
+	actorRole := actor.Role
 	if !isManager(actorRole) {
 		return 0, "", "forbidden: managers only"
 	}
@@ -206,13 +210,37 @@ func (a *adminAuthRPC) validateUpsert(ctx context.Context, req usersrpc.AuthRequ
 		return 0, "", errMsg
 	}
 	// No self-modification: staff cannot change their own role.
-	if actorID, _ := parseID(req.ActorID); actorID == id {
+	if actor.ID == id {
 		return 0, "", "forbidden: cannot change your own role"
 	}
 	if errMsg := a.guardExistingTarget(ctx, id, actorRole); errMsg != "" {
 		return 0, "", errMsg
 	}
 	return id, newRole, ""
+}
+
+// resolveActiveActor loads the actor from the staff allowlist. ActorRole is
+// deliberately not consulted: authorization must be based on the persisted
+// role so a caller cannot elevate itself by forging request metadata.
+func (a *adminAuthRPC) resolveActiveActor(ctx context.Context, rawID string) (*ent.AdminUser, string) {
+	actorID, err := parseID(rawID)
+	if err != nil {
+		if rawID == "" {
+			return nil, "actor_id required"
+		}
+		return nil, "actor_id must be numeric"
+	}
+	actor, err := a.findStaff(ctx, actorID)
+	if ent.IsNotFound(err) {
+		return nil, "forbidden: actor is not active staff"
+	}
+	if err != nil {
+		return nil, err.Error()
+	}
+	if !actor.Active {
+		return nil, "forbidden: actor is not active staff"
+	}
+	return actor, ""
 }
 
 // resolveNewRole resolves the effective role for an upsert (empty defaults to
@@ -265,14 +293,19 @@ func (a *adminAuthRPC) removeStaff(ctx context.Context, req usersrpc.AuthRequest
 	}); err != nil {
 		return authError(err.Error())
 	}
-	a.log.Info("staff removed", zap.Uint64("id", id), zap.String("by_role", req.ActorRole))
+	actorID, _ := parseID(req.ActorID)
+	a.log.Info("staff removed", zap.Uint64("id", id), zap.Uint64("by", actorID))
 	return a.listStaff(ctx, usersrpc.AuthRequest{})
 }
 
 // validateRemove runs the removal guards and returns the target id. A non-empty
 // errMsg means the request is rejected.
 func (a *adminAuthRPC) validateRemove(ctx context.Context, req usersrpc.AuthRequest) (uint64, string) {
-	actorRole := adminuser.Role(req.ActorRole)
+	actor, errMsg := a.resolveActiveActor(ctx, req.ActorID)
+	if errMsg != "" {
+		return 0, errMsg
+	}
+	actorRole := actor.Role
 	if !isManager(actorRole) {
 		return 0, "forbidden: managers only"
 	}
@@ -280,7 +313,7 @@ func (a *adminAuthRPC) validateRemove(ctx context.Context, req usersrpc.AuthRequ
 	if err != nil {
 		return 0, err.Error()
 	}
-	if actorID, _ := parseID(req.ActorID); actorID == id {
+	if actor.ID == id {
 		return 0, "forbidden: cannot remove yourself"
 	}
 

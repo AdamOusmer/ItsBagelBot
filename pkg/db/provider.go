@@ -90,48 +90,57 @@ const tlsConfigName = "bagel-mysql"
 // registerTLS builds and registers the TLS config used for every MySQL
 // connection so traffic to the managed HeatWave endpoint is always encrypted.
 //
-// When DB_CA_CERT holds the endpoint CA (PEM), the server certificate is
-// verified against it. The HeatWave endpoint certificate carries no SAN and we
-// dial it by private IP, so Go's default identity check cannot apply; instead
-// we pin the CA and verify the presented chain back to it ourselves, which
-// authenticates the server (MITM-resistant) without a hostname match. Without a
-// CA we still negotiate TLS so the wire stays encrypted, just unauthenticated.
+// DB_CA_CERT must hold the endpoint CA (PEM); connections fail closed when it
+// is absent or invalid. The HeatWave endpoint certificate carries no SAN and
+// we dial it by private IP, so Go's default identity check cannot apply;
+// instead we pin the CA and verify the presented chain back to it ourselves,
+// which authenticates the server (MITM-resistant) without a hostname match.
+// The configured root must therefore be the dedicated HeatWave endpoint CA,
+// never a broad/shared trust bundle such as the internal fleet CA.
 func registerTLS(caPEM []byte) (string, error) {
-	cfg := &tls.Config{MinVersion: tls.VersionTLS12}
-	caPEM = []byte(strings.TrimSpace(string(caPEM)))
-
-	if len(caPEM) > 0 {
-		roots := x509.NewCertPool()
-		if !roots.AppendCertsFromPEM(caPEM) {
-			return "", fmt.Errorf("db: DB_CA_CERT did not contain a valid PEM certificate")
-		}
-		cfg.RootCAs = roots
-		cfg.InsecureSkipVerify = true // we verify the chain ourselves below, minus the (absent) hostname identity
-		cfg.VerifyPeerCertificate = func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
-			certs := make([]*x509.Certificate, 0, len(rawCerts))
-			for _, raw := range rawCerts {
-				c, err := x509.ParseCertificate(raw)
-				if err != nil {
-					return fmt.Errorf("db: parse server certificate: %w", err)
-				}
-				certs = append(certs, c)
-			}
-			if len(certs) == 0 {
-				return fmt.Errorf("db: server presented no certificate")
-			}
-			intermediates := x509.NewCertPool()
-			for _, c := range certs[1:] {
-				intermediates.AddCert(c)
-			}
-			_, err := certs[0].Verify(x509.VerifyOptions{Roots: roots, Intermediates: intermediates})
-			return err
-		}
-	} else {
-		cfg.InsecureSkipVerify = true // encrypt even without a pinned CA
+	cfg, err := newPinnedCAVerificationTLSConfig(caPEM)
+	if err != nil {
+		return "", err
 	}
 
 	if err := mysql.RegisterTLSConfig(tlsConfigName, cfg); err != nil {
 		return "", err
 	}
 	return tlsConfigName, nil
+}
+
+// newPinnedCAVerificationTLSConfig uses the dedicated endpoint CA as the
+// server identity because the managed certificate has no SAN to match against.
+// VerifyConnection is intentional: unlike VerifyPeerCertificate, it also runs
+// when a TLS session is resumed.
+func newPinnedCAVerificationTLSConfig(caPEM []byte) (*tls.Config, error) {
+	caPEM = []byte(strings.TrimSpace(string(caPEM)))
+	if len(caPEM) == 0 {
+		return nil, fmt.Errorf("db: DB_CA_CERT is required")
+	}
+
+	roots := x509.NewCertPool()
+	if !roots.AppendCertsFromPEM(caPEM) {
+		return nil, fmt.Errorf("db: DB_CA_CERT did not contain a valid PEM certificate")
+	}
+	cfg := &tls.Config{
+		MinVersion: tls.VersionTLS12,
+		RootCAs:    roots,
+		// codeql[go/disabled-certificate-check] -- Custom verification pins the endpoint CA below.
+		InsecureSkipVerify: true,
+	}
+	cfg.VerifyConnection = func(state tls.ConnectionState) error {
+		certs := state.PeerCertificates
+		if len(certs) == 0 {
+			return fmt.Errorf("db: server presented no certificate")
+		}
+		intermediates := x509.NewCertPool()
+		for _, c := range certs[1:] {
+			intermediates.AddCert(c)
+		}
+		_, err := certs[0].Verify(x509.VerifyOptions{Roots: roots, Intermediates: intermediates})
+		return err
+	}
+
+	return cfg, nil
 }

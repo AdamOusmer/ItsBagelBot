@@ -86,8 +86,11 @@ type AdminReply struct {
 
 // AuthRequest covers all adminauth verbs.
 type AuthRequest struct {
-	// actor: who is performing a roster change (set by the console from session).
-	ActorID   string `json:"actor_id"`
+	// ActorID identifies who is performing a roster change. The users service
+	// resolves this actor's active role from its own database.
+	ActorID string `json:"actor_id"`
+	// ActorRole is retained for wire compatibility and spoofing regression
+	// tests only. It is client-supplied and must never be used for authorization.
 	ActorRole string `json:"actor_role"`
 
 	// target / identity

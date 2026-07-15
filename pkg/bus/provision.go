@@ -114,63 +114,72 @@ var OutgressSystemStream = StreamSpec{
 	Replicas: 3,
 }
 
-// DataStreams backs the replayable event bus: user, command, module and
-// transaction change events plus Twitch ingress events. Outgress commands are
-// deliberately excluded because they are perishable work, not event history.
-var DataStreams = []StreamSpec{
-	{
-		Name:         "BAGEL_DATA",
-		Subjects:     []string{"data.>"},
-		MaxAge:       5 * time.Minute,
-		MaxBytes:     512 << 20, // 512 MiB
-		BatchPublish: true,
-		// R1: a low-rate, 5-minute replay buffer. A broker restart drops at most a
-		// few minutes of change events, which the projector re-derives from the
-		// data services' RPC projections — not worth a per-publish RAFT quorum.
-		Replicas:      1,
-		PlacementTags: []string{"nats-1"},
-	},
-	{
-		Name:     "TWITCH_INGRESS",
-		Subjects: []string{"twitch.ingress.event.>", "twitch.ingress.status.>"},
-		MaxAge:   5 * time.Minute,
-		// Memory-backed: the stream is perishable (a replay window that never
-		// needs to survive a restart), so memory storage drops the per-event disk
-		// write that capped synchronous PubAck throughput to a few thousand
-		// events/second. Requires the server max_mem headroom in nats-server.conf.
-		Storage: nats.MemoryStorage,
-		// R1 (explicit, and now enforced by streamMatches). The firehose producer
-		// is async PubAck-bound — its ceiling is max_pending / ack_latency — so R3
-		// RAFT consensus per publish is pure ack-latency inflation. A lost leader
-		// drops only in-flight perishable chat (5s/5m retention), the accepted
-		// trade for the throughput. Every hub node (node2/node3/worker1) is
-		// capable, so replication buys nothing here that offsets the latency cost.
-		Replicas:      1,
-		PlacementTags: []string{"nats-0"},
-		// MaxBytes is 1 GiB so the memory-backed stream fits the broker's 4GB
-		// max_mem alongside TWITCH_OUTGRESS and dedup state. MaxAge is moot under
-		// load: MaxBytes (stream-wide, oldest-first) evicts first, and 1 GiB is the
-		// consumer lag budget in bytes (~6s at 100k/s, ~4s at 150k/s). Raising
-		// toward the 150-200k target means larger MaxBytes + more max_mem.
-		MaxBytes: 1 << 30, // 1 GiB
-		// The premium, standard and stream lanes are distinct literal subjects
-		// sharing this stream, and MaxBytes eviction is stream-wide oldest-first:
-		// without a per-subject cap a standard-lane flood fills the stream and
-		// evicts retained premium and stream.online events. 400k messages per
-		// lane makes a flooded lane wrap itself while the other lanes keep their
-		// retention (and stays within the 1 GiB stream cap).
-		MaxMsgsPer: 400_000,
-		// The dedup window only applies to messages that carry a Nats-Msg-Id.
-		// Production ingress runs INGRESS_PUBLISH_DEDUP=off (the per-message
-		// dedup insert measured ~27% of single-stream ingest capacity, and
-		// EventSub websockets never redeliver), so lane events are unindexed
-		// and this window costs nothing for them. It stays at 10s to bound
-		// dedup state for any id-carrying publisher on these subjects — at
-		// 200k/s a 30s window would track ~6M ids, a 10s window ~2M.
-		Duplicates:   10 * time.Second,
-		BatchPublish: true,
-	},
+// BagelDataStream is the replayable application-data event bus. The users
+// service owns its stream reconciliation; other services only publish to it or
+// manage their own consumers. Keeping the owner explicit lets the broker ACL
+// grant STREAM.CREATE/UPDATE to one credential instead of every BUS user.
+var BagelDataStream = StreamSpec{
+	Name:         "BAGEL_DATA",
+	Subjects:     []string{"data.>"},
+	MaxAge:       5 * time.Minute,
+	MaxBytes:     512 << 20, // 512 MiB
+	BatchPublish: true,
+	// R1: a low-rate, 5-minute replay buffer. A broker restart drops at most a
+	// few minutes of change events, which the projector re-derives from the
+	// data services' RPC projections — not worth a per-publish RAFT quorum.
+	Replicas:      1,
+	PlacementTags: []string{"nats-1"},
 }
+
+// TwitchIngressStream is the replayable Twitch ingress firehose. Sesame owns
+// its stream reconciliation because it is the primary lane consumer; ingress
+// itself only publishes captured subjects and needs no JetStream API access.
+var TwitchIngressStream = StreamSpec{
+	Name:     "TWITCH_INGRESS",
+	Subjects: []string{"twitch.ingress.event.>", "twitch.ingress.status.>"},
+	MaxAge:   5 * time.Minute,
+	// Memory-backed: the stream is perishable (a replay window that never
+	// needs to survive a restart), so memory storage drops the per-event disk
+	// write that capped synchronous PubAck throughput to a few thousand
+	// events/second. Requires the server max_mem headroom in nats-server.conf.
+	Storage: nats.MemoryStorage,
+	// R1 (explicit, and now enforced by streamMatches). The firehose producer
+	// is async PubAck-bound — its ceiling is max_pending / ack_latency — so R3
+	// RAFT consensus per publish is pure ack-latency inflation. A lost leader
+	// drops only in-flight perishable chat (5s/5m retention), the accepted
+	// trade for the throughput. Every hub node (node2/node3/worker1) is
+	// capable, so replication buys nothing here that offsets the latency cost.
+	Replicas:      1,
+	PlacementTags: []string{"nats-0"},
+	// MaxBytes is 1 GiB so the memory-backed stream fits the broker's 4GB
+	// max_mem alongside TWITCH_OUTGRESS and dedup state. MaxAge is moot under
+	// load: MaxBytes (stream-wide, oldest-first) evicts first, and 1 GiB is the
+	// consumer lag budget in bytes (~6s at 100k/s, ~4s at 150k/s). Raising
+	// toward the 150-200k target means larger MaxBytes + more max_mem.
+	MaxBytes: 1 << 30, // 1 GiB
+	// The premium, standard and stream lanes are distinct literal subjects
+	// sharing this stream, and MaxBytes eviction is stream-wide oldest-first:
+	// without a per-subject cap a standard-lane flood fills the stream and
+	// evicts retained premium and stream.online events. 400k messages per
+	// lane makes a flooded lane wrap itself while the other lanes keep their
+	// retention (and stays within the 1 GiB stream cap).
+	MaxMsgsPer: 400_000,
+	// The dedup window only applies to messages that carry a Nats-Msg-Id.
+	// Production ingress runs INGRESS_PUBLISH_DEDUP=off (the per-message
+	// dedup insert measured ~27% of single-stream ingest capacity, and
+	// EventSub websockets never redeliver), so lane events are unindexed
+	// and this window costs nothing for them. It stays at 10s to bound
+	// dedup state for any id-carrying publisher on these subjects — at
+	// 200k/s a 30s window would track ~6M ids, a 10s window ~2M.
+	Duplicates:   10 * time.Second,
+	BatchPublish: true,
+}
+
+// DataStreams is the complete replayable stream catalog. It remains available
+// to tests and operator tooling; runtime services reconcile only the named
+// stream they own above. Outgress commands are deliberately excluded because
+// they are perishable work, not event history.
+var DataStreams = []StreamSpec{BagelDataStream, TwitchIngressStream}
 
 // EnsureStreams keeps the declared streams provisioned for the lifetime of the
 // process, so the fleet self-heals when the broker restarts. It holds a NATS
@@ -182,9 +191,10 @@ var DataStreams = []StreamSpec{
 //     storage (or the streams were deleted), they are recreated automatically.
 //
 // The NATS client's own infinite reconnect (see options) then re-establishes
-// publishers and durable consumers against the restored stream. It is safe to
-// call from every instance of every service: reconciliation is idempotent and
-// creation races resolve to success.
+// publishers and durable consumers against the restored stream. Every replica
+// of a stream's declared owner calls this function; reconciliation is
+// idempotent and creation races resolve to success. Non-owners must not call it,
+// because their credentials intentionally have no stream-management rights.
 func EnsureStreams(ctx context.Context, url string, specs []StreamSpec, log *zap.Logger) error {
 	var js nats.JetStreamManager
 	var batchJS jsapi.JetStream
@@ -320,15 +330,15 @@ func reconcileStream(js nats.JetStreamManager, spec StreamSpec, log *zap.Logger)
 			return nil
 		}
 
-		// NATS cannot update a stream to or from work-queue retention. This
-		// one-time migration intentionally purges the old replay log: outgress
-		// commands that were already sent must never be replayed.
+		// NATS cannot update a stream to or from work-queue retention. Runtime
+		// credentials deliberately have no STREAM.DELETE permission, so this
+		// destructive migration must be performed explicitly by an operator.
 		if info.Config.Retention != desired.Retention &&
 			(info.Config.Retention == nats.WorkQueuePolicy || desired.Retention == nats.WorkQueuePolicy) {
-			if err := js.DeleteStream(spec.Name); err != nil && !errors.Is(err, nats.ErrStreamNotFound) {
-				return fmt.Errorf("bus: replace stream %q: %w", spec.Name, err)
-			}
-			return add()
+			return fmt.Errorf(
+				"bus: stream %q retention change from %s to %s requires an operator-managed delete/recreate; runtime credentials cannot delete streams",
+				spec.Name, info.Config.Retention, desired.Retention,
+			)
 		}
 
 		// Never attempt to flip storage in place — NATS rejects it, which would
@@ -339,18 +349,14 @@ func reconcileStream(js nats.JetStreamManager, spec StreamSpec, log *zap.Logger)
 		update.Storage = info.Config.Storage
 
 		if _, err := js.UpdateStream(&update); err != nil {
-			// A work-queue stream is perishable, so replacing it is safe when an
-			// in-place update is rejected — notably narrowing subjects out from
-			// under an existing consumer's filter (the one-time migration that
-			// splits the control lane onto its own stream). No replay to preserve;
-			// the consumers are re-created against the converged stream.
+			// Work-queue replacement used to happen automatically here. Keep the
+			// destructive fallback operator-only so a leaked runtime credential
+			// cannot erase the stream it owns.
 			if desired.Retention == nats.WorkQueuePolicy {
-				log.Warn("work-queue stream update rejected; replacing",
-					zap.String("stream", spec.Name), zap.Error(err))
-				if derr := js.DeleteStream(spec.Name); derr != nil && !errors.Is(derr, nats.ErrStreamNotFound) {
-					return fmt.Errorf("bus: replace stream %q after failed update: %w", spec.Name, derr)
-				}
-				return add()
+				return fmt.Errorf(
+					"bus: update work-queue stream %q (operator-managed delete/recreate required; runtime credentials cannot delete streams): %w",
+					spec.Name, err,
+				)
 			}
 			return fmt.Errorf("bus: update stream %q: %w", spec.Name, err)
 		}

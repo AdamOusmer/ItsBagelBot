@@ -1,5 +1,6 @@
 import type { Actions, PageServerLoad } from './$types';
 import { fail } from '@sveltejs/kit';
+import { dev } from '$app/environment';
 import {
   notificationsList,
   notificationSend,
@@ -9,12 +10,12 @@ import {
   NOTIFICATIONS_MAX_PAGES,
   type NotificationWire
 } from '$lib/server/services';
-import { requireAdmin, isDemo, type AdminIdentity } from '$lib/server/access';
-import { sampleNotifications } from '$lib/server/sample';
+import { requireAdmin, type AdminIdentity } from '$lib/server/access';
 
 const LEVELS = new Set(['info', 'success', 'warning', 'critical']);
 const MAX_TITLE_LENGTH = 120;
 const MAX_BODY_LENGTH = 2000;
+const DEMO = dev && process.env.DEMO === '1';
 
 function parsePage(raw: string | null): number {
   const page = Number(raw ?? '1');
@@ -31,9 +32,9 @@ export type HistoryBundle = {
   degraded: boolean;
 };
 
-function demoPage(page: number): HistoryBundle {
+function demoPage(page: number, notifications: NotificationWire[]): HistoryBundle {
   return {
-    notifications: sampleNotifications,
+    notifications,
     page,
     pageSize: NOTIFICATIONS_PAGE_SIZE,
     maxPages: NOTIFICATIONS_MAX_PAGES,
@@ -69,8 +70,10 @@ async function loadHistory(page: number): Promise<HistoryBundle> {
 // notifications RPC lands.
 export const load: PageServerLoad = ({ url }) => {
   const page = parsePage(url.searchParams.get('page'));
-  const history: Promise<HistoryBundle> = isDemo()
-    ? Promise.resolve(demoPage(page))
+  const history: Promise<HistoryBundle> = DEMO
+    ? import('$lib/server/demo-data').then(({ sampleNotifications }) =>
+        demoPage(page, sampleNotifications)
+      )
     : loadHistory(page);
   return { history };
 };
@@ -123,7 +126,7 @@ function audit(
   ok: boolean,
   error?: string
 ): void {
-  if (isDemo()) return;
+  if (DEMO) return;
   auditAppend({ actor_id: admin.id, actor_login: admin.login, action, target, detail, ok, error }).catch(
     () => {}
   );
@@ -138,7 +141,7 @@ export const actions: Actions = {
     if ('error' in parsed) return fail(400, { error: parsed.error });
     const { scope, targetUserId, targetUsername, title, body, level, expiresAtRaw, target } = parsed;
 
-    if (isDemo()) {
+    if (DEMO) {
       return { action: { ok: true, notice: `notification sent to ${target} (demo)` } };
     }
 
@@ -168,7 +171,7 @@ export const actions: Actions = {
     const id = Number(String((await request.formData()).get('id') ?? ''));
     if (!Number.isFinite(id) || id <= 0) return fail(400, { error: 'id required' });
 
-    if (isDemo()) return { action: { ok: true, notice: 'notification retracted (demo)' } };
+    if (DEMO) return { action: { ok: true, notice: 'notification retracted (demo)' } };
 
     try {
       await notificationDelete(id);

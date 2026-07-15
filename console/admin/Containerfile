@@ -16,6 +16,8 @@ COPY admin/package.json admin/package.json
 RUN bun install --frozen-lockfile
 COPY shared shared
 COPY admin admin
+# `bun run build` also scans the final adapter-node output and fails if any
+# development identity or seeded demo fixture was emitted into the image.
 RUN cd admin && bun run build && bun install --production --frozen-lockfile
 
 FROM gcr.io/distroless/nodejs22-debian12 AS run

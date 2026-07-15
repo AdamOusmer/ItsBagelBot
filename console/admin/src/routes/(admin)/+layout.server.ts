@@ -1,10 +1,11 @@
 import type { LayoutServerLoad } from './$types';
 import { redirect } from '@sveltejs/kit';
-import { requireAdmin, isDemo } from '$lib/server/access';
+import { dev } from '$app/environment';
+import { requireAdmin } from '$lib/server/access';
 import { notificationsList, type NotificationWire } from '$lib/server/services';
-import { sampleNotifications } from '$lib/server/sample';
 
 const BELL_PEEK = 5;
+const DEMO = dev && process.env.DEMO === '1';
 
 // Authorization gate for the whole admin group. The tailnet limits who can
 // reach this host; the allowlist (auth.check) limits who can act. A request
@@ -16,8 +17,10 @@ export const load: LayoutServerLoad = async ({ locals }) => {
   // Bell peek is streamed (unawaited promise): navigation never blocks on the
   // notifications RPC. There's no per-admin read state (that's a recipient
   // concept), so this is just "what went out recently."
-  const recentNotifications: Promise<NotificationWire[]> = isDemo()
-    ? Promise.resolve(sampleNotifications.slice(0, BELL_PEEK))
+  const recentNotifications: Promise<NotificationWire[]> = DEMO
+    ? import('$lib/server/demo-data').then(({ sampleNotifications }) =>
+        sampleNotifications.slice(0, BELL_PEEK)
+      )
     : notificationsList(1)
         .then((r) => r.notifications.slice(0, BELL_PEEK))
         .catch(() => []);

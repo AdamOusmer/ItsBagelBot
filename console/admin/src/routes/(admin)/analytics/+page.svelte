@@ -20,7 +20,7 @@
       const body = (await res.json()) as { health?: ServiceHealth[] };
       if (body.health) liveHealth = body.health;
     } catch {
-      /* transient: retain the last completed sample */
+      /* transient: retain the last completed probe result */
     }
   }
   onMount(() => {
@@ -180,7 +180,7 @@
     </div>
   {:else}
     {#if bundle.degraded}
-      <AlertBanner>Users service unreachable; showing sample analytics, not live data.</AlertBanner>
+      <AlertBanner>Users service unreachable; analytics are zeroed and are not live data.</AlertBanner>
     {/if}
 
     {#if enrollment}

@@ -103,7 +103,7 @@
         <div class="row two">
           <label>
             User ID
-            <input type="text" name="target_user_id" placeholder="e.g. 44322190" autocomplete="off" />
+            <input type="text" name="target_user_id" placeholder="e.g. 123456789" autocomplete="off" />
           </label>
           <label>
             or username
@@ -114,7 +114,7 @@
 
       <label class="field">
         Title
-        <input type="text" name="title" maxlength="120" required placeholder="Scheduled maintenance tonight" />
+        <input type="text" name="title" maxlength="120" required placeholder="Brief service update" />
       </label>
 
       <label class="field">

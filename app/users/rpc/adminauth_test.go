@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"ItsBagelBot/app/users/ent"
+	"ItsBagelBot/app/users/ent/adminuser"
 	"ItsBagelBot/app/users/ent/enttest"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 
@@ -23,6 +24,24 @@ func setupAdminAuthTest(t *testing.T) (*adminAuthRPC, *ent.Client) {
 	t.Cleanup(func() { _ = client.Close() })
 
 	return &adminAuthRPC{db: client, log: zap.NewNop()}, client
+}
+
+type staffFixture struct {
+	id     uint64
+	role   adminuser.Role
+	active bool
+}
+
+func createStaff(t *testing.T, client *ent.Client, fixture staffFixture) *ent.AdminUser {
+	t.Helper()
+	login := fmt.Sprintf("staff-%d", fixture.id)
+	return client.AdminUser.Create().
+		SetID(fixture.id).
+		SetLogin(login).
+		SetDisplayName(login).
+		SetRole(fixture.role).
+		SetActive(fixture.active).
+		SaveX(context.Background())
 }
 
 func createAuditEntry(t *testing.T, client *ent.Client, i int, createdAt time.Time) {
@@ -87,4 +106,96 @@ func TestAuditListSearchesBeforePaging(t *testing.T) {
 	assert.Equal(t, "itsmavey", reply.Entries[0].ActorLogin)
 	assert.Equal(t, "staff_upsert", reply.Entries[0].Action)
 	assert.False(t, reply.HasMore)
+}
+
+func TestUpsertStaffAuthorizesStoredActorRole(t *testing.T) {
+	a, client := setupAdminAuthTest(t)
+	ctx := context.Background()
+	createStaff(t, client, staffFixture{id: 99, role: adminuser.RoleModerator, active: true})
+	createStaff(t, client, staffFixture{id: 100, role: adminuser.RoleAdmin, active: true})
+	createStaff(t, client, staffFixture{id: 101, role: adminuser.RoleOwner, active: true})
+
+	moderatorSpoof := a.upsertStaff(ctx, usersrpc.AuthRequest{
+		ActorID:   "99",
+		ActorRole: "owner",
+		UserID:    "199",
+		Login:     "new-moderator",
+		Role:      "moderator",
+	})
+	assert.Equal(t, "forbidden: managers only", moderatorSpoof.Error)
+	_, err := client.AdminUser.Get(ctx, 199)
+	assert.True(t, ent.IsNotFound(err))
+
+	spoofed := a.upsertStaff(ctx, usersrpc.AuthRequest{
+		ActorID:   "100",
+		ActorRole: "owner",
+		UserID:    "200",
+		Login:     "new-owner",
+		Role:      "owner",
+	})
+	assert.Equal(t, "forbidden: only an owner can grant owner", spoofed.Error)
+	_, err = client.AdminUser.Get(ctx, 200)
+	assert.True(t, ent.IsNotFound(err))
+
+	legitimate := a.upsertStaff(ctx, usersrpc.AuthRequest{
+		ActorID:   "101",
+		ActorRole: "moderator",
+		UserID:    "200",
+		Login:     "new-owner",
+		Role:      "owner",
+	})
+	require.Empty(t, legitimate.Error)
+	created := client.AdminUser.GetX(ctx, 200)
+	assert.Equal(t, adminuser.RoleOwner, created.Role)
+	assert.Equal(t, uint64(101), created.AddedBy)
+}
+
+func TestRemoveStaffAuthorizesStoredActorRole(t *testing.T) {
+	a, client := setupAdminAuthTest(t)
+	ctx := context.Background()
+	createStaff(t, client, staffFixture{id: 100, role: adminuser.RoleAdmin, active: true})
+	createStaff(t, client, staffFixture{id: 101, role: adminuser.RoleOwner, active: true})
+	createStaff(t, client, staffFixture{id: 102, role: adminuser.RoleOwner, active: true})
+
+	spoofed := a.removeStaff(ctx, usersrpc.AuthRequest{
+		ActorID:   "100",
+		ActorRole: "owner",
+		UserID:    "102",
+	})
+	assert.Equal(t, "forbidden: cannot remove an owner", spoofed.Error)
+	assert.True(t, client.AdminUser.GetX(ctx, 102).Active)
+
+	legitimate := a.removeStaff(ctx, usersrpc.AuthRequest{
+		ActorID:   "101",
+		ActorRole: "moderator",
+		UserID:    "102",
+	})
+	require.Empty(t, legitimate.Error)
+	assert.False(t, client.AdminUser.GetX(ctx, 102).Active)
+}
+
+func TestRosterMutationsRejectInactiveActor(t *testing.T) {
+	a, client := setupAdminAuthTest(t)
+	ctx := context.Background()
+	createStaff(t, client, staffFixture{id: 100, role: adminuser.RoleOwner, active: false})
+	createStaff(t, client, staffFixture{id: 200, role: adminuser.RoleModerator, active: true})
+
+	upsert := a.upsertStaff(ctx, usersrpc.AuthRequest{
+		ActorID:   "100",
+		ActorRole: "owner",
+		UserID:    "201",
+		Login:     "new-moderator",
+		Role:      "moderator",
+	})
+	assert.Equal(t, "forbidden: actor is not active staff", upsert.Error)
+	_, err := client.AdminUser.Get(ctx, 201)
+	assert.True(t, ent.IsNotFound(err))
+
+	remove := a.removeStaff(ctx, usersrpc.AuthRequest{
+		ActorID:   "100",
+		ActorRole: "owner",
+		UserID:    "200",
+	})
+	assert.Equal(t, "forbidden: actor is not active staff", remove.Error)
+	assert.True(t, client.AdminUser.GetX(ctx, 200).Active)
 }

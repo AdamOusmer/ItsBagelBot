@@ -1,11 +1,42 @@
 package bus
 
 import (
+	"errors"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/nats-io/nats.go"
+	"go.uber.org/zap"
 )
+
+type streamManagerSpy struct {
+	nats.JetStreamManager
+	info         *nats.StreamInfo
+	updateErr    error
+	updateCalled bool
+	deleteCalled bool
+	addCalled    bool
+}
+
+func (s *streamManagerSpy) StreamInfo(string, ...nats.JSOpt) (*nats.StreamInfo, error) {
+	return s.info, nil
+}
+
+func (s *streamManagerSpy) UpdateStream(*nats.StreamConfig, ...nats.JSOpt) (*nats.StreamInfo, error) {
+	s.updateCalled = true
+	return nil, s.updateErr
+}
+
+func (s *streamManagerSpy) DeleteStream(string, ...nats.JSOpt) error {
+	s.deleteCalled = true
+	return nil
+}
+
+func (s *streamManagerSpy) AddStream(cfg *nats.StreamConfig, _ ...nats.JSOpt) (*nats.StreamInfo, error) {
+	s.addCalled = true
+	return &nats.StreamInfo{Config: *cfg}, nil
+}
 
 func TestOutgressStreamIsPerishableWorkQueue(t *testing.T) {
 	cfg := streamConfig(OutgressStream)
@@ -72,6 +103,55 @@ func TestOutgressStreamHasSingleReconciler(t *testing.T) {
 		if spec.Name == OutgressStream.Name {
 			t.Fatal("outgress stream must be reconciled only by outgress")
 		}
+	}
+}
+
+func TestReconcileStreamRequiresOperatorForRetentionMigration(t *testing.T) {
+	live := *streamConfig(OutgressStream)
+	live.Retention = nats.LimitsPolicy
+	js := &streamManagerSpy{info: &nats.StreamInfo{Config: live}}
+
+	err := reconcileStream(js, OutgressStream, zap.NewNop())
+	if err == nil {
+		t.Fatal("reconcile unexpectedly accepted a retention-policy migration")
+	}
+	if !strings.Contains(err.Error(), "operator-managed delete/recreate") {
+		t.Fatalf("reconcile error = %v, want explicit operator migration", err)
+	}
+	if js.deleteCalled {
+		t.Fatal("retention migration attempted to delete the stream")
+	}
+	if js.addCalled {
+		t.Fatal("retention migration attempted to recreate the stream")
+	}
+	if js.updateCalled {
+		t.Fatal("retention migration attempted to update the stream")
+	}
+}
+
+func TestReconcileStreamNeverDeletesAfterRejectedWorkQueueUpdate(t *testing.T) {
+	live := *streamConfig(OutgressStream)
+	live.MaxAge += time.Second
+	js := &streamManagerSpy{
+		info:      &nats.StreamInfo{Config: live},
+		updateErr: errors.New("update rejected"),
+	}
+
+	err := reconcileStream(js, OutgressStream, zap.NewNop())
+	if err == nil {
+		t.Fatal("reconcile unexpectedly accepted a rejected work-queue update")
+	}
+	if !strings.Contains(err.Error(), "operator-managed delete/recreate") {
+		t.Fatalf("reconcile error = %v, want explicit operator migration", err)
+	}
+	if !js.updateCalled {
+		t.Fatal("reconcile did not attempt the non-destructive stream update")
+	}
+	if js.deleteCalled {
+		t.Fatal("rejected update triggered a stream deletion")
+	}
+	if js.addCalled {
+		t.Fatal("rejected update triggered a stream recreation")
 	}
 }
 

@@ -1,6 +1,6 @@
 // Admin-facing RPC wrappers over the shared NATS client. Subjects come from env
-// with the same defaults as the retired Go admin tier. Every wrapper degrades
-// gracefully: callers catch and fall back to sample data so SSR always renders.
+// with the same defaults as the retired Go admin tier. Page callers degrade to
+// neutral zero/empty shapes so SSR can render without inventing live state.
 import { rpc, publish } from '@bagel/shared/server/nats';
 import { defineRead, defineWrite } from '@bagel/shared/server/service';
 import { createCacheFabric } from '@bagel/shared/server/cache-fabric';
@@ -611,15 +611,15 @@ export const adminListAccts = defineRead({
   }
 });
 
-// staffUpsert creates or modifies a staff member. The actor (id + role) is
-// carried so the users service can enforce the role ladder server-side.
+// staffUpsert creates or modifies a staff member. Only the actor id crosses the
+// wire; the users service resolves the active persisted role and enforces the
+// role ladder independently of client/session metadata.
 export async function staffUpsert(
-  actor: { id: string; role: AdminRole },
+  actor: { id: string },
   target: { userId: string; login: string; displayName: string; role: AdminRole }
 ): Promise<AdminAcct[]> {
   const r = await rpc<{ admins?: AdminAcct[]; error?: string }>(`${SUB.auth}.upsert`, {
     actor_id: actor.id,
-    actor_role: actor.role,
     user_id: target.userId,
     login: target.login,
     display_name: target.displayName,
@@ -632,12 +632,11 @@ export async function staffUpsert(
 }
 
 export async function staffRemove(
-  actor: { id: string; role: AdminRole },
+  actor: { id: string },
   userId: string
 ): Promise<AdminAcct[]> {
   const r = await rpc<{ admins?: AdminAcct[]; error?: string }>(`${SUB.auth}.remove`, {
     actor_id: actor.id,
-    actor_role: actor.role,
     user_id: userId
   });
   if (r.error) throw new Error(r.error);

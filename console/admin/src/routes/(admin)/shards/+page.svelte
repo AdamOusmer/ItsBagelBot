@@ -213,7 +213,7 @@
   </div>
 
   {#if degraded}
-    <AlertBanner>Live snapshot unavailable; showing sample data until the ingress answers.</AlertBanner>
+    <AlertBanner>Live snapshot unavailable; fleet values are empty until the ingress answers.</AlertBanner>
   {/if}
 
   {#if snap === null}

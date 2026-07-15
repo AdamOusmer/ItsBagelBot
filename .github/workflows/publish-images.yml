@@ -54,7 +54,7 @@ jobs:
       build_ts: ${{ steps.plan.outputs.build_ts }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -325,7 +325,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           persist-credentials: false
 
@@ -538,7 +538,7 @@ jobs:
           echo "digest=${first_digest}" >> "$GITHUB_OUTPUT"
 
       - name: Attest image provenance
-        uses: actions/attest-build-provenance@v3
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3.0.0
         with:
           subject-name: ${{ steps.meta.outputs.subject }}
           subject-digest: ${{ steps.publish.outputs.digest }}

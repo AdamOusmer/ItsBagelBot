@@ -11,6 +11,15 @@ type Env = Record<string, string | undefined>;
 // public dashboard.
 export const DEFAULT_ADMIN_L1_CACHE_CAPACITY = 250;
 
+// DEMO is a local-development feature. Reject a production runtime that tries
+// to enable it even though the production build also compiles the privileged
+// demo identity path out entirely.
+export function assertDemoConfigSafe(env: Env): void {
+  if (env.DEMO === '1' && env.NODE_ENV === 'production') {
+    throw new Error('DEMO must not be enabled in production');
+  }
+}
+
 export function adminL1CacheCapacity(env: Env): number {
   return positiveIntegerSetting(
     'ADMIN_L1_CACHE_CAPACITY',
@@ -22,6 +31,7 @@ export function adminL1CacheCapacity(env: Env): number {
 // Validate at boot (from the init hook), reading the injected env rather than
 // process.env so all runtime config flows through $env/dynamic/private.
 export function assertConfigSane(env: Env): void {
+  assertDemoConfigSafe(env);
   const origin = assertOrigin('ORIGIN', env.ORIGIN);
   assertCallback('TWITCH_REDIRECT_URI', env.TWITCH_REDIRECT_URI, {
     origin,
