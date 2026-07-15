@@ -12,6 +12,7 @@ import (
 func All(d engine.Deps) []module.Module {
 	return []module.Module{
 		Core(d),
+		Personality(d),
 		Live(d),
 		Cmd(d),
 		Shoutout(d),

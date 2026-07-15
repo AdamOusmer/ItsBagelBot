@@ -90,6 +90,24 @@ type Deps struct {
 	// builds the channel command-page link from it. Empty falls back to the
 	// production dashboard origin.
 	PublicBaseURL string
+	// Personality is the small state behind the built-in personality module
+	// (fact rotation, feed counter, stream mood); ValkeyPersonality is the
+	// default. nil degrades gracefully: facts go random, the feed count is
+	// omitted and the mood re-rolls per message.
+	Personality PersonalityStore
+}
+
+// PersonalityStore is the state the personality module leans on. All three are
+// best-effort: the module treats any error like a nil store and falls back to
+// stateless randomness.
+type PersonalityStore interface {
+	// FactCursor bumps and returns a per-channel monotonic counter; the module
+	// indexes the fact list with it modulo the list length.
+	FactCursor(ctx context.Context, broadcasterID uint64) (int64, error)
+	// FeedCount bumps and returns the per-stream feed counter.
+	FeedCount(ctx context.Context, broadcasterID uint64) (int64, error)
+	// Mood returns the stream's mood, seeding it with candidate when unset.
+	Mood(ctx context.Context, broadcasterID uint64, candidate string) (string, error)
 }
 
 // IsLiveChecker is the read-only slice of the live store: just "is this
