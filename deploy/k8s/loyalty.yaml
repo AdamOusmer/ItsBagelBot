@@ -21,10 +21,9 @@ metadata:
   annotations:
     secrets.doppler.com/reload: "true"
 spec:
-  # Two replicas suffice: the hot writes are queue-group event folds with
-  # in-memory accumulators, and losing one instance costs at most one flush
-  # window of loss-tolerant deltas.
-  replicas: 2
+  # Keep one local loyalty RPC responder beside Sesame on every hot-path node.
+  # Event folds remain queue-grouped across the three replicas.
+  replicas: 3
   revisionHistoryLimit: 3
   minReadySeconds: 10
   strategy:
@@ -63,10 +62,25 @@ spec:
           operator: Exists
           effect: NoExecute
           tolerationSeconds: 60
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values: [node1]
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app: loyalty
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: ScheduleAnyway
+          whenUnsatisfiable: DoNotSchedule
+          matchLabelKeys: [pod-template-hash]
           labelSelector:
             matchLabels:
               app: loyalty
