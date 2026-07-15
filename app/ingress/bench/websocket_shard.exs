@@ -108,7 +108,14 @@ defmodule Ingress.WebsocketShardBench.Server do
     receive do
       {:send_frames, ref, frame, count, batch_size} ->
         started = System.monotonic_time(:microsecond)
-        result = send_frames(transport, socket, frame, count, batch_size)
+
+        result =
+          send_frames(transport, socket, %{
+            frame: frame,
+            remaining: count,
+            batch_size: batch_size
+          })
+
         duration_us = System.monotonic_time(:microsecond) - started
         send(parent, {:websocket_server_sent, ref, result, duration_us})
         command_loop(transport, socket, parent)
@@ -119,13 +126,14 @@ defmodule Ingress.WebsocketShardBench.Server do
     end
   end
 
-  defp send_frames(_transport, _socket, _frame, 0, _batch_size), do: :ok
+  defp send_frames(_transport, _socket, %{remaining: 0}), do: :ok
 
-  defp send_frames(transport, socket, frame, remaining, batch_size) do
+  defp send_frames(transport, socket, %{frame: frame} = request) do
+    %{remaining: remaining, batch_size: batch_size} = request
     batch_count = min(remaining, batch_size)
 
     case send_data(transport, socket, List.duplicate(frame, batch_count)) do
-      :ok -> send_frames(transport, socket, frame, remaining - batch_count, batch_size)
+      :ok -> send_frames(transport, socket, %{request | remaining: remaining - batch_count})
       {:error, _reason} = error -> error
     end
   end
@@ -143,39 +151,81 @@ defmodule Ingress.WebsocketShardBench do
   alias Ingress.WebsocketShardBench.Server
 
   def run do
+    context = start_benchmark(load_config())
+
+    try do
+      result = measure(context)
+      IO.puts("WEBSOCKET_SHARD_RESULT=" <> Jason.encode!(result))
+    after
+      stop_benchmark(context)
+    end
+  end
+
+  defp load_config do
+    %{
+      events: env_integer("INGRESS_WS_BENCH_EVENTS", 500_000),
+      warmup: env_integer("INGRESS_WS_BENCH_WARMUP", 25_000),
+      batch_size: env_integer("INGRESS_WS_BENCH_BATCH_SIZE", 64),
+      workers: env_integer("INGRESS_WS_BENCH_WORKERS", 512),
+      tls?: System.get_env("INGRESS_WS_BENCH_TLS", "false") == "true",
+      cafile: System.get_env("INGRESS_WS_BENCH_CAFILE"),
+      certfile: System.get_env("INGRESS_WS_BENCH_CERTFILE"),
+      keyfile: System.get_env("INGRESS_WS_BENCH_KEYFILE")
+    }
+  end
+
+  defp start_benchmark(config) do
     {:ok, _} = Application.ensure_all_started(:mint_web_socket)
     {:ok, _} = Application.ensure_all_started(:new_relic_agent)
-
-    events = env_integer("INGRESS_WS_BENCH_EVENTS", 500_000)
-    warmup = env_integer("INGRESS_WS_BENCH_WARMUP", 25_000)
-    batch_size = env_integer("INGRESS_WS_BENCH_BATCH_SIZE", 64)
-    workers = env_integer("INGRESS_WS_BENCH_WORKERS", 512)
-    tls? = System.get_env("INGRESS_WS_BENCH_TLS", "false") == "true"
-    cafile = System.get_env("INGRESS_WS_BENCH_CAFILE")
-    certfile = System.get_env("INGRESS_WS_BENCH_CERTFILE")
-    keyfile = System.get_env("INGRESS_WS_BENCH_KEYFILE")
     completed = :atomics.new(1, signed: false)
-    handler = fn _payload, _meta -> :atomics.add(completed, 1, 1) end
-
     {:ok, metrics} = Ingress.Metrics.start_link(flush_ms: 60_000)
+    dispatcher_supervisor = start_dispatcher(config, completed)
+    wait_workers(config.workers)
+    server = start_server(config)
+    shard = start_shard(config)
+    await_websocket(server, shard)
+
+    %{
+      config: config,
+      completed: completed,
+      metrics: metrics,
+      dispatcher_supervisor: dispatcher_supervisor,
+      server: server,
+      shard: shard
+    }
+  end
+
+  defp start_dispatcher(config, completed) do
+    handler = fn _payload, _meta -> :atomics.add(completed, 1, 1) end
 
     {:ok, dispatcher_supervisor} =
       Ingress.Dispatcher.Supervisor.start_link(
-        max_running: workers,
-        max_queue: events + warmup,
-        max_per_broadcaster: events + warmup,
+        max_running: config.workers,
+        max_queue: config.events + config.warmup,
+        max_per_broadcaster: config.events + config.warmup,
         completion_batch_size: 4,
         completion_flush_ms: 25,
         handler: handler
       )
 
-    wait_workers(workers)
-    parent = self()
-    server_opts = if tls?, do: [tls: true, certfile: certfile, keyfile: keyfile], else: []
-    {server, port} = Server.start(parent, server_opts)
-    scheme = if tls?, do: "wss", else: "ws"
+    dispatcher_supervisor
+  end
+
+  defp start_server(config) do
+    server_opts =
+      if config.tls?,
+        do: [tls: true, certfile: config.certfile, keyfile: config.keyfile],
+        else: []
+
+    {server, port} = Server.start(self(), server_opts)
+    scheme = if config.tls?, do: "wss", else: "ws"
     Application.put_env(:ingress, :eventsub_url, "#{scheme}://127.0.0.1:#{port}/ws")
-    ws_connect_opts = if tls?, do: [transport_opts: [cacertfile: cafile]], else: []
+
+    server
+  end
+
+  defp start_shard(config) do
+    ws_connect_opts = if config.tls?, do: [transport_opts: [cacertfile: config.cafile]], else: []
 
     {:ok, shard} =
       ShardSession.start_link(
@@ -185,6 +235,10 @@ defmodule Ingress.WebsocketShardBench do
         ws_connect_opts: ws_connect_opts
       )
 
+    shard
+  end
+
+  defp await_websocket(server, shard) do
     receive do
       {:websocket_server_ready, ^server} -> :ok
     after
@@ -193,76 +247,106 @@ defmodule Ingress.WebsocketShardBench do
 
     wait_upgraded(shard)
     cancel_welcome_deadline(shard)
+  end
 
+  defp measure(context) do
     payload = notification_payload()
     frame = websocket_text_frame(payload)
+    context = Map.merge(context, %{payload: payload, frame: frame})
+    warmup_stats = run_warmup(context)
+    measured = run_measurement(context)
+
+    build_result(context, warmup_stats, measured)
+  end
+
+  defp run_warmup(context) do
+    %{config: config} = context
 
     {_warmup_us, warmup_stats} =
-      drive(server, shard, completed, frame, warmup, batch_size, warmup)
+      drive(context, config.warmup, config.warmup)
 
     wait_dispatcher_drained()
-    reductions_before = process_reductions(shard)
-    memory_before = process_memory(shard)
+
+    warmup_stats
+  end
+
+  defp run_measurement(context) do
+    %{config: config, shard: shard} = context
+    before = %{reductions: process_reductions(shard), memory: process_memory(shard)}
 
     {duration_us, stats} =
-      drive(server, shard, completed, frame, events, batch_size, warmup + events)
+      drive(context, config.events, config.warmup + config.events)
 
     wait_dispatcher_drained()
-    reductions = process_reductions(shard) - reductions_before
-    memory_delta = process_memory(shard) - memory_before
-    status = ShardSession.status(shard)
-    sender_duration_us = receive_sender_duration(stats.ref)
 
-    result = %{
-      events: events,
-      warmup_events: warmup,
+    %{
+      duration_us: duration_us,
+      sender_duration_us: receive_sender_duration(stats.ref),
+      stats: stats,
+      status: ShardSession.status(shard),
+      reductions: process_reductions(shard) - before.reductions,
+      memory_delta: process_memory(shard) - before.memory
+    }
+  end
+
+  defp build_result(context, warmup_stats, measured) do
+    %{completed: completed, config: config, frame: frame, payload: payload} = context
+    %{duration_us: duration_us, sender_duration_us: sender_duration_us, stats: stats} = measured
+
+    %{
+      events: config.events,
+      warmup_events: config.warmup,
       payload_bytes: byte_size(payload),
       websocket_frame_bytes: byte_size(frame),
-      socket_batch_frames: batch_size,
-      workers: workers,
+      socket_batch_frames: config.batch_size,
+      workers: config.workers,
       schedulers: System.schedulers_online(),
       dirty_cpu_schedulers: :erlang.system_info(:dirty_cpu_schedulers),
-      tls: tls?,
-      receiver_events_per_second: round(events * 1_000_000 / duration_us),
-      sender_events_per_second: round(events * 1_000_000 / sender_duration_us),
+      tls: config.tls?,
+      receiver_events_per_second: round(config.events * 1_000_000 / duration_us),
+      sender_events_per_second: round(config.events * 1_000_000 / sender_duration_us),
       duration_ms: Float.round(duration_us / 1_000, 3),
       sender_duration_ms: Float.round(sender_duration_us / 1_000, 3),
-      shard_load_window_count: status.load,
-      dispatcher_completed: :atomics.get(completed, 1) - warmup,
+      shard_load_window_count: measured.status.load,
+      dispatcher_completed: :atomics.get(completed, 1) - config.warmup,
       dispatcher_pending: Dispatcher.admitted_count(),
       shard_max_mailbox: stats.max_mailbox,
       warmup_max_mailbox: warmup_stats.max_mailbox,
       max_run_queue: stats.max_run_queue,
-      shard_reductions_per_event: Float.round(reductions / events, 2),
-      shard_memory_delta_bytes: memory_delta
+      shard_reductions_per_event: Float.round(measured.reductions / config.events, 2),
+      shard_memory_delta_bytes: measured.memory_delta
     }
-
-    IO.puts("WEBSOCKET_SHARD_RESULT=" <> Jason.encode!(result))
-
-    send(server, :stop)
-    GenServer.stop(shard)
-    Supervisor.stop(dispatcher_supervisor)
-    GenServer.stop(metrics)
   end
 
-  defp drive(server, shard, completed, frame, count, batch_size, completed_target) do
+  defp stop_benchmark(context) do
+    send(context.server, :stop)
+    GenServer.stop(context.shard)
+    Supervisor.stop(context.dispatcher_supervisor)
+    GenServer.stop(context.metrics)
+  end
+
+  defp drive(context, count, completed_target) do
+    %{completed: completed, config: config, frame: frame, server: server, shard: shard} = context
     ref = make_ref()
     started = System.monotonic_time(:microsecond)
-    send(server, {:send_frames, ref, frame, count, batch_size})
+    send(server, {:send_frames, ref, frame, count, config.batch_size})
 
     stats =
-      wait_completed(
-        completed,
-        completed_target,
-        shard,
-        System.monotonic_time(:millisecond) + 120_000,
-        %{ref: ref, max_mailbox: 0, max_run_queue: 0}
-      )
+      wait_completed(%{
+        completed: completed,
+        target: completed_target,
+        shard: shard,
+        deadline: System.monotonic_time(:millisecond) + 120_000,
+        stats: %{ref: ref, max_mailbox: 0, max_run_queue: 0}
+      })
 
     {System.monotonic_time(:microsecond) - started, stats}
   end
 
-  defp wait_completed(completed, target, shard, deadline, stats) do
+  defp wait_completed(state) do
+    %{completed: completed, deadline: deadline, shard: shard, stats: stats, target: target} =
+      state
+
     mailbox = process_info_value(shard, :message_queue_len)
     run_queue = :erlang.statistics(:run_queue)
 
@@ -284,7 +368,7 @@ defmodule Ingress.WebsocketShardBench do
 
       true ->
         Process.sleep(1)
-        wait_completed(completed, target, shard, deadline, stats)
+        wait_completed(%{state | stats: stats})
     end
   end
 
