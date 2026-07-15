@@ -368,7 +368,7 @@ func (m *LeaseManager) configuredBucket(now time.Time, plan *activePlan, bucketI
 	}
 	candidate := NewLocalBucket()
 	stableID := bucketID
-	// Sonic exposes envelope strings as views into Watermill's payload. Clone
+	// Sonic exposes envelope strings as views into the native bus payload. Clone
 	// only on the first bucket insertion so the map does not retain the whole
 	// message buffer; cache hits remain allocation-free.
 	if stableID.Value != "" {

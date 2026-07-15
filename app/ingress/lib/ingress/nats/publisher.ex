@@ -5,21 +5,16 @@ defmodule Ingress.Nats.Publisher do
   Calls arriving within `publish_batch_wait_ms` are staged as a local cohort,
   then published through Gnat on one of two wires (`Config.publish_wire/0`):
 
-    * `:single` (default) — one ordinary JetStream PubAck per event. With
-      `Config.publish_dedup/0` on, each event retains its `Nats-Msg-Id`, so a
-      missing PubAck is retried safely and the broker folds the replay. With
-      dedup off (the production setting — the dedup insert costs ~27% of
-      single-stream ingest capacity and EventSub websockets never redeliver),
-      ids are stripped at admission and an ambiguous ack timeout drops the
-      event instead of retrying; only definite failures retry.
+    * `:single` (default) — one ordinary JetStream PubAck per event. Ingress
+      never attaches `Nats-Msg-Id`: EventSub websockets do not replay and the
+      broker dedup index materially reduces ingest throughput. An ambiguous ack
+      timeout is dropped instead of retried; only definite failures retry.
     * `:atomic` — the cohort is written as one ADR-050 atomic batch (NATS
       2.14): sequenced `Nats-Batch-*` headers, one commit PubAck for the whole
-      cohort. Events keep their `Nats-Msg-Id` (deduplication is enforced inside
-      batches since 2.12.1). A rejected, abandoned or unacknowledged batch is
-      re-driven per message over the `:single` machinery: atomicity means the
-      broker stored nothing (the retry stores everything exactly once) or
-      everything (the retry folds every duplicate), so the fallback can never
-      double-store. Fast-Ingest (flow-controlled batches) stays out of scope.
+      cohort. A definite server rejection is re-driven per message because the
+      broker stored nothing. A send error or missing commit ack is ambiguous and
+      drops the cohort rather than risking a duplicate. Fast-Ingest
+      (flow-controlled batches) stays out of scope until Gnat supports it.
 
   `Ingress.Nats.PublisherPool` runs one publisher and BUS connection per online
   BEAM scheduler. Admission and cohort assembly are serialized only inside that local
@@ -41,6 +36,7 @@ defmodule Ingress.Nats.Publisher do
   @idx_cohorts 6
   @idx_batch_inflight 7
   @idx_batch_fallback 8
+  @idx_batch_bypass 9
 
   @inbox_prefix "_INBOX.ingresspub."
   @sweep_interval_ms 500
@@ -48,30 +44,30 @@ defmodule Ingress.Nats.Publisher do
 
   ## Scheduler-local admission
 
-  @spec enqueue(String.t(), iodata(), String.t() | nil) :: :ok | {:error, term()}
-  def enqueue(subject, json, dedup_id) do
+  @spec enqueue(String.t(), iodata()) :: :ok | {:error, term()}
+  def enqueue(subject, json) do
     case :persistent_term.get({__MODULE__, :n}, 0) do
       0 ->
         {:error, :not_connected}
 
       n ->
         index = rem(max(:erlang.system_info(:scheduler_id), 1) - 1, n)
-        enqueue_from(index, n, subject, json, dedup_id, nil)
+        enqueue_from(index, n, subject, json, nil)
     end
   end
 
-  defp enqueue_from(_index, 0, _subject, _json, _dedup_id, nil),
+  defp enqueue_from(_index, 0, _subject, _json, nil),
     do: {:error, :not_connected}
 
-  defp enqueue_from(_index, 0, _subject, _json, _dedup_id, last_error), do: last_error
+  defp enqueue_from(_index, 0, _subject, _json, last_error), do: last_error
 
-  defp enqueue_from(index, remaining, subject, json, dedup_id, _last_error) do
+  defp enqueue_from(index, remaining, subject, json, _last_error) do
     n = :persistent_term.get({__MODULE__, :n})
 
     result =
       case :persistent_term.get({__MODULE__, :ctx, index}, nil) do
         nil -> {:error, :not_connected}
-        ctx -> admit(ctx, subject, json, dedup_id)
+        ctx -> admit(ctx, subject, json)
       end
 
     case result do
@@ -79,19 +75,14 @@ defmodule Ingress.Nats.Publisher do
         :ok
 
       {:error, reason} = error when reason in [:overloaded, :not_connected] ->
-        enqueue_from(rem(index + 1, n), remaining - 1, subject, json, dedup_id, error)
+        enqueue_from(rem(index + 1, n), remaining - 1, subject, json, error)
 
       error ->
         error
     end
   end
 
-  defp admit(
-         %{pid: pid, conn: conn, counter: counter, max_pending: max_pending} = ctx,
-         subject,
-         json,
-         dedup_id
-       ) do
+  defp admit(%{pid: pid, conn: conn, counter: counter, max_pending: max_pending}, subject, json) do
     cond do
       :atomics.add_get(counter, @idx_pending, 1) > max_pending ->
         :atomics.sub(counter, @idx_pending, 1)
@@ -102,16 +93,10 @@ defmodule Ingress.Nats.Publisher do
         {:error, :not_connected}
 
       true ->
-        GenServer.cast(pid, {:enqueue, subject, json, admitted_dedup_id(ctx, dedup_id)})
+        GenServer.cast(pid, {:enqueue, subject, json})
         :ok
     end
   end
-
-  # With dedup disabled the id is stripped at admission, so everything
-  # downstream — wire headers, retry policy, batch fallback — sees the event
-  # as unprotected and behaves at-most-once on ambiguity.
-  defp admitted_dedup_id(%{dedup: false}, _dedup_id), do: nil
-  defp admitted_dedup_id(_ctx, dedup_id), do: dedup_id
 
   ## Collector lifecycle
 
@@ -138,7 +123,7 @@ defmodule Ingress.Nats.Publisher do
       write_concurrency: true
     ])
 
-    counter = :atomics.new(8, signed: false)
+    counter = :atomics.new(9, signed: false)
     token = :crypto.strong_rand_bytes(9) |> Base.url_encode64(padding: false)
     prefix = @inbox_prefix <> token <> "."
     max_pending = Config.publish_max_pending()
@@ -151,8 +136,7 @@ defmodule Ingress.Nats.Publisher do
         prefix: prefix,
         table: table,
         conn: conn,
-        max_pending: max_pending,
-        dedup: Config.publish_dedup()
+        max_pending: max_pending
       }
     )
 
@@ -186,10 +170,10 @@ defmodule Ingress.Nats.Publisher do
   end
 
   @impl true
-  def handle_cast({:enqueue, subject, json, dedup_id}, state) do
+  def handle_cast({:enqueue, subject, json}, state) do
     state = %{
       state
-      | queue: [{subject, json, dedup_id, nil} | state.queue],
+      | queue: [{subject, json, nil} | state.queue],
         queue_count: state.queue_count + 1
     }
 
@@ -228,8 +212,8 @@ defmodule Ingress.Nats.Publisher do
 
     for row <- :ets.tab2list(state.table) do
       case row do
-        {id, :single, subject, json, dedup_id, attempts, timestamp} when timestamp <= deadline ->
-          retry_or_drop(id, subject, json, dedup_id, attempts, :ack_timeout, state)
+        {id, :single, subject, json, attempts, timestamp} when timestamp <= deadline ->
+          retry_or_drop(id, subject, json, attempts, :ack_timeout, state)
 
         {id, :batch, entries, timestamp} when timestamp <= deadline ->
           expire_batch(id, entries, state)
@@ -251,6 +235,7 @@ defmodule Ingress.Nats.Publisher do
     flush_metric(state.counter, @idx_failed, "Nats/PublishFailed")
     flush_metric(state.counter, @idx_cohorts, "Nats/PublishCohorts")
     flush_metric(state.counter, @idx_batch_fallback, "Nats/PublishBatchFallback")
+    flush_metric(state.counter, @idx_batch_bypass, "Nats/PublishBatchBypassed")
 
     Metrics.event("Nats/PublishInflight", %{
       shard: state.index,
@@ -294,8 +279,16 @@ defmodule Ingress.Nats.Publisher do
   # amortizes something (two or more events), and this shard is under its
   # in-flight batch budget — the broker caps in-flight batches per stream, so
   # overflow degrades to per-message publishes instead of broker rejections.
-  defp atomic_batch?(%{wire: :atomic} = state, [_, _ | _]),
-    do: :atomics.get(state.counter, @idx_batch_inflight) < state.batch_inflight_cap
+  defp atomic_batch?(%{wire: :atomic} = state, [_, _ | _]) do
+    if :atomics.get(state.counter, @idx_batch_inflight) < state.batch_inflight_cap do
+      true
+    else
+      # Make mixed-wire benchmark runs visible: an "atomic" cohort that hits
+      # the stream budget is intentionally sent as singles.
+      :atomics.add(state.counter, @idx_batch_bypass, 1)
+      false
+    end
+  end
 
   defp atomic_batch?(_state, _entries), do: false
 
@@ -309,12 +302,12 @@ defmodule Ingress.Nats.Publisher do
     state
   end
 
-  defp stage_single({subject, json, dedup_id, from}, state) do
+  defp stage_single({subject, json, from}, state) do
     id = :atomics.add_get(state.counter, @idx_next_id, 1)
-    :ets.insert(state.table, {id, :single, subject, json, dedup_id, 1, now_ms()})
+    :ets.insert(state.table, {id, :single, subject, json, 1, now_ms()})
 
     token = {id, from}
-    opts = [reply_to: single_reply_subject(state.prefix, id), headers: dedup_headers(dedup_id)]
+    opts = [reply_to: single_reply_subject(state.prefix, id)]
     {token, subject, json, opts}
   end
 
@@ -342,7 +335,10 @@ defmodule Ingress.Nats.Publisher do
 
     case publish_batch_messages(entries, batch_id, id, state) do
       :ok -> state
-      {:error, _reason} -> fallback_batch(id, entries, state)
+      # A local send failure can be ambiguous when the commit write reached the
+      # socket but its call result did not. Without message IDs a per-message
+      # replay could double-store the entire cohort, so fail closed.
+      {:error, _reason} -> fail_batch(id, entries, state)
     end
   end
 
@@ -351,8 +347,8 @@ defmodule Ingress.Nats.Publisher do
 
     entries
     |> Enum.with_index(1)
-    |> Enum.reduce_while(:ok, fn {{subject, json, dedup_id, _from}, seq}, :ok ->
-      headers = batch_headers(batch_id, seq, last, dedup_id)
+    |> Enum.reduce_while(:ok, fn {{subject, json, _from}, seq}, :ok ->
+      headers = batch_headers(batch_id, seq, last)
 
       case safe_pub(state.conn, subject, json, batch_pub_opts(headers, seq, last, id, state)) do
         :ok -> {:cont, :ok}
@@ -361,11 +357,11 @@ defmodule Ingress.Nats.Publisher do
     end)
   end
 
-  defp batch_headers(batch_id, seq, last, dedup_id) do
+  defp batch_headers(batch_id, seq, last) do
     commit = if seq == last, do: [{"Nats-Batch-Commit", "1"}], else: []
 
     [{"Nats-Batch-Id", batch_id}, {"Nats-Batch-Sequence", Integer.to_string(seq)}] ++
-      commit ++ dedup_headers(dedup_id)
+      commit
   end
 
   defp batch_pub_opts(headers, 1, last, id, state) when last > 1,
@@ -376,10 +372,9 @@ defmodule Ingress.Nats.Publisher do
 
   defp batch_pub_opts(headers, _seq, _last, _id, _state), do: [headers: headers]
 
-  # Re-drives a failed batch per message over the single wire. Atomicity plus
-  # per-message Nats-Msg-Id makes this converge from either half-state: an
-  # abandoned batch stored nothing, a committed batch whose ack was lost folds
-  # every re-publish as a duplicate.
+  # Re-drives a definitely rejected batch per message over the single wire. A
+  # negative server acknowledgement proves the atomic cohort was not committed;
+  # ambiguous transport failures and timeouts use fail_batch/3 instead.
   defp fallback_batch(id, entries, state) do
     :ets.delete(state.table, id)
     :atomics.sub(state.counter, @idx_batch_inflight, 1)
@@ -388,11 +383,12 @@ defmodule Ingress.Nats.Publisher do
   end
 
   # A swept batch is the cohort-shaped ack timeout: the commit may have landed
-  # with only its ack lost. Protected entries re-drive and the broker folds
-  # duplicates; unprotected entries (dedup off) are dropped whole rather than
-  # risking a double-stored cohort. Error replies never come here — they are
-  # definite rejections and take fallback_batch directly.
-  defp expire_batch(id, [{_subject, _json, nil, _from} | _] = entries, state) do
+  # with only its ack lost. Dedup is deliberately unavailable, so drop the
+  # whole cohort rather than risking a double-store. Error replies never come
+  # here — definite rejections take fallback_batch/3 directly.
+  defp expire_batch(id, entries, state), do: fail_batch(id, entries, state)
+
+  defp fail_batch(id, entries, state) do
     :ets.delete(state.table, id)
     count = length(entries)
     :atomics.sub(state.counter, @idx_pending, count)
@@ -400,8 +396,6 @@ defmodule Ingress.Nats.Publisher do
     :atomics.sub(state.counter, @idx_batch_inflight, 1)
     state
   end
-
-  defp expire_batch(id, entries, state), do: fallback_batch(id, entries, state)
 
   defp resolve_batch(id, entries, state) do
     :ets.delete(state.table, id)
@@ -412,11 +406,8 @@ defmodule Ingress.Nats.Publisher do
     state
   end
 
-  defp dedup_headers(nil), do: []
-  defp dedup_headers(dedup_id), do: [{"Nats-Msg-Id", dedup_id}]
-
-  defp pub(conn, subject, json, reply, headers),
-    do: safe_pub(conn, subject, json, reply_to: reply, headers: headers)
+  defp pub(conn, subject, json, reply),
+    do: safe_pub(conn, subject, json, reply_to: reply)
 
   defp safe_pub(conn, subject, json, opts) do
     Gnat.pub(conn, subject, json, opts)
@@ -431,10 +422,10 @@ defmodule Ingress.Nats.Publisher do
 
   defp apply_ack({:single, id}, body, state) do
     case :ets.lookup(state.table, id) do
-      [{^id, :single, subject, json, dedup_id, attempts, _timestamp}] ->
+      [{^id, :single, subject, json, attempts, _timestamp}] ->
         case Nats.parse_pub_ack(body) do
           :ok -> resolve_single(id, state)
-          {:error, reason} -> retry_or_drop(id, subject, json, dedup_id, attempts, reason, state)
+          {:error, reason} -> retry_or_drop(id, subject, json, attempts, reason, state)
         end
 
       [] ->
@@ -443,15 +434,20 @@ defmodule Ingress.Nats.Publisher do
   end
 
   # Batch-open reply: zero-byte means the broker accepted the batch and the
-  # commit ack will resolve it. A non-empty body is an immediate rejection
-  # (unsupported stream, in-flight limit, duplicate id) — fall back now instead
-  # of waiting out the sweep deadline.
+  # commit ack will resolve it. Only an explicit negative PubAck proves a
+  # rejection and permits fallback; malformed replies fail closed.
   defp apply_ack({:batch_start, _id}, "", state), do: state
 
-  defp apply_ack({:batch_start, id}, _body, state) do
+  defp apply_ack({:batch_start, id}, body, state) do
     case :ets.lookup(state.table, id) do
-      [{^id, :batch, entries, _timestamp}] -> fallback_batch(id, entries, state)
-      _ -> state
+      [{^id, :batch, entries, _timestamp}] ->
+        case Nats.parse_pub_ack(body) do
+          {:error, {:pub_ack, _reason}} -> fallback_batch(id, entries, state)
+          _ambiguous -> fail_batch(id, entries, state)
+        end
+
+      _ ->
+        state
     end
   end
 
@@ -460,7 +456,8 @@ defmodule Ingress.Nats.Publisher do
       [{^id, :batch, entries, _timestamp}] ->
         case Nats.parse_pub_ack(body) do
           :ok -> resolve_batch(id, entries, state)
-          {:error, _reason} -> fallback_batch(id, entries, state)
+          {:error, {:pub_ack, _reason}} -> fallback_batch(id, entries, state)
+          _ambiguous -> fail_batch(id, entries, state)
         end
 
       _ ->
@@ -475,23 +472,16 @@ defmodule Ingress.Nats.Publisher do
     state
   end
 
-  defp retry_or_drop(id, subject, json, dedup_id, attempts, reason, state) do
-    if retry?(dedup_id, attempts, reason, state) do
+  defp retry_or_drop(id, subject, json, attempts, reason, state) do
+    if retry?(attempts, reason, state) do
       :ets.insert(
         state.table,
-        {id, :single, subject, json, dedup_id, attempts + 1, now_ms()}
+        {id, :single, subject, json, attempts + 1, now_ms()}
       )
 
       :atomics.add(state.counter, @idx_retried, 1)
 
-      _ =
-        pub(
-          state.conn,
-          subject,
-          json,
-          single_reply_subject(state.prefix, id),
-          dedup_headers(dedup_id)
-        )
+      _ = pub(state.conn, subject, json, single_reply_subject(state.prefix, id))
 
       :ok
     else
@@ -503,12 +493,12 @@ defmodule Ingress.Nats.Publisher do
   end
 
   # An ack timeout is ambiguous: the broker may have stored the event and only
-  # the ack was lost. Without a Nats-Msg-Id nothing folds a re-publish, so an
-  # unprotected event is dropped rather than risking a duplicate (at-most-once
-  # on ambiguity). Definite failures — error PubAcks, socket errors — mean
-  # nothing was stored, so they stay retried with or without dedup.
-  defp retry?(nil, _attempts, :ack_timeout, _state), do: false
-  defp retry?(_dedup_id, attempts, _reason, state), do: attempts < state.max_attempts
+  # the ack was lost. Without Nats-Msg-Id the event is dropped rather than
+  # risking a duplicate. Definite negative PubAcks mean nothing was stored and
+  # may be retried within the bounded attempt budget. Malformed acknowledgements
+  # are ambiguous and therefore fail closed too.
+  defp retry?(attempts, {:pub_ack, _reason}, state), do: attempts < state.max_attempts
+  defp retry?(_attempts, _reason, _state), do: false
 
   defp ack_key(topic, prefix) do
     plen = byte_size(prefix)

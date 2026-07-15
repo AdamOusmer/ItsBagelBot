@@ -15,14 +15,13 @@ import (
 
 	"ItsBagelBot/pkg/bus"
 
-	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
 )
 
 // Handler is the per-message routine the consumer hands each event to. The engine
 // pipeline's Process satisfies it.
-type Handler func(*message.Message) error
+type Handler func(*bus.Message) error
 
 // Lanes names the two ingress subjects the consumer drains.
 type Lanes struct {
@@ -40,14 +39,14 @@ type Config struct {
 
 // Consumer drains the premium and standard lanes into one autoscaling pool.
 type Consumer struct {
-	sub   message.Subscriber
+	sub   bus.Subscriber
 	nrApp *newrelic.Application
 	log   *zap.Logger
 	cfg   Config
 }
 
 // New builds a Consumer over one subscriber.
-func New(sub message.Subscriber, nrApp *newrelic.Application, cfg Config, log *zap.Logger) *Consumer {
+func New(sub bus.Subscriber, nrApp *newrelic.Application, cfg Config, log *zap.Logger) *Consumer {
 	return &Consumer{sub: sub, nrApp: nrApp, log: log, cfg: cfg}
 }
 

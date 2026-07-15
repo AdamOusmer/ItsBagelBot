@@ -149,8 +149,9 @@ defmodule Ingress.Config do
   def publish_ack_timeout_ms,
     do: Application.get_env(:ingress, :publish_ack_timeout_ms, 2_000)
 
-  # Total delivery attempts (first try + retries) for one lane publish. The
-  # Nats-Msg-Id dedup header makes retries safe.
+  # Total delivery attempts (first try + retries) for one lane publish.
+  # Only definite negative acknowledgements are retried; ambiguous timeouts
+  # are dropped because ingress intentionally does not use Nats-Msg-Id.
   def publish_attempts,
     do: Application.get_env(:ingress, :publish_attempts, 3)
 
@@ -180,22 +181,11 @@ defmodule Ingress.Config do
   # Wire protocol for one flushed cohort. :single publishes every event with
   # its own JetStream PubAck (the long-standing path). :atomic writes the
   # cohort as one ADR-050 atomic batch (NATS 2.14): a single commit PubAck
-  # per cohort instead of one per event, with per-event Nats-Msg-Id kept for
-  # broker dedup. Default stays :single so the mode ships dark and is enabled
-  # by INGRESS_PUBLISH_WIRE=atomic once the live measurements decide.
+  # per cohort instead of one per event. Default stays :single so the mode
+  # ships dark and is enabled by INGRESS_PUBLISH_WIRE=atomic only after the R3
+  # acceptance matrix proves its loss and latency behavior.
   def publish_wire,
     do: Application.get_env(:ingress, :publish_wire, :single)
-
-  # Whether lane publishes carry their Nats-Msg-Id dedup header. The 2026-07-13
-  # live A/B measured the broker's per-message dedup-index insert at ~27% of
-  # the single stream's serialized ingest capacity (86k/s with, 117k/s
-  # without). Twitch EventSub's websocket transport never redelivers, so the
-  # header only ever folded this publisher's own ack-timeout retries; with
-  # dedup off those retries become drops instead (see Publisher.retry?/4) and
-  # the lanes are at-most-once on an ambiguous ack. Applies to premium and
-  # standard identically — lane processing must not diverge.
-  def publish_dedup,
-    do: Application.get_env(:ingress, :publish_dedup, true)
 
   # Ceiling on unresolved atomic batches per shard. The broker allows 50
   # in-flight batches per stream across ALL publishers, so the fleet budget is

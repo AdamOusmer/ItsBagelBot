@@ -8,7 +8,7 @@ defmodule Ingress.NatsTest do
       assert Nats.parse_pub_ack(~s({"stream":"TWITCH_INGRESS","seq":42})) == :ok
     end
 
-    test "a duplicate inside the dedup window is success (already stored once)" do
+    test "a rolling-upgrade duplicate acknowledgement remains compatible" do
       assert Nats.parse_pub_ack(~s({"stream":"TWITCH_INGRESS","seq":42,"duplicate":true})) == :ok
     end
 

@@ -4,15 +4,15 @@ import (
 	"testing"
 
 	"ItsBagelBot/app/sesame/module"
+	"ItsBagelBot/pkg/bus"
 
-	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/bytedance/sonic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // chatEvent is chatMsg with separate EventSub delivery and Twitch chat IDs.
-func chatEvent(t *testing.T, laneName, text, eventID string) *message.Message {
+func chatEvent(t *testing.T, laneName, text, eventID string) *bus.Message {
 	t.Helper()
 	body, err := sonic.Marshal(map[string]any{
 		"type":                chatType,
@@ -24,7 +24,7 @@ func chatEvent(t *testing.T, laneName, text, eventID string) *message.Message {
 		"msg_id":              "chat-message-1",
 	})
 	require.NoError(t, err)
-	return message.NewMessage("uuid-"+eventID, body)
+	return bus.NewMessage("uuid-"+eventID, body)
 }
 
 func TestReplayUsesSameOutputID(t *testing.T) {

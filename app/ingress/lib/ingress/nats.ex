@@ -3,11 +3,14 @@ defmodule Ingress.Nats do
   Outbound NATS publishing of the twitch.ingress.* firehose, in two
   disciplines:
 
-    * `publish_acked/3` — lane events (the traffic that must not be silently
-      lost). Scheduler-local cohorts publish through Gnat with one ordinary
-      JetStream PubAck per event and retain each `Nats-Msg-Id` for safe retry.
-      Up to `publish_max_pending` events may be outstanding; the explicit bound
-      sheds overload instead of growing memory without limit.
+    * `publish_acked/2` — lane events (the traffic that must not be silently
+      lost). Scheduler-local cohorts publish through Gnat with bounded PubAck
+      tracking. Ingress deliberately does not attach `Nats-Msg-Id`: EventSub
+      websocket delivery is not replayed and the broker-side dedup index is a
+      material ingest tax. An ambiguous missing ack is therefore dropped rather
+      than retried, preserving at-most-once behavior instead of risking a
+      duplicate. Up to `publish_max_pending` events may be outstanding; the
+      explicit bound sheds overload instead of growing memory without limit.
 
     * `publish/2` — status/telemetry events. Fire-and-forget core publish; if
       the connection is down the message is dropped into batched counters. We
@@ -59,26 +62,24 @@ defmodule Ingress.Nats do
   end
 
   @doc """
-  Bounded JetStream publish cohorts with broker-side dedup.
+  Bounded, dedup-free JetStream publish cohorts.
 
-  `dedup_id` becomes the message's `Nats-Msg-Id`: within the stream's
-  duplicate window the broker stores the first copy and acks the rest as
-  duplicates, which makes re-publishing on a missing PubAck safe and absorbs
-  Twitch's at-least-once EventSub redeliveries without any consumer work.
-  `nil` skips the header (no dedup) but the publish is still ack-tracked.
+  Ingress never attaches `Nats-Msg-Id`. The publish remains ack-tracked, but an
+  ambiguous timeout is not retried because the broker may already have stored
+  the event. Definite negative PubAcks can still be retried safely.
 
   Returns `:ok` once the event is on the wire (its PubAck is now awaited
   asynchronously by `Ingress.Nats.Publisher`), or `{:error, reason}` when the
   event was dropped at admission — `:overloaded` when the in-flight window is
   full, `:not_connected` when the publisher or its BUS connection is down.
   """
-  @spec publish_acked(String.t(), map(), String.t() | nil) :: :ok | {:error, term()}
-  def publish_acked(subject, payload, dedup_id) do
+  @spec publish_acked(String.t(), map()) :: :ok | {:error, term()}
+  def publish_acked(subject, payload) do
     # OTP JSON, Gnat and the TCP/SSL transports all keep this as iodata, so no
     # flattened copy is made before the socket write or PubAck retry storage.
     json = JSON.encode(payload)
 
-    case Publisher.enqueue(subject, json, dedup_id) do
+    case Publisher.enqueue(subject, json) do
       :ok ->
         :ok
 
@@ -100,9 +101,9 @@ defmodule Ingress.Nats do
 
   @doc false
   # A JetStream PubAck: {"stream": ..., "seq": N} on success, additionally
-  # "duplicate": true when the id was already stored inside the duplicate
-  # window (success for our purposes — the event is in the stream exactly
-  # once), or {"error": {...}} when storage refused the message.
+  # "duplicate": true is still accepted for rolling-upgrade compatibility,
+  # though the dedup-free ingress publisher no longer causes that response.
+  # An {"error": {...}} response means storage refused the message.
   @spec parse_pub_ack(binary()) :: :ok | {:error, term()}
   def parse_pub_ack(body) do
     cond do

@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"ItsBagelBot/app/sesame/module"
+	"ItsBagelBot/pkg/bus"
 
-	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/bytedance/sonic"
 )
 
@@ -38,7 +38,7 @@ func silentCore() module.Module {
 // pooled, so the only remaining allocations are the JSON decoder's internals.
 func BenchmarkProcessNoOutput(b *testing.B) {
 	p := newPipelineWith(&fakePublisher{}, fakeReader{}, silentCore())
-	msg := message.NewMessage("uuid", benchChatBody())
+	msg := bus.NewMessage("uuid", benchChatBody())
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -54,7 +54,7 @@ func BenchmarkProcessNoOutput(b *testing.B) {
 // cost the hot path above avoids.
 func BenchmarkProcessChatEmit(b *testing.B) {
 	p := newPipelineWith(&fakePublisher{}, fakeReader{}, emitModule("", module.KindCore, "pong"))
-	msg := message.NewMessage("uuid", benchChatBody())
+	msg := bus.NewMessage("uuid", benchChatBody())
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -72,7 +72,7 @@ func BenchmarkProcessChatEmit(b *testing.B) {
 // assert an exact count.
 func TestProcessNoOutputAllocCeiling(t *testing.T) {
 	p := newPipelineWith(&fakePublisher{}, fakeReader{}, silentCore())
-	msg := message.NewMessage("uuid", benchChatBody())
+	msg := bus.NewMessage("uuid", benchChatBody())
 
 	avg := testing.AllocsPerRun(500, func() {
 		_ = p.Process(msg)

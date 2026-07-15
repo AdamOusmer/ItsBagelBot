@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ThreeDotsLabs/watermill/message"
 	"go.uber.org/zap"
 )
 
@@ -90,14 +89,14 @@ func TestRoutinePoolStandardCannotTakeReservedSlots(t *testing.T) {
 	}
 }
 
-// fakeSub is a minimal message.Subscriber: every Subscribe returns the same
+// fakeSub is a minimal Subscriber: every Subscribe returns the same
 // shared channel so multiple consumers compete for one stream of messages.
 type fakeSub struct {
-	ch chan *message.Message
+	ch chan *Message
 }
 
-func (f *fakeSub) Subscribe(ctx context.Context, _ string) (<-chan *message.Message, error) {
-	out := make(chan *message.Message)
+func (f *fakeSub) Subscribe(ctx context.Context, _ string) (<-chan *Message, error) {
+	out := make(chan *Message)
 	go func() {
 		defer close(out)
 		for {
@@ -122,10 +121,10 @@ func (f *fakeSub) Subscribe(ctx context.Context, _ string) (<-chan *message.Mess
 func (f *fakeSub) Close() error { return nil }
 
 func TestConsumeWeightedProcessesAndScales(t *testing.T) {
-	sub := &fakeSub{ch: make(chan *message.Message)}
+	sub := &fakeSub{ch: make(chan *Message)}
 
 	var processed int64
-	handle := func(m *message.Message) error {
+	handle := func(m *Message) error {
 		atomic.AddInt64(&processed, 1)
 		return nil
 	}
@@ -153,7 +152,7 @@ func TestConsumeWeightedProcessesAndScales(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := 0; i < total; i++ {
-			sub.ch <- message.NewMessage("id", nil)
+			sub.ch <- NewMessage("id", nil)
 		}
 	}()
 	wg.Wait()
@@ -173,12 +172,12 @@ func TestConsumeWeightedProcessesAndScales(t *testing.T) {
 // until a handler that was already dispatched has run to completion, so main can
 // flush reporters and close publishers without abandoning in-flight work.
 func TestConsumeWeightedDrainWaitsForInflight(t *testing.T) {
-	sub := &fakeSub{ch: make(chan *message.Message)}
+	sub := &fakeSub{ch: make(chan *Message)}
 
 	started := make(chan struct{})
 	release := make(chan struct{})
 	var finished int64
-	handle := func(m *message.Message) error {
+	handle := func(m *Message) error {
 		close(started) // exactly one message is sent, so handle runs once
 		<-release
 		atomic.AddInt64(&finished, 1)
@@ -194,7 +193,7 @@ func TestConsumeWeightedDrainWaitsForInflight(t *testing.T) {
 		t.Fatalf("ConsumeWeighted: %v", err)
 	}
 
-	sub.ch <- message.NewMessage("id", nil)
+	sub.ch <- NewMessage("id", nil)
 	<-started // the handler is in-flight, blocked on release
 
 	cancel() // stop pulling, as SIGTERM does
@@ -228,11 +227,11 @@ func TestConsumeWeightedDrainWaitsForInflight(t *testing.T) {
 // the drain deadline does not hang shutdown forever; Drain returns the context
 // error so main can log and exit, leaving the event for redelivery.
 func TestConsumeWeightedDrainDeadline(t *testing.T) {
-	sub := &fakeSub{ch: make(chan *message.Message)}
+	sub := &fakeSub{ch: make(chan *Message)}
 
 	started := make(chan struct{})
 	release := make(chan struct{})
-	handle := func(m *message.Message) error {
+	handle := func(m *Message) error {
 		close(started)
 		<-release // never released before the deadline
 		return nil
@@ -247,7 +246,7 @@ func TestConsumeWeightedDrainDeadline(t *testing.T) {
 		t.Fatalf("ConsumeWeighted: %v", err)
 	}
 
-	sub.ch <- message.NewMessage("id", nil)
+	sub.ch <- NewMessage("id", nil)
 	<-started
 	cancel()
 
