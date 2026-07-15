@@ -21,9 +21,10 @@ defmodule Ingress.ShardScaler.PolicyTest do
 
   describe "capacity model" do
     test "uses the measured socket rating and keeps a 25% burst cushion" do
-      assert Policy.shard_rated_eps() == 12_500
+      assert Policy.shard_rated_eps() == 16_000
       assert Policy.target_utilization_pct() == 75
       assert Policy.budget_per_window() == div(Policy.rated_per_window() * 75, 100)
+      assert Policy.autoscale_max_shards(@max) == 11
     end
 
     test "shards_needed sizes from aggregate at target utilization" do
@@ -95,9 +96,14 @@ defmodule Ingress.ShardScaler.PolicyTest do
       assert {4, %{high: 1, low: 0}, :hold} = Policy.evaluate(high, 4, ticks, @min, @max)
     end
 
-    test "needed count clamps at max_shards" do
+    test "needed count clamps at the NATS-limited useful shard count" do
       s = sample(Policy.budget_per_window() * 50)
-      assert {@max, _, :up} = Policy.evaluate(s, 4, Policy.reset_ticks(), @min, @max)
+      assert {11, _, :up} = Policy.evaluate(s, 4, Policy.reset_ticks(), @min, @max)
+    end
+
+    test "operator max remains authoritative below the NATS-limited ceiling" do
+      s = sample(Policy.budget_per_window() * 50)
+      assert {8, _, :up} = Policy.evaluate(s, 4, Policy.reset_ticks(), @min, 8)
     end
   end
 
@@ -199,7 +205,7 @@ defmodule Ingress.ShardScaler.PolicyTest do
     end
 
     test "above both the ratio and the absolute floor is concentrated" do
-      assert Policy.concentrated?(%{responsive_count: 4, avg_load: 1_000, max_load: 150_000})
+      assert Policy.concentrated?(%{responsive_count: 4, avg_load: 1_000, max_load: 200_000})
     end
 
     test "a single responsive shard is never concentrated, regardless of ratio" do

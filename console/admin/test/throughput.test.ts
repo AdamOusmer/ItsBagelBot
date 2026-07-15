@@ -33,7 +33,8 @@ describe('throughput capacity', () => {
     expect(capacity.effective_rated_eps).toBe(123_000);
     expect(capacity.effective_target_eps).toBe(92_250);
     expect(capacity.bottleneck).toBe('nats');
-    expect(capacity.websocket_target_eps).toBe(9_375);
+    expect(capacity.websocket_target_eps).toBe(12_000);
+    expect(capacity.websocket_autoscale_max_shards).toBe(11);
     expect(capacity.target_utilization_pct).toBe(75);
   });
 
@@ -49,11 +50,11 @@ describe('throughput capacity', () => {
 
   test('percentage and bar share the same rated denominator', () => {
     const rate = eventsPerSecond(420_000, 60);
-    const utilization = utilizationPct(rate, 12_500);
+    const utilization = utilizationPct(rate, 16_000);
 
     expect(rate).toBe(7_000);
-    expect(utilization).toBeCloseTo(56);
-    expect(barWidth(utilization)).toBe(56);
+    expect(utilization).toBeCloseTo(43.75);
+    expect(barWidth(utilization)).toBe(44);
   });
 
   test('75% is the scale target, with warning beginning at 60%', () => {

@@ -78,6 +78,7 @@ defmodule Ingress.AdminRpc do
       desired_count: desired,
       target: scaler.target,
       min_shards: scaler.min_shards,
+      max_shards: scaler.max_shards,
       autoscale: scaler.autoscale,
       max_load: scaler.max_load,
       max_load_shard_id: scaler.max_load_shard_id,

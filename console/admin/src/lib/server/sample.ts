@@ -27,6 +27,7 @@ export const sampleSnapshot: ShardSnapshot = {
   desired_count: 4,
   target: 4,
   min_shards: 2,
+  max_shards: 11,
   autoscale: false,
   capacity: {
     benchmark: 'cached_chat_full_path_in_vm_puback',
@@ -43,8 +44,9 @@ export const sampleSnapshot: ShardSnapshot = {
     effective_rated_eps: 123_000,
     effective_target_eps: 92_250,
     bottleneck: 'nats',
-    websocket_rated_eps: 12_500,
-    websocket_target_eps: 9_375
+    websocket_rated_eps: 16_000,
+    websocket_target_eps: 12_000,
+    websocket_autoscale_max_shards: 11
   }
 };
 
