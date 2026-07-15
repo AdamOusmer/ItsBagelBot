@@ -84,10 +84,7 @@ func main() {
 
 	quotes := repository.NewQuotes(client, log)
 
-	nc, err := bus.Connect(rpcURL, serviceName)
-	if err != nil {
-		log.Fatal("failed to connect to nats", zap.Error(err))
-	}
+	nc := connectRPC(rpcURL, log)
 	defer nc.Close()
 
 	// Broadcast subscription: every instance must drop its cached view when
@@ -175,8 +172,6 @@ func main() {
 	}); err != nil {
 		log.Fatal("failed to subscribe quotes rpc", zap.Error(err))
 	}
-	subscribeRPCHealth(nc, log)
-
 	health.Serve(env.Get("LISTEN_ADDR", ":8080"), nc.IsConnected)
 
 	log.Info("modules service ready", zap.String("projection_subject", projectionSubject))
@@ -186,8 +181,13 @@ func main() {
 	log.Info("modules service shutting down")
 }
 
-func subscribeRPCHealth(nc *nats.Conn, log *zap.Logger) {
+func connectRPC(url string, log *zap.Logger) *nats.Conn {
+	nc, err := bus.Connect(url, serviceName)
+	if err != nil {
+		log.Fatal("failed to connect to nats", zap.Error(err))
+	}
 	if err := bus.SubscribeRPCHealth(nc, serviceName, "modules-rpc"); err != nil {
 		log.Fatal("failed to subscribe rpc health", zap.Error(err))
 	}
+	return nc
 }
