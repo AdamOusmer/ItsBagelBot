@@ -22,7 +22,11 @@ defmodule Ingress.Capacity do
   # dialing live. Up from 86,000 — the per-message dedup insert was ~27% of the
   # single stream's serialized ingest capacity.
   @default_nats_rated_eps 123_000
-  @default_websocket_rated_eps 12_500
+  # Rounded down from the slowest 2026-07-15 production-node TLS 1.3 shard
+  # saturation sample (17,516/s on node3). Nine 500k-event samples exercised
+  # Mint framing, native JSON decode, load accounting and dispatcher handoff;
+  # every sample completed without backlog and with a shard mailbox <= 3.
+  @default_websocket_rated_eps 16_000
   @default_target_utilization_pct 75
 
   def load_window_seconds, do: @load_window_seconds
@@ -54,6 +58,18 @@ defmodule Ingress.Capacity do
   def websocket_target_eps, do: at_target(websocket_rated_eps())
 
   @doc """
+  Highest useful WebSocket shard count at the shared NATS ceiling.
+
+  Each socket is budgeted at the 75% operating target. Once their combined
+  target capacity covers NATS' maximum sustained rate, another shard cannot
+  increase end-to-end throughput.
+  """
+  def websocket_autoscale_max_shards do
+    per_shard = max(websocket_target_eps(), 1)
+    max(div(nats_rated_eps() + per_shard - 1, per_shard), 1)
+  end
+
+  @doc """
   Capacity metadata for the admin wire snapshot.
 
   Fleet capacity grows with live BEAM nodes (one ingress pod per node name),
@@ -81,7 +97,8 @@ defmodule Ingress.Capacity do
       effective_target_eps: effective_target,
       bottleneck: if(nats_rated_eps() <= fleet_rated, do: "nats", else: "ingress_compute"),
       websocket_rated_eps: websocket_rated_eps(),
-      websocket_target_eps: websocket_target_eps()
+      websocket_target_eps: websocket_target_eps(),
+      websocket_autoscale_max_shards: websocket_autoscale_max_shards()
     }
   end
 

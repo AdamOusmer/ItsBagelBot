@@ -1,7 +1,7 @@
 import type { IngressCapacity, ShardSnapshot } from '@bagel/shared';
 
 const FALLBACK_POD_RATED_EPS = 140_000;
-const FALLBACK_WEBSOCKET_RATED_EPS = 12_500;
+const FALLBACK_WEBSOCKET_RATED_EPS = 16_000;
 const FALLBACK_NATS_RATED_EPS = 123_000;
 const FALLBACK_TARGET_PCT = 75;
 const FALLBACK_WINDOW_SECONDS = 60;
@@ -39,7 +39,8 @@ export function resolveCapacity(snapshot: ShardSnapshot): IngressCapacity {
     effective_target_eps: Math.min(fleetTarget, natsTarget),
     bottleneck: FALLBACK_NATS_RATED_EPS <= fleetRated ? 'nats' : 'ingress_compute',
     websocket_rated_eps: FALLBACK_WEBSOCKET_RATED_EPS,
-    websocket_target_eps: websocketTarget
+    websocket_target_eps: websocketTarget,
+    websocket_autoscale_max_shards: Math.ceil(FALLBACK_NATS_RATED_EPS / websocketTarget)
   };
 }
 

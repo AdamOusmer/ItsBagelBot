@@ -27,9 +27,10 @@ defmodule Ingress.ShardScaler do
     * needed < target for consecutive ticks → drain one shard
     * otherwise                             → hold
 
-  The effective desired count is always `clamp(target, min_shards, max_shards)`.
-  Decisions run every `@autoscale_interval_ms`. Ratings, utilization, and
-  tick counts live in `Ingress.ShardScaler.Policy`.
+  The effective desired count is always clamped to the node floor and the
+  lower of the operator limit or NATS-limited useful WebSocket count. Decisions
+  run every `@autoscale_interval_ms`. Ratings, utilization, and tick counts
+  live in `Ingress.ShardScaler.Policy`.
   """
 
   use GenServer
@@ -157,6 +158,7 @@ defmodule Ingress.ShardScaler do
        target: state.target,
        autoscale: state.autoscale,
        min_shards: min_s,
+       max_shards: effective_max_shards(state.autoscale, min_s),
        desired: compute_desired(state),
        load: load,
        max_load: max_load,
@@ -214,8 +216,15 @@ defmodule Ingress.ShardScaler do
   end
 
   defp compute_desired(state) do
-    clamp(state.target, min_shards(), Config.max_shards())
+    min_s = min_shards()
+    clamp(state.target, min_s, effective_max_shards(state.autoscale, min_s))
   end
+
+  defp effective_max_shards(true, min_s) do
+    max(min_s, Ingress.ShardScaler.Policy.autoscale_max_shards(Config.max_shards()))
+  end
+
+  defp effective_max_shards(false, _min_s), do: Config.max_shards()
 
   defp evaluate_autoscale(state) do
     sample = sample_shards(state)
@@ -224,10 +233,12 @@ defmodule Ingress.ShardScaler do
 
     min_s = min_shards()
 
+    current_target = compute_desired(state)
+
     {new_target, ticks, action} =
       Ingress.ShardScaler.Policy.evaluate(
         sample,
-        state.target,
+        current_target,
         state.ticks,
         min_s,
         Config.max_shards()
@@ -236,12 +247,12 @@ defmodule Ingress.ShardScaler do
     case action do
       :up ->
         Logger.info(
-          "shard_scaler: autoscale up load=#{sample.aggregate_load}/window → target #{state.target} → #{new_target}"
+          "shard_scaler: autoscale up load=#{sample.aggregate_load}/window → target #{current_target} → #{new_target}"
         )
 
       :down ->
         Logger.info(
-          "shard_scaler: autoscale down load=#{sample.aggregate_load}/window → target #{state.target} → #{new_target}"
+          "shard_scaler: autoscale down load=#{sample.aggregate_load}/window → target #{current_target} → #{new_target}"
         )
 
       :hold ->
@@ -334,6 +345,7 @@ defmodule Ingress.ShardScaler do
       target: Config.conduit_shard_count(),
       autoscale: false,
       min_shards: min_shards(),
+      max_shards: Config.max_shards(),
       desired: Config.conduit_shard_count(),
       load: 0,
       max_load: 0,

@@ -186,6 +186,7 @@ export interface ShardSnapshot {
   desired_count: number;
   target: number;
   min_shards: number;
+  max_shards?: number;
   autoscale: boolean;
   max_load?: number;
   max_load_shard_id?: number | null;
@@ -211,6 +212,7 @@ export interface IngressCapacity {
   bottleneck: 'nats' | 'ingress_compute';
   websocket_rated_eps: number;
   websocket_target_eps: number;
+  websocket_autoscale_max_shards: number;
 }
 
 export interface NavLink {

@@ -65,6 +65,9 @@ defmodule Ingress.ShardSession do
             last_frame_system_ms: nil,
             # duplicate-shard takeover in flight: %{winner:, monitor:, timer:}
             takeover: nil,
+            # Optional Mint connection options used by the isolated WebSocket
+            # benchmark for its temporary CA. Production leaves this empty.
+            ws_connect_opts: [],
             # Aggregate counter for notification load.
             load_counter: Ingress.LoadCounter.new()
 
@@ -107,7 +110,8 @@ defmodule Ingress.ShardSession do
 
     state = %__MODULE__{
       shard_id: shard_id,
-      conduit_id: Keyword.fetch!(opts, :conduit_id)
+      conduit_id: Keyword.fetch!(opts, :conduit_id),
+      ws_connect_opts: Keyword.get(opts, :ws_connect_opts, [])
     }
 
     {:ok, state, {:continue, :connect}}
@@ -498,7 +502,7 @@ defmodule Ingress.ShardSession do
     if state.pending, do: WS.close(state.pending)
     cancel(state.handshake_timer)
 
-    case url && WS.connect(url) do
+    case url && WS.connect(url, state.ws_connect_opts) do
       {:ok, pending} ->
         timer = Process.send_after(self(), :handshake_deadline, @handshake_deadline_ms)
         {:noreply, pet_watchdog(%{state | pending: pending, handshake_timer: timer})}
@@ -587,7 +591,7 @@ defmodule Ingress.ShardSession do
   # --- connect / reconnect ---------------------------------------------------
 
   defp connect(state) do
-    case WS.connect(Config.eventsub_url()) do
+    case WS.connect(Config.eventsub_url(), state.ws_connect_opts) do
       {:ok, ws} ->
         timer = Process.send_after(self(), :welcome_deadline, @welcome_deadline_ms)
         %{state | primary: ws, welcome_timer: timer}

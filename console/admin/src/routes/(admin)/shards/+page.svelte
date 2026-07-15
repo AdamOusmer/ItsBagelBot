@@ -93,6 +93,7 @@
   const cm = $derived(snap?.conduit_manager);
   const capacity = $derived(snap ? resolveCapacity(snap) : null);
   const minShards = $derived(snap?.min_shards ?? 1);
+  const maxShards = $derived(snap?.max_shards ?? capacity?.websocket_autoscale_max_shards ?? 11);
   const autoscaleOn = $derived(snap?.autoscale ?? false);
 
   // Scale stepper: tracks user edits; resets when the authoritative base moves.
@@ -279,6 +280,7 @@
         <div class="ctrl-stat"><span class="ctrl-label">desired</span><span class="ctrl-val">{snap.desired_count ?? '—'}</span></div>
         <div class="ctrl-stat"><span class="ctrl-label">target</span><span class="ctrl-val">{snap.target ?? '—'}</span></div>
         <div class="ctrl-stat"><span class="ctrl-label">min</span><span class="ctrl-val">{snap.min_shards ?? '—'}</span></div>
+        <div class="ctrl-stat"><span class="ctrl-label">max</span><span class="ctrl-val">{maxShards}</span></div>
       </div>
 
       <!-- Manual scale: input stays submittable while autoscale is on (visually
@@ -297,6 +299,7 @@
             name="count"
             class="step-input"
             min={minShards}
+            max={maxShards}
             value={scaleCount}
             oninput={(e) => {
               const v = parseInt((e.target as HTMLInputElement).value, 10);
@@ -304,7 +307,7 @@
             }}
             aria-label="shard count"
           />
-          <button type="button" class="step-btn" aria-label="increase shard count" onclick={() => scaleOffset++}>+</button>
+          <button type="button" class="step-btn" aria-label="increase shard count" disabled={scaleCount >= maxShards} onclick={() => scaleOffset++}>+</button>
         </div>
         <button type="submit" class="btn-apply" disabled={autoscaleOn || busy}>Apply</button>
         {#if autoscaleOn}<span class="ctrl-hint">disable autoscale to set manually</span>{/if}

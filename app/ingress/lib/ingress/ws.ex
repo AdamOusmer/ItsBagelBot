@@ -22,15 +22,19 @@ defmodule Ingress.WS do
           | {:frame, Mint.WebSocket.frame()}
           | {:closed, term()}
 
-  @spec connect(String.t()) :: {:ok, t()} | {:error, term()}
-  def connect(url) do
+  @spec connect(String.t(), keyword()) :: {:ok, t()} | {:error, term()}
+  def connect(url, opts \\ []) do
     uri = URI.parse(url)
     {scheme, ws_scheme, default_port} = schemes(uri.scheme)
     port = uri.port || default_port
     path = (uri.path || "/") <> if(uri.query, do: "?" <> uri.query, else: "")
+    transport_opts = Keyword.get(opts, :transport_opts, [])
 
     with {:ok, conn} <-
-           Mint.HTTP.connect(scheme, uri.host, port, protocols: [:http1], transport_opts: []),
+           Mint.HTTP.connect(scheme, uri.host, port,
+             protocols: [:http1],
+             transport_opts: transport_opts
+           ),
          {:ok, conn, ref} <- Mint.WebSocket.upgrade(ws_scheme, conn, path, []) do
       {:ok, %__MODULE__{conn: conn, ref: ref}}
     else

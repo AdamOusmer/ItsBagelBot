@@ -8,8 +8,9 @@ defmodule Ingress.CapacityTest do
     assert Capacity.pod_target_eps() == 105_000
     assert Capacity.nats_rated_eps() == 123_000
     assert Capacity.nats_target_eps() == 92_250
-    assert Capacity.websocket_rated_eps() == 12_500
-    assert Capacity.websocket_target_eps() == 9_375
+    assert Capacity.websocket_rated_eps() == 16_000
+    assert Capacity.websocket_target_eps() == 12_000
+    assert Capacity.websocket_autoscale_max_shards() == 11
     assert Capacity.target_utilization_pct() == 75
   end
 
@@ -23,7 +24,8 @@ defmodule Ingress.CapacityTest do
              effective_target_eps: 92_250,
              bottleneck: "nats",
              pod_rated_eps: 140_000,
-             websocket_rated_eps: 12_500
+             websocket_rated_eps: 16_000,
+             websocket_autoscale_max_shards: 11
            } = Capacity.snapshot(5)
   end
 end

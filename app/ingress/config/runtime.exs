@@ -84,7 +84,8 @@ config :ingress,
   # Side-effect-free admin latency probe shared by every RPC-serving service.
   rpc_health_subject: System.get_env("NATS_RPC_HEALTH_SUBJECT", "bagel.rpc.health.ingress"),
   # Hard ceiling applied to both manual targets and the autoscaler estimate.
-  max_shards: String.to_integer(System.get_env("TWITCH_CONDUIT_MAX_SHARDS", "20")),
+  # 123k NATS ceiling / 12k per-shard operating target = 11 useful shards.
+  max_shards: String.to_integer(System.get_env("TWITCH_CONDUIT_MAX_SHARDS", "11")),
   # Capacity values are reported to the admin console and drive shard scaling.
   # The pod rating is the rounded-down production-shaped full-path benchmark;
   # the websocket rating is kept separate because adding a conduit shard adds
@@ -97,8 +98,10 @@ config :ingress,
   # effective fleet throughput.
   capacity_nats_rated_eps:
     String.to_integer(System.get_env("INGRESS_CAPACITY_NATS_RATED_EPS", "123000")),
+  # Rounded below the slowest production-node TLS 1.3 shard benchmark
+  # (17,516/s); the 75% operating target therefore scales at 12,000/s.
   capacity_websocket_rated_eps:
-    String.to_integer(System.get_env("INGRESS_CAPACITY_WEBSOCKET_RATED_EPS", "12500")),
+    String.to_integer(System.get_env("INGRESS_CAPACITY_WEBSOCKET_RATED_EPS", "16000")),
   capacity_target_utilization_pct:
     String.to_integer(System.get_env("INGRESS_CAPACITY_TARGET_UTILIZATION_PCT", "75")),
   # NATS RPC endpoint exposed by the Go service that owns broadcaster data.
