@@ -89,7 +89,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: projector
-          image: ghcr.io/adamousmer/itsbagelbot/projector:main-1784103095-3f0d876864cc@sha256:142643e245b099c13f9ecd612bf2949a76af1b93b7358d5ca0a9a291710913e7 # {"$imagepolicy": "flux-system:projector"}
+          image: ghcr.io/adamousmer/itsbagelbot/projector:main-1784112334-19c5de4a0b43@sha256:742cda688dba66153f1d9b26e5233b9954d71dfc59d8599664a1d270f74dbde5 # {"$imagepolicy": "flux-system:projector"}
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST
