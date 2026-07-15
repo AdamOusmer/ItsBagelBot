@@ -79,7 +79,7 @@ defmodule Ingress.Config do
 
   # Hard ceiling on shard count; the autoscaler and manual target are both
   # clamped to this value so a runaway load spike cannot blow the conduit cap.
-  def max_shards, do: Application.get_env(:ingress, :max_shards, 20)
+  def max_shards, do: Application.get_env(:ingress, :max_shards, 11)
 
   def broadcaster_status_subject,
     do: Application.fetch_env!(:ingress, :broadcaster_status_subject)

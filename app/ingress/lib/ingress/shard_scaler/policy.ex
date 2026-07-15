@@ -12,9 +12,9 @@ defmodule Ingress.ShardScaler.Policy do
 
   A shard's per-event work is deliberately thin: JSON-decode the frame and
   enqueue into `Ingress.Dispatcher` (filtering, re-encode, and NATS publish
-  happen in the dispatcher's worker pool). The socket rating is 12,500 ev/s
+  happen in the dispatcher's worker pool). The socket rating is 16,000 ev/s
   and the scaler does not add another shard until the current sockets would
-  exceed the 75% target (9,375 ev/s each). This keeps sockets dense instead of
+  exceed the 75% target (12,000 ev/s each). This keeps sockets dense instead of
   opening giant WebSockets for breadcrumb traffic.
 
   Hysteresis state is a `%{low: n, high: n}` map of consecutive ticks spent
@@ -34,7 +34,9 @@ defmodule Ingress.ShardScaler.Policy do
 
   Both values and the 75% target come from `Ingress.Capacity`, which is also
   serialized into the admin snapshot. The scaler and dashboard therefore use
-  the same limits without duplicating constants.
+  the same limits without duplicating constants. Automatic scaling stops once
+  the sockets' combined target capacity covers the shared NATS ceiling; more
+  sockets beyond that point cannot add end-to-end throughput.
   """
 
   alias Ingress.Capacity
@@ -59,6 +61,13 @@ defmodule Ingress.ShardScaler.Policy do
   def scale_down_ticks, do: @scale_down_ticks
   def concentration_ratio, do: @concentration_ratio
   def concentration_min_pct, do: @concentration_min_pct
+
+  @doc """
+  Autoscale ceiling after applying the operator limit and shared NATS capacity.
+  """
+  def autoscale_max_shards(configured_max) do
+    min(configured_max, Capacity.websocket_autoscale_max_shards())
+  end
 
   @doc """
   Events per window one shard is rated for (100% utilization).
@@ -161,7 +170,8 @@ defmodule Ingress.ShardScaler.Policy do
       # Unresponsive shards contribute no load to the sample, but Twitch only
       # routes to healthy shards, so the responsive aggregate is the real
       # traffic — no extrapolation needed on the way up.
-      needed = clamp(shards_needed(sample.aggregate_load), min_shards, max_shards)
+      effective_max = max(min_shards, autoscale_max_shards(max_shards))
+      needed = clamp(shards_needed(sample.aggregate_load), min_shards, effective_max)
 
       cond do
         needed > current_target ->

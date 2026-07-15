@@ -56,12 +56,13 @@ to standard.
 | `TWITCH_CLIENT_ID` / `TWITCH_CLIENT_SECRET` | App credentials for Helix.                             | (required)                                    |
 | `TWITCH_CONDUIT_ID`                 | Conduit to own; empty: reuse first existing or create.         | (empty)                                       |
 | `TWITCH_CONDUIT_SHARD_COUNT`        | Desired shard count.                                           | `2`                                           |
-| `TWITCH_CONDUIT_MAX_SHARDS`         | Hard ceiling for manual and automatic shard counts.            | `20`                                          |
+| `TWITCH_CONDUIT_MAX_SHARDS`         | Hard ceiling for manual and automatic shard counts.            | `11`                                          |
 | `INGRESS_CAPACITY_POD_RATED_EPS`    | Measured cached-path capacity per live ingress pod.             | `140000`                                      |
-| `INGRESS_CAPACITY_NATS_RATED_EPS`   | Live-cluster direct-hub PubAck capacity shared by the fleet.     | `86000`                                       |
-| `INGRESS_CAPACITY_WEBSOCKET_RATED_EPS` | Rated read/decode capacity per conduit WebSocket.            | `12500`                                       |
+| `INGRESS_CAPACITY_NATS_RATED_EPS`   | Live-cluster direct-hub PubAck capacity shared by the fleet.     | `123000`                                      |
+| `INGRESS_CAPACITY_WEBSOCKET_RATED_EPS` | Rated read/decode capacity per conduit WebSocket.            | `16000`                                       |
 | `INGRESS_CAPACITY_TARGET_UTILIZATION_PCT` | Autoscale and dashboard operating target.                  | `75`                                          |
-| `INGRESS_PUBLISH_BATCH_SIZE`          | Scheduler-local atomic JetStream cohort size.                  | `128`                                         |
+| `INGRESS_PUBLISH_BATCH_SIZE`          | Scheduler-local JetStream publish cohort size.                 | `128`                                         |
+| `INGRESS_PUBLISH_SEND_CONCURRENCY`    | Persistent Gnat send lanes per publisher connection.           | `22`                                          |
 | `INGRESS_PUBLISH_BATCH_WAIT_MS`       | Maximum wait for a partially full publish cohort.               | `1`                                           |
 | `TWITCH_EVENTSUB_WSS_URL`           | EventSub WebSocket endpoint.                                   | `wss://eventsub.wss.twitch.tv/ws?...`         |
 | `TWITCH_SPECIAL_USER_IDS`           | Comma-separated chatter IDs that always go premium.            | (empty)                                       |
@@ -113,6 +114,12 @@ MIX_ENV=test mix run bench/hot_path.exs
 MIX_ENV=test mix run bench/nats_publisher.exs
 MIX_ENV=test mix run bench/end_to_end.exs
 ```
+
+The isolated TLS WebSocket benchmark exercises a real shard through dispatcher
+handoff without Twitch or NATS. Run it across the three production ingress
+nodes with `bench/websocket_shard_cluster.sh`; the latest measurements and
+capacity decision are recorded in
+[`bench/2026-07-15-websocket-shard-results.md`](bench/2026-07-15-websocket-shard-results.md).
 
 The release builds on OTP 27 and uses its native `:json` codec for Twitch frame
 decoding and NATS event encoding. Control-plane RPCs retain Jason where protocol
