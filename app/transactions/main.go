@@ -24,6 +24,7 @@ import (
 	"ItsBagelBot/pkg/logger"
 	"ItsBagelBot/pkg/monitor"
 
+	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 )
 
@@ -74,9 +75,7 @@ func main() {
 		log.Fatal("failed to connect rpc nats", zap.Error(err))
 	}
 	defer nc.Close()
-	if err := bus.SubscribeRPCHealth(nc, serviceName, "transactions-rpc"); err != nil {
-		log.Fatal("failed to subscribe rpc health", zap.Error(err))
-	}
+	subscribeRPCHealth(nc, log)
 
 	// Checkout RPC (dashboard -> basket_create). Optional: without the Tebex
 	// Headless credentials the service stays webhook-only, exactly as before.
@@ -158,6 +157,12 @@ func main() {
 	)
 
 	serveHTTP(ctx, httpServer, log)
+}
+
+func subscribeRPCHealth(nc *nats.Conn, log *zap.Logger) {
+	if err := bus.SubscribeRPCHealth(nc, serviceName, "transactions-rpc"); err != nil {
+		log.Fatal("failed to subscribe rpc health", zap.Error(err))
+	}
 }
 
 // serveHTTP runs the server until ctx is cancelled or the listener fails,

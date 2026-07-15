@@ -24,6 +24,7 @@ import (
 	"ItsBagelBot/pkg/monitor"
 
 	"github.com/ThreeDotsLabs/watermill/message"
+	"github.com/nats-io/nats.go"
 
 	"go.uber.org/zap"
 )
@@ -174,9 +175,7 @@ func main() {
 	}); err != nil {
 		log.Fatal("failed to subscribe quotes rpc", zap.Error(err))
 	}
-	if err := bus.SubscribeRPCHealth(nc, serviceName, "modules-rpc"); err != nil {
-		log.Fatal("failed to subscribe rpc health", zap.Error(err))
-	}
+	subscribeRPCHealth(nc, log)
 
 	health.Serve(env.Get("LISTEN_ADDR", ":8080"), nc.IsConnected)
 
@@ -185,4 +184,10 @@ func main() {
 	<-ctx.Done()
 
 	log.Info("modules service shutting down")
+}
+
+func subscribeRPCHealth(nc *nats.Conn, log *zap.Logger) {
+	if err := bus.SubscribeRPCHealth(nc, serviceName, "modules-rpc"); err != nil {
+		log.Fatal("failed to subscribe rpc health", zap.Error(err))
+	}
 }
