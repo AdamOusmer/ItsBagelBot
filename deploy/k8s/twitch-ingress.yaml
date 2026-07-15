@@ -45,7 +45,7 @@ metadata:
   annotations:
     secrets.doppler.com/reload: "true"
 spec:
-  replicas: 5 # node1 excluded via hot-path anti-affinity; target shape node3=2, worker1=2, node2=1 (see affinity)
+  replicas: 3 # one per eligible hot-path node: node2, node3, worker1
   revisionHistoryLimit: 3
   # On SIGTERM each pod hands its conduit shards off make-before-break
   # (Ingress.Drain): the successor binds on a peer before the local socket
@@ -97,21 +97,7 @@ spec:
           tolerationSeconds: 60
       # node1 (2-core ARM) is reserved for stateful/frontend + infra; keep ingress
       # off it via nodeAffinity. Eligible nodes are node2/node3/worker1, and the
-      # spread is SOFT (ScheduleAnyway): a worker1 outage (home node) must not
-      # strand ingress with a hard maxSkew it cannot satisfy on fewer nodes.
-      # Baseline shape: node3=2, worker1=2, node2=1. node2 already carries the
-      # control plane + valkey master, so the doubles belong on the big-CPU
-      # pair (node3 6c, worker1 8c) and node2 keeps the single. The soft skew
-      # allows any 2/2/1 split; the two graded preferences below pick WHICH
-      # nodes take the doubles (node3 first, worker1 second, node2 never
-      # preferred). Soft only — a node outage re-packs onto the survivors.
-      #
-      # Weights are deliberately LOW: a skew >= 1 must outscore them so the
-      # spread still wins against pile-ups. Weight 100 proved to overpower the
-      # spread during a maxSurge=0 roll (old pods still count in the skew),
-      # piling 3 replicas onto node3 and none on node2. Empty-node resource
-      # scoring can still stack with these during bulk scheduling; if the shape
-      # drifts, deleting the surplus pod once re-lands it correctly.
+      # three replicas are spread one per eligible node in steady state.
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -120,31 +106,16 @@ spec:
                   - key: kubernetes.io/hostname
                     operator: NotIn
                     values: [node1]
-          preferredDuringSchedulingIgnoredDuringExecution:
-            - weight: 25
-              preference:
-                matchExpressions:
-                  - key: kubernetes.io/hostname
-                    operator: In
-                    values: [node3]
-            - weight: 20
-              preference:
-                matchExpressions:
-                  - key: kubernetes.io/hostname
-                    operator: In
-                    values: [worker1]
       topologySpreadConstraints:
         # matchLabelKeys scopes the skew to the CURRENT ReplicaSet: during a
         # maxSurge=0 roll the outgoing pods no longer count, so every rollout
         # re-spreads one-per-node instead of piling onto whichever node freed
-        # capacity first (bit the ingress on 2026-07-10: 3/0/1). Soft constraint
-        # stays soft, so a node outage never wedges scheduling; the KEDA floor
-        # (>= one per hot-path node) plus the ReplicaSet downscaler's
-        # remove-co-located-duplicates-first ranking keep steady state at
-        # >= 1 per node.
+        # capacity first (bit the ingress on 2026-07-10: 3/0/1). With three
+        # replicas and three eligible nodes, maxSkew=1 plus DoNotSchedule makes
+        # the steady-state placement exactly 1/1/1.
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: ScheduleAnyway
+          whenUnsatisfiable: DoNotSchedule
           matchLabelKeys: [pod-template-hash]
           labelSelector:
             matchLabels:
@@ -247,7 +218,7 @@ spec:
             # `none` across repeated direct-dispatch runs, while dirty
             # schedulers stay at `none` because ingress does no sustained dirty
             # NIF work. More than two schedulers only creates cgroup contention
-            # on this five-replica deployment.
+            # on this three-replica deployment.
             - name: ERL_FLAGS
               # Range, not a single port: probe/remote-shell hidden nodes
               # need their own listen port besides the main VM's.

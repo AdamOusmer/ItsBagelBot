@@ -141,6 +141,11 @@ config :ingress,
   publish_max_pending: String.to_integer(System.get_env("INGRESS_PUBLISH_MAX_PENDING", "16384")),
   publish_batch_size: String.to_integer(System.get_env("INGRESS_PUBLISH_BATCH_SIZE", "128")),
   publish_batch_wait_ms: String.to_integer(System.get_env("INGRESS_PUBLISH_BATCH_WAIT_MS", "1")),
+  # Gnat coalesces up to eleven concurrent pub calls into one socket write.
+  # Keep two write windows queued so the connection stays fed while the first
+  # callers are being replied to, without creating one task/process per event.
+  publish_send_concurrency:
+    String.to_integer(System.get_env("INGRESS_PUBLISH_SEND_CONCURRENCY", "22")),
   # Cohort wire: "single" (per-event PubAck, default) or "atomic" (one ADR-050
   # batch commit ack per cohort; NATS 2.14). Anything unrecognized stays single.
   publish_wire:

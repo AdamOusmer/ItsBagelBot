@@ -4,8 +4,11 @@ defmodule Ingress.Nats.PublisherPool do
   independent BUS connections, each paired with one
   `Ingress.Nats.Publisher` cohort collector.
 
-  Every `Gnat.pub` is serialized by one connection process, so the pool spreads
-  writes and ordinary per-message PubAck collection across online schedulers.
+  Every Gnat connection still owns and serializes its socket. Each publisher
+  feeds that connection through a bounded `CohortSender` lane pool, allowing
+  Gnat to coalesce concurrent public `pub/4` calls into fewer socket writes;
+  the outer pool spreads those writes and ordinary per-message PubAck
+  collection across online schedulers.
 
   The pool records the shard count in `:persistent_term` before any collector
   starts, so `Ingress.Nats.Publisher.enqueue/3` — invoked from dispatcher and
