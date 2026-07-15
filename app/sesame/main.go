@@ -99,6 +99,9 @@ func main() {
 	if err != nil {
 		log.Fatal("failed to start consumer", zap.Error(err))
 	}
+	if err := bus.SubscribeRPCHealth(nc, serviceName, "sesame-rpc"); err != nil {
+		log.Fatal("failed to subscribe rpc health", zap.Error(err))
+	}
 
 	health.Serve(cfg.ListenAddr, nc.IsConnected)
 	logReady(cfg, deps.Special.Len(), log)

@@ -24,6 +24,7 @@ import (
 	"ItsBagelBot/pkg/logger"
 	"ItsBagelBot/pkg/monitor"
 
+	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 )
 
@@ -69,10 +70,7 @@ func main() {
 
 	// RPC-plane connection (TRANSACTIONS_RPC account): answers the checkout
 	// basket verb and issues the recipient-lookup / gift-notification requests.
-	nc, err := bus.Connect(bus.RPCURL(natsURL), serviceName)
-	if err != nil {
-		log.Fatal("failed to connect rpc nats", zap.Error(err))
-	}
+	nc := connectRPC(natsURL, log)
 	defer nc.Close()
 
 	// Checkout RPC (dashboard -> basket_create). Optional: without the Tebex
@@ -155,6 +153,17 @@ func main() {
 	)
 
 	serveHTTP(ctx, httpServer, log)
+}
+
+func connectRPC(natsURL string, log *zap.Logger) *nats.Conn {
+	nc, err := bus.Connect(bus.RPCURL(natsURL), serviceName)
+	if err != nil {
+		log.Fatal("failed to connect rpc nats", zap.Error(err))
+	}
+	if err := bus.SubscribeRPCHealth(nc, serviceName, "transactions-rpc"); err != nil {
+		log.Fatal("failed to subscribe rpc health", zap.Error(err))
+	}
+	return nc
 }
 
 // serveHTTP runs the server until ctx is cancelled or the listener fails,

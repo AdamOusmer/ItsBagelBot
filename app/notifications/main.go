@@ -20,6 +20,7 @@ import (
 	"ItsBagelBot/pkg/logger"
 	"ItsBagelBot/pkg/monitor"
 
+	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 )
 
@@ -73,10 +74,7 @@ func main() {
 	natsURL := env.Get("NATS_URL", "nats://127.0.0.1:4222")
 	rpcURL := bus.RPCURL(natsURL)
 
-	nc, err := bus.Connect(rpcURL, serviceName)
-	if err != nil {
-		log.Fatal("failed to connect to nats", zap.Error(err))
-	}
+	nc := connectRPC(rpcURL, log)
 	defer nc.Close()
 
 	repo := repository.New(client)
@@ -125,7 +123,6 @@ func main() {
 	if err := rpc.SubscribeMaintenance(nc, repo, cleanupSubject, queueGroup, nrApp, log); err != nil {
 		log.Fatal("failed to subscribe maintenance rpc", zap.Error(err))
 	}
-
 	health.Serve(env.Get("LISTEN_ADDR", ":8080"), nc.IsConnected)
 
 	log.Info("notifications service ready",
@@ -136,4 +133,15 @@ func main() {
 	<-ctx.Done()
 
 	log.Info("notifications service shutting down")
+}
+
+func connectRPC(url string, log *zap.Logger) *nats.Conn {
+	nc, err := bus.Connect(url, serviceName)
+	if err != nil {
+		log.Fatal("failed to connect to nats", zap.Error(err))
+	}
+	if err := bus.SubscribeRPCHealth(nc, serviceName, "notifications-rpc"); err != nil {
+		log.Fatal("failed to subscribe rpc health", zap.Error(err))
+	}
+	return nc
 }

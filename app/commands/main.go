@@ -191,6 +191,9 @@ func main() {
 	if err := rpc.SubscribeDashboard(nc, repo, commandsPrefix, "commands-rpc", nrApp, log); err != nil {
 		log.Fatal("failed to subscribe dashboard rpc", zap.Error(err))
 	}
+	if err := bus.SubscribeRPCHealth(nc, serviceName, "commands-rpc"); err != nil {
+		log.Fatal("failed to subscribe rpc health", zap.Error(err))
+	}
 
 	health.Serve(env.Get("LISTEN_ADDR", ":8080"), nc.IsConnected)
 

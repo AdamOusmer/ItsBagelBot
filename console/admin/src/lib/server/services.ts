@@ -25,7 +25,8 @@ const SUB = {
   audit: process.env.NATS_ADMIN_AUDIT_SUBJECT_PREFIX ?? 'bagel.rpc.admin.user.audit',
   outgress: process.env.NATS_OUTGRESS_SYSTEM_SUBJECT ?? 'twitch.outgress.system',
   outgressRpc: process.env.NATS_OUTGRESS_RPC_PREFIX ?? 'bagel.rpc.outgress',
-  notifications: process.env.NATS_ADMIN_NOTIFICATIONS_SUBJECT_PREFIX ?? 'bagel.rpc.admin.notifications'
+  notifications: process.env.NATS_ADMIN_NOTIFICATIONS_SUBJECT_PREFIX ?? 'bagel.rpc.admin.notifications',
+  health: process.env.NATS_RPC_HEALTH_PREFIX ?? 'bagel.rpc.health'
 };
 
 export const STATUS_PREFIX = SUB.status;
@@ -386,9 +387,10 @@ export async function channelSubState(broadcasterId: string): Promise<ChannelSub
 }
 
 // ── Service health ───────────────────────────────────────────────────────────
-// Latency probes over the RPC surfaces the admin NATS account may reach. Each
-// probe is a real request (no cache) so the number is the round trip an
-// operator action would actually pay.
+// Latency probes over every service RPC account the admin may reach. Each
+// service exposes the same side-effect-free no-op responder, so the number is
+// the transport/account/subscriber round trip rather than database or external
+// API work and a sample can never mutate production state.
 
 export interface ServiceHealth {
   id: string;
@@ -398,7 +400,7 @@ export interface ServiceHealth {
   error?: string;
 }
 
-const HEALTH_TIMEOUT_MS = 2000;
+const HEALTH_TIMEOUT_MS = 1500;
 
 interface HealthProbe {
   id: string;
@@ -408,17 +410,24 @@ interface HealthProbe {
 }
 
 const HEALTH_PROBES: HealthProbe[] = [
-  { id: 'users', label: 'Users', subject: `${SUB.user}.stats`, payload: {} },
-  { id: 'ingress', label: 'Ingress', subject: SUB.shards, payload: {} },
-  { id: 'outgress', label: 'Outgress', subject: `${SUB.outgressRpc}.channel.get`, payload: { broadcaster_id: '1' } },
-  { id: 'notifications', label: 'Notifications', subject: `${SUB.notifications}.list`, payload: { page: 1, limit: 1 } }
+  { id: 'users', label: 'Users', subject: `${SUB.health}.users`, payload: {} },
+  { id: 'commands', label: 'Commands', subject: `${SUB.health}.commands`, payload: {} },
+  { id: 'modules', label: 'Modules', subject: `${SUB.health}.modules`, payload: {} },
+  { id: 'loyalty', label: 'Loyalty', subject: `${SUB.health}.loyalty`, payload: {} },
+  { id: 'projector', label: 'Projector', subject: `${SUB.health}.projector`, payload: {} },
+  { id: 'sesame', label: 'Sesame', subject: `${SUB.health}.sesame`, payload: {} },
+  { id: 'gateway', label: 'Gateway', subject: `${SUB.health}.gateway`, payload: {} },
+  { id: 'ingress', label: 'Ingress', subject: `${SUB.health}.ingress`, payload: {} },
+  { id: 'outgress', label: 'Outgress', subject: `${SUB.health}.outgress`, payload: {} },
+  { id: 'transactions', label: 'Transactions', subject: `${SUB.health}.transactions`, payload: {} },
+  { id: 'notifications', label: 'Notifications', subject: `${SUB.health}.notifications`, payload: {} }
 ];
 
 async function probeOnce(probe: HealthProbe): Promise<ServiceHealth> {
   const started = performance.now();
   const failure = await rpc(probe.subject, probe.payload, HEALTH_TIMEOUT_MS).then(
     () => undefined,
-    (e: Error) => e.message || 'unreachable'
+    (e: unknown) => e instanceof Error ? (e.message || 'unreachable') : String(e || 'unreachable')
   );
   return {
     id: probe.id,

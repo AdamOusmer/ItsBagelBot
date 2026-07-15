@@ -6,7 +6,7 @@ mock.module('newrelic', () => ({
     recordMetric: () => {}
   }
 }));
-const { localLeafReady } = await import('./nats');
+const { hubJetStreamOptions, localLeafReady } = await import('./nats');
 
 const server = Bun.serve({
   port: 0,
@@ -26,5 +26,15 @@ describe('local leaf failback probe', () => {
   test('rejects non-200 and unreachable endpoints', async () => {
     expect(await localLeafReady(`${server.url}missing`, 500)).toBe(false);
     expect(await localLeafReady('http://127.0.0.1:1/healthz', 25)).toBe(false);
+  });
+});
+
+describe('direct-hub JetStream options', () => {
+  test('uses the API prefix authorized on the hub account', () => {
+    expect(hubJetStreamOptions()).toEqual({ apiPrefix: '$JS.API', checkAPI: false });
+  });
+
+  test('returns a fresh object for client normalization', () => {
+    expect(hubJetStreamOptions()).not.toBe(hubJetStreamOptions());
   });
 });

@@ -11,7 +11,7 @@
     ['/analytics', 'Analytics'],
     ['/shards', 'Shards'],
     ['/lanes', 'Lanes'],
-    ['/events', 'Events'],
+    ['/events', 'Ingress feed'],
     ['/users', 'Users'],
     ['/notifications', 'Notifications'],
     ['/staff', 'Staff'],
@@ -34,7 +34,7 @@
         { href: '/', icon: 'overview', label: 'Overview', active: crumb === 'Overview' },
         { href: '/shards', icon: 'server', label: 'Shards', active: crumb === 'Shards' },
         { href: '/lanes', icon: 'lanes', label: 'Lanes', active: crumb === 'Lanes' },
-        { href: '/events', icon: 'pulse', label: 'Events', active: crumb === 'Events' }
+        { href: '/events', icon: 'pulse', label: 'Ingress feed', active: crumb === 'Ingress feed' }
       ]
     },
     {
@@ -65,7 +65,7 @@
     { href: '/', icon: 'overview', label: 'Overview', active: crumb === 'Overview' },
     { href: '/shards', icon: 'server', label: 'Shards', active: crumb === 'Shards' },
     { href: '/lanes', icon: 'lanes', label: 'Lanes', active: crumb === 'Lanes' },
-    { href: '/events', icon: 'pulse', label: 'Events', active: crumb === 'Events' },
+    { href: '/events', icon: 'pulse', label: 'Ingress', active: crumb === 'Ingress feed' },
     { href: '/users', icon: 'users', label: 'Users', active: crumb === 'Users' },
     { href: '/analytics', icon: 'activity', label: 'Analytics', active: crumb === 'Analytics' },
     { href: '/notifications', icon: 'bell', label: 'Notifs', active: crumb === 'Notifications' },

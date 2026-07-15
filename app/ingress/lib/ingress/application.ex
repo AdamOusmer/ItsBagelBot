@@ -34,6 +34,7 @@ defmodule Ingress.Application do
       `Ingress.ScaleRpc` (manual shard count).
     * `Gnat.ConsumerSupervisor` (autoscale) - request-reply control endpoint
       for `Ingress.AutoscaleRpc` (load-based autoscaler toggle).
+    * `Gnat.ConsumerSupervisor` (health) - side-effect-free RPC latency probe.
     * `Ingress.Bootstrapper` - ensures the cluster-singleton ShardScaler and
       ConduitManager run.
   """
@@ -140,6 +141,10 @@ defmodule Ingress.Application do
       ),
       # Live conduit id: body {}, replies {"conduit_id": "<uuid>"}.
       consumer_child(:conduit_consumer, Ingress.ConduitRpc, Config.conduit_subject(),
+        queue_group: @admin_queue
+      ),
+      # Side-effect-free fleet RPC latency probe.
+      consumer_child(:health_consumer, Ingress.HealthRpc, Config.rpc_health_subject(),
         queue_group: @admin_queue
       ),
       Ingress.Bootstrapper

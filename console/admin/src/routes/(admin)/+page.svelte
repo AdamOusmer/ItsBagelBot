@@ -3,28 +3,9 @@
   import { Icon, StatTile, PageHead, CardHead, Card, Button, Skeleton, AlertBanner } from '@bagel/shared';
   import type { ShardSnapshot } from '@bagel/shared';
   import EnrollmentChart from '$lib/components/EnrollmentChart.svelte';
-  import type { AuditEntry, ServiceHealth } from '$lib/server/services';
+  import type { AuditEntry } from '$lib/server/services';
 
   let { data } = $props();
-
-  // Health repolls every 30s so a recovering service turns green live; until
-  // the first poll lands the card shows the load-time probes.
-  let liveHealth = $state<ServiceHealth[] | null>(null);
-  async function pollHealth() {
-    if (typeof document !== 'undefined' && document.hidden) return;
-    try {
-      const res = await fetch('/health');
-      if (!res.ok) return;
-      const body = (await res.json()) as { health?: ServiceHealth[] };
-      if (body.health) liveHealth = body.health;
-    } catch {
-      /* transient; keep last known */
-    }
-  }
-  onMount(() => {
-    const timer = setInterval(pollHealth, 30_000);
-    return () => clearInterval(timer);
-  });
 
   // Absolute URL of the bot-authorization route. The operator opens it in the
   // browser signed into the bot account; that browser gets the state cookie and
@@ -216,27 +197,6 @@
       </Card>
     </div>
 
-    {@const health = liveHealth ?? o.health}
-    <div class="card health-card">
-      <div class="card-head">
-        <h3>Service health</h3>
-        <span class="more">round-trip over NATS RPC · refreshes every 30s</span>
-      </div>
-      {#if health.length === 0}
-        <p class="audit-empty">Health probes unavailable.</p>
-      {:else}
-        <div class="health-grid">
-          {#each health as h (h.id)}
-            <div class="health-cell" class:down={!h.ok}>
-              <span class="health-dot {h.ok ? '' : 'err'}"></span>
-              <span class="health-name">{h.label}</span>
-              <span class="health-ms">{h.ok ? `${h.ms} ms` : (h.error?.includes('timeout') ? 'timeout' : 'down')}</span>
-            </div>
-          {/each}
-        </div>
-      {/if}
-    </div>
-
     {#if data.isManager}
       <div class="card audit-card">
         <div class="card-head">
@@ -273,27 +233,6 @@
 
   .audit-card { margin-top: var(--row-gap); }
 
-  .health-card { margin-top: var(--row-gap); }
-  .health-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 10px;
-  }
-  .health-cell {
-    display: flex; align-items: center; gap: 10px;
-    padding: 12px 14px;
-    border: 1px solid var(--rule); border-radius: 8px;
-    background: rgba(240, 236, 228, 0.02);
-  }
-  .health-cell.down { border-color: rgba(176, 90, 70, 0.35); background: rgba(176, 90, 70, 0.05); }
-  .health-dot {
-    width: 8px; height: 8px; border-radius: 50%; flex: none;
-    background: var(--bb-green-glow); box-shadow: 0 0 8px var(--bb-green-glow);
-  }
-  .health-dot.err { background: #cf8a78; box-shadow: 0 0 8px rgba(176, 90, 70, 0.6); }
-  .health-name { font-family: var(--bb-font-body); font-weight: 600; font-size: 13px; color: var(--bb-white); }
-  .health-ms { margin-left: auto; font-family: var(--bb-font-mono); font-size: 11.5px; color: var(--bb-muted); }
-  .health-cell.down .health-ms { color: #cf8a78; }
   .audit-empty { font-family: var(--bb-font-body); font-size: 13px; color: var(--bb-muted); margin: 0; }
   .audit-err {
     font-family: var(--bb-font-mono); font-size: 10.5px; color: #cf8a78;

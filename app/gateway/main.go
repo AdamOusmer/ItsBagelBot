@@ -28,6 +28,7 @@ import (
 	"ItsBagelBot/pkg/ratelimit"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
+	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 )
 
@@ -89,6 +90,7 @@ func main() {
 	if err := engine.Serve(nc, cfg.SubjectPrefix, queueGroup, active, nrApp, log); err != nil {
 		log.Fatal("failed to subscribe provider endpoints", zap.Error(err))
 	}
+	subscribeRPCHealth(nc, queueGroup, log)
 
 	health.Serve(cfg.ListenAddr, nc.IsConnected)
 
@@ -104,4 +106,10 @@ func main() {
 	<-ctx.Done()
 
 	log.Info("gateway shutting down")
+}
+
+func subscribeRPCHealth(nc *nats.Conn, queueGroup string, log *zap.Logger) {
+	if err := bus.SubscribeRPCHealth(nc, serviceName, queueGroup); err != nil {
+		log.Fatal("failed to subscribe rpc health", zap.Error(err))
+	}
 }
