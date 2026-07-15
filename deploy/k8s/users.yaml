@@ -21,7 +21,7 @@ metadata:
   annotations:
     secrets.doppler.com/reload: "true"
 spec:
-  replicas: 3 # one per node; 3 schedulable nodes incl worker1 (tolerates worker-pool); node3 decommissioned
+  replicas: 3 # one per hot-path node: node2, node3, worker1
   revisionHistoryLimit: 3
   minReadySeconds: 10
   strategy:
@@ -60,14 +60,33 @@ spec:
           operator: Exists
           effect: NoExecute
           tolerationSeconds: 60
+      # Keep RPC responders beside Sesame on the three hot-path nodes. Node1
+      # remains available for stateful/frontend/infra work, but never satisfies
+      # this Deployment's scheduling domain.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values: [node1]
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app: users
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: ScheduleAnyway
+          whenUnsatisfiable: DoNotSchedule
+          matchLabelKeys: [pod-template-hash]
           labelSelector:
             matchLabels:
               app: users
-      # DaemonSet placement keeps one users pod per schedulable node.
+      # Three replicas + three eligible nodes + required pod anti-affinity yields
+      # exactly one users pod per hot-path node, including during rolls.
       # Resolve external hosts (Twitch OAuth token refresh) without the cluster
       # search-domain fan-out (ndots:1) and serialize A/AAAA to dodge the
       # conntrack race; cap any DNS stall well under a few seconds.
