@@ -34,9 +34,9 @@ metadata:
   annotations:
     secrets.doppler.com/reload: "true"
 spec:
-  # Stateless and cache-backed: two replicas queue-group the RPC subjects. Not
-  # per-node — the working set is one HTTP client and a Valkey connection.
-  replicas: 2
+  # Stateless and cache-backed: keep one local RPC responder beside Sesame on
+  # each hot-path node; the working set is one HTTP client and Valkey connection.
+  replicas: 3
   revisionHistoryLimit: 3
   minReadySeconds: 10
   strategy:
@@ -75,10 +75,25 @@ spec:
           operator: Exists
           effect: NoExecute
           tolerationSeconds: 60
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values: [node1]
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app: gateway
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: ScheduleAnyway
+          whenUnsatisfiable: DoNotSchedule
+          matchLabelKeys: [pod-template-hash]
           labelSelector:
             matchLabels:
               app: gateway

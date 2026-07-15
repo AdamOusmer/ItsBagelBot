@@ -21,7 +21,7 @@ metadata:
   annotations:
     secrets.doppler.com/reload: "true"
 spec:
-  replicas: 3 # one per node; 3 schedulable nodes incl worker1 (tolerates worker-pool); node3 decommissioned
+  replicas: 3 # one per hot-path node: node2, node3, worker1
   revisionHistoryLimit: 3
   minReadySeconds: 10
   strategy:
@@ -60,14 +60,30 @@ spec:
           operator: Exists
           effect: NoExecute
           tolerationSeconds: 60
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values: [node1]
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app: modules
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: ScheduleAnyway
+          whenUnsatisfiable: DoNotSchedule
+          matchLabelKeys: [pod-template-hash]
           labelSelector:
             matchLabels:
               app: modules
-      # DaemonSet placement keeps one modules pod per schedulable node.
+      # Required pod anti-affinity prevents old and new ReplicaSets from ever
+      # stacking two modules pods on one hot-path node.
       securityContext:
         runAsNonRoot: true
         runAsUser: 65532
