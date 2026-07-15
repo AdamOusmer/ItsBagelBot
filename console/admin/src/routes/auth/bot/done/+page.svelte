@@ -7,7 +7,8 @@
   const MSG: Record<string, string> = {
     state: 'The authorization link expired or was invalid. Generate a new one from the admin console.',
     oauth: 'Twitch rejected the authorization. Please try again.',
-    account: 'That Twitch account is not the configured bot account.'
+    account: 'That Twitch account is not the configured bot account.',
+    config: 'Bot authorization is disabled until ADMIN_BOT_USER_ID is configured.'
   };
 </script>
 

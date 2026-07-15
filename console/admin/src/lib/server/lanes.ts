@@ -1,12 +1,11 @@
 import { jsm, js } from '@bagel/shared/server/nats';
 import type { KV } from 'nats';
+import { dev } from '$app/environment';
 
-// Keep this boot-safe. Importing access.ts here pulls in SvelteKit's dynamic
-// environment module and services.ts, creating a cycle through hooks.server.ts
-// while adapter-node is still awaiting server initialization.
-function isDemo(): boolean {
-  return process.env.DEMO === '1';
-}
+// Keep this boot-safe. Importing access.ts here pulls in services.ts, creating
+// a cycle through hooks.server.ts while adapter-node awaits initialization.
+// Branching on `dev` in this module also lets Rollup erase the fixture import.
+const DEMO = dev && process.env.DEMO === '1';
 
 export interface LaneView {
   stream: string;
@@ -21,13 +20,6 @@ export interface LaneView {
   rate: string;
   redelivered: number;
 }
-
-const sampleLanes: LaneView[] = [
-  { stream: 'TWITCH_OUTGRESS', consumer: 'chat-egress', display: 'chat egress', subject: 'twitch.outgress.premium', category: 'system', ephemeral: false, orphan: false, pending: 0, inFlight: '0 / 256', rate: '18 msg/s', redelivered: 0 },
-  { stream: 'TWITCH_OUTGRESS_SYSTEM', consumer: 'outgress-system_twitch_outgress_system', display: 'eventsub + live', subject: 'twitch.outgress.system', category: 'system', ephemeral: false, orphan: false, pending: 0, inFlight: '0 / 1000', rate: '0.2 msg/s', redelivered: 0 },
-  { stream: 'BAGEL_DATA', consumer: 'projection-users', display: 'users projection', subject: 'bagel.data.users.>', category: 'projection', ephemeral: false, orphan: false, pending: 3, inFlight: '1', rate: '2.4 msg/s', redelivered: 0 },
-  { stream: 'BAGEL_DATA', consumer: 'cache-invalidate-7f3a', display: 'ephemeral', subject: 'bagel.data.invalidate', category: 'ephemeral', ephemeral: true, orphan: true, pending: 0, inFlight: '0', rate: '—', redelivered: 0 }
-];
 
 export interface LanesResult {
   lanes: LaneView[];
@@ -340,7 +332,8 @@ function ensureSampler() {
 }
 
 export async function loadLanes(): Promise<LanesResult> {
-  if (isDemo()) {
+  if (DEMO) {
+    const { sampleLanes } = await import('./demo-data');
     return { lanes: sampleLanes, degraded: false, notice: '' };
   }
   ensureSampler();

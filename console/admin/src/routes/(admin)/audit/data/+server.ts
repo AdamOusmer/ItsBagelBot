@@ -1,6 +1,7 @@
 import type { RequestHandler } from './$types';
 import { json, error } from '@sveltejs/kit';
-import { requireAdmin, isManager, isDemo } from '$lib/server/access';
+import { dev } from '$app/environment';
+import { requireAdmin, isManager } from '$lib/server/access';
 import {
   auditPage,
   AUDIT_MAX_PAGES,
@@ -9,13 +10,7 @@ import {
 } from '$lib/server/services';
 
 const MAX_SEARCH_LENGTH = 200;
-
-const now = Date.now();
-const sampleAudit: AuditEntry[] = [
-  { id: 3, actor_id: 804932984, actor_login: 'itsmavey', action: 'dashboard:command:update', target: '111111111', detail: '!uptime', ok: true, created_at: new Date(now - 60_000).toISOString() },
-  { id: 2, actor_id: 804932984, actor_login: 'itsmavey', action: 'impersonate', target: '111111111', detail: '', ok: true, created_at: new Date(now - 3_600_000).toISOString() },
-  { id: 1, actor_id: 804932984, actor_login: 'itsmavey', action: 'delete', target: '333333333', detail: '', ok: false, error: 'user not found', created_at: new Date(now - 7_200_000).toISOString() }
-];
+const DEMO = dev && process.env.DEMO === '1';
 
 function parsePage(raw: string | null): number {
   const page = Number(raw ?? '1');
@@ -40,7 +35,7 @@ function matchesSearch(entry: AuditEntry, search: string): boolean {
   );
 }
 
-function demoPage(page: number, search: string) {
+function demoPage(page: number, search: string, sampleAudit: AuditEntry[]) {
   const filtered = sampleAudit.filter((entry) => matchesSearch(entry, search));
   const start = (page - 1) * AUDIT_PAGE_SIZE;
   const entries = filtered.slice(start, start + AUDIT_PAGE_SIZE);
@@ -61,7 +56,10 @@ export const GET: RequestHandler = async ({ url, locals }) => {
   const page = parsePage(url.searchParams.get('page'));
   const search = normalizeSearch(url.searchParams.get('q'));
 
-  if (isDemo()) return json(demoPage(page, search));
+  if (DEMO) {
+    const { demoAuditPageEntries } = await import('$lib/server/demo-data');
+    return json(demoPage(page, search, demoAuditPageEntries()));
+  }
 
   try {
     const audit = await auditPage(page, search);

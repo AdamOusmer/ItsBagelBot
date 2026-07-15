@@ -134,12 +134,12 @@ func main() {
 	log.Info("projector shutting down")
 }
 
-// connectBus provisions the streams and opens the fleet's durable group
-// subscriber, the RPC connection, and the JetStream publisher (the publisher
-// escalates a cold live query onto the outgress system lane).
+// connectBus opens the fleet's durable group subscriber, the RPC connection,
+// and the JetStream publisher (the publisher escalates a cold live query onto
+// the outgress system lane). Stream reconciliation belongs to users
+// (BAGEL_DATA), sesame (TWITCH_INGRESS), and outgress (its work queues), so a
+// projector credential cannot mutate any stream it reads.
 func connectBus(ctx context.Context, natsURL string, log *zap.Logger) (*nats.Conn, bus.Publisher, message.Subscriber) {
-	fatalIf(log, bus.EnsureStreams(ctx, natsURL, bus.DataStreams, log), "failed to provision jetstream streams")
-
 	// One durable group for the whole projector fleet: each event is folded
 	// into Valkey exactly once, and the durable consumer keeps its position
 	// across restarts.

@@ -30,7 +30,7 @@
   function shardSummary(snap: ShardSnapshot) {
     const connected = snap.shards.filter((s) => s.state === 'connected').length;
     const total = snap.shard_count || snap.shards.length;
-    return { connected, total, healthy: total - connected <= 0 };
+    return { connected, total, healthy: total > 0 && total - connected <= 0 };
   }
 
   // Week-over-week signups from the enrollment buckets: last 7 days vs the 7
@@ -97,7 +97,7 @@
     {@const stats = o.enrollment.stats}
     {@const growth = weekDelta(o.enrollment.days)}
     {#if o.degraded}
-      <AlertBanner>Some live data is unavailable; affected panels show last-known or sample values.</AlertBanner>
+      <AlertBanner>Some live data is unavailable; affected panels show neutral zero or empty values.</AlertBanner>
     {/if}
 
     <div class="stat-grid">

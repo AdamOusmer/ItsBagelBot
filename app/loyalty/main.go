@@ -138,10 +138,6 @@ func main() {
 	natsURL := env.Get("NATS_URL", "nats://127.0.0.1:4222")
 	rpcURL := bus.RPCURL(natsURL)
 
-	if err := bus.EnsureStreams(ctx, natsURL, bus.DataStreams, log); err != nil {
-		log.Fatal("failed to provision jetstream streams", zap.Error(err))
-	}
-
 	repo := repository.NewLoyalty(client, driver, nrApp, log)
 	defer repo.Close(context.Background()) // flushes pending deltas on shutdown
 

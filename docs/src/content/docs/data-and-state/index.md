@@ -104,7 +104,8 @@ Every service reads its configuration from the environment. Common variables:
 | `DB_ADDR` | `127.0.0.1:3306` | data services |
 | `DB_USER`, `DB_PASS` | required | data services |
 | `DB_SCHEMA` | `bagel_<service>` | data services |
-| `DB_CA_CERT` | unset (encrypted only) | data services; set to the HeatWave CA PEM to verify the server chain without hostname/SAN verification |
+| `DB_CA_CERT` | required | data services; dedicated HeatWave endpoint CA PEM used to authenticate the server chain without hostname/SAN verification; startup fails closed when absent |
+| `DB_ADMIN_CA_CERT` | required for DB credential operations | admin console; dedicated HeatWave endpoint CA PEM for the privileged schema-admin connection (`DB_CA_CERT` is the compatibility fallback) |
 | `TINK_KEYSET_PATH` | required | users |
 | `VALKEY_ADDR` | `127.0.0.1:6379` | projector |
 | `VALKEY_PASSWORD` | empty | projector |

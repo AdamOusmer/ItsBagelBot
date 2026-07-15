@@ -1,7 +1,10 @@
 import type { Actions, PageServerLoad } from './$types';
 import { fail } from '@sveltejs/kit';
+import { dev } from '$app/environment';
 import { loadLanes, laneAlias, laneDurable, laneDelete } from '$lib/server/lanes';
-import { requireAdmin, isDemo } from '$lib/server/access';
+import { requireAdmin } from '$lib/server/access';
+
+const DEMO = dev && process.env.DEMO === '1';
 
 // Streamed: the shell renders immediately; the first collection (parallel
 // across streams) hydrates in. Subsequent views hit the warm sampler cache.
@@ -15,7 +18,7 @@ export const load: PageServerLoad = () => {
 export const actions: Actions = {
   alias: async ({ request, locals }) => {
     if (!(await requireAdmin(locals.session))) return fail(403, { notice: 'forbidden' });
-    if (isDemo()) return { ok: false, notice: 'demo mode: lane mutations are disabled' };
+    if (DEMO) return { ok: false, notice: 'demo mode: lane mutations are disabled' };
     const form = await request.formData();
     const stream = String(form.get('stream') ?? '');
     const consumer = String(form.get('consumer') ?? '');
@@ -28,7 +31,7 @@ export const actions: Actions = {
   },
   durable: async ({ request, locals }) => {
     if (!(await requireAdmin(locals.session))) return fail(403, { notice: 'forbidden' });
-    if (isDemo()) return { ok: false, notice: 'demo mode: lane mutations are disabled' };
+    if (DEMO) return { ok: false, notice: 'demo mode: lane mutations are disabled' };
     const form = await request.formData();
     const stream = String(form.get('stream') ?? '');
     const consumer = String(form.get('consumer') ?? '');
@@ -40,7 +43,7 @@ export const actions: Actions = {
   },
   delete: async ({ request, locals }) => {
     if (!(await requireAdmin(locals.session))) return fail(403, { notice: 'forbidden' });
-    if (isDemo()) return { ok: false, notice: 'demo mode: lane mutations are disabled' };
+    if (DEMO) return { ok: false, notice: 'demo mode: lane mutations are disabled' };
     const form = await request.formData();
     const stream = String(form.get('stream') ?? '');
     const consumer = String(form.get('consumer') ?? '');

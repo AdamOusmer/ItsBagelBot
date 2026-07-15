@@ -2,6 +2,7 @@ import type { RequestHandler } from './$types';
 import { redirect } from '@sveltejs/kit';
 import { generateState } from 'arctic';
 import { botTwitch, botScopes } from '$lib/server/oauth';
+import { env } from '$env/dynamic/private';
 
 // Start the bot-account authorization. Same cookie-state CSRF pattern as the
 // operator /auth/login: the state cookie is set in whichever browser opens this
@@ -10,6 +11,10 @@ import { botTwitch, botScopes } from '$lib/server/oauth';
 // force_verify makes Twitch always show the account picker so the right account
 // consents.
 export const GET: RequestHandler = ({ cookies, url }) => {
+  if (!env.ADMIN_BOT_USER_ID?.trim()) {
+    throw redirect(302, '/auth/bot/done?e=config');
+  }
+
   const state = generateState();
   const authUrl = botTwitch(url.origin).createAuthorizationURL(state, botScopes());
   authUrl.searchParams.set('force_verify', 'true');
