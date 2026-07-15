@@ -1,8 +1,9 @@
 import type { Handle, HandleServerError, ServerInit } from '@sveltejs/kit';
 import { redirect } from '@sveltejs/kit';
+import { dev } from '$app/environment';
 import newrelic from 'newrelic';
 import { COOKIE, open } from '$lib/server/session';
-import { requireAdmin, isDemo } from '$lib/server/access';
+import { requireAdmin } from '$lib/server/access';
 import { warm } from '@bagel/shared/server/nats';
 import { registerServerConfig } from '@bagel/shared/server/config';
 import { rumTransform } from '@bagel/shared/server/rum';
@@ -10,6 +11,10 @@ import { startInvalidationListener } from '$lib/server/services';
 import { assertConfigSane } from '$lib/server/config-sanity';
 import { ensureLaneStoreHA } from '$lib/server/lanes';
 import dns from 'node:dns';
+
+// Direct use of SvelteKit's build-time flag lets Rollup erase the local demo
+// gate from production instead of leaving a runtime-configurable bypass.
+const DEMO = dev && process.env.DEMO === '1';
 
 // Framework-native one-time boot. SvelteKit calls init() once before the first
 // request; all boot side effects live here instead of at module-eval.
@@ -79,7 +84,7 @@ export const handle: Handle = async ({ event, resolve }) => {
   // fabric-cached and push-invalidated on the staff scope, so a roster change
   // revokes access on every replica within one request). requireAdmin fails
   // closed on an auth-service outage, matching the per-route posture.
-  if (!isDemo() && !isPublic(event.url.pathname)) {
+  if (!DEMO && !isPublic(event.url.pathname)) {
     if (event.locals.session && !(await requireAdmin(event.locals.session))) {
       event.cookies.delete(COOKIE, { path: '/', secure: event.url.protocol === 'https:' });
       event.locals.session = null;

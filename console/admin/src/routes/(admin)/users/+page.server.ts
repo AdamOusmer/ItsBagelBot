@@ -1,5 +1,6 @@
 import type { Actions, PageServerLoad } from './$types';
 import { fail } from '@sveltejs/kit';
+import { dev } from '$app/environment';
 import {
   userOverview,
   USER_MAX_PAGES,
@@ -20,13 +21,15 @@ import {
   type AdminUserWire,
   type ChannelSubState
 } from '$lib/server/services';
-import { requireAdmin, isDemo, type AdminIdentity } from '$lib/server/access';
+import { requireAdmin, type AdminIdentity } from '$lib/server/access';
 import { signViewAs } from '@bagel/shared/server/impersonation';
 import { env } from '$env/dynamic/private';
-import { sampleStats, sampleUsers } from '$lib/server/sample';
+import { EMPTY_USER_STATS } from '$lib/server/fallback';
+import type { UserStats } from '@bagel/shared';
 
 const MAX_SEARCH_LENGTH = 200;
 const CREATOR_CODE_MAX_LENGTH = 64;
+const DEMO = dev && process.env.DEMO === '1';
 
 function parsePage(raw: string | null): number {
   const page = Number(raw ?? '1');
@@ -60,8 +63,13 @@ function matchesState(user: AdminUserWire, state: string): boolean {
   return user.status === state;
 }
 
-function demoPage(page: number, search: string, state: string) {
-  const filtered = sampleUsers.filter(
+type DemoDirectoryFixtures = {
+  sampleUsers: AdminUserWire[];
+  sampleStats: UserStats;
+};
+
+function demoPage(page: number, search: string, state: string, fixtures: DemoDirectoryFixtures) {
+  const filtered = fixtures.sampleUsers.filter(
     (user) => matchesSearch(user, search) && matchesState(user, state)
   );
   const start = (page - 1) * USER_PAGE_SIZE;
@@ -69,7 +77,7 @@ function demoPage(page: number, search: string, state: string) {
   const cappedTotal = Math.min(filtered.length, USER_PAGE_SIZE * USER_MAX_PAGES);
   return {
     recent: users,
-    stats: sampleStats,
+    stats: fixtures.sampleStats,
     page,
     pageSize: USER_PAGE_SIZE,
     maxPages: USER_MAX_PAGES,
@@ -81,7 +89,7 @@ function demoPage(page: number, search: string, state: string) {
 
 export type UserDirectory = {
   recent: AdminUserWire[];
-  stats: typeof sampleStats;
+  stats: UserStats;
   page: number;
   pageSize: number;
   maxPages: number;
@@ -104,7 +112,7 @@ async function loadDirectory(page: number, search: string, state: string): Promi
   } catch {
     return {
       recent: [],
-      stats: sampleStats,
+      stats: { ...EMPTY_USER_STATS },
       page,
       pageSize: USER_PAGE_SIZE,
       maxPages: USER_MAX_PAGES,
@@ -121,8 +129,8 @@ export const load: PageServerLoad = ({ url }) => {
   const search = normalizeSearch(url.searchParams.get('q'));
   const state = parseState(url.searchParams.get('state'));
 
-  const directory: Promise<UserDirectory> = isDemo()
-    ? Promise.resolve({ ...demoPage(page, search, state), degraded: false })
+  const directory: Promise<UserDirectory> = DEMO
+    ? import('$lib/server/demo-data').then((fixtures) => demoPage(page, search, state, fixtures))
     : loadDirectory(page, search, state);
 
   return { directory, page, search, state };
@@ -134,7 +142,7 @@ const STATUSES = new Set(['free', 'paid', 'vip']);
 function dashboardOrigin(url: URL): string {
   const configured = (env.DASHBOARD_PUBLIC_ORIGIN ?? '').trim().replace(/\/+$/, '');
   if (configured) return configured;
-  if (env.DEMO === '1' || env.NODE_ENV !== 'production') return url.origin;
+  if (dev) return url.origin;
   throw new Error('DASHBOARD_PUBLIC_ORIGIN not set');
 }
 
@@ -150,7 +158,7 @@ type AuditOutcome = {
 // block or fail the operator action it describes. Skipped in demo (synthetic
 // non-numeric actor id).
 function audit(admin: AdminIdentity, outcome: AuditOutcome): void {
-  if (isDemo()) return;
+  if (DEMO) return;
   auditAppend({
     actor_id: admin.id,
     actor_login: admin.login,
@@ -164,7 +172,7 @@ function audit(admin: AdminIdentity, outcome: AuditOutcome): void {
 
 const unknownSubState: ChannelSubState = { state: 'unknown', error: '', checkedAt: null };
 
-function demoLookup(q: string) {
+function demoLookup(q: string, sampleUsers: AdminUserWire[]) {
   const u = sampleUsers.find((s) => s.username === q || String(s.id) === q);
   if (!u) return { lookup: { error: 'user not found', q } };
   return {
@@ -227,7 +235,7 @@ function userAction(spec: UserActionSpec) {
     const f = await request.formData();
     const userId = String(f.get('user_id') ?? '').trim();
     if (!userId) return fail(400, { error: 'user_id required' });
-    if (isDemo()) return { action: { ok: true, notice: spec.demoNotice } };
+    if (DEMO) return { action: { ok: true, notice: spec.demoNotice } };
 
     const detail = spec.detail?.(f) ?? '';
     try {
@@ -252,7 +260,10 @@ export const actions: Actions = {
     const q = String((await request.formData()).get('q') ?? '').trim();
     if (!q) return fail(400, { error: 'query required' });
     if (q.length > 128) return fail(400, { error: 'query too long' });
-    if (isDemo()) return demoLookup(q);
+    if (DEMO) {
+      const { sampleUsers } = await import('$lib/server/demo-data');
+      return demoLookup(q, sampleUsers);
+    }
     try {
       return { lookup: await probeUser(q) };
     } catch (e) {
@@ -276,7 +287,7 @@ export const actions: Actions = {
       ({ expiresAt, detail } = grant);
     }
 
-    if (isDemo()) return { action: { ok: true, notice: `status set to ${status} (demo)` } };
+    if (DEMO) return { action: { ok: true, notice: `status set to ${status} (demo)` } };
     try {
       const user: AdminUserWire = await userSetStatus(userId, status, expiresAt);
       audit(admin, { action: 'set_status', target: userId, detail, ok: true });
@@ -292,14 +303,14 @@ export const actions: Actions = {
 
   reset: userAction({
     name: 'reset',
-    demoNotice: 'user reset (demo)',
+    demoNotice: DEMO ? 'user reset (demo)' : '',
     notice: () => 'user reset',
     run: (userId) => userReset(userId)
   }),
 
   clearToken: userAction({
     name: 'clear_token',
-    demoNotice: 'token cleared (demo)',
+    demoNotice: DEMO ? 'token cleared (demo)' : '',
     notice: () => 'token cleared',
     run: async (userId) => {
       await tokenClear(userId);
@@ -309,7 +320,7 @@ export const actions: Actions = {
 
   setActive: userAction({
     name: 'set_active',
-    demoNotice: 'active set (demo)',
+    demoNotice: DEMO ? 'active set (demo)' : '',
     notice: (user) => `active=${user?.is_active}`,
     detail: (f) => String(formActive(f)),
     run: (userId, f) => userSetActive(userId, formActive(f))
@@ -329,7 +340,8 @@ export const actions: Actions = {
     }
 
     const detail = creatorCode ? `creator_code=${creatorCode}` : 'creator_code=cleared';
-    if (isDemo()) {
+    if (DEMO) {
+      const { sampleUsers } = await import('$lib/server/demo-data');
       const user = sampleUsers.find((u) => String(u.id) === userId);
       return {
         action: { ok: true, notice: creatorCode ? `creator code set to ${creatorCode} (demo)` : 'creator code cleared (demo)' },
@@ -351,14 +363,14 @@ export const actions: Actions = {
 
   ban: userAction({
     name: 'ban',
-    demoNotice: 'user banned (demo)',
+    demoNotice: DEMO ? 'user banned (demo)' : '',
     notice: () => 'user banned',
     run: (userId) => userBan(userId)
   }),
 
   unban: userAction({
     name: 'unban',
-    demoNotice: 'user unbanned (demo)',
+    demoNotice: DEMO ? 'user unbanned (demo)' : '',
     notice: () => 'user unbanned',
     run: (userId) => userUnban(userId)
   }),
@@ -368,7 +380,7 @@ export const actions: Actions = {
     if (!admin) return fail(403, { error: 'forbidden' });
     const userId = String((await request.formData()).get('user_id') ?? '').trim();
     if (!userId) return fail(400, { error: 'user_id required' });
-    if (isDemo()) {
+    if (DEMO) {
       return {
         action: { ok: true, notice: 'bot restarted (demo only, no real subs dropped)' },
         subState: { state: 'ok', error: '', checkedAt: null } as ChannelSubState
@@ -399,7 +411,7 @@ export const actions: Actions = {
     } catch (e) {
       return { action: { ok: false, notice: (e as Error).message } };
     }
-    if (isDemo()) {
+    if (DEMO) {
       const token = signViewAs({
         sub: userId,
         login: 'demo',
@@ -431,7 +443,7 @@ export const actions: Actions = {
 
   delete: userAction({
     name: 'delete',
-    demoNotice: 'user deleted (demo only, no real data removed)',
+    demoNotice: DEMO ? 'user deleted (demo only, no real data removed)' : '',
     notice: () => 'user deleted',
     run: async (userId) => {
       await userDelete(userId);

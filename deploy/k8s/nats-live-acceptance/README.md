@@ -5,10 +5,13 @@ through the native-TLS hub. Leaves are RPC-only. It creates a unique
 memory-backed stream on `twitch.outgress.bench.*`, a subject no production
 stream or consumer owns, and deletes it on exit.
 
-The credential must be allowed to manage JetStream and publish
-`twitch.outgress.>`; production's `worker_bus` credential has exactly that
-scope. The test requires `NATS_USER`, `NATS_PASSWORD`, and `NATS_CA` and refuses
-to run without CA verification.
+The benchmark publisher needs only its ordinary subject permission;
+`worker_bus` deliberately has no stream-management rights. Create and delete
+the unique temporary stream with a separate, short-lived operator credential,
+then run the load phase with the worker credential and
+`-create-stream=false -cleanup=false`. Never add stream management back to the
+worker ACL for this harness. Every invocation requires `NATS_USER`,
+`NATS_PASSWORD`, and `NATS_CA` and refuses to run without CA verification.
 
 The defaults mirror one ingress pod: two publisher connections, bounded
 official `nats.go` asynchronous PubAck windows, 200,000 messages, and 256-byte
@@ -22,9 +25,25 @@ GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build \
   -o /tmp/nats-live-acceptance ./deploy/k8s/nats-live-acceptance
 
 kubectl -n production cp /tmp/nats-live-acceptance <benchmark-pod>:/tmp/nats-live-acceptance
-kubectl -n production exec <benchmark-pod> -- sh -c \
-  'NATS_USER="$WORKER_NATS_USER" NATS_PASSWORD="$WORKER_NATS_PASSWORD" \
-   NATS_CA=/etc/nats-ca/ca.pem /tmp/nats-live-acceptance'
+stream=LIVE_NATS_ACCEPTANCE_$(date -u +%Y%m%dT%H%M%S)
+subject=twitch.outgress.bench.$(date -u +%Y%m%d%H%M%S)
+
+# Operator setup identity: exact temporary stream lifecycle only.
+NATS_USER="$SETUP_NATS_USER" NATS_PASSWORD="$SETUP_NATS_PASSWORD" \
+NATS_CA=/etc/nats-ca/ca.pem /tmp/nats-live-acceptance \
+  -domain= -stream "$stream" -subject "$subject" -setup-only -cleanup=false
+
+# Runtime publisher identity: no JetStream API permissions.
+NATS_USER="$WORKER_NATS_USER" NATS_PASSWORD="$WORKER_NATS_PASSWORD" \
+NATS_CA=/etc/nats-ca/ca.pem /tmp/nats-live-acceptance \
+  -domain= -stream "$stream" -subject "$subject" \
+  -create-stream=false -cleanup=false
+
+# Operator cleanup identity.
+NATS_USER="$SETUP_NATS_USER" NATS_PASSWORD="$SETUP_NATS_PASSWORD" \
+NATS_CA=/etc/nats-ca/ca.pem /tmp/nats-live-acceptance \
+  -domain= -stream "$stream" -subject "$subject" \
+  -create-stream=false -setup-only -cleanup=true
 ```
 
 Acceptance gates:
@@ -63,8 +82,11 @@ Temporary pods are deleted by a trap on success, failure, or interruption.
 on node2, node3, and worker1. It opens 2/4/4 publisher connections, matching the
 intended 1/2/2 ingress-pod placement, and drives one unsharded R1 memory stream.
 The stream is pinned to `nats-0` on node3, matching the production ingress
-placement, and the scoped worker credential uses the direct hub `$JS.API`
-prefix; leaves and the hub domain import are intentionally bypassed.
+placement. A temporary `nats-bench-setup` Secret (`NATS_USER` /
+`NATS_PASSWORD`) supplies the short-lived setup identity, while the scoped
+worker credential performs only the subject publish; leaves and the hub domain
+import are intentionally bypassed. Remove the setup user and Secret after the
+run.
 The conservative aggregate rate uses the slowest node duration and must reach
 700,000 acknowledged events/second with zero errors.
 

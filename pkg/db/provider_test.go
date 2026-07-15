@@ -15,19 +15,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRegisterTLSUsesVerifiedConfig(t *testing.T) {
-	t.Cleanup(func() { mysql.DeregisterTLSConfig(tlsConfigName) })
-
+func TestRegisterTLSRejectsMissingCA(t *testing.T) {
 	name, err := registerTLS(nil)
-	require.NoError(t, err)
-	require.Equal(t, tlsConfigName, name)
+	require.Empty(t, name)
+	require.ErrorContains(t, err, "DB_CA_CERT is required")
 
-	cfg := registeredTLSConfig(t, "10.0.0.4:3306")
-	require.True(t, cfg.InsecureSkipVerify)
-	require.Equal(t, uint16(tls.VersionTLS12), cfg.MinVersion)
-	require.Empty(t, cfg.ServerName)
-	require.Nil(t, cfg.RootCAs)
-	require.Nil(t, cfg.VerifyPeerCertificate)
+	name, err = registerTLS([]byte(" \n\t"))
+	require.Empty(t, name)
+	require.ErrorContains(t, err, "DB_CA_CERT is required")
 }
 
 func TestRegisterTLSUsesPinnedCAWithoutHostnameVerification(t *testing.T) {
@@ -39,6 +34,7 @@ func TestRegisterTLSUsesPinnedCAWithoutHostnameVerification(t *testing.T) {
 
 	cfg := registeredTLSConfig(t, "10.0.0.4:3306")
 	require.True(t, cfg.InsecureSkipVerify)
+	require.Equal(t, uint16(tls.VersionTLS12), cfg.MinVersion)
 	require.Empty(t, cfg.ServerName)
 	require.NotNil(t, cfg.RootCAs)
 	require.NotNil(t, cfg.VerifyPeerCertificate)

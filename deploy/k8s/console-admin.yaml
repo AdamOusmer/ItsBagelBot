@@ -235,6 +235,11 @@ spec:
           #   DB_ADMIN_ADDR/DB_ADMIN_USER/DB_ADMIN_PASS — privileged MySQL
           #                            credential used only by the secrets
           #                            page to create schema-local runtime users.
+          #   DB_ADMIN_CA_CERT         — dedicated HeatWave endpoint CA PEM for
+          #                            that privileged connection. DB credential
+          #                            operations fail closed until this is
+          #                            present; the internal fleet-ca is not the
+          #                            HeatWave issuer.
           # The dashboard holds only the matching public key in its own Doppler
           # project/config.
           # The Twitch app MUST register the redirect URI above. Staff identity

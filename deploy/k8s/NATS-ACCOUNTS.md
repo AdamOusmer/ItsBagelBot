@@ -23,11 +23,58 @@ service's Doppler project.
 | outgress | `outgress_bus` | `outgress_rpc` | OUTGRESS_RPC |
 | worker | `worker_bus` | `worker_rpc` | WORKER_RPC |
 | transactions | `transactions_bus` | `transactions_rpc` | TRANSACTIONS_RPC |
-| notifications | `notifications_bus` | `notifications_rpc` | NOTIFICATIONS_RPC |
+| notifications | — (RPC-only, no BUS user) | `notifications_rpc` | NOTIFICATIONS_RPC |
 | dashboard (console) | `dashboard_bus` | `dashboard_rpc` | DASHBOARD_RPC |
 | admin (console) | `admin_bus` | `admin_rpc` | ADMIN_RPC |
 | twitch-ingress | `twitch_ingress_bus` | `twitch_ingress_rpc` | TWITCH_INGRESS_RPC |
 | gateway | — (RPC-only, no BUS user) | `gateway_rpc` | GATEWAY_RPC |
+
+### JetStream stream ownership
+
+Stream-management rights are not shared across BUS users. Runtime ownership is
+deliberately narrow:
+
+| Stream | Reconciliation owner | Other access |
+|---|---|---|
+| `BAGEL_DATA` | `users_bus` | exact per-service consumer APIs; subject-only publishers |
+| `TWITCH_INGRESS` | `worker_bus` (sesame) | exact projector/outgress consumer APIs; twitch-ingress is subject-only |
+| `TWITCH_OUTGRESS` | `outgress_bus` | exact outgress consumer APIs; subject-only publishers |
+| `TWITCH_OUTGRESS_SYSTEM` | `outgress_bus` | exact outgress consumer APIs; subject-only publishers |
+
+Owners receive only `STREAM.INFO/CREATE/UPDATE` for their named stream.
+Consumers receive only `STREAM.INFO`, consumer create/info/delete, and ACK
+subjects for their named stream. No ordinary service credential receives
+`STREAM.PURGE`, `STREAM.DELETE`, account-wide discovery, or `$JS.>`.
+
+The static regression test runs with the normal Go suite:
+
+```sh
+go test ./deploy/k8s
+```
+
+For a production-shaped authorization smoke test, start the loopback-only
+NATS 2.14.3 fixture with dummy plaintext passwords, then run the opt-in test:
+
+```sh
+GOBIN=/tmp go install github.com/nats-io/nats-server/v2@v2.14.3
+
+env_args=()
+while read -r key; do env_args+=("${key}=test-password"); done < <(
+  rg -o '\$NATS_BCRYPT_[A-Z_]+' deploy/k8s/nats-auth.conf | tr -d '$' | sort -u
+)
+env "${env_args[@]}" /tmp/nats-server -c deploy/k8s/nats-auth-smoke.conf &
+nats_pid=$!
+trap 'kill "$nats_pid"' EXIT
+
+NATS_AUTHZ_ACCEPTANCE_URL=nats://127.0.0.1:14222 \
+NATS_AUTHZ_ACCEPTANCE_PASSWORD=test-password \
+go test -v ./deploy/k8s -run TestScopedBusUsersBindAllowedStreams
+```
+
+The smoke test reconciles each owner stream, binds representative broadcast and
+durable consumers, checks both NATS ACK subject formats, proves `loyalty_bus`
+cannot create a `TWITCH_INGRESS` consumer, and proves every non-admin BUS user
+is denied stream purge/delete.
 
 ## 2. `nats-auth-env` secret keys (broker side)
 
@@ -40,12 +87,12 @@ All values are **bcrypt hashes**.
 `NATS_BCRYPT_TWITCH_INGRESS_BUS`, `NATS_BCRYPT_DASHBOARD_BUS`,
 `NATS_BCRYPT_ADMIN_BUS`
 
-**RPC user hashes (12):**
+**RPC user hashes (13):**
 `NATS_BCRYPT_USERS_RPC`, `NATS_BCRYPT_COMMANDS_RPC`, `NATS_BCRYPT_LOYALTY_RPC`, `NATS_BCRYPT_MODULES_RPC`,
 `NATS_BCRYPT_PROJECTOR_RPC`, `NATS_BCRYPT_OUTGRESS_RPC`,
 `NATS_BCRYPT_WORKER_RPC`, `NATS_BCRYPT_DASHBOARD_RPC`, `NATS_BCRYPT_ADMIN_RPC`,
 `NATS_BCRYPT_TWITCH_INGRESS_RPC`, `NATS_BCRYPT_TRANSACTIONS_RPC`,
-`NATS_BCRYPT_GATEWAY_RPC`
+`NATS_BCRYPT_NOTIFICATIONS_RPC`, `NATS_BCRYPT_GATEWAY_RPC`
 
 **System account (1):** `NATS_BCRYPT_SYS`
 
@@ -58,8 +105,9 @@ Each service's Doppler project sets its own account creds; the app manifests
 already pull them via `envFrom: secretRef` (DopplerSecret), so no manifest change
 is needed for the credentials — only the keys below.
 
-- **All services:** `NATS_USER` = `<service>_bus`, `NATS_PASSWORD` = the BUS
-  plaintext (matches `NATS_BCRYPT_<SERVICE>_BUS`).
+- **BUS-connected services:** `NATS_USER` = `<service>_bus`, `NATS_PASSWORD` =
+  the BUS plaintext (matches `NATS_BCRYPT_<SERVICE>_BUS`). Notifications and
+  gateway are RPC-only and do not receive BUS credentials.
 - **All services:** `NATS_RPC_USER` = `<service>_rpc`, `NATS_RPC_PASSWORD` = the
   RPC plaintext (matches `NATS_BCRYPT_<SERVICE>_RPC`).
 

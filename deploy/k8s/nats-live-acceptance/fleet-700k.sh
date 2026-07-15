@@ -12,6 +12,9 @@ payload_bytes=${PAYLOAD_BYTES:-256}
 # serialized ingest path at production rate.
 msg_id=${MSG_ID:-on}
 image=${BENCH_IMAGE:-alpine:3.22}
+# Temporary operator-managed identity used only to create/delete the unique
+# benchmark stream. worker_bus deliberately has no stream-management ACL.
+setup_secret=${NATS_BENCH_SETUP_SECRET:-nats-bench-setup}
 run_id=$(date -u +%Y%m%d%H%M%S)
 stream="FLEET_700K_${run_id}"
 subject="twitch.outgress.bench.fleet${run_id}"
@@ -31,10 +34,17 @@ messages=(
 
 stream_created=false
 
+setup_exec() {
+  local pod=$1
+  shift
+  kubectl -n "$namespace" exec "$pod" -- sh -c \
+    'NATS_USER="$NATS_SETUP_USER" NATS_PASSWORD="$NATS_SETUP_PASSWORD" NATS_CA=/etc/nats-ca/ca.pem exec "$@"' \
+    sh "$@"
+}
+
 cleanup() {
   if [[ "$stream_created" == true ]]; then
-    kubectl -n "$namespace" exec "${pods[1]}" -- env NATS_CA=/etc/nats-ca/ca.pem \
-      /tmp/nats-live-acceptance \
+    setup_exec "${pods[1]}" /tmp/nats-live-acceptance \
       -domain= \
       -stream "$stream" -subject "$subject" -create-stream=false -cleanup=true \
       -setup-only=true >/dev/null 2>&1 || true
@@ -48,12 +58,14 @@ create_pod() {
   local pod=$1 node=$2
   local overrides
   overrides=$(jq -nc \
-    --arg pod "$pod" --arg node "$node" --arg image "$image" \
+    --arg pod "$pod" --arg node "$node" --arg image "$image" --arg setup_secret "$setup_secret" \
     '{spec:{nodeName:$node,restartPolicy:"Never",containers:[{
       name:$pod,image:$image,command:["sleep","1800"],
       env:[
         {name:"NATS_USER",valueFrom:{secretKeyRef:{name:"worker-env",key:"NATS_USER"}}},
-        {name:"NATS_PASSWORD",valueFrom:{secretKeyRef:{name:"worker-env",key:"NATS_PASSWORD"}}}
+        {name:"NATS_PASSWORD",valueFrom:{secretKeyRef:{name:"worker-env",key:"NATS_PASSWORD"}}},
+        {name:"NATS_SETUP_USER",valueFrom:{secretKeyRef:{name:$setup_secret,key:"NATS_USER"}}},
+        {name:"NATS_SETUP_PASSWORD",valueFrom:{secretKeyRef:{name:$setup_secret,key:"NATS_PASSWORD"}}}
       ],
       volumeMounts:[{name:"fleet-ca",mountPath:"/etc/nats-ca",readOnly:true}],
       resources:{requests:{cpu:"100m",memory:"256Mi"},limits:{cpu:"4",memory:"1Gi"}},
@@ -67,6 +79,11 @@ create_pod() {
 echo "building static acceptance binary"
 GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o "$binary" ./deploy/k8s/nats-live-acceptance
 
+if ! kubectl -n "$namespace" get secret "$setup_secret" >/dev/null 2>&1; then
+  echo "missing temporary JetStream setup secret $setup_secret (see nats-live-acceptance/README.md)" >&2
+  exit 1
+fi
+
 for i in "${!nodes[@]}"; do
   create_pod "${pods[$i]}" "${nodes[$i]}"
 done
@@ -75,8 +92,7 @@ for pod in "${pods[@]}"; do
   kubectl -n "$namespace" cp "$binary" "$pod:/tmp/nats-live-acceptance"
 done
 
-kubectl -n "$namespace" exec "${pods[1]}" -- env NATS_CA=/etc/nats-ca/ca.pem \
-  /tmp/nats-live-acceptance \
+setup_exec "${pods[1]}" /tmp/nats-live-acceptance \
   -domain= -placement-tag=nats-0 \
   -stream "$stream" -subject "$subject" -setup-only=true -cleanup=false >/dev/null
 stream_created=true

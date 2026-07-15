@@ -1,10 +1,12 @@
 import type { RequestHandler } from './$types';
 import { error } from '@sveltejs/kit';
-import { requireAdmin, isDemo } from '$lib/server/access';
+import { dev } from '$app/environment';
+import { requireAdmin } from '$lib/server/access';
 import { subscribeStatus, decode, type FeedEvent } from '$lib/server/feed';
 import { STATUS_PREFIX } from '$lib/server/services';
 
 const enc = new TextEncoder();
+const DEMO = dev && process.env.DEMO === '1';
 
 function sse(event: string, data: unknown): Uint8Array {
   return enc.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
@@ -17,22 +19,17 @@ function sse(event: string, data: unknown): Uint8Array {
 export const GET: RequestHandler = async ({ locals }) => {
   if (!(await requireAdmin(locals.session))) throw error(403, 'forbidden');
 
-  if (isDemo()) {
+  if (DEMO) {
     const stream = new ReadableStream({
       start(controller) {
         controller.enqueue(enc.encode(': connected\n\n'));
         let n = 0;
-        const tones: FeedEvent['tone'][] = ['up', 'neutral', 'down'];
+        const fixture = import('$lib/server/demo-data');
         const tick = setInterval(() => {
-          const ev: FeedEvent = {
-            subject: `${STATUS_PREFIX}.shard.${n % 4}.${tones[n % 3] === 'up' ? 'up' : tones[n % 3] === 'down' ? 'down' : 'keepalive'}`,
-            label: `shard.${n % 4}`,
-            tone: tones[n % 3],
-            payload: `demo event #${n}`,
-            time: new Date().toLocaleTimeString('en-GB', { hour12: false })
-          };
-          controller.enqueue(sse('feed', ev));
-          n++;
+          fixture.then(({ demoFeedEvent }) => {
+            controller.enqueue(sse('feed', demoFeedEvent(n, STATUS_PREFIX)));
+            n++;
+          });
         }, 3000);
         const hb = setInterval(() => controller.enqueue(enc.encode(': keepalive\n\n')), 20000);
         // @ts-expect-error stash for cancel

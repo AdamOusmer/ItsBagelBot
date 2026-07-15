@@ -173,7 +173,7 @@
       <form method="POST" action="?/upsert" use:enhance={addSubmit} class="add-form">
         <label>
           Twitch user id
-          <input class="text-input" type="text" name="user_id" inputmode="numeric" pattern="[0-9]+" required placeholder="804932984" />
+          <input class="text-input" type="text" name="user_id" inputmode="numeric" pattern="[0-9]+" required placeholder="123456789" />
         </label>
         <label>
           Login

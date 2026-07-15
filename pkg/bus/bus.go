@@ -12,6 +12,7 @@ import (
 	wmnats "github.com/ThreeDotsLabs/watermill-nats/v2/pkg/nats"
 	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nuid"
 
 	"go.uber.org/zap"
 )
@@ -235,13 +236,19 @@ type fleetSubscriber struct {
 	conns []*nats.Conn
 }
 
+type subscriptionTarget struct {
+	stream string
+	topic  string
+}
+
 func (s *fleetSubscriber) Subscribe(ctx context.Context, topic string) (<-chan *message.Message, error) {
 	stream, err := streamForTopic(topic)
 	if err != nil {
 		return nil, err
 	}
 
-	sub, conn, err := s.subscriberFor(stream, topic)
+	target := subscriptionTarget{stream: stream, topic: topic}
+	sub, conn, err := s.subscriberFor(target)
 	if err != nil {
 		return nil, err
 	}
@@ -294,19 +301,24 @@ func closeSubscription(sub message.Subscriber, conn *nats.Conn) {
 // when the group is empty, else a durable queue-group consumer bound to a
 // provisioned server-owned durable (so it survives pod disconnects), with the
 // shared fleet redelivery budget (see fleetMaxRedeliveries).
-func (s *fleetSubscriber) subscriberFor(stream, topic string) (message.Subscriber, *nats.Conn, error) {
+func (s *fleetSubscriber) subscriberFor(target subscriptionTarget) (message.Subscriber, *nats.Conn, error) {
 	if s.group == "" {
-		sub, err := s.broadcastSubscriber()
+		sub, err := s.broadcastSubscriber(target)
 		return sub, nil, err
 	}
-	binding := LaneConfig{URL: s.url, Stream: stream, Subject: topic, Group: s.group}
+	binding := LaneConfig{URL: s.url, Stream: target.stream, Subject: target.topic, Group: s.group}
 	maxDeliveries := fleetMaxRedeliveries + 1
 	return bindDurable(binding, int(maxDeliveries), wmnats.NewMaxRetryDelay(fleetNakDelay, maxDeliveries), s.log)
 }
 
-// broadcastSubscriber uses an ephemeral consumer with DeliverNew to avoid
-// replay storms: every instance gets every message (cache invalidation).
-func (s *fleetSubscriber) broadcastSubscriber() (message.Subscriber, error) {
+// broadcastSubscriber uses a unique, short-lived consumer with DeliverNew to
+// avoid replay storms: every instance gets every message (cache invalidation).
+// Watermill appends BindStream("") when DurablePrefix is empty, which would
+// force the account-wide $JS.API.STREAM.NAMES lookup and conflict with our
+// explicit binding. A unique durable prefix keeps the binding exact; nats.go
+// deletes consumers it creates on unsubscribe, and InactiveThreshold cleans up
+// an orphan after an ungraceful process exit.
+func (s *fleetSubscriber) broadcastSubscriber(target subscriptionTarget) (message.Subscriber, error) {
 	return wmnats.NewSubscriber(wmnats.SubscriberConfig{
 		URL:              busURL(s.url),
 		NatsOptions:      busOptions(s.group),
@@ -315,9 +327,12 @@ func (s *fleetSubscriber) broadcastSubscriber() (message.Subscriber, error) {
 		Unmarshaler:      &wmnats.NATSMarshaler{},
 		JetStream: wmnats.JetStreamConfig{
 			AutoProvision:  false,
+			DurablePrefix:  "broadcast_" + nuid.Next(),
 			ConnectOptions: jsDomainOption(),
 			SubscribeOptions: []nats.SubOpt{
 				nats.DeliverNew(),
+				nats.BindStream(target.stream),
+				nats.InactiveThreshold(time.Minute),
 			},
 		},
 	}, newZapAdapter(s.log))

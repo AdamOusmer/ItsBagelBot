@@ -69,10 +69,6 @@ func main() {
 	natsURL := env.Get("NATS_URL", "nats://127.0.0.1:4222")
 	rpcURL := bus.RPCURL(natsURL)
 
-	if err := bus.EnsureStreams(ctx, natsURL, bus.DataStreams, log); err != nil {
-		log.Fatal("failed to provision jetstream streams", zap.Error(err))
-	}
-
 	pub, err := bus.NewPublisher(natsURL, log)
 	if err != nil {
 		log.Fatal("failed to connect publisher", zap.Error(err))

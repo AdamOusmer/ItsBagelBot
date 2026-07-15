@@ -5,10 +5,40 @@ import { botTwitch, botClientId } from '$lib/server/oauth';
 import { tokenSet } from '$lib/server/services';
 import { env } from '$env/dynamic/private';
 
+type BotIdentity = {
+  idToken: string;
+  configuredId: string;
+};
+
+function configuredBotId(): string {
+  const botId = env.ADMIN_BOT_USER_ID?.trim();
+  if (!botId) throw redirect(302, '/auth/bot/done?e=config');
+  return botId;
+}
+
+function assertBotIdentity(identity: BotIdentity): void {
+  const claims = decodeIdToken(identity.idToken) as {
+    sub: string;
+    aud?: string | string[];
+    iss?: string;
+  };
+  const clientId = botClientId();
+  const intendedAudience = Array.isArray(claims.aud)
+    ? claims.aud.includes(clientId)
+    : claims.aud === clientId;
+  if (!intendedAudience || claims.iss !== 'https://id.twitch.tv/oauth2') {
+    throw redirect(302, '/auth/bot/done?e=state');
+  }
+  if (claims.sub !== identity.configuredId) {
+    throw redirect(302, '/auth/bot/done?e=account');
+  }
+}
+
 // Twitch redirects the bot account's browser here after consent. Same cookie
 // state check as the operator callback; no admin session is minted and no
 // adminCheck runs (the bot account is not staff). The token is stored under the
-// bot's id, optionally pinned by ADMIN_BOT_USER_ID.
+// configured bot id. The callback refuses to exchange or store a token unless
+// ADMIN_BOT_USER_ID is set.
 export const GET: RequestHandler = async ({ url, cookies }) => {
   const code = url.searchParams.get('code');
   const state = url.searchParams.get('state');
@@ -19,26 +49,13 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
     throw redirect(302, '/auth/bot/done?e=state');
   }
 
+  const botId = configuredBotId();
+
   try {
     const tokens = await botTwitch(url.origin).validateAuthorizationCode(code);
-    const claims = decodeIdToken(tokens.idToken()!) as {
-      sub: string;
-      aud?: string | string[];
-      iss?: string;
-    };
+    assertBotIdentity({ idToken: tokens.idToken()!, configuredId: botId });
 
-    const clientId = botClientId();
-    const audOk = Array.isArray(claims.aud)
-      ? claims.aud.includes(clientId)
-      : claims.aud === clientId;
-    const issOk = claims.iss === 'https://id.twitch.tv/oauth2';
-    if (!audOk || !issOk) throw redirect(302, '/auth/bot/done?e=state');
-
-    // Guard: if the bot account id is pinned, refuse any other account's token.
-    const botId = env.ADMIN_BOT_USER_ID ?? '';
-    if (botId && claims.sub !== botId) throw redirect(302, '/auth/bot/done?e=account');
-
-    await tokenSet(claims.sub, tokens.accessToken(), tokens.refreshToken());
+    await tokenSet(botId, tokens.accessToken(), tokens.refreshToken());
   } catch (e) {
     if (e instanceof OAuth2RequestError) throw redirect(302, '/auth/bot/done?e=oauth');
     throw e;
