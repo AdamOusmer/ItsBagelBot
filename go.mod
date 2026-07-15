@@ -4,8 +4,6 @@ go 1.26.5
 
 require (
 	entgo.io/ent v0.14.5
-	github.com/ThreeDotsLabs/watermill v1.5.2
-	github.com/ThreeDotsLabs/watermill-nats/v2 v2.2.0
 	github.com/Yiling-J/theine-go v0.6.2
 	github.com/abadojack/whatlanggo v1.0.1
 	github.com/bytedance/sonic v1.15.2
@@ -44,11 +42,8 @@ require (
 	github.com/hashicorp/hcl/v2 v2.24.0 // indirect
 	github.com/klauspost/compress v1.18.6 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.9 // indirect
-	github.com/lithammer/shortuuid/v3 v3.0.7 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
 	github.com/nats-io/nkeys v0.4.15 // indirect
-	github.com/oklog/ulid v1.3.1 // indirect
-	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/zclconf/go-cty v1.18.0 // indirect

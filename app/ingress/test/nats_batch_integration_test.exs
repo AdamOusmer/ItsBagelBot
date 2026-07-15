@@ -9,8 +9,8 @@ defmodule Ingress.NatsCohortIntegrationTest do
 
   test "Gnat-managed connection receives individual PubAcks from NATS" do
     with_integration_publisher([], fn conn, ctx ->
-      assert Publisher.enqueue("twitch.ingress.event.standard", ~s({"n":1}), "elixir-1") == :ok
-      assert Publisher.enqueue("twitch.ingress.event.standard", ~s({"n":2}), "elixir-2") == :ok
+      assert Publisher.enqueue("twitch.ingress.event.standard", ~s({"n":1})) == :ok
+      assert Publisher.enqueue("twitch.ingress.event.standard", ~s({"n":2})) == :ok
 
       assert eventually(fn -> :atomics.get(ctx.counter, 1) == 0 end)
       assert stream_messages(conn) == 2
@@ -22,8 +22,7 @@ defmodule Ingress.NatsCohortIntegrationTest do
       for n <- 1..3 do
         assert Publisher.enqueue(
                  "twitch.ingress.event.standard",
-                 ~s({"n":#{n}}),
-                 "elixir-atomic-#{n}"
+                 ~s({"n":#{n}})
                ) == :ok
       end
 
@@ -33,27 +32,25 @@ defmodule Ingress.NatsCohortIntegrationTest do
     end)
   end
 
-  test "atomic wire cannot double-store a replayed cohort" do
+  test "atomic wire stores repeated cohorts because broker dedup is disabled" do
     with_integration_publisher([publish_wire: :atomic, publish_batch_size: 3], fn conn, ctx ->
       replay = fn ->
         for n <- 1..3 do
           assert Publisher.enqueue(
                    "twitch.ingress.event.standard",
-                   ~s({"n":#{n}}),
-                   "elixir-replay-#{n}"
+                   ~s({"n":#{n}})
                  ) == :ok
         end
 
         assert eventually(fn -> :atomics.get(ctx.counter, 1) == 0 end)
       end
 
-      # First pass stores the cohort; the second carries ids already inside the
-      # dedup window — whether the broker folds the batch or rejects it into
-      # the per-message fallback, the stream must not grow.
+      # Repeating an intentional publish is not folded: no Nats-Msg-Id is
+      # generated anywhere on the ingress path.
       replay.()
       assert stream_messages(conn) == 3
       replay.()
-      assert stream_messages(conn) == 3
+      assert stream_messages(conn) == 6
     end)
   end
 

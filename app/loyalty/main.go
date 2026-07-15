@@ -26,8 +26,6 @@ import (
 	"ItsBagelBot/pkg/logger"
 	"ItsBagelBot/pkg/monitor"
 
-	"github.com/ThreeDotsLabs/watermill/message"
-
 	"go.uber.org/zap"
 )
 
@@ -36,11 +34,11 @@ const serviceName = "loyalty"
 // registerConsumers wires the event subscriptions onto repo. Everything here
 // is delta folding or cleanup that must happen exactly once per event, so all
 // subjects ride the grouped (queue) subscriber.
-func registerConsumers(ctx context.Context, nrApp *newrelic.Application, repo *repository.Loyalty, grouped message.Subscriber, log *zap.Logger) error {
+func registerConsumers(ctx context.Context, nrApp *newrelic.Application, repo *repository.Loyalty, grouped bus.Subscriber, log *zap.Logger) error {
 	subs := []struct {
 		name    string
 		subject string
-		handle  func(*message.Message) error
+		handle  func(*bus.Message) error
 	}{
 		{"loyalty earned events", data.SubjectLoyaltyEarned, recordEarned(repo, log)},
 		{"loyalty counter events", data.SubjectLoyaltyCounters, recordBumps(repo, log)},
@@ -56,8 +54,8 @@ func registerConsumers(ctx context.Context, nrApp *newrelic.Application, repo *r
 
 // recordEarned folds a worker earned event into the repo's accumulator. A
 // malformed payload is dropped (nil), not retried.
-func recordEarned(repo *repository.Loyalty, log *zap.Logger) func(*message.Message) error {
-	return func(msg *message.Message) error {
+func recordEarned(repo *repository.Loyalty, log *zap.Logger) func(*bus.Message) error {
+	return func(msg *bus.Message) error {
 		var dto data.LoyaltyEarnedDTO
 		if err := json.Unmarshal(msg.Payload, &dto); err != nil {
 			log.Warn("loyalty: bad earned payload", zap.Error(err))
@@ -69,8 +67,8 @@ func recordEarned(repo *repository.Loyalty, log *zap.Logger) func(*message.Messa
 }
 
 // recordBumps folds a worker counter event into the repo's accumulator.
-func recordBumps(repo *repository.Loyalty, log *zap.Logger) func(*message.Message) error {
-	return func(msg *message.Message) error {
+func recordBumps(repo *repository.Loyalty, log *zap.Logger) func(*bus.Message) error {
+	return func(msg *bus.Message) error {
 		var dto data.CounterBumpedDTO
 		if err := json.Unmarshal(msg.Payload, &dto); err != nil {
 			log.Warn("loyalty: bad counter payload", zap.Error(err))
@@ -83,8 +81,8 @@ func recordBumps(repo *repository.Loyalty, log *zap.Logger) func(*message.Messag
 
 // deleteAllForUser removes every loyalty row of a deleted account. Malformed
 // or invalid payloads are dropped; a DB failure is returned for retry.
-func deleteAllForUser(repo *repository.Loyalty, log *zap.Logger) func(*message.Message) error {
-	return func(msg *message.Message) error {
+func deleteAllForUser(repo *repository.Loyalty, log *zap.Logger) func(*bus.Message) error {
+	return func(msg *bus.Message) error {
 		var dto data.UserDeletedDTO
 		if err := json.Unmarshal(msg.Payload, &dto); err != nil {
 			log.Warn("loyalty: bad user_deleted payload", zap.Error(err))

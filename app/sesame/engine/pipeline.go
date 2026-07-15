@@ -14,7 +14,6 @@ import (
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 
-	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/bytedance/sonic"
 	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
@@ -128,7 +127,7 @@ const chatType = "channel.chat.message"
 // the event handlers registered for the type, and publishes what they emit. It
 // reads as a short sequence of guards and stages; the loops and the failure
 // bookkeeping live in the helpers below.
-func (p *Pipeline) Process(msg *message.Message) (err error) {
+func (p *Pipeline) Process(msg *bus.Message) (err error) {
 	ctx := msg.Context()
 
 	// Decode into a pooled envelope so the plain-chat path allocates nothing here.
@@ -295,10 +294,9 @@ func (p *Pipeline) publishOutput(ctx context.Context, subject, replayID string, 
 	return bus.PublishConfirmed(ctx, p.pub, bus.Publication{Subject: subject, ID: replayID, Payload: body})
 }
 
-// outputReplayBase turns the EventSub identity into a fixed, header-safe NATS
-// publication namespace. Ingress already uses EventID as Nats-Msg-Id; carrying
-// that logical identity through Sesame lets JetStream fold outputs when an
-// input is replayed after an uncertain consumer acknowledgement.
+// outputReplayBase turns the EventSub identity into a stable fleet message
+// namespace. It remains useful for tracing an input to its ordered outputs,
+// but it is not sent as Nats-Msg-Id and does not enable broker deduplication.
 func outputReplayBase(env *lane.Envelope) string {
 	if env == nil || env.EventID == "" {
 		return ""

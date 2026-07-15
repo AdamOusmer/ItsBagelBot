@@ -36,12 +36,10 @@ func TestAtomicBatchPublisherIntegration(t *testing.T) {
 	assertIntegrationStream(t, url, messages)
 }
 
-// TestAtomicBatchDedupIntegration proves the safety property the fallback
-// relies on: a cohort whose ids were already stored must not store twice.
-// The broker rejects an atomic batch containing already-seen Nats-Msg-Ids
-// (err 10201), the publisher falls back to per-message publishes, and the
-// dedup window folds every one of them.
-func TestAtomicBatchDedupIntegration(t *testing.T) {
+// TestAtomicBatchMessageIdentityIntegration proves a stable fleet message ID
+// is transport metadata only. Repeating an intentional cohort stores it again
+// because the publisher never sends Nats-Msg-Id.
+func TestAtomicBatchMessageIdentityIntegration(t *testing.T) {
 	t.Setenv("NATS_PUBLISH_WIRE", "atomic")
 	url, pub := openIntegrationPublisher(t)
 	defer closeIntegrationPublisher(t, url, pub)
@@ -51,12 +49,10 @@ func TestAtomicBatchDedupIntegration(t *testing.T) {
 	flushIntegrationPublisher(t, pub, 5*time.Second)
 	assertIntegrationStream(t, url, messages)
 
-	// Same ids again: whichever path the broker takes (batch rejection +
-	// individual fallback, or batch-level dedup), the stream must not grow
-	// and the publisher must report success.
+	// Same identities again: broker dedup is off, so the stream grows.
 	publishIdentifiedIntegrationMessages(t, pub, messages)
 	flushIntegrationPublisher(t, pub, 5*time.Second)
-	assertIntegrationStream(t, url, messages)
+	assertIntegrationStream(t, url, messages*2)
 }
 
 func publishIdentifiedIntegrationMessages(t *testing.T, pub Publisher, messages int) {

@@ -55,11 +55,11 @@ window without clobbering newer writes. Five clicks on the same toggle cost one 
 on the type itself: a value sits in memory for at most the flush interval before it is persisted, so only state that
 a user can re-submit goes through it. Transactions, tier changes, and tokens write through immediately.
 
-**Event-carried invalidation over Watermill (`pkg/bus`).** Events publish only after the database commit and carry
+**Event-carried invalidation over the native NATS bus (`pkg/bus`).** Events publish only after the database commit and carry
 the full new state, so consumers update themselves from the event alone and never read another service's schema.
-We use Watermill over the JetStream cluster from [ADR 0003](/adr/0003-adoption-of-nats-as-communication-bridge/)
-rather than raw `nats.go`, because it gives us the publisher/subscriber abstraction, ack/nack semantics, and test
-doubles for the cost of one thin dependency. Two subscription shapes, on purpose:
+The fleet-owned `Publisher`, `Subscriber`, and `Message` contracts wrap `nats.go` over the JetStream cluster from
+[ADR 0003](/adr/0003-adoption-of-nats-as-communication-bridge/). The adapter owns ack/nack pacing, durable binding,
+fan-out subscriptions, trace metadata, connection lifecycle, and test doubles. Two subscription shapes, on purpose:
 
 - Cache invalidation is a broadcast: no queue group, so every instance of a service drops its cached keys when any
   instance writes.
@@ -99,5 +99,6 @@ validation or decoding is logged and acknowledged away.
   and an HTTP mesh between instances, which contradicts the substrate decision in
   [ADR 0003](/adr/0003-adoption-of-nats-as-communication-bridge/). Singleflight per instance plus event
   invalidation covers the same risk with no new infrastructure.
-- **Raw `nats.go` instead of Watermill.** One dependency fewer, but we would reimplement subscriber lifecycles,
-  ack handling, and test publishers ourselves. The library is thin enough that the trade goes the other way.
+- **Watermill over `nats.go`.** It supplies generic message and lifecycle machinery, but adds an object/marshalling
+  layer while hiding NATS-specific batch, acknowledgement, and durable-binding controls. The owned adapter is small,
+  directly testable, and keeps the NATS 2.14 throughput path available without leaking transport types into services.

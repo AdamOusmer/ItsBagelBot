@@ -6,7 +6,7 @@ under `twitch.outgress.bench.*`, preloads realistic `!bench` chat commands, and
 drains them through:
 
 1. the production native-TLS hub JetStream path;
-2. the fleet Watermill subscriber and `bus.ConsumeWeighted` autoscaler;
+2. the fleet-owned native `nats.go` subscriber and `bus.ConsumeWeighted` autoscaler;
 3. `engine.Pipeline` decoding, NATS replay identity, automod and custom-command dispatch;
 4. Sonic outgress encoding and asynchronous JetStream PubAcks into the same
    isolated stream.

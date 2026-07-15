@@ -25,8 +25,6 @@ import (
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 
-	wmnats "github.com/ThreeDotsLabs/watermill-nats/v2/pkg/nats"
-	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/bytedance/sonic"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nuid"
@@ -346,7 +344,7 @@ type benchmarkRun struct {
 	js     nats.JetStreamContext
 	output measuredPublisher
 	pipe   *engine.Pipeline
-	sub    message.Subscriber
+	sub    bus.Subscriber
 	result *result
 	log    *zap.Logger
 }
@@ -400,7 +398,7 @@ func newPipeline(cfg config, output measuredPublisher, log *zap.Logger) *engine.
 	})
 }
 
-func openInputSubscriber(cfg config, log *zap.Logger) (message.Subscriber, error) {
+func openInputSubscriber(cfg config, log *zap.Logger) (bus.Subscriber, error) {
 	// NewLaneSubscriber reads credentials from the environment. Switch them only
 	// while opening this connection; existing publisher connections are unaffected.
 	publishUser, publishPassword := os.Getenv("NATS_USER"), os.Getenv("NATS_PASSWORD")
@@ -465,8 +463,8 @@ func benchmarkScalePolicy(cfg config) bus.ScalePolicy {
 	}
 }
 
-func (m *benchmarkMetrics) handler(gate <-chan struct{}, pipe *engine.Pipeline) func(*message.Message) error {
-	return func(msg *message.Message) error {
+func (m *benchmarkMetrics) handler(gate <-chan struct{}, pipe *engine.Pipeline) func(*bus.Message) error {
+	return func(msg *bus.Message) error {
 		<-gate
 		current := m.inflight.Add(1)
 		m.observeInflight(current)
@@ -600,8 +598,7 @@ func prefill(cfg config, js nats.JetStreamContext) error {
 		}
 		msg := nats.NewMsg(cfg.input)
 		msg.Data = body
-		msg.Header.Set(wmnats.WatermillUUIDHdr, id)
-		msg.Header.Set(nats.MsgIdHdr, id)
+		msg.Header.Set(bus.MessageIDHeader, id)
 		if _, err := js.PublishMsgAsync(msg); err != nil {
 			return fmt.Errorf("prefill message %d: %w", i, err)
 		}

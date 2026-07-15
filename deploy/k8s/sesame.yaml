@@ -181,8 +181,8 @@ spec:
             # double-processing.
             - name: SESAME_CONSUMER_NAME
               value: worker
-            # Production acceptance found one Watermill subscription serialized
-            # the pod at 20/s through the leaf. The fleet-owned concurrent hub
+            # Production acceptance found the former generic subscription path
+            # serialized the pod at 20/s through the leaf. The fleet-owned concurrent hub
             # subscriber sustains four queue subscriptions with 100 handler slots
             # each. This fills one confirmed PubAck cohort per publisher connection;
             # 200 slots added only ~2% throughput while more than doubling p95.

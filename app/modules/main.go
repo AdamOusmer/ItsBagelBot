@@ -23,7 +23,6 @@ import (
 	"ItsBagelBot/pkg/logger"
 	"ItsBagelBot/pkg/monitor"
 
-	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/nats-io/nats.go"
 
 	"go.uber.org/zap"
@@ -91,7 +90,7 @@ func main() {
 	}
 	defer func() { _ = broadcast.Close() }()
 
-	if err := bus.Consume(ctx, nrApp, broadcast, data.SubjectModuleChanged, func(msg *message.Message) error {
+	if err := bus.Consume(ctx, nrApp, broadcast, data.SubjectModuleChanged, func(msg *bus.Message) error {
 
 		var dto data.ModuleChangedDTO
 		if err := json.Unmarshal(msg.Payload, &dto); err != nil {
@@ -112,13 +111,13 @@ func main() {
 	}
 	defer func() { _ = grouped.Close() }()
 
-	if err := bus.Consume(ctx, nrApp, grouped, data.SubjectReprojectRequest, func(*message.Message) error {
+	if err := bus.Consume(ctx, nrApp, grouped, data.SubjectReprojectRequest, func(*bus.Message) error {
 		return repo.Reproject(ctx)
 	}, log); err != nil {
 		log.Fatal("failed to subscribe to reproject requests", zap.Error(err))
 	}
 
-	if err := bus.Consume(ctx, nrApp, grouped, data.SubjectUserDeleted, func(msg *message.Message) error {
+	if err := bus.Consume(ctx, nrApp, grouped, data.SubjectUserDeleted, func(msg *bus.Message) error {
 
 		var dto data.UserDeletedDTO
 		if err := json.Unmarshal(msg.Payload, &dto); err != nil {

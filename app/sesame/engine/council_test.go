@@ -9,8 +9,8 @@ import (
 	"ItsBagelBot/app/sesame/automod"
 	"ItsBagelBot/app/sesame/module"
 	"ItsBagelBot/internal/domain/outgress"
+	"ItsBagelBot/pkg/bus"
 
-	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/bytedance/sonic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -44,7 +44,7 @@ func councilPipeline(pub *fakePublisher, camp Campaign) *Pipeline {
 
 // linkChat is a clean, link-bearing chat line (no content verdict on its own)
 // with a message id so deletes can be exercised.
-func linkChat(t *testing.T, chatter string) *message.Message {
+func linkChat(t *testing.T, chatter string) *bus.Message {
 	t.Helper()
 	body, err := sonic.Marshal(map[string]any{
 		"type":                chatType,
@@ -55,7 +55,7 @@ func linkChat(t *testing.T, chatter string) *message.Message {
 		"text":                "hey friends come check this great video at https://example.com/watch tonight",
 	})
 	require.NoError(t, err)
-	return message.NewMessage("u-"+chatter, body)
+	return bus.NewMessage("u-"+chatter, body)
 }
 
 func TestCampaignEscalatesLinkFloodToDelete(t *testing.T) {
@@ -106,7 +106,7 @@ func TestCampaignEscalatesFlaggedDeleteToTimeout(t *testing.T) {
 		"text":                "FREE VBUCKS CLICK MY PROFILE RIGHT NOW EVERYONE HURRY",
 	})
 	require.NoError(t, err)
-	require.NoError(t, p.Process(message.NewMessage("u", body)))
+	require.NoError(t, p.Process(bus.NewMessage("u", body)))
 
 	require.Len(t, pub.got, 1)
 	assert.Equal(t, outgress.TypeTimeout, pub.got[0].msg.Type, "delete + campaign quorum = timeout")
@@ -125,7 +125,7 @@ func TestHarassmentWarnPairsWithDelete(t *testing.T) {
 		"text":                "nobody asked just go kill yourself already dude seriously",
 	})
 	require.NoError(t, err)
-	require.NoError(t, p.Process(message.NewMessage("u", body)))
+	require.NoError(t, p.Process(bus.NewMessage("u", body)))
 
 	got := countByType(pub.got)
 	assert.Equal(t, 1, got[outgress.TypeWarn], "harassment issues a formal warning")

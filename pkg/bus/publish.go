@@ -26,19 +26,20 @@ func publishPartition(ctx context.Context) string {
 }
 
 // Publisher is the fleet-owned durable asynchronous publish contract. Service
-// code owns payload semantics while pkg/bus owns payload lifetime, IDs, trace
-// propagation, pooling, batching, PubAcks, deduplication and reconnect behavior.
+// code owns payload semantics while pkg/bus owns payload lifetime, message
+// identity, trace propagation, pooling, batching, PubAcks and reconnect
+// behavior. Fleet publishing deliberately does not use broker deduplication.
 type Publisher interface {
 	// PublishOwned admits payload to the background publisher and takes ownership
 	// of its backing bytes on success. Prefer PublishJSON or PublishRaw at call
 	// sites so ownership is explicit and safe.
 	PublishOwned(ctx context.Context, subject string, payload []byte) error
-	// PublishOwnedWithID publishes one logical output under a stable identity and
-	// waits for its cohort's final PubAck. Replaying the same ID inside the
-	// stream's duplicate window succeeds without storing a second copy.
+	// PublishOwnedWithID publishes one logical output under a caller-supplied
+	// fleet message identity and waits for its cohort's final PubAck. The ID
+	// is not sent as Nats-Msg-Id and does not make replays idempotent.
 	PublishOwnedWithID(ctx context.Context, subject, id string, payload []byte) error
-	// Flush waits until every message admitted before the call has a final PubAck
-	// (including individual dedup reconciliation after an ambiguous batch ack).
+	// Flush waits until every message admitted before the call has resolved. An
+	// ambiguous atomic acknowledgement fails without replay.
 	Flush(ctx context.Context) error
 	Close() error
 }
@@ -76,19 +77,20 @@ func PublishRaw(ctx context.Context, pub Publisher, subject string, payload []by
 	return pub.PublishOwned(ctx, subject, body)
 }
 
-// Publication is one caller-owned payload and its stable broker identity.
+// Publication is one caller-owned payload and its stable fleet message identity.
 type Publication struct {
 	Subject string
 	ID      string
 	Payload []byte
 }
 
-// PublishConfirmed copies caller-owned bytes and publishes them under a stable
-// replay identity. Rejecting an empty ID prevents callers from silently losing
-// idempotency on a path that explicitly requested it.
+// PublishConfirmed copies caller-owned bytes, publishes them under a stable
+// fleet identity and waits for the final acknowledgement. Rejecting an
+// empty ID keeps subscriber message identity explicit; it does not enable NATS
+// broker deduplication.
 func PublishConfirmed(ctx context.Context, pub Publisher, publication Publication) error {
 	if publication.ID == "" {
-		return errors.New("bus: idempotent publish requires an ID")
+		return errors.New("bus: confirmed publish requires a message ID")
 	}
 	body := append([]byte(nil), publication.Payload...)
 	return pub.PublishOwnedWithID(ctx, publication.Subject, publication.ID, body)

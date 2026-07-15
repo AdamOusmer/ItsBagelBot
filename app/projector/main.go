@@ -20,7 +20,6 @@ import (
 	"ItsBagelBot/pkg/monitor"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
-	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/nats-io/nats.go"
 	"github.com/newrelic/go-agent/v3/newrelic"
 
@@ -139,7 +138,7 @@ func main() {
 // the outgress system lane). Stream reconciliation belongs to users
 // (BAGEL_DATA), sesame (TWITCH_INGRESS), and outgress (its work queues), so a
 // projector credential cannot mutate any stream it reads.
-func connectBus(ctx context.Context, natsURL string, log *zap.Logger) (*nats.Conn, bus.Publisher, message.Subscriber) {
+func connectBus(ctx context.Context, natsURL string, log *zap.Logger) (*nats.Conn, bus.Publisher, bus.Subscriber) {
 	// One durable group for the whole projector fleet: each event is folded
 	// into Valkey exactly once, and the durable consumer keeps its position
 	// across restarts.
@@ -165,14 +164,14 @@ func connectBus(ctx context.Context, natsURL string, log *zap.Logger) (*nats.Con
 // consumerRuntime bundles the handles the fold consumers bind against.
 type consumerRuntime struct {
 	nrApp *newrelic.Application
-	sub   message.Subscriber
+	sub   bus.Subscriber
 	log   *zap.Logger
 }
 
 func registerConsumers(ctx context.Context, rt consumerRuntime, projector *Projector, streamTopic string) {
 	bindings := []struct {
 		subject string
-		handle  func(*message.Message) error
+		handle  func(*bus.Message) error
 	}{
 		{data.SubjectUserChanged, projector.HandleUserChanged},
 		{data.SubjectUserDeleted, projector.HandleUserDeleted},

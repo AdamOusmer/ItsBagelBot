@@ -1,12 +1,12 @@
 // Package outgress holds the canonical pub-sub wire types for the outgress lanes.
 // Every producer that enqueues a Twitch Helix call or EventSub job publishes a
-// Message onto the appropriate watermill subject; workers in each lane decode it.
+// Message onto the appropriate NATS subject; workers in each lane decode it.
 package outgress
 
 import "encoding/json"
 
 // Message is the wire contract every producer publishes on the outgress subjects.
-// Workers decode this struct from the watermill message payload.
+// Workers decode this struct from the native bus message payload.
 type Message struct {
 	Type          string          `json:"type"`           // "chat", "api" or "eventsub"
 	BroadcasterID string          `json:"broadcaster_id"` // target channel

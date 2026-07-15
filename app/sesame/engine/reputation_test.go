@@ -7,8 +7,8 @@ import (
 
 	"ItsBagelBot/app/sesame/automod"
 	"ItsBagelBot/internal/domain/outgress"
+	"ItsBagelBot/pkg/bus"
 
-	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/bytedance/sonic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -63,7 +63,7 @@ func TestCohortFansOutReputationPerSender(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.NoError(t, p.Process(message.NewMessage("u", body)))
+	require.NoError(t, p.Process(bus.NewMessage("u", body)))
 
 	assert.Equal(t, 2, rep.bumps["a"])
 	assert.Equal(t, 1, rep.bumps["b"])

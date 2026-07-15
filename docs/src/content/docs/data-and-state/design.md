@@ -140,7 +140,7 @@ interfaces owned elsewhere, injected at construction.
 | Read-Through cache with request coalescing | `pkg/cache` | Singleflight guarantees one loader per key regardless of concurrency |
 | Write-Behind | `pkg/batch` | Coalesces per key and lands one transaction per window instead of one write per click |
 | CQRS, read model | `app/projector` and Valkey | The write side stays normalized in MySQL; the read side is a denormalized projection |
-| Adapter | `pkg/crypto` (Tink behind `Packer`), `pkg/bus` (zap behind Watermill's logger) | Third-party APIs stay behind owned interfaces |
+| Adapter | `pkg/crypto` (Tink behind `Packer`), `pkg/bus` (`nats.go` behind owned `Publisher`, `Subscriber`, and `Message` contracts) | Third-party APIs stay behind owned interfaces |
 | Dependency Injection | Every `NewX` constructor | Composition happens in `main`, tests inject fakes |
 | Idempotent Receiver | Every consumer, `Transactions.Record` | At-least-once delivery and webhook retries must not double-apply |
 

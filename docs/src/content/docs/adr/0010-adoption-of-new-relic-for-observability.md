@@ -41,7 +41,7 @@ wired through a single shared package (`pkg/monitor`).
   variables, never from code.
 - **A transaction per consumed message.** The bus consumer opens an APM transaction for every message, notices the
   error on failure before nacking, and exposes the transaction through the message context.
-- **Distributed tracing across the bus.** Publishers inject trace headers into the Watermill message metadata, and
+- **Distributed tracing across the bus.** Publishers inject trace headers into the native bus message metadata, and
   consumers accept them, so one trace follows a module toggle from the flush transaction through JetStream into the
   projector's Valkey write.
 - **Instrumented edges.** The MySQL pool opens through the `nrmysql` wrapper, so every ent query reports as a

@@ -218,7 +218,7 @@ defmodule Ingress.Squash do
   # channel.chat.message, so the worker aggregates the two by text (and dedups
   # by msg_id) with no double count. The cohort's own msg_id is the earliest
   # buffered duplicate's — never published individually, so it is free to
-  # anchor the cohort's broker-side dedup id.
+  # identify the cohort to downstream consumers.
   defp emit(%{base: base, senders: senders, count: count}, state) do
     distinct = senders |> Enum.map(& &1.chatter_user_id) |> Enum.uniq() |> length()
     ordered = Enum.reverse(senders)
@@ -244,14 +244,11 @@ defmodule Ingress.Squash do
   @doc false
   # Default cohort publisher: admission returns after Gnat accepts the writes
   # and reconciles each PubAck separately, so spawning one Task per cohort
-  # would only add process churn. A cohort carries many senders, so it retains a
-  # cohort-scoped broker dedup id and is never fire-and-forget.
+  # would only add process churn. A cohort carries many senders and is never
+  # fire-and-forget.
   def publish_cohort(subject, message) do
-    Nats.publish_acked(subject, message, cohort_dedup_id(message))
+    Nats.publish_acked(subject, message)
   end
-
-  defp cohort_dedup_id(%{msg_id: msg_id}) when is_binary(msg_id), do: "#{msg_id}:cohort"
-  defp cohort_dedup_id(_message), do: nil
 
   @impl true
   def terminate(_reason, state) do

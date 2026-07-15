@@ -5,8 +5,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ThreeDotsLabs/watermill/message"
-
 	"github.com/newrelic/go-agent/v3/newrelic"
 
 	"go.uber.org/zap"
@@ -45,9 +43,9 @@ import (
 // shutdown wait for handlers already dispatched to finish (Drain) before the
 // publishers they emit onto are closed.
 type WeightedLane struct {
-	Sub     message.Subscriber
+	Sub     Subscriber
 	Subject string
-	Handle  func(*message.Message) error
+	Handle  func(*Message) error
 	// Reserve is the percentage (0..100) of the pool kept exclusively for this
 	// lane. Reserves across lanes must sum to at most 100.
 	Reserve int
@@ -347,7 +345,7 @@ func startReaders(ctx context.Context, app *newrelic.Application, lanes []Weight
 
 		wg.Add(1)
 		dispatched.Add(1)
-		go func(lane int, subject string, handle func(*message.Message) error, msgs <-chan *message.Message) {
+		go func(lane int, subject string, handle func(*Message) error, msgs <-chan *Message) {
 			defer wg.Done()
 			defer dispatched.Done()
 			for msg := range msgs {
@@ -357,7 +355,7 @@ func startReaders(ctx context.Context, app *newrelic.Application, lanes []Weight
 					return
 				}
 				dispatched.Add(1)
-				go func(m *message.Message) {
+				go func(m *Message) {
 					defer dispatched.Done()
 					defer pool.release(lane)
 					process(app, subject, m, handle, log)

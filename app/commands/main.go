@@ -27,8 +27,6 @@ import (
 	"ItsBagelBot/pkg/logger"
 	"ItsBagelBot/pkg/monitor"
 
-	"github.com/ThreeDotsLabs/watermill/message"
-
 	"go.uber.org/zap"
 )
 
@@ -37,14 +35,14 @@ const serviceName = "commands"
 // registerConsumers wires the event subscriptions onto repo: cache
 // invalidation fans out to every instance (broadcast), while use-counter and
 // account-deletion events are handled once per event (grouped).
-func registerConsumers(ctx context.Context, nrApp *newrelic.Application, repo *repository.Commands, broadcast, grouped message.Subscriber, log *zap.Logger) error {
+func registerConsumers(ctx context.Context, nrApp *newrelic.Application, repo *repository.Commands, broadcast, grouped bus.Subscriber, log *zap.Logger) error {
 	// Use-counter events from the worker: exactly one instance sums each event
 	// (queue group), the repo batches them and flushes uses = uses + n.
 	subs := []struct {
 		name    string
-		sub     message.Subscriber
+		sub     bus.Subscriber
 		subject string
-		handle  func(*message.Message) error
+		handle  func(*bus.Message) error
 	}{
 		{"command changes", broadcast, data.SubjectCommandChanged, invalidateOnChange(repo)},
 		{"command used events", grouped, data.SubjectCommandUsed, recordUse(repo, log)},
@@ -59,8 +57,8 @@ func registerConsumers(ctx context.Context, nrApp *newrelic.Application, repo *r
 }
 
 // invalidateOnChange drops the cached view of the changed user.
-func invalidateOnChange(repo *repository.Commands) func(*message.Message) error {
-	return func(msg *message.Message) error {
+func invalidateOnChange(repo *repository.Commands) func(*bus.Message) error {
+	return func(msg *bus.Message) error {
 		var dto data.CommandChangedDTO
 		if err := json.Unmarshal(msg.Payload, &dto); err != nil {
 			return err
@@ -72,8 +70,8 @@ func invalidateOnChange(repo *repository.Commands) func(*message.Message) error 
 
 // recordUse folds a worker use-counter event into the repo's accumulator. A
 // malformed payload is dropped (nil), not retried.
-func recordUse(repo *repository.Commands, log *zap.Logger) func(*message.Message) error {
-	return func(msg *message.Message) error {
+func recordUse(repo *repository.Commands, log *zap.Logger) func(*bus.Message) error {
+	return func(msg *bus.Message) error {
 		var dto data.CommandUsedDTO
 		if err := json.Unmarshal(msg.Payload, &dto); err != nil {
 			log.Warn("commands: bad command_used payload", zap.Error(err))
@@ -86,8 +84,8 @@ func recordUse(repo *repository.Commands, log *zap.Logger) func(*message.Message
 
 // deleteAllForUser removes every command of a deleted account. Malformed or
 // invalid payloads are dropped; a DB failure is returned for retry.
-func deleteAllForUser(repo *repository.Commands, log *zap.Logger) func(*message.Message) error {
-	return func(msg *message.Message) error {
+func deleteAllForUser(repo *repository.Commands, log *zap.Logger) func(*bus.Message) error {
+	return func(msg *bus.Message) error {
 		var dto data.UserDeletedDTO
 		if err := json.Unmarshal(msg.Payload, &dto); err != nil {
 			log.Warn("commands: bad user_deleted payload", zap.Error(err))

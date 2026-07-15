@@ -135,7 +135,6 @@ Currently in development, but will be built with the following technologies:
 
 ![Astro](https://img.shields.io/badge/astro-%232C2052.svg?style=for-the-badge&logo=astro&logoColor=white)
 ![Bun](https://img.shields.io/badge/Bun-%23000000.svg?style=for-the-badge&logo=bun&logoColor=white)
-![Watermill](https://img.shields.io/badge/Watermill-%2307C0E1.svg?style=for-the-badge&logo=go&logoColor=white)
 ![NATS](https://img.shields.io/badge/NATS-%2327AAE1.svg?style=for-the-badge&logo=natsdotio&logoColor=white)
 ![Ent](https://img.shields.io/badge/ent-%235164E3.svg?style=for-the-badge&logo=go&logoColor=white)
 ![MySQL](https://img.shields.io/badge/mysql-%234479A1.svg?style=for-the-badge&logo=mysql&logoColor=white)

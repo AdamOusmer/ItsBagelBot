@@ -199,16 +199,9 @@ spec:
             # metric shows real per-broadcaster admission patterns in prod.
             - name: INGRESS_DISPATCHER_MAX_PER_BROADCASTER
               value: "16000"
-            # One atomic JetStream commit per scheduler-local cohort. The 1ms
-            # tail bound avoids adding visible latency when traffic is quiet.
-            # Lane publishes carry no Nats-Msg-Id: EventSub websockets never
-            # redeliver, and the 2026-07-13 live A/B measured the broker's
-            # per-message dedup insert at ~27% of single-stream ingest capacity
-            # (86k/s with, 117k/s without). Without the header an ambiguous ack
-            # timeout drops instead of retrying (at-most-once); definite
-            # failures still retry. Applies to premium + standard identically.
-            - name: INGRESS_PUBLISH_DEDUP
-              value: "off"
+            # Scheduler-local JetStream cohorts collect for at most 1ms. The
+            # publisher is structurally dedup-free, so no environment toggle
+            # can accidentally restore the broker's Nats-Msg-Id index tax.
             - name: INGRESS_PUBLISH_BATCH_SIZE
               value: "128"
             - name: INGRESS_PUBLISH_BATCH_WAIT_MS

@@ -57,8 +57,7 @@ defmodule Ingress.Nats.PublisherAtomicTest do
     for n <- 1..3 do
       assert Publisher.enqueue(
                "twitch.ingress.event.standard",
-               ~s({"n":#{n}}),
-               "msg-#{n}"
+               ~s({"n":#{n}})
              ) == :ok
     end
   end
@@ -101,10 +100,10 @@ defmodule Ingress.Nats.PublisherAtomicTest do
     refute Map.has_key?(middle_headers, "nats-batch-commit")
     assert last_headers["nats-batch-commit"] == "1"
 
-    # Per-event dedup ids survive on the atomic wire.
-    assert first_headers["nats-msg-id"] == "msg-1"
-    assert middle_headers["nats-msg-id"] == "msg-2"
-    assert last_headers["nats-msg-id"] == "msg-3"
+    # Dedup is structurally disabled on both publisher wires.
+    refute Map.has_key?(first_headers, "nats-msg-id")
+    refute Map.has_key?(middle_headers, "nats-msg-id")
+    refute Map.has_key?(last_headers, "nats-msg-id")
 
     # Only the opening (start errors) and commit (PubAck) messages carry replies.
     start_reply = Keyword.fetch!(first, :reply_to)
@@ -130,7 +129,7 @@ defmodule Ingress.Nats.PublisherAtomicTest do
     assert :ets.info(ctx.table, :size) == 0
   end
 
-  test "a rejected commit falls back to per-message dedup'd publishes", %{
+  test "a definitely rejected commit falls back to dedup-free per-message publishes", %{
     publisher: publisher,
     ctx: ctx
   } do
@@ -148,14 +147,15 @@ defmodule Ingress.Nats.PublisherAtomicTest do
        }}
     )
 
-    # The cohort is re-driven as three individual publishes with their ids.
+    # The negative PubAck proves the cohort was not stored, so a dedup-free
+    # per-message re-drive is safe.
     fallback = collect_cohort()
 
     Enum.each(fallback, fn opts ->
       headers = headers_map(opts)
       refute Map.has_key?(headers, "nats-batch-id")
       refute Map.has_key?(headers, "nats-batch-commit")
-      assert String.starts_with?(headers["nats-msg-id"], "msg-")
+      refute Map.has_key?(headers, "nats-msg-id")
       assert Keyword.fetch!(opts, :reply_to) =~ ".s."
     end)
 
@@ -217,6 +217,8 @@ defmodule Ingress.Nats.PublisherAtomicTest do
       refute Map.has_key?(headers, "nats-batch-id")
       assert Keyword.fetch!(opts, :reply_to) =~ ".s."
     end)
+
+    assert :atomics.get(ctx.counter, 9) == 1
 
     :atomics.put(ctx.counter, 7, 0)
   end
