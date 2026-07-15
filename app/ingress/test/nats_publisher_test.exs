@@ -59,7 +59,7 @@ defmodule Ingress.Nats.PublisherTest do
     end
   end
 
-  describe "enqueue/3 admission" do
+  describe "enqueue/2 admission" do
     setup do
       prev = Application.get_env(:ingress, :publish_max_pending)
       Application.put_env(:ingress, :publish_max_pending, 2)
@@ -86,7 +86,7 @@ defmodule Ingress.Nats.PublisherTest do
       # Index 1 is the outstanding-publish count. Saturate it directly.
       :atomics.put(ctx.counter, 1, 2)
 
-      assert Publisher.enqueue("twitch.ingress.event.standard", "{}", nil) ==
+      assert Publisher.enqueue("twitch.ingress.event.standard", "{}") ==
                {:error, :overloaded}
 
       # A refused admission must roll its increment back.
@@ -100,7 +100,7 @@ defmodule Ingress.Nats.PublisherTest do
     test "drops to :not_connected when the shard's BUS connection is absent", %{ctx: ctx} do
       # The shard's connection is not registered, so the underlying pub exits and
       # the publish is undone rather than left outstanding.
-      assert Publisher.enqueue("twitch.ingress.event.standard", "{}", nil) ==
+      assert Publisher.enqueue("twitch.ingress.event.standard", "{}") ==
                {:error, :not_connected}
 
       assert :atomics.get(ctx.counter, 1) == 0
@@ -131,7 +131,7 @@ defmodule Ingress.Nats.PublisherTest do
 
       :atomics.put(ctx.counter, 1, 2)
 
-      assert Publisher.enqueue("twitch.ingress.event.standard", "{}", "msg-1") == :ok
+      assert Publisher.enqueue("twitch.ingress.event.standard", "{}") == :ok
       assert_receive {:pub, "twitch.ingress.event.standard", "{}", _opts}, 500
       assert :atomics.get(ctx.counter, 1) == 2
     end
@@ -163,12 +163,12 @@ defmodule Ingress.Nats.PublisherTest do
     } do
       one =
         Task.async(fn ->
-          Publisher.enqueue("twitch.ingress.event.standard", ~s({"n":1}), "msg-1")
+          Publisher.enqueue("twitch.ingress.event.standard", ~s({"n":1}))
         end)
 
       two =
         Task.async(fn ->
-          Publisher.enqueue("twitch.ingress.event.standard", ~s({"n":2}), "msg-2")
+          Publisher.enqueue("twitch.ingress.event.standard", ~s({"n":2}))
         end)
 
       assert Task.await(one) == :ok
@@ -180,9 +180,8 @@ defmodule Ingress.Nats.PublisherTest do
       opts = [first_opts, second_opts]
       headers = Enum.map(opts, &prepared_headers/1)
 
-      assert headers |> Enum.map(& &1["nats-msg-id"]) |> Enum.sort() == ["msg-1", "msg-2"]
-
       Enum.each(headers, fn item ->
+        refute Map.has_key?(item, "nats-msg-id")
         refute Map.has_key?(item, "nats-batch-id")
         refute Map.has_key?(item, "nats-batch-sequence")
         refute Map.has_key?(item, "nats-batch-commit")
@@ -210,7 +209,7 @@ defmodule Ingress.Nats.PublisherTest do
   defp restore_env(key, value), do: Application.put_env(:ingress, key, value)
 
   defp prepared_headers(opts) do
-    for [key, ": ", value, "\r\n"] <- Keyword.fetch!(opts, :headers), into: %{} do
+    for [key, ": ", value, "\r\n"] <- Keyword.get(opts, :headers, []), into: %{} do
       {String.downcase(key), IO.iodata_to_binary(value)}
     end
   end

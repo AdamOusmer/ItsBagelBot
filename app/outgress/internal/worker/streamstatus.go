@@ -6,8 +6,7 @@ import (
 
 	eventtwitch "ItsBagelBot/internal/domain/event/twitch"
 	"ItsBagelBot/internal/domain/outgress"
-
-	"github.com/ThreeDotsLabs/watermill/message"
+	"ItsBagelBot/pkg/bus"
 
 	"go.uber.org/zap"
 )
@@ -116,7 +115,7 @@ func (w *Worker) streamStatusFailure(ctx context.Context, broadcasterID string, 
 // mod status, best-effort. Decoding is shared with the projector via the domain
 // stream_status decoder. Always acks (returns nil): a re-verify is advisory and
 // must never poison or replay the lane.
-func (w *Worker) HandleStreamEvent(msg *message.Message) error {
+func (w *Worker) HandleStreamEvent(msg *bus.Message) error {
 	status, ok := eventtwitch.DecodeStreamStatus(msg.Payload)
 	if !ok {
 		// Not a stream.online/offline we understand (or malformed). Ack and move

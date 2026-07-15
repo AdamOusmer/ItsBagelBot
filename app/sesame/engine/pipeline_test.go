@@ -10,7 +10,6 @@ import (
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 
-	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/bytedance/sonic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -83,7 +82,7 @@ func newPipelineWith(pub bus.Publisher, reader projection.Reader, mods ...module
 	return NewPipeline(d, reg, Config{OutgressPremium: premiumSubj, OutgressStandard: standardSubj})
 }
 
-func chatMsg(t *testing.T, laneName, text string) *message.Message {
+func chatMsg(t *testing.T, laneName, text string) *bus.Message {
 	t.Helper()
 	body, err := sonic.Marshal(map[string]any{
 		"type":                chatType,
@@ -93,7 +92,7 @@ func chatMsg(t *testing.T, laneName, text string) *message.Message {
 		"text":                text,
 	})
 	require.NoError(t, err)
-	return message.NewMessage("uuid-1", body)
+	return bus.NewMessage("uuid-1", body)
 }
 
 // bareModule is a module with only a Kind/Name, for enabled() unit tests.
@@ -189,7 +188,7 @@ func TestEnabledOptInModule(t *testing.T) {
 func TestProcessMalformedEnvelopeDropped(t *testing.T) {
 	pub := &fakePublisher{}
 	p := newPipelineWith(pub, fakeReader{}, emitModule("", module.KindCore, "x"))
-	err := p.Process(message.NewMessage("uuid-bad", []byte("{not json")))
+	err := p.Process(bus.NewMessage("uuid-bad", []byte("{not json")))
 	assert.NoError(t, err)   // ack, not nack
 	assert.Empty(t, pub.got) // nothing published
 }
@@ -204,7 +203,7 @@ func TestProcessLoadsLocaleForEventHandlers(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.NoError(t, p.Process(message.NewMessage("uuid-locale", body)))
+	require.NoError(t, p.Process(bus.NewMessage("uuid-locale", body)))
 	require.Len(t, pub.got, 1)
 	assert.Equal(t, "fr", chatMessageText(t, pub.got[0].msg))
 }

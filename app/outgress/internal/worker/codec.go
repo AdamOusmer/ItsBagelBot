@@ -10,7 +10,7 @@ import (
 	"github.com/bytedance/sonic"
 )
 
-// wireMessage keeps the nested payload as a zero-copy view into Watermill's
+// wireMessage keeps the nested payload as a zero-copy view into the native bus
 // message buffer. The buffer remains owned for the whole synchronous handler.
 type wireMessage struct {
 	Type          string                 `json:"type"`

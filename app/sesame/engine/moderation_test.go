@@ -6,8 +6,8 @@ import (
 	"ItsBagelBot/app/sesame/module"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/projection"
+	"ItsBagelBot/pkg/bus"
 
-	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/bytedance/sonic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -88,7 +88,7 @@ func TestProcessCohortSkipsCommandDispatch(t *testing.T) {
 
 	pub := &fakePublisher{}
 	p := newPipelineWith(pub, reader)
-	require.NoError(t, p.Process(message.NewMessage("u1", cohort)))
+	require.NoError(t, p.Process(bus.NewMessage("u1", cohort)))
 	assert.Empty(t, pub.got, "a cohort must never dispatch a command")
 
 	// Control: the same command line without senders dispatches and emits.

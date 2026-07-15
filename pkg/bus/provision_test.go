@@ -180,9 +180,9 @@ func TestIngressStreamIsolatesLanesPerSubject(t *testing.T) {
 	if cfg.MaxBytes <= 0 {
 		t.Fatal("ingress stream still needs its global byte backstop")
 	}
-	// Ingress publishes set Nats-Msg-Id so broker dedup collapses publish
-	// retries and Twitch EventSub redeliveries; both happen within seconds,
-	// and the window bounds the broker's per-id tracking state.
+	// Fleet publishers deliberately omit Nats-Msg-Id. Keep a short bounded
+	// stream window for rolling-upgrade or externally published messages that
+	// may still carry the header; it is inert for the normal hot path.
 	if cfg.Duplicates <= 0 || cfg.Duplicates > time.Minute {
 		t.Fatalf("duplicate window = %v, want a short non-zero dedup window", cfg.Duplicates)
 	}

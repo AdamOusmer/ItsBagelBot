@@ -9,10 +9,7 @@ import (
 	"sync"
 	"time"
 
-	wmnats "github.com/ThreeDotsLabs/watermill-nats/v2/pkg/nats"
-	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/nats-io/nats.go"
-	"github.com/nats-io/nuid"
 
 	"go.uber.org/zap"
 )
@@ -22,16 +19,14 @@ import (
 // every instance of a service shares one consumer and horizontal scaling
 // comes for free.
 //
-// Streams are never auto-provisioned by the client: watermill's AutoProvision
-// names a stream after the (dotted) topic, which JetStream rejects, so it can
-// only ever work for single-token topics. The fleet provisions its streams
-// explicitly through EnsureStreams (see provision.go) and the publisher and
-// subscriber here simply bind to those existing streams by subject.
+// Streams are never auto-provisioned by the client. The fleet provisions its
+// streams explicitly through EnsureStreams (see provision.go), and the native
+// publisher and subscriber simply bind to those existing streams by subject.
 
 // NewSubscriber connects to NATS and returns a durable JetStream subscriber.
 // All instances passing the same group share one durable consumer, so a
 // message is processed by exactly one instance and survives restarts.
-func NewSubscriber(url string, group string, log *zap.Logger) (message.Subscriber, error) {
+func NewSubscriber(url string, group string, log *zap.Logger) (Subscriber, error) {
 	return newSubscriber(url, group, log)
 }
 
@@ -52,14 +47,14 @@ const (
 // and its redelivery budget.
 //
 // NakDelay paces redelivery after a NACK (rate limits, transient failures),
-// applied per message through Watermill's NakWithDelay. It must NOT become a
+// applied per message through nats.go's NakWithDelay. It must NOT become a
 // consumer-level BackOff: the server forces AckWait down to backoff[0], so a
 // short nack delay would also redeliver every message whose handler is merely
 // slower than that delay — while the first replica is still working — and fan
 // one job out across the whole fleet (duplicate chat sends, duplicate clips).
 //
 // MaxRedeliveries excludes the first delivery. NATS enforces the total on the
-// consumer and the Watermill delay terminates the final failed delivery, so a
+// consumer and the native delay policy terminates the final failed delivery, so a
 // failed command cannot come back after its budget is exhausted.
 type LaneConfig struct {
 	URL             string
@@ -74,16 +69,16 @@ type LaneConfig struct {
 // explicit Bind is important: a consumer created implicitly by nats.go is
 // deleted when the creating pod unsubscribes, which used to erase the shared
 // ACK floor during every rolling update and replay the retained stream.
-func NewLaneSubscriber(cfg LaneConfig, log *zap.Logger) (message.Subscriber, error) {
+func NewLaneSubscriber(cfg LaneConfig, log *zap.Logger) (Subscriber, error) {
 	maxDeliveries := cfg.MaxRedeliveries + 1
-	sub, _, err := bindDurable(cfg, int(maxDeliveries), wmnats.NewMaxRetryDelay(cfg.NakDelay, maxDeliveries), log)
+	sub, _, err := bindDurable(cfg, int(maxDeliveries), newMaxRetryDelay(cfg.NakDelay, maxDeliveries), log)
 	return sub, err
 }
 
 // bindDurable connects, provisions the server-owned durable consumer, and
-// binds a watermill subscriber to it. Only the binding fields of cfg are read;
+// binds a native nats.go subscriber to it. Only the binding fields of cfg are read;
 // the redelivery pacing arrives resolved as maxDeliveries + nakDelay.
-func bindDurable(cfg LaneConfig, maxDeliveries int, nakDelay wmnats.Delay, log *zap.Logger) (message.Subscriber, *nats.Conn, error) {
+func bindDurable(cfg LaneConfig, maxDeliveries int, nakDelay redeliveryDelay, log *zap.Logger) (Subscriber, *nats.Conn, error) {
 	consumer := durableName(cfg.Group, cfg.Subject)
 
 	nc, err := nats.Connect(busURL(cfg.URL), busOptions(cfg.Group)...)
@@ -232,7 +227,7 @@ type fleetSubscriber struct {
 	log   *zap.Logger
 
 	mu    sync.Mutex
-	subs  []message.Subscriber
+	subs  []Subscriber
 	conns []*nats.Conn
 }
 
@@ -241,7 +236,7 @@ type subscriptionTarget struct {
 	topic  string
 }
 
-func (s *fleetSubscriber) Subscribe(ctx context.Context, topic string) (<-chan *message.Message, error) {
+func (s *fleetSubscriber) Subscribe(ctx context.Context, topic string) (<-chan *Message, error) {
 	stream, err := streamForTopic(topic)
 	if err != nil {
 		return nil, err
@@ -281,16 +276,16 @@ func (s *fleetSubscriber) Subscribe(ctx context.Context, topic string) (<-chan *
 
 // forget drops a subscription's entries from the shutdown bookkeeping once its
 // own ctx has released them, so Close does not double-close.
-func (s *fleetSubscriber) forget(sub message.Subscriber, conn *nats.Conn) {
+func (s *fleetSubscriber) forget(sub Subscriber, conn *nats.Conn) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.subs = slices.DeleteFunc(s.subs, func(x message.Subscriber) bool { return x == sub })
+	s.subs = slices.DeleteFunc(s.subs, func(x Subscriber) bool { return x == sub })
 	if conn != nil {
 		s.conns = slices.DeleteFunc(s.conns, func(x *nats.Conn) bool { return x == conn })
 	}
 }
 
-func closeSubscription(sub message.Subscriber, conn *nats.Conn) {
+func closeSubscription(sub Subscriber, conn *nats.Conn) {
 	_ = sub.Close()
 	if conn != nil {
 		conn.Close()
@@ -301,41 +296,32 @@ func closeSubscription(sub message.Subscriber, conn *nats.Conn) {
 // when the group is empty, else a durable queue-group consumer bound to a
 // provisioned server-owned durable (so it survives pod disconnects), with the
 // shared fleet redelivery budget (see fleetMaxRedeliveries).
-func (s *fleetSubscriber) subscriberFor(target subscriptionTarget) (message.Subscriber, *nats.Conn, error) {
+func (s *fleetSubscriber) subscriberFor(target subscriptionTarget) (Subscriber, *nats.Conn, error) {
 	if s.group == "" {
-		sub, err := s.broadcastSubscriber(target)
-		return sub, nil, err
+		return s.broadcastSubscriber(target)
 	}
 	binding := LaneConfig{URL: s.url, Stream: target.stream, Subject: target.topic, Group: s.group}
 	maxDeliveries := fleetMaxRedeliveries + 1
-	return bindDurable(binding, int(maxDeliveries), wmnats.NewMaxRetryDelay(fleetNakDelay, maxDeliveries), s.log)
+	return bindDurable(binding, int(maxDeliveries), newMaxRetryDelay(fleetNakDelay, maxDeliveries), s.log)
 }
 
-// broadcastSubscriber uses a unique, short-lived consumer with DeliverNew to
-// avoid replay storms: every instance gets every message (cache invalidation).
-// Watermill appends BindStream("") when DurablePrefix is empty, which would
-// force the account-wide $JS.API.STREAM.NAMES lookup and conflict with our
-// explicit binding. A unique durable prefix keeps the binding exact; nats.go
-// deletes consumers it creates on unsubscribe, and InactiveThreshold cleans up
-// an orphan after an ungraceful process exit.
-func (s *fleetSubscriber) broadcastSubscriber(target subscriptionTarget) (message.Subscriber, error) {
-	return wmnats.NewSubscriber(wmnats.SubscriberConfig{
-		URL:              busURL(s.url),
-		NatsOptions:      busOptions(s.group),
-		SubscribersCount: 1,
-		AckWaitTimeout:   30 * time.Second,
-		Unmarshaler:      &wmnats.NATSMarshaler{},
-		JetStream: wmnats.JetStreamConfig{
-			AutoProvision:  false,
-			DurablePrefix:  "broadcast_" + nuid.Next(),
-			ConnectOptions: jsDomainOption(),
-			SubscribeOptions: []nats.SubOpt{
-				nats.DeliverNew(),
-				nats.BindStream(target.stream),
-				nats.InactiveThreshold(time.Minute),
-			},
-		},
-	}, newZapAdapter(s.log))
+// broadcastSubscriber uses an ephemeral consumer with DeliverNew to avoid
+// replay storms: every instance gets every message (cache invalidation). The
+// explicit stream binding avoids an account-wide stream-name lookup.
+func (s *fleetSubscriber) broadcastSubscriber(target subscriptionTarget) (Subscriber, *nats.Conn, error) {
+	nc, err := nats.Connect(busURL(s.url), busOptions("broadcast-"+subjectToken(target.topic))...)
+	if err != nil {
+		return nil, nil, err
+	}
+	js, err := nc.JetStream(jsDomainOption()...)
+	if err != nil {
+		nc.Close()
+		return nil, nil, err
+	}
+	sub := newConcurrentDurableSubscriber(concurrentSubscriberConfig{
+		nc: nc, js: js, stream: target.stream, log: s.log,
+	})
+	return sub, nc, nil
 }
 
 func (s *fleetSubscriber) Close() error {
@@ -357,7 +343,7 @@ func (s *fleetSubscriber) Close() error {
 	return nil
 }
 
-func newSubscriber(url string, group string, log *zap.Logger) (message.Subscriber, error) {
+func newSubscriber(url string, group string, log *zap.Logger) (Subscriber, error) {
 	return &fleetSubscriber{
 		url:   url,
 		group: group,
@@ -366,10 +352,9 @@ func newSubscriber(url string, group string, log *zap.Logger) (message.Subscribe
 }
 
 // durableName derives the JetStream durable consumer name for a (group, topic)
-// pair. watermill's default uses the group prefix alone, which collides the
-// moment a service subscribes to more than one subject (the projector folds
-// several event subjects). Qualifying the durable with the topic gives each
-// subscription its own consumer, surviving restarts deterministically.
+// pair. Qualifying the durable by subject avoids collisions when one service
+// subscribes to more than one subject (the projector folds several event
+// subjects) and gives every binding a deterministic restart-safe consumer.
 //
 // An empty group means a broadcast subscriber: it keeps an empty durable so
 // every instance gets an ephemeral consumer and therefore every message

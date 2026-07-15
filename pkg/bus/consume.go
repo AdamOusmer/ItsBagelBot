@@ -5,8 +5,6 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/ThreeDotsLabs/watermill/message"
-
 	"github.com/newrelic/go-agent/v3/newrelic"
 
 	"go.uber.org/zap"
@@ -24,7 +22,7 @@ import (
 //
 // Consume is fully independent of ConsumeWeighted: it owns its own single
 // subject and serial loop, so the two can evolve separately.
-func Consume(ctx context.Context, app *newrelic.Application, sub message.Subscriber, subject string, handle func(*message.Message) error, log *zap.Logger) error {
+func Consume(ctx context.Context, app *newrelic.Application, sub Subscriber, subject string, handle func(*Message) error, log *zap.Logger) error {
 
 	messages, err := sub.Subscribe(ctx, subject)
 	if err != nil {
@@ -44,7 +42,7 @@ func Consume(ctx context.Context, app *newrelic.Application, sub message.Subscri
 // ack/nack discipline shared by Consume and ConsumeWeighted: ack only after
 // handle returns nil, nack on any error so JetStream redelivers. A nil app
 // makes the New Relic calls no-ops.
-func process(app *newrelic.Application, subject string, msg *message.Message, handle func(*message.Message) error, log *zap.Logger) {
+func process(app *newrelic.Application, subject string, msg *Message, handle func(*Message) error, log *zap.Logger) {
 
 	txn := app.StartTransaction("consume " + subject)
 

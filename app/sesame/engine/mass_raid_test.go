@@ -10,7 +10,6 @@ import (
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 
-	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/bytedance/sonic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,7 +18,7 @@ import (
 
 // hostileCohort builds a folded channel.chat.message: n distinct senders, all
 // carrying the same text (which the gate flags as a timeout when hostile).
-func hostileCohort(t *testing.T, n int, text string) *message.Message {
+func hostileCohort(t *testing.T, n int, text string) *bus.Message {
 	t.Helper()
 	senders := make([]map[string]any, n)
 	for i := range senders {
@@ -33,7 +32,7 @@ func hostileCohort(t *testing.T, n int, text string) *message.Message {
 		"senders":             senders,
 	})
 	require.NoError(t, err)
-	return message.NewMessage("cohort", body)
+	return bus.NewMessage("cohort", body)
 }
 
 func raidPipeline(t *testing.T, pub bus.Publisher, enforce, shield bool) *Pipeline {

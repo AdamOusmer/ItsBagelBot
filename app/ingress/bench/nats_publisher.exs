@@ -51,9 +51,8 @@ tasks =
     count = per_producer + if(producer < remainder, do: 1, else: 0)
 
     Task.async(fn ->
-      for sequence <- 1..count do
-        id = Integer.to_string(producer * per_producer + sequence)
-        :ok = Publisher.enqueue("twitch.ingress.event.standard", ~s({"type":"chat"}), id)
+      for _sequence <- 1..count do
+        :ok = Publisher.enqueue("twitch.ingress.event.standard", ~s({"type":"chat"}))
       end
     end)
   end

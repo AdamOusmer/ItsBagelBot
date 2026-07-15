@@ -25,7 +25,6 @@ import (
 	"ItsBagelBot/pkg/logger"
 	"ItsBagelBot/pkg/monitor"
 
-	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/nats-io/nats.go"
 
 	"go.uber.org/zap"
@@ -132,7 +131,7 @@ func startConsumers(ctx context.Context, natsURL string, repo *repository.Users,
 
 	grouped, err := bus.NewSubscriber(natsURL, serviceName, log)
 	fatalIf(log, err, "failed to connect group subscriber")
-	fatalIf(log, bus.Consume(ctx, nil, grouped, data.SubjectReprojectRequest, func(*message.Message) error {
+	fatalIf(log, bus.Consume(ctx, nil, grouped, data.SubjectReprojectRequest, func(*bus.Message) error {
 		return repo.Reproject(ctx)
 	}, log), "failed to subscribe to reproject requests")
 
@@ -143,8 +142,8 @@ func startConsumers(ctx context.Context, natsURL string, repo *repository.Users,
 }
 
 // invalidateOnUserChange drops the local cached view for a changed user.
-func invalidateOnUserChange(repo *repository.Users) func(*message.Message) error {
-	return func(msg *message.Message) error {
+func invalidateOnUserChange(repo *repository.Users) func(*bus.Message) error {
+	return func(msg *bus.Message) error {
 		var dto data.UserChangedDTO
 		if err := json.Unmarshal(msg.Payload, &dto); err != nil {
 			return err

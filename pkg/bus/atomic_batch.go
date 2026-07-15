@@ -19,21 +19,18 @@ import (
 // ADR-050 atomic batch publishing (NATS 2.14): a cohort is written as one
 // batch and the broker answers with a single commit PubAck instead of one
 // PubAck per message. That removes the dominant per-event cost of the async
-// publish path — the reply-subject routing and ack message for every event —
-// while keeping per-message Nats-Msg-Id deduplication (supported inside
-// batches since 2.12.1; a batch containing a duplicate id is rejected whole).
+// publish path — the reply-subject routing and ack message for every event.
+// Fleet publishing deliberately omits Nats-Msg-Id so atomic and single wires
+// both avoid the broker's per-message dedup index.
 //
 // The mode is selected by NATS_PUBLISH_WIRE=atomic and defaults to the
-// per-message PubAck wire, so it ships dark and is enabled per service once
-// the live dedup measurements decide the standard/premium lane policy.
+// per-message PubAck wire, so it ships dark and is enabled per service only
+// after the live R3 acceptance matrix passes.
 //
-// Failure handling leans on atomicity + dedup: an errored or unacknowledged
-// batch either stored nothing (abandoned) or everything (commit ack lost).
-// The fallback re-publishes the cohort per message with its Nats-Msg-Id, so
-// the broker stores the missing events or folds every duplicate — no
-// double-store in either case. The fallback happens off the send loop, so a
-// rare broker-rejected cohort may interleave with later cohorts; per-message
-// dedup keeps that safe.
+// Failure handling is explicitly at-most-once. A negative server reply proves
+// the batch was rejected and permits a per-message fallback. Transport errors,
+// timeouts and malformed/mismatched commit acknowledgements are ambiguous, so
+// the cohort fails without replay rather than risking a double-store.
 
 const (
 	batchIDHdr     = "Nats-Batch-Id"
@@ -246,19 +243,14 @@ func stripBatchHeaders(batch []publishRequest) {
 }
 
 // publishAtomic drives one cohort over the atomic wire: batch send from the
-// worker's serial loop, commit await in the bounded overlap goroutine, and a
-// dedup-protected per-message fallback if the batch is rejected, abandoned,
-// or its ack lost.
+// worker's serial loop and commit await in the bounded overlap goroutine. Only
+// a typed broker rejection may fall back to per-message publishing.
 func (w *publishBatchWorker) publishAtomic(batch []publishRequest) {
 	w.slots <- struct{}{}
 	cohort, err := w.owner.sender.send(batch)
 	if err != nil {
-		w.acks.Add(1)
-		go func() {
-			defer w.acks.Done()
-			defer func() { <-w.slots }()
-			w.fallbackIndividually(batch, err)
-		}()
+		<-w.slots
+		w.finish(batch, err)
 		return
 	}
 	w.acks.Add(1)
@@ -266,19 +258,26 @@ func (w *publishBatchWorker) publishAtomic(batch []publishRequest) {
 		defer w.acks.Done()
 		defer func() { <-w.slots }()
 		if err := w.owner.sender.await(cohort, defaultPublishAckWait); err != nil {
-			w.fallbackIndividually(batch, err)
+			if atomicFallbackSafe(err) {
+				w.fallbackIndividually(batch, err)
+				return
+			}
+			w.finish(batch, err)
 			return
 		}
 		w.finish(batch, nil)
 	}()
 }
 
-// fallbackIndividually re-drives a failed atomic cohort message by message.
-// Every request kept its Nats-Msg-Id, so whichever half-state the batch left
-// behind converges: an abandoned batch stores everything exactly once, a
-// committed batch whose ack was lost folds every message as a duplicate.
+func atomicFallbackSafe(err error) bool {
+	var rejected *batchAckAPIErr
+	return errors.As(err, &rejected)
+}
+
+// fallbackIndividually re-drives a definitely rejected atomic cohort message
+// by message. Callers must prove the broker did not commit before entering.
 func (w *publishBatchWorker) fallbackIndividually(batch []publishRequest, cause error) {
-	w.owner.log.Warn("atomic batch failed; re-publishing cohort individually",
+	w.owner.log.Warn("atomic batch rejected; re-publishing cohort individually",
 		zap.Int("messages", len(batch)), zap.Error(cause))
 	stripBatchHeaders(batch)
 	futures, err := w.startAsync(batch)

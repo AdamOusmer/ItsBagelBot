@@ -12,8 +12,8 @@ import (
 	livekey "ItsBagelBot/internal/domain/live"
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/internal/projection"
+	"ItsBagelBot/pkg/bus"
 
-	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 )
@@ -66,7 +66,7 @@ func NewProjector(d Deps) *Projector {
 	}
 }
 
-func (p *Projector) HandleUserChanged(msg *message.Message) error {
+func (p *Projector) HandleUserChanged(msg *bus.Message) error {
 
 	var dto data.UserChangedDTO
 	if err := json.Unmarshal(msg.Payload, &dto); err != nil {
@@ -95,7 +95,7 @@ func (p *Projector) HandleUserChanged(msg *message.Message) error {
 	return nil
 }
 
-func (p *Projector) HandleUserDeleted(msg *message.Message) error {
+func (p *Projector) HandleUserDeleted(msg *bus.Message) error {
 
 	var dto data.UserDeletedDTO
 	if err := json.Unmarshal(msg.Payload, &dto); err != nil {
@@ -146,7 +146,7 @@ func (p *Projector) broadcastInvalidate(userID uint64) {
 	}
 }
 
-func (p *Projector) HandleModuleChanged(msg *message.Message) error {
+func (p *Projector) HandleModuleChanged(msg *bus.Message) error {
 
 	var dto data.ModuleChangedDTO
 	if err := json.Unmarshal(msg.Payload, &dto); err != nil {
@@ -178,7 +178,7 @@ func (p *Projector) HandleModuleChanged(msg *message.Message) error {
 	return nil
 }
 
-func (p *Projector) HandleCommandChanged(msg *message.Message) error {
+func (p *Projector) HandleCommandChanged(msg *bus.Message) error {
 	var dto data.CommandChangedDTO
 	if err := json.Unmarshal(msg.Payload, &dto); err != nil {
 		p.drop(msg, data.SubjectCommandChanged, err)
@@ -229,7 +229,7 @@ func validateCommandChanged(dto data.CommandChangedDTO) error {
 	return nil
 }
 
-func (p *Projector) drop(msg *message.Message, subject string, err error) {
+func (p *Projector) drop(msg *bus.Message, subject string, err error) {
 
 	p.log.Warn("dropping invalid event",
 		zap.String("subject", subject),
@@ -259,7 +259,7 @@ func (p *Projector) drop(msg *message.Message, subject string, err error) {
 // command latency win lives entirely on the worker side (the node-local replica
 // read + the now fire-and-forget greet/live writes), so there is nothing to gain
 // by making this async and real correctness to lose. Hydration is already async.
-func (p *Projector) HandleStreamEvent(msg *message.Message) error {
+func (p *Projector) HandleStreamEvent(msg *bus.Message) error {
 	st, ok := twitch.DecodeStreamStatus(msg.Payload)
 	if !ok {
 		p.log.Warn("dropping unparseable stream status", zap.String("message_id", msg.UUID))
