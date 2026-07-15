@@ -4,13 +4,11 @@ import {
   userEnrollment,
   tokenStatus,
   auditList,
-  serviceHealth,
   type EnrollmentWire,
-  type AuditEntry,
-  type ServiceHealth
+  type AuditEntry
 } from '$lib/server/services';
 import { isDemo, isManager } from '$lib/server/access';
-import { sampleAudit, sampleEnrollment, sampleHealth, sampleSnapshot } from '$lib/server/sample';
+import { sampleAudit, sampleEnrollment, sampleSnapshot } from '$lib/server/sample';
 import { env } from '$env/dynamic/private';
 import type { ShardSnapshot } from '@bagel/shared';
 
@@ -21,7 +19,6 @@ export type Overview = {
   snapshot: ShardSnapshot;
   botPresent: boolean;
   recentAudit: AuditEntry[];
-  health: ServiceHealth[];
   degraded: boolean;
 };
 
@@ -29,8 +26,9 @@ export type Overview = {
 // page waits one round trip instead of four. Every read falls back so the page
 // keeps rendering when a responder is down; a failed *critical* read flips the
 // degraded flag — the banner says so, the page never pretends the fallback is
-// live. Health probe failures are the health panel's own signal, not a
-// degraded page.
+// live. Fleet-wide RPC timing belongs to Analytics and is deliberately absent
+// here, so a diagnostic timeout can never hold the operational overview on
+// skeletons.
 async function loadOverview(withAudit: boolean): Promise<Overview> {
   let degraded = false;
   const orFallback = <T>(load: Promise<T>, fallback: T, critical = true): Promise<T> =>
@@ -40,15 +38,14 @@ async function loadOverview(withAudit: boolean): Promise<Overview> {
     });
 
   const botId = env.ADMIN_BOT_USER_ID ?? '';
-  const [enrollment, snapshot, token, recentAudit, health] = await Promise.all([
+  const [enrollment, snapshot, token, recentAudit] = await Promise.all([
     orFallback(userEnrollment(), sampleEnrollment),
     orFallback(shardSnapshot(), sampleSnapshot),
     orFallback(botId ? tokenStatus(botId) : Promise.resolve({ present: false }), { present: false }),
-    orFallback(withAudit ? auditList(AUDIT_PEEK) : Promise.resolve([]), []),
-    orFallback(serviceHealth(), [], false)
+    orFallback(withAudit ? auditList(AUDIT_PEEK) : Promise.resolve([]), [])
   ]);
 
-  return { enrollment, snapshot, botPresent: token.present, recentAudit, health, degraded };
+  return { enrollment, snapshot, botPresent: token.present, recentAudit, degraded };
 }
 
 export const load: PageServerLoad = async ({ parent }) => {
@@ -64,7 +61,6 @@ export const load: PageServerLoad = async ({ parent }) => {
         snapshot: sampleSnapshot,
         botPresent: true,
         recentAudit: withAudit ? sampleAudit : [],
-        health: sampleHealth,
         degraded: false
       })
     : loadOverview(withAudit);

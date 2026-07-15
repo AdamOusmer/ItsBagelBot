@@ -73,9 +73,16 @@ export const sampleUsers: AdminUserWire[] = [
 
 export const sampleHealth: ServiceHealth[] = [
   { id: 'users', label: 'Users', ok: true, ms: 4 },
+  { id: 'commands', label: 'Commands', ok: true, ms: 6 },
+  { id: 'modules', label: 'Modules', ok: true, ms: 7 },
+  { id: 'loyalty', label: 'Loyalty', ok: true, ms: 9 },
+  { id: 'projector', label: 'Projector', ok: true, ms: 5 },
+  { id: 'sesame', label: 'Sesame', ok: true, ms: 8 },
+  { id: 'gateway', label: 'Gateway', ok: true, ms: 12 },
   { id: 'ingress', label: 'Ingress', ok: true, ms: 11 },
   { id: 'outgress', label: 'Outgress', ok: true, ms: 7 },
-  { id: 'notifications', label: 'Notifications', ok: false, ms: 2000, error: 'timeout' }
+  { id: 'transactions', label: 'Transactions', ok: true, ms: 10 },
+  { id: 'notifications', label: 'Notifications', ok: false, ms: 1500, error: 'timeout' }
 ];
 
 export const sampleAudit: AuditEntry[] = [

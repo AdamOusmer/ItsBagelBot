@@ -4,7 +4,7 @@ import { requireAdmin, isDemo } from '$lib/server/access';
 import { serviceHealth } from '$lib/server/services';
 import { sampleHealth } from '$lib/server/sample';
 
-// Live poll target for the Overview health card: fresh RPC probes per call,
+// Live poll target for the Analytics RPC timing panel: fresh probes per call,
 // so a recovering service turns green without a page reload.
 export const GET: RequestHandler = async ({ locals }) => {
   if (!(await requireAdmin(locals.session))) throw error(403, 'forbidden');

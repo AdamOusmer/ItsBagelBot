@@ -120,6 +120,7 @@ func main() {
 	subscribeRPCs(rpcRuntime{
 		nc: nc, store: valkeyStore, pub: pub, hydrator: hydrator, nrApp: nrApp, log: log,
 	}, topics)
+	fatalIf(log, bus.SubscribeRPCHealth(nc, serviceName, "projector-rpc"), "failed to subscribe rpc health")
 
 	health.Serve(env.Get("LISTEN_ADDR", ":8080"), nc.IsConnected)
 

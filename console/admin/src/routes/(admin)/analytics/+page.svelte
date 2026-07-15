@@ -1,10 +1,32 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { onMount } from 'svelte';
   import { PageHead, PageToolbar, AlertBanner, Skeleton } from '@bagel/shared';
   import EnrollmentChart from '$lib/components/EnrollmentChart.svelte';
+  import type { ServiceHealth } from '$lib/server/services';
   import type { AnalyticsBundle } from './+page.server';
 
   let { data } = $props();
+
+  // A fresh uncached no-op request to every RPC service every 30 seconds makes
+  // recovery visible without turning the Analytics page itself into a poller
+  // while the tab is hidden.
+  let liveHealth = $state<ServiceHealth[] | null>(null);
+  async function pollHealth() {
+    if (typeof document !== 'undefined' && document.hidden) return;
+    try {
+      const res = await fetch('/health');
+      if (!res.ok) return;
+      const body = (await res.json()) as { health?: ServiceHealth[] };
+      if (body.health) liveHealth = body.health;
+    } catch {
+      /* transient: retain the last completed sample */
+    }
+  }
+  onMount(() => {
+    const timer = setInterval(pollHealth, 30_000);
+    return () => clearInterval(timer);
+  });
 
   let bundle = $state<AnalyticsBundle | null>(null);
   $effect(() => {
@@ -89,7 +111,7 @@
 </script>
 
 <section class="screen active">
-  <PageHead eyebrow="Analytics" description="Signups, base composition, and growth patterns from the users service.">
+  <PageHead eyebrow="Analytics" description="Growth patterns and live NATS RPC round-trip timing across the fleet.">
     Growth <em>analytics</em>
   </PageHead>
 
@@ -111,6 +133,45 @@
       </div>
     {/snippet}
   </PageToolbar>
+
+  <div class="card rpc-card">
+    <div class="card-head">
+      <h3>RPC round-trip latency</h3>
+      <span class="more">uncached no-op over NATS · refreshes every 30s</span>
+    </div>
+    <p class="rpc-note">
+      Measures the full admin → local leaf → service → reply path. A timeout means the route or responder is unavailable.
+    </p>
+    {#await data.health}
+      <div class="health-grid">
+        {#each Array.from({ length: 11 }) as _, i (i)}
+          <Skeleton variant="block" height="42px" />
+        {/each}
+      </div>
+    {:then initialHealth}
+      {@const health = liveHealth ?? initialHealth}
+      {#if health.length === 0}
+        <p class="rpc-empty">RPC probes unavailable.</p>
+      {:else}
+        <div class="health-grid">
+          {#each health as h (h.id)}
+            <div
+              class="health-cell"
+              class:slow={h.ok && h.ms >= 250}
+              class:down={!h.ok}
+              title={h.error ?? `${h.ms} ms round trip`}
+            >
+              <span class="health-dot" class:warn={h.ok && h.ms >= 250} class:err={!h.ok}></span>
+              <span class="health-name">{h.label}</span>
+              <span class="health-ms">
+                {h.ok ? `${h.ms} ms` : (h.error?.includes('timeout') ? 'timeout' : 'down')}
+              </span>
+            </div>
+          {/each}
+        </div>
+      {/if}
+    {/await}
+  </div>
 
   {#if bundle === null}
     <div class="loading-stack">
@@ -213,6 +274,35 @@
 
 <style>
   .loading-stack { display: flex; flex-direction: column; gap: 14px; }
+  .rpc-card { margin-bottom: var(--row-gap); }
+  .rpc-note, .rpc-empty {
+    margin: -2px 0 14px;
+    font-family: var(--bb-font-body); font-size: 12.5px; color: var(--bb-muted);
+  }
+  .rpc-empty { margin-bottom: 0; }
+  .health-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px;
+  }
+  .health-cell {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 14px;
+    border: 1px solid var(--rule); border-radius: 8px;
+    background: rgba(240, 236, 228, 0.02);
+  }
+  .health-cell.slow { border-color: rgba(202, 167, 106, 0.35); background: rgba(202, 167, 106, 0.05); }
+  .health-cell.down { border-color: rgba(176, 90, 70, 0.35); background: rgba(176, 90, 70, 0.05); }
+  .health-dot {
+    width: 8px; height: 8px; border-radius: 50%; flex: none;
+    background: var(--bb-green-glow); box-shadow: 0 0 8px var(--bb-green-glow);
+  }
+  .health-dot.warn { background: var(--bb-tan-light); box-shadow: 0 0 8px rgba(202, 167, 106, 0.6); }
+  .health-dot.err { background: #cf8a78; box-shadow: 0 0 8px rgba(176, 90, 70, 0.6); }
+  .health-name { font-family: var(--bb-font-body); font-weight: 600; font-size: 13px; color: var(--bb-white); }
+  .health-ms { margin-left: auto; font-family: var(--bb-font-mono); font-size: 11.5px; color: var(--bb-muted); }
+  .health-cell.slow .health-ms { color: var(--bb-tan-light); }
+  .health-cell.down .health-ms { color: #cf8a78; }
   .seg { display: flex; gap: 6px; flex-wrap: wrap; }
   .chip {
     font-family: var(--bb-font-mono); font-size: 11px; letter-spacing: 0.06em;

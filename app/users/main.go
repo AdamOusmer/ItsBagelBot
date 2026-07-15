@@ -71,6 +71,7 @@ func main() {
 
 	wiring := rpc.Wiring{NC: nc, Repo: repo, App: nrApp, Queue: "users-rpc", Log: log}
 	subjects := subscribeRPCs(ctx, wiring, client, log)
+	fatalIf(log, bus.SubscribeRPCHealth(nc, serviceName, "users-rpc"), "failed to subscribe rpc health")
 
 	health.Serve(env.Get("LISTEN_ADDR", ":8080"), nc.IsConnected)
 	subjects.logReady(log)

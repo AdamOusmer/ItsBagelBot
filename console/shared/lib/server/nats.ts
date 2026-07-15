@@ -152,6 +152,10 @@ function options(role: Role): ConnectionOptions {
     name: `${process.env.NATS_CLIENT_NAME ?? 'console'}-${role}`,
     maxReconnectAttempts: -1,
     reconnectTimeWait: 500,
+    // Broker auth/config and Doppler-driven app restarts can briefly land out
+    // of order during a rollout. Keep reconnecting through that window instead
+    // of permanently closing after the client's default two auth failures.
+    ignoreAuthErrorAbort: true,
     pingInterval: 20_000,
     // Bound the initial dial so a cold/unreachable NATS fails fast (and re-dials
     // on the next request) instead of hanging SSR to the 20s default and surfacing
@@ -189,6 +193,13 @@ async function get(role: Role): Promise<NatsConnection> {
       // dead connection in the pool.
       if (c.isClosed()) throw new Error('nats connection closed during dial');
       pool.conn = c;
+      // JetStream wrappers retain the connection they were created from. If a
+      // fully closed BUS connection is replaced (as opposed to reconnecting in
+      // place), force lane/KV callers to derive fresh wrappers from this one.
+      if (role === 'bus') {
+        jsClient = null;
+        jsManager = null;
+      }
       if (role === 'rpc') enableLeafFailback(c);
       return c;
     })
@@ -201,23 +212,25 @@ async function get(role: Role): Promise<NatsConnection> {
 let jsClient: JetStreamClient | null = null;
 let jsManager: JetStreamManager | null = null;
 
-// checkAPI:false is load-bearing: the enablement probe publishes the
-// domain-LESS `$JS.API.INFO`, which the per-account allow lists deliberately
-// do not grant (only `$JS.hub.API.>` subjects are). With the probe on, manager
-// creation times out on a permission violation and every JetStream view
-// (lanes, KV aliases) reports TIMEOUT. The option rides the client opts so KV
-// views inherit it when they derive their own manager.
-const JS_OPTS: JetStreamManagerOptions = { domain: 'hub', checkAPI: false };
+// BUS connects directly to the hub, so its JetStream API is the standard
+// $JS.API prefix. Using domain:'hub' here makes the client generate a domain
+// alias that the server remaps before account permission checks; the admin
+// account then sees a denied $JS.API request and every lane view times out.
+// Skip the extra enablement probe and return a fresh options object because the
+// NATS client normalizes/mutates JetStream options internally.
+export function hubJetStreamOptions(): JetStreamManagerOptions {
+  return { apiPrefix: '$JS.API', checkAPI: false };
+}
 
 export async function js(): Promise<JetStreamClient> {
   const nc = await get('bus');
-  if (!jsClient) jsClient = nc.jetstream(JS_OPTS);
+  if (!jsClient) jsClient = nc.jetstream(hubJetStreamOptions());
   return jsClient;
 }
 
 export async function jsm(): Promise<JetStreamManager> {
   const nc = await get('bus');
-  if (!jsManager) jsManager = await nc.jetstreamManager(JS_OPTS);
+  if (!jsManager) jsManager = await nc.jetstreamManager(hubJetStreamOptions());
   return jsManager;
 }
 
@@ -300,6 +313,8 @@ export async function closeNats(): Promise<void> {
     if (pool.conn && !pool.conn.isClosed()) await pool.conn.drain();
     pool.conn = null;
   }
+  jsClient = null;
+  jsManager = null;
 }
 
 /**

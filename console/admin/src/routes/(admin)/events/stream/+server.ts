@@ -10,10 +10,10 @@ function sse(event: string, data: unknown): Uint8Array {
   return enc.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
 }
 
-// SSE bridge from the ingress status subjects. Mirrors the old admin /events:
-// a wildcard subscription under `${prefix}.>` forwarded as named events, with a
-// heartbeat so proxies do not idle the connection out. Under DEMO=1 the broker
-// may be absent, so it emits a synthetic feed instead of failing.
+// SSE bridge from the ingress shard-lifecycle status subjects. This is a live,
+// non-persistent wildcard subscription under `${prefix}.>` — not the Twitch
+// EventSub payload stream. Heartbeats keep proxies from idling it out. Under
+// DEMO=1 the broker may be absent, so it emits a synthetic feed instead.
 export const GET: RequestHandler = async ({ locals }) => {
   if (!(await requireAdmin(locals.session))) throw error(403, 'forbidden');
 

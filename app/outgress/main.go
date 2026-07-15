@@ -150,6 +150,7 @@ func main() {
 	if err := rpc.SubscribeChatters(nc, tw, cfg.TwitchBotUserID, cfg.RPCPrefix, "outgress-rpc", nrApp, log.Named("rpc")); err != nil {
 		log.Fatal("failed to subscribe chatters rpc", zap.Error(err))
 	}
+	fatalIf(log, bus.SubscribeRPCHealth(nc, serviceName, "outgress-rpc"), "failed to subscribe rpc health")
 
 	health.Serve(env.Get("LISTEN_ADDR", ":8080"), nc.IsConnected)
 

@@ -1,7 +1,12 @@
 import type { PageServerLoad } from './$types';
-import { userEnrollment, type EnrollmentWire } from '$lib/server/services';
+import {
+  serviceHealth,
+  userEnrollment,
+  type EnrollmentWire,
+  type ServiceHealth
+} from '$lib/server/services';
 import { isDemo } from '$lib/server/access';
-import { demoEnrollment, sampleEnrollment } from '$lib/server/sample';
+import { demoEnrollment, sampleEnrollment, sampleHealth } from '$lib/server/sample';
 
 // Window sizes the page offers; the users service clamps to 90 anyway.
 const WINDOWS = new Set([7, 30, 90]);
@@ -23,5 +28,12 @@ export const load: PageServerLoad = ({ url }) => {
         .then((enrollment) => ({ enrollment, degraded: false }))
         .catch(() => ({ enrollment: sampleEnrollment, degraded: true }));
 
-  return { bundle, days };
+  // RPC timing is diagnostic data, not an analytics-page dependency. Stream it
+  // independently so a missing responder can only hold its own cells until the
+  // probe timeout; enrollment still renders as soon as the users read lands.
+  const health: Promise<ServiceHealth[]> = isDemo()
+    ? Promise.resolve(sampleHealth)
+    : serviceHealth();
+
+  return { bundle, health, days };
 };
