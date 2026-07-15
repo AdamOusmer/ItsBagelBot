@@ -74,6 +74,9 @@ func main() {
 		log.Fatal("failed to connect rpc nats", zap.Error(err))
 	}
 	defer nc.Close()
+	if err := bus.SubscribeRPCHealth(nc, serviceName, "transactions-rpc"); err != nil {
+		log.Fatal("failed to subscribe rpc health", zap.Error(err))
+	}
 
 	// Checkout RPC (dashboard -> basket_create). Optional: without the Tebex
 	// Headless credentials the service stays webhook-only, exactly as before.

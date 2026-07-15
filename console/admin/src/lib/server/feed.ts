@@ -3,7 +3,6 @@
 // request/reply client so a long-lived subscription never interferes with the
 // short-lived RPC requests (and vice versa).
 import { connect, type ConnectionOptions, type NatsConnection, type Subscription } from 'nats';
-import { enableLeafFailback } from '@bagel/shared/server/nats';
 
 let conn: NatsConnection | null = null;
 let dialing: Promise<NatsConnection> | null = null;
@@ -22,7 +21,9 @@ async function get(): Promise<NatsConnection> {
     name: (process.env.NATS_CLIENT_NAME ?? 'console') + '-feed',
     maxReconnectAttempts: -1,
     reconnectTimeWait: 500,
-    pingInterval: 20_000
+    pingInterval: 20_000,
+    ignoreAuthErrorAbort: true,
+    timeout: 3_000
   };
   if (process.env.NATS_USER) opts.user = process.env.NATS_USER;
   if (process.env.NATS_PASSWORD) opts.pass = process.env.NATS_PASSWORD;
@@ -36,7 +37,6 @@ async function get(): Promise<NatsConnection> {
   dialing = connect(opts)
     .then((c) => {
       conn = c;
-      enableLeafFailback(c);
       return c;
     })
     .finally(() => {

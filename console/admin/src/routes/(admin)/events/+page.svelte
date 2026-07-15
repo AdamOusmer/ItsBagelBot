@@ -92,10 +92,10 @@
 
 <section class="screen active">
   <PageHead
-    eyebrow="Ingress status"
-    description="Shard up/down, binding, and status messages streamed straight off the fleet bus."
+    eyebrow="Ingress lifecycle"
+    description="A live, non-persistent view of shard connections, Conduit bindings, and disconnect reasons. Only transitions after this page opens appear here; chat and EventSub payloads do not."
   >
-    Live <em>events</em>
+    Shard <em>lifecycle feed</em>
   </PageHead>
 
   <PageToolbar>
@@ -104,7 +104,7 @@
     {/snippet}
     {#snippet trail()}
       <div class="toolbar-search">
-        <SearchInput bind:value={search} placeholder="Filter subject or payload…" />
+        <SearchInput bind:value={search} placeholder="Filter lifecycle message…" />
       </div>
       <Button variant="ghost" onclick={togglePause}>
         {paused ? `Resume${missedWhilePaused ? ` (+${missedWhilePaused})` : ''}` : 'Pause'}
@@ -114,7 +114,7 @@
   </PageToolbar>
 
   <Card>
-    <CardHead title="Feed">
+    <CardHead title="twitch.ingress.status.>">
       {#snippet action()}
         <span class="feed-meta">
           <span class="count up">{upCount} up</span>
@@ -132,8 +132,8 @@
         {#if events.length === 0}
           <EmptyState
             icon="pulse"
-            title={conn === 'live' ? 'Quiet so far' : connLabel}
-            body="Shard up/down and binding messages appear here the moment the ingress publishes them."
+            title={conn === 'live' ? 'No lifecycle changes yet' : connLabel}
+            body="A healthy steady-state fleet is quiet. New shard up, bound, and down transitions appear here; this is not stored event history."
           />
         {:else}
           <EmptyState icon="search" title="No events match the filter" />

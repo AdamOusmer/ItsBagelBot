@@ -167,6 +167,9 @@ func main() {
 	if err := rpc.Subscribe(nc, repo, loyaltyPrefix, "loyalty-rpc", nrApp, log); err != nil {
 		log.Fatal("failed to subscribe loyalty rpc", zap.Error(err))
 	}
+	if err := bus.SubscribeRPCHealth(nc, serviceName, "loyalty-rpc"); err != nil {
+		log.Fatal("failed to subscribe rpc health", zap.Error(err))
+	}
 
 	health.Serve(env.Get("LISTEN_ADDR", ":8080"), nc.IsConnected)
 

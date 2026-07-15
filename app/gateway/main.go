@@ -89,6 +89,9 @@ func main() {
 	if err := engine.Serve(nc, cfg.SubjectPrefix, queueGroup, active, nrApp, log); err != nil {
 		log.Fatal("failed to subscribe provider endpoints", zap.Error(err))
 	}
+	if err := bus.SubscribeRPCHealth(nc, serviceName, queueGroup); err != nil {
+		log.Fatal("failed to subscribe rpc health", zap.Error(err))
+	}
 
 	health.Serve(cfg.ListenAddr, nc.IsConnected)
 
