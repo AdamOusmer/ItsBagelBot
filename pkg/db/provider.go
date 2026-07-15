@@ -98,29 +98,39 @@ const tlsConfigName = "bagel-mysql"
 // The configured root must therefore be the dedicated HeatWave endpoint CA,
 // never a broad/shared trust bundle such as the internal fleet CA.
 func registerTLS(caPEM []byte) (string, error) {
+	cfg, err := newPinnedCAVerificationTLSConfig(caPEM)
+	if err != nil {
+		return "", err
+	}
+
+	if err := mysql.RegisterTLSConfig(tlsConfigName, cfg); err != nil {
+		return "", err
+	}
+	return tlsConfigName, nil
+}
+
+// newPinnedCAVerificationTLSConfig uses the dedicated endpoint CA as the
+// server identity because the managed certificate has no SAN to match against.
+// VerifyConnection is intentional: unlike VerifyPeerCertificate, it also runs
+// when a TLS session is resumed.
+func newPinnedCAVerificationTLSConfig(caPEM []byte) (*tls.Config, error) {
 	caPEM = []byte(strings.TrimSpace(string(caPEM)))
 	if len(caPEM) == 0 {
-		return "", fmt.Errorf("db: DB_CA_CERT is required")
+		return nil, fmt.Errorf("db: DB_CA_CERT is required")
 	}
 
 	roots := x509.NewCertPool()
 	if !roots.AppendCertsFromPEM(caPEM) {
-		return "", fmt.Errorf("db: DB_CA_CERT did not contain a valid PEM certificate")
+		return nil, fmt.Errorf("db: DB_CA_CERT did not contain a valid PEM certificate")
 	}
 	cfg := &tls.Config{
-		MinVersion:         tls.VersionTLS12,
-		RootCAs:            roots,
-		InsecureSkipVerify: true, // we verify the chain ourselves below, minus the (absent) hostname identity
+		MinVersion: tls.VersionTLS12,
+		RootCAs:    roots,
+		// codeql[go/disabled-certificate-check] -- Custom verification pins the endpoint CA below.
+		InsecureSkipVerify: true,
 	}
-	cfg.VerifyPeerCertificate = func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
-		certs := make([]*x509.Certificate, 0, len(rawCerts))
-		for _, raw := range rawCerts {
-			c, err := x509.ParseCertificate(raw)
-			if err != nil {
-				return fmt.Errorf("db: parse server certificate: %w", err)
-			}
-			certs = append(certs, c)
-		}
+	cfg.VerifyConnection = func(state tls.ConnectionState) error {
+		certs := state.PeerCertificates
 		if len(certs) == 0 {
 			return fmt.Errorf("db: server presented no certificate")
 		}
@@ -132,8 +142,5 @@ func registerTLS(caPEM []byte) (string, error) {
 		return err
 	}
 
-	if err := mysql.RegisterTLSConfig(tlsConfigName, cfg); err != nil {
-		return "", err
-	}
-	return tlsConfigName, nil
+	return cfg, nil
 }
