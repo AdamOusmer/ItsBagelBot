@@ -171,6 +171,12 @@ defmodule Ingress.Config do
   def publish_batch_wait_ms,
     do: Application.get_env(:ingress, :publish_batch_wait_ms, 1)
 
+  # Persistent send lanes feeding one Gnat connection. Gnat currently
+  # coalesces the active call plus ten queued calls into one socket write; two
+  # windows keep its mailbox fed between replies.
+  def publish_send_concurrency,
+    do: Application.get_env(:ingress, :publish_send_concurrency, 22) |> max(1) |> min(32)
+
   # Wire protocol for one flushed cohort. :single publishes every event with
   # its own JetStream PubAck (the long-standing path). :atomic writes the
   # cohort as one ADR-050 atomic batch (NATS 2.14): a single commit PubAck

@@ -31,6 +31,7 @@ defmodule Ingress.Nats.Publisher do
   require Logger
 
   alias Ingress.{Config, Metrics, Nats}
+  alias Ingress.Nats.CohortSender
 
   @idx_pending 1
   @idx_next_id 2
@@ -170,6 +171,7 @@ defmodule Ingress.Nats.Publisher do
       max_attempts: Config.publish_attempts(),
       batch_size: Config.publish_batch_size(),
       batch_wait_ms: Config.publish_batch_wait_ms(),
+      senders: CohortSender.start(Config.publish_send_concurrency()),
       wire: Config.publish_wire(),
       batch_inflight_cap: Config.publish_batch_inflight(),
       queue: [],
@@ -298,29 +300,31 @@ defmodule Ingress.Nats.Publisher do
   defp atomic_batch?(_state, _entries), do: false
 
   defp send_individual_entries(entries, state) do
-    Enum.each(entries, fn {subject, json, dedup_id, from} ->
-      id = :atomics.add_get(state.counter, @idx_next_id, 1)
-      :ets.insert(state.table, {id, :single, subject, json, dedup_id, 1, now_ms()})
+    requests = Enum.map(entries, &stage_single(&1, state))
 
-      case pub(
-             state.conn,
-             subject,
-             json,
-             single_reply_subject(state.prefix, id),
-             dedup_headers(dedup_id)
-           ) do
-        :ok ->
-          reply_entry(from, :ok)
-
-        {:error, reason} ->
-          :ets.delete(state.table, id)
-          :atomics.sub(state.counter, @idx_pending, 1)
-          :atomics.add(state.counter, @idx_failed, 1)
-          reply_entry(from, {:error, reason})
-      end
-    end)
+    state.senders
+    |> CohortSender.publish(state.conn, requests)
+    |> Enum.each(&finish_single_send(&1, state))
 
     state
+  end
+
+  defp stage_single({subject, json, dedup_id, from}, state) do
+    id = :atomics.add_get(state.counter, @idx_next_id, 1)
+    :ets.insert(state.table, {id, :single, subject, json, dedup_id, 1, now_ms()})
+
+    token = {id, from}
+    opts = [reply_to: single_reply_subject(state.prefix, id), headers: dedup_headers(dedup_id)]
+    {token, subject, json, opts}
+  end
+
+  defp finish_single_send({{_id, from}, :ok}, _state), do: reply_entry(from, :ok)
+
+  defp finish_single_send({{id, from}, {:error, reason}}, state) do
+    :ets.delete(state.table, id)
+    :atomics.sub(state.counter, @idx_pending, 1)
+    :atomics.add(state.counter, @idx_failed, 1)
+    reply_entry(from, {:error, reason})
   end
 
   ## Atomic batch wire (ADR-050)
@@ -596,6 +600,7 @@ defmodule Ingress.Nats.Publisher do
   @impl true
   def terminate(_reason, state) do
     :persistent_term.erase({__MODULE__, :ctx, state.index})
+    CohortSender.stop(state.senders)
     :ok
   end
 
