@@ -226,9 +226,13 @@ type fleetSubscriber struct {
 	group string
 	log   *zap.Logger
 
-	mu    sync.Mutex
-	subs  []Subscriber
-	conns []*nats.Conn
+	mu      sync.Mutex
+	closed  bool
+	subs    []Subscriber
+	conns   []*nats.Conn
+	closeCh chan struct{}
+
+	registrations sync.WaitGroup
 }
 
 type subscriptionTarget struct {
@@ -237,6 +241,11 @@ type subscriptionTarget struct {
 }
 
 func (s *fleetSubscriber) Subscribe(ctx context.Context, topic string) (<-chan *Message, error) {
+	if !s.beginRegistration() {
+		return nil, errors.New("bus: subscriber is closed")
+	}
+	defer s.registrations.Done()
+
 	stream, err := streamForTopic(topic)
 	if err != nil {
 		return nil, err
@@ -255,6 +264,11 @@ func (s *fleetSubscriber) Subscribe(ctx context.Context, topic string) (<-chan *
 	}
 
 	s.mu.Lock()
+	if s.closed {
+		s.mu.Unlock()
+		closeSubscription(sub, conn)
+		return nil, errors.New("bus: subscriber closed during subscribe")
+	}
 	s.subs = append(s.subs, sub)
 	if conn != nil {
 		s.conns = append(s.conns, conn)
@@ -266,12 +280,28 @@ func (s *fleetSubscriber) Subscribe(ctx context.Context, topic string) (<-chan *
 	// its own ctx; without this a retired unit's NATS connection would sit open
 	// until process shutdown, one more per scale cycle.
 	go func() {
-		<-ctx.Done()
+		select {
+		case <-ctx.Done():
+		case <-s.closeCh:
+		}
 		s.forget(sub, conn)
 		closeSubscription(sub, conn)
 	}()
 
 	return messages, nil
+}
+
+func (s *fleetSubscriber) beginRegistration() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return false
+	}
+	if s.closeCh == nil {
+		s.closeCh = make(chan struct{})
+	}
+	s.registrations.Add(1)
+	return true
 }
 
 // forget drops a subscription's entries from the shutdown bookkeeping once its
@@ -326,6 +356,22 @@ func (s *fleetSubscriber) broadcastSubscriber(target subscriptionTarget) (Subscr
 
 func (s *fleetSubscriber) Close() error {
 	s.mu.Lock()
+	if s.closed {
+		s.mu.Unlock()
+		return nil
+	}
+	s.closed = true
+	if s.closeCh != nil {
+		close(s.closeCh)
+	}
+	s.mu.Unlock()
+
+	// Registration admission and the closed flag share s.mu. Once closed is
+	// visible, no WaitGroup.Add can race this Wait, and every admitted Subscribe
+	// either registers its resources or closes them before returning.
+	s.registrations.Wait()
+
+	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	var errs []error
@@ -337,6 +383,8 @@ func (s *fleetSubscriber) Close() error {
 	for _, conn := range s.conns {
 		conn.Close()
 	}
+	s.subs = nil
+	s.conns = nil
 	if len(errs) > 0 {
 		return fmt.Errorf("fleetSubscriber closed with %d errors, first: %w", len(errs), errs[0])
 	}
@@ -345,9 +393,10 @@ func (s *fleetSubscriber) Close() error {
 
 func newSubscriber(url string, group string, log *zap.Logger) (Subscriber, error) {
 	return &fleetSubscriber{
-		url:   url,
-		group: group,
-		log:   log,
+		url:     url,
+		group:   group,
+		log:     log,
+		closeCh: make(chan struct{}),
 	}, nil
 }
 

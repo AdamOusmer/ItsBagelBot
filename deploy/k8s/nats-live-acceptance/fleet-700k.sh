@@ -7,10 +7,6 @@ namespace=${NAMESPACE:-production}
 target_eps=${TARGET_EPS:-700000}
 total_messages=${MESSAGES:-7000000}
 payload_bytes=${PAYLOAD_BYTES:-256}
-# MSG_ID=off publishes without Nats-Msg-Id headers. Run back-to-back with the
-# default to isolate what per-message dedup costs inside the stream's
-# serialized ingest path at production rate.
-msg_id=${MSG_ID:-on}
 image=${BENCH_IMAGE:-alpine:3.22}
 # Temporary operator-managed identity used only to create/delete the unique
 # benchmark stream. worker_bus deliberately has no stream-management ACL.
@@ -19,17 +15,21 @@ run_id=$(date -u +%Y%m%d%H%M%S)
 stream="FLEET_700K_${run_id}"
 subject="twitch.outgress.bench.fleet${run_id}"
 binary="/tmp/nats-fleet-700k-${run_id}"
-results_dir=$(mktemp -d)
+results_dir=${FLEET_RESULTS_DIR:-"/tmp/nats-fleet-results-${run_id}"}
+if ! mkdir "$results_dir"; then
+  echo "FLEET_RESULTS_DIR must name a new, empty artifact directory: $results_dir" >&2
+  exit 1
+fi
 nodes=(node2 node3 worker1)
 pods=("nats-fleet-node2-${run_id}" "nats-fleet-node3-${run_id}" "nats-fleet-worker1-${run_id}")
 
-# Match the intended five-ingress-pod shape: node2=1, node3=2, worker1=2,
-# with two scheduler-local publisher connections per pod.
-publishers=(2 4 4)
+# Match the current three-ingress-pod shape: one pod on each NATS node and two
+# scheduler-local publisher connections per pod.
+publishers=(2 2 2)
 messages=(
-  $((total_messages * 20 / 100))
-  $((total_messages * 40 / 100))
-  $((total_messages - total_messages * 20 / 100 - total_messages * 40 / 100))
+  $((total_messages / 3))
+  $((total_messages / 3))
+  $((total_messages - 2 * (total_messages / 3)))
 )
 
 stream_created=false
@@ -42,15 +42,30 @@ setup_exec() {
     sh "$@"
 }
 
-cleanup() {
-  if [[ "$stream_created" == true ]]; then
-    setup_exec "${pods[1]}" /tmp/nats-live-acceptance \
-      -domain= \
-      -stream "$stream" -subject "$subject" -create-stream=false -cleanup=true \
-      -setup-only=true >/dev/null 2>&1 || true
+delete_stream() {
+  if [[ $stream_created != true ]]; then
+    return 0
   fi
+  local attempt cleanup_log="$results_dir/stream-cleanup.log"
+  for attempt in 1 2 3 4 5; do
+    if setup_exec "${pods[1]}" /tmp/nats-live-acceptance \
+      -domain= -replicas=1 -required-peers=1 \
+      -stream "$stream" -subject "$subject" -create-stream=false -cleanup=true \
+      -setup-only=true >>"$cleanup_log" 2>&1; then
+      stream_created=false
+      return 0
+    fi
+    sleep "$attempt"
+  done
+  echo "failed to verify deletion of fleet stream $stream after five attempts" >&2
+  return 1
+}
+
+cleanup() {
+  delete_stream || true
   kubectl -n "$namespace" delete pod "${pods[@]}" --ignore-not-found --wait=false >/dev/null 2>&1 || true
-  rm -rf "$results_dir" "$binary"
+  rm -f "$binary"
+  echo "fleet artifacts retained in $results_dir"
 }
 trap cleanup EXIT INT TERM
 
@@ -92,26 +107,23 @@ for pod in "${pods[@]}"; do
   kubectl -n "$namespace" cp "$binary" "$pod:/tmp/nats-live-acceptance"
 done
 
-setup_exec "${pods[1]}" /tmp/nats-live-acceptance \
-  -domain= -placement-tag=nats-0 \
-  -stream "$stream" -subject "$subject" -setup-only=true -cleanup=false >/dev/null
 stream_created=true
+setup_exec "${pods[1]}" /tmp/nats-live-acceptance \
+  -domain= -replicas=1 -required-peers=1 -placement-tag=nats-0 \
+  -stream "$stream" -subject "$subject" -setup-only=true -cleanup=false >/dev/null
 
-msg_id_flag="-msg-id=true"
-if [[ "$msg_id" == "off" ]]; then
-  msg_id_flag="-msg-id=false"
-fi
-
-echo "running ${total_messages} messages across node2/node3/worker1; target ${target_eps}/s (msg-id ${msg_id})"
+echo "running ${total_messages} dedup-free messages across node2/node3/worker1; target ${target_eps}/s"
+start_ms=$((($(date +%s) + 5) * 1000))
 pids=()
 for i in "${!nodes[@]}"; do
   kubectl -n "$namespace" exec "${pods[$i]}" -- env NATS_CA=/etc/nats-ca/ca.pem \
     /tmp/nats-live-acceptance \
-    -domain= \
+    -domain= -replicas=1 -required-peers=1 \
     -stream "$stream" -subject "$subject" -create-stream=false -cleanup=false \
     -producer-id="${nodes[$i]}" \
+    -start-at-unix-ms="$start_ms" \
     -messages="${messages[$i]}" -publishers="${publishers[$i]}" \
-    -payload-bytes="$payload_bytes" "$msg_id_flag" \
+    -payload-bytes="$payload_bytes" \
     -latency-samples=0 -max-p95=1h \
     >"$results_dir/${nodes[$i]}.json" 2>"$results_dir/${nodes[$i]}.err" &
   pids+=("$!")
@@ -133,15 +145,22 @@ fi
 summary=$(jq -s --argjson target "$target_eps" '
   [.[].results[0]] as $r |
   ($r | map(.acknowledged) | add) as $acked |
-  ($r | map(.duration_ms) | max) as $duration |
+  ($r | map(.started_unix_ms) | min) as $started |
+  ($r | map(.finished_unix_ms) | max) as $finished |
+  ($finished - $started) as $duration |
   {
     target_messages_per_second:$target,
     acknowledged:$acked,
     conservative_duration_ms:$duration,
     aggregate_messages_per_second:($acked / ($duration / 1000)),
     nodes:$r,
-    passed:(($acked / ($duration / 1000)) >= $target and ($r | all(.errors == 0 and .passed == true)))
+    passed:(
+      ($r | all(.started_unix_ms > 0 and .finished_unix_ms > .started_unix_ms)) and
+      ($acked / ($duration / 1000)) >= $target and
+      ($r | all(.errors == 0 and .passed == true))
+    )
   }
 ' "$results_dir"/*.json)
 echo "$summary"
 jq -e '.passed' <<<"$summary" >/dev/null
+delete_stream
