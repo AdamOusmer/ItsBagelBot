@@ -218,7 +218,7 @@ func TestCollectSLISampleValidatesRPCIngressAndValkey(t *testing.T) {
 		get:     func(context.Context, string) (string, error) { return stored, nil },
 		healthy: func() error { return nil },
 	}
-	sample, err := collectSLISample(context.Background(), cfg, probes, &ingressAttemptTracker{}, 1)
+	sample, err := testSLICollector(cfg, probes).collect(1)
 	require.NoError(t, err)
 	require.Len(t, sample.RPC, 2)
 	require.NotNil(t, sample.Ingress)
@@ -237,7 +237,7 @@ func TestCollectSLISampleFailsOnValkeyMismatch(t *testing.T) {
 		getCalls++
 		return "stale", nil
 	}
-	_, err := collectSLISample(context.Background(), cfg, probes, &ingressAttemptTracker{}, 1)
+	_, err := testSLICollector(cfg, probes).collect(1)
 	require.ErrorContains(t, err, "value mismatch")
 	require.Greater(t, getCalls, 1, "node-local GET was not retried")
 }
@@ -300,7 +300,7 @@ func TestCollectSLISampleFailsOnTimeoutAndMaxRTT(t *testing.T) {
 			<-ctx.Done()
 			return nil, ctx.Err()
 		}
-		_, err := collectSLISample(context.Background(), cfg, probes, &ingressAttemptTracker{}, 1)
+		_, err := testSLICollector(cfg, probes).collect(1)
 		require.ErrorContains(t, err, "timed out")
 	})
 
@@ -309,9 +309,15 @@ func TestCollectSLISampleFailsOnTimeoutAndMaxRTT(t *testing.T) {
 		cfg.sliServices = []string{"sesame"}
 		cfg.sliMaxRTT = time.Nanosecond
 		probes := healthyTestProbes()
-		_, err := collectSLISample(context.Background(), cfg, probes, &ingressAttemptTracker{}, 1)
+		_, err := testSLICollector(cfg, probes).collect(1)
 		require.ErrorContains(t, err, "exceeded max-rtt")
 	})
+}
+
+func testSLICollector(cfg config, probes *sliProbes) sliCollector {
+	return sliCollector{
+		ctx: context.Background(), cfg: cfg, probes: probes, tracker: &ingressAttemptTracker{},
+	}
 }
 
 func TestContinuousSLIFailsImmediatelyOnNATSConnectionEvent(t *testing.T) {

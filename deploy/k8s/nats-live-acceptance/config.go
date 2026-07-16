@@ -293,7 +293,7 @@ func validatePublishOptions(cfg config) {
 	}
 	requireAtMost(cfg.batchSize, 1_000, "batch-size must be <= 1000")
 	requireAtMost(cfg.fastOutstanding, 65_535, "fast-outstanding-acks must fit uint16")
-	requireFiniteNonNegative(cfg.targetRate, "target-rate must be finite and non-negative")
+	requireValidTargetRate(cfg.targetRate)
 	requireNonNegative(float64(cfg.latencySamples), "latency-samples must be non-negative")
 	requireNonNegative(float64(cfg.runTimeout), "run-timeout must be non-negative")
 	requireNonNegative(float64(cfg.maxAckGap), "max-ack-gap must be non-negative")
@@ -327,10 +327,15 @@ func requireNonNegative(value float64, message string) {
 	}
 }
 
-func requireFiniteNonNegative(value float64, message string) {
-	if math.IsNaN(value) || math.IsInf(value, 0) || value < 0 {
+func requireValidTargetRate(rate float64) {
+	const message = "target-rate must be finite and non-negative"
+	if math.IsNaN(rate) {
 		log.Fatal(message)
 	}
+	if math.IsInf(rate, 0) {
+		log.Fatal(message)
+	}
+	requireNonNegative(rate, message)
 }
 
 func requireEqual(value, expected int, message string) {

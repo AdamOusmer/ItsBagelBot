@@ -319,17 +319,6 @@ func (g *sliRPCTailGate) observe(samples []sliRPCSample, cfg config) (float64, i
 	return durationMilliseconds(p99), len(ordered), nil
 }
 
-func collectSLISample(
-	ctx context.Context,
-	cfg config,
-	probes *sliProbes,
-	tracker *ingressAttemptTracker,
-	sequence int64,
-) (sample sliSample, err error) {
-	collector := sliCollector{ctx: ctx, cfg: cfg, probes: probes, tracker: tracker}
-	return collector.collect(sequence)
-}
-
 func (c sliCollector) collect(sequence int64) (sample sliSample, err error) {
 	started := time.Now()
 	sample = sliSample{
