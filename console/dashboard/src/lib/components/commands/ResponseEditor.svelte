@@ -15,11 +15,16 @@
   // callers (e.g. module replies) can pass their own with a plain `label` title.
   type PaletteToken = { token: string; hint?: string; label?: string };
 
+  // Mirrors the set sesame's expandCommand + ParseDynamic actually expand
+  // (app/sesame/engine/vars.go) — a token offered here must render in chat.
   const DEFAULT_TOKENS: PaletteToken[] = [
     { token: '{user}', hint: 'commandEditor.tokUser' },
     { token: '{target}', hint: 'commandEditor.tokTarget' },
-    { token: '{uptime}', hint: 'commandEditor.tokUptime' },
-    { token: '{followage}', hint: 'commandEditor.tokFollowage' }
+    { token: '{args}', hint: 'commandEditor.tokArgs' },
+    { token: '{channel}', hint: 'commandEditor.tokChannel' },
+    { token: '{counter:name}', hint: 'commandEditor.tokCounter' },
+    { token: '{random}', hint: 'commandEditor.tokRandom' },
+    { token: '{choice:a,b,c}', hint: 'commandEditor.tokChoice' }
   ];
 
   let {
