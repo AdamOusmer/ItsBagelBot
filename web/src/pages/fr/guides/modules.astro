@@ -39,7 +39,9 @@ const sections = [
                 réglages. La plupart des modules parlent dans le chat, et chacune de leurs phrases est
                 un modèle que vous pouvez réécrire, avec les mêmes variables à accolades que les
                 <a href="/fr/guides/commands">commandes personnalisées</a> (plus quelques extras par
-                module, listés plus bas).
+                module, listés plus bas). À noter: les noms des modules s'affichent en anglais dans
+                le tableau de bord (Chat Alerts, Timers, Loyalty Points…), comme dans les aperçus
+                ci-dessous.
             </p>
             <DashFrame
                 path="/modules"
@@ -53,14 +55,14 @@ const sections = [
                     <div class="df-topbar"><span class="df-brand">ItsBagelBot <small>Console</small></span><span class="df-crumb">ItsBagelBot / <b>Modules</b></span><span class="df-account">streamer · Diffuseur</span></div>
                     <span class="df-eyebrow">Gérer</span>
                     <p class="df-title">Modules de <i>chaîne</i></p>
-                    <p class="df-sub">Fonctions optionnelles pour votre chaîne. 2 sur 13 activées.</p>
+                    <p class="df-sub">Fonctions optionnelles pour votre chaîne. 1 sur 13 activée.</p>
                     <div class="df-cols df-cols--rail">
                         <div class="df-rail"><b>Categories</b><span>Chat Tools</span><span class="is-active">Community</span><span>Games</span></div>
                         <div style="display:grid; gap:10px; align-content:start;">
                             <span class="df-cat">Community</span>
                             <div class="df-grid">
                                 <div class="df-tile"><div class="df-tile-head"><i class="df-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></i><span><b>Chat Alerts</b><small>Community</small></span></div><small>Announce follows, subs, cheers and raids in chat.</small><div class="df-tile-foot"><span class="df-btn--configure">Configurer</span><span class="df-toggle is-on"></span></div><i class="df-dot" style="top:10px; right:10px;">1</i></div>
-                                <div class="df-tile is-open"><div class="df-tile-head"><i class="df-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><line x1="12" y1="9.5" x2="12" y2="14.5"/></svg></i><span><b>Loyalty Points</b><small>Community</small></span></div><small>Viewers earn channel currency for subs, cheers and watch time.</small><div class="df-tile-foot"><span class="df-btn--configure">Configurer</span><span class="df-toggle is-on"></span></div><i class="df-dot" style="top:10px; right:10px;">2</i></div>
+                                <div class="df-tile is-open"><div class="df-tile-head"><i class="df-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><line x1="12" y1="9.5" x2="12" y2="14.5"/></svg></i><span><b>Loyalty Points</b><small>Community</small></span></div><small>Viewers earn channel currency for subs, cheers and watch time.</small><div class="df-tile-foot"><span class="df-btn--configure">Configurer</span><span class="df-toggle"></span></div><i class="df-dot" style="top:10px; right:10px;">2</i></div>
                             </div>
                             <span class="df-cat">Games</span>
                             <div class="df-grid">
@@ -166,8 +168,9 @@ const sections = [
                 «Je peux jouer?» devient libre-service. Les spectateurs entrent dans la file avec
                 <code>!join</code>, la quittent avec <code>!leave</code> et vérifient l'ordre avec
                 <code>!list</code>. Vous et vos modérateurs pilotez <code>!queue open</code>,
-                <code>!queue next</code>, <code>!queue close</code>. Chaque phrase de confirmation est
-                un modèle réécrivable.
+                <code>!queue next</code>, <code>!queue close</code>. Les réponses conversationnelles
+                (rejoindre, quitter, au suivant, file ouverte et fermée) sont des modèles
+                réécrivables.
             </p>
             <ChatMock
                 title="#votre_chaine"

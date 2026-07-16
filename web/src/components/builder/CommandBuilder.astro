@@ -47,7 +47,7 @@ for (const surface of data.surfaces) {
 
 <div class="builder" data-builder>
     <div class="layout">
-        <main class="compose card">
+        <section class="compose card">
             <div class="mode-row">
                 <div class="mode-seg" role="group" aria-label={ui.step1Title}>
                     <button class="active" type="button" data-mode="custom" aria-pressed="true"><i>!</i>{ui.modeCustom}</button>
@@ -100,7 +100,7 @@ for (const surface of data.surfaces) {
                     </label>
                 </div>
             </details>
-        </main>
+        </section>
 
         <aside>
             <section class="preview card">
@@ -787,7 +787,7 @@ for (const surface of data.surfaces) {
     .more-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 16px; }
     .more-grid .span2 { grid-column: 1 / -1; }
 
-    .learn { max-width: 1180px; margin: 26px auto 0; color: #a39c92; font-size: 13.5px; }
+    .learn { margin-top: 26px; color: #a39c92; font-size: 13.5px; }
     .learn a { color: var(--tan); }
     .learn a:hover { color: var(--tan-light); }
 

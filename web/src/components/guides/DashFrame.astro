@@ -154,8 +154,9 @@ const { path = '/', notes = [], caption } = Astro.props;
     /* Topbar: brand + breadcrumb left, account right. */
     .df-topbar {
         display: flex;
+        flex-wrap: wrap;
         align-items: center;
-        gap: 12px;
+        gap: 6px 12px;
         margin: -18px -18px 4px;
         padding: 10px 16px;
         border-bottom: 1px solid rgba(201, 168, 124, 0.08);
@@ -197,6 +198,12 @@ const { path = '/', notes = [], caption } = Astro.props;
     }
 
     .df-crumb b { color: var(--white, #f0ece4); font-weight: 500; }
+
+    /* The body padding drops to 12px on small screens (scoped rule above);
+       keep the full-bleed topbar aligned with it. */
+    @media (max-width: 640px) {
+        .df-topbar { margin: -12px -12px 4px; }
+    }
 
     .df-account {
         display: inline-flex;
