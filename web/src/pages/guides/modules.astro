@@ -42,18 +42,27 @@ const sections = [
             </p>
             <DashFrame
                 path="/modules"
-                caption="Tile = feature. Switch = on/off. Click through for its settings and messages."
+                caption="Tile = feature, grouped by category. Switch = on/off. Configure opens its page."
                 notes={[
                     { n: 1, text: 'The quick switch. Off means the module is fully silent, settings kept for later.' },
-                    { n: 2, text: "The tile opens the module's own page, where its chat lines and options live." },
+                    { n: 2, text: "Configure opens the module's own page, where its chat lines and options live." },
                 ]}
             >
                 <div class="df-main">
-                    <p class="df-title">Modules</p>
+                    <span class="df-eyebrow">Manage</span>
+                    <p class="df-title">Channel modules</p>
+                    <p class="df-sub">Optional features for your channel. 2 of 13 enabled.</p>
+                    <span class="df-cat">Community</span>
                     <div class="df-grid">
-                        <div class="df-tile"><b>Chat Alerts</b><small>Follow, sub, cheer & raid messages</small><span class="df-toggle is-on"></span><i class="df-dot" style="top:10px; right:10px;">1</i></div>
-                        <div class="df-tile is-open"><b>Loyalty Points</b><small>Watch-time points & counters</small><span class="df-toggle is-on"></span><i class="df-dot" style="top:10px; right:10px;">2</i></div>
-                        <div class="df-tile"><b>Play Queue</b><small>Viewer games, in order</small><span class="df-toggle"></span></div>
+                        <div class="df-tile"><b>Chat Alerts</b><small>Announce follows, subs, cheers and raids in chat.</small><div class="df-actions"><span class="df-btn df-btn--ghost">Configure</span><span class="df-toggle is-on"></span></div><i class="df-dot" style="top:10px; right:10px;">1</i></div>
+                        <div class="df-tile is-open"><b>Loyalty Points</b><small>Viewers earn channel currency for subs, cheers and watch time.</small><div class="df-actions"><span class="df-btn df-btn--ghost">Configure</span><span class="df-toggle is-on"></span></div><i class="df-dot" style="top:10px; right:10px;">2</i></div>
+                        <div class="df-tile"><b>Play Queue</b><small>Let viewers line up to play with you, first come first served.</small><div class="df-actions"><span class="df-btn df-btn--ghost">Configure</span><span class="df-toggle"></span></div></div>
+                    </div>
+                    <span class="df-cat">Games</span>
+                    <div class="df-grid">
+                        <div class="df-tile"><b>Bedwars Stats</b><small>Hypixel Bedwars stats, urchin score and blacklist tags in chat.</small><div class="df-actions"><span class="df-btn df-btn--ghost">Configure</span><span class="df-toggle"></span></div></div>
+                        <div class="df-tile"><b>MCSR Ranked</b><small>Ranked elo and per-stream session stats for MCSR runners.</small><div class="df-actions"><span class="df-btn df-btn--ghost">Configure</span><span class="df-toggle"></span></div></div>
+                        <div class="df-tile"><b>Fortnite Stats</b><small>Fortnite BR stats and the daily item shop in chat.</small><div class="df-actions"><span class="df-btn df-btn--ghost">Configure</span><span class="df-toggle"></span></div></div>
                     </div>
                 </div>
             </DashFrame>

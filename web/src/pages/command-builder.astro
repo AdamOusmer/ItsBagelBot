@@ -1,5 +1,6 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import PageHero from '../components/ui/PageHero.astro';
 import CommandBuilder from '../components/builder/CommandBuilder.astro';
 import { builderUI } from '../i18n/builder';
 
@@ -7,5 +8,6 @@ const ui = builderUI('en');
 ---
 
 <Layout title={ui.metaTitle} description={ui.metaDesc}>
+    <PageHero eyebrow={ui.eyebrow} title={ui.title1} description={`${ui.title2} ${ui.lede}`} />
     <CommandBuilder lang="en" />
 </Layout>

@@ -464,6 +464,19 @@ const UI = {
   },
   previewTitle: { en: 'Live rehearsal', fr: 'Répétition en direct' },
   previewNote: { en: 'Sample names and numbers are used only here.', fr: 'Les noms et nombres d’exemple ne servent qu’ici.' },
+  // Rehearsal chrome — word-for-word the dashboard's chatPreview catalog
+  // (console/shared/lib/i18n/{en,fr}.ts), so the builder reads as the same
+  // surface reaching out onto the marketing site.
+  rehearsal: { en: 'Chat rehearsal', fr: 'Répétition du chat' },
+  ariaTyping: { en: 'Bot is typing', fr: "Le bot est en train d'écrire" },
+  announcement: { en: 'Announcement', fr: 'Annonce' },
+  addMessageAfter: { en: '…add a message after {verb}', fr: '…ajoutez un message après {verb}' },
+  shoutsOut: { en: 'Shouts out', fr: 'Fait un shoutout à' },
+  nameChannel: { en: '…name a channel after /shoutout', fr: '…nommez une chaîne après /shoutout' },
+  pinnedForStream: { en: 'Pinned until the stream ends', fr: 'Épinglé jusqu’à la fin du stream' },
+  addActionAfterMe: { en: '…add an action after /me', fr: '…ajoutez une action après /me' },
+  nothingToSay: { en: '…the bot has nothing to say yet', fr: "…le bot n'a rien à dire pour le moment" },
+  unknownVar: { en: 'Unknown variable', fr: 'Variable inconnue' },
   sendTitle: { en: 'Send it to your dashboard', fr: 'Envoyez-la au tableau de bord' },
   sendBody: {
     en: 'Opens your dashboard with this command pre-filled in the editor: review it there and press Create.',

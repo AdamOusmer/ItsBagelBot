@@ -308,7 +308,10 @@ test.describe('guides & command builder', () => {
         // Clicking a variable inserts at the cursor and refreshes the rehearsal.
         await page.click('[data-vars] .var:first-child');
         await expect(page.locator('[data-output]')).toHaveText('!cmd add greet Hello {user}');
-        await expect(page.locator('[data-chat] .chat__line--bot span')).toHaveText('Hello maya_live');
+        // The rehearsal (ported dashboard ChatPreview) types for a beat, then
+        // replies with the sample highlighted in a <mark>.
+        await expect(page.locator('[data-chat] .line.bot .msg.reply')).toHaveText('Hello maya_live');
+        await expect(page.locator('[data-chat] .line.bot .msg.reply mark')).toHaveText('maya_live');
 
         // The dashboard hand-off carries the whole draft.
         const href = await page.getAttribute('[data-send]', 'href');

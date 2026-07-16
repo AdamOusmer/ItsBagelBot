@@ -6,11 +6,18 @@
  * straight into the dashboard's command editor (deep link, pre-filled) or
  * copy it as a !cmd chat line / template.
  *
+ * The rehearsal is a straight port of the dashboard inspector's ChatPreview
+ * (console/dashboard/src/lib/components/commands/ChatPreview.svelte): same
+ * typing beat, same staggered reply-in animation, same announcement /
+ * shoutout / pin / me styling and sample-value highlights — the builder is
+ * meant to feel like the dashboard reaching out onto the marketing site.
+ *
  * All copy and the variable catalog come from src/i18n/builder.ts (both
  * locales), which mirrors what the bot actually expands. Runtime strings reach
  * the client through a JSON island (site pattern, CSP-safe); the client script
  * builds DOM with textContent only.
  */
+import logoImage from '../../assets/LogoBOT.png';
 import { builderData, builderUI } from '../../i18n/builder';
 import type { Lang } from '../../i18n/ui';
 
@@ -34,14 +41,7 @@ for (const surface of data.surfaces) {
 ---
 
 <div class="builder" data-builder>
-    <header class="hero">
-        <canvas class="hero__field" data-field data-warmth="0.7" aria-hidden="true"></canvas>
-        <div class="hero__glow" aria-hidden="true"></div>
-        <p class="eyebrow">{ui.eyebrow}</p>
-        <h1>{ui.title1}<br /><em>{ui.title2}</em></h1>
-        <p>{ui.lede}</p>
-        <div class="proof"><span>{ui.proof1}</span><span>{ui.proof2}</span><span>{ui.proof3}</span></div>
-    </header>
+    <div class="proof" data-reveal><span>{ui.proof1}</span><span>{ui.proof2}</span><span>{ui.proof3}</span></div>
 
     <div class="layout">
         <main class="steps">
@@ -104,7 +104,9 @@ for (const surface of data.surfaces) {
         <aside>
             <section class="preview card">
                 <header><b><i></i> {ui.previewTitle}</b><span data-context></span></header>
-                <div class="chat" data-chat aria-live="polite"></div>
+                <div class="chat" data-chat data-avatar={logoImage.src} aria-live="polite">
+                    <span class="chat-tag" data-chat-tag>{ui.rehearsal}</span>
+                </div>
                 <small data-preview-note></small>
             </section>
 
@@ -136,7 +138,6 @@ for (const surface of data.surfaces) {
             statusLines: ui.statusLines,
             statusLineLen: ui.statusLineLen,
             statusEmpty: ui.statusEmpty,
-            emptyPreview: ui.emptyPreview,
             copied: ui.copied,
             copyFail: ui.copyFail,
             copyCta: ui.copyCta,
@@ -146,6 +147,17 @@ for (const surface of data.surfaces) {
             copyBodyModule: ui.copyBodyModule,
             thenCustom: [ui.thenCustom1, ui.thenCustom2, ui.thenCustom3],
             thenModule: [ui.thenModule1, ui.thenModule2, ui.thenModule3],
+            // Rehearsal chrome, word-for-word the dashboard's chatPreview strings.
+            rehearsal: ui.rehearsal,
+            ariaTyping: ui.ariaTyping,
+            announcement: ui.announcement,
+            addMessageAfter: ui.addMessageAfter,
+            shoutsOut: ui.shoutsOut,
+            nameChannel: ui.nameChannel,
+            pinnedForStream: ui.pinnedForStream,
+            addActionAfterMe: ui.addActionAfterMe,
+            nothingToSay: ui.nothingToSay,
+            unknownVar: ui.unknownVar,
             recipes: lang === 'fr'
                 ? [
                     { label: 'Accueillir quelqu’un', text: 'Bienvenue, {user}! Installe-toi 🥯' },
@@ -178,6 +190,58 @@ for (const surface of data.surfaces) {
         ui: Record<string, string> & { thenCustom: string[]; thenModule: string[]; recipes: { label: string; text: string }[] };
     };
 
+    // --- Slash-verb parse, same tables as the dashboard's ChatPreview (which
+    // itself mirrors app/sesame/engine/slash.go). ---------------------------
+    type Mode = 'chat' | 'announce' | 'shoutout' | 'pin' | 'me';
+    type Parsed = { mode: Mode; body: string; verb?: string; color?: string; target?: string };
+
+    const ACCENT: Record<string, string> = {
+        primary: 'var(--tan-light)',
+        blue: '#4a9eff',
+        green: '#52b788',
+        orange: '#ff9f45',
+        purple: '#c77dff',
+    };
+
+    const ANNOUNCE: [string, string][] = [
+        ['/announceblue', 'blue'],
+        ['/announcegreen', 'green'],
+        ['/announceorange', 'orange'],
+        ['/announcepurple', 'purple'],
+        ['/announce', 'primary'],
+    ];
+
+    function cutVerb(text: string, verb: string): string | null {
+        if (text === verb) return '';
+        if (text.startsWith(verb + ' ')) return text.slice(verb.length + 1);
+        return null;
+    }
+
+    function parseLine(text: string): Parsed {
+        for (const [verb, color] of ANNOUNCE) {
+            const rest = cutVerb(text, verb);
+            if (rest !== null) return { mode: 'announce', body: rest, verb, color };
+        }
+        const so = cutVerb(text, '/shoutout');
+        if (so !== null) {
+            const trimmed = so.replace(/^ +/, '');
+            const sp = trimmed.indexOf(' ');
+            const rawTarget = sp === -1 ? trimmed : trimmed.slice(0, sp);
+            const remainder = sp === -1 ? '' : trimmed.slice(sp + 1).replace(/^ +/, '');
+            return { mode: 'shoutout', body: remainder, verb: '/shoutout', target: rawTarget.replace(/^@/, '') };
+        }
+        const pin = cutVerb(text, '/pin');
+        if (pin !== null) return { mode: 'pin', body: pin, verb: '/pin' };
+        const me = cutVerb(text, '/me');
+        if (me !== null) return { mode: 'me', body: me, verb: '/me' };
+        return { mode: 'chat', body: text };
+    }
+
+    function verbLabelOf(p: Parsed): string {
+        if (p.mode === 'announce') return p.color === 'primary' ? '/announce' : `/announce (${p.color})`;
+        return p.verb ?? '';
+    }
+
     function initBuilder(root: HTMLElement) {
         if (root.dataset.ready) return;
         root.dataset.ready = '1';
@@ -198,6 +262,9 @@ for (const surface of data.surfaces) {
         const sendLink = $<HTMLAnchorElement>('[data-send]');
         const moduleLink = $<HTMLAnchorElement>('[data-module-link]');
         const copyBtn = $<HTMLButtonElement>('[data-copy]');
+        const chat = $<HTMLElement>('[data-chat]');
+        const chatTag = $<HTMLElement>('[data-chat-tag]');
+        const avatarSrc = chat.dataset.avatar ?? '';
 
         let mode: 'custom' | 'module' = 'custom';
         let surfaceId = 'custom';
@@ -226,89 +293,210 @@ for (const surface of data.surfaces) {
             return raw;
         };
 
-        // --- Token expansion for the rehearsal ------------------------------
-        const expandLine = (line: string) => {
+        // --- Token substitution: known tokens become highlighted samples,
+        // unknown {tokens} stay marked, exactly like the dashboard rehearsal.
+        type Seg = { text: string; kind: 'plain' | 'sample' | 'unknown' };
+        const rint = (lo: number, hi: number) => String(lo + Math.floor(Math.random() * (hi - lo + 1)));
+
+        function resolveToken(body: string): string | null {
             const samples = new Map(current().vars.map((x) => [x.token.slice(1, -1), x.sample]));
-            return line.replace(/\{([^{}]*)\}/g, (whole, body: string) => {
-                if (samples.has(body)) return samples.get(body)!;
-                // Aliases the bot honors but the palette hides for clarity.
-                if (body === 'sender' && samples.has('user')) return samples.get('user')!;
-                if (body === 'target' && samples.has('touser')) return samples.get('touser')!;
-                if (body === 'touser' && samples.has('target')) return samples.get('target')!;
-                const rand = body.match(/^random:(-?\d+)-(-?\d+)$/);
-                if (body === 'random') return String(1 + Math.floor(Math.random() * 100));
-                if (rand) {
-                    const lo = parseInt(rand[1], 10);
-                    const hi = parseInt(rand[2], 10);
-                    if (hi >= lo) return String(lo + Math.floor(Math.random() * (hi - lo + 1)));
-                    return whole;
-                }
-                if (body.startsWith('choice:')) {
-                    const options = body.slice(7).split(',').map((o) => o.trim()).filter(Boolean);
-                    if (options.length) return options[Math.floor(Math.random() * options.length)];
-                    return whole;
-                }
-                if (mode === 'custom' && body.startsWith('counter:')) return '128';
-                return whole; // unknown tokens stay literal, like the bot
-            });
-        };
-
-        // --- Rehearsal ------------------------------------------------------
-        const chat = $<HTMLElement>('[data-chat]');
-
-        function chatLine(kind: 'viewer' | 'bot' | 'system', name: string, text: string) {
-            const p = document.createElement('p');
-            p.className = `chat__line chat__line--${kind}`;
-            if (kind === 'system') {
-                const span = document.createElement('span');
-                span.textContent = text;
-                p.append(span);
-            } else {
-                const who = document.createElement('b');
-                who.textContent = name;
-                const span = document.createElement('span');
-                span.textContent = text;
-                p.append(who, span);
+            if (samples.has(body)) return samples.get(body)!;
+            // Aliases the bot honors but the palette hides for clarity.
+            if (body === 'sender' && samples.has('user')) return samples.get('user')!;
+            if (body === 'target' && samples.has('touser')) return samples.get('touser')!;
+            if (body === 'touser' && samples.has('target')) return samples.get('target')!;
+            if (body === 'random') return rint(1, 100);
+            const rand = body.match(/^random:(-?\d+)-(-?\d+)$/);
+            if (rand) {
+                const lo = parseInt(rand[1], 10);
+                const hi = parseInt(rand[2], 10);
+                return hi >= lo ? rint(lo, hi) : null;
             }
-            return p;
+            if (body.startsWith('choice:')) {
+                const options = body.slice(7).split(',').map((o) => o.trim()).filter(Boolean);
+                return options.length ? options[Math.floor(Math.random() * options.length)] : null;
+            }
+            if (mode === 'custom' && body.startsWith('counter:') && body.length > 'counter:'.length) return '128';
+            return null;
         }
 
-        function renderPreview() {
-            chat.replaceChildren();
+        function segmentsOf(body: string): Seg[] {
+            const out: Seg[] = [];
+            const re = /\{([a-z_]+(?:\.[a-z_]+)?(?::[^{}]*)?)\}/gi;
+            let last = 0;
+            for (const m of body.matchAll(re)) {
+                if (m.index! > last) out.push({ text: body.slice(last, m.index), kind: 'plain' });
+                const value = resolveToken(m[1]);
+                if (value !== null) out.push({ text: value, kind: 'sample' });
+                else out.push({ text: m[0], kind: 'unknown' });
+                last = m.index! + m[0].length;
+            }
+            if (last < body.length) out.push({ text: body.slice(last), kind: 'plain' });
+            return out;
+        }
+
+        // --- Rehearsal DOM (ported ChatPreview markup, textContent only) -----
+        const el = (tag: string, className: string, text?: string) => {
+            const node = document.createElement(tag);
+            node.className = className;
+            if (text !== undefined) node.textContent = text;
+            return node;
+        };
+
+        function botName(): HTMLElement {
+            const who = el('span', 'who bot-name');
+            if (avatarSrc) {
+                const img = document.createElement('img');
+                img.className = 'bot-avatar';
+                img.src = avatarSrc;
+                img.alt = '';
+                who.append(img);
+            }
+            who.append('ItsBagelBot');
+            return who;
+        }
+
+        function msgWithSegments(className: string, segments: Seg[]): HTMLElement {
+            const msg = el('span', className);
+            for (const seg of segments) {
+                if (seg.kind === 'plain') {
+                    msg.append(seg.text);
+                } else {
+                    const mark = el('mark', seg.kind === 'unknown' ? 'unknown' : '', seg.text);
+                    if (seg.kind === 'unknown') mark.title = ui.unknownVar;
+                    msg.append(mark);
+                }
+            }
+            return msg;
+        }
+
+        function viaBadge(label: string, inline = false): HTMLElement {
+            return el('span', inline ? 'via inline' : 'via', `Twitch ${label}`);
+        }
+
+        function botLine(view: Parsed & { segments: Seg[] }, index: number): HTMLElement {
+            const line = el('div', 'line bot');
+            line.style.setProperty('--reply-delay', `${index * 140}ms`);
+            if (view.mode !== 'chat') line.classList.add('special');
+            if (view.mode === 'me') {
+                line.classList.remove('special');
+                line.classList.add('me');
+            }
+            line.append(botName());
+
+            if (view.mode === 'announce') {
+                const box = el('div', 'announce');
+                box.style.setProperty('--acc', ACCENT[view.color ?? 'primary']);
+                const head = el('span', 'announce-head');
+                head.append(viaBadge(verbLabelOf(view)), ui.announcement);
+                box.append(head);
+                box.append(view.segments.length
+                    ? msgWithSegments('msg reply', view.segments)
+                    : el('span', 'msg empty', ui.addMessageAfter.replace('{verb}', view.verb ?? '')));
+                line.append(box);
+            } else if (view.mode === 'shoutout') {
+                const box = el('div', 'shoutout');
+                box.append(viaBadge('/shoutout'));
+                if (view.target) {
+                    const msg = el('span', 'msg reply', `${ui.shoutsOut} `);
+                    const strong = el('strong', '', `@${view.target}`);
+                    msg.append(strong);
+                    box.append(msg);
+                } else {
+                    box.append(el('span', 'msg empty', ui.nameChannel));
+                }
+                line.append(box);
+            } else if (view.mode === 'pin') {
+                const box = el('div', 'pin');
+                const head = el('span', 'pin-head');
+                head.append(viaBadge('/pin'), ui.pinnedForStream);
+                box.append(head);
+                box.append(view.segments.length
+                    ? msgWithSegments('msg reply', view.segments)
+                    : el('span', 'msg empty', ui.addMessageAfter.replace('{verb}', '/pin')));
+                line.append(box);
+            } else if (view.mode === 'me') {
+                line.append(viaBadge('/me', true));
+                line.append(view.segments.length
+                    ? msgWithSegments('msg reply action', view.segments)
+                    : el('span', 'msg empty', ui.addActionAfterMe));
+            } else {
+                line.append(msgWithSegments('msg reply', view.segments));
+            }
+            return line;
+        }
+
+        // Event-driven surfaces (alerts, shoutout, channel points…) rehearse
+        // without a viewer line — the firing event becomes the box tag, exactly
+        // like the dashboard's module-reply inspectors.
+        const promptKind = () => {
             const surface = current();
-            const promptKind = surface.prompt.startsWith('!') ? 'viewer' : 'system';
-            const promptText = mode === 'custom' ? `!${cleanName() || 'yourcommand'}` : surface.prompt;
-            chat.append(chatLine(promptKind === 'viewer' ? 'viewer' : 'system', 'maya_live', promptText));
+            if (mode === 'custom' || surface.prompt.startsWith('!')) return 'command';
+            if (surface.id === 'triggers') return 'message';
+            return 'event';
+        };
+
+        function clearChat() {
+            for (const node of [...chat.children]) if (node !== chatTag) node.remove();
+        }
+
+        function viewerLine(): HTMLElement | null {
+            const kind = promptKind();
+            if (kind === 'event') return null;
+            const surface = current();
+            const line = el('div', 'line viewer');
+            const who = el('span', 'who viewer-name', surface.vars.find((x) => x.token === '{user}')?.sample ?? 'maya_live');
+            const text = mode === 'custom' ? `!${cleanName() || 'command'}` : surface.prompt;
+            const msg = el('span', kind === 'message' ? 'msg plain' : 'msg', text);
+            line.append(who, msg);
+            return line;
+        }
+
+        function renderReplies() {
+            clearChat();
+            chatTag.textContent = promptKind() === 'event' ? current().prompt : ui.rehearsal;
+            const viewer = viewerLine();
+            if (viewer) chat.append(viewer);
 
             const out = lines().slice(0, data.limits.linesMax);
             if (out.length === 0) {
-                chat.append(chatLine('bot', 'ItsBagelBot', ui.emptyPreview));
+                const line = el('div', 'line bot');
+                line.append(botName(), el('span', 'msg empty', ui.nothingToSay));
+                chat.append(line);
                 return;
             }
-            for (const line of out) {
-                const expanded = expandLine(line);
-                const verb = expanded.match(/^\/(announce(?:blue|green|orange|purple)?|me|shoutout|pin)\s*(.*)$/);
-                if (!verb) {
-                    chat.append(chatLine('bot', 'ItsBagelBot', expanded));
-                    continue;
-                }
-                const [, action, rest] = verb;
-                if (action.startsWith('announce')) {
-                    const p = chatLine('system', '', rest);
-                    p.classList.add('chat__line--announce');
-                    chat.append(p);
-                } else if (action === 'shoutout') {
-                    chat.append(chatLine('system', '', `→ /shoutout ${rest.split(/\s+/)[0] || ''}`));
-                } else if (action === 'pin') {
-                    const p = chatLine('bot', 'ItsBagelBot', rest);
-                    p.classList.add('chat__line--pinned');
-                    chat.append(p);
-                } else {
-                    const p = chatLine('bot', 'ItsBagelBot', rest);
-                    p.classList.add('chat__line--me');
-                    chat.append(p);
-                }
+            out.forEach((raw, i) => {
+                const parsed = parseLine(raw);
+                chat.append(botLine({ ...parsed, segments: segmentsOf(parsed.body) }, i));
+            });
+        }
+
+        function renderTyping() {
+            clearChat();
+            chatTag.textContent = promptKind() === 'event' ? current().prompt : ui.rehearsal;
+            const viewer = viewerLine();
+            if (viewer) chat.append(viewer);
+            const line = el('div', 'line bot');
+            const msg = el('span', 'msg typing');
+            msg.setAttribute('aria-label', ui.ariaTyping);
+            msg.append(el('span', 'tdot'), el('span', 'tdot'), el('span', 'tdot'));
+            line.append(botName(), msg);
+            chat.append(line);
+        }
+
+        // Typing beat: edits flip to the dots, settle back to the reply — the
+        // dashboard's debounce, same 550ms.
+        let settle: ReturnType<typeof setTimeout> | undefined;
+        let firstRender = true;
+        function schedulePreview() {
+            if (firstRender) {
+                firstRender = false;
+                renderReplies();
+                return;
             }
+            renderTyping();
+            clearTimeout(settle);
+            settle = setTimeout(renderReplies, 550);
         }
 
         // --- Variable palette -------------------------------------------------
@@ -328,17 +516,10 @@ for (const surface of data.surfaces) {
                 const btn = document.createElement('button');
                 btn.type = 'button';
                 btn.className = 'var';
-                const code = document.createElement('code');
-                code.textContent = item.token;
-                const span = document.createElement('span');
-                const b = document.createElement('b');
-                b.textContent = item.name;
-                const small = document.createElement('small');
-                small.textContent = item.desc;
-                span.append(b, small);
-                const plus = document.createElement('i');
-                plus.textContent = '+';
-                btn.append(code, span, plus);
+                const code = el('code', '', item.token);
+                const span = el('span', '');
+                span.append(el('b', '', item.name), el('small', '', item.desc));
+                btn.append(code, span, el('i', '', '+'));
                 btn.addEventListener('click', () => insert(item.token));
                 box.append(btn);
             }
@@ -386,11 +567,7 @@ for (const surface of data.surfaces) {
             const steps = mode === 'custom' ? ui.thenCustom : ui.thenModule;
             steps.forEach((step, i) => {
                 const li = document.createElement('li');
-                const num = document.createElement('i');
-                num.textContent = String(i + 1);
-                const span = document.createElement('span');
-                span.textContent = step;
-                li.append(num, span);
+                li.append(el('i', '', String(i + 1)), el('span', '', step));
                 list.append(li);
             });
         }
@@ -420,7 +597,7 @@ for (const surface of data.surfaces) {
             // for modules. Multi-line custom commands can't ride a single chat
             // message, so the chat path steps aside and the dashboard carries it.
             const output = $<HTMLElement>('[data-output]');
-            const copyCard = $<HTMLElement>('.copy');
+            const copyCard = $<HTMLElement>('section.copy');
             if (mode === 'custom') {
                 $('[data-copy-title]').textContent = ui.copyTitleCustom;
                 $('[data-copy-body]').textContent = ui.copyBodyCustom;
@@ -438,7 +615,7 @@ for (const surface of data.surfaces) {
             }
             copyBtn.disabled = !!err;
 
-            renderPreview();
+            schedulePreview();
         }
 
         function setSurface(id: string) {
@@ -468,8 +645,8 @@ for (const surface of data.surfaces) {
             btn.addEventListener('click', () => setMode(btn.dataset.mode as 'custom' | 'module')),
         );
         surfaceSel.addEventListener('change', () => setSurface(surfaceSel.value));
-        [ta, nameInput, aliasInput, permSel, cdInput, styleSel].forEach((el) =>
-            el.addEventListener('input', update),
+        [ta, nameInput, aliasInput, permSel, cdInput, styleSel].forEach((input) =>
+            input.addEventListener('input', update),
         );
 
         copyBtn.addEventListener('click', async () => {
@@ -500,41 +677,9 @@ for (const surface of data.surfaces) {
 </script>
 
 <style>
-    .builder { width: min(1320px, calc(100% - 48px)); margin: auto; padding: calc(var(--nav-offset) + 65px) 0 110px; }
+    .builder { width: min(1320px, calc(100% - 48px)); margin: auto; padding: 30px 0 110px; }
 
-    /* ── Hero ── */
-    /* The star header: the same drifting mote field + hearth glow the inner
-       pages get from PageHero, kept behind the left-aligned builder title. */
-    .hero { position: relative; padding: 45px 0 70px; }
-    .hero__field {
-        position: absolute;
-        inset: calc(-1 * (var(--nav-offset) + 65px)) calc(50% - 50vw) 0;
-        width: 100vw;
-        height: auto;
-        pointer-events: none;
-    }
-    .hero__glow {
-        position: absolute;
-        left: 30%;
-        top: 40%;
-        width: 110vmin;
-        height: 90vmin;
-        translate: -50% -50%;
-        pointer-events: none;
-        background: radial-gradient(
-            55% 60% at 50% 50%,
-            rgba(201, 168, 124, 0.13) 0%,
-            rgba(82, 183, 136, 0.05) 38%,
-            transparent 70%
-        );
-        filter: blur(12px);
-    }
-    .hero > :not(.hero__field, .hero__glow) { position: relative; z-index: 2; max-width: 950px; }
-    .eyebrow { color: var(--tan-light); font: 12.5px var(--font-mono); letter-spacing: .13em; text-transform: uppercase; }
-    h1 { margin-top: 20px; font: 800 clamp(2.7rem, 6vw, 5.4rem)/.98 var(--font-display); letter-spacing: -.055em; text-shadow: 0 3px 18px rgba(0, 0, 0, 0.9); }
-    h1 em { color: var(--tan); font-style: normal; }
-    .hero > p:not(.eyebrow) { max-width: 720px; margin-top: 26px; color: #b3aca2; font-size: 1.18rem; line-height: 1.7; }
-    .proof { display: flex; gap: 22px; margin-top: 26px; color: var(--muted); font: 12px var(--font-mono); }
+    .proof { display: flex; gap: 22px; margin-bottom: 28px; color: var(--muted); font: 12px var(--font-mono); }
     .proof span::before { content: '✓'; color: var(--green-glow); margin-right: 7px; }
 
     /* ── Layout ── */
@@ -600,8 +745,6 @@ for (const surface of data.surfaces) {
     .preview header i { display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: #e06262; }
     .preview > small { display: block; margin-top: 11px; color: #a39c92; font-size: 12px; line-height: 1.5; }
 
-    .chat { display: grid; gap: 11px; padding: 18px; background: #0b0b0a; border-radius: 9px; min-height: 96px; }
-
     .send header b, .copy header b { padding: 4px 7px; color: var(--green-glow); background: #52b78812; border-radius: 99px; letter-spacing: 0; }
     .send header :global(b.is-bad) { color: #e08585; background: #e0626212; }
     .send > p, .copy > p { color: #a39c92; font-size: 13px; line-height: 1.6; margin-bottom: 13px; }
@@ -632,9 +775,8 @@ for (const surface of data.surfaces) {
     }
 
     @media (max-width: 700px) {
-        .builder { width: calc(100% - 28px); padding-top: calc(var(--nav-offset) + 25px); }
-        .hero { padding-bottom: 50px; }
-        .proof { flex-wrap: wrap; }
+        .builder { width: calc(100% - 28px); padding-top: 18px; }
+        .proof { flex-wrap: wrap; gap: 12px; }
         .mode, .fields, .vars, aside { grid-template-columns: 1fr; }
         .fields .span2 { grid-column: auto; }
         .preview, .then { grid-column: auto; }
@@ -643,25 +785,197 @@ for (const surface of data.surfaces) {
 
     @media (prefers-reduced-motion: reduce) {
         .mode button, .send__cta, .copy > button { transition: none; }
-        .hero__field { display: none; }
     }
 </style>
 
-<!-- Chat-rehearsal lines and variable cards are created client-side, so their
-     selectors must be global instead of relying on Astro's compile-time scope
-     attributes. -->
+<!-- The rehearsal box. A straight port of the dashboard ChatPreview styles
+     (console/dashboard/src/lib/components/commands/ChatPreview.svelte) onto
+     the web token names, global because every line is created client-side. -->
 <style is:global>
-    [data-chat] .chat__line { display: flex; gap: 8px; align-items: baseline; font-size: 13.5px; line-height: 1.55; margin: 0; }
-    [data-chat] .chat__line b { flex: none; font-weight: 700; }
-    [data-chat] .chat__line b::after { content: ':'; color: var(--muted, #888077); font-weight: 400; }
-    [data-chat] .chat__line span { color: rgba(240, 236, 228, .87); overflow-wrap: anywhere; min-width: 0; }
-    [data-chat] .chat__line--viewer b { color: #bd8ff2; }
-    [data-chat] .chat__line--bot b { color: var(--green-glow, #52b788); }
-    [data-chat] .chat__line--system span { color: var(--muted, #888077); font: 11px var(--font-mono, monospace); border-left: 2px solid rgba(82, 183, 136, .4); padding-left: 9px; }
-    [data-chat] .chat__line--announce span { display: block; width: 100%; color: rgba(240, 236, 228, .92); font: 13px var(--font-body, sans-serif); background: linear-gradient(90deg, rgba(82, 183, 136, .12), transparent); border-left: 3px solid var(--green-glow, #52b788); border-radius: 4px; padding: 6px 9px; }
-    [data-chat] .chat__line--me span { font-style: italic; color: var(--tan-light, #e0c49a); }
-    [data-chat] .chat__line--pinned span::before { content: '📌 '; }
+    [data-chat].chat {
+        position: relative;
+        padding: 14px 14px 12px;
+        border: 1px solid rgba(240, 236, 228, 0.1);
+        border-radius: 8px;
+        background: rgba(0, 0, 0, 0.3);
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        min-height: 96px;
+    }
 
+    [data-chat] .chat-tag {
+        position: absolute;
+        top: -8px;
+        left: 10px;
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-weight: 700;
+        font-size: 10px;
+        letter-spacing: 0.02em;
+        color: var(--green-glow, #52b788);
+        background: #111110;
+        padding: 0 6px;
+        max-width: calc(100% - 20px);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    [data-chat] .line { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+    [data-chat] .line.bot.special { flex-direction: column; align-items: flex-start; gap: 6px; }
+
+    [data-chat] .who {
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-weight: 700;
+        font-size: 12.5px;
+        flex: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+    [data-chat] .viewer-name { color: var(--tan-light, #e0c49a); }
+    [data-chat] .viewer-name::after,
+    [data-chat] .bot-name::after { content: ':'; color: var(--muted, #888077); font-weight: 400; }
+    [data-chat] .line.bot.me .bot-name::after { content: none; }
+    [data-chat] .line.bot.special .bot-name::after { content: none; }
+    [data-chat] .bot-name { color: var(--green-glow, #52b788); }
+    [data-chat] .bot-avatar { width: 14px; height: 14px; border-radius: 8px; }
+
+    [data-chat] .msg {
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: 13px;
+        line-height: 1.5;
+        color: var(--white, #f0ece4);
+        overflow-wrap: anywhere;
+        min-width: 0;
+    }
+    [data-chat] .line.viewer .msg { font-family: var(--font-mono, "DM Mono", monospace); color: var(--tan-light, #e0c49a); font-size: 12.5px; }
+    [data-chat] .line.viewer .msg.plain { font-family: var(--font-body, "DM Sans", sans-serif); color: var(--white, #f0ece4); font-size: 13px; }
+
+    [data-chat] .reply { animation: bb-reply-in 240ms var(--ease-out-back, ease-out) both; animation-delay: var(--reply-delay, 0ms); }
+    @keyframes bb-reply-in {
+        from { opacity: 0; transform: translateY(4px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    [data-chat] .msg mark {
+        background: rgba(82, 183, 136, 0.14);
+        color: var(--green-glow, #52b788);
+        border-radius: 8px;
+        padding: 0 3px;
+    }
+    [data-chat] .msg mark.unknown {
+        background: rgba(176, 90, 70, 0.16);
+        color: #cf8a78;
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 12px;
+    }
+    [data-chat] .msg.empty { color: var(--muted, #888077); font-style: italic; }
+
+    [data-chat] .via {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-weight: 600;
+        font-size: 10px;
+        letter-spacing: 0.02em;
+        color: var(--acc, var(--green-glow, #52b788));
+        background: color-mix(in srgb, var(--acc, var(--green-glow, #52b788)) 14%, transparent);
+        border: 1px solid color-mix(in srgb, var(--acc, var(--green-glow, #52b788)) 40%, transparent);
+        border-radius: 999px;
+        padding: 1px 7px;
+        white-space: nowrap;
+    }
+    [data-chat] .via.inline { margin-right: 2px; }
+
+    [data-chat] .announce {
+        width: 100%;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        padding: 9px 11px;
+        border-radius: 8px;
+        background: color-mix(in srgb, var(--acc) 10%, rgba(0, 0, 0, 0.25));
+        animation: bb-reply-in 240ms var(--ease-out-back, ease-out) both;
+        animation-delay: var(--reply-delay, 0ms);
+    }
+    [data-chat] .announce-head {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-weight: 700;
+        font-size: 10.5px;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        color: var(--acc);
+    }
+
+    [data-chat] .shoutout {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        padding: 7px 11px;
+        border-radius: 8px;
+        border: 1px dashed rgba(82, 183, 136, 0.4);
+        background: rgba(82, 183, 136, 0.06);
+        animation: bb-reply-in 240ms var(--ease-out-back, ease-out) both;
+        animation-delay: var(--reply-delay, 0ms);
+    }
+    [data-chat] .shoutout .reply strong { color: var(--green-glow, #52b788); }
+
+    [data-chat] .pin {
+        width: 100%;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        padding: 8px 10px;
+        border-radius: 8px;
+        border: 1px solid rgba(199, 125, 255, 0.35);
+        background: rgba(199, 125, 255, 0.07);
+        animation: bb-reply-in 240ms var(--ease-out-back, ease-out) both;
+        animation-delay: var(--reply-delay, 0ms);
+    }
+    [data-chat] .pin-head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--muted, #888077);
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-size: 10.5px;
+    }
+
+    [data-chat] .msg.action { font-style: italic; color: var(--green-glow, #52b788); }
+
+    [data-chat] .typing { display: inline-flex; gap: 4px; align-items: center; padding: 4px 0; }
+    [data-chat] .tdot {
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: var(--muted, #888077);
+        animation: bb-tbounce 900ms ease-in-out infinite;
+    }
+    [data-chat] .tdot:nth-child(2) { animation-delay: 150ms; }
+    [data-chat] .tdot:nth-child(3) { animation-delay: 300ms; }
+    @keyframes bb-tbounce {
+        0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+        30% { transform: translateY(-3px); opacity: 1; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        [data-chat] .reply,
+        [data-chat] .announce,
+        [data-chat] .shoutout,
+        [data-chat] .pin { animation: none; }
+        [data-chat] .tdot { animation: none; }
+    }
+</style>
+
+<!-- Variable cards are created client-side, so their selectors must be global
+     instead of relying on Astro's compile-time scope attributes. -->
+<style is:global>
     [data-vars] .var {
         display: grid;
         grid-template-columns: minmax(104px, auto) 1fr 25px;

@@ -187,6 +187,108 @@ const { path = '/', notes = [], caption } = Astro.props;
         margin: 0 0 2px;
     }
 
+    /* Page eyebrow + subtitle, matching the console's PageHead. */
+    .df-eyebrow {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.56rem;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--green-glow, #52b788);
+    }
+
+    .df-sub {
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: 0.72rem;
+        color: var(--muted, #888077);
+        margin: -4px 0 2px;
+    }
+
+    /* Category section label (the modules page groups tiles under these). */
+    .df-cat {
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-size: 0.76rem;
+        font-weight: 700;
+        color: var(--tan-light, #e0c49a);
+        margin: 6px 0 -2px;
+    }
+
+    /* Toolbar: filter chips + actions, like the commands page header row. */
+    .df-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+    .df-toolbar .df-spacer { flex: 1; }
+
+    /* Side-by-side list + docked inspector, the console's editing posture. */
+    .df-cols { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 12px; align-items: start; }
+    @media (max-width: 560px) { .df-cols { grid-template-columns: 1fr; } }
+
+    /* Docked inspector panel (InspectorSurface). */
+    .df-panel {
+        position: relative;
+        display: grid;
+        gap: 9px;
+        align-content: start;
+        padding: 12px;
+        border: 1px solid rgba(82, 183, 136, 0.3);
+        border-radius: 11px;
+        background: rgba(17, 17, 16, 0.9);
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+    }
+
+    .df-panel-foot {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin-top: 3px;
+        padding-top: 10px;
+        border-top: 1px solid rgba(201, 168, 124, 0.1);
+    }
+
+    /* Mini chat rehearsal strip, echoing the editor's ChatPreview. */
+    .df-chat {
+        position: relative;
+        display: grid;
+        gap: 5px;
+        margin-top: 4px;
+        padding: 10px;
+        border: 1px solid rgba(240, 236, 228, 0.1);
+        border-radius: 8px;
+        background: rgba(0, 0, 0, 0.3);
+    }
+
+    .df-chat-tag {
+        position: absolute;
+        top: -7px;
+        left: 8px;
+        padding: 0 5px;
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-weight: 700;
+        font-size: 0.52rem;
+        letter-spacing: 0.02em;
+        color: var(--green-glow, #52b788);
+        background: rgba(17, 17, 16, 1);
+    }
+
+    .df-chat p {
+        display: flex;
+        gap: 6px;
+        align-items: baseline;
+        margin: 0;
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: 0.7rem;
+        color: rgba(240, 236, 228, 0.87);
+    }
+
+    .df-chat p b { flex: none; font-weight: 700; }
+    .df-chat p b::after { content: ':'; color: var(--muted, #888077); font-weight: 400; }
+    .df-chat .df-viewer b { color: var(--tan-light, #e0c49a); }
+    .df-chat .df-viewer span { font-family: var(--font-mono, "DM Mono", monospace); color: var(--tan-light, #e0c49a); font-size: 0.66rem; }
+    .df-chat .df-bot b { color: var(--green-glow, #52b788); }
+    .df-chat mark {
+        background: rgba(82, 183, 136, 0.14);
+        color: var(--green-glow, #52b788);
+        border-radius: 6px;
+        padding: 0 3px;
+    }
+
     /* A list row (command, module tile, reward…). */
     .df-row {
         position: relative;

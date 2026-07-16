@@ -63,27 +63,30 @@ const sections = [
             </p>
             <DashFrame
                 path="/"
-                caption="Le tableau de bord, annoté."
+                caption="La page Aperçu, annotée."
                 notes={[
                     { n: 1, text: 'Commandes: créez et modifiez les !commandes que vos spectateurs tapent. La prochaine section commence ici.' },
                     { n: 2, text: 'Modules: alertes, minuteries, points de fidélité, stats de jeu… chacun avec son interrupteur.' },
-                    { n: 3, text: "L'état de votre chaîne en un coup d'œil: ce qui est actif et si le bot est dans le chat." },
+                    { n: 3, text: 'État du bot: ItsBagelBot est-il dans votre chat en ce moment.' },
+                    { n: 4, text: 'Vos commandes les plus utilisées vivent ici aussi, à un clic de la modification.' },
                 ]}
             >
                 <div class="df-app">
                     <div class="df-side">
-                        <span class="is-active">Vue d'ensemble</span>
+                        <span class="is-active">Aperçu</span>
                         <span>Commandes <i class="df-dot" style="position:static; width:16px; height:16px; font-size:0.55rem; margin-left:4px;">1</i></span>
                         <span>Modules <i class="df-dot" style="position:static; width:16px; height:16px; font-size:0.55rem; margin-left:4px;">2</i></span>
                         <span>Facturation</span>
                         <span>Paramètres</span>
                     </div>
                     <div class="df-main">
-                        <p class="df-title">Vue d'ensemble</p>
-                        <div class="df-row"><span class="df-grow">Bot connecté à #votre_chaine</span><span class="df-pill df-pill--on">dans le chat</span><i class="df-dot" style="position:static;">3</i></div>
-                        <div class="df-row"><span class="df-grow">Alertes de chat</span><span class="df-pill df-pill--on">actif</span></div>
-                        <div class="df-row"><span class="df-grow">AutoMod</span><span class="df-pill df-pill--on">actif</span></div>
-                        <div class="df-row"><span class="df-grow">Minuteries</span><span class="df-pill df-pill--off">inactif</span></div>
+                        <span class="df-eyebrow">État</span>
+                        <p class="df-title">Bonsoir, streamer</p>
+                        <div class="df-row"><span class="df-grow"><b style="color:var(--white);">En ligne · dans le chat</b> — rien ne vous attend pour l'instant</span><span class="df-pill df-pill--on">état du bot</span><i class="df-dot" style="position:static;">3</i></div>
+                        <div class="df-actions"><span class="df-btn df-btn--primary">Nouvelle commande</span><span class="df-btn df-btn--ghost">Gérer les modules</span></div>
+                        <span class="df-cat">Vos commandes favorites <i class="df-dot" style="position:static; width:16px; height:16px; font-size:0.55rem; margin-left:4px;">4</i></span>
+                        <div class="df-row"><code>!bagel</code><span class="df-grow">&#123;user&#125; lance un bagel tout chaud à &#123;target&#125;. Croustillant.</span><span class="df-pill df-pill--tan">1,2k utilisations</span></div>
+                        <div class="df-row"><code>!lurk</code><span class="df-grow">&#123;user&#125; se fond dans l'ombre. Merci pour le lurk.</span><span class="df-pill df-pill--tan">521 utilisations</span></div>
                     </div>
                 </div>
             </DashFrame>
@@ -103,18 +106,37 @@ const sections = [
             </p>
             <DashFrame
                 path="/commands"
-                caption="L'éditeur de commande avec seulement les deux champs obligatoires remplis."
+                caption="La liste des commandes avec l'éditeur amarré à côté, les deux champs obligatoires remplis."
                 notes={[
-                    { n: 1, text: 'Le nom, sans le «!» (le tableau de bord l’ajoute dans le chat). Minuscules, sans espaces.' },
-                    { n: 2, text: 'La réponse. Du texte simple suffit; le prochain guide montre les variables qui la rendent intelligente.' },
-                    { n: 3, text: 'Créer enregistre immédiatement. La commande fonctionne dans le chat dès cet instant.' },
+                    { n: 1, text: "Nouvelle commande ouvre l'éditeur, amarré à droite de votre liste." },
+                    { n: 2, text: 'Le nom, sans le «!» (le tableau de bord l’ajoute dans le chat). Minuscules, sans espaces.' },
+                    { n: 3, text: 'La réponse. Du texte simple suffit; le prochain guide montre les variables qui la rendent intelligente.' },
+                    { n: 4, text: 'Créer enregistre immédiatement. La commande fonctionne dans le chat dès cet instant.' },
                 ]}
             >
                 <div class="df-main">
-                    <p class="df-title">Nouvelle commande</p>
-                    <div class="df-field"><span>Nom</span><div class="df-input is-focus">discord<i class="df-dot" style="position:static; margin-left:auto;">1</i></div></div>
-                    <div class="df-field"><span>Réponse</span><div class="df-input">Viens jaser entre les streams → discord.gg/votre-invitation<i class="df-dot" style="position:static; margin-left:auto;">2</i></div></div>
-                    <div class="df-actions"><span class="df-btn df-btn--primary">Créer</span><span class="df-btn df-btn--ghost">Annuler</span><i class="df-dot" style="position:static;">3</i></div>
+                    <span class="df-eyebrow">Gérer</span>
+                    <p class="df-title">Commandes de chat</p>
+                    <div class="df-toolbar">
+                        <span class="df-pill df-pill--tan">Toutes</span>
+                        <span class="df-pill df-pill--off">Actives</span>
+                        <span class="df-pill df-pill--off">Personnalisées</span>
+                        <span class="df-spacer"></span>
+                        <span class="df-btn df-btn--primary">Nouvelle commande</span>
+                        <i class="df-dot" style="position:static;">1</i>
+                    </div>
+                    <div class="df-cols">
+                        <div style="display:grid; gap:8px; align-content:start;">
+                            <div class="df-row"><code>!followage</code><span class="df-grow">Intégrée · depuis quand on vous suit.</span><span class="df-pill df-pill--off">intégrée</span></div>
+                            <div class="df-row is-open"><code>!discord</code><span class="df-grow">Viens jaser entre les streams…</span><span class="df-pill df-pill--on">en édition</span></div>
+                        </div>
+                        <div class="df-panel">
+                            <p class="df-title">Nouvelle commande</p>
+                            <div class="df-field"><span>Nom</span><div class="df-input is-focus">discord<i class="df-dot" style="position:static; margin-left:auto;">2</i></div></div>
+                            <div class="df-field"><span>Réponse</span><div class="df-input">Viens jaser entre les streams → discord.gg/votre-invitation<i class="df-dot" style="position:static; margin-left:auto;">3</i></div></div>
+                            <div class="df-panel-foot"><span class="df-btn df-btn--primary">Créer</span><span class="df-btn df-btn--ghost">Annuler</span><i class="df-dot" style="position:static;">4</i></div>
+                        </div>
+                    </div>
                 </div>
             </DashFrame>
             <ChatMock
@@ -141,21 +163,27 @@ const sections = [
             </p>
             <DashFrame
                 path="/modules"
-                caption="La grille des modules. Basculez un interrupteur, cliquez une tuile pour la personnaliser."
+                caption="La page des modules: tuiles groupées par catégorie, chacune avec son interrupteur."
                 notes={[
                     { n: 1, text: 'Déjà actif: les alertes remercient follows et subs avec un message que vous pouvez réécrire.' },
                     { n: 2, text: 'À activer: les minuteries publient un message à intervalle régulier pendant le direct. Parfait pour le rappel Discord.' },
                 ]}
             >
                 <div class="df-main">
-                    <p class="df-title">Modules</p>
+                    <span class="df-eyebrow">Gérer</span>
+                    <p class="df-title">Modules de la chaîne</p>
+                    <p class="df-sub">Fonctions optionnelles pour votre chaîne. 1 sur 13 activée.</p>
+                    <span class="df-cat">Outils de chat</span>
                     <div class="df-grid">
-                        <div class="df-tile"><b>Alertes de chat</b><small>Messages de follow, sub, cheer et raid</small><span class="df-toggle is-on"></span><i class="df-dot" style="top:10px; right:10px;">1</i></div>
-                        <div class="df-tile"><b>AutoMod</b><small>Modération du chat en couches</small><span class="df-toggle is-on"></span></div>
-                        <div class="df-tile"><b>Minuteries</b><small>Messages planifiés en direct</small><span class="df-toggle"></span><i class="df-dot" style="top:10px; right:10px;">2</i></div>
-                        <div class="df-tile"><b>Points de fidélité</b><small>Points de présence et compteurs</small><span class="df-toggle"></span></div>
-                        <div class="df-tile"><b>Shoutout automatique</b><small>Accueille les raids entrants</small><span class="df-toggle"></span></div>
-                        <div class="df-tile"><b>Stats Bedwars</b><small>Stats Hypixel dans le chat</small><span class="df-toggle"></span></div>
+                        <div class="df-tile"><b>Minuteries</b><small>Publie des messages récurrents pendant le direct.</small><span class="df-toggle"></span><i class="df-dot" style="top:10px; right:10px;">2</i></div>
+                        <div class="df-tile"><b>Mots déclencheurs</b><small>Réponse automatique quand un mot apparaît dans le chat.</small><span class="df-toggle"></span></div>
+                        <div class="df-tile"><b>Heure locale</b><small>Les spectateurs demandent l'heure chez vous avec !time.</small><span class="df-toggle"></span></div>
+                    </div>
+                    <span class="df-cat">Communauté</span>
+                    <div class="df-grid">
+                        <div class="df-tile"><b>Alertes de chat</b><small>Annonce follows, subs, cheers et raids dans le chat.</small><span class="df-toggle is-on"></span><i class="df-dot" style="top:10px; right:10px;">1</i></div>
+                        <div class="df-tile"><b>Shoutout automatique</b><small>Accueille les raids entrants avec un shoutout automatique.</small><span class="df-toggle"></span></div>
+                        <div class="df-tile"><b>Points de fidélité</b><small>Les spectateurs gagnent une monnaie de chaîne.</small><span class="df-toggle"></span></div>
                     </div>
                 </div>
             </DashFrame>

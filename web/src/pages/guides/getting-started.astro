@@ -61,11 +61,12 @@ const sections = [
             </p>
             <DashFrame
                 path="/"
-                caption="The dashboard, annotated."
+                caption="The Overview page, annotated."
                 notes={[
                     { n: 1, text: 'Commands: create and edit the !commands your viewers type. The next section starts here.' },
                     { n: 2, text: 'Modules: alerts, timers, loyalty points, game stats… each with a single on/off switch.' },
-                    { n: 3, text: "Your channel's status at a glance: what's enabled and whether the bot is in chat." },
+                    { n: 3, text: 'Bot status: whether ItsBagelBot is sitting in your chat right now.' },
+                    { n: 4, text: 'Your most-used commands live here too, one click from editing.' },
                 ]}
             >
                 <div class="df-app">
@@ -77,11 +78,13 @@ const sections = [
                         <span>Settings</span>
                     </div>
                     <div class="df-main">
-                        <p class="df-title">Overview</p>
-                        <div class="df-row"><span class="df-grow">Bot connected to #your_channel</span><span class="df-pill df-pill--on">in chat</span><i class="df-dot" style="position:static;">3</i></div>
-                        <div class="df-row"><span class="df-grow">Chat Alerts</span><span class="df-pill df-pill--on">on</span></div>
-                        <div class="df-row"><span class="df-grow">AutoMod</span><span class="df-pill df-pill--on">on</span></div>
-                        <div class="df-row"><span class="df-grow">Timers</span><span class="df-pill df-pill--off">off</span></div>
+                        <span class="df-eyebrow">Status</span>
+                        <p class="df-title">Good evening, streamer</p>
+                        <div class="df-row"><span class="df-grow"><b style="color:var(--white);">Online · in chat</b> — nothing needs you right now</span><span class="df-pill df-pill--on">bot status</span><i class="df-dot" style="position:static;">3</i></div>
+                        <div class="df-actions"><span class="df-btn df-btn--primary">New command</span><span class="df-btn df-btn--ghost">Manage modules</span></div>
+                        <span class="df-cat">Your top commands <i class="df-dot" style="position:static; width:16px; height:16px; font-size:0.55rem; margin-left:4px;">4</i></span>
+                        <div class="df-row"><code>!bagel</code><span class="df-grow">&#123;user&#125; tosses a warm bagel to &#123;target&#125;. Toasty.</span><span class="df-pill df-pill--tan">1.2k uses</span></div>
+                        <div class="df-row"><code>!lurk</code><span class="df-grow">&#123;user&#125; fades into the shadows. Thanks for the lurk.</span><span class="df-pill df-pill--tan">521 uses</span></div>
                     </div>
                 </div>
             </DashFrame>
@@ -100,18 +103,37 @@ const sections = [
             </p>
             <DashFrame
                 path="/commands"
-                caption="The command editor with just the two required fields filled in."
+                caption="The commands list with the editor docked beside it, two required fields filled in."
                 notes={[
-                    { n: 1, text: 'The name, without the “!” (the dashboard adds it in chat). Lowercase, no spaces.' },
-                    { n: 2, text: 'The response. Plain text is fine; the next guide shows the variables that make it smart.' },
-                    { n: 3, text: 'Create saves it instantly. The command works in chat from this moment.' },
+                    { n: 1, text: 'New command opens the editor, docked on the right of your list.' },
+                    { n: 2, text: 'The name, without the “!” (the dashboard adds it in chat). Lowercase, no spaces.' },
+                    { n: 3, text: 'The response. Plain text is fine; the next guide shows the variables that make it smart.' },
+                    { n: 4, text: 'Create saves it instantly. The command works in chat from this moment.' },
                 ]}
             >
                 <div class="df-main">
-                    <p class="df-title">New command</p>
-                    <div class="df-field"><span>Name</span><div class="df-input is-focus">discord<i class="df-dot" style="position:static; margin-left:auto;">1</i></div></div>
-                    <div class="df-field"><span>Response</span><div class="df-input">Come hang out between streams → discord.gg/your-invite<i class="df-dot" style="position:static; margin-left:auto;">2</i></div></div>
-                    <div class="df-actions"><span class="df-btn df-btn--primary">Create</span><span class="df-btn df-btn--ghost">Cancel</span><i class="df-dot" style="position:static;">3</i></div>
+                    <span class="df-eyebrow">Manage</span>
+                    <p class="df-title">Chat commands</p>
+                    <div class="df-toolbar">
+                        <span class="df-pill df-pill--tan">All</span>
+                        <span class="df-pill df-pill--off">Active</span>
+                        <span class="df-pill df-pill--off">Custom</span>
+                        <span class="df-spacer"></span>
+                        <span class="df-btn df-btn--primary">New command</span>
+                        <i class="df-dot" style="position:static;">1</i>
+                    </div>
+                    <div class="df-cols">
+                        <div style="display:grid; gap:8px; align-content:start;">
+                            <div class="df-row"><code>!followage</code><span class="df-grow">Built-in · how long a viewer has followed.</span><span class="df-pill df-pill--off">built-in</span></div>
+                            <div class="df-row is-open"><code>!discord</code><span class="df-grow">Come hang out between streams…</span><span class="df-pill df-pill--on">editing</span></div>
+                        </div>
+                        <div class="df-panel">
+                            <p class="df-title">New command</p>
+                            <div class="df-field"><span>Name</span><div class="df-input is-focus">discord<i class="df-dot" style="position:static; margin-left:auto;">2</i></div></div>
+                            <div class="df-field"><span>Response</span><div class="df-input">Come hang out between streams → discord.gg/your-invite<i class="df-dot" style="position:static; margin-left:auto;">3</i></div></div>
+                            <div class="df-panel-foot"><span class="df-btn df-btn--primary">Create</span><span class="df-btn df-btn--ghost">Cancel</span><i class="df-dot" style="position:static;">4</i></div>
+                        </div>
+                    </div>
                 </div>
             </DashFrame>
             <ChatMock
@@ -138,21 +160,27 @@ const sections = [
             </p>
             <DashFrame
                 path="/modules"
-                caption="The modules grid. Flip a switch, click a tile to make it yours."
+                caption="The modules page: tiles grouped by category, each with its switch."
                 notes={[
                     { n: 1, text: 'Already on: alerts thank followers and subs with a message you can rewrite.' },
                     { n: 2, text: "Opt-in: timers post a message on a schedule while you're live. Great for the Discord plug." },
                 ]}
             >
                 <div class="df-main">
-                    <p class="df-title">Modules</p>
+                    <span class="df-eyebrow">Manage</span>
+                    <p class="df-title">Channel modules</p>
+                    <p class="df-sub">Optional features for your channel. 1 of 13 enabled.</p>
+                    <span class="df-cat">Chat Tools</span>
                     <div class="df-grid">
-                        <div class="df-tile"><b>Chat Alerts</b><small>Follow, sub, cheer & raid messages</small><span class="df-toggle is-on"></span><i class="df-dot" style="top:10px; right:10px;">1</i></div>
-                        <div class="df-tile"><b>AutoMod</b><small>Layered chat moderation</small><span class="df-toggle is-on"></span></div>
-                        <div class="df-tile"><b>Timers</b><small>Scheduled messages while live</small><span class="df-toggle"></span><i class="df-dot" style="top:10px; right:10px;">2</i></div>
-                        <div class="df-tile"><b>Loyalty Points</b><small>Watch-time points & counters</small><span class="df-toggle"></span></div>
-                        <div class="df-tile"><b>Auto Shoutout</b><small>Greets incoming raids</small><span class="df-toggle"></span></div>
-                        <div class="df-tile"><b>Bedwars Stats</b><small>Hypixel stats in chat</small><span class="df-toggle"></span></div>
+                        <div class="df-tile"><b>Timers</b><small>Post repeating chat messages on a schedule while you are live.</small><span class="df-toggle"></span><i class="df-dot" style="top:10px; right:10px;">2</i></div>
+                        <div class="df-tile"><b>Trigger Words</b><small>Auto-reply when a word shows up in chat.</small><span class="df-toggle"></span></div>
+                        <div class="df-tile"><b>Local Time</b><small>Viewers ask what time it is for you with !time.</small><span class="df-toggle"></span></div>
+                    </div>
+                    <span class="df-cat">Community</span>
+                    <div class="df-grid">
+                        <div class="df-tile"><b>Chat Alerts</b><small>Announce follows, subs, cheers and raids in chat.</small><span class="df-toggle is-on"></span><i class="df-dot" style="top:10px; right:10px;">1</i></div>
+                        <div class="df-tile"><b>Auto Shoutout</b><small>Welcome incoming raids with an automatic shoutout.</small><span class="df-toggle"></span></div>
+                        <div class="df-tile"><b>Loyalty Points</b><small>Viewers earn channel currency for subs, cheers and watch time.</small><span class="df-toggle"></span></div>
                     </div>
                 </div>
             </DashFrame>

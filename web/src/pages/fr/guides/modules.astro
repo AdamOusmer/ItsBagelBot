@@ -43,18 +43,27 @@ const sections = [
             </p>
             <DashFrame
                 path="/modules"
-                caption="Tuile = fonction. Interrupteur = actif/inactif. Cliquez pour les réglages et les messages."
+                caption="Tuile = fonction, groupée par catégorie. Interrupteur = actif/inactif. Configurer ouvre sa page."
                 notes={[
                     { n: 1, text: "L'interrupteur rapide. Inactif = module totalement silencieux, réglages conservés pour plus tard." },
-                    { n: 2, text: 'La tuile ouvre la page du module, où vivent ses phrases de chat et ses options.' },
+                    { n: 2, text: 'Configurer ouvre la page du module, où vivent ses phrases de chat et ses options.' },
                 ]}
             >
                 <div class="df-main">
-                    <p class="df-title">Modules</p>
+                    <span class="df-eyebrow">Gérer</span>
+                    <p class="df-title">Modules de la chaîne</p>
+                    <p class="df-sub">Fonctions optionnelles pour votre chaîne. 2 sur 13 activées.</p>
+                    <span class="df-cat">Communauté</span>
                     <div class="df-grid">
-                        <div class="df-tile"><b>Alertes de chat</b><small>Messages de follow, sub, cheer et raid</small><span class="df-toggle is-on"></span><i class="df-dot" style="top:10px; right:10px;">1</i></div>
-                        <div class="df-tile is-open"><b>Points de fidélité</b><small>Points de présence et compteurs</small><span class="df-toggle is-on"></span><i class="df-dot" style="top:10px; right:10px;">2</i></div>
-                        <div class="df-tile"><b>File d'attente</b><small>Les parties avec les viewers, en ordre</small><span class="df-toggle"></span></div>
+                        <div class="df-tile"><b>Alertes de chat</b><small>Annonce follows, subs, cheers et raids dans le chat.</small><div class="df-actions"><span class="df-btn df-btn--ghost">Configurer</span><span class="df-toggle is-on"></span></div><i class="df-dot" style="top:10px; right:10px;">1</i></div>
+                        <div class="df-tile is-open"><b>Points de fidélité</b><small>Les spectateurs gagnent une monnaie de chaîne.</small><div class="df-actions"><span class="df-btn df-btn--ghost">Configurer</span><span class="df-toggle is-on"></span></div><i class="df-dot" style="top:10px; right:10px;">2</i></div>
+                        <div class="df-tile"><b>File d'attente</b><small>Les spectateurs font la file pour jouer avec vous.</small><div class="df-actions"><span class="df-btn df-btn--ghost">Configurer</span><span class="df-toggle"></span></div></div>
+                    </div>
+                    <span class="df-cat">Jeux</span>
+                    <div class="df-grid">
+                        <div class="df-tile"><b>Stats Bedwars</b><small>Stats Hypixel Bedwars, score urchin et tags dans le chat.</small><div class="df-actions"><span class="df-btn df-btn--ghost">Configurer</span><span class="df-toggle"></span></div></div>
+                        <div class="df-tile"><b>MCSR Ranked</b><small>Elo classé et stats de session pour les runners MCSR.</small><div class="df-actions"><span class="df-btn df-btn--ghost">Configurer</span><span class="df-toggle"></span></div></div>
+                        <div class="df-tile"><b>Stats Fortnite</b><small>Stats Fortnite BR et boutique du jour dans le chat.</small><div class="df-actions"><span class="df-btn df-btn--ghost">Configurer</span><span class="df-toggle"></span></div></div>
                     </div>
                 </div>
             </DashFrame>
