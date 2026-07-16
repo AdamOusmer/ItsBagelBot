@@ -56,7 +56,7 @@ Acceptance gates:
 
 - the hub endpoint negotiates verified TLS 1.2 or newer;
 - all messages receive PubAcks and the error count is zero;
-- under-load PubAck p95 remains at or below 20 ms and p99 at or below 50 ms;
+- under-load PubAck p95 remains at or below 20 ms and p99 at or below 2 ms;
 - reconnect, disconnect, asynchronous-error, and timeout counts remain zero;
 - no slow-consumer or quorum-loss messages appear in NATS logs.
 
@@ -73,6 +73,34 @@ memory-backed stream rated for 120,000 events/second and operated at 90,000
 events/second (75%). It uses 1 GiB/5 minute retention, 400,000 messages per
 subject, six publisher connections, 16,384 PubAcks per async window, and at
 most 24 atomic batches in flight across the fleet.
+
+This target is **not qualified on the current node2/node3/worker1 topology**.
+The 2026-07-16 isolated NATS 2.14.3 matrix (native TLS, one broker and one
+publisher pod per node, R3 memory stream, realistic 256-byte varied payloads,
+official Orbit Fast-Ingest) found:
+
+- forced `s2_fast`, node-local clients, flow 1000 / 8 outstanding is the
+  throughput winner: about 75,000 events/s, zero final lag, no reconnects;
+- enabling Tailscale's documented underlay UDP GRO forwarding and using
+  byte-only rolling retention held the same throughput while reducing worst
+  p99 to 118.834 ms and peak follower lag to 226;
+- flow 128 / 4 outstanding reduced worst p99 to 80.559 ms and peak lag to 82,
+  but throughput fell to 64,191 events/s;
+- `s2_better` reached 69,636 events/s; `s2_best` could not finish the offered
+  load before the bounded deadline;
+- `s2_auto` left the low-RTT node2/node3 route uncompressed, accumulated a
+  275 MB slow-consumer write, reconnected, peaked at 351,187 follower lag, and
+  reached only 70,008 events/s;
+- sending every publisher directly to the preferred leader reached only
+  60,560 events/s; node-local clients remain faster.
+
+Therefore neither the 90,000 events/s operating gate nor the 5 ms fleet PubAck
+p99 gate is a configuration-only outcome for one R3 stream on these three
+nodes. Do not promote this target contract based on the R1-era ~86k result: R1
+does not pay R3 quorum replication. The next capacity step requires a second
+stream/subject partition, a wired replacement for worker1, or another
+same-datacenter voter. Raw isolated artifacts are retained under
+`/tmp/nats-r3-isolated-2026071610*` on the qualification workstation.
 
 `r3-120k.sh` is intentionally not part of the Kubernetes kustomization. Without
 the exact confirmation token it only prints the plan and exits. With the token,
@@ -106,7 +134,7 @@ The sequence is:
 5. Offer exactly 90,000 events/second for fifteen minutes as the 75% operating
    soak and require at least 89,100 acknowledged events/second (99% delivery
    cadence, with all messages still acknowledged).
-6. Require zero message/connection errors, p95 <= 20 ms, p99 <= 50 ms, no
+6. Require zero message/connection errors, p95 <= 20 ms, p99 <= 2 ms, no
    stream-leader election advisory during load, all three peers current,
    follower lag returned to zero, and no queue, slow-consumer, write-deadline,
    or quorum error in NATS logs.
@@ -140,7 +168,11 @@ and a zero-load cooldown. The circuit breaker requires:
   Valkey PING/master-SET/node-local-GET convergence measurements on every lane.
   Ordinary RPC and Valkey samples keep a 250 ms ceiling. The heavier read-only
   shard snapshot uses a separate 500 ms ceiling and is still included in the
-  reported p95, p99, and maximum latency.
+  reported p95, p99, and maximum latency. Each lane separately enforces the
+  historical RPC p99 of 8 ms after 330 samples, over a rolling nearest-rank
+  window of the latest 1,100 RPC requests; that is independent of the 2 ms
+  JetStream PubAck p99 gate. All three RPC windows must be armed and passing
+  before the first temporary stream is created or any benchmark load begins.
 
 On a lost exec stream or safety-monitor failure, the three publisher pods are
 deleted and confirmed gone before the separately credentialed controller
@@ -195,6 +227,19 @@ cleanup, preventing orphaned remote processes. Stream deletion
 is verified and retried; failure to confirm cleanup aborts the matrix. Raw node,
 topology, cleanup, and summary JSON stays in
 `/tmp/nats-r3-results-<run-id>` (or `R3_RESULTS_DIR`) for audit.
+
+To qualify the node-local RPC health round-trip and Valkey paths without
+creating a JetStream stream or any publisher pod, run the guarded SLI-only
+mode. It warms all three lanes until the 330-sample RPC p99 gate is armed,
+writes `sli-summary.json`, and then verifies cleanup:
+
+```sh
+CONFIRM_R3_SHADOW=R3-120K R3_SLI_ONLY=true \
+  deploy/k8s/nats-live-acceptance/r3-120k.sh
+```
+
+This mode needs `console-admin-env` and the existing Valkey credential only;
+it does not need the temporary JetStream setup Secret.
 
 ## Direct leaf RPC test
 

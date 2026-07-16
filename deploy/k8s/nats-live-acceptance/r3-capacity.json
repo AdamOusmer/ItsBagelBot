@@ -31,7 +31,9 @@
   "calibration_duration": "10s",
   "latency_samples_per_second": 20,
   "puback_p95_max": "20ms",
-  "puback_p99_max": "50ms",
+  "puback_p99_max": "2ms",
+  "rpc_p99_max": "8ms",
+  "rpc_p99_min_samples": 330,
   "max_ack_gap": "2s",
   "ceiling_duration": "5m",
   "operating_duration": "15m"

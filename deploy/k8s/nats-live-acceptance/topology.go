@@ -44,7 +44,9 @@ type topologyReport struct {
 }
 
 type topologyObserver struct {
-	report topologyReport
+	report         topologyReport
+	unhealthyGrace time.Duration
+	unhealthySince map[string]time.Time
 }
 
 type topologyMonitor struct {
@@ -99,7 +101,10 @@ func newTopologyMonitor(cfg config, setup client, report topologyReport) (*topol
 	}
 	return &topologyMonitor{
 		cfg: cfg, setup: setup, stream: stream, advisories: advisories,
-		observer: topologyObserver{report: report},
+		observer: topologyObserver{
+			report: report, unhealthyGrace: cfg.topologyGrace,
+			unhealthySince: make(map[string]time.Time),
+		},
 	}, nil
 }
 
@@ -269,10 +274,10 @@ func prepareTopology(cfg config, nc *nats.Conn, stream jsapi.Stream) error {
 	if err != nil {
 		return err
 	}
-	if forbiddenLeaderActive(info, cfg.forbiddenLeader) {
-		if cfg.preferredLeader == "" {
-			return fmt.Errorf("forbidden server %s leads and no preferred leader was provided", cfg.forbiddenLeader)
-		}
+	if cfg.preferredLeader == "" && forbiddenLeaderActive(info, cfg.forbiddenLeader) {
+		return fmt.Errorf("forbidden server %s leads and no preferred leader was provided", cfg.forbiddenLeader)
+	}
+	if !preferredLeaderActive(info, cfg.preferredLeader) {
 		if err := requestLeaderStepdown(cfg, nc); err != nil {
 			return err
 		}
@@ -292,6 +297,13 @@ func forbiddenLeaderActive(info *jsapi.StreamInfo, forbidden string) bool {
 		return false
 	}
 	return info.Cluster.Leader == forbidden
+}
+
+func preferredLeaderActive(info *jsapi.StreamInfo, preferred string) bool {
+	if preferred == "" {
+		return true
+	}
+	return info != nil && info.Cluster != nil && info.Cluster.Leader == preferred
 }
 
 func requestLeaderStepdown(cfg config, nc *nats.Conn) error {
@@ -339,7 +351,8 @@ func waitForTopologyReady(cfg config, stream jsapi.Stream) (*jsapi.StreamInfo, e
 		info, err := streamInfo(stream, cfg.ackTimeout)
 		if err == nil {
 			last = info
-			if topologyReady(info, cfg.requiredPeers, cfg.forbiddenLeader) {
+			if topologyReady(info, cfg.requiredPeers, cfg.forbiddenLeader) &&
+				preferredLeaderActive(info, cfg.preferredLeader) {
 				return info, nil
 			}
 		}
@@ -464,20 +477,38 @@ func (o *topologyObserver) observe(info *jsapi.StreamInfo) error {
 	if err := o.rejectForbiddenLeader(leader); err != nil {
 		return err
 	}
-	if err := rejectUnhealthyFollowers(cluster.Replicas); err != nil {
+	if err := o.rejectUnhealthyFollowers(cluster.Replicas, time.Now()); err != nil {
 		return err
 	}
 	o.recordPeakFollowerLag(cluster.Replicas)
 	return nil
 }
 
-func rejectUnhealthyFollowers(peers []*jsapi.PeerInfo) error {
+func (o *topologyObserver) rejectUnhealthyFollowers(peers []*jsapi.PeerInfo, observedAt time.Time) error {
+	if o.unhealthySince == nil {
+		o.unhealthySince = make(map[string]time.Time)
+	}
 	for _, peer := range peers {
 		if peer == nil {
 			return errors.New("stream topology contains an empty follower")
 		}
-		if peer.Offline || !peer.Current {
+		if peer.Offline {
 			return fmt.Errorf("stream follower %s became unhealthy: current=%t offline=%t", peer.Name, peer.Current, peer.Offline)
+		}
+		if peer.Current {
+			delete(o.unhealthySince, peer.Name)
+			continue
+		}
+		since, seen := o.unhealthySince[peer.Name]
+		if !seen {
+			o.unhealthySince[peer.Name] = observedAt
+			since = observedAt
+		}
+		if o.unhealthyGrace <= 0 || observedAt.Sub(since) >= o.unhealthyGrace {
+			return fmt.Errorf(
+				"stream follower %s became unhealthy after remaining non-current for %s (grace %s)",
+				peer.Name, observedAt.Sub(since), o.unhealthyGrace,
+			)
 		}
 	}
 	return nil

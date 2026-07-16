@@ -12,9 +12,11 @@ R3 shadow plan (no actions performed):
   - keep the NATS server on worker1 as a current follower, never leader
   - calibrate async, official atomic, and official Fast-Ingest modes
   - cap calibration at 120,000/s; every generator pod is limited to one CPU
-  - abort if any production Deployment loses availability or a NATS pod
-    becomes unready, restarts, reconnects, or changes identity
-  - gate 120,000 events/s at a 126,000/s offered load for five minutes
+	  - abort if any production Deployment loses availability or a NATS pod
+	    becomes unready, restarts, reconnects, or changes identity
+	  - R3_SLI_ONLY=true measures the three node-local RPC/Valkey lanes without
+	    creating a stream or publisher pod
+	  - gate 120,000 events/s at a 126,000/s offered load for five minutes
   - soak the 90,000 events/s operating point for fifteen minutes
   - delete the owned shadow stream and every temporary pod on exit
 
@@ -38,6 +40,7 @@ image=${BENCH_IMAGE:-alpine:3.22}
 setup_secret=${NATS_BENCH_SETUP_SECRET:-nats-bench-setup}
 publisher_secret=${NATS_BENCH_PUBLISHER_SECRET:-sesame-env}
 admin_rpc_secret=${NATS_BENCH_ADMIN_RPC_SECRET:-console-admin-env}
+priority_class=${R3_BENCH_PRIORITY_CLASS:-nats-r3-bench-nonpreempting}
 shadow_stream=$(jq -er '.stream' "$profile")
 run_id=$(date -u +%Y%m%d%H%M%S)-$(printf '%05d' "$RANDOM")
 test_started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -71,8 +74,8 @@ window=$(jq -er '.window_per_publisher' "$profile")
 payload_bytes=$(jq -er '.payload_bytes' "$profile")
 payload_variants=$(jq -er '.payload_variants' "$profile")
 atomic_inflight=$(jq -er '.atomic_inflight_per_connection' "$profile")
-max_p95_ms=$(jq -er '.puback_p95_max | rtrimstr("ms") | tonumber' "$profile")
-max_p99_ms=$(jq -er '.puback_p99_max | rtrimstr("ms") | tonumber' "$profile")
+max_p95_ms=${R3_PUBACK_P95_MAX_MS:-$(jq -er '.puback_p95_max | rtrimstr("ms") | tonumber' "$profile")}
+max_p99_ms=${R3_PUBACK_P99_MAX_MS:-$(jq -er '.puback_p99_max | rtrimstr("ms") | tonumber' "$profile")}
 max_ack_gap=$(jq -er '.max_ack_gap' "$profile")
 
 calibration_messages=${CALIBRATION_MESSAGES:-$(jq -er '.calibration_messages' "$profile")}
@@ -94,6 +97,18 @@ sli_duration=${R3_SLI_DURATION:-3h}
 sli_interval=${R3_SLI_INTERVAL:-5s}
 sli_max_rtt=${R3_SLI_MAX_RTT:-250ms}
 sli_ingress_max_rtt=${R3_SLI_INGRESS_MAX_RTT:-500ms}
+sli_rpc_p99_max=${R3_SLI_RPC_P99_MAX:-$(jq -er '.rpc_p99_max' "$profile")}
+sli_rpc_p99_min_samples=${R3_SLI_RPC_P99_MIN_SAMPLES:-$(jq -er '.rpc_p99_min_samples' "$profile")}
+sli_only=${R3_SLI_ONLY:-false}
+quick_throughput=${R3_QUICK_THROUGHPUT:-false}
+quick_seconds=${R3_QUICK_SECONDS:-30}
+fast_sustain_only=${R3_FAST_SUSTAIN_ONLY:-false}
+fast_sustain_eps=${R3_FAST_SUSTAIN_EPS:-90000}
+fast_sustain_min_eps=${R3_FAST_SUSTAIN_MIN_EPS:-89100}
+fast_sustain_seconds=${R3_FAST_SUSTAIN_SECONDS:-300}
+fast_sustain_batch=${R3_FAST_SUSTAIN_BATCH:-1000}
+fast_sustain_outstanding=${R3_FAST_SUSTAIN_OUTSTANDING:-8}
+topology_unhealthy_grace=${R3_TOPOLOGY_UNHEALTHY_GRACE:-0s}
 pod_lifetime_seconds=
 canary_rate_values=()
 
@@ -147,10 +162,31 @@ duration_seconds() {
 
 configure_run_lifetime_and_canaries() {
 	local value sli_seconds atomic_modes fast_flows fast_outstanding i
-	local calibration_trials total_trials estimated_load_seconds estimated_total_seconds
+	local calibration_trials total_trials estimated_load_seconds estimated_total_seconds mode_count=0
 	local expected_canaries=(12000 30000 60000 90000)
+	if [[ $sli_only != true && $sli_only != false ]]; then
+		echo "R3_SLI_ONLY must be true or false" >&2
+		return 1
+	fi
+	if [[ $quick_throughput != true && $quick_throughput != false ]]; then
+		echo "R3_QUICK_THROUGHPUT must be true or false" >&2
+		return 1
+	fi
+	if [[ $fast_sustain_only != true && $fast_sustain_only != false ]]; then
+		echo "R3_FAST_SUSTAIN_ONLY must be true or false" >&2
+		return 1
+	fi
+	[[ $sli_only == true ]] && ((mode_count += 1))
+	[[ $quick_throughput == true ]] && ((mode_count += 1))
+	[[ $fast_sustain_only == true ]] && ((mode_count += 1))
+	if ((mode_count > 1)); then
+		echo "R3_SLI_ONLY, R3_QUICK_THROUGHPUT, and R3_FAST_SUSTAIN_ONLY are mutually exclusive" >&2
+		return 1
+	fi
 	for value in "$calibration_seconds" "$ceiling_seconds" "$operating_seconds" \
-		"$meta_cooldown_seconds" "$canary_seconds" "$health_freshness_seconds"; do
+		"$meta_cooldown_seconds" "$canary_seconds" "$health_freshness_seconds" "$quick_seconds" \
+		"$fast_sustain_eps" "$fast_sustain_min_eps" "$fast_sustain_seconds" \
+		"$fast_sustain_batch" "$fast_sustain_outstanding"; do
 		if ! positive_integer "$value"; then
 			echo "benchmark durations and cooldowns must be positive integer seconds" >&2
 			return 1
@@ -190,6 +226,41 @@ configure_run_lifetime_and_canaries() {
 		estimated_total_seconds=$sli_seconds
 	fi
 	pod_lifetime_seconds=$((estimated_total_seconds + 1800))
+}
+
+write_sli_summary() {
+	local i node_summary
+	local node_summaries=()
+	for i in "${!nodes[@]}"; do
+		node_summary="$results_dir/sli-summary-${nodes[$i]}.json"
+		jq -e -s --arg node "${nodes[$i]}" '
+			def percentile($values; $rank):
+				($values | sort) as $ordered |
+				$ordered[((($ordered | length) * $rank) | ceil) - 1];
+			def distribution($values): {
+				min: ($values | min),
+				p50: percentile($values; 0.50),
+				p95: percentile($values; 0.95),
+				p99: percentile($values; 0.99),
+				max: ($values | max)
+			};
+			[.[] | .rpc[] | .rtt_ms] as $rpc |
+			[.[] | .ingress.rtt_ms] as $ingress |
+			[.[] | .valkey | .ping_rtt_ms, .set_rtt_ms, .get_rtt_ms] as $valkey |
+			select(length > 0 and ($rpc | length) > 0) | {
+				node: $node,
+				cycles: length,
+				rpc_samples: ($rpc | length),
+				rpc_health_round_trip_ms: distribution($rpc),
+				ingress_snapshot_ms: distribution($ingress),
+				valkey_operation_ms: distribution($valkey),
+				passed: ([.[] | .passed] | all)
+			}
+		' "${sli_monitor_files[$i]}" >"$node_summary"
+		node_summaries+=("$node_summary")
+	done
+	jq -e -s '.' "${node_summaries[@]}" >"$results_dir/sli-summary.json"
+	jq . "$results_dir/sli-summary.json"
 }
 
 setup_exec() {
@@ -376,8 +447,9 @@ create_pod() {
 	    --arg pod "$pod" --arg node "$node" --arg image "$image" \
 	    --arg setup_secret "$setup_secret" --arg publisher_secret "$publisher_secret" \
 		--arg admin_rpc_secret "$admin_rpc_secret" \
+		--arg priority_class "$priority_class" \
 		--arg role "$role" --arg pod_lifetime "$pod_lifetime_seconds" \
-		'{spec:{nodeSelector:{"kubernetes.io/hostname":$node},restartPolicy:"Never",automountServiceAccountToken:false,
+		'{spec:{nodeSelector:{"kubernetes.io/hostname":$node},restartPolicy:"Never",priorityClassName:$priority_class,automountServiceAccountToken:false,
 		tolerations:[{key:"itsbagelbot.dev/pool",operator:"Equal",value:"worker-pool",effect:"NoSchedule"}],
 		containers:[{
 	  name:$pod,image:$image,command:["sleep",$pod_lifetime],
@@ -400,7 +472,7 @@ create_pod() {
 	  ] end)),
       volumeMounts:[{name:"fleet-ca",mountPath:"/etc/nats-ca",readOnly:true}],
 	  resources:(if $role == "publisher" then
-		{requests:{cpu:"500m",memory:"256Mi"},limits:{cpu:"1",memory:"1Gi"}}
+		{requests:{cpu:"100m",memory:"256Mi"},limits:{cpu:"1",memory:"1Gi"}}
 	  else
 		{requests:{cpu:"25m",memory:"64Mi"},limits:{cpu:"250m",memory:"256Mi"}}
 	  end),
@@ -843,6 +915,8 @@ start_sli_monitors() {
 			-sli-only=true -duration="$sli_duration" -interval="$sli_interval" \
 			-timeout=2s -max-rtt="$sli_max_rtt" \
 			-ingress-max-rtt="$sli_ingress_max_rtt" \
+			-rpc-p99-max="$sli_rpc_p99_max" \
+			-rpc-p99-min-samples="$sli_rpc_p99_min_samples" \
 			-producer-id="r3-shadow-sli-${nodes[$i]}" \
 			-key="acceptance:sli:${run_id}:${nodes[$i]}" \
 			>"${sli_monitor_files[$i]}" 2>"${sli_monitor_errs[$i]}" &
@@ -852,10 +926,11 @@ start_sli_monitors() {
 }
 
 wait_for_sli_lane_ready() {
-	local i=$1 deadline=$((SECONDS + 90))
+	local i=$1 deadline=$((SECONDS + 300))
 	while :; do
-		if [[ -s ${sli_monitor_files[$i]} ]] && jq -e -s '
-			length > 0 and .[0].passed == true and
+		if [[ -s ${sli_monitor_files[$i]} ]] && jq -e -s \
+			--argjson min "$sli_rpc_p99_min_samples" '
+			length > 0 and .[-1].rpc_p99_samples >= $min and
 			([.[] | select(.passed == false)] | length) == 0
 		' "${sli_monitor_files[$i]}" >/dev/null 2>&1; then
 			: >"${sli_monitor_ready_files[$i]}"
@@ -867,7 +942,7 @@ wait_for_sli_lane_ready() {
 			return 1
 		fi
 		if ((SECONDS >= deadline)); then
-			echo "${nodes[$i]} local RPC/Valkey SLI did not pass its first sample within 90s" >&2
+			echo "${nodes[$i]} local RPC/Valkey SLI did not arm the RPC p99 gate within 300s" >&2
 			return 1
 		fi
 		sleep 0.2
@@ -1192,12 +1267,13 @@ run_trial() {
 	ack_gap="$max_ack_gap"
 	if [[ $mode == fast ]]; then ack_gap=0s; fi
 
-  setup_exec /tmp/nats-live-acceptance \
+	setup_exec /tmp/nats-live-acceptance \
     -hub-url="$leader_url" -domain= -replicas=3 -required-peers=3 \
     -stream "$current_stream" -subject "$current_subject" \
-    -create-stream=false -cleanup=false -topology-only=true \
-    -preferred-leader="$preferred_server" -forbidden-leader="$forbidden_server" \
-    -start-at-unix-ms="$start_ms" -topology-duration="${monitor_seconds}s" \
+	    -create-stream=false -cleanup=false -topology-only=true \
+	    -preferred-leader="$preferred_server" -forbidden-leader="$forbidden_server" \
+	    -topology-unhealthy-grace="$topology_unhealthy_grace" \
+	    -start-at-unix-ms="$start_ms" -topology-duration="${monitor_seconds}s" \
     >"$topology_file" 2>"$topology_err" &
 	local topology_pid=$!
 	active_pids=("$topology_pid")
@@ -1320,15 +1396,24 @@ fi
 configure_run_lifetime_and_canaries
 echo "run-owned pod lifetime: ${pod_lifetime_seconds}s"
 
+if ! kubectl get priorityclass "$priority_class" -o json 2>/dev/null | jq -e '
+	.preemptionPolicy == "Never" and (.globalDefault // false) == false and .value <= 0
+' >/dev/null; then
+	echo "R3 benchmark priority class $priority_class must exist with value <= 0 and preemptionPolicy Never" >&2
+	exit 1
+fi
+
 echo "building static NATS 2.14 acceptance binary (no Docker invocation)"
 GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o "$binary" ./deploy/k8s/nats-live-acceptance
 
-if ! kubectl -n "$namespace" get secret "$setup_secret" >/dev/null 2>&1; then
-  echo "missing temporary JetStream setup secret $setup_secret (see README.md)" >&2
-  exit 1
+if [[ $sli_only != true ]]; then
+	if ! kubectl -n "$namespace" get secret "$setup_secret" >/dev/null 2>&1; then
+		echo "missing temporary JetStream setup secret $setup_secret (see README.md)" >&2
+		exit 1
+	fi
 fi
 if ! kubectl -n "$namespace" get secret "$publisher_secret" >/dev/null 2>&1; then
-	echo "missing publisher credential Secret $publisher_secret" >&2
+	echo "missing publisher/Valkey credential Secret $publisher_secret" >&2
 	exit 1
 fi
 if ! kubectl -n "$namespace" get secret "$admin_rpc_secret" >/dev/null 2>&1; then
@@ -1346,17 +1431,21 @@ capture_health_baseline
 		exit 1
 	fi
 
-control_pod_created=true
-create_pod "$control_pod" node3 control
 sli_pods_created=true
 for i in "${!nodes[@]}"; do
 	create_pod "${sli_pods[$i]}" "${nodes[$i]}" sli
 done
-publisher_pods_created=true
-for i in "${!nodes[@]}"; do
-	create_pod "${pods[$i]}" "${nodes[$i]}" publisher
-done
-for pod in "${all_pods[@]}"; do
+run_pods=("${sli_pods[@]}")
+if [[ $sli_only != true ]]; then
+	control_pod_created=true
+	create_pod "$control_pod" node3 control
+	publisher_pods_created=true
+	for i in "${!nodes[@]}"; do
+		create_pod "${pods[$i]}" "${nodes[$i]}" publisher
+	done
+	run_pods+=("$control_pod" "${pods[@]}")
+fi
+for pod in "${run_pods[@]}"; do
   kubectl -n "$namespace" wait --for=condition=Ready "pod/$pod" --timeout=120s >/dev/null
   kubectl -n "$namespace" cp "$binary" "$pod:/tmp/nats-live-acceptance"
 	assert_monitor_alive "$health_monitor_pid" production-health
@@ -1368,6 +1457,28 @@ if ! wait_for_sli_ready; then
 fi
 assert_safety_monitors
 wait_for_meta_idle before-first-stream "$health_monitor_file"
+if [[ $sli_only == true ]]; then
+	write_sli_summary
+	stop_sli_monitors
+	stop_health_monitor
+	echo "RPC/Valkey SLI-only qualification passed; no stream or publisher pod was created"
+	exit 0
+fi
+
+if [[ $fast_sustain_only == true ]]; then
+	fast_sustain_messages=$((fast_sustain_eps * fast_sustain_seconds))
+	run_trial "fast-sustain-${fast_sustain_eps}" fast "$fast_sustain_batch" \
+		"$fast_sustain_outstanding" "$fast_sustain_eps" "$fast_sustain_messages" \
+		"$fast_sustain_seconds" "$fast_sustain_min_eps" false
+	check_nats_logs
+	assert_safety_monitors
+	wait_for_meta_idle fast-sustain-final "$health_monitor_file"
+	stop_sli_monitors
+	stop_health_monitor
+	jq . "$results_dir/summary-fast-sustain-${fast_sustain_eps}.json"
+	echo "R3 Fast-Ingest sustain passed at ${fast_sustain_eps} events/s"
+	exit 0
+fi
 
 async_label_batch=$(jq -er '.atomic_batch_sizes[1]' "$profile")
 default_outstanding=$(jq -er '.fast_outstanding_acks[0]' "$profile")
@@ -1383,6 +1494,25 @@ for canary_rate in "${canary_rate_values[@]}"; do
 done
 check_nats_logs
 echo "R3 canary ramp passed: ${canary_rate_values[*]} events/s"
+if [[ $quick_throughput == true ]]; then
+	quick_messages=$((ceiling_offered_eps * quick_seconds))
+	quick_status=0
+	if run_trial "quick-async-${ceiling_offered_eps}" async "$async_label_batch" "$default_outstanding" \
+		"$ceiling_offered_eps" "$quick_messages" "$quick_seconds" "$rated_eps" true; then
+		:
+	else
+		quick_status=$?
+	fi
+	check_nats_logs
+	assert_safety_monitors
+	jq . "$results_dir/summary-quick-async-${ceiling_offered_eps}.json"
+	if ((quick_status != 0)); then
+		echo "bounded R3 throughput trial did not qualify" >&2
+		exit "$quick_status"
+	fi
+	echo "bounded R3 throughput trial passed at ${ceiling_offered_eps} offered events/s"
+	exit 0
+fi
 if [[ ${R3_CANARY_ONLY:-false} == true ]]; then
 	echo "R3 canary-only run complete; full 120k qualification was not started"
 	exit 0

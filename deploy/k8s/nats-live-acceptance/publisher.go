@@ -169,6 +169,7 @@ type fastPublishSession struct {
 	publisher jetstreamext.FastPublisher
 	asyncErr  atomic.Pointer[string]
 	committed uint64
+	acked     uint64
 }
 
 func newFastPublishSession(job publishJob) (*fastPublishSession, error) {
@@ -207,7 +208,10 @@ func (s *fastPublishSession) publish(sequence messageSequence) error {
 func (s *fastPublishSession) send(sequence messageSequence) error {
 	payload := s.job.payload(sequence)
 	if !s.job.last(sequence) {
-		_, err := s.publisher.Add(s.job.cfg.subject, payload)
+		ack, err := s.publisher.Add(s.job.cfg.subject, payload)
+		if ack != nil {
+			s.recordAckSequence(ack.AckSequence)
+		}
 		return err
 	}
 	return s.commit(payload)
@@ -219,8 +223,26 @@ func (s *fastPublishSession) commit(payload []byte) error {
 	ack, err := s.publisher.Commit(commitCtx, s.job.cfg.subject, payload)
 	if ack != nil {
 		s.committed = ack.BatchSize
+		s.recordAckSequence(ack.BatchSize)
 	}
 	return err
+}
+
+func (s *fastPublishSession) recordAckSequence(sequence uint64) {
+	s.recordAckSequenceAt(sequence, time.Since(s.job.counters.started))
+}
+
+func (s *fastPublishSession) recordAckSequenceAt(sequence uint64, elapsed time.Duration) {
+	// FastPublisher returns the highest server-confirmed sequence from Add and
+	// Commit. Count only the delta so repeated flow acknowledgements are free,
+	// and cap a malformed response at this publisher's assigned message count.
+	sequence = min(sequence, uint64(s.job.count))
+	if sequence <= s.acked {
+		return
+	}
+	delta := sequence - s.acked
+	s.acked = sequence
+	s.job.counters.recordAcknowledgedAt(s.job.publisher, int64(delta), elapsed)
 }
 
 func (s *fastPublishSession) failSequence(sequence messageSequence, err error) error {
@@ -246,7 +268,6 @@ func (s *fastPublishSession) finish() error {
 	if s.committed != uint64(s.job.count) {
 		return s.failCommitSize()
 	}
-	s.job.counters.recordAcknowledged(s.job.publisher, int64(s.job.count))
 	return nil
 }
 
@@ -298,26 +319,42 @@ func enqueueWindow(job publishJob, window publishRange) ([]pendingPublish, error
 	batch := make([]pendingPublish, 0, window.size)
 	for i := 0; i < window.size; i++ {
 		sequence := window.offset + messageSequence(i)
-		if err := pacePublish(job, sequence); err != nil {
+		pending, err := enqueueAsyncPublish(job, sequence)
+		if err != nil {
 			return nil, err
 		}
-		msg := benchmarkMessage(job.cfg.subject, job.payload(sequence))
-		future, err := job.client.js.PublishMsgAsync(msg)
-		if err != nil {
-			job.counters.failures.Add(1)
-			return nil, fmt.Errorf("publisher %d sequence %d enqueue: %w", job.publisher, sequence, err)
+		batch = append(batch, pending)
+		if !ackProgressPollDue(i) {
+			continue
 		}
-		batch = append(batch, pendingPublish{
-			ok: future.Ok(), err: future.Err(), sequence: sequence,
-		})
-		if (i+1)%ackProgressPollInterval == 0 {
-			batch, err = drainReadyAcknowledgements(job, batch)
-			if err != nil {
-				return nil, err
-			}
+		batch, err = drainReadyAcknowledgements(job, batch)
+		if err != nil {
+			return nil, err
 		}
 	}
 	return batch, nil
+}
+
+func enqueueAsyncPublish(job publishJob, sequence messageSequence) (pendingPublish, error) {
+	if err := pacePublish(job, sequence); err != nil {
+		return pendingPublish{}, err
+	}
+	msg := benchmarkMessage(job.cfg.subject, job.payload(sequence))
+	future, err := job.client.js.PublishMsgAsync(msg)
+	if err != nil {
+		job.counters.failures.Add(1)
+		return pendingPublish{}, fmt.Errorf(
+			"publisher %d sequence %d enqueue: %w",
+			job.publisher,
+			sequence,
+			err,
+		)
+	}
+	return pendingPublish{ok: future.Ok(), err: future.Err(), sequence: sequence}, nil
+}
+
+func ackProgressPollDue(index int) bool {
+	return (index+1)%ackProgressPollInterval == 0
 }
 
 // drainReadyAcknowledgements observes completed futures while the next async

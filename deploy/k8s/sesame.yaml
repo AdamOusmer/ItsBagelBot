@@ -72,10 +72,9 @@ spec:
       # Baseline shape at the KEDA floor of 5: node3=2, worker1=2, node2=1.
       # node2 already carries the control plane + valkey master, so the doubles
       # belong on the big-CPU pair; the graded preferences below pick which
-      # nodes take them (node3 first, worker1 second) while the soft skew keeps
-      # any node from being emptied. Low weights on purpose: a skew >= 1 must
-      # outscore the preference (see twitch-ingress.yaml for the pile-up this
-      # prevents). Burst pods above the floor inherit the same bias.
+      # nodes take them (node3 first, worker1 second). The required hostname
+      # spread below is authoritative: preferences choose which nodes receive
+      # the two extra replicas, but can never stack four workers on one node.
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -101,14 +100,16 @@ spec:
         # matchLabelKeys scopes the skew to the CURRENT ReplicaSet: during a
         # maxSurge=0 roll the outgoing pods no longer count, so every rollout
         # re-spreads one-per-node instead of piling onto whichever node freed
-        # capacity first (bit the ingress on 2026-07-10: 3/0/1). Soft constraint
-        # stays soft, so a node outage never wedges scheduling; the KEDA floor
-        # (>= one per hot-path node) plus the ReplicaSet downscaler's
-        # remove-co-located-duplicates-first ranking keep steady state at
-        # >= 1 per node.
+        # capacity first (bit the ingress on 2026-07-10: 3/0/1). This must be a
+        # hard constraint: ScheduleAnyway allowed the node3 preference to place
+        # four 500m workers there, reserving 93% of the node while worker1 had
+        # no Sesame replica. Five healthy replicas fit 2/2/1 across all three
+        # eligible domains; during a node outage existing pods keep serving and
+        # replacement capacity waits rather than overloading a surviving node.
         - maxSkew: 1
+          minDomains: 3
           topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: ScheduleAnyway
+          whenUnsatisfiable: DoNotSchedule
           matchLabelKeys: [pod-template-hash]
           labelSelector:
             matchLabels:
@@ -226,11 +227,12 @@ spec:
             - containerPort: 8080
           resources:
             requests:
-              # Full-path production tests used 220-339m while waiting on shared
-              # NATS/Valkey, whereas the pure engine reached ~450m. A 500m
-              # request makes the 75% trigger fire on actual engine CPU
-              # saturation (~375m), not on I/O wait; lag remains primary.
-              cpu: 500m
+              # Quiet replicas use only ~3-7m. Reserve the lightweight floor,
+              # not a synthetic full-load core share. The CPU scaler below uses
+              # an absolute AverageValue, so this request does not make scaling
+              # fire on tiny idle fluctuations. The 2-core limit preserves burst
+              # capacity while five floor replicas reserve only 500m.
+              cpu: 100m
               memory: 128Mi
             limits:
               cpu: "2"
@@ -308,9 +310,13 @@ spec:
             - {type: Pods, value: 1, periodSeconds: 120}
   triggers:
     - type: cpu
-      metricType: Utilization
+      # Keep scheduling reservation separate from scaling intent. Utilization
+      # is request-relative and would make a 100m request trigger at only 75m.
+      # Full-path observations were 220-339m/pod, so 300m is a useful sustained
+      # work signal while JetStream lag remains the backlog-oriented trigger.
+      metricType: AverageValue
       metadata:
-        value: "75"
+        value: "300m"
     - type: nats-jetstream
       metadata:
         natsServerMonitoringEndpoint: nats.production.svc.cluster.local:8222
