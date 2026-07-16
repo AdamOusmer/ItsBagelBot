@@ -151,8 +151,9 @@ spec:
             - {containerPort: 53, name: dns-tcp, protocol: TCP}
             - {containerPort: 9153, name: metrics, protocol: TCP}
           resources:
-            requests: {cpu: 100m, memory: 70Mi}
-            limits: {memory: 170Mi}
+            # The node-local caches on node2/node3 hold about 100Mi steadily.
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {memory: 256Mi}
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

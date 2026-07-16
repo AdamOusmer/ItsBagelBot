@@ -432,10 +432,11 @@ spec:
           timeoutSeconds: 3
         resources:
           limits:
-            cpu: 100m
+            cpu: 250m
             memory: 64Mi
           requests:
-            cpu: 10m
+            # TLS health checks use 25-40m steadily on every replica.
+            cpu: 50m
             memory: 32Mi
         securityContext:
           allowPrivilegeEscalation: false

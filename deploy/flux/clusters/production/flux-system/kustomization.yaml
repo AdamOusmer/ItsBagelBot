@@ -40,8 +40,10 @@ patches:
           containers:
             - name: manager
               resources:
+                requests:
+                  memory: 320Mi
                 limits:
-                  memory: 384Mi
+                  memory: 512Mi
 - patch: |-
     apiVersion: apps/v1
     kind: Deployment
@@ -54,5 +56,7 @@ patches:
           containers:
             - name: manager
               resources:
+                requests:
+                  memory: 96Mi
                 limits:
                   memory: 256Mi

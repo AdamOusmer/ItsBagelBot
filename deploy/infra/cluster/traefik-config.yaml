@@ -43,7 +43,8 @@ spec:
     resources:
       requests:
         cpu: 100m
-        memory: 64Mi
+        # The per-node ingress proxies sit at 174-190Mi in steady state.
+        memory: 192Mi
       limits:
         cpu: 1000m
         memory: 256Mi
