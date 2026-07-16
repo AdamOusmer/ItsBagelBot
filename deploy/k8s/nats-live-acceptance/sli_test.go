@@ -367,7 +367,7 @@ func TestConnectionStatsReportsReconnectDisconnectAndAsyncError(t *testing.T) {
 func testSLIConfig() config {
 	return config{
 		sliOnly:           true,
-		sliServices:       parseSLIServices(defaultSLIServices),
+		sliServices:       sliServicesFlag(defaultSLIServices).parse(),
 		sliDuration:       time.Second,
 		sliInterval:       10 * time.Millisecond,
 		sliTimeout:        time.Second,

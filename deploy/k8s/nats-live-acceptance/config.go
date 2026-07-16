@@ -16,14 +16,50 @@ const (
 	defaultIngressSLISubject = "twitch.ingress.admin.shards.get"
 )
 
+type acceptanceRunID string
+
+type sliServicesFlag string
+
+type fallbackValues []string
+
+type upperBound struct {
+	value   int
+	limit   int
+	failure string
+}
+
+type nonNegativeValue struct {
+	value   float64
+	failure string
+}
+
+type integerMatch struct {
+	value    int
+	expected int
+	failure  string
+}
+
+type distinctStrings struct {
+	value   string
+	other   string
+	failure string
+}
+
+type positiveValue struct {
+	value int
+	name  string
+}
+
+type targetRate float64
+
 func parseFlags() config {
-	runID := time.Now().UTC().Format("20060102T150405")
+	runID := newAcceptanceRunID()
 	cfg := config{}
 	flag.StringVar(&cfg.hubURL, "hub-url", "tls://nats:4222", "direct hub URL")
 	flag.StringVar(&cfg.domain, "domain", "hub", "hub JetStream domain")
 	flag.StringVar(&cfg.placementTag, "placement-tag", "", "optional server placement tag (normally empty for R3)")
-	flag.StringVar(&cfg.stream, "stream", "LIVE_NATS_ACCEPTANCE_"+runID, "temporary stream name")
-	flag.StringVar(&cfg.subject, "subject", "twitch.outgress.bench."+strings.ToLower(runID), "isolated benchmark subject")
+	flag.StringVar(&cfg.stream, "stream", runID.streamName(), "temporary stream name")
+	flag.StringVar(&cfg.subject, "subject", runID.subjectName(), "isolated benchmark subject")
 	flag.IntVar(&cfg.messages, "messages", 200_000, "messages published per endpoint")
 	flag.IntVar(&cfg.publishers, "publishers", 2, "independent connections per endpoint")
 	flag.IntVar(&cfg.window, "window", 16_384, "maximum outstanding PubAcks per publisher")
@@ -68,7 +104,7 @@ func parseFlags() config {
 	flag.DurationVar(&cfg.sliIngressMaxRTT, "ingress-max-rtt", 500*time.Millisecond, "maximum accepted read-only ingress shard snapshot round-trip time")
 	flag.DurationVar(&cfg.sliRPCP99Max, "rpc-p99-max", 8*time.Millisecond, "maximum rolling p99 across node-local RPC health requests")
 	flag.IntVar(&cfg.sliRPCP99Min, "rpc-p99-min-samples", 330, "RPC samples required before enforcing the rolling p99 gate")
-	flag.StringVar(&cfg.sliKey, "key", defaultSLIKey(runID), "isolated Valkey SLI key (must start with acceptance:sli:)")
+	flag.StringVar(&cfg.sliKey, "key", runID.defaultSLIKey(), "isolated Valkey SLI key (must start with acceptance:sli:)")
 	flag.StringVar(&cfg.sliIngressSubject, "ingress-shards-subject", defaultIngressSLISubject, "read-only ingress shard snapshot subject (empty disables the snapshot SLI)")
 	flag.Parse()
 
@@ -76,10 +112,10 @@ func parseFlags() config {
 	cfg.password = os.Getenv("NATS_PASSWORD")
 	cfg.caFile = os.Getenv("NATS_CA")
 	cfg.caPEM = os.Getenv("NATS_CA_PEM")
-	cfg.sliServices = parseSLIServices(services)
-	cfg.sliNATSURL = firstNonempty(os.Getenv("NATS_RPC_URL"), os.Getenv("NATS_LEAF_URL"), cfg.hubURL)
+	cfg.sliServices = sliServicesFlag(services).parse()
+	cfg.sliNATSURL = fallbackValues{os.Getenv("NATS_RPC_URL"), os.Getenv("NATS_LEAF_URL"), cfg.hubURL}.firstNonempty()
 	cfg.valkeyAddress = os.Getenv("VALKEY_ADDR")
-	cfg.valkeyPassword = firstNonempty(os.Getenv("VALKEY_PASSWORD"), os.Getenv("REDISCLI_AUTH"))
+	cfg.valkeyPassword = fallbackValues{os.Getenv("VALKEY_PASSWORD"), os.Getenv("REDISCLI_AUTH")}.firstNonempty()
 	cfg.valkeyCAPEM = os.Getenv("VALKEY_TLS_CA_PEM")
 
 	validateConfig(cfg)
@@ -224,8 +260,8 @@ func validateSLIEndpoints(cfg config) error {
 	return nil
 }
 
-func parseSLIServices(value string) []string {
-	parts := strings.Split(value, ",")
+func (value sliServicesFlag) parse() []string {
+	parts := strings.Split(string(value), ",")
 	services := make([]string, 0, len(parts))
 	for _, part := range parts {
 		if service := strings.TrimSpace(part); service != "" {
@@ -235,12 +271,24 @@ func parseSLIServices(value string) []string {
 	return services
 }
 
-func defaultSLIKey(runID string) string {
-	host := strings.NewReplacer(" ", "-", ":", "-").Replace(strings.ToLower(hostname()))
-	return "acceptance:sli:" + host + ":" + strings.ToLower(runID)
+func newAcceptanceRunID() acceptanceRunID {
+	return acceptanceRunID(time.Now().UTC().Format("20060102T150405"))
 }
 
-func firstNonempty(values ...string) string {
+func (runID acceptanceRunID) streamName() string {
+	return "LIVE_NATS_ACCEPTANCE_" + string(runID)
+}
+
+func (runID acceptanceRunID) subjectName() string {
+	return "twitch.outgress.bench." + strings.ToLower(string(runID))
+}
+
+func (runID acceptanceRunID) defaultSLIKey() string {
+	host := strings.NewReplacer(" ", "-", ":", "-").Replace(strings.ToLower(hostname()))
+	return "acceptance:sli:" + host + ":" + strings.ToLower(string(runID))
+}
+
+func (values fallbackValues) firstNonempty() string {
 	for _, value := range values {
 		if value != "" {
 			return value
@@ -257,21 +305,26 @@ func validateCredentialMode(cfg config) {
 }
 
 func validatePositiveConfig(cfg config) {
-	requirePositive(cfg.messages, "messages")
-	requirePositive(cfg.publishers, "publishers")
-	requirePositive(cfg.window, "window")
-	requirePositive(cfg.batchSize, "batch-size")
-	requirePositive(cfg.atomicInflight, "atomic-inflight")
-	requirePositive(cfg.fastOutstanding, "fast-outstanding-acks")
-	requirePositive(cfg.payloadBytes, "payload-bytes")
-	requirePositive(cfg.payloadVariants, "payload-variants")
-	requirePositive(int(cfg.latencyInterval), "latency-interval")
-	requirePositive(int(cfg.ackTimeout), "ack-timeout")
-	requirePositive(int(cfg.maxP95), "max-p95")
-	requirePositive(int(cfg.maxP99), "max-p99")
-	requirePositive(int(cfg.topologyInterval), "topology-interval")
-	requirePositive(cfg.requiredPeers, "required-peers")
-	requirePositive(int(cfg.settleTimeout), "settle-timeout")
+	checks := []positiveValue{
+		{cfg.messages, "messages"},
+		{cfg.publishers, "publishers"},
+		{cfg.window, "window"},
+		{cfg.batchSize, "batch-size"},
+		{cfg.atomicInflight, "atomic-inflight"},
+		{cfg.fastOutstanding, "fast-outstanding-acks"},
+		{cfg.payloadBytes, "payload-bytes"},
+		{cfg.payloadVariants, "payload-variants"},
+		{int(cfg.latencyInterval), "latency-interval"},
+		{int(cfg.ackTimeout), "ack-timeout"},
+		{int(cfg.maxP95), "max-p95"},
+		{int(cfg.maxP99), "max-p99"},
+		{int(cfg.topologyInterval), "topology-interval"},
+		{cfg.requiredPeers, "required-peers"},
+		{int(cfg.settleTimeout), "settle-timeout"},
+	}
+	for _, check := range checks {
+		check.require()
+	}
 }
 
 func validateStreamOptions(cfg config) {
@@ -291,65 +344,66 @@ func validatePublishOptions(cfg config) {
 	default:
 		log.Fatal("mode must be async, atomic, or fast")
 	}
-	requireAtMost(cfg.batchSize, 1_000, "batch-size must be <= 1000")
-	requireAtMost(cfg.fastOutstanding, 65_535, "fast-outstanding-acks must fit uint16")
-	requireValidTargetRate(cfg.targetRate)
-	requireNonNegative(float64(cfg.latencySamples), "latency-samples must be non-negative")
-	requireNonNegative(float64(cfg.runTimeout), "run-timeout must be non-negative")
-	requireNonNegative(float64(cfg.maxAckGap), "max-ack-gap must be non-negative")
-	requireAtMost(
-		cfg.atomicInflight*cfg.publishers,
+	upperBound{cfg.batchSize, 1_000, "batch-size must be <= 1000"}.require()
+	upperBound{cfg.fastOutstanding, 65_535, "fast-outstanding-acks must fit uint16"}.require()
+	targetRate(cfg.targetRate).requireValid()
+	nonNegativeValue{float64(cfg.latencySamples), "latency-samples must be non-negative"}.require()
+	nonNegativeValue{float64(cfg.runTimeout), "run-timeout must be non-negative"}.require()
+	nonNegativeValue{float64(cfg.maxAckGap), "max-ack-gap must be non-negative"}.require()
+	upperBound{
+		cfg.atomicInflight * cfg.publishers,
 		50,
 		"atomic-inflight x publishers must stay within the server's 50-batch per-stream limit",
-	)
+	}.require()
 }
 
 func validateTopologyOptions(cfg config) {
-	requireNonNegative(float64(cfg.topologyDuration), "topology-duration must be non-negative")
-	requireNonNegative(float64(cfg.topologyGrace), "topology-unhealthy-grace must be non-negative")
-	requireEqual(cfg.requiredPeers, cfg.replicas, "required-peers must match replicas")
-	requireDifferentWhenSet(
+	nonNegativeValue{float64(cfg.topologyDuration), "topology-duration must be non-negative"}.require()
+	nonNegativeValue{float64(cfg.topologyGrace), "topology-unhealthy-grace must be non-negative"}.require()
+	integerMatch{cfg.requiredPeers, cfg.replicas, "required-peers must match replicas"}.require()
+	distinctStrings{
 		cfg.preferredLeader,
 		cfg.forbiddenLeader,
 		"preferred-leader and forbidden-leader must differ",
-	)
+	}.requireWhenSet()
 }
 
-func requireAtMost(value, limit int, message string) {
-	if value > limit {
-		log.Fatal(message)
+func (check upperBound) require() {
+	if check.value > check.limit {
+		log.Fatal(check.failure)
 	}
 }
 
-func requireNonNegative(value float64, message string) {
-	if value < 0 {
-		log.Fatal(message)
+func (check nonNegativeValue) require() {
+	if check.value < 0 {
+		log.Fatal(check.failure)
 	}
 }
 
-func requireValidTargetRate(rate float64) {
+func (rate targetRate) requireValid() {
 	const message = "target-rate must be finite and non-negative"
-	if math.IsNaN(rate) {
+	value := float64(rate)
+	if math.IsNaN(value) {
 		log.Fatal(message)
 	}
-	if math.IsInf(rate, 0) {
+	if math.IsInf(value, 0) {
 		log.Fatal(message)
 	}
-	requireNonNegative(rate, message)
+	nonNegativeValue{value, message}.require()
 }
 
-func requireEqual(value, expected int, message string) {
-	if value != expected {
-		log.Fatal(message)
+func (check integerMatch) require() {
+	if check.value != check.expected {
+		log.Fatal(check.failure)
 	}
 }
 
-func requireDifferentWhenSet(value, other, message string) {
-	if value == "" {
+func (check distinctStrings) requireWhenSet() {
+	if check.value == "" {
 		return
 	}
-	if value == other {
-		log.Fatal(message)
+	if check.value == check.other {
+		log.Fatal(check.failure)
 	}
 }
 
@@ -365,9 +419,9 @@ func requireCredentials(cfg config) {
 	}
 }
 
-func requirePositive(value int, name string) {
-	if value < 1 {
-		log.Fatalf("%s must be positive", name)
+func (check positiveValue) require() {
+	if check.value < 1 {
+		log.Fatalf("%s must be positive", check.name)
 	}
 }
 
