@@ -261,17 +261,25 @@ function formActive(f: FormData): boolean {
 // leaves a non-served user with live subscriptions; verbs that may resume
 // serving enroll afterwards, and only when the refreshed row is actually
 // served again (active and not banned).
-async function unenrollThen<T>(userId: string, mutate: () => Promise<T>): Promise<T> {
-  await publishUserEventSub(userId, false);
-  return mutate();
+type EnrollmentSyncedMutation<T> = {
+  userId: string;
+  sync: 'unenroll-first' | 'enroll-after';
+  mutate: () => Promise<T>;
+};
+
+function served(user: AdminUserWire | null): boolean {
+  return user !== null && user.is_active && !user.banned;
 }
 
-async function enrollAfter(
-  userId: string,
-  mutate: () => Promise<AdminUserWire>
-): Promise<AdminUserWire> {
-  const user = await mutate();
-  if (user.is_active && !user.banned) await publishUserEventSub(userId, true);
+async function withEnrollmentSync<T extends AdminUserWire | null>(
+  m: EnrollmentSyncedMutation<T>
+): Promise<T> {
+  if (m.sync === 'unenroll-first') {
+    await publishUserEventSub(m.userId, false);
+    return m.mutate();
+  }
+  const user = await m.mutate();
+  if (served(user)) await publishUserEventSub(m.userId, true);
   return user;
 }
 
@@ -344,10 +352,14 @@ export const actions: Actions = {
     demoNotice: DEMO ? 'active set (demo)' : '',
     notice: (user) => `active=${user?.is_active}`,
     detail: (f) => String(formActive(f)),
-    run: (userId, f) =>
-      formActive(f)
-        ? enrollAfter(userId, () => userSetActive(userId, true))
-        : unenrollThen(userId, () => userSetActive(userId, false))
+    run: (userId, f) => {
+      const active = formActive(f);
+      return withEnrollmentSync({
+        userId,
+        sync: active ? 'enroll-after' : 'unenroll-first',
+        mutate: () => userSetActive(userId, active)
+      });
+    }
   }),
 
   // Creator code carries its own length validation and demo-lookup shaping, so
@@ -389,14 +401,16 @@ export const actions: Actions = {
     name: 'ban',
     demoNotice: DEMO ? 'user banned (demo)' : '',
     notice: () => 'user banned',
-    run: (userId) => unenrollThen(userId, () => userBan(userId))
+    run: (userId) =>
+      withEnrollmentSync({ userId, sync: 'unenroll-first', mutate: () => userBan(userId) })
   }),
 
   unban: userAction({
     name: 'unban',
     demoNotice: DEMO ? 'user unbanned (demo)' : '',
     notice: () => 'user unbanned',
-    run: (userId) => enrollAfter(userId, () => userUnban(userId))
+    run: (userId) =>
+      withEnrollmentSync({ userId, sync: 'enroll-after', mutate: () => userUnban(userId) })
   }),
 
   restart: async ({ request, locals }) => {
@@ -470,9 +484,13 @@ export const actions: Actions = {
     demoNotice: DEMO ? 'user deleted (demo only, no real data removed)' : '',
     notice: () => 'user deleted',
     run: (userId) =>
-      unenrollThen(userId, async () => {
-        await userDelete(userId);
-        return null;
+      withEnrollmentSync({
+        userId,
+        sync: 'unenroll-first',
+        mutate: async () => {
+          await userDelete(userId);
+          return null;
+        }
       })
   })
 };
