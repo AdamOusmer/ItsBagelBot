@@ -71,7 +71,7 @@ func publishAsyncWindows(job publishJob) error {
 		if err != nil {
 			return err
 		}
-		if err := awaitWindow(job, window, batch); err != nil {
+		if err := awaitWindow(job, batch); err != nil {
 			return err
 		}
 	}
@@ -147,7 +147,7 @@ func publishAtomicBatch(job publishJob, batch publishRange) error {
 			return fmt.Errorf("publisher %d atomic batch at %d: %w", job.publisher, batch.offset, err)
 		}
 	}
-	job.counters.acked.Add(int64(batch.size))
+	job.counters.recordAcknowledged(job.publisher, int64(batch.size))
 	return nil
 }
 
@@ -246,7 +246,7 @@ func (s *fastPublishSession) finish() error {
 	if s.committed != uint64(s.job.count) {
 		return s.failCommitSize()
 	}
-	s.job.counters.acked.Add(int64(s.job.count))
+	s.job.counters.recordAcknowledged(s.job.publisher, int64(s.job.count))
 	return nil
 }
 
@@ -287,8 +287,12 @@ func pacePublish(job publishJob, sequence messageSequence) error {
 }
 
 type pendingPublish struct {
-	future nats.PubAckFuture
+	ok       <-chan *nats.PubAck
+	err      <-chan error
+	sequence messageSequence
 }
+
+const ackProgressPollInterval = 64
 
 func enqueueWindow(job publishJob, window publishRange) ([]pendingPublish, error) {
 	batch := make([]pendingPublish, 0, window.size)
@@ -303,31 +307,65 @@ func enqueueWindow(job publishJob, window publishRange) ([]pendingPublish, error
 			job.counters.failures.Add(1)
 			return nil, fmt.Errorf("publisher %d sequence %d enqueue: %w", job.publisher, sequence, err)
 		}
-		batch = append(batch, pendingPublish{future: future})
+		batch = append(batch, pendingPublish{
+			ok: future.Ok(), err: future.Err(), sequence: sequence,
+		})
+		if (i+1)%ackProgressPollInterval == 0 {
+			batch, err = drainReadyAcknowledgements(job, batch)
+			if err != nil {
+				return nil, err
+			}
+		}
 	}
 	return batch, nil
 }
 
-func awaitWindow(job publishJob, window publishRange, batch []pendingPublish) error {
+// drainReadyAcknowledgements observes completed futures while the next async
+// window is still being filled. This preserves the large throughput window
+// without making a paced low-rate run look stalled until all 16K entries have
+// been enqueued. It is allocation-free and walks only the completed prefix.
+func drainReadyAcknowledgements(job publishJob, batch []pendingPublish) ([]pendingPublish, error) {
+	for len(batch) > 0 {
+		item := batch[0]
+		select {
+		case <-item.ok:
+			job.counters.recordAcknowledged(job.publisher, 1)
+			batch = batch[1:]
+		case err := <-item.err:
+			job.counters.failures.Add(int64(len(batch)))
+			recordTimeout(job.counters, err)
+			return nil, fmt.Errorf("publisher %d PubAck %d: %w", job.publisher, item.sequence, err)
+		default:
+			return batch, nil
+		}
+	}
+	return batch, nil
+}
+
+func awaitWindow(job publishJob, batch []pendingPublish) error {
 	deadline := time.NewTimer(job.cfg.ackTimeout)
 	defer stopAndDrain(deadline)
 	for i, item := range batch {
-		if err := awaitFuture(job.ctx, item.future, deadline.C); err != nil {
+		if err := awaitFuture(job.ctx, item.ok, item.err, deadline.C); err != nil {
 			job.counters.failures.Add(int64(len(batch) - i))
 			recordTimeout(job.counters, err)
-			sequence := window.offset + messageSequence(i)
-			return fmt.Errorf("publisher %d PubAck %d: %w", job.publisher, sequence, err)
+			return fmt.Errorf("publisher %d PubAck %d: %w", job.publisher, item.sequence, err)
 		}
-		job.counters.acked.Add(1)
+		job.counters.recordAcknowledged(job.publisher, 1)
 	}
 	return nil
 }
 
-func awaitFuture(ctx context.Context, future nats.PubAckFuture, timeout <-chan time.Time) error {
+func awaitFuture(
+	ctx context.Context,
+	ok <-chan *nats.PubAck,
+	errCh <-chan error,
+	timeout <-chan time.Time,
+) error {
 	select {
-	case <-future.Ok():
+	case <-ok:
 		return nil
-	case err := <-future.Err():
+	case err := <-errCh:
 		return err
 	case <-timeout:
 		return nats.ErrTimeout
@@ -361,7 +399,7 @@ type latencyResult struct {
 type latencySampler struct {
 	ctx      context.Context
 	cfg      config
-	js       nats.JetStreamContext
+	clients  []client
 	payloads [][]byte
 	result   latencyResult
 }
@@ -369,11 +407,11 @@ type latencySampler struct {
 func latencyProbe(
 	ctx context.Context,
 	cfg config,
-	js nats.JetStreamContext,
+	clients []client,
 	payloads [][]byte,
 ) latencyResult {
 	sampler := latencySampler{
-		ctx: ctx, cfg: cfg, js: js, payloads: payloads,
+		ctx: ctx, cfg: cfg, clients: clients, payloads: payloads,
 		result: latencyResult{values: make([]time.Duration, 0, cfg.latencySamples)},
 	}
 	sampler.collect()
@@ -409,10 +447,11 @@ func (s *latencySampler) ready(index latencySampleIndex) bool {
 
 func (s *latencySampler) measure(index latencySampleIndex) (time.Duration, error) {
 	msg := benchmarkMessage(s.cfg.subject, s.payloads[int(index)%len(s.payloads)])
+	js := s.clients[int(index)%len(s.clients)].js
 	started := time.Now()
 	sampleCtx, cancel := context.WithTimeout(s.ctx, s.cfg.ackTimeout)
 	defer cancel()
-	_, err := s.js.PublishMsg(msg, nats.Context(sampleCtx))
+	_, err := js.PublishMsg(msg, nats.Context(sampleCtx))
 	return time.Since(started), err
 }
 

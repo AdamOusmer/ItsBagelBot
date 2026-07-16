@@ -1,11 +1,19 @@
 package main
 
 import (
+	"errors"
 	"flag"
+	"fmt"
 	"log"
+	"math"
 	"os"
 	"strings"
 	"time"
+)
+
+const (
+	defaultSLIServices       = "users,commands,modules,loyalty,projector,sesame,gateway,ingress,outgress,transactions,notifications"
+	defaultIngressSLISubject = "twitch.ingress.admin.shards.get"
 )
 
 func parseFlags() config {
@@ -30,6 +38,8 @@ func parseFlags() config {
 	flag.IntVar(&cfg.latencySamples, "latency-samples", 500, "PubAck RTT samples collected while load is active")
 	flag.DurationVar(&cfg.latencyInterval, "latency-interval", 10*time.Millisecond, "interval between under-load PubAck samples")
 	flag.DurationVar(&cfg.ackTimeout, "ack-timeout", 5*time.Second, "maximum wait for one PubAck")
+	flag.DurationVar(&cfg.runTimeout, "run-timeout", 0, "hard limit for the publish phase (0 disables)")
+	flag.DurationVar(&cfg.maxAckGap, "max-ack-gap", 0, "maximum sampled PubAck RTT or publisher completion-progress gap (0 disables)")
 	flag.DurationVar(&cfg.maxP95, "max-p95", 20*time.Millisecond, "maximum accepted under-load PubAck p95")
 	flag.DurationVar(&cfg.maxP99, "max-p99", 50*time.Millisecond, "maximum accepted under-load PubAck p99")
 	flag.Float64Var(&cfg.minRate, "min-rate", 0, "minimum accepted messages/second per endpoint (0 disables)")
@@ -46,11 +56,26 @@ func parseFlags() config {
 	flag.DurationVar(&cfg.settleTimeout, "settle-timeout", 30*time.Second, "maximum topology catch-up and leader-move wait")
 	flag.StringVar(&cfg.producerID, "producer-id", hostname(), "unique producer label for multi-node runs")
 	flag.BoolVar(&cfg.insecureLocal, "insecure-local", false, "allow an open plaintext local test server")
+	flag.BoolVar(&cfg.sliOnly, "sli-only", false, "continuously sample side-effect-free RPC and an isolated Valkey TTL key without using JetStream")
+	services := defaultSLIServices
+	flag.StringVar(&services, "services", defaultSLIServices, "comma-separated RPC health services sampled in SLI mode")
+	flag.DurationVar(&cfg.sliDuration, "duration", 5*time.Minute, "continuous SLI sampling duration")
+	flag.DurationVar(&cfg.sliInterval, "interval", 5*time.Second, "delay between continuous SLI samples")
+	flag.DurationVar(&cfg.sliTimeout, "timeout", 2*time.Second, "per-operation SLI timeout")
+	flag.DurationVar(&cfg.sliMaxRTT, "max-rtt", 250*time.Millisecond, "maximum accepted SLI round-trip time")
+	flag.StringVar(&cfg.sliKey, "key", defaultSLIKey(runID), "isolated Valkey SLI key (must start with acceptance:sli:)")
+	flag.StringVar(&cfg.sliIngressSubject, "ingress-shards-subject", defaultIngressSLISubject, "read-only ingress shard snapshot subject (empty disables the snapshot SLI)")
 	flag.Parse()
 
 	cfg.user = os.Getenv("NATS_USER")
 	cfg.password = os.Getenv("NATS_PASSWORD")
 	cfg.caFile = os.Getenv("NATS_CA")
+	cfg.caPEM = os.Getenv("NATS_CA_PEM")
+	cfg.sliServices = parseSLIServices(services)
+	cfg.sliNATSURL = firstNonempty(os.Getenv("NATS_RPC_URL"), os.Getenv("NATS_LEAF_URL"), cfg.hubURL)
+	cfg.valkeyAddress = os.Getenv("VALKEY_ADDR")
+	cfg.valkeyPassword = firstNonempty(os.Getenv("VALKEY_PASSWORD"), os.Getenv("REDISCLI_AUTH"))
+	cfg.valkeyCAPEM = os.Getenv("VALKEY_TLS_CA_PEM")
 
 	validateConfig(cfg)
 	return cfg
@@ -58,10 +83,91 @@ func parseFlags() config {
 
 func validateConfig(cfg config) {
 	validateCredentialMode(cfg)
+	if cfg.sliOnly {
+		if err := validateSLIConfig(cfg); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 	validatePositiveConfig(cfg)
 	validateStreamOptions(cfg)
 	validatePublishOptions(cfg)
 	validateTopologyOptions(cfg)
+}
+
+func validateSLIConfig(cfg config) error {
+	if len(cfg.sliServices) == 0 {
+		return errors.New("services must include at least one RPC health service")
+	}
+	seen := make(map[string]struct{}, len(cfg.sliServices))
+	for _, service := range cfg.sliServices {
+		if service == "" || strings.ContainsAny(service, ".*> \t\r\n") {
+			return fmt.Errorf("invalid RPC health service token %q", service)
+		}
+		if _, duplicate := seen[service]; duplicate {
+			return fmt.Errorf("duplicate RPC health service %q", service)
+		}
+		seen[service] = struct{}{}
+	}
+	if cfg.sliDuration <= 0 {
+		return errors.New("duration must be positive")
+	}
+	if cfg.sliInterval <= 0 {
+		return errors.New("interval must be positive")
+	}
+	if cfg.sliTimeout <= 0 {
+		return errors.New("timeout must be positive")
+	}
+	if cfg.sliMaxRTT <= 0 {
+		return errors.New("max-rtt must be positive")
+	}
+	if cfg.sliMaxRTT > cfg.sliTimeout {
+		return errors.New("max-rtt must not exceed timeout")
+	}
+	if !strings.HasPrefix(cfg.sliKey, "acceptance:sli:") || len(cfg.sliKey) == len("acceptance:sli:") || strings.ContainsAny(cfg.sliKey, " \t\r\n") {
+		return errors.New("key must be an isolated acceptance:sli: key without whitespace")
+	}
+	if cfg.sliIngressSubject != "" && (strings.ContainsAny(cfg.sliIngressSubject, "*> \t\r\n") || !strings.HasSuffix(cfg.sliIngressSubject, ".get")) {
+		return errors.New("ingress-shards-subject must be an exact read-only .get subject or empty")
+	}
+	if cfg.sliNATSURL == "" {
+		return errors.New("NATS_RPC_URL, NATS_LEAF_URL, or hub-url is required")
+	}
+	if cfg.valkeyAddress == "" {
+		return errors.New("VALKEY_ADDR is required in SLI mode")
+	}
+	if cfg.valkeyPassword == "" {
+		return errors.New("VALKEY_PASSWORD or REDISCLI_AUTH is required in SLI mode")
+	}
+	if !cfg.insecureLocal && cfg.valkeyCAPEM == "" {
+		return errors.New("VALKEY_TLS_CA_PEM is required in SLI mode")
+	}
+	return nil
+}
+
+func parseSLIServices(value string) []string {
+	parts := strings.Split(value, ",")
+	services := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if service := strings.TrimSpace(part); service != "" {
+			services = append(services, service)
+		}
+	}
+	return services
+}
+
+func defaultSLIKey(runID string) string {
+	host := strings.NewReplacer(" ", "-", ":", "-").Replace(strings.ToLower(hostname()))
+	return "acceptance:sli:" + host + ":" + strings.ToLower(runID)
+}
+
+func firstNonempty(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func validateCredentialMode(cfg config) {
@@ -105,8 +211,10 @@ func validatePublishOptions(cfg config) {
 	}
 	requireAtMost(cfg.batchSize, 1_000, "batch-size must be <= 1000")
 	requireAtMost(cfg.fastOutstanding, 65_535, "fast-outstanding-acks must fit uint16")
-	requireNonNegative(cfg.targetRate, "target-rate must be non-negative")
+	requireFiniteNonNegative(cfg.targetRate, "target-rate must be finite and non-negative")
 	requireNonNegative(float64(cfg.latencySamples), "latency-samples must be non-negative")
+	requireNonNegative(float64(cfg.runTimeout), "run-timeout must be non-negative")
+	requireNonNegative(float64(cfg.maxAckGap), "max-ack-gap must be non-negative")
 	requireAtMost(
 		cfg.atomicInflight*cfg.publishers,
 		50,
@@ -136,6 +244,12 @@ func requireNonNegative(value float64, message string) {
 	}
 }
 
+func requireFiniteNonNegative(value float64, message string) {
+	if math.IsNaN(value) || math.IsInf(value, 0) || value < 0 {
+		log.Fatal(message)
+	}
+}
+
 func requireEqual(value, expected int, message string) {
 	if value != expected {
 		log.Fatal(message)
@@ -158,8 +272,8 @@ func requireCredentials(cfg config) {
 	if cfg.password == "" {
 		log.Fatal("NATS_PASSWORD is required")
 	}
-	if cfg.caFile == "" {
-		log.Fatal("NATS_CA is required")
+	if cfg.caFile == "" && cfg.caPEM == "" {
+		log.Fatal("NATS_CA or NATS_CA_PEM is required")
 	}
 }
 

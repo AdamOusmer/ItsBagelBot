@@ -464,7 +464,22 @@ func (o *topologyObserver) observe(info *jsapi.StreamInfo) error {
 	if err := o.rejectForbiddenLeader(leader); err != nil {
 		return err
 	}
+	if err := rejectUnhealthyFollowers(cluster.Replicas); err != nil {
+		return err
+	}
 	o.recordPeakFollowerLag(cluster.Replicas)
+	return nil
+}
+
+func rejectUnhealthyFollowers(peers []*jsapi.PeerInfo) error {
+	for _, peer := range peers {
+		if peer == nil {
+			return errors.New("stream topology contains an empty follower")
+		}
+		if peer.Offline || !peer.Current {
+			return fmt.Errorf("stream follower %s became unhealthy: current=%t offline=%t", peer.Name, peer.Current, peer.Offline)
+		}
+	}
 	return nil
 }
 

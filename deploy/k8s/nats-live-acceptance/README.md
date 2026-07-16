@@ -22,11 +22,10 @@ official `nats.go` asynchronous PubAck windows, 200,000 messages, and a
 `github.com/synadia-io/orbit.go/jetstreamext` implementation. The harness does
 not construct either protocol itself and never sends `Nats-Msg-Id`.
 
-Build the static Linux binary, copy it into a temporary in-cluster pod holding
-the scoped credential and fleet CA, and run the commands under `doppler run`.
-The examples assume Doppler exposes `SETUP_NATS_USER`,
-`SETUP_NATS_PASSWORD`, `WORKER_NATS_USER`, and `WORKER_NATS_PASSWORD`; no
-credential belongs in the repository or shell history.
+Build the static Linux binary and copy it into a temporary in-cluster pod that
+mounts the scoped credential and fleet CA. Credentials are transferred from
+their existing Doppler projects directly into short-lived Kubernetes Secrets;
+no credential belongs in the repository, command arguments, or shell history.
 
 ```sh
 GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build \
@@ -36,25 +35,21 @@ kubectl -n production cp /tmp/nats-live-acceptance <benchmark-pod>:/tmp/nats-liv
 stream=LIVE_NATS_ACCEPTANCE_$(date -u +%Y%m%dT%H%M%S)
 subject=twitch.outgress.bench.$(date -u +%Y%m%d%H%M%S)
 
-# Operator setup identity: exact temporary stream lifecycle only.
-doppler run -- sh -c 'NATS_USER="$SETUP_NATS_USER" NATS_PASSWORD="$SETUP_NATS_PASSWORD" \
+# Operator setup identity from the temporary Secret: exact stream lifecycle only.
+NATS_USER="$NATS_SETUP_USER" NATS_PASSWORD="$NATS_SETUP_PASSWORD" \
 NATS_CA=/etc/nats-ca/ca.pem /tmp/nats-live-acceptance \
-  -domain= -stream "$1" -subject "$2" -setup-only -cleanup=false
-' sh "$stream" "$subject"
+	  -domain= -stream "$stream" -subject "$subject" -setup-only -cleanup=false
 
-# Runtime publisher identity: no JetStream API permissions.
-doppler run -- sh -c 'NATS_USER="$WORKER_NATS_USER" NATS_PASSWORD="$WORKER_NATS_PASSWORD" \
+# Runtime publisher identity from sesame-env: no JetStream API permissions.
 NATS_CA=/etc/nats-ca/ca.pem /tmp/nats-live-acceptance \
-  -domain= -stream "$1" -subject "$2" \
-  -create-stream=false -cleanup=false
-' sh "$stream" "$subject"
+	  -domain= -stream "$stream" -subject "$subject" \
+	  -create-stream=false -cleanup=false
 
 # Operator cleanup identity.
-doppler run -- sh -c 'NATS_USER="$SETUP_NATS_USER" NATS_PASSWORD="$SETUP_NATS_PASSWORD" \
+NATS_USER="$NATS_SETUP_USER" NATS_PASSWORD="$NATS_SETUP_PASSWORD" \
 NATS_CA=/etc/nats-ca/ca.pem /tmp/nats-live-acceptance \
-  -domain= -stream "$1" -subject "$2" \
-  -create-stream=false -setup-only -cleanup=true
-' sh "$stream" "$subject"
+	  -domain= -stream "$stream" -subject "$subject" \
+	  -create-stream=false -setup-only -cleanup=true
 ```
 
 Acceptance gates:
@@ -81,54 +76,119 @@ most 24 atomic batches in flight across the fleet.
 
 `r3-120k.sh` is intentionally not part of the Kubernetes kustomization. Without
 the exact confirmation token it only prints the plan and exits. With the token,
-it creates one temporary pod on each of node2, node3, and worker1 and a fresh
-`R3_SHADOW_*` stream for every trial. It discovers the live NATS pod-to-node
-mapping, moves leadership away from worker1 if necessary, publishes directly
-to the selected leader over native TLS, and aborts if worker1 becomes leader.
-Worker1 must remain present as a current follower.
+it creates one publisher pod on each of node2, node3, and worker1, plus separate
+low-resource controller on node3 and one dedicated SLI pod on each publishing
+node. Only the controller receives the short-lived `admin_bus` setup credential.
+The checked-in ACL grants that identity create/delete/leader-stepdown/advisory
+access only for `R3_SHADOW_BENCH`.
+
+Every trial safely recreates that one stream with a unique subject. Cleanup
+inspects the exact stream name and subject before deletion, so a concurrent or
+leftover stream cannot be deleted by name alone. The runner discovers the live
+NATS pod-to-node mapping, moves leadership away from worker1 if necessary,
+publishes directly to the selected leader over native TLS, and aborts if
+worker1 becomes leader. Worker1 must remain a current, zero-lag follower.
 
 The sequence is:
 
-1. Calibrate async, atomic batches 32/64/128 with four batches in flight per
+1. Ramp the ordinary `nats.go` async path through 12,000, 30,000, 60,000, and
+   90,000 events/second (10/25/50/75% of rated capacity), for one minute each.
+   Any failure stops the run before 120,000 events/second is offered.
+2. Calibrate at a bounded 120,000 events/second (never an unpaced burst): async,
+   atomic batches 32/64/128 with four batches in flight per
    connection, and official Fast-Ingest flows 32/64/128 with two/four
    outstanding flow acknowledgements.
-2. Select the fastest passing Elixir-compatible mode (`async` or `atomic`).
-   Fast-Ingest records the broker ceiling but cannot qualify the ingress path.
-3. Offer 126,000 events/second for five minutes and require at least 120,000
+3. Select the lowest-tail-latency passing Elixir-compatible mode (`async` or
+   `atomic`). Fast-Ingest records a paced 120,000/s comparison point but cannot
+   qualify the Elixir ingress path.
+4. Offer 126,000 events/second for five minutes and require at least 120,000
    acknowledged events/second.
-4. Offer exactly 90,000 events/second for fifteen minutes as the 75% operating
+5. Offer exactly 90,000 events/second for fifteen minutes as the 75% operating
    soak and require at least 89,100 acknowledged events/second (99% delivery
    cadence, with all messages still acknowledged).
-5. Require zero message/connection errors, p95 <= 20 ms, p99 <= 50 ms, no
+6. Require zero message/connection errors, p95 <= 20 ms, p99 <= 50 ms, no
    stream-leader election advisory during load, all three peers current,
    follower lag returned to zero, and no queue, slow-consumer, write-deadline,
    or quorum error in NATS logs.
 
+Each generator is hard-limited to one CPU and its client reconnect buffer is
+disabled, so a bus interruption fails immediately instead of accumulating an
+in-memory replay surge. A per-trial watchdog bounds every publish phase. The
+two-second stall gate is applied independently to the maximum synchronous
+under-load PubAck RTT and publisher completion progress. The async path drains
+already-resolved futures while its bounded window is still being filled, so a
+low-rate canary retains the full throughput window without manufacturing a
+window-fill stall. Latency samples rotate across both connections on each node.
+
+One immutable baseline and a run-global circuit breaker cover publisher pod
+creation, every stream create/settle/leader move, all load, every stream delete,
+and a zero-load cooldown. The circuit breaker requires:
+
+- every production Deployment to stay fully available and every baseline pod
+  UID/restart count to remain unchanged, with no rollout or scale change;
+- all NATS and Valkey members to remain Ready with the same identities;
+- all four production streams to keep the same leader and replica set, with
+  every replica current, online, and at zero lag;
+- the exact baseline production consumer identities and creation timestamps to
+  remain present, with bounded lag and zero redelivery;
+- no new broker slow consumers, meta backlog outside bounded stream lifecycle
+  operations, or NATS queue/write/quorum errors;
+- continuous passing side-effect-free RPC checks through the strict node-local
+  leaf on node2, node3, and worker1; a read-only
+  `twitch.ingress.admin.shards.get` check proving every desired WebSocket shard
+  remains connected/bound/fresh with an unchanged session; and isolated TTL
+  Valkey PING/master-SET/node-local-GET convergence measurements on every lane.
+
+On a lost exec stream or safety-monitor failure, the three publisher pods are
+deleted and confirmed gone before the separately credentialed controller
+deletes the exact-owned stream. This is subject and workload isolation on the
+shared cluster, not a claim that the shadow stream uses separate NATS hardware.
+
 Run only in a controlled window:
 
 ```sh
-# Transfer the short-lived setup identity from Doppler without placing its
-# values in command arguments or a checked-in file.
-doppler run -- sh -c \
-  'printf "NATS_USER=%s\nNATS_PASSWORD=%s\n" "$SETUP_NATS_USER" "$SETUP_NATS_PASSWORD"' | \
-  kubectl -n production create secret generic nats-bench-setup \
+# Transfer the existing admin_bus identity from the admin/prd Doppler config
+# without placing either value in command arguments or a checked-in file.
+setup_secret=nats-bench-setup-$(date -u +%Y%m%d%H%M%S)
+doppler run --project admin --config prd -- sh -c \
+  'printf "NATS_USER=%s\nNATS_PASSWORD=%s\n" "$NATS_USER" "$NATS_PASSWORD"' | \
+  kubectl -n production create secret generic "$setup_secret" \
     --from-env-file=/dev/stdin
 
-CONFIRM_R3_SHADOW=R3-120K \
+# First prove the four-stage ramp and clean teardown only.
+CONFIRM_R3_SHADOW=R3-120K R3_CANARY_ONLY=true \
+  NATS_BENCH_SETUP_SECRET="$setup_secret" \
   deploy/k8s/nats-live-acceptance/r3-120k.sh
 
-kubectl -n production delete secret nats-bench-setup
+# Full qualification. OPERATING_SECONDS=3600 extends the 75% operating soak to
+# one hour for the long-run stability gate; omit it for the 15-minute contract.
+CONFIRM_R3_SHADOW=R3-120K OPERATING_SECONDS=3600 \
+  NATS_BENCH_SETUP_SECRET="$setup_secret" \
+  deploy/k8s/nats-live-acceptance/r3-120k.sh
+
+kubectl -n production delete secret "$setup_secret"
 ```
 
 This command uses a local static Go build and Kubernetes temporary pods; it
-does not invoke Docker. It does not edit or apply production manifests, server
-configuration, sysctls, stream contracts, or autoscaling settings. Promotion
-of `TWITCH_INGRESS` to R3 is a separate PR after this gate passes.
+does not invoke Docker or any local container engine. It does not edit or apply
+production manifests, server configuration, sysctls, stream contracts, or
+autoscaling settings. Promotion of `TWITCH_INGRESS` to R3 is a separate PR
+after this gate passes.
+
+Only the dedicated node3 controller receives the temporary setup Secret. The
+three publisher pods read only the BUS publisher keys from `sesame-env` by
+default. The three SLI pods read the existing `ADMIN_RPC` keys from
+`console-admin-env` and only the Valkey password from `sesame-env`; they receive
+neither BUS publishing nor stream-management credentials. Override Secret
+names only with `NATS_BENCH_PUBLISHER_SECRET` and
+`NATS_BENCH_ADMIN_RPC_SECRET`.
 
 Each trial uses a shared start barrier and computes fleet throughput over the
 earliest publisher start through the latest publisher finish, so delayed or
-non-overlapping `kubectl exec` processes cannot inflate the rate. Any publisher
-or topology-process failure terminates its siblings promptly. Stream deletion
+non-overlapping `kubectl exec` processes cannot inflate the rate. A production
+health, topology, or watchdog failure terminates every generator promptly.
+An isolated publisher gate failure lets the other bounded publishers exit before
+cleanup, preventing orphaned remote processes. Stream deletion
 is verified and retried; failure to confirm cleanup aborts the matrix. Raw node,
 topology, cleanup, and summary JSON stays in
 `/tmp/nats-r3-results-<run-id>` (or `R3_RESULTS_DIR`) for audit.
