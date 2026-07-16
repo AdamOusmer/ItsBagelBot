@@ -269,7 +269,7 @@ func prepareTopology(cfg config, nc *nats.Conn, stream jsapi.Stream) error {
 	if err != nil {
 		return err
 	}
-	if cfg.forbiddenLeader != "" && info.Cluster != nil && info.Cluster.Leader == cfg.forbiddenLeader {
+	if forbiddenLeaderActive(info, cfg.forbiddenLeader) {
 		if cfg.preferredLeader == "" {
 			return fmt.Errorf("forbidden server %s leads and no preferred leader was provided", cfg.forbiddenLeader)
 		}
@@ -279,6 +279,19 @@ func prepareTopology(cfg config, nc *nats.Conn, stream jsapi.Stream) error {
 	}
 	_, err = waitForTopologyReady(cfg, stream)
 	return err
+}
+
+func forbiddenLeaderActive(info *jsapi.StreamInfo, forbidden string) bool {
+	if forbidden == "" {
+		return false
+	}
+	if info == nil {
+		return false
+	}
+	if info.Cluster == nil {
+		return false
+	}
+	return info.Cluster.Leader == forbidden
 }
 
 func requestLeaderStepdown(cfg config, nc *nats.Conn) error {
