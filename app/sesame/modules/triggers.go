@@ -47,8 +47,8 @@ type triggerLine struct {
 // by default, enabled and configured per channel from the dashboard.
 //
 // The handler runs on the non-command chat path, so it fires on plain messages.
-// Reaching it depends on ingress passing non-"!" chat through (the
-// chat_passthrough lane gate); premium/special-user chat always flows.
+// Ingress forwards every chat line for every channel; identical spam arrives
+// folded as a senders cohort, which triggerCandidate skips.
 func Triggers(_ engine.Deps) module.Module {
 	m := module.NewModule("triggers", module.KindOptIn)
 	m.On("channel.chat.message", triggersOnChat)
