@@ -8,6 +8,7 @@ import {
   delegationOptOut,
   delegationRevoke,
   deleteSelf,
+  publishEventSub,
   auditDashboardImpersonation,
   notificationsForUser,
   notificationMarkRead,
@@ -139,6 +140,10 @@ export const actions: Actions = {
     if (s.delegate_of) return fail(403, { error: 'Not allowed.' });
 
     try {
+      // Unenroll before the row goes away (same ordering as disconnect): if
+      // either step fails the account still exists and can retry, so no
+      // failure mode leaves a deleted account with live EventSub subs.
+      await publishEventSub(s.user_id, false);
       await deleteSelf(s.user_id);
       auditDashboardImpersonation(s, 'account:delete');
     } catch {

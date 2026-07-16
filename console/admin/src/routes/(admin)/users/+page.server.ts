@@ -16,6 +16,7 @@ import {
   tokenClear,
   tokenStatus,
   restartUserEventSub,
+  publishUserEventSub,
   channelSubState,
   auditAppend,
   type AdminUserWire,
@@ -254,6 +255,34 @@ function formActive(f: FormData): boolean {
   return String(f.get('active') ?? '').trim() === 'true';
 }
 
+// Serving state and Twitch EventSub enrollment move together, mirroring the
+// dashboard's connect/disconnect. Every verb that stops serving a user
+// (deactivate, ban, delete) unenrolls before its mutation, so no failure mode
+// leaves a non-served user with live subscriptions; verbs that may resume
+// serving enroll afterwards, and only when the refreshed row is actually
+// served again (active and not banned).
+type EnrollmentSyncedMutation<T> = {
+  userId: string;
+  sync: 'unenroll-first' | 'enroll-after';
+  mutate: () => Promise<T>;
+};
+
+function served(user: AdminUserWire | null): boolean {
+  return user !== null && user.is_active && !user.banned;
+}
+
+async function withEnrollmentSync<T extends AdminUserWire | null>(
+  m: EnrollmentSyncedMutation<T>
+): Promise<T> {
+  if (m.sync === 'unenroll-first') {
+    await publishUserEventSub(m.userId, false);
+    return m.mutate();
+  }
+  const user = await m.mutate();
+  if (served(user)) await publishUserEventSub(m.userId, true);
+  return user;
+}
+
 export const actions: Actions = {
   lookup: async ({ request, locals }) => {
     if (!(await requireAdmin(locals.session))) return fail(403, { error: 'forbidden' });
@@ -323,7 +352,14 @@ export const actions: Actions = {
     demoNotice: DEMO ? 'active set (demo)' : '',
     notice: (user) => `active=${user?.is_active}`,
     detail: (f) => String(formActive(f)),
-    run: (userId, f) => userSetActive(userId, formActive(f))
+    run: (userId, f) => {
+      const active = formActive(f);
+      return withEnrollmentSync({
+        userId,
+        sync: active ? 'enroll-after' : 'unenroll-first',
+        mutate: () => userSetActive(userId, active)
+      });
+    }
   }),
 
   // Creator code carries its own length validation and demo-lookup shaping, so
@@ -365,14 +401,16 @@ export const actions: Actions = {
     name: 'ban',
     demoNotice: DEMO ? 'user banned (demo)' : '',
     notice: () => 'user banned',
-    run: (userId) => userBan(userId)
+    run: (userId) =>
+      withEnrollmentSync({ userId, sync: 'unenroll-first', mutate: () => userBan(userId) })
   }),
 
   unban: userAction({
     name: 'unban',
     demoNotice: DEMO ? 'user unbanned (demo)' : '',
     notice: () => 'user unbanned',
-    run: (userId) => userUnban(userId)
+    run: (userId) =>
+      withEnrollmentSync({ userId, sync: 'enroll-after', mutate: () => userUnban(userId) })
   }),
 
   restart: async ({ request, locals }) => {
@@ -445,9 +483,14 @@ export const actions: Actions = {
     name: 'delete',
     demoNotice: DEMO ? 'user deleted (demo only, no real data removed)' : '',
     notice: () => 'user deleted',
-    run: async (userId) => {
-      await userDelete(userId);
-      return null;
-    }
+    run: (userId) =>
+      withEnrollmentSync({
+        userId,
+        sync: 'unenroll-first',
+        mutate: async () => {
+          await userDelete(userId);
+          return null;
+        }
+      })
   })
 };
