@@ -101,7 +101,9 @@ func main() {
 		repo: repo, quotes: quotes, log: log,
 	})
 
-	projectionSubject := subscribeRPCs(nc, client, repo, quotes, nrApp, log)
+	projectionSubject := subscribeRPCs(rpcWiring{
+		nc: nc, client: client, repo: repo, quotes: quotes, app: nrApp, log: log,
+	})
 	health.Serve(env.Get("LISTEN_ADDR", ":8080"), nc.IsConnected)
 
 	log.Info("modules service ready", zap.String("projection_subject", projectionSubject))
@@ -190,45 +192,55 @@ func deleteUser(msg *message.Message, w eventsWiring) error {
 	return nil
 }
 
+// rpcWiring bundles what subscribeRPCs needs, mirroring eventsWiring.
+type rpcWiring struct {
+	nc     *nats.Conn
+	client *ent.Client
+	repo   *repository.Modules
+	quotes *repository.Quotes
+	app    *newrelic.Application
+	log    *zap.Logger
+}
+
 // subscribeRPCs answers the service's request/reply verbs: the internal
 // projection read, the dashboard verbs, the channel-quotes verbs and the
 // personality verbs. Returns the projection subject for the ready banner.
 // Fatal on any subscribe failure, matching main's boot style.
-func subscribeRPCs(nc *nats.Conn, client *ent.Client, repo *repository.Modules, quotes *repository.Quotes, nrApp *newrelic.Application, log *zap.Logger) string {
+func subscribeRPCs(w rpcWiring) string {
 	projectionSubject := env.Get("NATS_INTERNAL_PROJECTION_MODULES_SUBJECT", "bagel.rpc.internal.projection.modules.get")
-	if err := rpc.SubscribeProjection(nc, repo, projectionSubject, "modules-rpc", nrApp, log); err != nil {
-		log.Fatal("failed to subscribe projection rpc", zap.Error(err))
+	if err := rpc.SubscribeProjection(w.nc, w.repo, projectionSubject, "modules-rpc", w.app, w.log); err != nil {
+		w.log.Fatal("failed to subscribe projection rpc", zap.Error(err))
 	}
 
 	// Dashboard verbs (list, upsert): the console toggles/configures modules the
 	// same way it manages commands.
 	dashboardSubject := env.Get("NATS_MODULES_SUBJECT_PREFIX", "bagel.rpc.modules")
-	if err := rpc.SubscribeDashboard(nc, repo, dashboardSubject, "modules-rpc", nrApp, log); err != nil {
-		log.Fatal("failed to subscribe dashboard rpc", zap.Error(err))
+	if err := rpc.SubscribeDashboard(w.nc, w.repo, dashboardSubject, "modules-rpc", w.app, w.log); err != nil {
+		w.log.Fatal("failed to subscribe dashboard rpc", zap.Error(err))
 	}
 
 	// Channel-quotes verbs (the sesame quotes module's store).
 	if err := rpc.SubscribeQuotes(rpc.QuotesWiring{
-		NC:         nc,
-		Repo:       quotes,
+		NC:         w.nc,
+		Repo:       w.quotes,
 		Prefix:     dashboardSubject + ".quote",
 		QueueGroup: "modules-rpc",
-		App:        nrApp,
-		Log:        log,
+		App:        w.app,
+		Log:        w.log,
 	}); err != nil {
-		log.Fatal("failed to subscribe quotes rpc", zap.Error(err))
+		w.log.Fatal("failed to subscribe quotes rpc", zap.Error(err))
 	}
 
 	// Personality verbs (the sesame personality module's permanent feed counter).
 	if err := rpc.SubscribePersonality(rpc.PersonalityWiring{
-		NC:         nc,
-		Repo:       repository.NewPersonality(client),
+		NC:         w.nc,
+		Repo:       repository.NewPersonality(w.client),
 		Prefix:     dashboardSubject + ".personality",
 		QueueGroup: "modules-rpc",
-		App:        nrApp,
-		Log:        log,
+		App:        w.app,
+		Log:        w.log,
 	}); err != nil {
-		log.Fatal("failed to subscribe personality rpc", zap.Error(err))
+		w.log.Fatal("failed to subscribe personality rpc", zap.Error(err))
 	}
 	return projectionSubject
 }
