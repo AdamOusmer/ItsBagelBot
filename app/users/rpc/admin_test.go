@@ -96,13 +96,13 @@ func TestAdminEnrollmentBucketsPerDay(t *testing.T) {
 	a, client := setupAdminRPCTest(t)
 	ctx := context.Background()
 
-	now := time.Now().UTC()
+	fixtureDay := time.Now().UTC().Truncate(24 * time.Hour)
 	// Two signups today, one yesterday, one outside the 7-day window.
 	stamps := []time.Time{
-		now.Add(-1 * time.Hour),
-		now.Add(-2 * time.Hour),
-		now.AddDate(0, 0, -1),
-		now.AddDate(0, 0, -10),
+		fixtureDay,
+		fixtureDay.Add(time.Second),
+		fixtureDay.AddDate(0, 0, -1),
+		fixtureDay.AddDate(0, 0, -10),
 	}
 	for i, ts := range stamps {
 		client.User.Create().
@@ -120,13 +120,20 @@ func TestAdminEnrollmentBucketsPerDay(t *testing.T) {
 	require.NotNil(t, reply.Enrollment)
 	require.Len(t, reply.Enrollment.Days, 7)
 
-	today := reply.Enrollment.Days[6]
-	yesterday := reply.Enrollment.Days[5]
-	assert.Equal(t, now.Format(time.DateOnly), today.Date)
-	assert.Equal(t, 2, today.Count)
-	assert.Equal(t, 1, yesterday.Count)
+	countsByDate := make(map[string]int, len(reply.Enrollment.Days))
+	for _, day := range reply.Enrollment.Days {
+		countsByDate[day.Date] = day.Count
+	}
+	fixtureDate := fixtureDay.Format(time.DateOnly)
+	yesterdayDate := fixtureDay.AddDate(0, 0, -1).Format(time.DateOnly)
+	emptyDate := fixtureDay.AddDate(0, 0, -2).Format(time.DateOnly)
+	require.Contains(t, countsByDate, fixtureDate)
+	require.Contains(t, countsByDate, yesterdayDate)
+	require.Contains(t, countsByDate, emptyDate)
+	assert.Equal(t, 2, countsByDate[fixtureDate])
+	assert.Equal(t, 1, countsByDate[yesterdayDate])
 	// Window days without signups are present and zero-filled.
-	assert.Equal(t, 0, reply.Enrollment.Days[0].Count)
+	assert.Equal(t, 0, countsByDate[emptyDate])
 	// Totals cover the whole base, including rows outside the window.
 	assert.Equal(t, 4, reply.Enrollment.Stats.TotalUsers)
 }
