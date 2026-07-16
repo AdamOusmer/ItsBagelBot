@@ -55,6 +55,11 @@ type topologyMonitor struct {
 	observer   topologyObserver
 }
 
+type topologyRequirement struct {
+	peerCount       int
+	forbiddenLeader string
+}
+
 type leaderAdvisoryWatch struct {
 	stream string
 	sub    *nats.Subscription
@@ -169,29 +174,43 @@ func startLeaderAdvisoryWatch(cfg config, nc *nats.Conn) (*leaderAdvisoryWatch, 
 }
 
 func (w *leaderAdvisoryWatch) observe(msg *nats.Msg) {
+	leader, err := parseLeaderAdvisory(msg.Data, w.stream)
+	if err != nil {
+		w.rememberError(err)
+		return
+	}
+	w.rememberLeader(leader)
+}
+
+func parseLeaderAdvisory(data []byte, expectedStream string) (string, error) {
 	var advisory struct {
 		Stream string `json:"stream"`
 		Leader string `json:"leader"`
 	}
-	err := json.Unmarshal(msg.Data, &advisory)
+	if err := json.Unmarshal(data, &advisory); err != nil {
+		return "", fmt.Errorf("decode stream leader advisory: %w", err)
+	}
+	if advisory.Stream != expectedStream {
+		return "", fmt.Errorf("unexpected stream leader advisory for %q", advisory.Stream)
+	}
+	if advisory.Leader == "" {
+		return "", errors.New("stream leader advisory has no leader")
+	}
+	return advisory.Leader, nil
+}
+
+func (w *leaderAdvisoryWatch) rememberError(err error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	if err != nil {
-		if w.firstErr == nil {
-			w.firstErr = fmt.Errorf("decode stream leader advisory: %w", err)
-		}
-		return
+	if w.firstErr == nil {
+		w.firstErr = err
 	}
-	if advisory.Stream != w.stream || advisory.Leader == "" {
-		if w.firstErr == nil {
-			w.firstErr = fmt.Errorf(
-				"invalid stream leader advisory: stream=%q leader=%q",
-				advisory.Stream, advisory.Leader,
-			)
-		}
-		return
-	}
-	w.leaders = append(w.leaders, advisory.Leader)
+}
+
+func (w *leaderAdvisoryWatch) rememberLeader(leader string) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.leaders = append(w.leaders, leader)
 }
 
 func finishLeaderAdvisories(cfg config, watch *leaderAdvisoryWatch, report *topologyReport) error {
@@ -326,23 +345,56 @@ func streamInfo(stream jsapi.Stream, timeout time.Duration) (*jsapi.StreamInfo, 
 }
 
 func topologyReady(info *jsapi.StreamInfo, requiredPeers int, forbiddenLeader string) bool {
-	if info == nil || info.Cluster == nil || info.Cluster.Leader == "" {
+	cluster, err := observedCluster(info)
+	if err != nil {
 		return false
 	}
-	cluster := info.Cluster
-	if 1+len(cluster.Replicas) != requiredPeers || cluster.Leader == forbiddenLeader {
+	requirement := topologyRequirement{peerCount: requiredPeers, forbiddenLeader: forbiddenLeader}
+	return requirement.accepts(cluster)
+}
+
+func (r topologyRequirement) accepts(cluster *jsapi.ClusterInfo) bool {
+	if 1+len(cluster.Replicas) != r.peerCount {
 		return false
 	}
-	forbiddenFollowerCurrent := forbiddenLeader == ""
-	for _, peer := range cluster.Replicas {
-		if peer.Offline || !peer.Current || peer.Lag != 0 {
+	if cluster.Leader == r.forbiddenLeader {
+		return false
+	}
+	if !followersReady(cluster.Replicas) {
+		return false
+	}
+	return forbiddenFollowerPresent(cluster.Replicas, r.forbiddenLeader)
+}
+
+func followersReady(peers []*jsapi.PeerInfo) bool {
+	for _, peer := range peers {
+		if !followerReady(peer) {
 			return false
 		}
-		if peer.Name == forbiddenLeader {
-			forbiddenFollowerCurrent = true
+	}
+	return true
+}
+
+func followerReady(peer *jsapi.PeerInfo) bool {
+	if peer.Offline {
+		return false
+	}
+	if !peer.Current {
+		return false
+	}
+	return peer.Lag == 0
+}
+
+func forbiddenFollowerPresent(peers []*jsapi.PeerInfo, forbidden string) bool {
+	if forbidden == "" {
+		return true
+	}
+	for _, peer := range peers {
+		if peer.Name == forbidden {
+			return true
 		}
 	}
-	return forbiddenFollowerCurrent
+	return false
 }
 
 func topologyState(info *jsapi.StreamInfo) string {

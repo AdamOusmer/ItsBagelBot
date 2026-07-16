@@ -107,15 +107,15 @@ func TestTemporaryR3StreamMatchesProductionShapedRetention(t *testing.T) {
 		replicas: 3, requiredPeers: 3,
 	}
 	stream := temporaryStreamConfig(cfg)
-	if stream.Replicas != 3 || stream.Storage != jsapi.MemoryStorage || stream.Placement != nil {
-		t.Fatalf("unexpected R3 placement/storage: %+v", stream)
-	}
-	if stream.MaxAge != 5*time.Minute || stream.MaxBytes != 1<<30 || stream.MaxMsgsPerSubject != 400_000 {
-		t.Fatalf("unexpected R3 retention: %+v", stream)
-	}
-	if stream.Duplicates != 10*time.Second || !stream.AllowAtomicPublish || !stream.AllowBatchPublish {
-		t.Fatalf("unexpected NATS 2.14 features: %+v", stream)
-	}
+	require.Equal(t, 3, stream.Replicas)
+	require.Equal(t, jsapi.MemoryStorage, stream.Storage)
+	require.Nil(t, stream.Placement)
+	require.Equal(t, 5*time.Minute, stream.MaxAge)
+	require.Equal(t, int64(1<<30), stream.MaxBytes)
+	require.Equal(t, int64(400_000), stream.MaxMsgsPerSubject)
+	require.Equal(t, 10*time.Second, stream.Duplicates)
+	require.True(t, stream.AllowAtomicPublish)
+	require.True(t, stream.AllowBatchPublish)
 }
 
 func TestBenchmarkPublishingIsStructurallyDedupFree(t *testing.T) {

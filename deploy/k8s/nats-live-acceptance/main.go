@@ -118,6 +118,13 @@ type connectionStats struct {
 	asyncErrors atomic.Int64
 }
 
+type acceptanceRun struct {
+	cfg       config
+	hub       endpoint
+	tlsConfig *tls.Config
+	setup     client
+}
+
 func main() {
 	if err := run(); err != nil {
 		log.Print(err)
@@ -126,50 +133,91 @@ func main() {
 }
 
 func run() (runErr error) {
+	execution, err := newAcceptanceRun()
+	if err != nil {
+		return err
+	}
+	defer execution.close(&runErr)
+	return execution.execute()
+}
+
+func newAcceptanceRun() (*acceptanceRun, error) {
 	cfg := parseFlags()
 	tlsConfig, err := clientTLS(cfg.caFile)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	hub := endpoint{label: "hub", url: cfg.hubURL, domain: cfg.domain}
 	setup, err := prepareStream(cfg, hub, tlsConfig)
 	if err != nil {
+		return nil, err
+	}
+	return &acceptanceRun{cfg: cfg, hub: hub, tlsConfig: tlsConfig, setup: setup}, nil
+}
+
+func (r *acceptanceRun) close(runErr *error) {
+	*runErr = errors.Join(*runErr, closeSetup(r.cfg, r.setup))
+}
+
+func (r *acceptanceRun) execute() error {
+	if r.cfg.topologyOnly {
+		return r.executeTopology()
+	}
+	if r.cfg.setupOnly {
+		return r.executeSetup()
+	}
+	return r.executeBenchmark()
+}
+
+func (r *acceptanceRun) executeTopology() error {
+	report, err := monitorStreamTopology(r.cfg, r.setup)
+	printTopologyReport(r.cfg, report)
+	return err
+}
+
+func (r *acceptanceRun) executeSetup() error {
+	fmt.Printf(
+		"{\"stream\":%q,\"subject\":%q,\"created\":%t,\"deleted\":%t}\n",
+		r.cfg.stream,
+		r.cfg.subject,
+		r.cfg.createStream,
+		r.cfg.cleanup,
+	)
+	return nil
+}
+
+func (r *acceptanceRun) executeBenchmark() error {
+	benchmarkResult, benchmarkErr := r.collectBenchmarkResult()
+	if err := printBenchmarkResult(r.cfg, benchmarkResult); err != nil {
 		return err
 	}
-	defer func() {
-		if cleanupErr := closeSetup(cfg, setup); cleanupErr != nil {
-			runErr = errors.Join(runErr, cleanupErr)
-		}
-	}()
-	if cfg.topologyOnly {
-		report, monitorErr := monitorStreamTopology(cfg, setup)
-		printTopologyReport(cfg, report)
-		return monitorErr
-	}
+	return benchmarkGateError(benchmarkErr)
+}
 
-	if cfg.setupOnly {
-		fmt.Printf("{\"stream\":%q,\"subject\":%q,\"created\":%t,\"deleted\":%t}\n",
-			cfg.stream, cfg.subject, cfg.createStream, cfg.cleanup)
-		return nil
-	}
-
-	r, benchmarkErr := benchmark(cfg, hub, tlsConfig)
+func (r *acceptanceRun) collectBenchmarkResult() (result, error) {
+	benchmarkResult, benchmarkErr := benchmark(r.cfg, r.hub, r.tlsConfig)
+	benchmarkResult.Passed = benchmarkErr == nil
 	if benchmarkErr != nil {
 		log.Printf("hub benchmark failed: %v", benchmarkErr)
-		r.Failure = benchmarkErr.Error()
-	} else {
-		r.Passed = true
+		benchmarkResult.Failure = benchmarkErr.Error()
 	}
+	return benchmarkResult, benchmarkErr
+}
+
+func printBenchmarkResult(cfg config, benchmarkResult result) error {
 	out, err := json.MarshalIndent(map[string]any{
 		"stream":  cfg.stream,
 		"subject": cfg.subject,
-		"results": []result{r},
+		"results": []result{benchmarkResult},
 	}, "", "  ")
 	if err != nil {
 		return err
 	}
 	fmt.Println(string(out))
+	return nil
+}
 
+func benchmarkGateError(benchmarkErr error) error {
 	if benchmarkErr != nil {
 		return errors.New("one or more NATS acceptance gates failed")
 	}
@@ -329,7 +377,8 @@ func benchmark(cfg config, ep endpoint, tlsConfig *tls.Config) (result, error) {
 	if err != nil {
 		return r, err
 	}
-	applyThroughput(&r, cfg, counters, started, finished)
+	measurement := throughputMeasurement{counters: counters, started: started, finished: finished}
+	applyThroughput(&r, cfg, measurement)
 	applyLatency(&r, latency)
 	applyConnectionStats(&r, clients)
 	return r, validateBenchmark(cfg, r, counters.firstErr.Load())
@@ -401,6 +450,12 @@ type benchmarkCounters struct {
 	firstErr atomic.Pointer[string]
 }
 
+type throughputMeasurement struct {
+	counters *benchmarkCounters
+	started  time.Time
+	finished time.Time
+}
+
 func runPublishers(
 	cfg config,
 	clients []client,
@@ -466,17 +521,15 @@ func waitForStart(unixMS int64) (time.Time, error) {
 func applyThroughput(
 	r *result,
 	cfg config,
-	counters *benchmarkCounters,
-	started time.Time,
-	finished time.Time,
+	measurement throughputMeasurement,
 ) {
-	elapsed := finished.Sub(started)
-	r.Acknowledged = counters.acked.Load()
-	r.Errors = counters.failures.Load()
-	r.Timeouts = counters.timeouts.Load()
+	elapsed := measurement.finished.Sub(measurement.started)
+	r.Acknowledged = measurement.counters.acked.Load()
+	r.Errors = measurement.counters.failures.Load()
+	r.Timeouts = measurement.counters.timeouts.Load()
 	r.DurationMS = elapsed.Milliseconds()
-	r.StartedUnixMS = started.UnixMilli()
-	r.FinishedUnixMS = finished.UnixMilli()
+	r.StartedUnixMS = measurement.started.UnixMilli()
+	r.FinishedUnixMS = measurement.finished.UnixMilli()
 	r.MessagesPerSec = float64(r.Acknowledged) / elapsed.Seconds()
 	r.MiBPerSec = r.MessagesPerSec * float64(cfg.payloadBytes) / (1024 * 1024)
 }
