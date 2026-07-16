@@ -225,6 +225,9 @@ spec:
     # =======================================================================
     kube-state-metrics:
       enabled: true
+      resources:
+        requests: {cpu: 10m, memory: 128Mi}
+        limits: {cpu: 200m, memory: 256Mi}
 
     # =======================================================================
     # newrelic-prometheus-agent
@@ -239,6 +242,10 @@ spec:
       enabled: true
       cluster: bagelbot
       lowDataMode: true
+      resources:
+        prometheus:
+          requests: {cpu: 10m, memory: 192Mi}
+          limits: {cpu: 500m, memory: 384Mi}
       customSecretName: nri-bundle-newrelic-prometheus-agent-license
       customSecretLicenseKey: licenseKey
       config:

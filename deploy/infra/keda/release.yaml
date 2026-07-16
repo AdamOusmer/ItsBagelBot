@@ -72,15 +72,16 @@ spec:
     cleanupOnFail: true
   values:
     watchNamespace: "" # all namespaces; only production uses it today, but the fleet is single-tenant
-    operator:
-      resources:
+    # KEDA 2.20 reads component sizing from the top-level resources map.
+    # Putting resources under operator/metricsServer/webhooks is accepted as
+    # unused YAML and silently falls back to 100m/100Mi + 1CPU/1000Mi defaults.
+    resources:
+      operator:
         requests: {cpu: 50m, memory: 64Mi}
         limits: {cpu: 500m, memory: 256Mi}
-    metricsServer:
-      resources:
+      metricServer:
         requests: {cpu: 50m, memory: 64Mi}
         limits: {cpu: 500m, memory: 256Mi}
-    webhooks:
-      resources:
+      webhooks:
         requests: {cpu: 25m, memory: 32Mi}
         limits: {cpu: 250m, memory: 128Mi}

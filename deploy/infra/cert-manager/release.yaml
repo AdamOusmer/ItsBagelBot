@@ -80,11 +80,11 @@ spec:
     # Trimmed for this small fleet, same as keda/newrelic. Re-widen if the
     # controller/webhook/cainjector is throttled or OOMKilled in practice.
     resources:
-      requests: {cpu: 25m, memory: 64Mi}
+      requests: {cpu: 25m, memory: 128Mi}
       limits: {cpu: 250m, memory: 256Mi}
     webhook:
       resources:
-        requests: {cpu: 10m, memory: 32Mi}
+        requests: {cpu: 10m, memory: 96Mi}
         limits: {cpu: 200m, memory: 128Mi}
     cainjector:
       resources:
