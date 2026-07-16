@@ -1,0 +1,536 @@
+---
+/**
+ * GuideShell — long-form visual guides that respect the reader. Same reading
+ * contract as LegalShell (thin progress bar, sticky scrollspy TOC) with a
+ * guide-specific vocabulary: numbered sections, an optional "at a glance"
+ * note per section, a breadcrumb back to the hub, and a prev/next pager so a
+ * reader can walk the whole handbook without returning to the hub.
+ * Pages pass sections (id, heading, note) and provide each section's body
+ * through a matching named slot.
+ */
+interface Section {
+    id: string;
+    heading: string;
+    /** One-line takeaway shown in the tinted callout under the heading. */
+    note?: string;
+}
+
+interface Pager {
+    href: string;
+    label: string;
+}
+
+interface Props {
+    sections: Section[];
+    /** Approximate reading time, already localized ("8 min read"). */
+    minutes?: string;
+    prev?: Pager;
+    next?: Pager;
+}
+
+const { sections, minutes, prev, next } = Astro.props;
+const isFrench = Astro.url.pathname.startsWith('/fr/');
+const labels = isFrench
+    ? { toc: 'Dans ce guide', glance: 'en bref', hub: 'Tous les guides', prev: 'Guide précédent', next: 'Guide suivant' }
+    : { toc: 'In this guide', glance: 'at a glance', hub: 'All guides', prev: 'Previous guide', next: 'Next guide' };
+const hubHref = isFrench ? '/fr/guides' : '/guides';
+---
+
+<div class="gshell" data-guide>
+    <div class="gshell__progress" aria-hidden="true">
+        <span class="gshell__progress-fill" data-guide-progress></span>
+    </div>
+
+    <div class="gshell__grid">
+        <nav class="gshell__toc" aria-label={labels.toc}>
+            <a class="gshell__hub" href={hubHref}>← {labels.hub}</a>
+            <span class="gshell__toc-label">{labels.toc}</span>
+            <ul>
+                {sections.map((section, i) => (
+                    <li>
+                        <a href={`#${section.id}`} data-guide-link={section.id}>
+                            <i>{String(i + 1).padStart(2, '0')}</i>
+                            {section.heading}
+                        </a>
+                    </li>
+                ))}
+            </ul>
+        </nav>
+
+        <article class="gshell__content">
+            <div class="gshell__meta" data-reveal>
+                <a class="gshell__hub gshell__hub--inline" href={hubHref}>← {labels.hub}</a>
+                {minutes && <span class="gshell__minutes">{minutes}</span>}
+            </div>
+
+            {await Promise.all(sections.map(async (section, i) => (
+                <section class="gshell__block" id={section.id} data-guide-section data-reveal style={`--reveal-i: ${Math.min(i + 1, 6)}`}>
+                    <h2><i>{String(i + 1).padStart(2, '0')}</i>{section.heading}</h2>
+                    {section.note && (
+                        <p class="gshell__glance">
+                            <span class="gshell__glance-tag">{labels.glance}</span>
+                            {section.note}
+                        </p>
+                    )}
+                    <Fragment set:html={await Astro.slots.render(section.id)} />
+                </section>
+            )))}
+
+            {(prev || next) && (
+                <nav class="gshell__pager" aria-label={labels.next}>
+                    {prev ? (
+                        <a class="gshell__pager-card" href={prev.href}>
+                            <span>← {labels.prev}</span>
+                            <b>{prev.label}</b>
+                        </a>
+                    ) : <span />}
+                    {next && (
+                        <a class="gshell__pager-card gshell__pager-card--next" href={next.href}>
+                            <span>{labels.next} →</span>
+                            <b>{next.label}</b>
+                        </a>
+                    )}
+                </nav>
+            )}
+        </article>
+    </div>
+</div>
+
+<style>
+    .gshell {
+        max-width: var(--content-max, 1200px);
+        margin: 0 auto;
+        padding: 0 24px 96px;
+    }
+
+    /* ── Reading progress ── */
+
+    .gshell__progress {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 2px;
+        z-index: 90;
+        pointer-events: none;
+    }
+
+    .gshell__progress-fill {
+        display: block;
+        height: 100%;
+        width: 100%;
+        background: linear-gradient(90deg, var(--green-glow, #52b788), var(--tan, #c9a87c));
+        transform: scaleX(var(--read, 0));
+        transform-origin: left;
+        box-shadow: 0 0 12px rgba(201, 168, 124, 0.5);
+    }
+
+    /* ── Layout ── */
+
+    .gshell__grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 48px;
+    }
+
+    @media (min-width: 980px) {
+        .gshell__grid {
+            grid-template-columns: 240px minmax(0, 1fr);
+            gap: 72px;
+        }
+    }
+
+    /* ── TOC ── */
+
+    .gshell__toc { display: none; }
+
+    @media (min-width: 980px) {
+        .gshell__toc {
+            display: block;
+            position: sticky;
+            top: calc(var(--nav-offset, 76px) + 32px);
+            align-self: start;
+        }
+    }
+
+    .gshell__hub {
+        display: inline-block;
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.7rem;
+        letter-spacing: 0.08em;
+        color: var(--tan, #c9a87c);
+        margin-bottom: 26px;
+        transition: color 180ms ease;
+    }
+
+    .gshell__hub:hover { color: var(--tan-light, #e0c49a); }
+
+    .gshell__toc-label {
+        display: block;
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.64rem;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: var(--muted, #888077);
+        margin-bottom: 16px;
+    }
+
+    .gshell__toc ul {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        border-left: 1px solid var(--border, rgba(201, 168, 124, 0.15));
+    }
+
+    .gshell__toc a {
+        position: relative;
+        display: block;
+        padding: 7px 0 7px 16px;
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: 0.88rem;
+        color: var(--muted, #888077);
+        transition: color 200ms ease, padding-left 300ms var(--ease-out-expo);
+    }
+
+    .gshell__toc a i {
+        font-style: normal;
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.62rem;
+        color: var(--green-glow, #52b788);
+        margin-right: 8px;
+        opacity: 0.85;
+    }
+
+    .gshell__toc a::before {
+        content: "";
+        position: absolute;
+        left: -1px;
+        top: 20%;
+        bottom: 20%;
+        width: 1px;
+        background: var(--tan, #c9a87c);
+        transform: scaleY(0);
+        transition: transform 300ms var(--ease-out-expo);
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+        .gshell__toc a:hover { color: var(--tan-light, #e0c49a); }
+    }
+
+    .gshell__toc a.is-current {
+        color: var(--tan-light, #e0c49a);
+        padding-left: 20px;
+    }
+
+    .gshell__toc a.is-current::before { transform: scaleY(1); }
+
+    /* ── Content ── */
+
+    .gshell__content { max-width: 780px; min-width: 0; }
+
+    .gshell__meta {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 44px;
+    }
+
+    .gshell__hub--inline { margin-bottom: 0; }
+
+    @media (min-width: 980px) {
+        .gshell__hub--inline { display: none; }
+    }
+
+    .gshell__minutes {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.72rem;
+        letter-spacing: 0.08em;
+        color: var(--green-glow, #52b788);
+    }
+
+    .gshell__block { scroll-margin-top: calc(var(--nav-offset, 76px) + 24px); }
+
+    .gshell__block h2 {
+        display: flex;
+        align-items: baseline;
+        gap: 12px;
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--white, #f0ece4);
+        letter-spacing: -0.01em;
+        margin: 60px 0 14px;
+    }
+
+    .gshell__block h2 i {
+        font-style: normal;
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-weight: 400;
+        font-size: 0.72rem;
+        color: var(--green-glow, #52b788);
+        letter-spacing: 0.1em;
+    }
+
+    .gshell__block:first-of-type h2 { margin-top: 0; }
+
+    .gshell__glance {
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: 0.94rem;
+        line-height: 1.6;
+        color: rgba(240, 236, 228, 0.75);
+        background: rgba(82, 183, 136, 0.05);
+        border: 1px solid rgba(82, 183, 136, 0.16);
+        border-radius: 10px;
+        padding: 10px 14px;
+        margin: 0 0 18px;
+    }
+
+    .gshell__glance-tag {
+        display: inline-block;
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.6rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--green-glow, #52b788);
+        margin-right: 8px;
+    }
+
+    /* Body typography for slotted content. */
+
+    /* :not([class]) keeps this off embedded components (ChatMock lines,
+       DashFrame legends, callouts) whose scoped sizes it would out-rank. */
+    .gshell__block :global(p:not([class])),
+    .gshell__block :global(ul:not([class])),
+    .gshell__block :global(ol:not([class])) {
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: 1.05rem;
+        color: #b6afa5;
+        line-height: 1.85;
+        margin-bottom: 16px;
+    }
+
+    .gshell__block :global(ul:not([class])),
+    .gshell__block :global(ol:not([class])) { padding-left: 1.4em; }
+    .gshell__block :global(ul:not([class])) { list-style-type: disc; }
+    .gshell__block :global(ul:not([class]) li),
+    .gshell__block :global(ol:not([class]) li) { margin-bottom: 7px; }
+    .gshell__block :global(ul:not([class]) li::marker),
+    .gshell__block :global(ol:not([class]) li::marker) { color: var(--green-glow, #52b788); }
+
+    .gshell__block :global(h3) {
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-size: 1.12rem;
+        font-weight: 700;
+        color: var(--white, #f0ece4);
+        margin: 30px 0 10px;
+    }
+
+    .gshell__block :global(a) {
+        color: var(--tan, #c9a87c);
+        border-bottom: 1px solid transparent;
+        transition: color 180ms ease, border-color 180ms ease;
+    }
+
+    .gshell__block :global(a:hover) {
+        color: var(--tan-light, #e0c49a);
+        border-bottom-color: var(--tan-light, #e0c49a);
+    }
+
+    .gshell__block :global(code) {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.82em;
+        color: var(--tan-light, #e0c49a);
+        background: rgba(201, 168, 124, 0.08);
+        border: 1px solid rgba(201, 168, 124, 0.14);
+        border-radius: 5px;
+        padding: 2px 6px;
+        white-space: nowrap;
+    }
+
+    /* Reference tables (variables, commands, limits). */
+
+    .gshell__block :global(.gtable-wrap) {
+        overflow-x: auto;
+        margin: 18px 0 22px;
+        border: 1px solid var(--border, rgba(201, 168, 124, 0.15));
+        border-radius: 12px;
+        background: rgba(17, 17, 16, 0.85);
+    }
+
+    .gshell__block :global(table) {
+        width: 100%;
+        border-collapse: collapse;
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: 0.94rem;
+    }
+
+    .gshell__block :global(th) {
+        text-align: left;
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-weight: 500;
+        font-size: 0.68rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted, #888077);
+        padding: 13px 16px;
+        border-bottom: 1px solid var(--border, rgba(201, 168, 124, 0.15));
+        white-space: nowrap;
+    }
+
+    .gshell__block :global(td) {
+        vertical-align: top;
+        color: #b6afa5;
+        line-height: 1.6;
+        padding: 12px 16px;
+        border-bottom: 1px solid rgba(201, 168, 124, 0.07);
+    }
+
+    .gshell__block :global(tr:last-child td) { border-bottom: 0; }
+    .gshell__block :global(td:first-child) { white-space: nowrap; }
+
+    /* Tip / warning callouts. */
+
+    .gshell__block :global(.gtip),
+    .gshell__block :global(.gwarn) {
+        display: block;
+        font-size: 0.96rem;
+        line-height: 1.7;
+        border-radius: 10px;
+        padding: 12px 16px;
+        margin: 18px 0;
+    }
+
+    .gshell__block :global(.gtip) {
+        color: rgba(240, 236, 228, 0.78);
+        background: rgba(201, 168, 124, 0.06);
+        border: 1px solid rgba(201, 168, 124, 0.18);
+    }
+
+    .gshell__block :global(.gwarn) {
+        color: rgba(240, 236, 228, 0.78);
+        background: rgba(224, 98, 98, 0.06);
+        border: 1px solid rgba(224, 98, 98, 0.22);
+    }
+
+    .gshell__block :global(.gtip b),
+    .gshell__block :global(.gwarn b) {
+        display: block;
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-weight: 500;
+        font-size: 0.62rem;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        margin-bottom: 5px;
+    }
+
+    .gshell__block :global(.gtip b) { color: var(--tan, #c9a87c); }
+    .gshell__block :global(.gwarn b) { color: #e08585; }
+
+    /* ── Pager ── */
+
+    .gshell__pager {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+        margin-top: 72px;
+    }
+
+    .gshell__pager-card {
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+        padding: 18px 20px;
+        border: 1px solid var(--border, rgba(201, 168, 124, 0.15));
+        border-radius: 12px;
+        background: rgba(17, 17, 16, 0.85);
+        transition: border-color 200ms ease, transform 200ms var(--ease-out-expo), background 200ms ease;
+    }
+
+    .gshell__pager-card--next { text-align: right; }
+
+    .gshell__pager-card:hover {
+        border-color: rgba(201, 168, 124, 0.4);
+        background: rgba(201, 168, 124, 0.05);
+        transform: translateY(-2px);
+    }
+
+    .gshell__pager-card span {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.62rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted, #888077);
+    }
+
+    .gshell__pager-card b {
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: var(--white, #f0ece4);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .gshell__toc a, .gshell__toc a::before, .gshell__pager-card { transition: none; }
+    }
+
+    @media (max-width: 640px) {
+        .gshell { padding: 0 16px 72px; }
+        .gshell__block h2 { font-size: 1.28rem; margin-top: 44px; }
+        .gshell__pager { grid-template-columns: 1fr; }
+        .gshell__pager-card--next { text-align: left; }
+    }
+</style>
+
+<script>
+    /* Reading progress + TOC scrollspy — same contract as LegalShell. */
+    function setupGuide(root: HTMLElement) {
+        if (root.dataset.guideReady === 'true') return;
+        root.dataset.guideReady = 'true';
+
+        const fill = root.querySelector<HTMLElement>('[data-guide-progress]');
+        const article = root.querySelector<HTMLElement>('.gshell__content');
+        const sections = Array.from(root.querySelectorAll<HTMLElement>('[data-guide-section]'));
+        const links = new Map(
+            Array.from(root.querySelectorAll<HTMLAnchorElement>('[data-guide-link]'))
+                .map((a) => [a.dataset.guideLink as string, a]),
+        );
+
+        let ticking = false;
+
+        function update() {
+            ticking = false;
+            if (article && fill) {
+                const rect = article.getBoundingClientRect();
+                const total = rect.height - window.innerHeight;
+                const read = total > 0 ? Math.min(1, Math.max(0, -rect.top / total)) : 1;
+                fill.style.setProperty('--read', read.toFixed(4));
+            }
+
+            let currentId = sections[0]?.id;
+            for (const section of sections) {
+                if (section.getBoundingClientRect().top < window.innerHeight * 0.35) {
+                    currentId = section.id;
+                }
+            }
+            links.forEach((link, id) => link.classList.toggle('is-current', id === currentId));
+        }
+
+        function onScroll() {
+            if (ticking) return;
+            ticking = true;
+            requestAnimationFrame(update);
+        }
+
+        window.addEventListener('scroll', onScroll, { passive: true });
+        window.addEventListener('resize', onScroll, { passive: true });
+        update();
+    }
+
+    function setup() {
+        document.querySelectorAll<HTMLElement>('[data-guide]').forEach(setupGuide);
+    }
+
+    setup();
+    document.addEventListener('astro:page-load', setup);
+</script>
