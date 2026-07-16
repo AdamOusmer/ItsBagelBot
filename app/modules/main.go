@@ -25,6 +25,7 @@ import (
 
 	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/nats-io/nats.go"
+	"github.com/newrelic/go-agent/v3/newrelic"
 
 	"go.uber.org/zap"
 )
@@ -60,11 +61,7 @@ func main() {
 	client := ent.NewClient(ent.Driver(driver))
 	defer func() { _ = client.Close() }()
 
-	if env.GetBool("DB_AUTO_MIGRATE", true) {
-		if err := client.Schema.Create(ctx); err != nil {
-			log.Fatal("failed to run migrations", zap.Error(err))
-		}
-	}
+	migrateSchema(ctx, client, log)
 
 	natsURL := env.Get("NATS_URL", "nats://127.0.0.1:4222")
 	rpcURL := bus.RPCURL(natsURL)
@@ -91,19 +88,6 @@ func main() {
 	}
 	defer func() { _ = broadcast.Close() }()
 
-	if err := bus.Consume(ctx, nrApp, broadcast, data.SubjectModuleChanged, func(msg *message.Message) error {
-
-		var dto data.ModuleChangedDTO
-		if err := json.Unmarshal(msg.Payload, &dto); err != nil {
-			return err
-		}
-
-		repo.Invalidate(dto.UserID)
-		return nil
-	}, log); err != nil {
-		log.Fatal("failed to subscribe to module changes", zap.Error(err))
-	}
-
 	// Durable group subscription: exactly one instance answers a reproject
 	// request by replaying the table as change events.
 	grouped, err := bus.NewSubscriber(natsURL, serviceName, log)
@@ -112,39 +96,105 @@ func main() {
 	}
 	defer func() { _ = grouped.Close() }()
 
-	if err := bus.Consume(ctx, nrApp, grouped, data.SubjectReprojectRequest, func(*message.Message) error {
-		return repo.Reproject(ctx)
-	}, log); err != nil {
-		log.Fatal("failed to subscribe to reproject requests", zap.Error(err))
+	consumeEvents(ctx, eventsWiring{
+		app: nrApp, broadcast: broadcast, grouped: grouped,
+		repo: repo, quotes: quotes, log: log,
+	})
+
+	projectionSubject := subscribeRPCs(nc, client, repo, quotes, nrApp, log)
+	health.Serve(env.Get("LISTEN_ADDR", ":8080"), nc.IsConnected)
+
+	log.Info("modules service ready", zap.String("projection_subject", projectionSubject))
+
+	<-ctx.Done()
+
+	log.Info("modules service shutting down")
+}
+
+// migrateSchema runs the ent auto-migration unless disabled. Fatal on failure:
+// a modules instance without its tables can only crashloop later anyway.
+func migrateSchema(ctx context.Context, client *ent.Client, log *zap.Logger) {
+	if !env.GetBool("DB_AUTO_MIGRATE", true) {
+		return
 	}
+	if err := client.Schema.Create(ctx); err != nil {
+		log.Fatal("failed to run migrations", zap.Error(err))
+	}
+}
 
-	if err := bus.Consume(ctx, nrApp, grouped, data.SubjectUserDeleted, func(msg *message.Message) error {
+// eventsWiring bundles what consumeEvents needs so the wiring reads as one
+// value instead of a long parameter list.
+type eventsWiring struct {
+	app       *newrelic.Application
+	broadcast message.Subscriber
+	grouped   message.Subscriber
+	repo      *repository.Modules
+	quotes    *repository.Quotes
+	log       *zap.Logger
+}
 
-		var dto data.UserDeletedDTO
+// consumeEvents attaches the service's event subscriptions: cache invalidation
+// on the broadcast subscriber, reprojection and account deletion on the
+// durable group. Fatal on any subscribe failure, matching main's boot style.
+func consumeEvents(ctx context.Context, w eventsWiring) {
+	if err := bus.Consume(ctx, w.app, w.broadcast, data.SubjectModuleChanged, func(msg *message.Message) error {
+
+		var dto data.ModuleChangedDTO
 		if err := json.Unmarshal(msg.Payload, &dto); err != nil {
-			log.Warn("modules: bad user_deleted payload", zap.Error(err))
-			return nil
-		}
-
-		if err := validate.UserID(dto.UserID); err != nil {
-			log.Warn("modules: invalid user_id in user_deleted", zap.Error(err))
-			return nil
-		}
-
-		if err := repo.DeleteAllForUser(msg.Context(), dto.UserID); err != nil {
 			return err
 		}
 
-		if err := quotes.DeleteAllForUser(msg.Context(), dto.UserID); err != nil {
-			return err
-		}
-
-		log.Info("modules: deleted all for user", zap.Uint64("user_id", dto.UserID))
+		w.repo.Invalidate(dto.UserID)
 		return nil
-	}, log); err != nil {
-		log.Fatal("failed to subscribe to user deleted events", zap.Error(err))
+	}, w.log); err != nil {
+		w.log.Fatal("failed to subscribe to module changes", zap.Error(err))
 	}
 
+	if err := bus.Consume(ctx, w.app, w.grouped, data.SubjectReprojectRequest, func(*message.Message) error {
+		return w.repo.Reproject(ctx)
+	}, w.log); err != nil {
+		w.log.Fatal("failed to subscribe to reproject requests", zap.Error(err))
+	}
+
+	if err := bus.Consume(ctx, w.app, w.grouped, data.SubjectUserDeleted, func(msg *message.Message) error {
+		return deleteUser(msg, w)
+	}, w.log); err != nil {
+		w.log.Fatal("failed to subscribe to user deleted events", zap.Error(err))
+	}
+}
+
+// deleteUser handles one user_deleted event: validate the payload, then sweep
+// the account's module rows and quote book. Malformed payloads are logged and
+// dropped (returning an error would only redeliver them).
+func deleteUser(msg *message.Message, w eventsWiring) error {
+	var dto data.UserDeletedDTO
+	if err := json.Unmarshal(msg.Payload, &dto); err != nil {
+		w.log.Warn("modules: bad user_deleted payload", zap.Error(err))
+		return nil
+	}
+
+	if err := validate.UserID(dto.UserID); err != nil {
+		w.log.Warn("modules: invalid user_id in user_deleted", zap.Error(err))
+		return nil
+	}
+
+	if err := w.repo.DeleteAllForUser(msg.Context(), dto.UserID); err != nil {
+		return err
+	}
+
+	if err := w.quotes.DeleteAllForUser(msg.Context(), dto.UserID); err != nil {
+		return err
+	}
+
+	w.log.Info("modules: deleted all for user", zap.Uint64("user_id", dto.UserID))
+	return nil
+}
+
+// subscribeRPCs answers the service's request/reply verbs: the internal
+// projection read, the dashboard verbs, the channel-quotes verbs and the
+// personality verbs. Returns the projection subject for the ready banner.
+// Fatal on any subscribe failure, matching main's boot style.
+func subscribeRPCs(nc *nats.Conn, client *ent.Client, repo *repository.Modules, quotes *repository.Quotes, nrApp *newrelic.Application, log *zap.Logger) string {
 	projectionSubject := env.Get("NATS_INTERNAL_PROJECTION_MODULES_SUBJECT", "bagel.rpc.internal.projection.modules.get")
 	if err := rpc.SubscribeProjection(nc, repo, projectionSubject, "modules-rpc", nrApp, log); err != nil {
 		log.Fatal("failed to subscribe projection rpc", zap.Error(err))
@@ -180,13 +230,7 @@ func main() {
 	}); err != nil {
 		log.Fatal("failed to subscribe personality rpc", zap.Error(err))
 	}
-	health.Serve(env.Get("LISTEN_ADDR", ":8080"), nc.IsConnected)
-
-	log.Info("modules service ready", zap.String("projection_subject", projectionSubject))
-
-	<-ctx.Done()
-
-	log.Info("modules service shutting down")
+	return projectionSubject
 }
 
 func connectRPC(url string, log *zap.Logger) *nats.Conn {
