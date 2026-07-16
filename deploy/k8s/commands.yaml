@@ -104,6 +104,8 @@ spec:
               value: nats://nats-leaf:4222
             - name: NATS_HUB_URL
               value: nats://nats:4222
+            - name: NATS_HUB_PUBLISH_URL
+              value: nats://nats:4222
             # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS server
             # TLS cert now that NATS is out of the Linkerd mesh; read as RootCAs by
             # pkg/bus (Go services) and the console nats lib (TS).

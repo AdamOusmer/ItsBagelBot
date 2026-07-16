@@ -166,15 +166,12 @@ func busURL(url string) string {
 	return serverList(url)
 }
 
-// busPublishURL resolves the endpoint for the asynchronous publisher pool. The
-// R1 firehose streams are placement-pinned to specific hub ordinals, so a
-// publisher dialed into a non-leader member pays an intra-hub route hop on
-// every message and its PubAck. NATS_HUB_PUBLISH_URL points the pool straight
-// at the ordinal leading the streams this service publishes (per-pod headless
-// DNS; the hub cert carries those SANs). A service whose consume and publish
-// streams lead on different ordinals sets both variables. Consumers and the
-// stream guardian stay on busURL — the JetStream API is routed cluster-wide,
-// and consumer deliveries follow their own stream's leader.
+// busPublishURL resolves the endpoint for the asynchronous publisher pool.
+// Production sets NATS_HUB_PUBLISH_URL to the PreferSameNode hub Service: each
+// pod performs client TLS/socket/batch work on its local NATS member, then NATS
+// routes the commit to the stream's RAFT leader. Consumers may still pin
+// NATS_HUB_URL to the member leading their stream, so publish and consume
+// locality remain independent. Local development falls back to busURL.
 func busPublishURL(url string) string {
 	if publish := env.Get("NATS_HUB_PUBLISH_URL", ""); publish != "" {
 		return publish
