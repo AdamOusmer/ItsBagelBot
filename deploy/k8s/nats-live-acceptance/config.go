@@ -41,15 +41,17 @@ func parseFlags() config {
 	flag.DurationVar(&cfg.runTimeout, "run-timeout", 0, "hard limit for the publish phase (0 disables)")
 	flag.DurationVar(&cfg.maxAckGap, "max-ack-gap", 0, "maximum sampled PubAck RTT or publisher completion-progress gap (0 disables)")
 	flag.DurationVar(&cfg.maxP95, "max-p95", 20*time.Millisecond, "maximum accepted under-load PubAck p95")
-	flag.DurationVar(&cfg.maxP99, "max-p99", 50*time.Millisecond, "maximum accepted under-load PubAck p99")
+	flag.DurationVar(&cfg.maxP99, "max-p99", 2*time.Millisecond, "maximum accepted under-load PubAck p99")
 	flag.Float64Var(&cfg.minRate, "min-rate", 0, "minimum accepted messages/second per endpoint (0 disables)")
 	flag.BoolVar(&cfg.cleanup, "cleanup", true, "delete the temporary stream on exit")
 	flag.BoolVar(&cfg.createStream, "create-stream", true, "create the isolated stream before benchmarking")
 	flag.BoolVar(&cfg.setupOnly, "setup-only", false, "perform create/cleanup actions without benchmarking")
 	flag.IntVar(&cfg.replicas, "replicas", 3, "temporary stream replica count (1 or 3)")
+	flag.Int64Var(&cfg.maxMsgsPerSubject, "max-msgs-per-subject", 400_000, "rolling per-subject message limit (-1 is unlimited)")
 	flag.BoolVar(&cfg.topologyOnly, "topology-only", false, "monitor and validate stream topology without publishing")
 	flag.DurationVar(&cfg.topologyDuration, "topology-duration", 0, "duration to monitor topology after the shared start barrier")
 	flag.DurationVar(&cfg.topologyInterval, "topology-interval", time.Second, "stream topology polling interval")
+	flag.DurationVar(&cfg.topologyGrace, "topology-unhealthy-grace", 0, "bounded grace for a follower to report current again (offline still fails immediately)")
 	flag.StringVar(&cfg.preferredLeader, "preferred-leader", "", "preferred leader used only when the forbidden server currently leads")
 	flag.StringVar(&cfg.forbiddenLeader, "forbidden-leader", "", "server that must remain a current follower")
 	flag.IntVar(&cfg.requiredPeers, "required-peers", 3, "required total stream members including the leader")
@@ -64,6 +66,8 @@ func parseFlags() config {
 	flag.DurationVar(&cfg.sliTimeout, "timeout", 2*time.Second, "per-operation SLI timeout")
 	flag.DurationVar(&cfg.sliMaxRTT, "max-rtt", 250*time.Millisecond, "maximum accepted SLI round-trip time")
 	flag.DurationVar(&cfg.sliIngressMaxRTT, "ingress-max-rtt", 500*time.Millisecond, "maximum accepted read-only ingress shard snapshot round-trip time")
+	flag.DurationVar(&cfg.sliRPCP99Max, "rpc-p99-max", 8*time.Millisecond, "maximum rolling p99 across node-local RPC health requests")
+	flag.IntVar(&cfg.sliRPCP99Min, "rpc-p99-min-samples", 330, "RPC samples required before enforcing the rolling p99 gate")
 	flag.StringVar(&cfg.sliKey, "key", defaultSLIKey(runID), "isolated Valkey SLI key (must start with acceptance:sli:)")
 	flag.StringVar(&cfg.sliIngressSubject, "ingress-shards-subject", defaultIngressSLISubject, "read-only ingress shard snapshot subject (empty disables the snapshot SLI)")
 	flag.Parse()
@@ -97,6 +101,21 @@ func validateConfig(cfg config) {
 }
 
 func validateSLIConfig(cfg config) error {
+	checks := []func(config) error{
+		validateSLIServices,
+		validateSLITiming,
+		validateSLITailGate,
+		validateSLITargets,
+	}
+	for _, check := range checks {
+		if err := check(cfg); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateSLIServices(cfg config) error {
 	if len(cfg.sliServices) == 0 {
 		return errors.New("services must include at least one RPC health service")
 	}
@@ -110,6 +129,10 @@ func validateSLIConfig(cfg config) error {
 		}
 		seen[service] = struct{}{}
 	}
+	return nil
+}
+
+func validateSLITiming(cfg config) error {
 	if cfg.sliDuration <= 0 {
 		return errors.New("duration must be positive")
 	}
@@ -131,6 +154,23 @@ func validateSLIConfig(cfg config) error {
 	if cfg.sliIngressMaxRTT > cfg.sliTimeout {
 		return errors.New("ingress-max-rtt must not exceed timeout")
 	}
+	return nil
+}
+
+func validateSLITailGate(cfg config) error {
+	if cfg.sliRPCP99Max <= 0 {
+		return errors.New("rpc-p99-max must be positive")
+	}
+	if cfg.sliRPCP99Max > cfg.sliMaxRTT {
+		return errors.New("rpc-p99-max must not exceed max-rtt")
+	}
+	if cfg.sliRPCP99Min <= 0 || cfg.sliRPCP99Min > sliRPCTailWindowSamples {
+		return fmt.Errorf("rpc-p99-min-samples must be between 1 and %d", sliRPCTailWindowSamples)
+	}
+	return nil
+}
+
+func validateSLITargets(cfg config) error {
 	if !strings.HasPrefix(cfg.sliKey, "acceptance:sli:") || len(cfg.sliKey) == len("acceptance:sli:") || strings.ContainsAny(cfg.sliKey, " \t\r\n") {
 		return errors.New("key must be an isolated acceptance:sli: key without whitespace")
 	}
@@ -208,6 +248,9 @@ func validateStreamOptions(cfg config) {
 	default:
 		log.Fatal("replicas must be 1 or 3")
 	}
+	if cfg.maxMsgsPerSubject == 0 || cfg.maxMsgsPerSubject < -1 {
+		log.Fatal("max-msgs-per-subject must be positive or -1")
+	}
 }
 
 func validatePublishOptions(cfg config) {
@@ -231,6 +274,7 @@ func validatePublishOptions(cfg config) {
 
 func validateTopologyOptions(cfg config) {
 	requireNonNegative(float64(cfg.topologyDuration), "topology-duration must be non-negative")
+	requireNonNegative(float64(cfg.topologyGrace), "topology-unhealthy-grace must be non-negative")
 	requireEqual(cfg.requiredPeers, cfg.replicas, "required-peers must match replicas")
 	requireDifferentWhenSet(
 		cfg.preferredLeader,

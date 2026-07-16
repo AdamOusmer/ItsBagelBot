@@ -1,0 +1,19 @@
+[Unit]
+Description=Keep worker1 Wi-Fi on its low-latency server profile
+After=NetworkManager-wait-online.service tailscaled.service
+Wants=NetworkManager-wait-online.service
+ConditionPathExists=/sys/class/net/wlp2s0
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/bash -c 'echo Y > /sys/module/rtw88_core/parameters/disable_lps_deep'
+ExecStart=/usr/bin/bash -c 'echo Y > /sys/module/rtw88_pci/parameters/disable_aspm'
+ExecStart=/usr/sbin/iw dev wlp2s0 set power_save off
+ExecStart=/usr/bin/bash -c 'echo on > /sys/bus/pci/devices/0000:02:00.0/power/control'
+ExecStart=/usr/sbin/sysctl -w net.core.rps_sock_flow_entries=32768
+ExecStart=/usr/bin/bash -c 'echo fe > /sys/class/net/wlp2s0/queues/rx-0/rps_cpus'
+ExecStart=/usr/bin/bash -c 'echo 32768 > /sys/class/net/wlp2s0/queues/rx-0/rps_flow_cnt'
+
+[Install]
+WantedBy=multi-user.target

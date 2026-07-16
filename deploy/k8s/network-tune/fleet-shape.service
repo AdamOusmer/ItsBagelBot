@@ -1,0 +1,12 @@
+[Unit]
+Description=Fleet uplink bandwidth cap (500up/500down)
+After=network-online.target worker1-wifi-performance.service
+Wants=network-online.target worker1-wifi-performance.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/fleet-shape.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

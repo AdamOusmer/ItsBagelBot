@@ -28,6 +28,10 @@ func TestSLIConfigValidation(t *testing.T) {
 		"max above timeout": func(cfg *config) { cfg.sliMaxRTT = cfg.sliTimeout + time.Millisecond },
 		"ingress max zero":  func(cfg *config) { cfg.sliIngressMaxRTT = 0 },
 		"ingress max high":  func(cfg *config) { cfg.sliIngressMaxRTT = cfg.sliTimeout + time.Millisecond },
+		"RPC p99 max zero":  func(cfg *config) { cfg.sliRPCP99Max = 0 },
+		"RPC p99 max high":  func(cfg *config) { cfg.sliRPCP99Max = cfg.sliMaxRTT + time.Millisecond },
+		"RPC samples zero":  func(cfg *config) { cfg.sliRPCP99Min = 0 },
+		"RPC samples high":  func(cfg *config) { cfg.sliRPCP99Min = sliRPCTailWindowSamples + 1 },
 		"unsafe key":        func(cfg *config) { cfg.sliKey = "production:key" },
 		"write subject":     func(cfg *config) { cfg.sliIngressSubject = "twitch.ingress.admin.shards.scale" },
 		"missing NATS":      func(cfg *config) { cfg.sliNATSURL = "" },
@@ -68,6 +72,42 @@ func TestIngressSnapshotHasASeparateTailCeiling(t *testing.T) {
 	rtt := 300 * time.Millisecond
 	require.Error(t, validateSLIRTT("ordinary RPC", rtt, cfg.sliMaxRTT))
 	require.NoError(t, validateSLIRTT("ingress shard snapshot", rtt, cfg.sliIngressMaxRTT))
+}
+
+func TestRPCTailGateUsesNearestRankP99(t *testing.T) {
+	cfg := testSLIConfig()
+	cfg.sliRPCP99Max = 8 * time.Millisecond
+	cfg.sliRPCP99Min = 330
+
+	passing := append(rpcSamples(327, 4), rpcSamples(3, 9)...)
+	p99, count, err := (&sliRPCTailGate{}).observe(passing, cfg)
+	require.NoError(t, err)
+	require.Equal(t, 330, count)
+	require.Equal(t, 4.0, p99)
+
+	failing := append(rpcSamples(326, 4), rpcSamples(4, 9)...)
+	p99, count, err = (&sliRPCTailGate{}).observe(failing, cfg)
+	require.ErrorContains(t, err, "rolling RPC p99")
+	require.Equal(t, 330, count)
+	require.Equal(t, 9.0, p99)
+}
+
+func TestRPCTailGateWaitsForMinimumSamplesAndBoundsItsWindow(t *testing.T) {
+	cfg := testSLIConfig()
+	cfg.sliRPCP99Max = 8 * time.Millisecond
+	cfg.sliRPCP99Min = 330
+	gate := &sliRPCTailGate{}
+
+	_, count, err := gate.observe(rpcSamples(329, 9), cfg)
+	require.NoError(t, err)
+	require.Equal(t, 329, count)
+
+	_, _, err = gate.observe(rpcSamples(1, 9), cfg)
+	require.ErrorContains(t, err, "exceeds 8.000ms")
+
+	_, count, err = gate.observe(rpcSamples(sliRPCTailWindowSamples, 4), cfg)
+	require.NoError(t, err)
+	require.Equal(t, sliRPCTailWindowSamples, count)
 }
 
 func TestIngressSnapshotRequiresStableConnectedBoundDesiredShards(t *testing.T) {
@@ -321,6 +361,8 @@ func testSLIConfig() config {
 		sliTimeout:        time.Second,
 		sliMaxRTT:         500 * time.Millisecond,
 		sliIngressMaxRTT:  500 * time.Millisecond,
+		sliRPCP99Max:      8 * time.Millisecond,
+		sliRPCP99Min:      330,
 		sliKey:            "acceptance:sli:test:run",
 		sliIngressSubject: defaultIngressSLISubject,
 		sliNATSURL:        "nats://localhost:4222",
@@ -329,6 +371,14 @@ func testSLIConfig() config {
 		insecureLocal:     true,
 		producerID:        "test",
 	}
+}
+
+func rpcSamples(count int, rttMS float64) []sliRPCSample {
+	samples := make([]sliRPCSample, count)
+	for i := range samples {
+		samples[i] = sliRPCSample{Service: "sesame", RTTMS: rttMS}
+	}
+	return samples
 }
 
 func healthyTestProbes() *sliProbes {

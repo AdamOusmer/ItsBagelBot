@@ -1,0 +1,11 @@
+[Unit]
+Description=Rollback an unhealthy one-time worker1 kernel qualification boot
+After=NetworkManager.service tailscaled.service
+Wants=NetworkManager.service tailscaled.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/worker1-kernel-guard.sh
+
+[Install]
+WantedBy=multi-user.target

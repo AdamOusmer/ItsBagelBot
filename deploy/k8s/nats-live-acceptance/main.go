@@ -51,9 +51,11 @@ type config struct {
 	createStream      bool
 	setupOnly         bool
 	replicas          int
+	maxMsgsPerSubject int64
 	topologyOnly      bool
 	topologyDuration  time.Duration
 	topologyInterval  time.Duration
+	topologyGrace     time.Duration
 	preferredLeader   string
 	forbiddenLeader   string
 	requiredPeers     int
@@ -67,6 +69,8 @@ type config struct {
 	sliTimeout        time.Duration
 	sliMaxRTT         time.Duration
 	sliIngressMaxRTT  time.Duration
+	sliRPCP99Max      time.Duration
+	sliRPCP99Min      int
 	sliKey            string
 	sliIngressSubject string
 	sliNATSURL        string
@@ -298,7 +302,7 @@ func temporaryStreamConfig(cfg config) jsapi.StreamConfig {
 	stream := jsapi.StreamConfig{
 		Name: cfg.stream, Subjects: []string{cfg.subject}, Storage: jsapi.MemoryStorage,
 		Replicas: cfg.replicas, MaxBytes: 1 << 30, MaxAge: 5 * time.Minute,
-		MaxMsgsPerSubject: 400_000, Retention: jsapi.LimitsPolicy, Discard: jsapi.DiscardOld,
+		MaxMsgsPerSubject: cfg.maxMsgsPerSubject, Retention: jsapi.LimitsPolicy, Discard: jsapi.DiscardOld,
 		// Fleet publishers never send Nats-Msg-Id, so this compatibility window
 		// remains inert during the benchmark.
 		Duplicates:         10 * time.Second,
@@ -320,20 +324,32 @@ func closeSetup(cfg config, setup client) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.ackTimeout)
 	defer cancel()
+	owned, err := ownedStreamForCleanup(ctx, cfg, setup)
+	if err != nil || !owned {
+		return err
+	}
+	return deleteOwnedStream(ctx, cfg, setup)
+}
+
+func ownedStreamForCleanup(ctx context.Context, cfg config, setup client) (bool, error) {
 	stream, err := setup.modern.Stream(ctx, cfg.stream)
 	if errors.Is(err, jsapi.ErrStreamNotFound) {
-		return nil
+		return false, nil
 	}
 	if err != nil {
-		return fmt.Errorf("inspect stream %s before cleanup: %w", cfg.stream, err)
+		return false, fmt.Errorf("inspect stream %s before cleanup: %w", cfg.stream, err)
 	}
 	info, err := stream.Info(ctx)
 	if err != nil {
-		return fmt.Errorf("inspect stream %s ownership before cleanup: %w", cfg.stream, err)
+		return false, fmt.Errorf("inspect stream %s ownership before cleanup: %w", cfg.stream, err)
 	}
 	if err := validateCleanupOwnership(cfg, info); err != nil {
-		return err
+		return false, err
 	}
+	return true, nil
+}
+
+func deleteOwnedStream(ctx context.Context, cfg config, setup client) error {
 	if err := setup.modern.DeleteStream(ctx, cfg.stream); err != nil && !errors.Is(err, jsapi.ErrStreamNotFound) {
 		return fmt.Errorf("cleanup stream %s: %w", cfg.stream, err)
 	}

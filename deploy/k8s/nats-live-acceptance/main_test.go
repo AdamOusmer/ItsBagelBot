@@ -50,6 +50,9 @@ type capacityProfile struct {
 	CalibrationTargetEPS        int      `json:"calibration_target_eps"`
 	CalibrationDuration         string   `json:"calibration_duration"`
 	LatencySamplesPerSecond     int      `json:"latency_samples_per_second"`
+	PubAckP99Max                string   `json:"puback_p99_max"`
+	RPCP99Max                   string   `json:"rpc_p99_max"`
+	RPCP99MinSamples            int      `json:"rpc_p99_min_samples"`
 	MaxAckGap                   string   `json:"max_ack_gap"`
 }
 
@@ -107,13 +110,16 @@ func TestR3CapacityProfileDefinesCalibrationMatrix(t *testing.T) {
 	require.Equal(t, 120_000, profile.CalibrationTargetEPS)
 	require.Equal(t, "10s", profile.CalibrationDuration)
 	require.Equal(t, 20, profile.LatencySamplesPerSecond)
+	require.Equal(t, "2ms", profile.PubAckP99Max)
+	require.Equal(t, "8ms", profile.RPCP99Max)
+	require.Equal(t, 330, profile.RPCP99MinSamples)
 	require.Equal(t, "2s", profile.MaxAckGap)
 }
 
 func TestTemporaryR3StreamMatchesProductionShapedRetention(t *testing.T) {
 	cfg := config{
 		stream: "R3_SHADOW_TEST_ASYNC", subject: "twitch.outgress.bench.r3.test.async",
-		replicas: 3, requiredPeers: 3,
+		replicas: 3, requiredPeers: 3, maxMsgsPerSubject: 400_000,
 	}
 	stream := temporaryStreamConfig(cfg)
 	require.Equal(t, 3, stream.Replicas)
@@ -125,6 +131,15 @@ func TestTemporaryR3StreamMatchesProductionShapedRetention(t *testing.T) {
 	require.Equal(t, 10*time.Second, stream.Duplicates)
 	require.True(t, stream.AllowAtomicPublish)
 	require.True(t, stream.AllowBatchPublish)
+}
+
+func TestTemporaryR3StreamCanUseByteOnlyRollingRetention(t *testing.T) {
+	stream := temporaryStreamConfig(config{
+		stream: "R3_SHADOW_TEST_UNLIMITED", subject: "twitch.outgress.bench.r3.test.unlimited",
+		replicas: 3, requiredPeers: 3, maxMsgsPerSubject: -1,
+	})
+	require.Equal(t, int64(-1), stream.MaxMsgsPerSubject)
+	require.Equal(t, int64(1<<30), stream.MaxBytes)
 }
 
 func TestBenchmarkPublishingIsStructurallyDedupFree(t *testing.T) {
@@ -217,6 +232,14 @@ func TestTopologyRequiresWorkerFollowerAndZeroLag(t *testing.T) {
 	}
 }
 
+func TestPreferredLeaderMustMatchExactly(t *testing.T) {
+	info := healthyTopology()
+	require.True(t, preferredLeaderActive(info, "nats-0"))
+	require.False(t, preferredLeaderActive(info, "nats-1"))
+	require.True(t, preferredLeaderActive(info, ""))
+	require.False(t, preferredLeaderActive(nil, "nats-0"))
+}
+
 func TestTopologyObserverDetectsLeaderChange(t *testing.T) {
 	observer := topologyObserver{report: topologyReport{ForbiddenLeader: "nats-2"}}
 	if err := observer.observe(healthyTopology()); err != nil {
@@ -245,6 +268,28 @@ func TestTopologyObserverRejectsTransientUnhealthyFollower(t *testing.T) {
 	}
 }
 
+func TestTopologyObserverAllowsBoundedFollowerCatchup(t *testing.T) {
+	started := time.Now()
+	observer := topologyObserver{
+		report:         topologyReport{ForbiddenLeader: "nats-2"},
+		unhealthyGrace: 5 * time.Second,
+		unhealthySince: make(map[string]time.Time),
+	}
+	info := healthyTopology()
+	info.Cluster.Replicas[0].Current = false
+	require.NoError(t, observer.rejectUnhealthyFollowers(info.Cluster.Replicas, started))
+	require.NoError(t, observer.rejectUnhealthyFollowers(info.Cluster.Replicas, started.Add(4*time.Second)))
+	require.ErrorContains(
+		t,
+		observer.rejectUnhealthyFollowers(info.Cluster.Replicas, started.Add(5*time.Second)),
+		"became unhealthy",
+	)
+
+	info.Cluster.Replicas[0].Current = true
+	require.NoError(t, observer.rejectUnhealthyFollowers(info.Cluster.Replicas, started.Add(6*time.Second)))
+	require.Empty(t, observer.unhealthySince)
+}
+
 func TestLeaderAdvisoryDetectsTransientForbiddenLeader(t *testing.T) {
 	watch := &leaderAdvisoryWatch{stream: "R3_SHADOW_TEST"}
 	watch.observe(&nats.Msg{Data: []byte(`{"stream":"R3_SHADOW_TEST","leader":"nats-2"}`)})
@@ -261,68 +306,67 @@ func TestLeaderAdvisoryDetectsTransientForbiddenLeader(t *testing.T) {
 
 func TestR3RunnerIsGuardedAndNotKustomized(t *testing.T) {
 	kustomization, err := os.ReadFile("../kustomization.yaml")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if bytes.Contains(kustomization, []byte("r3-120k")) {
-		t.Fatal("R3 shadow runner was added to the production kustomization")
-	}
+	require.NoError(t, err)
+	require.NotContains(t, string(kustomization), "r3-120k")
+
 	cmd := exec.Command("bash", "r3-120k.sh")
 	cmd.Env = withoutEnv(os.Environ(), "CONFIRM_R3_SHADOW")
 	output, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("guarded runner failed: %v: %s", err, output)
-	}
-	if !strings.Contains(string(output), "no actions performed") {
-		t.Fatalf("guarded runner output = %q", output)
-	}
+	require.NoError(t, err, string(output))
+	require.Contains(t, string(output), "no actions performed")
+}
+
+func TestR3RunnerUsesExplicitResultsAndScopedSecrets(t *testing.T) {
+	script := readR3Runner(t)
+	require.NotContains(t, script, `"$results_dir"/"$label"-*.json`)
+	require.Contains(t, script, `"${result_files[@]}"`)
+	require.NotContains(t, script, `name:"worker-env"`)
+	require.NotContains(t, script, `key:"VALKEY_ADDR"`)
+	require.NotContains(t, script, `control_pod=${pods[`)
+	assertScriptContains(t, script,
+		`NATS_BENCH_PUBLISHER_SECRET:-sesame-env`,
+		`NATS_BENCH_ADMIN_RPC_SECRET:-console-admin-env`,
+		`if $role == "control" then`,
+		`elif $role == "sli" then`,
+		`valkey.valkey.svc.cluster.local:26380`,
+		`VALKEY_LOCAL_ADDR`,
+	)
+}
+
+func TestR3RunnerContainsSafetyInvariants(t *testing.T) {
+	script := readR3Runner(t)
+	assertScriptContains(t, script,
+		`--request-timeout="$broker_query_timeout"`,
+		`-max-ack-gap=`,
+		`limits:{cpu:"1"`,
+		`nodeSelector:{"kubernetes.io/hostname":$node}`,
+		`monitor_cluster_health "$health_monitor_stop"`,
+		`wait_for_meta_idle pre-create`,
+		`stop_publisher_pods`,
+		`start_sli_monitors`,
+		`.[-1].rpc_p99_samples >= $min`,
+		`R3_SLI_ONLY`,
+		`automountServiceAccountToken:false`,
+		`tls://nats-leaf-local.production.svc.cluster.local:4222`,
+		`stream_topologies`,
+		`--since=5m`,
+		`qualifier_batch=$(jq -er '.batch_size'`,
+		`canary_rates=${R3_CANARY_RATES:-"12000 30000 60000 90000"}`,
+	)
+	require.NotContains(t, script, `nodeName:$node`)
+}
+
+func readR3Runner(t *testing.T) string {
+	t.Helper()
 	script, err := os.ReadFile("r3-120k.sh")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if bytes.Contains(script, []byte(`"$results_dir"/"$label"-*.json`)) {
-		t.Fatal("R3 summary wildcard would include the topology report as a publisher result")
-	}
-	if !bytes.Contains(script, []byte(`"${result_files[@]}"`)) {
-		t.Fatal("R3 summary does not use an explicit publisher result list")
-	}
-	if bytes.Contains(script, []byte(`name:"worker-env"`)) {
-		t.Fatal("R3 runner still references the stale worker-env Secret")
-	}
-	if bytes.Contains(script, []byte(`key:"VALKEY_ADDR"`)) {
-		t.Fatal("R3 SLI address must use the explicit Sentinel Service so node-local reads stay enabled")
-	}
-	for _, required := range [][]byte{
-		[]byte(`NATS_BENCH_PUBLISHER_SECRET:-sesame-env`),
-		[]byte(`NATS_BENCH_ADMIN_RPC_SECRET:-console-admin-env`),
-		[]byte(`if $role == "control" then`),
-		[]byte(`elif $role == "sli" then`),
-		[]byte(`--request-timeout="$broker_query_timeout"`),
-		[]byte(`-max-ack-gap=`),
-		[]byte(`limits:{cpu:"1"`),
-		[]byte(`nodeSelector:{"kubernetes.io/hostname":$node}`),
-		[]byte(`monitor_cluster_health "$health_monitor_stop"`),
-		[]byte(`wait_for_meta_idle pre-create`),
-		[]byte(`stop_publisher_pods`),
-		[]byte(`start_sli_monitors`),
-		[]byte(`automountServiceAccountToken:false`),
-		[]byte(`tls://nats-leaf-local.production.svc.cluster.local:4222`),
-		[]byte(`valkey.valkey.svc.cluster.local:26380`),
-		[]byte(`VALKEY_LOCAL_ADDR`),
-		[]byte(`stream_topologies`),
-		[]byte(`--since=5m`),
-		[]byte(`qualifier_batch=$(jq -er '.batch_size'`),
-		[]byte(`canary_rates=${R3_CANARY_RATES:-"12000 30000 60000 90000"}`),
-	} {
-		if !bytes.Contains(script, required) {
-			t.Fatalf("R3 runner is missing safety invariant %q", required)
-		}
-	}
-	if bytes.Contains(script, []byte(`nodeName:$node`)) {
-		t.Fatal("R3 runner bypasses scheduler fit with spec.nodeName")
-	}
-	if bytes.Contains(script, []byte(`control_pod=${pods[`)) {
-		t.Fatal("R3 runner still shares the setup credential with a publisher pod")
+	require.NoError(t, err)
+	return string(script)
+}
+
+func assertScriptContains(t *testing.T, script string, required ...string) {
+	t.Helper()
+	for _, invariant := range required {
+		require.Contains(t, script, invariant, "missing safety invariant")
 	}
 }
 
@@ -339,6 +383,53 @@ set -euo pipefail
 `
 	output, err := exec.Command("bash", "-u", "-c", command).CombinedOutput()
 	require.NoError(t, err, string(output))
+}
+
+func TestR3SLIOnlySummaryReportsNearestRankDistributions(t *testing.T) {
+	script, err := os.ReadFile("r3-120k.sh")
+	require.NoError(t, err)
+	function := extractShellFunction(t, string(script), "write_sli_summary")
+	dir := t.TempDir()
+	input := strings.Join([]string{
+		`{"rpc":[{"rtt_ms":1},{"rtt_ms":2}],"ingress":{"rtt_ms":3},"valkey":{"ping_rtt_ms":4,"set_rtt_ms":5,"get_rtt_ms":6},"passed":true}`,
+		`{"rpc":[{"rtt_ms":7},{"rtt_ms":8}],"ingress":{"rtt_ms":9},"valkey":{"ping_rtt_ms":10,"set_rtt_ms":11,"get_rtt_ms":12},"passed":true}`,
+	}, "\n")
+	inputPath := dir + "/node2.jsonl"
+	require.NoError(t, os.WriteFile(inputPath, []byte(input), 0o600))
+	command := function + `
+set -euo pipefail
+nodes=(node2)
+sli_monitor_files=("$INPUT")
+results_dir="$RESULTS"
+write_sli_summary >/dev/null
+`
+	cmd := exec.Command("bash", "-c", command)
+	cmd.Env = append(os.Environ(), "INPUT="+inputPath, "RESULTS="+dir)
+	output, err := cmd.CombinedOutput()
+	require.NoError(t, err, string(output))
+
+	data, err := os.ReadFile(dir + "/sli-summary.json")
+	require.NoError(t, err)
+	var summary []struct {
+		RPCSamples int `json:"rpc_samples"`
+		RPC        struct {
+			Min float64 `json:"min"`
+			P50 float64 `json:"p50"`
+			P95 float64 `json:"p95"`
+			P99 float64 `json:"p99"`
+			Max float64 `json:"max"`
+		} `json:"rpc_health_round_trip_ms"`
+		Passed bool `json:"passed"`
+	}
+	require.NoError(t, json.Unmarshal(data, &summary))
+	require.Len(t, summary, 1)
+	require.Equal(t, 4, summary[0].RPCSamples)
+	require.Equal(t, 1.0, summary[0].RPC.Min)
+	require.Equal(t, 2.0, summary[0].RPC.P50)
+	require.Equal(t, 8.0, summary[0].RPC.P95)
+	require.Equal(t, 8.0, summary[0].RPC.P99)
+	require.Equal(t, 8.0, summary[0].RPC.Max)
+	require.True(t, summary[0].Passed)
 }
 
 func extractShellFunction(t *testing.T, source, name string) string {
@@ -421,38 +512,38 @@ func runMinimalNATSServer(t *testing.T) string {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = listener.Close() })
 
-	go func() {
-		conn, acceptErr := listener.Accept()
-		if acceptErr != nil {
-			return
-		}
-		defer conn.Close()
-		port := listener.Addr().(*net.TCPAddr).Port
-		_, writeErr := fmt.Fprintf(conn,
-			"INFO {\"server_id\":\"test\",\"version\":\"2.14.0\",\"proto\":1,\"host\":\"127.0.0.1\",\"port\":%d,\"max_payload\":1048576}\r\n",
-			port,
-		)
-		if writeErr != nil {
-			return
-		}
-		scanner := bufio.NewScanner(conn)
-		for scanner.Scan() {
-			if scanner.Text() != "PING" {
-				continue
-			}
-			_, writeErr = conn.Write([]byte("PONG\r\n"))
-			if writeErr != nil {
-				return
-			}
-			for scanner.Scan() {
-				if scanner.Text() == "PING" {
-					_, _ = conn.Write([]byte("PONG\r\n"))
-				}
-			}
-			return
-		}
-	}()
+	go serveMinimalNATS(listener)
 	return "nats://" + listener.Addr().String()
+}
+
+func serveMinimalNATS(listener net.Listener) {
+	conn, err := listener.Accept()
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+	if err := writeMinimalNATSInfo(conn, listener); err != nil {
+		return
+	}
+	answerNATSPings(conn)
+}
+
+func writeMinimalNATSInfo(conn net.Conn, listener net.Listener) error {
+	port := listener.Addr().(*net.TCPAddr).Port
+	_, err := fmt.Fprintf(conn,
+		"INFO {\"server_id\":\"test\",\"version\":\"2.14.0\",\"proto\":1,\"host\":\"127.0.0.1\",\"port\":%d,\"max_payload\":1048576}\r\n",
+		port,
+	)
+	return err
+}
+
+func answerNATSPings(conn net.Conn) {
+	scanner := bufio.NewScanner(conn)
+	for scanner.Scan() {
+		if scanner.Text() == "PING" {
+			_, _ = conn.Write([]byte("PONG\r\n"))
+		}
+	}
 }
 
 func TestAcknowledgementGapTracksRecoveredStalls(t *testing.T) {
@@ -473,6 +564,24 @@ func TestAcknowledgementGapTracksRecoveredStalls(t *testing.T) {
 	}
 	err := validateBenchmark(config{messages: 40, mode: "atomic", maxAckGap: time.Second}, result, nil)
 	require.ErrorContains(t, err, "maximum publisher completion-progress gap")
+}
+
+func TestFastPublisherCountsFlowAckDeltas(t *testing.T) {
+	counters := &benchmarkCounters{}
+	counters.beginAckWindows(time.Now(), 1)
+	session := fastPublishSession{
+		job: publishJob{publisher: 0, count: 100, counters: counters},
+	}
+
+	session.recordAckSequenceAt(1, 10*time.Millisecond)
+	session.recordAckSequenceAt(64, 20*time.Millisecond)
+	session.recordAckSequenceAt(64, 30*time.Millisecond)
+	session.recordAckSequenceAt(120, 40*time.Millisecond)
+	counters.finishAckWindows(counters.started.Add(50 * time.Millisecond))
+
+	require.Equal(t, uint64(100), session.acked)
+	require.Equal(t, int64(100), counters.acked.Load())
+	require.Equal(t, 20*time.Millisecond, counters.maximumAckGap())
 }
 
 func TestAsyncDrainObservesResolvedPubAcksBeforeWindowFills(t *testing.T) {
