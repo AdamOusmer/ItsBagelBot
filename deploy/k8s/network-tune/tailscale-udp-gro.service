@@ -1,0 +1,13 @@
+[Unit]
+Description=Enable UDP GRO forwarding on the Tailscale underlay
+Documentation=https://tailscale.com/docs/reference/best-practices/performance
+After=network-online.target tailscaled.service
+Wants=network-online.target tailscaled.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/tailscale-udp-gro.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

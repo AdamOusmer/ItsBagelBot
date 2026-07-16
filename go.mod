@@ -19,6 +19,7 @@ require (
 	github.com/puzpuzpuz/xsync/v4 v4.5.0
 	github.com/resend/resend-go/v3 v3.9.2
 	github.com/stretchr/testify v1.11.1
+	github.com/synadia-io/orbit.go/jetstreamext v0.3.1
 	github.com/tink-crypto/tink-go/v2 v2.6.0
 	github.com/valkey-io/valkey-go v1.0.75
 	go.uber.org/zap v1.27.1
@@ -45,6 +46,7 @@ require (
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
 	github.com/nats-io/nkeys v0.4.15 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/synadia-io/orbit.go/natsext v0.1.2 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/zclconf/go-cty v1.18.0 // indirect
 	github.com/zclconf/go-cty-yaml v1.2.0 // indirect

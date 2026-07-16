@@ -10,7 +10,10 @@ layout, the Kubernetes distribution choice, and the resource model every workloa
 
 All nodes are mixed-architecture: **`node1`** is **ARM** (aarch64) and **`node2`** is **Intel** (x86_64). All workloads are scheduled across both nodes for high availability (HA); each node runs the image built natively for its architecture.
 
-Networking between nodes is over **Tailscale only**. There is no second LAN-only path.
+Pod and Service traffic uses K3s native WireGuard over direct node endpoints.
+Tailscale is reserved for SSH and explicit private routes: Kubernetes
+management, private admin ingress, and the external database. NATS, Valkey,
+RPC, streams, telemetry, and autoscaling stay on the native pod network.
 See [Networking →](/infrastructure/networking/).
 
 ## Kubernetes distribution: K3s
@@ -32,7 +35,8 @@ K3s flags of note (`/etc/rancher/k3s/config.yaml`):
 disable:
   - traefik
   - servicelb
-flannel-backend: none      # Tailscale provides node networking
+flannel-backend: wireguard-native
+flannel-external-ip: true
 disable-network-policy: false
 write-kubeconfig-mode: "0640"
 node-label:

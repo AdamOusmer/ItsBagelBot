@@ -1,10 +1,9 @@
 ---
 # firewalld policy for a no-public-IP fleet node.
 #
-# Model: all cluster + app traffic rides tailscale0, so that interface is fully
-# trusted. The public-facing interface only needs SSH (bootstrap) and the
-# Tailscale UDP port for NAT traversal. Public ingress is the OUTBOUND cloudflared
-# tunnel, so no inbound app ports are ever opened to the internet.
+# Model: Tailscale carries SSH, Kubernetes management, and DB routing only.
+# Encrypted pod/service traffic uses K3s wireguard-native directly on UDP 51820.
+# Public ingress remains the outbound cloudflared tunnel.
 
 - name: Install firewalld
   ansible.builtin.dnf:
@@ -62,6 +61,22 @@
     permanent: true
     immediate: true
     state: enabled
+
+- name: Allow K3s native WireGuard pod transport
+  ansible.posix.firewalld:
+    zone: public
+    port: "{{ flannel_wireguard_port }}/udp"
+    permanent: true
+    immediate: true
+    state: enabled
+
+- name: Close obsolete public Flannel VXLAN transport
+  ansible.posix.firewalld:
+    zone: public
+    port: 8472/udp
+    permanent: true
+    immediate: true
+    state: disabled
 
 - name: Strip default public services we do not want exposed
   ansible.posix.firewalld:

@@ -12,13 +12,18 @@
 k3s_server_ip: "100.95.95.9"            # node2 Tailscale IPv4 (CP migrated node1->node2 2026-07-01)
 k3s_url: "https://{{ k3s_server_ip }}:6443"
 k3s_version: "v1.35.5+k3s1"             # pinned to running fleet; bump deliberately
-flannel_iface: "tailscale0"            # all cluster traffic stays on the tailnet
+# Pod/service traffic must use the physical underlay. Tailscale is reserved for
+# SSH, Kubernetes management, and database routing; it is never a Flannel peer
+# endpoint. NATed nodes must supply NODE_EXTERNAL_IP explicitly.
+flannel_iface: "{{ lookup('env', 'FLANNEL_IFACE') | default(ansible_default_ipv4.interface, true) }}"
+node_external_ip: "{{ lookup('env', 'NODE_EXTERNAL_IP') | default('', true) }}"
 k3s_token: "{{ lookup('env', 'K3S_TOKEN') }}"
 
 # --- Tailscale ---------------------------------------------------------------
 tailscale_authkey: "{{ lookup('env', 'TS_AUTHKEY') }}"
 tailscale_tag: "tag:itsbagelbot"       # node joins pre-authorized under this ACL tag
 tailscale_port: 41641                   # UDP listen port
+flannel_wireguard_port: 51820          # K3s wireguard-native, IPv4
 
 # A fleet node is not considered provisioned until it can establish a direct
 # UDP path to every other fleet node. This deliberately rejects DERP and peer

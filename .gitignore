@@ -100,3 +100,5 @@ bustest
 /test_templ_templ.go
 /test_htmx.html
 /test-env.yaml
+__pycache__/
+*.py[cod]

@@ -66,52 +66,48 @@ func newMessage(id string, payload []byte, metadata Metadata) *Message {
 // Ack marks the message successfully handled. It returns false only when Nack
 // won the acknowledgement race first.
 func (m *Message) Ack() bool {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.ensureChannelsLocked()
-	switch m.state {
-	case messageNacked:
-		return false
-	case messageAcked:
-		return true
-	default:
-		m.state = messageAcked
-		close(m.ack)
-		return true
-	}
+	return m.resolve(messageAcked)
 }
 
 // Nack marks the message for paced redelivery. It returns false only when Ack
 // won the acknowledgement race first.
 func (m *Message) Nack() bool {
+	return m.resolve(messageNacked)
+}
+
+func (m *Message) resolve(target messageState) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.ensureChannelsLocked()
-	switch m.state {
-	case messageAcked:
-		return false
-	case messageNacked:
-		return true
-	default:
-		m.state = messageNacked
-		close(m.nack)
-		return true
+	if m.state != messagePending {
+		return m.state == target
 	}
+	m.state = target
+	if target == messageAcked {
+		close(m.ack)
+	} else {
+		close(m.nack)
+	}
+	return true
 }
 
 // Acked is closed after the message is acknowledged.
 func (m *Message) Acked() <-chan struct{} {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.ensureChannelsLocked()
-	return m.ack
+	return m.signal(messageAcked)
 }
 
 // Nacked is closed after the message is negatively acknowledged.
 func (m *Message) Nacked() <-chan struct{} {
+	return m.signal(messageNacked)
+}
+
+func (m *Message) signal(target messageState) <-chan struct{} {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.ensureChannelsLocked()
+	if target == messageAcked {
+		return m.ack
+	}
 	return m.nack
 }
 
