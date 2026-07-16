@@ -3,6 +3,7 @@
 package ent
 
 import (
+	"ItsBagelBot/app/modules/ent/feedcounter"
 	"ItsBagelBot/app/modules/ent/goveecredential"
 	"ItsBagelBot/app/modules/ent/modules"
 	"ItsBagelBot/app/modules/ent/quote"
@@ -14,6 +15,12 @@ import (
 // (default values, validators, hooks and policies) and stitches it
 // to their package variables.
 func init() {
+	feedcounterFields := schema.FeedCounter{}.Fields()
+	_ = feedcounterFields
+	// feedcounterDescCount is the schema descriptor for count field.
+	feedcounterDescCount := feedcounterFields[1].Descriptor()
+	// feedcounter.DefaultCount holds the default value on creation for the count field.
+	feedcounter.DefaultCount = feedcounterDescCount.Default.(uint64)
 	goveecredentialFields := schema.GoveeCredential{}.Fields()
 	_ = goveecredentialFields
 	// goveecredentialDescUpdatedAt is the schema descriptor for updated_at field.

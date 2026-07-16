@@ -6,6 +6,9 @@ import (
 	"entgo.io/ent/dialect/sql"
 )
 
+// FeedCounter is the predicate function for feedcounter builders.
+type FeedCounter func(*sql.Selector)
+
 // GoveeCredential is the predicate function for goveecredential builders.
 type GoveeCredential func(*sql.Selector)
 

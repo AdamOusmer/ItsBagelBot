@@ -11,6 +11,7 @@ import (
 
 	"ItsBagelBot/app/modules/ent/migrate"
 
+	"ItsBagelBot/app/modules/ent/feedcounter"
 	"ItsBagelBot/app/modules/ent/goveecredential"
 	"ItsBagelBot/app/modules/ent/modules"
 	"ItsBagelBot/app/modules/ent/quote"
@@ -25,6 +26,8 @@ type Client struct {
 	config
 	// Schema is the client for creating, migrating and dropping schema.
 	Schema *migrate.Schema
+	// FeedCounter is the client for interacting with the FeedCounter builders.
+	FeedCounter *FeedCounterClient
 	// GoveeCredential is the client for interacting with the GoveeCredential builders.
 	GoveeCredential *GoveeCredentialClient
 	// Modules is the client for interacting with the Modules builders.
@@ -42,6 +45,7 @@ func NewClient(opts ...Option) *Client {
 
 func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
+	c.FeedCounter = NewFeedCounterClient(c.config)
 	c.GoveeCredential = NewGoveeCredentialClient(c.config)
 	c.Modules = NewModulesClient(c.config)
 	c.Quote = NewQuoteClient(c.config)
@@ -137,6 +141,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	return &Tx{
 		ctx:             ctx,
 		config:          cfg,
+		FeedCounter:     NewFeedCounterClient(cfg),
 		GoveeCredential: NewGoveeCredentialClient(cfg),
 		Modules:         NewModulesClient(cfg),
 		Quote:           NewQuoteClient(cfg),
@@ -159,6 +164,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 	return &Tx{
 		ctx:             ctx,
 		config:          cfg,
+		FeedCounter:     NewFeedCounterClient(cfg),
 		GoveeCredential: NewGoveeCredentialClient(cfg),
 		Modules:         NewModulesClient(cfg),
 		Quote:           NewQuoteClient(cfg),
@@ -168,7 +174,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 // Debug returns a new debug-client. It's used to get verbose logging on specific operations.
 //
 //	client.Debug().
-//		GoveeCredential.
+//		FeedCounter.
 //		Query().
 //		Count(ctx)
 func (c *Client) Debug() *Client {
@@ -190,6 +196,7 @@ func (c *Client) Close() error {
 // Use adds the mutation hooks to all the entity clients.
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
+	c.FeedCounter.Use(hooks...)
 	c.GoveeCredential.Use(hooks...)
 	c.Modules.Use(hooks...)
 	c.Quote.Use(hooks...)
@@ -198,6 +205,7 @@ func (c *Client) Use(hooks ...Hook) {
 // Intercept adds the query interceptors to all the entity clients.
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
+	c.FeedCounter.Intercept(interceptors...)
 	c.GoveeCredential.Intercept(interceptors...)
 	c.Modules.Intercept(interceptors...)
 	c.Quote.Intercept(interceptors...)
@@ -206,6 +214,8 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 // Mutate implements the ent.Mutator interface.
 func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 	switch m := m.(type) {
+	case *FeedCounterMutation:
+		return c.FeedCounter.mutate(ctx, m)
 	case *GoveeCredentialMutation:
 		return c.GoveeCredential.mutate(ctx, m)
 	case *ModulesMutation:
@@ -214,6 +224,139 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.Quote.mutate(ctx, m)
 	default:
 		return nil, fmt.Errorf("ent: unknown mutation type %T", m)
+	}
+}
+
+// FeedCounterClient is a client for the FeedCounter schema.
+type FeedCounterClient struct {
+	config
+}
+
+// NewFeedCounterClient returns a client for the FeedCounter from the given config.
+func NewFeedCounterClient(c config) *FeedCounterClient {
+	return &FeedCounterClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `feedcounter.Hooks(f(g(h())))`.
+func (c *FeedCounterClient) Use(hooks ...Hook) {
+	c.hooks.FeedCounter = append(c.hooks.FeedCounter, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `feedcounter.Intercept(f(g(h())))`.
+func (c *FeedCounterClient) Intercept(interceptors ...Interceptor) {
+	c.inters.FeedCounter = append(c.inters.FeedCounter, interceptors...)
+}
+
+// Create returns a builder for creating a FeedCounter entity.
+func (c *FeedCounterClient) Create() *FeedCounterCreate {
+	mutation := newFeedCounterMutation(c.config, OpCreate)
+	return &FeedCounterCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of FeedCounter entities.
+func (c *FeedCounterClient) CreateBulk(builders ...*FeedCounterCreate) *FeedCounterCreateBulk {
+	return &FeedCounterCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *FeedCounterClient) MapCreateBulk(slice any, setFunc func(*FeedCounterCreate, int)) *FeedCounterCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &FeedCounterCreateBulk{err: fmt.Errorf("calling to FeedCounterClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*FeedCounterCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &FeedCounterCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for FeedCounter.
+func (c *FeedCounterClient) Update() *FeedCounterUpdate {
+	mutation := newFeedCounterMutation(c.config, OpUpdate)
+	return &FeedCounterUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *FeedCounterClient) UpdateOne(_m *FeedCounter) *FeedCounterUpdateOne {
+	mutation := newFeedCounterMutation(c.config, OpUpdateOne, withFeedCounter(_m))
+	return &FeedCounterUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *FeedCounterClient) UpdateOneID(id int) *FeedCounterUpdateOne {
+	mutation := newFeedCounterMutation(c.config, OpUpdateOne, withFeedCounterID(id))
+	return &FeedCounterUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for FeedCounter.
+func (c *FeedCounterClient) Delete() *FeedCounterDelete {
+	mutation := newFeedCounterMutation(c.config, OpDelete)
+	return &FeedCounterDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *FeedCounterClient) DeleteOne(_m *FeedCounter) *FeedCounterDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *FeedCounterClient) DeleteOneID(id int) *FeedCounterDeleteOne {
+	builder := c.Delete().Where(feedcounter.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &FeedCounterDeleteOne{builder}
+}
+
+// Query returns a query builder for FeedCounter.
+func (c *FeedCounterClient) Query() *FeedCounterQuery {
+	return &FeedCounterQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeFeedCounter},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a FeedCounter entity by its id.
+func (c *FeedCounterClient) Get(ctx context.Context, id int) (*FeedCounter, error) {
+	return c.Query().Where(feedcounter.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *FeedCounterClient) GetX(ctx context.Context, id int) *FeedCounter {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *FeedCounterClient) Hooks() []Hook {
+	return c.hooks.FeedCounter
+}
+
+// Interceptors returns the client interceptors.
+func (c *FeedCounterClient) Interceptors() []Interceptor {
+	return c.inters.FeedCounter
+}
+
+func (c *FeedCounterClient) mutate(ctx context.Context, m *FeedCounterMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&FeedCounterCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&FeedCounterUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&FeedCounterUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&FeedCounterDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown FeedCounter mutation op: %q", m.Op())
 	}
 }
 
@@ -619,9 +762,9 @@ func (c *QuoteClient) mutate(ctx context.Context, m *QuoteMutation) (Value, erro
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		GoveeCredential, Modules, Quote []ent.Hook
+		FeedCounter, GoveeCredential, Modules, Quote []ent.Hook
 	}
 	inters struct {
-		GoveeCredential, Modules, Quote []ent.Interceptor
+		FeedCounter, GoveeCredential, Modules, Quote []ent.Interceptor
 	}
 )

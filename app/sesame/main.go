@@ -150,6 +150,8 @@ func buildDeps(in infra, cfg *config.Config, log *zap.Logger, rt engineRuntime) 
 		Loyalty:     rt.loyalty,
 		LoyaltyTick: rt.tick,
 
+		Personality: engine.NewValkeyPersonality(in.vc, engine.NewPersonalityRPC(in.nc, cfg.ModulesRPCPrefix), log),
+
 		PublicBaseURL: cfg.PublicBaseURL,
 	}
 }
