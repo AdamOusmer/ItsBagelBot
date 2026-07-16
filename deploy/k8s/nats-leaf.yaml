@@ -26,7 +26,7 @@ spec:
       annotations:
         # NATS (leaf tier) is out of the Linkerd mesh — see nats.yaml for the
         # rationale. Wire encryption is NATS-native TLS (client + cluster + the
-        # leaf->hub remotes; nats-leaf-server.conf) over the tailnet.
+        # leaf->hub remotes; nats-leaf-server.conf) over native WireGuard.
         linkerd.io/inject: disabled
         # Cluster listener/routes and TLS blocks cannot be introduced by a config
         # reload; bump this to force a rolling restart when the topology changes.

@@ -3,6 +3,9 @@ server: {{ k3s_url }}
 token: {{ k3s_token }}
 node-name: {{ fleet_node_name }}
 node-ip: {{ ansible_tailscale0.ipv4.address }}
+{% if node_external_ip | length > 0 %}
+node-external-ip: {{ node_external_ip }}
+{% endif %}
 flannel-iface: {{ flannel_iface }}
 node-label:
   - "topology.kubernetes.io/zone={{ node_zone }}"

@@ -83,6 +83,8 @@ Put these in the Doppler config you run with:
 | `K3S_TOKEN`  | node1 join token — `sudo cat /var/lib/rancher/k3s/server/node-token` |
 | `TS_AUTHKEY` | Tailscale **pre-authorized** key, `ephemeral=false`, tagged `tag:itsbagelbot` |
 | `NODE_ZONE`  | (optional) `topology.kubernetes.io/zone`, e.g. `ovh-bhs1` |
+| `NODE_EXTERNAL_IP` | (optional) fixed, peer-reachable address for native WireGuard Flannel |
+| `FLANNEL_IFACE` | (optional) direct underlay interface; defaults to `tailscale0` for NAT-safe provisioning |
 
 Generate the auth key at <https://login.tailscale.com/admin/settings/keys> with the
 `tag:itsbagelbot` tag and pre-approval. Your tailnet ACL **must grant SSH into `tag:itsbagelbot`**
@@ -103,6 +105,44 @@ ansible-galaxy collection install -r requirements.yml
 # dry run first:
 NODE_NAME=node4 doppler run -- ansible-playbook site.yml \
   -e target_host=51.x.x.x -e target_user=opc --check --diff
+```
+
+## Existing cluster: native WireGuard pod network
+
+The production data plane uses K3s `wireguard-native`. Every node advertises a
+direct WAN Flannel endpoint; no pod or service traffic is nested in Tailscale.
+Tailscale remains only for SSH and explicit private routes such as Kubernetes
+management, the database, and admin ingress. node2's API advertise address and
+the API server's kubelet address preference remain pinned to Tailscale
+InternalIP; `node-external-ip` must not move Kubernetes API or DB traffic onto
+the public interface. Workloads, NATS, Valkey, RPC, streams, telemetry, and
+autoscaling use ClusterIP/pod addresses on native WireGuard.
+
+Stage the idempotent configuration without restarting anything:
+
+```bash
+ansible-playbook -i inventory.cluster.ini cluster-network-wireguard.yml
+```
+
+Prove bidirectional UDP 51820 reachability on every advertised endpoint before
+activation:
+
+```bash
+ansible-playbook -i inventory.cluster.ini cluster-network-preflight.yml
+```
+
+After the preflight passes, activate it in K3s' required server-first order:
+
+```bash
+ansible-playbook -i inventory.cluster.ini cluster-network-wireguard.yml \
+  -e activate_wireguard_native=true
+```
+
+Each node preserves `/etc/rancher/k3s/config.yaml.pre-wireguard-native`. A
+server-first rollback is fully automated:
+
+```bash
+ansible-playbook -i inventory.cluster.ini cluster-network-rollback.yml
 ```
 
 `provision.sh` is just a thin `doppler run -- ansible-playbook …` wrapper.
