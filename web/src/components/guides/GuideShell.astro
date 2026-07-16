@@ -187,7 +187,7 @@ const hubHref = isFrench ? '/fr/guides' : '/guides';
         display: block;
         padding: 7px 0 7px 16px;
         font-family: var(--font-body, "DM Sans", sans-serif);
-        font-size: 0.82rem;
+        font-size: 0.88rem;
         color: var(--muted, #888077);
         transition: color 200ms ease, padding-left 300ms var(--ease-out-expo);
     }
@@ -226,7 +226,7 @@ const hubHref = isFrench ? '/fr/guides' : '/guides';
 
     /* ── Content ── */
 
-    .gshell__content { max-width: 760px; min-width: 0; }
+    .gshell__content { max-width: 780px; min-width: 0; }
 
     .gshell__meta {
         display: flex;
@@ -256,7 +256,7 @@ const hubHref = isFrench ? '/fr/guides' : '/guides';
         align-items: baseline;
         gap: 12px;
         font-family: var(--font-display, "Syne", sans-serif);
-        font-size: 1.35rem;
+        font-size: 1.5rem;
         font-weight: 700;
         color: var(--white, #f0ece4);
         letter-spacing: -0.01em;
@@ -276,7 +276,7 @@ const hubHref = isFrench ? '/fr/guides' : '/guides';
 
     .gshell__glance {
         font-family: var(--font-body, "DM Sans", sans-serif);
-        font-size: 0.85rem;
+        font-size: 0.94rem;
         line-height: 1.6;
         color: rgba(240, 236, 228, 0.75);
         background: rgba(82, 183, 136, 0.05);
@@ -298,26 +298,29 @@ const hubHref = isFrench ? '/fr/guides' : '/guides';
 
     /* Body typography for slotted content. */
 
-    .gshell__block :global(p),
-    .gshell__block :global(ul),
-    .gshell__block :global(ol) {
+    /* :not([class]) keeps this off embedded components (ChatMock lines,
+       DashFrame legends, callouts) whose scoped sizes it would out-rank. */
+    .gshell__block :global(p:not([class])),
+    .gshell__block :global(ul:not([class])),
+    .gshell__block :global(ol:not([class])) {
         font-family: var(--font-body, "DM Sans", sans-serif);
-        font-size: 0.95rem;
-        color: #aaa299;
-        line-height: 1.8;
-        margin-bottom: 14px;
+        font-size: 1.05rem;
+        color: #b6afa5;
+        line-height: 1.85;
+        margin-bottom: 16px;
     }
 
-    .gshell__block :global(ul),
-    .gshell__block :global(ol) { padding-left: 1.4em; }
-    .gshell__block :global(ul) { list-style-type: disc; }
-    .gshell__block :global(li) { margin-bottom: 7px; }
-    .gshell__block :global(ul li::marker),
-    .gshell__block :global(ol li::marker) { color: var(--green-glow, #52b788); }
+    .gshell__block :global(ul:not([class])),
+    .gshell__block :global(ol:not([class])) { padding-left: 1.4em; }
+    .gshell__block :global(ul:not([class])) { list-style-type: disc; }
+    .gshell__block :global(ul:not([class]) li),
+    .gshell__block :global(ol:not([class]) li) { margin-bottom: 7px; }
+    .gshell__block :global(ul:not([class]) li::marker),
+    .gshell__block :global(ol:not([class]) li::marker) { color: var(--green-glow, #52b788); }
 
     .gshell__block :global(h3) {
         font-family: var(--font-display, "Syne", sans-serif);
-        font-size: 1rem;
+        font-size: 1.12rem;
         font-weight: 700;
         color: var(--white, #f0ece4);
         margin: 30px 0 10px;
@@ -359,27 +362,27 @@ const hubHref = isFrench ? '/fr/guides' : '/guides';
         width: 100%;
         border-collapse: collapse;
         font-family: var(--font-body, "DM Sans", sans-serif);
-        font-size: 0.85rem;
+        font-size: 0.94rem;
     }
 
     .gshell__block :global(th) {
         text-align: left;
         font-family: var(--font-mono, "DM Mono", monospace);
         font-weight: 500;
-        font-size: 0.62rem;
+        font-size: 0.68rem;
         letter-spacing: 0.14em;
         text-transform: uppercase;
         color: var(--muted, #888077);
-        padding: 12px 16px;
+        padding: 13px 16px;
         border-bottom: 1px solid var(--border, rgba(201, 168, 124, 0.15));
         white-space: nowrap;
     }
 
     .gshell__block :global(td) {
         vertical-align: top;
-        color: #aaa299;
-        line-height: 1.55;
-        padding: 11px 16px;
+        color: #b6afa5;
+        line-height: 1.6;
+        padding: 12px 16px;
         border-bottom: 1px solid rgba(201, 168, 124, 0.07);
     }
 
@@ -391,8 +394,8 @@ const hubHref = isFrench ? '/fr/guides' : '/guides';
     .gshell__block :global(.gtip),
     .gshell__block :global(.gwarn) {
         display: block;
-        font-size: 0.87rem;
-        line-height: 1.65;
+        font-size: 0.96rem;
+        line-height: 1.7;
         border-radius: 10px;
         padding: 12px 16px;
         margin: 18px 0;
@@ -462,7 +465,7 @@ const hubHref = isFrench ? '/fr/guides' : '/guides';
 
     .gshell__pager-card b {
         font-family: var(--font-display, "Syne", sans-serif);
-        font-size: 0.95rem;
+        font-size: 1.05rem;
         font-weight: 700;
         color: var(--white, #f0ece4);
     }
@@ -473,7 +476,7 @@ const hubHref = isFrench ? '/fr/guides' : '/guides';
 
     @media (max-width: 640px) {
         .gshell { padding: 0 16px 72px; }
-        .gshell__block h2 { font-size: 1.15rem; margin-top: 44px; }
+        .gshell__block h2 { font-size: 1.28rem; margin-top: 44px; }
         .gshell__pager { grid-template-columns: 1fr; }
         .gshell__pager-card--next { text-align: left; }
     }
