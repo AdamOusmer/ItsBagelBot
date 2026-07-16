@@ -41,22 +41,23 @@ const sections = [
             </p>
             <DashFrame
                 path="/commands"
-                caption="L'éditeur de commande tel qu'il s'amarre sur la page Commandes, chaque champ annoté."
+                caption="L'éditeur de commande tel qu'il s'amarre à côté de votre liste, chaque champ annoté."
                 notes={[
                     { n: 1, text: 'Nom: ce que les spectateurs tapent après le «!». Minuscules, un seul mot.' },
                     { n: 2, text: 'Autres noms: des déclencheurs supplémentaires pour la même commande (!calin et !calins peuvent ne faire qu’un).' },
-                    { n: 3, text: 'Réponse: ce que le bot dit. Les accolades deviennent des valeurs réelles (prochaine section).' },
+                    { n: 3, text: 'Réponse: ce que le bot dit. Jusqu’à 5 lignes; chaque ligne est son propre message de chat.' },
                     { n: 4, text: 'La répétition du chat joue votre réponse avec des valeurs d’exemple avant d’enregistrer. Le constructeur de commandes a la même.' },
                     { n: 5, text: 'Accès et délai: qui peut l’utiliser, et combien de secondes de silence suivent chaque utilisation.' },
-                    { n: 6, text: 'Seulement en direct: mettez la commande en pause quand le stream est hors ligne.' },
+                    { n: 6, text: 'Seulement en direct met la commande en pause hors ligne; Active est l’interrupteur général.' },
                 ]}
             >
-                <div class="df-main">
+                <div class="df-main" style="max-width:420px; margin:0 auto;">
                     <div class="df-panel">
-                        <p class="df-title">Modifier la commande</p>
+                        <div class="df-panel-head">Modifier la commande <i>✕</i></div>
                         <div class="df-field"><span>Nom</span><div class="df-input">calin<i class="df-dot" style="position:static; margin-left:auto;">1</i></div></div>
-                        <div class="df-field"><span>Autres noms</span><div class="df-input"><span class="df-pill df-pill--tan">calins ✕</span><i class="df-dot" style="position:static; margin-left:auto;">2</i></div></div>
+                        <div class="df-field"><span>Autres noms <small>(optionnel)</small></span><div class="df-input"><span class="df-pill df-pill--tan">calins ✕</span><i class="df-dot" style="position:static; margin-left:auto;">2</i></div></div>
                         <div class="df-field"><span>Réponse</span><div class="df-input"><span><span class="df-var">&#123;user&#125;</span> donne à <span class="df-var">&#123;touser&#125;</span> un gros câlin bagel 🥯</span><i class="df-dot" style="position:static; margin-left:auto;">3</i></div></div>
+                        <div class="df-chips"><i>&#123;user&#125;</i><i>&#123;target&#125;</i><i>&#123;random&#125;</i></div>
                         <div class="df-chat">
                             <span class="df-chat-tag">Répétition du chat</span>
                             <p class="df-viewer"><b>sesame_sam</b><span>!calin ferret_king</span></p>
@@ -67,9 +68,10 @@ const sections = [
                             <div class="df-field"><span>Accès</span><div class="df-input">Tout le monde</div></div>
                             <div class="df-field"><span>Délai (s)</span><div class="df-input">10<i class="df-dot" style="position:static; margin-left:auto;">5</i></div></div>
                         </div>
-                        <div class="df-row"><span class="df-grow">Active</span><span class="df-toggle is-on"></span></div>
-                        <div class="df-row"><span class="df-grow">Seulement en direct</span><span class="df-toggle"></span><i class="df-dot" style="position:static;">6</i></div>
-                        <div class="df-panel-foot"><span class="df-btn df-btn--primary">Enregistrer</span><span class="df-btn df-btn--ghost">Annuler</span></div>
+                        <div class="df-field"><span>Restreindre à un ID <small>(optionnel)</small></span><div class="df-input is-placeholder">ID Twitch. Seule cette personne peut l'utiliser</div></div>
+                        <span class="df-check is-on">Active</span>
+                        <span class="df-check">Seulement en direct <i class="df-dot" style="position:static; margin-left:auto;">6</i></span>
+                        <div class="df-panel-foot"><span class="df-btn df-btn--ghost">Annuler</span><span class="df-btn df-btn--tan">✓ Enregistrer</span></div>
                     </div>
                 </div>
             </DashFrame>

@@ -43,28 +43,33 @@ const sections = [
             </p>
             <DashFrame
                 path="/modules"
-                caption="Tuile = fonction, groupée par catégorie. Interrupteur = actif/inactif. Configurer ouvre sa page."
+                caption="Des tuiles groupées par catégorie, un rail à gauche. Configurer ouvre la page du module."
                 notes={[
                     { n: 1, text: "L'interrupteur rapide. Inactif = module totalement silencieux, réglages conservés pour plus tard." },
                     { n: 2, text: 'Configurer ouvre la page du module, où vivent ses phrases de chat et ses options.' },
                 ]}
             >
                 <div class="df-main">
+                    <div class="df-topbar"><span class="df-brand">ItsBagelBot <small>Console</small></span><span class="df-crumb">ItsBagelBot / <b>Modules</b></span><span class="df-account">Mavey · Diffuseur</span></div>
                     <span class="df-eyebrow">Gérer</span>
-                    <p class="df-title">Modules de la chaîne</p>
+                    <p class="df-title">Modules de la <i>chaîne</i></p>
                     <p class="df-sub">Fonctions optionnelles pour votre chaîne. 2 sur 13 activées.</p>
-                    <span class="df-cat">Communauté</span>
-                    <div class="df-grid">
-                        <div class="df-tile"><b>Alertes de chat</b><small>Annonce follows, subs, cheers et raids dans le chat.</small><div class="df-actions"><span class="df-btn df-btn--ghost">Configurer</span><span class="df-toggle is-on"></span></div><i class="df-dot" style="top:10px; right:10px;">1</i></div>
-                        <div class="df-tile is-open"><b>Points de fidélité</b><small>Les spectateurs gagnent une monnaie de chaîne.</small><div class="df-actions"><span class="df-btn df-btn--ghost">Configurer</span><span class="df-toggle is-on"></span></div><i class="df-dot" style="top:10px; right:10px;">2</i></div>
-                        <div class="df-tile"><b>File d'attente</b><small>Les spectateurs font la file pour jouer avec vous.</small><div class="df-actions"><span class="df-btn df-btn--ghost">Configurer</span><span class="df-toggle"></span></div></div>
+                    <div class="df-cols df-cols--rail">
+                        <div class="df-rail"><b>Catégories</b><span>Outils de chat</span><span class="is-active">Communauté</span><span>Jeux</span></div>
+                        <div style="display:grid; gap:10px; align-content:start;">
+                            <span class="df-cat">Communauté</span>
+                            <div class="df-grid">
+                                <div class="df-tile"><div class="df-tile-head"><i class="df-ico">◎</i><span><b>Alertes de chat</b><small>Communauté</small></span></div><small>Annonce follows, subs, cheers et raids dans le chat.</small><div class="df-tile-foot"><span class="df-btn--configure">Configurer</span><span class="df-toggle is-on"></span></div><i class="df-dot" style="top:10px; right:10px;">1</i></div>
+                                <div class="df-tile is-open"><div class="df-tile-head"><i class="df-ico">◈</i><span><b>Points de fidélité</b><small>Communauté</small></span></div><small>Les spectateurs gagnent une monnaie de chaîne.</small><div class="df-tile-foot"><span class="df-btn--configure">Configurer</span><span class="df-toggle is-on"></span></div><i class="df-dot" style="top:10px; right:10px;">2</i></div>
+                            </div>
+                            <span class="df-cat">Jeux</span>
+                            <div class="df-grid">
+                                <div class="df-tile"><div class="df-tile-head"><i class="df-ico">⬢</i><span><b>Stats Bedwars</b><small>Jeux</small></span></div><small>Stats Hypixel Bedwars, score urchin et tags dans le chat.</small><div class="df-tile-foot"><span class="df-btn--configure">Configurer</span><span class="df-toggle"></span></div></div>
+                                <div class="df-tile"><div class="df-tile-head"><i class="df-ico">▲</i><span><b>MCSR Ranked</b><small>Jeux</small></span></div><small>Elo classé et stats de session pour les runners MCSR.</small><div class="df-tile-foot"><span class="df-btn--configure">Configurer</span><span class="df-toggle"></span></div></div>
+                            </div>
+                        </div>
                     </div>
-                    <span class="df-cat">Jeux</span>
-                    <div class="df-grid">
-                        <div class="df-tile"><b>Stats Bedwars</b><small>Stats Hypixel Bedwars, score urchin et tags dans le chat.</small><div class="df-actions"><span class="df-btn df-btn--ghost">Configurer</span><span class="df-toggle"></span></div></div>
-                        <div class="df-tile"><b>MCSR Ranked</b><small>Elo classé et stats de session pour les runners MCSR.</small><div class="df-actions"><span class="df-btn df-btn--ghost">Configurer</span><span class="df-toggle"></span></div></div>
-                        <div class="df-tile"><b>Stats Fortnite</b><small>Stats Fortnite BR et boutique du jour dans le chat.</small><div class="df-actions"><span class="df-btn df-btn--ghost">Configurer</span><span class="df-toggle"></span></div></div>
-                    </div>
+                    <div class="df-dock"><span>Aperçu</span><span>Commandes</span><span class="is-active">Modules</span><span>Facturation</span><span>Paramètres</span></div>
                 </div>
             </DashFrame>
             <p>

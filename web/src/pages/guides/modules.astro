@@ -42,28 +42,33 @@ const sections = [
             </p>
             <DashFrame
                 path="/modules"
-                caption="Tile = feature, grouped by category. Switch = on/off. Configure opens its page."
+                caption="Tiles grouped by category, a scrollspy rail on the left. Configure opens the module's page."
                 notes={[
                     { n: 1, text: 'The quick switch. Off means the module is fully silent, settings kept for later.' },
                     { n: 2, text: "Configure opens the module's own page, where its chat lines and options live." },
                 ]}
             >
                 <div class="df-main">
+                    <div class="df-topbar"><span class="df-brand">ItsBagelBot <small>Console</small></span><span class="df-crumb">ItsBagelBot / <b>Modules</b></span><span class="df-account">Mavey · Broadcaster</span></div>
                     <span class="df-eyebrow">Manage</span>
-                    <p class="df-title">Channel modules</p>
+                    <p class="df-title">Channel <i>modules</i></p>
                     <p class="df-sub">Optional features for your channel. 2 of 13 enabled.</p>
-                    <span class="df-cat">Community</span>
-                    <div class="df-grid">
-                        <div class="df-tile"><b>Chat Alerts</b><small>Announce follows, subs, cheers and raids in chat.</small><div class="df-actions"><span class="df-btn df-btn--ghost">Configure</span><span class="df-toggle is-on"></span></div><i class="df-dot" style="top:10px; right:10px;">1</i></div>
-                        <div class="df-tile is-open"><b>Loyalty Points</b><small>Viewers earn channel currency for subs, cheers and watch time.</small><div class="df-actions"><span class="df-btn df-btn--ghost">Configure</span><span class="df-toggle is-on"></span></div><i class="df-dot" style="top:10px; right:10px;">2</i></div>
-                        <div class="df-tile"><b>Play Queue</b><small>Let viewers line up to play with you, first come first served.</small><div class="df-actions"><span class="df-btn df-btn--ghost">Configure</span><span class="df-toggle"></span></div></div>
+                    <div class="df-cols df-cols--rail">
+                        <div class="df-rail"><b>Categories</b><span>Chat Tools</span><span class="is-active">Community</span><span>Games</span></div>
+                        <div style="display:grid; gap:10px; align-content:start;">
+                            <span class="df-cat">Community</span>
+                            <div class="df-grid">
+                                <div class="df-tile"><div class="df-tile-head"><i class="df-ico">◎</i><span><b>Chat Alerts</b><small>Community</small></span></div><small>Announce follows, subs, cheers and raids in chat.</small><div class="df-tile-foot"><span class="df-btn--configure">Configure</span><span class="df-toggle is-on"></span></div><i class="df-dot" style="top:10px; right:10px;">1</i></div>
+                                <div class="df-tile is-open"><div class="df-tile-head"><i class="df-ico">◈</i><span><b>Loyalty Points</b><small>Community</small></span></div><small>Viewers earn channel currency for subs, cheers and watch time.</small><div class="df-tile-foot"><span class="df-btn--configure">Configure</span><span class="df-toggle is-on"></span></div><i class="df-dot" style="top:10px; right:10px;">2</i></div>
+                            </div>
+                            <span class="df-cat">Games</span>
+                            <div class="df-grid">
+                                <div class="df-tile"><div class="df-tile-head"><i class="df-ico">⬢</i><span><b>Bedwars Stats</b><small>Games</small></span></div><small>Hypixel Bedwars stats, urchin score and blacklist tags in chat.</small><div class="df-tile-foot"><span class="df-btn--configure">Configure</span><span class="df-toggle"></span></div></div>
+                                <div class="df-tile"><div class="df-tile-head"><i class="df-ico">▲</i><span><b>MCSR Ranked</b><small>Games</small></span></div><small>Ranked elo and per-stream session stats for MCSR runners.</small><div class="df-tile-foot"><span class="df-btn--configure">Configure</span><span class="df-toggle"></span></div></div>
+                            </div>
+                        </div>
                     </div>
-                    <span class="df-cat">Games</span>
-                    <div class="df-grid">
-                        <div class="df-tile"><b>Bedwars Stats</b><small>Hypixel Bedwars stats, urchin score and blacklist tags in chat.</small><div class="df-actions"><span class="df-btn df-btn--ghost">Configure</span><span class="df-toggle"></span></div></div>
-                        <div class="df-tile"><b>MCSR Ranked</b><small>Ranked elo and per-stream session stats for MCSR runners.</small><div class="df-actions"><span class="df-btn df-btn--ghost">Configure</span><span class="df-toggle"></span></div></div>
-                        <div class="df-tile"><b>Fortnite Stats</b><small>Fortnite BR stats and the daily item shop in chat.</small><div class="df-actions"><span class="df-btn df-btn--ghost">Configure</span><span class="df-toggle"></span></div></div>
-                    </div>
+                    <div class="df-dock"><span>Overview</span><span>Commands</span><span class="is-active">Modules</span><span>Billing</span><span>Settings</span></div>
                 </div>
             </DashFrame>
             <p>
