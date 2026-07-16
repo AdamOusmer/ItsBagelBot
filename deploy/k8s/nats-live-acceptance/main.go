@@ -89,6 +89,14 @@ type endpoint struct {
 	domain string
 }
 
+type connectionRequest struct {
+	cfg       config
+	endpoint  endpoint
+	tlsConfig *tls.Config
+	name      string
+	stats     *connectionStats
+}
+
 type result struct {
 	Endpoint                string  `json:"endpoint"`
 	Producer                string  `json:"producer"`
@@ -391,7 +399,9 @@ func clientTLS(caFile, caPEM string) (*tls.Config, error) {
 
 func connect(cfg config, ep endpoint, tlsConfig *tls.Config, name string) (client, error) {
 	stats := &connectionStats{}
-	nc, err := connectCore(cfg, ep, tlsConfig, name, stats)
+	nc, err := (connectionRequest{
+		cfg: cfg, endpoint: ep, tlsConfig: tlsConfig, name: name, stats: stats,
+	}).connect()
 	if err != nil {
 		return client{}, err
 	}
@@ -408,14 +418,9 @@ func connect(cfg config, ep endpoint, tlsConfig *tls.Config, name string) (clien
 	return client{nc: nc, js: js, modern: modern, stats: stats}, nil
 }
 
-func connectCore(
-	cfg config,
-	ep endpoint,
-	tlsConfig *tls.Config,
-	name string,
-	stats *connectionStats,
-) (*nats.Conn, error) {
-	return nats.Connect(ep.url, connectionOptions(cfg, tlsConfig, name, stats)...)
+func (r connectionRequest) connect() (*nats.Conn, error) {
+	options := connectionOptions(r.cfg, r.tlsConfig, r.name, r.stats)
+	return nats.Connect(r.endpoint.url, options...)
 }
 
 func connectionOptions(

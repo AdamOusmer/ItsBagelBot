@@ -12,6 +12,7 @@ mode=${MODE:-both}
 target=${TARGET:-2ms}
 require_target=${REQUIRE_TARGET:-false}
 image=${BENCH_IMAGE:-alpine:3.22}
+cpu_request=${CPU_REQUEST:-50m}
 run_id=$(date -u +%Y%m%d%H%M%S)
 declare -a pods=()
 amd64_binary="/tmp/valkey-live-acceptance-amd64-${run_id}"
@@ -41,7 +42,7 @@ for node in $nodes; do
   pod="valkey-p99-${node}-${run_id}"
   pods+=("$pod")
 
-  overrides=$(jq -nc --arg pod "$pod" --arg node "$node" --arg image "$image" '{
+  overrides=$(jq -nc --arg pod "$pod" --arg node "$node" --arg image "$image" --arg cpuRequest "$cpu_request" '{
     spec:{nodeName:$node,restartPolicy:"Never",containers:[{
       name:$pod,image:$image,command:["sleep","1800"],
       env:[
@@ -51,7 +52,7 @@ for node in $nodes; do
         {name:"REDISCLI_AUTH",valueFrom:{secretKeyRef:{name:"valkey-core-secret",key:"valkey-password"}}}
       ],
       volumeMounts:[{name:"tls",mountPath:"/etc/valkey/tls",readOnly:true}],
-      resources:{requests:{cpu:"500m",memory:"128Mi"},limits:{cpu:"2",memory:"768Mi"}},
+      resources:{requests:{cpu:$cpuRequest,memory:"128Mi"},limits:{cpu:"2",memory:"768Mi"}},
       securityContext:{runAsUser:999,runAsGroup:999,allowPrivilegeEscalation:false,capabilities:{drop:["ALL"]}}
     }],volumes:[{name:"tls",secret:{secretName:"valkey-server-tls"}}],
     securityContext:{runAsNonRoot:true,runAsUser:999,runAsGroup:999,seccompProfile:{type:"RuntimeDefault"}}

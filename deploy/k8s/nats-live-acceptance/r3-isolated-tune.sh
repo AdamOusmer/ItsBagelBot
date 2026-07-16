@@ -39,6 +39,10 @@ batch=${R3_ISOLATED_BATCH:-1000}
 outstanding=${R3_ISOLATED_OUTSTANDING:-8}
 publisher_connections=${R3_ISOLATED_PUBLISHERS:-2}
 publish_target=${R3_ISOLATED_PUBLISH_TARGET:-local}
+publish_mode=${R3_ISOLATED_PUBLISH_MODE:-fast}
+stream_replicas=${R3_ISOLATED_STREAM_REPLICAS:-3}
+route_pool_size=${R3_ISOLATED_ROUTE_POOL_SIZE:-3}
+preferred_node=${R3_ISOLATED_PREFERRED_NODE:-node3}
 max_msgs_per_subject=${R3_ISOLATED_MAX_MSGS_PER_SUBJECT:-400000}
 compression=${R3_ISOLATED_COMPRESSION:-s2_fast}
 puback_p99=${R3_ISOLATED_PUBACK_P99_MAX:-5ms}
@@ -53,7 +57,11 @@ priority_class="${name}-nonpreempting"
 config_map="${name}-config"
 credential_secret="${name}-credentials"
 tls_secret="${name}-tls"
-stream="R3_SHADOW_ISOLATED_${run_id//-/_}"
+if [[ $stream_replicas == 1 ]]; then
+	stream="FLEET_700K_TEST_${run_id//-/_}"
+else
+	stream="R3_SHADOW_ISOLATED_${run_id//-/_}"
+fi
 subject="twitch.outgress.bench.r3.isolated.$lower_run_id"
 results_dir=${R3_ISOLATED_RESULTS_DIR:-"/tmp/nats-r3-isolated-${run_id}"}
 tmp_dir=$(mktemp -d "/tmp/nats-r3-isolated-material-${run_id}.XXXXXX")
@@ -66,9 +74,31 @@ cleaned=false
 production_baseline="$results_dir/production-baseline.json"
 
 positive_integer() { [[ $1 =~ ^[1-9][0-9]*$ ]]; }
-for value in "$seconds" "$fleet_rate" "$min_rate" "$batch" "$outstanding" "$publisher_connections"; do
+production_deployments_healthy() {
+	kubectl -n production get deployment -o json | jq -e '
+		[.items[] |
+			(.metadata.generation == (.status.observedGeneration // 0)) and
+			((.status.updatedReplicas // 0) == (.spec.replicas // 0)) and
+			((.status.readyReplicas // 0) == (.spec.replicas // 0)) and
+			((.status.availableReplicas // 0) == (.spec.replicas // 0))] | all
+	' >/dev/null
+}
+production_valkey_healthy() {
+	kubectl -n valkey get pods -l app.kubernetes.io/name=valkey -o json | jq -e '
+		(.items | length) == 4 and ([.items[] | (.status.containerStatuses | all(.ready == true))] | all)
+	' >/dev/null
+}
+for value in "$seconds" "$fleet_rate" "$min_rate" "$batch" "$outstanding" "$publisher_connections" "$route_pool_size"; do
 	positive_integer "$value" || { echo "rates, duration, batch, and outstanding values must be positive integers" >&2; exit 1; }
 done
+case $stream_replicas in
+	1|3) ;;
+	*) echo "R3_ISOLATED_STREAM_REPLICAS must be 1 or 3" >&2; exit 1 ;;
+esac
+case $preferred_node in
+	node2|node3) ;;
+	*) echo "R3_ISOLATED_PREFERRED_NODE must be node2 or node3" >&2; exit 1 ;;
+esac
 [[ $max_msgs_per_subject == -1 || $max_msgs_per_subject =~ ^[1-9][0-9]*$ ]] || {
 	echo "R3_ISOLATED_MAX_MSGS_PER_SUBJECT must be positive or -1" >&2
 	exit 1
@@ -79,8 +109,13 @@ case $compression in
 	s2_auto)
 		compression_config='  compression: { mode: s2_auto, rtt_thresholds: [5ms, 20ms, 50ms] }'
 		;;
-	s2_fast|s2_better|s2_best|off)
+	s2_fast|s2_better|s2_best)
 		compression_config="  compression: { mode: $compression }"
+		;;
+	off)
+		# The NATS config parser treats an unquoted YAML-style `off` as a
+		# boolean, but the route compression mode is a string enum.
+		compression_config='  compression: { mode: "off" }'
 		;;
 	*) echo "R3_ISOLATED_COMPRESSION must be s2_auto, s2_fast, s2_better, s2_best, or off" >&2; exit 1 ;;
 esac
@@ -88,7 +123,21 @@ case $publish_target in
 	local|preferred) ;;
 	*) echo "R3_ISOLATED_PUBLISH_TARGET must be local or preferred" >&2; exit 1 ;;
 esac
+case $publish_mode in
+	async|atomic|fast) ;;
+	*) echo "R3_ISOLATED_PUBLISH_MODE must be async, atomic, or fast" >&2; exit 1 ;;
+esac
 mkdir "$results_dir"
+
+phase=production-preflight
+production_deployments_healthy || {
+	echo "production Deployments are not fully rolled out and available; refusing isolated load" >&2
+	exit 1
+}
+production_valkey_healthy || {
+	echo "production Valkey is not fully ready; refusing isolated load" >&2
+	exit 1
+}
 
 kubectl -n production get pods -o json | jq '{
 	critical:[.items[] | select(.metadata.name | test("^(nats-[0-2]|twitch-ingress-)") ) |
@@ -164,7 +213,7 @@ tls {
 cluster {
   name: "bagelbot-r3-isolated"
   port: 6222
-  pool_size: 3
+  pool_size: $route_pool_size
   accounts: ["BUS"]
 $compression_config
   tls {
@@ -382,28 +431,37 @@ done
 
 control=${publishers[1]}
 hub_url="tls://$client_service.$namespace.svc.cluster.local:4222"
+worker_server=$(printf '%s\n' "${placements[@]}" | awk '$2 == "worker1" {print $1}')
+preferred_server=$(printf '%s\n' "${placements[@]}" | awk -v node="$preferred_node" '$2 == node {print $1}')
+placement_tag=
+if [[ $stream_replicas == 1 ]]; then
+	placement_tag=$preferred_server
+fi
 phase=stream-creation
 kubectl -n "$namespace" exec "$control" -- /tmp/nats-live-acceptance \
 	-hub-url="$hub_url" -domain=isolated -stream="$stream" -subject="$subject" \
-	-replicas=3 -required-peers=3 -max-msgs-per-subject="$max_msgs_per_subject" \
+	-replicas="$stream_replicas" -required-peers="$stream_replicas" -placement-tag="$placement_tag" \
+	-max-msgs-per-subject="$max_msgs_per_subject" \
 	-create-stream=true -cleanup=false -setup-only=true \
 	-settle-timeout=60s >"$results_dir/setup.json"
 
-worker_server=$(printf '%s\n' "${placements[@]}" | awk '$2 == "worker1" {print $1}')
-preferred_server=$(printf '%s\n' "${placements[@]}" | awk '$2 == "node3" {print $1}')
 start_ms=$(( $(date +%s) * 1000 + 10000 ))
 per_node_rate=$((fleet_rate / ${#nodes[@]}))
 per_node_min=$((min_rate / ${#nodes[@]}))
 messages=$((per_node_rate * seconds))
 samples=$((seconds * 7))
 
-kubectl -n "$namespace" exec "$control" -- /tmp/nats-live-acceptance \
-	-hub-url="$hub_url" -domain=isolated -stream="$stream" -subject="$subject" \
-	-replicas=3 -required-peers=3 -create-stream=false -cleanup=false -topology-only=true \
-	-preferred-leader="$preferred_server" -forbidden-leader="$worker_server" \
-	-start-at-unix-ms="$start_ms" -topology-duration="${seconds}s" -topology-unhealthy-grace="$topology_grace" \
-	-settle-timeout=60s >"$results_dir/topology.json" 2>"$results_dir/topology.err" &
-topology_pid=$!
+if [[ $stream_replicas == 3 ]]; then
+	kubectl -n "$namespace" exec "$control" -- /tmp/nats-live-acceptance \
+		-hub-url="$hub_url" -domain=isolated -stream="$stream" -subject="$subject" \
+		-replicas=3 -required-peers=3 -create-stream=false -cleanup=false -topology-only=true \
+		-preferred-leader="$preferred_server" -forbidden-leader="$worker_server" \
+		-start-at-unix-ms="$start_ms" -topology-duration="${seconds}s" -topology-unhealthy-grace="$topology_grace" \
+		-settle-timeout=60s >"$results_dir/topology.json" 2>"$results_dir/topology.err" &
+	topology_pid=$!
+else
+	printf '{"topology":{"passed":true}}\n' >"$results_dir/topology.json"
+fi
 
 phase=load
 for i in "${!nodes[@]}"; do
@@ -417,8 +475,8 @@ for i in "${!nodes[@]}"; do
 	broker_url="tls://$broker.$headless.$namespace.svc.cluster.local:4222"
 	kubectl -n "$namespace" exec "$pod" -- /tmp/nats-live-acceptance \
 		-hub-url="$broker_url" -domain=isolated -stream="$stream" -subject="$subject" \
-		-replicas=3 -required-peers=3 -create-stream=false -cleanup=false \
-		-mode=fast -batch-size="$batch" -fast-outstanding-acks="$outstanding" \
+		-replicas="$stream_replicas" -required-peers="$stream_replicas" -create-stream=false -cleanup=false \
+		-mode="$publish_mode" -batch-size="$batch" -fast-outstanding-acks="$outstanding" \
 		-target-rate="$per_node_rate" -min-rate="$per_node_min" -messages="$messages" \
 		-publishers="$publisher_connections" -window=16384 -payload-bytes=256 -payload-variants=65536 \
 		-latency-samples="$samples" -latency-interval=143ms -max-p95="$puback_p99" -max-p99="$puback_p99" \
@@ -435,9 +493,7 @@ while :; do
 		if kill -0 "$pid" 2>/dev/null; then running=true; fi
 	done
 	[[ $running == false ]] && break
-	if ! kubectl -n production get deployment -o json | jq -e '
-		[.items[] | (.status.availableReplicas // 0) == (.spec.replicas // 0)] | all
-	' >/dev/null; then
+	if ! production_deployments_healthy; then
 		echo "production Deployment availability changed during isolated test" >&2
 		status=1
 		break
@@ -454,9 +510,7 @@ while :; do
 		status=1
 		break
 	fi
-	if ! kubectl -n valkey get pods -l app.kubernetes.io/name=valkey -o json | jq -e '
-		(.items | length) == 4 and ([.items[] | (.status.containerStatuses | all(.ready == true))] | all)
-	' >/dev/null; then
+	if ! production_valkey_healthy; then
 		echo "production Valkey readiness changed during isolated test" >&2
 		status=1
 		break
@@ -468,7 +522,9 @@ if ((status != 0)); then
 	kubectl -n "$namespace" delete pod "${publishers[@]}" --ignore-not-found --wait=false >/dev/null 2>&1 || true
 fi
 for pid in "${publisher_pids[@]}"; do wait "$pid" || status=1; done
-wait "$topology_pid" || status=1
+if [[ -n ${topology_pid:-} ]]; then
+	wait "$topology_pid" || status=1
+fi
 publisher_pids=()
 topology_pid=
 
@@ -482,7 +538,11 @@ fi
 
 jq -s --slurpfile topology "$results_dir/topology.json" \
 	--arg compression "$compression" --arg publishTarget "$publish_target" \
+	--arg publishMode "$publish_mode" \
 	--argjson publishers "$publisher_connections" \
+	--argjson replicas "$stream_replicas" \
+	--argjson routePoolSize "$route_pool_size" \
+	--arg preferredNode "$preferred_node" \
 	--argjson maxMsgsPerSubject "$max_msgs_per_subject" \
 	--argjson target "$fleet_rate" --argjson minimum "$min_rate" '
 	[.[].results[0]] as $r |
@@ -492,7 +552,11 @@ jq -s --slurpfile topology "$results_dir/topology.json" \
 	{
 	  route_compression:$compression,
 	  publish_target:$publishTarget,
+	  publish_mode:$publishMode,
 	  publishers_per_node:$publishers,
+	  stream_replicas:$replicas,
+	  route_pool_size:$routePoolSize,
+	  preferred_node:$preferredNode,
 	  max_msgs_per_subject:$maxMsgsPerSubject,
 	  target_messages_per_second:$target,
 	  minimum_messages_per_second:$minimum,
@@ -513,7 +577,8 @@ jq -s --slurpfile topology "$results_dir/topology.json" \
 
 kubectl -n "$namespace" exec "$control" -- /tmp/nats-live-acceptance \
 	-hub-url="$hub_url" -domain=isolated -stream="$stream" -subject="$subject" \
-	-replicas=3 -required-peers=3 -create-stream=false -cleanup=true -setup-only=true \
+	-replicas="$stream_replicas" -required-peers="$stream_replicas" -placement-tag="$placement_tag" \
+	-create-stream=false -cleanup=true -setup-only=true \
 	-settle-timeout=60s >"$results_dir/cleanup.json" || status=1
 
 jq . "$results_dir/summary.json" || true
