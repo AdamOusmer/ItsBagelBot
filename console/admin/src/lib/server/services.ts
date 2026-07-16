@@ -360,6 +360,13 @@ export async function restartUserEventSub(userId: string): Promise<void> {
   invalidateUser(userId);
 }
 
+// Enqueue the EventSub on/off job that keeps a channel's Twitch enrollment in
+// step with its active flag: enabled=true (re)creates the subscriptions,
+// false deletes them. Same lane the dashboard's connect/disconnect uses.
+export async function publishUserEventSub(userId: string, enabled: boolean): Promise<void> {
+  await publish(SUB.outgress, { type: 'eventsub', broadcaster_id: userId, payload: { enabled } });
+}
+
 export type ChannelSubState = {
   state: 'ok' | 'pending' | 'failing' | 'unknown';
   error: string;
