@@ -1,0 +1,231 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import PageHero from '../../components/ui/PageHero.astro';
+import GuideCard from '../../components/guides/GuideCard.astro';
+
+const guides = [
+    {
+        index: '01',
+        href: '/guides/getting-started',
+        title: 'Getting started',
+        description: 'From "Add to Twitch" to your first live stream with the bot: connect the channel, find your way around the dashboard, and switch on the first tools.',
+        meta: '6 min · 5 steps',
+        chips: ['connect', 'dashboard tour', 'first module'],
+    },
+    {
+        index: '02',
+        href: '/guides/commands',
+        title: 'Commands & variables',
+        description: 'Build commands that greet people by name, roll dice, and count wins. Every variable the bot understands, explained with live-looking chat examples.',
+        meta: '9 min · 7 steps',
+        chips: ['{user}', '{random}', '{counter:…}', '!cmd'],
+    },
+    {
+        index: '03',
+        href: '/guides/modules',
+        title: 'The modules handbook',
+        description: 'Every module, one page: alerts, timers, loyalty points, channel-point rewards, trigger words, the play queue, quotes, and the game-stat commands.',
+        meta: '12 min · 6 steps',
+        chips: ['alerts', 'timers', 'loyalty', 'game stats'],
+    },
+];
+---
+
+<Layout
+    title="Guides — ItsBagelBot"
+    description="Visual guides for ItsBagelBot: set up the bot, master the dashboard, and build powerful custom commands with variables, no code required."
+    ogType="article"
+>
+    <PageHero
+        eyebrow="Guides"
+        title="Learn the bot."
+        description="Short, visual, and written for humans. Everything here works on the free plan: no code, no jargon, no fine print."
+    />
+
+    <section class="ghub">
+        <div class="ghub__list">
+            {guides.map((guide, i) => (
+                <GuideCard {...guide} revealIndex={i + 1} />
+            ))}
+        </div>
+
+        <!-- The tool: not a guide, a workbench. -->
+        <a class="ghub__tool" href="/command-builder" data-reveal style="--reveal-i: 4">
+            <div class="ghub__tool-copy">
+                <span class="ghub__tool-eyebrow">Interactive tool</span>
+                <b>Command builder</b>
+                <p>
+                    Write the message like a sentence, click to drop in the smart parts, watch a live
+                    chat rehearsal, then send the finished command straight to your dashboard.
+                </p>
+                <span class="ghub__tool-cta">Open the builder →</span>
+            </div>
+            <div class="ghub__tool-demo" aria-hidden="true">
+                <span class="ghub__tool-line">Welcome in, <i>&lbrace;user&rbrace;</i>! You are visitor <i>&lbrace;counter:visits&rbrace;</i> 🥯</span>
+                <span class="ghub__tool-arrow">↓</span>
+                <span class="ghub__tool-line ghub__tool-line--out"><b>ItsBagelBot:</b> Welcome in, maya_live! You are visitor 128 🥯</span>
+            </div>
+        </a>
+
+        <div class="ghub__help" data-reveal style="--reveal-i: 5">
+            <p>Stuck on something a guide doesn't cover?</p>
+            <div>
+                <a href="https://discord.gg/SZ2remwSDv" target="_blank" rel="noopener noreferrer">Ask on Discord</a>
+                <a href="/contact">Contact support</a>
+                <a href="https://dashboard.itsbagelbot.com" target="_blank" rel="noopener noreferrer">Open the dashboard</a>
+            </div>
+        </div>
+    </section>
+</Layout>
+
+<style>
+    .ghub {
+        width: min(880px, calc(100% - 48px));
+        margin: 0 auto;
+        padding: 0 0 110px;
+    }
+
+    .ghub__list { display: grid; gap: 16px; }
+
+    /* ── Builder feature card ── */
+
+    .ghub__tool {
+        position: relative;
+        display: grid;
+        grid-template-columns: 1.1fr 1fr;
+        gap: 30px;
+        align-items: center;
+        margin-top: 40px;
+        padding: clamp(26px, 4vw, 42px);
+        border: 1px solid rgba(82, 183, 136, 0.28);
+        border-radius: var(--radius-card, 16px);
+        background:
+            radial-gradient(500px 260px at 85% 10%, rgba(82, 183, 136, 0.09), transparent 70%),
+            rgba(17, 17, 16, 0.9);
+        overflow: hidden;
+        transition: border-color 220ms ease, transform 260ms var(--ease-out-expo);
+    }
+
+    .ghub__tool:hover {
+        border-color: rgba(82, 183, 136, 0.55);
+        transform: translateY(-3px);
+    }
+
+    .ghub__tool-copy { display: grid; gap: 12px; }
+
+    .ghub__tool-eyebrow {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.64rem;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--green-glow, #52b788);
+    }
+
+    .ghub__tool-copy b {
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-size: clamp(1.4rem, 3vw, 1.9rem);
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        color: var(--white, #f0ece4);
+    }
+
+    .ghub__tool-copy p {
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: 0.92rem;
+        line-height: 1.7;
+        color: var(--muted, #888077);
+        margin: 0;
+    }
+
+    .ghub__tool-cta {
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: var(--green-glow, #52b788);
+        margin-top: 4px;
+        transition: transform 260ms var(--ease-out-expo);
+    }
+
+    .ghub__tool:hover .ghub__tool-cta { transform: translateX(4px); }
+
+    /* Mini before/after demo. */
+
+    .ghub__tool-demo {
+        display: grid;
+        gap: 10px;
+        justify-items: start;
+    }
+
+    .ghub__tool-line {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.72rem;
+        line-height: 1.6;
+        color: rgba(240, 236, 228, 0.85);
+        background: #0b0b0a;
+        border: 1px solid rgba(201, 168, 124, 0.16);
+        border-radius: 10px;
+        padding: 11px 14px;
+    }
+
+    .ghub__tool-line i {
+        font-style: normal;
+        color: var(--green-glow, #52b788);
+        background: rgba(82, 183, 136, 0.09);
+        border-radius: 4px;
+        padding: 1px 4px;
+    }
+
+    .ghub__tool-line--out { border-color: rgba(82, 183, 136, 0.3); }
+    .ghub__tool-line--out b { color: var(--green-glow, #52b788); font-weight: 700; }
+
+    .ghub__tool-arrow {
+        font-size: 0.8rem;
+        color: var(--tan, #c9a87c);
+        padding-left: 16px;
+    }
+
+    /* ── Help strip ── */
+
+    .ghub__help {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 14px;
+        margin-top: 44px;
+        padding-top: 28px;
+        border-top: 1px solid var(--border, rgba(201, 168, 124, 0.15));
+    }
+
+    .ghub__help p {
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: 0.88rem;
+        color: var(--muted, #888077);
+        margin: 0;
+    }
+
+    .ghub__help div { display: flex; flex-wrap: wrap; gap: 20px; }
+
+    .ghub__help a {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.72rem;
+        letter-spacing: 0.04em;
+        color: var(--tan, #c9a87c);
+        border-bottom: 1px solid transparent;
+        transition: color 180ms ease, border-color 180ms ease;
+    }
+
+    .ghub__help a:hover {
+        color: var(--tan-light, #e0c49a);
+        border-bottom-color: var(--tan-light, #e0c49a);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .ghub__tool, .ghub__tool-cta { transition: none; }
+    }
+
+    @media (max-width: 760px) {
+        .ghub { width: calc(100% - 32px); }
+        .ghub__tool { grid-template-columns: 1fr; gap: 22px; }
+    }
+</style>

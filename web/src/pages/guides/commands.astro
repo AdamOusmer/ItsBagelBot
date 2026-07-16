@@ -1,0 +1,238 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import PageHero from '../../components/ui/PageHero.astro';
+import GuideShell from '../../components/guides/GuideShell.astro';
+import ChatMock from '../../components/guides/ChatMock.astro';
+import DashFrame from '../../components/guides/DashFrame.astro';
+
+const sections = [
+    { id: 'anatomy', heading: 'The anatomy of a command', note: 'Two required fields, five optional dials. Learn them once, reuse them forever.' },
+    { id: 'create', heading: 'Two ways to create one', note: 'The dashboard editor, or a one-line chat message. Both land in the same place.' },
+    { id: 'variables', heading: 'Variables: the smart parts', note: 'Curly braces are placeholders. The bot fills them in at the moment it replies.' },
+    { id: 'dynamic', heading: 'Dice, choices, and counters', note: 'Three variables that change every time: random numbers, random picks, and counters that remember.' },
+    { id: 'multiline', heading: 'Multiple lines & chat actions', note: 'Each line becomes its own chat message. A line can also announce, shout out, or pin.' },
+    { id: 'rules', heading: 'The rules of the road', note: "Names, limits, cooldowns, and access levels. Everything the editor will and won't accept." },
+    { id: 'builder', heading: 'Skip the typing: the builder', note: 'Compose a command by clicking, preview it live, send it to your dashboard.' },
+];
+---
+
+<Layout
+    title="Commands & variables — ItsBagelBot Guides"
+    description="Master ItsBagelBot custom commands: every supported variable ({user}, {random}, {counter} and more), multi-line replies, chat actions, cooldowns and access levels."
+    ogType="article"
+>
+    <PageHero
+        eyebrow="Guide 02"
+        title="Commands & variables"
+        description="Commands that greet people by name, roll dice, and count your wins. No code: just braces."
+    />
+
+    <GuideShell
+        sections={sections}
+        minutes="9 min read"
+        prev={{ href: '/guides/getting-started', label: 'Getting started' }}
+        next={{ href: '/guides/modules', label: 'The modules handbook' }}
+    >
+        <Fragment slot="anatomy">
+            <p>
+                A custom command is a question your viewers can ask (<code>!hug</code>) and the answer
+                your bot gives. The editor has seven fields; only the first two are required.
+            </p>
+            <DashFrame
+                path="/commands"
+                caption="Every field of the command editor, annotated."
+                notes={[
+                    { n: 1, text: 'Name: what viewers type after the “!”. Lowercase, one word.' },
+                    { n: 2, text: 'Alternate names: extra triggers for the same command (!hug and !cuddle can be one command).' },
+                    { n: 3, text: 'Response: what the bot says. Braces become live values (next section).' },
+                    { n: 4, text: 'Access: the minimum rank allowed to use it, from everyone up to broadcaster only.' },
+                    { n: 5, text: 'Cooldown: quiet seconds after each use, so a popular command cannot flood chat.' },
+                    { n: 6, text: 'Only while live: park the command when the stream is offline.' },
+                ]}
+            >
+                <div class="df-main">
+                    <p class="df-title">Edit command</p>
+                    <div class="df-field"><span>Name</span><div class="df-input">hug<i class="df-dot" style="position:static; margin-left:auto;">1</i></div></div>
+                    <div class="df-field"><span>Alternate names</span><div class="df-input">cuddle<i class="df-dot" style="position:static; margin-left:auto;">2</i></div></div>
+                    <div class="df-field"><span>Response</span><div class="df-input"><span><span class="df-var">&#123;user&#125;</span> gives <span class="df-var">&#123;touser&#125;</span> a warm bagel hug 🥯</span><i class="df-dot" style="position:static; margin-left:auto;">3</i></div></div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                        <div class="df-field"><span>Access</span><div class="df-input">Everyone<i class="df-dot" style="position:static; margin-left:auto;">4</i></div></div>
+                        <div class="df-field"><span>Cooldown (s)</span><div class="df-input">10<i class="df-dot" style="position:static; margin-left:auto;">5</i></div></div>
+                    </div>
+                    <div class="df-row"><span class="df-grow">Only while live</span><span class="df-toggle"></span><i class="df-dot" style="position:static;">6</i></div>
+                </div>
+            </DashFrame>
+        </Fragment>
+
+        <Fragment slot="create">
+            <h3>From the dashboard</h3>
+            <p>
+                <a href="https://dashboard.itsbagelbot.com/commands" target="_blank" rel="noopener noreferrer">Commands</a>
+                → <strong>New command</strong> → fill in name and response → <strong>Create</strong>.
+                It answers in chat within seconds. Edits work the same way: click any command row,
+                change it, save.
+            </p>
+            <h3>From chat, with !cmd</h3>
+            <p>
+                You and your moderators can also manage commands without leaving chat, mid-stream:
+            </p>
+            <ChatMock
+                title="#your_channel"
+                caption="!cmd add, edit and remove are for the broadcaster and moderators."
+                lines={[
+                    { who: 'mod', name: 'mod_sam', text: "!cmd add hype LET'S GOOO 🎉" },
+                    { who: 'bot', text: 'Command !hype added.' },
+                    { who: 'viewer', name: 'maya_live', text: '!hype' },
+                    { who: 'bot', text: "LET'S GOOO 🎉" },
+                ]}
+            />
+            <ul>
+                <li><code>!cmd add &lt;name&gt; &lt;response&gt;</code> creates a command.</li>
+                <li><code>!cmd edit &lt;name&gt; &lt;response&gt;</code> replaces its response.</li>
+                <li><code>!cmd remove &lt;name&gt;</code> deletes it.</li>
+            </ul>
+            <p class="gtip">
+                <b>Tip</b>
+                Chat is fast for quick one-liners; the dashboard shows the extra dials (access,
+                cooldown, aliases) and a live preview. Use whichever is closer to your hands.
+            </p>
+        </Fragment>
+
+        <Fragment slot="variables">
+            <p>
+                Write <code>&#123;user&#125;</code> in a response, and the bot swaps it for the name of
+                whoever ran the command. That single idea powers everything below. These are the
+                people-and-place variables every custom command understands:
+            </p>
+            <div class="gtable-wrap">
+                <table>
+                    <thead><tr><th>Variable</th><th>Becomes</th><th>Example</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>&#123;user&#125;</code></td><td>The viewer who used the command. <code>&#123;sender&#125;</code> is an older alias, same value.</td><td>maya_live</td></tr>
+                        <tr><td><code>&#123;touser&#125;</code></td><td>The first word typed after the command, with any “@” removed. When nothing is typed, it falls back to the viewer's own name. <code>&#123;target&#125;</code> is the same thing.</td><td>alex</td></tr>
+                        <tr><td><code>&#123;args&#125;</code></td><td>Everything typed after the command, as one string. Empty when nothing was typed.</td><td>good luck on the exam</td></tr>
+                        <tr><td><code>&#123;channel&#125;</code></td><td>Your channel's display name.</td><td>your_channel</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <ChatMock
+                title="#your_channel"
+                caption="One command, two very different sentences: !hug alone vs !hug alex."
+                lines={[
+                    { who: 'viewer', name: 'maya_live', text: '!hug' },
+                    { who: 'bot', text: 'maya_live gives maya_live a warm bagel hug 🥯' },
+                    { who: 'viewer', name: 'maya_live', text: '!hug alex' },
+                    { who: 'bot', text: 'maya_live gives alex a warm bagel hug 🥯' },
+                ]}
+            />
+            <p class="gwarn">
+                <b>Watch out</b>
+                A variable the bot doesn't recognize is left exactly as typed, braces included. If
+                chat shows a literal <code>&#123;something&#125;</code>, check the spelling against the
+                table above (or build the command in the <a href="/command-builder">builder</a>, which
+                only offers real variables).
+            </p>
+        </Fragment>
+
+        <Fragment slot="dynamic">
+            <h3>&#123;random&#125;: dice</h3>
+            <p>
+                <code>&#123;random&#125;</code> becomes a whole number from 1 to 100. Pick your own
+                range with <code>&#123;random:1-6&#125;</code> (both ends included).
+            </p>
+            <h3>&#123;choice:…&#125;: a coin with as many sides as you like</h3>
+            <p>
+                <code>&#123;choice:yes,no,ask again later&#125;</code> picks one option from your
+                comma-separated list, fresh every time.
+            </p>
+            <h3>&#123;counter:…&#125;: a number that remembers</h3>
+            <p>
+                <code>&#123;counter:falls&#125;</code> adds 1 to a counter named "falls" and shows the
+                new total. The count survives streams, so <code>!fall</code> can track your tumbles all
+                year.
+            </p>
+            <ChatMock
+                title="#your_channel"
+                caption="All three in the wild."
+                lines={[
+                    { who: 'viewer', name: 'maya_live', text: '!roll' },
+                    { who: 'bot', text: 'maya_live rolls a 73 out of 100 🎲' },
+                    { who: 'viewer', name: 'alex', text: '!fall' },
+                    { who: 'bot', text: 'your_channel has fallen 128 times. A new record of grace.' },
+                ]}
+            />
+            <p class="gtip">
+                <b>Counters need Loyalty Points</b>
+                Counters are stored by the <a href="/guides/modules">Loyalty Points module</a>. Switch
+                it on first, or the <code>&#123;counter:…&#125;</code> stays as literal text. Your mods
+                can manage counts in chat with <code>!counter set</code>, <code>!counter reset</code>
+                and friends.
+            </p>
+        </Fragment>
+
+        <Fragment slot="multiline">
+            <p>
+                A response can hold up to <strong>5 lines</strong>, and each line is sent as its own
+                chat message, top to bottom. And a line that <em>starts</em> with one of these verbs
+                becomes a native Twitch action instead of a plain message:
+            </p>
+            <div class="gtable-wrap">
+                <table>
+                    <thead><tr><th>Line starts with</th><th>What happens</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>/me</code></td><td>Italic "action" message, classic IRC style.</td></tr>
+                        <tr><td><code>/announce</code></td><td>A highlighted Twitch announcement. Color variants: <code>/announceblue</code>, <code>/announcegreen</code>, <code>/announceorange</code>, <code>/announcepurple</code>.</td></tr>
+                        <tr><td><code>/shoutout</code></td><td>A native Twitch shoutout to the first name on the line.</td></tr>
+                        <tr><td><code>/pin</code></td><td>Sends the message and pins it until the stream ends.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <ChatMock
+                title="#your_channel"
+                caption="A two-line command: an announcement, then a normal message."
+                lines={[
+                    { who: 'viewer', name: 'maya_live', text: '!giveaway' },
+                    { who: 'system', text: 'announcement · Giveaway is LIVE! Type !enter to join.' },
+                    { who: 'bot', text: 'Winner picked at the top of the hour. Good luck! 🍀' },
+                ]}
+            />
+            <p class="gtip">
+                <b>Built-in safety</b>
+                Viewer-supplied text (<code>&#123;args&#125;</code>, <code>&#123;touser&#125;</code>)
+                is scrubbed before it lands in the message, so nobody can sneak a
+                <code>/ban</code> or <code>/timeout</code> into your command's output.
+            </p>
+        </Fragment>
+
+        <Fragment slot="rules">
+            <p>The editor checks all of this for you and says what's wrong in plain words. For reference:</p>
+            <div class="gtable-wrap">
+                <table>
+                    <thead><tr><th>Field</th><th>The rule</th></tr></thead>
+                    <tbody>
+                        <tr><td>Name</td><td>1 to 64 characters, no spaces, and leave out the "!" (chat adds it). Stored lowercase: <code>!Hug</code> and <code>!hug</code> are the same command.</td></tr>
+                        <tr><td>Alternate names</td><td>Up to 25, each following the same rules as the name.</td></tr>
+                        <tr><td>Response</td><td>Up to 5 lines, each up to 500 characters (one chat message per line).</td></tr>
+                        <tr><td>Cooldown</td><td>0 to 86400 seconds. It is shared by the whole chat: after anyone uses the command, everyone waits.</td></tr>
+                        <tr><td>Access</td><td>Minimum rank, in order: everyone → subscribers → VIPs → moderators → lead moderators → broadcaster. Each level includes everyone above it.</td></tr>
+                        <tr><td>Restrict to one user</td><td>Optionally lock a command to a single Twitch account; that overrides the access level entirely. Perfect for one friend's personal command.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </Fragment>
+
+        <Fragment slot="builder">
+            <p>
+                Everything in this guide is baked into the
+                <a href="/command-builder">command builder</a>: pick variables from a labeled list
+                instead of memorizing them, watch a live chat rehearsal as you type, and when it reads
+                right, send it straight into your dashboard's editor with one click. It is the fastest
+                way to go from idea to working command.
+            </p>
+            <p class="gtip">
+                <b>Try it now</b>
+                <a href="/command-builder">Open the command builder →</a>
+            </p>
+        </Fragment>
+    </GuideShell>
+</Layout>

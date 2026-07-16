@@ -68,7 +68,7 @@ test.describe('ItsBagelBot site', () => {
         // Quiet work bento
         const quiet = page.locator('#quiet-work');
         await expect(quiet.locator('[data-card]')).toHaveCount(5);
-        await expect(quiet).toContainText('It catches the noise before you do.');
+        await expect(quiet).toContainText('While you play, it sweeps the floor.');
 
         // Four-layer safety pipeline
         const safety = page.locator('#safety-layers');
@@ -173,14 +173,14 @@ test.describe('ItsBagelBot site', () => {
         await page.goto('/privacy');
         await expect(page.locator('.phero__title')).toContainText('Privacy Policy');
         await expect(page.locator('body')).toContainText('Data We Collect');
-        await expect(page.locator('[data-legal-link]')).toHaveCount(8);
+        await expect(page.locator('[data-legal-link]')).toHaveCount(11);
         await expect(page.locator('.lshell__plain').first()).toContainText('plain words');
 
         await page.goto('/terms');
         await expect(page.locator('.phero__title')).toContainText('Terms of Service');
         await expect(page.locator('body')).toContainText('Acceptable Use');
         await expect(page.locator('body')).toContainText('Source Available License');
-        await expect(page.locator('[data-legal-link]')).toHaveCount(10);
+        await expect(page.locator('[data-legal-link]')).toHaveCount(11);
     });
 
     test('active nav route is marked', async ({ page }) => {
@@ -252,5 +252,89 @@ test.describe('reduced motion', () => {
         const tier = page.locator('.tiers [data-card]').first();
         await expect(tier).toBeVisible();
         await expect(tier).toHaveCSS('opacity', '1');
+    });
+});
+
+test.describe('guides & command builder', () => {
+    test('guides hub lists the three guides and the builder tool', async ({ page }) => {
+        await page.goto('/guides');
+
+        await expect(page.locator('.phero__title')).toContainText('Learn the bot.');
+        await expect(page.locator('.gcard')).toHaveCount(3);
+        await expect(page.locator('.gcard').first()).toHaveAttribute('href', '/guides/getting-started');
+        await expect(page.locator('.ghub__tool')).toHaveAttribute('href', '/command-builder');
+
+        // The Guides nav entry is live and marked active.
+        await expect(page.locator('nav a[aria-label="Guides"]')).toHaveAttribute('aria-current', 'page');
+    });
+
+    test('guide pages render toc, visuals, and pager', async ({ page }) => {
+        await page.goto('/guides/commands');
+
+        await expect(page.locator('[data-guide-link]')).toHaveCount(7);
+        await expect(page.locator('[data-guide-section]')).toHaveCount(7);
+
+        // Visual furniture: chat mock, dashboard frame, variable table.
+        await expect(page.locator('.cmock__win').first()).toBeVisible();
+        await expect(page.locator('.dframe__win')).toHaveCount(1);
+        await expect(page.locator('#variables table td code').first()).toContainText('{user}');
+
+        // Pager walks the handbook in both directions.
+        await expect(page.locator('.gshell__pager-card')).toHaveCount(2);
+        await expect(page.locator('.gshell__pager-card--next')).toHaveAttribute('href', '/guides/modules');
+    });
+
+    test('french mirrors pair with english via the language switcher', async ({ page }) => {
+        await page.goto('/fr/guides/commands');
+
+        await expect(page.locator('.gshell__toc-label')).toHaveText('Dans ce guide');
+        await expect(page.locator('.lang-switch a[hreflang="en"]').first()).toHaveAttribute('href', '/guides/commands');
+
+        await page.goto('/guides');
+        await expect(page.locator('.lang-switch a[hreflang="fr"]').first()).toHaveAttribute('href', '/fr/guides');
+    });
+
+    test('builder composes a command end to end', async ({ page }) => {
+        await page.goto('/command-builder');
+        await page.waitForSelector('[data-builder][data-ready="1"]');
+
+        // Palette is scoped to what the bot actually expands for custom commands.
+        const tokens = page.locator('[data-vars] .var code');
+        await expect(tokens).toHaveCount(8);
+        await expect(tokens.first()).toHaveText('{user}');
+
+        await page.fill('[data-name]', 'greet');
+        await page.fill('[data-template]', 'Hello ');
+        // Clicking a variable inserts at the cursor and refreshes the rehearsal.
+        await page.click('[data-vars] .var:first-child');
+        await expect(page.locator('[data-output]')).toHaveText('!cmd add greet Hello {user}');
+        await expect(page.locator('[data-chat] .chat__line--bot span')).toHaveText('Hello maya_live');
+
+        // The dashboard hand-off carries the whole draft.
+        const href = await page.getAttribute('[data-send]', 'href');
+        expect(href).toContain('dashboard.itsbagelbot.com/commands?compose=1');
+        expect(href).toContain('name=greet');
+        expect(href).toContain('perm=everyone');
+
+        // Multi-line responses outgrow a single chat message: the !cmd copy
+        // path steps aside, the dashboard path remains.
+        await page.fill('[data-template]', 'line one\nline two');
+        await expect(page.locator('section.copy')).toBeHidden();
+        await expect(page.locator('[data-send-card]')).toBeVisible();
+    });
+
+    test('builder module mode scopes the palette to the surface', async ({ page }) => {
+        await page.goto('/command-builder');
+        await page.waitForSelector('[data-builder][data-ready="1"]');
+
+        await page.click('[data-mode="module"]');
+        await page.selectOption('[data-surface]', 'shoutout');
+
+        await expect(page.locator('[data-vars] .var code').first()).toHaveText('{raider}');
+        await expect(page.locator('[data-send-card]')).toBeHidden();
+        await expect(page.locator('[data-module-link]')).toHaveAttribute(
+            'href',
+            'https://dashboard.itsbagelbot.com/modules/shoutout'
+        );
     });
 });

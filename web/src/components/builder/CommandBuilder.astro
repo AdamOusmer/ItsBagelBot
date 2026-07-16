@@ -1,0 +1,697 @@
+---
+/**
+ * CommandBuilder — the interactive command workbench. Non-technical streamers
+ * compose a command (or a module reply) by clicking variables instead of
+ * memorizing syntax, watch a live chat rehearsal, then either send the result
+ * straight into the dashboard's command editor (deep link, pre-filled) or
+ * copy it as a !cmd chat line / template.
+ *
+ * All copy and the variable catalog come from src/i18n/builder.ts (both
+ * locales), which mirrors what the bot actually expands. Runtime strings reach
+ * the client through a JSON island (site pattern, CSP-safe); the client script
+ * builds DOM with textContent only.
+ */
+import { builderData, builderUI } from '../../i18n/builder';
+import type { Lang } from '../../i18n/ui';
+
+interface Props {
+    lang: Lang;
+}
+
+const { lang } = Astro.props;
+const data = builderData(lang);
+const ui = builderUI(lang);
+const guideHref = lang === 'fr' ? '/fr/guides/commands' : '/guides/commands';
+
+// Grouped surfaces for the module <select>, custom excluded (it's a mode).
+const groups: { group: string; items: { id: string; label: string }[] }[] = [];
+for (const surface of data.surfaces) {
+    if (surface.id === 'custom') continue;
+    const bucket = groups.find((g) => g.group === surface.group);
+    if (bucket) bucket.items.push({ id: surface.id, label: surface.label });
+    else groups.push({ group: surface.group, items: [{ id: surface.id, label: surface.label }] });
+}
+---
+
+<div class="builder" data-builder>
+    <header class="hero">
+        <p class="eyebrow">{ui.eyebrow}</p>
+        <h1>{ui.title1}<br /><em>{ui.title2}</em></h1>
+        <p>{ui.lede}</p>
+        <div class="proof"><span>{ui.proof1}</span><span>{ui.proof2}</span><span>{ui.proof3}</span></div>
+    </header>
+
+    <div class="layout">
+        <main class="steps">
+            <section class="card">
+                <header class="step"><b>1</b><div><h2>{ui.step1Title}</h2><p>{ui.step1Sub}</p></div></header>
+                <div class="mode" role="group" aria-label={ui.step1Title}>
+                    <button class="active" type="button" data-mode="custom" aria-pressed="true">
+                        <i>!</i><span>{ui.modeCustom}<small>{ui.modeCustomSub}</small></span>
+                    </button>
+                    <button type="button" data-mode="module" aria-pressed="false">
+                        <i>&#123; &#125;</i><span>{ui.modeModule}<small>{ui.modeModuleSub}</small></span>
+                    </button>
+                </div>
+                <label class="module-pick" hidden data-module-pick>{ui.surfaceLabel}
+                    <select data-surface>
+                        {groups.map((g) => (
+                            <optgroup label={g.group}>
+                                {g.items.map((item) => <option value={item.id}>{item.label}</option>)}
+                            </optgroup>
+                        ))}
+                    </select>
+                    <small data-hint></small>
+                </label>
+            </section>
+
+            <section class="card">
+                <header class="step"><b>2</b><div><h2>{ui.step2Title}</h2><p>{ui.step2Sub}</p></div></header>
+                <div class="fields" data-command-fields>
+                    <label>{ui.nameLabel} <span class="prefix">!</span><input value="welcome" maxlength="64" data-name /><small>{ui.nameHint}</small></label>
+                    <label>{ui.permLabel}
+                        <select data-perm>
+                            {data.perms.map((p) => <option value={p.value}>{p.label}</option>)}
+                        </select>
+                    </label>
+                    <label>{ui.cooldownLabel}<input type="number" min="0" max="86400" value="0" data-cooldown /><small>{ui.cooldownHint}</small></label>
+                    <label class="span2">{ui.aliasLabel}<input placeholder="hi, heya" data-aliases /><small>{ui.aliasHint}</small></label>
+                    <label>{ui.styleLabel}
+                        <select data-style>
+                            {data.styles.map((s) => <option value={s.value}>{s.label}</option>)}
+                        </select>
+                    </label>
+                </div>
+                <div class="recipes" data-recipes><span>{ui.recipesLabel}</span></div>
+                <label class="response">{ui.responseLabel} <small><b data-count>0</b>/500</small><textarea rows="5" data-template></textarea></label>
+                <p class="note">{ui.responseNote}</p>
+            </section>
+
+            <section class="card">
+                <header class="step"><b>3</b><div><h2>{ui.step3Title}</h2><p>{ui.step3Sub}</p></div></header>
+                <div class="scope"><span>● {ui.scopeLabel}</span><b data-scope></b></div>
+                <div class="vars" data-vars aria-live="polite"></div>
+                <details><summary>{ui.bracesSummary}</summary><p>{ui.bracesBody}</p></details>
+            </section>
+
+            <p class="learn">
+                {ui.learnMore} <a href={guideHref}>{ui.learnMoreCta} →</a>
+            </p>
+        </main>
+
+        <aside>
+            <section class="preview card">
+                <header><b><i></i> {ui.previewTitle}</b><span data-context></span></header>
+                <div class="chat" data-chat aria-live="polite"></div>
+                <small data-preview-note></small>
+            </section>
+
+            <section class="send card" data-send-card>
+                <header><span>{ui.sendTitle}</span><b data-valid>{ui.statusReady}</b></header>
+                <p>{ui.sendBody}</p>
+                <a class="send__cta" data-send target="_blank" rel="noopener noreferrer" href={data.dashboardOrigin + '/commands'}>
+                    <span>{ui.sendCta}</span><b aria-hidden="true">→</b>
+                </a>
+            </section>
+
+            <section class="copy card">
+                <header><span data-copy-title>{ui.copyTitleCustom}</span></header>
+                <p data-copy-body>{ui.copyBodyCustom}</p>
+                <pre data-output></pre>
+                <button type="button" data-copy><span>{ui.copyCta}</span></button>
+                <a class="copy__module-link" data-module-link hidden target="_blank" rel="noopener noreferrer" href={data.dashboardOrigin}>{ui.openModule} →</a>
+            </section>
+
+            <section class="then card"><b>{ui.thenTitle}</b><ol data-next></ol></section>
+        </aside>
+    </div>
+
+    <script type="application/json" data-builder-json set:html={JSON.stringify({
+        data,
+        ui: {
+            statusReady: ui.statusReady,
+            statusName: ui.statusName,
+            statusLines: ui.statusLines,
+            statusLineLen: ui.statusLineLen,
+            statusEmpty: ui.statusEmpty,
+            emptyPreview: ui.emptyPreview,
+            copied: ui.copied,
+            copyFail: ui.copyFail,
+            copyCta: ui.copyCta,
+            copyTitleCustom: ui.copyTitleCustom,
+            copyTitleModule: ui.copyTitleModule,
+            copyBodyCustom: ui.copyBodyCustom,
+            copyBodyModule: ui.copyBodyModule,
+            thenCustom: [ui.thenCustom1, ui.thenCustom2, ui.thenCustom3],
+            thenModule: [ui.thenModule1, ui.thenModule2, ui.thenModule3],
+            recipes: lang === 'fr'
+                ? [
+                    { label: 'Accueillir quelqu’un', text: 'Bienvenue, {user}! Installe-toi 🥯' },
+                    { label: 'Lancer un dé', text: '{user} lance {random:1-100} sur 100.' },
+                    { label: 'Choisir une option', text: 'Ambiance du soir: {choice:cosy,chaotique,compétitive}.' },
+                    { label: 'Compter les chutes', text: '{channel} est tombé {counter:chutes} fois.' },
+                  ]
+                : [
+                    { label: 'Welcome someone', text: 'Welcome in, {user}! Grab a seat 🥯' },
+                    { label: 'Roll a number', text: '{user} rolled {random:1-100} out of 100.' },
+                    { label: 'Pick an option', text: "Tonight's vibe: {choice:cozy,chaotic,competitive}." },
+                    { label: 'Count the falls', text: '{channel} has fallen {counter:falls} times.' },
+                  ],
+        },
+    })} />
+</div>
+
+<script>
+    type Var = { token: string; sample: string; name: string; desc: string };
+    type Surface = { id: string; group: string; label: string; dashPath: string; hint: string; example: string; prompt: string; vars: Var[] };
+    type Payload = {
+        data: {
+            lang: string;
+            limits: { nameMax: number; aliasMax: number; lineMax: number; linesMax: number; cooldownMax: number };
+            dashboardOrigin: string;
+            perms: { value: string; label: string }[];
+            styles: { value: string; label: string }[];
+            surfaces: Surface[];
+        };
+        ui: Record<string, string> & { thenCustom: string[]; thenModule: string[]; recipes: { label: string; text: string }[] };
+    };
+
+    function initBuilder(root: HTMLElement) {
+        if (root.dataset.ready) return;
+        root.dataset.ready = '1';
+
+        const payload: Payload = JSON.parse(root.querySelector('[data-builder-json]')?.textContent || 'null');
+        if (!payload) return;
+        const { data, ui } = payload;
+        const surfaces = new Map(data.surfaces.map((s) => [s.id, s]));
+
+        const $ = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
+        const ta = $<HTMLTextAreaElement>('[data-template]');
+        const nameInput = $<HTMLInputElement>('[data-name]');
+        const aliasInput = $<HTMLInputElement>('[data-aliases]');
+        const permSel = $<HTMLSelectElement>('[data-perm]');
+        const cdInput = $<HTMLInputElement>('[data-cooldown]');
+        const styleSel = $<HTMLSelectElement>('[data-style]');
+        const surfaceSel = $<HTMLSelectElement>('[data-surface]');
+        const sendLink = $<HTMLAnchorElement>('[data-send]');
+        const moduleLink = $<HTMLAnchorElement>('[data-module-link]');
+        const copyBtn = $<HTMLButtonElement>('[data-copy]');
+
+        let mode: 'custom' | 'module' = 'custom';
+        let surfaceId = 'custom';
+        const current = () => surfaces.get(surfaceId)!;
+
+        const cleanName = () =>
+            nameInput.value.trim().replace(/^!+/, '').replace(/\s+/g, '').toLowerCase().slice(0, data.limits.nameMax);
+
+        const cleanAliases = () =>
+            aliasInput.value
+                .split(',')
+                .map((a) => a.trim().replace(/^!+/, '').replace(/\s+/g, '').toLowerCase())
+                .filter(Boolean)
+                .slice(0, data.limits.aliasMax);
+
+        const cleanCooldown = () => {
+            const n = Math.floor(Number(cdInput.value) || 0);
+            return Math.min(Math.max(n, 0), data.limits.cooldownMax);
+        };
+
+        // The meaningful lines, mirroring the bot: trailing whitespace trimmed,
+        // blank lines dropped, first line carrying the selected style prefix.
+        const lines = () => {
+            const raw = ta.value.split(/\r\n|\r|\n/).map((l) => l.replace(/[ \t]+$/, '')).filter((l) => l !== '');
+            if (mode === 'custom' && styleSel.value && raw.length > 0) raw[0] = styleSel.value + raw[0];
+            return raw;
+        };
+
+        // --- Token expansion for the rehearsal ------------------------------
+        const expandLine = (line: string) => {
+            const samples = new Map(current().vars.map((x) => [x.token.slice(1, -1), x.sample]));
+            return line.replace(/\{([^{}]*)\}/g, (whole, body: string) => {
+                if (samples.has(body)) return samples.get(body)!;
+                // Aliases the bot honors but the palette hides for clarity.
+                if (body === 'sender' && samples.has('user')) return samples.get('user')!;
+                if (body === 'target' && samples.has('touser')) return samples.get('touser')!;
+                if (body === 'touser' && samples.has('target')) return samples.get('target')!;
+                const rand = body.match(/^random:(-?\d+)-(-?\d+)$/);
+                if (body === 'random') return String(1 + Math.floor(Math.random() * 100));
+                if (rand) {
+                    const lo = parseInt(rand[1], 10);
+                    const hi = parseInt(rand[2], 10);
+                    if (hi >= lo) return String(lo + Math.floor(Math.random() * (hi - lo + 1)));
+                    return whole;
+                }
+                if (body.startsWith('choice:')) {
+                    const options = body.slice(7).split(',').map((o) => o.trim()).filter(Boolean);
+                    if (options.length) return options[Math.floor(Math.random() * options.length)];
+                    return whole;
+                }
+                if (mode === 'custom' && body.startsWith('counter:')) return '128';
+                return whole; // unknown tokens stay literal, like the bot
+            });
+        };
+
+        // --- Rehearsal ------------------------------------------------------
+        const chat = $<HTMLElement>('[data-chat]');
+
+        function chatLine(kind: 'viewer' | 'bot' | 'system', name: string, text: string) {
+            const p = document.createElement('p');
+            p.className = `chat__line chat__line--${kind}`;
+            if (kind === 'system') {
+                const span = document.createElement('span');
+                span.textContent = text;
+                p.append(span);
+            } else {
+                const who = document.createElement('b');
+                who.textContent = name;
+                const span = document.createElement('span');
+                span.textContent = text;
+                p.append(who, span);
+            }
+            return p;
+        }
+
+        function renderPreview() {
+            chat.replaceChildren();
+            const surface = current();
+            const promptKind = surface.prompt.startsWith('!') ? 'viewer' : 'system';
+            const promptText = mode === 'custom' ? `!${cleanName() || 'yourcommand'}` : surface.prompt;
+            chat.append(chatLine(promptKind === 'viewer' ? 'viewer' : 'system', 'maya_live', promptText));
+
+            const out = lines().slice(0, data.limits.linesMax);
+            if (out.length === 0) {
+                chat.append(chatLine('bot', 'ItsBagelBot', ui.emptyPreview));
+                return;
+            }
+            for (const line of out) {
+                const expanded = expandLine(line);
+                const verb = expanded.match(/^\/(announce(?:blue|green|orange|purple)?|me|shoutout|pin)\s*(.*)$/);
+                if (!verb) {
+                    chat.append(chatLine('bot', 'ItsBagelBot', expanded));
+                    continue;
+                }
+                const [, action, rest] = verb;
+                if (action.startsWith('announce')) {
+                    const p = chatLine('system', '', rest);
+                    p.classList.add('chat__line--announce');
+                    chat.append(p);
+                } else if (action === 'shoutout') {
+                    chat.append(chatLine('system', '', `→ /shoutout ${rest.split(/\s+/)[0] || ''}`));
+                } else if (action === 'pin') {
+                    const p = chatLine('bot', 'ItsBagelBot', rest);
+                    p.classList.add('chat__line--pinned');
+                    chat.append(p);
+                } else {
+                    const p = chatLine('bot', 'ItsBagelBot', rest);
+                    p.classList.add('chat__line--me');
+                    chat.append(p);
+                }
+            }
+        }
+
+        // --- Variable palette -------------------------------------------------
+        function insert(text: string) {
+            const a = ta.selectionStart ?? ta.value.length;
+            const b = ta.selectionEnd ?? ta.value.length;
+            ta.value = ta.value.slice(0, a) + text + ta.value.slice(b);
+            ta.focus();
+            ta.setSelectionRange(a + text.length, a + text.length);
+            update();
+        }
+
+        function renderVars() {
+            const box = $<HTMLElement>('[data-vars]');
+            box.replaceChildren();
+            for (const item of current().vars) {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'var';
+                const code = document.createElement('code');
+                code.textContent = item.token;
+                const span = document.createElement('span');
+                const b = document.createElement('b');
+                b.textContent = item.name;
+                const small = document.createElement('small');
+                small.textContent = item.desc;
+                span.append(b, small);
+                const plus = document.createElement('i');
+                plus.textContent = '+';
+                btn.append(code, span, plus);
+                btn.addEventListener('click', () => insert(item.token));
+                box.append(btn);
+            }
+        }
+
+        // --- Recipes ----------------------------------------------------------
+        const recipesBox = $<HTMLElement>('[data-recipes]');
+        for (const recipe of ui.recipes) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.textContent = recipe.label;
+            btn.addEventListener('click', () => {
+                ta.value = recipe.text;
+                update();
+            });
+            recipesBox.append(btn);
+        }
+
+        // --- Validation + outputs ---------------------------------------------
+        function problem(): string | null {
+            const out = lines();
+            if (mode === 'custom' && !cleanName()) return ui.statusName;
+            if (out.length === 0) return ui.statusEmpty;
+            if (out.length > data.limits.linesMax) return ui.statusLines;
+            if (out.some((l) => l.length > data.limits.lineMax)) return ui.statusLineLen;
+            return null;
+        }
+
+        function dashboardURL(): string {
+            const url = new URL(data.dashboardOrigin + '/commands');
+            url.searchParams.set('compose', '1');
+            url.searchParams.set('name', cleanName());
+            url.searchParams.set('response', lines().join('\n'));
+            url.searchParams.set('perm', permSel.value);
+            url.searchParams.set('cooldown', String(cleanCooldown()));
+            const aliases = cleanAliases();
+            if (aliases.length) url.searchParams.set('aliases', aliases.join(','));
+            if (data.lang === 'fr') url.searchParams.set('lang', 'fr');
+            return url.toString();
+        }
+
+        function renderThen() {
+            const list = $<HTMLElement>('[data-next]');
+            list.replaceChildren();
+            const steps = mode === 'custom' ? ui.thenCustom : ui.thenModule;
+            steps.forEach((step, i) => {
+                const li = document.createElement('li');
+                const num = document.createElement('i');
+                num.textContent = String(i + 1);
+                const span = document.createElement('span');
+                span.textContent = step;
+                li.append(num, span);
+                list.append(li);
+            });
+        }
+
+        function update() {
+            const surface = current();
+            const err = problem();
+            const out = lines();
+
+            $('[data-count]').textContent = String(Math.max(0, ...out.map((l) => l.length), 0));
+            $('[data-context]').textContent = mode === 'custom' ? `!${cleanName() || 'yourcommand'}` : surface.label;
+            $('[data-scope]').textContent = surface.label;
+            $('[data-preview-note]').textContent = surface.hint;
+            $('[data-valid]').textContent = err ?? ui.statusReady;
+            $('[data-valid]').classList.toggle('is-bad', !!err);
+
+            // Send-to-dashboard: only meaningful for custom commands.
+            const sendCard = $<HTMLElement>('[data-send-card]');
+            sendCard.toggleAttribute('hidden', mode !== 'custom');
+            if (mode === 'custom') {
+                sendLink.href = err ? '#' : dashboardURL();
+                sendLink.classList.toggle('is-disabled', !!err);
+                sendLink.setAttribute('aria-disabled', err ? 'true' : 'false');
+            }
+
+            // Copy card: !cmd line for single-line custom commands, raw template
+            // for modules. Multi-line custom commands can't ride a single chat
+            // message, so the chat path steps aside and the dashboard carries it.
+            const output = $<HTMLElement>('[data-output]');
+            const copyCard = $<HTMLElement>('.copy');
+            if (mode === 'custom') {
+                $('[data-copy-title]').textContent = ui.copyTitleCustom;
+                $('[data-copy-body]').textContent = ui.copyBodyCustom;
+                moduleLink.hidden = true;
+                const single = out.length === 1;
+                copyCard.toggleAttribute('hidden', !single);
+                if (single) output.textContent = `!cmd add ${cleanName() || 'yourcommand'} ${out[0]}`;
+            } else {
+                $('[data-copy-title]').textContent = ui.copyTitleModule;
+                $('[data-copy-body]').textContent = ui.copyBodyModule;
+                copyCard.removeAttribute('hidden');
+                output.textContent = ta.value.trim();
+                moduleLink.hidden = false;
+                moduleLink.href = data.dashboardOrigin + surface.dashPath + (data.lang === 'fr' ? '?lang=fr' : '');
+            }
+            copyBtn.disabled = !!err;
+
+            renderPreview();
+        }
+
+        function setSurface(id: string) {
+            surfaceId = id;
+            const surface = current();
+            $('[data-hint]').textContent = surface.hint;
+            ta.value = surface.example;
+            renderVars();
+            update();
+        }
+
+        function setMode(next: 'custom' | 'module') {
+            mode = next;
+            root.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach((btn) => {
+                const on = btn.dataset.mode === next;
+                btn.classList.toggle('active', on);
+                btn.setAttribute('aria-pressed', String(on));
+            });
+            $('[data-module-pick]').toggleAttribute('hidden', next !== 'module');
+            $('[data-command-fields]').toggleAttribute('hidden', next !== 'custom');
+            recipesBox.toggleAttribute('hidden', next !== 'custom');
+            renderThen();
+            setSurface(next === 'custom' ? 'custom' : surfaceSel.value);
+        }
+
+        root.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach((btn) =>
+            btn.addEventListener('click', () => setMode(btn.dataset.mode as 'custom' | 'module')),
+        );
+        surfaceSel.addEventListener('change', () => setSurface(surfaceSel.value));
+        [ta, nameInput, aliasInput, permSel, cdInput, styleSel].forEach((el) =>
+            el.addEventListener('input', update),
+        );
+
+        copyBtn.addEventListener('click', async () => {
+            const label = copyBtn.querySelector('span')!;
+            try {
+                await navigator.clipboard.writeText($('[data-output]').textContent || '');
+                label.textContent = ui.copied;
+            } catch {
+                label.textContent = ui.copyFail;
+            }
+            setTimeout(() => (label.textContent = ui.copyCta), 1800);
+        });
+
+        sendLink.addEventListener('click', (event) => {
+            if (sendLink.classList.contains('is-disabled')) event.preventDefault();
+        });
+
+        renderThen();
+        setSurface('custom');
+    }
+
+    function setup() {
+        document.querySelectorAll<HTMLElement>('[data-builder]').forEach(initBuilder);
+    }
+
+    setup();
+    document.addEventListener('astro:page-load', setup);
+</script>
+
+<style>
+    .builder { width: min(1320px, calc(100% - 48px)); margin: auto; padding: calc(var(--nav-offset) + 65px) 0 110px; }
+
+    /* ── Hero ── */
+    .hero { max-width: 950px; padding: 45px 0 70px; }
+    .eyebrow { color: var(--tan-light); font: 12px var(--font-mono); letter-spacing: .13em; text-transform: uppercase; }
+    h1 { margin-top: 20px; font: 800 clamp(2.7rem, 6vw, 5.4rem)/.98 var(--font-display); letter-spacing: -.055em; }
+    h1 em { color: var(--tan); font-style: normal; }
+    .hero > p:not(.eyebrow) { max-width: 720px; margin-top: 26px; color: #aaa299; font-size: 1.1rem; line-height: 1.7; }
+    .proof { display: flex; gap: 22px; margin-top: 24px; color: var(--muted); font: 11px var(--font-mono); }
+    .proof span::before { content: '✓'; color: var(--green-glow); margin-right: 7px; }
+
+    /* ── Layout ── */
+    .layout { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(330px, .72fr); gap: 25px; align-items: start; }
+    .steps, aside { display: grid; gap: 16px; }
+    .card { padding: clamp(22px, 3vw, 36px); border: 1px solid var(--border); border-radius: 16px; background: #111110d9; }
+
+    /* ── Steps ── */
+    .step { display: flex; margin-bottom: 25px; }
+    .step > b { flex: none; display: inline-grid; place-items: center; width: 31px; height: 31px; margin-right: 10px; border: 1px solid #52b78844; border-radius: 9px; color: var(--green-glow); background: #52b78812; }
+    .step h2 { font: 700 1.5rem var(--font-display); }
+    .step p { margin-top: 5px; color: var(--muted); }
+
+    .mode { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
+    .mode button { display: flex; gap: 13px; align-items: center; padding: 16px; text-align: left; color: var(--white); border: 1px solid var(--border); border-radius: 10px; transition: border-color .2s, background .2s; }
+    .mode button.active { border-color: #52b78877; background: #52b78810; }
+    .mode i { display: grid; place-items: center; flex: none; width: 37px; height: 37px; border-radius: 8px; background: #ffffff08; color: var(--tan-light); font: normal 12px var(--font-mono); }
+    .mode span { font: 700 14px var(--font-display); }
+    .mode small { display: block; margin-top: 4px; color: var(--muted); font: 400 11px var(--font-body); }
+
+    label { display: block; color: var(--tan-light); font: 11px var(--font-mono); letter-spacing: .05em; text-transform: uppercase; }
+    .module-pick { margin-top: 16px; padding: 16px; background: #ffffff05; border-radius: 9px; }
+    .module-pick small, label > small { display: block; margin-top: 7px; color: var(--muted); font: 11px var(--font-body); letter-spacing: 0; text-transform: none; }
+
+    .fields { display: grid; grid-template-columns: 1.2fr .9fr .9fr; gap: 12px; }
+    .fields .span2 { grid-column: span 2; }
+    .fields label { position: relative; }
+    .prefix { position: absolute; top: 38px; left: 12px; color: var(--green-glow); }
+    .prefix + input { padding-left: 30px; }
+
+    input, select, textarea { width: 100%; margin-top: 8px; color: var(--white); background: #0d0d0c; border: 1px solid #c9a87c33; border-radius: 8px; outline: 0; }
+    input, select { height: 44px; padding: 0 12px; }
+    textarea { padding: 15px; resize: vertical; line-height: 1.6; }
+    input:focus, select:focus, textarea:focus { border-color: #52b78899; box-shadow: 0 0 0 3px #52b78818; }
+
+    .recipes { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; margin: 23px 0 15px; }
+    .recipes span { color: var(--muted); font: 10px var(--font-mono); text-transform: uppercase; }
+    .recipes :global(button) { padding: 7px 10px; color: #bbb2a9; border: 1px solid var(--border); border-radius: 99px; font-size: 11px; transition: border-color .2s, color .2s; }
+    .recipes :global(button:hover) { border-color: #52b78877; color: var(--white); }
+
+    .response { position: relative; }
+    .response > small { position: absolute; right: 0; top: 0; }
+    .response textarea { border-radius: 8px 8px 0 0; }
+    .note { padding: 9px 13px; color: var(--muted); border: 1px solid var(--border); border-top: 0; border-radius: 0 0 8px 8px; font-size: 11px; }
+
+    .scope { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 11px; color: var(--muted); font: 10px var(--font-mono); text-transform: uppercase; }
+    .scope span { color: var(--green-glow); }
+    .vars { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+    details { margin-top: 17px; padding-top: 16px; border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; }
+    details summary { color: var(--tan-light); cursor: pointer; }
+    details p { margin-top: 9px; line-height: 1.5; }
+
+    .learn { color: var(--muted); font-size: 12px; padding: 0 4px; }
+    .learn a { color: var(--tan); }
+    .learn a:hover { color: var(--tan-light); }
+
+    /* ── Aside ── */
+    aside { position: sticky; top: calc(var(--nav-offset) + 18px); }
+
+    .preview header, .copy header, .send header { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; margin-bottom: 14px; color: var(--muted); font: 10px var(--font-mono); text-transform: uppercase; letter-spacing: .08em; }
+    .preview header b { color: var(--white); }
+    .preview header i { display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: #e06262; }
+    .preview > small { display: block; margin-top: 11px; color: var(--muted); line-height: 1.4; }
+
+    .chat { display: grid; gap: 11px; padding: 18px; background: #0b0b0a; border-radius: 9px; min-height: 96px; }
+
+    .send header b, .copy header b { padding: 4px 7px; color: var(--green-glow); background: #52b78812; border-radius: 99px; letter-spacing: 0; }
+    .send header :global(b.is-bad) { color: #e08585; background: #e0626212; }
+    .send > p, .copy > p { color: var(--muted); font-size: 11.5px; line-height: 1.55; margin-bottom: 13px; }
+
+    .send__cta { display: flex; justify-content: center; align-items: center; gap: 10px; width: 100%; padding: 14px; color: #07120d; background: var(--green-glow); border-radius: 8px; font: 700 13px var(--font-display); transition: filter .2s, transform .2s; }
+    .send__cta:hover { filter: brightness(1.08); transform: translateY(-1px); }
+    .send__cta.is-disabled { opacity: .45; pointer-events: none; }
+
+    .copy pre { max-height: 180px; overflow: auto; padding: 14px; background: #0b0b0a; border-radius: 8px; color: var(--tan-pale); white-space: pre-wrap; overflow-wrap: anywhere; font: 11px/1.55 var(--font-mono); }
+    .copy > button { display: flex; justify-content: center; gap: 10px; width: 100%; margin-top: 12px; padding: 12px; color: var(--tan-pale); background: #c9a87c14; border: 1px solid #c9a87c44; border-radius: 8px; font: 700 12px var(--font-display); transition: background .2s, border-color .2s; }
+    .copy > button:hover { background: #c9a87c22; border-color: #c9a87c77; }
+    .copy > button:disabled { opacity: .45; pointer-events: none; }
+    .copy__module-link { display: block; margin-top: 11px; color: var(--tan); font: 11px var(--font-mono); text-align: center; }
+    .copy__module-link:hover { color: var(--tan-light); }
+
+    .then > b { color: var(--tan-light); font: 10px var(--font-mono); text-transform: uppercase; }
+    .then ol { display: grid; gap: 11px; margin-top: 13px; }
+    .then :global(li) { display: flex; gap: 9px; align-items: baseline; color: #aaa299; font-size: 11px; line-height: 1.5; }
+    .then :global(li i) { display: grid; place-items: center; flex: none; width: 21px; height: 21px; border: 1px solid var(--border); border-radius: 50%; color: var(--tan-light); font: normal 9px var(--font-mono); font-style: normal; }
+
+    [hidden] { display: none !important; }
+
+    @media (max-width: 1000px) {
+        .layout { grid-template-columns: 1fr; }
+        aside { position: static; grid-template-columns: 1fr 1fr; }
+        .preview { grid-column: 1 / -1; }
+        .then { grid-column: 1 / -1; }
+    }
+
+    @media (max-width: 700px) {
+        .builder { width: calc(100% - 28px); padding-top: calc(var(--nav-offset) + 25px); }
+        .hero { padding-bottom: 50px; }
+        .proof { flex-wrap: wrap; }
+        .mode, .fields, .vars, aside { grid-template-columns: 1fr; }
+        .fields .span2 { grid-column: auto; }
+        .preview, .then { grid-column: auto; }
+        .card { padding: 20px 16px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .mode button, .send__cta, .copy > button { transition: none; }
+    }
+</style>
+
+<!-- Chat-rehearsal lines and variable cards are created client-side, so their
+     selectors must be global instead of relying on Astro's compile-time scope
+     attributes. -->
+<style is:global>
+    [data-chat] .chat__line { display: flex; gap: 7px; align-items: baseline; font-size: 12px; line-height: 1.5; margin: 0; }
+    [data-chat] .chat__line b { flex: none; font-weight: 700; }
+    [data-chat] .chat__line b::after { content: ':'; color: var(--muted, #888077); font-weight: 400; }
+    [data-chat] .chat__line span { color: rgba(240, 236, 228, .87); overflow-wrap: anywhere; min-width: 0; }
+    [data-chat] .chat__line--viewer b { color: #bd8ff2; }
+    [data-chat] .chat__line--bot b { color: var(--green-glow, #52b788); }
+    [data-chat] .chat__line--system span { color: var(--muted, #888077); font: 10px var(--font-mono, monospace); border-left: 2px solid rgba(82, 183, 136, .4); padding-left: 9px; }
+    [data-chat] .chat__line--announce span { display: block; width: 100%; color: rgba(240, 236, 228, .92); font: 11.5px var(--font-body, sans-serif); background: linear-gradient(90deg, rgba(82, 183, 136, .12), transparent); border-left: 3px solid var(--green-glow, #52b788); border-radius: 4px; padding: 6px 9px; }
+    [data-chat] .chat__line--me span { font-style: italic; color: var(--tan-light, #e0c49a); }
+    [data-chat] .chat__line--pinned span::before { content: '📌 '; }
+
+    [data-vars] .var {
+        display: grid;
+        grid-template-columns: minmax(104px, auto) 1fr 25px;
+        gap: 12px;
+        align-items: center;
+        min-height: 72px;
+        padding: 13px;
+        text-align: left;
+        color: var(--white, #f0ece4);
+        background: linear-gradient(135deg, rgba(255, 255, 255, .025), rgba(255, 255, 255, .01));
+        border: 1px solid var(--border, rgba(201, 168, 124, .15));
+        border-radius: 10px;
+        box-shadow: inset 0 1px rgba(255, 255, 255, .025);
+        transition: border-color .2s, background .2s, transform .2s;
+    }
+
+    [data-vars] .var:hover {
+        border-color: rgba(82, 183, 136, .47);
+        background: linear-gradient(135deg, rgba(82, 183, 136, .07), rgba(82, 183, 136, .025));
+        transform: translateY(-1px);
+    }
+
+    [data-vars] .var code {
+        max-width: 170px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        padding: 7px 9px;
+        color: var(--tan-light, #e0c49a);
+        background: rgba(201, 168, 124, .07);
+        border: 1px solid rgba(201, 168, 124, .12);
+        border-radius: 6px;
+        font: 10px var(--font-mono, monospace);
+        white-space: nowrap;
+    }
+
+    [data-vars] .var span { display: grid; gap: 4px; min-width: 0; }
+    [data-vars] .var b { font: 700 12px var(--font-display, sans-serif); }
+    [data-vars] .var small { color: var(--muted, #888077); font: 400 10px/1.4 var(--font-body, sans-serif); }
+
+    [data-vars] .var i {
+        display: grid;
+        place-items: center;
+        width: 25px;
+        height: 25px;
+        color: var(--green-glow, #52b788);
+        border: 1px solid rgba(82, 183, 136, .33);
+        border-radius: 50%;
+        font-style: normal;
+        transition: background .2s, color .2s;
+    }
+
+    [data-vars] .var:hover i { color: #07120d; background: var(--green-glow, #52b788); }
+
+    @media (max-width: 700px) {
+        [data-vars] .var { grid-template-columns: 1fr 25px; }
+        [data-vars] .var code { grid-column: 1 / -1; width: max-content; max-width: 100%; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        [data-vars] .var, [data-vars] .var i { transition: none; }
+    }
+</style>

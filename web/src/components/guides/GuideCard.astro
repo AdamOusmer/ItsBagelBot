@@ -1,0 +1,147 @@
+---
+/**
+ * GuideCard — one entry on the guides hub. A numbered chapter card in the
+ * site's warm-card language: mono index, display title, body teaser, and a
+ * meta strip (reading time · section count) so readers can budget attention
+ * before committing — the hub is a menu, not a maze.
+ */
+interface Props {
+    index: string;
+    href: string;
+    title: string;
+    description: string;
+    meta: string;
+    /** Small mono chips naming what's inside (e.g. "!commands", "variables"). */
+    chips?: string[];
+    revealIndex?: number;
+}
+
+const { index, href, title, description, meta, chips = [], revealIndex = 0 } = Astro.props;
+---
+
+<a class="gcard" href={href} data-reveal style={`--reveal-i: ${revealIndex}`}>
+    <span class="gcard__index" aria-hidden="true">{index}</span>
+    <span class="gcard__body">
+        <b class="gcard__title">{title}</b>
+        <span class="gcard__desc">{description}</span>
+        {chips.length > 0 && (
+            <span class="gcard__chips">
+                {chips.map((chip) => <i>{chip}</i>)}
+            </span>
+        )}
+    </span>
+    <span class="gcard__meta">
+        <span>{meta}</span>
+        <b aria-hidden="true">→</b>
+    </span>
+</a>
+
+<style>
+    .gcard {
+        position: relative;
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: 22px;
+        align-items: center;
+        padding: clamp(20px, 3vw, 30px) clamp(20px, 3vw, 34px);
+        border: 1px solid var(--border, rgba(201, 168, 124, 0.15));
+        border-radius: var(--radius-card, 16px);
+        background: rgba(17, 17, 16, 0.85);
+        overflow: hidden;
+        transition: border-color 220ms ease, background 220ms ease, transform 260ms var(--ease-out-expo);
+    }
+
+    .gcard::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(420px 180px at 12% 0%, rgba(201, 168, 124, 0.07), transparent 70%);
+        opacity: 0;
+        transition: opacity 260ms ease;
+        pointer-events: none;
+    }
+
+    .gcard:hover {
+        border-color: rgba(201, 168, 124, 0.4);
+        transform: translateY(-3px);
+    }
+
+    .gcard:hover::before { opacity: 1; }
+
+    .gcard__index {
+        display: grid;
+        place-items: center;
+        width: 44px;
+        height: 44px;
+        border: 1px solid rgba(82, 183, 136, 0.3);
+        border-radius: 12px;
+        background: rgba(82, 183, 136, 0.07);
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.72rem;
+        color: var(--green-glow, #52b788);
+    }
+
+    .gcard__body { display: grid; gap: 7px; min-width: 0; }
+
+    .gcard__title {
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-size: clamp(1.05rem, 2vw, 1.3rem);
+        font-weight: 700;
+        letter-spacing: -0.015em;
+        color: var(--white, #f0ece4);
+    }
+
+    .gcard__desc {
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: 0.88rem;
+        line-height: 1.6;
+        color: var(--muted, #888077);
+        max-width: 58ch;
+    }
+
+    .gcard__chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 3px; }
+
+    .gcard__chips i {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-style: normal;
+        font-size: 0.62rem;
+        color: var(--tan-light, #e0c49a);
+        background: rgba(201, 168, 124, 0.07);
+        border: 1px solid rgba(201, 168, 124, 0.14);
+        border-radius: 99px;
+        padding: 3px 9px;
+        white-space: nowrap;
+    }
+
+    .gcard__meta {
+        display: grid;
+        gap: 8px;
+        justify-items: end;
+        align-self: start;
+    }
+
+    .gcard__meta span {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.62rem;
+        letter-spacing: 0.08em;
+        color: var(--muted, #888077);
+        white-space: nowrap;
+    }
+
+    .gcard__meta b {
+        color: var(--tan, #c9a87c);
+        font-size: 1rem;
+        transition: transform 260ms var(--ease-out-expo);
+    }
+
+    .gcard:hover .gcard__meta b { transform: translateX(4px); }
+
+    @media (prefers-reduced-motion: reduce) {
+        .gcard, .gcard__meta b { transition: none; }
+    }
+
+    @media (max-width: 640px) {
+        .gcard { grid-template-columns: auto 1fr; }
+        .gcard__meta { grid-column: 2; grid-row: 2; justify-items: start; grid-auto-flow: column; align-items: center; }
+    }
+</style>

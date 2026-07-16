@@ -1,0 +1,11 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CommandBuilder from '../../components/builder/CommandBuilder.astro';
+import { builderUI } from '../../i18n/builder';
+
+const ui = builderUI('fr');
+---
+
+<Layout title={ui.metaTitle} description={ui.metaDesc}>
+    <CommandBuilder lang="fr" />
+</Layout>

@@ -108,7 +108,11 @@ const structuredData = {
 // hreflang alternates for the routes that exist in both locales, so search
 // engines pair the English and French versions instead of treating them as
 // duplicates.
-const LOCALIZED = new Set(['/', '/pricing', '/contact', '/privacy', '/terms']);
+const LOCALIZED = new Set([
+    '/', '/pricing', '/contact', '/privacy', '/terms', '/creator-terms',
+    '/guides', '/guides/getting-started', '/guides/commands', '/guides/modules',
+    '/command-builder',
+]);
 let basePath = Astro.url.pathname.startsWith('/fr')
     ? (Astro.url.pathname.slice(3) || '/')
     : Astro.url.pathname;

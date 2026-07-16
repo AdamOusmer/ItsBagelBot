@@ -1,0 +1,238 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import PageHero from '../../components/ui/PageHero.astro';
+import GuideShell from '../../components/guides/GuideShell.astro';
+import ChatMock from '../../components/guides/ChatMock.astro';
+import DashFrame from '../../components/guides/DashFrame.astro';
+
+const sections = [
+    { id: 'how', heading: 'How modules work', note: 'One switch per feature. Click the tile to make its messages sound like you.' },
+    { id: 'welcome', heading: 'Welcoming people', note: 'Alerts, raid shoutouts, trigger words, and the time where you live.' },
+    { id: 'economy', heading: 'Points, rewards & timers', note: 'Loyalty points for watching, channel-point rewards that do things, and scheduled messages.' },
+    { id: 'together', heading: 'Playing together', note: "A fair play queue and a quote book for chat's greatest hits." },
+    { id: 'games', heading: 'Game stats in chat', note: 'Hypixel Bedwars, MCSR Ranked and Fortnite, one command away.' },
+    { id: 'safety', heading: 'Moderation & built-ins', note: "AutoMod's four levels, and the three commands that come with the bot." },
+];
+---
+
+<Layout
+    title="The modules handbook — ItsBagelBot Guides"
+    description="Every ItsBagelBot module explained: chat alerts, auto shoutout, trigger words, loyalty points, channel-point rewards, timers, play queue, quotes, game stats and AutoMod."
+    ogType="article"
+>
+    <PageHero
+        eyebrow="Guide 03"
+        title="The modules handbook"
+        description="Every module on one page: what it does, what it says, and which commands it brings to your chat."
+    />
+
+    <GuideShell
+        sections={sections}
+        minutes="12 min read"
+        prev={{ href: '/guides/commands', label: 'Commands & variables' }}
+    >
+        <Fragment slot="how">
+            <p>
+                A module is a feature with an on/off switch. The
+                <a href="https://dashboard.itsbagelbot.com/modules" target="_blank" rel="noopener noreferrer">Modules page</a>
+                shows them as tiles: the switch turns the feature on, clicking the tile opens its
+                settings. Most modules speak in chat, and every line they say is a template you can
+                rewrite, with the same brace variables as
+                <a href="/guides/commands">custom commands</a> (plus a few extras per module, listed below).
+            </p>
+            <DashFrame
+                path="/modules"
+                caption="Tile = feature. Switch = on/off. Click through for its settings and messages."
+                notes={[
+                    { n: 1, text: 'The quick switch. Off means the module is fully silent, settings kept for later.' },
+                    { n: 2, text: "The tile opens the module's own page, where its chat lines and options live." },
+                ]}
+            >
+                <div class="df-main">
+                    <p class="df-title">Modules</p>
+                    <div class="df-grid">
+                        <div class="df-tile"><b>Chat Alerts</b><small>Follow, sub, cheer & raid messages</small><span class="df-toggle is-on"></span><i class="df-dot" style="top:10px; right:10px;">1</i></div>
+                        <div class="df-tile is-open"><b>Loyalty Points</b><small>Watch-time points & counters</small><span class="df-toggle is-on"></span><i class="df-dot" style="top:10px; right:10px;">2</i></div>
+                        <div class="df-tile"><b>Play Queue</b><small>Viewer games, in order</small><span class="df-toggle"></span></div>
+                    </div>
+                </div>
+            </DashFrame>
+            <p>
+                Two modules are on by default: <strong>Chat Alerts</strong> and <strong>AutoMod</strong>.
+                Everything else waits for you.
+            </p>
+        </Fragment>
+
+        <Fragment slot="welcome">
+            <h3>Chat Alerts</h3>
+            <p>
+                Thanks new follows, subs, cheers and raids in chat, each with its own message and its
+                own switch. Extra variables per alert: subs get <code>&#123;tier&#125;</code>, cheers
+                get <code>&#123;bits&#125;</code>, raids get <code>&#123;viewers&#125;</code>.
+            </p>
+            <ChatMock
+                title="#your_channel"
+                caption="Alerts with personality beat alerts with confetti."
+                lines={[
+                    { who: 'system', text: 'maya_live followed the channel' },
+                    { who: 'bot', text: 'Thanks for the follow, maya_live! Grab a seat 🥯' },
+                    { who: 'system', text: 'alex raided with 42 viewers' },
+                    { who: 'bot', text: 'alex brought 42 friends! Welcome, everyone!' },
+                ]}
+            />
+            <h3>Auto Shoutout</h3>
+            <p>
+                When someone raids you, the bot plugs their channel without you alt-tabbing:
+                <code>&#123;raider&#125;</code> is their display name,
+                <code>&#123;raider.login&#125;</code> the URL-safe version for a twitch.tv link, and
+                <code>&#123;viewers&#125;</code> the head-count. It can also fire Twitch's native
+                /shoutout at the same time.
+            </p>
+            <h3>Trigger Words</h3>
+            <p>
+                Auto-replies without the "!": one rule per line, written as
+                <code>phrase =&gt; response</code>. By default a rule matches the phrase as whole
+                words; prefix a rule with <code>exact:</code>, <code>contains:</code> or
+                <code>prefix:</code> to change how it matches, and start a line with <code>#</code> to
+                pause it. Responses know <code>&#123;user&#125;</code> plus the dice-and-choices
+                variables.
+            </p>
+            <h3>Local Time</h3>
+            <p>
+                Gives chat a <code>!time</code> command with your timezone and clock format, so nobody
+                has to ask "what time is it for you?" ever again.
+            </p>
+        </Fragment>
+
+        <Fragment slot="economy">
+            <h3>Loyalty Points</h3>
+            <p>
+                Viewers earn points for being around: watching, subbing, gifting, cheering. Name the
+                points anything (bagels?), and chat checks their balance with <code>!points</code>.
+                Mods can grant or set balances with <code>!points add</code> and
+                <code>!points set</code>. This module also stores the
+                <a href="/guides/commands">counters</a> behind <code>&#123;counter:…&#125;</code>, with
+                mod tools under <code>!counter</code>.
+            </p>
+            <h3>Channel Points</h3>
+            <p>
+                Creates real Twitch channel-point rewards and binds each redemption to a bot action,
+                like posting a templated line. You choose per reward whether redemptions are
+                fulfilled, refunded, or left for a mod to judge. Templates know
+                <code>&#123;user&#125;</code>, <code>&#123;input&#125;</code>,
+                <code>&#123;reward&#125;</code>, <code>&#123;cost&#125;</code>,
+                <code>&#123;counter&#125;</code> and <code>&#123;points&#125;</code>.
+            </p>
+            <p class="gtip">
+                <b>Party trick</b>
+                Pair it with the <strong>Govee Lights</strong> module and a redemption can recolor the
+                lights in your room. Chat picks sunset, your wall obeys.
+            </p>
+            <h3>Timers</h3>
+            <p>
+                Posts a message on a schedule while you're live: the Discord plug every 20 minutes, the
+                hydration reminder every hour.
+            </p>
+            <p class="gwarn">
+                <b>Heads up</b>
+                Timer messages are posted exactly as written: brace variables do not run inside timers.
+                Keep them for commands and module replies.
+            </p>
+        </Fragment>
+
+        <Fragment slot="together">
+            <h3>Play Queue</h3>
+            <p>
+                "Can I play?" becomes self-service. Viewers join the line with <code>!join</code>,
+                bail with <code>!leave</code>, and check the order with <code>!list</code>. You and
+                your mods run <code>!queue open</code>, <code>!queue next</code>,
+                <code>!queue close</code>. Every confirmation line is a template you can rewrite.
+            </p>
+            <ChatMock
+                title="#your_channel"
+                caption="The queue keeps itself honest."
+                lines={[
+                    { who: 'viewer', name: 'maya_live', text: '!join' },
+                    { who: 'bot', text: 'maya_live joined the queue at spot #3.' },
+                    { who: 'mod', name: 'mod_sam', text: '!queue next' },
+                    { who: 'bot', text: "You're up, alex! 2 waiting behind you." },
+                ]}
+            />
+            <h3>Quotes</h3>
+            <p>
+                A quote book for the things chat refuses to let you forget. <code>!quote</code> serves
+                a random one, <code>!quote 7</code> a specific one, and saving new ones
+                (<code>!quote "text"</code>) is limited to whoever you allow. Mods can prune with
+                <code>!quote remove</code>. The collection is browsable from its dashboard page.
+            </p>
+        </Fragment>
+
+        <Fragment slot="games">
+            <p>
+                Three integrations put game stats in chat so nobody alt-tabs. Link your account once on
+                the module's page; every reply is a rewritable template with game-specific variables.
+            </p>
+            <div class="gtable-wrap">
+                <table>
+                    <thead><tr><th>Module</th><th>Commands</th><th>What they answer</th></tr></thead>
+                    <tbody>
+                        <tr>
+                            <td>Bedwars Stats</td>
+                            <td><code>!daily</code> <code>!weekly</code> <code>!monthly</code> <code>!bwstats</code> <code>!sniper</code> <code>!tag</code></td>
+                            <td>Hypixel Bedwars session and lifetime stats (wins, finals, beds, FKDR), plus sniper-network lookups.</td>
+                        </tr>
+                        <tr>
+                            <td>MCSR Ranked</td>
+                            <td><code>!elo</code> <code>!session</code></td>
+                            <td>Minecraft speedrun Elo, rank and record, and how this stream's session is going.</td>
+                        </tr>
+                        <tr>
+                            <td>Fortnite Stats</td>
+                            <td><code>!fn</code> <code>!fn season</code> <code>!fn session</code> <code>!fn store</code></td>
+                            <td>Lifetime, season and this-stream stats (wins, K/D, win rate), plus today's item shop.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <ChatMock
+                title="#your_channel"
+                caption="Viewers can also look up other players by adding a name."
+                lines={[
+                    { who: 'viewer', name: 'maya_live', text: '!elo' },
+                    { who: 'bot', text: 'your_channel: 1650 elo · rank #12 · 40W 20L this season' },
+                ]}
+            />
+        </Fragment>
+
+        <Fragment slot="safety">
+            <h3>AutoMod</h3>
+            <p>
+                The layered moderation from the homepage, with one dial: <strong>none</strong> (safety
+                floor only), <strong>basic</strong>, <strong>moderate</strong> (the default), or
+                <strong>strict</strong>. Under the dial, individual checks (harassment, sexual content,
+                profanity, caps and symbol spam, link spam) can be toggled one by one, and your own
+                blocked and allowed terms always win. The safety floor (slurs, scam links) cannot be
+                turned off, on any level.
+            </p>
+            <h3>The three built-ins</h3>
+            <p>
+                On the <a href="https://dashboard.itsbagelbot.com/commands" target="_blank" rel="noopener noreferrer">Commands page</a>,
+                above your own commands, live three that ship with the bot:
+            </p>
+            <ul>
+                <li><code>!followage</code>: how long someone has followed you.</li>
+                <li><code>!accountage</code>: how old a Twitch account is.</li>
+                <li><code>!clip</code>: creates a clip of the last moments and posts the link (live only). Its reply is a template you can rewrite, with <code>&#123;clip&#125;</code>, <code>&#123;user&#125;</code> and <code>&#123;target&#125;</code>.</li>
+            </ul>
+            <p>
+                They can be toggled like any module, but not renamed or deleted. That's the whole
+                handbook: switch things on as your community grows into them.
+            </p>
+            <p class="gtip">
+                <b>Build something</b>
+                Ready to write commands of your own? The
+                <a href="/command-builder">command builder</a> does the syntax for you.
+            </p>
+        </Fragment>
+    </GuideShell>
+</Layout>

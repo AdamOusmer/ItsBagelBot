@@ -27,6 +27,8 @@
 
 - [Home](https://itsbagelbot.com/): product overview, features, and how it works.
 - [Pricing](https://itsbagelbot.com/pricing): Free / Premium / Enterprise tiers and FAQ.
+- [Guides](https://itsbagelbot.com/guides): visual guides — getting started, commands & variables, and the modules handbook.
+- [Command Builder](https://itsbagelbot.com/command-builder): interactive tool to compose custom commands with variables and send them to the dashboard.
 - [Contact](https://itsbagelbot.com/contact): Discord, support and enterprise email, GitHub.
 - [Privacy Policy](https://itsbagelbot.com/privacy)
 - [Terms of Service](https://itsbagelbot.com/terms)

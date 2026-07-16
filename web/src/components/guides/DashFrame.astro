@@ -1,0 +1,338 @@
+---
+/**
+ * DashFrame — an annotated, hand-built "screenshot" of the dashboard for the
+ * guides. Pure CSS, no images: a browser window (traffic lights + address bar)
+ * wraps a mock UI the page composes in the slot from the df-* helper classes
+ * below. Numbered tan dots (`<i class="df-dot">1</i>`) placed inside the mock
+ * pair with the `notes` legend rendered underneath, so every visual carries
+ * its own explanation — no "see figure 3" indirection.
+ */
+interface Note {
+    n: number;
+    text: string;
+}
+
+interface Props {
+    /** Path shown in the address bar, e.g. "/commands". */
+    path?: string;
+    notes?: Note[];
+    caption?: string;
+}
+
+const { path = '/', notes = [], caption } = Astro.props;
+---
+
+<figure class="dframe" data-reveal>
+    <div class="dframe__win" role="img" aria-label={caption ?? `dashboard.itsbagelbot.com${path}`}>
+        <div class="dframe__bar">
+            <span class="dframe__lights" aria-hidden="true"><i></i><i></i><i></i></span>
+            <span class="dframe__url">dashboard.itsbagelbot.com<b>{path}</b></span>
+        </div>
+        <div class="dframe__body">
+            <slot />
+        </div>
+    </div>
+    {notes.length > 0 && (
+        <ul class="dframe__legend">
+            {notes.map((note) => (
+                <li><i class="df-dot" aria-hidden="true">{note.n}</i><span>{note.text}</span></li>
+            ))}
+        </ul>
+    )}
+    {caption && <figcaption>{caption}</figcaption>}
+</figure>
+
+<style>
+    .dframe { margin: 20px 0 28px; }
+
+    .dframe__win {
+        border: 1px solid var(--border, rgba(201, 168, 124, 0.15));
+        border-radius: 14px;
+        background: #0d0d0c;
+        overflow: hidden;
+        box-shadow: 0 24px 55px rgba(0, 0, 0, 0.4);
+    }
+
+    .dframe__bar {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 10px 14px;
+        border-bottom: 1px solid rgba(201, 168, 124, 0.1);
+        background: rgba(17, 17, 16, 0.92);
+    }
+
+    .dframe__lights { display: flex; gap: 6px; }
+
+    .dframe__lights i {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: rgba(240, 236, 228, 0.12);
+    }
+
+    .dframe__lights i:first-child { background: rgba(224, 98, 98, 0.55); }
+
+    .dframe__url {
+        flex: 1;
+        max-width: 340px;
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.64rem;
+        color: var(--muted, #888077);
+        background: rgba(240, 236, 228, 0.04);
+        border: 1px solid rgba(201, 168, 124, 0.1);
+        border-radius: 99px;
+        padding: 5px 12px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .dframe__url b { color: var(--tan-light, #e0c49a); font-weight: 400; }
+
+    .dframe__body { position: relative; padding: 18px; }
+
+    .dframe__legend {
+        display: grid;
+        gap: 8px;
+        margin-top: 14px;
+        padding-left: 2px;
+    }
+
+    .dframe__legend li {
+        display: flex;
+        gap: 10px;
+        align-items: baseline;
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: 0.84rem;
+        line-height: 1.55;
+        color: #aaa299;
+    }
+
+    figcaption {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.66rem;
+        letter-spacing: 0.05em;
+        color: var(--muted, #888077);
+        margin-top: 12px;
+        padding-left: 2px;
+    }
+
+    @media (max-width: 640px) {
+        .dframe__body { padding: 12px; }
+    }
+</style>
+
+<!-- Mock-UI helpers used by slotted content (slot HTML gets the page's scope
+     attribute, not this component's, so these must be global). All df-*
+     prefixed to stay collision-safe. -->
+<style is:global>
+    .df-dot {
+        display: inline-grid;
+        place-items: center;
+        width: 20px;
+        height: 20px;
+        flex: none;
+        border-radius: 50%;
+        background: var(--tan, #c9a87c);
+        color: #131210;
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-style: normal;
+        font-size: 0.62rem;
+        font-weight: 500;
+        box-shadow: 0 0 0 3px rgba(201, 168, 124, 0.2);
+    }
+
+    .dframe__body .df-dot {
+        position: absolute;
+        z-index: 2;
+    }
+
+    /* Two-pane app layout: slim sidebar + content. */
+    .df-app { display: grid; grid-template-columns: 132px 1fr; gap: 14px; }
+    @media (max-width: 560px) { .df-app { grid-template-columns: 1fr; } }
+
+    .df-side {
+        display: grid;
+        gap: 6px;
+        align-content: start;
+        padding: 10px;
+        border: 1px solid rgba(201, 168, 124, 0.1);
+        border-radius: 10px;
+        background: rgba(240, 236, 228, 0.02);
+    }
+    @media (max-width: 560px) { .df-side { grid-template-columns: repeat(3, 1fr); } }
+
+    .df-side span {
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: 0.72rem;
+        color: var(--muted, #888077);
+        padding: 6px 9px;
+        border-radius: 7px;
+    }
+
+    .df-side span.is-active {
+        color: var(--white, #f0ece4);
+        background: rgba(82, 183, 136, 0.12);
+        box-shadow: inset 2px 0 0 var(--green-glow, #52b788);
+    }
+
+    .df-main { position: relative; display: grid; gap: 10px; align-content: start; min-width: 0; }
+
+    .df-title {
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: var(--white, #f0ece4);
+        margin: 0 0 2px;
+    }
+
+    /* A list row (command, module tile, reward…). */
+    .df-row {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 12px;
+        border: 1px solid rgba(201, 168, 124, 0.1);
+        border-radius: 9px;
+        background: rgba(240, 236, 228, 0.025);
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: 0.76rem;
+        color: #aaa299;
+    }
+
+    .df-row.is-open {
+        border-color: rgba(82, 183, 136, 0.4);
+        background: rgba(82, 183, 136, 0.05);
+    }
+
+    .df-row code {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.72rem;
+        color: var(--tan-light, #e0c49a);
+        white-space: nowrap;
+    }
+
+    .df-row .df-grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* Status pill. */
+    .df-pill {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.56rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        padding: 3px 8px;
+        border-radius: 99px;
+        white-space: nowrap;
+    }
+
+    .df-pill--on { color: var(--green-glow, #52b788); background: rgba(82, 183, 136, 0.1); }
+    .df-pill--off { color: var(--muted, #888077); background: rgba(240, 236, 228, 0.05); }
+    .df-pill--tan { color: var(--tan-light, #e0c49a); background: rgba(201, 168, 124, 0.1); }
+
+    /* Toggle switch. */
+    .df-toggle {
+        position: relative;
+        flex: none;
+        width: 26px;
+        height: 15px;
+        border-radius: 99px;
+        background: rgba(240, 236, 228, 0.1);
+    }
+
+    .df-toggle::after {
+        content: "";
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 11px;
+        height: 11px;
+        border-radius: 50%;
+        background: var(--muted, #888077);
+    }
+
+    .df-toggle.is-on { background: rgba(82, 183, 136, 0.35); }
+    .df-toggle.is-on::after { left: auto; right: 2px; background: var(--green-glow, #52b788); }
+
+    /* Form field / input mock. */
+    .df-field { display: grid; gap: 4px; }
+
+    .df-field > span {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.56rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted, #888077);
+    }
+
+    .df-input {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 30px;
+        padding: 6px 10px;
+        border: 1px solid rgba(201, 168, 124, 0.16);
+        border-radius: 7px;
+        background: #0a0a09;
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.72rem;
+        color: rgba(240, 236, 228, 0.85);
+        overflow-wrap: anywhere;
+    }
+
+    .df-input.is-focus {
+        border-color: rgba(82, 183, 136, 0.55);
+        box-shadow: 0 0 0 3px rgba(82, 183, 136, 0.1);
+    }
+
+    .df-input .df-var { color: var(--green-glow, #52b788); }
+
+    /* Buttons. */
+    .df-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 7px 14px;
+        border-radius: 8px;
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-size: 0.7rem;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .df-btn--primary { color: #07120d; background: var(--green-glow, #52b788); }
+    .df-btn--tan { color: #131210; background: var(--tan, #c9a87c); }
+    .df-btn--ghost { color: #aaa299; border: 1px solid rgba(201, 168, 124, 0.2); }
+
+    .df-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+    /* Tile grid (modules page). */
+    .df-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
+
+    .df-tile {
+        position: relative;
+        display: grid;
+        gap: 6px;
+        padding: 12px;
+        border: 1px solid rgba(201, 168, 124, 0.1);
+        border-radius: 10px;
+        background: rgba(240, 236, 228, 0.025);
+    }
+
+    .df-tile b {
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-size: 0.74rem;
+        font-weight: 700;
+        color: var(--white, #f0ece4);
+    }
+
+    .df-tile small {
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: 0.64rem;
+        line-height: 1.45;
+        color: var(--muted, #888077);
+    }
+</style>

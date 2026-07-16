@@ -11,6 +11,7 @@ export type Lang = 'en' | 'fr';
 const en = {
   // ── Nav / chrome ────────────────────────────────────────────────
   'nav.pricing': 'Pricing',
+  'nav.guides': 'Guides',
   'nav.contact': 'Contact',
   'nav.cta': 'Add to Twitch',
   'nav.primary': 'Primary',
@@ -26,6 +27,8 @@ const en = {
   'footer.tagline': 'Your stream. Your rules.',
   'footer.product': 'Product',
   'footer.pricing': 'Pricing',
+  'footer.guides': 'Guides',
+  'footer.builder': 'Command Builder',
   'footer.developer': 'Developer',
   'footer.dashboard': 'Dashboard',
   'footer.company': 'Company',
@@ -261,6 +264,7 @@ export type UIKey = keyof typeof en;
 
 const fr: Partial<Record<UIKey, string>> = {
   'nav.pricing': 'Tarifs',
+  'nav.guides': 'Guides',
   'nav.contact': 'Contact',
   'nav.cta': 'Ajouter à Twitch',
   'nav.primary': 'Principal',
@@ -275,6 +279,8 @@ const fr: Partial<Record<UIKey, string>> = {
   'footer.tagline': 'Votre stream. Vos règles.',
   'footer.product': 'Produit',
   'footer.pricing': 'Tarifs',
+  'footer.guides': 'Guides',
+  'footer.builder': 'Constructeur de commandes',
   'footer.developer': 'Développeur',
   'footer.dashboard': 'Tableau de bord',
   'footer.company': 'Entreprise',

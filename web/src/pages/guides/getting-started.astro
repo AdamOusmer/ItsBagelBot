@@ -1,0 +1,184 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import PageHero from '../../components/ui/PageHero.astro';
+import GuideShell from '../../components/guides/GuideShell.astro';
+import ChatMock from '../../components/guides/ChatMock.astro';
+import DashFrame from '../../components/guides/DashFrame.astro';
+
+const sections = [
+    { id: 'connect', heading: 'Connect your channel', note: 'One Twitch sign-in. No API keys, no config files, nothing to install.' },
+    { id: 'tour', heading: 'Find your way around', note: 'Five places in the sidebar. You will spend most of your time in two of them.' },
+    { id: 'first-command', heading: 'Create your first command', note: 'A name and a response. Everything else is optional.' },
+    { id: 'first-module', heading: 'Switch on your first module', note: 'Modules are bigger features with an on/off switch. Two are already on for you.' },
+    { id: 'go-live', heading: 'Go live with confidence', note: 'A two-minute pre-stream checklist, then the bot takes the night shift.' },
+];
+---
+
+<Layout
+    title="Getting started — ItsBagelBot Guides"
+    description="Set up ItsBagelBot in minutes: connect your Twitch channel, tour the dashboard, create your first command, and switch on your first module."
+    ogType="article"
+>
+    <PageHero
+        eyebrow="Guide 01"
+        title="Getting started"
+        description="From “Add to Twitch” to your first stream with the bot in chat. Ten minutes, start to finish, most of it reading."
+    />
+
+    <GuideShell
+        sections={sections}
+        minutes="6 min read"
+        next={{ href: '/guides/commands', label: 'Commands & variables' }}
+    >
+        <Fragment slot="connect">
+            <p>
+                Head to <a href="https://dashboard.itsbagelbot.com" target="_blank" rel="noopener noreferrer">dashboard.itsbagelbot.com</a>
+                and sign in with your Twitch account. Twitch shows you exactly what the bot is allowed
+                to do before you approve anything, and that's the whole setup. The moment you're in,
+                ItsBagelBot joins your chat and sits quietly until it's spoken to.
+            </p>
+            <ChatMock
+                title="#your_channel"
+                caption="What your chat sees, about two seconds after you sign in."
+                lines={[
+                    { who: 'system', text: 'itsbagelbot joined #your_channel' },
+                    { who: 'viewer', name: 'maya_live', text: 'oh a new bot, hi!' },
+                ]}
+            />
+            <p class="gtip">
+                <b>Good to know</b>
+                The bot never speaks unprompted. Until you create commands or enable modules, joining
+                is the only thing it does: your chat stays exactly as it was.
+            </p>
+        </Fragment>
+
+        <Fragment slot="tour">
+            <p>
+                The dashboard is one sidebar with five stops. <strong>Overview</strong> is your landing
+                page, <strong>Commands</strong> is where custom chat commands live, and
+                <strong>Modules</strong> holds every bigger feature. Billing and Settings do what they
+                say on the tin.
+            </p>
+            <DashFrame
+                path="/"
+                caption="The dashboard, annotated."
+                notes={[
+                    { n: 1, text: 'Commands: create and edit the !commands your viewers type. The next section starts here.' },
+                    { n: 2, text: 'Modules: alerts, timers, loyalty points, game stats… each with a single on/off switch.' },
+                    { n: 3, text: "Your channel's status at a glance: what's enabled and whether the bot is in chat." },
+                ]}
+            >
+                <div class="df-app">
+                    <div class="df-side">
+                        <span class="is-active">Overview</span>
+                        <span>Commands <i class="df-dot" style="position:static; width:16px; height:16px; font-size:0.55rem; margin-left:4px;">1</i></span>
+                        <span>Modules <i class="df-dot" style="position:static; width:16px; height:16px; font-size:0.55rem; margin-left:4px;">2</i></span>
+                        <span>Billing</span>
+                        <span>Settings</span>
+                    </div>
+                    <div class="df-main">
+                        <p class="df-title">Overview</p>
+                        <div class="df-row"><span class="df-grow">Bot connected to #your_channel</span><span class="df-pill df-pill--on">in chat</span><i class="df-dot" style="position:static;">3</i></div>
+                        <div class="df-row"><span class="df-grow">Chat Alerts</span><span class="df-pill df-pill--on">on</span></div>
+                        <div class="df-row"><span class="df-grow">AutoMod</span><span class="df-pill df-pill--on">on</span></div>
+                        <div class="df-row"><span class="df-grow">Timers</span><span class="df-pill df-pill--off">off</span></div>
+                    </div>
+                </div>
+            </DashFrame>
+            <p>
+                Everything on the dashboard saves the moment you confirm it: there's no "deploy" step,
+                and changes reach your chat within seconds.
+            </p>
+        </Fragment>
+
+        <Fragment slot="first-command">
+            <p>
+                Open <strong>Commands</strong> and press <strong>New command</strong>. A command needs
+                exactly two things: a <strong>name</strong> (what viewers type after the
+                <code>!</code>) and a <strong>response</strong> (what the bot says back). Let's make
+                the classic:
+            </p>
+            <DashFrame
+                path="/commands"
+                caption="The command editor with just the two required fields filled in."
+                notes={[
+                    { n: 1, text: 'The name, without the “!” (the dashboard adds it in chat). Lowercase, no spaces.' },
+                    { n: 2, text: 'The response. Plain text is fine; the next guide shows the variables that make it smart.' },
+                    { n: 3, text: 'Create saves it instantly. The command works in chat from this moment.' },
+                ]}
+            >
+                <div class="df-main">
+                    <p class="df-title">New command</p>
+                    <div class="df-field"><span>Name</span><div class="df-input is-focus">discord<i class="df-dot" style="position:static; margin-left:auto;">1</i></div></div>
+                    <div class="df-field"><span>Response</span><div class="df-input">Come hang out between streams → discord.gg/your-invite<i class="df-dot" style="position:static; margin-left:auto;">2</i></div></div>
+                    <div class="df-actions"><span class="df-btn df-btn--primary">Create</span><span class="df-btn df-btn--ghost">Cancel</span><i class="df-dot" style="position:static;">3</i></div>
+                </div>
+            </DashFrame>
+            <ChatMock
+                title="#your_channel"
+                caption="Thirty seconds later, in chat."
+                lines={[
+                    { who: 'viewer', name: 'maya_live', text: '!discord' },
+                    { who: 'bot', text: 'Come hang out between streams → discord.gg/your-invite' },
+                ]}
+            />
+            <p>
+                The editor also offers access levels (everyone → broadcaster), a cooldown, and a
+                "only while live" switch, all optional, all explained in the
+                <a href="/guides/commands">commands guide</a>.
+            </p>
+        </Fragment>
+
+        <Fragment slot="first-module">
+            <p>
+                Head to <strong>Modules</strong>. Each tile is one feature with its own switch, and
+                clicking a tile opens its settings. Two are already working for you out of the box:
+                <strong>Chat Alerts</strong> (follows, subs, cheers, raids) and <strong>AutoMod</strong>
+                (the layered moderation you read about on the homepage).
+            </p>
+            <DashFrame
+                path="/modules"
+                caption="The modules grid. Flip a switch, click a tile to make it yours."
+                notes={[
+                    { n: 1, text: 'Already on: alerts thank followers and subs with a message you can rewrite.' },
+                    { n: 2, text: "Opt-in: timers post a message on a schedule while you're live. Great for the Discord plug." },
+                ]}
+            >
+                <div class="df-main">
+                    <p class="df-title">Modules</p>
+                    <div class="df-grid">
+                        <div class="df-tile"><b>Chat Alerts</b><small>Follow, sub, cheer & raid messages</small><span class="df-toggle is-on"></span><i class="df-dot" style="top:10px; right:10px;">1</i></div>
+                        <div class="df-tile"><b>AutoMod</b><small>Layered chat moderation</small><span class="df-toggle is-on"></span></div>
+                        <div class="df-tile"><b>Timers</b><small>Scheduled messages while live</small><span class="df-toggle"></span><i class="df-dot" style="top:10px; right:10px;">2</i></div>
+                        <div class="df-tile"><b>Loyalty Points</b><small>Watch-time points & counters</small><span class="df-toggle"></span></div>
+                        <div class="df-tile"><b>Auto Shoutout</b><small>Greets incoming raids</small><span class="df-toggle"></span></div>
+                        <div class="df-tile"><b>Bedwars Stats</b><small>Hypixel stats in chat</small><span class="df-toggle"></span></div>
+                    </div>
+                </div>
+            </DashFrame>
+            <p>
+                Nothing here is dangerous to poke: every module can be switched off as quickly as it
+                came on, and its settings are kept for the next time. The full tour of what each one
+                does lives in the <a href="/guides/modules">modules handbook</a>.
+            </p>
+        </Fragment>
+
+        <Fragment slot="go-live">
+            <p>Before your next stream, a quick rehearsal:</p>
+            <ol>
+                <li>Type your new command in chat yourself: the bot answers you like any viewer.</li>
+                <li>Skim the <strong>Chat Alerts</strong> messages and make them sound like you.</li>
+                <li>Raided often? Switch on <strong>Auto Shoutout</strong> so incoming raiders get greeted even when you're mid-game.</li>
+            </ol>
+            <p>
+                That's the whole setup. The bot moderates, greets, and answers on its own from here,
+                and everything you just did can be changed mid-stream from your phone.
+            </p>
+            <p class="gtip">
+                <b>Next up</b>
+                Make your commands smart: <a href="/guides/commands">Commands &amp; variables</a> shows
+                how one line like <code>Welcome, &lbrace;user&rbrace;!</code> greets every viewer by name.
+            </p>
+        </Fragment>
+    </GuideShell>
+</Layout>

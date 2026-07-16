@@ -1,0 +1,247 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import PageHero from '../../../components/ui/PageHero.astro';
+import GuideShell from '../../../components/guides/GuideShell.astro';
+import ChatMock from '../../../components/guides/ChatMock.astro';
+import DashFrame from '../../../components/guides/DashFrame.astro';
+
+const sections = [
+    { id: 'how', heading: 'Comment fonctionnent les modules', note: 'Un interrupteur par fonction. Cliquez la tuile pour que ses messages sonnent comme vous.' },
+    { id: 'welcome', heading: 'Accueillir le monde', note: "Alertes, shoutouts de raid, mots déclencheurs et l'heure chez vous." },
+    { id: 'economy', heading: 'Points, récompenses et minuteries', note: 'Des points de fidélité pour la présence, des récompenses de points de chaîne qui agissent, et des messages planifiés.' },
+    { id: 'together', heading: 'Jouer ensemble', note: "Une file d'attente équitable et un recueil des meilleures citations du chat." },
+    { id: 'games', heading: 'Stats de jeu dans le chat', note: 'Hypixel Bedwars, MCSR Ranked et Fortnite, à une commande de distance.' },
+    { id: 'safety', heading: 'Modération et commandes intégrées', note: "Les quatre niveaux d'AutoMod, et les trois commandes livrées avec le bot." },
+];
+---
+
+<Layout
+    title="Le manuel des modules — Guides ItsBagelBot"
+    description="Chaque module d'ItsBagelBot expliqué: alertes de chat, shoutout automatique, mots déclencheurs, points de fidélité, récompenses de points de chaîne, minuteries, file d'attente, citations, stats de jeu et AutoMod."
+    ogType="article"
+>
+    <PageHero
+        eyebrow="Guide 03"
+        title="Le manuel des modules"
+        description="Chaque module sur une seule page: ce qu'il fait, ce qu'il dit, et quelles commandes il apporte à votre chat."
+    />
+
+    <GuideShell
+        sections={sections}
+        minutes="12 min de lecture"
+        prev={{ href: '/fr/guides/commands', label: 'Commandes et variables' }}
+    >
+        <Fragment slot="how">
+            <p>
+                Un module est une fonction avec un interrupteur. La
+                <a href="https://dashboard.itsbagelbot.com/modules" target="_blank" rel="noopener noreferrer">page Modules</a>
+                les présente en tuiles: l'interrupteur active la fonction, cliquer la tuile ouvre ses
+                réglages. La plupart des modules parlent dans le chat, et chacune de leurs phrases est
+                un modèle que vous pouvez réécrire, avec les mêmes variables à accolades que les
+                <a href="/fr/guides/commands">commandes personnalisées</a> (plus quelques extras par
+                module, listés plus bas).
+            </p>
+            <DashFrame
+                path="/modules"
+                caption="Tuile = fonction. Interrupteur = actif/inactif. Cliquez pour les réglages et les messages."
+                notes={[
+                    { n: 1, text: "L'interrupteur rapide. Inactif = module totalement silencieux, réglages conservés pour plus tard." },
+                    { n: 2, text: 'La tuile ouvre la page du module, où vivent ses phrases de chat et ses options.' },
+                ]}
+            >
+                <div class="df-main">
+                    <p class="df-title">Modules</p>
+                    <div class="df-grid">
+                        <div class="df-tile"><b>Alertes de chat</b><small>Messages de follow, sub, cheer et raid</small><span class="df-toggle is-on"></span><i class="df-dot" style="top:10px; right:10px;">1</i></div>
+                        <div class="df-tile is-open"><b>Points de fidélité</b><small>Points de présence et compteurs</small><span class="df-toggle is-on"></span><i class="df-dot" style="top:10px; right:10px;">2</i></div>
+                        <div class="df-tile"><b>File d'attente</b><small>Les parties avec les viewers, en ordre</small><span class="df-toggle"></span></div>
+                    </div>
+                </div>
+            </DashFrame>
+            <p>
+                Deux modules sont actifs par défaut: les <strong>Alertes de chat</strong> et
+                <strong>AutoMod</strong>. Tout le reste vous attend.
+            </p>
+        </Fragment>
+
+        <Fragment slot="welcome">
+            <h3>Alertes de chat</h3>
+            <p>
+                Remercie les nouveaux follows, subs, cheers et raids dans le chat, chacun avec son
+                message et son interrupteur. Variables en plus selon l'alerte: les subs ont
+                <code>&#123;tier&#125;</code>, les cheers ont <code>&#123;bits&#125;</code>, les raids
+                ont <code>&#123;viewers&#125;</code>.
+            </p>
+            <ChatMock
+                title="#votre_chaine"
+                caption="Des alertes avec de la personnalité valent mieux que des confettis."
+                lines={[
+                    { who: 'system', text: 'maya_live suit maintenant la chaîne' },
+                    { who: 'bot', text: 'Merci pour le follow, maya_live! Installe-toi 🥯' },
+                    { who: 'system', text: 'alex raid avec 42 spectateurs' },
+                    { who: 'bot', text: 'alex arrive avec 42 amis! Bienvenue tout le monde!' },
+                ]}
+            />
+            <h3>Shoutout automatique</h3>
+            <p>
+                Quand on vous raid, le bot met la chaîne en avant sans que vous quittiez votre partie:
+                <code>&#123;raider&#125;</code> est son nom d'affichage,
+                <code>&#123;raider.login&#125;</code> la version compatible URL pour un lien twitch.tv,
+                et <code>&#123;viewers&#125;</code> le nombre d'arrivants. Il peut aussi déclencher le
+                /shoutout natif de Twitch en même temps.
+            </p>
+            <h3>Mots déclencheurs</h3>
+            <p>
+                Des réponses automatiques sans le «!»: une règle par ligne, écrite
+                <code>phrase =&gt; réponse</code>. Par défaut une règle reconnaît la phrase en mots
+                entiers; préfixez une règle avec <code>exact:</code>, <code>contains:</code> ou
+                <code>prefix:</code> pour changer la détection, et commencez une ligne par
+                <code>#</code> pour la mettre en pause. Les réponses connaissent
+                <code>&#123;user&#125;</code> plus les variables de dés et de choix.
+            </p>
+            <h3>Heure locale</h3>
+            <p>
+                Donne au chat une commande <code>!time</code> avec votre fuseau horaire et votre format
+                d'heure, pour que plus personne ne demande «il est quelle heure chez toi?».
+            </p>
+        </Fragment>
+
+        <Fragment slot="economy">
+            <h3>Points de fidélité</h3>
+            <p>
+                Les spectateurs gagnent des points en étant là: regarder, s'abonner, offrir des subs,
+                envoyer des bits. Nommez les points comme vous voulez (des bagels?), et le chat vérifie
+                son solde avec <code>!points</code>. Les modérateurs créditent ou fixent les soldes avec
+                <code>!points add</code> et <code>!points set</code>. Ce module stocke aussi les
+                <a href="/fr/guides/commands">compteurs</a> derrière
+                <code>&#123;counter:…&#125;</code>, avec les outils de modération sous
+                <code>!counter</code>.
+            </p>
+            <h3>Points de chaîne</h3>
+            <p>
+                Crée de vraies récompenses de points de chaîne Twitch et relie chaque échange à une
+                action du bot, comme publier une phrase à modèle. Vous choisissez par récompense si les
+                échanges sont acceptés, remboursés ou laissés au jugement d'un modérateur. Les modèles
+                connaissent <code>&#123;user&#125;</code>, <code>&#123;input&#125;</code>,
+                <code>&#123;reward&#125;</code>, <code>&#123;cost&#125;</code>,
+                <code>&#123;counter&#125;</code> et <code>&#123;points&#125;</code>.
+            </p>
+            <p class="gtip">
+                <b>Le clou du spectacle</b>
+                Combinez-le au module <strong>Lumières Govee</strong> et un échange peut recolorer les
+                lumières de votre pièce. Le chat choisit coucher de soleil, votre mur obéit.
+            </p>
+            <h3>Minuteries</h3>
+            <p>
+                Publie un message à intervalle régulier pendant le direct: le rappel Discord toutes les
+                20 minutes, l'hydratation toutes les heures.
+            </p>
+            <p class="gwarn">
+                <b>À savoir</b>
+                Les messages de minuterie sont publiés exactement tels quels: les variables à accolades
+                ne fonctionnent pas dans les minuteries. Gardez-les pour les commandes et les réponses
+                de modules.
+            </p>
+        </Fragment>
+
+        <Fragment slot="together">
+            <h3>File d'attente</h3>
+            <p>
+                «Je peux jouer?» devient libre-service. Les spectateurs entrent dans la file avec
+                <code>!join</code>, la quittent avec <code>!leave</code> et vérifient l'ordre avec
+                <code>!list</code>. Vous et vos modérateurs pilotez <code>!queue open</code>,
+                <code>!queue next</code>, <code>!queue close</code>. Chaque phrase de confirmation est
+                un modèle réécrivable.
+            </p>
+            <ChatMock
+                title="#votre_chaine"
+                caption="La file se tient toute seule."
+                lines={[
+                    { who: 'viewer', name: 'maya_live', text: '!join' },
+                    { who: 'bot', text: 'maya_live rejoint la file en position #3.' },
+                    { who: 'mod', name: 'mod_sam', text: '!queue next' },
+                    { who: 'bot', text: 'À toi, alex! 2 personnes derrière toi.' },
+                ]}
+            />
+            <h3>Citations</h3>
+            <p>
+                Un recueil des phrases que le chat refuse de vous laisser oublier.
+                <code>!quote</code> en sert une au hasard, <code>!quote 7</code> une précise, et
+                l'ajout (<code>!quote "texte"</code>) est réservé à qui vous voulez. Les modérateurs
+                font le ménage avec <code>!quote remove</code>. La collection se consulte depuis sa page
+                du tableau de bord.
+            </p>
+        </Fragment>
+
+        <Fragment slot="games">
+            <p>
+                Trois intégrations mettent les stats de jeu dans le chat pour que personne ne quitte le
+                stream. Liez votre compte une fois sur la page du module; chaque réponse est un modèle
+                réécrivable avec des variables propres au jeu.
+            </p>
+            <div class="gtable-wrap">
+                <table>
+                    <thead><tr><th>Module</th><th>Commandes</th><th>Ce qu'elles répondent</th></tr></thead>
+                    <tbody>
+                        <tr>
+                            <td>Stats Bedwars</td>
+                            <td><code>!daily</code> <code>!weekly</code> <code>!monthly</code> <code>!bwstats</code> <code>!sniper</code> <code>!tag</code></td>
+                            <td>Stats Hypixel Bedwars de période et à vie (victoires, finals, lits, FKDR), plus les recherches du réseau sniper.</td>
+                        </tr>
+                        <tr>
+                            <td>MCSR Ranked</td>
+                            <td><code>!elo</code> <code>!session</code></td>
+                            <td>Elo de speedrun Minecraft, rang et bilan, et comment se passe la session du stream.</td>
+                        </tr>
+                        <tr>
+                            <td>Stats Fortnite</td>
+                            <td><code>!fn</code> <code>!fn season</code> <code>!fn session</code> <code>!fn store</code></td>
+                            <td>Stats à vie, de saison et du stream (victoires, K/D, taux de victoire), plus la boutique du jour.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <ChatMock
+                title="#votre_chaine"
+                caption="Les spectateurs peuvent aussi chercher d'autres joueurs en ajoutant un nom."
+                lines={[
+                    { who: 'viewer', name: 'maya_live', text: '!elo' },
+                    { who: 'bot', text: 'votre_chaine: 1650 elo · rang #12 · 40V 20D cette saison' },
+                ]}
+            />
+        </Fragment>
+
+        <Fragment slot="safety">
+            <h3>AutoMod</h3>
+            <p>
+                La modération en couches de la page d'accueil, avec un seul cadran:
+                <strong>aucun</strong> (plancher de sécurité seulement), <strong>basique</strong>,
+                <strong>modéré</strong> (par défaut) ou <strong>strict</strong>. Sous le cadran, chaque
+                vérification (harcèlement, contenu sexuel, vulgarité, majuscules et symboles, liens
+                indésirables) se règle individuellement, et vos termes bloqués et autorisés gagnent
+                toujours. Le plancher de sécurité (insultes haineuses, liens frauduleux) ne se
+                désactive jamais, à aucun niveau.
+            </p>
+            <h3>Les trois commandes intégrées</h3>
+            <p>
+                Sur la <a href="https://dashboard.itsbagelbot.com/commands" target="_blank" rel="noopener noreferrer">page Commandes</a>,
+                au-dessus de vos propres commandes, vivent trois commandes livrées avec le bot:
+            </p>
+            <ul>
+                <li><code>!followage</code>: depuis combien de temps quelqu'un vous suit.</li>
+                <li><code>!accountage</code>: l'âge d'un compte Twitch.</li>
+                <li><code>!clip</code>: crée un clip des derniers instants et publie le lien (en direct seulement). Sa réponse est un modèle réécrivable, avec <code>&#123;clip&#125;</code>, <code>&#123;user&#125;</code> et <code>&#123;target&#125;</code>.</li>
+            </ul>
+            <p>
+                Elles se désactivent comme n'importe quel module, mais ne se renomment pas et ne se
+                suppriment pas. Voilà tout le manuel: activez les choses au rythme où votre communauté
+                grandit.
+            </p>
+            <p class="gtip">
+                <b>Construisez quelque chose</b>
+                Prêt à écrire vos propres commandes? Le
+                <a href="/fr/command-builder">constructeur de commandes</a> fait la syntaxe pour vous.
+            </p>
+        </Fragment>
+    </GuideShell>
+</Layout>
