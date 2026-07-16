@@ -255,6 +255,26 @@ function formActive(f: FormData): boolean {
   return String(f.get('active') ?? '').trim() === 'true';
 }
 
+// Serving state and Twitch EventSub enrollment move together, mirroring the
+// dashboard's connect/disconnect. Every verb that stops serving a user
+// (deactivate, ban, delete) unenrolls before its mutation, so no failure mode
+// leaves a non-served user with live subscriptions; verbs that may resume
+// serving enroll afterwards, and only when the refreshed row is actually
+// served again (active and not banned).
+async function unenrollThen<T>(userId: string, mutate: () => Promise<T>): Promise<T> {
+  await publishUserEventSub(userId, false);
+  return mutate();
+}
+
+async function enrollAfter(
+  userId: string,
+  mutate: () => Promise<AdminUserWire>
+): Promise<AdminUserWire> {
+  const user = await mutate();
+  if (user.is_active && !user.banned) await publishUserEventSub(userId, true);
+  return user;
+}
+
 export const actions: Actions = {
   lookup: async ({ request, locals }) => {
     if (!(await requireAdmin(locals.session))) return fail(403, { error: 'forbidden' });
@@ -324,19 +344,10 @@ export const actions: Actions = {
     demoNotice: DEMO ? 'active set (demo)' : '',
     notice: (user) => `active=${user?.is_active}`,
     detail: (f) => String(formActive(f)),
-    // The flag and the Twitch EventSub enrollment move together, mirroring the
-    // dashboard's connect/disconnect. Ordered so no failure mode leaves an
-    // inactive user with live subscriptions: activating flips the flag before
-    // enrolling, deactivating unenrolls before flipping the flag.
-    run: async (userId, f) => {
-      if (formActive(f)) {
-        const user = await userSetActive(userId, true);
-        await publishUserEventSub(userId, true);
-        return user;
-      }
-      await publishUserEventSub(userId, false);
-      return userSetActive(userId, false);
-    }
+    run: (userId, f) =>
+      formActive(f)
+        ? enrollAfter(userId, () => userSetActive(userId, true))
+        : unenrollThen(userId, () => userSetActive(userId, false))
   }),
 
   // Creator code carries its own length validation and demo-lookup shaping, so
@@ -378,14 +389,14 @@ export const actions: Actions = {
     name: 'ban',
     demoNotice: DEMO ? 'user banned (demo)' : '',
     notice: () => 'user banned',
-    run: (userId) => userBan(userId)
+    run: (userId) => unenrollThen(userId, () => userBan(userId))
   }),
 
   unban: userAction({
     name: 'unban',
     demoNotice: DEMO ? 'user unbanned (demo)' : '',
     notice: () => 'user unbanned',
-    run: (userId) => userUnban(userId)
+    run: (userId) => enrollAfter(userId, () => userUnban(userId))
   }),
 
   restart: async ({ request, locals }) => {
@@ -458,9 +469,10 @@ export const actions: Actions = {
     name: 'delete',
     demoNotice: DEMO ? 'user deleted (demo only, no real data removed)' : '',
     notice: () => 'user deleted',
-    run: async (userId) => {
-      await userDelete(userId);
-      return null;
-    }
+    run: (userId) =>
+      unenrollThen(userId, async () => {
+        await userDelete(userId);
+        return null;
+      })
   })
 };
