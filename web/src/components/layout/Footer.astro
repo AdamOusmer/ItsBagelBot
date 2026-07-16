@@ -6,6 +6,7 @@
  */
 import { Image } from 'astro:assets';
 import logoImage from '../../assets/LogoBOT.png';
+import TextLink from '../ui/TextLink.astro';
 import { getLangFromUrl, useTranslations, localizePath } from '../../i18n/ui';
 
 const lang = getLangFromUrl(Astro.url);
@@ -32,21 +33,21 @@ const t = useTranslations(lang);
         <div class="cols">
             <div class="col" data-reveal style="--reveal-i: 1">
                 <p>{t('footer.product')}</p>
-                <a href={localizePath("/pricing", lang)}>{t('footer.pricing')}</a>
-                <a href={localizePath("/guides", lang)}>{t('footer.guides')}</a>
-                <a href={localizePath("/command-builder", lang)}>{t('footer.builder')}</a>
-                <a href="https://docs.itsbagelbot.com" target="_blank" rel="noopener noreferrer">{t('footer.developer')}</a>
-                <a href={`https://dashboard.itsbagelbot.com${lang === 'fr' ? '?lang=fr' : ''}`} target="_blank" rel="noopener noreferrer">{t('footer.dashboard')}</a>
+                <TextLink href={localizePath("/pricing", lang)} label={t('footer.pricing')} />
+                <TextLink href={localizePath("/guides", lang)} label={t('footer.guides')} />
+                <TextLink href={localizePath("/command-builder", lang)} label={t('footer.builder')} />
+                <TextLink href="https://docs.itsbagelbot.com" label={t('footer.developer')} external />
+                <TextLink href={`https://dashboard.itsbagelbot.com${lang === 'fr' ? '?lang=fr' : ''}`} label={t('footer.dashboard')} external />
             </div>
             <div class="col" data-reveal style="--reveal-i: 2">
                 <p>{t('footer.company')}</p>
-                <a href={localizePath("/contact", lang)}>{t('footer.contact')}</a>
-                <a href="https://github.com/AdamOusmer/ItsBagelBot" target="_blank" rel="noopener noreferrer">GitHub</a>
+                <TextLink href={localizePath("/contact", lang)} label={t('footer.contact')} />
+                <TextLink href="https://github.com/AdamOusmer/ItsBagelBot" label="GitHub" external />
             </div>
             <div class="col" data-reveal style="--reveal-i: 3">
                 <p>{t('footer.community')}</p>
-                <a href="https://discord.gg/SZ2remwSDv" target="_blank" rel="noopener noreferrer">Discord</a>
-                <a href="https://twitch.tv/itsbagelbot" target="_blank" rel="noopener noreferrer">Twitch</a>
+                <TextLink href="https://discord.gg/SZ2remwSDv" label="Discord" external />
+                <TextLink href="https://twitch.tv/itsbagelbot" label="Twitch" external />
             </div>
         </div>
     </div>
@@ -55,9 +56,9 @@ const t = useTranslations(lang);
         <span class="copy">&copy; 2026 ItsBagelBot</span>
         <span class="note">{t('footer.note')}</span>
         <div class="legal">
-            <a href={localizePath('/privacy', lang)}>{t('footer.privacy')}</a>
-            <a href={localizePath('/terms', lang)}>{t('footer.terms')}</a>
-            <a href={localizePath('/creator-terms', lang)}>{t('footer.creatorTerms')}</a>
+            <TextLink href={localizePath('/privacy', lang)} label={t('footer.privacy')} size="0.7rem" />
+            <TextLink href={localizePath('/terms', lang)} label={t('footer.terms')} size="0.7rem" />
+            <TextLink href={localizePath('/creator-terms', lang)} label={t('footer.creatorTerms')} size="0.7rem" />
         </div>
     </div>
 </footer>
@@ -171,7 +172,8 @@ const t = useTranslations(lang);
     .col {
         display: flex;
         flex-direction: column;
-        gap: 15px;
+        align-items: flex-start;
+        gap: 10px;
     }
 
     .col p {
@@ -183,44 +185,7 @@ const t = useTranslations(lang);
         margin: 0 0 4px 0;
     }
 
-    .col a {
-        position: relative;
-        width: fit-content;
-        font-size: 0.85rem;
-        color: var(--muted);
-        text-decoration: none;
-        transition: color 0.2s var(--ease-out-expo), transform 0.3s var(--ease-out-expo);
-    }
-
-    /* Little ember dot slides in ahead of the label */
-    .col a::before {
-        content: "";
-        position: absolute;
-        left: -12px;
-        top: 50%;
-        width: 4px;
-        height: 4px;
-        border-radius: 50%;
-        translate: 0 -50%;
-        background: var(--tan);
-        opacity: 0;
-        scale: 0;
-        transition: opacity 0.25s ease, scale 0.3s var(--ease-out-back, cubic-bezier(0.34, 1.56, 0.64, 1));
-    }
-
-    .col a:hover {
-        color: var(--tan-light);
-        transform: translateX(6px);
-    }
-
-    .col a:hover::before {
-        opacity: 1;
-        scale: 1;
-    }
-
     @media (prefers-reduced-motion: reduce) {
-        .col a:hover { transform: none; }
-        .col a::before { display: none; }
         .brand__logo { transition: none; }
     }
 
@@ -254,19 +219,6 @@ const t = useTranslations(lang);
         gap: 20px;
     }
 
-    .legal a {
-        font-family: var(--font-mono);
-        font-size: 0.7rem;
-        color: var(--muted);
-        text-decoration: none;
-        letter-spacing: 0.05em;
-        text-transform: uppercase;
-        transition: color 0.2s;
-    }
-
-    .legal a:hover {
-        color: var(--tan-light);
-    }
 
     @media (max-width: 900px) {
         footer {

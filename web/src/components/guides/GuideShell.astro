@@ -8,6 +8,8 @@
  * Pages pass sections (id, heading, note) and provide each section's body
  * through a matching named slot.
  */
+import TextLink from '../ui/TextLink.astro';
+
 interface Section {
     id: string;
     heading: string;
@@ -43,7 +45,7 @@ const hubHref = isFrench ? '/fr/guides' : '/guides';
 
     <div class="gshell__grid">
         <nav class="gshell__toc" aria-label={labels.toc}>
-            <a class="gshell__hub" href={hubHref}>← {labels.hub}</a>
+            <TextLink class="gshell__hub" href={hubHref} label={`← ${labels.hub}`} size="0.7rem" />
             <span class="gshell__toc-label">{labels.toc}</span>
             <ul>
                 {sections.map((section, i) => (
@@ -59,7 +61,7 @@ const hubHref = isFrench ? '/fr/guides' : '/guides';
 
         <article class="gshell__content">
             <div class="gshell__meta" data-reveal>
-                <a class="gshell__hub gshell__hub--inline" href={hubHref}>← {labels.hub}</a>
+                <TextLink class="gshell__hub gshell__hub--inline" href={hubHref} label={`← ${labels.hub}`} size="0.7rem" />
                 {minutes && <span class="gshell__minutes">{minutes}</span>}
             </div>
 
@@ -153,17 +155,7 @@ const hubHref = isFrench ? '/fr/guides' : '/guides';
         }
     }
 
-    .gshell__hub {
-        display: inline-block;
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.7rem;
-        letter-spacing: 0.08em;
-        color: var(--tan, #c9a87c);
-        margin-bottom: 26px;
-        transition: color 180ms ease;
-    }
-
-    .gshell__hub:hover { color: var(--tan-light, #e0c49a); }
+    .gshell__hub { margin-bottom: 26px; }
 
     .gshell__toc-label {
         display: block;
@@ -182,7 +174,7 @@ const hubHref = isFrench ? '/fr/guides' : '/guides';
         border-left: 1px solid var(--border, rgba(201, 168, 124, 0.15));
     }
 
-    .gshell__toc a {
+    .gshell__toc ul a {
         position: relative;
         display: block;
         padding: 7px 0 7px 16px;
@@ -192,7 +184,7 @@ const hubHref = isFrench ? '/fr/guides' : '/guides';
         transition: color 200ms ease, padding-left 300ms var(--ease-out-expo);
     }
 
-    .gshell__toc a i {
+    .gshell__toc ul a i {
         font-style: normal;
         font-family: var(--font-mono, "DM Mono", monospace);
         font-size: 0.62rem;
@@ -201,7 +193,7 @@ const hubHref = isFrench ? '/fr/guides' : '/guides';
         opacity: 0.85;
     }
 
-    .gshell__toc a::before {
+    .gshell__toc ul a::before {
         content: "";
         position: absolute;
         left: -1px;
@@ -214,15 +206,15 @@ const hubHref = isFrench ? '/fr/guides' : '/guides';
     }
 
     @media (hover: hover) and (pointer: fine) {
-        .gshell__toc a:hover { color: var(--tan-light, #e0c49a); }
+        .gshell__toc ul a:hover { color: var(--tan-light, #e0c49a); }
     }
 
-    .gshell__toc a.is-current {
+    .gshell__toc ul a.is-current {
         color: var(--tan-light, #e0c49a);
         padding-left: 20px;
     }
 
-    .gshell__toc a.is-current::before { transform: scaleY(1); }
+    .gshell__toc ul a.is-current::before { transform: scaleY(1); }
 
     /* ── Content ── */
 
@@ -326,15 +318,26 @@ const hubHref = isFrench ? '/fr/guides' : '/guides';
         margin: 30px 0 10px;
     }
 
+    /* Prose links wrap mid-paragraph, so they can't glyph-roll like TextLink;
+       they share its ember rail instead — the same tan→green sweep, drawn
+       with a background gradient so it follows line breaks. */
     .gshell__block :global(a) {
         color: var(--tan, #c9a87c);
-        border-bottom: 1px solid transparent;
-        transition: color 180ms ease, border-color 180ms ease;
+        background-image: linear-gradient(
+            90deg,
+            rgba(201, 168, 124, 0.75),
+            rgba(82, 183, 136, 0.55)
+        );
+        background-repeat: no-repeat;
+        background-position: 0 100%;
+        background-size: 0% 1px;
+        padding-bottom: 1px;
+        transition: color 180ms ease, background-size 460ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
     }
 
     .gshell__block :global(a:hover) {
         color: var(--tan-light, #e0c49a);
-        border-bottom-color: var(--tan-light, #e0c49a);
+        background-size: 100% 1px;
     }
 
     .gshell__block :global(code) {
@@ -471,7 +474,8 @@ const hubHref = isFrench ? '/fr/guides' : '/guides';
     }
 
     @media (prefers-reduced-motion: reduce) {
-        .gshell__toc a, .gshell__toc a::before, .gshell__pager-card { transition: none; }
+        .gshell__toc ul a, .gshell__toc ul a::before, .gshell__pager-card,
+        .gshell__block :global(a) { transition: none; }
     }
 
     @media (max-width: 640px) {

@@ -5,7 +5,7 @@ import {Image} from "astro:assets";
 import Button     from '../ui/Buttons/SecondaryButton.astro';
 import Hamburger  from '../ui/Hamburger.astro';
 import MobileMenu from './MobileMenu.astro';
-import NavLink    from './NavLink.astro';
+import TextLink   from '../ui/TextLink.astro';
 import LanguageSwitcher from './LanguageSwitcher.astro';
 import { getLangFromUrl, useTranslations, localizePath } from '../../i18n/ui';
 
@@ -35,7 +35,7 @@ const isActive = (href: string) =>
 
         <ul class="links" aria-label={t('nav.primary')}>
             {links.map((link) => (
-                <li><NavLink href={link.href} label={link.label} active={isActive(link.href)}/></li>
+                <li><TextLink href={link.href} label={link.label} active={isActive(link.href)}/></li>
             ))}
         </ul>
 
@@ -348,6 +348,10 @@ const isActive = (href: string) =>
     ul.links li {
         display: flex;
         align-items: center;
+    }
+
+    ul.links li :global(.text-link) {
+        min-height: 32px;
     }
 
     .button {

@@ -1,0 +1,233 @@
+---
+/**
+ * TextLink — the site's one text-link motion. A mono micro-label whose glyphs
+ * roll over on hover while an ember underline sweeps in (tan fading into
+ * green) and a single glint runs the wire. Every plain text link — nav,
+ * footer, guide chrome — renders through this element so they all move the
+ * same way.
+ */
+interface Props {
+    href: string;
+    label: string;
+    /** Persistent lit state for the current route. */
+    active?: boolean;
+    /** Opens in a new tab with rel=noopener. */
+    external?: boolean;
+    /** Font-size override, any CSS length (default 0.78rem). */
+    size?: string;
+    class?: string;
+}
+
+// `rest` forwards the parent's scoped-style attribute (data-astro-cid-*) so
+// consumers can position the link with their own scoped CSS.
+const { href, label, active = false, external = false, size, class: className, ...rest } = Astro.props;
+const glyphs = Array.from(label);
+---
+
+<a
+    {...rest}
+    class:list={["text-link", className, { "is-active": active }]}
+    href={href}
+    aria-label={label}
+    aria-current={active ? "page" : undefined}
+    target={external ? "_blank" : undefined}
+    rel={external ? "noopener noreferrer" : undefined}
+    style={size ? `--text-link-size: ${size};` : undefined}
+>
+    <span class="text-link__mask" aria-hidden="true">
+        <span class="text-link__row text-link__row--rest">
+            {glyphs.map((glyph, index) => (
+                <span class="text-link__glyph" style={`--gi: ${index};`}>{glyph}</span>
+            ))}
+        </span>
+        <span class="text-link__row text-link__row--over">
+            {glyphs.map((glyph, index) => (
+                <span class="text-link__glyph" style={`--gi: ${index};`}>{glyph}</span>
+            ))}
+        </span>
+    </span>
+</a>
+
+<style>
+    .text-link {
+        --text-link-rest: var(--muted, #888077);
+        --text-link-lit: var(--tan-light, #e0c49a);
+        --text-link-active: var(--white, #f0ece4);
+        --text-link-size: 0.78rem;
+        --text-link-shift: 1.3em;
+
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        width: fit-content;
+        padding: 0.3em 0.06em;
+        color: var(--text-link-rest);
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: var(--text-link-size);
+        font-weight: 500;
+        line-height: 1;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        white-space: nowrap;
+        text-decoration: none;
+        outline: none;
+        isolation: isolate;
+    }
+
+    /* Ember rail: tan fading into green, scales in from the left. */
+    .text-link::before,
+    .text-link::after {
+        content: "";
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0.08em;
+        height: 1px;
+        pointer-events: none;
+    }
+
+    .text-link::before {
+        background: linear-gradient(
+            90deg,
+            transparent,
+            rgba(201, 168, 124, 0.75),
+            rgba(82, 183, 136, 0.55),
+            transparent
+        );
+        opacity: 0;
+        transform: scaleX(0.2);
+        transform-origin: left;
+    }
+
+    /* Glint that runs the rail once on hover. */
+    .text-link::after {
+        background: linear-gradient(90deg, transparent, rgba(240, 236, 228, 0.85), transparent);
+        opacity: 0;
+        transform: translateX(-95%) scaleX(0.22);
+    }
+
+    .text-link__mask {
+        position: relative;
+        display: block;
+        height: 1.15em;
+        overflow: hidden;
+    }
+
+    .text-link__row {
+        display: inline-flex;
+        align-items: baseline;
+    }
+
+    .text-link__row--over {
+        position: absolute;
+        inset: 0 auto auto 0;
+        color: var(--text-link-lit);
+        text-shadow: 0 0 14px rgba(224, 196, 154, 0.28);
+    }
+
+    .text-link__glyph {
+        display: inline-block;
+        white-space: pre;
+    }
+
+    .text-link__row--over .text-link__glyph {
+        opacity: 0;
+        transform: translateY(var(--text-link-shift));
+    }
+
+    .text-link:focus-visible {
+        outline: 1px solid rgba(224, 196, 154, 0.58);
+        outline-offset: 4px;
+    }
+
+    /* Touch: no roll, just light up while pressed. */
+    .text-link:active {
+        color: var(--text-link-lit);
+    }
+
+    /* Current route: persistent colour + lit rail. */
+    .text-link.is-active {
+        color: var(--text-link-active);
+    }
+
+    .text-link.is-active::before {
+        opacity: 1;
+        transform: scaleX(1);
+    }
+
+    @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+        .text-link {
+            transition: color 180ms ease;
+        }
+
+        .text-link::before {
+            transition:
+                opacity 240ms ease,
+                transform 560ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+        }
+
+        .text-link__glyph {
+            transition:
+                opacity 260ms ease,
+                transform 400ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+            transition-delay: calc(var(--gi) * 14ms);
+            will-change: transform, opacity;
+        }
+
+        .text-link:is(:hover, :focus-visible) {
+            color: var(--text-link-lit);
+        }
+
+        .text-link:is(:hover, :focus-visible)::before {
+            opacity: 1;
+            transform: scaleX(1);
+        }
+
+        .text-link:is(:hover, :focus-visible)::after {
+            animation: text-link-glint 680ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)) both;
+        }
+
+        .text-link:is(:hover, :focus-visible) .text-link__row--rest .text-link__glyph {
+            opacity: 0.25;
+            transform: translateY(calc(var(--text-link-shift) * -1));
+        }
+
+        .text-link:is(:hover, :focus-visible) .text-link__row--over .text-link__glyph {
+            opacity: 1;
+            transform: translateY(0);
+            transition-delay: calc(60ms + (var(--gi) * 16ms));
+        }
+    }
+
+    /* Reduced motion: colour-only swap, rail appears without sweeping. */
+    @media (prefers-reduced-motion: reduce) {
+        .text-link__row--over {
+            display: none;
+        }
+
+        .text-link:is(:hover, :focus-visible) {
+            color: var(--text-link-lit);
+        }
+
+        .text-link:is(:hover, :focus-visible)::before {
+            opacity: 1;
+            transform: scaleX(1);
+        }
+    }
+
+    @keyframes text-link-glint {
+        0% {
+            opacity: 0;
+            transform: translateX(-95%) scaleX(0.18);
+        }
+
+        34% {
+            opacity: 0.8;
+        }
+
+        100% {
+            opacity: 0;
+            transform: translateX(95%) scaleX(0.34);
+        }
+    }
+</style>
