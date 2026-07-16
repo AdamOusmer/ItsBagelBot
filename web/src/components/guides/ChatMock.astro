@@ -1,0 +1,161 @@
+---
+/**
+ * ChatMock — a static Twitch-chat vignette for the guides. Server-rendered
+ * from props (no client JS): a titled chat window with viewer / mod / bot /
+ * system lines, so a guide can show exactly what a feature looks like in chat
+ * without a screenshot. Colors follow the site palette; the bot always speaks
+ * in the brand green.
+ */
+export interface ChatLine {
+    who: 'viewer' | 'mod' | 'bot' | 'system';
+    name?: string;
+    text: string;
+    time?: string;
+}
+
+interface Props {
+    /** Window title, e.g. "#your_channel". */
+    title?: string;
+    lines: ChatLine[];
+    caption?: string;
+}
+
+const { title = '#your_channel', lines, caption } = Astro.props;
+---
+
+<figure class="cmock" data-reveal>
+    <div class="cmock__win" role="img" aria-label={caption ?? title}>
+        <div class="cmock__bar">
+            <i></i>
+            <span>{title}</span>
+            <b>chat</b>
+        </div>
+        <div class="cmock__feed">
+            {lines.map((line) => (
+                line.who === 'system' ? (
+                    <p class="cmock__sys">{line.text}</p>
+                ) : (
+                    <p class="cmock__msg">
+                        {line.time && <time>{line.time}</time>}
+                        <b class:list={['cmock__name', `cmock__name--${line.who}`]}>
+                            {line.who === 'mod' && <span class="cmock__badge" aria-hidden="true">⚔</span>}
+                            {line.who === 'bot' ? 'ItsBagelBot' : (line.name ?? 'viewer')}
+                        </b>
+                        <span class="cmock__text">{line.text}</span>
+                    </p>
+                )
+            ))}
+        </div>
+    </div>
+    {caption && <figcaption>{caption}</figcaption>}
+</figure>
+
+<style>
+    .cmock { margin: 20px 0 26px; }
+
+    .cmock__win {
+        border: 1px solid var(--border, rgba(201, 168, 124, 0.15));
+        border-radius: 12px;
+        background: #0b0b0a;
+        overflow: hidden;
+        box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+    }
+
+    .cmock__bar {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 10px 14px;
+        border-bottom: 1px solid rgba(201, 168, 124, 0.1);
+        background: rgba(17, 17, 16, 0.9);
+    }
+
+    .cmock__bar i {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #e06262;
+        box-shadow: 0 0 8px rgba(224, 98, 98, 0.6);
+    }
+
+    .cmock__bar span {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.75rem;
+        color: var(--white, #f0ece4);
+    }
+
+    .cmock__bar b {
+        margin-left: auto;
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-weight: 400;
+        font-size: 0.6rem;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--muted, #888077);
+    }
+
+    .cmock__feed {
+        display: grid;
+        gap: 10px;
+        padding: 16px;
+    }
+
+    .cmock__msg {
+        display: grid;
+        grid-template-columns: auto auto 1fr;
+        gap: 8px;
+        align-items: baseline;
+        font-size: 0.92rem;
+        line-height: 1.55;
+        margin: 0;
+    }
+
+    /* No timestamp → name starts the row. */
+    .cmock__msg:not(:has(time)) { grid-template-columns: auto 1fr; }
+
+    .cmock__msg time {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.58rem;
+        color: #5f5b56;
+    }
+
+    .cmock__name {
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .cmock__name::after { content: ":"; color: var(--muted, #888077); font-weight: 400; }
+
+    .cmock__name--viewer { color: #bd8ff2; }
+    .cmock__name--mod { color: #7fb8e8; }
+    .cmock__name--bot { color: var(--green-glow, #52b788); }
+
+    .cmock__badge {
+        display: inline-grid;
+        place-items: center;
+        font-size: 0.55rem;
+        margin-right: 4px;
+        color: #7fb8e8;
+    }
+
+    .cmock__text { color: rgba(240, 236, 228, 0.85); overflow-wrap: anywhere; }
+
+    .cmock__sys {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.75rem;
+        color: var(--muted, #888077);
+        border-left: 2px solid rgba(82, 183, 136, 0.4);
+        padding-left: 10px;
+        margin: 0;
+    }
+
+    figcaption {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.72rem;
+        letter-spacing: 0.05em;
+        color: var(--muted, #888077);
+        margin-top: 10px;
+        padding-left: 2px;
+    }
+</style>

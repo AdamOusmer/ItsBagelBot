@@ -1,5 +1,7 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { deserialize } from '$app/forms';
+  import { replaceState } from '$app/navigation';
   import type { SubmitFunction } from '@sveltejs/kit';
   import {
     Icon,
@@ -15,6 +17,9 @@
     normName,
     getI18n,
     builtinDef,
+    PERMS,
+    COMMAND_NAME_MAX,
+    COOLDOWN_MAX,
     type CommandView,
     type CommandErrors,
     type Perm
@@ -274,6 +279,43 @@
   function openNew() {
     guarded(doOpenNew);
   }
+
+  // --- Deep-link prefill (marketing command builder) --------------------------
+  // The public command builder links here as /commands?compose=1&name=…&response=…
+  // so a visitor's finished command lands pre-filled in the "new" editor and they
+  // only review and press Create. The path (with query) survives the login
+  // round-trip via safeNextPath, same as /billing?subscribe=1. Runs once on
+  // mount; the params are then stripped so a refresh can't re-open a stale
+  // draft over newer work.
+  onMount(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get('compose') !== '1') return;
+
+    const perm = url.searchParams.get('perm') ?? '';
+    const cooldown = Math.floor(Number(url.searchParams.get('cooldown')) || 0);
+    const aliases = (url.searchParams.get('aliases') ?? '').split(',').map(normName).filter(Boolean);
+
+    editorDraft = {
+      ...blankDraft(),
+      name: normName(url.searchParams.get('name') ?? '').slice(0, COMMAND_NAME_MAX),
+      // The Go validator caps aliases at 25; drop the excess instead of failing.
+      aliases: [...new Set(aliases)].slice(0, 25),
+      // 2504 is the response column's MaxLen; validateCommand owns line rules.
+      response: (url.searchParams.get('response') ?? '').slice(0, 2504),
+      perm: (PERMS as readonly string[]).includes(perm) ? (perm as Perm) : 'everyone',
+      cooldown: Math.min(Math.max(cooldown, 0), COOLDOWN_MAX)
+    };
+    serverErrors = null;
+    expanded = NEW;
+    editorGen++;
+
+    for (const key of ['compose', 'name', 'response', 'perm', 'cooldown', 'aliases', 'lang']) {
+      url.searchParams.delete(key);
+    }
+    // Deferred: the router hasn't claimed the initial history entry yet when
+    // onMount runs, and a same-tick replaceState is dropped.
+    setTimeout(() => replaceState(url, {}), 0);
+  });
   function openEdit(c: CommandView) {
     if (expanded === c.name) {
       closeEditor();

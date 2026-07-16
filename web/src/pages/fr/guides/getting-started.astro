@@ -1,0 +1,226 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import PageHero from '../../../components/ui/PageHero.astro';
+import GuideShell from '../../../components/guides/GuideShell.astro';
+import ChatMock from '../../../components/guides/ChatMock.astro';
+import DashFrame from '../../../components/guides/DashFrame.astro';
+
+const sections = [
+    { id: 'connect', heading: 'Connectez votre chaîne', note: 'Une seule connexion Twitch. Aucune clé API, aucun fichier de config, rien à installer.' },
+    { id: 'tour', heading: 'Repérez-vous', note: 'Cinq arrêts dans le dock flottant. Vous passerez presque tout votre temps dans deux d’entre eux.' },
+    { id: 'first-command', heading: 'Créez votre première commande', note: 'Un nom et une réponse. Tout le reste est optionnel.' },
+    { id: 'first-module', heading: 'Activez votre premier module', note: 'Les modules sont de grandes fonctions avec un interrupteur. Deux sont déjà actifs pour vous.' },
+    { id: 'go-live', heading: 'Passez en direct sereinement', note: 'Une liste de vérification de deux minutes, puis le bot prend le quart de nuit.' },
+];
+---
+
+<Layout
+    title="Bien démarrer — Guides ItsBagelBot"
+    description="Installez ItsBagelBot en quelques minutes: connectez votre chaîne Twitch, visitez le tableau de bord, créez votre première commande et activez votre premier module."
+    ogType="article"
+>
+    <PageHero
+        eyebrow="Guide 01"
+        title="Bien démarrer"
+        description="De «Ajouter à Twitch» à votre premier stream avec le bot dans le chat. Six minutes en tout, surtout de la lecture."
+    />
+
+    <GuideShell
+        sections={sections}
+        minutes="6 min de lecture"
+        next={{ href: '/fr/guides/commands', label: 'Commandes et variables' }}
+    >
+        <Fragment slot="connect">
+            <p>
+                Rendez-vous sur <a href="https://dashboard.itsbagelbot.com?lang=fr" target="_blank" rel="noopener noreferrer">dashboard.itsbagelbot.com</a>
+                et connectez-vous avec votre compte Twitch. Twitch affiche exactement ce que le bot a le
+                droit de faire avant que vous n'approuviez quoi que ce soit, et c'est toute
+                l'installation. Dès que vous êtes connecté, ItsBagelBot rejoint votre chat et reste
+                silencieux tant qu'on ne lui parle pas.
+            </p>
+            <ChatMock
+                title="#votre_chaine"
+                caption="Ce que votre chat voit, environ deux secondes après votre connexion."
+                lines={[
+                    { who: 'system', text: 'itsbagelbot a rejoint #votre_chaine' },
+                    { who: 'viewer', name: 'maya_live', text: 'oh, un nouveau bot, salut!' },
+                ]}
+            />
+            <p class="gtip">
+                <b>Bon à savoir</b>
+                Le bot ne parle jamais sans y être invité. Tant que vous n'avez pas créé de commandes ni
+                activé de modules, rejoindre le chat est la seule chose qu'il fait: votre chat reste
+                exactement comme avant.
+            </p>
+        </Fragment>
+
+        <Fragment slot="tour">
+            <p>
+                Le tableau de bord affiche une page à la fois, et toute sa navigation tient dans le
+                dock flottant en bas de l'écran, identique sur ordinateur et téléphone.
+                <strong>Aperçu</strong> est votre page d'accueil, <strong>Commandes</strong>
+                héberge les commandes personnalisées, et <strong>Modules</strong> regroupe toutes les
+                grandes fonctions. Facturation et Paramètres font ce que leur nom dit.
+            </p>
+            <DashFrame
+                path="/"
+                caption="La page Aperçu. La navigation vit dans le dock flottant, en bas."
+                notes={[
+                    { n: 1, text: 'Le dock est toute la navigation, sur tous les écrans: Aperçu, Commandes, Modules, Facturation, Paramètres.' },
+                    { n: 2, text: "État du bot: ItsBagelBot est-il dans votre chat en ce moment, avec le bouton pour corriger si besoin." },
+                    { n: 3, text: 'Actions rapides: les deux gestes les plus fréquents, à un clic.' },
+                    { n: 4, text: 'Vos commandes les plus utilisées vivent ici aussi, à un clic de la modification.' },
+                ]}
+            >
+                <div class="df-main">
+                    <div class="df-topbar"><span class="df-brand">ItsBagelBot <small>Console</small></span><span class="df-crumb">ItsBagelBot / <b>Aperçu</b></span><span class="df-account">streamer · Diffuseur</span></div>
+                    <span class="df-eyebrow">État</span>
+                    <p class="df-title">Bonsoir, <i>streamer</i></p>
+                    <div class="df-row"><span class="df-grow"><b style="color:var(--white);">En ligne · dans le chat</b> · rien ne vous attend pour l'instant</span><span class="df-btn df-btn--ghost">Redémarrer</span><span class="df-btn df-btn--ghost">Déconnecter</span><i class="df-dot" style="position:static;">2</i></div>
+                    <span class="df-cat">Actions rapides</span>
+                    <div class="df-actions"><span class="df-btn df-btn--primary">+ Nouvelle commande</span><span class="df-btn df-btn--ghost">Gérer les modules</span><i class="df-dot" style="position:static;">3</i></div>
+                    <span class="df-cat">Vos commandes favorites <i class="df-dot" style="position:static; width:16px; height:16px; font-size:0.55rem; margin-left:4px;">4</i></span>
+                    <div class="df-row"><code>!bagel</code><span class="df-grow">&#123;user&#125; lance un bagel tout chaud à &#123;target&#125;. Croustillant.</span><span class="df-meta"><b>1,2k</b> utilisations</span></div>
+                    <div class="df-row"><code>!lurk</code><span class="df-grow">&#123;user&#125; se fond dans l'ombre. Merci pour le lurk.</span><span class="df-meta"><b>521</b> utilisations</span></div>
+                    <div class="df-dock"><span class="is-active">Aperçu</span><span>Commandes</span><span>Modules</span><span>Facturation</span><span>Paramètres</span><i class="df-dot" style="position:static; align-self:center; margin-left:6px;">1</i></div>
+                </div>
+            </DashFrame>
+            <p>
+                Tout ce que vous faites dans le tableau de bord est enregistré dès que vous confirmez:
+                aucune étape de «déploiement», et les changements atteignent votre chat généralement en
+                quelques secondes.
+            </p>
+        </Fragment>
+
+        <Fragment slot="first-command">
+            <p>
+                Ouvrez <strong>Commandes</strong> et appuyez sur <strong>Nouvelle commande</strong>.
+                Une commande n'exige que deux choses: un <strong>nom</strong> (ce que les spectateurs
+                tapent après le <code>!</code>) et une <strong>réponse</strong> (ce que le bot répond).
+                Faisons le grand classique:
+            </p>
+            <DashFrame
+                path="/commands"
+                caption="La page Commandes: votre liste à gauche, l'éditeur amarré à droite."
+                notes={[
+                    { n: 1, text: "Nouvelle commande ouvre l'éditeur, amarré à côté de la liste sur ordinateur (une feuille en bas sur téléphone)." },
+                    { n: 2, text: 'Le nom, sans le «!» (le tableau de bord l’ajoute dans le chat). Minuscules, sans espaces.' },
+                    { n: 3, text: 'La réponse. Du texte simple suffit; le prochain guide montre les variables qui la rendent intelligente.' },
+                    { n: 4, text: 'Créer enregistre immédiatement, et la commande arrive dans le chat juste après.' },
+                ]}
+            >
+                <div class="df-main">
+                    <div class="df-topbar"><span class="df-brand">ItsBagelBot <small>Console</small></span><span class="df-crumb">ItsBagelBot / <b>Commandes</b></span><span class="df-account">streamer · Diffuseur</span></div>
+                    <span class="df-eyebrow">Gérer</span>
+                    <p class="df-title">Commandes de <i>chat</i></p>
+                    <div class="df-toolbar">
+                        <span class="df-pill df-pill--tan">Toutes</span>
+                        <span class="df-pill df-pill--off">Actives</span>
+                        <span class="df-pill df-pill--off">Personnalisées</span>
+                        <span class="df-spacer"></span>
+                        <span class="df-search">Nom, alias, réponse…</span>
+                        <span class="df-btn df-btn--tan">+ Nouvelle commande</span>
+                        <i class="df-dot" style="position:static;">1</i>
+                    </div>
+                    <div class="df-cols">
+                        <div style="display:grid; gap:8px; align-content:start;">
+                            <div class="df-row"><span class="df-num">01</span><code>!followage</code><span class="df-pill df-pill--on">intégrée</span><span class="df-grow"></span><span class="df-meta">Tous · 15s</span><span class="df-toggle is-on"></span></div>
+                            <div class="df-row is-open"><span class="df-num">02</span><code>!discord</code><span class="df-grow">Viens jaser entre les streams…</span><span class="df-meta">Tous · 0s</span><span class="df-toggle is-on"></span></div>
+                        </div>
+                        <div class="df-panel">
+                            <div class="df-panel-head">Nouvelle commande <i>✕</i></div>
+                            <div class="df-field"><span>Nom</span><div class="df-input is-focus">discord<i class="df-dot" style="position:static; margin-left:auto;">2</i></div></div>
+                            <div class="df-field"><span>Réponse</span><div class="df-input">Viens jaser entre les streams → discord.gg/votre-invitation<i class="df-dot" style="position:static; margin-left:auto;">3</i></div></div>
+                            <div class="df-chat">
+                                <span class="df-chat-tag">Répétition du chat</span>
+                                <p class="df-viewer"><b>sesame_sam</b><span>!discord</span></p>
+                                <p class="df-bot"><b>ItsBagelBot</b><span>Viens jaser entre les streams → discord.gg/votre-invitation</span></p>
+                            </div>
+                            <div class="df-panel-foot"><span class="df-btn df-btn--ghost">Annuler</span><span class="df-btn df-btn--tan">✓ Créer</span><i class="df-dot" style="position:static;">4</i></div>
+                        </div>
+                    </div>
+                    <div class="df-dock"><span>Aperçu</span><span class="is-active">Commandes</span><span>Modules</span><span>Facturation</span><span>Paramètres</span></div>
+                </div>
+            </DashFrame>
+            <ChatMock
+                title="#votre_chaine"
+                caption="Trente secondes plus tard, dans le chat."
+                lines={[
+                    { who: 'viewer', name: 'maya_live', text: '!discord' },
+                    { who: 'bot', text: 'Viens jaser entre les streams → discord.gg/votre-invitation' },
+                ]}
+            />
+            <p>
+                L'éditeur propose aussi des niveaux d'accès (tout le monde → diffuseur), un délai entre
+                les utilisations et un interrupteur «seulement en direct». Tout est optionnel et tout
+                est expliqué dans le <a href="/fr/guides/commands">guide des commandes</a>.
+            </p>
+        </Fragment>
+
+        <Fragment slot="first-module">
+            <p>
+                Direction <strong>Modules</strong>. Chaque tuile est une fonction avec son propre
+                interrupteur, et cliquer la tuile ouvre ses réglages. Deux travaillent déjà pour vous:
+                les <strong>Alertes de chat</strong> (follows, subs, cheers, raids) et
+                <strong>AutoMod</strong> (la modération en couches présentée sur la page d'accueil; il travaille discrètement sans tuile sur cette grille).
+            </p>
+            <DashFrame
+                path="/modules"
+                caption="La page Modules: un rail de catégories à gauche, des tuiles avec Configurer et un interrupteur."
+                notes={[
+                    { n: 1, text: 'Déjà actif: les alertes («Chat Alerts») remercient follows et subs avec un message que vous pouvez réécrire.' },
+                    { n: 2, text: "À activer: les minuteries («Timers») publient un message à intervalle régulier pendant le direct. Parfait pour le rappel Discord." },
+                ]}
+            >
+                <div class="df-main">
+                    <div class="df-topbar"><span class="df-brand">ItsBagelBot <small>Console</small></span><span class="df-crumb">ItsBagelBot / <b>Modules</b></span><span class="df-account">streamer · Diffuseur</span></div>
+                    <span class="df-eyebrow">Gérer</span>
+                    <p class="df-title">Modules de <i>chaîne</i></p>
+                    <p class="df-sub">Fonctions optionnelles pour votre chaîne. 1 sur 13 activée.</p>
+                    <div class="df-search" style="max-width:200px;">Rechercher un module…</div>
+                    <div class="df-cols df-cols--rail">
+                        <div class="df-rail"><b>Categories</b><span class="is-active">Chat Tools</span><span>Community</span><span>Games</span></div>
+                        <div style="display:grid; gap:10px; align-content:start;">
+                            <span class="df-cat">Chat Tools</span>
+                            <div class="df-grid">
+                                <div class="df-tile"><div class="df-tile-head"><i class="df-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg></i><span><b>Timers</b><small>Chat Tools</small></span></div><small>Post repeating chat messages on a schedule while you are live.</small><div class="df-tile-foot"><span class="df-btn--configure">Configurer</span><span class="df-toggle"></span></div><i class="df-dot" style="top:10px; right:10px;">2</i></div>
+                                <div class="df-tile"><div class="df-tile-head"><i class="df-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2"/><path d="M9 20h6"/><path d="M12 4v16"/></svg></i><span><b>Trigger Words</b><small>Chat Tools</small></span></div><small>Auto-reply when a word shows up in chat.</small><div class="df-tile-foot"><span class="df-btn--configure">Configurer</span><span class="df-toggle"></span></div></div>
+                            </div>
+                            <span class="df-cat">Community</span>
+                            <div class="df-grid">
+                                <div class="df-tile"><div class="df-tile-head"><i class="df-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></i><span><b>Chat Alerts</b><small>Community</small></span></div><small>Announce follows, subs, cheers and raids in chat.</small><div class="df-tile-foot"><span class="df-btn--configure">Configurer</span><span class="df-toggle is-on"></span></div><i class="df-dot" style="top:10px; right:10px;">1</i></div>
+                                <div class="df-tile"><div class="df-tile-head"><i class="df-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg></i><span><b>Auto Shoutout</b><small>Community</small></span></div><small>Welcome incoming raids with an automatic shoutout.</small><div class="df-tile-foot"><span class="df-btn--configure">Configurer</span><span class="df-toggle"></span></div></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="df-dock"><span>Aperçu</span><span>Commandes</span><span class="is-active">Modules</span><span>Facturation</span><span>Paramètres</span></div>
+                </div>
+            </DashFrame>
+            <p>
+                Rien ici n'est risqué à explorer: chaque module se désactive aussi vite qu'il s'active,
+                et ses réglages sont conservés pour la prochaine fois. La visite complète de chaque
+                module se trouve dans le <a href="/fr/guides/modules">manuel des modules</a>.
+            </p>
+        </Fragment>
+
+        <Fragment slot="go-live">
+            <p>Avant votre prochain stream, une petite répétition:</p>
+            <ol>
+                <li>Tapez vous-même votre nouvelle commande dans le chat: le bot vous répond comme à n'importe quel spectateur.</li>
+                <li>Relisez les messages des <strong>Alertes de chat</strong> et donnez-leur votre ton.</li>
+                <li>Souvent raidé? Activez le <strong>Shoutout automatique</strong> pour que les raiders soient salués même quand vous êtes en pleine partie.</li>
+            </ol>
+            <p>
+                Et voilà toute l'installation. À partir d'ici, le bot modère, accueille et répond tout
+                seul, et tout ce que vous venez de faire se modifie en plein stream depuis votre
+                téléphone.
+            </p>
+            <p class="gtip">
+                <b>La suite</b>
+                Rendez vos commandes intelligentes: <a href="/fr/guides/commands">Commandes et variables</a>
+                montre comment une ligne comme <code>Bienvenue, &#123;user&#125;!</code> salue chaque
+                spectateur par son nom.
+            </p>
+        </Fragment>
+    </GuideShell>
+</Layout>

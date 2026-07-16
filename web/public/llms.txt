@@ -20,13 +20,15 @@
 - Custom commands and variables with cooldowns and shout-outs.
 - Timers, polls, giveaways (verifiably random draws), and self-managing song-request queues.
 - Channel Points rewards, including a Govee smart-light integration (viewers redeem to drive stream lights).
-- Game-stat integrations: Hypixel Bedwars stats and MCSR Ranked (Minecraft speedrun) Elo, pulled straight into chat.
+- Game-stat integrations: Hypixel Bedwars stats, MCSR Ranked (Minecraft speedrun) Elo, and Fortnite stats plus the daily item shop, pulled straight into chat.
 - Setup takes about two minutes; rules read like sentences, not code. Uninstall anytime.
 
 ## Pages
 
 - [Home](https://itsbagelbot.com/): product overview, features, and how it works.
 - [Pricing](https://itsbagelbot.com/pricing): Free / Premium / Enterprise tiers and FAQ.
+- [Guides](https://itsbagelbot.com/guides): visual guides — getting started, commands & variables, and the modules handbook.
+- [Command Builder](https://itsbagelbot.com/command-builder): interactive tool to compose custom commands with variables and send them to the dashboard.
 - [Contact](https://itsbagelbot.com/contact): Discord, support and enterprise email, GitHub.
 - [Privacy Policy](https://itsbagelbot.com/privacy)
 - [Terms of Service](https://itsbagelbot.com/terms)

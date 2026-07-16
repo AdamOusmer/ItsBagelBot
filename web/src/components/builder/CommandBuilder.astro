@@ -1,0 +1,1089 @@
+---
+/**
+ * CommandBuilder — the interactive command workbench. Non-technical streamers
+ * compose a command (or a module reply) by clicking variables instead of
+ * memorizing syntax, watch a live chat rehearsal, then either send the result
+ * straight into the dashboard's command editor (deep link, pre-filled) or
+ * copy it as a !cmd chat line / template.
+ *
+ * Layout is deliberately two zones: one compose card (essentials on top,
+ * access/cooldown/aliases folded into "More options") and a slim aside with
+ * the rehearsal and a single action card — one primary CTA, the chat-paste
+ * path secondary beneath it.
+ *
+ * The rehearsal is a straight port of the dashboard inspector's ChatPreview
+ * (console/dashboard/src/lib/components/commands/ChatPreview.svelte): same
+ * typing beat, same staggered reply-in animation, same announcement /
+ * shoutout / pin / me styling and sample-value highlights — the builder is
+ * meant to feel like the dashboard reaching out onto the marketing site.
+ *
+ * All copy and the variable catalog come from src/i18n/builder.ts (both
+ * locales), which mirrors what the bot actually expands. Runtime strings reach
+ * the client through a JSON island (site pattern, CSP-safe); the client script
+ * builds DOM with textContent only.
+ */
+import logoImage from '../../assets/LogoBOT.png';
+import { builderData, builderUI } from '../../i18n/builder';
+import type { Lang } from '../../i18n/ui';
+
+interface Props {
+    lang: Lang;
+}
+
+const { lang } = Astro.props;
+const data = builderData(lang);
+const ui = builderUI(lang);
+const guideHref = lang === 'fr' ? '/fr/guides/commands' : '/guides/commands';
+
+// Grouped surfaces for the module <select>, custom excluded (it's a mode).
+const groups: { group: string; items: { id: string; label: string }[] }[] = [];
+for (const surface of data.surfaces) {
+    if (surface.id === 'custom') continue;
+    const bucket = groups.find((g) => g.group === surface.group);
+    if (bucket) bucket.items.push({ id: surface.id, label: surface.label });
+    else groups.push({ group: surface.group, items: [{ id: surface.id, label: surface.label }] });
+}
+---
+
+<div class="builder" data-builder>
+    <div class="layout">
+        <section class="compose card">
+            <div class="mode-row">
+                <div class="mode-seg" role="group" aria-label={ui.step1Title}>
+                    <button class="active" type="button" data-mode="custom" aria-pressed="true"><i>!</i>{ui.modeCustom}</button>
+                    <button type="button" data-mode="module" aria-pressed="false"><i>&#123;&#125;</i>{ui.modeModule}</button>
+                </div>
+            </div>
+
+            <div class="module-pick" hidden data-module-pick>
+                <label for="cb-surface">{ui.surfaceLabel}</label>
+                <select id="cb-surface" data-surface aria-describedby="cb-surface-hint">
+                    {groups.map((g) => (
+                        <optgroup label={g.group}>
+                            {g.items.map((item) => <option value={item.id}>{item.label}</option>)}
+                        </optgroup>
+                    ))}
+                </select>
+                <small class="hint" id="cb-surface-hint" data-hint></small>
+            </div>
+
+            <div class="f-name" data-command-fields>
+                <label for="cb-name">{ui.nameLabel}</label>
+                <span class="f-wrap"><span class="prefix">!</span><input id="cb-name" value="welcome" maxlength="64" data-name aria-describedby="cb-name-hint" /></span>
+                <small class="hint" id="cb-name-hint">{ui.nameHint}</small>
+            </div>
+
+            <label class="response">{ui.responseLabel} <small><b data-count>0</b>/500</small><textarea rows="4" maxlength="2504" data-template></textarea></label>
+            <div class="recipes" data-recipes><span>{ui.recipesLabel}</span></div>
+
+            <section class="palette">
+                <header><b>{ui.step3Title}</b><span class="scope" data-scope></span></header>
+                <p class="palette-sub">{ui.step3Sub}</p>
+                <div class="vars" data-vars></div>
+                <details><summary>{ui.bracesSummary}</summary><p>{ui.bracesBody}</p></details>
+            </section>
+
+            <details class="more" data-more>
+                <summary>{ui.moreOptions}</summary>
+                <div class="more-grid">
+                    <div class="span2"><label for="cb-aliases">{ui.aliasLabel}</label><input id="cb-aliases" placeholder="hi, heya" data-aliases aria-describedby="cb-alias-hint" /><small class="hint" id="cb-alias-hint">{ui.aliasHint}</small></div>
+                    <label>{ui.permLabel}
+                        <select data-perm>
+                            {data.perms.map((p) => <option value={p.value}>{p.label}</option>)}
+                        </select>
+                    </label>
+                    <div><label for="cb-cooldown">{ui.cooldownLabel}</label><input id="cb-cooldown" type="number" min="0" max="86400" value="0" data-cooldown aria-describedby="cb-cd-hint" /><small class="hint" id="cb-cd-hint">{ui.cooldownHint}</small></div>
+                    <label class="span2">{ui.styleLabel}
+                        <select data-style>
+                            {data.styles.map((s) => <option value={s.value}>{s.label}</option>)}
+                        </select>
+                    </label>
+                </div>
+            </details>
+        </section>
+
+        <aside>
+            <section class="preview card">
+                <header><b><i></i> {ui.previewTitle}</b><span data-context></span></header>
+                <div class="chat" data-chat data-avatar={logoImage.src}>
+                    <span class="chat-tag" data-chat-tag>{ui.rehearsal}</span>
+                </div>
+                <small data-preview-note></small>
+            </section>
+
+            <section class="action card">
+                <header><span data-action-title>{ui.sendTitle}</span><b data-valid role="status"></b></header>
+                <div class="send" data-send-wrap>
+                    <a class="send__cta" data-send target="_blank" rel="noopener noreferrer" href={data.dashboardOrigin + '/commands'}>
+                        <span>{ui.sendCta}</span><b aria-hidden="true">→</b>
+                    </a>
+                    <p class="send__help">{ui.sendHelp}</p>
+                </div>
+                <div class="copyw" data-copy-wrap>
+                    <p class="copyw__label" data-copy-title>{ui.copyTitleCustom}</p>
+                    <pre data-output></pre>
+                    <button type="button" data-copy><span>{ui.copyCta}</span></button>
+                    <a class="copyw__module-link" data-module-link hidden target="_blank" rel="noopener noreferrer" href={data.dashboardOrigin}>{ui.openModule} →</a>
+                </div>
+            </section>
+        </aside>
+    </div>
+
+    <p class="learn">
+        {ui.learnMore} <a href={guideHref}>{ui.learnMoreCta} →</a>
+    </p>
+
+    <script type="application/json" data-builder-json set:html={JSON.stringify({
+        data,
+        ui: {
+            statusName: ui.statusName,
+            statusLines: ui.statusLines,
+            statusLineLen: ui.statusLineLen,
+            statusEmpty: ui.statusEmpty,
+            copied: ui.copied,
+            copyFail: ui.copyFail,
+            copyCta: ui.copyCta,
+            sendTitle: ui.sendTitle,
+            copyTitleCustom: ui.copyTitleCustom,
+            copyTitleModule: ui.copyTitleModule,
+            copyBodyModule: ui.copyBodyModule,
+            // Rehearsal chrome, word-for-word the dashboard's chatPreview strings.
+            rehearsal: ui.rehearsal,
+            ariaTyping: ui.ariaTyping,
+            announcement: ui.announcement,
+            addMessageAfter: ui.addMessageAfter,
+            shoutsOut: ui.shoutsOut,
+            nameChannel: ui.nameChannel,
+            pinnedForStream: ui.pinnedForStream,
+            addActionAfterMe: ui.addActionAfterMe,
+            nothingToSay: ui.nothingToSay,
+            unknownVar: ui.unknownVar,
+            recipes: lang === 'fr'
+                ? [
+                    { label: 'Accueillir quelqu’un', text: 'Bienvenue, {user}! Installe-toi 🥯' },
+                    { label: 'Lancer un dé', text: '{user} lance {random:1-100} sur 100.' },
+                    { label: 'Choisir une option', text: 'Ambiance du soir: {choice:cosy,chaotique,compétitive}.' },
+                    { label: 'Compter les chutes', text: '{channel} est tombé {counter:chutes} fois.' },
+                  ]
+                : [
+                    { label: 'Welcome someone', text: 'Welcome in, {user}! Grab a seat 🥯' },
+                    { label: 'Roll a number', text: '{user} rolled {random:1-100} out of 100.' },
+                    { label: 'Pick an option', text: "Tonight's vibe: {choice:cozy,chaotic,competitive}." },
+                    { label: 'Count the falls', text: '{channel} has fallen {counter:falls} times.' },
+                  ],
+        },
+    })} />
+</div>
+
+<script>
+    type Var = { token: string; sample: string; name: string; desc: string };
+    type Surface = { id: string; group: string; label: string; dashPath: string; hint: string; example: string; prompt: string; vars: Var[] };
+    type Payload = {
+        data: {
+            lang: string;
+            limits: { nameMax: number; aliasMax: number; lineMax: number; linesMax: number; cooldownMax: number };
+            dashboardOrigin: string;
+            perms: { value: string; label: string }[];
+            styles: { value: string; label: string }[];
+            surfaces: Surface[];
+        };
+        ui: Record<string, string> & { recipes: { label: string; text: string }[] };
+    };
+
+    // --- Slash-verb parse, same tables as the dashboard's ChatPreview (which
+    // itself mirrors app/sesame/engine/slash.go). ---------------------------
+    type Mode = 'chat' | 'announce' | 'shoutout' | 'pin' | 'me';
+    type Parsed = { mode: Mode; body: string; verb?: string; color?: string; target?: string };
+
+    const ACCENT: Record<string, string> = {
+        primary: 'var(--tan-light)',
+        blue: '#4a9eff',
+        green: '#52b788',
+        orange: '#ff9f45',
+        purple: '#c77dff',
+    };
+
+    const ANNOUNCE: [string, string][] = [
+        ['/announceblue', 'blue'],
+        ['/announcegreen', 'green'],
+        ['/announceorange', 'orange'],
+        ['/announcepurple', 'purple'],
+        ['/announce', 'primary'],
+    ];
+
+    function cutVerb(text: string, verb: string): string | null {
+        if (text === verb) return '';
+        if (text.startsWith(verb + ' ')) return text.slice(verb.length + 1);
+        return null;
+    }
+
+    function parseLine(text: string): Parsed {
+        for (const [verb, color] of ANNOUNCE) {
+            const rest = cutVerb(text, verb);
+            if (rest !== null) return { mode: 'announce', body: rest, verb, color };
+        }
+        const so = cutVerb(text, '/shoutout');
+        if (so !== null) {
+            const trimmed = so.replace(/^ +/, '');
+            const sp = trimmed.indexOf(' ');
+            const rawTarget = sp === -1 ? trimmed : trimmed.slice(0, sp);
+            const remainder = sp === -1 ? '' : trimmed.slice(sp + 1).replace(/^ +/, '');
+            return { mode: 'shoutout', body: remainder, verb: '/shoutout', target: rawTarget.replace(/^@/, '') };
+        }
+        const pin = cutVerb(text, '/pin');
+        if (pin !== null) return { mode: 'pin', body: pin, verb: '/pin' };
+        const me = cutVerb(text, '/me');
+        if (me !== null) return { mode: 'me', body: me, verb: '/me' };
+        return { mode: 'chat', body: text };
+    }
+
+    function verbLabelOf(p: Parsed): string {
+        if (p.mode === 'announce') return p.color === 'primary' ? '/announce' : `/announce (${p.color})`;
+        return p.verb ?? '';
+    }
+
+    function initBuilder(root: HTMLElement) {
+        if (root.dataset.ready) return;
+        root.dataset.ready = '1';
+
+        const payload: Payload = JSON.parse(root.querySelector('[data-builder-json]')?.textContent || 'null');
+        if (!payload) return;
+        const { data, ui } = payload;
+        const surfaces = new Map(data.surfaces.map((s) => [s.id, s]));
+
+        const $ = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
+        const ta = $<HTMLTextAreaElement>('[data-template]');
+        const nameInput = $<HTMLInputElement>('[data-name]');
+        const aliasInput = $<HTMLInputElement>('[data-aliases]');
+        const permSel = $<HTMLSelectElement>('[data-perm]');
+        const cdInput = $<HTMLInputElement>('[data-cooldown]');
+        const styleSel = $<HTMLSelectElement>('[data-style]');
+        const surfaceSel = $<HTMLSelectElement>('[data-surface]');
+        const sendLink = $<HTMLAnchorElement>('[data-send]');
+        const moduleLink = $<HTMLAnchorElement>('[data-module-link]');
+        const copyBtn = $<HTMLButtonElement>('[data-copy]');
+        const chat = $<HTMLElement>('[data-chat]');
+        const chatTag = $<HTMLElement>('[data-chat-tag]');
+        const avatarSrc = chat.dataset.avatar ?? '';
+
+        let mode: 'custom' | 'module' = 'custom';
+        let surfaceId = 'custom';
+        const current = () => surfaces.get(surfaceId)!;
+
+        const cleanName = () =>
+            nameInput.value.trim().replace(/^!+/, '').replace(/\s+/g, '').toLowerCase().slice(0, data.limits.nameMax);
+
+        const cleanAliases = () =>
+            aliasInput.value
+                .split(',')
+                .map((a) => a.trim().replace(/^!+/, '').replace(/\s+/g, '').toLowerCase())
+                .filter(Boolean)
+                .slice(0, data.limits.aliasMax);
+
+        const cleanCooldown = () => {
+            const n = Math.floor(Number(cdInput.value) || 0);
+            return Math.min(Math.max(n, 0), data.limits.cooldownMax);
+        };
+
+        // Hard caps while typing, matching the dashboard editor: at most 5
+        // lines and 500 characters per line — extra input is dropped instead of
+        // only flagged after the fact.
+        function clampTemplate() {
+            const raw = ta.value.split(/\r\n|\r|\n/);
+            let changed = raw.length > data.limits.linesMax;
+            // The first-line style verb ("/announce " …) is prepended on the
+            // wire, so the first line's budget shrinks by the prefix length —
+            // otherwise a full 500-char line ships at 500+verb and fails the
+            // dashboard validator.
+            const prefixLen = mode === 'custom' ? styleSel.value.length : 0;
+            const clamped = raw.slice(0, data.limits.linesMax).map((line, i) => {
+                const max = i === 0 ? data.limits.lineMax - prefixLen : data.limits.lineMax;
+                if (line.length <= max) return line;
+                changed = true;
+                return line.slice(0, max);
+            });
+            if (!changed) return;
+            const pos = ta.selectionStart ?? ta.value.length;
+            ta.value = clamped.join('\n');
+            const at = Math.min(pos, ta.value.length);
+            ta.setSelectionRange(at, at);
+        }
+
+        // The meaningful lines, mirroring the bot: trailing whitespace trimmed,
+        // blank lines dropped, first line carrying the selected style prefix.
+        const lines = () => {
+            const raw = ta.value.split(/\r\n|\r|\n/).map((l) => l.replace(/[ \t]+$/, '')).filter((l) => l !== '');
+            if (mode === 'custom' && styleSel.value && raw.length > 0) raw[0] = styleSel.value + raw[0];
+            return raw;
+        };
+
+        // --- Token substitution: known tokens become highlighted samples,
+        // unknown {tokens} stay marked, exactly like the dashboard rehearsal.
+        type Seg = { text: string; kind: 'plain' | 'sample' | 'unknown' };
+        const rint = (lo: number, hi: number) => String(lo + Math.floor(Math.random() * (hi - lo + 1)));
+
+        function resolveToken(body: string): string | null {
+            const samples = new Map(current().vars.map((x) => [x.token.slice(1, -1), x.sample]));
+            if (samples.has(body)) return samples.get(body)!;
+            // Aliases the bot honors but the palette hides for clarity.
+            if (body === 'sender' && samples.has('user')) return samples.get('user')!;
+            if (body === 'target' && samples.has('touser')) return samples.get('touser')!;
+            if (body === 'touser' && samples.has('target')) return samples.get('target')!;
+            if (body === 'random') return rint(1, 100);
+            const rand = body.match(/^random:(-?\d+)-(-?\d+)$/);
+            if (rand) {
+                const lo = parseInt(rand[1], 10);
+                const hi = parseInt(rand[2], 10);
+                return hi >= lo ? rint(lo, hi) : null;
+            }
+            if (body.startsWith('choice:')) {
+                const options = body.slice(7).split(',').map((o) => o.trim()).filter(Boolean);
+                return options.length ? options[Math.floor(Math.random() * options.length)] : null;
+            }
+            if (mode === 'custom' && body.startsWith('counter:') && body.length > 'counter:'.length) return '128';
+            return null;
+        }
+
+        function segmentsOf(body: string): Seg[] {
+            const out: Seg[] = [];
+            const re = /\{([a-z_]+(?:\.[a-z_]+)?(?::[^{}]*)?)\}/gi;
+            let last = 0;
+            for (const m of body.matchAll(re)) {
+                if (m.index! > last) out.push({ text: body.slice(last, m.index), kind: 'plain' });
+                const value = resolveToken(m[1]);
+                if (value !== null) out.push({ text: value, kind: 'sample' });
+                else out.push({ text: m[0], kind: 'unknown' });
+                last = m.index! + m[0].length;
+            }
+            if (last < body.length) out.push({ text: body.slice(last), kind: 'plain' });
+            return out;
+        }
+
+        // --- Rehearsal DOM (ported ChatPreview markup, textContent only) -----
+        const el = (tag: string, className: string, text?: string) => {
+            const node = document.createElement(tag);
+            node.className = className;
+            if (text !== undefined) node.textContent = text;
+            return node;
+        };
+
+        function botName(): HTMLElement {
+            const who = el('span', 'who bot-name');
+            if (avatarSrc) {
+                const img = document.createElement('img');
+                img.className = 'bot-avatar';
+                img.src = avatarSrc;
+                img.alt = '';
+                who.append(img);
+            }
+            who.append('ItsBagelBot');
+            return who;
+        }
+
+        function msgWithSegments(className: string, segments: Seg[]): HTMLElement {
+            const msg = el('span', className);
+            for (const seg of segments) {
+                if (seg.kind === 'plain') {
+                    msg.append(seg.text);
+                } else {
+                    const mark = el('mark', seg.kind === 'unknown' ? 'unknown' : '', seg.text);
+                    if (seg.kind === 'unknown') mark.title = ui.unknownVar;
+                    msg.append(mark);
+                }
+            }
+            return msg;
+        }
+
+        function viaBadge(label: string, inline = false): HTMLElement {
+            return el('span', inline ? 'via inline' : 'via', `Twitch ${label}`);
+        }
+
+        function botLine(view: Parsed & { segments: Seg[] }, index: number): HTMLElement {
+            const line = el('div', 'line bot');
+            line.style.setProperty('--reply-delay', `${index * 140}ms`);
+            if (view.mode !== 'chat') line.classList.add('special');
+            if (view.mode === 'me') {
+                line.classList.remove('special');
+                line.classList.add('me');
+            }
+            line.append(botName());
+
+            if (view.mode === 'announce') {
+                const box = el('div', 'announce');
+                box.style.setProperty('--acc', ACCENT[view.color ?? 'primary']);
+                const head = el('span', 'announce-head');
+                head.append(viaBadge(verbLabelOf(view)), ui.announcement);
+                box.append(head);
+                box.append(view.segments.length
+                    ? msgWithSegments('msg reply', view.segments)
+                    : el('span', 'msg empty', ui.addMessageAfter.replace('{verb}', view.verb ?? '')));
+                line.append(box);
+            } else if (view.mode === 'shoutout') {
+                const box = el('div', 'shoutout');
+                box.append(viaBadge('/shoutout'));
+                if (view.target) {
+                    const msg = el('span', 'msg reply', `${ui.shoutsOut} `);
+                    const strong = el('strong', '', `@${view.target}`);
+                    msg.append(strong);
+                    box.append(msg);
+                } else {
+                    box.append(el('span', 'msg empty', ui.nameChannel));
+                }
+                line.append(box);
+            } else if (view.mode === 'pin') {
+                const box = el('div', 'pin');
+                const head = el('span', 'pin-head');
+                head.append(viaBadge('/pin'), ui.pinnedForStream);
+                box.append(head);
+                box.append(view.segments.length
+                    ? msgWithSegments('msg reply', view.segments)
+                    : el('span', 'msg empty', ui.addMessageAfter.replace('{verb}', '/pin')));
+                line.append(box);
+            } else if (view.mode === 'me') {
+                line.append(viaBadge('/me', true));
+                line.append(view.segments.length
+                    ? msgWithSegments('msg reply action', view.segments)
+                    : el('span', 'msg empty', ui.addActionAfterMe));
+            } else {
+                line.append(msgWithSegments('msg reply', view.segments));
+            }
+            return line;
+        }
+
+        // Event-driven surfaces (alerts, shoutout, channel points…) rehearse
+        // without a viewer line — the firing event becomes the box tag, exactly
+        // like the dashboard's module-reply inspectors.
+        const promptKind = () => {
+            const surface = current();
+            if (mode === 'custom' || surface.prompt.startsWith('!')) return 'command';
+            if (surface.id === 'triggers') return 'message';
+            return 'event';
+        };
+
+        function clearChat() {
+            for (const node of [...chat.children]) if (node !== chatTag) node.remove();
+        }
+
+        function viewerLine(): HTMLElement | null {
+            const kind = promptKind();
+            if (kind === 'event') return null;
+            const surface = current();
+            const line = el('div', 'line viewer');
+            const who = el('span', 'who viewer-name', surface.vars.find((x) => x.token === '{user}')?.sample ?? 'maya_live');
+            const text = mode === 'custom' ? `!${cleanName() || 'command'}` : surface.prompt;
+            const msg = el('span', kind === 'message' ? 'msg plain' : 'msg', text);
+            line.append(who, msg);
+            return line;
+        }
+
+        function renderReplies() {
+            clearChat();
+            chatTag.textContent = promptKind() === 'event' ? current().prompt : ui.rehearsal;
+            const viewer = viewerLine();
+            if (viewer) chat.append(viewer);
+
+            const out = lines().slice(0, data.limits.linesMax);
+            if (out.length === 0) {
+                const line = el('div', 'line bot');
+                line.append(botName(), el('span', 'msg empty', ui.nothingToSay));
+                chat.append(line);
+                return;
+            }
+            out.forEach((raw, i) => {
+                const parsed = parseLine(raw);
+                chat.append(botLine({ ...parsed, segments: segmentsOf(parsed.body) }, i));
+            });
+        }
+
+        function renderTyping() {
+            clearChat();
+            chatTag.textContent = promptKind() === 'event' ? current().prompt : ui.rehearsal;
+            const viewer = viewerLine();
+            if (viewer) chat.append(viewer);
+            const line = el('div', 'line bot');
+            const msg = el('span', 'msg typing');
+            msg.setAttribute('aria-label', ui.ariaTyping);
+            msg.append(el('span', 'tdot'), el('span', 'tdot'), el('span', 'tdot'));
+            line.append(botName(), msg);
+            chat.append(line);
+        }
+
+        // Typing beat: edits flip to the dots, settle back to the reply — the
+        // dashboard's debounce, same 550ms.
+        let settle: ReturnType<typeof setTimeout> | undefined;
+        let firstRender = true;
+        function schedulePreview() {
+            if (firstRender) {
+                firstRender = false;
+                renderReplies();
+                return;
+            }
+            renderTyping();
+            clearTimeout(settle);
+            settle = setTimeout(renderReplies, 550);
+        }
+
+        // --- Variable palette -------------------------------------------------
+        function insert(text: string) {
+            const a = ta.selectionStart ?? ta.value.length;
+            const b = ta.selectionEnd ?? ta.value.length;
+            ta.value = ta.value.slice(0, a) + text + ta.value.slice(b);
+            ta.focus();
+            ta.setSelectionRange(a + text.length, a + text.length);
+            update();
+        }
+
+        function renderVars() {
+            const box = $<HTMLElement>('[data-vars]');
+            box.replaceChildren();
+            for (const item of current().vars) {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'var';
+                const code = el('code', '', item.token);
+                const span = el('span', '');
+                span.append(el('b', '', item.name), el('small', '', item.desc));
+                btn.append(code, span, el('i', '', '+'));
+                btn.addEventListener('click', () => insert(item.token));
+                box.append(btn);
+            }
+        }
+
+        // --- Recipes ----------------------------------------------------------
+        const recipesBox = $<HTMLElement>('[data-recipes]');
+        for (const recipe of ui.recipes) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.textContent = recipe.label;
+            btn.addEventListener('click', () => {
+                ta.value = recipe.text;
+                update();
+            });
+            recipesBox.append(btn);
+        }
+
+        // --- Validation + outputs ---------------------------------------------
+        function problem(): string | null {
+            const out = lines();
+            if (mode === 'custom' && !cleanName()) return ui.statusName;
+            if (out.length === 0) return ui.statusEmpty;
+            if (out.length > data.limits.linesMax) return ui.statusLines;
+            if (out.some((l) => l.length > data.limits.lineMax)) return ui.statusLineLen;
+            return null;
+        }
+
+        function dashboardURL(): string {
+            const url = new URL(data.dashboardOrigin + '/commands');
+            url.searchParams.set('compose', '1');
+            url.searchParams.set('name', cleanName());
+            url.searchParams.set('response', lines().join('\n'));
+            url.searchParams.set('perm', permSel.value);
+            url.searchParams.set('cooldown', String(cleanCooldown()));
+            const aliases = cleanAliases();
+            if (aliases.length) url.searchParams.set('aliases', aliases.join(','));
+            if (data.lang === 'fr') url.searchParams.set('lang', 'fr');
+            return url.toString();
+        }
+
+        function update() {
+            clampTemplate();
+            const surface = current();
+            const err = problem();
+            const out = lines();
+
+            $('[data-count]').textContent = String(Math.max(0, ...out.map((l) => l.length), 0));
+            $('[data-context]').textContent = mode === 'custom' ? `!${cleanName() || 'yourcommand'}` : surface.label;
+            $('[data-scope]').textContent = surface.label;
+            $('[data-preview-note]').textContent = surface.hint;
+            $('[data-valid]').textContent = err ?? '';
+            $('[data-action-title]').textContent = mode === 'custom' ? ui.sendTitle : ui.copyTitleModule;
+
+            // Send-to-dashboard: only meaningful for custom commands.
+            $('[data-send-wrap]').toggleAttribute('hidden', mode !== 'custom');
+            if (mode === 'custom') {
+                sendLink.href = err ? '#' : dashboardURL();
+                sendLink.classList.toggle('is-disabled', !!err);
+                sendLink.setAttribute('aria-disabled', err ? 'true' : 'false');
+            }
+
+            // Chat-paste path: secondary for single-line custom commands, the
+            // main path for module templates. Multi-line custom commands can't
+            // ride one chat message, so it steps aside and the dashboard carries it.
+            const output = $<HTMLElement>('[data-output]');
+            const copyWrap = $<HTMLElement>('[data-copy-wrap]');
+            if (mode === 'custom') {
+                $('[data-copy-title]').textContent = ui.copyTitleCustom;
+                moduleLink.hidden = true;
+                const single = out.length === 1;
+                copyWrap.toggleAttribute('hidden', !single);
+                if (single) output.textContent = `!cmd add ${cleanName() || 'yourcommand'} ${out[0]}`;
+            } else {
+                $('[data-copy-title]').textContent = ui.copyBodyModule;
+                copyWrap.removeAttribute('hidden');
+                output.textContent = ta.value.trim();
+                moduleLink.hidden = false;
+                moduleLink.href = data.dashboardOrigin + surface.dashPath + (data.lang === 'fr' ? '?lang=fr' : '');
+            }
+            copyBtn.disabled = !!err;
+
+            schedulePreview();
+        }
+
+        function setSurface(id: string) {
+            surfaceId = id;
+            const surface = current();
+            $('[data-hint]').textContent = surface.hint;
+            ta.value = surface.example;
+            renderVars();
+            update();
+        }
+
+        function setMode(next: 'custom' | 'module') {
+            mode = next;
+            root.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach((btn) => {
+                const on = btn.dataset.mode === next;
+                btn.classList.toggle('active', on);
+                btn.setAttribute('aria-pressed', String(on));
+            });
+            $('[data-module-pick]').toggleAttribute('hidden', next !== 'module');
+            $('[data-command-fields]').toggleAttribute('hidden', next !== 'custom');
+            $('[data-more]').toggleAttribute('hidden', next !== 'custom');
+            recipesBox.toggleAttribute('hidden', next !== 'custom');
+            setSurface(next === 'custom' ? 'custom' : surfaceSel.value);
+        }
+
+        root.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach((btn) =>
+            btn.addEventListener('click', () => setMode(btn.dataset.mode as 'custom' | 'module')),
+        );
+        surfaceSel.addEventListener('change', () => setSurface(surfaceSel.value));
+        [ta, nameInput, aliasInput, permSel, cdInput, styleSel].forEach((input) =>
+            input.addEventListener('input', update),
+        );
+
+        copyBtn.addEventListener('click', async () => {
+            const label = copyBtn.querySelector('span')!;
+            try {
+                await navigator.clipboard.writeText($('[data-output]').textContent || '');
+                label.textContent = ui.copied;
+            } catch {
+                label.textContent = ui.copyFail;
+            }
+            setTimeout(() => (label.textContent = ui.copyCta), 1800);
+        });
+
+        sendLink.addEventListener('click', (event) => {
+            if (sendLink.classList.contains('is-disabled')) event.preventDefault();
+        });
+
+        setSurface('custom');
+    }
+
+    function setup() {
+        document.querySelectorAll<HTMLElement>('[data-builder]').forEach(initBuilder);
+    }
+
+    setup();
+    document.addEventListener('astro:page-load', setup);
+</script>
+
+<style>
+    .builder { width: min(1180px, calc(100% - 48px)); margin: auto; padding: 26px 0 100px; }
+
+    /* ── Layout ── */
+    .layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 22px; align-items: start; }
+    aside { display: grid; gap: 16px; }
+    .card { padding: clamp(22px, 3vw, 34px); border: 1px solid var(--border); border-radius: 16px; background: #111110d9; }
+
+    /* ── Compose card ── */
+    .compose { display: grid; gap: 20px; }
+
+    .mode-row { display: flex; align-items: center; gap: 14px; }
+
+    .mode-seg {
+        display: inline-flex;
+        gap: 4px;
+        padding: 4px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: #0d0d0c;
+    }
+
+    .mode-seg button {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 9px 16px;
+        border-radius: 9px;
+        color: var(--muted);
+        font: 700 13px var(--font-display);
+        transition: color .2s, background .2s;
+    }
+
+    .mode-seg button i {
+        display: grid;
+        place-items: center;
+        width: 20px;
+        height: 20px;
+        border-radius: 6px;
+        background: #ffffff08;
+        color: var(--tan-light);
+        font: normal 10px var(--font-mono);
+        font-style: normal;
+    }
+
+    .mode-seg button.active { color: #07120d; background: var(--green-glow); }
+    .mode-seg button.active i { background: #07120d22; color: #07120d; }
+
+    label { display: block; color: var(--tan-light); font: 12px var(--font-mono); letter-spacing: .05em; text-transform: uppercase; }
+    label > small,
+    .hint { display: block; margin-top: 7px; color: var(--muted); font: 12px var(--font-body); letter-spacing: 0; text-transform: none; }
+
+    .module-pick { padding: 14px 16px; background: #ffffff05; border-radius: 10px; }
+
+    /* Name field: prefix anchored to its own wrapper, immune to label-height
+       differences (the old absolute-in-label version drifted when hints wrapped). */
+    .f-name { max-width: 380px; }
+    .f-wrap { position: relative; display: block; }
+    .prefix { position: absolute; top: 50%; left: 12px; translate: 0 -50%; color: var(--green-glow); }
+    .f-wrap input { padding-left: 30px; }
+
+    input, select, textarea { width: 100%; margin-top: 8px; color: var(--white); background: #0d0d0c; border: 1px solid #c9a87c33; border-radius: 8px; outline: 0; }
+    input, select { height: 44px; padding: 0 12px; }
+    textarea { padding: 15px; resize: vertical; line-height: 1.6; }
+    input:focus, select:focus, textarea:focus { border-color: #52b78899; box-shadow: 0 0 0 3px #52b78818; }
+    .f-wrap input { margin-top: 0; }
+    .f-name .f-wrap { margin-top: 8px; }
+
+    .response { position: relative; margin-top: 2px; }
+    .response > small { position: absolute; right: 0; top: 2px; }
+
+    .recipes { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; margin-top: -8px; }
+    .recipes span { color: var(--muted); font: 11px var(--font-mono); text-transform: uppercase; }
+    .recipes :global(button) { padding: 7px 12px; color: #bbb2a9; border: 1px solid var(--border); border-radius: 99px; font-size: 12px; transition: border-color .2s, color .2s; }
+    .recipes :global(button:hover) { border-color: #52b78877; color: var(--white); }
+
+    /* ── Palette (inside the compose card) ── */
+    .palette { padding-top: 18px; border-top: 1px solid var(--border); }
+    .palette header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+    .palette header b { color: var(--white); font: 700 1.05rem var(--font-display); }
+    .scope { color: var(--green-glow); font: 10.5px var(--font-mono); letter-spacing: .06em; text-transform: uppercase; text-align: right; }
+    .palette-sub { margin: 6px 0 14px; color: #a39c92; font-size: 13px; }
+    .vars { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+    .palette details { margin-top: 14px; color: #a39c92; font-size: 12.5px; }
+    .palette details summary { color: var(--tan-light); cursor: pointer; }
+    .palette details p { margin-top: 8px; line-height: 1.55; }
+
+    /* ── More options (folded) ── */
+    .more { padding-top: 16px; border-top: 1px solid var(--border); }
+    .more summary {
+        cursor: pointer;
+        color: var(--tan-light);
+        font: 12px var(--font-mono);
+        letter-spacing: .05em;
+        text-transform: uppercase;
+    }
+    .more summary:hover { color: var(--tan-pale); }
+    .more-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 16px; }
+    .more-grid .span2 { grid-column: 1 / -1; }
+
+    .learn { margin-top: 26px; color: #a39c92; font-size: 13.5px; }
+    .learn a { color: var(--tan); }
+    .learn a:hover { color: var(--tan-light); }
+
+    /* ── Aside ── */
+    aside { position: sticky; top: calc(var(--nav-offset) + 18px); }
+
+    .preview header, .action header { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; margin-bottom: 16px; color: var(--muted); font: 11px var(--font-mono); text-transform: uppercase; letter-spacing: .08em; }
+    .preview header b { color: var(--white); }
+    .preview header i { display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: #e06262; }
+    .preview > small { display: block; margin-top: 11px; color: #a39c92; font-size: 12px; line-height: 1.5; }
+
+    .action header b { color: #e08585; font-weight: 400; letter-spacing: 0; text-transform: none; }
+
+    .send__cta { display: flex; justify-content: center; align-items: center; gap: 10px; width: 100%; padding: 14px; color: #07120d; background: var(--green-glow); border-radius: 8px; font: 700 14px var(--font-display); transition: filter .2s, transform .2s; }
+    .send__cta:hover { filter: brightness(1.08); transform: translateY(-1px); }
+    .send__cta.is-disabled { opacity: .45; pointer-events: none; }
+    .send__help { margin-top: 10px; color: var(--muted); font-size: 12px; line-height: 1.5; text-align: center; }
+
+    .copyw { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
+    [data-send-wrap][hidden] + .copyw { margin-top: 0; padding-top: 0; border-top: 0; }
+    .copyw__label { margin-bottom: 10px; color: var(--muted); font: 11px var(--font-mono); letter-spacing: .08em; text-transform: uppercase; }
+    .copyw pre { max-height: 150px; overflow: auto; padding: 12px 14px; background: #0b0b0a; border-radius: 8px; color: var(--tan-pale); white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.6 var(--font-mono); }
+    .copyw > button { display: flex; justify-content: center; gap: 10px; width: 100%; margin-top: 10px; padding: 11px; color: var(--tan-pale); background: #c9a87c14; border: 1px solid #c9a87c44; border-radius: 8px; font: 700 13px var(--font-display); transition: background .2s, border-color .2s; }
+    .copyw > button:hover { background: #c9a87c22; border-color: #c9a87c77; }
+    .copyw > button:disabled { opacity: .45; pointer-events: none; }
+    .copyw__module-link { display: block; margin-top: 11px; color: var(--tan); font: 12px var(--font-mono); text-align: center; }
+    .copyw__module-link:hover { color: var(--tan-light); }
+
+    [hidden] { display: none !important; }
+
+    @media (max-width: 1000px) {
+        .layout { grid-template-columns: 1fr; }
+        aside { position: static; }
+    }
+
+    @media (max-width: 700px) {
+        .builder { width: calc(100% - 28px); padding-top: 16px; }
+        .card { padding: 20px 16px; }
+        .vars, .more-grid { grid-template-columns: 1fr; }
+        .f-name { max-width: none; }
+        .mode-seg { width: 100%; }
+        .mode-seg button { flex: 1; justify-content: center; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .mode-seg button, .send__cta, .copyw > button { transition: none; }
+    }
+</style>
+
+<!-- The rehearsal box. A straight port of the dashboard ChatPreview styles
+     (console/dashboard/src/lib/components/commands/ChatPreview.svelte) onto
+     the web token names, global because every line is created client-side. -->
+<style is:global>
+    [data-chat].chat {
+        position: relative;
+        padding: 14px 14px 12px;
+        border: 1px solid rgba(240, 236, 228, 0.1);
+        border-radius: 8px;
+        background: rgba(0, 0, 0, 0.3);
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        min-height: 96px;
+    }
+
+    [data-chat] .chat-tag {
+        position: absolute;
+        top: -8px;
+        left: 10px;
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-weight: 700;
+        font-size: 10px;
+        letter-spacing: 0.02em;
+        color: var(--green-glow, #52b788);
+        background: #111110;
+        padding: 0 6px;
+        max-width: calc(100% - 20px);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    [data-chat] .line { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+    [data-chat] .line.bot.special { flex-direction: column; align-items: flex-start; gap: 6px; }
+
+    [data-chat] .who {
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-weight: 700;
+        font-size: 12.5px;
+        flex: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+    [data-chat] .viewer-name { color: var(--tan-light, #e0c49a); }
+    [data-chat] .viewer-name::after,
+    [data-chat] .bot-name::after { content: ':'; color: var(--muted, #888077); font-weight: 400; }
+    [data-chat] .line.bot.me .bot-name::after { content: none; }
+    [data-chat] .line.bot.special .bot-name::after { content: none; }
+    [data-chat] .bot-name { color: var(--green-glow, #52b788); }
+    [data-chat] .bot-avatar { width: 14px; height: 14px; border-radius: 8px; }
+
+    [data-chat] .msg {
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: 13px;
+        line-height: 1.5;
+        color: var(--white, #f0ece4);
+        overflow-wrap: anywhere;
+        min-width: 0;
+    }
+    [data-chat] .line.viewer .msg { font-family: var(--font-mono, "DM Mono", monospace); color: var(--tan-light, #e0c49a); font-size: 12.5px; }
+    [data-chat] .line.viewer .msg.plain { font-family: var(--font-body, "DM Sans", sans-serif); color: var(--white, #f0ece4); font-size: 13px; }
+
+    [data-chat] .reply { animation: bb-reply-in 240ms var(--ease-out-back, ease-out) both; animation-delay: var(--reply-delay, 0ms); }
+    @keyframes bb-reply-in {
+        from { opacity: 0; transform: translateY(4px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    [data-chat] .msg mark {
+        background: rgba(82, 183, 136, 0.14);
+        color: var(--green-glow, #52b788);
+        border-radius: 8px;
+        padding: 0 3px;
+    }
+    [data-chat] .msg mark.unknown {
+        background: rgba(176, 90, 70, 0.16);
+        color: #cf8a78;
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 12px;
+    }
+    [data-chat] .msg.empty { color: var(--muted, #888077); font-style: italic; }
+
+    [data-chat] .via {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-weight: 600;
+        font-size: 10px;
+        letter-spacing: 0.02em;
+        color: var(--acc, var(--green-glow, #52b788));
+        background: color-mix(in srgb, var(--acc, var(--green-glow, #52b788)) 14%, transparent);
+        border: 1px solid color-mix(in srgb, var(--acc, var(--green-glow, #52b788)) 40%, transparent);
+        border-radius: 999px;
+        padding: 1px 7px;
+        white-space: nowrap;
+    }
+    [data-chat] .via.inline { margin-right: 2px; }
+
+    [data-chat] .announce {
+        width: 100%;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        padding: 9px 11px;
+        border-radius: 8px;
+        background: color-mix(in srgb, var(--acc) 10%, rgba(0, 0, 0, 0.25));
+        animation: bb-reply-in 240ms var(--ease-out-back, ease-out) both;
+        animation-delay: var(--reply-delay, 0ms);
+    }
+    [data-chat] .announce-head {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-weight: 700;
+        font-size: 10.5px;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        color: var(--acc);
+    }
+
+    [data-chat] .shoutout {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        padding: 7px 11px;
+        border-radius: 8px;
+        border: 1px dashed rgba(82, 183, 136, 0.4);
+        background: rgba(82, 183, 136, 0.06);
+        animation: bb-reply-in 240ms var(--ease-out-back, ease-out) both;
+        animation-delay: var(--reply-delay, 0ms);
+    }
+    [data-chat] .shoutout .reply strong { color: var(--green-glow, #52b788); }
+
+    [data-chat] .pin {
+        width: 100%;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        padding: 8px 10px;
+        border-radius: 8px;
+        border: 1px solid rgba(199, 125, 255, 0.35);
+        background: rgba(199, 125, 255, 0.07);
+        animation: bb-reply-in 240ms var(--ease-out-back, ease-out) both;
+        animation-delay: var(--reply-delay, 0ms);
+    }
+    [data-chat] .pin-head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--muted, #888077);
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-size: 10.5px;
+    }
+
+    [data-chat] .msg.action { font-style: italic; color: var(--green-glow, #52b788); }
+
+    [data-chat] .typing { display: inline-flex; gap: 4px; align-items: center; padding: 4px 0; }
+    [data-chat] .tdot {
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: var(--muted, #888077);
+        animation: bb-tbounce 900ms ease-in-out infinite;
+    }
+    [data-chat] .tdot:nth-child(2) { animation-delay: 150ms; }
+    [data-chat] .tdot:nth-child(3) { animation-delay: 300ms; }
+    @keyframes bb-tbounce {
+        0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+        30% { transform: translateY(-3px); opacity: 1; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        [data-chat] .reply,
+        [data-chat] .announce,
+        [data-chat] .shoutout,
+        [data-chat] .pin { animation: none; }
+        [data-chat] .tdot { animation: none; }
+    }
+</style>
+
+<!-- Variable cards are created client-side, so their selectors must be global
+     instead of relying on Astro's compile-time scope attributes. -->
+<style is:global>
+    [data-vars] .var {
+        display: grid;
+        grid-template-columns: minmax(104px, auto) 1fr 25px;
+        gap: 12px;
+        align-items: center;
+        min-height: 68px;
+        padding: 12px 13px;
+        text-align: left;
+        color: var(--white, #f0ece4);
+        background: linear-gradient(135deg, rgba(255, 255, 255, .025), rgba(255, 255, 255, .01));
+        border: 1px solid var(--border, rgba(201, 168, 124, .15));
+        border-radius: 10px;
+        box-shadow: inset 0 1px rgba(255, 255, 255, .025);
+        transition: border-color .2s, background .2s, transform .2s;
+    }
+
+    [data-vars] .var:hover {
+        border-color: rgba(82, 183, 136, .47);
+        background: linear-gradient(135deg, rgba(82, 183, 136, .07), rgba(82, 183, 136, .025));
+        transform: translateY(-1px);
+    }
+
+    [data-vars] .var code {
+        max-width: 170px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        padding: 7px 9px;
+        color: var(--tan-light, #e0c49a);
+        background: rgba(201, 168, 124, .07);
+        border: 1px solid rgba(201, 168, 124, .12);
+        border-radius: 6px;
+        font: 11px var(--font-mono, monospace);
+        white-space: nowrap;
+    }
+
+    [data-vars] .var span { display: grid; gap: 4px; min-width: 0; }
+    [data-vars] .var b { font: 700 13px var(--font-display, sans-serif); }
+    [data-vars] .var small { color: #a39c92; font: 400 11.5px/1.45 var(--font-body, sans-serif); }
+
+    [data-vars] .var i {
+        display: grid;
+        place-items: center;
+        width: 25px;
+        height: 25px;
+        color: var(--green-glow, #52b788);
+        border: 1px solid rgba(82, 183, 136, .33);
+        border-radius: 50%;
+        font-style: normal;
+        transition: background .2s, color .2s;
+    }
+
+    [data-vars] .var:hover i { color: #07120d; background: var(--green-glow, #52b788); }
+
+    @media (max-width: 700px) {
+        [data-vars] .var { grid-template-columns: 1fr 25px; }
+        [data-vars] .var code { grid-column: 1 / -1; width: max-content; max-width: 100%; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        [data-vars] .var, [data-vars] .var i { transition: none; }
+    }
+</style>
