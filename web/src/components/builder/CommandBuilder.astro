@@ -73,7 +73,7 @@ for (const surface of data.surfaces) {
                 </label>
             </div>
 
-            <label class="response">{ui.responseLabel} <small><b data-count>0</b>/500</small><textarea rows="4" data-template></textarea></label>
+            <label class="response">{ui.responseLabel} <small><b data-count>0</b>/500</small><textarea rows="4" maxlength="2504" data-template></textarea></label>
             <div class="recipes" data-recipes><span>{ui.recipesLabel}</span></div>
 
             <section class="palette">
@@ -284,6 +284,30 @@ for (const surface of data.surfaces) {
             const n = Math.floor(Number(cdInput.value) || 0);
             return Math.min(Math.max(n, 0), data.limits.cooldownMax);
         };
+
+        // Hard caps while typing, matching the dashboard editor: at most 5
+        // lines and 500 characters per line — extra input is dropped instead of
+        // only flagged after the fact.
+        function clampTemplate() {
+            const raw = ta.value.split(/\r\n|\r|\n/);
+            let changed = raw.length > data.limits.linesMax;
+            // The first-line style verb ("/announce " …) is prepended on the
+            // wire, so the first line's budget shrinks by the prefix length —
+            // otherwise a full 500-char line ships at 500+verb and fails the
+            // dashboard validator.
+            const prefixLen = mode === 'custom' ? styleSel.value.length : 0;
+            const clamped = raw.slice(0, data.limits.linesMax).map((line, i) => {
+                const max = i === 0 ? data.limits.lineMax - prefixLen : data.limits.lineMax;
+                if (line.length <= max) return line;
+                changed = true;
+                return line.slice(0, max);
+            });
+            if (!changed) return;
+            const pos = ta.selectionStart ?? ta.value.length;
+            ta.value = clamped.join('\n');
+            const at = Math.min(pos, ta.value.length);
+            ta.setSelectionRange(at, at);
+        }
 
         // The meaningful lines, mirroring the bot: trailing whitespace trimmed,
         // blank lines dropped, first line carrying the selected style prefix.
@@ -562,6 +586,7 @@ for (const surface of data.surfaces) {
         }
 
         function update() {
+            clampTemplate();
             const surface = current();
             const err = problem();
             const out = lines();
@@ -665,7 +690,7 @@ for (const surface of data.surfaces) {
     .builder { width: min(1180px, calc(100% - 48px)); margin: auto; padding: 26px 0 100px; }
 
     /* ── Layout ── */
-    .layout { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(340px, .85fr); gap: 22px; align-items: start; }
+    .layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 22px; align-items: start; }
     aside { display: grid; gap: 16px; }
     .card { padding: clamp(22px, 3vw, 34px); border: 1px solid var(--border); border-radius: 16px; background: #111110d9; }
 
