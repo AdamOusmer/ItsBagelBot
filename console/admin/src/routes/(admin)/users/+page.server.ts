@@ -16,6 +16,7 @@ import {
   tokenClear,
   tokenStatus,
   restartUserEventSub,
+  publishUserEventSub,
   channelSubState,
   auditAppend,
   type AdminUserWire,
@@ -323,7 +324,19 @@ export const actions: Actions = {
     demoNotice: DEMO ? 'active set (demo)' : '',
     notice: (user) => `active=${user?.is_active}`,
     detail: (f) => String(formActive(f)),
-    run: (userId, f) => userSetActive(userId, formActive(f))
+    // The flag and the Twitch EventSub enrollment move together, mirroring the
+    // dashboard's connect/disconnect. Ordered so no failure mode leaves an
+    // inactive user with live subscriptions: activating flips the flag before
+    // enrolling, deactivating unenrolls before flipping the flag.
+    run: async (userId, f) => {
+      if (formActive(f)) {
+        const user = await userSetActive(userId, true);
+        await publishUserEventSub(userId, true);
+        return user;
+      }
+      await publishUserEventSub(userId, false);
+      return userSetActive(userId, false);
+    }
   }),
 
   // Creator code carries its own length validation and demo-lookup shaping, so
