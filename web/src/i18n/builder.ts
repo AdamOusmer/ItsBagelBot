@@ -170,7 +170,7 @@ export const SURFACES: SurfaceDef[] = [
     label: { en: '!time reply', fr: 'Réponse de !time' },
     dashPath: '/modules/time',
     hint: { en: 'Local Time module → !time reply.', fr: 'Module Heure locale → réponse de !time.' },
-    example: { en: "It's {time} ({timezone}) for {channel}.", fr: 'Il est {time} ({timezone}) chez {channel}.' },
+    example: { en: "It's {time} where I live ({timezone}).", fr: 'Il est {time} chez moi ({timezone}).' },
     prompt: { en: '!time', fr: '!time' },
     vars: [
       v('{time}', '2:30 PM', 'Local time', 'Heure locale', 'The clock, in your configured timezone and format.', "L'heure, selon votre fuseau et votre format." ),
@@ -447,23 +447,17 @@ const UI = {
   cooldownHint: { en: 'Shared by the whole chat. 0 = none.', fr: 'Partagé par tout le chat. 0 = aucun.' },
   styleLabel: { en: 'First-line style', fr: 'Style de la première ligne' },
   responseLabel: { en: 'Bot response', fr: 'Réponse du bot' },
-  responseNote: {
-    en: 'Text inside {braces} changes when the bot replies. One line = one chat message, up to 5.',
-    fr: 'Le texte entre {accolades} change quand le bot répond. Une ligne = un message, 5 au maximum.',
-  },
   recipesLabel: { en: 'Quick starts', fr: 'Départs rapides' },
   moreOptions: { en: 'More options: access, cooldown, alternate names', fr: "Plus d'options: accès, délai, autres noms" },
   sendHelp: { en: 'Review it in the editor that opens, press Create, done.', fr: "Relisez-la dans l'éditeur qui s'ouvre, appuyez sur Créer, c'est fait." },
   step3Title: { en: 'Make it dynamic', fr: 'Rendez-la dynamique' },
   step3Sub: { en: 'Click a variable to insert it at your cursor. Only variables that work here are shown.', fr: 'Cliquez une variable pour l’insérer au curseur. Seules les variables qui fonctionnent ici sont montrées.' },
-  scopeLabel: { en: 'Available here', fr: 'Disponibles ici' },
   bracesSummary: { en: 'What do the braces mean?', fr: 'Que signifient les accolades?' },
   bracesBody: {
     en: 'A variable is a placeholder. Write "Hello {user}", and if Maya uses it, the bot says "Hello Maya". Keep both braces exactly as shown; an unknown variable is left as literal text.',
     fr: 'Une variable est un espace réservé. Écrivez «Bonjour {user}» et si Maya l’utilise, le bot dit «Bonjour Maya». Gardez les deux accolades telles quelles; une variable inconnue reste du texte littéral.',
   },
   previewTitle: { en: 'Live rehearsal', fr: 'Répétition en direct' },
-  previewNote: { en: 'Sample names and numbers are used only here.', fr: 'Les noms et nombres d’exemple ne servent qu’ici.' },
   // Rehearsal chrome — word-for-word the dashboard's chatPreview catalog
   // (console/shared/lib/i18n/{en,fr}.ts), so the builder reads as the same
   // surface reaching out onto the marketing site.
@@ -493,7 +487,6 @@ const UI = {
   statusLines: { en: 'Too many lines (max 5)', fr: 'Trop de lignes (max 5)' },
   statusLineLen: { en: 'A line is over 500 characters', fr: 'Une ligne dépasse 500 caractères' },
   statusEmpty: { en: 'Write a response', fr: 'Écrivez une réponse' },
-  emptyPreview: { en: 'Your reply appears here.', fr: 'Votre réponse apparaîtra ici.' },
   learnMore: {
     en: 'New to variables? Read the commands guide first.',
     fr: 'Les variables sont nouvelles pour vous? Lisez d’abord le guide des commandes.',

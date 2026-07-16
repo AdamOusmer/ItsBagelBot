@@ -22,7 +22,7 @@ const sections = [
     <PageHero
         eyebrow="Guide 01"
         title="Bien démarrer"
-        description="De «Ajouter à Twitch» à votre premier stream avec le bot dans le chat. Dix minutes en tout, surtout de la lecture."
+        description="De «Ajouter à Twitch» à votre premier stream avec le bot dans le chat. Six minutes en tout, surtout de la lecture."
     />
 
     <GuideShell
@@ -76,7 +76,7 @@ const sections = [
                     <div class="df-topbar"><span class="df-brand">ItsBagelBot <small>Console</small></span><span class="df-crumb">ItsBagelBot / <b>Aperçu</b></span><span class="df-account">streamer · Diffuseur</span></div>
                     <span class="df-eyebrow">État</span>
                     <p class="df-title">Bonsoir, <i>streamer</i></p>
-                    <div class="df-row"><span class="df-grow"><b style="color:var(--white);">En ligne · dans le chat</b> · rien ne vous attend pour l'instant</span><span class="df-btn df-btn--ghost">Redémarrer</span><i class="df-dot" style="position:static;">2</i></div>
+                    <div class="df-row"><span class="df-grow"><b style="color:var(--white);">En ligne · dans le chat</b> · rien ne vous attend pour l'instant</span><span class="df-btn df-btn--ghost">Redémarrer</span><span class="df-btn df-btn--ghost">Déconnecter</span><i class="df-dot" style="position:static;">2</i></div>
                     <span class="df-cat">Actions rapides</span>
                     <div class="df-actions"><span class="df-btn df-btn--primary">+ Nouvelle commande</span><span class="df-btn df-btn--ghost">Gérer les modules</span><i class="df-dot" style="position:static;">3</i></div>
                     <span class="df-cat">Vos commandes favorites <i class="df-dot" style="position:static; width:16px; height:16px; font-size:0.55rem; margin-left:4px;">4</i></span>
@@ -162,7 +162,7 @@ const sections = [
                 Direction <strong>Modules</strong>. Chaque tuile est une fonction avec son propre
                 interrupteur, et cliquer la tuile ouvre ses réglages. Deux travaillent déjà pour vous:
                 les <strong>Alertes de chat</strong> (follows, subs, cheers, raids) et
-                <strong>AutoMod</strong> (la modération en couches présentée sur la page d'accueil).
+                <strong>AutoMod</strong> (la modération en couches présentée sur la page d'accueil; il travaille discrètement sans tuile sur cette grille).
             </p>
             <DashFrame
                 path="/modules"
@@ -175,21 +175,21 @@ const sections = [
                 <div class="df-main">
                     <div class="df-topbar"><span class="df-brand">ItsBagelBot <small>Console</small></span><span class="df-crumb">ItsBagelBot / <b>Modules</b></span><span class="df-account">streamer · Diffuseur</span></div>
                     <span class="df-eyebrow">Gérer</span>
-                    <p class="df-title">Modules de la <i>chaîne</i></p>
+                    <p class="df-title">Modules de <i>chaîne</i></p>
                     <p class="df-sub">Fonctions optionnelles pour votre chaîne. 1 sur 13 activée.</p>
                     <div class="df-search" style="max-width:200px;">Rechercher un module…</div>
                     <div class="df-cols df-cols--rail">
-                        <div class="df-rail"><b>Catégories</b><span class="is-active">Outils de chat</span><span>Communauté</span><span>Jeux</span></div>
+                        <div class="df-rail"><b>Categories</b><span class="is-active">Chat Tools</span><span>Community</span><span>Games</span></div>
                         <div style="display:grid; gap:10px; align-content:start;">
-                            <span class="df-cat">Outils de chat</span>
+                            <span class="df-cat">Chat Tools</span>
                             <div class="df-grid">
-                                <div class="df-tile"><div class="df-tile-head"><i class="df-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg></i><span><b>Minuteries</b><small>Outils de chat</small></span></div><small>Publie des messages récurrents pendant le direct.</small><div class="df-tile-foot"><span class="df-btn--configure">Configurer</span><span class="df-toggle"></span></div><i class="df-dot" style="top:10px; right:10px;">2</i></div>
-                                <div class="df-tile"><div class="df-tile-head"><i class="df-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2"/><path d="M9 20h6"/><path d="M12 4v16"/></svg></i><span><b>Mots déclencheurs</b><small>Outils de chat</small></span></div><small>Réponse automatique quand un mot apparaît dans le chat.</small><div class="df-tile-foot"><span class="df-btn--configure">Configurer</span><span class="df-toggle"></span></div></div>
+                                <div class="df-tile"><div class="df-tile-head"><i class="df-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg></i><span><b>Timers</b><small>Chat Tools</small></span></div><small>Post repeating chat messages on a schedule while you are live.</small><div class="df-tile-foot"><span class="df-btn--configure">Configurer</span><span class="df-toggle"></span></div><i class="df-dot" style="top:10px; right:10px;">2</i></div>
+                                <div class="df-tile"><div class="df-tile-head"><i class="df-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2"/><path d="M9 20h6"/><path d="M12 4v16"/></svg></i><span><b>Trigger Words</b><small>Chat Tools</small></span></div><small>Auto-reply when a word shows up in chat.</small><div class="df-tile-foot"><span class="df-btn--configure">Configurer</span><span class="df-toggle"></span></div></div>
                             </div>
-                            <span class="df-cat">Communauté</span>
+                            <span class="df-cat">Community</span>
                             <div class="df-grid">
-                                <div class="df-tile"><div class="df-tile-head"><i class="df-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></i><span><b>Alertes de chat</b><small>Communauté</small></span></div><small>Annonce follows, subs, cheers et raids dans le chat.</small><div class="df-tile-foot"><span class="df-btn--configure">Configurer</span><span class="df-toggle is-on"></span></div><i class="df-dot" style="top:10px; right:10px;">1</i></div>
-                                <div class="df-tile"><div class="df-tile-head"><i class="df-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg></i><span><b>Shoutout automatique</b><small>Communauté</small></span></div><small>Accueille les raids entrants avec un shoutout automatique.</small><div class="df-tile-foot"><span class="df-btn--configure">Configurer</span><span class="df-toggle"></span></div></div>
+                                <div class="df-tile"><div class="df-tile-head"><i class="df-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></i><span><b>Chat Alerts</b><small>Community</small></span></div><small>Announce follows, subs, cheers and raids in chat.</small><div class="df-tile-foot"><span class="df-btn--configure">Configurer</span><span class="df-toggle is-on"></span></div><i class="df-dot" style="top:10px; right:10px;">1</i></div>
+                                <div class="df-tile"><div class="df-tile-head"><i class="df-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg></i><span><b>Auto Shoutout</b><small>Community</small></span></div><small>Welcome incoming raids with an automatic shoutout.</small><div class="df-tile-foot"><span class="df-btn--configure">Configurer</span><span class="df-toggle"></span></div></div>
                             </div>
                         </div>
                     </div>

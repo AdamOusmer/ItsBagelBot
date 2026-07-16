@@ -72,8 +72,8 @@ const sections = [
                 </div>
             </DashFrame>
             <p>
-                Two modules are on by default: <strong>Chat Alerts</strong> and <strong>AutoMod</strong>.
-                Everything else waits for you.
+                Two modules are on by default: <strong>Chat Alerts</strong> and <strong>AutoMod</strong>
+                (which keeps itself off this grid). Everything else waits for you.
             </p>
         </Fragment>
 
@@ -222,12 +222,11 @@ const sections = [
         <Fragment slot="safety">
             <h3>AutoMod</h3>
             <p>
-                The layered moderation from the homepage, with one dial: <strong>none</strong> (safety
-                floor only), <strong>basic</strong>, <strong>moderate</strong> (the default), or
-                <strong>strict</strong>. Under the dial, individual checks (harassment, sexual content,
-                profanity, caps and symbol spam, link spam) can be toggled one by one, and your own
-                blocked and allowed terms always win. The safety floor (slurs, scam links) cannot be
-                turned off, on any level.
+                The layered moderation from the homepage. It ships on its recommended middle setting
+                and starts protecting the moment the bot joins: harassment, sexual content,
+                profanity, caps and symbol spam, and link spam are screened, and the safety floor
+                (slurs, scam links) can never be turned off. There is no tile or settings page for
+                it in the dashboard yet; the finer controls are on their way.
             </p>
             <h3>The three built-ins</h3>
             <p>

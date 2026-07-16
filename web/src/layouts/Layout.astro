@@ -6,7 +6,7 @@ import Cursor from '../components/ui/Cursor.astro'
 import Footer from '../components/layout/Footer.astro'
 import Nav from "../components/layout/Nav.astro";
 import Brackets from '../components/ui/Brackets.astro'
-import { getLangFromUrl } from '../i18n/ui';
+import { getLangFromUrl, LOCALIZED_PATHS } from '../i18n/ui';
 
 interface Props {
     title?: string;
@@ -108,11 +108,7 @@ const structuredData = {
 // hreflang alternates for the routes that exist in both locales, so search
 // engines pair the English and French versions instead of treating them as
 // duplicates.
-const LOCALIZED = new Set([
-    '/', '/pricing', '/contact', '/privacy', '/terms', '/creator-terms',
-    '/guides', '/guides/getting-started', '/guides/commands', '/guides/modules',
-    '/command-builder',
-]);
+const LOCALIZED = LOCALIZED_PATHS;
 let basePath = Astro.url.pathname.startsWith('/fr')
     ? (Astro.url.pathname.slice(3) || '/')
     : Astro.url.pathname;

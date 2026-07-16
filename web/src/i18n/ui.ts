@@ -506,6 +506,17 @@ const fr: Partial<Record<UIKey, string>> = {
 
 const catalog: Record<Lang, Partial<Record<UIKey, string>>> = { en, fr };
 
+/**
+ * EN paths that have a hand-authored /fr twin. Single source of truth for the
+ * hreflang emitter (Layout.astro) and the language switcher, which previously
+ * each carried their own copy of this set and could drift.
+ */
+export const LOCALIZED_PATHS: ReadonlySet<string> = new Set([
+  '/', '/pricing', '/contact', '/privacy', '/terms', '/creator-terms',
+  '/guides', '/guides/getting-started', '/guides/commands', '/guides/modules',
+  '/command-builder',
+]);
+
 /** Locale from the URL: /fr/... → 'fr', anything else → 'en'. */
 export function getLangFromUrl(url: URL): Lang {
   const seg = url.pathname.split('/')[1];

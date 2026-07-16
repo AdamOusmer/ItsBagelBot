@@ -55,22 +55,22 @@ for (const surface of data.surfaces) {
                 </div>
             </div>
 
-            <label class="module-pick" hidden data-module-pick>{ui.surfaceLabel}
-                <select data-surface>
+            <div class="module-pick" hidden data-module-pick>
+                <label for="cb-surface">{ui.surfaceLabel}</label>
+                <select id="cb-surface" data-surface aria-describedby="cb-surface-hint">
                     {groups.map((g) => (
                         <optgroup label={g.group}>
                             {g.items.map((item) => <option value={item.id}>{item.label}</option>)}
                         </optgroup>
                     ))}
                 </select>
-                <small data-hint></small>
-            </label>
+                <small class="hint" id="cb-surface-hint" data-hint></small>
+            </div>
 
-            <div data-command-fields>
-                <label class="f-name">{ui.nameLabel}
-                    <span class="f-wrap"><span class="prefix">!</span><input value="welcome" maxlength="64" data-name /></span>
-                    <small>{ui.nameHint}</small>
-                </label>
+            <div class="f-name" data-command-fields>
+                <label for="cb-name">{ui.nameLabel}</label>
+                <span class="f-wrap"><span class="prefix">!</span><input id="cb-name" value="welcome" maxlength="64" data-name aria-describedby="cb-name-hint" /></span>
+                <small class="hint" id="cb-name-hint">{ui.nameHint}</small>
             </div>
 
             <label class="response">{ui.responseLabel} <small><b data-count>0</b>/500</small><textarea rows="4" maxlength="2504" data-template></textarea></label>
@@ -79,20 +79,20 @@ for (const surface of data.surfaces) {
             <section class="palette">
                 <header><b>{ui.step3Title}</b><span class="scope" data-scope></span></header>
                 <p class="palette-sub">{ui.step3Sub}</p>
-                <div class="vars" data-vars aria-live="polite"></div>
+                <div class="vars" data-vars></div>
                 <details><summary>{ui.bracesSummary}</summary><p>{ui.bracesBody}</p></details>
             </section>
 
             <details class="more" data-more>
                 <summary>{ui.moreOptions}</summary>
                 <div class="more-grid">
-                    <label class="span2">{ui.aliasLabel}<input placeholder="hi, heya" data-aliases /><small>{ui.aliasHint}</small></label>
+                    <div class="span2"><label for="cb-aliases">{ui.aliasLabel}</label><input id="cb-aliases" placeholder="hi, heya" data-aliases aria-describedby="cb-alias-hint" /><small class="hint" id="cb-alias-hint">{ui.aliasHint}</small></div>
                     <label>{ui.permLabel}
                         <select data-perm>
                             {data.perms.map((p) => <option value={p.value}>{p.label}</option>)}
                         </select>
                     </label>
-                    <label>{ui.cooldownLabel}<input type="number" min="0" max="86400" value="0" data-cooldown /><small>{ui.cooldownHint}</small></label>
+                    <div><label for="cb-cooldown">{ui.cooldownLabel}</label><input id="cb-cooldown" type="number" min="0" max="86400" value="0" data-cooldown aria-describedby="cb-cd-hint" /><small class="hint" id="cb-cd-hint">{ui.cooldownHint}</small></div>
                     <label class="span2">{ui.styleLabel}
                         <select data-style>
                             {data.styles.map((s) => <option value={s.value}>{s.label}</option>)}
@@ -105,14 +105,14 @@ for (const surface of data.surfaces) {
         <aside>
             <section class="preview card">
                 <header><b><i></i> {ui.previewTitle}</b><span data-context></span></header>
-                <div class="chat" data-chat data-avatar={logoImage.src} aria-live="polite">
+                <div class="chat" data-chat data-avatar={logoImage.src}>
                     <span class="chat-tag" data-chat-tag>{ui.rehearsal}</span>
                 </div>
                 <small data-preview-note></small>
             </section>
 
             <section class="action card">
-                <header><span data-action-title>{ui.sendTitle}</span><b data-valid></b></header>
+                <header><span data-action-title>{ui.sendTitle}</span><b data-valid role="status"></b></header>
                 <div class="send" data-send-wrap>
                     <a class="send__cta" data-send target="_blank" rel="noopener noreferrer" href={data.dashboardOrigin + '/commands'}>
                         <span>{ui.sendCta}</span><b aria-hidden="true">→</b>
@@ -735,10 +735,10 @@ for (const surface of data.surfaces) {
     .mode-seg button.active i { background: #07120d22; color: #07120d; }
 
     label { display: block; color: var(--tan-light); font: 12px var(--font-mono); letter-spacing: .05em; text-transform: uppercase; }
-    label > small { display: block; margin-top: 7px; color: var(--muted); font: 12px var(--font-body); letter-spacing: 0; text-transform: none; }
+    label > small,
+    .hint { display: block; margin-top: 7px; color: var(--muted); font: 12px var(--font-body); letter-spacing: 0; text-transform: none; }
 
     .module-pick { padding: 14px 16px; background: #ffffff05; border-radius: 10px; }
-    .module-pick small { display: block; margin-top: 7px; color: var(--muted); font: 12px var(--font-body); letter-spacing: 0; text-transform: none; }
 
     /* Name field: prefix anchored to its own wrapper, immune to label-height
        differences (the old absolute-in-label version drifted when hints wrapped). */

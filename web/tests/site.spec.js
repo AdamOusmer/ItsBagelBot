@@ -326,6 +326,28 @@ test.describe('guides & command builder', () => {
         await expect(page.locator('[data-send-wrap]')).toBeVisible();
     });
 
+    test('builder enforces the dashboard caps while typing', async ({ page }) => {
+        await page.goto('/command-builder');
+        await page.waitForSelector('[data-builder][data-ready="1"]');
+
+        // 7 lines typed -> clamped to the service's 5; 600 chars -> 500.
+        await page.fill('[data-template]', 'a\nb\nc\nd\ne\nf\ng');
+        await expect(page.locator('[data-template]')).toHaveValue('a\nb\nc\nd\ne');
+        await page.fill('[data-template]', 'x'.repeat(600));
+        const len = await page.inputValue('[data-template]');
+        expect(len.length).toBe(500);
+    });
+
+    test('french builder mirrors the english one', async ({ page }) => {
+        await page.goto('/fr/command-builder');
+        await page.waitForSelector('[data-builder][data-ready="1"]');
+
+        await expect(page.locator('.phero__title')).toContainText('Des commandes puissantes.');
+        await expect(page.locator('[data-vars] .var code')).toHaveCount(8);
+        const href = await page.getAttribute('[data-send]', 'href');
+        expect(href).toContain('lang=fr');
+    });
+
     test('builder module mode scopes the palette to the surface', async ({ page }) => {
         await page.goto('/command-builder');
         await page.waitForSelector('[data-builder][data-ready="1"]');
