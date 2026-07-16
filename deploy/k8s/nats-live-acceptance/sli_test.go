@@ -259,7 +259,10 @@ func TestSampleValkeyWaitsForNodeLocalReplicaConvergence(t *testing.T) {
 		return convergedGet(ctx, key)
 	}
 
-	sample, maximum, err := sampleValkey(context.Background(), cfg, probes, 1, 30*time.Second)
+	sampler := valkeySLISampler{
+		ctx: context.Background(), cfg: cfg, probes: probes, sequence: 1, ttl: 30 * time.Second,
+	}
+	sample, maximum, err := sampler.run()
 	require.NoError(t, err)
 	require.Equal(t, 3, getCalls)
 	require.Positive(t, sample.GetRTT)
@@ -277,7 +280,10 @@ func TestSampleValkeyRejectsConvergencePastMaxRTT(t *testing.T) {
 		return convergedGet(ctx, key)
 	}
 
-	sample, _, err := sampleValkey(context.Background(), cfg, probes, 1, 30*time.Second)
+	sampler := valkeySLISampler{
+		ctx: context.Background(), cfg: cfg, probes: probes, sequence: 1, ttl: 30 * time.Second,
+	}
+	sample, _, err := sampler.run()
 	require.ErrorContains(t, err, "Valkey GET RTT")
 	require.ErrorContains(t, err, "exceeded max-rtt")
 	require.Greater(t, sample.GetRTT, durationMilliseconds(cfg.sliMaxRTT))

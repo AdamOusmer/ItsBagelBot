@@ -489,29 +489,40 @@ func (o *topologyObserver) rejectUnhealthyFollowers(peers []*jsapi.PeerInfo, obs
 		o.unhealthySince = make(map[string]time.Time)
 	}
 	for _, peer := range peers {
-		if peer == nil {
-			return errors.New("stream topology contains an empty follower")
-		}
-		if peer.Offline {
-			return fmt.Errorf("stream follower %s became unhealthy: current=%t offline=%t", peer.Name, peer.Current, peer.Offline)
-		}
-		if peer.Current {
-			delete(o.unhealthySince, peer.Name)
-			continue
-		}
-		since, seen := o.unhealthySince[peer.Name]
-		if !seen {
-			o.unhealthySince[peer.Name] = observedAt
-			since = observedAt
-		}
-		if o.unhealthyGrace <= 0 || observedAt.Sub(since) >= o.unhealthyGrace {
-			return fmt.Errorf(
-				"stream follower %s became unhealthy after remaining non-current for %s (grace %s)",
-				peer.Name, observedAt.Sub(since), o.unhealthyGrace,
-			)
+		if err := o.rejectUnhealthyFollower(peer, observedAt); err != nil {
+			return err
 		}
 	}
 	return nil
+}
+
+func (o *topologyObserver) rejectUnhealthyFollower(peer *jsapi.PeerInfo, observedAt time.Time) error {
+	if peer == nil {
+		return errors.New("stream topology contains an empty follower")
+	}
+	if peer.Offline {
+		return fmt.Errorf("stream follower %s became unhealthy: current=%t offline=%t", peer.Name, peer.Current, peer.Offline)
+	}
+	if peer.Current {
+		delete(o.unhealthySince, peer.Name)
+		return nil
+	}
+	since := o.nonCurrentSince(peer.Name, observedAt)
+	if o.unhealthyGrace > 0 && observedAt.Sub(since) < o.unhealthyGrace {
+		return nil
+	}
+	return fmt.Errorf(
+		"stream follower %s became unhealthy after remaining non-current for %s (grace %s)",
+		peer.Name, observedAt.Sub(since), o.unhealthyGrace,
+	)
+}
+
+func (o *topologyObserver) nonCurrentSince(peer string, observedAt time.Time) time.Time {
+	if since, seen := o.unhealthySince[peer]; seen {
+		return since
+	}
+	o.unhealthySince[peer] = observedAt
+	return observedAt
 }
 
 func observedCluster(info *jsapi.StreamInfo) (*jsapi.ClusterInfo, error) {

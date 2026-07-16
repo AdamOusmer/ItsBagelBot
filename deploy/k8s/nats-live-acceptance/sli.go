@@ -89,6 +89,16 @@ type sliCollector struct {
 	tracker *ingressAttemptTracker
 }
 
+type valkeySLISampler struct {
+	ctx      context.Context
+	cfg      config
+	probes   *sliProbes
+	sequence int64
+	ttl      time.Duration
+	sample   sliValkeySample
+	maximum  time.Duration
+}
+
 type ingressAttemptTracker struct {
 	previousAttempts map[int]int
 	previousSessions map[int]string
@@ -214,16 +224,29 @@ func (r *continuousSLIRun) execute(ctx context.Context) error {
 	duration := time.NewTimer(r.cfg.sliDuration)
 	defer duration.Stop()
 	for sequence := int64(1); ; sequence++ {
-		if err := r.collectAndEncode(ctx, sequence); err != nil {
+		done, err := r.executeSampleCycle(ctx, duration.C, sequence)
+		if err != nil {
 			return err
 		}
-		if err := waitForNextSLISample(ctx, duration.C, r.cfg.sliInterval); err != nil {
-			if errors.Is(err, errSLIDurationComplete) {
-				return r.probes.healthy()
-			}
-			return err
+		if done {
+			return r.probes.healthy()
 		}
 	}
+}
+
+func (r *continuousSLIRun) executeSampleCycle(
+	ctx context.Context,
+	duration <-chan time.Time,
+	sequence int64,
+) (bool, error) {
+	if err := r.collectAndEncode(ctx, sequence); err != nil {
+		return false, err
+	}
+	err := waitForNextSLISample(ctx, duration, r.cfg.sliInterval)
+	if errors.Is(err, errSLIDurationComplete) {
+		return true, nil
+	}
+	return false, err
 }
 
 var errSLIDurationComplete = errors.New("SLI duration complete")
@@ -370,8 +393,11 @@ func (c sliCollector) collectIngress(sample *sliSample) error {
 }
 
 func (c sliCollector) collectValkey(sample *sliSample, sequence int64) error {
-	keyTTL := sliKeyTTL(c.cfg.sliInterval)
-	valkeySample, maxRTT, err := sampleValkey(c.ctx, c.cfg, c.probes, sequence, keyTTL)
+	sampler := valkeySLISampler{
+		ctx: c.ctx, cfg: c.cfg, probes: c.probes, sequence: sequence,
+		ttl: sliKeyTTL(c.cfg.sliInterval),
+	}
+	valkeySample, maxRTT, err := sampler.run()
 	sample.Valkey = &valkeySample
 	sample.MaxRTTMS = max(sample.MaxRTTMS, durationMilliseconds(maxRTT))
 	return err
@@ -400,61 +426,65 @@ func validateRPCHealthReply(service string, data []byte) error {
 	return nil
 }
 
-func sampleValkey(
-	ctx context.Context,
-	cfg config,
-	probes *sliProbes,
-	sequence int64,
-	ttl time.Duration,
-) (sliValkeySample, time.Duration, error) {
-	sample := sliValkeySample{Key: cfg.sliKey, KeyTTLMS: ttl.Milliseconds()}
-	var maximum time.Duration
+func (s *valkeySLISampler) run() (sliValkeySample, time.Duration, error) {
+	s.sample = sliValkeySample{Key: s.cfg.sliKey, KeyTTLMS: s.ttl.Milliseconds()}
+	if err := s.ping(); err != nil {
+		return s.sample, s.maximum, err
+	}
+	value := fmt.Sprintf("%s:%d:%d", s.cfg.producerID, s.sequence, time.Now().UnixNano())
+	if err := s.set(value); err != nil {
+		return s.sample, s.maximum, err
+	}
+	if err := s.get(value); err != nil {
+		return s.sample, s.maximum, err
+	}
+	return s.sample, s.maximum, nil
+}
 
-	pong, rtt, err := timedValkeyString(ctx, cfg, probes.ping)
-	sample.PingRTT = durationMilliseconds(rtt)
-	maximum = max(maximum, rtt)
+func (s *valkeySLISampler) ping() error {
+	pong, rtt, err := timedValkeyString(s.ctx, s.cfg, s.probes.ping)
+	s.recordRTT(&s.sample.PingRTT, rtt)
 	if err != nil {
-		return sample, maximum, fmt.Errorf("Valkey PING: %w", err)
+		return fmt.Errorf("Valkey PING: %w", err)
 	}
 	if pong != "PONG" {
-		return sample, maximum, fmt.Errorf("Valkey PING returned %q instead of PONG", pong)
+		return fmt.Errorf("Valkey PING returned %q instead of PONG", pong)
 	}
-	if err := validateSLIRTT("Valkey PING", rtt, cfg.sliMaxRTT); err != nil {
-		return sample, maximum, err
-	}
+	return validateSLIRTT("Valkey PING", rtt, s.cfg.sliMaxRTT)
+}
 
-	value := fmt.Sprintf("%s:%d:%d", cfg.producerID, sequence, time.Now().UnixNano())
-	setReply, rtt, err := timedValkeyString(ctx, cfg, func(opCtx context.Context) (string, error) {
-		return probes.set(opCtx, cfg.sliKey, value, ttl)
+func (s *valkeySLISampler) set(value string) error {
+	reply, rtt, err := timedValkeyString(s.ctx, s.cfg, func(opCtx context.Context) (string, error) {
+		return s.probes.set(opCtx, s.cfg.sliKey, value, s.ttl)
 	})
-	sample.SetRTT = durationMilliseconds(rtt)
-	maximum = max(maximum, rtt)
+	s.recordRTT(&s.sample.SetRTT, rtt)
 	if err != nil {
-		return sample, maximum, fmt.Errorf("Valkey SET: %w", err)
+		return fmt.Errorf("Valkey SET: %w", err)
 	}
-	if setReply != "OK" {
-		return sample, maximum, fmt.Errorf("Valkey SET returned %q instead of OK", setReply)
+	if reply != "OK" {
+		return fmt.Errorf("Valkey SET returned %q instead of OK", reply)
 	}
-	if err := validateSLIRTT("Valkey SET", rtt, cfg.sliMaxRTT); err != nil {
-		return sample, maximum, err
-	}
+	return validateSLIRTT("Valkey SET", rtt, s.cfg.sliMaxRTT)
+}
 
-	convergenceBudget := min(cfg.sliMaxRTT, cfg.sliTimeout)
-	got, rtt, err := waitForValkeyValue(ctx, convergenceBudget, value, func(opCtx context.Context) (string, error) {
-		return probes.get(opCtx, cfg.sliKey)
+func (s *valkeySLISampler) get(expected string) error {
+	budget := min(s.cfg.sliMaxRTT, s.cfg.sliTimeout)
+	value, rtt, err := waitForValkeyValue(s.ctx, budget, expected, func(opCtx context.Context) (string, error) {
+		return s.probes.get(opCtx, s.cfg.sliKey)
 	})
-	sample.GetRTT = durationMilliseconds(rtt)
-	maximum = max(maximum, rtt)
+	s.recordRTT(&s.sample.GetRTT, rtt)
 	if err != nil {
-		return sample, maximum, fmt.Errorf("Valkey GET: %w", err)
+		return fmt.Errorf("Valkey GET: %w", err)
 	}
-	if got != value {
-		return sample, maximum, fmt.Errorf("Valkey GET value mismatch: got %q", got)
+	if value != expected {
+		return fmt.Errorf("Valkey GET value mismatch: got %q", value)
 	}
-	if err := validateSLIRTT("Valkey GET", rtt, cfg.sliMaxRTT); err != nil {
-		return sample, maximum, err
-	}
-	return sample, maximum, nil
+	return validateSLIRTT("Valkey GET", rtt, s.cfg.sliMaxRTT)
+}
+
+func (s *valkeySLISampler) recordRTT(destination *float64, rtt time.Duration) {
+	*destination = durationMilliseconds(rtt)
+	s.maximum = max(s.maximum, rtt)
 }
 
 func waitForValkeyValue(

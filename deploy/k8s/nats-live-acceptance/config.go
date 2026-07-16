@@ -171,12 +171,38 @@ func validateSLITailGate(cfg config) error {
 }
 
 func validateSLITargets(cfg config) error {
-	if !strings.HasPrefix(cfg.sliKey, "acceptance:sli:") || len(cfg.sliKey) == len("acceptance:sli:") || strings.ContainsAny(cfg.sliKey, " \t\r\n") {
+	checks := []func(config) error{
+		validateSLIKey,
+		validateSLIIngressSubject,
+		validateSLIEndpoints,
+	}
+	for _, check := range checks {
+		if err := check(cfg); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateSLIKey(cfg config) error {
+	const prefix = "acceptance:sli:"
+	if !strings.HasPrefix(cfg.sliKey, prefix) || len(cfg.sliKey) == len(prefix) || strings.ContainsAny(cfg.sliKey, " \t\r\n") {
 		return errors.New("key must be an isolated acceptance:sli: key without whitespace")
 	}
-	if cfg.sliIngressSubject != "" && (strings.ContainsAny(cfg.sliIngressSubject, "*> \t\r\n") || !strings.HasSuffix(cfg.sliIngressSubject, ".get")) {
+	return nil
+}
+
+func validateSLIIngressSubject(cfg config) error {
+	if cfg.sliIngressSubject == "" {
+		return nil
+	}
+	if strings.ContainsAny(cfg.sliIngressSubject, "*> \t\r\n") || !strings.HasSuffix(cfg.sliIngressSubject, ".get") {
 		return errors.New("ingress-shards-subject must be an exact read-only .get subject or empty")
 	}
+	return nil
+}
+
+func validateSLIEndpoints(cfg config) error {
 	if cfg.sliNATSURL == "" {
 		return errors.New("NATS_RPC_URL, NATS_LEAF_URL, or hub-url is required")
 	}
