@@ -63,6 +63,7 @@ func parseFlags() config {
 	flag.DurationVar(&cfg.sliInterval, "interval", 5*time.Second, "delay between continuous SLI samples")
 	flag.DurationVar(&cfg.sliTimeout, "timeout", 2*time.Second, "per-operation SLI timeout")
 	flag.DurationVar(&cfg.sliMaxRTT, "max-rtt", 250*time.Millisecond, "maximum accepted SLI round-trip time")
+	flag.DurationVar(&cfg.sliIngressMaxRTT, "ingress-max-rtt", 500*time.Millisecond, "maximum accepted read-only ingress shard snapshot round-trip time")
 	flag.StringVar(&cfg.sliKey, "key", defaultSLIKey(runID), "isolated Valkey SLI key (must start with acceptance:sli:)")
 	flag.StringVar(&cfg.sliIngressSubject, "ingress-shards-subject", defaultIngressSLISubject, "read-only ingress shard snapshot subject (empty disables the snapshot SLI)")
 	flag.Parse()
@@ -123,6 +124,12 @@ func validateSLIConfig(cfg config) error {
 	}
 	if cfg.sliMaxRTT > cfg.sliTimeout {
 		return errors.New("max-rtt must not exceed timeout")
+	}
+	if cfg.sliIngressMaxRTT <= 0 {
+		return errors.New("ingress-max-rtt must be positive")
+	}
+	if cfg.sliIngressMaxRTT > cfg.sliTimeout {
+		return errors.New("ingress-max-rtt must not exceed timeout")
 	}
 	if !strings.HasPrefix(cfg.sliKey, "acceptance:sli:") || len(cfg.sliKey) == len("acceptance:sli:") || strings.ContainsAny(cfg.sliKey, " \t\r\n") {
 		return errors.New("key must be an isolated acceptance:sli: key without whitespace")

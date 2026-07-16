@@ -326,6 +326,31 @@ func TestR3RunnerIsGuardedAndNotKustomized(t *testing.T) {
 	}
 }
 
+func TestR3MessageDistributionRunsUnderNounset(t *testing.T) {
+	script, err := os.ReadFile("r3-120k.sh")
+	require.NoError(t, err)
+	function := extractShellFunction(t, string(script), "messages_for_node")
+	command := function + `
+set -euo pipefail
+[[ $(messages_for_node 10 0) == 3 ]]
+[[ $(messages_for_node 10 1) == 3 ]]
+[[ $(messages_for_node 10 2) == 4 ]]
+[[ $(messages_for_node 720000 0) == 240000 ]]
+`
+	output, err := exec.Command("bash", "-u", "-c", command).CombinedOutput()
+	require.NoError(t, err, string(output))
+}
+
+func extractShellFunction(t *testing.T, source, name string) string {
+	t.Helper()
+	marker := name + "() {"
+	start := strings.Index(source, marker)
+	require.NotEqual(t, -1, start, "missing shell function %s", name)
+	end := strings.Index(source[start:], "\n}\n")
+	require.NotEqual(t, -1, end, "unterminated shell function %s", name)
+	return source[start : start+end+2]
+}
+
 func TestLatencySampleRequirementUsesRateControlledDuration(t *testing.T) {
 	cfg := config{
 		messages: 42_000, targetRate: 42_000, latencySamples: 20,

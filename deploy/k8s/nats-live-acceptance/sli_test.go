@@ -26,6 +26,8 @@ func TestSLIConfigValidation(t *testing.T) {
 		"zero interval":     func(cfg *config) { cfg.sliInterval = 0 },
 		"zero timeout":      func(cfg *config) { cfg.sliTimeout = 0 },
 		"max above timeout": func(cfg *config) { cfg.sliMaxRTT = cfg.sliTimeout + time.Millisecond },
+		"ingress max zero":  func(cfg *config) { cfg.sliIngressMaxRTT = 0 },
+		"ingress max high":  func(cfg *config) { cfg.sliIngressMaxRTT = cfg.sliTimeout + time.Millisecond },
 		"unsafe key":        func(cfg *config) { cfg.sliKey = "production:key" },
 		"write subject":     func(cfg *config) { cfg.sliIngressSubject = "twitch.ingress.admin.shards.scale" },
 		"missing NATS":      func(cfg *config) { cfg.sliNATSURL = "" },
@@ -57,6 +59,15 @@ func TestRPCHealthReplyValidation(t *testing.T) {
 	require.ErrorContains(t, validateRPCHealthReply("sesame", []byte(`{"service":"outgress","ok":true}`)), "invalid reply")
 	require.ErrorContains(t, validateRPCHealthReply("sesame", []byte(`{"service":"sesame","ok":false}`)), "invalid reply")
 	require.ErrorContains(t, validateRPCHealthReply("sesame", []byte(`not-json`)), "malformed JSON")
+}
+
+func TestIngressSnapshotHasASeparateTailCeiling(t *testing.T) {
+	cfg := testSLIConfig()
+	cfg.sliMaxRTT = 250 * time.Millisecond
+	cfg.sliIngressMaxRTT = 500 * time.Millisecond
+	rtt := 300 * time.Millisecond
+	require.Error(t, validateSLIRTT("ordinary RPC", rtt, cfg.sliMaxRTT))
+	require.NoError(t, validateSLIRTT("ingress shard snapshot", rtt, cfg.sliIngressMaxRTT))
 }
 
 func TestIngressSnapshotRequiresStableConnectedBoundDesiredShards(t *testing.T) {
@@ -309,6 +320,7 @@ func testSLIConfig() config {
 		sliInterval:       10 * time.Millisecond,
 		sliTimeout:        time.Second,
 		sliMaxRTT:         500 * time.Millisecond,
+		sliIngressMaxRTT:  500 * time.Millisecond,
 		sliKey:            "acceptance:sli:test:run",
 		sliIngressSubject: defaultIngressSLISubject,
 		sliNATSURL:        "nats://localhost:4222",

@@ -251,7 +251,7 @@ func collectSLISample(
 		if err != nil {
 			return sample, fmt.Errorf("ingress shard snapshot: %w", err)
 		}
-		if err := validateSLIRTT("ingress shard snapshot", rtt, cfg.sliMaxRTT); err != nil {
+		if err := validateSLIRTT("ingress shard snapshot", rtt, cfg.sliIngressMaxRTT); err != nil {
 			return sample, err
 		}
 		sample.Ingress = &ingress
