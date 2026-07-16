@@ -119,8 +119,7 @@ spec:
     name: fleet-ca-issuer
     kind: ClusterIssuer
     group: cert-manager.io
-  # Clients dial the Service name, a node's stable tailnet IP (node-local reads,
-  # replication and monitoring), or a StatefulSet peer name. One shared cert is
+  # Clients dial the Service name or a stable StatefulSet peer name. One shared cert is
   # intentional: the four servers form one trusted Valkey service and continue
   # to authenticate users with ACL passwords rather than client certificates.
   dnsNames:
@@ -137,7 +136,3 @@ spec:
     - localhost
   ipAddresses:
     - 127.0.0.1
-    - 100.98.67.104 # node1
-    - 100.95.95.9   # node2
-    - 100.99.41.21  # node3
-    - 100.104.223.54 # worker1

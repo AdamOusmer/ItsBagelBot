@@ -1,0 +1,59 @@
+---
+- name: Verify all advertised WireGuard endpoints are bidirectionally reachable
+  hosts: cluster
+  gather_facts: false
+  vars:
+    probe_path: /tmp/bagelbot-wireguard-udp-probe.py
+    wireguard_port: 51820
+  tasks:
+    - name: Install the temporary UDP probe
+      ansible.builtin.copy:
+        src: files/wireguard_udp_probe.py
+        dest: "{{ probe_path }}"
+        mode: "0755"
+
+    - name: Refuse to collide with an existing WireGuard listener
+      ansible.builtin.shell: >-
+        ! /usr/sbin/ss -lun 'sport = :{{ wireguard_port }}' | tail -n +2 | grep -q .
+      args:
+        executable: /bin/bash
+      changed_when: false
+
+    - name: Listen for one authenticated probe token from every peer
+      ansible.builtin.command: >-
+        {{ probe_path }} listen --port {{ wireguard_port }}
+        --expected {{ groups['cluster'] | length - 1 }} --timeout 20
+      async: 25
+      poll: 0
+      register: udp_listener
+
+    - name: Give every listener time to bind
+      ansible.builtin.pause:
+        seconds: 1
+
+    - name: Send this node's token to every advertised peer endpoint
+      ansible.builtin.command: >-
+        {{ probe_path }} send --endpoint {{ hostvars[item].wireguard_endpoint }}
+        --port {{ wireguard_port }} --token {{ inventory_hostname }}
+      loop: "{{ groups['cluster'] }}"
+      when: item != inventory_hostname
+      changed_when: false
+
+    - name: Collect listener result
+      ansible.builtin.async_status:
+        jid: "{{ udp_listener.ansible_job_id }}"
+      register: udp_result
+      until: udp_result.finished
+      retries: 25
+      delay: 1
+
+    - name: Require a token from every other node
+      ansible.builtin.assert:
+        that:
+          - (udp_result.stdout | from_json).tokens | sort == (groups['cluster'] | difference([inventory_hostname]) | sort)
+        fail_msg: "UDP/51820 did not arrive from every cluster peer: {{ udp_result.stdout }}"
+
+    - name: Remove the temporary UDP probe
+      ansible.builtin.file:
+        path: "{{ probe_path }}"
+        state: absent

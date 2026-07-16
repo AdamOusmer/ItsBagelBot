@@ -13,6 +13,15 @@
       - ansible_tailscale0.ipv4.address is defined
     fail_msg: "tailscale0 has no IPv4 — Tailscale must be up before k3s."
 
+- name: Require a direct endpoint for the pod data plane
+  ansible.builtin.assert:
+    that:
+      - node_external_ip | length > 0
+      - flannel_iface != "tailscale0"
+    fail_msg: >-
+      NODE_EXTERNAL_IP and a physical FLANNEL_IFACE are required. Tailscale is
+      management/DB-only and must not carry Flannel pod traffic.
+
 - name: Check installed k3s version (if any)
   ansible.builtin.command: k3s --version
   register: k3s_installed

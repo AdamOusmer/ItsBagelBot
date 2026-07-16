@@ -137,7 +137,9 @@ func (r *acceptanceRun) executeSLI() error {
 
 func newSLIProbes(cfg config, ep endpoint, tlsConfig *tls.Config) (*sliProbes, error) {
 	stats := &connectionStats{failures: make(chan error, 1)}
-	nc, err := connectCore(cfg, ep, tlsConfig, "live-acceptance-sli", stats)
+	nc, err := (connectionRequest{
+		cfg: cfg, endpoint: ep, tlsConfig: tlsConfig, name: "live-acceptance-sli", stats: stats,
+	}).connect()
 	if err != nil {
 		return nil, fmt.Errorf("connect persistent NATS RPC SLI client: %w", err)
 	}
@@ -500,27 +502,40 @@ func waitForValkeyValue(
 	for {
 		value, err := get(opCtx)
 		elapsed := time.Since(started)
-		if err != nil && !valkey_go.IsValkeyNil(err) {
+		value, err = normalizeValkeyRead(value, err)
+		if err != nil {
 			return value, elapsed, sliOperationError(ctx, opCtx, budget, err)
-		}
-		if valkey_go.IsValkeyNil(err) {
-			value = ""
 		}
 		lastValue = value
 		if value == expected {
 			return value, elapsed, nil
 		}
-		if !waitForValkeyConvergenceRetry(opCtx) {
-			if cause := context.Cause(ctx); cause != nil {
-				return lastValue, time.Since(started), cause
-			}
-			return lastValue, time.Since(started), fmt.Errorf(
-				"value mismatch after %s convergence budget: got %q",
-				budget,
-				lastValue,
-			)
+		if waitForValkeyConvergenceRetry(opCtx) {
+			continue
 		}
+		return valkeyConvergenceFailure(ctx, budget, started, lastValue)
 	}
+}
+
+func normalizeValkeyRead(value string, err error) (string, error) {
+	if valkey_go.IsValkeyNil(err) {
+		return "", nil
+	}
+	return value, err
+}
+
+func valkeyConvergenceFailure(
+	ctx context.Context,
+	budget time.Duration,
+	started time.Time,
+	lastValue string,
+) (string, time.Duration, error) {
+	elapsed := time.Since(started)
+	if cause := context.Cause(ctx); cause != nil {
+		return lastValue, elapsed, cause
+	}
+	err := fmt.Errorf("value mismatch after %s convergence budget: got %q", budget, lastValue)
+	return lastValue, elapsed, err
 }
 
 func waitForValkeyConvergenceRetry(ctx context.Context) bool {
@@ -682,6 +697,13 @@ func validateShardConnection(shardID int, shard ingressShard) error {
 	if shard.State != "connected" {
 		return fmt.Errorf("desired shard_id=%d state=%q, want connected", shardID, shard.State)
 	}
+	if err := validateShardBinding(shardID, shard); err != nil {
+		return err
+	}
+	return validateShardHandshake(shardID, shard)
+}
+
+func validateShardBinding(shardID int, shard ingressShard) error {
 	if shard.Bound == nil || !*shard.Bound {
 		return fmt.Errorf("desired shard_id=%d is not bound", shardID)
 	}
@@ -691,6 +713,10 @@ func validateShardConnection(shardID int, shard ingressShard) error {
 	if shard.BoundAt == nil || shard.BoundAt.IsZero() {
 		return fmt.Errorf("desired shard_id=%d is missing bound_at", shardID)
 	}
+	return nil
+}
+
+func validateShardHandshake(shardID int, shard ingressShard) error {
 	if shard.HandshakeInFlight == nil || *shard.HandshakeInFlight {
 		return fmt.Errorf("desired shard_id=%d has a handshake in flight", shardID)
 	}

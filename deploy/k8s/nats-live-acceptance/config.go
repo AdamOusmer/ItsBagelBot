@@ -186,7 +186,13 @@ func validateSLITargets(cfg config) error {
 
 func validateSLIKey(cfg config) error {
 	const prefix = "acceptance:sli:"
-	if !strings.HasPrefix(cfg.sliKey, prefix) || len(cfg.sliKey) == len(prefix) || strings.ContainsAny(cfg.sliKey, " \t\r\n") {
+	if !strings.HasPrefix(cfg.sliKey, prefix) {
+		return errors.New("key must be an isolated acceptance:sli: key without whitespace")
+	}
+	if strings.TrimPrefix(cfg.sliKey, prefix) == "" {
+		return errors.New("key must be an isolated acceptance:sli: key without whitespace")
+	}
+	if strings.ContainsAny(cfg.sliKey, " \t\r\n") {
 		return errors.New("key must be an isolated acceptance:sli: key without whitespace")
 	}
 	return nil

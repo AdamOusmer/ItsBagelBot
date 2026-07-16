@@ -10,6 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type shellScript string
+
 func TestR3RunnerIsGuardedAndNotKustomized(t *testing.T) {
 	kustomization, err := os.ReadFile("../kustomization.yaml")
 	require.NoError(t, err)
@@ -24,12 +26,12 @@ func TestR3RunnerIsGuardedAndNotKustomized(t *testing.T) {
 
 func TestR3RunnerUsesExplicitResultsAndScopedSecrets(t *testing.T) {
 	script := readR3Runner(t)
-	require.NotContains(t, script, `"$results_dir"/"$label"-*.json`)
-	require.Contains(t, script, `"${result_files[@]}"`)
-	require.NotContains(t, script, `name:"worker-env"`)
-	require.NotContains(t, script, `key:"VALKEY_ADDR"`)
-	require.NotContains(t, script, `control_pod=${pods[`)
-	assertScriptContains(t, script,
+	require.NotContains(t, string(script), `"$results_dir"/"$label"-*.json`)
+	require.Contains(t, string(script), `"${result_files[@]}"`)
+	require.NotContains(t, string(script), `name:"worker-env"`)
+	require.NotContains(t, string(script), `key:"VALKEY_ADDR"`)
+	require.NotContains(t, string(script), `control_pod=${pods[`)
+	script.assertContains(t,
 		`NATS_BENCH_PUBLISHER_SECRET:-sesame-env`,
 		`NATS_BENCH_ADMIN_RPC_SECRET:-console-admin-env`,
 		`if $role == "control" then`,
@@ -41,7 +43,7 @@ func TestR3RunnerUsesExplicitResultsAndScopedSecrets(t *testing.T) {
 
 func TestR3RunnerContainsSafetyInvariants(t *testing.T) {
 	script := readR3Runner(t)
-	assertScriptContains(t, script,
+	script.assertContains(t,
 		`--request-timeout="$broker_query_timeout"`,
 		`-max-ack-gap=`,
 		`limits:{cpu:"1"`,
@@ -59,27 +61,27 @@ func TestR3RunnerContainsSafetyInvariants(t *testing.T) {
 		`qualifier_batch=$(jq -er '.batch_size'`,
 		`canary_rates=${R3_CANARY_RATES:-"12000 30000 60000 90000"}`,
 	)
-	require.NotContains(t, script, `nodeName:$node`)
+	require.NotContains(t, string(script), `nodeName:$node`)
 }
 
-func readR3Runner(t *testing.T) string {
+func readR3Runner(t *testing.T) shellScript {
 	t.Helper()
 	script, err := os.ReadFile("r3-120k.sh")
 	require.NoError(t, err)
-	return string(script)
+	return shellScript(script)
 }
 
-func assertScriptContains(t *testing.T, script string, required ...string) {
+func (s shellScript) assertContains(t *testing.T, required ...string) {
 	t.Helper()
 	for _, invariant := range required {
-		require.Contains(t, script, invariant, "missing safety invariant")
+		require.Contains(t, string(s), invariant, "missing safety invariant")
 	}
 }
 
 func TestR3MessageDistributionRunsUnderNounset(t *testing.T) {
 	script, err := os.ReadFile("r3-120k.sh")
 	require.NoError(t, err)
-	function := extractShellFunction(t, string(script), "messages_for_node")
+	function := shellScript(script).function(t, "messages_for_node")
 	command := function + `
 set -euo pipefail
 [[ $(messages_for_node 10 0) == 3 ]]
@@ -94,7 +96,7 @@ set -euo pipefail
 func TestR3SLIOnlySummaryReportsNearestRankDistributions(t *testing.T) {
 	script, err := os.ReadFile("r3-120k.sh")
 	require.NoError(t, err)
-	function := extractShellFunction(t, string(script), "write_sli_summary")
+	function := shellScript(script).function(t, "write_sli_summary")
 	dir := t.TempDir()
 	input := strings.Join([]string{
 		`{"rpc":[{"rtt_ms":1},{"rtt_ms":2}],"ingress":{"rtt_ms":3},"valkey":{"ping_rtt_ms":4,"set_rtt_ms":5,"get_rtt_ms":6},"passed":true}`,
@@ -138,8 +140,9 @@ write_sli_summary >/dev/null
 	require.True(t, summary[0].Passed)
 }
 
-func extractShellFunction(t *testing.T, source, name string) string {
+func (s shellScript) function(t *testing.T, name string) string {
 	t.Helper()
+	source := string(s)
 	marker := name + "() {"
 	start := strings.Index(source, marker)
 	require.NotEqual(t, -1, start, "missing shell function %s", name)

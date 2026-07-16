@@ -1,0 +1,67 @@
+---
+- name: Restore the pre-WireGuard K3s configuration
+  hosts: cluster
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Verify the rollback configuration exists
+      ansible.builtin.stat:
+        path: /etc/rancher/k3s/config.yaml.pre-wireguard-native
+      register: rollback_config
+
+    - name: Refuse an incomplete rollback
+      ansible.builtin.assert:
+        that: rollback_config.stat.exists
+        fail_msg: Missing pre-WireGuard K3s configuration backup
+
+    - name: Restore the K3s configuration
+      ansible.builtin.copy:
+        src: /etc/rancher/k3s/config.yaml.pre-wireguard-native
+        dest: /etc/rancher/k3s/config.yaml
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0600"
+      no_log: true
+
+- name: Reboot the K3s server after rollback
+  hosts: k3s_server
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Reboot the server
+      ansible.builtin.reboot:
+        reboot_timeout: 300
+
+- name: Reboot node3 after rollback
+  hosts: k3s_first_agent
+  become: true
+  gather_facts: false
+  serial: 1
+  tasks:
+    - name: Reboot node3
+      ansible.builtin.reboot:
+        reboot_timeout: 300
+
+- name: Reboot remaining agents after rollback
+  hosts: k3s_remaining_agents
+  become: true
+  gather_facts: false
+  serial: 1
+  tasks:
+    - name: Reboot an agent
+      ansible.builtin.reboot:
+        reboot_timeout: 300
+
+- name: Close native WireGuard after every node has rolled back
+  hosts: cluster
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Close public WireGuard transport
+      ansible.posix.firewalld:
+        zone: public
+        port: 51820/udp
+        permanent: true
+        immediate: true
+        state: disabled

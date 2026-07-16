@@ -7,8 +7,6 @@ namespace: valkey
 # container flags for retained PVCs. topology_test.go is discovered by the
 # repository's normal `go test ./...` CI run and rejects configuration drift.
 resources:
-  - serviceaccount.yaml
-  - rbac.yaml
   - services.yaml
   - pdb.yaml
   - dopplersecrets.yaml
@@ -17,10 +15,10 @@ resources:
 # Base config is generated with a content hash so any edit rolls the
 # StatefulSet (kustomize rewrites the volume reference to the hashed name).
 # Start/ping logic no longer lives in mounted scripts: valkey-server runs the
-# seeded conf directly, the Tailscale announce IP comes from the downward API
-# (status.hostIP is the node's tailnet address here), failover persistence is
+# seeded conf directly, stable StatefulSet DNS identities keep replication and
+# Sentinel on the native WireGuard pod network, failover persistence is
 # valkey's built-in CONFIG REWRITE, and probes are inline valkey-cli. A small
-# initContainer seeds the writable /data conf once.
+# initContainer seeds and migrates the writable /data conf.
 configMapGenerator:
   - name: valkey-config
     files:

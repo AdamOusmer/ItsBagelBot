@@ -29,10 +29,10 @@ spec:
   template:
     metadata:
       annotations:
-        # De-meshed. Nodes still announce stable Tailscale IPs for Sentinel and
-        # node-local reads, while native Valkey TLS adds end-to-end identity and
-        # encryption independent of the transport. Only the native TLS
-        # listeners are exposed: data on 6380 and Sentinel on 26380.
+        # De-meshed. Replication and Sentinel announce stable StatefulSet DNS
+        # names over Flannel's native WireGuard pod network. Valkey TLS provides
+        # end-to-end identity and encryption on data port 6380 and Sentinel
+        # port 26380; neither listener is exposed through a node hostPort.
         linkerd.io/inject: disabled
         secrets.doppler.com/reload: 'true'
       labels:
@@ -44,53 +44,9 @@ spec:
       # After first boot valkey and sentinel own these files: valkey rewrites
       # replicaof on every Sentinel-driven failover and sentinel persists its
       # known peers/epoch, so a restarted pod reads its real current role from
-      # /data instead of re-deriving it. The only dynamic input is the node's
-      # Tailscale announce IP, taken from the downward API (status.hostIP is the
-      # node's tailnet address on this cluster) rather than a hardcoded table,
-      # so it is correct on all four nodes including worker1.
+      # /data instead of re-deriving it. Every member announces its stable
+      # StatefulSet DNS identity, independent of the node it is scheduled on.
       initContainers:
-      # The valkey/valkey image is Debian-based with no curl/wget/openssl and
-      # runs non-root with no package-manager access, so the k8s-API lookup
-      # below needs a separate image that actually has curl. Writes the
-      # result to a shared emptyDir for config-init to read.
-      - name: fetch-master-ip
-        image: curlimages/curl:8.11.0
-        imagePullPolicy: IfNotPresent
-        command:
-        - /bin/sh
-        - -ec
-        - |
-          if [ -f /data/sentinel.conf ]; then
-            exit 0
-          fi
-          TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
-          CACERT=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-          APISERVER=https://kubernetes.default.svc
-
-          MASTER_IP=""
-          while [ -z "${MASTER_IP}" ]; do
-            RES=$(curl -s --cacert ${CACERT} -H "Authorization: Bearer ${TOKEN}" ${APISERVER}/api/v1/namespaces/valkey/pods/valkey-node-0 || true)
-            MASTER_IP=$(echo "${RES}" | grep -o '"hostIP": "[^"]*"' | head -n 1 | cut -d'"' -f4)
-            if [ -z "${MASTER_IP}" ]; then
-              echo "Waiting for valkey-node-0 to be scheduled and have a hostIP..."
-              sleep 2
-            fi
-          done
-          echo -n "${MASTER_IP}" > /shared/master_ip
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - ALL
-          runAsNonRoot: true
-          runAsUser: 999
-          seccompProfile:
-            type: RuntimeDefault
-        volumeMounts:
-        - mountPath: /data
-          name: valkey-data
-        - mountPath: /shared
-          name: shared-tmp
       - name: config-init
         image: valkey/valkey@sha256:4963247afc4cd33c7d3b2d2816b9f7f8eeebab148d29056c2ca4d7cbc966f2d9
         imagePullPolicy: IfNotPresent
@@ -100,35 +56,33 @@ spec:
         - |
           # Resolve the CURRENT master: ask a live Sentinel first (the fleet may
           # have failed over any number of times since pod-0 was master), falling
-          # back to the /shared pod-0 seed only for a full cold start where no
+          # back to pod-0 only for a full cold start where no
           # Sentinel answers. Blindly seeding replicaof from pod-0 chains a new
           # replica under whatever pod-0 happens to be — on worker1 that is the
           # fenced priority-0 replica — creating a sub-replica that Sentinel
           # neither discovers nor manages (hit live on the 2026-07-09 scale-out).
           #
-          # Every step here must tolerate absence under `sh -e`: a pod rejoining
-          # with retained /data has both conf files, so fetch-master-ip exits
-          # early WITHOUT writing /shared/master_ip and the seeds below are
-          # never used — resolution failing must not fail the init.
-          MASTER_IP=""
-          if [ -f /shared/master_ip ]; then
-            MASTER_IP=$(cat /shared/master_ip)
-          fi
+          # Every step here must tolerate a retained /data directory and a
+          # partially available quorum. Stable pod DNS is authoritative.
+          POD_FQDN="${POD_NAME}.valkey-headless.valkey.svc.cluster.local"
+          MASTER_ENDPOINT="valkey-node-0.valkey-headless.valkey.svc.cluster.local"
           LIVE_MASTER=$( { REDISCLI_AUTH="${CORE}" valkey-cli -h valkey.valkey.svc.cluster.local -p 26380 --tls --cacert /etc/valkey/tls/ca.crt --sni valkey.valkey.svc.cluster.local --no-auth-warning sentinel get-master-addr-by-name myprimary 2>/dev/null || true; } | head -n 1)
-          case "${LIVE_MASTER}" in *.*.*.*) MASTER_IP="${LIVE_MASTER}";; esac
+          if [ -n "${LIVE_MASTER}" ]; then
+            MASTER_ENDPOINT=$(printf '%s' "${LIVE_MASTER}" | tr -d '"')
+          fi
           if [ ! -f /data/valkey.conf ]; then
             cp /config/valkey.conf /data/valkey.conf
             {
               echo "masterauth ${CORE}"
-              echo "replica-announce-ip ${HOST_IP}"
+              echo "replica-announce-ip ${POD_FQDN}"
               echo "replica-announce-port 6380"
             } >> /data/valkey.conf
             # First-boot seed only: every pod but the master's begins as its
             # replica; Sentinel owns all failovers afterwards. Skipped once
-            # valkey has rewritten its own replication state. Empty MASTER_IP
+            # valkey has rewritten its own replication state. Empty master endpoint
             # (resolution failed on a true cold start) falls back to pod-0.
             if [ "${POD_INDEX}" != "0" ]; then
-              echo "replicaof ${MASTER_IP:-valkey-node-0.valkey-headless.valkey.svc.cluster.local} 6380" >> /data/valkey.conf
+              echo "replicaof ${MASTER_ENDPOINT:-valkey-node-0.valkey-headless.valkey.svc.cluster.local} 6380" >> /data/valkey.conf
             fi
             # The home node (worker1, flaky wifi) keeps a read replica but must never
             # be promoted: Sentinel never elects a priority-0 replica. Keyed on the
@@ -157,6 +111,19 @@ spec:
           else
             echo "io-threads 2" >> /data/valkey.conf
           fi
+          # Reconcile this member's stable DNS identity before Valkey starts.
+          sed -i '/^replica-announce-ip /d' /data/valkey.conf
+          echo "replica-announce-ip ${POD_FQDN}" >> /data/valkey.conf
+          # A planned failover may have changed the live primary after Valkey's
+          # last CONFIG REWRITE. When Sentinel answered above, its current view
+          # is authoritative: the primary must have no replicaof line and every
+          # other member must follow that stable DNS endpoint.
+          if [ -n "${LIVE_MASTER}" ]; then
+            sed -i '/^replicaof /d' /data/valkey.conf
+            if [ "${POD_FQDN}" != "${MASTER_ENDPOINT}" ]; then
+              echo "replicaof ${MASTER_ENDPOINT} 6380" >> /data/valkey.conf
+            fi
+          fi
           # Retained PVCs carry Sentinel-rewritten topology. Move those live
           # addresses to the TLS listeners before either process starts; doing
           # this in config-init makes the migration repeatable after restores.
@@ -169,12 +136,19 @@ spec:
             {
               echo "requirepass ${CORE}"
               echo "sentinel auth-pass myprimary ${CORE}"
-              echo "sentinel announce-ip ${HOST_IP}"
+              echo "sentinel announce-ip ${POD_FQDN}"
               echo "sentinel announce-port 26380"
-              echo "sentinel monitor myprimary ${MASTER_IP} 6380 2"
+              echo "sentinel monitor myprimary ${MASTER_ENDPOINT} 6380 2"
             } >> /data/sentinel.conf
             chmod 600 /data/sentinel.conf
           fi
+          sed -i '/^sentinel announce-ip /d' /data/sentinel.conf
+          echo "sentinel announce-ip ${POD_FQDN}" >> /data/sentinel.conf
+          sed -i '/^sentinel resolve-hostnames /d; /^sentinel announce-hostnames /d' /data/sentinel.conf
+          {
+            echo "sentinel resolve-hostnames yes"
+            echo "sentinel announce-hostnames yes"
+          } >> /data/sentinel.conf
           sed -i -E \
             -e 's/^(sentinel announce-port) 26379$/\1 26380/' \
             -e 's/^(sentinel monitor myprimary [^ ]+) 6379 (.+)$/\1 6380 \2/' \
@@ -196,10 +170,10 @@ spec:
           mv /data/sentinel.conf.dedup /data/sentinel.conf
           chmod 600 /data/sentinel.conf
         env:
-        - name: HOST_IP
+        - name: POD_NAME
           valueFrom:
             fieldRef:
-              fieldPath: status.hostIP
+              fieldPath: metadata.name
         - name: NODE_NAME
           valueFrom:
             fieldRef:
@@ -228,20 +202,18 @@ spec:
         - mountPath: /config
           name: valkey-config
           readOnly: true
-        - mountPath: /shared
-          name: shared-tmp
         - mountPath: /etc/valkey/tls
           name: valkey-tls
           readOnly: true
       containers:
       # valkey-server runs the seeded /data/valkey.conf directly. masterauth and
-      # the Tailscale announce address come in as flags from the downward API /
-      # secret so they track the live node IP and never need a start script.
+      # the stable StatefulSet DNS identity come in as flags from the downward
+      # API / secret so topology never depends on a node address.
       - command:
         - valkey-server
         - /data/valkey.conf
         - --replica-announce-ip
-        - $(HOST_IP)
+        - $(POD_NAME).valkey-headless.valkey.svc.cluster.local
         - --replica-announce-port
         - "6380"
         - --masterauth
@@ -277,10 +249,10 @@ spec:
         - --tls-replication
         - "yes"
         env:
-        - name: HOST_IP
+        - name: POD_NAME
           valueFrom:
             fieldRef:
-              fieldPath: status.hostIP
+              fieldPath: metadata.name
         - name: CORE
           valueFrom:
             secretKeyRef:
@@ -313,7 +285,6 @@ spec:
         name: valkey
         ports:
         - containerPort: 6380
-          hostPort: 6380
           name: redis-tls
           protocol: TCP
         readinessProbe:
@@ -425,7 +396,6 @@ spec:
         name: sentinel
         ports:
         - containerPort: 26380
-          hostPort: 26380
           name: sentinel-tls
           protocol: TCP
         readinessProbe:
@@ -488,19 +458,27 @@ spec:
       priorityClassName: infra-low
       restartPolicy: Always
       # Tolerate the worker-pool taint so a valkey-node lands on worker1 too.
-      # one-per-node spread (below) + hostPort keep it exactly one per node.
+      # Required anti-affinity keeps exactly one member per node without
+      # exposing Valkey through a hostPort.
       tolerations:
       - key: itsbagelbot.dev/pool
         operator: Equal
         value: worker-pool
         effect: NoSchedule
       schedulerName: default-scheduler
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                app.kubernetes.io/component: node
+                app.kubernetes.io/instance: valkey
+                app.kubernetes.io/name: valkey
+            topologyKey: kubernetes.io/hostname
       securityContext:
         fsGroup: 999
         runAsNonRoot: true
         runAsUser: 999
-      serviceAccount: valkey
-      serviceAccountName: valkey
       terminationGracePeriodSeconds: 30
       topologySpreadConstraints:
       - labelSelector:
@@ -520,8 +498,6 @@ spec:
           defaultMode: 420
           name: valkey-config
         name: valkey-config
-      - name: shared-tmp
-        emptyDir: {}
       - name: valkey-tls
         secret:
           defaultMode: 288

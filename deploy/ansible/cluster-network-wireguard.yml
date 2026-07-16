@@ -1,0 +1,221 @@
+---
+# Stage and optionally activate K3s' supported kernel WireGuard Flannel backend.
+# Staging is idempotent and does not restart a node. Activation follows the K3s
+# migration order: server first, then all agents.
+- name: Stage native WireGuard Flannel configuration
+  hosts: cluster
+  become: true
+  gather_facts: false
+  vars:
+    k3s_config: /etc/rancher/k3s/config.yaml
+    k3s_config_backup: /etc/rancher/k3s/config.yaml.pre-wireguard-native
+    wireguard_port: 51820
+  tasks:
+    - name: Verify the kernel WireGuard module is available
+      ansible.builtin.command: /usr/sbin/modinfo wireguard
+      changed_when: false
+
+    - name: Install the CNI trusted-zone binder
+      ansible.builtin.copy:
+        src: roles/firewall/files/fleet-cni-trust.sh
+        dest: /usr/local/sbin/fleet-cni-trust.sh
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Install the CNI trusted-zone binder unit
+      ansible.builtin.copy:
+        src: roles/firewall/files/fleet-cni-trust.service
+        dest: /etc/systemd/system/fleet-cni-trust.service
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Enable the CNI trusted-zone binder
+      ansible.builtin.systemd:
+        name: fleet-cni-trust.service
+        enabled: true
+        daemon_reload: true
+
+    - name: Preserve the pre-migration K3s configuration
+      ansible.builtin.copy:
+        src: "{{ k3s_config }}"
+        dest: "{{ k3s_config_backup }}"
+        remote_src: true
+        force: false
+        owner: root
+        group: root
+        mode: "0600"
+      no_log: true
+
+    - name: Select the intended Flannel underlay interface
+      ansible.builtin.lineinfile:
+        path: "{{ k3s_config }}"
+        regexp: '^flannel-iface:'
+        line: "flannel-iface: {{ flannel_iface }}"
+        insertafter: '^node-ip:'
+      no_log: true
+
+    - name: Advertise a direct endpoint on fixed-address datacenter nodes
+      ansible.builtin.lineinfile:
+        path: "{{ k3s_config }}"
+        regexp: '^node-external-ip:'
+        line: "node-external-ip: {{ node_external_ip }}"
+        insertafter: '^node-ip:'
+      when: node_external_ip | default('') | length > 0
+      no_log: true
+
+    - name: Select native WireGuard on the K3s server
+      ansible.builtin.lineinfile:
+        path: "{{ k3s_config }}"
+        regexp: '^flannel-backend:'
+        line: 'flannel-backend: wireguard-native'
+        insertafter: '^flannel-iface:'
+      when: k3s_role == 'server'
+      no_log: true
+
+    - name: Prefer direct external endpoints when a node advertises one
+      ansible.builtin.lineinfile:
+        path: "{{ k3s_config }}"
+        regexp: '^flannel-external-ip:'
+        line: 'flannel-external-ip: true'
+        insertafter: '^flannel-backend:'
+      when: k3s_role == 'server'
+      no_log: true
+
+    - name: Keep the Kubernetes API service on the Tailscale control plane
+      ansible.builtin.lineinfile:
+        path: "{{ k3s_config }}"
+        regexp: '^advertise-address:'
+        line: "advertise-address: {{ api_advertise_address }}"
+        insertafter: '^node-ip:'
+      when: k3s_role == 'server'
+      no_log: true
+
+    - name: Keep API-to-kubelet traffic on InternalIP before ExternalIP
+      ansible.builtin.lineinfile:
+        path: "{{ k3s_config }}"
+        regexp: '^kube-apiserver-arg:'
+        line: 'kube-apiserver-arg: ["kubelet-preferred-address-types=InternalIP,Hostname,ExternalIP"]'
+        insertafter: '^advertise-address:'
+      when: k3s_role == 'server'
+      no_log: true
+
+    - name: Hand metrics-server ownership to Flux
+      ansible.builtin.lineinfile:
+        path: "{{ k3s_config }}"
+        regexp: '^disable:'
+        line: 'disable: [metrics-server]'
+        insertafter: '^flannel-external-ip:'
+      when: k3s_role == 'server'
+      no_log: true
+
+    - name: Permit authenticated IPv4 WireGuard from cluster peers
+      ansible.posix.firewalld:
+        zone: public
+        port: "{{ wireguard_port }}/udp"
+        permanent: true
+        immediate: true
+        state: enabled
+      when: node_external_ip | default('') | length > 0
+
+    - name: Close obsolete public VXLAN transport
+      ansible.posix.firewalld:
+        zone: public
+        port: 8472/udp
+        permanent: true
+        immediate: true
+        state: disabled
+
+- name: Activate native WireGuard on the K3s server
+  hosts: k3s_server
+  become: true
+  gather_facts: false
+  serial: 1
+  tasks:
+    - name: Reboot the server into the new Flannel backend
+      ansible.builtin.reboot:
+        reboot_timeout: 300
+      when: activate_wireguard_native | default(false) | bool
+
+    - name: Wait for the K3s server
+      ansible.builtin.systemd:
+        name: k3s
+        state: started
+      when: activate_wireguard_native | default(false) | bool
+
+    - name: Wait for the WireGuard Flannel interface
+      ansible.builtin.command: /usr/bin/test -d /sys/class/net/flannel-wg
+      register: server_flannel_wg
+      retries: 30
+      delay: 2
+      until: server_flannel_wg.rc == 0
+      changed_when: false
+      when: activate_wireguard_native | default(false) | bool
+
+    - name: Bind server CNI interfaces to the trusted firewall zone
+      ansible.builtin.command: /usr/local/sbin/fleet-cni-trust.sh
+      changed_when: false
+      when: activate_wireguard_native | default(false) | bool
+
+- name: Activate native WireGuard on node3 to restore the hot quorum path
+  hosts: k3s_first_agent
+  become: true
+  gather_facts: false
+  serial: 1
+  tasks:
+    - name: Reboot agents into the new Flannel backend
+      ansible.builtin.reboot:
+        reboot_timeout: 300
+      when: activate_wireguard_native | default(false) | bool
+
+    - name: Wait for the K3s agent
+      ansible.builtin.systemd:
+        name: k3s-agent
+        state: started
+      when: activate_wireguard_native | default(false) | bool
+
+    - name: Wait for the WireGuard Flannel interface
+      ansible.builtin.command: /usr/bin/test -d /sys/class/net/flannel-wg
+      register: agent_flannel_wg
+      retries: 30
+      delay: 2
+      until: agent_flannel_wg.rc == 0
+      changed_when: false
+      when: activate_wireguard_native | default(false) | bool
+
+    - name: Bind agent CNI interfaces to the trusted firewall zone
+      ansible.builtin.command: /usr/local/sbin/fleet-cni-trust.sh
+      changed_when: false
+      when: activate_wireguard_native | default(false) | bool
+
+- name: Activate native WireGuard on the remaining K3s agents
+  hosts: k3s_remaining_agents
+  become: true
+  gather_facts: false
+  serial: 1
+  tasks:
+    - name: Reboot an agent into the new Flannel backend
+      ansible.builtin.reboot:
+        reboot_timeout: 300
+      when: activate_wireguard_native | default(false) | bool
+
+    - name: Wait for the K3s agent
+      ansible.builtin.systemd:
+        name: k3s-agent
+        state: started
+      when: activate_wireguard_native | default(false) | bool
+
+    - name: Wait for the WireGuard Flannel interface
+      ansible.builtin.command: /usr/bin/test -d /sys/class/net/flannel-wg
+      register: remaining_agent_flannel_wg
+      retries: 30
+      delay: 2
+      until: remaining_agent_flannel_wg.rc == 0
+      changed_when: false
+      when: activate_wireguard_native | default(false) | bool
+
+    - name: Bind agent CNI interfaces to the trusted firewall zone
+      ansible.builtin.command: /usr/local/sbin/fleet-cni-trust.sh
+      changed_when: false
+      when: activate_wireguard_native | default(false) | bool

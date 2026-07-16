@@ -23,7 +23,7 @@ spec:
         # NATS is intentionally OUT of the Linkerd mesh: at 150k ev/s the sidecar
         # proxy is the dominant tax on the firehose (every message crossed a proxy
         # on publish, on the hub, and on each consumer). Wire encryption is now
-        # NATS-native TLS (nats-server.conf) over the tailnet; meshed apps bypass
+        # NATS-native TLS (nats-server.conf) over native WireGuard; meshed apps bypass
         # the proxy for the NATS port via config.linkerd.io/skip-outbound-ports.
         linkerd.io/inject: disabled
         prometheus.io/path: /metrics
