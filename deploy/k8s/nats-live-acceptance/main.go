@@ -23,44 +23,59 @@ import (
 )
 
 type config struct {
-	hubURL           string
-	domain           string
-	placementTag     string
-	stream           string
-	subject          string
-	messages         int
-	publishers       int
-	window           int
-	mode             string
-	batchSize        int
-	atomicInflight   int
-	fastOutstanding  int
-	targetRate       float64
-	startAtUnixMS    int64
-	payloadBytes     int
-	payloadVariants  int
-	latencySamples   int
-	latencyInterval  time.Duration
-	ackTimeout       time.Duration
-	maxP95           time.Duration
-	maxP99           time.Duration
-	minRate          float64
-	cleanup          bool
-	createStream     bool
-	setupOnly        bool
-	replicas         int
-	topologyOnly     bool
-	topologyDuration time.Duration
-	topologyInterval time.Duration
-	preferredLeader  string
-	forbiddenLeader  string
-	requiredPeers    int
-	settleTimeout    time.Duration
-	producerID       string
-	insecureLocal    bool
-	user             string
-	password         string
-	caFile           string
+	hubURL            string
+	domain            string
+	placementTag      string
+	stream            string
+	subject           string
+	messages          int
+	publishers        int
+	window            int
+	mode              string
+	batchSize         int
+	atomicInflight    int
+	fastOutstanding   int
+	targetRate        float64
+	startAtUnixMS     int64
+	payloadBytes      int
+	payloadVariants   int
+	latencySamples    int
+	latencyInterval   time.Duration
+	ackTimeout        time.Duration
+	runTimeout        time.Duration
+	maxAckGap         time.Duration
+	maxP95            time.Duration
+	maxP99            time.Duration
+	minRate           float64
+	cleanup           bool
+	createStream      bool
+	setupOnly         bool
+	replicas          int
+	topologyOnly      bool
+	topologyDuration  time.Duration
+	topologyInterval  time.Duration
+	preferredLeader   string
+	forbiddenLeader   string
+	requiredPeers     int
+	settleTimeout     time.Duration
+	producerID        string
+	insecureLocal     bool
+	sliOnly           bool
+	sliServices       []string
+	sliDuration       time.Duration
+	sliInterval       time.Duration
+	sliTimeout        time.Duration
+	sliMaxRTT         time.Duration
+	sliKey            string
+	sliIngressSubject string
+	sliNATSURL        string
+	valkeyAddress     string
+	valkeyPassword    string
+	valkeyCAPEM       string
+	user              string
+	password          string
+	caFile            string
+	caPEM             string
 }
 
 type endpoint struct {
@@ -70,39 +85,40 @@ type endpoint struct {
 }
 
 type result struct {
-	Endpoint        string  `json:"endpoint"`
-	Producer        string  `json:"producer"`
-	Mode            string  `json:"mode"`
-	Server          string  `json:"server"`
-	TLSVersion      string  `json:"tls_version"`
-	TLSCipher       string  `json:"tls_cipher"`
-	Messages        int     `json:"messages"`
-	Replicas        int     `json:"replicas"`
-	BatchSize       int     `json:"batch_size"`
-	AtomicInflight  int     `json:"atomic_inflight"`
-	FastOutstanding int     `json:"fast_outstanding_acks"`
-	PayloadProfile  string  `json:"payload_profile"`
-	LatencyProfile  string  `json:"latency_profile"`
-	Acknowledged    int64   `json:"acknowledged"`
-	Errors          int64   `json:"errors"`
-	DurationMS      int64   `json:"duration_ms"`
-	StartedUnixMS   int64   `json:"started_unix_ms"`
-	FinishedUnixMS  int64   `json:"finished_unix_ms"`
-	MessagesPerSec  float64 `json:"messages_per_second"`
-	MiBPerSec       float64 `json:"mib_per_second"`
-	PubAckMinMS     float64 `json:"puback_min_ms"`
-	PubAckP50MS     float64 `json:"puback_p50_ms"`
-	PubAckP95MS     float64 `json:"puback_p95_ms"`
-	PubAckP99MS     float64 `json:"puback_p99_ms"`
-	PubAckMaxMS     float64 `json:"puback_max_ms"`
-	LatencySamples  int     `json:"latency_samples"`
-	LatencyRequired int     `json:"latency_required"`
-	Reconnects      int64   `json:"reconnects"`
-	Disconnects     int64   `json:"disconnects"`
-	AsyncErrors     int64   `json:"async_errors"`
-	Timeouts        int64   `json:"timeouts"`
-	Passed          bool    `json:"passed"`
-	Failure         string  `json:"failure,omitempty"`
+	Endpoint                string  `json:"endpoint"`
+	Producer                string  `json:"producer"`
+	Mode                    string  `json:"mode"`
+	Server                  string  `json:"server"`
+	TLSVersion              string  `json:"tls_version"`
+	TLSCipher               string  `json:"tls_cipher"`
+	Messages                int     `json:"messages"`
+	Replicas                int     `json:"replicas"`
+	BatchSize               int     `json:"batch_size"`
+	AtomicInflight          int     `json:"atomic_inflight"`
+	FastOutstanding         int     `json:"fast_outstanding_acks"`
+	PayloadProfile          string  `json:"payload_profile"`
+	LatencyProfile          string  `json:"latency_profile"`
+	Acknowledged            int64   `json:"acknowledged"`
+	Errors                  int64   `json:"errors"`
+	DurationMS              int64   `json:"duration_ms"`
+	StartedUnixMS           int64   `json:"started_unix_ms"`
+	FinishedUnixMS          int64   `json:"finished_unix_ms"`
+	MessagesPerSec          float64 `json:"messages_per_second"`
+	MiBPerSec               float64 `json:"mib_per_second"`
+	PubAckMinMS             float64 `json:"puback_min_ms"`
+	PubAckP50MS             float64 `json:"puback_p50_ms"`
+	PubAckP95MS             float64 `json:"puback_p95_ms"`
+	PubAckP99MS             float64 `json:"puback_p99_ms"`
+	PubAckMaxMS             float64 `json:"puback_max_ms"`
+	LatencySamples          int     `json:"latency_samples"`
+	LatencyRequired         int     `json:"latency_required"`
+	Reconnects              int64   `json:"reconnects"`
+	Disconnects             int64   `json:"disconnects"`
+	AsyncErrors             int64   `json:"async_errors"`
+	Timeouts                int64   `json:"timeouts"`
+	MaxPublishProgressGapMS float64 `json:"max_publish_progress_gap_ms"`
+	Passed                  bool    `json:"passed"`
+	Failure                 string  `json:"failure,omitempty"`
 }
 
 type client struct {
@@ -116,6 +132,7 @@ type connectionStats struct {
 	reconnects  atomic.Int64
 	disconnects atomic.Int64
 	asyncErrors atomic.Int64
+	failures    chan error
 }
 
 type acceptanceRun struct {
@@ -142,10 +159,20 @@ func run() (runErr error) {
 }
 
 func newAcceptanceRun() (*acceptanceRun, error) {
-	cfg := parseFlags()
-	tlsConfig, err := clientTLS(cfg.caFile)
+	return newAcceptanceRunForConfig(parseFlags())
+}
+
+func newAcceptanceRunForConfig(cfg config) (*acceptanceRun, error) {
+	tlsConfig, err := clientTLS(cfg.caFile, cfg.caPEM)
 	if err != nil {
 		return nil, err
+	}
+	if cfg.sliOnly {
+		return &acceptanceRun{
+			cfg:       cfg,
+			hub:       endpoint{label: "rpc", url: cfg.sliNATSURL},
+			tlsConfig: tlsConfig,
+		}, nil
 	}
 	hub := endpoint{label: "hub", url: cfg.hubURL, domain: cfg.domain}
 	setup, err := prepareStream(cfg, hub, tlsConfig)
@@ -156,10 +183,16 @@ func newAcceptanceRun() (*acceptanceRun, error) {
 }
 
 func (r *acceptanceRun) close(runErr *error) {
+	if r.cfg.sliOnly {
+		return
+	}
 	*runErr = errors.Join(*runErr, closeSetup(r.cfg, r.setup))
 }
 
 func (r *acceptanceRun) execute() error {
+	if r.cfg.sliOnly {
+		return r.executeSLI()
+	}
 	if r.cfg.topologyOnly {
 		return r.executeTopology()
 	}
@@ -284,19 +317,46 @@ func closeSetup(cfg config, setup client) error {
 	if err := validateTemporaryTarget(cfg.stream, cfg.subject); err != nil {
 		return fmt.Errorf("refusing unsafe stream cleanup: %w", err)
 	}
-	if err := setup.js.DeleteStream(cfg.stream); err != nil && !errors.Is(err, nats.ErrStreamNotFound) {
+	ctx, cancel := context.WithTimeout(context.Background(), cfg.ackTimeout)
+	defer cancel()
+	stream, err := setup.modern.Stream(ctx, cfg.stream)
+	if errors.Is(err, jsapi.ErrStreamNotFound) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("inspect stream %s before cleanup: %w", cfg.stream, err)
+	}
+	info, err := stream.Info(ctx)
+	if err != nil {
+		return fmt.Errorf("inspect stream %s ownership before cleanup: %w", cfg.stream, err)
+	}
+	if err := validateCleanupOwnership(cfg, info); err != nil {
+		return err
+	}
+	if err := setup.modern.DeleteStream(ctx, cfg.stream); err != nil && !errors.Is(err, jsapi.ErrStreamNotFound) {
 		return fmt.Errorf("cleanup stream %s: %w", cfg.stream, err)
 	}
 	return nil
 }
 
-func clientTLS(caFile string) (*tls.Config, error) {
-	if caFile == "" {
+func validateCleanupOwnership(cfg config, info *jsapi.StreamInfo) error {
+	if info == nil || info.Config.Name != cfg.stream || len(info.Config.Subjects) != 1 || info.Config.Subjects[0] != cfg.subject {
+		return fmt.Errorf("refusing cleanup of stream %s: subject ownership does not match %s", cfg.stream, cfg.subject)
+	}
+	return nil
+}
+
+func clientTLS(caFile, caPEM string) (*tls.Config, error) {
+	if caFile == "" && caPEM == "" {
 		return nil, nil
 	}
-	pem, err := os.ReadFile(caFile)
-	if err != nil {
-		return nil, fmt.Errorf("read CA: %w", err)
+	pem := []byte(caPEM)
+	if caFile != "" {
+		var err error
+		pem, err = os.ReadFile(caFile)
+		if err != nil {
+			return nil, fmt.Errorf("read CA: %w", err)
+		}
 	}
 	pool := x509.NewCertPool()
 	if !pool.AppendCertsFromPEM(pem) {
@@ -307,7 +367,7 @@ func clientTLS(caFile string) (*tls.Config, error) {
 
 func connect(cfg config, ep endpoint, tlsConfig *tls.Config, name string) (client, error) {
 	stats := &connectionStats{}
-	nc, err := nats.Connect(ep.url, connectionOptions(cfg, tlsConfig, name, stats)...)
+	nc, err := connectCore(cfg, ep, tlsConfig, name, stats)
 	if err != nil {
 		return client{}, err
 	}
@@ -324,6 +384,16 @@ func connect(cfg config, ep endpoint, tlsConfig *tls.Config, name string) (clien
 	return client{nc: nc, js: js, modern: modern, stats: stats}, nil
 }
 
+func connectCore(
+	cfg config,
+	ep endpoint,
+	tlsConfig *tls.Config,
+	name string,
+	stats *connectionStats,
+) (*nats.Conn, error) {
+	return nats.Connect(ep.url, connectionOptions(cfg, tlsConfig, name, stats)...)
+}
+
 func connectionOptions(
 	cfg config,
 	tlsConfig *tls.Config,
@@ -335,6 +405,11 @@ func connectionOptions(
 		nats.Timeout(5 * time.Second),
 		nats.MaxReconnects(5),
 		nats.ReconnectWait(250 * time.Millisecond),
+		// A reconnect already fails this qualification. Do not retain a replay
+		// burst in client memory while the shared production bus is unhealthy.
+		// nats.go treats zero as "use the 8 MiB default" during Connect.
+		// A negative size is the documented sentinel that actually disables it.
+		nats.ReconnectBufSize(-1),
 		nats.ReconnectHandler(stats.recordReconnect),
 		nats.DisconnectErrHandler(stats.recordDisconnect),
 		nats.ErrorHandler(stats.recordAsyncError),
@@ -350,17 +425,30 @@ func connectionOptions(
 
 func (s *connectionStats) recordReconnect(*nats.Conn) {
 	s.reconnects.Add(1)
+	s.reportFailure(errors.New("NATS connection reconnected during SLI sampling"))
 }
 
 func (s *connectionStats) recordDisconnect(_ *nats.Conn, err error) {
 	if err != nil {
 		s.disconnects.Add(1)
+		s.reportFailure(fmt.Errorf("NATS connection disconnected during SLI sampling: %w", err))
 	}
 }
 
 func (s *connectionStats) recordAsyncError(_ *nats.Conn, _ *nats.Subscription, err error) {
 	if err != nil {
 		s.asyncErrors.Add(1)
+		s.reportFailure(fmt.Errorf("NATS asynchronous error during SLI sampling: %w", err))
+	}
+}
+
+func (s *connectionStats) reportFailure(err error) {
+	if s.failures == nil || err == nil {
+		return
+	}
+	select {
+	case s.failures <- err:
+	default:
 	}
 }
 
@@ -464,10 +552,70 @@ func fillPayload(dst []byte, state uint64) {
 }
 
 type benchmarkCounters struct {
-	acked    atomic.Int64
-	failures atomic.Int64
-	timeouts atomic.Int64
-	firstErr atomic.Pointer[string]
+	acked      atomic.Int64
+	failures   atomic.Int64
+	timeouts   atomic.Int64
+	firstErr   atomic.Pointer[string]
+	started    time.Time
+	ackWindows []ackWindow
+}
+
+type ackWindow struct {
+	lastElapsed atomic.Int64
+	maxGap      atomic.Int64
+}
+
+func (c *benchmarkCounters) beginAckWindows(started time.Time, publishers int) {
+	c.started = started
+	c.ackWindows = make([]ackWindow, publishers)
+}
+
+func (c *benchmarkCounters) recordAcknowledged(publisher int, count int64) {
+	c.recordAcknowledgedAt(publisher, count, time.Since(c.started))
+}
+
+func (c *benchmarkCounters) recordAcknowledgedAt(publisher int, count int64, elapsed time.Duration) {
+	c.acked.Add(count)
+	c.ackWindows[publisher].observe(elapsed)
+}
+
+func (c *benchmarkCounters) finishAckWindows(finished time.Time) {
+	elapsed := finished.Sub(c.started)
+	for i := range c.ackWindows {
+		c.ackWindows[i].observe(elapsed)
+	}
+}
+
+func (w *ackWindow) observe(elapsed time.Duration) {
+	now := elapsed.Nanoseconds()
+	for {
+		previous := w.lastElapsed.Load()
+		if now <= previous {
+			return
+		}
+		if w.lastElapsed.CompareAndSwap(previous, now) {
+			updateMaximum(&w.maxGap, now-previous)
+			return
+		}
+	}
+}
+
+func (c *benchmarkCounters) maximumAckGap() time.Duration {
+	var maximum int64
+	for i := range c.ackWindows {
+		maximum = max(maximum, c.ackWindows[i].maxGap.Load())
+	}
+	return time.Duration(maximum)
+}
+
+func updateMaximum(value *atomic.Int64, candidate int64) {
+	current := value.Load()
+	for candidate > current {
+		if value.CompareAndSwap(current, candidate) {
+			return
+		}
+		current = value.Load()
+	}
 }
 
 type throughputMeasurement struct {
@@ -486,10 +634,11 @@ func runPublishers(
 	if err != nil {
 		return counters, time.Time{}, time.Time{}, latencyResult{}, err
 	}
-	loadCtx, cancelLoad := context.WithCancel(context.Background())
+	counters.beginAckWindows(started, len(clients))
+	loadCtx, cancelLoad := benchmarkContext(cfg)
 	latencyDone := make(chan latencyResult, 1)
 	go func() {
-		latency := latencyProbe(loadCtx, cfg, clients[0].js, payloads)
+		latency := latencyProbe(loadCtx, cfg, clients, payloads)
 		if latency.errors > 0 {
 			message := "under-load PubAck latency probe failed"
 			counters.firstErr.CompareAndSwap(nil, &message)
@@ -520,8 +669,16 @@ func runPublishers(
 	}
 	wg.Wait()
 	finished := time.Now()
+	counters.finishAckWindows(finished)
 	cancelLoad()
 	return counters, started, finished, <-latencyDone, nil
+}
+
+func benchmarkContext(cfg config) (context.Context, context.CancelFunc) {
+	if cfg.runTimeout > 0 {
+		return context.WithTimeout(context.Background(), cfg.runTimeout)
+	}
+	return context.WithCancel(context.Background())
 }
 
 func waitForStart(unixMS int64) (time.Time, error) {
@@ -547,6 +704,7 @@ func applyThroughput(
 	r.Acknowledged = measurement.counters.acked.Load()
 	r.Errors = measurement.counters.failures.Load()
 	r.Timeouts = measurement.counters.timeouts.Load()
+	r.MaxPublishProgressGapMS = durationMS(measurement.counters.maximumAckGap())
 	r.DurationMS = elapsed.Milliseconds()
 	r.StartedUnixMS = measurement.started.UnixMilli()
 	r.FinishedUnixMS = measurement.finished.UnixMilli()
@@ -583,6 +741,7 @@ func validateBenchmark(cfg config, r result, firstErr *string) error {
 		validation.latencyCoverage,
 		validation.latencyPercentiles,
 		validation.connectionStability,
+		validation.noAckStall,
 		validation.minimumRate,
 	)
 }
@@ -652,6 +811,23 @@ func (v benchmarkValidation) connectionStability() error {
 			v.result.Disconnects,
 			v.result.AsyncErrors,
 			v.result.Timeouts,
+		)
+	}
+	return nil
+}
+
+func (v benchmarkValidation) noAckStall() error {
+	if v.cfg.maxAckGap <= 0 {
+		return nil
+	}
+	if time.Duration(v.result.PubAckMaxMS*float64(time.Millisecond)) > v.cfg.maxAckGap {
+		return fmt.Errorf("maximum sampled PubAck RTT %.3fms exceeds %s gate", v.result.PubAckMaxMS, v.cfg.maxAckGap)
+	}
+	if time.Duration(v.result.MaxPublishProgressGapMS*float64(time.Millisecond)) > v.cfg.maxAckGap {
+		return fmt.Errorf(
+			"maximum publisher completion-progress gap %.3fms exceeds %s gate",
+			v.result.MaxPublishProgressGapMS,
+			v.cfg.maxAckGap,
 		)
 	}
 	return nil

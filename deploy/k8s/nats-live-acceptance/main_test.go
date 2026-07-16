@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"strings"
@@ -17,6 +20,7 @@ import (
 )
 
 type capacityProfile struct {
+	Stream                      string   `json:"stream"`
 	Replicas                    int      `json:"replicas"`
 	RatedEPS                    int      `json:"rated_eps"`
 	CeilingOfferedEPS           int      `json:"ceiling_offered_eps"`
@@ -43,12 +47,15 @@ type capacityProfile struct {
 	FastFlows                   []int    `json:"fast_flows"`
 	FastOutstandingAcks         []int    `json:"fast_outstanding_acks"`
 	CalibrationMessages         int      `json:"calibration_messages"`
+	CalibrationTargetEPS        int      `json:"calibration_target_eps"`
 	CalibrationDuration         string   `json:"calibration_duration"`
 	LatencySamplesPerSecond     int      `json:"latency_samples_per_second"`
+	MaxAckGap                   string   `json:"max_ack_gap"`
 }
 
 func TestR3CapacityProfileDefinesRateEnvelope(t *testing.T) {
 	profile := readCapacityProfile(t)
+	require.Equal(t, "R3_SHADOW_BENCH", profile.Stream)
 	require.Equal(t, 3, profile.Replicas)
 	require.Equal(t, 120_000, profile.RatedEPS)
 	require.Equal(t, 126_000, profile.CeilingOfferedEPS)
@@ -97,8 +104,10 @@ func TestR3CapacityProfileDefinesCalibrationMatrix(t *testing.T) {
 	require.Equal(t, []int{32, 64, 128}, profile.FastFlows)
 	require.Equal(t, []int{2, 4}, profile.FastOutstandingAcks)
 	require.Equal(t, 1_200_000, profile.CalibrationMessages)
+	require.Equal(t, 120_000, profile.CalibrationTargetEPS)
 	require.Equal(t, "10s", profile.CalibrationDuration)
 	require.Equal(t, 20, profile.LatencySamplesPerSecond)
+	require.Equal(t, "2s", profile.MaxAckGap)
 }
 
 func TestTemporaryR3StreamMatchesProductionShapedRetention(t *testing.T) {
@@ -156,6 +165,22 @@ func TestDestructiveOperationsRejectProductionTargets(t *testing.T) {
 	}
 }
 
+func TestCleanupRequiresExactStreamAndSubjectOwnership(t *testing.T) {
+	cfg := config{stream: "R3_SHADOW_BENCH", subject: "twitch.outgress.bench.r3.run.async"}
+	owned := &jsapi.StreamInfo{Config: jsapi.StreamConfig{
+		Name: cfg.stream, Subjects: []string{cfg.subject},
+	}}
+	require.NoError(t, validateCleanupOwnership(cfg, owned))
+
+	wrongSubject := *owned
+	wrongSubject.Config.Subjects = []string{"twitch.outgress.bench.r3.someone-else"}
+	require.Error(t, validateCleanupOwnership(cfg, &wrongSubject))
+
+	wrongName := *owned
+	wrongName.Config.Name = "R3_SHADOW_OTHER"
+	require.Error(t, validateCleanupOwnership(cfg, &wrongName))
+}
+
 func TestR3ShadowCannotBePlacementPinnedOrDowngraded(t *testing.T) {
 	base := config{
 		stream: "R3_SHADOW_TEST", subject: "twitch.outgress.bench.r3.test",
@@ -208,6 +233,18 @@ func TestTopologyObserverDetectsLeaderChange(t *testing.T) {
 	}
 }
 
+func TestTopologyObserverRejectsTransientUnhealthyFollower(t *testing.T) {
+	for _, mutate := range []func(*jsapi.PeerInfo){
+		func(peer *jsapi.PeerInfo) { peer.Current = false },
+		func(peer *jsapi.PeerInfo) { peer.Offline = true },
+	} {
+		info := healthyTopology()
+		mutate(info.Cluster.Replicas[0])
+		observer := topologyObserver{report: topologyReport{ForbiddenLeader: "nats-2"}}
+		require.ErrorContains(t, observer.observe(info), "became unhealthy")
+	}
+}
+
 func TestLeaderAdvisoryDetectsTransientForbiddenLeader(t *testing.T) {
 	watch := &leaderAdvisoryWatch{stream: "R3_SHADOW_TEST"}
 	watch.observe(&nats.Msg{Data: []byte(`{"stream":"R3_SHADOW_TEST","leader":"nats-2"}`)})
@@ -248,6 +285,44 @@ func TestR3RunnerIsGuardedAndNotKustomized(t *testing.T) {
 	}
 	if !bytes.Contains(script, []byte(`"${result_files[@]}"`)) {
 		t.Fatal("R3 summary does not use an explicit publisher result list")
+	}
+	if bytes.Contains(script, []byte(`name:"worker-env"`)) {
+		t.Fatal("R3 runner still references the stale worker-env Secret")
+	}
+	if bytes.Contains(script, []byte(`key:"VALKEY_ADDR"`)) {
+		t.Fatal("R3 SLI address must use the explicit Sentinel Service so node-local reads stay enabled")
+	}
+	for _, required := range [][]byte{
+		[]byte(`NATS_BENCH_PUBLISHER_SECRET:-sesame-env`),
+		[]byte(`NATS_BENCH_ADMIN_RPC_SECRET:-console-admin-env`),
+		[]byte(`if $role == "control" then`),
+		[]byte(`elif $role == "sli" then`),
+		[]byte(`--request-timeout="$broker_query_timeout"`),
+		[]byte(`-max-ack-gap=`),
+		[]byte(`limits:{cpu:"1"`),
+		[]byte(`nodeSelector:{"kubernetes.io/hostname":$node}`),
+		[]byte(`monitor_cluster_health "$health_monitor_stop"`),
+		[]byte(`wait_for_meta_idle pre-create`),
+		[]byte(`stop_publisher_pods`),
+		[]byte(`start_sli_monitors`),
+		[]byte(`automountServiceAccountToken:false`),
+		[]byte(`tls://nats-leaf-local.production.svc.cluster.local:4222`),
+		[]byte(`valkey.valkey.svc.cluster.local:26380`),
+		[]byte(`VALKEY_LOCAL_ADDR`),
+		[]byte(`stream_topologies`),
+		[]byte(`--since=5m`),
+		[]byte(`qualifier_batch=$(jq -er '.batch_size'`),
+		[]byte(`canary_rates=${R3_CANARY_RATES:-"12000 30000 60000 90000"}`),
+	} {
+		if !bytes.Contains(script, required) {
+			t.Fatalf("R3 runner is missing safety invariant %q", required)
+		}
+	}
+	if bytes.Contains(script, []byte(`nodeName:$node`)) {
+		t.Fatal("R3 runner bypasses scheduler fit with spec.nodeName")
+	}
+	if bytes.Contains(script, []byte(`control_pod=${pods[`)) {
+		t.Fatal("R3 runner still shares the setup credential with a publisher pod")
 	}
 }
 
@@ -293,6 +368,153 @@ func TestPublishModesHonorCanceledProcessContext(t *testing.T) {
 		}
 	}
 }
+
+func TestBenchmarkContextEnforcesRunTimeout(t *testing.T) {
+	ctx, cancel := benchmarkContext(config{runTimeout: time.Millisecond})
+	defer cancel()
+	select {
+	case <-ctx.Done():
+		require.ErrorIs(t, ctx.Err(), context.DeadlineExceeded)
+	case <-time.After(time.Second):
+		t.Fatal("benchmark context ignored its run timeout")
+	}
+}
+
+func TestBenchmarkConnectionsDisableReconnectBuffering(t *testing.T) {
+	url := runMinimalNATSServer(t)
+	nc, err := nats.Connect(url, connectionOptions(config{}, nil, "test", &connectionStats{})...)
+	require.NoError(t, err)
+	t.Cleanup(nc.Close)
+	// This must be asserted after Connect: nats.go replaces zero with its
+	// default 8 MiB reconnect buffer while constructing the connection.
+	require.Equal(t, -1, nc.Opts.ReconnectBufSize)
+}
+
+func runMinimalNATSServer(t *testing.T) string {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = listener.Close() })
+
+	go func() {
+		conn, acceptErr := listener.Accept()
+		if acceptErr != nil {
+			return
+		}
+		defer conn.Close()
+		port := listener.Addr().(*net.TCPAddr).Port
+		_, writeErr := fmt.Fprintf(conn,
+			"INFO {\"server_id\":\"test\",\"version\":\"2.14.0\",\"proto\":1,\"host\":\"127.0.0.1\",\"port\":%d,\"max_payload\":1048576}\r\n",
+			port,
+		)
+		if writeErr != nil {
+			return
+		}
+		scanner := bufio.NewScanner(conn)
+		for scanner.Scan() {
+			if scanner.Text() != "PING" {
+				continue
+			}
+			_, writeErr = conn.Write([]byte("PONG\r\n"))
+			if writeErr != nil {
+				return
+			}
+			for scanner.Scan() {
+				if scanner.Text() == "PING" {
+					_, _ = conn.Write([]byte("PONG\r\n"))
+				}
+			}
+			return
+		}
+	}()
+	return "nats://" + listener.Addr().String()
+}
+
+func TestAcknowledgementGapTracksRecoveredStalls(t *testing.T) {
+	counters := &benchmarkCounters{}
+	counters.beginAckWindows(time.Now(), 2)
+	counters.recordAcknowledgedAt(0, 10, 100*time.Millisecond)
+	counters.recordAcknowledgedAt(0, 10, 250*time.Millisecond)
+	counters.recordAcknowledgedAt(0, 10, 2*time.Second)
+	counters.recordAcknowledgedAt(1, 10, 100*time.Millisecond)
+	finished := counters.started.Add(2 * time.Second)
+	counters.finishAckWindows(finished)
+
+	require.Equal(t, int64(40), counters.acked.Load())
+	require.Equal(t, 1900*time.Millisecond, counters.maximumAckGap())
+	result := result{
+		Acknowledged:            40,
+		MaxPublishProgressGapMS: durationMS(counters.maximumAckGap()),
+	}
+	err := validateBenchmark(config{messages: 40, mode: "atomic", maxAckGap: time.Second}, result, nil)
+	require.ErrorContains(t, err, "maximum publisher completion-progress gap")
+}
+
+func TestAsyncDrainObservesResolvedPubAcksBeforeWindowFills(t *testing.T) {
+	counters := &benchmarkCounters{}
+	counters.beginAckWindows(time.Now(), 1)
+	job := publishJob{publisher: 0, counters: counters}
+	ready := resolvedPubAckFuture()
+	pending := unresolvedPubAckFuture()
+
+	remaining, err := drainReadyAcknowledgements(job, []pendingPublish{
+		{ok: ready.Ok(), err: ready.Err(), sequence: 0},
+		{ok: pending.Ok(), err: pending.Err(), sequence: 1},
+	})
+	require.NoError(t, err)
+	require.Len(t, remaining, 1)
+	require.Equal(t, messageSequence(1), remaining[0].sequence)
+	require.Equal(t, int64(1), counters.acked.Load())
+}
+
+func TestAsyncDrainPropagatesReadyPubAckFailure(t *testing.T) {
+	counters := &benchmarkCounters{}
+	counters.beginAckWindows(time.Now(), 1)
+	failed := failedPubAckFuture(nats.ErrTimeout)
+
+	remaining, err := drainReadyAcknowledgements(
+		publishJob{publisher: 0, counters: counters},
+		[]pendingPublish{{ok: failed.Ok(), err: failed.Err(), sequence: 7}},
+	)
+	require.Nil(t, remaining)
+	require.ErrorContains(t, err, "PubAck 7")
+	require.Equal(t, int64(1), counters.failures.Load())
+	require.Equal(t, int64(1), counters.timeouts.Load())
+}
+
+func TestSampledPubAckMaxRejectsARecoveredLatencyStall(t *testing.T) {
+	result := result{Acknowledged: 40, PubAckMaxMS: 2_001}
+	err := validateBenchmark(config{messages: 40, maxAckGap: 2 * time.Second}, result, nil)
+	require.ErrorContains(t, err, "maximum sampled PubAck RTT")
+}
+
+type stubPubAckFuture struct {
+	ok  chan *nats.PubAck
+	err chan error
+}
+
+func resolvedPubAckFuture() *stubPubAckFuture {
+	future := unresolvedPubAckFuture()
+	future.ok <- &nats.PubAck{}
+	return future
+}
+
+func failedPubAckFuture(err error) *stubPubAckFuture {
+	future := unresolvedPubAckFuture()
+	future.err <- err
+	return future
+}
+
+func unresolvedPubAckFuture() *stubPubAckFuture {
+	return &stubPubAckFuture{
+		ok:  make(chan *nats.PubAck, 1),
+		err: make(chan error, 1),
+	}
+}
+
+func (f *stubPubAckFuture) Ok() <-chan *nats.PubAck { return f.ok }
+func (f *stubPubAckFuture) Err() <-chan error       { return f.err }
+func (f *stubPubAckFuture) Msg() *nats.Msg          { return nil }
 
 func TestVariedPayloadRingIsFixedSizeValidJSON(t *testing.T) {
 	payloads := benchmarkPayloads(256, 8)

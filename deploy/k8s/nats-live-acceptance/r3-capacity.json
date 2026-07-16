@@ -1,5 +1,6 @@
 {
   "profile": "r3-120k-shadow",
+  "stream": "R3_SHADOW_BENCH",
   "replicas": 3,
   "rated_eps": 120000,
   "ceiling_offered_eps": 126000,
@@ -26,10 +27,12 @@
   "fast_flows": [32, 64, 128],
   "fast_outstanding_acks": [2, 4],
   "calibration_messages": 1200000,
+  "calibration_target_eps": 120000,
   "calibration_duration": "10s",
   "latency_samples_per_second": 20,
   "puback_p95_max": "20ms",
   "puback_p99_max": "50ms",
+  "max_ack_gap": "2s",
   "ceiling_duration": "5m",
   "operating_duration": "15m"
 }
