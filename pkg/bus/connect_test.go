@@ -32,6 +32,15 @@ func TestBusURLFallsBackWhenNoHub(t *testing.T) {
 	}
 }
 
+func TestBusPublishURLPrefersNodeLocalOverride(t *testing.T) {
+	t.Setenv("NATS_HUB_URL", "nats://nats-1.nats-headless:4222")
+	t.Setenv("NATS_HUB_PUBLISH_URL", "nats://nats:4222")
+
+	if got := busPublishURL("ignored"); got != "nats://nats:4222" {
+		t.Fatalf("busPublishURL = %q, want node-local hub Service", got)
+	}
+}
+
 // RPC stays leaf-only even once NATS_HUB_URL is set. The leaf Service handles
 // cross-node failover, while the hub is reserved for streams.
 func TestRPCServerListStaysOnLeaf(t *testing.T) {
