@@ -103,7 +103,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: users
-          image: ghcr.io/adamousmer/itsbagelbot/users:main-1784156294-ff2f11522157@sha256:76f93dfc8ab99c008413e48ff7ac22285d5dd7ecbbe52b5e001fd26f80eb7efe # {"$imagepolicy": "flux-system:users"}
+          image: ghcr.io/adamousmer/itsbagelbot/users:main-1784165139-0cb852f7e5da@sha256:1643bae509fc758d9e6acdd82503e0b40cbc8b8535e370b27257f632504168bd # {"$imagepolicy": "flux-system:users"}
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST
