@@ -8,6 +8,18 @@ import (
 	"fmt"
 )
 
+// The FeedCounterFunc type is an adapter to allow the use of ordinary
+// function as FeedCounter mutator.
+type FeedCounterFunc func(context.Context, *ent.FeedCounterMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f FeedCounterFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.FeedCounterMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.FeedCounterMutation", m)
+}
+
 // The GoveeCredentialFunc type is an adapter to allow the use of ordinary
 // function as GoveeCredential mutator.
 type GoveeCredentialFunc func(context.Context, *ent.GoveeCredentialMutation) (ent.Value, error)

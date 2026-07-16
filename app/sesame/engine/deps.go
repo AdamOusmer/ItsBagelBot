@@ -90,6 +90,40 @@ type Deps struct {
 	// builds the channel command-page link from it. Empty falls back to the
 	// production dashboard origin.
 	PublicBaseURL string
+	// Personality is the small state behind the built-in personality module
+	// (fact rotation, feed counter, stream mood); ValkeyPersonality is the
+	// default. nil degrades gracefully: facts go random, the feed count is
+	// omitted and the mood re-rolls per message.
+	Personality PersonalityStore
+}
+
+// FeedCounts is one feeding's readout: how often the bagel has been fed today
+// (valkey, TTL window) and ever (the modules service's permanent DB row). Both
+// counters are global across every channel.
+type FeedCounts struct {
+	Today uint64
+	Total uint64
+}
+
+// PersonalityStore is the state the personality module leans on. Fact and mood
+// are best-effort: the module treats an error like a nil store and falls back
+// to stateless randomness. Feed is not: without counts there is no feed line,
+// so an error there silences the reaction.
+type PersonalityStore interface {
+	// FactCursor bumps and returns a per-channel monotonic counter; the module
+	// indexes the fact list with it modulo the list length.
+	FactCursor(ctx context.Context, broadcasterID uint64) (int64, error)
+	// Feed records one feeding and returns the counts. Global: one bagel,
+	// shared across every channel.
+	Feed(ctx context.Context) (FeedCounts, error)
+	// Mood returns the stream's mood, seeding it with candidate when unset.
+	Mood(ctx context.Context, broadcasterID uint64, candidate string) (string, error)
+}
+
+// FeedTotalBumper increments the permanent global feed counter and returns the
+// new lifetime total; PersonalityRPC (the modules service) is the default.
+type FeedTotalBumper interface {
+	FeedBump(ctx context.Context) (uint64, error)
 }
 
 // IsLiveChecker is the read-only slice of the live store: just "is this
