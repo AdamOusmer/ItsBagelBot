@@ -45,9 +45,15 @@ var personalityThanksPack = []string{
 	"{user} I ain't do nothing.",
 }
 
-// personalityPetPack answers "pet the bagel".
-var personalityPetPack = []string{
+// personalityAffectionPack answers "pet the bagel" and "hug the bagel": one
+// merged reaction for physical affection.
+var personalityAffectionPack = []string{
+	"hugging {user}. careful. I crumble under pressure. literally.",
 	"Acceptable. Continue.",
+	"This is nice. Don't tell the toaster.",
+	"accepted. you smell like warm bread. highest compliment I have.",
+	"hug logged. emotional support bagel, on duty.",
+	"*squeeze* ok. ok. that's enough feelings for one stream.",
 }
 
 // personalityFeedCountPack answers "feed the bagel". Every line takes two %d,
@@ -63,21 +69,15 @@ var personalityFeedCountPack = []string{
 	"Are you calling me hangry? *Chews my %d of the day appreciatively* %d lifetime.",
 }
 
-// personalityHugPack answers "hug the bagel".
-var personalityHugPack = []string{
-	"hugging {user}. careful. I crumble under pressure. literally.",
-	"*hugs back* this is nice. don't tell the toaster.",
-	"accepted. you smell like warm bread. highest compliment I have.",
-	"hug logged. emotional support bagel, on duty.",
-	"*squeeze* ok. ok. that's enough feelings for one stream.",
-}
-
 // personalityBoopPack answers "boop the bagel".
 var personalityBoopPack = []string{
 	"boop received. processing. ok. you may live.",
 	"boop registered. this changes nothing between us, {user}.",
-	"*boops back* justice.",
+	"*Boops back* JUSTICE !!",
 	"do I look like a button. don't answer that. I'm round.",
+	"Does this mean we are friends now? Idk if im into that atm",
+	"Is this how humans show affection? How peculiar..",
+	"Dont touch me, Im expensive",
 }
 
 // personalityGnPack answers "gn bagel" / "goodnight bagel".
