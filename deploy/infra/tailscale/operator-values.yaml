@@ -1,0 +1,20 @@
+# Values for the manually installed tailscale-operator Helm release.
+#
+# Keep this separate from kustomization.yaml: the existing release owns its
+# OAuth Secret and must be upgraded with --reuse-values until that credential
+# is migrated to Doppler/Flux. Apply resource changes with:
+#
+#   helm upgrade tailscale-operator tailscale/tailscale-operator \
+#     --namespace tailscale --version 1.98.4 --reuse-values \
+#     --values deploy/infra/tailscale/operator-values.yaml
+#
+# The operator currently uses about 3m CPU and 200Mi memory. Memory is the
+# scheduling dimension here; CPU remains burstable for reconciliation storms.
+operatorConfig:
+  resources:
+    requests:
+      cpu: 25m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
