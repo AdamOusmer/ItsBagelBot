@@ -483,7 +483,6 @@ const UI = {
   copied: { en: 'Copied!', fr: 'Copié!' },
   copyFail: { en: 'Select and copy the text above', fr: 'Sélectionnez et copiez le texte ci-dessus' },
   openModule: { en: 'Open the module page', fr: 'Ouvrir la page du module' },
-  statusReady: { en: 'Ready', fr: 'Prête' },
   statusName: { en: 'Check the name', fr: 'Vérifiez le nom' },
   statusLines: { en: 'Too many lines (max 5)', fr: 'Trop de lignes (max 5)' },
   statusLineLen: { en: 'A line is over 500 characters', fr: 'Une ligne dépasse 500 caractères' },
