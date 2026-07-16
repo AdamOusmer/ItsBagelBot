@@ -43,18 +43,22 @@
     samples?: Record<string, string>;
     // samplesOnly drops the default command samples entirely: gateway module
     // replies substitute ONLY their own tokens ({player}, {wins}, ...) — the
-    // bot never expands {user}/{uptime} there, so previewing those as values
+    // bot never expands {user}/{random} there, so previewing those as values
     // would rehearse a reply the bot cannot produce. Unknown tokens stay
     // marked, exactly like a typo in a custom command.
     samplesOnly?: boolean;
   } = $props();
 
+  // Keys mirror what sesame actually expands (custom commands: expandCommand in
+  // app/sesame/engine/vars.go; the rest are alert-module tokens).
   const DEFAULT_SAMPLES: Record<string, string> = {
     user: 'sesame_sam',
+    sender: 'sesame_sam',
     args: 'aaaa',
     target: 'ferret_king',
-    uptime: '3h 24m',
-    followage: '8 months',
+    touser: 'ferret_king',
+    channel: 'bagel_bakery',
+    random: '57',
     tier: '1000',
     bits: '500',
     raider: 'CrustyCrumbs',
@@ -142,15 +146,46 @@
   // Substituted segments over the *stripped* body: known tokens become
   // highlighted sample values, unknown {tokens} stay marked so typos are visible.
   type Seg = { text: string; kind: 'plain' | 'sample' | 'unknown' };
-  function segmentsOf(body: string, samples: Record<string, string>): Seg[] {
+
+  // Deterministic stand-ins for the dynamic tokens sesame resolves at run time
+  // ({counter:x} via the loyalty bump, {random:min-max}/{choice:a,b,c} via
+  // module.ParseDynamic). Prefix matching is case-sensitive like the bot's;
+  // null = the bot would leave the token literal.
+  function dynamicSample(raw: string): string | null {
+    if (raw.startsWith('counter:')) return raw.length > 'counter:'.length ? '42' : null;
+    if (raw.startsWith('random:')) return randomSample(raw.slice('random:'.length));
+    if (raw.startsWith('choice:')) return raw.slice('choice:'.length).split(',')[0];
+    return null;
+  }
+
+  // Midpoint of a valid {random:min-max} range, so the rehearsal shows a value
+  // the bot could roll without re-rolling on every keystroke.
+  function randomSample(range: string): string | null {
+    const m = range.match(/^(\d+)-(\d+)$/);
+    if (!m) return null;
+    const min = Number(m[1]);
+    const max = Number(m[2]);
+    return max >= min ? String(Math.floor((min + max) / 2)) : null;
+  }
+
+  // One token's segment. dynamic=false (samplesOnly callers) skips the dynamic
+  // forms and leaves colon tokens plain: gateway replies never resolve them.
+  function tokenSeg(span: string, raw: string, samples: Record<string, string>, dynamic: boolean): Seg {
+    const key = raw.toLowerCase();
+    if (key in samples) return { text: samples[key], kind: 'sample' };
+    const dyn = dynamic ? dynamicSample(raw) : null;
+    if (dyn !== null) return { text: dyn, kind: 'sample' };
+    if (raw.includes(':') && !dynamic) return { text: span, kind: 'plain' };
+    return { text: span, kind: 'unknown' };
+  }
+
+  function segmentsOf(body: string, samples: Record<string, string>, dynamic: boolean): Seg[] {
     const out: Seg[] = [];
-    const re = /\{([a-z_]+)\}/gi;
+    const re = /\{([a-z_]+(?::[^{}]*)?)\}/gi;
     let last = 0;
     for (const m of body.matchAll(re)) {
       if (m.index > last) out.push({ text: body.slice(last, m.index), kind: 'plain' });
-      const key = m[1].toLowerCase();
-      if (key in samples) out.push({ text: samples[key], kind: 'sample' });
-      else out.push({ text: m[0], kind: 'unknown' });
+      out.push(tokenSeg(m[0], m[1], samples, dynamic));
       last = m.index + m[0].length;
     }
     if (last < body.length) out.push({ text: body.slice(last), kind: 'plain' });
@@ -166,7 +201,7 @@
       .slice(0, RESPONSE_MAX_LINES)
       .map((line) => {
         const p = parseLine(line);
-        return { ...p, segments: segmentsOf(p.body, SAMPLES) };
+        return { ...p, segments: segmentsOf(p.body, SAMPLES, !samplesOnly) };
       })
   );
 

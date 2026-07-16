@@ -306,7 +306,7 @@ export interface ModuleReply {
   previewArgs?: string;
   // previewSamples maps this reply's tokens to sample values. When command is
   // set the preview substitutes ONLY these (samplesOnly): sesame expands only
-  // the module's own tokens here, so the generic {user}/{uptime} samples would
+  // the module's own tokens here, so the generic {user}/{random} samples would
   // preview values the bot will never produce.
   previewSamples?: Record<string, string>;
   // tokens is the editor's insert palette (without braces), replacing the
