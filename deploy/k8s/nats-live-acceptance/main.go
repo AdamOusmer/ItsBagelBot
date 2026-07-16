@@ -66,6 +66,7 @@ type config struct {
 	sliInterval       time.Duration
 	sliTimeout        time.Duration
 	sliMaxRTT         time.Duration
+	sliIngressMaxRTT  time.Duration
 	sliKey            string
 	sliIngressSubject string
 	sliNATSURL        string

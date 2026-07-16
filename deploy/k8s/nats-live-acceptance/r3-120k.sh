@@ -93,6 +93,7 @@ canary_rates=${R3_CANARY_RATES:-"12000 30000 60000 90000"}
 sli_duration=${R3_SLI_DURATION:-3h}
 sli_interval=${R3_SLI_INTERVAL:-5s}
 sli_max_rtt=${R3_SLI_MAX_RTT:-250ms}
+sli_ingress_max_rtt=${R3_SLI_INGRESS_MAX_RTT:-500ms}
 pod_lifetime_seconds=
 canary_rate_values=()
 
@@ -841,6 +842,7 @@ start_sli_monitors() {
 			/tmp/nats-live-acceptance \
 			-sli-only=true -duration="$sli_duration" -interval="$sli_interval" \
 			-timeout=2s -max-rtt="$sli_max_rtt" \
+			-ingress-max-rtt="$sli_ingress_max_rtt" \
 			-producer-id="r3-shadow-sli-${nodes[$i]}" \
 			-key="acceptance:sli:${run_id}:${nodes[$i]}" \
 			>"${sli_monitor_files[$i]}" 2>"${sli_monitor_errs[$i]}" &
@@ -984,7 +986,8 @@ prepare_trial_stream() {
 }
 
 messages_for_node() {
-  local total=$1 index=$2 share=$((total / 3))
+	local total=$1 index=$2 share
+	share=$((total / 3))
   if ((index == 2)); then
     echo $((total - 2 * share))
   else
@@ -1146,6 +1149,25 @@ publisher_results_complete() {
 	done
 }
 
+report_recent_health() {
+	if [[ ! -s $health_monitor_file ]]; then
+		return 0
+	fi
+	tail -3 "$health_monitor_file" | jq -c '{
+		observed_at,
+		phase,
+		deployments_healthy:all(.deployments[];
+			.desired == .available and .desired == .ready and .desired == .updated),
+		production_pods:(.production_pods | length),
+		nats_ready:([.nats[] | select(.ready == true)] | length),
+		valkey_ready:([.valkey[] | select(.ready == true)] | length),
+		stream_leaders:[.stream_topologies[] | {stream,leader}],
+		consumer_pending:.consumers.pending,
+		consumer_ack_pending:.consumers.ack_pending,
+		consumer_redelivered:.consumers.redelivered
+	}' >&2 || true
+}
+
 run_trial() {
   local label=$1 mode=$2 batch_size=$3 fast_outstanding=$4
   local target=$5 total_messages=$6 load_seconds=$7 minimum=$8 compatible=$9
@@ -1216,7 +1238,7 @@ run_trial() {
     for file in "$results_dir/${label}"-*.err; do
       sed "s#^#$(basename "$file"): #" "$file" >&2 || true
     done
-		tail -20 "$health_monitor_file" >&2 || true
+		report_recent_health
 			if ((supervision_status == 2)); then
 			# A lost exec stream or safety monitor means a remote publisher may still
 			# be running. Delete and wait for all publisher pods before stream cleanup;

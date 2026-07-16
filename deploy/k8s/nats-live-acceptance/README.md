@@ -138,6 +138,9 @@ and a zero-load cooldown. The circuit breaker requires:
   `twitch.ingress.admin.shards.get` check proving every desired WebSocket shard
   remains connected/bound/fresh with an unchanged session; and isolated TTL
   Valkey PING/master-SET/node-local-GET convergence measurements on every lane.
+  Ordinary RPC and Valkey samples keep a 250 ms ceiling. The heavier read-only
+  shard snapshot uses a separate 500 ms ceiling and is still included in the
+  reported p95, p99, and maximum latency.
 
 On a lost exec stream or safety-monitor failure, the three publisher pods are
 deleted and confirmed gone before the separately credentialed controller
