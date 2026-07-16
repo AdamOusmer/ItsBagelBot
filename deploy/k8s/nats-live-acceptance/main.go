@@ -357,10 +357,17 @@ func deleteOwnedStream(ctx context.Context, cfg config, setup client) error {
 }
 
 func validateCleanupOwnership(cfg config, info *jsapi.StreamInfo) error {
-	if info == nil || info.Config.Name != cfg.stream || len(info.Config.Subjects) != 1 || info.Config.Subjects[0] != cfg.subject {
+	if !cleanupOwnershipMatches(cfg, info) {
 		return fmt.Errorf("refusing cleanup of stream %s: subject ownership does not match %s", cfg.stream, cfg.subject)
 	}
 	return nil
+}
+
+func cleanupOwnershipMatches(cfg config, info *jsapi.StreamInfo) bool {
+	if info == nil || info.Config.Name != cfg.stream {
+		return false
+	}
+	return len(info.Config.Subjects) == 1 && info.Config.Subjects[0] == cfg.subject
 }
 
 func clientTLS(caFile, caPEM string) (*tls.Config, error) {
