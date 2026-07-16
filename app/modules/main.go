@@ -168,6 +168,18 @@ func main() {
 	}); err != nil {
 		log.Fatal("failed to subscribe quotes rpc", zap.Error(err))
 	}
+
+	// Personality verbs (the sesame personality module's permanent feed counter).
+	if err := rpc.SubscribePersonality(rpc.PersonalityWiring{
+		NC:         nc,
+		Repo:       repository.NewPersonality(client),
+		Prefix:     dashboardSubject + ".personality",
+		QueueGroup: "modules-rpc",
+		App:        nrApp,
+		Log:        log,
+	}); err != nil {
+		log.Fatal("failed to subscribe personality rpc", zap.Error(err))
+	}
 	health.Serve(env.Get("LISTEN_ADDR", ":8080"), nc.IsConnected)
 
 	log.Info("modules service ready", zap.String("projection_subject", projectionSubject))

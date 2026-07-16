@@ -3,7 +3,7 @@
 package ent
 
 import (
-	"ItsBagelBot/app/modules/ent/goveecredential"
+	"ItsBagelBot/app/modules/ent/feedcounter"
 	"ItsBagelBot/app/modules/ent/predicate"
 	"context"
 	"fmt"
@@ -16,65 +16,65 @@ import (
 	"entgo.io/ent/schema/field"
 )
 
-// GoveeCredentialQuery is the builder for querying GoveeCredential entities.
-type GoveeCredentialQuery struct {
+// FeedCounterQuery is the builder for querying FeedCounter entities.
+type FeedCounterQuery struct {
 	config
 	ctx        *QueryContext
-	order      []goveecredential.OrderOption
+	order      []feedcounter.OrderOption
 	inters     []Interceptor
-	predicates []predicate.GoveeCredential
+	predicates []predicate.FeedCounter
 	modifiers  []func(*sql.Selector)
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
 	path func(context.Context) (*sql.Selector, error)
 }
 
-// Where adds a new predicate for the GoveeCredentialQuery builder.
-func (_q *GoveeCredentialQuery) Where(ps ...predicate.GoveeCredential) *GoveeCredentialQuery {
+// Where adds a new predicate for the FeedCounterQuery builder.
+func (_q *FeedCounterQuery) Where(ps ...predicate.FeedCounter) *FeedCounterQuery {
 	_q.predicates = append(_q.predicates, ps...)
 	return _q
 }
 
 // Limit the number of records to be returned by this query.
-func (_q *GoveeCredentialQuery) Limit(limit int) *GoveeCredentialQuery {
+func (_q *FeedCounterQuery) Limit(limit int) *FeedCounterQuery {
 	_q.ctx.Limit = &limit
 	return _q
 }
 
 // Offset to start from.
-func (_q *GoveeCredentialQuery) Offset(offset int) *GoveeCredentialQuery {
+func (_q *FeedCounterQuery) Offset(offset int) *FeedCounterQuery {
 	_q.ctx.Offset = &offset
 	return _q
 }
 
 // Unique configures the query builder to filter duplicate records on query.
 // By default, unique is set to true, and can be disabled using this method.
-func (_q *GoveeCredentialQuery) Unique(unique bool) *GoveeCredentialQuery {
+func (_q *FeedCounterQuery) Unique(unique bool) *FeedCounterQuery {
 	_q.ctx.Unique = &unique
 	return _q
 }
 
 // Order specifies how the records should be ordered.
-func (_q *GoveeCredentialQuery) Order(o ...goveecredential.OrderOption) *GoveeCredentialQuery {
+func (_q *FeedCounterQuery) Order(o ...feedcounter.OrderOption) *FeedCounterQuery {
 	_q.order = append(_q.order, o...)
 	return _q
 }
 
-// First returns the first GoveeCredential entity from the query.
-// Returns a *NotFoundError when no GoveeCredential was found.
-func (_q *GoveeCredentialQuery) First(ctx context.Context) (*GoveeCredential, error) {
+// First returns the first FeedCounter entity from the query.
+// Returns a *NotFoundError when no FeedCounter was found.
+func (_q *FeedCounterQuery) First(ctx context.Context) (*FeedCounter, error) {
 	nodes, err := _q.Limit(1).All(setContextOp(ctx, _q.ctx, ent.OpQueryFirst))
 	if err != nil {
 		return nil, err
 	}
 	if len(nodes) == 0 {
-		return nil, &NotFoundError{goveecredential.Label}
+		return nil, &NotFoundError{feedcounter.Label}
 	}
 	return nodes[0], nil
 }
 
 // FirstX is like First, but panics if an error occurs.
-func (_q *GoveeCredentialQuery) FirstX(ctx context.Context) *GoveeCredential {
+func (_q *FeedCounterQuery) FirstX(ctx context.Context) *FeedCounter {
 	node, err := _q.First(ctx)
 	if err != nil && !IsNotFound(err) {
 		panic(err)
@@ -82,22 +82,22 @@ func (_q *GoveeCredentialQuery) FirstX(ctx context.Context) *GoveeCredential {
 	return node
 }
 
-// FirstID returns the first GoveeCredential ID from the query.
-// Returns a *NotFoundError when no GoveeCredential ID was found.
-func (_q *GoveeCredentialQuery) FirstID(ctx context.Context) (id int, err error) {
+// FirstID returns the first FeedCounter ID from the query.
+// Returns a *NotFoundError when no FeedCounter ID was found.
+func (_q *FeedCounterQuery) FirstID(ctx context.Context) (id int, err error) {
 	var ids []int
 	if ids, err = _q.Limit(1).IDs(setContextOp(ctx, _q.ctx, ent.OpQueryFirstID)); err != nil {
 		return
 	}
 	if len(ids) == 0 {
-		err = &NotFoundError{goveecredential.Label}
+		err = &NotFoundError{feedcounter.Label}
 		return
 	}
 	return ids[0], nil
 }
 
 // FirstIDX is like FirstID, but panics if an error occurs.
-func (_q *GoveeCredentialQuery) FirstIDX(ctx context.Context) int {
+func (_q *FeedCounterQuery) FirstIDX(ctx context.Context) int {
 	id, err := _q.FirstID(ctx)
 	if err != nil && !IsNotFound(err) {
 		panic(err)
@@ -105,10 +105,10 @@ func (_q *GoveeCredentialQuery) FirstIDX(ctx context.Context) int {
 	return id
 }
 
-// Only returns a single GoveeCredential entity found by the query, ensuring it only returns one.
-// Returns a *NotSingularError when more than one GoveeCredential entity is found.
-// Returns a *NotFoundError when no GoveeCredential entities are found.
-func (_q *GoveeCredentialQuery) Only(ctx context.Context) (*GoveeCredential, error) {
+// Only returns a single FeedCounter entity found by the query, ensuring it only returns one.
+// Returns a *NotSingularError when more than one FeedCounter entity is found.
+// Returns a *NotFoundError when no FeedCounter entities are found.
+func (_q *FeedCounterQuery) Only(ctx context.Context) (*FeedCounter, error) {
 	nodes, err := _q.Limit(2).All(setContextOp(ctx, _q.ctx, ent.OpQueryOnly))
 	if err != nil {
 		return nil, err
@@ -117,14 +117,14 @@ func (_q *GoveeCredentialQuery) Only(ctx context.Context) (*GoveeCredential, err
 	case 1:
 		return nodes[0], nil
 	case 0:
-		return nil, &NotFoundError{goveecredential.Label}
+		return nil, &NotFoundError{feedcounter.Label}
 	default:
-		return nil, &NotSingularError{goveecredential.Label}
+		return nil, &NotSingularError{feedcounter.Label}
 	}
 }
 
 // OnlyX is like Only, but panics if an error occurs.
-func (_q *GoveeCredentialQuery) OnlyX(ctx context.Context) *GoveeCredential {
+func (_q *FeedCounterQuery) OnlyX(ctx context.Context) *FeedCounter {
 	node, err := _q.Only(ctx)
 	if err != nil {
 		panic(err)
@@ -132,10 +132,10 @@ func (_q *GoveeCredentialQuery) OnlyX(ctx context.Context) *GoveeCredential {
 	return node
 }
 
-// OnlyID is like Only, but returns the only GoveeCredential ID in the query.
-// Returns a *NotSingularError when more than one GoveeCredential ID is found.
+// OnlyID is like Only, but returns the only FeedCounter ID in the query.
+// Returns a *NotSingularError when more than one FeedCounter ID is found.
 // Returns a *NotFoundError when no entities are found.
-func (_q *GoveeCredentialQuery) OnlyID(ctx context.Context) (id int, err error) {
+func (_q *FeedCounterQuery) OnlyID(ctx context.Context) (id int, err error) {
 	var ids []int
 	if ids, err = _q.Limit(2).IDs(setContextOp(ctx, _q.ctx, ent.OpQueryOnlyID)); err != nil {
 		return
@@ -144,15 +144,15 @@ func (_q *GoveeCredentialQuery) OnlyID(ctx context.Context) (id int, err error) 
 	case 1:
 		id = ids[0]
 	case 0:
-		err = &NotFoundError{goveecredential.Label}
+		err = &NotFoundError{feedcounter.Label}
 	default:
-		err = &NotSingularError{goveecredential.Label}
+		err = &NotSingularError{feedcounter.Label}
 	}
 	return
 }
 
 // OnlyIDX is like OnlyID, but panics if an error occurs.
-func (_q *GoveeCredentialQuery) OnlyIDX(ctx context.Context) int {
+func (_q *FeedCounterQuery) OnlyIDX(ctx context.Context) int {
 	id, err := _q.OnlyID(ctx)
 	if err != nil {
 		panic(err)
@@ -160,18 +160,18 @@ func (_q *GoveeCredentialQuery) OnlyIDX(ctx context.Context) int {
 	return id
 }
 
-// All executes the query and returns a list of GoveeCredentials.
-func (_q *GoveeCredentialQuery) All(ctx context.Context) ([]*GoveeCredential, error) {
+// All executes the query and returns a list of FeedCounters.
+func (_q *FeedCounterQuery) All(ctx context.Context) ([]*FeedCounter, error) {
 	ctx = setContextOp(ctx, _q.ctx, ent.OpQueryAll)
 	if err := _q.prepareQuery(ctx); err != nil {
 		return nil, err
 	}
-	qr := querierAll[[]*GoveeCredential, *GoveeCredentialQuery]()
-	return withInterceptors[[]*GoveeCredential](ctx, _q, qr, _q.inters)
+	qr := querierAll[[]*FeedCounter, *FeedCounterQuery]()
+	return withInterceptors[[]*FeedCounter](ctx, _q, qr, _q.inters)
 }
 
 // AllX is like All, but panics if an error occurs.
-func (_q *GoveeCredentialQuery) AllX(ctx context.Context) []*GoveeCredential {
+func (_q *FeedCounterQuery) AllX(ctx context.Context) []*FeedCounter {
 	nodes, err := _q.All(ctx)
 	if err != nil {
 		panic(err)
@@ -179,20 +179,20 @@ func (_q *GoveeCredentialQuery) AllX(ctx context.Context) []*GoveeCredential {
 	return nodes
 }
 
-// IDs executes the query and returns a list of GoveeCredential IDs.
-func (_q *GoveeCredentialQuery) IDs(ctx context.Context) (ids []int, err error) {
+// IDs executes the query and returns a list of FeedCounter IDs.
+func (_q *FeedCounterQuery) IDs(ctx context.Context) (ids []int, err error) {
 	if _q.ctx.Unique == nil && _q.path != nil {
 		_q.Unique(true)
 	}
 	ctx = setContextOp(ctx, _q.ctx, ent.OpQueryIDs)
-	if err = _q.Select(goveecredential.FieldID).Scan(ctx, &ids); err != nil {
+	if err = _q.Select(feedcounter.FieldID).Scan(ctx, &ids); err != nil {
 		return nil, err
 	}
 	return ids, nil
 }
 
 // IDsX is like IDs, but panics if an error occurs.
-func (_q *GoveeCredentialQuery) IDsX(ctx context.Context) []int {
+func (_q *FeedCounterQuery) IDsX(ctx context.Context) []int {
 	ids, err := _q.IDs(ctx)
 	if err != nil {
 		panic(err)
@@ -201,16 +201,16 @@ func (_q *GoveeCredentialQuery) IDsX(ctx context.Context) []int {
 }
 
 // Count returns the count of the given query.
-func (_q *GoveeCredentialQuery) Count(ctx context.Context) (int, error) {
+func (_q *FeedCounterQuery) Count(ctx context.Context) (int, error) {
 	ctx = setContextOp(ctx, _q.ctx, ent.OpQueryCount)
 	if err := _q.prepareQuery(ctx); err != nil {
 		return 0, err
 	}
-	return withInterceptors[int](ctx, _q, querierCount[*GoveeCredentialQuery](), _q.inters)
+	return withInterceptors[int](ctx, _q, querierCount[*FeedCounterQuery](), _q.inters)
 }
 
 // CountX is like Count, but panics if an error occurs.
-func (_q *GoveeCredentialQuery) CountX(ctx context.Context) int {
+func (_q *FeedCounterQuery) CountX(ctx context.Context) int {
 	count, err := _q.Count(ctx)
 	if err != nil {
 		panic(err)
@@ -219,7 +219,7 @@ func (_q *GoveeCredentialQuery) CountX(ctx context.Context) int {
 }
 
 // Exist returns true if the query has elements in the graph.
-func (_q *GoveeCredentialQuery) Exist(ctx context.Context) (bool, error) {
+func (_q *FeedCounterQuery) Exist(ctx context.Context) (bool, error) {
 	ctx = setContextOp(ctx, _q.ctx, ent.OpQueryExist)
 	switch _, err := _q.FirstID(ctx); {
 	case IsNotFound(err):
@@ -232,7 +232,7 @@ func (_q *GoveeCredentialQuery) Exist(ctx context.Context) (bool, error) {
 }
 
 // ExistX is like Exist, but panics if an error occurs.
-func (_q *GoveeCredentialQuery) ExistX(ctx context.Context) bool {
+func (_q *FeedCounterQuery) ExistX(ctx context.Context) bool {
 	exist, err := _q.Exist(ctx)
 	if err != nil {
 		panic(err)
@@ -240,18 +240,18 @@ func (_q *GoveeCredentialQuery) ExistX(ctx context.Context) bool {
 	return exist
 }
 
-// Clone returns a duplicate of the GoveeCredentialQuery builder, including all associated steps. It can be
+// Clone returns a duplicate of the FeedCounterQuery builder, including all associated steps. It can be
 // used to prepare common query builders and use them differently after the clone is made.
-func (_q *GoveeCredentialQuery) Clone() *GoveeCredentialQuery {
+func (_q *FeedCounterQuery) Clone() *FeedCounterQuery {
 	if _q == nil {
 		return nil
 	}
-	return &GoveeCredentialQuery{
+	return &FeedCounterQuery{
 		config:     _q.config,
 		ctx:        _q.ctx.Clone(),
-		order:      append([]goveecredential.OrderOption{}, _q.order...),
+		order:      append([]feedcounter.OrderOption{}, _q.order...),
 		inters:     append([]Interceptor{}, _q.inters...),
-		predicates: append([]predicate.GoveeCredential{}, _q.predicates...),
+		predicates: append([]predicate.FeedCounter{}, _q.predicates...),
 		// clone intermediate query.
 		sql:  _q.sql.Clone(),
 		path: _q.path,
@@ -264,19 +264,19 @@ func (_q *GoveeCredentialQuery) Clone() *GoveeCredentialQuery {
 // Example:
 //
 //	var v []struct {
-//		UserID uint64 `json:"user_id,omitempty"`
+//		Count uint64 `json:"count,omitempty"`
 //		Count int `json:"count,omitempty"`
 //	}
 //
-//	client.GoveeCredential.Query().
-//		GroupBy(goveecredential.FieldUserID).
+//	client.FeedCounter.Query().
+//		GroupBy(feedcounter.FieldCount).
 //		Aggregate(ent.Count()).
 //		Scan(ctx, &v)
-func (_q *GoveeCredentialQuery) GroupBy(field string, fields ...string) *GoveeCredentialGroupBy {
+func (_q *FeedCounterQuery) GroupBy(field string, fields ...string) *FeedCounterGroupBy {
 	_q.ctx.Fields = append([]string{field}, fields...)
-	grbuild := &GoveeCredentialGroupBy{build: _q}
+	grbuild := &FeedCounterGroupBy{build: _q}
 	grbuild.flds = &_q.ctx.Fields
-	grbuild.label = goveecredential.Label
+	grbuild.label = feedcounter.Label
 	grbuild.scan = grbuild.Scan
 	return grbuild
 }
@@ -287,26 +287,26 @@ func (_q *GoveeCredentialQuery) GroupBy(field string, fields ...string) *GoveeCr
 // Example:
 //
 //	var v []struct {
-//		UserID uint64 `json:"user_id,omitempty"`
+//		Count uint64 `json:"count,omitempty"`
 //	}
 //
-//	client.GoveeCredential.Query().
-//		Select(goveecredential.FieldUserID).
+//	client.FeedCounter.Query().
+//		Select(feedcounter.FieldCount).
 //		Scan(ctx, &v)
-func (_q *GoveeCredentialQuery) Select(fields ...string) *GoveeCredentialSelect {
+func (_q *FeedCounterQuery) Select(fields ...string) *FeedCounterSelect {
 	_q.ctx.Fields = append(_q.ctx.Fields, fields...)
-	sbuild := &GoveeCredentialSelect{GoveeCredentialQuery: _q}
-	sbuild.label = goveecredential.Label
+	sbuild := &FeedCounterSelect{FeedCounterQuery: _q}
+	sbuild.label = feedcounter.Label
 	sbuild.flds, sbuild.scan = &_q.ctx.Fields, sbuild.Scan
 	return sbuild
 }
 
-// Aggregate returns a GoveeCredentialSelect configured with the given aggregations.
-func (_q *GoveeCredentialQuery) Aggregate(fns ...AggregateFunc) *GoveeCredentialSelect {
+// Aggregate returns a FeedCounterSelect configured with the given aggregations.
+func (_q *FeedCounterQuery) Aggregate(fns ...AggregateFunc) *FeedCounterSelect {
 	return _q.Select().Aggregate(fns...)
 }
 
-func (_q *GoveeCredentialQuery) prepareQuery(ctx context.Context) error {
+func (_q *FeedCounterQuery) prepareQuery(ctx context.Context) error {
 	for _, inter := range _q.inters {
 		if inter == nil {
 			return fmt.Errorf("ent: uninitialized interceptor (forgotten import ent/runtime?)")
@@ -318,7 +318,7 @@ func (_q *GoveeCredentialQuery) prepareQuery(ctx context.Context) error {
 		}
 	}
 	for _, f := range _q.ctx.Fields {
-		if !goveecredential.ValidColumn(f) {
+		if !feedcounter.ValidColumn(f) {
 			return &ValidationError{Name: f, err: fmt.Errorf("ent: invalid field %q for query", f)}
 		}
 	}
@@ -332,16 +332,16 @@ func (_q *GoveeCredentialQuery) prepareQuery(ctx context.Context) error {
 	return nil
 }
 
-func (_q *GoveeCredentialQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*GoveeCredential, error) {
+func (_q *FeedCounterQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*FeedCounter, error) {
 	var (
-		nodes = []*GoveeCredential{}
+		nodes = []*FeedCounter{}
 		_spec = _q.querySpec()
 	)
 	_spec.ScanValues = func(columns []string) ([]any, error) {
-		return (*GoveeCredential).scanValues(nil, columns)
+		return (*FeedCounter).scanValues(nil, columns)
 	}
 	_spec.Assign = func(columns []string, values []any) error {
-		node := &GoveeCredential{config: _q.config}
+		node := &FeedCounter{config: _q.config}
 		nodes = append(nodes, node)
 		return node.assignValues(columns, values)
 	}
@@ -360,7 +360,7 @@ func (_q *GoveeCredentialQuery) sqlAll(ctx context.Context, hooks ...queryHook) 
 	return nodes, nil
 }
 
-func (_q *GoveeCredentialQuery) sqlCount(ctx context.Context) (int, error) {
+func (_q *FeedCounterQuery) sqlCount(ctx context.Context) (int, error) {
 	_spec := _q.querySpec()
 	if len(_q.modifiers) > 0 {
 		_spec.Modifiers = _q.modifiers
@@ -372,8 +372,8 @@ func (_q *GoveeCredentialQuery) sqlCount(ctx context.Context) (int, error) {
 	return sqlgraph.CountNodes(ctx, _q.driver, _spec)
 }
 
-func (_q *GoveeCredentialQuery) querySpec() *sqlgraph.QuerySpec {
-	_spec := sqlgraph.NewQuerySpec(goveecredential.Table, goveecredential.Columns, sqlgraph.NewFieldSpec(goveecredential.FieldID, field.TypeInt))
+func (_q *FeedCounterQuery) querySpec() *sqlgraph.QuerySpec {
+	_spec := sqlgraph.NewQuerySpec(feedcounter.Table, feedcounter.Columns, sqlgraph.NewFieldSpec(feedcounter.FieldID, field.TypeInt))
 	_spec.From = _q.sql
 	if unique := _q.ctx.Unique; unique != nil {
 		_spec.Unique = *unique
@@ -382,9 +382,9 @@ func (_q *GoveeCredentialQuery) querySpec() *sqlgraph.QuerySpec {
 	}
 	if fields := _q.ctx.Fields; len(fields) > 0 {
 		_spec.Node.Columns = make([]string, 0, len(fields))
-		_spec.Node.Columns = append(_spec.Node.Columns, goveecredential.FieldID)
+		_spec.Node.Columns = append(_spec.Node.Columns, feedcounter.FieldID)
 		for i := range fields {
-			if fields[i] != goveecredential.FieldID {
+			if fields[i] != feedcounter.FieldID {
 				_spec.Node.Columns = append(_spec.Node.Columns, fields[i])
 			}
 		}
@@ -412,12 +412,12 @@ func (_q *GoveeCredentialQuery) querySpec() *sqlgraph.QuerySpec {
 	return _spec
 }
 
-func (_q *GoveeCredentialQuery) sqlQuery(ctx context.Context) *sql.Selector {
+func (_q *FeedCounterQuery) sqlQuery(ctx context.Context) *sql.Selector {
 	builder := sql.Dialect(_q.driver.Dialect())
-	t1 := builder.Table(goveecredential.Table)
+	t1 := builder.Table(feedcounter.Table)
 	columns := _q.ctx.Fields
 	if len(columns) == 0 {
-		columns = goveecredential.Columns
+		columns = feedcounter.Columns
 	}
 	selector := builder.Select(t1.Columns(columns...)...).From(t1)
 	if _q.sql != nil {
@@ -450,7 +450,7 @@ func (_q *GoveeCredentialQuery) sqlQuery(ctx context.Context) *sql.Selector {
 // ForUpdate locks the selected rows against concurrent updates, and prevent them from being
 // updated, deleted or "selected ... for update" by other sessions, until the transaction is
 // either committed or rolled-back.
-func (_q *GoveeCredentialQuery) ForUpdate(opts ...sql.LockOption) *GoveeCredentialQuery {
+func (_q *FeedCounterQuery) ForUpdate(opts ...sql.LockOption) *FeedCounterQuery {
 	if _q.driver.Dialect() == dialect.Postgres {
 		_q.Unique(false)
 	}
@@ -463,7 +463,7 @@ func (_q *GoveeCredentialQuery) ForUpdate(opts ...sql.LockOption) *GoveeCredenti
 // ForShare behaves similarly to ForUpdate, except that it acquires a shared mode lock
 // on any rows that are read. Other sessions can read the rows, but cannot modify them
 // until your transaction commits.
-func (_q *GoveeCredentialQuery) ForShare(opts ...sql.LockOption) *GoveeCredentialQuery {
+func (_q *FeedCounterQuery) ForShare(opts ...sql.LockOption) *FeedCounterQuery {
 	if _q.driver.Dialect() == dialect.Postgres {
 		_q.Unique(false)
 	}
@@ -473,28 +473,28 @@ func (_q *GoveeCredentialQuery) ForShare(opts ...sql.LockOption) *GoveeCredentia
 	return _q
 }
 
-// GoveeCredentialGroupBy is the group-by builder for GoveeCredential entities.
-type GoveeCredentialGroupBy struct {
+// FeedCounterGroupBy is the group-by builder for FeedCounter entities.
+type FeedCounterGroupBy struct {
 	selector
-	build *GoveeCredentialQuery
+	build *FeedCounterQuery
 }
 
 // Aggregate adds the given aggregation functions to the group-by query.
-func (_g *GoveeCredentialGroupBy) Aggregate(fns ...AggregateFunc) *GoveeCredentialGroupBy {
+func (_g *FeedCounterGroupBy) Aggregate(fns ...AggregateFunc) *FeedCounterGroupBy {
 	_g.fns = append(_g.fns, fns...)
 	return _g
 }
 
 // Scan applies the selector query and scans the result into the given value.
-func (_g *GoveeCredentialGroupBy) Scan(ctx context.Context, v any) error {
+func (_g *FeedCounterGroupBy) Scan(ctx context.Context, v any) error {
 	ctx = setContextOp(ctx, _g.build.ctx, ent.OpQueryGroupBy)
 	if err := _g.build.prepareQuery(ctx); err != nil {
 		return err
 	}
-	return scanWithInterceptors[*GoveeCredentialQuery, *GoveeCredentialGroupBy](ctx, _g.build, _g, _g.build.inters, v)
+	return scanWithInterceptors[*FeedCounterQuery, *FeedCounterGroupBy](ctx, _g.build, _g, _g.build.inters, v)
 }
 
-func (_g *GoveeCredentialGroupBy) sqlScan(ctx context.Context, root *GoveeCredentialQuery, v any) error {
+func (_g *FeedCounterGroupBy) sqlScan(ctx context.Context, root *FeedCounterQuery, v any) error {
 	selector := root.sqlQuery(ctx).Select()
 	aggregation := make([]string, 0, len(_g.fns))
 	for _, fn := range _g.fns {
@@ -521,28 +521,28 @@ func (_g *GoveeCredentialGroupBy) sqlScan(ctx context.Context, root *GoveeCreden
 	return sql.ScanSlice(rows, v)
 }
 
-// GoveeCredentialSelect is the builder for selecting fields of GoveeCredential entities.
-type GoveeCredentialSelect struct {
-	*GoveeCredentialQuery
+// FeedCounterSelect is the builder for selecting fields of FeedCounter entities.
+type FeedCounterSelect struct {
+	*FeedCounterQuery
 	selector
 }
 
 // Aggregate adds the given aggregation functions to the selector query.
-func (_s *GoveeCredentialSelect) Aggregate(fns ...AggregateFunc) *GoveeCredentialSelect {
+func (_s *FeedCounterSelect) Aggregate(fns ...AggregateFunc) *FeedCounterSelect {
 	_s.fns = append(_s.fns, fns...)
 	return _s
 }
 
 // Scan applies the selector query and scans the result into the given value.
-func (_s *GoveeCredentialSelect) Scan(ctx context.Context, v any) error {
+func (_s *FeedCounterSelect) Scan(ctx context.Context, v any) error {
 	ctx = setContextOp(ctx, _s.ctx, ent.OpQuerySelect)
 	if err := _s.prepareQuery(ctx); err != nil {
 		return err
 	}
-	return scanWithInterceptors[*GoveeCredentialQuery, *GoveeCredentialSelect](ctx, _s.GoveeCredentialQuery, _s, _s.inters, v)
+	return scanWithInterceptors[*FeedCounterQuery, *FeedCounterSelect](ctx, _s.FeedCounterQuery, _s, _s.inters, v)
 }
 
-func (_s *GoveeCredentialSelect) sqlScan(ctx context.Context, root *GoveeCredentialQuery, v any) error {
+func (_s *FeedCounterSelect) sqlScan(ctx context.Context, root *FeedCounterQuery, v any) error {
 	selector := root.sqlQuery(ctx)
 	aggregation := make([]string, 0, len(_s.fns))
 	for _, fn := range _s.fns {

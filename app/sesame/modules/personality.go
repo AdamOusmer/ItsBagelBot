@@ -156,16 +156,19 @@ func factReply(ctx context.Context, d engine.Deps, c *module.Context) string {
 	return personalityFacts[idx]
 }
 
-// feedReply bumps the global feed counter (one bagel, shared by every channel)
-// and reports it, dropping to the counter-less lines when the store is nil or
-// unavailable.
-func feedReply(ctx context.Context, d engine.Deps, c *module.Context) string {
-	if d.Personality != nil {
-		if n, err := d.Personality.FeedCount(ctx); err == nil {
-			return fmt.Sprintf(pickLine(personalityFeedCountPack), n)
-		}
+// feedReply records one feeding on the global counters (one bagel, shared by
+// every channel: a permanent DB total plus a valkey today window) and reports
+// both. No counts, no line: when the store is nil or erroring the reaction
+// stays silent rather than answering without its numbers.
+func feedReply(ctx context.Context, d engine.Deps, _ *module.Context) string {
+	if d.Personality == nil {
+		return ""
 	}
-	return expandUser(pickLine(personalityFeedPlainPack), c)
+	counts, err := d.Personality.Feed(ctx)
+	if err != nil {
+		return ""
+	}
+	return fmt.Sprintf(pickLine(personalityFeedCountPack), counts.Today, counts.Total)
 }
 
 // moodReply reports the stream's mood, rolling a candidate that only sticks if

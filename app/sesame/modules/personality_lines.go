@@ -3,7 +3,8 @@ package modules
 // The personality module's entire script lives in this file so the voice can be
 // tuned without touching the logic. House style: deadpan, self-deprecating,
 // mock-tragic ("I'll toast myself."), lowercase except proper nouns. {user}
-// expands to the chatter's display name; feed lines use %d for the counter.
+// expands to the chatter's display name; feed lines take two %d (today, then
+// lifetime).
 
 // personalityGoodPack answers "good bagel" / "good bot".
 var personalityGoodPack = []string{
@@ -33,6 +34,7 @@ var personalityBadPack = []string{
 var personalityGiveBagel = []string{
 	"{user} in this economy?",
 	"Not with this inflation.",
+	"Only if you ask nicely.",
 }
 
 // personalityThanksPack answers "thank you bagel" / "thanks bagel".
@@ -45,28 +47,20 @@ var personalityThanksPack = []string{
 
 // personalityPetPack answers "pet the bagel".
 var personalityPetPack = []string{
-	"*allows it* don't make it weird.",
-	"*sheds exactly three sesame seeds* that's all you get.",
-	"acceptable. continue.",
-	"I'm not purring. bagels don't purr. stop asking.",
-	"petted. morale up 2%. outlook still fatalistic.",
-	"careful with the crust. it's load-bearing.",
+	"Acceptable. Continue.",
 }
 
-// personalityFeedCountPack answers "feed the bagel" when the counter is
-// available; %d is the feed count this stream.
+// personalityFeedCountPack answers "feed the bagel". Every line takes two %d,
+// in this order: today's feedings (all channels, TTL window), then the
+// permanent lifetime total. No counter-less fallback: no counts, no line.
 var personalityFeedCountPack = []string{
-	"om nom. that's %d feedings today. no regrets. some regrets.",
-	"eating as a bagel feels philosophically wrong, but here we are. %d today.",
-	"fed %d times today. I am becoming powerful.",
-	"*chews thoughtfully* %d. who's counting. me. I am.",
-	"%d feedings. my macros are just carbs and spite.",
-}
-
-// personalityFeedPlainPack is the counter-less fallback for "feed the bagel".
-var personalityFeedPlainPack = []string{
-	"om nom. don't tell my nutritionist.",
-	"*chews thoughtfully* acceptable offering.",
+	"om nom. that's %d feedings today, %d ever. no regrets. some regrets.",
+	"Eating as a bagel feels philosophically wrong, but here we are. %d today. %d all time.",
+	"Fed %d times today, %d since the dawn of bagel. I am becoming powerful.",
+	"*Chews thoughtfully* %d today. %d lifetime. Who's counting. Me. I am.",
+	"%d feedings today, %d forever. my macros are just carbs and spite.",
+	"Thriving in my bulking era. %d today. At my %d bagel all time.",
+	"Are you calling me hangry? *Chews my %d of the day appreciatively* %d lifetime.",
 }
 
 // personalityHugPack answers "hug the bagel".
@@ -89,6 +83,7 @@ var personalityBoopPack = []string{
 // personalityGnPack answers "gn bagel" / "goodnight bagel".
 var personalityGnPack = []string{
 	"gn. Dream of carbs.",
+	"Manifesting a toasty warm bed for you in return",
 }
 
 // personalityMoodPack is the per-stream mood table; the first "bagel mood" ask

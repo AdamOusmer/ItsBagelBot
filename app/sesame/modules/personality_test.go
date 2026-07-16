@@ -54,7 +54,7 @@ func personalityCtx(text string) *module.Context {
 // optional sticky mood, and an optional error that fails every call.
 type fakePersonality struct {
 	cursor int64
-	feed   int64
+	feed   engine.FeedCounts
 	mood   string
 	err    error
 }
@@ -63,7 +63,7 @@ func (f *fakePersonality) FactCursor(context.Context, uint64) (int64, error) {
 	return f.cursor, f.err
 }
 
-func (f *fakePersonality) FeedCount(context.Context) (int64, error) {
+func (f *fakePersonality) Feed(context.Context) (engine.FeedCounts, error) {
 	return f.feed, f.err
 }
 
@@ -139,22 +139,26 @@ func TestPersonalityFactFallsBackWithoutStore(t *testing.T) {
 	assert.Equal(t, personalityFacts[0], col.out[0].Text)
 }
 
-func TestPersonalityFeedCounts(t *testing.T) {
+func TestPersonalityFeedReportsTodayAndLifetime(t *testing.T) {
 	pinPersonalityRand(t)
 	var col collector
-	d := engine.Deps{Personality: &fakePersonality{feed: 3}}
+	d := engine.Deps{Personality: &fakePersonality{feed: engine.FeedCounts{Today: 3, Total: 48213}}}
 	require.NoError(t, personalityHandler(t, d)(context.Background(), personalityCtx("feed the bagel"), col.emit))
 	require.Len(t, col.out, 1)
-	assert.Equal(t, fmt.Sprintf(personalityFeedCountPack[0], 3), col.out[0].Text)
+	assert.Equal(t, fmt.Sprintf(personalityFeedCountPack[0], 3, 48213), col.out[0].Text)
 }
 
-func TestPersonalityFeedFallsBackOnStoreError(t *testing.T) {
+func TestPersonalityFeedSilentWithoutCounts(t *testing.T) {
 	pinPersonalityRand(t)
-	var col collector
-	d := engine.Deps{Personality: &fakePersonality{err: assert.AnError}}
-	require.NoError(t, personalityHandler(t, d)(context.Background(), personalityCtx("feed the bagel"), col.emit))
-	require.Len(t, col.out, 1)
-	assert.Equal(t, personalityFeedPlainPack[0], col.out[0].Text)
+	h := personalityHandler(t, engine.Deps{Personality: &fakePersonality{err: assert.AnError}})
+
+	var onErr collector
+	require.NoError(t, h(context.Background(), personalityCtx("feed the bagel"), onErr.emit))
+	assert.Empty(t, onErr.out, "a store error must silence the feed line, not degrade it")
+
+	var noStore collector
+	require.NoError(t, personalityHandler(t, engine.Deps{})(context.Background(), personalityCtx("feed the bagel"), noStore.emit))
+	assert.Empty(t, noStore.out, "no store, no feed line")
 }
 
 func TestPersonalityMoodSticksToStoredValue(t *testing.T) {

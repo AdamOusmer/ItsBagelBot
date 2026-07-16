@@ -8,6 +8,17 @@ import (
 )
 
 var (
+	// FeedCountersColumns holds the columns for the "feed_counters" table.
+	FeedCountersColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "count", Type: field.TypeUint64, Default: 0},
+	}
+	// FeedCountersTable holds the schema information for the "feed_counters" table.
+	FeedCountersTable = &schema.Table{
+		Name:       "feed_counters",
+		Columns:    FeedCountersColumns,
+		PrimaryKey: []*schema.Column{FeedCountersColumns[0]},
+	}
 	// GoveeCredentialsColumns holds the columns for the "govee_credentials" table.
 	GoveeCredentialsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -75,6 +86,7 @@ var (
 	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
+		FeedCountersTable,
 		GoveeCredentialsTable,
 		ModulesTable,
 		QuotesTable,
