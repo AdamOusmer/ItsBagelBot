@@ -20,33 +20,57 @@ func TestFleetSubscriberRejectsSubscribeAfterClose(t *testing.T) {
 
 func TestFleetSubscriberCloseWaitsForAdmittedRegistration(t *testing.T) {
 	subscriber := &fleetSubscriber{}
+	requireRegistrationAdmitted(t, subscriber)
+
+	closed := closeFleetSubscriberAsync(subscriber)
+	requireSignal(t, subscriber.closeCh, "Close did not enter the closed state")
+	requireCloseBlocked(t, closed)
+
+	subscriber.registrations.Done()
+	requireCloseCompleted(t, closed)
+	requireRegistrationRejected(t, subscriber)
+}
+
+func requireRegistrationAdmitted(t *testing.T, subscriber *fleetSubscriber) {
+	t.Helper()
 	if !subscriber.beginRegistration() {
 		t.Fatal("registration was unexpectedly rejected")
 	}
+}
 
+func requireRegistrationRejected(t *testing.T, subscriber *fleetSubscriber) {
+	t.Helper()
+	if subscriber.beginRegistration() {
+		t.Fatal("registration was accepted after Close")
+	}
+}
+
+func closeFleetSubscriberAsync(subscriber *fleetSubscriber) <-chan error {
 	closed := make(chan error, 1)
 	go func() { closed <- subscriber.Close() }()
+	return closed
+}
 
-	deadline := time.Now().Add(time.Second)
-	for {
-		subscriber.mu.Lock()
-		closing := subscriber.closed
-		subscriber.mu.Unlock()
-		if closing {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("Close did not enter the closed state")
-		}
-		time.Sleep(time.Millisecond)
+func requireSignal(t *testing.T, signal <-chan struct{}, failure string) {
+	t.Helper()
+	select {
+	case <-signal:
+	case <-time.After(time.Second):
+		t.Fatal(failure)
 	}
+}
+
+func requireCloseBlocked(t *testing.T, closed <-chan error) {
+	t.Helper()
 	select {
 	case err := <-closed:
 		t.Fatalf("Close returned before registration completed: %v", err)
 	default:
 	}
+}
 
-	subscriber.registrations.Done()
+func requireCloseCompleted(t *testing.T, closed <-chan error) {
+	t.Helper()
 	select {
 	case err := <-closed:
 		if err != nil {
@@ -54,9 +78,5 @@ func TestFleetSubscriberCloseWaitsForAdmittedRegistration(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("Close did not resume after registration completed")
-	}
-
-	if subscriber.beginRegistration() {
-		t.Fatal("registration was accepted after Close")
 	}
 }

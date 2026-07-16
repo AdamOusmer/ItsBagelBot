@@ -57,9 +57,21 @@ func parseFlags() config {
 }
 
 func validateConfig(cfg config) {
-	if !cfg.insecureLocal {
-		requireCredentials(cfg)
+	validateCredentialMode(cfg)
+	validatePositiveConfig(cfg)
+	validateStreamOptions(cfg)
+	validatePublishOptions(cfg)
+	validateTopologyOptions(cfg)
+}
+
+func validateCredentialMode(cfg config) {
+	if cfg.insecureLocal {
+		return
 	}
+	requireCredentials(cfg)
+}
+
+func validatePositiveConfig(cfg config) {
 	requirePositive(cfg.messages, "messages")
 	requirePositive(cfg.publishers, "publishers")
 	requirePositive(cfg.window, "window")
@@ -75,35 +87,67 @@ func validateConfig(cfg config) {
 	requirePositive(int(cfg.topologyInterval), "topology-interval")
 	requirePositive(cfg.requiredPeers, "required-peers")
 	requirePositive(int(cfg.settleTimeout), "settle-timeout")
-	if cfg.replicas != 1 && cfg.replicas != 3 {
+}
+
+func validateStreamOptions(cfg config) {
+	switch cfg.replicas {
+	case 1, 3:
+	default:
 		log.Fatal("replicas must be 1 or 3")
 	}
-	if cfg.mode != "async" && cfg.mode != "atomic" && cfg.mode != "fast" {
+}
+
+func validatePublishOptions(cfg config) {
+	switch cfg.mode {
+	case "async", "atomic", "fast":
+	default:
 		log.Fatal("mode must be async, atomic, or fast")
 	}
-	if cfg.batchSize > 1000 {
-		log.Fatal("batch-size must be <= 1000")
+	requireAtMost(cfg.batchSize, 1_000, "batch-size must be <= 1000")
+	requireAtMost(cfg.fastOutstanding, 65_535, "fast-outstanding-acks must fit uint16")
+	requireNonNegative(cfg.targetRate, "target-rate must be non-negative")
+	requireNonNegative(float64(cfg.latencySamples), "latency-samples must be non-negative")
+	requireAtMost(
+		cfg.atomicInflight*cfg.publishers,
+		50,
+		"atomic-inflight x publishers must stay within the server's 50-batch per-stream limit",
+	)
+}
+
+func validateTopologyOptions(cfg config) {
+	requireNonNegative(float64(cfg.topologyDuration), "topology-duration must be non-negative")
+	requireEqual(cfg.requiredPeers, cfg.replicas, "required-peers must match replicas")
+	requireDifferentWhenSet(
+		cfg.preferredLeader,
+		cfg.forbiddenLeader,
+		"preferred-leader and forbidden-leader must differ",
+	)
+}
+
+func requireAtMost(value, limit int, message string) {
+	if value > limit {
+		log.Fatal(message)
 	}
-	if cfg.fastOutstanding > 65_535 {
-		log.Fatal("fast-outstanding-acks must fit uint16")
+}
+
+func requireNonNegative(value float64, message string) {
+	if value < 0 {
+		log.Fatal(message)
 	}
-	if cfg.targetRate < 0 {
-		log.Fatal("target-rate must be non-negative")
+}
+
+func requireEqual(value, expected int, message string) {
+	if value != expected {
+		log.Fatal(message)
 	}
-	if cfg.latencySamples < 0 {
-		log.Fatal("latency-samples must be non-negative")
+}
+
+func requireDifferentWhenSet(value, other, message string) {
+	if value == "" {
+		return
 	}
-	if cfg.topologyDuration < 0 {
-		log.Fatal("topology-duration must be non-negative")
-	}
-	if cfg.requiredPeers != cfg.replicas {
-		log.Fatal("required-peers must match replicas")
-	}
-	if cfg.atomicInflight*cfg.publishers > 50 {
-		log.Fatal("atomic-inflight x publishers must stay within the server's 50-batch per-stream limit")
-	}
-	if cfg.preferredLeader != "" && cfg.preferredLeader == cfg.forbiddenLeader {
-		log.Fatal("preferred-leader and forbidden-leader must differ")
+	if value == other {
+		log.Fatal(message)
 	}
 }
 

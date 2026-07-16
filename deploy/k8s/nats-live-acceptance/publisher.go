@@ -126,63 +126,116 @@ func publishAtomicBatch(job publishJob, offset, size int) error {
 }
 
 func publishFast(job publishJob) error {
-	var asyncErr atomic.Pointer[string]
-	var committed uint64
+	session, err := newFastPublishSession(job)
+	if err != nil {
+		return err
+	}
+	for sequence := 0; sequence < job.count; sequence++ {
+		if err := session.publish(sequence); err != nil {
+			return err
+		}
+	}
+	return session.finish()
+}
+
+type fastPublishSession struct {
+	job       publishJob
+	publisher jetstreamext.FastPublisher
+	asyncErr  atomic.Pointer[string]
+	committed uint64
+}
+
+func newFastPublishSession(job publishJob) (*fastPublishSession, error) {
+	session := &fastPublishSession{job: job}
 	publisher, err := jetstreamext.NewFastPublisher(
 		job.client.modern,
 		jetstreamext.FastPublishFlowControl{
 			Flow: uint16(job.cfg.batchSize), MaxOutstandingAcks: uint16(job.cfg.fastOutstanding),
 			AckTimeout: job.cfg.ackTimeout,
 		},
-		jetstreamext.WithFastPublisherErrorHandler(func(err error) {
-			message := err.Error()
-			asyncErr.CompareAndSwap(nil, &message)
-		}),
+		jetstreamext.WithFastPublisherErrorHandler(session.recordAsyncError),
 	)
 	if err != nil {
 		job.counters.failures.Add(int64(job.count))
+		return nil, err
+	}
+	session.publisher = publisher
+	return session, nil
+}
+
+func (s *fastPublishSession) recordAsyncError(err error) {
+	message := err.Error()
+	s.asyncErr.CompareAndSwap(nil, &message)
+}
+
+func (s *fastPublishSession) publish(sequence int) error {
+	if err := pacePublish(s.job, sequence); err != nil {
 		return err
 	}
-	for sequence := 0; sequence < job.count; sequence++ {
-		if err := pacePublish(job, sequence); err != nil {
-			return err
-		}
-		payload := job.payloads[(job.publisher*job.count+sequence)%len(job.payloads)]
-		if sequence == job.count-1 {
-			commitCtx, cancel := context.WithTimeout(job.ctx, job.cfg.ackTimeout)
-			ack, commitErr := publisher.Commit(commitCtx, job.cfg.subject, payload)
-			cancel()
-			err = commitErr
-			if ack != nil {
-				committed = ack.BatchSize
-			}
-		} else {
-			_, err = publisher.Add(job.cfg.subject, payload)
-		}
-		if err != nil {
-			job.counters.failures.Add(int64(job.count - sequence))
-			recordTimeout(job.counters, err)
-			return fmt.Errorf("publisher %d fast sequence %d: %w", job.publisher, sequence, err)
-		}
-		if message := asyncErr.Load(); message != nil {
-			job.counters.failures.Add(int64(job.count - sequence))
-			return errors.New(*message)
-		}
+	if err := s.send(sequence); err != nil {
+		return s.failSequence(sequence, err)
 	}
-	if message := asyncErr.Load(); message != nil {
-		job.counters.failures.Add(int64(job.count))
+	return s.failOnAsyncError(sequence)
+}
+
+func (s *fastPublishSession) send(sequence int) error {
+	payload := s.job.payloads[(s.job.publisher*s.job.count+sequence)%len(s.job.payloads)]
+	if sequence != s.job.count-1 {
+		_, err := s.publisher.Add(s.job.cfg.subject, payload)
+		return err
+	}
+	return s.commit(payload)
+}
+
+func (s *fastPublishSession) commit(payload []byte) error {
+	commitCtx, cancel := context.WithTimeout(s.job.ctx, s.job.cfg.ackTimeout)
+	defer cancel()
+	ack, err := s.publisher.Commit(commitCtx, s.job.cfg.subject, payload)
+	if ack != nil {
+		s.committed = ack.BatchSize
+	}
+	return err
+}
+
+func (s *fastPublishSession) failSequence(sequence int, err error) error {
+	s.job.counters.failures.Add(int64(s.job.count - sequence))
+	recordTimeout(s.job.counters, err)
+	return fmt.Errorf("publisher %d fast sequence %d: %w", s.job.publisher, sequence, err)
+}
+
+func (s *fastPublishSession) failOnAsyncError(sequence int) error {
+	message := s.asyncErr.Load()
+	if message == nil {
+		return nil
+	}
+	s.job.counters.failures.Add(int64(s.job.count - sequence))
+	return errors.New(*message)
+}
+
+func (s *fastPublishSession) finish() error {
+	if message := s.asyncErr.Load(); message != nil {
+		s.job.counters.failures.Add(int64(s.job.count))
 		return errors.New(*message)
 	}
-	if committed != uint64(job.count) {
-		missing := job.count
-		if committed < uint64(job.count) {
-			missing = job.count - int(committed)
-		}
-		job.counters.failures.Add(int64(missing))
-		return fmt.Errorf("publisher %d fast commit acknowledged %d/%d messages", job.publisher, committed, job.count)
+	if s.committed != uint64(s.job.count) {
+		return s.failCommitSize()
 	}
-	job.counters.acked.Add(int64(job.count))
+	s.job.counters.acked.Add(int64(s.job.count))
 	return nil
+}
+
+func (s *fastPublishSession) failCommitSize() error {
+	missing := s.job.count
+	if s.committed < uint64(s.job.count) {
+		missing -= int(s.committed)
+	}
+	s.job.counters.failures.Add(int64(missing))
+	return fmt.Errorf(
+		"publisher %d fast commit acknowledged %d/%d messages",
+		s.job.publisher,
+		s.committed,
+		s.job.count,
+	)
 }
 
 func pacePublish(job publishJob, sequence int) error {

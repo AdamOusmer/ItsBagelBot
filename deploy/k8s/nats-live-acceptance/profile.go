@@ -47,29 +47,61 @@ func validateR3ShadowConfig(cfg config) error {
 }
 
 func temporaryStreamName(name string) bool {
-	if len(name) < 2 || len(name) > 128 || !hasTemporaryStreamPrefix(name) {
+	if !temporaryStreamLength(name) {
 		return false
 	}
+	if !hasTemporaryStreamPrefix(name) {
+		return false
+	}
+	return temporaryStreamCharacters(name)
+}
+
+func temporaryStreamLength(name string) bool {
+	return len(name) >= 2 && len(name) <= 128
+}
+
+func temporaryStreamCharacters(name string) bool {
 	for _, char := range name {
-		if char != '_' && char != '-' && !unicode.IsUpper(char) && !unicode.IsDigit(char) {
+		if !temporaryStreamCharacter(char) {
 			return false
 		}
 	}
 	return true
 }
 
+func temporaryStreamCharacter(char rune) bool {
+	switch char {
+	case '_', '-':
+		return true
+	}
+	if unicode.IsUpper(char) {
+		return true
+	}
+	return unicode.IsDigit(char)
+}
+
 func hasTemporaryStreamPrefix(name string) bool {
-	return strings.HasPrefix(name, r3StreamPrefix) ||
-		strings.HasPrefix(name, liveStreamPrefix) ||
-		strings.HasPrefix(name, fleetStreamPrefix)
+	for _, prefix := range []string{r3StreamPrefix, liveStreamPrefix, fleetStreamPrefix} {
+		if strings.HasPrefix(name, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func temporarySubject(subject string) bool {
-	if len(subject) <= len(benchSubjectPrefix) || !strings.HasPrefix(subject, benchSubjectPrefix) {
+	if !temporarySubjectPrefix(subject) {
 		return false
 	}
-	if strings.ContainsAny(subject, "*> \t\r\n") || strings.HasSuffix(subject, ".") {
+	if strings.ContainsAny(subject, "*> \t\r\n") {
 		return false
 	}
-	return true
+	return !strings.HasSuffix(subject, ".")
+}
+
+func temporarySubjectPrefix(subject string) bool {
+	if len(subject) <= len(benchSubjectPrefix) {
+		return false
+	}
+	return strings.HasPrefix(subject, benchSubjectPrefix)
 }
