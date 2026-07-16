@@ -454,6 +454,8 @@ const UI = {
     fr: 'Le texte entre {accolades} change quand le bot répond. Une ligne = un message, 5 au maximum.',
   },
   recipesLabel: { en: 'Quick starts', fr: 'Départs rapides' },
+  moreOptions: { en: 'More options: access, cooldown, alternate names', fr: "Plus d'options: accès, délai, autres noms" },
+  sendHelp: { en: 'Review it in the editor that opens, press Create, done.', fr: "Relisez-la dans l'éditeur qui s'ouvre, appuyez sur Créer, c'est fait." },
   step3Title: { en: 'Make it dynamic', fr: 'Rendez-la dynamique' },
   step3Sub: { en: 'Click a variable to insert it at your cursor. Only variables that work here are shown.', fr: 'Cliquez une variable pour l’insérer au curseur. Seules les variables qui fonctionnent ici sont montrées.' },
   scopeLabel: { en: 'Available here', fr: 'Disponibles ici' },

@@ -322,8 +322,8 @@ test.describe('guides & command builder', () => {
         // Multi-line responses outgrow a single chat message: the !cmd copy
         // path steps aside, the dashboard path remains.
         await page.fill('[data-template]', 'line one\nline two');
-        await expect(page.locator('section.copy')).toBeHidden();
-        await expect(page.locator('[data-send-card]')).toBeVisible();
+        await expect(page.locator('[data-copy-wrap]')).toBeHidden();
+        await expect(page.locator('[data-send-wrap]')).toBeVisible();
     });
 
     test('builder module mode scopes the palette to the surface', async ({ page }) => {
@@ -334,7 +334,7 @@ test.describe('guides & command builder', () => {
         await page.selectOption('[data-surface]', 'shoutout');
 
         await expect(page.locator('[data-vars] .var code').first()).toHaveText('{raider}');
-        await expect(page.locator('[data-send-card]')).toBeHidden();
+        await expect(page.locator('[data-send-wrap]')).toBeHidden();
         await expect(page.locator('[data-module-link]')).toHaveAttribute(
             'href',
             'https://dashboard.itsbagelbot.com/modules/shoutout'

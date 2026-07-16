@@ -6,6 +6,11 @@
  * straight into the dashboard's command editor (deep link, pre-filled) or
  * copy it as a !cmd chat line / template.
  *
+ * Layout is deliberately two zones: one compose card (essentials on top,
+ * access/cooldown/aliases folded into "More options") and a slim aside with
+ * the rehearsal and a single action card — one primary CTA, the chat-paste
+ * path secondary beneath it.
+ *
  * The rehearsal is a straight port of the dashboard inspector's ChatPreview
  * (console/dashboard/src/lib/components/commands/ChatPreview.svelte): same
  * typing beat, same staggered reply-in animation, same announcement /
@@ -41,64 +46,60 @@ for (const surface of data.surfaces) {
 ---
 
 <div class="builder" data-builder>
-    <div class="proof" data-reveal><span>{ui.proof1}</span><span>{ui.proof2}</span><span>{ui.proof3}</span></div>
-
     <div class="layout">
-        <main class="steps">
-            <section class="card">
-                <header class="step"><b>1</b><div><h2>{ui.step1Title}</h2><p>{ui.step1Sub}</p></div></header>
-                <div class="mode" role="group" aria-label={ui.step1Title}>
-                    <button class="active" type="button" data-mode="custom" aria-pressed="true">
-                        <i>!</i><span>{ui.modeCustom}<small>{ui.modeCustomSub}</small></span>
-                    </button>
-                    <button type="button" data-mode="module" aria-pressed="false">
-                        <i>&#123; &#125;</i><span>{ui.modeModule}<small>{ui.modeModuleSub}</small></span>
-                    </button>
+        <main class="compose card">
+            <div class="mode-row">
+                <div class="mode-seg" role="group" aria-label={ui.step1Title}>
+                    <button class="active" type="button" data-mode="custom" aria-pressed="true"><i>!</i>{ui.modeCustom}</button>
+                    <button type="button" data-mode="module" aria-pressed="false"><i>&#123;&#125;</i>{ui.modeModule}</button>
                 </div>
-                <label class="module-pick" hidden data-module-pick>{ui.surfaceLabel}
-                    <select data-surface>
-                        {groups.map((g) => (
-                            <optgroup label={g.group}>
-                                {g.items.map((item) => <option value={item.id}>{item.label}</option>)}
-                            </optgroup>
-                        ))}
-                    </select>
-                    <small data-hint></small>
+            </div>
+
+            <label class="module-pick" hidden data-module-pick>{ui.surfaceLabel}
+                <select data-surface>
+                    {groups.map((g) => (
+                        <optgroup label={g.group}>
+                            {g.items.map((item) => <option value={item.id}>{item.label}</option>)}
+                        </optgroup>
+                    ))}
+                </select>
+                <small data-hint></small>
+            </label>
+
+            <div data-command-fields>
+                <label class="f-name">{ui.nameLabel}
+                    <span class="f-wrap"><span class="prefix">!</span><input value="welcome" maxlength="64" data-name /></span>
+                    <small>{ui.nameHint}</small>
                 </label>
+            </div>
+
+            <label class="response">{ui.responseLabel} <small><b data-count>0</b>/500</small><textarea rows="4" data-template></textarea></label>
+            <div class="recipes" data-recipes><span>{ui.recipesLabel}</span></div>
+
+            <section class="palette">
+                <header><b>{ui.step3Title}</b><span class="scope" data-scope></span></header>
+                <p class="palette-sub">{ui.step3Sub}</p>
+                <div class="vars" data-vars aria-live="polite"></div>
+                <details><summary>{ui.bracesSummary}</summary><p>{ui.bracesBody}</p></details>
             </section>
 
-            <section class="card">
-                <header class="step"><b>2</b><div><h2>{ui.step2Title}</h2><p>{ui.step2Sub}</p></div></header>
-                <div class="fields" data-command-fields>
-                    <label>{ui.nameLabel} <span class="prefix">!</span><input value="welcome" maxlength="64" data-name /><small>{ui.nameHint}</small></label>
+            <details class="more" data-more>
+                <summary>{ui.moreOptions}</summary>
+                <div class="more-grid">
+                    <label class="span2">{ui.aliasLabel}<input placeholder="hi, heya" data-aliases /><small>{ui.aliasHint}</small></label>
                     <label>{ui.permLabel}
                         <select data-perm>
                             {data.perms.map((p) => <option value={p.value}>{p.label}</option>)}
                         </select>
                     </label>
                     <label>{ui.cooldownLabel}<input type="number" min="0" max="86400" value="0" data-cooldown /><small>{ui.cooldownHint}</small></label>
-                    <label class="span2">{ui.aliasLabel}<input placeholder="hi, heya" data-aliases /><small>{ui.aliasHint}</small></label>
-                    <label>{ui.styleLabel}
+                    <label class="span2">{ui.styleLabel}
                         <select data-style>
                             {data.styles.map((s) => <option value={s.value}>{s.label}</option>)}
                         </select>
                     </label>
                 </div>
-                <div class="recipes" data-recipes><span>{ui.recipesLabel}</span></div>
-                <label class="response">{ui.responseLabel} <small><b data-count>0</b>/500</small><textarea rows="5" data-template></textarea></label>
-                <p class="note">{ui.responseNote}</p>
-            </section>
-
-            <section class="card">
-                <header class="step"><b>3</b><div><h2>{ui.step3Title}</h2><p>{ui.step3Sub}</p></div></header>
-                <div class="scope"><span>● {ui.scopeLabel}</span><b data-scope></b></div>
-                <div class="vars" data-vars aria-live="polite"></div>
-                <details><summary>{ui.bracesSummary}</summary><p>{ui.bracesBody}</p></details>
-            </section>
-
-            <p class="learn">
-                {ui.learnMore} <a href={guideHref}>{ui.learnMoreCta} →</a>
-            </p>
+            </details>
         </main>
 
         <aside>
@@ -110,25 +111,27 @@ for (const surface of data.surfaces) {
                 <small data-preview-note></small>
             </section>
 
-            <section class="send card" data-send-card>
-                <header><span>{ui.sendTitle}</span><b data-valid>{ui.statusReady}</b></header>
-                <p>{ui.sendBody}</p>
-                <a class="send__cta" data-send target="_blank" rel="noopener noreferrer" href={data.dashboardOrigin + '/commands'}>
-                    <span>{ui.sendCta}</span><b aria-hidden="true">→</b>
-                </a>
+            <section class="action card">
+                <header><span data-action-title>{ui.sendTitle}</span><b data-valid>{ui.statusReady}</b></header>
+                <div class="send" data-send-wrap>
+                    <a class="send__cta" data-send target="_blank" rel="noopener noreferrer" href={data.dashboardOrigin + '/commands'}>
+                        <span>{ui.sendCta}</span><b aria-hidden="true">→</b>
+                    </a>
+                    <p class="send__help">{ui.sendHelp}</p>
+                </div>
+                <div class="copyw" data-copy-wrap>
+                    <p class="copyw__label" data-copy-title>{ui.copyTitleCustom}</p>
+                    <pre data-output></pre>
+                    <button type="button" data-copy><span>{ui.copyCta}</span></button>
+                    <a class="copyw__module-link" data-module-link hidden target="_blank" rel="noopener noreferrer" href={data.dashboardOrigin}>{ui.openModule} →</a>
+                </div>
             </section>
-
-            <section class="copy card">
-                <header><span data-copy-title>{ui.copyTitleCustom}</span></header>
-                <p data-copy-body>{ui.copyBodyCustom}</p>
-                <pre data-output></pre>
-                <button type="button" data-copy><span>{ui.copyCta}</span></button>
-                <a class="copy__module-link" data-module-link hidden target="_blank" rel="noopener noreferrer" href={data.dashboardOrigin}>{ui.openModule} →</a>
-            </section>
-
-            <section class="then card"><b>{ui.thenTitle}</b><ol data-next></ol></section>
         </aside>
     </div>
+
+    <p class="learn">
+        {ui.learnMore} <a href={guideHref}>{ui.learnMoreCta} →</a>
+    </p>
 
     <script type="application/json" data-builder-json set:html={JSON.stringify({
         data,
@@ -141,12 +144,10 @@ for (const surface of data.surfaces) {
             copied: ui.copied,
             copyFail: ui.copyFail,
             copyCta: ui.copyCta,
+            sendTitle: ui.sendTitle,
             copyTitleCustom: ui.copyTitleCustom,
             copyTitleModule: ui.copyTitleModule,
-            copyBodyCustom: ui.copyBodyCustom,
             copyBodyModule: ui.copyBodyModule,
-            thenCustom: [ui.thenCustom1, ui.thenCustom2, ui.thenCustom3],
-            thenModule: [ui.thenModule1, ui.thenModule2, ui.thenModule3],
             // Rehearsal chrome, word-for-word the dashboard's chatPreview strings.
             rehearsal: ui.rehearsal,
             ariaTyping: ui.ariaTyping,
@@ -187,7 +188,7 @@ for (const surface of data.surfaces) {
             styles: { value: string; label: string }[];
             surfaces: Surface[];
         };
-        ui: Record<string, string> & { thenCustom: string[]; thenModule: string[]; recipes: { label: string; text: string }[] };
+        ui: Record<string, string> & { recipes: { label: string; text: string }[] };
     };
 
     // --- Slash-verb parse, same tables as the dashboard's ChatPreview (which
@@ -561,17 +562,6 @@ for (const surface of data.surfaces) {
             return url.toString();
         }
 
-        function renderThen() {
-            const list = $<HTMLElement>('[data-next]');
-            list.replaceChildren();
-            const steps = mode === 'custom' ? ui.thenCustom : ui.thenModule;
-            steps.forEach((step, i) => {
-                const li = document.createElement('li');
-                li.append(el('i', '', String(i + 1)), el('span', '', step));
-                list.append(li);
-            });
-        }
-
         function update() {
             const surface = current();
             const err = problem();
@@ -583,32 +573,30 @@ for (const surface of data.surfaces) {
             $('[data-preview-note]').textContent = surface.hint;
             $('[data-valid]').textContent = err ?? ui.statusReady;
             $('[data-valid]').classList.toggle('is-bad', !!err);
+            $('[data-action-title]').textContent = mode === 'custom' ? ui.sendTitle : ui.copyTitleModule;
 
             // Send-to-dashboard: only meaningful for custom commands.
-            const sendCard = $<HTMLElement>('[data-send-card]');
-            sendCard.toggleAttribute('hidden', mode !== 'custom');
+            $('[data-send-wrap]').toggleAttribute('hidden', mode !== 'custom');
             if (mode === 'custom') {
                 sendLink.href = err ? '#' : dashboardURL();
                 sendLink.classList.toggle('is-disabled', !!err);
                 sendLink.setAttribute('aria-disabled', err ? 'true' : 'false');
             }
 
-            // Copy card: !cmd line for single-line custom commands, raw template
-            // for modules. Multi-line custom commands can't ride a single chat
-            // message, so the chat path steps aside and the dashboard carries it.
+            // Chat-paste path: secondary for single-line custom commands, the
+            // main path for module templates. Multi-line custom commands can't
+            // ride one chat message, so it steps aside and the dashboard carries it.
             const output = $<HTMLElement>('[data-output]');
-            const copyCard = $<HTMLElement>('section.copy');
+            const copyWrap = $<HTMLElement>('[data-copy-wrap]');
             if (mode === 'custom') {
                 $('[data-copy-title]').textContent = ui.copyTitleCustom;
-                $('[data-copy-body]').textContent = ui.copyBodyCustom;
                 moduleLink.hidden = true;
                 const single = out.length === 1;
-                copyCard.toggleAttribute('hidden', !single);
+                copyWrap.toggleAttribute('hidden', !single);
                 if (single) output.textContent = `!cmd add ${cleanName() || 'yourcommand'} ${out[0]}`;
             } else {
-                $('[data-copy-title]').textContent = ui.copyTitleModule;
-                $('[data-copy-body]').textContent = ui.copyBodyModule;
-                copyCard.removeAttribute('hidden');
+                $('[data-copy-title]').textContent = ui.copyBodyModule;
+                copyWrap.removeAttribute('hidden');
                 output.textContent = ta.value.trim();
                 moduleLink.hidden = false;
                 moduleLink.href = data.dashboardOrigin + surface.dashPath + (data.lang === 'fr' ? '?lang=fr' : '');
@@ -636,8 +624,8 @@ for (const surface of data.surfaces) {
             });
             $('[data-module-pick]').toggleAttribute('hidden', next !== 'module');
             $('[data-command-fields]').toggleAttribute('hidden', next !== 'custom');
+            $('[data-more]').toggleAttribute('hidden', next !== 'custom');
             recipesBox.toggleAttribute('hidden', next !== 'custom');
-            renderThen();
             setSurface(next === 'custom' ? 'custom' : surfaceSel.value);
         }
 
@@ -664,7 +652,6 @@ for (const surface of data.surfaces) {
             if (sendLink.classList.contains('is-disabled')) event.preventDefault();
         });
 
-        renderThen();
         setSurface('custom');
     }
 
@@ -677,114 +664,154 @@ for (const surface of data.surfaces) {
 </script>
 
 <style>
-    .builder { width: min(1320px, calc(100% - 48px)); margin: auto; padding: 30px 0 110px; }
-
-    .proof { display: flex; gap: 22px; margin-bottom: 28px; color: var(--muted); font: 12px var(--font-mono); }
-    .proof span::before { content: '✓'; color: var(--green-glow); margin-right: 7px; }
+    .builder { width: min(1180px, calc(100% - 48px)); margin: auto; padding: 26px 0 100px; }
 
     /* ── Layout ── */
-    .layout { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(330px, .72fr); gap: 25px; align-items: start; }
-    .steps, aside { display: grid; gap: 16px; }
-    .card { padding: clamp(22px, 3vw, 36px); border: 1px solid var(--border); border-radius: 16px; background: #111110d9; }
+    .layout { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(340px, .85fr); gap: 22px; align-items: start; }
+    aside { display: grid; gap: 16px; }
+    .card { padding: clamp(22px, 3vw, 34px); border: 1px solid var(--border); border-radius: 16px; background: #111110d9; }
 
-    /* ── Steps ── */
-    .step { display: flex; margin-bottom: 25px; }
-    .step > b { flex: none; display: inline-grid; place-items: center; width: 31px; height: 31px; margin-right: 10px; border: 1px solid #52b78844; border-radius: 9px; color: var(--green-glow); background: #52b78812; }
-    .step h2 { font: 700 1.6rem var(--font-display); }
-    .step p { margin-top: 5px; color: #a39c92; font-size: 15px; }
+    /* ── Compose card ── */
+    .compose { display: grid; gap: 20px; }
 
-    .mode { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
-    .mode button { display: flex; gap: 13px; align-items: center; padding: 16px; text-align: left; color: var(--white); border: 1px solid var(--border); border-radius: 10px; transition: border-color .2s, background .2s; }
-    .mode button.active { border-color: #52b78877; background: #52b78810; }
-    .mode i { display: grid; place-items: center; flex: none; width: 37px; height: 37px; border-radius: 8px; background: #ffffff08; color: var(--tan-light); font: normal 12px var(--font-mono); }
-    .mode span { font: 700 15px var(--font-display); }
-    .mode small { display: block; margin-top: 4px; color: var(--muted); font: 400 12px var(--font-body); }
+    .mode-row { display: flex; align-items: center; gap: 14px; }
+
+    .mode-seg {
+        display: inline-flex;
+        gap: 4px;
+        padding: 4px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: #0d0d0c;
+    }
+
+    .mode-seg button {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 9px 16px;
+        border-radius: 9px;
+        color: var(--muted);
+        font: 700 13px var(--font-display);
+        transition: color .2s, background .2s;
+    }
+
+    .mode-seg button i {
+        display: grid;
+        place-items: center;
+        width: 20px;
+        height: 20px;
+        border-radius: 6px;
+        background: #ffffff08;
+        color: var(--tan-light);
+        font: normal 10px var(--font-mono);
+        font-style: normal;
+    }
+
+    .mode-seg button.active { color: #07120d; background: var(--green-glow); }
+    .mode-seg button.active i { background: #07120d22; color: #07120d; }
 
     label { display: block; color: var(--tan-light); font: 12px var(--font-mono); letter-spacing: .05em; text-transform: uppercase; }
-    .module-pick { margin-top: 16px; padding: 16px; background: #ffffff05; border-radius: 9px; }
-    .module-pick small, label > small { display: block; margin-top: 7px; color: var(--muted); font: 12px var(--font-body); letter-spacing: 0; text-transform: none; }
+    label > small { display: block; margin-top: 7px; color: var(--muted); font: 12px var(--font-body); letter-spacing: 0; text-transform: none; }
 
-    .fields { display: grid; grid-template-columns: 1.2fr .9fr .9fr; gap: 12px; }
-    .fields .span2 { grid-column: span 2; }
-    .fields label { position: relative; }
-    .prefix { position: absolute; top: 38px; left: 12px; color: var(--green-glow); }
-    .prefix + input { padding-left: 30px; }
+    .module-pick { padding: 14px 16px; background: #ffffff05; border-radius: 10px; }
+    .module-pick small { display: block; margin-top: 7px; color: var(--muted); font: 12px var(--font-body); letter-spacing: 0; text-transform: none; }
+
+    /* Name field: prefix anchored to its own wrapper, immune to label-height
+       differences (the old absolute-in-label version drifted when hints wrapped). */
+    .f-name { max-width: 380px; }
+    .f-wrap { position: relative; display: block; }
+    .prefix { position: absolute; top: 50%; left: 12px; translate: 0 -50%; color: var(--green-glow); }
+    .f-wrap input { padding-left: 30px; }
 
     input, select, textarea { width: 100%; margin-top: 8px; color: var(--white); background: #0d0d0c; border: 1px solid #c9a87c33; border-radius: 8px; outline: 0; }
     input, select { height: 44px; padding: 0 12px; }
     textarea { padding: 15px; resize: vertical; line-height: 1.6; }
     input:focus, select:focus, textarea:focus { border-color: #52b78899; box-shadow: 0 0 0 3px #52b78818; }
+    .f-wrap input { margin-top: 0; }
+    .f-name .f-wrap { margin-top: 8px; }
 
-    .recipes { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; margin: 23px 0 15px; }
+    .response { position: relative; margin-top: 2px; }
+    .response > small { position: absolute; right: 0; top: 2px; }
+
+    .recipes { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; margin-top: -8px; }
     .recipes span { color: var(--muted); font: 11px var(--font-mono); text-transform: uppercase; }
-    .recipes :global(button) { padding: 8px 12px; color: #bbb2a9; border: 1px solid var(--border); border-radius: 99px; font-size: 12px; transition: border-color .2s, color .2s; }
+    .recipes :global(button) { padding: 7px 12px; color: #bbb2a9; border: 1px solid var(--border); border-radius: 99px; font-size: 12px; transition: border-color .2s, color .2s; }
     .recipes :global(button:hover) { border-color: #52b78877; color: var(--white); }
 
-    .response { position: relative; }
-    .response > small { position: absolute; right: 0; top: 0; }
-    .response textarea { border-radius: 8px 8px 0 0; }
-    .note { padding: 10px 13px; color: #a39c92; border: 1px solid var(--border); border-top: 0; border-radius: 0 0 8px 8px; font-size: 12.5px; }
-
-    .scope { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 11px; color: var(--muted); font: 11px var(--font-mono); text-transform: uppercase; }
-    .scope span { color: var(--green-glow); }
+    /* ── Palette (inside the compose card) ── */
+    .palette { padding-top: 18px; border-top: 1px solid var(--border); }
+    .palette header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+    .palette header b { color: var(--white); font: 700 1.05rem var(--font-display); }
+    .scope { color: var(--green-glow); font: 10.5px var(--font-mono); letter-spacing: .06em; text-transform: uppercase; text-align: right; }
+    .palette-sub { margin: 6px 0 14px; color: #a39c92; font-size: 13px; }
     .vars { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 
-    details { margin-top: 17px; padding-top: 16px; border-top: 1px solid var(--border); color: #a39c92; font-size: 13px; }
-    details summary { color: var(--tan-light); cursor: pointer; }
-    details p { margin-top: 9px; line-height: 1.5; }
+    .palette details { margin-top: 14px; color: #a39c92; font-size: 12.5px; }
+    .palette details summary { color: var(--tan-light); cursor: pointer; }
+    .palette details p { margin-top: 8px; line-height: 1.55; }
 
-    .learn { color: #a39c92; font-size: 13.5px; padding: 0 4px; }
+    /* ── More options (folded) ── */
+    .more { padding-top: 16px; border-top: 1px solid var(--border); }
+    .more summary {
+        cursor: pointer;
+        color: var(--tan-light);
+        font: 12px var(--font-mono);
+        letter-spacing: .05em;
+        text-transform: uppercase;
+    }
+    .more summary:hover { color: var(--tan-pale); }
+    .more-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 16px; }
+    .more-grid .span2 { grid-column: 1 / -1; }
+
+    .learn { max-width: 1180px; margin: 26px auto 0; color: #a39c92; font-size: 13.5px; }
     .learn a { color: var(--tan); }
     .learn a:hover { color: var(--tan-light); }
 
     /* ── Aside ── */
     aside { position: sticky; top: calc(var(--nav-offset) + 18px); }
 
-    .preview header, .copy header, .send header { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; margin-bottom: 14px; color: var(--muted); font: 11px var(--font-mono); text-transform: uppercase; letter-spacing: .08em; }
+    .preview header, .action header { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; margin-bottom: 16px; color: var(--muted); font: 11px var(--font-mono); text-transform: uppercase; letter-spacing: .08em; }
     .preview header b { color: var(--white); }
     .preview header i { display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: #e06262; }
     .preview > small { display: block; margin-top: 11px; color: #a39c92; font-size: 12px; line-height: 1.5; }
 
-    .send header b, .copy header b { padding: 4px 7px; color: var(--green-glow); background: #52b78812; border-radius: 99px; letter-spacing: 0; }
-    .send header :global(b.is-bad) { color: #e08585; background: #e0626212; }
-    .send > p, .copy > p { color: #a39c92; font-size: 13px; line-height: 1.6; margin-bottom: 13px; }
+    .action header b { padding: 4px 8px; color: var(--green-glow); background: #52b78812; border-radius: 99px; letter-spacing: 0; }
+    .action header :global(b.is-bad) { color: #e08585; background: #e0626212; }
 
     .send__cta { display: flex; justify-content: center; align-items: center; gap: 10px; width: 100%; padding: 14px; color: #07120d; background: var(--green-glow); border-radius: 8px; font: 700 14px var(--font-display); transition: filter .2s, transform .2s; }
     .send__cta:hover { filter: brightness(1.08); transform: translateY(-1px); }
     .send__cta.is-disabled { opacity: .45; pointer-events: none; }
+    .send__help { margin-top: 10px; color: var(--muted); font-size: 12px; line-height: 1.5; text-align: center; }
 
-    .copy pre { max-height: 180px; overflow: auto; padding: 14px; background: #0b0b0a; border-radius: 8px; color: var(--tan-pale); white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.6 var(--font-mono); }
-    .copy > button { display: flex; justify-content: center; gap: 10px; width: 100%; margin-top: 12px; padding: 12px; color: var(--tan-pale); background: #c9a87c14; border: 1px solid #c9a87c44; border-radius: 8px; font: 700 13px var(--font-display); transition: background .2s, border-color .2s; }
-    .copy > button:hover { background: #c9a87c22; border-color: #c9a87c77; }
-    .copy > button:disabled { opacity: .45; pointer-events: none; }
-    .copy__module-link { display: block; margin-top: 11px; color: var(--tan); font: 12px var(--font-mono); text-align: center; }
-    .copy__module-link:hover { color: var(--tan-light); }
-
-    .then > b { color: var(--tan-light); font: 11px var(--font-mono); text-transform: uppercase; }
-    .then ol { display: grid; gap: 11px; margin-top: 13px; }
-    .then :global(li) { display: flex; gap: 10px; align-items: baseline; color: #a9a298; font-size: 12.5px; line-height: 1.55; }
-    .then :global(li i) { display: grid; place-items: center; flex: none; width: 22px; height: 22px; border: 1px solid var(--border); border-radius: 50%; color: var(--tan-light); font: normal 10px var(--font-mono); font-style: normal; }
+    .copyw { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
+    [data-send-wrap][hidden] + .copyw { margin-top: 0; padding-top: 0; border-top: 0; }
+    .copyw__label { margin-bottom: 10px; color: var(--muted); font: 11px var(--font-mono); letter-spacing: .08em; text-transform: uppercase; }
+    .copyw pre { max-height: 150px; overflow: auto; padding: 12px 14px; background: #0b0b0a; border-radius: 8px; color: var(--tan-pale); white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.6 var(--font-mono); }
+    .copyw > button { display: flex; justify-content: center; gap: 10px; width: 100%; margin-top: 10px; padding: 11px; color: var(--tan-pale); background: #c9a87c14; border: 1px solid #c9a87c44; border-radius: 8px; font: 700 13px var(--font-display); transition: background .2s, border-color .2s; }
+    .copyw > button:hover { background: #c9a87c22; border-color: #c9a87c77; }
+    .copyw > button:disabled { opacity: .45; pointer-events: none; }
+    .copyw__module-link { display: block; margin-top: 11px; color: var(--tan); font: 12px var(--font-mono); text-align: center; }
+    .copyw__module-link:hover { color: var(--tan-light); }
 
     [hidden] { display: none !important; }
 
     @media (max-width: 1000px) {
         .layout { grid-template-columns: 1fr; }
-        aside { position: static; grid-template-columns: 1fr 1fr; }
-        .preview { grid-column: 1 / -1; }
-        .then { grid-column: 1 / -1; }
+        aside { position: static; }
     }
 
     @media (max-width: 700px) {
-        .builder { width: calc(100% - 28px); padding-top: 18px; }
-        .proof { flex-wrap: wrap; gap: 12px; }
-        .mode, .fields, .vars, aside { grid-template-columns: 1fr; }
-        .fields .span2 { grid-column: auto; }
-        .preview, .then { grid-column: auto; }
+        .builder { width: calc(100% - 28px); padding-top: 16px; }
         .card { padding: 20px 16px; }
+        .vars, .more-grid { grid-template-columns: 1fr; }
+        .f-name { max-width: none; }
+        .mode-seg { width: 100%; }
+        .mode-seg button { flex: 1; justify-content: center; }
     }
 
     @media (prefers-reduced-motion: reduce) {
-        .mode button, .send__cta, .copy > button { transition: none; }
+        .mode-seg button, .send__cta, .copyw > button { transition: none; }
     }
 </style>
 
@@ -981,8 +1008,8 @@ for (const surface of data.surfaces) {
         grid-template-columns: minmax(104px, auto) 1fr 25px;
         gap: 12px;
         align-items: center;
-        min-height: 72px;
-        padding: 13px;
+        min-height: 68px;
+        padding: 12px 13px;
         text-align: left;
         color: var(--white, #f0ece4);
         background: linear-gradient(135deg, rgba(255, 255, 255, .025), rgba(255, 255, 255, .01));
