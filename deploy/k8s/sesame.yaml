@@ -131,19 +131,17 @@ spec:
             # PubAcks through it adds a cross-leaf round trip and stalls large
             # windows.
             #
-            # The two JetStream planes dial the ordinal that leads their streams
-            # (R1 placement pins from pkg/bus/provision.go), skipping the
-            # intra-hub route hop the PreferSameNode `nats` Service would add on
-            # a non-leader member: consumers (NATS_HUB_URL) sit with
-            # TWITCH_INGRESS on nats-0, the publisher pool
-            # (NATS_HUB_PUBLISH_URL) with TWITCH_OUTGRESS + BAGEL_DATA on
-            # nats-1. Both per-pod headless names are hub cert SANs.
+            # Consumers remain pinned beside TWITCH_INGRESS on nats-0. Publishers
+            # use the PreferSameNode `nats` Service: the R3 qualification measured
+            # ~75k/s node-local vs ~60.6k/s when every client dialed the leader.
+            # The stream leader still performs the RAFT commit, while client TLS,
+            # socket and batch work is spread over all three hub members.
             - name: NATS_URL
               value: tls://nats:4222
             - name: NATS_HUB_URL
               value: tls://nats-0.nats-headless.production.svc.cluster.local:4222
             - name: NATS_HUB_PUBLISH_URL
-              value: tls://nats-1.nats-headless.production.svc.cluster.local:4222
+              value: tls://nats:4222
             # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS server
             # TLS cert now that NATS is out of the Linkerd mesh; read as RootCAs by
             # pkg/bus (Go services) and the console nats lib (TS).
