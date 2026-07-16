@@ -334,35 +334,77 @@ type latencyResult struct {
 	timeouts int64
 }
 
+type latencySampler struct {
+	ctx      context.Context
+	cfg      config
+	js       nats.JetStreamContext
+	payloads [][]byte
+	result   latencyResult
+}
+
 func latencyProbe(
 	ctx context.Context,
 	cfg config,
 	js nats.JetStreamContext,
 	payloads [][]byte,
 ) latencyResult {
-	result := latencyResult{values: make([]time.Duration, 0, cfg.latencySamples)}
-	for i := 0; i < cfg.latencySamples; i++ {
-		if i > 0 && !waitForSample(ctx, cfg.latencyInterval) {
-			break
-		}
-		msg := benchmarkMessage(cfg.subject, payloads[i%len(payloads)])
-		started := time.Now()
-		sampleCtx, cancel := context.WithTimeout(ctx, cfg.ackTimeout)
-		_, err := js.PublishMsg(msg, nats.Context(sampleCtx))
-		cancel()
-		if err != nil {
-			if ctx.Err() != nil {
-				break
-			}
-			result.errors++
-			if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, nats.ErrTimeout) {
-				result.timeouts++
-			}
-			return result
-		}
-		result.values = append(result.values, time.Since(started))
+	sampler := latencySampler{
+		ctx: ctx, cfg: cfg, js: js, payloads: payloads,
+		result: latencyResult{values: make([]time.Duration, 0, cfg.latencySamples)},
 	}
-	return result
+	sampler.collect()
+	return sampler.result
+}
+
+func (s *latencySampler) collect() {
+	for index := 0; index < s.cfg.latencySamples; index++ {
+		if !s.collectSample(index) {
+			return
+		}
+	}
+}
+
+func (s *latencySampler) collectSample(index int) bool {
+	if !s.ready(index) {
+		return false
+	}
+	duration, err := s.measure(index)
+	if err != nil {
+		return s.recordError(err)
+	}
+	s.result.values = append(s.result.values, duration)
+	return true
+}
+
+func (s *latencySampler) ready(index int) bool {
+	if index == 0 {
+		return true
+	}
+	return waitForSample(s.ctx, s.cfg.latencyInterval)
+}
+
+func (s *latencySampler) measure(index int) (time.Duration, error) {
+	msg := benchmarkMessage(s.cfg.subject, s.payloads[index%len(s.payloads)])
+	started := time.Now()
+	sampleCtx, cancel := context.WithTimeout(s.ctx, s.cfg.ackTimeout)
+	defer cancel()
+	_, err := s.js.PublishMsg(msg, nats.Context(sampleCtx))
+	return time.Since(started), err
+}
+
+func (s *latencySampler) recordError(err error) bool {
+	if s.ctx.Err() != nil {
+		return false
+	}
+	s.result.errors++
+	if latencyTimeout(err) {
+		s.result.timeouts++
+	}
+	return false
+}
+
+func latencyTimeout(err error) bool {
+	return errors.Is(err, context.DeadlineExceeded) || errors.Is(err, nats.ErrTimeout)
 }
 
 // latencySampleRequirement prevents a healthy-looking percentile from being
