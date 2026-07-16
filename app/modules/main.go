@@ -23,7 +23,6 @@ import (
 	"ItsBagelBot/pkg/logger"
 	"ItsBagelBot/pkg/monitor"
 
-	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/nats-io/nats.go"
 	"github.com/newrelic/go-agent/v3/newrelic"
 
@@ -128,8 +127,8 @@ func migrateSchema(ctx context.Context, client *ent.Client, log *zap.Logger) {
 // value instead of a long parameter list.
 type eventsWiring struct {
 	app       *newrelic.Application
-	broadcast message.Subscriber
-	grouped   message.Subscriber
+	broadcast bus.Subscriber
+	grouped   bus.Subscriber
 	repo      *repository.Modules
 	quotes    *repository.Quotes
 	log       *zap.Logger
@@ -139,7 +138,7 @@ type eventsWiring struct {
 // on the broadcast subscriber, reprojection and account deletion on the
 // durable group. Fatal on any subscribe failure, matching main's boot style.
 func consumeEvents(ctx context.Context, w eventsWiring) {
-	if err := bus.Consume(ctx, w.app, w.broadcast, data.SubjectModuleChanged, func(msg *message.Message) error {
+	if err := bus.Consume(ctx, w.app, w.broadcast, data.SubjectModuleChanged, func(msg *bus.Message) error {
 
 		var dto data.ModuleChangedDTO
 		if err := json.Unmarshal(msg.Payload, &dto); err != nil {
@@ -152,13 +151,13 @@ func consumeEvents(ctx context.Context, w eventsWiring) {
 		w.log.Fatal("failed to subscribe to module changes", zap.Error(err))
 	}
 
-	if err := bus.Consume(ctx, w.app, w.grouped, data.SubjectReprojectRequest, func(*message.Message) error {
+	if err := bus.Consume(ctx, w.app, w.grouped, data.SubjectReprojectRequest, func(*bus.Message) error {
 		return w.repo.Reproject(ctx)
 	}, w.log); err != nil {
 		w.log.Fatal("failed to subscribe to reproject requests", zap.Error(err))
 	}
 
-	if err := bus.Consume(ctx, w.app, w.grouped, data.SubjectUserDeleted, func(msg *message.Message) error {
+	if err := bus.Consume(ctx, w.app, w.grouped, data.SubjectUserDeleted, func(msg *bus.Message) error {
 		return deleteUser(msg, w)
 	}, w.log); err != nil {
 		w.log.Fatal("failed to subscribe to user deleted events", zap.Error(err))
@@ -168,7 +167,7 @@ func consumeEvents(ctx context.Context, w eventsWiring) {
 // deleteUser handles one user_deleted event: validate the payload, then sweep
 // the account's module rows and quote book. Malformed payloads are logged and
 // dropped (returning an error would only redeliver them).
-func deleteUser(msg *message.Message, w eventsWiring) error {
+func deleteUser(msg *bus.Message, w eventsWiring) error {
 	var dto data.UserDeletedDTO
 	if err := json.Unmarshal(msg.Payload, &dto); err != nil {
 		w.log.Warn("modules: bad user_deleted payload", zap.Error(err))

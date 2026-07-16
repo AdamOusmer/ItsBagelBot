@@ -18,7 +18,7 @@ query MySQL; its datastore is Valkey.
 Keep and build on the instrumentation that already exists:
 
 - `pkg/monitor` starts one Go APM application per service, enables distributed tracing, and correlates zap logs.
-- `pkg/bus` creates one transaction per JetStream delivery and propagates trace headers for Go Watermill publishes.
+- `pkg/bus` creates one transaction per JetStream delivery and propagates trace headers through the native Go NATS publisher.
 - `nrmysql` creates datastore segments for ent queries that carry the transaction context.
 - projection Valkey operations create Redis-compatible datastore segments.
 - ingress already reports low-volume `Custom/Ingress/*` counters and `IngressEvent` lifecycle events.

@@ -8,7 +8,6 @@ import (
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 
-	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/bytedance/sonic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,7 +23,7 @@ func newAutomodPipeline(pub bus.Publisher, reader projection.Reader, enforce boo
 	return NewPipeline(d, NewRegistry(zap.NewNop()), cfg)
 }
 
-func ipLoggerChat(t *testing.T) *message.Message {
+func ipLoggerChat(t *testing.T) *bus.Message {
 	t.Helper()
 	body, err := sonic.Marshal(map[string]any{
 		"type":                chatType,
@@ -34,7 +33,7 @@ func ipLoggerChat(t *testing.T) *message.Message {
 		"text":                "claim your prize over at grabify.link/xyz now everyone hurry",
 	})
 	require.NoError(t, err)
-	return message.NewMessage("u", body)
+	return bus.NewMessage("u", body)
 }
 
 func TestAutomodEnforceEmitsTimeout(t *testing.T) {

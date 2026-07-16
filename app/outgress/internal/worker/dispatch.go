@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"ItsBagelBot/internal/domain/outgress"
+	"ItsBagelBot/pkg/bus"
 
-	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/newrelic/go-agent/v3/newrelic"
 
 	"go.uber.org/zap"
@@ -77,7 +77,7 @@ var helixHandlers = map[string]func(*Worker, context.Context, outgress.Message) 
 	outgress.TypeWarn:       (*Worker).processWarn,
 }
 
-func (w *Worker) Process(msg *message.Message) error {
+func (w *Worker) Process(msg *bus.Message) error {
 	ctx := msg.Context()
 	processStarted := time.Now()
 	defer recordStageDuration(ctx, "outgress.total_ms", processStarted)

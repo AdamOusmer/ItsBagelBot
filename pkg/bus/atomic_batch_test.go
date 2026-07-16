@@ -59,21 +59,45 @@ func TestFrameBatchStampsHeadersAndReplies(t *testing.T) {
 	}
 }
 
-func TestStripBatchHeadersRevertsFramingKeepsDedup(t *testing.T) {
+func TestStripBatchHeadersRevertsFramingKeepsMessageIdentity(t *testing.T) {
 	batch := framedBatch()
 	stripBatchHeaders(batch)
 
 	for i, req := range batch {
-		framed := req.msg.Reply != "" ||
-			req.msg.Header.Get(batchIDHdr) != "" ||
-			req.msg.Header.Get(batchSeqHdr) != "" ||
-			req.msg.Header.Get(batchCommitHdr) != ""
-		if framed {
-			t.Fatalf("message %d kept batch framing after strip", i)
+		t.Run("message_"+itoa(i+1), func(t *testing.T) {
+			assertBatchFramingStripped(t, req.msg)
+			assertMessageIdentityPreserved(t, req.msg)
+			assertBrokerDedupAbsent(t, req.msg)
+		})
+	}
+}
+
+func assertBatchFramingStripped(t *testing.T, msg *nats.Msg) {
+	t.Helper()
+	if msg.Reply != "" {
+		t.Fatalf("kept batch reply %q after strip", msg.Reply)
+	}
+	for _, header := range []string{batchIDHdr, batchSeqHdr, batchCommitHdr} {
+		if value := msg.Header.Get(header); value != "" {
+			t.Fatalf("kept batch header %s=%q after strip", header, value)
 		}
-		if req.msg.Header.Get(nats.MsgIdHdr) == "" {
-			t.Fatalf("message %d lost its dedup id during strip", i)
-		}
+	}
+}
+
+func assertMessageIdentityPreserved(t *testing.T, msg *nats.Msg) {
+	t.Helper()
+	if msg.Header.Get(messageIDHeader) == "" {
+		t.Fatal("lost its fleet message id during strip")
+	}
+	if msg.Header.Get(legacyMessageIDHeader) == "" {
+		t.Fatal("lost its rollout compatibility id during strip")
+	}
+}
+
+func assertBrokerDedupAbsent(t *testing.T, msg *nats.Msg) {
+	t.Helper()
+	if msg.Header.Get(nats.MsgIdHdr) != "" {
+		t.Fatal("unexpectedly carries broker dedup")
 	}
 }
 
@@ -85,8 +109,9 @@ func stagedBatch(n int) []publishRequest {
 	batch := make([]publishRequest, 0, n)
 	for i := 0; i < n; i++ {
 		msg := nats.NewMsg("data.test.batch")
-		msg.Header.Set(nats.MsgIdHdr, "id-"+itoa(i+1))
-		batch = append(batch, publishRequest{msg: msg, msgID: "id-" + itoa(i+1)})
+		msg.Header.Set(messageIDHeader, "id-"+itoa(i+1))
+		msg.Header.Set(legacyMessageIDHeader, "id-"+itoa(i+1))
+		batch = append(batch, publishRequest{msg: msg})
 	}
 	return batch
 }
@@ -142,5 +167,21 @@ func TestCheckBatchAck(t *testing.T) {
 	}
 	if err := checkBatchAck([]byte(`not json`), cohort); err == nil {
 		t.Fatal("undecodable ack must fail the cohort")
+	}
+}
+
+func TestAtomicFallbackRequiresExplicitBrokerRejection(t *testing.T) {
+	explicit := checkBatchAck([]byte(`{"error":{"code":400,"err_code":10176,"description":"batch incomplete"}}`), atomicCohort{id: "B1", n: 3})
+	if !atomicFallbackSafe(explicit) {
+		t.Fatalf("explicit rejection should permit fallback: %v", explicit)
+	}
+	for name, err := range map[string]error{
+		"timeout":   errAtomicAckTimeout,
+		"malformed": checkBatchAck([]byte(`not json`), atomicCohort{id: "B1", n: 3}),
+		"mismatch":  checkBatchAck([]byte(`{"stream":"BAGEL_DATA","seq":42,"batch":"OTHER","count":3}`), atomicCohort{id: "B1", n: 3}),
+	} {
+		if atomicFallbackSafe(err) {
+			t.Fatalf("%s ambiguity must not permit fallback: %v", name, err)
+		}
 	}
 }

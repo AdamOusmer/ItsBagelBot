@@ -13,11 +13,9 @@ import (
 )
 
 // JetStream streams are part of the broker's contract, not something a client
-// should invent on the fly. watermill's AutoProvision names a stream after the
-// (dotted) topic, which JetStream rejects, so it can never stand a stream up in
-// production. Instead the fleet declares the streams it depends on here and
-// reconciles them idempotently at startup: a fresh deployment provisions its
-// own streams, and a drifted one converges, with no out-of-band ops step.
+// should invent from a subject on the fly. The fleet declares its streams here
+// and reconciles them idempotently at startup: a fresh deployment provisions
+// its own streams, and a drifted one converges, with no out-of-band ops step.
 
 // StreamSpec is the desired state of one JetStream stream. It is intentionally
 // small: the operational knobs that matter for the shared HeatWave-sized

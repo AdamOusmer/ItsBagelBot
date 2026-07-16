@@ -120,7 +120,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: sesame
-          image: ghcr.io/adamousmer/itsbagelbot/sesame:main-1784147714-7c85f544506e@sha256:5b976c6505e6c3027ac823d1bf771cf865a1082eede1a877326e16480181d4b6 # {"$imagepolicy": "flux-system:sesame"}
+          image: ghcr.io/adamousmer/itsbagelbot/sesame:main-1784162472-e3015a40f876@sha256:43119d6c5aad05551e45ab44c97d9df8a0b9eade316612bc0840bdd2bb6aba01 # {"$imagepolicy": "flux-system:sesame"}
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST
@@ -181,8 +181,8 @@ spec:
             # double-processing.
             - name: SESAME_CONSUMER_NAME
               value: worker
-            # Production acceptance found one Watermill subscription serialized
-            # the pod at 20/s through the leaf. The fleet-owned concurrent hub
+            # Production acceptance found the former generic subscription path
+            # serialized the pod at 20/s through the leaf. The fleet-owned concurrent hub
             # subscriber sustains four queue subscriptions with 100 handler slots
             # each. This fills one confirmed PubAck cohort per publisher connection;
             # 200 slots added only ~2% throughput while more than doubling p95.

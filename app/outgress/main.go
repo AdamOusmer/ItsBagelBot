@@ -22,7 +22,6 @@ import (
 	"ItsBagelBot/pkg/ratelimit"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
-	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/nats-io/nats.go"
 	"github.com/newrelic/go-agent/v3/newrelic"
 	valkey_go "github.com/valkey-io/valkey-go"
@@ -333,7 +332,7 @@ func (d *deps) newLaneWorkers(tw *twitch.Client, limiter ratelimit.Manager, regi
 
 // laneSubscribers connects the three lane subscribers; paced redelivery keeps
 // rate-limit nacks from spinning.
-func (d *deps) laneSubscribers() (premiumSub, standardSub, systemSub message.Subscriber, closeAll func()) {
+func (d *deps) laneSubscribers() (premiumSub, standardSub, systemSub bus.Subscriber, closeAll func()) {
 	var err error
 	premiumSub, err = bus.NewLaneSubscriber(bus.LaneConfig{
 		URL: d.cfg.NATSURL, Stream: bus.OutgressStream.Name, Subject: d.cfg.PremiumSubject,
@@ -377,7 +376,7 @@ func (d *deps) startChatLanes(ctx context.Context, lanes []bus.WeightedLane) {
 // startSystemLane keeps the system lane on its own independent consumer, off
 // the weighted budget, so onboarding bursts never compete for the chat/api
 // routines. It runs a fixed pool (min == max, single consumer), no autoscaling.
-func (d *deps) startSystemLane(ctx context.Context, sub message.Subscriber, system *worker.Worker) {
+func (d *deps) startSystemLane(ctx context.Context, sub bus.Subscriber, system *worker.Worker) {
 	_, err := bus.ConsumeWeighted(ctx, d.nrApp, []bus.WeightedLane{
 		{Sub: sub, Subject: d.cfg.SystemSubject, Handle: system.Process},
 	}, bus.ScalePolicy{

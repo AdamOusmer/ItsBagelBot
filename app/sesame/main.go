@@ -20,7 +20,6 @@ import (
 	"ItsBagelBot/pkg/monitor"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
-	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/nats-io/nats.go"
 	"github.com/newrelic/go-agent/v3/newrelic"
 	"github.com/valkey-io/valkey-go"
@@ -293,13 +292,13 @@ func refreshEmotes(ctx context.Context, guard *automod.Gate, log *zap.Logger) {
 type infra struct {
 	nc  *nats.Conn
 	pub bus.Publisher
-	sub message.Subscriber
+	sub bus.Subscriber
 	vc  valkey.Client
 }
 
 // dialNATS opens the core RPC connection (projector fallback) and the JetStream
 // publisher/subscriber that drive the lanes. Any failure is fatal.
-func dialNATS(cfg *config.Config, log *zap.Logger) (*nats.Conn, bus.Publisher, message.Subscriber) {
+func dialNATS(cfg *config.Config, log *zap.Logger) (*nats.Conn, bus.Publisher, bus.Subscriber) {
 	nc, err := bus.Connect(cfg.NATSRPCURL, serviceName)
 	if err != nil {
 		log.Fatal("failed to connect to nats", zap.Error(err))
@@ -401,7 +400,7 @@ func newLoyaltyClock(ctx context.Context, in infra, proj *projection.Client, liv
 // standard lanes into a shared pool, with premium reserving a slice so it is
 // never starved. Live events ride these same lanes, so there is no separate
 // stream consumer.
-func newConsumer(sub message.Subscriber, nrApp *newrelic.Application, cfg *config.Config, log *zap.Logger) *consumer.Consumer {
+func newConsumer(sub bus.Subscriber, nrApp *newrelic.Application, cfg *config.Config, log *zap.Logger) *consumer.Consumer {
 	return consumer.New(sub, nrApp, consumer.Config{
 		Lanes: consumer.Lanes{PremiumSubject: cfg.PremiumSubject, StandardSubject: cfg.StandardSubject},
 		Policy: bus.ScalePolicy{

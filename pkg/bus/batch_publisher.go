@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"ItsBagelBot/pkg/env"
@@ -24,7 +23,7 @@ const (
 	defaultPublishQueueSize = 16_384
 	maxInflightCohorts      = 4
 
-	watermillUUIDHeader = "_watermill_message_uuid" // wire compatibility until subscribers migrate
+	messageIDHeader = "Bagelbot-Message-Id"
 )
 
 // StreamRouter is the strategy used to select a pooled connection. The default
@@ -70,17 +69,15 @@ type batchPublisher struct {
 	closed   bool
 	workers  map[string]*publishBatchWorker
 
-	stateMu    sync.Mutex
-	accepted   uint64
-	completed  uint64
-	firstErr   error
-	changed    chan struct{}
-	duplicates atomic.Uint64
+	stateMu   sync.Mutex
+	accepted  uint64
+	completed uint64
+	firstErr  error
+	changed   chan struct{}
 }
 
 type publishRequest struct {
 	msg       *nats.Msg
-	msgID     string
 	confirmed chan error
 }
 
@@ -101,16 +98,6 @@ type publishBatchWorker struct {
 	owner    *batchPublisher
 	slots    chan struct{}
 	acks     sync.WaitGroup
-}
-
-// DuplicateCount reports broker-folded publications for acceptance telemetry.
-// It is intentionally outside Publisher's service-facing contract.
-func (p *publisherPool) DuplicateCount() uint64 {
-	var total uint64
-	for _, member := range p.members {
-		total += member.duplicates.Load()
-	}
-	return total
 }
 
 func newPublisherPool(url string, log *zap.Logger) (Publisher, error) {
@@ -174,7 +161,7 @@ func (p *publisherPool) PublishOwned(ctx context.Context, topic string, payload 
 
 func (p *publisherPool) PublishOwnedWithID(ctx context.Context, topic, msgID string, payload []byte) error {
 	if msgID == "" {
-		return errors.New("bus: idempotent publish requires an ID")
+		return errors.New("bus: confirmed publish requires a message ID")
 	}
 	return p.publish(publishCommand{ctx: ctx, topic: topic, msgID: msgID, payload: payload, confirmed: true})
 }
@@ -241,8 +228,15 @@ func (p *batchPublisher) publish(command publishCommand) error {
 func publishMessage(command publishCommand) *nats.Msg {
 	wire := nats.NewMsg(command.topic)
 	wire.Data = command.payload
-	wire.Header.Set(nats.MsgIdHdr, command.msgID)
-	wire.Header.Set(watermillUUIDHeader, command.msgID)
+	// Preserve the fleet abstraction's message identity for subscribers, but
+	// deliberately omit Nats-Msg-Id. The custom header is transport metadata,
+	// not a broker dedup key.
+	wire.Header.Set(messageIDHeader, command.msgID)
+	// Dual-write the former adapter's identity header for one rolling-release
+	// window. Old consumers only understand this header, and an empty UUID is
+	// unsafe for outgress's distributed lease owner. This is application
+	// identity—not Nats-Msg-Id—and therefore does not enable broker deduplication.
+	wire.Header.Set(legacyMessageIDHeader, command.msgID)
 	if txn := newrelic.FromContext(command.ctx); txn != nil {
 		headers := http.Header{}
 		txn.InsertDistributedTraceHeaders(headers)
@@ -269,7 +263,7 @@ func (p *batchPublisher) acceptingWorker(stream string) (*publishBatchWorker, er
 }
 
 func newPublishRequest(command publishCommand, wire *nats.Msg) publishRequest {
-	request := publishRequest{msg: wire, msgID: command.msgID}
+	request := publishRequest{msg: wire}
 	if command.confirmed {
 		request.confirmed = make(chan error, 1)
 	}
@@ -476,7 +470,7 @@ func (w *publishBatchWorker) publish(batch []publishRequest) {
 func (w *publishBatchWorker) startAsync(batch []publishRequest) ([]nats.PubAckFuture, error) {
 	futures := make([]nats.PubAckFuture, 0, len(batch))
 	for _, req := range batch {
-		future, err := w.js.PublishMsgAsync(req.msg, nats.MsgId(req.msgID))
+		future, err := w.js.PublishMsgAsync(req.msg)
 		if err != nil {
 			return nil, fmt.Errorf("bus: async publish %s: %w", req.msg.Subject, err)
 		}
@@ -492,10 +486,7 @@ func (w *publishBatchWorker) awaitAsync(futures []nats.PubAckFuture) error {
 	defer timer.Stop()
 	for _, future := range futures {
 		select {
-		case ack := <-future.Ok():
-			if ack != nil && ack.Duplicate {
-				w.owner.duplicates.Add(1)
-			}
+		case <-future.Ok():
 		case err := <-future.Err():
 			return err
 		case <-timer.C:

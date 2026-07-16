@@ -13,6 +13,7 @@ const jetStreamAPI = "$JS.API."
 
 var busUserPattern = regexp.MustCompile(`(?m)^[ \t]*user: "([a-z_]+_bus)"`)
 var jsSubjectPattern = regexp.MustCompile(`"(\$JS[^"]+)"`)
+var streamMutationPattern = regexp.MustCompile(`^\$JS\.API\.STREAM\.(CREATE|UPDATE|DELETE|LEADER\.STEPDOWN)\.`)
 
 // TestServiceBusJetStreamPermissionsAreExact is the regression gate for the
 // BUS-account blast radius. A broad $JS.> grant, an extra stream, or a newly
@@ -57,6 +58,35 @@ func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 				t.Fatalf("JetStream grants differ (-want +got):\nwant %v\n got %v", want, got)
 			}
 		})
+	}
+}
+
+// TestAdminBenchmarkStreamPermissionsAreExact keeps the production capacity
+// runner confined to its disposable stream. The admin retains its existing KV
+// ownership, but may not gain wildcard mutation access to the BUS account.
+func TestAdminBenchmarkStreamPermissionsAreExact(t *testing.T) {
+	config := sourceFile{name: "nats-auth.conf"}.read(t)
+	block, ok := (authConfig{body: config}).busUserBlocks(t)["admin_bus"]
+	if !ok {
+		t.Fatal("missing admin_bus authorization block")
+	}
+
+	var got []string
+	for _, subject := range block.jetStreamSubjects() {
+		if streamMutationPattern.MatchString(subject) || strings.Contains(subject, "R3_SHADOW_BENCH") {
+			got = append(got, subject)
+		}
+	}
+	want := []string{
+		"$JS.API.STREAM.CREATE.KV_admin_lanes",
+		"$JS.API.STREAM.CREATE.R3_SHADOW_BENCH",
+		"$JS.API.STREAM.DELETE.R3_SHADOW_BENCH",
+		"$JS.API.STREAM.LEADER.STEPDOWN.R3_SHADOW_BENCH",
+		"$JS.API.STREAM.UPDATE.KV_admin_lanes",
+		"$JS.EVENT.ADVISORY.STREAM.LEADER_ELECTED.R3_SHADOW_BENCH",
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("admin stream mutation grants differ (-want +got):\nwant %v\n got %v", want, got)
 	}
 }
 
