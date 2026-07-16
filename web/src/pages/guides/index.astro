@@ -2,6 +2,7 @@
 import Layout from '../../layouts/Layout.astro';
 import PageHero from '../../components/ui/PageHero.astro';
 import GuideCard from '../../components/guides/GuideCard.astro';
+import TextLink from '../../components/ui/TextLink.astro';
 
 const guides = [
     {
@@ -70,9 +71,9 @@ const guides = [
         <div class="ghub__help" data-reveal style="--reveal-i: 5">
             <p>Stuck on something a guide doesn't cover?</p>
             <div>
-                <a href="https://discord.gg/SZ2remwSDv" target="_blank" rel="noopener noreferrer">Ask on Discord</a>
-                <a href="/contact">Contact support</a>
-                <a href="https://dashboard.itsbagelbot.com" target="_blank" rel="noopener noreferrer">Open the dashboard</a>
+                <TextLink href="https://discord.gg/SZ2remwSDv" label="Ask on Discord" external />
+                <TextLink href="/contact" label="Contact support" />
+                <TextLink href="https://dashboard.itsbagelbot.com" label="Open the dashboard" external />
             </div>
         </div>
     </section>
@@ -205,20 +206,6 @@ const guides = [
     }
 
     .ghub__help div { display: flex; flex-wrap: wrap; gap: 20px; }
-
-    .ghub__help a {
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.78rem;
-        letter-spacing: 0.04em;
-        color: var(--tan, #c9a87c);
-        border-bottom: 1px solid transparent;
-        transition: color 180ms ease, border-color 180ms ease;
-    }
-
-    .ghub__help a:hover {
-        color: var(--tan-light, #e0c49a);
-        border-bottom-color: var(--tan-light, #e0c49a);
-    }
 
     @media (prefers-reduced-motion: reduce) {
         .ghub__tool, .ghub__tool-cta { transition: none; }
