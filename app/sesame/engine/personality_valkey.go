@@ -19,9 +19,10 @@ const personalityTTL = 12 * time.Hour
 //
 //   - a monotonic per-channel fact cursor (personality:fact:<id>, no TTL) so
 //     the fun-fact list plays in order instead of repeating at random;
-//   - the today half of the global feed counter (personality:feed:global,
-//     TTL window); the permanent half is the modules service's DB row,
-//     reached through the injected FeedTotalBumper;
+//   - both halves of the global feed counter: the today window
+//     (personality:feed:global, TTL) and a live view of the lifetime total
+//     (personality:feed:total, no TTL) that is seeded from and persisted to
+//     the modules service's DB row through the injected FeedTotalBumper;
 //   - a per-stream mood (personality:mood:<id>), first roll wins.
 //
 // Fact and mood are best-effort (the module falls back to stateless randomness
@@ -48,19 +49,24 @@ func (s *ValkeyPersonality) FactCursor(ctx context.Context, broadcasterID uint64
 	return s.client.Do(ctx, s.client.B().Incr().Key(key).Build()).AsInt64()
 }
 
-// feedKey is the today half of the fleet-wide feed counter: one bagel, fed by
+// feedTodayKey is the today half of the fleet-wide feed counter: one bagel, fed by
 // every channel at once.
-const feedKey = "personality:feed:global"
+const feedTodayKey = "personality:feed:global"
 
-// Feed records one feeding on both counters and returns them: the permanent DB
-// total first (authoritative, never resets), then the valkey today window. An
-// error on either side errors the whole call; the module then stays silent
-// instead of reporting half a readout.
+// feedTotalKey is the valkey live view of the permanent feed total. The DB row
+// in the modules service stays the source of truth; this key exists so the
+// reply path never waits on an RPC once the view is warm.
+const feedTotalKey = "personality:feed:total"
+
+// Feed records one feeding on both counters and returns them: the lifetime
+// total from the valkey live view (DB-seeded, persisted behind the reply) and
+// the valkey today window. An error on either side errors the whole call; the
+// module then stays silent instead of reporting half a readout.
 func (s *ValkeyPersonality) Feed(ctx context.Context) (FeedCounts, error) {
 	if s.total == nil {
 		return FeedCounts{}, errors.New("personality: no feed total backend")
 	}
-	total, err := s.total.FeedBump(ctx)
+	total, err := s.feedTotal(ctx)
 	if err != nil {
 		return FeedCounts{}, err
 	}
@@ -71,17 +77,55 @@ func (s *ValkeyPersonality) Feed(ctx context.Context) (FeedCounts, error) {
 	return FeedCounts{Today: today, Total: total}, nil
 }
 
+// feedTotal serves the lifetime total from the valkey view. A warm view
+// answers locally and lets the DB bump ride behind the reply; a cold view
+// (INCR landed on a fresh key after a flush or failover) seeds itself from the
+// synchronous RPC bump, which also counts this feeding. Two pods racing a cold
+// key can briefly answer a low number; the seed's SET snaps the view back to
+// the DB total, so drift self-heals at every cold start.
+func (s *ValkeyPersonality) feedTotal(ctx context.Context) (uint64, error) {
+	n, err := s.client.Do(ctx, s.client.B().Incr().Key(feedTotalKey).Build()).AsInt64()
+	if err != nil {
+		return 0, err
+	}
+	if n > 1 {
+		s.bumpBehind()
+		return uint64(n), nil
+	}
+	dbTotal, err := s.total.FeedBump(ctx)
+	if err != nil {
+		return 0, err
+	}
+	if err := s.client.Do(ctx, s.client.B().Set().Key(feedTotalKey).Value(strconv.FormatUint(dbTotal, 10)).Build()).Error(); err != nil {
+		s.log.Warn("personality: feed total seed failed", zap.Error(err))
+	}
+	return dbTotal, nil
+}
+
+// bumpBehind persists one feeding to the modules service off the reply path,
+// mirroring ValkeyReputation.Bump: a failure only lets the DB lag the view
+// until the next cold seed reconciles them.
+func (s *ValkeyPersonality) bumpBehind() {
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if _, err := s.total.FeedBump(ctx); err != nil {
+			s.log.Debug("personality: feed write-behind failed", zap.Error(err))
+		}
+	}()
+}
+
 // feedToday bumps and returns the today window. The first feed of the window
 // claims the TTL; later feeds leave it in place so the count reads as "today",
 // not a sliding forever-window.
 func (s *ValkeyPersonality) feedToday(ctx context.Context) (uint64, error) {
-	n, err := s.client.Do(ctx, s.client.B().Incr().Key(feedKey).Build()).AsInt64()
+	n, err := s.client.Do(ctx, s.client.B().Incr().Key(feedTodayKey).Build()).AsInt64()
 	if err != nil {
 		return 0, err
 	}
 	if n == 1 {
 		seconds := int64(personalityTTL.Seconds())
-		if err := s.client.Do(ctx, s.client.B().Expire().Key(feedKey).Seconds(seconds).Build()).Error(); err != nil {
+		if err := s.client.Do(ctx, s.client.B().Expire().Key(feedTodayKey).Seconds(seconds).Build()).Error(); err != nil {
 			s.log.Warn("personality: feed expire failed", zap.Error(err))
 		}
 	}

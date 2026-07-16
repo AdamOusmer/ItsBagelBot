@@ -222,8 +222,63 @@ func TestPersonalityEmojiChanceGate(t *testing.T) {
 
 func TestPersonalitySpecificReactionBeatsMentionFact(t *testing.T) {
 	pinPersonalityRand(t)
+	h := personalityHandler(t, engine.Deps{})
+	for text, want := range map[string]string{
+		"good bagel bot":                 personalityGoodPack[0],
+		"Good night @ItsBagelBot":        personalityGnPack[0],
+		"gn, @ItsBagelBot!!":             personalityGnPack[0],
+		"bonne nuit itsbagelbot":         personalityGnPack[0],
+		"thanks itsbagelbot":             personalityThanksPack[0],
+		"you are a good bagelbot":        personalityGoodPack[0],
+		"bad @ItsBagelBot. very bad bot": personalityBadPack[0],
+	} {
+		var col collector
+		require.NoError(t, h(context.Background(), personalityCtx(text), col.emit))
+		require.Len(t, col.out, 1, text)
+		assert.Equal(t, expandFor(want), col.out[0].Text, text)
+	}
+}
+
+// expandFor renders a pack line the way packReply would for the test chatter.
+func expandFor(line string) string {
+	return module.ExpandString(line, func(key string) (string, bool) {
+		if key == "user" {
+			return "Bob", true
+		}
+		return module.ParseDynamic(key)
+	})
+}
+
+func TestPersonalityNameVariantsReachDirectedReactions(t *testing.T) {
+	pinPersonalityRand(t)
+	d := engine.Deps{Personality: &fakePersonality{feed: engine.FeedCounts{Today: 2, Total: 7}}}
+	h := personalityHandler(t, d)
+	for _, text := range []string{"feed the bagelbot", "feed itsbagelbot", "feed the bagel bot", "feed @ItsBagelBot"} {
+		var col collector
+		require.NoError(t, h(context.Background(), personalityCtx(text), col.emit))
+		require.Len(t, col.out, 1, text)
+		assert.Equal(t, fmt.Sprintf(personalityFeedCountPack[0], 2, 7), col.out[0].Text, text)
+	}
+}
+
+func TestPersonalityBareMentionStillFacts(t *testing.T) {
+	pinPersonalityRand(t)
+	store := &fakePersonality{cursor: 1}
+	h := personalityHandler(t, engine.Deps{Personality: store})
+	for _, text := range []string{"@ItsBagelBot", "yo bagelbot", "its bagel bot is here"} {
+		var col collector
+		require.NoError(t, h(context.Background(), personalityCtx(text), col.emit))
+		require.Len(t, col.out, 1, text)
+		assert.Equal(t, personalityFacts[0], col.out[0].Text, text)
+	}
+
 	var col collector
-	require.NoError(t, personalityHandler(t, engine.Deps{})(context.Background(), personalityCtx("good bagel bot"), col.emit))
-	require.Len(t, col.out, 1)
-	assert.Equal(t, personalityGoodPack[0], col.out[0].Text, "praise must win over the generic mention fact")
+	require.NoError(t, h(context.Background(), personalityCtx("I love a warm bagel"), col.emit))
+	assert.Empty(t, col.out, "bare 'bagel' (the food) must not trigger the fact row")
+}
+
+func TestPersonalityNormalizeChat(t *testing.T) {
+	assert.Equal(t, "good night itsbagelbot", normalizeChat("good night, @itsbagelbot!!"))
+	assert.Equal(t, "gn bagel", normalizeChat("gn   bagel 🥯"))
+	assert.Equal(t, "", normalizeChat("!?@"))
 }
