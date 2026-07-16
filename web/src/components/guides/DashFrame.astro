@@ -209,7 +209,7 @@ const { path = '/', notes = [], caption } = Astro.props;
     }
 
     .df-account::before {
-        content: "M";
+        content: "S";
         display: grid;
         place-items: center;
         width: 18px;
@@ -580,9 +580,9 @@ const { path = '/', notes = [], caption } = Astro.props;
         display: flex;
         justify-content: space-between;
         align-items: baseline;
-        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-family: var(--font-display, "Syne", sans-serif);
         font-size: 0.76rem;
-        font-weight: 600;
+        font-weight: 700;
         color: var(--white, #f0ece4);
     }
 
@@ -680,6 +680,18 @@ const { path = '/', notes = [], caption } = Astro.props;
         font-family: var(--font-mono, "DM Mono", monospace);
         font-style: normal;
         font-size: 0.66rem;
+    }
+
+    /* Real console icon strokes (console/shared/lib/icons.ts), inlined as
+       tiny SVGs so tiles carry the same glyphs as the live modules page. */
+    .df-ico svg {
+        width: 13px;
+        height: 13px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.8;
+        stroke-linecap: round;
+        stroke-linejoin: round;
     }
 
     .df-tile-head b {

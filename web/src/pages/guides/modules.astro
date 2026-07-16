@@ -49,7 +49,7 @@ const sections = [
                 ]}
             >
                 <div class="df-main">
-                    <div class="df-topbar"><span class="df-brand">ItsBagelBot <small>Console</small></span><span class="df-crumb">ItsBagelBot / <b>Modules</b></span><span class="df-account">Mavey · Broadcaster</span></div>
+                    <div class="df-topbar"><span class="df-brand">ItsBagelBot <small>Console</small></span><span class="df-crumb">ItsBagelBot / <b>Modules</b></span><span class="df-account">streamer · Broadcaster</span></div>
                     <span class="df-eyebrow">Manage</span>
                     <p class="df-title">Channel <i>modules</i></p>
                     <p class="df-sub">Optional features for your channel. 2 of 13 enabled.</p>
@@ -58,13 +58,13 @@ const sections = [
                         <div style="display:grid; gap:10px; align-content:start;">
                             <span class="df-cat">Community</span>
                             <div class="df-grid">
-                                <div class="df-tile"><div class="df-tile-head"><i class="df-ico">◎</i><span><b>Chat Alerts</b><small>Community</small></span></div><small>Announce follows, subs, cheers and raids in chat.</small><div class="df-tile-foot"><span class="df-btn--configure">Configure</span><span class="df-toggle is-on"></span></div><i class="df-dot" style="top:10px; right:10px;">1</i></div>
-                                <div class="df-tile is-open"><div class="df-tile-head"><i class="df-ico">◈</i><span><b>Loyalty Points</b><small>Community</small></span></div><small>Viewers earn channel currency for subs, cheers and watch time.</small><div class="df-tile-foot"><span class="df-btn--configure">Configure</span><span class="df-toggle is-on"></span></div><i class="df-dot" style="top:10px; right:10px;">2</i></div>
+                                <div class="df-tile"><div class="df-tile-head"><i class="df-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></i><span><b>Chat Alerts</b><small>Community</small></span></div><small>Announce follows, subs, cheers and raids in chat.</small><div class="df-tile-foot"><span class="df-btn--configure">Configure</span><span class="df-toggle is-on"></span></div><i class="df-dot" style="top:10px; right:10px;">1</i></div>
+                                <div class="df-tile is-open"><div class="df-tile-head"><i class="df-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><line x1="12" y1="9.5" x2="12" y2="14.5"/></svg></i><span><b>Loyalty Points</b><small>Community</small></span></div><small>Viewers earn channel currency for subs, cheers and watch time.</small><div class="df-tile-foot"><span class="df-btn--configure">Configure</span><span class="df-toggle is-on"></span></div><i class="df-dot" style="top:10px; right:10px;">2</i></div>
                             </div>
                             <span class="df-cat">Games</span>
                             <div class="df-grid">
-                                <div class="df-tile"><div class="df-tile-head"><i class="df-ico">⬢</i><span><b>Bedwars Stats</b><small>Games</small></span></div><small>Hypixel Bedwars stats, urchin score and blacklist tags in chat.</small><div class="df-tile-foot"><span class="df-btn--configure">Configure</span><span class="df-toggle"></span></div></div>
-                                <div class="df-tile"><div class="df-tile-head"><i class="df-ico">▲</i><span><b>MCSR Ranked</b><small>Games</small></span></div><small>Ranked elo and per-stream session stats for MCSR runners.</small><div class="df-tile-foot"><span class="df-btn--configure">Configure</span><span class="df-toggle"></span></div></div>
+                                <div class="df-tile"><div class="df-tile-head"><i class="df-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="8" width="20" height="9" rx="4.5"/><line x1="6" y1="11" x2="6" y2="14"/><line x1="4.5" y1="12.5" x2="7.5" y2="12.5"/><circle cx="16.5" cy="11.5" r="1.1"/><circle cx="18.5" cy="14" r="1.1"/></svg></i><span><b>Bedwars Stats</b><small>Games</small></span></div><small>Hypixel Bedwars stats, urchin score and blacklist tags in chat.</small><div class="df-tile-foot"><span class="df-btn--configure">Configure</span><span class="df-toggle"></span></div></div>
+                                <div class="df-tile"><div class="df-tile-head"><i class="df-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="8" width="20" height="9" rx="4.5"/><line x1="6" y1="11" x2="6" y2="14"/><line x1="4.5" y1="12.5" x2="7.5" y2="12.5"/><circle cx="16.5" cy="11.5" r="1.1"/><circle cx="18.5" cy="14" r="1.1"/></svg></i><span><b>MCSR Ranked</b><small>Games</small></span></div><small>Ranked elo and per-stream session stats for MCSR runners.</small><div class="df-tile-foot"><span class="df-btn--configure">Configure</span><span class="df-toggle"></span></div></div>
                             </div>
                         </div>
                     </div>
@@ -104,12 +104,13 @@ const sections = [
             </p>
             <h3>Trigger Words</h3>
             <p>
-                Auto-replies without the "!": one rule per line, written as
-                <code>phrase =&gt; response</code>. By default a rule matches the phrase as whole
-                words; prefix a rule with <code>exact:</code>, <code>contains:</code> or
-                <code>prefix:</code> to change how it matches, and start a line with <code>#</code> to
-                pause it. Responses know <code>&#123;user&#125;</code> plus the dice-and-choices
-                variables.
+                Auto-replies without the "!": give the bot a phrase to watch for and the line to
+                post when it shows up in ordinary chat. Each rule has its own little editor on the
+                module page: the phrase, how it matches (whole word by default, so "hi" won't fire
+                inside "this"; or contains, exact message, starts with), the response with the same
+                rehearsal as commands, and its own on/off switch. The first matching rule wins, so
+                one message gets at most one reply. Responses know <code>&#123;user&#125;</code>
+                plus the dice-and-choices variables.
             </p>
             <h3>Local Time</h3>
             <p>

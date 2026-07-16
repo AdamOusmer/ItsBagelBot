@@ -50,7 +50,7 @@ const sections = [
                 ]}
             >
                 <div class="df-main">
-                    <div class="df-topbar"><span class="df-brand">ItsBagelBot <small>Console</small></span><span class="df-crumb">ItsBagelBot / <b>Modules</b></span><span class="df-account">Mavey · Diffuseur</span></div>
+                    <div class="df-topbar"><span class="df-brand">ItsBagelBot <small>Console</small></span><span class="df-crumb">ItsBagelBot / <b>Modules</b></span><span class="df-account">streamer · Diffuseur</span></div>
                     <span class="df-eyebrow">Gérer</span>
                     <p class="df-title">Modules de la <i>chaîne</i></p>
                     <p class="df-sub">Fonctions optionnelles pour votre chaîne. 2 sur 13 activées.</p>
@@ -59,13 +59,13 @@ const sections = [
                         <div style="display:grid; gap:10px; align-content:start;">
                             <span class="df-cat">Communauté</span>
                             <div class="df-grid">
-                                <div class="df-tile"><div class="df-tile-head"><i class="df-ico">◎</i><span><b>Alertes de chat</b><small>Communauté</small></span></div><small>Annonce follows, subs, cheers et raids dans le chat.</small><div class="df-tile-foot"><span class="df-btn--configure">Configurer</span><span class="df-toggle is-on"></span></div><i class="df-dot" style="top:10px; right:10px;">1</i></div>
-                                <div class="df-tile is-open"><div class="df-tile-head"><i class="df-ico">◈</i><span><b>Points de fidélité</b><small>Communauté</small></span></div><small>Les spectateurs gagnent une monnaie de chaîne.</small><div class="df-tile-foot"><span class="df-btn--configure">Configurer</span><span class="df-toggle is-on"></span></div><i class="df-dot" style="top:10px; right:10px;">2</i></div>
+                                <div class="df-tile"><div class="df-tile-head"><i class="df-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></i><span><b>Alertes de chat</b><small>Communauté</small></span></div><small>Annonce follows, subs, cheers et raids dans le chat.</small><div class="df-tile-foot"><span class="df-btn--configure">Configurer</span><span class="df-toggle is-on"></span></div><i class="df-dot" style="top:10px; right:10px;">1</i></div>
+                                <div class="df-tile is-open"><div class="df-tile-head"><i class="df-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><line x1="12" y1="9.5" x2="12" y2="14.5"/></svg></i><span><b>Points de fidélité</b><small>Communauté</small></span></div><small>Les spectateurs gagnent une monnaie de chaîne.</small><div class="df-tile-foot"><span class="df-btn--configure">Configurer</span><span class="df-toggle is-on"></span></div><i class="df-dot" style="top:10px; right:10px;">2</i></div>
                             </div>
                             <span class="df-cat">Jeux</span>
                             <div class="df-grid">
-                                <div class="df-tile"><div class="df-tile-head"><i class="df-ico">⬢</i><span><b>Stats Bedwars</b><small>Jeux</small></span></div><small>Stats Hypixel Bedwars, score urchin et tags dans le chat.</small><div class="df-tile-foot"><span class="df-btn--configure">Configurer</span><span class="df-toggle"></span></div></div>
-                                <div class="df-tile"><div class="df-tile-head"><i class="df-ico">▲</i><span><b>MCSR Ranked</b><small>Jeux</small></span></div><small>Elo classé et stats de session pour les runners MCSR.</small><div class="df-tile-foot"><span class="df-btn--configure">Configurer</span><span class="df-toggle"></span></div></div>
+                                <div class="df-tile"><div class="df-tile-head"><i class="df-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="8" width="20" height="9" rx="4.5"/><line x1="6" y1="11" x2="6" y2="14"/><line x1="4.5" y1="12.5" x2="7.5" y2="12.5"/><circle cx="16.5" cy="11.5" r="1.1"/><circle cx="18.5" cy="14" r="1.1"/></svg></i><span><b>Stats Bedwars</b><small>Jeux</small></span></div><small>Stats Hypixel Bedwars, score urchin et tags dans le chat.</small><div class="df-tile-foot"><span class="df-btn--configure">Configurer</span><span class="df-toggle"></span></div></div>
+                                <div class="df-tile"><div class="df-tile-head"><i class="df-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="8" width="20" height="9" rx="4.5"/><line x1="6" y1="11" x2="6" y2="14"/><line x1="4.5" y1="12.5" x2="7.5" y2="12.5"/><circle cx="16.5" cy="11.5" r="1.1"/><circle cx="18.5" cy="14" r="1.1"/></svg></i><span><b>MCSR Ranked</b><small>Jeux</small></span></div><small>Elo classé et stats de session pour les runners MCSR.</small><div class="df-tile-foot"><span class="df-btn--configure">Configurer</span><span class="df-toggle"></span></div></div>
                             </div>
                         </div>
                     </div>
@@ -106,12 +106,14 @@ const sections = [
             </p>
             <h3>Mots déclencheurs</h3>
             <p>
-                Des réponses automatiques sans le «!»: une règle par ligne, écrite
-                <code>phrase =&gt; réponse</code>. Par défaut une règle reconnaît la phrase en mots
-                entiers; préfixez une règle avec <code>exact:</code>, <code>contains:</code> ou
-                <code>prefix:</code> pour changer la détection, et commencez une ligne par
-                <code>#</code> pour la mettre en pause. Les réponses connaissent
-                <code>&#123;user&#125;</code> plus les variables de dés et de choix.
+                Des réponses automatiques sans le «!»: donnez au bot une phrase à surveiller et la
+                ligne à publier quand elle apparaît dans le chat ordinaire. Chaque règle a son petit
+                éditeur sur la page du module: la phrase, sa détection (mot entier par défaut, donc
+                «hi» ne se déclenche pas dans «this»; ou contient, message exact, commence par), la
+                réponse avec la même répétition que les commandes, et son propre interrupteur. La
+                première règle qui correspond gagne: un message reçoit au plus une réponse. Les
+                réponses connaissent <code>&#123;user&#125;</code> plus les variables de dés et de
+                choix.
             </p>
             <h3>Heure locale</h3>
             <p>
