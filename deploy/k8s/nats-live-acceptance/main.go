@@ -307,42 +307,11 @@ func clientTLS(caFile string) (*tls.Config, error) {
 
 func connect(cfg config, ep endpoint, tlsConfig *tls.Config, name string) (client, error) {
 	stats := &connectionStats{}
-	connOpts := []nats.Option{
-		nats.Name(name),
-		nats.Timeout(5 * time.Second),
-		nats.MaxReconnects(5),
-		nats.ReconnectWait(250 * time.Millisecond),
-		nats.ReconnectHandler(func(*nats.Conn) { stats.reconnects.Add(1) }),
-		nats.DisconnectErrHandler(func(_ *nats.Conn, err error) {
-			if err != nil {
-				stats.disconnects.Add(1)
-			}
-		}),
-		nats.ErrorHandler(func(_ *nats.Conn, _ *nats.Subscription, err error) {
-			if err != nil {
-				stats.asyncErrors.Add(1)
-			}
-		}),
-	}
-	if cfg.user != "" {
-		connOpts = append(connOpts, nats.UserInfo(cfg.user, cfg.password))
-	}
-	if tlsConfig != nil {
-		connOpts = append(connOpts, nats.Secure(tlsConfig.Clone()))
-	}
-	nc, err := nats.Connect(ep.url, connOpts...)
+	nc, err := nats.Connect(ep.url, connectionOptions(cfg, tlsConfig, name, stats)...)
 	if err != nil {
 		return client{}, err
 	}
-
-	opts := []nats.JSOpt{
-		nats.PublishAsyncMaxPending(cfg.window + 1),
-		nats.MaxWait(cfg.ackTimeout),
-	}
-	if ep.domain != "" {
-		opts = append(opts, nats.Domain(ep.domain))
-	}
-	js, err := nc.JetStream(opts...)
+	js, err := legacyJetStream(nc, cfg, ep.domain)
 	if err != nil {
 		nc.Close()
 		return client{}, err
@@ -353,6 +322,57 @@ func connect(cfg config, ep endpoint, tlsConfig *tls.Config, name string) (clien
 		return client{}, err
 	}
 	return client{nc: nc, js: js, modern: modern, stats: stats}, nil
+}
+
+func connectionOptions(
+	cfg config,
+	tlsConfig *tls.Config,
+	name string,
+	stats *connectionStats,
+) []nats.Option {
+	options := []nats.Option{
+		nats.Name(name),
+		nats.Timeout(5 * time.Second),
+		nats.MaxReconnects(5),
+		nats.ReconnectWait(250 * time.Millisecond),
+		nats.ReconnectHandler(stats.recordReconnect),
+		nats.DisconnectErrHandler(stats.recordDisconnect),
+		nats.ErrorHandler(stats.recordAsyncError),
+	}
+	if cfg.user != "" {
+		options = append(options, nats.UserInfo(cfg.user, cfg.password))
+	}
+	if tlsConfig != nil {
+		options = append(options, nats.Secure(tlsConfig.Clone()))
+	}
+	return options
+}
+
+func (s *connectionStats) recordReconnect(*nats.Conn) {
+	s.reconnects.Add(1)
+}
+
+func (s *connectionStats) recordDisconnect(_ *nats.Conn, err error) {
+	if err != nil {
+		s.disconnects.Add(1)
+	}
+}
+
+func (s *connectionStats) recordAsyncError(_ *nats.Conn, _ *nats.Subscription, err error) {
+	if err != nil {
+		s.asyncErrors.Add(1)
+	}
+}
+
+func legacyJetStream(nc *nats.Conn, cfg config, domain string) (nats.JetStreamContext, error) {
+	options := []nats.JSOpt{
+		nats.PublishAsyncMaxPending(cfg.window + 1),
+		nats.MaxWait(cfg.ackTimeout),
+	}
+	if domain != "" {
+		options = append(options, nats.Domain(domain))
+	}
+	return nc.JetStream(options...)
 }
 
 func benchmark(cfg config, ep endpoint, tlsConfig *tls.Config) (result, error) {

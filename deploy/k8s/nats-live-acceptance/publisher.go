@@ -25,6 +25,30 @@ type publishJob struct {
 	started   time.Time
 }
 
+type messageSequence int
+
+type publishRange struct {
+	offset messageSequence
+	size   int
+}
+
+type latencySampleIndex int
+
+type percentileRank float64
+
+func (j publishJob) payload(sequence messageSequence) []byte {
+	index := (j.publisher*j.count + int(sequence)) % len(j.payloads)
+	return j.payloads[index]
+}
+
+func (j publishJob) remaining(sequence messageSequence) int {
+	return j.count - int(sequence)
+}
+
+func (j publishJob) last(sequence messageSequence) bool {
+	return int(sequence) == j.count-1
+}
+
 func publishByMode(job publishJob) error {
 	if err := job.ctx.Err(); err != nil {
 		return err
@@ -42,11 +66,12 @@ func publishByMode(job publishJob) error {
 func publishAsyncWindows(job publishJob) error {
 	for offset := 0; offset < job.count; offset += job.cfg.window {
 		size := min(job.cfg.window, job.count-offset)
-		batch, err := enqueueWindow(job, offset, size)
+		window := publishRange{offset: messageSequence(offset), size: size}
+		batch, err := enqueueWindow(job, window)
 		if err != nil {
 			return err
 		}
-		if err := awaitWindow(job, offset, batch); err != nil {
+		if err := awaitWindow(job, window, batch); err != nil {
 			return err
 		}
 	}
@@ -72,15 +97,16 @@ func publishAtomicBatches(job publishJob) error {
 			break
 		}
 		batches.Add(1)
-		go func(offset, size int) {
+		batch := publishRange{offset: messageSequence(offset), size: size}
+		go func(batch publishRange) {
 			defer batches.Done()
 			defer func() { <-semaphore }()
-			if err := publishAtomicBatch(job, offset, size); err != nil {
+			if err := publishAtomicBatch(job, batch); err != nil {
 				message := err.Error()
 				firstErr.CompareAndSwap(nil, &message)
 				failed.Store(true)
 			}
-		}(offset, size)
+		}(batch)
 	}
 	batches.Wait()
 	if message := firstErr.Load(); message != nil {
@@ -92,22 +118,22 @@ func publishAtomicBatches(job publishJob) error {
 	return nil
 }
 
-func publishAtomicBatch(job publishJob, offset, size int) error {
+func publishAtomicBatch(job publishJob, batch publishRange) error {
 	publisher, err := jetstreamext.NewBatchPublisher(job.client.modern, jetstreamext.BatchFlowControl{
 		AckFirst: true, AckTimeout: job.cfg.ackTimeout,
 	})
 	if err != nil {
-		job.counters.failures.Add(int64(size))
+		job.counters.failures.Add(int64(batch.size))
 		return err
 	}
-	for i := 0; i < size; i++ {
-		sequence := offset + i
+	for i := 0; i < batch.size; i++ {
+		sequence := batch.offset + messageSequence(i)
 		if err := pacePublish(job, sequence); err != nil {
 			_ = publisher.Discard()
 			return err
 		}
-		payload := job.payloads[(job.publisher*job.count+sequence)%len(job.payloads)]
-		if i == size-1 {
+		payload := job.payload(sequence)
+		if i == batch.size-1 {
 			commitCtx, cancel := context.WithTimeout(job.ctx, job.cfg.ackTimeout)
 			_, err = publisher.Commit(commitCtx, job.cfg.subject, payload)
 			cancel()
@@ -115,13 +141,13 @@ func publishAtomicBatch(job publishJob, offset, size int) error {
 			err = publisher.Add(job.cfg.subject, payload)
 		}
 		if err != nil {
-			job.counters.failures.Add(int64(size))
+			job.counters.failures.Add(int64(batch.size))
 			recordTimeout(job.counters, err)
 			_ = publisher.Discard()
-			return fmt.Errorf("publisher %d atomic batch at %d: %w", job.publisher, offset, err)
+			return fmt.Errorf("publisher %d atomic batch at %d: %w", job.publisher, batch.offset, err)
 		}
 	}
-	job.counters.acked.Add(int64(size))
+	job.counters.acked.Add(int64(batch.size))
 	return nil
 }
 
@@ -130,7 +156,7 @@ func publishFast(job publishJob) error {
 	if err != nil {
 		return err
 	}
-	for sequence := 0; sequence < job.count; sequence++ {
+	for sequence := messageSequence(0); sequence < messageSequence(job.count); sequence++ {
 		if err := session.publish(sequence); err != nil {
 			return err
 		}
@@ -168,7 +194,7 @@ func (s *fastPublishSession) recordAsyncError(err error) {
 	s.asyncErr.CompareAndSwap(nil, &message)
 }
 
-func (s *fastPublishSession) publish(sequence int) error {
+func (s *fastPublishSession) publish(sequence messageSequence) error {
 	if err := pacePublish(s.job, sequence); err != nil {
 		return err
 	}
@@ -178,9 +204,9 @@ func (s *fastPublishSession) publish(sequence int) error {
 	return s.failOnAsyncError(sequence)
 }
 
-func (s *fastPublishSession) send(sequence int) error {
-	payload := s.job.payloads[(s.job.publisher*s.job.count+sequence)%len(s.job.payloads)]
-	if sequence != s.job.count-1 {
+func (s *fastPublishSession) send(sequence messageSequence) error {
+	payload := s.job.payload(sequence)
+	if !s.job.last(sequence) {
 		_, err := s.publisher.Add(s.job.cfg.subject, payload)
 		return err
 	}
@@ -197,18 +223,18 @@ func (s *fastPublishSession) commit(payload []byte) error {
 	return err
 }
 
-func (s *fastPublishSession) failSequence(sequence int, err error) error {
-	s.job.counters.failures.Add(int64(s.job.count - sequence))
+func (s *fastPublishSession) failSequence(sequence messageSequence, err error) error {
+	s.job.counters.failures.Add(int64(s.job.remaining(sequence)))
 	recordTimeout(s.job.counters, err)
 	return fmt.Errorf("publisher %d fast sequence %d: %w", s.job.publisher, sequence, err)
 }
 
-func (s *fastPublishSession) failOnAsyncError(sequence int) error {
+func (s *fastPublishSession) failOnAsyncError(sequence messageSequence) error {
 	message := s.asyncErr.Load()
 	if message == nil {
 		return nil
 	}
-	s.job.counters.failures.Add(int64(s.job.count - sequence))
+	s.job.counters.failures.Add(int64(s.job.remaining(sequence)))
 	return errors.New(*message)
 }
 
@@ -238,7 +264,7 @@ func (s *fastPublishSession) failCommitSize() error {
 	)
 }
 
-func pacePublish(job publishJob, sequence int) error {
+func pacePublish(job publishJob, sequence messageSequence) error {
 	if err := job.ctx.Err(); err != nil {
 		return err
 	}
@@ -264,17 +290,14 @@ type pendingPublish struct {
 	future nats.PubAckFuture
 }
 
-func enqueueWindow(job publishJob, offset, size int) ([]pendingPublish, error) {
-	batch := make([]pendingPublish, 0, size)
-	for i := 0; i < size; i++ {
-		sequence := offset + i
+func enqueueWindow(job publishJob, window publishRange) ([]pendingPublish, error) {
+	batch := make([]pendingPublish, 0, window.size)
+	for i := 0; i < window.size; i++ {
+		sequence := window.offset + messageSequence(i)
 		if err := pacePublish(job, sequence); err != nil {
 			return nil, err
 		}
-		msg := benchmarkMessage(
-			job.cfg.subject,
-			job.payloads[(job.publisher*job.count+sequence)%len(job.payloads)],
-		)
+		msg := benchmarkMessage(job.cfg.subject, job.payload(sequence))
 		future, err := job.client.js.PublishMsgAsync(msg)
 		if err != nil {
 			job.counters.failures.Add(1)
@@ -285,14 +308,15 @@ func enqueueWindow(job publishJob, offset, size int) ([]pendingPublish, error) {
 	return batch, nil
 }
 
-func awaitWindow(job publishJob, offset int, batch []pendingPublish) error {
+func awaitWindow(job publishJob, window publishRange, batch []pendingPublish) error {
 	deadline := time.NewTimer(job.cfg.ackTimeout)
 	defer stopAndDrain(deadline)
 	for i, item := range batch {
 		if err := awaitFuture(job.ctx, item.future, deadline.C); err != nil {
 			job.counters.failures.Add(int64(len(batch) - i))
 			recordTimeout(job.counters, err)
-			return fmt.Errorf("publisher %d PubAck %d: %w", job.publisher, offset+i, err)
+			sequence := window.offset + messageSequence(i)
+			return fmt.Errorf("publisher %d PubAck %d: %w", job.publisher, sequence, err)
 		}
 		job.counters.acked.Add(1)
 	}
@@ -357,14 +381,14 @@ func latencyProbe(
 }
 
 func (s *latencySampler) collect() {
-	for index := 0; index < s.cfg.latencySamples; index++ {
+	for index := latencySampleIndex(0); index < latencySampleIndex(s.cfg.latencySamples); index++ {
 		if !s.collectSample(index) {
 			return
 		}
 	}
 }
 
-func (s *latencySampler) collectSample(index int) bool {
+func (s *latencySampler) collectSample(index latencySampleIndex) bool {
 	if !s.ready(index) {
 		return false
 	}
@@ -376,15 +400,15 @@ func (s *latencySampler) collectSample(index int) bool {
 	return true
 }
 
-func (s *latencySampler) ready(index int) bool {
+func (s *latencySampler) ready(index latencySampleIndex) bool {
 	if index == 0 {
 		return true
 	}
 	return waitForSample(s.ctx, s.cfg.latencyInterval)
 }
 
-func (s *latencySampler) measure(index int) (time.Duration, error) {
-	msg := benchmarkMessage(s.cfg.subject, s.payloads[index%len(s.payloads)])
+func (s *latencySampler) measure(index latencySampleIndex) (time.Duration, error) {
+	msg := benchmarkMessage(s.cfg.subject, s.payloads[int(index)%len(s.payloads)])
 	started := time.Now()
 	sampleCtx, cancel := context.WithTimeout(s.ctx, s.cfg.ackTimeout)
 	defer cancel()
@@ -441,8 +465,8 @@ func benchmarkMessage(subject string, payload []byte) *nats.Msg {
 	return &nats.Msg{Subject: subject, Data: payload}
 }
 
-func percentile(values []time.Duration, p float64) time.Duration {
-	index := int(math.Ceil(float64(len(values))*p)) - 1
+func percentile(values []time.Duration, rank percentileRank) time.Duration {
+	index := int(math.Ceil(float64(len(values))*float64(rank))) - 1
 	if index < 0 {
 		index = 0
 	}
