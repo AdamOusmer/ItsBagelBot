@@ -219,7 +219,8 @@ spec:
                 +S 2:2 +SDcpu 2:2 +SDio 2 +sbwt short +sbwtdcpu none +sbwtdio none -kernel inet_dist_listen_min 9100 -kernel inet_dist_listen_max 9110
           resources:
             requests:
-              cpu: 150m
+              # Live steady state is 195-240m across all three node-local pods.
+              cpu: 250m
               memory: 256Mi
             limits:
               cpu: "2"

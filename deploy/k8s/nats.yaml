@@ -111,11 +111,12 @@ spec:
           resources:
             # R1 memory-backed ingress needs enough headroom above JetStream's
             # 4GB max_mem for dedup indexes, connections and the Go runtime.
-            # node2/node3 each have 6 cores and worker1 has 8. Live usage before
-            # this bump was 9%/17%/9%; a 2-core request fits every node while a
-            # 4-core ceiling lets whichever R1 member owns TWITCH_INGRESS absorb
-            # batch commits without CPU throttling. Memory remains unchanged.
-            requests: {cpu: "2", memory: 2Gi}
+            # node2/node3 each have 6 cores and worker1 has 8. Sustained load
+            # has peaked around 1.77 cores on the R1 leader. Reserve 1.5 cores
+            # on every member so quorum placement does not strand half a node,
+            # while the 4-core ceiling still lets the active leader burst.
+            # Memory stays at 2Gi because one member can own all R1 streams.
+            requests: {cpu: 1500m, memory: 2Gi}
             limits: {cpu: "4", memory: 6Gi}
           securityContext:
             allowPrivilegeEscalation: false
