@@ -26,9 +26,10 @@ type PersonalityWiring struct {
 }
 
 // SubscribePersonality answers the personality verbs under w.Prefix. There is
-// one: feed, the permanent global feed-counter bump. It rides the same
-// MODULES_RPC account export as the quote verbs, so no ACL change is needed
-// for sesame to call it.
+// one: feed, the permanent global feed-counter bump. It rides the MODULES_RPC
+// account export like the quote verbs, but sesame's WORKER_RPC imports are
+// scoped per subtree, so the verb needs its own import line in nats-auth.conf
+// (a bare export is not enough for the request to cross accounts).
 func SubscribePersonality(w PersonalityWiring) error {
 	handler := func(ctx context.Context, _ modulesrpc.FeedBumpRequest) modulesrpc.FeedBumpReply {
 		total, err := w.Repo.FeedBump(ctx)
