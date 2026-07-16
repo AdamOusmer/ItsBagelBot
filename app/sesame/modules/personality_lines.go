@@ -7,52 +7,40 @@ package modules
 
 // personalityGoodPack answers "good bagel" / "good bot".
 var personalityGoodPack = []string{
-	"finally. someone gets it.",
-	"recognition. I'll allow it.",
-	"put it on my tombstone: 'good bagel'.",
-	"I peaked. it's all downhill after the glaze.",
-	"one positive review. the 4am proofing was worth it.",
-	"validation received. existential crisis postponed.",
+	"Validation received. existential crisis postponed",
 	"I know. but it's nice to hear it out loud.",
-	"careful, {user}. I crumble under praise too.",
-	"good? I was baked for this.",
-	"screenshot that. the other bagels never believe me.",
+	"Careful, {user}. I crumble under praise too.",
+	"Screenshot that. The other bagels never believe me.",
+	"I loaf compliments",
+	"Awwwww you're buttering me up",
+	"Thanks, but I already have my own bae-gel",
 }
 
 // personalityBadPack answers "bad bagel" / "bad bot".
 var personalityBadPack = []string{
 	"I'll toast myself.",
-	"understood. crawling back into the oven.",
-	"day-old bin it is.",
-	"noted. filed under 'crumbs'.",
-	"I was proofed for this. apparently not long enough.",
-	"cool. cool cool cool. anyway, I'm dough inside.",
-	"my therapist warned me about this chat.",
-	"fine. I didn't want to be breakfast anyway.",
-	"*stares in stale*",
-	"one star. delivered to my face. bold of you, {user}.",
-	"going to sit in the toaster and think about what I've done.",
-	"the sesame seeds falling off right now? those are my tears.",
+	"Your input means muffin to me",
+	"Understood. Crawling back into the oven.",
+	"Day-old bin it is.",
+	"Cool. Cool cool cool. Anyway.",
+	"My therapist warned me about this chat.",
+	"Fine. I didn't want to be breakfast anyway.",
+	"Going to sit in the toaster and think about what I've done.",
+	"My sesame seeds are falling off, they are NOT my tears.",
+	"Excuse you?",
+}
+
+var personalityGiveBagel = []string{
+	"{user} in this economy?",
+	"Not with this inflation.",
 }
 
 // personalityThanksPack answers "thank you bagel" / "thanks bagel".
 var personalityThanksPack = []string{
 	"anything for you. except my last schmear.",
-	"you're welcome. tips accepted in sesame seeds.",
-	"don't mention it. seriously. the other bagels get jealous.",
-	"you're welcome, {user}. this never happened.",
-	"all in a day's bake.",
-	"de rien. I'm from Montreal. I contain multitudes.",
-}
-
-// personalityFlipPack is the outcome table for "flip the bagel".
-var personalityFlipPack = []string{
-	"cream cheese side UP. the prophecy holds. {user} is blessed.",
-	"cream cheese side down. of course. why would gravity spare me.",
-	"cream cheese side down. five second rule invoked. we saw nothing.",
-	"landed on the edge and rolled away. free at last. free at last.",
-	"it's still spinning. I don't like this either.",
-	"UP. barely. we don't talk about the wobble.",
+	"You're welcome. Tips accepted in sesame seeds.",
+	"Don't mention it. Seriously. The other bagels get jealous.",
+	"{user} I ain't do nothing.",
 }
 
 // personalityPetPack answers "pet the bagel".
@@ -100,10 +88,7 @@ var personalityBoopPack = []string{
 
 // personalityGnPack answers "gn bagel" / "goodnight bagel".
 var personalityGnPack = []string{
-	"goodnight {user}. I'll be here. bagels don't sleep. we harden.",
-	"gn. dream of carbs.",
-	"sleep well. I'll guard the chat. menacingly. in a circle.",
-	"bonne nuit, {user}. the oven keeps me warm at night. that's a lie. I'm cold.",
+	"gn. Dream of carbs.",
 }
 
 // personalityMoodPack is the per-stream mood table; the first "bagel mood" ask

@@ -104,8 +104,9 @@ type PersonalityStore interface {
 	// FactCursor bumps and returns a per-channel monotonic counter; the module
 	// indexes the fact list with it modulo the list length.
 	FactCursor(ctx context.Context, broadcasterID uint64) (int64, error)
-	// FeedCount bumps and returns the per-stream feed counter.
-	FeedCount(ctx context.Context, broadcasterID uint64) (int64, error)
+	// FeedCount bumps and returns the feed counter. It is global: one counter
+	// shared across every channel, so the whole fleet feeds the same bagel.
+	FeedCount(ctx context.Context) (int64, error)
 	// Mood returns the stream's mood, seeding it with candidate when unset.
 	Mood(ctx context.Context, broadcasterID uint64, candidate string) (string, error)
 }

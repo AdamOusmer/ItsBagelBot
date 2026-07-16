@@ -62,7 +62,6 @@ var personalityReactions = []reaction{
 	{name: "good", phrases: []string{"good bagel", "good bot", "good bagelbot"}, cooldown: 15 * time.Second, reply: packReply(personalityGoodPack)},
 	{name: "bad", phrases: []string{"bad bagel", "bad bot", "bad bagelbot"}, cooldown: 15 * time.Second, reply: packReply(personalityBadPack)},
 	{name: "thanks", phrases: []string{"thank you bagel", "thanks bagel", "ty bagel", "merci bagel"}, cooldown: 15 * time.Second, reply: packReply(personalityThanksPack)},
-	{name: "flip", phrases: []string{"flip the bagel", "flip bagel", "bagel flip"}, cooldown: 30 * time.Second, reply: packReply(personalityFlipPack)},
 	{name: "toast", phrases: []string{"toast the bagel", "toast bagel"}, cooldown: 30 * time.Second, reply: toastReply},
 	{name: "pet", phrases: []string{"pet the bagel", "pet bagel", "pets the bagel"}, cooldown: 30 * time.Second, reply: packReply(personalityPetPack)},
 	{name: "feed", phrases: []string{"feed the bagel", "feed bagel", "feeds the bagel"}, cooldown: 30 * time.Second, reply: feedReply},
@@ -72,6 +71,7 @@ var personalityReactions = []reaction{
 	{name: "mood", phrases: []string{"bagel mood", "mood of the bagel"}, cooldown: 60 * time.Second, reply: moodReply},
 	{name: "emoji", phrases: []string{"🥯"}, cooldown: 90 * time.Second, oneIn: 12, reply: packReply(personalityEmojiPack)},
 	{name: "fact", phrases: []string{"@itsbagelbot", "itsbagelbot", "bagelbot", "bagel bot", "bagel fact"}, cooldown: 10 * time.Second, reply: factReply},
+	{name: "give", phrases: []string{"give me a bagel", "I want a bagel", "gimme bagel", "gimme a bagel"}, cooldown: 30 * time.Second, reply: packReply(personalityGiveBagel)},
 }
 
 // personalityOnChat is the chat handler: screen the line, find the first
@@ -156,11 +156,12 @@ func factReply(ctx context.Context, d engine.Deps, c *module.Context) string {
 	return personalityFacts[idx]
 }
 
-// feedReply bumps the per-stream feed counter and reports it, dropping to the
-// counter-less lines when the store is nil or unavailable.
+// feedReply bumps the global feed counter (one bagel, shared by every channel)
+// and reports it, dropping to the counter-less lines when the store is nil or
+// unavailable.
 func feedReply(ctx context.Context, d engine.Deps, c *module.Context) string {
 	if d.Personality != nil {
-		if n, err := d.Personality.FeedCount(ctx, c.BroadcasterID); err == nil {
+		if n, err := d.Personality.FeedCount(ctx); err == nil {
 			return fmt.Sprintf(pickLine(personalityFeedCountPack), n)
 		}
 	}

@@ -63,7 +63,7 @@ func (f *fakePersonality) FactCursor(context.Context, uint64) (int64, error) {
 	return f.cursor, f.err
 }
 
-func (f *fakePersonality) FeedCount(context.Context, uint64) (int64, error) {
+func (f *fakePersonality) FeedCount(context.Context) (int64, error) {
 	return f.feed, f.err
 }
 
