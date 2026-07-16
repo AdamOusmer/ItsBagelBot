@@ -504,41 +504,96 @@ func applyConnectionStats(r *result, clients []client) {
 }
 
 func validateBenchmark(cfg config, r result, firstErr *string) error {
-	if firstErr != nil {
-		return errors.New(*firstErr)
+	validation := benchmarkValidation{cfg: cfg, result: r, firstErr: firstErr}
+	return firstBenchmarkError(
+		validation.publishResult,
+		validation.latencyCoverage,
+		validation.latencyPercentiles,
+		validation.connectionStability,
+		validation.minimumRate,
+	)
+}
+
+type benchmarkValidation struct {
+	cfg      config
+	result   result
+	firstErr *string
+}
+
+func firstBenchmarkError(checks ...func() error) error {
+	for _, check := range checks {
+		if err := check(); err != nil {
+			return err
+		}
 	}
-	if r.Errors > 0 {
-		return fmt.Errorf("acknowledged %d/%d with %d errors", r.Acknowledged, cfg.messages, r.Errors)
+	return nil
+}
+
+func (v benchmarkValidation) publishResult() error {
+	if v.firstErr != nil {
+		return errors.New(*v.firstErr)
 	}
-	if r.Acknowledged != int64(cfg.messages) {
-		return fmt.Errorf("acknowledged %d/%d", r.Acknowledged, cfg.messages)
+	if v.result.Errors > 0 {
+		return fmt.Errorf(
+			"acknowledged %d/%d with %d errors",
+			v.result.Acknowledged,
+			v.cfg.messages,
+			v.result.Errors,
+		)
 	}
-	if cfg.latencySamples > 0 && r.LatencySamples == 0 {
+	if v.result.Acknowledged != int64(v.cfg.messages) {
+		return fmt.Errorf("acknowledged %d/%d", v.result.Acknowledged, v.cfg.messages)
+	}
+	return nil
+}
+
+func (v benchmarkValidation) latencyCoverage() error {
+	if v.cfg.latencySamples > 0 && v.result.LatencySamples == 0 {
 		return errors.New("no under-load PubAck latency samples completed")
 	}
-	if r.LatencySamples < r.LatencyRequired {
+	if v.result.LatencySamples < v.result.LatencyRequired {
 		return fmt.Errorf(
 			"completed %d/%d required under-load PubAck latency samples",
-			r.LatencySamples, r.LatencyRequired,
+			v.result.LatencySamples,
+			v.result.LatencyRequired,
 		)
 	}
-	if time.Duration(r.PubAckP95MS*float64(time.Millisecond)) > cfg.maxP95 {
-		return fmt.Errorf("PubAck p95 %.3fms exceeds %s gate", r.PubAckP95MS, cfg.maxP95)
+	return nil
+}
+
+func (v benchmarkValidation) latencyPercentiles() error {
+	if time.Duration(v.result.PubAckP95MS*float64(time.Millisecond)) > v.cfg.maxP95 {
+		return fmt.Errorf("PubAck p95 %.3fms exceeds %s gate", v.result.PubAckP95MS, v.cfg.maxP95)
 	}
-	if time.Duration(r.PubAckP99MS*float64(time.Millisecond)) > cfg.maxP99 {
-		return fmt.Errorf("PubAck p99 %.3fms exceeds %s gate", r.PubAckP99MS, cfg.maxP99)
+	if time.Duration(v.result.PubAckP99MS*float64(time.Millisecond)) > v.cfg.maxP99 {
+		return fmt.Errorf("PubAck p99 %.3fms exceeds %s gate", v.result.PubAckP99MS, v.cfg.maxP99)
 	}
-	if r.Reconnects+r.Disconnects+r.AsyncErrors+r.Timeouts > 0 {
+	return nil
+}
+
+func (v benchmarkValidation) connectionStability() error {
+	if v.result.Reconnects+v.result.Disconnects+v.result.AsyncErrors+v.result.Timeouts > 0 {
 		return fmt.Errorf(
 			"connection instability: reconnects=%d disconnects=%d async_errors=%d timeouts=%d",
-			r.Reconnects, r.Disconnects, r.AsyncErrors, r.Timeouts,
+			v.result.Reconnects,
+			v.result.Disconnects,
+			v.result.AsyncErrors,
+			v.result.Timeouts,
 		)
 	}
-	if cfg.minRate <= 0 {
+	return nil
+}
+
+func (v benchmarkValidation) minimumRate() error {
+	if v.cfg.minRate <= 0 {
 		return nil
 	}
-	if r.MessagesPerSec < cfg.minRate {
-		return fmt.Errorf("throughput %.0f/s is below %.0f/s gate", r.MessagesPerSec, cfg.minRate)
+	if v.result.MessagesPerSec < v.cfg.minRate {
+		return fmt.Errorf(
+			"throughput %.0f/s is below %.0f/s gate",
+			v.result.MessagesPerSec,
+			v.cfg.minRate,
+		)
 	}
 	return nil
 }

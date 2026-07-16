@@ -7,13 +7,13 @@ import (
 	"errors"
 	"os"
 	"os/exec"
-	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/nats-io/nats.go"
 	jsapi "github.com/nats-io/nats.go/jetstream"
+	"github.com/stretchr/testify/require"
 )
 
 type capacityProfile struct {
@@ -47,48 +47,58 @@ type capacityProfile struct {
 	LatencySamplesPerSecond     int      `json:"latency_samples_per_second"`
 }
 
-func TestR3CapacityProfileDefinesTheWantedOperatingEnvelope(t *testing.T) {
+func TestR3CapacityProfileDefinesRateEnvelope(t *testing.T) {
 	profile := readCapacityProfile(t)
-	if profile.Replicas != 3 || profile.RatedEPS != 120_000 || profile.CeilingOfferedEPS != 126_000 {
-		t.Fatalf("unexpected R3 ceiling profile: %+v", profile)
-	}
-	if profile.TargetUtilizationPct != 75 || profile.OperatingEPS != 90_000 || profile.OperatingMinEPS != 89_100 {
-		t.Fatalf("unexpected operating point: %+v", profile)
-	}
-	if profile.OperatingEPS != profile.RatedEPS*profile.TargetUtilizationPct/100 {
-		t.Fatal("operating EPS is not exactly 75% of rated capacity")
-	}
-	if !slices.Equal(profile.Nodes, []string{"node2", "node3", "worker1"}) {
-		t.Fatalf("nodes = %v", profile.Nodes)
-	}
-	if profile.PublishersPerNode != 2 || profile.PublisherConnections != 6 || profile.WindowPerPublisher != 16_384 {
-		t.Fatalf("unexpected publisher shape: %+v", profile)
-	}
-	if profile.PayloadBytes != 256 || profile.PayloadVariants != 65_536 || profile.Storage != "memory" {
-		t.Fatalf("unexpected payload/storage profile: %+v", profile)
-	}
-	if profile.MaxAge != "5m" || profile.MaxBytes != 1<<30 || profile.MaxMsgsPerSubject != 400_000 {
-		t.Fatalf("unexpected retention profile: %+v", profile)
-	}
-	if profile.Dedup || profile.DuplicateWindow != "10s" ||
-		!profile.AllowAtomicPublish || !profile.AllowBatchPublish {
-		t.Fatalf("unexpected NATS 2.14 stream features: %+v", profile)
-	}
-	if profile.AtomicInflightFleet != profile.PublisherConnections*profile.AtomicInflightPerConnection {
-		t.Fatal("fleet atomic in-flight count does not match connections x per-connection limit")
-	}
-	if profile.AtomicInflightFleet != 24 || profile.AtomicInflightFleet >= 50 {
-		t.Fatalf("atomic in-flight fleet = %d", profile.AtomicInflightFleet)
-	}
-	if !slices.Equal(profile.AtomicBatchSizes, []int{32, 64, 128}) ||
-		!slices.Equal(profile.FastFlows, []int{32, 64, 128}) ||
-		!slices.Equal(profile.FastOutstandingAcks, []int{2, 4}) {
-		t.Fatalf("unexpected calibration matrix: %+v", profile)
-	}
-	if profile.CalibrationMessages != 1_200_000 || profile.CalibrationDuration != "10s" ||
-		profile.LatencySamplesPerSecond != 20 {
-		t.Fatalf("unexpected calibration sampling profile: %+v", profile)
-	}
+	require.Equal(t, 3, profile.Replicas)
+	require.Equal(t, 120_000, profile.RatedEPS)
+	require.Equal(t, 126_000, profile.CeilingOfferedEPS)
+	require.Equal(t, 75, profile.TargetUtilizationPct)
+	require.Equal(t, 90_000, profile.OperatingEPS)
+	require.Equal(t, 89_100, profile.OperatingMinEPS)
+	require.Equal(t, profile.RatedEPS*profile.TargetUtilizationPct/100, profile.OperatingEPS)
+}
+
+func TestR3CapacityProfileDefinesPublisherShape(t *testing.T) {
+	profile := readCapacityProfile(t)
+	require.Equal(t, []string{"node2", "node3", "worker1"}, profile.Nodes)
+	require.Equal(t, 2, profile.PublishersPerNode)
+	require.Equal(t, 6, profile.PublisherConnections)
+	require.Equal(t, 16_384, profile.WindowPerPublisher)
+	require.Equal(t, 256, profile.PayloadBytes)
+	require.Equal(t, 65_536, profile.PayloadVariants)
+	require.Equal(t, "memory", profile.Storage)
+}
+
+func TestR3CapacityProfileDefinesRetention(t *testing.T) {
+	profile := readCapacityProfile(t)
+	require.Equal(t, "5m", profile.MaxAge)
+	require.Equal(t, int64(1<<30), profile.MaxBytes)
+	require.Equal(t, int64(400_000), profile.MaxMsgsPerSubject)
+}
+
+func TestR3CapacityProfileDefinesNATS214Features(t *testing.T) {
+	profile := readCapacityProfile(t)
+	require.False(t, profile.Dedup)
+	require.Equal(t, "10s", profile.DuplicateWindow)
+	require.True(t, profile.AllowAtomicPublish)
+	require.True(t, profile.AllowBatchPublish)
+}
+
+func TestR3CapacityProfileDefinesCalibrationMatrix(t *testing.T) {
+	profile := readCapacityProfile(t)
+	require.Equal(
+		t,
+		profile.PublisherConnections*profile.AtomicInflightPerConnection,
+		profile.AtomicInflightFleet,
+	)
+	require.Equal(t, 24, profile.AtomicInflightFleet)
+	require.Less(t, profile.AtomicInflightFleet, 50)
+	require.Equal(t, []int{32, 64, 128}, profile.AtomicBatchSizes)
+	require.Equal(t, []int{32, 64, 128}, profile.FastFlows)
+	require.Equal(t, []int{2, 4}, profile.FastOutstandingAcks)
+	require.Equal(t, 1_200_000, profile.CalibrationMessages)
+	require.Equal(t, "10s", profile.CalibrationDuration)
+	require.Equal(t, 20, profile.LatencySamplesPerSecond)
 }
 
 func TestTemporaryR3StreamMatchesProductionShapedRetention(t *testing.T) {

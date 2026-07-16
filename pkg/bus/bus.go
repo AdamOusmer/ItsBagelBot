@@ -246,49 +246,71 @@ func (s *fleetSubscriber) Subscribe(ctx context.Context, topic string) (<-chan *
 	}
 	defer s.registrations.Done()
 
-	stream, err := streamForTopic(topic)
+	target, err := targetForTopic(topic)
 	if err != nil {
 		return nil, err
 	}
-
-	target := subscriptionTarget{stream: stream, topic: topic}
-	sub, conn, err := s.subscriberFor(target)
+	sub, conn, messages, err := s.openSubscription(ctx, target)
 	if err != nil {
 		return nil, err
 	}
-
-	messages, err := sub.Subscribe(ctx, topic)
-	if err != nil {
-		closeSubscription(sub, conn)
-		return nil, err
-	}
-
-	s.mu.Lock()
-	if s.closed {
-		s.mu.Unlock()
+	if !s.remember(sub, conn) {
 		closeSubscription(sub, conn)
 		return nil, errors.New("bus: subscriber closed during subscribe")
+	}
+	s.releaseWhenDone(ctx, sub, conn)
+	return messages, nil
+}
+
+func targetForTopic(topic string) (subscriptionTarget, error) {
+	stream, err := streamForTopic(topic)
+	return subscriptionTarget{stream: stream, topic: topic}, err
+}
+
+func (s *fleetSubscriber) openSubscription(
+	ctx context.Context,
+	target subscriptionTarget,
+) (Subscriber, *nats.Conn, <-chan *Message, error) {
+	sub, conn, err := s.subscriberFor(target)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	messages, err := sub.Subscribe(ctx, target.topic)
+	if err != nil {
+		closeSubscription(sub, conn)
+		return nil, nil, nil, err
+	}
+	return sub, conn, messages, nil
+}
+
+func (s *fleetSubscriber) remember(sub Subscriber, conn *nats.Conn) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return false
 	}
 	s.subs = append(s.subs, sub)
 	if conn != nil {
 		s.conns = append(s.conns, conn)
 	}
-	s.mu.Unlock()
+	return true
+}
 
+func (s *fleetSubscriber) releaseWhenDone(ctx context.Context, sub Subscriber, conn *nats.Conn) {
 	// A subscription's resources live exactly as long as its ctx. The weighted
 	// consumer adds and retires units with load, each unit subscribing under
 	// its own ctx; without this a retired unit's NATS connection would sit open
 	// until process shutdown, one more per scale cycle.
-	go func() {
-		select {
-		case <-ctx.Done():
-		case <-s.closeCh:
-		}
-		s.forget(sub, conn)
-		closeSubscription(sub, conn)
-	}()
+	go s.releaseAfterDone(ctx, sub, conn)
+}
 
-	return messages, nil
+func (s *fleetSubscriber) releaseAfterDone(ctx context.Context, sub Subscriber, conn *nats.Conn) {
+	select {
+	case <-ctx.Done():
+	case <-s.closeCh:
+	}
+	s.forget(sub, conn)
+	closeSubscription(sub, conn)
 }
 
 func (s *fleetSubscriber) beginRegistration() bool {

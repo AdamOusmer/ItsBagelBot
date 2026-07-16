@@ -47,6 +47,14 @@ type topologyObserver struct {
 	report topologyReport
 }
 
+type topologyMonitor struct {
+	cfg        config
+	setup      client
+	stream     jsapi.Stream
+	advisories *leaderAdvisoryWatch
+	observer   topologyObserver
+}
+
 type leaderAdvisoryWatch struct {
 	stream string
 	sub    *nats.Subscription
@@ -65,51 +73,85 @@ const streamLeaderAdvisoryPrefix = "$JS.EVENT.ADVISORY.STREAM.LEADER_ELECTED."
 
 func monitorStreamTopology(cfg config, setup client) (topologyReport, error) {
 	report := topologyReport{ForbiddenLeader: cfg.forbiddenLeader}
-	if err := validateTemporaryTarget(cfg.stream, cfg.subject); err != nil {
-		return failedTopology(report, err)
-	}
-	if err := validateR3ShadowConfig(cfg); err != nil {
-		return failedTopology(report, err)
-	}
-	stream, err := lookupStream(setup.modern, cfg)
+	monitor, err := newTopologyMonitor(cfg, setup, report)
 	if err != nil {
 		return failedTopology(report, err)
 	}
-	if err := prepareTopology(cfg, setup.nc, stream); err != nil {
-		return failedTopology(report, err)
+	return monitor.run()
+}
+
+func newTopologyMonitor(cfg config, setup client, report topologyReport) (*topologyMonitor, error) {
+	if err := validateTopologyTarget(cfg); err != nil {
+		return nil, err
+	}
+	stream, err := preparedTopologyStream(cfg, setup)
+	if err != nil {
+		return nil, err
 	}
 	advisories, err := startLeaderAdvisoryWatch(cfg, setup.nc)
 	if err != nil {
-		return failedTopology(report, err)
+		return nil, err
 	}
-	if !waitForTopologyStart(cfg.startAtUnixMS) {
-		_ = advisories.sub.Unsubscribe()
-		return failedTopology(report, errors.New("topology start barrier is invalid"))
-	}
+	return &topologyMonitor{
+		cfg: cfg, setup: setup, stream: stream, advisories: advisories,
+		observer: topologyObserver{report: report},
+	}, nil
+}
 
-	observer := topologyObserver{report: report}
-	if err := observeForDuration(cfg, stream, &observer); err != nil {
-		advisoryErr := finishLeaderAdvisories(cfg, advisories, &observer.report)
-		return failedTopology(observer.report, errors.Join(err, advisoryErr))
+func validateTopologyTarget(cfg config) error {
+	if err := validateTemporaryTarget(cfg.stream, cfg.subject); err != nil {
+		return err
 	}
-	finalInfo, err := waitForTopologyReady(cfg, stream)
+	return validateR3ShadowConfig(cfg)
+}
+
+func preparedTopologyStream(cfg config, setup client) (jsapi.Stream, error) {
+	stream, err := lookupStream(setup.modern, cfg)
 	if err != nil {
-		advisoryErr := finishLeaderAdvisories(cfg, advisories, &observer.report)
-		return failedTopology(observer.report, errors.Join(err, advisoryErr))
+		return nil, err
 	}
-	if err := observer.observe(finalInfo); err != nil {
-		advisoryErr := finishLeaderAdvisories(cfg, advisories, &observer.report)
-		return failedTopology(observer.report, errors.Join(err, advisoryErr))
+	if err := prepareTopology(cfg, setup.nc, stream); err != nil {
+		return nil, err
 	}
-	if err := finishLeaderAdvisories(cfg, advisories, &observer.report); err != nil {
-		return failedTopology(observer.report, err)
+	return stream, nil
+}
+
+func (m *topologyMonitor) run() (topologyReport, error) {
+	if !waitForTopologyStart(m.cfg.startAtUnixMS) {
+		return m.failWithAdvisories(errors.New("topology start barrier is invalid"))
 	}
-	observer.finish(cfg, setup.stats)
-	if err := validateTopologyReport(observer.report); err != nil {
-		return failedTopology(observer.report, err)
+	if err := m.observeLoad(); err != nil {
+		return m.failWithAdvisories(err)
 	}
-	observer.report.Passed = true
-	return observer.report, nil
+	if err := m.finish(); err != nil {
+		return failedTopology(m.observer.report, err)
+	}
+	m.observer.report.Passed = true
+	return m.observer.report, nil
+}
+
+func (m *topologyMonitor) observeLoad() error {
+	if err := observeForDuration(m.cfg, m.stream, &m.observer); err != nil {
+		return err
+	}
+	finalInfo, err := waitForTopologyReady(m.cfg, m.stream)
+	if err != nil {
+		return err
+	}
+	return m.observer.observe(finalInfo)
+}
+
+func (m *topologyMonitor) finish() error {
+	if err := finishLeaderAdvisories(m.cfg, m.advisories, &m.observer.report); err != nil {
+		return err
+	}
+	m.observer.finish(m.cfg, m.setup.stats)
+	return validateTopologyReport(m.observer.report)
+}
+
+func (m *topologyMonitor) failWithAdvisories(runErr error) (topologyReport, error) {
+	advisoryErr := finishLeaderAdvisories(m.cfg, m.advisories, &m.observer.report)
+	return failedTopology(m.observer.report, errors.Join(runErr, advisoryErr))
 }
 
 func startLeaderAdvisoryWatch(cfg config, nc *nats.Conn) (*leaderAdvisoryWatch, error) {
@@ -346,33 +388,61 @@ func observeForDuration(cfg config, stream jsapi.Stream, observer *topologyObser
 }
 
 func (o *topologyObserver) observe(info *jsapi.StreamInfo) error {
-	if info == nil || info.Cluster == nil || info.Cluster.Leader == "" {
-		return errors.New("stream has no cluster leader")
+	cluster, err := observedCluster(info)
+	if err != nil {
+		return err
 	}
-	leader := info.Cluster.Leader
+	leader := cluster.Leader
+	o.recordLeader(leader)
+	o.report.Samples++
+	o.report.Peers = topologyPeers(cluster)
+	if err := o.rejectForbiddenLeader(leader); err != nil {
+		return err
+	}
+	o.recordPeakFollowerLag(cluster.Replicas)
+	return nil
+}
+
+func observedCluster(info *jsapi.StreamInfo) (*jsapi.ClusterInfo, error) {
+	if info == nil {
+		return nil, errors.New("stream has no cluster metadata")
+	}
+	if info.Cluster == nil {
+		return nil, errors.New("stream has no cluster metadata")
+	}
+	if info.Cluster.Leader == "" {
+		return nil, errors.New("stream has no cluster leader")
+	}
+	return info.Cluster, nil
+}
+
+func (o *topologyObserver) recordLeader(leader string) {
 	if o.report.InitialLeader == "" {
 		o.report.InitialLeader = leader
-	} else if o.report.Leader != leader {
+	}
+	if o.report.Leader != "" && o.report.Leader != leader {
 		o.report.LeaderChanges++
 	}
 	o.report.Leader = leader
-	o.report.Samples++
-	o.report.Peers = topologyPeers(info)
+}
+
+func (o *topologyObserver) rejectForbiddenLeader(leader string) error {
 	if leader == o.report.ForbiddenLeader {
 		o.report.ForbiddenLeaderSeen = true
 		return fmt.Errorf("forbidden server %s became stream leader", leader)
 	}
-	for _, peer := range info.Cluster.Replicas {
-		if peer.Lag > o.report.PeakFollowerLag {
-			o.report.PeakFollowerLag = peer.Lag
-		}
-	}
 	return nil
 }
 
-func topologyPeers(info *jsapi.StreamInfo) []topologyPeer {
-	peers := []topologyPeer{{Name: info.Cluster.Leader, Role: "leader", Current: true}}
-	for _, peer := range info.Cluster.Replicas {
+func (o *topologyObserver) recordPeakFollowerLag(peers []*jsapi.PeerInfo) {
+	for _, peer := range peers {
+		o.report.PeakFollowerLag = max(o.report.PeakFollowerLag, peer.Lag)
+	}
+}
+
+func topologyPeers(cluster *jsapi.ClusterInfo) []topologyPeer {
+	peers := []topologyPeer{{Name: cluster.Leader, Role: "leader", Current: true}}
+	for _, peer := range cluster.Replicas {
 		peers = append(peers, topologyPeer{
 			Name: peer.Name, Role: "follower", Current: peer.Current,
 			Offline: peer.Offline, Lag: peer.Lag,
@@ -383,21 +453,52 @@ func topologyPeers(info *jsapi.StreamInfo) []topologyPeer {
 }
 
 func (o *topologyObserver) finish(cfg config, stats *connectionStats) {
-	o.report.AllCurrent = len(o.report.Peers) == cfg.requiredPeers
-	o.report.FollowerLagZero = true
-	o.report.ForbiddenFollowerCurrent = cfg.forbiddenLeader == ""
-	for _, peer := range o.report.Peers {
-		o.report.AllCurrent = o.report.AllCurrent && peer.Current && !peer.Offline
-		if peer.Role == "follower" && peer.Lag != 0 {
-			o.report.FollowerLagZero = false
-		}
-		if peer.Name == cfg.forbiddenLeader && peer.Role == "follower" && peer.Current && !peer.Offline {
-			o.report.ForbiddenFollowerCurrent = true
-		}
-	}
+	o.report.AllCurrent = allPeersCurrent(o.report.Peers, cfg.requiredPeers)
+	o.report.FollowerLagZero = followerLagZero(o.report.Peers)
+	o.report.ForbiddenFollowerCurrent = forbiddenFollowerCurrent(o.report.Peers, cfg.forbiddenLeader)
 	o.report.Reconnects = stats.reconnects.Load()
 	o.report.Disconnects = stats.disconnects.Load()
 	o.report.AsyncErrors = stats.asyncErrors.Load()
+}
+
+func allPeersCurrent(peers []topologyPeer, required int) bool {
+	if len(peers) != required {
+		return false
+	}
+	for _, peer := range peers {
+		if !peer.Current || peer.Offline {
+			return false
+		}
+	}
+	return true
+}
+
+func followerLagZero(peers []topologyPeer) bool {
+	for _, peer := range peers {
+		if peer.Role == "follower" && peer.Lag != 0 {
+			return false
+		}
+	}
+	return true
+}
+
+func forbiddenFollowerCurrent(peers []topologyPeer, forbidden string) bool {
+	if forbidden == "" {
+		return true
+	}
+	for _, peer := range peers {
+		if currentFollower(peer, forbidden) {
+			return true
+		}
+	}
+	return false
+}
+
+func currentFollower(peer topologyPeer, name string) bool {
+	if peer.Name != name || peer.Role != "follower" {
+		return false
+	}
+	return peer.Current && !peer.Offline
 }
 
 func validateTopologyReport(report topologyReport) error {
