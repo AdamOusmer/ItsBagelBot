@@ -11,6 +11,8 @@ interface Props {
 const { links, ctaHref = "#", ctaLabel = "Add to Twitch" } = Astro.props;
 const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
+
+const getAppHref = `https://dashboard.itsbagelbot.com/?install=1${lang === 'fr' ? '&lang=fr' : ''}`;
 ---
 
 <div class="mobile-menu" id="mobile-menu" data-mobile-menu aria-hidden="true" inert>
@@ -31,6 +33,7 @@ const t = useTranslations(lang);
 
         <div class="mobile-menu__footer" data-menu-footer>
             <a class="mobile-menu__cta" href={ctaHref}>{ctaLabel}</a>
+            <a class="mobile-menu__app" href={getAppHref}>{t('nav.getApp')}</a>
             <div class="mobile-menu__lang"><LanguageSwitcher /></div>
             <span class="mobile-menu__meta">{t('menu.meta')}</span>
         </div>
@@ -153,6 +156,22 @@ const t = useTranslations(lang);
         background: var(--tan, #c9a87c);
         color: var(--black, #0a0a0a);
     }
+
+    .mobile-menu__app {
+        display: block;
+        text-align: center;
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.78rem;
+        letter-spacing: 0;
+        text-transform: uppercase;
+        color: var(--tan-light, #e0c49a);
+        text-decoration: underline;
+        text-decoration-color: rgba(201, 168, 124, 0.4);
+        text-underline-offset: 4px;
+        transition: color 200ms ease;
+    }
+
+    .mobile-menu__app:active { color: var(--green-glow, #52b788); }
 
     .mobile-menu__lang {
         display: flex;

@@ -3,6 +3,7 @@
   "short_name": "ItsBagelBot",
   "description": "Configure moderation, commands, timers, and channel points for your Twitch channel.",
   "id": "/",
+  "scope": "/",
   "start_url": "/",
   "display": "standalone",
   "theme_color": "#0a0a0a",
