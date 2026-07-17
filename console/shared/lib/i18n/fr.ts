@@ -348,6 +348,8 @@ export const fr = {
     inspector: 'Inspecteur',
     closeEditor: 'Fermer l\'éditeur',
     inspectorIdle: 'Sélectionnez une commande à modifier ici, ou créez-en une nouvelle.',
+    composeTitle: 'Ajouter !{name} à votre chaîne?',
+    composeReplace: 'Vous avez déjà !{name}. Cette création remplacera sa réponse et ses réglages.',
     toastCreated: 'Commande !{name} créée.',
     toastUpdated: 'Commande !{name} mise à jour.',
     toastDeleted: 'Commande !{name} supprimée.',

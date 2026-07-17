@@ -349,6 +349,8 @@ export const en = {
     inspector: 'Inspector',
     closeEditor: 'Close editor',
     inspectorIdle: 'Select a command to edit it here, or start a new one.',
+    composeTitle: 'Add !{name} to your channel?',
+    composeReplace: 'You already have !{name}. Creating this will replace its response and settings.',
     toastCreated: 'Command !{name} created.',
     toastUpdated: 'Command !{name} updated.',
     toastDeleted: 'Command !{name} deleted.',

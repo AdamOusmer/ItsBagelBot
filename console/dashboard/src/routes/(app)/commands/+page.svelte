@@ -17,6 +17,8 @@
     normName,
     getI18n,
     builtinDef,
+    validateCommand,
+    PERM_LABELS,
     PERMS,
     COMMAND_NAME_MAX,
     COOLDOWN_MAX,
@@ -28,6 +30,7 @@
   import CommandRow from '$lib/components/commands/CommandRow.svelte';
   import CommandEditor from '$lib/components/commands/CommandEditor.svelte';
   import BuiltinInspector from '$lib/components/commands/BuiltinInspector.svelte';
+  import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
   import { loadDraft, clearDraft, hasDraft, type CommandDraft } from '$lib/components/commands/drafts';
 
   let { data } = $props();
@@ -280,13 +283,20 @@
     guarded(doOpenNew);
   }
 
-  // --- Deep-link prefill (marketing command builder) --------------------------
+  // --- Deep-link compose (marketing command builder) ---------------------------
   // The public command builder links here as /commands?compose=1&name=…&response=…
-  // so a visitor's finished command lands pre-filled in the "new" editor and they
-  // only review and press Create. The path (with query) survives the login
-  // round-trip via safeNextPath, same as /billing?subscribe=1. Runs once on
-  // mount; the params are then stripped so a refresh can't re-open a stale
-  // draft over newer work.
+  // A valid draft opens a confirmation modal (summary + the same chat rehearsal
+  // as the editor) and one press creates the command — no inspector round-trip.
+  // A draft the validator rejects falls back to the pre-filled editor so the
+  // visitor can fix it. The path (with query) survives the login round-trip via
+  // safeNextPath, same as /billing?subscribe=1. Runs once on mount; the params
+  // are then stripped so a refresh can't re-run a stale compose.
+  let composeDraft = $state<CommandDraft | null>(null);
+  let composeBusy = $state(false);
+  const composeReplaces = $derived(
+    composeDraft !== null && items.some((c) => c.name === composeDraft!.name)
+  );
+
   onMount(() => {
     const url = new URL(window.location.href);
     if (url.searchParams.get('compose') !== '1') return;
@@ -295,7 +305,7 @@
     const cooldown = Math.floor(Number(url.searchParams.get('cooldown')) || 0);
     const aliases = (url.searchParams.get('aliases') ?? '').split(',').map(normName).filter(Boolean);
 
-    editorDraft = {
+    const draft: CommandDraft = {
       ...blankDraft(),
       name: normName(url.searchParams.get('name') ?? '').slice(0, COMMAND_NAME_MAX),
       // The Go validator caps aliases at 25; drop the excess instead of failing.
@@ -305,9 +315,23 @@
       perm: (PERMS as readonly string[]).includes(perm) ? (perm as Perm) : 'everyone',
       cooldown: Math.min(Math.max(cooldown, 0), COOLDOWN_MAX)
     };
-    serverErrors = null;
-    expanded = NEW;
-    editorGen++;
+
+    const problems = validateCommand({
+      name: draft.name,
+      aliases: draft.aliases,
+      response: draft.response,
+      cooldown: draft.cooldown,
+      allowedUserId: ''
+    });
+    if (Object.keys(problems).length === 0) {
+      composeDraft = draft;
+    } else {
+      // Broken deep link: hand it to the editor with the fields to fix.
+      serverErrors = problems;
+      editorDraft = draft;
+      expanded = NEW;
+      editorGen++;
+    }
 
     for (const key of ['compose', 'name', 'response', 'perm', 'cooldown', 'aliases', 'lang']) {
       url.searchParams.delete(key);
@@ -316,6 +340,45 @@
     // onMount runs, and a same-tick replaceState is dropped.
     setTimeout(() => replaceState(url, {}), 0);
   });
+
+  function composeCancel() {
+    if (composeBusy) return;
+    composeDraft = null;
+  }
+
+  async function composeConfirm() {
+    const d = composeDraft;
+    if (!d || composeBusy) return;
+    composeBusy = true;
+    const payload = await postAction(
+      'save',
+      formDataFor({
+        name: d.name,
+        aliases: d.aliases,
+        response: d.response,
+        is_active: true,
+        stream_online_only: false,
+        perm: d.perm,
+        cooldown: d.cooldown,
+        allowed_user_id: ''
+      })
+    );
+    composeBusy = false;
+    composeDraft = null;
+    if (payload?.ok) {
+      applyResult(payload); // reconciles the row and toasts created/updated
+      return;
+    }
+    if (payload?.errors) {
+      // The server disagreed: open the editor with the draft + its complaints.
+      serverErrors = payload.errors;
+      editorDraft = d;
+      expanded = NEW;
+      editorGen++;
+      return;
+    }
+    toast('err', payload?.error ?? t('commands.toastSaveFailed'));
+  }
   function openEdit(c: CommandView) {
     if (expanded === c.name) {
       closeEditor();
@@ -675,6 +738,28 @@
 </section>
 
 <ConfirmDialog
+  open={composeDraft !== null}
+  title={t('commands.composeTitle', { name: composeDraft?.name ?? '' })}
+  body={composeReplaces ? t('commands.composeReplace', { name: composeDraft?.name ?? '' }) : undefined}
+  confirmLabel={composeReplaces ? t('commandEditor.saveChanges') : t('commandEditor.create')}
+  cancelLabel={t('common.cancel')}
+  busy={composeBusy}
+  onConfirm={composeConfirm}
+  onCancel={composeCancel}
+>
+  {#if composeDraft}
+    <div class="compose-meta">
+      <span>{PERM_LABELS[composeDraft.perm]}</span>
+      <span>{t('commandRow.cooldown')} {composeDraft.cooldown}s</span>
+      {#if composeDraft.aliases.length}
+        <span>{t('commandRow.also', { aliases: composeDraft.aliases.map((a) => '!' + a).join(' ') })}</span>
+      {/if}
+    </div>
+    <ChatPreview name={composeDraft.name} response={composeDraft.response} />
+  {/if}
+</ConfirmDialog>
+
+<ConfirmDialog
   open={discardOpen}
   title={t('commands.discardTitle')}
   body={t('commands.discardBody')}
@@ -688,6 +773,17 @@
 <svelte:window onkeydown={onKey} />
 
 <style>
+  .compose-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    margin-bottom: 4px;
+    font-family: var(--bb-font-mono);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    color: var(--bb-muted);
+  }
+
   .toolbar-search { width: 220px; }
 
   .keys {
