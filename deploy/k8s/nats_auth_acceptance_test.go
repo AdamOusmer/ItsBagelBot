@@ -117,6 +117,10 @@ func (h *acceptanceHarness) assertAllowedBindings(t *testing.T) {
 		{serviceIdentity{"outgress_bus"}, "authz_outgress", "twitch.outgress.premium"},
 		{serviceIdentity{"outgress_bus"}, "authz_outgress", "twitch.outgress.system"},
 		{serviceIdentity{"outgress_bus"}, "authz_outgress", "twitch.ingress.event.stream"},
+		// Authorization lifecycle consumers (revocation marking + grant re-enroll).
+		{serviceIdentity{"outgress_bus"}, "authz_outgress", "twitch.ingress.status.authz.granted"},
+		{serviceIdentity{"outgress_bus"}, "authz_outgress", "twitch.ingress.status.authz.revoked"},
+		{serviceIdentity{"outgress_bus"}, "authz_outgress", "twitch.ingress.status.authz.subrevoked"},
 	}
 	for _, binding := range bindings {
 		binding := binding

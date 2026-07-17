@@ -242,7 +242,7 @@ export async function publishEventSubEnsureOptional(broadcasterId: string): Prom
 }
 
 export type ChannelSubState = {
-  state: 'ok' | 'pending' | 'failing' | 'unenrolled' | 'unknown';
+  state: 'ok' | 'pending' | 'failing' | 'revoked' | 'unenrolled' | 'unknown';
   error: string;
   checkedAt: string | null;
 };
@@ -251,8 +251,13 @@ function unknownSubState(): ChannelSubState {
   return { state: 'unknown', error: '', checkedAt: null };
 }
 
-function isKnownSubState(s: string): s is 'ok' | 'pending' | 'failing' {
-  return s === 'ok' || s === 'pending' || s === 'failing';
+// 'revoked' must stay a known state: folding it into 'unenrolled' would let
+// the home page's self-heal publish enables against a channel outgress
+// deliberately refuses to enroll until the broadcaster re-consents.
+const KNOWN_SUB_STATES = ['ok', 'pending', 'failing', 'revoked'] as const;
+
+function isKnownSubState(s: string): s is (typeof KNOWN_SUB_STATES)[number] {
+  return (KNOWN_SUB_STATES as readonly string[]).includes(s);
 }
 
 // Read the persisted EventSub enroll state for a channel. Two distinct

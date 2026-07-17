@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"ItsBagelBot/app/outgress/internal/twitch"
@@ -23,6 +24,21 @@ import (
 // touching Twitch. Repair paths are unaffected: the skip requires sub_state
 // "ok", so a failing, pending, or cleared channel always gets its enroll.
 const enrollCooldownTTL = 2 * time.Minute
+
+// Enrollment states persisted in the channel registry (sub_state). The
+// console's connection model mirrors these exact strings.
+const (
+	subStateOK      = "ok"
+	subStatePending = "pending"
+	subStateFailing = "failing"
+	// subStateRevoked means Twitch revoked the broadcaster's authorization
+	// (app disconnected or password changed). Scoped subscriptions are gone
+	// and cannot be re-created until the broadcaster re-consents; surviving
+	// unscoped subscriptions (stream.online/offline, raid, channel.update,
+	// chat) are deliberately kept alive. Cleared by the authorization-grant
+	// re-enroll or an explicit disconnect.
+	subStateRevoked = "revoked"
+)
 
 // enrollment identifies one channel's EventSub enrollment on our conduit: the
 // broadcaster whose subscriptions are managed and the conduit they route to.
@@ -120,6 +136,28 @@ func (w *Worker) underEnrollLock(ctx context.Context, op string, e enrollment, f
 	return fn()
 }
 
+// skipRevokedEnroll acknowledges an enable/reconnect for a channel whose
+// authorization Twitch revoked. Re-creating the scoped subscriptions cannot
+// succeed until the broadcaster re-consents, and reconnect's drop phase would
+// delete the surviving unscoped subscriptions (stream.online above all, the
+// beacon that lets the bot ask the streamer to reconnect on go-live). So the
+// job is absorbed: no drop, no create, no state change. The revoked state is
+// cleared only by the user.authorization.grant path (which re-enrolls) or by
+// an explicit disconnect. Fails open on a read error: wrongly skipping a real
+// repair is worse than wrongly spending budget.
+func (w *Worker) skipRevokedEnroll(ctx context.Context, e enrollment, op string) bool {
+	ch, found, err := w.registry.Get(ctx, e.broadcasterID)
+	if err != nil || !found {
+		return false
+	}
+	if ch.SubState != subStateRevoked {
+		return false
+	}
+	w.log.Info(op+" skipped: authorization revoked, waiting for the broadcaster to reconnect",
+		zap.String("broadcaster_id", e.broadcasterID))
+	return true
+}
+
 // skipFreshEnroll acknowledges a redundant enroll: the channel completed a
 // full enroll inside the cooldown window and the registry still reports it
 // healthy, so re-running would only spend Helix budget re-creating (409) what
@@ -143,13 +181,13 @@ func (w *Worker) skipFreshEnroll(ctx context.Context, e enrollment, op string) b
 // redundantEnroll trusts the cooldown only while the registry still reports
 // the enrollment healthy; any other state means there is real work to do.
 func redundantEnroll(ch manage.Channel, found bool) bool {
-	return found && ch.SubState == "ok"
+	return found && ch.SubState == subStateOK
 }
 
 // recordEnrollSuccess persists the healthy outcome and arms the cooldown that
 // lets an immediately repeated enable/reconnect be skipped.
 func (w *Worker) recordEnrollSuccess(ctx context.Context, e enrollment) {
-	_ = w.registry.SetSubState(ctx, e.broadcasterID, "ok", "")
+	_ = w.registry.SetSubState(ctx, e.broadcasterID, subStateOK, "")
 	_ = w.registry.ArmEnrollCooldown(ctx, e.broadcasterID, enrollCooldownTTL)
 }
 
@@ -185,10 +223,10 @@ func retryTransient(ctx context.Context, fn func() error) error {
 // with a persisted "failing" state surfaces the problem to the dashboard instead.
 func (w *Worker) enableEventSubs(ctx context.Context, e enrollment) error {
 	return w.underEnrollLock(ctx, "enable", e, func() error {
-		if w.skipFreshEnroll(ctx, e, "enable") {
+		if w.skipFreshEnroll(ctx, e, "enable") || w.skipRevokedEnroll(ctx, e, "enable") {
 			return nil
 		}
-		_ = w.registry.SetSubState(ctx, e.broadcasterID, "pending", "")
+		_ = w.registry.SetSubState(ctx, e.broadcasterID, subStatePending, "")
 
 		err := retryTransient(ctx, func() error {
 			return w.createAllEventSubs(ctx, e)
@@ -203,12 +241,30 @@ func (w *Worker) enableEventSubs(ctx context.Context, e enrollment) error {
 			return nil
 		}
 
-		_ = w.registry.SetSubState(ctx, e.broadcasterID, "failing", err.Error())
-		w.log.Error("enable: eventsubs not fully accepted, marked failing",
+		w.recordEnrollFailure(ctx, e, "enable", err)
+		return nil // ack: the failing/revoked state is surfaced for the operator
+	})
+}
+
+// recordEnrollFailure persists why an enroll could not complete. A create
+// rejected for missing authorization means Twitch revoked the broadcaster's
+// consent: that is the revoked state (user action required, retrying is
+// pointless), and the streamer is notified. Everything else stays failing
+// (bot-side, the restart path applies).
+func (w *Worker) recordEnrollFailure(ctx context.Context, e enrollment, op string, err error) {
+	if isAuthRevoked(err) {
+		_ = w.registry.SetSubState(ctx, e.broadcasterID, subStateRevoked, err.Error())
+		w.log.Warn(op+": twitch reports the broadcaster authorization revoked",
 			zap.String("broadcaster_id", e.broadcasterID),
 			zap.Error(err))
-		return nil // ack: failing state is surfaced for the operator
-	})
+		w.notifyReauthNeeded(ctx, e.broadcasterID)
+		return
+	}
+
+	_ = w.registry.SetSubState(ctx, e.broadcasterID, subStateFailing, err.Error())
+	w.log.Error(op+": eventsubs not fully accepted, marked failing",
+		zap.String("broadcaster_id", e.broadcasterID),
+		zap.Error(err))
 }
 
 // disableChannel deletes all of a channel's eventsub subscriptions with the same
@@ -229,7 +285,7 @@ func (w *Worker) disableChannel(ctx context.Context, e enrollment) error {
 			return nil
 		}
 
-		_ = w.registry.SetSubState(ctx, e.broadcasterID, "failing", err.Error())
+		_ = w.registry.SetSubState(ctx, e.broadcasterID, subStateFailing, err.Error())
 		w.log.Error("disable: eventsubs not fully removed, marked failing",
 			zap.String("broadcaster_id", e.broadcasterID),
 			zap.Error(err))
@@ -244,10 +300,10 @@ func (w *Worker) disableChannel(ctx context.Context, e enrollment) error {
 // polling Twitch.
 func (w *Worker) reconnectEventSubs(ctx context.Context, e enrollment) error {
 	return w.underEnrollLock(ctx, "reconnect", e, func() error {
-		if w.skipFreshEnroll(ctx, e, "reconnect") {
+		if w.skipFreshEnroll(ctx, e, "reconnect") || w.skipRevokedEnroll(ctx, e, "reconnect") {
 			return nil
 		}
-		_ = w.registry.SetSubState(ctx, e.broadcasterID, "pending", "")
+		_ = w.registry.SetSubState(ctx, e.broadcasterID, subStatePending, "")
 
 		// Best-effort drop: if listing/deleting fails we still try to recreate;
 		// 409 idempotency on create means the end state converges either way.
@@ -270,7 +326,14 @@ func (w *Worker) reconnectEventSubs(ctx context.Context, e enrollment) error {
 			return nil
 		}
 
-		_ = w.registry.SetSubState(ctx, e.broadcasterID, "failing", err.Error())
+		if isAuthRevoked(err) {
+			// Redelivery cannot restore consent; ack with the revoked state so
+			// the grant path (or the streamer) takes it from here.
+			w.recordEnrollFailure(ctx, e, "reconnect", err)
+			return nil
+		}
+
+		_ = w.registry.SetSubState(ctx, e.broadcasterID, subStateFailing, err.Error())
 		w.log.Error("reconnect: eventsubs not fully accepted, retrying",
 			zap.String("broadcaster_id", e.broadcasterID),
 			zap.Error(err))
@@ -441,4 +504,17 @@ func isPermanent(err error) bool {
 			se.Status != http.StatusUnauthorized
 	}
 	return false
+}
+
+// isAuthRevoked reports whether err is Twitch rejecting a mandatory
+// subscription create because the broadcaster's consent is gone (the user
+// disconnected the app or changed their password). Twitch answers 403 with
+// this exact message; other 403s (a non-affiliate's channel-points sub) never
+// reach this check because optional creates are tolerated upstream.
+func isAuthRevoked(err error) bool {
+	var se *twitch.StatusError
+	if !errors.As(err, &se) || se.Status != http.StatusForbidden {
+		return false
+	}
+	return strings.Contains(se.Body, "subscription missing proper authorization")
 }

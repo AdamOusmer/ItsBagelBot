@@ -513,6 +513,22 @@ defmodule Ingress.ShardSession do
     end
   end
 
+  # user.authorization.grant / user.authorization.revoke are client-scoped
+  # subscriptions (condition keys on our client id, not a broadcaster), so they
+  # bypass the lane pipeline: no broadcaster admission applies and their only
+  # consumer is outgress, which reconciles the channel's enrollment state. The
+  # binary-prefix match keeps the hot chat path untouched.
+  defp handle_twitch(
+         _which,
+         "notification",
+         %{"subscription" => %{"type" => "user.authorization." <> action}} = payload,
+         _meta,
+         state
+       ) do
+    publish_authz(action, payload["event"] || %{})
+    {:noreply, state |> count_notification() |> pet_watchdog()}
+  end
+
   defp handle_twitch(_which, "notification", payload, meta, state) do
     Ingress.Dispatcher.dispatch(payload, %{
       shard_id: state.shard_id,
@@ -524,8 +540,24 @@ defmodule Ingress.ShardSession do
     {:noreply, state |> count_notification() |> pet_watchdog()}
   end
 
+  # Twitch revoked one subscription (authorization_revoked, user_removed,
+  # version_removed, ...). Publish it on the authz status subject so outgress
+  # can flip the channel's enrollment state; the surviving subscriptions are
+  # deliberately left alone (stream.online keeps working without any user
+  # grant, and it is the beacon that lets the bot tell the streamer to
+  # reconnect on their next go-live).
   defp handle_twitch(_which, "revocation", payload, _meta, state) do
-    Logger.warning("subscription revoked: #{inspect(payload["subscription"])}")
+    sub = payload["subscription"] || %{}
+    Logger.warning("subscription revoked: #{inspect(sub)}")
+    Metrics.count("Shard/Revocations")
+
+    Nats.publish("twitch.ingress.status.authz.subrevoked", %{
+      broadcaster_id: revoked_broadcaster(sub),
+      type: sub["type"],
+      status: sub["status"],
+      at: DateTime.utc_now()
+    })
+
     {:noreply, pet_watchdog(state)}
   end
 
@@ -546,6 +578,36 @@ defmodule Ingress.ShardSession do
   end
 
   def permanent_bind_error?(_reason), do: false
+
+  # Announce an authorization change for our client id. "grant" fires when a
+  # user (re)consents through the dashboard OAuth flow; "revoke" when Twitch
+  # invalidates the authorization (the user disconnected the app or changed
+  # their password). Outgress owns the reaction: revoke marks the channel's
+  # enrollment revoked, grant re-enrolls the missing subscriptions.
+  defp publish_authz(action, event) when action in ["grant", "revoke"] do
+    Metrics.count("Shard/Authz/#{action}")
+    outcome = if action == "grant", do: "granted", else: "revoked"
+
+    Nats.publish("twitch.ingress.status.authz.#{outcome}", %{
+      user_id: event["user_id"],
+      user_login: event["user_login"],
+      at: DateTime.utc_now()
+    })
+  end
+
+  defp publish_authz(action, _event) do
+    Logger.debug("unhandled user.authorization action #{action}")
+  end
+
+  # The condition names the owning channel differently per subscription type:
+  # broadcaster_user_id for channel.* types, to_broadcaster_user_id for raid,
+  # user_id for the client-scoped user.* types.
+  defp revoked_broadcaster(sub) do
+    condition = sub["condition"] || %{}
+
+    condition["broadcaster_user_id"] || condition["to_broadcaster_user_id"] ||
+      condition["user_id"]
+  end
 
   # Announce that this shard (re)established its binding: "fresh" after a
   # full connect + Helix bind, "moved" after a session_reconnect handshake

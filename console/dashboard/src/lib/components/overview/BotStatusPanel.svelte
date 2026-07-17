@@ -55,6 +55,8 @@
         return t('overview.connecting');
       case 'degraded':
         return t('overview.reconnectNeeded');
+      case 'reauth_required':
+        return t('overview.twitchAccessLost');
       case 'sub_unknown':
         return t('overview.connectedIdle');
       case 'unavailable':
@@ -72,6 +74,8 @@
         return t('overview.allGood');
       case 'degraded':
         return t('overview.issueSubs');
+      case 'reauth_required':
+        return t('overview.issueReauth');
       case 'sub_unknown':
         return t('overview.issueIdle');
       case 'disabled':
@@ -138,7 +142,10 @@
           <Button variant="primary" icon="power" type="submit" class="ov-cta">{t('overview.enable')}</Button>
         </form>
       {:else if ui.showConnect}
-        <ButtonLink href="/settings" variant="primary" icon="power" class="ov-cta">{t('overview.issueNoAuthCta')}</ButtonLink>
+        <!-- reauth_required: the grant died server-side, only a fresh Twitch
+             consent restores it, so the one action offered is the reconnect. -->
+        <ButtonLink href="/settings" variant="primary" icon="power" class="ov-cta"
+          >{kind === 'reauth_required' ? t('common.reconnect') : t('overview.issueNoAuthCta')}</ButtonLink>
       {:else if ui.canRetry}
         <ButtonLink href="/" variant="ghost" icon="activity" class="ov-cta">{t('overview.retry')}</ButtonLink>
       {/if}

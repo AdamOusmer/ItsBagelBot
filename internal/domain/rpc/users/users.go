@@ -208,6 +208,22 @@ type LocaleSetRequest struct {
 	Locale            string `json:"locale"`
 }
 
+// StateGetRequest is the payload for the dashboard state_get verb.
+type StateGetRequest struct {
+	BroadcasterUserID string `json:"broadcaster_user_id"`
+}
+
+// StateGetReply is the subset of the state_get reply Go callers consume
+// (outgress reads the locale to localize streamer-facing reauth copy). The
+// verb returns more fields; unknown ones are ignored on decode.
+type StateGetReply struct {
+	Active    bool   `json:"active"`
+	Status    string `json:"status"`
+	Onboarded bool   `json:"onboarded"`
+	Locale    string `json:"locale"`
+	Error     string `json:"error,omitempty"`
+}
+
 // OnboardedSetRequest is the payload for the dashboard onboarded_set verb.
 type OnboardedSetRequest struct {
 	BroadcasterUserID string `json:"broadcaster_user_id"`

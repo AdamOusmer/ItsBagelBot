@@ -126,6 +126,9 @@ export const fr = {
     connectedIdle: 'Connecté · inactif',
     notConnected: 'Non connecté',
     reconnectNeeded: 'Reconnexion nécessaire',
+    twitchAccessLost: 'Accès Twitch perdu',
+    issueReauth:
+      'Twitch a révoqué l’accès du bot à votre chaîne. Cela arrive après un changement de mot de passe ou si l’application a été déconnectée sur Twitch. Reconnectez votre compte Twitch pour rétablir le bot.',
     reconnecting: 'Reconnexion…',
     connecting: 'Connexion…',
     unavailable: 'État de connexion indisponible',

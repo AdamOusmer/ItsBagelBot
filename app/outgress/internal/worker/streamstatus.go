@@ -2,11 +2,15 @@ package worker
 
 import (
 	"context"
+	"errors"
 	"strconv"
+	"time"
 
 	eventtwitch "ItsBagelBot/internal/domain/event/twitch"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/pkg/bus"
+
+	"github.com/bytedance/sonic"
 
 	"go.uber.org/zap"
 )
@@ -131,8 +135,73 @@ func (w *Worker) HandleStreamEvent(msg *bus.Message) error {
 	broadcasterID := strconv.FormatUint(status.BroadcasterID, 10)
 
 	w.scheduleModStatus(broadcasterID, "")
+	w.reauthBeaconOnLive(msg.Context(), broadcasterID)
 
 	w.log.Debug("mod status refresh scheduled on go-live",
 		zap.String("broadcaster_id", broadcasterID))
 	return nil
 }
+
+// reauthBeaconTTL spaces the go-live reconnect nudge: one chat line per
+// channel per window, however many times the stream restarts.
+const reauthBeaconTTL = 12 * time.Hour
+
+// reauthBeaconOnLive asks the streamer to reconnect, in their own chat, when
+// they go live on a channel whose authorization Twitch revoked. stream.online
+// survives a revocation (it needs no user grant) and chat send runs on the
+// app token backed by the bot's own user:bot grant plus its moderator seat,
+// so this path stays alive exactly when everything scoped is dead. That makes
+// go-live the one reliable moment the bot can still reach the streamer where
+// they are looking. Best-effort at every step; the beacon must never disturb
+// the go-live pipeline.
+func (w *Worker) reauthBeaconOnLive(ctx context.Context, broadcasterID string) {
+	if w.reauth == nil {
+		return
+	}
+	ch, found, err := w.registry.Get(ctx, broadcasterID)
+	if err != nil || !found {
+		return
+	}
+	if ch.SubState != subStateRevoked {
+		return
+	}
+
+	armed, err := w.registry.ArmReauthBeacon(ctx, broadcasterID, reauthBeaconTTL)
+	if err != nil || !armed {
+		return
+	}
+
+	if err := w.sendReauthChat(ctx, broadcasterID); err != nil {
+		w.log.Warn("reauth chat beacon failed",
+			zap.String("broadcaster_id", broadcasterID), zap.Error(err))
+		return
+	}
+	w.log.Info("reauth chat beacon sent", zap.String("broadcaster_id", broadcasterID))
+}
+
+// sendReauthChat pushes the localized reconnect line through the ordinary
+// chat send path (type route defaults + bot sender injection + per-channel
+// chat rate bucket), exactly as if a lane job carried it.
+func (w *Worker) sendReauthChat(ctx context.Context, broadcasterID string) error {
+	body, err := sonic.Marshal(struct {
+		BroadcasterID string `json:"broadcaster_id"`
+		Message       string `json:"message"`
+	}{broadcasterID, w.reauth.ChatBeacon(ctx, broadcasterID)})
+	if err != nil {
+		return err
+	}
+
+	payload := outgress.Message{
+		Type:          outgress.TypeChat,
+		BroadcasterID: broadcasterID,
+		Payload:       body,
+	}
+	if !w.resolveHelixRoute(&payload) {
+		return errReauthChatRoute
+	}
+	return w.processChat(ctx, payload)
+}
+
+// errReauthChatRoute only fires if the chat type route table loses its "chat"
+// entry, which would be a programming error.
+var errReauthChatRoute = errors.New("reauth beacon: chat route unresolved")

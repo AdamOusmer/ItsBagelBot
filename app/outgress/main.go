@@ -132,8 +132,22 @@ func main() {
 	})
 	d.startSystemLane(ctx, systemSub, system)
 
+	// Authorization lifecycle: streamer-facing messaging attaches before any
+	// consumer that can call it (the stream lane's go-live beacon and the
+	// authz consumers below), then the client-scoped user.authorization.*
+	// subscriptions that feed them are ensured in the background.
+	system.SetReauthNotifier(worker.NewReauthNotifier(nc, worker.ReauthConfig{
+		SendSubject:  cfg.NotifySendSubject,
+		StateSubject: cfg.UsersStateSubject,
+		BotID:        cfg.TwitchBotUserID,
+	}, log.Named("reauth")))
+
 	closeStreamLane := d.startStreamLane(ctx, system)
 	defer closeStreamLane()
+
+	closeAuthzLane := d.startAuthzLane(ctx, system)
+	defer closeAuthzLane()
+	go system.EnsureClientEventSubs(ctx)
 
 	fatalIf(log, rpc.SubscribeManage(nc, registry, tw, cfg.RPCPrefix, "outgress-rpc", nrApp, log.Named("rpc")),
 		"failed to subscribe management rpc")
@@ -405,6 +419,30 @@ func (d *deps) startStreamLane(ctx context.Context, system *worker.Worker) func(
 		"failed to consume stream lane")
 
 	return func() { _ = streamSub.Close() }
+}
+
+// startAuthzLane binds one durable consumer per authorization lifecycle
+// subject (granted / revoked / subrevoked) under outgress's service group, on
+// the same TWITCH_INGRESS stream as the stream lane. Ingress publishes these
+// when Twitch reports an authorization change; the system worker reconciles
+// the channel's enrollment state (mark revoked, re-enroll on grant). Distinct
+// literal subjects keep each handler's intent typed instead of re-dispatching
+// on a wildcard.
+func (d *deps) startAuthzLane(ctx context.Context, system *worker.Worker) func() {
+	authzSub, err := bus.NewSubscriber(d.cfg.NATSURL, serviceName, d.log)
+	fatalIf(d.log, err, "failed to connect authz subscriber")
+
+	lanes := map[string]func(*bus.Message) error{
+		d.cfg.AuthzGrantedSubject:    system.HandleAuthzGranted,
+		d.cfg.AuthzRevokedSubject:    system.HandleAuthzRevoked,
+		d.cfg.AuthzSubRevokedSubject: system.HandleAuthzSubRevoked,
+	}
+	for subject, handle := range lanes {
+		fatalIf(d.log, bus.Consume(ctx, d.nrApp, authzSub, subject, handle, d.log),
+			"failed to consume authz subject "+subject)
+	}
+
+	return func() { _ = authzSub.Close() }
 }
 
 func (d *deps) logReady(tw *twitch.Client) {
