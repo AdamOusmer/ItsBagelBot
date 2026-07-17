@@ -96,6 +96,26 @@ spec:
     driver:
       kind: modern_ebpf
 
+    # -U/--unbuffered: flush stdout on EVERY alert.
+    #
+    # REQUIRED, and specifically required *because* of the customRules below.
+    # falco 0.43.1 block-buffers stdout even though `buffered_outputs: false`
+    # is set (the chart documents that flag as "flushes the output buffer on
+    # every alert" for stdout_output; measured 2026-07-17, it does not).
+    # Alerts therefore sit in the libc buffer until ~4KB accumulates.
+    #
+    # Before the exceptions, ~6,500 FP events/day acted as an accidental
+    # carrier: the noise kept filling and flushing the buffer, so real alerts
+    # rode out with it. Silencing the FPs removed that carrier, so a lone real
+    # alert would sit unflushed indefinitely and never reach fluent-bit ->
+    # New Relic. Measured on node3 before this flag: two canary alerts stayed
+    # invisible for 11+ minutes, then appeared only once a 60-event burst
+    # filled the buffer; engine counter read 63 matches vs 61 lines emitted.
+    # Falco is a detector nobody reads if its alerts never leave the buffer,
+    # so the noise fix and this flag MUST ship together.
+    extra:
+      args: ["-U"]
+
     falco:
       json_output: true
 
