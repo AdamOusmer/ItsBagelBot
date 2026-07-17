@@ -68,7 +68,10 @@ func (w *Worker) HandleAuthzGranted(msg *bus.Message) error {
 	if err != nil {
 		return err // transient registry read: nak for paced redelivery
 	}
-	if !found || !ch.Enabled || !reenrollableSubState(ch.SubState) {
+	if !found || !ch.Enabled {
+		return nil
+	}
+	if !reenrollableSubState(ch.SubState) {
 		return nil
 	}
 
@@ -95,7 +98,11 @@ func (w *Worker) HandleAuthzGranted(msg *bus.Message) error {
 // creates converge through 409s at worst). Only a healthy "ok" (or an
 // unenrolled channel) skips.
 func reenrollableSubState(state string) bool {
-	return state == subStateRevoked || state == subStateFailing || state == subStatePending
+	switch state {
+	case subStateRevoked, subStateFailing, subStatePending:
+		return true
+	}
+	return false
 }
 
 // HandleAuthzRevoked marks a channel revoked when Twitch reports the

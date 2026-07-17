@@ -159,7 +159,10 @@ func (w *Worker) reauthBeaconOnLive(ctx context.Context, broadcasterID string) {
 		return
 	}
 	ch, found, err := w.registry.Get(ctx, broadcasterID)
-	if err != nil || !found || ch.SubState != subStateRevoked {
+	if err != nil || !found {
+		return
+	}
+	if ch.SubState != subStateRevoked {
 		return
 	}
 

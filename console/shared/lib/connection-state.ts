@@ -75,14 +75,19 @@ function activeKind(sub: SubState): ConnKind {
   }
 }
 
+// Per-kind action sets. Membership lists keep each ConnUi flag a single
+// readable predicate instead of a growing boolean chain.
+const MANAGEABLE: readonly ConnKind[] = ['online', 'degraded', 'sub_unknown', 'connecting'];
+const CONNECTABLE: readonly ConnKind[] = ['auth_required', 'reauth_required'];
+const RETRYABLE: readonly ConnKind[] = ['unavailable', 'sub_unknown'];
+
 function ui(kind: ConnKind): ConnUi {
   return {
     kind,
     live: kind === 'online',
-    canManage:
-      kind === 'online' || kind === 'degraded' || kind === 'sub_unknown' || kind === 'connecting',
+    canManage: MANAGEABLE.includes(kind),
     showEnable: kind === 'disabled',
-    showConnect: kind === 'auth_required' || kind === 'reauth_required',
-    canRetry: kind === 'unavailable' || kind === 'sub_unknown'
+    showConnect: CONNECTABLE.includes(kind),
+    canRetry: RETRYABLE.includes(kind)
   };
 }

@@ -147,7 +147,10 @@ func (w *Worker) underEnrollLock(ctx context.Context, op string, e enrollment, f
 // repair is worse than wrongly spending budget.
 func (w *Worker) skipRevokedEnroll(ctx context.Context, e enrollment, op string) bool {
 	ch, found, err := w.registry.Get(ctx, e.broadcasterID)
-	if err != nil || !found || ch.SubState != subStateRevoked {
+	if err != nil || !found {
+		return false
+	}
+	if ch.SubState != subStateRevoked {
 		return false
 	}
 	w.log.Info(op+" skipped: authorization revoked, waiting for the broadcaster to reconnect",
