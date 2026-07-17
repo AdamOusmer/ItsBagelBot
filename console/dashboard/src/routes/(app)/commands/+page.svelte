@@ -17,6 +17,7 @@
     normName,
     getI18n,
     builtinDef,
+    BUILTIN_NAMES,
     validateCommand,
     PERM_LABELS,
     PERMS,
@@ -294,7 +295,7 @@
   let composeDraft = $state<CommandDraft | null>(null);
   let composeBusy = $state(false);
   const composeReplaces = $derived(
-    composeDraft !== null && items.some((c) => c.name === composeDraft!.name)
+    composeDraft !== null && items.some((c) => !c.builtin && c.name === composeDraft!.name)
   );
 
   onMount(() => {
@@ -323,6 +324,9 @@
       cooldown: draft.cooldown,
       allowedUserId: ''
     });
+    if (BUILTIN_NAMES.has(draft.name)) {
+      problems.name = t('commands.errBuiltinName');
+    }
     if (Object.keys(problems).length === 0) {
       composeDraft = draft;
     } else {
@@ -350,34 +354,46 @@
     const d = composeDraft;
     if (!d || composeBusy) return;
     composeBusy = true;
-    const payload = await postAction(
-      'save',
-      formDataFor({
-        name: d.name,
-        aliases: d.aliases,
-        response: d.response,
-        is_active: true,
-        stream_online_only: false,
-        perm: d.perm,
-        cooldown: d.cooldown,
-        allowed_user_id: ''
-      })
-    );
+    const replacing = composeReplaces;
+    const view: CommandView = {
+      name: d.name,
+      aliases: d.aliases,
+      response: d.response,
+      is_active: true,
+      stream_online_only: false,
+      perm: d.perm,
+      cooldown: d.cooldown,
+      allowed_user_id: ''
+    };
+    const body = formDataFor(view);
+    if (replacing) {
+      // The modal warned "replace" — save as an edit so the server reports
+      // (and audits) an update, not a create.
+      body.set('edit', '1');
+      body.set('original_name', d.name);
+    }
+    setStatus(d.name, 'saving');
+    const payload = await postAction('save', body);
     composeBusy = false;
     composeDraft = null;
     if (payload?.ok) {
       applyResult(payload); // reconciles the row and toasts created/updated
+      // The write can land while the read-back fails (empty commands[]);
+      // reconcile from the draft so the toasted command is actually visible.
+      if (!items.some((c) => c.name === d.name)) {
+        items = [...items, view];
+      }
+      ackSaved(d.name);
       return;
     }
-    if (payload?.errors) {
-      // The server disagreed: open the editor with the draft + its complaints.
-      serverErrors = payload.errors;
-      editorDraft = d;
-      expanded = NEW;
-      editorGen++;
-      return;
-    }
-    toast('err', payload?.error ?? t('commands.toastSaveFailed'));
+    flagError(d.name);
+    // Never drop the composed work: reopen it in the editor, with the
+    // server's field complaints when it sent any.
+    serverErrors = payload?.errors ?? null;
+    editorDraft = d;
+    expanded = NEW;
+    editorGen++;
+    if (!payload?.errors) toast('err', payload?.error ?? t('commands.toastSaveFailed'));
   }
   function openEdit(c: CommandView) {
     if (expanded === c.name) {
@@ -614,6 +630,7 @@
   // Escape is owned by the InspectorSurface (it yields to the discard dialog);
   // the page only handles the search / new shortcuts.
   function onKey(e: KeyboardEvent) {
+    if (composeDraft !== null || discardOpen) return;
     if (isTyping(e) || e.metaKey || e.ctrlKey || e.altKey) return;
     if (e.key === '/') {
       e.preventDefault();

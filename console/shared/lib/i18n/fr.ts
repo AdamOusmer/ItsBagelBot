@@ -348,6 +348,7 @@ export const fr = {
     inspector: 'Inspecteur',
     closeEditor: 'Fermer l\'éditeur',
     inspectorIdle: 'Sélectionnez une commande à modifier ici, ou créez-en une nouvelle.',
+    errBuiltinName: 'Ce nom appartient à une commande intégrée. Choisissez-en un autre.',
     composeTitle: 'Ajouter !{name} à votre chaîne?',
     composeReplace: 'Vous avez déjà !{name}. Cette création remplacera sa réponse et ses réglages.',
     toastCreated: 'Commande !{name} créée.',
