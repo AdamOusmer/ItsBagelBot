@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0a0a0a" />
+    <meta name="robots" content="noindex" />
+    <title>Offline · Hors ligne — ItsBagelBot Dashboard</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+      }
+      body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        padding: max(24px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom));
+        background: #0a0a0a;
+        color: #ededed;
+        font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        line-height: 1.5;
+        text-align: center;
+      }
+      main {
+        max-width: 26rem;
+      }
+      img {
+        display: block;
+        width: 56px;
+        height: 56px;
+        margin: 0 auto 1.5rem;
+      }
+      h1 {
+        margin: 0 0 0.25rem;
+        font-size: 1.75rem;
+        font-weight: 600;
+      }
+      .sub {
+        margin: 0 0 1.5rem;
+        color: #a1a1a1;
+        font-size: 1.05rem;
+      }
+      p {
+        margin: 0 0 0.75rem;
+        color: #c7c7c7;
+        font-size: 0.95rem;
+      }
+      p.fr {
+        color: #8f8f8f;
+      }
+      a {
+        display: inline-block;
+        margin-top: 1.5rem;
+        padding: 0.7rem 1.6rem;
+        border: 1px solid #2a2a2a;
+        border-radius: 999px;
+        background: #161616;
+        color: #ededed;
+        font-size: 0.95rem;
+        font-weight: 500;
+        text-decoration: none;
+      }
+      a:hover {
+        background: #1f1f1f;
+        border-color: #3a3a3a;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <img src="/favicon.svg" alt="ItsBagelBot" width="56" height="56" />
+      <h1>You're offline</h1>
+      <p class="sub">Vous êtes hors ligne</p>
+      <p>The dashboard needs an internet connection. Check your network and try again.</p>
+      <p class="fr">Le tableau de bord a besoin d'une connexion Internet. Vérifiez votre réseau, puis réessayez.</p>
+      <a href="/">Retry · Réessayer</a>
+    </main>
+  </body>
+</html>

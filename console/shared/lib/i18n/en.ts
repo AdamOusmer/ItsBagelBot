@@ -890,5 +890,17 @@ export const en = {
     create: "Create reward",
     saveChanges: "Save changes",
     saving: "Saving…",
+  },
+
+  install: {
+    cta: 'Install app',
+    ariaLabel: 'Install ItsBagelBot as an app',
+    dismiss: 'Dismiss',
+    ios: {
+      title: 'Add to Home Screen',
+      step1: 'Tap the Share button in the toolbar.',
+      step2: 'Choose "Add to Home Screen".',
+      close: 'Close'
+    }
   }
 } satisfies MessageTree;

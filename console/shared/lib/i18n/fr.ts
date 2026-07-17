@@ -889,5 +889,17 @@ export const fr = {
     create: "Créer la récompense",
     saveChanges: "Enregistrer les modifications",
     saving: "Enregistrement…",
+  },
+
+  install: {
+    cta: "Installer l’app",
+    ariaLabel: "Installer ItsBagelBot comme application",
+    dismiss: "Ignorer",
+    ios: {
+      title: "Ajouter à l’écran d’accueil",
+      step1: "Touchez le bouton Partager dans la barre d’outils.",
+      step2: "Choisissez « Sur l’écran d’accueil ».",
+      close: "Fermer"
+    }
   }
 } satisfies MessageTree;
