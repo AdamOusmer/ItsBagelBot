@@ -75,6 +75,19 @@ func ChannelOptionalSubscriptions(broadcasterID string) []SubSpec {
 	}
 }
 
+// ClientSubscriptions lists the client-scoped subscriptions the conduit
+// carries exactly once (not per channel): user.authorization.grant and
+// user.authorization.revoke, keyed on our client id and authorized by the app
+// token alone. They are how Twitch tells us a broadcaster's consent appeared
+// or died, which drives the revoked enrollment state and the re-enroll that
+// follows a re-consent. Ensured idempotently at worker startup.
+func ClientSubscriptions(clientID string) []SubSpec {
+	return []SubSpec{
+		{"user.authorization.grant", "1", map[string]string{"client_id": clientID}},
+		{"user.authorization.revoke", "1", map[string]string{"client_id": clientID}},
+	}
+}
+
 // CreateEventSub creates one subscription on the Conduit under the app
 // token. An already-existing subscription (409) is success, so re-running a
 // partially applied job converges instead of failing.
@@ -184,4 +197,3 @@ func statusError(res *http.Response, op string) error {
 	body, _ := io.ReadAll(io.LimitReader(res.Body, 2048))
 	return &StatusError{Status: res.StatusCode, Op: op, Body: string(body)}
 }
-

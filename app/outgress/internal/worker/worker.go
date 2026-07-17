@@ -83,6 +83,11 @@ type Worker struct {
 	// live writes the result of a Twitch live re-check back into the projection.
 	// Only the system lane sets it (via SetLiveWriter); nil elsewhere.
 	live *LiveWriter
+	// reauth tells a streamer their Twitch consent died (dashboard bell + the
+	// go-live chat beacon copy). Only the system lane sets it (via
+	// SetReauthNotifier); nil elsewhere and in tests, where every call site
+	// degrades to a no-op.
+	reauth *ReauthNotifier
 }
 
 // Config wires one lane worker's collaborators.
@@ -127,6 +132,10 @@ func New(cfg Config) *Worker {
 func (w *Worker) SetLiveWriter(lw *LiveWriter) { w.live = lw }
 
 func (w *Worker) SetModVerifier(v *ModVerifier) { w.modVerifier = v }
+
+// SetReauthNotifier attaches the streamer-facing reauth messaging, used by
+// the system lane worker that consumes the authorization lifecycle events.
+func (w *Worker) SetReauthNotifier(r *ReauthNotifier) { w.reauth = r }
 
 // Login->id resolutions (shoutout targets) are a small, fleet-shared keyspace,
 // so wiring builds one bounded cache and injects it into every lane worker

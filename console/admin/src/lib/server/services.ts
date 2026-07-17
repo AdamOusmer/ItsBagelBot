@@ -368,7 +368,7 @@ export async function publishUserEventSub(userId: string, enabled: boolean): Pro
 }
 
 export type ChannelSubState = {
-  state: 'ok' | 'pending' | 'failing' | 'unknown';
+  state: 'ok' | 'pending' | 'failing' | 'revoked' | 'unknown';
   error: string;
   checkedAt: string | null;
 };
@@ -386,7 +386,8 @@ export async function channelSubState(broadcasterId: string): Promise<ChannelSub
     const c = r.channel;
     if (!r.found || !c) return { state: 'unknown', error: '', checkedAt: null };
     const s = (c.sub_state || '') as string;
-    const state = (s === 'ok' || s === 'pending' || s === 'failing') ? s : 'unknown';
+    const known = ['ok', 'pending', 'failing', 'revoked'];
+    const state = known.includes(s) ? (s as ChannelSubState['state']) : 'unknown';
     return { state, error: c.sub_error || '', checkedAt: c.sub_checked_at || null };
   } catch {
     return { state: 'unknown', error: '', checkedAt: null };

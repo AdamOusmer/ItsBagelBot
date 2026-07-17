@@ -343,6 +343,19 @@ func (r *Registry) EnrollCooldownActive(ctx context.Context, broadcasterID strin
 	return n > 0, nil
 }
 
+// reauthBeaconPrefix throttles the go-live "please reconnect" chat line for a
+// revoked channel.
+const reauthBeaconPrefix = "outgress:reauth:beacon:"
+
+// ArmReauthBeacon claims the right to send one reauth chat beacon for the
+// broadcaster within ttl. SET NX makes the claim atomic across replicas and
+// across a stream being restarted several times in a row: the first caller
+// wins, everyone else skips. Fails closed (false, err) on a Valkey error so
+// an outage cannot spam a streamer's chat.
+func (r *Registry) ArmReauthBeacon(ctx context.Context, broadcasterID string, ttl time.Duration) (bool, error) {
+	return r.acquireLock(ctx, reauthBeaconPrefix+broadcasterID, "1", ttl)
+}
+
 // AcquireEnrollLock tries to set a Valkey NX key as a distributed lock.
 // Returns true if this caller owns the lock, false if another replica holds it.
 func (r *Registry) AcquireEnrollLock(ctx context.Context, broadcasterID, owner string, ttl time.Duration) (bool, error) {

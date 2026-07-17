@@ -431,9 +431,17 @@
     });
   }
 
-  const subTone = $derived(
-    subState?.state === 'ok' ? 'green' : subState?.state === 'failing' ? 'err' : 'warn'
-  );
+  const subTone = $derived.by(() => {
+    switch (subState?.state) {
+      case 'ok':
+        return 'green';
+      case 'failing':
+      case 'revoked':
+        return 'err';
+      default:
+        return 'warn';
+    }
+  });
 
   function onKey(e: KeyboardEvent) {
     if (e.key === 'Escape' && selectedId) closeInspector();

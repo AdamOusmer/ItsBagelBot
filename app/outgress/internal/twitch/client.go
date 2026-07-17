@@ -66,6 +66,10 @@ func NewClient(clientID string, app, user *Source, broadcasters *BroadcasterToke
 	}
 }
 
+// ClientID exposes the app's client id for condition fields that key on it
+// (the client-scoped user.authorization.* subscriptions).
+func (c *Client) ClientID() string { return c.clientID }
+
 // Warmup mints the app token and establishes a reusable Twitch connection
 // before queue consumers become ready. The read-only request is deliberately
 // tiny; its response is drained so HTTP/1.1 transports can reuse the socket.
