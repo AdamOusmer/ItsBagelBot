@@ -159,18 +159,20 @@ spec:
                 label.app.kubernetes.io/instance: valkey
           integrations:
             - name: nri-redis
-              # Mirrors the proven live exec, but with a per-pod discovered IP
-              # instead of a hardcoded FQDN, and password read from the mounted
-              # secret file that already works today.
+              # Mirrors the proven live exec, but with the discovered pod's
+              # stable headless DNS name instead of a hardcoded FQDN, and
+              # password read from the mounted secret file that already works.
               exec:
                 - /bin/sh
                 - -c
                 - |
                   export PASSWORD="$(cat /secrets/valkey/VALKEY_CORE_PASSWORD)"
-                  # Node-local native TLS endpoint. nodeIP is the stable
-                  # Tailscale address present in the Valkey server cert SANs;
+                  # Per-pod headless DNS name. The 6380 TLS listener is pod-network
+                  # only (no hostPort since the networking rework), so node IPs no
+                  # longer reach it, and valkey-server-tls SANs cover the
+                  # valkey-node-*.valkey-headless names but not node addresses.
                   # SSL_CERT_FILE extends Go's system roots with the fleet CA.
-                  export HOSTNAME="${discovery.nodeIP}"
+                  export HOSTNAME="${discovery.podName}.valkey-headless.valkey.svc.cluster.local"
                   export PORT="6380"
                   export USE_TLS="true"
                   export SSL_CERT_FILE="/secrets/fleet-ca/ca.pem"
