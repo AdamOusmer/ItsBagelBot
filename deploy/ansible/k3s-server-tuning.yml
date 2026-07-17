@@ -1,0 +1,55 @@
+---
+# Pin the k3s server's Go runtime memory guard.
+#
+#   doppler run -- ansible-playbook -i inventory.cluster.ini k3s-server-tuning.yml
+#
+# node2 is the SINGLE k3s server (sqlite/kine — no HA, see the control-plane
+# migration notes). Its Go heap is capped with GOMEMLIMIT + GOGC, delivered via
+# the stock unit's `EnvironmentFile=-/etc/systemd/system/k3s.service.env` hook.
+# Without it the apiserver heap coasts upward on a 12GB box that also hosts
+# pods, and a single-server control plane has no peer to absorb an OOM.
+#
+# WHY THIS FILE EXISTS: the values were live-but-untracked, and have already
+# been lost once (node2 rebuilt 2026-07-02, env file re-created by hand
+# 2026-07-06). Untracked node-local state is exactly what let the retired
+# flannel-watchdog keep restarting this control plane unnoticed for ~23h
+# (see cluster-network-wireguard.yml) — a migration cannot clean up, and a
+# rebuild cannot restore, what the repo does not know exists.
+#
+# Verified live 2026-07-17: /proc/<k3s-pid>/environ carries both vars and
+# k3s-server RSS sits at ~1.4G against GOMEMLIMIT=1300MiB (heap held at the
+# limit + normal Go runtime overhead), so the guard is doing its job.
+#
+# NOTE: `systemctl show k3s -p Environment` renders EMPTY here and does NOT
+# mean the tuning is missing — it only prints `Environment=` directives, never
+# EnvironmentFile contents. Check /proc/<pid>/environ instead.
+- name: Pin the k3s server Go runtime memory guard
+  hosts: k3s_server
+  become: true
+  gather_facts: false
+  vars:
+    k3s_gomemlimit: 1300MiB
+    k3s_gogc: "75"
+  tasks:
+    - name: Install the k3s server Go runtime environment file
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/k3s.service.env
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          GOMEMLIMIT={{ k3s_gomemlimit }}
+          GOGC={{ k3s_gogc }}
+      register: k3s_server_env
+
+    # Deliberately NO automatic restart. Applying a changed value requires an
+    # explicit, human-timed `systemctl restart k3s`: this is the only control
+    # plane, and nothing automated should ever bounce it. That principle is the
+    # whole lesson of the flannel-watchdog incident.
+    - name: Report that a restart is required to apply a change
+      ansible.builtin.debug:
+        msg: >-
+          k3s.service.env changed on {{ inventory_hostname }}. Run
+          `sudo systemctl restart k3s` during a maintenance window to apply it.
+          Not restarted automatically: this is the single control plane.
+      when: k3s_server_env is changed

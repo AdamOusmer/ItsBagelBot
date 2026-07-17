@@ -81,6 +81,39 @@
     mode: "0644"
   notify: reload sysctl
 
+# --- Retire the superseded inotify band-aid ----------------------------------
+# node1 carried an untracked `inotify-heal` timer (every 5 min) that doubled
+# fs.inotify.max_user_instances whenever usage hit 80% and rewrote its own
+# /etc/sysctl.d/99-inotify.conf. It predates this role, which now pins 8192
+# permanently (64x the kernel default) — so the healer never fires and is dead
+# weight. Worse, its file pinned 512 and only lost the race because
+# "99-inotify" sorts before "99-kubernetes-tuning": drop this role's file and
+# the fleet would silently downgrade to 512. Removed live 2026-07-17 (it had
+# not fired in 7 days; node1 sat at 99 instances against the 8192 ceiling).
+- name: Remove the superseded inotify-heal band-aid
+  ansible.builtin.systemd:
+    name: inotify-heal.timer
+    state: stopped
+    enabled: false
+  failed_when: false
+
+- name: Remove the superseded inotify-heal files
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/systemd/system/inotify-heal.timer
+    - /etc/systemd/system/inotify-heal.service
+    - /usr/local/bin/inotify-heal.sh
+    - /etc/sysctl.d/99-inotify.conf
+  register: inotify_heal_removed
+  notify: reload sysctl
+
+- name: Reload systemd after removing inotify-heal
+  ansible.builtin.systemd:
+    daemon_reload: true
+  when: inotify_heal_removed is changed
+
 - name: NATS RPC latency sysctl tuning
   ansible.builtin.copy:
     src: 99-nats-rpc.conf
