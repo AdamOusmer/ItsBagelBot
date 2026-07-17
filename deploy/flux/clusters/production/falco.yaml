@@ -1,0 +1,207 @@
+# Falco, brought under Flux (HelmRelease) from an out-of-band install.
+# `helm list -n falco` is empty: the live DaemonSet/ConfigMaps/Service/SA carry
+# helm.sh/chart labels but no helm release secret exists, i.e. they are
+# kubectl-owned orphans (same situation newrelic.yaml started from).
+#
+# CHART VERSION
+# -------------
+# falco 8.0.3 (app 0.43.1). Verified against every live label
+# (helm.sh/chart=falco-8.0.3, app.kubernetes.io/version=0.43.1) and the live
+# images falco:0.43.1 / falcoctl:0.12.2, which are exactly what 8.0.3 pins.
+#
+# VALUES = LIVE RECONSTRUCTION (verified 2026-07-17 by rendering
+# `helm template falco falcosecurity/falco --version 8.0.3` with these values
+# and diffing against the live DaemonSet + falco/falco-falcoctl ConfigMaps;
+# the only remaining deltas are API-server-defaulted fields and the customRules
+# additions):
+#   - driver.kind modern_ebpf: live engine.kind. Also what makes the chart skip
+#     the falco-driver-loader init container AND the configmap Role/RoleBinding,
+#     both absent live.
+#   - falco.json_output true: the fluent-bit -> New Relic pipeline
+#     (deploy/infra/cluster/newrelic-logging.yaml, level_extract.lua) matches
+#     falco events on rule/priority/output_fields markers in the JSON line.
+#   - metrics.enabled true: renders the falco-metrics Service and flips
+#     webserver.prometheus_metrics_enabled, both live. The prometheus.io pod
+#     annotations are the podAnnotations below.
+#   - resources trimmed way below chart defaults (node1 is a 2-core host),
+#     infra-low priority class, and the itsbagelbot.dev/pool=worker-pool
+#     toleration so the DaemonSet lands on worker1 too (4/4 nodes).
+#   - falcoctl config needs ZERO overrides: rules artifact falco-rules:5,
+#     container plugin 0.6.3 and follow every 168h are all 8.0.3 defaults
+#     (live falcoctl.yaml diffs empty against the default render).
+#   - Intentionally NOT carried over: falco.http_output.url pointing at the
+#     long-gone falco-falcosidekick Service. http_output is disabled, the URL
+#     was inert cruft from the era when falcosidekick was installed (its
+#     leftover SAs/Roles get deleted in the cutover, see the RUNBOOK).
+#
+# CUSTOM RULES (the reason this exists: ~6,500 events/day to New Relic, nearly
+# all false positives from the stock ruleset)
+# ---------------------------------------------------------------------------
+# Three FP families, each tuned via the customization stub upstream ships for
+# exactly this purpose ((never_true) macros / empty lists + `override:`).
+# The rules land in ConfigMap falco-rules, mounted at /etc/falco/rules.d which
+# loads AFTER falco_rules.yaml, so the overrides re-define the stock stubs.
+# Macro/list names AND the whole file were validated 2026-07-17 with
+# `falco -V /etc/falco/falco_rules.yaml -V <this file>` inside a live falco
+# pod (falco 0.43.1, rules artifact falco-rules:5): zero errors, zero warnings.
+#
+# MIGRATION / CUTOVER RUNBOOK: deploy/flux/clusters/production/falco-RUNBOOK.md.
+# Same orphaned-release problem newrelic-RUNBOOK.md documents: helm-controller
+# WILL fail with "exists and cannot be imported into the current release"
+# until the kubectl-owned orphans are deleted. Read it before letting Flux
+# reconcile this the first time.
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: falcosecurity
+  namespace: flux-system
+spec:
+  interval: 1h
+  url: https://falcosecurity.github.io/charts
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: falco
+  namespace: falco
+spec:
+  interval: 1h
+  timeout: 10m
+  releaseName: falco # MUST stay "falco" so rendered names (falco, falco-falcoctl,
+                     # falco-metrics, falco-rules) match the orphaned install and
+                     # the fluent-bit falco-forwarding match keeps working.
+  chart:
+    spec:
+      chart: falco
+      version: 8.0.3 # exact pin; matches every live helm.sh/chart label
+      sourceRef:
+        kind: HelmRepository
+        name: falcosecurity
+        namespace: flux-system
+      interval: 1h
+  install:
+    # Namespace falco already exists (created out-of-band); helm must not own it.
+    createNamespace: false
+    crds: Skip # chart ships no CRDs
+    remediation:
+      retries: 3
+  upgrade:
+    crds: Skip
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+    cleanupOnFail: true
+  values:
+    driver:
+      kind: modern_ebpf
+
+    falco:
+      json_output: true
+
+    # Renders the falco-metrics Service and enables the prometheus endpoint on
+    # the webserver (port 8765), matching live.
+    metrics:
+      enabled: true
+
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8765"
+      prometheus.io/path: /metrics
+
+    podPriorityClassName: infra-low
+
+    # Chart default only tolerates control-plane taints; the extra entry keeps
+    # falco on worker1 (tainted itsbagelbot.dev/pool=worker-pool).
+    tolerations:
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/master
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/control-plane
+      - effect: NoSchedule
+        key: itsbagelbot.dev/pool
+        operator: Equal
+        value: worker-pool
+
+    # Far below chart defaults (100m/512Mi -> 1000m/1024Mi); live-proven for
+    # this fleet and node1 is 2-core.
+    resources:
+      requests:
+        cpu: 10m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+
+    falcoctl:
+      artifact:
+        follow:
+          resources:
+            requests:
+              cpu: 5m
+              memory: 16Mi
+            limits:
+              cpu: 25m
+              memory: 32Mi
+
+    customRules:
+      bagelbot-exceptions.yaml: |-
+        # Local tuning of the stock falco-rules ruleset (falcoctl artifact
+        # falco-rules:5). Loaded from /etc/falco/rules.d AFTER
+        # /etc/falco/falco_rules.yaml, so the `override:` markers below
+        # re-define the (never_true) customization stubs and empty allowlist
+        # lists upstream ships for exactly this purpose.
+
+        # --- 1. "Read sensitive file untrusted" family (~690/day FPs) --------
+        # EL10/systemd-257 hosts: systemd-userdbd workers legitimately read
+        # /etc/shadow for NSS/userdb lookups, and systemd-executor (the
+        # systemd 254+ unit spawner) reads /etc/pam.d/* during PAM session
+        # setup for user@N.service (triggered by e.g. oracle-cloud-agent sudo
+        # probes). Known upstream falcosecurity/rules FP family. Scoped to the
+        # exact host executable paths AND the exact files they touch, so any
+        # other sensitive-file read by these binaries still alerts.
+        - macro: user_known_read_sensitive_files_activities
+          condition: >
+            ((proc.exepath = /usr/lib/systemd/systemd-userwork and fd.name = /etc/shadow)
+             or (proc.exepath = /usr/lib/systemd/systemd-executor and fd.directory = /etc/pam.d))
+          override:
+            condition: replace
+
+        # --- 2. "Contact K8S API Server From Container" (~5,800/day FPs) -----
+        # Kept ENABLED with an allowlist (not disabled) so unexpected API-server
+        # access from app workloads still alerts. Every legitimate API client
+        # lives in an infra namespace (flux controllers, keda, cert-manager +
+        # trust-manager, tailscale operator + proxies, nri-kubernetes;
+        # kube-system/coredns is already excluded by the stock k8s_containers
+        # macro), except the nats-selfheal CronJob in ns production, which is
+        # matched by pod-name prefix, NOT namespace-wide. Residual trickle:
+        # connects raced during pod startup can miss k8s metadata enrichment
+        # (k8s.ns.name=<NA>) and still alert; rare, accepted.
+        - macro: user_known_contact_k8s_api_server_activities
+          condition: >
+            (k8s.ns.name in (flux-system, keda, cert-manager, tailscale, newrelic)
+             or (k8s.ns.name = production and k8s.pod.name startswith "nats-selfheal-"))
+          override:
+            condition: replace
+
+        # --- 3. Acceptance-test pods (drop-and-execute + stdio redirect) -----
+        # nats-live-acceptance / valkey-live-acceptance / wg-latency test pods
+        # run image alpine/k8s and get freshly built binaries kubectl-cp'd in
+        # and executed (deploy/k8s/nats-live-acceptance/*.sh): textbook trigger
+        # for "Drop and execute new binary in container" and "Redirect
+        # STDOUT/STDIN to Network Connection in Container". The container
+        # plugin reports container.image.repository WITH the registry prefix
+        # (verified live), so both forms are listed.
+        - list: known_drop_and_execute_containers
+          items: [alpine/k8s, docker.io/alpine/k8s]
+          override:
+            items: append
+
+        - macro: user_known_stand_streams_redirect_activities
+          condition: >
+            (container.image.repository in (alpine/k8s, docker.io/alpine/k8s)
+             or k8s.pod.name startswith "nats-live-acceptance"
+             or k8s.pod.name startswith "valkey-live-acceptance"
+             or k8s.pod.name startswith "wg-latency")
+          override:
+            condition: replace
