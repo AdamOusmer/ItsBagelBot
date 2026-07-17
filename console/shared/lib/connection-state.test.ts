@@ -14,8 +14,8 @@ describe('connectionUiState', () => {
 		expect(connectionUiState(base).live).toBe(true);
 	});
 
-	test('pending / unenrolled / failing / unknown never read as online', () => {
-		const notOnline: SubState[] = ['pending', 'unenrolled', 'failing', 'unknown'];
+	test('pending / unenrolled / failing / revoked / unknown never read as online', () => {
+		const notOnline: SubState[] = ['pending', 'unenrolled', 'failing', 'revoked', 'unknown'];
 		for (const sub of notOnline) {
 			const r = connectionUiState({ ...base, sub });
 			expect(r.kind).not.toBe('online');
@@ -28,6 +28,15 @@ describe('connectionUiState', () => {
 		expect(connectionUiState({ ...base, sub: 'unenrolled' }).kind).toBe('connecting');
 		expect(connectionUiState({ ...base, sub: 'failing' }).kind).toBe('degraded');
 		expect(connectionUiState({ ...base, sub: 'unknown' }).kind).toBe('sub_unknown');
+	});
+
+	test('revoked → reauth_required (reconnect via settings, no enable, no retry)', () => {
+		const r = connectionUiState({ ...base, sub: 'revoked' });
+		expect(r.kind).toBe('reauth_required');
+		expect(r.showConnect).toBe(true);
+		expect(r.showEnable).toBe(false);
+		expect(r.canRetry).toBe(false);
+		expect(r.live).toBe(false);
 	});
 
 	test('a down core read is unavailable, not a definite state', () => {
@@ -55,7 +64,7 @@ describe('connectionUiState', () => {
 	});
 
 	test('enable is never offered while a channel is active or in flight', () => {
-		for (const sub of ['ok', 'pending', 'unenrolled', 'failing', 'unknown'] as SubState[]) {
+		for (const sub of ['ok', 'pending', 'unenrolled', 'failing', 'revoked', 'unknown'] as SubState[]) {
 			expect(connectionUiState({ ...base, sub }).showEnable).toBe(false);
 		}
 	});
@@ -63,7 +72,7 @@ describe('connectionUiState', () => {
 	test('every signal permutation resolves to exactly one kind', () => {
 		const grants: (boolean | 'unknown')[] = [true, false, 'unknown'];
 		const actives: (boolean | 'unknown')[] = [true, false, 'unknown'];
-		const subs: SubState[] = ['ok', 'pending', 'failing', 'unenrolled', 'unknown'];
+		const subs: SubState[] = ['ok', 'pending', 'failing', 'revoked', 'unenrolled', 'unknown'];
 		for (const grant of grants)
 			for (const active of actives)
 				for (const sub of subs) {

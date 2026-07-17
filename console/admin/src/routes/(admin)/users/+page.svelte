@@ -432,7 +432,11 @@
   }
 
   const subTone = $derived(
-    subState?.state === 'ok' ? 'green' : subState?.state === 'failing' ? 'err' : 'warn'
+    subState?.state === 'ok'
+      ? 'green'
+      : subState?.state === 'failing' || subState?.state === 'revoked'
+        ? 'err'
+        : 'warn'
   );
 
   function onKey(e: KeyboardEvent) {

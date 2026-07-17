@@ -8,14 +8,15 @@ import type { ConnKind } from '@bagel/shared';
 
 export type StatusTone = 'success' | 'warning' | 'error' | 'neutral';
 
-// Map main's ConnKind to a tone. `online` is the only success; `degraded` is the
-// only error (connected but not serving chat); a down core read is neutral; every
-// mid-flight or not-connected state warns.
+// Map main's ConnKind to a tone. `online` is the only success; `degraded` and
+// `reauth_required` are errors (the bot is not serving chat and needs help); a
+// down core read is neutral; every mid-flight or not-connected state warns.
 export function statusTone(kind: ConnKind): StatusTone {
   switch (kind) {
     case 'online':
       return 'success';
     case 'degraded':
+    case 'reauth_required':
       return 'error';
     case 'unavailable':
       return 'neutral';

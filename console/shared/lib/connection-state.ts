@@ -11,7 +11,7 @@
 // matrix. String-literal types mirror ChannelSubState['state'] and AccountStatus
 // in dashboard $lib/server/services.ts (kept in sync by hand, both closed sets).
 
-export type SubState = 'ok' | 'pending' | 'failing' | 'unenrolled' | 'unknown';
+export type SubState = 'ok' | 'pending' | 'failing' | 'revoked' | 'unenrolled' | 'unknown';
 export type PlanStatus = 'free' | 'paid' | 'vip';
 
 // A read that failed (RPC down / timeout) surfaces as 'unknown', never a silent
@@ -27,6 +27,7 @@ export type ConnSignals = {
 export type ConnKind =
   | 'unavailable' // a core read (grant or active) is down — we cannot tell
   | 'auth_required' // no Twitch grant on file
+  | 'reauth_required' // Twitch revoked the grant (password change / app disconnect); user must re-consent
   | 'disabled' // grant present but the channel is inactive (disconnected)
   | 'connecting' // active, enroll in flight (pending / just-published)
   | 'online' // active + enroll ok — the ONLY truthful "online"
@@ -61,6 +62,11 @@ function activeKind(sub: SubState): ConnKind {
       return 'online';
     case 'failing':
       return 'degraded';
+    // Twitch revoked the broadcaster's authorization. Restart cannot fix it
+    // (outgress skips enrolls for revoked channels on purpose); only a fresh
+    // Twitch consent can, so the UI routes to reconnect instead of retry.
+    case 'revoked':
+      return 'reauth_required';
     case 'pending':
     case 'unenrolled':
       return 'connecting';
@@ -76,7 +82,7 @@ function ui(kind: ConnKind): ConnUi {
     canManage:
       kind === 'online' || kind === 'degraded' || kind === 'sub_unknown' || kind === 'connecting',
     showEnable: kind === 'disabled',
-    showConnect: kind === 'auth_required',
+    showConnect: kind === 'auth_required' || kind === 'reauth_required',
     canRetry: kind === 'unavailable' || kind === 'sub_unknown'
   };
 }
