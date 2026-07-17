@@ -127,6 +127,52 @@
         immediate: true
         state: disabled
 
+    # --- Retire the VXLAN-era flannel watchdog ------------------------------
+    # A hand-installed (never repo-tracked) /usr/local/sbin/flannel-watchdog +
+    # timer greps for `flannel.1` every 2 min and runs `systemctl restart
+    # k3s(-agent)` when it is missing, rate-limited to once per 30 min. It was
+    # added 2026-07-01 for the tailscale-era boot race where flannel VXLAN was
+    # stranded if tailscale0 flapped.
+    #
+    # wireguard-native names the interface `flannel-wg`, so `flannel.1` is gone
+    # BY DESIGN and the watchdog's fault condition can never clear again. This
+    # migration therefore turned it into a permanent 30-minute restart loop the
+    # moment it activated (first firing 2026-07-16 12:58, found 2026-07-17):
+    #   * server  -> 46 control-plane restarts/day (API 503s, dropped watches)
+    #   * worker1 -> 46 kubelet restarts/day (pod churn)
+    #   * node1   -> 46 crash-loops/day of its demoted-but-still-present
+    #                k3s.service, because the watchdog picks UNIT=k3s whenever
+    #                k3s.service merely EXISTS, agent or not.
+    # node3 never had the watchdog and rode the migration without a restart,
+    # which is the proof it is not load-bearing.
+    #
+    # Do NOT "fix" this by repointing it at flannel-wg: the race it guarded
+    # cannot recur now that pod traffic is off tailscale0 entirely, and the
+    # k3s(-agent) units already block on ExecStartPre=wait-for-tailscale0.
+    # Restarting a single-server control plane on a timer is not a safety net.
+    - name: Stop the obsolete VXLAN-era flannel watchdog
+      ansible.builtin.systemd:
+        name: flannel-watchdog.timer
+        state: stopped
+        enabled: false
+      failed_when: false
+
+    - name: Remove the obsolete VXLAN-era flannel watchdog
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/systemd/system/flannel-watchdog.timer
+        - /etc/systemd/system/flannel-watchdog.service
+        - /usr/local/sbin/flannel-watchdog
+        - /run/flannel-watchdog.last
+      register: watchdog_removed
+
+    - name: Reload systemd after removing the flannel watchdog
+      ansible.builtin.systemd:
+        daemon_reload: true
+      when: watchdog_removed is changed
+
 - name: Activate native WireGuard on the K3s server
   hosts: k3s_server
   become: true
