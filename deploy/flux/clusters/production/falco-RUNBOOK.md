@@ -1,167 +1,133 @@
-# Falco: cutover to a Flux HelmRelease
+# Falco: Flux cutover (DONE 2026-07-17) + operating notes
 
-Migrating falco from its current **orphaned** state (installed out-of-band, no
-helm release secret in ns `falco`) to the Flux-managed `HelmRelease` in
-`deploy/flux/clusters/production/falco.yaml`. Same class of migration as
-`newrelic-RUNBOOK.md`; this one is much smaller (one DaemonSet, two ConfigMaps,
-one Service, one ServiceAccount, plus dead falcosidekick leftovers).
+Falco was installed out-of-band (no helm release secret in ns `falco`; the live
+objects were kubectl-owned orphans carrying `helm.sh/chart=falco-8.0.3` labels).
+It is now managed by the HelmRelease in
+`deploy/flux/clusters/production/falco.yaml`.
 
-This runbook is **not executed automatically**. Do the steps in order.
-
----
-
-## 0. Ground truth (verified 2026-07-17)
-
-- `helm list -n falco` is empty and there is **no `sh.helm.release.v1.falco.*`
-  secret**, so helm owns nothing; the live objects are kubectl-owned orphans
-  carrying `helm.sh/chart=falco-8.0.3` labels.
-- Chart pinned in the HelmRelease is **falco 8.0.3** (app 0.43.1), matching
-  every live label and both live images (falco:0.43.1, falcoctl:0.12.2).
-- Values in falco.yaml reproduce the live install exactly: a
-  `helm template --version 8.0.3` render with those values diffs clean against
-  the live DaemonSet and both ConfigMaps except for (a) API-server-defaulted
-  fields, (b) the new customRules ConfigMap/mount, (c) the dead
-  `http_output.url` falcosidekick remnant we intentionally drop.
-- The customRules file was validated inside a live falco pod against the
-  live-loaded ruleset: `falco -V /etc/falco/falco_rules.yaml -V <file>` ->
-  zero errors, zero warnings.
-- Live orphan inventory in ns `falco`:
-  - `daemonset/falco`, `configmap/falco`, `configmap/falco-falcoctl`,
-    `service/falco-metrics`, `serviceaccount/falco` — all re-rendered by the
-    new release (same names).
-  - falcosidekick leftovers from an old experiment (sidekick is NOT enabled in
-    the new release and these will NOT come back): `serviceaccount/falco-falcosidekick`,
-    `serviceaccount/falco-falcosidekick-ui`, `role/falco-falcosidekick`,
-    `role/falco-falcosidekick-ui`, `rolebinding/falco-falcosidekick`,
-    `rolebinding/falco-falcosidekick-ui`.
-  - `secret/newrelic-key-secret` (an NR license key for the dead sidekick
-    output; nothing consumes it).
-- **No cluster-scoped falco objects exist** (no ClusterRole/ClusterRoleBinding),
-  and the new render creates none. With `driver.kind=modern_ebpf` the chart
-  also skips the falco Role/RoleBinding and the driver-loader init container,
-  so the rendered object set is exactly: SA, 3 ConfigMaps (falco,
-  falco-falcoctl, falco-rules), Service falco-metrics, DaemonSet.
+**The cutover is complete.** This document records what actually happened
+(because it contradicted the plan), the two findings worth keeping, and how to
+roll back.
 
 ---
 
-## THE KEY RISK and the decision
+## What actually happened (and why the original plan was wrong)
 
-Identical to the nri-bundle cutover: helm refuses to take over objects it did
-not create (`... exists and cannot be imported into the current release:
-invalid ownership metadata ...`).
+The original plan, modelled on `newrelic-RUNBOOK.md`, was: suspend the
+HelmRelease, **pre-delete the orphaned objects**, then resume so helm installs
+fresh — on the premise that helm refuses to adopt objects it did not create
+(`... exists and cannot be imported into the current release`).
 
-**Decision: pre-delete the orphans and let helm install fresh** (option (a)
-from newrelic-RUNBOOK.md, for the same reasons). Falco is a detection-only
-sensor; nothing at runtime depends on it. A 1-2 minute gap in syscall
-monitoring while the DaemonSet is recreated is acceptable, and there is no
-state to preserve (rules/plugins live in emptyDirs re-pulled by falcoctl at
-pod start).
+**That premise does not hold for our helm-controller.** We run
+**helm-controller v1.5.5**, which takes ownership of pre-existing objects by
+default (Helm SDK 3.17+ `--take-ownership`; see `spec.install.disableTakeOwnership`).
+When PR #438 merged, Flux reconciled and helm-controller **adopted every orphan
+in place** before anyone could suspend anything:
 
-Failure mode if the ordering slips: if helm-controller tries to install while
-the orphans still exist, the install just errors and the live orphaned falco
-keeps running untouched. Delete the orphans and let the install remediation
-(retries: 3) or a manual `flux reconcile` pick it up. Nothing breaks; you only
-lose tidiness.
+- `helm install` succeeded on the first attempt (`falco/falco.v1`, chart 8.0.3).
+- Every object gained `meta.helm.sh/release-name=falco`,
+  `app.kubernetes.io/managed-by=Helm`, and the `helm.toolkit.fluxcd.io/*` labels.
+- The DaemonSet rolled normally (4/4), **zero gap, nothing deleted**.
 
----
+So: **no pre-delete was needed or performed.** If you are adopting another
+orphaned release in this cluster, expect in-place adoption, not an error. The
+newrelic runbook's option (a) is not the only path available to us.
 
-## Pre-flight (read-only)
+Consequence: the **falcosidekick leftovers were never cleaned up**, because the
+delete step never ran. They are inert (no falcosidekick workload exists; the
+release does not render one) and safe to remove whenever:
 
 ```sh
 CTX=k8s-operator.tail451e6d.ts.net
-
-# 1. Still no helm release to clash with.
-helm --kube-context $CTX list -n falco                       # expect: empty
-kubectl --context $CTX -n falco get secret | grep sh.helm.release  # expect: none
-
-# 2. Snapshot everything we are about to delete (rollback safety net).
-kubectl --context $CTX -n falco get ds,svc,cm,sa,role,rolebinding -o yaml \
-  > /tmp/falco-pre-cutover.yaml
-
-# 3. Confirm there really are no cluster-scoped falco objects.
-kubectl --context $CTX get clusterrole,clusterrolebinding -o name | grep -i falco
-# expect: no output
-```
-
----
-
-## Cutover
-
-### Step 1 - Land the repo change (merge to main)
-
-Merge the branch carrying `deploy/flux/clusters/production/falco.yaml` and this
-runbook. **Suspend the HelmRelease the moment Flux creates it**, so the delete
-in Step 2 happens before helm-controller's first install attempt:
-
-```sh
-flux --context $CTX reconcile kustomization flux-system --with-source  # pull the merge
-flux --context $CTX suspend helmrelease falco -n falco
-# The falcosecurity HelmRepository can reconcile freely; only the install waits.
-```
-
-(If helm-controller wins the race anyway, see "Failure mode" above — no harm.)
-
-### Step 2 - Delete the orphaned objects
-
-```sh
-# The release-rendered orphans (recreated by helm in Step 3):
-kubectl --context $CTX -n falco delete \
-  daemonset/falco configmap/falco configmap/falco-falcoctl \
-  service/falco-metrics serviceaccount/falco
-
-# The dead falcosidekick leftovers (NOT recreated; sidekick stays disabled):
 kubectl --context $CTX -n falco delete \
   serviceaccount/falco-falcosidekick serviceaccount/falco-falcosidekick-ui \
   role/falco-falcosidekick role/falco-falcosidekick-ui \
   rolebinding/falco-falcosidekick rolebinding/falco-falcosidekick-ui
-
-# KEEP: the namespace itself.
-# OPTIONAL cleanup: secret/newrelic-key-secret holds an NR license key nothing
-# consumes anymore (the key also lives in Doppler). Safe to delete; not
-# required for the cutover.
-```
-
-### Step 3 - Resume Flux; let helm-controller install fresh
-
-```sh
-flux --context $CTX resume helmrelease falco -n falco
-flux --context $CTX reconcile helmrelease falco -n falco --with-source
+# secret/newrelic-key-secret is an NR license key for that dead sidekick output;
+# nothing consumes it (the key also lives in Doppler). Safe to delete too.
 ```
 
 ---
 
-## Post-cutover verification
+## FINDING: falco block-buffers stdout, and the FP noise was hiding it
+
+**This is the important one. Do not remove `extra.args: ["-U"]` from
+falco.yaml.**
+
+falco 0.43.1 block-buffers its stdout alerts **even with
+`buffered_outputs: false`** set (the chart documents that setting as "flushes
+the output buffer on every alert" for `stdout_output`; measured 2026-07-17, it
+does not). Alerts sit in the libc buffer until roughly 4KB accumulates.
+
+This was invisible before, because the ~6,500 false-positive events/day acted as
+an accidental **carrier**: the noise constantly filled and flushed the buffer,
+so genuine alerts rode out with it within minutes. **Silencing the FPs removed
+the carrier** — which meant a lone real alert would sit unflushed indefinitely
+and never reach fluent-bit → New Relic. The noise fix alone would have quietly
+turned falco into a detector whose alerts never leave the process.
+
+Measured on node3 before the flag:
+
+| Observation | Value |
+|---|---|
+| Two canary alerts (11:15:54, 11:18:47) visible in `kubectl logs` | **No — for 11+ minutes** |
+| Same alerts after a 60-event burst filled the buffer | Appeared, retroactively |
+| Single alert, 30s wait | Never emitted |
+| Engine `rules_matches_total` vs lines actually emitted | **63 vs 61** |
+
+The fix is `-U`/`--unbuffered` via the chart's `extra.args`, which forces a
+flush per alert. Cost is slightly higher CPU per alert, which is irrelevant at
+our (now near-zero) alert rate.
+
+**Diagnostic worth reusing:** `rules_matches_total` counts what the *engine*
+matched, independent of whether anything was ever *emitted*. Comparing it against
+emitted lines is what exposed this, and it is the fastest way to tell "falco saw
+nothing" apart from "falco saw it and swallowed it":
 
 ```sh
-# 1. Release exists and is Flux-owned now.
-helm --kube-context $CTX list -n falco                    # falco: deployed
-flux --context $CTX get helmrelease -n falco              # Ready=True
-kubectl --context $CTX -n falco get secret | grep sh.helm.release  # present
+kubectl --context $CTX -n falco exec ds/falco -c falco -- \
+  curl -s http://localhost:8765/metrics | grep 'rules_matches_total{'
+kubectl --context $CTX -n falco logs ds/falco -c falco | grep -c '"rule"'
+```
 
-# 2. DaemonSet back to 4/4 (node1, node2, node3, worker1 — the worker-pool
-#    toleration must keep worker1 covered).
+---
+
+## Verification (all passed 2026-07-17)
+
+```sh
+CTX=k8s-operator.tail451e6d.ts.net
+
+# 1. Release is Flux-owned.
+helm --kube-context $CTX list -n falco          # falco: deployed, chart falco-8.0.3
+flux --context $CTX get helmrelease -n falco    # Ready=True
+
+# 2. DaemonSet 4/4 (the worker-pool toleration must keep worker1 covered).
 kubectl --context $CTX -n falco get ds,pods -o wide
 
-# 3. The exceptions file is mounted and LOADED (this is the whole point).
-kubectl --context $CTX -n falco get cm falco-rules \
-  -o jsonpath='{.data.bagelbot-exceptions\.yaml}' | head -5
-kubectl --context $CTX -n falco logs ds/falco -c falco | grep -i 'rules.d\|Loading rules'
-#   expect a "Loading rules from ... rules.d/bagelbot-exceptions.yaml" line and
-#   NO rule-loading errors/warnings.
+# 3. Both rule files load on EVERY node, schema ok, no warnings.
+kubectl --context $CTX -n falco logs ds/falco -c falco | grep -A3 'Loading rules from'
+#   expect: /etc/falco/falco_rules.yaml AND
+#           /etc/falco/rules.d/bagelbot-exceptions.yaml, both "schema validation: ok"
 
-# 4. The three FP families go quiet. Immediately:
-kubectl --context $CTX -n falco logs ds/falco -c falco --since=15m \
-  | grep -c 'Contact K8S API Server'        # expect 0 (was hundreds/hour)
-#    And over the next day in New Relic: falco volume drops from ~6.5k/day to
-#    roughly zero (only real signal remains).
+# 4. The FP families are silent: rules_matches_total shows NO matches for
+#    "Contact K8S API Server From Container" / "Read sensitive file untrusted"
+#    / drop-and-execute / stdio-redirect across all 4 pods.
 
-# 5. The sensor still detects (canary: read a sensitive file from a container
-#    that is NOT allowlisted — the falco pod itself works and always exists;
-#    the open() is the trigger, the content does not matter):
+# 5. The sensor still DETECTS (canary from a non-allowlisted path). With -U the
+#    alert must appear within seconds; before -U it would not appear at all.
 kubectl --context $CTX -n falco exec ds/falco -c falco -- cat /etc/shadow >/dev/null
-kubectl --context $CTX -n falco logs ds/falco -c falco --since=2m | grep 'sensitive file'
-#   expect one "Sensitive file opened for reading by non-trusted program" event.
+sleep 5
+kubectl --context $CTX -n falco logs ds/falco -c falco --since=1m | grep 'sensitive file'
+#   expect exactly one "Sensitive file opened for reading by non-trusted program".
+#   proc.exepath is cat/busybox, NOT systemd-*, so the allowlist correctly
+#   does not cover it. This canary is the proof that the exceptions tuned the
+#   sensor rather than deafening it — re-run it after ANY change to the rules.
 ```
+
+Note on libbpf noise: node1 (ARM/aarch64) logs
+`failed to create tracepoint 'syscalls/sys_enter_creat'/'sys_enter_open'`.
+Expected — arm64 has no `creat`/`open` syscalls, only `openat`. Pre-existing,
+not caused by the cutover, and harmless.
 
 ---
 
@@ -169,32 +135,30 @@ kubectl --context $CTX -n falco logs ds/falco -c falco --since=2m | grep 'sensit
 
 ```sh
 flux --context $CTX suspend helmrelease falco -n falco
-helm --kube-context $CTX uninstall falco -n falco    # if a release got created
-kubectl --context $CTX -n falco apply -f /tmp/falco-pre-cutover.yaml
+helm --kube-context $CTX uninstall falco -n falco
 ```
 
-The snapshot restores the exact pre-cutover orphaned state (including the
-sidekick leftovers). Revert the falco.yaml commit if abandoning entirely,
-otherwise Flux will retry the install on the next reconcile.
+**Read this before uninstalling:** because helm *adopted* the pre-existing
+objects rather than creating them, `helm uninstall` will **delete the live
+falco** (DaemonSet, ConfigMaps, Service, SA) — it does not "give them back".
+There is no pre-cutover snapshot to restore from, since nothing was deleted on
+the way in. To restore, re-apply the chart at 8.0.3 (values in falco.yaml) or
+revert the git commit and let Flux reinstall. Falco is a detection-only sensor —
+nothing at runtime depends on it, and rules/plugins live in emptyDirs that
+falcoctl re-pulls at pod start — so a gap costs visibility, not availability.
 
 ---
 
-## What changed vs the orphaned install (behavior)
+## What this release changes vs the original orphaned install
 
-1. **customRules** (`bagelbot-exceptions.yaml`, ConfigMap `falco-rules`,
-   loaded from /etc/falco/rules.d): allowlists for the three stock-rule FP
-   families (~6.5k events/day): systemd-userwork//etc/shadow +
-   systemd-executor//etc/pam.d for "Read sensitive file untrusted";
-   infra-namespace + nats-selfheal pod-prefix allowlist for "Contact K8S API
-   Server From Container" (rule stays enabled); alpine/k8s acceptance-test
-   pods (nats-live-acceptance / valkey-live-acceptance / wg-latency) for
-   "Drop and execute new binary in container" and "Redirect STDOUT/STDIN to
-   Network Connection in Container". Details and rationale live as comments in
-   falco.yaml.
-2. `falco.http_output.url` no longer points at the dead falco-falcosidekick
-   Service (http_output was and stays disabled; the URL was inert).
-3. The falcosidekick leftover SAs/Roles/RoleBindings are gone.
-4. Everything else renders byte-identical to live (chart 8.0.3, modern_ebpf,
-   json_output, metrics + falco-metrics Service, trimmed resources, infra-low
-   priority class, worker-pool toleration, default falcoctl artifact config:
-   falco-rules:5 + container plugin, follow every 168h).
+1. **customRules** (`bagelbot-exceptions.yaml`, ConfigMap `falco-rules`, mounted
+   at /etc/falco/rules.d): allowlists for the three stock-rule FP families
+   (~6.5k events/day). Rationale per family lives in falco.yaml's comments.
+2. **`-U`/unbuffered stdout** — see the FINDING above. Ships *with* the noise
+   fix, not after it.
+3. `falco.http_output.url` no longer points at the dead `falco-falcosidekick`
+   Service (`http_output` was and stays disabled; the URL was inert).
+4. Everything else renders identical to the pre-cutover live install: chart
+   8.0.3, modern_ebpf, json_output, metrics + falco-metrics Service, trimmed
+   resources, infra-low priority class, worker-pool toleration, and the default
+   falcoctl artifact config (falco-rules:5 + container plugin, follow 168h).
