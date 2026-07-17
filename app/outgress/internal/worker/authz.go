@@ -234,22 +234,39 @@ func (w *Worker) EnsureClientEventSubs(ctx context.Context) {
 		return
 	}
 
-	for attempt := 1; ; attempt++ {
-		if err := w.createClientEventSubs(ctx, clientID); err == nil {
-			w.log.Info("user.authorization eventsubs ensured on conduit")
+	for attempt := 1; ctx.Err() == nil; attempt++ {
+		if w.tryCreateClientEventSubs(ctx, clientID, attempt) {
 			return
-		} else if ctx.Err() != nil {
-			return
-		} else {
-			w.log.Warn("ensuring user.authorization eventsubs failed, will retry",
-				zap.Int("attempt", attempt), zap.Error(err))
 		}
+		if !sleepCtx(ctx, backoffDelay(attempt)) {
+			return
+		}
+	}
+}
 
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(backoffDelay(attempt)):
-		}
+// tryCreateClientEventSubs runs one create pass and reports whether the
+// subscriptions are in place; a failure is logged for the retry loop unless
+// the context already ended (shutdown is not an error worth a warning).
+func (w *Worker) tryCreateClientEventSubs(ctx context.Context, clientID string, attempt int) bool {
+	err := w.createClientEventSubs(ctx, clientID)
+	if err == nil {
+		w.log.Info("user.authorization eventsubs ensured on conduit")
+		return true
+	}
+	if ctx.Err() == nil {
+		w.log.Warn("ensuring user.authorization eventsubs failed, will retry",
+			zap.Int("attempt", attempt), zap.Error(err))
+	}
+	return false
+}
+
+// sleepCtx pauses for d, reporting false when ctx ended first.
+func sleepCtx(ctx context.Context, d time.Duration) bool {
+	select {
+	case <-ctx.Done():
+		return false
+	case <-time.After(d):
+		return true
 	}
 }
 

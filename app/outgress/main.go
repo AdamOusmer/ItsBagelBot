@@ -136,8 +136,11 @@ func main() {
 	// consumer that can call it (the stream lane's go-live beacon and the
 	// authz consumers below), then the client-scoped user.authorization.*
 	// subscriptions that feed them are ensured in the background.
-	system.SetReauthNotifier(worker.NewReauthNotifier(
-		nc, cfg.NotifySendSubject, cfg.UsersStateSubject, cfg.TwitchBotUserID, log.Named("reauth")))
+	system.SetReauthNotifier(worker.NewReauthNotifier(nc, worker.ReauthConfig{
+		SendSubject:  cfg.NotifySendSubject,
+		StateSubject: cfg.UsersStateSubject,
+		BotID:        cfg.TwitchBotUserID,
+	}, log.Named("reauth")))
 
 	closeStreamLane := d.startStreamLane(ctx, system)
 	defer closeStreamLane()

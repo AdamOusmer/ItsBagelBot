@@ -45,27 +45,29 @@ var reauthMessages = map[string]reauthCopy{
 	},
 }
 
+// ReauthConfig carries the NATS wiring for the reauth messaging: the
+// notifications admin send verb, the users state_get verb the locale comes
+// from, and the bot's numeric user id (the actor the notifications service
+// requires).
+type ReauthConfig struct {
+	SendSubject  string
+	StateSubject string
+	BotID        string
+}
+
 // ReauthNotifier tells a streamer their consent died and how to fix it, in
 // their dashboard language. It rides outgress's RPC connection: the locale
 // comes from the users service (state_get) and the bell notification goes
 // through the notifications admin send verb, the same one the gift
 // notification uses.
 type ReauthNotifier struct {
-	nc           *nats.Conn
-	sendSubject  string // notifications admin send verb
-	stateSubject string // users dashboard state_get verb (locale source)
-	botID        string // numeric actor id the notifications service requires
-	log          *zap.Logger
+	nc  *nats.Conn
+	cfg ReauthConfig
+	log *zap.Logger
 }
 
-func NewReauthNotifier(nc *nats.Conn, sendSubject, stateSubject, botID string, log *zap.Logger) *ReauthNotifier {
-	return &ReauthNotifier{
-		nc:           nc,
-		sendSubject:  sendSubject,
-		stateSubject: stateSubject,
-		botID:        botID,
-		log:          log,
-	}
+func NewReauthNotifier(nc *nats.Conn, cfg ReauthConfig, log *zap.Logger) *ReauthNotifier {
+	return &ReauthNotifier{nc: nc, cfg: cfg, log: log}
 }
 
 // NotifyRevoked sends the dashboard bell notification. Best-effort: the
@@ -74,7 +76,7 @@ func NewReauthNotifier(nc *nats.Conn, sendSubject, stateSubject, botID string, l
 // request id folds the repeated per-subscription revocations of one outage
 // into a single row per day.
 func (r *ReauthNotifier) NotifyRevoked(ctx context.Context, broadcasterID string) {
-	if _, err := strconv.ParseUint(r.botID, 10, 64); err != nil {
+	if _, err := strconv.ParseUint(r.cfg.BotID, 10, 64); err != nil {
 		r.log.Warn("reauth notification skipped: bot id not numeric, no actor to send as",
 			zap.String("broadcaster_id", broadcasterID))
 		return
@@ -83,14 +85,14 @@ func (r *ReauthNotifier) NotifyRevoked(ctx context.Context, broadcasterID string
 	copyFor := r.localizedCopy(ctx, broadcasterID)
 	day := time.Now().UTC().Format("2006-01-02")
 
-	reply, err := bus.RequestJSONTimeout[notificationsrpc.SendReply](ctx, r.nc, r.sendSubject,
+	reply, err := bus.RequestJSONTimeout[notificationsrpc.SendReply](ctx, r.nc, r.cfg.SendSubject,
 		notificationsrpc.SendRequest{
 			Scope:        "direct",
 			TargetUserID: broadcasterID,
 			Title:        copyFor.title,
 			Body:         copyFor.body,
 			Level:        "warning",
-			ActorID:      r.botID,
+			ActorID:      r.cfg.BotID,
 			ActorLogin:   "system",
 			RequestID:    "authz-revoked-" + broadcasterID + "-" + day,
 		}, 5*time.Second)
@@ -118,7 +120,7 @@ func (r *ReauthNotifier) ChatBeacon(ctx context.Context, broadcasterID string) s
 func (r *ReauthNotifier) localizedCopy(ctx context.Context, broadcasterID string) reauthCopy {
 	locale := "en"
 
-	reply, err := bus.RequestJSONTimeout[usersrpc.StateGetReply](ctx, r.nc, r.stateSubject,
+	reply, err := bus.RequestJSONTimeout[usersrpc.StateGetReply](ctx, r.nc, r.cfg.StateSubject,
 		usersrpc.StateGetRequest{BroadcasterUserID: broadcasterID}, 3*time.Second)
 	if err != nil {
 		r.log.Debug("locale lookup failed, defaulting to en",
