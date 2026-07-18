@@ -109,17 +109,24 @@ func (fb *FlowBuilder) Fetch(fn FetchFunc) {
 	fb.f.fetch = fn
 }
 
+// endpointRef identifies one declared endpoint (its provider and endpoint
+// subject tokens) for cache keys, validation messages and failure logs.
+type endpointRef struct {
+	provider string
+	endpoint string
+}
+
 // validate reports the first problem with the declared flow, or nil.
-func (f *flowSpec) validate(endpoint string, d Deps) error {
+func (f *flowSpec) validate(d Deps, ref endpointRef) error {
 	switch {
 	case f.reply == nil:
-		return fmt.Errorf("endpoint %q flow has no Reply shaper", endpoint)
+		return fmt.Errorf("endpoint %q flow has no Reply shaper", ref.endpoint)
 	case f.fetch == nil:
-		return fmt.Errorf("endpoint %q flow has no Fetch (chain .Fetch to finish it)", endpoint)
+		return fmt.Errorf("endpoint %q flow has no Fetch (chain .Fetch to finish it)", ref.endpoint)
 	case f.ttl <= 0:
-		return fmt.Errorf("endpoint %q flow has a non-positive TTL", endpoint)
+		return fmt.Errorf("endpoint %q flow has a non-positive TTL", ref.endpoint)
 	case d.Cache == nil:
-		return fmt.Errorf("endpoint %q is cached but Deps.Cache is nil", endpoint)
+		return fmt.Errorf("endpoint %q is cached but Deps.Cache is nil", ref.endpoint)
 	}
 	return nil
 }
@@ -128,7 +135,7 @@ func (f *flowSpec) validate(endpoint string, d Deps) error {
 // bytes untouched (json.RawMessage passes through the engine verbatim); a miss
 // runs fetch through core.BuildReply so successes and friendly failures are
 // shaped and marshaled exactly once.
-func (f *flowSpec) handler(d Deps, providerName, endpointName string) HandlerFunc {
+func (f *flowSpec) handler(d Deps, ref endpointRef) HandlerFunc {
 	cache, log := d.Cache, d.Log
 	fallback := f.fallback
 	if fallback == "" {
@@ -139,7 +146,7 @@ func (f *flowSpec) handler(d Deps, providerName, endpointName string) HandlerFun
 		if reject != "" {
 			return f.reply(id.Display, reject)
 		}
-		b, err := core.CachedBytes(ctx, cache, core.Key(providerName, endpointName, id.Key),
+		b, err := core.CachedBytes(ctx, cache, core.Key(ref.provider, ref.endpoint, id.Key),
 			func(ctx context.Context) ([]byte, time.Duration, error) {
 				return core.BuildReply(ctx, f.ttl, f.negativeTTL,
 					func(ctx context.Context) (any, error) { return f.fetch(ctx, req, id) },
@@ -148,8 +155,8 @@ func (f *flowSpec) handler(d Deps, providerName, endpointName string) HandlerFun
 			})
 		if err != nil {
 			log.Warn("gateway fetch failed",
-				zap.String("provider", providerName),
-				zap.String("endpoint", endpointName),
+				zap.String("provider", ref.provider),
+				zap.String("endpoint", ref.endpoint),
 				zap.String("id", id.Display),
 				zap.Error(err))
 			return f.reply(id.Display, fallback)

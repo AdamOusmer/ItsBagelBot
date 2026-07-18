@@ -111,7 +111,7 @@ func (b *Builder) validateTerminal(s *endpointSpec) error {
 	case s.handle == nil && s.flow == nil:
 		return fmt.Errorf("endpoint %q has no terminal (chain .Handle or .Cached(...).Fetch to finish it)", s.name)
 	case s.flow != nil:
-		return s.flow.validate(s.name, b.deps)
+		return s.flow.validate(b.deps, endpointRef{provider: b.name, endpoint: s.name})
 	}
 	return nil
 }
@@ -122,7 +122,7 @@ func (s *endpointSpec) handler(b *Builder) HandlerFunc {
 	if s.handle != nil {
 		return s.handle
 	}
-	return s.flow.handler(b.deps, b.name, s.name)
+	return s.flow.handler(b.deps, endpointRef{provider: b.name, endpoint: s.name})
 }
 
 // EndpointBuilder chains a single endpoint's settings. Handle is the terminal
