@@ -45,11 +45,13 @@ Full state and runbook: [`deploy/dns/email-auth.md`](../deploy/dns/email-auth.md
   and Resend, both aligned. DMARC is at `p=quarantine; pct=100` (spoofed
   `@itsbagelbot.com` goes to spam); ramp to `p=reject` after ~2 weeks of clean
   reports.
-- **BIMI** — record live at `default._bimi.itsbagelbot.com`, logo live at
-  [`web/public/bimi.svg`](../web/public/bimi.svg). Run **free tier** (no VMC/CMC
-  certificate): cert-free clients (Fastmail, etc.) show the logo; Gmail/Apple do
-  not, and that is an accepted tradeoff (the logo is cosmetic, DMARC is the
-  actual protection). See the runbook.
+- **BIMI** — record live at `default._bimi.itsbagelbot.com`, but the logo file
+  (`web/public/bimi.svg`) is currently **removed**: the old file carried a
+  placeholder mark that was not our logo, and BIMI requires a pure-vector SVG
+  (Tiny PS) which we do not yet have for the real logo. Clients fall back to a
+  plain monogram avatar; mail delivery is unaffected. Re-add once a vector
+  version of the real logo exists. Run **free tier** (no VMC/CMC certificate)
+  when re-added. See the runbook.
 - **One consistent From identity**, e.g. `ItsBagelBot Support
   <support@itsbagelbot.com>`, and a matching subject prefix such as
   `[ItsBagelBot]`. Consistency is what trains recognition.
