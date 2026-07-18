@@ -61,3 +61,13 @@ func TestThroughputViewDelegatesForeignClientWithoutAnotherPool(t *testing.T) {
 	assert.Len(t, client.batches, 1)
 	assert.False(t, client.batches[0][0].IsPipe())
 }
+
+func TestIsPrimaryReportsTheReadRouteOfAView(t *testing.T) {
+	client := &recordingValkeyClient{}
+
+	assert.False(t, IsPrimary(client), "a bare client reads wherever its own policy sends it")
+	assert.False(t, IsPrimary(Throughput(client)), "throughput alone does not pin reads to the primary")
+	assert.True(t, IsPrimary(Primary(client)))
+	assert.True(t, IsPrimary(PrimaryThroughput(client)))
+	assert.True(t, IsPrimary(Throughput(Primary(client))), "wrapping a primary view keeps it primary")
+}

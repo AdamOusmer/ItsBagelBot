@@ -20,6 +20,7 @@ import (
 	"ItsBagelBot/internal/domain/rpc/manage"
 	"ItsBagelBot/internal/utils"
 	"ItsBagelBot/pkg/cache"
+	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/nats-io/nats.go"
 	"github.com/valkey-io/valkey-go"
@@ -80,9 +81,19 @@ type Registry struct {
 	pauseWG     sync.WaitGroup
 }
 
+// New builds the registry on a primary-consistent view of the client. The
+// registry is control-plane state at a few reads per second, and every read it
+// makes is a read-back of a write it just issued: Get reloads the hash right
+// after applyChannelUpdate invalidated the cache, List reads the index set the
+// same pipeline just SADDed, and EnrollCooldownActive checks a key
+// ArmEnrollCooldown set moments earlier. Served by a lagging node-local
+// replica, those reads would re-cache the pre-write value for the cache's full
+// TTL (the NATS invalidation has already fired by then) and bypass the enroll
+// cooldown. The view borrows the client's existing connections, so pinning
+// costs no extra pool.
 func New(client valkey.Client) *Registry {
 	return &Registry{
-		client: client,
+		client: pkg_valkey.Primary(client),
 		cache:  cache.New[manage.Channel](channelCacheCapacity, channelCacheTTL),
 	}
 }

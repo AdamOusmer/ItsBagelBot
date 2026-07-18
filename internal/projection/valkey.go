@@ -11,6 +11,7 @@ import (
 	contract "ItsBagelBot/internal/domain/rpc/projection"
 	"ItsBagelBot/internal/utils"
 	"ItsBagelBot/pkg/cache"
+	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/newrelic/go-agent/v3/newrelic"
 
@@ -47,11 +48,14 @@ const (
 // write is an overwrite, so replays and redeliveries are harmless.
 type Store struct {
 	client valkey.Client
+	// primary serves the reads that must observe this Store's own writes.
+	// Ordinary reads stay on client and its node-local route.
+	primary valkey.Client
 }
 
 // NewStore creates a new Store instance using the provided Valkey client.
 func NewStore(client valkey.Client) *Store {
-	return &Store{client: client}
+	return &Store{client: client, primary: pkg_valkey.Primary(client)}
 }
 
 // UserProjection is the projected account state of one user: tier status, the
@@ -263,9 +267,17 @@ func (v *Store) SetCommand(ctx context.Context, dto data.CommandChangedDTO) erro
 
 // retireStaleAliases reads the command's previous row and returns the HDEL (if
 // any) that removes the alias pointers it no longer carries.
+//
+// This read is pinned to the primary: it is the read half of a
+// read-modify-write over the row SetCommand is about to overwrite. A node-local
+// replica that has not yet received the previous SetCommand returns an empty or
+// older row, so the HDEL is either skipped or computed from the wrong alias
+// list, and the retired aliases stay resolvable forever. Unlike a stale cache
+// read this never converges, because nothing revisits the row. Only the reading
+// side is pinned; the rest of the Store keeps node-local reads.
 func (v *Store) retireStaleAliases(ctx context.Context, key, field string) []valkey.Completed {
 	cmds := make([]valkey.Completed, 0, 4)
-	old, _ := v.client.Do(ctx, v.client.B().Hget().Key(key).Field(field).Build()).ToString()
+	old, _ := v.primary.Do(ctx, v.primary.B().Hget().Key(key).Field(field).Build()).ToString()
 	if old == "" {
 		return cmds
 	}
