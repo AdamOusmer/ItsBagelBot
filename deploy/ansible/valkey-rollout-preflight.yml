@@ -1,0 +1,97 @@
+---
+# Read-only guard for changes that restart the Sentinel/Valkey StatefulSet.
+- name: Validate Valkey rollout topology
+  hosts: localhost
+  connection: local
+  become: false
+  gather_facts: false
+  vars:
+    valkey_allow_parallel_migration: false
+  tasks:
+    - name: Read the live Valkey StatefulSet
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - --namespace
+          - valkey
+          - get
+          - statefulset
+          - valkey-node
+          - --output
+          - json
+      register: valkey_statefulset_result
+      changed_when: false
+
+    - name: Parse the live Valkey StatefulSet
+      ansible.builtin.set_fact:
+        valkey_statefulset: "{{ valkey_statefulset_result.stdout | from_json }}"
+
+    - name: Require every Valkey member to be ready before rollout
+      ansible.builtin.assert:
+        that:
+          - valkey_statefulset.status.readyReplicas | default(0) == valkey_statefulset.spec.replicas
+        fail_msg: Refusing a Valkey rollout while the existing StatefulSet is not fully ready.
+
+    - name: Require explicit acknowledgement of the immutable Parallel migration
+      ansible.builtin.assert:
+        that:
+          - valkey_statefulset.spec.podManagementPolicy == 'Parallel' or valkey_allow_parallel_migration | bool
+        fail_msg: >-
+          The live StatefulSet still uses immutable podManagementPolicy=OrderedReady.
+          Use a controlled orphan/delete-and-recreate that retains pods and PVCs;
+          rerun this preflight with -e valkey_allow_parallel_migration=true only
+          as part of that reviewed migration.
+
+    - name: Ask a live Sentinel for the elected primary
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - --namespace
+          - valkey
+          - exec
+          - valkey-node-0
+          - --container
+          - sentinel
+          - --
+          - valkey-cli
+          - --port
+          - "26380"
+          - --tls
+          - --cacert
+          - /etc/valkey/tls/ca.crt
+          - --sni
+          - valkey.valkey.svc.cluster.local
+          - --raw
+          - --no-auth-warning
+          - sentinel
+          - get-master-addr-by-name
+          - myprimary
+      register: valkey_primary_result
+      changed_when: false
+      failed_when: valkey_primary_result.rc != 0 or valkey_primary_result.stdout_lines | length < 2
+
+    - name: Resolve the elected primary pod
+      ansible.builtin.set_fact:
+        valkey_primary_pod: "{{ valkey_primary_result.stdout_lines[0].split('.')[0] }}"
+
+    - name: Read the elected primary node
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - --namespace
+          - valkey
+          - get
+          - pod
+          - "{{ valkey_primary_pod }}"
+          - --output
+          - jsonpath={.spec.nodeName}
+      register: valkey_primary_node
+      changed_when: false
+
+    - name: Refuse rollout with a primary outside node2 and node3
+      ansible.builtin.assert:
+        that:
+          - valkey_primary_node.stdout in ['node2', 'node3']
+        fail_msg: >-
+          Refusing rollout: Sentinel primary {{ valkey_primary_pod }} is on
+          {{ valkey_primary_node.stdout | default('an unknown node') }}, not node2/node3.
