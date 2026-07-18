@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/newrelic/go-agent/v3/newrelic"
 	valkey_go "github.com/valkey-io/valkey-go"
 )
 
@@ -118,19 +119,80 @@ type Client struct {
 // Do sends read-only commands to the local instance and everything else to the
 // master via Sentinel.
 func (c *Client) Do(ctx context.Context, cmd valkey_go.Completed) valkey_go.ValkeyResult {
-	if c.local != nil && cmd.IsReadOnly() {
-		return c.local.Do(ctx, cmd)
+	operation := "valkey.write"
+	client := c.Client
+	if cmd.IsReadOnly() {
+		operation = "valkey.read"
+		if c.local != nil {
+			client = c.local
+		}
 	}
-	return c.Client.Do(ctx, cmd)
+	return traceValkey(ctx, operation, func() valkey_go.ValkeyResult {
+		return client.Do(ctx, cmd)
+	})
 }
 
 // DoMulti sends a batch to the local instance only when every command is
 // read-only; any write in the batch routes the whole batch to the master.
 func (c *Client) DoMulti(ctx context.Context, multi ...valkey_go.Completed) []valkey_go.ValkeyResult {
-	if c.local != nil && allReadOnly(multi) {
-		return c.local.DoMulti(ctx, multi...)
+	operation := "valkey.write_batch"
+	client := c.Client
+	if allReadOnly(multi) {
+		operation = "valkey.read_batch"
+		if c.local != nil {
+			client = c.local
+		}
 	}
-	return c.Client.DoMulti(ctx, multi...)
+	return traceValkeyMulti(ctx, operation, func() []valkey_go.ValkeyResult {
+		return client.DoMulti(ctx, multi...)
+	})
+}
+
+// Valkey spans are emitted only for transactions selected by New Relic's own
+// sampler. The unsampled command path remains one context lookup and a branch,
+// while sampled traces get fixed-name read/write dependency attribution without
+// exposing keys or commands as high-cardinality facets.
+func traceValkey(ctx context.Context, operation string, do func() valkey_go.ValkeyResult) valkey_go.ValkeyResult {
+	txn := newrelic.FromContext(ctx)
+	if txn == nil || !txn.IsSampled() {
+		return do()
+	}
+	segment := txn.StartSegment(operation)
+	result := do()
+	segment.AddAttribute("result", valkeyResult(result.Error()))
+	segment.End()
+	return result
+}
+
+func traceValkeyMulti(ctx context.Context, operation string, do func() []valkey_go.ValkeyResult) []valkey_go.ValkeyResult {
+	txn := newrelic.FromContext(ctx)
+	if txn == nil || !txn.IsSampled() {
+		return do()
+	}
+	segment := txn.StartSegment(operation)
+	results := do()
+	result := "ok"
+	for i := range results {
+		if current := valkeyResult(results[i].Error()); current == "error" {
+			result = current
+			break
+		} else if current == "miss" {
+			result = current
+		}
+	}
+	segment.AddAttribute("result", result)
+	segment.End()
+	return results
+}
+
+func valkeyResult(err error) string {
+	if err == nil {
+		return "ok"
+	}
+	if valkey_go.IsValkeyNil(err) {
+		return "miss"
+	}
+	return "error"
 }
 
 // Receive routes pub/sub to the master-pinned client. Keyspace notifications
@@ -184,9 +246,10 @@ func NewClient(address, password string) (valkey_go.Client, error) {
 	}
 
 	// Standalone (dev / single instance): that one node is the master, so its
-	// own Do/Receive already land on the right place. No wrapper needed.
+	// own Do/Receive already land on the right place. Keep the lightweight
+	// wrapper so sampled dependency telemetry behaves the same in every mode.
 	if !isSentinelAddress(address) {
-		return master, nil
+		return &Client{Client: master}, nil
 	}
 
 	// Sentinel: pub/sub must be pinned to the master (no SendToReplicas) or the

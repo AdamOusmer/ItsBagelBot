@@ -13,11 +13,16 @@ Sesame operates as a highly concurrent NATS JetStream consumer. It pulls from th
 
 Every message flows through `engine.Pipeline`, an allocation-free (for non-emissions) decoding and dispatch stage:
 1. **Decode**: The JSON payload is unmarshaled into a pooled `lane.Envelope`.
-2. **Deduplication**: `ValkeyDedup` ensures that an event is only processed once, claiming a short-lived key in Valkey based on the event ID.
+2. **Eligibility**: Unsupported events and envelopes without a valid broadcaster are discarded before projection or command work.
 3. **Module Views**: If the event requires configurable behavior, the `Projector` is queried for the broadcaster's `ModuleView` set.
 4. **Command Dispatch**: If the event is a chat message (`channel.chat.message`), the pipeline checks the command registry. Baked commands are evaluated for their permissions, cooldowns, and live-only gates.
 5. **Event Handlers**: Non-command event handlers registered by modules are executed in registration order.
 6. **Emission**: Module handlers do not publish directly to NATS. They yield an `Output` struct to an `Emit` callback, which builds the `outgress.Message` wire contract and publishes it to either `twitch.outgress.premium` or `twitch.outgress.standard`.
+
+Transport replay does not claim a Valkey key. Outputs derived from an input with
+a stable event ID use a stable publication ID and wait for the NATS confirmation
+before the input is acknowledged. Valkey remains domain state, not a second
+transport acknowledgement system.
 
 ### Module Authoring
 
@@ -78,4 +83,5 @@ Additionally, the `module.ParseDynamic` helper provides built-in support for gen
 Sesame maintains high throughput by avoiding database reads on the hot path:
 - **Projection Cache**: `projection.Reader` provides an in-memory cache of broadcaster settings (modules, users, custom commands), falling back to NATS RPC (`bagel.rpc.internal.projection.*`) and listening for `bagel.cache.invalidate.*` broadcasts.
 - **Live Store**: `ValkeyLiveStore` checks if a broadcaster is currently live. It caches locally, falls back to Valkey, and can trigger a system outgress lane check to Twitch if the key is cold.
-- **Cooldown & Dedup**: Backed directly by Valkey.
+- **Domain State**: Cooldowns, timers, loyalty live views, greeting windows, and
+  reputation state are backed by Valkey. Transport replay is not.

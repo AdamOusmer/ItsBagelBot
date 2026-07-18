@@ -3,6 +3,7 @@ package bus
 import (
 	"context"
 	"sync"
+	"time"
 )
 
 const (
@@ -41,6 +42,9 @@ type Message struct {
 	mu    sync.Mutex
 	state messageState
 	ctx   context.Context
+	// receivedAt is set at the native subscriber boundary. It lets the consumer
+	// transaction distinguish delivery/admission wait from handler execution.
+	receivedAt time.Time
 }
 
 type messageState uint8
@@ -59,7 +63,7 @@ func NewMessage(id string, payload []byte) *Message {
 func newMessage(id string, payload []byte, metadata Metadata) *Message {
 	return &Message{
 		UUID: id, Metadata: metadata, Payload: payload,
-		ack: make(chan struct{}), nack: make(chan struct{}),
+		ack: make(chan struct{}), nack: make(chan struct{}), receivedAt: time.Now(),
 	}
 }
 
@@ -138,6 +142,17 @@ func (m *Message) Context() context.Context {
 
 // SetContext attaches tracing, cancellation, and request-scoped values.
 func (m *Message) SetContext(ctx context.Context) { m.ctx = ctx }
+
+func (m *Message) deliveryWait(now time.Time) time.Duration {
+	if m.receivedAt.IsZero() {
+		return 0
+	}
+	wait := now.Sub(m.receivedAt)
+	if wait < 0 {
+		return 0
+	}
+	return wait
+}
 
 // Subscriber is the fleet-owned consuming contract. Implementations close the
 // returned channel when ctx is cancelled or Close releases the subscription.

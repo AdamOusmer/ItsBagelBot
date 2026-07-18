@@ -3,8 +3,9 @@ package bus
 import (
 	"context"
 	"errors"
-	"net/http"
+	"time"
 
+	"github.com/nats-io/nats.go"
 	"github.com/newrelic/go-agent/v3/newrelic"
 
 	"go.uber.org/zap"
@@ -44,17 +45,18 @@ func Consume(ctx context.Context, app *newrelic.Application, sub Subscriber, sub
 // makes the New Relic calls no-ops.
 func process(app *newrelic.Application, subject string, msg *Message, handle func(*Message) error, log *zap.Logger) {
 
-	txn := app.StartTransaction("consume " + subject)
-
-	headers := http.Header{}
-	for key, value := range msg.Metadata {
-		headers.Set(key, value)
-	}
-	txn.AcceptDistributedTraceHeaders(newrelic.TransportQueue, headers)
+	txn := app.StartTransaction("consume " + normalizedDestination(subject))
+	acceptTraceHeaders(txn, metadataHeaders(msg.Metadata))
+	addMessagingTransactionAttributes(txn, "process", subject)
+	txn.AddAttribute("messaging.queue_ms", float64(msg.deliveryWait(time.Now()).Microseconds())/1000)
 
 	msg.SetContext(newrelic.NewContext(msg.Context(), txn))
 
-	if err := handle(msg); err != nil {
+	processSegment := txn.StartSegment("message.process")
+	err := handle(msg)
+	processSegment.AddAttribute(resultAttribute, processResult(err))
+	processSegment.End()
+	if err != nil {
 		// Expected backpressure (rate limits and a deliberate system pause) still
 		// nacks, but must not turn an overload into one New Relic error and warning
 		// log per delivery attempt. Packages opt in through this tiny structural
@@ -63,6 +65,7 @@ func process(app *newrelic.Application, subject string, msg *Message, handle fun
 		if !quiet {
 			txn.NoticeError(err)
 		}
+		txn.AddAttribute(resultAttribute, processResult(err))
 		txn.End()
 
 		if quiet {
@@ -80,8 +83,27 @@ func process(app *newrelic.Application, subject string, msg *Message, handle fun
 		return
 	}
 
+	txn.AddAttribute(resultAttribute, "ok")
 	txn.End()
 	msg.Ack()
+}
+
+func metadataHeaders(metadata Metadata) nats.Header {
+	headers := make(nats.Header, len(metadata))
+	for key, value := range metadata {
+		headers.Set(key, value)
+	}
+	return headers
+}
+
+func processResult(err error) string {
+	if err == nil {
+		return "ok"
+	}
+	if isExpectedNack(err) {
+		return "deferred"
+	}
+	return messagingResult(err)
 }
 
 func isExpectedNack(err error) bool {

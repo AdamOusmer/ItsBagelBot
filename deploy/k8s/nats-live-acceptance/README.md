@@ -131,11 +131,13 @@ The sequence is:
    qualify the Elixir ingress path.
 4. Offer 126,000 events/second for five minutes and require at least 120,000
    acknowledged events/second.
-5. Offer exactly 90,000 events/second for fifteen minutes as the 75% operating
+5. Offer exactly 90,000 events/second for thirty minutes as the 75% operating
    soak and require at least 89,100 acknowledged events/second (99% delivery
    cadence, with all messages still acknowledged).
-6. Require zero message/connection errors, p95 <= 20 ms, p99 <= 2 ms, no
-   stream-leader election advisory during load, all three peers current,
+6. Require zero message/connection errors, p95 <= 20 ms and p99 <= 2 ms at both
+   the 12k/s normal-load canary and higher offered load, broker CPU below 75%
+   of its four-core limit, no stream-leader election advisory during load, all
+   three peers current,
    follower lag returned to zero, and no queue, slow-consumer, write-deadline,
    or quorum error in NATS logs.
 
@@ -196,7 +198,7 @@ CONFIRM_R3_SHADOW=R3-120K R3_CANARY_ONLY=true \
   deploy/k8s/nats-live-acceptance/r3-120k.sh
 
 # Full qualification. OPERATING_SECONDS=3600 extends the 75% operating soak to
-# one hour for the long-run stability gate; omit it for the 15-minute contract.
+# one hour for the long-run stability gate; omit it for the 30-minute contract.
 CONFIRM_R3_SHADOW=R3-120K OPERATING_SECONDS=3600 \
   NATS_BENCH_SETUP_SECRET="$setup_secret" \
   deploy/k8s/nats-live-acceptance/r3-120k.sh
@@ -217,6 +219,10 @@ default. The three SLI pods read the existing `ADMIN_RPC` keys from
 neither BUS publishing nor stream-management credentials. Override Secret
 names only with `NATS_BENCH_PUBLISHER_SECRET` and
 `NATS_BENCH_ADMIN_RPC_SECRET`.
+
+Publishers use their node-local hub by default, matching the live Service
+locality policy. `R3_PUBLISH_TARGET=preferred` is a comparison-only override;
+it cannot qualify the node-local operating contract.
 
 Each trial uses a shared start barrier and computes fleet throughput over the
 earliest publisher start through the latest publisher finish, so delayed or
@@ -240,6 +246,17 @@ CONFIRM_R3_SHADOW=R3-120K R3_SLI_ONLY=true \
 
 This mode needs `console-admin-env` and the existing Valkey credential only;
 it does not need the temporary JetStream setup Secret.
+
+Compare retained R1/R3 and node-local/preferred summaries without touching the
+cluster. The reporter exits non-zero until it sees a node-local R3 result that
+passes the 90k/s, 30-minute, 2 ms loaded-p99, and 75%-CPU gates:
+
+```sh
+deploy/k8s/nats-live-acceptance/r3-matrix-report.sh \
+  /tmp/nats-r3-isolated-* /tmp/nats-r3-results-*
+```
+
+Use `--report-only` to render an incomplete calibration matrix.
 
 ## Direct leaf RPC test
 
