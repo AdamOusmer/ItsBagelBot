@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"time"
 
+	pkg_valkey "ItsBagelBot/pkg/valkey"
+
 	"github.com/valkey-io/valkey-go"
 )
 
@@ -17,8 +19,13 @@ type ValkeyBatchStore struct {
 	client valkey.Client
 }
 
+// NewValkeyBatchStore builds the store on a primary-consistent view. The lock
+// holder reads back its own progress: Acquire takes the lock, then Next reads
+// the cursor SaveNext wrote on the previous pass. A node-local replica that has
+// not yet received that SaveNext returns an older cursor, and the batch resends
+// chat lines it already delivered. The view reuses the client's connections.
 func NewValkeyBatchStore(client valkey.Client) *ValkeyBatchStore {
-	return &ValkeyBatchStore{client: client}
+	return &ValkeyBatchStore{client: pkg_valkey.Primary(client)}
 }
 
 func (s *ValkeyBatchStore) Acquire(ctx context.Context, lease BatchLease, ttl time.Duration) (bool, error) {
