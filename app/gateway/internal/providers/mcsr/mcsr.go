@@ -18,6 +18,7 @@ import (
 	"ItsBagelBot/app/gateway/internal/core"
 	"ItsBagelBot/app/gateway/internal/provider"
 	gatewayrpc "ItsBagelBot/internal/domain/rpc/gateway"
+	"ItsBagelBot/pkg/ratelimit"
 
 	"go.uber.org/zap"
 )
@@ -42,21 +43,35 @@ type Config struct {
 	RateLimit float64
 }
 
-// Provider implements provider.Provider for the MCSR Ranked API.
-type Provider struct {
-	http  *core.HTTPClient
-	cache *core.Cache
-	log   *zap.Logger
-
-	deps    provider.Deps
-	buckets core.Buckets
-}
+// providerName is the subject token this provider answers under.
+const providerName = "mcsr"
 
 // rateWindowSeconds is the MCSR budget window (10 minutes: 500 requests).
 const rateWindowSeconds = 600.0
 
+// api holds the provider's runtime pieces; the declared endpoints capture it.
+// The endpoints stay bespoke handlers (not byte-flows): they answer typed
+// replies whose snapshot side effects and elo semantics do not fit the shared
+// cached-bytes skeleton.
+type api struct {
+	http    *core.HTTPClient
+	cache   *core.Cache
+	log     *zap.Logger
+	limiter *ratelimit.Limiter
+	buckets core.Buckets
+}
+
 // New builds the mcsr provider.
-func New(cfg Config, d provider.Deps) *Provider {
+func New(cfg Config, d provider.Deps) provider.Provider {
+	p := newAPI(cfg, d)
+	b := provider.NewProvider(providerName, d)
+	b.Endpoint("user").Timeout(handlerTimeout).Handle(p.user)
+	b.Endpoint("session_start").Timeout(handlerTimeout).Handle(p.sessionStart)
+	b.Endpoint("session").Timeout(handlerTimeout).Handle(p.session)
+	return b.Build()
+}
+
+func newAPI(cfg Config, d provider.Deps) *api {
 	base := strings.TrimSuffix(cfg.BaseURL, "/")
 	if base == "" {
 		base = "https://api.mcsrranked.com"
@@ -68,27 +83,12 @@ func New(cfg Config, d provider.Deps) *Provider {
 	if cfg.RateLimit <= 0 {
 		cfg.RateLimit = 500
 	}
-	log := d.Log
-	if log == nil {
-		log = zap.NewNop()
-	}
-	return &Provider{
-		http:  core.NewHTTPClient(base, headers, httpTimeout),
-		cache: d.Cache,
-		log:   log,
-
-		deps:    d,
+	return &api{
+		http:    core.NewHTTPClient(base, headers, httpTimeout),
+		cache:   d.Cache,
+		log:     d.Logger(),
+		limiter: d.Limiter,
 		buckets: core.NewBuckets("ratelimit:gateway:mcsr", cfg.RateLimit, rateWindowSeconds),
-	}
-}
-
-func (p *Provider) Name() string { return "mcsr" }
-
-func (p *Provider) Endpoints() []provider.Endpoint {
-	return []provider.Endpoint{
-		{Name: "user", Timeout: handlerTimeout, Handle: p.user},
-		{Name: "session_start", Timeout: handlerTimeout, Handle: p.sessionStart},
-		{Name: "session", Timeout: handlerTimeout, Handle: p.session},
 	}
 }
 
@@ -145,12 +145,12 @@ func friendlyError(err error) string {
 
 // enforceRateLimit consumes one request from the MCSR budget under the shared
 // premium/standard bucket discipline (see core.Buckets).
-func (p *Provider) enforceRateLimit(ctx context.Context, isPremium bool) error {
-	return p.buckets.Enforce(ctx, p.deps.Limiter, isPremium)
+func (p *api) enforceRateLimit(ctx context.Context, isPremium bool) error {
+	return p.buckets.Enforce(ctx, p.limiter, isPremium)
 }
 
 // fetchUser loads a player's live standing straight from the API.
-func (p *Provider) fetchUser(ctx context.Context, account string, isPremium bool) (gatewayrpc.McsrUserReply, error) {
+func (p *api) fetchUser(ctx context.Context, account string, isPremium bool) (gatewayrpc.McsrUserReply, error) {
 	if err := p.enforceRateLimit(ctx, isPremium); err != nil {
 		return gatewayrpc.McsrUserReply{}, err
 	}
@@ -192,8 +192,8 @@ func (p *Provider) fetchUser(ctx context.Context, account string, isPremium bool
 }
 
 // cachedUser is fetchUser behind the shared 60s cache.
-func (p *Provider) cachedUser(ctx context.Context, account string, isPremium bool) (gatewayrpc.McsrUserReply, error) {
-	key := core.Key(p.Name(), "user", strings.ToLower(strings.TrimSpace(account)))
+func (p *api) cachedUser(ctx context.Context, account string, isPremium bool) (gatewayrpc.McsrUserReply, error) {
+	key := core.Key(providerName, "user", strings.ToLower(strings.TrimSpace(account)))
 	return core.Cached(ctx, p.cache, key, userTTL, 5*time.Minute, func(ctx context.Context) (gatewayrpc.McsrUserReply, error) {
 		return p.fetchUser(ctx, account, isPremium)
 	})
@@ -201,7 +201,7 @@ func (p *Provider) cachedUser(ctx context.Context, account string, isPremium boo
 
 // --- endpoints ------------------------------------------------------------------
 
-func (p *Provider) user(ctx context.Context, req gatewayrpc.Request) any {
+func (p *api) user(ctx context.Context, req gatewayrpc.Request) any {
 	account := strings.TrimSpace(req.Account)
 	if account == "" {
 		return gatewayrpc.McsrUserReply{Error: "missing account"}
@@ -220,7 +220,7 @@ func (p *Provider) user(ctx context.Context, req gatewayrpc.Request) any {
 // sessionStart snapshots the player's live standing for the channel. It
 // fetches fresh (not through the 60s cache): the snapshot is the session
 // baseline, so it must not predate the stream by a stale cache window.
-func (p *Provider) sessionStart(ctx context.Context, req gatewayrpc.Request) any {
+func (p *api) sessionStart(ctx context.Context, req gatewayrpc.Request) any {
 	account := strings.TrimSpace(req.Account)
 	if account == "" || req.ChannelID == "" {
 		return gatewayrpc.McsrSnapshotReply{Error: "missing account or channel"}
@@ -240,7 +240,7 @@ func (p *Provider) sessionStart(ctx context.Context, req gatewayrpc.Request) any
 	return gatewayrpc.McsrSnapshotReply{Nickname: user.Nickname, Elo: user.Elo}
 }
 
-func (p *Provider) writeSnapshot(ctx context.Context, channelID, account string, user gatewayrpc.McsrUserReply) error {
+func (p *api) writeSnapshot(ctx context.Context, channelID, account string, user gatewayrpc.McsrUserReply) error {
 	return p.cache.SetJSON(ctx, snapshotKey(channelID), snapshot{
 		Account:  strings.ToLower(account),
 		Nickname: user.Nickname,
@@ -256,7 +256,7 @@ func (p *Provider) writeSnapshot(ctx context.Context, channelID, account string,
 // a usable snapshot (none stored, or it tracks a different account) it takes
 // one now and reports HasSnapshot=false so the caller can say "tracking from
 // now".
-func (p *Provider) session(ctx context.Context, req gatewayrpc.Request) any {
+func (p *api) session(ctx context.Context, req gatewayrpc.Request) any {
 	account := strings.TrimSpace(req.Account)
 	if account == "" || req.ChannelID == "" {
 		return gatewayrpc.McsrSessionReply{Error: "missing account or channel"}

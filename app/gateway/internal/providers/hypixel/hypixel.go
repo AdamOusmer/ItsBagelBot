@@ -13,7 +13,6 @@ package hypixel
 
 import (
 	"context"
-	"encoding/json"
 	"net/url"
 	"strings"
 	"time"
@@ -22,7 +21,7 @@ import (
 	"ItsBagelBot/app/gateway/internal/provider"
 	gatewayrpc "ItsBagelBot/internal/domain/rpc/gateway"
 
-	"go.uber.org/zap"
+	"ItsBagelBot/pkg/ratelimit"
 )
 
 const (
@@ -49,19 +48,31 @@ type Config struct {
 	RateLimit     float64
 }
 
-// Provider implements provider.Provider for the Hypixel API.
-type Provider struct {
-	http   *core.HTTPClient
-	mojang *core.HTTPClient
-	cache  *core.Cache
-	log    *zap.Logger
+// providerName is the subject token this provider answers under.
+const providerName = "hypixel"
 
-	deps    provider.Deps
+// api holds the provider's runtime pieces; the declared endpoints capture it.
+type api struct {
+	http    *core.HTTPClient
+	mojang  *core.HTTPClient
+	cache   *core.Cache
+	limiter *ratelimit.Limiter
 	buckets core.Buckets
 }
 
-// New builds the hypixel provider.
-func New(cfg Config, d provider.Deps) *Provider {
+// New builds the hypixel provider: one byte-flow stats endpoint.
+func New(cfg Config, d provider.Deps) provider.Provider {
+	p := newAPI(cfg, d)
+	b := provider.NewProvider(providerName, d)
+	b.Endpoint("stats").Timeout(handlerTimeout).
+		Cached(statsTTL, negativeTTL).
+		Reply(statsErrReply).
+		Fallback("stats lookup failed").
+		Fetch(p.statsFetch)
+	return b.Build()
+}
+
+func newAPI(cfg Config, d provider.Deps) *api {
 	base := strings.TrimSuffix(cfg.BaseURL, "/")
 	if base == "" {
 		base = "https://api.hypixel.net"
@@ -73,26 +84,24 @@ func New(cfg Config, d provider.Deps) *Provider {
 	if cfg.RateLimit <= 0 {
 		cfg.RateLimit = 300
 	}
-	log := d.Log
-	if log == nil {
-		log = zap.NewNop()
-	}
-	return &Provider{
+	return &api{
 		http:    core.NewHTTPClient(base, map[string]string{"API-Key": cfg.APIKey}, httpTimeout),
 		mojang:  core.NewHTTPClient(mojangBase, nil, httpTimeout),
 		cache:   d.Cache,
-		log:     log,
-		deps:    d,
+		limiter: d.Limiter,
 		buckets: core.NewBuckets("ratelimit:gateway:hypixel", cfg.RateLimit, rateWindowSeconds),
 	}
 }
 
-func (p *Provider) Name() string { return "hypixel" }
+// statsErrReply shapes every stats error reply (missing account, friendly
+// upstream failure, infrastructure fallback).
+func statsErrReply(id, msg string) any {
+	return gatewayrpc.HypixelStatsReply{Player: id, Error: msg}
+}
 
-func (p *Provider) Endpoints() []provider.Endpoint {
-	return []provider.Endpoint{
-		{Name: "stats", Timeout: handlerTimeout, Handle: p.stats},
-	}
+// statsFetch adapts fetchStats to the flow's fetch signature.
+func (p *api) statsFetch(ctx context.Context, req gatewayrpc.Request, id provider.ID) (any, error) {
+	return p.fetchStats(ctx, id.Display, req.IsPremium)
 }
 
 // accountKey normalizes the player identifier for cache keys.
@@ -126,11 +135,11 @@ func looksLikeUUID(account string) bool {
 // resolveUUID turns a username into the canonical uuid via Mojang, cached for
 // a day. An unknown name is a 404 there already (204 on the legacy path is
 // also treated as missing by the empty-id check), so it negative-caches.
-func (p *Provider) resolveUUID(ctx context.Context, account string) (string, error) {
+func (p *api) resolveUUID(ctx context.Context, account string) (string, error) {
 	if looksLikeUUID(account) {
 		return strings.ReplaceAll(account, "-", ""), nil
 	}
-	key := core.Key(p.Name(), "uuid", accountKey(account))
+	key := core.Key(providerName, "uuid", accountKey(account))
 	return core.Cached(ctx, p.cache, key, uuidTTL, negativeTTL, func(ctx context.Context) (string, error) {
 		var profile mojangProfile
 		if err := p.mojang.GetJSON(ctx, "/users/profiles/minecraft/"+account, nil, &profile); err != nil {
@@ -166,36 +175,14 @@ type playerResponse struct {
 	} `json:"player"`
 }
 
-// stats answers hypixel.stats (sesame's !bwstats) with the player's lifetime
-// Bed Wars stats.
-func (p *Provider) stats(ctx context.Context, req gatewayrpc.Request) any {
-	account := strings.TrimSpace(req.Account)
-	if account == "" {
-		return gatewayrpc.HypixelStatsReply{Error: "missing account"}
-	}
-	key := core.Key(p.Name(), "stats", accountKey(account))
-	b, err := core.CachedBytes(ctx, p.cache, key, func(ctx context.Context) ([]byte, time.Duration, error) {
-		return core.BuildReply(ctx, statsTTL, negativeTTL,
-			func(ctx context.Context) (any, error) { return p.fetchStats(ctx, account, req.IsPremium) },
-			func(msg string) any { return gatewayrpc.HypixelStatsReply{Player: account, Error: msg} },
-		)
-	})
-	if err != nil {
-		p.log.Warn("hypixel stats fetch failed", zap.String("account", account), zap.Error(err))
-		return gatewayrpc.HypixelStatsReply{Player: account, Error: "stats lookup failed"}
-	}
-	// Pre-marshaled wire bytes: the engine responds with these untouched.
-	return json.RawMessage(b)
-}
-
 // fetchStats resolves the uuid, spends the Hypixel budget, and shapes the
 // success reply.
-func (p *Provider) fetchStats(ctx context.Context, account string, isPremium bool) (gatewayrpc.HypixelStatsReply, error) {
+func (p *api) fetchStats(ctx context.Context, account string, isPremium bool) (gatewayrpc.HypixelStatsReply, error) {
 	uuid, err := p.resolveUUID(ctx, account)
 	if err != nil {
 		return gatewayrpc.HypixelStatsReply{}, err
 	}
-	if err := p.buckets.Enforce(ctx, p.deps.Limiter, isPremium); err != nil {
+	if err := p.buckets.Enforce(ctx, p.limiter, isPremium); err != nil {
 		return gatewayrpc.HypixelStatsReply{}, err
 	}
 

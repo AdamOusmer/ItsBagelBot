@@ -23,7 +23,6 @@ package fortnite
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net/url"
 	"regexp"
@@ -89,8 +88,11 @@ type Config struct {
 	SeasonStartUnix int64
 }
 
-// Provider implements provider.Provider for the fortnite systems.
-type Provider struct {
+// providerName is the subject token this provider answers under.
+const providerName = "fortnite"
+
+// api holds the provider's runtime pieces; the declared endpoints capture it.
+type api struct {
 	shop  *core.HTTPClient
 	stats *core.HTTPClient
 	cache *core.Cache
@@ -101,12 +103,39 @@ type Provider struct {
 	statsBucket core.Buckets
 	seasonStart int64
 	// keyed reports whether the stats key is configured; without it the stats
-	// endpoint is not served (shop-only mode).
+	// endpoints are not served (shop-only mode).
 	keyed bool
 }
 
-// New builds the fortnite provider.
-func New(cfg Config, d provider.Deps) *Provider {
+// New builds the fortnite provider. The shop endpoint always serves; the
+// keyed stats/session endpoints register only when the api-fortnite.com key is
+// configured, so shop-only mode simply never subscribes them.
+func New(cfg Config, d provider.Deps) provider.Provider {
+	return newAPI(cfg, d).build()
+}
+
+func (p *api) build() provider.Provider {
+	b := provider.NewProvider(providerName, p.deps)
+	b.Endpoint("shop").Timeout(handlerTimeout).
+		Cached(shopTTL, negativeTTL).
+		ID(provider.StaticID("current")).
+		Reply(shopErrReply).
+		Fallback("item shop lookup failed").
+		Fetch(p.shopFetch)
+	if p.keyed {
+		b.Endpoint("stats").Timeout(handlerTimeout).
+			Cached(statsTTL, negativeTTL).
+			ID(statsID).
+			Reply(statsErrReply).
+			Fallback("stats lookup failed").
+			Fetch(p.statsFetch)
+		b.Endpoint("session_start").Timeout(handlerTimeout).Handle(p.sessionStart)
+		b.Endpoint("session").Timeout(handlerTimeout).Handle(p.session)
+	}
+	return b.Build()
+}
+
+func newAPI(cfg Config, d provider.Deps) *api {
 	shopBase := strings.TrimSuffix(cfg.ShopBaseURL, "/")
 	if shopBase == "" {
 		shopBase = "https://fortnite-api.com"
@@ -121,19 +150,15 @@ func New(cfg Config, d provider.Deps) *Provider {
 	if cfg.StatsRateLimit <= 0 {
 		cfg.StatsRateLimit = 9000
 	}
-	log := d.Log
-	if log == nil {
-		log = zap.NewNop()
-	}
 	var statsHeaders map[string]string
 	if cfg.APIKey != "" {
 		statsHeaders = map[string]string{"x-api-key": cfg.APIKey}
 	}
-	return &Provider{
+	return &api{
 		shop:        core.NewHTTPClient(shopBase, nil, httpTimeout),
 		stats:       core.NewHTTPClient(statsBase, statsHeaders, httpTimeout),
 		cache:       d.Cache,
-		log:         log,
+		log:         d.Logger(),
 		deps:        d,
 		shopBucket:  core.NewBuckets("ratelimit:gateway:fortnite", cfg.ShopRateLimit, shopWindowSeconds),
 		statsBucket: core.NewBuckets("ratelimit:gateway:fortnite:stats", cfg.StatsRateLimit, statsWindowSeconds),
@@ -142,20 +167,9 @@ func New(cfg Config, d provider.Deps) *Provider {
 	}
 }
 
-func (p *Provider) Name() string { return "fortnite" }
-
-func (p *Provider) Endpoints() []provider.Endpoint {
-	eps := []provider.Endpoint{
-		{Name: "shop", Timeout: handlerTimeout, Handle: p.shopEndpoint},
-	}
-	if p.keyed {
-		eps = append(eps,
-			provider.Endpoint{Name: "stats", Timeout: handlerTimeout, Handle: p.statsEndpoint},
-			provider.Endpoint{Name: "session_start", Timeout: handlerTimeout, Handle: p.sessionStart},
-			provider.Endpoint{Name: "session", Timeout: handlerTimeout, Handle: p.session},
-		)
-	}
-	return eps
+func shopErrReply(_, msg string) any { return gatewayrpc.FortniteShopReply{Error: msg} }
+func statsErrReply(id, msg string) any {
+	return gatewayrpc.FortniteStatsReply{Player: id, Error: msg}
 }
 
 // normalizeWindow maps the dashboard's window setting onto the requested
@@ -177,11 +191,11 @@ type seasonResponse struct {
 // override when configured, otherwise the upstream's own current-season
 // begin date, cached an hour so a rollover is picked up automatically. 0
 // means no start could be resolved (the caller degrades to lifetime).
-func (p *Provider) seasonStartTime(ctx context.Context, isPremium bool) int64 {
+func (p *api) seasonStartTime(ctx context.Context, isPremium bool) int64 {
 	if p.seasonStart > 0 {
 		return p.seasonStart
 	}
-	key := core.Key(p.Name(), "season", "start")
+	key := core.Key(providerName, "season", "start")
 	start, err := core.Cached(ctx, p.cache, key, seasonTTL, negativeTTL, func(ctx context.Context) (int64, error) {
 		if err := p.statsBucket.Enforce(ctx, p.deps.Limiter, isPremium); err != nil {
 			return 0, err
@@ -231,8 +245,8 @@ func friendly404(err error, msg string) error {
 
 // resolveAccount turns a display name into the account ref via the stats
 // upstream, cached for a day. An unknown name 404s and negative-caches.
-func (p *Provider) resolveAccount(ctx context.Context, account string, isPremium bool) (accountRef, error) {
-	key := core.Key(p.Name(), "account", strings.ToLower(account))
+func (p *api) resolveAccount(ctx context.Context, account string, isPremium bool) (accountRef, error) {
+	key := core.Key(providerName, "account", strings.ToLower(account))
 	return core.Cached(ctx, p.cache, key, accountTTL, negativeTTL, func(ctx context.Context) (accountRef, error) {
 		if err := p.statsBucket.Enforce(ctx, p.deps.Limiter, isPremium); err != nil {
 			return accountRef{}, err
@@ -334,36 +348,30 @@ type statsQuery struct {
 	window  string
 }
 
-// statsEndpoint answers fortnite.stats (sesame's !fnstats) with the player's
-// aggregated Battle Royale stats over the requested window.
-func (p *Provider) statsEndpoint(ctx context.Context, req gatewayrpc.Request) any {
-	account := strings.TrimSpace(req.Account)
-	if account == "" {
-		return gatewayrpc.FortniteStatsReply{Error: "missing account"}
+// statsID validates the stats identity: an Epic display name, cache-keyed by
+// the requested window as well as the account so season and lifetime replies
+// never collide.
+func statsID(req gatewayrpc.Request) (provider.ID, string) {
+	a := strings.TrimSpace(req.Account)
+	if a == "" {
+		return provider.ID{}, "missing account"
 	}
 	if msg := epicOnly(req.AccountType); msg != "" {
-		return gatewayrpc.FortniteStatsReply{Player: account, Error: msg}
+		return provider.ID{Display: a}, msg
 	}
-	q := statsQuery{account: account, window: normalizeWindow(req.TimeWindow)}
+	return provider.ID{Display: a, Key: normalizeWindow(req.TimeWindow) + ":" + strings.ToLower(a)}, ""
+}
 
-	key := core.Key(p.Name(), "stats", q.window+":"+strings.ToLower(account))
-	b, err := core.CachedBytes(ctx, p.cache, key, func(ctx context.Context) ([]byte, time.Duration, error) {
-		return core.BuildReply(ctx, statsTTL, negativeTTL,
-			func(ctx context.Context) (any, error) { return p.fetchStats(ctx, q, req.IsPremium) },
-			func(msg string) any { return gatewayrpc.FortniteStatsReply{Player: account, Error: msg} },
-		)
-	})
-	if err != nil {
-		p.log.Warn("fortnite stats fetch failed", zap.String("account", account), zap.Error(err))
-		return gatewayrpc.FortniteStatsReply{Player: account, Error: "stats lookup failed"}
-	}
-	// Pre-marshaled wire bytes: the engine responds with these untouched.
-	return json.RawMessage(b)
+// statsFetch answers fortnite.stats (sesame's !fnstats) with the player's
+// aggregated Battle Royale stats over the requested window.
+func (p *api) statsFetch(ctx context.Context, req gatewayrpc.Request, id provider.ID) (any, error) {
+	q := statsQuery{account: id.Display, window: normalizeWindow(req.TimeWindow)}
+	return p.fetchStats(ctx, q, req.IsPremium)
 }
 
 // fetchStats resolves the account, spends the budget, pulls the raw counter
 // blob (window-filtered for season) and shapes the success reply.
-func (p *Provider) fetchStats(ctx context.Context, q statsQuery, isPremium bool) (gatewayrpc.FortniteStatsReply, error) {
+func (p *api) fetchStats(ctx context.Context, q statsQuery, isPremium bool) (gatewayrpc.FortniteStatsReply, error) {
 	ref, err := p.resolveAccount(ctx, q.account, isPremium)
 	if err != nil {
 		return gatewayrpc.FortniteStatsReply{}, err
@@ -418,8 +426,8 @@ func snapshotKey(channelID string) string { return core.Key("fortnite", "session
 // staleness budget. It is keyed apart from the byte-flow !fnstats path (that
 // path stores pre-marshaled wire bytes, not the envelope core.Cached needs),
 // so repeated !fn session calls within the window cost one upstream hit.
-func (p *Provider) cachedLifetimeStats(ctx context.Context, account string, isPremium bool) (gatewayrpc.FortniteStatsReply, error) {
-	key := core.Key(p.Name(), "session-live", strings.ToLower(strings.TrimSpace(account)))
+func (p *api) cachedLifetimeStats(ctx context.Context, account string, isPremium bool) (gatewayrpc.FortniteStatsReply, error) {
+	key := core.Key(providerName, "session-live", strings.ToLower(strings.TrimSpace(account)))
 	return core.Cached(ctx, p.cache, key, statsTTL, negativeTTL, func(ctx context.Context) (gatewayrpc.FortniteStatsReply, error) {
 		return p.fetchStats(ctx, statsQuery{account: account, window: "lifetime"}, isPremium)
 	})
@@ -427,7 +435,7 @@ func (p *Provider) cachedLifetimeStats(ctx context.Context, account string, isPr
 
 // writeSnapshot stores the channel's stream-start standing under the snapshot
 // key for sessionSnapshotTTL.
-func (p *Provider) writeSnapshot(ctx context.Context, channelID, account string, stats gatewayrpc.FortniteStatsReply) error {
+func (p *api) writeSnapshot(ctx context.Context, channelID, account string, stats gatewayrpc.FortniteStatsReply) error {
 	return p.cache.SetJSON(ctx, snapshotKey(channelID), snapshot{
 		Account: strings.ToLower(account),
 		Player:  stats.Player,
@@ -440,7 +448,7 @@ func (p *Provider) writeSnapshot(ctx context.Context, channelID, account string,
 
 // sessionError maps an upstream failure to a friendly reply message, logging
 // (as op) the infrastructure failures the friendly mapper does not name.
-func (p *Provider) sessionError(op, account string, err error) string {
+func (p *api) sessionError(op, account string, err error) string {
 	if msg, _ := core.FriendlyUpstream(err); msg != "" {
 		return msg
 	}
@@ -451,7 +459,7 @@ func (p *Provider) sessionError(op, account string, err error) string {
 // sessionStart snapshots the player's live lifetime standing for the channel.
 // It fetches fresh (not through cachedLifetimeStats): the snapshot is the
 // session baseline, so it must not predate the stream by a stale cache window.
-func (p *Provider) sessionStart(ctx context.Context, req gatewayrpc.Request) any {
+func (p *api) sessionStart(ctx context.Context, req gatewayrpc.Request) any {
 	account := strings.TrimSpace(req.Account)
 	if account == "" || req.ChannelID == "" {
 		return gatewayrpc.FortniteSnapshotReply{Error: "missing account or channel"}
@@ -473,7 +481,7 @@ func (p *Provider) sessionStart(ctx context.Context, req gatewayrpc.Request) any
 // loadSnapshot reads the channel's stream-start snapshot, reporting ok only
 // when one exists and tracks account — a snapshot keyed to a different account
 // must not be diffed against.
-func (p *Provider) loadSnapshot(ctx context.Context, channelID, account string) (snapshot, bool) {
+func (p *api) loadSnapshot(ctx context.Context, channelID, account string) (snapshot, bool) {
 	var snap snapshot
 	ok, err := p.cache.GetJSON(ctx, snapshotKey(channelID), &snap)
 	if err != nil {
@@ -484,7 +492,7 @@ func (p *Provider) loadSnapshot(ctx context.Context, channelID, account string) 
 
 // storeSnapshot writes the channel's baseline, logging the failure for callers
 // that cannot surface it (the session start-tracking path).
-func (p *Provider) storeSnapshot(ctx context.Context, channelID, account string, stats gatewayrpc.FortniteStatsReply) {
+func (p *api) storeSnapshot(ctx context.Context, channelID, account string, stats gatewayrpc.FortniteStatsReply) {
 	if err := p.writeSnapshot(ctx, channelID, account, stats); err != nil {
 		p.log.Warn("fortnite snapshot write failed", zap.String("channel_id", channelID), zap.Error(err))
 	}
@@ -517,7 +525,7 @@ func sessionDelta(live gatewayrpc.FortniteStatsReply, snap snapshot) gatewayrpc.
 // a usable snapshot (none stored, or it tracks a different account) it takes
 // one now and reports HasSnapshot=false so the caller can say "tracking from
 // now".
-func (p *Provider) session(ctx context.Context, req gatewayrpc.Request) any {
+func (p *api) session(ctx context.Context, req gatewayrpc.Request) any {
 	account := strings.TrimSpace(req.Account)
 	if account == "" || req.ChannelID == "" {
 		return gatewayrpc.FortniteSessionReply{Error: "missing account or channel"}
@@ -572,29 +580,13 @@ type shopResponse struct {
 	} `json:"data"`
 }
 
-// shopEndpoint answers fortnite.shop (sesame's !store) with the current
-// item-shop rotation. The shop is global, so the cache key carries no request
-// state.
-func (p *Provider) shopEndpoint(ctx context.Context, req gatewayrpc.Request) any {
-	key := core.Key(p.Name(), "shop", "current")
-	b, err := core.CachedBytes(ctx, p.cache, key, func(ctx context.Context) ([]byte, time.Duration, error) {
-		return core.BuildReply(ctx, shopTTL, negativeTTL,
-			func(ctx context.Context) (any, error) { return p.fetchShop(ctx, req.IsPremium) },
-			func(msg string) any { return gatewayrpc.FortniteShopReply{Error: msg} },
-		)
-	})
-	if err != nil {
-		p.log.Warn("fortnite shop fetch failed", zap.Error(err))
-		return gatewayrpc.FortniteShopReply{Error: "item shop lookup failed"}
-	}
-	return json.RawMessage(b)
-}
-
-// fetchShop spends the budget, queries /v2/shop and normalizes each offer to
-// name + final price. Offers with nothing displayable are dropped.
-func (p *Provider) fetchShop(ctx context.Context, isPremium bool) (gatewayrpc.FortniteShopReply, error) {
-	if err := p.shopBucket.Enforce(ctx, p.deps.Limiter, isPremium); err != nil {
-		return gatewayrpc.FortniteShopReply{}, err
+// shopFetch answers fortnite.shop (sesame's !store) with the current
+// item-shop rotation: it spends the budget, queries /v2/shop and normalizes
+// each offer to name + final price. Offers with nothing displayable are
+// dropped. The shop is global, so the flow's StaticID carries no request state.
+func (p *api) shopFetch(ctx context.Context, req gatewayrpc.Request, _ provider.ID) (any, error) {
+	if err := p.shopBucket.Enforce(ctx, p.deps.Limiter, req.IsPremium); err != nil {
+		return nil, err
 	}
 
 	var resp shopResponse

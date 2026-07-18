@@ -22,6 +22,7 @@ import (
 	"ItsBagelBot/app/gateway/internal/core"
 	"ItsBagelBot/app/gateway/internal/provider"
 	gatewayrpc "ItsBagelBot/internal/domain/rpc/gateway"
+	"ItsBagelBot/pkg/ratelimit"
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -71,21 +72,38 @@ type Config struct {
 	RateLimit float64
 }
 
-// Provider implements provider.Provider for the Govee Developer API.
-type Provider struct {
-	http  *core.HTTPClient
-	cache *core.Cache
-	keys  provider.GoveeKeyResolver
-	log   *zap.Logger
+// providerName is the subject token this provider answers under.
+const providerName = "govee"
 
-	deps      provider.Deps
-	rateLimit float64
+// api holds the provider's runtime pieces; the declared endpoints capture it.
+// Both endpoints stay bespoke handlers: they resolve the broadcaster's key
+// before any cache or upstream work, which the shared byte-flow skeleton
+// deliberately does not model (a cached reply must never bypass the key
+// checks, and control caches nothing at all).
+type api struct {
+	http    *core.HTTPClient
+	cache   *core.Cache
+	keys    provider.GoveeKeyResolver
+	log     *zap.Logger
+	limiter *ratelimit.Limiter
+
+	// buckets is the per-broadcaster budget template: the derived specs are
+	// computed once here and re-keyed per caller (see enforceRate).
+	buckets core.Buckets
 }
 
 // New builds the govee provider. d.GoveeKeys must be non-nil (providers.All
 // skips the provider otherwise, since with no key resolver it can authenticate
 // nothing).
-func New(cfg Config, d provider.Deps) *Provider {
+func New(cfg Config, d provider.Deps) provider.Provider {
+	p := newAPI(cfg, d)
+	b := provider.NewProvider(providerName, d)
+	b.Endpoint("devices").Timeout(devicesTimeout).Handle(p.devices)
+	b.Endpoint("control").Timeout(controlTimeout).Handle(p.control)
+	return b.Build()
+}
+
+func newAPI(cfg Config, d provider.Deps) *api {
 	base := strings.TrimSuffix(cfg.BaseURL, "/")
 	if base == "" {
 		base = "https://openapi.api.govee.com"
@@ -93,35 +111,21 @@ func New(cfg Config, d provider.Deps) *Provider {
 	if cfg.RateLimit <= 0 {
 		cfg.RateLimit = defaultRateLimit
 	}
-	log := d.Log
-	if log == nil {
-		log = zap.NewNop()
-	}
-	return &Provider{
-		// No baked auth header: the key rides per request (see controlHeaders).
-		http:  core.NewHTTPClient(base, nil, httpTimeout),
-		cache: d.Cache,
-		keys:  d.GoveeKeys,
-		log:   log,
-
-		deps:      d,
-		rateLimit: cfg.RateLimit,
-	}
-}
-
-func (p *Provider) Name() string { return "govee" }
-
-func (p *Provider) Endpoints() []provider.Endpoint {
-	return []provider.Endpoint{
-		{Name: "devices", Timeout: devicesTimeout, Handle: p.devices},
-		{Name: "control", Timeout: controlTimeout, Handle: p.control},
+	return &api{
+		// No baked auth header: the key rides per request (see authHeader).
+		http:    core.NewHTTPClient(base, nil, httpTimeout),
+		cache:   d.Cache,
+		keys:    d.GoveeKeys,
+		log:     d.Logger(),
+		limiter: d.Limiter,
+		buckets: core.NewBuckets("ratelimit:gateway:govee", cfg.RateLimit, rateWindowSeconds),
 	}
 }
 
 // resolveKey pulls the broadcaster's decrypted key. An empty key (none on file)
 // is not an error here: it is a friendly "not set up" the handlers map to a
 // reply-level error.
-func (p *Provider) resolveKey(ctx context.Context, broadcasterID string) (string, error) {
+func (p *api) resolveKey(ctx context.Context, broadcasterID string) (string, error) {
 	if strings.TrimSpace(broadcasterID) == "" {
 		return "", nil
 	}
@@ -145,7 +149,7 @@ type deviceListResponse struct {
 	} `json:"data"`
 }
 
-func (p *Provider) devices(ctx context.Context, req gatewayrpc.Request) any {
+func (p *api) devices(ctx context.Context, req gatewayrpc.Request) any {
 	broadcaster := strings.TrimSpace(req.ChannelID)
 	if broadcaster == "" {
 		return gatewayrpc.GoveeDevicesReply{Error: "missing channel"}
@@ -159,7 +163,7 @@ func (p *Provider) devices(ctx context.Context, req gatewayrpc.Request) any {
 		return gatewayrpc.GoveeDevicesReply{Error: "no Govee API key on file"}
 	}
 
-	cacheKey := core.Key(p.Name(), "devices", broadcaster)
+	cacheKey := core.Key(providerName, "devices", broadcaster)
 	b, err := core.CachedBytes(ctx, p.cache, cacheKey, func(ctx context.Context) ([]byte, time.Duration, error) {
 		return core.BuildReply(ctx, devicesTTL, negativeTTL,
 			func(ctx context.Context) (any, error) {
@@ -232,7 +236,7 @@ type controlResponse struct {
 	Message string `json:"message"`
 }
 
-func (p *Provider) control(ctx context.Context, req gatewayrpc.Request) any {
+func (p *api) control(ctx context.Context, req gatewayrpc.Request) any {
 	if msg := validateControlInput(req); msg != "" {
 		return gatewayrpc.GoveeControlReply{Error: msg}
 	}
@@ -280,7 +284,7 @@ func validColorRGB(rgb int) bool {
 
 // controlKey resolves the broadcaster's key, returning ("", msg) with a
 // chat-safe reason when it cannot be used.
-func (p *Provider) controlKey(ctx context.Context, broadcaster string) (key, msg string) {
+func (p *api) controlKey(ctx context.Context, broadcaster string) (key, msg string) {
 	key, err := p.resolveKey(ctx, broadcaster)
 	if err != nil {
 		p.log.Warn("govee key resolve failed", zap.String("broadcaster", broadcaster), zap.Error(err))
@@ -293,10 +297,10 @@ func (p *Provider) controlKey(ctx context.Context, broadcaster string) (key, msg
 }
 
 // enforceRate spends one action from the broadcaster's own key budget. One
-// redemption is one action even though control costs two upstream calls.
-func (p *Provider) enforceRate(ctx context.Context, broadcaster string) error {
-	buckets := core.NewBuckets("ratelimit:gateway:govee:"+broadcaster, p.rateLimit, rateWindowSeconds)
-	return buckets.Enforce(ctx, p.deps.Limiter, true)
+// redemption is one action even though control costs two upstream calls. The
+// bucket specs come pre-derived from the template; only the key is per caller.
+func (p *api) enforceRate(ctx context.Context, broadcaster string) error {
+	return p.buckets.WithKey("ratelimit:gateway:govee:"+broadcaster).Enforce(ctx, p.limiter, true)
 }
 
 // controlStep is one capability set in a control sequence.

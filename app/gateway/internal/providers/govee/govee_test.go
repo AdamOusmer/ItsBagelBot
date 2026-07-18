@@ -54,7 +54,7 @@ type fakeKeys struct {
 
 func (f fakeKeys) Key(context.Context, string) (string, error) { return f.key, f.err }
 
-func newTestProvider(t *testing.T, keys provider.GoveeKeyResolver, handler http.Handler) *Provider {
+func newTestProvider(t *testing.T, keys provider.GoveeKeyResolver, handler http.Handler) provider.Provider {
 	t.Helper()
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)
@@ -62,7 +62,7 @@ func newTestProvider(t *testing.T, keys provider.GoveeKeyResolver, handler http.
 		provider.Deps{Cache: core.NewCache(newMemStore()), Log: zap.NewNop(), GoveeKeys: keys})
 }
 
-func endpoint(t *testing.T, p *Provider, name string) func(context.Context, gatewayrpc.Request) any {
+func endpoint(t *testing.T, p provider.Provider, name string) func(context.Context, gatewayrpc.Request) any {
 	t.Helper()
 	for _, ep := range p.Endpoints() {
 		if ep.Name == name {
