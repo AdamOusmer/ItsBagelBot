@@ -15,7 +15,41 @@ const (
 	messagingOperationAttribute   = "messaging.operation"
 	messagingDestinationAttribute = "messaging.destination"
 	resultAttribute               = "result"
+	rpcDestinationPrefix          = "bagel.rpc."
+	ingressDestinationPrefix      = "twitch.ingress.event."
+	outgressDestinationPrefix     = "twitch.outgress."
+	cacheDestinationPrefix        = "bagel.cache.invalidate"
 )
+
+var rpcDestinations = map[string]struct{}{
+	"admin": {}, "broadcaster": {}, "commands": {}, "dashboard": {},
+	"delegation": {}, "gateway": {}, "health": {}, "ingress": {},
+	"internal": {}, "loyalty": {}, "modules": {}, "notifications": {},
+	"outgress": {}, "projector": {}, "transactions": {}, "users": {},
+}
+
+type destinationFamily struct {
+	fallback string
+	allowed  map[string]struct{}
+}
+
+var ingressDestinations = destinationFamily{
+	fallback: ingressDestinationPrefix + "other",
+	allowed: map[string]struct{}{
+		ingressDestinationPrefix + "premium":  {},
+		ingressDestinationPrefix + "standard": {},
+		ingressDestinationPrefix + "stream":   {},
+	},
+}
+
+var outgressDestinations = destinationFamily{
+	fallback: outgressDestinationPrefix + "other",
+	allowed: map[string]struct{}{
+		outgressDestinationPrefix + "premium":  {},
+		outgressDestinationPrefix + "standard": {},
+		outgressDestinationPrefix + "system":   {},
+	},
+}
 
 // startMessagingSegment creates a fixed-name span and puts the configured
 // destination in an attribute. Keeping subjects out of span names prevents an
@@ -90,35 +124,32 @@ func addMessagingTransactionAttributes(txn *newrelic.Transaction, operation, des
 // keeping them out of APM facets prevents IDs or tenant tokens from creating
 // unbounded cardinality.
 func normalizedDestination(subject string) string {
-	parts := strings.Split(subject, ".")
-	if len(parts) >= 3 && parts[0] == "bagel" && parts[1] == "rpc" {
-		switch parts[2] {
-		case "admin", "broadcaster", "commands", "dashboard", "delegation", "gateway",
-			"health", "ingress", "internal", "loyalty", "modules", "notifications",
-			"outgress", "projector", "transactions", "users":
-			return "bagel.rpc." + parts[2]
-		default:
-			return "bagel.rpc.other"
-		}
+	switch {
+	case strings.HasPrefix(subject, rpcDestinationPrefix):
+		return normalizedRPCDestination(subject)
+	case strings.HasPrefix(subject, ingressDestinationPrefix):
+		return ingressDestinations.normalize(subject)
+	case strings.HasPrefix(subject, outgressDestinationPrefix):
+		return outgressDestinations.normalize(subject)
+	case strings.HasPrefix(subject, cacheDestinationPrefix):
+		return cacheDestinationPrefix
+	default:
+		return "other"
 	}
-	if len(parts) == 4 && strings.Join(parts[:3], ".") == "twitch.ingress.event" {
-		switch parts[3] {
-		case "premium", "standard", "stream":
-			return subject
-		default:
-			return "twitch.ingress.event.other"
-		}
+}
+
+func normalizedRPCDestination(subject string) string {
+	remainder := strings.TrimPrefix(subject, rpcDestinationPrefix)
+	service, _, _ := strings.Cut(remainder, ".")
+	if _, ok := rpcDestinations[service]; ok {
+		return rpcDestinationPrefix + service
 	}
-	if len(parts) == 3 && parts[0] == "twitch" && parts[1] == "outgress" {
-		switch parts[2] {
-		case "premium", "standard", "system":
-			return subject
-		default:
-			return "twitch.outgress.other"
-		}
+	return rpcDestinationPrefix + "other"
+}
+
+func (family destinationFamily) normalize(subject string) string {
+	if _, ok := family.allowed[subject]; ok {
+		return subject
 	}
-	if strings.HasPrefix(subject, "bagel.cache.invalidate") {
-		return "bagel.cache.invalidate"
-	}
-	return "other"
+	return family.fallback
 }

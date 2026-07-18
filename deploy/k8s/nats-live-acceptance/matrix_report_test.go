@@ -47,7 +47,10 @@ func TestIsolatedR3RunnerCapturesBrokerAndRouteDiagnostics(t *testing.T) {
 
 func TestR3MatrixReportQualifiesOnlyTheFullOperatingGate(t *testing.T) {
 	dir := t.TempDir()
-	qualified := matrixFixture(90_000, 89_500, 1_800_000, 1.9, 74, true)
+	qualified := matrixFixture(matrixRun{
+		target: 90_000, acknowledged: 89_500, durationMS: 1_800_000,
+		p99: 1.9, cpu: 74, passed: true,
+	})
 	qualifiedPath := filepath.Join(dir, "summary.json")
 	writeJSON(t, qualifiedPath, qualified)
 
@@ -62,7 +65,10 @@ func TestR3MatrixReportQualifiesOnlyTheFullOperatingGate(t *testing.T) {
 	require.True(t, report.Qualified)
 	require.Len(t, report.QualifiedRuns, 1)
 
-	short := matrixFixture(90_000, 89_500, 1_799_999, 1.9, 74, true)
+	short := matrixFixture(matrixRun{
+		target: 90_000, acknowledged: 89_500, durationMS: 1_799_999,
+		p99: 1.9, cpu: 74, passed: true,
+	})
 	shortPath := filepath.Join(dir, "short.json")
 	writeJSON(t, shortPath, short)
 	cmd = exec.Command("bash", "r3-matrix-report.sh", shortPath)
@@ -74,7 +80,10 @@ func TestR3MatrixReportQualifiesOnlyTheFullOperatingGate(t *testing.T) {
 	output, err = cmd.CombinedOutput()
 	require.NoError(t, err, string(output))
 
-	tooSlow := matrixFixture(90_000, 89_500, 1_800_000, 2.01, 74, true)
+	tooSlow := matrixFixture(matrixRun{
+		target: 90_000, acknowledged: 89_500, durationMS: 1_800_000,
+		p99: 2.01, cpu: 74, passed: true,
+	})
 	tooSlowPath := filepath.Join(dir, "too-slow.json")
 	writeJSON(t, tooSlowPath, tooSlow)
 	cmd = exec.Command("bash", "r3-matrix-report.sh", tooSlowPath)
@@ -83,20 +92,29 @@ func TestR3MatrixReportQualifiesOnlyTheFullOperatingGate(t *testing.T) {
 	require.Contains(t, string(output), "not yet qualified")
 }
 
-func matrixFixture(target int, acknowledged float64, durationMS int, p99, cpu float64, passed bool) map[string]any {
+type matrixRun struct {
+	target       int
+	acknowledged float64
+	durationMS   int
+	p99          float64
+	cpu          float64
+	passed       bool
+}
+
+func matrixFixture(run matrixRun) map[string]any {
 	return map[string]any{
 		"stream_replicas":               3,
 		"publish_target":                "local",
 		"publish_mode":                  "async",
-		"target_messages_per_second":    target,
-		"aggregate_messages_per_second": acknowledged,
-		"conservative_duration_ms":      durationMS,
+		"target_messages_per_second":    run.target,
+		"aggregate_messages_per_second": run.acknowledged,
+		"conservative_duration_ms":      run.durationMS,
 		"worst_node_puback_p50_ms":      1.0,
 		"worst_node_puback_p95_ms":      4.0,
-		"worst_node_puback_p99_ms":      p99,
+		"worst_node_puback_p99_ms":      run.p99,
 		"puback_max_ms":                 10.0,
 		"broker_metrics": map[string]any{
-			"peak_cpu_limit_utilization_pct": cpu,
+			"peak_cpu_limit_utilization_pct": run.cpu,
 			"peak_memory_bytes":              1_000_000,
 			"peak_route_pending_bytes":       0,
 			"peak_follower_lag":              0,
@@ -104,7 +122,7 @@ func matrixFixture(target int, acknowledged float64, durationMS int, p99, cpu fl
 		"errors":     0,
 		"timeouts":   0,
 		"reconnects": 0,
-		"passed":     passed,
+		"passed":     run.passed,
 	}
 }
 

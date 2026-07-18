@@ -49,6 +49,12 @@ type Message struct {
 
 type messageState uint8
 
+type messageData struct {
+	id       string
+	payload  []byte
+	metadata Metadata
+}
+
 const (
 	messagePending messageState = iota
 	messageAcked
@@ -57,12 +63,12 @@ const (
 
 // NewMessage constructs a delivery with independent acknowledgement state.
 func NewMessage(id string, payload []byte) *Message {
-	return newMessage(id, payload, make(Metadata))
+	return newMessage(messageData{id: id, payload: payload, metadata: make(Metadata)})
 }
 
-func newMessage(id string, payload []byte, metadata Metadata) *Message {
+func newMessage(data messageData) *Message {
 	return &Message{
-		UUID: id, Metadata: metadata, Payload: payload,
+		UUID: data.id, Metadata: data.metadata, Payload: data.payload,
 		ack: make(chan struct{}), nack: make(chan struct{}), receivedAt: time.Now(),
 	}
 }

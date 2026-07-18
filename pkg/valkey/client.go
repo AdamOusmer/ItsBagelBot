@@ -127,9 +127,9 @@ func (c *Client) Do(ctx context.Context, cmd valkey_go.Completed) valkey_go.Valk
 			client = c.local
 		}
 	}
-	return traceValkey(ctx, operation, func() valkey_go.ValkeyResult {
+	return traceValkeyCall(ctx, operation, func() valkey_go.ValkeyResult {
 		return client.Do(ctx, cmd)
-	})
+	}, classifyValkeyResult)
 }
 
 // DoMulti sends a batch to the local instance only when every command is
@@ -143,34 +143,32 @@ func (c *Client) DoMulti(ctx context.Context, multi ...valkey_go.Completed) []va
 			client = c.local
 		}
 	}
-	return traceValkeyMulti(ctx, operation, func() []valkey_go.ValkeyResult {
+	return traceValkeyCall(ctx, operation, func() []valkey_go.ValkeyResult {
 		return client.DoMulti(ctx, multi...)
-	})
+	}, classifyValkeyResults)
 }
 
 // Valkey spans are emitted only for transactions selected by New Relic's own
 // sampler. The unsampled command path remains one context lookup and a branch,
 // while sampled traces get fixed-name read/write dependency attribution without
 // exposing keys or commands as high-cardinality facets.
-func traceValkey(ctx context.Context, operation string, do func() valkey_go.ValkeyResult) valkey_go.ValkeyResult {
+func traceValkeyCall[T any](ctx context.Context, operation string, do func() T, classify func(T) string) T {
 	txn := newrelic.FromContext(ctx)
 	if txn == nil || !txn.IsSampled() {
 		return do()
 	}
 	segment := txn.StartSegment(operation)
 	result := do()
-	segment.AddAttribute("result", valkeyResult(result.Error()))
+	segment.AddAttribute("result", classify(result))
 	segment.End()
 	return result
 }
 
-func traceValkeyMulti(ctx context.Context, operation string, do func() []valkey_go.ValkeyResult) []valkey_go.ValkeyResult {
-	txn := newrelic.FromContext(ctx)
-	if txn == nil || !txn.IsSampled() {
-		return do()
-	}
-	segment := txn.StartSegment(operation)
-	results := do()
+func classifyValkeyResult(result valkey_go.ValkeyResult) string {
+	return valkeyResult(result.Error())
+}
+
+func classifyValkeyResults(results []valkey_go.ValkeyResult) string {
 	result := "ok"
 	for i := range results {
 		if current := valkeyResult(results[i].Error()); current == "error" {
@@ -180,9 +178,7 @@ func traceValkeyMulti(ctx context.Context, operation string, do func() []valkey_
 			result = current
 		}
 	}
-	segment.AddAttribute("result", result)
-	segment.End()
-	return results
+	return result
 }
 
 func valkeyResult(err error) string {

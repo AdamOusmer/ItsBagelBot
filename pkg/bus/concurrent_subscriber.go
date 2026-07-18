@@ -234,7 +234,11 @@ func messageFromNATS(wire *nats.Msg) (*Message, error) {
 	if err != nil {
 		return nil, err
 	}
-	return newMessage(messageIdentity(wire), wire.Data, metadata), nil
+	return newMessage(messageData{
+		id:       messageIdentity(wire),
+		payload:  wire.Data,
+		metadata: metadata,
+	}), nil
 }
 
 func fleetMetadata(headers nats.Header) (Metadata, error) {
