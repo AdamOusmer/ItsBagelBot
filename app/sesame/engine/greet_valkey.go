@@ -17,41 +17,34 @@ const greetKeyPrefix = "bagel:greeted:"
 // the first-message check atomic: a new member returns 1, an existing one 0.
 type ValkeyGreetStore struct {
 	client valkey.Client
-	ttl    time.Duration // safety expiry so an abandoned set is reclaimed
-	log    *zap.Logger
+	ttlArg string // safety expiry so an abandoned set is reclaimed
 }
+
+// SADD and its safety expiry execute atomically in the same server call. This
+// preserves the one-round-trip response path while avoiding one goroutine per
+// newly seen chatter and the race where a process dies before EXPIRE lands.
+var firstGreetScript = valkey.NewLuaScript(`
+local added = redis.call('SADD', KEYS[1], ARGV[1])
+if added == 1 then redis.call('EXPIRE', KEYS[1], ARGV[2]) end
+return added`)
 
 func NewValkeyGreetStore(client valkey.Client, ttl time.Duration, log *zap.Logger) *ValkeyGreetStore {
 	if ttl <= 0 {
 		ttl = 12 * time.Hour
 	}
-	if log == nil {
-		log = zap.NewNop()
-	}
-	return &ValkeyGreetStore{client: client, ttl: ttl, log: log}
+	_ = log // retained in the constructor contract for stable dependency wiring
+	return &ValkeyGreetStore{client: client, ttlArg: strconv.FormatInt(int64(ttl.Seconds()), 10)}
 }
 
 func greetKey(id uint64) string { return greetKeyPrefix + strconv.FormatUint(id, 10) }
 
 func (s *ValkeyGreetStore) FirstGreet(ctx context.Context, broadcasterID uint64, chatterID string) (bool, error) {
 	key := greetKey(broadcasterID)
-	added, err := s.client.Do(ctx, s.client.B().Sadd().Key(key).Member(chatterID).Build()).AsInt64()
+	added, err := firstGreetScript.Exec(ctx, s.client, []string{key}, []string{
+		chatterID, s.ttlArg,
+	}).AsInt64()
 	if err != nil {
 		return false, err
-	}
-	if added > 0 {
-		// First greet this session: (re)arm the safety expiry. Fire-and-forget so
-		// the EXPIRE round-trip never lands on the response path of the chat message
-		// that won the SADD (the single Valkey master is transatlantic). The SADD
-		// already decided the greet; the TTL is only a janitorial backstop.
-		seconds := int64(s.ttl.Seconds())
-		go func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			if err := s.client.Do(ctx, s.client.B().Expire().Key(key).Seconds(seconds).Build()).Error(); err != nil {
-				s.log.Warn("greet: failed to re-arm greeted-set expiry", zap.String("key", key), zap.Error(err))
-			}
-		}()
 	}
 	return added > 0, nil
 }

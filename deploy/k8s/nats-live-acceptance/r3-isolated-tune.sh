@@ -46,6 +46,9 @@ preferred_node=${R3_ISOLATED_PREFERRED_NODE:-node3}
 max_msgs_per_subject=${R3_ISOLATED_MAX_MSGS_PER_SUBJECT:-400000}
 compression=${R3_ISOLATED_COMPRESSION:-s2_fast}
 puback_p99=${R3_ISOLATED_PUBACK_P99_MAX:-5ms}
+broker_cpu_max_pct=${R3_ISOLATED_BROKER_CPU_MAX_PCT:-75}
+broker_cpu_limit_cores=${R3_ISOLATED_BROKER_CPU_LIMIT_CORES:-4}
+broker_poll_seconds=${R3_ISOLATED_BROKER_POLL_SECONDS:-5}
 topology_grace=${R3_ISOLATED_TOPOLOGY_GRACE:-5s}
 run_id=$(date -u +%Y%m%d%H%M%S)-$(printf '%05d' "$RANDOM")
 lower_run_id=$(printf '%s' "$run_id" | tr '[:upper:]' '[:lower:]')
@@ -70,8 +73,11 @@ nodes=(node2 node3 worker1)
 publishers=()
 publisher_pids=()
 topology_pid=
+broker_monitor_pid=
 cleaned=false
 production_baseline="$results_dir/production-baseline.json"
+broker_metrics_file="$results_dir/broker-metrics.jsonl"
+broker_metrics_stop="$results_dir/broker-metrics.stop"
 
 positive_integer() { [[ $1 =~ ^[1-9][0-9]*$ ]]; }
 production_deployments_healthy() {
@@ -88,7 +94,8 @@ production_valkey_healthy() {
 		(.items | length) == 4 and ([.items[] | (.status.containerStatuses | all(.ready == true))] | all)
 	' >/dev/null
 }
-for value in "$seconds" "$fleet_rate" "$min_rate" "$batch" "$outstanding" "$publisher_connections" "$route_pool_size"; do
+for value in "$seconds" "$fleet_rate" "$min_rate" "$batch" "$outstanding" "$publisher_connections" "$route_pool_size" \
+	"$broker_cpu_max_pct" "$broker_cpu_limit_cores" "$broker_poll_seconds"; do
 	positive_integer "$value" || { echo "rates, duration, batch, and outstanding values must be positive integers" >&2; exit 1; }
 done
 case $stream_replicas in
@@ -151,10 +158,10 @@ cleanup() {
 	set +u
 	if [[ $cleaned == false ]]; then
 		cleaned=true
-		for pid in "${publisher_pids[@]}" ${topology_pid:-}; do
+		for pid in "${publisher_pids[@]}" ${topology_pid:-} ${broker_monitor_pid:-}; do
 			[[ -n $pid ]] && kill "$pid" >/dev/null 2>&1 || true
 		done
-		for pid in "${publisher_pids[@]}" ${topology_pid:-}; do
+		for pid in "${publisher_pids[@]}" ${topology_pid:-} ${broker_monitor_pid:-}; do
 			[[ -n $pid ]] && wait "$pid" >/dev/null 2>&1 || true
 		done
 		kubectl -n "$namespace" delete pod -l "itsbagelbot.dev/r3-tune-run=$run_id" --ignore-not-found --wait=false >/dev/null 2>&1 || true
@@ -410,6 +417,98 @@ if ((${#placements[@]} != 3)) || [[ $(printf '%s\n' "${placements[@]}" | cut -f2
 fi
 printf '%s\n' "${placements[@]}" | tee "$results_dir/placements.tsv"
 
+broker_metrics_snapshot() {
+	local observed_ms broker varz routez jsz sample
+	local brokers_json='[]'
+	observed_ms=$(($(date +%s) * 1000))
+	while IFS= read -r broker; do
+		varz=$(kubectl --request-timeout=5s get --raw \
+			"/api/v1/namespaces/${namespace}/pods/${broker}:8222/proxy/varz") || return 1
+		routez=$(kubectl --request-timeout=5s get --raw \
+			"/api/v1/namespaces/${namespace}/pods/${broker}:8222/proxy/routez?subs=0") || return 1
+		jsz=$(kubectl --request-timeout=5s get --raw \
+			"/api/v1/namespaces/${namespace}/pods/${broker}:8222/proxy/jsz?streams=1") || return 1
+		sample=$(jq -nce --arg broker "$broker" --arg stream "$stream" \
+			--argjson cpu_limit_cores "$broker_cpu_limit_cores" \
+			--argjson varz "$varz" --argjson routez "$routez" --argjson jsz "$jsz" '{
+				name:$broker,
+				cpu_pct:($varz.cpu // 0),
+				cpu_cores:(($varz.cpu // 0) / 100),
+				cpu_limit_utilization_pct:(($varz.cpu // 0) / $cpu_limit_cores),
+				memory_bytes:($varz.mem // 0),
+				connections:($varz.connections // 0),
+				slow_consumers:($varz.slow_consumers // 0),
+				routes:{
+					count:(($routez.routes // []) | length),
+					pending_bytes:([($routez.routes // [])[].pending_size] | add // 0),
+					max_pending_bytes:([($routez.routes // [])[].pending_size] | max // 0),
+					in_msgs:([($routez.routes // [])[].in_msgs] | add // 0),
+					out_msgs:([($routez.routes // [])[].out_msgs] | add // 0),
+					in_bytes:([($routez.routes // [])[].in_bytes] | add // 0),
+					out_bytes:([($routez.routes // [])[].out_bytes] | add // 0)
+				},
+				jetstream:{
+					memory_bytes:($jsz.memory // 0),
+					store_bytes:($jsz.store // 0),
+					stream:([
+						$jsz.account_details[]?.stream_detail[]?
+						| select(.name == $stream)
+						| {
+							leader:(.cluster.leader // ""),
+							messages:(.state.messages // 0),
+							bytes:(.state.bytes // 0),
+							max_follower_lag:([.cluster.replicas[]?.lag] | max // 0),
+							all_followers_current:([.cluster.replicas[]?.current] | all)
+						}
+					] | first // null)
+				}
+			}') || return 1
+		brokers_json=$(jq -c --argjson sample "$sample" '. + [$sample]' <<<"$brokers_json") || return 1
+	done < <(printf '%s\n' "${placements[@]}" | cut -f1)
+	jq -nc --argjson observed_unix_ms "$observed_ms" --argjson brokers "$brokers_json" \
+		'{observed_unix_ms:$observed_unix_ms,brokers:$brokers}'
+}
+
+monitor_broker_metrics() {
+	local i
+	while [[ ! -e $broker_metrics_stop ]]; do
+		broker_metrics_snapshot >>"$broker_metrics_file" || return 1
+		for ((i = 0; i < broker_poll_seconds; i++)); do
+			[[ -e $broker_metrics_stop ]] && return 0
+			sleep 1
+		done
+	done
+}
+
+start_broker_monitor() {
+	local deadline=$((SECONDS + 30))
+	rm -f "$broker_metrics_stop"
+	: >"$broker_metrics_file"
+	monitor_broker_metrics &
+	broker_monitor_pid=$!
+	while [[ ! -s $broker_metrics_file ]]; do
+		if ! kill -0 "$broker_monitor_pid" 2>/dev/null; then
+			echo "isolated broker diagnostics exited before the first sample" >&2
+			return 1
+		fi
+		if ((SECONDS >= deadline)); then
+			echo "isolated broker diagnostics did not produce a sample within 30s" >&2
+			return 1
+		fi
+		sleep 0.2
+	done
+}
+
+stop_broker_monitor() {
+	if [[ -z ${broker_monitor_pid:-} ]]; then return 0; fi
+	: >"$broker_metrics_stop"
+	if ! wait "$broker_monitor_pid"; then
+		broker_monitor_pid=
+		return 1
+	fi
+	broker_monitor_pid=
+}
+
 GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o "$binary" ./deploy/k8s/nats-live-acceptance
 phase=publisher-creation
 for node in "${nodes[@]}"; do
@@ -464,6 +563,7 @@ else
 fi
 
 phase=load
+start_broker_monitor
 for i in "${!nodes[@]}"; do
 	node=${nodes[$i]}
 	pod=${publishers[$i]}
@@ -525,6 +625,7 @@ for pid in "${publisher_pids[@]}"; do wait "$pid" || status=1; done
 if [[ -n ${topology_pid:-} ]]; then
 	wait "$topology_pid" || status=1
 fi
+stop_broker_monitor || status=1
 publisher_pids=()
 topology_pid=
 
@@ -537,6 +638,7 @@ if grep -Eina 'IPQ len limit|slow consumer|write deadline( exceeded)?|no quorum|
 fi
 
 jq -s --slurpfile topology "$results_dir/topology.json" \
+	--slurpfile metrics "$broker_metrics_file" \
 	--arg compression "$compression" --arg publishTarget "$publish_target" \
 	--arg publishMode "$publish_mode" \
 	--argjson publishers "$publisher_connections" \
@@ -544,11 +646,25 @@ jq -s --slurpfile topology "$results_dir/topology.json" \
 	--argjson routePoolSize "$route_pool_size" \
 	--arg preferredNode "$preferred_node" \
 	--argjson maxMsgsPerSubject "$max_msgs_per_subject" \
-	--argjson target "$fleet_rate" --argjson minimum "$min_rate" '
+	--argjson target "$fleet_rate" --argjson minimum "$min_rate" \
+	--argjson brokerCpuMaxPct "$broker_cpu_max_pct" '
 	[.[].results[0]] as $r |
 	($r|map(.started_unix_ms)|min) as $start |
 	($r|map(.finished_unix_ms)|max) as $finish |
 	($r|map(.acknowledged)|add) as $acked |
+	([$metrics[] |
+		select(.observed_unix_ms >= $start and .observed_unix_ms <= $finish) |
+		.brokers[]]) as $brokerSamples |
+	($brokerSamples | group_by(.name) | map({
+		name:.[0].name,
+		samples:length,
+		max_cpu_cores:(map(.cpu_cores) | max),
+		max_cpu_limit_utilization_pct:(map(.cpu_limit_utilization_pct) | max),
+		max_memory_bytes:(map(.memory_bytes) | max),
+		max_route_pending_bytes:(map(.routes.max_pending_bytes) | max),
+		max_total_route_pending_bytes:(map(.routes.pending_bytes) | max),
+		max_follower_lag:(map(.jetstream.stream.max_follower_lag // 0) | max)
+	})) as $brokerMetrics |
 	{
 	  route_compression:$compression,
 	  publish_target:$publishTarget,
@@ -570,9 +686,25 @@ jq -s --slurpfile topology "$results_dir/topology.json" \
 	  puback_max_ms:($r|map(.puback_max_ms)|max),
 	  errors:($r|map(.errors)|add),
 	  timeouts:($r|map(.timeouts)|add),
+	  broker_metrics:{
+		gate_cpu_pct:$brokerCpuMaxPct,
+		sample_count:($brokerSamples | length),
+		peak_cpu_cores:([$brokerSamples[].cpu_cores] | max // null),
+		peak_cpu_limit_utilization_pct:([$brokerSamples[].cpu_limit_utilization_pct] | max // null),
+		peak_memory_bytes:([$brokerSamples[].memory_bytes] | max // null),
+		peak_route_pending_bytes:([$brokerSamples[].routes.max_pending_bytes] | max // null),
+		peak_follower_lag:([$brokerSamples[].jetstream.stream.max_follower_lag // 0] | max // null),
+		brokers:$brokerMetrics
+	  },
 	  topology:$topology[0].topology,
 	  nodes:$r,
-	  passed:(($r|all(.passed == true)) and $topology[0].topology.passed == true and ($acked/(($finish-$start)/1000)) >= $minimum)
+	  passed:(
+		($r|all(.passed == true)) and
+		$topology[0].topology.passed == true and
+		($acked/(($finish-$start)/1000)) >= $minimum and
+		($brokerSamples | length) >= 3 and
+		([$brokerSamples[].cpu_limit_utilization_pct] | max) <= $brokerCpuMaxPct
+	  )
 	}' "$results_dir"/node2.json "$results_dir"/node3.json "$results_dir"/worker1.json >"$results_dir/summary.json" || status=1
 
 kubectl -n "$namespace" exec "$control" -- /tmp/nats-live-acceptance \

@@ -51,6 +51,32 @@ const scopeCacheTTL = 5 * time.Minute
 // TTL without holding the generic cache.DefaultCapacity ten thousand at rest.
 const scopeCacheCapacity int64 = 4096
 
+// These scripts keep a warm counter bump to one master round trip. A missing
+// key/field returns nil without mutating anything so the caller can obtain the
+// authoritative seed from the loyalty service. The second execution installs
+// that seed only when the key is still cold, then applies this caller's delta.
+// Concurrent seeders are safe: one creates the value and every caller's INCR
+// still lands exactly once.
+var (
+	counterTTLArg     = strconv.FormatInt(int64(counterTTL.Seconds()), 10)
+	bumpChannelScript = valkey.NewLuaScript(`
+if redis.call('EXISTS', KEYS[1]) == 0 then
+  if ARGV[1] == '' then return false end
+  redis.call('SET', KEYS[1], ARGV[1])
+end
+local value = redis.call('INCRBY', KEYS[1], ARGV[2])
+redis.call('EXPIRE', KEYS[1], ARGV[3])
+return value`)
+	bumpEntryScript = valkey.NewLuaScript(`
+if redis.call('HEXISTS', KEYS[1], ARGV[1]) == 0 then
+  if ARGV[2] == '' then return false end
+  redis.call('HSET', KEYS[1], ARGV[1], ARGV[2])
+end
+local value = redis.call('HINCRBY', KEYS[1], ARGV[1], ARGV[3])
+redis.call('EXPIRE', KEYS[1], ARGV[4])
+return value`)
+)
+
 // ValkeyLoyaltyStore is the worker-side loyalty surface: counter bumps/reads
 // with a Valkey live view over the loyalty service, cached balance peeks, and
 // pass-through management verbs. It implements LoyaltyStore.
@@ -177,65 +203,53 @@ func (s *ValkeyLoyaltyStore) CounterBump(ctx context.Context, broadcasterID uint
 	return value, nil
 }
 
-// bumpChannel seeds (SET NX from the service) then INCRs the shared string.
-// The seed race across replicas is benign: one SET NX wins, both INCRs apply.
+// bumpChannel increments and refreshes a warm shared string atomically in one
+// master round trip. Only a cold key pays the loyalty RPC and a second script
+// call to seed it; the seed race across replicas is benign and every delta is
+// still applied exactly once.
 func (s *ValkeyLoyaltyStore) bumpChannel(ctx context.Context, broadcasterID uint64, name string, delta int64) (int64, error) {
 	key := counterChannelKey(broadcasterID, name)
+	deltaArg := strconv.FormatInt(delta, 10)
 
-	exists, err := s.client.Do(ctx, s.client.B().Exists().Key(key).Build()).AsInt64()
-	if err != nil {
+	value, err := bumpChannelScript.Exec(ctx, s.client, []string{key}, []string{"", deltaArg, counterTTLArg}).AsInt64()
+	if err == nil {
+		return value, nil
+	}
+	if !valkey.IsValkeyNil(err) {
 		return 0, err
 	}
-	if exists == 0 {
-		seed := int64(0)
-		if c, found, err := s.rpc.CounterGet(ctx, broadcasterID, name, 0, ""); err == nil && found {
-			seed = c.Value
-		}
-		// NX: a concurrent seeder winning is fine, the value is the same.
-		_ = s.client.Do(ctx, s.client.B().Set().Key(key).Value(strconv.FormatInt(seed, 10)).Nx().ExSeconds(int64(counterTTL.Seconds())).Build()).Error()
-	}
 
-	// One pipelined flush: the increment and its TTL refresh share a round
-	// trip to the master instead of paying two sequential cross-node RTTs.
-	resps := s.client.DoMulti(ctx,
-		s.client.B().Incrby().Key(key).Increment(delta).Build(),
-		s.client.B().Expire().Key(key).Seconds(int64(counterTTL.Seconds())).Build(),
-	)
-	value, err := resps[0].AsInt64()
-	if err != nil {
-		return 0, err
+	seed := int64(0)
+	if c, found, loadErr := s.rpc.CounterGet(ctx, broadcasterID, name, 0, ""); loadErr == nil && found {
+		seed = c.Value
 	}
-	return value, nil
+	return bumpChannelScript.Exec(ctx, s.client, []string{key}, []string{
+		strconv.FormatInt(seed, 10), deltaArg, counterTTLArg,
+	}).AsInt64()
 }
 
-// bumpEntry seeds one entry-scoped hash field (HSETNX from the service) then
-// HINCRBYs it, refreshing the whole hash's TTL.
+// bumpEntry is the hash-field equivalent of bumpChannel: warm increment and
+// TTL refresh are one atomic master call, while a cold field is seeded from
+// the loyalty service before the caller's delta is applied.
 func (s *ValkeyLoyaltyStore) bumpEntry(ctx context.Context, broadcasterID uint64, name, field string, viewerID uint64, command string, delta int64) (int64, error) {
 	key := counterViewerKey(broadcasterID, name)
+	deltaArg := strconv.FormatInt(delta, 10)
 
-	exists, err := s.client.Do(ctx, s.client.B().Hexists().Key(key).Field(field).Build()).AsBool()
-	if err != nil {
+	value, err := bumpEntryScript.Exec(ctx, s.client, []string{key}, []string{field, "", deltaArg, counterTTLArg}).AsInt64()
+	if err == nil {
+		return value, nil
+	}
+	if !valkey.IsValkeyNil(err) {
 		return 0, err
 	}
-	if !exists {
-		seed := int64(0)
-		if c, found, err := s.rpc.CounterGet(ctx, broadcasterID, name, viewerID, command); err == nil && found {
-			seed = c.Value
-		}
-		_ = s.client.Do(ctx, s.client.B().Hsetnx().Key(key).Field(field).Value(strconv.FormatInt(seed, 10)).Build()).Error()
-	}
 
-	// One pipelined flush, matching bumpChannel: increment + hash TTL refresh
-	// in a single master round trip.
-	resps := s.client.DoMulti(ctx,
-		s.client.B().Hincrby().Key(key).Field(field).Increment(delta).Build(),
-		s.client.B().Expire().Key(key).Seconds(int64(counterTTL.Seconds())).Build(),
-	)
-	value, err := resps[0].AsInt64()
-	if err != nil {
-		return 0, err
+	seed := int64(0)
+	if c, found, loadErr := s.rpc.CounterGet(ctx, broadcasterID, name, viewerID, command); loadErr == nil && found {
+		seed = c.Value
 	}
-	return value, nil
+	return bumpEntryScript.Exec(ctx, s.client, []string{key}, []string{
+		field, strconv.FormatInt(seed, 10), deltaArg, counterTTLArg,
+	}).AsInt64()
 }
 
 // CounterPeek reads a counter without bumping it: the live Valkey view when

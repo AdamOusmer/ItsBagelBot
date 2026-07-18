@@ -58,6 +58,39 @@ const feedTodayKey = "personality:feed:global"
 // reply path never waits on an RPC once the view is warm.
 const feedTotalKey = "personality:feed:total"
 
+// A warm feed updates both counters in one atomic master round trip. A cold
+// total returns nil without touching today's count, allowing the caller to
+// synchronously persist this feeding through FeedBump before seeding the live
+// view. The seed script keeps the larger of an already-raced live value and
+// the DB total, so concurrent cold callers never move the view backwards.
+var (
+	personalityTTLArg = strconv.FormatInt(int64(personalityTTL.Seconds()), 10)
+	feedKeys          = []string{feedTotalKey, feedTodayKey}
+	feedWarmArgs      = []string{personalityTTLArg}
+	feedWarmScript    = valkey.NewLuaScript(`
+if redis.call('EXISTS', KEYS[1]) == 0 then return false end
+local total = redis.call('INCR', KEYS[1])
+local today = redis.call('INCR', KEYS[2])
+if today == 1 then redis.call('EXPIRE', KEYS[2], ARGV[1]) end
+return {today, total}`)
+	feedSeedScript = valkey.NewLuaScript(`
+local seed = tonumber(ARGV[1])
+local current = redis.call('GET', KEYS[1])
+if not current then
+  current = seed
+  redis.call('SET', KEYS[1], seed)
+else
+  current = tonumber(current)
+  if current < seed then
+    current = seed
+    redis.call('SET', KEYS[1], seed)
+  end
+end
+local today = redis.call('INCR', KEYS[2])
+if today == 1 then redis.call('EXPIRE', KEYS[2], ARGV[2]) end
+return {today, current}`)
+)
+
 // Feed records one feeding on both counters and returns them: the lifetime
 // total from the valkey live view (DB-seeded, persisted behind the reply) and
 // the valkey today window. An error on either side errors the whole call; the
@@ -66,40 +99,21 @@ func (s *ValkeyPersonality) Feed(ctx context.Context) (FeedCounts, error) {
 	if s.total == nil {
 		return FeedCounts{}, errors.New("personality: no feed total backend")
 	}
-	total, err := s.feedTotal(ctx)
-	if err != nil {
-		return FeedCounts{}, err
-	}
-	today, err := s.feedToday(ctx)
-	if err != nil {
-		return FeedCounts{}, err
-	}
-	return FeedCounts{Today: today, Total: total}, nil
-}
-
-// feedTotal serves the lifetime total from the valkey view. A warm view
-// answers locally and lets the DB bump ride behind the reply; a cold view
-// (INCR landed on a fresh key after a flush or failover) seeds itself from the
-// synchronous RPC bump, which also counts this feeding. Two pods racing a cold
-// key can briefly answer a low number; the seed's SET snaps the view back to
-// the DB total, so drift self-heals at every cold start.
-func (s *ValkeyPersonality) feedTotal(ctx context.Context) (uint64, error) {
-	n, err := s.client.Do(ctx, s.client.B().Incr().Key(feedTotalKey).Build()).AsInt64()
-	if err != nil {
-		return 0, err
-	}
-	if n > 1 {
+	counts, err := decodeFeedCounts(feedWarmScript.Exec(ctx, s.client, feedKeys, feedWarmArgs))
+	if err == nil {
 		s.bumpBehind()
-		return uint64(n), nil
+		return counts, nil
 	}
+	if !valkey.IsValkeyNil(err) {
+		return FeedCounts{}, err
+	}
+
 	dbTotal, err := s.total.FeedBump(ctx)
 	if err != nil {
-		return 0, err
+		return FeedCounts{}, err
 	}
-	if err := s.client.Do(ctx, s.client.B().Set().Key(feedTotalKey).Value(strconv.FormatUint(dbTotal, 10)).Build()).Error(); err != nil {
-		s.log.Warn("personality: feed total seed failed", zap.Error(err))
-	}
-	return dbTotal, nil
+	return decodeFeedCounts(feedSeedScript.Exec(ctx, s.client,
+		feedKeys, []string{strconv.FormatUint(dbTotal, 10), personalityTTLArg}))
 }
 
 // bumpBehind persists one feeding to the modules service off the reply path,
@@ -115,21 +129,26 @@ func (s *ValkeyPersonality) bumpBehind() {
 	}()
 }
 
-// feedToday bumps and returns the today window. The first feed of the window
-// claims the TTL; later feeds leave it in place so the count reads as "today",
-// not a sliding forever-window.
-func (s *ValkeyPersonality) feedToday(ctx context.Context) (uint64, error) {
-	n, err := s.client.Do(ctx, s.client.B().Incr().Key(feedTodayKey).Build()).AsInt64()
+func decodeFeedCounts(result valkey.ValkeyResult) (FeedCounts, error) {
+	values, err := result.ToArray()
 	if err != nil {
-		return 0, err
+		return FeedCounts{}, err
 	}
-	if n == 1 {
-		seconds := int64(personalityTTL.Seconds())
-		if err := s.client.Do(ctx, s.client.B().Expire().Key(feedTodayKey).Seconds(seconds).Build()).Error(); err != nil {
-			s.log.Warn("personality: feed expire failed", zap.Error(err))
-		}
+	if len(values) != 2 {
+		return FeedCounts{}, errors.New("personality: invalid feed script result")
 	}
-	return uint64(n), nil
+	today, err := values[0].AsInt64()
+	if err != nil {
+		return FeedCounts{}, err
+	}
+	total, err := values[1].AsInt64()
+	if err != nil {
+		return FeedCounts{}, err
+	}
+	if today < 0 || total < 0 {
+		return FeedCounts{}, errors.New("personality: negative feed counter")
+	}
+	return FeedCounts{Today: uint64(today), Total: uint64(total)}, nil
 }
 
 // Mood returns the channel's mood for the current window, seeding it with

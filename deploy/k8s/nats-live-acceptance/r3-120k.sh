@@ -17,7 +17,8 @@ R3 shadow plan (no actions performed):
 	  - R3_SLI_ONLY=true measures the three node-local RPC/Valkey lanes without
 	    creating a stream or publisher pod
 	  - gate 120,000 events/s at a 126,000/s offered load for five minutes
-  - soak the 90,000 events/s operating point for fifteen minutes
+  - publish node-locally by default; R3_PUBLISH_TARGET=preferred is comparison-only
+  - soak the 90,000 events/s operating point for thirty minutes
   - delete the owned shadow stream and every temporary pod on exit
 
 Set CONFIRM_R3_SHADOW=R3-120K to run this controlled live-cluster test.
@@ -75,8 +76,13 @@ payload_bytes=$(jq -er '.payload_bytes' "$profile")
 payload_variants=$(jq -er '.payload_variants' "$profile")
 atomic_inflight=$(jq -er '.atomic_inflight_per_connection' "$profile")
 max_p95_ms=${R3_PUBACK_P95_MAX_MS:-$(jq -er '.puback_p95_max | rtrimstr("ms") | tonumber' "$profile")}
-max_p99_ms=${R3_PUBACK_P99_MAX_MS:-$(jq -er '.puback_p99_max | rtrimstr("ms") | tonumber' "$profile")}
+normal_load_eps=$(jq -er '.normal_load_eps' "$profile")
+normal_load_max_p99_ms=${R3_NORMAL_LOAD_PUBACK_P99_MAX_MS:-${R3_PUBACK_P99_MAX_MS:-$(jq -er '.normal_load_puback_p99_max | rtrimstr("ms") | tonumber' "$profile")}}
+loaded_max_p99_ms=${R3_LOADED_PUBACK_P99_MAX_MS:-${R3_PUBACK_P99_MAX_MS:-$(jq -er '.loaded_puback_p99_max | rtrimstr("ms") | tonumber' "$profile")}}
+max_broker_cpu_pct=${R3_BROKER_CPU_MAX_PCT:-$(jq -er '.broker_cpu_max_pct' "$profile")}
+broker_cpu_limit_cores=$(jq -er '.broker_cpu_limit_cores' "$profile")
 max_ack_gap=$(jq -er '.max_ack_gap' "$profile")
+publish_target=${R3_PUBLISH_TARGET:-local}
 
 calibration_messages=${CALIBRATION_MESSAGES:-$(jq -er '.calibration_messages' "$profile")}
 calibration_target_eps=${CALIBRATION_TARGET_EPS:-$(jq -er '.calibration_target_eps' "$profile")}
@@ -127,6 +133,7 @@ health_monitor_stop="$results_dir/production-health.stop"
 health_monitor_ready="$results_dir/production-health.ready"
 health_monitor_pid=
 health_monitor_started=false
+nats_topology=
 sli_monitor_files=()
 sli_monitor_errs=()
 sli_monitor_ready_files=()
@@ -141,6 +148,14 @@ done
 positive_integer() {
 	[[ $1 =~ ^[1-9][0-9]*$ ]]
 }
+
+case $publish_target in
+	local|preferred) ;;
+	*)
+		echo "R3_PUBLISH_TARGET must be local or preferred" >&2
+		exit 1
+		;;
+esac
 
 duration_seconds() {
 	local remaining=$1 total=0 amount unit
@@ -186,7 +201,9 @@ configure_run_lifetime_and_canaries() {
 	for value in "$calibration_seconds" "$ceiling_seconds" "$operating_seconds" \
 		"$meta_cooldown_seconds" "$canary_seconds" "$health_freshness_seconds" "$quick_seconds" \
 		"$fast_sustain_eps" "$fast_sustain_min_eps" "$fast_sustain_seconds" \
-		"$fast_sustain_batch" "$fast_sustain_outstanding"; do
+		"$fast_sustain_batch" "$fast_sustain_outstanding" "$normal_load_eps" \
+		"$normal_load_max_p99_ms" "$loaded_max_p99_ms" "$max_broker_cpu_pct" \
+		"$broker_cpu_limit_cores"; do
 		if ! positive_integer "$value"; then
 			echo "benchmark durations and cooldowns must be positive integer seconds" >&2
 			return 1
@@ -484,28 +501,38 @@ create_pod() {
 }
 
 require_nats_topology() {
-  local topology
-	topology=$(kubectl --request-timeout="$deployment_query_timeout" -n "$namespace" get pods -l app=nats -o json | jq -c '
+	nats_topology=$(kubectl --request-timeout="$deployment_query_timeout" -n "$namespace" get pods -l app=nats -o json | jq -c '
     [.items[] | {
       server:.metadata.name,
       node:.spec.nodeName,
       ready:([.status.containerStatuses[]? | select(.name == "nats") | .ready] | any)
     }]
   ')
-  if [[ $(jq '[.[] | select(.ready)] | length' <<<"$topology") != 3 ]]; then
-    echo "R3 shadow requires exactly the three ready NATS servers in the capacity profile: $topology" >&2
+	if [[ $(jq '[.[] | select(.ready)] | length' <<<"$nats_topology") != 3 ]]; then
+	  echo "R3 shadow requires exactly the three ready NATS servers in the capacity profile: $nats_topology" >&2
     exit 1
   fi
   for node in "${nodes[@]}"; do
-    if [[ $(jq --arg node "$node" '[.[] | select(.node == $node and .ready)] | length' <<<"$topology") != 1 ]]; then
-      echo "expected exactly one ready NATS server on $node: $topology" >&2
+	  if [[ $(jq --arg node "$node" '[.[] | select(.node == $node and .ready)] | length' <<<"$nats_topology") != 1 ]]; then
+	    echo "expected exactly one ready NATS server on $node: $nats_topology" >&2
       exit 1
     fi
   done
-  preferred_server=$(jq -er '.[] | select(.node == "node3") | .server' <<<"$topology")
-  forbidden_server=$(jq -er '.[] | select(.node == "worker1") | .server' <<<"$topology")
-  echo "NATS map: $topology"
+  preferred_server=$(jq -er '.[] | select(.node == "node3") | .server' <<<"$nats_topology")
+  forbidden_server=$(jq -er '.[] | select(.node == "worker1") | .server' <<<"$nats_topology")
+  echo "NATS map: $nats_topology"
   echo "preferred leader on node3: $preferred_server; forbidden leader on worker1: $forbidden_server"
+}
+
+publisher_url_for_node() {
+	local node=$1 server
+	if [[ $publish_target == preferred ]]; then
+		printf '%s\n' "$leader_url"
+		return
+	fi
+	server=$(jq -er --arg node "$node" '.[] | select(.node == $node and .ready) | .server' \
+		<<<"$nats_topology")
+	printf 'tls://%s.nats-headless.%s.svc.cluster.local:4222\n' "$server" "$namespace"
 }
 
 extract_authoritative_stream_topologies() {
@@ -539,7 +566,7 @@ extract_authoritative_stream_topologies() {
 }
 
 cluster_health_snapshot() {
-	local deployments production_pods valkey_pods nats_pods pod varz jsz broker consumers topologies
+	local deployments production_pods valkey_pods nats_pods pod varz routez jsz broker consumers topologies
 	local brokers_json='[]' consumers_json='[]' topologies_json='[]'
 	if ! deployments=$(kubectl --request-timeout="$deployment_query_timeout" -n "$namespace" get deployments -o json); then
 		echo "failed to query production Deployments within $deployment_query_timeout" >&2
@@ -568,13 +595,37 @@ cluster_health_snapshot() {
 			echo "failed to query $pod jsz within $broker_query_timeout" >&2
 			return 1
 		fi
-		if ! broker=$(jq -ce --arg pod "$pod" '{
+		if ! routez=$(kubectl --request-timeout="$broker_query_timeout" get --raw \
+			"/api/v1/namespaces/${namespace}/pods/${pod}:8222/proxy/routez?subs=0"); then
+			echo "failed to query $pod routez within $broker_query_timeout" >&2
+			return 1
+		fi
+		if ! broker=$(jq -nce --arg pod "$pod" --argjson cpu_limit_cores "$broker_cpu_limit_cores" \
+			--argjson varz "$varz" --argjson routez "$routez" '{
 			name:$pod,
-			slow_consumers:(.slow_consumers // 0),
-			meta_pending:(.jetstream.meta.pending // 0),
-			meta_pending_requests:(.jetstream.meta.pending_requests // 0),
-			meta_pending_infos:(.jetstream.meta.pending_infos // 0)
-		}' <<<"$varz"); then
+			cpu_pct:($varz.cpu // 0),
+			cpu_cores:(($varz.cpu // 0) / 100),
+			cpu_limit_utilization_pct:(($varz.cpu // 0) / $cpu_limit_cores),
+			memory_bytes:($varz.mem // 0),
+			connections:($varz.connections // 0),
+			in_msgs:($varz.in_msgs // 0),
+			out_msgs:($varz.out_msgs // 0),
+			in_bytes:($varz.in_bytes // 0),
+			out_bytes:($varz.out_bytes // 0),
+			slow_consumers:($varz.slow_consumers // 0),
+			meta_pending:($varz.jetstream.meta.pending // 0),
+			meta_pending_requests:($varz.jetstream.meta.pending_requests // 0),
+			meta_pending_infos:($varz.jetstream.meta.pending_infos // 0),
+			routes:{
+				count:(($routez.routes // []) | length),
+				pending_bytes:([($routez.routes // [])[].pending_size] | add // 0),
+				max_pending_bytes:([($routez.routes // [])[].pending_size] | max // 0),
+				in_msgs:([($routez.routes // [])[].in_msgs] | add // 0),
+				out_msgs:([($routez.routes // [])[].out_msgs] | add // 0),
+				in_bytes:([($routez.routes // [])[].in_bytes] | add // 0),
+				out_bytes:([($routez.routes // [])[].out_bytes] | add // 0)
+			}
+		}'); then
 			return 1
 		fi
 		if ! consumers=$(jq -ce --arg pod "$pod" '[
@@ -1088,8 +1139,8 @@ check_nats_logs() {
 }
 
 summarize_trial() {
-  local label=$1 target=$2 minimum=$3 expected_seconds=$4 compatible=$5 topology_file=$6
-  shift 6
+  local label=$1 target=$2 minimum=$3 expected_seconds=$4 compatible=$5 topology_file=$6 trial_max_p99_ms=$7
+	shift 7
   local result_files=("$@")
   if ((${#result_files[@]} != ${#nodes[@]})); then
     echo "expected ${#nodes[@]} result files, got ${#result_files[@]}" >&2
@@ -1101,9 +1152,12 @@ summarize_trial() {
     --argjson target "$target" \
     --argjson minimum "$minimum" \
     --argjson expected_ms "$((expected_seconds * 1000))" \
-    --argjson max_p95_ms "$max_p95_ms" \
-    --argjson max_p99_ms "$max_p99_ms" \
-    --argjson compatible "$compatible" '
+		--argjson max_p95_ms "$max_p95_ms" \
+		--argjson max_p99_ms "$trial_max_p99_ms" \
+		--argjson max_broker_cpu_pct "$max_broker_cpu_pct" \
+		--arg publish_target "$publish_target" \
+		--slurpfile health "$health_monitor_file" \
+		--argjson compatible "$compatible" '
       [.[].results[0]] as $r |
       ($r | map(.acknowledged) | add) as $acked |
       ($r | map(.started_unix_ms) | min) as $started |
@@ -1115,8 +1169,23 @@ summarize_trial() {
       ($r | map(.reconnects) | add) as $reconnects |
       ($r | map(.disconnects) | add) as $disconnects |
       ($r | map(.async_errors) | add) as $async_errors |
+	  ([$health[] |
+		select(((.observed_at | fromdateiso8601) * 1000) >= $started and
+		       ((.observed_at | fromdateiso8601) * 1000) <= $finished) |
+		.brokers[]]) as $broker_samples |
+	  ($broker_samples | group_by(.name) | map({
+		name:.[0].name,
+		samples:length,
+		max_cpu_cores:(map(.cpu_cores) | max),
+		max_cpu_limit_utilization_pct:(map(.cpu_limit_utilization_pct) | max),
+		max_memory_bytes:(map(.memory_bytes) | max),
+		max_route_pending_bytes:(map(.routes.max_pending_bytes) | max),
+		max_total_route_pending_bytes:(map(.routes.pending_bytes) | max)
+	  })) as $broker_metrics |
       {
         trial:$label,
+		stream_replicas:3,
+		publish_target:$publish_target,
         mode:$r[0].mode,
         batch_size:($r[0].batch_size // 0),
         fast_outstanding_acks:($r[0].fast_outstanding_acks // 0),
@@ -1130,6 +1199,7 @@ summarize_trial() {
         worst_node_puback_p50_ms:($r | map(.puback_p50_ms) | max),
         worst_node_puback_p95_ms:($r | map(.puback_p95_ms) | max),
         worst_node_puback_p99_ms:($r | map(.puback_p99_ms) | max),
+		puback_p99_gate_ms:$max_p99_ms,
         puback_max_ms:($r | map(.puback_max_ms) | max),
 		max_publish_progress_gap_ms:($r | map(.max_publish_progress_gap_ms) | max),
         errors:$errors,
@@ -1137,6 +1207,15 @@ summarize_trial() {
         reconnects:$reconnects,
         disconnects:$disconnects,
         async_errors:$async_errors,
+		broker_metrics:{
+		  gate_cpu_pct:$max_broker_cpu_pct,
+		  sample_count:($broker_samples | length),
+		  peak_cpu_cores:([$broker_samples[].cpu_cores] | max // null),
+		  peak_cpu_limit_utilization_pct:([$broker_samples[].cpu_limit_utilization_pct] | max // null),
+		  peak_memory_bytes:([$broker_samples[].memory_bytes] | max // null),
+		  peak_route_pending_bytes:([$broker_samples[].routes.max_pending_bytes] | max // null),
+		  brokers:$broker_metrics
+		},
         topology:$topology[0].topology,
         nodes:$r,
         passed:(
@@ -1148,6 +1227,8 @@ summarize_trial() {
           $disconnects == 0 and $async_errors == 0 and
           ($r | map(.puback_p95_ms) | max) <= $max_p95_ms and
           ($r | map(.puback_p99_ms) | max) <= $max_p99_ms and
+		  ($broker_samples | length) >= 3 and
+		  ([$broker_samples[].cpu_limit_utilization_pct] | max) <= $max_broker_cpu_pct and
           $topology[0].topology.passed == true and
           ($minimum <= 0 or $rate >= $minimum) and
           (if $target <= 0 then
@@ -1249,6 +1330,7 @@ run_trial() {
   local topology_file="$results_dir/${label}-topology.json"
   local topology_err="$results_dir/${label}-topology.err"
 	local start_ms node_target monitor_seconds latency_samples run_timeout_seconds ack_gap
+	local trial_max_p99_ms publisher_url
 	local prepare_status=0
 
 	prepare_trial_stream "$label" "$topology_file" || prepare_status=$?
@@ -1266,6 +1348,11 @@ run_trial() {
   node_target=$(target_for_node "$target")
 	ack_gap="$max_ack_gap"
 	if [[ $mode == fast ]]; then ack_gap=0s; fi
+	if ((target <= normal_load_eps)); then
+		trial_max_p99_ms=$normal_load_max_p99_ms
+	else
+		trial_max_p99_ms=$loaded_max_p99_ms
+	fi
 
 	setup_exec /tmp/nats-live-acceptance \
     -hub-url="$leader_url" -domain= -replicas=3 -required-peers=3 \
@@ -1278,14 +1365,15 @@ run_trial() {
 	local topology_pid=$!
 	active_pids=("$topology_pid")
 
-  echo "trial=$label mode=$mode batch=$batch_size target=$target messages=$total_messages leader=$leader_url"
+  echo "trial=$label mode=$mode batch=$batch_size target=$target messages=$total_messages publish_target=$publish_target leader=$leader_url p99_gate=${trial_max_p99_ms}ms"
   local pids=()
   for i in "${!nodes[@]}"; do
     local node_messages
     node_messages=$(messages_for_node "$total_messages" "$i")
+	 publisher_url=$(publisher_url_for_node "${nodes[$i]}")
     kubectl -n "$namespace" exec "${pods[$i]}" -- env NATS_CA=/etc/nats-ca/ca.pem \
       /tmp/nats-live-acceptance \
-      -hub-url="$leader_url" -domain= -replicas=3 -required-peers=3 \
+      -hub-url="$publisher_url" -domain= -replicas=3 -required-peers=3 \
       -stream "$current_stream" -subject "$current_subject" \
       -create-stream=false -cleanup=false \
       -producer-id="${nodes[$i]}" -messages="$node_messages" \
@@ -1296,7 +1384,7 @@ run_trial() {
       -start-at-unix-ms="$start_ms" -latency-samples="$latency_samples" \
 			-run-timeout="${run_timeout_seconds}s" \
 			-max-ack-gap="$ack_gap" \
-      -latency-interval=50ms -max-p95="${max_p95_ms}ms" -max-p99="${max_p99_ms}ms" -min-rate=0 \
+      -latency-interval=50ms -max-p95="${max_p95_ms}ms" -max-p99="${trial_max_p99_ms}ms" -min-rate=0 \
       >"$results_dir/${label}-${nodes[$i]}.json" \
       2>"$results_dir/${label}-${nodes[$i]}.err" &
     pids+=("$!")
@@ -1340,7 +1428,7 @@ run_trial() {
     result_files+=("$results_dir/${label}-${node}.json")
   done
   if ! summarize_trial \
-    "$label" "$target" "$minimum" "$load_seconds" "$compatible" "$topology_file" \
+    "$label" "$target" "$minimum" "$load_seconds" "$compatible" "$topology_file" "$trial_max_p99_ms" \
     "${result_files[@]}" >"$summary_file"; then
     if delete_current_stream; then return 1; else return 2; fi
   fi

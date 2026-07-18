@@ -41,33 +41,34 @@ defmodule Ingress.Nats.Publisher do
   @inbox_prefix "_INBOX.ingresspub."
   @sweep_interval_ms 500
   @gauge_interval_ms 5_000
+  @ack_latency_sample_rate 64
 
   ## Scheduler-local admission
 
-  @spec enqueue(String.t(), iodata()) :: :ok | {:error, term()}
-  def enqueue(subject, json) do
+  @spec enqueue(String.t(), iodata(), Gnat.headers()) :: :ok | {:error, term()}
+  def enqueue(subject, json, trace_headers \\ []) do
     case :persistent_term.get({__MODULE__, :n}, 0) do
       0 ->
         {:error, :not_connected}
 
       n ->
         index = rem(max(:erlang.system_info(:scheduler_id), 1) - 1, n)
-        enqueue_from(index, n, subject, json, nil)
+        enqueue_from(index, n, subject, json, trace_headers, nil)
     end
   end
 
-  defp enqueue_from(_index, 0, _subject, _json, nil),
+  defp enqueue_from(_index, 0, _subject, _json, _headers, nil),
     do: {:error, :not_connected}
 
-  defp enqueue_from(_index, 0, _subject, _json, last_error), do: last_error
+  defp enqueue_from(_index, 0, _subject, _json, _headers, last_error), do: last_error
 
-  defp enqueue_from(index, remaining, subject, json, _last_error) do
+  defp enqueue_from(index, remaining, subject, json, trace_headers, _last_error) do
     n = :persistent_term.get({__MODULE__, :n})
 
     result =
       case :persistent_term.get({__MODULE__, :ctx, index}, nil) do
         nil -> {:error, :not_connected}
-        ctx -> admit(ctx, subject, json)
+        ctx -> admit(ctx, subject, json, trace_headers)
       end
 
     case result do
@@ -75,14 +76,19 @@ defmodule Ingress.Nats.Publisher do
         :ok
 
       {:error, reason} = error when reason in [:overloaded, :not_connected] ->
-        enqueue_from(rem(index + 1, n), remaining - 1, subject, json, error)
+        enqueue_from(rem(index + 1, n), remaining - 1, subject, json, trace_headers, error)
 
       error ->
         error
     end
   end
 
-  defp admit(%{pid: pid, conn: conn, counter: counter, max_pending: max_pending}, subject, json) do
+  defp admit(
+         %{pid: pid, conn: conn, counter: counter, max_pending: max_pending},
+         subject,
+         json,
+         trace_headers
+       ) do
     cond do
       :atomics.add_get(counter, @idx_pending, 1) > max_pending ->
         :atomics.sub(counter, @idx_pending, 1)
@@ -93,10 +99,17 @@ defmodule Ingress.Nats.Publisher do
         {:error, :not_connected}
 
       true ->
-        GenServer.cast(pid, {:enqueue, subject, json})
+        enqueue_cast(pid, subject, json, trace_headers)
         :ok
     end
   end
+
+  # Preserve the allocation profile of the unsampled firehose. Only the sparse
+  # traced messages carry the wider tuple and header list through the cohort.
+  defp enqueue_cast(pid, subject, json, []), do: GenServer.cast(pid, {:enqueue, subject, json})
+
+  defp enqueue_cast(pid, subject, json, trace_headers),
+    do: GenServer.cast(pid, {:enqueue, subject, json, trace_headers})
 
   ## Collector lifecycle
 
@@ -171,9 +184,17 @@ defmodule Ingress.Nats.Publisher do
 
   @impl true
   def handle_cast({:enqueue, subject, json}, state) do
+    enqueue_entry({subject, json, nil}, state)
+  end
+
+  def handle_cast({:enqueue, subject, json, trace_headers}, state) do
+    enqueue_entry({subject, json, trace_headers, nil}, state)
+  end
+
+  defp enqueue_entry(entry, state) do
     state = %{
       state
-      | queue: [{subject, json, nil} | state.queue],
+      | queue: [entry | state.queue],
         queue_count: state.queue_count + 1
     }
 
@@ -212,8 +233,8 @@ defmodule Ingress.Nats.Publisher do
 
     for row <- :ets.tab2list(state.table) do
       case row do
-        {id, :single, subject, json, attempts, timestamp} when timestamp <= deadline ->
-          retry_or_drop(id, subject, json, attempts, :ack_timeout, state)
+        {id, :single, subject, payload, attempts, timestamp} when timestamp <= deadline ->
+          retry_or_drop(id, subject, payload, attempts, :ack_timeout, state)
 
         {id, :batch, entries, timestamp} when timestamp <= deadline ->
           expire_batch(id, entries, state)
@@ -311,6 +332,15 @@ defmodule Ingress.Nats.Publisher do
     {token, subject, json, opts}
   end
 
+  defp stage_single({subject, json, trace_headers, from}, state) do
+    id = :atomics.add_get(state.counter, @idx_next_id, 1)
+    :ets.insert(state.table, {id, :single, subject, {json, trace_headers}, 1, now_ms()})
+
+    token = {id, from}
+    opts = publish_opts([reply_to: single_reply_subject(state.prefix, id)], trace_headers)
+    {token, subject, json, opts}
+  end
+
   defp finish_single_send({{_id, from}, :ok}, _state), do: reply_entry(from, :ok)
 
   defp finish_single_send({{id, from}, {:error, reason}}, state) do
@@ -347,8 +377,9 @@ defmodule Ingress.Nats.Publisher do
 
     entries
     |> Enum.with_index(1)
-    |> Enum.reduce_while(:ok, fn {{subject, json, _from}, seq}, :ok ->
-      headers = batch_headers(batch_id, seq, last)
+    |> Enum.reduce_while(:ok, fn {entry, seq}, :ok ->
+      {subject, json, trace_headers} = wire_entry(entry)
+      headers = batch_headers(batch_id, seq, last) ++ trace_headers
 
       case safe_pub(state.conn, subject, json, batch_pub_opts(headers, seq, last, id, state)) do
         :ok -> {:cont, :ok}
@@ -356,6 +387,11 @@ defmodule Ingress.Nats.Publisher do
       end
     end)
   end
+
+  defp wire_entry({subject, json, _from}), do: {subject, json, []}
+
+  defp wire_entry({subject, json, trace_headers, _from}),
+    do: {subject, json, trace_headers}
 
   defp batch_headers(batch_id, seq, last) do
     commit = if seq == last, do: [{"Nats-Batch-Commit", "1"}], else: []
@@ -397,17 +433,21 @@ defmodule Ingress.Nats.Publisher do
     state
   end
 
-  defp resolve_batch(id, entries, state) do
+  defp resolve_batch(id, entries, timestamp, state) do
     :ets.delete(state.table, id)
     count = length(entries)
+    record_ack_latency(id, timestamp, count)
     :atomics.sub(state.counter, @idx_pending, count)
     :atomics.add(state.counter, @idx_acked, count)
     :atomics.sub(state.counter, @idx_batch_inflight, 1)
     state
   end
 
-  defp pub(conn, subject, json, reply),
-    do: safe_pub(conn, subject, json, reply_to: reply)
+  defp pub(conn, subject, json, reply, trace_headers),
+    do: safe_pub(conn, subject, json, publish_opts([reply_to: reply], trace_headers))
+
+  defp publish_opts(opts, []), do: opts
+  defp publish_opts(opts, headers), do: Keyword.put(opts, :headers, headers)
 
   defp safe_pub(conn, subject, json, opts) do
     Gnat.pub(conn, subject, json, opts)
@@ -422,10 +462,10 @@ defmodule Ingress.Nats.Publisher do
 
   defp apply_ack({:single, id}, body, state) do
     case :ets.lookup(state.table, id) do
-      [{^id, :single, subject, json, attempts, _timestamp}] ->
+      [{^id, :single, subject, payload, attempts, timestamp}] ->
         case Nats.parse_pub_ack(body) do
-          :ok -> resolve_single(id, state)
-          {:error, reason} -> retry_or_drop(id, subject, json, attempts, reason, state)
+          :ok -> resolve_single(id, timestamp, state)
+          {:error, reason} -> retry_or_drop(id, subject, payload, attempts, reason, state)
         end
 
       [] ->
@@ -453,9 +493,9 @@ defmodule Ingress.Nats.Publisher do
 
   defp apply_ack({:batch_commit, id}, body, state) do
     case :ets.lookup(state.table, id) do
-      [{^id, :batch, entries, _timestamp}] ->
+      [{^id, :batch, entries, timestamp}] ->
         case Nats.parse_pub_ack(body) do
-          :ok -> resolve_batch(id, entries, state)
+          :ok -> resolve_batch(id, entries, timestamp, state)
           {:error, {:pub_ack, _reason}} -> fallback_batch(id, entries, state)
           _ambiguous -> fail_batch(id, entries, state)
         end
@@ -465,24 +505,57 @@ defmodule Ingress.Nats.Publisher do
     end
   end
 
-  defp resolve_single(id, state) do
+  defp resolve_single(id, timestamp, state) do
+    record_ack_latency(id, timestamp, 1)
     :ets.delete(state.table, id)
     :atomics.sub(state.counter, @idx_pending, 1)
     :atomics.add(state.counter, @idx_acked, 1)
     state
   end
 
-  defp retry_or_drop(id, subject, json, attempts, reason, state) do
+  defp record_ack_latency(id, timestamp, count) when rem(id, @ack_latency_sample_rate) == 0 do
+    bucket = ack_latency_bucket(max(now_ms() - timestamp, 0))
+    Metrics.count("Nats/PubAckLatency/#{bucket}", count)
+    Metrics.count("Nats/PubAckLatency/Sampled", count)
+  end
+
+  defp record_ack_latency(_id, _timestamp, _count), do: :ok
+
+  defp ack_latency_bucket(ms) when ms <= 1, do: "Le1ms"
+  defp ack_latency_bucket(ms) when ms <= 2, do: "Le2ms"
+  defp ack_latency_bucket(ms) when ms <= 4, do: "Le4ms"
+  defp ack_latency_bucket(ms) when ms <= 8, do: "Le8ms"
+  defp ack_latency_bucket(ms) when ms <= 16, do: "Le16ms"
+  defp ack_latency_bucket(ms) when ms <= 32, do: "Le32ms"
+  defp ack_latency_bucket(ms) when ms <= 64, do: "Le64ms"
+  defp ack_latency_bucket(ms) when ms <= 128, do: "Le128ms"
+  defp ack_latency_bucket(_ms), do: "Gt128ms"
+
+  defp retry_or_drop(id, subject, {json, trace_headers} = payload, attempts, reason, state) do
     if retry?(attempts, reason, state) do
       :ets.insert(
         state.table,
-        {id, :single, subject, json, attempts + 1, now_ms()}
+        {id, :single, subject, payload, attempts + 1, now_ms()}
       )
 
       :atomics.add(state.counter, @idx_retried, 1)
 
-      _ = pub(state.conn, subject, json, single_reply_subject(state.prefix, id))
+      _ = pub(state.conn, subject, json, single_reply_subject(state.prefix, id), trace_headers)
 
+      :ok
+    else
+      :ets.delete(state.table, id)
+      :atomics.sub(state.counter, @idx_pending, 1)
+      :atomics.add(state.counter, @idx_failed, 1)
+      :ok
+    end
+  end
+
+  defp retry_or_drop(id, subject, json, attempts, reason, state) do
+    if retry?(attempts, reason, state) do
+      :ets.insert(state.table, {id, :single, subject, json, attempts + 1, now_ms()})
+      :atomics.add(state.counter, @idx_retried, 1)
+      _ = pub(state.conn, subject, json, single_reply_subject(state.prefix, id), [])
       :ok
     else
       :ets.delete(state.table, id)

@@ -23,7 +23,7 @@ defmodule Ingress.Nats do
   the twitch_ingress account's request/reply traffic.
   """
 
-  alias Ingress.{JSON, Metrics, Nats.Publisher}
+  alias Ingress.{JSON, Metrics, Nats.Publisher, Trace}
 
   @connection :gnat_bus
 
@@ -77,9 +77,23 @@ defmodule Ingress.Nats do
   def publish_acked(subject, payload) do
     # OTP JSON, Gnat and the TCP/SSL transports all keep this as iodata, so no
     # flattened copy is made before the socket write or PubAck retry storage.
-    json = JSON.encode(payload)
+    json =
+      Trace.span("encode", fn ->
+        JSON.encode(payload)
+      end)
 
-    case Publisher.enqueue(subject, json) do
+    result =
+      Trace.span(
+        "nats.publish.admit",
+        ["messaging.destination": Trace.destination(subject)],
+        fn ->
+          result = Publisher.enqueue(subject, json, Trace.trace_headers())
+          Trace.add_span_attributes(result: Trace.result(result))
+          result
+        end
+      )
+
+    case result do
       :ok ->
         :ok
 

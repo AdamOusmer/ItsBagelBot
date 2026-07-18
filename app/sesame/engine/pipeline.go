@@ -127,27 +127,31 @@ const chatType = "channel.chat.message"
 // the event handlers registered for the type, and publishes what they emit. It
 // reads as a short sequence of guards and stages; the loops and the failure
 // bookkeeping live in the helpers below.
-func (p *Pipeline) Process(msg *bus.Message) (err error) {
+func (p *Pipeline) Process(msg *bus.Message) error {
 	ctx := msg.Context()
 
 	// Decode into a pooled envelope so the plain-chat path allocates nothing here.
 	env := GetEnvelope()
 	defer PutEnvelope(env)
-	if err := sonic.Unmarshal(msg.Payload, env); err != nil {
+	if err := decodeEnvelope(ctx, msg.Payload, env); err != nil {
+		traceResult(ctx, "invalid")
 		return p.dropPoison(ctx, msg.UUID, err)
 	}
 	if !p.eligible(env) {
+		traceResult(ctx, "filtered")
 		return nil
 	}
 
 	broadcasterID, ok := env.BroadcasterID()
 	if !ok {
+		traceResult(ctx, "invalid")
 		return nil
 	}
-	traceEvent(ctx, env.Type, broadcasterID)
+	traceEvent(ctx, env.Type, env.Lane, broadcasterID)
 
-	views, err := p.moduleViews(ctx, env.Type, broadcasterID)
+	views, err := p.tracedModuleViews(ctx, env.Type, broadcasterID)
 	if err != nil {
+		traceResult(ctx, "error")
 		return err // infrastructure failure: nack
 	}
 
@@ -159,15 +163,59 @@ func (p *Pipeline) Process(msg *bus.Message) (err error) {
 		replayBase: outputReplayBase(env),
 	}
 	emit := p.newEmit(ctx, env.BroadcasterUserID, &emission)
-	p.runStages(ctx, mctx, views, emit)
-	if emission.err == nil && emission.needsFlush {
-		// Legacy envelopes without EventID cannot use a stable confirmed publish;
-		// flush their asynchronous admission before confirming the input ack.
-		emission.err = p.pub.Flush(ctx)
-	}
+	p.runTracedStages(ctx, mctx, views, emit, &emission)
+	p.flushLegacyOutput(ctx, &emission)
 
 	// nil = ack; a publish/marshal failure on the emit path = nack.
+	tracePipelineResult(ctx, emission.err)
 	return emission.err
+}
+
+func decodeEnvelope(ctx context.Context, payload []byte, env *lane.Envelope) error {
+	segment := startStage(ctx, "sesame.decode")
+	err := sonic.Unmarshal(payload, env)
+	endStageForError(segment, err, "invalid")
+	return err
+}
+
+func (p *Pipeline) tracedModuleViews(ctx context.Context, eventType string, broadcasterID uint64) (map[string]projection.ModuleView, error) {
+	segment := startStage(ctx, "sesame.dependency.projection")
+	views, err := p.moduleViews(ctx, eventType, broadcasterID)
+	endStageForError(segment, err, "error")
+	return views, err
+}
+
+func (p *Pipeline) runTracedStages(ctx context.Context, mctx *module.Context, views map[string]projection.ModuleView, emit module.Emit, emission *emitState) {
+	segment := startStage(ctx, "sesame.engine")
+	p.runStages(ctx, mctx, views, emit)
+	endStageForError(segment, emission.err, "error")
+}
+
+func (p *Pipeline) flushLegacyOutput(ctx context.Context, emission *emitState) {
+	if emission.err != nil || !emission.needsFlush {
+		return
+	}
+	// Legacy envelopes without EventID cannot use a stable confirmed publish;
+	// flush their asynchronous admission before confirming the input ack.
+	segment := startStage(ctx, "sesame.output.flush")
+	emission.err = p.pub.Flush(ctx)
+	endStageForError(segment, emission.err, "error")
+}
+
+func endStageForError(segment *newrelic.Segment, err error, failure string) {
+	if err != nil {
+		endStage(segment, failure)
+		return
+	}
+	endStage(segment, "ok")
+}
+
+func tracePipelineResult(ctx context.Context, err error) {
+	if err != nil {
+		traceResult(ctx, "error")
+		return
+	}
+	traceResult(ctx, "ok")
 }
 
 // eligible reports whether this envelope needs any work: the bot's own chat is
@@ -284,10 +332,13 @@ func (p *Pipeline) floorSuppressed(o *module.Output) bool {
 // publishOutput translates one Output to the outgress wire contract and
 // publishes it on the lane subject.
 func (p *Pipeline) publishOutput(ctx context.Context, subject, replayID string, o *module.Output) error {
+	encodeSegment := startStage(ctx, "sesame.output.encode")
 	body, err := buildOutgress(o)
 	if err != nil {
+		endStage(encodeSegment, "error")
 		return err
 	}
+	endStage(encodeSegment, "ok")
 	if replayID == "" {
 		return bus.PublishRaw(ctx, p.pub, subject, body)
 	}
@@ -430,9 +481,10 @@ func (p *Pipeline) handlerFailed(ctx context.Context, mctx *module.Context, m mo
 }
 
 // traceEvent tags the current New Relic transaction with the event identity.
-func traceEvent(ctx context.Context, eventType string, broadcasterID uint64) {
+func traceEvent(ctx context.Context, eventType, eventLane string, broadcasterID uint64) {
 	if txn := newrelic.FromContext(ctx); txn != nil {
 		txn.AddAttribute("event.type", eventType)
+		txn.AddAttribute("event.lane", eventLane)
 		txn.AddAttribute("event.broadcaster_id", broadcasterID)
 	}
 }

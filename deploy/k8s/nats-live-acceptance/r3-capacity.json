@@ -30,11 +30,15 @@
   "calibration_target_eps": 120000,
   "calibration_duration": "10s",
   "latency_samples_per_second": 20,
+  "normal_load_eps": 12000,
   "puback_p95_max": "20ms",
-  "puback_p99_max": "2ms",
+  "normal_load_puback_p99_max": "2ms",
+  "loaded_puback_p99_max": "2ms",
+  "broker_cpu_limit_cores": 4,
+  "broker_cpu_max_pct": 75,
   "rpc_p99_max": "8ms",
   "rpc_p99_min_samples": 330,
   "max_ack_gap": "2s",
   "ceiling_duration": "5m",
-  "operating_duration": "15m"
+  "operating_duration": "30m"
 }

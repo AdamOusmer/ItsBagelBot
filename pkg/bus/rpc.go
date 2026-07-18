@@ -34,24 +34,41 @@ func (e RPCReplyError) Error() string {
 func RequestJSON[T any](ctx context.Context, nc *nats.Conn, subject string, request any) (T, error) {
 	var zero T
 
+	encodeSegment := startMessagingSegment(ctx, messagingSpan{
+		name: "rpc.request.encode", operation: "request", destination: subject,
+	})
 	body, err := json.Marshal(request)
+	endMessagingSegment(encodeSegment, err)
 	if err != nil {
 		return zero, fmt.Errorf("rpc %s marshal request: %w", subject, err)
 	}
 
-	msg, err := nc.RequestWithContext(ctx, subject, body)
+	requestMsg := nats.NewMsg(subject)
+	requestMsg.Data = body
+	insertTraceHeaders(ctx, requestMsg)
+
+	segment := startMessagingSegment(ctx, messagingSpan{
+		name: "nats.request", operation: "request", destination: subject,
+	})
+	msg, err := nc.RequestMsgWithContext(ctx, requestMsg)
+	endMessagingSegment(segment, err)
 	if err != nil {
 		return zero, fmt.Errorf("rpc %s request: %w", subject, err)
 	}
 
-	if msg := rpcErrorMessage(msg.Data); msg != "" {
-		return zero, RPCReplyError{Subject: subject, Message: msg}
+	if errorMessage := rpcErrorMessage(msg.Data); errorMessage != "" {
+		return zero, RPCReplyError{Subject: subject, Message: errorMessage}
 	}
 
+	decodeSegment := startMessagingSegment(ctx, messagingSpan{
+		name: "rpc.response.decode", operation: "request", destination: subject,
+	})
 	var reply T
 	if err := json.Unmarshal(msg.Data, &reply); err != nil {
+		endMessagingSegment(decodeSegment, err)
 		return zero, fmt.Errorf("rpc %s unmarshal reply: %w", subject, err)
 	}
+	endMessagingSegment(decodeSegment, nil)
 	return reply, nil
 }
 
@@ -83,24 +100,35 @@ func QueueSubscribeJSON[Req any, Resp any](
 	_, err := nc.QueueSubscribe(subject, queueGroup, func(msg *nats.Msg) {
 		start := time.Now()
 
-		txn := app.StartTransaction("rpc " + subject)
+		txn := app.StartTransaction("rpc " + normalizedDestination(subject))
 		defer txn.End()
+		acceptTraceHeaders(txn, msg.Header)
+		addMessagingTransactionAttributes(txn, messagingAttributes{operation: "process", destination: subject})
 
 		var req Req
 		// Empty bodies are allowed for no-argument RPCs; handlers validate any
 		// required fields on the zero-value request.
 		if len(msg.Data) > 0 {
+			decodeSegment := txn.StartSegment("rpc.decode")
 			if err := json.Unmarshal(msg.Data, &req); err != nil {
+				decodeSegment.AddAttribute(resultAttribute, "invalid")
+				decodeSegment.End()
 				txn.NoticeError(err)
-				respondAndLog(msg, subject, start, log, map[string]string{"error": "bad request"})
+				txn.AddAttribute(resultAttribute, "invalid")
+				respondAndLog(msg, subject, start, log, txn, map[string]string{"error": "bad request"})
 				return
 			}
+			decodeSegment.AddAttribute(resultAttribute, "ok")
+			decodeSegment.End()
 		}
 
 		ctx, cancel := context.WithTimeout(newrelic.NewContext(context.Background(), txn), timeout)
 		defer cancel()
 
-		respondAndLog(msg, subject, start, log, handle(ctx, req))
+		handleSegment := txn.StartSegment("rpc.handler")
+		reply := handle(ctx, req)
+		handleSegment.End()
+		respondAndLog(msg, subject, start, log, txn, reply)
 	})
 	if err != nil {
 		return fmt.Errorf("subscribe %s: %w", subject, err)
@@ -111,9 +139,30 @@ func QueueSubscribeJSON[Req any, Resp any](
 	return nil
 }
 
-func respondAndLog(msg *nats.Msg, subject string, start time.Time, log *zap.Logger, reply any) {
+func respondAndLog(msg *nats.Msg, subject string, start time.Time, log *zap.Logger, txn *newrelic.Transaction, reply any) {
 	elapsed := time.Since(start)
-	if err := Respond(msg, reply); err != nil && log != nil {
+	encodeSegment := txn.StartSegment("rpc.reply.encode")
+	body, err := marshalResponse(reply)
+	encodeSegment.AddAttribute(resultAttribute, messagingResult(err))
+	encodeSegment.End()
+	if err != nil {
+		txn.AddAttribute(resultAttribute, "error")
+		txn.NoticeError(err)
+		if log != nil {
+			log.Warn("rpc encode reply failed", zap.String("subject", subject), zap.Duration("elapsed", elapsed), zap.Error(err))
+		}
+		return
+	}
+	segment := txn.StartSegment("nats.reply")
+	segment.AddAttribute(messagingSystemAttribute, "nats")
+	segment.AddAttribute(messagingOperationAttribute, "reply")
+	segment.AddAttribute(messagingDestinationAttribute, normalizedDestination(subject))
+	err = sendResponse(msg, body)
+	segment.AddAttribute(resultAttribute, messagingResult(err))
+	segment.End()
+	txn.AddAttribute(resultAttribute, messagingResult(err))
+	if err != nil && log != nil {
+		txn.NoticeError(err)
 		log.Warn("rpc respond failed", zap.String("subject", subject), zap.Duration("elapsed", elapsed), zap.Error(err))
 		return
 	}
