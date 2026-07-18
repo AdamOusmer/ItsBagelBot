@@ -1,0 +1,8 @@
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: nats-r3-bench-nonpreempting
+value: -100000
+globalDefault: false
+preemptionPolicy: Never
+description: Non-preempting priority for isolated NATS R3 qualification workloads
