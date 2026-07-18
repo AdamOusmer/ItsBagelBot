@@ -54,7 +54,7 @@
           - sentinel
           - --
           - valkey-cli
-          - --port
+          - -p
           - "26380"
           - --tls
           - --cacert
