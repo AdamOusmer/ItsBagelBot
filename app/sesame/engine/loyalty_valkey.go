@@ -9,6 +9,7 @@ import (
 	"ItsBagelBot/internal/domain/event/data"
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 	"ItsBagelBot/pkg/cache"
+	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
@@ -81,7 +82,14 @@ return value`)
 // with a Valkey live view over the loyalty service, cached balance peeks, and
 // pass-through management verbs. It implements LoyaltyStore.
 type ValkeyLoyaltyStore struct {
-	client   valkey.Client
+	client valkey.Client
+	// primary serves the counter view. Bumps are exact because their script
+	// runs on the master; peeking the same counter from a lagging node-local
+	// replica would contradict that, and would keep serving a value
+	// CounterInvalidate already deleted instead of re-seeding from the service.
+	// The balance cache deliberately does not use this: its staleness budget is
+	// balanceTTL, which dwarfs replication lag.
+	primary  valkey.Client
 	rpc      *LoyaltyRPC
 	reporter *LoyaltyReporter
 	scopes   *cache.Cache[string]
@@ -96,6 +104,7 @@ func NewValkeyLoyaltyStore(client valkey.Client, rpc *LoyaltyRPC, reporter *Loya
 	}
 	return &ValkeyLoyaltyStore{
 		client:   client,
+		primary:  pkg_valkey.Primary(client),
 		rpc:      rpc,
 		reporter: reporter,
 		scopes:   cache.New[string](scopeCacheCapacity, scopeCacheTTL),
@@ -272,7 +281,9 @@ func (s *ValkeyLoyaltyStore) CounterPeek(ctx context.Context, broadcasterID uint
 // peekView reads the live Valkey view of one counter value: the entry hash
 // field for the entry scopes (when a viewer is known), the plain string
 // otherwise. ok=false means the view is cold (or unreadable) and the caller
-// should fall back to the service.
+// should fall back to the service. It reads the primary so a peek agrees with
+// the bump that produced the value and so CounterInvalidate's delete is
+// actually observed as a cold view rather than as the pre-delete count.
 func (s *ValkeyLoyaltyStore) peekView(ctx context.Context, broadcasterID uint64, name, scope string, viewerID uint64, command string) (int64, bool) {
 	var (
 		v   int64
@@ -280,9 +291,9 @@ func (s *ValkeyLoyaltyStore) peekView(ctx context.Context, broadcasterID uint64,
 	)
 	if scope != data.CounterScopeChannel && viewerID != 0 {
 		field := entryField(scope, viewerID, command)
-		v, err = s.client.Do(ctx, s.client.B().Hget().Key(counterViewerKey(broadcasterID, name)).Field(field).Build()).AsInt64()
+		v, err = s.primary.Do(ctx, s.primary.B().Hget().Key(counterViewerKey(broadcasterID, name)).Field(field).Build()).AsInt64()
 	} else {
-		v, err = s.client.Do(ctx, s.client.B().Get().Key(counterChannelKey(broadcasterID, name)).Build()).AsInt64()
+		v, err = s.primary.Do(ctx, s.primary.B().Get().Key(counterChannelKey(broadcasterID, name)).Build()).AsInt64()
 	}
 	if err != nil {
 		if !valkey.IsValkeyNil(err) {
