@@ -144,6 +144,11 @@ defmodule Ingress.Config do
   def dispatcher_completion_flush_ms,
     do: Application.get_env(:ingress, :dispatcher_completion_flush_ms, 25)
 
+  # One in N notifications receives a transaction and trace headers. Zero
+  # disables per-event tracing; one is reserved for controlled diagnostics.
+  def trace_sample_rate,
+    do: Application.get_env(:ingress, :trace_sample_rate, 1_024)
+
   # How long an outstanding publish waits for its PubAck before
   # the collector reconciles it (see Ingress.Nats.Publisher).
   def publish_ack_timeout_ms,

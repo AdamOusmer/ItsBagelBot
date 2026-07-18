@@ -42,10 +42,15 @@ type capacityProfile struct {
 	CalibrationTargetEPS        int      `json:"calibration_target_eps"`
 	CalibrationDuration         string   `json:"calibration_duration"`
 	LatencySamplesPerSecond     int      `json:"latency_samples_per_second"`
-	PubAckP99Max                string   `json:"puback_p99_max"`
+	NormalLoadEPS               int      `json:"normal_load_eps"`
+	NormalLoadPubAckP99Max      string   `json:"normal_load_puback_p99_max"`
+	LoadedPubAckP99Max          string   `json:"loaded_puback_p99_max"`
+	BrokerCPULimitCores         int      `json:"broker_cpu_limit_cores"`
+	BrokerCPUMaxPct             int      `json:"broker_cpu_max_pct"`
 	RPCP99Max                   string   `json:"rpc_p99_max"`
 	RPCP99MinSamples            int      `json:"rpc_p99_min_samples"`
 	MaxAckGap                   string   `json:"max_ack_gap"`
+	OperatingDuration           string   `json:"operating_duration"`
 }
 
 func TestR3CapacityProfileDefinesRateEnvelope(t *testing.T) {
@@ -102,10 +107,15 @@ func TestR3CapacityProfileDefinesCalibrationMatrix(t *testing.T) {
 	require.Equal(t, 120_000, profile.CalibrationTargetEPS)
 	require.Equal(t, "10s", profile.CalibrationDuration)
 	require.Equal(t, 20, profile.LatencySamplesPerSecond)
-	require.Equal(t, "2ms", profile.PubAckP99Max)
+	require.Equal(t, 12_000, profile.NormalLoadEPS)
+	require.Equal(t, "2ms", profile.NormalLoadPubAckP99Max)
+	require.Equal(t, "2ms", profile.LoadedPubAckP99Max)
+	require.Equal(t, 4, profile.BrokerCPULimitCores)
+	require.Equal(t, 75, profile.BrokerCPUMaxPct)
 	require.Equal(t, "8ms", profile.RPCP99Max)
 	require.Equal(t, 330, profile.RPCP99MinSamples)
 	require.Equal(t, "2s", profile.MaxAckGap)
+	require.Equal(t, "30m", profile.OperatingDuration)
 }
 
 func TestTemporaryR3StreamMatchesProductionShapedRetention(t *testing.T) {

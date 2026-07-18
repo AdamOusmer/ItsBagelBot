@@ -141,7 +141,7 @@ defmodule Ingress.Dispatcher do
         # whereis/1 but before attribution was recorded, its DOWN cleanup may
         # already have run. In that case reclaim this event here.
         if Process.alive?(worker) do
-          send(worker, {:process, payload, meta})
+          send(worker, {:process, System.monotonic_time(), payload, meta})
         else
           release(ctx, worker, broadcaster_id, 1)
           drop(meta, "unavailable")

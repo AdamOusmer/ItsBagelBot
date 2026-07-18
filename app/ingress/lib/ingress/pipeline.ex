@@ -42,7 +42,7 @@ defmodule Ingress.Pipeline do
 
   require Logger
 
-  alias Ingress.{BroadcasterCache, Config, Metrics, Nats, Squash}
+  alias Ingress.{BroadcasterCache, Config, Metrics, Nats, Squash, Trace}
 
   @type decision :: :special | :command | :chat
 
@@ -51,7 +51,19 @@ defmodule Ingress.Pipeline do
   @stream_types ["stream.online", "stream.offline"]
 
   def handle_event(payload, meta) do
-    case route(payload, meta) do
+    decision =
+      Trace.span("route", fn ->
+        decision = route(payload, meta)
+
+        Trace.add_span_attributes(
+          result: Trace.result(decision),
+          "event.lane": decision_lane(decision)
+        )
+
+        decision
+      end)
+
+    case decision do
       {:publish, subject, message} ->
         publish_one(subject, message)
 
@@ -71,6 +83,13 @@ defmodule Ingress.Pipeline do
         :drop
     end
   end
+
+  defp decision_lane({:publish, _subject, %{lane: lane}}), do: to_string(lane)
+
+  defp decision_lane({:publish_many, [{_subject, %{lane: lane}} | _]}),
+    do: to_string(lane)
+
+  defp decision_lane(_decision), do: "none"
 
   defp publish_one(subject, message) do
     Metrics.count("Published/#{message.lane}")

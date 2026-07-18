@@ -203,6 +203,31 @@ defmodule Ingress.Nats.PublisherTest do
       assert :atomics.get(ctx.counter, 1) == 0
       assert :ets.info(ctx.table, :size) == 0
     end
+
+    test "sampled trace headers survive the asynchronous publisher handoff", %{
+      publisher: publisher
+    } do
+      traceparent = "00-050c91b77efca9b0ef38b30c182355ce-560ccffb087d1906-01"
+
+      assert Publisher.enqueue(
+               "twitch.ingress.event.standard",
+               ~s({"n":1}),
+               [{"traceparent", traceparent}]
+             ) == :ok
+
+      assert_receive {:pub, _, _, opts}, 500
+      assert prepared_headers(opts)["traceparent"] == traceparent
+
+      send(publisher, {
+        :msg,
+        %{
+          topic: Keyword.fetch!(opts, :reply_to),
+          body: ~s({"stream":"TWITCH_INGRESS","seq":1})
+        }
+      })
+
+      _state = :sys.get_state(publisher)
+    end
   end
 
   defp restore_env(key, nil), do: Application.delete_env(:ingress, key)
