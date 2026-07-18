@@ -6,9 +6,12 @@
 // under internal/providers plus one line in providers.All — the same shape as
 // sesame's modules.All.
 //
-// Like sesame's module package, this one carries no runtime wiring: a provider
-// captures the services it needs (cache, limiter, HTTP clients) from Deps by
-// closure, so the authoring surface stays small and unit-testable on its own.
+// A provider is declared through the fluent Builder (see NewProvider), the
+// twin of sesame's module.Builder: endpoints chain their timeout and terminal
+// handler, and Build returns the immutable Provider the engine consumes.
+// Bespoke endpoints capture the services they need (limiter, HTTP clients) by
+// closure; the cached fetch-and-shape skeleton every stats endpoint shares is
+// declared once through the FlowBuilder instead of hand-rolled per endpoint.
 package provider
 
 import (
@@ -22,17 +25,21 @@ import (
 	"go.uber.org/zap"
 )
 
-// Endpoint is one RPC verb a provider answers. Handle returns the reply value
-// to marshal back; it must embed the conventional {"error": ""} envelope and
-// report user-facing failures (player not found) there rather than panicking
-// or returning nothing.
+// HandlerFunc answers one RPC request, returning the reply value to marshal
+// back. It must embed the conventional {"error": ""} envelope and report
+// user-facing failures (player not found) there rather than panicking or
+// returning nothing. Pre-marshaled bytes (json.RawMessage) pass to the wire
+// untouched.
+type HandlerFunc func(ctx context.Context, req gatewayrpc.Request) any
+
+// Endpoint is one RPC verb a provider answers.
 type Endpoint struct {
 	// Name is the last subject token ("daily", "user", "session_start", ...).
 	Name string
 	// Timeout bounds one handler run; zero means the bus default (5s).
 	Timeout time.Duration
 	// Handle answers one request.
-	Handle func(ctx context.Context, req gatewayrpc.Request) any
+	Handle HandlerFunc
 }
 
 // Provider is one external API system.
@@ -64,4 +71,13 @@ type Deps struct {
 	// nil disables that provider (providers.All skips it), the same degrade as a
 	// missing service API key.
 	GoveeKeys GoveeKeyResolver
+}
+
+// Logger returns Log, or a nop logger when it is unset, so providers and the
+// Builder never nil-check it themselves.
+func (d Deps) Logger() *zap.Logger {
+	if d.Log == nil {
+		return zap.NewNop()
+	}
+	return d.Log
 }

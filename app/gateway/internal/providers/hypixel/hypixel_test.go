@@ -49,7 +49,7 @@ func (s *memStore) Del(_ context.Context, key string) error {
 
 // newTestProvider wires the provider with BOTH upstreams faked: mojang answers
 // the uuid resolve, hypixel answers /v2/player.
-func newTestProvider(t *testing.T, mojang, hypixel http.Handler) *Provider {
+func newTestProvider(t *testing.T, mojang, hypixel http.Handler) provider.Provider {
 	t.Helper()
 	mojangSrv := httptest.NewServer(mojang)
 	t.Cleanup(mojangSrv.Close)
@@ -59,7 +59,7 @@ func newTestProvider(t *testing.T, mojang, hypixel http.Handler) *Provider {
 		provider.Deps{Cache: core.NewCache(newMemStore()), Log: zap.NewNop()})
 }
 
-func statsHandle(t *testing.T, p *Provider) func(context.Context, gatewayrpc.Request) any {
+func statsHandle(t *testing.T, p provider.Provider) func(context.Context, gatewayrpc.Request) any {
 	t.Helper()
 	for _, ep := range p.Endpoints() {
 		if ep.Name == "stats" {

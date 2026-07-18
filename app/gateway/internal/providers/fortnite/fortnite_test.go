@@ -50,8 +50,10 @@ func (s *memStore) Del(_ context.Context, key string) error {
 
 // newTestProvider wires the provider with BOTH upstreams faked: stats is the
 // api-fortnite.com double (account lookup + raw stats), shop the
-// fortnite-api.com double. extra tweaks the config before building.
-func newTestProvider(t *testing.T, stats, shop http.Handler, extra func(*Config)) *Provider {
+// fortnite-api.com double. extra tweaks the config before building. It returns
+// the inner api so tests can also seed provider-owned state (snapshots)
+// directly; endpoint handlers come from build() via handle.
+func newTestProvider(t *testing.T, stats, shop http.Handler, extra func(*Config)) *api {
 	t.Helper()
 	statsSrv := httptest.NewServer(stats)
 	t.Cleanup(statsSrv.Close)
@@ -61,7 +63,7 @@ func newTestProvider(t *testing.T, stats, shop http.Handler, extra func(*Config)
 	if extra != nil {
 		extra(&cfg)
 	}
-	return New(cfg, provider.Deps{Cache: core.NewCache(newMemStore()), Log: zap.NewNop()})
+	return newAPI(cfg, provider.Deps{Cache: core.NewCache(newMemStore()), Log: zap.NewNop()})
 }
 
 func noUpstream(t *testing.T, name string) http.Handler {
@@ -70,9 +72,9 @@ func noUpstream(t *testing.T, name string) http.Handler {
 	})
 }
 
-func handle(t *testing.T, p *Provider, name string) func(context.Context, gatewayrpc.Request) any {
+func handle(t *testing.T, p *api, name string) func(context.Context, gatewayrpc.Request) any {
 	t.Helper()
-	for _, ep := range p.Endpoints() {
+	for _, ep := range p.build().Endpoints() {
 		if ep.Name == name {
 			return ep.Handle
 		}
@@ -469,8 +471,9 @@ func TestKeylessServesShopOnly(t *testing.T) {
 		_, _ = w.Write([]byte(shopBody))
 	}), func(cfg *Config) { cfg.APIKey = "" })
 
-	names := make([]string, 0, len(p.Endpoints()))
-	for _, ep := range p.Endpoints() {
+	built := p.build()
+	names := make([]string, 0, len(built.Endpoints()))
+	for _, ep := range built.Endpoints() {
 		names = append(names, ep.Name)
 	}
 	assert.Equal(t, []string{"shop"}, names)

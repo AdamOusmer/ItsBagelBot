@@ -165,7 +165,7 @@ func Cached[T any](ctx context.Context, c *Cache, key string, ttl, negativeTTL t
 		if b, merr := sonic.Marshal(env); merr == nil {
 			_ = c.store.Set(ctx, key, b, cacheTTL)
 		}
-		
+
 		if env.Error != nil {
 			return v, env.Error
 		}
