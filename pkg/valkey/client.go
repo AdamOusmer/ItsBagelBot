@@ -1,14 +1,12 @@
 package valkey
 
 import (
-	"context"
 	"crypto/tls"
 	"log"
 	"net"
 	"os"
 	"time"
 
-	"github.com/newrelic/go-agent/v3/newrelic"
 	valkey_go "github.com/valkey-io/valkey-go"
 )
 
@@ -30,15 +28,15 @@ const (
 	localBufferSize        = 8 << 10
 )
 
-// BuildClientOption constructs the Valkey client option for the master/write
-// path. For a Sentinel deployment (detected via the :26379 port) it configures
-// Sentinel auth and offloads read-only commands to a replica. This is the
-// fallback read path used when no node-local instance is available; the local
-// read path is wired separately in NewClient.
+// BuildClientOption constructs the Valkey client option for the primary path.
+// For a Sentinel deployment (detected via the plaintext or TLS Sentinel port)
+// it configures
+// Sentinel auth. Read-only commands stay primary-consistent unless Client
+// explicitly routes them to its node-local client.
 //
 // Exported for testing.
 func BuildClientOption(address, password string) valkey_go.ClientOption {
-	return withWritePool(buildOption(address, password, true, nil))
+	return withWritePool(buildOption(address, password, nil))
 }
 
 func withWritePool(opts valkey_go.ClientOption) valkey_go.ClientOption {
@@ -51,16 +49,11 @@ func withWritePool(opts valkey_go.ClientOption) valkey_go.ClientOption {
 	return opts
 }
 
-// buildOption builds a Valkey client option. replicaReads enables the
-// SendToReplicas read-offload for a Sentinel deployment.
-//
-// It MUST stay off for the pub/sub client: keyspace notifications (the expired
-// events the timer + live-recheck watchers subscribe to) are published only by
-// the master, so SendToReplicas — which routes the pub/sub SUBSCRIBE to a
-// replica — pins the subscription to a node that never emits them, silently
-// dropping every expiry. Reads still offload via the node-local client (Do),
-// so the pub/sub client losing replica-reads costs nothing.
-func buildOption(address, password string, replicaReads bool, tlsConfig *tls.Config) valkey_go.ClientOption {
+// buildOption builds a primary-consistent Valkey client option. Replica reads
+// are deliberately not enabled here: Client owns the node-local read route,
+// while this connection remains the authoritative primary route used by
+// writes, Primary views and keyspace-notification subscriptions.
+func buildOption(address, password string, tlsConfig *tls.Config) valkey_go.ClientOption {
 	opts := valkey_go.ClientOption{
 		InitAddress:  []string{address},
 		Password:     password,
@@ -80,13 +73,6 @@ func buildOption(address, password string, replicaReads bool, tlsConfig *tls.Con
 			Password:  password,
 			TLSConfig: cloneTLSConfig(tlsConfig),
 		}
-		if replicaReads {
-			// Without a node-local read client, fall back to sending read-only
-			// commands to a Sentinel replica. Writes still go to the master.
-			opts.SendToReplicas = func(cmd valkey_go.Completed) bool {
-				return cmd.IsReadOnly()
-			}
-		}
 	}
 	return opts
 }
@@ -100,139 +86,22 @@ func buildOption(address, password string, replicaReads bool, tlsConfig *tls.Con
 // (master on the primary node, a replica elsewhere) it is the lowest-latency
 // instance for pods on that node. So:
 //
-//   - writes and topology  -> the embedded Sentinel client, which always tracks
-//     the current master and fails over automatically;
+//   - writes, topology and primary-consistent reads -> the embedded Sentinel
+//     client, which always tracks the current master and fails over
+//     automatically;
 //   - pub/sub (Receive)     -> a dedicated master-pinned Sentinel client with no
 //     replica-read offload, so expiry notifications (master-only) are actually
 //     received;
 //   - read-only commands    -> valkey-local over TLS, with no cross-node hop.
 //
 // valkey-go's Sentinel client cannot prefer a local replica on its own:
-// ReadNodeSelector is cluster-mode only, and the Sentinel path picks a replica
-// at random. Splitting the read path out is what makes node-local reads work.
+// ReadNodeSelector is cluster-mode only. Splitting the read path out is what
+// makes node-local reads deterministic while keeping a no-extra-pool primary
+// route available for read-after-write consistency.
 type Client struct {
-	valkey_go.Client                  // master/write path plus everything not overridden
-	local            valkey_go.Client // node-local read path; nil when unavailable
-	pubsub           valkey_go.Client // master-pinned pub/sub path; nil for standalone
-}
-
-// Do sends read-only commands to the local instance and everything else to the
-// master via Sentinel.
-func (c *Client) Do(ctx context.Context, cmd valkey_go.Completed) valkey_go.ValkeyResult {
-	route := c.commandRoute(cmd.IsReadOnly(), singleCommand)
-	return traceValkeyCall(ctx, route.operation, func() valkey_go.ValkeyResult {
-		return route.client.Do(ctx, cmd)
-	}, classifyValkeyResult)
-}
-
-// DoMulti sends a batch to the local instance only when every command is
-// read-only; any write in the batch routes the whole batch to the master.
-func (c *Client) DoMulti(ctx context.Context, multi ...valkey_go.Completed) []valkey_go.ValkeyResult {
-	route := c.commandRoute(allReadOnly(multi), commandBatch)
-	return traceValkeyCall(ctx, route.operation, func() []valkey_go.ValkeyResult {
-		return route.client.DoMulti(ctx, multi...)
-	}, classifyValkeyResults)
-}
-
-type commandShape uint8
-
-const (
-	singleCommand commandShape = iota
-	commandBatch
-)
-
-type valkeyRoute struct {
-	client    valkey_go.Client
-	operation string
-}
-
-func (c *Client) commandRoute(readOnly bool, shape commandShape) valkeyRoute {
-	route := valkeyRoute{client: c.Client, operation: "valkey.write"}
-	if readOnly {
-		route.operation = "valkey.read"
-		if c.local != nil {
-			route.client = c.local
-		}
-	}
-	if shape == commandBatch {
-		route.operation += "_batch"
-	}
-	return route
-}
-
-// Valkey spans are emitted only for transactions selected by New Relic's own
-// sampler. The unsampled command path remains one context lookup and a branch,
-// while sampled traces get fixed-name read/write dependency attribution without
-// exposing keys or commands as high-cardinality facets.
-func traceValkeyCall[T any](ctx context.Context, operation string, do func() T, classify func(T) string) T {
-	txn := newrelic.FromContext(ctx)
-	if txn == nil || !txn.IsSampled() {
-		return do()
-	}
-	segment := txn.StartSegment(operation)
-	result := do()
-	segment.AddAttribute("result", classify(result))
-	segment.End()
-	return result
-}
-
-func classifyValkeyResult(result valkey_go.ValkeyResult) string {
-	return valkeyResult(result.Error())
-}
-
-func classifyValkeyResults(results []valkey_go.ValkeyResult) string {
-	result := "ok"
-	for i := range results {
-		if current := valkeyResult(results[i].Error()); current == "error" {
-			result = current
-			break
-		} else if current == "miss" {
-			result = current
-		}
-	}
-	return result
-}
-
-func valkeyResult(err error) string {
-	if err == nil {
-		return "ok"
-	}
-	if valkey_go.IsValkeyNil(err) {
-		return "miss"
-	}
-	return "error"
-}
-
-// Receive routes pub/sub to the master-pinned client. Keyspace notifications
-// (the expired events the timer + live-recheck watchers subscribe to) are
-// emitted only by the master; the default client's SendToReplicas read-offload
-// would otherwise pin the subscription to a replica that never delivers them.
-func (c *Client) Receive(ctx context.Context, subscribe valkey_go.Completed, fn func(msg valkey_go.PubSubMessage)) error {
-	if c.pubsub != nil {
-		return c.pubsub.Receive(ctx, subscribe, fn)
-	}
-	return c.Client.Receive(ctx, subscribe, fn)
-}
-
-// Close releases the master/write client, the local read client and the
-// master-pinned pub/sub client.
-func (c *Client) Close() {
-	if c.local != nil {
-		c.local.Close()
-	}
-	if c.pubsub != nil {
-		c.pubsub.Close()
-	}
-	c.Client.Close()
-}
-
-func allReadOnly(multi []valkey_go.Completed) bool {
-	for i := range multi {
-		if !multi[i].IsReadOnly() {
-			return false
-		}
-	}
-	return true
+	valkey_go.Client                   // master/write path plus everything not overridden
+	local            valkey_go.Client  // node-local read path; nil when unavailable
+	pubsub           *lazyValkeyClient // master-pinned pub/sub path; nil for standalone
 }
 
 // NewClient initializes a Valkey client.
@@ -240,15 +109,16 @@ func allReadOnly(multi []valkey_go.Completed) bool {
 // Writes always go to the Sentinel-elected master. For a Sentinel deployment
 // with NODE_IP set, read-only commands go to VALKEY_LOCAL_ADDR when configured,
 // otherwise to NODE_IP. The production Service uses internalTrafficPolicy=Local
-// so each node reads its own Valkey without a cross-node hop. Otherwise reads
-// fall back to a Sentinel replica (or the single instance, for standalone).
+// so each node reads its own Valkey without a cross-node hop. Without a local
+// endpoint, reads stay on the primary for correctness instead of choosing a
+// random remote replica.
 func NewClient(address, password string) (valkey_go.Client, error) {
 	tlsConfig, err := clientTLSConfig()
 	if err != nil {
 		return nil, err
 	}
 	address = secureAddress(address, tlsConfig != nil)
-	master, err := valkey_go.NewClient(withWritePool(buildOption(address, password, true, tlsConfig)))
+	master, err := valkey_go.NewClient(withWritePool(buildOption(address, password, tlsConfig)))
 	if err != nil {
 		return nil, err
 	}
@@ -260,14 +130,16 @@ func NewClient(address, password string) (valkey_go.Client, error) {
 		return &Client{Client: master}, nil
 	}
 
-	// Sentinel: pub/sub must be pinned to the master (no SendToReplicas) or the
-	// expiry watchers subscribe to a replica that never emits expired events.
-	pubsub, err := valkey_go.NewClient(buildOption(address, password, false, tlsConfig))
-	if err != nil {
-		master.Close()
-		return nil, err
+	// Sentinel pub/sub is isolated on its own master-pinned client so long-lived
+	// expiry watchers do not share the ordinary command path. Construct it lazily
+	// because most services never call Receive and need no additional pool.
+	wrapped := &Client{
+		Client: master,
+		pubsub: newLazyValkeyClient(
+			buildOption(address, password, tlsConfig),
+			valkey_go.NewClient,
+		),
 	}
-	wrapped := &Client{Client: master, pubsub: pubsub}
 
 	// Node-local read path: a Sentinel deployment where every node hosts a
 	// Valkey instance on NODE_IP:6380 in production.
@@ -288,7 +160,7 @@ func NewClient(address, password string) (valkey_go.Client, error) {
 	}).option())
 	if err != nil {
 		// Local instance unreachable at startup: degrade to Sentinel-only
-		// rather than fail the service. Reads go to a Sentinel replica;
+		// rather than fail the service. Reads stay primary-consistent;
 		// correctness is unaffected, only locality is lost.
 		log.Printf("valkey: node-local read client unavailable (%v); reading via Sentinel", err)
 		return wrapped, nil

@@ -1,0 +1,14 @@
+[Unit]
+Description=Disable transparent huge pages for Valkey tail latency
+Documentation=https://valkey.io/topics/latency/
+After=local-fs.target
+Before=k3s.service k3s-agent.service
+ConditionPathExists=/sys/kernel/mm/transparent_hugepage/enabled
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -ec 'echo never > /sys/kernel/mm/transparent_hugepage/enabled; if [ -e /sys/kernel/mm/transparent_hugepage/defrag ]; then echo never > /sys/kernel/mm/transparent_hugepage/defrag; fi'
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: production
+resources:
+  - topology.yaml
+configMapGenerator:
+  - name: nats-gateway-acceptance-config
+    files:
+      - common.conf
+      - core-0.conf
+      - core-1.conf
+      - worker1.conf
+      - node1.conf
+generatorOptions:
+  labels:
+    app.kubernetes.io/name: nats-gateway-acceptance
+    app.kubernetes.io/part-of: nats-gateway-acceptance

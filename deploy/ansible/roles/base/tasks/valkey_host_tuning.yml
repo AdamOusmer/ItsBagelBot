@@ -1,0 +1,55 @@
+---
+- name: Install Valkey latency sysctl policy
+  ansible.builtin.copy:
+    src: 99-valkey-latency.conf
+    dest: /etc/sysctl.d/99-valkey-latency.conf
+    mode: "0644"
+  notify: reload sysctl
+
+- name: Install Valkey transparent-huge-page latency tuning
+  ansible.builtin.copy:
+    src: valkey-thp-never.service
+    dest: /etc/systemd/system/valkey-thp-never.service
+    mode: "0644"
+  register: valkey_thp_unit
+
+- name: Inspect the live transparent-huge-page policy
+  ansible.builtin.command: cat /sys/kernel/mm/transparent_hugepage/enabled
+  register: valkey_thp_mode
+  changed_when: false
+  failed_when: false
+
+- name: Inspect whether transparent-huge-page defrag policy is available
+  ansible.builtin.stat:
+    path: /sys/kernel/mm/transparent_hugepage/defrag
+  register: valkey_thp_defrag_path
+
+- name: Inspect the live transparent-huge-page defrag policy
+  ansible.builtin.command: cat /sys/kernel/mm/transparent_hugepage/defrag
+  register: valkey_thp_defrag_mode
+  changed_when: false
+  when: valkey_thp_defrag_path.stat.exists
+
+- name: Enable Valkey transparent-huge-page latency tuning
+  ansible.builtin.systemd:
+    name: valkey-thp-never.service
+    enabled: true
+    daemon_reload: true
+
+- name: Apply Valkey transparent-huge-page latency tuning after unit or runtime drift
+  ansible.builtin.systemd:
+    name: valkey-thp-never.service
+    state: restarted
+  when:
+    - valkey_thp_mode.rc == 0
+    - >-
+      valkey_thp_unit is changed or
+      '[never]' not in valkey_thp_mode.stdout or
+      (valkey_thp_defrag_path.stat.exists and
+       '[never]' not in (valkey_thp_defrag_mode.stdout | default('')))
+
+- name: Keep Valkey transparent-huge-page latency tuning active
+  ansible.builtin.systemd:
+    name: valkey-thp-never.service
+    state: started
+  when: valkey_thp_mode.rc == 0

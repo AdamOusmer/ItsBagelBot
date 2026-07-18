@@ -23,6 +23,7 @@ type config struct {
 	address       string
 	caFile        string
 	mode          string
+	writeProfile  string
 	node          string
 	concurrency   int
 	requests      int
@@ -40,9 +41,11 @@ type operation struct {
 type result struct {
 	Node               string  `json:"node"`
 	Operation          string  `json:"operation"`
+	WriteProfile       string  `json:"write_profile"`
 	Concurrency        int     `json:"concurrency"`
 	Requests           int     `json:"requests"`
 	Throughput         float64 `json:"throughput_per_second"`
+	MinMicroseconds    float64 `json:"min_us"`
 	P50Microseconds    float64 `json:"p50_us"`
 	P95Microseconds    float64 `json:"p95_us"`
 	P99Microseconds    float64 `json:"p99_us"`
@@ -125,7 +128,9 @@ func emit(report result) {
 }
 
 func (app *application) close() {
-	app.client.Do(context.Background(), app.client.B().Del().Key(app.key).Build())
+	cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cleanupCancel()
+	app.client.Do(cleanupCtx, app.client.B().Del().Key(app.key).Build())
 	app.client.Close()
 	app.cancel()
 }
@@ -142,15 +147,16 @@ func parseFlags() config {
 
 func defaultConfig() config {
 	return config{
-		address:     "valkey.valkey.svc.cluster.local:26380",
-		caFile:      "/etc/valkey/tls/ca.crt",
-		mode:        "both",
-		node:        os.Getenv("NODE_NAME"),
-		concurrency: 5,
-		requests:    100000,
-		warmup:      5000,
-		timeout:     5 * time.Minute,
-		target:      2 * time.Millisecond,
+		address:      "valkey.valkey.svc.cluster.local:26380",
+		caFile:       "/etc/valkey/tls/ca.crt",
+		mode:         "both",
+		writeProfile: "pooled",
+		node:         os.Getenv("NODE_NAME"),
+		concurrency:  5,
+		requests:     100000,
+		warmup:       5000,
+		timeout:      5 * time.Minute,
+		target:       2 * time.Millisecond,
 	}
 }
 
@@ -158,6 +164,7 @@ func bindFlags(cfg *config) {
 	flag.StringVar(&cfg.address, "address", "valkey.valkey.svc.cluster.local:26380", "Sentinel address")
 	flag.StringVar(&cfg.caFile, "ca-file", "/etc/valkey/tls/ca.crt", "fleet CA file")
 	flag.StringVar(&cfg.mode, "mode", "both", "read, write, or both")
+	flag.StringVar(&cfg.writeProfile, "write-profile", "pooled", "pooled or pipeline")
 	flag.StringVar(&cfg.node, "node", os.Getenv("NODE_NAME"), "source node label")
 	flag.IntVar(&cfg.concurrency, "concurrency", 5, "concurrent callers")
 	flag.IntVar(&cfg.requests, "requests", 100000, "requests per measured operation")
@@ -185,9 +192,16 @@ func (cfg config) validate() error {
 	}
 	switch cfg.mode {
 	case "read", "write", "both":
-		return nil
+		// Validated below with the write profile so both independent enum-like
+		// inputs stay explicit and easy to extend.
 	default:
 		return errors.New("mode must be read, write, or both")
+	}
+	switch cfg.writeProfile {
+	case "pooled", "pipeline":
+		return nil
+	default:
+		return errors.New("write-profile must be pooled or pipeline")
 	}
 }
 
@@ -265,6 +279,13 @@ func (r operationRunner) execute() valkey.ValkeyResult {
 		return r.client.Do(r.ctx, r.client.B().Get().Key(r.op.key).Build())
 	}
 	cmd := r.client.B().Set().Key(r.op.key).Value("01234567890123456789012345678901").ExSeconds(300).Build()
+	if r.cfg.writeProfile == "pipeline" {
+		// The shared client intentionally uses the dedicated-connection pool by
+		// default for reply-critical mutations. ToPipe opts this benchmark write
+		// into valkey-go's automatic pipeline without creating another client or
+		// changing production behavior before the live matrix proves the trade.
+		cmd = cmd.ToPipe()
+	}
 	return r.client.Do(r.ctx, cmd)
 }
 
@@ -272,8 +293,10 @@ func summarize(cfg config, op operation, measured measurement) result {
 	sort.Slice(measured.latencies, func(i, j int) bool { return measured.latencies[i] < measured.latencies[j] })
 	p99 := percentile(measured.latencies, 99)
 	return result{
-		Node: cfg.node, Operation: op.name, Concurrency: cfg.concurrency, Requests: len(measured.latencies),
+		Node: cfg.node, Operation: op.name, WriteProfile: cfg.writeProfile,
+		Concurrency: cfg.concurrency, Requests: len(measured.latencies),
 		Throughput:      float64(len(measured.latencies)) / measured.elapsed.Seconds(),
+		MinMicroseconds: micros(measured.latencies[0]),
 		P50Microseconds: micros(percentile(measured.latencies, 50)),
 		P95Microseconds: micros(percentile(measured.latencies, 95)),
 		P99Microseconds: micros(p99), MaxMicroseconds: micros(measured.latencies[len(measured.latencies)-1]),

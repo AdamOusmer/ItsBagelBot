@@ -145,6 +145,34 @@ server-first rollback is fully automated:
 ansible-playbook -i inventory.cluster.ini cluster-network-rollback.yml
 ```
 
+### Existing cluster: Valkey host latency policy
+
+Before a change that restarts the Valkey StatefulSet, run the read-only topology
+gate. It requires all four members to be ready and the current primary to live
+on node2 or node3:
+
+```bash
+ansible-playbook valkey-rollout-preflight.yml
+```
+
+The first deployment of the deterministic cold-bootstrap policy also changes
+the immutable StatefulSet `podManagementPolicy` from `OrderedReady` to
+`Parallel`. Perform that as a controlled orphan/delete-and-recreate while
+retaining the pods and PVCs. Only for that reviewed migration, acknowledge it to
+the preflight with `-e valkey_allow_parallel_migration=true`; subsequent runs
+must pass without the acknowledgement.
+
+Reconcile swap pressure and transparent huge pages across all four production
+nodes with the explicit cluster inventory:
+
+```bash
+ansible-playbook -i inventory.cluster.ini valkey-host-tuning.yml
+```
+
+The play asserts that node1, node2, node3, and worker1 are all present before it
+changes a host. Running it against the default single-node provisioning
+inventory fails loudly instead of reporting a successful no-op.
+
 `provision.sh` is just a thin `doppler run -- ansible-playbook …` wrapper.
 
 ### Compute-only nodes (taint + label)

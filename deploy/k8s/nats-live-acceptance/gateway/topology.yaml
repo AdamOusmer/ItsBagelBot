@@ -1,0 +1,410 @@
+apiVersion: v1
+kind: List
+items:
+  - apiVersion: cert-manager.io/v1
+    kind: Certificate
+    metadata:
+      name: nats-gateway-acceptance-tls
+      labels: &commonLabels
+        app.kubernetes.io/name: nats-gateway-acceptance
+        app.kubernetes.io/part-of: nats-gateway-acceptance
+      annotations:
+        itsbagelbot.dev/acceptance-owner: local-first-rpc
+    spec:
+      secretName: nats-gateway-acceptance-tls
+      secretTemplate:
+        labels:
+          app.kubernetes.io/name: nats-gateway-acceptance
+          app.kubernetes.io/part-of: nats-gateway-acceptance
+          itsbagelbot.dev/acceptance-owner: local-first-rpc
+        annotations:
+          itsbagelbot.dev/acceptance-certificate: nats-gateway-acceptance-tls
+      duration: 24h
+      renewBefore: 1h
+      privateKey:
+        algorithm: ECDSA
+        size: 256
+      usages:
+        - server auth
+        - client auth
+      issuerRef:
+        name: fleet-ca-issuer
+        kind: ClusterIssuer
+        group: cert-manager.io
+      dnsNames:
+        - nats-gw-accept-core-0
+        - nats-gw-accept-core-0.production.svc.cluster.local
+        - nats-gw-accept-core-1
+        - nats-gw-accept-core-1.production.svc.cluster.local
+        - nats-gw-accept-worker1
+        - nats-gw-accept-worker1.production.svc.cluster.local
+        - nats-gw-accept-node1
+        - nats-gw-accept-node1.production.svc.cluster.local
+  - apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: nats-gateway-acceptance-isolation
+      labels: *commonLabels
+    spec:
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: nats-gateway-acceptance
+      policyTypes: [Ingress, Egress]
+      ingress:
+        - from:
+            - podSelector:
+                matchLabels:
+                  app.kubernetes.io/name: nats-gateway-acceptance
+      egress:
+        - to:
+            - podSelector:
+                matchLabels:
+                  app.kubernetes.io/name: nats-gateway-acceptance
+        - to:
+            - namespaceSelector:
+                matchLabels:
+                  kubernetes.io/metadata.name: kube-system
+              podSelector:
+                matchLabels:
+                  k8s-app: kube-dns
+          ports:
+            - {protocol: UDP, port: 53}
+            - {protocol: TCP, port: 53}
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: nats-gw-accept-core-0
+      labels: *commonLabels
+    spec:
+      selector: &core0Selector
+        app.kubernetes.io/name: nats-gateway-acceptance
+        app.kubernetes.io/component: server
+        app.kubernetes.io/instance: core-0
+      ports: &serverPorts
+        - {name: client, port: 4222, targetPort: client}
+        - {name: cluster, port: 6222, targetPort: cluster}
+        - {name: gateway, port: 7222, targetPort: gateway}
+        - {name: monitor, port: 8222, targetPort: monitor}
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: nats-gw-accept-core-1
+      labels: *commonLabels
+    spec:
+      selector: &core1Selector
+        app.kubernetes.io/name: nats-gateway-acceptance
+        app.kubernetes.io/component: server
+        app.kubernetes.io/instance: core-1
+      ports: *serverPorts
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: nats-gw-accept-worker1
+      labels: *commonLabels
+    spec:
+      selector: &workerSelector
+        app.kubernetes.io/name: nats-gateway-acceptance
+        app.kubernetes.io/component: server
+        app.kubernetes.io/instance: worker1
+      ports: *serverPorts
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: nats-gw-accept-node1
+      labels: *commonLabels
+    spec:
+      selector: &node1Selector
+        app.kubernetes.io/name: nats-gateway-acceptance
+        app.kubernetes.io/component: server
+        app.kubernetes.io/instance: node1
+      ports: *serverPorts
+  - apiVersion: v1
+    kind: Pod
+    metadata:
+      name: nats-gw-accept-core-0
+      labels: *core0Selector
+      annotations:
+        linkerd.io/inject: disabled
+    spec: &core0Pod
+      automountServiceAccountToken: false
+      priorityClassName: nats-r3-bench-nonpreempting
+      restartPolicy: Never
+      nodeSelector:
+        kubernetes.io/hostname: node2
+      securityContext: &podSecurity
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: nats
+          image: nats:2.14.3-alpine
+          args: ["--config", "/etc/nats/config/core-0.conf"]
+          envFrom:
+            - secretRef: {name: nats-auth-env}
+          ports:
+            - {name: client, containerPort: 4222}
+            - {name: cluster, containerPort: 6222}
+            - {name: gateway, containerPort: 7222}
+            - {name: monitor, containerPort: 8222}
+          volumeMounts: &serverMounts
+            - {name: config, mountPath: /etc/nats/config, readOnly: true}
+            - {name: auth, mountPath: /etc/nats/auth, readOnly: true}
+            - {name: certs, mountPath: /etc/nats/certs, readOnly: true}
+          resources: &serverResources
+            requests: {cpu: 50m, memory: 96Mi}
+            limits: {cpu: "1", memory: 256Mi}
+          securityContext: &containerSecurity
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+            readOnlyRootFilesystem: true
+          readinessProbe:
+            httpGet: {path: /healthz, port: monitor}
+            periodSeconds: 2
+            timeoutSeconds: 1
+            failureThreshold: 30
+      volumes: &serverVolumes
+        - name: config
+          configMap: {name: nats-gateway-acceptance-config}
+        - name: auth
+          configMap:
+            name: nats-leaf-config
+            items: [{key: auth.conf, path: auth.conf}]
+        - name: certs
+          secret: {secretName: nats-gateway-acceptance-tls}
+  - apiVersion: v1
+    kind: Pod
+    metadata:
+      name: nats-gw-accept-core-1
+      labels: *core1Selector
+      annotations:
+        linkerd.io/inject: disabled
+    spec:
+      <<: *core0Pod
+      nodeSelector:
+        kubernetes.io/hostname: node3
+      containers:
+        - name: nats
+          image: nats:2.14.3-alpine
+          args: ["--config", "/etc/nats/config/core-1.conf"]
+          envFrom:
+            - secretRef: {name: nats-auth-env}
+          ports:
+            - {name: client, containerPort: 4222}
+            - {name: cluster, containerPort: 6222}
+            - {name: gateway, containerPort: 7222}
+            - {name: monitor, containerPort: 8222}
+          volumeMounts: *serverMounts
+          resources: *serverResources
+          securityContext: *containerSecurity
+          readinessProbe:
+            httpGet: {path: /healthz, port: monitor}
+            periodSeconds: 2
+            timeoutSeconds: 1
+            failureThreshold: 30
+  - apiVersion: v1
+    kind: Pod
+    metadata:
+      name: nats-gw-accept-worker1
+      labels: *workerSelector
+      annotations:
+        linkerd.io/inject: disabled
+    spec:
+      <<: *core0Pod
+      nodeSelector:
+        kubernetes.io/hostname: worker1
+      tolerations:
+        - key: itsbagelbot.dev/pool
+          operator: Equal
+          value: worker-pool
+          effect: NoSchedule
+      containers:
+        - name: nats
+          image: nats:2.14.3-alpine
+          args: ["--config", "/etc/nats/config/worker1.conf"]
+          envFrom:
+            - secretRef: {name: nats-auth-env}
+          ports:
+            - {name: client, containerPort: 4222}
+            - {name: cluster, containerPort: 6222}
+            - {name: gateway, containerPort: 7222}
+            - {name: monitor, containerPort: 8222}
+          volumeMounts: *serverMounts
+          resources: *serverResources
+          securityContext: *containerSecurity
+          readinessProbe:
+            httpGet: {path: /healthz, port: monitor}
+            periodSeconds: 2
+            timeoutSeconds: 1
+            failureThreshold: 30
+  - apiVersion: v1
+    kind: Pod
+    metadata:
+      name: nats-gw-accept-node1
+      labels: *node1Selector
+      annotations:
+        linkerd.io/inject: disabled
+    spec:
+      <<: *core0Pod
+      nodeSelector:
+        kubernetes.io/hostname: node1
+      containers:
+        - name: nats
+          image: nats:2.14.3-alpine
+          args: ["--config", "/etc/nats/config/node1.conf"]
+          envFrom:
+            - secretRef: {name: nats-auth-env}
+          ports:
+            - {name: client, containerPort: 4222}
+            - {name: cluster, containerPort: 6222}
+            - {name: gateway, containerPort: 7222}
+            - {name: monitor, containerPort: 8222}
+          volumeMounts: *serverMounts
+          resources: *serverResources
+          securityContext: *containerSecurity
+          readinessProbe:
+            httpGet: {path: /healthz, port: monitor}
+            periodSeconds: 2
+            timeoutSeconds: 1
+            failureThreshold: 30
+  - apiVersion: v1
+    kind: Pod
+    metadata:
+      name: nats-gw-accept-client-node2
+      labels: &clientLabels
+        app.kubernetes.io/name: nats-gateway-acceptance
+        app.kubernetes.io/part-of: nats-gateway-acceptance
+        app.kubernetes.io/component: client
+        app.kubernetes.io/instance: node2
+      annotations:
+        linkerd.io/inject: disabled
+    spec: &clientPod
+      automountServiceAccountToken: false
+      priorityClassName: nats-r3-bench-nonpreempting
+      restartPolicy: Never
+      nodeSelector:
+        kubernetes.io/hostname: node2
+      securityContext: *podSecurity
+      containers:
+        - name: nats-box
+          image: natsio/nats-box:0.17.0
+          command: ["sleep", "1800"]
+          env:
+            - {name: LOCAL_NATS_URL, value: "tls://nats-gw-accept-core-0:4222"}
+            - {name: NATS_CA, value: "/etc/nats-ca/ca.pem"}
+            - name: REQUEST_USER
+              valueFrom: {secretKeyRef: {name: console-admin-env, key: NATS_RPC_USER}}
+            - name: REQUEST_PASSWORD
+              valueFrom: {secretKeyRef: {name: console-admin-env, key: NATS_RPC_PASSWORD}}
+            - name: RESPONSE_USER
+              valueFrom: {secretKeyRef: {name: users-env, key: NATS_RPC_USER}}
+            - name: RESPONSE_PASSWORD
+              valueFrom: {secretKeyRef: {name: users-env, key: NATS_RPC_PASSWORD}}
+          volumeMounts: &clientMounts
+            - {name: fleet-ca, mountPath: /etc/nats-ca, readOnly: true}
+          resources: &clientResources
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {cpu: "1", memory: 192Mi}
+          securityContext: *containerSecurity
+      volumes: &clientVolumes
+        - name: fleet-ca
+          configMap: {name: fleet-ca}
+  - apiVersion: v1
+    kind: Pod
+    metadata:
+      name: nats-gw-accept-client-node3
+      labels:
+        <<: *clientLabels
+        app.kubernetes.io/instance: node3
+      annotations:
+        linkerd.io/inject: disabled
+    spec:
+      <<: *clientPod
+      nodeSelector:
+        kubernetes.io/hostname: node3
+      containers:
+        - name: nats-box
+          image: natsio/nats-box:0.17.0
+          command: ["sleep", "1800"]
+          env:
+            - {name: LOCAL_NATS_URL, value: "tls://nats-gw-accept-core-1:4222"}
+            - {name: NATS_CA, value: "/etc/nats-ca/ca.pem"}
+            - name: REQUEST_USER
+              valueFrom: {secretKeyRef: {name: console-admin-env, key: NATS_RPC_USER}}
+            - name: REQUEST_PASSWORD
+              valueFrom: {secretKeyRef: {name: console-admin-env, key: NATS_RPC_PASSWORD}}
+            - name: RESPONSE_USER
+              valueFrom: {secretKeyRef: {name: users-env, key: NATS_RPC_USER}}
+            - name: RESPONSE_PASSWORD
+              valueFrom: {secretKeyRef: {name: users-env, key: NATS_RPC_PASSWORD}}
+          volumeMounts: *clientMounts
+          resources: *clientResources
+          securityContext: *containerSecurity
+  - apiVersion: v1
+    kind: Pod
+    metadata:
+      name: nats-gw-accept-client-worker1
+      labels:
+        <<: *clientLabels
+        app.kubernetes.io/instance: worker1
+      annotations:
+        linkerd.io/inject: disabled
+    spec:
+      <<: *clientPod
+      nodeSelector:
+        kubernetes.io/hostname: worker1
+      tolerations:
+        - key: itsbagelbot.dev/pool
+          operator: Equal
+          value: worker-pool
+          effect: NoSchedule
+      containers:
+        - name: nats-box
+          image: natsio/nats-box:0.17.0
+          command: ["sleep", "1800"]
+          env:
+            - {name: LOCAL_NATS_URL, value: "tls://nats-gw-accept-worker1:4222"}
+            - {name: NATS_CA, value: "/etc/nats-ca/ca.pem"}
+            - name: REQUEST_USER
+              valueFrom: {secretKeyRef: {name: console-admin-env, key: NATS_RPC_USER}}
+            - name: REQUEST_PASSWORD
+              valueFrom: {secretKeyRef: {name: console-admin-env, key: NATS_RPC_PASSWORD}}
+            - name: RESPONSE_USER
+              valueFrom: {secretKeyRef: {name: users-env, key: NATS_RPC_USER}}
+            - name: RESPONSE_PASSWORD
+              valueFrom: {secretKeyRef: {name: users-env, key: NATS_RPC_PASSWORD}}
+          volumeMounts: *clientMounts
+          resources: *clientResources
+          securityContext: *containerSecurity
+  - apiVersion: v1
+    kind: Pod
+    metadata:
+      name: nats-gw-accept-client-node1
+      labels:
+        <<: *clientLabels
+        app.kubernetes.io/instance: node1
+      annotations:
+        linkerd.io/inject: disabled
+    spec:
+      <<: *clientPod
+      nodeSelector:
+        kubernetes.io/hostname: node1
+      containers:
+        - name: nats-box
+          image: natsio/nats-box:0.17.0
+          command: ["sleep", "1800"]
+          env:
+            - {name: LOCAL_NATS_URL, value: "tls://nats-gw-accept-node1:4222"}
+            - {name: NATS_CA, value: "/etc/nats-ca/ca.pem"}
+            - name: REQUEST_USER
+              valueFrom: {secretKeyRef: {name: console-admin-env, key: NATS_RPC_USER}}
+            - name: REQUEST_PASSWORD
+              valueFrom: {secretKeyRef: {name: console-admin-env, key: NATS_RPC_PASSWORD}}
+            - name: RESPONSE_USER
+              valueFrom: {secretKeyRef: {name: users-env, key: NATS_RPC_USER}}
+            - name: RESPONSE_PASSWORD
+              valueFrom: {secretKeyRef: {name: users-env, key: NATS_RPC_PASSWORD}}
+          volumeMounts: *clientMounts
+          resources: *clientResources
+          securityContext: *containerSecurity

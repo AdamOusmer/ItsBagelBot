@@ -1,0 +1,34 @@
+---
+# Reconcile latency-sensitive host policy on the existing cluster without
+# re-running the fresh-node provisioning roles.
+- name: Validate the explicit production-cluster inventory
+  hosts: localhost
+  connection: local
+  become: false
+  gather_facts: false
+  vars:
+    valkey_required_nodes:
+      - node1
+      - node2
+      - node3
+      - worker1
+  tasks:
+    - name: Refuse an empty or partial cluster target
+      ansible.builtin.assert:
+        that:
+          - groups.get('cluster', []) | length > 0
+          - valkey_required_nodes | difference(groups.get('cluster', [])) | length == 0
+        fail_msg: >-
+          valkey-host-tuning.yml requires the complete production inventory.
+          Run it with -i inventory.cluster.ini; the default inventory.ini only
+          describes a fresh provisioning target.
+
+- name: Apply Valkey host latency tuning
+  hosts: cluster
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Apply the base role's Valkey host policy
+      ansible.builtin.include_role:
+        name: base
+        tasks_from: valkey_host_tuning

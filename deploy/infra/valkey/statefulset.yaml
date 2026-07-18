@@ -15,7 +15,11 @@ spec:
   persistentVolumeClaimRetentionPolicy:
     whenDeleted: Retain
     whenScaled: Retain
-  podManagementPolicy: OrderedReady
+  # Parallel startup is required for a safe cold bootstrap: the pod placed on
+  # node2 is the sole deterministic bootstrap candidate, while fresh members on
+  # every other node wait for its Sentinel view. OrderedReady could deadlock the
+  # fleet when ordinal zero is scheduled on a fenced node.
+  podManagementPolicy: Parallel
   # Four colocated Valkey+Sentinel voters produce one writable primary and
   # three replicas. This count is a CI-enforced configuration invariant.
   replicas: 4
@@ -54,21 +58,48 @@ spec:
         - /bin/sh
         - -ec
         - |
-          # Resolve the CURRENT master: ask a live Sentinel first (the fleet may
-          # have failed over any number of times since pod-0 was master), falling
-          # back to pod-0 only for a full cold start where no
-          # Sentinel answers. Blindly seeding replicaof from pod-0 chains a new
-          # replica under whatever pod-0 happens to be — on worker1 that is the
-          # fenced priority-0 replica — creating a sub-replica that Sentinel
-          # neither discovers nor manages (hit live on the 2026-07-09 scale-out).
+          # Ask a live Sentinel before deriving any role. Stable pod DNS is
+          # authoritative and node2 is the sole deterministic fresh-cluster
+          # bootstrap candidate. Fresh pods on every other node wait for that
+          # view, which avoids making an arbitrary StatefulSet ordinal primary.
           #
-          # Every step here must tolerate a retained /data directory and a
-          # partially available quorum. Stable pod DNS is authoritative.
+          # A retained fenced primary also waits until the remaining Sentinels
+          # elect node2 or node3. Retained replicas may start immediately so
+          # their colocated Sentinels can form the majority needed for failover.
+          # This turns the placement policy into a fail-closed invariant instead
+          # of relying on replica-priority, which only controls future elections.
           POD_FQDN="${POD_NAME}.valkey-headless.valkey.svc.cluster.local"
-          MASTER_ENDPOINT="valkey-node-0.valkey-headless.valkey.svc.cluster.local"
-          LIVE_MASTER=$( { REDISCLI_AUTH="${CORE}" valkey-cli -h valkey.valkey.svc.cluster.local -p 26380 --tls --cacert /etc/valkey/tls/ca.crt --sni valkey.valkey.svc.cluster.local --no-auth-warning sentinel get-master-addr-by-name myprimary 2>/dev/null || true; } | head -n 1)
+          lookup_master() {
+            { REDISCLI_AUTH="${CORE}" valkey-cli -h valkey.valkey.svc.cluster.local -p 26380 --tls --cacert /etc/valkey/tls/ca.crt --sni valkey.valkey.svc.cluster.local --no-auth-warning sentinel get-master-addr-by-name myprimary 2>/dev/null || true; } \
+              | head -n 1 | tr -d '"'
+          }
+          CONFIG_PRESENT=false
+          if [ -f /data/valkey.conf ]; then
+            CONFIG_PRESENT=true
+          fi
+          FENCED=true
+          case "${NODE_NAME}" in
+            node2|node3) FENCED=false ;;
+          esac
+          LIVE_MASTER=$(lookup_master)
+          WAIT_FOR_PRIMARY=false
+          if [ "${FENCED}" = "true" ]; then
+            if [ "${CONFIG_PRESENT}" = "false" ] || ! grep -q '^replicaof ' /data/valkey.conf 2>/dev/null || [ "${LIVE_MASTER}" = "${POD_FQDN}" ]; then
+              WAIT_FOR_PRIMARY=true
+            fi
+          elif [ "${CONFIG_PRESENT}" = "false" ] && [ "${NODE_NAME}" != "node2" ]; then
+            WAIT_FOR_PRIMARY=true
+          fi
+          if [ "${WAIT_FOR_PRIMARY}" = "true" ]; then
+            echo "Waiting for a node2/node3 Sentinel primary before starting ${POD_FQDN}"
+            while [ -z "${LIVE_MASTER}" ] || { [ "${FENCED}" = "true" ] && [ "${LIVE_MASTER}" = "${POD_FQDN}" ]; }; do
+              sleep 2
+              LIVE_MASTER=$(lookup_master)
+            done
+          fi
+          MASTER_ENDPOINT="${POD_FQDN}"
           if [ -n "${LIVE_MASTER}" ]; then
-            MASTER_ENDPOINT=$(printf '%s' "${LIVE_MASTER}" | tr -d '"')
+            MASTER_ENDPOINT="${LIVE_MASTER}"
           fi
           if [ ! -f /data/valkey.conf ]; then
             cp /config/valkey.conf /data/valkey.conf
@@ -77,29 +108,33 @@ spec:
               echo "replica-announce-ip ${POD_FQDN}"
               echo "replica-announce-port 6380"
             } >> /data/valkey.conf
-            # First-boot seed only: every pod but the master's begins as its
-            # replica; Sentinel owns all failovers afterwards. Skipped once
-            # valkey has rewritten its own replication state. Empty master endpoint
-            # (resolution failed on a true cold start) falls back to pod-0.
-            if [ "${POD_INDEX}" != "0" ]; then
-              echo "replicaof ${MASTER_ENDPOINT:-valkey-node-0.valkey-headless.valkey.svc.cluster.local} 6380" >> /data/valkey.conf
-            fi
-            # The home node (worker1, flaky wifi) keeps a read replica but must never
-            # be promoted: Sentinel never elects a priority-0 replica. Keyed on the
-            # node, not the ordinal, so whichever pod lands on worker1 is fenced. The
-            # live cluster was set the same way via CONFIG SET + REWRITE; this only
-            # re-seeds it after a fresh-PVC disaster rebuild.
-            if [ "${NODE_NAME}" = "worker1" ]; then
-              echo "replica-priority 0" >> /data/valkey.conf
-            fi
-            # node1 (2-core, future DB node) is the last-resort master: higher
-            # number = less preferred, so failovers pick node3/node2 (100) first.
-            # Mirrors the live CONFIG SET applied 2026-07-09.
-            if [ "${NODE_NAME}" = "node1" ]; then
-              echo "replica-priority 200" >> /data/valkey.conf
+            # The only fresh member allowed to see an empty Sentinel view is the
+            # pod placed on node2. It bootstraps itself; every other fresh member
+            # has waited for and follows the discovered primary.
+            if [ -n "${LIVE_MASTER}" ] && [ "${POD_FQDN}" != "${MASTER_ENDPOINT}" ]; then
+              echo "replicaof ${MASTER_ENDPOINT} 6380" >> /data/valkey.conf
             fi
             chmod 600 /data/valkey.conf
           fi
+          # Reconcile master eligibility on every boot. Retained PVCs may carry
+          # a stale CONFIG REWRITE value, so only the explicit node2/node3
+          # allowlist can remain eligible for Sentinel promotion. Every other
+          # node, including node1, worker1, and future unknown nodes, is fenced.
+          sed -i '/^replica-priority /d' /data/valkey.conf
+          case "${NODE_NAME}" in
+            node2|node3)
+              echo "replica-priority 100" >> /data/valkey.conf
+              ;;
+            *)
+              echo "replica-priority 0" >> /data/valkey.conf
+              ;;
+          esac
+          # Keep ConfigMap-backed runtime policy authoritative over retained
+          # CONFIG REWRITE output. Moving the include to the end on every boot
+          # makes a config change roll out without discarding Sentinel-owned
+          # replication state in the writable file.
+          sed -i '\|^include /config/tuning.conf$|d' /data/valkey.conf
+          echo "include /config/tuning.conf" >> /data/valkey.conf
           # io-threads is deliberately reconciled on every boot instead of
           # only on fresh PVCs. CONFIG REWRITE persists old values, and node1
           # has only two cores while the remaining data-plane hosts have 6-8.
@@ -178,10 +213,6 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: spec.nodeName
-        - name: POD_INDEX
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.labels['apps.kubernetes.io/pod-index']
         - name: CORE
           valueFrom:
             secretKeyRef:
@@ -322,10 +353,13 @@ spec:
         resources:
           limits:
             cpu: '2'
-            memory: 1Gi
+            # 512 MiB maxmemory + 128 MiB replication backlog still need room
+            # for allocator overhead, TLS buffers, AOF fork/COW and full sync.
+            # A 2 GiB ceiling leaves a defensible worst-case fork/COW margin.
+            memory: 2Gi
           requests:
             cpu: 250m
-            memory: 256Mi
+            memory: 384Mi
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
