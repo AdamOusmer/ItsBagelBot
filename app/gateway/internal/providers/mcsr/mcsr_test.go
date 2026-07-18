@@ -68,7 +68,7 @@ func userBody(elo int, wins, loses, played int) string {
 
 // newTestProvider serves handler as the MCSR API and returns the provider plus
 // its backing store (so tests can evict the 60s user cache to simulate time).
-func newTestProvider(t *testing.T, handler http.Handler) (*Provider, *memStore) {
+func newTestProvider(t *testing.T, handler http.Handler) (provider.Provider, *memStore) {
 	t.Helper()
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)
@@ -77,7 +77,7 @@ func newTestProvider(t *testing.T, handler http.Handler) (*Provider, *memStore) 
 		provider.Deps{Cache: core.NewCache(st), Log: zap.NewNop()}), st
 }
 
-func endpoint(t *testing.T, p *Provider, name string) func(context.Context, gatewayrpc.Request) any {
+func endpoint(t *testing.T, p provider.Provider, name string) func(context.Context, gatewayrpc.Request) any {
 	t.Helper()
 	for _, ep := range p.Endpoints() {
 		if ep.Name == name {

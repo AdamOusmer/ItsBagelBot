@@ -53,6 +53,14 @@ func NewBuckets(key string, capacity, windowSeconds float64) Buckets {
 	}
 }
 
+// WithKey returns a copy of b spending the same derived specs under a
+// different limiter key, for per-caller budgets (govee: one bucket per
+// broadcaster) without re-deriving the specs on every request.
+func (b Buckets) WithKey(key string) Buckets {
+	b.key = key
+	return b
+}
+
 // Enforce consumes one request from the budget. Standard requests must pass
 // both their restricted bucket AND the general bucket in one atomic script (a
 // denial consumes neither); premium requests consume only the general bucket,

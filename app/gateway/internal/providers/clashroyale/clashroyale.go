@@ -6,7 +6,6 @@ package clashroyale
 
 import (
 	"context"
-	"encoding/json"
 	"math"
 	"net/url"
 	"strings"
@@ -16,7 +15,7 @@ import (
 	"ItsBagelBot/app/gateway/internal/provider"
 	gatewayrpc "ItsBagelBot/internal/domain/rpc/gateway"
 
-	"go.uber.org/zap"
+	"ItsBagelBot/pkg/ratelimit"
 )
 
 const (
@@ -40,17 +39,30 @@ type Config struct {
 	RateLimit float64
 }
 
-// Provider implements provider.Provider for the Clash Royale API.
-type Provider struct {
+// providerName is the subject token this provider answers under.
+const providerName = "clashroyale"
+
+// api holds the provider's runtime pieces; the declared endpoints capture it.
+type api struct {
 	http    *core.HTTPClient
 	cache   *core.Cache
-	log     *zap.Logger
-	deps    provider.Deps
+	limiter *ratelimit.Limiter
 	buckets core.Buckets
 }
 
-// New builds a Clash Royale provider.
-func New(cfg Config, d provider.Deps) *Provider {
+// New builds a Clash Royale provider: four byte-flow views over one shared
+// profile cache, so reading several views still costs one upstream request.
+func New(cfg Config, d provider.Deps) provider.Provider {
+	p := newAPI(cfg, d)
+	b := provider.NewProvider(providerName, d)
+	p.view(b, "stats", func(tag, msg string) any { return statsReply{Tag: tag, Error: msg} }, shapeStats)
+	p.view(b, "decks", func(tag, msg string) any { return decksReply{Tag: tag, Error: msg} }, shapeDecks)
+	p.view(b, "ranked", func(tag, msg string) any { return rankedReply{Tag: tag, Error: msg} }, shapeRanked)
+	p.view(b, "trophy_road", func(tag, msg string) any { return trophyRoadReply{Tag: tag, Error: msg} }, shapeTrophyRoad)
+	return b.Build()
+}
+
+func newAPI(cfg Config, d provider.Deps) *api {
 	base := strings.TrimSuffix(cfg.BaseURL, "/")
 	if base == "" {
 		base = defaultBaseURL
@@ -58,29 +70,47 @@ func New(cfg Config, d provider.Deps) *Provider {
 	if cfg.RateLimit <= 0 {
 		cfg.RateLimit = 600
 	}
-	log := d.Log
-	if log == nil {
-		log = zap.NewNop()
-	}
-	return &Provider{
+	return &api{
 		http: core.NewHTTPClient(base, map[string]string{
 			"Authorization": "Bearer " + cfg.APIKey,
 		}, httpTimeout),
 		cache:   d.Cache,
-		log:     log,
-		deps:    d,
+		limiter: d.Limiter,
 		buckets: core.NewBuckets("ratelimit:gateway:clashroyale", cfg.RateLimit, rateWindowSeconds),
 	}
 }
 
-func (p *Provider) Name() string { return "clashroyale" }
+// view declares one byte-flow endpoint that projects the shared player profile
+// through shape.
+func (p *api) view(b *provider.Builder, name string, errReply provider.ReplyFunc, shape func(playerProfile) any) {
+	b.Endpoint(name).Timeout(handlerTimeout).
+		Cached(profileTTL, negativeTTL).
+		ID(tagID).
+		Reply(errReply).
+		Fallback(name + " lookup failed").
+		Fetch(p.profileFetch(shape))
+}
 
-func (p *Provider) Endpoints() []provider.Endpoint {
-	return []provider.Endpoint{
-		{Name: "stats", Timeout: handlerTimeout, Handle: p.stats},
-		{Name: "decks", Timeout: handlerTimeout, Handle: p.decks},
-		{Name: "ranked", Timeout: handlerTimeout, Handle: p.ranked},
-		{Name: "trophy_road", Timeout: handlerTimeout, Handle: p.trophyRoad},
+// tagID validates and canonicalizes the player tag: the reply echoes the
+// canonical "#TAG" form once it parses, or the raw input on a validation
+// error.
+func tagID(req gatewayrpc.Request) (provider.ID, string) {
+	tag, msg := parsePlayerTag(req.Account)
+	if msg != "" {
+		return provider.ID{Display: strings.TrimSpace(req.Account)}, msg
+	}
+	return provider.ID{Display: tag.String(), Key: tag.cacheKey()}, ""
+}
+
+// profileFetch loads the shared profile and projects it through shape.
+func (p *api) profileFetch(shape func(playerProfile) any) provider.FetchFunc {
+	return func(ctx context.Context, req gatewayrpc.Request, id provider.ID) (any, error) {
+		tag, _ := parsePlayerTag(id.Display) // already validated by tagID
+		profile, err := p.profile(ctx, tag, req.IsPremium)
+		if err != nil {
+			return nil, err
+		}
+		return shape(profile), nil
 	}
 }
 
@@ -244,10 +274,10 @@ type trophyRoadReply struct {
 	Error        string `json:"error,omitempty"`
 }
 
-func (p *Provider) profile(ctx context.Context, tag playerTag, isPremium bool) (playerProfile, error) {
-	key := core.Key(p.Name(), "profile", tag.cacheKey())
+func (p *api) profile(ctx context.Context, tag playerTag, isPremium bool) (playerProfile, error) {
+	key := core.Key(providerName, "profile", tag.cacheKey())
 	return core.Cached(ctx, p.cache, key, profileTTL, negativeTTL, func(ctx context.Context) (playerProfile, error) {
-		if err := p.buckets.Enforce(ctx, p.deps.Limiter, isPremium); err != nil {
+		if err := p.buckets.Enforce(ctx, p.limiter, isPremium); err != nil {
 			return playerProfile{}, err
 		}
 		var profile playerProfile
@@ -262,83 +292,42 @@ func (p *Provider) profile(ctx context.Context, tag playerTag, isPremium bool) (
 	})
 }
 
-// endpoint centralizes tag validation, byte-flow caching, and friendly error
-// shaping. shape selects one public view from the shared profile.
-func (p *Provider) endpoint(endpoint string, errorReply func(string, string) any, shape func(playerProfile) any) func(context.Context, gatewayrpc.Request) any {
-	return func(ctx context.Context, req gatewayrpc.Request) any {
-		tag, validationError := parsePlayerTag(req.Account)
-		if validationError != "" {
-			return errorReply(strings.TrimSpace(req.Account), validationError)
-		}
-		key := core.Key(p.Name(), endpoint, tag.cacheKey())
-		b, err := core.CachedBytes(ctx, p.cache, key, func(ctx context.Context) ([]byte, time.Duration, error) {
-			return core.BuildReply(ctx, profileTTL, negativeTTL,
-				func(ctx context.Context) (any, error) {
-					profile, err := p.profile(ctx, tag, req.IsPremium)
-					if err != nil {
-						return nil, err
-					}
-					return shape(profile), nil
-				},
-				func(msg string) any { return errorReply(tag.String(), msg) },
-			)
-		})
-		if err != nil {
-			p.log.Warn("clash royale fetch failed", zap.String("endpoint", endpoint), zap.String("tag", tag.String()), zap.Error(err))
-			return errorReply(tag.String(), endpoint+" lookup failed")
-		}
-		return json.RawMessage(b)
+func shapeStats(profile playerProfile) any {
+	draws := profile.BattleCount - profile.Wins - profile.Losses
+	if draws < 0 {
+		draws = 0
+	}
+	winRate := 0.0
+	if profile.BattleCount > 0 {
+		winRate = float64(profile.Wins) * 100 / float64(profile.BattleCount)
+	}
+	return statsReply{
+		Player: profile.Name, Tag: profile.Tag, KingLevel: profile.ExpLevel,
+		ExperiencePoints: profile.ExpPoints, StarPoints: profile.StarPoints,
+		Wins: profile.Wins, Losses: profile.Losses, Draws: draws,
+		Battles: profile.BattleCount, WinRate: winRate,
+		ThreeCrownWins:    profile.ThreeCrownWins,
+		ChallengeCardsWon: profile.ChallengeCardsWon, ChallengeMaxWins: profile.ChallengeMaxWins,
+		TournamentCardsWon: profile.TournamentCardsWon, TournamentBattleCount: profile.TournamentBattleCount,
+		Donations: profile.Donations, DonationsReceived: profile.DonationsReceived,
+		TotalDonations: profile.TotalDonations, Clan: profile.Clan,
+		FavouriteCard: profile.CurrentFavouriteCard,
 	}
 }
 
-func (p *Provider) stats(ctx context.Context, req gatewayrpc.Request) any {
-	h := p.endpoint("stats",
-		func(tag, msg string) any { return statsReply{Tag: tag, Error: msg} },
-		func(profile playerProfile) any {
-			draws := profile.BattleCount - profile.Wins - profile.Losses
-			if draws < 0 {
-				draws = 0
-			}
-			winRate := 0.0
-			if profile.BattleCount > 0 {
-				winRate = float64(profile.Wins) * 100 / float64(profile.BattleCount)
-			}
-			return statsReply{
-				Player: profile.Name, Tag: profile.Tag, KingLevel: profile.ExpLevel,
-				ExperiencePoints: profile.ExpPoints, StarPoints: profile.StarPoints,
-				Wins: profile.Wins, Losses: profile.Losses, Draws: draws,
-				Battles: profile.BattleCount, WinRate: winRate,
-				ThreeCrownWins:    profile.ThreeCrownWins,
-				ChallengeCardsWon: profile.ChallengeCardsWon, ChallengeMaxWins: profile.ChallengeMaxWins,
-				TournamentCardsWon: profile.TournamentCardsWon, TournamentBattleCount: profile.TournamentBattleCount,
-				Donations: profile.Donations, DonationsReceived: profile.DonationsReceived,
-				TotalDonations: profile.TotalDonations, Clan: profile.Clan,
-				FavouriteCard: profile.CurrentFavouriteCard,
-			}
-		},
-	)
-	return h(ctx, req)
-}
-
-func (p *Provider) decks(ctx context.Context, req gatewayrpc.Request) any {
-	h := p.endpoint("decks",
-		func(tag, msg string) any { return decksReply{Tag: tag, Error: msg} },
-		func(profile playerProfile) any {
-			var total int
-			for _, c := range profile.CurrentDeck {
-				total += c.ElixirCost
-			}
-			average := 0.0
-			if len(profile.CurrentDeck) > 0 {
-				average = math.Round((float64(total)/float64(len(profile.CurrentDeck)))*100) / 100
-			}
-			return decksReply{
-				Player: profile.Name, Tag: profile.Tag, CurrentDeck: profile.CurrentDeck,
-				SupportCards: profile.CurrentDeckSupportCards, AverageElixir: average,
-			}
-		},
-	)
-	return h(ctx, req)
+func shapeDecks(profile playerProfile) any {
+	var total int
+	for _, c := range profile.CurrentDeck {
+		total += c.ElixirCost
+	}
+	average := 0.0
+	if len(profile.CurrentDeck) > 0 {
+		average = math.Round((float64(total)/float64(len(profile.CurrentDeck)))*100) / 100
+	}
+	return decksReply{
+		Player: profile.Name, Tag: profile.Tag, CurrentDeck: profile.CurrentDeck,
+		SupportCards: profile.CurrentDeckSupportCards, AverageElixir: average,
+	}
 }
 
 func hasRankedResult(r rankedResult) bool {
@@ -352,31 +341,19 @@ func preferRanked(primary, fallback rankedResult) rankedResult {
 	return fallback
 }
 
-func (p *Provider) ranked(ctx context.Context, req gatewayrpc.Request) any {
-	h := p.endpoint("ranked",
-		func(tag, msg string) any { return rankedReply{Tag: tag, Error: msg} },
-		func(profile playerProfile) any {
-			current := preferRanked(profile.CurrentPathOfLegendResult, profile.LeagueStatistics.Current)
-			previous := preferRanked(profile.LastPathOfLegendResult, profile.LeagueStatistics.Previous)
-			best := preferRanked(profile.BestPathOfLegendResult, profile.LeagueStatistics.Best)
-			return rankedReply{
-				Player: profile.Name, Tag: profile.Tag, Current: current, Previous: previous, Best: best,
-				Unranked: !hasRankedResult(current),
-			}
-		},
-	)
-	return h(ctx, req)
+func shapeRanked(profile playerProfile) any {
+	current := preferRanked(profile.CurrentPathOfLegendResult, profile.LeagueStatistics.Current)
+	previous := preferRanked(profile.LastPathOfLegendResult, profile.LeagueStatistics.Previous)
+	best := preferRanked(profile.BestPathOfLegendResult, profile.LeagueStatistics.Best)
+	return rankedReply{
+		Player: profile.Name, Tag: profile.Tag, Current: current, Previous: previous, Best: best,
+		Unranked: !hasRankedResult(current),
+	}
 }
 
-func (p *Provider) trophyRoad(ctx context.Context, req gatewayrpc.Request) any {
-	h := p.endpoint("trophy_road",
-		func(tag, msg string) any { return trophyRoadReply{Tag: tag, Error: msg} },
-		func(profile playerProfile) any {
-			return trophyRoadReply{
-				Player: profile.Name, Tag: profile.Tag, Trophies: profile.Trophies,
-				BestTrophies: profile.BestTrophies, Arena: profile.Arena,
-			}
-		},
-	)
-	return h(ctx, req)
+func shapeTrophyRoad(profile playerProfile) any {
+	return trophyRoadReply{
+		Player: profile.Name, Tag: profile.Tag, Trophies: profile.Trophies,
+		BestTrophies: profile.BestTrophies, Arena: profile.Arena,
+	}
 }

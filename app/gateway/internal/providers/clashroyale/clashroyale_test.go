@@ -46,7 +46,7 @@ func (s *memStore) Del(_ context.Context, key string) error {
 	return nil
 }
 
-func newTestProvider(t *testing.T, handler http.Handler) *Provider {
+func newTestProvider(t *testing.T, handler http.Handler) provider.Provider {
 	t.Helper()
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)
@@ -56,7 +56,7 @@ func newTestProvider(t *testing.T, handler http.Handler) *Provider {
 	})
 }
 
-func endpoint(t *testing.T, p *Provider, name string) func(context.Context, gatewayrpc.Request) any {
+func endpoint(t *testing.T, p provider.Provider, name string) func(context.Context, gatewayrpc.Request) any {
 	t.Helper()
 	for _, ep := range p.Endpoints() {
 		if ep.Name == name {
