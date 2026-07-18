@@ -2,23 +2,15 @@ package valkey
 
 import (
 	"crypto/tls"
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	valkey_go "github.com/valkey-io/valkey-go"
 )
 
-func TestValkeyTelemetryResultsStayFinite(t *testing.T) {
-	assert.Equal(t, "ok", valkeyResult(nil))
-	assert.Equal(t, "miss", valkeyResult(valkey_go.Nil))
-	assert.Equal(t, "error", valkeyResult(errors.New("unavailable")))
-}
-
-// TestReadScaling verifies that the Valkey client option configuration correctly
-// sets the SendToReplicas predicate when connecting to a Sentinel cluster.
-// This is critical to ensure that local read-only queries are offloaded to local replicas!
-func TestReadScaling_IsReadOnly(t *testing.T) {
+// TestPrimaryOption verifies that the authoritative client never delegates
+// reads to a random Sentinel replica. Node-local routing belongs to Client.
+func TestPrimaryOption(t *testing.T) {
 	t.Run("Standard Address", func(t *testing.T) {
 		opts := BuildClientOption("valkey:6379", "password")
 		assert.Nil(t, opts.SendToReplicas, "SendToReplicas should be nil for standard connections")
@@ -27,10 +19,8 @@ func TestReadScaling_IsReadOnly(t *testing.T) {
 
 	t.Run("Sentinel Address", func(t *testing.T) {
 		opts := BuildClientOption("valkey.svc.cluster.local:26379", "password")
-		assert.NotNil(t, opts.SendToReplicas, "SendToReplicas must be configured for Sentinel to enforce local preferred reads")
+		assert.Nil(t, opts.SendToReplicas, "the primary route must remain primary-consistent")
 
-		// We can't easily construct a valkey_go.Completed without a real client,
-		// but we can assert the option was configured and the master set logic applied.
 		assert.Equal(t, "myprimary", opts.Sentinel.MasterSet)
 		assert.Equal(t, "password", opts.Sentinel.Password)
 		assertWritePool(t, opts)
@@ -49,7 +39,7 @@ func assertWritePool(t *testing.T, opts valkey_go.ClientOption) {
 
 func TestTLSOptionSecuresSentinelAndDataConnections(t *testing.T) {
 	config := &tls.Config{ServerName: defaultTLSServerName, MinVersion: tls.VersionTLS12}
-	opts := buildOption("valkey.valkey.svc.cluster.local:26380", "password", true, config)
+	opts := buildOption("valkey.valkey.svc.cluster.local:26380", "password", config)
 
 	assert.NotNil(t, opts.TLSConfig)
 	assert.NotSame(t, config, opts.TLSConfig)

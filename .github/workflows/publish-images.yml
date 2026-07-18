@@ -25,6 +25,7 @@ on:
           - users
           - sesame
           - twitch-ingress
+          - valkey-live-acceptance
           - console-dashboard
           - console-admin
 
@@ -133,6 +134,12 @@ jobs:
               "description": "ItsBagelBot Twitch ingress service"
             },
             {
+              "image": "valkey-live-acceptance",
+              "context": ".",
+              "containerfile": "deploy/k8s/valkey-live-acceptance/Containerfile",
+              "description": "ItsBagelBot Valkey live-acceptance probe"
+            },
+            {
               "image": "console-dashboard",
               "context": "console",
               "containerfile": "console/dashboard/Containerfile",
@@ -163,6 +170,7 @@ jobs:
             add "users"
             add "sesame"
             add "gateway"
+            add "valkey-live-acceptance"
           }
 
           add_all_services() {
@@ -177,6 +185,7 @@ jobs:
             add "sesame"
             add "gateway"
             add "twitch-ingress"
+            add "valkey-live-acceptance"
             add "console-dashboard"
             add "console-admin"
           }
@@ -203,6 +212,9 @@ jobs:
                 ;;
               app/ingress/*)
                 add "twitch-ingress"
+                ;;
+              deploy/k8s/valkey-live-acceptance/*)
+                add "valkey-live-acceptance"
                 ;;
               app/loyalty/*)
                 add "loyalty"

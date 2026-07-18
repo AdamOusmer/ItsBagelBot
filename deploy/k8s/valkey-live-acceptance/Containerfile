@@ -1,0 +1,20 @@
+# Valkey live-acceptance probe - build from the repository root:
+#   podman build -t itsbagelbot/valkey-live-acceptance \
+#     -f deploy/k8s/valkey-live-acceptance/Containerfile .
+FROM docker.io/library/golang:1.26.5-bookworm AS build
+
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY pkg/valkey pkg/valkey
+COPY deploy/k8s/valkey-live-acceptance deploy/k8s/valkey-live-acceptance
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" \
+    -o /valkey-live-acceptance ./deploy/k8s/valkey-live-acceptance
+
+FROM gcr.io/distroless/static-debian12:nonroot
+
+COPY --from=build /valkey-live-acceptance /valkey-live-acceptance
+
+USER nonroot
+ENTRYPOINT ["/valkey-live-acceptance"]

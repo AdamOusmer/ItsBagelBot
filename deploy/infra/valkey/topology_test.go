@@ -24,7 +24,6 @@ func TestSentinelSinglePrimaryTopologyIsConfigured(t *testing.T) {
 	assert.Contains(t, statefulSet, partitioningGuard)
 	assert.Contains(t, statefulSet, "- --sentinel")
 	assert.Contains(t, statefulSet, "sentinel monitor myprimary")
-	assert.Contains(t, statefulSet, `echo "replica-priority 0"`)
 	assert.Contains(t, statefulSet, "replica-announce-ip ${POD_FQDN}")
 	assert.Contains(t, statefulSet, "sentinel announce-hostnames yes")
 	assert.NotContains(t, statefulSet, "status.hostIP", "Valkey must not use the Tailscale-backed Kubernetes host IP")
@@ -44,12 +43,48 @@ func TestSentinelSinglePrimaryTopologyIsConfigured(t *testing.T) {
 	)
 }
 
+func TestMasterEligibilityIsReconciledOnEveryBoot(t *testing.T) {
+	statefulSet := readFile(t, "statefulset.yaml")
+
+	assert.Contains(t, statefulSet, `case "${NODE_NAME}" in`)
+	assert.Contains(t, statefulSet, `node2|node3)`)
+	assert.Equal(t, 1, strings.Count(statefulSet, `echo "replica-priority 100"`), "node2/node3 are the only eligible nodes")
+	assert.Equal(t, 1, strings.Count(statefulSet, `echo "replica-priority 0"`), "all non-allowlisted nodes are fenced")
+	assert.NotContains(t, statefulSet, `replica-priority 200`, "node1 must never remain a last-resort master")
+}
+
+func TestColdBootstrapCannotMakeAnArbitraryOrdinalPrimary(t *testing.T) {
+	statefulSet := readFile(t, "statefulset.yaml")
+
+	assert.Regexp(t, `(?m)^  podManagementPolicy: Parallel$`, statefulSet)
+	assert.Contains(t, statefulSet, `elif [ "${CONFIG_PRESENT}" = "false" ] && [ "${NODE_NAME}" != "node2" ]; then`)
+	assert.Contains(t, statefulSet, `Waiting for a node2/node3 Sentinel primary`)
+	assert.Contains(t, statefulSet, `[ "${FENCED}" = "true" ] && [ "${LIVE_MASTER}" = "${POD_FQDN}" ]`)
+	assert.NotContains(t, statefulSet, "POD_INDEX", "StatefulSet ordinal must not confer primary eligibility")
+	assert.NotContains(t, statefulSet, "MASTER_ENDPOINT:-valkey-node-0", "pod zero must not be a cold-start fallback")
+}
+
 func TestLocalReadServiceRemainsNodeLocal(t *testing.T) {
 	services := readFile(t, "services.yaml")
 	localService := regexp.MustCompile(`(?s)name: valkey-local\n.*?internalTrafficPolicy: Local\n.*?port: 6380`).FindString(services)
 	if localService == "" {
 		t.Fatal("valkey-local must retain internalTrafficPolicy: Local on TLS port 6380")
 	}
+}
+
+func TestRuntimeTuningOverridesRetainedConfig(t *testing.T) {
+	statefulSet := readFile(t, "statefulset.yaml")
+	baseConfig := readFile(t, "config/valkey.conf")
+	tuning := readFile(t, "config/tuning.conf")
+	kustomization := readFile(t, "kustomization.yaml")
+
+	assert.Contains(t, baseConfig, "include /config/tuning.conf")
+	assert.Contains(t, statefulSet, `sed -i '\|^include /config/tuning.conf$|d' /data/valkey.conf`)
+	assert.Contains(t, statefulSet, `echo "include /config/tuning.conf" >> /data/valkey.conf`)
+	assert.Contains(t, kustomization, "- config/tuning.conf")
+	assert.Regexp(t, `(?m)^appendfsync everysec$`, tuning)
+	assert.Regexp(t, `(?m)^repl-backlog-size 128mb$`, tuning)
+	assert.Regexp(t, `(?m)^min-replicas-to-write 1$`, tuning)
 }
 
 func infrastructureSources(t *testing.T) string {

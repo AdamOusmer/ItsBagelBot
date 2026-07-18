@@ -121,6 +121,12 @@
     mode: "0644"
   notify: reload sysctl
 
+# Valkey's fork/COW persistence path suffers severe tail-latency spikes when
+# transparent huge pages are active. Keep the host policy reusable by both the
+# fresh-node role and the existing-cluster reconciliation playbook.
+- name: Apply Valkey host latency tuning
+  ansible.builtin.import_tasks: valkey_host_tuning.yml
+
 # --- ulimits -----------------------------------------------------------------
 - name: Raise nofile / disable core dumps (matches fleet)
   ansible.builtin.copy:
