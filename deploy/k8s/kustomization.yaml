@@ -2,6 +2,7 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: production
 resources:
+  - nats-r3-benchmark-priority-class.yaml
   - console-admin.yaml
   - commands.yaml
   - console-dashboard.yaml
