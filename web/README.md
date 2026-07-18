@@ -1,45 +1,33 @@
-# Astro Starter Kit: Basics
+# ItsBagelBot marketing site
 
-```sh
-bun create astro@latest -- --template basics
-```
+Static Astro site for [itsbagelbot.com](https://itsbagelbot.com): landing page,
+pricing, guides, command builder, and legal pages, in English and French
+(`/fr/` routes).
 
-> 🧑‍🚀 **Seasoned astronaut?** Delete this file. Have fun!
-
-## 🚀 Project Structure
-
-Inside of your Astro project, you'll see the following folders and files:
+## Structure
 
 ```text
-/
-├── public/
-│   └── favicon.svg
-├── src
-│   ├── assets
-│   │   └── astro.svg
-│   ├── components
-│   │   └── Welcome.astro
-│   ├── layouts
-│   │   └── Layout.astro
-│   └── pages
-│       └── index.astro
-└── package.json
+web/
+├── public/          # favicons, logos, robots.txt, _headers (all brand assets are ours)
+├── src/
+│   ├── assets/      # build-time assets
+│   ├── components/  # Astro components
+│   ├── i18n/        # EN/FR catalogs
+│   ├── layouts/     # Layout.astro (head, CSP, icons, LOCALIZED sets)
+│   ├── pages/       # index, pricing, guides, command-builder, legal, fr/
+│   ├── script/      # client scripts
+│   └── styles/      # global styles
+└── tests/           # Playwright tests
 ```
 
-To learn more about the folder structure of an Astro project, refer to [our guide on project structure](https://docs.astro.build/en/basics/project-structure/).
+## Commands
 
-## 🧞 Commands
-
-All commands are run from the root of the project, from a terminal:
-
-| Command                   | Action                                           |
-| :------------------------ | :----------------------------------------------- |
-| `bun install`             | Installs dependencies                            |
-| `bun run dev`             | Starts local dev server at `localhost:4321`      |
-| `bun run build`           | Build your production site to `./dist/`          |
-| `bun run preview`         | Preview your build locally, before deploying     |
-| `bun run astro -- ...`    | Run CLI commands like `astro add`, `astro check` |
-| `bun run astro -- --help` | Get help using the Astro CLI                     |
+| Command           | Action                                    |
+| :---------------- | :---------------------------------------- |
+| `bun install`     | Install dependencies                      |
+| `bun run dev`     | Dev server at `localhost:4321`            |
+| `bun run build`   | Production build to `./dist/`             |
+| `bun run preview` | Preview the production build locally      |
 
 ## Cloudflare Pages
 
@@ -47,7 +35,3 @@ This site deploys as a static Cloudflare Pages project:
 
 - Build command: `bun run build`
 - Build output directory: `dist`
-
-## 👀 Want to learn more?
-
-Feel free to check [our documentation](https://docs.astro.build) or jump into our [Discord server](https://astro.build/chat).

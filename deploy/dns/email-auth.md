@@ -64,10 +64,14 @@ doppler run -p cloudflared -c prd -- sh -c '
 We run BIMI **without** a VMC or CMC. The record is `l=` only (logo URL, no
 `a=`). This is a deliberate choice, not an unfinished step:
 
-- The logo is live at [`web/public/bimi.svg`](../../web/public/bimi.svg)
-  (served by Cloudflare Pages at `https://itsbagelbot.com/bimi.svg`, SVG Tiny
-  PS). Clients that do not require a certificate (Fastmail, La Poste, and
-  others) show it now.
+- The logo file (`web/public/bimi.svg`, served by Cloudflare Pages at
+  `https://itsbagelbot.com/bimi.svg`, SVG Tiny PS) is currently **removed**:
+  the old file carried a placeholder mark that was not our logo, and the real
+  logo only exists as raster PNG, which BIMI does not allow. The record still
+  points at the URL; clients treat the 404 as "no BIMI" and fall back to a
+  monogram avatar. Mail delivery and DMARC are unaffected. Re-add the file
+  once a vector version of the real logo exists — clients that do not require
+  a certificate (Fastmail, La Poste, and others) will then show it.
 - **Gmail, Apple Mail and Yahoo will not show the logo** without an `a=`
   certificate. We accept that. A VMC (~$1k+/yr, needs a *registered* trademark)
   or CMC (similar price, Apple-only, no Gmail) is not worth it: the logo is
