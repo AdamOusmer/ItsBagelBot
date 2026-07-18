@@ -97,6 +97,16 @@ func PrimaryThroughput(client valkey_go.Client) valkey_go.Client {
 	return clientViewFor(client, true, true)
 }
 
+// IsPrimary reports whether client routes its read-only commands to the
+// Sentinel-elected primary rather than the node-local replica. Stores that
+// read back their own writes assert this on the client they were built with,
+// so dropping a Primary wrap during a refactor fails a test instead of
+// silently reintroducing replica-lag staleness.
+func IsPrimary(client valkey_go.Client) bool {
+	view, ok := client.(*clientView)
+	return ok && view.primary
+}
+
 type clientView struct {
 	valkey_go.Client
 	routed     *Client

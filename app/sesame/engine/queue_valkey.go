@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"time"
 
+	pkg_valkey "ItsBagelBot/pkg/valkey"
+
 	"github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
 )
@@ -52,6 +54,15 @@ type ValkeyQueueStore struct {
 	log    *zap.Logger
 }
 
+// NewValkeyQueueStore builds the store on a primary-consistent view. One
+// broadcaster's chat drives the whole queue in sequence, so every read follows
+// a write chat just made: IsOpen gates joins against the flag SetOpen wrote,
+// and List renders the line Join and Pop just changed. Join and Pop already
+// reach the master because their batches mix in a write, but a node-local
+// replica serving IsOpen or List makes chat contradict itself — a viewer told
+// the queue is closed right after the streamer opened it, or a !list missing
+// the person who just joined. This is one broadcaster's feature, not the
+// firehose, and the view borrows the client's connections.
 func NewValkeyQueueStore(client valkey.Client, ttl time.Duration, log *zap.Logger) *ValkeyQueueStore {
 	if ttl <= 0 {
 		ttl = 24 * time.Hour
@@ -59,7 +70,7 @@ func NewValkeyQueueStore(client valkey.Client, ttl time.Duration, log *zap.Logge
 	if log == nil {
 		log = zap.NewNop()
 	}
-	return &ValkeyQueueStore{client: client, ttl: ttl, log: log}
+	return &ValkeyQueueStore{client: pkg_valkey.Primary(client), ttl: ttl, log: log}
 }
 
 func queueOpenKey(id uint64) string { return queueOpenPrefix + strconv.FormatUint(id, 10) }

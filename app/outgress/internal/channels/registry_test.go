@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	pkg_valkey "ItsBagelBot/pkg/valkey"
 )
 
 func TestPauseSnapshotRejectsOlderVersion(t *testing.T) {
@@ -49,5 +51,16 @@ func TestPauseReconcileDelayIsJitteredWithinBounds(t *testing.T) {
 			delay >= pauseReconcileInterval+pauseReconcileJitter/2 {
 			t.Fatalf("delay %s is outside jitter bounds", delay)
 		}
+	}
+}
+
+// The registry only ever reads state it just wrote: Get reloads the hash whose
+// cache applyChannelUpdate invalidated, List reads the index set the same
+// pipeline SADDed, and EnrollCooldownActive checks the key ArmEnrollCooldown
+// set. Served by a lagging node-local replica those reads re-cache the
+// pre-write value and bypass the cooldown, so the constructor must pin them.
+func TestNewPinsRegistryReadsToThePrimary(t *testing.T) {
+	if !pkg_valkey.IsPrimary(New(nil).client) {
+		t.Fatal("registry reads are served by the node-local replica; they read back its own writes")
 	}
 }
