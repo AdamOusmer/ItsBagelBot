@@ -119,33 +119,45 @@ type Client struct {
 // Do sends read-only commands to the local instance and everything else to the
 // master via Sentinel.
 func (c *Client) Do(ctx context.Context, cmd valkey_go.Completed) valkey_go.ValkeyResult {
-	operation := "valkey.write"
-	client := c.Client
-	if cmd.IsReadOnly() {
-		operation = "valkey.read"
-		if c.local != nil {
-			client = c.local
-		}
-	}
-	return traceValkeyCall(ctx, operation, func() valkey_go.ValkeyResult {
-		return client.Do(ctx, cmd)
+	route := c.commandRoute(cmd.IsReadOnly(), singleCommand)
+	return traceValkeyCall(ctx, route.operation, func() valkey_go.ValkeyResult {
+		return route.client.Do(ctx, cmd)
 	}, classifyValkeyResult)
 }
 
 // DoMulti sends a batch to the local instance only when every command is
 // read-only; any write in the batch routes the whole batch to the master.
 func (c *Client) DoMulti(ctx context.Context, multi ...valkey_go.Completed) []valkey_go.ValkeyResult {
-	operation := "valkey.write_batch"
-	client := c.Client
-	if allReadOnly(multi) {
-		operation = "valkey.read_batch"
+	route := c.commandRoute(allReadOnly(multi), commandBatch)
+	return traceValkeyCall(ctx, route.operation, func() []valkey_go.ValkeyResult {
+		return route.client.DoMulti(ctx, multi...)
+	}, classifyValkeyResults)
+}
+
+type commandShape uint8
+
+const (
+	singleCommand commandShape = iota
+	commandBatch
+)
+
+type valkeyRoute struct {
+	client    valkey_go.Client
+	operation string
+}
+
+func (c *Client) commandRoute(readOnly bool, shape commandShape) valkeyRoute {
+	route := valkeyRoute{client: c.Client, operation: "valkey.write"}
+	if readOnly {
+		route.operation = "valkey.read"
 		if c.local != nil {
-			client = c.local
+			route.client = c.local
 		}
 	}
-	return traceValkeyCall(ctx, operation, func() []valkey_go.ValkeyResult {
-		return client.DoMulti(ctx, multi...)
-	}, classifyValkeyResults)
+	if shape == commandBatch {
+		route.operation += "_batch"
+	}
+	return route
 }
 
 // Valkey spans are emitted only for transactions selected by New Relic's own

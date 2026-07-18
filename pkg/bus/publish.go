@@ -62,7 +62,9 @@ func NewPublisherForStream(url, stream string, log *zap.Logger) (Publisher, erro
 // PublishJSON gives Sonic's result buffer directly to the asynchronous
 // publisher. There is no intermediate message object or payload copy.
 func PublishJSON(ctx context.Context, pub Publisher, subject string, payload any) error {
-	encodeSegment := startMessagingSegment(ctx, "nats.publish.encode", "publish", subject)
+	encodeSegment := startMessagingSegment(ctx, messagingSpan{
+		name: "nats.publish.encode", operation: "publish", destination: subject,
+	})
 	body, err := sonic.ConfigFastest.Marshal(payload)
 	endMessagingSegment(encodeSegment, err)
 	if err != nil {
@@ -95,14 +97,18 @@ func PublishConfirmed(ctx context.Context, pub Publisher, publication Publicatio
 		return errors.New("bus: confirmed publish requires a message ID")
 	}
 	body := append([]byte(nil), publication.Payload...)
-	segment := startMessagingSegment(ctx, "nats.publish", "publish", publication.Subject)
+	segment := startMessagingSegment(ctx, messagingSpan{
+		name: "nats.publish", operation: "publish", destination: publication.Subject,
+	})
 	err := pub.PublishOwnedWithID(ctx, publication.Subject, publication.ID, body)
 	endMessagingSegment(segment, err)
 	return err
 }
 
 func publishOwned(ctx context.Context, pub Publisher, subject string, body []byte) error {
-	segment := startMessagingSegment(ctx, "nats.publish", "publish", subject)
+	segment := startMessagingSegment(ctx, messagingSpan{
+		name: "nats.publish", operation: "publish", destination: subject,
+	})
 	err := pub.PublishOwned(ctx, subject, body)
 	endMessagingSegment(segment, err)
 	return err

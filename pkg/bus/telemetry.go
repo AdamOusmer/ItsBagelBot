@@ -33,6 +33,17 @@ type destinationFamily struct {
 	allowed  map[string]struct{}
 }
 
+type messagingSpan struct {
+	name        string
+	operation   string
+	destination string
+}
+
+type messagingAttributes struct {
+	operation   string
+	destination string
+}
+
 var ingressDestinations = destinationFamily{
 	fallback: ingressDestinationPrefix + "other",
 	allowed: map[string]struct{}{
@@ -54,15 +65,15 @@ var outgressDestinations = destinationFamily{
 // startMessagingSegment creates a fixed-name span and puts the configured
 // destination in an attribute. Keeping subjects out of span names prevents an
 // accidentally ID-expanded subject from creating unbounded metric names.
-func startMessagingSegment(ctx context.Context, name, operation, destination string) *newrelic.Segment {
+func startMessagingSegment(ctx context.Context, span messagingSpan) *newrelic.Segment {
 	txn := newrelic.FromContext(ctx)
 	if txn == nil {
 		return nil
 	}
-	segment := txn.StartSegment(name)
+	segment := txn.StartSegment(span.name)
 	segment.AddAttribute(messagingSystemAttribute, "nats")
-	segment.AddAttribute(messagingOperationAttribute, operation)
-	segment.AddAttribute(messagingDestinationAttribute, normalizedDestination(destination))
+	segment.AddAttribute(messagingOperationAttribute, span.operation)
+	segment.AddAttribute(messagingDestinationAttribute, normalizedDestination(span.destination))
 	return segment
 }
 
@@ -110,13 +121,13 @@ func acceptTraceHeaders(txn *newrelic.Transaction, headers nats.Header) {
 	txn.AcceptDistributedTraceHeaders(newrelic.TransportQueue, httpHeaders)
 }
 
-func addMessagingTransactionAttributes(txn *newrelic.Transaction, operation, destination string) {
+func addMessagingTransactionAttributes(txn *newrelic.Transaction, attributes messagingAttributes) {
 	if txn == nil {
 		return
 	}
 	txn.AddAttribute(messagingSystemAttribute, "nats")
-	txn.AddAttribute(messagingOperationAttribute, operation)
-	txn.AddAttribute(messagingDestinationAttribute, normalizedDestination(destination))
+	txn.AddAttribute(messagingOperationAttribute, attributes.operation)
+	txn.AddAttribute(messagingDestinationAttribute, normalizedDestination(attributes.destination))
 }
 
 // normalizedDestination intentionally reports a configured family rather than

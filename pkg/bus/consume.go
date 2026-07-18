@@ -47,7 +47,7 @@ func process(app *newrelic.Application, subject string, msg *Message, handle fun
 
 	txn := app.StartTransaction("consume " + normalizedDestination(subject))
 	acceptTraceHeaders(txn, metadataHeaders(msg.Metadata))
-	addMessagingTransactionAttributes(txn, "process", subject)
+	addMessagingTransactionAttributes(txn, messagingAttributes{operation: "process", destination: subject})
 	txn.AddAttribute("messaging.queue_ms", float64(msg.deliveryWait(time.Now()).Microseconds())/1000)
 
 	msg.SetContext(newrelic.NewContext(msg.Context(), txn))

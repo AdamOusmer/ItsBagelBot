@@ -34,7 +34,9 @@ func (e RPCReplyError) Error() string {
 func RequestJSON[T any](ctx context.Context, nc *nats.Conn, subject string, request any) (T, error) {
 	var zero T
 
-	encodeSegment := startMessagingSegment(ctx, "rpc.request.encode", "request", subject)
+	encodeSegment := startMessagingSegment(ctx, messagingSpan{
+		name: "rpc.request.encode", operation: "request", destination: subject,
+	})
 	body, err := json.Marshal(request)
 	endMessagingSegment(encodeSegment, err)
 	if err != nil {
@@ -45,7 +47,9 @@ func RequestJSON[T any](ctx context.Context, nc *nats.Conn, subject string, requ
 	requestMsg.Data = body
 	insertTraceHeaders(ctx, requestMsg)
 
-	segment := startMessagingSegment(ctx, "nats.request", "request", subject)
+	segment := startMessagingSegment(ctx, messagingSpan{
+		name: "nats.request", operation: "request", destination: subject,
+	})
 	msg, err := nc.RequestMsgWithContext(ctx, requestMsg)
 	endMessagingSegment(segment, err)
 	if err != nil {
@@ -56,7 +60,9 @@ func RequestJSON[T any](ctx context.Context, nc *nats.Conn, subject string, requ
 		return zero, RPCReplyError{Subject: subject, Message: errorMessage}
 	}
 
-	decodeSegment := startMessagingSegment(ctx, "rpc.response.decode", "request", subject)
+	decodeSegment := startMessagingSegment(ctx, messagingSpan{
+		name: "rpc.response.decode", operation: "request", destination: subject,
+	})
 	var reply T
 	if err := json.Unmarshal(msg.Data, &reply); err != nil {
 		endMessagingSegment(decodeSegment, err)
@@ -97,7 +103,7 @@ func QueueSubscribeJSON[Req any, Resp any](
 		txn := app.StartTransaction("rpc " + normalizedDestination(subject))
 		defer txn.End()
 		acceptTraceHeaders(txn, msg.Header)
-		addMessagingTransactionAttributes(txn, "process", subject)
+		addMessagingTransactionAttributes(txn, messagingAttributes{operation: "process", destination: subject})
 
 		var req Req
 		// Empty bodies are allowed for no-argument RPCs; handlers validate any

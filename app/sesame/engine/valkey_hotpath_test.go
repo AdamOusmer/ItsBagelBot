@@ -41,19 +41,13 @@ type hotPathFixture struct {
 }
 
 func (f hotPathFixture) testChannelBump(t *testing.T) {
-	key := f.prefix + ":counter"
-	f.cleanupKeys(t, key)
-
-	_, err := bumpChannelScript.Exec(f.ctx, f.client, []string{key}, []string{"", "2", "60"}).AsInt64()
-	require.True(t, valkey.IsValkeyNil(err), "empty seed must decode as Valkey nil")
-	seeded, err := bumpChannelScript.Exec(f.ctx, f.client, []string{key}, []string{"41", "2", "60"}).AsInt64()
-	require.NoError(t, err)
-	require.EqualValues(t, 43, seeded)
-	warm, err := bumpChannelScript.Exec(f.ctx, f.client, []string{key}, []string{"", "3", "60"}).AsInt64()
-	require.NoError(t, err)
-	require.EqualValues(t, 46, warm)
+	key := f.testBump(t, bumpCase{
+		keySuffix: ":counter", script: bumpChannelScript,
+		missingArgs: []string{"", "2", "60"},
+		seedArgs:    []string{"41", "2", "60"}, seedValue: 43,
+		warmArgs: []string{"", "3", "60"}, warmValue: 46,
+	})
 	f.requireConcurrentBumps(t, key, 46)
-	requirePositiveTTL(t, f.ctx, f.client, key)
 }
 
 func (f hotPathFixture) requireConcurrentBumps(t *testing.T, key string, initial int) {
@@ -79,17 +73,37 @@ func (f hotPathFixture) requireConcurrentBumps(t *testing.T, key string, initial
 }
 
 func (f hotPathFixture) testEntryBump(t *testing.T) {
-	key := f.prefix + ":entries"
+	f.testBump(t, bumpCase{
+		keySuffix: ":entries", script: bumpEntryScript,
+		missingArgs: []string{"viewer", "", "1", "60"},
+		seedArgs:    []string{"viewer", "9", "1", "60"}, seedValue: 10,
+		warmArgs: []string{"viewer", "", "4", "60"}, warmValue: 14,
+	})
+}
+
+type bumpCase struct {
+	keySuffix   string
+	script      *valkey.Lua
+	missingArgs []string
+	seedArgs    []string
+	seedValue   int64
+	warmArgs    []string
+	warmValue   int64
+}
+
+func (f hotPathFixture) testBump(t *testing.T, test bumpCase) string {
+	key := f.prefix + test.keySuffix
 	f.cleanupKeys(t, key)
-	_, err := bumpEntryScript.Exec(f.ctx, f.client, []string{key}, []string{"viewer", "", "1", "60"}).AsInt64()
+	_, err := test.script.Exec(f.ctx, f.client, []string{key}, test.missingArgs).AsInt64()
 	require.True(t, valkey.IsValkeyNil(err), "empty seed must decode as Valkey nil")
-	seeded, err := bumpEntryScript.Exec(f.ctx, f.client, []string{key}, []string{"viewer", "9", "1", "60"}).AsInt64()
+	seeded, err := test.script.Exec(f.ctx, f.client, []string{key}, test.seedArgs).AsInt64()
 	require.NoError(t, err)
-	require.EqualValues(t, 10, seeded)
-	warm, err := bumpEntryScript.Exec(f.ctx, f.client, []string{key}, []string{"viewer", "", "4", "60"}).AsInt64()
+	require.EqualValues(t, test.seedValue, seeded)
+	warm, err := test.script.Exec(f.ctx, f.client, []string{key}, test.warmArgs).AsInt64()
 	require.NoError(t, err)
-	require.EqualValues(t, 14, warm)
+	require.EqualValues(t, test.warmValue, warm)
 	requirePositiveTTL(t, f.ctx, f.client, key)
+	return key
 }
 
 func (f hotPathFixture) testGreetClaim(t *testing.T) {
