@@ -8,6 +8,7 @@ import (
 
 	eventtwitch "ItsBagelBot/internal/domain/event/twitch"
 	"ItsBagelBot/internal/domain/outgress"
+	"ItsBagelBot/internal/domain/rpc/manage"
 	"ItsBagelBot/pkg/bus"
 
 	"github.com/bytedance/sonic"
@@ -162,7 +163,8 @@ func (w *Worker) reauthBeaconOnLive(ctx context.Context, broadcasterID string) {
 	if err != nil || !found {
 		return
 	}
-	if ch.SubState != subStateRevoked {
+	n, ok := liveNotice(ch)
+	if !ok {
 		return
 	}
 
@@ -171,22 +173,44 @@ func (w *Worker) reauthBeaconOnLive(ctx context.Context, broadcasterID string) {
 		return
 	}
 
-	if err := w.sendReauthChat(ctx, broadcasterID); err != nil {
+	// One locale lookup feeds both surfaces.
+	locale := w.reauth.ResolveLocale(ctx, broadcasterID)
+	w.reauth.NotifyLocalized(ctx, broadcasterID, locale, n)
+
+	if err := w.sendReauthChat(ctx, broadcasterID, locale, n); err != nil {
 		w.log.Warn("reauth chat beacon failed",
 			zap.String("broadcaster_id", broadcasterID), zap.Error(err))
 		return
 	}
-	w.log.Info("reauth chat beacon sent", zap.String("broadcaster_id", broadcasterID))
+	w.log.Info("reauth chat beacon sent",
+		zap.String("broadcaster_id", broadcasterID),
+		zap.String("reason", n.request))
+}
+
+// liveNotice picks which reconnect notice a channel needs at go-live, if any.
+//
+// Revocation wins when both are set: it is the stronger statement (Twitch threw
+// the grant away) and the remedy is identical, so the shared beacon claim
+// deliberately yields one line rather than two for one problem.
+func liveNotice(ch manage.Channel) (notice, bool) {
+	switch {
+	case ch.SubState == subStateRevoked:
+		return noticeRevoked, true
+	case ch.GrantState == manage.GrantDead:
+		return noticeGrantDead, true
+	default:
+		return notice{}, false
+	}
 }
 
 // sendReauthChat pushes the localized reconnect line through the ordinary
 // chat send path (type route defaults + bot sender injection + per-channel
 // chat rate bucket), exactly as if a lane job carried it.
-func (w *Worker) sendReauthChat(ctx context.Context, broadcasterID string) error {
+func (w *Worker) sendReauthChat(ctx context.Context, broadcasterID, locale string, n notice) error {
 	body, err := sonic.Marshal(struct {
 		BroadcasterID string `json:"broadcaster_id"`
 		Message       string `json:"message"`
-	}{broadcasterID, w.reauth.ChatBeacon(ctx, broadcasterID)})
+	}{broadcasterID, w.reauth.ChatLine(locale, n)})
 	if err != nil {
 		return err
 	}

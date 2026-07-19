@@ -3,9 +3,12 @@ package channels
 import (
 	"context"
 	"errors"
+	"reflect"
+	"strings"
 	"testing"
 	"time"
 
+	"ItsBagelBot/internal/domain/rpc/manage"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 )
 
@@ -62,5 +65,39 @@ func TestPauseReconcileDelayIsJitteredWithinBounds(t *testing.T) {
 func TestNewPinsRegistryReadsToThePrimary(t *testing.T) {
 	if !pkg_valkey.IsPrimary(New(nil).client) {
 		t.Fatal("registry reads are served by the node-local replica; they read back its own writes")
+	}
+}
+
+// TestSaveCoversEveryChannelField is the guard against the silent-revert bug
+// class: Save is a full overwrite, so any persisted field of manage.Channel it
+// forgets is quietly reset to empty on the next Save. That is how a grant-death
+// marker would disappear when an operator toggles "enabled" in the admin
+// console, with nothing logged and no test failing.
+//
+// broadcaster_id is excluded because it is the Valkey key, not a hash field.
+func TestSaveCoversEveryChannelField(t *testing.T) {
+	written := savedFields(manage.Channel{})
+
+	typ := reflect.TypeOf(manage.Channel{})
+	for i := range typ.NumField() {
+		tag := typ.Field(i).Tag.Get("json")
+		name, _, _ := strings.Cut(tag, ",")
+		if name == "" || name == "-" || name == "broadcaster_id" {
+			continue
+		}
+		if _, ok := written[name]; !ok {
+			t.Errorf("manage.Channel field %q is never written by Save, so it silently "+
+				"reverts to empty on every full overwrite", name)
+		}
+	}
+}
+
+// TestSaveRoundTripsGrantState pins the field the beacon reads.
+func TestSaveRoundTripsGrantState(t *testing.T) {
+	if got := savedFields(manage.Channel{GrantState: manage.GrantDead})["grant_state"]; got != "dead" {
+		t.Errorf("grant_state = %q, want %q", got, "dead")
+	}
+	if got := savedFields(manage.Channel{})["grant_state"]; got != "" {
+		t.Errorf("healthy grant_state = %q, want empty", got)
 	}
 }

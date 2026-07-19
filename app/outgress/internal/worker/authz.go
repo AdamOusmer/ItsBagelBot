@@ -71,6 +71,13 @@ func (w *Worker) HandleAuthzGranted(msg *bus.Message) error {
 	if !found || !ch.Enabled {
 		return nil
 	}
+
+	// Clear the grant marker BEFORE the re-enroll gate below. A grant that died
+	// without being revoked leaves sub_state "ok", which reenrollableSubState
+	// rejects, so a clear placed after it would never run and the streamer who
+	// just did what the chat line asked would be nagged forever.
+	w.clearGrantDead(ctx, ev.UserID, ch)
+
 	if !reenrollableSubState(ch.SubState) {
 		return nil
 	}
@@ -219,7 +226,7 @@ func (w *Worker) notifyReauthNeeded(ctx context.Context, broadcasterID string) {
 	if w.reauth == nil {
 		return
 	}
-	w.reauth.NotifyRevoked(ctx, broadcasterID)
+	w.reauth.Notify(ctx, broadcasterID, noticeRevoked)
 }
 
 // EnsureClientEventSubs creates the client-scoped authorization subscriptions

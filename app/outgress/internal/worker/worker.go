@@ -83,11 +83,18 @@ type Worker struct {
 	// live writes the result of a Twitch live re-check back into the projection.
 	// Only the system lane sets it (via SetLiveWriter); nil elsewhere.
 	live *LiveWriter
-	// reauth tells a streamer their Twitch consent died (dashboard bell + the
-	// go-live chat beacon copy). Only the system lane sets it (via
-	// SetReauthNotifier); nil elsewhere and in tests, where every call site
-	// degrades to a no-op.
+	// reauth tells a streamer their Twitch grant died (dashboard bell + the
+	// go-live chat beacon copy). Wiring attaches one shared instance to all
+	// three lanes: the system lane drives the beacon and the authz consumers,
+	// and the chat lanes raise the bell the moment a broadcaster-identity call
+	// proves the grant dead. Nil in tests, where every call site degrades to a
+	// no-op.
 	reauth *ReauthNotifier
+	// grants is the narrow registry slice the grant marker uses. It points at
+	// the same *channels.Registry as the field above; the separate, smaller
+	// interface exists so the marker's transition logic is testable without
+	// Valkey. Nil when no registry is configured, which disables the marker.
+	grants grantRegistry
 }
 
 // Config wires one lane worker's collaborators.
@@ -113,7 +120,15 @@ func New(cfg Config) *Worker {
 	if userIDs == nil {
 		userIDs = NewUserIDCache()
 	}
+	// Assign through a nil check rather than directly: a nil *channels.Registry
+	// stored in an interface field is a non-nil interface, which would defeat
+	// every nil guard on the grant marker path.
+	var grants grantRegistry
+	if cfg.Registry != nil {
+		grants = cfg.Registry
+	}
 	return &Worker{
+		grants:   grants,
 		log:      cfg.Log,
 		limiter:  cfg.Limiter,
 		registry: cfg.Registry,
@@ -133,8 +148,10 @@ func (w *Worker) SetLiveWriter(lw *LiveWriter) { w.live = lw }
 
 func (w *Worker) SetModVerifier(v *ModVerifier) { w.modVerifier = v }
 
-// SetReauthNotifier attaches the streamer-facing reauth messaging, used by
-// the system lane worker that consumes the authorization lifecycle events.
+// SetReauthNotifier attaches the streamer-facing reauth messaging. Every lane
+// gets it: the system lane for the go-live beacon and the authorization
+// lifecycle events, the chat lanes for the dashboard bell raised the moment a
+// broadcaster-identity call proves the grant dead.
 func (w *Worker) SetReauthNotifier(r *ReauthNotifier) { w.reauth = r }
 
 // Login->id resolutions (shoutout targets) are a small, fleet-shared keyspace,
