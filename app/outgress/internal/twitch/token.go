@@ -3,8 +3,6 @@ package twitch
 import (
 	"context"
 	"encoding/json"
-	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -120,7 +118,7 @@ func NewStoredUserTokenSource(creds ClientCredentials, fallbackRefresh string, i
 			current = stored
 		}
 		if current == "" {
-			return "", 0, errors.New("no bot refresh token available")
+			return "", 0, ErrNoRefreshToken
 		}
 
 		res, err := postToken(ctx, creds.refreshGrant(current))
@@ -230,7 +228,7 @@ func postToken(ctx context.Context, form url.Values) (oauthResponse, error) {
 
 	if res.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(res.Body, 2048))
-		return oauthResponse{}, fmt.Errorf("token request failed: %d %s", res.StatusCode, string(body))
+		return oauthResponse{}, &TokenError{Status: res.StatusCode, Body: string(body)}
 	}
 
 	var parsed oauthResponse

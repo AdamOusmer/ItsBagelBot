@@ -38,7 +38,7 @@ func (w *Worker) executeRequest(ctx context.Context, payload outgress.Message) (
 	started := time.Now()
 	defer recordStageDuration(ctx, "outgress.twitch_ms", started)
 
-	res, err := w.twitch.ExecuteAs(ctx, twitch.ParseIdentity(payload.As), payload.BroadcasterID,
+	res, err := w.callTwitch(ctx, twitch.ParseIdentity(payload.As), payload.BroadcasterID,
 		twitch.HelixCall{Method: payload.Method, Endpoint: payload.Endpoint, Body: payload.Payload})
 	if err != nil {
 		w.log.Error("twitch request failed", zap.Error(err))

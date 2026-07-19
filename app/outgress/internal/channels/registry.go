@@ -227,6 +227,7 @@ func (r *Registry) Get(ctx context.Context, broadcasterID string) (manage.Channe
 			SubState:      fields["sub_state"],
 			SubError:      fields["sub_error"],
 			SubCheckedAt:  unixField(fields["sub_checked_at"]),
+			GrantState:    manage.GrantState(fields["grant_state"]),
 		}, nil
 	})
 
@@ -242,30 +243,47 @@ func (r *Registry) Get(ctx context.Context, broadcasterID string) (manage.Channe
 	return ch, true, nil
 }
 
+// savedFields renders every persisted field of a channel. Save writes exactly
+// this set, and TestSaveCoversEveryChannelField asserts it covers every json
+// field of manage.Channel.
+//
+// It is a map rather than an inline builder chain because Save is a full
+// overwrite: a field added to manage.Channel but forgotten here is not a
+// compile error, it is a field that silently reverts to empty whenever anyone
+// calls Save. That is how a grant marker would be erased by an operator
+// toggling "enabled" in the admin console, with no error logged anywhere.
+func savedFields(ch manage.Channel) map[string]string {
+	return map[string]string{
+		"enabled":        utils.BoolField(ch.Enabled),
+		"is_mod":         utils.BoolField(ch.IsMod),
+		"mod_checked_at": unixOrZero(ch.ModCheckedAt),
+		"updated_at":     strconv.FormatInt(time.Now().Unix(), 10),
+		"sub_state":      ch.SubState,
+		"sub_error":      ch.SubError,
+		"sub_checked_at": unixOrZero(ch.SubCheckedAt),
+		"grant_state":    string(ch.GrantState),
+	}
+}
+
+func unixOrZero(t time.Time) string {
+	if t.IsZero() {
+		return "0"
+	}
+	return strconv.FormatInt(t.Unix(), 10)
+}
+
 // Save overwrites the full state of one channel and indexes it for List.
 func (r *Registry) Save(ctx context.Context, ch manage.Channel) error {
 
 	key := keyPrefix + ch.BroadcasterID
 
-	modCheckedAt := "0"
-	if !ch.ModCheckedAt.IsZero() {
-		modCheckedAt = strconv.FormatInt(ch.ModCheckedAt.Unix(), 10)
-	}
-	subCheckedAt := "0"
-	if !ch.SubCheckedAt.IsZero() {
-		subCheckedAt = strconv.FormatInt(ch.SubCheckedAt.Unix(), 10)
+	hset := r.client.B().Hset().Key(key).FieldValue()
+	for field, value := range savedFields(ch) {
+		hset = hset.FieldValue(field, value)
 	}
 
 	for _, res := range r.client.DoMulti(ctx,
-		r.client.B().Hset().Key(key).FieldValue().
-			FieldValue("enabled", utils.BoolField(ch.Enabled)).
-			FieldValue("is_mod", utils.BoolField(ch.IsMod)).
-			FieldValue("mod_checked_at", modCheckedAt).
-			FieldValue("updated_at", strconv.FormatInt(time.Now().Unix(), 10)).
-			FieldValue("sub_state", ch.SubState).
-			FieldValue("sub_error", ch.SubError).
-			FieldValue("sub_checked_at", subCheckedAt).
-			Build(),
+		hset.Build(),
 		r.client.B().Sadd().Key(indexKey).Member(ch.BroadcasterID).Build(),
 	) {
 		if err := res.Error(); err != nil {
@@ -308,6 +326,24 @@ func (r *Registry) SetSubState(ctx context.Context, broadcasterID, state, errMsg
 			FieldValue("sub_state", state).
 			FieldValue("sub_error", errMsg).
 			FieldValue("sub_checked_at", now).
+			FieldValue("updated_at", now).
+			Build(),
+		r.client.B().Sadd().Key(indexKey).Member(broadcasterID).Build(),
+	)
+}
+
+// SetGrantState records the health of the broadcaster's own OAuth grant without
+// touching enabled/is_mod/sub_state. Like SetMod it seeds enabled on a channel
+// first seen here, so the marker can never conjure a disabled channel into the
+// registry.
+func (r *Registry) SetGrantState(ctx context.Context, broadcasterID string, state manage.GrantState) error {
+	key := keyPrefix + broadcasterID
+	now := strconv.FormatInt(time.Now().Unix(), 10)
+
+	return r.applyChannelUpdate(ctx, broadcasterID,
+		r.client.B().Hsetnx().Key(key).Field("enabled").Value("1").Build(),
+		r.client.B().Hset().Key(key).FieldValue().
+			FieldValue("grant_state", string(state)).
 			FieldValue("updated_at", now).
 			Build(),
 		r.client.B().Sadd().Key(indexKey).Member(broadcasterID).Build(),

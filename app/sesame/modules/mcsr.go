@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"ItsBagelBot/app/sesame/engine"
-	"ItsBagelBot/app/sesame/i18n"
+	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/app/sesame/module"
 	"ItsBagelBot/internal/domain/outgress"
 	gatewayrpc "ItsBagelBot/internal/domain/rpc/gateway"

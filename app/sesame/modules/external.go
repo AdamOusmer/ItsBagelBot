@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"ItsBagelBot/app/sesame/i18n"
+	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/app/sesame/module"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/pkg/bus"

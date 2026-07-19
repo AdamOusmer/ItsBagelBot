@@ -1,15 +1,41 @@
-// Package i18n is a tiny, dependency-free catalog for sesame's built-in (system)
-// chat output. The broadcaster's locale rides the module Context
-// (module.Context.Locale), sourced from the Valkey user projection, so system
-// commands answer in the broadcaster's console language.
+// Package i18n is a tiny, dependency-free catalog for the Go services'
+// user-facing chat and notification copy. sesame's built-in (system) commands
+// take the broadcaster's locale from the module Context (module.Context.Locale),
+// sourced from the Valkey user projection; outgress resolves it over the users
+// state_get RPC. Either way system output answers in the broadcaster's console
+// language.
+//
+// It lives under internal/domain so both services share one catalog rather than
+// each carrying its own table. It stays dependency-free on purpose: nothing here
+// may import a service package or pkg/bus, so locale RESOLUTION belongs to the
+// caller and only the lookup lives here.
 //
 // It mirrors the console/site i18n set: add a locale here and to the users
 // service's supportedLocales map together. English is the source of truth and
 // every unknown locale or key falls back to it.
 package i18n
 
+import "sort"
+
 // DefaultLocale is used when a message's locale is empty or unknown.
 const DefaultLocale = "en"
+
+// DashboardURL is where a streamer re-consents; baked into the reauth and
+// grant-dead copy below.
+const DashboardURL = "https://dashboard.itsbagelbot.com"
+
+// Keys for the copy shared across services. Constants rather than raw strings
+// because T falls back to returning the key itself, so a typo in one of these
+// would post the literal key into a streamer's public chat.
+const (
+	KeyReauthRevokedTitle = "reauth.revoked.title"
+	KeyReauthRevokedBody  = "reauth.revoked.body"
+	KeyReauthRevokedChat  = "reauth.revoked.chat"
+
+	KeyGrantDeadTitle = "grant.dead.title"
+	KeyGrantDeadBody  = "grant.dead.body"
+	KeyGrantDeadChat  = "grant.dead.chat"
+)
 
 // catalog[locale][key] -> template. Templates may carry fmt verbs (see T).
 var catalog = map[string]map[string]string{
@@ -97,6 +123,26 @@ var catalog = map[string]map[string]string{
 
 		"fortnite.shop.empty": "empty today",
 		"fortnite.shop.more":  "+%d more",
+
+		// Twitch revoked the grant outright: the streamer changed a password or
+		// disconnected the app, and Twitch told us so over EventSub.
+		"reauth.revoked.title": "Bot lost access to your channel",
+		"reauth.revoked.body": "Twitch revoked the bot's authorization for your channel (this happens after a password change or if the app was disconnected). " +
+			"Chat replies and alerts are paused. Log in at " + DashboardURL + " and reconnect your Twitch account to bring the bot back.",
+		"reauth.revoked.chat": "The bot lost its Twitch authorization for this channel (password change or app disconnect). " +
+			"Log in at " + DashboardURL + " to reconnect it.",
+
+		// The stored grant simply stopped working: Twitch rejects the refresh
+		// token but never revoked anything, so the app is still connected on
+		// Twitch's side. Deliberately worded WITHOUT blaming the streamer, who
+		// would otherwise go hunting in Twitch Connections and find nothing wrong.
+		"grant.dead.title": "Reconnect your Twitch account",
+		// The bell is read from inside the dashboard, so it points at the
+		// settings page rather than repeating the URL.
+		"grant.dead.body": "Some connections for your channel have expired. " +
+			"Just head to settings and reconnect your account to fix the problem.",
+		"grant.dead.chat": "Some connections for your channel have expired. " +
+			"Just log in to the dashboard to fix the problem: " + DashboardURL,
 	},
 	"fr": {
 		"ping":         "Pong ! ItsBagelBot est actif depuis %s",
@@ -182,7 +228,43 @@ var catalog = map[string]map[string]string{
 
 		"fortnite.shop.empty": "vide aujourd'hui",
 		"fortnite.shop.more":  "+%d de plus",
+
+		"reauth.revoked.title": "Le bot a perdu l'accès à votre chaîne",
+		"reauth.revoked.body": "Twitch a révoqué l'autorisation du bot pour votre chaîne (cela arrive après un changement de mot de passe ou si l'application a été déconnectée). " +
+			"Les réponses et alertes sont en pause. Connectez-vous sur " + DashboardURL + " et reconnectez votre compte Twitch pour rétablir le bot.",
+		"reauth.revoked.chat": "Le bot a perdu son autorisation Twitch pour cette chaîne (changement de mot de passe ou déconnexion de l'application). " +
+			"Connectez-vous sur " + DashboardURL + " pour le reconnecter.",
+
+		"grant.dead.title": "Reconnectez votre compte Twitch",
+		"grant.dead.body": "Quelques connexions de votre chaîne ont expiré. " +
+			"Veuillez simplement vous rendre dans les paramètres et reconnecter votre compte pour régler le problème.",
+		"grant.dead.chat": "Quelques connexions de votre chaîne ont expiré. " +
+			"Veuillez simplement vous connecter au dashboard pour régler le problème : " + DashboardURL,
 	},
+}
+
+// Missing reports the keys present in the default locale but absent from
+// locale, so a parity test can fail on a half-translated addition instead of
+// letting T silently fall back to English in a French streamer's chat.
+func Missing(locale string) []string {
+	var missing []string
+	for key := range catalog[DefaultLocale] {
+		if _, ok := catalog[locale][key]; !ok {
+			missing = append(missing, key)
+		}
+	}
+	sort.Strings(missing)
+	return missing
+}
+
+// Locales lists every locale the catalog carries.
+func Locales() []string {
+	out := make([]string, 0, len(catalog))
+	for locale := range catalog {
+		out = append(out, locale)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // T returns the template for key in locale, falling back to English, then to
