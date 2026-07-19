@@ -58,12 +58,27 @@ func (w *Worker) grantTrackable(id twitch.Identity, broadcasterID string) bool {
 	return id == twitch.IdentityBroadcaster && broadcasterID != "" && w.grants != nil
 }
 
+// currentGrantState reads the channel's recorded grant health. The second
+// return is false when the channel is unreadable or not registered, which are
+// the two cases where the marker must stay out of the way rather than conjure
+// a registry entry.
+func (w *Worker) currentGrantState(ctx context.Context, broadcasterID string) (manage.GrantState, bool) {
+	ch, found, err := w.grants.Get(ctx, broadcasterID)
+	if err != nil || !found {
+		return manage.GrantUnknown, false
+	}
+	return ch.GrantState, true
+}
+
 // setGrantState writes only on an observed transition. The read is served by
 // the registry's own cache, so the common case (a healthy channel making a
 // successful call) costs nothing.
 func (w *Worker) setGrantState(ctx context.Context, broadcasterID string, state manage.GrantState) {
-	ch, found, err := w.grants.Get(ctx, broadcasterID)
-	if err != nil || !found || ch.GrantState == state {
+	current, ok := w.currentGrantState(ctx, broadcasterID)
+	if !ok {
+		return
+	}
+	if current == state {
 		return
 	}
 
@@ -77,7 +92,7 @@ func (w *Worker) setGrantState(ctx context.Context, broadcasterID string, state 
 
 	w.log.Info("grant state changed",
 		zap.String("broadcaster_id", broadcasterID),
-		zap.String("from", string(ch.GrantState)),
+		zap.String("from", string(current)),
 		zap.String("to", string(state)))
 
 	w.notifyGrantDead(ctx, broadcasterID, state)

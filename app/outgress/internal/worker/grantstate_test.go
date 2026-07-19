@@ -38,132 +38,123 @@ func deadGrantErr() error {
 	return &twitch.TokenError{Status: 400, Body: `{"status":400,"message":"Invalid refresh token"}`}
 }
 
-// TestMarkerIgnoresNonBroadcasterIdentity is the fleet-safety test. execute.go
-// carries app chat sends and bot moderation under real broadcaster ids, and the
-// app/bot/broadcaster grants all fail through the same postToken. Without the
-// identity gate, one client-credentials outage would mark the whole enrolled
-// fleet dead and nag every streamer in chat at their next go-live.
-func TestMarkerIgnoresNonBroadcasterIdentity(t *testing.T) {
-	for _, id := range []twitch.Identity{twitch.IdentityApp, twitch.IdentityBot, twitch.IdentityAuto} {
-		g := &fakeGrants{channel: manage.Channel{BroadcasterID: "1"}, found: true}
-		w := testWorker(g)
+func TestNoteGrantHealth(t *testing.T) {
+	registered := manage.Channel{BroadcasterID: "1"}
+	alreadyDead := manage.Channel{BroadcasterID: "1", GrantState: manage.GrantDead}
 
-		w.noteGrantHealth(context.Background(), id, "1", deadGrantErr())
+	tests := []struct {
+		name     string
+		identity twitch.Identity
+		channel  manage.Channel
+		found    bool
+		err      error
+		want     []manage.GrantState
+	}{
+		// The fleet-safety cases. execute.go carries app chat sends and bot
+		// moderation under real broadcaster ids, and the app, bot and broadcaster
+		// grants all fail through the same postToken. Without the identity gate,
+		// one client-credentials outage would mark every broadcaster whose
+		// traffic happened to pass during it, and chat being the highest-volume
+		// type, that is the entire enrolled fleet within seconds.
+		{"app identity never marks", twitch.IdentityApp, registered, true, deadGrantErr(), nil},
+		{"bot identity never marks", twitch.IdentityBot, registered, true, deadGrantErr(), nil},
+		{"auto identity never marks", twitch.IdentityAuto, registered, true, deadGrantErr(), nil},
 
-		if len(g.writes) != 0 {
-			t.Errorf("identity %v: wrote %v, want no write", id, g.writes)
-		}
+		// A dead grant, seen under the broadcaster's own identity.
+		{
+			"broadcaster identity marks dead",
+			twitch.IdentityBroadcaster, registered, true, deadGrantErr(),
+			[]manage.GrantState{manage.GrantDead},
+		},
+
+		// Transient failures must never tell a streamer their connection expired.
+		{
+			"500 does not mark",
+			twitch.IdentityBroadcaster, registered, true,
+			&twitch.TokenError{Status: 500, Body: "internal"}, nil,
+		},
+		{
+			"429 does not mark",
+			twitch.IdentityBroadcaster, registered, true,
+			&twitch.TokenError{Status: 429, Body: "slow down"}, nil,
+		},
+		{
+			"transport failure does not mark",
+			twitch.IdentityBroadcaster, registered, true,
+			errors.New("dial tcp: i/o timeout"), nil,
+		},
+
+		// Success is the inverse write, and the self-heal for a false positive.
+		{
+			"success clears a dead marker",
+			twitch.IdentityBroadcaster, alreadyDead, true, nil,
+			[]manage.GrantState{manage.GrantUnknown},
+		},
+		{"success on a healthy channel is a no-op", twitch.IdentityBroadcaster, registered, true, nil, nil},
+
+		// Transition-only, so a channel failing every few seconds does not
+		// hammer Valkey or re-log forever.
+		{"already dead does not rewrite", twitch.IdentityBroadcaster, alreadyDead, true, deadGrantErr(), nil},
+
+		// Never conjure a registry entry for a channel the bot does not serve.
+		{"unregistered channel is skipped", twitch.IdentityBroadcaster, manage.Channel{}, false, deadGrantErr(), nil},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			g := &fakeGrants{channel: tc.channel, found: tc.found}
+			w := testWorker(g)
+
+			w.noteGrantHealth(context.Background(), tc.identity, "1", tc.err)
+
+			assertWrites(t, g.writes, tc.want)
+		})
 	}
 }
 
-func TestMarkerWritesDeadForBroadcasterIdentity(t *testing.T) {
-	g := &fakeGrants{channel: manage.Channel{BroadcasterID: "1"}, found: true}
-	w := testWorker(g)
-
-	w.noteGrantHealth(context.Background(), twitch.IdentityBroadcaster, "1", deadGrantErr())
-
-	if len(g.writes) != 1 || g.writes[0] != manage.GrantDead {
-		t.Fatalf("writes = %v, want [dead]", g.writes)
-	}
-}
-
-// TestMarkerIgnoresTransientFailures keeps a Twitch outage or a network blip
-// from telling streamers their connection expired.
-func TestMarkerIgnoresTransientFailures(t *testing.T) {
-	transient := []error{
-		&twitch.TokenError{Status: 500, Body: "internal"},
-		&twitch.TokenError{Status: 429, Body: "slow down"},
-		errors.New("dial tcp: i/o timeout"),
-	}
-
-	for _, err := range transient {
-		g := &fakeGrants{channel: manage.Channel{BroadcasterID: "1"}, found: true}
-		w := testWorker(g)
-
-		w.noteGrantHealth(context.Background(), twitch.IdentityBroadcaster, "1", err)
-
-		if len(g.writes) != 0 {
-			t.Errorf("err %v: wrote %v, want no write", err, g.writes)
-		}
-	}
-}
-
-// TestMarkerClearsOnSuccess is one of the two escape hatches: a false positive
-// heals itself on the next successful broadcaster call.
-func TestMarkerClearsOnSuccess(t *testing.T) {
-	g := &fakeGrants{
-		channel: manage.Channel{BroadcasterID: "1", GrantState: manage.GrantDead},
-		found:   true,
-	}
+// TestNoteGrantHealthUnreadableRegistry keeps a Valkey blip from being read as
+// a healthy channel and clearing a real marker.
+func TestNoteGrantHealthUnreadableRegistry(t *testing.T) {
+	g := &fakeGrants{getErr: errors.New("valkey down")}
 	w := testWorker(g)
 
 	w.noteGrantHealth(context.Background(), twitch.IdentityBroadcaster, "1", nil)
 
-	if len(g.writes) != 1 || g.writes[0] != manage.GrantUnknown {
-		t.Fatalf("writes = %v, want [unknown]", g.writes)
-	}
+	assertWrites(t, g.writes, nil)
 }
 
-// TestMarkerWritesOnlyOnTransition keeps a channel that fails every few seconds
-// from hammering Valkey and re-logging forever.
-func TestMarkerWritesOnlyOnTransition(t *testing.T) {
-	g := &fakeGrants{
-		channel: manage.Channel{BroadcasterID: "1", GrantState: manage.GrantDead},
-		found:   true,
-	}
-	w := testWorker(g)
-
-	for range 5 {
-		w.noteGrantHealth(context.Background(), twitch.IdentityBroadcaster, "1", deadGrantErr())
-	}
-
-	if len(g.writes) != 0 {
-		t.Fatalf("writes = %v, want none (already dead)", g.writes)
-	}
-}
-
-// TestMarkerSkipsUnregisteredChannel stops the marker conjuring a registry entry
-// for a channel the bot does not serve.
-func TestMarkerSkipsUnregisteredChannel(t *testing.T) {
-	g := &fakeGrants{found: false}
-	w := testWorker(g)
-
-	w.noteGrantHealth(context.Background(), twitch.IdentityBroadcaster, "1", deadGrantErr())
-
-	if len(g.writes) != 0 {
-		t.Fatalf("writes = %v, want none (channel not registered)", g.writes)
-	}
-}
-
-func TestMarkerNoRegistryIsNoop(t *testing.T) {
+func TestNoteGrantHealthNoRegistryIsNoop(t *testing.T) {
 	w := testWorker(nil)
 	// Must not panic.
 	w.noteGrantHealth(context.Background(), twitch.IdentityBroadcaster, "1", deadGrantErr())
 }
 
-// TestClearGrantDeadOnReconsent covers the second escape hatch. It must run for
-// a channel whose sub_state is "ok", which is exactly the state a grant-dead
-// channel sits in and the state the re-enroll gate rejects.
-func TestClearGrantDeadOnReconsent(t *testing.T) {
-	g := &fakeGrants{found: true}
-	w := testWorker(g)
-	ch := manage.Channel{BroadcasterID: "1", SubState: "ok", GrantState: manage.GrantDead}
-
-	w.clearGrantDead(context.Background(), "1", ch)
-
-	if len(g.writes) != 1 || g.writes[0] != manage.GrantUnknown {
-		t.Fatalf("writes = %v, want [unknown]", g.writes)
+func TestClearGrantDead(t *testing.T) {
+	tests := []struct {
+		name    string
+		channel manage.Channel
+		want    []manage.GrantState
+	}{
+		// sub_state "ok" is exactly the state a grant-dead channel sits in, and
+		// exactly the state the re-enroll gate rejects. This is why the clear is
+		// placed above that gate.
+		{
+			"dead grant on an ok channel clears",
+			manage.Channel{BroadcasterID: "1", SubState: "ok", GrantState: manage.GrantDead},
+			[]manage.GrantState{manage.GrantUnknown},
+		},
+		{"healthy channel is untouched", manage.Channel{BroadcasterID: "1"}, nil},
 	}
-}
 
-func TestClearGrantDeadSkipsHealthyChannel(t *testing.T) {
-	g := &fakeGrants{found: true}
-	w := testWorker(g)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			g := &fakeGrants{found: true}
+			w := testWorker(g)
 
-	w.clearGrantDead(context.Background(), "1", manage.Channel{BroadcasterID: "1"})
+			w.clearGrantDead(context.Background(), "1", tc.channel)
 
-	if len(g.writes) != 0 {
-		t.Fatalf("writes = %v, want none", g.writes)
+			assertWrites(t, g.writes, tc.want)
+		})
 	}
 }
 
@@ -208,5 +199,17 @@ func TestNoticeRequestPrefixesDiffer(t *testing.T) {
 	if noticeRevoked.request == noticeGrantDead.request {
 		t.Fatalf("both notices share request prefix %q, so one would be deduped away",
 			noticeRevoked.request)
+	}
+}
+
+func assertWrites(t *testing.T, got, want []manage.GrantState) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("writes = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("writes = %v, want %v", got, want)
+		}
 	}
 }

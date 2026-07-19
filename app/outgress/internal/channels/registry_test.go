@@ -92,12 +92,22 @@ func TestSaveCoversEveryChannelField(t *testing.T) {
 	}
 }
 
-// TestSaveRoundTripsGrantState pins the field the beacon reads.
+// TestSaveRoundTripsGrantState pins the field the go-live beacon reads.
 func TestSaveRoundTripsGrantState(t *testing.T) {
-	if got := savedFields(manage.Channel{GrantState: manage.GrantDead})["grant_state"]; got != "dead" {
-		t.Errorf("grant_state = %q, want %q", got, "dead")
+	tests := []struct {
+		name    string
+		channel manage.Channel
+		want    string
+	}{
+		{"dead", manage.Channel{GrantState: manage.GrantDead}, "dead"},
+		{"healthy", manage.Channel{}, ""},
 	}
-	if got := savedFields(manage.Channel{})["grant_state"]; got != "" {
-		t.Errorf("healthy grant_state = %q, want empty", got)
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := savedFields(tc.channel)["grant_state"]; got != tc.want {
+				t.Errorf("grant_state = %q, want %q", got, tc.want)
+			}
+		})
 	}
 }
