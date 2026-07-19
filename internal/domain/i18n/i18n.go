@@ -137,10 +137,12 @@ var catalog = map[string]map[string]string{
 		// Twitch's side. Deliberately worded WITHOUT blaming the streamer, who
 		// would otherwise go hunting in Twitch Connections and find nothing wrong.
 		"grant.dead.title": "Reconnect your Twitch account",
-		"grant.dead.body": "The bot's saved Twitch connection for your channel has expired. Clips, channel point rewards and anything else the bot runs as you will keep failing until you reconnect. " +
-			"Open " + DashboardURL + " and reconnect your Twitch account.",
-		"grant.dead.chat": "My saved Twitch connection for this channel has expired, so clips and channel point actions will fail until it is renewed. " +
-			"Log in at " + DashboardURL + " to reconnect it.",
+		// The bell is read from inside the dashboard, so it points at the
+		// settings page rather than repeating the URL.
+		"grant.dead.body": "Some connections for your channel have expired. " +
+			"Just head to settings and reconnect your account to fix the problem.",
+		"grant.dead.chat": "Some connections for your channel have expired. " +
+			"Just log in to the dashboard to fix the problem: " + DashboardURL,
 	},
 	"fr": {
 		"ping":         "Pong ! ItsBagelBot est actif depuis %s",
@@ -234,10 +236,10 @@ var catalog = map[string]map[string]string{
 			"Connectez-vous sur " + DashboardURL + " pour le reconnecter.",
 
 		"grant.dead.title": "Reconnectez votre compte Twitch",
-		"grant.dead.body": "La connexion Twitch enregistrée du bot pour votre chaîne a expiré. Les clips, les récompenses de points de chaîne et tout ce que le bot effectue en votre nom continueront d'échouer jusqu'à la reconnexion. " +
-			"Ouvrez " + DashboardURL + " et reconnectez votre compte Twitch.",
-		"grant.dead.chat": "Ma connexion Twitch enregistrée pour cette chaîne a expiré, donc les clips et les actions de points de chaîne échoueront jusqu'à son renouvellement. " +
-			"Connectez-vous sur " + DashboardURL + " pour la reconnecter.",
+		"grant.dead.body": "Quelques connexions de votre chaîne ont expiré. " +
+			"Veuillez simplement vous rendre dans les paramètres et reconnecter votre compte pour régler le problème.",
+		"grant.dead.chat": "Quelques connexions de votre chaîne ont expiré. " +
+			"Veuillez simplement vous connecter au dashboard pour régler le problème : " + DashboardURL,
 	},
 }
 
