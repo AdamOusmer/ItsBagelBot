@@ -12,29 +12,50 @@ import (
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 )
 
-func TestPauseSnapshotRejectsOlderVersion(t *testing.T) {
-	r := &Registry{}
-	r.applyPauseSnapshot(pauseSnapshot{paused: true, version: 4, observedAt: time.Now()})
-	r.applyPauseSnapshot(pauseSnapshot{paused: false, version: 3, observedAt: time.Now()})
-
-	paused, err := r.Paused(context.Background())
-	if err != nil {
-		t.Fatal(err)
+// TestPauseSnapshotOrdering covers how two snapshots resolve against each
+// other: a lower version never wins, and an equal version does, which is what
+// repairs a legacy writer that does not bump the version at all.
+func TestPauseSnapshotOrdering(t *testing.T) {
+	tests := []struct {
+		name    string
+		first   pauseSnapshot
+		second  pauseSnapshot
+		wantErr bool
+	}{
+		{
+			name:   "older version does not revert paused state",
+			first:  pauseSnapshot{paused: true, version: 4},
+			second: pauseSnapshot{paused: false, version: 3},
+		},
+		{
+			name:   "same version repairs a legacy writer",
+			first:  pauseSnapshot{paused: false, version: 2},
+			second: pauseSnapshot{paused: true, version: 2},
+		},
 	}
-	if !paused {
-		t.Fatal("older snapshot reverted paused state")
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r := &Registry{}
+			r.applyPauseSnapshot(stamp(tc.first))
+			r.applyPauseSnapshot(stamp(tc.second))
+
+			paused, err := r.Paused(context.Background())
+			if err != nil {
+				t.Fatalf("Paused() error = %v", err)
+			}
+			if !paused {
+				t.Fatal("paused = false, want true")
+			}
+		})
 	}
 }
 
-func TestPauseSnapshotSameVersionRepairsLegacyWriter(t *testing.T) {
-	r := &Registry{}
-	r.applyPauseSnapshot(pauseSnapshot{paused: false, version: 2, observedAt: time.Now()})
-	r.applyPauseSnapshot(pauseSnapshot{paused: true, version: 2, observedAt: time.Now()})
-
-	paused, err := r.Paused(context.Background())
-	if err != nil || !paused {
-		t.Fatalf("paused/error = %v/%v, want true/nil", paused, err)
-	}
+// stamp gives a snapshot a fresh observedAt so Paused does not fail it closed
+// as stale.
+func stamp(s pauseSnapshot) pauseSnapshot {
+	s.observedAt = time.Now()
+	return s
 }
 
 func TestPausedFailsClosedWhenSnapshotIsStale(t *testing.T) {
@@ -76,13 +97,17 @@ func TestNewPinsRegistryReadsToThePrimary(t *testing.T) {
 //
 // broadcaster_id is excluded because it is the Valkey key, not a hash field.
 func TestSaveCoversEveryChannelField(t *testing.T) {
+	// broadcaster_id is the Valkey key rather than a hash field; the other two
+	// are the absent and explicitly-ignored json tags.
+	notPersisted := map[string]bool{"": true, "-": true, "broadcaster_id": true}
+
 	written := savedFields(manage.Channel{})
 
 	typ := reflect.TypeOf(manage.Channel{})
 	for i := range typ.NumField() {
 		tag := typ.Field(i).Tag.Get("json")
 		name, _, _ := strings.Cut(tag, ",")
-		if name == "" || name == "-" || name == "broadcaster_id" {
+		if notPersisted[name] {
 			continue
 		}
 		if _, ok := written[name]; !ok {
