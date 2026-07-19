@@ -3,18 +3,35 @@ package manage
 
 import "time"
 
+// GrantState is the health of a broadcaster's own stored OAuth grant, which is
+// separate from SubState. Twitch announces a revocation over EventSub, so
+// SubState learns about it; a refresh token that simply stops working announces
+// nothing, so it is only ever observed when a call under the broadcaster's
+// identity fails.
+type GrantState string
+
+const (
+	// GrantUnknown is the healthy default. An absent Valkey field decodes to
+	// this, so every pre-existing channel reads correct without a backfill.
+	GrantUnknown GrantState = ""
+	// GrantDead means Twitch rejected the stored grant and only re-consent
+	// will fix it.
+	GrantDead GrantState = "dead"
+)
+
 // Channel is the canonical per-broadcaster registry entry: it is both the
 // outgress channel registry's stored model and the wire shape for the
 // channel.get / channel.set / channel.list verbs.
 type Channel struct {
-	BroadcasterID string    `json:"broadcaster_id"`
-	Enabled       bool      `json:"enabled"`
-	IsMod         bool      `json:"is_mod"`
-	ModCheckedAt  time.Time `json:"mod_checked_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
-	SubState      string    `json:"sub_state"` // "ok" | "pending" | "failing" | "" (unknown)
-	SubError      string    `json:"sub_error"` // last failure detail; empty when ok
-	SubCheckedAt  time.Time `json:"sub_checked_at"`
+	BroadcasterID string     `json:"broadcaster_id"`
+	Enabled       bool       `json:"enabled"`
+	IsMod         bool       `json:"is_mod"`
+	ModCheckedAt  time.Time  `json:"mod_checked_at"`
+	UpdatedAt     time.Time  `json:"updated_at"`
+	SubState      string     `json:"sub_state"` // "ok" | "pending" | "failing" | "revoked" | "" (unknown)
+	SubError      string     `json:"sub_error"` // last failure detail; empty when ok
+	SubCheckedAt  time.Time  `json:"sub_checked_at"`
+	GrantState    GrantState `json:"grant_state"` // "" (healthy/unknown) | "dead"
 }
 
 // ChannelRequest is the input shape for channel.get and channel.set verbs.

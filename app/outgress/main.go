@@ -126,22 +126,29 @@ func main() {
 	premiumSub, standardSub, systemSub, closeSubs := d.laneSubscribers()
 	defer closeSubs()
 
+	// Streamer-facing messaging attaches before ANY consumer that can reach it.
+	// The system lane needs it for the go-live beacon and the authz consumers;
+	// the chat lanes need it because a broadcaster-identity call failing there
+	// is what discovers a dead grant in the first place, and that raises the
+	// dashboard bell immediately rather than waiting for the next go-live.
+	// The notifier holds no per-lane state, so one instance serves all three.
+	reauth := worker.NewReauthNotifier(nc, worker.ReauthConfig{
+		SendSubject:  cfg.NotifySendSubject,
+		StateSubject: cfg.UsersStateSubject,
+		BotID:        cfg.TwitchBotUserID,
+	}, log.Named("reauth"))
+	premium.SetReauthNotifier(reauth)
+	standard.SetReauthNotifier(reauth)
+	system.SetReauthNotifier(reauth)
+
 	d.startChatLanes(ctx, []bus.WeightedLane{
 		{Sub: premiumSub, Subject: cfg.PremiumSubject, Handle: premium.Process, Reserve: cfg.PremiumReserve},
 		{Sub: standardSub, Subject: cfg.StandardSubject, Handle: standard.Process},
 	})
 	d.startSystemLane(ctx, systemSub, system)
 
-	// Authorization lifecycle: streamer-facing messaging attaches before any
-	// consumer that can call it (the stream lane's go-live beacon and the
-	// authz consumers below), then the client-scoped user.authorization.*
-	// subscriptions that feed them are ensured in the background.
-	system.SetReauthNotifier(worker.NewReauthNotifier(nc, worker.ReauthConfig{
-		SendSubject:  cfg.NotifySendSubject,
-		StateSubject: cfg.UsersStateSubject,
-		BotID:        cfg.TwitchBotUserID,
-	}, log.Named("reauth")))
-
+	// The client-scoped user.authorization.* subscriptions that feed the
+	// notifier are ensured in the background below.
 	closeStreamLane := d.startStreamLane(ctx, system)
 	defer closeStreamLane()
 
