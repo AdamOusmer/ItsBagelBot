@@ -34,6 +34,9 @@ spec:
         prometheus.io/path: /metrics
         prometheus.io/port: "7777"
         prometheus.io/scrape: "true"
+        # See nats.yaml: the prometheus agent's default job never matches nats;
+        # this annotation hits the unfiltered "newrelic" job.
+        newrelic.io/scrape: "true"
       labels:
         app: nats-leaf
     spec:
