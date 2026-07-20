@@ -132,9 +132,14 @@ data:
         ["commands"] = true,
         ["transactions"] = true,
         ["projector"] = true,
-        ["worker"] = true,
+        ["sesame"] = true,
+        ["loyalty"] = true,
+        ["notifications"] = true,
+        ["gateway"] = true,
         ["outgress"] = true,
-        ["twitch-ingress"] = true,
+        -- The twitch-ingress Deployment's container is named "ingress"; the
+        -- allowlist keys on container_name, so "twitch-ingress" never matched.
+        ["ingress"] = true,
         ["console-dashboard"] = true,
         ["console-admin"] = true,
     }

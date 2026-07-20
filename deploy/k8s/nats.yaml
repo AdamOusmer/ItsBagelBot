@@ -29,6 +29,10 @@ spec:
         prometheus.io/path: /metrics
         prometheus.io/port: "7777"
         prometheus.io/scrape: "true"
+        # newrelic-prometheus-agent's default job gates prometheus.io/scrape
+        # behind its integrations_filter app allowlist, which has no nats entry;
+        # the chart's "newrelic" job scrapes this annotation unfiltered.
+        newrelic.io/scrape: "true"
       labels:
         app: nats
     spec:
