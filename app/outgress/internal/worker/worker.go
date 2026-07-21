@@ -9,6 +9,7 @@ import (
 	"context"
 	"time"
 
+	"ItsBagelBot/app/outgress/internal/action"
 	"ItsBagelBot/app/outgress/internal/channels"
 	"ItsBagelBot/app/outgress/internal/conduit"
 	"ItsBagelBot/app/outgress/internal/twitch"
@@ -71,6 +72,10 @@ type Worker struct {
 	conduit  *conduit.Resolver
 	lane     Lane
 	batch    BatchStore
+	// actions is the immutable per-type dispatch registry built once in New
+	// (see buildActions); every lane message resolves through one lock-free
+	// lookup in it.
+	actions action.Registry
 	// userIDs caches login->id resolutions (shoutout targets) so a repeated
 	// /shoutout to the same channel does not re-hit Helix Get Users each time.
 	// Wiring injects one instance shared by all three lane workers via
@@ -127,7 +132,7 @@ func New(cfg Config) *Worker {
 	if cfg.Registry != nil {
 		grants = cfg.Registry
 	}
-	return &Worker{
+	w := &Worker{
 		grants:   grants,
 		log:      cfg.Log,
 		limiter:  cfg.Limiter,
@@ -140,6 +145,10 @@ func New(cfg Config) *Worker {
 		batch:    cfg.Batch,
 		userIDs:  userIDs,
 	}
+	// Handlers capture w by method value, so late-attached collaborators
+	// (SetModVerifier, SetReauthNotifier, SetLiveWriter) are still seen.
+	w.actions = w.buildActions()
+	return w
 }
 
 // SetLiveWriter attaches the live re-check write-back, used by the system lane
@@ -187,7 +196,7 @@ func noticeError(ctx context.Context, err error) {
 // moderator): an explicit message sender wins, else the configured bot id.
 // ok=false means neither is set - there is nobody to act as, so the caller
 // must drop the job (already logged here, ack).
-func (w *Worker) botIdentity(action string, payload outgress.Message) (string, bool) {
+func (w *Worker) botIdentity(action string, payload *outgress.Message) (string, bool) {
 	id := payload.SenderID
 	if id == "" {
 		id = w.botID
@@ -202,7 +211,7 @@ func (w *Worker) botIdentity(action string, payload outgress.Message) (string, b
 
 // modStatus is deliberately non-blocking: use the last known value and let the
 // shared verifier refresh stale state away from the chat handler.
-func (w *Worker) modStatus(_ context.Context, payload outgress.Message, ch manage.Channel, found bool) bool {
+func (w *Worker) modStatus(_ context.Context, payload *outgress.Message, ch manage.Channel, found bool) bool {
 	if w.modVerifier == nil {
 		return found && ch.IsMod
 	}

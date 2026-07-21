@@ -552,6 +552,23 @@ func firstMessageError(messages []valkey.ValkeyMessage) error {
 	return nil
 }
 
+// SeedPause installs an in-process pause snapshot directly, bypassing Valkey
+// and NATS. The snapshot's observedAt is pinned far in the future so it never
+// trips the staleness guard, however long a benchmark runs; without the
+// reconciler nothing would refresh it. It exists for tests and benchmarks
+// that need Paused to answer without the listener running; wiring never calls
+// it, and a versioned snapshot from the real listener always supersedes it.
+func (r *Registry) SeedPause(paused bool) {
+	r.applyPauseSnapshot(pauseSnapshot{paused: paused, observedAt: time.Now().Add(24 * time.Hour)})
+}
+
+// Prime seeds the per-pod channel cache directly, bypassing Valkey. It exists
+// for tests and benchmarks that need a warm Get without a backing store;
+// wiring never calls it.
+func (r *Registry) Prime(ch manage.Channel) {
+	r.cache.Set(ch.BroadcasterID, ch)
+}
+
 // Paused reports the global kill switch from one lock-free in-process snapshot.
 // The reconciler bounds staleness without putting Valkey I/O on the message path.
 func (r *Registry) Paused(_ context.Context) (bool, error) {

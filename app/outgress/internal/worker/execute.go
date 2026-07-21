@@ -13,7 +13,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func (w *Worker) processAPI(ctx context.Context, payload outgress.Message) error {
+func (w *Worker) processAPI(ctx context.Context, payload *outgress.Message) error {
 	if err := w.takeGeneralHelix(ctx, payload); err != nil {
 		return err
 	}
@@ -21,7 +21,7 @@ func (w *Worker) processAPI(ctx context.Context, payload outgress.Message) error
 	return w.execute(ctx, payload)
 }
 
-func (w *Worker) execute(ctx context.Context, payload outgress.Message) error {
+func (w *Worker) execute(ctx context.Context, payload *outgress.Message) error {
 	res, err := w.executeRequest(ctx, payload)
 	if err != nil {
 		return err
@@ -34,7 +34,7 @@ func (w *Worker) execute(ctx context.Context, payload outgress.Message) error {
 // executeRequest performs one Twitch call and returns the still-open response.
 // Most actions use execute, which consumes status and drains it immediately;
 // compound actions such as /pin need to decode a successful response first.
-func (w *Worker) executeRequest(ctx context.Context, payload outgress.Message) (*http.Response, error) {
+func (w *Worker) executeRequest(ctx context.Context, payload *outgress.Message) (*http.Response, error) {
 	started := time.Now()
 	defer recordStageDuration(ctx, "outgress.twitch_ms", started)
 
@@ -50,7 +50,7 @@ func (w *Worker) executeRequest(ctx context.Context, payload outgress.Message) (
 // helixResult maps the Helix response status to the lane's ack/nack decision:
 // 429 and 5xx nack for paced redelivery, everything 4xx is dropped (acked)
 // because redelivering it can never succeed.
-func (w *Worker) helixResult(ctx context.Context, payload outgress.Message, res *http.Response) error {
+func (w *Worker) helixResult(ctx context.Context, payload *outgress.Message, res *http.Response) error {
 	switch {
 	case res.StatusCode == http.StatusTooManyRequests:
 		w.log.Warn("twitch rate limited the app",
@@ -80,7 +80,7 @@ func (w *Worker) helixResult(ctx context.Context, payload outgress.Message, res 
 // recoverable token expiry, so redelivering it just loops forever and poisons
 // the lane. Drop it (ack) and surface it loudly + to New Relic for a human to
 // fix (re-auth / mod the bot). Twitch's body states which of the three.
-func (w *Worker) dropAuthFailure(ctx context.Context, payload outgress.Message, res *http.Response) {
+func (w *Worker) dropAuthFailure(ctx context.Context, payload *outgress.Message, res *http.Response) {
 	body := readErrorBody(res)
 	w.log.Error("dropping request: twitch rejected our credentials (permanent authz problem, not retryable)",
 		zap.Int("status", res.StatusCode),
@@ -90,7 +90,7 @@ func (w *Worker) dropAuthFailure(ctx context.Context, payload outgress.Message, 
 	noticeError(ctx, fmt.Errorf("twitch auth failure: %d %s", res.StatusCode, body))
 }
 
-func (w *Worker) dropRejected(ctx context.Context, payload outgress.Message, res *http.Response) {
+func (w *Worker) dropRejected(ctx context.Context, payload *outgress.Message, res *http.Response) {
 	body := readErrorBody(res)
 	w.log.Error("dropping request twitch rejected",
 		zap.Int("status", res.StatusCode),
