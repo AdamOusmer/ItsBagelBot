@@ -17,6 +17,7 @@ const (
 	defaultSubTemplate    = "Welcome to the community, {user}! Thank you for subscribing!"
 	defaultCheerTemplate  = "Thank you for the {bits} bits, {user}!"
 	defaultRaidTemplate   = "{user} is raiding the channel with {viewers} viewers! Welcome everyone!"
+	defaultAdsTemplate    = "Ads are rolling for {duration} seconds. Hang tight, we'll be right back!"
 )
 
 // alertsConfig holds the broadcaster's per-alert enable flags and customized
@@ -33,11 +34,20 @@ type alertsConfig struct {
 	CheerMessage  string `json:"cheerMessage"`
 	RaidEnabled   string `json:"raidEnabled"`
 	RaidMessage   string `json:"raidMessage"`
+	// AdsEnabled is the one default-OFF toggle in the module: unlike the
+	// alerts above, it fires only on an explicit "on" (see adAlertOn), so
+	// enabling the module never starts announcing ad breaks by surprise.
+	AdsEnabled string `json:"adsEnabled"`
+	AdsMessage string `json:"adsMessage"`
 }
 
 // alertOn reports whether a sub-alert toggle is on. Only an explicit "off"
 // disables it; empty (never set) and "on" both fire, so each alert defaults on.
 func alertOn(v string) bool { return v != "off" }
+
+// adAlertOn is the inverse posture for the ads alert: it stays silent until
+// the broadcaster explicitly turns it on, so only "on" fires.
+func adAlertOn(v string) bool { return v == "on" }
 
 // followEvent is the subset of the channel.follow EventSub payload we use.
 type followEvent struct {
@@ -64,8 +74,16 @@ type cheerEvent struct {
 	Bits              int    `json:"bits"`
 }
 
-// Alerts posts a chat line on channel.follow, channel.subscribe, channel.cheer
-// and channel.raid. It is a named, default-on module (KindDefault): it ships
+// adBreakEvent is the subset of the channel.ad_break.begin EventSub payload we
+// use.
+type adBreakEvent struct {
+	BroadcasterUserID string `json:"broadcaster_user_id"`
+	DurationSeconds   int    `json:"duration_seconds"`
+}
+
+// Alerts posts a chat line on channel.follow, channel.subscribe, channel.cheer,
+// channel.raid and channel.ad_break.begin. It is a named, default-on module
+// (KindDefault): it ships
 // enabled and runs unless the broadcaster disables the whole module on the
 // dashboard. Each alert has its own enable toggle and message template, wired in
 // from the module config the pipeline sets on the Context. Raid is a separate
@@ -236,6 +254,45 @@ func Alerts(_ engine.Deps) module.Module {
 		emit(&module.Output{
 			Type:          outgress.TypeChat,
 			BroadcasterID: ev.ToBroadcasterUserID,
+			Text:          msg,
+		})
+		return nil
+	})
+
+	m.On("channel.ad_break.begin", func(_ context.Context, c *module.Context, emit module.Emit) error {
+		var cfg alertsConfig
+		_ = c.Decode(&cfg)
+		if !adAlertOn(cfg.AdsEnabled) {
+			return nil
+		}
+		if len(c.Env.Event) == 0 {
+			return nil
+		}
+		var ev adBreakEvent
+		if err := json.Unmarshal(c.Env.Event, &ev); err != nil {
+			return err
+		}
+		if ev.BroadcasterUserID == "" {
+			return nil
+		}
+
+		tmpl := cfg.AdsMessage
+		if tmpl == "" {
+			tmpl = defaultAdsTemplate
+		}
+
+		msg := module.ExpandString(tmpl, func(key string) (string, bool) {
+			switch key {
+			case "duration":
+				return strconv.Itoa(ev.DurationSeconds), true
+			default:
+				return module.ParseDynamic(key)
+			}
+		})
+
+		emit(&module.Output{
+			Type:          outgress.TypeChat,
+			BroadcasterID: ev.BroadcasterUserID,
 			Text:          msg,
 		})
 		return nil

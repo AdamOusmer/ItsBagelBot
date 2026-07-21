@@ -294,6 +294,10 @@ export interface ModuleReply {
   // per-reply switch (it fires whenever the module is on). Stored "on"/"off";
   // empty/absent means on, matching sesame's alertOn semantics.
   enableKey?: string;
+  // Flips the empty/absent default to OFF: the reply fires only on an explicit
+  // "on" (sesame's adAlertOn semantics). Used by alerts the broadcaster must
+  // opt into, like the ad-break announcement.
+  defaultOff?: boolean;
   defaultMessage: string; // sesame default template (placeholder + preview fallback)
 
   // --- command-style replies (gateway modules: urchin, mcsr) ---------------
@@ -670,9 +674,9 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
   {
     id: 'alerts',
     label: 'Chat Alerts',
-    tagline: 'Announce follows, subs, cheers and raids in chat.',
+    tagline: 'Announce follows, subs, cheers, raids and ad breaks in chat.',
     description:
-      'The bot posts a chat line when someone follows, subscribes, cheers, or raids. Turn each alert on or off and customize its message. New alerts default on.',
+      'The bot posts a chat line when someone follows, subscribes, cheers, or raids, and can announce ad breaks. Turn each alert on or off and customize its message. New alerts default on, except the ad-break alert which stays off until you enable it.',
     icon: 'bell',
     category: 'Community',
     defaultEnabled: true,
@@ -712,6 +716,16 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
         enableKey: 'raidEnabled',
         messageKey: 'raidMessage',
         defaultMessage: '{user} is raiding the channel with {viewers} viewers! Welcome everyone!'
+      },
+      {
+        key: 'ads',
+        label: 'Ad break alert',
+        tagline: 'When an ad break starts. Off by default.',
+        event: 'on ad break',
+        enableKey: 'adsEnabled',
+        messageKey: 'adsMessage',
+        defaultOff: true,
+        defaultMessage: "Ads are rolling for {duration} seconds. Hang tight, we'll be right back!"
       }
     ]
   },

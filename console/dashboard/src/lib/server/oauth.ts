@@ -18,7 +18,10 @@ export function scopes(): string[] {
   // channel:manage:redemptions covers the whole Channel Points surface: creating,
   // editing and deleting custom rewards, subscribing to redemption events, and
   // resolving redemptions (fulfill/refund) — all on the broadcaster's own token.
-  const bot = 'channel:bot moderator:read:followers user:read:chat user:write:chat channel:read:subscriptions bits:read user:read:moderated_channels clips:edit channel:manage:redemptions'
+  // channel:read:ads authorizes the channel.ad_break.begin EventSub behind the
+  // ads chat alert; grants that predate it skip that (optional) subscription
+  // until the broadcaster re-consents.
+  const bot = 'channel:bot moderator:read:followers user:read:chat user:write:chat channel:read:subscriptions bits:read user:read:moderated_channels clips:edit channel:manage:redemptions channel:read:ads'
     .split(/\s+/)
     .filter(Boolean);
   return ['openid', 'user:read:email', ...bot];

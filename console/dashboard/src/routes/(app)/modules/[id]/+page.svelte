@@ -151,11 +151,22 @@
     return field.followsLevel ? automodToggleDefault(config['level'] || 'moderate', field.key) : false;
   }
 
+  // A reply toggle rests on its declared default until the blob stores an
+  // explicit "on"/"off": default-off replies (defaultOff, e.g. the ad-break
+  // alert) need "on", every other reply fires unless "off". Mirrors sesame's
+  // alertOn/adAlertOn split in app/sesame/modules/alerts.go.
+  function replyOn(reply: ModuleReply): boolean {
+    const v = config[reply.enableKey ?? ''] ?? '';
+    if (v === 'on') return true;
+    if (v === 'off') return false;
+    return !reply.defaultOff;
+  }
+
   // --- Per-reply toggle (optimistic) -----------------------------------------
   async function toggleReply(reply: ModuleReply) {
     if (!reply.enableKey) return;
     const key = reply.enableKey;
-    const was = config[key] !== 'off';
+    const was = replyOn(reply);
     config = { ...config, [key]: was ? 'off' : 'on' };
     setStatus(reply.key, 'saving');
     if (await patch({ [key]: was ? 'off' : 'on' }, enabled)) ackSaved(reply.key);
@@ -659,7 +670,7 @@
                   index={i + 1}
                   status={modStatus[reply.key] ?? 'idle'}
                   expanded={expanded === reply.key}
-                  enabled={reply.enableKey ? config[reply.enableKey] !== 'off' : undefined}
+                  enabled={reply.enableKey ? replyOn(reply) : undefined}
                   onExpand={() => openReply(reply)}
                   onToggle={() => toggleReply(reply)}
                 />

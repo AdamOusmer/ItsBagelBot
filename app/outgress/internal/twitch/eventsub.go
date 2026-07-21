@@ -69,9 +69,16 @@ func ChannelSubscriptions(broadcasterID, botID string) []SubSpec {
 //     a fault. It also 401s for a broadcaster whose stored grant predates the
 //     scope, until they re-consent. Both are permanent and tolerated by the
 //     caller; the mandatory set is unaffected.
+//
+//   - channel.ad_break.begin drives the ads chat alert. It is authorized by the
+//     broadcaster's channel:read:ads grant, which only consents issued after the
+//     scope was added to the dashboard login carry, so it 401s for older grants
+//     until the broadcaster re-consents. Non-affiliates never run ads, but the
+//     subscription itself is accepted; it simply never fires.
 func ChannelOptionalSubscriptions(broadcasterID string) []SubSpec {
 	return []SubSpec{
 		{"channel.channel_points_custom_reward_redemption.add", "1", map[string]string{"broadcaster_user_id": broadcasterID}},
+		{"channel.ad_break.begin", "1", map[string]string{"broadcaster_user_id": broadcasterID}},
 	}
 }
 
