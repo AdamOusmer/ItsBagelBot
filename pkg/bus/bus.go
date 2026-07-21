@@ -190,37 +190,6 @@ func laneConsumerConfig(subject, group, name string, maxDeliveries int) *nats.Co
 	}
 }
 
-// matchSubject reports whether subject falls under filter ('>' matches any
-// suffix).
-func matchSubject(subject, filter string) bool {
-	if strings.HasSuffix(filter, ">") {
-		return strings.HasPrefix(subject, strings.TrimSuffix(filter, ">"))
-	}
-	return subject == filter
-}
-
-func matchesAnySubject(topic string, filters []string) bool {
-	for _, filter := range filters {
-		if matchSubject(topic, filter) {
-			return true
-		}
-	}
-	return false
-}
-
-func streamForTopic(topic string) (string, error) {
-	specs := make([]StreamSpec, 0, len(DataStreams)+2)
-	specs = append(specs, DataStreams...)
-	specs = append(specs, OutgressStream, OutgressSystemStream)
-
-	for _, spec := range specs {
-		if matchesAnySubject(topic, spec.Subjects) {
-			return spec.Name, nil
-		}
-	}
-	return "", fmt.Errorf("bus: no stream matches subject %q", topic)
-}
-
 type fleetSubscriber struct {
 	url   string
 	group string

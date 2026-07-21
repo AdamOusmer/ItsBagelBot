@@ -35,6 +35,20 @@ export function assertCallback(name: string, value: string | undefined, expected
   return parsed;
 }
 
+/** Assert an optional setting is an absolute https URL when present. Unlike
+ *  assertOrigin/assertCallback it allows a path (checkout pages), has no
+ *  localhost escape hatch, and treats absence as fine. */
+export function assertOptionalHTTPSURL(name: string, value: string | undefined): void {
+  if (!value) return;
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(`${name} must be an absolute URL`);
+  }
+  if (parsed.protocol !== 'https:') throw new Error(`${name} must use https`);
+}
+
 /** Read an optional positive-integer setting, falling back only when it is
  *  absent. Reject malformed values at boot instead of silently disabling a
  *  bound or accepting a capacity that JavaScript cannot represent exactly. */

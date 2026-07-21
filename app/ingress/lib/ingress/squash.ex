@@ -33,6 +33,7 @@ defmodule Ingress.Squash do
   use GenServer
   require Logger
 
+  alias Ingress.Config.Squash, as: SquashConfig
   alias Ingress.{Config, Metrics, Nats}
 
   @keys_table __MODULE__.Keys
@@ -97,7 +98,7 @@ defmodule Ingress.Squash do
   def init(opts) do
     name = Keyword.get(opts, :name, __MODULE__)
     table = Keyword.get(opts, :table, @keys_table)
-    window_ms = Keyword.get(opts, :window_ms) || Config.squash_window_ms()
+    window_ms = Keyword.get(opts, :window_ms) || SquashConfig.window_ms()
 
     :ets.new(table, [
       :set,
@@ -118,8 +119,8 @@ defmodule Ingress.Squash do
       name: name,
       table: table,
       cohorts: %{},
-      max_senders: Keyword.get(opts, :max_senders) || Config.squash_max_senders(),
-      sweep_ms: Keyword.get(opts, :sweep_ms) || Config.squash_sweep_ms(),
+      max_senders: Keyword.get(opts, :max_senders) || SquashConfig.max_senders(),
+      sweep_ms: Keyword.get(opts, :sweep_ms) || SquashConfig.sweep_ms(),
       publish: Keyword.get(opts, :publish, &__MODULE__.publish_cohort/2)
     }
 

@@ -11,16 +11,16 @@ defmodule Ingress.Dispatcher.WorkerSupervisor do
 
   @impl true
   def init(opts) do
-    max_running = Keyword.get(opts, :max_running, Ingress.Config.dispatcher_max_running())
+    max_running = Keyword.get(opts, :max_running, Ingress.Config.Dispatcher.max_running())
     dispatcher = Keyword.get(opts, :name, Ingress.Dispatcher)
     workers = Ingress.Dispatcher.worker_names(dispatcher)
     handler = Keyword.get(opts, :handler, &Ingress.Pipeline.handle_event/2)
 
     completion_batch_size =
-      Keyword.get(opts, :completion_batch_size, Ingress.Config.dispatcher_completion_batch_size())
+      Keyword.get(opts, :completion_batch_size, Ingress.Config.Dispatcher.completion_batch_size())
 
     completion_flush_ms =
-      Keyword.get(opts, :completion_flush_ms, Ingress.Config.dispatcher_completion_flush_ms())
+      Keyword.get(opts, :completion_flush_ms, Ingress.Config.Dispatcher.completion_flush_ms())
 
     children =
       for index <- 0..(max_running - 1) do
