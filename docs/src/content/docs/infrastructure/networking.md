@@ -1,143 +1,152 @@
 ---
 title: Networking
-description: Tailscale mesh, Cloudflare Tunnels, and the Zero-Trust posture that ties the cluster together.
+description: "Three separated network planes: a kernel WireGuard data plane, a Tailscale management plane, and the Cloudflare edge."
 ---
 
-ItsBagelBot has **no public IP**, **no open router ports**, and **no LAN-only trust**. Every connection in or out crosses a Zero-Trust boundary that gates on identity, not network position.
+ItsBagelBot runs on three nodes with no public application IP, no open LAN ports, and no LAN-only trust. Traffic is split across three planes that never blur into each other: a kernel WireGuard mesh carries all pod and service data, Tailscale carries only management and database routing, and Cloudflare carries the public edge. Each plane has its own transport, its own key material, and its own firewall posture.
 
-The architectural decision is recorded in [ADR-0001](/adr/0001-zero-trust-network/); this page is the operational reference.
+The fleet these planes connect is described in [ADR 0004](/adr/0004-adoption-of-oracle-cloud/); the message bus that rides the data plane is [ADR 0003](/adr/0003-adoption-of-nats-as-communication-bridge/). This page is the operational reference for the wiring.
 
-## The two planes
+## The three planes
 
 ```mermaid
-flowchart LR
-    subgraph Public["Public plane"]
+flowchart TB
+    subgraph Public["Public plane (Cloudflare)"]
         Twitch[Twitch EventSub]
-        Browser["Visitor browser<br/><i>docs site</i>"]
-        OperatorOff["Operator<br/><i>off-tailnet device</i>"]
+        Visitor[Docs / dashboard visitor]
     end
 
     subgraph Edge["Cloudflare edge"]
-        Tunnel[Cloudflare Tunnel]
-        Access[Cloudflare Access]
+        CF[Cloudflare Tunnel]
     end
 
-    subgraph Tailnet["Tailnet (private overlay)"]
-        direction LR
-        Nodes["Cluster nodes<br/><i>K3s API,<br/>node SSH,<br/>internal services</i>"]
-        OperatorOn["Operator<br/><i>on-tailnet device</i>"]
-        Runner["CI runner<br/><i>image pulls,<br/>kubectl apply</i>"]
+    subgraph Fleet["Fleet"]
+        CFD["cloudflared<br/>DaemonSet-style Deployment"]
+        Traefik["traefik<br/>per-node DaemonSet"]
+        Apps["App pods<br/>NATS, Valkey, RPC, streams"]
     end
 
-    Twitch --> Tunnel
-    Browser --> Tunnel
-    OperatorOff --> Access
-    Access --> Tunnel
-    Tunnel --> Nodes
+    subgraph Mgmt["Management plane (Tailscale)"]
+        Op[Operator device]
+        API[k3s API server]
+        DBHost[node1 PostgreSQL host]
+    end
 
-    OperatorOn -. WireGuard .-> Nodes
-    Runner -. WireGuard .-> Nodes
+    Twitch -- HTTPS webhook --> CF
+    Visitor -- HTTPS --> CF
+    CF -. outbound 7844 .-> CFD
+    CFD -- 443 same-node --> Traefik
+    Traefik -- HTTPS --> Apps
+    Apps <== WireGuard 51820 ==> Apps
+    Op -. SSH / kubectl .-> API
+    Apps -. MySQL / PG routing .-> DBHost
 ```
 
-- **Public plane (Cloudflare):** anything that needs to be reached by a party we don't control — Twitch, anonymous docs visitors, occasionally the operator from a device that isn't on the tailnet.
-- **Private plane (Tailscale):** everything else. Node-to-node traffic, operator-to-cluster, CI-to-cluster. WireGuard underneath, with identity coordination by Tailscale.
+Every pod-to-pod hop rides the WireGuard mesh (thick line). The operator and the database routes ride Tailscale (dotted). Public traffic only ever enters through Cloudflare, and Cloudflare only reaches the cluster through an outbound tunnel that the connectors dial, never an inbound port we open.
 
-## Tailscale: the private overlay
+| Plane | Transport | Interface | Carries | Reachability |
+| --- | --- | --- | --- | --- |
+| Data | Kernel WireGuard (K3s Flannel `wireguard-native`) | `flannel-wg`, UDP 51820 | Pod and Service traffic: NATS, Valkey, RPC, JetStream, telemetry, KEDA | Node to node over public WAN IPs, authenticated by WireGuard keys |
+| Management | Tailscale (WireGuard under Tailscale identity) | `tailscale0`, UDP 41641 | SSH, k3s API, kubelet metrics, admin ingress, database routing | Tailnet members only, `tag:itsbagelbot` and operator identities |
+| Edge | Cloudflare Tunnel | outbound 7844 to Cloudflare, 443 to traefik | Public webhooks, docs, dashboard | Cloudflare edge inbound, cluster outbound only |
 
-### What's on the tailnet
+## Data plane: the kernel WireGuard mesh
 
-| Member | Purpose | ACL tag |
+Pod and Service traffic uses K3s Flannel with the supported `wireguard-native` backend. Each node advertises a direct WAN endpoint and dials every peer on UDP 51820, so the mesh is a full set of point-to-point kernel WireGuard tunnels over the public internet, with no relay and no overlay-in-overlay nesting.
+
+| Node | Flannel interface | WireGuard endpoint |
 | --- | --- | --- |
-| `node1`, `node2` (k3s nodes) | Node-to-node (k3s control plane, CNI), SSH target | `tag:itsbagelbot` |
-| `witness1` (OCI micro VM) | OCI VCN subnet router for the database route | `tag:witness` |
-| Operator devices | SSH, admin UI, `kubectl` via the operator proxy | `tag:Macbook` |
-| `k8s-operator` (in-cluster) | Tailscale Kubernetes operator; Kubernetes API server proxy | `tag:k8s-operator` |
-| `ts-ingress-*` proxies (in-cluster) | Advertise Tailscale Services (`svc:admin`) | `tag:k8s` |
+| node2 (control plane) | `eth0` | `144.217.7.48:51820` |
+| node3 (hot path) | `eth0` | `148.113.191.17:51820` |
+| worker1 (home) | `wlp2s0` | `174.88.117.68:51820` |
 
-### ACL shape
+Flannel derives a uniform 1420 byte MTU for the pod interfaces (`cni0`, pods): the 1500 byte underlay minus the 80 byte kernel WireGuard header. `net.ipv4.tcp_mtu_probing=1` is the blackhole backstop if any path ever falls below that.
 
-The policy is committed as code at `deploy/infra/tailscale/policy.hujson` and pasted/applied to the admin
-console; it is **default-deny** (grants only). The posture in one sentence: **bare metal accepts only
-SSH from operator devices; everything Kubernetes-hosted is reached through Tailscale operator proxies.**
+The Kubernetes `InternalIP` deliberately stays the node's Tailscale management address while the data plane rides the WAN endpoint. On node2 this needs two explicit settings that must not be removed while Tailscale is the management plane:
 
-- Operator devices → cluster nodes and witness: `tcp:22` only.
-- Operator devices → `svc:admin:443` (the admin UI) and → `tag:k8s-operator:443` with the
-  `tailscale.com/cap/kubernetes` capability (`kubectl` impersonating `system:masters`).
-- Nodes ↔ nodes: unrestricted (k3s control plane and CNI ride the tailnet).
-- Witness ↔ nodes: only the private database/subnet-routing traffic required by
-  the OCI VCN route; Sentinel quorum is entirely in-cluster.
-- Tailscale SSH gates on operator identity with an explicit user list.
+```yaml
+advertise-address: 100.95.95.9
+kube-apiserver-arg: ["kubelet-preferred-address-types=InternalIP,Hostname,ExternalIP"]
+```
 
-Break-glass with the operator down: SSH to `node1`, `sudo k3s kubectl`.
+Without them the first server restart repoints the built-in `kubernetes` Service at the blocked public node2 address.
 
-### Node bindings
+### What runs on the data plane
 
-Internal services bind to the **Tailscale interface address** (`tailscale0`), not `0.0.0.0`. This is enforced via systemd units that set `IPAddressDeny=any` and `IPAddressAllow=` to the Tailscale CGNAT range (`100.64.0.0/10`) for the affected services.
+- NATS: the hub is a 3 replica StatefulSet with JetStream (`domain: hub`, R1 for the firehose lanes); a `nats-leaf` DaemonSet runs a JetStream-disabled relay on every node. Applications connect only to their node-local leaf through the `nats-leaf` Service (`trafficDistribution: PreferSameNode`), and the leaves form a full mesh over their cluster listener on 6222. Native TLS protects both the client listener (4222) and the routes (6222). Account isolation gives a shared BUS account plus per-service `*_RPC` accounts with explicit import and export lines.
+- Valkey: replication and Sentinel announce stable StatefulSet DNS names over the pod network, with native TLS on the data port (6380) and the Sentinel port (26380). No listener is exposed through a node hostPort. A `valkey-local` Service with `internalTrafficPolicy: Local` keeps node-local reads on the pod network without any host hop.
 
-The Kubernetes API server is started with `--bind-address` set to the node's tailnet IP, so a misconfigured Tailscale ACL doesn't leak the API on the LAN.
+Both NATS and Valkey add their own native TLS on top of WireGuard. The kernel tunnel gives node-to-node encryption; application TLS gives end-to-end identity that survives a future transport change.
 
-### MagicDNS
+### Socket and congestion tuning
 
-`*.tail451e6d.ts.net` names resolve for tailnet members only. The ones that matter:
+The data plane is tuned for a high bandwidth-delay-product WAN link carrying a burst firehose. Values are pinned in `/etc/sysctl.d` and tracked in the ansible base role so a node rebuild cannot silently drop them:
 
-- `admin.tail451e6d.ts.net` — the operator-only admin UI (Tailscale Service `svc:admin`, HA across both
-  nodes, Let's Encrypt TLS).
-- `k8s-operator.tail451e6d.ts.net` — the Kubernetes API server proxy
-  (`tailscale configure kubeconfig k8s-operator`).
-
-We do **not** rely on MagicDNS for service-to-service routing inside the cluster — that's Kubernetes
-Services / CoreDNS. MagicDNS is operator-ergonomics only.
-
-## Cloudflare Tunnel: the public ingress
-
-### What's exposed
-
-| Hostname | Backend | Auth in front |
+| Setting | Value | Why |
 | --- | --- | --- |
-| `eventsub.bagelbot.[domain]` | `bot-gateway.bagelbot-app:8080/eventsub` | None (Twitch can't SSO) — HMAC signature verification at the gateway. |
-| `bagelbot.[domain]` | `web-ui.bagelbot-app:80` | Cloudflare Access (streamer + maintainer identities). |
-| `docs.bagelbot.[domain]` | The Starlight site built from this repo | None — intentionally public. |
+| `net.core.rmem_max` / `wmem_max` | 16 MiB | The firehose push and publish sockets stall on the EL10 4 MiB default under burst |
+| `net.ipv4.tcp_rmem` / `tcp_wmem` | up to 16 MiB | Matches the raised ceilings for large windows |
+| `net.core.default_qdisc` | `fq` | Pacing for BBR |
+| `net.ipv4.tcp_congestion_control` | `bbr` | Higher throughput and lower latency over the internet |
+| `net.core.netdev_max_backlog` | 16384 | Per-CPU ingress queue for bursts |
+| `net.ipv4.tcp_low_latency` | 1 | Favor latency on the RPC path |
 
-The `cloudflared` daemon runs as a Deployment with two replicas, anti-affinity across nodes, so the loss of any single node doesn't sever ingress. Credentials are mounted from a Kubernetes Secret backed by [TBD: sealed-secrets / SOPS-encrypted manifests].
+worker1 reaches the mesh over a home Wi-Fi uplink capped near 270 Mbps, so its cross-node tail is physical: p99 sits near 13 to 14 ms against roughly 3 ms between the two datacenter nodes. That ceiling is the reason worker1 stays off the synchronous publish-ack path and is fenced out of Valkey primary eligibility.
 
-### Why not Tailscale Funnel?
+### Firewall: keeping the CNI interfaces trusted
 
-Funnel is a viable option for the public surfaces and was considered. We chose Cloudflare Tunnel because:
+The public firewalld zone opens exactly three inbound ports: SSH (bootstrap and break-glass), the Tailscale port (41641/udp), and the WireGuard port (51820/udp). The obsolete VXLAN transport (8472/udp) is closed.
 
-- We get DDoS absorption and edge TLS termination on Cloudflare's network, which matters for a public webhook receiver.
-- Cloudflare Access integrates with our SSO already; running it for the dashboard is "set policy, done."
-- Twitch is happier with a stable, branded webhook URL than with a `*.ts.net` hostname.
+firewalld starts at boot before K3s creates `cni0` and the flannel transport, and it does not retro-apply a permanent zone binding to an interface that appears later. So every boot those interfaces land in the default (public) zone, and firewalld drops the cross-node pod traffic that rides them, including the leaf-to-leaf cluster on 6222 that carries the outgress rate-limit permit borrow. A dropped bind fails the fleet's quota sharing silently. A boot-time oneshot (`fleet-cni-trust.service`) waits for the interfaces and binds `cni0`, `flannel.1`, and `flannel-wg` into the trusted zone `--permanent`, so a `firewall-cmd --reload` keeps them. The pod and service CIDRs (`10.42.0.0/16`, `10.43.0.0/16`) are also trusted as sources. If cross-node interest ever breaks after a reboot, re-adding those interfaces to the trusted zone is the first thing to check.
 
-See [ADR-0001](/adr/0001-zero-trust-network/) for the full trade-off discussion.
+## Management plane: Tailscale
 
-### Cloudflare Access policies
+Tailscale carries only management and database traffic: SSH, the Kubernetes API, kubelet metrics collection, the admin ingress, and the routes to the database hosts. Pods never ride Tailscale. Each node joins the tailnet pre-authorized under `tag:itsbagelbot` with Tailscale SSH enabled, and OpenSSH is removed from the box once Tailscale and the firewall are verified up.
 
-Non-public hostnames sit behind Cloudflare Access with policies:
+Direct connectivity is treated as an infrastructure precondition, not an optimization: provisioning fails a node unless it can reach every fleet peer over a direct UDP path, explicitly rejecting DERP and peer-relay routes. `tailscale0` runs at MTU 1350 (`TS_DEBUG_MTU=1350`), well above the 1280 floor.
 
-- **`bagelbot.[domain]` → streamer + maintainer.** SSO via GitHub; WebAuthn required; session lifetime 24h.
-- **`grafana.[domain]` → maintainer only.** WebAuthn; session lifetime 8h.
-- **No bypass for "trusted networks."** The whole point is that network position is not trust.
+### Tailnet members
 
-These policies are committed as code (Terraform) and applied in CI; UI changes drift back to git on every plan.
+| Member | Role on the tailnet |
+| --- | --- |
+| node2, node3, worker1 | Cluster nodes: SSH, k3s API and kubelet, database routing |
+| Operator devices | SSH and `kubectl` through the operator proxy |
+| `k8s-operator` (in-cluster) | Tailscale Kubernetes operator; API server proxy |
+| `ts-ingress` ProxyGroup (2 replicas) | Advertises the admin ingress as a Tailscale Service |
+| node1 | Off-cluster PostgreSQL host, tailnet-reachable, not a k3s node |
 
-## The break-glass path
+MagicDNS names under `*.tail451e6d.ts.net` resolve for tailnet members only. The two that matter operationally are `admin.tail451e6d.ts.net` (the operator-only console admin, served through the Tailscale operator ProxyGroup) and `k8s-operator.tail451e6d.ts.net` (the API server proxy, the kube context every runbook targets). We do not use MagicDNS for service-to-service routing inside the cluster; that is CoreDNS.
 
-Both Tailscale and Cloudflare are external dependencies. If the coordination server or the edge are unreachable, we have a documented physical-console path:
+The Valkey Sentinel quorum is three in-cluster Sentinels co-located with the data pods; the earlier external witness Sentinel on the tailnet is retired (the witness host remains only as a monitored node-exporter target).
 
-1. Connect a keyboard/HDMI to the control-plane node (or local KVM where available).
-2. Use the locally-stored emergency operator credential (offline, in a sealed envelope in the same room as the cluster — yes, really).
-3. Bring the cluster to a safe state from the console, or boot a recovery shell from the SBC's microSD.
+## Edge plane: Cloudflare Tunnel
 
-The break-glass credential is rotated annually and after any suspected compromise. It does **not** depend on Tailscale or Cloudflare being up.
+Public traffic enters through Cloudflare's edge, which dials the outbound `cloudflared` connectors on 7844 and forwards to `traefik.kube-system:443`. We run `cloudflared` as a 2 replica Deployment, one per non-worker node (node2 and node3) with hard pod anti-affinity across hosts, so losing a single node does not sever public ingress. worker1 is excluded: it is a burst worker, not part of the ingress failure domain. Rollouts use `maxSurge: 1` / `maxUnavailable: 0`, and a Doppler reload annotation rolls the pods when the tunnel credential rotates.
 
-## What's deliberately *not* here
+traefik itself is a per-node DaemonSet with a ClusterIP Service and `trafficDistribution: PreferClose`. One traefik endpoint per node keeps the `cloudflared` to traefik hop on the same node instead of round-robining across the trans-Atlantic fleet, and preserves ingress when any node is lost. A soft-anti-affinity Deployment did not hold here: the scheduler drifted both replicas onto one node, so one node loss took down all ingress. traefik is reachable only from inside the cluster; nothing legitimate connects to it on a node address.
 
-- **A LAN ingress.** No `NodePort` services are reachable on the LAN. If a tunnel is down and Tailscale is down, the service is unreachable — and that's the explicit posture.
-- **A VPN concentrator on the cluster.** Tailscale is the VPN; we don't run a second one.
-- **`mDNS` / `Avahi` / Bonjour discovery on the LAN.** Not needed; would be a passive information leak.
+| Hostname class | Backend | Auth in front |
+| --- | --- | --- |
+| Docs site | Starlight build | None, intentionally public |
+| Dashboard | `console-dashboard` | Console session auth |
+| EventSub webhook | gateway / webhook receiver | HMAC signature verification at the backend (Twitch cannot SSO) |
+
+There is deliberately no LAN ingress and no NodePort. If Cloudflare is down and Tailscale is down, the service is unreachable, and that is the explicit posture.
+
+## Cluster DNS
+
+CoreDNS is a Flux-owned DaemonSet that replaces the k3s-packaged single-replica addon (skipped on the server). Running a resolver on every node plus a kube-dns Service with `trafficDistribution: PreferSameNode` means a pod's DNS query is answered by the CoreDNS instance on its own node and never crosses the mesh for a lookup. A `PodDisruptionBudget` of `minAvailable: 2` keeps at least two resolvers up through any drain. External names forward to anycast resolvers (1.1.1.1, 8.8.8.8, 9.9.9.9) rather than `/etc/resolv.conf`, because a node's host upstream can be a link-local address the pod network cannot reach. The cache serves stale entries during an upstream blip.
+
+## Network policy
+
+A `default-deny-apps` NetworkPolicy selects the application pods in the `production` namespace and constrains egress: DNS (53), intra-namespace traffic (so pods reach NATS and each other), the Valkey namespace, outbound HTTPS (443) for Twitch OAuth and the managed database TLS endpoint, and MySQL (3306) to the external HeatWave database ([ADR 0005](/adr/0005-adoption-of-mysql-heatwave/)). The NATS and `nats-leaf` pods are intentionally not selected, so they stay NetworkPolicy-unrestricted and rely on native TLS on 4222 and 6222.
+
+## Break-glass
+
+Both Tailscale and Cloudflare are external dependencies. If the coordination server or the edge are unreachable, the documented path is a physical or local console into the control-plane node and `sudo k3s kubectl` from there. That path does not depend on Tailscale or Cloudflare being up.
 
 ## Where to next
 
-- **[Hardware & cluster →](/infrastructure/hardware-and-cluster/)** — what the nodes are and how K3s is shaped.
-- **[CI/CD pipeline →](/infrastructure/cicd-pipeline/)** — how the CI runner gets onto the tailnet to deploy.
-- **[ADR-0001 →](/adr/0001-zero-trust-network/)** — the full decision record for this posture.
+- [Hardware and cluster](/infrastructure/hardware-and-cluster/): the nodes, K3s shape, scheduling, and the delivery pipeline.
+- [ADR 0003](/adr/0003-adoption-of-nats-as-communication-bridge/): the NATS bus that rides the data plane.
+- [ADR 0004](/adr/0004-adoption-of-oracle-cloud/): the fleet these planes connect.
