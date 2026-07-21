@@ -28,7 +28,10 @@
 #     toleration so the DaemonSet lands on worker1 too (4/4 nodes).
 #   - falcoctl config needs ZERO overrides: rules artifact falco-rules:5,
 #     container plugin 0.6.3 and follow every 168h are all 8.0.3 defaults
-#     (live falcoctl.yaml diffs empty against the default render).
+#     (live falcoctl.yaml diffs empty against the default render). The one
+#     falcoctl delta is the follow container's GOMAXPROCS=1 env below, a CFS
+#     CPU-throttling tune (see the comment there) -- a k8s container env, not a
+#     falcoctl.yaml change, so the config-diff-empty claim above still holds.
 #   - Intentionally NOT carried over: falco.http_output.url pointing at the
 #     long-gone falco-falcosidekick Service. http_output is disabled, the URL
 #     was inert cruft from the era when falcosidekick was installed (its
@@ -156,6 +159,21 @@ spec:
     falcoctl:
       artifact:
         follow:
+          # CPU-throttling tune (NOT a falcoctl.yaml/config change; the follow
+          # container is near-idle, waking only every 168h to poll). falcoctl
+          # 0.12.2 predates Go 1.25's CFS-aware GOMAXPROCS default, so its
+          # runtime sets GOMAXPROCS to the node core count (2-4 here) and fans
+          # background work (sysmon/GC/scavenger) across that many Ps. Against
+          # the 25m limit (2.5ms per 100ms CFS period) any multi-P burst blows
+          # the quota, so the sidecar showed >90% throttled periods for 5m+
+          # despite ~zero real CPU use (New Relic "Container cpu throttling is
+          # high", CRITICAL). Pinning GOMAXPROCS=1 serializes that work onto one
+          # P and kills the sustained throttling WITHOUT raising the limit (tune
+          # before room). Same mechanism automaxprocs implements for low-limit
+          # Go sidecars. If throttling persists after this, THEN bump limits.
+          env:
+            - name: GOMAXPROCS
+              value: "1"
           resources:
             requests:
               cpu: 5m
