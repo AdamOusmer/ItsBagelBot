@@ -4,7 +4,7 @@ metadata:
   name: valkey
   namespace: valkey
 spec:
-  # Quorum protection: four in-cluster Sentinels require three votes to
+  # Quorum protection: three in-cluster Sentinels require two votes to
   # authorize a failover. Allowing only ONE voluntary disruption at a time
   # keeps that majority reachable.
   maxUnavailable: 1

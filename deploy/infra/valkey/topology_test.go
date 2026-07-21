@@ -19,7 +19,7 @@ func TestSentinelSinglePrimaryTopologyIsConfigured(t *testing.T) {
 	statefulSet := readFile(t, "statefulset.yaml")
 	valkeyConfig := readFile(t, "config/valkey.conf")
 
-	assert.Regexp(t, `(?m)^  replicas: 4$`, statefulSet, "four Valkey+Sentinel pods")
+	assert.Regexp(t, `(?m)^  replicas: 3$`, statefulSet, "three Valkey+Sentinel pods")
 	assert.Contains(t, statefulSet, topologyMarker)
 	assert.Contains(t, statefulSet, partitioningGuard)
 	assert.Contains(t, statefulSet, "- --sentinel")
