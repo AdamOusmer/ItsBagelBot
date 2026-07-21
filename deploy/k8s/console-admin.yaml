@@ -322,8 +322,8 @@ metadata:
   name: console-admin
   namespace: production
 spec:
-  minAvailable: 2 # was 1 — raised to match console-dashboard; 3 replicas, so only 1
-  # pod can be disrupted at a time (node drain, rolling update, etc.)
+  minAvailable: 1 # 2 replicas on the 3-node fleet: keep one serving while the
+  # other is disrupted (node drain, rolling update, etc.)
   selector:
     matchLabels:
       app: console-admin
