@@ -20,9 +20,10 @@ spec:
   # every other node wait for its Sentinel view. OrderedReady could deadlock the
   # fleet when ordinal zero is scheduled on a fenced node.
   podManagementPolicy: Parallel
-  # Four colocated Valkey+Sentinel voters produce one writable primary and
-  # three replicas. This count is a CI-enforced configuration invariant.
-  replicas: 4
+  # Three colocated Valkey+Sentinel voters produce one writable primary and
+  # two replicas, one per node since node1 left the fleet. This count is a
+  # CI-enforced configuration invariant.
+  replicas: 3
   revisionHistoryLimit: 10
   selector:
     matchLabels:
