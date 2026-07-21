@@ -57,7 +57,7 @@ type enrollment struct {
 // moderator:read:followers). No bot user token is involved here. Creates are
 // 409-idempotent and deletes 404-idempotent, so a job nacked halfway (rate
 // limit, transient Twitch error) converges when redelivery re-runs it.
-func (w *Worker) processEventSub(ctx context.Context, payload outgress.Message) error {
+func (w *Worker) processEventSub(ctx context.Context, payload *outgress.Message) error {
 	if payload.BroadcasterID == "" {
 		w.log.Error("dropping eventsub job without broadcaster id")
 		return nil

@@ -10,7 +10,10 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"ItsBagelBot/app/outgress/internal/action"
 	"ItsBagelBot/internal/domain/outgress"
+
+	"go.uber.org/zap"
 )
 
 func TestDrainResponseEnablesHTTP11ConnectionReuse(t *testing.T) {
@@ -66,12 +69,22 @@ func TestDrainResponseIsBounded(t *testing.T) {
 }
 
 func TestCloudBotChatActionsUseAppToken(t *testing.T) {
+	actions := testActions()
 	for _, typ := range []string{outgress.TypeChat, outgress.TypeAnnounce, outgress.TypeShoutout, outgress.TypePin} {
-		route := typeRoutes[typ]
-		if route.as != outgress.AsApp {
-			t.Fatalf("%s route identity = %q, want %q", typ, route.as, outgress.AsApp)
+		act, ok := actions.Lookup(typ)
+		if !ok {
+			t.Fatalf("%s has no action", typ)
+		}
+		if act.As != outgress.AsApp {
+			t.Fatalf("%s action identity = %q, want %q", typ, act.As, outgress.AsApp)
 		}
 	}
+}
+
+// testActions builds the production action registry off a bare worker, so
+// tests can pin routes without any collaborator wiring.
+func testActions() action.Registry {
+	return New(Config{Log: zap.NewNop()}).actions
 }
 
 func TestGeneralHelixRequestsUseTokenSpecificBuckets(t *testing.T) {
@@ -107,7 +120,7 @@ func TestGeneralHelixRequestsUseTokenSpecificBuckets(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			_, shared := generalHelixRequests(tc.message)
+			_, shared := generalHelixRequests(&tc.message)
 			got := [4]string{shared.Key, shared.DynamicPrefix, shared.Bucket.Scope, shared.Bucket.Value}
 			want := [4]string{tc.sharedKey, tc.sharedPref, tc.scope, tc.value}
 			if got != want {
@@ -274,8 +287,7 @@ func TestShoutoutEndpoint(t *testing.T) {
 }
 
 func TestPinRouteAndStreamLifetimeEndpoint(t *testing.T) {
-	assertRoute(t, outgress.TypePin,
-		helixRoute{http.MethodPut, "/helix/chat/pins", outgress.AsApp})
+	assertRoute(t, outgress.TypePin, wantRoute{http.MethodPut, "/helix/chat/pins", outgress.AsApp})
 
 	got := pinEndpoint("44322889", "987654", "abc-123")
 	want := "/helix/chat/pins?broadcaster_id=44322889&moderator_id=987654&message_id=abc-123"
@@ -321,16 +333,24 @@ func TestSentChatMessageID(t *testing.T) {
 	}
 }
 
-// assertRoute pins one type's Helix routing: method, endpoint, and token
-// identity.
-func assertRoute(t *testing.T, typ string, want helixRoute) {
+// wantRoute is one type's expected Helix routing: method, endpoint, and token
+// identity, mirroring the retired typeRoutes entry shape.
+type wantRoute struct {
+	method   string
+	endpoint string
+	as       string
+}
+
+// assertRoute pins one type's Helix routing, read from the production action
+// registry.
+func assertRoute(t *testing.T, typ string, want wantRoute) {
 	t.Helper()
-	route, ok := typeRoutes[typ]
+	act, ok := testActions().Lookup(typ)
 	if !ok {
-		t.Fatalf("%s has no type route", typ)
+		t.Fatalf("%s has no action", typ)
 	}
-	if route != want {
-		t.Fatalf("%s route = %+v, want %+v", typ, route, want)
+	if got := (wantRoute{act.Method, act.Endpoint, act.As}); got != want {
+		t.Fatalf("%s route = %+v, want %+v", typ, got, want)
 	}
 }
 
@@ -338,8 +358,7 @@ func assertRoute(t *testing.T, typ string, want helixRoute) {
 // shield_mode endpoint under the bot's moderator token, so the automod's
 // mass-raid escalation lands as a moderator action, not an app call.
 func TestShieldModeRoute(t *testing.T) {
-	assertRoute(t, outgress.TypeShieldMode,
-		helixRoute{http.MethodPut, "/helix/moderation/shield_mode", outgress.AsBot})
+	assertRoute(t, outgress.TypeShieldMode, wantRoute{http.MethodPut, "/helix/moderation/shield_mode", outgress.AsBot})
 }
 
 // TestShieldModeEndpoint mirrors the query-param assembly processShieldMode uses:
@@ -356,10 +375,8 @@ func TestShieldModeEndpoint(t *testing.T) {
 // TestDeleteAndWarnRoutes pins the moderator-action routing for the automod's
 // delete (Delete Chat Messages) and warn (Warn Chat User) intents.
 func TestDeleteAndWarnRoutes(t *testing.T) {
-	assertRoute(t, outgress.TypeDelete,
-		helixRoute{http.MethodDelete, "/helix/moderation/chat", outgress.AsBot})
-	assertRoute(t, outgress.TypeWarn,
-		helixRoute{http.MethodPost, "/helix/moderation/warnings", outgress.AsBot})
+	assertRoute(t, outgress.TypeDelete, wantRoute{http.MethodDelete, "/helix/moderation/chat", outgress.AsBot})
+	assertRoute(t, outgress.TypeWarn, wantRoute{http.MethodPost, "/helix/moderation/warnings", outgress.AsBot})
 }
 
 // TestDeleteEndpoint pins the query assembly processDelete uses: all three ids

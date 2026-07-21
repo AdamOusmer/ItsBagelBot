@@ -53,7 +53,7 @@ type clipCreateReply struct {
 // what happens to the reply — re-running the message would create a DUPLICATE
 // clip, far worse than a missing reply line. Only failures BEFORE the clip
 // exists (rate bucket, transport, 429, 5xx) return an error to redeliver.
-func (w *Worker) processClip(ctx context.Context, payload outgress.Message) error {
+func (w *Worker) processClip(ctx context.Context, payload *outgress.Message) error {
 	var meta clipMeta
 	if len(payload.Payload) > 0 {
 		_ = sonic.Unmarshal(payload.Payload, &meta)
@@ -157,32 +157,11 @@ func clipID(body io.Reader) (string, error) {
 }
 
 // sendClipReply posts the chat line announcing a freshly created clip through
-// the normal chat path (rate buckets, sender-id injection). Its error is only
-// for the caller to log; the clip already exists, so the caller must not
-// redeliver on a reply failure.
-//
-// processChat runs the send with payload.Endpoint/Method/As already resolved: on
-// the normal chat path the dispatcher fills them from typeRoutes before calling
-// it. This synthetic reply bypasses the dispatcher, so it must set the same chat
-// route itself — otherwise the request goes out with an empty endpoint/method
-// and Twitch's edge rejects it (403).
+// the normal chat action (registry route, rate buckets, sender-id injection).
+// Its error is only for the caller to log; the clip already exists, so the
+// caller must not redeliver on a reply failure.
 func (w *Worker) sendClipReply(ctx context.Context, broadcasterID string, meta clipMeta, clipURL string) error {
-	body, err := sonic.Marshal(struct {
-		BroadcasterID string `json:"broadcaster_id"`
-		Message       string `json:"message"`
-	}{broadcasterID, clipReplyText(meta, clipURL)})
-	if err != nil {
-		return err
-	}
-	route := typeRoutes[outgress.TypeChat]
-	return w.processChat(ctx, outgress.Message{
-		Type:          outgress.TypeChat,
-		BroadcasterID: broadcasterID,
-		Endpoint:      route.endpoint,
-		Method:        route.method,
-		As:            route.as,
-		Payload:       body,
-	})
+	return w.sendBotChat(ctx, broadcasterID, clipReplyText(meta, clipURL))
 }
 
 // clipReplyText composes the chat line for a new clip. When the broadcaster set

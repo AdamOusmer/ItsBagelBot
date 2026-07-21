@@ -87,7 +87,7 @@ func (w *Worker) processBatchItem(ctx context.Context, item outgress.Message, br
 	if item.BroadcasterID == "" {
 		item.BroadcasterID = broadcasterID
 	}
-	return w.processPayload(ctx, item)
+	return w.processPayload(ctx, &item)
 }
 
 func (w *Worker) releaseBatch(lease BatchLease) {

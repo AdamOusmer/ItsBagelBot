@@ -38,7 +38,7 @@ var (
 // processModAction issues one moderator action as the bot. It pays the general
 // Helix budget, then hands the assembled request to execute() for the shared
 // status handling.
-func (w *Worker) processModAction(ctx context.Context, payload outgress.Message, action modAction) error {
+func (w *Worker) processModAction(ctx context.Context, payload *outgress.Message, action modAction) error {
 	mod, ok := w.botIdentity(action.name, payload)
 	if !ok {
 		return nil
@@ -55,15 +55,15 @@ func (w *Worker) processModAction(ctx context.Context, payload outgress.Message,
 	return w.execute(ctx, payload)
 }
 
-func (w *Worker) processBan(ctx context.Context, payload outgress.Message) error {
+func (w *Worker) processBan(ctx context.Context, payload *outgress.Message) error {
 	return w.processModAction(ctx, payload, banAction)
 }
 
-func (w *Worker) processShieldMode(ctx context.Context, payload outgress.Message) error {
+func (w *Worker) processShieldMode(ctx context.Context, payload *outgress.Message) error {
 	return w.processModAction(ctx, payload, shieldAction)
 }
 
-func (w *Worker) processWarn(ctx context.Context, payload outgress.Message) error {
+func (w *Worker) processWarn(ctx context.Context, payload *outgress.Message) error {
 	return w.processModAction(ctx, payload, warnAction)
 }
 
@@ -77,7 +77,7 @@ func modEndpoint(path, broadcasterID, moderatorID string) string {
 // processAnnounce sends a Helix chat announcement as the bot. The endpoint
 // carries broadcaster_id + moderator_id as query params, while the body
 // carries the message plus a color (defaulting to "primary").
-func (w *Worker) processAnnounce(ctx context.Context, payload outgress.Message) error {
+func (w *Worker) processAnnounce(ctx context.Context, payload *outgress.Message) error {
 	mod, ok := w.botIdentity("announce", payload)
 	if !ok {
 		return nil
@@ -108,7 +108,7 @@ func (w *Worker) processAnnounce(ctx context.Context, payload outgress.Message) 
 // delete for an already-gone message is a 404 Twitch treats as permanent,
 // which execute() drops - exactly right for a race with another bot or a
 // human mod.
-func (w *Worker) processDelete(ctx context.Context, payload outgress.Message) error {
+func (w *Worker) processDelete(ctx context.Context, payload *outgress.Message) error {
 	mod, ok := w.botIdentity("delete", payload)
 	if !ok {
 		return nil
@@ -144,7 +144,7 @@ func deleteEndpoint(broadcasterID, moderatorID, msgID string) string {
 // outgress resolves the login to a numeric id (cached, single-flight) and owns
 // the moderator identity. from/to/moderator ids ride the query string, never a
 // body.
-func (w *Worker) processShoutout(ctx context.Context, payload outgress.Message) error {
+func (w *Worker) processShoutout(ctx context.Context, payload *outgress.Message) error {
 	if payload.To == "" {
 		w.log.Error("dropping shoutout: no target login",
 			zap.String("broadcaster_id", payload.BroadcasterID))
@@ -179,7 +179,7 @@ func (w *Worker) processShoutout(ctx context.Context, payload outgress.Message) 
 // single-flight). A loader error is transient (nack so paced redelivery
 // retries); a "" id with nil error means no such user, which retrying can
 // never fix, so the caller drops instead of nacking.
-func (w *Worker) resolveShoutoutTarget(ctx context.Context, payload outgress.Message) (string, error) {
+func (w *Worker) resolveShoutoutTarget(ctx context.Context, payload *outgress.Message) (string, error) {
 	toID, err := w.userIDs.GetOrLoad(ctx, "login:"+strings.ToLower(payload.To),
 		func(ctx context.Context) (string, error) {
 			return w.twitch.UserIDByLogin(ctx, payload.To)

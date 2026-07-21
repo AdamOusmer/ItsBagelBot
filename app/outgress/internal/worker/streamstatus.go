@@ -2,7 +2,6 @@ package worker
 
 import (
 	"context"
-	"errors"
 	"strconv"
 	"time"
 
@@ -10,8 +9,6 @@ import (
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/domain/rpc/manage"
 	"ItsBagelBot/pkg/bus"
-
-	"github.com/bytedance/sonic"
 
 	"go.uber.org/zap"
 )
@@ -21,7 +18,7 @@ import (
 // system Helix bucket and runs only on the system lane (where SetLiveWriter has
 // attached the write-back). A permanent Twitch rejection is dropped; transient
 // errors nack so the paced redelivery retries.
-func (w *Worker) processStreamStatus(ctx context.Context, payload outgress.Message) error {
+func (w *Worker) processStreamStatus(ctx context.Context, payload *outgress.Message) error {
 	if w.live == nil {
 		w.log.Error("dropping stream_status job off the system lane")
 		return nil
@@ -204,28 +201,8 @@ func liveNotice(ch manage.Channel) (notice, bool) {
 }
 
 // sendReauthChat pushes the localized reconnect line through the ordinary
-// chat send path (type route defaults + bot sender injection + per-channel
+// chat action (registry route defaults + bot sender injection + per-channel
 // chat rate bucket), exactly as if a lane job carried it.
 func (w *Worker) sendReauthChat(ctx context.Context, broadcasterID, locale string, n notice) error {
-	body, err := sonic.Marshal(struct {
-		BroadcasterID string `json:"broadcaster_id"`
-		Message       string `json:"message"`
-	}{broadcasterID, w.reauth.ChatLine(locale, n)})
-	if err != nil {
-		return err
-	}
-
-	payload := outgress.Message{
-		Type:          outgress.TypeChat,
-		BroadcasterID: broadcasterID,
-		Payload:       body,
-	}
-	if !w.resolveHelixRoute(&payload) {
-		return errReauthChatRoute
-	}
-	return w.processChat(ctx, payload)
+	return w.sendBotChat(ctx, broadcasterID, w.reauth.ChatLine(locale, n))
 }
-
-// errReauthChatRoute only fires if the chat type route table loses its "chat"
-// entry, which would be a programming error.
-var errReauthChatRoute = errors.New("reauth beacon: chat route unresolved")

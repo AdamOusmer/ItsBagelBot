@@ -73,6 +73,15 @@ func NewAppTokenSource(creds ClientCredentials) *Source {
 	}}
 }
 
+// NewStaticTokenSource returns a Source that always yields token without any
+// network. It exists for tests and benchmarks that must run the full request
+// path offline; production wiring never uses it.
+func NewStaticTokenSource(token string) *Source {
+	return &Source{refresh: func(context.Context) (string, time.Duration, error) {
+		return token, 24 * time.Hour, nil
+	}}
+}
+
 // NewUserTokenSource mints user access tokens for the bot account through
 // the refresh token grant. Twitch may rotate the refresh token on every
 // renewal, so the latest one is kept in memory.

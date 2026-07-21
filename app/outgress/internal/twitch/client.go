@@ -86,16 +86,27 @@ func (c *Client) Warmup(ctx context.Context) error {
 	return nil
 }
 
+// clientTimeout bounds every Helix call end to end, including a slow body;
+// drainResponse relies on it as the backstop for a non-terminating response.
+const clientTimeout = 10 * time.Second
+
 func newHTTPClient() *http.Client {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.MaxIdleConns = maxIdleConnections
 	transport.MaxIdleConnsPerHost = maxIdleConnectionsPerHost
 	transport.ForceAttemptHTTP2 = true
-	return &http.Client{Transport: transport, Timeout: 10 * time.Second}
+	return &http.Client{Transport: transport, Timeout: clientTimeout}
 }
 
 // CloseIdleConnections releases pooled Twitch connections during shutdown.
 func (c *Client) CloseIdleConnections() { c.http.CloseIdleConnections() }
+
+// SetTransport swaps the underlying HTTP transport, keeping the client's
+// overall timeout. It exists for tests and benchmarks that must run the full
+// request path without the network; wiring never calls it.
+func (c *Client) SetTransport(rt http.RoundTripper) {
+	c.http = &http.Client{Transport: rt, Timeout: clientTimeout}
+}
 
 // Identity names whose token a job runs under. IdentityAuto keeps the
 // endpoint-based routing (sourceFor); the rest are explicit producer choices
