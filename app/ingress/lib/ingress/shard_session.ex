@@ -31,7 +31,8 @@ defmodule Ingress.ShardSession do
   use GenServer, restart: :transient
   require Logger
 
-  alias Ingress.{Config, Metrics, Nats, WS}
+  alias Ingress.Config.Twitch, as: TwitchConfig
+  alias Ingress.{Metrics, Nats, WS}
   alias Ingress.Twitch.Api
 
   # How long a fresh socket may take to deliver session_welcome.
@@ -653,7 +654,7 @@ defmodule Ingress.ShardSession do
   # --- connect / reconnect ---------------------------------------------------
 
   defp connect(state) do
-    case WS.connect(Config.eventsub_url(), state.ws_connect_opts) do
+    case WS.connect(TwitchConfig.eventsub_url(), state.ws_connect_opts) do
       {:ok, ws} ->
         timer = Process.send_after(self(), :welcome_deadline, @welcome_deadline_ms)
         %{state | primary: ws, welcome_timer: timer}

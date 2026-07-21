@@ -9,7 +9,7 @@ defmodule Ingress.Twitch.Api do
 
   require Logger
 
-  alias Ingress.Config
+  alias Ingress.Config.Twitch, as: TwitchConfig
   alias Ingress.Twitch.AppToken
 
   @helix "https://api.twitch.tv/helix"
@@ -24,7 +24,7 @@ defmodule Ingress.Twitch.Api do
   """
   @spec ensure_conduit() :: {:ok, String.t(), pos_integer()} | {:error, term()}
   def ensure_conduit do
-    desired = Config.conduit_shard_count()
+    desired = TwitchConfig.conduit_shard_count()
 
     with {:ok, conduits} <- list_conduits() do
       case pick_conduit(conduits) do
@@ -49,7 +49,7 @@ defmodule Ingress.Twitch.Api do
   # the operator hasn't set TWITCH_CONDUIT_ID yet; fail loudly rather than
   # binding shards to an arbitrary conduit.
   defp pick_conduit(conduits) do
-    case Config.twitch_conduit_id() do
+    case TwitchConfig.conduit_id() do
       nil ->
         {:error, :conduit_id_unset}
 
@@ -140,7 +140,7 @@ defmodule Ingress.Twitch.Api do
           url: @helix <> path,
           method: method,
           headers: [
-            {"client-id", Config.twitch_client_id()},
+            {"client-id", TwitchConfig.client_id()},
             {"authorization", "Bearer " <> token}
           ]
         ] ++ if(json, do: [json: json], else: [])

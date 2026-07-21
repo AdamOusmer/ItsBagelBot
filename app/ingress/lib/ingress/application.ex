@@ -42,6 +42,7 @@ defmodule Ingress.Application do
   use Application
 
   alias Ingress.Config
+  alias Ingress.Config.Admin, as: AdminConfig
 
   # Shared queue group for the admin-plane request-reply endpoints: exactly one
   # replica answers each request; any replica can, via the Horde registry.
@@ -128,23 +129,23 @@ defmodule Ingress.Application do
         Config.invalidation_subject()
       ),
       # Request-reply endpoint for the admin tool.
-      consumer_child(:admin_consumer, Ingress.AdminRpc, Config.admin_subject(),
+      consumer_child(:admin_consumer, Ingress.AdminRpc, AdminConfig.admin_subject(),
         queue_group: @admin_queue
       ),
       # Manual shard scaling: {"count": N}.
-      consumer_child(:scale_consumer, Ingress.ScaleRpc, Config.scale_subject(),
+      consumer_child(:scale_consumer, Ingress.ScaleRpc, AdminConfig.scale_subject(),
         queue_group: @admin_queue
       ),
       # Toggle the load-based autoscaler: {"enabled": bool}.
-      consumer_child(:autoscale_consumer, Ingress.AutoscaleRpc, Config.autoscale_subject(),
+      consumer_child(:autoscale_consumer, Ingress.AutoscaleRpc, AdminConfig.autoscale_subject(),
         queue_group: @admin_queue
       ),
       # Live conduit id: body {}, replies {"conduit_id": "<uuid>"}.
-      consumer_child(:conduit_consumer, Ingress.ConduitRpc, Config.conduit_subject(),
+      consumer_child(:conduit_consumer, Ingress.ConduitRpc, AdminConfig.conduit_subject(),
         queue_group: @admin_queue
       ),
       # Side-effect-free fleet RPC latency probe.
-      consumer_child(:health_consumer, Ingress.HealthRpc, Config.rpc_health_subject(),
+      consumer_child(:health_consumer, Ingress.HealthRpc, AdminConfig.rpc_health_subject(),
         queue_group: @admin_queue
       ),
       Ingress.Bootstrapper

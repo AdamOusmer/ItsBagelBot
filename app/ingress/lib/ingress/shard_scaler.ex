@@ -36,7 +36,8 @@ defmodule Ingress.ShardScaler do
   use GenServer
   require Logger
 
-  alias Ingress.{Config, Metrics}
+  alias Ingress.Config.Twitch, as: TwitchConfig
+  alias Ingress.Metrics
   # --- tunables ---------------------------------------------------------------
 
   # How often the autoscaler evaluates load.
@@ -61,7 +62,7 @@ defmodule Ingress.ShardScaler do
   def desired do
     case fetch_desired() do
       {:ok, count, _pid} -> count
-      :error -> Config.conduit_shard_count()
+      :error -> TwitchConfig.conduit_shard_count()
     end
   end
 
@@ -128,7 +129,7 @@ defmodule Ingress.ShardScaler do
     # The scaler is the source of truth. ConduitManager performs the one
     # startup read needed to locate the pinned conduit and applies this target
     # only when Twitch's recorded count differs.
-    target = Config.conduit_shard_count()
+    target = TwitchConfig.conduit_shard_count()
     Logger.info("shard_scaler started: target=#{target} on #{node()}")
     schedule_autoscale()
 
@@ -169,7 +170,7 @@ defmodule Ingress.ShardScaler do
 
   @impl true
   def handle_call({:set_target, count}, _from, state) do
-    clamped = clamp(count, min_shards(), Config.max_shards())
+    clamped = clamp(count, min_shards(), TwitchConfig.max_shards())
     Logger.info("shard_scaler: manual target #{state.target} → #{clamped}")
     {:reply, :ok, %{state | target: clamped, ticks: Ingress.ShardScaler.Policy.reset_ticks()}}
   end
@@ -221,10 +222,10 @@ defmodule Ingress.ShardScaler do
   end
 
   defp effective_max_shards(true, min_s) do
-    max(min_s, Ingress.ShardScaler.Policy.autoscale_max_shards(Config.max_shards()))
+    max(min_s, Ingress.ShardScaler.Policy.autoscale_max_shards(TwitchConfig.max_shards()))
   end
 
-  defp effective_max_shards(false, _min_s), do: Config.max_shards()
+  defp effective_max_shards(false, _min_s), do: TwitchConfig.max_shards()
 
   defp evaluate_autoscale(state) do
     sample = sample_shards(state)
@@ -241,7 +242,7 @@ defmodule Ingress.ShardScaler do
         current_target,
         state.ticks,
         min_s,
-        Config.max_shards()
+        TwitchConfig.max_shards()
       )
 
     case action do
@@ -342,11 +343,11 @@ defmodule Ingress.ShardScaler do
   # defaults instead of an exception.
   defp fallback_status do
     %{
-      target: Config.conduit_shard_count(),
+      target: TwitchConfig.conduit_shard_count(),
       autoscale: false,
       min_shards: min_shards(),
-      max_shards: Config.max_shards(),
-      desired: Config.conduit_shard_count(),
+      max_shards: TwitchConfig.max_shards(),
+      desired: TwitchConfig.conduit_shard_count(),
       load: 0,
       max_load: 0,
       max_load_shard_id: nil,

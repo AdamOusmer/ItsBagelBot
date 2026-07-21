@@ -46,8 +46,8 @@ defmodule Ingress.Twitch.AppToken do
 
   defp fetch_token do
     form = [
-      client_id: Ingress.Config.twitch_client_id(),
-      client_secret: Ingress.Config.twitch_client_secret(),
+      client_id: Ingress.Config.Twitch.client_id(),
+      client_secret: Ingress.Config.Twitch.client_secret(),
       grant_type: "client_credentials"
     ]
 

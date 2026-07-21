@@ -26,13 +26,13 @@ defmodule Ingress.Dispatcher.Worker do
         Keyword.get(
           opts,
           :completion_batch_size,
-          Ingress.Config.dispatcher_completion_batch_size()
+          Ingress.Config.Dispatcher.completion_batch_size()
         ),
       completion_flush_ms:
         Keyword.get(
           opts,
           :completion_flush_ms,
-          Ingress.Config.dispatcher_completion_flush_ms()
+          Ingress.Config.Dispatcher.completion_flush_ms()
         ),
       completed_by_broadcaster: %{},
       completed_total: 0

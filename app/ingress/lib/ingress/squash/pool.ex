@@ -8,7 +8,8 @@ defmodule Ingress.Squash.Pool do
 
   use Supervisor
 
-  alias Ingress.{Config, Squash}
+  alias Ingress.Config.Squash, as: SquashConfig
+  alias Ingress.Squash
 
   def start_link(opts \\ []) do
     Supervisor.start_link(__MODULE__, opts, name: __MODULE__)
@@ -16,7 +17,7 @@ defmodule Ingress.Squash.Pool do
 
   @impl true
   def init(opts) do
-    count = Keyword.get(opts, :partitions, Config.squash_partitions())
+    count = Keyword.get(opts, :partitions, SquashConfig.partitions())
 
     names =
       0..(count - 1)

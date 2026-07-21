@@ -3,9 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"os"
-	"os/signal"
-	"syscall"
 
 	"ItsBagelBot/app/modules/ent"
 	// Wire the ent schema runtime (field defaults/hooks); without this blank
@@ -17,11 +14,9 @@ import (
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/internal/moderation"
 	"ItsBagelBot/pkg/bus"
-	"ItsBagelBot/pkg/db"
 	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/health"
-	"ItsBagelBot/pkg/logger"
-	"ItsBagelBot/pkg/monitor"
+	"ItsBagelBot/pkg/svcboot"
 
 	"github.com/nats-io/nats.go"
 	"github.com/newrelic/go-agent/v3/newrelic"
@@ -34,93 +29,39 @@ const serviceName = "modules"
 func main() {
 	validate.CheckFloor = moderation.CheckFloor
 
-	log := logger.New(env.Get("APP_ENV", "development")).Named(serviceName)
-	defer func() { _ = log.Sync() }()
+	core, done := svcboot.NewCore(serviceName)
+	defer done()
+	log := core.Log
 
-	nrApp, err := monitor.New(serviceName, log)
-	if err != nil {
-		log.Fatal("failed to start new relic", zap.Error(err))
-	}
-	log = monitor.WrapLogger(log, nrApp)
-	defer monitor.Shutdown(nrApp)
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-
-	driver, err := db.NewDriver(db.Config{
-		Address:  env.Get("DB_ADDR", "127.0.0.1:3306"),
-		Username: env.MustGet("DB_USER"),
-		Password: env.MustGet("DB_PASS"),
-		Schema:   env.Get("DB_SCHEMA", "bagel_modules"),
-	})
-	if err != nil {
-		log.Fatal("failed to open database", zap.Error(err))
-	}
-
-	client := ent.NewClient(ent.Driver(driver))
+	client := ent.NewClient(ent.Driver(svcboot.MustEntDriver(log, "bagel_modules")))
 	defer func() { _ = client.Close() }()
 
-	migrateSchema(ctx, client, log)
+	svcboot.AutoMigrate(core.Ctx, log, func(ctx context.Context) error { return client.Schema.Create(ctx) })
 
-	natsURL := env.Get("NATS_URL", "nats://127.0.0.1:4222")
-	rpcURL := bus.RPCURL(natsURL)
+	n, closeIntake := svcboot.MustNATS(core, serviceName, "modules-rpc")
+	defer func() { _ = n.Pub.Close() }()
 
-	pub, err := bus.NewPublisher(natsURL, log)
-	if err != nil {
-		log.Fatal("failed to connect publisher", zap.Error(err))
-	}
-	defer func() { _ = pub.Close() }()
-
-	repo := repository.NewModules(client, pub, nrApp, log)
+	repo := repository.NewModules(client, n.Pub, core.NR, log)
 	defer repo.Close(context.Background()) // flushes pending writes on shutdown
+	defer closeIntake()                    // stops intake before the repo flush above
 
 	quotes := repository.NewQuotes(client, log)
 
-	nc := connectRPC(rpcURL, log)
-	defer nc.Close()
-
-	// Broadcast subscription: every instance must drop its cached view when
-	// any instance changes a module, so no queue group here.
-	broadcast, err := bus.NewSubscriber(natsURL, "", log)
-	if err != nil {
-		log.Fatal("failed to connect broadcast subscriber", zap.Error(err))
-	}
-	defer func() { _ = broadcast.Close() }()
-
-	// Durable group subscription: exactly one instance answers a reproject
-	// request by replaying the table as change events.
-	grouped, err := bus.NewSubscriber(natsURL, serviceName, log)
-	if err != nil {
-		log.Fatal("failed to connect group subscriber", zap.Error(err))
-	}
-	defer func() { _ = grouped.Close() }()
-
-	consumeEvents(ctx, eventsWiring{
-		app: nrApp, broadcast: broadcast, grouped: grouped,
+	consumeEvents(core.Ctx, eventsWiring{
+		app: core.NR, broadcast: n.Broadcast, grouped: n.Grouped,
 		repo: repo, quotes: quotes, log: log,
 	})
 
 	projectionSubject := subscribeRPCs(rpcWiring{
-		nc: nc, client: client, repo: repo, quotes: quotes, app: nrApp, log: log,
+		nc: n.RPC, client: client, repo: repo, quotes: quotes, app: core.NR, log: log,
 	})
-	health.Serve(env.Get("LISTEN_ADDR", ":8080"), nc.IsConnected)
+	health.Serve(env.Get("LISTEN_ADDR", ":8080"), n.RPC.IsConnected)
 
 	log.Info("modules service ready", zap.String("projection_subject", projectionSubject))
 
-	<-ctx.Done()
+	<-core.Ctx.Done()
 
 	log.Info("modules service shutting down")
-}
-
-// migrateSchema runs the ent auto-migration unless disabled. Fatal on failure:
-// a modules instance without its tables can only crashloop later anyway.
-func migrateSchema(ctx context.Context, client *ent.Client, log *zap.Logger) {
-	if !env.GetBool("DB_AUTO_MIGRATE", true) {
-		return
-	}
-	if err := client.Schema.Create(ctx); err != nil {
-		log.Fatal("failed to run migrations", zap.Error(err))
-	}
 }
 
 // eventsWiring bundles what consumeEvents needs so the wiring reads as one
@@ -242,15 +183,4 @@ func subscribeRPCs(w rpcWiring) string {
 		w.log.Fatal("failed to subscribe personality rpc", zap.Error(err))
 	}
 	return projectionSubject
-}
-
-func connectRPC(url string, log *zap.Logger) *nats.Conn {
-	nc, err := bus.Connect(url, serviceName)
-	if err != nil {
-		log.Fatal("failed to connect to nats", zap.Error(err))
-	}
-	if err := bus.SubscribeRPCHealth(nc, serviceName, "modules-rpc"); err != nil {
-		log.Fatal("failed to subscribe rpc health", zap.Error(err))
-	}
-	return nc
 }
