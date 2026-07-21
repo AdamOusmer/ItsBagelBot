@@ -17,7 +17,8 @@ defmodule Ingress.Dispatcher do
 
   use GenServer
 
-  alias Ingress.{Config, Metrics}
+  alias Ingress.Config.Dispatcher, as: DispatcherConfig
+  alias Ingress.Metrics
 
   defstruct [:name, :table, :admitted, :sweep_ms, worker_refs: %{}]
 
@@ -196,13 +197,13 @@ defmodule Ingress.Dispatcher do
   def init(opts) do
     name = Keyword.get(opts, :name, __MODULE__)
     table = Keyword.get(opts, :table, name)
-    worker_count = Keyword.get(opts, :max_running, Config.dispatcher_max_running())
-    max_queue = Keyword.get(opts, :max_queue, Config.dispatcher_max_queue())
+    worker_count = Keyword.get(opts, :max_running, DispatcherConfig.max_running())
+    max_queue = Keyword.get(opts, :max_queue, DispatcherConfig.max_queue())
 
     max_per_broadcaster =
-      Keyword.get(opts, :max_per_broadcaster, Config.dispatcher_max_per_broadcaster())
+      Keyword.get(opts, :max_per_broadcaster, DispatcherConfig.max_per_broadcaster())
 
-    sweep_ms = Keyword.get(opts, :sweep_ms, Config.dispatcher_broadcaster_sweep_ms())
+    sweep_ms = Keyword.get(opts, :sweep_ms, DispatcherConfig.broadcaster_sweep_ms())
     capacity = worker_count + max_queue
     workers = worker_names_tuple(name, worker_count)
     admitted = :atomics.new(1, signed: true)

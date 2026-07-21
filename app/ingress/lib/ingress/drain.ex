@@ -25,7 +25,8 @@ defmodule Ingress.Drain do
 
   require Logger
 
-  alias Ingress.{Config, Metrics, ShardSession}
+  alias Ingress.Config.Twitch, as: TwitchConfig
+  alias Ingress.{Metrics, ShardSession}
 
   # Budget per shard for the successor to connect, welcome and bind. The
   # whole drain must fit inside terminationGracePeriodSeconds minus the
@@ -124,7 +125,7 @@ defmodule Ingress.Drain do
   end
 
   defp start_successor(shard_id, attempts) do
-    spec = {ShardSession, shard_id: shard_id, conduit_id: Config.twitch_conduit_id()}
+    spec = {ShardSession, shard_id: shard_id, conduit_id: TwitchConfig.conduit_id()}
 
     case remote_start(spec) do
       {:ok, pid} when node(pid) != node() ->

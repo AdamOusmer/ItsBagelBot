@@ -12,6 +12,8 @@
     "./server/config-sanity": "./lib/server/config-sanity.ts",
     "./server/config": "./lib/server/config.ts",
     "./server/session": "./lib/server/session.ts",
+    "./server/hooks": "./lib/server/hooks.ts",
+    "./server/boot": "./lib/server/boot.ts",
     "./server/nats": "./lib/server/nats.ts",
     "./server/service": "./lib/server/service.ts",
     "./server/rum": "./lib/server/rum.ts",
@@ -27,7 +29,8 @@
     "./i18n": "./lib/i18n/messages.ts",
     "./styles/tokens.css": "./styles/tokens.css",
     "./styles/app.css": "./styles/app.css",
-    "./components/*": "./components/*"
+    "./components/*": "./components/*",
+    "./svelte-config": "./svelte-config.js"
   },
   "dependencies": {
     "iovalkey": "^0.3.1",

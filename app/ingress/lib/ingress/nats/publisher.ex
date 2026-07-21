@@ -3,7 +3,7 @@ defmodule Ingress.Nats.Publisher do
   One scheduler-local, bounded JetStream cohort publisher.
 
   Calls arriving within `publish_batch_wait_ms` are staged as a local cohort,
-  then published through Gnat on one of two wires (`Config.publish_wire/0`):
+  then published through Gnat on one of two wires (`Ingress.Config.Publish.wire/0`):
 
     * `:single` (default) — one ordinary JetStream PubAck per event. Ingress
       never attaches `Nats-Msg-Id`: EventSub websockets do not replay and the
@@ -25,7 +25,8 @@ defmodule Ingress.Nats.Publisher do
 
   require Logger
 
-  alias Ingress.{Config, Metrics, Nats}
+  alias Ingress.Config.Publish, as: PublishConfig
+  alias Ingress.{Metrics, Nats}
   alias Ingress.Nats.CohortSender
 
   @idx_pending 1
@@ -139,7 +140,7 @@ defmodule Ingress.Nats.Publisher do
     counter = :atomics.new(9, signed: false)
     token = :crypto.strong_rand_bytes(9) |> Base.url_encode64(padding: false)
     prefix = @inbox_prefix <> token <> "."
-    max_pending = Config.publish_max_pending()
+    max_pending = PublishConfig.max_pending()
 
     :persistent_term.put(
       {__MODULE__, :ctx, index},
@@ -164,13 +165,13 @@ defmodule Ingress.Nats.Publisher do
       sid: nil,
       conn_ref: nil,
       max_pending: max_pending,
-      ack_timeout_ms: Config.publish_ack_timeout_ms(),
-      max_attempts: Config.publish_attempts(),
-      batch_size: Config.publish_batch_size(),
-      batch_wait_ms: Config.publish_batch_wait_ms(),
-      senders: CohortSender.start(Config.publish_send_concurrency()),
-      wire: Config.publish_wire(),
-      batch_inflight_cap: Config.publish_batch_inflight(),
+      ack_timeout_ms: PublishConfig.ack_timeout_ms(),
+      max_attempts: PublishConfig.attempts(),
+      batch_size: PublishConfig.batch_size(),
+      batch_wait_ms: PublishConfig.batch_wait_ms(),
+      senders: CohortSender.start(PublishConfig.send_concurrency()),
+      wire: PublishConfig.wire(),
+      batch_inflight_cap: PublishConfig.batch_inflight(),
       queue: [],
       queue_count: 0,
       flush_token: nil

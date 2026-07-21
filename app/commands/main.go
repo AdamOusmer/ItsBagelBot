@@ -4,9 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"os/signal"
-	"syscall"
 
 	"github.com/newrelic/go-agent/v3/newrelic"
 
@@ -21,11 +18,9 @@ import (
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/internal/moderation"
 	"ItsBagelBot/pkg/bus"
-	"ItsBagelBot/pkg/db"
 	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/health"
-	"ItsBagelBot/pkg/logger"
-	"ItsBagelBot/pkg/monitor"
+	"ItsBagelBot/pkg/svcboot"
 
 	"go.uber.org/zap"
 )
@@ -106,97 +101,44 @@ func deleteAllForUser(repo *repository.Commands, log *zap.Logger) func(*bus.Mess
 func main() {
 	validate.CheckFloor = moderation.CheckFloor
 
-	log := logger.New(env.Get("APP_ENV", "development")).Named(serviceName)
-	defer func() { _ = log.Sync() }()
+	core, done := svcboot.NewCore(serviceName)
+	defer done()
+	log := core.Log
 
-	nrApp, err := monitor.New(serviceName, log)
-	if err != nil {
-		log.Fatal("failed to start new relic", zap.Error(err))
-	}
-	log = monitor.WrapLogger(log, nrApp)
-	defer monitor.Shutdown(nrApp)
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-
-	driver, err := db.NewDriver(db.Config{
-		Address:  env.Get("DB_ADDR", "127.0.0.1:3306"),
-		Username: env.MustGet("DB_USER"),
-		Password: env.MustGet("DB_PASS"),
-		Schema:   env.Get("DB_SCHEMA", "bagel_commands"),
-	})
-	if err != nil {
-		log.Fatal("failed to open database", zap.Error(err))
-	}
-
-	client := ent.NewClient(ent.Driver(driver))
+	client := ent.NewClient(ent.Driver(svcboot.MustEntDriver(log, "bagel_commands")))
 	defer func() { _ = client.Close() }()
 
-	if env.GetBool("DB_AUTO_MIGRATE", true) {
-		if err := client.Schema.Create(ctx); err != nil {
-			log.Fatal("failed to run migrations", zap.Error(err))
-		}
-	}
+	svcboot.AutoMigrate(core.Ctx, log, func(ctx context.Context) error { return client.Schema.Create(ctx) })
 
-	natsURL := env.Get("NATS_URL", "nats://127.0.0.1:4222")
-	rpcURL := bus.RPCURL(natsURL)
+	n, closeIntake := svcboot.MustNATS(core, serviceName, "commands-rpc")
+	defer func() { _ = n.Pub.Close() }()
 
-	pub, err := bus.NewPublisher(natsURL, log)
-	if err != nil {
-		log.Fatal("failed to connect publisher", zap.Error(err))
-	}
-	defer func() { _ = pub.Close() }()
-
-	repo := repository.NewCommands(client, pub, nrApp, log)
+	repo := repository.NewCommands(client, n.Pub, core.NR, log)
 	defer repo.Close(context.Background()) // flushes pending writes on shutdown
+	defer closeIntake()                    // stops intake before the repo flush above
 
-	nc, err := bus.Connect(rpcURL, serviceName)
-	if err != nil {
-		log.Fatal("failed to connect to nats", zap.Error(err))
-	}
-	defer nc.Close()
-
-	// Broadcast subscription: every instance must drop its cached view when
-	// any instance changes a command, so no queue group here.
-	broadcast, err := bus.NewSubscriber(natsURL, "", log)
-	if err != nil {
-		log.Fatal("failed to connect broadcast subscriber", zap.Error(err))
-	}
-	defer func() { _ = broadcast.Close() }()
-
-	// Durable group subscription: exactly one instance handles the delete so
-	// rows are not redundantly removed, and any instance failure is retried.
-	grouped, err := bus.NewSubscriber(natsURL, serviceName, log)
-	if err != nil {
-		log.Fatal("failed to connect group subscriber", zap.Error(err))
-	}
-	defer func() { _ = grouped.Close() }()
-
-	if err := registerConsumers(ctx, nrApp, repo, broadcast, grouped, log); err != nil {
+	if err := registerConsumers(core.Ctx, core.NR, repo, n.Broadcast, n.Grouped, log); err != nil {
 		log.Fatal("failed to subscribe to events", zap.Error(err))
 	}
 
 	projectionSubject := env.Get("NATS_INTERNAL_PROJECTION_COMMANDS_SUBJECT", "bagel.rpc.internal.projection.commands.get")
-	if err := rpc.SubscribeProjection(nc, repo, projectionSubject, "commands-rpc", nrApp, log); err != nil {
+	if err := rpc.SubscribeProjection(n.RPC, repo, projectionSubject, "commands-rpc", core.NR, log); err != nil {
 		log.Fatal("failed to subscribe projection rpc", zap.Error(err))
 	}
 
 	commandsPrefix := env.Get("NATS_COMMANDS_SUBJECT_PREFIX", "bagel.rpc.commands")
-	if err := rpc.SubscribeDashboard(nc, repo, commandsPrefix, "commands-rpc", nrApp, log); err != nil {
+	if err := rpc.SubscribeDashboard(n.RPC, repo, commandsPrefix, "commands-rpc", core.NR, log); err != nil {
 		log.Fatal("failed to subscribe dashboard rpc", zap.Error(err))
 	}
-	if err := bus.SubscribeRPCHealth(nc, serviceName, "commands-rpc"); err != nil {
-		log.Fatal("failed to subscribe rpc health", zap.Error(err))
-	}
 
-	health.Serve(env.Get("LISTEN_ADDR", ":8080"), nc.IsConnected)
+	health.Serve(env.Get("LISTEN_ADDR", ":8080"), n.RPC.IsConnected)
 
 	log.Info("commands service ready",
 		zap.String("projection_subject", projectionSubject),
 		zap.String("commands_prefix", commandsPrefix),
 	)
 
-	<-ctx.Done()
+	<-core.Ctx.Done()
 
 	log.Info("commands service shutting down")
 }

@@ -24,6 +24,12 @@ import (
 // through the leaf is only an extra forwarding hop (the leaf runs no JetStream).
 // This mirrors the console lib's rpc/bus split in
 // console/shared/lib/server/nats.ts.
+//
+// COUPLED TO the broker configs — this file is the client half of the topology
+// declared by deploy/k8s/nats-leaf-server.conf (leaf tier: plane split, TLS
+// posture, keepalives, server_name prefix; see the header there for the full
+// list) and deploy/k8s/nats-server.conf (hub). Change either side with the
+// other open.
 
 // JSDomain is the JetStream domain the fleet's streams live in. Clients dial the
 // leaf (whose own JetStream domain is "leaf"), so every JetStream context must be

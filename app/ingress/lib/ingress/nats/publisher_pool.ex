@@ -24,13 +24,14 @@ defmodule Ingress.Nats.PublisherPool do
   use Supervisor
 
   alias Ingress.Config
+  alias Ingress.Config.Publish, as: PublishConfig
 
   @spec start_link(term()) :: Supervisor.on_start()
   def start_link(_opts), do: Supervisor.start_link(__MODULE__, [], name: __MODULE__)
 
   @impl true
   def init(_opts) do
-    n = Config.publish_connections()
+    n = PublishConfig.connections()
     :persistent_term.put({Ingress.Nats.Publisher, :n}, n)
 
     children =
