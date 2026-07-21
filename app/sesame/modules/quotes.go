@@ -42,6 +42,11 @@ type quotesConfig struct {
 	// Empty keeps the historical moderator-only default. Removing a quote is
 	// always moderator-only and is not configurable.
 	AddPerm string `json:"addPerm"`
+	// EditPerm is the minimum role allowed to rewrite a saved quote's text
+	// from chat (!quote edit <n> <text>); the dashboard edits as the
+	// broadcaster and is not gated by it. Same perm strings as AddPerm; empty
+	// keeps the moderator default.
+	EditPerm string `json:"editPerm"`
 }
 
 // Quotes owns the channel quote book. It is a named, opt-in module
@@ -50,15 +55,18 @@ type quotesConfig struct {
 //
 //	!quote                → a random saved quote
 //	!quote 12             → quote #12
+//	!quote bagel          → a random quote containing "bagel"
 //	!quote "text"         → save a new quote (also !quote add <text>)
+//	!quoteadd text        → save a new quote (also !addquote, Mix It Up parity)
+//	!quote edit 12 text   → rewrite quote #12's text in place
 //	!quote remove 12      → mod: delete quote #12 (also !quote delete 12)
 //
 // A readout is "Quote #N: text (YYYY-MM-DD)" — the save date rides at the end.
 // Numbers are per channel and assigned in order; removing a quote leaves a
-// hole so old numbers never point at different text. Saving is gated on the
-// broadcaster's configured AddPerm (moderator by default); removing is always
-// moderator-only. A gated verb typed by an insufficient role is silently
-// ignored, matching the engine gate.
+// hole so old numbers never point at different text. Saving and editing are
+// gated on the broadcaster's configured AddPerm / EditPerm (moderator by
+// default); removing is always moderator-only. A gated verb typed by an
+// insufficient role is silently ignored, matching the engine gate.
 func Quotes(d engine.Deps) module.Module {
 	log := d.Log
 	if log == nil {
@@ -67,27 +75,55 @@ func Quotes(d engine.Deps) module.Module {
 
 	m := module.NewModule(quotesModuleName, module.KindOptIn)
 	m.Command("quote").Everyone().Aliases("quotes").Run(quoteDispatch(d, log))
+	m.Command("quoteadd").Everyone().Aliases("addquote").Run(quoteAddCommand(d, log))
 	return m.Build()
 }
 
 // quoteDispatch handles !quote and routes its forms. The engine's command gate
 // runs it for everyone; the mutating forms re-check the chatter's role against
-// the broadcaster's config (save) or the fixed moderator floor (remove).
+// the broadcaster's config (save, edit) or the fixed moderator floor (remove).
 func quoteDispatch(d engine.Deps, log *zap.Logger) module.RunFunc {
 	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
 		if d.Quotes == nil {
 			return nil
 		}
-		var cfg quotesConfig
-		_ = c.Decode(&cfg)
-		qc := quotesCmd{q: d.Quotes, c: c, cd: d.Cooldown, addRole: quoteAddRole(cfg.AddPerm), log: log}
+		qc := newQuotesCmd(d, c, log)
 		return qc.route(ctx, strings.TrimSpace(args), c.Chatter(), emit)
 	}
 }
 
-// quoteAddRole resolves the configured minimum role for saving a quote. Empty
-// (unconfigured) keeps the historical moderator default.
-func quoteAddRole(perm string) module.Role {
+// quoteAddCommand handles !quoteadd / !addquote: the whole argument line is
+// the quote body, no quoting required (Mix It Up's add form). Gated on the
+// same configured add role as the !quote save forms.
+func quoteAddCommand(d engine.Deps, log *zap.Logger) module.RunFunc {
+	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
+		if d.Quotes == nil {
+			return nil
+		}
+		qc := newQuotesCmd(d, c, log)
+		body, _ := unquote(strings.TrimSpace(args))
+		return qc.runIf(c.Chatter().Allows(qc.addRole), func() error { return qc.add(ctx, body, emit) })
+	}
+}
+
+// newQuotesCmd decodes the broadcaster's config and bundles the shared
+// per-invocation state.
+func newQuotesCmd(d engine.Deps, c *module.Context, log *zap.Logger) quotesCmd {
+	var cfg quotesConfig
+	_ = c.Decode(&cfg)
+	return quotesCmd{
+		q:        d.Quotes,
+		c:        c,
+		cd:       d.Cooldown,
+		addRole:  quotePermRole(cfg.AddPerm),
+		editRole: quotePermRole(cfg.EditPerm),
+		log:      log,
+	}
+}
+
+// quotePermRole resolves a configured minimum role. Empty (unconfigured)
+// keeps the historical moderator default.
+func quotePermRole(perm string) module.Role {
 	if perm == "" {
 		return module.RoleModerator
 	}
@@ -111,14 +147,15 @@ func (qc quotesCmd) route(ctx context.Context, args string, chatter module.Role,
 	case "add":
 		body, _ := unquote(rest)
 		return qc.runIf(chatter.Allows(qc.addRole), func() error { return qc.add(ctx, body, emit) })
+	case "edit":
+		return qc.runIf(chatter.Allows(qc.editRole), func() error { return qc.edit(ctx, rest, emit) })
 	case "remove", "delete":
 		return qc.runIf(chatter.Allows(module.RoleModerator), func() error { return qc.remove(ctx, rest, emit) })
 	default:
 		if n, err := strconv.ParseUint(sub, 10, 64); err == nil && rest == "" {
 			return qc.get(ctx, n, emit)
 		}
-		qc.reply(emit, "quote.err.usage")
-		return nil
+		return qc.search(ctx, args, emit)
 	}
 }
 
@@ -148,11 +185,12 @@ func unquote(s string) (body string, ok bool) {
 
 // quotesCmd bundles the per-invocation state the handlers share.
 type quotesCmd struct {
-	q       engine.QuotesStore
-	c       *module.Context
-	cd      engine.CooldownStore
-	addRole module.Role
-	log     *zap.Logger
+	q        engine.QuotesStore
+	c        *module.Context
+	cd       engine.CooldownStore
+	addRole  module.Role
+	editRole module.Role
+	log      *zap.Logger
 }
 
 // add saves the quote and confirms with its assigned number.
@@ -191,6 +229,20 @@ func (qc quotesCmd) get(ctx context.Context, number uint64, emit module.Emit) er
 	})
 }
 
+// search shows a random quote containing term, behind the shared read
+// cooldown. This is the fallback for "!quote <anything else>", so a typo'd
+// subcommand degrades to a harmless empty search instead of a usage lecture.
+func (qc quotesCmd) search(ctx context.Context, term string, emit module.Emit) error {
+	return qc.readAndShow(ctx, emit, quoteRead{
+		fetch: func(ctx context.Context) (modulesrpc.Quote, bool, error) {
+			return qc.q.QuoteSearch(ctx, qc.c.BroadcasterID, term)
+		},
+		missKey: "quote.search.none",
+		missKV:  []string{"term", term},
+		label:   "search",
+	})
+}
+
 // random shows a random quote, behind the shared read cooldown.
 func (qc quotesCmd) random(ctx context.Context, emit module.Emit) error {
 	return qc.readAndShow(ctx, emit, quoteRead{
@@ -218,6 +270,30 @@ func (qc quotesCmd) readAndShow(ctx context.Context, emit module.Emit, r quoteRe
 		return nil
 	}
 	qc.show(emit, quote)
+	return nil
+}
+
+// edit rewrites one numbered quote's text in place. args is
+// "<number> <new text>"; the text may be quoted like the save form. The
+// number and save date survive the edit, so chat references stay stable.
+func (qc quotesCmd) edit(ctx context.Context, args string, emit module.Emit) error {
+	target, rest := splitFirst(args)
+	number, err := strconv.ParseUint(target, 10, 64)
+	body, _ := unquote(rest)
+	if err != nil || body == "" {
+		qc.reply(emit, "quote.edit.usage")
+		return nil
+	}
+	_, found, err := qc.q.QuoteEdit(ctx, qc.c.BroadcasterID, number, body)
+	if err != nil {
+		qc.log.Warn("quotes: edit failed", zap.Uint64("number", number), qc.bid(), zap.Error(err))
+		return err
+	}
+	key := "quote.edited"
+	if !found {
+		key = "quote.not_found"
+	}
+	qc.reply(emit, key, "num", strconv.FormatUint(number, 10))
 	return nil
 }
 

@@ -263,6 +263,18 @@ func (u *QuoteUpsert) UpdateAddedBy() *QuoteUpsert {
 	return u
 }
 
+// SetCreatedAt sets the "created_at" field.
+func (u *QuoteUpsert) SetCreatedAt(v time.Time) *QuoteUpsert {
+	u.Set(quote.FieldCreatedAt, v)
+	return u
+}
+
+// UpdateCreatedAt sets the "created_at" field to the value that was provided on create.
+func (u *QuoteUpsert) UpdateCreatedAt() *QuoteUpsert {
+	u.SetExcluded(quote.FieldCreatedAt)
+	return u
+}
+
 // UpdateNewValues updates the mutable fields using the new values that were set on create.
 // Using this option is equivalent to using:
 //
@@ -279,9 +291,6 @@ func (u *QuoteUpsertOne) UpdateNewValues() *QuoteUpsertOne {
 		}
 		if _, exists := u.create.mutation.Number(); exists {
 			s.SetIgnore(quote.FieldNumber)
-		}
-		if _, exists := u.create.mutation.CreatedAt(); exists {
-			s.SetIgnore(quote.FieldCreatedAt)
 		}
 	}))
 	return u
@@ -339,6 +348,20 @@ func (u *QuoteUpsertOne) SetAddedBy(v string) *QuoteUpsertOne {
 func (u *QuoteUpsertOne) UpdateAddedBy() *QuoteUpsertOne {
 	return u.Update(func(s *QuoteUpsert) {
 		s.UpdateAddedBy()
+	})
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (u *QuoteUpsertOne) SetCreatedAt(v time.Time) *QuoteUpsertOne {
+	return u.Update(func(s *QuoteUpsert) {
+		s.SetCreatedAt(v)
+	})
+}
+
+// UpdateCreatedAt sets the "created_at" field to the value that was provided on create.
+func (u *QuoteUpsertOne) UpdateCreatedAt() *QuoteUpsertOne {
+	return u.Update(func(s *QuoteUpsert) {
+		s.UpdateCreatedAt()
 	})
 }
 
@@ -524,9 +547,6 @@ func (u *QuoteUpsertBulk) UpdateNewValues() *QuoteUpsertBulk {
 			if _, exists := b.mutation.Number(); exists {
 				s.SetIgnore(quote.FieldNumber)
 			}
-			if _, exists := b.mutation.CreatedAt(); exists {
-				s.SetIgnore(quote.FieldCreatedAt)
-			}
 		}
 	}))
 	return u
@@ -584,6 +604,20 @@ func (u *QuoteUpsertBulk) SetAddedBy(v string) *QuoteUpsertBulk {
 func (u *QuoteUpsertBulk) UpdateAddedBy() *QuoteUpsertBulk {
 	return u.Update(func(s *QuoteUpsert) {
 		s.UpdateAddedBy()
+	})
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (u *QuoteUpsertBulk) SetCreatedAt(v time.Time) *QuoteUpsertBulk {
+	return u.Update(func(s *QuoteUpsert) {
+		s.SetCreatedAt(v)
+	})
+}
+
+// UpdateCreatedAt sets the "created_at" field to the value that was provided on create.
+func (u *QuoteUpsertBulk) UpdateCreatedAt() *QuoteUpsertBulk {
+	return u.Update(func(s *QuoteUpsert) {
+		s.UpdateCreatedAt()
 	})
 }
 

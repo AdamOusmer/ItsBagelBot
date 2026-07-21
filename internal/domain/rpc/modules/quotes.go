@@ -14,8 +14,8 @@ type Quote struct {
 // fields are zero-valued.
 type QuoteRequest struct {
 	UserID    string `json:"user_id"`              // broadcaster Twitch id
-	Number    uint64 `json:"number,omitempty"`     // get/remove target
-	Text      string `json:"text,omitempty"`       // add body
+	Number    uint64 `json:"number,omitempty"`     // get/edit/remove target
+	Text      string `json:"text,omitempty"`       // add/edit body, search term
 	AddedBy   string `json:"added_by,omitempty"`   // login of the mod who saved it
 	CreatedAt string `json:"created_at,omitempty"` // optional RFC 3339 date chosen by the dashboard
 }
