@@ -196,15 +196,23 @@ func (q *Quotes) Search(ctx context.Context, userID uint64, term string) (*modul
 	return quoteView(row), true, nil
 }
 
-// Update replaces quote #number's text in place; found=false when the number
-// does not exist. The number and save date are untouched so chat references
-// and the dated readout stay stable across an edit.
-func (q *Quotes) Update(ctx context.Context, userID, number uint64, text string) (*modulesrpc.Quote, bool, error) {
-	text = strings.TrimSpace(text)
-	if text == "" {
+// QuoteUpdate is the changeable content of an existing quote. Text is
+// required; CreatedAt is optional (zero keeps the saved date) so the
+// dashboard can correct the day a quote was said. The number never changes,
+// so chat references stay stable across an edit.
+type QuoteUpdate struct {
+	Text      string
+	CreatedAt time.Time
+}
+
+// Update rewrites quote #number in place; found=false when the number does
+// not exist.
+func (q *Quotes) Update(ctx context.Context, userID, number uint64, upd QuoteUpdate) (*modulesrpc.Quote, bool, error) {
+	upd.Text = strings.TrimSpace(upd.Text)
+	if upd.Text == "" {
 		return nil, false, ErrQuoteEmpty
 	}
-	if len(text) > QuoteTextMaxLen {
+	if len(upd.Text) > QuoteTextMaxLen {
 		return nil, false, ErrQuoteTooLong
 	}
 	row, err := q.client.Quote.Query().
@@ -216,7 +224,11 @@ func (q *Quotes) Update(ctx context.Context, userID, number uint64, text string)
 	case err != nil:
 		return nil, false, err
 	}
-	row, err = row.Update().SetText(text).Save(ctx)
+	write := row.Update().SetText(upd.Text)
+	if !upd.CreatedAt.IsZero() {
+		write.SetCreatedAt(upd.CreatedAt.UTC())
+	}
+	row, err = write.Save(ctx)
 	if err != nil {
 		return nil, false, err
 	}

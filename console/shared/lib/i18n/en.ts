@@ -637,6 +637,8 @@ export const en = {
     degraded: 'Quotes are temporarily unavailable. Try again shortly.',
     botOn: 'Quotes active',
     botOnHint: 'Master switch: !quote only works in chat while this is on.',
+    permsTitle: 'Chat permissions',
+    permsHint: 'Who may save a new quote or rewrite an existing one from chat. Removing is always moderator-only.',
     permLabel: 'Who can save',
     permEditLabel: 'Who can edit',
     permMod: 'Moderators (default)',

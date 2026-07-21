@@ -118,7 +118,7 @@ export const actions: Actions = {
     }
   },
 
-  // Rewrite one quote's text in place; the number and save date survive.
+  // Rewrite one quote's text and day in place; the number survives.
   edit: async (event) => {
     const ctx = await actionContext(event);
     if (!ctx) return notSignedIn();
@@ -129,12 +129,15 @@ export const actions: Actions = {
     const { text, error } = parseQuoteText(ctx.form.get('text'));
     if (!text) return fail(400, { ok: false, error });
 
+    const createdAt = quoteDate(ctx.form.get('quote_date'));
+    if (!createdAt) return fail(400, { ok: false, error: 'Choose a valid quote date.' });
+
     if (env.DEMO === '1') {
-      return { ok: true, action: 'edited', quote: { number: num, text, created_at: new Date().toISOString() } };
+      return { ok: true, action: 'edited', quote: { number: num, text, created_at: createdAt.toISOString() } };
     }
 
     try {
-      const quote = await editQuote(ctx.uid, num, text);
+      const quote = await editQuote(ctx.uid, num, text, createdAt.toISOString());
       auditDashboardImpersonation(ctx.session, 'quotes:edit', String(num));
       return { ok: true, action: 'edited', quote };
     } catch (e) {

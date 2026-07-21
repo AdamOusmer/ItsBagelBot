@@ -90,13 +90,13 @@ export async function addQuote(userId: string, draft: QuoteDraft): Promise<Quote
   return r.quote;
 }
 
-// editQuote rewrites one quote's text in place and returns the updated row.
-// The number and save date survive the edit. A missing number throws, so the
+// editQuote rewrites one quote's text and day in place and returns the
+// updated row; the number survives the edit. A missing number throws, so the
 // action reports it instead of pretending success.
-export async function editQuote(userId: string, num: number, text: string): Promise<QuoteView> {
+export async function editQuote(userId: string, num: number, text: string, createdAt: string): Promise<QuoteView> {
   const r = await rpc<{ quote?: QuoteView; found?: boolean }>(
     quoteSubject('edit'),
-    { user_id: userId, number: num, text },
+    { user_id: userId, number: num, text, created_at: createdAt },
     RPC_TIMEOUT_MS
   );
   if (!r.found || !r.quote) throw new Error(`quote edit: #${num} does not exist`);

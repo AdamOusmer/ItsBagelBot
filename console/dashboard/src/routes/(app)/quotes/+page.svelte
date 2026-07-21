@@ -5,6 +5,7 @@
   import {
     Icon,
     Button,
+    Field,
     PageHead,
     Scroller,
     ConfirmDialog,
@@ -131,10 +132,10 @@
   }
 
   // openEdit swaps the inspector's detail pane for the editor, prefilled with
-  // the quote's current text.
+  // the quote's current text and day.
   function openEdit(quote: QuoteView) {
     editTarget = quote.number;
-    quoteDraft = { text: quote.text, quoteDate: todayInput() };
+    quoteDraft = { text: quote.text, quoteDate: quote.created_at.slice(0, 10) };
   }
 
   // closeEditor returns from the edit form to the detail pane (the inspector
@@ -289,26 +290,6 @@
     {/snippet}
     {#snippet trail()}
       <div class="toolbar-actions">
-        <form method="POST" action="?/perm" use:enhance={addPermSubmit} bind:this={addPermForm} class="perm">
-          <input type="hidden" name="kind" value="add" />
-          <label for="add-perm">{t('quotes.permLabel')}</label>
-          <select id="add-perm" name="perm" value={addPerm} onchange={onAddPermChange}>
-            {#each permOptions as option (option.value)}
-              <option value={option.value}>{option.label}</option>
-            {/each}
-          </select>
-        </form>
-
-        <form method="POST" action="?/perm" use:enhance={editPermSubmit} bind:this={editPermForm} class="perm">
-          <input type="hidden" name="kind" value="edit" />
-          <label for="edit-perm">{t('quotes.permEditLabel')}</label>
-          <select id="edit-perm" name="perm" value={editPerm} onchange={onEditPermChange}>
-            {#each permOptions as option (option.value)}
-              <option value={option.value}>{option.label}</option>
-            {/each}
-          </select>
-        </form>
-
         <div class="toolbar-search">
           <label for="quotes-search" class="sr-only">{t('quotes.searchLabel')}</label>
           <div class="search">
@@ -334,6 +315,38 @@
       </div>
     {/snippet}
   </PageToolbar>
+
+  <!-- Chat permissions: who may save or rewrite from chat. Selects save on
+       change; each form names the gate it writes via its hidden kind field. -->
+  <section class="block" aria-labelledby="quotes-perms-h">
+    <h2 id="quotes-perms-h" class="block-title">{t('quotes.permsTitle')}</h2>
+    <div class="card">
+      <p class="hint">{t('quotes.permsHint')}</p>
+      <div class="perm-grid">
+        <form method="POST" action="?/perm" use:enhance={addPermSubmit} bind:this={addPermForm}>
+          <input type="hidden" name="kind" value="add" />
+          <Field label={t('quotes.permLabel')}>
+            <select class="search" name="perm" value={addPerm} onchange={onAddPermChange}>
+              {#each permOptions as option (option.value)}
+                <option value={option.value}>{option.label}</option>
+              {/each}
+            </select>
+          </Field>
+        </form>
+
+        <form method="POST" action="?/perm" use:enhance={editPermSubmit} bind:this={editPermForm}>
+          <input type="hidden" name="kind" value="edit" />
+          <Field label={t('quotes.permEditLabel')}>
+            <select class="search" name="perm" value={editPerm} onchange={onEditPermChange}>
+              {#each permOptions as option (option.value)}
+                <option value={option.value}>{option.label}</option>
+              {/each}
+            </select>
+          </Field>
+        </form>
+      </div>
+    </div>
+  </section>
 
   <!-- Polite live region: announces the match count as the search narrows. -->
   <p class="sr-only" role="status" aria-live="polite">
@@ -457,16 +470,39 @@
 
 <style>
   .toolbar-actions { display: flex; align-items: center; gap: 12px; }
-  .perm { display: inline-flex; align-items: center; gap: 8px; }
-  .perm label { font-family: var(--bb-font-body); font-size: 12.5px; color: var(--bb-muted); }
-  .perm select {
+
+  /* Chat-permissions block, mirroring the loyalty page's section shells so
+     settings read as their own airy card instead of crowding the toolbar. */
+  .block { margin-bottom: 26px; }
+  .block-title {
+    font-family: var(--bb-font-display);
+    font-weight: 700;
+    font-size: 16px;
+    letter-spacing: -0.01em;
+    color: var(--bb-white);
+    margin: 0 0 12px;
+  }
+  .card {
+    padding: 18px;
+    border: 1px solid var(--bb-border);
+    border-radius: 10px;
+    background: rgba(240, 236, 228, 0.02);
+  }
+  .hint { margin: 0 0 14px; font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
+  .perm-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 280px));
+    gap: 16px;
+  }
+  .perm-grid select {
+    width: 100%;
     font-family: var(--bb-font-body);
     font-size: 13px;
     color: var(--bb-white);
     background: var(--bb-bg-1, #16130f);
     border: 1px solid var(--rule);
     border-radius: 7px;
-    padding: 7px 10px;
+    padding: 8px 10px;
   }
 
   .toolbar-search { width: 220px; }
@@ -602,8 +638,7 @@
 
   @media (max-width: 680px) {
     .toolbar-actions { width: 100%; flex-wrap: wrap; }
-    .perm { flex: 1; }
-    .perm select { flex: 1; min-width: 0; }
     .toolbar-search { width: 100%; order: 3; }
+    .perm-grid { grid-template-columns: 1fr; }
   }
 </style>

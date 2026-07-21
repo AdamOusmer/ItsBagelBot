@@ -636,6 +636,8 @@ export const fr = {
     degraded: 'Les citations sont momentanément indisponibles. Réessayez bientôt.',
     botOn: 'Citations actives',
     botOnHint: 'Interrupteur principal : !quote ne fonctionne dans le chat que lorsque ceci est activé.',
+    permsTitle: 'Permissions du chat',
+    permsHint: 'Qui peut enregistrer une nouvelle citation ou en réécrire une depuis le chat. La suppression reste réservée aux modérateurs.',
     permLabel: 'Qui peut enregistrer',
     permEditLabel: 'Qui peut modifier',
     permMod: 'Modérateurs (par défaut)',

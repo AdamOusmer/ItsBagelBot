@@ -187,26 +187,34 @@ func TestQuoteUpdate(t *testing.T) {
 	saved, err := repo.Add(ctx, 1001, repository.QuoteDraft{Text: "teh bagels", AddedBy: "mod_amy"})
 	require.NoError(t, err)
 
-	got, found, err := repo.Update(ctx, 1001, saved.Number, "  the bagels  ")
+	got, found, err := repo.Update(ctx, 1001, saved.Number, repository.QuoteUpdate{Text: "  the bagels  "})
 	require.NoError(t, err)
 	require.True(t, found)
 	assert.Equal(t, "the bagels", got.Text)
 	assert.Equal(t, saved.Number, got.Number)
+	// A zero CreatedAt keeps the saved date.
 	assert.Equal(t, saved.CreatedAt, got.CreatedAt)
 
+	// A chosen CreatedAt rewrites the day.
+	chosen := time.Date(2025, time.December, 24, 12, 0, 0, 0, time.UTC)
+	got, found, err = repo.Update(ctx, 1001, saved.Number, repository.QuoteUpdate{Text: "the bagels", CreatedAt: chosen})
+	require.NoError(t, err)
+	require.True(t, found)
+	assert.Equal(t, "2025-12-24T12:00:00Z", got.CreatedAt)
+
 	// Missing number and other channels report found=false without writing.
-	_, found, err = repo.Update(ctx, 1001, 99, "nope")
+	_, found, err = repo.Update(ctx, 1001, 99, repository.QuoteUpdate{Text: "nope"})
 	require.NoError(t, err)
 	assert.False(t, found)
 
-	_, found, err = repo.Update(ctx, 2002, saved.Number, "nope")
+	_, found, err = repo.Update(ctx, 2002, saved.Number, repository.QuoteUpdate{Text: "nope"})
 	require.NoError(t, err)
 	assert.False(t, found)
 
 	// Same validation boundary as Add.
-	_, _, err = repo.Update(ctx, 1001, saved.Number, "   ")
+	_, _, err = repo.Update(ctx, 1001, saved.Number, repository.QuoteUpdate{Text: "   "})
 	assert.ErrorIs(t, err, repository.ErrQuoteEmpty)
-	_, _, err = repo.Update(ctx, 1001, saved.Number, strings.Repeat("x", repository.QuoteTextMaxLen+1))
+	_, _, err = repo.Update(ctx, 1001, saved.Number, repository.QuoteUpdate{Text: strings.Repeat("x", repository.QuoteTextMaxLen+1)})
 	assert.ErrorIs(t, err, repository.ErrQuoteTooLong)
 }
 

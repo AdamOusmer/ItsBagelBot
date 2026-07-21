@@ -82,16 +82,24 @@ func errReply(err error, ok modulesrpc.QuoteReply) modulesrpc.QuoteReply {
 	return ok
 }
 
+// parseQuoteDate parses the optional RFC 3339 date riding an add/edit
+// request; ok=false means it was present but malformed. An absent date stays
+// the zero time (add stamps now, edit keeps the saved date).
+func parseQuoteDate(raw string) (time.Time, bool) {
+	if raw == "" {
+		return time.Time{}, true
+	}
+	t, err := time.Parse(time.RFC3339, raw)
+	return t, err == nil
+}
+
 func (q *quotesRPC) handleAdd(ctx context.Context, req modulesrpc.QuoteRequest) modulesrpc.QuoteReply {
 	return q.withUserID(req, func(id uint64) modulesrpc.QuoteReply {
-		draft := repository.QuoteDraft{Text: req.Text, AddedBy: req.AddedBy}
-		if req.CreatedAt != "" {
-			createdAt, err := time.Parse(time.RFC3339, req.CreatedAt)
-			if err != nil {
-				return modulesrpc.QuoteReply{Error: "invalid quote date"}
-			}
-			draft.CreatedAt = createdAt
+		createdAt, ok := parseQuoteDate(req.CreatedAt)
+		if !ok {
+			return modulesrpc.QuoteReply{Error: "invalid quote date"}
 		}
+		draft := repository.QuoteDraft{Text: req.Text, AddedBy: req.AddedBy, CreatedAt: createdAt}
 		view, err := q.repo.Add(ctx, id, draft)
 		return errReply(err, modulesrpc.QuoteReply{Quote: view, Found: true})
 	})
@@ -120,7 +128,11 @@ func (q *quotesRPC) handleSearch(ctx context.Context, req modulesrpc.QuoteReques
 
 func (q *quotesRPC) handleEdit(ctx context.Context, req modulesrpc.QuoteRequest) modulesrpc.QuoteReply {
 	return q.withUserID(req, func(id uint64) modulesrpc.QuoteReply {
-		view, found, err := q.repo.Update(ctx, id, req.Number, req.Text)
+		createdAt, ok := parseQuoteDate(req.CreatedAt)
+		if !ok {
+			return modulesrpc.QuoteReply{Error: "invalid quote date"}
+		}
+		view, found, err := q.repo.Update(ctx, id, req.Number, repository.QuoteUpdate{Text: req.Text, CreatedAt: createdAt})
 		return errReply(err, modulesrpc.QuoteReply{Quote: view, Found: found})
 	})
 }
