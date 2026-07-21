@@ -41,6 +41,8 @@ type QuotesStore interface {
 	QuoteAdd(ctx context.Context, broadcasterID uint64, text, addedBy string) (modulesrpc.Quote, error)
 	QuoteGet(ctx context.Context, broadcasterID, number uint64) (modulesrpc.Quote, bool, error)
 	QuoteRandom(ctx context.Context, broadcasterID uint64) (modulesrpc.Quote, bool, error)
+	QuoteSearch(ctx context.Context, broadcasterID uint64, term string) (modulesrpc.Quote, bool, error)
+	QuoteEdit(ctx context.Context, broadcasterID, number uint64, text string) (modulesrpc.Quote, bool, error)
 	QuoteRemove(ctx context.Context, broadcasterID, number uint64) (bool, error)
 }
 

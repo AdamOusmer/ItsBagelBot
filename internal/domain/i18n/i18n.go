@@ -74,11 +74,14 @@ var catalog = map[string]map[string]string{
 
 		"quote.show":         "Quote #{num}: {text} ({date})",
 		"quote.added":        "@{user} quote #{num} added.",
+		"quote.edited":       "Quote #{num} updated.",
 		"quote.removed":      "Quote #{num} removed.",
 		"quote.not_found":    "Quote #{num} doesn't exist.",
-		"quote.none":         "No quotes saved yet. Mods can add one with !quote \"text\".",
+		"quote.none":         "No quotes saved yet. Add one with !addquote <text>.",
+		"quote.search.none":  "No quote matching \"{term}\".",
+		"quote.edit.usage":   "Usage: !quote edit <number> <new text>",
 		"quote.remove.usage": "Usage: !quote remove <number>",
-		"quote.err.usage":    "Usage: !quote — !quote <number> — !quote \"text\" — !quote remove <number>",
+		"quote.err.usage":    "Usage: !quote — !quote <number> — !quote <word> — !addquote <text> — !quote edit <number> <text> — !quote remove <number>",
 
 		"loyalty.points":              "@{user} you have {points} {name} and {hours} hours watched.",
 		"loyalty.points.adjusted":     "@{target} now has {points} {name}.",
@@ -179,11 +182,14 @@ var catalog = map[string]map[string]string{
 
 		"quote.show":         "Citation n°{num} : {text} ({date})",
 		"quote.added":        "@{user} citation n°{num} ajoutée.",
+		"quote.edited":       "Citation n°{num} modifiée.",
 		"quote.removed":      "Citation n°{num} supprimée.",
 		"quote.not_found":    "La citation n°{num} n'existe pas.",
-		"quote.none":         "Aucune citation pour le moment. Les modos peuvent en ajouter une avec !quote \"texte\".",
+		"quote.none":         "Aucune citation pour le moment. Ajoutez-en une avec !addquote <texte>.",
+		"quote.search.none":  "Aucune citation contenant « {term} ».",
+		"quote.edit.usage":   "Utilisation : !quote edit <numéro> <nouveau texte>",
 		"quote.remove.usage": "Utilisation : !quote remove <numéro>",
-		"quote.err.usage":    "Utilisation : !quote — !quote <numéro> — !quote \"texte\" — !quote remove <numéro>",
+		"quote.err.usage":    "Utilisation : !quote — !quote <numéro> — !quote <mot> — !addquote <texte> — !quote edit <numéro> <texte> — !quote remove <numéro>",
 
 		"loyalty.points":              "@{user} vous avez {points} {name} et {hours} heures de visionnage.",
 		"loyalty.points.adjusted":     "@{target} a maintenant {points} {name}.",

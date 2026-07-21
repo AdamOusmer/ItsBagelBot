@@ -1,19 +1,24 @@
 <script lang="ts">
-  // Inline "add quote" editor, rendered inside the page inspector. Each control
-  // is wrapped in the shared <Field> (a real <label>, so the input is labelled),
-  // and the Save/Cancel actions live in the form so the editor stays
-  // self-contained within the page's docked inspector.
+  // Inline quote editor, rendered inside the page inspector. In "add" mode it
+  // saves a new quote; in "edit" mode it rewrites an existing quote's body
+  // and day in place (the number survives). Each control is wrapped in the
+  // shared <Field> (a real <label>, so the input is labelled), and the
+  // Save/Cancel actions live in the form so the editor stays self-contained
+  // within the page's docked inspector.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { Field, Button, getI18n } from '@bagel/shared';
 
   let {
     draft = $bindable<{ text: string; quoteDate: string }>(),
+    number = null,
     busy = false,
     onCancel,
     onSubmit
   }: {
     draft: { text: string; quoteDate: string };
+    // The quote being rewritten; null means the editor adds a new one.
+    number?: number | null;
     busy?: boolean;
     onCancel: () => void;
     onSubmit: SubmitFunction;
@@ -22,10 +27,15 @@
   const { t } = getI18n();
   const MAX = 450;
 
+  const editing = $derived(number !== null);
   const valid = $derived(draft.text.trim().length > 0 && /^\d{4}-\d{2}-\d{2}$/.test(draft.quoteDate));
 </script>
 
-<form method="POST" action="?/add" class="editor" novalidate use:enhance={onSubmit}>
+<form method="POST" action={editing ? '?/edit' : '?/add'} class="editor" novalidate use:enhance={onSubmit}>
+  {#if editing}
+    <input type="hidden" name="number" value={number} />
+  {/if}
+
   <Field label={t('quotes.fieldQuote')}>
     <textarea
       class="search quote-area"
@@ -47,7 +57,7 @@
   <div class="actions">
     <Button variant="ghost" onclick={onCancel} disabled={busy}>{t('common.cancel')}</Button>
     <Button variant="primary" type="submit" icon="check" loading={busy} disabled={!valid}>
-      {t('quotes.addBtn')}
+      {editing ? t('quotes.editBtn') : t('quotes.addBtn')}
     </Button>
   </div>
 </form>

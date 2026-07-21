@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
@@ -51,6 +52,20 @@ func (_u *QuoteUpdate) SetAddedBy(v string) *QuoteUpdate {
 func (_u *QuoteUpdate) SetNillableAddedBy(v *string) *QuoteUpdate {
 	if v != nil {
 		_u.SetAddedBy(*v)
+	}
+	return _u
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (_u *QuoteUpdate) SetCreatedAt(v time.Time) *QuoteUpdate {
+	_u.mutation.SetCreatedAt(v)
+	return _u
+}
+
+// SetNillableCreatedAt sets the "created_at" field if the given value is not nil.
+func (_u *QuoteUpdate) SetNillableCreatedAt(v *time.Time) *QuoteUpdate {
+	if v != nil {
+		_u.SetCreatedAt(*v)
 	}
 	return _u
 }
@@ -120,6 +135,9 @@ func (_u *QuoteUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.AddedBy(); ok {
 		_spec.SetField(quote.FieldAddedBy, field.TypeString, value)
 	}
+	if value, ok := _u.mutation.CreatedAt(); ok {
+		_spec.SetField(quote.FieldCreatedAt, field.TypeTime, value)
+	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{quote.Label}
@@ -164,6 +182,20 @@ func (_u *QuoteUpdateOne) SetAddedBy(v string) *QuoteUpdateOne {
 func (_u *QuoteUpdateOne) SetNillableAddedBy(v *string) *QuoteUpdateOne {
 	if v != nil {
 		_u.SetAddedBy(*v)
+	}
+	return _u
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (_u *QuoteUpdateOne) SetCreatedAt(v time.Time) *QuoteUpdateOne {
+	_u.mutation.SetCreatedAt(v)
+	return _u
+}
+
+// SetNillableCreatedAt sets the "created_at" field if the given value is not nil.
+func (_u *QuoteUpdateOne) SetNillableCreatedAt(v *time.Time) *QuoteUpdateOne {
+	if v != nil {
+		_u.SetCreatedAt(*v)
 	}
 	return _u
 }
@@ -262,6 +294,9 @@ func (_u *QuoteUpdateOne) sqlSave(ctx context.Context) (_node *Quote, err error)
 	}
 	if value, ok := _u.mutation.AddedBy(); ok {
 		_spec.SetField(quote.FieldAddedBy, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.CreatedAt(); ok {
+		_spec.SetField(quote.FieldCreatedAt, field.TypeTime, value)
 	}
 	_node = &Quote{config: _u.config}
 	_spec.Assign = _node.assignValues

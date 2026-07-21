@@ -34,7 +34,9 @@ func (Quote) Fields() []ent.Field {
 		// Login of the moderator who saved it; audit only, never displayed.
 		field.String("added_by").Default("").MaxLen(64),
 
-		field.Time("created_at").Default(time.Now).Immutable(),
+		// The day the quote was said. Mutable so the dashboard can correct the
+		// date on an existing quote; chat saves never touch it after creation.
+		field.Time("created_at").Default(time.Now),
 	}
 }
 

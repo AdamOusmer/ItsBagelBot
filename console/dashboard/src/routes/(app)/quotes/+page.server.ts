@@ -2,9 +2,11 @@ import type { Actions, PageServerLoad } from './$types';
 import {
   readQuotes,
   addQuote,
+  editQuote,
   removeQuote,
   setEnabled,
-  setAddPerm,
+  setPerm,
+  type QuotePerms,
   type QuoteView
 } from '$lib/server/quotes-store';
 import { auditDashboardImpersonation } from '$lib/server/services';
@@ -16,9 +18,23 @@ import { fail } from '@sveltejs/kit';
 // The longest quote the modules service will store (repository.QuoteTextMaxLen).
 const QUOTE_MAX = 450;
 
-// Who may be granted the save permission; mirrors the sesame module's ParsePerm
-// keys and the module catalog's addPerm options.
-const ADD_PERMS = ['mod', 'vip', 'sub', 'everyone'] as const;
+// Who may be granted the save/edit permissions; mirrors the sesame module's
+// ParsePerm keys and the module catalog's perm options.
+const PERMS = ['mod', 'vip', 'sub', 'everyone'] as const;
+
+// Which module blob key a perm form writes: the save gate or the edit gate.
+const PERM_KINDS: Record<string, keyof QuotePerms> = { add: 'addPerm', edit: 'editPerm' };
+
+// parseQuoteText normalizes a submitted quote body (control chars collapse to
+// spaces) and reports why it is unusable; add and edit share the boundary.
+function parseQuoteText(value: FormDataEntryValue | null): { text?: string; error?: string } {
+  const text = String(value ?? '')
+    .replace(/[\u0000-\u001f]+/g, ' ')
+    .trim();
+  if (!text) return { error: 'Enter a quote to save.' };
+  if (text.length > QUOTE_MAX) return { error: `Quote is too long (max ${QUOTE_MAX}).` };
+  return { text };
+}
 
 function quoteDate(value: FormDataEntryValue | null): Date | null {
   const raw = String(value ?? '');
@@ -54,12 +70,12 @@ function demoQuotes(): QuoteView[] {
 export const load: PageServerLoad = async ({ locals }) => {
   gate(locals.session);
   const uid = effectiveId(locals.session);
-  if (env.DEMO === '1') return { enabled: true, addPerm: 'mod', quotes: demoQuotes() };
+  if (env.DEMO === '1') return { enabled: true, addPerm: 'mod', editPerm: 'mod', quotes: demoQuotes() };
   try {
     const view = await readQuotes(uid);
-    return { enabled: view.enabled, addPerm: view.addPerm, quotes: view.quotes };
+    return { enabled: view.enabled, addPerm: view.addPerm, editPerm: view.editPerm, quotes: view.quotes };
   } catch {
-    return { enabled: false, addPerm: 'mod', quotes: [] as QuoteView[], degraded: true };
+    return { enabled: false, addPerm: 'mod', editPerm: 'mod', quotes: [] as QuoteView[], degraded: true };
   }
 };
 
@@ -78,11 +94,8 @@ export const actions: Actions = {
     const ctx = await actionContext(event);
     if (!ctx) return notSignedIn();
 
-    const text = String(ctx.form.get('text') ?? '')
-      .replace(/[\u0000-\u001f]+/g, ' ')
-      .trim();
-    if (!text) return fail(400, { ok: false, error: 'Enter a quote to save.' });
-    if (text.length > QUOTE_MAX) return fail(400, { ok: false, error: `Quote is too long (max ${QUOTE_MAX}).` });
+    const { text, error } = parseQuoteText(ctx.form.get('text'));
+    if (!text) return fail(400, { ok: false, error });
 
     const createdAt = quoteDate(ctx.form.get('quote_date'));
     if (!createdAt) return fail(400, { ok: false, error: 'Choose a valid quote date.' });
@@ -102,6 +115,34 @@ export const actions: Actions = {
     } catch (e) {
       console.error('[quotes] add failed:', e instanceof Error ? (e.stack ?? e.message) : e);
       return fail(400, { ok: false, error: 'Could not save the quote.' });
+    }
+  },
+
+  // Rewrite one quote's text and day in place; the number survives.
+  edit: async (event) => {
+    const ctx = await actionContext(event);
+    if (!ctx) return notSignedIn();
+
+    const num = Math.trunc(Number(ctx.form.get('number')));
+    if (!Number.isFinite(num) || num <= 0) return fail(400, { ok: false, error: 'Invalid quote number.' });
+
+    const { text, error } = parseQuoteText(ctx.form.get('text'));
+    if (!text) return fail(400, { ok: false, error });
+
+    const createdAt = quoteDate(ctx.form.get('quote_date'));
+    if (!createdAt) return fail(400, { ok: false, error: 'Choose a valid quote date.' });
+
+    if (env.DEMO === '1') {
+      return { ok: true, action: 'edited', quote: { number: num, text, created_at: createdAt.toISOString() } };
+    }
+
+    try {
+      const quote = await editQuote(ctx.uid, num, text, createdAt.toISOString());
+      auditDashboardImpersonation(ctx.session, 'quotes:edit', String(num));
+      return { ok: true, action: 'edited', quote };
+    } catch (e) {
+      console.error('[quotes] edit failed:', e instanceof Error ? (e.stack ?? e.message) : e);
+      return fail(400, { ok: false, error: 'Could not update the quote.' });
     }
   },
 
@@ -142,19 +183,23 @@ export const actions: Actions = {
     }
   },
 
-  // Change who may save a quote from chat (moderator by default).
+  // Change who may save or edit a quote from chat (moderator by default).
+  // The form names which gate it writes via kind=add|edit.
   perm: async (event) => {
     const ctx = await actionContext(event);
     if (!ctx) return notSignedIn();
 
-    const raw = String(ctx.form.get('add_perm') ?? '');
-    const addPerm = (ADD_PERMS as readonly string[]).includes(raw) ? raw : 'mod';
-    if (env.DEMO === '1') return { ok: true, addPerm };
+    const kind = PERM_KINDS[String(ctx.form.get('kind') ?? '')];
+    if (!kind) return fail(400, { ok: false });
+
+    const raw = String(ctx.form.get('perm') ?? '');
+    const perm = (PERMS as readonly string[]).includes(raw) ? raw : 'mod';
+    if (env.DEMO === '1') return { ok: true, kind, perm };
 
     try {
-      await setAddPerm(ctx.uid, addPerm);
-      auditDashboardImpersonation(ctx.session, 'quotes:perm', addPerm);
-      return { ok: true, addPerm };
+      await setPerm(ctx.uid, kind, perm);
+      auditDashboardImpersonation(ctx.session, `quotes:perm:${kind}`, perm);
+      return { ok: true, kind, perm };
     } catch (e) {
       console.error('[quotes] perm failed:', e instanceof Error ? (e.stack ?? e.message) : e);
       return fail(400, { ok: false });

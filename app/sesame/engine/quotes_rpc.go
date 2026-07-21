@@ -88,6 +88,27 @@ func foundQuote(reply modulesrpc.QuoteReply, err error) (modulesrpc.Quote, bool,
 	return *reply.Quote, reply.Found, nil
 }
 
+// QuoteSearch returns a random quote whose text contains term
+// (case-insensitive); found=false when nothing matches.
+func (c *QuotesRPC) QuoteSearch(ctx context.Context, broadcasterID uint64, term string) (modulesrpc.Quote, bool, error) {
+	reply, err := c.call(ctx, "search", modulesrpc.QuoteRequest{
+		UserID: strconv.FormatUint(broadcasterID, 10),
+		Text:   term,
+	})
+	return foundQuote(reply, err)
+}
+
+// QuoteEdit replaces quote #number's text in place; found=false when the
+// number does not exist. Number and save date are untouched.
+func (c *QuotesRPC) QuoteEdit(ctx context.Context, broadcasterID, number uint64, text string) (modulesrpc.Quote, bool, error) {
+	reply, err := c.call(ctx, "edit", modulesrpc.QuoteRequest{
+		UserID: strconv.FormatUint(broadcasterID, 10),
+		Number: number,
+		Text:   text,
+	})
+	return foundQuote(reply, err)
+}
+
 // QuoteRemove deletes quote #number; found=false when it did not exist.
 func (c *QuotesRPC) QuoteRemove(ctx context.Context, broadcasterID, number uint64) (bool, error) {
 	reply, err := c.call(ctx, "remove", modulesrpc.QuoteRequest{
