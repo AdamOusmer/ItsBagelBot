@@ -15,11 +15,13 @@
     PageToolbar,
     AlertBanner,
     DeckList,
-    EmptyState
+    EmptyState,
+    moduleDef
   } from '@bagel/shared';
   import type { QuoteView } from '$lib/server/quotes-store';
   import QuoteRow from '$lib/components/quotes/QuoteRow.svelte';
   import QuoteEditor from '$lib/components/quotes/QuoteEditor.svelte';
+  import ModuleCommandRow from '$lib/components/modules/ModuleCommandRow.svelte';
 
   let { data } = $props();
   const { t } = getI18n();
@@ -43,6 +45,10 @@
       editPerm = data.editPerm ?? 'mod';
     }
   });
+
+  // The chat-commands reference rendered below the book, straight from the
+  // module catalog so it never drifts from the generic /modules/[id] page.
+  const quoteCommands = moduleDef('quotes')?.commands ?? [];
 
   const permOptions = [
     { value: 'mod', label: t('quotes.permMod') },
@@ -449,6 +455,24 @@
       {/if}
     </aside>
   </div>
+
+  <!-- Chat-commands reference: the same read-only rows the generic module
+       pages list, fed from the shared catalog def. -->
+  {#if quoteCommands.length}
+    <section class="block cmd-block" aria-labelledby="quotes-cmds-h">
+      <div class="cmd-head">
+        <h2 id="quotes-cmds-h" class="block-title">{t('modules.commandsTitle')}</h2>
+        <span class="cmd-hint">{t('modules.commandsHint')}</span>
+      </div>
+      <DeckList>
+        <ul class="list" aria-label={t('modules.commandsTitle')}>
+          {#each quoteCommands as command, i (command.trigger)}
+            <li><ModuleCommandRow {command} index={i + 1} /></li>
+          {/each}
+        </ul>
+      </DeckList>
+    </section>
+  {/if}
 </section>
 
 <svelte:window onkeydown={onKey} />
@@ -504,6 +528,11 @@
     border-radius: 7px;
     padding: 8px 10px;
   }
+
+  /* Chat-commands reference below the book. */
+  .cmd-block { margin-top: 26px; }
+  .cmd-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .cmd-hint { font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
 
   .toolbar-search { width: 220px; }
   .toolbar-search .search { width: 100%; }
