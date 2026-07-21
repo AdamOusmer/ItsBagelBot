@@ -16,7 +16,7 @@ import (
 // budget under the broadcaster's own user bucket. Twitch only allows updating a
 // redemption still in the UNFULFILLED state, so a redemption already resolved
 // (by a mod, or a skip-queue reward) returns a 4xx that is dropped, not retried.
-func (w *Worker) processRedemptionUpdate(ctx context.Context, payload outgress.Message) error {
+func (w *Worker) processRedemptionUpdate(ctx context.Context, payload *outgress.Message) error {
 	if !w.validRedemption(payload) {
 		return nil
 	}
@@ -45,7 +45,7 @@ func (w *Worker) processRedemptionUpdate(ctx context.Context, payload outgress.M
 
 // validRedemption reports whether a redemption job carries the ids and a target
 // status Twitch accepts; a malformed job is logged and dropped (returns false).
-func (w *Worker) validRedemption(payload outgress.Message) bool {
+func (w *Worker) validRedemption(payload *outgress.Message) bool {
 	if missingRedemptionIDs(payload) {
 		w.log.Error("dropping redemption update: missing ids",
 			zap.String("broadcaster_id", payload.BroadcasterID),
@@ -61,8 +61,13 @@ func (w *Worker) validRedemption(payload outgress.Message) bool {
 	return true
 }
 
-func missingRedemptionIDs(payload outgress.Message) bool {
-	return payload.BroadcasterID == "" || payload.RewardID == "" || payload.RedemptionID == ""
+func missingRedemptionIDs(payload *outgress.Message) bool {
+	switch "" {
+	case payload.BroadcasterID, payload.RewardID, payload.RedemptionID:
+		return true
+	default:
+		return false
+	}
 }
 
 func validRedemptionStatus(status string) bool {

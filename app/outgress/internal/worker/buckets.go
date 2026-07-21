@@ -56,7 +56,7 @@ var (
 // generalHelixRequests maps a message to the standard and shared bucket
 // requests for the token identity it will execute under, mirroring
 // twitch.ResolveIdentity so accounting and token selection cannot disagree.
-func generalHelixRequests(payload outgress.Message) (standard, shared ratelimit.Request) {
+func generalHelixRequests(payload *outgress.Message) (standard, shared ratelimit.Request) {
 	identity := twitch.ResolveIdentity(twitch.ParseIdentity(payload.As), payload.Endpoint)
 	switch identity {
 	case twitch.IdentityBot:
@@ -93,7 +93,7 @@ func (w *Worker) takeChat(ctx context.Context, broadcasterID string, isMod bool)
 // takeGeneralHelix consumes one token from the Helix budget backing the
 // message's token identity: the general app partition, the bot user budget,
 // or the target broadcaster's own user budget.
-func (w *Worker) takeGeneralHelix(ctx context.Context, payload outgress.Message) error {
+func (w *Worker) takeGeneralHelix(ctx context.Context, payload *outgress.Message) error {
 	standard, shared := generalHelixRequests(payload)
 	if w.lane == LaneStandard {
 		return w.takeOrdered(ctx, standard, shared)

@@ -17,7 +17,7 @@ import (
 // message id Twitch assigns it, then pins that id. duration_seconds is
 // intentionally absent from pinEndpoint: Twitch therefore keeps the pin for the
 // remainder of the current stream instead of applying a 30-1800 second timer.
-func (w *Worker) processPin(ctx context.Context, payload outgress.Message) error {
+func (w *Worker) processPin(ctx context.Context, payload *outgress.Message) error {
 	pin, mod, ok, err := w.preparePin(ctx, payload)
 	if err != nil {
 		return err
@@ -35,14 +35,14 @@ func (w *Worker) processPin(ctx context.Context, payload outgress.Message) error
 	}
 
 	pin.Endpoint = pinEndpoint(payload.BroadcasterID, mod, messageID)
-	w.finishPin(ctx, pin, messageID)
+	w.finishPin(ctx, &pin, messageID)
 	return nil
 }
 
 // preparePin reserves both rate-limit paths before the chat send. Once the
 // message exists, retrying the whole queue item would duplicate it just to retry
 // the pin, so every locally predictable wait must happen first.
-func (w *Worker) preparePin(ctx context.Context, payload outgress.Message) (outgress.Message, string, bool, error) {
+func (w *Worker) preparePin(ctx context.Context, payload *outgress.Message) (outgress.Message, string, bool, error) {
 	mod, ok := w.botIdentity("pin", payload)
 	if !ok {
 		return outgress.Message{}, "", false, nil
@@ -56,7 +56,7 @@ func (w *Worker) preparePin(ctx context.Context, payload outgress.Message) (outg
 		Method:        http.MethodPut,
 		As:            outgress.AsApp,
 	}
-	if err := w.takeGeneralHelix(ctx, pin); err != nil {
+	if err := w.takeGeneralHelix(ctx, &pin); err != nil {
 		return outgress.Message{}, "", false, err
 	}
 	if err := w.takePinChat(ctx, payload); err != nil {
@@ -65,7 +65,7 @@ func (w *Worker) preparePin(ctx context.Context, payload outgress.Message) (outg
 	return pin, mod, true, nil
 }
 
-func (w *Worker) takePinChat(ctx context.Context, payload outgress.Message) error {
+func (w *Worker) takePinChat(ctx context.Context, payload *outgress.Message) error {
 	registryStarted := time.Now()
 	ch, found, err := w.registry.Get(ctx, payload.BroadcasterID)
 	recordStageDuration(ctx, "outgress.registry_ms", registryStarted)
@@ -78,24 +78,27 @@ func (w *Worker) takePinChat(ctx context.Context, payload outgress.Message) erro
 // sendPinChat posts the text through the ordinary chat route and returns the id
 // Twitch assigned. An empty id means Twitch rejected or dropped the send and the
 // pin action is safely consumed.
-func (w *Worker) sendPinChat(ctx context.Context, payload outgress.Message, mod string) (string, error) {
-	chatRoute := typeRoutes[outgress.TypeChat]
-	chat := payload
+func (w *Worker) sendPinChat(ctx context.Context, payload *outgress.Message, mod string) (string, error) {
+	// The pin job arrives with the pin route resolved; the embedded send must
+	// carry the chat action's route instead, read from the same registry the
+	// dispatcher fills from (chat is always registered; Build guarantees it).
+	chatAction, _ := w.actions.Lookup(outgress.TypeChat)
+	chat := *payload
 	chat.Type = outgress.TypeChat
-	chat.Endpoint = chatRoute.endpoint
-	chat.Method = chatRoute.method
-	chat.As = chatRoute.as
+	chat.Endpoint = chatAction.Endpoint
+	chat.Method = chatAction.Method
+	chat.As = chatAction.As
 	chat.Payload = withSenderID(chat.Payload, mod)
 
-	res, err := w.executeRequest(ctx, chat)
+	res, err := w.executeRequest(ctx, &chat)
 	if err != nil {
 		return "", err
 	}
 	defer drainResponse(res)
-	return w.pinMessageID(ctx, payload, chat, res)
+	return w.pinMessageID(ctx, payload, &chat, res)
 }
 
-func (w *Worker) pinMessageID(ctx context.Context, payload, chat outgress.Message, res *http.Response) (string, error) {
+func (w *Worker) pinMessageID(ctx context.Context, payload, chat *outgress.Message, res *http.Response) (string, error) {
 	status := res.StatusCode
 	if err := w.helixResult(ctx, chat, res); err != nil {
 		return "", err
@@ -121,7 +124,7 @@ func (w *Worker) pinMessageID(ctx context.Context, payload, chat outgress.Messag
 	return messageID, nil
 }
 
-func (w *Worker) finishPin(ctx context.Context, pin outgress.Message, messageID string) {
+func (w *Worker) finishPin(ctx context.Context, pin *outgress.Message, messageID string) {
 	if err := w.execute(ctx, pin); err != nil {
 		// The chat message already exists. Retrying this compound action would send
 		// it again, so report the pin failure but consume the queue item.
