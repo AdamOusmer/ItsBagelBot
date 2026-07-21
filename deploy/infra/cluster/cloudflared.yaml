@@ -22,7 +22,7 @@ metadata:
   labels:
     app.kubernetes.io/name: cloudflared
 spec:
-  replicas: 3
+  replicas: 2 # one per non-worker node (node2, node3); node1 decommissioned
   revisionHistoryLimit: 3
   strategy:
     type: RollingUpdate

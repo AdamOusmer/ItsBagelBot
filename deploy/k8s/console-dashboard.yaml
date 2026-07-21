@@ -50,7 +50,7 @@ metadata:
   annotations:
     secrets.doppler.com/reload: "true"
 spec:
-  replicas: 3 # one per node; bump to match schedulable node count
+  replicas: 2 # one per schedulable node (node2, node3; no worker toleration)
   revisionHistoryLimit: 3
   minReadySeconds: 10
   strategy:
