@@ -19,6 +19,7 @@ const (
 	subscribeJSON = `{"user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2","tier":"1000"}`
 	cheerJSON     = `{"is_anonymous":false,"user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2","bits":100}`
 	anonCheerJSON = `{"is_anonymous":true,"broadcaster_user_id":"2","bits":50}`
+	adBreakJSON   = `{"broadcaster_user_id":"2","duration_seconds":90,"is_automatic":true}`
 )
 
 func alertsCtx(eventType, payload, config string) *module.Context {
@@ -141,6 +142,41 @@ func TestAlertsRaidDisabled(t *testing.T) {
 	var col collector
 	cfg := `{"raidEnabled":"off"}`
 	require.NoError(t, alertsHandler(t, "channel.raid")(context.Background(), alertsCtx("channel.raid", raidJSON, cfg), col.emit))
+	assert.Empty(t, col.out)
+}
+
+func TestAlertsAdBreakDefaultOff(t *testing.T) {
+	// Unlike every other alert, the ads alert must not fire until the
+	// broadcaster explicitly turns it on: absent, empty and "off" all suppress.
+	for _, cfg := range []string{``, `{}`, `{"adsEnabled":""}`, `{"adsEnabled":"off"}`} {
+		var col collector
+		require.NoError(t, alertsHandler(t, "channel.ad_break.begin")(context.Background(), alertsCtx("channel.ad_break.begin", adBreakJSON, cfg), col.emit))
+		assert.Empty(t, col.out, "cfg=%q must stay silent", cfg)
+	}
+}
+
+func TestAlertsAdBreakDefaultTemplate(t *testing.T) {
+	var col collector
+	cfg := `{"adsEnabled":"on"}`
+	require.NoError(t, alertsHandler(t, "channel.ad_break.begin")(context.Background(), alertsCtx("channel.ad_break.begin", adBreakJSON, cfg), col.emit))
+	require.Len(t, col.out, 1)
+	o := col.out[0]
+	assert.Equal(t, outgress.TypeChat, o.Type)
+	assert.Equal(t, "2", o.BroadcasterID)
+	assert.Contains(t, o.Text, "90")
+}
+
+func TestAlertsAdBreakCustomTemplate(t *testing.T) {
+	var col collector
+	cfg := `{"adsEnabled":"on","adsMessage":"break for {duration}s"}`
+	require.NoError(t, alertsHandler(t, "channel.ad_break.begin")(context.Background(), alertsCtx("channel.ad_break.begin", adBreakJSON, cfg), col.emit))
+	require.Len(t, col.out, 1)
+	assert.Equal(t, "break for 90s", col.out[0].Text)
+}
+
+func TestAlertsAdBreakIgnoresEmptyEvent(t *testing.T) {
+	var col collector
+	require.NoError(t, alertsHandler(t, "channel.ad_break.begin")(context.Background(), alertsCtx("channel.ad_break.begin", "", `{"adsEnabled":"on"}`), col.emit))
 	assert.Empty(t, col.out)
 }
 
