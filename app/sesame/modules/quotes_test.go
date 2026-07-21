@@ -2,6 +2,7 @@ package modules
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -67,6 +68,36 @@ func (f *fakeQuotes) QuoteRandom(_ context.Context, _ uint64) (modulesrpc.Quote,
 		}
 	}
 	return best, found, nil
+}
+
+func (f *fakeQuotes) QuoteSearch(_ context.Context, _ uint64, term string) (modulesrpc.Quote, bool, error) {
+	if f.err != nil {
+		return modulesrpc.Quote{}, false, f.err
+	}
+	var best modulesrpc.Quote
+	found := false
+	for _, q := range f.quotes {
+		if !strings.Contains(strings.ToLower(q.Text), strings.ToLower(term)) {
+			continue
+		}
+		if !found || q.Number < best.Number {
+			best, found = q, true
+		}
+	}
+	return best, found, nil
+}
+
+func (f *fakeQuotes) QuoteEdit(_ context.Context, _ uint64, number uint64, text string) (modulesrpc.Quote, bool, error) {
+	if f.err != nil {
+		return modulesrpc.Quote{}, false, f.err
+	}
+	q, ok := f.quotes[number]
+	if !ok {
+		return modulesrpc.Quote{}, false, nil
+	}
+	q.Text = text
+	f.quotes[number] = q
+	return q, true, nil
 }
 
 func (f *fakeQuotes) QuoteRemove(_ context.Context, _ uint64, number uint64) (bool, error) {
@@ -257,12 +288,166 @@ func TestQuoteRemoveUsage(t *testing.T) {
 	assert.Contains(t, out[0].Text, "Usage")
 }
 
-func TestQuoteUnknownArgsUsage(t *testing.T) {
+func TestQuoteSearchByWord(t *testing.T) {
+	f := newFakeQuotes("never trust a ferret", "bagels are sentient")
+	out := runQuotes(t, engine.Deps{Quotes: f}, quotesCtx("alice", ""), "Ferret")
+
+	require.Len(t, out, 1)
+	assert.Equal(t, `Quote #1: never trust a ferret (2026-07-10)`, out[0].Text)
+}
+
+func TestQuoteSearchMultiWordTerm(t *testing.T) {
+	f := newFakeQuotes("never trust a ferret", "bagels are sentient")
+	out := runQuotes(t, engine.Deps{Quotes: f}, quotesCtx("alice", ""), "are sentient")
+
+	require.Len(t, out, 1)
+	assert.Equal(t, `Quote #2: bagels are sentient (2026-07-10)`, out[0].Text)
+}
+
+func TestQuoteSearchNoMatch(t *testing.T) {
 	f := newFakeQuotes("one")
 	out := runQuotes(t, engine.Deps{Quotes: f}, quotesCtx("alice", ""), "something funny")
 
 	require.Len(t, out, 1)
+	assert.Contains(t, out[0].Text, `No quote matching "something funny"`)
+}
+
+func TestQuoteSearchRespectsCooldown(t *testing.T) {
+	f := newFakeQuotes("one")
+	cd := &countingCooldown{allow: false}
+	out := runQuotes(t, engine.Deps{Quotes: f, Cooldown: cd}, quotesCtx("alice", ""), "one")
+
+	assert.Empty(t, out)
+	assert.Equal(t, 1, cd.claims)
+}
+
+func runQuoteAdd(t *testing.T, d engine.Deps, c *module.Context, cmdName, args string) []module.Output {
+	t.Helper()
+	m := Quotes(d)
+	cmd := findCmd(t, m, cmdName)
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), c, args, col.emit))
+	return col.out
+}
+
+func TestQuoteAddCommandByMod(t *testing.T) {
+	f := newFakeQuotes()
+	out := runQuoteAdd(t, engine.Deps{Quotes: f}, quotesCtx("mod_amy", "moderator"), "quoteadd", "no quoting needed here")
+
+	require.Len(t, out, 1)
+	assert.Contains(t, out[0].Text, "added")
+	assert.Equal(t, "no quoting needed here", f.quotes[1].Text)
+	assert.Equal(t, "mod_amy", f.quotes[1].AddedBy)
+}
+
+func TestQuoteAddCommandQuotedBodyUnwrapped(t *testing.T) {
+	f := newFakeQuotes()
+	out := runQuoteAdd(t, engine.Deps{Quotes: f}, quotesCtx("mod_amy", "moderator"), "quoteadd", `"still unwraps"`)
+
+	require.Len(t, out, 1)
+	assert.Equal(t, "still unwraps", f.quotes[1].Text)
+}
+
+func TestQuoteAddCommandByViewerIsSilent(t *testing.T) {
+	f := newFakeQuotes()
+	out := runQuoteAdd(t, engine.Deps{Quotes: f}, quotesCtx("alice", ""), "quoteadd", "nice try")
+
+	assert.Empty(t, out)
+	assert.Empty(t, f.quotes)
+}
+
+func TestQuoteAddCommandHonorsAddPerm(t *testing.T) {
+	f := newFakeQuotes()
+	ctx := withAddPerm(quotesCtx("alice", ""), "everyone")
+	out := runQuoteAdd(t, engine.Deps{Quotes: f}, ctx, "quoteadd", "anyone can save")
+
+	require.Len(t, out, 1)
+	assert.Equal(t, "anyone can save", f.quotes[1].Text)
+}
+
+func TestQuoteAddCommandHasAddquoteAlias(t *testing.T) {
+	m := Quotes(engine.Deps{Quotes: newFakeQuotes()})
+	cmd := findCmd(t, m, "quoteadd")
+	assert.Contains(t, cmd.Aliases, "addquote")
+}
+
+func TestQuoteEditByMod(t *testing.T) {
+	f := newFakeQuotes("teh bagels")
+	out := runQuotes(t, engine.Deps{Quotes: f}, quotesCtx("mod_amy", "moderator"), "edit 1 the bagels")
+
+	require.Len(t, out, 1)
+	assert.Contains(t, out[0].Text, "#1")
+	assert.Contains(t, out[0].Text, "updated")
+	assert.Equal(t, "the bagels", f.quotes[1].Text)
+}
+
+func TestQuoteEditQuotedBody(t *testing.T) {
+	f := newFakeQuotes("old")
+	out := runQuotes(t, engine.Deps{Quotes: f}, quotesCtx("mod_amy", "moderator"), `edit 1 "new text"`)
+
+	require.Len(t, out, 1)
+	assert.Equal(t, "new text", f.quotes[1].Text)
+}
+
+func TestQuoteEditMissingNumber(t *testing.T) {
+	f := newFakeQuotes("one")
+	out := runQuotes(t, engine.Deps{Quotes: f}, quotesCtx("mod_amy", "moderator"), "edit 7 rewritten")
+
+	require.Len(t, out, 1)
+	assert.Contains(t, out[0].Text, "doesn't exist")
+	assert.Equal(t, "one", f.quotes[1].Text)
+}
+
+func TestQuoteEditUsageOnMalformed(t *testing.T) {
+	f := newFakeQuotes("one")
+	out := runQuotes(t, engine.Deps{Quotes: f}, quotesCtx("mod_amy", "moderator"), "edit ferret words")
+
+	require.Len(t, out, 1)
 	assert.Contains(t, out[0].Text, "Usage")
+	assert.Equal(t, "one", f.quotes[1].Text)
+}
+
+func TestQuoteEditByViewerIsSilent(t *testing.T) {
+	f := newFakeQuotes("one")
+	out := runQuotes(t, engine.Deps{Quotes: f}, quotesCtx("alice", ""), "edit 1 hijacked")
+
+	assert.Empty(t, out)
+	assert.Equal(t, "one", f.quotes[1].Text)
+}
+
+// withEditPerm sets the module's editPerm config on a context, as the engine
+// would from the broadcaster's ModuleView.
+func withEditPerm(c *module.Context, perm string) *module.Context {
+	c.Config = []byte(`{"editPerm":"` + perm + `"}`)
+	return c
+}
+
+func TestQuoteEditPermVipAllowsVip(t *testing.T) {
+	f := newFakeQuotes("old")
+	ctx := withEditPerm(quotesCtx("vippy", "vip"), "vip")
+	out := runQuotes(t, engine.Deps{Quotes: f}, ctx, "edit 1 vips can edit")
+
+	require.Len(t, out, 1)
+	assert.Equal(t, "vips can edit", f.quotes[1].Text)
+}
+
+func TestQuoteEditPermVipBlocksViewer(t *testing.T) {
+	f := newFakeQuotes("old")
+	ctx := withEditPerm(quotesCtx("alice", ""), "vip")
+	out := runQuotes(t, engine.Deps{Quotes: f}, ctx, "edit 1 nope")
+
+	assert.Empty(t, out)
+	assert.Equal(t, "old", f.quotes[1].Text)
+}
+
+// Edit stays gated on editPerm even when saving is opened to everyone.
+func TestQuoteEditIgnoresAddPerm(t *testing.T) {
+	f := newFakeQuotes("old")
+	ctx := withAddPerm(quotesCtx("alice", ""), "everyone")
+	out := runQuotes(t, engine.Deps{Quotes: f}, ctx, "edit 1 sneaky")
+
+	assert.Empty(t, out)
+	assert.Equal(t, "old", f.quotes[1].Text)
 }
 
 func TestQuoteReadCooldownThrottles(t *testing.T) {

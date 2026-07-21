@@ -33,7 +33,8 @@ type QuotesWiring struct {
 }
 
 // SubscribeQuotes answers the channel-quotes verbs under w.Prefix (default
-// "bagel.rpc.modules.quote"): add, get, random, remove. They ride the same
+// "bagel.rpc.modules.quote"): add, get, random, search, edit, remove, list.
+// They ride the same
 // MODULES_RPC account export as the dashboard verbs, so no ACL change is
 // needed for sesame to call them.
 func SubscribeQuotes(w QuotesWiring) error {
@@ -46,6 +47,8 @@ func SubscribeQuotes(w QuotesWiring) error {
 		{"add", q.handleAdd},
 		{"get", q.handleGet},
 		{"random", q.handleRandom},
+		{"search", q.handleSearch},
+		{"edit", q.handleEdit},
 		{"remove", q.handleRemove},
 		{"list", q.handleList},
 	}
@@ -104,6 +107,20 @@ func (q *quotesRPC) handleGet(ctx context.Context, req modulesrpc.QuoteRequest) 
 func (q *quotesRPC) handleRandom(ctx context.Context, req modulesrpc.QuoteRequest) modulesrpc.QuoteReply {
 	return q.withUserID(req, func(id uint64) modulesrpc.QuoteReply {
 		view, found, err := q.repo.Random(ctx, id)
+		return errReply(err, modulesrpc.QuoteReply{Quote: view, Found: found})
+	})
+}
+
+func (q *quotesRPC) handleSearch(ctx context.Context, req modulesrpc.QuoteRequest) modulesrpc.QuoteReply {
+	return q.withUserID(req, func(id uint64) modulesrpc.QuoteReply {
+		view, found, err := q.repo.Search(ctx, id, req.Text)
+		return errReply(err, modulesrpc.QuoteReply{Quote: view, Found: found})
+	})
+}
+
+func (q *quotesRPC) handleEdit(ctx context.Context, req modulesrpc.QuoteRequest) modulesrpc.QuoteReply {
+	return q.withUserID(req, func(id uint64) modulesrpc.QuoteReply {
+		view, found, err := q.repo.Update(ctx, id, req.Number, req.Text)
 		return errReply(err, modulesrpc.QuoteReply{Quote: view, Found: found})
 	})
 }

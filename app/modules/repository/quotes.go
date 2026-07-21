@@ -163,6 +163,66 @@ func (q *Quotes) Random(ctx context.Context, userID uint64) (*modulesrpc.Quote, 
 	return quoteView(row), true, nil
 }
 
+// Search returns a random quote whose text contains term (case-insensitive);
+// found=false when nothing matches. Random-among-matches mirrors Mix It Up's
+// "!quote <word>" and keeps a popular word from always landing on the same
+// quote. Count-then-offset like Random; the matching set is at most the
+// channel's book, so the scan stays negligible.
+func (q *Quotes) Search(ctx context.Context, userID uint64, term string) (*modulesrpc.Quote, bool, error) {
+	term = strings.TrimSpace(term)
+	if term == "" {
+		return nil, false, nil
+	}
+	match := q.client.Quote.Query().
+		Where(quote.UserID(userID), quote.TextContainsFold(term))
+	n, err := match.Count(ctx)
+	if err != nil {
+		return nil, false, err
+	}
+	if n == 0 {
+		return nil, false, nil
+	}
+	row, err := match.
+		Order(ent.Asc(quote.FieldNumber)).
+		Offset(rand.IntN(n)).
+		First(ctx)
+	if ent.IsNotFound(err) {
+		// A remove raced between the count and the read; treat as no match.
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	return quoteView(row), true, nil
+}
+
+// Update replaces quote #number's text in place; found=false when the number
+// does not exist. The number and save date are untouched so chat references
+// and the dated readout stay stable across an edit.
+func (q *Quotes) Update(ctx context.Context, userID, number uint64, text string) (*modulesrpc.Quote, bool, error) {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return nil, false, ErrQuoteEmpty
+	}
+	if len(text) > QuoteTextMaxLen {
+		return nil, false, ErrQuoteTooLong
+	}
+	row, err := q.client.Quote.Query().
+		Where(quote.UserID(userID), quote.Number(number)).
+		Only(ctx)
+	switch {
+	case ent.IsNotFound(err):
+		return nil, false, nil
+	case err != nil:
+		return nil, false, err
+	}
+	row, err = row.Update().SetText(text).Save(ctx)
+	if err != nil {
+		return nil, false, err
+	}
+	return quoteView(row), true, nil
+}
+
 // List returns the channel's whole quote book, lowest number first, for the
 // dashboard management page. A channel's book is small (a handful to a few
 // hundred), so returning it whole is fine.

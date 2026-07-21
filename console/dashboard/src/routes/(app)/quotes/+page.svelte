@@ -30,6 +30,8 @@
   // svelte-ignore state_referenced_locally
   let addPerm = $state<string>(data.addPerm ?? 'mod');
   // svelte-ignore state_referenced_locally
+  let editPerm = $state<string>(data.editPerm ?? 'mod');
+  // svelte-ignore state_referenced_locally
   let seed = data;
   $effect(() => {
     if (data !== seed) {
@@ -37,6 +39,7 @@
       quotes = data.quotes ?? [];
       enabled = data.enabled ?? false;
       addPerm = data.addPerm ?? 'mod';
+      editPerm = data.editPerm ?? 'mod';
     }
   });
 
@@ -104,12 +107,15 @@
   const NEW = '__new__';
   let expanded = $state<string | null>(null);
   let quoteDraft = $state<QuoteDraft | null>(null);
+  // The quote number being rewritten; null while the editor adds a new one.
+  let editTarget = $state<number | null>(null);
   let adding = $state(false);
   const selectedQuote = $derived(
     expanded && expanded !== NEW ? (quotes.find((quote) => String(quote.number) === expanded) ?? null) : null
   );
 
   function openNew() {
+    editTarget = null;
     quoteDraft = { text: '', quoteDate: todayInput() };
     expanded = NEW;
   }
@@ -120,12 +126,28 @@
       return;
     }
     quoteDraft = null;
+    editTarget = null;
     expanded = String(quote.number);
+  }
+
+  // openEdit swaps the inspector's detail pane for the editor, prefilled with
+  // the quote's current text.
+  function openEdit(quote: QuoteView) {
+    editTarget = quote.number;
+    quoteDraft = { text: quote.text, quoteDate: todayInput() };
+  }
+
+  // closeEditor returns from the edit form to the detail pane (the inspector
+  // stays open on the same quote).
+  function closeEditor() {
+    quoteDraft = null;
+    editTarget = null;
   }
 
   function closeInspector() {
     expanded = null;
     quoteDraft = null;
+    editTarget = null;
   }
 
   const addSubmit: SubmitFunction = () => {
@@ -144,19 +166,54 @@
     };
   };
 
-  let permForm = $state<HTMLFormElement | null>(null);
-  const permSubmit: SubmitFunction = () => {
-    const was = addPerm;
+  const editSubmit: SubmitFunction = () => {
+    if (!quoteDraft?.text.trim()) return;
+    adding = true;
     return async ({ result }) => {
+      adding = false;
       const payload = payloadOf(result);
-      if (result.type === 'success' && payload?.ok) return;
-      addPerm = was;
-      failed(payload, 'quotes.toastPermFailed');
+      if (result.type === 'success' && payload?.ok && payload.quote) {
+        const updated = payload.quote;
+        quotes = quotes.map((quote) => (quote.number === updated.number ? updated : quote));
+        closeEditor();
+        toast('ok', t('quotes.toastEdited'));
+        await invalidateAll();
+        return;
+      }
+      failed(payload, 'quotes.toastEditFailed');
     };
   };
-  function onPermChange(e: Event) {
+
+  // One revert-on-failure submit per perm select; both post ?/perm with a
+  // hidden kind field naming the gate they write.
+  function permSubmitFor(get: () => string, set: (value: string) => void): SubmitFunction {
+    return () => {
+      const was = get();
+      return async ({ result }) => {
+        const payload = payloadOf(result);
+        if (result.type === 'success' && payload?.ok) return;
+        set(was);
+        failed(payload, 'quotes.toastPermFailed');
+      };
+    };
+  }
+  let addPermForm = $state<HTMLFormElement | null>(null);
+  let editPermForm = $state<HTMLFormElement | null>(null);
+  const addPermSubmit = permSubmitFor(
+    () => addPerm,
+    (value) => (addPerm = value)
+  );
+  const editPermSubmit = permSubmitFor(
+    () => editPerm,
+    (value) => (editPerm = value)
+  );
+  function onAddPermChange(e: Event) {
     addPerm = (e.currentTarget as HTMLSelectElement).value;
-    permForm?.requestSubmit();
+    addPermForm?.requestSubmit();
+  }
+  function onEditPermChange(e: Event) {
+    editPerm = (e.currentTarget as HTMLSelectElement).value;
+    editPermForm?.requestSubmit();
   }
 
   let deleteTarget = $state<QuoteView | null>(null);
@@ -194,7 +251,9 @@
   }
   function onKey(e: KeyboardEvent) {
     if (e.key === 'Escape' && expanded) {
-      closeInspector();
+      // Editing steps back to the quote's detail pane; otherwise close.
+      if (editTarget !== null) closeEditor();
+      else closeInspector();
       return;
     }
     if (isTyping(e) || e.ctrlKey || e.metaKey || !e.altKey) return;
@@ -230,9 +289,20 @@
     {/snippet}
     {#snippet trail()}
       <div class="toolbar-actions">
-        <form method="POST" action="?/perm" use:enhance={permSubmit} bind:this={permForm} class="perm">
+        <form method="POST" action="?/perm" use:enhance={addPermSubmit} bind:this={addPermForm} class="perm">
+          <input type="hidden" name="kind" value="add" />
           <label for="add-perm">{t('quotes.permLabel')}</label>
-          <select id="add-perm" name="add_perm" value={addPerm} onchange={onPermChange}>
+          <select id="add-perm" name="perm" value={addPerm} onchange={onAddPermChange}>
+            {#each permOptions as option (option.value)}
+              <option value={option.value}>{option.label}</option>
+            {/each}
+          </select>
+        </form>
+
+        <form method="POST" action="?/perm" use:enhance={editPermSubmit} bind:this={editPermForm} class="perm">
+          <input type="hidden" name="kind" value="edit" />
+          <label for="edit-perm">{t('quotes.permEditLabel')}</label>
+          <select id="edit-perm" name="perm" value={editPerm} onchange={onEditPermChange}>
             {#each permOptions as option (option.value)}
               <option value={option.value}>{option.label}</option>
             {/each}
@@ -270,7 +340,7 @@
     {searching ? t('quotes.resultsCount', { n: rows.length }) : ''}
   </p>
 
-  <div class="deck" class:inspecting={expanded === NEW}>
+  <div class="deck" class:inspecting={expanded === NEW || editTarget !== null}>
     <DeckList>
       {#if rows.length}
         <ul class="list" aria-label={t('quotes.listLabel')}>
@@ -305,7 +375,13 @@
     <aside id="quote-inspector" class="inspector" class:open={expanded !== null} aria-label={t('quotes.inspector')}>
       <div class="inspector-head">
         <span class="inspector-tag">
-          {expanded === NEW ? t('quotes.newQuote') : selectedQuote ? t('quotes.quoteDetails') : t('quotes.inspector')}
+          {expanded === NEW
+            ? t('quotes.newQuote')
+            : editTarget !== null
+              ? t('quotes.editQuote')
+              : selectedQuote
+                ? t('quotes.quoteDetails')
+                : t('quotes.inspector')}
         </span>
         {#if expanded}
           <button class="mini" type="button" aria-label={t('common.cancel')} onclick={closeInspector}>
@@ -316,7 +392,13 @@
 
       {#if quoteDraft}
         <Scroller fill padding="16px" data-lenis-prevent>
-          <QuoteEditor bind:draft={quoteDraft} busy={adding} onCancel={closeInspector} onSubmit={addSubmit} />
+          <QuoteEditor
+            bind:draft={quoteDraft}
+            number={editTarget}
+            busy={adding}
+            onCancel={editTarget !== null ? closeEditor : closeInspector}
+            onSubmit={editTarget !== null ? editSubmit : addSubmit}
+          />
         </Scroller>
       {:else if selectedQuote}
         <Scroller fill padding="18px" data-lenis-prevent>
@@ -335,14 +417,14 @@
                 </div>
               {/if}
             </dl>
-            <Button
-              variant="destructive"
-              icon="trash"
-              class="detail-delete"
-              onclick={() => (deleteTarget = selectedQuote)}
-            >
-              {t('quotes.del')}
-            </Button>
+            <div class="detail-actions">
+              <Button variant="primary" icon="edit" onclick={() => selectedQuote && openEdit(selectedQuote)}>
+                {t('quotes.editBtnShort')}
+              </Button>
+              <Button variant="destructive" icon="trash" onclick={() => (deleteTarget = selectedQuote)}>
+                {t('quotes.del')}
+              </Button>
+            </div>
           </div>
         </Scroller>
       {:else}
@@ -490,7 +572,7 @@
   dl div { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; }
   dt { font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
   dd { margin: 0; font-family: var(--bb-font-mono); font-size: 12px; color: var(--bb-tan-light); text-align: right; }
-  .quote-detail :global(.detail-delete) { align-self: flex-start; margin-top: 4px; }
+  .detail-actions { display: flex; gap: 10px; align-self: flex-start; margin-top: 4px; }
   .inspector-backdrop { display: none; }
 
   @media (max-width: 1079px) {
