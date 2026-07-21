@@ -21,7 +21,7 @@
 
     - name: Listen for one authenticated probe token from every peer
       ansible.builtin.command: >-
-        {{ probe_path }} listen --port {{ wireguard_port }}
+        {{ probe_path }} listen --bind {{ wireguard_endpoint }} --port {{ wireguard_port }}
         --expected {{ groups['cluster'] | length - 1 }} --timeout 20
       async: 25
       poll: 0

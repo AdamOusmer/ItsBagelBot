@@ -6,10 +6,10 @@ import json
 import socket
 
 
-def listen(port: int, expected: int, timeout: float) -> None:
+def listen(bind: str, port: int, expected: int, timeout: float) -> None:
     tokens = set()
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
-        sock.bind(("0.0.0.0", port))
+        sock.bind((bind, port))
         sock.settimeout(timeout)
         while len(tokens) < expected:
             payload, _ = sock.recvfrom(512)
@@ -25,6 +25,7 @@ def send(endpoint: str, port: int, token: str) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("mode", choices=("listen", "send"))
+    parser.add_argument("--bind", default="127.0.0.1")
     parser.add_argument("--endpoint", default="")
     parser.add_argument("--port", type=int, default=51820)
     parser.add_argument("--token", default="")
@@ -32,7 +33,7 @@ def main() -> None:
     parser.add_argument("--timeout", type=float, default=15.0)
     args = parser.parse_args()
     if args.mode == "listen":
-        listen(args.port, args.expected, args.timeout)
+        listen(args.bind, args.port, args.expected, args.timeout)
     else:
         send(args.endpoint, args.port, args.token)
 
