@@ -63,7 +63,9 @@
     bits: '500',
     raider: 'CrustyCrumbs',
     raider_login: 'crustycrumbs',
-    viewers: '42'
+    viewers: '42',
+    count: '5',
+    duration: '90'
   };
   // Caller overrides win (e.g. a raid alert where {user} is the raiding channel).
   const SAMPLES = $derived<Record<string, string>>(
