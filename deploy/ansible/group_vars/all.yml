@@ -1,6 +1,6 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Fleet-wide config. NO secrets committed.
-# Secrets come from the environment, injected by `doppler run`:
+# Secrets come from infra-bootstrap/prd, injected by `doppler run`:
 #   K3S_TOKEN   — node1 join token
 #   TS_AUTHKEY  — Tailscale PRE-AUTHORIZED key, ephemeral=false, tagged tag:itsbagelbot
 # Optional:

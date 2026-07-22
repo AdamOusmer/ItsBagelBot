@@ -1,8 +1,6 @@
-# sesame replaces the worker: same lanes, same pkg/bus consumer group ("worker"),
-# same Doppler secret values. It reuses the worker's Doppler service token
-# (worker-doppler-token, created out-of-band and never pruned), so sesame-env
-# holds the identical secrets the worker read (VALKEY_*, NATS_CACHE_INVALIDATION_PREFIX,
-# TWITCH_SPECIAL_USER_IDS). Only the k8s secret name differs.
+# Sesame keeps the established pkg/bus consumer group ("worker"), but owns its
+# Doppler project and read-only service token. The old worker token is retained
+# out-of-band only as a short-lived rollback path during the project cutover.
 apiVersion: secrets.doppler.com/v1alpha1
 kind: DopplerSecret
 metadata:
@@ -11,7 +9,7 @@ metadata:
 spec:
   host: https://api.doppler.com
   tokenSecret:
-    name: worker-doppler-token
+    name: sesame-doppler-token
   managedSecret:
     name: sesame-env
     namespace: production

@@ -1,0 +1,141 @@
+{
+  "schemaVersion": 1,
+  "parents": {
+    "shared-runtime-defaults": {
+      "directConsumersAllowed": false,
+      "configs": {
+        "dev": ["LOG_LEVEL"],
+        "stg": ["LOG_LEVEL"],
+        "prd": ["LOG_LEVEL"]
+      }
+    },
+    "shared-observability": {
+      "directConsumersAllowed": false,
+      "configs": {
+        "dev": ["NEW_RELIC_LICENSE_KEY"],
+        "stg": ["NEW_RELIC_LICENSE_KEY"],
+        "prd": ["NEW_RELIC_LICENSE_KEY"]
+      }
+    },
+    "shared-nats-client": {
+      "directConsumersAllowed": false,
+      "configs": {
+        "dev": [
+          "NATS_BROADCASTER_STATUS_SUBJECT",
+          "NATS_CACHE_INVALIDATION_SUBJECT",
+          "NATS_HOST",
+          "NATS_PORT"
+        ],
+        "stg": [
+          "NATS_BROADCASTER_STATUS_SUBJECT",
+          "NATS_CACHE_INVALIDATION_SUBJECT",
+          "NATS_HOST",
+          "NATS_PORT"
+        ],
+        "prd": [
+          "NATS_BROADCASTER_STATUS_SUBJECT",
+          "NATS_CACHE_INVALIDATION_SUBJECT",
+          "NATS_HOST",
+          "NATS_PORT"
+        ]
+      }
+    },
+    "shared-valkey-client": {
+      "directConsumersAllowed": false,
+      "configs": {
+        "dev": [],
+        "stg": [],
+        "prd": ["VALKEY_ADDR"]
+      }
+    }
+  },
+  "services": {
+    "admin": {"inheritProfile": "full"},
+    "broadcaster-data": {"inheritProfile": "full"},
+    "dashboard": {"inheritProfile": "full"},
+    "lane-premium": {"inheritProfile": "full"},
+    "lane-standard": {"inheritProfile": "full"},
+    "lane-stream": {"inheritProfile": "full"},
+    "twitch-ingress": {"inheritProfile": "full"},
+    "gateway": {"inheritProfile": "production-full"},
+    "outgress": {"inheritProfile": "production-full"},
+    "commands": {"inheritProfile": "production-observability"},
+    "loyalty": {"inheritProfile": "production-observability"},
+    "modules": {"inheritProfile": "production-observability"},
+    "notifications": {"inheritProfile": "production-observability"},
+    "projector": {"inheritProfile": "production-observability"},
+    "transactions": {"inheritProfile": "production-observability"},
+    "users": {"inheritProfile": "production-observability"},
+    "sesame": {"inheritProfile": "production-observability"}
+  },
+  "profiles": {
+    "full": {
+      "dev": [
+        "shared-runtime-defaults.dev",
+        "shared-observability.dev",
+        "shared-nats-client.dev",
+        "shared-valkey-client.dev"
+      ],
+      "stg": [
+        "shared-runtime-defaults.stg",
+        "shared-observability.stg",
+        "shared-nats-client.stg",
+        "shared-valkey-client.stg"
+      ],
+      "prd": [
+        "shared-runtime-defaults.prd",
+        "shared-observability.prd",
+        "shared-nats-client.prd",
+        "shared-valkey-client.prd"
+      ],
+      "dev_personal": [
+        "shared-runtime-defaults.dev",
+        "shared-observability.dev",
+        "shared-nats-client.dev",
+        "shared-valkey-client.dev"
+      ]
+    },
+    "production-full": {
+      "prd": [
+        "shared-runtime-defaults.prd",
+        "shared-observability.prd",
+        "shared-nats-client.prd",
+        "shared-valkey-client.prd"
+      ]
+    },
+    "production-observability": {
+      "prd": ["shared-observability.prd"]
+    }
+  },
+  "integrations": {
+    "infra-bootstrap": {
+      "config": "prd",
+      "names": ["ANSIBLE_VAULT_PASSWORD", "K3S_TOKEN", "TS_AUTHKEY"],
+      "cliConsumers": ["deploy/ansible/provision.sh"]
+    },
+    "infra-crowdsec": {
+      "config": "prd",
+      "names": ["CROWDSEC_LAPI_SECRET", "CROWDSEC_REGISTRATION_TOKEN"],
+      "kubernetesTokenSecrets": ["crowdsec/infra-crowdsec-doppler-token"]
+    },
+    "infra-newrelic": {
+      "config": "prd",
+      "names": ["NEW_RELIC_LICENSE_KEY"],
+      "kubernetesTokenSecrets": ["newrelic/infra-newrelic-doppler-token"]
+    },
+    "infra-valkey-core": {
+      "config": "prd",
+      "names": ["VALKEY_CORE_PASSWORD"],
+      "kubernetesTokenSecrets": [
+        "newrelic/infra-valkey-core-doppler-token",
+        "valkey/infra-valkey-core-doppler-token"
+      ]
+    },
+    "infra-valkey-users": {
+      "config": "prd",
+      "names": ["VALKEY_USERS_ACL"],
+      "kubernetesTokenSecrets": ["valkey/infra-valkey-users-doppler-token"]
+    }
+  },
+  "rollbackProjects": ["infra", "shared", "worker"]
+}
