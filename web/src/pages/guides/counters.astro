@@ -1,0 +1,257 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import PageHero from '../../components/ui/PageHero.astro';
+import GuideShell from '../../components/guides/GuideShell.astro';
+import ChatMock from '../../components/guides/ChatMock.astro';
+import DashFrame from '../../components/guides/DashFrame.astro';
+
+const sections = [
+    { id: 'basics', heading: 'Counters: numbers that remember', note: 'One token, {counter:name}, adds 1 and shows the total. The count survives every stream.' },
+    { id: 'scopes', heading: 'Four ways to count', note: 'Whole channel, per user, per command, or both. Pick one when you create the counter; it sticks.' },
+    { id: 'chat', heading: 'Managing counters from chat', note: 'Create, bump, set, reset, delete, or just ask, all without leaving chat.' },
+    { id: 'dashboard', heading: 'The dashboard, and channel-point rewards', note: 'The Counters page for hands-on control, and how a reward binds to one.' },
+];
+---
+
+<Layout
+    title="Counters - ItsBagelBot Guides"
+    description="How ItsBagelBot counters work: the {counter:name} token, the four scopes (whole channel, per user, per command, per user + command), managing them with !counter, and binding one to a channel-point reward."
+    ogType="article"
+>
+    <PageHero
+        eyebrow="Guide 04"
+        title="Counters"
+        description="Track anything that happens more than once: deaths, hugs, redemptions. Choose how it's counted once, and the bot remembers forever."
+    />
+
+    <GuideShell
+        sections={sections}
+        minutes="8 min read"
+        prev={{ href: '/guides/modules', label: 'The modules handbook' }}
+    >
+        <Fragment slot="basics">
+            <p>
+                A counter is a named number the bot remembers between streams. Write
+                <code>&#123;counter:deaths&#125;</code> in a command's response, and every time the
+                command runs, the bot adds 1 to a counter called "deaths" and shows the new total
+                right there in its reply. No spreadsheet, no manual tally, just a token.
+            </p>
+            <ChatMock
+                title="#your_channel"
+                caption="Two runs of the same !death command, one counter remembering both."
+                lines={[
+                    { who: 'viewer', name: 'alex', text: '!death' },
+                    { who: 'bot', text: 'your_channel has died 47 times.' },
+                    { who: 'viewer', name: 'maya_live', text: '!death' },
+                    { who: 'bot', text: 'your_channel has died 48 times.' },
+                ]}
+            />
+            <p class="gtip">
+                <b>Counters need Loyalty Points</b>
+                Counters are stored by the <a href="/guides/modules">Loyalty Points module</a>. Switch
+                it on first, or <code>&#123;counter:…&#125;</code> stays as literal text in chat.
+            </p>
+        </Fragment>
+
+        <Fragment slot="scopes">
+            <p>
+                Every counter has exactly one <strong>scope</strong>, chosen the moment it's created,
+                and it stays that way for the counter's whole life. Scope answers one question: whose
+                number is this?
+            </p>
+            <div class="gtable-wrap">
+                <table>
+                    <thead><tr><th>Scope</th><th>Chat word</th><th>What's counted</th></tr></thead>
+                    <tbody>
+                        <tr><td>Whole channel</td><td><em>(default)</em></td><td>One shared total, everyone adds to the same number.</td></tr>
+                        <tr><td>Per user</td><td><code>user</code></td><td>Each viewer gets their own number.</td></tr>
+                        <tr><td>Per command or reward</td><td><code>command</code></td><td>One shared total for a single command or reward, every viewer pooled together.</td></tr>
+                        <tr><td>Per user + command or reward</td><td><code>user+command</code></td><td>Each viewer gets a separate number for each command or reward.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <h3>Whole channel</h3>
+            <p>
+                Everyone bumps the same shared number. Perfect for a tally that belongs to the stream
+                itself, not to any one viewer, like a running death count.
+            </p>
+            <ChatMock
+                title="#your_channel"
+                caption="Doesn't matter who types !death, the channel's total keeps climbing."
+                lines={[
+                    { who: 'viewer', name: 'alex', text: '!death' },
+                    { who: 'bot', text: 'your_channel has died 47 times.' },
+                    { who: 'viewer', name: 'sam', text: '!death' },
+                    { who: 'bot', text: 'your_channel has died 48 times.' },
+                ]}
+            />
+
+            <h3>Per user</h3>
+            <p>
+                Each viewer gets a private number, untouched by anyone else's. Good for personal
+                streaks: how many hugs someone has given, how many times they've won a game against
+                you.
+            </p>
+            <ChatMock
+                title="#your_channel"
+                caption="Same command, two viewers, two totally separate counts."
+                lines={[
+                    { who: 'viewer', name: 'maya_live', text: '!hug' },
+                    { who: 'bot', text: 'maya_live has given 12 hugs.' },
+                    { who: 'viewer', name: 'alex', text: '!hug' },
+                    { who: 'bot', text: 'alex has given 1 hug.' },
+                ]}
+            />
+
+            <h3>Per command or reward</h3>
+            <p>
+                The newest scope: one pooled total for a single command or channel-point reward,
+                with every viewer adding to the same number. Ideal for "how many times has this
+                specific reward been redeemed, total?"
+            </p>
+            <ChatMock
+                title="#your_channel"
+                caption="Two different viewers, the reward's own running total either way."
+                lines={[
+                    { who: 'system', text: 'channel points · maya_live redeemed Hydrate!' },
+                    { who: 'bot', text: 'Hydrate! has been redeemed 301 times.' },
+                    { who: 'system', text: 'channel points · alex redeemed Hydrate!' },
+                    { who: 'bot', text: 'Hydrate! has been redeemed 302 times.' },
+                ]}
+            />
+
+            <h3>Per user + command or reward</h3>
+            <p>
+                Combines both: every viewer gets a separate number for each command or reward that
+                shares this counter. Bind one counter to two commands and each viewer ends up with
+                one bucket per command, not one shared bucket for both.
+            </p>
+            <ChatMock
+                title="#your_channel"
+                caption="alex's count for !hug and their count for !highfive don't mix, even though both use the same counter."
+                lines={[
+                    { who: 'viewer', name: 'alex', text: '!hug' },
+                    { who: 'bot', text: 'alex has hugged 3 times.' },
+                    { who: 'viewer', name: 'alex', text: '!highfive' },
+                    { who: 'bot', text: 'alex has high-fived 1 time.' },
+                ]}
+            />
+
+            <p class="gwarn">
+                <b>Locked once created</b>
+                A counter's scope can't be changed afterward. Picked the wrong one? Delete it
+                (<code>!counter delete name</code>, or the dashboard) and create it again; the old
+                values don't carry over.
+            </p>
+        </Fragment>
+
+        <Fragment slot="chat">
+            <p>
+                You and your moderators can create and manage counters without leaving chat, all
+                under <code>!counter</code>:
+            </p>
+            <div class="gtable-wrap">
+                <table>
+                    <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>!counter create &lt;name&gt; [scope]</code></td><td>Creates a counter. Scope word is <code>user</code>, <code>command</code> or <code>user+command</code>; leave it out for the whole channel.</td></tr>
+                        <tr><td><code>!counter add &lt;name&gt; [amount]</code></td><td>Adds 1, or the amount you give. Negative numbers subtract.</td></tr>
+                        <tr><td><code>!counter set &lt;name&gt; &lt;value&gt;</code></td><td>Sets the total outright.</td></tr>
+                        <tr><td><code>!counter reset &lt;name&gt;</code></td><td>Clears it back to zero. For per-user or per-command counters, this wipes every stored bucket.</td></tr>
+                        <tr><td><code>!counter delete &lt;name&gt;</code></td><td>Removes the counter entirely.</td></tr>
+                        <tr><td><code>!counter list</code></td><td>Lists every counter on the channel and its scope.</td></tr>
+                        <tr><td><code>!counter &lt;name&gt;</code></td><td>Shows the current value, same as reading it in chat.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <ChatMock
+                title="#your_channel"
+                caption="Creating and bumping a counter, start to finish, without touching the dashboard."
+                lines={[
+                    { who: 'mod', name: 'mod_sam', text: '!counter create deaths' },
+                    { who: 'bot', text: '@mod_sam counter deaths created (whole channel).' },
+                    { who: 'mod', name: 'mod_sam', text: '!counter add deaths 5' },
+                    { who: 'bot', text: '@mod_sam deaths is now 5.' },
+                ]}
+            />
+            <p class="gtip">
+                <b>Command scope, from chat</b>
+                <code>!counter create hydrations command</code> makes a pooled per-command counter in
+                one line, ready to drop into a command's response, or bind to a channel-point reward,
+                as <code>&#123;counter:hydrations&#125;</code>.
+            </p>
+        </Fragment>
+
+        <Fragment slot="dashboard">
+            <p>
+                The <a href="https://dashboard.itsbagelbot.com/counters" target="_blank" rel="noopener noreferrer">Counters</a>
+                page lists every counter on your channel and lets you create, adjust, and delete them
+                by clicking instead of typing.
+            </p>
+            <DashFrame
+                path="/counters"
+                caption="New counter panel: name it, pick a scope, done. Existing rows get +/- steppers for whole-channel counters, or a values table for the others."
+                notes={[
+                    { n: 1, text: 'Name: the same string you\'d write inside {counter:…}.' },
+                    { n: 2, text: 'Counts: the scope. Fixed once you create it.' },
+                    { n: 3, text: "A plain-language reminder of where counters get bumped from." },
+                ]}
+            >
+                <div class="df-main" style="max-width:420px; margin:0 auto;">
+                    <div class="df-panel">
+                        <div class="df-panel-head">New counter <i>✕</i></div>
+                        <div class="df-field"><span>Name</span><div class="df-input">deaths<i class="df-dot" style="position:static; margin-left:auto;">1</i></div></div>
+                        <div class="df-field">
+                            <span>Counts</span>
+                            <div class="df-input">One total for the channel<i class="df-dot" style="position:static; margin-left:auto;">2</i></div>
+                        </div>
+                        <div class="df-chips"><i>whole channel</i><i>per user</i><i>per command</i><i>per user + command</i></div>
+                        <p style="font-family:var(--font-body); font-size:0.66rem; color:var(--muted); margin:0;">
+                            Bump it with &#123;counter:deaths&#125; in a command response, from a
+                            channel-point reward, or with !counter add.<i class="df-dot" style="position:static; margin-left:auto; display:inline-grid; vertical-align:middle;">3</i>
+                        </p>
+                        <div class="df-panel-foot"><span class="df-btn df-btn--ghost">Cancel</span><span class="df-btn df-btn--tan">✓ Create counter</span></div>
+                    </div>
+                </div>
+            </DashFrame>
+
+            <h3>Binding a counter to a channel-point reward</h3>
+            <p>
+                Every <a href="/guides/modules">Channel Points</a> reward can optionally keep a
+                counter of its own, right from the reward's editor: type a counter name (new or
+                existing), pick its scope, and every redemption bumps it. Use
+                <code>&#123;counter&#125;</code> in the reward's chat reply to show the new total.
+            </p>
+            <DashFrame
+                path="/channelpoints"
+                caption="The reward editor's counter block: a toggle, a name, and the same four scopes."
+                notes={[
+                    { n: 1, text: 'Off by default, most rewards don\'t need one.' },
+                    { n: 2, text: 'Per user + reward is usually the right call: each viewer builds their own redemption count for this reward.' },
+                ]}
+            >
+                <div class="df-main" style="max-width:420px; margin:0 auto;">
+                    <div class="df-panel">
+                        <div class="df-panel-head">Hydrate! <i>✕</i></div>
+                        <span class="df-check is-on">Keep a counter<i class="df-dot" style="position:static; margin-left:auto;">1</i></span>
+                        <div class="df-field"><span>Counter name</span><div class="df-input">hydrations</div></div>
+                        <div class="df-field">
+                            <span>What each redemption counts toward</span>
+                            <div class="df-input is-focus">Per user, per reward<i class="df-dot" style="position:static; margin-left:auto;">2</i></div>
+                        </div>
+                        <div class="df-chips"><i>whole channel</i><i>per user</i><i>per reward</i><i>per user + reward</i></div>
+                        <div class="df-panel-foot"><span class="df-btn df-btn--ghost">Cancel</span><span class="df-btn df-btn--tan">✓ Save reward</span></div>
+                    </div>
+                </div>
+            </DashFrame>
+            <p class="gtip">
+                <b>Try it in the builder</b>
+                The <a href="/command-builder">command builder</a> can walk you through naming a
+                counter and picking its scope, then hands you the finished
+                <code>&#123;counter:…&#125;</code> token.
+                <a href="/command-builder">Open the command builder →</a>
+            </p>
+        </Fragment>
+    </GuideShell>
+</Layout>

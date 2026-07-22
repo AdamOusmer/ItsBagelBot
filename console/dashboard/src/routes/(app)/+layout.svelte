@@ -60,15 +60,16 @@
   const section = $derived(
     path.startsWith('/commands')
       ? 'commands'
-      : path.startsWith('/modules') ||
-          path.startsWith('/quotes') ||
-          path.startsWith('/govee') ||
-          path.startsWith('/channelpoints') ||
-          path.startsWith('/timers') ||
-          path.startsWith('/loyalty') ||
-          path.startsWith('/counters')
-        ? 'modules'
-        : path.startsWith('/billing')
+      : path.startsWith('/counters')
+        ? 'counters'
+        : path.startsWith('/modules') ||
+            path.startsWith('/quotes') ||
+            path.startsWith('/govee') ||
+            path.startsWith('/channelpoints') ||
+            path.startsWith('/timers') ||
+            path.startsWith('/loyalty')
+          ? 'modules'
+          : path.startsWith('/billing')
           ? 'billing'
           : path.startsWith('/settings') || path.startsWith('/access')
             ? 'settings'
@@ -121,6 +122,11 @@
       : []),
     ...(canModules
       ? [{ href: '/modules', icon: 'modules', label: t('nav.modules'), active: section === 'modules' }]
+      : []),
+    // Counters ride the modules grant (loyalty's companion feature) but get a
+    // first-class entry of their own.
+    ...(canModules
+      ? [{ href: '/counters', icon: 'list', label: t('nav.counters'), active: section === 'counters' }]
       : []),
     ...(canBilling
       ? [{ href: '/billing', icon: 'card', label: t('nav.billing'), active: section === 'billing' }]

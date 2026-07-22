@@ -150,7 +150,7 @@ func (s *ValkeyLoyaltyStore) scope(ctx context.Context, broadcasterID uint64, na
 			return data.CounterScopeChannel, nil
 		}
 		switch c.Scope {
-		case data.CounterScopeViewer, data.CounterScopeViewerCommand:
+		case data.CounterScopeBot, data.CounterScopeViewer, data.CounterScopeCommand, data.CounterScopeViewerCommand:
 			return c.Scope, nil
 		default:
 			return data.CounterScopeChannel, nil
@@ -165,43 +165,73 @@ func (s *ValkeyLoyaltyStore) scope(ctx context.Context, broadcasterID uint64, na
 }
 
 // entryField is the hash field one entry-scoped value lives under: the viewer
-// id alone for viewer scope, "<command>:<viewer>" for viewer+command scope.
+// id alone for viewer scope, "<command>:<viewer>" for viewer+command scope,
+// "<command>:0" for the pooled command scope (mirroring its viewer_id=0 row).
 // The viewer id is digits-only, so the encoding never collides.
 func entryField(scope string, viewerID uint64, command string) string {
-	if scope == data.CounterScopeViewerCommand {
+	if bucketedScope(scope) {
 		return command + ":" + strconv.FormatUint(viewerID, 10)
 	}
 	return strconv.FormatUint(viewerID, 10)
 }
 
+// bucketedScope reports whether a scope keys its buckets by command.
+func bucketedScope(scope string) bool {
+	return scope == data.CounterScopeCommand || scope == data.CounterScopeViewerCommand
+}
+
+// rowScoped reports whether a scope keeps its value on the counter row (the
+// plain Valkey string) rather than in per-bucket entries.
+func rowScoped(scope string) bool {
+	return scope == data.CounterScopeChannel || scope == data.CounterScopeBot
+}
+
+// bumpTarget normalizes the (scope, viewer, command) triple a bump lands
+// under: bot and channel values ignore both; command scope pools every viewer
+// into the command bucket. An unaddressable bump falls back to the channel
+// value rather than dropping: a viewer scope without a viewer (should not
+// happen from chat), or a command scope bumped by a nameless source.
+func bumpTarget(scope string, viewerID uint64, command string) (string, uint64, string) {
+	switch scope {
+	case data.CounterScopeBot:
+		return scope, 0, ""
+	case data.CounterScopeCommand:
+		if command == "" {
+			return data.CounterScopeChannel, 0, ""
+		}
+		return scope, 0, command
+	case data.CounterScopeViewer, data.CounterScopeViewerCommand:
+		if viewerID == 0 {
+			return data.CounterScopeChannel, 0, ""
+		}
+		if scope == data.CounterScopeViewer {
+			command = ""
+		}
+		return scope, viewerID, command
+	default:
+		return data.CounterScopeChannel, 0, ""
+	}
+}
+
 // CounterBump increments a counter and returns the new chat-visible value.
 // viewerID is the acting chatter and command the triggering command's
 // canonical name; the counter's own scope decides which of them key the
-// value (the three modes: channel-global, per user, per user+command). The
-// Valkey key is seeded from the service on first touch so the increment
-// continues the stored count instead of restarting at zero.
+// value. The Valkey key is seeded from the service on first touch so the
+// increment continues the stored count instead of restarting at zero. Bot
+// scope rides broadcasterID 0 (the reserved bot namespace) and is reachable
+// only from admin/system callers — template and chat paths never pass 0.
 func (s *ValkeyLoyaltyStore) CounterBump(ctx context.Context, broadcasterID uint64, name string, viewerID uint64, command string, delta int64) (int64, error) {
 	name = NormalizeCounterName(name)
 	if name == "" || delta == 0 {
 		return 0, nil
 	}
-	scope := s.scope(ctx, broadcasterID, name)
-	command = NormalizeCounterName(command)
+	scope, viewerID, command := bumpTarget(s.scope(ctx, broadcasterID, name), viewerID, NormalizeCounterName(command))
 
 	var value int64
 	var err error
-	switch {
-	case scope == data.CounterScopeChannel || viewerID == 0:
-		// An entry-scoped counter bumped without a viewer (should not happen
-		// from chat) falls back to the channel value rather than dropping.
-		scope = data.CounterScopeChannel
-		viewerID = 0
-		command = ""
+	if rowScoped(scope) {
 		value, err = s.bumpChannel(ctx, broadcasterID, name, delta)
-	default:
-		if scope == data.CounterScopeViewer {
-			command = ""
-		}
+	} else {
 		value, err = s.bumpEntry(ctx, broadcasterID, name, entryField(scope, viewerID, command), viewerID, command, delta)
 	}
 	if err != nil {
@@ -289,8 +319,8 @@ func (s *ValkeyLoyaltyStore) peekView(ctx context.Context, broadcasterID uint64,
 		v   int64
 		err error
 	)
-	if scope != data.CounterScopeChannel && viewerID != 0 {
-		field := entryField(scope, viewerID, command)
+	if viewScope, viewViewer, viewCmd := bumpTarget(scope, viewerID, command); !rowScoped(viewScope) {
+		field := entryField(viewScope, viewViewer, viewCmd)
 		v, err = s.primary.Do(ctx, s.primary.B().Hget().Key(counterViewerKey(broadcasterID, name)).Field(field).Build()).AsInt64()
 	} else {
 		v, err = s.primary.Do(ctx, s.primary.B().Get().Key(counterChannelKey(broadcasterID, name)).Build()).AsInt64()

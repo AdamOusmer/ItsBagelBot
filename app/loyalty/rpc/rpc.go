@@ -36,9 +36,13 @@ type loyaltyRPC struct {
 //	<prefix>.counter.get    {user_id, name[, viewer_id, command]} -> {counter, found}
 //	<prefix>.counter.create {user_id, name, scope}          -> {counter}
 //	<prefix>.counter.set    {user_id, name, value[, viewer_id, command]} -> {found}
+//	<prefix>.counter.rename {user_id, name, new_name}       -> {found}
 //	<prefix>.counter.delete {user_id, name}                 -> {}
 //	<prefix>.counter.list   {user_id}                       -> {counters}
 //	<prefix>.counter.entries {user_id, name, limit}         -> {entries, found}
+//
+// Counter verbs accept user_id "0": the reserved bot namespace holding the
+// admin-only bot-scope counters. Balance verbs always require a broadcaster.
 func Subscribe(nc *nats.Conn, repo *repository.Loyalty, prefix, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
 	l := &loyaltyRPC{repo: repo, log: log}
 
@@ -53,6 +57,7 @@ func Subscribe(nc *nats.Conn, repo *repository.Loyalty, prefix, queueGroup strin
 		{"counter.get", l.handleCounterGet},
 		{"counter.create", l.handleCounterCreate},
 		{"counter.set", l.handleCounterSet},
+		{"counter.rename", l.handleCounterRename},
 		{"counter.delete", l.handleCounterDelete},
 		{"counter.list", l.handleCounterList},
 		{"counter.entries", l.handleCounterEntries},
@@ -68,10 +73,15 @@ func Subscribe(nc *nats.Conn, repo *repository.Loyalty, prefix, queueGroup strin
 }
 
 // parseIDs pulls the broadcaster id (required) and viewer id (optional) off a
-// request. ok=false carries the error reply.
-func parseIDs(req loyaltyrpc.Request) (userID, viewerID uint64, ok bool, reply loyaltyrpc.Reply) {
+// request. ok=false carries the error reply. allowBotNS admits user_id "0" —
+// the reserved bot namespace the counter verbs use for admin-only bot-scope
+// counters; balance verbs always require a real broadcaster.
+func parseIDs(req loyaltyrpc.Request, allowBotNS bool) (userID, viewerID uint64, ok bool, reply loyaltyrpc.Reply) {
 	uid, err := strconv.ParseUint(req.UserID, 10, 64)
-	if err != nil || uid == 0 {
+	if err != nil {
+		return 0, 0, false, loyaltyrpc.Reply{Error: "invalid user_id"}
+	}
+	if uid == 0 && !allowBotNS {
 		return 0, 0, false, loyaltyrpc.Reply{Error: "invalid user_id"}
 	}
 	if req.ViewerID != "" {
@@ -105,7 +115,7 @@ func balanceView(row *ent.Balance) *loyaltyrpc.Balance {
 }
 
 func (l *loyaltyRPC) handleBalanceGet(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
-	userID, viewerID, ok, reply := parseIDs(req)
+	userID, viewerID, ok, reply := parseIDs(req, false)
 	if !ok {
 		return reply
 	}
@@ -135,7 +145,7 @@ func (l *loyaltyRPC) handleBalanceAdd(ctx context.Context, req loyaltyrpc.Reques
 }
 
 func (l *loyaltyRPC) adjustBalance(ctx context.Context, req loyaltyrpc.Request, absolute bool) loyaltyrpc.Reply {
-	userID, _, ok, reply := parseIDs(req)
+	userID, _, ok, reply := parseIDs(req, false)
 	if !ok {
 		return reply
 	}
@@ -150,7 +160,7 @@ func (l *loyaltyRPC) adjustBalance(ctx context.Context, req loyaltyrpc.Request, 
 }
 
 func (l *loyaltyRPC) handleCounterEntries(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
-	userID, _, ok, reply := parseIDs(req)
+	userID, _, ok, reply := parseIDs(req, true)
 	if !ok {
 		return reply
 	}
@@ -171,7 +181,7 @@ func (l *loyaltyRPC) handleCounterEntries(ctx context.Context, req loyaltyrpc.Re
 }
 
 func (l *loyaltyRPC) handleTopGet(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
-	userID, _, ok, reply := parseIDs(req)
+	userID, _, ok, reply := parseIDs(req, false)
 	if !ok {
 		return reply
 	}
@@ -187,7 +197,7 @@ func (l *loyaltyRPC) handleTopGet(ctx context.Context, req loyaltyrpc.Request) l
 }
 
 func (l *loyaltyRPC) handleCounterGet(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
-	userID, viewerID, ok, reply := parseIDs(req)
+	userID, viewerID, ok, reply := parseIDs(req, true)
 	if !ok {
 		return reply
 	}
@@ -205,7 +215,7 @@ func (l *loyaltyRPC) handleCounterGet(ctx context.Context, req loyaltyrpc.Reques
 }
 
 func (l *loyaltyRPC) handleCounterCreate(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
-	userID, _, ok, reply := parseIDs(req)
+	userID, _, ok, reply := parseIDs(req, true)
 	if !ok {
 		return reply
 	}
@@ -219,31 +229,46 @@ func (l *loyaltyRPC) handleCounterCreate(ctx context.Context, req loyaltyrpc.Req
 	}
 }
 
-func (l *loyaltyRPC) handleCounterSet(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
-	userID, viewerID, ok, reply := parseIDs(req)
-	if !ok {
-		return reply
-	}
-	found, err := l.repo.CounterSet(ctx, userID, req.Name, viewerID, req.Command, req.Value)
+// foundReply maps the (found, err) pair the counter write verbs share: a
+// repository failure through fail, everything else into a bare Found reply.
+func (l *loyaltyRPC) foundReply(op string, found bool, err error) loyaltyrpc.Reply {
 	if err != nil {
-		return l.fail("loyalty counter.set", err)
+		return l.fail(op, err)
 	}
 	return loyaltyrpc.Reply{Found: found}
 }
 
-func (l *loyaltyRPC) handleCounterDelete(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
-	userID, _, ok, reply := parseIDs(req)
+func (l *loyaltyRPC) handleCounterSet(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
+	userID, viewerID, ok, reply := parseIDs(req, true)
 	if !ok {
 		return reply
 	}
-	if err := l.repo.CounterDelete(ctx, userID, req.Name); err != nil {
-		return l.fail("loyalty counter.delete", err)
+	found, err := l.repo.CounterSet(ctx, userID, req.Name, viewerID, req.Command, req.Value)
+	return l.foundReply("loyalty counter.set", found, err)
+}
+
+// handleCounterRename moves a counter (and its entry buckets) to a new name;
+// found=false means no counter carries the old name.
+func (l *loyaltyRPC) handleCounterRename(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
+	userID, _, ok, reply := parseIDs(req, true)
+	if !ok {
+		return reply
 	}
-	return loyaltyrpc.Reply{Found: true}
+	found, err := l.repo.CounterRename(ctx, userID, req.Name, req.NewName)
+	return l.foundReply("loyalty counter.rename", found, err)
+}
+
+func (l *loyaltyRPC) handleCounterDelete(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
+	userID, _, ok, reply := parseIDs(req, true)
+	if !ok {
+		return reply
+	}
+	err := l.repo.CounterDelete(ctx, userID, req.Name)
+	return l.foundReply("loyalty counter.delete", true, err)
 }
 
 func (l *loyaltyRPC) handleCounterList(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
-	userID, _, ok, reply := parseIDs(req)
+	userID, _, ok, reply := parseIDs(req, true)
 	if !ok {
 		return reply
 	}

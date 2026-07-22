@@ -1,0 +1,261 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import PageHero from '../../../components/ui/PageHero.astro';
+import GuideShell from '../../../components/guides/GuideShell.astro';
+import ChatMock from '../../../components/guides/ChatMock.astro';
+import DashFrame from '../../../components/guides/DashFrame.astro';
+
+const sections = [
+    { id: 'basics', heading: 'Les compteurs: des nombres qui se souviennent', note: 'Un seul jeton, {counter:name}, ajoute 1 et affiche le total. Le compte survit à chaque stream.' },
+    { id: 'scopes', heading: 'Quatre façons de compter', note: 'Toute la chaîne, par spectateur, par commande, ou les deux. Choisissez-en une à la création; elle reste fixée.' },
+    { id: 'chat', heading: 'Gérer les compteurs depuis le chat', note: 'Créer, ajouter, fixer, réinitialiser, supprimer ou simplement demander, sans quitter le chat.' },
+    { id: 'dashboard', heading: 'Le tableau de bord, et les récompenses de points de chaîne', note: 'La page Compteurs pour un contrôle direct, et comment une récompense s’y lie.' },
+];
+---
+
+<Layout
+    title="Compteurs - Guides ItsBagelBot"
+    description="Comment fonctionnent les compteurs d'ItsBagelBot: le jeton {counter:name}, les quatre portées (toute la chaîne, par spectateur, par commande, par spectateur + commande), leur gestion avec !counter, et la liaison à une récompense de points de chaîne."
+    ogType="article"
+>
+    <PageHero
+        eyebrow="Guide 04"
+        title="Compteurs"
+        description="Suivez tout ce qui arrive plus d'une fois: morts, câlins, échanges de récompenses. Choisissez comment ça se compte une seule fois, le bot se souvient pour toujours."
+    />
+
+    <GuideShell
+        sections={sections}
+        minutes="8 min de lecture"
+        prev={{ href: '/fr/guides/modules', label: 'Le manuel des modules' }}
+    >
+        <Fragment slot="basics">
+            <p>
+                Un compteur est un nombre nommé dont le bot se souvient d'un stream à l'autre. Écrivez
+                <code>&#123;counter:morts&#125;</code> dans la réponse d'une commande, et à chaque
+                utilisation, le bot ajoute 1 à un compteur nommé «morts» et affiche le nouveau total
+                directement dans sa réponse. Pas de tableur, pas de compte manuel, juste un jeton.
+            </p>
+            <ChatMock
+                title="#votre_chaine"
+                caption="Deux utilisations de la même commande !mort, un seul compteur qui se souvient des deux."
+                lines={[
+                    { who: 'viewer', name: 'alex', text: '!mort' },
+                    { who: 'bot', text: 'votre_chaine est mort 47 fois.' },
+                    { who: 'viewer', name: 'maya_live', text: '!mort' },
+                    { who: 'bot', text: 'votre_chaine est mort 48 fois.' },
+                ]}
+            />
+            <p class="gtip">
+                <b>Les compteurs demandent les Points de fidélité</b>
+                Les compteurs sont stockés par le <a href="/fr/guides/modules">module Points de fidélité</a>.
+                Activez-le d'abord, sinon <code>&#123;counter:…&#125;</code> reste du texte littéral dans
+                le chat.
+            </p>
+        </Fragment>
+
+        <Fragment slot="scopes">
+            <p>
+                Chaque compteur a exactement une <strong>portée</strong>, choisie au moment de sa
+                création, et elle reste la même toute sa vie. La portée répond à une seule question:
+                à qui appartient ce nombre?
+            </p>
+            <div class="gtable-wrap">
+                <table>
+                    <thead><tr><th>Portée</th><th>Mot-clé</th><th>Ce qui est compté</th></tr></thead>
+                    <tbody>
+                        <tr><td>Toute la chaîne</td><td><em>(par défaut)</em></td><td>Un seul total partagé, tout le monde ajoute au même nombre.</td></tr>
+                        <tr><td>Par spectateur</td><td><code>user</code></td><td>Chaque spectateur a son propre nombre.</td></tr>
+                        <tr><td>Par commande ou récompense</td><td><code>command</code></td><td>Un total partagé pour une seule commande ou récompense, tous les spectateurs réunis.</td></tr>
+                        <tr><td>Par spectateur + commande ou récompense</td><td><code>user+command</code></td><td>Chaque spectateur a un nombre séparé pour chaque commande ou récompense.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <h3>Toute la chaîne</h3>
+            <p>
+                Tout le monde fait avancer le même nombre partagé. Parfait pour un décompte qui
+                appartient au stream lui-même, pas à un spectateur en particulier, comme un compteur
+                de morts.
+            </p>
+            <ChatMock
+                title="#votre_chaine"
+                caption="Peu importe qui tape !mort, le total de la chaîne continue de grimper."
+                lines={[
+                    { who: 'viewer', name: 'alex', text: '!mort' },
+                    { who: 'bot', text: 'votre_chaine est mort 47 fois.' },
+                    { who: 'viewer', name: 'sam', text: '!mort' },
+                    { who: 'bot', text: 'votre_chaine est mort 48 fois.' },
+                ]}
+            />
+
+            <h3>Par spectateur</h3>
+            <p>
+                Chaque spectateur a un nombre privé, que personne d'autre ne touche. Idéal pour les
+                séries personnelles: combien de câlins quelqu'un a donnés, combien de fois il vous a
+                battu à un jeu.
+            </p>
+            <ChatMock
+                title="#votre_chaine"
+                caption="Même commande, deux spectateurs, deux comptes complètement séparés."
+                lines={[
+                    { who: 'viewer', name: 'maya_live', text: '!calin' },
+                    { who: 'bot', text: 'maya_live a donné 12 câlins.' },
+                    { who: 'viewer', name: 'alex', text: '!calin' },
+                    { who: 'bot', text: 'alex a donné 1 câlin.' },
+                ]}
+            />
+
+            <h3>Par commande ou récompense</h3>
+            <p>
+                La portée la plus récente: un seul total partagé pour une commande ou une récompense
+                de points de chaîne, où chaque spectateur ajoute au même nombre. Idéal pour «combien
+                de fois cette récompense précise a-t-elle été échangée, au total?»
+            </p>
+            <ChatMock
+                title="#votre_chaine"
+                caption="Deux spectateurs différents, le total de la récompense continue quand même."
+                lines={[
+                    { who: 'system', text: 'points de chaîne · maya_live a échangé Hydrate!' },
+                    { who: 'bot', text: 'Hydrate! a été échangé 301 fois.' },
+                    { who: 'system', text: 'points de chaîne · alex a échangé Hydrate!' },
+                    { who: 'bot', text: 'Hydrate! a été échangé 302 fois.' },
+                ]}
+            />
+
+            <h3>Par spectateur + commande ou récompense</h3>
+            <p>
+                Combine les deux: chaque spectateur a un nombre séparé pour chaque commande ou
+                récompense qui partage ce compteur. Liez un même compteur à deux commandes et chaque
+                spectateur se retrouve avec un compte par commande, pas un seul compte partagé pour
+                les deux.
+            </p>
+            <ChatMock
+                title="#votre_chaine"
+                caption="Le compte d'alex pour !calin et son compte pour !highfive ne se mélangent pas, même avec le même compteur."
+                lines={[
+                    { who: 'viewer', name: 'alex', text: '!calin' },
+                    { who: 'bot', text: 'alex a fait 3 câlins.' },
+                    { who: 'viewer', name: 'alex', text: '!highfive' },
+                    { who: 'bot', text: 'alex a fait 1 highfive.' },
+                ]}
+            />
+
+            <p class="gwarn">
+                <b>Fixée à la création</b>
+                La portée d'un compteur ne peut pas changer après coup. Mauvais choix? Supprimez-le
+                (<code>!counter delete nom</code>, ou le tableau de bord) et recréez-le; les anciennes
+                valeurs ne sont pas conservées.
+            </p>
+        </Fragment>
+
+        <Fragment slot="chat">
+            <p>
+                Vous et vos modérateurs pouvez créer et gérer des compteurs sans quitter le chat,
+                tout sous <code>!counter</code>:
+            </p>
+            <div class="gtable-wrap">
+                <table>
+                    <thead><tr><th>Commande</th><th>Ce qu'elle fait</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>!counter create &lt;nom&gt; [portée]</code></td><td>Crée un compteur. Le mot de portée est <code>user</code>, <code>command</code> ou <code>user+command</code>; omettez-le pour toute la chaîne.</td></tr>
+                        <tr><td><code>!counter add &lt;nom&gt; [montant]</code></td><td>Ajoute 1, ou le montant donné. Les nombres négatifs soustraient.</td></tr>
+                        <tr><td><code>!counter set &lt;nom&gt; &lt;valeur&gt;</code></td><td>Fixe le total directement.</td></tr>
+                        <tr><td><code>!counter reset &lt;nom&gt;</code></td><td>Le remet à zéro. Pour un compteur par spectateur ou par commande, ceci efface tous les comptes stockés.</td></tr>
+                        <tr><td><code>!counter delete &lt;nom&gt;</code></td><td>Supprime le compteur complètement.</td></tr>
+                        <tr><td><code>!counter list</code></td><td>Liste tous les compteurs de la chaîne et leur portée.</td></tr>
+                        <tr><td><code>!counter &lt;nom&gt;</code></td><td>Montre la valeur actuelle, comme la lire dans le chat.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <ChatMock
+                title="#votre_chaine"
+                caption="Créer et faire avancer un compteur, du début à la fin, sans toucher au tableau de bord."
+                lines={[
+                    { who: 'mod', name: 'mod_sam', text: '!counter create morts' },
+                    { who: 'bot', text: '@mod_sam compteur morts créé (toute la chaîne).' },
+                    { who: 'mod', name: 'mod_sam', text: '!counter add morts 5' },
+                    { who: 'bot', text: '@mod_sam morts est maintenant à 5.' },
+                ]}
+            />
+            <p class="gtip">
+                <b>Portée «par commande», depuis le chat</b>
+                <code>!counter create hydratations command</code> crée un compteur groupé par commande
+                en une ligne, prêt à glisser dans la réponse d'une commande, ou à lier à une récompense
+                de points de chaîne, comme <code>&#123;counter:hydratations&#125;</code>.
+            </p>
+        </Fragment>
+
+        <Fragment slot="dashboard">
+            <p>
+                La page <a href="https://dashboard.itsbagelbot.com/counters?lang=fr" target="_blank" rel="noopener noreferrer">Compteurs</a>
+                liste tous les compteurs de votre chaîne et permet de les créer, ajuster et supprimer
+                en cliquant plutôt qu'en tapant.
+            </p>
+            <DashFrame
+                path="/counters"
+                caption="Panneau «nouveau compteur»: nommez-le, choisissez une portée, terminé. Les lignes existantes ont des boutons +/- pour les compteurs de toute la chaîne, ou un tableau de valeurs pour les autres."
+                notes={[
+                    { n: 1, text: 'Nom: la même chaîne que vous écririez dans {counter:…}.' },
+                    { n: 2, text: 'Portée: fixée dès la création.' },
+                    { n: 3, text: 'Un rappel en langage clair d\'où les compteurs peuvent être avancés.' },
+                ]}
+            >
+                <div class="df-main" style="max-width:420px; margin:0 auto;">
+                    <div class="df-panel">
+                        <div class="df-panel-head">Nouveau compteur <i>✕</i></div>
+                        <div class="df-field"><span>Nom</span><div class="df-input">morts<i class="df-dot" style="position:static; margin-left:auto;">1</i></div></div>
+                        <div class="df-field">
+                            <span>Portée</span>
+                            <div class="df-input">Un total pour la chaîne<i class="df-dot" style="position:static; margin-left:auto;">2</i></div>
+                        </div>
+                        <div class="df-chips"><i>toute la chaîne</i><i>par spectateur</i><i>par commande</i><i>par spectateur + commande</i></div>
+                        <p style="font-family:var(--font-body); font-size:0.66rem; color:var(--muted); margin:0;">
+                            Avancez-le avec &#123;counter:morts&#125; dans la réponse d'une commande,
+                            depuis une récompense de points de chaîne, ou avec !counter add.<i class="df-dot" style="position:static; margin-left:auto; display:inline-grid; vertical-align:middle;">3</i>
+                        </p>
+                        <div class="df-panel-foot"><span class="df-btn df-btn--ghost">Annuler</span><span class="df-btn df-btn--tan">✓ Créer le compteur</span></div>
+                    </div>
+                </div>
+            </DashFrame>
+
+            <h3>Lier un compteur à une récompense de points de chaîne</h3>
+            <p>
+                Chaque récompense <a href="/fr/guides/modules">Points de chaîne</a> peut garder son
+                propre compteur, directement depuis l'éditeur de la récompense: tapez un nom de
+                compteur (nouveau ou existant), choisissez sa portée, et chaque échange l'avance.
+                Utilisez <code>&#123;counter&#125;</code> dans la réponse de chat de la récompense
+                pour afficher le nouveau total.
+            </p>
+            <DashFrame
+                path="/channelpoints"
+                caption="Le bloc compteur de l'éditeur de récompense: un interrupteur, un nom, et les mêmes quatre portées."
+                notes={[
+                    { n: 1, text: 'Désactivé par défaut, la plupart des récompenses n\'en ont pas besoin.' },
+                    { n: 2, text: 'Par spectateur + récompense est souvent le bon choix: chaque spectateur bâtit son propre compte d\'échanges pour cette récompense.' },
+                ]}
+            >
+                <div class="df-main" style="max-width:420px; margin:0 auto;">
+                    <div class="df-panel">
+                        <div class="df-panel-head">Hydrate! <i>✕</i></div>
+                        <span class="df-check is-on">Garder un compteur<i class="df-dot" style="position:static; margin-left:auto;">1</i></span>
+                        <div class="df-field"><span>Nom du compteur</span><div class="df-input">hydratations</div></div>
+                        <div class="df-field">
+                            <span>Ce que chaque échange compte</span>
+                            <div class="df-input is-focus">Par spectateur, par récompense<i class="df-dot" style="position:static; margin-left:auto;">2</i></div>
+                        </div>
+                        <div class="df-chips"><i>toute la chaîne</i><i>par spectateur</i><i>par récompense</i><i>par spectateur + récompense</i></div>
+                        <div class="df-panel-foot"><span class="df-btn df-btn--ghost">Annuler</span><span class="df-btn df-btn--tan">✓ Enregistrer</span></div>
+                    </div>
+                </div>
+            </DashFrame>
+            <p class="gtip">
+                <b>Essayez-le dans le constructeur</b>
+                Le <a href="/fr/command-builder">constructeur de commandes</a> peut vous guider pour
+                nommer un compteur et choisir sa portée, puis vous remet le jeton
+                <code>&#123;counter:…&#125;</code> terminé.
+                <a href="/fr/command-builder">Ouvrir le constructeur de commandes →</a>
+            </p>
+        </Fragment>
+    </GuideShell>
+</Layout>

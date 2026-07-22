@@ -164,7 +164,11 @@ const sections = [
             <p>
                 <code>&#123;counter:chutes&#125;</code> ajoute 1 au compteur nommé «chutes» et affiche
                 le nouveau total. Le compte survit aux streams: <code>!chute</code> peut suivre vos
-                dégringolades toute l'année.
+                dégringolades toute l'année. Chaque compteur a une portée, choisie à sa création, qui
+                détermine à qui appartient ce nombre: un seul total pour la chaîne, un par spectateur,
+                un groupé par commande ou récompense, ou un par spectateur et par commande. Le
+                <a href="/fr/guides/counters">guide des compteurs</a> présente les quatre avec des
+                exemples.
             </p>
             <ChatMock
                 title="#votre_chaine"

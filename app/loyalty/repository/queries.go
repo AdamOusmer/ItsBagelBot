@@ -31,11 +31,15 @@ const (
 // "bad request" reply instead of a generic failure.
 var ErrInvalidInput = errors.New("invalid input")
 
-// ValidCounterName reports the normalized name, or an error when it is empty
-// or oversized.
+// ValidCounterName reports the normalized name, or an error when it is empty,
+// oversized, or contains ':' — reserved so the worker's "{counter:bot:name}"
+// token prefix can never collide with a stored counter name.
 func ValidCounterName(name string) (string, error) {
 	n := normalizeName(name)
 	if n == "" || len(n) > maxCounterName {
+		return "", fmt.Errorf("%w: counter name", ErrInvalidInput)
+	}
+	if strings.Contains(n, ":") {
 		return "", fmt.Errorf("%w: counter name", ErrInvalidInput)
 	}
 	return n, nil
@@ -46,16 +50,27 @@ func ValidScope(scope string) (string, error) {
 	switch scope {
 	case "", data.CounterScopeChannel:
 		return data.CounterScopeChannel, nil
-	case data.CounterScopeViewer, data.CounterScopeViewerCommand:
+	case data.CounterScopeBot, data.CounterScopeViewer, data.CounterScopeCommand, data.CounterScopeViewerCommand:
 		return scope, nil
 	default:
 		return "", fmt.Errorf("%w: scope", ErrInvalidInput)
 	}
 }
 
-// entryScoped reports whether a scope keeps its values in counter_entries.
+// entryScoped reports whether a scope keeps its values in counter_entries;
+// bot and channel scopes keep the value on the counter row itself.
 func entryScoped(scope string) bool {
-	return scope == data.CounterScopeViewer || scope == data.CounterScopeViewerCommand
+	switch scope {
+	case data.CounterScopeViewer, data.CounterScopeCommand, data.CounterScopeViewerCommand:
+		return true
+	default:
+		return false
+	}
+}
+
+// bucketed reports whether a scope keys entries by command bucket.
+func bucketed(scope string) bool {
+	return scope == data.CounterScopeCommand || scope == data.CounterScopeViewerCommand
 }
 
 // BalanceGet returns one viewer's standing. A missing row is (zero, false, nil).
@@ -170,10 +185,32 @@ func (r *Loyalty) viewerLogins(ctx context.Context, userID uint64, rows []*ent.C
 	return logins
 }
 
+// entryTarget resolves how a read or write addresses one of row's entry
+// buckets: the (viewer, command) pair when the caller targeted one, ok=false
+// when untargeted. Untargeted means the row value answers a read and a set
+// resets the whole counter. Command scope targets by command alone (pooled
+// across viewers); the viewer scopes target by viewer; channel/bot never
+// target entries.
+func entryTarget(row *ent.Counter, viewerID uint64, command string) (uint64, string, bool) {
+	switch row.Scope {
+	case data.CounterScopeCommand:
+		cmd := normalizeCommand(command)
+		return 0, cmd, cmd != ""
+	case data.CounterScopeViewer:
+		return viewerID, "", viewerID != 0
+	case data.CounterScopeViewerCommand:
+		return viewerID, normalizeCommand(command), viewerID != 0
+	default:
+		return 0, "", false
+	}
+}
+
 // CounterGet resolves one counter: the definition, plus the effective value —
-// the row's own value for channel scope; the given viewer's entry (0 when the
-// viewer has none) for the entry scopes, with command selecting the bucket of
-// a viewer+command counter; and the row value when no viewer was given.
+// the row's own value for channel/bot scope; the selected bucket's value (0
+// when it has none) for the entry scopes: the viewer's entry for viewer
+// scope, the command bucket (pooled, viewer-independent) for command scope,
+// the (command, viewer) bucket for viewer+command scope. A viewer scope asked
+// without a viewer answers with the row value.
 func (r *Loyalty) CounterGet(ctx context.Context, userID uint64, name string, viewerID uint64, command string) (*ent.Counter, int64, bool, error) {
 	n, err := ValidCounterName(name)
 	if err != nil {
@@ -187,12 +224,9 @@ func (r *Loyalty) CounterGet(ctx context.Context, userID uint64, name string, vi
 	if err != nil || !found {
 		return nil, 0, found, err
 	}
-	if !entryScoped(row.Scope) || viewerID == 0 {
+	entryViewer, cmd, useEntry := entryTarget(row, viewerID, command)
+	if !useEntry {
 		return row, row.Value, true, nil
-	}
-	cmd := ""
-	if row.Scope == data.CounterScopeViewerCommand {
-		cmd = normalizeCommand(command)
 	}
 	entry, entryFound, err := getOptional(ctx, func(ctx context.Context) (*ent.CounterEntry, error) {
 		return r.client.CounterEntry.Query().
@@ -200,7 +234,7 @@ func (r *Loyalty) CounterGet(ctx context.Context, userID uint64, name string, vi
 				counterentry.UserIDEQ(userID),
 				counterentry.NameEQ(n),
 				counterentry.CommandEQ(cmd),
-				counterentry.ViewerIDEQ(viewerID),
+				counterentry.ViewerIDEQ(entryViewer),
 			).
 			Only(ctx)
 	})
@@ -234,6 +268,11 @@ func (r *Loyalty) CounterCreate(ctx context.Context, userID uint64, name, scope 
 	if err != nil {
 		return nil, err
 	}
+	// Bot scope and the bot namespace imply each other: user 0 holds only
+	// bot counters, and bot counters live only under user 0.
+	if (s == data.CounterScopeBot) != (userID == 0) {
+		return nil, fmt.Errorf("%w: scope", ErrInvalidInput)
+	}
 	return db.WithQuery(ctx, func(ctx context.Context) (*ent.Counter, error) {
 		err := r.client.Counter.Create().
 			SetUserID(userID).
@@ -251,11 +290,11 @@ func (r *Loyalty) CounterCreate(ctx context.Context, userID uint64, name, scope 
 	})
 }
 
-// CounterSet writes an absolute value. Channel scope sets the row value. For
-// the entry scopes, a non-zero viewerID upserts that viewer's entry (command
-// selects the bucket of a viewer+command counter); a zero viewerID resets the
-// whole counter (deletes every entry) — the "!counter reset" semantics. A
-// missing counter is (false, nil).
+// CounterSet writes an absolute value. Channel/bot scope sets the row value.
+// For the entry scopes, a targeted set (a viewer for the viewer scopes, a
+// command bucket for command scope) upserts that bucket; an untargeted set
+// resets the whole counter (deletes every entry), the "!counter reset"
+// semantics. A missing counter is (false, nil).
 func (r *Loyalty) CounterSet(ctx context.Context, userID uint64, name string, viewerID uint64, command string, value int64) (bool, error) {
 	row, _, found, err := r.CounterGet(ctx, userID, name, 0, "")
 	if err != nil || !found {
@@ -268,26 +307,79 @@ func (r *Loyalty) CounterSet(ctx context.Context, userID uint64, name string, vi
 				SetValue(value).
 				Exec(ctx)
 		}
-		if viewerID == 0 {
+		entryViewer, cmd, targeted := entryTarget(row, viewerID, command)
+		if !targeted {
 			_, err := r.client.CounterEntry.Delete().
 				Where(counterentry.UserIDEQ(userID), counterentry.NameEQ(row.Name)).
 				Exec(ctx)
 			return err
 		}
-		cmd := ""
-		if row.Scope == data.CounterScopeViewerCommand {
-			cmd = normalizeCommand(command)
-		}
 		return r.client.CounterEntry.Create().
 			SetUserID(userID).
 			SetName(row.Name).
 			SetCommand(cmd).
-			SetViewerID(viewerID).
+			SetViewerID(entryViewer).
 			SetValue(value).
 			OnConflict(entsql.ConflictColumns(counterentry.FieldUserID, counterentry.FieldName, counterentry.FieldCommand, counterentry.FieldViewerID)).
 			UpdateValue().
 			Exec(ctx)
 	})
+}
+
+// CounterRename moves a counter and its entry buckets to a new name, in one
+// transaction so a crash can never strand the buckets under the old name. The
+// target name must be free: a clash returns ErrInvalidInput so the caller can
+// surface "name taken" instead of a generic failure. A missing counter is
+// (false, nil). The worker's live Valkey view of the old name converges the
+// same way a delete does: TTL expiry, or re-seed from the service on the next
+// cold read.
+func (r *Loyalty) CounterRename(ctx context.Context, userID uint64, name, newName string) (bool, error) {
+	n, err := ValidCounterName(name)
+	if err != nil {
+		return false, err
+	}
+	nn, err := ValidCounterName(newName)
+	if err != nil || nn == n {
+		return false, fmt.Errorf("%w: new name", ErrInvalidInput)
+	}
+	renamed := false
+	err = db.WithExec(ctx, func(ctx context.Context) error {
+		return withTx(ctx, r.client, func(tx *ent.Tx) error {
+			updated, err := tx.Counter.Update().
+				Where(counter.UserIDEQ(userID), counter.NameEQ(n)).
+				SetName(nn).
+				Save(ctx)
+			if err != nil {
+				if ent.IsConstraintError(err) {
+					return fmt.Errorf("%w: name taken", ErrInvalidInput)
+				}
+				return err
+			}
+			if updated == 0 {
+				return nil
+			}
+			renamed = true
+			return tx.CounterEntry.Update().
+				Where(counterentry.UserIDEQ(userID), counterentry.NameEQ(n)).
+				SetName(nn).
+				Exec(ctx)
+		})
+	})
+	return renamed, err
+}
+
+// withTx runs fn inside one ent transaction, committing on success and
+// rolling back on error.
+func withTx(ctx context.Context, client *ent.Client, fn func(tx *ent.Tx) error) error {
+	tx, err := client.Tx(ctx)
+	if err != nil {
+		return err
+	}
+	if err := fn(tx); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+	return tx.Commit()
 }
 
 // CounterDelete removes a counter and its viewer entries.

@@ -1,7 +1,7 @@
 import type { Actions, PageServerLoad } from './$types';
 import type { CounterDef, CounterEntryView, CounterScope } from '@bagel/shared';
 import { COUNTER_SCOPES } from '@bagel/shared';
-import { listCounters, createCounter, setCounter, deleteCounter, counterEntries } from '$lib/server/loyalty-store';
+import { listCounters, createCounter, setCounter, renameCounter, deleteCounter, counterEntries } from '$lib/server/loyalty-store';
 import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
 import { gateModulePage } from '$lib/server/module-gate';
@@ -23,7 +23,23 @@ function demoCounters(): CounterDef[] {
   return [
     { name: 'deaths', scope: 'channel', value: 137 },
     { name: 'hugs', scope: 'viewer', value: 0 },
+    { name: 'raids', scope: 'command', value: 0 },
     { name: 'redeems', scope: 'viewer_command', value: 0 }
+  ];
+}
+
+// demoEntries mirrors what counter.entries returns for each demo counter, so
+// the inspector drill-down works offline too.
+function demoEntries(name: string): CounterEntryView[] {
+  if (name === 'raids') {
+    return [
+      { viewerId: '0', viewerLogin: '', command: 'raid', value: 41 },
+      { viewerId: '0', viewerLogin: '', command: 'so', value: 12 }
+    ];
+  }
+  return [
+    { viewerId: '101', viewerLogin: 'sesame_sam', command: name === 'redeems' ? 'hydrate' : '', value: 23 },
+    { viewerId: '102', viewerLogin: 'bagel_fan', command: name === 'redeems' ? 'hydrate' : '', value: 9 }
   ];
 }
 
@@ -42,7 +58,11 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   gate(locals.session);
   const uid = effectiveId(locals.session);
   const selected = normalizeName(url.searchParams.get('c'));
-  if (env.DEMO === '1') return { counters: demoCounters(), selected: '', entries: [] as CounterEntryView[] };
+  if (env.DEMO === '1') {
+    const demo = demoCounters();
+    const sel = demo.some((c) => c.name === selected && c.scope !== 'channel') ? selected : '';
+    return { counters: demo, selected: sel, entries: sel ? demoEntries(sel) : [] };
+  }
 
   try {
     const counters = await listCounters(uid);
@@ -104,6 +124,16 @@ export const actions: Actions = {
     const found = await setCounter(uid, name, value);
     if (!found) throw new Error('unknown counter');
     return `${name}=${value}`;
+  }),
+
+  rename: mutate('rename', async (uid, f) => {
+    const name = normalizeName(f.get('name'));
+    const newName = normalizeName(f.get('new_name'));
+    if (!name || !newName) return null;
+    if (newName === name) return null;
+    const found = await renameCounter(uid, name, newName);
+    if (!found) throw new Error('unknown counter');
+    return `${name}>${newName}`;
   }),
 
   delete: mutate('delete', async (uid, f) => {

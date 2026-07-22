@@ -161,7 +161,10 @@ const sections = [
             <p>
                 <code>&#123;counter:falls&#125;</code> adds 1 to a counter named "falls" and shows the
                 new total. The count survives streams, so <code>!fall</code> can track your tumbles all
-                year.
+                year. Every counter has a scope, chosen when it's created, that decides whose number
+                it is: one shared total for the channel, one per viewer, one pooled per command or
+                reward, or one per viewer per command. The <a href="/guides/counters">counters
+                guide</a> walks through all four with examples.
             </p>
             <ChatMock
                 title="#your_channel"

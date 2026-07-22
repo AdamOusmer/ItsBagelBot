@@ -10,6 +10,7 @@ type Request struct {
 	ViewerID    string `json:"viewer_id,omitempty"`    // chatter Twitch id
 	ViewerLogin string `json:"viewer_login,omitempty"` // chatter login (balance.set/add target)
 	Name        string `json:"name,omitempty"`         // counter name
+	NewName     string `json:"new_name,omitempty"`     // rename target (counter.rename)
 	Scope       string `json:"scope,omitempty"`        // data.CounterScope* (create)
 	Command     string `json:"command,omitempty"`      // viewer+command bucket key
 	Value       int64  `json:"value,omitempty"`        // absolute value (set) or delta (add)

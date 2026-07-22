@@ -16,7 +16,8 @@
     ['/notifications', 'Notifications'],
     ['/staff', 'Staff'],
     ['/audit', 'Audit'],
-    ['/secrets', 'Secrets']
+    ['/secrets', 'Secrets'],
+    ['/counters', 'Bot counters']
   ];
   const crumb = $derived(CRUMBS.find(([p]) => path.startsWith(p))?.[1] ?? 'Overview');
 
@@ -52,7 +53,8 @@
             items: [
               { href: '/staff', icon: 'moderation', label: 'Staff', active: crumb === 'Staff' },
               { href: '/audit', icon: 'audit', label: 'Audit', active: crumb === 'Audit' },
-              { href: '/secrets', icon: 'lock', label: 'Secrets', active: crumb === 'Secrets' }
+              { href: '/secrets', icon: 'lock', label: 'Secrets', active: crumb === 'Secrets' },
+              { href: '/counters', icon: 'list', label: 'Bot counters', active: crumb === 'Bot counters' }
             ]
           }
         ]
@@ -73,7 +75,8 @@
       ? [
           { href: '/staff', icon: 'moderation', label: 'Staff', active: crumb === 'Staff' },
           { href: '/audit', icon: 'audit', label: 'Audit', active: crumb === 'Audit' },
-          { href: '/secrets', icon: 'lock', label: 'Secrets', active: crumb === 'Secrets' }
+          { href: '/secrets', icon: 'lock', label: 'Secrets', active: crumb === 'Secrets' },
+          { href: '/counters', icon: 'list', label: 'Bot counters', active: crumb === 'Bot counters' }
         ]
       : [])
   ] as NavLink[]);
