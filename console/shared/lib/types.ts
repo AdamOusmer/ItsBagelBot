@@ -331,7 +331,8 @@ export interface ModuleCommandInfo {
 }
 
 export interface ModuleDef {
-  // id is the ModuleView.name key in the modules service.
+  // id is normally the ModuleView.name key in the modules service. Catalog
+  // tools with toggleable=false use it only as their stable UI key.
   id: string;
   label: string;
   tagline: string; // one-liner for the tile
@@ -339,6 +340,10 @@ export interface ModuleDef {
   icon: IconName;
   category: string;
   defaultEnabled: boolean;
+  // False for catalog tools that live under Modules but are always available
+  // rather than backed by an enableable row in the modules service. They keep
+  // the shared tile/delegation model without presenting a meaningless switch.
+  toggleable?: boolean;
   // If true, the module is hidden from the dashboard and unreachable.
   hidden?: boolean;
   // The module's configurable chat lines (the "commands" of the module page).
@@ -498,6 +503,21 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
     category: 'Community',
     defaultEnabled: false,
     href: '/loyalty',
+    replies: []
+  },
+  {
+    id: 'counters',
+    label: 'Counters',
+    tagline: 'Track wins, deaths, hugs, redeems — anything your chat can count.',
+    description:
+      'Create channel-wide, per-command, or per-viewer tallies. Adjust them from the dashboard or chat, and bump them from command responses and channel-point rewards.',
+    icon: 'list',
+    category: 'Community',
+    defaultEnabled: true,
+    toggleable: false,
+    href: '/counters',
+    // The default Modules delegation scope gives delegates access to the full
+    // counter book; commands-only delegates retain picker access separately.
     replies: []
   },
   {

@@ -179,13 +179,17 @@ function commandDigest(uid: string): Promise<CommandDigest> {
 
 function moduleDigest(uid: string): Promise<ModuleDigest> {
   const visibleCatalog = MODULE_CATALOG.filter((m) => !m.hidden);
-  const catalogIds = new Set(visibleCatalog.map((m) => m.id));
   return listModules(uid)
-    .then((rows) => ({
-      on: rows.filter((r) => catalogIds.has(r.name) && r.is_enabled).length,
-      total: visibleCatalog.length,
-      ok: true
-    }))
+    .then((rows) => {
+      const byName = new Map(rows.map((row) => [row.name, row]));
+      return {
+        on: visibleCatalog.filter((def) =>
+          def.toggleable === false ? true : (byName.get(def.id)?.is_enabled ?? def.defaultEnabled)
+        ).length,
+        total: visibleCatalog.length,
+        ok: true
+      };
+    })
     .catch(() => ({ on: 0, total: visibleCatalog.length, ok: false }));
 }
 

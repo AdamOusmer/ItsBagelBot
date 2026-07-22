@@ -13,10 +13,10 @@ function effectiveId(session: Session | null | undefined): string {
   return session?.delegate_of ?? session?.user_id ?? 'demo';
 }
 
-// Counters belong to the loyalty module even though they live on their own
-// page, so they share loyalty's delegate scope (see module-gate.ts).
+// Counters are a catalog-defined Modules tool, so the page and every action
+// derive delegate access from the same definition as its tile and route guard.
 function gate(session: Session | null | undefined): void {
-  gateModulePage(session, 'loyalty');
+  gateModulePage(session, 'counters');
 }
 
 function demoCounters(): CounterDef[] {
