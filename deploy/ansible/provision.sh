@@ -8,7 +8,8 @@
 #   ./provision.sh 51.x.x.x                 # auto-generated new node name, user=opc
 #   ./provision.sh 51.x.x.x opc node4       # explicit incremental name
 #
-# Doppler must hold:  K3S_TOKEN, TS_AUTHKEY   (TS_AUTHKEY = preauth key, tag:itsbagelbot)
+# Doppler project infra-bootstrap/prd must hold: K3S_TOKEN, TS_AUTHKEY
+# (TS_AUTHKEY = preauth key, tag:itsbagelbot).
 # Optional in Doppler/env:  NODE_ZONE
 #   NODE_POOL=worker-pool  -> taint+label the node so only tolerating pods land on it
 set -euo pipefail
@@ -26,4 +27,5 @@ EXTRA=(-e "target_host=${HOST}" -e "target_user=${USER_}")
 # NODE_NAME / NODE_POOL flow through the environment (lookup('env',...) in group_vars)
 export NODE_NAME NODE_POOL="${NODE_POOL:-}"
 
-exec doppler run -- ansible-playbook site.yml "${EXTRA[@]}" "${@:4}"
+exec doppler run --project infra-bootstrap --config prd -- \
+  ansible-playbook site.yml "${EXTRA[@]}" "${@:4}"

@@ -8,8 +8,9 @@ Any RHEL-family distro works — **Rocky, Alma, Oracle, RHEL, CentOS Stream**. P
 whatever you run your own stack on; the playbook checks `os_family == RedHat` and
 uses the family's generic repos (`dnf`, `rhel/$releasever` Tailscale repo, etc).
 
-Secrets never touch the repo. The run is wrapped with **Doppler**; the k3s token and
-the Tailscale pre-auth key come from the environment.
+Secrets never touch the repo. The run is wrapped with the least-privilege Doppler
+config `infra-bootstrap/prd`; the k3s token and Tailscale pre-auth key come from
+the environment.
 
 ## Debian → Red Hat is a reinstall, not an in-place convert
 
@@ -76,7 +77,7 @@ When adding a node, update `tailscale_direct_peers` in `group_vars/all.yml`
 
 ## Secrets (Doppler)
 
-Put these in the Doppler config you run with:
+Put these in Doppler config `infra-bootstrap/prd`:
 
 | Key | What |
 |-----|------|
@@ -103,7 +104,7 @@ ansible-galaxy collection install -r requirements.yml
 ./provision.sh 51.x.x.x opc node4
 
 # dry run first:
-NODE_NAME=node4 doppler run -- ansible-playbook site.yml \
+NODE_NAME=node4 doppler run --project infra-bootstrap --config prd -- ansible-playbook site.yml \
   -e target_host=51.x.x.x -e target_user=opc --check --diff
 ```
 
@@ -173,7 +174,8 @@ The play asserts that node1, node2, node3, and worker1 are all present before it
 changes a host. Running it against the default single-node provisioning
 inventory fails loudly instead of reporting a successful no-op.
 
-`provision.sh` is just a thin `doppler run -- ansible-playbook …` wrapper.
+`provision.sh` is a thin `doppler run --project infra-bootstrap --config prd --
+ansible-playbook …` wrapper.
 
 ### Compute-only nodes (taint + label)
 
