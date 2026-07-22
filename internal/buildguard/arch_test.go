@@ -24,14 +24,23 @@ func deps(t *testing.T, pkg string) []string {
 // projection (Valkey + the projector RPC); only the projector writes Valkey and
 // only the data services own a DB. A refactor that pulls an ent client or a SQL
 // driver into sesame would silently grant it a write path it must not have, so
-// fail the build here.
+// fail the build here. The stdlib database/sql package is not itself the guard
+// line: the New Relic security agent links it for instrumentation hooks, and
+// without a registered driver it cannot open a connection.
 func TestSesameIsReadOnlyToData(t *testing.T) {
 	for _, dep := range deps(t, "ItsBagelBot/app/sesame") {
-		isEnt := strings.HasPrefix(dep, "ItsBagelBot/") && (strings.HasSuffix(dep, "/ent") || strings.Contains(dep, "/ent/"))
-		if isEnt || dep == "ItsBagelBot/pkg/db" || dep == "database/sql" {
+		if isDataAccessPackage(dep) {
 			t.Fatalf("app/sesame must not depend on a DB/ent package, but links %q; sesame is read-only to the projection (Valkey + projector RPC)", dep)
 		}
 	}
+}
+
+// isDataAccessPackage reports whether dep gives a binary a usable database
+// path: the repo's ent code, the shared DB helper, or a concrete SQL driver.
+func isDataAccessPackage(dep string) bool {
+	isEnt := strings.HasPrefix(dep, "ItsBagelBot/") && (strings.HasSuffix(dep, "/ent") || strings.Contains(dep, "/ent/"))
+	isDriver := strings.HasPrefix(dep, "github.com/go-sql-driver/") || strings.Contains(dep, "/nrmysql")
+	return isEnt || isDriver || dep == "ItsBagelBot/pkg/db"
 }
 
 // TestEngineDoesNotImportModules enforces the DIP boundary: the engine (registry,

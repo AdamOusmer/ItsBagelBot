@@ -100,6 +100,10 @@ type Worker struct {
 	// interface exists so the marker's transition logic is testable without
 	// Valkey. Nil when no registry is configured, which disables the marker.
 	grants grantRegistry
+	// clipVerify bounds the in-flight background clip publication checks (see
+	// scheduleClipVerify). A full channel skips the check instead of queueing:
+	// the clip and its reply are unaffected, only the failure notice is lost.
+	clipVerify chan struct{}
 }
 
 // Config wires one lane worker's collaborators.
@@ -133,17 +137,18 @@ func New(cfg Config) *Worker {
 		grants = cfg.Registry
 	}
 	w := &Worker{
-		grants:   grants,
-		log:      cfg.Log,
-		limiter:  cfg.Limiter,
-		registry: cfg.Registry,
-		twitch:   cfg.Twitch,
-		botID:    cfg.BotID,
-		owner:    cfg.Owner,
-		conduit:  cfg.Conduit,
-		lane:     cfg.Lane,
-		batch:    cfg.Batch,
-		userIDs:  userIDs,
+		grants:     grants,
+		log:        cfg.Log,
+		limiter:    cfg.Limiter,
+		registry:   cfg.Registry,
+		twitch:     cfg.Twitch,
+		botID:      cfg.BotID,
+		owner:      cfg.Owner,
+		conduit:    cfg.Conduit,
+		lane:       cfg.Lane,
+		batch:      cfg.Batch,
+		userIDs:    userIDs,
+		clipVerify: make(chan struct{}, clipVerifySlots),
 	}
 	// Handlers capture w by method value, so late-attached collaborators
 	// (SetModVerifier, SetReauthNotifier, SetLiveWriter) are still seen.

@@ -48,6 +48,10 @@ type clipCreateReply struct {
 // public slug, and Get Clips reports exactly that link once processing
 // finishes, so polling it first only delayed the reply by seconds while
 // pinning a lane routine — the link resolves the moment Twitch publishes.
+// Create Clip is async, though, and a clip can die in processing AFTER the
+// 2xx, leaving the posted link permanently dead with no error to us. A
+// detached background check (scheduleClipVerify) polls Get Clips past the
+// publication window and posts a follow-up notice on confirmed absence.
 //
 // Redelivery safety: once the clip is created (2xx) this returns nil no matter
 // what happens to the reply — re-running the message would create a DUPLICATE
@@ -127,7 +131,8 @@ func (w *Worker) clipCreated(ctx context.Context, broadcasterID string, res *htt
 
 // replyWithClip reads the created clip's id off the response and posts the
 // public URL back to chat. The clip already exists, so failures here only
-// log; the caller acks regardless.
+// log; the caller acks regardless. A posted reply also arms the background
+// publication check: only then is there a link in chat that could go dead.
 func (w *Worker) replyWithClip(ctx context.Context, broadcasterID string, meta clipMeta, res *http.Response) {
 	id, err := clipID(res.Body)
 	if err != nil || id == "" {
@@ -140,7 +145,9 @@ func (w *Worker) replyWithClip(ctx context.Context, broadcasterID string, meta c
 	if err := w.sendClipReply(ctx, broadcasterID, meta, clipURL); err != nil {
 		w.log.Warn("clip created but reply chat failed",
 			zap.String("broadcaster_id", broadcasterID), zap.Error(err))
+		return
 	}
+	w.scheduleClipVerify(broadcasterID, meta.Clipper, id)
 }
 
 // clipID decodes the Create Clip response body and returns the new clip's id

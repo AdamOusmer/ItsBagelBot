@@ -6,6 +6,7 @@ import (
 
 	"ItsBagelBot/pkg/env"
 
+	"github.com/newrelic/go-agent/v3/integrations/nrsecurityagent"
 	"github.com/newrelic/go-agent/v3/newrelic"
 
 	"go.uber.org/zap"
@@ -25,7 +26,7 @@ func New(service string, log *zap.Logger) (*newrelic.Application, error) {
 		return nil, nil
 	}
 
-	return newrelic.NewApplication(
+	app, err := newrelic.NewApplication(
 		newrelic.ConfigAppName("ItsBagelBot-"+service),
 		newrelic.ConfigDistributedTracerEnabled(true),
 		// Kubernetes stdout is already forwarded by Fluent Bit. Keep the APM
@@ -38,6 +39,33 @@ func New(service string, log *zap.Logger) (*newrelic.Application, error) {
 		// code and any setting can be overridden per deployment.
 		newrelic.ConfigFromEnvironment(),
 	)
+	if err != nil {
+		return nil, err
+	}
+
+	initSecurityAgent(app, log)
+	return app, nil
+}
+
+// initSecurityAgent attaches the New Relic security agent, which reports the
+// binary's module list to Vulnerability Management and runs IAST scans. It
+// stays off unless a deployment opts in with NEW_RELIC_SECURITY_ENABLED=true,
+// because IAST actively probes the running service; remaining settings come
+// from the NEW_RELIC_SECURITY_* environment variables.
+func initSecurityAgent(app *newrelic.Application, log *zap.Logger) {
+
+	if !env.GetBool("NEW_RELIC_SECURITY_ENABLED", false) {
+		return
+	}
+
+	err := nrsecurityagent.InitSecurityAgent(app,
+		nrsecurityagent.ConfigSecurityFromEnvironment(),
+	)
+	if err != nil {
+		log.Warn("new relic security agent failed to start", zap.Error(err))
+		return
+	}
+	log.Info("new relic security agent enabled")
 }
 
 // linkingCore stamps New Relic entity linking attributes on every log entry so
