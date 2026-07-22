@@ -41,11 +41,6 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: production
-    # Allow communication to Linkerd control plane
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: linkerd
     # Allow communication to Valkey namespace
     - to:
         - namespaceSelector:
