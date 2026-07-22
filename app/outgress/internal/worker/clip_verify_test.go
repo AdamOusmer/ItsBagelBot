@@ -102,7 +102,7 @@ func TestClipConfirmedAbsent(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			rt := &scriptedTransport{responses: tc.responses}
 			w := clipVerifyWorker(t, rt)
-			got := w.clipConfirmedAbsent(context.Background(), "123", "AbCdEf", 0, 0)
+			got := w.clipConfirmedAbsent(context.Background(), clipProbe{broadcasterID: "123", clipID: "AbCdEf"}, 0, 0)
 			if got != tc.want {
 				t.Errorf("clipConfirmedAbsent = %v, want %v", got, tc.want)
 			}
@@ -119,7 +119,7 @@ func TestClipConfirmedAbsentCanceledContextStaysSilent(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	// Non-zero waits so the done context, not the expired timer, wins the select.
-	if w.clipConfirmedAbsent(ctx, "123", "AbCdEf", clipVerifyDelay, clipVerifyRecheck) {
+	if w.clipConfirmedAbsent(ctx, clipProbe{broadcasterID: "123", clipID: "AbCdEf"}, clipVerifyDelay, clipVerifyRecheck) {
 		t.Error("clipConfirmedAbsent = true on canceled context")
 	}
 	if rt.callCount() != 0 {
