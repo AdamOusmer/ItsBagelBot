@@ -2,7 +2,7 @@
 # Provision ONE fresh RHEL-family box into the fleet as a new node.
 #
 # Run wrapped with Doppler so secrets never touch the repo or process args:
-#   doppler run -- ansible-playbook site.yml -e target_host=<ip> -e target_user=opc
+#   doppler run -p infra-bootstrap -c prd -- ansible-playbook site.yml -e target_host=<ip> -e target_user=opc
 #
 # Order is load-bearing:
 #   base → selinux → firewall → tailscale → k3s_agent → ssh_removal (LAST).
@@ -29,14 +29,14 @@
           - tailscale_authkey | length > 0
         fail_msg: >-
           K3S_TOKEN and TS_AUTHKEY must be set in the environment.
-          Run via:  doppler run -- ansible-playbook site.yml ...
+          Run via: doppler run -p infra-bootstrap -c prd -- ansible-playbook site.yml ...
 
   roles:
     - role: base
     - role: selinux
     # Tagged so the firewall policy can be re-applied to an already-provisioned
     # node in isolation (e.g. to roll out the CNI trusted-zone binder):
-    #   doppler run -- ansible-playbook site.yml --tags firewall -e target_host=<tailnet-ip>
+    #   doppler run -p infra-bootstrap -c prd -- ansible-playbook site.yml --tags firewall -e target_host=<tailnet-ip>
     - role: firewall
       tags: [firewall]
     - role: tailscale
