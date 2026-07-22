@@ -10,10 +10,6 @@
 #     the same node instead of round-robining across the trans-Atlantic fleet.
 #     (A soft-anti-affinity Deployment did not hold: the scheduler drifted both
 #     replicas onto one node, so a single node loss took down all ingress.)
-#   - podAnnotations linkerd.io/inject: ingress: mesh traefik chart-natively so
-#     it survives helm-controller reconcile (no more manual `linkerd inject`).
-#     Requires the injector webhook to NOT exclude kube-system (patched
-#     separately); injection still gates on this per-pod annotation.
 #   - service type ClusterIP: traefik is reachable ONLY from inside the cluster.
 #     Public traffic arrives via the outbound cloudflared tunnel (itself a
 #     per-node DaemonSet), and the tailnet-facing admin path is the Tailscale
@@ -30,12 +26,6 @@ spec:
   valuesContent: |-
     deployment:
       kind: DaemonSet
-      podAnnotations:
-        # De-meshed as part of removing Linkerd. cloudflared->traefik:443 is
-        # already TLS + un-meshed; traefik->console-dashboard is HTTPS via the
-        # ServersTransport; console-admin is the tailscale operator. No hop here
-        # still depends on the mesh.
-        linkerd.io/inject: disabled
     service:
       type: ClusterIP
       spec:

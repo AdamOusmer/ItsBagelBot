@@ -44,14 +44,6 @@ spec:
     metadata:
       labels:
         app: sesame
-      annotations:
-        linkerd.io/inject: disabled
-        config.linkerd.io/proxy-cpu-request: 5m
-        config.linkerd.io/proxy-cpu-limit: 1000m
-        config.linkerd.io/proxy-memory-request: 16Mi
-        config.linkerd.io/proxy-memory-limit: 128Mi
-        # NATS is out of the mesh and encrypts the wire with native TLS.
-        config.linkerd.io/skip-outbound-ports: "4222"
     spec:
       tolerations:
         - key: itsbagelbot.dev/pool
@@ -66,8 +58,8 @@ spec:
           operator: Exists
           effect: NoExecute
           tolerationSeconds: 60
-      # node1 is the 2-core ARM node reserved for stateful/frontend + infra; keep
-      # the hot-path worker off it. KEDA (see the ScaledObject below) scales
+      # The node1 exclusion below is inert since node1 left the fleet; kept so
+      # the applied spec is unchanged. KEDA (see the ScaledObject below) scales
       # onto node2/node3/worker1.
       # Baseline shape at the KEDA floor of 5: node3=2, worker1=2, node2=1.
       # node2 already carries the control plane + valkey master, so the doubles
@@ -142,9 +134,9 @@ spec:
               value: tls://nats-0.nats-headless.production.svc.cluster.local:4222
             - name: NATS_HUB_PUBLISH_URL
               value: tls://nats:4222
-            # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS server
-            # TLS cert now that NATS is out of the Linkerd mesh; read as RootCAs by
-            # pkg/bus (Go services) and the console nats lib (TS).
+            # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS
+            # server's native-TLS cert; read as RootCAs by pkg/bus (Go services)
+            # and the console nats lib (TS).
             - name: NATS_CA_PEM
               valueFrom:
                 configMapKeyRef:

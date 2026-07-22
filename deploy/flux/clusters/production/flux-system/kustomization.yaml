@@ -4,9 +4,8 @@ resources:
 - gotk-components.yaml
 - gotk-sync.yaml
 patches:
-# Keep every Flux controller off node1. node1 is a 2-core, infra-loaded ARM host
-# being freed for its DB role (see node1-to-db-RUNBOOK.md); the controllers are
-# stateless (caches self-rebuild) so node2/node3 host them without a data move.
+# node1 left the cluster (dedicated DB host, 2026-07-21); this exclusion is
+# inert but kept so the applied controller specs stay unchanged.
 - target:
     kind: Deployment
   patch: |-

@@ -20,12 +20,8 @@ spec:
   template:
     metadata:
       annotations:
-        # NATS is intentionally OUT of the Linkerd mesh: at 150k ev/s the sidecar
-        # proxy is the dominant tax on the firehose (every message crossed a proxy
-        # on publish, on the hub, and on each consumer). Wire encryption is now
-        # NATS-native TLS (nats-server.conf) over native WireGuard; meshed apps bypass
-        # the proxy for the NATS port via config.linkerd.io/skip-outbound-ports.
-        linkerd.io/inject: disabled
+        # Wire encryption is NATS-native TLS (nats-server.conf) over native
+        # WireGuard.
         prometheus.io/path: /metrics
         prometheus.io/port: "7777"
         prometheus.io/scrape: "true"
@@ -46,23 +42,21 @@ spec:
           effect: NoExecute
           tolerationSeconds: 60
         # Tolerate worker1's worker-pool taint so the hub can run there (see the
-        # affinity note): worker1 is the 8-core/15GiB node that replaces node1 in
-        # the quorum.
+        # affinity note): worker1 is the 8-core/15GiB third quorum member.
         - key: itsbagelbot.dev/pool
           operator: Equal
           value: worker-pool
           effect: NoSchedule
-      # The JetStream hub is a 3-member RAFT quorum. node1 (a 2-core, infra-loaded
-      # ARM host) gated the whole StatefulSet's resources, since all three members
-      # share one pod template, so members now land on node2/node3/worker1
-      # instead. worker1 rides a home-wifi link, but with three voters a worker1
+      # The JetStream hub is a 3-member RAFT quorum on node2/node3/worker1.
+      # worker1 rides a home-wifi link, but with three voters a worker1
       # blip still leaves node2+node3 as a 2/3 quorum. Trade-off: an R1 stream
       # whose single replica lands on worker1 stalls while that link blips, so the
       # hot firehose must stay replicated or have its placement watched — validate
       # on the prod topology test before bumping resources (see the runbook).
-      # JetStream PVCs are local-path (node-bound): moving the node1 member means
-      # deleting jetstream-data-nats-2 + its pod so it reprovisions on worker1 and
-      # RAFT re-syncs it.
+      # JetStream PVCs are local-path (node-bound): moving a member to another
+      # node means deleting its jetstream-data PVC + pod so it reprovisions
+      # there and RAFT re-syncs it. The node1 exclusion below is inert since
+      # node1 left the fleet; kept so the applied spec is unchanged.
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -219,8 +213,6 @@ metadata:
     app: nats
   name: nats
   namespace: production
-  annotations:
-    config.linkerd.io/opaque-ports: "4222,6222"
 spec:
   # JetStream clients dial this Service directly. Prefer the hub on the same
   # node so node2/node3/worker1 avoid an unnecessary cross-node or home-WAN hop.
@@ -238,8 +230,6 @@ metadata:
     app: nats
   name: nats-headless
   namespace: production
-  annotations:
-    config.linkerd.io/opaque-ports: "4222,6222"
 spec:
   clusterIP: None
   publishNotReadyAddresses: true

@@ -34,11 +34,10 @@ spec:
   template:
     metadata:
       annotations:
-        # De-meshed. Replication and Sentinel announce stable StatefulSet DNS
-        # names over Flannel's native WireGuard pod network. Valkey TLS provides
+        # Replication and Sentinel announce stable StatefulSet DNS names over
+        # Flannel's native WireGuard pod network. Valkey TLS provides
         # end-to-end identity and encryption on data port 6380 and Sentinel
         # port 26380; neither listener is exposed through a node hostPort.
-        linkerd.io/inject: disabled
         secrets.doppler.com/reload: 'true'
       labels:
         app.kubernetes.io/component: node
@@ -120,7 +119,7 @@ spec:
           # Reconcile master eligibility on every boot. Retained PVCs may carry
           # a stale CONFIG REWRITE value, so only the explicit node2/node3
           # allowlist can remain eligible for Sentinel promotion. Every other
-          # node, including node1, worker1, and future unknown nodes, is fenced.
+          # node, including worker1 and future unknown nodes, is fenced.
           sed -i '/^replica-priority /d' /data/valkey.conf
           case "${NODE_NAME}" in
             node2|node3)
@@ -137,16 +136,11 @@ spec:
           sed -i '\|^include /config/tuning.conf$|d' /data/valkey.conf
           echo "include /config/tuning.conf" >> /data/valkey.conf
           # io-threads is deliberately reconciled on every boot instead of
-          # only on fresh PVCs. CONFIG REWRITE persists old values, and node1
-          # has only two cores while the remaining data-plane hosts have 6-8.
+          # only on fresh PVCs: CONFIG REWRITE persists old values.
           # Valkey 9.1 threads both reads and writes automatically; the former
           # io-threads-do-reads switch is deprecated and intentionally absent.
           sed -i '/^io-threads /d' /data/valkey.conf
-          if [ "${NODE_NAME}" = "node1" ]; then
-            echo "io-threads 1" >> /data/valkey.conf
-          else
-            echo "io-threads 2" >> /data/valkey.conf
-          fi
+          echo "io-threads 2" >> /data/valkey.conf
           # Reconcile this member's stable DNS identity before Valkey starts.
           sed -i '/^replica-announce-ip /d' /data/valkey.conf
           echo "replica-announce-ip ${POD_FQDN}" >> /data/valkey.conf

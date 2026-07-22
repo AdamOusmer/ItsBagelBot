@@ -74,7 +74,7 @@ to standard.
 | `NEW_RELIC_APP_NAME`                | New Relic application name.                                    | `itsbagelbot-twitch-ingress`                  |
 | `NATS_BROADCASTER_STATUS_SUBJECT`   | Request-reply subject for broadcaster status.                  | `bagel.rpc.broadcaster.status.get`            |
 | `BROADCASTER_STATUS_TIMEOUT_MS`     | RPC timeout.                                                   | `2000`                                        |
-| `NATS_CACHE_INVALIDATION_SUBJECT`   | Cache invalidation subject the ingress subscribes to.          | `bagel.cache.invalidate.broadcaster`          |
+| `NATS_CACHE_INVALIDATION_SUBJECT`   | Cache invalidation subject the ingress subscribes to.          | `bagel.cache.invalidate.status`               |
 | `BROADCASTER_CACHE_TTL_SECONDS`     | Status cache TTL.                                              | `300`                                         |
 | `INGRESS_SQUASH_PARTITIONS`         | Independent duplicate-cohort owners.                           | Online scheduler count                        |
 | `INGRESS_DISPATCHER_MAX_RUNNING`    | Fixed direct-dispatch worker count.                             | `512`                                         |

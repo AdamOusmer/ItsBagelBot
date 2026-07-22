@@ -24,8 +24,6 @@ kind: Service
 metadata:
   name: twitch-ingress-headless
   namespace: production
-  annotations:
-    config.linkerd.io/opaque-ports: "4369,9100-9110"
 spec:
   clusterIP: None
   publishNotReadyAddresses: true
@@ -68,19 +66,6 @@ spec:
     metadata:
       labels:
         app: twitch-ingress
-      annotations:
-        linkerd.io/inject: disabled
-        config.linkerd.io/proxy-cpu-request: 5m
-        config.linkerd.io/proxy-cpu-limit: 750m
-        config.linkerd.io/proxy-memory-request: 16Mi
-        config.linkerd.io/proxy-memory-limit: 96Mi
-        # Opaque ports for EPMD (4369) and Erlang distribution (9100-9110)
-        # to prevent Linkerd protocol detection timeouts on server-speaks-first.
-        config.linkerd.io/opaque-ports: "4369,9100-9110"
-        # Skip outbound: 443 for the server-speaks-first Twitch EventSub wss://
-        # sockets, and 4222 for NATS — now out of the mesh, so NATS-native TLS
-        # provides the encryption and the proxy would otherwise tax every event.
-        config.linkerd.io/skip-outbound-ports: "443,4222"
     spec:
       tolerations:
         - key: itsbagelbot.dev/pool
@@ -95,9 +80,9 @@ spec:
           operator: Exists
           effect: NoExecute
           tolerationSeconds: 60
-      # node1 (2-core ARM) is reserved for stateful/frontend + infra; keep ingress
-      # off it via nodeAffinity. Eligible nodes are node2/node3/worker1, and the
-      # three replicas are spread one per eligible node in steady state.
+      # Eligible nodes are node2/node3/worker1; the three replicas are spread
+      # one per eligible node in steady state. The node1 exclusion below is
+      # inert since node1 left the fleet; kept so the applied spec is unchanged.
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -156,10 +141,10 @@ spec:
               value: nats-leaf
             - name: NATS_HUB_HOST
               value: nats
-            # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS server
-            # TLS cert now that NATS is out of the Linkerd mesh; decoded to ssl_opts
-            # cacerts in config/runtime.exs. Both :gnat (leaf) and :gnat_bus (hub)
-            # verify against it.
+            # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS
+            # server's native-TLS cert; decoded to ssl_opts cacerts in
+            # config/runtime.exs. Both :gnat (leaf) and :gnat_bus (hub) verify
+            # against it.
             - name: NATS_CA_PEM
               valueFrom:
                 configMapKeyRef:

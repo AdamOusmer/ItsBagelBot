@@ -36,14 +36,6 @@ spec:
     metadata:
       labels:
         app: projector
-      annotations:
-        linkerd.io/inject: disabled
-        config.linkerd.io/proxy-cpu-request: 5m
-        config.linkerd.io/proxy-cpu-limit: 750m
-        config.linkerd.io/proxy-memory-request: 16Mi
-        config.linkerd.io/proxy-memory-limit: 96Mi
-        # NATS is out of the mesh and encrypts the wire with native TLS.
-        config.linkerd.io/skip-outbound-ports: "4222"
     spec:
       tolerations:
         - key: itsbagelbot.dev/pool
@@ -108,9 +100,9 @@ spec:
               value: nats://nats-1.nats-headless.production.svc.cluster.local:4222
             - name: NATS_HUB_PUBLISH_URL
               value: nats://nats:4222
-            # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS server
-            # TLS cert now that NATS is out of the Linkerd mesh; read as RootCAs by
-            # pkg/bus (Go services) and the console nats lib (TS).
+            # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS
+            # server's native-TLS cert; read as RootCAs by pkg/bus (Go services)
+            # and the console nats lib (TS).
             - name: NATS_CA_PEM
               valueFrom:
                 configMapKeyRef:

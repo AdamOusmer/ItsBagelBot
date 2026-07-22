@@ -191,8 +191,8 @@ node-label: itsbagelbot.dev/pool=worker-pool
 node-taint: itsbagelbot.dev/pool=worker-pool:NoSchedule
 ```
 Pods opt in with a matching toleration (already added to the production compute
-Deployments + `nats-leaf`). `linkerd-cni` / `host-research` tolerate all taints, so
-mesh + CNI work; `falco` / `crowdsec-agent` were patched to tolerate the pool too.
+Deployments + `nats-leaf`). `host-research` tolerates all taints;
+`falco` / `crowdsec-agent` were patched to tolerate the pool too.
 Leave `NODE_POOL` unset for normal cloud nodes (no taint).
 
 ## ⚠️ SSH is removed — read before running

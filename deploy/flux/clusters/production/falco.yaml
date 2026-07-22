@@ -23,9 +23,9 @@
 #   - metrics.enabled true: renders the falco-metrics Service and flips
 #     webserver.prometheus_metrics_enabled, both live. The prometheus.io pod
 #     annotations are the podAnnotations below.
-#   - resources trimmed way below chart defaults (node1 is a 2-core host),
-#     infra-low priority class, and the itsbagelbot.dev/pool=worker-pool
-#     toleration so the DaemonSet lands on worker1 too (4/4 nodes).
+#   - resources trimmed way below chart defaults (small fleet, tight CPU
+#     budgets), infra-low priority class, and the itsbagelbot.dev/pool=
+#     worker-pool toleration so the DaemonSet lands on worker1 too (3/3 nodes).
 #   - falcoctl config needs ZERO overrides: rules artifact falco-rules:5,
 #     container plugin 0.6.3 and follow every 168h are all 8.0.3 defaults
 #     (live falcoctl.yaml diffs empty against the default render). The one
@@ -147,7 +147,7 @@ spec:
         value: worker-pool
 
     # Far below chart defaults (100m/512Mi -> 1000m/1024Mi); live-proven for
-    # this fleet and node1 is 2-core.
+    # this fleet.
     resources:
       requests:
         cpu: 10m

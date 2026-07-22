@@ -13,7 +13,7 @@ deploy/
 │
 ├── infra/      Cluster infrastructure. One subdir per Flux Kustomization, kept
 │               separate because each targets its own namespace / wait policy:
-│   ├── cluster/    Cross-namespace infra: cloudflared, traefik, linkerd,
+│   ├── cluster/    Cross-namespace infra: cloudflared, traefik, coredns,
 │   │               newrelic.            → "cluster" Kustomization  (wait: false)
 │   ├── valkey/     Valkey sentinel cluster (statefulset + sentinel, valkey ns).
 │   │                                    → "valkey" Kustomization   (wait: true)

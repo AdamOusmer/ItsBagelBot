@@ -4,13 +4,13 @@
 # This file brings that hand-applied state under Flux ownership with two
 # deliberate changes (2026-07-15 network-tune):
 #
-#   1. CoreDNS no longer runs on node1: required nodeAffinity keeps the
-#      DaemonSet on node2/node3/worker1 only. node1 is the infra/frontend
-#      node; the hot path is anti-affinitied off it, so every hot-path pod
-#      now has a node-local resolver.
+#   1. Required nodeAffinity keeps the DaemonSet on node2/node3/worker1 only,
+#      so every hot-path pod has a node-local resolver. (The node1 exclusion
+#      is inert since node1 left the cluster; kept so the applied spec is
+#      unchanged.)
 #   2. kube-dns gets trafficDistribution: PreferSameNode (same mechanism as
-#      the nats Service): queries from node2/node3/worker1 never cross the
-#      tailnet; node1 pods fall back to the nearest remote replica.
+#      the nats Service): queries from node2/node3/worker1 never leave the
+#      node.
 #
 # The ConfigMap deliberately declares ONLY the Corefile key. NodeHosts is
 # owned and continuously updated by the k3s node-hosts controller; omitting
@@ -83,9 +83,9 @@ data:
         loadbalance
         import /etc/coredns/custom/*.override
         # Forward external names to routable anycast resolvers instead of
-        # /etc/resolv.conf: node1's host upstream is an OCI link-local address
-        # (169.254.169.254) that CoreDNS cannot reach from the pod network, which
-        # stalled fresh lookups on that node.
+        # /etc/resolv.conf: the former node1's host upstream was an OCI
+        # link-local address (169.254.169.254) that CoreDNS could not reach
+        # from the pod network, which stalled fresh lookups on that node.
         forward . 1.1.1.1 8.8.8.8 9.9.9.9 {
           policy sequential
           max_concurrent 1000
@@ -117,8 +117,8 @@ spec:
     spec:
       serviceAccountName: coredns
       priorityClassName: system-cluster-critical
-      # DNS lives on the hot nodes only; node1 pods use a remote replica via
-      # the PreferSameNode fallback on the kube-dns Service.
+      # DNS lives on the hot nodes only. The node1 exclusion below is inert
+      # since node1 left the cluster; kept so the applied spec is unchanged.
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -204,7 +204,7 @@ spec:
   clusterIP: 10.43.0.10
   ipFamilyPolicy: SingleStack
   # Resolve against the node-local CoreDNS when one exists (node2/node3/
-  # worker1); node1 falls back to a remote replica automatically.
+  # worker1).
   trafficDistribution: PreferSameNode
   selector:
     k8s-app: kube-dns

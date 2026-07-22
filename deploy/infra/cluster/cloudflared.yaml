@@ -1,15 +1,11 @@
 # Cloudflare Tunnel connector. Public ingress enters here: Cloudflare's edge
 # dials these outbound connectors and forwards to traefik.kube-system:443.
 #
-# Three replicas, hard-spread one per host across node1/node2/node3. worker1 is
+# Replicas hard-spread one per non-worker host (node2/node3). worker1 is
 # excluded explicitly: it is a burst worker, not part of the ingress failure
 # domain. A single tunnel ID supports many connector replicas (Cloudflare's
-# native HA model).
-#
-# Do not mesh this workload. Both outbound paths are already encrypted (443 to
-# traefik and 7844 to Cloudflare), and both had to bypass Linkerd already. A
-# sidecar therefore adds no transport protection here and makes tunnel startup
-# depend on the mesh control plane.
+# native HA model). Both outbound paths are already encrypted (443 to traefik
+# and 7844 to Cloudflare).
 #
 # Managed by the cluster Flux Kustomization. config = cloudflared-config
 # ConfigMap, creds = cloudflared-tunnel Secret (Doppler-managed; the reload
@@ -39,7 +35,6 @@ spec:
         app.kubernetes.io/name: cloudflared
         app.kubernetes.io/instance: cloudflared-deployment
       annotations:
-        linkerd.io/inject: disabled
         secrets.doppler.com/reload: "true"
     spec:
       affinity:
