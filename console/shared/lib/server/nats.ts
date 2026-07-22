@@ -11,6 +11,7 @@ import {
   type JetStreamManager,
   type JetStreamManagerOptions
 } from 'nats';
+import { requestLocalFirst, rpcSubjectsForNode } from './nats-rpc-locality';
 
 const jc = JSONCodec();
 
@@ -30,8 +31,10 @@ function rpcSegment(subject: string): string {
 //   * 'bus'  — the shared BUS account (NATS_USER/PASSWORD): the JetStream lane
 //     view (admin) and the outgress-system stream-feed publish (twitch.*).
 //
-// RPC prefers the strict same-node leaf and falls back to the hub. BUS connects
-// directly to the hub so JetStream never pays a leaf hop.
+// RPC connects to the strict same-node leaf. Requests use a node-qualified
+// subject first, then the canonical subject only when NATS reports that no
+// local responder exists; the leaf route cluster supplies that HA fallback.
+// BUS connects directly to the hub so JetStream never pays a leaf hop.
 type Role = 'rpc' | 'bus';
 
 interface Pool {
@@ -281,7 +284,11 @@ export async function rpc<T>(subject: string, payload: unknown = {}, timeoutMs =
   // handler directly) when no agent/transaction is active.
   return newrelic.startSegment(`NATS/request/${rpcSegment(subject)}`, true, async () => {
     const nc = await get('rpc');
-    const msg = await nc.request(subject, jc.encode(payload), { timeout: timeoutMs });
+    const subjects = rpcSubjectsForNode(subject, process.env.NODE_NAME);
+    const data = jc.encode(payload);
+    const msg = await requestLocalFirst(subjects, (routedSubject) =>
+      nc.request(routedSubject, data, { timeout: timeoutMs })
+    );
     const reply = jc.decode(msg.data) as T & { error?: string };
     if (reply && typeof reply === 'object' && reply.error) throw new RpcError(reply.error);
     return reply as T;
