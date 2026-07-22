@@ -104,7 +104,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: gateway
-          image: ghcr.io/adamousmer/itsbagelbot/gateway:main-1784706178-f2e7f2b19fc7@sha256:e3766f9e8312835dba60978d36eeab6fcc702996a69ff8cc1688d29580b1f6d7 # {"$imagepolicy": "flux-system:gateway"}
+          image: ghcr.io/adamousmer/itsbagelbot/gateway:main-1784730744-fd6258a2e8c8@sha256:71b92904d83fad2834f7e3df280f3a824723ad92bed0db6189d4f2ea492d1292 # {"$imagepolicy": "flux-system:gateway"}
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST
