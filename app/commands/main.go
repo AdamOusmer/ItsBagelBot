@@ -20,6 +20,7 @@ import (
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/health"
+	"ItsBagelBot/pkg/monitor"
 	"ItsBagelBot/pkg/svcboot"
 
 	"go.uber.org/zap"
@@ -67,6 +68,7 @@ func invalidateOnChange(repo *repository.Commands) func(*bus.Message) error {
 // malformed payload is dropped (nil), not retried.
 func recordUse(repo *repository.Commands, log *zap.Logger) func(*bus.Message) error {
 	return func(msg *bus.Message) error {
+		log := monitor.TxnLogger(msg.Context(), log)
 		var dto data.CommandUsedDTO
 		if err := json.Unmarshal(msg.Payload, &dto); err != nil {
 			log.Warn("commands: bad command_used payload", zap.Error(err))
@@ -81,6 +83,7 @@ func recordUse(repo *repository.Commands, log *zap.Logger) func(*bus.Message) er
 // invalid payloads are dropped; a DB failure is returned for retry.
 func deleteAllForUser(repo *repository.Commands, log *zap.Logger) func(*bus.Message) error {
 	return func(msg *bus.Message) error {
+		log := monitor.TxnLogger(msg.Context(), log)
 		var dto data.UserDeletedDTO
 		if err := json.Unmarshal(msg.Payload, &dto); err != nil {
 			log.Warn("commands: bad user_deleted payload", zap.Error(err))

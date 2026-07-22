@@ -18,6 +18,7 @@ import (
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/monitor"
 )
 
 type checkoutRPC struct {
@@ -63,6 +64,7 @@ type buyer struct {
 }
 
 func (c *checkoutRPC) basketCreate(ctx context.Context, req transactionsrpc.BasketCreateRequest) transactionsrpc.BasketCreateReply {
+	log := monitor.TxnLogger(ctx, c.log)
 	buyerID, err := strconv.ParseUint(req.UserID, 10, 64)
 	if err != nil || buyerID == 0 {
 		return transactionsrpc.BasketCreateReply{Error: "user_id must be numeric"}
@@ -88,7 +90,7 @@ func (c *checkoutRPC) basketCreate(ctx context.Context, req transactionsrpc.Bask
 
 	basket, err := c.tebex.CreateBasket(ctx, spec)
 	if err != nil {
-		c.log.Warn("tebex basket create failed",
+		log.Warn("tebex basket create failed",
 			zap.Uint64("user_id", spec.UserID), zap.Uint64("gifted_by", spec.GiftedByID), zap.Error(err))
 		return transactionsrpc.BasketCreateReply{Error: "checkout is unavailable right now"}
 	}

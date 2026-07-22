@@ -3,6 +3,7 @@ import { redirect, fail } from '@sveltejs/kit';
 import { billingState, checkoutBasketCreate, type BillingState } from '$lib/server/services';
 import type { Session } from '$lib/server/session';
 import { RpcError } from '@bagel/shared/server/nats';
+import { logger } from '@bagel/shared/server/logger';
 import { containsLink } from '@bagel/shared/validation';
 import { env } from '$env/dynamic/private';
 
@@ -135,7 +136,7 @@ export const actions: Actions = {
       });
       checkoutUrl = optionalHttpsURL(basket.checkoutUrl ?? undefined);
     } catch (err) {
-      console.error('[billing] basket create failed:', err);
+      logger.error({ err }, '[billing] basket create failed');
     }
 
     if (!checkoutUrl) return fail(503, { error: 'Subscriptions are not available right now.' });
@@ -185,10 +186,10 @@ export const actions: Actions = {
       checkoutUrl = optionalHttpsURL(basket.checkoutUrl ?? undefined);
     } catch (err) {
       if (err instanceof RpcError) {
-        console.warn(`[billing] gift rejected for ${s.user_id} -> ${recipient}: ${err.message}`);
+        logger.warn({ err }, `[billing] gift rejected for ${s.user_id} -> ${recipient}`);
         return fail(409, { gift: true, error: err.message, recipient, message });
       }
-      console.error('[billing] gift basket create failed:', err);
+      logger.error({ err }, '[billing] gift basket create failed');
     }
 
     if (!checkoutUrl) return fail(502, { gift: true, error: 'Gifting is not available right now. Try again in a moment.', recipient, message });

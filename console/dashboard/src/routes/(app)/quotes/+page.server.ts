@@ -10,6 +10,7 @@ import {
   type QuoteView
 } from '$lib/server/quotes-store';
 import { auditDashboardImpersonation } from '$lib/server/services';
+import { logger } from '@bagel/shared/server/logger';
 import { gateModulePage } from '$lib/server/module-gate';
 import type { Session } from '$lib/server/session';
 import { env } from '$env/dynamic/private';
@@ -113,7 +114,7 @@ export const actions: Actions = {
       auditDashboardImpersonation(ctx.session, 'quotes:add', String(quote.number));
       return { ok: true, action: 'added', quote };
     } catch (e) {
-      console.error('[quotes] add failed:', e instanceof Error ? (e.stack ?? e.message) : e);
+      logger.error({ err: e }, '[quotes] add failed');
       return fail(400, { ok: false, error: 'Could not save the quote.' });
     }
   },
@@ -141,7 +142,7 @@ export const actions: Actions = {
       auditDashboardImpersonation(ctx.session, 'quotes:edit', String(num));
       return { ok: true, action: 'edited', quote };
     } catch (e) {
-      console.error('[quotes] edit failed:', e instanceof Error ? (e.stack ?? e.message) : e);
+      logger.error({ err: e }, '[quotes] edit failed');
       return fail(400, { ok: false, error: 'Could not update the quote.' });
     }
   },
@@ -160,7 +161,7 @@ export const actions: Actions = {
       auditDashboardImpersonation(ctx.session, 'quotes:delete', String(num));
       return { ok: true, action: 'deleted', number: num };
     } catch (e) {
-      console.error('[quotes] delete failed:', e instanceof Error ? (e.stack ?? e.message) : e);
+      logger.error({ err: e }, '[quotes] delete failed');
       return fail(400, { ok: false, error: 'Could not delete the quote.' });
     }
   },
@@ -178,7 +179,7 @@ export const actions: Actions = {
       auditDashboardImpersonation(ctx.session, 'quotes:toggle', String(enabled));
       return { ok: true, enabled };
     } catch (e) {
-      console.error('[quotes] toggle failed:', e instanceof Error ? (e.stack ?? e.message) : e);
+      logger.error({ err: e }, '[quotes] toggle failed');
       return fail(400, { ok: false });
     }
   },
@@ -201,7 +202,7 @@ export const actions: Actions = {
       auditDashboardImpersonation(ctx.session, `quotes:perm:${kind}`, perm);
       return { ok: true, kind, perm };
     } catch (e) {
-      console.error('[quotes] perm failed:', e instanceof Error ? (e.stack ?? e.message) : e);
+      logger.error({ err: e }, '[quotes] perm failed');
       return fail(400, { ok: false });
     }
   }

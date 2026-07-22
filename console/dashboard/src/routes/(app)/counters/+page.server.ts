@@ -3,6 +3,7 @@ import type { CounterDef, CounterEntryView, CounterScope } from '@bagel/shared';
 import { COUNTER_SCOPES } from '@bagel/shared';
 import { listCounters, createCounter, setCounter, deleteCounter, counterEntries } from '$lib/server/loyalty-store';
 import { auditDashboardImpersonation } from '$lib/server/services';
+import { logger } from '@bagel/shared/server/logger';
 import { gateModulePage } from '$lib/server/module-gate';
 import type { Session } from '$lib/server/session';
 import { env } from '$env/dynamic/private';
@@ -76,7 +77,7 @@ function mutate(op: string, run: Mutation) {
     try {
       detail = await run(uid, f);
     } catch (e) {
-      console.error(`[counters] ${op} failed:`, e instanceof Error ? (e.stack ?? e.message) : e);
+      logger.error({ err: e }, `[counters] ${op} failed`);
       return fail(400, { ok: false, error: `${op} failed` });
     }
     if (detail === null) return fail(400, { ok: false, error: 'Invalid counter.' });

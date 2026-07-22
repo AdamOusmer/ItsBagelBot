@@ -14,6 +14,7 @@ import (
 	"ItsBagelBot/internal/domain/invalidate"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/monitor"
 )
 
 type delegationRPC struct {
@@ -82,7 +83,7 @@ func (d *delegationRPC) handleCreate(ctx context.Context, msg *nats.Msg) {
 	// permanently) or the owner revokes it. Access is permanent + revocable, not
 	// time-boxed.
 	if err := d.repo.CreateDelegation(ctx, token, ownerID, req.OwnerLogin, req.Sections, nil); err != nil {
-		d.log.Error("delegation create", zap.Error(err))
+		monitor.TxnLogger(ctx, d.log).Error("delegation create", zap.Error(err))
 		respondErr(msg, err.Error())
 		return
 	}

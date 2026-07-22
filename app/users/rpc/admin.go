@@ -16,6 +16,7 @@ import (
 	"ItsBagelBot/internal/domain/invalidate"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/monitor"
 )
 
 type adminRPC struct {
@@ -230,6 +231,7 @@ func enrollmentDaysOf(series []repository.EnrollmentDay) []usersrpc.AdminEnrollm
 }
 
 func (a *adminRPC) setStatus(ctx context.Context, req usersrpc.AdminRequest) usersrpc.AdminReply {
+	log := monitor.TxnLogger(ctx, a.log)
 	u, err := a.findOrProvision(ctx, req)
 	if err != nil {
 		return adminError(err.Error())
@@ -248,7 +250,7 @@ func (a *adminRPC) setStatus(ctx context.Context, req usersrpc.AdminRequest) use
 	}
 
 	a.invalidate(u.ID)
-	a.log.Info("admin status change",
+	log.Info("admin status change",
 		zap.Uint64("user", u.ID), zap.String("status", req.Status))
 	return a.get(ctx, idRequest(u.ID))
 }
@@ -288,6 +290,7 @@ func (a *adminRPC) setActive(ctx context.Context, req usersrpc.AdminRequest) use
 }
 
 func (a *adminRPC) setCreatorCode(ctx context.Context, req usersrpc.AdminRequest) usersrpc.AdminReply {
+	log := monitor.TxnLogger(ctx, a.log)
 	u, err := a.findUser(ctx, req)
 	if err != nil {
 		return usersrpc.AdminReply{Error: err.Error()}
@@ -298,7 +301,7 @@ func (a *adminRPC) setCreatorCode(ctx context.Context, req usersrpc.AdminRequest
 	}
 
 	a.invalidate(u.ID)
-	a.log.Info("admin set creator code", zap.Uint64("user", u.ID), zap.Bool("cleared", req.CreatorCode == ""))
+	log.Info("admin set creator code", zap.Uint64("user", u.ID), zap.Bool("cleared", req.CreatorCode == ""))
 	return a.get(ctx, usersrpc.AdminRequest{UserID: fmt.Sprint(u.ID)})
 }
 
@@ -346,8 +349,9 @@ func (a *adminRPC) tokenSet(ctx context.Context, req usersrpc.AdminRequest) user
 		return adminError(err.Error())
 	}
 
+	log := monitor.TxnLogger(ctx, a.log)
 	a.invalidate(u.ID)
-	a.log.Info("admin token set", zap.Uint64("user", u.ID))
+	log.Info("admin token set", zap.Uint64("user", u.ID))
 	return a.tokenStatus(ctx, idRequest(u.ID))
 }
 
@@ -385,7 +389,7 @@ func (a *adminRPC) delete(ctx context.Context, req usersrpc.AdminRequest) usersr
 		return adminError(err.Error())
 	}
 
-	a.log.Info("admin user delete", zap.Uint64("user", u.ID))
+	monitor.TxnLogger(ctx, a.log).Info("admin user delete", zap.Uint64("user", u.ID))
 	return usersrpc.AdminReply{}
 }
 

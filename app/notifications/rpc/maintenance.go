@@ -11,6 +11,7 @@ import (
 	"ItsBagelBot/app/notifications/repository"
 	notificationsrpc "ItsBagelBot/internal/domain/rpc/notifications"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/monitor"
 )
 
 type maintenanceRPC struct {
@@ -29,13 +30,14 @@ func SubscribeMaintenance(nc *nats.Conn, repo *repository.Notifications, subject
 }
 
 func (m *maintenanceRPC) cleanup(ctx context.Context, _ notificationsrpc.CleanupRequest) notificationsrpc.CleanupReply {
+	log := monitor.TxnLogger(ctx, m.log)
 	deleted, err := m.repo.DeleteExpired(ctx, time.Now())
 	if err != nil {
-		m.log.Warn("notification cleanup failed", zap.Error(err))
+		log.Warn("notification cleanup failed", zap.Error(err))
 		return notificationsrpc.CleanupReply{Error: err.Error()}
 	}
 	if deleted > 0 {
-		m.log.Info("notification cleanup swept expired rows", zap.Int("deleted", deleted))
+		log.Info("notification cleanup swept expired rows", zap.Int("deleted", deleted))
 	}
 	return notificationsrpc.CleanupReply{Deleted: deleted}
 }

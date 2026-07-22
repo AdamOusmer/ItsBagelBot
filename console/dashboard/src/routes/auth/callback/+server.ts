@@ -4,6 +4,7 @@ import { redirect } from '@sveltejs/kit';
 import { decodeIdToken, OAuth2RequestError } from 'arctic';
 import { twitch, safeNextPath, fetchAccountEmail } from '$lib/server/oauth';
 import { rpc } from '@bagel/shared/server/nats';
+import { logger } from '@bagel/shared/server/logger';
 import { saveGrant, isBanned, delegationConsume, userLocale, setLocale, userCursor } from '$lib/server/services';
 import { COOKIE, CURSOR_COOKIE, seal, SESSION_TTL_SECONDS } from '$lib/server/session';
 import { isLocale, LOCALE_COOKIE } from '@bagel/shared/i18n';
@@ -131,7 +132,7 @@ async function registerUser(id: Identity, email: string | null): Promise<void> {
       ...(email ? { email } : {})
     });
   } catch (err: unknown) {
-    console.error('[callback] upsert_user failed, refusing session:', err);
+    logger.error({ err }, '[callback] upsert_user failed, refusing session');
     throw redirect(302, '/login?e=retry');
   }
 }
@@ -157,7 +158,7 @@ async function seedLocaleCookie(cookies: Cookies, url: URL, userId: string): Pro
       try {
         await setLocale(userId, deviceLocale);
       } catch (err) {
-        console.error('[callback] failed to sync pre-login locale to account:', err);
+        logger.error({ err }, '[callback] failed to sync pre-login locale to account');
       }
       return;
     }
@@ -204,7 +205,7 @@ async function persistGrant(userId: string, tokens: { accessToken(): string; ref
   try {
     await saveGrant(userId, tokens.accessToken(), tokens.refreshToken());
   } catch (err: unknown) {
-    console.error('[callback] grant_save failed (non-fatal):', err);
+    logger.error({ err }, '[callback] grant_save failed (non-fatal)');
   }
 }
 

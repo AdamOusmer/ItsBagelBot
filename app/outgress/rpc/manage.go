@@ -13,6 +13,7 @@ import (
 	"ItsBagelBot/internal/domain/rpc/manage"
 	outgressrpc "ItsBagelBot/internal/domain/rpc/outgress"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/monitor"
 
 	"github.com/newrelic/go-agent/v3/newrelic"
 
@@ -118,12 +119,13 @@ func (m *Manage) fetchFollowage(ctx context.Context, broadcasterID, targetID str
 }
 
 func (m *Manage) handleAccountAge(ctx context.Context, req outgressrpc.AccountAgeRequest) outgressrpc.AccountAgeReply {
+	log := monitor.TxnLogger(ctx, m.log)
 	if req.TargetID == "" && req.TargetLogin == "" {
 		return outgressrpc.AccountAgeReply{Error: "bad request"}
 	}
 	id, createdAt, found, err := m.twitch.UserCreatedAt(ctx, req.TargetID, req.TargetLogin)
 	if err != nil {
-		m.log.Warn("accountage lookup failed", zap.Error(err))
+		log.Warn("accountage lookup failed", zap.Error(err))
 		return outgressrpc.AccountAgeReply{Error: "lookup failed"}
 	}
 	if !found {
@@ -133,13 +135,14 @@ func (m *Manage) handleAccountAge(ctx context.Context, req outgressrpc.AccountAg
 }
 
 func (m *Manage) handleChannelGet(ctx context.Context, req manage.ChannelRequest) manage.ChannelReply {
+	log := monitor.TxnLogger(ctx, m.log)
 	if req.BroadcasterID == "" {
 		return manage.ChannelReply{Error: "bad request"}
 	}
 
 	ch, found, err := m.registry.Get(ctx, req.BroadcasterID)
 	if err != nil {
-		m.log.Error("channel get failed", zap.Error(err))
+		log.Error("channel get failed", zap.Error(err))
 		return manage.ChannelReply{Error: "lookup failed"}
 	}
 
@@ -151,13 +154,14 @@ func (m *Manage) handleChannelGet(ctx context.Context, req manage.ChannelRequest
 }
 
 func (m *Manage) handleChannelSet(ctx context.Context, req manage.ChannelRequest) manage.ChannelReply {
+	log := monitor.TxnLogger(ctx, m.log)
 	if req.BroadcasterID == "" {
 		return manage.ChannelReply{Error: "bad request"}
 	}
 
 	ch, found, err := m.registry.Get(ctx, req.BroadcasterID)
 	if err != nil {
-		m.log.Error("channel set lookup failed", zap.Error(err))
+		log.Error("channel set lookup failed", zap.Error(err))
 		return manage.ChannelReply{Error: "lookup failed"}
 	}
 
@@ -175,7 +179,7 @@ func (m *Manage) handleChannelSet(ctx context.Context, req manage.ChannelRequest
 	}
 
 	if err := m.registry.Save(ctx, ch); err != nil {
-		m.log.Error("channel set failed", zap.Error(err))
+		log.Error("channel set failed", zap.Error(err))
 		return manage.ChannelReply{Error: "save failed"}
 	}
 
@@ -183,9 +187,10 @@ func (m *Manage) handleChannelSet(ctx context.Context, req manage.ChannelRequest
 }
 
 func (m *Manage) handleChannelList(ctx context.Context, _ struct{}) manage.ChannelListReply {
+	log := monitor.TxnLogger(ctx, m.log)
 	list, err := m.registry.List(ctx)
 	if err != nil {
-		m.log.Error("channel list failed", zap.Error(err))
+		log.Error("channel list failed", zap.Error(err))
 		return manage.ChannelListReply{Error: "list failed"}
 	}
 
@@ -193,9 +198,10 @@ func (m *Manage) handleChannelList(ctx context.Context, _ struct{}) manage.Chann
 }
 
 func (m *Manage) handleSystemStatus(ctx context.Context, _ struct{}) manage.SystemStatusReply {
+	log := monitor.TxnLogger(ctx, m.log)
 	paused, err := m.registry.Paused(ctx)
 	if err != nil {
-		m.log.Error("system status failed", zap.Error(err))
+		log.Error("system status failed", zap.Error(err))
 		return manage.SystemStatusReply{Error: "status failed"}
 	}
 
@@ -207,11 +213,12 @@ func (m *Manage) handleSystemStatus(ctx context.Context, _ struct{}) manage.Syst
 }
 
 func (m *Manage) handleSystemPause(ctx context.Context, req manage.SystemPauseRequest) manage.SystemPauseReply {
+	log := monitor.TxnLogger(ctx, m.log)
 	if err := m.registry.SetPaused(ctx, req.Paused); err != nil {
-		m.log.Error("system pause failed", zap.Error(err))
+		log.Error("system pause failed", zap.Error(err))
 		return manage.SystemPauseReply{Error: "pause failed"}
 	}
 
-	m.log.Info("outgress pause state changed", zap.Bool("paused", req.Paused))
+	log.Info("outgress pause state changed", zap.Bool("paused", req.Paused))
 	return manage.SystemPauseReply{Paused: req.Paused}
 }
