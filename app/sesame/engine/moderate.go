@@ -88,8 +88,19 @@ func (p *Pipeline) gateChat(ctx context.Context, mctx *module.Context, amCfg *au
 		zap.String("rule", v.Rule),
 		zap.Bool("enforced", actioned),
 		zap.Uint64("broadcaster_id", mctx.BroadcasterID),
-		zap.String("chatter_id", env.ChatterUserID))
+		zap.String("chatter_id", env.ChatterUserID),
+		shadowText(actioned, env.Text))
 	return actioned
+}
+
+// shadowText carries the flagged line's content on a shadow (unenforced)
+// verdict so rule quality can be judged from the log; an enforced verdict
+// skips it to keep actioned moderation logs content-free.
+func shadowText(actioned bool, text string) zap.Field {
+	if actioned {
+		return zap.Skip()
+	}
+	return zap.String("text", text)
 }
 
 // campaignVote consults the campaign juror (the council's cross-sender vote):
@@ -155,7 +166,8 @@ func (p *Pipeline) gateCohort(ctx context.Context, env *lane.Envelope, amCfg *au
 		zap.String("rule", v.Rule),
 		zap.Int("cohort", len(env.Senders)),
 		zap.Bool("enforced", actioned),
-		zap.Uint64("broadcaster_id", broadcasterID))
+		zap.Uint64("broadcaster_id", broadcasterID),
+		shadowText(actioned, env.Text))
 	return actioned
 }
 
