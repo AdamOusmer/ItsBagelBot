@@ -1,6 +1,8 @@
 ---
 collections:
-  - name: ansible.posix      # selinux, firewalld
+  # Provides selinux and firewalld modules.
+  - name: ansible.posix
     version: ">=1.5.0"
-  - name: community.general  # modprobe
+  # Provides the modprobe module.
+  - name: community.general
     version: ">=8.0.0"
