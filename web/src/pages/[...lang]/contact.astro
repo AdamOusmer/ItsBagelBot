@@ -1,0 +1,22 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import PageHero from '../../components/ui/PageHero.astro';
+import Switchboard from '../../components/contact/Switchboard.astro';
+import { getLangFromUrl, useTranslations, locales, defaultLang } from '../../i18n/ui';
+
+export function getStaticPaths() {
+  return locales.map((l) => ({ params: { lang: l === defaultLang ? undefined : l } }));
+}
+
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+---
+
+<Layout title={t('contact.metaTitle')} description={t('contact.metaDesc')}>
+    <PageHero
+        eyebrow={t('contact.eyebrow')}
+        title={t('contact.title')}
+        description={t('contact.desc')}
+    />
+    <Switchboard />
+</Layout>

@@ -7,7 +7,7 @@ import Hamburger  from '../ui/Hamburger.astro';
 import MobileMenu from './MobileMenu.astro';
 import TextLink   from '../ui/TextLink.astro';
 import LanguageSwitcher from './LanguageSwitcher.astro';
-import { getLangFromUrl, useTranslations, localizePath } from '../../i18n/ui';
+import { getLangFromUrl, useTranslations, localizePath, defaultLang } from '../../i18n/ui';
 
 const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
@@ -18,7 +18,7 @@ const links = [
     { href: localizePath("/contact", lang),  label: t('nav.contact')  },
 ];
 
-const cta = { href: `https://dashboard.itsbagelbot.com${lang === 'fr' ? '?lang=fr' : ''}`, label: t('nav.cta') };
+const cta = { href: `https://dashboard.itsbagelbot.com${lang === defaultLang ? '' : `?lang=${lang}`}`, label: t('nav.cta') };
 const homeHref = localizePath("/", lang);
 
 const currentPath = Astro.url.pathname.replace(/\/+$/, "") || "/";

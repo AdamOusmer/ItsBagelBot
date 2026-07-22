@@ -1,0 +1,24 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import PageHero from '../../components/ui/PageHero.astro';
+import Tiers from '../../components/pricing/Tiers.astro';
+import Faq from '../../components/pricing/Faq.astro';
+import { getLangFromUrl, useTranslations, locales, defaultLang } from '../../i18n/ui';
+
+export function getStaticPaths() {
+  return locales.map((l) => ({ params: { lang: l === defaultLang ? undefined : l } }));
+}
+
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+---
+
+<Layout title={t('pricing.metaTitle')} description={t('pricing.metaDesc')}>
+    <PageHero
+        eyebrow={t('pricing.eyebrow')}
+        title={t('pricing.title')}
+        description={t('pricing.desc')}
+    />
+    <Tiers />
+    <Faq />
+</Layout>

@@ -11,6 +11,7 @@ import (
 	"ItsBagelBot/app/sesame/engine"
 	"ItsBagelBot/app/sesame/internal/config"
 	"ItsBagelBot/app/sesame/modules"
+	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/health"
@@ -42,6 +43,8 @@ func main() {
 	}
 	log = monitor.WrapLogger(log, nrApp)
 	defer monitor.Shutdown(nrApp)
+
+	warnLocaleGaps(log)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -134,6 +137,33 @@ func logReady(cfg *config.Config, specialUsers int, log *zap.Logger) {
 	)
 }
 
+// warnLocaleGaps logs one warning per supported locale that is missing keys, so
+// a half-translated language shows up in the startup logs. Missing keys fall
+// back to English at lookup time (i18n.T), so this never blocks startup; a
+// declared locale with no catalog file yet reports its whole key set, capped for
+// readability.
+func warnLocaleGaps(log *zap.Logger) {
+	for locale, missing := range i18n.Gaps() {
+		if len(missing) == 0 {
+			continue
+		}
+		log.Warn("i18n locale is missing keys; falling back to English",
+			zap.String("locale", locale),
+			zap.Int("missing_count", len(missing)),
+			zap.Strings("missing_keys", capLocaleKeys(missing)))
+	}
+}
+
+// capLocaleKeys bounds the key list logged for a locale gap so a single warning
+// line stays readable when an entire catalog file is absent.
+func capLocaleKeys(keys []string) []string {
+	const maxKeys = 20
+	if len(keys) > maxKeys {
+		return keys[:maxKeys]
+	}
+	return keys
+}
+
 // drainInflight waits for the handlers the consumer already dispatched to run to
 // completion before main returns and its deferred Close calls flush the reporters
 // and shut the publishers. SIGTERM cancelled the consumer's context, so no new
@@ -216,4 +246,3 @@ func refreshEmotes(ctx context.Context, guard *automod.Gate, log *zap.Logger) {
 		}
 	}
 }
-

@@ -1,31 +1,27 @@
 ---
 /**
- * EN / FR toggle. Each option links to the current page's equivalent in that
- * locale. Routes without a translated counterpart fall back to English so the
- * switcher never creates a dead /fr/ link.
+ * Locale toggle. One option per discovered locale; each links to the current
+ * page's equivalent in that locale. Routes without a translated counterpart
+ * fall back to the default locale so the switcher never creates a dead link.
  */
-import { getLangFromUrl, LOCALIZED_PATHS, type Lang } from '../../i18n/ui';
+import { getLangFromUrl, LOCALIZED_PATHS, localizePath, splitLocale, locales, defaultLang, type Lang } from '../../i18n/ui';
 
-const LOCALIZED = LOCALIZED_PATHS;
 const current = getLangFromUrl(Astro.url);
+const { path } = splitLocale(Astro.url.pathname);
 
-function localePath(url: URL, target: Lang): string {
-  let p = url.pathname;
-  if (p.startsWith('/fr/')) p = p.slice(3);
-  else if (p === '/fr') p = '/';
-  p = p.replace(/\/+$/, '') || '/';
-  if (target === 'en') return p;
-  if (!LOCALIZED.has(p)) return p; // no French route → keep English path
-  return p === '/' ? '/fr/' : `/fr${p}`;
+function localePath(target: Lang): string {
+  if (target === defaultLang) return path;
+  if (!LOCALIZED_PATHS.has(path)) return path; // no translated route → keep default path
+  return localizePath(path, target);
 }
 
-const options: Lang[] = ['en', 'fr'];
+const options: readonly Lang[] = locales;
 ---
 
 <div class="lang-switch" role="group" aria-label="Language">
   {options.map((l) => (
     <a
-      href={localePath(Astro.url, l)}
+      href={localePath(l)}
       hreflang={l}
       class:list={['lang-switch__opt', { 'is-active': l === current }]}
       aria-current={l === current ? 'true' : undefined}
