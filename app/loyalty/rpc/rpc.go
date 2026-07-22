@@ -78,7 +78,10 @@ func Subscribe(nc *nats.Conn, repo *repository.Loyalty, prefix, queueGroup strin
 // counters; balance verbs always require a real broadcaster.
 func parseIDs(req loyaltyrpc.Request, allowBotNS bool) (userID, viewerID uint64, ok bool, reply loyaltyrpc.Reply) {
 	uid, err := strconv.ParseUint(req.UserID, 10, 64)
-	if err != nil || (uid == 0 && !allowBotNS) {
+	if err != nil {
+		return 0, 0, false, loyaltyrpc.Reply{Error: "invalid user_id"}
+	}
+	if uid == 0 && !allowBotNS {
 		return 0, 0, false, loyaltyrpc.Reply{Error: "invalid user_id"}
 	}
 	if req.ViewerID != "" {
