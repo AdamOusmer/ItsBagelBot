@@ -23,8 +23,11 @@ spec:
   strategy:
     type: RollingUpdate
     rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 0
+      # Hard one-per-node anti-affinity consumes both eligible hosts at steady
+      # state, so a surge pod can never schedule. Replace one connector at a
+      # time while the other continues serving the tunnel.
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: cloudflared
