@@ -7,44 +7,59 @@ import (
 	"testing"
 )
 
-// TestGapsMechanism replaces the old strict parity test. The locked product
+// The Gaps tests replace the old strict parity test. The locked product
 // decision is that a key missing from a locale WARNS and falls back to English
 // rather than failing the build, so a partially translated language can ship.
-// This therefore verifies the reporting mechanism instead of enforcing parity:
-// Gaps is keyed by the manifest minus en, agrees with Missing for every locale
-// it reports, and shows a fully translated locale (fr today) as complete.
-func TestGapsMechanism(t *testing.T) {
-	gaps := Gaps()
+// They therefore verify the reporting mechanism instead of enforcing parity.
 
-	if _, ok := gaps[DefaultLocale]; ok {
-		t.Errorf("Gaps must exclude the default locale %q", DefaultLocale)
+// sortedKeys returns the map's keys, sorted, never nil.
+func sortedKeys(m map[string][]string) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
 	}
+	sort.Strings(out)
+	return out
+}
 
-	var want []string
-	for _, l := range List() {
-		if l != DefaultLocale {
-			want = append(want, l)
+// nonDefaultLocales filters DefaultLocale out of codes, never returning nil.
+func nonDefaultLocales(codes []string) []string {
+	out := make([]string, 0, len(codes))
+	for _, c := range codes {
+		if c != DefaultLocale {
+			out = append(out, c)
 		}
 	}
-	got := make([]string, 0, len(gaps))
-	for l := range gaps {
-		got = append(got, l)
-	}
-	sort.Strings(got)
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("Gaps keys = %v, want List() minus en = %v", got, want)
-	}
+	return out
+}
 
-	// Agreement check: Gaps for a locale is exactly Missing for that locale. This
-	// stands in for a fabricated-gap case, which embed makes awkward to inject.
-	for locale, missing := range gaps {
+func TestGapsExcludeDefaultLocale(t *testing.T) {
+	if _, ok := Gaps()[DefaultLocale]; ok {
+		t.Errorf("Gaps must exclude the default locale %q", DefaultLocale)
+	}
+}
+
+func TestGapsKeyedByManifest(t *testing.T) {
+	got := sortedKeys(Gaps())
+	want := nonDefaultLocales(List())
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Gaps keys = %v, want List() minus %q = %v", got, DefaultLocale, want)
+	}
+}
+
+// TestGapsAgreeWithMissing stands in for a fabricated-gap case, which embed
+// makes awkward to inject: Gaps for a locale is exactly Missing for that locale.
+func TestGapsAgreeWithMissing(t *testing.T) {
+	for locale, missing := range Gaps() {
 		if m := Missing(locale); !reflect.DeepEqual(missing, m) {
 			t.Errorf("Gaps[%q] = %v, but Missing(%q) = %v", locale, missing, locale, m)
 		}
 	}
+}
 
-	if n := len(gaps["fr"]); n != 0 {
-		t.Errorf("fr is fully translated but Gaps reports %d missing key(s): %v", n, gaps["fr"])
+func TestGapsShowCompleteLocaleAsComplete(t *testing.T) {
+	if n := len(Gaps()["fr"]); n != 0 {
+		t.Errorf("fr is fully translated but Gaps reports %d missing key(s): %v", n, Gaps()["fr"])
 	}
 }
 
@@ -75,10 +90,9 @@ func TestListSorted(t *testing.T) {
 	}
 }
 
-// TestDashboardTokenExpanded proves the parse-time expansion ran: no loaded
-// value still carries the {dashboard_url} placeholder, and every key that
-// concatenated the URL before the refactor now carries the real DashboardURL.
-func TestDashboardTokenExpanded(t *testing.T) {
+// TestDashboardTokenRemoved proves parse-time expansion removed the raw
+// placeholder from every loaded catalog value.
+func TestDashboardTokenRemoved(t *testing.T) {
 	for locale := range catalog {
 		for key, val := range catalog[locale] {
 			if strings.Contains(val, dashboardToken) {
@@ -86,7 +100,11 @@ func TestDashboardTokenExpanded(t *testing.T) {
 			}
 		}
 	}
+}
 
+// TestDashboardURLExpanded verifies every message that used to concatenate the
+// dashboard URL now contains the real URL loaded from the catalog.
+func TestDashboardURLExpanded(t *testing.T) {
 	urlKeys := []string{KeyReauthRevokedBody, KeyReauthRevokedChat, KeyGrantDeadChat}
 	for _, locale := range Locales() {
 		for _, key := range urlKeys {
