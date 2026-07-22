@@ -15,6 +15,7 @@
 // call. After a create/enable we also fire an ensure-optional EventSub job so
 // the channel starts receiving redemption events.
 import { rpc } from '@bagel/shared/server/nats';
+import { logger } from '@bagel/shared/server/logger';
 import type { ChannelPointReward } from '@bagel/shared';
 import { SUB, publishEventSubEnsureOptional } from './services';
 import { listModules, upsertModule } from './commands-store';
@@ -121,7 +122,7 @@ async function ensureRewardCounter(userId: string, reward: ChannelPointReward): 
   try {
     await createCounter(userId, reward.counter, reward.counterScope);
   } catch (e) {
-    console.error('[channelpoints] ensure counter failed:', e instanceof Error ? (e.stack ?? e.message) : e);
+    logger.error({ err: e }, '[channelpoints] ensure counter failed');
   }
 }
 

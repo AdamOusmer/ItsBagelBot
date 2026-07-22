@@ -14,6 +14,7 @@ import (
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/cache"
 	"ItsBagelBot/pkg/db"
+	"ItsBagelBot/pkg/monitor"
 
 	entsql "entgo.io/ent/dialect/sql"
 
@@ -386,6 +387,7 @@ func (r *Modules) flush(ctx context.Context, items []data.ModuleChangedDTO) erro
 	defer txn.End()
 
 	ctx = newrelic.NewContext(ctx, txn)
+	log := monitor.TxnLogger(ctx, r.log)
 
 	// Fast path: the whole window lands as one INSERT ... ON DUPLICATE KEY
 	// UPDATE. If that statement fails, fall back to per-item writes so one
@@ -406,7 +408,7 @@ func (r *Modules) flush(ctx context.Context, items []data.ModuleChangedDTO) erro
 		if err := bus.PublishJSON(ctx, r.pub, data.SubjectModuleChanged, item); err != nil {
 			// The row is committed; losing the event only delays convergence
 			// until the next change or projector rebuild, so log and move on.
-			r.log.Error("failed to publish module change",
+			log.Error("failed to publish module change",
 				zap.Uint64("user_id", item.UserID),
 				zap.String("module", item.Name),
 				zap.Error(err),

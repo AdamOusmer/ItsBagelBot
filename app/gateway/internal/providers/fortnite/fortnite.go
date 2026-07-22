@@ -33,6 +33,7 @@ import (
 	"ItsBagelBot/app/gateway/internal/core"
 	"ItsBagelBot/app/gateway/internal/provider"
 	gatewayrpc "ItsBagelBot/internal/domain/rpc/gateway"
+	"ItsBagelBot/pkg/monitor"
 
 	"go.uber.org/zap"
 )
@@ -472,7 +473,7 @@ func (p *api) sessionStart(ctx context.Context, req gatewayrpc.Request) any {
 		return gatewayrpc.FortniteSnapshotReply{Player: account, Error: p.sessionError("snapshot", account, err)}
 	}
 	if err := p.writeSnapshot(ctx, req.ChannelID, account, stats); err != nil {
-		p.log.Warn("fortnite snapshot write failed", zap.String("channel_id", req.ChannelID), zap.Error(err))
+		monitor.TxnLogger(ctx, p.log).Warn("fortnite snapshot write failed", zap.String("channel_id", req.ChannelID), zap.Error(err))
 		return gatewayrpc.FortniteSnapshotReply{Player: stats.Player, Error: "snapshot store failed"}
 	}
 	return gatewayrpc.FortniteSnapshotReply{Player: stats.Player}

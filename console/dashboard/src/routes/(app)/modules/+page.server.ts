@@ -3,6 +3,7 @@ import type { ModuleState } from '@bagel/shared';
 import { MODULE_CATALOG, moduleDef } from '@bagel/shared';
 import { listModules, upsertModule, type ModuleView } from '$lib/server/commands-store';
 import { auditDashboardImpersonation } from '$lib/server/services';
+import { logger } from '@bagel/shared/server/logger';
 import { delegateCanOpen } from '$lib/server/module-gate';
 import type { Session } from '$lib/server/session';
 import { env } from '$env/dynamic/private';
@@ -85,7 +86,7 @@ export const actions: Actions = {
       const config = rows.find((r) => r.name === name)?.configs;
       await upsertModule(uid, name, enabled, config);
     } catch (e) {
-      console.error(`[modules] toggle ${name} failed:`, e instanceof Error ? (e.stack ?? e.message) : e);
+      logger.error({ err: e }, `[modules] toggle ${name} failed`);
       return fail(400, { ok: false });
     }
 

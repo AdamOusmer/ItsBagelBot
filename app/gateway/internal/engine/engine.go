@@ -16,6 +16,7 @@ import (
 	"ItsBagelBot/app/gateway/internal/provider"
 	gatewayrpc "ItsBagelBot/internal/domain/rpc/gateway"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/monitor"
 
 	"github.com/bytedance/sonic"
 	"github.com/nats-io/nats.go"
@@ -61,6 +62,7 @@ func subscribe(nc *nats.Conn, subject, queueGroup string, ep provider.Endpoint, 
 
 		txn := nrApp.StartTransaction("rpc " + subject)
 		defer txn.End()
+		log := monitor.TraceLogger(txn, log)
 
 		// Empty bodies are allowed for no-argument RPCs; handlers validate any
 		// required fields on the zero-value request.

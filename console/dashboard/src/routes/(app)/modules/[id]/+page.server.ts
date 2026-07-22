@@ -2,6 +2,7 @@ import type { Actions, PageServerLoad } from './$types';
 import { moduleDef, type ModuleDef } from '@bagel/shared';
 import { listModules, upsertModule, patchModule } from '$lib/server/commands-store';
 import { auditDashboardImpersonation } from '$lib/server/services';
+import { logger } from '@bagel/shared/server/logger';
 import type { Session } from '$lib/server/session';
 import { env } from '$env/dynamic/private';
 import { error, fail, redirect } from '@sveltejs/kit';
@@ -106,7 +107,7 @@ export const actions: Actions = {
     try {
       await upsertModule(uid, def.id, enabled, config);
     } catch (e) {
-      console.error(`[modules] save ${def.id} failed:`, e instanceof Error ? (e.stack ?? e.message) : e);
+      logger.error({ err: e }, `[modules] save ${def.id} failed`);
       return fail(400, { ok: false });
     }
 
@@ -142,7 +143,7 @@ export const actions: Actions = {
       auditDashboardImpersonation(locals.session, 'module:patch', `${def.id}=${enabled}`);
       return { ok: true, rev: res.rev, conflict: false };
     } catch (e) {
-      console.error(`[modules] patch ${def.id} failed:`, e instanceof Error ? (e.stack ?? e.message) : e);
+      logger.error({ err: e }, `[modules] patch ${def.id} failed`);
       return fail(400, { ok: false });
     }
   }

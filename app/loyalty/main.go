@@ -56,6 +56,7 @@ func registerConsumers(ctx context.Context, nrApp *newrelic.Application, repo *r
 // malformed payload is dropped (nil), not retried.
 func recordEarned(repo *repository.Loyalty, log *zap.Logger) func(*bus.Message) error {
 	return func(msg *bus.Message) error {
+		log := monitor.TxnLogger(msg.Context(), log)
 		var dto data.LoyaltyEarnedDTO
 		if err := json.Unmarshal(msg.Payload, &dto); err != nil {
 			log.Warn("loyalty: bad earned payload", zap.Error(err))
@@ -69,6 +70,7 @@ func recordEarned(repo *repository.Loyalty, log *zap.Logger) func(*bus.Message) 
 // recordBumps folds a worker counter event into the repo's accumulator.
 func recordBumps(repo *repository.Loyalty, log *zap.Logger) func(*bus.Message) error {
 	return func(msg *bus.Message) error {
+		log := monitor.TxnLogger(msg.Context(), log)
 		var dto data.CounterBumpedDTO
 		if err := json.Unmarshal(msg.Payload, &dto); err != nil {
 			log.Warn("loyalty: bad counter payload", zap.Error(err))
@@ -83,6 +85,7 @@ func recordBumps(repo *repository.Loyalty, log *zap.Logger) func(*bus.Message) e
 // or invalid payloads are dropped; a DB failure is returned for retry.
 func deleteAllForUser(repo *repository.Loyalty, log *zap.Logger) func(*bus.Message) error {
 	return func(msg *bus.Message) error {
+		log := monitor.TxnLogger(msg.Context(), log)
 		var dto data.UserDeletedDTO
 		if err := json.Unmarshal(msg.Payload, &dto); err != nil {
 			log.Warn("loyalty: bad user_deleted payload", zap.Error(err))

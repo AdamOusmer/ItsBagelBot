@@ -22,6 +22,7 @@ import (
 	"ItsBagelBot/app/gateway/internal/core"
 	"ItsBagelBot/app/gateway/internal/provider"
 	gatewayrpc "ItsBagelBot/internal/domain/rpc/gateway"
+	"ItsBagelBot/pkg/monitor"
 	"ItsBagelBot/pkg/ratelimit"
 
 	"github.com/google/uuid"
@@ -150,13 +151,14 @@ type deviceListResponse struct {
 }
 
 func (p *api) devices(ctx context.Context, req gatewayrpc.Request) any {
+	log := monitor.TxnLogger(ctx, p.log)
 	broadcaster := strings.TrimSpace(req.ChannelID)
 	if broadcaster == "" {
 		return gatewayrpc.GoveeDevicesReply{Error: "missing channel"}
 	}
 	key, err := p.resolveKey(ctx, broadcaster)
 	if err != nil {
-		p.log.Warn("govee key resolve failed", zap.String("broadcaster", broadcaster), zap.Error(err))
+		log.Warn("govee key resolve failed", zap.String("broadcaster", broadcaster), zap.Error(err))
 		return gatewayrpc.GoveeDevicesReply{Error: "could not read your Govee key"}
 	}
 	if key == "" {
@@ -181,7 +183,7 @@ func (p *api) devices(ctx context.Context, req gatewayrpc.Request) any {
 		)
 	})
 	if err != nil {
-		p.log.Warn("govee devices fetch failed", zap.String("broadcaster", broadcaster), zap.Error(err))
+		log.Warn("govee devices fetch failed", zap.String("broadcaster", broadcaster), zap.Error(err))
 		return gatewayrpc.GoveeDevicesReply{Error: "device lookup failed"}
 	}
 	return json.RawMessage(b)
@@ -253,7 +255,7 @@ func (p *api) control(ctx context.Context, req gatewayrpc.Request) any {
 	target := goveeTarget{http: p.http, headers: authHeader(key), sku: strings.TrimSpace(req.SKU), device: strings.TrimSpace(req.Device)}
 	for _, step := range controlSteps(req) {
 		if err := target.set(ctx, step.capType, step.instance, step.value); err != nil {
-			p.log.Warn("govee control step failed", zap.String("broadcaster", broadcaster), zap.String("capability", step.capType), zap.Error(err))
+			monitor.TxnLogger(ctx, p.log).Warn("govee control step failed", zap.String("broadcaster", broadcaster), zap.String("capability", step.capType), zap.Error(err))
 			return gatewayrpc.GoveeControlReply{Error: friendlyControlError(err)}
 		}
 	}

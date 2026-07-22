@@ -5,6 +5,8 @@ import (
 	"errors"
 	"time"
 
+	"ItsBagelBot/pkg/monitor"
+
 	"github.com/nats-io/nats.go"
 	"github.com/newrelic/go-agent/v3/newrelic"
 
@@ -49,6 +51,7 @@ func process(app *newrelic.Application, subject string, msg *Message, handle fun
 	acceptTraceHeaders(txn, metadataHeaders(msg.Metadata))
 	addMessagingTransactionAttributes(txn, messagingAttributes{operation: "process", destination: subject})
 	txn.AddAttribute("messaging.queue_ms", float64(msg.deliveryWait(time.Now()).Microseconds())/1000)
+	log = monitor.TraceLogger(txn, log)
 
 	msg.SetContext(newrelic.NewContext(msg.Context(), txn))
 

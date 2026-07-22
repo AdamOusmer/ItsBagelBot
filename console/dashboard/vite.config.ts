@@ -14,7 +14,9 @@ export default defineConfig({
   // + dynamic requires would break it and create a second, uninstrumented instance).
   // `iovalkey` (the Valkey read client) also stays external: ioredis-family clients
   // use dynamic requires that do not bundle cleanly for SSR.
-  ssr: { noExternal: ['@bagel/shared'], external: ['newrelic', 'iovalkey'] },
+  // `pino` stays external so the New Relic agent's require-hook wraps the real
+  // module at runtime and local-decorates its log lines (bundling defeats the hook).
+  ssr: { noExternal: ['@bagel/shared'], external: ['newrelic', 'iovalkey', 'pino'] },
   server: { port: 5173 },
   build: {
     minify: 'terser'

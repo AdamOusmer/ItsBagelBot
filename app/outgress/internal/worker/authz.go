@@ -7,6 +7,7 @@ import (
 
 	"ItsBagelBot/app/outgress/internal/twitch"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/monitor"
 
 	"github.com/bytedance/sonic"
 
@@ -57,10 +58,11 @@ type authzSubRevoked struct {
 // subscriptions are never dropped and recreated.
 func (w *Worker) HandleAuthzGranted(msg *bus.Message) error {
 	ctx := msg.Context()
+	log := monitor.TxnLogger(ctx, w.log)
 
 	var ev authzUser
 	if err := sonic.Unmarshal(msg.Payload, &ev); err != nil || ev.UserID == "" {
-		w.log.Error("dropping malformed authz.granted event", zap.Error(err))
+		log.Error("dropping malformed authz.granted event", zap.Error(err))
 		return nil
 	}
 
@@ -82,7 +84,7 @@ func (w *Worker) HandleAuthzGranted(msg *bus.Message) error {
 		return nil
 	}
 
-	w.log.Info("authorization granted, re-enrolling eventsubs",
+	log.Info("authorization granted, re-enrolling eventsubs",
 		zap.String("broadcaster_id", ev.UserID),
 		zap.String("user_login", ev.UserLogin),
 		zap.String("prior_sub_state", ch.SubState))
@@ -118,17 +120,18 @@ func reenrollableSubState(state string) bool {
 // beacon.
 func (w *Worker) HandleAuthzRevoked(msg *bus.Message) error {
 	ctx := msg.Context()
+	log := monitor.TxnLogger(ctx, w.log)
 
 	var ev authzUser
 	if err := sonic.Unmarshal(msg.Payload, &ev); err != nil || ev.UserID == "" {
-		w.log.Error("dropping malformed authz.revoked event", zap.Error(err))
+		log.Error("dropping malformed authz.revoked event", zap.Error(err))
 		return nil
 	}
 
 	if ev.UserID == w.botID {
 		// The bot account's own grant died: every channel's chat is affected
 		// and no per-channel state captures that. Scream for the operator.
-		w.log.Error("BOT ACCOUNT authorization revoked, chat send and chat reads will fail until the bot re-authorizes",
+		log.Error("BOT ACCOUNT authorization revoked, chat send and chat reads will fail until the bot re-authorizes",
 			zap.String("bot_id", w.botID))
 		noticeError(ctx, errBotAuthRevoked)
 		return nil
@@ -143,17 +146,18 @@ func (w *Worker) HandleAuthzRevoked(msg *bus.Message) error {
 // and marks it failing so the operator sees it.
 func (w *Worker) HandleAuthzSubRevoked(msg *bus.Message) error {
 	ctx := msg.Context()
+	log := monitor.TxnLogger(ctx, w.log)
 
 	var ev authzSubRevoked
 	if err := sonic.Unmarshal(msg.Payload, &ev); err != nil || ev.BroadcasterID == "" {
-		w.log.Error("dropping malformed authz.subrevoked event", zap.Error(err))
+		log.Error("dropping malformed authz.subrevoked event", zap.Error(err))
 		return nil
 	}
 
 	if ev.BroadcasterID == w.botID {
 		// The bot appears as condition.user_id on every channel's chat sub;
 		// a per-channel state write would target the wrong entity.
-		w.log.Error("subscription carrying the bot's own authorization revoked",
+		log.Error("subscription carrying the bot's own authorization revoked",
 			zap.String("type", ev.Type), zap.String("status", ev.Status))
 		return nil
 	}

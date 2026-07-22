@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	"ItsBagelBot/pkg/monitor"
+
 	"github.com/nats-io/nats.go"
 	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
@@ -104,6 +106,7 @@ func QueueSubscribeJSON[Req any, Resp any](
 		defer txn.End()
 		acceptTraceHeaders(txn, msg.Header)
 		addMessagingTransactionAttributes(txn, messagingAttributes{operation: "process", destination: subject})
+		log := monitor.TraceLogger(txn, log)
 
 		var req Req
 		// Empty bodies are allowed for no-argument RPCs; handlers validate any

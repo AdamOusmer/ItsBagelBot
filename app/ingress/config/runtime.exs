@@ -258,3 +258,13 @@ end
 config :new_relic_agent,
   app_name: System.get_env("NEW_RELIC_APP_NAME", "itsbagelbot-twitch-ingress"),
   license_key: System.get_env("NEW_RELIC_LICENSE_KEY")
+
+# With the agent enabled, logs-in-context :forwarder mode replaces every log
+# message with a JSON blob (message + metadata + entity/trace linking). The
+# line must reach stdout as pure JSON for New Relic to parse it, so drop the
+# plain-text time/level/metadata prefix; those fields already live inside the
+# JSON. Without a license key the rewrite filter never installs, and the
+# pretty dev format from config.exs stays.
+if System.get_env("NEW_RELIC_LICENSE_KEY", "") != "" do
+  config :logger, :default_formatter, format: "$message\n", metadata: []
+end

@@ -18,6 +18,7 @@ import (
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/cache"
 	"ItsBagelBot/pkg/db"
+	"ItsBagelBot/pkg/monitor"
 
 	entsql "entgo.io/ent/dialect/sql"
 
@@ -566,6 +567,7 @@ func (r *Commands) flush(ctx context.Context, items []data.CommandChangedDTO) er
 	defer txn.End()
 
 	ctx = newrelic.NewContext(ctx, txn)
+	log := monitor.TxnLogger(ctx, r.log)
 
 	// Fast path: the whole window lands as one INSERT ... ON DUPLICATE KEY
 	// UPDATE. If that statement fails, fall back to per-item writes so one
@@ -592,7 +594,7 @@ func (r *Commands) flush(ctx context.Context, items []data.CommandChangedDTO) er
 	}
 	states, serr := r.rowStates(ctx, keys)
 	if serr != nil {
-		r.log.Warn("failed to reload rows after flush; publishing queued state", zap.Error(serr))
+		log.Warn("failed to reload rows after flush; publishing queued state", zap.Error(serr))
 	}
 
 	for _, item := range landed {
@@ -604,7 +606,7 @@ func (r *Commands) flush(ctx context.Context, items []data.CommandChangedDTO) er
 			dto = s
 		}
 		if err := bus.PublishJSON(ctx, r.pub, data.SubjectCommandChanged, dto); err != nil {
-			r.log.Error("failed to publish command change",
+			log.Error("failed to publish command change",
 				zap.Uint64("user_id", item.UserID),
 				zap.String("command", item.Name),
 				zap.Error(err),

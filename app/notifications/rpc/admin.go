@@ -16,6 +16,7 @@ import (
 	notificationsrpc "ItsBagelBot/internal/domain/rpc/notifications"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/monitor"
 )
 
 type adminRPC struct {
@@ -105,6 +106,7 @@ func parseSendRequest(req notificationsrpc.SendRequest) (repository.CreateParams
 }
 
 func (a *adminRPC) send(ctx context.Context, req notificationsrpc.SendRequest) notificationsrpc.SendReply {
+	log := monitor.TxnLogger(ctx, a.log)
 	params, err := parseSendRequest(req)
 	if err != nil {
 		return notificationsrpc.SendReply{Error: err.Error()}
@@ -133,10 +135,10 @@ func (a *adminRPC) send(ctx context.Context, req notificationsrpc.SendRequest) n
 
 	if created {
 		a.invalidate(params.TargetUserID)
-		a.log.Info("admin notification sent",
+		log.Info("admin notification sent",
 			zap.String("scope", req.Scope), zap.Int("id", row.ID), zap.Uint64("actor", params.CreatedBy))
 	} else {
-		a.log.Warn("duplicate admin notification suppressed",
+		log.Warn("duplicate admin notification suppressed",
 			zap.String("scope", req.Scope), zap.Int("id", row.ID), zap.Uint64("actor", params.CreatedBy))
 	}
 

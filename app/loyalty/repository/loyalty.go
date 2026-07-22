@@ -16,6 +16,7 @@ import (
 	"ItsBagelBot/app/loyalty/ent"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/pkg/db"
+	"ItsBagelBot/pkg/monitor"
 
 	entsql "entgo.io/ent/dialect/sql"
 
@@ -227,6 +228,7 @@ func (r *Loyalty) Flush(ctx context.Context) {
 	txn := r.app.StartTransaction("flush loyalty deltas")
 	defer txn.End()
 	ctx = newrelic.NewContext(ctx, txn)
+	log := monitor.TxnLogger(ctx, r.log)
 
 	if err := db.WithExec(ctx, func(ctx context.Context) error {
 		r.flushEarned(ctx, txn, earn)
@@ -234,7 +236,7 @@ func (r *Loyalty) Flush(ctx context.Context) {
 		return nil
 	}); err != nil {
 		txn.NoticeError(err)
-		r.log.Warn("loyalty: flush gate failed", zap.Error(err))
+		log.Warn("loyalty: flush gate failed", zap.Error(err))
 	}
 }
 

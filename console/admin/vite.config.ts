@@ -14,7 +14,9 @@ export default defineConfig({
   // newrelic is a CJS agent with native modules + dynamic requires; it must stay
   // external so it resolves to the singleton preloaded via --import at runtime
   // (bundling it would break it and create a second, uninstrumented instance).
-  ssr: { noExternal: ['@bagel/shared'], external: ['mysql2', 'newrelic', 'iovalkey'] },
+  // `pino` stays external so the New Relic agent's require-hook wraps the real
+  // module at runtime and local-decorates its log lines (bundling defeats the hook).
+  ssr: { noExternal: ['@bagel/shared'], external: ['mysql2', 'newrelic', 'iovalkey', 'pino'] },
   server: { port: 5174 },
   build: {
     minify: 'terser'

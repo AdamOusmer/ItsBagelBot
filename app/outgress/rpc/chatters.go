@@ -8,6 +8,7 @@ import (
 	"ItsBagelBot/app/outgress/internal/twitch"
 	"ItsBagelBot/internal/domain/rpc/manage"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/monitor"
 
 	"github.com/nats-io/nats.go"
 	"github.com/newrelic/go-agent/v3/newrelic"
@@ -39,6 +40,7 @@ func SubscribeChatters(nc *nats.Conn, tw *twitch.Client, botID, prefix, queueGro
 }
 
 func (c *chatters) handleGet(ctx context.Context, req manage.ChattersRequest) manage.ChattersReply {
+	log := monitor.TxnLogger(ctx, c.log)
 	if req.BroadcasterID == "" || c.botID == "" {
 		return manage.ChattersReply{Error: "bad request"}
 	}
@@ -47,7 +49,7 @@ func (c *chatters) handleGet(ctx context.Context, req manage.ChattersRequest) ma
 		if errors.Is(err, twitch.ErrMissingScope) || errors.Is(err, twitch.ErrNoUserToken) {
 			return manage.ChattersReply{MissingScope: true, Error: "chatters unavailable"}
 		}
-		c.log.Warn("chatters get failed", zap.String("broadcaster_id", req.BroadcasterID), zap.Error(err))
+		log.Warn("chatters get failed", zap.String("broadcaster_id", req.BroadcasterID), zap.Error(err))
 		return manage.ChattersReply{Error: "twitch request failed"}
 	}
 	out := make([]manage.Chatter, 0, len(list))

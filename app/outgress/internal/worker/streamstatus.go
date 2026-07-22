@@ -9,6 +9,7 @@ import (
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/domain/rpc/manage"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/monitor"
 
 	"go.uber.org/zap"
 )
@@ -118,6 +119,7 @@ func (w *Worker) streamStatusFailure(ctx context.Context, broadcasterID string, 
 // stream_status decoder. Always acks (returns nil): a re-verify is advisory and
 // must never poison or replay the lane.
 func (w *Worker) HandleStreamEvent(msg *bus.Message) error {
+	log := monitor.TxnLogger(msg.Context(), w.log)
 	status, ok := eventtwitch.DecodeStreamStatus(msg.Payload)
 	if !ok {
 		// Not a stream.online/offline we understand (or malformed). Ack and move
@@ -135,7 +137,7 @@ func (w *Worker) HandleStreamEvent(msg *bus.Message) error {
 	w.scheduleModStatus(broadcasterID, "")
 	w.reauthBeaconOnLive(msg.Context(), broadcasterID)
 
-	w.log.Debug("mod status refresh scheduled on go-live",
+	log.Debug("mod status refresh scheduled on go-live",
 		zap.String("broadcaster_id", broadcasterID))
 	return nil
 }

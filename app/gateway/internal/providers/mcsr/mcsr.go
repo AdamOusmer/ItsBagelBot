@@ -18,6 +18,7 @@ import (
 	"ItsBagelBot/app/gateway/internal/core"
 	"ItsBagelBot/app/gateway/internal/provider"
 	gatewayrpc "ItsBagelBot/internal/domain/rpc/gateway"
+	"ItsBagelBot/pkg/monitor"
 	"ItsBagelBot/pkg/ratelimit"
 
 	"go.uber.org/zap"
@@ -202,6 +203,7 @@ func (p *api) cachedUser(ctx context.Context, account string, isPremium bool) (g
 // --- endpoints ------------------------------------------------------------------
 
 func (p *api) user(ctx context.Context, req gatewayrpc.Request) any {
+	log := monitor.TxnLogger(ctx, p.log)
 	account := strings.TrimSpace(req.Account)
 	if account == "" {
 		return gatewayrpc.McsrUserReply{Error: "missing account"}
@@ -211,7 +213,7 @@ func (p *api) user(ctx context.Context, req gatewayrpc.Request) any {
 		if msg := friendlyError(err); msg != "" {
 			return gatewayrpc.McsrUserReply{Nickname: account, Error: msg}
 		}
-		p.log.Warn("mcsr user fetch failed", zap.String("account", account), zap.Error(err))
+		log.Warn("mcsr user fetch failed", zap.String("account", account), zap.Error(err))
 		return gatewayrpc.McsrUserReply{Nickname: account, Error: "stats lookup failed"}
 	}
 	return reply
@@ -221,6 +223,7 @@ func (p *api) user(ctx context.Context, req gatewayrpc.Request) any {
 // fetches fresh (not through the 60s cache): the snapshot is the session
 // baseline, so it must not predate the stream by a stale cache window.
 func (p *api) sessionStart(ctx context.Context, req gatewayrpc.Request) any {
+	log := monitor.TxnLogger(ctx, p.log)
 	account := strings.TrimSpace(req.Account)
 	if account == "" || req.ChannelID == "" {
 		return gatewayrpc.McsrSnapshotReply{Error: "missing account or channel"}
@@ -230,11 +233,11 @@ func (p *api) sessionStart(ctx context.Context, req gatewayrpc.Request) any {
 		if msg := friendlyError(err); msg != "" {
 			return gatewayrpc.McsrSnapshotReply{Error: msg}
 		}
-		p.log.Warn("mcsr snapshot fetch failed", zap.String("account", account), zap.Error(err))
+		log.Warn("mcsr snapshot fetch failed", zap.String("account", account), zap.Error(err))
 		return gatewayrpc.McsrSnapshotReply{Error: "stats lookup failed"}
 	}
 	if err := p.writeSnapshot(ctx, req.ChannelID, account, user); err != nil {
-		p.log.Warn("mcsr snapshot write failed", zap.String("channel_id", req.ChannelID), zap.Error(err))
+		log.Warn("mcsr snapshot write failed", zap.String("channel_id", req.ChannelID), zap.Error(err))
 		return gatewayrpc.McsrSnapshotReply{Error: "snapshot store failed"}
 	}
 	return gatewayrpc.McsrSnapshotReply{Nickname: user.Nickname, Elo: user.Elo}
@@ -257,6 +260,7 @@ func (p *api) writeSnapshot(ctx context.Context, channelID, account string, user
 // one now and reports HasSnapshot=false so the caller can say "tracking from
 // now".
 func (p *api) session(ctx context.Context, req gatewayrpc.Request) any {
+	log := monitor.TxnLogger(ctx, p.log)
 	account := strings.TrimSpace(req.Account)
 	if account == "" || req.ChannelID == "" {
 		return gatewayrpc.McsrSessionReply{Error: "missing account or channel"}
@@ -267,18 +271,18 @@ func (p *api) session(ctx context.Context, req gatewayrpc.Request) any {
 		if msg := friendlyError(err); msg != "" {
 			return gatewayrpc.McsrSessionReply{Nickname: account, Error: msg}
 		}
-		p.log.Warn("mcsr session fetch failed", zap.String("account", account), zap.Error(err))
+		log.Warn("mcsr session fetch failed", zap.String("account", account), zap.Error(err))
 		return gatewayrpc.McsrSessionReply{Nickname: account, Error: "stats lookup failed"}
 	}
 
 	var snap snapshot
 	ok, err := p.cache.GetJSON(ctx, snapshotKey(req.ChannelID), &snap)
 	if err != nil {
-		p.log.Warn("mcsr snapshot read failed", zap.String("channel_id", req.ChannelID), zap.Error(err))
+		log.Warn("mcsr snapshot read failed", zap.String("channel_id", req.ChannelID), zap.Error(err))
 	}
 	if !ok || snap.Account != strings.ToLower(account) {
 		if werr := p.writeSnapshot(ctx, req.ChannelID, account, user); werr != nil {
-			p.log.Warn("mcsr snapshot write failed", zap.String("channel_id", req.ChannelID), zap.Error(werr))
+			log.Warn("mcsr snapshot write failed", zap.String("channel_id", req.ChannelID), zap.Error(werr))
 		}
 		return gatewayrpc.McsrSessionReply{
 			Nickname:    user.Nickname,

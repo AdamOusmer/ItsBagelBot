@@ -10,6 +10,7 @@ import (
 	projectorrpc "ItsBagelBot/internal/domain/rpc/projector"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/monitor"
 
 	"github.com/nats-io/nats.go"
 	"github.com/newrelic/go-agent/v3/newrelic"
@@ -36,6 +37,7 @@ func SubscribeLive(nc *nats.Conn, store *projection.Store, pub bus.Publisher, su
 }
 
 func (l *liveRPC) handleGet(ctx context.Context, req projectorrpc.LiveRequest) projectorrpc.LiveReply {
+	log := monitor.TxnLogger(ctx, l.log)
 	if req.BroadcasterID == "" {
 		return projectorrpc.LiveReply{Error: "bad request"}
 	}
@@ -47,7 +49,7 @@ func (l *liveRPC) handleGet(ctx context.Context, req projectorrpc.LiveRequest) p
 	live, known, err := l.store.GetStreamLive(ctx, id)
 	if err != nil {
 		// Valkey error: do not escalate, just answer offline/unknown.
-		l.log.Warn("live rpc: store read failed", zap.Uint64("broadcaster_id", id), zap.Error(err))
+		log.Warn("live rpc: store read failed", zap.Uint64("broadcaster_id", id), zap.Error(err))
 		return projectorrpc.LiveReply{BroadcasterID: req.BroadcasterID, Live: false, Known: false}
 	}
 	if known {

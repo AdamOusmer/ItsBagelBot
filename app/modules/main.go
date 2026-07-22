@@ -16,6 +16,7 @@ import (
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/health"
+	"ItsBagelBot/pkg/monitor"
 	"ItsBagelBot/pkg/svcboot"
 
 	"github.com/nats-io/nats.go"
@@ -109,14 +110,15 @@ func consumeEvents(ctx context.Context, w eventsWiring) {
 // the account's module rows and quote book. Malformed payloads are logged and
 // dropped (returning an error would only redeliver them).
 func deleteUser(msg *bus.Message, w eventsWiring) error {
+	log := monitor.TxnLogger(msg.Context(), w.log)
 	var dto data.UserDeletedDTO
 	if err := json.Unmarshal(msg.Payload, &dto); err != nil {
-		w.log.Warn("modules: bad user_deleted payload", zap.Error(err))
+		log.Warn("modules: bad user_deleted payload", zap.Error(err))
 		return nil
 	}
 
 	if err := validate.UserID(dto.UserID); err != nil {
-		w.log.Warn("modules: invalid user_id in user_deleted", zap.Error(err))
+		log.Warn("modules: invalid user_id in user_deleted", zap.Error(err))
 		return nil
 	}
 
@@ -128,7 +130,7 @@ func deleteUser(msg *bus.Message, w eventsWiring) error {
 		return err
 	}
 
-	w.log.Info("modules: deleted all for user", zap.Uint64("user_id", dto.UserID))
+	log.Info("modules: deleted all for user", zap.Uint64("user_id", dto.UserID))
 	return nil
 }
 

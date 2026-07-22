@@ -12,8 +12,10 @@ import (
 
 	"ItsBagelBot/app/transactions/repository"
 	billingrpc "ItsBagelBot/internal/domain/rpc/billing"
+	"ItsBagelBot/pkg/monitor"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
 )
 
@@ -48,6 +50,9 @@ type Config struct {
 	// verification. Returning an error makes Tebex retry the webhook, so a
 	// transient NATS/users outage cannot lose a paid entitlement.
 	ApplyBilling func(ctx context.Context, req billingrpc.ApplyRequest) error
+	// App instruments the Tebex webhook routes with New Relic transactions.
+	// Health probes stay uninstrumented. Nil (no license key) is a no-op.
+	App *newrelic.Application
 }
 
 type Server struct {
@@ -73,16 +78,36 @@ func New(store Store, cfg Config, log *zap.Logger) http.Handler {
 	r.Get("/healthz", s.health)
 	r.Get("/readyz", s.ready)
 	r.Get("/drain", s.drain)
-	r.Get("/tebex", s.tebexReachable)
-	r.Get("/tebex/", s.tebexReachable)
-	r.Get("/webhooks/tebex", s.tebexReachable)
-	r.Get("/webhooks/tebex/", s.tebexReachable)
-	r.Post("/tebex", s.tebexWebhook)
-	r.Post("/tebex/", s.tebexWebhook)
-	r.Post("/webhooks/tebex", s.tebexWebhook)
-	r.Post("/webhooks/tebex/", s.tebexWebhook)
+
+	r.Group(func(r chi.Router) {
+		r.Use(transactionMiddleware(cfg.App))
+		r.Get("/tebex", s.tebexReachable)
+		r.Get("/tebex/", s.tebexReachable)
+		r.Get("/webhooks/tebex", s.tebexReachable)
+		r.Get("/webhooks/tebex/", s.tebexReachable)
+		r.Post("/tebex", s.tebexWebhook)
+		r.Post("/tebex/", s.tebexWebhook)
+		r.Post("/webhooks/tebex", s.tebexWebhook)
+		r.Post("/webhooks/tebex/", s.tebexWebhook)
+	})
 
 	return r
+}
+
+// transactionMiddleware runs each webhook request inside a New Relic
+// transaction and exposes it through the request context, so handler logs and
+// downstream RPC segments join the trace. A nil app makes every call a no-op.
+func transactionMiddleware(app *newrelic.Application) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			txn := app.StartTransaction(r.Method + " " + r.URL.Path)
+			defer txn.End()
+
+			txn.SetWebRequestHTTP(r)
+			w = txn.SetWebResponse(w)
+			next.ServeHTTP(w, r.WithContext(newrelic.NewContext(r.Context(), txn)))
+		})
+	}
 }
 
 func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
@@ -119,7 +144,7 @@ func (s *Server) tebexWebhook(w http.ResponseWriter, r *http.Request) {
 
 	var event tebexEvent
 	if err := json.Unmarshal(body, &event); err != nil {
-		s.log.Warn("tebex webhook json rejected", zap.Error(err))
+		monitor.TxnLogger(r.Context(), s.log).Warn("tebex webhook json rejected", zap.Error(err))
 		sendJSON(w, http.StatusBadRequest, errorBody{Error: "bad json"})
 		return
 	}
@@ -153,21 +178,23 @@ func (s *Server) tebexWebhook(w http.ResponseWriter, r *http.Request) {
 // On failure it writes the rejection response and returns ok=false.
 func (s *Server) verifiedBody(w http.ResponseWriter, r *http.Request) ([]byte, bool) {
 
+	log := monitor.TxnLogger(r.Context(), s.log)
+
 	if s.cfg.WebhookSecret == "" {
-		s.log.Warn("tebex webhook secret not configured")
+		log.Warn("tebex webhook secret not configured")
 		sendJSON(w, http.StatusServiceUnavailable, errorBody{Error: "webhook not configured"})
 		return nil, false
 	}
 
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBodyBytes))
 	if err != nil {
-		s.log.Warn("tebex webhook body rejected", zap.Error(err))
+		log.Warn("tebex webhook body rejected", zap.Error(err))
 		sendJSON(w, http.StatusRequestEntityTooLarge, errorBody{Error: "body too large"})
 		return nil, false
 	}
 
 	if !verifyTebexSignature(body, r.Header.Get("X-Signature"), s.cfg.WebhookSecret) {
-		s.log.Warn("tebex webhook signature rejected", zap.String("remote", r.RemoteAddr))
+		log.Warn("tebex webhook signature rejected", zap.String("remote", r.RemoteAddr))
 		w.WriteHeader(http.StatusUnauthorized)
 		return nil, false
 	}
@@ -245,7 +272,7 @@ func (s *Server) trialLifecycle(ctx context.Context, w http.ResponseWriter, even
 		// attribution can be impossible. Retries cannot fix that — audit the
 		// event and acknowledge instead of making Tebex redeliver forever.
 		if errors.Is(err, errNoRecordablePayment) || errors.Is(err, errPaymentUserMissing) {
-			s.log.Warn("tebex trial webhook without attributable payment",
+			monitor.TxnLogger(ctx, s.log).Warn("tebex trial webhook without attributable payment",
 				zap.String("webhook_id", event.ID),
 				zap.String("webhook_type", event.Type),
 				zap.Error(err),
@@ -304,9 +331,10 @@ func (s *Server) applyBilling(ctx context.Context, event tebexEvent, payment rec
 }
 
 func (s *Server) failEvent(ctx context.Context, w http.ResponseWriter, event tebexEvent, payment recordablePayment, status int, cause error) {
+	log := monitor.TxnLogger(ctx, s.log)
 
 	if err := s.saveEvent(ctx, event, repository.WebhookFailed, payment, cause.Error()); err != nil {
-		s.log.Error("failed to persist tebex webhook failure",
+		log.Error("failed to persist tebex webhook failure",
 			zap.String("webhook_id", event.ID),
 			zap.String("webhook_type", event.Type),
 			zap.Error(err),
@@ -315,7 +343,7 @@ func (s *Server) failEvent(ctx context.Context, w http.ResponseWriter, event teb
 		return
 	}
 
-	s.log.Warn("tebex webhook failed",
+	log.Warn("tebex webhook failed",
 		zap.String("webhook_id", event.ID),
 		zap.String("webhook_type", event.Type),
 		zap.String("transaction_id", payment.TransactionID),
@@ -345,7 +373,7 @@ func (s *Server) notifyGift(ctx context.Context, event tebexEvent, payment recor
 		GiftMessage:   payment.GiftMessage,
 	})
 	if err != nil {
-		s.log.Warn("gift notification failed",
+		monitor.TxnLogger(ctx, s.log).Warn("gift notification failed",
 			zap.String("webhook_id", event.ID),
 			zap.Uint64("recipient", payment.UserID),
 			zap.Uint64("gifted_by", payment.GiftedByID),

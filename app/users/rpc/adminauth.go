@@ -16,6 +16,7 @@ import (
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/pkg/bus"
 	dbgate "ItsBagelBot/pkg/db"
+	"ItsBagelBot/pkg/monitor"
 )
 
 // adminauth serves the admin console's authorization + audit surface. It is the
@@ -168,6 +169,7 @@ func (a *adminAuthRPC) listStaff(ctx context.Context, _ usersrpc.AuthRequest) us
 //   - only an owner may set a target's role to owner;
 //   - only an owner may modify an existing owner.
 func (a *adminAuthRPC) upsertStaff(ctx context.Context, req usersrpc.AuthRequest) usersrpc.AuthReply {
+	log := monitor.TxnLogger(ctx, a.log)
 	id, newRole, errMsg := a.validateUpsert(ctx, req)
 	if errMsg != "" {
 		return authError(errMsg)
@@ -182,7 +184,7 @@ func (a *adminAuthRPC) upsertStaff(ctx context.Context, req usersrpc.AuthRequest
 	if err := upsertStaffRow(ctx, a.db, row); err != nil {
 		return authError(err.Error())
 	}
-	a.log.Info("staff upsert", zap.Uint64("id", id), zap.String("role", string(newRole)), zap.Uint64("by", addedBy))
+	log.Info("staff upsert", zap.Uint64("id", id), zap.String("role", string(newRole)), zap.Uint64("by", addedBy))
 	return a.listStaff(ctx, usersrpc.AuthRequest{})
 }
 
@@ -283,6 +285,7 @@ func (a *adminAuthRPC) guardExistingTarget(ctx context.Context, id uint64, actor
 // rows keep resolving the actor. Owners may only be removed by owners, and the
 // last active owner can never be removed (lockout guard).
 func (a *adminAuthRPC) removeStaff(ctx context.Context, req usersrpc.AuthRequest) usersrpc.AuthReply {
+	log := monitor.TxnLogger(ctx, a.log)
 	id, errMsg := a.validateRemove(ctx, req)
 	if errMsg != "" {
 		return authError(errMsg)
@@ -294,7 +297,7 @@ func (a *adminAuthRPC) removeStaff(ctx context.Context, req usersrpc.AuthRequest
 		return authError(err.Error())
 	}
 	actorID, _ := parseID(req.ActorID)
-	a.log.Info("staff removed", zap.Uint64("id", id), zap.Uint64("by", actorID))
+	log.Info("staff removed", zap.Uint64("id", id), zap.Uint64("by", actorID))
 	return a.listStaff(ctx, usersrpc.AuthRequest{})
 }
 

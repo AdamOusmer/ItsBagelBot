@@ -11,6 +11,7 @@ import (
 	"ItsBagelBot/app/users/repository"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/monitor"
 
 	"ItsBagelBot/app/users/ent/tokens"
 )
@@ -60,6 +61,7 @@ func (t *tokensRPC) handleGet(ctx context.Context, req usersrpc.TokensRequest) u
 }
 
 func (t *tokensRPC) handleSave(ctx context.Context, req usersrpc.TokensRequest) usersrpc.TokensReply {
+	log := monitor.TxnLogger(ctx, t.log)
 	id, err := parseTokensUser(req)
 	if err != nil {
 		return usersrpc.TokensReply{Error: err.Error()}
@@ -67,7 +69,7 @@ func (t *tokensRPC) handleSave(ctx context.Context, req usersrpc.TokensRequest) 
 
 	if err := t.repo.UpsertToken(ctx, id, tokens.TypeUserToken, tokens.PlatformTwitch,
 		[]byte(req.AccessToken), []byte(req.RefreshToken)); err != nil {
-		t.log.Error("tokens save", zap.Error(err))
+		log.Error("tokens save", zap.Error(err))
 		return usersrpc.TokensReply{Error: err.Error()}
 	}
 

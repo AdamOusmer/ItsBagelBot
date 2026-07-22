@@ -10,6 +10,7 @@ import {
   type RewardResult
 } from '$lib/server/channelpoints-store';
 import { auditDashboardImpersonation } from '$lib/server/services';
+import { logger } from '@bagel/shared/server/logger';
 import { gateModulePage } from '$lib/server/module-gate';
 import type { Session } from '$lib/server/session';
 import { env } from '$env/dynamic/private';
@@ -135,7 +136,7 @@ export const actions: Actions = {
     try {
       res = await createReward(uid, draft);
     } catch (e) {
-      console.error('[channelpoints] create failed:', e instanceof Error ? (e.stack ?? e.message) : e);
+      logger.error({ err: e }, '[channelpoints] create failed');
       return fail(400, { ok: false, error: 'create failed' });
     }
     if (!res.ok) return resultFail(res);
@@ -157,7 +158,7 @@ export const actions: Actions = {
     try {
       res = await updateReward(uid, draft);
     } catch (e) {
-      console.error('[channelpoints] update failed:', e instanceof Error ? (e.stack ?? e.message) : e);
+      logger.error({ err: e }, '[channelpoints] update failed');
       return fail(400, { ok: false, error: 'update failed' });
     }
     if (!res.ok) return resultFail(res);
@@ -179,7 +180,7 @@ export const actions: Actions = {
     try {
       res = await deleteReward(uid, id);
     } catch (e) {
-      console.error('[channelpoints] delete failed:', e instanceof Error ? (e.stack ?? e.message) : e);
+      logger.error({ err: e }, '[channelpoints] delete failed');
       return fail(400, { ok: false, error: 'delete failed' });
     }
     if (!res.ok) return resultFail(res);
@@ -200,7 +201,7 @@ export const actions: Actions = {
     try {
       await setChannelPointsEnabled(uid, enabled);
     } catch (e) {
-      console.error('[channelpoints] toggle failed:', e instanceof Error ? (e.stack ?? e.message) : e);
+      logger.error({ err: e }, '[channelpoints] toggle failed');
       return fail(400, { ok: false });
     }
     auditDashboardImpersonation(locals.session, 'channelpoints:toggle', String(enabled));
