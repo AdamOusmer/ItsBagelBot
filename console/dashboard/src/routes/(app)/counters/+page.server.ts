@@ -22,7 +22,23 @@ function demoCounters(): CounterDef[] {
   return [
     { name: 'deaths', scope: 'channel', value: 137 },
     { name: 'hugs', scope: 'viewer', value: 0 },
+    { name: 'raids', scope: 'command', value: 0 },
     { name: 'redeems', scope: 'viewer_command', value: 0 }
+  ];
+}
+
+// demoEntries mirrors what counter.entries returns for each demo counter, so
+// the inspector drill-down works offline too.
+function demoEntries(name: string): CounterEntryView[] {
+  if (name === 'raids') {
+    return [
+      { viewerId: '0', viewerLogin: '', command: 'raid', value: 41 },
+      { viewerId: '0', viewerLogin: '', command: 'so', value: 12 }
+    ];
+  }
+  return [
+    { viewerId: '101', viewerLogin: 'sesame_sam', command: name === 'redeems' ? 'hydrate' : '', value: 23 },
+    { viewerId: '102', viewerLogin: 'bagel_fan', command: name === 'redeems' ? 'hydrate' : '', value: 9 }
   ];
 }
 
@@ -41,7 +57,11 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   gate(locals.session);
   const uid = effectiveId(locals.session);
   const selected = normalizeName(url.searchParams.get('c'));
-  if (env.DEMO === '1') return { counters: demoCounters(), selected: '', entries: [] as CounterEntryView[] };
+  if (env.DEMO === '1') {
+    const demo = demoCounters();
+    const sel = demo.some((c) => c.name === selected && c.scope !== 'channel') ? selected : '';
+    return { counters: demo, selected: sel, entries: sel ? demoEntries(sel) : [] };
+  }
 
   try {
     const counters = await listCounters(uid);

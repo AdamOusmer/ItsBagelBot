@@ -193,37 +193,57 @@ func (r *Loyalty) RecordBumps(dto data.CounterBumpedDTO) {
 }
 
 // bumpTarget maps one wire bump to its accumulator key per its scope, or
-// ok=false for an unusable bump: an empty/reserved name, a zero delta, a
-// viewer scope without a viewer, a bot bump outside the bot namespace, or a
-// channel-anchored bump without a broadcaster.
+// ok=false for an unusable bump.
 func bumpTarget(userID uint64, b data.CounterBumpEntry) (bumpKey, string, bool) {
 	name := normalizeName(b.Name)
+	if !usableBump(userID, name, b) {
+		return bumpKey{}, "", false
+	}
+	key, scope := scopeKey(userID, name, b)
+	return key, scope, true
+}
+
+// viewerScoped reports whether a scope keys entries by viewer.
+func viewerScoped(scope string) bool {
+	return scope == data.CounterScopeViewer || scope == data.CounterScopeViewerCommand
+}
+
+// usableBump filters bumps that can never land: an empty/reserved name, a
+// zero delta, a viewer scope without a viewer, or a scope/namespace mismatch
+// (bot bumps only in the UserID-0 namespace, everything else only outside it).
+func usableBump(userID uint64, name string, b data.CounterBumpEntry) bool {
 	if name == "" || strings.Contains(name, ":") || b.Delta == 0 {
-		return bumpKey{}, "", false
+		return false
 	}
-	if b.Scope == data.CounterScopeBot {
-		if userID != 0 {
-			return bumpKey{}, "", false
-		}
-		return bumpKey{name: name}, b.Scope, true
+	if viewerScoped(b.Scope) && b.ViewerID == 0 {
+		return false
 	}
-	if userID == 0 {
-		return bumpKey{}, "", false
-	}
+	return (userID == 0) == (b.Scope == data.CounterScopeBot)
+}
+
+// scopeKey derives the accumulator key and canonical scope of one usable
+// bump. A command-scope bump from a nameless source pools on the counter row
+// (channel shape) so its total stays readable; anything unknown folds to
+// channel.
+func scopeKey(userID uint64, name string, b data.CounterBumpEntry) (bumpKey, string) {
+	key := bumpKey{userID: userID, name: name}
 	switch b.Scope {
-	case data.CounterScopeViewer, data.CounterScopeViewerCommand:
-		if b.ViewerID == 0 {
-			return bumpKey{}, "", false // a viewer bump with no viewer is unusable
-		}
-		command := ""
-		if b.Scope == data.CounterScopeViewerCommand {
-			command = normalizeCommand(b.Command) // "" = nameless-source bucket
-		}
-		return bumpKey{userID: userID, name: name, command: command, viewerID: b.ViewerID}, b.Scope, true
+	case data.CounterScopeBot:
+		return key, b.Scope // key.userID is already 0 in the bot namespace
+	case data.CounterScopeViewer:
+		key.viewerID = b.ViewerID
+		return key, b.Scope
+	case data.CounterScopeViewerCommand:
+		key.viewerID, key.command = b.ViewerID, normalizeCommand(b.Command)
+		return key, b.Scope
 	case data.CounterScopeCommand:
-		return bumpKey{userID: userID, name: name, command: normalizeCommand(b.Command)}, b.Scope, true
+		key.command = normalizeCommand(b.Command)
+		if key.command == "" {
+			return key, data.CounterScopeChannel
+		}
+		return key, b.Scope
 	default:
-		return bumpKey{userID: userID, name: name}, data.CounterScopeChannel, true
+		return key, data.CounterScopeChannel
 	}
 }
 

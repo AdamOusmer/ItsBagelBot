@@ -1355,8 +1355,6 @@ export function blankLoyaltyConfig(): LoyaltyConfig {
   return { pointsName: '', subPoints: 0, resubPoints: 0, giftSubPoints: 0, cheerPointsPer100: 0, watchPointsPerTick: 0 };
 }
 
-// The three ways a counter can be made, all per channel: one global value, one
-// value per user, or one value per user per command/reward.
 // The broadcaster-facing counter scopes. 'command' pools every viewer into
 // one total per command/reward; 'viewer_command' keeps one value per viewer
 // per command. (A fifth, admin-only 'bot' scope exists service-side and never

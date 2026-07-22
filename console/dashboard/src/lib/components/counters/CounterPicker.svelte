@@ -4,16 +4,20 @@
   // it. The list lazy-loads from /counters/list on first open; create posts
   // through the counters page's own ?/create action.
   import { deserialize } from '$app/forms';
-  import { getI18n, COUNTER_SCOPES, type CounterDef, type CounterScope } from '@bagel/shared';
+  import { getI18n, COUNTER_SCOPES, type CounterScope } from '@bagel/shared';
 
   const { t } = getI18n();
+
+  // The list endpoint sends names and scopes only (values are channel
+  // metrics and stay on the counters page).
+  type CounterRef = { name: string; scope: CounterScope };
 
   let { onInsert }: { onInsert: (token: string) => void } = $props();
 
   let open = $state(false);
   let loaded = $state(false);
   let loading = $state(false);
-  let counters = $state<CounterDef[]>([]);
+  let counters = $state<CounterRef[]>([]);
   let newName = $state('');
   let newScope = $state<CounterScope>('channel');
   let creating = $state(false);
@@ -38,7 +42,7 @@
     loading = true;
     try {
       const res = await fetch('/counters/list');
-      const data = (await res.json()) as { counters?: CounterDef[] };
+      const data = (await res.json()) as { counters?: CounterRef[] };
       counters = data.counters ?? [];
       loaded = true;
     } catch {
@@ -72,7 +76,7 @@
       const r = deserialize(await res.text());
       const ok = r.type === 'success' && (r.data as { ok?: boolean } | undefined)?.ok === true;
       if (ok) {
-        if (!counters.some((c) => c.name === name)) counters = [...counters, { name, scope: newScope, value: 0 }];
+        if (!counters.some((c) => c.name === name)) counters = [...counters, { name, scope: newScope }];
         newName = '';
         pick(name);
       } else {

@@ -76,7 +76,7 @@
           { href: '/staff', icon: 'moderation', label: 'Staff', active: crumb === 'Staff' },
           { href: '/audit', icon: 'audit', label: 'Audit', active: crumb === 'Audit' },
           { href: '/secrets', icon: 'lock', label: 'Secrets', active: crumb === 'Secrets' },
-          { href: '/counters', icon: 'list', label: 'Counters', active: crumb === 'Bot counters' }
+          { href: '/counters', icon: 'list', label: 'Bot counters', active: crumb === 'Bot counters' }
         ]
       : [])
   ] as NavLink[]);

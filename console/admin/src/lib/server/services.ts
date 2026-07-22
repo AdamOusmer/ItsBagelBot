@@ -711,7 +711,7 @@ export async function auditPage(page = 1, search = '', actorFilter = ''): Promis
 }
 
 // ---------------------------------------------------------------------------
-// Bot-global counters — the reserved loyalty namespace user_id "0". Created
+// Bot-global counters: the reserved loyalty namespace user_id "0". Created
 // and bumped by admins and system modules only; broadcasters can neither see
 // nor reference them, so no cache layer: the page reads straight through.
 

@@ -26,7 +26,10 @@
   const counters = $derived(bundle?.counters ?? []);
 
   let newName = $state('');
-  let busy = $state(false);
+  // One in-flight key ('create', 'set:<name>' or 'delete') so a row's Set
+  // spinner never lights up every other button, mirroring the dashboard's
+  // per-row save states.
+  let busyKey = $state<string | null>(null);
   // Per-row absolute value drafts, seeded from the loaded list.
   let drafts = $state<Record<string, number>>({});
   $effect(() => {
@@ -37,22 +40,26 @@
   let deleteForm = $state<HTMLFormElement | null>(null);
 
   type ActionResult = { ok?: boolean; error?: string };
-  const submit: SubmitFunction = () => {
-    busy = true;
-    return async ({ result }) => {
-      busy = false;
-      deleteTarget = null;
-      const payload =
-        result.type === 'success' || result.type === 'failure' ? (result.data as ActionResult | undefined) : undefined;
-      if (result.type === 'success' && payload?.ok) {
-        toast('ok', 'Saved.');
-        newName = '';
-        await invalidateAll();
-        return;
-      }
-      toast('err', payload?.error ?? 'That did not work.');
+  function submitAs(key: string, okNotice: string): SubmitFunction {
+    return () => {
+      busyKey = key;
+      return async ({ result }) => {
+        busyKey = null;
+        deleteTarget = null;
+        const payload =
+          result.type === 'success' || result.type === 'failure'
+            ? (result.data as ActionResult | undefined)
+            : undefined;
+        if (result.type === 'success' && payload?.ok) {
+          toast('ok', okNotice);
+          newName = '';
+          await invalidateAll();
+          return;
+        }
+        toast('err', payload?.error ?? "That didn't work. Try again.");
+      };
     };
-  };
+  }
 </script>
 
 <section class="screen active">
@@ -61,12 +68,12 @@
   </PageHead>
 
   {#if bundle?.degraded}
-    <AlertBanner>Loyalty service unreachable — counters are temporarily unavailable.</AlertBanner>
+    <AlertBanner>Loyalty service unreachable. Counters are temporarily unavailable.</AlertBanner>
   {/if}
 
-  <form method="POST" action="?/create" class="create-row" use:enhance={submit}>
+  <form method="POST" action="?/create" class="create-row" use:enhance={submitAs('create', 'Counter created.')}>
     <input class="search" name="name" placeholder="e.g. feeds" maxlength="64" bind:value={newName} required />
-    <Button variant="primary" icon="plus" type="submit" loading={busy}>Create</Button>
+    <Button variant="primary" icon="plus" type="submit" loading={busyKey === 'create'}>Create</Button>
   </form>
 
   {#if bundle === null}
@@ -90,10 +97,10 @@
               <th scope="row"><code>{c.name}</code></th>
               <td class="r">{c.value.toLocaleString()}</td>
               <td class="r">
-                <form method="POST" action="?/set" class="set-row" use:enhance={submit}>
+                <form method="POST" action="?/set" class="set-row" use:enhance={submitAs(`set:${c.name}`, 'Counter updated.')}>
                   <input type="hidden" name="name" value={c.name} />
                   <input class="search num" type="number" name="value" step="1" bind:value={drafts[c.name]} />
-                  <Button variant="ghost" type="submit" icon="check" loading={busy}>Set</Button>
+                  <Button variant="ghost" type="submit" icon="check" loading={busyKey === `set:${c.name}`}>Set</Button>
                 </form>
               </td>
               <td class="r">
@@ -114,11 +121,11 @@
   confirmLabel="Delete"
   cancelLabel="Cancel"
   danger
-  busy={busy}
+  busy={busyKey === 'delete'}
   onCancel={() => (deleteTarget = null)}
   onConfirm={() => deleteForm?.requestSubmit()}
 />
-<form method="POST" action="?/delete" use:enhance={submit} bind:this={deleteForm} hidden>
+<form method="POST" action="?/delete" use:enhance={submitAs('delete', 'Counter deleted.')} bind:this={deleteForm} hidden>
   <input type="hidden" name="name" value={deleteTarget ?? ''} />
 </form>
 

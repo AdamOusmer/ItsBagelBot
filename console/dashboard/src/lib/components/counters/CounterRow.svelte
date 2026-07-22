@@ -64,13 +64,15 @@
   </button>
 
   <!-- Metadata: labelled TEXT. Channel counters show their tally; entry-scoped
-       counters keep per-viewer buckets, so the row states that instead. -->
+       counters keep per-bucket values, so the row states which kind instead. -->
   <div class="meta">
     {#if isChannel}
       <span class="m-item">
         <span class="m-lbl">{t('counters.colValue')}</span>
         <span class="m-val">{c.value.toLocaleString()}</span>
       </span>
+    {:else if c.scope === 'command'}
+      <span class="m-flag">{t('counters.perCommandNote')}</span>
     {:else}
       <span class="m-flag">{t('counters.perUserNote')}</span>
     {/if}
@@ -154,7 +156,16 @@
     white-space: nowrap;
   }
 
-  .meta { display: inline-flex; align-items: center; gap: 12px; }
+  /* Fixed column tracks (the CommandRow pattern) so the value/note and the
+     save state line up across rows instead of shifting with content, which
+     also keeps every row's stepper/delete at the same x position. */
+  .meta {
+    display: grid;
+    grid-template-columns: 132px 48px;
+    align-items: center;
+    gap: 12px;
+  }
+  .meta > * { min-width: 0; }
   .m-item { display: inline-flex; align-items: baseline; gap: 5px; }
   .m-lbl {
     font-family: var(--bb-font-body);
@@ -208,7 +219,13 @@
     }
     .disclosure { grid-area: disc; grid-template-columns: 1fr auto; gap: 8px; padding: 8px 0 4px; }
     .idx { display: none; }
-    .meta { grid-area: meta; flex-wrap: wrap; gap: 8px 12px; padding-bottom: 8px; }
+    .meta {
+      grid-area: meta;
+      grid-template-columns: auto auto;
+      justify-content: start;
+      gap: 8px 12px;
+      padding-bottom: 8px;
+    }
     .row-act { grid-area: act; }
   }
 </style>

@@ -313,22 +313,25 @@
 
 {#snippet renameBlock()}
   <!-- The input joins the hidden ?/rename form via form=, so it can sit
-       inside the set form without nesting forms. -->
-  <Field label={t('counters.rename')}>
-    <div class="rename-row">
-      <input
-        class="search"
-        name="new_name"
-        form="counter-rename-form"
-        placeholder={t('counters.renamePh')}
-        maxlength="64"
-        bind:value={renameValue}
-      />
-      <Button variant="ghost" loading={renaming} onclick={() => renameForm?.requestSubmit()}>
-        {t('counters.rename')}
-      </Button>
+       inside the set form without nesting forms. The button stays outside
+       Field so the label wraps exactly one control. -->
+  <div class="rename-row">
+    <div class="rename-field">
+      <Field label={t('counters.rename')}>
+        <input
+          class="search"
+          name="new_name"
+          form="counter-rename-form"
+          placeholder={t('counters.renamePh')}
+          maxlength="64"
+          bind:value={renameValue}
+        />
+      </Field>
     </div>
-  </Field>
+    <Button variant="ghost" loading={renaming} onclick={() => renameForm?.requestSubmit()}>
+      {t('counters.rename')}
+    </Button>
+  </div>
 {/snippet}
 
 <section class="screen active">
@@ -342,17 +345,19 @@
 
   <PageToolbar>
     {#snippet lead()}
+      <div class="chip-row" role="group" aria-label={t('counters.filterAria')}>
+        <button class="chip {scopeFilter === 'all' ? 'on' : ''}" onclick={() => (scopeFilter = 'all')}>
+          {t('counters.filterAll')}
+        </button>
+        {#each COUNTER_SCOPES as s}
+          <button class="chip {scopeFilter === s ? 'on' : ''}" onclick={() => (scopeFilter = s)}>{scopeTag[s]}</button>
+        {/each}
+      </div>
+    {/snippet}
+    {#snippet trail()}
       <div class="toolbar-search">
         <SearchInput placeholder={t('counters.searchPlaceholder')} bind:value={search} debounceMs={200} />
       </div>
-      <select class="search scope-filter" aria-label={t('counters.filterAria')} bind:value={scopeFilter}>
-        <option value="all">{t('counters.filterAll')}</option>
-        {#each COUNTER_SCOPES as s}
-          <option value={s}>{scopeTag[s]}</option>
-        {/each}
-      </select>
-    {/snippet}
-    {#snippet trail()}
       <Button variant="primary" icon="plus" onclick={openNew} disabled={expanded === NEW}>
         {t('counters.create')}
       </Button>
@@ -466,12 +471,16 @@
               {:else if (data.entries ?? []).length === 0}
                 <p class="hint">{t('counters.entriesEmpty')}</p>
               {:else}
+                <!-- Command scope pools every viewer, so its buckets have no
+                     viewer column; the viewer scopes lead with it. -->
                 <div class="tbl-wrap">
                   <table class="tbl">
                     <caption class="sr-only">{t('counters.entriesTitle', { name: selected.name })}</caption>
                     <thead>
                       <tr>
-                        <th scope="col">{t('counters.colViewer')}</th>
+                        {#if selected.scope !== 'command'}
+                          <th scope="col">{t('counters.colViewer')}</th>
+                        {/if}
                         <th scope="col">{t('counters.colSource')}</th>
                         <th scope="col" class="r">{t('counters.colValue')}</th>
                       </tr>
@@ -479,8 +488,12 @@
                     <tbody>
                       {#each data.entries ?? [] as e (e.viewerId + ':' + e.command)}
                         <tr>
-                          <th scope="row">{e.viewerLogin || e.viewerId}</th>
-                          <td class="mut">{e.command || '—'}</td>
+                          {#if selected.scope !== 'command'}
+                            <th scope="row">{e.viewerLogin || e.viewerId}</th>
+                            <td class="mut">{e.command || '·'}</td>
+                          {:else}
+                            <th scope="row">{e.command || '·'}</th>
+                          {/if}
                           <td class="r">{e.value.toLocaleString()}</td>
                         </tr>
                       {/each}
@@ -551,10 +564,9 @@
 <style>
   .toolbar-search { width: 220px; max-width: 100%; }
   .toolbar-search :global(.si) { width: 100%; }
-  .scope-filter { width: auto; }
 
-  .rename-row { display: flex; align-items: center; gap: 8px; }
-  .rename-row input { flex: 1; min-width: 0; }
+  .rename-row { display: flex; align-items: flex-end; gap: 8px; }
+  .rename-field { flex: 1; min-width: 0; }
 
   .deck { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
   @media (min-width: 1080px) {

@@ -188,13 +188,17 @@ func rowScoped(scope string) bool {
 
 // bumpTarget normalizes the (scope, viewer, command) triple a bump lands
 // under: bot and channel values ignore both; command scope pools every viewer
-// into the command bucket; a viewer scope bumped without a viewer (should not
-// happen from chat) falls back to the channel value rather than dropping.
+// into the command bucket. An unaddressable bump falls back to the channel
+// value rather than dropping: a viewer scope without a viewer (should not
+// happen from chat), or a command scope bumped by a nameless source.
 func bumpTarget(scope string, viewerID uint64, command string) (string, uint64, string) {
 	switch scope {
 	case data.CounterScopeBot:
 		return scope, 0, ""
 	case data.CounterScopeCommand:
+		if command == "" {
+			return data.CounterScopeChannel, 0, ""
+		}
 		return scope, 0, command
 	case data.CounterScopeViewer, data.CounterScopeViewerCommand:
 		if viewerID == 0 {

@@ -38,7 +38,9 @@ function wipe(event: RequestEvent): void {
 // is opened by one of those grants (moduleDelegateSections — the same source
 // the per-page gates and the tile grid read, so the three can never drift and
 // a new module page needs no edit here). Counters has its own nav entry but
-// deliberately no grant of its own — it rides the modules grant explicitly.
+// deliberately no grant of its own: management rides the modules grant, and
+// the read-only name list additionally opens to the commands grant so the
+// command editor's counter picker works for commands-only delegates.
 function delegateAllowedPaths(sections: readonly string[]): string[] {
   const allowed = sections.map((sec) => `/${sec}`);
   for (const def of MODULE_CATALOG) {
@@ -47,6 +49,7 @@ function delegateAllowedPaths(sections: readonly string[]): string[] {
     }
   }
   if (sections.includes('modules')) allowed.push('/counters');
+  else if (sections.includes('commands')) allowed.push('/counters/list');
   return allowed;
 }
 
