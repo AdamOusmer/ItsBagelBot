@@ -693,11 +693,22 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
       {
         key: 'sub',
         label: 'Subscribe alert',
-        tagline: 'When someone subscribes.',
+        tagline: 'When someone subscribes or resubscribes.',
         event: 'on subscribe',
         enableKey: 'subEnabled',
         messageKey: 'subMessage',
         defaultMessage: 'Welcome to the community, {user}! Thank you for subscribing!'
+      },
+      {
+        key: 'gift',
+        label: 'Gift sub alert',
+        tagline: 'When someone gifts subs. One line per gifter, never per recipient.',
+        event: 'on gift subs',
+        enableKey: 'giftEnabled',
+        messageKey: 'giftMessage',
+        defaultMessage: '{user} just gifted {count} subs to the community! Thank you!',
+        tokens: ['user', 'count', 'tier'],
+        previewSamples: { user: 'GenerousViewer', count: '5', tier: '1000' }
       },
       {
         key: 'cheer',
