@@ -1,6 +1,101 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:recommended"
+    "config:recommended",
+    "docker:pinDigests"
+  ],
+  "timezone": "America/Toronto",
+  "schedule": [
+    "before 5am on Monday"
+  ],
+  "dependencyDashboard": true,
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2,
+  "enabledManagers": [
+    "bun",
+    "dockerfile",
+    "gomod",
+    "kubernetes",
+    "mix"
+  ],
+  "ignorePaths": [
+    ".claude/**",
+    ".worktrees/**",
+    "deploy/flux/clusters/production/flux-system/gotk-components.yaml"
+  ],
+  "kubernetes": {
+    "managerFilePatterns": [
+      "/^deploy/(?:flux|infra|k8s)/.+\\.ya?ml$/"
+    ]
+  },
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": [
+      "before 5am on Monday"
+    ]
+  },
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "schedule": [
+      "at any time"
+    ]
+  },
+  "packageRules": [
+    {
+      "description": "Flux owns deployment tags for first-party service images",
+      "matchPackageNames": [
+        "ghcr.io/adamousmer/itsbagelbot/**"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "Group non-major Bun dependency updates",
+      "matchManagers": [
+        "bun"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "pin",
+        "digest"
+      ],
+      "groupName": "Bun dependencies"
+    },
+    {
+      "description": "Group non-major Go dependency updates",
+      "matchManagers": [
+        "gomod"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "groupName": "Go dependencies"
+    },
+    {
+      "description": "Group non-major Elixir dependency updates",
+      "matchManagers": [
+        "mix"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "groupName": "Elixir dependencies"
+    },
+    {
+      "description": "Group container base and deployment image updates",
+      "matchManagers": [
+        "dockerfile",
+        "kubernetes"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "pin",
+        "digest"
+      ],
+      "groupName": "Container images"
+    }
   ]
 }
