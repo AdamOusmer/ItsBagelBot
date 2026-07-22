@@ -9,6 +9,7 @@
  * through a matching named slot.
  */
 import TextLink from '../ui/TextLink.astro';
+import { getLangFromUrl, useTranslations, localizePath } from '../../i18n/ui';
 
 interface Section {
     id: string;
@@ -31,11 +32,16 @@ interface Props {
 }
 
 const { sections, minutes, prev, next } = Astro.props;
-const isFrench = Astro.url.pathname.startsWith('/fr/');
-const labels = isFrench
-    ? { toc: 'Dans ce guide', glance: 'en bref', hub: 'Tous les guides', prev: 'Guide précédent', next: 'Guide suivant' }
-    : { toc: 'In this guide', glance: 'at a glance', hub: 'All guides', prev: 'Previous guide', next: 'Next guide' };
-const hubHref = isFrench ? '/fr/guides' : '/guides';
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+const labels = {
+    toc: t('guide.toc'),
+    glance: t('guide.glance'),
+    hub: t('guide.hub'),
+    prev: t('guide.prevLabel'),
+    next: t('guide.nextLabel'),
+};
+const hubHref = localizePath('/guides', lang);
 ---
 
 <div class="gshell" data-guide>

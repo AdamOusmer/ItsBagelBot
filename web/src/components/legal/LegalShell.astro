@@ -3,13 +3,16 @@
  * LegalShell — legal pages that respect the reader. A thin reading-progress
  * bar, a sticky scrollspy table of contents (desktop), and a "plain words"
  * one-liner on every section so nobody has to parse legalese to get the gist.
- * Pages pass sections (id, heading, plain) and provide the body of each
- * section through a matching named slot.
+ * Pages pass sections (id, heading, plain) and the rendered body of each
+ * section as a Content component (from a markdown content collection).
  */
+import type { AstroComponentFactory } from 'astro/runtime/server/index.js';
+
 interface Section {
     id: string;
     heading: string;
     plain: string;
+    Content: AstroComponentFactory;
 }
 
 interface Props {
@@ -17,11 +20,11 @@ interface Props {
     sections: Section[];
 }
 
+import { getLangFromUrl, useTranslations } from '../../i18n/ui';
+
 const { updated, sections } = Astro.props;
-const isFrench = Astro.url.pathname.startsWith('/fr/');
-const labels = isFrench
-    ? { toc: 'Sur cette page', updated: 'Dernière mise à jour :', plain: 'en clair' }
-    : { toc: 'On this page', updated: 'Last updated:', plain: 'plain words' };
+const t = useTranslations(getLangFromUrl(Astro.url));
+const labels = { toc: t('legal.toc'), updated: t('legal.updated'), plain: t('legal.plain') };
 ---
 
 <div class="lshell" data-legal>
@@ -44,16 +47,19 @@ const labels = isFrench
         <article class="lshell__content">
             <p class="lshell__updated" data-reveal>{labels.updated} {updated}</p>
 
-            {await Promise.all(sections.map(async (section, i) => (
-                <div class="lshell__block" id={section.id} data-legal-section data-reveal style={`--reveal-i: ${Math.min(i + 1, 6)}`}>
-                    <h2>{section.heading}</h2>
-                    <p class="lshell__plain">
-                        <span class="lshell__plain-tag">{labels.plain}</span>
-                        {section.plain}
-                    </p>
-                    <Fragment set:html={await Astro.slots.render(section.id)} />
-                </div>
-            )))}
+            {sections.map((section, i) => {
+                const Content = section.Content;
+                return (
+                    <div class="lshell__block" id={section.id} data-legal-section data-reveal style={`--reveal-i: ${Math.min(i + 1, 6)}`}>
+                        <h2>{section.heading}</h2>
+                        <p class="lshell__plain">
+                            <span class="lshell__plain-tag">{labels.plain}</span>
+                            {section.plain}
+                        </p>
+                        <Content />
+                    </div>
+                );
+            })}
         </article>
     </div>
 </div>

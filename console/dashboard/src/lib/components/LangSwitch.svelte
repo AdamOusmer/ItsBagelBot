@@ -3,6 +3,7 @@
   // path as `next` so the switch keeps you on the same page in the new language.
   import { page } from '$app/state';
   import { getI18n, LOCALES, type Locale } from '@bagel/shared';
+  import { localeName } from '@bagel/shared/i18n';
 
   let { selected }: { selected?: Locale } = $props();
   const i18n = getI18n();
@@ -21,7 +22,7 @@
       class="lang-opt"
       class:active={l === active}
       aria-pressed={l === active}
-      title={i18n.t(`lang.${l}`)}
+      title={localeName(l)}
     >{short(l)}</button>
   {/each}
 </form>

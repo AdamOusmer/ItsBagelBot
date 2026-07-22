@@ -58,6 +58,7 @@ export {
   translateList,
   detectLocale,
   isLocale,
+  localeName,
   LOCALES,
   DEFAULT_LOCALE,
   LOCALE_COOKIE,

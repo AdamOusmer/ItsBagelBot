@@ -24,8 +24,8 @@
  * builds DOM with textContent only.
  */
 import logoImage from '../../assets/LogoBOT.png';
-import { builderData, builderUI } from '../../i18n/builder';
-import type { Lang } from '../../i18n/ui';
+import { builderData, builderUI, builderRecipes } from '../../i18n/builder';
+import { localizePath, type Lang } from '../../i18n/ui';
 
 interface Props {
     lang: Lang;
@@ -34,7 +34,7 @@ interface Props {
 const { lang } = Astro.props;
 const data = builderData(lang);
 const ui = builderUI(lang);
-const guideHref = lang === 'fr' ? '/fr/guides/commands' : '/guides/commands';
+const guideHref = localizePath('/guides/commands', lang);
 
 // Grouped surfaces for the module <select>, custom excluded (it's a mode).
 const groups: { group: string; items: { id: string; label: string }[] }[] = [];
@@ -161,19 +161,7 @@ for (const surface of data.surfaces) {
             addActionAfterMe: ui.addActionAfterMe,
             nothingToSay: ui.nothingToSay,
             unknownVar: ui.unknownVar,
-            recipes: lang === 'fr'
-                ? [
-                    { label: 'Accueillir quelqu’un', text: 'Bienvenue, {user}! Installe-toi 🥯' },
-                    { label: 'Lancer un dé', text: '{user} lance {random:1-100} sur 100.' },
-                    { label: 'Choisir une option', text: 'Ambiance du soir: {choice:cosy,chaotique,compétitive}.' },
-                    { label: 'Compter les chutes', text: '{channel} est tombé {counter:chutes} fois.' },
-                  ]
-                : [
-                    { label: 'Welcome someone', text: 'Welcome in, {user}! Grab a seat 🥯' },
-                    { label: 'Roll a number', text: '{user} rolled {random:1-100} out of 100.' },
-                    { label: 'Pick an option', text: "Tonight's vibe: {choice:cozy,chaotic,competitive}." },
-                    { label: 'Count the falls', text: '{channel} has fallen {counter:falls} times.' },
-                  ],
+            recipes: builderRecipes(lang),
         },
     })} />
 </div>
@@ -188,6 +176,7 @@ for (const surface of data.surfaces) {
     type Payload = {
         data: {
             lang: string;
+            defaultLang: string;
             limits: { nameMax: number; aliasMax: number; lineMax: number; linesMax: number; cooldownMax: number };
             dashboardOrigin: string;
             perms: { value: string; label: string }[];
@@ -660,7 +649,7 @@ for (const surface of data.surfaces) {
             url.searchParams.set('cooldown', String(cleanCooldown()));
             const aliases = cleanAliases();
             if (aliases.length) url.searchParams.set('aliases', aliases.join(','));
-            if (data.lang === 'fr') url.searchParams.set('lang', 'fr');
+            if (data.lang !== data.defaultLang) url.searchParams.set('lang', data.lang);
             return url.toString();
         }
 
@@ -701,7 +690,7 @@ for (const surface of data.surfaces) {
                 copyWrap.removeAttribute('hidden');
                 output.textContent = ta.value.trim();
                 moduleLink.hidden = false;
-                moduleLink.href = data.dashboardOrigin + surface.dashPath + (data.lang === 'fr' ? '?lang=fr' : '');
+                moduleLink.href = data.dashboardOrigin + surface.dashPath + (data.lang !== data.defaultLang ? '?lang=' + data.lang : '');
             }
             copyBtn.disabled = !!err;
 

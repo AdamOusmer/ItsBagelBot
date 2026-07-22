@@ -18,6 +18,7 @@ import {
 } from '$lib/server/services';
 import { ACCOUNT_DELETED_COOKIE, COOKIE, type Session } from '$lib/server/session';
 import { demoNotifications } from '$lib/server/demo-notifications';
+import { isLocale, DEFAULT_LOCALE } from '@bagel/shared/i18n';
 import { env } from '$env/dynamic/private';
 
 // Dashboard sections an owner can delegate. Billing is view-only for a delegate
@@ -60,7 +61,7 @@ export const load: PageServerLoad = async ({ locals }) => {
       received: [{ owner_user_id: '42', owner_login: 'ferret_king', sections: ['commands'] }],
       grantableSections: [...SECTIONS],
       notifications: demoNotifications,
-      savedLocale: 'en' as const,
+      savedLocale: DEFAULT_LOCALE,
       degraded: false
     };
   }
@@ -90,9 +91,9 @@ export const load: PageServerLoad = async ({ locals }) => {
   // Notifications are a nice-to-have section; a failed fetch just shows empty.
   if (notifResult.status === 'fulfilled') notifications = notifResult.value.notifications;
 
-  const savedLocale = localeResult.status === 'fulfilled' && (localeResult.value === 'en' || localeResult.value === 'fr')
+  const savedLocale = localeResult.status === 'fulfilled' && isLocale(localeResult.value)
     ? localeResult.value
-    : 'en';
+    : DEFAULT_LOCALE;
   if (localeResult.status === 'rejected') degraded = true;
 
   return { given, received, grantableSections: [...SECTIONS], notifications, savedLocale, degraded };

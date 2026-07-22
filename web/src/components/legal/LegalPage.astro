@@ -1,0 +1,56 @@
+---
+/**
+ * LegalPage — assembles one legal document from its content collection. Given a
+ * `doc` ('terms' | 'privacy' | 'creator-terms'), it loads the meta.json and the
+ * NN-<anchor>.md sections for the URL's locale, rendering each section body to a
+ * Content component for LegalShell. A locale with no sections falls back to the
+ * default locale (with a build-time warning); the build never fails on a missing
+ * translation.
+ */
+import Layout from '../../layouts/Layout.astro';
+import PageHero from '../ui/PageHero.astro';
+import LegalShell from './LegalShell.astro';
+import { getCollection, getEntry, render } from 'astro:content';
+import { getLangFromUrl, defaultLang } from '../../i18n/ui';
+
+interface Props {
+    doc: string;
+}
+
+const { doc } = Astro.props;
+const lang = getLangFromUrl(Astro.url);
+
+async function sectionsFor(loc: string) {
+    const entries = await getCollection('legalSections', (e) => e.id.startsWith(`${doc}/${loc}/`));
+    return entries.sort((a, b) => a.id.localeCompare(b.id));
+}
+
+let localeUsed = lang;
+let sectionEntries = await sectionsFor(lang);
+if (sectionEntries.length === 0 && lang !== defaultLang) {
+    console.warn(`[legal] "${doc}" has no "${lang}" sections; falling back to "${defaultLang}".`);
+    localeUsed = defaultLang;
+    sectionEntries = await sectionsFor(defaultLang);
+}
+
+const metaEntry =
+    (await getEntry('legalMeta', `${doc}/${localeUsed}/meta`)) ??
+    (await getEntry('legalMeta', `${doc}/${defaultLang}/meta`));
+if (!metaEntry) throw new Error(`[legal] missing meta for ${doc}`);
+const meta = metaEntry.data;
+
+// Recover each section's stable anchor from its filename (strip "doc/loc/NN-").
+const prefix = `${doc}/${localeUsed}/`;
+const sections = await Promise.all(
+    sectionEntries.map(async (entry) => {
+        const { Content } = await render(entry);
+        const id = entry.id.slice(prefix.length).replace(/^\d+-/, '');
+        return { id, heading: entry.data.heading, plain: entry.data.plain, Content };
+    }),
+);
+---
+
+<Layout title={meta.metaTitle} description={meta.metaDescription}>
+    <PageHero eyebrow={meta.eyebrow} title={meta.title} description={meta.description} />
+    <LegalShell updated={meta.updated} sections={sections} />
+</Layout>

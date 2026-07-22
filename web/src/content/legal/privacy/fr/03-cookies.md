@@ -1,0 +1,10 @@
+---
+heading: "Cloudflare, témoins et analytique"
+plain: "Cloudflare héberge, protège et achemine le service. L’analytique est sans témoin; des témoins de sécurité peuvent être utilisés au besoin."
+---
+
+Nous faisons appel à Cloudflare, Inc. pour héberger, acheminer et protéger nos sites Web et nos services. Notre site Web et notre documentation sont hébergés sur Cloudflare Pages, et Cloudflare fournit également la diffusion de contenu, le DNS et la protection contre les attaques et le trafic abusif. Puisque les requêtes passent par le réseau de Cloudflare, celui-ci traite nécessairement certaines données techniques, notamment votre adresse IP, les données d’acheminement, les renseignements sur le système et le navigateur, les URL demandées et les signaux de sécurité. Ce traitement sert à livrer le contenu, prévenir les abus, enquêter sur les incidents de sécurité et assurer la fiabilité du service.
+
+Nous utilisons également Cloudflare Web Analytics pour mesurer, sous forme agrégée, le trafic et la performance des pages. Sa balise de navigateur **n’utilise ni témoins ni stockage du navigateur** et ne sert pas à suivre des personnes d’un site à l’autre. La balise reçoit une adresse IP dans le cadre normal de la requête réseau, mais Cloudflare indique qu’elle la supprime au centre de données le plus proche plutôt que de la conserver dans les journaux de Web Analytics.
+
+Cloudflare peut déposer des témoins de sécurité strictement nécessaires, comme `__cf_bm` ou `cf_clearance`, lorsque la protection contre les robots ou un contrôle de sécurité l’exige. Ces témoins servent à la sécurité et à la gestion du trafic; nous ne les utilisons ni pour la publicité ni pour le profilage comportemental. Pour en savoir plus, consultez la <a href="https://www.cloudflare.com/policies/privacy/" target="_blank" rel="noopener noreferrer">politique de confidentialité de Cloudflare</a> et sa <a href="https://developers.cloudflare.com/fundamentals/reference/policies-compliances/cloudflare-cookies/" target="_blank" rel="noopener noreferrer">documentation sur les témoins</a>.

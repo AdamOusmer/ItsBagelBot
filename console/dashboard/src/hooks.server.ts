@@ -13,7 +13,7 @@ import {
 } from '@bagel/shared/server/hooks';
 import { rumTransform } from '@bagel/shared/server/rum';
 import { ValkeyRateLimiter, warmRateLimiter, clientIp } from '@bagel/shared/server/rate-limit';
-import { detectLocale, LOCALE_COOKIE } from '@bagel/shared/i18n';
+import { detectLocale, isLocale, LOCALE_COOKIE } from '@bagel/shared/i18n';
 import { startInvalidationListener } from '$lib/server/services';
 import { assertConfigSane } from '$lib/server/config-sanity';
 
@@ -99,7 +99,7 @@ async function enforceRateLimit(event: Parameters<Handle>[0]['event']): Promise<
 // the administrative UI itself.
 function resolveLocale(event: Parameters<Handle>[0]['event']): ReturnType<typeof detectLocale> {
   const queryLang = event.url.searchParams.get('lang');
-  if (queryLang === 'fr' || queryLang === 'en') {
+  if (isLocale(queryLang)) {
     event.cookies.set(LOCALE_COOKIE, queryLang, { path: '/', maxAge: 31536000, secure: true, sameSite: 'lax' });
   }
   if (event.locals.session?.impersonator_id) {
