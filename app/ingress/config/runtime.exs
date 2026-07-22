@@ -204,7 +204,9 @@ nats_cacerts =
   end
 
 nats_server = fn host, user, pass ->
-  base = %{host: host, port: nats_port}
+  # Required for local-first HA: a missing node-qualified responder must return
+  # immediately so Ingress.Rpc can safely fall back to the generic queue.
+  base = %{host: host, port: nats_port, no_responders: true}
 
   base =
     if nats_cacerts do

@@ -74,7 +74,8 @@ go test -v ./deploy/k8s -run TestScopedBusUsersBindAllowedStreams
 The smoke test reconciles each owner stream, binds representative broadcast and
 durable consumers, checks both NATS ACK subject formats, proves `loyalty_bus`
 cannot create a `TWITCH_INGRESS` consumer, and proves every non-admin BUS user
-is denied stream purge/delete.
+is denied stream purge/delete. It also sends a node-qualified health RPC from
+`admin_rpc` to `users_rpc`, exercising the real cross-account service import.
 
 ## 2. `nats-auth-env` secret keys (broker side)
 
@@ -114,6 +115,24 @@ is needed for the credentials — only the keys below.
 Leaf-first endpoint env is set in the manifests already: Go/console get
 `NATS_LEAF_URL`/`NATS_HUB_URL`, ingress gets `NATS_LEAF_HOST`/`NATS_HUB_HOST`.
 
+### RPC locality and HA
+
+Every RPC responder keeps its canonical queue subscription and also registers
+the same handler on `<canonical-subject>.node.<NODE_NAME>`. Callers try the
+node-qualified subject first, so a healthy request stays on the local leaf and
+local service replica instead of being randomly routed to another node.
+
+The canonical subscription remains the permanent HA path. A caller retries it
+only when NATS returns `no responders` for the local subject. It must not replay
+on a timeout or connection error because the first request may already have
+executed, and retrying a mutating RPC could apply it twice.
+
+The authorization config therefore grants every exact RPC service subject
+together with its `.node.*` form. Deploy `nats-auth.conf` before the application
+rollout: older applications continue using canonical subjects, while newer
+applications need the node-qualified publish and subscribe grants. The static
+Go test enforces that each exact service grant retains both forms.
+
 ## 4. Generating bcrypt hashes
 
 Use the `nats` CLI (one hash per user); store the plaintext in Doppler / the
@@ -132,7 +151,8 @@ htpasswd -bnBC 11 "" "$PLAINTEXT" | tr -d ':\n' | sed 's/^\$2y/\$2a/'
 staged before clients cut over.
 
 1. Push the broker and leaf account config (Flux) and verify `leafz` reports no
-   hub remotes; cross-node RPC uses leaf cluster routes only.
+   hub remotes; cross-node RPC uses leaf cluster routes only. This authorization
+   step must precede apps that publish or subscribe to `.node.<NODE_NAME>`.
 2. Ship the app code (already in this branch); `NATS_RPC_*` falls back to
    `NATS_USER`/`PASSWORD`, so apps keep working on their BUS user until RPC creds
    exist.

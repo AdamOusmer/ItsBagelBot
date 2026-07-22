@@ -68,6 +68,7 @@ func TestScopedBusUsersBindAllowedStreams(t *testing.T) {
 	harness.assertRequiredAckPermissions(t)
 	harness.assertConsumerIsolation(t)
 	harness.assertDestructiveOperationsDenied(t)
+	harness.assertNodeLocalRPCImport(t)
 }
 
 func newAcceptanceHarness(t *testing.T) *acceptanceHarness {
@@ -227,6 +228,41 @@ func (h *acceptanceHarness) assertDestructiveOperationsDenied(t *testing.T) {
 	}
 }
 
+func (h *acceptanceHarness) assertNodeLocalRPCImport(t *testing.T) {
+	t.Helper()
+	const subject = "bagel.rpc.health.users"
+	const localSubject = subject + ".node.node2"
+	const traceparent = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+	t.Setenv("NODE_NAME", "node2")
+
+	responder, responderErr := h.connectWithPermissionErrors(t, serviceIdentity{"users_rpc"})
+	defer responder.Close()
+	if _, err := responder.QueueSubscribe(localSubject, "authz-locality", func(msg *nats.Msg) {
+		_ = msg.Respond([]byte("node2:" + msg.Header.Get("traceparent")))
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := responder.Flush(); err != nil {
+		t.Fatal(err)
+	}
+
+	requester, requesterErr := h.connectWithPermissionErrors(t, serviceIdentity{"admin_rpc"})
+	defer requester.Close()
+	request := nats.NewMsg(subject)
+	request.Header.Set("traceparent", traceparent)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	reply, err := bus.RequestMsgWithContext(ctx, requester, request)
+	if err != nil {
+		t.Fatalf("node-qualified cross-account request failed: %v", err)
+	}
+	if want := "node2:" + traceparent; string(reply.Data) != want {
+		t.Fatalf("node-qualified cross-account reply = %q, want %q", reply.Data, want)
+	}
+	assertNoPermissionViolation(t, responderErr, subject)
+	assertNoPermissionViolation(t, requesterErr, subject)
+}
+
 func (h *acceptanceHarness) assertDestructiveOperationsDeniedFor(t *testing.T, identity serviceIdentity) {
 	t.Helper()
 	for _, operation := range []string{"PURGE", "DELETE"} {
@@ -311,5 +347,14 @@ func assertAuthorizationViolation(t *testing.T, expectation violationExpectation
 		}
 	case <-time.After(time.Second):
 		t.Fatalf("no authorization violation reported for forbidden subject %s", expectation.subject)
+	}
+}
+
+func assertNoPermissionViolation(t *testing.T, permissionErr <-chan error, subject string) {
+	t.Helper()
+	select {
+	case err := <-permissionErr:
+		t.Fatalf("unexpected authorization error for %s: %v", subject, err)
+	case <-time.After(25 * time.Millisecond):
 	}
 }

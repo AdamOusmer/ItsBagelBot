@@ -8,6 +8,7 @@ import (
 	"time"
 
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
+	"ItsBagelBot/pkg/bus"
 
 	"github.com/nats-io/nats.go"
 )
@@ -43,7 +44,7 @@ func (l *LoyaltyRPC) call(ctx context.Context, verb string, req loyaltyrpc.Reque
 	if err != nil {
 		return loyaltyrpc.Reply{}, fmt.Errorf("rpc %s marshal request: %w", subject, err)
 	}
-	msg, err := l.nc.RequestWithContext(ctx, subject, body)
+	msg, err := bus.RequestWithContext(ctx, l.nc, subject, body)
 	if err != nil {
 		return loyaltyrpc.Reply{}, fmt.Errorf("rpc %s request: %w", subject, err)
 	}
