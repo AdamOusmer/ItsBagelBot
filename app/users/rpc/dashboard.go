@@ -52,7 +52,7 @@ func SubscribeDashboard(w Wiring, prefix, invalidationPrefix string) error {
 	for verb, fn := range verbs {
 		subject := prefix + "." + verb
 		fn := fn
-		if _, err := w.NC.QueueSubscribe(subject, w.Queue, tracedHandler(w.App, subject, fn)); err != nil {
+		if err := bus.QueueSubscribeRPC(w.NC, subject, w.Queue, tracedHandler(w.App, subject, fn)); err != nil {
 			return fmt.Errorf("subscribe %s: %w", subject, err)
 		}
 	}

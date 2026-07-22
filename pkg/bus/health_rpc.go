@@ -42,7 +42,7 @@ func SubscribeRPCHealth(nc *nats.Conn, service, queueGroup string) error {
 	}
 
 	subject := RPCHealthSubject(service)
-	if _, err := nc.QueueSubscribe(subject, queueGroup, func(msg *nats.Msg) {
+	if err := QueueSubscribeRPC(nc, subject, queueGroup, func(msg *nats.Msg) {
 		_ = msg.Respond(reply)
 	}); err != nil {
 		return fmt.Errorf("subscribe %s: %w", subject, err)

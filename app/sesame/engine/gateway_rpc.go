@@ -55,7 +55,7 @@ func (g *GatewayRPC) Call(ctx context.Context, provider, endpoint string, req ga
 	if err != nil {
 		return fmt.Errorf("rpc %s marshal request: %w", subject, err)
 	}
-	msg, err := g.nc.RequestWithContext(ctx, subject, body)
+	msg, err := bus.RequestWithContext(ctx, g.nc, subject, body)
 	if err != nil {
 		return fmt.Errorf("rpc %s request: %w", subject, err)
 	}

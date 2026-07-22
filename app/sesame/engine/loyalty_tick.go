@@ -12,6 +12,7 @@ import (
 	livekey "ItsBagelBot/internal/domain/live"
 	"ItsBagelBot/internal/domain/rpc/manage"
 	"ItsBagelBot/internal/projection"
+	"ItsBagelBot/pkg/bus"
 
 	"github.com/nats-io/nats.go"
 	"github.com/valkey-io/valkey-go"
@@ -360,7 +361,7 @@ func (s *ValkeyLoyaltyClock) fetchChatters(ctx context.Context, broadcasterID ui
 	if err != nil {
 		return nil, err
 	}
-	msg, err := s.nc.RequestWithContext(ctx, s.chattersSubject, body)
+	msg, err := bus.RequestWithContext(ctx, s.nc, s.chattersSubject, body)
 	if err != nil {
 		return nil, err
 	}

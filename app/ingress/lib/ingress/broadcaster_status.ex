@@ -47,7 +47,7 @@ defmodule Ingress.BroadcasterStatus do
   end
 
   defp request_status(request) do
-    Gnat.request(@connection, Ingress.Config.broadcaster_status_subject(), request,
+    Ingress.Rpc.request(@connection, Ingress.Config.broadcaster_status_subject(), request,
       receive_timeout: Ingress.Config.broadcaster_status_timeout_ms(),
       headers: Trace.trace_headers()
     )

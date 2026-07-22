@@ -15,6 +15,7 @@ import (
 
 	"ItsBagelBot/app/gateway/internal/provider"
 	gatewayrpc "ItsBagelBot/internal/domain/rpc/gateway"
+	"ItsBagelBot/pkg/bus"
 
 	"github.com/bytedance/sonic"
 	"github.com/nats-io/nats.go"
@@ -55,7 +56,7 @@ func subscribe(nc *nats.Conn, subject, queueGroup string, ep provider.Endpoint, 
 	}
 	handle := ep.Handle
 
-	_, err := nc.QueueSubscribe(subject, queueGroup, func(msg *nats.Msg) {
+	err := bus.QueueSubscribeRPC(nc, subject, queueGroup, func(msg *nats.Msg) {
 		start := time.Now()
 
 		txn := nrApp.StartTransaction("rpc " + subject)

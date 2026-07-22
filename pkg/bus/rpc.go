@@ -50,7 +50,7 @@ func RequestJSON[T any](ctx context.Context, nc *nats.Conn, subject string, requ
 	segment := startMessagingSegment(ctx, messagingSpan{
 		name: "nats.request", operation: "request", destination: subject,
 	})
-	msg, err := nc.RequestMsgWithContext(ctx, requestMsg)
+	msg, err := RequestMsgWithContext(ctx, nc, requestMsg)
 	endMessagingSegment(segment, err)
 	if err != nil {
 		return zero, fmt.Errorf("rpc %s request: %w", subject, err)
@@ -97,7 +97,7 @@ func QueueSubscribeJSON[Req any, Resp any](
 		timeout = defaultRPCTimeout
 	}
 
-	_, err := nc.QueueSubscribe(subject, queueGroup, func(msg *nats.Msg) {
+	err := QueueSubscribeRPC(nc, subject, queueGroup, func(msg *nats.Msg) {
 		start := time.Now()
 
 		txn := app.StartTransaction("rpc " + normalizedDestination(subject))

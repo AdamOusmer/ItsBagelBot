@@ -129,23 +129,26 @@ defmodule Ingress.Application do
         Config.invalidation_subject()
       ),
       # Request-reply endpoint for the admin tool.
-      consumer_child(:admin_consumer, Ingress.AdminRpc, AdminConfig.admin_subject(),
+      rpc_consumer_child(:admin_consumer, Ingress.AdminRpc, AdminConfig.admin_subject(),
         queue_group: @admin_queue
       ),
       # Manual shard scaling: {"count": N}.
-      consumer_child(:scale_consumer, Ingress.ScaleRpc, AdminConfig.scale_subject(),
+      rpc_consumer_child(:scale_consumer, Ingress.ScaleRpc, AdminConfig.scale_subject(),
         queue_group: @admin_queue
       ),
       # Toggle the load-based autoscaler: {"enabled": bool}.
-      consumer_child(:autoscale_consumer, Ingress.AutoscaleRpc, AdminConfig.autoscale_subject(),
+      rpc_consumer_child(
+        :autoscale_consumer,
+        Ingress.AutoscaleRpc,
+        AdminConfig.autoscale_subject(),
         queue_group: @admin_queue
       ),
       # Live conduit id: body {}, replies {"conduit_id": "<uuid>"}.
-      consumer_child(:conduit_consumer, Ingress.ConduitRpc, AdminConfig.conduit_subject(),
+      rpc_consumer_child(:conduit_consumer, Ingress.ConduitRpc, AdminConfig.conduit_subject(),
         queue_group: @admin_queue
       ),
       # Side-effect-free fleet RPC latency probe.
-      consumer_child(:health_consumer, Ingress.HealthRpc, AdminConfig.rpc_health_subject(),
+      rpc_consumer_child(:health_consumer, Ingress.HealthRpc, AdminConfig.rpc_health_subject(),
         queue_group: @admin_queue
       ),
       Ingress.Bootstrapper
@@ -166,11 +169,19 @@ defmodule Ingress.Application do
   # to topic on the RPC connection. opts may carry :queue_group for the admin-
   # plane endpoints; the plain invalidation consumer passes none.
   defp consumer_child(id, module, topic, opts \\ []) do
-    subscription = Enum.into(opts, %{topic: topic})
+    consumer_topics_child(id, module, [topic], opts)
+  end
+
+  defp rpc_consumer_child(id, module, topic, opts) do
+    consumer_topics_child(id, module, Ingress.Rpc.subjects(topic), opts)
+  end
+
+  defp consumer_topics_child(id, module, topics, opts) do
+    subscriptions = Enum.map(topics, &Enum.into(opts, %{topic: &1}))
 
     Supervisor.child_spec(
       {Gnat.ConsumerSupervisor,
-       %{connection_name: :gnat, module: module, subscription_topics: [subscription]}},
+       %{connection_name: :gnat, module: module, subscription_topics: subscriptions}},
       id: id
     )
   end
