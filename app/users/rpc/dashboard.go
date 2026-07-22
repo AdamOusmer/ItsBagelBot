@@ -13,6 +13,7 @@ import (
 
 	"ItsBagelBot/app/users/ent/tokens"
 	"ItsBagelBot/app/users/repository"
+	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/invalidate"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/pkg/bus"
@@ -298,13 +299,8 @@ func (d *dashboardRPC) handleOnboardedSet(ctx context.Context, msg *nats.Msg) {
 		})
 }
 
-// supportedLocales is the console's UI language set. Kept here so the service
-// rejects a bogus value rather than storing it; it must stay in step with the
-// console's LOCALES list (console/shared/lib/i18n).
-var supportedLocales = map[string]bool{"en": true, "fr": true}
-
 // handleLocaleSet persists the user's console language preference. The value is
-// validated against the supported set so a stray write can't poison the column;
+// validated against the i18n manifest so a stray write can't poison the column;
 // the console mirrors the same choice into a cookie for fast SSR.
 func (d *dashboardRPC) handleLocaleSet(ctx context.Context, msg *nats.Msg) {
 	req, ok := decodeRequest[usersrpc.LocaleSetRequest](msg)
@@ -315,7 +311,7 @@ func (d *dashboardRPC) handleLocaleSet(ctx context.Context, msg *nats.Msg) {
 	if !ok {
 		return
 	}
-	if !supportedLocales[req.Locale] {
+	if !i18n.Supported(req.Locale) {
 		respondErr(msg, "unsupported locale")
 		return
 	}

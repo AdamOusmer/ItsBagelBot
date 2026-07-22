@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "build": "vite build && bun run verify:production-clean",
+    "build": "bun ../shared/scripts/check-i18n.mjs && vite build && bun run verify:production-clean",
     "verify:production-clean": "bun scripts/assert-production-clean.ts",
     "preview": "node build",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json"

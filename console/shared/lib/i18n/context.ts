@@ -4,14 +4,21 @@
 // cross-request locale bleed the way a module-level store would have.
 import { getContext, setContext } from 'svelte';
 import type { Locale } from './types';
+import type { MessageKey } from './keys';
 import { DEFAULT_LOCALE, translate, translateList } from './messages';
 
 export interface I18n {
   locale: Locale;
-  /** translate(key, params) bound to the active locale. */
-  t: (key: string, params?: Record<string, string | number>) => string;
+  /**
+   * translate(key, params) bound to the active locale. `key` is typed as the
+   * soft MessageKey (known leaves autocomplete; any string still accepted) so a
+   * mistyped key is a nudge in the editor, never a build break, and dynamically
+   * built keys keep working. The pure translate() in messages.ts keeps a plain
+   * `string` param for server callers.
+   */
+  t: (key: MessageKey, params?: Record<string, string | number>) => string;
   /** ordered-list leaves (feature bullets, headline words). */
-  tl: (key: string) => string[];
+  tl: (key: MessageKey) => string[];
 }
 
 const KEY = Symbol('bagel.i18n');
