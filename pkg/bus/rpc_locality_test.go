@@ -24,7 +24,7 @@ func TestRPCSubjectsForNode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := rpcSubjectsForNode("bagel.rpc.users.get", tt.node); !reflect.DeepEqual(got, tt.want) {
+			if got := rpcSubjectsForNode(rpcSubject("bagel.rpc.users.get"), rpcNodeName(tt.node)); !reflect.DeepEqual(got, tt.want) {
 				t.Fatalf("rpcSubjectsForNode() = %v, want %v", got, tt.want)
 			}
 		})
@@ -34,7 +34,7 @@ func TestRPCSubjectsForNode(t *testing.T) {
 func TestRPCRequestSubjectsAreLocalFirst(t *testing.T) {
 	t.Setenv("NODE_NAME", "node2")
 	want := []string{"bagel.rpc.users.get.node.node2", "bagel.rpc.users.get"}
-	if got := rpcRequestSubjects("bagel.rpc.users.get"); !reflect.DeepEqual(got, want) {
+	if got := rpcRequestSubjects(rpcSubject("bagel.rpc.users.get")); !reflect.DeepEqual(got, want) {
 		t.Fatalf("rpcRequestSubjects() = %v, want %v", got, want)
 	}
 }
