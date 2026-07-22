@@ -212,8 +212,11 @@ func viewerScoped(scope string) bool {
 // zero delta, a viewer scope without a viewer, or a scope/namespace mismatch
 // (bot bumps only in the UserID-0 namespace, everything else only outside it).
 func usableBump(userID uint64, name string, b data.CounterBumpEntry) bool {
-	if name == "" || strings.Contains(name, ":") || b.Delta == 0 {
+	if name == "" || b.Delta == 0 {
 		return false
+	}
+	if strings.Contains(name, ":") {
+		return false // reserved for the worker's bot-token prefix
 	}
 	if viewerScoped(b.Scope) && b.ViewerID == 0 {
 		return false

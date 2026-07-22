@@ -43,9 +43,11 @@ export const load: PageServerLoad = async ({ parent }) => {
   return { bundle };
 };
 
-function audit(admin: AdminIdentity, action: string, target: string, detail: string, ok: boolean, error?: string): void {
+type AuditLine = { action: string; target: string; detail: string; ok: boolean; error?: string };
+
+function audit(admin: AdminIdentity, line: AuditLine): void {
   if (DEMO) return;
-  auditAppend({ actor_id: admin.id, actor_login: admin.login, action, target, detail, ok, error }).catch(() => {});
+  auditAppend({ actor_id: admin.id, actor_login: admin.login, ...line }).catch(() => {});
 }
 
 // mutate wraps one POST action with the shared boilerplate: manager gate, demo
@@ -64,11 +66,12 @@ function mutate(op: string, run: Mutation) {
     try {
       detail = await run(f);
     } catch (e) {
-      audit(admin, `bot_counter_${op}`, 'bot', String(f.get('name') ?? ''), false, (e as Error).message);
-      return fail(400, { ok: false, error: (e as Error).message });
+      const error = (e as Error).message;
+      audit(admin, { action: `bot_counter_${op}`, target: 'bot', detail: String(f.get('name') ?? ''), ok: false, error });
+      return fail(400, { ok: false, error });
     }
     if (detail === null) return fail(400, { ok: false, error: 'Invalid counter.' });
-    audit(admin, `bot_counter_${op}`, 'bot', detail, true);
+    audit(admin, { action: `bot_counter_${op}`, target: 'bot', detail, ok: true });
     return { ok: true };
   };
 }

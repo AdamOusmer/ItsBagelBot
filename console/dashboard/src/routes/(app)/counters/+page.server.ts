@@ -128,10 +128,11 @@ export const actions: Actions = {
   rename: mutate('rename', async (uid, f) => {
     const name = normalizeName(f.get('name'));
     const newName = normalizeName(f.get('new_name'));
-    if (!name || !newName || newName === name) return null;
+    if (!name || !newName) return null;
+    if (newName === name) return null;
     const found = await renameCounter(uid, name, newName);
     if (!found) throw new Error('unknown counter');
-    return `${name}→${newName}`;
+    return `${name}>${newName}`;
   }),
 
   delete: mutate('delete', async (uid, f) => {

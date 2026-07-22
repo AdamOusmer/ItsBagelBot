@@ -36,7 +36,10 @@ var ErrInvalidInput = errors.New("invalid input")
 // token prefix can never collide with a stored counter name.
 func ValidCounterName(name string) (string, error) {
 	n := normalizeName(name)
-	if n == "" || len(n) > maxCounterName || strings.Contains(n, ":") {
+	if n == "" || len(n) > maxCounterName {
+		return "", fmt.Errorf("%w: counter name", ErrInvalidInput)
+	}
+	if strings.Contains(n, ":") {
 		return "", fmt.Errorf("%w: counter name", ErrInvalidInput)
 	}
 	return n, nil

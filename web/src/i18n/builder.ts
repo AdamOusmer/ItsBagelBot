@@ -41,12 +41,11 @@ interface SurfaceDef {
   vars: VarDef[];
 }
 
-const v = (token: string, sample: string, name: L10n, desc: L10n, scopes?: ScopeDef[]): VarDef => ({
+const v = (token: string, sample: string, name: L10n, desc: L10n): VarDef => ({
   token,
   sample,
   name,
   desc,
-  scopes,
 });
 
 // The four broadcaster-facing counter scopes (data.CounterScope*, minus the
@@ -101,16 +100,18 @@ export const SURFACES: SurfaceDef[] = [
       v('{touser}', 'alex', { en: 'Named person', fr: 'Personne nommée' }, { en: 'The first word typed after the command ("@" removed); the viewer themself when blank. {target} works too.', fr: 'Le premier mot tapé après la commande (sans «@»); le spectateur lui-même si vide. {target} fonctionne aussi.' }),
       v('{args}', 'good luck!', { en: 'Everything typed after', fr: 'Tout le texte tapé après' }, { en: 'All text after the command, as one string.', fr: 'Tout le texte après la commande, en une seule chaîne.' }),
       v('{channel}', 'your_channel', { en: 'Channel name', fr: 'Nom de la chaîne' }, { en: "Your channel's display name.", fr: 'Le nom d’affichage de votre chaîne.' }),
-      v(
-        '{counter:falls}',
-        '128',
-        { en: 'Counter (+1)', fr: 'Compteur (+1)' },
-        {
-          en: 'Adds 1 to a counter and shows the new total (needs the Loyalty Points module). Pick its scope below, it\'s set once, at creation, from the dashboard or !counter create.',
-          fr: 'Ajoute 1 à un compteur et affiche le nouveau total (nécessite le module Points de fidélité). Choisissez sa portée ci-dessous: elle est fixée une fois, à la création, depuis le tableau de bord ou avec !counter create.',
-        },
-        COUNTER_SCOPES,
-      ),
+      {
+        ...v(
+          '{counter:falls}',
+          '128',
+          { en: 'Counter (+1)', fr: 'Compteur (+1)' },
+          {
+            en: 'Adds 1 to a counter and shows the new total (needs the Loyalty Points module). Pick its scope below, it\'s set once, at creation, from the dashboard or !counter create.',
+            fr: 'Ajoute 1 à un compteur et affiche le nouveau total (nécessite le module Points de fidélité). Choisissez sa portée ci-dessous: elle est fixée une fois, à la création, depuis le tableau de bord ou avec !counter create.',
+          },
+        ),
+        scopes: COUNTER_SCOPES,
+      },
       ...DYNAMIC,
     ],
   },

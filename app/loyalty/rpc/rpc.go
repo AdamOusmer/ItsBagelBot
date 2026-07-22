@@ -226,16 +226,22 @@ func (l *loyaltyRPC) handleCounterCreate(ctx context.Context, req loyaltyrpc.Req
 	}
 }
 
+// foundReply maps the (found, err) pair the counter write verbs share: a
+// repository failure through fail, everything else into a bare Found reply.
+func (l *loyaltyRPC) foundReply(op string, found bool, err error) loyaltyrpc.Reply {
+	if err != nil {
+		return l.fail(op, err)
+	}
+	return loyaltyrpc.Reply{Found: found}
+}
+
 func (l *loyaltyRPC) handleCounterSet(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
 	userID, viewerID, ok, reply := parseIDs(req, true)
 	if !ok {
 		return reply
 	}
 	found, err := l.repo.CounterSet(ctx, userID, req.Name, viewerID, req.Command, req.Value)
-	if err != nil {
-		return l.fail("loyalty counter.set", err)
-	}
-	return loyaltyrpc.Reply{Found: found}
+	return l.foundReply("loyalty counter.set", found, err)
 }
 
 // handleCounterRename moves a counter (and its entry buckets) to a new name;
@@ -246,10 +252,7 @@ func (l *loyaltyRPC) handleCounterRename(ctx context.Context, req loyaltyrpc.Req
 		return reply
 	}
 	found, err := l.repo.CounterRename(ctx, userID, req.Name, req.NewName)
-	if err != nil {
-		return l.fail("loyalty counter.rename", err)
-	}
-	return loyaltyrpc.Reply{Found: found}
+	return l.foundReply("loyalty counter.rename", found, err)
 }
 
 func (l *loyaltyRPC) handleCounterDelete(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
@@ -257,10 +260,8 @@ func (l *loyaltyRPC) handleCounterDelete(ctx context.Context, req loyaltyrpc.Req
 	if !ok {
 		return reply
 	}
-	if err := l.repo.CounterDelete(ctx, userID, req.Name); err != nil {
-		return l.fail("loyalty counter.delete", err)
-	}
-	return loyaltyrpc.Reply{Found: true}
+	err := l.repo.CounterDelete(ctx, userID, req.Name)
+	return l.foundReply("loyalty counter.delete", true, err)
 }
 
 func (l *loyaltyRPC) handleCounterList(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
