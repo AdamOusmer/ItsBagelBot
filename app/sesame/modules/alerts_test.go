@@ -48,12 +48,20 @@ func alertsHandler(t *testing.T, eventType string) module.EventHandler {
 	return h
 }
 
+// alertInput is one event fired at the alerts module: the EventSub type, its
+// payload and the module config it runs under.
+type alertInput struct {
+	event   string
+	payload string
+	cfg     string
+}
+
 // runAlert fires one event through the alerts module and returns what it
 // emitted.
-func runAlert(t *testing.T, eventType, payload, cfg string) []module.Output {
+func runAlert(t *testing.T, in alertInput) []module.Output {
 	t.Helper()
 	var col collector
-	require.NoError(t, alertsHandler(t, eventType)(context.Background(), alertsCtx(eventType, payload, cfg), col.emit))
+	require.NoError(t, alertsHandler(t, in.event)(context.Background(), alertsCtx(in.event, in.payload, in.cfg), col.emit))
 	return col.out
 }
 
@@ -61,24 +69,25 @@ func runAlert(t *testing.T, eventType, payload, cfg string) []module.Output {
 // channel containing the substituted sample values.
 func TestAlertsDefaultTemplates(t *testing.T) {
 	cases := []struct {
-		name, event, payload, cfg string
-		want                      []string
+		name string
+		in   alertInput
+		want []string
 	}{
-		{"follow", "channel.follow", followJSON, "", []string{"CoolViewer"}},
-		{"subscribe", "channel.subscribe", subscribeJSON, "", []string{"CoolViewer"}},
+		{"follow", alertInput{"channel.follow", followJSON, ""}, []string{"CoolViewer"}},
+		{"subscribe", alertInput{"channel.subscribe", subscribeJSON, ""}, []string{"CoolViewer"}},
 		// A resub (channel.subscription.message) posts the same sub alert
 		// under the same toggle and template as a fresh channel.subscribe.
-		{"resub", "channel.subscription.message", resubJSON, "", []string{"CoolViewer"}},
-		{"gift", "channel.subscription.gift", giftJSON, "", []string{"GenerousViewer", "5"}},
-		{"anonymous gift", "channel.subscription.gift", anonGiftJSON, "", []string{"anonymous", "3"}},
-		{"cheer", "channel.cheer", cheerJSON, "", []string{"CoolViewer", "100"}},
-		{"anonymous cheer", "channel.cheer", anonCheerJSON, "", []string{"anonymous", "50"}},
-		{"raid", "channel.raid", raidJSON, "", []string{"CoolStreamer", "42"}},
-		{"ad break", "channel.ad_break.begin", adBreakJSON, `{"adsEnabled":"on"}`, []string{"90"}},
+		{"resub", alertInput{"channel.subscription.message", resubJSON, ""}, []string{"CoolViewer"}},
+		{"gift", alertInput{"channel.subscription.gift", giftJSON, ""}, []string{"GenerousViewer", "5"}},
+		{"anonymous gift", alertInput{"channel.subscription.gift", anonGiftJSON, ""}, []string{"anonymous", "3"}},
+		{"cheer", alertInput{"channel.cheer", cheerJSON, ""}, []string{"CoolViewer", "100"}},
+		{"anonymous cheer", alertInput{"channel.cheer", anonCheerJSON, ""}, []string{"anonymous", "50"}},
+		{"raid", alertInput{"channel.raid", raidJSON, ""}, []string{"CoolStreamer", "42"}},
+		{"ad break", alertInput{"channel.ad_break.begin", adBreakJSON, `{"adsEnabled":"on"}`}, []string{"90"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			out := runAlert(t, tc.event, tc.payload, tc.cfg)
+			out := runAlert(t, tc.in)
 			require.Len(t, out, 1)
 			assert.Equal(t, outgress.TypeChat, out[0].Type)
 			assert.Equal(t, "2", out[0].BroadcasterID)
@@ -92,17 +101,19 @@ func TestAlertsDefaultTemplates(t *testing.T) {
 // Custom templates substitute every token the alert documents.
 func TestAlertsCustomTemplates(t *testing.T) {
 	cases := []struct {
-		name, event, payload, cfg, want string
+		name string
+		in   alertInput
+		want string
 	}{
-		{"follow", "channel.follow", followJSON, `{"followMessage":"welcome {user}"}`, "welcome CoolViewer"},
-		{"subscribe", "channel.subscribe", subscribeJSON, `{"subMessage":"{user} sub'd at tier {tier}"}`, "CoolViewer sub'd at tier 1000"},
-		{"gift", "channel.subscription.gift", giftJSON, `{"giftMessage":"{user} dropped {count} tier {tier} gifts"}`, "GenerousViewer dropped 5 tier 1000 gifts"},
-		{"raid", "channel.raid", raidJSON, `{"raidMessage":"raid! {user} +{viewers}"}`, "raid! CoolStreamer +42"},
-		{"ad break", "channel.ad_break.begin", adBreakJSON, `{"adsEnabled":"on","adsMessage":"break for {duration}s"}`, "break for 90s"},
+		{"follow", alertInput{"channel.follow", followJSON, `{"followMessage":"welcome {user}"}`}, "welcome CoolViewer"},
+		{"subscribe", alertInput{"channel.subscribe", subscribeJSON, `{"subMessage":"{user} sub'd at tier {tier}"}`}, "CoolViewer sub'd at tier 1000"},
+		{"gift", alertInput{"channel.subscription.gift", giftJSON, `{"giftMessage":"{user} dropped {count} tier {tier} gifts"}`}, "GenerousViewer dropped 5 tier 1000 gifts"},
+		{"raid", alertInput{"channel.raid", raidJSON, `{"raidMessage":"raid! {user} +{viewers}"}`}, "raid! CoolStreamer +42"},
+		{"ad break", alertInput{"channel.ad_break.begin", adBreakJSON, `{"adsEnabled":"on","adsMessage":"break for {duration}s"}`}, "break for 90s"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			out := runAlert(t, tc.event, tc.payload, tc.cfg)
+			out := runAlert(t, tc.in)
 			require.Len(t, out, 1)
 			assert.Equal(t, tc.want, out[0].Text)
 		})
@@ -114,22 +125,23 @@ func TestAlertsCustomTemplates(t *testing.T) {
 // once instead, so a gift bomb cannot flood chat with welcome lines).
 func TestAlertsSilentCases(t *testing.T) {
 	cases := []struct {
-		name, event, payload, cfg string
+		name string
+		in   alertInput
 	}{
-		{"follow off", "channel.follow", followJSON, `{"followEnabled":"off"}`},
-		{"sub off", "channel.subscribe", subscribeJSON, `{"subEnabled":"off"}`},
-		{"resub follows sub toggle", "channel.subscription.message", resubJSON, `{"subEnabled":"off"}`},
-		{"gift off", "channel.subscription.gift", giftJSON, `{"giftEnabled":"off"}`},
-		{"cheer off", "channel.cheer", cheerJSON, `{"cheerEnabled":"off"}`},
-		{"raid off", "channel.raid", raidJSON, `{"raidEnabled":"off"}`},
-		{"gifted recipient", "channel.subscribe", giftedSubJSON, ""},
-		{"empty follow event", "channel.follow", "", ""},
-		{"empty gift event", "channel.subscription.gift", "", ""},
-		{"empty ad event", "channel.ad_break.begin", "", `{"adsEnabled":"on"}`},
+		{"follow off", alertInput{"channel.follow", followJSON, `{"followEnabled":"off"}`}},
+		{"sub off", alertInput{"channel.subscribe", subscribeJSON, `{"subEnabled":"off"}`}},
+		{"resub follows sub toggle", alertInput{"channel.subscription.message", resubJSON, `{"subEnabled":"off"}`}},
+		{"gift off", alertInput{"channel.subscription.gift", giftJSON, `{"giftEnabled":"off"}`}},
+		{"cheer off", alertInput{"channel.cheer", cheerJSON, `{"cheerEnabled":"off"}`}},
+		{"raid off", alertInput{"channel.raid", raidJSON, `{"raidEnabled":"off"}`}},
+		{"gifted recipient", alertInput{"channel.subscribe", giftedSubJSON, ""}},
+		{"empty follow event", alertInput{"channel.follow", "", ""}},
+		{"empty gift event", alertInput{"channel.subscription.gift", "", ""}},
+		{"empty ad event", alertInput{"channel.ad_break.begin", "", `{"adsEnabled":"on"}`}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Empty(t, runAlert(t, tc.event, tc.payload, tc.cfg))
+			assert.Empty(t, runAlert(t, tc.in))
 		})
 	}
 }
@@ -138,13 +150,13 @@ func TestAlertsAdBreakDefaultOff(t *testing.T) {
 	// Unlike every other alert, the ads alert must not fire until the
 	// broadcaster explicitly turns it on: absent, empty and "off" all suppress.
 	for _, cfg := range []string{``, `{}`, `{"adsEnabled":""}`, `{"adsEnabled":"off"}`} {
-		assert.Empty(t, runAlert(t, "channel.ad_break.begin", adBreakJSON, cfg), "cfg=%q must stay silent", cfg)
+		assert.Empty(t, runAlert(t, alertInput{"channel.ad_break.begin", adBreakJSON, cfg}), "cfg=%q must stay silent", cfg)
 	}
 }
 
 func TestAlertsEnabledOnAndBlankBothFire(t *testing.T) {
 	// "on" and an absent flag both fire (default-on); only "off" suppresses.
 	for _, cfg := range []string{`{"followEnabled":"on"}`, `{}`, ``} {
-		assert.Len(t, runAlert(t, "channel.follow", followJSON, cfg), 1, "cfg=%q should fire", cfg)
+		assert.Len(t, runAlert(t, alertInput{"channel.follow", followJSON, cfg}), 1, "cfg=%q should fire", cfg)
 	}
 }
