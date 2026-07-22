@@ -48,214 +48,103 @@ func alertsHandler(t *testing.T, eventType string) module.EventHandler {
 	return h
 }
 
-func TestAlertsFollowDefaultTemplate(t *testing.T) {
+// runAlert fires one event through the alerts module and returns what it
+// emitted.
+func runAlert(t *testing.T, eventType, payload, cfg string) []module.Output {
+	t.Helper()
 	var col collector
-	require.NoError(t, alertsHandler(t, "channel.follow")(context.Background(), alertsCtx("channel.follow", followJSON, ""), col.emit))
-	require.Len(t, col.out, 1)
-	o := col.out[0]
-	assert.Equal(t, outgress.TypeChat, o.Type)
-	assert.Equal(t, "2", o.BroadcasterID)
-	assert.Contains(t, o.Text, "CoolViewer")
+	require.NoError(t, alertsHandler(t, eventType)(context.Background(), alertsCtx(eventType, payload, cfg), col.emit))
+	return col.out
 }
 
-func TestAlertsFollowCustomTemplate(t *testing.T) {
-	var col collector
-	cfg := `{"followMessage":"welcome {user}"}`
-	require.NoError(t, alertsHandler(t, "channel.follow")(context.Background(), alertsCtx("channel.follow", followJSON, cfg), col.emit))
-	require.Len(t, col.out, 1)
-	assert.Equal(t, "welcome CoolViewer", col.out[0].Text)
+// Every alert with its default template: one chat line to the broadcaster's
+// channel containing the substituted sample values.
+func TestAlertsDefaultTemplates(t *testing.T) {
+	cases := []struct {
+		name, event, payload, cfg string
+		want                      []string
+	}{
+		{"follow", "channel.follow", followJSON, "", []string{"CoolViewer"}},
+		{"subscribe", "channel.subscribe", subscribeJSON, "", []string{"CoolViewer"}},
+		// A resub (channel.subscription.message) posts the same sub alert
+		// under the same toggle and template as a fresh channel.subscribe.
+		{"resub", "channel.subscription.message", resubJSON, "", []string{"CoolViewer"}},
+		{"gift", "channel.subscription.gift", giftJSON, "", []string{"GenerousViewer", "5"}},
+		{"anonymous gift", "channel.subscription.gift", anonGiftJSON, "", []string{"anonymous", "3"}},
+		{"cheer", "channel.cheer", cheerJSON, "", []string{"CoolViewer", "100"}},
+		{"anonymous cheer", "channel.cheer", anonCheerJSON, "", []string{"anonymous", "50"}},
+		{"raid", "channel.raid", raidJSON, "", []string{"CoolStreamer", "42"}},
+		{"ad break", "channel.ad_break.begin", adBreakJSON, `{"adsEnabled":"on"}`, []string{"90"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			out := runAlert(t, tc.event, tc.payload, tc.cfg)
+			require.Len(t, out, 1)
+			assert.Equal(t, outgress.TypeChat, out[0].Type)
+			assert.Equal(t, "2", out[0].BroadcasterID)
+			for _, want := range tc.want {
+				assert.Contains(t, out[0].Text, want)
+			}
+		})
+	}
 }
 
-func TestAlertsFollowIgnoresEmptyEvent(t *testing.T) {
-	var col collector
-	require.NoError(t, alertsHandler(t, "channel.follow")(context.Background(), alertsCtx("channel.follow", "", ""), col.emit))
-	assert.Empty(t, col.out)
+// Custom templates substitute every token the alert documents.
+func TestAlertsCustomTemplates(t *testing.T) {
+	cases := []struct {
+		name, event, payload, cfg, want string
+	}{
+		{"follow", "channel.follow", followJSON, `{"followMessage":"welcome {user}"}`, "welcome CoolViewer"},
+		{"subscribe", "channel.subscribe", subscribeJSON, `{"subMessage":"{user} sub'd at tier {tier}"}`, "CoolViewer sub'd at tier 1000"},
+		{"gift", "channel.subscription.gift", giftJSON, `{"giftMessage":"{user} dropped {count} tier {tier} gifts"}`, "GenerousViewer dropped 5 tier 1000 gifts"},
+		{"raid", "channel.raid", raidJSON, `{"raidMessage":"raid! {user} +{viewers}"}`, "raid! CoolStreamer +42"},
+		{"ad break", "channel.ad_break.begin", adBreakJSON, `{"adsEnabled":"on","adsMessage":"break for {duration}s"}`, "break for 90s"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			out := runAlert(t, tc.event, tc.payload, tc.cfg)
+			require.Len(t, out, 1)
+			assert.Equal(t, tc.want, out[0].Text)
+		})
+	}
 }
 
-func TestAlertsSubDefaultTemplate(t *testing.T) {
-	var col collector
-	require.NoError(t, alertsHandler(t, "channel.subscribe")(context.Background(), alertsCtx("channel.subscribe", subscribeJSON, ""), col.emit))
-	require.Len(t, col.out, 1)
-	assert.Contains(t, col.out[0].Text, "CoolViewer")
-}
-
-func TestAlertsSubCustomTemplate(t *testing.T) {
-	var col collector
-	cfg := `{"subMessage":"{user} sub'd at tier {tier}"}`
-	require.NoError(t, alertsHandler(t, "channel.subscribe")(context.Background(), alertsCtx("channel.subscribe", subscribeJSON, cfg), col.emit))
-	require.Len(t, col.out, 1)
-	assert.Equal(t, "CoolViewer sub'd at tier 1000", col.out[0].Text)
-}
-
-func TestAlertsSubSkipsGiftedRecipient(t *testing.T) {
-	// A gifted recipient's channel.subscribe must stay silent: the gift alert
-	// on channel.subscription.gift announces the gifter once instead.
-	var col collector
-	require.NoError(t, alertsHandler(t, "channel.subscribe")(context.Background(), alertsCtx("channel.subscribe", giftedSubJSON, ""), col.emit))
-	assert.Empty(t, col.out)
-}
-
-func TestAlertsResubFiresNormalSubAlert(t *testing.T) {
-	// A resub (channel.subscription.message) posts the same sub alert under
-	// the same toggle and template as a fresh channel.subscribe.
-	var col collector
-	require.NoError(t, alertsHandler(t, "channel.subscription.message")(context.Background(), alertsCtx("channel.subscription.message", resubJSON, ""), col.emit))
-	require.Len(t, col.out, 1)
-	o := col.out[0]
-	assert.Equal(t, outgress.TypeChat, o.Type)
-	assert.Equal(t, "2", o.BroadcasterID)
-	assert.Contains(t, o.Text, "CoolViewer")
-}
-
-func TestAlertsResubDisabledBySubToggle(t *testing.T) {
-	var col collector
-	cfg := `{"subEnabled":"off"}`
-	require.NoError(t, alertsHandler(t, "channel.subscription.message")(context.Background(), alertsCtx("channel.subscription.message", resubJSON, cfg), col.emit))
-	assert.Empty(t, col.out)
-}
-
-func TestAlertsGiftDefaultTemplate(t *testing.T) {
-	var col collector
-	require.NoError(t, alertsHandler(t, "channel.subscription.gift")(context.Background(), alertsCtx("channel.subscription.gift", giftJSON, ""), col.emit))
-	require.Len(t, col.out, 1)
-	o := col.out[0]
-	assert.Equal(t, outgress.TypeChat, o.Type)
-	assert.Equal(t, "2", o.BroadcasterID)
-	assert.Contains(t, o.Text, "GenerousViewer")
-	assert.Contains(t, o.Text, "5")
-}
-
-func TestAlertsGiftCustomTemplate(t *testing.T) {
-	var col collector
-	cfg := `{"giftMessage":"{user} dropped {count} tier {tier} gifts"}`
-	require.NoError(t, alertsHandler(t, "channel.subscription.gift")(context.Background(), alertsCtx("channel.subscription.gift", giftJSON, cfg), col.emit))
-	require.Len(t, col.out, 1)
-	assert.Equal(t, "GenerousViewer dropped 5 tier 1000 gifts", col.out[0].Text)
-}
-
-func TestAlertsGiftAnonymous(t *testing.T) {
-	var col collector
-	require.NoError(t, alertsHandler(t, "channel.subscription.gift")(context.Background(), alertsCtx("channel.subscription.gift", anonGiftJSON, ""), col.emit))
-	require.Len(t, col.out, 1)
-	assert.Contains(t, col.out[0].Text, "anonymous")
-	assert.Contains(t, col.out[0].Text, "3")
-}
-
-func TestAlertsGiftDisabled(t *testing.T) {
-	var col collector
-	cfg := `{"giftEnabled":"off"}`
-	require.NoError(t, alertsHandler(t, "channel.subscription.gift")(context.Background(), alertsCtx("channel.subscription.gift", giftJSON, cfg), col.emit))
-	assert.Empty(t, col.out)
-}
-
-func TestAlertsGiftIgnoresEmptyEvent(t *testing.T) {
-	var col collector
-	require.NoError(t, alertsHandler(t, "channel.subscription.gift")(context.Background(), alertsCtx("channel.subscription.gift", "", ""), col.emit))
-	assert.Empty(t, col.out)
-}
-
-func TestAlertsCheerDefaultTemplate(t *testing.T) {
-	var col collector
-	require.NoError(t, alertsHandler(t, "channel.cheer")(context.Background(), alertsCtx("channel.cheer", cheerJSON, ""), col.emit))
-	require.Len(t, col.out, 1)
-	assert.Contains(t, col.out[0].Text, "CoolViewer")
-	assert.Contains(t, col.out[0].Text, "100")
-}
-
-func TestAlertsCheerAnonymous(t *testing.T) {
-	var col collector
-	require.NoError(t, alertsHandler(t, "channel.cheer")(context.Background(), alertsCtx("channel.cheer", anonCheerJSON, ""), col.emit))
-	require.Len(t, col.out, 1)
-	assert.Contains(t, col.out[0].Text, "anonymous")
-	assert.Contains(t, col.out[0].Text, "50")
-}
-
-func TestAlertsRaidDefaultTemplate(t *testing.T) {
-	var col collector
-	require.NoError(t, alertsHandler(t, "channel.raid")(context.Background(), alertsCtx("channel.raid", raidJSON, ""), col.emit))
-	require.Len(t, col.out, 1)
-	o := col.out[0]
-	assert.Equal(t, "2", o.BroadcasterID) // the receiving channel
-	assert.Contains(t, o.Text, "CoolStreamer")
-	assert.Contains(t, o.Text, "42")
-}
-
-func TestAlertsRaidCustomTemplate(t *testing.T) {
-	var col collector
-	cfg := `{"raidMessage":"raid! {user} +{viewers}"}`
-	require.NoError(t, alertsHandler(t, "channel.raid")(context.Background(), alertsCtx("channel.raid", raidJSON, cfg), col.emit))
-	require.Len(t, col.out, 1)
-	assert.Equal(t, "raid! CoolStreamer +42", col.out[0].Text)
-}
-
-func TestAlertsFollowDisabled(t *testing.T) {
-	var col collector
-	cfg := `{"followEnabled":"off"}`
-	require.NoError(t, alertsHandler(t, "channel.follow")(context.Background(), alertsCtx("channel.follow", followJSON, cfg), col.emit))
-	assert.Empty(t, col.out)
-}
-
-func TestAlertsSubDisabled(t *testing.T) {
-	var col collector
-	cfg := `{"subEnabled":"off"}`
-	require.NoError(t, alertsHandler(t, "channel.subscribe")(context.Background(), alertsCtx("channel.subscribe", subscribeJSON, cfg), col.emit))
-	assert.Empty(t, col.out)
-}
-
-func TestAlertsCheerDisabled(t *testing.T) {
-	var col collector
-	cfg := `{"cheerEnabled":"off"}`
-	require.NoError(t, alertsHandler(t, "channel.cheer")(context.Background(), alertsCtx("channel.cheer", cheerJSON, cfg), col.emit))
-	assert.Empty(t, col.out)
-}
-
-func TestAlertsRaidDisabled(t *testing.T) {
-	var col collector
-	cfg := `{"raidEnabled":"off"}`
-	require.NoError(t, alertsHandler(t, "channel.raid")(context.Background(), alertsCtx("channel.raid", raidJSON, cfg), col.emit))
-	assert.Empty(t, col.out)
+// Events that must stay silent: toggled-off alerts, empty payloads, and the
+// gifted recipient's channel.subscribe (the gift alert announces the gifter
+// once instead, so a gift bomb cannot flood chat with welcome lines).
+func TestAlertsSilentCases(t *testing.T) {
+	cases := []struct {
+		name, event, payload, cfg string
+	}{
+		{"follow off", "channel.follow", followJSON, `{"followEnabled":"off"}`},
+		{"sub off", "channel.subscribe", subscribeJSON, `{"subEnabled":"off"}`},
+		{"resub follows sub toggle", "channel.subscription.message", resubJSON, `{"subEnabled":"off"}`},
+		{"gift off", "channel.subscription.gift", giftJSON, `{"giftEnabled":"off"}`},
+		{"cheer off", "channel.cheer", cheerJSON, `{"cheerEnabled":"off"}`},
+		{"raid off", "channel.raid", raidJSON, `{"raidEnabled":"off"}`},
+		{"gifted recipient", "channel.subscribe", giftedSubJSON, ""},
+		{"empty follow event", "channel.follow", "", ""},
+		{"empty gift event", "channel.subscription.gift", "", ""},
+		{"empty ad event", "channel.ad_break.begin", "", `{"adsEnabled":"on"}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Empty(t, runAlert(t, tc.event, tc.payload, tc.cfg))
+		})
+	}
 }
 
 func TestAlertsAdBreakDefaultOff(t *testing.T) {
 	// Unlike every other alert, the ads alert must not fire until the
 	// broadcaster explicitly turns it on: absent, empty and "off" all suppress.
 	for _, cfg := range []string{``, `{}`, `{"adsEnabled":""}`, `{"adsEnabled":"off"}`} {
-		var col collector
-		require.NoError(t, alertsHandler(t, "channel.ad_break.begin")(context.Background(), alertsCtx("channel.ad_break.begin", adBreakJSON, cfg), col.emit))
-		assert.Empty(t, col.out, "cfg=%q must stay silent", cfg)
+		assert.Empty(t, runAlert(t, "channel.ad_break.begin", adBreakJSON, cfg), "cfg=%q must stay silent", cfg)
 	}
-}
-
-func TestAlertsAdBreakDefaultTemplate(t *testing.T) {
-	var col collector
-	cfg := `{"adsEnabled":"on"}`
-	require.NoError(t, alertsHandler(t, "channel.ad_break.begin")(context.Background(), alertsCtx("channel.ad_break.begin", adBreakJSON, cfg), col.emit))
-	require.Len(t, col.out, 1)
-	o := col.out[0]
-	assert.Equal(t, outgress.TypeChat, o.Type)
-	assert.Equal(t, "2", o.BroadcasterID)
-	assert.Contains(t, o.Text, "90")
-}
-
-func TestAlertsAdBreakCustomTemplate(t *testing.T) {
-	var col collector
-	cfg := `{"adsEnabled":"on","adsMessage":"break for {duration}s"}`
-	require.NoError(t, alertsHandler(t, "channel.ad_break.begin")(context.Background(), alertsCtx("channel.ad_break.begin", adBreakJSON, cfg), col.emit))
-	require.Len(t, col.out, 1)
-	assert.Equal(t, "break for 90s", col.out[0].Text)
-}
-
-func TestAlertsAdBreakIgnoresEmptyEvent(t *testing.T) {
-	var col collector
-	require.NoError(t, alertsHandler(t, "channel.ad_break.begin")(context.Background(), alertsCtx("channel.ad_break.begin", "", `{"adsEnabled":"on"}`), col.emit))
-	assert.Empty(t, col.out)
 }
 
 func TestAlertsEnabledOnAndBlankBothFire(t *testing.T) {
 	// "on" and an absent flag both fire (default-on); only "off" suppresses.
 	for _, cfg := range []string{`{"followEnabled":"on"}`, `{}`, ``} {
-		var col collector
-		require.NoError(t, alertsHandler(t, "channel.follow")(context.Background(), alertsCtx("channel.follow", followJSON, cfg), col.emit))
-		require.Len(t, col.out, 1, "cfg=%q should fire", cfg)
+		assert.Len(t, runAlert(t, "channel.follow", followJSON, cfg), 1, "cfg=%q should fire", cfg)
 	}
 }

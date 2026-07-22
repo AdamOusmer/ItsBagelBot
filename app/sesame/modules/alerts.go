@@ -99,6 +99,53 @@ type adBreakEvent struct {
 	DurationSeconds   int    `json:"duration_seconds"`
 }
 
+// alertLine is one rendered alert: the channel it goes to and the token
+// values its template may expand.
+type alertLine struct {
+	broadcasterID string
+	tokens        map[string]string
+}
+
+// onAlert builds the shared handler shell every alert uses: read the toggle
+// and custom template out of the module config, decode the event subset, ask
+// render for the destination and token values, and emit the expanded line.
+// pick returns the alert's enable state and custom template; fallback is the
+// default template used when the broadcaster has not set one. render's false
+// return drops the event (missing identity, or an alert another handler owns).
+func onAlert[T any](pick func(alertsConfig) (bool, string), fallback string, render func(ev T) (alertLine, bool)) module.EventHandler {
+	return func(_ context.Context, c *module.Context, emit module.Emit) error {
+		var cfg alertsConfig
+		_ = c.Decode(&cfg)
+		enabled, tmpl := pick(cfg)
+		if !enabled || len(c.Env.Event) == 0 {
+			return nil
+		}
+		var ev T
+		if err := json.Unmarshal(c.Env.Event, &ev); err != nil {
+			return err
+		}
+		line, ok := render(ev)
+		if !ok {
+			return nil
+		}
+		if tmpl == "" {
+			tmpl = fallback
+		}
+		msg := module.ExpandString(tmpl, func(key string) (string, bool) {
+			if v, found := line.tokens[key]; found {
+				return v, true
+			}
+			return module.ParseDynamic(key)
+		})
+		emit(&module.Output{
+			Type:          outgress.TypeChat,
+			BroadcasterID: line.broadcasterID,
+			Text:          msg,
+		})
+		return nil
+	}
+}
+
 // Alerts posts a chat line on channel.follow, channel.subscribe,
 // channel.subscription.message, channel.subscription.gift, channel.cheer,
 // channel.raid and channel.ad_break.begin. It is a named, default-on module
@@ -111,269 +158,100 @@ type adBreakEvent struct {
 func Alerts(_ engine.Deps) module.Module {
 	m := module.NewModule("alerts", module.KindDefault)
 
-	m.On("channel.follow", func(_ context.Context, c *module.Context, emit module.Emit) error {
-		var cfg alertsConfig
-		_ = c.Decode(&cfg)
-		if !alertOn(cfg.FollowEnabled) {
-			return nil
-		}
-		if len(c.Env.Event) == 0 {
-			return nil
-		}
-		var ev followEvent
-		if err := json.Unmarshal(c.Env.Event, &ev); err != nil {
-			return err
-		}
-		if ev.UserLogin == "" {
-			return nil
-		}
-
-		tmpl := cfg.FollowMessage
-		if tmpl == "" {
-			tmpl = defaultFollowTemplate
-		}
-
-		msg := module.ExpandString(tmpl, func(key string) (string, bool) {
-			switch key {
-			case "user":
-				return strings.TrimPrefix(displayName(ev.UserName, ev.UserLogin), "@"), true
-			default:
-				return module.ParseDynamic(key)
+	m.On("channel.follow", onAlert(
+		func(cfg alertsConfig) (bool, string) { return alertOn(cfg.FollowEnabled), cfg.FollowMessage },
+		defaultFollowTemplate,
+		func(ev followEvent) (alertLine, bool) {
+			if ev.UserLogin == "" {
+				return alertLine{}, false
 			}
-		})
+			return alertLine{ev.BroadcasterUserID, map[string]string{
+				"user": chatName(ev.UserName, ev.UserLogin),
+			}}, true
+		}))
 
-		emit(&module.Output{
-			Type:          outgress.TypeChat,
-			BroadcasterID: ev.BroadcasterUserID,
-			Text:          msg,
-		})
-		return nil
-	})
-
-	// subAlert serves both channel.subscribe (new subs) and
+	// The sub alert serves both channel.subscribe (new subs) and
 	// channel.subscription.message (resubs shared in chat), so a renewing sub
 	// gets the same welcome line under the same toggle. The resub payload has
-	// no is_gift field, so the gifted-recipient skip below only ever fires on
+	// no is_gift field, so the gifted-recipient skip only ever fires on
 	// channel.subscribe.
-	subAlert := func(_ context.Context, c *module.Context, emit module.Emit) error {
-		var cfg alertsConfig
-		_ = c.Decode(&cfg)
-		if !alertOn(cfg.SubEnabled) {
-			return nil
-		}
-		if len(c.Env.Event) == 0 {
-			return nil
-		}
-		var ev subscribeEvent
-		if err := json.Unmarshal(c.Env.Event, &ev); err != nil {
-			return err
-		}
-		// A gifted recipient is announced through the gift alert on
-		// channel.subscription.gift (one line per gifter, not one per
-		// recipient), so a gift bomb cannot flood chat with welcome lines.
-		if ev.UserLogin == "" || ev.IsGift {
-			return nil
-		}
-
-		tmpl := cfg.SubMessage
-		if tmpl == "" {
-			tmpl = defaultSubTemplate
-		}
-
-		msg := module.ExpandString(tmpl, func(key string) (string, bool) {
-			switch key {
-			case "user":
-				return strings.TrimPrefix(displayName(ev.UserName, ev.UserLogin), "@"), true
-			case "tier":
-				return ev.Tier, true
-			default:
-				return module.ParseDynamic(key)
+	subAlert := onAlert(
+		func(cfg alertsConfig) (bool, string) { return alertOn(cfg.SubEnabled), cfg.SubMessage },
+		defaultSubTemplate,
+		func(ev subscribeEvent) (alertLine, bool) {
+			// A gifted recipient is announced through the gift alert on
+			// channel.subscription.gift (one line per gifter, not one per
+			// recipient), so a gift bomb cannot flood chat with welcome lines.
+			if ev.UserLogin == "" || ev.IsGift {
+				return alertLine{}, false
 			}
+			return alertLine{ev.BroadcasterUserID, map[string]string{
+				"user": chatName(ev.UserName, ev.UserLogin),
+				"tier": ev.Tier,
+			}}, true
 		})
-
-		emit(&module.Output{
-			Type:          outgress.TypeChat,
-			BroadcasterID: ev.BroadcasterUserID,
-			Text:          msg,
-		})
-		return nil
-	}
 	m.On("channel.subscribe", subAlert)
 	m.On("channel.subscription.message", subAlert)
 
-	m.On("channel.subscription.gift", func(_ context.Context, c *module.Context, emit module.Emit) error {
-		var cfg alertsConfig
-		_ = c.Decode(&cfg)
-		if !alertOn(cfg.GiftEnabled) {
-			return nil
-		}
-		if len(c.Env.Event) == 0 {
-			return nil
-		}
-		var ev giftEvent
-		if err := json.Unmarshal(c.Env.Event, &ev); err != nil {
-			return err
-		}
-		if ev.BroadcasterUserID == "" || ev.Total <= 0 {
-			return nil
-		}
-
-		tmpl := cfg.GiftMessage
-		if tmpl == "" {
-			tmpl = defaultGiftTemplate
-		}
-
-		gifter := "An anonymous gifter"
-		if !ev.IsAnonymous {
-			gifter = displayName(ev.UserName, ev.UserLogin)
-		}
-
-		msg := module.ExpandString(tmpl, func(key string) (string, bool) {
-			switch key {
-			case "user":
-				return strings.TrimPrefix(gifter, "@"), true
-			case "count":
-				return strconv.Itoa(ev.Total), true
-			case "tier":
-				return ev.Tier, true
-			default:
-				return module.ParseDynamic(key)
+	m.On("channel.subscription.gift", onAlert(
+		func(cfg alertsConfig) (bool, string) { return alertOn(cfg.GiftEnabled), cfg.GiftMessage },
+		defaultGiftTemplate,
+		func(ev giftEvent) (alertLine, bool) {
+			if ev.BroadcasterUserID == "" || ev.Total <= 0 {
+				return alertLine{}, false
 			}
-		})
-
-		emit(&module.Output{
-			Type:          outgress.TypeChat,
-			BroadcasterID: ev.BroadcasterUserID,
-			Text:          msg,
-		})
-		return nil
-	})
-
-	m.On("channel.cheer", func(_ context.Context, c *module.Context, emit module.Emit) error {
-		var cfg alertsConfig
-		_ = c.Decode(&cfg)
-		if !alertOn(cfg.CheerEnabled) {
-			return nil
-		}
-		if len(c.Env.Event) == 0 {
-			return nil
-		}
-		var ev cheerEvent
-		if err := json.Unmarshal(c.Env.Event, &ev); err != nil {
-			return err
-		}
-		if ev.BroadcasterUserID == "" {
-			return nil
-		}
-
-		tmpl := cfg.CheerMessage
-		if tmpl == "" {
-			tmpl = defaultCheerTemplate
-		}
-
-		cheerer := "An anonymous cheerer"
-		if !ev.IsAnonymous {
-			cheerer = displayName(ev.UserName, ev.UserLogin)
-		}
-
-		msg := module.ExpandString(tmpl, func(key string) (string, bool) {
-			switch key {
-			case "user":
-				return strings.TrimPrefix(cheerer, "@"), true
-			case "bits":
-				return strconv.Itoa(ev.Bits), true
-			default:
-				return module.ParseDynamic(key)
+			gifter := "An anonymous gifter"
+			if !ev.IsAnonymous {
+				gifter = displayName(ev.UserName, ev.UserLogin)
 			}
-		})
+			return alertLine{ev.BroadcasterUserID, map[string]string{
+				"user":  strings.TrimPrefix(gifter, "@"),
+				"count": strconv.Itoa(ev.Total),
+				"tier":  ev.Tier,
+			}}, true
+		}))
 
-		emit(&module.Output{
-			Type:          outgress.TypeChat,
-			BroadcasterID: ev.BroadcasterUserID,
-			Text:          msg,
-		})
-		return nil
-	})
-
-	m.On("channel.raid", func(_ context.Context, c *module.Context, emit module.Emit) error {
-		var cfg alertsConfig
-		_ = c.Decode(&cfg)
-		if !alertOn(cfg.RaidEnabled) {
-			return nil
-		}
-		if len(c.Env.Event) == 0 {
-			return nil
-		}
-		var ev raidEvent
-		if err := json.Unmarshal(c.Env.Event, &ev); err != nil {
-			return err
-		}
-		if ev.FromBroadcasterUserLogin == "" {
-			return nil
-		}
-
-		tmpl := cfg.RaidMessage
-		if tmpl == "" {
-			tmpl = defaultRaidTemplate
-		}
-
-		msg := module.ExpandString(tmpl, func(key string) (string, bool) {
-			switch key {
-			case "user":
-				return strings.TrimPrefix(displayName(ev.FromBroadcasterUserName, ev.FromBroadcasterUserLogin), "@"), true
-			case "viewers":
-				return strconv.Itoa(ev.Viewers), true
-			default:
-				return module.ParseDynamic(key)
+	m.On("channel.cheer", onAlert(
+		func(cfg alertsConfig) (bool, string) { return alertOn(cfg.CheerEnabled), cfg.CheerMessage },
+		defaultCheerTemplate,
+		func(ev cheerEvent) (alertLine, bool) {
+			if ev.BroadcasterUserID == "" {
+				return alertLine{}, false
 			}
-		})
-
-		emit(&module.Output{
-			Type:          outgress.TypeChat,
-			BroadcasterID: ev.ToBroadcasterUserID,
-			Text:          msg,
-		})
-		return nil
-	})
-
-	m.On("channel.ad_break.begin", func(_ context.Context, c *module.Context, emit module.Emit) error {
-		var cfg alertsConfig
-		_ = c.Decode(&cfg)
-		if !adAlertOn(cfg.AdsEnabled) {
-			return nil
-		}
-		if len(c.Env.Event) == 0 {
-			return nil
-		}
-		var ev adBreakEvent
-		if err := json.Unmarshal(c.Env.Event, &ev); err != nil {
-			return err
-		}
-		if ev.BroadcasterUserID == "" {
-			return nil
-		}
-
-		tmpl := cfg.AdsMessage
-		if tmpl == "" {
-			tmpl = defaultAdsTemplate
-		}
-
-		msg := module.ExpandString(tmpl, func(key string) (string, bool) {
-			switch key {
-			case "duration":
-				return strconv.Itoa(ev.DurationSeconds), true
-			default:
-				return module.ParseDynamic(key)
+			cheerer := "An anonymous cheerer"
+			if !ev.IsAnonymous {
+				cheerer = displayName(ev.UserName, ev.UserLogin)
 			}
-		})
+			return alertLine{ev.BroadcasterUserID, map[string]string{
+				"user": strings.TrimPrefix(cheerer, "@"),
+				"bits": strconv.Itoa(ev.Bits),
+			}}, true
+		}))
 
-		emit(&module.Output{
-			Type:          outgress.TypeChat,
-			BroadcasterID: ev.BroadcasterUserID,
-			Text:          msg,
-		})
-		return nil
-	})
+	m.On("channel.raid", onAlert(
+		func(cfg alertsConfig) (bool, string) { return alertOn(cfg.RaidEnabled), cfg.RaidMessage },
+		defaultRaidTemplate,
+		func(ev raidEvent) (alertLine, bool) {
+			if ev.FromBroadcasterUserLogin == "" {
+				return alertLine{}, false
+			}
+			return alertLine{ev.ToBroadcasterUserID, map[string]string{
+				"user":    chatName(ev.FromBroadcasterUserName, ev.FromBroadcasterUserLogin),
+				"viewers": strconv.Itoa(ev.Viewers),
+			}}, true
+		}))
+
+	m.On("channel.ad_break.begin", onAlert(
+		func(cfg alertsConfig) (bool, string) { return adAlertOn(cfg.AdsEnabled), cfg.AdsMessage },
+		defaultAdsTemplate,
+		func(ev adBreakEvent) (alertLine, bool) {
+			if ev.BroadcasterUserID == "" {
+				return alertLine{}, false
+			}
+			return alertLine{ev.BroadcasterUserID, map[string]string{
+				"duration": strconv.Itoa(ev.DurationSeconds),
+			}}, true
+		}))
 
 	return m.Build()
 }
@@ -387,3 +265,8 @@ func displayName(name, login string) string {
 	return login
 }
 
+// chatName is displayName as the {user} token: any leading @ is stripped so a
+// template can write "@{user}" without doubling it.
+func chatName(name, login string) string {
+	return strings.TrimPrefix(displayName(name, login), "@")
+}
