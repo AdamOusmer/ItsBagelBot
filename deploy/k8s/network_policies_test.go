@@ -81,44 +81,61 @@ func sorted(values ...string) []string {
 	return values
 }
 
-func TestInternetAndHeatWaveEgressAreWorkloadScoped(t *testing.T) {
-	policies := loadNetworkPolicies(t)
-
-	base, ok := policies["default-deny-apps"]
+func requirePolicy(t *testing.T, policies map[string]networkPolicyManifest, name string) networkPolicyManifest {
+	t.Helper()
+	policy, ok := policies[name]
 	if !ok {
-		t.Fatal("default-deny-apps policy is missing")
+		t.Fatalf("%s policy is missing", name)
 	}
-	if !slices.Contains(selectedApps(t, base), "notifications-cleanup") {
-		t.Fatal("notifications cleanup job escaped the default-deny policy")
-	}
-	for _, rule := range base.Spec.Egress {
+	return policy
+}
+
+func policyHasPort(policy networkPolicyManifest, target int) bool {
+	for _, rule := range policy.Spec.Egress {
 		for _, port := range rule.Ports {
-			if port.Port == 443 || port.Port == 3306 {
-				t.Fatalf("default policy grants blanket external port %d", port.Port)
+			if port.Port == target {
+				return true
 			}
 		}
 	}
+	return false
+}
 
-	publicHTTPS, ok := policies["allow-public-https"]
-	if !ok {
-		t.Fatal("allow-public-https policy is missing")
+func TestDefaultPolicyHasNoBlanketExternalEgress(t *testing.T) {
+	base := requirePolicy(t, loadNetworkPolicies(t), "default-deny-apps")
+	if !slices.Contains(selectedApps(t, base), "notifications-cleanup") {
+		t.Fatal("notifications cleanup job escaped the default-deny policy")
 	}
+	if policyHasPort(base, 443) {
+		t.Fatal("default policy grants blanket external port 443")
+	}
+	if policyHasPort(base, 3306) {
+		t.Fatal("default policy grants blanket external port 3306")
+	}
+}
+
+func TestPublicHTTPSEgressAllowlist(t *testing.T) {
+	publicHTTPS := requirePolicy(t, loadNetworkPolicies(t), "allow-public-https")
 	wantHTTPS := sorted("commands", "console-admin", "console-dashboard", "gateway", "loyalty", "modules", "notifications", "outgress", "projector", "sesame", "transactions", "twitch-ingress", "users")
 	if got := selectedApps(t, publicHTTPS); !slices.Equal(got, wantHTTPS) {
 		t.Fatalf("public HTTPS allowlist = %v, want %v", got, wantHTTPS)
 	}
+}
 
-	heatwave, ok := policies["allow-heatwave"]
-	if !ok {
-		t.Fatal("allow-heatwave policy is missing")
-	}
+func TestHeatWaveEgressAllowlist(t *testing.T) {
+	heatwave := requirePolicy(t, loadNetworkPolicies(t), "allow-heatwave")
 	wantHeatWave := sorted("commands", "console-admin", "loyalty", "modules", "notifications", "transactions", "users")
 	if got := selectedApps(t, heatwave); !slices.Equal(got, wantHeatWave) {
 		t.Fatalf("HeatWave allowlist = %v, want %v", got, wantHeatWave)
 	}
-	if len(heatwave.Spec.Egress) != 1 || len(heatwave.Spec.Egress[0].To) != 1 ||
-		heatwave.Spec.Egress[0].To[0].IPBlock == nil ||
-		heatwave.Spec.Egress[0].To[0].IPBlock.CIDR != "10.0.0.0/16" {
+	if len(heatwave.Spec.Egress) != 1 {
+		t.Fatal("HeatWave policy must have exactly one egress rule")
+	}
+	if len(heatwave.Spec.Egress[0].To) != 1 {
+		t.Fatal("HeatWave rule must have exactly one destination")
+	}
+	ipBlock := heatwave.Spec.Egress[0].To[0].IPBlock
+	if ipBlock == nil || ipBlock.CIDR != "10.0.0.0/16" {
 		t.Fatal("HeatWave egress must stay confined to the routed OCI private subnet")
 	}
 }
