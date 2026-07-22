@@ -22,8 +22,9 @@ import { isLocale, DEFAULT_LOCALE } from '@bagel/shared/i18n';
 import { env } from '$env/dynamic/private';
 
 // Dashboard sections an owner can delegate. Billing is view-only for a delegate
-// (the money actions stay owner-only — see billing/+page.server.ts). Timers has
-// no standalone scope: it rides under 'commands' (see guard.ts + timers gate).
+// (the money actions stay owner-only — see billing/+page.server.ts). Counters
+// ride under 'modules'; timers also ride under 'commands' (see the catalog's
+// delegateSections and module-gate.ts).
 const SECTIONS = ['commands', 'modules', 'channelpoints', 'billing'] as const;
 
 function tokenLabel(token: string): string {

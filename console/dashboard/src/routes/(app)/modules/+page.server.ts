@@ -41,7 +41,7 @@ function merge(rows: ModuleView[], session: Session | null | undefined): ModuleS
     const row = byName.get(def.id);
     return {
       def,
-      enabled: row ? row.is_enabled : def.defaultEnabled,
+      enabled: def.toggleable === false ? true : row ? row.is_enabled : def.defaultEnabled,
       config: asConfig(row?.configs)
     };
   });
@@ -71,7 +71,8 @@ export const actions: Actions = {
 
     const f = await request.formData();
     const name = String(f.get('name') ?? '');
-    if (!moduleDef(name)) return fail(400, { ok: false, error: 'Unknown module.' });
+    const def = moduleDef(name);
+    if (!def || def.toggleable === false) return fail(400, { ok: false, error: 'Unknown module.' });
     const enabled = f.get('is_enabled') === 'on';
 
     if (env.DEMO === '1') return { ok: true, name, enabled };
