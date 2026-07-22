@@ -105,6 +105,13 @@ export async function setCounter(userId: string, name: string, value: number): P
   return reply.found === true;
 }
 
+// renameCounter moves a counter (and its stored buckets) to a new name;
+// false means no counter carries the old name.
+export async function renameCounter(userId: string, name: string, newName: string): Promise<boolean> {
+  const reply = await callLoyalty('counter.rename', { user_id: userId, name, new_name: newName });
+  return reply.found === true;
+}
+
 export async function deleteCounter(userId: string, name: string): Promise<void> {
   await callLoyalty('counter.delete', { user_id: userId, name });
 }

@@ -144,6 +144,8 @@ for (const surface of data.surfaces) {
             copied: ui.copied,
             copyFail: ui.copyFail,
             copyCta: ui.copyCta,
+            counterNameAria: ui.counterNameAria,
+            counterScopeAria: ui.counterScopeAria,
             sendTitle: ui.sendTitle,
             copyTitleCustom: ui.copyTitleCustom,
             copyTitleModule: ui.copyTitleModule,
@@ -177,7 +179,11 @@ for (const surface of data.surfaces) {
 </div>
 
 <script>
-    type Var = { token: string; sample: string; name: string; desc: string };
+    // scopes is set only on the custom surface's counter var: the four
+    // broadcaster-facing counter scopes (i18n/builder.ts COUNTER_SCOPES),
+    // label + hint only — the token itself never encodes scope.
+    type CounterScope = { id: string; label: string; hint: string };
+    type Var = { token: string; sample: string; name: string; desc: string; scopes?: CounterScope[] };
     type Surface = { id: string; group: string; label: string; dashPath: string; hint: string; example: string; prompt: string; vars: Var[] };
     type Payload = {
         data: {
@@ -534,19 +540,91 @@ for (const surface of data.surfaces) {
             update();
         }
 
+        function buildSimpleVar(item: Var): HTMLElement {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'var';
+            const code = el('code', '', item.token);
+            const span = el('span', '');
+            span.append(el('b', '', item.name), el('small', '', item.desc));
+            btn.append(code, span, el('i', '', '+'));
+            btn.addEventListener('click', () => insert(item.token));
+            return btn;
+        }
+
+        // The counter var is a small picker, not a one-click insert: type a
+        // name, choose one of the four scopes, then insert {counter:name}.
+        // The scope choice only ever touches this card's own hint text and
+        // the live token preview — it can't travel through the token itself.
+        function buildCounterVar(item: Var): HTMLElement {
+            const scopes = item.scopes ?? [];
+            const defaultName = item.token.match(/^\{counter:(.+)\}$/)?.[1] ?? 'name';
+
+            const card = el('div', 'var var--counter');
+
+            const head = el('div', 'ctr-head');
+            head.append(el('b', '', item.name), el('small', '', item.desc));
+
+            const nameInput = document.createElement('input');
+            nameInput.type = 'text';
+            nameInput.className = 'ctr-name';
+            nameInput.placeholder = defaultName;
+            nameInput.maxLength = data.limits.nameMax;
+            nameInput.setAttribute('aria-label', ui.counterNameAria);
+
+            const scopeSelect = document.createElement('select');
+            scopeSelect.className = 'ctr-scope';
+            scopeSelect.setAttribute('aria-label', ui.counterScopeAria);
+            for (const scope of scopes) {
+                const opt = document.createElement('option');
+                opt.value = scope.id;
+                opt.textContent = scope.label;
+                scopeSelect.append(opt);
+            }
+
+            const tokenCode = el('code', '', item.token);
+            const insertBtn = document.createElement('button');
+            insertBtn.type = 'button';
+            insertBtn.className = 'ctr-insert';
+            insertBtn.append(tokenCode, el('i', '', '+'));
+
+            const hint = el('small', 'ctr-hint');
+            const row = el('div', 'ctr-row');
+            row.append(nameInput, scopeSelect, insertBtn);
+
+            const cleanCounterName = () =>
+                nameInput.value.trim().replace(/^!+/, '').toLowerCase().slice(0, data.limits.nameMax);
+
+            const syncToken = () => {
+                tokenCode.textContent = `{counter:${cleanCounterName() || defaultName}}`;
+            };
+            const syncHint = () => {
+                const scope = scopes.find((s) => s.id === scopeSelect.value) ?? scopes[0];
+                hint.textContent = scope?.hint ?? '';
+            };
+
+            nameInput.addEventListener('input', syncToken);
+            nameInput.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    insertBtn.click();
+                }
+            });
+            scopeSelect.addEventListener('change', syncHint);
+            insertBtn.addEventListener('click', () => insert(`{counter:${cleanCounterName() || defaultName}}`));
+
+            syncToken();
+            syncHint();
+
+            card.append(head, row, hint);
+            return card;
+        }
+
         function renderVars() {
             const box = $<HTMLElement>('[data-vars]');
             box.replaceChildren();
             for (const item of current().vars) {
-                const btn = document.createElement('button');
-                btn.type = 'button';
-                btn.className = 'var';
-                const code = el('code', '', item.token);
-                const span = el('span', '');
-                span.append(el('b', '', item.name), el('small', '', item.desc));
-                btn.append(code, span, el('i', '', '+'));
-                btn.addEventListener('click', () => insert(item.token));
-                box.append(btn);
+                box.append(item.scopes?.length ? buildCounterVar(item) : buildSimpleVar(item));
             }
         }
 
@@ -1079,12 +1157,67 @@ for (const surface of data.surfaces) {
 
     [data-vars] .var:hover i { color: #07120d; background: var(--green-glow, #52b788); }
 
+    /* Counter picker: spans both palette columns, no whole-card hover (only
+       the Insert button is a button; the name field and scope select are
+       plain inputs, so the card itself must stay non-interactive chrome). */
+    [data-vars] .var--counter {
+        grid-column: 1 / -1;
+        grid-template-columns: 1fr;
+        gap: 10px;
+        cursor: default;
+    }
+    [data-vars] .var--counter:hover { border-color: var(--border, rgba(201, 168, 124, .15)); background: linear-gradient(135deg, rgba(255, 255, 255, .025), rgba(255, 255, 255, .01)); transform: none; }
+
+    [data-vars] .ctr-head { display: grid; gap: 4px; }
+    [data-vars] .ctr-head small { color: #a39c92; font: 400 11.5px/1.45 var(--font-body, sans-serif); }
+
+    [data-vars] .ctr-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) auto; gap: 8px; align-items: center; }
+
+    [data-vars] .ctr-name,
+    [data-vars] .ctr-scope {
+        height: 38px;
+        padding: 0 10px;
+        color: var(--white, #f0ece4);
+        background: rgba(0, 0, 0, .3);
+        border: 1px solid rgba(201, 168, 124, .2);
+        border-radius: 8px;
+        font: 12.5px var(--font-body, sans-serif);
+    }
+    [data-vars] .ctr-name:focus,
+    [data-vars] .ctr-scope:focus {
+        outline: 0;
+        border-color: rgba(82, 183, 136, .6);
+        box-shadow: 0 0 0 3px rgba(82, 183, 136, .12);
+    }
+
+    [data-vars] .ctr-insert {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        height: 38px;
+        padding: 0 12px;
+        color: var(--white, #f0ece4);
+        background: linear-gradient(135deg, rgba(255, 255, 255, .025), rgba(255, 255, 255, .01));
+        border: 1px solid rgba(82, 183, 136, .33);
+        border-radius: 8px;
+        white-space: nowrap;
+        transition: border-color .2s, background .2s;
+    }
+    [data-vars] .ctr-insert:hover { border-color: rgba(82, 183, 136, .6); background: rgba(82, 183, 136, .08); }
+    [data-vars] .ctr-insert code { padding: 0; background: none; border: 0; color: var(--tan-light, #e0c49a); font: 11px var(--font-mono, monospace); }
+    [data-vars] .ctr-insert i { font-style: normal; color: var(--green-glow, #52b788); }
+
+    [data-vars] .ctr-hint { display: block; color: var(--muted, #888077); font: 11.5px/1.5 var(--font-body, sans-serif); }
+
     @media (max-width: 700px) {
         [data-vars] .var { grid-template-columns: 1fr 25px; }
         [data-vars] .var code { grid-column: 1 / -1; width: max-content; max-width: 100%; }
+        [data-vars] .var--counter { grid-template-columns: 1fr; }
+        [data-vars] .var--counter code { grid-column: auto; width: auto; max-width: none; }
+        [data-vars] .ctr-row { grid-template-columns: 1fr; }
     }
 
     @media (prefers-reduced-motion: reduce) {
-        [data-vars] .var, [data-vars] .var i { transition: none; }
+        [data-vars] .var, [data-vars] .var i, [data-vars] .ctr-insert { transition: none; }
     }
 </style>

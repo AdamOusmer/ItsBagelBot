@@ -25,6 +25,13 @@ type tokens struct {
 // and renders the new value.
 const counterTokenPrefix = "counter:"
 
+// botCounterTokenPrefix marks a bot-scope counter reference inside a counter
+// token ({counter:bot:feeds}). Bot counters are admin-only: broadcaster
+// commands never resolve or bump them, so the token is skipped and stays
+// visible, exactly like any other unknown token. Only admin/system-authored
+// content may resolve it.
+const botCounterTokenPrefix = "bot:"
+
 // expandCommand expands a custom-command response, supporting the {user},
 // {sender}, {args} and {touser} tokens. It is expand specialized for the command
 // path. {target} is the dashboard-facing name for {touser}; both are kept as

@@ -297,9 +297,11 @@ func (lc loyaltyCmd) runCounter(ctx context.Context, args string) error {
 	}
 }
 
-// counterCreate makes a counter one of the three ways, all per channel:
+// counterCreate makes a counter one of the four channel ways:
 // "!counter create <name>" a single global value, "... <name> user" one value
-// per viewer, "... <name> user+command" one value per viewer per command.
+// per viewer, "... <name> command" one pooled value per command/reward,
+// "... <name> user+command" one value per viewer per command. Bot-scope
+// counters are admin-only and cannot be created from chat.
 func (lc loyaltyCmd) counterCreate(ctx context.Context, rest []string) error {
 	if len(rest) == 0 {
 		lc.reply("loyalty.counter.usage")
@@ -307,12 +309,7 @@ func (lc loyaltyCmd) counterCreate(ctx context.Context, rest []string) error {
 	}
 	scope := data.CounterScopeChannel
 	if len(rest) > 1 {
-		switch strings.ToLower(rest[1]) {
-		case "user", "viewer", "per-viewer", "perviewer":
-			scope = data.CounterScopeViewer
-		case "user+command", "user-command", "usercommand", "viewer+command", "command":
-			scope = data.CounterScopeViewerCommand
-		}
+		scope = createScope(rest[1])
 	}
 	counter, err := lc.d.Loyalty.CounterCreate(ctx, lc.c.BroadcasterID, rest[0], scope)
 	if err != nil {
@@ -322,11 +319,30 @@ func (lc loyaltyCmd) counterCreate(ctx context.Context, rest []string) error {
 	return nil
 }
 
+// createScope maps a "!counter create <name> <word>" scope word; anything
+// unrecognized (or absent) is a channel counter. "command" used to mean
+// user+command; it now means the pooled per-command scope, matching the
+// dashboard's naming.
+func createScope(word string) string {
+	switch strings.ToLower(word) {
+	case "user", "viewer", "per-viewer", "perviewer":
+		return data.CounterScopeViewer
+	case "command", "per-command", "percommand", "reward":
+		return data.CounterScopeCommand
+	case "user+command", "user-command", "usercommand", "viewer+command":
+		return data.CounterScopeViewerCommand
+	default:
+		return data.CounterScopeChannel
+	}
+}
+
 // scopeLabel is the chat-facing name of a scope.
 func scopeLabel(scope string) string {
 	switch scope {
 	case data.CounterScopeViewer:
 		return "per user"
+	case data.CounterScopeCommand:
+		return "per command"
 	case data.CounterScopeViewerCommand:
 		return "per user+command"
 	default:
@@ -433,10 +449,8 @@ func (lc loyaltyCmd) counterList(ctx context.Context) error {
 		}
 		b.WriteString(counter.Name)
 		switch counter.Scope {
-		case data.CounterScopeViewer:
-			b.WriteString(" (per user)")
-		case data.CounterScopeViewerCommand:
-			b.WriteString(" (per user+command)")
+		case data.CounterScopeViewer, data.CounterScopeCommand, data.CounterScopeViewerCommand:
+			b.WriteString(" (" + scopeLabel(counter.Scope) + ")")
 		default:
 			b.WriteString(" (")
 			b.WriteString(strconv.FormatInt(counter.Value, 10))
@@ -458,7 +472,7 @@ func (lc loyaltyCmd) counterShow(ctx context.Context, name, command string) erro
 		return nil
 	}
 	key := "loyalty.counter.show"
-	if counter.Scope != data.CounterScopeChannel {
+	if counter.Scope == data.CounterScopeViewer || counter.Scope == data.CounterScopeViewerCommand {
 		key = "loyalty.counter.show.viewer"
 	}
 	lc.reply(key, "counter", counter.Name, "value", strconv.FormatInt(counter.Value, 10))

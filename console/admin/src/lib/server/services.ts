@@ -26,6 +26,7 @@ const SUB = {
   outgress: process.env.NATS_OUTGRESS_SYSTEM_SUBJECT ?? 'twitch.outgress.system',
   outgressRpc: process.env.NATS_OUTGRESS_RPC_PREFIX ?? 'bagel.rpc.outgress',
   notifications: process.env.NATS_ADMIN_NOTIFICATIONS_SUBJECT_PREFIX ?? 'bagel.rpc.admin.notifications',
+  loyalty: process.env.NATS_LOYALTY_SUBJECT_PREFIX ?? 'bagel.rpc.loyalty',
   health: process.env.NATS_RPC_HEALTH_PREFIX ?? 'bagel.rpc.health'
 };
 
@@ -707,4 +708,52 @@ export async function auditPage(page = 1, search = '', actorFilter = ''): Promis
       ...pageMetaOf(r, page, AUDIT_PAGE_SIZE, AUDIT_MAX_PAGES)
     };
   });
+}
+
+// ---------------------------------------------------------------------------
+// Bot-global counters: the reserved loyalty namespace user_id "0". Created
+// and bumped by admins and system modules only; broadcasters can neither see
+// nor reference them, so no cache layer: the page reads straight through.
+
+export interface BotCounter {
+  name: string;
+  scope: string;
+  value: number;
+}
+
+const BOT_NS = '0';
+
+interface LoyaltyReplyWire {
+  counter?: BotCounter;
+  counters?: BotCounter[];
+  found?: boolean;
+  error?: string;
+}
+
+function loyaltyCall(verb: string, req: Record<string, unknown>): Promise<LoyaltyReplyWire> {
+  return rpc<LoyaltyReplyWire>(`${SUB.loyalty}.counter.${verb}`, { user_id: BOT_NS, ...req });
+}
+
+export async function botCounterList(): Promise<BotCounter[]> {
+  const r = await loyaltyCall('list', {});
+  if (r.error) throw new Error(r.error);
+  return r.counters ?? [];
+}
+
+export async function botCounterCreate(name: string): Promise<BotCounter> {
+  const r = await loyaltyCall('create', { name, scope: 'bot' });
+  if (r.error) throw new Error(r.error);
+  if (!r.counter) throw new Error('empty counter reply');
+  return r.counter;
+}
+
+export async function botCounterSet(name: string, value: number): Promise<void> {
+  const r = await loyaltyCall('set', { name, value });
+  if (r.error) throw new Error(r.error);
+  if (!r.found) throw new Error('unknown counter');
+}
+
+export async function botCounterDelete(name: string): Promise<void> {
+  const r = await loyaltyCall('delete', { name });
+  if (r.error) throw new Error(r.error);
 }

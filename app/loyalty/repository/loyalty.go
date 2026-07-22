@@ -77,10 +77,10 @@ type earnSum struct {
 }
 
 type bumpKey struct {
-	userID   uint64
+	userID   uint64 // 0 for bot scope (the reserved bot namespace)
 	name     string
-	command  string // "" except for viewer+command scope
-	viewerID uint64 // 0 for channel scope
+	command  string // "" except for the command-bucketed scopes
+	viewerID uint64 // 0 except for the viewer scopes
 }
 
 // bumpSum is one counter's accumulated delta. scope rides along so the flush
@@ -168,32 +168,19 @@ func (r *Loyalty) RecordEarned(dto data.LoyaltyEarnedDTO) {
 	r.maybeFlush(overflow)
 }
 
-// RecordBumps folds one worker counter event into the accumulator.
+// RecordBumps folds one worker counter event into the accumulator. A DTO with
+// UserID 0 is the bot namespace and may only carry bot-scope bumps; every
+// other scope requires a real broadcaster.
 func (r *Loyalty) RecordBumps(dto data.CounterBumpedDTO) {
-	if dto.UserID == 0 || len(dto.Bumps) == 0 {
+	if len(dto.Bumps) == 0 {
 		return
 	}
 	r.mu.Lock()
 	for _, b := range dto.Bumps {
-		name := normalizeName(b.Name)
-		if name == "" || b.Delta == 0 {
+		key, scope, ok := bumpTarget(dto.UserID, b)
+		if !ok {
 			continue
 		}
-		scope := data.CounterScopeChannel
-		viewerID := uint64(0)
-		command := ""
-		switch b.Scope {
-		case data.CounterScopeViewer, data.CounterScopeViewerCommand:
-			if b.ViewerID == 0 {
-				continue // a viewer bump with no viewer is unusable
-			}
-			scope = b.Scope
-			viewerID = b.ViewerID
-			if scope == data.CounterScopeViewerCommand {
-				command = normalizeCommand(b.Command) // "" = nameless-source bucket
-			}
-		}
-		key := bumpKey{userID: dto.UserID, name: name, command: command, viewerID: viewerID}
 		sum := r.bumpPend[key]
 		if sum == nil {
 			sum = &bumpSum{scope: scope}
@@ -204,6 +191,64 @@ func (r *Loyalty) RecordBumps(dto data.CounterBumpedDTO) {
 	overflow := len(r.bumpPend) >= flushMaxKeys
 	r.mu.Unlock()
 	r.maybeFlush(overflow)
+}
+
+// bumpTarget maps one wire bump to its accumulator key per its scope, or
+// ok=false for an unusable bump.
+func bumpTarget(userID uint64, b data.CounterBumpEntry) (bumpKey, string, bool) {
+	name := normalizeName(b.Name)
+	if !usableBump(userID, name, b) {
+		return bumpKey{}, "", false
+	}
+	key, scope := scopeKey(userID, name, b)
+	return key, scope, true
+}
+
+// viewerScoped reports whether a scope keys entries by viewer.
+func viewerScoped(scope string) bool {
+	return scope == data.CounterScopeViewer || scope == data.CounterScopeViewerCommand
+}
+
+// usableBump filters bumps that can never land: an empty/reserved name, a
+// zero delta, a viewer scope without a viewer, or a scope/namespace mismatch
+// (bot bumps only in the UserID-0 namespace, everything else only outside it).
+func usableBump(userID uint64, name string, b data.CounterBumpEntry) bool {
+	if name == "" || b.Delta == 0 {
+		return false
+	}
+	if strings.Contains(name, ":") {
+		return false // reserved for the worker's bot-token prefix
+	}
+	if viewerScoped(b.Scope) && b.ViewerID == 0 {
+		return false
+	}
+	return (userID == 0) == (b.Scope == data.CounterScopeBot)
+}
+
+// scopeKey derives the accumulator key and canonical scope of one usable
+// bump. A command-scope bump from a nameless source pools on the counter row
+// (channel shape) so its total stays readable; anything unknown folds to
+// channel.
+func scopeKey(userID uint64, name string, b data.CounterBumpEntry) (bumpKey, string) {
+	key := bumpKey{userID: userID, name: name}
+	switch b.Scope {
+	case data.CounterScopeBot:
+		return key, b.Scope // key.userID is already 0 in the bot namespace
+	case data.CounterScopeViewer:
+		key.viewerID = b.ViewerID
+		return key, b.Scope
+	case data.CounterScopeViewerCommand:
+		key.viewerID, key.command = b.ViewerID, normalizeCommand(b.Command)
+		return key, b.Scope
+	case data.CounterScopeCommand:
+		key.command = normalizeCommand(b.Command)
+		if key.command == "" {
+			return key, data.CounterScopeChannel
+		}
+		return key, b.Scope
+	default:
+		return key, data.CounterScopeChannel
+	}
 }
 
 // maybeFlush starts one early flush when an accumulator crossed its cap.
@@ -319,13 +364,13 @@ func (r *Loyalty) flushBumps(ctx context.Context, txn *newrelic.Transaction, bum
 }
 
 // splitBumps separates the window's bumps by where their value lives: the
-// counter row (channel scope) or a counter_entries bucket (the entry scopes).
+// counter row (channel and bot scopes) or a counter_entries bucket (the
+// entry scopes).
 func splitBumps(bumps map[bumpKey]*bumpSum) (channel, entries []bumpKey) {
 	for k, s := range bumps {
-		switch s.scope {
-		case data.CounterScopeViewer, data.CounterScopeViewerCommand:
+		if entryScoped(s.scope) {
 			entries = append(entries, k)
-		default:
+		} else {
 			channel = append(channel, k)
 		}
 	}
@@ -339,7 +384,7 @@ func (r *Loyalty) flushChannelBumps(ctx context.Context, txn *newrelic.Transacti
 	now := time.Now()
 	rows := make([][]any, 0, len(keys))
 	for _, k := range keys {
-		rows = append(rows, []any{k.userID, k.name, data.CounterScopeChannel, bumps[k].delta, now, now})
+		rows = append(rows, []any{k.userID, k.name, bumps[k].scope, bumps[k].delta, now, now})
 	}
 	r.upsertRows(ctx, txn, "counters",
 		"INSERT INTO counters (user_id, name, scope, value, created_at, updated_at) VALUES ",

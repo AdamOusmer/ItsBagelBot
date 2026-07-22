@@ -235,6 +235,9 @@ func (p *Pipeline) bumpCounterTokens(ctx context.Context, c *module.Context, com
 	viewerID, _ := strconv.ParseUint(c.Env.ChatterUserID, 10, 64)
 	counters := make(map[string]string, len(names))
 	for _, name := range names {
+		if strings.HasPrefix(name, botCounterTokenPrefix) {
+			continue // bot counters are admin-only; the token stays visible
+		}
 		value, err := p.loyalty.CounterBump(ctx, c.BroadcasterID, name, viewerID, command, 1)
 		if err != nil {
 			p.log.Warn("counter token bump failed",

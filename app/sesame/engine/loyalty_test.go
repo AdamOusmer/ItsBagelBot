@@ -22,6 +22,9 @@ func TestCounterTokenNames(t *testing.T) {
 	assert.Nil(t, counterTokenNames("{counter:deaths"))
 	// Empty name skipped.
 	assert.Nil(t, counterTokenNames("{counter:}"))
+	// A bot-scope reference parses with its prefix intact; the dispatch path
+	// skips it for broadcaster commands so the token stays visible.
+	assert.Equal(t, []string{"bot:feeds"}, counterTokenNames("{counter:Bot:Feeds}"))
 }
 
 func TestExpandCommandCounterToken(t *testing.T) {
@@ -142,6 +145,43 @@ func TestLoyaltyReporterSkipsEmpty(t *testing.T) {
 	r.Earn(1, 7, "", "", 0, 0)               // nothing earned
 	r.Bump(1, "", "channel", 0, "", 1)       // no name
 	r.Bump(1, "deaths", "channel", 0, "", 0) // no delta
+	r.Bump(0, "deaths", "channel", 0, "", 1) // channel bump without broadcaster
+	r.Bump(1, "feeds", data.CounterScopeBot, 0, "", 1) // bot bump outside bot namespace
 	r.Close()
 	assert.Empty(t, pub.payloads)
+}
+
+func TestLoyaltyReporterBotNamespace(t *testing.T) {
+	pub := &rawPublisher{}
+	r := NewLoyaltyReporter(pub, zap.NewNop())
+	r.Bump(0, "feeds", data.CounterScopeBot, 0, "", 2)
+	r.Close()
+
+	bumps := pub.payloads[data.SubjectLoyaltyCounters]
+	require.Len(t, bumps, 1)
+	var dto data.CounterBumpedDTO
+	require.NoError(t, json.Unmarshal(bumps[0], &dto))
+	assert.Equal(t, uint64(0), dto.UserID)
+	require.Len(t, dto.Bumps, 1)
+	assert.Equal(t, data.CounterScopeBot, dto.Bumps[0].Scope)
+	assert.Equal(t, int64(2), dto.Bumps[0].Delta)
+}
+
+func TestBumpTargetRouting(t *testing.T) {
+	scope, viewer, cmd := bumpTarget(data.CounterScopeCommand, 7, "raid")
+	assert.Equal(t, data.CounterScopeCommand, scope)
+	assert.Equal(t, uint64(0), viewer) // pooled across viewers
+	assert.Equal(t, "raid", cmd)
+
+	scope, viewer, cmd = bumpTarget(data.CounterScopeViewer, 0, "raid")
+	assert.Equal(t, data.CounterScopeChannel, scope) // viewerless fallback
+	assert.Equal(t, uint64(0), viewer)
+	assert.Empty(t, cmd)
+
+	scope, _, _ = bumpTarget(data.CounterScopeBot, 7, "raid")
+	assert.Equal(t, data.CounterScopeBot, scope)
+
+	assert.Equal(t, "raid:0", entryField(data.CounterScopeCommand, 0, "raid"))
+	assert.Equal(t, "raid:7", entryField(data.CounterScopeViewerCommand, 7, "raid"))
+	assert.Equal(t, "7", entryField(data.CounterScopeViewer, 7, ""))
 }
