@@ -70,18 +70,29 @@
     statusTimers.set(name, [setTimeout(() => (rowStatus = { ...rowStatus, [name]: 'idle' }), 4000)]);
   }
 
-  // --- Search + sorted rows ---------------------------------------------------
+  // --- Search + scope filter + sorted rows ------------------------------------
   let search = $state('');
+  let scopeFilter = $state<CounterScope | 'all'>('all');
   const rows = $derived(
     items
       .filter((c) => c.name.toLowerCase().includes(search.toLowerCase()))
+      .filter((c) => scopeFilter === 'all' || c.scope === scopeFilter)
       .toSorted((a, b) => a.name.localeCompare(b.name))
   );
 
   const scopeTag: Record<CounterScope, string> = {
     channel: t('counters.tagChannel'),
     viewer: t('counters.tagViewer'),
+    command: t('counters.tagCommand'),
     viewer_command: t('counters.tagViewerCommand')
+  };
+
+  // Plain-language scope names for the create picker and the filter.
+  const scopeLabel: Record<CounterScope, string> = {
+    channel: t('counters.scopeChannel'),
+    viewer: t('counters.scopeViewer'),
+    command: t('counters.scopeCommand'),
+    viewer_command: t('counters.scopeViewerCommand')
   };
 
   // --- Optimistic +/- stepper (channel scope), wrapping main's ?/set action ---
@@ -156,6 +167,7 @@
       return;
     }
     nameError = '';
+    renameValue = '';
     expanded = c.name;
     if (c.scope === 'channel') {
       setValue = c.value;
@@ -226,6 +238,33 @@
     };
   };
 
+  // --- Rename (any scope; the service moves the row and its buckets). The
+  // visible input lives inside the inspector's own form, so it joins the
+  // hidden rename form through the HTML form= attribute, like delete/reset. --
+  let renameValue = $state('');
+  let renameForm = $state<HTMLFormElement | null>(null);
+  let renaming = $state(false);
+  const renameSubmit: SubmitFunction = (input) => {
+    const target = expanded;
+    const next = normCounterName(renameValue);
+    if (!next || next === target) {
+      input.cancel();
+      return;
+    }
+    renaming = true;
+    return async ({ result }) => {
+      renaming = false;
+      if (result.type === 'success' && payloadOf(result)?.ok) {
+        toast('ok', t('counters.toastRenamed'));
+        renameValue = '';
+        closeEditor();
+        await invalidateAll();
+        return;
+      }
+      toast('err', payloadOf(result)?.error ?? t('counters.toastFailed'));
+    };
+  };
+
   // --- Reset (entry scopes: main's ?/set with value 0 clears every bucket) -----
   let resetTarget = $state<CounterDef | null>(null);
   let resetForm = $state<HTMLFormElement | null>(null);
@@ -272,6 +311,26 @@
   };
 </script>
 
+{#snippet renameBlock()}
+  <!-- The input joins the hidden ?/rename form via form=, so it can sit
+       inside the set form without nesting forms. -->
+  <Field label={t('counters.rename')}>
+    <div class="rename-row">
+      <input
+        class="search"
+        name="new_name"
+        form="counter-rename-form"
+        placeholder={t('counters.renamePh')}
+        maxlength="64"
+        bind:value={renameValue}
+      />
+      <Button variant="ghost" loading={renaming} onclick={() => renameForm?.requestSubmit()}>
+        {t('counters.rename')}
+      </Button>
+    </div>
+  </Field>
+{/snippet}
+
 <section class="screen active">
   <PageHead eyebrow={t('counters.eyebrow')} description={t('counters.description')}>
     {t('counters.titlePre')}<em>{t('counters.titleEm')}</em>
@@ -286,6 +345,12 @@
       <div class="toolbar-search">
         <SearchInput placeholder={t('counters.searchPlaceholder')} bind:value={search} debounceMs={200} />
       </div>
+      <select class="search scope-filter" aria-label={t('counters.filterAria')} bind:value={scopeFilter}>
+        <option value="all">{t('counters.filterAll')}</option>
+        {#each COUNTER_SCOPES as s}
+          <option value={s}>{scopeTag[s]}</option>
+        {/each}
+      </select>
     {/snippet}
     {#snippet trail()}
       <Button variant="primary" icon="plus" onclick={openNew} disabled={expanded === NEW}>
@@ -353,17 +418,12 @@
               <Field label={t('counters.fieldScope')}>
                 <select class="search" name="scope" bind:value={newScope}>
                   {#each COUNTER_SCOPES as s}
-                    <option value={s}>
-                      {s === 'channel'
-                        ? t('counters.scopeChannel')
-                        : s === 'viewer'
-                          ? t('counters.scopeViewer')
-                          : t('counters.scopeViewerCommand')}
-                    </option>
+                    <option value={s}>{scopeLabel[s]}</option>
                   {/each}
                 </select>
               </Field>
               <p class="hint">{t('counters.scopeHint')}</p>
+              <p class="hint">{t('counters.scopeLocked')}</p>
             </Scroller>
             <div class="ins-foot">
               <Button variant="ghost" onclick={closeEditor}>{t('common.cancel')}</Button>
@@ -383,6 +443,7 @@
               <Field label={t('counters.colValue')}>
                 <input class="search num" type="number" name="value" step="1" bind:value={setValue} />
               </Field>
+              {@render renameBlock()}
             </Scroller>
             <div class="ins-foot">
               <Button variant="ghost" onclick={closeEditor}>{t('common.cancel')}</Button>
@@ -398,6 +459,7 @@
                 <span class="id-name">{selected.name}</span>
                 <span class="id-tag">{scopeTag[selected.scope]}</span>
               </div>
+              {@render renameBlock()}
               <p class="hint">{t('counters.resetHint')}</p>
               {#if !entriesReady}
                 <p class="hint" role="status">{t('common.loading')}</p>
@@ -457,6 +519,18 @@
   <input type="hidden" name="name" value={deleteTarget?.name ?? ''} />
 </form>
 
+<!-- Rename: the visible input in the inspector belongs to this form via form=. -->
+<form
+  id="counter-rename-form"
+  method="POST"
+  action="?/rename"
+  use:enhance={renameSubmit}
+  bind:this={renameForm}
+  hidden
+>
+  <input type="hidden" name="name" value={selected?.name ?? ''} />
+</form>
+
 <!-- Reset an entry-scoped counter: value 0 clears every stored bucket. -->
 <ConfirmDialog
   open={resetTarget !== null}
@@ -477,6 +551,10 @@
 <style>
   .toolbar-search { width: 220px; max-width: 100%; }
   .toolbar-search :global(.si) { width: 100%; }
+  .scope-filter { width: auto; }
+
+  .rename-row { display: flex; align-items: center; gap: 8px; }
+  .rename-row input { flex: 1; min-width: 0; }
 
   .deck { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
   @media (min-width: 1080px) {

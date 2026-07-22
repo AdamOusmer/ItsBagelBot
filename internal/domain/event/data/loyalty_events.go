@@ -10,14 +10,20 @@ const (
 	SubjectLoyaltyCounters = "data.loyalty.counters"
 )
 
-// Counter scopes — the three ways a counter can be made, all per channel:
-// a channel counter is one global value per (broadcaster, name); a viewer
-// counter tracks one value per (broadcaster, name, viewer); a viewer+command
-// counter tracks one value per (broadcaster, name, command, viewer), so the
-// same counter separates each command's per-viewer tally.
+// Counter scopes — the ways a counter can be made. All but bot are per
+// channel: a channel counter is one global value per (broadcaster, name); a
+// viewer counter tracks one value per (broadcaster, name, viewer); a command
+// counter tracks one pooled value per (broadcaster, name, command) across all
+// viewers; a viewer+command counter tracks one value per (broadcaster, name,
+// command, viewer), so the same counter separates each command's per-viewer
+// tally. A bot counter is one value shared across every channel, stored under
+// the reserved broadcaster id 0 — created and bumped only by admin/system
+// paths, never reachable from broadcaster templates or chat.
 const (
+	CounterScopeBot           = "bot"
 	CounterScopeChannel       = "channel"
 	CounterScopeViewer        = "viewer"
+	CounterScopeCommand       = "command"
 	CounterScopeViewerCommand = "viewer_command"
 )
 
@@ -44,11 +50,12 @@ type LoyaltyEarnedDTO struct {
 // CounterBumpEntry is one counter's summed delta inside a flush window. Scope
 // travels with the bump so the service can create the counter row on first
 // use; on an existing counter the stored scope wins. ViewerID is set only for
-// viewer / viewer+command bumps; Command only for viewer+command bumps — the
-// source's name, i.e. the command's canonical trigger or the channel-point
-// reward's title (unique per channel, so it names the reward the way a
-// trigger names a command). Empty means a source with no name of its own;
-// those land in the counter's empty bucket.
+// viewer / viewer+command bumps; Command only for command / viewer+command
+// bumps — the source's name, i.e. the command's canonical trigger or the
+// channel-point reward's title (unique per channel, so it names the reward
+// the way a trigger names a command). Empty means a source with no name of
+// its own; those land in the counter's empty bucket. A bot-scope bump carries
+// neither and rides a DTO with UserID 0 (the reserved bot namespace).
 type CounterBumpEntry struct {
 	Name     string `json:"name"`
 	Scope    string `json:"scope,omitempty"` // CounterScopeChannel when empty

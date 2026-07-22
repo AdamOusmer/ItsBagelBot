@@ -516,7 +516,7 @@ const catalog: Record<Lang, Partial<Record<UIKey, string>>> = { en, fr };
 export const LOCALIZED_PATHS: ReadonlySet<string> = new Set([
   '/', '/pricing', '/contact', '/privacy', '/terms', '/creator-terms',
   '/guides', '/guides/getting-started', '/guides/commands', '/guides/modules',
-  '/command-builder',
+  '/guides/counters', '/command-builder',
 ]);
 
 /** Locale from the URL: /fr/... → 'fr', anything else → 'en'. */

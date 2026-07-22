@@ -1357,8 +1357,12 @@ export function blankLoyaltyConfig(): LoyaltyConfig {
 
 // The three ways a counter can be made, all per channel: one global value, one
 // value per user, or one value per user per command/reward.
-export type CounterScope = 'channel' | 'viewer' | 'viewer_command';
-export const COUNTER_SCOPES: readonly CounterScope[] = ['channel', 'viewer', 'viewer_command'];
+// The broadcaster-facing counter scopes. 'command' pools every viewer into
+// one total per command/reward; 'viewer_command' keeps one value per viewer
+// per command. (A fifth, admin-only 'bot' scope exists service-side and never
+// surfaces in the dashboard.)
+export type CounterScope = 'channel' | 'viewer' | 'command' | 'viewer_command';
+export const COUNTER_SCOPES: readonly CounterScope[] = ['channel', 'viewer', 'command', 'viewer_command'];
 
 // CounterDef is one counter definition as counter.list returns it; value is
 // the channel-scope tally (entry scopes keep per-viewer values instead).

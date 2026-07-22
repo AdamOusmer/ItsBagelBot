@@ -8,6 +8,7 @@
   // The default stays a single field for callers whose reply is one message
   // (module replies); there pasted newlines collapse to spaces.
   import { RESPONSE_MAX, getI18n } from '@bagel/shared';
+  import CounterPicker from '$lib/components/counters/CounterPicker.svelte';
 
   const i18n = getI18n();
 
@@ -42,6 +43,13 @@
   } = $props();
 
   const chipTitle = (tk: PaletteToken) => (tk.hint ? i18n.t(tk.hint) : (tk.label ?? tk.token));
+
+  // The default (command) palette swaps the static counter chip for the
+  // picker, which inserts an existing counter or creates one in place.
+  // Callers passing their own tokens (module replies, rewards) keep a plain
+  // palette.
+  const pickerOn = $derived(tokens === DEFAULT_TOKENS);
+  const paletteTokens = $derived(pickerOn ? tokens.filter((tk) => !tk.token.startsWith('{counter')) : tokens);
 
   // One entry per message field. Seeded from the incoming value (a draft
   // restore or an edit of an existing multi-line command); from then on the
@@ -177,9 +185,12 @@
 {/if}
 
 <div class="palette" role="toolbar" aria-label={i18n.t('commandEditor.insertVariable')}>
-  {#each tokens as tk (tk.token)}
+  {#each paletteTokens as tk (tk.token)}
     <button type="button" class="var" title={chipTitle(tk)} onclick={() => insert(tk.token)}>{tk.token}</button>
   {/each}
+  {#if pickerOn}
+    <CounterPicker onInsert={insert} />
+  {/if}
 </div>
 
 <!-- The rendered reply lives in ChatPreview (chat rehearsal), owned by the editor. -->

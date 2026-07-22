@@ -11,11 +11,20 @@ import type { Lang } from './ui';
 
 type L10n = Record<Lang, string>;
 
+/** One scope choice for a counter var's picker (see COUNTER_SCOPES below). */
+interface ScopeDef {
+  id: string;
+  label: L10n;
+  hint: L10n;
+}
+
 interface VarDef {
   token: string;
   sample: string;
   name: L10n;
   desc: L10n;
+  /** Counter vars only: the four scope choices shown in the builder's picker. */
+  scopes?: ScopeDef[];
 }
 
 interface SurfaceDef {
@@ -32,12 +41,41 @@ interface SurfaceDef {
   vars: VarDef[];
 }
 
-const v = (token: string, sample: string, name: L10n, desc: L10n): VarDef => ({
+const v = (token: string, sample: string, name: L10n, desc: L10n, scopes?: ScopeDef[]): VarDef => ({
   token,
   sample,
   name,
   desc,
+  scopes,
 });
+
+// The four broadcaster-facing counter scopes (data.CounterScope*, minus the
+// admin-only "bot" scope, which never appears outside the console). Chosen
+// once, when the counter is created (dashboard Counters page, or !counter
+// create <name> [scope]). The token itself never carries the scope, so this
+// only powers the builder's counter picker (name + scope) and its hint text.
+const COUNTER_SCOPES: ScopeDef[] = [
+  {
+    id: 'channel',
+    label: { en: 'One total for the channel', fr: 'Un total pour toute la chaîne' },
+    hint: { en: 'Every use adds to the same shared number.', fr: 'Chaque utilisation ajoute au même nombre partagé.' },
+  },
+  {
+    id: 'viewer',
+    label: { en: 'Per user', fr: 'Par spectateur' },
+    hint: { en: 'Each viewer gets their own number.', fr: 'Chaque spectateur a son propre nombre.' },
+  },
+  {
+    id: 'command',
+    label: { en: 'Per command or reward, all users pooled', fr: 'Par commande ou récompense, tous les spectateurs regroupés' },
+    hint: { en: 'One shared total for this command or reward.', fr: 'Un seul total partagé pour cette commande ou récompense.' },
+  },
+  {
+    id: 'viewer_command',
+    label: { en: 'Per user, per command or reward', fr: 'Par spectateur, par commande ou récompense' },
+    hint: { en: 'Each viewer gets a separate number for this command or reward.', fr: 'Chaque spectateur a un nombre séparé pour cette commande ou récompense.' },
+  },
+];
 
 // Dynamic tokens work in custom commands and in every module reply template
 // (module.ParseDynamic is each module's fallback).
@@ -63,7 +101,16 @@ export const SURFACES: SurfaceDef[] = [
       v('{touser}', 'alex', { en: 'Named person', fr: 'Personne nommée' }, { en: 'The first word typed after the command ("@" removed); the viewer themself when blank. {target} works too.', fr: 'Le premier mot tapé après la commande (sans «@»); le spectateur lui-même si vide. {target} fonctionne aussi.' }),
       v('{args}', 'good luck!', { en: 'Everything typed after', fr: 'Tout le texte tapé après' }, { en: 'All text after the command, as one string.', fr: 'Tout le texte après la commande, en une seule chaîne.' }),
       v('{channel}', 'your_channel', { en: 'Channel name', fr: 'Nom de la chaîne' }, { en: "Your channel's display name.", fr: 'Le nom d’affichage de votre chaîne.' }),
-      v('{counter:falls}', '128', { en: 'Counter (+1)', fr: 'Compteur (+1)' }, { en: 'Adds 1 to the named counter and shows the total. Needs the Loyalty Points module.', fr: 'Ajoute 1 au compteur nommé et affiche le total. Requiert le module Points de fidélité.' }),
+      v(
+        '{counter:falls}',
+        '128',
+        { en: 'Counter (+1)', fr: 'Compteur (+1)' },
+        {
+          en: 'Adds 1 to a counter and shows the new total (needs the Loyalty Points module). Pick its scope below, it\'s set once, at creation, from the dashboard or !counter create.',
+          fr: 'Ajoute 1 à un compteur et affiche le nouveau total (nécessite le module Points de fidélité). Choisissez sa portée ci-dessous: elle est fixée une fois, à la création, depuis le tableau de bord ou avec !counter create.',
+        },
+        COUNTER_SCOPES,
+      ),
       ...DYNAMIC,
     ],
   },
@@ -194,7 +241,7 @@ export const SURFACES: SurfaceDef[] = [
       v('{reward}', 'Hydrate!', { en: 'Reward title', fr: 'Titre de la récompense' }, { en: 'The name of the redeemed reward.', fr: 'Le nom de la récompense échangée.' }),
       v('{cost}', '500', { en: 'Point cost', fr: 'Coût en points' }, { en: 'What the reward costs.', fr: 'Le coût de la récompense.' }),
       v('{channel}', 'your_channel', { en: 'Channel', fr: 'Chaîne' }, { en: 'Your channel name.', fr: 'Le nom de votre chaîne.' }),
-      v('{counter}', '129', { en: 'Bound counter', fr: 'Compteur lié' }, { en: "The bound counter's new value (when the reward has one).", fr: 'La nouvelle valeur du compteur lié (si la récompense en a un).' }),
+      v('{counter}', '129', { en: 'Bound counter', fr: 'Compteur lié' }, { en: "The bound counter's new value, when the reward has one. Give it command scope for one pooled total shared by every redemption of this reward.", fr: 'La nouvelle valeur du compteur lié, si la récompense en a un. Choisissez la portée «par commande» pour un total unique partagé par tous les échanges de cette récompense.' }),
       v('{points}', '50', { en: 'Loyalty points', fr: 'Points de fidélité' }, { en: 'Loyalty points the reward grants (when positive).', fr: 'Les points de fidélité accordés (si positifs).' }),
       ...DYNAMIC,
     ],
@@ -452,6 +499,8 @@ const UI = {
   sendHelp: { en: 'Review the summary that opens, press Create, done.', fr: "Relisez le récapitulatif qui s'ouvre, appuyez sur Créer, c'est fait." },
   step3Title: { en: 'Make it dynamic', fr: 'Rendez-la dynamique' },
   step3Sub: { en: 'Click a variable to insert it at your cursor. Only variables that work here are shown.', fr: 'Cliquez une variable pour l’insérer au curseur. Seules les variables qui fonctionnent ici sont montrées.' },
+  counterNameAria: { en: 'Counter name', fr: 'Nom du compteur' },
+  counterScopeAria: { en: 'Counter scope', fr: 'Portée du compteur' },
   bracesSummary: { en: 'What do the braces mean?', fr: 'Que signifient les accolades?' },
   bracesBody: {
     en: 'A variable is a placeholder. Write "Hello {user}", and if Maya uses it, the bot says "Hello Maya". Keep both braces exactly as shown; an unknown variable is left as literal text.',
@@ -523,6 +572,7 @@ export function builderData(lang: Lang) {
         sample: x.sample,
         name: x.name[lang],
         desc: x.desc[lang],
+        scopes: x.scopes?.map((sc) => ({ id: sc.id, label: sc.label[lang], hint: sc.hint[lang] })),
       })),
     })),
   };

@@ -121,10 +121,11 @@ func (r *LoyaltyReporter) Earn(broadcasterID, viewerID uint64, login, name strin
 	}
 }
 
-// Bump records one counter delta. command keys the bucket of a viewer+command
-// bump ("" everywhere else).
+// Bump records one counter delta. command keys the bucket of a command /
+// viewer+command bump ("" everywhere else). Broadcaster 0 is the reserved bot
+// namespace and only carries bot-scope bumps.
 func (r *LoyaltyReporter) Bump(broadcasterID uint64, name, scope string, viewerID uint64, command string, delta int64) {
-	if broadcasterID == 0 || name == "" || delta == 0 {
+	if name == "" || delta == 0 || (broadcasterID == 0) != (scope == data.CounterScopeBot) {
 		return
 	}
 	key := counterAgg{broadcasterID: broadcasterID, name: name, scope: scope, viewerID: viewerID, command: command}

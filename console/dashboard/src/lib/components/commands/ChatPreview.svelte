@@ -152,6 +152,9 @@
   // module.ParseDynamic). Prefix matching is case-sensitive like the bot's;
   // null = the bot would leave the token literal.
   function dynamicSample(raw: string): string | null {
+    // Bot counters are admin-only: runtime leaves the token visible, so the
+    // rehearsal does too.
+    if (raw.startsWith('counter:bot:')) return null;
     if (raw.startsWith('counter:')) return raw.length > 'counter:'.length ? '42' : null;
     if (raw.startsWith('random:')) return randomSample(raw.slice('random:'.length));
     if (raw.startsWith('choice:')) return raw.slice('choice:'.length).split(',')[0];

@@ -37,8 +37,8 @@ function wipe(event: RequestEvent): void {
 // granted section's own page, plus every bespoke module page whose catalog def
 // is opened by one of those grants (moduleDelegateSections — the same source
 // the per-page gates and the tile grid read, so the three can never drift and
-// a new module page needs no edit here). Counters is loyalty's companion page
-// without a tile of its own, so it rides the modules grant explicitly.
+// a new module page needs no edit here). Counters has its own nav entry but
+// deliberately no grant of its own — it rides the modules grant explicitly.
 function delegateAllowedPaths(sections: readonly string[]): string[] {
   const allowed = sections.map((sec) => `/${sec}`);
   for (const def of MODULE_CATALOG) {

@@ -37,6 +37,7 @@
   const SCOPE_KEY: Record<CounterScope, string> = {
     channel: 'counters.tagChannel',
     viewer: 'counters.tagViewer',
+    command: 'counters.tagCommand',
     viewer_command: 'counters.tagViewerCommand'
   };
   const scopeLabel = $derived(t(SCOPE_KEY[c.scope]));

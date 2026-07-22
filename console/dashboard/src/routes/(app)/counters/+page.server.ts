@@ -1,7 +1,7 @@
 import type { Actions, PageServerLoad } from './$types';
 import type { CounterDef, CounterEntryView, CounterScope } from '@bagel/shared';
 import { COUNTER_SCOPES } from '@bagel/shared';
-import { listCounters, createCounter, setCounter, deleteCounter, counterEntries } from '$lib/server/loyalty-store';
+import { listCounters, createCounter, setCounter, renameCounter, deleteCounter, counterEntries } from '$lib/server/loyalty-store';
 import { auditDashboardImpersonation } from '$lib/server/services';
 import { gateModulePage } from '$lib/server/module-gate';
 import type { Session } from '$lib/server/session';
@@ -103,6 +103,15 @@ export const actions: Actions = {
     const found = await setCounter(uid, name, value);
     if (!found) throw new Error('unknown counter');
     return `${name}=${value}`;
+  }),
+
+  rename: mutate('rename', async (uid, f) => {
+    const name = normalizeName(f.get('name'));
+    const newName = normalizeName(f.get('new_name'));
+    if (!name || !newName || newName === name) return null;
+    const found = await renameCounter(uid, name, newName);
+    if (!found) throw new Error('unknown counter');
+    return `${name}→${newName}`;
   }),
 
   delete: mutate('delete', async (uid, f) => {
