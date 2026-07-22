@@ -5,7 +5,7 @@
  * Enterprise sits quietly beside it. Count-up price, stroke-drawn checks.
  */
 import Card from '../ui/Card.astro';
-import { getLangFromUrl, useTranslations } from '../../i18n/ui';
+import { getLangFromUrl, useTranslations, defaultLang } from '../../i18n/ui';
 
 const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
@@ -38,7 +38,7 @@ const enterpriseFeatures = [
                 </p>
                 <a
                     class="tier__btn tier__btn--main"
-                    href={`https://dashboard.itsbagelbot.com${lang === 'fr' ? '?lang=fr' : ''}`}
+                    href={`https://dashboard.itsbagelbot.com${lang === defaultLang ? '' : `?lang=${lang}`}`}
                     target="_blank"
                     rel="noopener noreferrer"
                 >{t('tier.getStarted')}</a>
@@ -88,7 +88,7 @@ const enterpriseFeatures = [
                  and lands on billing with checkout auto-opened. -->
             <a
                 class="tier__btn tier__btn--outline"
-                href={`https://dashboard.itsbagelbot.com/billing?subscribe=1${lang === 'fr' ? '&lang=fr' : ''}`}
+                href={`https://dashboard.itsbagelbot.com/billing?subscribe=1${lang === defaultLang ? '' : `&lang=${lang}`}`}
                 target="_blank"
                 rel="noopener noreferrer"
             >{t('tier.chipIn')}</a>

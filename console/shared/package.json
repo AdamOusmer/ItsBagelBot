@@ -3,6 +3,9 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "scripts": {
+    "i18n:keys": "bun scripts/gen-i18n-keys.mjs"
+  },
   "svelte": "./lib/index.ts",
   "exports": {
     ".": {

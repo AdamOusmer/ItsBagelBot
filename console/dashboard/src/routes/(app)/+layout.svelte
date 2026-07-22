@@ -97,8 +97,8 @@
     });
   });
 
-  // app.html hard-codes lang="en"; mirror the live locale onto <html lang> so an
-  // EN/FR switch is reflected client-side (the SSR side is the integrator's).
+  // app.html hard-codes lang="en"; mirror the live locale onto <html lang> so a
+  // language switch is reflected client-side (the SSR side is the integrator's).
   $effect(() => {
     document.documentElement.lang = i18n.locale;
   });

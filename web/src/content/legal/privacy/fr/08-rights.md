@@ -1,0 +1,10 @@
+---
+heading: "Vos droits (RGPD, LPRPDE, Loi 25, CCPA)"
+plain: "Vous pouvez demander l’accès, la rectification, la portabilité ou la suppression de vos renseignements. Les résidents de la Californie bénéficient aussi des droits prévus par la CCPA. Vous pouvez également porter plainte auprès d’un organisme de protection de la vie privée."
+---
+
+En vertu du RGPD, de la Loi 25 et de la LPRPDE, vous pouvez demander l’accès à vos renseignements personnels, leur rectification, leur portabilité ou leur suppression. Vous pouvez demander une copie ou la suppression de vos données en tout temps en écrivant à [support@itsbagelbot.com](mailto:support@itsbagelbot.com). La suppression de votre compte efface immédiatement toutes les données qui y sont associées, à l’exception des registres minimaux que la loi nous oblige à conserver, comme les journaux d’audit des transactions.
+
+**Résidents de la Californie :** en vertu de la California Consumer Privacy Act (CCPA, telle que modifiée par la CPRA), vous avez le droit de connaître les renseignements personnels que nous recueillons, d’y accéder, de les faire rectifier, de les faire supprimer et de ne subir aucune discrimination pour avoir exercé ces droits. Nous ne vendons pas vos renseignements personnels et ne les communiquons pas à des fins de publicité comportementale intersites; il n’y a donc aucun retrait à demander. Vous pouvez exercer ces droits, vous-même ou par l’entremise d’un agent autorisé, en écrivant à [support@itsbagelbot.com](mailto:support@itsbagelbot.com); nous vérifierons votre demande et y répondrons dans les délais prévus par la CCPA.
+
+Si vous estimez que nous n’avons pas traité vos renseignements personnels correctement, vous avez également le droit de porter plainte auprès d’une autorité de contrôle : la Commission d’accès à l’information au Québec, le Commissariat à la protection de la vie privée du Canada, votre autorité locale de protection des données dans l’UE ou l’EEE, ou la California Privacy Protection Agency.

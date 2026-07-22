@@ -5,7 +5,7 @@
  */
 import MainButton from '../ui/Buttons/MainButton.astro';
 import SecondaryButton from '../ui/Buttons/SecondaryButton.astro';
-import { getLangFromUrl, useTranslations, localizePath } from '../../i18n/ui';
+import { getLangFromUrl, useTranslations, localizePath, defaultLang } from '../../i18n/ui';
 
 const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
@@ -25,7 +25,7 @@ const titleWords = t('finale.title').split(' ');
             {t('finale.sub')}
         </p>
         <div class="finale__actions" data-reveal style="--reveal-i: 9">
-            <MainButton href={`https://dashboard.itsbagelbot.com${lang === 'fr' ? '?lang=fr' : ''}`} label={t('nav.cta')} />
+            <MainButton href={`https://dashboard.itsbagelbot.com${lang === defaultLang ? '' : `?lang=${lang}`}`} label={t('nav.cta')} />
             <SecondaryButton href={localizePath('/pricing', lang)} label={t('finale.seePricing')} />
         </div>
         <span class="finale__honesty" data-reveal style="--reveal-i: 10">

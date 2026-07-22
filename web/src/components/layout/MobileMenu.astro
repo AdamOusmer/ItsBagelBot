@@ -1,6 +1,6 @@
 ---
 import LanguageSwitcher from './LanguageSwitcher.astro';
-import { getLangFromUrl, useTranslations } from '../../i18n/ui';
+import { getLangFromUrl, useTranslations, defaultLang } from '../../i18n/ui';
 
 interface Props {
     links: { href: string; label: string }[];
@@ -12,7 +12,7 @@ const { links, ctaHref = "#", ctaLabel = "Add to Twitch" } = Astro.props;
 const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
 
-const getAppHref = `https://dashboard.itsbagelbot.com/?install=1${lang === 'fr' ? '&lang=fr' : ''}`;
+const getAppHref = `https://dashboard.itsbagelbot.com/?install=1${lang === defaultLang ? '' : `&lang=${lang}`}`;
 ---
 
 <div class="mobile-menu" id="mobile-menu" data-mobile-menu aria-hidden="true" inert>

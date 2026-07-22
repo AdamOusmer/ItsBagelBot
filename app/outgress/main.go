@@ -14,6 +14,7 @@ import (
 	"ItsBagelBot/app/outgress/internal/twitch"
 	"ItsBagelBot/app/outgress/internal/worker"
 	"ItsBagelBot/app/outgress/rpc"
+	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/health"
@@ -81,6 +82,7 @@ func main() {
 
 	cfg := config.Load()
 	warnStartupFallbacks(cfg, log)
+	warnLocaleGaps(log)
 
 	// Reconcile both outgress streams here (not only from producer services) so
 	// their retention and lifetimes are guaranteed before any lane consumer
@@ -193,6 +195,33 @@ func warnStartupFallbacks(cfg *config.Config, log *zap.Logger) {
 	if err := worker.PrepareJSON(); err != nil {
 		log.Warn("failed to precompile outgress JSON decoders", zap.Error(err))
 	}
+}
+
+// warnLocaleGaps logs one warning per supported locale that is missing keys, so
+// a half-translated language shows up in the startup logs. Missing keys fall
+// back to English at lookup time (i18n.T), so this never blocks startup; a
+// declared locale with no catalog file yet reports its whole key set, capped for
+// readability.
+func warnLocaleGaps(log *zap.Logger) {
+	for locale, missing := range i18n.Gaps() {
+		if len(missing) == 0 {
+			continue
+		}
+		log.Warn("i18n locale is missing keys; falling back to English",
+			zap.String("locale", locale),
+			zap.Int("missing_count", len(missing)),
+			zap.Strings("missing_keys", capLocaleKeys(missing)))
+	}
+}
+
+// capLocaleKeys bounds the key list logged for a locale gap so a single warning
+// line stays readable when an entire catalog file is absent.
+func capLocaleKeys(keys []string) []string {
+	const maxKeys = 20
+	if len(keys) > maxKeys {
+		return keys[:maxKeys]
+	}
+	return keys
 }
 
 // podIdentity returns this pod's stable identity, used only for lease

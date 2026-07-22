@@ -1,0 +1,36 @@
+---
+import Layout from '../../layouts/Layout.astro'
+import Header from '../../components/home/Header.astro'
+import Encryption from '../../components/home/Encryption.astro'
+import Playground from '../../components/home/Playground.astro'
+import Games from '../../components/home/Games.astro'
+import EcoFriendly from '../../components/home/EcoFriendly.astro'
+import QuietWork from '../../components/home/QuietWork.astro'
+import SafetyLayers from '../../components/home/SafetyLayers.astro'
+import Steps from '../../components/home/Steps.astro'
+import Letter from '../../components/home/Letter.astro'
+import Finale from '../../components/home/Finale.astro'
+import { getLangFromUrl, useTranslations, locales, defaultLang } from '../../i18n/ui';
+
+// One route per locale: the default locale emits the bare path (params.lang
+// undefined → '/'), every other locale gets its own prefix ('/fr/'). The page
+// body is shared; components self-translate from the URL locale.
+export function getStaticPaths() {
+  return locales.map((l) => ({ params: { lang: l === defaultLang ? undefined : l } }));
+}
+
+const t = useTranslations(getLangFromUrl(Astro.url));
+---
+
+<Layout title={t('home.metaTitle')} description={t('home.metaDesc')}>
+    <Header />
+    <Encryption />
+    <Playground />
+    <QuietWork />
+    <SafetyLayers />
+    <Games />
+    <EcoFriendly />
+    <Steps />
+    <Letter />
+    <Finale />
+</Layout>

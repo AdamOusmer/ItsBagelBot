@@ -7,9 +7,12 @@
 // expanded there, it doesn't belong here — the bot leaves unknown braces
 // as literal text.
 
-import type { Lang } from './ui';
+import { defaultLang, type Lang } from './ui';
 
 type L10n = Record<Lang, string>;
+
+/** One localized string, falling back to the default locale for a new language. */
+const pick = (m: L10n, lang: Lang): string => m[lang] ?? m[defaultLang];
 
 /** One scope choice for a counter var's picker (see COUNTER_SCOPES below). */
 interface ScopeDef {
@@ -465,6 +468,19 @@ export const LIMITS = {
 
 export const DASHBOARD_ORIGIN = 'https://dashboard.itsbagelbot.com';
 
+// Quick-start recipes offered under the response field, both locales.
+const RECIPES: { label: L10n; text: L10n }[] = [
+  { label: { en: 'Welcome someone', fr: 'Accueillir quelqu’un' }, text: { en: 'Welcome in, {user}! Grab a seat 🥯', fr: 'Bienvenue, {user}! Installe-toi 🥯' } },
+  { label: { en: 'Roll a number', fr: 'Lancer un dé' }, text: { en: '{user} rolled {random:1-100} out of 100.', fr: '{user} lance {random:1-100} sur 100.' } },
+  { label: { en: 'Pick an option', fr: 'Choisir une option' }, text: { en: "Tonight's vibe: {choice:cozy,chaotic,competitive}.", fr: 'Ambiance du soir: {choice:cosy,chaotique,compétitive}.' } },
+  { label: { en: 'Count the falls', fr: 'Compter les chutes' }, text: { en: '{channel} has fallen {counter:falls} times.', fr: '{channel} est tombé {counter:chutes} fois.' } },
+];
+
+/** The quick-start recipes for one locale, default-locale fallback per string. */
+export function builderRecipes(lang: Lang): { label: string; text: string }[] {
+  return RECIPES.map((r) => ({ label: pick(r.label, lang), text: pick(r.text, lang) }));
+}
+
 // UI copy for the builder page chrome, both locales.
 const UI = {
   metaTitle: {
@@ -548,7 +564,7 @@ type UIKeys = keyof typeof UI;
 
 export function builderUI(lang: Lang): Record<UIKeys, string> {
   const out = {} as Record<UIKeys, string>;
-  for (const key of Object.keys(UI) as UIKeys[]) out[key] = UI[key][lang];
+  for (const key of Object.keys(UI) as UIKeys[]) out[key] = pick(UI[key] as L10n, lang);
   return out;
 }
 
@@ -556,24 +572,25 @@ export function builderUI(lang: Lang): Record<UIKeys, string> {
 export function builderData(lang: Lang) {
   return {
     lang,
+    defaultLang,
     limits: LIMITS,
     dashboardOrigin: DASHBOARD_ORIGIN,
-    perms: PERMS.map((p) => ({ value: p.value, label: p.label[lang] })),
-    styles: STYLES.map((s) => ({ value: s.value, label: s.label[lang] })),
+    perms: PERMS.map((p) => ({ value: p.value, label: pick(p.label, lang) })),
+    styles: STYLES.map((s) => ({ value: s.value, label: pick(s.label, lang) })),
     surfaces: SURFACES.map((s) => ({
       id: s.id,
-      group: s.group[lang],
-      label: s.label[lang],
+      group: pick(s.group, lang),
+      label: pick(s.label, lang),
       dashPath: s.dashPath,
-      hint: s.hint[lang],
-      example: s.example[lang],
-      prompt: s.prompt[lang],
+      hint: pick(s.hint, lang),
+      example: pick(s.example, lang),
+      prompt: pick(s.prompt, lang),
       vars: s.vars.map((x) => ({
         token: x.token,
         sample: x.sample,
-        name: x.name[lang],
-        desc: x.desc[lang],
-        scopes: x.scopes?.map((sc) => ({ id: sc.id, label: sc.label[lang], hint: sc.hint[lang] })),
+        name: pick(x.name, lang),
+        desc: pick(x.desc, lang),
+        scopes: x.scopes?.map((sc) => ({ id: sc.id, label: pick(sc.label, lang), hint: pick(sc.hint, lang) })),
       })),
     })),
   };

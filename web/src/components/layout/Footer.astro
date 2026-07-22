@@ -7,10 +7,11 @@
 import { Image } from 'astro:assets';
 import logoImage from '../../assets/LogoBOT.png';
 import TextLink from '../ui/TextLink.astro';
-import { getLangFromUrl, useTranslations, localizePath } from '../../i18n/ui';
+import { getLangFromUrl, useTranslations, localizePath, defaultLang } from '../../i18n/ui';
 
 const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
+const dashboardQuery = lang === defaultLang ? '' : `?lang=${lang}`;
 ---
 
 <footer>
@@ -37,7 +38,7 @@ const t = useTranslations(lang);
                 <TextLink href={localizePath("/guides", lang)} label={t('footer.guides')} />
                 <TextLink href={localizePath("/command-builder", lang)} label={t('footer.builder')} />
                 <TextLink href="https://docs.itsbagelbot.com" label={t('footer.developer')} external />
-                <TextLink href={`https://dashboard.itsbagelbot.com${lang === 'fr' ? '?lang=fr' : ''}`} label={t('footer.dashboard')} external />
+                <TextLink href={`https://dashboard.itsbagelbot.com${dashboardQuery}`} label={t('footer.dashboard')} external />
             </div>
             <div class="col" data-reveal style="--reveal-i: 2">
                 <p>{t('footer.company')}</p>

@@ -6,7 +6,7 @@ import Cursor from '../components/ui/Cursor.astro'
 import Footer from '../components/layout/Footer.astro'
 import Nav from "../components/layout/Nav.astro";
 import Brackets from '../components/ui/Brackets.astro'
-import { getLangFromUrl, LOCALIZED_PATHS } from '../i18n/ui';
+import { getLangFromUrl, LOCALIZED_PATHS, locales, defaultLang, splitLocale, localizePath, useTranslations } from '../i18n/ui';
 
 interface Props {
     title?: string;
@@ -28,6 +28,7 @@ const {
 } = Astro.props;
 
 const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
 
 // Absolute URLs for canonical + social cards. Astro.site is the production
 // origin (astro.config); resolving against it turns page-relative paths into
@@ -35,8 +36,9 @@ const lang = getLangFromUrl(Astro.url);
 const canonicalURL = new URL(Astro.url.pathname, Astro.site).href;
 const ogImageURL = new URL(image, Astro.site).href;
 const siteName = 'ItsBagelBot';
-const ogLocale = lang === 'fr' ? 'fr_FR' : 'en_US';
-const altOgLocale = lang === 'fr' ? 'en_US' : 'fr_FR';
+const ogLocale = t('lang.ogLocale');
+// One og:locale:alternate per other locale, each in its own tongue's code.
+const altOgLocales = locales.filter((l) => l !== lang).map((l) => useTranslations(l)('lang.ogLocale'));
 
 // Let AI answer-engines and search bots pull the biggest preview + full
 // snippet; noindex pages still allow link-following for discovery.
@@ -71,7 +73,7 @@ const structuredData = {
             url: `${ORIGIN}/`,
             name: siteName,
             description,
-            inLanguage: ['en', 'fr'],
+            inLanguage: [...locales],
             publisher: { '@id': `${ORIGIN}/#organization` },
         },
         {
@@ -105,17 +107,16 @@ const structuredData = {
     ],
 };
 
-// hreflang alternates for the routes that exist in both locales, so search
-// engines pair the English and French versions instead of treating them as
-// duplicates.
-const LOCALIZED = LOCALIZED_PATHS;
-let basePath = Astro.url.pathname.startsWith('/fr')
-    ? (Astro.url.pathname.slice(3) || '/')
-    : Astro.url.pathname;
-basePath = basePath.replace(/\/+$/, '') || '/';
-const hasAlternates = LOCALIZED.has(basePath);
-const enHref = new URL(basePath, Astro.site).href;
-const frHref = new URL(basePath === '/' ? '/fr/' : `/fr${basePath}`, Astro.site).href;
+// hreflang alternates for the routes that exist in every locale, so search
+// engines pair the translated versions instead of treating them as duplicates.
+// splitLocale strips any locale prefix to the shared base path; each locale then
+// re-localizes it. x-default points at the default locale.
+const { path: basePath } = splitLocale(Astro.url.pathname);
+const hasAlternates = LOCALIZED_PATHS.has(basePath);
+const alternates = hasAlternates
+    ? locales.map((l) => ({ lang: l, href: new URL(localizePath(basePath, l), Astro.site).href }))
+    : [];
+const xDefaultHref = new URL(localizePath(basePath, defaultLang), Astro.site).href;
 
 const devScriptSources = import.meta.env.DEV
     ? " 'unsafe-inline' 'unsafe-eval'"
@@ -184,7 +185,9 @@ const contentSecurityPolicy = [
     <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content={`${siteName} — ${description}`} />
     <meta property="og:locale" content={ogLocale} />
-    <meta property="og:locale:alternate" content={altOgLocale} />
+    {altOgLocales.map((code) => (
+        <meta property="og:locale:alternate" content={code} />
+    ))}
 
     <!-- Twitter/X large summary card. -->
     <meta name="twitter:card" content="summary_large_image" />
@@ -195,9 +198,10 @@ const contentSecurityPolicy = [
 
     {hasAlternates && (
         <Fragment>
-            <link rel="alternate" hreflang="en" href={enHref} />
-            <link rel="alternate" hreflang="fr" href={frHref} />
-            <link rel="alternate" hreflang="x-default" href={enHref} />
+            {alternates.map((alt) => (
+                <link rel="alternate" hreflang={alt.lang} href={alt.href} />
+            ))}
+            <link rel="alternate" hreflang="x-default" href={xDefaultHref} />
         </Fragment>
     )}
 
@@ -215,7 +219,7 @@ const contentSecurityPolicy = [
 </head>
 
 <body>
-    <a class="skip-link" href="#main-content">{lang === 'fr' ? 'Aller au contenu' : 'Skip to content'}</a>
+    <a class="skip-link" href="#main-content">{t('skip.toContent')}</a>
     <main id="main-content">
         <slot/>
     </main>
