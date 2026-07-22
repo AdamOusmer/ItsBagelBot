@@ -24,8 +24,8 @@ Confirmed wiring (leave as-is unless a step below proves otherwise):
 - Hub cluster: 3-replica StatefulSet, routes on `nats-headless:6222`; BUS and JetStream clients connect directly to its TLS client listener ([nats.yaml](nats.yaml), [nats-server.conf](nats-server.conf)).
 - `OUTGRESS_RPC` has no per-user subject ACL (default-allow **within** the account), so `bagel.outgress.permit.v2.>` and `$SRV.>` are unrestricted account-internal subjects.
 - `network-policies.yaml` `default-deny-apps` selects only app pods, **not**
-  `nats`/`nats-leaf`, so NATS pods are NetworkPolicy-unrestricted. NATS and its
-  leaves are out of Linkerd; native TLS protects 4222/6222.
+  `nats`/`nats-leaf`, so NATS pods are NetworkPolicy-unrestricted. Native TLS
+  protects 4222/6222.
 
 RPC is deliberately hub-independent. A break is therefore runtime on the
 leaf↔leaf routes (6222), account import/export mapping, or host networking — not

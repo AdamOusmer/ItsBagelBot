@@ -185,12 +185,12 @@ spec:
       # out-of-band). valkey-core-secret is Doppler-managed and carries the key
       # VALKEY_CORE_PASSWORD verbatim (NOT renamed to valkey-password).
       kubelet:
-        # CPU trim. node1 is a 2-core node and was request-saturated (~96%),
-        # which kept the third valkey replica from scheduling (HA needs one
-        # valkey pod per node). The chart default 100m for this kubelet
-        # integration container is far above its real usage; drop it to 25m so
-        # node1 keeps headroom. Memory is left generous so the integration is
-        # never OOM-killed; no CPU limit so it is never throttled.
+        # CPU trim. The chart default 100m for this kubelet integration
+        # container is far above its real usage; drop it to 25m so every node
+        # keeps request headroom (the original saturation wedged a valkey
+        # replica off a fully-requested node). Memory is left generous so the
+        # integration is never OOM-killed; no CPU limit so it is never
+        # throttled.
         resources:
           requests:
             cpu: 25m
