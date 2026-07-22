@@ -100,8 +100,8 @@ type adBreakEvent struct {
 }
 
 // Alerts posts a chat line on channel.follow, channel.subscribe,
-// channel.subscription.gift, channel.cheer, channel.raid and
-// channel.ad_break.begin. It is a named, default-on module
+// channel.subscription.message, channel.subscription.gift, channel.cheer,
+// channel.raid and channel.ad_break.begin. It is a named, default-on module
 // (KindDefault): it ships
 // enabled and runs unless the broadcaster disables the whole module on the
 // dashboard. Each alert has its own enable toggle and message template, wired in
@@ -150,7 +150,12 @@ func Alerts(_ engine.Deps) module.Module {
 		return nil
 	})
 
-	m.On("channel.subscribe", func(_ context.Context, c *module.Context, emit module.Emit) error {
+	// subAlert serves both channel.subscribe (new subs) and
+	// channel.subscription.message (resubs shared in chat), so a renewing sub
+	// gets the same welcome line under the same toggle. The resub payload has
+	// no is_gift field, so the gifted-recipient skip below only ever fires on
+	// channel.subscribe.
+	subAlert := func(_ context.Context, c *module.Context, emit module.Emit) error {
 		var cfg alertsConfig
 		_ = c.Decode(&cfg)
 		if !alertOn(cfg.SubEnabled) {
@@ -192,7 +197,9 @@ func Alerts(_ engine.Deps) module.Module {
 			Text:          msg,
 		})
 		return nil
-	})
+	}
+	m.On("channel.subscribe", subAlert)
+	m.On("channel.subscription.message", subAlert)
 
 	m.On("channel.subscription.gift", func(_ context.Context, c *module.Context, emit module.Emit) error {
 		var cfg alertsConfig

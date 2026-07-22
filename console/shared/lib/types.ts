@@ -693,7 +693,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
       {
         key: 'sub',
         label: 'Subscribe alert',
-        tagline: 'When someone subscribes.',
+        tagline: 'When someone subscribes or resubscribes.',
         event: 'on subscribe',
         enableKey: 'subEnabled',
         messageKey: 'subMessage',

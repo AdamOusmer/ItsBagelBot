@@ -18,6 +18,7 @@ const (
 	followJSON    = `{"user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2"}`
 	subscribeJSON = `{"user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2","tier":"1000"}`
 	giftedSubJSON = `{"user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2","tier":"1000","is_gift":true}`
+	resubJSON     = `{"user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2","tier":"1000","cumulative_months":7,"streak_months":7,"message":{"text":"7 months!"}}`
 	giftJSON      = `{"is_anonymous":false,"user_name":"GenerousViewer","user_login":"generousviewer","broadcaster_user_id":"2","total":5,"tier":"1000"}`
 	anonGiftJSON  = `{"is_anonymous":true,"broadcaster_user_id":"2","total":3,"tier":"1000"}`
 	cheerJSON     = `{"is_anonymous":false,"user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2","bits":100}`
@@ -91,6 +92,25 @@ func TestAlertsSubSkipsGiftedRecipient(t *testing.T) {
 	// on channel.subscription.gift announces the gifter once instead.
 	var col collector
 	require.NoError(t, alertsHandler(t, "channel.subscribe")(context.Background(), alertsCtx("channel.subscribe", giftedSubJSON, ""), col.emit))
+	assert.Empty(t, col.out)
+}
+
+func TestAlertsResubFiresNormalSubAlert(t *testing.T) {
+	// A resub (channel.subscription.message) posts the same sub alert under
+	// the same toggle and template as a fresh channel.subscribe.
+	var col collector
+	require.NoError(t, alertsHandler(t, "channel.subscription.message")(context.Background(), alertsCtx("channel.subscription.message", resubJSON, ""), col.emit))
+	require.Len(t, col.out, 1)
+	o := col.out[0]
+	assert.Equal(t, outgress.TypeChat, o.Type)
+	assert.Equal(t, "2", o.BroadcasterID)
+	assert.Contains(t, o.Text, "CoolViewer")
+}
+
+func TestAlertsResubDisabledBySubToggle(t *testing.T) {
+	var col collector
+	cfg := `{"subEnabled":"off"}`
+	require.NoError(t, alertsHandler(t, "channel.subscription.message")(context.Background(), alertsCtx("channel.subscription.message", resubJSON, cfg), col.emit))
 	assert.Empty(t, col.out)
 }
 
