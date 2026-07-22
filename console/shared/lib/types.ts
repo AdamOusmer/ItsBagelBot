@@ -706,7 +706,9 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
         event: 'on gift subs',
         enableKey: 'giftEnabled',
         messageKey: 'giftMessage',
-        defaultMessage: '{user} just gifted {count} subs to the community! Thank you!'
+        defaultMessage: '{user} just gifted {count} subs to the community! Thank you!',
+        tokens: ['user', 'count', 'tier'],
+        previewSamples: { user: 'GenerousViewer', count: '5', tier: '1000' }
       },
       {
         key: 'cheer',
