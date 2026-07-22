@@ -16,6 +16,7 @@ require (
 	github.com/nats-io/nuid v1.0.1
 	github.com/newrelic/go-agent/v3 v3.43.3
 	github.com/newrelic/go-agent/v3/integrations/nrmysql v1.2.2
+	github.com/newrelic/go-agent/v3/integrations/nrsecurityagent v1.3.4
 	github.com/puzpuzpuz/xsync/v4 v4.5.0
 	github.com/resend/resend-go/v3 v3.9.2
 	github.com/stretchr/testify v1.11.1
@@ -31,6 +32,7 @@ require (
 require (
 	ariga.io/atlas v1.1.0 // indirect
 	filippo.io/edwards25519 v1.1.1 // indirect
+	github.com/adhocore/gronx v1.19.1 // indirect
 	github.com/agext/levenshtein v1.2.3 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/bmatcuk/doublestar v1.3.4 // indirect
@@ -38,13 +40,17 @@ require (
 	github.com/bytedance/sonic/loader v0.5.1 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/dlclark/regexp2 v1.9.0 // indirect
 	github.com/go-openapi/inflect v0.21.5 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
+	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/hashicorp/hcl/v2 v2.24.0 // indirect
+	github.com/k2io/hookingo v1.0.6 // indirect
 	github.com/klauspost/compress v1.18.6 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.9 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
 	github.com/nats-io/nkeys v0.4.15 // indirect
+	github.com/newrelic/csec-go-agent v1.6.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/synadia-io/orbit.go/natsext v0.1.2 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
@@ -52,7 +58,7 @@ require (
 	github.com/zclconf/go-cty-yaml v1.2.0 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/arch v0.0.0-20210923205945-b76863e36670 // indirect
+	golang.org/x/arch v0.4.0 // indirect
 	golang.org/x/crypto v0.54.0 // indirect
 	golang.org/x/mod v0.37.0 // indirect
 	golang.org/x/net v0.57.0 // indirect
@@ -61,5 +67,6 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260414002931-afd174a4e478 // indirect
 	google.golang.org/grpc v1.82.1 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
