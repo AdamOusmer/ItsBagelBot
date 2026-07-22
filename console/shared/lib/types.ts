@@ -700,6 +700,15 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
         defaultMessage: 'Welcome to the community, {user}! Thank you for subscribing!'
       },
       {
+        key: 'gift',
+        label: 'Gift sub alert',
+        tagline: 'When someone gifts subs. One line per gifter, never per recipient.',
+        event: 'on gift subs',
+        enableKey: 'giftEnabled',
+        messageKey: 'giftMessage',
+        defaultMessage: '{user} just gifted {count} subs to the community! Thank you!'
+      },
+      {
         key: 'cheer',
         label: 'Cheer alert',
         tagline: 'When someone cheers bits.',

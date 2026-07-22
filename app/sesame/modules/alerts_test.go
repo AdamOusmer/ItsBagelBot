@@ -17,6 +17,9 @@ import (
 const (
 	followJSON    = `{"user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2"}`
 	subscribeJSON = `{"user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2","tier":"1000"}`
+	giftedSubJSON = `{"user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2","tier":"1000","is_gift":true}`
+	giftJSON      = `{"is_anonymous":false,"user_name":"GenerousViewer","user_login":"generousviewer","broadcaster_user_id":"2","total":5,"tier":"1000"}`
+	anonGiftJSON  = `{"is_anonymous":true,"broadcaster_user_id":"2","total":3,"tier":"1000"}`
 	cheerJSON     = `{"is_anonymous":false,"user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2","bits":100}`
 	anonCheerJSON = `{"is_anonymous":true,"broadcaster_user_id":"2","bits":50}`
 	adBreakJSON   = `{"broadcaster_user_id":"2","duration_seconds":90,"is_automatic":true}`
@@ -81,6 +84,54 @@ func TestAlertsSubCustomTemplate(t *testing.T) {
 	require.NoError(t, alertsHandler(t, "channel.subscribe")(context.Background(), alertsCtx("channel.subscribe", subscribeJSON, cfg), col.emit))
 	require.Len(t, col.out, 1)
 	assert.Equal(t, "CoolViewer sub'd at tier 1000", col.out[0].Text)
+}
+
+func TestAlertsSubSkipsGiftedRecipient(t *testing.T) {
+	// A gifted recipient's channel.subscribe must stay silent: the gift alert
+	// on channel.subscription.gift announces the gifter once instead.
+	var col collector
+	require.NoError(t, alertsHandler(t, "channel.subscribe")(context.Background(), alertsCtx("channel.subscribe", giftedSubJSON, ""), col.emit))
+	assert.Empty(t, col.out)
+}
+
+func TestAlertsGiftDefaultTemplate(t *testing.T) {
+	var col collector
+	require.NoError(t, alertsHandler(t, "channel.subscription.gift")(context.Background(), alertsCtx("channel.subscription.gift", giftJSON, ""), col.emit))
+	require.Len(t, col.out, 1)
+	o := col.out[0]
+	assert.Equal(t, outgress.TypeChat, o.Type)
+	assert.Equal(t, "2", o.BroadcasterID)
+	assert.Contains(t, o.Text, "GenerousViewer")
+	assert.Contains(t, o.Text, "5")
+}
+
+func TestAlertsGiftCustomTemplate(t *testing.T) {
+	var col collector
+	cfg := `{"giftMessage":"{user} dropped {count} tier {tier} gifts"}`
+	require.NoError(t, alertsHandler(t, "channel.subscription.gift")(context.Background(), alertsCtx("channel.subscription.gift", giftJSON, cfg), col.emit))
+	require.Len(t, col.out, 1)
+	assert.Equal(t, "GenerousViewer dropped 5 tier 1000 gifts", col.out[0].Text)
+}
+
+func TestAlertsGiftAnonymous(t *testing.T) {
+	var col collector
+	require.NoError(t, alertsHandler(t, "channel.subscription.gift")(context.Background(), alertsCtx("channel.subscription.gift", anonGiftJSON, ""), col.emit))
+	require.Len(t, col.out, 1)
+	assert.Contains(t, col.out[0].Text, "anonymous")
+	assert.Contains(t, col.out[0].Text, "3")
+}
+
+func TestAlertsGiftDisabled(t *testing.T) {
+	var col collector
+	cfg := `{"giftEnabled":"off"}`
+	require.NoError(t, alertsHandler(t, "channel.subscription.gift")(context.Background(), alertsCtx("channel.subscription.gift", giftJSON, cfg), col.emit))
+	assert.Empty(t, col.out)
+}
+
+func TestAlertsGiftIgnoresEmptyEvent(t *testing.T) {
+	var col collector
+	require.NoError(t, alertsHandler(t, "channel.subscription.gift")(context.Background(), alertsCtx("channel.subscription.gift", "", ""), col.emit))
+	assert.Empty(t, col.out)
 }
 
 func TestAlertsCheerDefaultTemplate(t *testing.T) {
