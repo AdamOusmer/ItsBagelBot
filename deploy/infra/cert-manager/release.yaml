@@ -6,9 +6,8 @@
 #
 # WHY
 # ---
-# The fleet is de-meshing NATS off Linkerd (see nats.yaml / nats-leaf.yaml), so
-# NATS provides its own wire encryption via NATS-native TLS instead of the
-# Linkerd sidecar. cert-manager is the battle-tested, CNCF-graduated PKI that
+# NATS provides its own wire encryption via NATS-native TLS (see nats.yaml /
+# nats-leaf.yaml). cert-manager is the battle-tested, CNCF-graduated PKI that
 # issues + auto-renews the server certs; trust-manager distributes the public CA
 # to a ConfigMap the apps read (fleet-ca). The PKI custom resources (Issuer, CA,
 # Certificates, Bundle) live in deploy/infra/pki/, applied by the `pki`

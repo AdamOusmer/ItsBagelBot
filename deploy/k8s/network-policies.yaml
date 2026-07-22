@@ -14,8 +14,7 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Allow all pods in bagelbot namespace to reach each other for now
-    # (Linkerd will handle the finer-grained L7 auth for HTTP/gRPC).
+    # Allow all pods in bagelbot namespace to reach each other for now.
     - from:
         - namespaceSelector:
             matchLabels:

@@ -36,16 +36,6 @@ spec:
     metadata:
       labels:
         app: notifications
-      annotations:
-        linkerd.io/inject: disabled
-        # NATS is out of the Linkerd mesh: bypass the app-side proxy for the NATS
-        # client port so the firehose / RPC traffic goes direct (NATS-native TLS
-        # provides the encryption). Without this the proxy still taxes every event.
-        config.linkerd.io/skip-outbound-ports: "4222"
-        config.linkerd.io/proxy-cpu-request: 5m
-        config.linkerd.io/proxy-cpu-limit: 750m
-        config.linkerd.io/proxy-memory-request: 16Mi
-        config.linkerd.io/proxy-memory-limit: 96Mi
     spec:
       tolerations:
         - key: itsbagelbot.dev/pool
@@ -97,9 +87,9 @@ spec:
               value: nats://nats-leaf-local:4222
             - name: NATS_HUB_URL
               value: nats://nats:4222
-            # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS server
-            # TLS cert now that NATS is out of the Linkerd mesh; read as RootCAs by
-            # pkg/bus (Go services) and the console nats lib (TS).
+            # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS
+            # server's native-TLS cert; read as RootCAs by pkg/bus (Go services)
+            # and the console nats lib (TS).
             - name: NATS_CA_PEM
               valueFrom:
                 configMapKeyRef:
@@ -166,10 +156,6 @@ spec:
 # arg and the service's own NATS creds (notifications-env), so no extra image or
 # NATS account is needed — the cleanup subject is internal to the
 # NOTIFICATIONS_RPC account and unreachable from anywhere else.
-#
-# Not Linkerd-injected: a meshed Job would hang on the lingering proxy, and NATS
-# is reachable un-meshed (no Server gates its port; `notifications` is outside
-# the default-deny NetworkPolicy). NATS auth is account creds, not mesh identity.
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -189,8 +175,6 @@ spec:
         metadata:
           labels:
             app: notifications-cleanup
-          annotations:
-            linkerd.io/inject: disabled
         spec:
           restartPolicy: OnFailure
           tolerations:

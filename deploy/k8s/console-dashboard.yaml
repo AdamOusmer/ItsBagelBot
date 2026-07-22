@@ -65,12 +65,6 @@ spec:
     metadata:
       labels:
         app: console-dashboard
-      annotations:
-        # De-meshed. The dashboard serves its own TLS (serve-node.js HTTPS,
-        # Traefik re-encrypts via the ServersTransport), and NATS has native TLS,
-        # so it no longer needs the Linkerd proxy — which HTTP-parsed the app's
-        # HTTPS on 3000 and failed the kubelet probes / Traefik re-encrypt.
-        linkerd.io/inject: disabled
     spec:
       # Hard guard: the dashboard must NEVER run on the worker pool. The taint
       # already repels it (no toleration here), this required nodeAffinity makes
@@ -114,9 +108,9 @@ spec:
             - name: PORT
               value: "3000"
             # Serve HTTPS from adapter-node (serve-node.js) using the cert-manager
-            # console-dashboard-tls cert, so the traefik->console hop is TLS and no
-            # longer depends on the Linkerd mesh (the de-mesh gate). Traefik
-            # re-encrypts via the console-dashboard-transport ServersTransport.
+            # console-dashboard-tls cert, so the traefik->console hop is TLS.
+            # Traefik re-encrypts via the console-dashboard-transport
+            # ServersTransport.
             - name: TLS_CERT_FILE
               value: /etc/console/tls/tls.crt
             - name: TLS_KEY_FILE
@@ -139,9 +133,9 @@ spec:
               value: nats://nats-leaf:4222
             - name: NATS_HUB_URL
               value: nats://nats:4222
-            # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS server
-            # TLS cert now that NATS is out of the Linkerd mesh; read as RootCAs by
-            # pkg/bus (Go services) and the console nats lib (TS).
+            # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS
+            # server's native-TLS cert; read as RootCAs by pkg/bus (Go services)
+            # and the console nats lib (TS).
             - name: NATS_CA_PEM
               valueFrom:
                 configMapKeyRef:
@@ -245,7 +239,7 @@ spec:
           lifecycle:
             preStop:
               exec:
-                # Give kube-proxy / Linkerd / traefik time to drain this endpoint
+                # Give kube-proxy / traefik time to drain this endpoint
                 # before SIGTERM fires. Prevents connection-refused 500s during rolls.
                 command: ["/bin/sh", "-c", "sleep 10"]
           # scheme HTTPS: the server now terminates TLS on 3000 (see serve-node.js).
@@ -301,8 +295,7 @@ spec:
           port: 80
           # HTTPS to the backend: serve-node.js now terminates TLS, so traefik
           # re-encrypts via the ServersTransport below (rootCAs = the cert's own
-          # fleet-CA ca.crt). This makes the traefik->console hop TLS end-to-end,
-          # the gate for removing NATS from the Linkerd mesh.
+          # fleet-CA ca.crt). This makes the traefik->console hop TLS end-to-end.
           scheme: https
           serversTransport: console-dashboard-transport
           # Route to the Service ClusterIP (not pod endpoints) so traefik

@@ -9,8 +9,6 @@ metadata:
     app: nats-leaf
   name: nats-leaf
   namespace: production
-  annotations:
-    config.linkerd.io/opaque-ports: "4222,6222"
 spec:
   revisionHistoryLimit: 5
   updateStrategy:
@@ -24,10 +22,8 @@ spec:
   template:
     metadata:
       annotations:
-        # NATS (leaf tier) is out of the Linkerd mesh — see nats.yaml for the
-        # rationale. Wire encryption is NATS-native TLS (client + cluster + the
-        # leaf->hub remotes; nats-leaf-server.conf) over native WireGuard.
-        linkerd.io/inject: disabled
+        # Wire encryption is NATS-native TLS (client + cluster + the leaf->hub
+        # remotes; nats-leaf-server.conf) over native WireGuard.
         # Cluster listener/routes and TLS blocks cannot be introduced by a config
         # reload; bump this to force a rolling restart when the topology changes.
         itsbagelbot.dev/config-revision: "leaf-cluster-v2-tls-demesh"
@@ -191,8 +187,6 @@ metadata:
     app: nats-leaf
   name: nats-leaf
   namespace: production
-  annotations:
-    config.linkerd.io/opaque-ports: "4222"
 spec:
   # Same-node first, then same-zone, then cluster-wide. Unlike Local this keeps
   # applications available while their node's leaf is down; unlike PreferClose
@@ -217,8 +211,6 @@ metadata:
     app: nats-leaf
   name: nats-leaf-local
   namespace: production
-  annotations:
-    config.linkerd.io/opaque-ports: "4222"
 spec:
   # Health/failback probe only. With no local endpoint this Service is
   # unreachable, so clients never mistake a remote leaf for the recovered
@@ -239,8 +231,6 @@ metadata:
     app: nats-leaf
   name: nats-leaf-peers
   namespace: production
-  annotations:
-    config.linkerd.io/opaque-ports: "4222,6222"
 spec:
   # Headless route-discovery for the leaf cluster: the route URL resolves to every
   # leaf pod IP, so each node dials every peer and forms a clean full mesh (a
