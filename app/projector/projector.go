@@ -13,6 +13,7 @@ import (
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/monitor"
 
 	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
@@ -260,9 +261,10 @@ func (p *Projector) drop(msg *bus.Message, subject string, err error) {
 // read + the now fire-and-forget greet/live writes), so there is nothing to gain
 // by making this async and real correctness to lose. Hydration is already async.
 func (p *Projector) HandleStreamEvent(msg *bus.Message) error {
+	log := monitor.TxnLogger(msg.Context(), p.log)
 	st, ok := twitch.DecodeStreamStatus(msg.Payload)
 	if !ok {
-		p.log.Warn("dropping unparseable stream status", zap.String("message_id", msg.UUID))
+		log.Warn("dropping unparseable stream status", zap.String("message_id", msg.UUID))
 		return nil
 	}
 
@@ -283,7 +285,7 @@ func (p *Projector) HandleStreamEvent(msg *bus.Message) error {
 		return nil
 	}
 
-	p.log.Info("refreshing settings cache for stream online", zap.Uint64("user_id", st.BroadcasterID))
+	log.Info("refreshing settings cache for stream online", zap.Uint64("user_id", st.BroadcasterID))
 	p.hydrator.RefreshAsync(st.BroadcasterID)
 	return nil
 }

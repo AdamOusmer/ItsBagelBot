@@ -13,6 +13,7 @@ import {
 } from '@bagel/shared';
 import { listCommands, upsertCommand, deleteCommand, listModules, upsertModule, type ModuleView } from '$lib/server/commands-store';
 import { auditDashboardImpersonation } from '$lib/server/services';
+import { logger } from '@bagel/shared/server/logger';
 import type { Session } from '$lib/server/session';
 import { env } from '$env/dynamic/private';
 import { fail, redirect } from '@sveltejs/kit';
@@ -179,7 +180,7 @@ async function tryRpc<T>(action: string, call: () => Promise<T>): Promise<{ ok: 
   try {
     return { ok: true, value: await call() };
   } catch (e) {
-    console.error(`[commands] ${action} failed:`, e instanceof Error ? (e.stack ?? e.message) : e);
+    logger.error({ err: e }, `[commands] ${action} failed`);
     return { ok: false };
   }
 }

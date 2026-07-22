@@ -1,4 +1,5 @@
 import { jsm, js } from '@bagel/shared/server/nats';
+import { logger } from '@bagel/shared/server/logger';
 import type { KV } from 'nats';
 import { dev } from '$app/environment';
 
@@ -173,7 +174,7 @@ async function loadAliases(): Promise<Map<string, string>> {
       });
     }
   } catch (err: any) {
-    if (err.code !== '404') console.warn('lane alias fetch error:', err);
+    if (err.code !== '404') logger.warn({ err }, 'lane alias fetch error');
   }
 
   aliasCache = aliases;

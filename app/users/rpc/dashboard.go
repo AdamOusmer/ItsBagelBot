@@ -16,6 +16,7 @@ import (
 	"ItsBagelBot/internal/domain/invalidate"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/monitor"
 )
 
 // dashboardTimeout bounds each dashboard RPC handler's repo work.
@@ -145,6 +146,7 @@ func setBoolPref[T any](d *dashboardRPC, ctx context.Context, msg *nats.Msg, sco
 }
 
 func (d *dashboardRPC) handleUpsertUser(ctx context.Context, msg *nats.Msg) {
+	log := monitor.TxnLogger(ctx, d.log)
 	req, ok := decodeRequest[usersrpc.UpsertUserRequest](msg)
 	if !ok {
 		return
@@ -161,7 +163,7 @@ func (d *dashboardRPC) handleUpsertUser(ctx context.Context, msg *nats.Msg) {
 	email := fmt.Sprintf("%d@twitch.tv", id)
 
 	if err := d.repo.Register(ctx, id, req.Username, email); err != nil {
-		d.log.Error("upsert_user register", zap.Error(err))
+		log.Error("upsert_user register", zap.Error(err))
 		respondErr(msg, err.Error())
 		return
 	}
@@ -171,7 +173,7 @@ func (d *dashboardRPC) handleUpsertUser(ctx context.Context, msg *nats.Msg) {
 	// address itself never reaches the log line.
 	if req.Email != "" {
 		if err := d.repo.SetContactEmail(ctx, id, req.Email); err != nil {
-			d.log.Warn("upsert_user contact email store failed",
+			log.Warn("upsert_user contact email store failed",
 				zap.Uint64("user_id", id), zap.Error(err))
 		}
 	}
@@ -352,13 +354,14 @@ func (d *dashboardRPC) handleDeleteSelf(ctx context.Context, msg *nats.Msg) {
 	ctx, cancel := timeout(ctx)
 	defer cancel()
 
+	log := monitor.TxnLogger(ctx, d.log)
 	if err := d.repo.DeleteDelegationsByOwner(ctx, id); err != nil {
-		d.log.Error("delete_self delegations", zap.Error(err))
+		log.Error("delete_self delegations", zap.Error(err))
 		respondErr(msg, err.Error())
 		return
 	}
 	if err := d.repo.Delete(ctx, id); err != nil {
-		d.log.Error("delete_self user", zap.Error(err))
+		log.Error("delete_self user", zap.Error(err))
 		respondErr(msg, err.Error())
 		return
 	}

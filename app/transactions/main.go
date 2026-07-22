@@ -133,6 +133,7 @@ func main() {
 		WebhookSecret: env.Get("TEBEX_WEBHOOK_SECRET", ""),
 		NotifyGift:    notifier.Notify,
 		ApplyBilling:  billing.Apply,
+		App:           nrApp,
 	}, log.Named("http"))
 
 	httpServer := &http.Server{

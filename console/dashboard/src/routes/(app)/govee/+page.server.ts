@@ -10,6 +10,7 @@ import {
   type RewardDraft
 } from '$lib/server/govee-store';
 import { auditDashboardImpersonation } from '$lib/server/services';
+import { logger } from '@bagel/shared/server/logger';
 import { gateModulePage } from '$lib/server/module-gate';
 import type { Session } from '$lib/server/session';
 import { env } from '$env/dynamic/private';
@@ -167,7 +168,7 @@ async function run(
   try {
     res = await work(goveeStore(uid));
   } catch (e) {
-    console.error(`[govee] ${audit.action} failed:`, e instanceof Error ? (e.stack ?? e.message) : e);
+    logger.error({ err: e }, `[govee] ${audit.action} failed`);
     return fail(400, { ok: false });
   }
   if (!res.ok) return resultFail(res);

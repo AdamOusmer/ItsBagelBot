@@ -8,6 +8,7 @@ import (
 	"ItsBagelBot/internal/domain/invalidate"
 	billingrpc "ItsBagelBot/internal/domain/rpc/billing"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/monitor"
 
 	"go.uber.org/zap"
 )
@@ -19,6 +20,7 @@ func SubscribeBilling(w Wiring, subject, invalidationPrefix string) error {
 	return bus.QueueSubscribeJSON[billingrpc.ApplyRequest, billingrpc.ApplyReply](
 		nc, subject, queueGroup, 5*time.Second, app, log,
 		func(ctx context.Context, req billingrpc.ApplyRequest) billingrpc.ApplyReply {
+			log := monitor.TxnLogger(ctx, log)
 			applied, err := repo.ApplyBilling(ctx, req)
 			if err != nil {
 				return billingrpc.ApplyReply{Error: err.Error()}

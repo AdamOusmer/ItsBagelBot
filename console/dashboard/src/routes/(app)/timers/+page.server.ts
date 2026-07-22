@@ -10,6 +10,7 @@ import {
   type TimerResult
 } from '$lib/server/timers-store';
 import { auditDashboardImpersonation } from '$lib/server/services';
+import { logger } from '@bagel/shared/server/logger';
 import { gateModulePage } from '$lib/server/module-gate';
 import type { Session } from '$lib/server/session';
 import { env } from '$env/dynamic/private';
@@ -87,7 +88,7 @@ export const actions: Actions = {
     try {
       res = await createTimer(uid, draft);
     } catch (e) {
-      console.error('[timers] create failed:', e instanceof Error ? (e.stack ?? e.message) : e);
+      logger.error({ err: e }, '[timers] create failed');
       return fail(400, { ok: false, error: 'create failed' });
     }
     if (!res.ok) return fail(400, { ok: false, error: res.error ?? 'failed' });
@@ -109,7 +110,7 @@ export const actions: Actions = {
     try {
       res = await updateTimer(uid, draft);
     } catch (e) {
-      console.error('[timers] update failed:', e instanceof Error ? (e.stack ?? e.message) : e);
+      logger.error({ err: e }, '[timers] update failed');
       return fail(400, { ok: false, error: 'update failed' });
     }
     if (!res.ok) return fail(400, { ok: false, error: res.error ?? 'failed' });
@@ -131,7 +132,7 @@ export const actions: Actions = {
     try {
       res = await deleteTimer(uid, id);
     } catch (e) {
-      console.error('[timers] delete failed:', e instanceof Error ? (e.stack ?? e.message) : e);
+      logger.error({ err: e }, '[timers] delete failed');
       return fail(400, { ok: false, error: 'delete failed' });
     }
     if (!res.ok) return fail(400, { ok: false, error: res.error ?? 'failed' });
@@ -152,7 +153,7 @@ export const actions: Actions = {
     try {
       await setTimersEnabled(uid, enabled);
     } catch (e) {
-      console.error('[timers] toggle failed:', e instanceof Error ? (e.stack ?? e.message) : e);
+      logger.error({ err: e }, '[timers] toggle failed');
       return fail(400, { ok: false });
     }
     auditDashboardImpersonation(locals.session, 'timers:toggle', String(enabled));

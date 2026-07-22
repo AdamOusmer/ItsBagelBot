@@ -13,6 +13,7 @@ import (
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/env"
+	"ItsBagelBot/pkg/monitor"
 
 	"github.com/nats-io/nats.go"
 	"github.com/newrelic/go-agent/v3/newrelic"
@@ -29,8 +30,8 @@ type Dashboard struct {
 	log                   *zap.Logger
 	writeGate             chan struct{}
 	mu                    sync.Mutex
-	commandMisses map[uint64]*commandInFlight
-	moduleMisses  map[uint64]*moduleInFlight
+	commandMisses         map[uint64]*commandInFlight
+	moduleMisses          map[uint64]*moduleInFlight
 }
 
 type commandFill struct {
@@ -96,6 +97,7 @@ func SubscribeDashboard(
 }
 
 func (d *Dashboard) handleCommandsGet(ctx context.Context, req projectorrpc.DashboardRequest) rpcprojection.CommandsReply {
+	log := monitor.TxnLogger(ctx, d.log)
 	userID, err := parseUserID(req.UserID)
 	if err != nil {
 		return rpcprojection.CommandsReply{Error: err.Error()}
@@ -106,8 +108,8 @@ func (d *Dashboard) handleCommandsGet(ctx context.Context, req projectorrpc.Dash
 		d.hydrator.EnsureAsync(userID, hydration.Seed{})
 		return rpcprojection.CommandsReply{UserID: req.UserID, Commands: commands}
 	}
-	if err != nil && d.log != nil {
-		d.log.Warn("projector command valkey read failed", zap.String("user_id", req.UserID), zap.Error(err))
+	if err != nil && log != nil {
+		log.Warn("projector command valkey read failed", zap.String("user_id", req.UserID), zap.Error(err))
 	}
 
 	fill := d.loadCommands(ctx, userID, req)
@@ -129,6 +131,7 @@ func (d *Dashboard) handleCommandsReplace(ctx context.Context, req projectorrpc.
 }
 
 func (d *Dashboard) handleModulesGet(ctx context.Context, req projectorrpc.DashboardRequest) rpcprojection.ModulesReply {
+	log := monitor.TxnLogger(ctx, d.log)
 	userID, err := parseUserID(req.UserID)
 	if err != nil {
 		return rpcprojection.ModulesReply{Error: err.Error()}
@@ -139,8 +142,8 @@ func (d *Dashboard) handleModulesGet(ctx context.Context, req projectorrpc.Dashb
 		d.hydrator.EnsureAsync(userID, hydration.Seed{})
 		return rpcprojection.ModulesReply{UserID: req.UserID, Modules: modules}
 	}
-	if err != nil && d.log != nil {
-		d.log.Warn("projector module valkey read failed", zap.String("user_id", req.UserID), zap.Error(err))
+	if err != nil && log != nil {
+		log.Warn("projector module valkey read failed", zap.String("user_id", req.UserID), zap.Error(err))
 	}
 
 	fill := d.loadModules(ctx, userID, req)

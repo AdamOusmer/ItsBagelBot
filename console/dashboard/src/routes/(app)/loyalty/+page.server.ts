@@ -3,6 +3,7 @@ import type { LoyaltyConfig, LoyaltyStanding } from '@bagel/shared';
 import { blankLoyaltyConfig } from '@bagel/shared';
 import { readLoyalty, writeLoyalty, topStandings } from '$lib/server/loyalty-store';
 import { auditDashboardImpersonation } from '$lib/server/services';
+import { logger } from '@bagel/shared/server/logger';
 import { gateModulePage } from '$lib/server/module-gate';
 import type { Session } from '$lib/server/session';
 import { env } from '$env/dynamic/private';
@@ -90,7 +91,7 @@ export const actions: Actions = {
       const cur = await readLoyalty(uid);
       await writeLoyalty(uid, enabled, cur.config);
     } catch (e) {
-      console.error('[loyalty] toggle failed:', e instanceof Error ? (e.stack ?? e.message) : e);
+      logger.error({ err: e }, '[loyalty] toggle failed');
       return fail(400, { ok: false });
     }
     auditDashboardImpersonation(locals.session, 'loyalty:toggle', String(enabled));
@@ -111,7 +112,7 @@ export const actions: Actions = {
       const cur = await readLoyalty(uid);
       await writeLoyalty(uid, cur.enabled, config);
     } catch (e) {
-      console.error('[loyalty] save failed:', e instanceof Error ? (e.stack ?? e.message) : e);
+      logger.error({ err: e }, '[loyalty] save failed');
       return fail(400, { ok: false, error: 'save failed' });
     }
     auditDashboardImpersonation(locals.session, 'loyalty:save', config.pointsName || 'points');

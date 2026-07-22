@@ -6,6 +6,7 @@ import (
 
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/monitor"
 
 	"github.com/bytedance/sonic"
 	"github.com/newrelic/go-agent/v3/newrelic"
@@ -15,6 +16,7 @@ import (
 
 func (w *Worker) Process(msg *bus.Message) error {
 	ctx := msg.Context()
+	log := monitor.TxnLogger(ctx, w.log)
 	processStarted := time.Now()
 	defer recordStageDuration(ctx, "outgress.total_ms", processStarted)
 
@@ -30,7 +32,7 @@ func (w *Worker) Process(msg *bus.Message) error {
 	if payload.Type == outgress.TypeBatch {
 		var batch outgress.Batch
 		if err := decodeBatch(payload.Payload, &batch); err != nil {
-			w.log.Error("dropping malformed outgress batch", zap.Error(err))
+			log.Error("dropping malformed outgress batch", zap.Error(err))
 			noticeError(ctx, err)
 			return nil
 		}
