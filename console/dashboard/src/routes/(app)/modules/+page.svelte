@@ -193,17 +193,19 @@
                 <div class="tile-foot">
                   <a class="configure" href={m.def.href ?? `/modules/${m.def.id}`}><Icon name="settings" size={13} /> {t('modules.configure')}</a>
                   <span class="grow"></span>
-                  <SaveStatus state={modStatus[m.def.id] ?? 'idle'} />
-                  <form method="POST" action="?/toggle" use:enhance={toggleSubmit(m)}>
-                    <input type="hidden" name="name" value={m.def.id} />
-                    <input type="hidden" name="is_enabled" value={m.enabled ? '' : 'on'} />
-                    <Switch
-                      type="submit"
-                      checked={m.enabled}
-                      label={m.enabled ? t('modules.disableAria', { label: m.def.label }) : t('modules.enableAria', { label: m.def.label })}
-                      pending={(modStatus[m.def.id] ?? 'idle') === 'saving'}
-                    />
-                  </form>
+                  {#if m.def.toggleable !== false}
+                    <SaveStatus state={modStatus[m.def.id] ?? 'idle'} />
+                    <form method="POST" action="?/toggle" use:enhance={toggleSubmit(m)}>
+                      <input type="hidden" name="name" value={m.def.id} />
+                      <input type="hidden" name="is_enabled" value={m.enabled ? '' : 'on'} />
+                      <Switch
+                        type="submit"
+                        checked={m.enabled}
+                        label={m.enabled ? t('modules.disableAria', { label: m.def.label }) : t('modules.enableAria', { label: m.def.label })}
+                        pending={(modStatus[m.def.id] ?? 'idle') === 'saving'}
+                      />
+                    </form>
+                  {/if}
                 </div>
               </div>
             {/each}
@@ -438,4 +440,3 @@
   .configure:hover { color: var(--bb-tan-pale); border-color: var(--bb-border-strong, rgba(201, 168, 124, 0.35)); background: rgba(201, 168, 124, 0.08); }
   .configure :global(svg) { stroke: currentColor; fill: none; }
 </style>
-
