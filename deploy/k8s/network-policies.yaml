@@ -9,7 +9,7 @@ spec:
     matchExpressions:
       - key: app
         operator: In
-        values: [users, commands, loyalty, modules, transactions, projector, sesame, twitch-ingress, outgress, console-dashboard, console-admin, gateway, notifications]
+        values: [users, commands, loyalty, modules, transactions, projector, sesame, twitch-ingress, outgress, console-dashboard, console-admin, gateway, notifications, notifications-cleanup]
   policyTypes:
     - Ingress
     - Egress
@@ -30,8 +30,13 @@ spec:
             matchLabels:
               kubernetes.io/metadata.name: tailscale
   egress:
-    # Allow DNS resolution
-    - ports:
+    # Resolve through cluster DNS only. Leaving `to` empty here would turn port
+    # 53 into a DNS-tunnelling escape hatch to any Internet address.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
         - port: 53
           protocol: UDP
         - port: 53
@@ -46,11 +51,50 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: valkey
-    # Allow outbound HTTPS for Twitch OAuth
+---
+# Every long-running application currently exports APM directly to New Relic
+# over HTTPS. Product integrations also use HTTPS from gateway, ingress,
+# outgress, sesame, transactions and the consoles. Keep this grant explicit so
+# a workload cannot silently inherit it merely by joining default-deny-apps.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-public-https
+  namespace: production
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [users, commands, loyalty, modules, transactions, projector, sesame, twitch-ingress, outgress, console-dashboard, console-admin, gateway, notifications]
+  policyTypes:
+    - Egress
+  egress:
     - ports:
         - port: 443
           protocol: TCP
-    # Allow communication to external HeatWave MySQL database
-    - ports:
+---
+# Data owners reach the managed HeatWave endpoint over the routed OCI private
+# subnet. Restricting both the workloads and destination prevents port 3306
+# from becoming a generic public-Internet exfiltration path. console-admin is
+# included for its explicit schema-credential administration workflow.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-heatwave
+  namespace: production
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [users, commands, loyalty, modules, transactions, notifications, console-admin]
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 10.0.0.0/16
+      ports:
         - port: 3306
           protocol: TCP
