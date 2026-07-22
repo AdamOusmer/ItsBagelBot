@@ -25,6 +25,7 @@ import (
 	"ItsBagelBot/pkg/monitor"
 
 	"github.com/nats-io/nats.go"
+	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
 )
 
@@ -73,55 +74,11 @@ func main() {
 	nc := connectRPC(natsURL, log)
 	defer nc.Close()
 
-	// Checkout RPC (dashboard -> basket_create). Optional: without the Tebex
-	// Headless credentials the service stays webhook-only, exactly as before.
-	checkoutConfigured := false
-	// TEBEX_HEADLESS_TOKEN is the legacy name for the same webstore public token.
-	webstoreToken := env.Get("TEBEX_WEBSTORE_TOKEN", env.Get("TEBEX_HEADLESS_TOKEN", ""))
-	privateKey := env.Get("TEBEX_PRIVATE_KEY", env.Get("TEBEX_SECRET_KEY", env.Get("TEBEX_API_PRIVATE_KEY", "")))
-	packageID := env.GetInt("TEBEX_PACKAGE_ID", 0)
 	dashboardOrigin := env.Get("DASHBOARD_ORIGIN", "https://dashboard.itsbagelbot.com")
-	if webstoreToken != "" && packageID > 0 {
-		tebexClient, err := tebex.New(tebex.Config{
-			WebstoreToken:   webstoreToken,
-			PrivateKey:      privateKey,
-			IncludeUsername: env.GetBool("TEBEX_INCLUDE_USERNAME", false),
-			PackageID:       packageID,
-			PackageType:     env.Get("TEBEX_PACKAGE_TYPE", "subscription"),
-			CompleteURL:     dashboardOrigin + "/billing?checkout=complete",
-			CancelURL:       dashboardOrigin + "/billing?checkout=cancelled",
-		})
-		if err != nil {
-			log.Fatal("failed to build tebex client", zap.Error(err))
-		}
-
-		userGetSubject := env.Get("NATS_ADMIN_USER_SUBJECT_PREFIX", "bagel.rpc.admin.user") + ".get"
-		prefix := env.Get("NATS_TRANSACTIONS_SUBJECT_PREFIX", "bagel.rpc.transactions")
-		if err := rpc.SubscribeCheckout(
-			rpc.CheckoutRuntime{NC: nc, App: nrApp, Log: log},
-			tebexClient,
-			rpc.CheckoutConfig{Prefix: prefix, UserGetSubject: userGetSubject, QueueGroup: "transactions-rpc"},
-		); err != nil {
-			log.Fatal("failed to subscribe checkout rpc", zap.Error(err))
-		}
-		checkoutConfigured = true
-	} else {
-		log.Warn("tebex checkout rpc disabled: TEBEX_WEBSTORE_TOKEN / TEBEX_PACKAGE_ID not configured")
-	}
+	checkoutConfigured, checkoutAuth := setupCheckout(nc, nrApp, dashboardOrigin, log)
 
 	sendSubject := env.Get("NATS_ADMIN_NOTIFICATIONS_SUBJECT_PREFIX", "bagel.rpc.admin.notifications") + ".send"
-
-	// Gift email channel (Resend). Optional: without the API key the notifier
-	// keeps sending the in-app notification only, exactly as before.
-	var mailer *mail.Mailer
-	// RESEND_API is the Doppler name; RESEND_API_KEY accepted as an alias.
-	if resendKey := env.Get("RESEND_API", env.Get("RESEND_API_KEY", "")); resendKey != "" {
-		mailer = mail.New(resendKey,
-			env.Get("RESEND_FROM", "ItsBagelBot <no-reply@itsbagelbot.com>"),
-			dashboardOrigin)
-	} else {
-		log.Warn("gift email disabled: RESEND_API not configured")
-	}
+	mailer := newMailer(dashboardOrigin, log)
 
 	emailSubject := env.Get("NATS_INTERNAL_USERS_EMAIL_SUBJECT", "bagel.rpc.internal.users.email.get")
 	notifier := rpc.NewGiftNotifier(nc, sendSubject, emailSubject, mailer, log.Named("gift"))
@@ -149,11 +106,69 @@ func main() {
 		zap.String("listen_addr", listenAddr),
 		zap.Bool("tebex_webhook_configured", env.Get("TEBEX_WEBHOOK_SECRET", "") != ""),
 		zap.Bool("tebex_checkout_configured", checkoutConfigured),
-		zap.Bool("tebex_checkout_auth_configured", privateKey != ""),
+		zap.Bool("tebex_checkout_auth_configured", checkoutAuth),
 		zap.Bool("tebex_checkout_username_configured", env.GetBool("TEBEX_INCLUDE_USERNAME", false)),
 	)
 
 	serveHTTP(ctx, httpServer, log)
+}
+
+// setupCheckout registers the dashboard basket_create RPC. Optional: without
+// the Tebex Headless credentials the service stays webhook-only, exactly as
+// before. Returns whether checkout is live and whether an API private key is
+// configured, both reported in the ready log line.
+func setupCheckout(nc *nats.Conn, nrApp *newrelic.Application, dashboardOrigin string, log *zap.Logger) (configured, auth bool) {
+
+	// TEBEX_HEADLESS_TOKEN is the legacy name for the same webstore public token.
+	webstoreToken := env.Get("TEBEX_WEBSTORE_TOKEN", env.Get("TEBEX_HEADLESS_TOKEN", ""))
+	privateKey := env.Get("TEBEX_PRIVATE_KEY", env.Get("TEBEX_SECRET_KEY", env.Get("TEBEX_API_PRIVATE_KEY", "")))
+	packageID := env.GetInt("TEBEX_PACKAGE_ID", 0)
+	if webstoreToken == "" || packageID <= 0 {
+		log.Warn("tebex checkout rpc disabled: TEBEX_WEBSTORE_TOKEN / TEBEX_PACKAGE_ID not configured")
+		return false, privateKey != ""
+	}
+
+	tebexClient, err := tebex.New(tebex.Config{
+		WebstoreToken:   webstoreToken,
+		PrivateKey:      privateKey,
+		IncludeUsername: env.GetBool("TEBEX_INCLUDE_USERNAME", false),
+		PackageID:       packageID,
+		PackageType:     env.Get("TEBEX_PACKAGE_TYPE", "subscription"),
+		CompleteURL:     dashboardOrigin + "/billing?checkout=complete",
+		CancelURL:       dashboardOrigin + "/billing?checkout=cancelled",
+	})
+	if err != nil {
+		log.Fatal("failed to build tebex client", zap.Error(err))
+	}
+
+	userGetSubject := env.Get("NATS_ADMIN_USER_SUBJECT_PREFIX", "bagel.rpc.admin.user") + ".get"
+	prefix := env.Get("NATS_TRANSACTIONS_SUBJECT_PREFIX", "bagel.rpc.transactions")
+	if err := rpc.SubscribeCheckout(
+		rpc.CheckoutRuntime{NC: nc, App: nrApp, Log: log},
+		tebexClient,
+		rpc.CheckoutConfig{Prefix: prefix, UserGetSubject: userGetSubject, QueueGroup: "transactions-rpc"},
+	); err != nil {
+		log.Fatal("failed to subscribe checkout rpc", zap.Error(err))
+	}
+
+	return true, privateKey != ""
+}
+
+// newMailer builds the Resend gift-email channel. Optional: without the API
+// key the notifier keeps sending the in-app notification only, exactly as
+// before.
+func newMailer(dashboardOrigin string, log *zap.Logger) *mail.Mailer {
+
+	// RESEND_API is the Doppler name; RESEND_API_KEY accepted as an alias.
+	resendKey := env.Get("RESEND_API", env.Get("RESEND_API_KEY", ""))
+	if resendKey == "" {
+		log.Warn("gift email disabled: RESEND_API not configured")
+		return nil
+	}
+
+	return mail.New(resendKey,
+		env.Get("RESEND_FROM", "ItsBagelBot <no-reply@itsbagelbot.com>"),
+		dashboardOrigin)
 }
 
 func connectRPC(natsURL string, log *zap.Logger) *nats.Conn {
