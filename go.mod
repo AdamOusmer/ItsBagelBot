@@ -15,6 +15,7 @@ require (
 	github.com/nats-io/nats.go v1.52.0
 	github.com/nats-io/nuid v1.0.1
 	github.com/newrelic/go-agent/v3 v3.43.3
+	github.com/newrelic/go-agent/v3/integrations/logcontext-v2/nrzap v1.2.4
 	github.com/newrelic/go-agent/v3/integrations/nrmysql v1.2.2
 	github.com/puzpuzpuz/xsync/v4 v4.5.0
 	github.com/resend/resend-go/v3 v3.9.2
