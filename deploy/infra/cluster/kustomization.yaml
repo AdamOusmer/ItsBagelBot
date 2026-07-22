@@ -8,6 +8,7 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - cloudflared.yaml
+  - crowdsec-dopplersecret.yaml
   # coredns replaces the skipped k3s addon (coredns.yaml.skip on node2);
   # DaemonSet on node2/node3/worker1 + PreferSameNode kube-dns.
   - coredns.yaml

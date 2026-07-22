@@ -1,7 +1,7 @@
 ---
 # Pin the k3s server's Go runtime memory guard.
 #
-#   doppler run -- ansible-playbook -i inventory.cluster.ini k3s-server-tuning.yml
+#   doppler run -p infra-bootstrap -c prd -- ansible-playbook -i inventory.cluster.ini k3s-server-tuning.yml
 #
 # node2 is the SINGLE k3s server (sqlite/kine — no HA, see the control-plane
 # migration notes). Its Go heap is capped with GOMEMLIMIT + GOGC, delivered via
