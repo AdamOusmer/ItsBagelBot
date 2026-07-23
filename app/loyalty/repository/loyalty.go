@@ -85,9 +85,13 @@ type bumpKey struct {
 
 // bumpSum is one counter's accumulated delta. scope rides along so the flush
 // can create the counter row on first use; an existing row's scope wins.
+// login/name are the freshest viewer identity seen this window (empty means
+// "no bump carried it; keep the stored one") — same contract as earnSum.
 type bumpSum struct {
 	delta int64
 	scope string
+	login string
+	name  string
 }
 
 // Loyalty persists balances and counters. Reads (RPC verbs) hit ent directly;
@@ -187,6 +191,14 @@ func (r *Loyalty) RecordBumps(dto data.CounterBumpedDTO) {
 			r.bumpPend[key] = sum
 		}
 		sum.delta += b.Delta
+		if key.viewerID != 0 {
+			if b.ViewerLogin != "" {
+				sum.login = b.ViewerLogin
+			}
+			if b.ViewerName != "" {
+				sum.name = b.ViewerName
+			}
+		}
 	}
 	overflow := len(r.bumpPend) >= flushMaxKeys
 	r.mu.Unlock()
@@ -420,16 +432,22 @@ func (r *Loyalty) ensureEntryDefs(ctx context.Context, txn *newrelic.Transaction
 		rows)
 }
 
+// flushEntryBumps lands the bucket deltas. Identity columns follow the
+// balances contract: only overwrite when the window actually carried a value.
 func (r *Loyalty) flushEntryBumps(ctx context.Context, txn *newrelic.Transaction, keys []bumpKey, bumps map[bumpKey]*bumpSum) {
 	now := time.Now()
 	rows := make([][]any, 0, len(keys))
 	for _, k := range keys {
-		rows = append(rows, []any{k.userID, k.name, k.command, k.viewerID, bumps[k].delta, now})
+		rows = append(rows, []any{k.userID, k.name, k.command, k.viewerID, bumps[k].login, bumps[k].name, bumps[k].delta, now})
 	}
 	r.upsertRows(ctx, txn, "counter entries",
-		"INSERT INTO counter_entries (user_id, name, command, viewer_id, value, updated_at) VALUES ",
-		"(?, ?, ?, ?, ?, ?)",
-		" ON DUPLICATE KEY UPDATE value = value + VALUES(value), updated_at = VALUES(updated_at)",
+		"INSERT INTO counter_entries (user_id, name, command, viewer_id, viewer_login, viewer_name, value, updated_at) VALUES ",
+		"(?, ?, ?, ?, ?, ?, ?, ?)",
+		" ON DUPLICATE KEY UPDATE"+
+			" value = value + VALUES(value),"+
+			" viewer_login = IF(VALUES(viewer_login) = '', viewer_login, VALUES(viewer_login)),"+
+			" viewer_name = IF(VALUES(viewer_name) = '', viewer_name, VALUES(viewer_name)),"+
+			" updated_at = VALUES(updated_at)",
 		rows)
 }
 

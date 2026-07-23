@@ -1,7 +1,16 @@
 import type { Actions, PageServerLoad } from './$types';
 import type { CounterDef, CounterEntryView, CounterScope } from '@bagel/shared';
 import { COUNTER_SCOPES } from '@bagel/shared';
-import { listCounters, createCounter, setCounter, renameCounter, deleteCounter, counterEntries } from '$lib/server/loyalty-store';
+import {
+  listCounters,
+  createCounter,
+  setCounter,
+  renameCounter,
+  deleteCounter,
+  counterEntries,
+  getCounter,
+  resolveViewerId
+} from '$lib/server/loyalty-store';
 import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
 import { gateModulePage } from '$lib/server/module-gate';
@@ -33,13 +42,13 @@ function demoCounters(): CounterDef[] {
 function demoEntries(name: string): CounterEntryView[] {
   if (name === 'raids') {
     return [
-      { viewerId: '0', viewerLogin: '', command: 'raid', value: 41 },
-      { viewerId: '0', viewerLogin: '', command: 'so', value: 12 }
+      { viewerId: '0', viewerLogin: '', viewerName: '', command: 'raid', value: 41 },
+      { viewerId: '0', viewerLogin: '', viewerName: '', command: 'so', value: 12 }
     ];
   }
   return [
-    { viewerId: '101', viewerLogin: 'sesame_sam', command: name === 'redeems' ? 'hydrate' : '', value: 23 },
-    { viewerId: '102', viewerLogin: 'bagel_fan', command: name === 'redeems' ? 'hydrate' : '', value: 9 }
+    { viewerId: '101', viewerLogin: 'sesame_sam', viewerName: 'Sesame_Sam', command: name === 'redeems' ? 'hydrate' : '', value: 23 },
+    { viewerId: '102', viewerLogin: 'bagel_fan', viewerName: 'Bagel_Fan', command: name === 'redeems' ? 'hydrate' : '', value: 9 }
   ];
 }
 
@@ -80,6 +89,11 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   }
 };
 
+// UserError carries a safe, machine-readable failure code through mutate's
+// catch (anything unexpected stays masked); the client maps it to localized
+// copy.
+class UserError extends Error {}
+
 // mutate wraps one POST action with the shared boilerplate: gate, session,
 // demo short-circuit, error mapping and the impersonation audit line. run
 // returns the audit detail, or null for a validation failure.
@@ -97,6 +111,7 @@ function mutate(op: string, run: Mutation) {
     try {
       detail = await run(uid, f);
     } catch (e) {
+      if (e instanceof UserError) return fail(400, { ok: false, error: e.message });
       logger.error({ err: e }, `[counters] ${op} failed`);
       return fail(400, { ok: false, error: `${op} failed` });
     }
@@ -116,14 +131,43 @@ export const actions: Actions = {
   }),
 
   // Absolute value for a channel counter; on entry scopes value 0 doubles as
-  // the reset (the service deletes every stored bucket).
+  // the reset (the service deletes every stored bucket). An optional target
+  // (viewer_id and/or command) instead writes that one stored bucket.
   set: mutate('set', async (uid, f) => {
     const name = normalizeName(f.get('name'));
     const value = Math.trunc(Number(f.get('value')));
     if (!name || !Number.isFinite(value)) return null;
-    const found = await setCounter(uid, name, value);
+    const viewerId = String(f.get('viewer_id') ?? '').trim();
+    if (viewerId && !/^\d+$/.test(viewerId)) return null;
+    const command = normalizeName(f.get('command'));
+    const found = await setCounter(uid, name, value, { viewerId, command });
     if (!found) throw new Error('unknown counter');
-    return `${name}=${value}`;
+    const bucket = viewerId || command ? `[${viewerId}${command ? ':' + command : ''}]` : '';
+    return `${name}${bucket}=${value}`;
+  }),
+
+  // addEntry writes one bucket of an entry-scoped counter from the inspector's
+  // manual add. A typed username resolves to its Twitch id (the bucket key)
+  // through outgress and the login is stamped for display; the counter's own
+  // scope gates which target parts are required, so a malformed post can never
+  // fall through to the untargeted "reset everything" set.
+  addEntry: mutate('addEntry', async (uid, f) => {
+    const name = normalizeName(f.get('name'));
+    const value = Math.trunc(Number(f.get('value')));
+    if (!name || !Number.isFinite(value)) return null;
+    const counter = await getCounter(uid, name);
+    if (!counter || counter.scope === 'channel') return null;
+    const login = String(f.get('username') ?? '').trim().replace(/^@/, '').toLowerCase();
+    const command = normalizeName(f.get('command'));
+    if (counter.scope === 'command' ? !command : !login) return null;
+    let viewerId = '';
+    if (login) {
+      viewerId = await resolveViewerId(login);
+      if (!viewerId) throw new UserError('unknown_user');
+    }
+    const found = await setCounter(uid, name, value, { viewerId, command, viewerLogin: login });
+    if (!found) throw new Error('unknown counter');
+    return `${name}[${viewerId || command}]=${value}`;
   }),
 
   rename: mutate('rename', async (uid, f) => {

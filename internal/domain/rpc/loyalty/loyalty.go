@@ -8,7 +8,7 @@ package loyaltyrpc
 type Request struct {
 	UserID      string `json:"user_id"`                // broadcaster Twitch id
 	ViewerID    string `json:"viewer_id,omitempty"`    // chatter Twitch id
-	ViewerLogin string `json:"viewer_login,omitempty"` // chatter login (balance.set/add target)
+	ViewerLogin string `json:"viewer_login,omitempty"` // chatter login (balance.set/add target; counter.set identity stamp)
 	Name        string `json:"name,omitempty"`         // counter name
 	NewName     string `json:"new_name,omitempty"`     // rename target (counter.rename)
 	Scope       string `json:"scope,omitempty"`        // data.CounterScope* (create)
@@ -37,10 +37,13 @@ type Counter struct {
 
 // CounterEntry is one stored bucket value of an entry-scoped counter, as
 // counter.entries returns them (highest first). ViewerLogin is resolved from
-// the balances table when the viewer has one; empty otherwise.
+// the bucket's own stored identity (refreshed on every bump that carried
+// one), falling back to the balances table for rows written before identity
+// was stored; empty when neither knows the viewer.
 type CounterEntry struct {
 	ViewerID    string `json:"viewer_id"`
 	ViewerLogin string `json:"viewer_login,omitempty"`
+	ViewerName  string `json:"viewer_name,omitempty"`
 	Command     string `json:"command,omitempty"`
 	Value       int64  `json:"value"`
 }

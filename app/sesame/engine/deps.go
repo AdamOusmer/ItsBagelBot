@@ -158,6 +158,16 @@ type CooldownStore interface {
 	Allow(ctx context.Context, key string, ttl time.Duration) (bool, error)
 }
 
+// Viewer is the bumping chatter's identity as the source event knew it: the
+// id keys viewer-scoped buckets; login/name ride along (possibly empty) so
+// the loyalty service can store a readable display identity next to the
+// bucket and refresh it whenever it changes.
+type Viewer struct {
+	ID    uint64
+	Login string
+	Name  string
+}
+
 // LoyaltyStore is the loyalty surface modules and the pipeline depend on:
 // point accrual (fire-and-forget through the worker-side reporter), counter
 // bumps/reads over the Valkey live view, cached balance peeks and the
@@ -166,11 +176,11 @@ type LoyaltyStore interface {
 	// Earn records one viewer's point/watch accrual; batched and loss-tolerant.
 	Earn(broadcasterID, viewerID uint64, login, name string, points int64, watchSeconds uint64)
 	// CounterBump increments a counter by delta and returns the new value.
-	// viewerID is the acting chatter and command the triggering source's name
+	// viewer is the acting chatter and command the triggering source's name
 	// (a command's canonical trigger, or a channel-point reward's title); each
 	// is used only when the counter's scope needs it (viewer, or
 	// viewer+command — the three modes, all per channel).
-	CounterBump(ctx context.Context, broadcasterID uint64, name string, viewerID uint64, command string, delta int64) (int64, error)
+	CounterBump(ctx context.Context, broadcasterID uint64, name string, viewer Viewer, command string, delta int64) (int64, error)
 	// CounterPeek reads a counter without bumping it; found=false means it
 	// does not exist.
 	CounterPeek(ctx context.Context, broadcasterID uint64, name string, viewerID uint64, command string) (loyaltyrpc.Counter, bool, error)

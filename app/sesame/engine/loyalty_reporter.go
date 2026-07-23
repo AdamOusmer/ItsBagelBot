@@ -49,6 +49,15 @@ type counterAgg struct {
 	command       string
 }
 
+// bumpAgg is one counter bucket's summed delta plus the freshest viewer
+// identity seen this window (empty means "no bump carried it; the service
+// keeps whatever it stored").
+type bumpAgg struct {
+	delta int64
+	login string
+	name  string
+}
+
 // LoyaltyReporter aggregates point accruals and counter bumps per flush window
 // and publishes summed data.loyalty.* events, chunked per broadcaster. It is
 // the worker-side rate limiter for the loyalty pipeline, the same role the
@@ -61,7 +70,7 @@ type LoyaltyReporter struct {
 
 	mu    sync.Mutex
 	earn  map[earnKey]*earnAgg
-	bumps map[counterAgg]int64
+	bumps map[counterAgg]*bumpAgg
 }
 
 func NewLoyaltyReporter(pub bus.Publisher, log *zap.Logger) *LoyaltyReporter {
@@ -71,7 +80,7 @@ func NewLoyaltyReporter(pub bus.Publisher, log *zap.Logger) *LoyaltyReporter {
 		done:  make(chan struct{}),
 		wake:  make(chan struct{}, 1),
 		earn:  map[earnKey]*earnAgg{},
-		bumps: map[counterAgg]int64{},
+		bumps: map[counterAgg]*bumpAgg{},
 	}
 	go func() {
 		ticker := time.NewTicker(loyaltyFlushInterval)
@@ -122,16 +131,28 @@ func (r *LoyaltyReporter) Earn(broadcasterID, viewerID uint64, login, name strin
 }
 
 // Bump records one counter delta. command keys the bucket of a command /
-// viewer+command bump ("" everywhere else). Broadcaster 0 is the reserved bot
+// viewer+command bump ("" everywhere else). viewer carries the chatter's
+// display identity when the source knew it. Broadcaster 0 is the reserved bot
 // namespace and only carries bot-scope bumps.
-func (r *LoyaltyReporter) Bump(broadcasterID uint64, name, scope string, viewerID uint64, command string, delta int64) {
+func (r *LoyaltyReporter) Bump(broadcasterID uint64, name, scope string, viewer Viewer, command string, delta int64) {
 	if name == "" || delta == 0 || (broadcasterID == 0) != (scope == data.CounterScopeBot) {
 		return
 	}
-	key := counterAgg{broadcasterID: broadcasterID, name: name, scope: scope, viewerID: viewerID, command: command}
+	key := counterAgg{broadcasterID: broadcasterID, name: name, scope: scope, viewerID: viewer.ID, command: command}
 
 	r.mu.Lock()
-	r.bumps[key] += delta
+	agg := r.bumps[key]
+	if agg == nil {
+		agg = &bumpAgg{}
+		r.bumps[key] = agg
+	}
+	agg.delta += delta
+	if viewer.Login != "" {
+		agg.login = viewer.Login
+	}
+	if viewer.Name != "" {
+		agg.name = viewer.Name
+	}
 	overflow := len(r.bumps) >= loyaltyMaxKeys
 	r.mu.Unlock()
 
@@ -158,7 +179,7 @@ func (r *LoyaltyReporter) flush(ctx context.Context) {
 		r.earn = map[earnKey]*earnAgg{}
 	}
 	if len(bumps) > 0 {
-		r.bumps = map[counterAgg]int64{}
+		r.bumps = map[counterAgg]*bumpAgg{}
 	}
 	r.mu.Unlock()
 
@@ -182,15 +203,17 @@ func (r *LoyaltyReporter) publishEarned(ctx context.Context, earn map[earnKey]*e
 	})
 }
 
-func (r *LoyaltyReporter) publishBumps(ctx context.Context, bumps map[counterAgg]int64) {
+func (r *LoyaltyReporter) publishBumps(ctx context.Context, bumps map[counterAgg]*bumpAgg) {
 	perUser := map[uint64][]data.CounterBumpEntry{}
-	for key, delta := range bumps {
+	for key, agg := range bumps {
 		perUser[key.broadcasterID] = append(perUser[key.broadcasterID], data.CounterBumpEntry{
-			Name:     key.name,
-			Scope:    key.scope,
-			ViewerID: key.viewerID,
-			Command:  key.command,
-			Delta:    delta,
+			Name:        key.name,
+			Scope:       key.scope,
+			ViewerID:    key.viewerID,
+			ViewerLogin: agg.login,
+			ViewerName:  agg.name,
+			Command:     key.command,
+			Delta:       agg.delta,
 		})
 	}
 	publishPerUser(ctx, r, perUser, data.SubjectLoyaltyCounters, func(userID uint64, chunk []data.CounterBumpEntry) any {

@@ -15,10 +15,12 @@
     Button,
     Field,
     ConfirmDialog,
+    MiniButton,
     toast,
     getI18n,
     COUNTER_SCOPES,
     type CounterDef,
+    type CounterEntryView,
     type CounterScope
   } from '@bagel/shared';
   import type { SaveState } from '@bagel/shared/components/SaveStatus.svelte';
@@ -97,11 +99,18 @@
 
   // --- Optimistic +/- stepper (channel scope), wrapping main's ?/set action ---
   // set is absolute server-side, so a +1 posts (value + 1). Optimistic locally,
-  // rolled back with a toast on failure.
-  async function postSet(name: string, value: number): Promise<ActionResult | null> {
+  // rolled back with a toast on failure. target addresses one stored bucket of
+  // an entry-scoped counter (the inspector's per-entry edit).
+  async function postSet(
+    name: string,
+    value: number,
+    target?: { viewerId?: string; command?: string }
+  ): Promise<ActionResult | null> {
     const body = new FormData();
     body.set('name', name);
     body.set('value', String(value));
+    if (target?.viewerId && target.viewerId !== '0') body.set('viewer_id', target.viewerId);
+    if (target?.command) body.set('command', target.command);
     return fetch('?/set', { method: 'POST', body })
       .then(async (res) => {
         const r = deserialize(await res.text());
@@ -168,6 +177,9 @@
     }
     nameError = '';
     renameValue = '';
+    addUser = '';
+    addCommand = '';
+    addValue = 0;
     expanded = c.name;
     if (c.scope === 'channel') {
       setValue = c.value;
@@ -282,6 +294,82 @@
       toast('err', payloadOf(result)?.error ?? t('counters.toastFailed'));
     };
   };
+
+  // --- Manual bucket add (entry scopes; wraps ?/addEntry) ---------------------
+  // The typed username resolves to its Twitch id server-side; the scope decides
+  // which fields the form shows (viewer, command, or both).
+  let addUser = $state('');
+  let addCommand = $state('');
+  let addValue = $state(0);
+  let adding = $state(false);
+  const addSubmit: SubmitFunction = (input) => {
+    const scope = selected?.scope;
+    const missing = scope === 'command' ? !normCounterName(addCommand) : !addUser.trim();
+    if (!scope || missing) {
+      input.cancel();
+      return;
+    }
+    adding = true;
+    return async ({ result }) => {
+      adding = false;
+      if (result.type === 'success' && payloadOf(result)?.ok) {
+        toast('ok', t('counters.toastAdded'));
+        addUser = '';
+        addCommand = '';
+        addValue = 0;
+        await invalidateAll();
+        return;
+      }
+      const err = payloadOf(result)?.error;
+      toast('err', err === 'unknown_user' ? t('counters.errUnknownUser') : (err ?? t('counters.toastFailed')));
+    };
+  };
+
+  // --- Per-entry value edit (entry scopes; wraps ?/set with a bucket target) --
+  // Drafts are keyed by (viewer, command) bucket and hold the raw input text;
+  // a row is dirty once the parsed draft differs from the stored value. Saving
+  // posts a targeted set and resyncs through invalidateAll.
+  let entryEdits = $state<Record<string, string>>({});
+  let entrySaving = $state<string | null>(null);
+
+  function entryKey(e: CounterEntryView): string {
+    return e.viewerId + ':' + e.command;
+  }
+
+  // A bucket is editable only when the service can address it: the command
+  // bucket for command scope, the viewer for the viewer scopes. An untargeted
+  // set would reset the whole counter, so unaddressable rows stay read-only.
+  function entryEditable(scope: CounterScope, e: CounterEntryView): boolean {
+    return scope === 'command' ? e.command !== '' : e.viewerId !== '0';
+  }
+
+  function entryDraftValue(e: CounterEntryView): number | null {
+    const raw = entryEdits[entryKey(e)];
+    if (raw === undefined || raw.trim() === '') return null;
+    const n = Math.trunc(Number(raw));
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function entryDirty(e: CounterEntryView): boolean {
+    const n = entryDraftValue(e);
+    return n !== null && n !== e.value;
+  }
+
+  async function saveEntry(c: CounterDef, e: CounterEntryView) {
+    const key = entryKey(e);
+    const next = entryDraftValue(e);
+    if (next === null || next === e.value || entrySaving !== null) return;
+    entrySaving = key;
+    const payload = await postSet(c.name, next, { viewerId: e.viewerId, command: e.command });
+    entrySaving = null;
+    if (payload?.ok) {
+      toast('ok', t('counters.toastSet'));
+      delete entryEdits[key];
+      await invalidateAll();
+    } else {
+      toast('err', payload?.error ?? t('counters.toastFailed'));
+    }
+  }
 
   // --- Delete (optimistic removal, confirmed + named; wraps ?/delete) ----------
   let deleteTarget = $state<CounterDef | null>(null);
@@ -465,6 +553,49 @@
                 <span class="id-tag">{scopeTag[selected.scope]}</span>
               </div>
               {@render renameBlock()}
+
+              <!-- Manual bucket add: the username resolves to its Twitch id on
+                   save; the counter's scope decides which key fields show. -->
+              <form method="POST" action="?/addEntry" class="add-form" novalidate use:enhance={addSubmit}>
+                <input type="hidden" name="name" value={selected.name} />
+                <div class="add-row">
+                  {#if selected.scope !== 'command'}
+                    <div class="add-field">
+                      <Field label={t('counters.addUser')}>
+                        <input
+                          class="search"
+                          name="username"
+                          placeholder={t('counters.addUserPh')}
+                          maxlength="32"
+                          bind:value={addUser}
+                        />
+                      </Field>
+                    </div>
+                  {/if}
+                  {#if selected.scope !== 'viewer'}
+                    <div class="add-field">
+                      <Field label={t('counters.addCommand')}>
+                        <input
+                          class="search"
+                          name="command"
+                          placeholder={t('counters.addCommandPh')}
+                          maxlength="64"
+                          bind:value={addCommand}
+                        />
+                      </Field>
+                    </div>
+                  {/if}
+                  <div class="add-val">
+                    <Field label={t('counters.colValue')}>
+                      <input class="search num" type="number" name="value" step="1" bind:value={addValue} />
+                    </Field>
+                  </div>
+                  <Button variant="ghost" type="submit" icon="plus" loading={adding}>
+                    {t('counters.add')}
+                  </Button>
+                </div>
+              </form>
+
               <p class="hint">{t('counters.resetHint')}</p>
               {#if !entriesReady}
                 <p class="hint" role="status">{t('common.loading')}</p>
@@ -489,12 +620,38 @@
                       {#each data.entries ?? [] as e (e.viewerId + ':' + e.command)}
                         <tr>
                           {#if selected.scope !== 'command'}
-                            <th scope="row">{e.viewerLogin || e.viewerId}</th>
+                            <th scope="row">{e.viewerName || e.viewerLogin || e.viewerId}</th>
                             <td class="mut">{e.command || '·'}</td>
                           {:else}
                             <th scope="row">{e.command || '·'}</th>
                           {/if}
-                          <td class="r">{e.value.toLocaleString()}</td>
+                          <td class="r">
+                            {#if entryEditable(selected.scope, e)}
+                              <span class="entry-edit">
+                                <input
+                                  class="search num entry-num"
+                                  type="number"
+                                  step="1"
+                                  aria-label={t('counters.colValue')}
+                                  value={entryEdits[entryKey(e)] ?? e.value}
+                                  oninput={(ev) => (entryEdits[entryKey(e)] = ev.currentTarget.value)}
+                                  onkeydown={(ev) => {
+                                    if (ev.key === 'Enter') void saveEntry(selected, e);
+                                  }}
+                                />
+                                {#if entryDirty(e)}
+                                  <MiniButton
+                                    icon="check"
+                                    aria-label={t('counters.set')}
+                                    disabled={entrySaving !== null}
+                                    onclick={() => saveEntry(selected, e)}
+                                  />
+                                {/if}
+                              </span>
+                            {:else}
+                              {e.value.toLocaleString()}
+                            {/if}
+                          </td>
                         </tr>
                       {/each}
                     </tbody>
@@ -629,6 +786,18 @@
   .tbl th[scope='row'] { text-align: left; font-weight: 600; }
   .tbl .r { text-align: right; }
   .tbl .mut { color: var(--bb-muted); }
+
+  /* Per-entry edit: a compact right-aligned input; the save check only
+     appears once the draft differs from the stored value. */
+  .entry-edit { display: inline-flex; align-items: center; justify-content: flex-end; gap: 6px; }
+  .tbl :global(.entry-num) { width: 90px; text-align: right; }
+
+  /* Manual bucket add: key fields flex, the value stays compact, the button
+     rides the baseline like the rename row. */
+  .add-form { margin: 0 0 14px; }
+  .add-row { display: flex; align-items: flex-end; gap: 8px; flex-wrap: wrap; }
+  .add-field { flex: 1; min-width: 130px; }
+  .add-val :global(.num) { width: 90px; }
 
   @media (max-width: 760px) {
     .toolbar-search { width: 100%; }

@@ -214,18 +214,24 @@ func bumpTarget(scope string, viewerID uint64, command string) (string, uint64, 
 }
 
 // CounterBump increments a counter and returns the new chat-visible value.
-// viewerID is the acting chatter and command the triggering command's
+// viewer is the acting chatter and command the triggering command's
 // canonical name; the counter's own scope decides which of them key the
 // value. The Valkey key is seeded from the service on first touch so the
 // increment continues the stored count instead of restarting at zero. Bot
 // scope rides broadcasterID 0 (the reserved bot namespace) and is reachable
 // only from admin/system callers — template and chat paths never pass 0.
-func (s *ValkeyLoyaltyStore) CounterBump(ctx context.Context, broadcasterID uint64, name string, viewerID uint64, command string, delta int64) (int64, error) {
+func (s *ValkeyLoyaltyStore) CounterBump(ctx context.Context, broadcasterID uint64, name string, viewer Viewer, command string, delta int64) (int64, error) {
 	name = NormalizeCounterName(name)
 	if name == "" || delta == 0 {
 		return 0, nil
 	}
-	scope, viewerID, command := bumpTarget(s.scope(ctx, broadcasterID, name), viewerID, NormalizeCounterName(command))
+	scope, viewerID, command := bumpTarget(s.scope(ctx, broadcasterID, name), viewer.ID, NormalizeCounterName(command))
+	if viewerID == 0 {
+		// The bump fell back to a non-viewer bucket; a stray identity must
+		// not ride a key it does not belong to.
+		viewer = Viewer{}
+	}
+	viewer.ID = viewerID
 
 	var value int64
 	var err error
@@ -238,7 +244,7 @@ func (s *ValkeyLoyaltyStore) CounterBump(ctx context.Context, broadcasterID uint
 		return 0, err
 	}
 
-	s.reporter.Bump(broadcasterID, name, scope, viewerID, command, delta)
+	s.reporter.Bump(broadcasterID, name, scope, viewer, command, delta)
 	return value, nil
 }
 

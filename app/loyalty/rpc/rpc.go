@@ -170,9 +170,14 @@ func (l *loyaltyRPC) handleCounterEntries(ctx context.Context, req loyaltyrpc.Re
 	}
 	entries := make([]loyaltyrpc.CounterEntry, 0, len(rows))
 	for _, e := range rows {
+		login := e.ViewerLogin
+		if login == "" {
+			login = logins[e.ViewerID] // legacy rows written before identity was stored
+		}
 		entries = append(entries, loyaltyrpc.CounterEntry{
 			ViewerID:    strconv.FormatUint(e.ViewerID, 10),
-			ViewerLogin: logins[e.ViewerID],
+			ViewerLogin: login,
+			ViewerName:  e.ViewerName,
 			Command:     e.Command,
 			Value:       e.Value,
 		})
@@ -243,7 +248,8 @@ func (l *loyaltyRPC) handleCounterSet(ctx context.Context, req loyaltyrpc.Reques
 	if !ok {
 		return reply
 	}
-	found, err := l.repo.CounterSet(ctx, userID, req.Name, viewerID, req.Command, req.Value)
+	target := repository.SetTarget{ViewerID: viewerID, Command: req.Command, ViewerLogin: req.ViewerLogin}
+	found, err := l.repo.CounterSet(ctx, userID, req.Name, target, req.Value)
 	return l.foundReply("loyalty counter.set", found, err)
 }
 

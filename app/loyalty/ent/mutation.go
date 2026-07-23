@@ -1588,6 +1588,8 @@ type CounterEntryMutation struct {
 	command       *string
 	viewer_id     *uint64
 	addviewer_id  *int64
+	viewer_login  *string
+	viewer_name   *string
 	value         *int64
 	addvalue      *int64
 	updated_at    *time.Time
@@ -1879,6 +1881,104 @@ func (m *CounterEntryMutation) ResetViewerID() {
 	m.addviewer_id = nil
 }
 
+// SetViewerLogin sets the "viewer_login" field.
+func (m *CounterEntryMutation) SetViewerLogin(s string) {
+	m.viewer_login = &s
+}
+
+// ViewerLogin returns the value of the "viewer_login" field in the mutation.
+func (m *CounterEntryMutation) ViewerLogin() (r string, exists bool) {
+	v := m.viewer_login
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldViewerLogin returns the old "viewer_login" field's value of the CounterEntry entity.
+// If the CounterEntry object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CounterEntryMutation) OldViewerLogin(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldViewerLogin is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldViewerLogin requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldViewerLogin: %w", err)
+	}
+	return oldValue.ViewerLogin, nil
+}
+
+// ClearViewerLogin clears the value of the "viewer_login" field.
+func (m *CounterEntryMutation) ClearViewerLogin() {
+	m.viewer_login = nil
+	m.clearedFields[counterentry.FieldViewerLogin] = struct{}{}
+}
+
+// ViewerLoginCleared returns if the "viewer_login" field was cleared in this mutation.
+func (m *CounterEntryMutation) ViewerLoginCleared() bool {
+	_, ok := m.clearedFields[counterentry.FieldViewerLogin]
+	return ok
+}
+
+// ResetViewerLogin resets all changes to the "viewer_login" field.
+func (m *CounterEntryMutation) ResetViewerLogin() {
+	m.viewer_login = nil
+	delete(m.clearedFields, counterentry.FieldViewerLogin)
+}
+
+// SetViewerName sets the "viewer_name" field.
+func (m *CounterEntryMutation) SetViewerName(s string) {
+	m.viewer_name = &s
+}
+
+// ViewerName returns the value of the "viewer_name" field in the mutation.
+func (m *CounterEntryMutation) ViewerName() (r string, exists bool) {
+	v := m.viewer_name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldViewerName returns the old "viewer_name" field's value of the CounterEntry entity.
+// If the CounterEntry object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CounterEntryMutation) OldViewerName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldViewerName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldViewerName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldViewerName: %w", err)
+	}
+	return oldValue.ViewerName, nil
+}
+
+// ClearViewerName clears the value of the "viewer_name" field.
+func (m *CounterEntryMutation) ClearViewerName() {
+	m.viewer_name = nil
+	m.clearedFields[counterentry.FieldViewerName] = struct{}{}
+}
+
+// ViewerNameCleared returns if the "viewer_name" field was cleared in this mutation.
+func (m *CounterEntryMutation) ViewerNameCleared() bool {
+	_, ok := m.clearedFields[counterentry.FieldViewerName]
+	return ok
+}
+
+// ResetViewerName resets all changes to the "viewer_name" field.
+func (m *CounterEntryMutation) ResetViewerName() {
+	m.viewer_name = nil
+	delete(m.clearedFields, counterentry.FieldViewerName)
+}
+
 // SetValue sets the "value" field.
 func (m *CounterEntryMutation) SetValue(i int64) {
 	m.value = &i
@@ -2005,7 +2105,7 @@ func (m *CounterEntryMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *CounterEntryMutation) Fields() []string {
-	fields := make([]string, 0, 6)
+	fields := make([]string, 0, 8)
 	if m.user_id != nil {
 		fields = append(fields, counterentry.FieldUserID)
 	}
@@ -2017,6 +2117,12 @@ func (m *CounterEntryMutation) Fields() []string {
 	}
 	if m.viewer_id != nil {
 		fields = append(fields, counterentry.FieldViewerID)
+	}
+	if m.viewer_login != nil {
+		fields = append(fields, counterentry.FieldViewerLogin)
+	}
+	if m.viewer_name != nil {
+		fields = append(fields, counterentry.FieldViewerName)
 	}
 	if m.value != nil {
 		fields = append(fields, counterentry.FieldValue)
@@ -2040,6 +2146,10 @@ func (m *CounterEntryMutation) Field(name string) (ent.Value, bool) {
 		return m.Command()
 	case counterentry.FieldViewerID:
 		return m.ViewerID()
+	case counterentry.FieldViewerLogin:
+		return m.ViewerLogin()
+	case counterentry.FieldViewerName:
+		return m.ViewerName()
 	case counterentry.FieldValue:
 		return m.Value()
 	case counterentry.FieldUpdatedAt:
@@ -2061,6 +2171,10 @@ func (m *CounterEntryMutation) OldField(ctx context.Context, name string) (ent.V
 		return m.OldCommand(ctx)
 	case counterentry.FieldViewerID:
 		return m.OldViewerID(ctx)
+	case counterentry.FieldViewerLogin:
+		return m.OldViewerLogin(ctx)
+	case counterentry.FieldViewerName:
+		return m.OldViewerName(ctx)
 	case counterentry.FieldValue:
 		return m.OldValue(ctx)
 	case counterentry.FieldUpdatedAt:
@@ -2101,6 +2215,20 @@ func (m *CounterEntryMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetViewerID(v)
+		return nil
+	case counterentry.FieldViewerLogin:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetViewerLogin(v)
+		return nil
+	case counterentry.FieldViewerName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetViewerName(v)
 		return nil
 	case counterentry.FieldValue:
 		v, ok := value.(int64)
@@ -2184,7 +2312,14 @@ func (m *CounterEntryMutation) AddField(name string, value ent.Value) error {
 // ClearedFields returns all nullable fields that were cleared during this
 // mutation.
 func (m *CounterEntryMutation) ClearedFields() []string {
-	return nil
+	var fields []string
+	if m.FieldCleared(counterentry.FieldViewerLogin) {
+		fields = append(fields, counterentry.FieldViewerLogin)
+	}
+	if m.FieldCleared(counterentry.FieldViewerName) {
+		fields = append(fields, counterentry.FieldViewerName)
+	}
+	return fields
 }
 
 // FieldCleared returns a boolean indicating if a field with the given name was
@@ -2197,6 +2332,14 @@ func (m *CounterEntryMutation) FieldCleared(name string) bool {
 // ClearField clears the value of the field with the given name. It returns an
 // error if the field is not defined in the schema.
 func (m *CounterEntryMutation) ClearField(name string) error {
+	switch name {
+	case counterentry.FieldViewerLogin:
+		m.ClearViewerLogin()
+		return nil
+	case counterentry.FieldViewerName:
+		m.ClearViewerName()
+		return nil
+	}
 	return fmt.Errorf("unknown CounterEntry nullable field %s", name)
 }
 
@@ -2215,6 +2358,12 @@ func (m *CounterEntryMutation) ResetField(name string) error {
 		return nil
 	case counterentry.FieldViewerID:
 		m.ResetViewerID()
+		return nil
+	case counterentry.FieldViewerLogin:
+		m.ResetViewerLogin()
+		return nil
+	case counterentry.FieldViewerName:
+		m.ResetViewerName()
 		return nil
 	case counterentry.FieldValue:
 		m.ResetValue()

@@ -74,6 +74,16 @@ func ViewerID(v uint64) predicate.CounterEntry {
 	return predicate.CounterEntry(sql.FieldEQ(FieldViewerID, v))
 }
 
+// ViewerLogin applies equality check predicate on the "viewer_login" field. It's identical to ViewerLoginEQ.
+func ViewerLogin(v string) predicate.CounterEntry {
+	return predicate.CounterEntry(sql.FieldEQ(FieldViewerLogin, v))
+}
+
+// ViewerName applies equality check predicate on the "viewer_name" field. It's identical to ViewerNameEQ.
+func ViewerName(v string) predicate.CounterEntry {
+	return predicate.CounterEntry(sql.FieldEQ(FieldViewerName, v))
+}
+
 // Value applies equality check predicate on the "value" field. It's identical to ValueEQ.
 func Value(v int64) predicate.CounterEntry {
 	return predicate.CounterEntry(sql.FieldEQ(FieldValue, v))
@@ -292,6 +302,156 @@ func ViewerIDLT(v uint64) predicate.CounterEntry {
 // ViewerIDLTE applies the LTE predicate on the "viewer_id" field.
 func ViewerIDLTE(v uint64) predicate.CounterEntry {
 	return predicate.CounterEntry(sql.FieldLTE(FieldViewerID, v))
+}
+
+// ViewerLoginEQ applies the EQ predicate on the "viewer_login" field.
+func ViewerLoginEQ(v string) predicate.CounterEntry {
+	return predicate.CounterEntry(sql.FieldEQ(FieldViewerLogin, v))
+}
+
+// ViewerLoginNEQ applies the NEQ predicate on the "viewer_login" field.
+func ViewerLoginNEQ(v string) predicate.CounterEntry {
+	return predicate.CounterEntry(sql.FieldNEQ(FieldViewerLogin, v))
+}
+
+// ViewerLoginIn applies the In predicate on the "viewer_login" field.
+func ViewerLoginIn(vs ...string) predicate.CounterEntry {
+	return predicate.CounterEntry(sql.FieldIn(FieldViewerLogin, vs...))
+}
+
+// ViewerLoginNotIn applies the NotIn predicate on the "viewer_login" field.
+func ViewerLoginNotIn(vs ...string) predicate.CounterEntry {
+	return predicate.CounterEntry(sql.FieldNotIn(FieldViewerLogin, vs...))
+}
+
+// ViewerLoginGT applies the GT predicate on the "viewer_login" field.
+func ViewerLoginGT(v string) predicate.CounterEntry {
+	return predicate.CounterEntry(sql.FieldGT(FieldViewerLogin, v))
+}
+
+// ViewerLoginGTE applies the GTE predicate on the "viewer_login" field.
+func ViewerLoginGTE(v string) predicate.CounterEntry {
+	return predicate.CounterEntry(sql.FieldGTE(FieldViewerLogin, v))
+}
+
+// ViewerLoginLT applies the LT predicate on the "viewer_login" field.
+func ViewerLoginLT(v string) predicate.CounterEntry {
+	return predicate.CounterEntry(sql.FieldLT(FieldViewerLogin, v))
+}
+
+// ViewerLoginLTE applies the LTE predicate on the "viewer_login" field.
+func ViewerLoginLTE(v string) predicate.CounterEntry {
+	return predicate.CounterEntry(sql.FieldLTE(FieldViewerLogin, v))
+}
+
+// ViewerLoginContains applies the Contains predicate on the "viewer_login" field.
+func ViewerLoginContains(v string) predicate.CounterEntry {
+	return predicate.CounterEntry(sql.FieldContains(FieldViewerLogin, v))
+}
+
+// ViewerLoginHasPrefix applies the HasPrefix predicate on the "viewer_login" field.
+func ViewerLoginHasPrefix(v string) predicate.CounterEntry {
+	return predicate.CounterEntry(sql.FieldHasPrefix(FieldViewerLogin, v))
+}
+
+// ViewerLoginHasSuffix applies the HasSuffix predicate on the "viewer_login" field.
+func ViewerLoginHasSuffix(v string) predicate.CounterEntry {
+	return predicate.CounterEntry(sql.FieldHasSuffix(FieldViewerLogin, v))
+}
+
+// ViewerLoginIsNil applies the IsNil predicate on the "viewer_login" field.
+func ViewerLoginIsNil() predicate.CounterEntry {
+	return predicate.CounterEntry(sql.FieldIsNull(FieldViewerLogin))
+}
+
+// ViewerLoginNotNil applies the NotNil predicate on the "viewer_login" field.
+func ViewerLoginNotNil() predicate.CounterEntry {
+	return predicate.CounterEntry(sql.FieldNotNull(FieldViewerLogin))
+}
+
+// ViewerLoginEqualFold applies the EqualFold predicate on the "viewer_login" field.
+func ViewerLoginEqualFold(v string) predicate.CounterEntry {
+	return predicate.CounterEntry(sql.FieldEqualFold(FieldViewerLogin, v))
+}
+
+// ViewerLoginContainsFold applies the ContainsFold predicate on the "viewer_login" field.
+func ViewerLoginContainsFold(v string) predicate.CounterEntry {
+	return predicate.CounterEntry(sql.FieldContainsFold(FieldViewerLogin, v))
+}
+
+// ViewerNameEQ applies the EQ predicate on the "viewer_name" field.
+func ViewerNameEQ(v string) predicate.CounterEntry {
+	return predicate.CounterEntry(sql.FieldEQ(FieldViewerName, v))
+}
+
+// ViewerNameNEQ applies the NEQ predicate on the "viewer_name" field.
+func ViewerNameNEQ(v string) predicate.CounterEntry {
+	return predicate.CounterEntry(sql.FieldNEQ(FieldViewerName, v))
+}
+
+// ViewerNameIn applies the In predicate on the "viewer_name" field.
+func ViewerNameIn(vs ...string) predicate.CounterEntry {
+	return predicate.CounterEntry(sql.FieldIn(FieldViewerName, vs...))
+}
+
+// ViewerNameNotIn applies the NotIn predicate on the "viewer_name" field.
+func ViewerNameNotIn(vs ...string) predicate.CounterEntry {
+	return predicate.CounterEntry(sql.FieldNotIn(FieldViewerName, vs...))
+}
+
+// ViewerNameGT applies the GT predicate on the "viewer_name" field.
+func ViewerNameGT(v string) predicate.CounterEntry {
+	return predicate.CounterEntry(sql.FieldGT(FieldViewerName, v))
+}
+
+// ViewerNameGTE applies the GTE predicate on the "viewer_name" field.
+func ViewerNameGTE(v string) predicate.CounterEntry {
+	return predicate.CounterEntry(sql.FieldGTE(FieldViewerName, v))
+}
+
+// ViewerNameLT applies the LT predicate on the "viewer_name" field.
+func ViewerNameLT(v string) predicate.CounterEntry {
+	return predicate.CounterEntry(sql.FieldLT(FieldViewerName, v))
+}
+
+// ViewerNameLTE applies the LTE predicate on the "viewer_name" field.
+func ViewerNameLTE(v string) predicate.CounterEntry {
+	return predicate.CounterEntry(sql.FieldLTE(FieldViewerName, v))
+}
+
+// ViewerNameContains applies the Contains predicate on the "viewer_name" field.
+func ViewerNameContains(v string) predicate.CounterEntry {
+	return predicate.CounterEntry(sql.FieldContains(FieldViewerName, v))
+}
+
+// ViewerNameHasPrefix applies the HasPrefix predicate on the "viewer_name" field.
+func ViewerNameHasPrefix(v string) predicate.CounterEntry {
+	return predicate.CounterEntry(sql.FieldHasPrefix(FieldViewerName, v))
+}
+
+// ViewerNameHasSuffix applies the HasSuffix predicate on the "viewer_name" field.
+func ViewerNameHasSuffix(v string) predicate.CounterEntry {
+	return predicate.CounterEntry(sql.FieldHasSuffix(FieldViewerName, v))
+}
+
+// ViewerNameIsNil applies the IsNil predicate on the "viewer_name" field.
+func ViewerNameIsNil() predicate.CounterEntry {
+	return predicate.CounterEntry(sql.FieldIsNull(FieldViewerName))
+}
+
+// ViewerNameNotNil applies the NotNil predicate on the "viewer_name" field.
+func ViewerNameNotNil() predicate.CounterEntry {
+	return predicate.CounterEntry(sql.FieldNotNull(FieldViewerName))
+}
+
+// ViewerNameEqualFold applies the EqualFold predicate on the "viewer_name" field.
+func ViewerNameEqualFold(v string) predicate.CounterEntry {
+	return predicate.CounterEntry(sql.FieldEqualFold(FieldViewerName, v))
+}
+
+// ViewerNameContainsFold applies the ContainsFold predicate on the "viewer_name" field.
+func ViewerNameContainsFold(v string) predicate.CounterEntry {
+	return predicate.CounterEntry(sql.FieldContainsFold(FieldViewerName, v))
 }
 
 // ValueEQ applies the EQ predicate on the "value" field.
