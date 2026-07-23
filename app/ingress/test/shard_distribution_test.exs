@@ -63,4 +63,36 @@ defmodule Ingress.ShardDistributionTest do
     assert {:ok, %{name: {_sup, node}}} = ShardDistribution.choose_node(spec, members)
     assert node in [:ingress@node1, :ingress@node2]
   end
+
+  test "selects a shard that moves from an overloaded node to an empty node" do
+    placements = [{0, :node1}, {1, :node1}, {2, :node2}]
+    owner_node = & &1
+
+    assert {2, :node2, :node3} =
+             ShardDistribution.rebalance_candidate(
+               placements,
+               [:node1, :node2, :node3],
+               owner_node
+             )
+  end
+
+  test "does not move shards when node counts are already balanced" do
+    placements = [{0, :node2}, {1, :node1}, {2, :node3}]
+
+    assert ShardDistribution.rebalance_candidate(
+             placements,
+             [:node1, :node2, :node3],
+             & &1
+           ) == nil
+  end
+
+  test "four shards across three nodes accepts the unavoidable 2/1/1 shape" do
+    placements = [{0, :node1}, {1, :node1}, {2, :node2}, {3, :node3}]
+
+    assert ShardDistribution.rebalance_candidate(
+             placements,
+             [:node1, :node2, :node3],
+             & &1
+           ) == nil
+  end
 end

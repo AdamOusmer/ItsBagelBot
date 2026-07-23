@@ -22,6 +22,7 @@ defmodule Ingress.ConduitManager do
   require Logger
 
   alias Ingress.Metrics
+  alias Ingress.ShardDistribution
   alias Ingress.ShardHealth
   alias Ingress.ShardScaler
   alias Ingress.ShardSession
@@ -33,6 +34,12 @@ defmodule Ingress.ConduitManager do
   @retry_interval_ms 5_000
   # How long a direct stop of an unsupervised (orphan) shard may take.
   @orphan_stop_timeout_ms 5_000
+  # Passive Horde redistribution avoids stop-before-start gaps during a roll.
+  # Once the same membership has survived this many reconcile ticks (~2 min),
+  # move at most one shard per tick with an explicit make-before-break handoff.
+  @rebalance_stable_ticks 9
+  @rebalance_handoff_timeout_ms 20_000
+  @rebalance_poll_interval_ms 300
 
   def start_link(_opts) do
     GenServer.start_link(__MODULE__, [], name: via())
@@ -50,7 +57,9 @@ defmodule Ingress.ConduitManager do
        # shard_id => consecutive reconcile ticks observed unhealthy on Twitch
        unhealthy_counts: %{},
        # shard_id => {rescue pid, seen count when the rescue was spawned}
-       rescues: %{}
+       rescues: %{},
+       placement_nodes: [],
+       placement_stable_ticks: 0
      }, {:continue, :reconcile}}
   end
 
@@ -99,6 +108,7 @@ defmodule Ingress.ConduitManager do
         snapshot = shard_snapshot(state.conduit_id)
         applied = converge_shards(state.conduit_id, desired, state.applied_shard_count, snapshot)
         state = run_health_pass(%{state | applied_shard_count: applied}, desired, snapshot)
+        state = rebalance_shards(state, desired, snapshot)
         Process.send_after(self(), :reconcile, @reconcile_interval_ms)
         state
 
@@ -258,9 +268,9 @@ defmodule Ingress.ConduitManager do
     spec = {Ingress.ShardSession, shard_id: shard_id, conduit_id: conduit_id}
 
     case Horde.DynamicSupervisor.start_child(Ingress.ShardSupervisor, spec) do
-      {:ok, _pid} ->
+      {:ok, pid} ->
         Logger.info("started shard #{shard_id}")
-        :started
+        {:started, pid}
 
       {:error, {:already_started, _pid}} ->
         :blocked
@@ -272,6 +282,159 @@ defmodule Ingress.ConduitManager do
         Logger.warning("shard #{shard_id} start failed: #{inspect(reason)}")
         :blocked
     end
+  end
+
+  # Horde stays in passive redistribution mode because its active mode moves a
+  # shard stop-before-start on every membership change. A rolling deployment
+  # therefore finishes safely but can leave the final pod to join with no
+  # shards. After membership has remained unchanged for roughly two minutes,
+  # repair only a real count imbalance, one shard per reconcile tick.
+  defp rebalance_shards(state, desired, snapshot) do
+    nodes = placement_nodes()
+    state = track_placement_membership(state, nodes)
+
+    if rebalance_ready?(state, desired, snapshot, nodes) do
+      case rebalance_candidate(desired, nodes) do
+        nil ->
+          state
+
+        {shard_id, pid, target} ->
+          rebalance_shard(state.conduit_id, shard_id, pid, target)
+          state
+      end
+    else
+      state
+    end
+  end
+
+  defp placement_nodes do
+    visible = MapSet.new([node() | Node.list()])
+
+    Horde.Cluster.members(Ingress.ShardSupervisor)
+    |> Enum.map(fn
+      {_supervisor, member_node} -> member_node
+      member_node when is_atom(member_node) -> member_node
+    end)
+    |> Enum.filter(&MapSet.member?(visible, &1))
+    |> Enum.reject(&ShardDistribution.draining_node?/1)
+    |> Enum.uniq()
+    |> Enum.sort()
+  catch
+    :exit, _ -> []
+  end
+
+  defp track_placement_membership(%{placement_nodes: nodes} = state, nodes) do
+    %{state | placement_stable_ticks: state.placement_stable_ticks + 1}
+  end
+
+  defp track_placement_membership(state, nodes) do
+    %{state | placement_nodes: nodes, placement_stable_ticks: 1}
+  end
+
+  defp rebalance_ready?(state, desired, {:ok, shards}, nodes) do
+    state.placement_stable_ticks >= @rebalance_stable_ticks and
+      length(nodes) > 1 and
+      desired >= length(nodes) and
+      state.rescues == %{} and
+      ShardHealth.unhealthy_ids(shards, desired) == []
+  end
+
+  defp rebalance_ready?(_state, _desired, _snapshot, _nodes), do: false
+
+  defp rebalance_candidate(desired, nodes) do
+    placements =
+      0..(desired - 1)
+      |> Enum.reduce_while([], fn shard_id, acc ->
+        case Horde.Registry.lookup(Ingress.Registry, {:shard, shard_id}) do
+          [{pid, _}] -> {:cont, [{shard_id, pid} | acc]}
+          [] -> {:halt, :incomplete}
+        end
+      end)
+
+    case placements do
+      :incomplete -> nil
+      complete -> ShardDistribution.rebalance_candidate(complete, nodes)
+    end
+  end
+
+  defp rebalance_shard(conduit_id, shard_id, pid, target) do
+    Logger.info("rebalancing shard #{shard_id} #{node(pid)} → #{target} after stable membership")
+
+    with :ok <- release_shard_name(pid),
+         {:started, successor} <- start_shard(conduit_id, shard_id),
+         :ok <- await_bound(successor, rebalance_deadline()) do
+      GenServer.stop(pid, :normal, @orphan_stop_timeout_ms)
+      Metrics.count("Conduit/ShardRebalances")
+      :ok
+    else
+      failure ->
+        Logger.warning("shard #{shard_id} rebalance failed: #{inspect(failure)}; rolling back")
+        rollback_rebalance(shard_id, pid)
+    end
+  catch
+    :exit, reason ->
+      Logger.warning("shard #{shard_id} rebalance exited: #{inspect(reason)}; rolling back")
+      rollback_rebalance(shard_id, pid)
+  end
+
+  defp release_shard_name(pid) do
+    GenServer.call(pid, :release_name, @orphan_stop_timeout_ms)
+  catch
+    :exit, reason -> {:error, {:release_failed, reason}}
+  end
+
+  defp rebalance_deadline,
+    do: System.monotonic_time(:millisecond) + @rebalance_handoff_timeout_ms
+
+  defp await_bound(pid, deadline) do
+    cond do
+      match?(%{bound: true}, probe_shard(pid)) ->
+        :ok
+
+      System.monotonic_time(:millisecond) >= deadline ->
+        {:error, :bind_timeout}
+
+      true ->
+        Process.sleep(@rebalance_poll_interval_ms)
+        await_bound(pid, deadline)
+    end
+  end
+
+  defp rollback_rebalance(shard_id, old_pid) do
+    case Horde.Registry.lookup(Ingress.Registry, {:shard, shard_id}) do
+      [{successor, _}] when successor != old_pid ->
+        case Horde.DynamicSupervisor.terminate_child(Ingress.ShardSupervisor, successor) do
+          :ok -> :ok
+          {:error, :not_found} -> GenServer.stop(successor, :normal, @orphan_stop_timeout_ms)
+          {:error, _reason} -> :ok
+        end
+
+      _ ->
+        :ok
+    end
+
+    reclaim_old_shard(old_pid, 5)
+    GenServer.cast(old_pid, :reassert_binding)
+  catch
+    :exit, _ -> :ok
+  end
+
+  defp reclaim_old_shard(_pid, 0), do: :error
+
+  defp reclaim_old_shard(pid, attempts) do
+    case GenServer.call(pid, :reclaim_name, @orphan_stop_timeout_ms) do
+      {:ok, _owner} ->
+        :ok
+
+      {:error, {:already_registered, ^pid}} ->
+        :ok
+
+      {:error, {:already_registered, _other}} ->
+        Process.sleep(@rebalance_poll_interval_ms)
+        reclaim_old_shard(pid, attempts - 1)
+    end
+  catch
+    :exit, _ -> :error
   end
 
   # Twitch silently drops events routed to a shard slot whose transport is not
@@ -346,7 +509,7 @@ defmodule Ingress.ConduitManager do
     Metrics.count("Conduit/ShardRestarts")
 
     case restart_shard(slot, pid) do
-      :started -> {0, rescues}
+      {:started, _pid} -> {0, rescues}
       :blocked -> ensure_rescue(slot, seen, rescues)
     end
   end
