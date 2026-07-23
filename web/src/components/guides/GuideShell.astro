@@ -1,7 +1,7 @@
 ---
 /**
  * GuideShell — long-form visual guides that respect the reader. Same reading
- * contract as LegalShell (thin progress bar, sticky scrollspy TOC) with a
+ * contract as LegalShell (sticky scrollspy TOC) with a
  * guide-specific vocabulary: numbered sections, an optional "at a glance"
  * note per section, a breadcrumb back to the hub, and a prev/next pager so a
  * reader can walk the whole handbook without returning to the hub.
@@ -45,10 +45,6 @@ const hubHref = localizePath('/guides', lang);
 ---
 
 <div class="gshell" data-guide>
-    <div class="gshell__progress" aria-hidden="true">
-        <span class="gshell__progress-fill" data-guide-progress></span>
-    </div>
-
     <div class="gshell__grid">
         <nav class="gshell__toc" aria-label={labels.toc}>
             <TextLink class="gshell__hub" href={hubHref} label={`← ${labels.hub}`} size="0.7rem" />
@@ -109,28 +105,6 @@ const hubHref = localizePath('/guides', lang);
         max-width: var(--content-max, 1200px);
         margin: 0 auto;
         padding: 0 24px 96px;
-    }
-
-    /* ── Reading progress ── */
-
-    .gshell__progress {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 2px;
-        z-index: 90;
-        pointer-events: none;
-    }
-
-    .gshell__progress-fill {
-        display: block;
-        height: 100%;
-        width: 100%;
-        background: linear-gradient(90deg, var(--green-glow, #52b788), var(--tan, #c9a87c));
-        transform: scaleX(var(--read, 0));
-        transform-origin: left;
-        box-shadow: 0 0 12px rgba(201, 168, 124, 0.5);
     }
 
     /* ── Layout ── */
@@ -493,13 +467,11 @@ const hubHref = localizePath('/guides', lang);
 </style>
 
 <script>
-    /* Reading progress + TOC scrollspy — same contract as LegalShell. */
+    /* TOC scrollspy — same contract as LegalShell. */
     function setupGuide(root: HTMLElement) {
         if (root.dataset.guideReady === 'true') return;
         root.dataset.guideReady = 'true';
 
-        const fill = root.querySelector<HTMLElement>('[data-guide-progress]');
-        const article = root.querySelector<HTMLElement>('.gshell__content');
         const sections = Array.from(root.querySelectorAll<HTMLElement>('[data-guide-section]'));
         const links = new Map(
             Array.from(root.querySelectorAll<HTMLAnchorElement>('[data-guide-link]'))
@@ -510,12 +482,6 @@ const hubHref = localizePath('/guides', lang);
 
         function update() {
             ticking = false;
-            if (article && fill) {
-                const rect = article.getBoundingClientRect();
-                const total = rect.height - window.innerHeight;
-                const read = total > 0 ? Math.min(1, Math.max(0, -rect.top / total)) : 1;
-                fill.style.setProperty('--read', read.toFixed(4));
-            }
 
             let currentId = sections[0]?.id;
             for (const section of sections) {
