@@ -50,13 +50,15 @@
     { token: '{points}', label: t('channelpoints.tokPoints') }
   ];
 
-  // Rehearsal samples: substitute ONLY the reward tokens (samplesOnly) with the
-  // draft's own values so the preview shows the real reply, not placeholders.
+  // Rehearsal samples: the reward tokens expandReward resolves (see
+  // app/sesame/modules/channelpoints.go), with the draft's own values so the
+  // preview shows the real reply, not placeholders.
   const samples = $derived<Record<string, string>>({
     user: 'sesame_sam',
     input: draft.isUserInputRequired ? 'good luck!' : '',
     reward: draft.title || t('channelpoints.fieldTitle'),
     cost: String(draft.cost || 0),
+    channel: 'bagel_bakery',
     counter: '42',
     points: String(draft.points || 0)
   });
@@ -121,11 +123,13 @@
       <span>{t('channelpoints.fieldMessage')}</span>
       <ResponseEditor bind:value={draft.message} tokens={TOKENS} placeholder={DEFAULT_MESSAGE} />
     </label>
+    <!-- kind="reply": expandReward substitutes the reward tokens plus the
+         dynamic set ({random}/{choice:…}); nothing else. -->
     <ChatPreview
+      kind="reply"
       response={draft.message || DEFAULT_MESSAGE}
       showViewer={false}
       tag={t('channelpoints.previewTag')}
-      samplesOnly
       {samples}
     />
   {/if}

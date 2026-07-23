@@ -5,12 +5,12 @@
   //
   // Two reply shapes:
   //  - event replies (shoutout, alerts): framed by the firing event (`tag`),
-  //    bot line only, default samples.
-  //  - command replies (gateway modules: reply.command set): rehearsed exactly
-  //    like a custom command — "Chat rehearsal" border, a sample viewer typing
-  //    the trigger, the bot answering with THIS reply's own sample values
-  //    substituted (samplesOnly, so foreign tokens stay marked as unknown) —
-  //    and the token palette swaps to the reply's supported variables.
+  //    bot line only.
+  //  - command replies (gateway modules: reply.command set): same surface as a
+  //    custom command — "Chat rehearsal" border, a sample viewer typing the
+  //    trigger — and the token palette swaps to the reply's supported variables.
+  // Both rehearse with kind="reply": ONLY this reply's previewSamples (plus the
+  //    dynamic tokens) substitute, so foreign tokens stay marked as unknown.
   //
   // Save/Cancel are handled by the page so the whole-module config persists in
   // one place.
@@ -59,17 +59,25 @@
   </label>
 
   {#if isCommand}
-    <!-- Same rehearsal as the commands page: viewer types the trigger, the bot
-         answers with the reply's sample values substituted. -->
+    <!-- Same surface as the commands page: viewer types the trigger, the bot
+         answers. kind="reply" because sesame expands only this reply's own
+         tokens (plus {random}/{choice:…}) — never the command set. -->
     <ChatPreview
+      kind="reply"
       name={reply.command}
       args={reply.previewArgs ?? ''}
       samples={reply.previewSamples}
-      samplesOnly
       response={effectiveMessage}
     />
   {:else}
-    <ChatPreview name="" showViewer={false} tag={reply.event} response={effectiveMessage} />
+    <ChatPreview
+      kind="reply"
+      name=""
+      showViewer={false}
+      tag={reply.event}
+      samples={reply.previewSamples}
+      response={effectiveMessage}
+    />
   {/if}
 
   <div class="actions">

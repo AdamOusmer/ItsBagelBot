@@ -131,7 +131,9 @@
   <Field label={t('govee.fieldReply')} tag={t('common.optional')}>
     <ResponseEditor bind:value={replyMessage} name="replyMessage" tokens={REPLY_TOKENS} placeholder={DEFAULT_REPLY} />
   </Field>
-  <ChatPreview response={replyMessage || DEFAULT_REPLY} showViewer={false} tag={t('govee.previewTag')} samplesOnly samples={replySamples} />
+  <!-- kind="reply" + dynamic={false}: the govee reply is a bare {user}/{color}
+       string replacer (renderGoveeReply) — nothing else ever expands. -->
+  <ChatPreview kind="reply" dynamic={false} response={replyMessage || DEFAULT_REPLY} showViewer={false} tag={t('govee.previewTag')} samples={replySamples} />
 
   <Field label={t('govee.afterTitle')}>
     <select class="input" name="onRedeem" bind:value={onRedeem}>

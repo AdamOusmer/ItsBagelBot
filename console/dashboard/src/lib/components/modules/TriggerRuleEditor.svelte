@@ -91,11 +91,14 @@
     <ResponseEditor bind:value={message} placeholder={DEFAULT_RESPONSE} tokens={TOKENS} />
   </div>
 
+  <!-- kind="reply": trigger replies expand only {user} plus the dynamic
+       tokens (see app/sesame/modules/triggers.go firstReply). -->
   <ChatPreview
+    kind="reply"
     name=""
     viewerText={sampleMessage}
     tag={`on "${phrase.trim() || 'hello'}"`}
-    samples={{ user: 'sesame_sam', random: '42' }}
+    samples={{ user: 'sesame_sam' }}
     response={effectiveMessage}
   />
 

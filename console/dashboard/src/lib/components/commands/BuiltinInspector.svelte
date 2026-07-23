@@ -105,7 +105,12 @@
         <ResponseEditor name="reply" bind:value={message} tokens={palette} placeholder={def.preview} />
         <small class="hint">{t('builtinInspector.replyHint')}</small>
       </div>
+      <!-- kind="reply": built-in replies are expanded by a bare token replacer
+           (e.g. clipExpand) — only def.previewSamples substitute, no dynamic
+           tokens, no slash-verb routing. -->
       <ChatPreview
+        kind="reply"
+        dynamic={false}
         name={def.id}
         args={def.previewArgs ?? ''}
         response={effectiveMessage}
@@ -121,7 +126,7 @@
   {:else}
     <div class="field">
       <span>{t('builtinInspector.preview')}</span>
-      <ChatPreview name={def.id} args={def.previewArgs ?? ''} response={def.preview} samples={def.previewSamples} />
+      <ChatPreview kind="reply" dynamic={false} name={def.id} args={def.previewArgs ?? ''} response={def.preview} samples={def.previewSamples} />
     </div>
   {/if}
 
