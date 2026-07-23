@@ -9,10 +9,16 @@ import {
   deleteCounter,
   deleteCounterEntry,
   counterEntries,
-  getCounter,
-  resolveViewerId,
-  type CounterTarget
+  getCounter
 } from '$lib/server/loyalty-store';
+import {
+  UserError,
+  normalizeName,
+  namedValue,
+  bucketTarget,
+  bucketLabel,
+  resolveAddTarget
+} from '$lib/server/counter-form';
 import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
 import { gateModulePage } from '$lib/server/module-gate';
@@ -54,15 +60,6 @@ function demoEntries(name: string): CounterEntryView[] {
   ];
 }
 
-// normalizeName mirrors the loyalty service: bare key, lower-cased, no "!".
-function normalizeName(raw: unknown): string {
-  return String(raw ?? '')
-    .trim()
-    .replace(/^!/, '')
-    .toLowerCase()
-    .slice(0, 64);
-}
-
 // The optional ?c=<name> selects one entry-scoped counter whose stored values
 // (the per-viewer buckets) are loaded alongside the list.
 export const load: PageServerLoad = async ({ locals, url }) => {
@@ -91,11 +88,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   }
 };
 
-// UserError carries a safe, machine-readable failure code through mutate's
-// catch (anything unexpected stays masked); the client maps it to localized
-// copy.
-class UserError extends Error {}
-
 // mutate wraps one POST action with the shared boilerplate: gate, session,
 // demo short-circuit, error mapping and the impersonation audit line. run
 // returns the audit detail, or null for a validation failure.
@@ -121,50 +113,6 @@ function mutate(op: string, run: Mutation) {
     auditDashboardImpersonation(locals.session, `counters:${op}`, detail);
     return { ok: true };
   };
-}
-
-// namedValue reads the (name, integer value) pair the value-writing actions
-// share; null when either is missing or non-numeric.
-function namedValue(f: FormData): { name: string; value: number } | null {
-  const name = normalizeName(f.get('name'));
-  const value = Math.trunc(Number(f.get('value')));
-  if (!name || !Number.isFinite(value)) return null;
-  return { name, value };
-}
-
-// bucketTarget reads the optional (viewer_id, command) that address one stored
-// bucket. Returns null only when viewer_id is present but malformed; an empty
-// target is valid (an untargeted channel set / reset).
-function bucketTarget(f: FormData): CounterTarget | null {
-  const viewerId = String(f.get('viewer_id') ?? '').trim();
-  if (viewerId && !/^\d+$/.test(viewerId)) return null;
-  return { viewerId, command: normalizeName(f.get('command')) };
-}
-
-// bucketLabel renders the audit-line suffix for a targeted write; '' when the
-// write is untargeted (the whole counter).
-function bucketLabel(t: CounterTarget): string {
-  if (!t.viewerId && !t.command) return '';
-  return `[${t.viewerId}${t.command ? ':' + t.command : ''}]`;
-}
-
-// resolveAddTarget turns the manual-add form into a bucket target for one
-// entry-scoped counter. Command scope keys on the command alone; the viewer
-// scopes resolve the typed username to its Twitch id (throwing when no such
-// account) and stamp the login. Returns null when the form lacks the key part
-// the scope needs — the caller maps that to a validation failure.
-async function resolveAddTarget(
-  scope: CounterScope,
-  login: string,
-  command: string
-): Promise<CounterTarget | null> {
-  if (scope === 'command') {
-    return command ? { viewerId: '', command, viewerLogin: '' } : null;
-  }
-  if (!login) return null;
-  const viewerId = await resolveViewerId(login);
-  if (!viewerId) throw new UserError('unknown_user');
-  return { viewerId, command, viewerLogin: login };
 }
 
 export const actions: Actions = {
